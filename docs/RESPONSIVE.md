@@ -172,7 +172,9 @@ Substitute side of the Team cards).
   - phones: a bottom tab bar with Team, Players, Leaderboards, Matches and Profile (`PHONE_TABS`,
     at most five, those the account may open). A teammate's profile is under Players. The current
     tab's icon sits in an accent pill and its label is bright, so it does not rely on colour alone;
-  - tablets: the top bar with the menu at its left end, the drawer from the left (the sidebar's
+  - tablets: the top bar with the menu at its left end (in a window 480px tall or less, where the
+    section tabs do not pin, it carries the page's title once the heading has scrolled up, a tap on
+    it going back to the top, as on a phone), the drawer from the left (the sidebar's
     side) with all links, status rows and sign-out, and the account menu behind the avatar. The
     drawer is a native `<dialog>`, like every sheet and window: focus stays inside, the page behind
     is inert and locked as behind a window (`lockPage`: no scrolling, no rubber band, no shift as the

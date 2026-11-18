@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { scrollToTop, stayOnCurrentPage } from "@/lib/back-to-top";
 import { usePathname, useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight, LogOut, Menu, X } from "lucide-react";
 import { BrandMark } from "./brand-mark";
@@ -169,17 +170,18 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
           ) : null}
           {/* It gives way (its name truncates) only when a larger text size leaves the bar no room, so
               the bar never makes the page wider than the phone. */}
-          <Link href={home} className={cn("flex min-h-11 min-w-0 items-center gap-2.5 rounded-md", back ? "max-md:hidden" : "max-md:pl-1.5", "md:min-h-14 md:flex-1")} title={shortName} data-testid="mobile-brand">
+          <Link href={home} className={cn("flex min-h-11 min-w-0 items-center gap-2.5 rounded-md", back ? "max-md:hidden" : "max-md:pl-1.5", "md:min-h-14", titleShown ? "md:not-short:flex-1" : "md:flex-1")} title={shortName} data-testid="mobile-brand">
             <BrandMark src={logoSrc} still={logoStill} name={shortName} className="h-8 w-8 rounded-md text-base" />
-            <span className={cn("min-w-0 transition-opacity duration-150", titleShown && "max-md:hidden")}>
+            <span className={cn("min-w-0 transition-opacity duration-150", titleShown && "max-md:hidden short:hidden")}>
               <span className="block truncate text-sm font-bold tracking-label text-fg">{shortName}</span>
               {adminMode ? <span className="block truncate text-xs font-semibold uppercase tracking-label text-accent">Admin mode</span> : tagline ? <span className="block truncate text-xs text-fg-subtle max-md:hidden">{tagline}</span> : null}
             </span>
           </Link>
-          {/* Phones: the page's own title, once its heading has gone up under the bar; a tap on it goes
-              back to the top, as iOS's status bar does. */}
+          {/* Phones, and tablet widths (md to lg) in a window 480px tall or less, where the section
+              tabs do not pin: the page's own title, once its heading has gone up under the bar; a tap
+              on it goes back to the top, as iOS's status bar does. */}
           {titleShown ? (
-            <button type="button" onClick={toTop} className="min-h-11 min-w-0 flex-1 truncate rounded-md px-1 text-left text-base font-semibold text-fg transition-opacity duration-150 md:hidden" aria-label={`${heading.text}: back to top`} data-testid="mobile-title">
+            <button type="button" onClick={scrollToTop} className="min-h-11 min-w-0 flex-1 truncate rounded-md px-1 text-left text-base font-semibold text-fg transition-opacity duration-150 md:not-short:hidden" aria-label={`${heading.text}: back to top`} data-testid="mobile-title">
               {heading.text}
             </button>
           ) : (
@@ -347,12 +349,7 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
                     aria-current={active ? "page" : undefined}
                     // The current tab on its own page: back to the top, as a phone's tab bar does (a page
                     // under the tab, such as a teammate's profile under Players, still goes to the tab's page).
-                    onClick={(e) => {
-                      if (active && pathname === href) {
-                        e.preventDefault();
-                        toTop();
-                      }
-                    }}
+                    onClick={(e) => stayOnCurrentPage(e, active && pathname === href)}
                     className={cn("group flex min-h-14 flex-col items-center justify-center gap-1 px-1 pb-1 pt-1.5 text-2xs font-medium transition-colors duration-150 short:min-h-11 short:flex-row short:gap-1.5 short:py-1", fit.link, active ? "font-semibold text-fg" : "text-fg-muted hover:text-fg")} data-testid={`tab-${href.slice(1)}`}>
                     <span className={cn("grid h-7 w-12 place-items-center rounded-full transition-colors duration-150", fit.pill, active ? "bg-accent/15 text-accent" : "group-hover:bg-surface-2")} aria-hidden>
                       {own ? <Avatar name={user!.name} src={user!.avatarUrl} size="xs" className={cn(active && "ring-2 ring-accent")} /> : <Icon className="h-5 w-5" />}
@@ -376,12 +373,6 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
 function onSignOut() {
   markAccountChange(true);
   announceAccountChange();
-}
-
-/** Back to the top of the page: smooth, or at once with reduced motion. */
-function toTop() {
-  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  window.scrollTo({ top: 0, behavior: reduce ? "instant" : "smooth" });
 }
 
 /**

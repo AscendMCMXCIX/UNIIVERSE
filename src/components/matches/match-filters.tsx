@@ -22,11 +22,15 @@ export interface LinkOption {
   href: string;
 }
 
-/** Follows a prepared link without moving the page; shows the choice at once. */
+/**
+ * Follows a prepared link without moving the page; shows the choice at once. A filter replaces the
+ * history entry (docs/DESIGN_SYSTEM.md, "Back"): Back leaves the page, rather than stepping back
+ * through each choice.
+ */
 function useGo() {
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
-  const go = React.useCallback((href: string) => startTransition(() => router.push(href, { scroll: false })), [router]);
+  const go = React.useCallback((href: string) => startTransition(() => router.replace(href, { scroll: false })), [router]);
   return { go, pending };
 }
 

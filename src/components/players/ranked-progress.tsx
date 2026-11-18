@@ -70,7 +70,7 @@ export function RankedProgress({ accounts, queue, accountId, href, now }: { acco
         <div className="ml-auto flex flex-wrap items-center justify-end gap-2 @min-[32rem]/rank:col-start-2 @min-[32rem]/rank:row-span-2 @min-[32rem]/rank:row-start-1">
           <nav aria-label="Queue" className={segmentedGroupClass()}>
             {(["solo", "flex"] as const).map((q) => (
-              <Link key={q} href={href({ rq: q })} scroll={false} aria-current={q === queue ? "page" : undefined} className={segmentClass(q === queue)} data-testid={`ranked-queue-${q}`}>
+              <Link key={q} href={href({ rq: q })} replace scroll={false} aria-current={q === queue ? "page" : undefined} className={segmentClass(q === queue)} data-testid={`ranked-queue-${q}`}>
                 {QUEUE_SHORT[q]}
               </Link>
             ))}
@@ -80,7 +80,7 @@ export function RankedProgress({ accounts, queue, accountId, href, now }: { acco
             // name), the full Riot ID on hover, in the player's own order (the Main account first).
             <nav aria-label="Account" className={segmentedGroupClass()}>
               {accounts.map((a) => (
-                <Link key={a.id} href={href({ ra: a.id })} scroll={false} aria-current={a.id === account.id ? "page" : undefined} title={a.riotId} className={segmentClass(a.id === account.id, { className: "max-w-[10rem]" })} data-testid="ranked-account">
+                <Link key={a.id} href={href({ ra: a.id })} replace scroll={false} aria-current={a.id === account.id ? "page" : undefined} title={a.riotId} className={segmentClass(a.id === account.id, { className: "max-w-[10rem]" })} data-testid="ranked-account">
                   <span className="min-w-0 truncate">{names.get(a.id)}</span>
                 </Link>
               ))}

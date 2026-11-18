@@ -26,7 +26,8 @@ export function SeasonChoice({ seasons, current }: { seasons: ReadonlyArray<{ va
           if (!next) return;
           start(() => {
             show(next.value);
-            router.push(next.href, { scroll: false });
+            // Replaces the history entry, as a filter does: Back leaves the page.
+            router.replace(next.href, { scroll: false });
           });
         }}
         data-testid="records-season-select"

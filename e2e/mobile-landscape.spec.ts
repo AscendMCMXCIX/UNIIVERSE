@@ -223,6 +223,36 @@ test("tab rows too wide for the screen fade only where more is hidden, and keep 
   await done(page);
 });
 
+test("held sideways at a tablet's width, a long page still goes back to the top from its title in the top bar", async ({ browser, baseURL }) => {
+  // From md the frame is the tablet's (the menu button, no tab bar), and in a window this short the
+  // section tabs do not pin, so nothing else leads back up a long page (a Pixel 7 held sideways is
+  // 863 × 360; Records needs about six screens to reach its controls).
+  for (const viewport of [{ width: 863, height: 360 }, { width: 852, height: 393 }]) {
+    const page = await phone(browser, baseURL!, { ...IPHONE_LANDSCAPE, viewport });
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.goto("/leaderboards?view=records");
+    await expect(page.getByTestId("records")).toBeVisible();
+    // The page's title in the top bar, a button named after the heading, "…: back to top".
+    const title = page.getByTestId("mobile-topbar").getByRole("button", { name: /: back to top$/ });
+    await expect(title).toHaveCount(0);
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    await expect.poll(() => page.evaluate(() => window.scrollY), { message: `${viewport.width} × ${viewport.height}: scrolled down` }).toBeGreaterThan(600);
+    // The bar may hide while scrolling down; scrolling up a little brings it back with the title.
+    await page.mouse.wheel(0, -80);
+    await expect(title, `${viewport.width} × ${viewport.height}: the page's title in the bar`).toBeVisible();
+    // The brand gives the title its room: beside the title only its mark shows, and it takes no
+    // share of the bar's free space (flex-1), so the title starts just after the mark. With a share,
+    // the title would start half way along the bar, the bar's left half an empty link home.
+    const brand = page.getByTestId("mobile-brand");
+    const [brandBox, markBox, titleBox] = await Promise.all([brand.boundingBox(), brand.locator(":scope > *").first().boundingBox(), title.boundingBox()]);
+    expect(brandBox!.width, `${viewport.width} × ${viewport.height}: the brand is as wide as its mark`).toBeLessThanOrEqual(markBox!.width + 1);
+    expect(titleBox!.x - (brandBox!.x + brandBox!.width), `${viewport.width} × ${viewport.height}: the title starts beside the mark`).toBeLessThanOrEqual(16);
+    await title.click();
+    await expect.poll(() => page.evaluate(() => window.scrollY), { message: `${viewport.width} × ${viewport.height}: back at the top` }).toBe(0);
+    await done(page);
+  }
+});
+
 test("the tab bar's five destinations fit side by side on the narrowest phones, each label whole", async ({ browser, baseURL }) => {
   for (const device of [devices["iPhone SE"], IPHONE]) {
     const page = await phone(browser, baseURL!, device);

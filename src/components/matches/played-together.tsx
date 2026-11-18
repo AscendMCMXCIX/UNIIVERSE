@@ -81,7 +81,7 @@ export function PlayedTogetherView({ data, seasons, currentSeason, shown, teams 
         resetHref={href({ season: currentSeason, queue: "all", min: 2, with: [], limit: 20 })}
         resetLabel="Clear filters"
         end={
-          <Link href={href({ saved: !filters.saved, limit: 20 })} aria-current={filters.saved ? "page" : undefined} className={chipClass(filters.saved, "shrink-0")} data-testid="together-saved-phone">
+          <Link href={href({ saved: !filters.saved, limit: 20 })} replace aria-current={filters.saved ? "page" : undefined} className={chipClass(filters.saved, "shrink-0")} data-testid="together-saved-phone">
             <Bookmark className="h-3.5 w-3.5" aria-hidden /> Bookmarked{savedCount ? ` · ${savedCount}` : ""}
           </Link>
         }
@@ -129,7 +129,7 @@ export function PlayedTogetherView({ data, seasons, currentSeason, shown, teams 
           {data.unknownSide ? <InfoTip text="Some games with two or more members could not be checked yet: their match details are not stored, so which side each member was on is unknown. They appear once the details are synced." label="Games not checked yet" /> : null}
           {data.unavailableSide ? <InfoTip text={`${data.unavailableSide} game${data.unavailableSide === 1 ? "" : "s"} with two or more members ${data.unavailableSide === 1 ? "is" : "are"} left out: Riot no longer provides the record, so which side each member was on cannot be known. The results still count on the members' profiles.`} label="Games Riot no longer serves" /> : null}
         </p>
-        <Link href={href({ saved: !filters.saved, limit: 20 })} aria-current={filters.saved ? "page" : undefined} className={chipClass(filters.saved, "max-md:hidden")} data-testid="together-saved">
+        <Link href={href({ saved: !filters.saved, limit: 20 })} replace aria-current={filters.saved ? "page" : undefined} className={chipClass(filters.saved, "max-md:hidden")} data-testid="together-saved">
           <Bookmark className="h-3.5 w-3.5" aria-hidden /> Bookmarked{savedCount ? ` · ${savedCount}` : ""}
         </Link>
       </div>
@@ -146,7 +146,7 @@ export function PlayedTogetherView({ data, seasons, currentSeason, shown, teams 
               {elsewhere.map((e, i) => (
                 <React.Fragment key={e.season}>
                   {i ? ", " : ""}
-                  <Link href={href({ season: e.season, limit: 20 })} className="font-medium text-accent hover:underline">
+                  <Link href={href({ season: e.season, limit: 20 })} replace className="font-medium text-accent hover:underline">
                     {seasonLabel(e.season)} ({e.games})
                   </Link>
                 </React.Fragment>
@@ -165,7 +165,7 @@ export function PlayedTogetherView({ data, seasons, currentSeason, shown, teams 
         </TogetherList>
       )}
       {shown.length < total ? (
-        <Link href={href({ limit: filters.limit + 20 })} scroll={false} className="block rounded-panel border border-border py-2.5 text-center text-sm text-fg-muted hover:border-border-strong hover:text-fg" data-testid="together-more">
+        <Link href={href({ limit: filters.limit + 20 })} replace scroll={false} className="block rounded-panel border border-border py-2.5 text-center text-sm text-fg-muted hover:border-border-strong hover:text-fg" data-testid="together-more">
           Show more ({total - shown.length} more)
         </Link>
       ) : null}

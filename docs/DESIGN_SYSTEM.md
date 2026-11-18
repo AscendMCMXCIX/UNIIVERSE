@@ -289,15 +289,35 @@ test):
   (`ScrollOnNavigate`); Back and Forward restore the exact place (the browser and Next, untouched);
   a link to a `#fragment` lands on its target. A link that changes the address but keeps the place
   is marked `data-keep-scroll` (a profile's sections, which land at their own top themselves:
-  `settleSectionTop`). A change of the query alone (a filter, a view) keeps the place: it is the same
-  page. The next page of a list starts with its first item under the bars (Match History's pager).
-  (`e2e/navigation-landings.spec.ts`)
+  `settleSectionTop`: on a phone just under the top bar that carries them, whenever the card had
+  scrolled under it; from md under the pinned tabs, or under the top bar in a window too short for
+  them to pin, whenever the reader was further down than the new section's own top; a section
+  chosen with its top in view keeps the page still, never moving it down). A change of the query
+  alone (a filter, a view) keeps the place: it is the same page. The next page of a list starts with
+  its first item under the bars (Match History's pager). (`e2e/navigation-landings.spec.ts`; the
+  sections' landing from md, `e2e/navigation-reach.spec.ts`)
 - **Back to the top.** On a phone, tapping the current tab on its own page goes back to the top
   (smooth; at once with reduced motion), and so does tapping the page's title once it has moved into
-  the top bar. A page under a tab (a teammate's profile under Players) still goes to the tab's page.
+  the top bar; at a tablet's width (md to lg) in a window 480px tall or less, where the section tabs
+  do not pin, the title in the top bar does too. A page under a tab (a teammate's profile under
+  Players) still goes to the tab's page. The current section tab (Team's on tablets and desktops,
+  Resources', Platform Settings' and a profile's everywhere, the phone's in the top bar included)
+  and the sidebar's entry for the page shown do the same, and keep the page as it is: its view and
+  filters stay (the link's own address leaves the query out, and following it used to bring back
+  the defaults, Records back to Recent form). A click with a modifier key or another button still opens a new tab or window, and leaves
+  this page alone (`src/lib/back-to-top.ts`; `e2e/navigation-landings.spec.ts`).
 - **Back.** Phones and the installed app show their own Back, named after where it leads: the
   previous page when it is ours, else the page above (`phoneParent`). A full-screen game is a history
-  entry (Back closes it); a profile's sections replace the entry (Back leaves the profile). An
+  entry (Back closes it); a profile's sections replace the entry (Back leaves the profile), and so
+  does every filter (Team Matches', the Records season, Players' Archived, Ranked progress's queue
+  and account, and a mode's other seasons included), so Back leaves the page instead of stepping back
+  through each choice. A page's views (`SubTabs`: Recent form and Records, Games and Encounters) stay
+  entries of their own, as each is a link with its own address, and so do Matchup Intel's pairs
+  (each pair chosen, and a chip's jump to an ability) where the browser has the Navigation API: the
+  browser's Back steps through them, and the top bar's Back, named after the page before Matchup
+  Intel, goes past them (`backSteps`). Without it (Safari before 26.2, Firefox before 147) each
+  pair replaces the entry, as a filter does, so both Backs leave the page in one step
+  (`historyShowsEntries`; docs/MATCHUP_INTEL.md). An
   account without a player profile never starts at, or goes Back to, an empty Profile: its home is
   its first other page.
 - **Overlays.** One sheet for every choice and editor (`DetailModal` `size="sheet"`, `Dialog` built
