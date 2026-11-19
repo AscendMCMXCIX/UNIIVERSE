@@ -21,9 +21,10 @@ const n = formatCount;
 
 /**
  * Phones: four small tiles under the title; wider: one line. `aside` sits at the end of the row
- * (Overview links the per-champion figures there).
+ * (Overview links the per-champion figures there). `tipClassName` goes to both its ⓘ, the title's
+ * and the coverage note's (the champion window gives them a 44px touch area).
  */
-export function MultikillSummaryRow({ m, aside, className, testId = "multikills" }: { m: MultikillSummary; aside?: React.ReactNode; className?: string; testId?: string }) {
+export function MultikillSummaryRow({ m, aside, className, tipClassName, testId = "multikills" }: { m: MultikillSummary; aside?: React.ReactNode; className?: string; tipClassName?: string; testId?: string }) {
   const id = React.useId();
   const coverage = multikillCoverage(m);
   // No game has counts: every total is unknown, not zero.
@@ -31,7 +32,7 @@ export function MultikillSummaryRow({ m, aside, className, testId = "multikills"
   return (
     <section aria-labelledby={id} className={cn("flex flex-wrap items-center gap-x-5 gap-y-2", className)} data-testid={testId} data-coverage={coverage.state}>
       <h3 id={id} className="inline-flex items-center gap-1 text-xs font-medium text-fg-muted">
-        Multikills <InfoTip text={MULTIKILL_HELP} label="About multikills" />
+        Multikills <InfoTip text={MULTIKILL_HELP} label="About multikills" className={tipClassName} />
       </h3>
       <dl className="grid w-full grid-cols-4 gap-1.5 sm:flex sm:w-auto sm:flex-wrap sm:items-baseline sm:gap-x-4 sm:gap-y-1" data-testid="multikill-tiles">
         {MULTIKILL_KINDS.map((k) => (
@@ -64,7 +65,7 @@ export function MultikillSummaryRow({ m, aside, className, testId = "multikills"
             </span>
           ) : null}
           <span data-testid="multikill-sample">{coverage.label}</span>
-          {coverage.note ? <InfoTip text={coverage.note} label="Why these totals are not complete" testId="multikill-coverage-note" /> : null}
+          {coverage.note ? <InfoTip text={coverage.note} label="Why these totals are not complete" className={tipClassName} testId="multikill-coverage-note" /> : null}
         </p>
         {aside}
       </div>
