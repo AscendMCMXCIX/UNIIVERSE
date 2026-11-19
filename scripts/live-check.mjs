@@ -72,6 +72,7 @@
     route, and the Library's own below), Playwright itself aborts every request for /favicon.ico,
     unreported, so every row shows its stand-in. Counts only.
   - games (#178): Team Matches opens a game under its card (no window), with ?match= in the address;
+    on the tablet and the desktop a game with 4 or more members lists them in two columns;
     a copied link opens it; Back returns to it; the keyboard toggles it; "Close this game" closes it
     and keeps the focus on the card. Match History opens games under their cards; at 1440 the
     first three cards' CS totals and damage shares end before the next column (the build or the
@@ -997,6 +998,17 @@ async function teamMatches(page, log, kind, context) {
   if (!(await games.first().waitFor({ timeout: 20_000 }).then(() => true, () => false))) return warn("games", `${kind}: Team Matches lists no games`, "nothing to open");
   const game = games.first();
   if (kind === "phone") return phoneGame(page, kind, "Team Matches", "team-matches", () => game.getByTestId("together-card").click({ position: { x: 24, y: 12 } }));
+  // A game with four or more members lists them two to a row (their column is 34rem wide on the
+  // tablet's card and beside the open sidebar at 1440); a list with no such game passes as not
+  // applicable.
+  const four = await page.evaluate(() => {
+    const card = [...document.querySelectorAll("[data-testid=together-game]")].find((c) => Number(c.getAttribute("data-members")) >= 4);
+    if (!card) return null;
+    const lefts = [...card.querySelectorAll("[data-testid=together-member]")].map((m) => Math.round(m.getBoundingClientRect().left));
+    return { members: lefts.length, columns: new Set(lefts).size };
+  });
+  if (!four) pass("games", `${kind}: a Team Matches game with 4 members shows them in two columns`, true, "not applicable: no game with 4 or more members is listed");
+  else pass("games", `${kind}: a Team Matches game with 4 members shows them in two columns`, four.columns === 2, four);
   const toggle = game.getByTestId("together-open");
   await game.getByTestId("together-card").click({ position: { x: 24, y: 12 } });
   await page.waitForFunction(() => document.querySelector("[data-testid=together-open][aria-expanded=true]"), null, { timeout: 10_000 }).catch(() => {});
