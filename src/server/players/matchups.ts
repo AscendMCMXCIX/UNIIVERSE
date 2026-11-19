@@ -1,4 +1,4 @@
-import { sql } from "drizzle-orm";
+import { sql, type SQL } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { accountRows } from "@/server/accounts/account-rows";
 import { listAccountsForPlayer } from "@/server/accounts/repository";
@@ -13,7 +13,8 @@ import type { Role } from "@/domain/roles";
 
 /*
   Matchups for one player profile: their champions, the lane opponents each one actually faced (the
-  enemy in the same position, as Riot assigned it), and, for one pairing, the record, where the
+  enemy in the same position, as Riot assigned it, and only when exactly one player on each side
+  held it: domain/match-analysis laneOpponentOf, stored with each game), and, for one pairing, the record, where the
   games came from, and the lane in gold, experience and CS from stored timelines. Only the player's
   own stored games; nothing about any other player leaves the server (no PUUIDs, no names). The
   caller decides who may see a profile's statistics (the page checks it, as for Match History).
@@ -105,7 +106,7 @@ const MINUTES = Array.from({ length: CURVE_MINUTES }, (_, i) => i + 1);
 
 /** One game's lane, as far as it is known: the lane opponent found, and the two players' frames. */
 interface LaneExtract {
-  /** The player and exactly one enemy in the same assigned position were found in the match record. */
+  /** The player and the game's stored lane opponent (the enemy on that champion) were found in the match record. */
   paired: boolean;
   /** The match record: not stored yet, stored without players (Riot no longer serves it), stored; unknown when the accounts have no PUUID to look for. */
   record: "missing" | "empty" | "stored" | "unknown";
@@ -120,7 +121,8 @@ interface LaneExtract {
   erasure, which replaces the erased player in the record and deletes their frames: a kept lane
   holds a lane opponent's frames, so erasure drops every kept lane (registerLocalCache below). It
   replaces the store rather than emptying it: a read still running keeps writing into the old
-  one, so nothing read before the erasure is kept after it.
+  one, so nothing read before the erasure is kept after it. A lane is kept under the game's stored
+  opponent too, so a repaired opponent (the lane-opponent-recompute job) is read afresh.
 */
 const LANES_KEPT = 2_000;
 let laneStore = new WeakMap<object, Map<string, LaneExtract>>();
@@ -133,35 +135,45 @@ export function forgetMatchupLanes(db: object): void {
   laneStore.delete(db);
 }
 
+/** A player's gold, experience and CS series alone (frames kept since 20 Nov 2026 also hold their place, haste and level, which the lane does not read). */
+const series = (player: SQL) => sql`CASE WHEN ${player} IS NOT NULL THEN jsonb_build_object('g', ${player}->'g', 'x', ${player}->'x', 'c', ${player}->'c') END`;
+
 /**
  * The lane of each game, read in one query that does the matching in Postgres: the player (any of
- * their PUUIDs, the first in the record), the one enemy in the same assigned position, and only
- * those two players' gold, experience and CS frames. The whole match record and the other eight
- * players' frames never leave the database (about a tenth of the bytes).
+ * their PUUIDs, the first in the record), the game's stored lane opponent (the enemy on the champion
+ * `account_matches.enemy_champion_id` names, which the one lane opponent rule chose: domain/match-
+ * analysis laneOpponentOf), and only those two players' gold, experience and CS frames. So the lane
+ * figures and the opponents' tally always count the same games against the same opponent. The whole
+ * match record and the other eight players' frames never leave the database (about a tenth of the
+ * bytes).
  */
-async function laneExtracts(db: Db, matchIds: string[], puuids: string[]): Promise<Map<string, LaneExtract>> {
+async function laneExtracts(db: Db, games: ReadonlyArray<{ matchId: string; enemy: string }>, puuids: string[]): Promise<Map<string, LaneExtract>> {
   let kept = laneStore.get(db);
   if (!kept) laneStore.set(db, (kept = new Map()));
   const who = [...puuids].sort().join(",");
   const out = new Map<string, LaneExtract>();
-  const missing: string[] = [];
-  for (const id of new Set(matchIds)) {
-    const hit = kept.get(`${id}|${who}`);
-    if (hit) out.set(id, hit);
-    else missing.push(id);
+  const missing: Array<{ matchId: string; enemy: string }> = [];
+  const seen = new Set<string>();
+  for (const g of games) {
+    if (seen.has(g.matchId)) continue;
+    seen.add(g.matchId);
+    const hit = kept.get(`${g.matchId}|${g.enemy}|${who}`);
+    if (hit) out.set(g.matchId, hit);
+    else missing.push(g);
   }
   if (!missing.length) return out;
   // With no PUUID known (every account being verified again after a Riot key change), the records
   // are still told apart (missing, empty, stored) but no lane is examined: a stored one is "unknown".
   const examined = puuids.length > 0;
-  const idArray = sql`ARRAY[${sql.join(missing.map((id) => sql`${id}`), sql`, `)}]::text[]`;
+  const idArray = sql`ARRAY[${sql.join(missing.map((g) => sql`${g.matchId}`), sql`, `)}]::text[]`;
+  const enemyArray = sql`ARRAY[${sql.join(missing.map((g) => sql`${g.enemy}`), sql`, `)}]::text[]`;
   const puuidArray = sql`ARRAY[${sql.join(puuids.map((p) => sql`${p}`), sql`, `)}]::text[]`;
   const result = await db.execute(sql`
-    SELECT ids.match_id, d.match_id IS NOT NULL AS has_record, coalesce(jsonb_array_length(d.participants) = 0, false) AS empty_record, coalesce(lane.paired, false) AS paired, t.frames IS NOT NULL AS has_frames,
+    SELECT ids.match_id, ids.enemy, d.match_id IS NOT NULL AS has_record, coalesce(jsonb_array_length(d.participants) = 0, false) AS empty_record, coalesce(lane.paired, false) AS paired, t.frames IS NOT NULL AS has_frames,
       CASE WHEN lane.paired THEN t.frames->'t' END AS t,
-      CASE WHEN lane.paired THEN t.frames->'p'->lane.me END AS me,
-      CASE WHEN lane.paired THEN t.frames->'p'->lane.them END AS them
-    FROM unnest(${idArray}) AS ids(match_id)
+      CASE WHEN lane.paired THEN ${series(sql`t.frames->'p'->lane.me`)} END AS me,
+      CASE WHEN lane.paired THEN ${series(sql`t.frames->'p'->lane.them`)} END AS them
+    FROM unnest(${idArray}, ${enemyArray}) AS ids(match_id, enemy)
     LEFT JOIN match_details d ON d.match_id = ids.match_id
     LEFT JOIN LATERAL (
       SELECT mine.p->>'puuid' AS me, opp.puuid AS them, opp.puuid IS NOT NULL AS paired
@@ -169,18 +181,18 @@ async function laneExtracts(db: Db, matchIds: string[], puuids: string[]): Promi
       CROSS JOIN LATERAL (
         SELECT CASE WHEN count(*) = 1 THEN min(o->>'puuid') END AS puuid
         FROM jsonb_array_elements(d.participants) o
-        WHERE coalesce(mine.p->>'position', '') <> '' AND coalesce(o->>'puuid', '') <> '' AND o->'teamId' IS DISTINCT FROM mine.p->'teamId' AND o->>'position' = mine.p->>'position'
+        WHERE coalesce(o->>'puuid', '') <> '' AND coalesce(o->>'removed', '') <> 'true' AND o->'teamId' IS DISTINCT FROM mine.p->'teamId' AND o->>'championId' = ids.enemy
       ) opp
     ) lane ON true
     LEFT JOIN match_timelines t ON t.match_id = ids.match_id`);
-  const rows = ((result as { rows?: unknown[] }).rows ?? result) as Array<{ match_id: string; has_record: boolean; empty_record: boolean; paired: boolean; has_frames: boolean; t: number[] | null; me: PlayerSeries | null; them: PlayerSeries | null }>;
+  const rows = ((result as { rows?: unknown[] }).rows ?? result) as Array<{ match_id: string; enemy: string; has_record: boolean; empty_record: boolean; paired: boolean; has_frames: boolean; t: number[] | null; me: PlayerSeries | null; them: PlayerSeries | null }>;
   for (const r of rows) {
     const lane: LaneExtract = { paired: !!r.paired, record: !r.has_record ? "missing" : r.empty_record ? "empty" : examined ? "stored" : "unknown", frames: r.paired && r.has_frames ? { t: r.t ?? [], me: r.me ?? null, them: r.them ?? null } : null };
     out.set(r.match_id, lane);
     // Final once the record is stored and, for a paired lane, the timeline has its frames.
     if (r.has_record && (!r.paired || r.has_frames)) {
       if (kept.size >= LANES_KEPT) kept.delete(kept.keys().next().value!);
-      kept.set(`${r.match_id}|${who}`, lane);
+      kept.set(`${r.match_id}|${r.enemy}|${who}`, lane);
     }
   }
   return out;
@@ -240,8 +252,8 @@ export async function getPlayerMatchups(db: Db, playerId: string, filter: Matchu
   // The champion window reads every game on the champion (its lane over all opponents); the
   // Matchups list only the chosen pairing. Either way details and timelines are read once.
   const read = filter.exact ? onChampion : onChampion.filter((r) => r.enemy === vs);
-  // The lane opponent: the one player on the other team in the same assigned position.
-  const lanes = await laneExtracts(db, read.map((g) => g.matchId), all.map((a) => a.puuid).filter((p): p is string => !!p));
+  // The lane opponent: the game's stored one (the enemy on that champion), as the tally counts it.
+  const lanes = await laneExtracts(db, read.map((g) => ({ matchId: g.matchId, enemy: g.enemy! })), all.map((a) => a.puuid).filter((p): p is string => !!p));
 
   const views = read.map((g) => {
     const lane = lanes.get(g.matchId);
@@ -251,8 +263,8 @@ export async function getPlayerMatchups(db: Db, playerId: string, filter: Matchu
     // A record still to be collected is pending, as a timeline is, and so is one not looked at yet
     // (no account's PUUID is known while it is re-verified); one Riot no longer serves is
     // unavailable, whether as a stored empty record or as the ledger's own marker (a row marked
-    // before the catch-up also stored the record); "no-details" is kept for a stored record
-    // without a single same-position enemy.
+    // before the catch-up also stored the record); "no-details" is kept for a stored record in
+    // which the stored lane opponent is not found (another Riot key's ids, say).
     if (!lane?.paired) timeline = lane?.record === "empty" || (lane?.record !== "stored" && g.gone) ? "unavailable" : lane?.record === "missing" || lane?.record === "unknown" ? "pending" : "no-details";
     else if (!frames) timeline = "pending";
     else if (!frames.t.length || !frames.me || !frames.them) timeline = "unavailable";

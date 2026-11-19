@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SeasonGame } from "./season-stats";
-import { BASELINE_GAMES, BASELINE_MIN, BEST_MIN, CONTRADICTION_MIN, LEAD_MIN, figureOf, goldContradictsRecord, goldStory, laneMoments, laneOpponentOf, personalComparison, placeOf, queueGroup, standingText, standoutOf, teamGoldDifference } from "./match-analysis";
+import { BASELINE_GAMES, BASELINE_MIN, BEST_MIN, CONTRADICTION_MIN, LEAD_MIN, figureOf, goldContradictsRecord, goldStory, laneMoments, laneOf, laneOpponentOf, laneReadingOf, personalComparison, placeOf, queueGroup, standingText, standoutOf, teamGoldDifference } from "./match-analysis";
 
 let n = 0;
 /** A 30-minute game; `at` orders the games (minutes since an arbitrary start). */
@@ -206,5 +206,69 @@ describe("lane opponent", () => {
     expect(laneOpponentOf([p(100, null), p(200, "MIDDLE")], 0)).toBeNull();
     expect(laneOpponentOf([p(100, "MIDDLE"), p(200, "MIDDLE"), p(200, "MIDDLE")], 0)).toBeNull();
     expect(laneOpponentOf([p(100, "MIDDLE"), p(200, "MIDDLE", true)], 0)).toBeNull();
+  });
+});
+
+describe("the one lane opponent rule (records with Riot's two readings)", () => {
+  // A seat as a record stored from 20 Nov 2026 on keeps it: the merged position and both readings.
+  const s = (teamId: number, teamPosition: string, individualPosition: string, removed = false) => ({ teamId, position: teamPosition || individualPosition || null, teamPosition, individualPosition, removed });
+  const team = (teamId: number, positions: string[]) => positions.map((tp) => s(teamId, tp, tp));
+  const LANES = ["TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"];
+
+  it("gives the one enemy with the player's team position", () => {
+    const game = [...team(100, LANES), ...team(200, LANES)];
+    expect(laneOpponentOf(game, 2)).toBe(7);
+    expect(laneOpponentOf(game, 9)).toBe(4);
+  });
+
+  it("follows Riot's team position even when the individual positions are shared", () => {
+    // Blue's jungler roamed mid in isolation (individual MIDDLE): the team positions still name one mid each.
+    const game = [...team(100, LANES), ...team(200, LANES)];
+    game[6] = s(200, "JUNGLE", "MIDDLE");
+    game[1] = s(100, "JUNGLE", "MIDDLE");
+    expect(laneOpponentOf(game, 2)).toBe(7);
+  });
+
+  it("is unclear when two enemies share an individual position and the player has no team position", () => {
+    const game = [s(100, "", "MIDDLE"), s(100, "", "TOP"), s(200, "", "MIDDLE"), s(200, "", "MIDDLE"), s(200, "", "TOP")];
+    expect(laneOpponentOf(game, 0)).toBeNull();
+    // With one enemy in the individual position, the individual reading gives them.
+    expect(laneOpponentOf([s(100, "", "MIDDLE"), s(200, "", "MIDDLE"), s(200, "", "TOP")], 0)).toBe(1);
+  });
+
+  it("is unclear when a teammate holds the player's position too", () => {
+    const game = [s(100, "MIDDLE", "MIDDLE"), s(100, "MIDDLE", "MIDDLE"), s(200, "MIDDLE", "MIDDLE")];
+    expect(laneOpponentOf(game, 0)).toBeNull();
+  });
+
+  it("never counts an enemy whose team position is empty when the player's is set", () => {
+    // The enemy's individual reading says mid, but only team positions are compared: no enemy holds mid.
+    expect(laneOpponentOf([s(100, "MIDDLE", "MIDDLE"), s(200, "", "MIDDLE")], 0)).toBeNull();
+    // One enemy holds it by team position, another only by the individual reading: the first is the opponent.
+    expect(laneOpponentOf([s(100, "MIDDLE", "MIDDLE"), s(200, "", "MIDDLE"), s(200, "MIDDLE", "TOP")], 0)).toBe(2);
+  });
+
+  it("names nobody when neither reading is a lane, and never a removed player", () => {
+    expect(laneOpponentOf([s(100, "", "Invalid"), s(200, "", "Invalid")], 0)).toBeNull();
+    expect(laneOpponentOf([s(100, "MIDDLE", "MIDDLE"), s(200, "MIDDLE", "MIDDLE", true)], 0)).toBeNull();
+    // The player's own seat removed: no opponent.
+    expect(laneOpponentOf([s(100, "MIDDLE", "MIDDLE", true), s(200, "MIDDLE", "MIDDLE")], 0)).toBeNull();
+  });
+
+  it("holds older records (one merged position) to the merged position, unique on both sides", () => {
+    const old = (teamId: number, position: string | null) => ({ teamId, position });
+    expect(laneOpponentOf([old(100, "MIDDLE"), old(100, "TOP"), old(200, "MIDDLE"), old(200, "TOP")], 0)).toBe(2);
+    expect(laneOpponentOf([old(100, "MIDDLE"), old(100, "MIDDLE"), old(200, "MIDDLE")], 0)).toBeNull();
+    // A record whose readings were not kept (null, as a stored record reads back) is an older record.
+    expect(laneOpponentOf([{ teamId: 100, position: "MIDDLE", teamPosition: null, individualPosition: null }, { teamId: 200, position: "MID", teamPosition: null, individualPosition: null }], 0)).toBe(1);
+    expect(laneReadingOf({ teamId: 100, position: "MIDDLE" })).toBe("position");
+    expect(laneReadingOf(s(100, "", "BOTTOM"))).toBe("individualPosition");
+    expect(laneReadingOf(s(100, "UTILITY", "BOTTOM"))).toBe("teamPosition");
+  });
+
+  it("reads no lane from a stray text", () => {
+    expect(laneOf("constructor")).toBeNull();
+    expect(laneOf("toString")).toBeNull();
+    expect(laneOf("SUPPORT")).toBe("UTILITY");
   });
 });

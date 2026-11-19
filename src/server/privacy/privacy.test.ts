@@ -123,6 +123,22 @@ describe("what a stored game keeps of a removed player", () => {
     expect(participants[2]).toBe(game[2]);
   });
 
+  it("keeps none of the fields stored from 20 Nov 2026 on: positions, shards, challenge and support figures", () => {
+    const full = { ...player("p-alice", "Alice#OCE", 100, true), teamPosition: "MIDDLE", individualPosition: "MIDDLE", runes: { keystone: 8112, primary: 8100, secondary: 8300, shards: [5005, 5008, 5011] as [number, number, number] }, challenges: { maxCsAdvantageOnLaneOpponent: 12, laningPhaseGoldExpAdvantage: 1 }, stats: { deadSeconds: 40, teamHealing: 900 } };
+    const [removed] = redactParticipants([full], () => true).participants;
+    expect(removed).toEqual({ puuid: "", name: null, teamId: 100, championId: null, championKey: 0, champLevel: null, position: null, win: true, kills: 0, deaths: 0, assists: 0, cs: null, gold: null, damage: null, damageTaken: null, vision: null, wardsPlaced: null, items: null, spells: null, runes: null, removed: true });
+    // Their timeline entry (level times, sales, items used up) and frames (place, haste, level) go too.
+    const row = {
+      participants: [
+        { puuid: "p-alice", purchases: [], skills: [], levels: [98_000], sold: [[900_000, 1055]] as Array<[number, number]>, destroyed: [[410_000, 2003]] as Array<[number, number]> },
+        { puuid: "p-bob", purchases: [], skills: [] },
+      ],
+      frames: { t: [0], p: { "p-alice": { g: [500], x: [0], c: [0], px: [554], py: [581], ah: [0], lv: [1] }, "p-bob": { g: [500], x: [0], c: [0] } } },
+    };
+    const kept = redactTimeline(row, (puuid) => puuid !== "p-alice");
+    expect(JSON.stringify(kept)).not.toMatch(/p-alice|554|98000|900000/);
+  });
+
   it("leaves a player already removed as they are, and counts only new removals", () => {
     const first = redactParticipants([player("p-alice", "Alice#OCE", 100, true)], () => true).participants;
     const again = redactParticipants(first, () => true);

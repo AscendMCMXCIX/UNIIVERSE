@@ -17,7 +17,7 @@ describe("job registry", () => {
     changes the site's setup filed as a check or a refresh, fails here. A stage that adds a setup or
     repair job (S1b's lane-opponent-recompute, S7b's prep-backfill) adds it to SETUP with its job.
   */
-  const SETUP = ["rank-schedule", "rank-schedule-off", "history-rescan", "erasure-reconcile", "verify-account"];
+  const SETUP = ["rank-schedule", "rank-schedule-off", "history-rescan", "erasure-reconcile", "verify-account", "lane-opponent-recompute"];
   const KINDS: readonly JobKind[] = ["check", "refresh", "setup"];
 
   it("gives every job a kind: check, refresh or setup", () => {
@@ -46,5 +46,10 @@ describe("job registry", () => {
     expect(byKey.get("static-sync")?.asks).toBeTruthy();
     // Every job the scheduler runs is a refresh: a check or a setup job never runs by itself.
     expect(listJobs().filter((j) => j.defaultIntervalMinutes !== null && j.kind !== "refresh").map((j) => j.key)).toEqual([]);
+  });
+
+  it("registers the stored lane opponents' repair, run by hand only (never by the scheduler)", () => {
+    const job = listJobs().find((j) => j.key === "lane-opponent-recompute");
+    expect(job?.defaultIntervalMinutes).toBeNull();
   });
 });

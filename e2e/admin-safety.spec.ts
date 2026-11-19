@@ -19,7 +19,7 @@ test.beforeEach(async ({ context, baseURL }, info) => {
   await view(context, baseURL!, "admin");
 });
 
-const SETUP_KEYS = ["rank-schedule-off", "history-rescan", "erasure-reconcile", "verify-account"];
+const SETUP_KEYS = ["rank-schedule-off", "history-rescan", "erasure-reconcile", "verify-account", "lane-opponent-recompute"];
 
 async function axe(page: Page, label: string) {
   const result = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
@@ -74,7 +74,7 @@ async function ownerJobs(page: Page, size: string) {
 
   await openDetails(advanced);
   const setup = advanced.getByTestId("jobs-setup");
-  await expect(setup.getByTestId("job-row")).toHaveCount(5);
+  await expect(setup.getByTestId("job-row")).toHaveCount(6);
   for (const key of SETUP_KEYS) await expect(setup.locator(`[data-job=${key}]`), `${size}: ${key} under Advanced`).toBeVisible();
   await expect(advanced.getByTestId("schedule-editor").getByTestId("schedule-row")).toHaveCount(7);
   await axe(page, `${size}: Advanced open`);

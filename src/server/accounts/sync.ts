@@ -9,6 +9,7 @@ import type { RiotMatch, RiotParticipant } from "@/server/riot/api/schemas";
 import { patchFromVersion } from "@/domain/patch";
 import { normaliseRiotRegionAnswer, platformLabel } from "@/domain/riot-platforms";
 import { RIOT_POSITION_TO_ROLE } from "@/domain/roles";
+import { laneOpponentOf } from "@/domain/match-analysis";
 import { FIRST_SEASON, seasonForDate, seasonOfPatch, seasonStartUnix } from "@/domain/season";
 import type { HistoryBackfill } from "@/server/db/schema";
 import { recordRiotOutcome } from "@/server/riot/credential";
@@ -762,7 +763,8 @@ async function foldMatch(db: Db, account: RiotAccountRecord & { puuid: string },
  */
 async function foldGame(db: Db, account: RiotAccountRecord & { puuid: string }, game: FoldInput, keyToId: Map<number, string>, queueIds: readonly number[], erased: ErasureFilter, now: Date, riotMatch: RiotMatch | null): Promise<"folded" | "skipped" | "later" | "not-listed"> {
   const matchId = game.matchId;
-  const me = game.participants.find((p) => !p.removed && p.puuid === account.puuid);
+  const meSlot = game.participants.findIndex((p) => !p.removed && p.puuid === account.puuid);
+  const me = meSlot >= 0 ? game.participants[meSlot] : undefined;
   if (!me && !riotMatch) return "not-listed";
   const championId = me ? keyToId.get(me.championKey) : undefined;
   const queueId = game.queueId;
@@ -782,9 +784,12 @@ async function foldGame(db: Db, account: RiotAccountRecord & { puuid: string }, 
   const patch = (game.gameVersion ? patchFromVersion(game.gameVersion) : null) ?? "unknown";
   const role = RIOT_POSITION_TO_ROLE[me.position] ?? "UNKNOWN";
   const playedAt = new Date(game.gameCreation);
-  // The lane opponent: the enemy in the same position, when positions are known. An opponent whose
-  // personal data was erased is left unknown (their champion is about them).
-  const opponent = me.position ? game.participants.find((p) => p.teamId !== me.teamId && p.position === me.position) : undefined;
+  // The lane opponent, by the one rule every lane figure uses (domain/match-analysis
+  // laneOpponentOf): the one enemy holding the player's position, with the player the only one on
+  // their side to hold it; else none ("lane opponent unclear"). An opponent whose personal data was
+  // erased is left unknown (their champion is about them).
+  const opponentSlot = laneOpponentOf(game.participants, meSlot);
+  const opponent = opponentSlot === null ? undefined : game.participants[opponentSlot];
   const opponentErased = !!opponent && (opponent.removed || erased.puuid(opponent.puuid) || erased.riotId(opponent.riotId && opponent.riotId.includes("#") ? opponent.riotId : null));
   const enemyChampionId = opponent && !opponentErased ? (keyToId.get(opponent.championKey) ?? null) : null;
   // The full match (both teams, items, runes) for the personal match history: same fetch, no extra
@@ -832,7 +837,7 @@ async function storedFoldRecords(db: Db, matchIds: readonly string[]): Promise<M
   const ids = sql.join(matchIds.map((id) => sql`${id}`), sql`, `);
   const result = await db.execute(sql`
     SELECT d.match_id, d.game_creation, d.game_duration, d.queue_id, d.game_version,
-      (SELECT jsonb_agg(jsonb_build_object('puuid', p->'puuid', 'name', p->'name', 'teamId', p->'teamId', 'championKey', p->'championKey', 'position', p->'position', 'win', p->'win',
+      (SELECT jsonb_agg(jsonb_build_object('puuid', p->'puuid', 'name', p->'name', 'teamId', p->'teamId', 'championKey', p->'championKey', 'position', p->'position', 'teamPosition', p->'teamPosition', 'individualPosition', p->'individualPosition', 'win', p->'win',
               'kills', p->'kills', 'deaths', p->'deaths', 'assists', p->'assists', 'cs', p->'cs', 'damage', p->'damage', 'vision', p->'vision', 'removed', p->'removed'))
          FROM jsonb_array_elements(d.participants) p) AS participants
     FROM match_details d

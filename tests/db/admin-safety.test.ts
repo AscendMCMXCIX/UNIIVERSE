@@ -65,7 +65,7 @@ import { GET as jobsRoute } from "@/app/api/jobs/[job]/route";
 
 const SECRET = "admin-safety-cron-secret-0123456789";
 const PROD = { VERCEL_ENV: "production", CRON_SECRET: SECRET };
-const SETUP: Record<string, string> = { "rank-schedule": "TURN ON", "rank-schedule-off": "TURN OFF", "history-rescan": "RESCAN", "erasure-reconcile": "REAPPLY", "verify-account": "SET UP" };
+const SETUP: Record<string, string> = { "rank-schedule": "TURN ON", "rank-schedule-off": "TURN OFF", "history-rescan": "RESCAN", "erasure-reconcile": "REAPPLY", "verify-account": "SET UP", "lane-opponent-recompute": "RECOMPUTE" };
 
 let handle: DbHandle;
 let ownerId: string;
@@ -117,7 +117,7 @@ beforeEach(() => {
 });
 
 describe("setup and repair jobs from Admin", () => {
-  it("are exactly the five the registry files as setup, each with the phrase this test types", () => {
+  it("are exactly the six the registry files as setup, each with the phrase this test types", () => {
     expect(Object.fromEntries(listJobs().filter((j) => j.kind === "setup").map((j) => [j.key, j.confirm?.phrase]))).toEqual(SETUP);
   });
 

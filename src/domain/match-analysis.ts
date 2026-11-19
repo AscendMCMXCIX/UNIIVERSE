@@ -170,23 +170,60 @@ export function standoutOf(comparison: PersonalComparison | null): FigureCompari
 
 /** Riot's positions (and the older role names some records carry) as one lane, in lane order. */
 export const LANE_ORDER = ["TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"] as const;
-const LANE_NAMES: Record<string, (typeof LANE_ORDER)[number]> = { TOP: "TOP", JUNGLE: "JUNGLE", MIDDLE: "MIDDLE", MID: "MIDDLE", BOTTOM: "BOTTOM", ADC: "BOTTOM", UTILITY: "UTILITY", SUPPORT: "UTILITY" };
+/** Every name a record uses for a lane (Riot's positions, and the role names the demo's records carry). The SQL form of the rule reads the same table. */
+export const LANE_NAMES: Readonly<Record<string, (typeof LANE_ORDER)[number]>> = { TOP: "TOP", JUNGLE: "JUNGLE", MIDDLE: "MIDDLE", MID: "MIDDLE", BOTTOM: "BOTTOM", ADC: "BOTTOM", UTILITY: "UTILITY", SUPPORT: "UTILITY" };
 
 export function laneOf(position: string | null | undefined): (typeof LANE_ORDER)[number] | null {
-  return position ? (LANE_NAMES[position] ?? null) : null;
+  // Own keys only: a stray text such as "constructor" names no lane.
+  return position && Object.hasOwn(LANE_NAMES, position) ? LANE_NAMES[position]! : null;
 }
 
 /**
- * The lane opponent: the one enemy recorded in the same position (positions are Riot's reading of
- * where each player spent the game). Null when the player's position is not recorded, or when
- * none or several enemies share it: then there is no reliable opponent, and none is guessed.
+ * One player's place in a game as the lane opponent rule reads it, from a stored record or from
+ * Riot's answer. `position` is the merged reading every record keeps (Riot's team position, else its
+ * individual position); `teamPosition` and `individualPosition` are Riot's two readings as sent,
+ * kept on records stored from 20 Nov 2026 on and absent (undefined or null) on older ones.
  */
-export function laneOpponentOf(parts: ReadonlyArray<{ teamId: number; position: string | null; removed?: boolean }>, meSlot: number): number | null {
+export interface LaneSeat {
+  teamId: number;
+  position: string | null;
+  teamPosition?: string | null;
+  individualPosition?: string | null;
+  removed?: boolean;
+}
+
+/** Which of a seat's readings the rule compares, for the player in `me`'s seat; null when none names a lane. */
+export function laneReadingOf(me: LaneSeat): "teamPosition" | "individualPosition" | "position" | null {
+  // A record from before both readings were kept has only the merged one.
+  if (typeof me.teamPosition !== "string") return laneOf(me.position) ? "position" : null;
+  if (laneOf(me.teamPosition)) return "teamPosition";
+  return laneOf(me.individualPosition) ? "individualPosition" : null;
+}
+
+/**
+ * The lane opponent: one rule for every place that names one (the account sync's fold, the repair
+ * of stored games, Match History's comparison and Analysis lane, and through the stored opponent the
+ * champion window's tally and lane figures).
+ *
+ * The opponent is the one enemy holding the player's position, and only when the player is the only
+ * one on their own side to hold it. The position read is Riot's team position, its assignment of one
+ * player per position on each team (both players' must name the lane: an empty one holds none). Only
+ * when the player's team position is empty is the individual position used, compared with everyone's
+ * individual position, under the same rule. Records stored before both were kept have one merged
+ * position (the team position, else the individual position), so for them the merged position must
+ * be held by exactly one player on each side. Anything else is null, "lane opponent unclear": no
+ * opponent is guessed. A removed player (personal data erased) is never one, and holds no position.
+ */
+export function laneOpponentOf(parts: readonly LaneSeat[], meSlot: number): number | null {
   const me = parts[meSlot];
-  const lane = laneOf(me?.position);
-  if (!me || !lane) return null;
-  const same = parts.flatMap((p, i) => (p.teamId !== me.teamId && !p.removed && laneOf(p.position) === lane ? [i] : []));
-  return same.length === 1 ? same[0]! : null;
+  if (!me || me.removed) return null;
+  const reading = laneReadingOf(me);
+  if (!reading) return null;
+  const lane = laneOf(me[reading]);
+  const holders = parts.flatMap((p, i) => (!p.removed && laneOf(p[reading]) === lane ? [i] : []));
+  const mine = holders.filter((i) => parts[i]!.teamId === me.teamId);
+  const theirs = holders.filter((i) => parts[i]!.teamId !== me.teamId);
+  return mine.length === 1 && theirs.length === 1 ? theirs[0]! : null;
 }
 
 /** The minutes the lane is compared at (the early lane and its usual end). */

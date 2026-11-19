@@ -48,15 +48,16 @@ beforeAll(async () => {
   await db.update(riotAccounts).set({ label: "main" }).where(eq(riotAccounts.id, mainId));
   await db.update(riotAccounts).set({ label: "alt" }).where(eq(riotAccounts.id, altId));
   const now = Date.now();
-  type G = { id: string; account: string; puuid: string; queue: number; champ: string; enemy: string | null; win: boolean; age: number; duration?: number; ambiguous?: boolean; frames?: MatchFrames | null };
+  type G = { id: string; account: string; puuid: string; queue: number; champ: string; enemy: string | null; win: boolean; age: number; duration?: number; earlierKey?: boolean; frames?: MatchFrames | null };
   const games: G[] = [
     { id: "OC1_1", account: mainId, puuid: "me-main", queue: 420, champ: "Gwen", enemy: "Nasus", win: true, age: 1, duration: 1900, frames: frames(31, "me-main", "opp-1", 430, 390) },
     { id: "OC1_2", account: mainId, puuid: "me-main", queue: 420, champ: "Gwen", enemy: "Nasus", win: false, age: 2, duration: 1110, frames: frames(18, "me-main", "opp-2", 380, 410) },
     { id: "OC1_3", account: mainId, puuid: "me-main", queue: 440, champ: "Gwen", enemy: "Nasus", win: true, age: 3, duration: 1700 },
     { id: "OC1_4", account: altId, puuid: "me-alt", queue: 420, champ: "Gwen", enemy: "Nasus", win: true, age: 4, duration: 1800, frames: frames(30, "me-alt", "opp-4", 400, 400) },
     { id: "OC1_5", account: mainId, puuid: "me-main", queue: 420, champ: "Gwen", enemy: "Darius", win: false, age: 5, duration: 1600 },
-    // Two enemies Riot placed in the same position: no lane opponent is named from the details.
-    { id: "OC1_6", account: mainId, puuid: "me-main", queue: 420, champ: "Gwen", enemy: "Nasus", win: false, age: 6, duration: 1600, ambiguous: true },
+    // A record kept under an earlier Riot key (its ids differ, so the player is not found in it): the
+    // stored opponent counts in the record, and no lane is read from the details ("no-details").
+    { id: "OC1_6", account: mainId, puuid: "me-main", queue: 420, champ: "Gwen", enemy: "Nasus", win: false, age: 6, duration: 1600, earlierKey: true },
     // A remake and a game without a named opponent are not matchups.
     { id: "OC1_7", account: mainId, puuid: "me-main", queue: 420, champ: "Gwen", enemy: "Nasus", win: false, age: 7, duration: 200 },
     { id: "OC1_8", account: mainId, puuid: "me-main", queue: 420, champ: "Jax", enemy: null, win: true, age: 8, duration: 1600 },
@@ -64,7 +65,7 @@ beforeAll(async () => {
   for (const g of games) {
     await db.insert(accountMatches).values({ accountId: g.account, matchId: g.id, gameCreation: now - g.age * DAY, queueId: g.queue, championId: g.champ, role: "TOP", win: g.win, enemyChampionId: g.enemy, patch: "16.20", gameDuration: g.duration ?? 1700, kills: 4, deaths: 2, assists: 5, cs: 200 });
     const opp = `opp-${g.id.slice(4)}`;
-    const parts = [part(g.puuid, 100, g.champ, "TOP", g.win), part("ally", 100, "Ahri", "MIDDLE", g.win), part(opp, 200, g.enemy ?? "Garen", "TOP", !g.win), part("enemy-mid", 200, "Lux", g.ambiguous ? "TOP" : "MIDDLE", !g.win)];
+    const parts = [part(g.earlierKey ? "earlier-key-id" : g.puuid, 100, g.champ, "TOP", g.win), part("ally", 100, "Ahri", "MIDDLE", g.win), part(opp, 200, g.enemy ?? "Garen", "TOP", !g.win), part("enemy-mid", 200, "Lux", "MIDDLE", !g.win)];
     await db.insert(matchDetails).values({ matchId: g.id, platform: "oc1", queueId: g.queue, gameCreation: now - g.age * DAY, gameDuration: g.duration ?? 1700, gameVersion: "16.20.1", teams: [], participants: parts });
     if (g.frames !== undefined) await db.insert(matchTimelines).values({ matchId: g.id, platform: "oc1", participants: [{ puuid: g.puuid, purchases: [[1000, 1055]], skills: [1] }], frames: g.frames });
   }
