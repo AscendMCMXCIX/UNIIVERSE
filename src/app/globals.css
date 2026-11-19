@@ -13,7 +13,7 @@
 @theme {
   --color-bg: #0a0b12;
   --color-bg-elevated: #181a25; /* menus, popovers and fields: a step above the panel they sit on */
-  --color-chrome: #0e0f17; /* the app's frame (sidebar, top bar, drawer, tab bar): the page's own ink, half a step up (surface and bg mixed evenly), so the frame is the same material as the page and recedes behind the content */
+  --color-chrome: #0e0f17; /* the app's frame (sidebar, top bar, tab bar): the page's own ink, half a step up (surface and bg mixed evenly), so the frame is the same material as the page and recedes behind the content */
   --color-surface: #12131c;
   --color-surface-2: #1b1d29;
   --color-surface-3: #252837;
@@ -122,9 +122,11 @@ html, body {
 
 /*
   Breakpoints (Tailwind defaults, used consistently across the app; see docs/RESPONSIVE.md):
-    < 768px  phone   : top bar + drawer, bottom tab bar, single column, 44px targets
-    768-1023 tablet  : top bar + drawer, two columns where useful
-    >= 1024  desktop : sidebar; >= 1280 the draft room uses its three-column layout
+    < 768px  phone   : top bar, bottom tab bar, single column, 44px targets
+    768-1023 tablet  : top bar holding the destinations, two columns where useful
+    >= 1024  desktop : sidebar
+  Below 1024px a short window (480px tall or less: a phone held sideways, whatever its width) has
+  one compact top bar holding the phone's destinations, and no bottom bar (docs/MOBILE.md).
 */
 
 :root {
@@ -170,8 +172,8 @@ p a.text-accent {
 }
 
 /*
-  A frame control tapped before the page's code has run (the avatar, the tablet's menu, the account
-  menu, the sidebar's collapse control): the inline script in the root layout keeps the tap and
+  A frame control tapped before the page's code has run (the avatar, the account menu, the
+  sidebar's collapse control): the inline script in the root layout keeps the tap and
   marks the control aria-busy (src/components/early-taps.ts), and it shows pressed, the hover
   surface inside an accent ring, until the page runs and opens what was asked for. Static: nothing
   moves, so reduced motion has nothing to stop.
@@ -183,14 +185,20 @@ p a.text-accent {
 }
 
 /*
-  Short windows: a phone held sideways, or any window 480px tall or shorter. The phone tab bar is
-  hidden there, the top bar slides away while the page scrolls down, and detail windows, editors
-  and pickers take the whole screen (see docs/RESPONSIVE.md).
+  Short windows: a phone held sideways, or any window 480px tall or shorter. Below lg the frame is
+  one compact top bar holding the destinations (no bottom tab bar), which slides away while the page
+  scrolls down; detail windows, editors and pickers take the whole screen (see docs/RESPONSIVE.md).
 */
 @custom-variant short (@media (max-height: 480px));
 
-/* The installed app, in the display modes an install opens in (see install-state.ts): what a browser's own chrome would otherwise provide, such as Back on a tablet. */
-@custom-variant standalone (@media (display-mode: standalone), (display-mode: fullscreen), (display-mode: minimal-ui), (display-mode: window-controls-overlay));
+/* The installed app, in the display modes an install opens in (see install-state.ts): what a browser's own chrome would otherwise provide, such as Back on a tablet.
+   The block form: in the one-line form Tailwind read the list's commas as a selector list once the
+   variant was stacked (md:standalone:…), and the build dropped every display mode but the first. */
+@custom-variant standalone {
+  @media (display-mode: standalone), (display-mode: fullscreen), (display-mode: minimal-ui), (display-mode: window-controls-overlay) {
+    @slot;
+  }
+}
 
 /* Safe-area helpers for notched phones (no-ops elsewhere). */
 @utility pt-safe {
@@ -234,35 +242,32 @@ p a.text-accent {
   }
 }
 
-/* Room under a phone page for the bottom tab bar (and the home indicator's inset); in short windows
-   the bar is a compact row that slides away while reading. From md up pages set their own padding
-   (there is no tab bar there). */
+/* Room under a phone page for the bottom tab bar (and the home indicator's inset). A short window (a
+   phone held sideways) has no bottom bar, its destinations being in the top bar: the page's own
+   padding there, clear of the home indicator. From md up pages set their own padding (there is no
+   tab bar there). */
 @utility pb-tabbar {
   padding-bottom: calc(4.25rem + env(safe-area-inset-bottom));
   @media (max-height: 480px) {
-    padding-bottom: calc(3.5rem + env(safe-area-inset-bottom));
+    padding-bottom: calc(1.25rem + env(safe-area-inset-bottom));
   }
 }
-/* Where things pinned to the bottom of a phone screen sit (notifications, a sticky save bar):
-   just above the tab bar; in short windows above its compact row, and near the bottom edge while
-   it has slid away (MobileNav marks the page with data-tabbar-hidden). md: variants take over above. */
+/* Where things pinned to the bottom of a phone screen sit (notifications, a sticky save bar): just
+   above the tab bar; in a short window, which has no bottom bar, near the bottom edge, clear of the
+   home indicator. md: variants take over above. */
 @utility bottom-tabbar {
   bottom: calc(4.5rem + env(safe-area-inset-bottom));
-  transition: bottom 200ms ease-out;
   @media (max-height: 480px) {
-    bottom: calc(3.5rem + env(safe-area-inset-bottom));
-    :root[data-tabbar-hidden] & {
-      bottom: calc(0.75rem + env(safe-area-inset-bottom));
-    }
+    bottom: calc(0.75rem + env(safe-area-inset-bottom));
   }
 }
 
 /*
   Below lg the top bar stays at the top of the screen (on phones with a profile's sections under
-  it) and on phones the tab bar at the bottom: whatever is scrolled into view (a link to a section,
-  a game brought up, the element the keyboard moves to) stops clear of both instead of under them
-  (WCAG 2.4.11). This is the bar's usual height, until MobileNav sets the measured one on the root
-  (useTopBarHeight).
+  it) and on upright phones the tab bar at the bottom: whatever is scrolled into view (a link to a
+  section, a game brought up, the element the keyboard moves to) stops clear of both instead of
+  under them (WCAG 2.4.11). This is the bar's usual height, until MobileNav sets the measured one on
+  the root (useTopBarHeight). A short window has no bottom bar: only the home indicator to clear.
 */
 @media (max-width: 63.99rem) {
   html {
@@ -272,6 +277,11 @@ p a.text-accent {
 @media (max-width: 47.99rem) {
   html {
     scroll-padding-bottom: calc(4rem + env(safe-area-inset-bottom));
+  }
+}
+@media (max-width: 63.99rem) and (max-height: 480px) {
+  html {
+    scroll-padding-bottom: calc(0.5rem + env(safe-area-inset-bottom));
   }
 }
 
@@ -534,20 +544,6 @@ p a.text-accent {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
-}
-/* The phone navigation menu slides in from its edge, the left (a menu, not a detail window). */
-@keyframes drawer-in {
-  from {
-    transform: translateX(-24px);
-    opacity: 0.6;
-  }
-  to {
-    transform: none;
-    opacity: 1;
-  }
-}
-@utility drawer-in {
-  animation: drawer-in 200ms var(--ease-emphasized);
 }
 /* Detail windows and editors: a short rise into the centre, a quicker fade on the way out. */
 @keyframes modal-in {

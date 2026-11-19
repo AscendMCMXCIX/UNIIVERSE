@@ -7,9 +7,13 @@ large monitors. One set of breakpoints (Tailwind's defaults) is used everywhere:
 | --- | --- | --- | --- |
 | < 640px | small phone | top bar (Back or the team's mark, the page's title, the avatar for the account screen), bottom tab bar | one column, 44px targets, 16px inputs, full-screen pickers, lists as rows ([MOBILE.md](MOBILE.md)) |
 | 640–767px | large phone | same | one column; some header rows become two columns |
-| 768–1023px | tablet | top bar + drawer (no tab bar) | two columns where useful |
+| 768–1023px | tablet | top bar holding the destinations, the avatar menu (no tab bar, no drawer) | two columns where useful |
 | 1024–1279px | laptop | sidebar | desktop layout |
 | ≥ 1280px | desktop | sidebar | desktop layout, wider content |
+
+Below 1024px a window 480px tall or less (a phone held sideways, whatever its width: 568px to 956px)
+has the phone's frame in one compact bar instead: the destinations in the top bar, no tab bar
+([MOBILE.md](MOBILE.md), "Frames by posture").
 
 Class prefixes: `max-md:` = phones, `md:` = tablet and up, `lg:` = sidebar, `xl:` = wide desktop.
 Touch devices of any width also get 44px buttons (`pointer-coarse:`).
@@ -22,12 +26,12 @@ it (`globals.css`), and every pinned element follows these rules:
 
 | Element | Upright phone | Short window (phone sideways) |
 | --- | --- | --- |
-| Top bar | sticky | slides away while the page scrolls down; back on any scroll up, at the top, and while it holds focus |
-| Tab bar | fixed at the bottom | a compact row that slides away with the top bar and comes back with it; `main` keeps room for it (`pb-tabbar`) |
+| Top bar | sticky | one compact bar (below `lg`, at any width): 44px plus the inset, holding Back or the mark, the destinations, the title where room is left, Filters and the avatar, a profile's sections as a 40px second row; slides away while the page scrolls down; back on any scroll up, at the top, and while it holds focus |
+| Tab bar | fixed at the bottom; `main` keeps room for it (`pb-tabbar`) | none: the destinations are in the top bar; `pb-tabbar` keeps only the page's own padding, clear of the home indicator, and the scroll padding at the foot only that indicator |
 | Detail windows (`DetailModal`) | whole screen below `sm`, centred window above; one whose header would fill over 40% of a phone's screen (the Team player window on a small phone) scrolls as one, as in a short window | whole screen, scrolling as one: a large header scrolls away, its close and step buttons float at the top, a footer stays pinned |
 | The account screen (`DetailModal size="screen"`, behind the phone's avatar) | the whole screen, fixed to its four edges, under the status bar; its rows in a readable column (28rem); at the usual text size nothing scrolls on phones from 375pt wide (a few points for an administrator in Admin Mode in Safari's tab on a 375pt iPhone SE; a little on a 320pt screen in Safari's tab) | the whole screen too; only its body scrolls, as one region, under its bar with the close button |
 | Sheets (`DetailModal size="sheet"`: `Dialog`'s confirmations and editors, the filter sheet, the lineup sheet) | docked to the bottom edge, as tall as its content up to the screen less 2.5rem and the status bar (a share of the screen it is fixed to); a taller wider screen gets a centred window | docked to the bottom edge too, up to 44rem wide and the screen less 0.5rem; in both, the header and footer stay and only the body scrolls, unless they would leave it less room than its tallest control needs (large text or a zoomed page, mostly on a phone held sideways): then the whole sheet scrolls as one, like a page (`data-flow`) |
-| Things pinned to the bottom (toasts, a save bar) | `bottom-tabbar`: above the tab bar; over an open window or sheet the toasts are drawn inside it, in the same place, once it has finished moving in (they leave it as it starts to close) | near the bottom edge |
+| Things pinned to the bottom (toasts, a save bar) | `bottom-tabbar`: above the tab bar; over an open window or sheet the toasts are drawn inside it, in the same place, once it has finished moving in (they leave it as it starts to close) | near the bottom edge, clear of the home indicator (`bottom-tabbar`'s short rule) |
 
 Turning the phone keeps state: windows, filters and tabs live in the address or in component
 state, never in the orientation, so a window open in one orientation is open in the other.
@@ -39,7 +43,7 @@ translucent status bar, so:
 - whole-screen windows pad the status bar (`max-sm:pt-safe`); a window's body keeps its last line 1rem from the bottom edge (1.25rem from `sm`), a sheet's footer its actions 1rem where the sheet is docked (0.75rem where it is a centred window), and other windows' footers 0.75rem, or the home indicator's inset where it is larger (`pb-safe-4`, `sm:pb-safe-5`, `pb-safe-3`); a window that scrolls as one on a phone keeps a bar over the status bar, so text never scrolls under the clock;
 - `pt-safe-N` and `pb-safe-N` (like `px-safe-N`) are N spacing steps or the inset, whichever is larger, and are an element's only padding for that edge: beside another one (`py-4 pb-safe`) Tailwind's own order decides which wins, and the bare inset did, 0px in a browser (#265). `src/app/design-tokens.test.ts` refuses that pairing, and an arbitrary `max(…, env(safe-area-inset-…))` padding a utility writes;
 - preview pages (Admin → Previews) leave room for their fixed "Preview" badge (`PREVIEW_PAD_TOP`);
-- the drawer, which opens from the left, pads the left-hand inset; the tab bar pads all three.
+- the tab bar pads all three; the top bar pads the status bar's inset and, sideways, the notch's (`px-safe-2`; `sm:px-safe-4` from 640px).
 
 ## Touch targets
 
@@ -285,38 +289,50 @@ the account screen over the dashboard at 200% on a 320px phone as well.
 ## Shell
 
 - `src/components/app-shell.tsx`: sidebar from `lg`; `MobileNav` below.
-- `src/components/mobile-nav.tsx` (the phone frame is described in full in [MOBILE.md](MOBILE.md)):
-  - phones: a sticky top bar with Back (named after where it leads) or the team's mark, the page's
-    title once its heading has scrolled up under the bar, the page's Filters once its own have
-    scrolled up under the bar (44px, the count of narrowed filters on it, named "Filters:" and what
-    is chosen; the same sheet; PR 2b), and your avatar, which opens the account screen (a screen of
-    its own: who is signed in, then full-width rows for the pages without a tab, Settings and
-    Install App, the mode switch and Sign out, then the patch and Riot's notice); on a profile, its
-    sections ride under the bar;
-  - phones: a bottom tab bar with Team, Players, Leaderboards, Matches and Profile (`PHONE_TABS`,
-    at most five, those the account may open). A teammate's profile is under Players. The current
-    tab's icon sits in an accent pill and its label is bright, so it does not rely on colour alone;
-  - tablets: the top bar with the menu at its left end (in a window 480px tall or less, where the
-    section tabs do not pin, it carries the page's title once the heading has scrolled up, a tap on
-    it going back to the top, as on a phone), the drawer from the left (the sidebar's
-    side) with all links, status rows and sign-out, and the account menu behind the avatar. The
-    drawer is a native `<dialog>`, like every sheet and window: focus stays inside, the page behind
-    is inert and locked as behind a window (`lockPage`: no scrolling, no rubber band, no shift as the
-    scrollbar goes), the focus starts on the menu itself after a tap and on its close button from the
-    keyboard, Escape or a tap beside the panel closes it, and focus returns to the menu button.
-    Its Sign out tells the browser's other tabs, as the account screen's and the account menu's do.
-    In the installed app, which has no browser Back, the bar also shows Back on a page reached
-    from another (a teammate's profile), named as on phones.
-  - Before the page's code has run: the avatar, the tablet's menu button, the account menu's
-    triggers (the tablet's avatar, the sidebar's tile) and the sidebar's collapse control are
-    buttons that code drives, and a tap on one is kept by an inline script in the root layout
-    (`src/components/early-taps.ts`, `data-early` on the button). The button shows pressed at once
-    (`[data-early][aria-busy]`, globals.css) and does what was asked once the code runs, exactly
-    once; Enter and Space go the same way. Once the page runs, the script does nothing.
-  - Both bars pad for safe areas (`pt-safe`, `pb-safe`, `px-safe`); in short windows they slide
-    away while reading (see above). On phones the top bar sets the page's `scroll-padding-top` to
-    its measured height (and the stylesheet clears the tab bar); on tablets the stylesheet's value
-    stands, so whatever scrolls into view stays clear of both bars.
+- `src/components/mobile-nav.tsx` (the phone frame is described in full in [MOBILE.md](MOBILE.md)),
+  by posture ("Frames by posture" there; exactly one `nav[aria-label=Primary]` shown at a time):
+  - phones held upright: a sticky top bar with Back (named after where it leads) or the team's
+    mark, the page's title once its heading has scrolled up under the bar, the page's Filters once
+    its own have scrolled up under the bar (44px, the count of narrowed filters on it, named
+    "Filters:" and what is chosen; the same sheet; PR 2b), and your avatar, which opens the account
+    screen (a screen of its own: who is signed in, then full-width rows for the pages without a tab,
+    Settings and Install App, the mode switch and Sign out, then the patch and Riot's notice); on a
+    profile, its sections ride under the bar;
+  - phones held upright: a bottom tab bar with Team, Players, Leaderboards, Matches and Profile
+    (`PHONE_TABS`, at most five, those the account may open). A teammate's profile is under Players.
+    The current tab's icon sits in an accent pill and its label is bright, so it does not rely on
+    colour alone;
+  - phones held sideways (a window 480px tall or less, below `lg`, whatever its width): one compact
+    bar, 44px plus the inset, with Back or the team's mark, the same destinations (each a 44px
+    target, the current one in its accent pill with its label; where the bar is narrower than 38rem
+    the others show their icons alone, and below 27rem, at a larger text size, the current one too;
+    past that the row scrolls sideways inside the bar), the page's title where the destinations
+    leave it at least 6rem (a tap on it going back to the top, as does the current destination on
+    its own page), Filters and the avatar (the account screen); a profile's sections as a 44px
+    second row; no bottom bar. In Admin Mode "Admin mode" stands beside the team's mark (left to
+    screen readers below 32rem of bar, and always in the mark's name). Team's section tabs and a
+    profile's are not repeated in the page;
+  - tablets (`md` to `lg`, taller than 480px): the top bar with the destinations, one tap each (Player
+    Mode: My Profile, Team, Resources; Admin Mode: its four tabs, Platform Settings by its full name;
+    `tabletDestinations` in `src/lib/nav.ts`), the current one with the sidebar's four signals, and
+    the account menu behind the avatar, which holds Settings, Install App, the mode switch, Sign out,
+    the patch and Riot's notice (in Admin Mode also Data & Integrations and Audit Logs). There is no
+    drawer. At a larger text size the team's name gives way first, then the destinations' labels
+    (`BAR_FIT`, measured in the bar's own width in rem). The menu's Sign out
+    tells the browser's other tabs, as the account screen's does. In the installed app, which has no
+    browser Back, the bar also shows Back on a page reached from another (a teammate's profile),
+    named as on phones.
+  - Before the page's code has run: the avatar, the account menu's triggers (the tablet's avatar,
+    the sidebar's tile) and the sidebar's collapse control are buttons that code drives, and a tap
+    on one is kept by an inline script in the root layout (`src/components/early-taps.ts`,
+    `data-early` on the button). The button shows pressed at once (`[data-early][aria-busy]`,
+    globals.css) and does what was asked once the code runs, exactly once; Enter and Space go the
+    same way. Once the page runs, the script does nothing.
+  - Both bars pad for safe areas (`pt-safe`, `pb-safe`, `px-safe`); in short windows the compact bar
+    slides away while reading (see above). On phones, either way round, the top bar sets the page's
+    `scroll-padding-top` to its measured height (and the stylesheet clears the tab bar upright, the
+    home indicator sideways); on tablets the stylesheet's value stands, so whatever scrolls into view
+    stays clear of the bars.
 - **Section tabs stay in reach** on tablets and desktops: Team's sections, Resources' (the Library
   and Matchup Intel), a profile's sections and Platform Settings' (`TabBar` with `sticky`, the `sticky-tabs` utility in globals.css) stay
   pinned at the top of the page once it has scrolled past them, under the tablet's top bar
@@ -378,11 +394,13 @@ the account screen over the dashboard at 200% on a 320px phone as well.
   pinned row's buttons and fields take the scroll padding back as its links do, so focus moving onto
   them never scrolls the page. The copy's Filters counts and names what the page's own bar narrows
   at its width: from md Encounters' Minimum games and Sort by are its list toolbar's (FilterBar's
-  `inlineReset`), so the pinned row's count and name, a sideways phone's top bar, and the sheet from
-  md (its subtitle, its Reset the inline one) leave them out; on an upright phone the top bar and the
-  sheet count, name and reset them, as the phone's sheet holds them. The sheet follows the width
-  while it is open, so a phone turned across 768px changes what it holds and resets, as its fields do.
-- `main` pads for the tab bar (`pb-tabbar`) so content never hides behind it.
+  `inlineReset`), so the pinned row's count and name, a sideways phone's top bar (the compact bar at a
+  tablet's width), and the sheet from md (its subtitle, its Reset the inline one) leave them out; on
+  an upright phone the top bar and the sheet count, name and reset them, as the phone's sheet holds
+  them. The sheet follows the width while it is open, so a phone turned across 768px changes what it
+  holds and resets, as its fields do.
+- `main` pads for the tab bar (`pb-tabbar`) so content never hides behind it; held sideways, where
+  there is none, only for the home indicator.
 
 ## Primitives
 
@@ -457,7 +475,7 @@ reads Riot's Data Dragon at the version the curated Matchup Intel notes were che
 (`DDRAGON_VERSION`, set by `playwright.config.ts` from `e2e/ddragon-version.ts`;
 MATCHUP_INTEL.md, "What the browser tests pin"). A demo server started by hand for the specs
 (`E2E_PORT`) needs the same environment, `DDRAGON_VERSION=16.22.1` included: outside CI
-Playwright uses a server already on the port as it is. It checks: no horizontal overflow on every page, navigation (tab bar, drawer, sidebar), 44px targets
+Playwright uses a server already on the port as it is. It checks: no horizontal overflow on every page, navigation (tab bar, a tablet's top bar and avatar menu, sidebar), 44px targets
 and 16px inputs on phones, and the champion picker on the player profile.
 `e2e/responsive.spec.ts` also checks Settings: at the three widths, and at 734 × 343, 863 × 360 and
 320 × 568, the account card's Tab order against the order it is drawn in, Sign out on the first
@@ -487,8 +505,14 @@ folded the bars of `main`'s own (Team's, Resources', Platform Settings'), measur
 itself has replaced its loading state: the row in the same place on all of a set's sections, Team's
 name ending at the column's right edge, the bar's line spanning the room, and on Team Overview the
 header centred in Team's column; under a 1600px window (1536 × 864, the sidebar folded) Players and
-Matches stay 80rem and the row spans the bar, as before; the tablet's menu keeps focus inside and gives it back to the menu button; the
-installed app's Back on a tablet (the display mode stood in for, as Chromium cannot emulate it);
+Matches stay 80rem and the row spans the bar, as before; at a tablet's width held sideways
+(768 × 420) the frame is the compact bar, the sections in it and not in the page, sliding away as the
+page scrolls down; a tablet's destinations in its top bar, one tap each, and its avatar menu taking
+the focus to its first item, the arrow keys going round its items (Down and Up wrapping, Home and
+End), its notes' Details link named "Details: Riot Games notice" with the focus ring and a 44px touch
+area, Tab closing it, giving the focus back to the avatar on Escape, leaving the page where it was on
+a click outside, and closed by Back without Forward reopening it; the installed app's Back on a tablet
+beside the destinations (the display mode stood in for, as Chromium cannot emulate it);
 the filter sheet's Done leaves with its motion; Admin Mode's Settings has its title; and a page's
 controls in reach (PR 2b): from md the pinned row offers Match History's views and Filters exactly
 once the page's filter bar has gone 10px above the pinned stack's foot, and not 10px below it (the
@@ -517,7 +541,13 @@ order is in it again, and its Reset puts both back).
 only once the page's own has gone, opening the sheet, Done after a change landing the first game
 under the bars, its badge counting; Escape and Done hand the focus back, even after a change that
 emptied the list; the fullest bar (Back, the title, Filters with its count, the avatar) within a
-320px phone at 100%, 175% and 200% text, Back giving way. `e2e/filter-consistency.spec.ts`: the sheet
+320px phone at 100%, 175% and 200% text, Back giving way; one primary navigation shown at a time in
+each posture; the account screen closed by Back and not reopened by Forward, upright and held
+sideways; a tablet's destinations (the current one's gradient bar) and avatar menu in both modes, and
+its top bar at 100% to 200% text in both modes, the team's name and then the labels giving way where
+the bar's row is narrower than `BAR_FIT` says, the destinations never scrolling and the bar never wider than
+the window. `e2e/navigation-landings.spec.ts` has the current destination on its own page going back
+to the top without a fetch, in the sidebar and in a tablet's top bar. `e2e/filter-consistency.spec.ts`: the sheet
 opened from the pinned row at 768 and 1440 labels every field (More filters opened), holds the only
 copy of each id, and gives Team Matches' Played with the sheet's width, as its selects.
 `e2e/popups.spec.ts` keeps what shows over a window inside it: an ⓘ's bubble in a window drawn
@@ -536,7 +566,7 @@ heard once, on the page (a toast counts as heard each time a frame draws it with
 one added and taken away before the next frame never reaches a screen reader); a window opened by
 a tap holding the focus itself until it is pressed (after a click on a desktop or a tap on a tablet,
 and at every press, Page Down then scrolls its body) and one opened from the keyboard its close
-button (the tablet's menu the same, and its page lock); and on a phone, the Filters sheet's pickers
+button; and on a phone, the Filters sheet's pickers
 and the opponent picker opening their list in the window's body, a tap under an open list reaching
 what was tapped, the opponent search at 16px, and the add-champion list ending above the tab bar.
 Team Overview's lineup: `e2e/home-layout.spec.ts` (1440 × 900 and 1920 × 1080: five across,
@@ -559,6 +589,13 @@ where the row is narrower than the bar, included) and `e2e/card-layout.spec.ts` 
 `e2e/lineup.ts`): it streams in through `(app)/loading.tsx`'s Suspense boundary, and React can
 reveal it up to 300ms after the first paint, after the load event `page.goto` waits for, when its
 five cells can already be counted with no size.
+`e2e/phone-wraps.spec.ts` keeps a row's subject whole on a 320px phone, and a profile's header at a
+larger text size: on 320 and 375px phones at 150%, 175% and 200% text, the Overview's header and the
+other sections' band of each of the lineup's five cut nothing (the rank, an off role, the lineup
+status) and break no word of four letters or more across lines, the name's included; and so with the
+browser's own text at twice its size (Chromium's default font size, which scales the media
+queries' rem as well). The header follows its own width in rem for this (`LARGE_TEXT` in
+`profile-header.tsx`); at 100% text it is laid out exactly as before.
 In this repository's sandbox set `PW_CHROMIUM_PATH` to the Chromium binary.
 
 The wider audit script that produced the before/after numbers (eight viewports × twelve routes,
@@ -569,8 +606,9 @@ the responsive pass report.
 
 `e2e/quality.spec.ts` loads every player page at 320×640, 375×667, 390×844, 430×932, 768×1024,
 1024×768, 1280×800, 1366×768, 1440×900, 1920×1080, 2560×1440, 3440×1440, 3840×2160, 844×390
-(phone landscape) and 1366×600 (short laptop) and fails on any horizontal overflow or a missing
-heading; admin pages at five widths. The same file runs axe (WCAG 2.1 A/AA) on every page and fails
+(phone landscape), 568×320 (a 320pt iPhone held sideways, the compact bar's narrowest) and 1366×600
+(short laptop) and fails on any horizontal overflow or a missing heading; admin pages at six sizes
+(568×320 among them). The same file runs axe (WCAG 2.1 A/AA) on every page and fails
 on critical or serious violations, and again at 1920 on Team's four sections and Resources, where
 the section tabs' row takes the pages' width, and at 1440 × 600 with a page's compact controls
 showing in the pinned row (Team Matches, Records, a profile's Overview, Match History, Encounters).
@@ -582,10 +620,19 @@ Leaderboards' Records places its three boards by its own width (`@container/reco
 
 `e2e/mobile-landscape.spec.ts` (run once, from the phone project) opens its own Chromium
 contexts with Playwright's device descriptors (iPhone SE, iPhone 15, both ways round) and checks
-the short-window rules above: no tab bar and a top bar that gets out of the way, whole-screen
-windows that scroll as one with reachable 44px controls, dialogs that keep their title and actions
-on screen, state kept across a turn of the phone, tab rows that fade and keep the current tab in
-view, ⓘ targets, and the Branding save bar. Upright, it checks that the player window scrolls as
+the short-window rules above: one compact bar holding the destinations (only the current one
+labelled at 568px) and no tab bar, a bar that gets out of the way and comes back (slow drags, focus
+inside), a profile's bars at rest at most 90px (the sections a 44px row) with its band at most 80px
+on one line at five sideways sizes (568 to 915px wide; Demo Top's and Demo Mid's, with the page's
+scroll padding clearing the bar), the band's longest line (two off roles, the longest rank, the
+lineup status and three links: 32px chips, 44px targets) and a member's own Overview with three
+links beside Customise, the account screen from the avatar at every width, Admin Mode's compact bar
+saying the mode, the title and the current destination leading back to the top at a tablet's width,
+large text (the labels giving way at 38rem and 27rem of bar, by the bar's real width, and the
+current destination kept in view, loaded sideways or turned to), whole-screen windows that
+scroll as one with reachable 44px controls, dialogs that keep their title and actions on screen,
+state kept across a turn of the phone, tab rows that fade and keep the current tab in view, ⓘ
+targets, and the Branding save bar. Upright, it checks that the player window scrolls as
 one on an iPhone SE while the match window keeps its own scrolling body, and that the preview
 badge never covers the team name. These are emulated devices: they check layout, size
 and behaviour in Chromium, not Safari's own toolbars, keyboard or rotation animation, which need a
@@ -622,7 +669,9 @@ Three levels, each saying what it proves:
     nothing in it ringed, a tapped ⓘ in a game's window is drawn inside it and the first Escape
     closes the bubble alone, and an error toast over the picture editor is drawn in it, its dismiss
     button answering a tap where it is drawn;
-  - the pages held sideways;
+  - the pages held sideways (Safari's tab, 734 × 343, and the whole screen, 852 × 393): one compact
+    bar holding the destinations and no tab bar, a profile's sections under it and its band at most
+    80px, the bar sliding away while reading;
   - the Home Screen metadata: `apple-mobile-web-app-*`, the touch icon, the manifest and `viewport-fit=cover`.
 
   None of these tests signs a member in. One that does must keep the session itself: WebKit keeps
@@ -645,13 +694,15 @@ Three levels, each saying what it proves:
   in WebKit 26.0 most sheets, the compact windows and the centred windows collapse the same way
   (MOBILE.md, "Why the account menu was a strip on iPhones"; DetailModal's `BODY_SCROLLS`). The check opens the account screen, the
   install window, the filter sheet, the lineup editor, a player's window, a game, the Card Studio,
-  the sign-in window, the tablet's menu and the account dropdown on four phones (an installed app's
+  the sign-in window and the account dropdown on four phones (an installed app's
   whole screen, Safari's tab, the smallest iPhone, held sideways), an iPad and a Mac, and fails if a
   window's body shows less than its content (or 160px of it where it scrolls), if the account screen
   does not fill the screen with every control in reach and the page behind unmoved, or if a sheet
   on a phone leaves the bottom edge. Run on main's code from before the fix, 14 of its 26 checks fail,
   the account panel exactly as the owner saw it (377×95, one of six controls in reach); with the
-  fix, all 26 pass. Playwright 1.58.2 builds WebKit for Ubuntu up to 24.04 (not 26.04), so the
+  fix, all 26 pass. The tablet menu's check went with the drawer (frames by posture, 18 Nov 2026):
+  25 checks since, the account dropdown's on the iPad covering the menu that holds its items.
+  Playwright 1.58.2 builds WebKit for Ubuntu up to 24.04 (not 26.04), so the
   workflow runs on `ubuntu-24.04`; locally, the same commands work on Ubuntu 24.04:
 
   ```bash
@@ -684,8 +735,9 @@ Three levels, each saying what it proves:
      opens full screen with its content clear of the notch and the home indicator.
   2. Sign in inside the installed app (iOS keeps its cookies apart from Safari's), close it and
      open it again: still signed in.
-  3. Turn the phone on Team, a profile and Resources: the layout follows, the tab bar steps aside
-     sideways, and nothing sits under the notch.
+  3. Turn the phone on Team, a profile and Resources: the layout follows; sideways one bar holds the
+     destinations (no tab bar), a profile's sections under it, it slides away while reading and
+     comes back on a scroll up, and nothing sits under the notch or the home indicator.
   4. Type in a field (display name, a Riot ID when linking an account): no zoom, and the keyboard covers
      neither the field nor its Save button.
   5. Swipe Team's cards: one card at a time, and an upward swipe still scrolls the page.
@@ -694,8 +746,9 @@ Three levels, each saying what it proves:
   8. On an iPad, add to Home Screen and open it: Players shows the whole roster on one screen, two
      up, and a row opens its profile with one tap; Matches scrolls under the pinned Team
      tabs, a tab from there switches the section; a teammate's profile shows "‹ Players" in the top
-     bar (the installed app has no browser Back) and it leads back; the menu drawer opens, the page
-     behind it cannot be tapped, and closing it returns to the menu button.
+     bar (the installed app has no browser Back) and it leads back; My Profile, Team and Resources
+     are each one tap in the top bar; the avatar's menu holds Settings, the mode switch, Sign out,
+     the patch and Riot's notice (Install App too, outside the installed app).
   9. In the installed app and in Safari, tap your avatar on Team, on Resources scrolled to its end,
      and after typing in a field and closing the keyboard: the account screen fills the screen under
      the status bar, your picture, name and role at its top, every row, the mode switch and Sign out

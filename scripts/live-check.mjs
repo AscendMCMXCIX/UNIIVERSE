@@ -37,7 +37,11 @@
     page shows Riot's required notice, and neither its HTML nor the RSC payload in it has a
     puuid, gameName, tagLine or riotId key (scripts/riot-keys.mjs; counts only).
   - frame (#178): the charcoal frame token; the sidebar, open and folded, with the gradient bar on
-    the current page; the phone and tablet top bar, drawer and tab bar. Phone: the avatar opens the
+    the current page; the phone and tablet top bar and the phone's tab bar; the tablet's destinations
+    in its top bar, one tap each, with no drawer (frames by posture); held sideways (844 × 390, in the
+    phone's context: two page loads) one compact bar holding the destinations and no bottom bar, and
+    on the teammate's profile its sections under the bar, the bars at rest at most 90px and the
+    profile's band at most 80px. Phone: the avatar opens the
     account screen on the first tap, made as soon as it is on screen; the screen comes to rest (its
     motion run and dropped) filling the screen exactly, nothing in it scrolls, every control in it is
     a full-width target at least 48px tall reached by a tap where it is drawn, the screen itself has
@@ -416,7 +420,7 @@ const sameAsFrame = (c, chrome) => !!c && c.slice(0, 3).every((v, i) => Math.abs
 async function frameChecks(page, kind, context) {
   await page.goto(`${base}/team`, { waitUntil: "domcontentloaded" });
   await settle(page);
-  const paint = await colours(page, { sidebar: "[data-testid=sidebar-window]", top: "[data-testid=mobile-topbar]", tabs: "nav[aria-label=Primary]" });
+  const paint = await colours(page, { sidebar: "[data-testid=sidebar-window]", top: "[data-testid=mobile-topbar]", tabs: "[data-testid=phone-tabbar]" });
   pass("frame", `${kind}: the --color-chrome token is deployed`, !!paint.token, paint.token);
   if (kind === "desktop") {
     const side = await page.evaluate(() => {
@@ -500,14 +504,59 @@ async function frameChecks(page, kind, context) {
     await page.waitForTimeout(400);
     return;
   }
-  await page.getByTestId("menu-button").click();
-  await page.getByTestId("mobile-drawer-panel").waitFor({ timeout: 5_000 });
-  const drawer = await colours(page, { panel: "[data-testid=mobile-drawer-panel]" });
-  pass("frame", `${kind}: the drawer is painted with the frame colour`, sameAsFrame(drawer.panel, drawer.chrome), { drawer: drawer.panel, chrome: drawer.chrome });
-  await shot(page, `${kind}-frame-drawer`);
-  await page.keyboard.press("Escape");
-  await page.waitForTimeout(400);
+  // The tablet's destinations are in its top bar, one tap each, Team marked on its page (the menu
+  // drawer they were in has gone: frames by posture). Counts and true or false only.
+  const bar = await page.evaluate(() => {
+    const shown = (el) => !!el && getComputedStyle(el).display !== "none" && el.getBoundingClientRect().height > 0;
+    const navs = [...document.querySelectorAll("nav[aria-label=Primary]")].filter(shown);
+    const links = navs[0] ? [...navs[0].querySelectorAll("a[href]")] : [];
+    return {
+      navs: navs.length,
+      inTopBar: !!navs[0]?.closest("[data-testid=mobile-topbar]"),
+      destinations: links.length,
+      teamCurrent: links.filter((a) => a.getAttribute("aria-current") === "page").map((a) => a.getAttribute("href")).join() === "/team",
+      drawer: !!document.querySelector("[data-testid=menu-button], #mobile-drawer"),
+    };
+  });
+  pass("frame", `${kind}: the top bar holds the destinations, one tap each, Team marked as the page shown, and no drawer`, bar.navs === 1 && bar.inTopBar && bar.destinations >= 2 && bar.teamCurrent && !bar.drawer, bar);
+  await shot(page, `${kind}-frame-topbar`);
   await accountMenuFirstTap(page, kind, page.getByTestId("mobile-topbar").getByTestId("account-menu-button"));
+}
+
+/**
+ * A phone held sideways (844 × 390), in the phone's own context (signed in already), two page loads:
+ * one compact bar holding the destinations and no bottom bar, on Team and on the teammate's profile,
+ * whose sections ride under the bar; the bars at rest at most 90px (44px, the sections' 44px and the
+ * hairline) and the profile's band at most 80px (frames by posture, docs/MOBILE.md). Sizes, counts and
+ * true or false only.
+ */
+async function sidewaysFrame(page, log, profileId) {
+  await page.setViewportSize({ width: 844, height: 390 });
+  const facts = () =>
+    page.evaluate(() => {
+      const shown = (el) => !!el && getComputedStyle(el).display !== "none" && el.getBoundingClientRect().height > 0;
+      const navs = [...document.querySelectorAll("nav[aria-label=Primary]")].filter(shown);
+      const top = document.querySelector("[data-testid=mobile-topbar]");
+      const band = document.querySelector("[data-testid=profile-header]");
+      return {
+        navs: navs.length,
+        inTopBar: !!navs[0]?.closest("[data-testid=mobile-topbar]"),
+        destinations: navs[0] ? navs[0].querySelectorAll("a[href]").length : 0,
+        bottomBar: shown(document.querySelector("[data-testid=phone-tabbar]")),
+        bars: top ? Math.round(top.getBoundingClientRect().height) : null,
+        sections: shown(document.querySelector("[data-testid=profile-chrome-tabs]")),
+        band: shown(band) ? Math.round(band.getBoundingClientRect().height) : null,
+      };
+    });
+  if (await visit(page, log, "phone", "sideways-team", "/team", { fullPage: false })) {
+    const f = await facts();
+    pass("frame", "phone held sideways (844 × 390): one compact bar holds the destinations, with no bottom bar", f.navs === 1 && f.inTopBar && f.destinations >= 2 && !f.bottomBar && f.bars !== null && f.bars <= 46, f);
+  }
+  if (!profileId) return check("frame", "phone held sideways (844 × 390): a profile's sections and band", "PASS", "not applicable: no teammate's profile to open");
+  if (await visit(page, log, "phone", "sideways-profile", `/players/${profileId}`, { fullPage: false })) {
+    const f = await facts();
+    pass("frame", "phone held sideways (844 × 390): a profile's sections under the bar, the bars at rest at most 90px, the band at most 80px", f.navs === 1 && f.sections && !f.bottomBar && f.bars !== null && f.bars <= 90 && f.band !== null && f.band <= 80, f);
+  }
 }
 
 /**
@@ -1366,6 +1415,8 @@ for (const [kind, options] of Object.entries(VIEWPORTS)) {
   });
   // Wide screens in the desktop's own context (signed in already): four pages at 2560 × 1440.
   if (kind === "desktop") await guarded("wide", "2560 × 1440", () => wideChecks(page, log));
+  // A phone held sideways, last in the phone's own context (signed in already): two pages at 844 × 390.
+  if (kind === "phone") await guarded("frame", "phone held sideways (844 × 390)", () => sidewaysFrame(page, log, playerId));
   // Last in the desktop context, so a mode switch that went wrong cannot affect the other checks. Not
   // under LIVE_LOCAL: the demo build's visitor is the local owner, an administrator.
   if (kind === "desktop" && !local) await guarded("security", "a member's refusals", () => memberRefusals(context));

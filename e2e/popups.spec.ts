@@ -7,7 +7,7 @@ import { bubbleFacts, NOT_A_PICTURE, NOT_A_PICTURE_ERROR, openPictureEditor, pic
 
 /*
   Popups over and inside windows. Every window is a modal <dialog> in the browser's top layer
-  (DetailModal; the tablet's menu), drawn above the whole page with the rest of the page inert, so
+  (DetailModal), drawn above the whole page with the rest of the page inert, so
   what must show over a window is drawn inside it (src/components/ui/top-layer.ts):
     - an ⓘ's bubble in a window is drawn inside that window, above it, where its trigger puts it,
       also while the window is moved and scaled (its opening motion); Escape closes the bubble and
@@ -26,7 +26,8 @@ import { bubbleFacts, NOT_A_PICTURE, NOT_A_PICTURE_ERROR, openPictureEditor, pic
       toast raised as its window closes is heard on the page instead of lost with the window;
     - a window opened by a tap or a click takes the focus itself, without a ring, until it is
       pressed (the keys then scroll its body); opened from the keyboard its close button has the
-      focus, ringed; the tablet's menu the same, with the page behind locked as behind a window;
+      focus, ringed (the tablet's menu drawer did the same until its destinations moved into the
+      top bar: e2e/navigation-reach.spec.ts has the avatar menu that holds its account items);
     - phones: the member and champion pickers in the Filters sheet and the champion window's
       opponent picker open their list in the window's body (no scroller of their own, nothing cut
       off, the page behind unmoved), a tap below an open list reaches what was tapped, the opponent
@@ -519,31 +520,6 @@ test("a window that took the focus as it opened lets it go when pressed inside: 
   await page.keyboard.press("PageDown");
   await expect.poll(() => body.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
   await expect(win).toBeVisible();
-});
-
-test("the tablet's menu takes the focus itself when tapped open, gives it to its close button from the keyboard, and locks the page behind as a window does", async ({ page }, info) => {
-  test.skip(info.project.name !== "tablet", "the drawer is the tablet's menu");
-  await page.goto("/players");
-  const menu = page.getByTestId("menu-button");
-  const drawer = page.getByTestId("mobile-drawer");
-  await expect(async () => {
-    if (!(await drawer.isVisible())) await menu.tap({ timeout: 2_000 });
-    await expect(drawer).toBeVisible({ timeout: 1_000 });
-  }).toPass({ timeout: 15_000 });
-  await expect(drawer).toBeFocused();
-  expect(await drawer.evaluate((d) => getComputedStyle(d).outlineStyle)).toBe("none");
-  expect(await page.evaluate(() => ({ overflow: document.documentElement.style.overflow, overscroll: document.documentElement.style.overscrollBehavior }))).toEqual({ overflow: "hidden", overscroll: "none" });
-  await page.keyboard.press("Escape");
-  await expect(drawer).toHaveCount(0);
-  await expect(menu).toBeFocused();
-  expect(await page.evaluate(() => ({ overflow: document.documentElement.style.overflow, overscroll: document.documentElement.style.overscrollBehavior }))).toEqual({ overflow: "", overscroll: "" });
-  // From the keyboard: the focused menu button, Enter.
-  await page.keyboard.press("Enter");
-  await expect(drawer).toBeVisible();
-  await expect(page.getByRole("button", { name: "Close menu" })).toBeFocused();
-  await page.keyboard.press("Escape");
-  await expect(drawer).toHaveCount(0);
-  await expect(menu).toBeFocused();
 });
 
 /**

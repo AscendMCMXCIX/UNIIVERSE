@@ -600,33 +600,55 @@ test("the sign-in window on an iPhone: the whole screen, the fields and Sign in 
   await guest.close();
 });
 
-test("held sideways: the pages fit, the tab bar stays in reach as a compact row, and both bars step aside while reading", async ({ browser }) => {
+test("held sideways: the pages fit, the destinations are in one compact bar with no bottom bar, a profile's sections under it, and it steps aside while reading", async ({ browser, baseURL }) => {
+  // An iPhone 15 held sideways in Safari's tab (734 × 343) and on its whole screen (852 × 393, as wide
+  // as a tablet with viewport-fit=cover): the same frame either way (docs/MOBILE.md, "Frames by posture").
   const { defaultBrowserType: _, ...landscape } = devices["iPhone 15 landscape"];
-  const context = await browser.newContext(landscape);
-  const page = await context.newPage();
-  const tabs = page.getByRole("navigation", { name: "Primary" });
-  for (const route of ["/team", "/players", "/resources"]) {
-    await page.goto(route);
-    await expect(page.locator("main"), route).toBeVisible();
-    if (route === "/team") await lineupAtRest(page);
-    await fitsWidth(page, `${route}, sideways`);
-    // The places to go stay one tap away sideways too (there is no menu drawer on a phone).
-    await expect(tabs, route).toBeVisible();
-    expect((await tabs.boundingBox())!.height, `${route}: a compact row`).toBeLessThanOrEqual(56);
-  }
-  // Reading down a page, both bars slide away (scrolled by script: WebKit's touch emulation has no wheel).
-  await page.goto("/players");
-  await expect(page.locator("main")).toBeVisible();
-  expect(await page.evaluate(() => document.documentElement.scrollHeight - innerHeight), "Players scrolls sideways: more than the bars need").toBeGreaterThan(100);
-  await page.evaluate(async () => {
-    for (let i = 0; i < 12; i++) {
-      window.scrollBy(0, 60);
-      await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
+  for (const viewport of [landscape.viewport, { width: 852, height: 393 }]) {
+    const where = `${viewport.width} × ${viewport.height}`;
+    const context = await browser.newContext({ ...landscape, viewport });
+    await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
+    const page = await context.newPage();
+    const nav = page.getByRole("navigation", { name: "Primary" });
+    for (const route of ["/team", "/players", "/resources"]) {
+      await page.goto(route);
+      await expect(page.locator("main"), route).toBeVisible();
+      if (route === "/team") await lineupAtRest(page);
+      await fitsWidth(page, `${route}, sideways at ${where}`);
+      // The places to go stay one tap away: one primary navigation, in the top bar, which is compact.
+      await expect(nav, `${route} at ${where}`).toHaveCount(1);
+      await expect(page.getByTestId("mobile-topbar").getByRole("navigation", { name: "Primary" }), `${route} at ${where}`).toBeVisible();
+      await expect(page.getByTestId("phone-tabbar"), `${route} at ${where}`).toBeHidden();
+      expect((await page.getByTestId("mobile-topbar").boundingBox())!.height, `${route} at ${where}: one compact bar`).toBeLessThanOrEqual(45.5);
     }
-  });
-  await expect(page.getByTestId("mobile-topbar")).toHaveAttribute("data-hidden", "true");
-  await expect(tabs).toHaveAttribute("data-hidden", "true");
-  await context.close();
+    // Teammates' profiles: their sections the bar's 44px second row, the bars at rest about 89px, the
+    // band at most 80px: Demo Top's, and Demo Mid's with an off role, the lineup status and two links.
+    await page.goto("/team");
+    const profiles = await Promise.all(["TOP", "MID"].map(async (role) => `/players/${await page.getByTestId(`lineup-row-${role}`).getAttribute("data-player-id")}`));
+    for (const [i, profile] of profiles.entries()) {
+      const who = `${["Demo Top", "Demo Mid"][i]} at ${where}`;
+      await page.goto(profile);
+      await expect(page.getByTestId("profile-chrome-tabs"), who).toBeVisible();
+      if (i === 1) await expect(page.getByTestId("profile-header").getByTestId("social-links").locator("li"), who).toHaveCount(2);
+      await page.evaluate(() => document.fonts.ready);
+      expect((await page.getByTestId("mobile-topbar").boundingBox())!.height, `${who}: the bar and the sections`).toBeLessThanOrEqual(90);
+      expect((await page.getByTestId("profile-sections-bar").boundingBox())!.height, `${who}: the sections, 44px targets`).toBeGreaterThanOrEqual(44);
+      expect((await page.getByTestId("profile-header").boundingBox())!.height, `${who}: the profile's band`).toBeLessThanOrEqual(80);
+      await fitsWidth(page, `${who}: the profile, sideways`);
+    }
+    // Reading down a page, the bar slides away (scrolled by script: WebKit's touch emulation has no wheel).
+    await page.goto("/players");
+    await expect(page.locator("main")).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollHeight - innerHeight), `${where}: Players scrolls sideways, more than the bar needs`).toBeGreaterThan(100);
+    await page.evaluate(async () => {
+      for (let i = 0; i < 12; i++) {
+        window.scrollBy(0, 60);
+        await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
+      }
+    });
+    await expect(page.getByTestId("mobile-topbar"), where).toHaveAttribute("data-hidden", "true");
+    await context.close();
+  }
 });
 
 test("Players held sideways: rows two up, level with each other, every portrait whole", async ({ browser, baseURL }) => {
@@ -693,7 +715,7 @@ test("an uploaded logo: at the start of the top bar, animated unless motion is r
       await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
       const phone = await context.newPage();
       await phone.goto("/team");
-      const link = phone.getByTestId("mobile-topbar").locator("a[title]");
+      const link = phone.getByTestId("mobile-topbar").getByTestId("mobile-brand");
       await expect.poll(() => link.locator("img").evaluate((i: HTMLImageElement) => i.complete && i.naturalWidth > 0)).toBe(true);
       const shown = await link.evaluate((a) => {
         const img = a.querySelector("img")!;

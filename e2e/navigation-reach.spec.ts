@@ -7,8 +7,9 @@ import { expect, test, type Locator, type Page } from "./test";
       starts at its top, just under the bar, whatever loading state comes between;
     - tablets and desktops: Team's sections and a profile's sections stay pinned at the top of the
       page once it scrolls (under the tablet's top bar), and a table's own pinned header sits under
-      them, never behind them; the tablet's menu is a modal dialog: focus stays inside, the page
-      behind is inert, and Escape returns focus to the menu button;
+      them, never behind them; a tablet's destinations are in its top bar, and its avatar menu takes
+      the focus to its first item, keeps the arrow keys inside, and gives the focus back to the
+      avatar on Escape; a navigation never leaves it open;
     - the installed app on a tablet has no browser Back, so a page reached from another (a
       teammate's profile) gets Back in the top bar there;
     - a long page's own controls stay in reach (PR 2b): from md, once the tabs are pinned and the
@@ -367,6 +368,18 @@ test("tablet and desktop: a profile's sections stay in reach, and All Champions'
   expect(pinnedHeader.top).toBeGreaterThanOrEqual(pinnedTabs.bottom - 1);
   // A short window (480px tall or shorter) keeps its height for the page: nothing stays pinned there.
   await page.setViewportSize({ width: width(page), height: 420 });
+  if (isTablet(page)) {
+    // At a tablet's width a short window is a phone held sideways: the page's tabs give way to the
+    // sections in the compact bar, which slides away while reading (two steps: the bar reads the
+    // scroll once a frame, so a jump to the end and back in one step would read as no movement).
+    await expect(tabs).toBeHidden();
+    await expect(page.getByTestId("mobile-topbar").getByTestId("profile-chrome-tabs")).toBeVisible();
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await expect(page.getByTestId("mobile-topbar")).toHaveAttribute("data-hidden", "false");
+    await scrollTo(page, "end");
+    await expect(page.getByTestId("mobile-topbar")).toHaveAttribute("data-hidden", "true");
+    return;
+  }
   await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
   await expect.poll(async () => (await rect(tabs)).top).toBeLessThan(barBottom);
 });
@@ -475,9 +488,16 @@ test("tablet and desktop: in a short window nothing is pinned, so the row offers
   await page.goto(`${profile}/matches`);
   await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
   await scrollTo(page, "end");
-  // Not sticky at all in a short window, so no observer runs and nothing is waited for.
-  expect(await page.getByTestId("profile-tabs").evaluate((el) => getComputedStyle(el).position)).not.toBe("sticky");
-  await expect(page.getByTestId("profile-tabs")).not.toHaveAttribute("data-stuck", /.*/);
+  if (isTablet(page)) {
+    // At a tablet's width a short window is a phone held sideways: no row in the page to pin (the
+    // sections ride in the compact bar), and nothing offered beside it.
+    await expect(page.getByTestId("profile-tabs")).toBeHidden();
+    await expect(page.getByTestId("mobile-topbar").getByTestId("profile-chrome-tabs")).toBeAttached();
+  } else {
+    // Not sticky at all in a short window, so no observer runs and nothing is waited for.
+    expect(await page.getByTestId("profile-tabs").evaluate((el) => getComputedStyle(el).position)).not.toBe("sticky");
+    await expect(page.getByTestId("profile-tabs")).not.toHaveAttribute("data-stuck", /.*/);
+  }
   await expect(pageToolbar(page)).toHaveCount(0);
 });
 
@@ -717,9 +737,10 @@ test("desktop: the compact search's Clear lets its copy go once the page's own s
   await scrollTo(page, "end");
   const field = page.getByTestId("toolbar-players-search");
   await expect(field).toBeVisible();
-  // Narrowed to a few players, the page is short again and its own search back in view: the copy
-  // stays while it has the focus.
-  await field.fill("mid");
+  // Narrowed to one player, the page is short again and its own search back in view: the copy stays
+  // while it has the focus. (By the whole name: "mid" also matched members other tests add, and one
+  // with a long name kept the page too tall at 175% for its search to come back, on CI.)
+  await field.fill("Demo Mid");
   await expect.poll(async () => (await rect(page.getByTestId("players-search"))).top - (await rect(page.getByTestId("team-tabs"))).bottom, { message: "the page's own search back in view, under the tabs" }).toBeGreaterThanOrEqual(0);
   await expect(field).toBeVisible();
   await expect(field).toBeFocused();
@@ -925,44 +946,77 @@ test("tablet and desktop: Records → Recent form from the pinned row", async ({
   await expect(page.getByTestId("leaderboards-tab-form")).toHaveAttribute("aria-current", "page");
 });
 
-test("tablet: the menu is a modal dialog: focus stays inside, the page behind is inert, and Escape returns focus to the menu button", async ({ page }) => {
-  test.skip(!isTablet(page), "the drawer is the tablet's menu");
+test("tablet: the destinations are in the top bar, one tap each, and the avatar menu keeps the focus as a menu does and gives it back to the avatar", async ({ page }) => {
+  test.skip(!isTablet(page), "a tablet's top bar");
   await page.goto("/players");
   await expect(page.getByTestId("players-directory")).toBeVisible();
-  const menu = page.getByRole("button", { name: "Open menu" });
-  await menu.click();
-  const drawer = page.getByRole("dialog", { name: "Menu" });
-  await expect(drawer).toBeVisible();
-  const inside = () => page.evaluate(() => !!document.activeElement?.closest("#mobile-drawer"));
-  expect(await inside()).toBe(true);
-  // Tab goes round the menu's own controls (past its last one, the browser's own chrome, then
-  // round again); never into the page behind.
-  let within = 0;
-  for (let i = 0; i < 16; i++) {
-    await page.keyboard.press("Tab");
-    const on = await page.evaluate(() => document.activeElement === document.body || !!document.activeElement?.closest("#mobile-drawer"));
-    expect(on, `focus after ${i + 1} tabs`).toBe(true);
-    if (await inside()) within++;
+  // There is no drawer: each destination is one tap from the bar, Team marked on its sections.
+  await expect(page.getByRole("button", { name: "Open menu" })).toHaveCount(0);
+  const nav = page.getByRole("navigation", { name: "Primary" });
+  await expect(nav.getByRole("link")).toHaveText(["My Profile", "Team", "Resources"]);
+  await expect(nav.getByRole("link", { name: "Team" })).toHaveAttribute("aria-current", "page");
+  const avatar = page.getByTestId("mobile-topbar").getByTestId("account-menu-button");
+  await avatar.click();
+  const menu = page.getByTestId("account-menu");
+  await expect(menu).toBeVisible();
+  // The focus starts on its first item; ArrowDown moves to the next item by name, round from the last
+  // to the first; ArrowUp from the first goes to the last; Home and End to the first and the last.
+  const items = menu.getByRole("menuitem");
+  await expect(items).toHaveText(["Settings", "Install App", "Switch to Admin Mode", "Details"]);
+  const n = await items.count();
+  await expect(items.first()).toBeFocused();
+  for (let i = 1; i <= n; i++) {
+    await page.keyboard.press("ArrowDown");
+    await expect(items.nth(i % n), `ArrowDown ${i}`).toBeFocused();
   }
-  expect(within).toBeGreaterThanOrEqual(10);
-  // The page behind cannot take focus while the menu is open.
-  expect(await page.evaluate(() => { const link = document.querySelector<HTMLElement>("main a[href]")!; link.focus(); return document.activeElement === link; })).toBe(false);
+  await page.keyboard.press("ArrowUp");
+  await expect(items.nth(n - 1)).toBeFocused();
+  await page.keyboard.press("Home");
+  await expect(items.first()).toBeFocused();
+  await page.keyboard.press("End");
+  // The last, Riot's notice's "Details", named in full and ringed as every control the keyboard reaches.
+  const details = items.nth(n - 1);
+  await expect(details).toBeFocused();
+  await expect(details).toHaveAccessibleName("Details: Riot Games notice");
+  const accent = await page.evaluate(() => {
+    const probe = document.createElement("span");
+    probe.style.color = "var(--color-accent)";
+    document.body.append(probe);
+    const colour = getComputedStyle(probe).color;
+    probe.remove();
+    return colour;
+  });
+  expect(await details.evaluate((el) => [getComputedStyle(el).outlineStyle, getComputedStyle(el).outlineWidth, getComputedStyle(el).outlineColor])).toEqual(["solid", "2px", accent]);
+  // A word in the notes, a finger-sized target on a touch screen all the same (touch-target).
+  expect(await details.evaluate((el) => parseFloat(getComputedStyle(el, "::after").height))).toBe(44);
+  // The notes are a group named by their own words, as the menu pattern allows.
+  await expect(menu.getByRole("group")).toHaveAccessibleName(/^Patch .+ Not endorsed by Riot Games\.$/);
   await page.keyboard.press("Escape");
-  await expect(drawer).toHaveCount(0);
-  await expect(menu).toBeFocused();
-  // A click outside the panel closes it too, and a page scrolled far down stays where it was when
-  // focus returns to the menu button in the bar. (Players fits one tablet screen: a teammate's
-  // Match History, ten games a page, is the long page here.)
+  await expect(menu).toHaveCount(0);
+  await expect(avatar).toBeFocused();
+  // Tab closes it too.
+  await avatar.click();
+  await expect(items.first()).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(menu).toHaveCount(0);
+  // A click outside closes it, and a page scrolled far down stays where it was. (Players fits one
+  // tablet screen: a teammate's Match History, ten games a page, is the long page here.) A menu is
+  // not a window: a click outside also reaches what it lands on, so it lands on the bar's empty
+  // stretch between the destinations and the avatar, not on a game.
   await page.goto(`${await teammate(page)}/matches`);
   await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
   await page.evaluate(() => window.scrollTo(0, 800));
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(500);
   const scrolled = await page.evaluate(() => window.scrollY);
-  await menu.click();
-  await expect(drawer).toBeVisible();
-  await page.mouse.click(700, 500);
-  await expect(drawer).toHaveCount(0);
-  await expect(menu).toBeFocused();
+  await avatar.click();
+  await expect(menu).toBeVisible();
+  const empty = await page.evaluate(() => {
+    const nav = document.querySelector("[data-testid=topbar-destinations] ul")!.getBoundingClientRect();
+    const end = document.querySelector("[data-testid=mobile-topbar] [data-testid=account-menu-button]")!.getBoundingClientRect();
+    return { x: (nav.right + end.left) / 2, y: (end.top + end.bottom) / 2 };
+  });
+  await page.mouse.click(empty.x, empty.y);
+  await expect(menu).toHaveCount(0);
   expect(await page.evaluate(() => window.scrollY)).toBe(scrolled);
   // Left open while the browser's Back changes the page (within the app, so the menu's state
   // survives the change), it is gone, and Forward does not bring it back unasked.
@@ -970,18 +1024,18 @@ test("tablet: the menu is a modal dialog: focus stays inside, the page behind is
   await page.getByTestId("team-tab-players").click();
   await expect(page).toHaveURL(/\/players$/);
   await expect(page.getByTestId("players-directory")).toBeVisible();
-  await menu.click();
-  await expect(drawer).toBeVisible();
+  await avatar.click();
+  await expect(menu).toBeVisible();
   await page.goBack();
   await expect(page).toHaveURL(/\/team$/);
-  await expect(drawer).toHaveCount(0);
+  await expect(menu).toHaveCount(0);
   await page.goForward();
   await expect(page).toHaveURL(/\/players$/);
   await expect(page.getByTestId("players-directory")).toBeVisible();
-  await expect(drawer).toHaveCount(0);
+  await expect(menu).toHaveCount(0);
 });
 
-test("tablet, installed as an app: Back appears on a teammate's profile; in a browser the menu is the way back", async ({ page }) => {
+test("tablet, installed as an app: Back appears on a teammate's profile; in a browser the browser's own Back is the way back, the destinations beside it", async ({ page }) => {
   test.skip(!isTablet(page), "the tablet's top bar");
   const profile = await teammate(page);
   await page.goto(profile);
@@ -1001,8 +1055,8 @@ test("tablet, installed as an app: Back appears on a teammate's profile; in a br
   const back = page.getByTestId("mobile-back");
   await expect(back).toBeVisible();
   await expect(back).toContainText("Players");
-  // The menu is still there beside it.
-  await expect(page.getByRole("button", { name: "Open menu" })).toBeVisible();
+  // The destinations are still there beside it, Team marked (a teammate's profile is under it).
+  await expect(page.getByRole("navigation", { name: "Primary" }).getByRole("link", { name: "Team" })).toHaveAttribute("aria-current", "page");
   await back.click();
   await expect(page).toHaveURL(/\/players$/);
 });

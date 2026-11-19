@@ -305,7 +305,7 @@ function useSheetDrag(ref: React.RefObject<HTMLDialogElement | null>, enabled: b
 }
 
 /**
- * The page behind a window (or the tablet's menu) stays exactly where it is: no scrolling, no rubber
+ * The page behind a window stays exactly where it is: no scrolling, no rubber
  * band or pull-to-refresh (iOS and Android browsers), and no shift sideways when its scrollbar goes.
  * The scrollbar's width is the window's less the root's, believed only up to a scrollbar's width
  * (24px): a phone has none, and a browser that reports the window's size wrongly cannot push the

@@ -10,10 +10,11 @@ import { promptInstall, useInstallState } from "./install-state";
 import { cn } from "@/lib/cn";
 import { RAIL_FADE, RAIL_HIGHLIGHT, RAIL_HOVER, RAIL_ICON, RAIL_ICON_IDLE, RAIL_ROW } from "@/lib/sidebar";
 import { ACCOUNT_ROW, ACCOUNT_ROW_ICON, ACCOUNT_ROW_IDLE } from "@/lib/sheet";
+import { MenuItem } from "@/components/ui/menu";
 
 /*
-  Install App: one entry beside Settings (sidebar and phone menu), and one in the public team
-  page's header, each opening one small window.
+  Install App: one entry beside Settings (the sidebar, the phone's account screen, a tablet's avatar
+  menu), and one in the public team page's header, each opening one small window.
   - Where the browser has offered to install (Chromium on Windows, Android, macOS, Linux and
     ChromeOS), the window's main button shows the browser's own install dialog. The offer is used
     once: dismissed, the window shows the browser's own way to install instead.
@@ -27,7 +28,7 @@ import { ACCOUNT_ROW, ACCOUNT_ROW_ICON, ACCOUNT_ROW_IDLE } from "@/lib/sheet";
 
 const InstallContext = React.createContext<() => void>(() => undefined);
 
-/** Hosts the install window once, for the sidebar's and the phone menu's entries. */
+/** Hosts the install window once, for the entries of the sidebar, the account screen and the avatar menu. */
 export function InstallAppProvider({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = React.useState(false);
   const show = React.useCallback(() => setOpen(true), []);
@@ -44,7 +45,7 @@ export function InstallAppProvider({ children }: { children: React.ReactNode }) 
  * by CSS in the installed app's display modes (so the installed app never shows it, even for a
  * moment), and by the browser's own signals once the page runs.
  */
-export function InstallAppEntry({ variant, beforeOpen, className }: { variant: "sidebar" | "drawer" | "public" | "row"; beforeOpen?: () => void; className?: string }) {
+export function InstallAppEntry({ variant, beforeOpen, className }: { variant: "sidebar" | "public" | "row" | "menu"; beforeOpen?: () => void; className?: string }) {
   const openWindow = React.useContext(InstallContext);
   const state = useInstallState();
   if (state.ready && (state.standalone || state.installed)) return null;
@@ -72,16 +73,21 @@ export function InstallAppEntry({ variant, beforeOpen, className }: { variant: "
       </button>
     );
   }
-  return variant === "sidebar" ? (
+  if (variant === "menu") {
+    // A tablet's avatar menu: one of its items. The menu closes as it opens the window, giving the
+    // focus back to the avatar, where the window returns it when it closes.
+    return (
+      <MenuItem onSelect={onClick} returnFocus icon={<Download className="h-4 w-4" />} aria-haspopup="dialog" className={cn(hiddenWhenInstalled, className)} data-testid="install-app">
+        Install App
+      </MenuItem>
+    );
+  }
+  return (
     <button type="button" onClick={onClick} aria-haspopup="dialog" title="Install App" className={cn(RAIL_ROW, "font-medium text-fg-muted hover:text-fg", hiddenWhenInstalled, className)} data-testid="install-app">
       <span className={cn(RAIL_HIGHLIGHT, RAIL_HOVER)} aria-hidden />
       <Download className={cn(RAIL_ICON, RAIL_ICON_IDLE)} aria-hidden />
       {/* Collapsed sidebar: the icon only; the label stays for screen readers and as the tooltip. */}
       <span className={cn("truncate", RAIL_FADE)}>Install App</span>
-    </button>
-  ) : (
-    <button type="button" onClick={onClick} aria-haspopup="dialog" className={cn("flex min-h-12 w-full items-center gap-3 rounded-lg pl-[0.9375rem] pr-3 text-left text-sm text-fg-muted hover:bg-surface-2 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent", hiddenWhenInstalled, className)} data-testid="install-app">
-      <Download className="h-[1.125rem] w-[1.125rem] text-fg-subtle" aria-hidden /> Install App
     </button>
   );
 }

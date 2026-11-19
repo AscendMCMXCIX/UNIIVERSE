@@ -221,15 +221,7 @@ const CHECKS = [
     },
   },
   {
-    name: "tablet menu (drawer)",
-    selector: "[data-testid=mobile-drawer]",
-    frames: ["iPad"],
-    async run(page, { touch, base }) {
-      await open(page, "/team", base);
-      await tap(page, page.getByTestId("menu-button"), touch);
-    },
-  },
-  {
+    // A tablet's avatar menu holds what its menu drawer did (the drawer went with frames by posture).
     name: "account menu (dropdown)",
     selector: "[data-testid=account-menu]",
     frames: ["iPad", "Mac"],

@@ -77,11 +77,13 @@ function AccountNudges({ status }: { status: ShellStatus }) {
 
 /**
  * Application layout, for both modes. Desktop (lg+): a sidebar that stays put while the page
- * scrolls (it scrolls on its own if it is ever taller than the window). Below lg: a top bar with a
- * drawer, and on phones a bottom tab bar. Player Mode shows the player pages, Admin Mode only the
- * admin pages; administrators also get the switch between the two, apart from the pages, in the
- * sidebar and the drawer. Problems with data jobs never appear here: they belong to the Admin
- * pages; toasts carry short-lived messages.
+ * scrolls (it scrolls on its own if it is ever taller than the window). Below lg, by posture
+ * (MobileNav): on a tablet a top bar holding the destinations and the account menu; on a phone a top
+ * bar and a bottom tab bar upright, one compact top bar holding the destinations held sideways.
+ * Player Mode shows the player pages, Admin Mode only the admin pages; administrators also get the
+ * switch between the two, apart from the pages: in the sidebar, the account menu and the account
+ * screen. Problems with data jobs never appear here: they belong to the Admin pages; toasts carry
+ * short-lived messages.
  */
 export function AppShell({ status, children }: { status: ShellStatus; children: ReactNode }) {
   const b = status.branding;
@@ -154,14 +156,7 @@ export function AppShell({ status, children }: { status: ShellStatus; children: 
             adminMode={adminMode}
             modeSwitch={status.isAdmin ? (adminMode ? "admin" : "player") : null}
             status={<DataLine status={status} />}
-            legal={
-              <p className="text-xs leading-snug text-fg-subtle" title={riotLegal(b.productName)}>
-                Not endorsed by Riot Games.{" "}
-                <Link href={`${adminMode ? "/admin" : ""}/settings#compliance`} className="touch-target underline underline-offset-2">
-                  Details
-                </Link>
-              </p>
-            }
+            legal={{ title: riotLegal(b.productName), href: `${adminMode ? "/admin" : ""}/settings#compliance` }}
           />
           <div className="relative flex min-w-0 flex-1 flex-col">
             {/* Team Overview's lineup is centred in the height left under the section tabs: on that page

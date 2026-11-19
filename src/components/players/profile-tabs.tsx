@@ -20,9 +20,11 @@ const KEEPS_SEASON = new Set(["overview", "champions", "matches"]);
  *
  *   page     tablets and desktops: the bar under the profile card, the same bar as Team's sections
  *            (TabBar), pinned at the top of the page once the card has scrolled away; each section
- *            is an entry of the browser's history.
- *   chrome   phones: in the top bar (MobileNav), so the sections stay in reach however far the page
- *            scrolls; four short names sharing the width. Moving between them replaces the history
+ *            is an entry of the browser's history. Not in a phone held sideways (a short window
+ *            below lg), which carries them in its top bar as upright.
+ *   chrome   phones, either way round: in the top bar (MobileNav), so the sections stay in reach
+ *            however far the page scrolls; four short names sharing the width, 44px tall (held
+ *            sideways the compact bar's second row). Moving between them replaces the history
  *            entry (as a phone's tabs within one screen do), so Back leaves the profile, and a
  *            section opened far down the page starts at its top, just under the bar.
  */
@@ -58,7 +60,7 @@ export function ProfileTabs({ basePath, variant = "page" }: { basePath: string; 
       keepScroll
       sticky
       testId="profile-tabs"
-      className="max-md:hidden md:-mt-2.5"
+      className="max-md:hidden max-lg:short:hidden md:-mt-2.5"
       onChoose={(key) => {
         pending.current = { key, from: window.scrollY };
       }}
@@ -197,7 +199,8 @@ function ChromeTabs({ items, current }: { items: Array<{ key: string; href: stri
                   if (stayOnCurrentPage(e, on)) return;
                   pending.current = !on && isPlainClick(e) && cardScrolledPast() ? t.key : null;
                 }}
-                // 6px a side: the four names fit a 320px screen with the bar's gutters.
+                // 6px a side: the four names fit a 320px screen with the bar's gutters. 44px tall either way
+                // round: a touch screen's target (STANDARDS.md), under the compact bar's 44px held sideways.
                 className={cn("flex min-h-11 items-center justify-center whitespace-nowrap px-1.5 text-sm font-medium transition-colors duration-150", tabIndicatorClass(on))}
                 data-testid={t.testId}
               >

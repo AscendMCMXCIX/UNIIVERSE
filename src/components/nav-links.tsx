@@ -38,8 +38,9 @@ function NavItem({ link, active, here, large, onNavigate, testId }: { link: NavL
 }
 
 /**
- * Vertical navigation: the desktop sidebar and the phone/tablet drawer share it. The server
- * decides which pages this account may open and passes their paths (`allowed`); icons stay here.
+ * Vertical navigation: the desktop sidebar's pages (a tablet has the same entries in its top bar:
+ * tabletDestinations, MobileNav). The server decides which pages this account may open and passes
+ * their paths (`allowed`); icons stay here.
  */
 export function NavLinks({ allowed, admin = false, onNavigate, large = false }: { allowed: string[]; admin?: boolean; onNavigate?: () => void; large?: boolean }) {
   const pathname = usePathname();

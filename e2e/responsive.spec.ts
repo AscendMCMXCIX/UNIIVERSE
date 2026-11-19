@@ -53,14 +53,14 @@ test("navigation is usable", async ({ page }) => {
   if (isPhone(page)) {
     // Bottom tab bar on phones: the five places members go to most, the current one lit
     // (docs/MOBILE.md; e2e/mobile-nav.spec.ts checks the rest of the phone frame).
-    const tabs = page.locator("nav[aria-label='Primary'] a");
+    const tabs = page.getByTestId("phone-tabbar").locator("a");
     await expect(tabs).toHaveText(["Team", "Players", "Leaderboards", "Matches", "Profile"]);
     await expect(tabs.filter({ hasText: "Team" })).toHaveAttribute("aria-current", "page");
     await tabs.filter({ hasText: "Matches" }).click();
     await expect(page).toHaveURL(/\/matches$/);
     await expect(tabs.filter({ hasText: "Matches" })).toHaveAttribute("aria-current", "page");
-    // The account screen behind the avatar holds the rest; no menu drawer on a phone.
-    await expect(page.getByTestId("menu-button")).toBeHidden();
+    // The account screen behind the avatar holds the rest; no menu drawer anywhere.
+    await expect(page.getByTestId("menu-button")).toHaveCount(0);
     await page.getByTestId("account-sheet-button").click();
     const sheet = page.getByTestId("account-sheet");
     await expect(sheet).toBeVisible();
@@ -68,8 +68,21 @@ test("navigation is usable", async ({ page }) => {
     await expect(page).toHaveURL(/\/settings$/);
     await expect(sheet).toBeHidden();
   } else if ((page.viewportSize()?.width ?? 0) < 1024) {
-    await page.getByRole("button", { name: "Open menu" }).click();
-    await page.getByRole("dialog", { name: "Menu" }).getByRole("link", { name: "Settings" }).click();
+    // A tablet: the destinations in the top bar, one tap each (no drawer), Team marked on its pages;
+    // Team's sections are the pinned tabs in the page.
+    const nav = page.getByRole("navigation", { name: "Primary" });
+    await expect(nav).toHaveCount(1);
+    await expect(nav.getByRole("link")).toHaveText(["My Profile", "Team", "Resources"]);
+    await expect(nav.getByRole("link", { name: "Team" })).toHaveAttribute("aria-current", "page");
+    await expect(page.getByTestId("menu-button")).toHaveCount(0);
+    await nav.getByRole("link", { name: "Resources" }).click();
+    await expect(page).toHaveURL(/\/resources$/);
+    await expect(nav.getByRole("link", { name: "Resources" })).toHaveAttribute("aria-current", "page");
+    await nav.getByRole("link", { name: "My Profile" }).click();
+    await expect(page).toHaveURL(/\/overview$/);
+    // The avatar menu holds the account's items: Settings among them.
+    await page.getByTestId("mobile-topbar").getByTestId("account-menu-button").click();
+    await page.getByTestId("account-menu").getByRole("menuitem", { name: "Settings" }).click();
     await expect(page).toHaveURL(/\/settings$/);
   } else {
     const aside = page.locator("aside");
