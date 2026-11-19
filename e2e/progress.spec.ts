@@ -83,7 +83,13 @@ test("a profile shows recent form and ranked progress per queue", async ({ page 
   await expect(page.getByTestId("profile-rank")).toContainText(current);
 
   // The pointer (or a finger) on a reading shows it; so do the arrow keys, for a screen reader too.
+  // The chart answers once its script runs, which first measures the chart's box: the drawing (its
+  // viewBox) then becomes as wide as the box, where the server drew it 480 wide (the box is 309 to
+  // 414px wide in these projects). A pointer that arrived before then reached no handler, and
+  // nothing moved it again, so the reading never showed (on GitHub, 19 Nov): the pointer goes to
+  // the reading once the drawing is measured.
   await chart.scrollIntoViewIfNeeded();
+  await expect.poll(async () => Number((await chart.getAttribute("viewBox"))!.split(" ")[2]) - Math.round((await chart.boundingBox())!.width), "the chart measured: its script is running").toBe(0);
   const dot = ranked.getByTestId("ranked-reading").last();
   const at = (await dot.boundingBox())!;
   if (info.project.name === "phone") await page.touchscreen.tap(at.x + at.width / 2, at.y + at.height / 2);

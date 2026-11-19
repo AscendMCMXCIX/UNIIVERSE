@@ -322,11 +322,25 @@ the phone project):
     no-break spaces, so "14 games · 29%" never leaves the dot at a line's end.
   - The role chip has a lane from its corner to the card's controls (0.125rem short of them), or to
     the card's own edge where there are none (its clip, what a chip fitted before it had a lane).
-    Where the lane is narrower than the chip, the chip shows its icon alone as a round badge, the
-    role's name kept for screen readers. The thresholds are the chips rounded up to the next 0.01rem
-    (Mid 4.88, Top 4.98, Jungle 7.01, Bottom 7.34, Support 7.78rem; each chip the same at every size
-    to 0.005rem): a name that shows always fits its lane, and a chip that fits keeps its name (the
-    closest, Support beside its control at 150% on a 375px phone, has 7.79rem).
+    Where the lane is narrower than the role's threshold, the chip shows its icon alone as a round
+    badge, the role's name kept for screen readers. A threshold is the chip plus a margin for the
+    browsers' text, rounded up to the next 0.01rem: Mid 4.91, Top 5.02, Jungle 7.04, Bottom 7.38 and
+    Support 7.81rem. The chips (Mid 4.872, Top 4.978, Jungle 7.001, Bottom 7.335, Support 7.773rem)
+    measure the same in Chromium and in WebKit, within 0.1px at every size from 100% to 200%, and the
+    margin over them is at least 0.036rem (0.6px at 100%, 0.9px at 150%, 1.2px at 200%). Text drawn
+    with hinting differs by size: the Chromium headless shell the specs run in on GitHub rounds each
+    letter's advance to whole pixels and draws a chip up to 0.12rem wider or narrower. Its Support
+    chip, 7.818rem at 150%, ran past its 7.79rem lane on a 375px phone when the thresholds were the
+    chips themselves (CI run 44442818521); at the sizes the specs check (150, 175 and 200%) its chips
+    are within their thresholds, but for Support's at 150%, 0.2px over, inside the specs' half-pixel
+    allowance. The margin can be no larger: the narrowest lane at 100%, beside a control on a 12.2rem
+    card five across, is 125.19px, and WebKit tests a container's width in whole pixels (lanes of
+    125.2 to 125.8px read as narrower than a 125.12px threshold, measured in Playwright's WebKit 27.2),
+    so Support's threshold must be 125px or less for its name to show there at 100%, as it did before
+    the chip had a lane. The spec also narrows each chip's lane to the chip's own width less half a
+    pixel, at each size, and finds the icon alone there: in the browser it runs in, no lane narrower
+    than a chip by more than half a pixel (the allowance of its other checks) shows the name, not
+    only the lanes the demo's cards give.
   - Two controls (your own card's Customise and the turn control) stand one above the other under
     9.25rem; on a touch screen the art keeps its top clear of the controls where they reach over the
     picture (under 7.75rem with one control, 10.875rem with two side by side).
