@@ -156,8 +156,8 @@ costs nothing until someone runs it.
 - **One run:** install, the WebKit download (cached after the first run), a build, a few minutes of
   tests, then WebKit 26.0's download (not cached) and its check: 8 to 14 minutes (7.4 and 13.4 on
   10 Nov; the Safari 26 step 1.3 to 1.6 of them, the system libraries up to 9.5).
-- **Its limit is 45 minutes** (20 until 18 Nov 2026). That day 14 of 34 attempts were cancelled at
-  20 minutes while the runner's Ubuntu mirror was still installing WebKit's system libraries (17 to
+- **Its limit is 45 minutes** (20 until 18 Nov 2026). That day 14 of its first 34 attempts, and #307's
+  next (15:53 UTC), were cancelled at 20 minutes while the runner's Ubuntu mirror was still installing WebKit's system libraries (17 to
   19 minutes, against 39 seconds in a quick run), before any test ran; a slow install now finishes
   instead. A run that does not end by itself still stops at 45.
 - **When to run it:** once before releasing a change that could behave differently in Safari
