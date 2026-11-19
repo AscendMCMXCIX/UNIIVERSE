@@ -16,8 +16,8 @@ import { timeAgo, formatCount, formatDayMonth, formatNumber, formatTimeOfDay } f
 import { cn } from "@/lib/cn";
 import { MatchDetailModal } from "./match-detail";
 import { MatchDetailCacheContext, createMatchDetailCache, type MatchDetailCache } from "./match-detail-cache";
-import { EncounterLinkContext, type EncounterLink } from "./match-breakdown";
-import { MatchExpansion, revealIfAbove, revealOpened } from "./inline-match";
+import { EncounterLinkContext, type EncounterLink } from "./post-game";
+import { GameSteps, MatchExpansion, bringBack, revealOpened, type GameNav } from "./inline-match";
 import { HistorySummaryStrip } from "./history-summary";
 import { ItemRow } from "./icon-img";
 import { MultikillTag } from "./multikill-tag";
@@ -117,7 +117,7 @@ function membersIn(teams: Composition | null) {
  * Memoised: opening a match re-renders only the cards it opens and closes, not the whole page. The
  * breakdown opens under its card (MatchBreakdown), one game at a time.
  */
-const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ, onToggle, onPrefetch, expanded, checked }: { row: MatchRow; playerId: string; champion: PortraitChampion; champ: (id: string | null) => PortraitChampion; onToggle: (matchId: string) => void; onPrefetch: (matchId: string) => void; expanded: boolean; /** Ranks its breakdown checked with Riot, shown without reloading the page. */ checked?: ReadonlyMap<number, ParticipantRank> }) {
+const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ, onToggle, onPrefetch, nav, expanded, checked }: { row: MatchRow; playerId: string; champion: PortraitChampion; champ: (id: string | null) => PortraitChampion; onToggle: (matchId: string) => void; onPrefetch: (matchId: string) => void; /** The open game's way to the previous and next games on the page (null at that end). */ nav: GameNav | null; expanded: boolean; /** Ranks its breakdown checked with Riot, shown without reloading the page. */ checked?: ReadonlyMap<number, ParticipantRank> }) {
   const kp = row.killParticipation === null ? "—" : `${Math.round(row.killParticipation * 100)}%`;
   const tone = matchTone(row.win);
   const account = row.riotId ? row.riotId.split("#")[0] : null;
@@ -182,7 +182,22 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
   );
   const open = React.useRef<HTMLButtonElement>(null);
   return (
-    <li id={`match-${row.matchId}`} className="scroll-mt-0 lg:scroll-mt-3" data-testid="match-item" data-expanded={expanded || undefined}>
+    <li
+      id={`match-${row.matchId}`}
+      className="scroll-mt-0 lg:scroll-mt-3"
+      data-testid="match-item"
+      data-expanded={expanded || undefined}
+      // Escape, with the focus anywhere in the open game, closes it.
+      onKeyDown={
+        expanded
+          ? (e) => {
+              if (e.key !== "Escape" || e.defaultPrevented) return;
+              e.preventDefault();
+              onToggle(row.matchId);
+            }
+          : undefined
+      }
+    >
       {/* One game per card, read the way a player scans a match list: the result (Victory /
           Defeat, the queue, when, a ranked game's LP), the champion (its level, spells and runes),
           the KDA with the game's largest multikill and, rarely, a figure the player never beat in
@@ -217,7 +232,7 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
       <div
         className={cn("group cursor-pointer", matchCardClass(row.win, { interactive: true }), expanded && "rounded-b-none border-b-border/40")}
         onClick={(e) => {
-          if ((e.target as Element).closest("a")) return;
+          if ((e.target as Element).closest("a, [data-game-step]")) return;
           open.current!.focus({ preventScroll: true });
           onToggle(row.matchId);
         }}
@@ -241,7 +256,26 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
           data-result={row.win ? "W" : "L"}
         />
         <MatchRail win={row.win} />
-        <span className={CARD_GRID} data-testid="match-card-grid">
+        {expanded ? (
+          // The open game's card folds into its header (about 50px): the result, when, the LP and
+          // the champion, then Previous, Next and Close. The loadout, figures, build and teams are
+          // the view's below, said once.
+          <span className="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 py-1.5 pl-2 pr-1.5 sm:pl-3" data-testid="match-card-header">
+            <span className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 gap-y-0.5">
+              <span className={cn("text-md font-bold", tone.text)}>{tone.word}</span>
+              <span className="truncate text-sm font-semibold text-fg">
+                {champion.name}
+                {roleName ? <span className="font-normal text-fg-muted"> · {roleName}</span> : null}
+              </span>
+              <span className="whitespace-nowrap text-xs tabular-nums text-fg-subtle" suppressHydrationWarning>
+                {fmtDuration(row.durationS)} · {row.queue} · {when}
+              </span>
+              {row.lp ? <LpChange lp={row.lp} dense /> : null}
+            </span>
+            <GameSteps nav={nav} onClose={() => onToggle(row.matchId)} where="header" />
+          </span>
+        ) : (
+          <span className={CARD_GRID} data-testid="match-card-grid">
           {/* The result column: Victory or Defeat with the length, the queue, then when with a ranked game's LP after it. */}
           <MatchResult win={row.win} queue={row.queue} when={when} duration={fmtDuration(row.durationS)} extra={row.lp ? <LpChange lp={row.lp} dense /> : null} className="hidden @min-[50rem]/mh:flex" />
           {/* A phone's first line, across the card (36–50rem: over the champion, below). */}
@@ -358,6 +392,7 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
           </span>
           <ChevronRight className={cn("hidden h-4 w-4 text-fg-subtle transition-transform motion-reduce:transition-none @min-[50rem]/mh:block", expanded ? "rotate-90 text-fg" : "group-hover:translate-x-0.5 group-hover:text-fg")} aria-hidden />
         </span>
+        )}
       </div>
       {expanded ? (
         <MatchExpansion
@@ -366,15 +401,8 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
           playerId={playerId}
           matchId={row.matchId}
           champ={champ}
-          onClose={() => {
-            // The way back from the end of a long breakdown: closes the game and brings its card
-            // into view (the list goes on from where it was), with the focus on it.
-            onToggle(row.matchId);
-            requestAnimationFrame(() => {
-              revealIfAbove(document.getElementById(`match-${row.matchId}`));
-              open.current?.focus({ preventScroll: true });
-            });
-          }}
+          nav={nav}
+          onClose={() => onToggle(row.matchId)}
         />
       ) : null}
     </li>
@@ -565,17 +593,67 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
   });
   // Set when a card opens, so the card is brought into view once it has (see below).
   const reveal = React.useRef<string | null>(null);
-  const toggle = React.useCallback(
-    (matchId: string) => {
-      const next = openRef.current?.id === matchId ? null : matchId;
-      setOpen(next ? { id: next, via: "card" } : null);
-      reveal.current = next;
-      const push = !!next && isPhone();
-      pushed.current = push ? next : null;
-      writeMatch(next, { push });
+  // Switching games keeps the new game's card where the clicked card (or the open game's header)
+  // was on the screen: its top is recorded before the change, and the page scrolled by the
+  // difference before the browser paints (see below), so nothing jumps under the pointer.
+  const anchor = React.useRef<{ id: string; top: number } | null>(null);
+  // The last game open under its card: closing (Close, Escape, Back) returns the focus to its card.
+  const lastInline = React.useRef<string | null>(null);
+  const focusCard = (matchId: string) =>
+    requestAnimationFrame(() => {
+      const li = document.getElementById(`match-${matchId}`);
+      bringBack(li);
+      li?.querySelector<HTMLElement>("[data-testid=match-row]")?.focus({ preventScroll: true });
+    });
+  /** Another game in place of the open one: the address is replaced (one history entry for the whole visit). */
+  const switchTo = React.useCallback(
+    (matchId: string, keep: HTMLElement | null) => {
+      anchor.current = keep ? { id: matchId, top: keep.getBoundingClientRect().top } : null;
+      reveal.current = null;
+      setOpen({ id: matchId, via: "card" });
+      if (pushed.current) pushed.current = matchId;
+      writeMatch(matchId);
     },
     [writeMatch],
   );
+  /**
+   * One history rule, as for every item a list opens: opening a game adds one entry (so Back closes
+   * it, on a desktop as on a phone), switching to another replaces it, and closing goes Back when
+   * this page added it.
+   */
+  const toggle = React.useCallback(
+    (matchId: string) => {
+      const current = openRef.current?.id ?? null;
+      if (current && current !== matchId && !isPhone()) {
+        switchTo(matchId, document.getElementById(`match-${matchId}`));
+        return;
+      }
+      if (current === matchId) {
+        if (pushed.current === matchId) {
+          pushed.current = null;
+          window.history.back();
+        } else {
+          setOpen(null);
+          writeMatch(null);
+        }
+        focusCard(matchId);
+        return;
+      }
+      setOpen({ id: matchId, via: "card" });
+      reveal.current = matchId;
+      pushed.current = matchId;
+      writeMatch(matchId, { push: true });
+    },
+    [writeMatch, switchTo],
+  );
+  React.useLayoutEffect(() => {
+    if (inline) lastInline.current = inline;
+    const a = anchor.current;
+    if (!inline || !a || a.id !== inline) return;
+    anchor.current = null;
+    const el = document.getElementById(`match-${inline}`);
+    if (el) window.scrollBy({ top: el.getBoundingClientRect().top - a.top, behavior: "instant" });
+  }, [inline]);
   // An opened card that sits low on the screen, or above it (the game open before it closed and
   // the list moved up), is scrolled to the top so its breakdown is in view; one already in the
   // upper part of the screen stays where it is.
@@ -584,6 +662,14 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
     reveal.current = null;
     revealOpened(document.getElementById(`match-${inline}`));
   }, [inline]);
+  /** The open game's neighbours on this page, for Previous and Next (the window's, on a phone, and the card's). */
+  const rowIds = React.useMemo(() => data.rows.map((r) => r.matchId), [data.rows]);
+  // The new game takes the place of the open one's header on the screen.
+  const step = React.useCallback((matchId: string) => switchTo(matchId, openRef.current ? document.getElementById(`match-${openRef.current.id}`) : null), [switchTo]);
+  const navFor = (matchId: string | null): GameNav | null => {
+    const i = matchId ? rowIds.indexOf(matchId) : -1;
+    return i < 0 ? null : { prev: rowIds[i - 1] ?? null, next: rowIds[i + 1] ?? null, go: step };
+  };
   const returnFocus = React.useRef<HTMLElement | null>(null);
   React.useEffect(() => {
     if (windowed) returnFocus.current = document.activeElement as HTMLElement | null;
@@ -604,7 +690,10 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
     const onPop = () => {
       const id = new URLSearchParams(window.location.search).get("match");
       if (pushed.current !== id) pushed.current = null;
+      const was = openRef.current?.id ?? null;
       setOpen(id ? { id, via: "link" } : null);
+      // Back closed a game (under its card, or a phone's window): the list is on that card, and the focus on it.
+      if (!id && was) focusCard(was);
     };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
@@ -622,7 +711,11 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
   const groupTo = (sessions: boolean) => go({ group: sessions ? "sessions" : null }, { keepMatch: true });
   // The page's games by playing session, when grouped (a session cut by the page break shows its part here).
   const sessionGroups = data.refine.sessions && data.rows.length ? groupBySession(data.rows, data.sessionOf) : null;
-  const card = (r: MatchRow) => <MatchCard key={r.matchId} row={r} playerId={playerId} champion={championsById[r.championId] ?? fallbackChampion(r.championId)} champ={champOrUnknown} onToggle={toggle} onPrefetch={prefetch} expanded={inline === r.matchId} checked={checkedRanks[r.matchId]} />;
+  const inlineNav = navFor(inline);
+  // A phone's window over the list: Previous and Next step through this page's games.
+  const windowAt = windowed ? rowIds.indexOf(windowed) : -1;
+  const windowNav = phone && windowAt >= 0 ? { prev: rowIds[windowAt - 1] ?? null, next: rowIds[windowAt + 1] ?? null, go: step, index: windowAt, total: rowIds.length } : null;
+  const card = (r: MatchRow) => <MatchCard key={r.matchId} row={r} playerId={playerId} champion={championsById[r.championId] ?? fallbackChampion(r.championId)} champ={champOrUnknown} onToggle={toggle} onPrefetch={prefetch} nav={inline === r.matchId ? inlineNav : null} expanded={inline === r.matchId} checked={checkedRanks[r.matchId]} />;
 
   return (
     <section className="space-y-3" aria-labelledby="match-history" data-testid="match-history" data-accounts-linked={data.accountsLinked} data-total={data.total} data-ready={interactive ? "true" : undefined}>
@@ -716,7 +809,7 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
             />
           ) : null}
 
-          {windowed ? <MatchDetailModal playerId={playerId} matchId={windowed} championsById={championsById} onClose={closeWindow} encounterLinks={phone} /> : null}
+          {windowed ? <MatchDetailModal playerId={playerId} matchId={windowed} championsById={championsById} onClose={closeWindow} encounterLinks={phone} nav={windowNav} lp={data.rows.find((r) => r.matchId === windowed)?.lp ?? null} /> : null}
         </EncounterLinkContext.Provider>
       </MatchDetailCacheContext.Provider>
     </section>

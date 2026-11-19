@@ -205,7 +205,8 @@ function runePageOf(p: MatchParticipantDetail, assets: RiotAssets | null): RuneP
     return x ? { url: assetUrl.rune(x.icon), name: x.name } : null;
   };
   const list = (ids: number[] | undefined) => (ids ?? []).map(icon).filter((x): x is Icon => !!x);
-  return { primaryTree: icon(r.primary), primary: list(r.primaryPerks), secondaryTree: icon(r.secondary), secondary: list(r.secondaryPerks) };
+  const shards = (r.shards ?? []).flatMap((id, i) => (Object.hasOwn(SHARD_ICONS, id) ? [{ url: assetUrl.rune(`perk-images/StatMods/${SHARD_ICONS[id]}`), name: SHARD_ROWS[i] ?? "Stat shard" }] : []));
+  return { primaryTree: icon(r.primary), primary: list(r.primaryPerks), secondaryTree: icon(r.secondary), secondary: list(r.secondaryPerks), shards };
 }
 
 const laneIndex = (p: MatchParticipantDetail) => {
@@ -497,7 +498,23 @@ export interface RunePage {
   primary: Icon[];
   secondaryTree: Icon | null;
   secondary: Icon[];
+  /** The three stat shards (offense, flex, defense), on records stored from 20 Nov 2026 on; empty before. Data Dragon has icons for them but no names, so they carry a neutral name until the owner decides (OD7). */
+  shards: Icon[];
 }
+
+/** Riot's stat shard ids and their Data Dragon icons (cdn/img/perk-images/StatMods). Riot's runesReforged.json has no shards, so the table is fixed here; an id not in it shows nothing. */
+const SHARD_ICONS: Readonly<Record<number, string>> = {
+  5001: "StatModsHealthPlusIcon.png",
+  5002: "StatModsArmorIcon.png",
+  5003: "StatModsMagicResIcon.png",
+  5005: "StatModsAttackSpeedIcon.png",
+  5007: "StatModsCDRScalingIcon.png",
+  5008: "StatModsAdaptiveForceIcon.png",
+  5010: "StatModsMovementSpeedIcon.png",
+  5011: "StatModsHealthScalingIcon.png",
+  5013: "StatModsTenacityIcon.png",
+};
+const SHARD_ROWS = ["Stat shard, offense", "Stat shard, flex", "Stat shard, defense"];
 
 export interface DetailTeam {
   teamId: number;
@@ -534,6 +551,8 @@ export interface MatchDetailView {
   personal: PersonalComparison | null;
   /** Sharing this game with the team (Matches → Bookmarked): only the player's own games, by them. */
   share: { eligible: boolean; shared: boolean };
+  /** The viewer's own game: the notes say "you" (and Focus next shows); on a teammate's they name the champion. */
+  own: boolean;
 }
 
 /** One figure for the player beside their lane opponent and their own team's average. */
@@ -814,6 +833,7 @@ export async function getMatchDetail(db: Db, playerId: string, matchId: string, 
       comparison: compareInMatch(d.participants, d.teams, meRaw!, d.gameDuration),
       personal: target ? personalComparison(target, history, NOTE_FIGURES) : null,
       share: { eligible: canShare, shared },
+      own: options.viewerIsOwner,
     },
   };
 }

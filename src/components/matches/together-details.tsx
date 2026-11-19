@@ -168,7 +168,19 @@ export function TogetherCardFrame({ entry, playerId, matchId, championsById, lab
   const champ = React.useCallback((c: string | null): PortraitChampion => (c ? (championsById[c] ?? { id: c, name: c, portraitUrl: "" }) : { id: "unknown", name: "Unknown champion", portraitUrl: "" }), [championsById]);
   return (
     // group/together: the card's chevron turns while its game is open (TogetherCard).
-    <li id={id} className="group/together scroll-mt-0 lg:scroll-mt-3" data-expanded={expanded || undefined} {...data}>
+    <li
+      id={id}
+      className="group/together scroll-mt-0 lg:scroll-mt-3"
+      data-expanded={expanded || undefined}
+      // Escape, with the focus anywhere in the open game, closes it and returns the focus to the card.
+      onKeyDown={(e) => {
+        if (!expanded || e.key !== "Escape" || e.defaultPrevented) return;
+        e.preventDefault();
+        list?.toggle(entry, matchId);
+        requestAnimationFrame(() => button.current?.focus({ preventScroll: true }));
+      }}
+      {...data}
+    >
       <div
         className={cn("group cursor-pointer", className, expanded && "rounded-b-none border-b-border/40")}
         onClick={(e) => {
@@ -202,6 +214,7 @@ export function TogetherCardFrame({ entry, playerId, matchId, championsById, lab
           playerId={playerId}
           matchId={matchId}
           champ={champ}
+          nav={null}
           onClose={() => {
             list?.toggle(entry, matchId);
             requestAnimationFrame(() => {

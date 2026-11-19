@@ -64,7 +64,7 @@ export interface MeetProps {
   meetHref?: ((key: string) => string) | null;
 }
 
-export function TeamTable({ team, champ, maxDamage, groups, laneSlot, rankOf, queueId, checking, met, meetHref }: { team: DetailTeam; champ: (id: string | null) => PortraitChampion; maxDamage: number; groups: MatchGroupsTeam | null; /** The player's lane opponent, by place in the record. */ laneSlot: number | null } & RankProps & MeetProps) {
+export function TeamTable({ team, champ, maxDamage, groups, laneSlot, rankOf, queueId, checking, met, meetHref, compact = false }: { team: DetailTeam; champ: (id: string | null) => PortraitChampion; maxDamage: number; groups: MatchGroupsTeam | null; /** The player's lane opponent, by place in the record. */ laneSlot: number | null; /** The post-game view's scoreboard (CompactRow): K/D/A, the build, CS and damage, the player's other figures left to their tiles. */ compact?: boolean } & RankProps & MeetProps) {
   const objectives = OBJECTIVES.filter(([k]) => team.objectives[k] !== undefined);
   const found = groups?.groups ?? [];
   const groupOf = new Map(found.flatMap((g, i) => g.slots.map((s) => [s, { index: i, label: g.label }] as const)));
@@ -114,21 +114,32 @@ export function TeamTable({ team, champ, maxDamage, groups, laneSlot, rankOf, qu
           ))}
         </div>
       ) : null}
-      {/* Column names over the one-line layout only: below it each figure says what it is. */}
-      <div className={cn(ROW, "hidden border-b border-border bg-surface-2/60 px-3 py-1.5 text-2xs font-semibold uppercase tracking-label text-fg-subtle @min-[60rem]/bd:grid")} aria-hidden>
-        <span>Player</span>
-        <span>KDA · KP</span>
-        <span>Damage</span>
-        <span>Gold</span>
-        <span>CS</span>
-        <span>Vision</span>
-        <span>Items</span>
-      </div>
-      <ul className="divide-y divide-border">
-        {team.participants.map((x, i) => (
-          <ParticipantRow key={i} x={x} champ={champ} maxDamage={maxDamage} group={groupOf.get(x.slot) ?? null} lane={laneSlot !== null && x.slot === laneSlot} rank={rankOf(x)} queueId={queueId} checking={checking} met={meetHref ? (met?.get(x.slot) ?? null) : null} meetHref={meetHref ?? null} />
-        ))}
-      </ul>
+      {compact ? (
+        <ul className="divide-y divide-border/70">
+          {team.participants.map((x, i) => (
+            <CompactRow key={i} x={x} champ={champ} group={groupOf.get(x.slot) ?? null} lane={laneSlot !== null && x.slot === laneSlot} rank={rankOf(x)} queueId={queueId} checking={checking} met={meetHref ? (met?.get(x.slot) ?? null) : null} meetHref={meetHref ?? null} />
+          ))}
+        </ul>
+      ) : null}
+      {compact ? null : (
+        <>
+          {/* Column names over the one-line layout only: below it each figure says what it is. */}
+          <div className={cn(ROW, "hidden border-b border-border bg-surface-2/60 px-3 py-1.5 text-2xs font-semibold uppercase tracking-label text-fg-subtle @min-[60rem]/bd:grid")} aria-hidden>
+            <span>Player</span>
+            <span>KDA · KP</span>
+            <span>Damage</span>
+            <span>Gold</span>
+            <span>CS</span>
+            <span>Vision</span>
+            <span>Items</span>
+          </div>
+          <ul className="divide-y divide-border">
+            {team.participants.map((x, i) => (
+              <ParticipantRow key={i} x={x} champ={champ} maxDamage={maxDamage} group={groupOf.get(x.slot) ?? null} lane={laneSlot !== null && x.slot === laneSlot} rank={rankOf(x)} queueId={queueId} checking={checking} met={meetHref ? (met?.get(x.slot) ?? null) : null} meetHref={meetHref ?? null} />
+            ))}
+          </ul>
+        </>
+      )}
     </section>
   );
 }
@@ -329,6 +340,66 @@ function MetChip({ met, href }: { met: MatchMeeting; href: string }) {
       <span aria-hidden>×</span>
       <span className="sr-only"> times, this game included ({sides}). Show your games with them</span>
     </Link>
+  );
+}
+
+/**
+ * One player in the post-game scoreboard, about 37px on a wide column and two lines of about 48px
+ * on a phone (@container/sb under 30rem): the portrait with its level, the name over the champion
+ * and rank, the K/D/A, the build (six items and the trinket), and CS over damage. Each figure of
+ * the player's own is said once in the view, in its tiles, so the rows carry no ratio, share or
+ * per-minute figure. Team members are marked by weight and a ring on the portrait, not by colour.
+ */
+function CompactRow({ x, champ, group, lane, rank, queueId, checking, met, meetHref }: { x: DetailParticipant; champ: (id: string | null) => PortraitChampion; group: { index: number; label: string } | null; lane: boolean; rank: ParticipantRank | null; queueId: number | null; checking: boolean; met: MatchMeeting | null; meetHref: ((key: string) => string) | null }) {
+  if (x.removed) return <RemovedRow />;
+  const c = champ(x.championId);
+  const member = !!x.teamMember && !x.isPlayer;
+  return (
+    <li className={cn("relative grid grid-cols-[minmax(0,1fr)_auto_auto_auto] items-center gap-x-3 px-2.5 py-1 @max-[30rem]/sb:grid-cols-[minmax(0,1fr)_auto] @max-[30rem]/sb:gap-y-1 @max-[30rem]/sb:py-1.5", x.isPlayer && "bg-accent/10")} data-testid="participant" data-player={x.isPlayer || undefined} data-group={group ? group.index : undefined} data-lane={lane || undefined} data-member={member || undefined}>
+      {group ? <span className={cn("absolute inset-y-1 left-0 w-[3px] rounded-r-full", GROUP_MARK[group.index] ?? GROUP_MARK[0])} aria-hidden /> : null}
+      <span className="flex min-w-0 items-center gap-2">
+        <span className="relative shrink-0">
+          <ChampionPortrait champion={c} size="xs" className={cn(member && "ring-2 ring-fg-muted/70")} />
+          {x.champLevel !== null ? <span className="absolute -bottom-1 -right-1 rounded bg-bg px-0.5 text-4xs font-semibold tabular-nums leading-3 text-fg-muted">{x.champLevel}</span> : null}
+        </span>
+        <span className="min-w-0 leading-tight">
+          <span className="flex min-w-0 items-center gap-1.5">
+            <span className={cn("min-w-0 truncate text-xs @min-[30rem]/sb:text-sm", x.isPlayer || member ? "font-semibold text-fg" : "text-fg")} title={x.name ?? undefined} data-testid="participant-name">
+              <PlayerLink memberId={x.memberId} opgg={x.opgg} label={x.teamMember ?? x.name?.split("#")[0] ?? c.name}>
+                {x.teamMember && !x.isPlayer ? x.teamMember : x.name ? x.name.split("#")[0] : c.name}
+              </PlayerLink>
+              {group ? <span className="sr-only"> ({group.label.toLowerCase()})</span> : null}
+            </span>
+            {met && meetHref ? <MetChip met={met} href={meetHref(met.key)} /> : null}
+          </span>
+          <span className="flex min-w-0 items-center gap-1 text-2xs text-fg-muted">
+            <span className="truncate">{c.name}</span>
+            {lane ? (
+              <span className="shrink-0 rounded border border-border px-1 leading-4 text-fg-muted" data-testid="lane-opponent-mark">
+                Lane opponent
+              </span>
+            ) : null}
+            {rank ? <RankBadge rank={rank} queueId={queueId} checking={checking && rank.stale} /> : null}
+          </span>
+        </span>
+      </span>
+      <span className="text-right text-sm font-semibold tabular-nums text-fg" data-testid="participant-kda">
+        {x.kills}/{x.deaths}/{x.assists}
+      </span>
+      <span className="flex items-center justify-between gap-3 [--icon-size:1.25rem] @max-[30rem]/sb:col-span-2 @max-[30rem]/sb:[--icon-size:1rem] @min-[30rem]/sb:contents">
+        <span data-testid="participant-items">
+          <ItemRow items={x.items} size={20} />
+        </span>
+        <span className="text-right text-2xs leading-tight tabular-nums text-fg-muted @min-[30rem]/sb:w-14" data-testid="participant-cs">
+          <span className="font-medium text-fg">{intText(x.cs)}</span> CS
+          <span className="@max-[30rem]/sb:hidden">
+            <br />
+          </span>
+          <span className="@min-[30rem]/sb:hidden"> · </span>
+          <span className="font-medium text-fg">{x.damage === null ? "—" : formatKilo(x.damage)}</span> dmg
+        </span>
+      </span>
+    </li>
   );
 }
 
