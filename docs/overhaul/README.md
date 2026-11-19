@@ -1,0 +1,3 @@
+# The overhaul's working documents (19 Nov 2026)
+
+The owner's directive of 19 Nov 2026 (`DIRECTIVE.md`), the delivery plan (`PLAN.md`) and the stage-0 audits it rests on: desktop UX (`ux-desktop.md`), mobile and the installed app (`ux-mobile.md`), All Champions and Match History (`champions-matches.md`), tooltips (`tooltips.md`, `tooltips.json`), Matchup Intel's evidence (`mi-evidence.md`), and the Matchup Intel branch's review findings (`mi-review-confirmed.json`). Working documents for the coordinating session and its lanes, kept on this branch only; STATUS.md stays the status record. Screenshot and script paths in them refer to the coordinator's scratch space and are not in the repository. No personal data.
