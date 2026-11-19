@@ -58,7 +58,8 @@ It then records:
 - never your own account, never the Owner, and never the Production check's account (`verify`: it holds no one's personal data and its job keeps it; deactivate or delete it instead);
 - another administrator only when the Owner asks;
 - never the last active administrator;
-- nothing happens until the dialog's preview has been read, the username (or Riot ID) typed exactly, and the permanence acknowledged.
+- nothing happens until the dialog's preview has been read, the username (or Riot ID) typed exactly, and the permanence acknowledged;
+- importing and re-applying the records (the `erasure-reconcile` job's work): the Owner only, with REAPPLY typed, checked on the server too (19 Nov 2026).
 
 ## Keeping it in force
 
