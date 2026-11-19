@@ -11,7 +11,7 @@ import { loadRiotText } from "@/server/matchup-intel/riot-text";
 import { buildMatchupPageView, curatedIndex, type MatchupViewDeps } from "@/server/matchup-intel/view";
 import { MatchupContent } from "./matchup-content";
 import { MatchupFrame } from "./matchup-frame";
-import { CONDITIONAL_WORDS, DIFFER_WORDS, KIND_GROUP_WORDS, NO_ABILITY_FACTS_WORDS, RIOT_TEXT_KIND_WORDS, assembledWords, noFactsWords, noneRecordedWords } from "./wording";
+import { CONDITIONAL_WORDS, DIFFER_WORDS, KIND_GROUP_WORDS, NO_ABILITY_FACTS_WORDS, RIOT_TEXT_KIND_WORDS, SLOT_NAMES, assembledWords, noFactsWords, noneOutsideHiddenWords, noneRecordedWords } from "./wording";
 
 /*
   Every pair gives a meaningful reference (the owner's request, 18 Nov 2026), checked over the real
@@ -83,7 +83,7 @@ function checkPair(you: string, enemy: string, p: Awaited<ReturnType<typeof page
   }
   // Never "verified", and no fixed words that instruct or judge (curated texts are held to the same list by curated.test.ts).
   expect(words, where).not.toMatch(/\bverified\b/i);
-  for (const fixed of ["Assembled reference", "Danger", "Opportunity", noneRecordedWords("riot-text"), noneRecordedWords("checked"), NO_ABILITY_FACTS_WORDS, CONDITIONAL_WORDS, DIFFER_WORDS]) if (words.includes(fixed)) expect(refusedWords(fixed)).toEqual([]);
+  for (const fixed of ["Assembled reference", "Danger", "Opportunity", noneRecordedWords("riot-text"), noneRecordedWords("checked"), noneOutsideHiddenWords([SLOT_NAMES.R]), NO_ABILITY_FACTS_WORDS, CONDITIONAL_WORDS, DIFFER_WORDS]) if (words.includes(fixed)) expect(refusedWords(fixed)).toEqual([]);
   // An ability with no reviewed fact never reads as having none.
   expect(words, where).not.toContain("None recorded in Riot's text");
   // The enemy's tiles: every fact from Riot's text a chip of its own (its qualifier and marker on it), every

@@ -9,7 +9,7 @@ import { CuratedLine, publicPatchOf } from "./ability-list";
 import { AbilityRefLink } from "./ability-ref-link";
 import { CuratedLinks } from "./briefing";
 import { CHIP_ROWS, ConditionalNote, FactChipView, GROUP_LOOK } from "./fact-chip";
-import { ASSEMBLED_IN_PLACE_WORDS, ASSEMBLED_TITLE, KIND_GROUP_WORDS, RIOT_TEXT_LABEL, SLOT_NAMES, abilityAnchor, assembledWords, briefingHiddenAboveWords, cooldownSourceWords, cooldownsFromWords, dangerSideWords, hiddenRiotTextWords, missingAbilitiesWords, noBriefingWords, noFactsWords, noneRecordedWords, tightCooldownWords, toolsSideWords } from "./wording";
+import { ASSEMBLED_IN_PLACE_WORDS, ASSEMBLED_TITLE, KIND_GROUP_WORDS, RIOT_TEXT_LABEL, SLOT_NAMES, abilityAnchor, assembledWords, briefingHiddenAboveWords, cooldownSourceWords, cooldownsFromWords, dangerSideWords, hiddenRiotTextWords, missingAbilitiesWords, noBriefingWords, noFactsWords, noneOutsideHiddenWords, noneRecordedWords, tightCooldownWords, toolsSideWords } from "./wording";
 
 /*
   The assembled reference (L5; docs/MATCHUP_INTEL.md, "The assembled reference"), for a pair whose
@@ -190,9 +190,11 @@ function KitSide({ side, kit, intel, champion, title, subtitle, rows }: { side: 
                 <p className="flex flex-wrap items-center gap-x-1.5 text-xs font-medium text-fg-muted">
                   <GroupIcon className="h-3.5 w-3.5 shrink-0" aria-hidden />
                   {KIND_GROUP_WORDS[g]}
+                  {/* Beside abilities whose facts are hidden, only what holds outside them: a hidden
+                      fact may be of this kind. */}
                   {group.items.length ? null : (
                     <span className="font-normal text-fg-subtle" data-testid="assembled-none">
-                      · {noneRecordedWords(recorded)}
+                      · {kit.hidden.length ? noneOutsideHiddenWords(kit.hidden.map((h) => SLOT_NAMES[h.slot])) : noneRecordedWords(recorded)}
                     </span>
                   )}
                 </p>

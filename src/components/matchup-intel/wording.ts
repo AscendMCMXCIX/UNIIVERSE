@@ -556,6 +556,16 @@ export function noneRecordedWords(from: "checked" | "riot-text"): string {
 }
 
 /**
+ * The same, on a side where some abilities' facts from Riot's text are hidden (Riot changed or renamed
+ * them after the review, said at the side's foot): what is hidden may be of this kind, and its kinds
+ * are not shown, so the group says only what holds outside them: "No reviewed facts of this kind
+ * outside R (hidden, below)".
+ */
+export function noneOutsideHiddenWords(keys: readonly string[]): string {
+  return `No reviewed facts of this kind outside ${listWords(keys)} (hidden, below)`;
+}
+
+/**
  * In place of an ability's facts from Riot's text that are hidden, and of where its two texts
  * differ: "Riot's text for W changed after the review: its 2 facts are hidden.", "… its fact and the
  * note that Riot's texts differ are hidden." Never left out silently.
