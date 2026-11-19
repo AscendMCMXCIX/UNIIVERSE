@@ -237,7 +237,7 @@ export function Peek({ peek, title, itemKey, children, actions, hero, windowSize
 
   if (windowed) {
     return (
-      <DetailModal open={open} onClose={peek.close} title={shown?.title ?? title} size={windowSize} headerExtra={nav} header={windowHeader} headerClassName={windowHeader ? "overflow-hidden" : undefined} titleId={windowTitleId} addressParam={peek.param} testId={testId} closeTestId={navTestIds?.close ?? `${testId}-close`}>
+      <DetailModal open={open} onClose={peek.close} title={shown?.title ?? title} size={windowSize} headerExtra={nav} header={windowHeader} headerClassName={windowHeader ? "overflow-hidden" : undefined} titleId={windowTitleId} testId={testId} closeTestId={navTestIds?.close ?? `${testId}-close`}>
         {shown ? (
           <div key={shown.key}>
             {windowHeader ? null : hero}

@@ -372,7 +372,6 @@ export function DetailModal({
   onSettled,
   innerScroll = false,
   sheetWidth = "standard",
-  addressParam,
 }: {
   open: boolean;
   onClose: () => void;
@@ -400,8 +399,6 @@ export function DetailModal({
   onSettled?: () => void;
   /** A sheet's width where it is a centred window (taller wider screens): wide for an editor with a table (48rem), filters for a filter sheet (34rem: the five role segments in view, no sideways scroller). */
   sheetWidth?: "standard" | "wide" | "filters";
-  /** The query parameter that holds this window's item (a Peek's `?player=`; several for an item that needs them): its changes are the window's own, not the page moving on. */
-  addressParam?: string | readonly string[];
   /**
    * The content scrolls itself (an editor with a fixed preview and toolbar): the body is a
    * fixed-height column that never scrolls, on every screen, short windows and phones included,
@@ -416,10 +413,7 @@ export function DetailModal({
   const descriptionId = description ? `modal-desc-${generated}` : undefined;
   const ref = React.useRef<HTMLDialogElement>(null);
   const opener = React.useRef<HTMLElement | null>(null);
-  const addressParamRef = React.useRef(addressParam);
-  React.useLayoutEffect(() => {
-    addressParamRef.current = addressParam;
-  });
+
   const [closing, setClosing] = React.useState(false);
   const [settled, setSettled] = React.useState(false);
   // A window that closes (or hides behind another) opens with its motion again next time.
@@ -623,26 +617,12 @@ export function DetailModal({
     if (reduce) noteModalAtRest(d);
     else restTimer = window.setTimeout(() => noteModalAtRest(d), REST_MS);
     const unlock = lockPage();
-    // Where the page was as the window opened: put back as it closes, so the list under it never
-    // moves (the browser brought the opener fully into view as the dialog gave its focus back: a card
-    // partly under the tab bar moved the list 70–109px; UM.X4). Only while the address is the one it
-    // opened on: a window that changed it (a filter chosen, a link to a section) moves the page on purpose.
-    const address = () => {
-      const url = new URL(window.location.href);
-      for (const key of [addressParamRef.current ?? []].flat()) url.searchParams.delete(key);
-      return url.href;
-    };
-    const at = { x: window.scrollX, y: window.scrollY, href: address() };
-    const restore = () => {
-      if (address() === at.href && (window.scrollX !== at.x || window.scrollY !== at.y)) window.scrollTo({ left: at.x, top: at.y, behavior: "instant" });
-    };
     return () => {
       window.clearTimeout(settleTimer);
       window.clearTimeout(restTimer);
       unlock();
       presses();
       letGo();
-      restore();
       // Back to what opened the window, whether it was closed or removed from the page (or to the
       // window replacing it, see handedOver).
       const back = opener.current;
@@ -650,7 +630,6 @@ export function DetailModal({
       requestAnimationFrame(() => {
         if (handedOver === back) handedOver = null;
         if (back?.isConnected) back.focus({ preventScroll: true });
-        restore();
       });
     };
   }, [open, settle, screen]);

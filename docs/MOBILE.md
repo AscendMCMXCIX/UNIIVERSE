@@ -362,8 +362,7 @@ text below 12px; 11px (`text-2xs`) only for badges and labels.
 | Confirm something that cannot be taken back (Admin's setup jobs, a job turned off, a delete with a profile) | The same `Dialog`, docked: the phrase to type above a 16px field (no zoom in Safari), the keyboard capitalising as it likes (any case matches), and the danger button beside Cancel, enabled once the words match. The two deletes of an account stay together on their row and wrap as a pair (S1a, 19 Nov 2026; `e2e/admin-safety.spec.ts` at 375px, `e2e/webkit.spec.ts`). | A deliberate pause that fits a thumb, without a second screen. |
 
 Every sheet and window shares `DetailModal`: native `<dialog>` (focus kept inside, the page behind
-inert), Escape and the backdrop close it, focus returns to what opened it and the page is put back
-where it was as the window opened (a card partly under the tab bar no longer moves the list), a sheet slides up in
+inert), Escape and the backdrop close it, focus returns to what opened it, a sheet slides up in
 220ms with `--ease-emphasized` and out in 140ms (instant with reduced motion). Every window's body
 grows from its content (`flex-auto`, never `flex-1`: Safari 26 collapses the other, above). The
 account screen is a screen of its own instead (`size="screen"`, above). A window opened by a tap
