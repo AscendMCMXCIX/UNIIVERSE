@@ -252,14 +252,25 @@ test("Match History: a game opens as a whole screen of its own, its ranks are ch
   const note = breakdown.getByTestId("ranks-note");
   await expect(note).toBeVisible({ timeout: 15_000 });
   await expect(note).not.toHaveAttribute("data-state", "checking", { timeout: 15_000 });
-  // Back (Safari's edge swipe and the browser's button alike) closes it; the list is as it was.
+  // The bottom bar: Previous and Next (44px targets) inside the screen; Next shows the next game in place of the address.
+  const bar = win.getByTestId("match-detail-nav");
+  const barBox = (await bar.boundingBox())!;
+  expect(barBox.y + barBox.height).toBeLessThanOrEqual(page.viewportSize()!.height + 0.5);
+  expect((await win.getByTestId("match-detail-next").boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  await expect(win.getByTestId("match-detail-prev")).toBeDisabled();
+  const first = new URL(page.url()).searchParams.get("match");
+  await win.getByTestId("match-detail-next").tap();
+  await expect.poll(() => new URL(page.url()).searchParams.get("match")).not.toBe(first);
+  await expect(win.getByTestId("match-detail-position")).toHaveText(/^Game 2 of \d+$/);
+  // Back (Safari's edge swipe and the browser's button alike) closes it; the list is as it was, on the last game viewed.
   await page.goBack();
   await expect(win).toHaveCount(0);
   await expect(page).not.toHaveURL(/match=/);
   await expect(card).toBeVisible();
+  await expect(page.getByTestId("match-row").nth(1)).toBeFocused();
 });
 
-test("Match History's Timeline: a tap on or just beside a mark under the curve reads its minute, the reading stays after the finger lifts, and the tables run with the page", async ({ page }) => {
+test("Match History's gold fold: a tap on or just beside a mark under the curve reads its minute, the reading stays after the finger lifts, and the tables run with the page", async ({ page }) => {
   await page.goto("/team");
   const id = (await page.getByTestId("lineup-row-MID").getAttribute("data-player-id"))!;
   await page.goto(`/players/${id}/matches`);
@@ -274,10 +285,13 @@ test("Match History's Timeline: a tap on or just beside a mark under the curve r
       await expect(window_).toBeVisible({ timeout: 1_000 });
     }).toPass({ timeout: 15_000 });
     const breakdown = window_.getByTestId("match-breakdown");
-    await breakdown.getByTestId("match-tab-timeline").tap();
-    const panel = breakdown.getByTestId("match-panel-timeline");
-    await expect(panel.getByTestId("timeline-loading")).toHaveCount(0, { timeout: 15_000 });
-    if (await panel.getByTestId("gold-chart").count()) timeline = panel;
+    await expect(breakdown.getByTestId("post-game-notes")).toBeVisible({ timeout: 15_000 });
+    const fold = breakdown.getByTestId("fold-gold");
+    if (await fold.count()) {
+      await fold.locator("summary").tap();
+      await expect(fold.getByTestId("timeline-loading")).toHaveCount(0, { timeout: 15_000 });
+    }
+    if ((await fold.count()) && (await fold.getByTestId("gold-chart").count())) timeline = fold;
     else {
       await page.goBack();
       await expect(window_).toBeHidden();

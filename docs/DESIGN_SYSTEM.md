@@ -40,6 +40,16 @@ decorative chrome.
   - quiet labels and strong figures.
 - **Match History** is a finished, successful experience. Do not restyle it for novelty. Change it
   only for a bug, an accessibility fix or a product decision.
+  - **The post-game view (the owner's directive of 19 Nov 2026, §5: the product decision this rule
+    asks for).** An open game is one view without subtabs (`post-game.tsx`): the loadout as the
+    client draws it (a 72px portrait with its level, spells and runes two by two, the six items two
+    rows of three with the trinket beside the first, in inset slots), the rune page on one line with
+    the stat shards where stored (icons only, neutral names, until OD7), six figure tiles with each of
+    the player's figures once, the lane by role, the notes (docs/MATCH_NOTES.md: Went well, Went
+    wrong, Focus next) and a compact scoreboard of 37px rows; the gold over the game and the build
+    and skill order are folds. The open card folds into a 50px header with Previous, Next and Close,
+    and a sticky footer repeats them. Notes use `good` for Went well and `warn` for Went wrong (never
+    `red`, which means Defeat), `accent` for Focus next. The card's D8 density is unchanged.
   - **Density (owner decision D8, approved 8 Nov 2026, built 18 Nov):** denser cards that keep the
     statistics, champions, ranks, LP and every interaction readable. The card follows the list's
     own width (`@container/mh`), in three tiers:

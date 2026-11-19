@@ -277,10 +277,10 @@ function NoteList({ title, tone, Icon, items, testId }: { title: string; tone: s
   if (!items.length) return null;
   return (
     <div data-testid={testId}>
-      <h4 className="flex items-center gap-1.5 text-2xs font-semibold uppercase tracking-label text-fg-subtle">
+      <h3 className="flex items-center gap-1.5 text-2xs font-semibold uppercase tracking-label text-fg-subtle">
         <Icon className={cn("h-3.5 w-3.5", tone)} aria-hidden />
         {title}
-      </h4>
+      </h3>
       <ul className="mt-0.5 space-y-0.5 text-sm text-fg">
         {items.map((t) => (
           <li key={t} data-testid="post-game-note">

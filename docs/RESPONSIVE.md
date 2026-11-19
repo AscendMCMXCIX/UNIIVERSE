@@ -611,9 +611,15 @@ the game's own screen), a two-row card from 36 to 50rem (about 120px: the game's
 then both teams) and one row from 50rem; on phones a game opens as the match window over the whole
 screen (Back closes it). Encounters' column names pin under the section tabs where those pin (from
 md, in a window taller than 480px), as All Champions' do.
-A game's breakdown (under its Match History card, or in the match window) sizes its scoreboard by
-its own width (container `bd`, not the screen): name, KDA and items on phones, damage from 36rem,
-gold, CS and vision columns from 60rem; its four section tabs share a phone's width.
+A game's post-game view (under its Match History card, or in the match window; 19 Nov 2026) lays
+itself out by its own width (container `pg`): "Your game" and the scoreboard side by side from
+60rem (1440 and 1920; 1280 with the sidebar collapsed), stacked below (tablets, 1280 with the
+sidebar open, phones). The scoreboard (container `sb`) has one 37px row per player from 30rem
+(portrait, name over champion and rank, K/D/A, the build, CS over damage) and two lines of about
+48px below it (the name and K/D/A, then the build, the rank and CS with damage). Measured on the
+demo: at 1440 × 900 the card and the open game take 660–685px with Close on the first screen; at
+390 × 844 the window's pinned chrome is 110px, the scoreboard starts at about 650px and the whole
+game is 1.9–2.0 screens; no tabs anywhere.
 
 All Champions follows its list's own width too (a container query, so the sidebar counts):
 

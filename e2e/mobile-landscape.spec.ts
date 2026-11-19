@@ -846,7 +846,7 @@ test("a window whose header leaves room keeps its own scrolling body on a phone 
   // A link to a game that is not on the page shown opens it in the match window (lists open their
   // games under their cards).
   const win = await openMatchWindow(page);
-  await expect(page.getByTestId("match-detail-figures")).toBeVisible();
+  await expect(page.getByTestId("post-game-figures")).toBeVisible();
   await expect(win).not.toHaveAttribute("data-flow", /.*/);
   // The header stays; the body below it scrolls.
   expect(await page.getByTestId("match-detail-body").evaluate((b) => b.scrollHeight > b.clientHeight && getComputedStyle(b).overflowY === "auto")).toBe(true);
