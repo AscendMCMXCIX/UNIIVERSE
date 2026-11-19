@@ -43,13 +43,11 @@ function linksIn(html: string, marker: RegExp): Shown[] {
   const nav = new RegExp(`<nav[^>]*${marker.source}[^>]*>([\\s\\S]*?)</nav>`).exec(html);
   if (!nav) throw new Error(`no nav ${marker}`);
   return [...nav[1]!.matchAll(/<a ([^>]*)>([\s\S]*?)<\/a>/g)].map(([, attrs, inner]) => {
-    const full = /data-name="full"[^>]*>([\s\S]*?)<\/span><span[^>]*data-name="short"/.exec(inner!);
-    const short = /data-name="short"[^>]*>([\s\S]*)$/.exec(inner!);
-    // The short form reads as the whole name (its rest read out): what shows is its text outside the sr-only part.
-    const shortShown = short ? strip(short[1]!.replace(/<span class="sr-only">[^<]*<\/span>/g, "")) : null;
-    // A name without a short form is the label's last span (the sidebar's, the bars' plain span).
-    const name = full ? strip(full[1]!) : strip(inner!.replace(/<svg[\s\S]*?<\/svg>/g, "").replace(/<span class="sr-only">, back<\/span>/g, ""));
-    return { href: /href="([^"]*)"/.exec(attrs!)![1]!, name, short: shortShown, icon: iconOf(inner!) };
+    // The name is written once: its whole text; its short form is that text less the part that
+    // gives way (data-name="rest"), read out only where the bar is narrow.
+    const text = inner!.replace(/<svg[\s\S]*?<\/svg>/g, "").replace(/<span class="sr-only">, back<\/span>/g, "");
+    const rest = /<span[^>]*data-name="rest"[^>]*>[^<]*<\/span>/.exec(text);
+    return { href: /href="([^"]*)"/.exec(attrs!)![1]!, name: strip(text), short: rest ? strip(text.replace(rest[0], "")) : null, icon: iconOf(inner!) };
   });
 }
 

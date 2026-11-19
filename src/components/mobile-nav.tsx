@@ -235,9 +235,7 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
                       >
                         <span className={cn("flex h-8 items-center gap-1.5 rounded-full px-2 transition-colors duration-150", active ? "bg-accent/15 text-accent" : "text-fg-muted group-hover:bg-surface-2 group-hover:text-fg")}>
                           {own ? <Avatar name={user!.name} src={user!.avatarUrl} size="xs" className={cn(active && "ring-2 ring-accent")} /> : <d.icon className="h-5 w-5 shrink-0" aria-hidden />}
-                          <span className={cn("whitespace-nowrap text-2xs font-medium leading-none", active && "font-semibold text-fg")}>
-                            <LadderName label={d.label} short={d.short} full={sideways.full} shortName={active ? sideways.shortCurrent : sideways.shortOthers} plain={active ? sideways.current : sideways.others} />
-                          </span>
+                          <LadderName label={d.label} short={d.short} rest={sideways.rest} className={cn("whitespace-nowrap text-2xs font-medium leading-none", active ? cn("font-semibold text-fg", sideways.current) : sideways.others)} />
                         </span>
                       </Link>
                     </li>
@@ -274,9 +272,7 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
                         {/* The brand's gradient as a short bar at the destination's foot, growing in from its centre, as the sidebar's at its row's edge. */}
                         <span className={cn("absolute inset-x-3 bottom-1 h-0.5 rounded-full bg-gradient-to-r from-accent to-accent-2 transition-[opacity,scale] duration-200 ease-emphasized", active ? "scale-x-100 opacity-100" : "scale-x-50 opacity-0")} aria-hidden data-testid={active ? "topbar-current-bar" : undefined} />
                         <d.icon className={cn("h-[1.125rem] w-[1.125rem] shrink-0 transition-colors duration-150", active ? "text-accent" : "text-fg-subtle group-hover:text-fg-muted")} aria-hidden />
-                        <span>
-                          <LadderName label={d.label} short={d.short} full={cn(barFit.full, besideBack?.full)} shortName={cn(barFit.shortName, besideBack?.shortName)} plain={cn(barFit.plain, besideBack?.plain)} />
-                        </span>
+                        <LadderName label={d.label} short={d.short} rest={cn(barFit.rest, besideBack?.rest)} className={cn("whitespace-nowrap", barFit.label, besideBack?.label)} />
                       </Link>
                     </li>
                   );
@@ -470,9 +466,7 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
                     <span className={cn("grid h-7 w-12 place-items-center rounded-full transition-colors duration-150", fit.pill, active ? "bg-accent/15 text-accent" : "group-hover:bg-surface-2")} aria-hidden>
                       {own ? <Avatar name={user!.name} src={user!.avatarUrl} size="xs" className={cn(active && "ring-2 ring-accent")} /> : <d.icon className="h-5 w-5" />}
                     </span>
-                    <span className="leading-none">
-                      <LadderName label={d.label} short={d.short} full={fit.full} shortName={fit.shortName} plain={fit.plain} />
-                    </span>
+                    <LadderName label={d.label} short={d.short} rest={fit.rest} className={cn("whitespace-nowrap leading-none", fit.label)} />
                   </Link>
                 </li>
               );
@@ -531,40 +525,27 @@ function useSectionMemory(): Record<string, string> | null {
 }
 
 /**
- * A destination's name in a bar, by the label ladder: its whole name (`full`), else its short one
- * with the rest of the whole name read out (`shortName`), else read out only, the icon alone. A name
- * without a short form (Team, Resources) shows whole until the icons step (`plain`). Each bar gives
- * the classes for its own steps (TAB_FIT, SIDEWAYS_FIT, BAR_FIT); `data-name` marks the two forms.
+ * A destination's name in a bar, by the label ladder, written once: its whole name where the bar
+ * has room; then its short form, the rest of the whole name read out only (`rest`: "My" before
+ * "Profile", "& Permissions" after "Users"), so what shows is always part of what is read out; then
+ * read out only, the icon alone (`label`, on the whole name). Each bar gives the classes for its
+ * own steps (TAB_FIT, SIDEWAYS_FIT, BAR_FIT); `data-name="rest"` marks the part that gives way.
  */
-function LadderName({ label, short, full, shortName, plain }: { label: string; short?: string; full: string; shortName: string; plain: string }) {
-  if (!short || short === label) return <span className={plain}>{label}</span>;
-  return (
-    <>
-      <span className={full} data-name="full">
-        {label}
-      </span>
-      <span className={cn("hidden", shortName)} data-name="short">
-        <ShortName label={label} short={short} />
-      </span>
-    </>
+function LadderName({ label, short, rest, className }: { label: string; short?: string; rest: string; className: string }) {
+  if (!short || short === label) return <span className={className}>{label}</span>;
+  const before = label.endsWith(short);
+  const part = before ? label.slice(0, -short.length) : label.slice(short.length);
+  const restSpan = (
+    <span className={rest} data-name="rest">
+      {part}
+    </span>
   );
-}
-
-/** The short form of a name, the rest of the whole name read out only: "Matchup" before "Intel", "& Permissions" after "Users". */
-function ShortName({ label, short }: { label: string; short: string }) {
-  if (label.endsWith(short)) {
-    return (
-      <>
-        <span className="sr-only">{label.slice(0, -short.length)}</span>
-        {short}
-      </>
-    );
-  }
   return (
-    <>
+    <span className={className}>
+      {before ? restSpan : null}
       {short}
-      <span className="sr-only">{label.slice(short.length)}</span>
-    </>
+      {before ? null : restSpan}
+    </span>
   );
 }
 
@@ -579,9 +560,9 @@ function onSignOut() {
 
 /**
  * The upright tab bar's label ladder, in the bar's own width in rem (the `tabbar` container), as
- * static class lists (Tailwind reads them whole): the whole names from `full`, the short ones
- * ("Profile", "Intel"; "Users", "Platform"; the whole names read out) down to `icons`, and below it
- * each destination's icon alone, each pill sharing the width, the names read out only
+ * static class lists (Tailwind reads them whole): the whole names from `rest`'s width, the short ones
+ * ("Profile", "Intel"; "Users", "Platform"; the rest of each read out) down to `label`'s, and below
+ * it each destination's icon alone, each pill sharing the width, the names read out only
  * (docs/MOBILE.md, the tab bar). MEASURED: see the numbers below.
  */
 const TAB_FIT = {
@@ -589,17 +570,15 @@ const TAB_FIT = {
     li: "@max-[15rem]/tabbar:min-w-0",
     link: "@max-[15rem]/tabbar:px-0.5",
     pill: "@max-[15rem]/tabbar:w-full @max-[15rem]/tabbar:max-w-12",
-    full: "@max-[18rem]/tabbar:hidden",
-    shortName: "@max-[18rem]/tabbar:inline @max-[15rem]/tabbar:sr-only",
-    plain: "@max-[15rem]/tabbar:sr-only",
+    rest: "@max-[18rem]/tabbar:sr-only",
+    label: "@max-[15rem]/tabbar:sr-only",
   },
   admin: {
     li: "@max-[15rem]/tabbar:min-w-0",
     link: "@max-[15rem]/tabbar:px-0.5",
     pill: "@max-[15rem]/tabbar:w-full @max-[15rem]/tabbar:max-w-12",
-    full: "@max-[21rem]/tabbar:hidden",
-    shortName: "@max-[21rem]/tabbar:inline @max-[15rem]/tabbar:sr-only",
-    plain: "@max-[15rem]/tabbar:sr-only",
+    rest: "@max-[21rem]/tabbar:sr-only",
+    label: "@max-[15rem]/tabbar:sr-only",
   },
 } as const;
 
@@ -611,40 +590,34 @@ const TAB_FIT = {
 const BAR_FIT = {
   member: {
     brand: "md:@max-[42.5rem]/topbar:hidden",
-    full: "md:@max-[36.25rem]/topbar:hidden",
-    shortName: "md:@max-[36.25rem]/topbar:inline md:@max-[31.5rem]/topbar:sr-only",
-    plain: "md:@max-[31.5rem]/topbar:sr-only",
-    besideBack: { full: "md:@max-[42.5rem]/topbar:hidden", shortName: "md:@max-[42.5rem]/topbar:inline md:@max-[36.25rem]/topbar:sr-only", plain: "md:@max-[36.25rem]/topbar:sr-only" },
-    besideBackInstalled: { full: "md:standalone:@max-[42.5rem]/topbar:hidden", shortName: "md:standalone:@max-[42.5rem]/topbar:inline md:standalone:@max-[36.25rem]/topbar:sr-only", plain: "md:standalone:@max-[36.25rem]/topbar:sr-only" },
+    rest: "md:@max-[36.25rem]/topbar:sr-only",
+    label: "md:@max-[31.5rem]/topbar:sr-only",
+    besideBack: { rest: "md:@max-[42.5rem]/topbar:sr-only", label: "md:@max-[36.25rem]/topbar:sr-only" },
+    besideBackInstalled: { rest: "md:standalone:@max-[42.5rem]/topbar:sr-only", label: "md:standalone:@max-[36.25rem]/topbar:sr-only" },
   },
   admin: {
     brand: "md:@max-[39rem]/topbar:hidden",
-    full: "md:@max-[49rem]/topbar:hidden",
-    shortName: "md:@max-[49rem]/topbar:inline md:@max-[33rem]/topbar:sr-only",
-    plain: "md:@max-[33rem]/topbar:sr-only",
-    besideBack: { full: "md:@max-[56rem]/topbar:hidden", shortName: "md:@max-[56rem]/topbar:inline md:@max-[40rem]/topbar:sr-only", plain: "md:@max-[40rem]/topbar:sr-only" },
-    besideBackInstalled: { full: "md:standalone:@max-[56rem]/topbar:hidden", shortName: "md:standalone:@max-[56rem]/topbar:inline md:standalone:@max-[40rem]/topbar:sr-only", plain: "md:standalone:@max-[40rem]/topbar:sr-only" },
+    rest: "md:@max-[49rem]/topbar:sr-only",
+    label: "md:@max-[33rem]/topbar:sr-only",
+    besideBack: { rest: "md:@max-[56rem]/topbar:sr-only", label: "md:@max-[40rem]/topbar:sr-only" },
+    besideBackInstalled: { rest: "md:standalone:@max-[56rem]/topbar:sr-only", label: "md:standalone:@max-[40rem]/topbar:sr-only" },
   },
 } as const;
 
 /**
  * The destinations' names in a phone's bar held sideways, in the bar's own width in rem: the whole
- * names from `full`, the short ones down to the others' step, then only the current one's, then the
- * icons alone. MEASURED: see the numbers below.
+ * names from `rest`'s width, the short ones down to `others'`, then only the current one's down to
+ * `current`'s, then the icons alone. MEASURED: see the numbers below.
  */
 const SIDEWAYS_FIT = {
   member: {
-    full: "@max-[33rem]/topbar:hidden",
-    shortOthers: "@max-[33rem]/topbar:inline @max-[29rem]/topbar:sr-only",
-    shortCurrent: "@max-[33rem]/topbar:inline @max-[22rem]/topbar:sr-only",
+    rest: "@max-[33rem]/topbar:sr-only",
     others: "@max-[29rem]/topbar:sr-only",
     current: "@max-[22rem]/topbar:sr-only",
     mode: "",
   },
   admin: {
-    full: "@max-[40rem]/topbar:hidden",
-    shortOthers: "@max-[40rem]/topbar:inline @max-[34rem]/topbar:sr-only",
-    shortCurrent: "@max-[40rem]/topbar:inline @max-[27rem]/topbar:sr-only",
+    rest: "@max-[40rem]/topbar:sr-only",
     others: "@max-[34rem]/topbar:sr-only",
     current: "@max-[27rem]/topbar:sr-only",
     /** Admin Mode's words beside the mark, read out only below this. */
