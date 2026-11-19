@@ -35,6 +35,10 @@ export interface SeasonGame {
   multikills?: string | null;
   /** The player's side, 100 or 200, copied from the stored record; null or absent until then. */
   teamId?: number | null;
+  /** Gold earned, the team's kills and the team's champion damage, copied from the stored record (kill participation, gold per minute and damage share against the player's usual); null or absent until then. */
+  gold?: number | null;
+  teamKills?: number | null;
+  teamDamage?: number | null;
 }
 
 /**

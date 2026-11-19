@@ -104,7 +104,7 @@ function withChecked(teams: Composition, checked: ReadonlyMap<number, Participan
 }
 
 /** A figure's short name on a card's "best" chip. */
-const STANDOUT_SHORT: Record<FigureKey, string> = { kda: "KDA", csPerMin: "CS/min", damagePerMin: "damage/min", visionPerMin: "vision/min" };
+const STANDOUT_SHORT: Record<FigureKey, string> = { kda: "KDA", csPerMin: "CS/min", damagePerMin: "damage/min", visionPerMin: "vision/min", killParticipation: "KP", goldPerMin: "gold/min", damageShare: "damage share" };
 
 /** The team members in the game, beside the player and against them (by PUUID: domain/compositions, never guessed). */
 function membersIn(teams: Composition | null) {

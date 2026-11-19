@@ -48,6 +48,10 @@ const games = {
   gameDuration: accountMatches.gameDuration,
   /** 100 or 200, copied from the stored record (match-summary); null until then. */
   teamId: accountMatches.teamId,
+  /** Kill participation, gold per minute and damage share against the player's usual (the post-game notes). */
+  gold: accountMatches.gold,
+  teamKills: accountMatches.teamKills,
+  teamDamage: accountMatches.teamDamage,
   multikills,
 };
 const mastery = { accountId: accountMastery.accountId, championId: accountMastery.championId, points: accountMastery.points, level: accountMastery.level, lastPlayedAt: accountMastery.lastPlayedAt };

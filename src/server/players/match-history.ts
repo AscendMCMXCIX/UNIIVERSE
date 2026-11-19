@@ -7,7 +7,7 @@ import { largestMultikill } from "@/domain/multikills";
 import { knownRiotIds } from "@/server/players/riot-names";
 import { accountMatches, matchDetails, players, teamBookmarks, type MatchParticipantDetail, type ParticipantExtraStats } from "@/server/db/schema";
 import { dedupeGames, filterGames, gameRole, modeBreakdown, isGameRole, isSeasonMode, seasonsInGames, MIN_VALID_DURATION_S, type GameRole, type SeasonGame, type SeasonMode, type StatsFilter } from "@/domain/season-stats";
-import { LANE_ORDER, laneOf, laneOpponentOf, personalComparison, standoutOf, type FigureKey, type PersonalComparison } from "@/domain/match-analysis";
+import { LANE_ORDER, NOTE_FIGURES, laneOf, laneOpponentOf, personalComparison, standoutOf, type FigureKey, type PersonalComparison } from "@/domain/match-analysis";
 import { historySummary, type HistorySummary } from "@/domain/history-summary";
 import { FORM_RECENT } from "@/domain/recent-form";
 import { currentSeason } from "@/server/accounts/sync";
@@ -812,7 +812,7 @@ export async function getMatchDetail(db: Db, playerId: string, matchId: string, 
       rankCheck: rankChecksAvailable({ matchId, platform: d.platform }) && teams.some((t) => t.participants.some((p) => !p.removed && !!p.rank?.stale)),
       maxDamage: Math.max(1, ...d.participants.map((p) => p.damage ?? 0)),
       comparison: compareInMatch(d.participants, d.teams, meRaw!, d.gameDuration),
-      personal: target ? personalComparison(target, history) : null,
+      personal: target ? personalComparison(target, history, NOTE_FIGURES) : null,
       share: { eligible: canShare, shared },
     },
   };
