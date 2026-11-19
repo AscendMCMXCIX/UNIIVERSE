@@ -1,6 +1,7 @@
 import { getAppDb } from "@/server/bootstrap";
 import { PageHeader } from "@/components/ui/page-header";
 import { requirePageAccess } from "@/server/auth/page-access";
+import { isOwner } from "@/server/auth/permissions";
 import { getDbHandle } from "@/server/db/client";
 import { getScheduleOverrides, listJobs } from "@/server/jobs";
 import { getDataHealth } from "@/server/ops/status";
@@ -15,27 +16,38 @@ import { FreshnessWatcher } from "@/components/ui/freshness-watcher";
 
 export const dynamic = "force-dynamic";
 
-/** Data & Integrations: the Riot connection (credential state), datasets and freshness, jobs and safe retries. */
+/**
+ * Data & Integrations: the Riot connection (credential state), datasets and freshness, jobs and safe
+ * retries. The setup and repair jobs and the schedule's intervals are the Owner's: another
+ * administrator's page is not sent them (server/actions/settings.ts refuses them too).
+ */
 export default async function AdminDataPage() {
-  await requirePageAccess("manage-data");
+  const session = await requirePageAccess("manage-data");
+  const owner = isOwner(session);
   const db = await getAppDb();
   const [health, handle, overrides, version] = await Promise.all([getDataHealth(db), getDbHandle(), getScheduleOverrides(db), jobsFreshness(db)]);
   const statusByKey = new Map(health.jobs.map((j) => [j.key, j]));
-  const jobs: JobView[] = listJobs().map((j) => {
-    const s = statusByKey.get(j.key);
-    return {
-      key: j.key,
-      description: j.description,
-      defaultIntervalMinutes: j.defaultIntervalMinutes,
-      interval: overrides.intervals[j.key] ?? null,
-      status: s?.status ?? "never",
-      lastSuccessAt: s?.lastSuccessAt?.toISOString() ?? null,
-      lastFailureAt: s?.lastFailureAt?.toISOString() ?? null,
-      lastError: s?.lastError ?? null,
-      lastDurationMs: s?.lastDurationMs ?? null,
-      consecutiveFailures: s?.consecutiveFailures ?? 0,
-    };
-  });
+  const jobs: JobView[] = listJobs()
+    .filter((j) => owner || j.kind !== "setup")
+    .map((j) => {
+      const s = statusByKey.get(j.key);
+      return {
+        key: j.key,
+        kind: j.kind,
+        description: j.description,
+        defaultIntervalMinutes: j.defaultIntervalMinutes,
+        interval: overrides.intervals[j.key] ?? null,
+        status: s?.status ?? "never",
+        lastSuccessAt: s?.lastSuccessAt?.toISOString() ?? null,
+        lastFailureAt: s?.lastFailureAt?.toISOString() ?? null,
+        lastError: s?.lastError ?? null,
+        lastDurationMs: s?.lastDurationMs ?? null,
+        consecutiveFailures: s?.consecutiveFailures ?? 0,
+        confirm: j.confirm ?? null,
+        cost: j.cost ?? null,
+        asks: j.asks ?? null,
+      };
+    });
   return (
     <div className="space-y-5">
       {/* Job runs and statuses update without a reload. */}
@@ -48,7 +60,7 @@ export default async function AdminDataPage() {
         </div>
         <StatusCards items={health.answers.map((a) => ({ key: a.key, title: a.question, label: a.label, detail: a.detail }))} testId="health-answers" />
       </section>
-      <Disclosure title="Details" description="Datasets and freshness, the Riot API key and background jobs." testId="data-details">
+      <Disclosure title="Details" description="Datasets and freshness, the Riot API key and the background jobs." testId="data-details">
       <Panel className={health.warnings.length ? "border-warn/50" : undefined}>
         <PanelHeader title="Data health" subtitle={`Patch ${health.patch?.id ?? "—"} (Data Dragon ${health.patch?.ddragonVersion ?? "—"}) · ${handle.description}`} />
         <PanelBody className="space-y-3 text-sm">
@@ -61,8 +73,8 @@ export default async function AdminDataPage() {
           ))}
         </PanelBody>
       </Panel>
-      <RiotHealthPanel riot={{ ...health.riot, lastOkAt: health.riot.lastOkAt?.toISOString() ?? null, lastErrorAt: health.riot.lastErrorAt?.toISOString() ?? null }} isOwner />
-      <JobsPanel jobs={jobs} isOwner />
+      <RiotHealthPanel riot={{ ...health.riot, lastOkAt: health.riot.lastOkAt?.toISOString() ?? null, lastErrorAt: health.riot.lastErrorAt?.toISOString() ?? null }} credentialDetails />
+      <JobsPanel jobs={jobs} ownerTools={owner} />
       </Disclosure>
     </div>
   );

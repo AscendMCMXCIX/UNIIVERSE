@@ -568,6 +568,37 @@ test("forms: text fields are at least 16px (Safari zooms into smaller ones) and 
   await guest.close();
 });
 
+test("Admin's typed confirmation on an iPhone: a tap opens it, the phrase field is 16px, the phrase typed in any case enables Run, the sheet fits the screen, and Cancel closes it", async ({ page }) => {
+  // Data & Integrations → Details → Advanced → a setup job (the overhaul's S1a). Nothing is run.
+  await page.goto("/admin/data");
+  for (const id of ["data-details", "jobs-advanced"]) {
+    const details = page.getByTestId(id);
+    await expect(async () => {
+      if ((await details.getAttribute("open")) === null) await details.locator("summary").first().tap({ timeout: 2_000 });
+      await expect(details).toHaveAttribute("open", "", { timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
+  }
+  const dialog = page.getByRole("dialog", { name: "Turn off LP tracking's five-minute schedule?" });
+  const open = page.getByTestId("jobs-setup").locator("[data-job=rank-schedule-off]").getByTestId("run-job");
+  await expect(async () => {
+    if (!(await dialog.isVisible())) await open.tap({ timeout: 2_000 });
+    await expect(dialog).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
+  const phrase = dialog.getByTestId("job-confirm-input");
+  const run = dialog.getByTestId("job-confirm-run");
+  expect(parseFloat(await phrase.evaluate((el) => getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(16);
+  await expect(run).toBeDisabled();
+  await phrase.tap();
+  await phrase.fill("Turn off");
+  await expect(run).toBeEnabled();
+  await fitsWidth(page, "the typed confirmation");
+  const box = (await dialog.boundingBox())!;
+  expect(box.x, "the sheet inside the screen").toBeGreaterThanOrEqual(-1);
+  expect(box.x + box.width, "the sheet inside the screen").toBeLessThanOrEqual(page.viewportSize()!.width + 1);
+  await dialog.getByRole("button", { name: "Cancel" }).tap();
+  await expect(dialog).toBeHidden();
+});
+
 test("a switch turns on and off with a tap on its words, not only the knob (the Studio's effects; Settings' Show publicly switches are the same control)", async ({ page }) => {
   // The demo's local owner, on Top's card: a test here cannot stay signed in as a member (the
   // session cookie is Secure, which WebKit does not keep on http://localhost), and Settings'

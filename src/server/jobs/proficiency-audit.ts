@@ -17,6 +17,7 @@ import { listPatchesDesc } from "@/server/repositories/champions";
  */
 defineJob({
   key: "proficiency-audit",
+  kind: "check",
   description: "Read-only: champion proficiency on real data under the previous and the current model, with the evidence and flagged edge cases. Changes nothing.",
   defaultIntervalMinutes: null,
   allowConcurrent: true,

@@ -618,7 +618,14 @@ the account screen over the dashboard at 200% on a 320px phone as well.
   iOS zoomed the page into the opponent search at 14px.
 - `ToggleChip` (`ui/toggle.tsx`): every selectable chip (roles, modes, filters).
 - A section that folds on phones: `Disclosure` (`ui/disclosure.tsx`, a native `<details>`) or a CSS
-  breakpoint. The former `MobileSection` was removed.
+  breakpoint. The former `MobileSection` was removed. A Disclosure inside another (Data &
+  Integrations' Advanced, inside Details) turns its chevron only for its own `<details>`.
+- A typed confirmation (Admin's setup jobs, a job turned off, Delete with profile, a profile
+  without an account; 19 Nov 2026): the same `Dialog`, its phrase above an `Input` (16px on touch,
+  so Safari does not zoom), any letter case accepted since a phone's keyboard capitalises; the danger
+  button enabled once the words match. An account's two deletes share a row from `sm` and wrap as a
+  pair below it. `e2e/admin-safety.spec.ts` checks it at 1440 and 375 with axe; `e2e/webkit.spec.ts`
+  types the phrase in WebKit on an iPhone-sized screen.
 - `PanelHeader` wraps its actions; `Panel` is `min-w-0` so grids never force page overflow.
 - `ChampionPortrait` images carry width/height, `loading="lazy"` and `decoding="async"`.
 

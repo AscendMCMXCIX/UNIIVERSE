@@ -308,6 +308,7 @@ text below 12px; 11px (`text-2xs`) only for badges and labels.
 | A champion, a player from Team | The existing detail windows, which already take the whole screen on phones. | |
 | Account, Settings, Sign out | The account screen, from the avatar. | One menu, not two, every entry a full-width row in reach of the thumb. |
 | A short question or form | `Dialog`: the same sheet as every other (built on `DetailModal`). | One sheet: one look, one motion, one height rule. |
+| Confirm something that cannot be taken back (Admin's setup jobs, a job turned off, a delete with a profile) | The same `Dialog`, docked: the phrase to type above a 16px field (no zoom in Safari), the keyboard capitalising as it likes (any case matches), and the danger button beside Cancel, enabled once the words match. The two deletes of an account stay together on their row and wrap as a pair (S1a, 19 Nov 2026; `e2e/admin-safety.spec.ts` at 375px, `e2e/webkit.spec.ts`). | A deliberate pause that fits a thumb, without a second screen. |
 
 Every sheet and window shares `DetailModal`: native `<dialog>` (focus kept inside, the page behind
 inert), Escape and the backdrop close it, focus returns to what opened it, a sheet slides up in

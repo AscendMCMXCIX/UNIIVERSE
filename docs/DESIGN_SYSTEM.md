@@ -473,7 +473,10 @@ test):
   its first other page.
 - **Overlays.** One sheet for every choice and editor (`DetailModal` `size="sheet"`, `Dialog` built
   on it): its choices in the body and its actions in the footer, which stays in view while only the
-  body scrolls. Where the header and footer would leave the body too little room for its tallest
+  body scrolls. What cannot be taken back with one click, or changes the site's setup, asks for a
+  typed confirmation in that same sheet: the phrase or name above one field, the danger button
+  enabled only when they match (any case), and the server checks the words again
+  (`src/domain/typed-confirmation.ts`; docs/STANDARDS.md, Shared components). Where the header and footer would leave the body too little room for its tallest
   control (large text on a phone held sideways), the whole sheet scrolls as one instead, like a page,
   so nothing is ever cut short in a strip. Escape, the backdrop, Close and a pull down close the
   topmost one, focus returns to what opened it without scrolling, and the page behind never moves

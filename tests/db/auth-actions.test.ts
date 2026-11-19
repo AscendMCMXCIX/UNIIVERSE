@@ -58,7 +58,7 @@ import { registerAccount } from "@/server/auth/signup";
 import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
 import { getUser } from "@/server/repositories/users";
-import { users } from "@/server/db/schema";
+import { players, users } from "@/server/db/schema";
 import { resetThrottle } from "@/server/auth/throttle";
 import * as accounts from "@/server/actions/users";
 import * as auth from "@/server/actions/auth";
@@ -239,34 +239,49 @@ describe("mandatory setup is enforced on the server", () => {
     expect((await matchActions.setTeamBookmarkAction("OC1_123", true)).ok).toBe(false);
     expect(await expectRedirect(auth.setPermanentPasswordAction({ next: "Newbie-pass-2024", confirm: "Newbie-pass-2024" }))).toBe("/welcome");
     expect((await matchActions.setTeamBookmarkAction("OC1_123", true)).ok).toBe(false);
-    expect((await playerActions.updatePlayerAction(newbieProfile, { displayName: "Newbie", primaryRole: "TOP" })).ok).toBe(false);
+    expect((await playerActions.saveProfilePatchAction(newbieProfile, { primaryRole: "TOP" }, null)).ok).toBe(false);
     // Saving progress works, and finishing validates on the server.
     expect(await auth.saveSetupProgressAction({ primaryRole: "TOP" })).toEqual({ ok: true });
     expect(await auth.finishSetupAction({ primaryRole: "TOP", primaryPool: [] })).toMatchObject({ ok: false });
     await expect(auth.finishSetupAction({ primaryRole: "TOP", primaryPool: ["Gwen"] })).rejects.toThrow(/NEXT_REDIRECT \/welcome\/personalise$/);
-    expect((await playerActions.updatePlayerAction(newbieProfile, { displayName: "Newbie", primaryRole: "TOP", primaryPool: ["Gwen", "Jax"] })).ok).toBe(true);
+    expect((await playerActions.saveProfilePatchAction(newbieProfile, { primaryRole: "TOP", primaryPool: ["Gwen", "Jax"] }, null)).ok).toBe(true);
   });
 });
 
 describe("profiles", () => {
-  it("players edit only their own profile", async () => {
+  it("players edit only their own profile (the roles and pools autosave, the one profile-edit action)", async () => {
     await signInAs(playerId);
-    expect((await playerActions.updatePlayerAction(otherProfileId, { displayName: "Hacked", primaryRole: "TOP" })).ok).toBe(false);
-    expect((await playerActions.updatePlayerAction(playerProfileId, { displayName: "Rookie", primaryRole: "ADC", primaryPool: ["Jinx", "Kaisa"] })).ok).toBe(true);
+    expect((await playerActions.saveProfilePatchAction(otherProfileId, { primaryRole: "TOP" }, null)).ok).toBe(false);
+    expect((await playerActions.saveProfilePatchAction(playerProfileId, { primaryRole: "ADC", primaryPool: ["Jinx", "Kaisa"] }, null)).ok).toBe(true);
   });
 
-  it("deleting a profile from its edit page also deletes its account, and protects the admin's own", async () => {
+  it("the older profile actions are gone: no unaudited delete or display-name edit left to call", () => {
+    // Removed 19 Nov 2026 (admin audit D2): they skipped the display-name rule and left no activity entry.
+    expect("updatePlayerAction" in playerActions).toBe(false);
+    expect("deletePlayerAction" in playerActions).toBe(false);
+  });
+
+  it("deleting an account with its profile takes the username typed, is audited, and protects the admin's own", async () => {
     await signInAs(ownerId);
     const created = await accounts.createPlayerAccountAction({ username: "test", riotId: "reqwym#oc", teamMember: true });
     expect(created.ok).toBe(true);
     const ids = created.ok ? created.data : null;
-    expect((await playerActions.deletePlayerAction(ids!.playerId)).ok).toBe(true);
+    // Without the username typed (or with another), nothing is deleted.
+    expect(await accounts.deleteAccountAction(ids!.userId, { eraseProfile: true })).toMatchObject({ ok: false, error: expect.stringMatching(/Type their username/) });
+    expect(await accounts.deleteAccountAction(ids!.userId, { eraseProfile: true, confirmation: "someone-else" })).toMatchObject({ ok: false });
+    expect(await getUser(handle.db, ids!.userId)).not.toBeNull();
+    expect((await accounts.deleteAccountAction(ids!.userId, { eraseProfile: true, confirmation: "TEST" })).ok).toBe(true);
     expect(await getUser(handle.db, ids!.userId)).toBeNull();
+    expect((await handle.db.select({ id: players.id }).from(players).where(eq(players.id, ids!.playerId))).length).toBe(0);
+    expect((await listAudit(handle.db, 5)).find((r) => r.action === "account.delete" && r.targetName === "test")?.details).toEqual({ profileErased: true });
+    // The admin's own account, typed or not, and a player's attempt on someone else's.
     const own = (await getUser(handle.db, ownerId))!;
-    expect((await playerActions.deletePlayerAction(own.playerId!)).ok).toBe(false);
+    expect((await accounts.deleteAccountAction(ownerId, { eraseProfile: true, confirmation: own.username })).ok).toBe(false);
     expect(await getUser(handle.db, ownerId)).not.toBeNull();
     await signInAs(playerId);
-    expect((await playerActions.deletePlayerAction(otherProfileId)).ok).toBe(false);
+    const other = (await handle.db.select({ id: users.id, username: users.username }).from(users).where(eq(users.playerId, otherProfileId)))[0]!;
+    expect((await accounts.deleteAccountAction(other.id, { eraseProfile: true, confirmation: other.username })).ok).toBe(false);
+    expect(await getUser(handle.db, other.id)).not.toBeNull();
   });
 
   it("signed-out callers get nothing", async () => {

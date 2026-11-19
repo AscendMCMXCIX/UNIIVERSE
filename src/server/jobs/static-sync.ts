@@ -97,6 +97,7 @@ async function run(ctx: Pick<JobContext, "db" | "log" | "startedAt" | "budgetMs"
 
 defineJob({
   key: "version-check",
+  kind: "refresh",
   description: "Check Data Dragon for a new game version and sync champions when one appears.",
   defaultIntervalMinutes: 60,
   run: (ctx) => run(ctx, false),
@@ -104,6 +105,8 @@ defineJob({
 
 defineJob({
   key: "static-sync",
+  kind: "refresh",
+  asks: "Download every champion, item and rune file from Riot's Data Dragon again now? It runs by itself when a new patch comes out, and can take a minute.",
   description: "Force a full champion/static data synchronisation from Data Dragon.",
   defaultIntervalMinutes: null,
   run: (ctx) => run(ctx, true),

@@ -8,9 +8,11 @@ import { deleteAccountAction, deleteProfileAction, resetPasswordAction, setAccou
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog, Dialog } from "@/components/ui/dialog";
+import { Input, Label } from "@/components/ui/input";
 import { toast } from "@/components/ui/toast";
 import { useBrandNames } from "@/components/brand-names";
 import { formatDateTime, formatDayMonth } from "@/lib/format";
+import { typedMatches } from "@/domain/typed-confirmation";
 
 /** An account's state in one word an admin acts on. */
 export type AccountStatus = "active" | "awaiting-login" | "setup" | "deactivated";
@@ -112,33 +114,63 @@ export function TemporaryPasswordBox({ username, password, expiresAt }: { userna
   );
 }
 
-/** Delete for a player profile that has no account (test entries, old placeholders, leftovers of deleted accounts). */
+/** "Type X to …": the field of a typed confirmation (src/domain/typed-confirmation.ts), its words above it. */
+function TypedName({ expected, action, value, onChange, testId }: { expected: string; action: string; value: string; onChange: (v: string) => void; testId: string }) {
+  const id = React.useId();
+  return (
+    <div className="space-y-1">
+      <Label htmlFor={id}>
+        Type <span className="font-semibold text-fg [overflow-wrap:anywhere]">{expected}</span> {action}
+      </Label>
+      <Input id={id} value={value} onChange={(e) => onChange(e.target.value)} autoComplete="off" autoCapitalize="none" spellCheck={false} data-testid={testId} />
+    </div>
+  );
+}
+
+/** Delete for a player profile that has no account (test entries, old placeholders, leftovers of deleted accounts): its name typed first. */
 export function DeleteProfileButton({ playerId, name }: { playerId: string; name: string }) {
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
+  const [typed, setTyped] = React.useState("");
+  const close = () => {
+    if (busy) return;
+    setOpen(false);
+    setTyped("");
+  };
+  const remove = async () => {
+    setBusy(true);
+    const r = await deleteProfileAction(playerId, typed);
+    setBusy(false);
+    if (!r.ok) return toast.error("Could not delete the profile", { description: r.error });
+    setOpen(false);
+    setTyped("");
+    toast.success(`${name} deleted.`);
+    router.refresh();
+  };
   return (
     <>
-      <Button size="sm" variant="ghost" className="text-bad" wrap onClick={() => setOpen(true)}>
+      <Button size="sm" variant="ghost" className="text-bad" wrap onClick={() => setOpen(true)} data-testid="delete-profile">
         Delete profile
       </Button>
-      <ConfirmDialog
+      <Dialog
         open={open}
-        busy={busy}
+        onClose={close}
         title={`Delete ${name}?`}
         description="Their champion pools, linked Riot accounts and statistics are removed for good."
-        confirmLabel="Delete permanently"
-        onCancel={() => setOpen(false)}
-        onConfirm={async () => {
-          setBusy(true);
-          const r = await deleteProfileAction(playerId);
-          setBusy(false);
-          setOpen(false);
-          if (r.ok) toast.success(`${name} deleted.`);
-          else toast.error("Could not delete the profile", { description: r.error });
-          router.refresh();
-        }}
-      />
+        footer={
+          <>
+            <Button variant="ghost" onClick={close} disabled={busy}>
+              Cancel
+            </Button>
+            <Button variant="danger" onClick={() => void remove()} disabled={busy || !typedMatches(typed, name)} data-testid="delete-profile-confirm">
+              {busy ? "Deleting…" : "Delete permanently"}
+            </Button>
+          </>
+        }
+      >
+        <TypedName expected={name} action="to delete it" value={typed} onChange={setTyped} testId="delete-confirm-input" />
+      </Dialog>
     </>
   );
 }
@@ -147,30 +179,43 @@ export function DeleteProfileButton({ playerId, name }: { playerId: string; name
  * Reset password · Deactivate / Reactivate · Delete, the same on both admin pages. Sensitive
  * actions confirm in a dialog; the server enforces the rules (never yourself, never the last
  * admin). Results arrive as notifications; a new temporary password opens in its own dialog.
+ * The Production check's account (keptAutomatically) offers Deactivate / Reactivate and Delete only:
+ * its job keeps its password, and the server refuses a reset.
  */
 export function AccountActions({ account, currentUserId, viewerIsOwner = false }: { account: AccountView; currentUserId: string | null; viewerIsOwner?: boolean }) {
   const router = useRouter();
   const [busy, setBusy] = React.useState(false);
   const [issued, setIssued] = React.useState<{ temporaryPassword: string; expiresAt: string } | null>(null);
   const [confirming, setConfirming] = React.useState<"reset" | "deactivate" | "delete" | null>(null);
+  const [typed, setTyped] = React.useState("");
   const self = account.userId === currentUserId;
   const run = async <T,>(fn: () => Promise<{ ok: true; data: T } | { ok: false; error: string }>, done: string | null): Promise<T | null> => {
     setBusy(true);
     const r = await fn();
     setBusy(false);
+    if (!r.ok) {
+      toast.error("That did not work", { description: r.error });
+      return null;
+    }
     setConfirming(null);
-    if (!r.ok) toast.error("That did not work", { description: r.error });
-    else if (done) toast.success(done);
+    setTyped("");
+    if (done) toast.success(done);
     router.refresh();
-    return r.ok ? r.data : null;
+    return r.data;
+  };
+  const closeDelete = () => {
+    if (busy) return;
+    setConfirming(null);
+    setTyped("");
   };
   const resetPassword = () => void run(() => resetPasswordAction(account.userId), null).then((d) => d && setIssued(d));
   if (self) return null;
   // Only the Owner changes the Owner account; the server refuses anyone else too.
   if (account.role === "owner" && !viewerIsOwner) return <span className="text-xs text-fg-subtle">Managed by the Owner</span>;
+  const withProfile = !!account.playerId;
   return (
     <div className="flex flex-wrap items-center gap-1.5" data-testid="account-actions">
-      {account.isActive ? (
+      {account.isActive && !account.keptAutomatically ? (
         <Button size="sm" variant="outline" wrap disabled={busy} onClick={() => (account.password.state === "none" ? resetPassword() : setConfirming("reset"))}>
           {account.password.state === "none" ? "Create temporary password" : "Reset password"}
         </Button>
@@ -184,7 +229,7 @@ export function AccountActions({ account, currentUserId, viewerIsOwner = false }
           Reactivate
         </Button>
       )}
-      <Button size="sm" variant="ghost" className="text-bad" wrap disabled={busy} onClick={() => setConfirming("delete")}>
+      <Button size="sm" variant="ghost" className="text-bad" wrap disabled={busy} onClick={() => setConfirming("delete")} data-testid="delete-account">
         Delete
       </Button>
 
@@ -206,25 +251,42 @@ export function AccountActions({ account, currentUserId, viewerIsOwner = false }
         onCancel={() => setConfirming(null)}
         onConfirm={() => void run(() => setAccountActiveAction(account.userId, false), `${account.username} deactivated.`)}
       />
-      <Dialog
-        open={confirming === "delete"}
-        onClose={() => setConfirming(null)}
-        title={`Delete ${account.username}?`}
-        description="This cannot be undone. Keep their player profile (archived, so match history and statistics stay) or delete the profile too (for test or mistaken entries). Neither removes them from shared games, records or logs: for that, use Erase personal data."
-        footer={
-          <>
-            <Button variant="ghost" disabled={busy} onClick={() => setConfirming(null)}>
-              Cancel
-            </Button>
-            <Button variant="outline" disabled={busy} onClick={() => void run(() => deleteAccountAction(account.userId), `${account.username} deleted; their profile is archived.`)}>
-              Delete account, keep profile
-            </Button>
-            <Button variant="danger" disabled={busy} onClick={() => void run(() => deleteAccountAction(account.userId, { eraseProfile: true }), `${account.username} and their profile deleted.`)}>
-              Delete account and profile
-            </Button>
-          </>
-        }
-      />
+      {withProfile ? (
+        <Dialog
+          open={confirming === "delete"}
+          onClose={closeDelete}
+          title={`Delete ${account.username}?`}
+          description="This cannot be undone. Keep their player profile (archived, so match history and statistics stay), or delete it with their champion pools, Riot accounts and statistics (for test or mistaken entries). Neither removes them from shared games, records or logs: for that, use Erase personal data."
+          footer={
+            <>
+              <Button variant="ghost" disabled={busy} onClick={closeDelete}>
+                Cancel
+              </Button>
+              {/* The two deletes stay together on one row; on a phone they wrap as a pair. */}
+              <span className="flex flex-wrap justify-end gap-2">
+                <Button variant="outline" disabled={busy} onClick={() => void run(() => deleteAccountAction(account.userId), `${account.username} deleted; their profile is archived.`)} data-testid="delete-keep-profile">
+                  Delete, keep profile
+                </Button>
+                <Button variant="danger" disabled={busy || !typedMatches(typed, account.username)} onClick={() => void run(() => deleteAccountAction(account.userId, { eraseProfile: true, confirmation: typed }), `${account.username} and their profile deleted.`)} data-testid="delete-with-profile">
+                  Delete with profile
+                </Button>
+              </span>
+            </>
+          }
+        >
+          <TypedName expected={account.username} action="to delete the profile too" value={typed} onChange={setTyped} testId="delete-confirm-input" />
+        </Dialog>
+      ) : (
+        <ConfirmDialog
+          open={confirming === "delete"}
+          busy={busy}
+          title={`Delete ${account.username}?`}
+          description={account.keptAutomatically ? "It has no player profile. The Production check makes it again at its next run; to turn the signed-in checks off, deactivate it instead." : "It has no player profile; only the account goes. This cannot be undone."}
+          confirmLabel="Delete account"
+          onCancel={closeDelete}
+          onConfirm={() => void run(() => deleteAccountAction(account.userId), `${account.username} deleted.`)}
+        />
+      )}
       <Dialog open={issued !== null} onClose={() => setIssued(null)} title="Temporary password" description="Shown only once." footer={<Button variant="primary" onClick={() => setIssued(null)}>Done</Button>}>
         {issued ? <TemporaryPasswordBox username={account.username} password={issued.temporaryPassword} expiresAt={issued.expiresAt} /> : null}
       </Dialog>

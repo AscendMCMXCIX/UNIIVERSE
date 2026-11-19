@@ -4,6 +4,8 @@ import { runPerfProbe } from "@/server/observability/perf-probe";
 /** Read-only timing of the service calls behind every important page and action, in production. */
 defineJob({
   key: "perf-probe",
+  kind: "check",
+  cost: "Reads about 6 MB from the database, of the 120 MB a day allows.",
   description: "Read-only timing of the service calls behind the pages (database, auth, statistics). Changes nothing.",
   defaultIntervalMinutes: null,
   allowConcurrent: true,

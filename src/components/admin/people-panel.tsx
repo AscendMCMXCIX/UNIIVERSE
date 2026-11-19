@@ -78,10 +78,12 @@ const fold = (s: string) => s.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCa
 
 /**
  * Users & Permissions → Accounts: one list of everyone (team members, personal-use accounts, accounts
- * still awaiting their first login or setup, deactivated ones, the admin account and profiles
- * without an account) with status, team membership, Riot sync and access at a glance. Find a
- * person, then Manage opens their team membership and access in one dialog; account actions
- * (password, deactivate, delete) and roster actions (archive) sit on the row.
+ * still awaiting their first login or setup, deactivated ones, accounts without a player profile,
+ * the Production check's account and profiles without an account) with status, team membership,
+ * Riot sync and access at a glance. Find a person, then Manage opens their team membership and
+ * access in one dialog; account actions (password, deactivate, delete) and roster actions
+ * (archive) sit on the row. The Production check's account is kept automatically: Deactivate and
+ * Delete only (auth/account-admin.ts guardVerificationAccount refuses the rest).
  */
 export function PeoplePanel({ players, adminAccounts = [], presets = [], currentUserId, viewerIsOwner = false, canManageAccounts = true, canManageRoster = true }: { players: PlayerAdminRow[]; adminAccounts?: AccountView[]; presets?: PermissionPreset[]; currentUserId: string | null; viewerIsOwner?: boolean; canManageAccounts?: boolean; canManageRoster?: boolean }) {
   const router = useRouter();
@@ -94,8 +96,8 @@ export function PeoplePanel({ players, adminAccounts = [], presets = [], current
   const found = (p: PlayerAdminRow) => !q || fold(p.displayName).includes(q) || fold(p.account?.username ?? "").includes(q) || fold(p.riotId ?? "").includes(q);
   // Only the Owner changes the Owner account (the server refuses anyone else as well).
   const lockedReason = (a: AccountView) => (a.userId === currentUserId ? "Your own access cannot be changed here" : a.role === "owner" && !viewerIsOwner ? "Only the Owner changes the Owner account" : null);
-  // Erasure, like the server: never yourself or the Owner account; an administrator only by the Owner.
-  const mayErase = (a: AccountView) => a.userId !== currentUserId && a.role !== "owner" && (!a.isAdmin || viewerIsOwner);
+  // Erasure, like the server: never yourself, the Owner account or the Production check's; an administrator only by the Owner.
+  const mayErase = (a: AccountView) => a.userId !== currentUserId && a.role !== "owner" && !a.keptAutomatically && (!a.isAdmin || viewerIsOwner);
   const accessButton = (a: AccountView) =>
     canManageAccounts ? (
       <Button size="sm" variant="outline" wrap onClick={() => setEditing(a)} disabled={!!lockedReason(a)} title={lockedReason(a) ?? "Team membership, access level, additional access and administrator access"} data-testid="open-access">
@@ -110,6 +112,9 @@ export function PeoplePanel({ players, adminAccounts = [], presets = [], current
     else toast.error("That did not work", { description: r.error });
     router.refresh();
   };
+  const foundAccount = (a: AccountView) => !q || fold(a.username).includes(q) || fold(a.displayName).includes(q);
+  const kept = adminAccounts.filter((a) => a.keptAutomatically);
+  const withoutProfile = adminAccounts.filter((a) => !a.keptAutomatically);
   const current = players.filter((p) => (showArchived || !p.archived) && found(p));
   const counts = Object.fromEntries(FILTERS.map((f) => [f.id, current.filter((p) => matches(p, f.id)).length])) as Record<StatusFilter, number>;
   const visible = current.filter((p) => matches(p, filter));
@@ -238,15 +243,15 @@ export function PeoplePanel({ players, adminAccounts = [], presets = [], current
           </div>
         ))}
 
-        {canManageAccounts && adminAccounts.filter((a) => !q || fold(a.username).includes(q)).length > 0 ? (
-          <div className="space-y-2">
+        {canManageAccounts && withoutProfile.filter(foundAccount).length > 0 ? (
+          <div className="space-y-2" data-testid="people-group-no-profile">
             <div>
-              <h3 className="text-sm font-semibold text-fg">Accounts without a player profile <span className="font-normal text-fg-subtle">· {adminAccounts.length}</span></h3>
-              <p className="text-xs text-fg-subtle">The admin account (it works in Admin Mode only), and any account from before automatic profiles.</p>
+              <h3 className="text-sm font-semibold text-fg">Accounts without a player profile <span className="font-normal text-fg-subtle">· {withoutProfile.length}</span></h3>
+              <p className="text-xs text-fg-subtle">They are in no list members see and have no statistics: an account from before automatic profiles, or the Owner&apos;s after a recovery, which the Owner completes under My profile.</p>
             </div>
             <ul className="space-y-2">
-              {adminAccounts
-                .filter((a) => !q || fold(a.username).includes(q))
+              {withoutProfile
+                .filter(foundAccount)
                 .map((a) => (
                   <li key={a.userId} className="space-y-2 rounded-panel border border-border bg-bg-elevated p-3 @container" data-testid="admin-user-row">
                     <div className="flex flex-wrap items-center gap-3">
@@ -273,6 +278,38 @@ export function PeoplePanel({ players, adminAccounts = [], presets = [], current
                     </div>
                   </li>
                 ))}
+            </ul>
+          </div>
+        ) : null}
+        {canManageAccounts && kept.filter(foundAccount).length > 0 ? (
+          <div className="space-y-2" data-testid="people-group-kept">
+            <div>
+              <h3 className="text-sm font-semibold text-fg">Kept automatically <span className="font-normal text-fg-subtle">· {kept.length}</span></h3>
+              <p className="text-xs text-fg-subtle">The account the daily Production check signs in with to check the member pages: a member with no player profile and the default access, its password worked out by the check itself. Its access, password and name cannot be changed here. Deactivate it to turn the signed-in checks off; deleted, the check makes it again.</p>
+            </div>
+            <ul className="space-y-2">
+              {kept.filter(foundAccount).map((a) => (
+                <li key={a.userId} className="space-y-2 rounded-panel border border-border bg-bg-elevated p-3 @container" data-testid="admin-kept-row">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <Avatar name={a.username} src={a.avatarUrl} size="md" />
+                    <div className="min-w-0 flex-1 [overflow-wrap:anywhere] @max-[14rem]:basis-full">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="min-w-0 font-semibold text-fg [overflow-wrap:anywhere]">{a.username}</span>
+                        <Badge tone="neutral">Production check</Badge>
+                      </div>
+                      <p className="flex items-center gap-1.5 text-xs text-fg-muted">
+                        <ShieldCheck className="h-3.5 w-3.5 text-fg-subtle" aria-hidden /> Default access, locked
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <AccountStatusBadge account={a} />
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1.5 border-t border-border pt-2.5">
+                    <AccountActions account={a} currentUserId={currentUserId} viewerIsOwner={viewerIsOwner} />
+                  </div>
+                </li>
+              ))}
             </ul>
           </div>
         ) : null}
