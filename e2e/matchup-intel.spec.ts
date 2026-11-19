@@ -1,3 +1,4 @@
+import { AxeBuilder } from "@axe-core/playwright";
 import sharp from "sharp";
 import { expect, test, type Page } from "./test";
 import { choiceIds, choose, cutOrSpilled, enemyAbilities, hydrated, localPictures, openMatchupIntel, openPicker, overflow, pickerCuts, pickerSpill, rosterIds } from "./matchup-intel";
@@ -159,9 +160,20 @@ test("a pair without a curated briefing (Garen vs Darius) says so, then the asse
     const own = r.getByTestId("ability-cooldown-source");
     if (await own.count()) await expect(own).toHaveText("Not reviewed");
   }
-  // For a champion with curated matchups, the assembled reference links to them.
+  // Each side names its layer under its subtitle, and says once that its numbers are Riot's; your
+  // champion's summary says it too, as the enemy's panel does.
+  for (const side of ["danger", "opportunity"]) {
+    const part = page.getByTestId(`assembled-${side}`);
+    await expect(part.getByTestId("assembled-riot-text-label")).toHaveText("From Riot's ability text, reviewed automatically (not by a person)");
+    await expect(part.getByTestId("assembled-cooldowns-source")).toHaveText("Cooldowns: Riot's data, not reviewed");
+  }
+  await expect(page.getByTestId("your-cooldown-source")).toHaveText("Cooldowns: Riot's data, not reviewed");
+  // For a champion with curated matchups, the assembled reference links to them; your checked notes'
+  // side names them and when they were checked.
   await openMatchupIntel(page, "Riven", "Garen");
   await expect(page.getByTestId("matchup-no-briefing").getByTestId("matchup-curated-link")).toHaveText(["Riven vs Mordekaiser"]);
+  await expect(page.getByTestId("assembled-opportunity").getByTestId("assembled-source")).toHaveText(`Curated notes: checked on patch ${PINNED_PATCH}`);
+  await expect(page.getByTestId("your-cooldown-source")).toHaveCount(0);
 });
 
 test("no number where Riot's data cannot give one: charges, and two abilities in one slot", async ({ page }) => {
@@ -697,6 +709,136 @@ test("phone at 100%, 150% and 200% text, with facts from Riot's text: nothing cu
         expect.soft(m.smallest, `${at}: chips and markers at least text-xs`).toBeGreaterThanOrEqual(0.75 - 0.001);
         expect.soft(m.scrollers, `${at}: nothing scrolls inside the page`).toEqual([]);
       }
+    }
+  }
+});
+
+/**
+ * The pairs whose controls stand closest on a touch screen (the review of 19 Nov 2026): Mordekaiser's
+ * passive chips three rows deep, the assembled keys and chips of two checked kits, the longest
+ * interaction folds, and an assembled pair with facts from Riot's text.
+ */
+const TOUCH_PAIRS: Array<[string, string]> = [
+  ["Riven", "Mordekaiser"],
+  ["Riven", "Darius"],
+  ["Ornn", "Gwen"],
+  ["Ambessa", "Aatrox"],
+];
+
+test("touch screens: every chip, key, fold and source tip reaches 44px, no one's area covers another's box, and axe's WCAG 2.2 target size finds nothing (every fold open)", async ({ page }, info) => {
+  test.skip(info.project.name === "desktop", "touch screens: the phone and the tablet");
+  test.setTimeout(180_000);
+  await localPictures(page);
+  for (const [you, enemy] of TOUCH_PAIRS) {
+    await openMatchupIntel(page, you, enemy);
+    await hydrated(page);
+    const at = `${you} vs ${enemy} at ${info.project.name}`;
+    await page.getByTestId("matchup-intel").evaluate(async (m) => {
+      for (const d of m.querySelectorAll("details")) d.open = true;
+      await document.fonts.ready;
+      const finite = document.getAnimations().filter((a) => a.effect?.getComputedTiming().endTime !== Infinity);
+      await Promise.all(finite.map((a) => a.finished.catch(() => undefined)));
+    });
+    expect(await page.evaluate(() => matchMedia("(pointer: coarse)").matches), `${at}: a coarse pointer`).toBe(true);
+    // Each control's own box, sampled every 2px: a tap anywhere on it reaches it, not a neighbour
+    // whose 44px area (touch-target) reaches over it. Each brought to the screen's middle first, clear
+    // of the bars.
+    const found = await page.getByTestId("matchup-dashboard").evaluate(async (dash) => {
+      const ctrl = (el: Element | null) => el?.closest("a[href], button, summary") ?? null;
+      const name = (el: Element) => `${el.closest("[data-testid]")?.getAttribute("data-testid") ?? el.tagName.toLowerCase()} "${(el.textContent ?? "").replace(/\s+/g, " ").trim().slice(0, 32)}"`;
+      const controls = [...dash.querySelectorAll("a[href], button, summary")].filter((el) => el.getClientRects().length > 0 && !el.closest(".sr-only"));
+      const covered: string[] = [];
+      const small: string[] = [];
+      for (const el of controls) {
+        el.scrollIntoView({ block: "center" });
+        await new Promise((r) => requestAnimationFrame(() => r(null)));
+        const b = el.getBoundingClientRect();
+        // 44px: its own height, or its finger-sized area (touch-target's ::after, on it or its badge).
+        const areas = [el, ...el.querySelectorAll(".touch-target")].map((e) => parseFloat(getComputedStyle(e, "::after").height) || 0);
+        if (b.height < 43.5 && Math.max(...areas) < 44) small.push(`${name(el)} (${b.height.toFixed(0)}px, no 44px area)`);
+        const others = new Map<string, number>();
+        for (let y = b.top + 1; y <= b.bottom - 1; y += 2) {
+          for (let x = b.left + 1; x <= b.right - 1; x += 2) {
+            const hit = ctrl(document.elementFromPoint(x, y));
+            if (hit && hit !== el && !el.contains(hit) && dash.contains(hit)) others.set(name(hit), (others.get(name(hit)) ?? 0) + 1);
+          }
+        }
+        for (const [other, n] of others) covered.push(`${name(el)}: ${n} points reach ${other}`);
+      }
+      return { controls: controls.length, covered, small };
+    });
+    expect(found.controls, `${at}: controls on the page`).toBeGreaterThan(10);
+    expect.soft(found.covered, `${at}: no control's box reaches another`).toEqual([]);
+    expect.soft(found.small, `${at}: every control a 44px target`).toEqual([]);
+    // axe at the WCAG 2.2 AA level (target size, 2.5.8), as the review ran it.
+    const axe = await new AxeBuilder({ page }).include('[data-testid="matchup-intel"]').withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"]).analyze();
+    const blocking = axe.violations.filter((v) => v.impact === "critical" || v.impact === "serious");
+    expect.soft(blocking.map((v) => `${v.id}: ${v.help} (${v.nodes.slice(0, 3).map((n) => n.target.join(" ")).join(" | ")})`), `${at}: axe, WCAG 2.2 AA`).toEqual([]);
+  }
+});
+
+/**
+ * Ten pairs with tight cooldowns on their assembled sides, the review's included (Gwen's Q and E
+ * beside Nidalee, Ornn's E and W, Renekton's E), each way round where both have checked notes.
+ */
+const COOLDOWN_PAIRS: Array<[string, string]> = [
+  ["Gwen", "Nidalee"],
+  ["Darius", "Ornn"],
+  ["Riven", "Renekton"],
+  ["Ornn", "Gwen"],
+  ["KSante", "Mordekaiser"],
+  ["Riven", "Darius"],
+  ["Ambessa", "Aatrox"],
+  ["Briar", "KSante"],
+  ["Mordekaiser", "Riven"],
+  ["Renekton", "Ambessa"],
+];
+
+test("phone at 200% text: a cooldown breaks only after a slash or a space, never inside a number, on every numbered line of ten pairs at 320, 375 and 393 wide", async ({ page }) => {
+  test.skip((page.viewportSize()?.width ?? 1000) >= 768, "a phone");
+  test.setTimeout(180_000);
+  await localPictures(page);
+  for (const [you, enemy] of COOLDOWN_PAIRS) {
+    await openMatchupIntel(page, you, enemy);
+    await hydrated(page);
+    await page.addStyleTag({ content: "html { font-size: 200% !important; }" });
+    for (const [width, height] of [
+      [320, 640],
+      [375, 667],
+      [393, 852],
+    ] as const) {
+      await page.setViewportSize({ width, height });
+      const found = await page.getByTestId("matchup-dashboard").evaluate(async (dash) => {
+        await document.fonts.ready;
+        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(null))));
+        const lines = [...dash.querySelectorAll('[data-testid="assembled-cooldown"], [data-testid="ability-cooldown-value"], [data-testid="ability-cooldown-form"]')].filter((e) => e.getClientRects().length > 0);
+        const breaks: string[] = [];
+        for (const line of lines) {
+          // The numbers' characters, in order, each with the top of the line it is drawn on (the
+          // source words after a number, which wrap as words do, left out).
+          const chars: Array<{ c: string; top: number }> = [];
+          const walk = document.createTreeWalker(line, NodeFilter.SHOW_TEXT);
+          for (let t = walk.nextNode(); t; t = walk.nextNode()) {
+            if (t.parentElement?.closest('[data-testid="assembled-cooldown-source"]')) continue;
+            for (let i = 0; i < t.textContent!.length; i++) {
+              const r = document.createRange();
+              r.setStart(t, i);
+              r.setEnd(t, i + 1);
+              const rect = r.getClientRects()[0];
+              if (rect) chars.push({ c: t.textContent![i]!, top: rect.top });
+            }
+          }
+          for (let i = 1; i < chars.length; i++) {
+            const prev = chars[i - 1]!;
+            const here = chars[i]!;
+            if (here.top > prev.top + 2 && prev.c !== "/" && prev.c !== " " && here.c !== " ") breaks.push(`"${chars.map((x) => x.c).join("")}" breaks between "${prev.c}" and "${here.c}"`);
+          }
+        }
+        return { lines: lines.length, breaks };
+      });
+      const at = `${you} vs ${enemy} at ${width}px, 200% text`;
+      expect(found.lines, `${at}: numbered lines`).toBeGreaterThan(3);
+      expect.soft(found.breaks, at).toEqual([]);
     }
   }
 });

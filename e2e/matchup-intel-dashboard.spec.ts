@@ -260,7 +260,7 @@ test("each chip opens what it rests on, and says it to a screen reader; a checke
   await hydrated(page);
   // A checked fact (Renekton's W stun): its own words and its source page.
   const chip = page.locator('[data-testid="matchup-enemy-abilities"] [data-testid="ability-row"][data-slot="W"] [data-testid="fact-chip"]').first();
-  await expect(chip).toHaveAccessibleDescription(/Checked notes · Source: League of Legends Wiki: /);
+  await expect(chip).toHaveAccessibleDescription(/Checked notes \(drafted and audited by AI agents, not by a person\) · Source: League of Legends Wiki: /);
   await chip.hover();
   await expect(page.getByTestId("fact-chip-bubble")).toBeVisible();
   await expect(page.getByTestId("fact-chip-bubble")).toContainText("Source: League of Legends Wiki:");
@@ -340,6 +340,6 @@ test("the facts from Riot's text, as the review recorded them: a qualifier with 
   await expect(page.getByTestId("assembled-danger").getByTestId("assembled-none")).toHaveText(Array(4).fill("· No reviewed facts of this kind"));
   // How they were reviewed, in the sources, from the review's record; never "verified".
   await page.getByTestId("matchup-sources").locator(":scope > summary").click();
-  await expect(page.getByTestId("matchup-footer-riot-text")).toContainText("read by two independent automated reviewers and settled by an adjudicator, then checked in a consistency pass by two more independent automated checkers; no person has checked them.");
+  await expect(page.getByTestId("matchup-footer-riot-text")).toContainText("Reviewed by two independent automated reviewers and an adjudicator, then a consistency pass checked by two more independent automated checkers; no person has checked them. No number in that text is used for these facts.");
   await expect(page.getByTestId("matchup-dashboard")).not.toContainText(/\bverified\b/i);
 });

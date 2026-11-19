@@ -238,7 +238,8 @@ export function Briefing({ matchup, you, enemy, rows }: { matchup: MatchupIntelV
               ) : null}
               {rest.length ? (
                 // The rest, word for word, one press away: never cut to fit.
-                <details className="group/more mt-1.5" data-testid="briefing-lane-more">
+                // On a touch screen 12px under the chips above, so neither's 44px area covers the other.
+                <details className="group/more mt-1.5 pointer-coarse:mt-3" data-testid="briefing-lane-more">
                   <summary className="touch-target inline-flex min-h-7 cursor-pointer list-none items-center gap-1 rounded-sm text-xs font-medium text-accent hover:text-accent-strong [&::-webkit-details-marker]:hidden">
                     <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open/more:rotate-180 motion-reduce:transition-none" aria-hidden />
                     {moreWords(rest.length)}

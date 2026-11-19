@@ -36,10 +36,10 @@ Every item on the page belongs to one layer and says which, in words, never by c
 | Layer | What it holds | Who makes it | What the page says | How much exists (19 Nov 2026) |
 | --- | --- | --- | --- | --- |
 | **L1** Curated matchup | A threat, an opportunity, one to four lane points and interactions, for one pair in one direction | Written in our own words from wiki pages, approved by the owner, through a pull request (the first batch was drafted and audited by AI agents: Curated notes) | "Curated briefing", "Checked on patch 26.22"; "Not re-checked for 26.23" once a later patch is out | 3 pairs: Ambessa vs Renekton, Gwen vs Ornn, Riven vs Mordekaiser |
-| **L2** Checked facts | A champion's facts per ability (crowd control, mobility, defence, sustain, damage, empowerment, interactions, exceptions), how its cooldowns work, level notes | The same | "Checked on patch 26.22"; each fact's source page and revision in its tip and in the ability's details | 6 champions (Ambessa, Gwen, Mordekaiser, Ornn, Renekton, Riven): 99 facts, 24 checked cooldowns, 7 level notes |
-| **L3** Facts from Riot's text | The kinds of mechanic Riot's own ability text names (a stun, a dash, a shield, a heal…), each with the clause it quotes and what the review recorded beside it (a qualifier, the conditional marker), and where Riot's two texts differ | Drafted by fixed rules from Data Dragon's descriptions and tooltips; kept only where two independent automated reviewers and an adjudicator accept it, then a consistency pass checked by two more automated checkers; no person | "From Riot's ability text, reviewed automatically (not by a person)", the quoted clause one hover, focus or tap away | Imported on 19 Nov 2026: 173 champions, 1,112 facts and 7 places where Riot's texts differ, shown for the 167 champions without checked notes (Facts from Riot's text) |
+| **L2** Checked facts | A champion's facts per ability (crowd control, mobility, defence, sustain, damage, empowerment, interactions, exceptions), how its cooldowns work, level notes | The same | "Checked on patch 26.22"; each fact's tip and the ability's details say who checked it, "Checked notes (drafted and audited by AI agents, not by a person)", with its source page and revision | 6 champions (Ambessa, Gwen, Mordekaiser, Ornn, Renekton, Riven): 99 facts, 24 checked cooldowns, 7 level notes |
+| **L3** Facts from Riot's text | The kinds of mechanic Riot's own ability text names (a stun, a dash, a shield, a heal…), each with the clause it quotes and what the review recorded beside it (a qualifier, the conditional marker), and where Riot's two texts differ | Drafted by fixed rules from Data Dragon's descriptions and tooltips, with the reviewers' own additions; reviewed by two independent automated reviewers and an adjudicator, then a consistency pass (which added, removed and changed facts) checked by two more automated checkers; no person. Not every fact was a draft of the rules: 61 of the 1,112 came in as a reviewer's addition or with the consistency pass | "From Riot's ability text, reviewed automatically (not by a person)", the quoted clause one hover, focus or tap away | Imported on 19 Nov 2026: 173 champions, 1,112 facts and 7 places where Riot's texts differ, shown for the 167 champions without checked notes (Facts from Riot's text) |
 | **L4** Riot's data | Names, icons, ranks, base cooldowns per rank, Riot's short descriptions | Data Dragon, read once per game version, behind the cooldown rules (Cooldowns) | "Riot's data, not reviewed", or why there is no number | All 173 champions, 865 abilities: 624 with a cooldown number (24 checked, 600 Riot's), 241 with the reason there is none |
-| **L5** Assembled reference | For a pair with no curated briefing: each champion's L2 facts, else its L3 facts, grouped by kind | Code, on the server, for this pair, in fixed and tested sentences | "Assembled reference"; "No curated briefing for Riven vs Darius yet. Put together from each champion's own facts. No person has checked Riven vs Darius as a pair." | Every other pair: 29,753 of the 29,756 pairs of two different champions, and the 173 mirrors |
+| **L5** Assembled reference | For a pair with no curated briefing: each champion's L2 facts, else its L3 facts, grouped by kind | Code, on the server, for this pair, in fixed and tested sentences | "Assembled reference"; "No curated briefing for Riven vs Darius yet. Put together from each champion's own facts. No person has checked Riven vs Darius as a pair."; for a pair whose briefing is hidden, "The curated briefing for Ambessa vs Renekton is hidden, above. Put together from each champion's own facts in its place. No person has checked them as a pair." | Every other pair: 29,753 of the 29,756 pairs of two different champions, and the 173 mirrors |
 
 The page never uses the word "verified": no person has checked any of it against its sources
 (Coverage, below). The browser specs check that the word is not on the page.
@@ -82,12 +82,15 @@ On a desktop the page is one screen, read in a glance (`matchup-content.tsx`, `m
   swap between them; at the far end the game's patch ("Patch 26.22"), where the abilities come from
   ("Riot Data Dragon 16.22.1"), which layer the pair shows ("Curated briefing · checked on patch
   26.22" with a shield, or "Assembled reference" with a stack of layers) and its warnings ("Not
-  re-checked for 26.23", "Changed since the check", "Ability data from patch 26.22"), and the
-  remembered line under them. A slot opens the picker window (Where it is).
+  re-checked for 26.23"; "Changed since the check: two parts hidden", or "…: the briefing is
+  hidden", once parts of the briefing or its interactions are hidden because Riot changed an ability
+  they rest on; "Ability data from patch 26.22"), and the remembered line under them. A slot opens
+  the picker window (Where it is).
 - **Left**, the main panel: the curated briefing or the assembled reference (both below). Under it,
   Interactions and Level changes side by side once the dashboard is 40rem wide, the fuller the wider
-  (`notesBalance`: a rough count of each panel's words, at least twice the other's to tip it; the
-  page's own words, so nothing is judged by it).
+  (`notesBalance`: a rough count of each panel's words, at least twice the other's to tip it, the
+  level notes two thirds of the row where the interactions are only each champion's folded line;
+  the page's own words, so nothing is judged by it).
 - **Right**, the enemy's five ability tiles, P, Q, W, E and R, always in that order (The ability
   tiles), then your champion, folded into one line ("Your champion: Riven", where its abilities and
   facts come from under it); opened, its own five tiles.
@@ -166,8 +169,9 @@ Where a matchup file exists for this pair in this direction (`briefing.tsx`), wo
 owner approved it (the owner's decision 7):
 
 - Its title, "Curated briefing" (a screen reader hears the pair in the heading), and "Checked on
-  patch 26.22", with "Not re-checked for 26.23" once a later patch is out and a warning once Riot
-  changed an ability it rests on.
+  patch 26.22", with "Not re-checked for 26.23" once a later patch is out. Once Riot changed an
+  ability it rests on, what rests on it is hidden and said in its place (below), and the bar warns
+  "Changed since the check: two parts hidden" (the header itself dates only what still shows).
 - **The threat and the opportunity** side by side from a panel 34rem wide, each as wide as its
   words need against the other's, between 40% and 62% of the row (`threatShare`), so the longer one
   is not left twice as tall. The threat has a warning sign and the word "Threat" in `warn`, the
@@ -192,20 +196,34 @@ For every pair without a curated briefing, or whose briefing is hidden whole (`a
 `src/domain/matchup-intel/kit.ts`; the owner's decisions 1 to 3):
 
 - **Its header**: "Assembled reference" (never called a briefing), the curated pairs that do exist
-  for your champion as links ("Curated for Riven: Riven vs Mordekaiser"), and two sentences: "No
-  curated briefing for Riven vs Darius yet." and "Put together from each champion's own facts. No
-  person has checked Riven vs Darius as a pair." The bar says "Assembled reference" too, and a screen
-  reader hears that no person has checked the pair (`announcementWords`).
+  for your champion as links ("Curated for Riven: Riven vs Mordekaiser"; the pair on the page is never
+  one of them), and two sentences: "No curated briefing for Riven vs Darius yet." and "Put together
+  from each champion's own facts. No person has checked Riven vs Darius as a pair." Where the pair has
+  a curated briefing that is hidden (its check too old, or every part resting on an ability Riot
+  changed), the panel under that briefing says so instead, never that there is none: "The curated
+  briefing for Ambessa vs Renekton is hidden, above." and "Put together from each champion's own facts
+  in its place. No person has checked them as a pair." With no curated links, the sentences sit beside
+  the title where 20rem are left for them. The bar says "Assembled reference" too, and a screen reader
+  hears that no person has checked the pair, or that the briefing is hidden (`announcementWords`).
 - **Two sides**, side by side from a panel 40rem wide: **Danger**, with a warning sign on a `warn`
   tint, "Darius's kit, by kind"; **Opportunity**, with a crosshair on a `good` tint, "Riven's
-  tools, by kind". A mirror pair has one side, "Both sides".
+  tools, by kind". A mirror pair has one side, "Both sides". Under its subtitle each side names its
+  layer, as the ability panels do: the checked notes' line ("Curated notes: checked on patch 26.22",
+  with "Not re-checked for 26.23", "Riot changed one ability after the check: its notes are flagged"
+  or "Checked three patches ago: may be out of date" as they apply), or "From Riot's ability text,
+  reviewed automatically (not by a person)". Where the side's cooldown numbers are Riot's, it says so
+  once, at the subtitle's row's end over the numbers: "Cooldowns: Riot's data, not reviewed".
 - **Five groups on each side**, in this order: Crowd control, Burst and power, Mobility, Defence,
   Sustain (`SIDE_GROUPS`); how a cooldown behaves (recasts, charges, refunds, resets, toggles) shows
   on the tiles instead. A group lists the abilities with a fact of its kind in slot order (P, Q, W,
   E, R), and each ability's chips in the kinds' own order: never a ranking. Each line is the
-  ability's key (a link to its tile), its chips of that kind, and, the first time the ability
-  appears on its side, its base cooldown per rank from its tile's line ("14/12/10/8/6 s"; only where
-  that line is one number per rank: `tightCooldownWords`).
+  ability's key (a link to its tile, as tall as the chips: 21px, its target 25px), its chips of that
+  kind, and, the first time the ability appears on its side, its base cooldown per rank from its
+  tile's line ("14/12/10/8/6 s"; only where that line is one number per rank: `tightCooldownWords`),
+  which breaks only after a slash, never inside a number. A line whose ability Riot changed after its
+  notes were checked is flagged "Changed since the check", as its tile is, and its number, then Riot's,
+  says so after it ("· Riot's data for patch 26.23, not re-checked"): a number from elsewhere than its
+  side's line names its own source.
 - **Where a side's facts come from**: the champion's checked facts (L2) where it has checked notes,
   else its facts from Riot's text (L3), else none. Checked facts win: a champion with checked notes
   shows only those, and any facts from Riot's text committed for it are left out of its view.
@@ -215,7 +233,8 @@ For every pair without a curated briefing, or whose briefing is hidden whole (`a
   reviewed facts for Darius yet: crowd control, mobility, defence and sustain are not recorded." (no
   committed champion is in that state since the import, but a file that cannot be read would be); an
   ability whose facts from Riot's text are hidden, "Riot's text for W changed after the review: its 2
-  facts are hidden."
+  facts are hidden."; no ability data, "Ability details aren't stored yet", or, for a stored record
+  that cannot be read, "Riot's ability data for Darius could not be read", as on the tiles.
 - **Facts from Riot's text keep what the review recorded with them** here as on the tiles (below): a
   qualifier on its chip ("Stun · “Mega Gnar”"), a conditional fact named in the owner's marker under
   the ability's chips on its line ("Conditional: see Riot's text (Stun and Pull)"), and where Riot's
@@ -289,7 +308,9 @@ it too. Five tiles in a column, in the app's own panel, are not the game's abili
 cooldown overlay, no frame from the game's HUD.
 
 Your own champion's tiles are the same, inside the folded "Your champion" line (a native `details`,
-which works before the page's code has run and which a chip's jump opens).
+which works before the page's code has run and which a chip's jump opens), whose summary says where
+the cooldowns come from once for them all, as the enemy's panel heading does ("Cooldowns: Riot's
+data, not reviewed"; a champion with checked notes, "Curated notes: checked on patch 26.22").
 
 ### Interactions and level changes
 
@@ -297,8 +318,8 @@ Under the main panel (`matchup-notes.tsx`), each a compact panel that always say
 
 - **Interactions**: the curated matchup's own first, word for word, with chips to what they rest on;
   the first two shown, the rest folded behind their count; their source, a "source" whose tip names
-  the page, said once on the panel's line when they all cite one page (Gwen vs Ornn, Riven vs
-  Mordekaiser), else after each (Ambessa vs Renekton cites three). Then
+  the page (a 24px target, 44px on a touch screen), said once on the panel's line when they all cite
+  one page (Gwen vs Ornn, Riven vs Mordekaiser), else after each (Ambessa vs Renekton cites three). Then
   each champion's own checked interaction and exception facts, folded side by side under one line
   each ("Renekton's interactions and exceptions · 7"), each also a chip on its tile, with a flag
   when any is from an ability Riot changed since the check. None at all: "No interactions recorded
@@ -308,14 +329,25 @@ Under the main panel (`matchup-notes.tsx`), each a compact panel that always say
   level order ("Level 6", then "Mordekaiser: Darkness Rise's bonus movement speed rises from 3% to
   6%."), only where a checked note states one, each flagged
   ("Changed since the check") once Riot changes an ability it rests on; their source said once on the
-  panel's line when they all share it. None: "No level changes recorded for Darius or Riven."
+  panel's line when they all share it. The first two show and the rest fold behind their count ("3
+  more"), word for word, one press away, as lane points and interactions do (`LEVELS_SHOWN`): two of Ambessa,
+  Mordekaiser and Ornn hold up to five level notes between them. None: "No level changes recorded
+  for Darius or Riven."
+
+Each panel's line says how fresh what it shows is, on a line of its own under its title, as the tiles'
+heading does: "Not re-checked for 26.23" while the notes' check is one or two patches old, "Checked
+three patches ago: may be out of date" after that (the Interactions panel for the matchup's own
+interactions and each champion's, Level changes for the notes it lists); nothing while they are
+current.
 
 ### Progressive disclosure
 
 The dashboard keeps each part to its essentials and puts the rest one step away, never cut:
 
 - **a chip's tip** (the app's one tooltip, `InfoTip`, on hover, focus or a tap): a checked fact's own
-  sentence and its source page and revision; a kind from Riot's text, the clause it quotes, which
+  sentence, who checked it ("Checked notes (drafted and audited by AI agents, not by a person)", as a
+  level note's source tip and the ability's details say it too) and its source page and revision; a
+  kind from Riot's text, the clause it quotes, which
   text, its qualifier's line, the conditional marker where it has one, and "From Riot's ability text,
   reviewed automatically (not by a person)"; "Riot's texts differ", both quotes and that neither is
   shown as a fact. The same words are the chip's accessible description. A tip holds no link (the
@@ -367,6 +399,15 @@ box, and the rows of chips touch with no gap between them, so a chip that wraps 
 size, or a long qualifier) pushes the next row down instead of overlapping it, as the chips of
 checked notes did at 150% and 200% text before (the tip's 24px line box with negative margins); each
 chip's target still reaches 24px, 44px on a touch screen, with a pseudo-element that takes no room.
+On a touch screen the rows stand 12px apart and the chips 6px (`CHIP_ROWS`), and so do the assembled
+lines, the chips to what a part rests on and the two interaction folds (16px), so no control's 44px
+area covers another's box: a tap lands on what was tapped (before, a tap at the centre of "Bonus AD
+for 15 s" could open the chip above it, and axe's WCAG 2.2 target-size rule found serious faults).
+`e2e/matchup-intel.spec.ts` samples every control's box on the phone and the touch tablet, with every
+fold open, for Riven vs Mordekaiser, Riven vs Darius, Ornn vs Gwen and Ambessa vs Aatrox, and runs axe
+at WCAG 2.2 AA there. A tight cooldown on an assembled line breaks only after a slash: at 200% on 390
+and 393px phones "13/12.5/12/11.5/11 s" broke as "…/1" and "1 s" before; the same spec checks every
+numbered line of ten pairs at 320, 375 and 393px.
 Measured at 320 × 640, 375 × 667 and 393 × 852 upright and 852 × 393 held sideways, at 100%, 150% and
 200% text, for Briar vs K'Sante, Riven vs Yone, Gwen vs Caitlyn (the longest qualifier), Garen vs
 Darius, Riven vs Gnar and Riven vs Mordekaiser (72 page states): nothing wider than the phone, no chip
@@ -600,14 +641,17 @@ step 2).
   counted. Then:
   - one or two patches since: everything shows, and each label says nobody has checked it again
     for that patch: "Not re-checked for 26.23" beside the briefing's and the notes' "Checked on
-    patch 26.22", and "Checked on patch 26.22 · not re-checked for 26.23" under each checked
-    cooldown;
+    patch 26.22" (the tiles' heading, your champion's summary, a checked side of the assembled
+    reference, and the Interactions and Level changes panels' lines), in the bar, and "Checked on
+    patch 26.22 · not re-checked for 26.23" under each checked cooldown;
   - more than two (the default the code follows; the owner may change it, For the owner): the
     briefing is hidden whole, its words kept on the server ("This briefing is hidden: it was
     checked on patch 26.22, three patches ago, and not since. It shows again once a person checks
-    it."), and its interactions with it ("One interaction is hidden: …"); the champion notes still
-    show, flagged ("Checked three patches ago: may be out of date"), on their panel's line and on
-    the level notes'.
+    it."), and its interactions with it ("One interaction is hidden: …"), and the assembled
+    reference under it says the briefing is hidden above, never that there is none; the champion
+    notes still show, flagged ("Checked three patches ago: may be out of date"), on their panel's
+    line, on a checked side of the assembled reference, and on the Interactions and Level changes
+    panels' lines.
 
   A level note names the abilities it rests on (`basedOn`), and once Riot changes one of them after
   the check, it is flagged as that ability's notes are ("Changed since the check").
@@ -626,10 +670,13 @@ step 2).
     checked."
 
   The points that rest on nothing that changed keep "Checked on patch N", and the briefing's
-  freshness is that of what it shows. The enemy's facts from a changed ability keep their row's
-  "Changed since the check" in the Interactions panel (and on its folded line). A briefing hidden
-  for its age is said the same way (Freshness, above), and the sources then neither date nor
-  credits it. Nothing is hidden silently.
+  freshness is that of what it shows; the bar warns once for them all, "Changed since the check: two
+  parts hidden" (the threat, the opportunity, each lane point and each interaction hidden so), or
+  "Changed since the check: the briefing is hidden" when nothing of it is left. The facts from a
+  changed ability keep their row's "Changed since the check" in the Interactions panel (and on its
+  folded line) and on their line of the assembled reference. A briefing hidden for its age is said
+  the same way (Freshness, above), and the sources then neither date nor credits it. Nothing is hidden
+  silently.
 
 ## Facts from Riot's text
 
@@ -660,20 +707,26 @@ the owner: its counts, its conventions, the decisions it leaves to the owner and
    ability and kind. The rules read Riot's text for kinds only, never for numbers: most of its
    numbers are placeholders, and the description and the tooltip disagree on some abilities.
 2. **Reviewed**: two independent automated reviewers read every draft (they gave the same decision
-   on 1,178 of the 1,223, 96.3%), and an automated adjudicator settled each batch (1,092 accepted).
+   on 1,178 of the 1,223, 96.3%) and proposed additions of their own (46, 34 of them accepted), and an
+   automated adjudicator settled each batch (1,092 accepted).
 3. **Made consistent**: a consistency pass across all nine batches, checked by two further
    independent automated checkers (5 objections, all upheld; 27 instances they found missed, applied
    in their safe form), gave the final 1,112 facts. It recorded with each fact what it holds only
    with (a qualifier, or the conditional marker), another kind Riot's other text words it as, and the
    7 abilities whose two texts state different effects.
-4. **Recorded**: every file of the table, and its index, says how it was reviewed, as a sentence
-   ("two independent automated reviews and an adjudicator, then a consistency pass checked by two
-   more; not checked by a person") and, since the import, as data: `"reviewRecord":
-   {"automatedReviewers": 2, "adjudicated": true, "consistencyCheckers": 2, "checkedByPerson":
-   false}`. The committed files carry the same record (`review`), and the sources and notices state
-   the process from it ("Each was drafted by fixed rules from that text, read by two independent
-   automated reviewers and settled by an adjudicator, then checked in a consistency pass by two more
-   independent automated checkers; no person has checked them.", `riotTextProcessWords`).
+4. **Recorded**: every file of the table, and its index, says how it was reviewed in the review's
+   own sentence ("two independent automated reviews and an adjudicator, then a consistency pass
+   checked by two more; not checked by a person"). The structured record was not written by the
+   review: it was added to every file and to the index for the import (19 Nov 2026), from that
+   sentence, stating it as data and changing nothing else: `"reviewRecord": {"automatedReviewers": 2,
+   "adjudicated": true, "consistencyCheckers": 2, "checkedByPerson": false}`. The committed files carry
+   the same record (`review`), and the sources and notices state the process from it, for the facts as
+   a whole, never that each went through every step ("Reviewed by two independent automated reviewers
+   and an adjudicator, then a consistency pass checked by two more independent automated checkers; no
+   person has checked them.", `riotTextProcessWords`): not every fact was a draft of the rules, since
+   61 of the 1,112 came in as a reviewer's addition or with the consistency pass. The sentence after
+   it, "No number in that text is used for these facts.", is about the facts: the ability's Details
+   window shows Riot's description, numbers and all, as Riot's.
 5. **Imported** by `scripts/matchup-intel/import-riot-text.mjs --from <the table> --ddragon
    <championFull.json>`: all 173 files or none, nothing refused, no fact changed. It reads Data
    Dragon's own `championFull.json` of the version reviewed, from a file (it downloads nothing), and
@@ -1080,9 +1133,12 @@ Matchup Intel page added to it would need `DDRAGON_VERSION` passed as well.
   re-check on a newer version moves the pin in the same pull request (When a patch changes them,
   step 5), and the specs read the data the newest notes were checked on.
 - **Not covered by them.** The page on later patches (the "Not re-checked for 26.23" labels, a
-  briefing hidden for its age, a point hidden because Riot changed an ability, Riot's data newer
-  than the notes) is the unit tests' (`view.test.ts`, `matchup-content.test.ts`,
-  `src/domain/patch.test.ts`), with the patches and records injected. A server started by hand for
+  briefing hidden for its age or for a change and said so above the assembled reference, a point
+  hidden because Riot changed an ability, the bar's warning for it, an assembled side's flagged line
+  and its notes' line, the notes panels' freshness, Riot's data newer than the notes) is the unit
+  tests' (`view.test.ts`, `matchup-content.test.ts`, `src/domain/patch.test.ts`), with the patches and
+  records injected; the Production check's own facts in those states are
+  `src/server/ops/live-check-matchup-intel.test.ts`'s, from the page read in each. A server started by hand for
   the specs (`E2E_PORT`) needs the variable too, `DDRAGON_VERSION=16.22.1 pnpm start`: outside CI,
   Playwright uses a server already on the port and does not pass it its environment.
 

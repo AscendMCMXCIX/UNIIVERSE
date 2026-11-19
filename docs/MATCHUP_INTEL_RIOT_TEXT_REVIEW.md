@@ -9,15 +9,20 @@ it is in [MATCHUP_INTEL.md](MATCHUP_INTEL.md), "Facts from Riot's text".
 Dragon 16.22.1's `championFull.json` (a passive's description, a spell's description or tooltip, with
 markup removed), read from a local file: nothing was fetched, and nothing was read from the League of
 Legends Wiki or any Weird Gloop site. Two independent automated reviewers read every draft (they gave
-the same decision on 1,178 of 1,223, 96.3%), an automated adjudicator settled each batch (1,092
-accepted), and a consistency pass across all nine batches was checked by two further independent
-automated checkers (5 objections, all upheld; 27 missed instances applied in their safe form), giving
-1,112 facts. **No person has checked any of it.** The table records this as a sentence in every file
-("two independent automated reviews and an adjudicator, then a consistency pass checked by two more;
-not checked by a person") and, since the import, as data:
+the same decision on 1,178 of 1,223, 96.3%) and proposed additions of their own (34 accepted), an
+automated adjudicator settled each batch (1,092 accepted), and a consistency pass across all nine
+batches, which added, removed and changed facts, was checked by two further independent automated
+checkers (5 objections, all upheld; 27 missed instances applied in their safe form), giving 1,112
+facts. So not every fact is a draft of the rules: 61 came in as a reviewer's addition or with the
+consistency pass. **No person has checked any of it.** The review recorded this as a sentence in every
+file ("two independent automated reviews and an adjudicator, then a consistency pass checked by two
+more; not checked by a person"). For the import (19 Nov 2026) that sentence was also written as data,
 `"reviewRecord": {"automatedReviewers": 2, "adjudicated": true, "consistencyCheckers": 2, "checkedByPerson": false}`,
-in every file and in its index. The page says so on every fact ("From Riot's ability text, reviewed
-automatically (not by a person)") and states the process in its sources, from that record.
+in every file and in its index: the record is the import's reading of the review's own sentence, not
+something the review wrote. The page says so on every fact ("From Riot's ability text, reviewed
+automatically (not by a person)") and states the process in its sources, from that record, for the
+facts as a whole ("Reviewed by two independent automated reviewers and an adjudicator, then a
+consistency pass checked by two more independent automated checkers; no person has checked them.").
 
 **What the import checked** (`scripts/matchup-intel/import-riot-text.mjs`, 19 Nov 2026): all 173
 files, all or nothing; the review record in every file and in the index; every ability's hashes

@@ -179,7 +179,8 @@ function WikiCredit({ pages }: { pages: readonly WikiPage[] }) {
           <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open/pages:rotate-180 motion-reduce:transition-none" aria-hidden />
           {pages.length === 1 ? "The wiki page" : `The ${formatCount(pages.length)} wiki pages`}
         </summary>
-        <ul className="mt-1 flex flex-wrap gap-x-3 gap-y-1.5 pointer-coarse:gap-y-3" data-testid="matchup-footer-wiki-list">
+        {/* On a touch screen the links' 44px areas stop short of the summary above them. */}
+        <ul className="mt-1 flex flex-wrap gap-x-3 gap-y-1.5 pointer-coarse:mt-4 pointer-coarse:gap-y-3" data-testid="matchup-footer-wiki-list">
           {pages.map((p) => (
             <li key={p.key} data-testid="matchup-footer-wiki-page">
               <SourceLink source={p} />
