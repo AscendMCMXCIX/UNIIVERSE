@@ -15,8 +15,10 @@ test.beforeEach(async ({ context, baseURL }) => {
 });
 
 // Matchup Intel: nothing chosen, a curated briefing, and the assembled reference with checked facts on
-// both sides (Ornn vs Gwen, the fullest) and with none recorded for the enemy (Riven vs Darius).
-const PLAYER_ROUTES = ["/team", "/players", "/leaderboards", "/matches", "/overview", "/overview/champions", "/overview/matches", "/resources", "/resources/matchups", "/resources/matchups?champion=Riven&vs=Mordekaiser", "/resources/matchups?champion=Ornn&vs=Gwen", "/resources/matchups?champion=Riven&vs=Darius", "/settings"];
+// both sides (Ornn vs Gwen), with facts from Riot's text for the enemy (Riven vs Darius), on both sides
+// with the most of them (Briar vs K'Sante: conditional markers, qualifiers), and where Riot's two texts
+// differ (Riven vs Yone: the "Riot's texts differ" chip, an ability with no reviewed fact).
+const PLAYER_ROUTES = ["/team", "/players", "/leaderboards", "/matches", "/overview", "/overview/champions", "/overview/matches", "/resources", "/resources/matchups", "/resources/matchups?champion=Riven&vs=Mordekaiser", "/resources/matchups?champion=Ornn&vs=Gwen", "/resources/matchups?champion=Riven&vs=Darius", "/resources/matchups?champion=Briar&vs=KSante", "/resources/matchups?champion=Riven&vs=Yone", "/settings"];
 const ADMIN_ROUTES = ["/admin", "/admin/people", "/admin/people/access", "/admin/people/privacy", "/admin/branding", "/admin/previews", "/admin/resources", "/admin/data", "/admin/system", "/admin/audit", "/admin/settings"];
 const SIZES: Array<[number, number]> = [
   [320, 640],
@@ -45,8 +47,8 @@ test.describe("layout across screen sizes", () => {
   test.beforeEach(({}, info) => test.skip(info.project.name !== "desktop", "runs once with explicit viewports"));
 
   test("player pages fit every width", async ({ page }) => {
-    // 16 sizes by 13 routes, 208 page loads.
-    test.setTimeout(360_000);
+    // 16 sizes by 15 routes, 240 page loads.
+    test.setTimeout(420_000);
     for (const [width, height] of SIZES) {
       await page.setViewportSize({ width, height });
       for (const route of PLAYER_ROUTES) {

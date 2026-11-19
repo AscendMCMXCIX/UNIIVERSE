@@ -40,6 +40,7 @@ import {
   RIOT_TEXT_LABEL,
   alsoDescribedWords,
   assembledWords,
+  conditionalNoteWords,
   dangerSideWords,
   hiddenRiotTextWords,
   moreWords,
@@ -298,6 +299,7 @@ describe("the assembled reference's fixed sentences and labels", () => {
     riotTextSourceWords("description", "Apprehend"),
     riotTextReviewedWords("26.22", "2026-11-18"),
     CONDITIONAL_WORDS,
+    conditionalNoteWords(["stun", "pull"]),
     DIFFER_WORDS,
     DIFFER_NEITHER_WORDS,
     NO_ABILITY_FACTS_WORDS,
@@ -348,6 +350,10 @@ describe("the assembled reference's fixed sentences and labels", () => {
 
   it("says what a fact from Riot's text holds only with, in Riot's words, and the marker in the owner's words, never a condition of its own", () => {
     expect(CONDITIONAL_WORDS).toBe("Conditional: see Riot's text");
+    // Under an ability's chips, once, naming the chips it marks by their own words.
+    expect(conditionalNoteWords(["slow"])).toBe("Conditional: see Riot's text (Slow)");
+    expect(conditionalNoteWords(["stun", "pull"])).toBe("Conditional: see Riot's text (Stun and Pull)");
+    expect(conditionalNoteWords(["knockback", "stun", "cooldownrefund"])).toBe("Conditional: see Riot's text (Knock-back, Stun and Cooldown refund)");
     // On the chip, after the kind's word: the qualifier quoted; on a cooldown refund, the abilities whose cooldown it cuts.
     expect(qualifierChipWords("stun", "Mega Gnar")).toBe(" · “Mega Gnar”");
     expect(qualifierChipWords("cooldownrefund", "his other basic abilities")).toBe(" of “his other basic abilities”");

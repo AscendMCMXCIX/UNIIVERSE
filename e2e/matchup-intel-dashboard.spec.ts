@@ -14,7 +14,10 @@ import { choose, enemyAbilities, hydrated, localPictures, openMatchupIntel } fro
     scrolling inside it;
   - every pair gives a meaningful reference, labelled for what it is (a sweep of many pairs);
   - switching is a navigation: deep links, reloads, Back and Forward keep the pair;
-  - each chip opens what it rests on, each tile's details open in a window.
+  - each chip opens what it rests on, each tile's details open in a window;
+  - the facts from Riot's text on the real data: a qualifier on its chip (Gnar's W, "Mega Gnar"), the
+    conditional marker, where Riot's texts differ (Yone's R), placeholders never resolved (Twisted
+    Fate), a champion with few facts saying what has none (Kog'Maw).
   The text-size and phone guarantees of the page are in e2e/matchup-intel.spec.ts.
 */
 
@@ -35,8 +38,11 @@ const SIZES: Array<[number, number]> = [
  * The pairs measured: the three curated pairs (Riven vs Mordekaiser holds the longest briefing),
  * checked notes on both sides with no curated file (Riven vs Renekton), the curated pairs the other
  * way round (an assembled reference of two checked kits beside their level notes: Ornn vs Gwen is
- * the tallest), assembled pairs, the complex kits (two forms, a weapon wheel, a transformation, a
- * dismount, five spells in one slot), and a pair where neither side has checked notes (Garen vs Darius).
+ * the tallest of those), assembled pairs, the complex kits (two forms, a weapon wheel, a
+ * transformation, a dismount, five spells in one slot, a recast with Riot's texts differing,
+ * placeholders), a pair where neither side has checked notes (Garen vs Darius), and the pairs with
+ * the most facts from Riot's text (K'Sante 18, Briar 14, Shyvana 12; Hwei's 11 with five qualifiers),
+ * each way round, with the curated champions' links in the header (Riven vs K'Sante).
  */
 const FIT_PAIRS: Array<[string, string]> = [
   ["Riven", "Mordekaiser"],
@@ -57,7 +63,16 @@ const FIT_PAIRS: Array<[string, string]> = [
   ["Riven", "Hwei"],
   ["Gwen", "Udyr"],
   ["Ambessa", "Kled"],
+  ["Riven", "Yone"],
+  ["Gwen", "Camille"],
+  ["Ambessa", "TwistedFate"],
   ["Garen", "Darius"],
+  ["KSante", "Briar"],
+  ["Briar", "KSante"],
+  ["Riven", "KSante"],
+  ["Shyvana", "KSante"],
+  ["KSante", "Shyvana"],
+  ["Hwei", "KSante"],
 ];
 
 /** What the page needs, measured in the browser: the scroll, the parts' boxes, the text sizes, any box that scrolls. */
@@ -91,7 +106,7 @@ function measure(page: Page) {
         sources: box('[data-testid="matchup-sources-summary"]'),
       },
       // Running text, in rem of the page's own root: the curated words, the notes, the grouped facts' lines.
-      body: sizes('[data-testid="briefing-threat"] > div > span, [data-testid="briefing-opportunity"] > div > span, [data-testid="briefing-lane-point"], [data-testid="matchup-interaction"], [data-testid="matchup-level-note"] p, [data-testid="assembled-cooldown"], [data-testid="ability-name"], [data-testid="assembled-no-facts"], [data-testid="assembled-none"]'),
+      body: sizes('[data-testid="briefing-threat"] > div > span, [data-testid="briefing-opportunity"] > div > span, [data-testid="briefing-lane-point"], [data-testid="matchup-interaction"], [data-testid="matchup-level-note"] p, [data-testid="assembled-cooldown"], [data-testid="ability-name"], [data-testid="assembled-no-facts"], [data-testid="assembled-none"], [data-testid="fact-chip-markers"], [data-testid="ability-facts-none"], [data-testid^="fact-chip"] span, [data-testid^="assembled-chip"] span'),
       // The key figures: each tile's cooldown numbers (a line with no number is words, said in text-sm).
       figures: sizes('[data-testid="ability-cooldown"] .tabular-nums'),
       scrollers: scrollers.map((e) => e.getAttribute("data-testid") ?? e.tagName.toLowerCase()),
@@ -101,7 +116,7 @@ function measure(page: Page) {
 
 test("the whole overview fits one desktop screen, with no page scroll, at 1920×1080, 2560×1440, 1920×950, 3440×1440 and 1440×900, every test pair; text at least text-xs, the cooldowns larger", async ({ page }, info) => {
   test.skip(info.project.name !== "desktop", "desktop sizes");
-  test.setTimeout(600_000);
+  test.setTimeout(900_000);
   await localPictures(page);
   for (const [width, height] of SIZES) {
     await page.setViewportSize({ width, height });
@@ -189,6 +204,14 @@ test("every pair gives a meaningful reference, labelled for what it is: a sweep 
       await expect(tile.getByTestId("ability-cooldown-value"), at).not.toBeEmpty();
     }
     await expect(page.getByTestId("matchup-dashboard"), at).not.toContainText(/\bverified\b/i);
+    // Facts from Riot's text: an ability with none says so, never "none"; every chip is labelled.
+    await expect(page.getByTestId("matchup-dashboard"), at).not.toContainText("None recorded in Riot's text");
+    for (const tile of await enemyAbilities(page).all()) {
+      if ((await tile.getByTestId("ability-facts").getAttribute("data-from").catch(() => null)) !== "riot-text") continue;
+      const chip = tile.locator('[data-testid="fact-chip"]').first();
+      await expect(chip, at).toHaveAccessibleDescription(/From Riot's ability text, reviewed automatically \(not by a person\)\.$/);
+    }
+    if ((await enemyAbilities(page).first().getByTestId("ability-facts-none").count()) && (await page.getByTestId("matchup-riot-text-label").count())) await expect(enemyAbilities(page).first().getByTestId("ability-facts-none"), at).toHaveText("No reviewed facts for this ability");
   }
   expect(errors).toEqual([]);
 });
@@ -243,10 +266,78 @@ test("each chip opens what it rests on, and says it to a screen reader; a checke
   await openMatchupIntel(page, "Riven", "Darius");
   await hydrated(page);
   const riotText = page.locator('[data-testid="ability-facts"][data-from="riot-text"] [data-testid="fact-chip"]');
-  if (await riotText.count()) {
-    await expect(riotText.first()).toHaveAccessibleDescription(/“.+” \(Riot's (tooltip|description) (for|of) .+\)\s*From Riot's ability text, reviewed automatically \(not by a person\)\./);
-  } else {
-    // No reviewed facts committed for Darius: his panel says so in words.
-    await expect(page.getByTestId("matchup-no-facts")).toHaveText("No reviewed facts for Darius yet: crowd control, mobility, defence and sustain are not recorded.");
+  expect(await riotText.count()).toBeGreaterThan(0);
+  await expect(riotText.first()).toHaveAccessibleDescription(/^“.+” \(Riot's (tooltip|description) (for|of) .+\)(Qualified by .+|Cuts the cooldown of .+|Conditional: see Riot's text\.)*\s*From Riot's ability text, reviewed automatically \(not by a person\)\.$/);
+  await riotText.first().hover();
+  await expect(page.getByTestId("fact-chip-bubble")).toContainText("From Riot's ability text, reviewed automatically (not by a person).");
+});
+
+/** An enemy ability's tile, by slot. */
+const tileOf = (page: Page, slot: string) => page.locator(`[data-testid="matchup-enemy-abilities"] [data-testid="ability-row"][data-slot="${slot}"]`);
+
+test("the facts from Riot's text, as the review recorded them: a qualifier with its fact, the conditional marker, Riot's texts differing, placeholders unresolved, few facts said as such", async ({ page }, info) => {
+  test.skip(info.project.name === "tablet", "the phone and the desktop");
+  // Gnar's W: the stun holds for Mega Gnar only, and the chip says so, in Riot's words.
+  await openMatchupIntel(page, "Riven", "Gnar");
+  await hydrated(page);
+  const gnarW = tileOf(page, "W").getByTestId("fact-chip");
+  await expect(gnarW).toHaveCount(1);
+  await expect(gnarW).toContainText("Stun · “Mega Gnar”");
+  await expect(gnarW).toHaveAccessibleDescription("“stunning enemies in an area.” (Riot's description of Hyper / Wallop)Qualified by “Mega Gnar”From Riot's ability text, reviewed automatically (not by a person).");
+  // The assembled reference shows the same chip in its group.
+  await expect(page.getByTestId("assembled-danger").getByTestId("assembled-chip").filter({ hasText: "Mega Gnar" })).toHaveCount(2);
+  // Annie's passive: the stun holds only under a condition Riot's text names with a number, so the
+  // owner's marker is under the chips, naming it, and in its tip with the quote, one tap away.
+  await openMatchupIntel(page, "Riven", "Annie");
+  await hydrated(page);
+  const annieP = tileOf(page, "P").getByTestId("fact-chip").filter({ hasText: "Stun" });
+  await expect(tileOf(page, "P").getByTestId("ability-facts-conditional")).toHaveText("Conditional: see Riot's text (Stun)");
+  await expect(page.getByTestId("assembled-danger").getByTestId("assembled-conditional")).toContainText(["Conditional: see Riot's text (Stun)"]);
+  await annieP.click();
+  await expect(page.getByTestId("fact-chip-bubble")).toContainText("“Annie's next offensive spell will stun the target.” (Riot's description of Pyromania)");
+  await expect(page.getByTestId("fact-chip-bubble")).toContainText("Conditional: see Riot's text.");
+  // Yone's R: Riot's description says a pull, the tooltip a knock-up. One neutral chip says the texts differ and opens both; no chip of either kind.
+  await openMatchupIntel(page, "Riven", "Yone");
+  await hydrated(page);
+  const yoneR = tileOf(page, "R");
+  await expect(yoneR.getByTestId("fact-chip-differ")).toHaveText("Riot's texts differ");
+  await expect(yoneR.getByTestId("fact-chip")).toHaveText(["Mobility: Teleport"]);
+  await yoneR.getByTestId("fact-chip-differ").click();
+  const bubble = page.getByTestId("fact-chip-differ-bubble");
+  await expect(bubble).toContainText("Pull, in Riot's description of Fate Sealed: “Yone blinks behind the last champion in a line with a slash so powerful it pulls all enemies hit towards him.”");
+  await expect(bubble).toContainText("Knock-up, in Riot's tooltip for Fate Sealed: “teleporting behind the last champion hit and Knocking Up victims towards Yone.”");
+  await expect(bubble).toContainText("Neither is shown as a fact.");
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("assembled-danger").locator('[data-group="crowd-control"]').getByTestId("assembled-chip-differ")).toHaveCount(1);
+  await yoneR.getByTestId("ability-details").click();
+  const details = page.getByTestId("ability-details-body");
+  await expect(details.getByTestId("ability-details-differ")).toContainText("Riot's texts differ");
+  await expect(details.getByTestId("ability-details-differ")).toContainText("Neither is shown as a fact.");
+  // Yone's R teleport, which Riot's description calls a blink: said here, never a chip of its own.
+  await expect(details.getByTestId("ability-details-also")).toHaveText("Riot's description calls it blink: “Yone blinks behind the last champion in a line”");
+  await page.keyboard.press("Escape");
+  await expect(details).toHaveCount(0);
+  // Twisted Fate: Riot's placeholders stay unresolved (his W's {{ e3 }} is a number in Riot's effectBurn, never shown).
+  await openMatchupIntel(page, "Riven", "TwistedFate");
+  await hydrated(page);
+  const stun = tileOf(page, "W").getByTestId("fact-chip").filter({ hasText: "Stun" });
+  await expect(stun).toHaveAccessibleDescription(/^“The Gold Card deals \[…\] and Stuns for \[…\] seconds\.” \(Riot's tooltip for Pick a Card\)/);
+  const tfR = tileOf(page, "R").getByTestId("fact-chip").filter({ hasText: "Teleport" });
+  await expect(tfR).toHaveAccessibleDescription(/“Recast: Twisted Fate teleports up to \[…\] units away\.”/);
+  for (const chip of await page.getByTestId("matchup-enemy-abilities").getByTestId("fact-chip").all()) {
+    expect(await chip.evaluate((b) => document.getElementById(b.getAttribute("aria-describedby")!)!.textContent)).not.toMatch(/\d|\{\{/);
   }
+  // Karma's passive refunds Mantra's cooldown, and the chip names it.
+  await openMatchupIntel(page, "Riven", "Karma");
+  await expect(tileOf(page, "P").getByTestId("fact-chip")).toContainText("Cooldown refund of “Mantra”");
+  // Kog'Maw, one fact: every other ability says it has no reviewed fact, every empty group the same, never "none".
+  await openMatchupIntel(page, "Riven", "KogMaw");
+  await hydrated(page);
+  await expect(page.getByTestId("matchup-enemy-abilities").getByTestId("fact-chip")).toHaveCount(1);
+  await expect(page.getByTestId("matchup-enemy-abilities").getByTestId("ability-facts-none")).toHaveText(Array(4).fill("No reviewed facts for this ability"));
+  await expect(page.getByTestId("assembled-danger").getByTestId("assembled-none")).toHaveText(Array(4).fill("· No reviewed facts of this kind"));
+  // How they were reviewed, in the sources, from the review's record; never "verified".
+  await page.getByTestId("matchup-sources").locator("summary").click();
+  await expect(page.getByTestId("matchup-footer-riot-text")).toContainText("read by two independent automated reviewers and settled by an adjudicator, then checked in a consistency pass by two more independent automated checkers; no person has checked them.");
+  await expect(page.getByTestId("matchup-dashboard")).not.toContainText(/\bverified\b/i);
 });

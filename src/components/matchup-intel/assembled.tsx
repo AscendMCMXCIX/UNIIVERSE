@@ -5,7 +5,7 @@ import { Panel } from "@/components/ui/panel";
 import { cn } from "@/lib/cn";
 import { AbilityRefLink } from "./ability-ref-link";
 import { CuratedLinks } from "./briefing";
-import { FactChipView, GROUP_LOOK } from "./fact-chip";
+import { ConditionalNote, FactChipView, GROUP_LOOK } from "./fact-chip";
 import { ASSEMBLED_TITLE, KIND_GROUP_WORDS, SLOT_NAMES, abilityAnchor, assembledWords, dangerSideWords, hiddenRiotTextWords, missingAbilitiesWords, noFactsWords, noneRecordedWords, tightCooldownWords, toolsSideWords } from "./wording";
 
 /*
@@ -54,6 +54,8 @@ function KitLine({ item, champion, rows, withCooldown }: { item: KitItem; champi
             {cd}
           </span>
         ) : null}
+        {/* Where any of these facts is conditional: the owner's marker, once, on a row of its own, naming the chips it marks. */}
+        <ConditionalNote chips={item.chips} testId="assembled-conditional" className="basis-full" />
       </span>
     </li>
   );
@@ -85,7 +87,10 @@ function KitSide({ side, kit, champion, title, subtitle, rows }: { side: "danger
           {noFactsWords(kit.name)}
         </p>
       ) : (
-        <ul className="mt-1.5 space-y-1">
+        // The groups 2px apart, and their lines indented under their label only where a side is wide
+        // (the panel 44rem or more: 1920 x 950 and up); in a narrower one (1440 x 900, a phone) the lines
+        // take the side's whole width, so a long side (K'Sante's 15 facts from Riot's text) keeps one screen.
+        <ul className="mt-1.5 space-y-0.5">
           {SIDE_GROUPS.map((g, gi) => {
             const group = kit.groups.find((x) => x.group === g)!;
             const GroupIcon = GROUP_LOOK[g].icon;
@@ -101,7 +106,7 @@ function KitSide({ side, kit, champion, title, subtitle, rows }: { side: "danger
                   )}
                 </p>
                 {group.items.length ? (
-                  <ul className="mt-0.5 space-y-0.5 pl-5 @max-[9rem]/kits:pl-0">
+                  <ul className="mt-0.5 space-y-0.5 pl-5 @max-[44rem]/kits:pl-0">
                     {group.items.map((item) => (
                       <KitLine key={item.slot} item={item} champion={champion} rows={rows} withCooldown={firstGroupOf(kit, item.slot) === gi} />
                     ))}

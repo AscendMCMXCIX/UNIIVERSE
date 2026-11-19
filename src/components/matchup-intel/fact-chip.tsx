@@ -3,7 +3,8 @@ import type { FactKind, KindGroup, RiotTextDisagreementView } from "@/domain/mat
 import type { DifferChip, FactChip, RiotTextChip } from "@/domain/matchup-intel/kit";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { InfoTip } from "@/components/ui/info-tip";
-import { CONDITIONAL_WORDS, DIFFER_NEITHER_WORDS, DIFFER_WORDS, FACT_KINDS, KIND_GROUP_WORDS, RIOT_TEXT_KIND_WORDS, RIOT_TEXT_LABEL, differSideWords, qualifierChipWords, qualifierWords, revisionWords, riotTextSourceWords, subjectWords } from "./wording";
+import { cn } from "@/lib/cn";
+import { CONDITIONAL_WORDS, DIFFER_NEITHER_WORDS, DIFFER_WORDS, FACT_KINDS, KIND_GROUP_WORDS, RIOT_TEXT_KIND_WORDS, RIOT_TEXT_LABEL, conditionalNoteWords, differSideWords, qualifierChipWords, qualifierWords, revisionWords, riotTextSourceWords, subjectWords } from "./wording";
 
 /*
   A fact as a chip (docs/MATCHUP_INTEL.md, "The ability tiles"): its kind's icon, the kind for screen
@@ -13,10 +14,11 @@ import { CONDITIONAL_WORDS, DIFFER_NEITHER_WORDS, DIFFER_WORDS, FACT_KINDS, KIND
   how it was reviewed. The same words are the chip's accessible description, so a screen reader hears
   them without opening it. Links to the sources are in the ability's details window, never in a tip.
 
-  A fact from Riot's text carries on the chip itself what it holds only with: its qualifier, in
-  Riot's words ("Stun · “Mega Gnar”", "Cooldown refund of “Mantra”"), and the fixed marker
-  "Conditional: see Riot's text", so the chip never reads as holding without them. Where Riot's two
-  texts differ, one neutral chip says so ("Riot's texts differ") and opens both quotes, picking neither.
+  A fact from Riot's text carries on the chip itself what it holds only with, its qualifier, in
+  Riot's words ("Stun · “Mega Gnar”", "Cooldown refund of “Mantra”"); a conditional one is named in
+  the line under the ability's chips, in the owner's fixed words ("Conditional: see Riot's text (Stun
+  and Pull)", ConditionalNote), and its tip says the same with its quote. Where Riot's two texts
+  differ, one neutral chip says so ("Riot's texts differ") and opens both quotes, picking neither.
 */
 
 /** Each kind of checked fact: its icon and its chip's tone (the word says it too). */
@@ -106,10 +108,29 @@ export function chipWord(chip: FactChip): string {
   return chip.layer === "riot-text" ? RIOT_TEXT_KIND_WORDS[chip.kind] : chip.layer === "riot-text-differ" ? DIFFER_WORDS : chip.word;
 }
 
-/** What a fact from Riot's text holds only with, on its chip after the kind's word: its qualifier, then the conditional marker. */
+/** What a fact from Riot's text holds only with, on its chip after the kind's word: its qualifier, in Riot's words. */
 export function chipMarkers(chip: RiotTextChip): string {
-  const f = chip.fact;
-  return `${f.qualifier ? qualifierChipWords(chip.kind, f.qualifier) : ""}${f.conditional ? ` · ${CONDITIONAL_WORDS}` : ""}`;
+  return chip.fact.qualifier ? qualifierChipWords(chip.kind, chip.fact.qualifier) : "";
+}
+
+/** The kinds among some chips whose facts are conditional, in the chips' order. */
+export function conditionalKinds(chips: readonly FactChip[]): RiotTextChip["kind"][] {
+  return chips.flatMap((c) => (c.layer === "riot-text" && c.fact.conditional ? [c.kind] : []));
+}
+
+/**
+ * The marker's line under an ability's chips, where any of them is conditional: the owner's fixed
+ * words, naming the chips it marks ("Conditional: see Riot's text (Stun and Pull)"); each chip's tip
+ * gives its quote. One line for the ability, so a long marker never makes each chip a line of its own.
+ */
+export function ConditionalNote({ chips, testId, className }: { chips: readonly FactChip[]; testId: string; className?: string }) {
+  const kinds = conditionalKinds(chips);
+  if (!kinds.length) return null;
+  return (
+    <span className={cn("block text-xs text-fg-muted", className)} data-testid={testId}>
+      {conditionalNoteWords(kinds)}
+    </span>
+  );
 }
 
 /** The chip "Riot's texts differ": neutral, with its icon and its words, opening both quotes. */

@@ -11,7 +11,7 @@ import { loadRiotText } from "@/server/matchup-intel/riot-text";
 import { buildMatchupPageView, curatedIndex, type MatchupViewDeps } from "@/server/matchup-intel/view";
 import { MatchupContent } from "./matchup-content";
 import { MatchupFrame } from "./matchup-frame";
-import { CONDITIONAL_WORDS, DIFFER_WORDS, KIND_GROUP_WORDS, NO_ABILITY_FACTS_WORDS, assembledWords, noFactsWords, noneRecordedWords } from "./wording";
+import { CONDITIONAL_WORDS, DIFFER_WORDS, KIND_GROUP_WORDS, NO_ABILITY_FACTS_WORDS, RIOT_TEXT_KIND_WORDS, assembledWords, noFactsWords, noneRecordedWords } from "./wording";
 
 /*
   Every pair gives a meaningful reference (the owner's request, 18 Nov 2026), checked over the real
@@ -94,7 +94,11 @@ function checkPair(you: string, enemy: string, p: Awaited<ReturnType<typeof page
       const r = a.riotText!;
       expect(tile.split('data-testid="fact-chip"').length - 1, `${where}: ${a.slot}'s chips`).toBe(r.facts.length);
       expect(tile.split('data-testid="fact-chip-differ"').length - 1, `${where}: ${a.slot}'s disagreements`).toBe(r.disagreements.length);
-      expect(tile.split('data-testid="fact-chip-markers"').length - 1, `${where}: ${a.slot}'s markers`).toBe(r.facts.filter((f) => f.qualifier !== undefined || f.conditional).length);
+      expect(tile.split('data-testid="fact-chip-markers"').length - 1, `${where}: ${a.slot}'s qualifiers`).toBe(r.facts.filter((f) => f.qualifier !== undefined).length);
+      // The conditional ones named once, under the chips, in the owner's words.
+      const conditional = r.facts.filter((f) => f.conditional).map((f) => RIOT_TEXT_KIND_WORDS[f.kind]);
+      if (conditional.length) expect(text(tile), `${where}: ${a.slot}'s marker`).toContain(`${CONDITIONAL_WORDS} (`);
+      else expect(tile, `${where}: ${a.slot} has no marker`).not.toContain('data-testid="ability-facts-conditional"');
       if (!r.facts.length && !r.disagreements.length && !r.hidden) expect(text(tile), `${where}: ${a.slot} with no facts`).toContain(NO_ABILITY_FACTS_WORDS);
     }
   }

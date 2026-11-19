@@ -8,7 +8,7 @@ import { Panel } from "@/components/ui/panel";
 import { RemoteImage } from "@/components/ui/remote-image";
 import { cn } from "@/lib/cn";
 import { DetailsDialog } from "./details-dialog";
-import { DifferQuotes, FactChipView } from "./fact-chip";
+import { ConditionalNote, DifferQuotes, FactChipView } from "./fact-chip";
 import { NO_BREAK, SourceLink } from "./source-link";
 import {
   CONDITIONAL_WORDS,
@@ -337,6 +337,8 @@ function AbilityTile({ intel, ability: a, checkedPatch, dataPatch, notRecheckedF
             ))}
           </ul>
         ) : null}
+        {/* Where any fact is conditional: the owner's marker, once, naming the chips it marks. */}
+        <ConditionalNote chips={chips} testId="ability-facts-conditional" />
         {hidden ? (
           <p className="flex items-start gap-1.5 text-xs text-fg-muted" data-testid="ability-facts-hidden">
             <History className="mt-px h-3.5 w-3.5 shrink-0 text-warn" aria-hidden />

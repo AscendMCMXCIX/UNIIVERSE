@@ -871,8 +871,10 @@ async function resourcesFacts(page, kind) {
  * briefing and when it was checked, or, once its check is too old, said hidden), the enemy's five
  * ability tiles with a name and a cooldown line each, the whole overview on one screen at the
  * check's desktop size, the sources and Riot's notice one press away with their summary on screen,
- * nothing requested from the League of Legends Wiki, and axe. It reads nothing beyond what the page
- * itself reads (the session, the cached roster and patches, two champions' stored abilities).
+ * nothing requested from the League of Legends Wiki, that checked notes win over the facts from
+ * Riot's text (none of those shows for this pair, whose champions both have checked notes), and axe.
+ * It reads nothing beyond what the page itself reads (the session, the cached roster and patches, two
+ * champions' stored abilities and their committed facts from Riot's text).
  */
 async function matchupIntelFacts(page, kind, wikiRequests) {
   await page.getByTestId("matchup-dashboard").waitFor({ timeout: 20_000 });
@@ -900,6 +902,9 @@ async function matchupIntelFacts(page, kind, wikiRequests) {
       licence: document.querySelector('[data-testid="matchup-licence-link"]')?.getAttribute("href") ?? null,
       fits: document.documentElement.scrollHeight <= innerHeight,
       overBy: document.documentElement.scrollHeight - innerHeight,
+      // Facts from Riot's text (L3) on the page: none for a pair whose champions both have checked notes, which win.
+      riotTextChips: document.querySelectorAll('[data-testid="ability-facts"][data-from="riot-text"] [data-testid^="fact-chip"]').length,
+      riotTextLabel: !!document.querySelector('[data-testid="matchup-riot-text-label"]'),
     };
   });
   pass("matchup-intel", `${kind}: Matchup Intel opens Riven vs Mordekaiser under its own heading`, f.heading === "Matchup Intel", { heading: f.heading });
@@ -911,6 +916,7 @@ async function matchupIntelFacts(page, kind, wikiRequests) {
   pass("matchup-intel", `${kind}: the sources' summary is on screen: a static reference with no live tracking, Riot's data, not endorsed by Riot Games`, f.summaryShown && f.summary.startsWith("A static reference: no live tracking") && /Riot Data Dragon \d/.test(f.summary) && f.summary.endsWith("Not endorsed by Riot Games"), { summary: f.summary });
   pass("matchup-intel", `${kind}: one press away, the Data Dragon version, the wiki's licence and Riot's notice`, /^Ability names, icons and base cooldowns: Riot Data Dragon \d/.test(f.ddragon) && f.licence === "https://creativecommons.org/licenses/by-sa/3.0/" && /isn't endorsed by Riot Games/.test(f.notice), { ddragon: f.ddragon, licence: f.licence });
   pass("matchup-intel", `${kind}: nothing requested from the League of Legends Wiki`, wikiRequests.length === 0, wikiRequests.slice(0, 3));
+  pass("matchup-intel", `${kind}: checked notes win over the facts from Riot's text: none of those on a pair whose champions both have checked notes, nor Riot's text in the sources' summary`, f.riotTextChips === 0 && !f.riotTextLabel && !f.summary.includes("Riot's text"), { chips: f.riotTextChips, label: f.riotTextLabel });
 }
 
 async function allChampions(page, log, kind, playerId) {

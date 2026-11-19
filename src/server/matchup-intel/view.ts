@@ -394,14 +394,17 @@ export async function buildMatchupPageView(input: { champion?: string; vs?: stri
   const you = resolve(input.champion);
   const enemy = resolve(input.vs);
   const ids = [...new Set([you?.id, enemy?.id].filter((id): id is string => !!id))];
-  const [loaded, reviewed]: [Awaited<ReturnType<MatchupViewDeps["loadAbilities"]>>, Record<string, RiotTextChampion | null>] = ids.length ? await Promise.all([deps.loadAbilities(ids), deps.riotText ? deps.riotText(ids) : Promise.resolve({})]) : [{ version: null, champions: {} }, {}];
-  const data: Record<string, DdragonChampionAbilities | null> = Object.fromEntries(ids.map((id) => [id, loaded.champions[id] ?? null]));
   const notes: Record<string, ChampionNotes | null> = Object.fromEntries(
     ids.map((id) => {
       const n = deps.championNotes(id);
       return [id, n && n.championId === id ? n : null];
     }),
   );
+  // The facts from Riot's text only for the champions they would show for: checked notes win, so a
+  // champion with notes needs no file read (each is a dynamic import, Vercel Active CPU).
+  const textIds = ids.filter((id) => !notes[id]);
+  const [loaded, reviewed]: [Awaited<ReturnType<MatchupViewDeps["loadAbilities"]>>, Record<string, RiotTextChampion | null>] = ids.length ? await Promise.all([deps.loadAbilities(ids), deps.riotText && textIds.length ? deps.riotText(textIds) : Promise.resolve({})]) : [{ version: null, champions: {} }, {}];
+  const data: Record<string, DdragonChampionAbilities | null> = Object.fromEntries(ids.map((id) => [id, loaded.champions[id] ?? null]));
   const offline = new Set(loaded.offline ?? []);
   const unreadable = new Set(loaded.unreadable ?? []);
   const currentVersion = deps.currentPatch?.ddragonVersion ?? null;

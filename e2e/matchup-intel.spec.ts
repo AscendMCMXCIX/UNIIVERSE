@@ -645,6 +645,62 @@ test("phone at 200% text: nothing is cut or spills sideways in the bar, the brie
   }
 });
 
+/**
+ * The pairs with facts from Riot's text that ask the most of a phone: the most facts on both sides
+ * (Briar vs K'Sante: K'Sante's four conditional facts, Briar's long qualifier), where Riot's two texts
+ * differ beside an ability with no reviewed fact (Riven vs Yone), and the longest qualifier (Gwen vs
+ * Caitlyn: "a trap that, when sprung, reveals and immobilizes the enemy champion").
+ */
+const RIOT_TEXT_PAIRS: Array<[string, string]> = [
+  ["Briar", "KSante"],
+  ["Riven", "Yone"],
+  ["Gwen", "Caitlyn"],
+];
+
+test("phone at 100%, 150% and 200% text, with facts from Riot's text: nothing cut, spilled or scrolling inside, at 320, 375 and 393 wide and held sideways (852 by 393); running text never under text-xs", async ({ page }) => {
+  test.skip((page.viewportSize()?.width ?? 1000) >= 768, "a phone");
+  test.setTimeout(300_000);
+  await localPictures(page);
+  for (const [width, height] of [
+    [320, 640],
+    [375, 667],
+    [393, 852],
+    [852, 393],
+  ] as const) {
+    await page.setViewportSize({ width, height });
+    for (const [you, enemy] of RIOT_TEXT_PAIRS) {
+      await openMatchupIntel(page, you, enemy);
+      await hydrated(page);
+      for (const scale of [100, 150, 200]) {
+        await page.addStyleTag({ content: `html { font-size: ${scale}% !important; }` });
+        // Every details part open (your champion's abilities, the folds), measured at rest.
+        await page.getByTestId("matchup-intel").evaluate(async (m) => {
+          for (const d of m.querySelectorAll("details")) d.open = true;
+          await document.fonts.ready;
+          const finite = document.getAnimations().filter((a) => a.effect?.getComputedTiming().endTime !== Infinity);
+          await Promise.all(finite.map((a) => a.finished.catch(() => undefined)));
+        });
+        const at = `${you} vs ${enemy} at ${width}×${height}, ${scale}% text`;
+        expect.soft(await overflow(page), `${at}: the page`).toBeLessThanOrEqual(1);
+        for (const part of ["matchup-assembled", "matchup-enemy-abilities", "matchup-your-abilities", "matchup-footer"]) {
+          expect.soft(await cutOrSpilled(page.getByTestId(part)), `${at}: ${part}`).toEqual([]);
+        }
+        const m = await page.evaluate(() => {
+          const root = parseFloat(getComputedStyle(document.documentElement).fontSize);
+          const text = [...document.querySelectorAll<HTMLElement>('[data-testid="fact-chip"] span, [data-testid="fact-chip-differ"] span, [data-testid="assembled-chip"] span, [data-testid="ability-facts-conditional"], [data-testid="assembled-conditional"], [data-testid="ability-facts-none"], [data-testid="assembled-none"]')].filter((e) => e.getClientRects().length > 0 && !e.classList.contains("sr-only"));
+          const scrollers = [...document.querySelectorAll("main *")].filter((e) => {
+            const st = getComputedStyle(e);
+            return (/(auto|scroll)/.test(st.overflowY) && e.scrollHeight > e.clientHeight + 1) || (/(auto|scroll)/.test(st.overflowX) && e.scrollWidth > e.clientWidth + 1);
+          });
+          return { smallest: Math.min(...text.map((e) => parseFloat(getComputedStyle(e).fontSize) / root)), scrollers: scrollers.map((e) => e.getAttribute("data-testid") ?? e.tagName.toLowerCase()) };
+        });
+        expect.soft(m.smallest, `${at}: chips and markers at least text-xs`).toBeGreaterThanOrEqual(0.75 - 0.001);
+        expect.soft(m.scrollers, `${at}: nothing scrolls inside the page`).toEqual([]);
+      }
+    }
+  }
+});
+
 test("a champion the roster does not know is left out of the page, said so and never repeated back", async ({ page }) => {
   await page.goto("/resources/matchups?champion=Zzyzx%3Cb%3E&vs=Mordekaiser");
   await expect(page.getByTestId("matchup-unknown")).toBeVisible();

@@ -508,11 +508,14 @@ describe("facts from Riot's text, as the review recorded them", () => {
     const q = rowText(html, "Darius", "Q");
     expect(q).toContain("Crowd control: Stun · “Mega Darius”");
     expect(q).toContain("“stunning enemies in an area.” (Riot's description of Darius Q) Qualified by “Mega Darius” From Riot's ability text, reviewed automatically (not by a person).");
-    // A cooldown refund names the abilities whose cooldown it cuts; the marker is the owner's fixed words.
-    expect(q).toContain("Cooldown: Cooldown refund of “his other basic abilities” · Conditional: see Riot's text");
+    // A cooldown refund names the abilities whose cooldown it cuts; the conditional one is named under
+    // the chips, once, in the owner's fixed words, and its tip says the same with its quote.
+    expect(q).toContain("Cooldown: Cooldown refund of “his other basic abilities”");
     expect(q).toContain("“reducing the cooldowns” (Riot's tooltip for Darius Q) Cuts the cooldown of “his other basic abilities” Conditional: see Riot's text.");
+    expect(q).toContain("Conditional: see Riot's text (Cooldown refund)");
     const w = rowText(html, "Darius", "W");
-    expect(w).toContain("Crowd control: Slow · Conditional: see Riot's text");
+    expect(w).toContain("Crowd control: Slow “and Slows them”");
+    expect(w).toContain("Conditional: see Riot's text (Slow)");
     // A qualifier from the ability's other text says which.
     expect(w).toContain("Qualified by “If the axe connects” (Riot's description of Darius W)");
     // The other wording is no chip of its own, and is not counted.
@@ -552,7 +555,8 @@ describe("facts from Riot's text, as the review recorded them", () => {
     const t = text(danger);
     expect(t).toContain("Crowd control Q");
     expect(t).toContain("Stun · “Mega Darius”");
-    expect(t).toContain("Slow · Conditional: see Riot's text");
+    expect(t).toContain("Conditional: see Riot's text (Slow)");
+    expect(danger.split('data-testid="assembled-conditional"').length - 1).toBe(1);
     expect(t).toContain("Burst and power · No reviewed facts of this kind");
     expect(t).toContain("Sustain · No reviewed facts of this kind");
     const cc = danger.slice(danger.indexOf('data-group="crowd-control"')).split('data-group="power"')[0]!;

@@ -419,6 +419,15 @@ export function riotTextSourceWords(source: RiotTextSource, ability: string): st
  */
 export const CONDITIONAL_WORDS = "Conditional: see Riot's text";
 
+/**
+ * The marker's line under an ability's chips, on its tile and on its line in the assembled
+ * reference, naming the kinds it marks: "Conditional: see Riot's text (Stun and Pull)". The owner's
+ * fixed words, then the chips' own words; never the condition. Each chip's tip says it too, with the quote.
+ */
+export function conditionalNoteWords(kinds: readonly RiotTextKind[]): string {
+  return `${CONDITIONAL_WORDS} (${listWords(kinds.map((k) => RIOT_TEXT_KIND_WORDS[k]))})`;
+}
+
 /** The chip, on a tile and in a group, where Riot's two texts for an ability state different effects. */
 export const DIFFER_WORDS = "Riot's texts differ";
 
