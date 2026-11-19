@@ -648,7 +648,7 @@ const BAR_FIT = {
  * current one alone 18.94rem (21.94rem); Admin Mode, short names only as upright, 33.54rem (36.54rem
  * with Filters), the current one alone 26.79rem (29.79rem) with the mode's words beside the mark and
  * 20.75rem (23.75rem) without them. A 568 × 320 phone's row is 34.5rem at 100% text, so Player Mode
- * names all four there in full (today's five could name only the current one); an iPhone 15 held
+ * names all four there in full (the five before could name only the current one); an iPhone 15 held
  * sideways, installed (852 × 393, 734px between the notches), 45.9rem at 100%, 36.7rem at 125% and
  * 30.6rem at 150%: all four named at every one of them, in full to 125%.
  */
