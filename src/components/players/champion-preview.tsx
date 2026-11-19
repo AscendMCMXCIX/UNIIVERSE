@@ -80,7 +80,8 @@ export function usePreviewAddress() {
   };
   const show = (championId: string, role: Role) => {
     const url = urlWith({ champion: championId, crole: role, vs: null, tab: null });
-    if (sel) window.history.replaceState(null, "", url);
+    // From the address as it is now, not the last render's: two quick clicks push once.
+    if (new URLSearchParams(window.location.search).has("champion")) window.history.replaceState(null, "", url);
     else {
       pushed.current = true;
       window.history.pushState(null, "", url);
@@ -112,6 +113,10 @@ function useCache<T>(seed: Array<[string, T]>): Loader<T> {
       if (hit) return hit;
       const p = run().catch(() => ({ status: "not-found", message: "This champion's games could not be loaded." }) as PreviewResult<T>);
       store.set(key, p);
+      // Only answers are kept: a refusal or a failed load is asked again next time.
+      void p.then((r) => {
+        if (r.status !== "ok" && store.get(key) === p) store.delete(key);
+      });
       return p;
     },
     [store],
@@ -127,7 +132,7 @@ export function usePreviewData(playerId: string, scope: ListScope, initial: { pr
   const pairings = useCache<PairingGamesData>(initial.pairing ? [[keyOf(scope, initial.pairing.champion, initial.pairing.role, initial.pairing.vs), initial.pairing]] : []);
   const preview = React.useCallback((champion: string, role: Role) => previews(keyOf(scope, champion, role), () => getChampionPreviewAction(playerId, { ...scope, champion, role })), [previews, playerId, scope]);
   const pairing = React.useCallback((champion: string, role: Role, vs: string) => pairings(keyOf(scope, champion, role, vs), () => getPairingGamesAction(playerId, { ...scope, champion, role }, vs)), [pairings, playerId, scope]);
-  return { preview, pairing, initial };
+  return React.useMemo(() => ({ preview, pairing, initial, scopeKey: JSON.stringify([scope.season, scope.mode, scope.account]) }), [preview, pairing, initial, scope]);
 }
 
 /** An answer for exactly this key, or null while it loads. */
@@ -176,7 +181,7 @@ export function PreviewContent({ playerId, isOwn, card, otherRoles, vs, champ, d
   const me = champ(card.championId);
   const r = card.selected;
   const p = card.performance;
-  const key = `${card.championId}|${card.role}`;
+  const key = `${data.scopeKey}|${card.championId}|${card.role}`;
   const seed = data.initial.preview && data.initial.preview.champion === card.championId && data.initial.preview.role === card.role ? data.initial.preview : null;
   const answer = useAnswer(key, () => data.preview(card.championId, card.role), seed);
   const preview = answer?.status === "ok" ? answer.data : null;
@@ -319,7 +324,7 @@ function OpponentRow({ o, withRate, open, me, champ, card, isOwn, data, onToggle
 }
 
 function PairingGames({ id, me, them, card, isOwn, data, onMatch }: { id: string; me: PortraitChampion; them: PortraitChampion; card: OverviewCard; isOwn: boolean; data: ReturnType<typeof usePreviewData>; onMatch: (matchId: string) => void }) {
-  const key = `${card.championId}|${card.role}|${them.id}`;
+  const key = `${data.scopeKey}|${card.championId}|${card.role}|${them.id}`;
   const init = data.initial.pairing;
   const seed = init && init.champion === card.championId && init.role === card.role && init.vs === them.id ? init : null;
   const answer = useAnswer(key, () => data.pairing(card.championId, card.role, them.id), seed);

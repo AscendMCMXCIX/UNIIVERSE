@@ -17,7 +17,7 @@ import { cn } from "@/lib/cn";
 import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateSampleNote, winRateTone } from "@/domain/stats/win-rate";
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import { Peek, type PeekControl } from "@/components/ui/peek";
-import { modalOpen, useWindowPosture } from "@/components/ui/posture";
+import { isTyping, modalOpen, useWindowPosture } from "@/components/ui/posture";
 import { PreviewContent, cardFor, usePreviewAddress, usePreviewData, type ListScope } from "./champion-preview";
 import { MatchDetailModal } from "@/components/match-history/match-detail";
 import { MULTIKILL_KINDS, compareMultikills, multikillCoverage, rarestMultikill, type MultikillCounts, type MultikillSummary } from "@/domain/multikills";
@@ -335,7 +335,7 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
   // The preview: its state lives in the URL; its data comes from two light actions, kept per page.
   const address = usePreviewAddress();
   const scope = React.useMemo<ListScope>(() => ({ season: data.season, mode: data.mode, account: f.accountId ?? "all" }), [data.season, data.mode, f.accountId]);
-  const previewData = usePreviewData(playerId, scope, { preview: initialPreview ?? null, pairing: initialPairing ?? null });
+  const previewData = usePreviewData(playerId, scope, React.useMemo(() => ({ preview: initialPreview ?? null, pairing: initialPairing ?? null }), [initialPreview, initialPairing]));
   const selected = address.sel ? cardFor(data.topChampions, address.sel) : null;
   const selectedKey = selected ? `${selected.championId}-${selected.role}` : null;
   const cardRef = React.useRef<HTMLDivElement>(null);
@@ -406,8 +406,9 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
   });
   // Opened with the keyboard: focus moves to the preview's heading; by a click it stays on the row.
   React.useEffect(() => {
-    if (!focusTitle.current || !inCard) return;
+    if (!focusTitle.current) return;
     focusTitle.current = false;
+    if (!inCard) return;
     document.getElementById("champion-preview-title")?.focus({ preventScroll: true });
   }, [inCard, selectedKey]);
   // Escape closes the preview beside the list or in the docked panel (a window opened over it
@@ -416,7 +417,7 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
   React.useEffect(() => {
     if (!besideList) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape" || e.defaultPrevented || modalOpen()) return;
+      if (e.key !== "Escape" || e.defaultPrevented || modalOpen() || isTyping(e.target)) return;
       e.preventDefault();
       closeRef.current();
     };
@@ -426,6 +427,7 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
   /** ↑/↓ (or K/J) on the list move the preview to the row above or below. */
   const step = (from: OverviewCard, d: -1 | 1, focus: boolean) => {
     const i = shown.findIndex((c) => c.championId === from.championId && c.role === from.role);
+    if (i < 0) return;
     const next = shown[(i + d + shown.length) % shown.length];
     if (!next || next === from) return;
     address.show(next.championId, next.role);
