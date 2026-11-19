@@ -400,7 +400,8 @@ With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shel
     (stat label, Panel, DataRow, a badge, Button, the current section tab, InfoTip's bubble, Select)
     at 375 and at 1440 and compares their font family, size in rem, weight, letter spacing in em,
     colours, radius and border. Listed differences, the only ones allowed: the badge's and the
-    stat label's size (the 12px floor on desktops). Each later stage adds the components it creates.
+    stat label's size (the 12px floor on desktops), and Select's size (16px on a touch screen, so iOS
+    never zooms into the field; 14px with a mouse). Each later stage adds the components it creates.
   - **A page's controls in reach (PR 2b, 18 Nov 2026).** Once the row is pinned and the page's own
     toolbar has gone up under it, the page's compact copy of its controls shows at the row's end
     (`PageToolbar`, `src/components/ui/page-toolbar.tsx`): Match History and Encounters
