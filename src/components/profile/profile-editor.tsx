@@ -452,7 +452,7 @@ function AddRole({
   );
 }
 
-const EDITING_HELP = "Drag a champion to set its order, or drag a role by its handle to change your role order (the top one is your Primary Role). × removes a champion; a role's menu switches, moves or removes the role. With a keyboard, focus a grip, press Space to pick it up, move with the arrow keys and press Space to drop. Changes save by themselves; Done puts the controls away.";
+const EDITING_HELP = "Drag champions or roles to reorder them; the top role is your main role. Changes save automatically.";
 
 /**
  * Roles and champion pools on a profile: the Primary Role's pool as cards, then the Off Roles as

@@ -4,8 +4,8 @@ import { cn } from "@/lib/cn";
 import { InfoTip } from "./info-tip";
 
 /** Small ⓘ marker: hover or focus on desktop, tap on touch screens (see InfoTip). */
-export function Info({ text, className }: { text: string; className?: string }) {
-  return <InfoTip text={text} className={className} />;
+export function Info({ text, label, className }: { text: string; /** What it explains ("About Experience"). */ label: string; className?: string }) {
+  return <InfoTip text={text} label={label} className={className} />;
 }
 
 /** A labelled metric: title, value, unit and an ⓘ tooltip with population and source. */
@@ -18,14 +18,14 @@ export function Metric({ id, value, showUnit = true, className, valueClassName, 
         <span>{m.title}</span>
         <span className={cn("font-medium text-fg", valueClassName)}>{value}</span>
         {showUnit && unit ? <span className="text-fg-subtle">{unit}</span> : null}
-        <Info text={metricTooltip(id)} />
+        <Info text={metricTooltip(id)} label={`About ${m.title}`} />
       </span>
     );
   }
   return (
     <div className={cn("rounded-md border border-border bg-bg-elevated px-2.5 py-1.5", className)}>
       <div className="flex items-center gap-1 text-xs font-semibold uppercase tracking-label text-fg-subtle">
-        {m.title} <Info text={metricTooltip(id)} />
+        {m.title} <Info text={metricTooltip(id)} label={`About ${m.title}`} />
       </div>
       <div className={cn("text-sm font-semibold text-fg", valueClassName)}>
         {value}
@@ -39,7 +39,7 @@ export function Metric({ id, value, showUnit = true, className, valueClassName, 
 export function MetricLabel({ id, children, className }: { id: MetricKey; children?: React.ReactNode; className?: string }) {
   return (
     <span className={cn("inline-flex items-center gap-1", className)} title={metricTooltip(id)}>
-      {children ?? metric(id).title} <Info text={metricTooltip(id)} />
+      {children ?? metric(id).title} <Info text={metricTooltip(id)} label={`About ${metric(id).title}`} />
     </span>
   );
 }

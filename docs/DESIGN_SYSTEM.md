@@ -246,7 +246,87 @@ dialog itself at such a press, with or without a tabindex, and the keys then scr
   `QuietBar` moves only when its value changes (a continuous share slides 200ms with
   `--ease-emphasized`); its segments never animate.
 
-## 7. The app's frame: navigation
+## 7. Shared containers
+
+One set of containers, chosen by what the content is, never by page. Each is one component in
+`src/components/ui`; a page uses it rather than keeping its own open state, keys or history.
+
+| Container | For | Component | Opens | Closes | Address and history |
+|---|---|---|---|---|---|
+| **Peek** | a quick look at one item from a list or a board (a team player, a champion, a game from a board) | `peek.tsx`: `usePeek`, `Peek` | a row (click, tap, Enter); ↑/↓ or J/K and ‹ › switch | ✕, Escape, Back, the selected row again; not an outside click | `?player=` (and so on) on the current page: the one history rule |
+| **Unfold** | an item opened under its card, for items compared down a list (games) | `unfold.tsx`: `useUnfold`, `UnfoldRegion`, `UnfoldHeader` | the card | the card again, Escape, the pinned header's Close, Back | the one history rule |
+| **Task dialog** | work that needs full attention (editors, confirmations, pickers, Card Studio, Install) | `detail-modal.tsx`: `DetailModal` | its button | Close, Escape, the backdrop | none |
+| **Popover** | anchored choices (menus, Select, filter dropdowns) | `menu.tsx` | click, Enter, Space | an outside click, Escape, a choice | none; a choice replaces the query |
+| **Explain** | a short explanation beside a term | `info-tip.tsx`: `InfoTip` | hover, focus, tap | leaving, Escape, any tap | none |
+| **Fold** | secondary content in a page | `disclosure.tsx` (native `details`) | its summary | its summary | none |
+
+### The one history rule (`address-item.ts`)
+
+Opening pushes one entry, switching to another item replaces it, and closing goes Back when this
+page pushed that entry (otherwise it replaces the address without the item: a deep link). So Back
+always closes what is open and never walks through the items seen, and Forward reopens the last
+one. `useAddressItem(param, { initial, valid })` returns `{ id, open, close, toggle }`; `historyStep`
+is the rule as a pure function (`peek.test.ts`).
+
+### Pointer and posture (`posture.ts`)
+
+A touch phone (a coarse pointer and a side under 768px), a window under 640px wide or a short window
+(480px tall or less) opens a preview as a sheet or a window of its own (`prefersWindow`,
+`useWindowPosture`); every other screen gets the docked panel or the inline unfold. Width alone does
+not decide.
+
+### Peek
+
+```tsx
+const peek = usePeek({ param: "player", ids, initial: searchParams.get("player") });
+<li {...peek.rowProps(id)} className={PEEK_SELECTED_ROW}>…</li>
+<Peek peek={peek} label="Player" title={player?.name ?? ""} itemKey={peek.id} actions={<a href={profile}>Full profile</a>}>
+  {player ? <PlayerContent player={player} /> : null}
+</Peek>
+```
+
+- **Wider screens:** a panel docked at the right edge, `clamp(26rem, 34vw, 36rem)` wide (at most the
+  screen), from under the tablet top bar to the bottom, over the page with a shadow and no dimming.
+  The list stays live: another row switches the panel, ↑/↓ (J/K) move the selection, and the
+  selected row takes `surface-3` and a 2px accent bar (`PEEK_SELECTED_ROW`). Only the panel's body
+  scrolls, when its content is taller than the window, with `overscroll-behavior: contain`.
+- **Touch phones and short windows:** the same content and address as a sheet (`DetailModal`,
+  `size="sheet"`), its ‹ › in the header.
+- **Keys:** Escape closes; ↑/↓ and J/K switch, except in a field, a menu, or under an open window.
+- **Focus:** opened by a click or a tap the focus stays on the row and the panel is announced
+  (a polite live region); opened with Enter it moves to the panel's heading. Escape and ✕ put it
+  back on the row (`preventScroll`); the page never moves on open, switch or close.
+- **Motion:** in, a 16px slide and fade over 200ms (`peek-in`, `--ease-emphasized`); a switch
+  cross-fades the content over 120ms (`swap-in`); out, 140ms (`peek-out`). Instant with reduced
+  motion.
+- **Variants a page may add:** an in-card unfold, where the list gives the panel its foldable
+  columns' space (All Champions, S5).
+
+### Unfold
+
+```tsx
+const unfold = useUnfold({ param: "match", initial, valid: (id) => ids.includes(id) });
+<button {...unfold.cardProps(id)}>…</button>
+{unfold.id === id ? (
+  <UnfoldRegion id={unfold.regionId(id)} label="Game details" header={<UnfoldHeader title="Victory · 31:20" onClose={unfold.close} />}>
+    …
+  </UnfoldRegion>
+) : null}
+```
+
+- **One at a time.** Opening another keeps the pressed card where it was on screen: its top is noted
+  before the change and the page scrolls by the difference before the next paint
+  (`anchorCorrection`, in `useLayoutEffect`).
+- **Close:** the card again, Escape, Back, or the compact header: it takes no room, and shows (the
+  item's name and Close) pinned under the frame's bars once the item's top has scrolled under them,
+  until the item leaves the screen. Closing from inside the item returns the focus to its card.
+- **Height:** stable (no sub-tabs that change it, the content's part). It grows from nothing over
+  200ms (`unfold-grow`, `0fr` to `1fr`) and its content fades in over 120ms; instant with reduced
+  motion.
+- **Touch phones and short windows** open the item as a window instead (`prefersWindow`), never
+  inline.
+
+## 8. The app's frame: navigation
 
 ### Desktop sidebar (lg and up)
 
@@ -508,7 +588,7 @@ test):
 - **The keyboard.** "Skip to content" is the first stop on every page and moves focus to the page
   (`main#content`); every control has the shared focus ring.
 
-## 8. Brand assets (white label)
+## 9. Brand assets (white label)
 
 The installation's logo, colours and art come from Branding (Admin → Branding) and are never written
 into a component (STANDARDS.md → Product).
@@ -521,7 +601,7 @@ into a component (STANDARDS.md → Product).
 - **Custom colours:** derived tokens (`chrome`, `border-control`, the surface steps) follow
   `brandThemeVars`; contrast rules are in STANDARDS.md.
 
-## 9. Known inconsistencies, not yet addressed
+## 10. Known inconsistencies, not yet addressed
 
 The audit of 6 Nov (desktop 1440, tablet 768, phone 390, with production's branding loaded into the
 demo) found these outside the frame. They are recorded so the next session can take them on
@@ -534,7 +614,7 @@ deliberately. Each needs its own small PR. Check STATUS.md for the Actions-minut
 | Eyebrows | `PageHeader`'s eyebrow is `accent`; `SectionLabel` is `fg-subtle` | Both are valid. Keep `accent` eyebrows to Team Overview's header (from `sm` in a window taller than 480px; on a phone held either way it is left to screen readers, since the selected tab says it), admin pages (`PageHeader`) and the sign-in frames (`BrandFrame`) |
 | Tablet and phone mode switch | A row on the phone's account screen and an item of a tablet's avatar menu, each in the accent on the way to Admin Mode; a quiet row in the sidebar | Deliberate (§7). Revisit only with the owner, since phones were verified |
 
-## 10. Working on the design
+## 11. Working on the design
 
 - **Ownership:** this page, `globals.css`'s tokens and utilities, `src/lib/sidebar.ts` and the
   frame components (`app-shell.tsx`, `collapsible-sidebar.tsx`, `nav-links.tsx`, `mode-switch.tsx`,

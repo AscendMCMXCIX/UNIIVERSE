@@ -98,9 +98,17 @@ export function PeoplePanel({ players, adminAccounts = [], presets = [], current
   const mayErase = (a: AccountView) => a.userId !== currentUserId && a.role !== "owner" && (!a.isAdmin || viewerIsOwner);
   const accessButton = (a: AccountView) =>
     canManageAccounts ? (
-      <Button size="sm" variant="outline" wrap onClick={() => setEditing(a)} disabled={!!lockedReason(a)} title={lockedReason(a) ?? "Team membership, access level, additional access and administrator access"} data-testid="open-access">
-        <ShieldCheck className="h-4 w-4" /> Manage access
-      </Button>
+      // Why it is locked is said beside it, not in a title a phone, a keyboard or a disabled button never shows (A02).
+      <span className="inline-flex flex-col items-start gap-0.5">
+        <Button size="sm" variant="outline" wrap onClick={() => setEditing(a)} disabled={!!lockedReason(a)} aria-describedby={lockedReason(a) ? `locked-${a.userId}` : undefined} data-testid="open-access">
+          <ShieldCheck className="h-4 w-4" /> Manage access
+        </Button>
+        {lockedReason(a) ? (
+          <span id={`locked-${a.userId}`} className="text-2xs text-fg-subtle" data-testid="access-locked-reason">
+            {lockedReason(a)}
+          </span>
+        ) : null}
+      </span>
     ) : null;
   const run = async (fn: () => Promise<{ ok: true } | { ok: false; error: string }>, done: string) => {
     setBusy(true);
@@ -196,7 +204,7 @@ export function PeoplePanel({ players, adminAccounts = [], presets = [], current
                         ) : (
                           <span className="inline-flex items-center gap-1">
                             <Badge tone="warn">No account</Badge>
-                            <InfoTip label="About profiles without an account" text="A profile without an account: a test entry, an old placeholder, or what a deleted account left behind. Creating a player with the same Riot ID reuses it." />
+                            <InfoTip label="About profiles without an account" text="Nobody can sign in to this profile (a test, a placeholder or a deleted account). Adding a player with the same Riot ID reuses it." />
                           </span>
                         )}
                         <Badge tone={p.teamMember ? "accent" : "neutral"} title={p.teamMember ? "Uses the team workspace" : "Personal use only: no Team pages"}>

@@ -106,7 +106,7 @@ describe("the season records", () => {
     expect(html).toContain('<section id="season-records" aria-labelledby="season-records-title" class="min-w-0" data-testid="records">');
     expect(html).toContain('<h2 id="season-records-title"');
     // What it counts, under the title: the season and its games.
-    expect(shownOf(html, "records-scope")).toBe("Season 2026 · All supported games · 32 games");
+    expect(shownOf(html, "records-scope")).toBe("Season 2026 · All supported games · 32 games · ties: first to set it");
     // One season: no choice to make.
     expect(html).not.toContain("records-season");
   });
@@ -150,20 +150,15 @@ describe("the season records", () => {
     }
   });
 
-  it("shows each record's qualifier on its row, read after a comma, and every definition in one ⓘ", () => {
+  it("shows each record's qualifier on its row, read after a comma, with no ⓘ of definitions", () => {
     // The "·" before it is drawn in the qualifier's own padding (cut off when the qualifier starts a line), hidden from screen readers.
     expect(shownOf(rows["damage-per-minute"]!, "record-qualifier")).toBe("·to champions · 15+ min games");
     expect(rows["damage-per-minute"]).toContain('<span aria-hidden="true" class="absolute left-1">·</span><span class="sr-only">, </span>to champions · 15+ min games');
     expect(shownOf(rows.kda!, "record-qualifier")).toBe("·10+ takedowns");
     expect(shownOf(rows["win-streak"]!, "record-qualifier")).toBe("·in game order");
     expect(rows.kills).not.toContain("record-qualifier");
-    // One ⓘ, named "How these records count", holding that records reward playing more, each
-    // definition and the tie rule (its text is the trigger's description).
-    expect(count(html, /data-testid="records-definitions"/g)).toBe(1);
-    expect(html).toContain('aria-label="How these records count"');
-    const tip = /<span id="[^"]+" class="sr-only">([\s\S]*?)<\/span><\/span>/.exec(html.slice(html.indexOf('data-testid="records-definitions"')))![1]!;
-    for (const words of ["Records reward playing more: every game is another chance.", "Most damage per minute:</span> Damage to champions, in a game of 15 minutes or more.", "Most CS per minute:</span> Lane minions and monsters", "Most vision per minute:</span> Vision score", "Best KDA in a game:</span> (Kills + assists) ÷ deaths", "Longest win streak:</span> In the order the games were played.", "A tie goes to whoever set it first."]) expect(tip).toContain(words);
-    // No definition is left on a row: they are in the ⓘ.
+    // No ⓘ of definitions (the tooltip inventory's L04): each row's qualifier says what it counts, and the scope line how ties go.
+    expect(count(html, /data-testid="records-definitions"/g)).toBe(0);
     expect(Object.values(rows).join("")).not.toContain("Lane minions and monsters");
   });
 

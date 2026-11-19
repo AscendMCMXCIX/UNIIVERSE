@@ -27,6 +27,7 @@ import {
   taglineProblem,
   type CardLook,
   type CardStyle,
+  swatchName,
 } from "@/domain/card-style";
 import { cardPreviewFiguresAction, listChampionSkinsAction, removeCardBannerAction, setCardStyleAction, uploadCardBannerAction } from "@/server/actions/players";
 import { ownSocialLinksAction, saveSocialLinksAction } from "@/server/actions/account";
@@ -870,7 +871,7 @@ function ColourPicker({ value, onChange, label }: { value: string; onChange: (v:
     <div className="space-y-2.5">
       <div role="radiogroup" aria-label={label} className="grid grid-cols-7 gap-1.5 sm:flex sm:flex-wrap">
         {swatches.map((c) => (
-          <button key={c} type="button" role="radio" aria-checked={value === c} aria-label={c} title={c} onClick={() => onChange(c)} className={cn("grid aspect-square w-full place-items-center rounded-full transition-[box-shadow] sm:h-7 sm:w-7 pointer-coarse:sm:h-10 pointer-coarse:sm:w-10", value === c ? "ring-2 ring-fg ring-offset-2 ring-offset-bg-elevated" : "ring-1 ring-inset ring-black/20")} style={{ background: c }}>
+          <button key={c} type="button" role="radio" aria-checked={value === c} aria-label={swatchName(c)} onClick={() => onChange(c)} className={cn("grid aspect-square w-full place-items-center rounded-full transition-[box-shadow] sm:h-7 sm:w-7 pointer-coarse:sm:h-10 pointer-coarse:sm:w-10", value === c ? "ring-2 ring-fg ring-offset-2 ring-offset-bg-elevated" : "ring-1 ring-inset ring-black/20")} style={{ background: c }}>
             {value === c ? <Check className="h-4 w-4 drop-shadow" style={{ color: readableOn(c) }} aria-hidden /> : null}
           </button>
         ))}
