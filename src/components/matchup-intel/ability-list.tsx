@@ -549,7 +549,9 @@ export function YourChampion({ intel }: { intel: ChampionIntelView }) {
             </span>
           </span>
         </summary>
-        <div className="border-t border-border">
+        {/* On a touch screen 4px more under the summary, so the first tile's Details button, whose 44px
+            area reaches 10px past it, covers none of the summary. */}
+        <div className="border-t border-border pointer-coarse:pt-1">
           <AbilityList intel={intel} testId="matchup-your-abilities-list" />
         </div>
       </details>

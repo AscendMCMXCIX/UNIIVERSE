@@ -740,6 +740,12 @@ test("touch screens: every chip, key, fold and source tip reaches 44px, no one's
       await Promise.all(finite.map((a) => a.finished.catch(() => undefined)));
     });
     expect(await page.evaluate(() => matchMedia("(pointer: coarse)").matches), `${at}: a coarse pointer`).toBe(true);
+    // axe at the WCAG 2.2 AA level (target size, 2.5.8), as the review ran it, from the page's top
+    // (scrolled, the top bar would cover what lies under it, which axe counts against its target).
+    await page.evaluate(() => window.scrollTo(0, 0));
+    const axe = await new AxeBuilder({ page }).include('[data-testid="matchup-intel"]').withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"]).analyze();
+    const blocking = axe.violations.filter((v) => v.impact === "critical" || v.impact === "serious");
+    expect.soft(blocking.map((v) => `${v.id}: ${v.help} (${v.nodes.slice(0, 3).map((n) => n.target.join(" ")).join(" | ")})`), `${at}: axe, WCAG 2.2 AA`).toEqual([]);
     // Each control's own box, sampled every 2px: a tap anywhere on it reaches it, not a neighbour
     // whose 44px area (touch-target) reaches over it. Each brought to the screen's middle first, clear
     // of the bars.
@@ -770,10 +776,6 @@ test("touch screens: every chip, key, fold and source tip reaches 44px, no one's
     expect(found.controls, `${at}: controls on the page`).toBeGreaterThan(10);
     expect.soft(found.covered, `${at}: no control's box reaches another`).toEqual([]);
     expect.soft(found.small, `${at}: every control a 44px target`).toEqual([]);
-    // axe at the WCAG 2.2 AA level (target size, 2.5.8), as the review ran it.
-    const axe = await new AxeBuilder({ page }).include('[data-testid="matchup-intel"]').withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"]).analyze();
-    const blocking = axe.violations.filter((v) => v.impact === "critical" || v.impact === "serious");
-    expect.soft(blocking.map((v) => `${v.id}: ${v.help} (${v.nodes.slice(0, 3).map((n) => n.target.join(" ")).join(" | ")})`), `${at}: axe, WCAG 2.2 AA`).toEqual([]);
   }
 });
 
