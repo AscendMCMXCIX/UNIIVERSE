@@ -529,10 +529,16 @@ function useSectionMemory(): Record<string, string> | null {
  * has room; then its short form, the rest of the whole name read out only (`rest`: "My" before
  * "Profile", "& Permissions" after "Users"), so what shows is always part of what is read out; then
  * read out only, the icon alone (`label`, on the whole name). Each bar gives the classes for its
- * own steps (TAB_FIT, SIDEWAYS_FIT, BAR_FIT); `data-name="rest"` marks the part that gives way.
+ * own steps (TAB_FIT, SIDEWAYS_FIT, BAR_FIT); `data-name` marks the name ("label") and the part of it
+ * that gives way ("rest").
  */
 function LadderName({ label, short, rest, className }: { label: string; short?: string; rest: string; className: string }) {
-  if (!short || short === label) return <span className={className}>{label}</span>;
+  if (!short || short === label)
+    return (
+      <span className={className} data-name="label">
+        {label}
+      </span>
+    );
   const before = label.endsWith(short);
   const part = before ? label.slice(0, -short.length) : label.slice(short.length);
   const restSpan = (
@@ -541,7 +547,7 @@ function LadderName({ label, short, rest, className }: { label: string; short?: 
     </span>
   );
   return (
-    <span className={className}>
+    <span className={className} data-name="label">
       {before ? restSpan : null}
       {short}
       {before ? null : restSpan}
