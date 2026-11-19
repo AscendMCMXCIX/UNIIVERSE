@@ -311,7 +311,16 @@ test("the account screen fills a small phone in Player Mode and Admin Mode: ever
     if (path === "/admin") {
       // Admin Mode: "Settings" once on the phone, the account's; the bar names Platform Settings "Platform".
       await expect(screen.getByRole("link", { name: "Audit Logs" })).toHaveCount(0);
-      const shown = await page.evaluate(() => [...document.querySelectorAll("[data-testid=phone-tabbar] a, [data-testid=account-sheet] a")].map((a) => (a as HTMLElement).innerText.trim()).filter((t) => /Settings/.test(t)));
+      // What shows: each link's text less what is read out only (sr-only).
+      const shown = await page.evaluate(() =>
+        [...document.querySelectorAll("[data-testid=phone-tabbar] a, [data-testid=account-sheet] a")]
+          .map((a) => {
+            const copy = a.cloneNode(true) as HTMLElement;
+            for (const quiet of copy.querySelectorAll(".sr-only")) quiet.remove();
+            return (copy.textContent ?? "").trim();
+          })
+          .filter((t) => /Settings/.test(t)),
+      );
       expect(shown).toEqual(["Settings"]);
     }
     await expect(screen.getByText("Not endorsed by Riot Games.")).toBeInViewport();
