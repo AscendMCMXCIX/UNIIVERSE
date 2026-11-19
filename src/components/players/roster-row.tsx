@@ -84,12 +84,16 @@ const STACKED_ROW = "@max-[11.125rem]/roster:flex-wrap @max-[11.125rem]/roster:g
   (`group`), so beside the role nothing moves (the two cancel exactly, and the line wraps where it
   did), and at the start of a line the dot and its gap sit past the line's clipped left edge
   (`line`) while the crest or the words start at the edge. The room is the dot (0.289em of Inter at
-  the line's text size) and the 0.375rem gap after it. Only under 16rem of row: a row at the usual
-  text size is 16.4rem or more (a 320px phone's), where the longest role and rank ("Roles not set ·
-  No Riot account", "· Grandmaster") fit beside each other with room to spare, and the clip alone
-  would change how the line's portraits are drawn there (by a shade).
+  the line's text size) and the 0.375rem gap after it. Only in a row under 16rem, read on the roster
+  as STACKED reads it (17.5rem of roster, its rows one across): a row on Players at the usual text
+  size is 16.375rem or more (a 320px phone's), where the longest role and rank ("Roles not set · No
+  Riot account", "· Grandmaster") fit beside each other with room to spare, and the clip alone would
+  change how the line's portraits are drawn there (by a shade). The roster, not the row: the Card
+  Studio's previews draw rows outside the roster, about 9rem wide at the usual size beside the
+  controls on a 320 × 480 screen (15rem at 480 × 320), and they keep their one layout, as with
+  STACKED.
 */
-const SEPARATOR = { line: "@max-[16rem]/row:overflow-x-clip", before: "@max-[16rem]/row:mr-[calc(0.289em+0.375rem)]", group: "@max-[16rem]/row:-ml-[calc(0.289em+0.375rem)]" };
+const SEPARATOR = { line: "@max-[17.5rem]/roster:overflow-x-clip", before: "@max-[17.5rem]/roster:mr-[calc(0.289em+0.375rem)]", group: "@max-[17.5rem]/roster:-ml-[calc(0.289em+0.375rem)]" };
 const STACKED_PICTURE = "@max-[11.125rem]/roster:h-auto";
 const STACKED_TEXT = "@max-[11.125rem]/roster:basis-full";
 
