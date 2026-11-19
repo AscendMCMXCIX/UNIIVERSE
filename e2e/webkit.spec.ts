@@ -182,11 +182,21 @@ test("Matchup Intel: a slot's picker fills the screen, a search and a tap choose
   // The window gave the focus back to the slot it opened from, which stays on the page.
   await expect(slot).toBeFocused();
   await fitsWidth(page, "Riven vs Mordekaiser");
-  // A row's details open with a tap (the native details element).
+  // A tile's details open with a tap, in a window over the whole screen that closes back onto the tile.
   const details = page.getByTestId("matchup-enemy-abilities").getByTestId("ability-details").first();
-  await details.locator(":scope > summary").tap();
-  await expect(details).toHaveAttribute("open", "");
-  await expect(details.getByTestId("ability-details-body")).toBeVisible();
+  await details.tap();
+  const body = page.getByTestId("ability-details-body");
+  await expect(body).toBeVisible();
+  await untilStill(page);
+  await fitsWidth(page, "an ability's details window");
+  await page.getByRole("dialog").getByRole("button", { name: /^Close/ }).tap();
+  await expect(body).toBeHidden();
+  await expect(details).toBeFocused();
+  // The sources and notices open with a tap, from their line at the dashboard's foot.
+  const sources = page.getByTestId("matchup-sources");
+  await sources.locator(":scope > summary").tap();
+  await expect(sources).toHaveAttribute("open", "");
+  await expect(page.getByTestId("matchup-footer-riot")).toBeVisible();
   // A briefing chip brings its row into view below the top bar, and gives it the focus.
   const chip = page.getByTestId("matchup-briefing").locator('[data-testid="briefing-ability"][data-anchor^="ability-Mordekaiser-"]').first();
   const anchor = (await chip.getAttribute("data-anchor"))!;

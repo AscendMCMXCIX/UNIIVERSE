@@ -43,7 +43,12 @@ export function DetailsDialog({
     <>
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={(event) => {
+          // The window gives the focus back to what had it when it opened; Safari never focuses a
+          // tapped or clicked button, so the button takes it first and the focus comes back to it.
+          event.currentTarget.focus({ preventScroll: true });
+          setOpen(true);
+        }}
         aria-haspopup="dialog"
         title={iconOnly ? label : undefined}
         className={cn("touch-target inline-flex min-h-6 shrink-0 items-center gap-1 rounded-sm text-xs font-medium text-accent hover:text-accent-strong", iconOnly && "min-w-6 justify-center", className)}
