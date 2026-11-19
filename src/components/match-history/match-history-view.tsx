@@ -34,7 +34,7 @@ import type { DataStatus } from "@/domain/data-status";
 import { DataStatusNote, RefreshButton, type DataRefreshTarget } from "@/components/ui/data-status";
 import { useNow } from "@/components/ui/relative-time";
 import { fmtDuration, fmtInt, fmtNum } from "./match-format";
-import { WINDOW_POSTURE_QUERY, prefersWindow } from "@/components/ui/posture";
+import { WINDOW_POSTURE_QUERY, isTyping, modalOpen, prefersWindow } from "@/components/ui/posture";
 import { pagerFold, pagerItems } from "./pager";
 import { screenHeight } from "@/lib/screen";
 
@@ -192,7 +192,7 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
       onKeyDown={
         expanded
           ? (e) => {
-              if (e.key !== "Escape" || e.defaultPrevented) return;
+              if (e.key !== "Escape" || e.defaultPrevented || modalOpen() || isTyping(e.target)) return;
               e.preventDefault();
               onToggle(row.matchId);
             }
@@ -525,6 +525,12 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
     if (open && params.get("match") !== open.id) setOpen(null);
   }
 
+  // A new list (a page, a filter) while a game this page opened was open: that history entry becomes
+  // the new list's, on purpose, so Back returns to the list as it was before the game opened.
+  React.useEffect(() => {
+    pushed.current = null;
+  }, [listKey]);
+
   const latestParams = React.useRef({ params, pathname });
   React.useLayoutEffect(() => {
     latestParams.current = { params, pathname };
@@ -614,8 +620,6 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
   // was on the screen: its top is recorded before the change, and the page scrolled by the
   // difference before the browser paints (see below), so nothing jumps under the pointer.
   const anchor = React.useRef<{ id: string; top: number } | null>(null);
-  // The last game open under its card: closing (Close, Escape, Back) returns the focus to its card.
-  const lastInline = React.useRef<string | null>(null);
   // Two frames: after a phone's window has unlocked the page and handed the focus back to its opener.
   const focusCard = (matchId: string) =>
     requestAnimationFrame(() =>
@@ -628,7 +632,8 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
   /** Another game in place of the open one: the address is replaced (one history entry for the whole visit). */
   const switchTo = React.useCallback(
     (matchId: string, keep: HTMLElement | null) => {
-      anchor.current = keep ? { id: matchId, top: keep.getBoundingClientRect().top } : null;
+      // A phone's window steps over a list it hides: nothing to hold in place there.
+      anchor.current = keep && !prefersWindow() ? { id: matchId, top: keep.getBoundingClientRect().top } : null;
       reveal.current = null;
       setOpen({ id: matchId, via: "card" });
       if (pushed.current) pushed.current = matchId;
@@ -659,6 +664,7 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
         focusCard(matchId);
         return;
       }
+      anchor.current = null;
       setOpen({ id: matchId, via: "card" });
       reveal.current = matchId;
       pushed.current = matchId;
@@ -667,7 +673,6 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
     [writeMatch, switchTo],
   );
   React.useLayoutEffect(() => {
-    if (inline) lastInline.current = inline;
     const a = anchor.current;
     if (!inline || !a || a.id !== inline) return;
     anchor.current = null;

@@ -502,16 +502,16 @@ export interface RunePage {
   shards: Icon[];
 }
 
-/** Riot's stat shard ids and their Data Dragon icons (cdn/img/perk-images/StatMods). Riot's runesReforged.json has no shards, so the table is fixed here; an id not in it shows nothing. */
+/** Riot's stat shard ids (5001 health growing with level, 5011 flat health) and their Data Dragon icons (cdn/img/perk-images/StatMods). Riot's runesReforged.json has no shards, so the table is fixed here; an id not in it shows nothing. */
 const SHARD_ICONS: Readonly<Record<number, string>> = {
-  5001: "StatModsHealthPlusIcon.png",
+  5001: "StatModsHealthScalingIcon.png",
   5002: "StatModsArmorIcon.png",
   5003: "StatModsMagicResIcon.png",
   5005: "StatModsAttackSpeedIcon.png",
   5007: "StatModsCDRScalingIcon.png",
   5008: "StatModsAdaptiveForceIcon.png",
   5010: "StatModsMovementSpeedIcon.png",
-  5011: "StatModsHealthScalingIcon.png",
+  5011: "StatModsHealthPlusIcon.png",
   5013: "StatModsTenacityIcon.png",
 };
 const SHARD_ROWS = ["Stat shard, offense", "Stat shard, flex", "Stat shard, defense"];

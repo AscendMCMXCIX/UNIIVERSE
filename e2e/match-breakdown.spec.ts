@@ -125,6 +125,8 @@ test("Previous and Next keep the open game's header in place; Escape closes and 
     await expect.poll(() => new URL(page.url()).searchParams.get("match")).not.toBe(before);
     await expect(page.locator("li[data-expanded] [data-testid=post-game-notes]")).toBeVisible({ timeout: 15_000 });
     expect(Math.abs((await header().boundingBox())!.y - y0), "the header keeps its place").toBeLessThanOrEqual(2);
+    // The focus stays on Next, in the game now open.
+    await expect(page.locator("li[data-expanded] [data-testid=game-header-next]")).toBeFocused();
   }
   // Switching replaced the one entry the opening added.
   expect(await page.evaluate(() => history.length)).toBe(length);

@@ -298,6 +298,8 @@ function focusText(kind: FocusKind, x: NotesInput, cue: { note?: Note }): string
   const ten = x.lane?.find((l) => l.minute === 10);
   switch (kind) {
     case "lane":
+      // From the bot lane's two against two (L5): the pair's figure, never the solo lane's.
+      if (cue.note?.id === "L5" && x.pair) return `The first 10 minutes in the bot lane: ${x.pair.gold >= 0 ? "+" : "−"}${n(x.pair.gold)} gold for the pair at 10:00.`;
       if (x.opponent && ten?.you && ten.opponent) {
         const g = ten.you.gold - ten.opponent.gold;
         return `The first 10 minutes against ${x.opponent}: ${ten.you.cs} CS and ${g >= 0 ? "+" : "−"}${n(g)} gold at 10:00.`;
@@ -348,8 +350,8 @@ export function matchNotes(x: NotesInput): MatchNotes {
   const role = x.role ? ROLE_LABELS[x.role] : null;
   const queue = QUEUE_GROUP_WORDS[groupOf(x.queueId)];
   let fallback: string | null = null;
-  if (!x.personal && role) fallback = `After 10 ${queue ? `${queue} ` : ""}games as ${role}, a game is compared with ${w.possessive} usual ones.`;
-  else if (!well.length && !wrong.length) fallback = role ? `Nothing stood out against ${w.possessive} usual ${role} games.` : "Nothing stood out in this game.";
+  if (!x.personal && role && groupOf(x.queueId) !== "other" && !well.length && !wrong.length) fallback = `After 10 ${queue ? `${queue} ` : ""}games as ${role}, a game is compared with ${w.possessive} usual ones.`;
+  else if (!well.length && !wrong.length) fallback = role && x.personal ? `Nothing stood out against ${w.possessive} usual ${role} games.` : "Nothing stood out in this game.";
   return { well, wrong, focus, fallback };
 }
 

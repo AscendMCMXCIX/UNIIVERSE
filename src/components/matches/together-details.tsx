@@ -6,6 +6,7 @@ import type { PortraitChampion } from "@/components/champion-portrait";
 import { MatchDetailCacheContext, createMatchDetailCache, type MatchDetailCache } from "@/components/match-history/match-detail-cache";
 import { MatchExpansion, revealIfAbove, revealOpened } from "@/components/match-history/inline-match";
 import { isPhone, usePhone } from "@/components/ui/use-phone";
+import { isTyping, modalOpen } from "@/components/ui/posture";
 import { cn } from "@/lib/cn";
 
 /**
@@ -174,7 +175,7 @@ export function TogetherCardFrame({ entry, playerId, matchId, championsById, lab
       data-expanded={expanded || undefined}
       // Escape, with the focus anywhere in the open game, closes it and returns the focus to the card.
       onKeyDown={(e) => {
-        if (!expanded || e.key !== "Escape" || e.defaultPrevented) return;
+        if (!expanded || e.key !== "Escape" || e.defaultPrevented || modalOpen() || isTyping(e.target)) return;
         e.preventDefault();
         list?.toggle(entry, matchId);
         requestAnimationFrame(() => button.current?.focus({ preventScroll: true }));

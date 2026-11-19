@@ -68,6 +68,11 @@ describe("match notes", () => {
     expect(firingNotes(base({ pair: { ally: "Jinx", opponents: ["Caitlyn", "Lux"], gold: -1200 } })).some((n) => n.id === "L5")).toBe(false);
   });
 
+  it("takes Focus next from the note it follows: the bot lane's pair, not the solo lane", () => {
+    const x = base({ role: "ADC", lane: lane([60, 55], [3500, 3200]), pair: { ally: "Thresh", opponents: ["Caitlyn", "Lux"], gold: -1200 } });
+    expect(matchNotes(x).focus?.text).toBe("The first 10 minutes in the bot lane: −1,200 gold for the pair at 10:00.");
+  });
+
   it("counts early deaths only from the timeline (D1), and the most deaths on the team (D2)", () => {
     expect(notesOf(base({ deathTimes: [3.2, 7.9, 20] })).wrong.find((n) => n.id === "D1")!.text).toBe("2 of your 5 deaths came before 10 minutes.");
     expect(firingNotes(base({ deathTimes: null })).some((n) => n.id === "D1")).toBe(false);
@@ -150,6 +155,9 @@ describe("match notes", () => {
     expect(quiet.fallback).toBe("Nothing stood out against your usual Top games.");
     expect(quiet.focus).toBeNull();
     expect(matchNotes(base({ remake: true, deathTimes: [1, 2, 3] }))).toEqual({ well: [], wrong: [], focus: null, fallback: "Remakes are not analysed." });
+    // A queue never compared (an event mode) promises no comparison; the baseline line shows only where nothing else does.
+    expect(notesOf(base({ queueId: 1700 })).fallback).toBe("Nothing stood out in this game.");
+    expect(notesOf(base({ deathTimes: [2, 4] })).fallback).toBeNull();
     // A support without a timeline or a baseline still gets one line.
     expect(notesOf(base({ role: "SUPPORT", opponent: null })).fallback).toMatch(/^After 10 ranked games as Support/);
   });

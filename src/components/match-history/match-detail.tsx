@@ -13,7 +13,7 @@ import { BELOW_CONTROLS_ON_PHONES, CLEAR_OF_CONTROLS, DetailModal } from "@/comp
 import { MatchDetailCacheContext } from "./match-detail-cache";
 import { fmtDuration } from "./match-format";
 import { LpChange } from "./match-card";
-import type { GameNav } from "./inline-match";
+import { keepStepFocus, type GameNav } from "./inline-match";
 import { PostGame } from "./post-game";
 
 /**
@@ -79,14 +79,22 @@ export function MatchDetailModal({ playerId, matchId, championsById, onClose, ba
   );
   const footer = nav ? (
     <div className="flex items-center justify-between gap-2" data-testid="match-detail-nav">
-      <button type="button" className={NAV_BUTTON} disabled={!nav.prev} onClick={() => nav.prev && nav.go(nav.prev)} data-testid="match-detail-prev">
+      <button type="button" className={NAV_BUTTON} disabled={!nav.prev} onClick={() => {
+          if (!nav.prev) return;
+          nav.go(nav.prev);
+          keepStepFocus("match-detail-prev", "match-detail-next");
+        }} data-testid="match-detail-prev">
         <ChevronLeft className="h-4 w-4" aria-hidden />
         Previous
       </button>
       <span className="text-xs tabular-nums text-fg-muted" data-testid="match-detail-position">
         Game {nav.index + 1} of {nav.total}
       </span>
-      <button type="button" className={NAV_BUTTON} disabled={!nav.next} onClick={() => nav.next && nav.go(nav.next)} data-testid="match-detail-next">
+      <button type="button" className={NAV_BUTTON} disabled={!nav.next} onClick={() => {
+          if (!nav.next) return;
+          nav.go(nav.next);
+          keepStepFocus("match-detail-next", "match-detail-prev");
+        }} data-testid="match-detail-next">
         Next
         <ChevronRight className="h-4 w-4" aria-hidden />
       </button>

@@ -57,16 +57,38 @@ export interface GameNav {
 
 const STEP = "inline-flex h-9 items-center gap-1 rounded-lg px-2.5 text-xs font-medium text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent disabled:pointer-events-none disabled:opacity-40 pointer-coarse:h-11";
 
+/**
+ * After Previous or Next the pressed button is in the new game (the old one closed with it): the
+ * focus goes to the same button there, or to Close when that end of the page is reached.
+ */
+export function keepStepFocus(testId: string, close: string) {
+  requestAnimationFrame(() =>
+    requestAnimationFrame(() => {
+      const scope = document.querySelector("li[data-expanded]") ?? document.querySelector("[data-testid=match-detail]") ?? document;
+      const same = scope.querySelector<HTMLButtonElement>(`[data-testid="${testId}"]`);
+      (same && !same.disabled ? same : scope.querySelector<HTMLElement>(`[data-testid="${close}"]`))?.focus({ preventScroll: true });
+    }),
+  );
+}
+
 /** Previous, Next and Close, in the open card's header and in the game's sticky footer. */
 export function GameSteps({ nav, onClose, where }: { nav: GameNav | null; onClose: () => void; where: "header" | "footer" }) {
   const id = where === "header" ? "game-header" : "game";
   return (
     <span className="relative z-10 flex shrink-0 items-center gap-0.5" data-game-step="">
-      <button type="button" className={STEP} disabled={!nav?.prev} onClick={() => nav?.prev && nav.go(nav.prev)} data-testid={`${id}-prev`}>
+      <button type="button" className={STEP} disabled={!nav?.prev} onClick={() => {
+          if (!nav?.prev) return;
+          nav.go(nav.prev);
+          keepStepFocus(`${id}-prev`, where === "header" ? "game-header-close" : "match-close");
+        }} data-testid={`${id}-prev`}>
         <ChevronLeft className="h-3.5 w-3.5" aria-hidden />
         Previous<span className={cn(where === "header" && "sr-only")}> game</span>
       </button>
-      <button type="button" className={STEP} disabled={!nav?.next} onClick={() => nav?.next && nav.go(nav.next)} data-testid={`${id}-next`}>
+      <button type="button" className={STEP} disabled={!nav?.next} onClick={() => {
+          if (!nav?.next) return;
+          nav.go(nav.next);
+          keepStepFocus(`${id}-next`, where === "header" ? "game-header-close" : "match-close");
+        }} data-testid={`${id}-next`}>
         Next<span className={cn(where === "header" && "sr-only")}> game</span>
         <ChevronRight className="h-3.5 w-3.5" aria-hidden />
       </button>
