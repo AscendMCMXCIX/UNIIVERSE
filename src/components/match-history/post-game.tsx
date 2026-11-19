@@ -101,7 +101,7 @@ function Loadout({ p, champ, small }: { p: MatchDetailView["player"]; champ: Por
   const two = p.spells?.length ? p.spells.slice(0, 2) : [null, null];
   const page = p.runePage;
   return (
-    <div className="space-y-1.5" data-testid="post-game-loadout">
+    <div className="space-y-1" data-testid="post-game-loadout">
       <div className="flex flex-wrap items-center gap-2.5">
         <span className="relative shrink-0">
           <ChampionPortrait champion={champ} size="lg" className={small ? "h-14 w-14" : "h-18 w-18"} />
@@ -120,7 +120,7 @@ function Loadout({ p, champ, small }: { p: MatchDetailView["player"]; champ: Por
           <Named icon={p.secondary} size={icon} rounded="rounded-full" onName={setName} className="p-0.5" />
         </span>
         {/* The inventory: two rows of three with the trinket beside the first, in inset slots; an empty slot is a quiet tile (a post-game inventory with empty slots is truthful). */}
-        <span className="grid grid-cols-4 gap-1 rounded-lg bg-black/25 p-1" role="group" aria-label="Items" data-testid="post-game-items">
+        <span className="grid grid-cols-4 gap-0.5 rounded-lg bg-black/25 p-0.5" role="group" aria-label="Items" data-testid="post-game-items">
           {p.items
             ? [0, 1, 2, 6, 3, 4, 5].map((i) => <Named key={i} icon={p.items![i] ?? null} size={item} rounded={i === 6 ? "rounded-full" : "rounded"} onName={setName} />)
             : <span className="col-span-4 px-1 text-xs text-fg-subtle">Items not recorded</span>}
@@ -145,18 +145,22 @@ function Loadout({ p, champ, small }: { p: MatchDetailView["player"]; champ: Por
               ))}
             </>
           ) : null}
+          <span className="min-h-4 min-w-24 flex-1 truncate text-right text-xs leading-4 text-fg-muted" aria-hidden data-testid="loadout-name">
+            {name ?? ""}
+          </span>
         </div>
-      ) : null}
-      <p className="min-h-4 text-xs leading-4 text-fg-muted" aria-hidden data-testid="loadout-name">
-        {name ?? ""}
-      </p>
+      ) : (
+        <p className="min-h-4 text-xs leading-4 text-fg-muted" aria-hidden data-testid="loadout-name">
+          {name ?? ""}
+        </p>
+      )}
     </div>
   );
 }
 
 function Tile({ label, value, sub, testId }: { label: string; value: string; sub: string | null; testId: string }) {
   return (
-    <div className="min-w-0 rounded-lg bg-surface px-2.5 py-1.5" data-testid={testId}>
+    <div className="min-w-0 rounded-lg bg-surface px-2 py-1" data-testid={testId}>
       <div className="truncate text-2xs font-medium uppercase tracking-label text-fg-subtle">{label}</div>
       <div className="text-base font-semibold leading-tight tabular-nums text-fg">{value}</div>
       <div className="truncate text-xs tabular-nums text-fg-muted">{sub ?? " "}</div>
@@ -173,7 +177,7 @@ function Figures({ p, teamKills }: { p: DetailParticipant; teamKills: number }) 
       <Tile label="Gold" value={p.gold === null ? "—" : formatKilo(p.gold)} sub={p.goldPerMin === null ? null : `${formatCount(Math.round(p.goldPerMin))} / min`} testId="figure-gold" />
       <Tile label="Damage" value={p.damage === null ? "—" : formatKilo(p.damage)} sub={p.damageShare === null ? null : `${pct(p.damageShare)} of team`} testId="figure-damage" />
       <Tile label="Vision" value={p.vision === null ? "—" : formatCount(p.vision)} sub={p.wardsPlaced === null ? null : `${formatCount(p.wardsPlaced)} wards`} testId="figure-vision" />
-      <Tile label="Kill part." value={pct(p.killParticipation)} sub={teamKills > 0 ? `of ${formatCount(teamKills)} kills` : null} testId="figure-kp" />
+      <Tile label="KP" value={pct(p.killParticipation)} sub={teamKills > 0 ? `of ${formatCount(teamKills)} kills` : null} testId="figure-kp" />
     </div>
   );
 }
@@ -201,16 +205,16 @@ function Lane({ view, champ, timeline }: { view: MatchDetailView; champ: (id: st
   const name = (slot: number) => champ(view.teams.flatMap((t) => t.participants).find((x) => x.slot === slot)?.championId ?? null).name;
   return (
     <section aria-label="Lane" className="space-y-1.5" data-testid="post-game-lane" data-state="clear">
-      <h3 className="flex items-center gap-1.5 text-2xs font-semibold uppercase tracking-label text-fg-subtle">
-        Lane vs
-        <ChampionPortrait champion={c} size="xs" className="h-5 w-5" />
-        <span className="normal-case tracking-normal text-xs font-semibold text-fg">{c.name}</span>
-      </h3>
-      <table className="w-full max-w-md text-xs tabular-nums">
+      <table className="w-full max-w-md text-xs leading-4 tabular-nums">
         <thead>
           <tr className="text-2xs text-fg-subtle">
-            <th className="w-24 text-left font-medium">
-              <span className="sr-only">Figure, you minus them</span>
+            <th className="text-left font-semibold">
+              <span className="flex items-center gap-1.5 uppercase tracking-label">
+                Lane vs
+                <ChampionPortrait champion={c} size="xs" className="h-5 w-5" />
+                <span className="text-xs font-semibold normal-case tracking-normal text-fg">{c.name}</span>
+                <span className="sr-only">: you minus them</span>
+              </span>
             </th>
             <th className="text-right font-medium">10:00</th>
             <th className="text-right font-medium">15:00</th>
@@ -324,19 +328,27 @@ export function PostGame({ playerId, view, champ, variant, encounterLinks = fals
   const notes = React.useMemo(() => (timeline ? matchNotes(notesInputOf(view, champ, tl)) : null), [timeline, view, champ, tl]);
   const ownTeam = view.teams[0];
   return (
-    <div className="@container/pg space-y-3" data-testid="match-breakdown" data-variant={variant} data-met={meetings ? (meetings.status === "ok" ? meetings.players.length : 0) : undefined}>
+    <div className="@container/pg space-y-2.5" data-testid="match-breakdown" data-variant={variant} data-met={meetings ? (meetings.status === "ok" ? meetings.players.length : 0) : undefined}>
       <div className="grid gap-x-5 gap-y-4 @min-[60rem]/pg:grid-cols-[minmax(0,33rem)_minmax(0,1fr)]">
-        <section aria-label={view.own ? "Your game" : `${champ(view.championId).name}'s game`} className="min-w-0 space-y-3" data-testid="post-game-yours">
+        <section aria-label={view.own ? "Your game" : `${champ(view.championId).name}'s game`} className="min-w-0 space-y-2.5" data-testid="post-game-yours">
           <Loadout p={p} champ={champ(view.championId)} small={variant === "window"} />
           <Figures p={p} teamKills={ownTeam?.kills ?? 0} />
           <Lane view={view} champ={champ} timeline={tl} />
           <Notes notes={notes} />
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-fg-subtle empty:hidden">
+            <span className={cn("tabular-nums", variant === "window" && "hidden")} data-testid="match-breakdown-when">
+              {formatDateTime(new Date(view.playedAt))}
+              {view.patch ? ` · Patch ${view.patch}` : ""}
+            </span>
+            {view.share.eligible ? <BookmarkButton matchId={view.matchId} bookmarked={view.share.shared} share /> : null}
+            {p.opgg ? <OpggHistoryLink href={p.opgg} account={p.name?.split("#")[0]?.trim() || null} /> : null}
+          </div>
         </section>
         <section aria-label="Scoreboard" className="@container/sb min-w-0 space-y-2" data-testid="post-game-scoreboard">
           {view.teams.map((t) => (
             <TeamTable key={t.teamId} compact team={t} champ={champ} maxDamage={view.maxDamage} groups={groups?.status === "ok" ? (groups.teams.find((g) => g.teamId === t.teamId) ?? null) : null} laneSlot={view.comparison.opponent?.slot ?? null} rankOf={rankOf} queueId={view.queueId} checking={checking} met={met} meetHref={meetHref} />
           ))}
-          <div className="space-y-0.5">
+          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
             <RanksNote ranks={view.teams.flatMap((t) => t.participants.filter((x) => !x.removed).map(rankOf))} queueId={view.queueId} checking={checking} result={ranks} />
             <GroupsNote result={groups} teams={view.teams} />
           </div>
@@ -347,23 +359,15 @@ export function PostGame({ playerId, view, champ, variant, encounterLinks = fals
           Timeline not available for this game
         </p>
       ) : (
-        <div className="grid gap-2 @min-[60rem]/pg:grid-cols-2" data-testid="post-game-folds">
+        <div className="grid grid-cols-2 items-start gap-2" data-testid="post-game-folds">
           <Fold title="Gold over the game" testId="fold-gold">
             <TimelinePanel result={timeline} />
           </Fold>
-          <Fold title="Build order and skill order" testId="fold-build">
+          <Fold title="Build and skill order" testId="fold-build">
             <BuildPanel result={timeline} />
           </Fold>
         </div>
       )}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-fg-subtle">
-        <span className="tabular-nums" data-testid="match-breakdown-when">
-          {formatDateTime(new Date(view.playedAt))}
-          {view.patch ? ` · Patch ${view.patch}` : ""}
-        </span>
-        {view.share.eligible ? <BookmarkButton matchId={view.matchId} bookmarked={view.share.shared} share /> : null}
-        {p.opgg ? <OpggHistoryLink href={p.opgg} account={p.name?.split("#")[0]?.trim() || null} /> : null}
-      </div>
     </div>
   );
 }
@@ -372,7 +376,7 @@ export function PostGame({ playerId, view, champ, variant, encounterLinks = fals
 function Fold({ title, children, testId }: { title: string; children: React.ReactNode; testId: string }) {
   const [opened, setOpened] = React.useState(false);
   return (
-    <details className="group rounded-lg border border-border bg-surface" data-testid={testId} onToggle={(e) => setOpened((e.currentTarget as HTMLDetailsElement).open)}>
+    <details className="group rounded-lg border border-border bg-surface open:col-span-2" data-testid={testId} onToggle={(e) => setOpened((e.currentTarget as HTMLDetailsElement).open)}>
       <summary className="flex min-h-10 cursor-pointer list-none items-center gap-2 rounded-lg px-3 text-sm font-medium text-fg hover:bg-surface-2/60 focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:min-h-11 [&::-webkit-details-marker]:hidden">
         <span className="text-fg-subtle transition-transform group-open:rotate-90" aria-hidden>
           ›

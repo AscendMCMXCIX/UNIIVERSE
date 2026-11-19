@@ -58,7 +58,7 @@ const STEP = "inline-flex h-9 items-center gap-1 rounded-lg px-2.5 text-xs font-
 
 /** Previous, Next and Close, in the open card's header and in the game's sticky footer. */
 export function GameSteps({ nav, onClose, where }: { nav: GameNav | null; onClose: () => void; where: "header" | "footer" }) {
-  const id = where === "header" ? "match-header" : "match";
+  const id = where === "header" ? "game-header" : "game";
   return (
     <span className="relative z-10 flex shrink-0 items-center gap-0.5" data-game-step="">
       <button type="button" className={STEP} disabled={!nav?.prev} onClick={() => nav?.prev && nav.go(nav.prev)} data-testid={`${id}-prev`}>
@@ -69,7 +69,7 @@ export function GameSteps({ nav, onClose, where }: { nav: GameNav | null; onClos
         Next<span className={cn(where === "header" && "sr-only")}> game</span>
         <ChevronRight className="h-3.5 w-3.5" aria-hidden />
       </button>
-      <button type="button" className={cn(STEP, "text-fg")} onClick={onClose} data-testid={`${id}-close`}>
+      <button type="button" className={cn(STEP, "text-fg")} onClick={onClose} data-testid={where === "header" ? "game-header-close" : "match-close"}>
         <ChevronUp className="h-3.5 w-3.5" aria-hidden />
         Close<span className="sr-only"> this game</span>
       </button>
@@ -85,7 +85,7 @@ export function MatchExpansion({ id, label, playerId, matchId, champ, nav, onClo
   return (
     <div id={id} role="region" aria-label={label} className="rounded-b-panel border border-t-0 border-border bg-bg-elevated px-3 pt-3 motion-safe:fade-in sm:px-4 sm:pt-4" data-testid="match-expanded">
       <InlineMatch playerId={playerId} matchId={matchId} champ={champ} />
-      <div className="sticky bottom-0 z-10 -mx-3 mt-3 flex justify-end rounded-b-panel border-t border-border/60 bg-bg-elevated/95 px-2 py-1.5 backdrop-blur sm:-mx-4" data-testid="match-footer">
+      <div className="sticky bottom-0 z-10 -mx-3 mt-2 flex justify-end rounded-b-panel border-t border-border/60 bg-bg-elevated/95 px-2 py-1 backdrop-blur sm:-mx-4" data-testid="match-footer">
         <GameSteps nav={nav} onClose={onClose} where="footer" />
       </div>
     </div>

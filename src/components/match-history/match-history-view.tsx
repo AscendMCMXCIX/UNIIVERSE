@@ -599,12 +599,15 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
   const anchor = React.useRef<{ id: string; top: number } | null>(null);
   // The last game open under its card: closing (Close, Escape, Back) returns the focus to its card.
   const lastInline = React.useRef<string | null>(null);
+  // Two frames: after a phone's window has unlocked the page and handed the focus back to its opener.
   const focusCard = (matchId: string) =>
-    requestAnimationFrame(() => {
-      const li = document.getElementById(`match-${matchId}`);
-      bringBack(li);
-      li?.querySelector<HTMLElement>("[data-testid=match-row]")?.focus({ preventScroll: true });
-    });
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        const li = document.getElementById(`match-${matchId}`);
+        bringBack(li);
+        li?.querySelector<HTMLElement>("[data-testid=match-row]")?.focus({ preventScroll: true });
+      }),
+    );
   /** Another game in place of the open one: the address is replaced (one history entry for the whole visit). */
   const switchTo = React.useCallback(
     (matchId: string, keep: HTMLElement | null) => {

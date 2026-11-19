@@ -228,12 +228,12 @@ export function firingNotes(x: NotesInput): Note[] {
       const usual = figureWords(f, f.median);
       const label = f.key === "killParticipation" ? "Kill participation" : f.label;
       if (f.best && f.key !== "killParticipation") out.push({ id, section: "well", topic, strength: 1, text: `${w.Possessive} highest ${label} in ${w.their} last ${f.games} ${sample} (${value}).` });
-      else if (f.percentile >= HIGH_PERCENTILE) out.push({ id, section: "well", topic, strength: clamp((f.percentile - HIGH_PERCENTILE) / (1 - HIGH_PERCENTILE)), text: `${label} higher than in ${f.below} of ${w.their} last ${f.games} ${sample} (${value}; usually ${usual}).` });
+      else if (f.percentile >= HIGH_PERCENTILE) out.push({ id, section: "well", topic, strength: clamp((f.percentile - HIGH_PERCENTILE) / (1 - HIGH_PERCENTILE)), text: `${label} higher than in ${f.below >= f.games ? "all" : f.below} of ${w.their} last ${f.games} ${sample} (${value}; usually ${usual}).` });
       else if (f.percentile <= LOW_PERCENTILE) {
         // Earlier games with a higher value: neither below nor tied (percentile counts a tie half).
         const ties = Math.round((f.percentile * f.games - f.below) * 2);
         const above = f.games - f.below - ties;
-        out.push({ id, section: "wrong", topic, strength: clamp((LOW_PERCENTILE - f.percentile) / LOW_PERCENTILE), text: `${label} lower than in ${Math.max(0, above)} of ${w.their} last ${f.games} ${sample} (${value}; usually ${usual}).`, focus: FIGURE_FOCUS[f.key] });
+        out.push({ id, section: "wrong", topic, strength: clamp((LOW_PERCENTILE - f.percentile) / LOW_PERCENTILE), text: `${label} lower than in ${above >= f.games ? "all" : Math.max(0, above)} of ${w.their} last ${f.games} ${sample} (${value}; usually ${usual}).`, focus: FIGURE_FOCUS[f.key] });
       }
     }
   }

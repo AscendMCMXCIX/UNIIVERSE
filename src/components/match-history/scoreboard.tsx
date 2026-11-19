@@ -65,7 +65,8 @@ export interface MeetProps {
 }
 
 export function TeamTable({ team, champ, maxDamage, groups, laneSlot, rankOf, queueId, checking, met, meetHref, compact = false }: { team: DetailTeam; champ: (id: string | null) => PortraitChampion; maxDamage: number; groups: MatchGroupsTeam | null; /** The player's lane opponent, by place in the record. */ laneSlot: number | null; /** The post-game view's scoreboard (CompactRow): K/D/A, the build, CS and damage, the player's other figures left to their tiles. */ compact?: boolean } & RankProps & MeetProps) {
-  const objectives = OBJECTIVES.filter(([k]) => team.objectives[k] !== undefined);
+  // The post-game scoreboard keeps the band to one line: kills, gold, towers, dragons and barons.
+  const objectives = OBJECTIVES.filter(([k]) => team.objectives[k] !== undefined && (!compact || k === "tower" || k === "dragon" || k === "baron"));
   const found = groups?.groups ?? [];
   const groupOf = new Map(found.flatMap((g, i) => g.slots.map((s) => [s, { index: i, label: g.label }] as const)));
   const nameOf = (slot: number) => {
@@ -76,7 +77,7 @@ export function TeamTable({ team, champ, maxDamage, groups, laneSlot, rankOf, qu
   return (
     <section className={cn("overflow-hidden rounded-panel border bg-surface", team.win ? "border-blue/35" : "border-red/35")} data-testid={`team-${team.side}`} aria-label={`${team.side === "blue" ? "Blue" : "Red"} team, ${team.win ? "victory" : "defeat"}`}>
       {/* The team's band: its side and result first (the word, never the colour alone), then its totals, each number brighter than its word. */}
-      <header className={cn("flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b px-3 py-2 text-xs", team.win ? "border-blue/25 bg-blue/10" : "border-red/25 bg-red/10")}>
+      <header className={cn("flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b px-3 text-xs", compact ? "py-1.5" : "py-2", team.win ? "border-blue/25 bg-blue/10" : "border-red/25 bg-red/10")}>
         <span className="flex items-center gap-2">
           <span className={cn("font-semibold uppercase tracking-label", team.side === "blue" ? "text-blue" : "text-red")}>{team.side === "blue" ? "Blue side" : "Red side"}</span>
           <Badge tone={team.win ? "blue" : "red"} className="font-semibold">
@@ -97,7 +98,7 @@ export function TeamTable({ team, champ, maxDamage, groups, laneSlot, rankOf, qu
               <span className="font-semibold tabular-nums text-fg">{team.objectives[k]}</span> {team.objectives[k] === 1 ? one : many}
             </span>
           ))}
-          {team.bans.length ? (
+          {team.bans.length && !compact ? (
             <span className="flex items-center gap-1" data-testid="team-bans">
               Bans
               {team.bans.map((b) => (
@@ -354,50 +355,48 @@ function CompactRow({ x, champ, group, lane, rank, queueId, checking, met, meetH
   if (x.removed) return <RemovedRow />;
   const c = champ(x.championId);
   const member = !!x.teamMember && !x.isPlayer;
+  // One grid, placed by the scoreboard's width: from 30rem one row (the portrait, the name over the
+  // champion and rank, the K/D/A, the build, CS over damage); under it two lines (the name and the
+  // K/D/A, then the build, the rank and CS with damage), the champion left to its portrait.
   return (
-    <li className={cn("relative grid grid-cols-[minmax(0,1fr)_auto_auto_auto] items-center gap-x-3 px-2.5 py-1 @max-[30rem]/sb:grid-cols-[minmax(0,1fr)_auto] @max-[30rem]/sb:gap-y-1 @max-[30rem]/sb:py-1.5", x.isPlayer && "bg-accent/10")} data-testid="participant" data-player={x.isPlayer || undefined} data-group={group ? group.index : undefined} data-lane={lane || undefined} data-member={member || undefined}>
+    <li className={cn("relative grid grid-cols-[auto_auto_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-0.5 px-2.5 py-1 @min-[30rem]/sb:grid-cols-[auto_minmax(0,1fr)_auto_auto_auto] @min-[30rem]/sb:gap-x-3 @min-[30rem]/sb:gap-y-0 @min-[30rem]/sb:py-px", x.isPlayer && "bg-accent/10")} data-testid="participant" data-player={x.isPlayer || undefined} data-group={group ? group.index : undefined} data-lane={lane || undefined} data-member={member || undefined}>
       {group ? <span className={cn("absolute inset-y-1 left-0 w-[3px] rounded-r-full", GROUP_MARK[group.index] ?? GROUP_MARK[0])} aria-hidden /> : null}
-      <span className="flex min-w-0 items-center gap-2">
-        <span className="relative shrink-0">
-          <ChampionPortrait champion={c} size="xs" className={cn(member && "ring-2 ring-fg-muted/70")} />
-          {x.champLevel !== null ? <span className="absolute -bottom-1 -right-1 rounded bg-bg px-0.5 text-4xs font-semibold tabular-nums leading-3 text-fg-muted">{x.champLevel}</span> : null}
-        </span>
-        <span className="min-w-0 leading-tight">
-          <span className="flex min-w-0 items-center gap-1.5">
-            <span className={cn("min-w-0 truncate text-xs @min-[30rem]/sb:text-sm", x.isPlayer || member ? "font-semibold text-fg" : "text-fg")} title={x.name ?? undefined} data-testid="participant-name">
-              <PlayerLink memberId={x.memberId} opgg={x.opgg} label={x.teamMember ?? x.name?.split("#")[0] ?? c.name}>
-                {x.teamMember && !x.isPlayer ? x.teamMember : x.name ? x.name.split("#")[0] : c.name}
-              </PlayerLink>
-              {group ? <span className="sr-only"> ({group.label.toLowerCase()})</span> : null}
-            </span>
-            {met && meetHref ? <MetChip met={met} href={meetHref(met.key)} /> : null}
-          </span>
-          <span className="flex min-w-0 items-center gap-1 text-2xs text-fg-muted">
-            <span className="truncate">{c.name}</span>
-            {lane ? (
-              <span className="shrink-0 rounded border border-border px-1 leading-4 text-fg-muted" data-testid="lane-opponent-mark">
-                Lane opponent
-              </span>
-            ) : null}
-            {rank ? <RankBadge rank={rank} queueId={queueId} checking={checking && rank.stale} /> : null}
-          </span>
-        </span>
+      <span className="relative row-span-2 shrink-0 self-center">
+        <ChampionPortrait champion={c} size="xs" className={cn(member && "ring-2 ring-fg-muted/70")} />
+        {x.champLevel !== null ? <span className="absolute -bottom-1 -right-1 rounded bg-bg px-0.5 text-4xs font-semibold tabular-nums leading-3 text-fg-muted">{x.champLevel}</span> : null}
       </span>
-      <span className="text-right text-sm font-semibold tabular-nums text-fg" data-testid="participant-kda">
+      <span className="col-span-2 flex min-w-0 items-center gap-1.5 leading-tight @min-[30rem]/sb:col-span-1 @min-[30rem]/sb:self-end">
+        <span className={cn("min-w-0 truncate text-xs leading-tight @min-[30rem]/sb:text-sm @min-[30rem]/sb:leading-tight", x.isPlayer || member ? "font-semibold text-fg" : "text-fg")} title={x.name ?? undefined} data-testid="participant-name">
+          <PlayerLink memberId={x.memberId} opgg={x.opgg} label={x.teamMember ?? x.name?.split("#")[0] ?? c.name}>
+            {x.teamMember && !x.isPlayer ? x.teamMember : x.name ? x.name.split("#")[0] : c.name}
+          </PlayerLink>
+          {group ? <span className="sr-only"> ({group.label.toLowerCase()})</span> : null}
+        </span>
+        {met && meetHref ? <MetChip met={met} href={meetHref(met.key)} /> : null}
+      </span>
+      <span className="col-start-4 row-start-1 text-right text-sm font-semibold tabular-nums text-fg @min-[30rem]/sb:col-start-3 @min-[30rem]/sb:row-span-2" data-testid="participant-kda">
         {x.kills}/{x.deaths}/{x.assists}
       </span>
-      <span className="flex items-center justify-between gap-3 [--icon-size:1.25rem] @max-[30rem]/sb:col-span-2 @max-[30rem]/sb:[--icon-size:1rem] @min-[30rem]/sb:contents">
-        <span data-testid="participant-items">
-          <ItemRow items={x.items} size={20} />
-        </span>
-        <span className="text-right text-2xs leading-tight tabular-nums text-fg-muted @min-[30rem]/sb:w-14" data-testid="participant-cs">
-          <span className="font-medium text-fg">{intText(x.cs)}</span> CS
-          <span className="@max-[30rem]/sb:hidden">
-            <br />
+      <span className="col-start-2 row-start-2 [--icon-size:1rem] @min-[30rem]/sb:col-start-4 @min-[30rem]/sb:row-span-2 @min-[30rem]/sb:row-start-1 @min-[30rem]/sb:[--icon-size:1.25rem]" data-testid="participant-items">
+        <ItemRow items={x.items} size={20} />
+      </span>
+      <span className="col-start-3 row-start-2 flex min-w-0 items-center gap-1 text-2xs leading-tight text-fg-muted @min-[30rem]/sb:col-start-2 @min-[30rem]/sb:self-start">
+        <span className="hidden truncate @min-[30rem]/sb:inline">{c.name}</span>
+        {lane ? (
+          <span className="shrink-0 rounded border border-border px-1 leading-4 text-fg-muted" data-testid="lane-opponent-mark">
+            Lane<span className="@max-[40rem]/sb:sr-only"> opponent</span>
           </span>
-          <span className="@min-[30rem]/sb:hidden"> · </span>
-          <span className="font-medium text-fg">{x.damage === null ? "—" : formatKilo(x.damage)}</span> dmg
+        ) : null}
+        {rank ? <RankBadge rank={rank} queueId={queueId} checking={checking && rank.stale} /> : null}
+      </span>
+      <span className="col-start-4 row-start-2 whitespace-nowrap text-right text-2xs leading-tight tabular-nums text-fg-muted @min-[30rem]/sb:col-start-5 @min-[30rem]/sb:row-span-2 @min-[30rem]/sb:row-start-1 @min-[30rem]/sb:w-16" data-testid="participant-cs">
+        <span className="font-medium text-fg">{intText(x.cs)}</span> CS
+        <span className="@max-[30rem]/sb:hidden">
+          <br />
         </span>
+        <span className="@min-[30rem]/sb:hidden"> · </span>
+        <span className="font-medium text-fg">{x.damage === null ? "—" : formatKilo(x.damage)}</span>
+        <span className="@max-[30rem]/sb:hidden"> dmg</span>
       </span>
     </li>
   );
