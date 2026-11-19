@@ -5,6 +5,7 @@ import { patchFromVersion, patchesAfter, publicPatchName } from "@/domain/patch"
 import { keepUnitsWithNumbers } from "@/lib/format";
 import { cachedFor } from "@/server/observability/cache";
 import { getCurrentPatch, listChampions, listPatchesDesc, type ChampionSummary } from "@/server/repositories/champions";
+import { hasteBasisOf } from "@/domain/matchup-intel/haste";
 import { loadChampionAbilities } from "./abilities";
 import { curatedEnemiesFor, getChampionNotes, getMatchupNotes } from "./curated";
 import { loadRiotText } from "./riot-text";
@@ -202,6 +203,8 @@ function abilityViews(data: DdragonChampionAbilities | null, notes: ChampionNote
         icon: abilityIconUrl(data.version, slot, a.icon),
         maxRank: a.maxRank,
         cooldown: cooldownDisplay(a, n, freshness),
+        // The checked notes' static mark only while they still describe Riot's record, as the tile's line does.
+        haste: hasteBasisOf(slot, cooldownDisplay(a, n, freshness), modifiersView(n?.modifiers, a.maxRank), { static: freshness !== "changed-since" && n?.modifiers?.static === true, ignoreStatic: freshness === "changed-since" }),
         checkedCooldown: freshness === "changed-since" && n?.cooldown ? curatedCooldownDisplay(n.cooldown, checkedRanks) : null,
         changes: changed,
         cooldownNote: drawn(n?.cooldownNote ?? null),

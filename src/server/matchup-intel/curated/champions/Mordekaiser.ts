@@ -114,6 +114,8 @@ const notes: ChampionNotes = {
       ddragonCooldown: [16, 14, 12, 10, 8],
       ddragonIdentity: { id: "MordekaiserE", name: "Death's Grasp", maxRank: 5, charges: null },
       cooldown: { kind: "per-rank", seconds: [16, 14, 12, 10, 8], starts: null },
+      // Riven vs Mordekaiser's notes: no saved page states whether ability haste shortens it.
+      modifiers: { hasteUnknown: true },
       facts: [
         { kind: "crowd-control", label: "Pull", detail: "0.5 seconds after he summons the claw, it damages enemies in its area and pulls them 250 units.", appliesTo: "target", tags: ["pull"], source: "mordekaiser-e" },
         { kind: "exception", label: "Visible 300 units into sight", detail: "Enemies see the claw only if it is at least 300 units inside their vision.", appliesTo: "self", source: "mordekaiser-e" },

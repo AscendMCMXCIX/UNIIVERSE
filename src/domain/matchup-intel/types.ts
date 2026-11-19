@@ -1,3 +1,5 @@
+import type { HasteBasis } from "./haste";
+
 /*
   MATCHUP INTEL: the types every part of the feature shares (docs/MATCHUP_INTEL.md).
 
@@ -212,6 +214,13 @@ export interface AbilityModifiers {
   resetsAttack?: true;
   /** The cooldown itself is static: ability haste does not shorten it (for charges, the recharge). */
   static?: true;
+  /**
+   * The checked notes leave open whether ability haste shortens it (a page they rest on does not
+   * say): the page then shows its base only at any haste, "Whether haste shortens it isn't known"
+   * (src/domain/matchup-intel/haste.ts). Set for each ability a note lists among what no saved page
+   * states ("whether ability haste shortens …"); curated.test.ts checks every such line has its flag.
+   */
+  hasteUnknown?: true;
   /**
    * A cooldown between two casts (of a recast, or of another charge), in seconds, where the source
    * states one (Riven's Q: 0.3125 s); `static` when ability haste does not shorten it. A delay
@@ -716,6 +725,8 @@ export interface AbilityView {
    * otherwise only what Riot's data supports (src/domain/matchup-intel/cooldown.ts).
    */
   cooldown: CooldownDisplay;
+  /** How the cooldown line behaves at a chosen ability haste (src/domain/matchup-intel/haste.ts). */
+  haste: HasteBasis;
   /**
    * The checked notes' cooldown as it was checked, once Riot's data changed after the check: shown
    * with those notes, flagged, never as the current line. Null otherwise.
