@@ -13,3 +13,24 @@ describe("tooltip templates read right on anyone's page", () => {
     expect(t).not.toMatch(/\byour?\b/i);
   });
 });
+
+describe("names that replaced hover-only or meaningless titles", () => {
+  it("a Card Studio swatch is named by its palette, never its hex code (S15)", async () => {
+    const { CARD_PALETTES, swatchName } = await import("@/domain/card-style");
+    expect(swatchName(CARD_PALETTES[0]!.primary)).toBe("Signature");
+    expect(swatchName("#58a8f2")).toBe("Signature, second colour");
+    expect(swatchName("#123456")).toBe("Custom colour");
+    for (const p of CARD_PALETTES) expect(swatchName(p.primary)).not.toMatch(/#/);
+  });
+});
+
+describe("reasons shown, not hidden in a title", () => {
+  it("a failed save says why beside 'Unable to save' (G15)", async () => {
+    const { createElement } = await import("react");
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const { SaveStatusIndicator } = await import("@/components/ui/save-status");
+    const html = renderToStaticMarkup(createElement(SaveStatusIndicator, { status: "error", error: "The champion list changed meanwhile." }));
+    expect(html).toContain("Unable to save<span data-testid=\"save-error\">: The champion list changed meanwhile.</span>");
+    expect(html).not.toContain("title=");
+  });
+});

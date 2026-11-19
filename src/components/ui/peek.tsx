@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { cn } from "@/lib/cn";
 import { DetailModal, type ModalSize } from "./detail-modal";
 import { lastInput } from "./input-kind";
 import { useAddressItem } from "./address-item";
@@ -135,7 +136,10 @@ export function usePeek({ param, ids, initial = null, valid: validProp }: { para
     const onKey = (e: KeyboardEvent) => {
       if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey || modalOpen() || isTyping(e.target)) return;
       if (e.key === "Escape") {
+        // The panel's, first: heard as it is captured and kept from what has the focus (a turned
+        // Team card's own Escape turns it back).
         e.preventDefault();
+        e.stopPropagation();
         close();
         return;
       }
@@ -144,8 +148,8 @@ export function usePeek({ param, ids, initial = null, valid: validProp }: { para
       e.preventDefault();
       move(step);
     };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
   }, [id, close, move]);
 
   const index = id === null ? -1 : ids.indexOf(id);
@@ -248,23 +252,25 @@ export function Peek({ peek, title, itemKey, children, actions, hero, windowSize
       data-peek-panel
       aria-labelledby={`${testId}-heading`}
       data-closing={closing || undefined}
-      className="fixed right-0 top-[var(--bar-top)] bottom-0 z-30 flex w-[clamp(26rem,34vw,36rem)] max-w-full flex-col border-l border-border bg-bg-elevated shadow-2xl shadow-black/50 motion-safe:peek-in data-[closing=true]:peek-out max-md:bottom-[calc(4rem+env(safe-area-inset-bottom))]"
+      className="fixed right-0 top-[var(--bar-top)] isolate bottom-0 z-30 flex w-[clamp(26rem,34vw,36rem)] max-w-full flex-col border-l border-border bg-bg-elevated shadow-2xl shadow-black/50 motion-safe:peek-in data-[closing=true]:peek-out max-md:bottom-[calc(4rem+env(safe-area-inset-bottom))]"
       data-testid={testId}
       data-peek-item={shown.key}
     >
-      <header className="flex min-h-12 shrink-0 items-center gap-2 border-b border-border px-4">
-        <h2 ref={headingRef} tabIndex={-1} id={`${testId}-heading`} className="min-w-0 flex-1 truncate text-base font-semibold outline-none focus-visible:outline-2 focus-visible:outline-accent">
+      {/* With a hero (the item's picture and name), the controls sit over its top right corner and the
+          heading is read, not shown: the hero shows the name, and the panel keeps its height for the content. */}
+      <header className={cn("flex min-h-12 shrink-0 items-center gap-2 px-4", hero ? "pointer-events-none absolute inset-x-0 top-0 z-10 justify-end px-3 *:pointer-events-auto" : "border-b border-border")}>
+        <h2 ref={headingRef} tabIndex={-1} id={`${testId}-heading`} className={cn("min-w-0 flex-1 truncate text-base font-semibold outline-none focus-visible:outline-2 focus-visible:outline-accent", hero && "sr-only")}>
           <span className="sr-only">{label}: </span>
           {shown.title}
         </h2>
         {nav}
-        <span className="mx-1 h-5 w-px bg-border" aria-hidden />
+        <span className={cn("mx-1 h-5 w-px bg-border", hero && "hidden")} aria-hidden />
         <button type="button" onClick={peek.close} aria-label={`Close ${label.toLowerCase()}`} className={NAV} data-testid={navTestIds?.close ?? `${testId}-close`}>
           <X className="h-4 w-4" aria-hidden />
         </button>
       </header>
       {/* The panel's controls are in its header, not over its content: content drawn to clear a window's corner controls (BELOW_CONTROLS) needs only a little room here, and a hero ('--peek-hero-min') only its content's height. */}
-      <div className="min-h-0 flex-auto overflow-y-auto overscroll-contain [--modal-clear-top:2.75rem] [--peek-hero-min:0rem]" data-testid={`${testId}-body`}>
+      <div className="min-h-0 flex-auto overflow-y-auto overscroll-contain [--modal-clear-top:2.5rem] [--peek-hero-min:0rem]" data-testid={`${testId}-body`}>
         <div key={shown.key} className="motion-safe:swap-in">
           {hero}
           <div className="px-4 py-3">{body}</div>

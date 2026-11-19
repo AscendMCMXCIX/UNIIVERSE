@@ -51,7 +51,7 @@ export default async function MatchesPage({ searchParams }: { searchParams: Prom
 
 /** What the games on this page prove and do not prove: the detail behind (i) beside the summary. */
 const TOGETHER_CAVEAT =
-  "Games where two or more members were on the same team, from Season 2026. Riot doesn't say who queued together, so they weren't necessarily a party.";
+  "Games where two or more members were on the same team, from Season 2026. Riot doesn't say who queued together, so not necessarily a party.";
 
 /**
  * Games with two or more members that this page cannot list (which side each member was on is not

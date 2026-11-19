@@ -586,7 +586,9 @@ export function PoolChampionTile({ index, champion, row, support, withStats = tr
         </span>
       </span>
       <span className="min-w-0">
-        <span className="flex min-w-0 items-baseline gap-2">
+        {/* Where the row is too narrow for both (a docked panel), "First choice" gives way (wrapped onto a
+            clipped second line), never the name's letters: the row's 1 and its accent bar still mark it. */}
+        <span className="flex max-h-5 min-w-0 flex-wrap items-baseline gap-x-2 overflow-hidden">
           <span className="truncate text-sm font-semibold text-fg" data-testid="pool-champion-name">{champion.name}</span>
           {first ? <span className="shrink-0 text-2xs font-semibold uppercase tracking-label text-[var(--card-accent)]">First choice</span> : null}
         </span>
@@ -619,11 +621,8 @@ export function PoolChampionTile({ index, champion, row, support, withStats = tr
           // leave the name one letter: there it takes a line of its own under the name instead.
           <span className="min-w-0 text-right max-sm:col-span-2 max-sm:col-start-2 max-sm:row-start-2 max-sm:pt-1 max-sm:text-left sm:col-span-4" data-testid="pool-champion-stats">
             {row.masteryPoints ? (
-              <span className="inline-flex items-center gap-1">
-                <span className="text-xs tabular-nums text-fg-muted">
-                  <span className="font-semibold">{formatCompactCount(row.masteryPoints)}</span> mastery · no games this season
-                </span>
-                <InfoTip label="About mastery points" text={`${formatCount(row.masteryPoints)} mastery points: lifetime experience on the champion, not this season's results. No games in this role this season.`} />
+              <span className="text-xs tabular-nums text-fg-muted">
+                <span className="font-semibold">{formatCompactCount(row.masteryPoints)}</span> mastery (all-time) · no games this season
               </span>
             ) : (
               <span className="text-xs text-fg-subtle">No games this season</span>

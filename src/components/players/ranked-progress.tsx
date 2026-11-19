@@ -55,7 +55,7 @@ export function RankedProgress({ accounts, queue, accountId, href, now }: { acco
             progress{" "}
             <InfoTip
               label="About ranked progress"
-              text={`Riot only shares the current rank, so the chart starts at the first check here. Shading marks several games played between two checks. Wins and losses: the ${RANKED_YEAR} ranked year.`}
+              text="Riot only shares the current rank, so the chart starts at the first check here. Shading marks games played between two checks."
             />
           </span>
         </h2>

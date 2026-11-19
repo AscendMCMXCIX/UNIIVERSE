@@ -43,7 +43,7 @@ export function RecentFormStrip({ form, championsById, historyHref, narrowed = n
             ) : (
               <span className="text-fg-subtle">Too few games to call a trend</span>
             )}
-            <InfoTip label="About recent form" text={`The latest games compared with all games in this filter. A trend shows only with at least ${FORM_MIN_RECENT * 2} games and a clear gap (8+ points of win rate).`} />
+            <InfoTip label="About recent form" text={`Latest games against all games in this filter. A trend shows only with ${FORM_MIN_RECENT * 2}+ games and a clear gap (8+ points of win rate).`} />
           </div>
         </div>
         <p className="text-xs text-fg-subtle">Last {strip.length} · oldest to newest</p>
