@@ -3,7 +3,7 @@
 import * as React from "react";
 import { usePathname } from "next/navigation";
 import { ChevronsUpDown, LogOut } from "lucide-react";
-import { ACCOUNT_LINKS, ADMIN_ACCOUNT_LINKS, isActivePath, type NavLink } from "@/lib/nav";
+import { ACCOUNT_LINKS, ADMIN_ACCOUNT_LINKS, isActivePath } from "@/lib/nav";
 import { Avatar } from "./ui/avatar";
 import { Menu, MenuInlineLink, MenuItem, MenuLabel, MenuLink, MenuNote, MenuSeparator } from "./ui/menu";
 import { announceAccountChange, markAccountChange } from "./account-guard";
@@ -29,8 +29,6 @@ export function otherUsername(a: AccountMenuUser): string | null {
 
 /** What a tablet's avatar menu holds besides the account's own pages: the frame's other items, since a tablet has neither the sidebar's footer nor a drawer. */
 export interface AccountMenuExtras {
-  /** The pages the top bar does not hold (Admin Mode: Data & Integrations, Audit Logs). */
-  pages: NavLink[];
   /** The switch between the modes (administrators only). */
   modeSwitch: "player" | "admin" | null;
   /** The patch line, at the foot. */
@@ -45,9 +43,9 @@ export interface AccountMenuExtras {
  * pages live under My Profile and the switch between the modes, Install App, the patch and Riot's
  * notice in the sidebar's footer beside it, so nothing is reachable from two places. A tablet has
  * no sidebar (and, since its destinations moved into the top bar, no drawer): its menu (`extras`)
- * also holds the pages the top bar does not (Admin Mode's Data & Integrations and Audit Logs),
- * Install App, the switch between the modes above Sign out, and the patch and Riot's notice at its
- * foot, as the phone's account screen does. A tap on it before the page's code has run is kept and
+ * also holds Install App, the switch between the modes above Sign out, and the patch and Riot's
+ * notice at its foot, as the phone's account screen does. Every page is a destination of the top
+ * bar in both modes (navigation N1), so the menu holds the account's own items only. A tap on it before the page's code has run is kept and
  * opens the menu once the code runs (early-taps.ts), as the phone's avatar opens its screen. It
  * closes when the page changes (Back or Forward while it is open), and coming back never opens it.
  */
@@ -98,7 +96,7 @@ export function AccountMenu({ user, showSignOut, variant = "sidebar", adminMode 
         <span className="block truncate">{user.roleLabel}</span>
       </MenuLabel>
       <MenuSeparator />
-      {[...(extras?.pages ?? []), ...links].map(({ href, label, icon: Icon }) => (
+      {links.map(({ href, label, icon: Icon }) => (
         <MenuLink key={href} href={href} icon={<Icon className="h-4 w-4" />} active={isActivePath(pathname, href)}>
           {label}
         </MenuLink>

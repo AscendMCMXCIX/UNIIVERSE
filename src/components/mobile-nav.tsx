@@ -8,8 +8,9 @@ import { ChevronLeft, ChevronRight, LogOut, SlidersHorizontal } from "lucide-rea
 import { BrandMark } from "./brand-mark";
 import { Avatar } from "./ui/avatar";
 import { DetailModal } from "./ui/detail-modal";
+import { ChromeTabs } from "./ui/chrome-tabs";
 import { ModeSwitch } from "./mode-switch";
-import { ACCOUNT_LINKS, ADMIN_ACCOUNT_LINKS, ADMIN_TABS, MATCHUP_INTEL, PROFILE_SECTIONS, RESOURCES, adminSheetLinks, backSteps, currentDestination, currentTab, isActivePath, pageName, phoneParent, phoneTabs, profileBase, tabletDestinations, type NavLink, type PhoneTab } from "@/lib/nav";
+import { ACCOUNT_LINKS, ADMIN_ACCOUNT_LINKS, backSteps, currentDestination, destinations, isActivePath, pageName, phoneParent, prefetchOf, profileBase, sectionHubOf, withSectionMemory, type Destination } from "@/lib/nav";
 import { AccountMenu, otherUsername } from "./account-menu";
 import { announceAccountChange, markAccountChange } from "./account-guard";
 import { InstallAppEntry } from "./install/install-app";
@@ -17,6 +18,7 @@ import { useInstallState } from "./install/install-state";
 import { ProfileTabs } from "./players/profile-tabs";
 import { useHeld, usePageFilters, useScrolledAway } from "./ui/page-toolbar";
 import { ScrollRow } from "./ui/scroll-row";
+import { useBackCloses } from "./ui/use-back-closes";
 import { releaseEarlyTaps } from "./early-taps";
 import { cn } from "@/lib/cn";
 import { ACCOUNT_GROUP, ACCOUNT_ROW, ACCOUNT_ROW_CHEVRON, ACCOUNT_ROW_CURRENT, ACCOUNT_ROW_ICON, ACCOUNT_ROW_IDLE, ACCOUNT_ROW_LABEL } from "@/lib/sheet";
@@ -39,7 +41,7 @@ export interface MobileNavProps {
   allowed: string[];
   /** Admin Mode: the top bar says so beside the team's mark (held sideways in a compact line of its own, read with the mark's link), and the destinations are its own. */
   adminMode?: boolean;
-  /** The account has a player profile (the account screen then offers My Profile where Profile has no tab). */
+  /** The account has a player profile (your own profile's sections then ride in the top bar). */
   hasPlayer?: boolean;
   /** The mode this administrator is in, for the switch between Player Mode and Admin Mode (administrators only, placed apart from the pages); null for everyone else. */
   modeSwitch?: "player" | "admin" | null;
@@ -51,35 +53,45 @@ export interface MobileNavProps {
   right and a turn of the phone changes it at once; the parts each posture does not use are drawn
   but not displayed (one `nav[aria-label=Primary]` is exposed at a time).
 
+  ONE SET OF DESTINATIONS EVERYWHERE (navigation N1, 19 Nov 2026): the sidebar's four, in its order,
+  with its icons and names (nav.ts, destinations): Player Mode's My Profile, Team, Matchup Intel and
+  Resources; Admin Mode's Dashboard, Users & Permissions, Platform Settings and System. A
+  destination that stands for a set of pages (Team; Users & Permissions, Platform Settings and
+  System) shows them as tabs: on phones the top bar's second row (ChromeTabs), on tablets the tabs
+  pinned in the page (SectionTabs). Every bar names its destinations by one label ladder, by its own
+  width in rem (so the reader's text size counts): the whole names, then the short ones ("Profile",
+  "Intel"; "Users", "Platform"; the whole names still read out), then the icons alone (the names
+  read out only).
+
   PHONES HELD UPRIGHT (below md, taller than 480px): one frame, the same on every page:
     - the top bar says where you are: the team's mark on a destination's own pages, or Back on a page
-      you reached from one (a teammate's profile, Settings), labelled with where it leads; the
-      page's title joins it once the page's own heading has scrolled up under it; the page's Filters
-      once its own have; your avatar at its right end opens the account screen. On a profile the
-      profile's sections ride under it, so they stay in reach however far the page scrolls;
-    - the bottom tab bar holds the five places a member goes to most (PHONE_TABS), one tap each,
-      within reach of the thumb;
-    - the account screen holds the rest, on a screen of its own (DetailModal size "screen"): who is
-      signed in; full-width rows for the pages the tab bar does not hold (Matchup Intel and Resources
-      when they have no tab; in Admin Mode the admin pages without a tab), Settings and Install App; the switch
-      between the modes and Sign out; the patch and Riot's notice. It is fixed to the screen's four
-      edges, so its height is the screen's: the sheet and the panel before it were as tall as their
-      content, which Safari 26 worked out as a header alone, and the owner's iPhone showed each as a
-      strip (DetailModal's BODY_SCROLLS, docs/MOBILE.md).
+      reached from one (a teammate's profile, Settings), labelled with where it leads; the page's
+      title joins it once the page's own heading has scrolled up under it; the page's Filters once
+      its own have; your avatar at its right end opens the account screen. On a profile the
+      profile's sections ride under it, on a destination's tabs (Team's sections) those tabs, so
+      they stay in reach however far the page scrolls;
+    - the bottom tab bar holds the four destinations, one tap each, within reach of the thumb. A
+      destination with tabs reopens the one last used in this tab of the browser, and tapped again
+      while it is the current one leads to its first (Team: Overview) (withSectionMemory);
+    - the account screen holds the account's own items only, on a screen of its own (DetailModal
+      size "screen"): who is signed in; Settings and Install App; the switch between the modes and
+      Sign out; the team's mark, the patch and Riot's notice at its foot. It is fixed to the screen's
+      four edges, so its height is the screen's: the sheet and the panel before it were as tall as
+      their content, which Safari 26 worked out as a header alone, and the owner's iPhone showed each
+      as a strip (DetailModal's BODY_SCROLLS, docs/MOBILE.md). Back closes it and leaves the page as
+      it is (useBackCloses), as it closes a game.
   PHONES HELD SIDEWAYS (a short window, 480px tall or less, below lg, whatever its width): the
     same destinations in one compact bar, 44px plus the status bar's inset, and no bottom bar: Back
-    or the team's mark (in Admin Mode with "Admin mode" beside it), the five destinations (only the
-    current one labelled where the bar is
-    narrower than 38rem), the page's title where room is left, Filters, the avatar (the account
-    screen); a profile's sections as a 44px second row. It slides away while the page scrolls down
-    and comes back on a scroll up, and while it holds the focus (useHideOnScroll).
-  TABLETS (md to lg, taller than 480px): the top bar holds the destinations, one tap each (Player
-    Mode: My Profile, Team, Matchup Intel, Resources; Admin Mode: its four tabs), the page tabs (Team's sections, a
-    profile's) are pinned in the page, and the avatar opens the account menu (AccountMenu), which
-    holds what the sidebar's footer holds on a desktop: Settings, Install App, the switch between
-    the modes, Sign out, the patch and Riot's notice (and in Admin Mode the pages without a tab).
-    Installed as an app, a tablet has no browser Back, so the bar offers Back there too, on a page
-    reached from another.
+    or the team's mark (in Admin Mode with "Admin mode" beside it), the four destinations (by the
+    label ladder, then only the current one labelled, then the icons alone: SIDEWAYS_FIT), the
+    page's title where room is left, Filters, the avatar (the account screen); a profile's sections,
+    or a destination's tabs, as a 44px second row. It slides away while the page scrolls down and
+    comes back on a scroll up, and while it holds the focus (useHideOnScroll).
+  TABLETS (md to lg, taller than 480px): the top bar holds the destinations, one tap each, the page
+    tabs (a destination's, a profile's) are pinned in the page, and the avatar opens the account
+    menu (AccountMenu), which holds what the sidebar's footer holds on a desktop: Settings, Install
+    App, the switch between the modes, Sign out, the patch and Riot's notice. Installed as an app, a
+    tablet has no browser Back, so the bar offers Back there too, on a page reached from another.
 
   The avatar answers a tap made before the page's code has run: the inline script in the root
   layout keeps it (early-taps.ts), shows the button pressed, and this opens what was asked for once
@@ -91,15 +103,21 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
   // The account's own pages in this mode (Settings), so it never leaves the mode.
   const accountLinks = adminMode ? ADMIN_ACCOUNT_LINKS : ACCOUNT_LINKS;
   const pathname = usePathname();
-  // A phone's destinations: the bottom tab bar upright, the compact bar sideways.
-  const tabs: PhoneTab[] = adminMode ? ADMIN_TABS.filter((t) => allowed.includes(t.href)) : phoneTabs(allowed);
-  // Where the labels give way to the icons alone, for this mode's destinations (TAB_FIT): any five
-  // of a member's fit the same width, Matchup Intel's shown as "Intel" (its `short`).
-  const fit = adminMode ? TAB_FIT.admin : TAB_FIT.member;
-  const activeTab = currentTab(pathname, tabs.map((t) => t.href));
-  // A tablet's destinations, in its top bar.
-  const destinations = tabletDestinations(allowed, adminMode);
-  const currentDestinationHref = currentDestination(pathname, destinations, adminMode);
+  // The mode's destinations for this account: the sidebar's, in its order (a tablet's top bar).
+  const list = destinations(allowed, adminMode);
+  const current = currentDestination(pathname, list);
+  // A phone's (its bottom bar upright, its compact bar sideways): each destination with tabs
+  // reopens the one last used, while it is not the current destination.
+  const memory = useSectionMemory();
+  const tabs = withSectionMemory(list, pathname, memory);
+  React.useEffect(() => {
+    const hub = sectionHubOf(pathname);
+    if (hub) rememberSection(hub.key, pathname);
+  }, [pathname]);
+  // A destination's tabs on its pages (Team's sections; Admin Mode's sets), as the top bar's second
+  // row on phones: the ones this account may open, when there is a choice.
+  const hub = sectionHubOf(pathname);
+  const hubSections = hub ? hub.sections.filter((s) => allowed.includes(s.href)) : [];
   // The account screen remembers the path it was opened on, so any navigation closes it without an
   // effect; forgotten once the page has changed, so coming back to that page (Forward) opens nothing unasked.
   const [sheetAt, setSheetAt] = React.useState<string | null>(null);
@@ -109,6 +127,8 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
     if (sheetAt !== null && sheetAt !== pathname) setSheetAt(null);
   }
   const sheetOpen = sheetAt === pathname;
+  // Back (the browser's, Android's) closes the account screen and the page stays (its own history entry).
+  const sheetBack = useBackCloses(sheetOpen, () => setSheetAt(null));
   // The page's code runs now: a tap on the avatar made before it (early-taps.ts) is passed on to the
   // button, once, which opens the account screen; from here on the button answers for itself. (The
   // tablet's avatar is the account menu's, which releases its own.)
@@ -119,7 +139,7 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
   const hidden = useHideOnScroll();
   const bar = useTopBarHeight(headerRef);
   const heading = usePageHeading(pathname, bar);
-  const back = useBack(pathname, heading.text, tabs, home);
+  const back = useBack(pathname, heading.text, list, home);
   // The page's filters (its FilterBar), offered in the bar once the page's own have gone up under it,
   // and kept while in use: pressed or focused, while the sheet it opened is open, and until that sheet
   // has handed it the focus back (useHeld).
@@ -131,23 +151,15 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
   // A profile's sections, when this page is one (your own only when you have a profile).
   const profile = adminMode ? null : profileBase(pathname);
   const sections = profile === "/overview" && !hasPlayer ? null : profile;
-
-  // The account screen holds what the phone's destinations do not: in Player Mode Matchup Intel and
-  // Resources (each when it has no tab, in the sidebar's order) and My Profile (likewise), in Admin
-  // Mode the admin pages without a tab; then the account's own pages. Nothing is in both.
-  const tabHrefs = tabs.map((t) => t.href);
-  const sheetLinks: NavLink[] = [
-    ...(adminMode ? adminSheetLinks(allowed, tabHrefs) : [MATCHUP_INTEL, RESOURCES].filter((l) => allowed.includes(l.href) && !tabHrefs.includes(l.href))),
-    ...(hasPlayer && !adminMode && !tabHrefs.includes("/overview") ? [{ href: "/overview", label: "My Profile", icon: PROFILE_SECTIONS[0]!.icon }] : []),
-    ...accountLinks,
-  ];
   const titleShown = heading.past && !!heading.text;
   // A tablet's bar gives way at a larger text size (BAR_FIT): the team's name first, then the
-  // destinations' labels; beside Back (the installed app, on a page reached from another) the labels
-  // go where the name does, Back having taken its room (shown as Back is: by the browser's answer,
-  // or by the display mode until the page has run).
+  // destinations' whole names to their short ones, then to the icons; beside Back (the installed
+  // app, on a page reached from another) each step comes sooner, Back having taken the name's room
+  // (shown as Back is: by the browser's answer, or by the display mode until the page has run).
   const barFit = BAR_FIT[adminMode ? "admin" : "member"];
-  const labelsFit = cn(barFit.labels, back && (standalone ? barFit.besideBack : barFit.besideBackInstalled));
+  const besideBack = back ? (standalone ? barFit.besideBack : barFit.besideBackInstalled) : null;
+  const fit = TAB_FIT[adminMode ? "admin" : "member"];
+  const sideways = SIDEWAYS_FIT[adminMode ? "admin" : "member"];
 
   return (
     <>
@@ -158,8 +170,8 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
         data-testid="mobile-topbar"
       >
         {/* The bar's row is the container its parts give way by (in rem, so the reader's text size
-            counts): a phone held sideways labels only the current destination below 38rem, a
-            tablet's brand name and labels give way at large text (BAR_FIT). */}
+            counts): a phone held sideways names its destinations by SIDEWAYS_FIT, a tablet's brand
+            name and names give way at large text (BAR_FIT). */}
         <div className="@container/topbar flex min-h-13 items-center gap-1 px-safe-2 sm:px-safe-4 md:min-h-14 md:gap-2 short:min-h-11 short:gap-1">
           {/* Back where the page was reached from another (labelled with where it leads), else the
               team's mark: on phones either way round; on tablets in the installed app only. */}
@@ -171,7 +183,7 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
                 <span className="sr-only">, back</span>
               </button>
             ) : (
-              <Link href={back.href} className={cn(BACK_CLASS, !standalone && BACK_TABLET)} data-testid="mobile-back">
+              <Link href={back.href} prefetch={prefetchOf(back.href)} className={cn(BACK_CLASS, !standalone && BACK_TABLET)} data-testid="mobile-back">
                 <ChevronLeft className="h-5 w-5 shrink-0" aria-hidden />
                 <span className="truncate">{back.label}</span>
                 <span className="sr-only">, back</span>
@@ -182,7 +194,7 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
               truncates, or goes on a tablet: BAR_FIT) only when a larger text size leaves the bar
               no room, so the bar never makes the page wider than the screen. Held sideways the mark
               alone, so the destinations have the room. */}
-          <Link href={home} className={cn("flex min-h-11 min-w-0 items-center gap-2.5 rounded-md md:min-h-14 md:min-w-8 md:shrink-[1000] short:min-h-11 short:shrink-0", back ? "max-md:hidden short:hidden" : "max-md:pl-1.5 short:pl-1.5")} title={shortName} data-testid="mobile-brand">
+          <Link href={home} prefetch={prefetchOf(home)} className={cn("flex min-h-11 min-w-0 items-center gap-2.5 rounded-md md:min-h-14 md:min-w-8 md:shrink-[1000] short:min-h-11 short:shrink-0", back ? "max-md:hidden short:hidden" : "max-md:pl-1.5 short:pl-1.5")} title={shortName} data-testid="mobile-brand">
             <BrandMark src={logoSrc} still={logoStill} name={shortName} className="h-8 w-8 rounded-md text-base" />
             <span className={cn("min-w-0 transition-opacity duration-150 short:hidden", barFit.brand, titleShown && "max-md:hidden")} data-testid="mobile-brand-name">
               <span className="block truncate text-sm font-bold tracking-label text-fg">{shortName}</span>
@@ -194,35 +206,37 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
             {adminMode ? (
               <span className="hidden whitespace-nowrap short:block" data-testid="mobile-brand-mode">
                 <span className="sr-only">{shortName}, </span>
-                <span className={cn("label-caps text-accent", SIDEWAYS_FIT.mode)}>Admin mode</span>
+                <span className={cn("label-caps text-accent", sideways.mode)}>Admin mode</span>
               </span>
             ) : null}
           </Link>
-          {/* Held sideways: the phone's destinations, one tap each, in the bar (there is no bottom
-              bar). The current one is lit twice (its icon in an accent pill, its label shown and
-              bright); where the bar is narrower than 38rem only its label shows, the others' left to
-              screen readers (SIDEWAYS_FIT). Too long for the bar even so (large text), the row
+          {/* Held sideways: the destinations, one tap each, in the bar (there is no bottom bar). The
+              current one is lit twice (its icon in an accent pill, its name shown and bright); by the
+              label ladder the names go short, then the others' are left to screen readers, then the
+              current one's too (SIDEWAYS_FIT). Too long for the bar even so (large text), the row
               scrolls sideways inside it, the current one kept in view, never widening the page. */}
           {tabs.length > 0 ? (
             <nav aria-label="Primary" className="hidden min-w-0 shrink-[0.001] short:flex" data-testid="topbar-tabs">
-              <ScrollRow as="ul" className="flex items-center gap-0.5" keepCurrentInView current={activeTab}>
-                {tabs.map(({ href, label, short, icon: Icon }) => {
-                  const active = href === activeTab;
-                  const own = href === "/overview" && user?.avatarUrl;
+              <ScrollRow as="ul" className="flex items-center gap-0.5" keepCurrentInView current={current?.key}>
+                {tabs.map((d) => {
+                  const active = d.key === current?.key;
+                  const own = d.key === "/overview" && user?.avatarUrl;
+                  const id = destinationId(d);
                   return (
-                    <li key={href} className="shrink-0">
+                    <li key={d.key} className="shrink-0">
                       <Link
-                        href={href}
+                        href={d.href}
+                        prefetch={prefetchOf(d.href)}
                         aria-current={active ? "page" : undefined}
                         // The current destination on its own page: back to the top, as the tab bar's does.
-                        onClick={(e) => stayOnCurrentPage(e, active && pathname === href)}
+                        onClick={(e) => stayOnCurrentPage(e, active && pathname === d.href)}
                         className="group flex h-11 min-w-11 items-center justify-center rounded-md focus-visible:-outline-offset-2"
-                        data-testid={`topbar-tab-${href.slice(1).replaceAll("/", "-")}`}
+                        data-testid={`topbar-tab-${id}`}
                       >
                         <span className={cn("flex h-8 items-center gap-1.5 rounded-full px-2 transition-colors duration-150", active ? "bg-accent/15 text-accent" : "text-fg-muted group-hover:bg-surface-2 group-hover:text-fg")}>
-                          {own ? <Avatar name={user!.name} src={user!.avatarUrl} size="xs" className={cn(active && "ring-2 ring-accent")} /> : <Icon className="h-5 w-5 shrink-0" aria-hidden />}
-                          <span className={cn("whitespace-nowrap text-2xs font-medium leading-none", active ? cn("font-semibold text-fg", SIDEWAYS_FIT.current) : SIDEWAYS_FIT.others)}>
-                            <TabName label={label} short={short} />
+                          {own ? <Avatar name={user!.name} src={user!.avatarUrl} size="xs" className={cn(active && "ring-2 ring-accent")} /> : <d.icon className="h-5 w-5 shrink-0" aria-hidden />}
+                          <span className={cn("whitespace-nowrap text-2xs font-medium leading-none", active && "font-semibold text-fg")}>
+                            <LadderName label={d.label} short={d.short} full={sideways.full} shortName={active ? sideways.shortCurrent : sideways.shortOthers} plain={active ? sideways.current : sideways.others} />
                           </span>
                         </span>
                       </Link>
@@ -235,31 +249,34 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
           {/* Tablets: the destinations, one tap each (the drawer they were in has gone). The current
               one is marked as in the sidebar, with its four signals: a neutral lift with a hairline of
               light, the brand's gradient as a short bar, its icon in the brand blue and its name
-              bright. The list grows into the room left, so the avatar
-              stays at the bar's end; at a larger text size the team's name beside the mark gives way
-              first, then the labels to the icons (BAR_FIT), and as a last resort the list scrolls
+              bright. The list grows into the room left, so the avatar stays at the bar's end; at a
+              larger text size the team's name beside the mark gives way first, then the names to
+              their short ones, then to the icons (BAR_FIT), and as a last resort the list scrolls
               sideways inside the bar, never widening the page. */}
-          {destinations.length > 0 ? (
+          {list.length > 0 ? (
             <nav aria-label="Primary" className="hidden min-w-0 md:not-short:flex md:not-short:grow" data-testid="topbar-destinations">
-              <ScrollRow as="ul" className="flex min-w-0 items-center gap-1" keepCurrentInView current={currentDestinationHref}>
-                {destinations.map(({ href, label, icon: Icon }) => {
-                  const active = href === currentDestinationHref;
+              <ScrollRow as="ul" className="flex min-w-0 items-center gap-1" keepCurrentInView current={current?.key}>
+                {list.map((d) => {
+                  const active = d.key === current?.key;
                   return (
-                    <li key={href} className="shrink-0">
+                    <li key={d.key} className="shrink-0">
                       <Link
-                        href={href}
+                        href={d.href}
+                        prefetch={prefetchOf(d.href)}
                         aria-current={active ? "page" : undefined}
                         // The page already shown stays as it is (its view and filters) and goes back to the top, as the sidebar's entry does.
-                        onClick={(e) => stayOnCurrentPage(e, href === pathname)}
-                        title={label}
+                        onClick={(e) => stayOnCurrentPage(e, d.href === pathname)}
+                        title={d.label}
                         className={cn("group isolate relative flex min-h-11 items-center gap-2 whitespace-nowrap rounded-lg px-3 text-sm font-semibold transition-colors duration-150 focus-visible:-outline-offset-2", active ? "text-fg" : "text-fg-muted hover:text-fg")}
-                        data-testid={`topbar-nav-${href.slice(1).replaceAll("/", "-")}`}
+                        data-testid={`topbar-nav-${destinationId(d)}`}
                       >
                         <span className={cn("absolute inset-0 -z-10 rounded-lg transition-[background-color,box-shadow] duration-150", active ? RAIL_CURRENT : RAIL_HOVER)} aria-hidden />
                         {/* The brand's gradient as a short bar at the destination's foot, growing in from its centre, as the sidebar's at its row's edge. */}
                         <span className={cn("absolute inset-x-3 bottom-1 h-0.5 rounded-full bg-gradient-to-r from-accent to-accent-2 transition-[opacity,scale] duration-200 ease-emphasized", active ? "scale-x-100 opacity-100" : "scale-x-50 opacity-0")} aria-hidden data-testid={active ? "topbar-current-bar" : undefined} />
-                        <Icon className={cn("h-[1.125rem] w-[1.125rem] shrink-0 transition-colors duration-150", active ? "text-accent" : "text-fg-subtle group-hover:text-fg-muted")} aria-hidden />
-                        <span className={labelsFit}>{label}</span>
+                        <d.icon className={cn("h-[1.125rem] w-[1.125rem] shrink-0 transition-colors duration-150", active ? "text-accent" : "text-fg-subtle group-hover:text-fg-muted")} aria-hidden />
+                        <span>
+                          <LadderName label={d.label} short={d.short} full={cn(barFit.full, besideBack?.full)} shortName={cn(barFit.shortName, besideBack?.shortName)} plain={cn(barFit.plain, besideBack?.plain)} />
+                        </span>
                       </Link>
                     </li>
                   );
@@ -298,7 +315,7 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
             <>
               {/* Tablets: the account menu, with what the sidebar's footer holds on a desktop. */}
               <span className="shrink-0 max-md:hidden short:hidden">
-                <AccountMenu user={user} showSignOut={showSignOut} variant="topbar" adminMode={adminMode} extras={{ pages: adminMode ? adminSheetLinks(allowed, destinations.map((d) => d.href)) : [], modeSwitch, status, legal }} />
+                <AccountMenu user={user} showSignOut={showSignOut} variant="topbar" adminMode={adminMode} extras={{ modeSwitch, status, legal }} />
               </span>
               {/* Phones, either way round: the account screen. A tap before the page's code has run is
                   kept (data-early; suppressHydrationWarning: the script may have marked it aria-busy,
@@ -309,10 +326,15 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
             </>
           ) : null}
         </div>
-        {/* Phones, either way round: a profile's sections stay under the bar while the page scrolls. */}
+        {/* Phones, either way round: a profile's sections, or a destination's tabs, stay under the bar
+            while the page scrolls (the same row: ChromeTabs). */}
         {sections ? (
           <div className="px-safe-2 md:not-short:hidden" data-testid="profile-sections-bar">
             <ProfileTabs basePath={sections} variant="chrome" />
+          </div>
+        ) : hub && hubSections.length > 1 ? (
+          <div className="px-safe-2 md:not-short:hidden" data-testid="hub-sections-bar">
+            <ChromeTabs label={hub.label} items={hubSections.map((s) => ({ key: s.href, href: s.href, label: s.label, testId: `${hub.key}-chrome-tab-${s.href.split("/").pop()}` }))} current={pathname} testId={`${hub.key}-chrome-tabs`} />
           </div>
         ) : null}
       </header>
@@ -321,9 +343,10 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
         // The account screen (its test ids keep the name of the sheet it replaced): the whole screen,
         // fixed to its edges (DetailModal size "screen"). Its header, with the close button, stays
         // under the status bar; the rest is one region that scrolls only where it must (large text, a
-        // phone held sideways, a 320pt screen in Safari's tab).
-        <DetailModal open onClose={() => setSheetAt(null)} size="screen" title="Account" titleId={SHEET_TITLE_ID} header={<AccountScreenHeader />} headerClassName="border-transparent" className="bg-chrome" testId="account-sheet" closeTestId="account-sheet-close">
-          <div className="mx-auto w-full max-w-md">
+        // phone held sideways, a 320pt screen in Safari's tab), the team's mark and the notes at its
+        // foot. The account's own items only: every page is a destination, one tap in the bar.
+        <DetailModal open onClose={() => setSheetAt(null)} size="screen" title="Account" titleId={SHEET_TITLE_ID} header={<AccountScreenHeader />} headerClassName="border-transparent" className="bg-chrome" bodyClassName="flex flex-col" testId="account-sheet" closeTestId="account-sheet-close">
+          <div className="mx-auto flex w-full max-w-md grow flex-col">
             {/* Who is signed in: their picture, name and role, and their username on a line of its own
                 where it differs from the name (it tells apart accounts that share a name). Nothing is
                 cut short: a long name or username wraps (usernames run to 32 characters). */}
@@ -343,17 +366,33 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
                 ) : null}
               </div>
             </div>
-            {/* The pages the phone's destinations do not hold (Matchup Intel and Resources when they have
-                no tab; in Admin Mode the admin pages without one), Settings and Install App, one
-                full-width row each (lib/sheet.ts). */}
-            <nav aria-label={adminMode ? "More admin pages and your account" : "More pages and your account"} className={ACCOUNT_GROUP}>
-              {sheetLinks.map(({ href, label, icon }) => (
-                <AccountRow key={href} href={href} icon={icon} active={isActivePath(pathname, href)} here={href === pathname} onNavigate={() => setSheetAt(null)}>
+            {/* The account's own pages (Settings) and Install App, one full-width row each (lib/sheet.ts). */}
+            <nav aria-label="Your account" className={ACCOUNT_GROUP}>
+              {accountLinks.map(({ href, label, icon }) => (
+                <AccountRow
+                  key={href}
+                  href={href}
+                  icon={icon}
+                  active={isActivePath(pathname, href)}
+                  here={href === pathname}
+                  replace={sheetBack.replace}
+                  onNavigate={(leaves) => {
+                    // Leaving the page: the link takes the screen's history entry for its own.
+                    if (leaves) sheetBack.leaving();
+                    setSheetAt(null);
+                  }}
+                >
                   {label}
                 </AccountRow>
               ))}
-              {/* The install window opens over the page: the screen closes first. */}
-              <InstallAppEntry variant="row" beforeOpen={() => setSheetAt(null)} />
+              {/* The install window opens over the page: the screen closes first, and hands it its entry. */}
+              <InstallAppEntry
+                variant="row"
+                beforeOpen={() => {
+                  sheetBack.handOver();
+                  setSheetAt(null);
+                }}
+              />
             </nav>
             {modeSwitch || showSignOut ? (
               // The way between the modes, and Sign out: a group of their own, under the pages.
@@ -368,23 +407,31 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
                 ) : null}
               </div>
             ) : null}
-            {/* The patch and Riot's notice: quiet lines at the foot. Following a link there (Riot's
-                notice leads to Settings) closes the screen first: on Settings itself only the address's
-                anchor changes, which would leave the screen open over the section it leads to. */}
+            {/* The team's mark, the patch and Riot's notice: quiet lines at the screen's foot, as the
+                sidebar's footer has them. Following a link there (Riot's notice leads to Settings)
+                closes the screen first: on Settings itself only the address's anchor changes, which
+                would leave the screen open over the section it leads to. */}
             <div
-              className="mt-5 flex flex-wrap items-baseline justify-center gap-x-3 gap-y-1 text-center"
+              className="mt-auto flex flex-wrap items-baseline justify-center gap-x-3 gap-y-1 pt-6 text-center"
               onClickCapture={(e) => {
                 // Only a plain click follows the link here: a modified one opens it elsewhere (a new
                 // tab or window), and this page, with its screen, stays as it was.
                 if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-                if ((e.target as Element | null)?.closest?.("a[href]")) setSheetAt(null);
+                if ((e.target as Element | null)?.closest?.("a[href]")) {
+                  sheetBack.leaving();
+                  setSheetAt(null);
+                }
               }}
               data-testid="account-sheet-notes"
             >
+              <p className="flex w-full items-center justify-center gap-2 pb-1 text-xs font-semibold tracking-label text-fg-muted" data-testid="account-sheet-team">
+                <BrandMark src={logoSrc} still={logoStill} name={shortName} className="h-5 w-5 rounded text-2xs" />
+                <span className="min-w-0 truncate">{shortName}</span>
+              </p>
               {status}
               <p className="text-xs leading-snug text-fg-subtle" title={legal.title}>
                 Not endorsed by Riot Games.{" "}
-                <Link href={legal.href} className="touch-target underline underline-offset-2">
+                <Link href={legal.href} replace={sheetBack.replace} className="touch-target underline underline-offset-2">
                   Details
                 </Link>
               </p>
@@ -395,35 +442,36 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
 
       {tabs.length > 0 ? (
         <nav className="@container/tabbar fixed inset-x-0 bottom-0 z-40 border-t border-border bg-chrome/95 px-safe pb-safe backdrop-blur-md md:hidden short:hidden" aria-label="Primary" data-testid="phone-tabbar">
-          {/* One column per destination, as wide as the bar allows and never narrower than its label,
-              so the longest (Leaderboards) stays whole on a 320px screen. The current tab is lit twice
-              over: its icon sits in an accent pill and its label turns bright, so it reads at a glance
-              without colour alone. With larger text the labels can stop fitting: then the bar shows
-              the icons alone, each pill sharing the width, and the labels stay the destinations'
-              names for screen readers. Measured in the bar's own width in rem, so the user's text
-              size counts (a 320px phone has 20rem at 100% and 10rem at 200%), against what each
-              mode's labels need (TAB_FIT; Matchup Intel shows its short name, "Intel", and is read
-              out in full). Wider than the phone, the bar made the browser widen the area
-              every fixed element is placed in. Held sideways there is no bottom bar: the
-              destinations ride in the top bar. */}
+          {/* One column per destination, as wide as the bar allows and never narrower than its name,
+              so the names stay whole on a 320px screen. The current tab is lit twice over: its icon
+              sits in an accent pill and its name turns bright, so it reads at a glance without colour
+              alone. By the label ladder (TAB_FIT), measured in the bar's own width in rem, so the
+              user's text size counts (a 320px phone has 20rem at 100% and 10rem at 200%): the whole
+              names, then the short ones ("Profile", "Intel"; the whole names still read out), then
+              the icons alone, each pill sharing the width, the names left to screen readers. Wider
+              than the phone, the bar made the browser widen the area every fixed element is placed
+              in. Held sideways there is no bottom bar: the destinations ride in the top bar. */}
           <ul className="mx-auto flex max-w-lg">
-            {tabs.map(({ href, label, short, icon: Icon }) => {
-              const active = href === activeTab;
-              const own = href === "/overview" && user?.avatarUrl;
+            {tabs.map((d) => {
+              const active = d.key === current?.key;
+              const own = d.key === "/overview" && user?.avatarUrl;
               return (
-                <li key={href} className={cn("min-w-max flex-1 basis-0", fit.li)}>
+                <li key={d.key} className={cn("min-w-max flex-1 basis-0", fit.li)}>
                   <Link
-                    href={href}
+                    href={d.href}
+                    prefetch={prefetchOf(d.href)}
                     aria-current={active ? "page" : undefined}
                     // The current tab on its own page: back to the top, as a phone's tab bar does (a page
-                    // under the tab, such as a teammate's profile under Players, still goes to the tab's page).
-                    onClick={(e) => stayOnCurrentPage(e, active && pathname === href)}
-                    className={cn("group flex min-h-14 flex-col items-center justify-center gap-1 px-1 pb-1 pt-1.5 text-2xs font-medium transition-colors duration-150", fit.link, active ? "font-semibold text-fg" : "text-fg-muted hover:text-fg")} data-testid={`tab-${href.slice(1)}`}>
+                    // under it, such as a teammate's profile under Team, goes to its first page).
+                    onClick={(e) => stayOnCurrentPage(e, active && pathname === d.href)}
+                    className={cn("group flex min-h-14 flex-col items-center justify-center gap-1 px-1 pb-1 pt-1.5 text-2xs font-medium transition-colors duration-150", fit.link, active ? "font-semibold text-fg" : "text-fg-muted hover:text-fg")}
+                    data-testid={`tab-${destinationId(d)}`}
+                  >
                     <span className={cn("grid h-7 w-12 place-items-center rounded-full transition-colors duration-150", fit.pill, active ? "bg-accent/15 text-accent" : "group-hover:bg-surface-2")} aria-hidden>
-                      {own ? <Avatar name={user!.name} src={user!.avatarUrl} size="xs" className={cn(active && "ring-2 ring-accent")} /> : <Icon className="h-5 w-5" />}
+                      {own ? <Avatar name={user!.name} src={user!.avatarUrl} size="xs" className={cn(active && "ring-2 ring-accent")} /> : <d.icon className="h-5 w-5" />}
                     </span>
-                    <span className={cn("leading-none", fit.label)}>
-                      <TabName label={label} short={short} />
+                    <span className="leading-none">
+                      <LadderName label={d.label} short={d.short} full={fit.full} shortName={fit.shortName} plain={fit.plain} />
                     </span>
                   </Link>
                 </li>
@@ -432,6 +480,90 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
           </ul>
         </nav>
       ) : null}
+    </>
+  );
+}
+
+/** A destination's test id in the bars: its set's key (Team's "team"), else its address ("overview", "resources-matchups"). */
+function destinationId(d: Destination): string {
+  return d.hub ?? d.key.slice(1).replaceAll("/", "-");
+}
+
+/*
+  The section each destination with tabs was last left on, in this tab of the browser (the iOS
+  per-tab pattern: withSectionMemory), kept in sessionStorage so a reload or the installed app's
+  return keeps it, and read once. A browser that keeps nothing (a private window, storage blocked)
+  remembers nothing: each destination then opens its first page, as before.
+*/
+const SECTION_MEMORY = "uniiverse.sections";
+let sectionMemory: Record<string, string> | null = null;
+const memoryListeners = new Set<() => void>();
+const subscribeMemory = (l: () => void) => {
+  memoryListeners.add(l);
+  return () => void memoryListeners.delete(l);
+};
+function readSectionMemory(): Record<string, string> {
+  if (sectionMemory) return sectionMemory;
+  let read: Record<string, string> = {};
+  try {
+    const raw: unknown = JSON.parse(window.sessionStorage.getItem(SECTION_MEMORY) ?? "{}");
+    if (raw && typeof raw === "object" && !Array.isArray(raw)) read = Object.fromEntries(Object.entries(raw).filter((e): e is [string, string] => typeof e[1] === "string"));
+  } catch {
+    // Nothing kept, or nothing readable: nothing remembered.
+  }
+  sectionMemory = read;
+  return read;
+}
+function rememberSection(hub: string, href: string) {
+  const now = readSectionMemory();
+  if (now[hub] === href) return;
+  sectionMemory = { ...now, [hub]: href };
+  try {
+    window.sessionStorage.setItem(SECTION_MEMORY, JSON.stringify(sectionMemory));
+  } catch {
+    // Kept for this page's life only.
+  }
+  for (const l of memoryListeners) l();
+}
+/** The remembered sections (none on the server and while the page hydrates, so its first paint is the server's). */
+function useSectionMemory(): Record<string, string> | null {
+  return React.useSyncExternalStore(subscribeMemory, readSectionMemory, () => null);
+}
+
+/**
+ * A destination's name in a bar, by the label ladder: its whole name (`full`), else its short one
+ * with the rest of the whole name read out (`shortName`), else read out only, the icon alone. A name
+ * without a short form (Team, Resources) shows whole until the icons step (`plain`). Each bar gives
+ * the classes for its own steps (TAB_FIT, SIDEWAYS_FIT, BAR_FIT); `data-name` marks the two forms.
+ */
+function LadderName({ label, short, full, shortName, plain }: { label: string; short?: string; full: string; shortName: string; plain: string }) {
+  if (!short || short === label) return <span className={plain}>{label}</span>;
+  return (
+    <>
+      <span className={full} data-name="full">
+        {label}
+      </span>
+      <span className={cn("hidden", shortName)} data-name="short">
+        <ShortName label={label} short={short} />
+      </span>
+    </>
+  );
+}
+
+/** The short form of a name, the rest of the whole name read out only: "Matchup" before "Intel", "& Permissions" after "Users". */
+function ShortName({ label, short }: { label: string; short: string }) {
+  if (label.endsWith(short)) {
+    return (
+      <>
+        <span className="sr-only">{label.slice(0, -short.length)}</span>
+        {short}
+      </>
+    );
+  }
+  return (
+    <>
+      {short}
+      <span className="sr-only">{label.slice(short.length)}</span>
     </>
   );
 }
@@ -446,105 +578,79 @@ function onSignOut() {
 }
 
 /**
- * Where the upright tab bar's labels stop fitting, as static class lists (Tailwind reads them whole).
- * Measured on 19 Nov 2026 with the bundled Inter at 100% text, by a clone of a real tab per label:
- * every five Player Mode can hold needs at most 19.59rem under the icons (Leaderboards and Resources
- * among them; 19.13rem with Profile as the fifth), Admin Mode's four 14.63rem. Below these widths of
- * the bar, each destination shows its icon alone (docs/MOBILE.md, the tab bar). Matchup Intel, a
- * tab for an account without one or two of Team's pages, shows as "Intel" (its `short`, nav.ts),
- * no wider than its pill: in full its label is as long as Leaderboards', and such a five needed up
- * to 21.09rem, more than a 320px phone's 20rem at 100% text.
+ * The upright tab bar's label ladder, in the bar's own width in rem (the `tabbar` container), as
+ * static class lists (Tailwind reads them whole): the whole names from `full`, the short ones
+ * ("Profile", "Intel"; "Users", "Platform"; the whole names read out) down to `icons`, and below it
+ * each destination's icon alone, each pill sharing the width, the names read out only
+ * (docs/MOBILE.md, the tab bar). MEASURED: see the numbers below.
  */
 const TAB_FIT = {
   member: {
-    li: "@max-[20rem]/tabbar:min-w-0",
-    link: "@max-[20rem]/tabbar:px-0.5",
-    pill: "@max-[20rem]/tabbar:w-full @max-[20rem]/tabbar:max-w-12",
-    label: "@max-[20rem]/tabbar:sr-only",
+    li: "@max-[15rem]/tabbar:min-w-0",
+    link: "@max-[15rem]/tabbar:px-0.5",
+    pill: "@max-[15rem]/tabbar:w-full @max-[15rem]/tabbar:max-w-12",
+    full: "@max-[18rem]/tabbar:hidden",
+    shortName: "@max-[18rem]/tabbar:inline @max-[15rem]/tabbar:sr-only",
+    plain: "@max-[15rem]/tabbar:sr-only",
   },
   admin: {
     li: "@max-[15rem]/tabbar:min-w-0",
     link: "@max-[15rem]/tabbar:px-0.5",
     pill: "@max-[15rem]/tabbar:w-full @max-[15rem]/tabbar:max-w-12",
-    label: "@max-[15rem]/tabbar:sr-only",
+    full: "@max-[21rem]/tabbar:hidden",
+    shortName: "@max-[21rem]/tabbar:inline @max-[15rem]/tabbar:sr-only",
+    plain: "@max-[15rem]/tabbar:sr-only",
   },
 } as const;
 
 /**
- * Where a tablet's top bar gives way at a larger text size, in the bar's own width in rem (the
- * `topbar` container: its row less its gutters, 1rem a side from sm, which grow with the text too),
- * as static class lists (Tailwind reads them whole): first the team's name beside its mark, then
- * the destinations' labels (each keeps its name for screen readers and in its title). Measured with
- * the bundled Inter at 100% text, the row's shown parts at their own widths and the gaps between
- * them: Player Mode's four destinations (My Profile, Team, Matchup Intel, Resources; 18 Nov 2026,
- * when Matchup Intel became an entry of its own) need 42.00rem with the name and 35.87rem without
- * it (its three needed 32.84rem and 26.75rem), Admin Mode's (its name two lines, "Admin mode" under
- * it, and Platform Settings named in full) 42.68rem and 36.16rem; each threshold keeps 0.3rem or
- * more beyond its need. A 768px tablet's bar is 768px over the root's size less the 2rem of
- * gutters: 46rem at 100% text, 36.4rem at 125%, 30rem at 150%, 22rem at 200%. So Player Mode
- * shows the name and the labels at 100%, the labels alone at 125%, the icons alone from 150% (its
- * three kept their labels at 150%: four need more than 30rem); Admin Mode the name and the labels
- * at 100%, the icons alone from 125%, as before. Back, which the installed app adds on a page
- * reached from another, takes about the room the name had (the name and its gap: 6.13rem in Player
- * Mode, 6.53rem in Admin Mode; Back and its gap: 4.67rem as "Team", 6.94rem as "Dashboard"), so
- * beside it the labels give way where the name does (`besideBack`), and where both show the name
- * shortens first. At the bare thresholds the list scrolled sideways beside Back at 125% on a 768px
- * tablet (69px) and an 820px one (23px). A longer Back label, such as a teammate's long name
- * ("Demo Sub (Support)", 10.92rem), can still leave it a few pixels short (7px at 768px and 100%),
- * where it scrolls: the last resort. Leaderboards' own heading, "Leaderboards" since it became one
- * page (8.21rem; "Team Leaderboards" was 10.74rem and left it 4px short), fits at 100% text. With
- * the root's size raised (the specs' emulation), a bar of 42.5rem to about 44.6rem keeps the labels
- * beside that Back and the list scrolls a few pixels (6px at 768px and 106%); a real text-size
- * setting starts the tablet's frame at 48rem, so a member never gets such a bar.
+ * A tablet's top bar at a larger text size, in the bar's own width in rem (the `topbar` container:
+ * its row less its gutters, 1rem a side from sm, which grow with the text too), as static class
+ * lists (Tailwind reads them whole). MEASURED: see the numbers below.
  */
 const BAR_FIT = {
   member: {
     brand: "md:@max-[42.5rem]/topbar:hidden",
-    labels: "md:@max-[36.25rem]/topbar:sr-only",
-    besideBack: "md:@max-[42.5rem]/topbar:sr-only",
-    besideBackInstalled: "md:standalone:@max-[42.5rem]/topbar:sr-only",
+    full: "md:@max-[36.25rem]/topbar:hidden",
+    shortName: "md:@max-[36.25rem]/topbar:inline md:@max-[31.5rem]/topbar:sr-only",
+    plain: "md:@max-[31.5rem]/topbar:sr-only",
+    besideBack: { full: "md:@max-[42.5rem]/topbar:hidden", shortName: "md:@max-[42.5rem]/topbar:inline md:@max-[36.25rem]/topbar:sr-only", plain: "md:@max-[36.25rem]/topbar:sr-only" },
+    besideBackInstalled: { full: "md:standalone:@max-[42.5rem]/topbar:hidden", shortName: "md:standalone:@max-[42.5rem]/topbar:inline md:standalone:@max-[36.25rem]/topbar:sr-only", plain: "md:standalone:@max-[36.25rem]/topbar:sr-only" },
   },
   admin: {
-    brand: "md:@max-[43rem]/topbar:hidden",
-    labels: "md:@max-[36.5rem]/topbar:sr-only",
-    besideBack: "md:@max-[43rem]/topbar:sr-only",
-    besideBackInstalled: "md:standalone:@max-[43rem]/topbar:sr-only",
+    brand: "md:@max-[39rem]/topbar:hidden",
+    full: "md:@max-[49rem]/topbar:hidden",
+    shortName: "md:@max-[49rem]/topbar:inline md:@max-[33rem]/topbar:sr-only",
+    plain: "md:@max-[33rem]/topbar:sr-only",
+    besideBack: { full: "md:@max-[56rem]/topbar:hidden", shortName: "md:@max-[56rem]/topbar:inline md:@max-[40rem]/topbar:sr-only", plain: "md:@max-[40rem]/topbar:sr-only" },
+    besideBackInstalled: { full: "md:standalone:@max-[56rem]/topbar:hidden", shortName: "md:standalone:@max-[56rem]/topbar:inline md:standalone:@max-[40rem]/topbar:sr-only", plain: "md:standalone:@max-[40rem]/topbar:sr-only" },
   },
 } as const;
 
 /**
- * The destinations' labels in a phone's bar held sideways, in the bar's own width in rem: the
- * others' below 38rem (the usual five labelled need 33.28rem with the mark and the avatar, 36.28rem
- * with Filters too; any five with Matchup Intel among them, "Intel" in the bar, up to 33.95rem and
- * 36.95rem; measured on 19 Nov 2026 at 100% text), the current one's below 27rem, where a larger
- * text size leaves room for the icons alone (26.9rem with Leaderboards current and Filters; the
- * same fallback as the upright bar's, TAB_FIT).
+ * The destinations' names in a phone's bar held sideways, in the bar's own width in rem: the whole
+ * names from `full`, the short ones down to the others' step, then only the current one's, then the
+ * icons alone. MEASURED: see the numbers below.
  */
 const SIDEWAYS_FIT = {
-  others: "@max-[38rem]/topbar:sr-only",
-  current: "@max-[27rem]/topbar:sr-only",
-  /**
-   * Admin Mode's words beside the mark (6.04rem with their gap), read out only below 32rem: with them
-   * Admin Mode's four labelled need 33.18rem and the current one alone 26.79rem (29.8rem with
-   * Filters), without them 27.14rem and 20.75rem.
-   */
-  mode: "@max-[32rem]/topbar:sr-only",
+  member: {
+    full: "@max-[33rem]/topbar:hidden",
+    shortOthers: "@max-[33rem]/topbar:inline @max-[29rem]/topbar:sr-only",
+    shortCurrent: "@max-[33rem]/topbar:inline @max-[22rem]/topbar:sr-only",
+    others: "@max-[29rem]/topbar:sr-only",
+    current: "@max-[22rem]/topbar:sr-only",
+    mode: "",
+  },
+  admin: {
+    full: "@max-[40rem]/topbar:hidden",
+    shortOthers: "@max-[40rem]/topbar:inline @max-[34rem]/topbar:sr-only",
+    shortCurrent: "@max-[40rem]/topbar:inline @max-[27rem]/topbar:sr-only",
+    others: "@max-[34rem]/topbar:sr-only",
+    current: "@max-[27rem]/topbar:sr-only",
+    /** Admin Mode's words beside the mark, read out only below this. */
+    mode: "@max-[32rem]/topbar:sr-only",
+  },
 } as const;
-
-/**
- * A phone destination's name in its bars: the end of a long name where it has one (Matchup Intel
- * shows "Intel", PhoneTab's `short`), the words before it read out only, so screen readers and
- * speech input have the whole name and the bar the room of a short label.
- */
-function TabName({ label, short }: Pick<PhoneTab, "label" | "short">) {
-  if (!short || short === label || !label.endsWith(short)) return label;
-  return (
-    <>
-      <span className="sr-only">{label.slice(0, -short.length)}</span>
-      {short}
-    </>
-  );
-}
 
 /** The top bar's Filters count, over the button's corner. */
 const TOPBAR_COUNT = "absolute right-0.5 top-1 min-w-4 rounded-full bg-accent px-1 text-center text-2xs font-semibold leading-4 tabular-nums text-bg";
@@ -588,21 +694,25 @@ function AccountScreenHeader() {
 
 /**
  * A page in the account screen: its icon, its name and a chevron, the whole width (lib/sheet.ts).
- * The row of the page shown (`here`: Matchup Intel with a pair chosen, the Library with a section
- * picked) keeps the page as it is, its query with it, and takes it back to the top once the screen
- * has closed, as the current tab does (its own link has no query: following it cleared the pair).
- * The screen keeps the page in place while it is open, so the page goes up only after it has gone.
+ * The row of the page shown (`here`: Settings with a section in view) keeps the page as it is, its
+ * query with it, and takes it back to the top once the screen has closed, as the current tab does
+ * (its own link has no query). The screen keeps the page in place while it is open, so the page goes
+ * up only after it has gone. A row that leaves the page replaces the screen's history entry
+ * (`replace`), so Back from the page it opens comes back to this one; `onNavigate` is told whether
+ * the press leaves this page (a plain click on another page's row).
  */
-function AccountRow({ href, icon: Icon, active, here, onNavigate, children }: { href: string; icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>; active: boolean; here: boolean; onNavigate: () => void; children: React.ReactNode }) {
+function AccountRow({ href, icon: Icon, active, here, replace, onNavigate, children }: { href: string; icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>; active: boolean; here: boolean; replace: boolean; onNavigate: (leaves: boolean) => void; children: React.ReactNode }) {
   return (
     <Link
       href={href}
+      replace={replace}
       onClick={(e) => {
-        if (here && isPlainClick(e)) {
+        const plain = isPlainClick(e);
+        if (here && plain) {
           e.preventDefault();
           requestAnimationFrame(() => requestAnimationFrame(scrollToTop));
         }
-        onNavigate();
+        onNavigate(plain && !here);
       }}
       aria-current={active ? "page" : undefined}
       className={cn(ACCOUNT_ROW, active ? ACCOUNT_ROW_CURRENT : ACCOUNT_ROW_IDLE)}
@@ -744,7 +854,7 @@ function recordVisit(path: string) {
   for (const l of visitListeners) l();
 }
 
-function useBack(pathname: string, heading: string | null, tabs: readonly PhoneTab[], home: string): ({ history: true; label: string; go: () => void } | { history: false; label: string; href: string }) | null {
+function useBack(pathname: string, heading: string | null, list: readonly Destination[], home: string): ({ history: true; label: string; go: () => void } | { history: false; label: string; href: string }) | null {
   const router = useRouter();
   React.useEffect(() => recordVisit(pathname), [pathname]);
   React.useEffect(() => {
@@ -752,11 +862,11 @@ function useBack(pathname: string, heading: string | null, tabs: readonly PhoneT
     if (top?.path === pathname && heading) top.title = heading;
   }, [pathname, heading]);
   React.useSyncExternalStore(subscribeVisits, () => visitsVersion, () => 0);
-  const parent = phoneParent(pathname, tabs, home);
+  const parent = phoneParent(pathname, list, home);
   if (!parent) return null;
   const top = visits[visits.length - 1];
   const before = top?.path === pathname ? visits[visits.length - 2] : null;
-  if (before) return { history: true, label: before.title ?? pageName(before.path, tabs), go: () => goBackTo(before.path, pathname, router.back) };
+  if (before) return { history: true, label: before.title ?? pageName(before.path, list), go: () => goBackTo(before.path, pathname, router.back) };
   return { history: false, label: parent.label, href: parent.href };
 }
 

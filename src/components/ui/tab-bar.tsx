@@ -33,6 +33,8 @@ export interface TabBarItem {
   label: string;
   icon: LucideIcon;
   testId?: string;
+  /** False: never fetched ahead of a tap (a profile's sections: nav.ts, prefetchOf). */
+  prefetch?: false;
 }
 
 /**
@@ -137,6 +139,7 @@ export function TabBar({ label, items, current, keepScroll = false, dense = fals
               <li key={s.key} className="shrink-0 snap-start max-sm:grow">
                 <Link
                   href={s.href}
+                  prefetch={s.prefetch}
                   aria-current={on ? "page" : undefined}
                   scroll={!keepScroll}
                   // The page keeps its place (ScrollOnNavigate leaves these links to the page).

@@ -16,8 +16,14 @@ test("the manifest, icons and service worker are served to anyone, and pages lin
   expect(manifest.display).toBe("standalone");
   expect(manifest.start_url).toBe("/");
   expect(manifest.icons.map((i) => i.sizes)).toEqual(expect.arrayContaining(["192x192", "512x512"]));
-  // Installed on a computer: the main pages in the icon's menu, and one window reused.
-  expect(manifest.shortcuts.map((s) => s.name)).toEqual(["Team Overview", "My Profile", "Matches", "Leaderboards"]);
+  // Installed: the bars' four destinations in the icon's menu, in their order and by their names
+  // (nav.ts, MANIFEST_SHORTCUTS; nav-parity.test.ts holds them to the bars), and one window reused.
+  expect(manifest.shortcuts.map((s) => [s.name, s.url])).toEqual([
+    ["My Profile", "/overview"],
+    ["Team", "/team"],
+    ["Matchup Intel", "/resources/matchups"],
+    ["Resources", "/resources"],
+  ]);
   expect(manifest.launch_handler.client_mode[0]).toBe("navigate-existing");
   for (const shortcut of manifest.shortcuts) {
     expect(shortcut.url.startsWith(manifest.scope), shortcut.url).toBe(true);

@@ -5,13 +5,14 @@ import { usePathname } from "next/navigation";
 import { ROW_WIDTH, SECTION_HUBS } from "@/lib/nav";
 import { BrandMark } from "@/components/brand-mark";
 import { TabBar } from "@/components/ui/tab-bar";
-import { cn } from "@/lib/cn";
 
 /**
  * The sections of a sidebar entry that stands for several pages (SECTION_HUBS), as tabs at the top
  * of each of those pages, limited to the ones this account may open:
  *   Team                 Overview | Players | Leaderboards | Matches;
- *   Platform Settings    Branding | Previews | Resources (Admin Mode).
+ *   Users & Permissions  Accounts | Access levels | Personal data (Admin Mode);
+ *   Platform Settings    Branding | Previews | Resources (Admin Mode);
+ *   System               Health | Data & Integrations | Audit Logs (Admin Mode).
  * Matchup Intel and Resources (the Library) are entries of their own, one page each, with no tabs.
  * They are the one list of those pages: the sidebar has a single entry, marked on all of them.
  * Every tab is a link with its own address, so deep links, Back/Forward and new tabs work as
@@ -45,10 +46,9 @@ export function SectionTabs({ allowed, team }: { allowed: string[]; team: { name
       current={current.href}
       dense
       sticky
-      // Phones reach Team's sections from their destinations (MobileNav: the bottom tab bar upright, the
-      // top bar held sideways, a short window below lg whatever its width), so the bar is not repeated
-      // in the page there.
-      className={cn("mb-4 sm:mb-5 lg:mb-4 lg:first:-mt-2", hub.key === "team" && "max-md:hidden max-lg:short:hidden")}
+      // Phones carry these tabs in the top bar's second row (MobileNav: upright, and held sideways, a
+      // short window below lg whatever its width), so the row is not repeated in the page there.
+      className="mb-4 max-md:hidden max-lg:short:hidden sm:mb-5 lg:mb-4 lg:first:-mt-2"
       testId={`${hub.key}-tabs`}
       inner={ROW_WIDTH[hub.width]}
       end={

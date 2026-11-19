@@ -1,13 +1,10 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { PROFILE_SECTIONS, activeHref } from "@/lib/nav";
-import { TabBar, tabIndicatorClass } from "@/components/ui/tab-bar";
-import { ScrollRow } from "@/components/ui/scroll-row";
-import { cn } from "@/lib/cn";
-import { isPlainClick, stayOnCurrentPage } from "@/lib/back-to-top";
+import { PROFILE_SECTIONS, activeHref, prefetchOf } from "@/lib/nav";
+import { TabBar } from "@/components/ui/tab-bar";
+import { ChromeTabs } from "@/components/ui/chrome-tabs";
 
 /** Sections that share the chosen season and game mode when you move between them. */
 const KEEPS_SEASON = new Set(["overview", "champions", "matches"]);
@@ -24,9 +21,12 @@ const KEEPS_SEASON = new Set(["overview", "champions", "matches"]);
  *            below lg), which carries them in its top bar as upright.
  *   chrome   phones, either way round: in the top bar (MobileNav), so the sections stay in reach
  *            however far the page scrolls; four short names sharing the width, 44px tall (held
- *            sideways the compact bar's second row). Moving between them replaces the history
- *            entry (as a phone's tabs within one screen do), so Back leaves the profile, and a
- *            section opened far down the page starts at its top, just under the bar.
+ *            sideways the compact bar's second row), the same row as a destination's tabs there
+ *            (ChromeTabs). Moving between them replaces the history entry (as a phone's tabs
+ *            within one screen do), so Back leaves the profile, and a section opened far down the
+ *            page starts at its top, just under the bar.
+ * No section is fetched ahead of a tap: a profile's layout starts its player's Riot refresh (nav.ts,
+ * prefetchOf).
  */
 export function ProfileTabs({ basePath, variant = "page" }: { basePath: string; variant?: "page" | "chrome" }) {
   const pathname = usePathname();
@@ -49,13 +49,13 @@ export function ProfileTabs({ basePath, variant = "page" }: { basePath: string; 
     if (top === null || chosen.from <= top) return;
     return settleSectionTop("page");
   }, [current.key, variant]);
-  if (variant === "chrome") return <ChromeTabs items={sections.map((s) => ({ key: s.key, href: hrefOf(s), label: s.short, testId: `profile-chrome-tab-${s.key}` }))} current={current.key} />;
+  if (variant === "chrome") return <ProfileChromeTabs items={sections.map((s) => ({ key: s.key, href: hrefOf(s), label: s.short, testId: `profile-chrome-tab-${s.key}`, prefetch: prefetchOf(s.href) }))} current={current.key} />;
   // Tucked right under the profile card (the frame's own gap taken back), and pinned at the top of
   // the page once the card has scrolled away, so the sections stay in reach (TabBar's sticky).
   return (
     <TabBar
       label="Profile sections"
-      items={sections.map((s) => ({ key: s.key, href: hrefOf(s), label: s.label, icon: s.icon, testId: `profile-tab-${s.key}` }))}
+      items={sections.map((s) => ({ key: s.key, href: hrefOf(s), label: s.label, icon: s.icon, testId: `profile-tab-${s.key}`, prefetch: prefetchOf(s.href) }))}
       current={current.key}
       keepScroll
       sticky
@@ -167,7 +167,8 @@ function settleSectionTop(variant: "page" | "chrome"): () => void {
   return stop;
 }
 
-function ChromeTabs({ items, current }: { items: Array<{ key: string; href: string; label: string; testId: string }>; current: string }) {
+/** The profile's sections in a phone's top bar: the shared row (ChromeTabs), a section chosen once the card has gone under the bar landing at its own top. */
+function ProfileChromeTabs({ items, current }: { items: React.ComponentProps<typeof ChromeTabs>["items"]; current: string }) {
   // The section chosen while the card was under the bar: it starts at its top (settleSectionTop)
   // once it is the current one. Any other change of section (Back to one reached by a link) is
   // the reader's own place to keep.
@@ -179,37 +180,17 @@ function ChromeTabs({ items, current }: { items: Array<{ key: string; href: stri
     return settleSectionTop("chrome");
   }, [current]);
   return (
-    <nav aria-label="Profile sections" data-testid="profile-chrome-tabs">
-      {/* The four share the width; with a larger text size they scroll sideways instead of overflowing. */}
-      <ScrollRow as="ul" className="flex" keepCurrentInView current={current}>
-        {items.map((t) => {
-          const on = t.key === current;
-          return (
-            <li key={t.key} className="min-w-max flex-1 basis-0">
-              <Link
-                href={t.href}
-                replace
-                scroll={false}
-                // Lands at the section's own top (settleSectionTop), never at the page's (ScrollOnNavigate).
-                data-keep-scroll=""
-                aria-current={on ? "page" : undefined}
-                onClick={(e) => {
-                  // The current section: the page stays as it is (its view and filters) and goes
-                  // back to the top, as the current tab does everywhere (src/lib/back-to-top.ts).
-                  if (stayOnCurrentPage(e, on)) return;
-                  pending.current = !on && isPlainClick(e) && cardScrolledPast() ? t.key : null;
-                }}
-                // 6px a side: the four names fit a 320px screen with the bar's gutters. 44px tall either way
-                // round: a touch screen's target (STANDARDS.md), under the compact bar's 44px held sideways.
-                className={cn("flex min-h-11 items-center justify-center whitespace-nowrap px-1.5 text-sm font-medium transition-colors duration-150", tabIndicatorClass(on))}
-                data-testid={t.testId}
-              >
-                {t.label}
-              </Link>
-            </li>
-          );
-        })}
-      </ScrollRow>
-    </nav>
+    <ChromeTabs
+      label="Profile sections"
+      items={items}
+      current={current}
+      // Lands at the section's own top (settleSectionTop), never at the page's (ScrollOnNavigate).
+      replace
+      keepScroll
+      onChoose={(key) => {
+        pending.current = key && cardScrolledPast() ? key : null;
+      }}
+      testId="profile-chrome-tabs"
+    />
   );
 }

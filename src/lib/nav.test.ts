@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ADMIN_ACCOUNT_LINKS, ADMIN_ENTRIES, ADMIN_HOME, ADMIN_LINKS, ADMIN_TABS, MATCHUP_INTEL, NAV_ENTRIES, NAV_LINKS, PAGE_WIDTH, PHONE_TABS, ROW_WIDTH, PHONE_TAB_LIMIT, RESOURCES, SECTION_HUBS, TEAM_SECTIONS, activeHref, adminSheetLinks, backSteps, canOpen, currentDestination, currentTab, encountersRedirect, entryLinks, isActivePath, isNavHub, pageName, pageWidthOf, phoneParent, phoneTabs, profileBase, tabletDestinations } from "./nav";
+import { ADMIN_ENTRIES, ADMIN_HOME, ADMIN_LINKS, MANIFEST_SHORTCUTS, MATCHUP_INTEL, NAV_ENTRIES, NAV_LINKS, PAGE_WIDTH, ROW_WIDTH, RESOURCES, SECTION_HUBS, TEAM_SECTIONS, activeHref, backSteps, canOpen, currentDestination, destinations, encountersRedirect, entryLinks, isActivePath, isNavHub, pageName, pageWidthOf, phoneParent, prefetchOf, profileBase, sectionHubOf, withSectionMemory } from "./nav";
 import { MATCHUP_INTEL_PATH } from "@/components/matchup-intel/address";
 import { BookMarked, Swords } from "lucide-react";
 import type { Session } from "@/server/auth/permissions";
@@ -20,12 +20,49 @@ describe("navigation entries", () => {
   });
 
 
-  it("Admin Mode has its six sections, in order, and none of the player pages", () => {
-    expect(ADMIN_ENTRIES.map((e) => e.label)).toEqual(["Dashboard", "Users & Permissions", "Platform Settings", "Data & Integrations", "System Health", "Audit Logs"]);
+  it("Admin Mode has four destinations, in order, three of them with tabs, every admin page under one of them, and none of the player pages", () => {
+    expect(ADMIN_ENTRIES.map((e) => [e.label, e.short ?? null])).toEqual([
+      ["Dashboard", null],
+      ["Users & Permissions", "Users"],
+      ["Platform Settings", "Platform"],
+      ["System", null],
+    ]);
+    // System is Health, Data & Integrations and Audit Logs, at the addresses they always had.
+    const system = ADMIN_ENTRIES.find((e) => isNavHub(e) && e.key === "admin-system")!;
+    expect(entryLinks(system).map((l) => [l.href, l.label])).toEqual([
+      ["/admin/system", "Health"],
+      ["/admin/data", "Data & Integrations"],
+      ["/admin/audit", "Audit Logs"],
+    ]);
+    expect(ADMIN_LINKS.map((l) => l.href)).toEqual(["/admin", "/admin/people", "/admin/people/access", "/admin/people/privacy", "/admin/branding", "/admin/previews", "/admin/resources", "/admin/system", "/admin/data", "/admin/audit"]);
     expect(ADMIN_LINKS.every((l) => l.href.startsWith("/admin"))).toBe(true);
     expect(ADMIN_LINKS.map((l) => l.href)).not.toContain("/team");
     expect(NAV_LINKS.some((l) => l.href.startsWith("/admin"))).toBe(false);
-    expect(ADMIN_TABS.every((t) => ADMIN_LINKS.some((l) => l.href === t.href))).toBe(true);
+    // One "Settings" on a phone in Admin Mode: the account's. Platform Settings is "Platform" where a bar has no room.
+    const names = ADMIN_ENTRIES.flatMap((e) => [e.label, e.short].filter(Boolean));
+    expect(names.filter((n) => n === "Settings")).toEqual([]);
+  });
+
+  it("every set of tabs is an entry of one of the modes, in their order, and every entry with tabs has its set", () => {
+    const hubs = [...NAV_ENTRIES, ...ADMIN_ENTRIES].filter(isNavHub);
+    expect(SECTION_HUBS.map((h) => h.key)).toEqual(hubs.map((h) => h.key));
+    for (const hub of hubs) expect(SECTION_HUBS.find((h) => h.key === hub.key)!.sections, hub.key).toBe(hub.sections);
+    expect(sectionHubOf("/admin/data")?.key).toBe("admin-system");
+    expect(sectionHubOf("/players")?.key).toBe("team");
+    // A page inside a section (a teammate's profile) is not one of its tabs.
+    expect(sectionHubOf("/players/abc")).toBeNull();
+    expect(sectionHubOf("/admin")).toBeNull();
+  });
+
+  it("a short name is the start or the end of the whole name, so what a bar shows is always part of what is read out", () => {
+    const named = [...NAV_ENTRIES, ...ADMIN_ENTRIES].filter((e) => e.short);
+    expect(named.map((e) => [e.label, e.short])).toEqual([
+      ["My Profile", "Profile"],
+      ["Matchup Intel", "Intel"],
+      ["Users & Permissions", "Users"],
+      ["Platform Settings", "Platform"],
+    ]);
+    for (const e of named) expect(e.label.startsWith(`${e.short} `) || e.label.endsWith(` ${e.short}`), e.label).toBe(true);
   });
 
   it("every admin page needs an administrator permission, so a player can open none of them", () => {
@@ -42,14 +79,14 @@ describe("navigation entries", () => {
   });
 
   it("no navigation anywhere leads to the removed Meta & Trends or Clash Scout pages", () => {
-    const hrefs = [...NAV_LINKS, ...ADMIN_ENTRIES.flatMap(entryLinks), ...SECTION_HUBS.flatMap((h) => h.sections), ...ADMIN_TABS, ...PHONE_TABS].map((l) => l.href);
+    const hrefs = [...NAV_LINKS, ...ADMIN_ENTRIES.flatMap(entryLinks), ...SECTION_HUBS.flatMap((h) => h.sections), ...MANIFEST_SHORTCUTS.map((s) => ({ href: s.url }))].map((l) => l.href);
     expect(hrefs.filter((h) => h.startsWith("/trends") || h.startsWith("/clash"))).toEqual([]);
-    expect(SECTION_HUBS.map((h) => h.key)).toEqual(["team", "admin-settings"]);
+    expect(SECTION_HUBS.map((h) => h.key)).toEqual(["team", "admin-users", "admin-settings", "admin-system"]);
   });
 
   it("Matchup Intel and Resources are entries of their own, one page each, with no tabs, which every account may open", () => {
     // Matchup Intel with its swords, at the address every link to it has used (nothing redirects).
-    expect(MATCHUP_INTEL).toEqual({ href: "/resources/matchups", label: "Matchup Intel", icon: Swords });
+    expect(MATCHUP_INTEL).toEqual({ href: "/resources/matchups", label: "Matchup Intel", short: "Intel", icon: Swords });
     expect(MATCHUP_INTEL.href).toBe(MATCHUP_INTEL_PATH);
     expect(RESOURCES).toEqual({ href: "/resources", label: "Resources", icon: BookMarked });
     for (const link of [MATCHUP_INTEL, RESOURCES]) {
@@ -84,7 +121,9 @@ describe("navigation entries", () => {
   it("from a 1600px window the pages of a tab bar share one width (Team's the wide one), and under it every page keeps the width it always had", () => {
     expect(SECTION_HUBS.map((h) => [h.key, h.width])).toEqual([
       ["team", "wide"],
+      ["admin-users", "max"],
       ["admin-settings", "max"],
+      ["admin-system", "max"],
     ]);
     // Team Overview and Leaderboards were always 100rem; Players and Matches join them from 1600px.
     expect(TEAM_SECTIONS.map((s) => pageWidthOf(s.href))).toEqual(["wide", "wideFrom1600", "wide", "wideFrom1600"]);
@@ -96,140 +135,106 @@ describe("navigation entries", () => {
   });
 });
 
-describe("phone tab bar", () => {
-  // A team member may open every Player Mode page.
-  const member = phoneTabs(NAV_LINKS.map((l) => l.href));
-  // An account outside the team: its profile, Matchup Intel and Resources only.
-  const personal = phoneTabs(["/overview", "/resources/matchups", "/resources", "/settings"]);
-  const hrefs = (tabs: typeof member) => tabs.map((t) => t.href);
-
-  it("a team member's bar: Team, Players, Leaderboards, Matches and Profile, one tap each; Matchup Intel and Resources move to the account screen", () => {
-    expect(hrefs(member)).toEqual(["/team", "/players", "/leaderboards", "/matches", "/overview"]);
-    expect(member).toHaveLength(PHONE_TAB_LIMIT);
-    expect(hrefs(personal)).toEqual(["/overview", "/resources/matchups", "/resources"]);
-  });
-
-  it("where there is room, Matchup Intel comes before Resources, as in the sidebar, so it is never the harder of the two to reach", () => {
-    const all = NAV_LINKS.map((l) => l.href);
-    // Without Leaderboards: Matchup Intel takes the fifth place, Resources stays on the account screen.
-    expect(hrefs(phoneTabs(all.filter((h) => h !== "/leaderboards")))).toEqual(["/team", "/players", "/matches", "/overview", "/resources/matchups"]);
-    // Without two of Team's pages: both.
-    expect(hrefs(phoneTabs(all.filter((h) => h !== "/leaderboards" && h !== "/matches")))).toEqual(["/team", "/players", "/overview", "/resources/matchups", "/resources"]);
-    expect(PHONE_TABS.map((t) => t.href).slice(-2)).toEqual([MATCHUP_INTEL.href, RESOURCES.href]);
-  });
-
-  it("Matchup Intel shows as Intel in the phone's bars, the end of its name, which is still its whole name", () => {
-    // Only Matchup Intel has a short form: in full it is as long as Leaderboards, and a five with
-    // both lost every label on a 320px phone (mobile-nav.tsx, TAB_FIT).
-    expect(PHONE_TABS.filter((t) => t.short).map((t) => [t.href, t.label, t.short])).toEqual([[MATCHUP_INTEL.href, "Matchup Intel", "Intel"]]);
-    for (const tab of PHONE_TABS.filter((t) => t.short)) expect(tab.label.endsWith(` ${tab.short}`), tab.href).toBe(true);
-    // Back still names it in full.
-    expect(pageName(MATCHUP_INTEL.href, PHONE_TABS)).toBe("Matchup Intel");
-  });
-
-  it("offers only pages the account may open", () => {
-    expect(hrefs(phoneTabs(["/team", "/overview", "/resources"]))).toEqual(["/team", "/overview", "/resources"]);
-  });
-
-  it("uses the same names and icons as the sidebar and the Team tabs", () => {
-    for (const tab of PHONE_TABS) {
-      const team = TEAM_SECTIONS.find((s) => s.href === tab.href);
-      if (team && tab.href !== "/team") {
-        expect(tab.label, tab.href).toBe(team.label);
-        expect(tab.icon, tab.href).toBe(team.icon);
-      }
-      const entry = NAV_ENTRIES.find((e) => ("sections" in e ? e.sections[0]!.href : e.href) === tab.href);
-      if (entry) expect(tab.icon, tab.href).toBe(entry.icon);
-      // Matchup Intel and Resources by the sidebar's own names (only My Profile is shortened, to Profile).
-      if (entry && !isNavHub(entry) && tab.href !== "/overview") expect(tab.label, tab.href).toBe(entry.label);
-    }
-  });
-
-  it("marks a page's own tab: a teammate's profile is under Players, your own profile's sections under Profile", () => {
-    const m = hrefs(member);
-    expect(currentTab("/players", m)).toBe("/players");
-    expect(currentTab("/players/abc/matches", m)).toBe("/players");
-    expect(currentTab("/leaderboards", m)).toBe("/leaderboards");
-    expect(currentTab("/matches", m)).toBe("/matches");
-    expect(currentTab("/overview/champions", m)).toBe("/overview");
-    expect(currentTab("/me", m)).toBe("/overview");
-    expect(currentTab("/resources", hrefs(personal))).toBe("/resources");
-    // Matchup Intel is a destination of its own: its own tab where it has one, never Resources'.
-    expect(currentTab("/resources/matchups", hrefs(personal))).toBe("/resources/matchups");
-    expect(currentTab("/resources/matchups", m)).toBeNull();
-    expect(currentTab("/resources/matchups", ["/overview", "/resources"])).toBeNull();
-  });
-
-  it("Admin Mode's Platform Settings pages are its Settings tab", () => {
-    const admin = ADMIN_TABS.map((t) => t.href);
-    expect(currentTab("/admin/previews", admin)).toBe("/admin/branding");
-    expect(currentTab("/admin/people/access", admin)).toBe("/admin/people");
-  });
-
-  it("marks nothing outside the tabs and hubs; no Draft, Meta or Clash Scout anywhere", () => {
-    const m = hrefs(member);
-    expect(currentTab("/settings", m)).toBeNull();
-    expect(currentTab("/resources", m)).toBeNull();
-    expect(currentTab("/clash", m)).toBeNull();
-    expect(currentTab("/draft", m)).toBeNull();
-    expect(currentTab("/trends/solo", m)).toBeNull();
-    expect(ADMIN_TABS.map((t) => t.href)).not.toContain("/draft");
-  });
-});
-
-describe("tablet top bar", () => {
+describe("the destinations every bar shows", () => {
   const all = NAV_LINKS.map((l) => l.href);
   const adminAll = ADMIN_LINKS.map((l) => l.href);
+  const view = (list: ReturnType<typeof destinations>) => list.map((d) => [d.key, d.href, d.label, d.short ?? null]);
 
-  it("Player Mode: the sidebar's four entries, one tap each, a hub's to its first page this account may open", () => {
-    const bar = tabletDestinations(all, false);
-    expect(bar.map((d) => [d.href, d.label])).toEqual([
-      ["/overview", "My Profile"],
-      ["/team", "Team"],
-      ["/resources/matchups", "Matchup Intel"],
-      ["/resources", "Resources"],
+  it("Player Mode: My Profile, Team, Matchup Intel and Resources, the sidebar's entries with their names, short names and icons, each to its first page", () => {
+    const list = destinations(all, false);
+    expect(view(list)).toEqual([
+      ["/overview", "/overview", "My Profile", "Profile"],
+      ["team", "/team", "Team", null],
+      ["/resources/matchups", "/resources/matchups", "Matchup Intel", "Intel"],
+      ["/resources", "/resources", "Resources", null],
     ]);
-    // The same icons as the sidebar's entries.
-    expect(bar.map((d) => d.icon)).toEqual(NAV_ENTRIES.map((e) => e.icon));
-    // Team stands for its four sections; Matchup Intel and Resources for their own page each.
-    expect(bar[1]!.pages).toEqual(TEAM_SECTIONS.map((s) => s.href));
-    expect(bar[2]!.pages).toEqual(["/resources/matchups"]);
-    expect(bar[3]!.pages).toEqual(["/resources"]);
-    // An account outside the team: no Team entry; one that may open only Players: Team leads there.
-    expect(tabletDestinations(["/overview", "/resources", "/resources/matchups"], false).map((d) => d.href)).toEqual(["/overview", "/resources/matchups", "/resources"]);
-    expect(tabletDestinations(["/overview", "/players", "/resources"], false).map((d) => d.href)).toEqual(["/overview", "/players", "/resources"]);
+    expect(list.map((d) => d.icon)).toEqual(NAV_ENTRIES.map((e) => e.icon));
+    // Team stands for its four sections; the others for their own page each.
+    expect(list[1]!.pages).toEqual(TEAM_SECTIONS.map((s) => s.href));
+    expect(list[1]!.hub).toBe("team");
+    expect(list.filter((d) => d.hub).map((d) => d.key)).toEqual(["team"]);
+    expect(list[2]!.pages).toEqual(["/resources/matchups"]);
   });
 
-  it("Admin Mode: the phone's four tabs, Platform Settings by its full name, and the pages without a tab (for the avatar menu) are Data & Integrations and Audit Logs", () => {
-    const bar = tabletDestinations(adminAll, true);
-    expect(bar.map((d) => d.href)).toEqual(ADMIN_TABS.map((t) => t.href));
-    // Never two "Settings" side by side: the avatar menu under the bar holds the account's own.
-    expect(bar.map((d) => d.label)).toEqual(["Dashboard", "Users", "Platform Settings", "Health"]);
-    expect(bar.map((d) => d.label)).not.toContain(ADMIN_ACCOUNT_LINKS[0]!.label);
-    expect(adminSheetLinks(adminAll, bar.map((d) => d.href)).map((l) => l.label)).toEqual(["Data & Integrations", "Audit Logs"]);
-    // Only what the account may open.
-    expect(tabletDestinations([ADMIN_HOME, "/admin/system"], true).map((d) => d.href)).toEqual([ADMIN_HOME, "/admin/system"]);
+  it("Admin Mode: Dashboard, Users & Permissions, Platform Settings and System, each to the first page of it the account may open", () => {
+    const list = destinations(adminAll, true);
+    expect(view(list)).toEqual([
+      ["/admin", "/admin", "Dashboard", null],
+      ["admin-users", "/admin/people", "Users & Permissions", "Users"],
+      ["admin-settings", "/admin/branding", "Platform Settings", "Platform"],
+      ["admin-system", "/admin/system", "System", null],
+    ]);
+    expect(list.map((d) => d.icon)).toEqual(ADMIN_ENTRIES.map((e) => e.icon));
+    expect(list[3]!.pages).toEqual(["/admin/system", "/admin/data", "/admin/audit"]);
+    // An administrator who may manage branding only: System is its Audit Logs.
+    expect(view(destinations(["/admin", "/admin/branding", "/admin/previews", "/admin/resources", "/admin/audit"], true))).toEqual([
+      ["/admin", "/admin", "Dashboard", null],
+      ["admin-settings", "/admin/branding", "Platform Settings", "Platform"],
+      ["admin-system", "/admin/audit", "System", null],
+    ]);
   });
 
-  it("marks the destination a page belongs to, as the sidebar and the tabs do; none for Settings", () => {
-    const bar = tabletDestinations(all, false);
-    expect(currentDestination("/team", bar, false)).toBe("/team");
-    expect(currentDestination("/matches", bar, false)).toBe("/team");
-    expect(currentDestination("/players/abc/matches", bar, false)).toBe("/team");
-    expect(currentDestination("/overview/champions", bar, false)).toBe("/overview");
-    expect(currentDestination("/resources/matchups", bar, false)).toBe("/resources/matchups");
-    expect(currentDestination("/resources", bar, false)).toBe("/resources");
-    expect(currentDestination("/settings", bar, false)).toBeNull();
-    const admin = tabletDestinations(adminAll, true);
-    expect(currentDestination("/admin", admin, true)).toBe(ADMIN_HOME);
-    expect(currentDestination("/admin/previews", admin, true)).toBe("/admin/branding");
-    expect(currentDestination("/admin/people/access", admin, true)).toBe("/admin/people");
-    expect(currentDestination("/admin/data", admin, true)).toBeNull();
+  it("only what the account may open: an account outside the team has no Team; one that may open only Players has Team leading there", () => {
+    expect(destinations(["/overview", "/resources", "/resources/matchups"], false).map((d) => d.href)).toEqual(["/overview", "/resources/matchups", "/resources"]);
+    expect(destinations(["/overview", "/players", "/resources"], false).map((d) => d.href)).toEqual(["/overview", "/players", "/resources"]);
+  });
+
+  it("marks the destination a page belongs to, as the sidebar does: a teammate's profile is Team's, your own profile's sections My Profile's, Matchup Intel its own; none for Settings", () => {
+    const list = destinations(all, false);
+    const at = (path: string) => currentDestination(path, list)?.key ?? null;
+    expect(at("/team")).toBe("team");
+    expect(at("/matches")).toBe("team");
+    expect(at("/matches/insights")).toBe("team");
+    expect(at("/players/abc/matches")).toBe("team");
+    expect(at("/overview/champions")).toBe("/overview");
+    expect(at("/me")).toBe("/overview");
+    expect(at("/resources/matchups")).toBe("/resources/matchups");
+    expect(at("/resources")).toBe("/resources");
+    expect(at("/settings")).toBeNull();
+    expect(at("/clash")).toBeNull();
+    expect(at("/trends/solo")).toBeNull();
+    const admin = destinations(adminAll, true);
+    const atAdmin = (path: string) => currentDestination(path, admin)?.key ?? null;
+    expect(atAdmin("/admin")).toBe("/admin");
+    expect(atAdmin("/admin/previews")).toBe("admin-settings");
+    expect(atAdmin("/admin/people/access")).toBe("admin-users");
+    expect(atAdmin("/admin/data")).toBe("admin-system");
+    expect(atAdmin("/admin/audit")).toBe("admin-system");
+    expect(atAdmin("/admin/settings")).toBeNull();
+  });
+
+  it("a phone's destination with tabs reopens the one last used while it is not the current one, and leads to its first tapped again", () => {
+    const list = destinations(all, false);
+    const team = (path: string, memory: Record<string, string> | null) => withSectionMemory(list, path, memory).find((d) => d.key === "team")!.href;
+    // Nothing remembered (the server, a new tab): Team Overview.
+    expect(team("/overview", null)).toBe("/team");
+    expect(team("/overview", {})).toBe("/team");
+    // Players last used: Team reopens it from anywhere outside Team.
+    expect(team("/overview", { team: "/players" })).toBe("/players");
+    expect(team("/resources", { team: "/leaderboards" })).toBe("/leaderboards");
+    // On Team's pages (a teammate's profile among them) a second tap leads to Overview.
+    expect(team("/players", { team: "/players" })).toBe("/team");
+    expect(team("/players/abc", { team: "/players" })).toBe("/team");
+    // A remembered page this account may not open, or not one of Team's, is ignored.
+    expect(withSectionMemory(destinations(["/overview", "/team", "/players"], false), "/overview", { team: "/leaderboards" }).find((d) => d.key === "team")!.href).toBe("/team");
+    expect(team("/overview", { team: "/settings" })).toBe("/team");
+    // The others are unchanged, and nothing else moves.
+    expect(withSectionMemory(list, "/overview", { team: "/players" }).map((d) => d.key)).toEqual(list.map((d) => d.key));
+    expect(withSectionMemory(list, "/overview", { team: "/players" }).filter((d) => d.key !== "team")).toEqual(list.filter((d) => d.key !== "team"));
+  });
+
+  it("the installed app's shortcuts are Player Mode's destinations, in their order and by their names", () => {
+    expect(MANIFEST_SHORTCUTS).toEqual(destinations(all, false).map((d) => ({ name: d.label, url: d.href })));
+  });
+
+  it("no frame link fetches a profile ahead of a tap (its layout starts the player's Riot refresh); the rest keep Next's default", () => {
+    for (const href of ["/overview", "/overview/matches", "/overview/champions?season=16", "/players/abc", "/players/abc/accounts#x"]) expect(prefetchOf(href), href).toBe(false);
+    for (const href of ["/team", "/players", "/leaderboards", "/resources", "/resources/matchups", "/settings", "/admin", "/players/abc/edit"]) expect(prefetchOf(href), href).toBeUndefined();
   });
 });
 
 describe("phone top bar", () => {
-  const member = phoneTabs(NAV_LINKS.map((l) => l.href));
+  const member = destinations(NAV_LINKS.map((l) => l.href), false);
 
   it("knows a profile's sections, yours and a teammate's", () => {
     expect(profileBase("/overview")).toBe("/overview");
@@ -241,32 +246,34 @@ describe("phone top bar", () => {
     expect(profileBase("/team")).toBeNull();
   });
 
-  it("Back from a page opened directly leads to the page above it; a tab's pages have no Back", () => {
+  it("Back from a page opened directly leads to the page above it; every destination's own pages have none, so no page claims Team unless it is under Team", () => {
     expect(phoneParent("/players/abc", member, "/team")).toEqual({ href: "/players", label: "Players" });
     expect(phoneParent("/players/abc/matches", member, "/team")).toEqual({ href: "/players", label: "Players" });
+    // Settings, not a destination, leads home (Back named after the page before goes there when it is known).
     expect(phoneParent("/settings", member, "/team")).toEqual({ href: "/team", label: "Team" });
-    expect(phoneParent("/resources", member, "/team")).toEqual({ href: "/team", label: "Team" });
-    expect(phoneParent("/me", member, "/team")).toEqual({ href: "/overview", label: "Profile" });
-    for (const tab of member) expect(phoneParent(tab.href, member, "/team"), tab.href).toBeNull();
-    expect(phoneParent("/overview/champions", member, "/team")).toBeNull();
+    for (const d of member) for (const page of d.pages) expect(phoneParent(page, member, "/team"), page).toBeNull();
+    for (const page of ["/overview/champions", "/overview/accounts", "/me", "/matches/insights", "/resources", "/resources/matchups", "/no-access"]) expect(phoneParent(page, member, "/team"), page).toBeNull();
+    // An account outside the team: home is its first page, by its destination's name.
+    const personal = destinations(["/overview", "/resources", "/resources/matchups", "/settings"], false);
+    expect(phoneParent("/resources/matchups", personal, "/resources/matchups")).toBeNull();
+    expect(phoneParent("/settings", personal, "/resources/matchups")).toEqual({ href: "/resources/matchups", label: "Matchup Intel" });
   });
 
-  it("Matchup Intel, a destination of its own, leads home as Resources does where it has no tab, not to Resources; where it is a tab it is where you start", () => {
-    expect(phoneParent("/resources/matchups", member, "/team")).toEqual({ href: "/team", label: "Team" });
-    const personal = phoneTabs(["/overview", "/resources", "/resources/matchups", "/settings"]);
-    expect(phoneParent("/resources/matchups", personal, "/overview")).toBeNull();
-    expect(phoneParent("/resources", personal, "/overview")).toBeNull();
-  });
-
-  it("names a page for Back when its heading was never read", () => {
+  it("names a page for Back when its heading was never read: a section by its tab, a set's first by its destination", () => {
     expect(pageName("/resources/matchups", member)).toBe("Matchup Intel");
     expect(pageName("/resources", member)).toBe("Resources");
     expect(pageName("/settings", member)).toBe("Settings");
+    expect(pageName("/players", member)).toBe("Players");
     expect(pageName("/players/abc", member)).toBe("Players");
+    expect(pageName("/leaderboards", member)).toBe("Leaderboards");
     expect(pageName("/team", member)).toBe("Team");
+    expect(pageName("/overview/matches", member)).toBe("My Profile");
     expect(pageName("/somewhere", member)).toBe("Back");
-    // Where Resources is a tab, Matchup Intel keeps its own name.
-    expect(pageName("/resources/matchups", phoneTabs(["/overview", "/resources", "/resources/matchups"]))).toBe("Matchup Intel");
+    const admin = destinations(ADMIN_LINKS.map((l) => l.href), true);
+    expect(pageName("/admin", admin)).toBe("Dashboard");
+    expect(pageName("/admin/people", admin)).toBe("Users & Permissions");
+    expect(pageName("/admin/data", admin)).toBe("Data & Integrations");
+    expect(pageName("/admin/settings", admin)).toBe("Settings");
   });
 
   it("Back named after the page before goes there, past the entries the current page made of itself", () => {
@@ -288,13 +295,10 @@ describe("phone top bar", () => {
     expect(backSteps(pairs, 9, "/resources/matchups", "/resources")).toBeNull();
   });
 
-  it("Admin Mode: pages outside its tabs lead back to the Dashboard", () => {
-    const admin = ADMIN_TABS.map((t) => ({ ...t }));
-    expect(phoneParent("/admin", admin, ADMIN_HOME)).toBeNull();
-    expect(phoneParent("/admin/people", admin, ADMIN_HOME)).toBeNull();
-    expect(phoneParent("/admin/previews", admin, ADMIN_HOME)).toBeNull();
-    expect(phoneParent("/admin/data", admin, ADMIN_HOME)).toEqual({ href: ADMIN_HOME, label: "Dashboard" });
-    expect(phoneParent("/admin/audit", admin, ADMIN_HOME)).toEqual({ href: ADMIN_HOME, label: "Dashboard" });
+  it("Admin Mode: every admin page is a destination's, with no Back; the account's Settings leads back to the Dashboard", () => {
+    const admin = destinations(ADMIN_LINKS.map((l) => l.href), true);
+    for (const page of ADMIN_LINKS.map((l) => l.href)) expect(phoneParent(page, admin, ADMIN_HOME), page).toBeNull();
+    expect(phoneParent("/admin/settings", admin, ADMIN_HOME)).toEqual({ href: ADMIN_HOME, label: "Dashboard" });
   });
 });
 
