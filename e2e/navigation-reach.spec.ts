@@ -932,6 +932,22 @@ test("the open sheet follows the phone turning across 768px: Encounters' order l
   await expect(page).not.toHaveURL(/sort=recent/);
 });
 
+test("tablet and desktop: Games → Encounters from the pinned row", async ({ page }) => {
+  test.skip(isPhone(page), "the pinned row is from md");
+  // A view's copy in the pinned row is a link like the page's own (Match History's Games | Encounters; Leaderboards had the
+  // other pair until it became one page): pressed far down the page, it opens that view, marked current in the page's row too.
+  const profile = await teammate(page);
+  await page.goto(`${profile}/matches`);
+  await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
+  await scrollTo(page, "end");
+  const encounters = page.getByTestId("toolbar-match-view-encounters");
+  await expect(encounters).toBeVisible();
+  await expect(page.getByTestId("toolbar-match-view-games")).toHaveAttribute("aria-current", "page");
+  await encounters.click();
+  await expect(page).toHaveURL(/[?&]view=encounters/);
+  await expect(page.getByTestId("match-view-encounters")).toHaveAttribute("aria-current", "page");
+});
+
 test("tablet and desktop: Leaderboards is one page, with no views for the pinned row; its sections are in reach by scrolling, and its old Records address lands at them", async ({ page }) => {
   test.skip(isPhone(page), "the pinned row is from md");
   if (!isTablet(page)) await page.setViewportSize({ width: 1440, height: 600 });
