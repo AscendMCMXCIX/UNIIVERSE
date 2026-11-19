@@ -79,7 +79,7 @@ On a desktop the page is one screen, read in a glance (`matchup-content.tsx`, `m
   re-checked for 26.23", "Changed since the check", "Ability data from patch 26.22"), and the
   remembered line under them. A slot opens the picker window (Where it is).
 - **Left**, the main panel: the curated briefing or the assembled reference (both below). Under it,
-  Interactions and Level changes side by side from a column 40rem wide, the fuller panel the wider
+  Interactions and Level changes side by side once the dashboard is 40rem wide, the fuller the wider
   (`notesBalance`: a rough count of each panel's words, at least twice the other's to tip it; the
   page's own words, so nothing is judged by it).
 - **Right**, the enemy's five ability tiles, P, Q, W, E and R, always in that order (The ability
@@ -194,7 +194,10 @@ For every pair without a curated briefing, or whose briefing is hidden whole (`a
   (Ambessa, Gwen and Riven against every champion, their mirrors included, 75 champions against
   them, 60 pairs drawn at random and one more mirror), and the three curated pairs both ways, and
   checks that each is the curated briefing or the assembled reference, labelled as such, with five
-  tiles and every group saying what it holds.
+  tiles and every group saying what it holds. In the browser, `e2e/matchup-intel-dashboard.spec.ts`
+  sweeps 40 pairs (20 chosen, 20 drawn at random from the roster by a seeded generator) on a phone
+  and a desktop, and `e2e/quality.spec.ts` checks two assembled pairs (Ornn vs Gwen, the fullest,
+  and Riven vs Darius) for sideways overflow at 16 sizes and with axe.
 
 ### The ability tiles
 
