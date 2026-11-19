@@ -7,8 +7,8 @@
  *   node scripts/matchup-intel/import-riot-text.mjs --from <reviewed dir> --ddragon <championFull.json>
  *   add --check to compare with the committed files instead of writing them (exit 1 if one differs)
  *
- * The reviewed table (<reviewed dir>/champions/<Id>.json, with _index.json and DONE beside them) holds
- * per champion: {champion, version, reviewedAt, review, abilityText: {slot: {name, descriptionHash,
+ * The reviewed table (<reviewed dir>/champions/<Id>.json, or <reviewed dir>/<Id>.json, with _index.json
+ * and DONE beside them; the index must list exactly the champions' files) holds per champion: {champion, version, reviewedAt, review, abilityText: {slot: {name, descriptionHash,
  * tooltipHash}}, facts: [{slot, kind, clause, source}]}. Each file is checked against Data Dragon's own
  * championFull.json of the version it was reviewed on (read from a file: this script downloads
  * nothing, and reads nothing from the League of Legends Wiki):
@@ -89,10 +89,16 @@ function sameHash(recorded, text) {
   return sha256(text).startsWith(recorded);
 }
 
-/** The review's record of how it was done, as the app keeps it: independent automated reviews, an adjudicator, a person. */
+/**
+ * The review's record of how it was done, as the app keeps it: how many independent automated
+ * reviews, whether an adjudicator settled them, whether a person reviewed. Only what the review
+ * itself recorded: a file that does not say how many reviews it had is refused, never given a count
+ * (the page and the footer say how the facts were reviewed, and riot-text.test.ts asks for two).
+ */
 export function reviewOf(review) {
   const r = review && typeof review === "object" ? review : {};
-  const reviews = Number.isInteger(r.automatedReviews) ? r.automatedReviews : Number.isInteger(r.reviewers) ? r.reviewers : Array.isArray(r.reviews) ? r.reviews.length : Number.isInteger(r.independentReviews) ? r.independentReviews : 2;
+  const reviews = Number.isInteger(r.automatedReviews) ? r.automatedReviews : Number.isInteger(r.reviewers) ? r.reviewers : Array.isArray(r.reviews) ? r.reviews.length : Number.isInteger(r.independentReviews) ? r.independentReviews : null;
+  if (reviews === null || reviews < 0) throw new Error(`the review does not record how many automated reviews it had (${JSON.stringify(review)})`);
   const adjudicated = typeof r.adjudicated === "boolean" ? r.adjudicated : typeof r.adjudicator === "string" || r.adjudicator === true || !!r.adjudication;
   const person = r.person === true || r.byPerson === true || r.human === true;
   return { automatedReviews: reviews, adjudicated, person };
@@ -131,9 +137,18 @@ export function importChampion(reviewed, full) {
     if (said?.tooltipHash && t.tooltip !== null && !sameHash(said.tooltipHash, t.tooltip)) notes.push(`${id} ${slot}: the review's tooltip hash is not Data Dragon ${full.version}'s tooltip`);
     abilities[slot] = { name: t.name, textHash: riotTextHash(t.description, t.tooltip) };
   }
+  // The accepted facts are the file's own list: a file without one is not a reviewed table (a copy of
+  // the drafts, say), so it is refused rather than read as a champion with no facts.
+  if (!Array.isArray(reviewed.facts)) throw new Error(`${id}: no list of reviewed facts ("facts")`);
+  let review;
+  try {
+    review = reviewOf(reviewed.review);
+  } catch (err) {
+    throw new Error(`${id}: ${err instanceof Error ? err.message : err}`);
+  }
   const facts = [];
   const left = [];
-  for (const f of Array.isArray(reviewed.facts) ? reviewed.facts : []) {
+  for (const f of reviewed.facts) {
     const decision = f?.decision ?? f?.verdict ?? "accept";
     if (decision !== "accept" && decision !== "accepted" && decision !== true) continue;
     const why = !SLOTS.includes(f?.slot) ? "an unknown slot" : !KINDS.includes(f?.kind) ? `an unknown kind (${f?.kind})` : !SOURCES.includes(f?.source) ? `an unknown source (${f?.source})` : typeof f?.clause !== "string" || !f.clause.trim() ? "no clause" : shownClause(f.clause).length > MAX_CLAUSE ? "a clause too long" : /[<>]/.test(f.clause) ? "markup in its clause" : /\d/.test(shownClause(f.clause)) ? "a number in its clause" : f.source === "tooltip" && texts[f.slot].tooltip === null ? "a tooltip the passive does not have" : !clauseInText(f.clause, texts[f.slot][f.source]) ? `a clause not in Riot's ${f.source}` : null;
@@ -146,7 +161,7 @@ export function importChampion(reviewed, full) {
     facts.push({ slot: f.slot, kind: f.kind, clause, source: f.source });
   }
   facts.sort((a, b) => SLOTS.indexOf(a.slot) - SLOTS.indexOf(b.slot) || KINDS.indexOf(a.kind) - KINDS.indexOf(b.kind) || SOURCES.indexOf(a.source) - SOURCES.indexOf(b.source));
-  return { record: { championId: id, version: full.version, reviewedOn: day, review: reviewOf(reviewed.review), abilities, facts }, notes, left };
+  return { record: { championId: id, version: full.version, reviewedOn: day, review, abilities, facts }, notes, left };
 }
 
 /** A committed file: one fact per line, so a new review reads as a short diff. */
@@ -187,8 +202,20 @@ async function main(argv) {
   if (!existsSync(join(from, "DONE"))) throw new Error(`${from} has no DONE: the review is not complete, so nothing is imported`);
   const full = JSON.parse(await readFile(resolve(ddragon), "utf8"));
   if (typeof full.version !== "string" || !VERSION.test(full.version)) throw new Error("the Data Dragon file has no version");
-  const dir = join(from, "champions");
-  const files = (await readdir(dir)).filter((f) => f.endsWith(".json")).sort();
+  // The champions' files, in a folder of their own (champions/) or beside DONE; _index.json, where
+  // the review wrote one, must list exactly those champions, so a partial copy is never imported.
+  const dir = existsSync(join(from, "champions")) ? join(from, "champions") : from;
+  const files = (await readdir(dir)).filter((f) => f.endsWith(".json") && !f.startsWith("_")).sort();
+  const indexFile = [join(dir, "_index.json"), join(from, "_index.json")].find((f) => existsSync(f));
+  if (indexFile) {
+    const listed = JSON.parse(await readFile(indexFile, "utf8"));
+    const ids = (Array.isArray(listed) ? listed : Array.isArray(listed?.champions) ? listed.champions : []).map((x) => (typeof x === "string" ? x : x?.champion ?? x?.championId));
+    const found = files.map((f) => f.replace(/\.json$/, ""));
+    const missing = ids.filter((id) => !found.includes(id));
+    const extra = found.filter((id) => !ids.includes(id));
+    if (!ids.length || missing.length || extra.length) throw new Error(`${indexFile} does not list exactly the champions' files (missing ${missing.join(", ") || "none"}; not listed ${extra.join(", ") || "none"})`);
+  }
+  if (!files.length) throw new Error(`${dir} holds no champion's file`);
   const records = [];
   const notes = [];
   const left = [];

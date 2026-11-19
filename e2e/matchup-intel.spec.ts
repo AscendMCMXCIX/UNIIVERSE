@@ -715,7 +715,7 @@ test("phone at 200% and 150% text: the states with one side or none chosen, and 
   for (const r of ["matchup-picker-recent", "matchup-picker-curated"]) expect.soft(await cutOrSpilled(rows.getByTestId(r)), `the picker at 320px, 200%: ${r}`).toEqual([]);
 });
 
-test("phone: the briefing's threat is on the first screen, above the tab bar: whole at 390 by 664, its first line at 320 by 568", async ({ page }) => {
+test("phone: the briefing's threat is on the first screen, above the tab bar: whole at 390 by 664, its first line at 320 by 568; an assembled pair's Danger side likewise", async ({ page }) => {
   test.skip((page.viewportSize()?.width ?? 1000) >= 768, "a phone");
   for (const [width, height, whole] of [
     [390, 664, true],
@@ -741,6 +741,24 @@ test("phone: the briefing's threat is on the first screen, above the tab bar: wh
       // The two sides are as tall as each other, whichever name wraps.
       expect(Math.abs(m.you - m.enemy), `${at}: the sides' heights`).toBeLessThanOrEqual(1);
     }
+    // Any other pair: the assembled reference's Danger side starts on the first screen, its label and
+    // the first line of what it holds above the tab bar; for an enemy with no facts recorded (Darius,
+    // while no facts from Riot's text are committed), the whole side at 390 by 664.
+    await openMatchupIntel(page, "Riven", "Darius");
+    await hydrated(page);
+    const d = await page.evaluate(() => {
+      const bar = document.querySelector('[data-testid="phone-tabbar"]')!.getBoundingClientRect().top;
+      const side = document.querySelector('[data-testid="assembled-danger"]')!;
+      const first = side.querySelector('[data-testid="assembled-no-facts"], [data-testid="assembled-group"]')!;
+      const range = document.createRange();
+      range.selectNodeContents(first);
+      return { bar, scrollY: window.scrollY, noFacts: side.getAttribute("data-from") === "none", label: side.querySelector("h3")!.getBoundingClientRect().bottom, firstLine: range.getClientRects()[0]!.bottom, last: side.getBoundingClientRect().bottom };
+    });
+    const at = `Riven vs Darius at ${width} by ${height}`;
+    expect(d.scrollY, at).toBe(0);
+    expect(d.label, `${at}: the Danger side's label`).toBeLessThanOrEqual(d.bar);
+    expect(d.firstLine, `${at}: the first line it holds`).toBeLessThanOrEqual(d.bar);
+    if (whole && d.noFacts) expect(d.last, `${at}: the whole Danger side`).toBeLessThanOrEqual(d.bar);
   }
 });
 

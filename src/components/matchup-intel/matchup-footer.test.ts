@@ -88,12 +88,17 @@ describe("Riot's data and notice", () => {
     expect(text(part(html, "matchup-sources-summary")!)).toContain("League of Legends Wiki, CC BY-SA 3.0");
   });
 
-  it("names the facts from Riot's text, and how they were reviewed, when the page shows them", () => {
-    const view = { ...uncuratedPair, enemyIntel: { ...uncuratedPair.enemyIntel!, riotText: { version: "16.22.1" } } };
+  it("names the facts from Riot's text, and how they were reviewed, as the review recorded it, when the page shows them", () => {
+    const review = { automatedReviews: 2, adjudicated: true };
+    const view = { ...uncuratedPair, enemyIntel: { ...uncuratedPair.enemyIntel!, riotText: { version: "16.22.1", review } } };
     const html = render(view);
-    expect(text(part(html, "matchup-footer-riot-text")!)).toContain("Kinds of mechanic from Riot's ability text (its descriptions and tooltips, Data Dragon 16.22.1), each with the clause it quotes: from Riot's ability text, reviewed automatically (not by a person), by two independent reviews and an adjudicator.");
+    expect(text(part(html, "matchup-footer-riot-text")!)).toBe("Kinds of mechanic from Riot's ability text (its descriptions and tooltips, Data Dragon 16.22.1), each with the clause it quotes: from Riot's ability text, reviewed automatically (not by a person), by two independent automated reviews and an adjudicator. Riot's numbers in that text are never used.");
     expect(text(part(html, "matchup-sources-summary")!)).toContain("Riot's text, reviewed automatically");
     expect(render(uncuratedPair)).not.toContain('data-testid="matchup-footer-riot-text"');
+    // Only what the review recorded: the fewest reviews where two champions' differ, the adjudicator only where both had one, nothing where no record is given.
+    const both = (a: typeof review, b: typeof review) => render({ ...view, yourIntel: { ...uncuratedPair.yourIntel!, riotText: { version: "16.22.1", review: b } }, enemyIntel: { ...view.enemyIntel, riotText: { version: "16.22.1", review: a } } });
+    expect(text(part(both(review, { automatedReviews: 3, adjudicated: false }), "matchup-footer-riot-text")!)).toContain("(not by a person), by at least two independent automated reviews. Riot's");
+    expect(text(part(render({ ...view, enemyIntel: { ...view.enemyIntel, riotText: { version: "16.22.1" } } }), "matchup-footer-riot-text")!)).toContain("(not by a person). Riot's numbers");
   });
 });
 

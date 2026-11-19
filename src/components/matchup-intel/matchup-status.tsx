@@ -27,6 +27,19 @@ export function behindOf(view: MatchupPageView): Array<{ name: string; patch: st
   });
 }
 
+/**
+ * The dot between two parts of the line, at the end of the part before it: no break falls between a
+ * part's last word and its dot, so a wrapped line ends with a dot and never starts with one, and a
+ * dot never stands alone on a line (a phone at a large text size).
+ */
+function Dot() {
+  return (
+    <span aria-hidden className="ml-2">
+      ·
+    </span>
+  );
+}
+
 export function MatchupStatus({ view }: { view: MatchupPageView }) {
   const { you, enemy, matchup, enemyIntel, yourIntel, patch } = view;
   const intel = enemyIntel ?? yourIntel;
@@ -37,22 +50,25 @@ export function MatchupStatus({ view }: { view: MatchupPageView }) {
   const recheck = matchup?.recheck ?? null;
   return (
     <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-fg-muted @min-[44rem]/pickers:justify-end" data-testid="matchup-patch-state">
-      <span className="font-medium text-fg" data-testid="matchup-patch">
-        {patch.current ? `Patch ${patch.current}` : "Game patch not known"}
+      <span>
+        <span className="font-medium text-fg" data-testid="matchup-patch">
+          {patch.current ? `Patch ${patch.current}` : "Game patch not known"}
+        </span>
+        {source || (you && enemy) ? <Dot /> : null}
       </span>
       {source ? (
-        <>
-          <span aria-hidden>·</span>
-          <span>{source}</span>
-        </>
+        <span>
+          {source}
+          {you && enemy ? <Dot /> : null}
+        </span>
       ) : null}
       {you && enemy ? (
         <>
-          <span aria-hidden>·</span>
           {matchup && shows && f ? (
             <span className="inline-flex items-center gap-1" data-testid="matchup-layer" data-layer="curated">
               <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-good" aria-hidden />
-              Curated briefing · {f.checked.charAt(0).toLowerCase() + f.checked.slice(1)}
+              {/* The dot held to the words before it (a no-break space), so a wrapped line never starts with it. */}
+              {`Curated briefing\u00a0· ${f.checked.charAt(0).toLowerCase()}${f.checked.slice(1)}`}
             </span>
           ) : (
             <span className="inline-flex items-center gap-1" data-testid="matchup-layer" data-layer="assembled">

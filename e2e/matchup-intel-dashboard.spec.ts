@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { expect, test, type Page } from "./test";
 import { choose, enemyAbilities, hydrated, localPictures, openMatchupIntel } from "./matchup-intel";
 
@@ -123,7 +125,7 @@ test("the whole overview fits one desktop screen, with no page scroll, at 1920×
 });
 
 /** Pairs across the roster, fixed so a failure names the same ones every run: priority champions, other lanes, mirrors, odd kits. */
-const SWEEP: Array<[string, string]> = [
+const CHOSEN: Array<[string, string]> = [
   ["Riven", "Teemo"],
   ["Gwen", "Yasuo"],
   ["Ambessa", "Fiora"],
@@ -146,7 +148,20 @@ const SWEEP: Array<[string, string]> = [
   ["Mel", "Smolder"],
 ];
 
-test("every pair gives a meaningful reference, labelled for what it is: a sweep across the roster", async ({ page }, info) => {
+/** The roster the demo serves (Data Dragon 16.22.1's 173 champions, the same ids as the committed copy). */
+const ROSTER: string[] = (JSON.parse(readFileSync(path.join(__dirname, "../src/server/riot/fixtures/champions.fixture.json"), "utf8")) as { champions: Array<{ id: string }> }).champions.map((c) => c.id);
+
+/** Pairs drawn at random from the whole roster by a seeded generator: random, yet the same every run, so a failure names its pair. */
+function drawnPairs(n: number, seed: number): Array<[string, string]> {
+  let s = seed;
+  const next = () => (s = (s * 1103515245 + 12345) % 2147483648) % ROSTER.length;
+  return Array.from({ length: n }, () => [ROSTER[next()]!, ROSTER[next()]!] as [string, string]);
+}
+
+/** The sweep: the chosen pairs, then 20 drawn from the roster. */
+const SWEEP: Array<[string, string]> = [...CHOSEN, ...drawnPairs(20, 20261119)];
+
+test("every pair gives a meaningful reference, labelled for what it is: a sweep across the roster, chosen pairs and 20 drawn at random", async ({ page }, info) => {
   test.skip(info.project.name === "tablet", "the sweep runs on the phone and the desktop");
   test.setTimeout(300_000);
   const errors: string[] = [];

@@ -48,8 +48,8 @@ interface FooterIntel {
   offlineCopy?: boolean;
   sources: readonly FooterSource[];
   curated: { verified: Checked } | null;
-  /** Its facts from Riot's text, when the page shows them (absent: none). */
-  riotText?: { version: string } | null;
+  /** Its facts from Riot's text, when the page shows them (absent: none), and how they were reviewed, as the review recorded it. */
+  riotText?: { version: string; review?: { automatedReviews: number; adjudicated: boolean } } | null;
 }
 
 /** The page's view (MatchupPageView), as far as the footer reads it. */
@@ -191,11 +191,30 @@ function WikiCredit({ pages }: { pages: readonly WikiPage[] }) {
 export const STATIC_SHORT = "A static reference: no live tracking";
 export const STATIC_WORDS = "A static reference: no live tracking, no timers, nothing read from a game in progress.";
 
+const COUNT_WORDS = ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"];
+
+/**
+ * How the facts from Riot's text on the page were reviewed, as each champion's review recorded it:
+ * ", by two independent automated reviews and an adjudicator"; the fewest reviews where champions
+ * differ ("at least two"), the adjudicator only where every review had one. Empty where no review
+ * record is given.
+ */
+function reviewWords(reviews: ReadonlyArray<{ automatedReviews: number; adjudicated: boolean }>): string {
+  const counts = reviews.map((r) => r.automatedReviews).filter((n) => Number.isInteger(n) && n > 0);
+  if (!counts.length || counts.length !== reviews.length) return "";
+  const fewest = Math.min(...counts);
+  const word = fewest < COUNT_WORDS.length ? COUNT_WORDS[fewest]! : formatCount(fewest);
+  const same = counts.every((n) => n === fewest);
+  const adjudicated = reviews.every((r) => r.adjudicated);
+  return `, by ${same ? "" : "at least "}${word} independent automated ${fewest === 1 ? "review" : "reviews"}${adjudicated ? " and an adjudicator" : ""}`;
+}
+
 /** The facts from Riot's text on the page: where they come from and how they were reviewed. */
-function riotTextSentence(versions: readonly string[]): string | null {
-  if (!versions.length) return null;
-  const list = [...new Set(versions)];
-  return `Kinds of mechanic from Riot's ability text (its descriptions and tooltips, Data Dragon ${list.join(" and ")}), each with the clause it quotes: ${RIOT_TEXT_LABEL.charAt(0).toLowerCase()}${RIOT_TEXT_LABEL.slice(1)}, by two independent reviews and an adjudicator. Riot's numbers in that text are never used.`;
+function riotTextSentence(sides: ReadonlyArray<{ version: string; review?: { automatedReviews: number; adjudicated: boolean } }>): string | null {
+  if (!sides.length) return null;
+  const list = [...new Set(sides.map((s) => s.version))];
+  const reviews = sides.flatMap((s) => (s.review ? [s.review] : []));
+  return `Kinds of mechanic from Riot's ability text (its descriptions and tooltips, Data Dragon ${list.join(" and ")}), each with the clause it quotes: ${RIOT_TEXT_LABEL.charAt(0).toLowerCase()}${RIOT_TEXT_LABEL.slice(1)}${reviews.length === sides.length ? reviewWords(reviews) : ""}. Riot's numbers in that text are never used.`;
 }
 
 export function MatchupFooter({ view, legal }: { view: FooterView; legal: string }) {
@@ -205,7 +224,7 @@ export function MatchupFooter({ view, legal }: { view: FooterView; legal: string
   const { briefing, enemy, you } = notesOnPage(view);
   const checked = checkedSentence([briefing, enemy, you].filter((n): n is NotesOnPage => !!n));
   const pages = wikiPages([enemy, you, briefing]);
-  const riotText = riotTextSentence(intels.flatMap((i) => (i?.riotText && VERSION.test(i.riotText.version) ? [i.riotText.version] : [])));
+  const riotText = riotTextSentence(intels.flatMap((i) => (i?.riotText && VERSION.test(i.riotText.version) ? [i.riotText] : [])));
   const first = sides[0];
   const summaryData = first ? `${dataSourceWords(first.version, first.offline, true)}${sides.some((s) => s.version !== first.version) ? " and others" : ""}` : "Riot Data Dragon";
   return (

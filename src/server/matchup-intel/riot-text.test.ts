@@ -180,6 +180,16 @@ describe("the import script (scripts/matchup-intel/import-riot-text.mjs)", () =>
     expect(() => importer.importChampion(table([], { champion: "Zaahen" }), full)).toThrow(/Zaahen/);
   });
 
+  it("refuses a file that does not record how many automated reviews it had, or has no list of reviewed facts: nothing is made up for it", () => {
+    expect(() => importer.importChampion(table([], { review: { adjudicator: "auto" } }), full)).toThrow(/how many automated reviews/);
+    expect(() => importer.importChampion(table([], { review: undefined }), full)).toThrow(/how many automated reviews/);
+    expect(() => importer.importChampion(table([], { facts: undefined }), full)).toThrow(/no list of reviewed facts/);
+    // A copy of the drafts (their own list, no review) is not a reviewed table.
+    expect(() => importer.importChampion({ ...table([]), facts: undefined, drafts: [{ slot: "W", kind: "stun", clause: "Stuns nearby enemies", source: "tooltip" }] }, full)).toThrow(/no list of reviewed facts/);
+    expect(importer.reviewOf({ automatedReviews: 2, adjudicated: true, person: false })).toEqual({ automatedReviews: 2, adjudicated: true, person: false });
+    expect(importer.reviewOf({ reviews: [{}, {}], adjudicator: "auto" })).toEqual({ automatedReviews: 2, adjudicated: true, person: false });
+  });
+
   it("checks a clause cut short with an ellipsis on the words it quotes", () => {
     expect(importer.clauseInText("Riven deals N and Stuns nearby…", full.data.Riven.spells[1]!.tooltip)).toBe(true);
     expect(importer.clauseInText("Riven deals N and Stuns everyone…", full.data.Riven.spells[1]!.tooltip)).toBe(false);

@@ -503,7 +503,7 @@ export type RiotTextSource = "description" | "tooltip";
 export interface RiotTextFact {
   slot: Slot;
   kind: RiotTextKind;
-  /** The clause of Riot's text, as quoted ("Darius hooks with his axe, Pulling, and Knocking Up"); Riot's placeholders appear as "N". */
+  /** The clause of Riot's text, as quoted ("Darius hooks with his axe, Pulling, and Knocking Up"); each of Riot's placeholders appears as "[…]", never a number (the import script, shownClause). */
   clause: string;
   source: RiotTextSource;
 }
