@@ -49,8 +49,7 @@ export default async function AdminPeoplePage({ searchParams }: { searchParams: 
   }));
   return (
     <div className="space-y-5">
-      {canManageAccounts ? <AddPlayerAccount /> : null}
-      <PeoplePanel initial={{ person: one(sp.person), status: one(sp.status), q: one(sp.q) }} riotConfigured={!!process.env.RIOT_API_KEY} players={rows} adminAccounts={accounts.filter((a) => !a.playerId)} presets={presets} currentUserId={session.userId} viewerIsOwner={isOwner(session)} canManageAccounts={canManageAccounts} canManageRoster={hasPermission(session, "manage-players")} />
+      <PeoplePanel addAccount={canManageAccounts ? <AddPlayerAccount /> : null} initial={{ person: one(sp.person), status: one(sp.status), q: one(sp.q) }} riotConfigured={!!process.env.RIOT_API_KEY} players={rows} adminAccounts={accounts.filter((a) => !a.playerId)} presets={presets} currentUserId={session.userId} viewerIsOwner={isOwner(session)} canManageAccounts={canManageAccounts} canManageRoster={hasPermission(session, "manage-players")} />
     </div>
   );
 }

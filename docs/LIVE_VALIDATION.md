@@ -724,3 +724,16 @@ Server-side only, apart from the privacy notice's list of what a stored game kee
 - [ ] Over the next days `laneOpponents.sourcePositions` grows with the games stored since the deployment; `db-usage` a day and a week later shows the database growing by at most about 0.5 MB a day more than its usual 2 MB (docs/HOSTING_USAGE.md, "19 Nov 2026").
 - [ ] A game stored since the deployment, opened in Match History: the scoreboard, Analysis (with its lane at 10:00 and 15:00) and Timeline read as before; the new fields are stored, not shown.
 - [ ] `/privacy` → What is stored → Match records names the timeline's level times, sales, items used up, place on the map, ability haste and turret plates, and the notice reads "Updated 20 November 2026".
+
+## Administration: People, the person view, owner tools and the Dashboard (overhaul S9)
+
+Admin only, apart from Settings' **Sign out of other devices**. The Production check signs in as a plain member, so it checks none of Admin signed in: its refusal facts (every Admin and preview route refused signed out and to the member) stand, and these pages stay "deployed", not "production-verified", until the Owner's review below (OD12). No migration (the optional audit indexes, 0068, are not in this change). CI checks the behaviour on demo data: `e2e/admin-people.spec.ts`, `admin.spec.ts`, `admin-safety.spec.ts`, `erasure.spec.ts`, and `tests/db/member-admin.test.ts`.
+
+- [ ] Users & Permissions → Accounts: one list in groups (Team members, Personal use, Accounts without a player profile, **Profiles without an account** folded, **Kept automatically**), each row a picture, a name and `@username`, at most one state chip and Owner or Administrator; no button on any row. On a phone the status filter is a select in the search row.
+- [ ] A row opens the person view, its address `?person=`: Account, Password, Access, Riot accounts, Picture and links, Activity (the last 10 entries, in sentences) and a closed Danger zone. Copy the address into a new tab: it opens there too. Back closes it; ‹ › go to the next person without a new history entry.
+- [ ] As the Owner: change a member's display name in their view; Team and the public page show it on the next load (the public page no longer waits its minute). The username stays.
+- [ ] **Sign out everywhere** on a test member: their other browser is signed out at its next page; the notice says "Signed out everywhere", and Audit Logs says "… signed … out everywhere." with no number.
+- [ ] Manage access → Administrator access → Save asks a second time ("Grant administrator access"). Signed in as another administrator, the switch is off and says only the Owner grants it.
+- [ ] Settings → Password → **Sign out of other devices**: another browser of yours is signed out; this one stays.
+- [ ] Audit Logs: filters for category, person and dates stay in the address; every entry is a sentence (no `key: value`); **Load older** adds the next 50.
+- [ ] Dashboard: **Needs you** first (expired temporary passwords, unfinished setups, Riot accounts needing attention, failing jobs, the LP five-minute schedule turned off with who and when, jobs set to 0), then the account counts, then recent activity.

@@ -110,11 +110,9 @@ export function AddPlayerAccount() {
 
   return (
     <>
-      <div className="flex justify-end">
-        <Button variant="primary" onClick={() => setOpen(true)} data-testid="add-account-open">
-          <UserPlus className="h-4 w-4" /> Add account
-        </Button>
-      </div>
+      <Button variant="primary" onClick={() => setOpen(true)} className="shrink-0 max-sm:min-w-11 max-sm:px-0" aria-label="Add account" data-testid="add-account-open">
+        <UserPlus className="h-4 w-4" aria-hidden /> <span className="max-sm:sr-only">Add account</span>
+      </Button>
       <DetailModal open={open} onClose={() => setOpen(false)} size="sheet" title="Add account" description="A username, their Riot ID and whether they join the team. Riot confirms the account; you get a temporary password to give them privately. No email, no invitation link." testId="add-account-sheet">
       <div className="space-y-3">
         <form onSubmit={submit} className="space-y-3" data-testid="add-player-form">

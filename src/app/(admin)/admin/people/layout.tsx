@@ -8,7 +8,7 @@ import { PageHeader } from "@/components/ui/page-header";
 export default function PeopleLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="space-y-4">
-      <PageHeader eyebrow="Admin Mode" title="Users & Permissions" description="Everyone with an account: their status, team membership, access and administrator access, and their personal data." />
+      <PageHeader eyebrow="Admin Mode" title="Users & Permissions" />
       {children}
     </div>
   );

@@ -492,3 +492,8 @@ click, so nothing moves under the finger first). A sheet:
   in an engine, not Safari's own toolbars or gestures on an iPhone. The account screen on a real
   iPhone, installed and in Safari, is the owner's check.
 
+
+## Users & Permissions on phones (overhaul S9a, 19 Nov 2026)
+
+- **The list:** 64px rows (52px from `sm`), a picture, the name and `@username`, at most one state chip; last sign-in from `md`. No buttons on the rows. The status filter is a select in the search row on phones (the chips from `sm`), and Add account is an icon button at its end that opens a sheet, so the first row starts within the first screen (at or above 300px at 375, 220px at 1440: `e2e/admin-people.spec.ts`).
+- **The person view:** the whole screen on phones (`DetailModal` standard), a window from `sm`. Its address is `?person=` under the shared history rule (`useAddressItem`, docs/DESIGN_SYSTEM.md): the system Back closes it with the list's scroll kept, ‹ › replace the entry. Its Danger zone is a closed `Disclosure`.

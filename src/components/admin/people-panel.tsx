@@ -12,6 +12,7 @@ import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Disclosure } from "@/components/ui/disclosure";
 import { SearchInput } from "@/components/ui/search-input";
+import { Select } from "@/components/ui/input";
 import { useAddressItem } from "@/components/ui/address-item";
 import { cn } from "@/lib/cn";
 import { timeAgo } from "@/lib/format";
@@ -117,7 +118,7 @@ function replaceQuery(changes: Record<string, string | null>) {
     if (v) url.searchParams.set(k, v);
     else url.searchParams.delete(k);
   }
-  window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+  window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
 }
 
 function PersonRow({ p, onOpen, testId, you = false }: { p: PersonEntry; onOpen: (key: string) => void; testId: string; you?: boolean }) {
@@ -187,6 +188,7 @@ export function PeoplePanel({
   canManageRoster = true,
   riotConfigured = false,
   initial = {},
+  addAccount = null,
 }: {
   players: PlayerAdminRow[];
   adminAccounts?: AccountView[];
@@ -202,6 +204,8 @@ export function PeoplePanel({
     status?: string | null;
     q?: string | null;
   };
+  /** The Add account button (its sheet), at the end of the search row. */
+  addAccount?: React.ReactNode;
 }) {
   const [filter, setFilterState] = React.useState<StatusFilter>(isFilter(initial.status ?? null) ? (initial.status as StatusFilter) : "all");
   const [query, setQueryState] = React.useState(initial.q ?? "");
@@ -269,27 +273,21 @@ export function PeoplePanel({
 
   return (
     <ErasureResultHost>
-      <section className="space-y-4 rounded-card border border-border bg-surface p-3 sm:p-4" data-testid="players-admin">
-        <div className="flex flex-wrap items-center gap-2">
+      <section className="space-y-3" data-testid="players-admin">
+        <div className="flex items-center gap-2">
           <SearchInput value={query} onChange={setQuery} placeholder="Find a person, username or Riot ID" label="Find a person" className="min-w-0 flex-1 sm:max-w-xs" testId="people-search" />
+          {/* The status filter is a select in the search row, so the list starts high in the first screen. */}
+          <Select aria-label="Filter by status" value={filter} onChange={(e) => setFilter(e.target.value as StatusFilter)} className="w-32 shrink-0 sm:w-56" data-testid="status-filter-select">
+            {FILTERS.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.label} ({counts[f.id]})
+              </option>
+            ))}
+          </Select>
+          <span className="flex-1 max-sm:hidden" />
+          {addAccount}
         </div>
-        <div role="group" aria-label="Filter by status" className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 sm:flex-wrap sm:overflow-visible" data-testid="status-filters">
-          {FILTERS.map((f) => (
-            <button
-              key={f.id}
-              type="button"
-              aria-pressed={filter === f.id}
-              onClick={() => setFilter(f.id)}
-              className={cn(
-                "inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border px-3 text-sm transition-colors pointer-coarse:min-h-11",
-                filter === f.id ? "border-accent bg-accent/15 text-accent" : "border-border text-fg-muted hover:text-fg",
-              )}
-            >
-              {f.label}
-              <span className="rounded-full bg-surface-3 px-1.5 text-xs font-semibold tabular-nums text-fg-muted">{counts[f.id]}</span>
-            </button>
-          ))}
-        </div>
+        
 
         {groups.map((g) =>
           g.rows.length || (g.key !== "no-profile" && filter === "all" && !q) ? (

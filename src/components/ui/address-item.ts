@@ -81,12 +81,14 @@ export function useAddressItem(param: string, { initial = null, valid }: { initi
         return;
       }
       const href = itemHref(`${window.location.pathname}${window.location.search}${window.location.hash}`, param, to);
-      // Next.js keeps its own state on the entry; carry it over so its router stays in step.
+      // No state of our own: Next.js copies its router's state onto the entry and follows the new
+      // address. Passing its own state back (which carries its __NA mark) would skip that, and the
+      // router's next refresh (router.refresh() after a save) would put the old address back.
       if (step === "push") {
-        window.history.pushState(window.history.state, "", href);
+        window.history.pushState(null, "", href);
         pushed.current = true;
       } else {
-        window.history.replaceState(window.history.state, "", href);
+        window.history.replaceState(null, "", href);
         if (to === null) pushed.current = false;
       }
       setRaw(to);
