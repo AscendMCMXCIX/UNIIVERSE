@@ -67,7 +67,7 @@ export default async function MatchupIntelPage({ searchParams }: { searchParams:
         announcement={announcementWords(view, shows)}
         heading={
           <header>
-            <h1 className="text-xl font-semibold tracking-tight text-fg">Matchup Intel</h1>
+            <h1 className="text-2xl font-semibold tracking-tight text-fg">Matchup Intel</h1>
             <p className="sr-only" data-testid="matchup-description">
               {description}
             </p>

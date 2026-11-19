@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import abilityFixture from "@/server/riot/fixtures/champion-abilities.fixture.json";
 import { getChampionNotes } from "@/server/matchup-intel/curated";
 import { cooldownDisplay, modifiersView } from "./cooldown";
-import { GENERAL_RULE_TIP, HASTE_MAX, clampHaste, cooldownAtHaste, hasteBasisOf, hasteMarkWords, hastedSeconds } from "./haste";
+import { GENERAL_RULE_TIP, HASTE_MAX, SUMMONER_SPELL_HASTE_WORDS, summonerSpellCooldown, clampHaste, cooldownAtHaste, hasteBasisOf, hasteMarkWords, hastedSeconds } from "./haste";
 import { refusedWords } from "./refused-words";
 import type { CooldownDisplay, DdragonChampionAbilities } from "./types";
 
@@ -66,6 +66,11 @@ describe("cooldowns at a chosen haste", () => {
     const d: CooldownDisplay = { kind: "per-rank", seconds: [10], starts: null, from: "ddragon" };
     expect(hasteBasisOf("Q", d, { static: true }).mark).toBe("static");
     expect(hasteBasisOf("Q", d, { static: true }, { ignoreStatic: true }).mark).toBe("general");
+  });
+
+  it("never shortens a summoner spell by ability haste", () => {
+    for (const h of [0, ...HASTES, HASTE_MAX]) expect(summonerSpellCooldown([300], h)).toEqual([300]);
+    expect(SUMMONER_SPELL_HASTE_WORDS).toBe("Summoner spell haste is a separate stat");
   });
 
   it("takes haste as a whole number from 0 to its maximum", () => {

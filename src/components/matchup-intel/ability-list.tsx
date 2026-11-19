@@ -3,6 +3,7 @@ import type { AbilityView, ChampionChoice, ChampionIntelView, CooldownDisplay, F
 import { abilityChips, factsFrom } from "@/domain/matchup-intel/kit";
 import { patchFromVersion, publicPatchName } from "@/domain/patch";
 import { Badge } from "@/components/ui/badge";
+import { HasteLine } from "./haste-line";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Panel } from "@/components/ui/panel";
 import { RemoteImage } from "@/components/ui/remote-image";
@@ -332,6 +333,8 @@ function AbilityTile({ intel, ability: a, checkedPatch, dataPatch, notRecheckedF
               <AbilityDetailsBody champion={champion} ability={a} intel={intel} source={source} checkedPatch={checkedPatch} />
             </DetailsDialog>
           </span>
+          {/* At the haste chosen in the bar (none at 0): a line of its own, so the base line never moves. */}
+          <HasteLine basis={a.haste} />
         </div>
         {chips.length ? (
           // Rows of chips with no gap between them: each chip is its badge's own box (fact-chip.tsx), so
@@ -520,22 +523,22 @@ export function AbilitiesPanel({ intel, title, testId, notice }: { intel: Champi
  * data, not reviewed"; a curated champion's are its notes', which their line dates), so its tiles
  * leave it out as theirs do.
  */
-export function YourChampion({ intel }: { intel: ChampionIntelView }) {
+export function YourChampion({ intel, label = "Your champion", testId = "matchup-your-abilities" }: { intel: ChampionIntelView; label?: string; testId?: string }) {
   const from = dataSourceOf(intel);
   const common = commonSourceOf(intel);
   return (
     // A section with a heading of its own, so its abilities' headings sit under it: the summary's
     // words are not read as a heading everywhere, so the heading is for screen readers alone.
     <section>
-      <h2 className="sr-only">{`Your champion: ${intel.champion.name}`}</h2>
-      <details className="group/yours panel-depth rounded-panel border border-border bg-surface" data-testid="matchup-your-abilities">
+      <h2 className="sr-only">{`${label}: ${intel.champion.name}`}</h2>
+      <details className="group/yours panel-depth rounded-panel border border-border bg-surface" data-testid={testId}>
         {/* Under 9rem (a 320px phone at twice the text size) the chevron floats at the first line's end
             and the words take the summary's whole width under it, so a long name keeps whole. */}
         <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-panel px-3 py-2 hover:bg-surface-2/50 @max-[9rem]/dash:block @max-[9rem]/dash:px-2 [&::-webkit-details-marker]:hidden">
           {/* First in the source, for the float; last in the row (order-last) where the summary is a row. */}
           <ChevronDown className="order-last h-4 w-4 shrink-0 text-fg-subtle transition-transform group-open/yours:rotate-180 motion-reduce:transition-none @max-[9rem]/dash:float-right @max-[9rem]/dash:ml-1.5 @max-[9rem]/dash:mt-0.5" aria-hidden />
           <span className="min-w-0">
-            <span className="block text-sm font-semibold text-fg [overflow-wrap:anywhere]">{`Your champion: ${intel.champion.name}`}</span>
+            <span className="block text-sm font-semibold text-fg [overflow-wrap:anywhere]">{`${label}: ${intel.champion.name}`}</span>
             <span className="block text-xs text-fg-muted">
               Abilities and base cooldowns{from ? ` · ${from}` : ""}
               {common && !intel.curated ? (
@@ -552,7 +555,7 @@ export function YourChampion({ intel }: { intel: ChampionIntelView }) {
         {/* On a touch screen 4px more under the summary, so the first tile's Details button, whose 44px
             area reaches 10px past it, covers none of the summary. */}
         <div className="border-t border-border pointer-coarse:pt-1">
-          <AbilityList intel={intel} testId="matchup-your-abilities-list" />
+          <AbilityList intel={intel} testId={`${testId}-list`} />
         </div>
       </details>
     </section>

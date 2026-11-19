@@ -108,3 +108,8 @@ export const GENERAL_RULE_TIP =
 
 /** A summoner spell's line: its base cooldown only, never shortened by ability haste. */
 export const SUMMONER_SPELL_HASTE_WORDS = "Summoner spell haste is a separate stat";
+
+/** A summoner spell's cooldown at any ability haste: its base, always (summoner spell haste is a separate stat, not counted). */
+export function summonerSpellCooldown(base: readonly number[], _abilityHaste: number): number[] {
+  return [...base];
+}

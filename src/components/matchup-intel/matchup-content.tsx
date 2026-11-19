@@ -1,11 +1,13 @@
 import { History, Swords } from "lucide-react";
-import type { ChampionChoice, MatchupPageView } from "@/domain/matchup-intel/types";
+import { DUO_ROLES, type ChampionChoice, type ChampionIntelView, type MatchupPageView } from "@/domain/matchup-intel/types";
 import { EmptyState } from "@/components/ui/empty-state";
 import { AbilitiesPanel, YourChampion } from "./ability-list";
 import { AssembledReference } from "./assembled";
 import { Briefing, CuratedLinks, PAIR_CHIP, briefingShows } from "./briefing";
 import { MatchupFooter } from "./matchup-footer";
 import { OpenPickerButton, PairLink } from "./matchup-frame";
+import { slotWords } from "./slots";
+import { RiotTipsPanel } from "./riot-tips";
 import { InteractionsPanel, LevelNotesPanel, notesBalance } from "./matchup-notes";
 import { behindOf } from "./matchup-status";
 import { staleDataWords } from "./wording";
@@ -29,6 +31,7 @@ import { staleDataWords } from "./wording";
   what to do next.
 */
 
+const lowerFirst = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
 const toChoices = (ids: readonly string[] | undefined, byId: ReadonlyMap<string, ChampionChoice>) => (ids ?? []).map((id) => byId.get(id)).filter((c): c is ChampionChoice => !!c);
 
 /** Nothing chosen: what the page does, and the curated briefings there are so far. */
@@ -78,11 +81,12 @@ const NOTES_SPLIT = {
 
 export function MatchupContent({ view, champions, curated, legal }: { view: MatchupPageView; champions: readonly ChampionChoice[]; curated: Record<string, string[]>; legal: string }) {
   const byId = new Map(champions.map((c) => [c.id, c]));
-  const { you, enemy, enemyIntel, yourIntel, matchup } = view;
+  const { you, enemy, enemyIntel, yourIntel, matchup, role, allyIntel, enemy2Intel } = view;
+  const duo = DUO_ROLES.has(role);
   const curatedForYou = you ? toChoices(curated[you.id], byId) : [];
   const mirror = !!you && !!enemy && you.id === enemy.id;
   const current = view.patch.current;
-  const shownData = [enemyIntel, mirror ? null : yourIntel].filter((i) => !!i?.abilities);
+  const shownData = [enemyIntel, mirror ? null : yourIntel, enemy2Intel, allyIntel].filter((i) => !!i?.abilities);
   const behind = behindOf(view);
   // The champions whose ability tiles are on the page (yours folded, but there), for the chips.
   const rows = new Set(shownData.map((i) => i!.champion.id));
@@ -95,7 +99,7 @@ export function MatchupContent({ view, champions, curated, legal }: { view: Matc
       {!you && !enemy ? <NothingChosen curated={curated} byId={byId} /> : null}
 
       {you && !enemy ? (
-        <EmptyState icon={Swords} title={`Playing ${you.name}: now choose the enemy`} action={<OpenPickerButton slot="enemy" testId="matchup-choose-enemy">Choose the enemy</OpenPickerButton>} testId="matchup-need-enemy" compact>
+        <EmptyState icon={Swords} title={`Playing ${you.name}: now ${lowerFirst(slotWords(role, "enemy").choose)}`} action={<OpenPickerButton slot="enemy" testId="matchup-choose-enemy">{slotWords(role, "enemy").choose}</OpenPickerButton>} testId="matchup-need-enemy" compact>
           {curatedForYou.length ? <CuratedLinks you={you} enemies={curatedForYou} label={`Curated briefings for ${you.name}:`} centered /> : <p>The enemy&apos;s abilities, base cooldowns and crowd control follow once you choose them.</p>}
         </EmptyState>
       ) : null}
@@ -122,8 +126,14 @@ export function MatchupContent({ view, champions, curated, legal }: { view: Matc
             </div>
           </div>
           <div className="min-w-0 space-y-3">
-            <AbilitiesPanel intel={enemyIntel} title={mirror ? `${enemyIntel.champion.name}'s abilities (both sides)` : `${enemyIntel.champion.name}'s abilities`} testId="matchup-enemy-abilities" notice={stale} />
-            {yourIntel && !mirror ? <YourChampion intel={yourIntel} /> : null}
+            {/* In the bot lane with both enemies chosen, their two kits side by side where the column has room. */}
+            <div className={enemy2Intel ? "grid gap-3 @min-[84rem]/dash:grid-cols-2" : undefined} data-testid="matchup-enemy-kits">
+              <AbilitiesPanel intel={enemyIntel} title={mirror ? `${enemyIntel.champion.name}'s abilities (both sides)` : `${enemyIntel.champion.name}'s abilities`} testId="matchup-enemy-abilities" notice={stale} />
+              {enemy2Intel ? <AbilitiesPanel intel={enemy2Intel} title={`${enemy2Intel.champion.name}'s abilities`} testId="matchup-enemy2-abilities" /> : null}
+            </div>
+            {yourIntel && !mirror ? <YourChampion intel={yourIntel} label={duo ? slotWords(role, "you").label : undefined} /> : null}
+            {allyIntel ? <YourChampion intel={allyIntel} label={slotWords(role, "ally").label} testId="matchup-ally-abilities" /> : null}
+            <RiotTipsPanel enemies={[enemyIntel, enemy2Intel].filter((i): i is ChampionIntelView => !!i)} yours={[mirror ? null : yourIntel, allyIntel].filter((i): i is ChampionIntelView => !!i)} duo={duo} />
           </div>
         </div>
       ) : null}

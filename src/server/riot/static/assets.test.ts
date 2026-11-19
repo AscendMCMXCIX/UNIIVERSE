@@ -8,7 +8,7 @@ import { ASSET_RULES_FORMAT, compactAssets, isRiftItem, itemHaste } from "./asse
   trees' slots, all from the three files the version-check job already downloads.
 */
 
-const items = (digest as { items: Array<[string, string, string, boolean]> }).items;
+const items = (digest as unknown as { items: Array<[string, string, string, boolean]> }).items;
 
 describe("the ability haste an item's stats give", () => {
   it("parses every one of Summoner's Rift's 72 items whose stats name ability haste (65 purchasable), at 16.22.1", () => {
