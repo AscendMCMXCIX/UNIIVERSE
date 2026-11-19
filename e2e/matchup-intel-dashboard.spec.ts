@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { expect, test, type Page } from "./test";
-import { choose, enemyAbilities, hydrated, localPictures, openMatchupIntel } from "./matchup-intel";
+import { choose, enemyAbilities, hydrated, localPictures, openMatchupIntel, riotText } from "./matchup-intel";
 
 /*
   MATCHUP INTEL as a single-screen dashboard (docs/MATCHUP_INTEL.md, "The dashboard"; the owner's
@@ -20,10 +20,15 @@ import { choose, enemyAbilities, hydrated, localPictures, openMatchupIntel } fro
     conditional marker, where Riot's texts differ (Yone's R), placeholders never resolved (Twisted
     Fate), a champion with few facts saying what has none (Kog'Maw).
   The text-size and phone guarantees of the page are in e2e/matchup-intel.spec.ts.
+  Every test here reads the page with the facts from Riot's text on, as they were written: the
+  layer ships switched off until the owner has pasted the new registration text in Riot's Developer
+  Portal (src/server/matchup-intel/riot-text/switch.ts), and its off state is tested in
+  e2e/matchup-intel.spec.ts.
 */
 
-test.beforeEach(async ({ context, baseURL }) => {
+test.beforeEach(async ({ context, baseURL, page }) => {
   await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
+  await riotText(page, "on");
 });
 
 /** The desktop sizes the overview must fit at 100% zoom (a maximised 1920 by 1080 window leaves about 1920 by 950). */

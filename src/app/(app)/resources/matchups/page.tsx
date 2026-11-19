@@ -1,7 +1,9 @@
+import { cookies } from "next/headers";
 import { getAppDb } from "@/server/bootstrap";
 import { requirePageAccess } from "@/server/auth/page-access";
 import { getBranding } from "@/server/repositories/branding";
 import { loadMatchupPage } from "@/server/matchup-intel/view";
+import { RIOT_TEXT_TEST_COOKIE, riotTextFactsShown } from "@/server/matchup-intel/riot-text/switch";
 import { riotLegal } from "@/components/app-shell";
 import { MatchupFrame } from "@/components/matchup-intel/matchup-frame";
 import { MatchupContent } from "@/components/matchup-intel/matchup-content";
@@ -29,9 +31,11 @@ const named = (v: string | string[] | undefined) => (one(v) ?? "").trim() !== ""
  */
 export default async function MatchupIntelPage({ searchParams }: { searchParams: Promise<Search> }) {
   await requirePageAccess();
-  const [sp, db] = await Promise.all([searchParams, getAppDb()]);
+  const [sp, db, jar] = await Promise.all([searchParams, getAppDb(), cookies()]);
   const input = { champion: one(sp.champion), vs: one(sp.vs) };
-  const [{ view, champions, curated }, branding] = await Promise.all([loadMatchupPage(db, input), getBranding(db)]);
+  // The facts from Riot's text only while their switch is on (riot-text/switch.ts; a browser test's cookie on the demo).
+  const riotText = riotTextFactsShown(jar.get(RIOT_TEXT_TEST_COOKIE)?.value);
+  const [{ view, champions, curated }, branding] = await Promise.all([loadMatchupPage(db, input, riotText), getBranding(db)]);
   const { you, enemy } = view;
   // A champion named in the address that is not on the roster is left out, never repeated back.
   const dropped = (named(sp.champion) && !you) || (named(sp.vs) && !enemy);

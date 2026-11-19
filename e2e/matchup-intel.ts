@@ -1,9 +1,20 @@
-import { expect, type Locator, type Page } from "./test";
+import { expect, test, type Locator, type Page } from "./test";
+import { RIOT_TEXT_TEST_COOKIE } from "../src/server/matchup-intel/riot-text/switch";
 
 /*
   Matchup Intel (a sidebar entry of its own, docs/MATCHUP_INTEL.md): its address, its two pickers
   and their windows. Shared by e2e/matchup-intel.spec.ts.
 */
+
+/**
+ * The facts from Riot's text (L3) in the state a test needs, whatever their switch says: they ship
+ * off until the owner has pasted the new registration text in Riot's Developer Portal
+ * (src/server/matchup-intel/riot-text/switch.ts), so a test of them turns them on for its own
+ * pages, and a test of the off state turns them off. A cookie only the in-memory demo reads.
+ */
+export async function riotText(page: Page, state: "on" | "off") {
+  await page.context().addCookies([{ name: RIOT_TEXT_TEST_COOKIE, value: state, url: test.info().project.use.baseURL! }]);
+}
 
 /** The page for a choice of champions (either may be left out), once its heading is drawn. */
 export async function openMatchupIntel(page: Page, champion?: string, vs?: string) {

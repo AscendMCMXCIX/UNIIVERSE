@@ -1,7 +1,7 @@
 import { AxeBuilder } from "@axe-core/playwright";
 import sharp from "sharp";
 import { expect, test, type Page } from "./test";
-import { choiceIds, choose, cutOrSpilled, enemyAbilities, hydrated, localPictures, openMatchupIntel, openPicker, overflow, pickerCuts, pickerSpill, rosterIds } from "./matchup-intel";
+import { choiceIds, choose, cutOrSpilled, enemyAbilities, hydrated, localPictures, openMatchupIntel, openPicker, overflow, pickerCuts, pickerSpill, riotText, rosterIds } from "./matchup-intel";
 import { untilStill } from "./modal-corner";
 import { E2E_DDRAGON_VERSION } from "./ddragon-version";
 import { patchFromVersion, publicPatchName } from "../src/domain/patch";
@@ -132,6 +132,8 @@ test("Ambessa vs Renekton: the curated briefing, its chips jumping to the abilit
 });
 
 test("a pair without a curated briefing (Garen vs Darius) says so, then the assembled reference, labelled as such every time", async ({ page }) => {
+  // Written with the facts from Riot's text on the page: turned on for it while they ship off.
+  await riotText(page, "on");
   await openMatchupIntel(page, "Garen", "Darius");
   const none = page.getByTestId("matchup-no-briefing");
   await expect(none).toContainText("No curated briefing for Garen vs Darius yet.");
@@ -624,6 +626,8 @@ test("no sideways scrolling at 320, 375, 430 (a large phone) and 768 wide, the p
 });
 
 test("phone at 200% text: nothing is cut or spills sideways in the bar, the briefing or assembled reference, the ability tiles, the notes or the sources (every details part open), at 390 and 320 wide, each pair swapped too", async ({ page }) => {
+  // Written with the facts from Riot's text on the page: turned on for it while they ship off.
+  await riotText(page, "on");
   test.skip((page.viewportSize()?.width ?? 1000) >= 768, "a phone");
   // A phone with its text at 200%, as the other large-text tests set it (html's font size: the
   // page's sizes are in rem, so everything but the screen grows). The three validation pairs: the
@@ -671,6 +675,8 @@ const RIOT_TEXT_PAIRS: Array<[string, string]> = [
 ];
 
 test("phone at 100%, 150% and 200% text, with facts from Riot's text: nothing cut, spilled or scrolling inside, at 320, 375 and 393 wide and held sideways (852 by 393); running text never under text-xs", async ({ page }) => {
+  // Written with the facts from Riot's text on the page: turned on for it while they ship off.
+  await riotText(page, "on");
   test.skip((page.viewportSize()?.width ?? 1000) >= 768, "a phone");
   test.setTimeout(300_000);
   await localPictures(page);
@@ -727,6 +733,8 @@ const TOUCH_PAIRS: Array<[string, string]> = [
 ];
 
 test("touch screens: every chip, key, fold and source tip reaches 44px, no one's area covers another's box, and axe's WCAG 2.2 target size finds nothing (every fold open)", async ({ page }, info) => {
+  // Written with the facts from Riot's text on the page: turned on for it while they ship off.
+  await riotText(page, "on");
   test.skip(info.project.name === "desktop", "touch screens: the phone and the tablet");
   test.setTimeout(180_000);
   await localPictures(page);
@@ -798,6 +806,8 @@ const COOLDOWN_PAIRS: Array<[string, string]> = [
 ];
 
 test("phone at 200% text: a cooldown breaks only after a slash or a space, never inside a number, on every numbered line of ten pairs at 320, 375 and 393 wide", async ({ page }) => {
+  // Written with the facts from Riot's text on the page: turned on for it while they ship off.
+  await riotText(page, "on");
   test.skip((page.viewportSize()?.width ?? 1000) >= 768, "a phone");
   test.setTimeout(180_000);
   await localPictures(page);
@@ -917,6 +927,8 @@ test("phone at 200% and 150% text: the states with one side or none chosen, and 
 });
 
 test("phone: the briefing's threat is on the first screen, above the tab bar: whole at 390 by 664, its first line at 320 by 568; an assembled pair's Danger side likewise", async ({ page }) => {
+  // Written with the facts from Riot's text on the page: turned on for it while they ship off.
+  await riotText(page, "on");
   test.skip((page.viewportSize()?.width ?? 1000) >= 768, "a phone");
   for (const [width, height, whole] of [
     [390, 664, true],
@@ -1170,4 +1182,68 @@ test("Interactions: the matchup's own in full; the enemy's, already chips on its
   await expect(fold.getByTestId("enemy-interaction").first()).toBeHidden();
   await fold.locator("summary").click();
   await expect(fold.getByTestId("enemy-interaction").first()).toBeVisible();
+});
+
+/*
+  As the page ships: the facts from Riot's text (L3) are in the code but switched off until the
+  owner has pasted the new registration text in Riot's Developer Portal
+  (src/server/matchup-intel/riot-text/switch.ts; docs/RIOT_COMPLIANCE.md, "Proposed description").
+  Off, a champion without checked notes reads as one with no reviewed facts: the same pairs that
+  carry the layer's most telling facts when it is on (Gnar's W "Mega Gnar", Yone's R where Riot's
+  texts differ, Twisted Fate's placeholders) show none of it, in the page or in a details window,
+  and each such side says so in one line. The cookie pins the state, so this holds whatever the
+  switch says.
+*/
+test("as it ships, with the facts from Riot's text switched off: none of them anywhere for Gnar, Yone and Twisted Fate, and a side without checked notes says so in one line", async ({ page }) => {
+  await riotText(page, "off");
+  const pairs: Array<{ you: string; enemy: string; none: Array<["danger" | "opportunity", string]> }> = [
+    { you: "Riven", enemy: "Gnar", none: [["danger", "Gnar"]] },
+    { you: "Yone", enemy: "TwistedFate", none: [["danger", "Twisted Fate"], ["opportunity", "Yone"]] },
+    { you: "TwistedFate", enemy: "Yone", none: [["danger", "Yone"], ["opportunity", "Twisted Fate"]] },
+  ];
+  // What only the layer draws: its labels, its chips for disagreements and qualifiers, its markers, its hidden-facts lines.
+  const LAYER = '[data-testid*="riot-text"], [data-from="riot-text"], [data-testid="fact-chip-differ"], [data-testid="fact-chip-markers"], [data-testid$="-conditional"], [data-testid="ability-facts-hidden"], [data-testid="assembled-hidden"]';
+  const WORDS = ["Riot's text", "Riot's ability text", "Riot's texts differ", "reviewed automatically", "No reviewed facts for this ability", "No reviewed facts of this kind"];
+  for (const { you, enemy, none } of pairs) {
+    const where = `${you} vs ${enemy}`;
+    await openMatchupIntel(page, you, enemy);
+    await expect(page.getByTestId("matchup-enemy-abilities")).toHaveAttribute("data-champion", enemy);
+    await expect(page.getByTestId("matchup-assembled")).toBeVisible();
+    await expect(page.locator(LAYER), where).toHaveCount(0);
+    // Its words nowhere, the closed parts (the sources, your champion's folded tiles) included.
+    const words = (await page.getByTestId("matchup-intel").textContent()) ?? "";
+    for (const w of WORDS) expect(words, `${where}: "${w}"`).not.toContain(w);
+    // Each side without checked notes: one line in place of its groups, and no chip.
+    for (const [side, name] of none) {
+      const s = page.getByTestId(`assembled-${side}`);
+      await expect(s, `${where}: ${side}`).toHaveAttribute("data-from", "none");
+      await expect(s.getByTestId("assembled-group"), `${where}: ${side}`).toHaveCount(0);
+      await expect(s.locator('[data-testid^="fact-chip"]'), `${where}: ${side}`).toHaveCount(0);
+      await expect(s.getByTestId("assembled-no-facts"), `${where}: ${side}`).toHaveText(`No reviewed facts for ${name} yet: crowd control, mobility, defence and sustain are not recorded.`);
+    }
+    // The enemy's five tiles keep their names and cooldowns, with no chip; their panel says it once.
+    const tiles = page.getByTestId("matchup-enemy-abilities");
+    await expect(tiles.getByTestId("ability-row")).toHaveCount(5);
+    await expect(tiles.locator('[data-testid^="fact-chip"], [data-testid="ability-facts"], [data-testid="ability-facts-none"]'), where).toHaveCount(0);
+    await expect(tiles.getByTestId("matchup-no-facts"), where).toHaveCount(1);
+    // Nothing wider than the screen.
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth), where).toBeLessThanOrEqual(1);
+  }
+  // A details window says nothing of it either (Yone's R, where Riot's texts differ when the layer is on).
+  await hydrated(page);
+  await row(page, "R").getByTestId("ability-details").click();
+  const body = page.getByTestId("ability-details-body");
+  await expect(body).toBeVisible();
+  await expect(body.getByTestId("ability-details-riot-text")).toHaveCount(0);
+  for (const w of WORDS) expect((await body.textContent()) ?? "", `Yone's R details: "${w}"`).not.toContain(w);
+  await page.keyboard.press("Escape");
+  await expect(body).toHaveCount(0);
+  const result = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
+  expect(result.violations.filter((v) => v.impact === "critical" || v.impact === "serious").map((v) => v.id)).toEqual([]);
+
+  // The same pair with the layer on shows it: the switch is what hides it.
+  await riotText(page, "on");
+  await openMatchupIntel(page, "Riven", "Gnar");
+  await expect(row(page, "W").getByTestId("fact-chip-markers").first()).toContainText("Mega Gnar");
+  await expect(page.getByTestId("assembled-danger")).toHaveAttribute("data-from", "riot-text");
 });

@@ -8,6 +8,7 @@ import { getCurrentPatch, listChampions, listPatchesDesc, type ChampionSummary }
 import { loadChampionAbilities } from "./abilities";
 import { curatedEnemiesFor, getChampionNotes, getMatchupNotes } from "./curated";
 import { loadRiotText } from "./riot-text";
+import { RIOT_TEXT_FACTS_ENABLED } from "./riot-text/switch";
 
 /*
   MATCHUP INTEL's page, built on the server (docs/MATCHUP_INTEL.md): the two champions chosen in the
@@ -454,8 +455,17 @@ const indexes = new WeakMap<readonly ChampionSummary[], Record<string, string[]>
  */
 const knownPatchesOf = (db: Db) => cachedFor("patch:known", 60_000, () => listPatchesDesc(db), db);
 
-/** What the page needs, from the real modules. */
-export async function loadMatchupPage(db: Db, input: { champion?: string; vs?: string }): Promise<{ view: MatchupPageView; champions: ChampionChoice[]; curated: Record<string, string[]> }> {
+/**
+ * The reader of the facts from Riot's text, or none while the layer is off (riot-text/switch.ts):
+ * then no file of it is read, and every champion without checked notes reads as one with no
+ * reviewed facts.
+ */
+export function riotTextReader(shown: boolean): MatchupViewDeps["riotText"] {
+  return shown ? loadRiotText : undefined;
+}
+
+/** What the page needs, from the real modules. `riotText`: whether it shows the facts from Riot's text (the switch, by default). */
+export async function loadMatchupPage(db: Db, input: { champion?: string; vs?: string }, riotText: boolean = RIOT_TEXT_FACTS_ENABLED): Promise<{ view: MatchupPageView; champions: ChampionChoice[]; curated: Record<string, string[]> }> {
   const [list, current, knownPatches] = await Promise.all([listChampions(db), getCurrentPatch(db), knownPatchesOf(db)]);
   const champions = championChoices(list);
   const view = await buildMatchupPageView(input, {
@@ -465,7 +475,7 @@ export async function loadMatchupPage(db: Db, input: { champion?: string; vs?: s
     knownPatches,
     championNotes: getChampionNotes,
     matchupNotes: getMatchupNotes,
-    riotText: loadRiotText,
+    riotText: riotTextReader(riotText),
   });
   let curated = indexes.get(list);
   if (!curated) {

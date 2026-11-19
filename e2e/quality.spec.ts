@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "./test";
 import { AxeBuilder } from "@axe-core/playwright";
 import { playerEntry } from "./players";
+import { riotText } from "./matchup-intel";
 
 /*
   Phase 3 quality gates, run once (desktop project) with explicit viewports:
@@ -10,8 +11,12 @@ import { playerEntry } from "./players";
     - automated accessibility (axe, WCAG 2.1 A/AA): no critical or serious violations.
 */
 
-test.beforeEach(async ({ context, baseURL }) => {
+test.beforeEach(async ({ context, baseURL, page }) => {
   await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
+  // Matchup Intel's routes below are audited with the facts from Riot's text on, as they were
+  // written; the layer ships switched off (src/server/matchup-intel/riot-text/switch.ts), and its
+  // off state is audited in e2e/matchup-intel.spec.ts. The cookie changes no other page.
+  await riotText(page, "on");
 });
 
 // Matchup Intel: nothing chosen, a curated briefing, and the assembled reference with checked facts on

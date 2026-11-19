@@ -4,6 +4,7 @@ import { emulateKeyboard, keyboard } from "./keyboard";
 import { expectClearCorner, untilStill } from "./modal-corner";
 import { besideAMark, openMatchWindow } from "./match-history";
 import { bubbleFacts, NOT_A_PICTURE, NOT_A_PICTURE_ERROR, openPictureEditor, placedRight, toastFacts } from "./popups";
+import { riotText } from "./matchup-intel";
 import path from "node:path";
 
 /*
@@ -210,6 +211,8 @@ test("Matchup Intel: a slot's picker fills the screen, a search and a tap choose
 });
 
 test("Matchup Intel's facts from Riot's text on an iPhone: a tap on a chip quotes it, on \"Riot's texts differ\" gives both quotes, and the details window says the same; nothing is wider than the phone", async ({ page }) => {
+  // The facts from Riot's text ship switched off (src/server/matchup-intel/riot-text/switch.ts): on for this test.
+  await riotText(page, "on");
   await page.goto("/resources/matchups?champion=Riven&vs=Yone");
   await expect(page.getByTestId("matchup-dashboard")).toHaveAttribute("data-layer", "assembled");
   await expect(page.getByTestId("matchup-remembered")).not.toHaveAttribute("data-state", "loading");
