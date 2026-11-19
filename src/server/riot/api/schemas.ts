@@ -8,6 +8,32 @@ export const matchIdsSchema = z.array(z.string().min(1));
 /** An optional extra figure: anything but a number reads as absent. */
 const extraNumber = z.number().optional().catch(undefined);
 
+/**
+ * Riot's per-game challenge figures that UNIIVERSE keeps (the rest of `challenges` is dropped).
+ * soloKills feeds Team Leaderboards; turretPlatesTaken goes with the other figures for supports
+ * and tanks; the lane and jungle figures (LANE_CHALLENGE_KEYS) are kept as evidence for Matchup
+ * Intel, from the same match request. Each one tolerant: an unexpected value is absent.
+ */
+export const LANE_CHALLENGE_KEYS = [
+  "jungleCsBefore10Minutes",
+  "initialCrabCount",
+  "scuttleCrabKills",
+  "enemyJungleMonsterKills",
+  "junglerKillsEarlyJungle",
+  "killsOnLanersEarlyJungleAsJungler",
+  "maxCsAdvantageOnLaneOpponent",
+  "maxLevelLeadLaneOpponent",
+  "laningPhaseGoldExpAdvantage",
+  "playedChampSelectPosition",
+] as const;
+export type LaneChallengeKey = (typeof LANE_CHALLENGE_KEYS)[number];
+
+const challengesSchema = z.object({
+  soloKills: extraNumber,
+  turretPlatesTaken: extraNumber,
+  ...(Object.fromEntries(LANE_CHALLENGE_KEYS.map((k) => [k, extraNumber])) as Record<LaneChallengeKey, typeof extraNumber>),
+});
+
 export const matchParticipantSchema = z.object({
   puuid: z.string().min(1),
   teamId: z.number(),
@@ -48,8 +74,13 @@ export const matchParticipantSchema = z.object({
   damageDealtToBuildings: extraNumber,
   turretTakedowns: extraNumber,
   timeCCingOthers: extraNumber,
+  // Figures that serve supports and tanks, from the same match (kept from 20 Nov 2026 on).
+  totalTimeSpentDead: extraNumber,
+  totalHealsOnTeammates: extraNumber,
+  totalDamageShieldedOnTeammates: extraNumber,
+  damageSelfMitigated: extraNumber,
   /** Riot's derived per-game figures; only the ones UNIIVERSE uses are read (the rest are dropped). */
-  challenges: z.object({ soloKills: extraNumber }).optional().catch(undefined),
+  challenges: challengesSchema.optional().catch(undefined),
   item0: z.number().optional(),
   item1: z.number().optional(),
   item2: z.number().optional(),
@@ -61,6 +92,8 @@ export const matchParticipantSchema = z.object({
   summoner2Id: z.number().optional(),
   perks: z
     .object({
+      /** The three stat shards (Riot's PerkStatsDto); tolerant, so a page without them still reads. */
+      statPerks: z.object({ offense: z.number(), flex: z.number(), defense: z.number() }).optional().catch(undefined),
       styles: z.array(z.object({ description: z.string().optional(), style: z.number(), selections: z.array(z.object({ perk: z.number() })).default([]) })).default([]),
     })
     .optional(),
@@ -90,9 +123,11 @@ export const matchSchema = z.object({
 
 /**
  * A match timeline (match-v5 /timeline): only the participant order and the events UNIIVERSE reads
- * (item purchases, their undos and skill level-ups; champion kills; epic monsters, towers and
- * inhibitors taken). Riot's minute-by-minute frames carry far more; the rest is ignored and never
- * stored.
+ * (item purchases, their undos, sales and items used up; skill and champion level-ups; champion
+ * kills; epic monsters, towers, turret plates and inhibitors taken). Riot's minute-by-minute frames
+ * carry far more; only each player's gold, experience, CS, place on the map, ability haste and
+ * level are read, and the rest is ignored and never stored. The fields read from 20 Nov 2026 on
+ * are tolerant: an unexpected value reads as absent, so it can never fail a timeline.
  */
 export const matchTimelineSchema = z.object({
   metadata: z.object({ matchId: z.string().min(1), participants: z.array(z.string()).default([]) }),
@@ -112,6 +147,12 @@ export const matchTimelineSchema = z.object({
                 xp: z.number().optional(),
                 minionsKilled: z.number().optional(),
                 jungleMinionsKilled: z.number().optional(),
+                /** The champion's level at the frame. */
+                level: extraNumber,
+                /** Where the champion stood at the frame, in map units (Riot's PositionDto). */
+                position: z.object({ x: z.number(), y: z.number() }).optional().catch(undefined),
+                /** Riot's ChampionStatsDto: only the ability haste is read. */
+                championStats: z.object({ abilityHaste: extraNumber }).optional().catch(undefined),
               }),
             )
             .optional(),
@@ -126,6 +167,8 @@ export const matchTimelineSchema = z.object({
                 afterId: z.number().optional(),
                 skillSlot: z.number().optional(),
                 levelUpType: z.string().optional(),
+                /** LEVEL_UP: the champion level reached. */
+                level: extraNumber,
                 /** CHAMPION_KILL, ELITE_MONSTER_KILL, BUILDING_KILL: 0 when no player made it (an execution). */
                 killerId: z.number().optional(),
                 /** CHAMPION_KILL */
@@ -136,7 +179,10 @@ export const matchTimelineSchema = z.object({
                 /** ELITE_MONSTER_KILL on a dragon: FIRE_DRAGON, …, ELDER_DRAGON. */
                 monsterSubType: z.string().optional(),
                 killerTeamId: z.number().optional(),
-                /** BUILDING_KILL: TOWER_BUILDING or INHIBITOR_BUILDING, its lane and tier; teamId is the side that lost it. */
+                /**
+                 * BUILDING_KILL: TOWER_BUILDING or INHIBITOR_BUILDING, its lane and tier; teamId is the side that lost it.
+                 * TURRET_PLATE_DESTROYED: the plate's lane, and teamId the side that lost it, likewise.
+                 */
                 buildingType: z.string().optional(),
                 laneType: z.string().optional(),
                 towerType: z.string().optional(),

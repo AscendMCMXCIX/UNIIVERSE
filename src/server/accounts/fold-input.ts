@@ -13,7 +13,10 @@ import type { MatchParticipantDetail } from "@/server/db/schema";
   derived the same way (match-details participantDetail), so the stored game is the same either
   way. The position is Riot's team position, or its individual position when the team position is
   empty: the record has always kept that fallback, and the fold uses it from both sources so a
-  game's role never depends on which account fetched it first.
+  game's role never depends on which account fetched it first. Riot's two readings themselves are
+  kept on records stored from 20 Nov 2026 on, and the lane opponent rule reads them from either
+  source (domain/match-analysis laneOpponentOf); a record stored before then has only the merged
+  position, so a game folded from such a record is held to the rule for merged positions.
 */
 
 export interface FoldParticipant {
@@ -26,6 +29,9 @@ export interface FoldParticipant {
   championKey: number;
   /** TOP | JUNGLE | MIDDLE | BOTTOM | UTILITY, or "" when Riot gave none. */
   position: string;
+  /** Riot's team and individual positions as sent; undefined when folded from a record stored before they were kept. */
+  teamPosition?: string;
+  individualPosition?: string;
   win: boolean;
   kills: number;
   deaths: number;
@@ -59,6 +65,8 @@ export function foldInputFromMatch(match: RiotMatch): FoldInput {
       teamId: p.teamId,
       championKey: p.championId,
       position: p.teamPosition || p.individualPosition || "",
+      teamPosition: p.teamPosition ?? "",
+      individualPosition: p.individualPosition ?? "",
       win: p.win,
       kills: p.kills,
       deaths: p.deaths,
@@ -78,7 +86,11 @@ export interface FoldRecord {
   gameDuration: number;
   queueId: number | null;
   gameVersion: string | null;
-  participants: readonly Pick<MatchParticipantDetail, "puuid" | "name" | "teamId" | "championKey" | "position" | "win" | "kills" | "deaths" | "assists" | "cs" | "damage" | "vision" | "removed">[];
+  participants: readonly (Pick<MatchParticipantDetail, "puuid" | "name" | "teamId" | "championKey" | "position" | "win" | "kills" | "deaths" | "assists" | "cs" | "damage" | "vision" | "removed"> & {
+    /** Null (or absent) on a record stored before Riot's two readings were kept. */
+    teamPosition?: string | null;
+    individualPosition?: string | null;
+  })[];
 }
 
 /**
@@ -99,6 +111,7 @@ export function foldInputFromRecord(record: FoldRecord): FoldInput | null {
       teamId: p.teamId,
       championKey: p.removed ? 0 : p.championKey,
       position: p.removed ? "" : (p.position ?? ""),
+      ...(!p.removed && typeof p.teamPosition === "string" ? { teamPosition: p.teamPosition, individualPosition: p.individualPosition ?? "" } : {}),
       win: p.win,
       kills: p.kills,
       deaths: p.deaths,

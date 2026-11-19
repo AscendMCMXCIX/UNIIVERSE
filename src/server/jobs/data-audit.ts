@@ -16,6 +16,7 @@ import { opggCoverage } from "@/server/players/riot-names";
 import { matchViewConsistency } from "@/server/players/match-consistency";
 import { riotIdFamily } from "@/server/riot/id-family";
 import { publicRiotDataAllowed } from "@/server/public/access";
+import { laneOpponentAudit } from "@/server/accounts/lane-opponents";
 
 type Row = Record<string, unknown>;
 function rows(result: unknown): Row[] {
@@ -29,7 +30,7 @@ function rows(result: unknown): Row[] {
  */
 defineJob({
   key: "data-audit",
-  description: "Read-only check of the data actually stored: linked-account sync, matches per queue, Solo/Duo vs Flex classification, mastery, Matchups timeline coverage, multikill counts, the ranks shown in match windows (coverage and lookups per day), OP.GG link coverage and why links are missing, whether each stored game's record and timeline agree (gold, CS, kills, objectives), how many members the proposed Recent performance boards would rank, what Team insights would show (anonymous), patches. Changes nothing.",
+  description: "Read-only check of the data actually stored: linked-account sync, matches per queue, Solo/Duo vs Flex classification, mastery, Matchups timeline coverage, the stored lane opponents against the lane opponent rule (games that disagree, unclear, and with Riot's two positions kept), multikill counts, the ranks shown in match windows (coverage and lookups per day), OP.GG link coverage and why links are missing, whether each stored game's record and timeline agree (gold, CS, kills, objectives), how many members the proposed Recent performance boards would rank, what Team insights would show (anonymous), patches. Changes nothing.",
   defaultIntervalMinutes: null,
   allowConcurrent: true,
   run: async (ctx) => {
@@ -225,6 +226,11 @@ defineJob({
         opggLinks: await opggCoverage(db),
         // Each stored game's record against its timeline (gold, CS, kills, objectives), counts only.
         matchViews: await matchViewConsistency(db),
+        // The stored lane opponents against the one lane opponent rule (server/accounts/
+        // lane-opponents.ts), counted in the database: games that disagree (by kind), games the rule
+        // finds unclear, games left as stored, and records that keep Riot's two positions. Above 0
+        // disagreeing, the by-hand lane-opponent-recompute job repairs them.
+        laneOpponents: await laneOpponentAudit(db),
         // Which stored games carry the members' current Riot ids, i.e. were stored under the key
         // family in use (ids are encrypted per Riot application), counts only.
         riotIdFamily: await riotIdFamily(db),
