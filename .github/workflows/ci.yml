@@ -154,14 +154,23 @@ jobs:
           overwrite: true
 
   e2e:
-    name: Build and browser tests (Playwright)
+    # The browser suite in four parallel shards (19 Nov 2026, the owner's request to speed up CI:
+    # one job took 40-54 minutes of its 60). Each shard builds the app once and runs a quarter of the
+    # spec files against its own in-memory demo, so a shard's specs never see another shard's data.
+    # The job below, under the old name, reports the four together and leaves the tree's marker.
+    name: Browser tests (shard ${{ matrix.shard }} of 4)
     needs: check
     if: needs.check.outputs.tested != 'true'
     runs-on: ubuntu-latest
-    # The job takes 25 to 40 minutes, and installing the browser's system libraries once stalled for
-    # 14 (docs/CI_USAGE.md). A run that hits the limit fails and costs a whole re-run; the limit
-    # itself costs nothing unless a run hangs.
-    timeout-minutes: 60
+    # A shard takes about a quarter of the suite plus the build (about 15-20 minutes). Installing the
+    # browser's system libraries once stalled for 14 (docs/CI_USAGE.md); the limit costs nothing
+    # unless a run hangs.
+    timeout-minutes: 45
+    strategy:
+      # Every shard finishes, so one run shows every failure, not only the first shard's.
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@v7
         with:
@@ -185,15 +194,40 @@ jobs:
         run: pnpm exec playwright install --with-deps chromium
       - if: steps.browsers.outputs.cache-hit == 'true'
         run: pnpm exec playwright install-deps chromium
-      # The production build is checked here (once per run) and then served to the tests.
+      # The production build is checked in every shard and then served to its tests.
       - run: pnpm build
         env:
           NEXT_TELEMETRY_DISABLED: "1"
       # Phone, tablet and desktop against the production build on an in-memory database.
-      - run: pnpm test:e2e
+      - run: pnpm test:e2e --shard=${{ matrix.shard }}/4
         env:
           CI: "true"
-      # Marker: this source tree passed the build and browser tests (read by a later push to main).
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: playwright-traces-${{ matrix.shard }}
+          path: test-results
+          retention-days: 7
+
+  e2e-result:
+    # The four shards together, under the job name the merge checks read: it passes only when every
+    # shard passed, and then leaves the marker a later push to main reads (the tree passed the build
+    # and the browser tests).
+    name: Build and browser tests (Playwright)
+    needs: [check, e2e]
+    if: always() && needs.check.outputs.tested != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - if: needs.e2e.result != 'success'
+        env:
+          RESULT: ${{ needs.e2e.result }}
+        run: |
+          echo "::error::The browser-test shards did not all pass (result: $RESULT)."
+          exit 1
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - id: tree
         run: |
           echo "tree=$(git rev-parse 'HEAD^{tree}')" >> "$GITHUB_OUTPUT"
@@ -204,9 +238,62 @@ jobs:
           path: ${{ runner.temp }}/ci-passed
           retention-days: 5
           overwrite: true
+
+  webkit:
+    # Safari's engine on every pull request, in parallel with the browser shards (19 Nov 2026: it was
+    # a workflow started by hand for each head; .github/workflows/webkit.yml stays for branches with no
+    # pull request). Same steps and limit as that workflow, and the same job name, which the merge
+    # checks read. Not on the push to main: the pull request's run covered the same tree.
+    name: Safari's engine (WebKit) on the priority pages
+    needs: check
+    if: github.event_name == 'pull_request' && needs.check.outputs.tested != 'true'
+    # Ubuntu 24.04, not ubuntu-latest (26.04): Playwright 1.58.2, whose WebKit 26.0 the Safari 26
+    # step needs, has no WebKit for 26.04.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - id: playwright
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v6
+        id: browsers
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-ubuntu-24.04-${{ steps.playwright.outputs.version }}-webkit
+      - if: steps.browsers.outputs.cache-hit != 'true'
+        run: pnpm exec playwright install --with-deps webkit
+      - if: steps.browsers.outputs.cache-hit == 'true'
+        run: pnpm exec playwright install-deps webkit
+      - id: build
+        run: pnpm build
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+      - run: pnpm exec playwright test --project=webkit
+        env:
+          CI: "true"
+          E2E_WEBKIT: "1"
+      # Safari 26 (iOS, iPadOS and macOS 26): Playwright 1.58.2's WebKit 26.0, as in webkit.yml.
+      - name: Safari 26's engine (WebKit 26.0) on every kind of window
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/pw26/browsers
+          PW26_CORE: ${{ runner.temp }}/pw26/node_modules/playwright-core
+          WEBKIT26_SHOTS: test-results/webkit26
+        run: |
+          npm install --prefix "$RUNNER_TEMP/pw26" --no-audit --no-fund playwright-core@1.58.2
+          node "$PW26_CORE/cli.js" install --with-deps webkit
+          node scripts/webkit26-check.mjs
       - uses: actions/upload-artifact@v7
         if: failure()
         with:
-          name: playwright-traces
+          name: webkit-traces
           path: test-results
           retention-days: 7
