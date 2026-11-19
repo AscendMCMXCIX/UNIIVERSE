@@ -310,14 +310,24 @@ on 375, 30 and 90px on 393, at 175% and 200%), has no finding left at 125% to 20
   `LT_MODE=browser`), which is what a real text-size setting changes: the media queries' rem grows
   too, so the breakpoints move with the text (at 200% `sm` is 1280px).
 
-On a phone the two agree: a phone is under every breakpoint either way, so the specs' method stands
-for a real setting there. At tablet and desktop widths only the first gives a desktop layout with
-doubled text, a combination a real setting never makes: at 200% a 768px window keeps the tablet
-layout with it, while with the browser's own size it gets the phone layout (24rem wide, what a 384px
-window shows at 100%). So a fault the first mode alone finds at those widths is not one a reader
-meets: Settings is 139px wider than a 768px window at 200% with the root's size doubled, and as wide
-as the window with the browser's (MOBILE.md → The frame); the Library's rows at 1024px and wider
-likewise.
+The two agree wherever no media query in rem falls between the window's width counted in the one rem
+and in the other. The container queries every fix below uses read the root's rem in both, so they
+always agree, and on a 320px phone nothing differs up to 200%. Wider phones meet a few media queries
+that differ. Upright, from 360px, Match History's and Encounters' Filters show their word with the
+root's size and the icon alone with the browser's (`max-[22.5rem]`; 177 against 88px wide at 200%),
+and from 375px a profile's header keeps the layout it has there at the usual size
+(`min-[23.4375rem]`: a little less padding, and at 125% the picture over two rows with the roles
+beside it) only with the root's. Held sideways, a 568px phone keeps Players' title beside its search
+and Filters (`min-[35rem]`) only with the root's, and from 640px (734 × 343, 852 × 393) the root's
+size keeps `sm` (at 852px `md` too): Settings has two columns there and is 165px wider than a 734px
+window at 200% (55px at 852px), and one column as wide as the window with the browser's. At tablet
+and desktop widths only the first gives a desktop layout with doubled text, a combination a real
+setting never makes: at 200% a 768px window keeps the tablet layout with it, while with the
+browser's own size it gets the phone layout (24rem wide, what a 384px window shows at 100%). So a
+fault the first mode alone finds where the two differ is not one a reader meets, and a layout there
+is checked with the browser's own size: Settings is 139px wider than a 768px window at 200% with the
+root's size doubled, and as wide as the window with the browser's (MOBILE.md → The frame); the
+Library's rows at 1024px and wider likewise.
 
 **What each fix does** (the widths measured in Inter on the demo build; each pinned by its spec, on
 the phone project):
@@ -333,11 +343,25 @@ the phone project):
     no-break spaces, so "14 games · 29%" never leaves the dot at a line's end.
   - The role chip has a lane from its corner to the card's controls (0.125rem short of them), or to
     the card's own edge where there are none (its clip, what a chip fitted before it had a lane).
-    Where the lane is narrower than the chip, the chip shows its icon alone as a round badge, the
-    role's name kept for screen readers. The thresholds are the chips rounded up to the next 0.01rem
-    (Mid 4.88, Top 4.98, Jungle 7.01, Bottom 7.34, Support 7.78rem; each chip the same at every size
-    to 0.005rem): a name that shows always fits its lane, and a chip that fits keeps its name (the
-    closest, Support beside its control at 150% on a 375px phone, has 7.79rem).
+    Where the lane is narrower than the role's threshold, the chip shows its icon alone as a round
+    badge, the role's name kept for screen readers. A threshold is the chip plus a margin for the
+    browsers' text, rounded up to the next 0.01rem: Mid 4.91, Top 5.02, Jungle 7.04, Bottom 7.38 and
+    Support 7.81rem. The chips (Mid 4.872, Top 4.978, Jungle 7.001, Bottom 7.335, Support 7.773rem)
+    measure the same in Chromium and in WebKit, within 0.1px at every size from 100% to 200%, and the
+    margin over them is at least 0.036rem (0.6px at 100%, 0.9px at 150%, 1.2px at 200%). Text drawn
+    with hinting differs by size: the Chromium headless shell the specs run in on GitHub rounds each
+    letter's advance to whole pixels and draws a chip up to 0.12rem wider or narrower. Its Support
+    chip, 7.818rem at 150%, ran past its 7.79rem lane on a 375px phone when the thresholds were the
+    chips themselves (CI run 44442818521); at the sizes the specs check (150, 175 and 200%) its chips
+    are within their thresholds, but for Support's at 150%, 0.2px over, inside the specs' half-pixel
+    allowance. The margin can be no larger: the narrowest lane at 100%, beside a control on a 12.2rem
+    card five across, is 125.19px, and WebKit tests a container's width in whole pixels (lanes of
+    125.2 to 125.8px read as narrower than a 125.12px threshold, measured in Playwright's WebKit 27.2),
+    so Support's threshold must be 125px or less for its name to show there at 100%, as it did before
+    the chip had a lane. The spec also narrows each chip's lane to the chip's own width less half a
+    pixel, at each size, and finds the icon alone there: in the browser it runs in, no lane narrower
+    than a chip by more than half a pixel (the allowance of its other checks) shows the name, not
+    only the lanes the demo's cards give.
   - Two controls (your own card's Customise and the turn control) stand one above the other under
     9.25rem; on a touch screen the art keeps its top clear of the controls where they reach over the
     picture (under 7.75rem with one control, 10.875rem with two side by side).
@@ -347,21 +371,27 @@ the phone project):
   - The spec checks the five fronts and Top's back at 150%, 175% and 200% on 320, 375 and 393px:
     nothing past the card or out of the season's box, words whole, the pool's heading and first
     choice never cut short, no "·" ending or starting a line, the controls clear of the chip, the
-    picture, the name and "You", and exactly which chips show their icon alone (fourteen of the 45);
-    then a member's own card with both controls at the same sizes (stacked under 9.25rem, the role's
-    name only at 150% on 393px), and the usual layout at 100%.
+    picture, the name and "You", every chip's name still given to screen readers (its aria snapshot:
+    a name hidden to the eye only passes, one hidden from everyone fails), and exactly which chips
+    show their icon alone (fourteen of the 45); then a member's own card with both controls at the
+    same sizes (stacked under 9.25rem, the role's name only at 150% on 393px; the lineup put back by
+    an `afterEach` should the test end before its own `finally` could), and the usual layout at 100%.
 - **Players** (`roster-row.tsx`, `rank-emblem.tsx`; `e2e/large-text-roster-figures.spec.ts`). A row
   under 9.625rem (one across, so the roster under 11.125rem: 175% and 200% on 320 and 360px, 200% on
   375 to 414px), where the text beside the picture would have less than 6.5rem (what "· Grandmaster"
   with its crest and an eight-letter name with its emblem take), stacks: the picture alone on the
   first line, the text the row's whole width under it ("Emerald" had gone over three lines). A rank
   that does not fit beside its crest goes under it whole. The "·" before the rank (or "No Riot
-  account") shows beside the role and never starts a line: in a row under 16rem (a row at the usual
-  size is 16.4rem or more, where the rank always fits beside the role), where the rank wraps under the
-  role, the dot is cut off with its room past the line's clipped left edge (Records' way; the dot
-  sits between the role's icon and the rank's crest, where a no-break space has nothing to hold it
-  to). The spec checks words whole on the demo's rows, nothing cut or past its row, every "·" either
-  beside its role or cut off where the rank starts its line, at 100% and fourteen large sizes.
+  account") shows beside the role and never starts a line: in a row under 16rem (a roster under
+  17.5rem, read as the stacked rows read it; a row on Players at the usual size is 16.375rem or
+  more, where the rank always fits beside the role), where the rank wraps under the role, the dot is
+  cut off with its room past the line's clipped left edge (Records' way; the dot sits between the
+  role's icon and the rank's crest, where a no-break space has nothing to hold it to). The Card
+  Studio's previews of a row, drawn outside the roster and about 9rem wide at the usual size beside
+  the controls on a 320 × 480 screen, keep their one layout, as they do for the stacked rows. The
+  spec checks words whole on the demo's rows, nothing cut or past its row, every "·" either beside
+  its role or cut off where the rank starts its line, at 100% and fourteen large sizes, and the
+  Studio's previews at 100% on that screen drawn as before.
 - **A profile's Overview** (`recent-form.tsx`, `profile-editor.tsx`, `player-overview.tsx`;
   `e2e/home-layout.spec.ts`, `e2e/large-text-roster-figures.spec.ts`). Recent form's twenty bars
   share the card's width with no floor in rem (61px past the card at 200% on 320px). The champion

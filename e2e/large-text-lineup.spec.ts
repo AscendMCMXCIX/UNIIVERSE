@@ -13,11 +13,14 @@ import { memberContext, unique } from "./member-account";
   At 150% to 200% on 320, 375 and 393px each card, front and back, now holds its text: none of it
   past the card's edge or out of the season's box, words whole, the pool's name and first choice
   never cut short, no "·" ending or starting a line, the card's controls clear of the role's chip
-  (its name hidden to the eye only, where the icon stands alone), the picture, the links and the
-  name, and no sideways scroll. The chip shows its name wherever it fits its lane (to the card's own
-  edge on a card without controls) and the icon alone exactly where it does not. A member's own card,
-  with Customise beside the turn control, holds the same at the same sizes, its two controls one
-  above the other on a card under 9.25rem. At the usual size nothing of this applies.
+  (its name hidden to the eye only, where the icon stands alone: screen readers are still given
+  it), the picture, the links and the name, and no sideways scroll. The chip shows its name
+  wherever its lane (to the card's own edge on a card without controls) holds it with the margin the
+  browsers' text needs (team-roster.tsx, CHIP_FIT), and the icon alone elsewhere; in the browser
+  running the test, no lane narrower than a chip (by more than the half pixel every check here
+  allows) shows its name, whichever lanes the phones give. A member's own card, with Customise
+  beside the turn control, holds the same at the same sizes, its two controls one above the other on
+  a card under 9.25rem. At the usual size nothing of this applies.
 */
 
 test.beforeEach(async ({ context, baseURL }) => {
@@ -137,11 +140,45 @@ function measureFace(face: Locator) {
     const [a, b] = [...card.querySelectorAll(":scope > [data-card-overlay] button")].map((el) => el.getBoundingClientRect());
     const controls = a && b ? (Math.abs(a.top - b.top) < 1 ? "side by side" : Math.abs(a.right - b.right) < 1 && Math.max(a.top, b.top) >= Math.min(a.bottom, b.bottom) ? "one above the other" : "neither") : null;
     const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
-    return { role: (card.getAttribute("data-testid") ?? "").replace(/^lineup-(row|sub)-/, ""), problems, chipText: chip.textContent?.trim() ?? "", labelShown: label ? shown(label) : true, rem: cb.width / rem, inner: (inner.right - inner.left) / rem, controls };
+    return { role: (card.getAttribute("data-testid") ?? "").replace(/^lineup-(row|sub)-/, ""), problems, labelShown: label ? shown(label) : true, rem: cb.width / rem, inner: (inner.right - inner.left) / rem, controls };
   });
 }
 
 const ROLE_NAMES: Record<string, string> = { TOP: "Top", JUNGLE: "Jungle", MID: "Mid", ADC: "Bottom", SUPPORT: "Support" };
+
+/**
+ * Each front's role chip measured with its name (its lane widened for the reading), then its lane
+ * narrowed to that width less half a pixel: whether the name still shows there. That is the
+ * narrowest lane that could show a name past it, so where none does, no lane can, in the browser
+ * running the test: whatever its text measures, not only at the lanes the demo's cards give.
+ * Narrowed and put back within one frame, so nothing is drawn in between.
+ */
+const squeezedChips = (page: Page) =>
+  page.evaluate(() =>
+    [...document.querySelectorAll("[data-testid^=lineup-row-]")].map((card) => {
+      const lane = card.querySelector<HTMLElement>("[data-testid=assigned-role-lane]")!;
+      const chip = lane.querySelector("[data-testid=assigned-role]")!;
+      const label = chip.querySelector("[data-testid=assigned-role-label]")!;
+      const style = lane.getAttribute("style");
+      lane.style.right = "auto";
+      lane.style.width = "60rem";
+      const width = chip.getBoundingClientRect().width;
+      lane.style.width = `${width - 0.5}px`;
+      const box = label.getBoundingClientRect();
+      const nameShown = !(getComputedStyle(label).position === "absolute" && box.width <= 1.5 && box.height <= 1.5);
+      if (style === null) lane.removeAttribute("style");
+      else lane.setAttribute("style", style);
+      const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+      return { role: (card.getAttribute("data-testid") ?? "").replace(/^lineup-row-/, ""), rem: width / rem, nameShown };
+    }),
+  );
+
+/**
+ * What a screen reader is given for a face's role chip (its accessibility tree, not textContent): the
+ * role's name, also where the eye sees the icon alone. A label hidden from everyone (`hidden`, or
+ * aria-hidden) gives nothing, while its textContent would still name the role.
+ */
+const chipSpoken = (face: Locator) => face.getByTestId("assigned-role").ariaSnapshot();
 
 test("at 150% to 200% text on 320, 375 and 393px phones, every lineup card holds its text: nothing cut, words whole, the card's controls clear of the role and the picture", async ({ page }, info) => {
   test.skip(info.project.name !== "phone", "phone widths, set below");
@@ -158,20 +195,30 @@ test("at 150% to 200% text on 320, 375 and 393px phones, every lineup card holds
       await settled(page);
       const at = `${width}px at ${root}%`;
       await expect.poll(() => overflow(page), `${at}: no sideways page scroll`).toBeLessThanOrEqual(1);
+      // A chip is as wide at every phone width, so once per size: in a lane its own width less half a
+      // pixel, each chip shows its icon alone (its threshold holds it in this browser, to that half
+      // pixel).
+      if (width === 320) {
+        const squeezed = await squeezedChips(page);
+        expect(squeezed.filter((c) => c.nameShown).map((c) => `${c.role} (a ${c.rem.toFixed(3)}rem chip)`), `${root}%: a role's name shown in a lane narrower than its chip`).toEqual([]);
+      }
       for (let i = 0; i < 5; i++) {
         const card = await measureFace(fronts.nth(i));
         expect(card.problems, `${at}, ${card.role} (a ${card.rem.toFixed(2)}rem card)`).toEqual([]);
-        expect(card.chipText, `${at}, ${card.role}: the chip still names the role`).toBe(ROLE_NAMES[card.role]);
+        expect(await chipSpoken(fronts.nth(i)), `${at}, ${card.role}: the chip still names the role to screen readers`).toBe(`- text: ${ROLE_NAMES[card.role]}`);
         if (!card.labelShown) narrowed.push(`${at} ${card.role}`);
       }
     }
   }
-  // The icon stands alone exactly where the name could not fit, and nowhere else: Top and Support
-  // beside their turn control (Support from 150% on 320px and 175% on 375 and 393px, Top from 175%
-  // on 320px and 200% on 375 and 393px); Jungle and Bottom, without a control, only where their chip
-  // is wider than the card allows (Bottom from 175% on 320px, Jungle at 200% there). Jungle at 175%
-  // on 320px and Bottom at 200% on 375px fit by 3px and 2px, so they keep their names; Mid's short
-  // name always fits.
+  // The icon stands alone exactly where the lane is narrower than the role's threshold (its chip and
+  // the margin), and nowhere else: Top and Support beside their turn control (Support from 150% on
+  // 320 and 375px and 175% on 393px, Top from 175% on 320px and 200% on 375 and 393px); Jungle and
+  // Bottom, without a control, only where the card is too narrow for them (Bottom from 175% on 320px,
+  // Jungle at 200% there). Support at 150% on 375px has 7.79rem of lane: its chip fits there in
+  // Chromium and WebKit (7.773rem) but not as GitHub's headless Chromium draws it (7.818rem), and the
+  // lane is under its 7.81rem threshold. Jungle at 175% on 320px and Bottom at 200% on 375px keep
+  // their names, with 3px and 2.3px of room (7.11 and 7.41rem of lane, thresholds 7.04 and 7.38rem);
+  // Mid's short name always fits.
   expect(narrowed, "the chips shown as their icon alone").toEqual([
     "320px at 150% SUPPORT",
     "320px at 175% TOP",
@@ -181,6 +228,7 @@ test("at 150% to 200% text on 320, 375 and 393px phones, every lineup card holds
     "320px at 200% JUNGLE",
     "320px at 200% ADC",
     "320px at 200% SUPPORT",
+    "375px at 150% SUPPORT",
     "375px at 175% SUPPORT",
     "375px at 200% TOP",
     "375px at 200% SUPPORT",
@@ -199,7 +247,7 @@ test("at 150% to 200% text on 320, 375 and 393px phones, every lineup card holds
   await expect(top).not.toHaveAttribute("data-turn", /.+/);
   const back = await measureFace(page.getByTestId("lineup-sub-TOP"));
   expect(back.problems, "320px at 200%, the back of Top").toEqual([]);
-  expect(back.chipText).toBe("Top");
+  expect(await chipSpoken(page.getByTestId("lineup-sub-TOP")), "320px at 200%, the back of Top: the chip names the role to screen readers").toBe("- text: Top");
   await page.getByTestId("lineup-sub-TOP").getByTestId("flip-back").click();
   await expect(top).not.toHaveAttribute("data-flipped", "true");
   await page.evaluate(() => { document.documentElement.style.fontSize = ""; });
@@ -243,6 +291,26 @@ async function setTopStarter(admin: Page, name: string) {
   await admin.getByTestId("edit-lineup").click();
 }
 
+/*
+  Who started at Top before the own-card test put its member there, until they are back. The test's
+  finally puts them back, and this hook does when the test ended before its finally could: after a
+  timeout (a step that never ends, since no action here has a timeout of its own) the hooks run, and
+  then the test's browser closes under the abandoned finally. Left at Top, the test's member is who a
+  retry would put back, and every later spec (the projects share one demo database) would find them
+  starting at Top.
+*/
+let topToRestore: string | null = null;
+test.afterEach(async ({ browser }) => {
+  if (topToRestore === null) return;
+  const admin = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  try {
+    await setTopStarter(await admin.newPage(), topToRestore);
+    topToRestore = null;
+  } finally {
+    await admin.close();
+  }
+});
+
 test("a member's own card, with Customise beside the turn control, at 150% to 200% text on 320, 375 and 393px phones: the two controls side by side or one above the other, clear of the role, the picture and the name; nothing cut, words whole", async ({ browser, baseURL }, info) => {
   test.skip(info.project.name !== "phone", "phone widths, set below");
   test.setTimeout(240_000);
@@ -253,11 +321,14 @@ test("a member's own card, with Customise beside the turn control, at 150% to 20
   const adminPage = await admin.newPage();
   await adminPage.goto(baseURL! + "/team");
   await expect(adminPage.getByTestId("lineup-overview")).toHaveAttribute("data-ready", "true");
-  const before = (await adminPage.getByTestId("lineup-row-TOP").getAttribute("data-player-name"))!;
+  const atTop = (await adminPage.getByTestId("lineup-row-TOP").getAttribute("data-player-name"))!;
+  // A member an earlier attempt left at Top (its restore never ran) is not who goes back: the demo's is.
+  const before = atTop.startsWith("Own ") ? "Demo Top" : atTop;
   const display = `Own ${unique("").slice(-5)}`;
   const member = await memberContext(browser, adminPage, { width: 375, height: 667 }, { base: "Own", role: "Top", display });
   const phone = await browser.newContext({ viewport: { width: 375, height: 667 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2, storageState: await member.context.storageState() });
   try {
+    topToRestore = before;
     await setTopStarter(adminPage, display);
     const page = await phone.newPage();
     await page.goto("/team");
@@ -278,17 +349,18 @@ test("a member's own card, with Customise beside the turn control, at 150% to 20
         await expect.poll(() => overflow(page), `${at}: no sideways page scroll`).toBeLessThanOrEqual(1);
         const card = await measureFace(own);
         expect(card.problems, `${at}, your own Top card (a ${card.rem.toFixed(2)}rem card)`).toEqual([]);
-        expect(card.chipText, `${at}: the chip still names the role`).toBe("Top");
+        expect(await chipSpoken(own), `${at}: the chip still names the role to screen readers`).toBe("- text: Top");
         // One above the other on a card under 9.25rem, where side by side they left the role no room.
         expect(card.controls, `${at}: Customise and the turn control (a card ${card.inner.toFixed(2)}rem inside)`).toBe(card.inner < 9.25 ? "one above the other" : "side by side");
         if (card.labelShown) named.push(at);
       }
     }
-    // Beside two controls the role's name fits only at the usual size and at 150% on a 393px phone
-    // (5.4rem of lane for Top's 4.98rem chip); everywhere else the icon stands alone.
+    // Beside two controls the role's name shows only at the usual size and at 150% on a 393px phone
+    // (5.42rem of lane, over Top's 5.02rem threshold); everywhere else the icon stands alone.
     expect(named, "your own card's chip with the role's name").toEqual(["320px at 100%", "375px at 100%", "393px at 100%", "393px at 150%"]);
   } finally {
     await setTopStarter(adminPage, before);
+    topToRestore = null;
     await phone.close();
     await member.context.close();
     await admin.close();
