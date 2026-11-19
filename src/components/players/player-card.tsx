@@ -279,7 +279,7 @@ export function CardPerformance({ season, support, roleLabel, placeholder = fals
               player's window, instead of showing cut off. On a card from 14.5rem to 16.5rem (five
               across most desktops) the three figures stand 4px apart instead of 10px, so the line
               fits whole there rather than ending in "…". */}
-          <dd className={cn(sub, narrowHidden)} title={kdaLine ? `Kills / deaths / assists per game: ${kdaLine}` : undefined}>
+          <dd className={cn(sub, narrowHidden)} title={kdaLine ? `Average kills / deaths / assists: ${kdaLine}` : undefined}>
             {placeholder || !kdaLine ? (
               "\u00a0"
             ) : (
