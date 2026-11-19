@@ -33,11 +33,12 @@ const STATE: Record<CredentialState, { label: string; tone: BadgeTone; plain: st
 };
 
 /**
- * Riot API health. Everyone sees whether Riot data is available; owners also see the credential
- * state, when Riot last answered, the last error and what to do about it. The key itself is
- * never shown; only its last characters, so the owner can tell which key a deployment carries.
+ * Riot API health. Without `credentialDetails` it says only whether Riot data is available; with it
+ * (Admin Mode → Data & Integrations, for the administrators who manage data) also the credential
+ * state, when Riot last answered, the last error and what to do about it. The key itself is never
+ * shown; only its last characters, so the owner can tell which key a deployment carries.
  */
-export function RiotHealthPanel({ riot, isOwner }: { riot: RiotHealthView; isOwner: boolean }) {
+export function RiotHealthPanel({ riot, credentialDetails }: { riot: RiotHealthView; credentialDetails: boolean }) {
   const router = useRouter();
   const [busy, setBusy] = React.useState<"check" | "retry" | null>(null);
   const s = STATE[riot.state];
@@ -45,16 +46,16 @@ export function RiotHealthPanel({ riot, isOwner }: { riot: RiotHealthView; isOwn
     <Panel className={riot.state === "rejected" ? "border-bad/50" : undefined}>
       <PanelHeader
         title="Riot API"
-        subtitle={isOwner ? "Credential status for the server's Riot API key. The key is never shown." : "Whether Riot player data can be refreshed right now."}
+        subtitle={credentialDetails ? "Credential status for the server's Riot API key. The key is never shown." : "Whether Riot player data can be refreshed right now."}
         actions={
           <span className="inline-flex items-center gap-1">
-            <Badge tone={s.tone}>{isOwner ? `Credential: ${s.label}` : riot.state === "accepted" ? "Available" : riot.state === "not-configured" ? "Not configured" : "Temporarily unavailable"}</Badge>
+            <Badge tone={s.tone}>{credentialDetails ? `Credential: ${s.label}` : riot.state === "accepted" ? "Available" : riot.state === "not-configured" ? "Not configured" : "Temporarily unavailable"}</Badge>
             <Info text="Accepted = Riot answered a request under the current key. Rejected = Riot answered 401/403 (development keys expire after 24 hours). Unavailable = rate limit, outage or network problem." />
           </span>
         }
       />
       <PanelBody className="space-y-3 text-sm">
-        {!isOwner ? (
+        {!credentialDetails ? (
           <p className="text-fg-muted">{s.plain}</p>
         ) : (
           <>

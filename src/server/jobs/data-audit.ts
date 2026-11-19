@@ -29,6 +29,8 @@ function rows(result: unknown): Row[] {
  */
 defineJob({
   key: "data-audit",
+  kind: "check",
+  cost: "Reads every stored game, a large read from the database: run it when you need its answer.",
   description: "Read-only check of the data actually stored: linked-account sync, matches per queue, Solo/Duo vs Flex classification, mastery, Matchups timeline coverage, multikill counts, the ranks shown in match windows (coverage and lookups per day), OP.GG link coverage and why links are missing, whether each stored game's record and timeline agree (gold, CS, kills, objectives), how many members the proposed Recent performance boards would rank, what Team insights would show (anonymous), patches. Changes nothing.",
   defaultIntervalMinutes: null,
   allowConcurrent: true,

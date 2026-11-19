@@ -8,7 +8,7 @@ import { isVerificationAccount } from "@/server/auth/verification-account";
 import { validatePasswordStrength, verifyPassword } from "@/server/auth/password";
 import { setPassword, UserError } from "@/server/repositories/users";
 import { completeLegacyProfile, defaultPlatform, type RiotIdInput } from "@/server/auth/signup";
-import { createVerifiedPlayerAccount, deleteAccount, deleteProfile, resetPasswordToTemporary, setAccountActive, setAccountRole, setAdministrator } from "@/server/auth/account-admin";
+import { createVerifiedPlayerAccount, deleteAccount, deleteProfile, guardProfileAccount, resetPasswordToTemporary, setAccountActive, setAccountRole, setAdministrator } from "@/server/auth/account-admin";
 import { revokeOtherSessions } from "@/server/auth/sessions";
 import { cookies } from "next/headers";
 import { createVerificationClient, verifyRiotIdentity, type IdentityCheck } from "@/server/riot/verify-identity";
@@ -17,6 +17,7 @@ import { eq } from "drizzle-orm";
 import type { Role } from "@/domain/roles";
 import { kickoffAccountSync } from "@/server/accounts/kickoff";
 import { auditPlayerName, auditPresetName, auditUserName, recordAudit } from "@/server/audit/log";
+import { typedMatches } from "@/domain/typed-confirmation";
 
 /*
   Account management for administrators (Admin Mode → Users & Permissions). Every action checks
@@ -77,13 +78,16 @@ export async function createPlayerAccountAction(input: { username: string; riotI
 
 /**
  * Team membership for a player profile (Admin only): the team workspace, the Players directory
- * and the lineup, or personal use only. Nothing of the person's own data changes either way.
+ * and the lineup, or personal use only. Nothing of the person's own data changes either way. The
+ * Owner's profile only by the Owner (another administrator could otherwise take the Owner out of
+ * Players and the lineup).
  */
 export async function setTeamMemberAction(playerId: string, member: boolean): Promise<Result> {
   try {
     const session = await requirePermission("manage-users");
     if (typeof member !== "boolean") return { ok: false, error: "Choose team member or personal use." };
     const db = await getAppDb();
+    await guardProfileAccount(db, session.userId, playerId, "change the team membership of");
     const { getOrCreateTeam, setTeamMember } = await import("@/server/repositories/team");
     await setTeamMember(db, (await getOrCreateTeam(db)).id, playerId, member);
     await recordAudit(db, session, { action: "account.team-member", target: { type: "player", id: playerId, name: await auditPlayerName(db, playerId) }, details: { teamMember: member } });
@@ -123,11 +127,18 @@ export async function setAccountActiveAction(userId: string, active: boolean): P
   }
 }
 
-export async function deleteAccountAction(userId: string, options: { eraseProfile?: boolean } = {}): Promise<Result> {
+/**
+ * Deletes an account; its profile is archived, or with `eraseProfile` deleted too (pools, Riot
+ * accounts and statistics), which needs the account's username typed (`confirmation`), as the
+ * dialog asks.
+ */
+export async function deleteAccountAction(userId: string, options: { eraseProfile?: boolean; confirmation?: string } = {}): Promise<Result> {
   try {
     const session = await requirePermission("manage-users");
     const db = await getAppDb();
     const name = await auditUserName(db, userId);
+    if (options.eraseProfile && name === null) return { ok: false, error: "Account not found. Nothing was deleted." };
+    if (options.eraseProfile && !typedMatches(options.confirmation, name ?? "")) return { ok: false, error: "Type their username to delete the profile too. Nothing was deleted." };
     await deleteAccount(db, session.userId, userId, { eraseProfile: !!options.eraseProfile });
     await recordAudit(db, session, { action: "account.delete", target: { type: "user", id: userId, name }, details: { profileErased: !!options.eraseProfile } });
     touchAdmin();
@@ -137,12 +148,14 @@ export async function deleteAccountAction(userId: string, options: { eraseProfil
   }
 }
 
-/** Permanently deletes a player profile that has no account. */
-export async function deleteProfileAction(playerId: string): Promise<Result> {
+/** Permanently deletes a player profile that has no account; `confirmation` is the profile's name, typed. */
+export async function deleteProfileAction(playerId: string, confirmation: string): Promise<Result> {
   try {
     const session = await requirePermission("manage-users");
     const db = await getAppDb();
     const name = await auditPlayerName(db, playerId);
+    if (name === null) return { ok: false, error: "Player not found. Nothing was deleted." };
+    if (!typedMatches(confirmation, name)) return { ok: false, error: "Type the profile's name to delete it. Nothing was deleted." };
     await deleteProfile(db, playerId);
     await recordAudit(db, session, { action: "profile.delete", target: { type: "player", id: playerId, name } });
     touchAdmin();

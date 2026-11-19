@@ -15,6 +15,7 @@ import { listUsers, validateUsername } from "@/server/repositories/users";
  */
 defineJob({
   key: "auth-audit",
+  kind: "check",
   description: "Read-only account check: owners, administrators (counted), usernames, passwords, profiles, applied migrations, Row Level Security, social links (counted). Changes nothing.",
   defaultIntervalMinutes: null,
   allowConcurrent: true,

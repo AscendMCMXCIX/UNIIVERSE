@@ -64,6 +64,8 @@ export async function markHistoryRescan(db: Db, now: Date = new Date()): Promise
 
 defineJob({
   key: "history-rescan",
+  kind: "setup",
+  confirm: { title: "Rescan every match history", effect: "Marks every finished queue of this season, on every linked account, to be read again from Riot at its next sync: a one-off repair that sends many Riot requests over the next hours.", phrase: "RESCAN" },
   description: "One-off repair: marks every finished queue of this season's collection for one rescan on every player's account (taken under each account's sync lease, its earlier state kept first), so the next sync reads the older pages again and folds any listed game the paging before #201 left behind. Adds rows only, through the sync. Counts only.",
   defaultIntervalMinutes: null,
   run: async (ctx) => {

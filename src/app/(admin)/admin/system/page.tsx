@@ -103,7 +103,7 @@ export default async function AdminSystemPage() {
             })}
           </PanelBody>
         </Panel>
-        <DemoPanel isOwner />
+        <DemoPanel canSeed />
       </Disclosure>
       <p className="text-sm text-fg-muted">
         Who changed accounts, access, passwords, settings or jobs is recorded under{" "}

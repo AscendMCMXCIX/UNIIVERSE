@@ -11,13 +11,36 @@ export interface JobContext {
   startedAt: number;
 }
 
+/**
+ * What running a job by hand can do, which decides who may start it from Admin Mode → Data &
+ * Integrations (server/actions/settings.ts runJobAction):
+ *   - check: read only, changes nothing ("Run check", any administrator, no confirmation);
+ *   - refresh: collects or tidies data, as its schedule does anyway ("Run now", any administrator);
+ *   - setup: changes the site's setup or repairs data once (installs or removes a schedule, rescans
+ *     every history, re-applies every erasure, changes the Production check's account): the Owner
+ *     only, under Advanced, with the job's confirmation phrase typed.
+ * Only Admin's button reads it. The jobs endpoint (/api/jobs/<name>, CRON_SECRET: Data jobs, the
+ * Production check's verify-account call) runs every job as before.
+ */
+export type JobKind = "check" | "refresh" | "setup";
+
 export interface JobDefinition {
   key: JobKey;
+  kind: JobKind;
   description: string;
   /** Default interval between runs, used by the scheduler tick. Null = only on demand/patch events. */
   defaultIntervalMinutes: number | null;
   /** Read-only jobs may overlap; everything else is guarded against concurrent runs. */
   allowConcurrent?: boolean;
+  /**
+   * A setup job's typed confirmation in Admin: a short title for its dialog, what running it does in
+   * plain words, and the phrase the Owner types (any case) before Admin's button runs it.
+   */
+  confirm?: { title: string; effect: string; phrase: string };
+  /** What a run costs, said beside its button (the database reads of perf-probe and data-audit). */
+  cost?: string;
+  /** A refresh heavy enough to ask once before Admin's button runs it: the question's words. */
+  asks?: string;
   run: (ctx: JobContext) => Promise<JobOutcome>;
 }
 

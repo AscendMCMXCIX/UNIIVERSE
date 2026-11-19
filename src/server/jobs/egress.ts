@@ -50,6 +50,7 @@ export async function appEgressReport(db: Db, now = new Date()) {
  */
 defineJob({
   key: "egress",
+  kind: "check",
   description: "Read-only: yesterday's estimated database egress (counted by the app) against the daily budget; fails when over it.",
   defaultIntervalMinutes: null,
   allowConcurrent: true,

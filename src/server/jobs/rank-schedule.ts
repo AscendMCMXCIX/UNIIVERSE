@@ -151,6 +151,8 @@ export async function removeRankSchedule(db: Db): Promise<Record<string, unknown
 
 defineJob({
   key: "rank-schedule",
+  kind: "setup",
+  confirm: { title: "Turn on LP tracking's five-minute schedule", effect: "Installs the database's call of the rank watch every five minutes, which gives each ranked game its LP change. Production only; running it again changes nothing.", phrase: "TURN ON" },
   description: "Installs (or keeps) the five-minute rank schedule in Supabase: pg_cron calls the rank watch, pg_net sends the call, the cron secret is kept in Vault (from this server's own CRON_SECRET; never shown). Production only. Then reports the schedule's runs and calls of the last hour. Counts only.",
   defaultIntervalMinutes: null,
   run: async (ctx) => {
@@ -162,6 +164,8 @@ defineJob({
 
 defineJob({
   key: "rank-schedule-off",
+  kind: "setup",
+  confirm: { title: "Turn off LP tracking's five-minute schedule", effect: "Removes the database's call of the rank watch every five minutes. Ranks are then read only by the ten-minute tick and visits, so many ranked games get no LP change until it is turned on again.", phrase: "TURN OFF" },
   description: "Removes the five-minute rank schedule (cron.unschedule), and its Vault copy of the cron secret unless another pg_cron job still reads it (it then says how many, a count only). The rank watch then runs only on ticks, visits and the daily cron again.",
   defaultIntervalMinutes: null,
   run: async (ctx) => ({ ok: true, summary: await removeRankSchedule(ctx.db) }),
@@ -169,6 +173,7 @@ defineJob({
 
 defineJob({
   key: "rank-schedule-status",
+  kind: "check",
   description: "Read-only: whether the five-minute rank schedule exists, its runs and calls of the last hour (counts only), and when the app last recorded a call of the rank schedule and of the database's ten-minute tick (what /api/health reads). Changes nothing.",
   defaultIntervalMinutes: null,
   allowConcurrent: true,

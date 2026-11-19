@@ -44,6 +44,7 @@ const list = (names: string[]) => sql.join(names.map((n) => sql`${n}`), sql`, `)
  */
 defineJob({
   key: "db-usage",
+  kind: "check",
   description: "Read-only report of table sizes and of the queries that return the most rows or take the most time (pg_stat_statements when available). Changes nothing.",
   defaultIntervalMinutes: null,
   allowConcurrent: true,

@@ -9,23 +9,10 @@ import { MAX_POOL_SIZE, type RolePool } from "@/domain/roster";
 import { CARD_ACCENTS } from "@/domain/player-card";
 import { getAppDb } from "@/server/bootstrap";
 import { getSession, requireOpenableProfile, requirePermission, requirePlayerEditor } from "@/server/auth/session";
-import { archivePlayer, getOrCreateTeam, PlayerValidationError, setLineupSlot, setLineupSubstitute, updatePlayer } from "@/server/repositories/team";
-import { traced } from "@/server/observability/log";
-import { canViewPlayerStats } from "@/server/auth/permissions";
+import { archivePlayer, getOrCreateTeam, PlayerValidationError, setLineupSlot, setLineupSubstitute } from "@/server/repositories/team";
+import { canViewPlayerStats, isAdmin } from "@/server/auth/permissions";
+import { auditPlayerName, recordAudit } from "@/server/audit/log";
 
-const playerSchema = z.object({
-  displayName: z.string().min(1).max(40),
-  riotId: z.string().max(60).optional().nullable(),
-  primaryRole: z.enum(ROLES),
-  secondaryRole: z.enum(ROLES).nullable().optional(),
-  notes: z.string().max(2000).optional(),
-  /** Retired split (Phase 11): every profile is "main"; team membership is a separate switch. */
-  group: z.literal("main").optional(),
-  primaryPool: z.array(z.string().min(1)).max(MAX_POOL_SIZE).optional(),
-  secondaryPool: z.array(z.string().min(1)).max(MAX_POOL_SIZE).optional(),
-});
-
-export type PlayerFormInput = z.infer<typeof playerSchema>;
 export type ActionResult<T = undefined> = { ok: true; data?: T } | { ok: false; error: string };
 
 function fail(err: unknown): ActionResult<never> {
@@ -52,55 +39,29 @@ export async function currentSessionAction() {
   return getSession();
 }
 
-export async function updatePlayerAction(playerId: string, input: PlayerFormInput): Promise<ActionResult> {
-  return traced("player.update", () => updatePlayerCore(playerId, input));
-}
+/*
+  Profile edits and deletes go through the audited paths: roles and pools by saveProfilePatchAction
+  (the display name's rules in account.ts), deletes by Admin Mode's deleteAccountAction and
+  deleteProfileAction (actions/users.ts). The older updatePlayerAction and deletePlayerAction,
+  which skipped the display-name rule and left no activity entry, were removed on 19 Nov 2026.
+*/
 
-async function updatePlayerCore(playerId: string, input: PlayerFormInput): Promise<ActionResult> {
-  try {
-    await requirePlayerEditor(playerId);
-    const parsed = playerSchema.parse(input);
-    const db = await getAppDb();
-    await updatePlayer(db, playerId, parsed);
-    touch();
-    return { ok: true };
-  } catch (err) {
-    return fail(err);
-  }
-}
-
-/** Player managers archive team members' profiles; a personal-use profile only an administrator (requireOpenableProfile). */
+/**
+ * Player managers archive team members' profiles; a personal-use profile only an administrator
+ * (requireOpenableProfile). Admin Mode → Users & Permissions offers it for profiles without an
+ * account. An administrator's archive or restore is in the activity log (Audit Logs, Accounts).
+ */
 export async function archivePlayerAction(playerId: string, archived: boolean): Promise<ActionResult> {
   try {
     const session = await requirePermission("manage-players");
     await requireOpenableProfile(session, playerId);
+    if (typeof archived !== "boolean") return { ok: false, error: "Choose archive or restore." };
     const db = await getAppDb();
     await archivePlayer(db, playerId, archived);
+    // The activity log records what administrators change (the privacy notice's words); a team
+    // manager who is not one stays out of it until the notice says otherwise.
+    if (isAdmin(session)) await recordAudit(db, session, { action: archived ? "profile.archive" : "profile.restore", target: { type: "player", id: playerId, name: await auditPlayerName(db, playerId) } });
     touch();
-    return { ok: true };
-  } catch (err) {
-    return fail(err);
-  }
-}
-
-/**
- * Admin delete from the profile editor: the same rules as Admin Mode → Users & Permissions. A profile
- * with an account is deleted together with that account (never leaving a login without a
- * profile); the admin's own account and the last admin are protected.
- */
-export async function deletePlayerAction(playerId: string): Promise<ActionResult> {
-  try {
-    const session = await requirePermission("manage-users");
-    const db = await getAppDb();
-    const { users } = await import("@/server/db/schema");
-    const { eq } = await import("drizzle-orm");
-    const { deleteAccount, deleteProfile } = await import("@/server/auth/account-admin");
-    const [linked] = await db.select({ id: users.id }).from(users).where(eq(users.playerId, playerId));
-    if (linked) await deleteAccount(db, session.userId, linked.id, { eraseProfile: true });
-    else await deleteProfile(db, playerId);
-    touch();
-    revalidatePath("/admin/players");
-    revalidatePath("/admin/users");
     return { ok: true };
   } catch (err) {
     return fail(err);

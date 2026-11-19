@@ -3,7 +3,7 @@ import type { Db } from "@/server/db/types";
 import { permissionPresets, users } from "@/server/db/schema";
 import { CAPABILITY_KEYS, sanitiseAccessGroups, sanitiseCapabilities, STANDARD_PLAYER, type AccessGroupKey, type Capability } from "@/server/auth/permissions";
 import { getUser, UserError } from "./users";
-import { guardLastAdmin, guardOwnerAccount, guardSelf } from "@/server/auth/account-admin";
+import { guardLastAdmin, guardOwnerAccount, guardSelf, guardVerificationAccount } from "@/server/auth/account-admin";
 
 /*
   Permission presets and per-user capability choices (Admin Mode → Users & Permissions). Only an
@@ -85,9 +85,10 @@ export async function deletePermissionPreset(db: Db, id: string): Promise<void> 
  * themselves after their administrator access is removed).
  */
 export async function setUserPermissions(db: Db, actorId: string | null, userId: string, choice: { presetId: string | null } | { custom: string[] }): Promise<void> {
-  const [user] = await db.select({ role: users.role }).from(users).where(eq(users.id, userId));
+  const [user] = await db.select({ role: users.role, username: users.username, playerId: users.playerId }).from(users).where(eq(users.id, userId));
   if (!user) throw new UserError("Account not found.");
   guardSelf(actorId, userId, "change the permissions of");
+  guardVerificationAccount(actorId, user, "change the permissions of");
   if (user.role === "owner") throw new UserError("Admins always have full access; their permissions cannot be limited.");
   if ("custom" in choice) {
     await db.update(users).set({ customCapabilities: sanitiseCapabilities(choice.custom), updatedAt: new Date() }).where(eq(users.id, userId));
@@ -116,6 +117,7 @@ export async function setAccessLevel(db: Db, actorId: string | null, userId: str
   const target = await getUser(db, userId);
   if (!target) throw new UserError("Account not found.");
   guardSelf(actorId, userId, "change the access level of");
+  guardVerificationAccount(actorId, target, "change the access level of");
   // There is one Owner, the administrative account: ownership is never handed to another account.
   if (choice.level === "owner") {
     if (target.role === "owner") return;
@@ -145,6 +147,7 @@ export async function setAccessGroups(db: Db, actorId: string | null, userId: st
   const target = await getUser(db, userId);
   if (!target) throw new UserError("Account not found.");
   guardSelf(actorId, userId, "change the additional access of");
+  guardVerificationAccount(actorId, target, "change the additional access of");
   if (target.role === "owner") throw new UserError("Owners already have full access; additional groups do not apply.");
   const clean = sanitiseAccessGroups(groups);
   await db.update(users).set({ accessGroups: clean, updatedAt: new Date() }).where(eq(users.id, userId));

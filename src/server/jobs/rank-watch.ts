@@ -121,6 +121,7 @@ export async function watchRanks(db: Db, client: RiotApiClient, options: { deadl
 
 defineJob({
   key: "rank-watch",
+  kind: "refresh",
   description: "Read the rank of the linked accounts (LEAGUE-V4, one request each, both queues): every run for those that played ranked in the last 30 days, about hourly for the others. An unchanged reading confirms the last one, a change is stored; together they prove each ranked game's LP. At most 40 accounts a run, half of each rate-limit window, no retries.",
   defaultIntervalMinutes: 5,
   run: async (ctx) => {

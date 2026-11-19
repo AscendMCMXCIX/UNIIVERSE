@@ -251,7 +251,7 @@ function Preview({ form }: { form: Branding }) {
 }
 
 /** Admin → Branding: names, images and colours, with a live preview. */
-export function BrandingPanel({ branding, isOwner }: { branding: Branding; isOwner: boolean }) {
+export function BrandingPanel({ branding, canEdit }: { branding: Branding; canEdit: boolean }) {
   const router = useRouter();
   const [form, setForm] = React.useState<Branding>(branding);
   const [saved, setSaved] = React.useState<Branding>(branding);
@@ -284,22 +284,22 @@ export function BrandingPanel({ branding, isOwner }: { branding: Branding; isOwn
         <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <div>
             <Label htmlFor="brand-product">App name</Label>
-            <Input id="brand-product" disabled={!isOwner} value={form.productName} onChange={(e) => setForm({ ...form, productName: e.target.value })} maxLength={40} data-testid="brand-product" />
+            <Input id="brand-product" disabled={!canEdit} value={form.productName} onChange={(e) => setForm({ ...form, productName: e.target.value })} maxLength={40} data-testid="brand-product" />
             <p className="mt-1 text-xs text-fg-subtle">Tab titles, the installed app, the welcome screens and the Riot notice.</p>
           </div>
           <div>
             <Label htmlFor="brand-team">Team name</Label>
-            <Input id="brand-team" disabled={!isOwner} value={form.teamName} onChange={(e) => setForm({ ...form, teamName: e.target.value })} maxLength={60} />
+            <Input id="brand-team" disabled={!canEdit} value={form.teamName} onChange={(e) => setForm({ ...form, teamName: e.target.value })} maxLength={60} />
             <p className="mt-1 text-xs text-fg-subtle">The Team page and the public team page.</p>
           </div>
           <div>
             <Label htmlFor="brand-short">Short name</Label>
-            <Input id="brand-short" disabled={!isOwner} value={form.shortName} onChange={(e) => setForm({ ...form, shortName: e.target.value.toUpperCase() })} maxLength={14} />
+            <Input id="brand-short" disabled={!canEdit} value={form.shortName} onChange={(e) => setForm({ ...form, shortName: e.target.value.toUpperCase() })} maxLength={14} />
             <p className="mt-1 text-xs text-fg-subtle">The sidebar, the sign-in page and the label under the installed app&apos;s icon.</p>
           </div>
           <div>
             <Label htmlFor="brand-tagline">Tagline (optional)</Label>
-            <Input id="brand-tagline" disabled={!isOwner} value={form.tagline} onChange={(e) => setForm({ ...form, tagline: e.target.value })} maxLength={60} placeholder="Leave empty for none" />
+            <Input id="brand-tagline" disabled={!canEdit} value={form.tagline} onChange={(e) => setForm({ ...form, tagline: e.target.value })} maxLength={60} placeholder="Leave empty for none" />
             <p className="mt-1 text-xs text-fg-subtle">Under the short name in the sidebar.</p>
           </div>
         </div>
@@ -314,7 +314,7 @@ export function BrandingPanel({ branding, isOwner }: { branding: Branding; isOwn
         </div>
       </section>
 
-      <BackdropSetting level={form.backdropLevel} saved={saved.backdropLevel} hasArtwork={!!form.assets.appBackground} disabled={!isOwner} onChange={(backdropLevel) => setForm((f) => ({ ...f, backdropLevel }))} />
+      <BackdropSetting level={form.backdropLevel} saved={saved.backdropLevel} hasArtwork={!!form.assets.appBackground} disabled={!canEdit} onChange={(backdropLevel) => setForm((f) => ({ ...f, backdropLevel }))} />
 
       <section className="space-y-4 rounded-card border border-border bg-surface p-4 sm:p-5">
         <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
@@ -322,7 +322,7 @@ export function BrandingPanel({ branding, isOwner }: { branding: Branding; isOwn
             <h2 className="text-base font-semibold">Colours</h2>
             <p className="text-sm text-fg-muted">Text stays light, so backgrounds and panels must stay dark enough to read.</p>
           </div>
-          {isOwner ? (
+          {canEdit ? (
             <Button variant="ghost" size="sm" onClick={() => void save(true)} disabled={busy} wrap>
               Reset colours to defaults
             </Button>
@@ -336,15 +336,15 @@ export function BrandingPanel({ branding, isOwner }: { branding: Branding; isOwn
               const check = checks.find((c) => c.key === f.key);
               return (
                 <li key={f.key} className="flex flex-wrap items-center gap-3" data-testid={`colour-${f.key}`}>
-                  <input type="color" aria-label={f.label} disabled={!isOwner} value={value} onChange={(e) => setColour(f.key, e.target.value)} className="h-10 w-12 shrink-0 cursor-pointer rounded-md border border-border bg-bg-elevated" />
+                  <input type="color" aria-label={f.label} disabled={!canEdit} value={value} onChange={(e) => setColour(f.key, e.target.value)} className="h-10 w-12 shrink-0 cursor-pointer rounded-md border border-border bg-bg-elevated" />
                   <div className="min-w-0 flex-1 @max-[14rem]:basis-full">
                     <div className="text-sm font-medium text-fg">{f.label}</div>
                     <div className="text-xs text-fg-muted">{f.hint}</div>
                   </div>
                   <div className="w-28 shrink-0 @max-[14rem]:w-auto @max-[14rem]:min-w-0 @max-[14rem]:flex-1 @max-[14rem]:shrink">
-                    <Input aria-label={`${f.label} hex`} disabled={!isOwner} value={value} onChange={(e) => /^#[0-9a-f]{6}$/i.test(e.target.value) && setColour(f.key, e.target.value.toLowerCase())} maxLength={7} className="font-mono md:h-9" />
+                    <Input aria-label={`${f.label} hex`} disabled={!canEdit} value={value} onChange={(e) => /^#[0-9a-f]{6}$/i.test(e.target.value) && setColour(f.key, e.target.value.toLowerCase())} maxLength={7} className="font-mono md:h-9" />
                   </div>
-                  <button type="button" disabled={!isOwner || !custom} onClick={() => setColour(f.key, null)} className="grid h-9 w-9 place-items-center rounded-md text-fg-subtle hover:bg-surface-2 hover:text-fg disabled:opacity-30" aria-label={`Reset ${f.label} to default`} title="Default">
+                  <button type="button" disabled={!canEdit || !custom} onClick={() => setColour(f.key, null)} className="grid h-9 w-9 place-items-center rounded-md text-fg-subtle hover:bg-surface-2 hover:text-fg disabled:opacity-30" aria-label={`Reset ${f.label} to default`} title="Default">
                     <RotateCcw className="h-4 w-4" />
                   </button>
                   {check && !check.ok ? <p className="w-full text-xs text-bad">{check.message}</p> : null}
@@ -365,7 +365,7 @@ export function BrandingPanel({ branding, isOwner }: { branding: Branding; isOwn
         </div>
       </section>
 
-      {isOwner ? (
+      {canEdit ? (
         // One compact row. It stays pinned above the tab bar only while there is something to save,
         // so on a phone it never covers the form for nothing; otherwise it sits at the end.
         <div className={cn("z-10 flex flex-wrap items-center gap-2 rounded-panel border border-border bg-bg-elevated/95 p-2 shadow-lg backdrop-blur sm:p-3", dirty || busy ? "sticky bottom-tabbar md:bottom-4" : "relative")} data-testid="branding-actions">
