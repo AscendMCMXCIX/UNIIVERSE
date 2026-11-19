@@ -12,7 +12,7 @@ import { ResourceIcon } from "./resource-icon";
 import { useFavourites } from "./favourites";
 
 /*
-  Player Mode → Resources → Library. A search, then the library's index: All, ★ Favourites and
+  Player Mode → Resources: the Library. A search, then the library's index: All, ★ Favourites and
   each section with its count (the counts follow the search), one choice that filters the list, the
   live count at the row's end. Then the sites grouped by section, an h2 each: on a phone one panel
   with a heading per section and hairlines between the rows; wider, a panel per section, packed

@@ -64,12 +64,14 @@
     not failed); a shared place is titled "Tied for Nth" and no other place claims it; every row's bar
     has 20 segments, as many filled as the row's wins and as many missing as its window lacks. Counts,
     heights and true/false only: the rows carry names.
-  - records (PR 5b): Records & achievements (/leaderboards?view=records) at every width loads as every
-    page does (no sideways scroll, no page error, no failed request, no broken image) and axe on the
-    records view; at 1440 the record book stands beside the multikills (their tops within 1px), and
-    every record row of two lines (the record over the holder and game) is at most 72px (rows of more
-    lines, a long name or champion, are counted, not failed; the verification account has no profile,
-    so no row carries "Your best"). Counts, heights and true/false only: the rows carry names.
+  - records (19 Nov 2026: Recent form and the season's records and achievements on one page): on
+    /leaderboards, at 1440, the season records stand beside the multikills (their tops within 1px), and
+    every record cell, at its own height (not the taller neighbour's its grid row stretches it to), is
+    no taller than its layout allows: two lines (from a 36rem cell) at most 72px, three lines (under it)
+    at most 96px (cells of more lines, a long name or champion, are counted, not failed; the
+    verification account has no profile, so no cell carries "Your best"). At every width,
+    Records & achievements' old address (/leaderboards?view=records) opens the same page, the view gone
+    from its address, at the season records (in view, focused). Counts, heights and true/false only.
   - settings: the picture and display-name help name the public team page, and Settings never
     mentions a Public profile switch (retired; true or false only); on the phone, Sign out is on
     Settings' first screen (above the tab bar).
@@ -96,13 +98,16 @@
   - navigation (#266): on the phone a teammate's profile opened from the scrolled Players list starts
     at its top and Back returns to the list at its place (not applicable when the list fits the
     screen); on the desktop Skip to content is the first Tab stop and moves focus to the page.
-  - wide (PR 10): the desktop context made 2560 × 1440 opens Team, Players, Records and the
+  - wide (PR 10): the desktop context made 2560 × 1440 opens Team, Players, Leaderboards and the
     teammate's profile (as every page, with axe): each tab row's first tab starts where its page's
     column does (within 1px; on Team Overview Team's 100rem column, its header's inset reported), a
     missing row failing, and Team's row is in the same place on its three sections; on each of Team's
     three, Team's tabs scroll sideways only (18 Nov 2026): no scroll box in the row overflows up and
     down or can scroll that way, the list hides its scrollbar, and the current tab's bar is inside
-    its tab (the root size is 20.6px there, where the bar used to reach past it).
+    its tab (the root size is 20.6px there, where the bar used to reach past it); on Leaderboards
+    Recent form stands beside the season records (their tops within 1px), every record on the first
+    screen, and the milestones stand right under Recent form, in its column, whatever the records'
+    column beside them holds (19 Nov 2026).
   - ranked (18 Nov 2026): on the teammate's profile at every width, Ranked progress ends with its
     chart: no History and coverage disclosure, year strip, rank changes or readings table (a profile
     without the card passes as not applicable). True or false only.
@@ -759,12 +764,18 @@ async function leaderboardsFacts(page, kind) {
 }
 
 /**
- * Records & achievements (PR 5b), at 1440, as true/false, counts and heights only (the rows carry
- * names, which redact() keeps): the record book beside the multikills, their tops level within 1px,
- * and every record row of two lines (its record on one line over its holder and game on one) at most
- * 72px. A row of more lines (a long name or champion wrapping its game's line, a qualifier on a line
- * of its own) is counted, not failed, as Recent form's are. The verification account has no profile,
- * so no row carries "Your best".
+ * The season records (19 Nov 2026: on Leaderboards' one page, after Recent form), at 1440, as true/false,
+ * counts and heights only (the cells carry names, which redact() keeps): the records beside the
+ * multikills, their tops level within 1px, and every record cell no taller than its layout allows.
+ * A cell from 36rem is two lines beside its picture (its record on one line over its holder and game
+ * on one), at most 72px; a narrower cell three lines (the record, the holder with the value, the
+ * game), at most 96px. A cell of more lines (a long name or champion wrapping, a qualifier on a line
+ * of its own) is counted, not failed, as Recent form's rows are. Each cell is measured at its own
+ * height: two cells side by side share a grid row, which each stretches to (its hairline runs the
+ * row's height), so a cell's box is the taller one's; the stretch is lifted for the measure and put
+ * back in the same step, before anything is drawn (else the CS cell beside a damage record of more
+ * lines read as a three-line cell of its neighbour's 108px, and failed). The verification account
+ * has no profile, so no cell carries "Your best".
  */
 async function recordsFacts(page, kind) {
   if (kind !== "desktop") return;
@@ -772,32 +783,90 @@ async function recordsFacts(page, kind) {
     const book = document.querySelector("[data-testid=records-book]");
     if (!book) return null;
     const box = (el) => el.getBoundingClientRect();
+    const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
     const multikills = document.querySelector("[data-testid=records-multikills]");
-    // One line: the record's title no taller than its line; the holder and the game's parts level with each other.
-    const titleOneLine = (row) => {
-      const t = row.querySelector("[data-testid=record-title]");
-      return !t || box(t).height <= (parseFloat(getComputedStyle(t).lineHeight) || 20) + 2;
-    };
-    const gameOneLine = (row) => {
-      const g = row.querySelector("[data-testid=record-game]");
-      if (!g) return true;
-      const mids = [...g.children].filter((c) => box(c).width > 0).map((c) => box(c).top + box(c).height / 2);
-      return mids.length === 0 || Math.max(...mids) - Math.min(...mids) <= 6;
-    };
-    const rows = [...book.querySelectorAll("[data-testid=season-record]")].map((r) => ({ h: Math.round(box(r).height * 10) / 10, two: titleOneLine(r) && gameOneLine(r) }));
+    const oneLine = (el) => !el || box(el).height <= (parseFloat(getComputedStyle(el).lineHeight) || 20) + 2;
+    const rows = [...book.querySelectorAll("[data-testid=season-record]")];
+    // Each cell at its own height: the cell (li) set to its content's height, its row and the row's wrapper no longer filling it.
+    const lifted = rows.flatMap((r) => [r.closest("li"), r.parentElement, r]);
+    const kept = lifted.map((el) => [el.style.alignSelf, el.style.height]);
+    for (const el of lifted) {
+      if (el.tagName === "LI") el.style.alignSelf = "start";
+      else el.style.height = "auto";
+    }
+    const cells = rows.map((r) => {
+      const two = r.closest("li").clientWidth / rem >= 36;
+      const title = oneLine(r.querySelector("[data-testid=record-title]"));
+      const game = r.querySelector("[data-testid=record-game]");
+      // Two lines: the holder and the game's parts level with each other; three: the holder's line and the game's line each one line.
+      const gameFits = !game ? true : two ? (() => { const mids = [...game.children].filter((c) => box(c).width > 0).map((c) => box(c).top + box(c).height / 2); return mids.length === 0 || Math.max(...mids) - Math.min(...mids) <= 6; })() : oneLine(r.querySelector("[data-testid=card-name]")) && oneLine(r.querySelector("[data-testid=record-context]"));
+      return { h: Math.round(box(r).height * 10) / 10, two, fits: title && gameFits };
+    });
+    lifted.forEach((el, i) => {
+      [el.style.alignSelf, el.style.height] = kept[i];
+    });
     return {
-      rows: rows.length,
-      twoLine: rows.filter((r) => r.two).map((r) => r.h),
-      longer: rows.filter((r) => !r.two).length,
+      cells: cells.length,
+      twoLine: cells.filter((c) => c.two && c.fits).map((c) => c.h),
+      threeLine: cells.filter((c) => !c.two && c.fits).map((c) => c.h),
+      longer: cells.filter((c) => !c.fits).length,
       topsApart: multikills ? Math.round(Math.abs(box(book).top - box(multikills).top) * 10) / 10 : null,
       multikillsBeside: multikills ? box(multikills).left >= box(book).right : false,
     };
   });
-  if (!f) return pass("leaderboards", "1440: Records' book is on the page", false, "no records-book");
-  pass("leaderboards", "1440: Records' book beside the multikills, their tops within 1px", f.multikillsBeside && f.topsApart !== null && f.topsApart <= 1, { beside: f.multikillsBeside, topsApart: f.topsApart });
-  const name = "1440: every Records row of two lines is at most 72px";
-  if (!f.twoLine.length) check("leaderboards", name, "PASS", `not applicable: ${f.longer} rows of more lines`);
-  else pass("leaderboards", name, Math.max(...f.twoLine) <= 72, { rows: f.rows, twoLine: f.twoLine.length, tallest: Math.max(...f.twoLine), longerByDesign: f.longer });
+  if (!f) return pass("leaderboards", "1440: the season records are on the page", false, "no records-book");
+  pass("leaderboards", "1440: the season records beside the multikills, their tops within 1px", f.multikillsBeside && f.topsApart !== null && f.topsApart <= 1, { beside: f.multikillsBeside, topsApart: f.topsApart });
+  const name = "1440: every record cell of two lines is at most 72px, of three lines at most 96px";
+  if (!f.twoLine.length && !f.threeLine.length) check("leaderboards", name, "PASS", `not applicable: ${f.longer} cells of more lines`);
+  else pass("leaderboards", name, Math.max(0, ...f.twoLine) <= 72 && Math.max(0, ...f.threeLine) <= 96, { cells: f.cells, twoLine: f.twoLine.length, tallestTwo: f.twoLine.length ? Math.max(...f.twoLine) : null, threeLine: f.threeLine.length, tallestThree: f.threeLine.length ? Math.max(...f.threeLine) : null, longerByDesign: f.longer });
+}
+
+/**
+ * Records & achievements' old address (19 Nov 2026): /leaderboards?view=records opens the one page, the view
+ * gone from its address (the page's own in the same history entry), at the season records: the
+ * section in view and focused. True or false and the address's shape only.
+ */
+async function recordsLandingFacts(page, kind) {
+  const landed = await page
+    .waitForFunction(() => location.hash === "#season-records" && !new URLSearchParams(location.search).has("view") && document.activeElement?.id === "season-records", null, { timeout: 10_000 })
+    .then(() => true, () => false);
+  const f = await page.evaluate(() => {
+    const section = document.getElementById("season-records");
+    const top = section ? section.getBoundingClientRect().top : null;
+    return { path: location.pathname, view: new URLSearchParams(location.search).has("view"), hash: location.hash, focused: document.activeElement?.id === "season-records", inView: top !== null && top >= 0 && top < innerHeight };
+  });
+  pass("leaderboards", `${kind}: Records & achievements' old address opens the page at its season records`, landed && f.path === "/leaderboards" && !f.view && f.inView, f);
+}
+
+/**
+ * Leaderboards at 2560 × 1440 (19 Nov 2026, the wide check): Recent form beside the season records, their
+ * tops within 1px, every record on the first screen, and the milestones right under Recent form in its
+ * column (the page's gap apart, within 1px, its edges level with Recent form's), whatever the records'
+ * column beside them holds. Positions and true or false only.
+ */
+async function dashboardFacts(page) {
+  const f = await page.evaluate(() => {
+    const form = document.querySelector("[data-testid=form-board]")?.getBoundingClientRect();
+    const book = document.querySelector("[data-testid=records-book]")?.getBoundingClientRect();
+    const milestones = document.querySelector("[data-testid=records-milestones]")?.getBoundingClientRect();
+    const grid = document.querySelector("[data-testid=leaderboards-grid]");
+    if (!form || !book || !milestones || !grid) return null;
+    const gap = parseFloat(getComputedStyle(grid).rowGap) || 0;
+    const records = [...document.querySelectorAll("[data-testid=season-record]")].map((r) => Math.round(r.getBoundingClientRect().bottom + scrollY));
+    return {
+      beside: book.left >= form.right,
+      topsApart: Math.round(Math.abs(form.top - book.top) * 10) / 10,
+      records: records.length,
+      lastRecord: Math.max(0, ...records),
+      window: innerHeight,
+      underForm: Math.round((milestones.top - form.bottom - gap) * 10) / 10,
+      edges: Math.round((Math.abs(milestones.left - form.left) + Math.abs(milestones.right - form.right)) * 10) / 10,
+    };
+  });
+  if (!f) return pass("wide", "2560: Leaderboards' Recent form, season records and milestones are on the page", false, "no form-board, records-book or records-milestones");
+  pass("wide", "2560: on Leaderboards, Recent form beside the season records, their tops within 1px", f.beside && f.topsApart <= 1, { beside: f.beside, topsApart: f.topsApart });
+  pass("wide", "2560: on Leaderboards, every record on the first screen", f.records === 7 && f.lastRecord <= f.window, { records: f.records, lastRecord: f.lastRecord, window: f.window });
+  pass("wide", "2560: on Leaderboards, the milestones right under Recent form, in its column", Math.abs(f.underForm) <= 1 && f.edges <= 1, { underForm: f.underForm, edges: f.edges });
 }
 
 /**
@@ -827,7 +896,7 @@ async function settingsFacts(page, kind) {
 }
 
 /**
- * The Library (Resources, its first tab): every section under its own heading, every row a link to
+ * The Library (the Resources page, /resources): every section under its own heading, every row a link to
  * its site in a new tab that cannot reach back to this page or learn its address, the index offering
  * All, Favourites and each section, no title cut short and no broken site icon. Counts and true or
  * false only.
@@ -1170,7 +1239,7 @@ function tabRowScrolls(page) {
 /**
  * Wide screens (PR 10, 18 Nov 2026), in the desktop context made 2560 × 1440 (the sidebar open), where
  * the pages have stopped growing and are centred in the room beside the sidebar: Team, Players,
- * Records (Leaderboards) and the teammate's profile load as every page does (visit) with axe, and each
+ * Leaderboards (with its dashboard's facts, 19 Nov 2026) and the teammate's profile load as every page does (visit) with axe, and each
  * one's tab row starts where its page's column does, within 1px (Team's tabs on Team's three, the
  * profile's on the profile; on Team Overview the column is Team's 100rem, its header and lineup
  * centred 84rem inside it, the inset reported), the Team row in the same place on all three. Four page
@@ -1181,7 +1250,7 @@ async function wideChecks(page, log) {
   const pages = [
     ["team", "Team Overview", "/team", "team-tabs", "the section tabs start where Team's column does"],
     ["players", "Players", "/players", "team-tabs", "the section tabs start where the page does"],
-    ["records", "Records", "/leaderboards?view=records", "team-tabs", "the section tabs start where the page does"],
+    ["leaderboards", "Leaderboards", "/leaderboards", "team-tabs", "the section tabs start where the page does"],
     ...(playerId ? [["profile", "the profile", `/players/${playerId}`, "profile-tabs", "the profile's tabs start where the page does"]] : []),
   ];
   const teamRow = [];
@@ -1191,6 +1260,7 @@ async function wideChecks(page, log) {
       if (!(await visit(page, log, "wide", name, path, { fullPage: false }))) return;
       if (row === "team-tabs") teamPages++;
       await axe(page, "wide", name);
+      if (name === "leaderboards") await dashboardFacts(page);
       const at = await tabRowEdges(page, row);
       const fact = `2560: on ${label}, ${says}`;
       if (!at) return pass("wide", fact, false, { missing: `no ${row}, or no page under it` });
@@ -1494,14 +1564,13 @@ for (const [kind, options] of Object.entries(VIEWPORTS)) {
   await guarded(kind, "leaderboards", async () => {
     if (await visit(page, log, kind, "leaderboards", "/leaderboards")) {
       await leaderboardsFacts(page, kind);
+      await recordsFacts(page, kind);
       await axe(page, kind, "leaderboards");
     }
   });
+  // Records & achievements' old address: the same page, at its records (the page itself is checked above, so no axe here).
   await guarded(kind, "records", async () => {
-    if (await visit(page, log, kind, "records", "/leaderboards?view=records")) {
-      await recordsFacts(page, kind);
-      await axe(page, kind, "records", "[data-testid=records]");
-    }
+    if (await visit(page, log, kind, "records", "/leaderboards?view=records", { fullPage: false })) await recordsLandingFacts(page, kind);
   });
   await guarded(kind, "settings", async () => {
     if (await visit(page, log, kind, "settings", "/settings")) {

@@ -29,7 +29,7 @@ it (`globals.css`), and every pinned element follows these rules:
 | Top bar | sticky | one compact bar (below `lg`, at any width): 44px plus the inset, holding Back or the mark, the destinations, the title where room is left, Filters and the avatar, a profile's sections as a 40px second row; slides away while the page scrolls down; back on any scroll up, at the top, and while it holds focus |
 | Tab bar | fixed at the bottom; `main` keeps room for it (`pb-tabbar`) | none: the destinations are in the top bar; `pb-tabbar` keeps only the page's own padding, clear of the home indicator, and the scroll padding at the foot only that indicator |
 | Detail windows (`DetailModal`) | whole screen below `sm`, centred window above; one whose header would fill over 40% of a phone's screen (the Team player window on a small phone) scrolls as one, as in a short window | whole screen, scrolling as one: a large header scrolls away, its close and step buttons float at the top, a footer stays pinned |
-| The account screen (`DetailModal size="screen"`, behind the phone's avatar) | the whole screen, fixed to its four edges, under the status bar; its rows in a readable column (28rem); at the usual text size nothing scrolls on phones from 375pt wide (a few points for an administrator in Admin Mode in Safari's tab on a 375pt iPhone SE; a little on a 320pt screen in Safari's tab) | the whole screen too; only its body scrolls, as one region, under its bar with the close button |
+| The account screen (`DetailModal size="screen"`, behind the phone's avatar) | the whole screen, fixed to its four edges, under the status bar; its rows in a readable column (28rem); at the usual text size nothing scrolls on phones from 375pt wide (a few points for an administrator in Admin Mode in Safari's tab on a 375pt iPhone SE; a little on a 320pt screen in Safari's tab) | the whole screen too; only its body scrolls, as one region, under its bar with the close button; a row's name wraps between its words, and on a narrow phone a page's chevron and then the icons give way (`lib/sheet.ts`), so every name is whole to 200% on a 320px phone |
 | Sheets (`DetailModal size="sheet"`: `Dialog`'s confirmations and editors, the filter sheet, the lineup sheet) | docked to the bottom edge, as tall as its content up to the screen less 2.5rem and the status bar (a share of the screen it is fixed to); a taller wider screen gets a centred window | docked to the bottom edge too, up to 44rem wide and the screen less 0.5rem; in both, the header and footer stay and only the body scrolls, unless they would leave it less room than its tallest control needs (large text or a zoomed page, mostly on a phone held sideways): then the whole sheet scrolls as one, like a page (`data-flow`) |
 | Things pinned to the bottom (toasts, a save bar) | `bottom-tabbar`: above the tab bar; over an open window or sheet the toasts are drawn inside it, in the same place, once it has finished moving in (they leave it as it starts to close) | near the bottom edge, clear of the home indicator (`bottom-tabbar`'s short rule) |
 
@@ -234,7 +234,7 @@ The password form is shown at every size, stacked like the other sections (the a
 hidden forms). The card's parts are cells in the order they are drawn at every size, so reading
 and the keyboard follow what is seen; its actions are drawn once per layout (the quiet row or the
 rows, the other copy `display: none`, out of the keyboard's and a screen reader's way). Its index is
-Records' `SectionIndex`, drawn as the plan's chips on a phone and in a window 480px tall or less
+Leaderboards' `SectionIndex`, drawn as the plan's chips on a phone and in a window 480px tall or less
 (`chipClass` through `linkClassName`, no dots) and as a list from md in a taller window: a click
 jumps through the router's history (`jumpToAnchor`), the section under the top bar and focused. At
 a larger text size who you are goes under the picture wherever the card is under 11rem inside (the
@@ -347,11 +347,25 @@ the phone project):
     no-break spaces, so "14 games · 29%" never leaves the dot at a line's end.
   - The role chip has a lane from its corner to the card's controls (0.125rem short of them), or to
     the card's own edge where there are none (its clip, what a chip fitted before it had a lane).
-    Where the lane is narrower than the chip, the chip shows its icon alone as a round badge, the
-    role's name kept for screen readers. The thresholds are the chips rounded up to the next 0.01rem
-    (Mid 4.88, Top 4.98, Jungle 7.01, Bottom 7.34, Support 7.78rem; each chip the same at every size
-    to 0.005rem): a name that shows always fits its lane, and a chip that fits keeps its name (the
-    closest, Support beside its control at 150% on a 375px phone, has 7.79rem).
+    Where the lane is narrower than the role's threshold, the chip shows its icon alone as a round
+    badge, the role's name kept for screen readers. A threshold is the chip plus a margin for the
+    browsers' text, rounded up to the next 0.01rem: Mid 4.91, Top 5.02, Jungle 7.04, Bottom 7.38 and
+    Support 7.81rem. The chips (Mid 4.872, Top 4.978, Jungle 7.001, Bottom 7.335, Support 7.773rem)
+    measure the same in Chromium and in WebKit, within 0.1px at every size from 100% to 200%, and the
+    margin over them is at least 0.036rem (0.6px at 100%, 0.9px at 150%, 1.2px at 200%). Text drawn
+    with hinting differs by size: the Chromium headless shell the specs run in on GitHub rounds each
+    letter's advance to whole pixels and draws a chip up to 0.12rem wider or narrower. Its Support
+    chip, 7.818rem at 150%, ran past its 7.79rem lane on a 375px phone when the thresholds were the
+    chips themselves (CI run 44442818521); at the sizes the specs check (150, 175 and 200%) its chips
+    are within their thresholds, but for Support's at 150%, 0.2px over, inside the specs' half-pixel
+    allowance. The margin can be no larger: the narrowest lane at 100%, beside a control on a 12.2rem
+    card five across, is 125.19px, and WebKit tests a container's width in whole pixels (lanes of
+    125.2 to 125.8px read as narrower than a 125.12px threshold, measured in Playwright's WebKit 27.2),
+    so Support's threshold must be 125px or less for its name to show there at 100%, as it did before
+    the chip had a lane. The spec also narrows each chip's lane to the chip's own width less half a
+    pixel, at each size, and finds the icon alone there: in the browser it runs in, no lane narrower
+    than a chip by more than half a pixel (the allowance of its other checks) shows the name, not
+    only the lanes the demo's cards give.
   - Two controls (your own card's Customise and the turn control) stand one above the other under
     9.25rem; on a touch screen the art keeps its top clear of the controls where they reach over the
     picture (under 7.75rem with one control, 10.875rem with two side by side).
@@ -486,7 +500,9 @@ the account screen over the dashboard at 200% on a 320px phone as well.
     the patch and Riot's notice (in Admin Mode also Data & Integrations and Audit Logs). There is no
     drawer. At a larger text size the team's name gives way first, then the destinations' labels
     (`BAR_FIT`, measured in the bar's own width in rem; re-measured for the four on 18 Nov 2026:
-    42.0rem with the name, 35.9rem without). The menu's Sign out
+    42.0rem with the name, 35.9rem without, so they give way below 42.5rem and 36.25rem: on a 768px
+    tablet the labels stay at 125% text, the name gone; beside the installed app's Back the labels
+    give way where the name does). The menu's Sign out
     tells the browser's other tabs, as the account screen's does. In the installed app, which has no
     browser Back, the bar also shows Back on a page reached from another (a teammate's profile),
     named as on phones.
@@ -675,7 +691,7 @@ Playwright's own scroll into view); on tablets and desktops the Team and profile
 as a long page scrolls, All Champions' column headings pin under them, and nothing is pinned in a
 short window; at 2560 × 1440 and 3440 × 1440 every tab row's first tab starts at its pages' column
 within 1px on each section of its set (Team's, Platform Settings', a profile's,
-Leaderboards' and Match History's views, Users & Permissions'), and at 1920 × 1080 with the sidebar
+Match History's views, Users & Permissions'), and at 1920 × 1080 with the sidebar
 folded the bars of `main`'s own (Team's, Platform Settings'), measured once the page
 itself has replaced its loading state: the row in the same place on all of a set's sections, Team's
 name ending at the column's right edge, the bar's line spanning the room, and on Team Overview the
@@ -703,7 +719,7 @@ names, Team Matches' first game, the Overview's dashboard, All Champions' first 
 pinned headings and Players' first player do too; the compact search narrows Players and All
 Champions in the row's own height, and its Clear lets the copy go once the page's own search is back
 in view, with no focus left in the row; Bookmarked from the row replaces the entry, is marked and
-keeps the place; Records → Recent form from the pinned row; on a touch screen at 1180 and 1366,
+keeps the place; Leaderboards (one page since 19 Nov 2026) puts nothing in the pinned row, and its old Records address lands on its season records; on a touch screen at 1180 and 1366,
 Team's tabs and the bar 44px, the 2.75rem `--tabs-top` assumes, at rest and pinned, Filters and
 Bookmarked centred inside it, a change from it landing the first game 8px under it, and at 175% text
 the compact search filling the bar exactly; with a mouse at 1440 the tabs 40px, the controls centred
@@ -720,8 +736,9 @@ emptied the list; the fullest bar (Back, the title, Filters with its count, the 
 each posture; the account screen closed by Back and not reopened by Forward, upright and held
 sideways; a tablet's destinations (the current one's gradient bar) and avatar menu in both modes, and
 its top bar at 100% to 200% text in both modes, the team's name and then the labels giving way where
-the bar's row is narrower than `BAR_FIT` says, the destinations never scrolling and the bar never wider than
-the window. `e2e/navigation-landings.spec.ts` has the current destination on its own page going back
+the bar's row is narrower than `BAR_FIT` says (and what a 768px tablet shows at each size written
+out, so a threshold above what fits fails too), the destinations never scrolling and the bar never
+wider than the window, beside the installed app's Back too. `e2e/navigation-landings.spec.ts` has the current destination on its own page going back
 to the top without a fetch, in the sidebar and in a tablet's top bar. `e2e/filter-consistency.spec.ts`: the sheet
 opened from the pinned row at 768 and 1440 labels every field (More filters opened), holds the only
 copy of each id, and gives Team Matches' Played with the sheet's width, as its selects.
@@ -786,10 +803,10 @@ the responsive pass report.
 (568×320 among them). The same file runs axe (WCAG 2.1 A/AA) on every page and fails
 on critical or serious violations, and again at 1920 on Team's four sections, Matchup Intel and
 Resources, where the section tabs' row takes the pages' width, and at 1440 × 600 with a page's compact controls
-showing in the pinned row (Team Matches, Records, a profile's Overview, Match History, Encounters).
+showing in the pinned row (Team Matches, a profile's Overview, Match History, Encounters).
 Panel layouts that live in variable-width columns use container queries (`@container`, `@xl:`) rather than viewport breakpoints.
 For example, Team Matches' cards take their four columns from their list's width (`@container/tm`, from 58rem), because the sidebar beside the list takes 4.5 or 16rem of the same window (`e2e/played-together.spec.ts`); inside a card the members go two to a row from a 34rem column of their own (`@container/members`: a tablet's stacked card, or the four columns beside the open sidebar at 1440), and from sm a member's CS and damage show where the member's row is 19rem (`@container/member`): beside the role and champion where both fit whole, on a line of their own under them otherwise, so a long role and champion ("Role unknown · Nunu & Willump", the longest the game can show) is never cut for them. On narrower cards the result, its game and the count of members are one line of words that wraps, the bookmark in the corner; on a phone's card the count is read out only.
-Leaderboards' Records places its three boards by its own width (`@container/records`): one column under 62rem (with an index of its sections under 36rem, on phones), the record book beside the multikills from 62rem (1440 with the sidebar open; 1280 with it open is 60rem, one column), three columns from 98rem (2560 and wider; the milestones' column then keeps the 32rem from which a chip names its champion). Each board's rows follow the board's own width (`@container/list`): the book's are three lines under 36rem and two beside the picture from it (the record and its qualifier over the holder, champion, role, K/D/A and date; 64px where each fits its line), a member's multikills one line from a 21rem list, a member's milestones one line from 40rem. Under a 16rem book, a phone at 150% or 200% text, a record's row is one column (the picture over the record, the holder, the game and the value with its unit, which wrap), so the page is no wider than a 320px phone at either size (`e2e/phone-wraps.spec.ts`; the screen counts are in `docs/TEAM_LEADERBOARDS.md`).
+Leaderboards (one page since 19 Nov 2026: Recent form, then the season's records and achievements, no views) places its four boards by the page's own width (`@container/dash`): one column under 59rem (phones upright and sideways, tablets; with the index of the sections below Recent form, `SectionIndex`), Recent form across the page (at most the measure) with the season records beside the multikills from 59rem (1280 and 1440 wide, the sidebar open or folded), from 86rem (1920, 2560 and 3440 wide, 1512 with the sidebar folded) two columns, each board under the one before it in its own whatever the other column holds: Recent form (at least 58.25rem, so its board keeps its one-line rows inside its border) with the milestones under it, the season records beside it with the multikills under them (the second grid row is flexible, so a taller records panel, a member's own bests, lengthens its own column and never leaves a gap under Recent form). Each board's rows follow the board's own width (`@container/list`): Recent form's tiers as above; each season record is a cell of its own (`@container/list` on the cell, its column template inside it, so a record reads the same wherever it stands): two lines beside the picture from a 36rem cell, three lines under it, one column under 16rem (a phone at 150% or 200% text); the records' panel gives its cells two columns from 40rem while the page is under 86rem (a tablet either way round, a phone held sideways, 1440 wide; one column in the column beside Recent form), the seventh across both; a member's multikills one line from a 21rem list, a member's milestones one line from 40rem. The page is no wider than a 320px phone at 100%, 150% and 200% text (`e2e/phone-wraps.spec.ts`; the screen counts are in `docs/TEAM_LEADERBOARDS.md`).
 
 ## Device matrix
 

@@ -74,7 +74,12 @@ export interface RankHistoryAccount {
   label: string;
   riotId: string;
   snapshots: RankSnapshot[];
-  /** The 2026 ranked year's stored games by week (Monday 00:00 UTC, ms) and queue: games Riot counts (remakes left out). */
+  /**
+   * The 2026 ranked year's stored games by week (Monday 00:00 UTC, ms) and queue: games Riot counts
+   * (remakes left out). Nothing reads it since 18 Nov 2026, when Ranked progress's coverage strip
+   * left the page (presentation only); dropping it and its query waits for the owner's decision
+   * (docs/RANKED_PROGRESS.md, "Still read, shown nowhere").
+   */
   weeks: Record<RankQueue, Array<{ week: number; wins: number; losses: number }>>;
 }
 

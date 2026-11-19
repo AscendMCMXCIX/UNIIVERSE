@@ -145,7 +145,7 @@ ink is darker than every panel, so panels still lift off it. Text contrast on it
 |---|---|---|
 | `panel-depth` | sheen from the top, hairline of light on the top edge, soft shadow | every panel and card (`Panel` has it) |
 | `panel-featured` | `panel-depth` plus a faint violet wash in the top corner | the one card a page leads with |
-| `surface-lead` | `panel-featured` plus the brand's line along the top edge (accent to accent-2, fading out), drawn above the card's first row | the one card a page leads with, at most one a page (Recent form's board, Records' book; Settings' account card; the profile's season card next) |
+| `surface-lead` | `panel-featured` plus the brand's line along the top edge (accent to accent-2, fading out), drawn above the card's first row | the one card a page leads with, at most one a page (Leaderboards' Recent form board; Settings' account card; the profile's season card next) |
 | `panel-lift` | rises 1px with a brighter edge on hover; none with reduced motion | cards that open something |
 | `chrome-light` | sheen from the top and a faint violet glow behind the logo, on the sidebar's still layer | the desktop sidebar only |
 | `brand-plate` | hairline of light around the logo (brighter on top) and a soft shadow under it | the team's logo set into the frame |
@@ -374,8 +374,8 @@ With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shel
     toolbar has gone up under it, the page's compact copy of its controls shows at the row's end
     (`PageToolbar`, `src/components/ui/page-toolbar.tsx`): Match History and Encounters
     [Games | Encounters] + [Filters · n]; Overview [Filters · n]; All Champions and Players
-    [Search] + [Filters · n]; Team Matches [Filters · n] + [Bookmarked]; Leaderboards
-    [Recent form | Records]. Back up at the toolbar the copy goes, and it is drawn only while it
+    [Search] + [Filters · n]; Team Matches [Filters · n] + [Bookmarked]; Leaderboards none (one
+    page since 19 Nov 2026: no views, no filters). Back up at the toolbar the copy goes, and it is drawn only while it
     shows, so nothing hidden can be tabbed to. In use it stays: pressed or focused, while the sheet
     its Filters opened is open, and until that sheet has handed the focus back, so a change that
     shortens the page never leaves the focus with nowhere to return (`useHeld`). Never in a short
@@ -392,8 +392,8 @@ With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shel
     8 s of the change arriving and before the reader scrolls, presses, types or steps Back, it brings
     the list's first item under the pinned stack; closed unchanged, or once the reader moves on,
     nothing later moves the page. Bookmarked keeps the place, as every filter does. The page's
-    own toolbar is found by the page's filter bar, or named by the page (All Champions' table search,
-    Leaderboards' views). The copy's Filters counts and names what the page's own bar narrows at its
+    own toolbar is found by the page's filter bar (Match History's, Encounters'), or named by the page
+    (All Champions' table search). The copy's Filters counts and names what the page's own bar narrows at its
     width (from md Encounters' Minimum games and Sort by are its list toolbar's, so the pinned row
     and the sheet there leave them out, as the inline bar does, following the width while open).
 - **A tablet's avatar menu** (it replaced the drawer, which was a native `<dialog>`, when the
@@ -434,8 +434,9 @@ test):
   its first item under the bars (Match History's pager). (`e2e/navigation-landings.spec.ts`; the
   sections' landing from md, `e2e/navigation-reach.spec.ts`)
 - **A long page's own sections.** Where a phone's column makes a page several screens long, its
-  sections are in-page links under its scope (`SectionIndex`, `ui/section-index.tsx`: Records'
-  "Season records · Multikills · Milestones"; from a 36rem view the page fits without them; Settings
+  sections are in-page links under its scope (`SectionIndex`, `ui/section-index.tsx`: Leaderboards'
+  "Season records · Multikills · Milestones", the sections below Recent form, on a one-column page,
+  under 59rem: phones held either way and tablets; Settings
   keeps its index in its account card: Name, Links and Password as chips on a phone and in a window
   480px tall or less (the approved plan's look there) and a list from md in a taller window, the
   section being read marked either way). Each is
@@ -454,14 +455,14 @@ test):
   and the frame's entry for the page shown (the sidebar's, a tablet's top bar's, the phone's account
   screen's row: Matchup Intel's keeps its pair) do the same, and keep the page as it is: its view and
   filters stay (the link's own address leaves the query out, and following it used to bring back
-  the defaults, Records back to Recent form). A click with a modifier key or another button still opens a new tab or window, and leaves
+  the defaults, Leaderboards' season back to the current one). A click with a modifier key or another button still opens a new tab or window, and leaves
   this page alone (`src/lib/back-to-top.ts`; `e2e/navigation-landings.spec.ts`).
 - **Back.** Phones and the installed app show their own Back, named after where it leads: the
   previous page when it is ours, else the page above (`phoneParent`). A full-screen game is a history
   entry (Back closes it); a profile's sections replace the entry (Back leaves the profile), and so
-  does every filter (Team Matches', the Records season, Players' Archived, Ranked progress's queue
+  does every filter (Team Matches', Leaderboards' season, Players' Archived, Ranked progress's queue
   and account, and a mode's other seasons included), so Back leaves the page instead of stepping back
-  through each choice. A page's views (`SubTabs`: Recent form and Records, Games and Encounters) stay
+  through each choice. A page's views (`SubTabs`: Match History's Games and Encounters) stay
   entries of their own, as each is a link with its own address, and so do Matchup Intel's pairs
   (each pair chosen, and a chip's jump to an ability) where the browser has the Navigation API: the
   browser's Back steps through them, and the top bar's Back, named after the page before Matchup
@@ -528,7 +529,7 @@ deliberately. Each needs its own small PR. Check STATUS.md for the Actions-minut
 | Area | Finding | Direction |
 |---|---|---|
 | Hover on panels | About 50 controls use `hover:bg-surface-2`, a few `hover:bg-surface-2/70` or `bg-fg/5` | Converge on §5: surface steps on panels, fg overlays on the frame. `DataList` rows follow §5 already (`ROW_STATES`) |
-| Page headers | Players, Matches and Resources open with `PageHeader`. Leaderboards opens with its sub-tabs in the title's place; Settings (64rem, both modes) leads with its account card (`surface-lead`) beside or above its sections, its title over them | Intended by STANDARDS.md's three tiers. Leaderboards could take a `PageHeader` when its page is next redesigned |
+| Page headers | Players, Matches and Resources open with `PageHeader`. Leaderboards (one page since 19 Nov 2026) opens with its title, member count and data status on one line (its own header: the line `PageHeader` would put under the title stands beside it, so the boards start one line higher); Settings (64rem, both modes) leads with its account card (`surface-lead`) beside or above its sections, its title over them | Intended by STANDARDS.md's three tiers |
 | Eyebrows | `PageHeader`'s eyebrow is `accent`; `SectionLabel` is `fg-subtle` | Both are valid. Keep `accent` eyebrows to Team Overview's header (from `sm` in a window taller than 480px; on a phone held either way it is left to screen readers, since the selected tab says it), admin pages (`PageHeader`) and the sign-in frames (`BrandFrame`) |
 | Tablet and phone mode switch | A row on the phone's account screen and an item of a tablet's avatar menu, each in the accent on the way to Admin Mode; a quiet row in the sidebar | Deliberate (§7). Revisit only with the owner, since phones were verified |
 

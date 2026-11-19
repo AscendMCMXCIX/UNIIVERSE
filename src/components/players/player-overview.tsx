@@ -267,8 +267,9 @@ function OverviewDashboard({ perf, form, ranked, pools }: { perf: React.ReactNod
   const two = !!ranked;
   return (
     <div className="@container/ov" data-testid="overview-dashboard">
-      {/* Without recent form, ranked progress spans both rows of the rail: the second row takes its
-          growth (its details opened), so the season's card never stretches and the pools stay put. */}
+      {/* Without recent form, ranked progress spans both rows of the rail: the second row takes
+          whatever height it has beyond the season's card, so that card never stretches and the
+          pools stay put. */}
       <div className={cn("grid grid-cols-[minmax(0,1fr)] items-start gap-3 sm:gap-4", form && "@min-[58rem]/ov:grid-cols-[minmax(0,1fr)_minmax(18rem,21rem)]", two && GRID_2X2, two && !form && "min-[90rem]:@min-[68rem]/ov:grid-rows-[auto_1fr]")}>
         <div className={cn("min-w-0 self-stretch", two && "min-[90rem]:@min-[68rem]/ov:col-start-1 min-[90rem]:@min-[68rem]/ov:row-start-1")}>{perf}</div>
         {form ? (

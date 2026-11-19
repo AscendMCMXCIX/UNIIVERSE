@@ -91,6 +91,12 @@ export function restsAfterMovingOnto(trigger: { contains(other: Node | null): bo
  * tip sits in (tipHost), placed where placeTip says however that window is moving (landAt), and
  * placed again at every frame while it moves (moving). The text
  * is also the trigger's accessible description, so screen readers read it without opening it.
+ * A bubble is never taller than the screen less its 8px margins: a longer text (the season records'
+ * definitions at 200% on a phone ran 207px past a 375 × 667 screen, unreadable) scrolls inside it,
+ * and that bubble alone takes the pointer, so a finger drags it and a wheel turns it: a press on it
+ * starts no close, a tap or click on it closes it (as a tap anywhere else does), and a mouse may
+ * move from the ⓘ onto it and stays in one visit until it leaves both. A bubble that fits lets the
+ * pointer through, as before.
  * Interactive menus are not tooltips: they stay click-to-open popovers.
  */
 export function InfoTip({ text, className, label, children, testId = "info-tip", tabIndex }: { text: React.ReactNode; className?: string; label?: string; children?: React.ReactNode; testId?: string; /** -1 leaves it out of the tab order where what it sits on is already the one stop (a match card); pointers, taps and screen readers still reach it. */ tabIndex?: number }) {
@@ -98,6 +104,8 @@ export function InfoTip({ text, className, label, children, testId = "info-tip",
   const [pos, setPos] = React.useState<{ left: number; top: number } | null>(null);
   // Where the open bubble is drawn, chosen as it opens (tipHost).
   const [host, setHost] = React.useState<HTMLElement | null>(null);
+  // The open bubble's text is longer than the bubble can be (the screen less its margins): it scrolls, and takes the pointer.
+  const [scrolls, setScrolls] = React.useState(false);
   const trigger = React.useRef<HTMLButtonElement>(null);
   const bubble = React.useRef<HTMLSpanElement>(null);
   // The pointer that pressed the trigger, so a tap does not count as keyboard focus.
@@ -118,6 +126,7 @@ export function InfoTip({ text, className, label, children, testId = "info-tip",
     const size = getComputedStyle(b);
     const at = landAt(target, { left: parseFloat(b.style.left) || 0, top: parseFloat(b.style.top) || 0 }, landed, { width: parseFloat(size.width), height: parseFloat(size.height) });
     setPos((cur) => (cur && Math.abs(cur.left - at.left) < 0.5 && Math.abs(cur.top - at.top) < 0.5 ? cur : at));
+    setScrolls(b.scrollHeight > b.clientHeight + 1);
   }, []);
 
   React.useLayoutEffect(() => {
@@ -160,8 +169,10 @@ export function InfoTip({ text, className, label, children, testId = "info-tip",
 
   React.useEffect(() => {
     if (!open) return;
+    // A press on a bubble that takes the pointer (one that scrolls) may be a finger starting to drag it.
     const onDown = (e: PointerEvent) => {
-      if (!trigger.current?.contains(e.target as Node)) setOpen(false);
+      const at = e.target as Node;
+      if (!trigger.current?.contains(at) && !bubble.current?.contains(at)) setOpen(false);
     };
     // Escape closes the bubble, and only the bubble: heard first (on the window, as it is captured)
     // and kept from everything else, the window it sits in included, whose close request is the
@@ -187,6 +198,7 @@ export function InfoTip({ text, className, label, children, testId = "info-tip",
   const show = () => {
     if (open) return;
     setPos(null);
+    setScrolls(false);
     setHost(tipHost(trigger.current));
     setOpen(true);
   };
@@ -227,6 +239,8 @@ export function InfoTip({ text, className, label, children, testId = "info-tip",
         }}
         onPointerLeave={(e) => {
           if (e.pointerType !== "mouse") return;
+          // Onto a bubble that scrolls (it may cover its ⓘ): the same visit, until the pointer leaves it too.
+          if (e.relatedTarget instanceof Node && bubble.current?.contains(e.relatedTarget)) return;
           visited.current = false;
           setOpen(false);
         }}
@@ -257,13 +271,28 @@ export function InfoTip({ text, className, label, children, testId = "info-tip",
       </span>
       {open && host
         ? createPortal(
+            // Its handlers act only while it scrolls: a bubble that fits lets every pointer through.
             <span
               ref={bubble}
               role="tooltip"
               aria-hidden
               style={{ left: pos?.left ?? 0, top: pos?.top ?? 0, visibility: pos ? "visible" : "hidden" }}
-              className="pointer-events-none fixed z-[100] block w-max max-w-[min(18rem,calc(100%-16px))] rounded-md border border-border-strong bg-bg-elevated px-2.5 py-1.5 text-left text-xs font-normal normal-case leading-snug tracking-normal text-fg shadow-lg motion-safe:animate-[fade-in_100ms_ease-out]"
+              className="pointer-events-none fixed z-[100] block max-h-[calc(100%-16px)] w-max max-w-[min(18rem,calc(100%-16px))] overflow-y-auto overscroll-contain rounded-md border border-border-strong bg-bg-elevated px-2.5 py-1.5 text-left text-xs font-normal normal-case leading-snug tracking-normal text-fg shadow-lg motion-safe:animate-[fade-in_100ms_ease-out] data-[scrolls]:pointer-events-auto"
               data-testid={`${testId}-bubble`}
+              data-scrolls={scrolls || undefined}
+              // Neither press nor click reaches what the ⓘ sits on (a card or a row that opens on a press), as the ⓘ's own click does not.
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setOpen(false);
+              }}
+              onPointerLeave={(e) => {
+                if (e.pointerType !== "mouse") return;
+                if (e.relatedTarget instanceof Node && trigger.current?.contains(e.relatedTarget)) return;
+                visited.current = false;
+                setOpen(false);
+              }}
             >
               {text}
             </span>,

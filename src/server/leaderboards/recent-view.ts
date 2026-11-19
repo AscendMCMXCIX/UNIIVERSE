@@ -7,17 +7,16 @@ import { formatCompactCount, formatCount, formatDate, formatDayMonth, formatNumb
 import type { LeaderboardData, LeaderboardPlayer } from "./service";
 
 /*
-  What Team Leaderboards show (docs/LEADERBOARDS_MODEL.md, docs/TEAM_LEADERBOARDS.md): two views
-  of the cached team data, computed in a few milliseconds, with only display fields sent to the
-  browser.
+  What Team Leaderboards show (docs/LEADERBOARDS_MODEL.md, docs/TEAM_LEADERBOARDS.md): one page,
+  built from the cached team data in a few milliseconds, with only display fields sent to the
+  browser. Its parts, all from the one load (service.ts), none with a query of its own:
     Recent form              one board: each member's latest 20 Summoner's Rift games from the
                              last 60 days, ranked by win rate (domain/leaderboard-recent);
-    Records & achievements   one season's single-game records, multikills and milestones, which
-                             reward playing more (domain/leaderboard-records).
+    Season records and       one season's single-game records, multikills and milestones, which
+    achievements             reward playing more (domain/leaderboard-records). The season (the
+                             current one unless the address names another) is theirs alone.
   Every linked account counts, a game seen from two of them once (service.ts).
 */
-
-export type LeaderboardTab = "form" | "records";
 
 export interface BoardPlayer {
   id: string;
@@ -104,11 +103,10 @@ export interface MilestoneGroup {
   more: number;
 }
 
-export interface RecentLeaderboardView {
-  tab: LeaderboardTab;
-  tabs: Record<LeaderboardTab, string>;
-  form: FormView | null;
-  records: RecordsView | null;
+/** The page: Recent form and the season's records and achievements, side by side, every member once in `players`. */
+export interface LeaderboardsView {
+  form: FormView;
+  records: RecordsView;
   players: Record<string, BoardPlayer>;
   playerCount: number;
   viewer: string | null;
@@ -123,20 +121,19 @@ export interface RecentViewOptions {
   now?: Date;
 }
 
-/** The address of a view of the boards: Recent form is the default (no `view`), Records & achievements takes the season. */
-export function recentLeaderboardHref(change: { tab: LeaderboardTab; season?: number | null }, options: Pick<RecentViewOptions, "basePath"> = {}): string {
-  const q = new URLSearchParams();
-  if (change.tab === "records") {
-    q.set("view", "records");
-    if (change.season) q.set("season", String(change.season));
-  }
-  const s = q.toString();
-  return `${options.basePath ?? "/leaderboards"}${s ? `?${s}` : ""}`;
+/**
+ * The page's address: the records' season when it is not the current one (Recent form takes none).
+ * Records & achievements was a view of its own until 19 Nov 2026 (`?view=records`); that address
+ * still opens this page, at the records (RetiredViewLanding).
+ */
+export function leaderboardsHref(season: number | null, options: Pick<RecentViewOptions, "basePath"> = {}): string {
+  return `${options.basePath ?? "/leaderboards"}${season ? `?season=${season}` : ""}`;
 }
 
-export function parseLeaderboardTab(params: Record<string, string | string[] | undefined>): { tab: LeaderboardTab; season: string | null } {
-  const one = (k: string) => (Array.isArray(params[k]) ? params[k]![0] : params[k]) ?? null;
-  return { tab: one("view") === "records" ? "records" : "form", season: one("season") };
+/** What the address asks of the page: the records' season. A retired `view` asks nothing of the server. */
+export function parseLeaderboardsQuery(params: Record<string, string | string[] | undefined>): { season: string | null } {
+  const season = Array.isArray(params.season) ? params.season[0] : params.season;
+  return { season: season ?? null };
 }
 
 const SUPPORTED = new Set<number>(LEADERBOARD_QUEUES.all.queues);
@@ -172,47 +169,80 @@ function groupMilestones(list: readonly ChampionMilestone[], steps: readonly num
 }
 const kdaText = (m: RecordMark) => (m.game && m.game.kills !== null && m.game.deaths !== null && m.game.assists !== null ? `${m.game.kills}/${m.game.deaths}/${m.game.assists}` : null);
 
-export function buildRecentLeaderboardView(data: LeaderboardData, request: { tab: LeaderboardTab; season?: string | number | null }, viewerPlayerId: string | null, options: RecentViewOptions = {}): RecentLeaderboardView {
+/** What every part of the page shares: the members as the boards show them, each one's games, the viewer. */
+interface BoardContext {
+  names: Map<string, string>;
+  ids: string[];
+  byPlayer: Map<string, LeaderboardData["games"]>;
+  players: Record<string, BoardPlayer>;
+  viewer: string | null;
+  basePath: string;
+  profiles: boolean;
+  now: Date;
+}
+
+function boardContext(data: LeaderboardData, viewerPlayerId: string | null, options: RecentViewOptions): BoardContext {
   const { basePath = "/leaderboards", profiles = true, now = new Date() } = options;
   const names = new Map(data.players.map((p) => [p.id, p.name]));
-  const viewer = viewerPlayerId && names.has(viewerPlayerId) ? viewerPlayerId : null;
   const ids = data.players.map((p) => p.id);
   const byPlayer = new Map<string, LeaderboardData["games"]>(ids.map((id) => [id, []]));
   for (const g of data.games) byPlayer.get(g.playerId)?.push(g);
   const players = Object.fromEntries(data.players.map((p) => [p.id, { id: p.id, name: p.name, profileHref: profiles ? `/players/${p.id}` : null, avatarUrl: p.avatarUrl, look: p.look }]));
-  const season = chooseSeason(request.season ?? null, data.seasons, data.currentSeason);
-  const tabs = { form: recentLeaderboardHref({ tab: "form" }, { basePath }), records: recentLeaderboardHref({ tab: "records", season: season === data.currentSeason ? null : season }, { basePath }) };
-  const base = { tab: request.tab, tabs, players, playerCount: data.players.length, viewer, lastUpdated: data.lastUpdated };
+  return { names, ids, byPlayer, players, viewer: viewerPlayerId && names.has(viewerPlayerId) ? viewerPlayerId : null, basePath, profiles, now };
+}
 
-  if (request.tab === "form") {
-    const scope = { board: "overall" as const, mode: "all" as const, now };
-    const entries = ids.map((id) => recentEntry(id, byPlayer.get(id)!, scope));
-    const board = rankRecentBoard(entries, "overall", "winRate", names);
-    const primary = new Map(data.players.map((p) => [p.id, p.primaryRole as GameRole | null]));
-    const rows: FormRow[] = board.rows.map((r) => ({
-      playerId: r.entry.playerId,
-      place: r.rank,
-      tied: r.tied,
-      status: r.rank === null ? "provisional" : "established",
-      games: r.entry.games,
-      wins: r.entry.wins,
-      losses: r.entry.losses,
-      winRate: shownValue("winRate", r.entry.figures.winRate!.value!),
-      dates: r.entry.from !== null && r.entry.to !== null ? `${formatDayMonth(r.entry.from)} – ${formatDayMonth(r.entry.to)}` : "",
-      role: mainRoleOf(r.entry, primary.get(r.entry.playerId) ?? null),
-      note: r.note,
-      gap: r.gap,
-      you: r.entry.playerId === viewer,
-    }));
-    // The last supported game of a member in the board's last group, whenever it was (it may be older than 60 days).
-    const lastGame = (id: string) => byPlayer.get(id)!.reduce<number | null>((m, g) => (g.queueId !== null && SUPPORTED.has(g.queueId) && (m === null || g.gameCreation > m) ? g.gameCreation : m), null);
-    const notEnough = board.notEnough
-      .map(({ entry, needed }) => ({ playerId: entry.playerId, games: entry.games, needed, last: lastGame(entry.playerId) }))
-      .sort((a, b) => b.games - a.games || (b.last ?? 0) - (a.last ?? 0) || (names.get(a.playerId) ?? "").localeCompare(names.get(b.playerId) ?? ""))
-      .map(({ last, ...n }) => ({ ...n, lastGame: last === null ? null : formatDate(last) }));
-    return { ...base, form: { rows, notEnough, window: { games: RECENT_WINDOW_GAMES, provisionalFrom: RECENT_PROVISIONAL_GAMES, days: RECENT_WINDOW_DAYS } }, records: null };
-  }
+/**
+ * The whole page from one load of the team's data: Recent form and the season's records and
+ * achievements, both at once (each a few milliseconds of memory work; neither reads anything).
+ */
+export function buildLeaderboardsView(data: LeaderboardData, request: { season?: string | number | null }, viewerPlayerId: string | null, options: RecentViewOptions = {}): LeaderboardsView {
+  const ctx = boardContext(data, viewerPlayerId, options);
+  return { form: formView(data, ctx), records: recordsView(data, request.season ?? null, ctx), players: ctx.players, playerCount: data.players.length, viewer: ctx.viewer, lastUpdated: data.lastUpdated };
+}
 
+/** Recent form alone (the production probe times each part of the page). */
+export function buildFormView(data: LeaderboardData, viewerPlayerId: string | null, options: RecentViewOptions = {}): FormView {
+  return formView(data, boardContext(data, viewerPlayerId, options));
+}
+
+/** The season's records and achievements alone (the production probe times each part of the page). */
+export function buildRecordsView(data: LeaderboardData, request: { season?: string | number | null }, viewerPlayerId: string | null, options: RecentViewOptions = {}): RecordsView {
+  return recordsView(data, request.season ?? null, boardContext(data, viewerPlayerId, options));
+}
+
+function formView(data: LeaderboardData, ctx: BoardContext): FormView {
+  const { names, ids, byPlayer, viewer, now } = ctx;
+  const scope = { board: "overall" as const, mode: "all" as const, now };
+  const entries = ids.map((id) => recentEntry(id, byPlayer.get(id)!, scope));
+  const board = rankRecentBoard(entries, "overall", "winRate", names);
+  const primary = new Map(data.players.map((p) => [p.id, p.primaryRole as GameRole | null]));
+  const rows: FormRow[] = board.rows.map((r) => ({
+    playerId: r.entry.playerId,
+    place: r.rank,
+    tied: r.tied,
+    status: r.rank === null ? "provisional" : "established",
+    games: r.entry.games,
+    wins: r.entry.wins,
+    losses: r.entry.losses,
+    winRate: shownValue("winRate", r.entry.figures.winRate!.value!),
+    dates: r.entry.from !== null && r.entry.to !== null ? `${formatDayMonth(r.entry.from)} – ${formatDayMonth(r.entry.to)}` : "",
+    role: mainRoleOf(r.entry, primary.get(r.entry.playerId) ?? null),
+    note: r.note,
+    gap: r.gap,
+    you: r.entry.playerId === viewer,
+  }));
+  // The last supported game of a member in the board's last group, whenever it was (it may be older than 60 days).
+  const lastGame = (id: string) => byPlayer.get(id)!.reduce<number | null>((m, g) => (g.queueId !== null && SUPPORTED.has(g.queueId) && (m === null || g.gameCreation > m) ? g.gameCreation : m), null);
+  const notEnough = board.notEnough
+    .map(({ entry, needed }) => ({ playerId: entry.playerId, games: entry.games, needed, last: lastGame(entry.playerId) }))
+    .sort((a, b) => b.games - a.games || (b.last ?? 0) - (a.last ?? 0) || (names.get(a.playerId) ?? "").localeCompare(names.get(b.playerId) ?? ""))
+    .map(({ last, ...n }) => ({ ...n, lastGame: last === null ? null : formatDate(last) }));
+  return { rows, notEnough, window: { games: RECENT_WINDOW_GAMES, provisionalFrom: RECENT_PROVISIONAL_GAMES, days: RECENT_WINDOW_DAYS } };
+}
+
+function recordsView(data: LeaderboardData, requested: string | number | null, ctx: BoardContext): RecordsView {
+  const { names, ids, viewer, basePath, profiles } = ctx;
+  const season = chooseSeason(requested, data.seasons, data.currentSeason);
   const result = buildRecords({ games: data.games, mastery: data.mastery, playerIds: ids, season });
   const gameHref = (m: RecordMark) => (profiles && m.game ? `/players/${m.playerId}/matches?match=${encodeURIComponent(m.game.matchId)}` : null);
   const holderOf = (m: RecordMark, def: (typeof result.records)[number]["def"]): RecordHolder => ({
@@ -234,18 +264,14 @@ export function buildRecentLeaderboardView(data: LeaderboardData, request: { tab
   const multikills = [...result.multikills].sort((a, b) => b.penta - a.penta || b.quadra - a.quadra || b.triple - a.triple || byName(a, b));
   const multikillNote = result.games === 0 ? null : result.multikillGames === 0 ? "Riot's multikill figures are kept on newly collected games: none of this season's games carry them yet." : result.multikillGames < result.games ? `From the ${formatCount(result.multikillGames)} of ${formatCount(result.games)} games this season that carry Riot's multikill figures; the others are left out, not counted as zero.` : null;
   return {
-    ...base,
-    form: null,
-    records: {
-      season,
-      seasonLabel: seasonLabel(season),
-      seasons: data.seasons.map((s) => ({ value: s, label: seasonLabel(s), href: recentLeaderboardHref({ tab: "records", season: s === data.currentSeason ? null : s }, { basePath }) })),
-      games: result.games,
-      records,
-      multikills,
-      multikillNote,
-      championGames: groupMilestones(result.championGames, CHAMPION_GAME_MILESTONES, (c) => ({ value: `${formatCount(c.value)} games`, short: formatCount(c.value), milestone: `${c.milestone}+ games` })),
-      mastery: groupMilestones(result.mastery, MASTERY_MILESTONES, (c) => ({ value: `${formatCompactCount(c.value)} points`, short: formatCompactCount(c.value), milestone: c.milestone >= 1_000_000 ? "1M+" : `${formatCount(c.milestone / 1000)}K+` })),
-    },
+    season,
+    seasonLabel: seasonLabel(season),
+    seasons: data.seasons.map((s) => ({ value: s, label: seasonLabel(s), href: leaderboardsHref(s === data.currentSeason ? null : s, { basePath }) })),
+    games: result.games,
+    records,
+    multikills,
+    multikillNote,
+    championGames: groupMilestones(result.championGames, CHAMPION_GAME_MILESTONES, (c) => ({ value: `${formatCount(c.value)} games`, short: formatCount(c.value), milestone: `${c.milestone}+ games` })),
+    mastery: groupMilestones(result.mastery, MASTERY_MILESTONES, (c) => ({ value: `${formatCompactCount(c.value)} points`, short: formatCompactCount(c.value), milestone: c.milestone >= 1_000_000 ? "1M+" : `${formatCount(c.milestone / 1000)}K+` })),
   };
 }

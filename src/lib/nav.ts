@@ -198,7 +198,13 @@ export const ACCOUNT_LINKS: NavLink[] = [{ href: "/settings", label: "Settings",
 /** A destination of the phone tab bar. */
 export interface PhoneTab {
   href: string;
+  /** Its name: what screen readers hear, and what Back is named after on the way back to it. */
   label: string;
+  /**
+   * The end of a long name, all the phone's bars show of it (Matchup Intel: "Intel"); the words
+   * before it are read out only, so the whole name is still its accessible name.
+   */
+  short?: string;
   icon: LucideIcon;
 }
 
@@ -211,7 +217,9 @@ export interface PhoneTab {
  *   Matches        the games members played together;
  *   Profile        your own profile and its sections;
  *   Matchup Intel  when there is room (an account without one or more of the Team pages), before
- *                  Resources, as the sidebar orders them;
+ *                  Resources, as the sidebar orders them. The bars show it as "Intel" (`short`;
+ *                  its whole name is read out), no wider than its icon's pill, so a five with it
+ *                  keeps its labels wherever the usual five does (mobile-nav.tsx, TAB_FIT);
  *   Resources      likewise. Where there is no room, each is a row of the account screen behind
  *                  your avatar (Matchup Intel first), with Settings and Sign out: never in both.
  * At most five, those this account may open (the pages check again). Held sideways (a short window
@@ -225,7 +233,7 @@ export const PHONE_TABS: PhoneTab[] = [
   { href: "/leaderboards", label: "Leaderboards", icon: Medal },
   { href: "/matches", label: "Matches", icon: History },
   { href: "/overview", label: "Profile", icon: CircleUserRound },
-  { href: MATCHUP_INTEL.href, label: MATCHUP_INTEL.label, icon: MATCHUP_INTEL.icon },
+  { href: MATCHUP_INTEL.href, label: MATCHUP_INTEL.label, short: "Intel", icon: MATCHUP_INTEL.icon },
   { href: RESOURCES.href, label: RESOURCES.label, icon: RESOURCES.icon },
 ];
 

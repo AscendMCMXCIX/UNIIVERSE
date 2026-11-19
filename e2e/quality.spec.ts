@@ -109,8 +109,9 @@ test.describe("accessibility", () => {
     await page.goto("/players");
     const teammate = await page.locator("main a[data-testid='player-card'][data-player-name='Demo Mid']").getAttribute("href");
     // The demo's Players and All Champions (nine players, eight champions) fit this window whole, so
-    // their rows never need their compact controls; every other page with them is here.
-    for (const route of ["/matches", "/leaderboards?view=records", teammate!, `${teammate}/matches`, `${teammate}/matches?view=encounters`]) {
+    // their rows never need their compact controls; every other page with them is here (Leaderboards
+    // has none since 19 Nov 2026: one page, no views or filters).
+    for (const route of ["/matches", teammate!, `${teammate}/matches`, `${teammate}/matches?view=encounters`]) {
       await page.goto(route);
       await page.waitForLoadState("networkidle");
       await page.evaluate(async () => {

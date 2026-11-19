@@ -492,12 +492,13 @@ test("tab rows too wide for the screen fade only where more is hidden, and keep 
 test("held sideways at a tablet's width, a long page goes back to the top from its title in the bar, and from the current destination", async ({ browser, baseURL }) => {
   // Held sideways the frame is the phone's whatever the width: one compact bar with the destinations
   // in it, and in a window this short the section tabs do not pin, so the bar leads back up a long
-  // page (a Pixel 7 held sideways is 863 × 360; Records is about five screens long there).
+  // page (a Pixel 7 held sideways is 863 × 360; Leaderboards is about five and a half screens long there). Its
+  // address names a season, which the page keeps.
   for (const viewport of [{ width: 863, height: 360 }, { width: 852, height: 393 }]) {
     const where = `${viewport.width} × ${viewport.height}`;
     const page = await phone(browser, baseURL!, { ...IPHONE_LANDSCAPE, viewport });
     await page.emulateMedia({ reducedMotion: "reduce" });
-    await page.goto("/leaderboards?view=records");
+    await page.goto("/leaderboards?season=16");
     await expect(page.getByTestId("records")).toBeVisible();
     // The page's title in the top bar, a button named after the heading, "…: back to top".
     const title = page.getByTestId("mobile-topbar").getByRole("button", { name: /: back to top$/ });
@@ -523,7 +524,7 @@ test("held sideways at a tablet's width, a long page goes back to the top from i
     await expect(current).toHaveAttribute("aria-current", "page");
     await current.click();
     await expect.poll(() => page.evaluate(() => window.scrollY), { message: `${where}: back at the top from the current destination` }).toBe(0);
-    await expect(page).toHaveURL(/view=records/);
+    await expect(page).toHaveURL(/[?&]season=16/);
     await done(page);
   }
 });

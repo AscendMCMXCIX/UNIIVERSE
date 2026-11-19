@@ -9,7 +9,7 @@ import { installGuideFor, type InstallGuide } from "@/domain/install-guide";
 import { promptInstall, useInstallState } from "./install-state";
 import { cn } from "@/lib/cn";
 import { RAIL_FADE, RAIL_HIGHLIGHT, RAIL_HOVER, RAIL_ICON, RAIL_ICON_IDLE, RAIL_ROW } from "@/lib/sidebar";
-import { ACCOUNT_ROW, ACCOUNT_ROW_ICON, ACCOUNT_ROW_IDLE } from "@/lib/sheet";
+import { ACCOUNT_ROW, ACCOUNT_ROW_ICON, ACCOUNT_ROW_IDLE, ACCOUNT_ROW_LABEL } from "@/lib/sheet";
 import { MenuItem } from "@/components/ui/menu";
 
 /*
@@ -69,7 +69,7 @@ export function InstallAppEntry({ variant, beforeOpen, className }: { variant: "
     return (
       <button type="button" onClick={onClick} aria-haspopup="dialog" className={cn(ACCOUNT_ROW, ACCOUNT_ROW_IDLE, hiddenWhenInstalled, className)} data-testid="install-app">
         <Download className={cn(ACCOUNT_ROW_ICON, "text-fg-subtle")} aria-hidden />
-        <span className="min-w-0 flex-1 truncate">Install App</span>
+        <span className={ACCOUNT_ROW_LABEL}>Install App</span>
       </button>
     );
   }

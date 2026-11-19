@@ -9,8 +9,8 @@ import { cn } from "@/lib/cn";
 import { formatOrdinal } from "@/lib/format";
 
 /*
-  A list of rows that reads as one board (docs/STANDARDS.md, Components): Recent form's ranking,
-  and Records' book, multikills and milestones. The Players roster is its own RosterRow
+  A list of rows that reads as one board (docs/STANDARDS.md, Components): Leaderboards' Recent
+  form, season records, multikills and milestones. The Players roster is its own RosterRow
   (players/roster-row.tsx), which repeats ROW_STATES' hover and pressed classes and ROW_CONTROL's
   lift. The pieces:
 
@@ -61,11 +61,14 @@ const SURFACE = {
   none: "",
 } as const;
 
+/** A board's panel, for one built of cells that measure themselves rather than rows on one template (Leaderboards' season records). */
+export const BOARD_PANEL = cn("@container/list min-w-0 overflow-clip", SURFACE.panel);
+
 /**
  * The board. `columns` sets the --dl-cols template for each tier, as literal classes (Recent form's
  * FORM_COLS): a container query cannot style its own container, so the template goes on the body,
- * and the headings and every row inherit it. The title (a board that names itself: Records' book,
- * multikills and milestones), the headings, groups and captions are the body's direct children, in
+ * and the headings and every row inherit it. The title (a board that names itself: Recent form, the
+ * multikills and the milestones), the headings, groups and captions are the body's direct children, in
  * that order, so one divide-y draws every line between them and a missing group never doubles one.
  */
 export function DataList({ columns, title, heads, headsTestId, headsClassName, surface = "panel", className, testId, children }: { columns?: string; /** The board's own title row, above its headings. */ title?: React.ReactNode; /** aria-hidden column headings (DataHead), on the board's columns; every row names its own figures for screen readers. */ heads?: React.ReactNode; headsTestId?: string; headsClassName?: string; surface?: keyof typeof SURFACE; className?: string; testId?: string; children: React.ReactNode }) {
@@ -126,17 +129,19 @@ export function densityClasses(density: DensityByWidth): string {
  * row's RowLink, a direct child so it covers the row), `children` (the member), `figures`, `trail`.
  * Cells place themselves on the columns per tier. The row takes no title: under the overlay link no
  * cell's own title shows, so the row's explanations go in its RowLink's `hint`.
+ * `as="div"`: a row inside a list item of its own that measures itself (Leaderboards' season
+ * records: each record a cell of a grid, the li its @container/list and its column template).
  */
-export function DataRow({ lead, link, children, figures, trail, own = false, density = "regular", align = "center", className, testId, ...rest }: { lead?: React.ReactNode; link?: React.ReactNode; children?: React.ReactNode; figures?: React.ReactNode; trail?: React.ReactNode; /** Your own row: the accent wash and the 2px bar at its left edge. */ own?: boolean; density?: DensityByWidth; align?: "center" | "start"; className?: string; testId?: string } & DataAttrs) {
+export function DataRow({ as: Row = "li", lead, link, children, figures, trail, own = false, density = "regular", align = "center", className, testId, ...rest }: { as?: "li" | "div"; lead?: React.ReactNode; link?: React.ReactNode; children?: React.ReactNode; figures?: React.ReactNode; trail?: React.ReactNode; /** Your own row: the accent wash and the 2px bar at its left edge. */ own?: boolean; density?: DensityByWidth; align?: "center" | "start"; className?: string; testId?: string } & DataAttrs) {
   return (
-    <li className={cn("group/row relative isolate grid grid-cols-(--dl-cols) gap-y-0.5", ROW_GAP_X, ROW_PAD_X, align === "center" ? "items-center content-center" : "items-start content-start", densityClasses(density), own && "bg-accent/5", link ? ROW_STATES : null, className)} data-testid={testId} {...rest}>
+    <Row className={cn("group/row relative isolate grid grid-cols-(--dl-cols) gap-y-0.5", ROW_GAP_X, ROW_PAD_X, align === "center" ? "items-center content-center" : "items-start content-start", densityClasses(density), own && "bg-accent/5", link ? ROW_STATES : null, className)} data-testid={testId} {...rest}>
       {own ? <span aria-hidden className="pointer-events-none absolute inset-y-0 left-0 w-0.5 bg-accent" /> : null}
       {lead}
       {link}
       {children}
       {figures}
       {trail}
-    </li>
+    </Row>
   );
 }
 
@@ -264,13 +269,13 @@ const YOU_WRAPS = {
 };
 
 /**
- * A member as their card shows them (every row of the Leaderboards, Recent form's and Records'): the framed picture, the
+ * A member as their card shows them (every row of the Leaderboards, Recent form's and the season records'): the framed picture, the
  * name in their name style with their emblem, in their colours (cardColourVars, on this cell only:
  * no look colour reaches a place or a figure), and "You". Exactly one CardName, never cut.
  * `readName={false}` when the row's link already says the name: the visible one is then hidden
  * from screen readers, so it is not read twice. `youWraps`: see YOU_WRAPS.
  */
-export function MemberCell({ look, name, avatarUrl = null, avatar = "md", avatarClassName, you = false, youWraps = false, readName = true, nameClassName, nameTestId, className }: { look: CardLook | null | undefined; name: string; avatarUrl?: string | null; avatar?: "xs" | "sm" | "md" | false; /** The picture's own classes: Records' book hides it on a phone, where the row's picture is the champion's. */ avatarClassName?: string; you?: boolean; youWraps?: boolean; readName?: boolean; nameClassName?: string; nameTestId?: string; className?: string }) {
+export function MemberCell({ look, name, avatarUrl = null, avatar = "md", avatarClassName, you = false, youWraps = false, readName = true, nameClassName, nameTestId, className }: { look: CardLook | null | undefined; name: string; avatarUrl?: string | null; avatar?: "xs" | "sm" | "md" | false; /** The picture's own classes: Leaderboards' season records hide it in a cell under 36rem, where the row's picture is the champion's. */ avatarClassName?: string; you?: boolean; youWraps?: boolean; readName?: boolean; nameClassName?: string; nameTestId?: string; className?: string }) {
   return (
     <span className={cn("flex min-w-0 items-center gap-2.5 text-sm", className)} style={cardColourVars(look)}>
       {avatar ? <CardAvatar look={look} name={name} src={avatarUrl} size={avatar} className={avatarClassName} /> : null}
@@ -295,11 +300,19 @@ export function MemberCell({ look, name, avatarUrl = null, avatar = "md", avatar
  * line (gone on a wide board), the bar and a figure, each tier at its rows' height, so the page
  * does not move when the board arrives. Hidden from screen readers (the loading state says it).
  */
-export function DataListSkeleton({ rows = 7, heads = true, surface = "panel", density = "regular" }: { rows?: number; heads?: boolean; surface?: keyof typeof SURFACE; density?: DensityByWidth }) {
+export function DataListSkeleton({ rows = 7, heads = true, title = false, surface = "panel", density = "regular" }: { rows?: number; heads?: boolean; /** The board's title row (Leaderboards' boards): its heading's line and the note under it. */ title?: boolean; surface?: keyof typeof SURFACE; density?: DensityByWidth }) {
   return (
     <div aria-hidden>
       <DataList
         surface={surface}
+        title={
+          title ? (
+            <div className={cn("flex flex-col gap-0.5 py-2", ROW_PAD_X)}>
+              <Skeleton className="my-1 h-4 w-36" />
+              <Skeleton className="my-0.5 h-3 w-[min(22rem,100%)]" />
+            </div>
+          ) : undefined
+        }
         columns="[--dl-cols:2rem_2.5rem_minmax(0,1fr)_3rem] @min-[36rem]/list:[--dl-cols:2.5rem_2.5rem_minmax(0,1fr)_minmax(0,1fr)_4rem] @min-[58rem]/list:[--dl-cols:3rem_2.5rem_minmax(0,1fr)_minmax(0,1fr)_4rem]"
         headsClassName="hidden @min-[36rem]/list:grid"
         heads={
