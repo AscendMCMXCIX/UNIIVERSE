@@ -563,7 +563,9 @@ the account screen over the dashboard at 200% on a 320px phone as well.
   the enemy against Riven, Gwen, Ambessa, K'Sante and Briar, and the 30 pairs of the six champions with
   checked notes; the least room left 56px at 1920 × 950), and at 1440 × 900, a size it is not promised
   to fit, for 874 of them (the tallest six scroll by 5 to 58px; docs/MATCHUP_INTEL.md, "The
-  dashboard"); in a smaller window, or at a larger text size, it reflows and scrolls as a page, with
+  dashboard"); on production's patch 26.23 (Riot's Data Dragon 16.23.1, the notes "Not re-checked"),
+  for all 546 pages of a second sweep at the first three sizes, and 526 at 1440 × 900; in a smaller
+  window, or at a larger text size, it reflows and scrolls as a page, with
   nothing clipped and nothing scrolling inside it. `e2e/matchup-intel-dashboard.spec.ts` asserts the
   fit at five sizes (3440 × 1440 too) for 40 pairs, the tallest of the sweep among them.
 - **A page's controls in reach** (PR 2b, 18 Nov 2026): a long page's own controls (its view switch,

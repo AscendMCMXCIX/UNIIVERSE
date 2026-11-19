@@ -133,6 +133,18 @@ vs K'Sante, Shyvana vs K'Sante and the reverse, Hwei vs K'Sante), Garen vs Dariu
 Ambessa vs Aatrox, and the sweep's twelve tallest pages; at 1440 × 900 it names the seven of them
 that scroll there, by no more than measured.
 
+**On production's patch.** A second sweep, on the demo given Riot's Data Dragon 16.23.1 (production's
+version on 19 Nov 2026: Riot's 16.23.1 records for every champion, every checked note "Not re-checked
+for 26.23", and on Mel's pages her W's fact hidden, as Riot changed its text), final build: every
+champion as the enemy against Riven, Gwen and Ambessa, the 30 pairs of the six champions with checked
+notes, and K'Sante's and Briar's against those six, 546 pages. No page scroll on all 546 at 1920 ×
+1080 (the least room under the sources' summary 175px, Ornn vs Ambessa), 1920 × 950 (45px, the same
+page) and 2560 × 1440 (428px, K'Sante vs Mordekaiser); at 1440 × 900 on 526, the essentials on the screen
+on 541, the tallest scrolling by 83px (K'Sante vs Mordekaiser), and Riven vs Mordekaiser, the
+Production check's pair, by 23px. Before the notes panels' badge moved onto their title row (Interactions
+and level changes, above), Briar vs Mordekaiser and K'Sante vs Mordekaiser scrolled at 1920 × 950 by
+15 and 13px there.
+
 **What changed to fit.** Before these fixes ten pairs scrolled at 1920 × 950: Mordekaiser vs Ornn and
 the reverse by 95px, Ambessa vs Mordekaiser by 55px, Mordekaiser vs Ambessa by 46px, Ambessa vs Ornn
 by 34px, Briar vs Mordekaiser and the reverse by 32px, K'Sante vs Mordekaiser and the reverse by 30px,
@@ -1679,11 +1691,13 @@ to 12 are open.
     browser's usual text size: a maximised browser on a 1920 × 1080 screen leaves about 1920 × 950,
     and an operating system's display scale above 100% gives the browser fewer CSS pixels (a 2560 ×
     1440 screen at 125% is 2048 × 1152; a 1920 × 1080 screen at 125% is 1536 × 864). Measured on 19
-    Nov 2026 for 8 pairs (the curated three and their reverse, Riven vs Darius, Garen vs Darius): at
-    2048 × 1152 all fit; at 1536 × 864 six fit, and Riven vs Mordekaiser and Ambessa vs Renekton
-    scroll by 8px and 3px, the page's own bottom padding (their lowest part ends 20px and 25px above
-    the window's foot); at 1366 × 768 and 1280 × 720 every pair but Garen vs Darius scrolls, by up to
-    443px and 505px, the page reflowing rather than clipping. If the second monitor's window is
-    smaller than 1920 × 950, saying which size it gives lets the layout be tuned for it.
+    Nov 2026 on the final build for 8 pairs (the curated three and their reverse, Riven vs Darius,
+    Garen vs Darius), each page loaded at each size: at 2048 × 1152 all fit; at 1536 × 864 seven fit,
+    Ambessa vs Renekton scrolling by 3px, the page's own bottom padding; on production's patch 26.23
+    (the notes "Not re-checked for 26.23") six, Ambessa vs Renekton by 48px (its sources' summary 9px
+    under the window's foot) and Riven vs Mordekaiser by 26px; at 1366 × 768 and 1280 × 720 every
+    pair scrolls, by up to 367px and 475px (402px and 510px on 26.23), the page reflowing rather than
+    clipping. If the second monitor's window is smaller than 1920 × 950, saying which size it gives
+    lets the layout be tuned for it.
 
 The open compliance questions above keep their defaults unless the owner decides otherwise.
