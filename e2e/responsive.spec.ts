@@ -203,7 +203,7 @@ test("Settings: the account card leads, drawn in the order it is read, with Sign
   }
   // The password form is always shown, stacked like the other sections.
   await expect(page.locator("#current")).toBeVisible();
-  // The index: Records' SectionIndex, a link per section.
+  // The index: Leaderboards' SectionIndex, a link per section.
   const index = page.getByTestId("settings-index");
   await expect(index.getByRole("link")).toHaveText(["Name", "Password"]);
   await expect(index.getByRole("link", { name: "Password" })).toHaveAttribute("href", "#password");

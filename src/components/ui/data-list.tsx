@@ -67,8 +67,8 @@ export const BOARD_PANEL = cn("@container/list min-w-0 overflow-clip", SURFACE.p
 /**
  * The board. `columns` sets the --dl-cols template for each tier, as literal classes (Recent form's
  * FORM_COLS): a container query cannot style its own container, so the template goes on the body,
- * and the headings and every row inherit it. The title (a board that names itself: Records' book,
- * multikills and milestones), the headings, groups and captions are the body's direct children, in
+ * and the headings and every row inherit it. The title (a board that names itself: Recent form, the
+ * multikills and the milestones), the headings, groups and captions are the body's direct children, in
  * that order, so one divide-y draws every line between them and a missing group never doubles one.
  */
 export function DataList({ columns, title, heads, headsTestId, headsClassName, surface = "panel", className, testId, children }: { columns?: string; /** The board's own title row, above its headings. */ title?: React.ReactNode; /** aria-hidden column headings (DataHead), on the board's columns; every row names its own figures for screen readers. */ heads?: React.ReactNode; headsTestId?: string; headsClassName?: string; surface?: keyof typeof SURFACE; className?: string; testId?: string; children: React.ReactNode }) {
@@ -269,13 +269,13 @@ const YOU_WRAPS = {
 };
 
 /**
- * A member as their card shows them (every row of the Leaderboards, Recent form's and Records'): the framed picture, the
+ * A member as their card shows them (every row of the Leaderboards, Recent form's and the season records'): the framed picture, the
  * name in their name style with their emblem, in their colours (cardColourVars, on this cell only:
  * no look colour reaches a place or a figure), and "You". Exactly one CardName, never cut.
  * `readName={false}` when the row's link already says the name: the visible one is then hidden
  * from screen readers, so it is not read twice. `youWraps`: see YOU_WRAPS.
  */
-export function MemberCell({ look, name, avatarUrl = null, avatar = "md", avatarClassName, you = false, youWraps = false, readName = true, nameClassName, nameTestId, className }: { look: CardLook | null | undefined; name: string; avatarUrl?: string | null; avatar?: "xs" | "sm" | "md" | false; /** The picture's own classes: Records' book hides it on a phone, where the row's picture is the champion's. */ avatarClassName?: string; you?: boolean; youWraps?: boolean; readName?: boolean; nameClassName?: string; nameTestId?: string; className?: string }) {
+export function MemberCell({ look, name, avatarUrl = null, avatar = "md", avatarClassName, you = false, youWraps = false, readName = true, nameClassName, nameTestId, className }: { look: CardLook | null | undefined; name: string; avatarUrl?: string | null; avatar?: "xs" | "sm" | "md" | false; /** The picture's own classes: Leaderboards' season records hide it in a cell under 36rem, where the row's picture is the champion's. */ avatarClassName?: string; you?: boolean; youWraps?: boolean; readName?: boolean; nameClassName?: string; nameTestId?: string; className?: string }) {
   return (
     <span className={cn("flex min-w-0 items-center gap-2.5 text-sm", className)} style={cardColourVars(look)}>
       {avatar ? <CardAvatar look={look} name={name} src={avatarUrl} size={avatar} className={avatarClassName} /> : null}

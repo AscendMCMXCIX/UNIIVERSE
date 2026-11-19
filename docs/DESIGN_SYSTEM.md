@@ -381,8 +381,8 @@ With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shel
     8 s of the change arriving and before the reader scrolls, presses, types or steps Back, it brings
     the list's first item under the pinned stack; closed unchanged, or once the reader moves on,
     nothing later moves the page. Bookmarked keeps the place, as every filter does. The page's
-    own toolbar is found by the page's filter bar, or named by the page (All Champions' table search,
-    Match History's views). The copy's Filters counts and names what the page's own bar narrows at its
+    own toolbar is found by the page's filter bar (Match History's, Encounters'), or named by the page
+    (All Champions' table search). The copy's Filters counts and names what the page's own bar narrows at its
     width (from md Encounters' Minimum games and Sort by are its list toolbar's, so the pinned row
     and the sheet there leave them out, as the inline bar does, following the width while open).
 - **A tablet's avatar menu** (it replaced the drawer, which was a native `<dialog>`, when the

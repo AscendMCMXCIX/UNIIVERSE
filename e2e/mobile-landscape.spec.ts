@@ -491,7 +491,7 @@ test("tab rows too wide for the screen fade only where more is hidden, and keep 
 test("held sideways at a tablet's width, a long page goes back to the top from its title in the bar, and from the current destination", async ({ browser, baseURL }) => {
   // Held sideways the frame is the phone's whatever the width: one compact bar with the destinations
   // in it, and in a window this short the section tabs do not pin, so the bar leads back up a long
-  // page (a Pixel 7 held sideways is 863 × 360; Leaderboards is about eight screens long there). Its
+  // page (a Pixel 7 held sideways is 863 × 360; Leaderboards is about five and a half screens long there). Its
   // address names a season, which the page keeps.
   for (const viewport of [{ width: 863, height: 360 }, { width: 852, height: 393 }]) {
     const where = `${viewport.width} × ${viewport.height}`;
