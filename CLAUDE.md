@@ -1,6 +1,6 @@
 # UNIIVERSE: notes for coding agents
 
-These rules apply to every change: features, bug fixes, UI changes and docs. The aim is to keep quality and automatic Vercel deploys while keeping GitHub Actions usage small and meaningful. The repository has been public since 6 Nov 2026, so GitHub does not bill the minutes its standard runners spend on it (while it was private they came out of the 3,000 a month of the owner's GitHub Pro plan, which November nearly used up). A full CI run still takes about 40 minutes of wall-clock time (34–48 measured on 22 Oct); the details are in `docs/CI_USAGE.md`. Public also means the repository, its history, its Actions logs and its artifacts can be read by anyone: never commit personal data, and never print a username, Riot ID, PUUID or other personal data in a job's output (counts and anonymous labels only). Branch protection is not configured on `main` (Pro would allow it; turning it on is the owner's decision), so these rules are the protection. Follow them even when nothing stops you.
+These rules apply to every change: features, bug fixes, UI changes and docs. The aim is to keep quality and automatic Vercel deploys while keeping GitHub Actions usage small and meaningful. The repository has been public since 6 Nov 2026, so GitHub does not bill the minutes its standard runners spend on it (while it was private they came out of the 3,000 a month of the owner's GitHub Pro plan, which November nearly used up). A full CI run takes about 20 minutes of wall-clock time since 19 Nov 2026, with the browser suite in four parallel shards and WebKit beside them (one browser job took 34–54 minutes before); the details are in `docs/CI_USAGE.md`. Public also means the repository, its history, its Actions logs and its artifacts can be read by anyone: never commit personal data, and never print a username, Riot ID, PUUID or other personal data in a job's output (counts and anonymous labels only). Branch protection is not configured on `main` (Pro would allow it; turning it on is the owner's decision), so these rules are the protection. Follow them even when nothing stops you.
 
 ## 1. Branch
 
@@ -17,7 +17,7 @@ Most of the testing happens here, not on GitHub. Run what the change touches:
 | Database, queries, migrations, server logic | `service postgresql start` if needed, then `TEST_DATABASE_URL=postgres://uniiverse:uniiverse@127.0.0.1:5432/uniiverse pnpm vitest run tests/db` |
 | UI, pages, client components, styles | `pnpm build && pnpm test:e2e`. Targeted specs are fine while iterating; run the full suite once before the PR is ready. |
 | Migrations | `pnpm db:generate`, then follow docs/UNIIVERSE_TECHNICAL_HANDOVER.md §A3. A new table, view, function or serial column gets the grants block from docs/DATABASE_PERMISSIONS.md in the same migration: RLS on, nothing for Supabase's Data API roles, `SELECT` for the backup role. Never rely on automatic grants. |
-| Something that can behave differently in Safari (touch, dialogs, forms, the installed app) | Once it is ready: the WebKit workflow, by hand (Actions → WebKit; docs/RESPONSIVE.md → Safari and iPhones). |
+| Something that can behave differently in Safari (touch, dialogs, forms, the installed app) | CI runs the WebKit job on every ready pull request (since 19 Nov 2026). For a branch without a pull request, the WebKit workflow by hand (Actions → WebKit; docs/RESPONSIVE.md → Safari and iPhones). |
 
 - Fix failures locally. Don't push to "see what CI says".
 - Commit as often as you like; commits are free.
@@ -26,7 +26,7 @@ Most of the testing happens here, not on GitHub. Run what the change touches:
 
 - **Pushes:**
   - Pushing a branch with no PR, or with a draft PR, runs no CI and costs nothing.
-  - Every push to a ready PR runs the full CI (about 40 minutes), and a newer push cancels the running one. So push to a ready PR only when a batch of validated changes is finished, not after each small fix.
+  - Every push to a ready PR runs the full CI (about 20 minutes), and a newer push cancels the running one. So push to a ready PR only when a batch of validated changes is finished, not after each small fix.
   - Pushes at the end of a session turn are fine on a branch without a ready PR.
 - **Opening the PR:**
   - Open it when the work is complete and validated. Alternatively, open it as a draft early and mark it "Ready for review" when done; that runs CI.
@@ -42,7 +42,7 @@ Most of the testing happens here, not on GitHub. Run what the change touches:
 - **How:** merge with the "merge" method and `expectedHeadSha`, and only when the user has asked or approved merging.
 - **Deployment:** Vercel deploys `main` to production on its own. There is no manual deploy step. Merges that change only docs, tests (`e2e/`, `tests/`, `*.test.ts`), the test runners' configuration, `scripts/` or repository settings are skipped by `scripts/vercel-ignore-build.sh`.
 - **Deploy budget (Vercel Active CPU):** the Hobby plan allows 4 hours of Active CPU in 30 days, about 480 CPU-seconds a day for everything, and it ran out on 8 Nov 2026 (docs/HOSTING_USAGE.md, "Vercel Active CPU"). Every production deploy costs part of that: every function starts cold, and the signed-in Production check runs against it.
-  - Batch merges: at most about 3 production deploys a day, where a batch counts as one.
+  - Batch merges: at most about 6 production deploys a day, where a batch counts as one (raised from 3 on 19 Nov 2026 at the owner's request). A deploy costs about 15–20 CPU-seconds, most of it the signed-in Production check, against a day of about 100–150 without deploys and an allowance of about 480 (docs/HOSTING_USAGE.md, "19 Nov 2026"). The owner's Usage readings can lower it again.
   - Merge a set of ready PRs back to back, seconds apart (one script, no pause between merges), rather than spread across the day. Vercel starts each production deployment within a few seconds of its merge, and builds several at once; `scripts/vercel-ignore-build.sh` skips one whose commit a later commit on `main` already holds when it starts. So a merge followed within those seconds by the next is skipped, and the last one builds (unless only docs, tests or tooling changed): on 18 Nov 2026 merges 5 seconds apart deployed once, merges 10 seconds apart deployed each (docs/HOSTING_USAGE.md, "18 Nov 2026"). The Production check cancels its own earlier run, so it checks the last deployment in full.
   - A batch of stacked PRs: each PR's head merges the previous PR's branch, so its CI tests the tree `main` will have after it merges; before each merge, `git merge-tree` of `main` and the head must give that tree (docs/HOSTING_USAGE.md, "18 Nov 2026").
 
