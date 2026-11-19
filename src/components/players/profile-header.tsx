@@ -206,7 +206,7 @@ export function ProfileHeader({ identity: served, self, editable = false, champi
           round chip at the band's end: 8 + 28 + 32 + 8px and its border, 78px at most. On a phone held
           upright the art shows behind the header with no band of its own above the name (204px tall,
           it left the first screen no figure on an SE). */}
-      <div className={cn("relative grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-2 p-4 min-[23.4375rem]:max-sm:gap-y-1.5 min-[23.4375rem]:max-sm:p-3.5 sm:flex sm:min-h-40 sm:items-end sm:gap-4 sm:p-5 sm:pt-12 lg:min-h-32 lg:pt-9 band:flex band:min-h-0 band:items-center band:gap-3 band:px-3.5 band:py-2 sm:not-short:min-h-18 sm:not-short:py-1", editable && "band:pr-16")}>
+      <div className={cn("relative grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-2 p-4 min-[23.4375rem]:max-sm:gap-y-1.5 min-[23.4375rem]:max-sm:p-3.5 sm:flex sm:min-h-40 sm:items-end sm:gap-4 sm:p-5 sm:pt-12 lg:min-h-32 lg:pt-9 band:flex band:min-h-0 band:items-center band:gap-3 band:px-3.5 band:py-2 band:not-short:min-h-18 band:not-short:py-1", editable && "band:pr-16 band:not-short:pr-36")}>
         <CardAvatar look={p.look} name={p.displayName} src={p.avatarUrl} className={cn(LARGE_TEXT.pictureRows, "band:self-center")}>
           {self ? <ProfileAvatarEditable name={p.displayName} src={p.avatarUrl} avatarClassName={SHORT_PICTURE} /> : <Avatar name={p.displayName} src={p.avatarUrl} size="hero" className={SHORT_PICTURE} />}
         </CardAvatar>

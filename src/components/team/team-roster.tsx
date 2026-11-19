@@ -179,7 +179,7 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
                 word fits there, otherwise it takes a line of its own, still on the right. */}
             <p className="flex items-center justify-between text-2xs font-medium uppercase tracking-label text-fg-subtle @max-[9.75rem]/card:flex-wrap">
               <span className="truncate @max-[9.75rem]/card:min-w-min @max-[9.75rem]/card:grow @max-[9.75rem]/card:basis-0 @max-[9.75rem]/card:whitespace-normal">{slot.roleLabel} pool</span>
-              <span className="inline-flex items-center gap-0.5 normal-case tracking-normal group-hover/card:text-[var(--card-accent)] @max-[9.75rem]/card:ml-auto">
+              <span className="inline-flex items-center gap-0.5 text-2xs normal-case tracking-normal group-hover/card:text-[var(--card-accent)] @max-[9.75rem]/card:ml-auto">
                 {slot.champions.length ? (
                   <>
                     {slot.champions.length}

@@ -122,6 +122,7 @@ html {
 @media (min-width: 64rem) {
   :root {
     --text-2xs: 0.75rem;
+    --text-2xs-floor: 0.75rem;
   }
 }
 
@@ -137,9 +138,14 @@ html {
 .label-caps {
   --text-2xs: 0.6875rem;
 }
+/* What sits inside a label in normal case ("6 champions" beside "TOP POOL") is running text again. */
+:is(.uppercase, .label-caps) :where(:not(.uppercase, .label-caps)) {
+  --text-2xs: var(--text-2xs-floor, 0.6875rem);
+}
 
 @utility type-floor-later {
   --text-2xs: 0.6875rem;
+  --text-2xs-floor: 0.6875rem;
 }
 
 html, body {
