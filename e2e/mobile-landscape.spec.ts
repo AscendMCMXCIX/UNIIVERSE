@@ -7,8 +7,8 @@ import { playerEntry } from "./players";
 /*
   PHONES HELD EITHER WAY (in-memory demo; Chromium emulating each device, not the devices
   themselves). A phone held sideways is a short window (480px tall or less), whatever its width
-  below lg: one compact top bar holds the destinations (no bottom bar), a profile's sections ride as
-  its second row, and it slides away while reading and comes back on a scroll up; detail windows
+  below lg: one compact top bar holds the four destinations (no bottom bar), a profile's sections or
+  a destination's tabs ride as its second row, and it slides away while reading and comes back on a scroll up; detail windows
   take the whole screen and scroll as one with their controls in reach, and dialogs keep their title
   and actions on screen. Turning the phone keeps what was open and chosen (docs/MOBILE.md, "Frames
   by posture").
@@ -61,17 +61,19 @@ test("held sideways: one compact bar holds the destinations, with no bottom bar,
   await expect(bar.getByRole("navigation", { name: "Primary" })).toBeVisible();
   await expect(page.getByTestId("phone-tabbar")).toBeHidden();
   const links = nav.getByRole("link");
-  for (const [i, name] of ["Team", "Players", "Leaderboards", "Matches", "Profile"].entries()) await expect(links.nth(i)).toHaveAccessibleName(name);
-  await expect(nav.locator("[aria-current=page]")).toHaveAccessibleName("Players");
-  // 568px is narrower than 38rem: only the current destination is labelled, each a 44px target.
-  const labels = await links.evaluateAll((as) => as.map((a) => ({ shown: [...a.querySelectorAll("span")].at(-1)!.getBoundingClientRect().width > 1, current: a.getAttribute("aria-current") === "page", height: a.getBoundingClientRect().height, width: a.getBoundingClientRect().width })));
+  for (const [i, name] of ["My Profile", "Team", "Matchup Intel", "Resources"].entries()) await expect(links.nth(i)).toHaveAccessibleName(name);
+  // Players is one of Team's sections: Team is the current destination, Players the current section under the bar.
+  await expect(nav.locator("[aria-current=page]")).toHaveAccessibleName("Team");
+  await expect(page.getByTestId("team-chrome-tabs").locator("[aria-current=page]")).toHaveText("Players");
+  // A 568px phone's row is 34.5rem: all four named in full (the five before could name only the current one), each a 44px target.
+  const labels = await links.evaluateAll((as) => as.map((a) => ({ shown: a.querySelector("[data-name=label]")!.getBoundingClientRect().width > 1, rest: !a.querySelector("[data-name=rest]") || a.querySelector("[data-name=rest]")!.getBoundingClientRect().width > 1, height: a.getBoundingClientRect().height, width: a.getBoundingClientRect().width })));
   for (const l of labels) {
-    expect(l.shown, "only the current one labelled").toBe(l.current);
+    expect(l.shown && l.rest, "every name shown whole").toBe(true);
     expect(Math.min(l.height, l.width)).toBeGreaterThanOrEqual(44);
   }
-  // One compact bar: 44px and its hairline.
+  // The compact bar and Team's 44px row under it, with the hairline: at most 90px.
   const barBox = await rect(page, "[data-testid=mobile-topbar]");
-  expect(barBox.height).toBeLessThanOrEqual(45.5);
+  expect(barBox.height).toBeLessThanOrEqual(90);
   // No room is kept under the page for a bottom bar: only the page's own padding.
   expect(await page.locator("main").evaluate((m) => parseFloat(getComputedStyle(m).paddingBottom))).toBeLessThanOrEqual(24);
 
@@ -328,21 +330,22 @@ test("held sideways, the compact bar's Filters gets the focus back from its shee
   }
 });
 
-test("held sideways, the avatar opens the account screen at every width, and Team's sections are not repeated in the page", async ({ browser, baseURL }) => {
+test("held sideways, the avatar opens the account screen at every width, and Team's sections ride under the bar, not in the page", async ({ browser, baseURL }) => {
   for (const viewport of [{ width: 734, height: 343 }, { width: 852, height: 393 }]) {
     const page = await phone(browser, baseURL!, { ...IPHONE_LANDSCAPE, viewport });
     await page.goto("/team");
     const where = `${viewport.width} × ${viewport.height}`;
-    // The destinations in the bar are Team's sections and Profile: the page's own tabs would repeat them.
+    // Team's sections are the compact bar's second row: the page's own tabs would repeat them.
     await expect(page.getByTestId("team-tabs"), where).toBeHidden();
+    await expect(page.getByTestId("mobile-topbar").getByTestId("team-chrome-tabs").getByRole("link"), where).toHaveText(["Overview", "Players", "Leaderboards", "Matches"]);
     await expect(page.getByTestId("mobile-topbar").getByTestId("account-menu-button"), where).toBeHidden();
     await page.getByTestId("account-sheet-button").click();
     const screen = page.getByTestId("account-sheet");
     await expect(screen, where).toHaveAttribute("data-entered", "true");
     expect(await screen.boundingBox(), where).toEqual({ x: 0, y: 0, width: viewport.width, height: viewport.height });
-    // Matchup Intel and Resources are not destinations of the bar: the screen holds them, with Settings.
-    await expect(screen.getByRole("link", { name: "Matchup Intel" }), where).toBeVisible();
-    await expect(screen.getByRole("link", { name: "Resources" }), where).toBeVisible();
+    // The account's own items only: Matchup Intel and Resources are destinations of the bar.
+    await expect(screen.getByRole("navigation", { name: "Your account" }).getByRole("link"), where).toHaveText(["Settings"]);
+    await expect(screen.getByRole("link", { name: "Matchup Intel" }), where).toHaveCount(0);
     await page.keyboard.press("Escape");
     await expect(screen).toHaveCount(0);
     await expect(page.getByTestId("account-sheet-button"), where).toBeFocused();
@@ -489,7 +492,7 @@ test("tab rows too wide for the screen fade only where more is hidden, and keep 
   await done(page);
 });
 
-test("held sideways at a tablet's width, a long page goes back to the top from its title in the bar, and from the current destination", async ({ browser, baseURL }) => {
+test("held sideways at a tablet's width, a long page goes back to the top from its title in the bar, and from the current section", async ({ browser, baseURL }) => {
   // Held sideways the frame is the phone's whatever the width: one compact bar with the destinations
   // in it, and in a window this short the section tabs do not pin, so the bar leads back up a long
   // page (a Pixel 7 held sideways is 863 × 360; Leaderboards is about five and a half screens long there). Its
@@ -517,10 +520,10 @@ test("held sideways at a tablet's width, a long page goes back to the top from i
     expect(titleBox!.x - (navBox!.x + navBox!.width), `${where}: never under them`).toBeGreaterThanOrEqual(0);
     await title.click();
     await expect.poll(() => page.evaluate(() => window.scrollY), { message: `${where}: back at the top` }).toBe(0);
-    // The current destination on its own page goes back to the top too, and keeps the page's view.
+    // The current section, in the row under the bar, goes back to the top too, and keeps the page's view.
     await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
     await page.mouse.wheel(0, -80);
-    const current = page.getByTestId("topbar-tab-leaderboards");
+    const current = page.getByTestId("team-chrome-tab-leaderboards");
     await expect(current).toHaveAttribute("aria-current", "page");
     await current.click();
     await expect.poll(() => page.evaluate(() => window.scrollY), { message: `${where}: back at the top from the current destination` }).toBe(0);
@@ -529,114 +532,30 @@ test("held sideways at a tablet's width, a long page goes back to the top from i
   }
 });
 
-test("the tab bar's five destinations fit side by side on the narrowest phones, each label whole", async ({ browser, baseURL }) => {
-  for (const device of [devices["iPhone SE"], IPHONE]) {
-    const page = await phone(browser, baseURL!, device);
-    await page.setViewportSize({ width: device === IPHONE ? device.viewport.width : 320, height: device.viewport.height });
-    await page.goto("/matches");
-    const bar = page.getByTestId("phone-tabbar");
-    await expect(bar.getByRole("link")).toHaveText(["Team", "Players", "Leaderboards", "Matches", "Profile"]);
-    // Measured in the page's own font: the fallback is wider, and a busy machine can measure before the font is in.
-    await page.evaluate(() => document.fonts.ready);
-    const width = page.viewportSize()!.width;
-    // Measured once the layout has settled (a loaded machine can lay the bar out before the font
-    // or the window's width has taken effect): every check holds together, on one reading.
-    await expect(async () => {
-      for (const tab of await bar.getByRole("link").all()) {
-        const box = (await tab.boundingBox())!;
-        expect(box.x).toBeGreaterThanOrEqual(-0.5);
-        expect(box.x + box.width).toBeLessThanOrEqual(width + 0.5);
-        expect(box.height).toBeGreaterThanOrEqual(44);
-        // The label is never cut.
-        expect(await tab.locator("span").last().evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
-      }
-    }).toPass({ timeout: 15_000 });
-    await done(page);
-  }
-});
-
-test("with larger text the tab bar still fits the phone: the icons alone once the labels no longer fit, each destination still named", async ({ browser, baseURL }) => {
-  // A phone's text-size setting scales the root size, and with it the bar's rem: Player Mode's five
-  // labels need up to 19.6rem under their icons, Admin Mode's four 14.6rem (TAB_FIT). Wider than the
-  // phone, the bar made the browser widen the area every fixed element is placed in. (Held sideways
-  // there is no bottom bar: the compact bar's test below.)
-  const cases = [
-    { viewport: { width: 320, height: 568 }, root: 125 },
-    { viewport: { width: 320, height: 568 }, root: 200 },
-    { viewport: { width: 393, height: 659 }, root: 150 },
-    { viewport: { width: 393, height: 659 }, root: 200 },
-  ];
-  const page = await phone(browser, baseURL!, IPHONE);
-  const bar = page.getByTestId("phone-tabbar");
-  for (const { viewport, root } of cases) {
-    const where = `${viewport.width} × ${viewport.height} at ${root}% text`;
-    await page.setViewportSize(viewport);
-    await page.goto("/matches");
-    await page.evaluate((r) => {
-      document.documentElement.style.fontSize = `${r}%`;
-    }, root);
-    await page.evaluate(() => document.fonts.ready);
-    // Each destination keeps its name for screen readers: its accessible name, whether the label
-    // shows or is left to them (sr-only, never removed).
-    const links = bar.getByRole("link");
-    for (const [i, name] of ["Team", "Players", "Leaderboards", "Matches", "Profile"].entries()) await expect(links.nth(i), where).toHaveAccessibleName(name);
-    await expect(async () => {
-      expect(await page.evaluate(() => window.innerWidth), `${where}: the page as wide as the phone`).toBe(viewport.width);
-      for (const tab of await bar.getByRole("link").all()) {
-        const box = (await tab.boundingBox())!;
-        expect(box.x, where).toBeGreaterThanOrEqual(-0.5);
-        expect(box.x + box.width, `${where}: inside the phone`).toBeLessThanOrEqual(viewport.width + 0.5);
-        expect(box.height, `${where}: a 44px target`).toBeGreaterThanOrEqual(44);
-        // Its label: whole where it shows, or left to screen readers with the icon alone.
-        const label = await tab.locator("span").last().evaluate((el) => ({ hidden: el.getBoundingClientRect().width <= 1, whole: el.scrollWidth <= el.clientWidth + 1 }));
-        expect(label.hidden || label.whole, `${where}: a label whole or left to screen readers`).toBe(true);
-      }
-    }).toPass({ timeout: 15_000 });
-  }
-  await done(page);
-  // Admin Mode's four labels need less room (14.6rem under their icons): at 150% on a 393px phone
-  // (a 16.4rem bar) they still show, where Player Mode's five give way to the icons.
-  const admin = await phone(browser, baseURL!, { ...IPHONE, viewport: { width: 393, height: 659 } }, "admin");
-  // Measured on Settings, which fits a 393px phone at 150% text (as every Admin Mode page has since
-  // 18 Nov 2026: e2e/phone-wraps.spec.ts), so the bar is measured alone.
-  await admin.goto("/admin/settings");
-  await admin.evaluate(() => {
-    document.documentElement.style.fontSize = "150%";
-  });
-  await admin.evaluate(() => document.fonts.ready);
-  const adminBar = admin.getByTestId("phone-tabbar");
-  await expect(async () => {
-    expect(await admin.evaluate(() => window.innerWidth), "Admin Mode at 150%: the page as wide as the phone").toBe(393);
-    for (const tab of await adminBar.getByRole("link").all()) {
-      const shown = await tab.locator("span").last().evaluate((el) => el.getBoundingClientRect().width > 1 && el.scrollWidth <= el.clientWidth + 1);
-      expect(shown, "Admin Mode at 150%: its labels shown whole").toBe(true);
-    }
-  }).toPass({ timeout: 15_000 });
-  await done(admin);
-});
-
-test("with larger text the compact bar held sideways still fits the phone: below 38rem of bar only the current destination is labelled, below 27rem none, each still named, and the page never wider than the phone", async ({ browser, baseURL }) => {
+test("with larger text the compact bar held sideways still fits the phone: the whole names, then the short ones, then the current one's alone, then the icons, each still named, and the page never wider than the phone", async ({ browser, baseURL }) => {
   // Held sideways the destinations ride in the top bar (no bottom bar). Its row is the container its
-  // labels give way by (SIDEWAYS_FIT in mobile-nav.tsx), in rem of its width less its gutters, so
-  // the reader's text size counts: the others' labels below 38rem, the current one's below 27rem
-  // (the icons alone), and past that the row scrolls inside the bar. Wider than the phone, a bar
-  // made the browser widen the area every fixed element is placed in. The cases fall on both sides
-  // of each step: an iPhone 15 at 100% (51rem: all five labelled), an SE (34.5rem: the current
-  // alone), 734px at 135% (32rem) and 150% (28.6rem), and 20.9 to 24.6rem at 200%.
+  // names give way by (SIDEWAYS_FIT in mobile-nav.tsx), in rem of its width less its gutters, so the
+  // reader's text size counts: the whole names from 33.25rem, the short ones ("Profile", "Intel") from
+  // 29rem, then the current one's alone from 22.25rem, then the icons alone; past that the row
+  // scrolls inside the bar. The cases fall on both sides of each step: 852px at 100% and 150% and an
+  // SE at 100% (51, 34.5 and 34.5rem: the whole names), 734px at 135% and 150% (33.0 and 29.6rem: the
+  // short ones), an SE at 150% and 852px at 200% (22.7 and 25.6rem: the current one's), and 734px and
+  // an SE at 200% (21.9 and 16.8rem: the icons).
   const cases = [
     { viewport: { width: 852, height: 393 }, root: 100 },
     { viewport: { width: 568, height: 320 }, root: 100 },
+    { viewport: { width: 852, height: 393 }, root: 150 },
     { viewport: { width: 734, height: 343 }, root: 135 },
     { viewport: { width: 734, height: 343 }, root: 150 },
-    { viewport: { width: 734, height: 343 }, root: 200 },
     { viewport: { width: 568, height: 320 }, root: 150 },
-    { viewport: { width: 568, height: 320 }, root: 200 },
-    { viewport: { width: 852, height: 393 }, root: 150 },
     { viewport: { width: 852, height: 393 }, root: 200 },
+    { viewport: { width: 734, height: 343 }, root: 200 },
+    { viewport: { width: 568, height: 320 }, root: 200 },
   ];
+  const STEPS = { full: 33.25, short: 29, current: 22.25 } as const;
   const page = await phone(browser, baseURL!, IPHONE_LANDSCAPE);
   const nav = page.getByTestId("topbar-tabs");
-  const seen = { all: false, current: false, none: false };
+  const seen = new Set<string>();
   for (const { viewport, root } of cases) {
     const where = `${viewport.width} × ${viewport.height} at ${root}% text`;
     await page.setViewportSize(viewport);
@@ -646,21 +565,23 @@ test("with larger text the compact bar held sideways still fits the phone: below
     }, root);
     await page.evaluate(() => document.fonts.ready);
     const links = nav.getByRole("link");
-    for (const [i, name] of ["Team", "Players", "Leaderboards", "Matches", "Profile"].entries()) await expect(links.nth(i), where).toHaveAccessibleName(name);
+    for (const [i, name] of ["My Profile", "Team", "Matchup Intel", "Resources"].entries()) await expect(links.nth(i), where).toHaveAccessibleName(name);
     await expect(async () => {
       const m = await page.evaluate(() => {
         const row = document.querySelector("[data-testid=mobile-topbar]")!.firstElementChild as HTMLElement;
         const cs = getComputedStyle(row);
         const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+        const wide = (el: Element | null) => !!el && el.getBoundingClientRect().width > 1;
         return {
           width: innerWidth,
           page: document.documentElement.scrollWidth - innerWidth,
           row: row.scrollWidth - row.clientWidth,
           content: (row.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)) / rem,
           tabs: [...document.querySelectorAll<HTMLElement>("[data-testid=topbar-tabs] a")].map((a) => {
-            const label = a.querySelector<HTMLElement>(":scope > span > span:last-child")!;
+            const label = a.querySelector<HTMLElement>("[data-name=label]")!;
+            const rest = a.querySelector("[data-name=rest]");
             const box = a.getBoundingClientRect();
-            return { current: a.getAttribute("aria-current") === "page", shown: label.getBoundingClientRect().width > 1, whole: label.scrollWidth <= label.clientWidth + 1, height: box.height, width: box.width };
+            return { current: a.getAttribute("aria-current") === "page", shown: wide(label), restShown: rest ? wide(rest) : null, whole: label.scrollWidth <= label.clientWidth + 1, height: box.height, width: box.width };
           }),
         };
       });
@@ -668,32 +589,32 @@ test("with larger text the compact bar held sideways still fits the phone: below
       expect(m.page, `${where}: nothing wider than the phone`).toBeLessThanOrEqual(1);
       expect(m.row, `${where}: the bar's row fits`).toBeLessThanOrEqual(1);
       expect(m.tabs.filter((t) => t.current), `${where}: one current destination`).toHaveLength(1);
+      const step = m.content >= STEPS.full ? "full" : m.content >= STEPS.short ? "short" : m.content >= STEPS.current ? "current" : "icons";
+      seen.add(step);
       for (const t of m.tabs) {
-        const rule = t.current ? 27 : 38;
-        expect(t.shown, `${where}: ${t.current ? "the current" : "another"} label, the bar's row ${m.content.toFixed(1)}rem`).toBe(m.content >= rule);
-        if (t.shown) expect(t.whole, `${where}: a label shown whole`).toBe(true);
+        const named = step === "full" || step === "short" || (step === "current" && t.current);
+        expect(t.shown, `${where}: ${t.current ? "the current" : "another"} name, the bar's row ${m.content.toFixed(1)}rem (${step})`).toBe(named);
+        if (t.shown && t.restShown !== null) expect(t.restShown, `${where}: the whole name or the short one`).toBe(step === "full");
+        if (t.shown) expect(t.whole, `${where}: a name shown whole`).toBe(true);
         expect(Math.min(t.height, t.width), `${where}: a 44px target`).toBeGreaterThanOrEqual(43.5);
       }
-      if (m.content >= 38) seen.all = true;
-      else if (m.content >= 27) seen.current = true;
-      else seen.none = true;
     }).toPass({ timeout: 15_000 });
   }
-  // The cases cover each of the three steps.
-  expect(seen).toEqual({ all: true, current: true, none: true });
+  // The cases cover each of the four steps.
+  expect([...seen].sort()).toEqual(["current", "full", "icons", "short"]);
   await done(page);
 });
 
 test("held sideways with the browser's text at twice its size, the current destination is kept in view in the bar's row, loaded sideways or turned to", async ({ browser, baseURL }) => {
-  // At 200% the five destinations need about 456px and the row has about 360 on an SE: it scrolls,
-  // and Profile, the last, would be out of sight. The browser's own text size, set before the page's
-  // code runs (as a reader sets it): the row lays itself out at that size from the start.
+  // At 200% an SE's row has room for the four destinations' icons alone (SIDEWAYS_FIT), and the row
+  // keeps the current one in view whether or not it has to scroll. The browser's own text size, set
+  // before the page's code runs (as a reader sets it): the row lays itself out at that size from the start.
   const inView = (page: Page) =>
     page.evaluate(() => {
       const list = document.querySelector<HTMLElement>("[data-testid=topbar-tabs] ul")!;
       const box = list.getBoundingClientRect();
       const at = list.querySelector("[aria-current=page]")!.getBoundingClientRect();
-      return { scrolls: list.scrollWidth > list.clientWidth + 1, inside: at.left >= box.left - 0.5 && at.right <= box.right + 0.5 };
+      return { inside: at.width > 0 && at.left >= box.left - 0.5 && at.right <= box.right + 0.5 };
     });
   for (const turned of [false, true]) {
     const where = turned ? "turned to sideways" : "loaded sideways";
@@ -709,8 +630,8 @@ test("held sideways with the browser's text at twice its size, the current desti
       await expect(page.getByTestId("phone-tabbar")).toBeVisible();
       await page.setViewportSize({ width: 568, height: 320 });
     }
-    await expect(page.getByTestId("topbar-tabs").locator("[aria-current=page]"), where).toHaveAccessibleName("Profile");
-    await expect.poll(() => inView(page), { message: `${where}: the row scrolls, its current destination in view` }).toEqual({ scrolls: true, inside: true });
+    await expect(page.getByTestId("topbar-tabs").locator("[aria-current=page]"), where).toHaveAccessibleName("My Profile");
+    await expect.poll(() => inView(page), { message: `${where}: the current destination in view` }).toEqual({ inside: true });
     // Only the row scrolled, never the page.
     expect(await page.evaluate(() => [scrollX, document.documentElement.scrollWidth - innerWidth]), where).toEqual([0, 0]);
     await done(page);
@@ -721,8 +642,10 @@ test("held sideways in Admin Mode, the compact bar holds its four destinations a
   const page = await phone(browser, baseURL!, SE_LANDSCAPE, "admin");
   await page.goto("/admin/people");
   const nav = page.getByTestId("topbar-tabs");
-  await expect(nav.getByRole("link")).toHaveText(["Dashboard", "Users", "Settings", "Health"]);
-  await expect(nav.locator("[aria-current=page]")).toHaveAccessibleName("Users");
+  for (const [i, name] of ["Dashboard", "Users & Permissions", "Platform Settings", "System"].entries()) await expect(nav.getByRole("link").nth(i)).toHaveAccessibleName(name);
+  await expect(nav.locator("[aria-current=page]")).toHaveAccessibleName("Users & Permissions");
+  // Users & Permissions' pages ride under the bar as its second row.
+  await expect(page.getByTestId("admin-users-chrome-tabs").getByRole("link")).toHaveText(["Accounts", "Access levels", "Personal data"]);
   await expect(page.getByTestId("phone-tabbar")).toBeHidden();
   // "Admin mode" beside the mark, in words, and in the link's name (the team's, then the mode).
   const brand = page.getByTestId("mobile-brand");
@@ -736,11 +659,12 @@ test("held sideways in Admin Mode, the compact bar holds its four destinations a
   await expect.poll(() => page.getByTestId("mobile-brand-mode").getByText("Admin mode", { exact: true }).evaluate((el) => el.getBoundingClientRect().width), { message: "the words left to screen readers" }).toBeLessThanOrEqual(1);
   await expect(brand).toHaveAccessibleName(/, Admin mode$/);
   expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
-  // The account screen holds the admin pages without a destination of their own.
+  // The account screen holds the account's own items only: every admin page is under a destination.
   await page.getByTestId("account-sheet-button").click();
   const screen = page.getByTestId("account-sheet");
-  await expect(screen.getByRole("link", { name: "Data & Integrations" })).toBeVisible();
-  await expect(screen.getByRole("link", { name: "Audit Logs" })).toBeVisible();
+  await expect(screen.getByRole("navigation", { name: "Your account" }).getByRole("link")).toHaveText(["Settings"]);
+  await expect(screen.getByRole("link", { name: "Data & Integrations" })).toHaveCount(0);
+  await expect(screen.getByRole("link", { name: "Audit Logs" })).toHaveCount(0);
   await done(page);
 });
 

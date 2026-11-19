@@ -16,8 +16,8 @@ test.beforeEach(({}, info) => test.skip(info.project.name !== "desktop", "runs o
 /** A username unique to this run (the demo database lives as long as the test server). */
 const unique = (base: string) => `${base}${Date.now().toString(36).slice(-5)}`;
 
-/** Admin Mode's sections, in sidebar order. */
-const ADMIN_SECTIONS = ["Dashboard", "Users & Permissions", "Platform Settings", "Data & Integrations", "System Health", "Audit Logs"];
+/** Admin Mode's destinations, in sidebar order (navigation N1: System holds Health, Data & Integrations and Audit Logs). */
+const ADMIN_SECTIONS = ["Dashboard", "Users & Permissions", "Platform Settings", "System"];
 /** Player Mode's sidebar for a team member (and for the Owner). */
 const PLAYER_ENTRIES = ["My Profile", "Team", "Matchup Intel", "Resources"];
 
@@ -44,7 +44,7 @@ test("an administrator moves between Player Mode and Admin Mode; each keeps its 
   const nav = aside.getByRole("navigation", { name: "Main" });
   const modeSwitch = aside.getByTestId("mode-switch");
 
-  // Admin Mode: its dashboard, its six sections and none of the player pages.
+  // Admin Mode: its dashboard, its four destinations and none of the player pages.
   await page.goto("/");
   await expect(page).toHaveURL(/\/admin$/);
   await expect(page.getByTestId("admin-dashboard")).toBeVisible();
@@ -60,9 +60,14 @@ test("an administrator moves between Player Mode and Admin Mode; each keeps its 
   await page.reload();
   await expect(nav.getByTestId("nav-admin-users")).toHaveAttribute("aria-current", "page");
   await expect(modeSwitch).toHaveText("Return to Player Mode");
-  await nav.getByTestId("nav-admin-audit").click();
+  // System opens Health; its tabs lead to Data & Integrations and Audit Logs, System marked on each.
+  await nav.getByTestId("nav-admin-system").click();
+  await expect(page).toHaveURL(/\/admin\/system$/);
+  await expect(page.getByTestId("admin-system-tabs").getByRole("link")).toHaveText(["Health", "Data & Integrations", "Audit Logs"]);
+  await page.getByTestId("admin-system-tabs").getByRole("link", { name: "Audit Logs" }).click();
   await expect(page).toHaveURL(/\/admin\/audit$/);
   await expect(page.getByRole("heading", { name: "Audit Logs" })).toBeVisible();
+  await expect(nav.getByTestId("nav-admin-system")).toHaveAttribute("aria-current", "page");
   // Account settings without leaving Admin Mode.
   await aside.getByTestId("account-menu-button").click();
   await page.getByTestId("account-menu").getByRole("menuitem", { name: "Settings" }).click();
@@ -107,19 +112,19 @@ test("on a phone the switch is in the account screen, and each mode has its own 
   };
   await page.goto("/admin");
   await expect(page.getByTestId("mobile-topbar")).toContainText("Admin mode");
-  await expect(tabs).toHaveText(["Dashboard", "Users", "Settings", "Health"]);
+  for (const [i, name] of ADMIN_SECTIONS.entries()) await expect(tabs.nth(i)).toHaveAccessibleName(name);
   await expect(tabs.first()).toHaveAttribute("aria-current", "page");
-  // Admin Mode's sheet holds the admin pages its bar does not (the bar holds four of six), the
-  // account's Settings, and the way back to Player Mode: every admin page is one tap away, once.
+  // Admin Mode's sheet holds the account's own items only (every admin page is under one of the bar's
+  // four destinations): the account's Settings and the way back to Player Mode.
   await openSheet();
-  await expect(sheet.getByRole("navigation").getByRole("link")).toHaveText(["Data & Integrations", "Audit Logs", "Settings"]);
+  await expect(sheet.getByRole("navigation").getByRole("link")).toHaveText(["Settings"]);
   await expect(sheet.getByTestId("mode-switch")).toHaveText("Return to Player Mode");
   await sheet.getByTestId("mode-switch").click();
   await expect(page).toHaveURL(/\/team$/);
-  // Player Mode: its five destinations in the bar; the sheet holds Matchup Intel, Resources, Settings and the switch.
-  await expect(tabs).toHaveText(["Team", "Players", "Leaderboards", "Matches", "Profile"]);
+  // Player Mode: the sidebar's four destinations in the bar; the sheet holds Settings and the switch.
+  await expect(tabs).toHaveText(PLAYER_ENTRIES);
   await openSheet();
-  await expect(sheet.getByRole("navigation").getByRole("link")).toHaveText(["Matchup Intel", "Resources", "Settings"]);
+  await expect(sheet.getByRole("navigation").getByRole("link")).toHaveText(["Settings"]);
   await sheet.getByTestId("mode-switch").click();
   await expect(page).toHaveURL(/\/admin$/);
   // The installed app opens at "/": the mode used last.

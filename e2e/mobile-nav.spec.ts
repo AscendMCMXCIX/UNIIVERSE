@@ -123,7 +123,7 @@ test("the Team tab reopens the Team section last used, and tapped again on Team 
   await expect(tabBar(page).getByTestId("tab-team")).toHaveAttribute("href", "/matches");
 });
 
-test("the label ladder: whole names where the bar has room, then Profile and Intel with the whole names read out, then the icons alone only at 200% (or 150% on 320px)", async ({ page }) => {
+test("the label ladder: whole names where the bar has room, then Profile and Intel with the whole names read out, then the icons alone only at 200% (or 150% on 320px); Admin Mode's short names", async ({ page }) => {
   // The bar's width in rem decides (TAB_FIT): the root's size stands for the reader's text size.
   const steps = { full: ["My Profile", "Team", "Matchup Intel", "Resources"], short: ["Profile", "Team", "Intel", "Resources"] } as const;
   const expected: Record<number, Record<number, keyof typeof steps | "icons">> = {
@@ -149,6 +149,21 @@ test("the label ladder: whole names where the bar has room, then Profile and Int
       }).toPass({ timeout: 10_000 });
       for (const [i, name] of steps.full.entries()) await expect(tabBar(page).getByRole("link").nth(i), where).toHaveAccessibleName(name);
     }
+  }
+  // Admin Mode's phone bar keeps its short names at every width ("Platform", so a phone never shows a
+  // second "Settings"), down to its icons below 15rem; measured on Settings, which fits a phone at 150%.
+  await page.context().addCookies([{ name: "uniiverse_view", value: "admin", url: page.url() }]);
+  for (const [width, root, shows] of [[393, 100, true], [320, 125, true], [393, 150, true], [320, 150, false]] as const) {
+    const where = `Admin Mode, ${width}px at ${root}% text`;
+    await page.setViewportSize({ width, height: 800 });
+    await page.goto("/admin/settings");
+    await page.evaluate((r) => (document.documentElement.style.fontSize = `${r}%`), root);
+    await expect(async () => {
+      const names = await shownNames(tabBar(page));
+      if (shows) expect(names, where).toEqual(["Dashboard", "Users", "Platform", "System"].map((text) => ({ text, shown: true, whole: true })));
+      else expect(names.map((n) => n.shown), where).toEqual([false, false, false, false]);
+    }).toPass({ timeout: 10_000 });
+    for (const [i, name] of ["Dashboard", "Users & Permissions", "Platform Settings", "System"].entries()) await expect(tabBar(page).getByRole("link").nth(i), where).toHaveAccessibleName(name);
   }
 });
 

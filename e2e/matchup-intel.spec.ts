@@ -375,53 +375,55 @@ test("phone: the remembered line is one row in every state, the height it keeps 
   }
 });
 
-/** On a phone, Matchup Intel from the account screen, where a member's phone holds it (its five tabs are Team's pages and Profile). */
-async function intelFromAccountScreen(page: Page) {
-  await page.getByTestId("account-sheet-button").click();
-  await page.getByTestId("account-sheet").getByRole("link", { name: "Matchup Intel" }).click();
+/** On a phone, Matchup Intel from the bar: a destination of its own (navigation N1), one tap from anywhere. */
+async function intelFromBar(page: Page) {
+  await page.getByTestId("phone-tabbar").getByTestId("tab-resources-matchups").click();
   await expect(page).toHaveURL(/\/resources\/matchups$/);
 }
 
-test("phone: Back in the top bar leads to the page before, as it is named, past the pairs chosen here", async ({ page }) => {
+test("phone: Matchup Intel is a tab of its own, with no Back in the top bar; the browser's Back steps through the pairs chosen, then to the page before", async ({ page }) => {
   test.skip((page.viewportSize()?.width ?? 1000) >= 768, "the phone's top bar");
-  // A member's phone has no Matchup Intel tab: the Library, then Matchup Intel from the account screen.
   await page.goto("/resources");
-  await intelFromAccountScreen(page);
+  await intelFromBar(page);
   await expect(page.getByRole("heading", { level: 1, name: "Matchup Intel" })).toBeVisible();
+  // A destination is where you start: no Back, the team's mark instead, and its tab marked.
+  await expect(page.getByTestId("mobile-back")).toHaveCount(0);
+  await expect(page.getByTestId("phone-tabbar").getByTestId("tab-resources-matchups")).toHaveAttribute("aria-current", "page");
   await choose(page, "you", "riven", "Riven");
   await choose(page, "enemy", "morde", "Mordekaiser");
-  const back = page.getByTestId("mobile-back");
-  await expect(back).toContainText("Resources");
-  await back.click();
+  await expect(page.getByTestId("mobile-back")).toHaveCount(0);
+  // The browser's own Back steps through the pairs (each its own entry), then leaves for the Library.
+  await page.goBack();
+  await expect(page).toHaveURL(/\/resources\/matchups\?champion=Riven$/);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/resources\/matchups$/);
+  await page.goBack();
   await expect(page).toHaveURL(/\/resources$/);
-  // The browser's own Back still steps through the pairs (the swap test above).
 });
 
-test("phone, in a browser without the Navigation API (Safari before 26.2): Back in the top bar still reaches Resources in one tap", async ({ page }) => {
+test("phone, in a browser without the Navigation API (Safari before 26.2): each pair replaces the entry, so Back leaves Matchup Intel in one step", async ({ page }) => {
   test.skip((page.viewportSize()?.width ?? 1000) >= 768, "the phone's top bar");
-  // Without the API the page cannot see its own history entries, so the top bar's Back could not step
-  // past pairs added as entries: each pair replaces the entry instead. Next.js's router reads the API
-  // only where it exists, so hiding it gives the page what an older Safari gives it.
+  // Without the API the page cannot see its own history entries: each pair replaces the entry
+  // instead of adding one (historyShowsEntries). Next.js's router reads the API only where it
+  // exists, so hiding it gives the page what an older Safari gives it.
   await page.addInitScript(() => Object.defineProperty(window, "navigation", { value: undefined, configurable: true }));
   await page.goto("/resources");
-  await intelFromAccountScreen(page);
+  await intelFromBar(page);
   await expect(page.getByRole("heading", { level: 1, name: "Matchup Intel" })).toBeVisible();
   expect(await page.evaluate(() => (window as unknown as { navigation?: unknown }).navigation)).toBeUndefined();
   await choose(page, "you", "riven", "Riven");
   await choose(page, "enemy", "morde", "Mordekaiser");
-  const back = page.getByTestId("mobile-back");
-  await expect(back).toContainText("Resources");
-  await back.click();
+  await page.goBack();
   await expect(page).toHaveURL(/\/resources$/);
 });
 
-test("phone: Matchup Intel opened by a link leads Back home, not to Resources: it is a destination of its own", async ({ page }) => {
+test("phone: Matchup Intel opened by a link has no Back either: it is a destination of its own, never under Resources or Team", async ({ page }) => {
   test.skip((page.viewportSize()?.width ?? 1000) >= 768, "the phone's top bar");
   await page.goto("/resources/matchups?champion=Riven&vs=Mordekaiser");
   await expect(page.getByTestId("matchup-enemy-abilities")).toHaveAttribute("data-champion", "Mordekaiser");
-  const back = page.getByTestId("mobile-back");
-  await expect(back).toContainText("Team");
-  await expect(back).toHaveAttribute("href", "/team");
+  await expect(page.getByTestId("mobile-back")).toHaveCount(0);
+  await expect(page.getByTestId("mobile-brand")).toBeVisible();
+  await expect(page.getByTestId("phone-tabbar").getByTestId("tab-resources-matchups")).toHaveAttribute("aria-current", "page");
 });
 
 test("Matchup Intel is a destination of its own: the address and its pair open as they always did, with no tabs, marked as the page shown and Resources not", async ({ page }, info) => {
@@ -436,7 +438,7 @@ test("Matchup Intel is a destination of its own: the address and its pair open a
   // No Library | Matchup Intel tabs on either page: each is one destination, never two.
   await expect(page.getByTestId("resources-tabs")).toHaveCount(0);
   await expect(page.locator("main a[href='/resources']")).toHaveCount(0);
-  // Marked as the page shown where the frame lists it: the sidebar, a tablet's top bar, the phone's account screen.
+  // Marked as the page shown where the frame lists it: the sidebar, a tablet's top bar, the phone's tab bar.
   const marks = async () => {
     if (info.project.name === "desktop") {
       const nav = page.locator("aside").getByRole("navigation", { name: "Main" });
@@ -446,9 +448,8 @@ test("Matchup Intel is a destination of its own: the address and its pair open a
       const nav = page.getByRole("navigation", { name: "Primary" });
       return { intel: nav.getByRole("link", { name: "Matchup Intel" }), resources: nav.getByRole("link", { name: "Resources" }) };
     }
-    await page.getByTestId("account-sheet-button").click();
-    const screen = page.getByTestId("account-sheet");
-    return { intel: screen.getByRole("link", { name: "Matchup Intel" }), resources: screen.getByRole("link", { name: "Resources" }) };
+    const bar = page.getByTestId("phone-tabbar");
+    return { intel: bar.getByTestId("tab-resources-matchups"), resources: bar.getByTestId("tab-resources") };
   };
   let m = await marks();
   await expect(m.intel).toHaveAttribute("aria-current", "page");

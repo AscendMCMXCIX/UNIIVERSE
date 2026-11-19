@@ -121,12 +121,11 @@ test("every member finds the library in the sidebar: grouped by section, rows th
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(0);
 
-  // The sidebar (or a tablet's top bar, or the phone's account screen) has it as its own entry.
+  // The sidebar (or a tablet's top bar, or the phone's tab bar) has it as its own entry.
   if ((page.viewportSize()?.width ?? 0) >= 1024) {
     await expect(page.locator("aside").getByTestId("nav-resources")).toHaveAttribute("aria-current", "page");
   } else if ((page.viewportSize()?.width ?? 0) < 768) {
-    await page.getByTestId("account-sheet-button").click();
-    await expect(page.getByTestId("account-sheet").getByRole("link", { name: "Resources" })).toHaveAttribute("aria-current", "page");
+    await expect(page.getByTestId("phone-tabbar").getByTestId("tab-resources")).toHaveAttribute("aria-current", "page");
   } else {
     await expect(page.getByRole("navigation", { name: "Primary" }).getByRole("link", { name: "Resources" })).toHaveAttribute("aria-current", "page");
   }
