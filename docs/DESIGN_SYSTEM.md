@@ -40,7 +40,7 @@ decorative chrome.
   - quiet labels and strong figures.
 - **Matchup Intel** (the owner's request of 18 Nov 2026) is the single-screen reference, read in a
   glance on a second monitor: on a desktop its whole overview fits one viewport from 1920 × 1080 (a
-  maximised 1920 × 950 window included), in two columns each as tall as its content, at
+  maximised 1920 × 950 window included: every page of the sweep of 19 Nov 2026), in two columns each as tall as its content, at
   `--content-wide`. Nothing in it is clipped or scrolls inside it, so a larger text size reflows and
   scrolls the page instead. Its danger and opportunity sides (a curated briefing's threat and
   opportunity, the assembled reference's Danger and Opportunity) take `warn` and `good`, as a 5%

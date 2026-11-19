@@ -56,6 +56,10 @@ translucent status bar, so:
   into the toast's own padding, so the toast is no larger for it.
 - Controls on a card (a flip button, social icons) stop their event: using one never opens,
   turns or selects the card.
+- Rows of small targets stand far enough apart that no target's 44px area covers a neighbour's box
+  (19 Nov 2026): Matchup Intel's chips and keys 12px apart from row to row and 6px side to side on
+  touch screens (`CHIP_ROWS`), its folds and source tips likewise; `e2e/matchup-intel.spec.ts` samples
+  every control's box on the phone and the touch tablet and runs axe's WCAG 2.2 target-size rule.
 
 ## Long lists inside a page
 
@@ -555,10 +559,13 @@ the account screen over the dashboard at 200% on a 320px phone as well.
 - **Matchup Intel on one screen** (the owner's request of 18 Nov 2026; docs/MATCHUP_INTEL.md, "The
   dashboard"): the page takes `--content-wide`, its two columns from a body 60rem wide, each as tall
   as its content. Its whole overview fits one viewport with no page scroll at 1920 × 1080, 2560 ×
-  1440, 1920 × 950 and 3440 × 1440, and at 1440 × 900, for 20 pairs (the least room left 64px at
-  1920 × 950 and 28px at 1440 × 900, measured on 19 Nov 2026); in a smaller window, or at a larger
-  text size, it reflows and scrolls as a page, with nothing clipped and nothing scrolling inside it.
-  `e2e/matchup-intel-dashboard.spec.ts` asserts the fit at those five sizes.
+  1440 and 1920 × 950 for every one of the 880 pages of the sweep of 19 Nov 2026 (every champion as
+  the enemy against Riven, Gwen, Ambessa, K'Sante and Briar, and the 30 pairs of the six champions with
+  checked notes; the least room left 56px at 1920 × 950), and at 1440 × 900, a size it is not promised
+  to fit, for 874 of them (the tallest six scroll by 5 to 58px; docs/MATCHUP_INTEL.md, "The
+  dashboard"); in a smaller window, or at a larger text size, it reflows and scrolls as a page, with
+  nothing clipped and nothing scrolling inside it. `e2e/matchup-intel-dashboard.spec.ts` asserts the
+  fit at five sizes (3440 × 1440 too) for 40 pairs, the tallest of the sweep among them.
 - **A page's controls in reach** (PR 2b, 18 Nov 2026): a long page's own controls (its view switch,
   Filters, search) scroll away with its header. From md, once the section tabs are pinned and the
   page's own toolbar has gone up under them, the page's compact copy shows at the pinned row's end

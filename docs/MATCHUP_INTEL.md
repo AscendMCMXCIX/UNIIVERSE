@@ -104,64 +104,67 @@ Leaderboards do, since it is a destination of its own (the owner's decision 12).
 height and nothing is clipped or scrolls inside the page: at a larger text size, or in a smaller
 window, the page reflows and scrolls as any page does.
 
-**Measured** on the demo with the facts from Riot's text imported (Chromium, 100% zoom, the sidebar
-open, Data Dragon 16.22.1; 19 Nov 2026): the whole overview fits one viewport, with no page scroll
-either way and nothing scrolling inside it, at 1920 × 1080, 2560 × 1440, 1920 × 950 (a maximised
-window on a 1080p screen), 3440 × 1440 and 1440 × 900, for each of 29 pairs: the three curated pairs
-and their reverse, Riven vs Renekton (checked facts on both sides, no file), the pairs with the most
-facts from Riot's text (K'Sante 18, Briar 14, Shyvana 12, Hwei 11: K'Sante vs Briar and the reverse,
-Riven vs K'Sante with the curated links in its header, Shyvana vs K'Sante and the reverse, Hwei vs
-K'Sante), Riven vs Darius, Ambessa vs Aatrox, the complex kits (Aphelios, Nidalee, Jayce, Elise, Gnar,
-Kayn, Hwei, Udyr, Kled, Yone with Riot's texts differing, Camille, Twisted Fate with his placeholders),
-Garen vs Darius and the mirror Riven vs Riven. Under the lowest part (the sources' line, or a taller
-column) each window leaves:
+**Measured** on the demo with the review's fixes (Chromium, 100% zoom, the sidebar open, Data Dragon
+16.22.1, the demo's pin; 19 Nov 2026), in a sweep of every champion as the enemy against Riven, Gwen,
+Ambessa, K'Sante (the most facts from Riot's text) and Briar, and the 30 pairs of the six champions
+with checked notes: 880 pages, each loaded once and measured at four sizes, the window resized (on 20
+of them, the same numbers as a page loaded at each size). "The essentials" are the enemy's five tiles
+and the sources' summary:
 
-| Window | Root size | Fits | Least room left | Most room left |
-| --- | --- | --- | --- | --- |
-| 1920 × 1080 | 17.7px | 29 of 29 | 206px (11.6rem), Ambessa vs Renekton | 427px, Garen vs Darius |
-| 2560 × 1440 | 20.6px | 29 of 29 | 483px (23.4rem), Ambessa vs Renekton | 683px, Garen vs Darius |
-| 1920 × 950 | 17.7px | 29 of 29 | 76px (4.3rem), Ambessa vs Renekton | 297px, Garen vs Darius |
-| 3440 × 1440 | 22px | 29 of 29 | 419px (19rem), Ambessa vs Renekton | 632px, Garen vs Darius |
-| 1440 × 900 | 16px | 29 of 29 | 42px (2.6rem), Ambessa vs Renekton | 255px, Garen vs Darius |
+| Window | No page scroll | The essentials on the screen | Least room under the sources' summary |
+| --- | --- | --- | --- |
+| 1920 × 1080 | 880 of 880 | 880 | 186px, Briar vs Mordekaiser |
+| 1920 × 950 (a maximised window on a 1080p screen) | 880 of 880 | 880 | 56px, Briar vs Mordekaiser |
+| 2560 × 1440 | 880 of 880 | 880 | 428px, K'Sante vs Mordekaiser |
+| 1440 × 900 | 874 of 880 | 879 | none: K'Sante vs Mordekaiser's summary is 23px under the fold |
 
-Of the pairs with facts from Riot's text the tightest is Riven vs K'Sante: 235, 496, 105, 432 and 54px
-left at the five sizes, in that order.
+Nothing scrolls inside the page and nothing reaches past its width at any of them. The 30 pairs of
+the six champions with checked notes fit all four. **1440 × 900**, a size the overview is not
+promised to fit, scrolls on six pages, the tallest sides from Riot's text against a champion with
+checked notes and level notes, or Ambessa's against K'Sante's: K'Sante vs Mordekaiser by 58px, K'Sante
+vs Ornn by 21px, Ambessa vs K'Sante by 15px, Briar vs Mordekaiser by 7px, and Riven vs K'Sante and Gwen
+vs K'Sante by 5px each (the page's own bottom padding); only K'Sante vs Mordekaiser's sources' summary is
+off the screen there. `e2e/matchup-intel-dashboard.spec.ts` asserts the fit at 1920 × 1080, 2560 ×
+1440, 1920 × 950, 3440 × 1440 and 1440 × 900 for 40 pairs: the curated three and their reverse, Riven
+vs Renekton (checked facts on both sides, no file), the complex kits (Aphelios, Nidalee, Jayce, Elise,
+Gnar, Kayn, Hwei, Udyr, Kled, Yone with Riot's texts differing, Camille, Twisted Fate with his
+placeholders), the pairs with the most facts from Riot's text (K'Sante vs Briar and the reverse, Riven
+vs K'Sante, Shyvana vs K'Sante and the reverse, Hwei vs K'Sante), Garen vs Darius, Riven vs Darius,
+Ambessa vs Aatrox, and the sweep's twelve tallest pages; at 1440 × 900 it names the seven of them
+that scroll there, by no more than measured.
 
-Before the redesign, Riven vs Mordekaiser was 2,959px tall at 1920 × 1080 (2.74 screens) and no
-enemy ability was whole on the first screen; it now ends 835px down, its five tiles from 101px to
-617px.
+**What changed to fit.** Before these fixes ten pairs scrolled at 1920 × 950: Mordekaiser vs Ornn and
+the reverse by 95px, Ambessa vs Mordekaiser by 55px, Mordekaiser vs Ambessa by 46px, Ambessa vs Ornn
+by 34px, Briar vs Mordekaiser and the reverse by 32px, K'Sante vs Mordekaiser and the reverse by 30px,
+and Ornn vs Ambessa by 25px; mostly because Level changes listed every level note of both champions
+(five between Ambessa, Mordekaiser and Ornn), unfolded. Now the level notes beyond two fold behind
+their count, as lane points and interactions do; where the interactions are only each champion's
+folded line, the level notes take two thirds of their row (`notesBalance`'s "folds"); the assembled
+lines' keys are as tall as their chips (21px, a 25px target: every line 3px lower); and with no
+curated links, the assembled reference's sentences sit beside its title. Those ten fit at 1920 × 950,
+the least room 56px; at 1440 × 900 the pairs of Ambessa, Mordekaiser and Ornn now fit too (they
+scrolled by 42 to 120px).
 
-**Where it does not fit.** A sweep of every champion as the enemy against Riven, Gwen, Ambessa,
-K'Sante (the tallest side from Riot's text) and Briar, at 1920 × 950 and 1440 × 900 (1,730 page loads
-on the final build, 19 Nov 2026; an earlier sweep against K'Sante and Ambessa at 1920 × 1080 found
-none, and their tightest pairs, re-measured on the final build, leave 118 to 143px), finds the page one
-screen in every one except these, each a tall side against a champion with checked notes whose
-interactions and level changes fill the row under the main panel:
-- 1920 × 1080: none;
-- 1920 × 950: Ambessa vs Mordekaiser (the page scrolls by 55px) and vs Ornn (34px), which have no
-  facts from Riot's text and scrolled before the import too (63 and 43px); K'Sante vs Mordekaiser
-  (30px) and Briar vs Mordekaiser (32px);
-- 1440 × 900: Ambessa vs Mordekaiser (72px) and vs Ornn (65px; 84px each before the import), Ambessa
-  vs K'Sante (25px), K'Sante vs Ambessa (17px), vs Ornn (50px) and vs Mordekaiser (64px), and Briar vs
-  Mordekaiser (13px).
-The page then reflows and scrolls as any page does: nothing is cut or scrolls inside it. The changes
-that brought these down: the marker for a conditional fact said once under an ability's chips rather
-than inside each (it made K'Sante's side 44px taller at 1920 × 950), and on an assembled side the
-groups 2px apart (were 4px) and, where the panel is narrower than 44rem (1440 × 900 and phones), the
-lines without their indent under the group's label. Riven vs Ornn at 1440 × 900, which scrolled by
-8px before the import, now fits. Fitting the rest would need a choice of layout (the level changes
-beside your champion when the main panel is the taller, say), which is the owner's.
+The page also stays one screen at 1920 × 1080 as the game moves on (Production check, below):
+measured with Riot's real Data Dragon 16.23.1 records for Riven and Mordekaiser (production's patch on
+19 Nov 2026), Riven vs Mordekaiser has no page scroll at 1920 × 1080 with "Not re-checked for 26.23"
+(and at 1920 × 950), none with a part of its briefing hidden because Riot changed Mordekaiser's Q, and
+none with its briefing hidden as three patches old (26.25), though at 1920 × 950 those two scroll by
+45 and 81px (a hidden part's note, or the assembled reference under the hidden briefing, takes more
+room than the part); at 1440 × 900 it scrolls by 23px with "Not re-checked for 26.23", the five tiles
+and the sources' summary still on the screen. With every ability of both champions changed (the
+briefing hidden whole, every assembled line flagged with Riot's newer number beside it), it runs
+190px past 1920 × 1080: the one state measured that does not fit there. (Each state's body and bar
+built by the app's own view and put into the demo page, re-measured on the final build.)
 
 Running text is never smaller than `text-xs` (0.75rem: 13.3px at 1920, 15.5px at 2560, the app's
 root growing with the window), the chips and badges included; only labels are `text-2xs`, as
 STANDARDS.md allows: the uppercase ones (Threat, Opportunity, Danger), the ability keys, a tile's
-own source label ("Not reviewed") and the word "source". Each tile's cooldown numbers are `text-md`
-(0.9375rem), and the chips of the facts from Riot's text, their qualifiers and the conditional marker's
-line are `text-xs` too. In every one of those 145 page loads (29 pairs at five sizes) nothing reached
-past the page's width, no chip overlapped another and nothing scrolled inside the page.
-`e2e/matchup-intel-dashboard.spec.ts` asserts the fit, the text sizes and the inner scrollers at the
-five sizes for 28 of the pairs (the mirror aside); the screenshots are kept with the work's notes, not
-in the repository.
+own source label ("Not reviewed"), an assembled number's own source and the word "source". Each
+tile's cooldown numbers are `text-md` (0.9375rem), and the chips of the facts from Riot's text, their
+qualifiers and the conditional marker's line are `text-xs` too. `e2e/matchup-intel-dashboard.spec.ts`
+asserts the fit, the text sizes and the inner scrollers at the five sizes for its 40 pairs; the
+screenshots are kept with the work's notes, not in the repository.
 
 ### The curated briefing
 
@@ -233,7 +236,9 @@ For every pair without a curated briefing, or whose briefing is hidden whole (`a
   reviewed facts for Darius yet: crowd control, mobility, defence and sustain are not recorded." (no
   committed champion is in that state since the import, but a file that cannot be read would be); an
   ability whose facts from Riot's text are hidden, "Riot's text for W changed after the review: its 2
-  facts are hidden."; no ability data, "Ability details aren't stored yet", or, for a stored record
+  facts are hidden." at the side's foot, and on that side a group with nothing shown says only what
+  holds outside it, "· No reviewed facts of this kind outside W", since a hidden fact may be of that
+  kind and its kind is not shown (the review's finding of 19 Nov 2026); no ability data, "Ability details aren't stored yet", or, for a stored record
   that cannot be read, "Riot's ability data for Darius could not be read", as on the tiles.
 - **Facts from Riot's text keep what the review recorded with them** here as on the tiles (below): a
   qualifier on its chip ("Stun · “Mega Gnar”"), a conditional fact named in the owner's marker under
@@ -334,11 +339,14 @@ Under the main panel (`matchup-notes.tsx`), each a compact panel that always say
   Mordekaiser and Ornn hold up to five level notes between them. None: "No level changes recorded
   for Darius or Riven."
 
-Each panel's line says how fresh what it shows is, on a line of its own under its title, as the tiles'
-heading does: "Not re-checked for 26.23" while the notes' check is one or two patches old, "Checked
-three patches ago: may be out of date" after that (the Interactions panel for the matchup's own
-interactions and each champion's, Level changes for the notes it lists); nothing while they are
-current.
+Each panel's line says how fresh what it shows is, as the tiles' heading does: "Not re-checked for
+26.23" while the notes' check is one or two patches old, "Checked three patches ago: may be out of
+date" after that (the Interactions panel for the matchup's own interactions and each champion's,
+Level changes for the notes it lists); nothing while they are current. The badge is the title row's
+last item: at its end where the title and its words leave room (Level changes, the wider panel of
+its row, at 1920 × 950 and up), else on a line of its own under them, never inside the words. On
+production's patch 26.23 a line of its own had made Level changes 27px taller, enough to keep Briar
+vs Mordekaiser and K'Sante vs Mordekaiser from fitting 1920 × 950 (19 Nov 2026).
 
 ### Progressive disclosure
 
@@ -799,7 +807,8 @@ refund of “Mantra”"), the conditional marker under the ability's chips namin
 Riot's text (Stun and Pull)"), "Riot's texts differ" with both quotes where its texts disagree, and,
 in the Details window only, another kind Riot's description words it as ("Riot's description calls it
 blink: “…”"). An ability with no fact says "No reviewed facts for this ability"; a group with none,
-"No reviewed facts of this kind".
+"No reviewed facts of this kind", or, on a side where an ability's facts are hidden, "No reviewed
+facts of this kind outside W".
 
 **What they never do**: give a number (a duration, an amount, a range), say who has the upper hand,
 join the two kits, show before the review accepted them, show a fact without its qualifier or marker,
@@ -1135,7 +1144,8 @@ Matchup Intel page added to it would need `DDRAGON_VERSION` passed as well.
 - **Not covered by them.** The page on later patches (the "Not re-checked for 26.23" labels, a
   briefing hidden for its age or for a change and said so above the assembled reference, a point
   hidden because Riot changed an ability, the bar's warning for it, an assembled side's flagged line
-  and its notes' line, the notes panels' freshness, Riot's data newer than the notes) is the unit
+  and its notes' line, an empty group beside hidden facts from Riot's text, the notes panels'
+  freshness, Riot's data newer than the notes) is the unit
   tests' (`view.test.ts`, `matchup-content.test.ts`, `src/domain/patch.test.ts`), with the patches and
   records injected; the Production check's own facts in those states are
   `src/server/ops/live-check-matchup-intel.test.ts`'s, from the page read in each. A server started by hand for
@@ -1358,8 +1368,9 @@ pages were read on 16 Nov 2026: the League of Legends documentation
 - **Riot's words.** Each ability's short description is Riot's own text from Data Dragon, with its
   markup removed, in its Details window. The facts from Riot's text quote a clause of Riot's
   description or tooltip, each placeholder as "[…]", always labelled as Riot's and as reviewed
-  automatically (Facts from Riot's text); they were drafted offline from Data Dragon's
-  `championFull.json` and are committed, so no page asks Riot for them.
+  automatically (Facts from Riot's text); they were made offline from Data Dragon's
+  `championFull.json` (most drafted by fixed rules, 61 of the 1,112 added by a reviewer or with the
+  consistency pass) and are committed, so no page asks Riot for them.
 
 ### The League of Legends Wiki
 
@@ -1625,11 +1636,14 @@ to 12 are open.
 4. **Approve the merge** (approved by the owner on 17 Nov 2026, Sydney), which deploys to production (CLAUDE.md §4: within the deploy budget, the
    "merge" method and the exact head), then read the Production check on the deployed commit.
 5. **The Production check opens Matchup Intel signed in.** Decided on 18 Nov 2026 (decision 11):
-   one page load, Riven vs Mordekaiser at the check's desktop size, 1440 × 900, which checks the
-   heading, the layer and its label, the enemy's five tiles (or the "not stored yet" state, as a
-   warning), the fit on one screen, the sources' summary on screen, the Data Dragon version, the
-   wiki's licence and Riot's notice one press away, that nothing is requested from the wiki, and axe
-   (LIVE_VALIDATION.md). It costs one more page load of Vercel Active CPU on every run, after each
+   one page load, Riven vs Mordekaiser at the check's desktop size, 1440 × 900 and again with the
+   window made 1920 × 1080, which checks the heading, the layer and its label, the enemy's five tiles
+   (or the "not stored yet" state, as a warning), no page scroll at 1920 × 1080 and the five tiles and
+   the sources' summary on the screen at 1440 × 900 (the fit the owner asked for; since 19 Nov 2026
+   no longer "no page scroll at 1440 × 900", which production's patch 26.23 alone fails: the page is
+   23px taller than 900 there, all of it in view), a briefing hidden as too old or for a change passing and saying what it found, the Data
+   Dragon version, the wiki's licence and Riot's notice one press away, that nothing is requested from
+   the wiki, and axe (LIVE_VALIDATION.md; `scripts/matchup-intel-facts.mjs` and its unit test). It costs one more page load of Vercel Active CPU on every run, after each
    deploy and daily (a member page took 37–105 ms of server CPU in the local measurements,
    HOSTING_USAGE.md). With it, a change to the page can be production-verified (CLAUDE.md §5).
 6. **Decide whether Riot's own numbers show where nobody has checked them** (the design's D7).
