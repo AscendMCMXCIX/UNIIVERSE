@@ -67,8 +67,8 @@ export interface MobileNavProps {
     - the top bar says where you are: the team's mark on a destination's own pages, or Back on a page
       reached from one (a teammate's profile, Settings), labelled with where it leads; the page's
       title joins it once the page's own heading has scrolled up under it; the page's Filters once
-      its own have; your avatar at its right end opens the account screen. On a profile the
-      profile's sections ride under it, on a destination's tabs (Team's sections) those tabs, so
+      its own have; your avatar at its right end opens the account screen. Under it ride a profile's
+      sections on a profile, and a destination's tabs on its pages (Team's sections on Team's), so
       they stay in reach however far the page scrolls;
     - the bottom tab bar holds the four destinations, one tap each, within reach of the thumb. A
       destination with tabs reopens the one last used in this tab of the browser, and tapped again
