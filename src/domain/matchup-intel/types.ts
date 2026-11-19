@@ -29,6 +29,13 @@ import type { HasteBasis } from "./haste";
   Only plain data crosses into the browser: these types, never the server modules behind them.
 */
 
+/** The lanes Matchup Intel is set for, in the selector's order. */
+export const ROLES = ["top", "jungle", "mid", "adc", "support"] as const;
+export type Role = (typeof ROLES)[number];
+/** The roles whose page sets two against two (the bot lane). */
+export const DUO_ROLES: ReadonlySet<Role> = new Set<Role>(["adc", "support"]);
+export const ROLE_NAMES: Record<Role, string> = { top: "Top", jungle: "Jungle", mid: "Mid", adc: "ADC", support: "Support" };
+
 /** The five ability slots, in the order the page shows them. */
 export const SLOTS = ["P", "Q", "W", "E", "R"] as const;
 export type Slot = (typeof SLOTS)[number];
@@ -74,6 +81,13 @@ export interface DdragonChampionAbilities {
   /** The Data Dragon version these were read from (e.g. "16.22.1"). */
   version: string;
   abilities: DdragonAbility[];
+  /**
+   * Riot's own tips for the champion (Data Dragon `allytips`, for playing it, and `enemytips`, for
+   * playing against it), verbatim: [] where Riot publishes none. Absent on a record stored before
+   * the rules read them (ABILITY_RULES_FORMAT 2), until the next sync re-reads it: then the page
+   * says they are not stored yet, never that Riot publishes none.
+   */
+  tips?: { ally: string[]; enemy: string[] };
 }
 
 /** What kind of page a source is. */
@@ -818,6 +832,11 @@ export interface ChampionIntelView {
    * none are committed for it, or it has checked notes (which the page shows instead).
    */
   riotText: { version: string; patch: string | null; reviewedOn: string; review: RiotTextReview } | null;
+  /**
+   * Riot's own tips from Data Dragon, verbatim (`ally` for playing it, `enemy` for playing against
+   * it; [] where Riot publishes none). Null when the stored record predates them (not read yet).
+   */
+  tips: { ally: string[]; enemy: string[] } | null;
 }
 
 /**
@@ -850,10 +869,20 @@ export interface MatchupIntelView {
 
 /** Everything the page shows for one choice of champions. */
 export interface MatchupPageView {
+  /** The lane the page is set for (the address's `role`), which decides its slots (ROLE_SLOTS). */
+  role: Role;
+  /** Yours: in the bot lane your own role's champion (the ADC as ADC, the support as Support). */
   you: ChampionChoice | null;
+  /** The lane opponent: in the bot lane the enemy in your own role. */
   enemy: ChampionChoice | null;
+  /** The bot lane only: your duo partner (the support as ADC, the ADC as Support); null otherwise. */
+  ally: ChampionChoice | null;
+  /** The bot lane only: the other enemy (their support as ADC, their ADC as Support); null otherwise. */
+  enemy2: ChampionChoice | null;
   enemyIntel: ChampionIntelView | null;
   yourIntel: ChampionIntelView | null;
+  allyIntel: ChampionIntelView | null;
+  enemy2Intel: ChampionIntelView | null;
   /** Null when no curated matchup exists for this direction. */
   matchup: MatchupIntelView | null;
   /**

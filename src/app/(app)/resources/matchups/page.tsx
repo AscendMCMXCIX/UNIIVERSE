@@ -10,6 +10,7 @@ import { MatchupContent } from "@/components/matchup-intel/matchup-content";
 import { MatchupStatus } from "@/components/matchup-intel/matchup-status";
 import { briefingShows } from "@/components/matchup-intel/briefing";
 import { announcementWords } from "@/components/matchup-intel/wording";
+import { DUO_ROLES } from "@/domain/matchup-intel/types";
 
 export const dynamic = "force-dynamic";
 
@@ -32,13 +33,14 @@ const named = (v: string | string[] | undefined) => (one(v) ?? "").trim() !== ""
 export default async function MatchupIntelPage({ searchParams }: { searchParams: Promise<Search> }) {
   await requirePageAccess();
   const [sp, db, jar] = await Promise.all([searchParams, getAppDb(), cookies()]);
-  const input = { champion: one(sp.champion), vs: one(sp.vs) };
+  const input = { role: one(sp.role), champion: one(sp.champion), vs: one(sp.vs), ally: one(sp.ally), vs2: one(sp.vs2) };
   // The facts from Riot's text only while their switch is on (riot-text/switch.ts; a browser test's cookie on the demo).
   const riotText = riotTextFactsShown(jar.get(RIOT_TEXT_TEST_COOKIE)?.value);
   const [{ view, champions, curated }, branding] = await Promise.all([loadMatchupPage(db, input, riotText), getBranding(db)]);
-  const { you, enemy } = view;
+  const { you, enemy, ally, enemy2, role } = view;
+  const duo = DUO_ROLES.has(role);
   // A champion named in the address that is not on the roster is left out, never repeated back.
-  const dropped = (named(sp.champion) && !you) || (named(sp.vs) && !enemy);
+  const dropped = (named(sp.champion) && !you) || (named(sp.vs) && !enemy) || (duo && named(sp.ally) && !ally) || (duo && named(sp.vs2) && !enemy2);
   // "What matters in lane" only where a briefing will show a point of its own.
   const shows = briefingShows(view.matchup);
   const lane = shows ? ", and what matters in lane" : view.matchup ? "; its curated briefing is hidden, so each champion's own facts follow" : "; no curated briefing yet, so each champion's own facts follow";
@@ -54,8 +56,12 @@ export default async function MatchupIntelPage({ searchParams }: { searchParams:
         </p>
       ) : null}
       <MatchupFrame
+        role={role}
+        roleInAddress={named(sp.role)}
         you={you}
         enemy={enemy}
+        ally={ally}
+        enemy2={enemy2}
         champions={champions}
         curated={curated}
         announcement={announcementWords(view, shows)}

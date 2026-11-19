@@ -4,7 +4,7 @@ import { getChampionNotes } from "@/server/matchup-intel/curated";
 import { cooldownDisplay, modifiersView } from "./cooldown";
 import { GENERAL_RULE_TIP, HASTE_MAX, clampHaste, cooldownAtHaste, hasteBasisOf, hasteMarkWords, hastedSeconds } from "./haste";
 import { refusedWords } from "./refused-words";
-import type { DdragonChampionAbilities } from "./types";
+import type { CooldownDisplay, DdragonChampionAbilities } from "./types";
 
 const champions = Object.values((abilityFixture as unknown as { champions: Record<string, DdragonChampionAbilities> }).champions);
 const HASTES = [10, 20, 40, 60];
@@ -63,7 +63,7 @@ describe("cooldowns at a chosen haste", () => {
   });
 
   it("drops the notes' static mark once Riot's record moved after the check", () => {
-    const d = { kind: "per-rank", seconds: [10], starts: null, from: "ddragon" } as const;
+    const d: CooldownDisplay = { kind: "per-rank", seconds: [10], starts: null, from: "ddragon" };
     expect(hasteBasisOf("Q", d, { static: true }).mark).toBe("static");
     expect(hasteBasisOf("Q", d, { static: true }, { ignoreStatic: true }).mark).toBe("general");
   });

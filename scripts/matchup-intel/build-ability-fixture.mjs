@@ -21,7 +21,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { z } from "zod";
 
-export const ABILITY_RULES_FORMAT = 2;
+export const ABILITY_RULES_FORMAT = 3;
 export const DESCRIPTION_MAX = 400;
 const CHAMPION_ID = /^[A-Za-z0-9]{1,40}$/;
 const VERSION = /^\d{1,4}(?:\.\d{1,4}){1,3}$/;
@@ -94,7 +94,16 @@ const spellSchema = z.object({
   tooltip: z.string().max(40_000).optional(),
   image: z.object({ full: icon }),
 });
-const detailSchema = z.object({ id: z.string().regex(CHAMPION_ID), passive: passiveSchema, spells: z.array(spellSchema).min(4) });
+const tipList = z.array(z.unknown()).max(40).optional();
+const detailSchema = z.object({ id: z.string().regex(CHAMPION_ID), passive: passiveSchema, spells: z.array(spellSchema).min(4), allytips: tipList, enemytips: tipList });
+
+/** The longest tip kept, in characters: a longer one is left out whole, never cut (a tip is shown verbatim). */
+export const TIP_MAX = 600;
+
+/** Riot's tips as Data Dragon gives them, verbatim: each a non-empty string of at most TIP_MAX characters, in Riot's order; anything else left out. */
+export function riotTips(list) {
+  return Array.isArray(list) ? list.filter((t) => typeof t === "string" && t.trim() !== "" && t.length <= TIP_MAX) : [];
+}
 
 const SPELL_SLOTS = ["Q", "W", "E", "R"];
 
@@ -109,7 +118,7 @@ export function compactChampionAbilities(detail, version) {
     if (typeof version !== "string" || !VERSION.test(version)) return null;
     const parsed = detailSchema.safeParse(detail);
     if (!parsed.success) return null;
-    const { id, passive, spells } = parsed.data;
+    const { id, passive, spells, allytips, enemytips } = parsed.data;
     const abilities = [
       { slot: "P", id: null, name: passive.name, icon: passive.image.full, maxRank: 1, cooldown: [], charges: null, description: cleanDescription(passive.description ?? ""), textHash: riotTextHash(passive.description ?? "", null) },
       ...SPELL_SLOTS.map((slot, i) => {
@@ -117,7 +126,7 @@ export function compactChampionAbilities(detail, version) {
         return { slot, id: s.id, name: s.name, icon: s.image.full, maxRank: s.maxrank, cooldown: [...s.cooldown], charges: chargesOf(s.maxammo), description: cleanDescription(s.description ?? ""), textHash: riotTextHash(s.description ?? "", s.tooltip ?? "") };
       }),
     ];
-    return { championId: id, version, abilities };
+    return { championId: id, version, abilities, tips: { ally: riotTips(allytips), enemy: riotTips(enemytips) } };
   } catch {
     return null;
   }
@@ -153,7 +162,9 @@ export function serialiseFixture(fixture) {
     const c = fixture.champions[id];
     lines.push(`    ${JSON.stringify(id)}: {`, `      "championId": ${JSON.stringify(c.championId)},`, `      "version": ${JSON.stringify(c.version)},`, `      "abilities": [`);
     c.abilities.forEach((a, j) => lines.push(`        ${JSON.stringify(a)}${j < c.abilities.length - 1 ? "," : ""}`));
-    lines.push("      ]", `    }${i < ids.length - 1 ? "," : ""}`);
+    lines.push(c.tips ? "      ]," : "      ]");
+    if (c.tips) lines.push(`      "tips": ${JSON.stringify(c.tips)}`);
+    lines.push(`    }${i < ids.length - 1 ? "," : ""}`);
   });
   lines.push("  }", "}", "");
   return lines.join("\n");
@@ -162,7 +173,7 @@ export function serialiseFixture(fixture) {
 /* ---------- The digest: Data Dragon's own numbers, which CI checks the fixture against ---------- */
 
 const DIGEST_NOTE =
-  "Data Dragon's own numbers for every champion (championFull.json, en_US), copied as Riot gives them with no rule applied: each spell as [id, maxrank, cooldown, maxammo] (maxammo null when absent). Written with the offline fixture by scripts/matchup-intel/build-ability-fixture.mjs; src/server/matchup-intel/abilities.test.ts holds every champion of the fixture to it, so CI needs no championFull.json.";
+  "Data Dragon's own numbers for every champion (championFull.json, en_US), copied as Riot gives them with no rule applied: each spell as [id, maxrank, cooldown, maxammo] (maxammo null when absent); and Riot's tips as Riot gives them (allytips, enemytips; null when absent). Written with the offline fixture by scripts/matchup-intel/build-ability-fixture.mjs; src/server/matchup-intel/abilities.test.ts holds every champion of the fixture to it, so CI needs no championFull.json.";
 
 /** Each champion's four spells as Data Dragon gives them, [id, maxrank, cooldown, maxammo]. Throws when a champion has no four spells. */
 export function buildDigest(full) {
@@ -171,14 +182,16 @@ export function buildDigest(full) {
   const data = full?.data;
   if (!data || typeof data !== "object") throw new Error("championFull.json has no data");
   const champions = {};
+  const tips = {};
   const unreadable = [];
   for (const id of Object.keys(data).sort()) {
     const spells = data[id]?.spells;
     if (!Array.isArray(spells) || spells.length < 4) unreadable.push(id);
     else champions[id] = spells.slice(0, 4).map((s) => [s?.id ?? null, s?.maxrank ?? null, s?.cooldown ?? null, s?.maxammo ?? null]);
+    tips[id] = { ally: data[id]?.allytips ?? null, enemy: data[id]?.enemytips ?? null };
   }
   if (unreadable.length) throw new Error(`${unreadable.length} champions have no four spells: ${unreadable.join(", ")}`);
-  return { version, champions };
+  return { version, champions, tips };
 }
 
 /** The digest as committed: one champion per line. */
@@ -186,6 +199,14 @@ export function serialiseDigest(digest) {
   const ids = Object.keys(digest.champions);
   const lines = ["{", `  "_note": ${JSON.stringify(DIGEST_NOTE)},`, `  "version": ${JSON.stringify(digest.version)},`, `  "champions": {`];
   ids.forEach((id, i) => lines.push(`    ${JSON.stringify(id)}: ${JSON.stringify(digest.champions[id])}${i < ids.length - 1 ? "," : ""}`));
+  if (!digest.tips) {
+    lines.push("  }", "}", "");
+    return lines.join("\n");
+  }
+  // Riot's tips exactly as Data Dragon gives them (allytips, enemytips; null when absent), one champion per line.
+  const tipIds = Object.keys(digest.tips);
+  lines.push("  },", `  "tips": {`);
+  tipIds.forEach((id, i) => lines.push(`    ${JSON.stringify(id)}: ${JSON.stringify(digest.tips[id])}${i < tipIds.length - 1 ? "," : ""}`));
   lines.push("  }", "}", "");
   return lines.join("\n");
 }
