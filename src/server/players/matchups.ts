@@ -1,4 +1,4 @@
-import { sql } from "drizzle-orm";
+import { sql, type SQL } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { accountRows } from "@/server/accounts/account-rows";
 import { listAccountsForPlayer } from "@/server/accounts/repository";
@@ -135,6 +135,9 @@ export function forgetMatchupLanes(db: object): void {
   laneStore.delete(db);
 }
 
+/** A player's gold, experience and CS series alone (frames kept since 20 Nov 2026 also hold their place, haste and level, which the lane does not read). */
+const series = (player: SQL) => sql`CASE WHEN ${player} IS NOT NULL THEN jsonb_build_object('g', ${player}->'g', 'x', ${player}->'x', 'c', ${player}->'c') END`;
+
 /**
  * The lane of each game, read in one query that does the matching in Postgres: the player (any of
  * their PUUIDs, the first in the record), the game's stored lane opponent (the enemy on the champion
@@ -168,8 +171,8 @@ async function laneExtracts(db: Db, games: ReadonlyArray<{ matchId: string; enem
   const result = await db.execute(sql`
     SELECT ids.match_id, ids.enemy, d.match_id IS NOT NULL AS has_record, coalesce(jsonb_array_length(d.participants) = 0, false) AS empty_record, coalesce(lane.paired, false) AS paired, t.frames IS NOT NULL AS has_frames,
       CASE WHEN lane.paired THEN t.frames->'t' END AS t,
-      CASE WHEN lane.paired THEN t.frames->'p'->lane.me END AS me,
-      CASE WHEN lane.paired THEN t.frames->'p'->lane.them END AS them
+      CASE WHEN lane.paired THEN ${series(sql`t.frames->'p'->lane.me`)} END AS me,
+      CASE WHEN lane.paired THEN ${series(sql`t.frames->'p'->lane.them`)} END AS them
     FROM unnest(${idArray}, ${enemyArray}) AS ids(match_id, enemy)
     LEFT JOIN match_details d ON d.match_id = ids.match_id
     LEFT JOIN LATERAL (

@@ -10,4 +10,9 @@ describe("job registry", () => {
     expect(keys.filter((k) => RETIRED_JOB_KEYS.has(k))).toEqual([]);
     expect(keys).not.toContain("lab-benchmark");
   });
+
+  it("registers the stored lane opponents' repair, run by hand only (never by the scheduler)", () => {
+    const job = listJobs().find((j) => j.key === "lane-opponent-recompute");
+    expect(job?.defaultIntervalMinutes).toBeNull();
+  });
 });
