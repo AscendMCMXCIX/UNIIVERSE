@@ -88,6 +88,10 @@
   - navigation (#266): on the phone a teammate's profile opened from the scrolled Players list starts
     at its top and Back returns to the list at its place (not applicable when the list fits the
     screen); on the desktop Skip to content is the first Tab stop and moves focus to the page.
+  - wide (PR 10): the desktop context made 2560 × 1440 opens Team, Players, Records and the
+    teammate's profile (as every page, with axe): each tab row's first tab starts where its page's
+    column does (within 1px; on Team Overview Team's 100rem column, its header's inset reported), a
+    missing row failing, and Team's row is in the same place on its three sections.
   - every page at every width: it loads signed in, no sideways scroll, no page error, no app console
     error, no failed request to the app, no broken image from the app, and a screenshot to review.
 */
@@ -993,6 +997,72 @@ async function skipToContent(page) {
   pass("navigation", name, first.skip && first.inView && moved, { firstStop: first.skip, inView: first.inView, focusedMain: moved });
 }
 
+/**
+ * A tab row against its page (`testId`: the row's nav): where its first tab starts and where the
+ * page's column does (the element of main#content holding the page: for a bar of main's own, as
+ * Team's, the page after it; for a bar inside a page, as a profile's, that page), and on Team Overview
+ * how far its header (capped at 84rem, centred) sits inside that column. Measured on the page once no
+ * loading state stands in its place (waited for up to 10 s). Positions in px only; null when there is
+ * no such row, or no page under it.
+ */
+async function tabRowEdges(page, testId) {
+  await page.waitForFunction(() => !document.querySelector("main#content > [role=status]"), null, { timeout: 10_000 }).catch(() => {});
+  return page.evaluate((testId) => {
+    const nav = document.querySelector(`[data-testid=${testId}]`);
+    const main = document.querySelector("main#content");
+    if (!nav || !main || nav.getBoundingClientRect().width === 0) return null;
+    let column = nav;
+    while (column && column.parentElement !== main) column = column.parentElement;
+    if (column === nav) {
+      column = nav.nextElementSibling;
+      while (column && column.getBoundingClientRect().width === 0) column = column.nextElementSibling;
+    }
+    const first = nav.querySelector("li");
+    if (!column || column.matches("[role=status]") || !first) return null;
+    const px = (n) => Math.round(n * 10) / 10;
+    const box = column.getBoundingClientRect();
+    const header = column.querySelector("[data-testid=team-header]")?.getBoundingClientRect();
+    return { tab: px(first.getBoundingClientRect().left), page: px(box.left), ...(header ? { headerInset: [px(header.left - box.left), px(box.right - header.right)] } : {}) };
+  }, testId);
+}
+
+/**
+ * Wide screens (PR 10, 18 Nov 2026), in the desktop context made 2560 × 1440 (the sidebar open), where
+ * the pages have stopped growing and are centred in the room beside the sidebar: Team, Players,
+ * Records (Leaderboards) and the teammate's profile load as every page does (visit) with axe, and each
+ * one's tab row starts where its page's column does, within 1px (Team's tabs on Team's three, the
+ * profile's on the profile; on Team Overview the column is Team's 100rem, its header and lineup
+ * centred 84rem inside it, the inset reported), the Team row in the same place on all three. Four page
+ * loads; positions in px and true or false only. A page without its tab row fails the fact.
+ */
+async function wideChecks(page, log) {
+  await page.setViewportSize({ width: 2560, height: 1440 });
+  const pages = [
+    ["team", "Team Overview", "/team", "team-tabs", "the section tabs start where Team's column does"],
+    ["players", "Players", "/players", "team-tabs", "the section tabs start where the page does"],
+    ["records", "Records", "/leaderboards?view=records", "team-tabs", "the section tabs start where the page does"],
+    ...(playerId ? [["profile", "the profile", `/players/${playerId}`, "profile-tabs", "the profile's tabs start where the page does"]] : []),
+  ];
+  const teamRow = [];
+  let teamPages = 0;
+  for (const [name, label, path, row, says] of pages) {
+    await guarded("wide", `2560: ${name}`, async () => {
+      if (!(await visit(page, log, "wide", name, path, { fullPage: false }))) return;
+      if (row === "team-tabs") teamPages++;
+      await axe(page, "wide", name);
+      const at = await tabRowEdges(page, row);
+      const fact = `2560: on ${label}, ${says}`;
+      if (!at) return pass("wide", fact, false, { missing: `no ${row}, or no page under it` });
+      pass("wide", fact, Math.abs(at.tab - at.page) <= 1, at);
+      if (row === "team-tabs") teamRow.push(at.tab);
+    });
+  }
+  if (!playerId) check("wide", "2560: on the profile, the profile's tabs start where the page does", "PASS", { notApplicable: "no teammate on Team to open" });
+  // Once a Team page has loaded, every one of them must have shown the row, in one place.
+  if (teamPages > 0) pass("wide", "2560: Team's tab row is in the same place on each of its sections", teamRow.length === teamPages && Math.max(...teamRow) - Math.min(...teamRow) <= 1, { starts: teamRow, pagesLoaded: teamPages });
+  await page.setViewportSize(VIEWPORTS.desktop.viewport);
+}
+
 async function teamMatches(page, log, kind, context) {
   if (!(await visit(page, log, kind, "team-matches", "/matches", { fullPage: false }))) return;
   const games = page.getByTestId("together-game");
@@ -1244,6 +1314,8 @@ for (const [kind, options] of Object.entries(VIEWPORTS)) {
       await page.unroute(siteIcon);
     }
   });
+  // Wide screens in the desktop's own context (signed in already): four pages at 2560 × 1440.
+  if (kind === "desktop") await guarded("wide", "2560 × 1440", () => wideChecks(page, log));
   // Last in the desktop context, so a mode switch that went wrong cannot affect the other checks. Not
   // under LIVE_LOCAL: the demo build's visitor is the local owner, an administrator.
   if (kind === "desktop" && !local) await guarded("security", "a member's refusals", () => memberRefusals(context));

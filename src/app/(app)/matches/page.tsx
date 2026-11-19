@@ -38,9 +38,9 @@ export default async function MatchesPage({ searchParams }: { searchParams: Prom
   // Both tabs show teammates' Riot games: the same right as their statistics.
   if (!hasPermission(session, "view-teammate-stats")) {
     return (
-      <div className="mx-auto max-w-[var(--content-max)] space-y-5">
+      <div className="mx-auto max-w-[var(--content-max)] min-[100rem]:max-w-[var(--content-wide)] space-y-5">
         <PageHeader title="Matches" description="The team's games played together." />
-        <EmptyState title="Team matches show teammates' games" testId="matches-no-stats">
+        <EmptyState title="Team matches show teammates' games" className="max-w-[var(--content-max)]" testId="matches-no-stats">
           They are part of teammates&apos; statistics, which this account does not include. An administrator can change that.
         </EmptyState>
       </div>
@@ -176,7 +176,8 @@ async function PlayedTogetherPage({ db, teamId, sp, session }: { db: Awaited<Ret
   const wins = all.filter((g) => g.win).length;
   const decided = all.filter((g) => g.win !== null).length;
   return (
-    <div className="mx-auto max-w-[var(--content-max)] space-y-4">
+    // 80rem under a 1600px window, as always; from there Team's one width, so its tabs line up with each section (SECTION_HUBS).
+    <div className="mx-auto max-w-[var(--content-max)] min-[100rem]:max-w-[var(--content-wide)] space-y-4">
       <FreshnessWatcher scope={{ kind: "team" }} version={version} />
       <PageHeader
         title="Matches"

@@ -75,7 +75,9 @@ export function PlayedTogetherView({ data, seasons, currentSeason, shown, teams 
   const champ = (id: string) => champions[id] ?? { id, name: id, portraitUrl: "" };
   const narrowed = (filters.season !== currentSeason ? 1 : 0) + (filters.queue !== "all" ? 1 : 0) + (!filters.saved && filters.min !== 2 ? 1 : 0) + (filters.with.length ? 1 : 0);
   return (
-    <div className="space-y-4" data-testid="played-together">
+    // The list under the header stays at the ordinary width, left-aligned, however wide Team's page is:
+    // more room never makes a game's row longer (docs/STANDARDS.md, Page layout).
+    <div className="max-w-[var(--content-max)] space-y-4" data-testid="played-together">
       {/* The filters, then the page's own action at the row's end: Bookmarked (on phones the bar's
           own end, beside Filters; FilterBar shows `end` only while folded). */}
       <div className="flex min-w-0 items-start gap-2">

@@ -85,6 +85,16 @@ test.describe("accessibility", () => {
     }
   });
 
+  test("at 1920, where the section tabs' row takes the pages' width, Team's sections and Resources have no critical or serious violations", async ({ page }) => {
+    test.setTimeout(120_000);
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    for (const route of ["/team", "/players", "/leaderboards", "/matches", "/resources"]) {
+      await page.goto(route);
+      await page.waitForLoadState("networkidle");
+      await audit(page, `${route} at 1920`);
+    }
+  });
+
   test("every control the keyboard reaches shows the same focus ring", async ({ page }) => {
     // The accent outline of the shared controls (globals.css), on links and hand-made buttons too:
     // never the browser's own ring, which differs between browsers, and never none. A text field
