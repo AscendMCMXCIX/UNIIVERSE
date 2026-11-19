@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SeasonGame } from "./season-stats";
-import { BASELINE_GAMES, BASELINE_MIN, BEST_MIN, CONTRADICTION_MIN, LEAD_MIN, figureOf, goldContradictsRecord, goldStory, laneMoments, laneOf, laneOpponentOf, laneReadingOf, personalComparison, placeOf, queueGroup, standingText, standoutOf, teamGoldDifference } from "./match-analysis";
+import { BASELINE_GAMES, BASELINE_MIN, BEST_MIN, CONTRADICTION_MIN, LEAD_MIN, figureOf, goldContradictsRecord, goldStory, laneMoments, laneOf, laneOpponentOf, laneReadingOf, personalComparison, placeOf, queueGroup, standingText, standoutOf, teamGoldDifference, type LaneSeat } from "./match-analysis";
 
 let n = 0;
 /** A 30-minute game; `at` orders the games (minutes since an arbitrary start). */
@@ -253,6 +253,28 @@ describe("the one lane opponent rule (records with Riot's two readings)", () => 
     expect(laneOpponentOf([s(100, "MIDDLE", "MIDDLE"), s(200, "MIDDLE", "MIDDLE", true)], 0)).toBeNull();
     // The player's own seat removed: no opponent.
     expect(laneOpponentOf([s(100, "MIDDLE", "MIDDLE", true), s(200, "MIDDLE", "MIDDLE")], 0)).toBeNull();
+  });
+
+  it("names nobody from a removed seat's silence: a game with a removed player is unclear unless Riot's team position is read", () => {
+    // A removed player keeps no position (as the stored record keeps them: none, and no readings).
+    const gone = (teamId: number) => ({ teamId, position: "", removed: true });
+    const old = (teamId: number, position: string) => ({ teamId, position });
+    // An older record: two enemies held TOP, so Riot's answer named no one. With one of them erased,
+    // the other must not become the opponent.
+    expect(laneOpponentOf([old(100, "TOP"), old(200, "TOP"), old(200, "TOP")], 0)).toBeNull();
+    expect(laneOpponentOf([old(100, "TOP"), gone(200), old(200, "TOP")], 0)).toBeNull();
+    // A teammate who shared the lane and was erased: the same.
+    expect(laneOpponentOf([old(100, "TOP"), gone(100), old(200, "TOP")], 0)).toBeNull();
+    // The individual reading (the player has no team position): as unclear.
+    expect(laneOpponentOf([s(100, "", "MIDDLE"), s(200, "", "MIDDLE"), s(200, "", "MIDDLE")], 0)).toBeNull();
+    expect(laneOpponentOf([s(100, "", "MIDDLE"), gone(200), s(200, "", "MIDDLE")], 0)).toBeNull();
+    // Riot's team position: one player per position on each team, so the enemy laner stays the opponent.
+    const game: LaneSeat[] = [...team(100, LANES), ...team(200, LANES)];
+    game[5] = gone(200);
+    expect(laneOpponentOf(game, 2)).toBe(7);
+    // And the erased laner is never one: no opponent.
+    game[7] = gone(200);
+    expect(laneOpponentOf(game, 2)).toBeNull();
   });
 
   it("holds older records (one merged position) to the merged position, unique on both sides", () => {
