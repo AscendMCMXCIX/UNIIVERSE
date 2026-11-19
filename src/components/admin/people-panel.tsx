@@ -275,7 +275,7 @@ export function PeoplePanel({
     <ErasureResultHost>
       <section className="space-y-3" data-testid="players-admin">
         <div className="flex flex-wrap items-center gap-2">
-          <SearchInput value={query} onChange={setQuery} placeholder="Find a person, username or Riot ID" label="Find a person" className="min-w-0 flex-1 basis-40 sm:max-w-xs" testId="people-search" />
+          <SearchInput value={query} onChange={setQuery} placeholder="Find a person, username or Riot ID" label="Find a person" className="min-w-0 flex-1 basis-32 sm:max-w-xs" testId="people-search" />
           {/* The status filter is a select in the search row, so the list starts high in the first screen. */}
           <Select aria-label="Filter by status" value={filter} onChange={(e) => setFilter(e.target.value as StatusFilter)} className="w-32 min-w-0 shrink sm:w-56" data-testid="status-filter-select">
             {FILTERS.map((f) => (
