@@ -209,7 +209,7 @@ describe("design tokens", () => {
   /*
     The 12px floor (UD.X5): on desktops text-2xs is 12px, so no running text or name reads at 11px
     where the root is 16px. Phones and tablets keep 11px. The places the floor does not reach yet
-    carry text-2xs-later, each listed here with its reason; a stage that brings the floor to one
+    carry type-floor-later, each listed here with its reason; a stage that brings the floor to one
     removes its entry.
   */
   const FLOOR_LATER: Record<string, string> = {
@@ -220,7 +220,7 @@ describe("design tokens", () => {
     expect(floor, "globals.css sets --text-2xs to 0.75rem from lg").toBe(true);
     const users = sourceFiles(path.join(ROOT, "src"))
       .map((file) => path.relative(ROOT, file).split(path.sep).join("/"))
-      .filter((rel) => rel !== "src/app/globals.css" && /(?<![\w-])text-2xs-later\b/.test(readFileSync(path.join(ROOT, rel), "utf8")));
+      .filter((rel) => rel !== "src/app/globals.css" && /(?<![\w-])type-floor-later\b/.test(readFileSync(path.join(ROOT, rel), "utf8")));
     expect(users.sort()).toEqual(Object.keys(FLOOR_LATER).sort());
   });
 

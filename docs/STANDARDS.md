@@ -100,8 +100,9 @@ list fades out before the figures (a pool row's left half).
 
 Rank crests keep their own artwork and fallback colours (`rank-emblem.tsx`, `tierTextClass` for the text tokens), as do social brands (`brand-icons.tsx`).
 
-**Type.** Tailwind's scale from `text-xs` (12px) up, plus `text-2xs` (11px: the smallest text:
-chips, badges, captions, column headings, labels), `text-4xs` (10px: letters inside small tiles,
+**Type.** Tailwind's scale from `text-xs` (12px) up, plus `text-2xs` (the smallest text:
+chips, badges, captions, column headings, labels; 11px on phones and tablets, 12px on desktops: the
+12px floor, globals.css), `text-4xs` (10px: letters inside small tiles,
 such as initials or a count, never running text), `text-md` (15px: a list row's primary value) and
 `text-figure` (28px: headline figures from `sm` up). Hierarchy comes from size and weight first:
 a page's title, a section's title (`text-xl`), a panel's title (`text-base` semibold); a headline
@@ -150,6 +151,9 @@ expressive; Settings and forms are plain and roomy. Empty or thin data shrinks a
 leaving a frame to fill.
 
 **Page layout.** One frame for every page, so pages differ by their content, not their scaffolding:
+- **The shared frame** (S2c, `app-shell.tsx`): every page sits in one column, at most `--content-wide`
+  and centred; a narrower page starts at its left edge (never centred on its own), so titles share one
+  x on every destination. A loading state takes its page's shape (`ui/skeleton.tsx`), not generic panels.
 - **Width:** `--content-max` for profiles, lists of cards, documents and forms; `--content-wide` for
   the grids that gain from more columns (Team Overview's lineup, Leaderboards, Matchup Intel's
   single-screen dashboard). In a window from

@@ -61,7 +61,7 @@ const LARGE_TEXT = {
   /** The two-row picture, the roles beside it and the name's room for Customise: only while the header is 15.5rem or more. */
   pictureRows: "min-[23.4375rem]:max-sm:@min-[15.5rem]/phead:row-span-2 min-[23.4375rem]:max-sm:@min-[15.5rem]/phead:self-start",
   metaBeside: "min-[23.4375rem]:max-sm:@min-[15.5rem]/phead:col-span-1 min-[23.4375rem]:max-sm:@min-[15.5rem]/phead:col-start-2",
-  customiseRoom: "max-sm:not-band:@min-[15.5rem]/phead:pr-10",
+  customiseRoom: "max-sm:not-short:@min-[15.5rem]/phead:pr-10",
   title: "@max-[8.5rem]/phead:text-xl",
   status: "@max-[12.25rem]/phead:sr-only",
   statusShort: "@max-[12.25rem]/phead:inline",

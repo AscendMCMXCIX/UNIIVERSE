@@ -135,7 +135,7 @@ Substitute side of the Team cards).
 | under 36rem (phones upright) | one swipe track, a card at a time, under the role bar (each tab the role's icon and name) |
 | 36–56rem (iPads, upright and landscape; a 1024px laptop with the sidebar open; most phones held sideways) | 2 + 2 + 1, capped at 54rem |
 | 56–64rem (a 1280px laptop with the sidebar open) | 3 + 2, capped at 80rem |
-| 64rem and up (1366 and 1440 laptops with the sidebar open, and wider) | five across, capped at 84rem |
+| 64rem and up (1366 and 1440 laptops with the sidebar open, and wider) | five across, capped at 84rem (Team's whole column, 100rem at most, from a 1920px window: S2c) |
 
 - **The header**, from `sm`: the logo (64px, 80px from `lg`) beside the accent "Team Overview"
   eyebrow over the team's name (30px, 36px from `lg`) and "Main lineup · season", the lineup's
@@ -555,7 +555,9 @@ the account screen over the dashboard at 200% on a 320px phone as well.
   2b's 44px dense tabs on touch screens from 1024px (below). A profile's
   tabs and a section's views (`SubTabs`) are inside their page's column, so they always lined up. On
   Team Overview the column is Team's 100rem, and its header and lineup keep their 84rem, centred in
-  it (the logo 38px inside at 1920, 165px at 2560 and 176px at 3440 with the sidebar open). With
+  it, under a 1920px window; from 1920px they take the whole column, so the tabs, the logo and the
+  first card share one edge (S2c; before, 38px apart at 1920 and 165px at 2560). Every page starts at
+  the left edge of the shared frame (DESIGN_SYSTEM §7, "One frame, one place for everything"). With
   Players at 100rem the roster takes three columns (its own 84rem rule) from about 1780px with the
   sidebar open and from 1600px with it folded; Team Matches' list stays at `--content-max`,
   left-aligned. The route's loading state takes the width `pageWidthOf` gives its address (a Team

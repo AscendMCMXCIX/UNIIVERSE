@@ -9,7 +9,7 @@ import { test, expect, type Page } from "./test";
   0.44px on desktops and 1.32px on phones (UM.T5). Viewport-independent by design, so the desktop
   project alone runs it and sets both sizes itself. Each later stage adds the components it creates.
 */
-test.skip(({ browserName }, info) => info.project.name !== "desktop" || browserName !== "chromium", "the desktop project sets both sizes itself");
+test.skip(({ viewport, browserName }) => viewport?.width !== 1440 || browserName !== "chromium", "the desktop project sets both sizes itself");
 
 type Target = { name: string; path: (mate: string) => string; phone?: (mate: string) => string; selector: string; phoneSelector?: string; open?: string };
 

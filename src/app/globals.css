@@ -117,7 +117,7 @@ html {
   text-2xs, is 12px, so names, chips, captions and labels never read at 11px where the root is
   still 16px (1024 to 1536px wide; above that the fluid root lifts them anyway). Phones and tablets
   keep 11px, where it was measured to fit. One token, so every use follows it;
-  src/app/design-tokens.test.ts checks this rule and the one place that waits for it (text-2xs-later).
+  src/app/design-tokens.test.ts checks this rule and the one place that waits for it (type-floor-later).
 */
 @media (min-width: 64rem) {
   :root {
@@ -130,7 +130,7 @@ html {
   until S6b rebuilds them (raising their text alone would widen the cards at 1280 to 1440). Only on
   the elements design-tokens.test.ts lists, each with its reason.
 */
-@utility text-2xs-later {
+@utility type-floor-later {
   --text-2xs: 0.6875rem;
 }
 

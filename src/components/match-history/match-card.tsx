@@ -30,12 +30,12 @@ export function matchTone(win: MatchOutcome) {
 
 /**
  * The card's outer surface: a result-coloured rail on the left and a faint wash of the same colour.
- * Its text keeps 11px on desktops for now (text-2xs-later: S6b rebuilds the game cards with the 12px
+ * Its text keeps 11px on desktops for now (type-floor-later: S6b rebuilds the game cards with the 12px
  * floor; globals.css).
  */
 export function matchCardClass(win: MatchOutcome, { interactive = false }: { interactive?: boolean } = {}) {
   const t = matchTone(win);
-  return cn("text-2xs-later relative isolate overflow-hidden rounded-panel border pl-1.5", t.card, interactive && cn("transition-colors", t.hover));
+  return cn("type-floor-later relative isolate overflow-hidden rounded-panel border pl-1.5", t.card, interactive && cn("transition-colors", t.hover));
 }
 
 export function MatchRail({ win }: { win: MatchOutcome }) {
