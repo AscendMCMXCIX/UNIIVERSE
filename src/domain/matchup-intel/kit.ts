@@ -1,4 +1,4 @@
-import { FACT_KIND_GROUP, KIND_GROUPS, RIOT_TEXT_KIND_GROUP, RIOT_TEXT_KINDS, type AbilityView, type ChampionIntelView, type CooldownDisplay, type FactKind, type FactSubject, type FactTag, type KindGroup, type RiotTextKind, type RiotTextSource, type Slot, type SourceLinkView } from "./types";
+import { FACT_KIND_GROUP, KIND_GROUPS, RIOT_TEXT_KIND_GROUP, RIOT_TEXT_KINDS, type AbilityView, type ChampionIntelView, type CooldownDisplay, type FactKind, type FactSubject, type FactTag, type KindGroup, type RiotTextDisagreementView, type RiotTextFactView, type RiotTextKind, type Slot, type SourceLinkView } from "./types";
 
 /*
   MATCHUP INTEL's assembled reference (docs/MATCHUP_INTEL.md, "The assembled reference"): one
@@ -26,15 +26,37 @@ export interface CheckedChip {
   source: SourceLinkView;
 }
 
-/** A kind from Riot's text (L3) as a chip: the kind's word, and every clause it rests on for this ability. */
+/**
+ * A kind from Riot's text (L3) as a chip: the kind's word, and the fact it rests on for this ability
+ * (one per ability and kind), with the clause it quotes and what the review recorded beside it: its
+ * qualifier and the conditional marker show on the chip itself, so the fact never reads as holding
+ * without them; another kind Riot's other text words it as shows in the ability's details only.
+ */
 export interface RiotTextChip {
   layer: "riot-text";
   group: KindGroup;
   kind: RiotTextKind;
-  clauses: Array<{ clause: string; source: RiotTextSource }>;
+  fact: RiotTextFactView;
 }
 
-export type FactChip = CheckedChip | RiotTextChip;
+/**
+ * Where Riot's two texts for an ability state different effects: one neutral chip, "Riot's texts
+ * differ", whose tip and details give both quotes, picking neither. It sits in the group of each
+ * kind it names (once where both share one), and no chip of either kind exists for the ability.
+ */
+export interface DifferChip {
+  layer: "riot-text-differ";
+  /** The groups of the two kinds, in KIND_GROUPS' order, each once. */
+  groups: KindGroup[];
+  disagreement: RiotTextDisagreementView;
+}
+
+export type FactChip = CheckedChip | RiotTextChip | DifferChip;
+
+/** Whether a chip belongs to a group (a disagreement to each of its kinds' groups). */
+export function inGroup(chip: FactChip, group: KindGroup | null): boolean {
+  return chip.layer === "riot-text-differ" ? group !== null && chip.groups.includes(group) : chip.group === group;
+}
 
 /** One ability's part of a group: the chips of that group on it, and its cooldown line (Riot's numbers or the checked ones). */
 export interface KitItem {
@@ -56,6 +78,8 @@ export interface HiddenFacts {
   slot: Slot;
   ability: string;
   count: number;
+  /** How many of its disagreements are hidden with them. */
+  disagreements: number;
   because: "changed" | "renamed" | "unknown";
 }
 
@@ -80,7 +104,8 @@ const GROUP_ORDER = new Map<string, number>(KIND_GROUPS.map((g, i) => [g, i]));
  * An ability's chips, in the order a tile shows them: by group (crowd control first, interactions
  * and exceptions last), then the kinds' own order for Riot's text, the notes' own order for checked
  * facts. Checked facts where the ability has them (a champion with checked notes shows only those);
- * otherwise one chip per kind from Riot's text, holding every clause that names it.
+ * otherwise one chip per kind from Riot's text, then one "Riot's texts differ" chip for each place
+ * Riot's two texts state different effects.
  */
 export function abilityChips(a: AbilityView): FactChip[] {
   if (a.facts.length) {
@@ -92,12 +117,16 @@ export function abilityChips(a: AbilityView): FactChip[] {
   const byKind = new Map<RiotTextKind, RiotTextChip>();
   for (const f of a.riotText?.facts ?? []) {
     const group = RIOT_TEXT_KIND_GROUP[f.kind];
-    if (!group) continue;
-    const chip = byKind.get(f.kind) ?? { layer: "riot-text", group, kind: f.kind, clauses: [] };
-    if (!chip.clauses.some((c) => c.clause === f.clause && c.source === f.source)) chip.clauses.push({ clause: f.clause, source: f.source });
-    byKind.set(f.kind, chip);
+    // One chip per kind: the review keeps one fact per ability and kind, and a second is never shown.
+    if (!group || byKind.has(f.kind)) continue;
+    byKind.set(f.kind, { layer: "riot-text", group, kind: f.kind, fact: f });
   }
-  return [...byKind.values()].sort((x, y) => GROUP_ORDER.get(x.group)! - GROUP_ORDER.get(y.group)! || KIND_ORDER.get(x.kind)! - KIND_ORDER.get(y.kind)!);
+  const chips: FactChip[] = [...byKind.values()].sort((x, y) => GROUP_ORDER.get(x.group)! - GROUP_ORDER.get(y.group)! || KIND_ORDER.get(x.kind)! - KIND_ORDER.get(y.kind)!);
+  for (const d of a.riotText?.disagreements ?? []) {
+    const groups = KIND_GROUPS.filter((g) => RIOT_TEXT_KIND_GROUP[d.description.kind] === g || RIOT_TEXT_KIND_GROUP[d.tooltip.kind] === g);
+    if (groups.length) chips.push({ layer: "riot-text-differ", groups, disagreement: d });
+  }
+  return chips;
 }
 
 /** Where a champion's facts come from: checked notes, else Riot's text, else none. */
@@ -118,12 +147,12 @@ export function kitOf(intel: ChampionIntelView): Kit {
     const chips = abilityChips(a);
     const flagged = a.freshness === "changed-since";
     for (const g of groups) {
-      const mine = chips.filter((c) => c.group === g.group);
+      const mine = chips.filter((c) => inGroup(c, g.group));
       if (mine.length) g.items.push({ slot: a.slot, ability: a.name, chips: mine, cooldown: a.cooldown, flagged });
     }
-    const other = chips.filter((c) => c.group === null);
+    const other = chips.filter((c) => inGroup(c, null));
     if (other.length) interactions.push({ slot: a.slot, ability: a.name, chips: other, cooldown: a.cooldown, flagged });
-    if (a.riotText && a.riotText.hidden > 0 && a.riotText.hiddenBecause) hidden.push({ slot: a.slot, ability: a.name, count: a.riotText.hidden, because: a.riotText.hiddenBecause });
+    if (a.riotText && (a.riotText.hidden > 0 || a.riotText.hiddenDisagreements > 0) && a.riotText.hiddenBecause) hidden.push({ slot: a.slot, ability: a.name, count: a.riotText.hidden, disagreements: a.riotText.hiddenDisagreements, because: a.riotText.hiddenBecause });
   }
   return { championId: intel.champion.id, name: intel.champion.name, from, noAbilities: !intel.abilities || intel.abilities.length === 0, groups, interactions, hidden };
 }

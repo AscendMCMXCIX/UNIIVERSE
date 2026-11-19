@@ -17,7 +17,9 @@ import { ASSEMBLED_TITLE, KIND_GROUP_WORDS, SLOT_NAMES, abilityAnchor, assembled
   chips (which open the clause or source they rest on) and, the first time the ability appears on
   its side, its base cooldown from the tile's own line; a group with none says so in fixed words,
   never "none". Its label says every time that it was put together from each champion's facts and
-  that no person has checked the pair.
+  that no person has checked the pair. A fact from Riot's text keeps its qualifier and its
+  conditional marker on its chip here too, and where Riot's two texts differ the ability's line in
+  that group says so ("Riot's texts differ"), opening both quotes.
 */
 
 /** One ability's line in a group: its key (a link to its tile), its chips of that kind, and its base cooldown when there is a number and `withCooldown` (its first line on its side). */
@@ -115,7 +117,7 @@ function KitSide({ side, kit, champion, title, subtitle, rows }: { side: "danger
           {kit.hidden.map((h) => (
             <li key={h.slot} className="flex items-start gap-1.5 text-xs text-fg-muted">
               <History className="mt-px h-3.5 w-3.5 shrink-0 text-warn" aria-hidden />
-              <span>{hiddenRiotTextWords(h.count, h.because, SLOT_NAMES[h.slot])}</span>
+              <span>{hiddenRiotTextWords(h.count, h.because, SLOT_NAMES[h.slot], h.disagreements)}</span>
             </li>
           ))}
         </ul>

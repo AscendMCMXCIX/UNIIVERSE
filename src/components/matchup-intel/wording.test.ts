@@ -30,10 +30,15 @@ import {
   staleDataWords,
   subjectWords,
   ASSEMBLED_TITLE,
+  CONDITIONAL_WORDS,
+  DIFFER_NEITHER_WORDS,
+  DIFFER_WORDS,
   KIND_GROUP_WORDS,
+  NO_ABILITY_FACTS_WORDS,
   NO_INTERACTIONS_WORDS,
   RIOT_TEXT_KIND_WORDS,
   RIOT_TEXT_LABEL,
+  alsoDescribedWords,
   assembledWords,
   dangerSideWords,
   hiddenRiotTextWords,
@@ -41,6 +46,10 @@ import {
   noFactsWords,
   noLevelNotesWords,
   noneRecordedWords,
+  differSideWords,
+  qualifierChipWords,
+  qualifierWords,
+  riotTextProcessWords,
   riotTextReviewedWords,
   riotTextSourceWords,
   tightCooldownWords,
@@ -288,6 +297,20 @@ describe("the assembled reference's fixed sentences and labels", () => {
     riotTextSourceWords("tooltip", "Apprehend"),
     riotTextSourceWords("description", "Apprehend"),
     riotTextReviewedWords("26.22", "2026-11-18"),
+    CONDITIONAL_WORDS,
+    DIFFER_WORDS,
+    DIFFER_NEITHER_WORDS,
+    NO_ABILITY_FACTS_WORDS,
+    qualifierWords("stun", "Mega Gnar", undefined, "Hyper / Wallop"),
+    qualifierWords("cooldownrefund", "Mantra", "tooltip", "Gathering Fire"),
+    qualifierChipWords("stun", "Mega Gnar"),
+    qualifierChipWords("cooldownrefund", "Mantra"),
+    alsoDescribedWords("leap", "description"),
+    differSideWords("pull", "description", "Fate Sealed"),
+    differSideWords("knockup", "tooltip", "Fate Sealed"),
+    riotTextProcessWords({ automatedReviewers: 2, adjudicated: true, consistencyCheckers: 2, checkedByPerson: false }),
+    hiddenRiotTextWords(2, "changed", "R", 1),
+    hiddenRiotTextWords(0, "renamed", "R", 1),
     moreWords(2),
     ...Object.values(KIND_GROUP_WORDS),
     ...Object.values(RIOT_TEXT_KIND_WORDS),
@@ -312,13 +335,47 @@ describe("the assembled reference's fixed sentences and labels", () => {
     expect(riotTextReviewedWords("26.22", "2026-11-18")).toBe("Reviewed against Riot's text of patch 26.22, on 18 Nov 2026");
   });
 
-  it("says what is missing in words, never a bare none", () => {
-    expect(noneRecordedWords("riot-text")).toBe("None recorded in Riot's text");
+  it("says what is missing in words, never a bare none: no reviewed fact, which says nothing of what an ability does", () => {
+    expect(noneRecordedWords("riot-text")).toBe("No reviewed facts of this kind");
+    expect(NO_ABILITY_FACTS_WORDS).toBe("No reviewed facts for this ability");
+    for (const words of [noneRecordedWords("riot-text"), NO_ABILITY_FACTS_WORDS]) expect(words, words).not.toMatch(/\bnone\b|recorded in Riot's text/i);
     expect(noFactsWords("Darius")).toBe("No reviewed facts for Darius yet: crowd control, mobility, defence and sustain are not recorded.");
     expect(noLevelNotesWords(["Darius", "Riven"])).toBe("No level changes recorded for Darius or Riven.");
     expect(noLevelNotesWords(["Darius"])).toBe("No level changes recorded for Darius.");
     expect(hiddenRiotTextWords(1, "changed", "W")).toBe("Riot's text for W changed after the review: its fact is hidden.");
     expect(hiddenRiotTextWords(3, "changed", "W")).toBe("Riot's text for W changed after the review: its 3 facts are hidden.");
+  });
+
+  it("says what a fact from Riot's text holds only with, in Riot's words, and the marker in the owner's words, never a condition of its own", () => {
+    expect(CONDITIONAL_WORDS).toBe("Conditional: see Riot's text");
+    // On the chip, after the kind's word: the qualifier quoted; on a cooldown refund, the abilities whose cooldown it cuts.
+    expect(qualifierChipWords("stun", "Mega Gnar")).toBe(" · “Mega Gnar”");
+    expect(qualifierChipWords("cooldownrefund", "his other basic abilities")).toBe(" of “his other basic abilities”");
+    // In a tip and the details: the qualifier's line, and which text it is from where that is not the clause's.
+    expect(qualifierWords("stun", "Mega Gnar", undefined, "Hyper / Wallop")).toBe("Qualified by “Mega Gnar”");
+    expect(qualifierWords("dash", "If the lance connects with Demacian Standard", "tooltip", "Dragon Strike")).toBe("Qualified by “If the lance connects with Demacian Standard” (Riot's tooltip for Dragon Strike)");
+    expect(qualifierWords("cooldownrefund", "Mantra", undefined, "Gathering Fire")).toBe("Cuts the cooldown of “Mantra”");
+    expect(alsoDescribedWords("leap", "description")).toBe("Riot's description calls it leap");
+    expect(alsoDescribedWords("knockup", "description")).toBe("Riot's description calls it knock-up");
+  });
+
+  it("says where Riot's two texts differ, both sides alike, picking neither", () => {
+    expect(DIFFER_WORDS).toBe("Riot's texts differ");
+    expect(differSideWords("pull", "description", "Fate Sealed")).toBe("Pull, in Riot's description of Fate Sealed");
+    expect(differSideWords("knockup", "tooltip", "Fate Sealed")).toBe("Knock-up, in Riot's tooltip for Fate Sealed");
+    expect(DIFFER_NEITHER_WORDS).toBe("Neither is shown as a fact.");
+    expect(hiddenRiotTextWords(2, "changed", "R", 1)).toBe("Riot's text for R changed after the review: its 2 facts and the note that Riot's texts differ are hidden.");
+    expect(hiddenRiotTextWords(1, "changed", "R", 1)).toBe("Riot's text for R changed after the review: its fact and the note that Riot's texts differ are hidden.");
+    expect(hiddenRiotTextWords(0, "renamed", "R", 1)).toBe("Riot renamed R after the review: the note that Riot's texts differ is hidden.");
+    expect(hiddenRiotTextWords(0, "unknown", "R", 2)).toBe("Whether Riot's text for R changed since the review is not known yet: the notes that Riot's texts differ are hidden.");
+  });
+
+  it("says how the facts were reviewed from the review's own record, and that no person checked them", () => {
+    expect(riotTextProcessWords({ automatedReviewers: 2, adjudicated: true, consistencyCheckers: 2, checkedByPerson: false })).toBe(
+      "Each was drafted by fixed rules from that text, read by two independent automated reviewers and settled by an adjudicator, then checked in a consistency pass by two more independent automated checkers; no person has checked them.",
+    );
+    expect(riotTextProcessWords({ automatedReviewers: 1, adjudicated: false, consistencyCheckers: 0, checkedByPerson: false })).toBe("Each was drafted by fixed rules from that text, read by one independent automated reviewer; no person has checked them.");
+    expect(riotTextProcessWords({ automatedReviewers: 3, adjudicated: true, consistencyCheckers: 1, checkedByPerson: false })).toContain("read by three independent automated reviewers and settled by an adjudicator, then checked in a consistency pass by one more independent automated checker;");
   });
 
   it("names every kind and every group", () => {

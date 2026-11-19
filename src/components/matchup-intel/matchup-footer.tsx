@@ -1,9 +1,9 @@
 import { ChevronDown, ExternalLink, ScrollText } from "lucide-react";
-import type { Source, Verification } from "@/domain/matchup-intel/types";
+import type { RiotTextReview, Source, Verification } from "@/domain/matchup-intel/types";
 import { patchFromVersion, publicPatchName } from "@/domain/patch";
 import { formatCount, formatIsoDay } from "@/lib/format";
 import { SourceLink } from "./source-link";
-import { RIOT_TEXT_LABEL, dataSourceWords } from "./wording";
+import { RIOT_TEXT_LABEL, dataSourceWords, riotTextProcessWords } from "./wording";
 
 /*
   The page's sources and notices (docs/MATCHUP_INTEL.md, "Compliance"), behind one compact control at
@@ -21,7 +21,8 @@ import { RIOT_TEXT_LABEL, dataSourceWords } from "./wording";
     this page. Each page is listed once, folded into one line until opened, so a phone shows the
     whole credit in a few lines;
   - where facts from Riot's ability text appear: that they were drafted from Riot's own text and
-    reviewed automatically, not by a person;
+    reviewed automatically, not by a person, and how, from each file's review record (how many
+    automated reviewers, the adjudicator, how many automated checkers of the consistency pass);
   - that this is a static reference;
   - Riot's notice, the same words as the rest of the app, with the installation's own name.
   It types only what it reads, so it takes the page's view as it is and a test can hand it just
@@ -49,7 +50,7 @@ interface FooterIntel {
   sources: readonly FooterSource[];
   curated: { verified: Checked } | null;
   /** Its facts from Riot's text, when the page shows them (absent: none), and how they were reviewed, as the review recorded it. */
-  riotText?: { version: string; review?: { automatedReviews: number; adjudicated: boolean } } | null;
+  riotText?: { version: string; review?: RiotTextReview } | null;
 }
 
 /** The page's view (MatchupPageView), as far as the footer reads it. */
@@ -191,30 +192,26 @@ function WikiCredit({ pages }: { pages: readonly WikiPage[] }) {
 export const STATIC_SHORT = "A static reference: no live tracking";
 export const STATIC_WORDS = "A static reference: no live tracking, no timers, nothing read from a game in progress.";
 
-const COUNT_WORDS = ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"];
-
-/**
- * How the facts from Riot's text on the page were reviewed, as each champion's review recorded it:
- * ", by two independent automated reviews and an adjudicator"; the fewest reviews where champions
- * differ ("at least two"), the adjudicator only where every review had one. Empty where no review
- * record is given.
- */
-function reviewWords(reviews: ReadonlyArray<{ automatedReviews: number; adjudicated: boolean }>): string {
-  const counts = reviews.map((r) => r.automatedReviews).filter((n) => Number.isInteger(n) && n > 0);
-  if (!counts.length || counts.length !== reviews.length) return "";
-  const fewest = Math.min(...counts);
-  const word = fewest < COUNT_WORDS.length ? COUNT_WORDS[fewest]! : formatCount(fewest);
-  const same = counts.every((n) => n === fewest);
-  const adjudicated = reviews.every((r) => r.adjudicated);
-  return `, by ${same ? "" : "at least "}${word} independent automated ${fewest === 1 ? "review" : "reviews"}${adjudicated ? " and an adjudicator" : ""}`;
+/** A review record as the footer can say it: every field of the right type (the page's own reader checks the same). */
+function readable(r: RiotTextReview | undefined): r is RiotTextReview {
+  return !!r && Number.isInteger(r.automatedReviewers) && r.automatedReviewers > 0 && typeof r.adjudicated === "boolean" && Number.isInteger(r.consistencyCheckers) && r.consistencyCheckers >= 0 && r.checkedByPerson === false;
 }
 
-/** The facts from Riot's text on the page: where they come from and how they were reviewed. */
-function riotTextSentence(sides: ReadonlyArray<{ version: string; review?: { automatedReviews: number; adjudicated: boolean } }>): string | null {
+/**
+ * The facts from Riot's text on the page: where they come from, and how they were reviewed, from
+ * each champion's review record: said once when the records agree, for each champion where they
+ * differ, and left out for any record that cannot be read (nothing is said that no record states).
+ */
+function riotTextSentence(sides: ReadonlyArray<{ name: string; version: string; review?: RiotTextReview }>): string | null {
   if (!sides.length) return null;
   const list = [...new Set(sides.map((s) => s.version))];
-  const reviews = sides.flatMap((s) => (s.review ? [s.review] : []));
-  return `Kinds of mechanic from Riot's ability text (its descriptions and tooltips, Data Dragon ${list.join(" and ")}), each with the clause it quotes: ${RIOT_TEXT_LABEL.charAt(0).toLowerCase()}${RIOT_TEXT_LABEL.slice(1)}${reviews.length === sides.length ? reviewWords(reviews) : ""}. Riot's numbers in that text are never used.`;
+  const head = `Kinds of mechanic from Riot's ability text (its descriptions and tooltips, Data Dragon ${list.join(" and ")}), each with the clause it quotes: ${RIOT_TEXT_LABEL.charAt(0).toLowerCase()}${RIOT_TEXT_LABEL.slice(1)}.`;
+  const known = sides.filter((s) => readable(s.review));
+  const first = known[0];
+  let process = "";
+  if (first && known.every((s) => JSON.stringify(s.review) === JSON.stringify(first.review))) process = ` ${riotTextProcessWords(first.review!)}`;
+  else if (known.length) process = known.map((s) => ` ${s.name}'s: ${riotTextProcessWords(s.review!)}`).join("");
+  return `${head}${process} Riot's numbers in that text are never used.`;
 }
 
 export function MatchupFooter({ view, legal }: { view: FooterView; legal: string }) {
@@ -224,7 +221,7 @@ export function MatchupFooter({ view, legal }: { view: FooterView; legal: string
   const { briefing, enemy, you } = notesOnPage(view);
   const checked = checkedSentence([briefing, enemy, you].filter((n): n is NotesOnPage => !!n));
   const pages = wikiPages([enemy, you, briefing]);
-  const riotText = riotTextSentence(intels.flatMap((i) => (i?.riotText && VERSION.test(i.riotText.version) ? [i.riotText] : [])));
+  const riotText = riotTextSentence(intels.flatMap((i) => (i?.riotText && VERSION.test(i.riotText.version) ? [{ name: i.champion.name, version: i.riotText.version, review: i.riotText.review }] : [])));
   const first = sides[0];
   const summaryData = first ? `${dataSourceWords(first.version, first.offline, true)}${sides.some((s) => s.version !== first.version) ? " and others" : ""}` : "Riot Data Dragon";
   return (

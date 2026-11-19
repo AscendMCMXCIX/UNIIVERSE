@@ -1,4 +1,4 @@
-import { ChevronDown, History, Timer, TriangleAlert } from "lucide-react";
+import { ChevronDown, EqualNot, History, Timer, TriangleAlert } from "lucide-react";
 import type { AbilityView, ChampionChoice, ChampionIntelView, CooldownDisplay, FactView, Slot } from "@/domain/matchup-intel/types";
 import { abilityChips, factsFrom } from "@/domain/matchup-intel/kit";
 import { patchFromVersion, publicPatchName } from "@/domain/patch";
@@ -8,12 +8,17 @@ import { Panel } from "@/components/ui/panel";
 import { RemoteImage } from "@/components/ui/remote-image";
 import { cn } from "@/lib/cn";
 import { DetailsDialog } from "./details-dialog";
-import { FactChipView } from "./fact-chip";
+import { DifferQuotes, FactChipView } from "./fact-chip";
 import { NO_BREAK, SourceLink } from "./source-link";
 import {
+  CONDITIONAL_WORDS,
+  DIFFER_NEITHER_WORDS,
+  DIFFER_WORDS,
+  NO_ABILITY_FACTS_WORDS,
   RIOT_TEXT_KIND_WORDS,
   RIOT_TEXT_LABEL,
   SLOT_NAMES,
+  alsoDescribedWords,
   abilityAnchor,
   changedAbilitiesWords,
   cooldownLines,
@@ -28,6 +33,7 @@ import {
   noFactsWords,
   noneRecordedWords,
   notRecheckedWords,
+  qualifierWords,
   recastWords,
   revisionWords,
   riotTextReviewedWords,
@@ -180,8 +186,8 @@ function CooldownParts({ ability: a }: { ability: AbilityView }) {
 /** Everything the tile leaves out, for its Details window: the cooldown in full, every fact with what it rests on, the notes, Riot's description. */
 export function AbilityDetailsBody({ champion, ability: a, intel, source, checkedPatch }: { champion: ChampionChoice; ability: AbilityView; intel: ChampionIntelView; source: string | null; checkedPatch: string | null }) {
   const flagged = a.freshness === "changed-since";
-  const chips = abilityChips(a).filter((c) => c.layer === "riot-text");
-  const hidden = a.riotText?.hidden && a.riotText.hiddenBecause ? hiddenRiotTextWords(a.riotText.hidden, a.riotText.hiddenBecause, SLOT_NAMES[a.slot]) : null;
+  const chips = abilityChips(a).filter((c) => c.layer !== "checked");
+  const hidden = hiddenWordsOf(a);
   return (
     <div className="space-y-4 text-sm leading-relaxed text-fg">
       <section>
@@ -219,15 +225,35 @@ export function AbilityDetailsBody({ champion, ability: a, intel, source, checke
           </p>
           {chips.length ? (
             <ul className="space-y-1.5">
-              {chips.map((c) =>
+              {chips.map((c, i) =>
                 c.layer === "riot-text" ? (
-                  <li key={c.kind}>
+                  // The kind, with the marker where the fact is conditional; the clause and its text; the
+                  // qualifier's line; another kind Riot's other text words it as.
+                  <li key={c.kind} data-testid="ability-details-fact" data-kind={c.kind}>
                     <span className="font-medium">{RIOT_TEXT_KIND_WORDS[c.kind]}</span>
-                    {c.clauses.map((q, i) => (
-                      <span key={i} className="block text-fg-muted">
-                        “{q.clause}” <span className="text-fg-subtle">({riotTextSourceWords(q.source, a.name)})</span>
+                    {c.fact.conditional ? <span className="text-fg-muted">{` · ${CONDITIONAL_WORDS}`}</span> : null}
+                    <span className="block text-fg-muted">
+                      “{c.fact.clause}” <span className="text-fg-subtle">({riotTextSourceWords(c.fact.source, a.name)})</span>
+                    </span>
+                    {c.fact.qualifier ? (
+                      <span className="block text-fg-muted" data-testid="ability-details-qualifier">
+                        {qualifierWords(c.kind, c.fact.qualifier, c.fact.qualifierSource, a.name)}
                       </span>
-                    ))}
+                    ) : null}
+                    {c.fact.alsoDescribedAs ? (
+                      <span className="block text-fg-muted" data-testid="ability-details-also">
+                        {alsoDescribedWords(c.fact.alsoDescribedAs.kind, c.fact.alsoDescribedAs.source)}: “{c.fact.alsoDescribedAs.clause}”
+                      </span>
+                    ) : null}
+                  </li>
+                ) : c.layer === "riot-text-differ" ? (
+                  <li key={`differ-${i}`} data-testid="ability-details-differ">
+                    <span className="inline-flex items-center gap-1 font-medium">
+                      <EqualNot className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                      {DIFFER_WORDS}
+                    </span>
+                    <DifferQuotes disagreement={c.disagreement} ability={a.name} lineClassName="block text-fg-muted" />
+                    <span className="block text-fg-subtle">{DIFFER_NEITHER_WORDS}</span>
                   </li>
                 ) : null,
               )}
@@ -265,7 +291,7 @@ function AbilityTile({ intel, ability: a, checkedPatch, dataPatch, notRecheckedF
   const chips = abilityChips(a);
   // The checked notes' modifiers and recast in one short line; once Riot's data moved, they go with the flagged notes in the window.
   const notes = flagged ? [] : [...modifierWords(a.modifiers), ...(a.recast ? [recastWords(a.recast)] : [])];
-  const hidden = a.riotText?.hidden && a.riotText.hiddenBecause ? hiddenRiotTextWords(a.riotText.hidden, a.riotText.hiddenBecause, SLOT_NAMES[a.slot]) : null;
+  const hidden = hiddenWordsOf(a);
   const from = factsFrom(intel);
   return (
     // A chip's jump lands here and gives the tile the focus until it moves on (jumpToAnchor,
@@ -305,7 +331,7 @@ function AbilityTile({ intel, ability: a, checkedPatch, dataPatch, notRecheckedF
         {chips.length ? (
           <ul className="flex flex-wrap gap-1" aria-label={`What ${a.name} does`} data-testid="ability-facts" data-from={from}>
             {chips.map((c, i) => (
-              <li key={`${c.layer}-${c.layer === "checked" ? c.word : c.kind}-${i}`} data-tags={c.layer === "checked" ? (c.tags.length ? c.tags.join(" ") : undefined) : c.kind}>
+              <li key={`${c.layer}-${c.layer === "checked" ? c.word : c.layer === "riot-text" ? c.kind : "differ"}-${i}`} data-tags={c.layer === "checked" ? (c.tags.length ? c.tags.join(" ") : undefined) : c.layer === "riot-text" ? c.kind : undefined} data-differ={c.layer === "riot-text-differ" ? `${c.disagreement.description.kind} ${c.disagreement.tooltip.kind}` : undefined}>
                 <FactChipView chip={c} champion={champion.name} ability={a.name} />
               </li>
             ))}
@@ -317,9 +343,10 @@ function AbilityTile({ intel, ability: a, checkedPatch, dataPatch, notRecheckedF
             <span>{hidden}</span>
           </p>
         ) : null}
+        {/* An ability with no reviewed fact says so, never "none": no fact of it passed the review, which says nothing of what it does. */}
         {!chips.length && !hidden && from !== "none" ? (
           <p className="text-xs text-fg-subtle" data-testid="ability-facts-none">
-            {noneRecordedWords(from)}
+            {from === "riot-text" ? NO_ABILITY_FACTS_WORDS : noneRecordedWords(from)}
           </p>
         ) : null}
         {notes.length ? (
@@ -331,6 +358,12 @@ function AbilityTile({ intel, ability: a, checkedPatch, dataPatch, notRecheckedF
       </div>
     </li>
   );
+}
+
+/** In place of an ability's facts from Riot's text, and its disagreements, once hidden: how many and why; null when nothing is hidden. */
+function hiddenWordsOf(a: AbilityView): string | null {
+  const r = a.riotText;
+  return r && r.hiddenBecause && (r.hidden > 0 || r.hiddenDisagreements > 0) ? hiddenRiotTextWords(r.hidden, r.hiddenBecause, SLOT_NAMES[a.slot], r.hiddenDisagreements) : null;
 }
 
 /** "26.22" for Data Dragon "16.22.1"; null without a version. */

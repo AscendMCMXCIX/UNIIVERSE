@@ -1,7 +1,7 @@
 import { createElement, type ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-import type { AbilityNotes, ChampionChoice, ChampionNotes, DdragonAbility, DdragonChampionAbilities, MatchupNotes } from "@/domain/matchup-intel/types";
+import type { AbilityNotes, ChampionChoice, ChampionNotes, DdragonAbility, DdragonChampionAbilities, MatchupNotes, RiotTextChampion } from "@/domain/matchup-intel/types";
 import { buildMatchupPageView, type MatchupViewDeps } from "@/server/matchup-intel/view";
 import { AbilityDetailsBody, AbilityList } from "./ability-list";
 import { MatchupContent } from "./matchup-content";
@@ -466,5 +466,118 @@ describe("each champion's data, and checks a patch or more behind", () => {
     expect(levels).toContain('data-testid="matchup-level-note" data-changed=""');
     expect(text(levels)).toContain("Level 6 Renekton: Dominus.");
     expect(text(levels)).toContain("Changed since the check");
+  });
+});
+
+/*
+  Facts from Riot's text (L3), as the review recorded them: each fact's qualifier and conditional
+  marker on its chip, in the tile and in the assembled reference, its quote one hover or tap away;
+  another kind Riot's other text words it as, in the details only; where Riot's two texts differ, one
+  neutral chip with both quotes and no fact of either kind; an ability with no fact saying so; an
+  ability whose text changed hiding all of it, and saying so.
+*/
+describe("facts from Riot's text, as the review recorded them", () => {
+  const pin = (slot: string) => ({ name: `Darius ${slot === "P" ? "passive" : slot}`, textHash: "aaaaaaaaaaaaaaaa" });
+  const darius: RiotTextChampion = {
+    championId: "Darius",
+    version: "16.22.1",
+    reviewedOn: "2026-11-19",
+    review: { automatedReviewers: 2, adjudicated: true, consistencyCheckers: 2, checkedByPerson: false },
+    abilities: { P: pin("P"), Q: pin("Q"), W: pin("W"), E: pin("E"), R: pin("R") },
+    facts: [
+      { slot: "Q", kind: "stun", clause: "stunning enemies in an area.", source: "description", qualifier: "Mega Darius" },
+      { slot: "Q", kind: "cooldownrefund", clause: "reducing the cooldowns", source: "tooltip", qualifier: "his other basic abilities", conditional: true },
+      { slot: "W", kind: "slow", clause: "and Slows them", source: "tooltip", conditional: true },
+      { slot: "W", kind: "dash", clause: "Darius dashes forward", source: "tooltip", alsoDescribedAs: { kind: "leap", source: "description", clause: "Darius leaps forward" } },
+      { slot: "W", kind: "shield", clause: "Darius gains a Shield", source: "tooltip", qualifier: "If the axe connects", qualifierSource: "description" },
+      { slot: "E", kind: "slow", clause: "slowing them", source: "description" },
+      { slot: "R", kind: "heal", clause: "Darius heals", source: "tooltip" },
+    ],
+    disagreements: [
+      { slot: "E", description: { kind: "pull", clause: "pulls enemies in" }, tooltip: { kind: "knockup", clause: "Knocking Up enemies" } },
+      { slot: "R", description: { kind: "stun", clause: "stuns them" }, tooltip: { kind: "fear", clause: "Fears them" } },
+    ],
+  };
+  // Darius's R was changed by Riot after the review: its stored hash is no longer the one pinned.
+  const stored: MatchupViewDeps["loadAbilities"] = async (ids) => ({ version: "16.22.1", champions: Object.fromEntries(ids.map((id) => [id, { ...kit(id), abilities: kit(id).abilities.map((a) => ({ ...a, textHash: a.slot === "R" && id === "Darius" ? "bbbbbbbbbbbbbbbb" : "aaaaaaaaaaaaaaaa" })) }])) });
+  const over: Partial<MatchupViewDeps> = { loadAbilities: stored, riotText: async (ids) => Object.fromEntries(ids.map((id) => [id, id === "Darius" ? darius : null])) };
+  const chips = (row: string) => row.split('data-testid="fact-chip"').length - 1;
+
+  it("the tiles: the qualifier and the marker on the chip, the quote and the qualifier's line in its tip, the label on every one", async () => {
+    const html = await render({ champion: "Garen", vs: "Darius" }, over);
+    const q = rowText(html, "Darius", "Q");
+    expect(q).toContain("Crowd control: Stun · “Mega Darius”");
+    expect(q).toContain("“stunning enemies in an area.” (Riot's description of Darius Q) Qualified by “Mega Darius” From Riot's ability text, reviewed automatically (not by a person).");
+    // A cooldown refund names the abilities whose cooldown it cuts; the marker is the owner's fixed words.
+    expect(q).toContain("Cooldown: Cooldown refund of “his other basic abilities” · Conditional: see Riot's text");
+    expect(q).toContain("“reducing the cooldowns” (Riot's tooltip for Darius Q) Cuts the cooldown of “his other basic abilities” Conditional: see Riot's text.");
+    const w = rowText(html, "Darius", "W");
+    expect(w).toContain("Crowd control: Slow · Conditional: see Riot's text");
+    // A qualifier from the ability's other text says which.
+    expect(w).toContain("Qualified by “If the axe connects” (Riot's description of Darius W)");
+    // The other wording is no chip of its own, and is not counted.
+    expect(chips(html.slice(html.indexOf('<li id="ability-Darius-W"')).split('<li id="ability-Darius-E"')[0]!)).toBe(3);
+    expect(w).not.toMatch(/\bLeap\b|calls it/);
+  });
+
+  it("where Riot's two texts differ: one neutral chip, both quotes alike in its tip, and no chip of either kind", async () => {
+    const html = await render({ champion: "Garen", vs: "Darius" }, over);
+    const e = rowText(html, "Darius", "E");
+    expect(e).toContain("Riot's texts differ");
+    expect(e).toContain("Pull, in Riot's description of Darius E: “pulls enemies in” Knock-up, in Riot's tooltip for Darius E: “Knocking Up enemies” Neither is shown as a fact. From Riot's ability text, reviewed automatically (not by a person).");
+    const row = html.slice(html.indexOf('<li id="ability-Darius-E"')).split('<li id="ability-Darius-R"')[0]!;
+    expect(chips(row)).toBe(1);
+    expect(row.split('data-testid="fact-chip-differ"').length - 1).toBe(1);
+    expect(row).toContain('data-differ="pull knockup"');
+    expect(e).not.toMatch(/Crowd control: (Pull|Knock-up)/);
+  });
+
+  it("an ability with no fact says so, never none; one whose text Riot changed hides its facts and disagreements, and says so", async () => {
+    const html = await render({ champion: "Garen", vs: "Darius" }, over);
+    expect(rowText(html, "Darius", "P")).toContain("No reviewed facts for this ability");
+    const r = rowText(html, "Darius", "R");
+    expect(r).toContain("Riot's text for R changed after the review: its fact and the note that Riot's texts differ are hidden.");
+    expect(r).not.toContain("Heal");
+    const row = html.slice(html.indexOf('<li id="ability-Darius-R"')).split("</ol>")[0]!;
+    expect(chips(row)).toBe(0);
+    expect(row).not.toContain('data-testid="fact-chip-differ"');
+    expect(text(html)).not.toContain("None recorded in Riot's text");
+    // The panel says where the facts come from, how, and when.
+    expect(text(html)).toContain("From Riot's ability text, reviewed automatically (not by a person) · Reviewed against Riot's text of patch 26.22, on 19 Nov 2026");
+  });
+
+  it("the assembled reference: the same chips in their groups, the disagreement in its kinds' group, groups with nothing saying so", async () => {
+    const html = await render({ champion: "Garen", vs: "Darius" }, over);
+    const danger = html.slice(html.indexOf('data-testid="assembled-danger"')).split("</section>")[0]!;
+    const t = text(danger);
+    expect(t).toContain("Crowd control Q");
+    expect(t).toContain("Stun · “Mega Darius”");
+    expect(t).toContain("Slow · Conditional: see Riot's text");
+    expect(t).toContain("Burst and power · No reviewed facts of this kind");
+    expect(t).toContain("Sustain · No reviewed facts of this kind");
+    const cc = danger.slice(danger.indexOf('data-group="crowd-control"')).split('data-group="power"')[0]!;
+    expect(cc.split('data-testid="assembled-chip-differ"').length - 1).toBe(1);
+    expect(text(cc)).toContain("Pull, in Riot's description of Darius E: “pulls enemies in”");
+    // The hidden ability is said, not shown.
+    expect(t).toContain("Riot's text for R changed after the review: its fact and the note that Riot's texts differ are hidden.");
+    expect(t).not.toContain("Darius heals");
+    // How a cooldown behaves stays on the tiles.
+    expect(t).not.toContain("Cooldown refund");
+  });
+
+  it("the details window: each fact's kind, marker, quote, qualifier and other wording; the disagreement with both quotes; the review in the sources", async () => {
+    const w = await detailsText({ champion: "Garen", vs: "Darius" }, over, "Darius", "W");
+    expect(w).toContain("Facts from Riot's ability text From Riot's ability text, reviewed automatically (not by a person). Reviewed against Riot's text of patch 26.22, on 19 Nov 2026.");
+    expect(w).toContain("Slow · Conditional: see Riot's text “and Slows them” (Riot's tooltip for Darius W)");
+    expect(w).toContain("Dash “Darius dashes forward” (Riot's tooltip for Darius W) Riot's description calls it leap: “Darius leaps forward”");
+    expect(w).toContain("Shield “Darius gains a Shield” (Riot's tooltip for Darius W) Qualified by “If the axe connects” (Riot's description of Darius W)");
+    const q = await detailsText({ champion: "Garen", vs: "Darius" }, over, "Darius", "Q");
+    expect(q).toContain("Cooldown refund · Conditional: see Riot's text “reducing the cooldowns” (Riot's tooltip for Darius Q) Cuts the cooldown of “his other basic abilities”");
+    const e = await detailsText({ champion: "Garen", vs: "Darius" }, over, "Darius", "E");
+    expect(e).toContain("Riot's texts differ Pull, in Riot's description of Darius E: “pulls enemies in” Knock-up, in Riot's tooltip for Darius E: “Knocking Up enemies” Neither is shown as a fact.");
+    const r = await detailsText({ champion: "Garen", vs: "Darius" }, over, "Darius", "R");
+    expect(r).toContain("Riot's text for R changed after the review: its fact and the note that Riot's texts differ are hidden.");
+    const html = await render({ champion: "Garen", vs: "Darius" }, over);
+    expect(text(html)).toContain("read by two independent automated reviewers and settled by an adjudicator, then checked in a consistency pass by two more independent automated checkers; no person has checked them.");
   });
 });

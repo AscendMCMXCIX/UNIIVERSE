@@ -1,17 +1,22 @@
-import { ChevronsUp, Flame, Footprints, HeartPulse, Link2, Lock, RotateCcw, Shield, TriangleAlert, type LucideIcon } from "lucide-react";
-import type { FactKind, KindGroup } from "@/domain/matchup-intel/types";
-import type { FactChip } from "@/domain/matchup-intel/kit";
+import { ChevronsUp, EqualNot, Flame, Footprints, HeartPulse, Link2, Lock, RotateCcw, Shield, TriangleAlert, type LucideIcon } from "lucide-react";
+import type { FactKind, KindGroup, RiotTextDisagreementView } from "@/domain/matchup-intel/types";
+import type { DifferChip, FactChip, RiotTextChip } from "@/domain/matchup-intel/kit";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { InfoTip } from "@/components/ui/info-tip";
-import { FACT_KINDS, KIND_GROUP_WORDS, RIOT_TEXT_KIND_WORDS, RIOT_TEXT_LABEL, revisionWords, riotTextSourceWords, subjectWords } from "./wording";
+import { CONDITIONAL_WORDS, DIFFER_NEITHER_WORDS, DIFFER_WORDS, FACT_KINDS, KIND_GROUP_WORDS, RIOT_TEXT_KIND_WORDS, RIOT_TEXT_LABEL, differSideWords, qualifierChipWords, qualifierWords, revisionWords, riotTextSourceWords, subjectWords } from "./wording";
 
 /*
   A fact as a chip (docs/MATCHUP_INTEL.md, "The ability tiles"): its kind's icon, the kind for screen
   readers, and one word or a few, never colour alone. Every chip opens what it rests on, on hover,
   focus or a tap (the app's one tooltip, InfoTip): a checked fact's own sentence and its source page;
-  a kind from Riot's text the clause of Riot's text it quotes, which text it is, and how it was
-  reviewed. The same words are the chip's accessible description, so a screen reader hears them
-  without opening it. Links to the sources are in the ability's details window, never in a tip.
+  a kind from Riot's text the clause of Riot's text it quotes, which text it is, its qualifier, and
+  how it was reviewed. The same words are the chip's accessible description, so a screen reader hears
+  them without opening it. Links to the sources are in the ability's details window, never in a tip.
+
+  A fact from Riot's text carries on the chip itself what it holds only with: its qualifier, in
+  Riot's words ("Stun · “Mega Gnar”", "Cooldown refund of “Mantra”"), and the fixed marker
+  "Conditional: see Riot's text", so the chip never reads as holding without them. Where Riot's two
+  texts differ, one neutral chip says so ("Riot's texts differ") and opens both quotes, picking neither.
 */
 
 /** Each kind of checked fact: its icon and its chip's tone (the word says it too). */
@@ -36,20 +41,47 @@ export const GROUP_LOOK: Record<KindGroup, { icon: LucideIcon; tone: BadgeTone }
   cooldown: { icon: RotateCcw, tone: "neutral" },
 };
 
+/** A fact from Riot's text, in its tip: the clause and its text, its qualifier's line, the marker, and the label. */
+function RiotTextTip({ chip, ability }: { chip: RiotTextChip; ability: string }) {
+  const f = chip.fact;
+  return (
+    <>
+      <span className="block">
+        “{f.clause}” <span className="text-fg-muted">({riotTextSourceWords(f.source, ability)})</span>
+      </span>
+      {f.qualifier ? <span className="block">{qualifierWords(chip.kind, f.qualifier, f.qualifierSource, ability)}</span> : null}
+      {f.conditional ? <span className="block">{CONDITIONAL_WORDS}.</span> : null}
+      <span className="mt-1 block text-fg-muted">{RIOT_TEXT_LABEL}.</span>
+    </>
+  );
+}
+
+/** Where Riot's two texts differ: both quotes, alike and in a fixed order (the description, then the tooltip), and that neither is a fact. */
+export function DifferQuotes({ disagreement: d, ability, lineClassName = "block" }: { disagreement: RiotTextDisagreementView; ability: string; lineClassName?: string }) {
+  return (
+    <>
+      <span className={lineClassName} data-testid="differ-description">
+        {differSideWords(d.description.kind, "description", ability)}: “{d.description.clause}”
+      </span>
+      <span className={lineClassName} data-testid="differ-tooltip">
+        {differSideWords(d.tooltip.kind, "tooltip", ability)}: “{d.tooltip.clause}”
+      </span>
+    </>
+  );
+}
+
 /** What a chip's tip says (also its accessible description): plain inline text, one line per part. */
 function ChipTip({ chip, champion, ability }: { chip: FactChip; champion: string; ability: string }) {
-  if (chip.layer === "riot-text") {
+  if (chip.layer === "riot-text") return <RiotTextTip chip={chip} ability={ability} />;
+  if (chip.layer === "riot-text-differ")
     return (
       <>
-        {chip.clauses.map((c, i) => (
-          <span key={i} className="block">
-            “{c.clause}” <span className="text-fg-muted">({riotTextSourceWords(c.source, ability)})</span>
-          </span>
-        ))}
-        <span className="mt-1 block text-fg-muted">{RIOT_TEXT_LABEL}.</span>
+        <DifferQuotes disagreement={chip.disagreement} ability={ability} />
+        <span className="mt-1 block text-fg-muted">
+          {DIFFER_NEITHER_WORDS} {RIOT_TEXT_LABEL}.
+        </span>
       </>
     );
-  }
   const subject = subjectWords(chip.kind, chip.appliesTo, champion);
   const revision = revisionWords(chip.source.revisionTime);
   return (
@@ -69,22 +101,50 @@ function ChipTip({ chip, champion, ability }: { chip: FactChip; champion: string
   );
 }
 
-/** The chip's word: a checked fact's own label, or the kind's word from Riot's text (who has the effect, where its kind would not say, is in its tip). */
+/** The chip's word: a checked fact's own label, the kind's word from Riot's text (who has the effect, where its kind would not say, is in its tip), or that Riot's texts differ. */
 export function chipWord(chip: FactChip): string {
-  return chip.layer === "riot-text" ? RIOT_TEXT_KIND_WORDS[chip.kind] : chip.word;
+  return chip.layer === "riot-text" ? RIOT_TEXT_KIND_WORDS[chip.kind] : chip.layer === "riot-text-differ" ? DIFFER_WORDS : chip.word;
+}
+
+/** What a fact from Riot's text holds only with, on its chip after the kind's word: its qualifier, then the conditional marker. */
+export function chipMarkers(chip: RiotTextChip): string {
+  const f = chip.fact;
+  return `${f.qualifier ? qualifierChipWords(chip.kind, f.qualifier) : ""}${f.conditional ? ` · ${CONDITIONAL_WORDS}` : ""}`;
+}
+
+/** The chip "Riot's texts differ": neutral, with its icon and its words, opening both quotes. */
+function DifferChipView({ chip, champion, ability, testId }: { chip: DifferChip; champion: string; ability: string; testId: string }) {
+  return (
+    <InfoTip text={<ChipTip chip={chip} champion={champion} ability={ability} />} testId={`${testId}-differ`}>
+      <Badge tone="neutral" className="touch-target text-left">
+        <EqualNot className="h-3.5 w-3.5 shrink-0" aria-hidden />
+        <span>{DIFFER_WORDS}</span>
+      </Badge>
+    </InfoTip>
+  );
 }
 
 /** A fact's chip, opening what it rests on. */
 export function FactChipView({ chip, champion, ability, testId = "fact-chip" }: { chip: FactChip; champion: string; ability: string; testId?: string }) {
+  if (chip.layer === "riot-text-differ") return <DifferChipView chip={chip} champion={champion} ability={ability} testId={testId} />;
   const look = chip.layer === "checked" ? KIND_LOOK[chip.kind] : GROUP_LOOK[chip.group];
   const kindWord = chip.layer === "checked" ? FACT_KINDS[chip.kind] : KIND_GROUP_WORDS[chip.group];
+  const markers = chip.layer === "riot-text" ? chipMarkers(chip) : "";
   const Icon = look.icon;
   return (
     <InfoTip text={<ChipTip chip={chip} champion={champion} ability={ability} />} testId={testId}>
-      <Badge tone={look.tone} className="touch-target">
+      {/* A long qualifier wraps inside the chip, its lines starting at the left. */}
+      <Badge tone={look.tone} className="touch-target text-left">
         <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden />
         <span className="sr-only">{kindWord}: </span>
-        <span>{chipWord(chip)}</span>
+        <span>
+          {chipWord(chip)}
+          {markers ? (
+            <span className="font-normal" data-testid="fact-chip-markers">
+              {markers}
+            </span>
+          ) : null}
+        </span>
       </Badge>
     </InfoTip>
   );

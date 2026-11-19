@@ -88,17 +88,23 @@ describe("Riot's data and notice", () => {
     expect(text(part(html, "matchup-sources-summary")!)).toContain("League of Legends Wiki, CC BY-SA 3.0");
   });
 
-  it("names the facts from Riot's text, and how they were reviewed, as the review recorded it, when the page shows them", () => {
-    const review = { automatedReviews: 2, adjudicated: true };
+  it("names the facts from Riot's text, and how they were reviewed, from the review's own record, when the page shows them", () => {
+    const review = { automatedReviewers: 2, adjudicated: true, consistencyCheckers: 2, checkedByPerson: false };
     const view = { ...uncuratedPair, enemyIntel: { ...uncuratedPair.enemyIntel!, riotText: { version: "16.22.1", review } } };
     const html = render(view);
-    expect(text(part(html, "matchup-footer-riot-text")!)).toBe("Kinds of mechanic from Riot's ability text (its descriptions and tooltips, Data Dragon 16.22.1), each with the clause it quotes: from Riot's ability text, reviewed automatically (not by a person), by two independent automated reviews and an adjudicator. Riot's numbers in that text are never used.");
+    expect(text(part(html, "matchup-footer-riot-text")!)).toBe(
+      "Kinds of mechanic from Riot's ability text (its descriptions and tooltips, Data Dragon 16.22.1), each with the clause it quotes: from Riot's ability text, reviewed automatically (not by a person). Each was drafted by fixed rules from that text, read by two independent automated reviewers and settled by an adjudicator, then checked in a consistency pass by two more independent automated checkers; no person has checked them. Riot's numbers in that text are never used.",
+    );
     expect(text(part(html, "matchup-sources-summary")!)).toContain("Riot's text, reviewed automatically");
     expect(render(uncuratedPair)).not.toContain('data-testid="matchup-footer-riot-text"');
-    // Only what the review recorded: the fewest reviews where two champions' differ, the adjudicator only where both had one, nothing where no record is given.
-    const both = (a: typeof review, b: typeof review) => render({ ...view, yourIntel: { ...uncuratedPair.yourIntel!, riotText: { version: "16.22.1", review: b } }, enemyIntel: { ...view.enemyIntel, riotText: { version: "16.22.1", review: a } } });
-    expect(text(part(both(review, { automatedReviews: 3, adjudicated: false }), "matchup-footer-riot-text")!)).toContain("(not by a person), by at least two independent automated reviews. Riot's");
+    // Only what the records say: once where the two champions' agree, each champion's where they differ, nothing where no record can be read.
+    const both = (a: typeof review | undefined, b: typeof review | undefined) => render({ ...view, yourIntel: { ...uncuratedPair.yourIntel!, riotText: { version: "16.22.1", review: b } }, enemyIntel: { ...view.enemyIntel, riotText: { version: "16.22.1", review: a } } });
+    expect(text(part(both(review, review), "matchup-footer-riot-text")!).match(/drafted by fixed rules/g)).toHaveLength(1);
+    const differ = text(part(both(review, { automatedReviewers: 3, adjudicated: false, consistencyCheckers: 0, checkedByPerson: false }), "matchup-footer-riot-text")!);
+    expect(differ).toContain("(not by a person). Darius's: Each was drafted by fixed rules from that text, read by two independent automated reviewers and settled by an adjudicator, then checked in a consistency pass by two more independent automated checkers; no person has checked them. Garen's: Each was drafted by fixed rules from that text, read by three independent automated reviewers; no person has checked them. Riot's");
     expect(text(part(render({ ...view, enemyIntel: { ...view.enemyIntel, riotText: { version: "16.22.1" } } }), "matchup-footer-riot-text")!)).toContain("(not by a person). Riot's numbers");
+    // A record of the first version (a count under another name) is not read as one.
+    expect(text(part(both({ automatedReviews: 2, adjudicated: true } as unknown as typeof review, undefined), "matchup-footer-riot-text")!)).toContain("(not by a person). Riot's numbers");
   });
 });
 

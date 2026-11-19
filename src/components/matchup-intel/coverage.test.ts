@@ -11,7 +11,7 @@ import { loadRiotText } from "@/server/matchup-intel/riot-text";
 import { buildMatchupPageView, curatedIndex, type MatchupViewDeps } from "@/server/matchup-intel/view";
 import { MatchupContent } from "./matchup-content";
 import { MatchupFrame } from "./matchup-frame";
-import { KIND_GROUP_WORDS, assembledWords, noFactsWords } from "./wording";
+import { CONDITIONAL_WORDS, DIFFER_WORDS, KIND_GROUP_WORDS, NO_ABILITY_FACTS_WORDS, assembledWords, noFactsWords, noneRecordedWords } from "./wording";
 
 /*
   Every pair gives a meaningful reference (the owner's request, 18 Nov 2026), checked over the real
@@ -83,7 +83,21 @@ function checkPair(you: string, enemy: string, p: Awaited<ReturnType<typeof page
   }
   // Never "verified", and no fixed words that instruct or judge (curated texts are held to the same list by curated.test.ts).
   expect(words, where).not.toMatch(/\bverified\b/i);
-  for (const fixed of ["Assembled reference", "Danger", "Opportunity", "None recorded in Riot's text", "None in the checked notes"]) if (words.includes(fixed)) expect(refusedWords(fixed)).toEqual([]);
+  for (const fixed of ["Assembled reference", "Danger", "Opportunity", noneRecordedWords("riot-text"), noneRecordedWords("checked"), NO_ABILITY_FACTS_WORDS, CONDITIONAL_WORDS, DIFFER_WORDS]) if (words.includes(fixed)) expect(refusedWords(fixed)).toEqual([]);
+  // An ability with no reviewed fact never reads as having none.
+  expect(words, where).not.toContain("None recorded in Riot's text");
+  // The enemy's tiles: every fact from Riot's text a chip of its own (its qualifier and marker on it), every
+  // disagreement a chip, and an ability with neither saying so in words.
+  if (view.enemyIntel?.riotText) {
+    for (const a of view.enemyIntel.abilities ?? []) {
+      const tile = panel.split(`data-slot="${a.slot}"`)[1]!.split('data-testid="ability-row"')[0]!;
+      const r = a.riotText!;
+      expect(tile.split('data-testid="fact-chip"').length - 1, `${where}: ${a.slot}'s chips`).toBe(r.facts.length);
+      expect(tile.split('data-testid="fact-chip-differ"').length - 1, `${where}: ${a.slot}'s disagreements`).toBe(r.disagreements.length);
+      expect(tile.split('data-testid="fact-chip-markers"').length - 1, `${where}: ${a.slot}'s markers`).toBe(r.facts.filter((f) => f.qualifier !== undefined || f.conditional).length);
+      if (!r.facts.length && !r.disagreements.length && !r.hidden) expect(text(tile), `${where}: ${a.slot} with no facts`).toContain(NO_ABILITY_FACTS_WORDS);
+    }
+  }
   // The sources and Riot's notice, one press away, their summary on the page.
   expect(html, where).toContain('data-testid="matchup-sources-summary"');
   expect(words, where).toContain(LEGAL);
@@ -126,10 +140,11 @@ describe("kitOf: one champion's facts, grouped by kind, never judged", () => {
     curated: null,
     levelNotes: [],
     sources: [],
-    riotText: { version: "16.22.1", patch: "26.22", reviewedOn: "2026-11-18", review: { automatedReviews: 2, adjudicated: true, person: false } },
+    riotText: { version: "16.22.1", patch: "26.22", reviewedOn: "2026-11-19", review: { automatedReviewers: 2, adjudicated: true, consistencyCheckers: 2, checkedByPerson: false } },
     ...over,
   });
-  const ability = (slot: (typeof SLOTS)[number], facts: Array<{ kind: (typeof RIOT_TEXT_KINDS)[number]; clause: string; source?: "tooltip" | "description" }>, hidden = 0) => ({
+  type Kind = (typeof RIOT_TEXT_KINDS)[number];
+  const ability = (slot: (typeof SLOTS)[number], facts: Array<{ kind: Kind; clause: string; source?: "tooltip" | "description"; qualifier?: string; conditional?: true }>, hidden = 0, disagreements: Array<{ description: { kind: Kind; clause: string }; tooltip: { kind: Kind; clause: string } }> = []) => ({
     slot,
     name: `${slot} name`,
     icon: null,
@@ -144,10 +159,10 @@ describe("kitOf: one champion's facts, grouped by kind, never judged", () => {
     description: "",
     details: [],
     freshness: null,
-    riotText: { facts: facts.map((f) => ({ kind: f.kind, clause: f.clause, source: f.source ?? "tooltip" })), hidden, hiddenBecause: hidden ? ("changed" as const) : null },
+    riotText: { facts: facts.map((f) => ({ ...f, source: f.source ?? ("tooltip" as const) })), disagreements, hidden, hiddenDisagreements: 0, hiddenBecause: hidden ? ("changed" as const) : null },
   });
 
-  it("sorts each ability's kinds into their groups, in slot order, one chip per kind holding every clause", () => {
+  it("sorts each ability's kinds into their groups, in slot order, one chip per kind holding its fact", () => {
     const kit = kitOf(
       intel([
         ability("P", []),
@@ -155,9 +170,9 @@ describe("kitOf: one champion's facts, grouped by kind, never judged", () => {
         ability("W", [{ kind: "slow", clause: "slows the target" }, { kind: "cooldownrefund", clause: "reduces its cooldown" }]),
         ability("E", [
           { kind: "slow", clause: "slowing", source: "description" },
-          { kind: "pull", clause: "pulls them to him", source: "description" },
+          { kind: "pull", clause: "pulls them to him", source: "description", qualifier: "Mega Darius" },
           { kind: "pull", clause: "Pulling", source: "tooltip" },
-          { kind: "knockup", clause: "Knocking Up" },
+          { kind: "knockup", clause: "Knocking Up", conditional: true },
         ]),
         ability("R", [{ kind: "reset", clause: "resets its cooldown" }]),
       ]),
@@ -166,20 +181,37 @@ describe("kitOf: one champion's facts, grouped by kind, never judged", () => {
     expect(cc.items.map((i) => i.slot)).toEqual(["W", "E"]);
     // The kinds' own order (knock-up, pull, slow), never a ranking by danger.
     expect(cc.items[1]!.chips.map((c) => (c.layer === "riot-text" ? c.kind : ""))).toEqual(["knockup", "pull", "slow"]);
+    // One fact per kind (the review keeps one): the first, with what it holds only with.
     const pull = cc.items[1]!.chips.find((c) => c.layer === "riot-text" && c.kind === "pull")!;
-    expect(pull.layer === "riot-text" && pull.clauses).toEqual([
-      { clause: "pulls them to him", source: "description" },
-      { clause: "Pulling", source: "tooltip" },
-    ]);
+    expect(pull.layer === "riot-text" && pull.fact).toEqual({ kind: "pull", clause: "pulls them to him", source: "description", qualifier: "Mega Darius" });
+    const knockup = cc.items[1]!.chips.find((c) => c.layer === "riot-text" && c.kind === "knockup")!;
+    expect(knockup.layer === "riot-text" && knockup.fact.conditional).toBe(true);
     expect(kit.groups.find((g) => g.group === "sustain")!.items.map((i) => i.slot)).toEqual(["Q"]);
     expect(kit.groups.find((g) => g.group === "cooldown")!.items.map((i) => i.slot)).toEqual(["W", "R"]);
     expect(kit.groups.find((g) => g.group === "mobility")!.items).toEqual([]);
     expect(kit.from).toBe("riot-text");
   });
 
+  it("puts where Riot's two texts differ in the group of each kind they name, once where both share it, and never as a fact of either", () => {
+    const differ = { description: { kind: "pull" as const, clause: "pulls all enemies hit" }, tooltip: { kind: "knockup" as const, clause: "Knocking Up victims" } };
+    const across = { description: { kind: "dash" as const, clause: "dashes" }, tooltip: { kind: "stun" as const, clause: "Stuns" } };
+    const kit = kitOf(intel([ability("P", []), ability("R", [{ kind: "teleport", clause: "teleporting behind" }], 0, [differ]), ability("E", [], 0, [across])]));
+    const cc = kit.groups.find((g) => g.group === "crowd-control")!;
+    expect(cc.items.map((i) => [i.slot, i.chips.map((c) => c.layer)])).toEqual([
+      ["R", ["riot-text-differ"]],
+      ["E", ["riot-text-differ"]],
+    ]);
+    expect(kit.groups.find((g) => g.group === "mobility")!.items.map((i) => [i.slot, i.chips.map((c) => (c.layer === "riot-text" ? c.kind : c.layer))])).toEqual([
+      ["R", ["teleport"]],
+      ["E", ["riot-text-differ"]],
+    ]);
+    // On the tile: the facts, then the disagreement.
+    expect(abilityChips(ability("R", [{ kind: "teleport", clause: "teleporting behind" }], 0, [differ])).map((c) => c.layer)).toEqual(["riot-text", "riot-text-differ"]);
+  });
+
   it("names the abilities whose facts are hidden, and a champion with no facts at all", () => {
     const kit = kitOf(intel([ability("P", []), ability("Q", [], 2), ability("W", []), ability("E", []), ability("R", [])]));
-    expect(kit.hidden).toEqual([{ slot: "Q", ability: "Q name", count: 2, because: "changed" }]);
+    expect(kit.hidden).toEqual([{ slot: "Q", ability: "Q name", count: 2, disagreements: 0, because: "changed" }]);
     expect(kitOf(intel([ability("P", [])], { riotText: null })).from).toBe("none");
   });
 

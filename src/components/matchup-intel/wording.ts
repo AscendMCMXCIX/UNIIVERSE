@@ -1,6 +1,6 @@
 import { formatCooldowns, formatCooldownsTight, formatCount, formatIsoDay, formatPerRank, formatSeconds, keepUnitsWithNumbers } from "@/lib/format";
 import { cooldownFrom } from "@/domain/matchup-intel/cooldown";
-import type { AbilityChange, AbilityModifiers, CooldownDisplay, CooldownStart, FactKind, FactSubject, Freshness, KindGroup, MatchupPageView, PassiveStart, Recast, RiotTextKind, RiotTextSource, Slot, UnknownCooldownReason } from "@/domain/matchup-intel/types";
+import type { AbilityChange, AbilityModifiers, CooldownDisplay, CooldownStart, FactKind, FactSubject, Freshness, KindGroup, MatchupPageView, PassiveStart, Recast, RiotTextKind, RiotTextReview, RiotTextSource, Slot, UnknownCooldownReason } from "@/domain/matchup-intel/types";
 
 /*
   Matchup Intel's fixed words (docs/MATCHUP_INTEL.md, "Cooldowns"): how a cooldown, its modifiers,
@@ -412,6 +412,66 @@ export function riotTextSourceWords(source: RiotTextSource, ability: string): st
   return source === "tooltip" ? `Riot's tooltip for ${ability}` : `Riot's description of ${ability}`;
 }
 
+/**
+ * The marker on a fact from Riot's text that holds only under a condition no number-free words of
+ * Riot's text name (the owner's words, 19 Nov 2026): on its chip, the quote one tap away. The page
+ * never says the condition in its own words.
+ */
+export const CONDITIONAL_WORDS = "Conditional: see Riot's text";
+
+/** The chip, on a tile and in a group, where Riot's two texts for an ability state different effects. */
+export const DIFFER_WORDS = "Riot's texts differ";
+
+/** Under the two quotes of a disagreement: the page picks neither. */
+export const DIFFER_NEITHER_WORDS = "Neither is shown as a fact.";
+
+/** A tile whose ability has no reviewed fact: never "none" (the ability may well have effects that no fact passed the review for). */
+export const NO_ABILITY_FACTS_WORDS = "No reviewed facts for this ability";
+
+/**
+ * What a qualifier adds to its fact's chip, after the kind's word, in Riot's words: " · “Mega Gnar”"
+ * (the form, condition or recipient the fact holds only with); on a cooldown refund, the abilities
+ * whose cooldown it cuts, " of “Mantra”".
+ */
+export function qualifierChipWords(kind: RiotTextKind, qualifier: string): string {
+  return kind === "cooldownrefund" ? ` of “${qualifier}”` : ` · “${qualifier}”`;
+}
+
+/**
+ * A qualifier's line, in a chip's tip and in the details window: "Qualified by “Mega Gnar”", or on a
+ * cooldown refund "Cuts the cooldown of “Mantra”"; and, where it is quoted from the ability's other
+ * text rather than the clause's, which ("(Riot's tooltip for Dragon Strike)").
+ */
+export function qualifierWords(kind: RiotTextKind, qualifier: string, otherSource: RiotTextSource | null | undefined, ability: string): string {
+  const lead = kind === "cooldownrefund" ? "Cuts the cooldown of" : "Qualified by";
+  return `${lead} “${qualifier}”${otherSource ? ` (${riotTextSourceWords(otherSource, ability)})` : ""}`;
+}
+
+/** Another kind Riot's other text words a fact as, in the details window: "Riot's description calls it leap" (its quote follows). */
+export function alsoDescribedWords(kind: RiotTextKind, source: RiotTextSource): string {
+  return `Riot's ${source} calls it ${RIOT_TEXT_KIND_WORDS[kind].toLowerCase()}`;
+}
+
+/** One side of a disagreement: "Pull, in Riot's description of Fate Sealed" (its quote follows). The two sides read alike. */
+export function differSideWords(kind: RiotTextKind, source: RiotTextSource, ability: string): string {
+  return `${RIOT_TEXT_KIND_WORDS[kind]}, in ${riotTextSourceWords(source, ability)}`;
+}
+
+/** "two" for 2, the number from ten up. */
+const countLower = (n: number) => countWord(n).toLowerCase();
+
+/**
+ * How the facts from Riot's text were reviewed, from the review's own record (reviewRecord), for the
+ * sources and notices: "Each was drafted by fixed rules from that text, read by two independent
+ * automated reviewers and settled by an adjudicator, then checked in a consistency pass by two more
+ * independent automated checkers; no person has checked them."
+ */
+export function riotTextProcessWords(review: RiotTextReview): string {
+  const reviewers = `read by ${countLower(review.automatedReviewers)} independent automated ${review.automatedReviewers === 1 ? "reviewer" : "reviewers"}${review.adjudicated ? " and settled by an adjudicator" : ""}`;
+  const checkers = review.consistencyCheckers > 0 ? `, then checked in a consistency pass by ${countLower(review.consistencyCheckers)} more independent automated ${review.consistencyCheckers === 1 ? "checker" : "checkers"}` : "";
+  return `Each was drafted by fixed rules from that text, ${reviewers}${checkers}; ${review.checkedByPerson ? "a person has checked them" : "no person has checked them"}.`;
+}
+
 /** When a champion's facts from Riot's text were reviewed: "Reviewed against Riot's text of patch 26.22, on 18 Nov 2026". */
 export function riotTextReviewedWords(patch: string | null, reviewedOn: string): string {
   const day = formatIsoDay(reviewedOn);
@@ -431,20 +491,27 @@ export function noFactsWords(name: string): string {
   return `No reviewed facts for ${name} yet: crowd control, mobility, defence and sustain are not recorded.`;
 }
 
-/** A group with nothing in it, said where its facts would be: never "none", only what is recorded. */
+/**
+ * A group with nothing in it, said where its facts would be: never a bare "none", only what is
+ * recorded. For facts from Riot's text, that none passed the review, not that Riot's text or the
+ * ability has none.
+ */
 export function noneRecordedWords(from: "checked" | "riot-text"): string {
-  return from === "checked" ? "None in the checked notes" : "None recorded in Riot's text";
+  return from === "checked" ? "None in the checked notes" : "No reviewed facts of this kind";
 }
 
 /**
- * In place of an ability's facts from Riot's text that are hidden: "Riot's text for W changed after
- * the review: its 2 facts are hidden." Never left out silently.
+ * In place of an ability's facts from Riot's text that are hidden, and of where its two texts
+ * differ: "Riot's text for W changed after the review: its 2 facts are hidden.", "… its fact and the
+ * note that Riot's texts differ are hidden." Never left out silently.
  */
-export function hiddenRiotTextWords(count: number, because: "changed" | "renamed" | "unknown", key: string): string {
-  const facts = `${count === 1 ? "its fact is" : `its ${formatCount(count)} facts are`} hidden`;
-  if (because === "renamed") return `Riot renamed ${key} after the review: ${facts}.`;
-  if (because === "unknown") return `Whether Riot's text for ${key} changed since the review is not known yet: ${facts}.`;
-  return `Riot's text for ${key} changed after the review: ${facts}.`;
+export function hiddenRiotTextWords(count: number, because: "changed" | "renamed" | "unknown", key: string, disagreements = 0): string {
+  const facts = count === 1 ? "its fact" : `its ${formatCount(count)} facts`;
+  const differ = disagreements === 1 ? "the note that Riot's texts differ" : "the notes that Riot's texts differ";
+  const what = count > 0 && disagreements > 0 ? `${facts} and ${differ} are hidden` : count > 0 ? `${facts} ${count === 1 ? "is" : "are"} hidden` : `${differ} ${disagreements === 1 ? "is" : "are"} hidden`;
+  if (because === "renamed") return `Riot renamed ${key} after the review: ${what}.`;
+  if (because === "unknown") return `Whether Riot's text for ${key} changed since the review is not known yet: ${what}.`;
+  return `Riot's text for ${key} changed after the review: ${what}.`;
 }
 
 /** No level notes for the champions on the page: "No level changes recorded for Darius or Riven." */
