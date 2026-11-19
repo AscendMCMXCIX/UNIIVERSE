@@ -101,7 +101,7 @@ Whenever any backup is restored, into production or a copy, apply the newest era
    - It then re-applies every record to the whole database: accounts, profiles, games, scouts, notes and logs that name an erased person are erased or de-identified again.
    - It prints what it found, and fails if a record cannot be applied.
 
-   Instead, once a deployment points at the restored database and an administrator can sign in: Personal data → **Import records**, which also re-applies them.
+   Instead, once a deployment points at the restored database and the Owner can sign in: Personal data → **Import records**, which also re-applies them (the Owner only, with REAPPLY typed, as the `erasure-reconcile` job from Admin).
 3. Check before going further:
    - Personal data lists every record as "In force" or "Released", none as "Cannot be applied";
    - a Data jobs `erasure-reconcile` run against that deployment reports nothing found again.

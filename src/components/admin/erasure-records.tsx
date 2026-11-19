@@ -11,13 +11,54 @@ import { Dialog } from "@/components/ui/dialog";
 import { Input, Label } from "@/components/ui/input";
 import { toast } from "@/components/ui/toast";
 import { formatCount, formatDate } from "@/lib/format";
+import { REAPPLY_PHRASE, typedMatches } from "@/domain/typed-confirmation";
 
 /*
   The erasure records (Admin Mode → Users & Permissions → Personal data): one line per erasure,
-  naming no one. From here an administrator exports them to keep beside offline backups, imports
-  them into a restored database, re-applies them, and releases a person's Riot accounts when that
-  person asks to come back.
+  naming no one. From here an administrator exports them to keep beside offline backups and
+  releases a person's Riot accounts when that person asks to come back. Importing them into a
+  restored database and re-applying them are the Owner's, each only once REAPPLY is typed: they do
+  what the erasure-reconcile setup job does (server/actions/privacy.ts checks both again).
 */
+
+type Asking = { kind: "import"; file: File } | { kind: "reconcile" };
+
+/** Import or Re-apply: what it does, and its button only once REAPPLY is typed. */
+function ReapplyDialog({ asking, busy, onCancel, onRun }: { asking: Asking | null; busy: boolean; onCancel: () => void; onRun: (typed: string) => void }) {
+  // The parent keys it by each opening, so nothing typed carries over.
+  const [typed, setTyped] = React.useState("");
+  const id = React.useId();
+  const importing = asking?.kind === "import";
+  return (
+    <Dialog
+      open={!!asking}
+      onClose={() => (busy ? undefined : onCancel())}
+      title={importing ? "Import and re-apply the erasure records?" : "Re-apply every erasure?"}
+      description={
+        importing
+          ? "Adds the records in the chosen file, then applies every erasure record to the whole database again, as after restoring a backup. Whatever it finds is erased for good."
+          : "Applies every personal-data erasure record to the whole database again, as after restoring a backup. Whatever it finds is erased for good."
+      }
+      footer={
+        <>
+          <Button variant="ghost" onClick={onCancel} disabled={busy}>
+            Cancel
+          </Button>
+          <Button variant="danger" onClick={() => onRun(typed)} disabled={!typedMatches(typed, REAPPLY_PHRASE) || busy} data-testid="reapply-confirm-run">
+            {busy ? "Re-applying…" : importing ? "Import and re-apply" : "Re-apply"}
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-1" data-testid="reapply-confirm">
+        <Label htmlFor={`${id}-phrase`}>
+          Type <span className="font-semibold text-fg">{REAPPLY_PHRASE}</span> to confirm
+        </Label>
+        <Input id={`${id}-phrase`} value={typed} onChange={(e) => setTyped(e.target.value)} autoComplete="off" autoCapitalize="characters" spellCheck={false} data-testid="reapply-confirm-input" />
+      </div>
+    </Dialog>
+  );
+}
 
 function ReleaseButton({ reference }: { reference: string }) {
   const router = useRouter();
@@ -72,10 +113,16 @@ function ReleaseButton({ reference }: { reference: string }) {
   );
 }
 
-export function ErasureRecords({ records }: { records: ErasureRecordView[] }) {
+export function ErasureRecords({ records, viewerIsOwner = false }: { records: ErasureRecordView[]; viewerIsOwner?: boolean }) {
   const router = useRouter();
   const [busy, setBusy] = React.useState<"export" | "import" | "reconcile" | null>(null);
+  const [asking, setAsking] = React.useState<Asking | null>(null);
+  const [opened, setOpened] = React.useState(0);
   const fileRef = React.useRef<HTMLInputElement>(null);
+  const ask = (next: Asking) => {
+    setOpened((n) => n + 1);
+    setAsking(next);
+  };
 
   const exportRecords = async () => {
     setBusy("export");
@@ -90,21 +137,22 @@ export function ErasureRecords({ records }: { records: ErasureRecordView[] }) {
     setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
     toast.success(`${formatCount(r.data.records.length)} record(s) exported. Keep the file with your offline backups.`);
   };
-  const importRecords = async (file: File | undefined) => {
-    if (!file) return;
+  const importRecords = async (file: File, typed: string) => {
     setBusy("import");
-    const r = await importErasuresAction(await file.text());
+    const r = await importErasuresAction(await file.text(), typed);
     setBusy(null);
     if (fileRef.current) fileRef.current.value = "";
     if (!r.ok) return toast.error("Could not import", { description: r.error });
+    setAsking(null);
     toast.success(`Imported ${formatCount(r.data.added)} new and ${formatCount(r.data.updated)} updated record(s); ${formatCount(r.data.reconcile.people)} account(s) or profile(s) and ${formatCount(r.data.reconcile.traces)} set(s) of traces erased again.`);
     router.refresh();
   };
-  const reconcile = async () => {
+  const reconcile = async (typed: string) => {
     setBusy("reconcile");
-    const r = await reconcileErasuresAction();
+    const r = await reconcileErasuresAction(typed);
     setBusy(null);
     if (!r.ok) return toast.error("Could not re-apply the records", { description: r.error });
+    setAsking(null);
     const found = r.data.people + r.data.traces;
     toast.success(found ? `Re-applied: ${formatCount(r.data.people)} account(s) or profile(s) and ${formatCount(r.data.traces)} set(s) of traces erased again.` : "Re-applied: nothing erased had come back.");
     if (r.data.unusable) toast.error(`${formatCount(r.data.unusable)} record(s) were made under another UNIIVERSE_AUTH_SECRET and cannot be applied.`);
@@ -142,14 +190,47 @@ export function ErasureRecords({ records }: { records: ErasureRecordView[] }) {
         <Button size="sm" variant="outline" wrap disabled={busy !== null} onClick={() => void exportRecords()} data-testid="erasure-export">
           <Download className="h-4 w-4" /> {busy === "export" ? "Exporting…" : "Export records"}
         </Button>
-        <Button size="sm" variant="outline" wrap disabled={busy !== null} onClick={() => fileRef.current?.click()}>
-          <Upload className="h-4 w-4" /> {busy === "import" ? "Importing…" : "Import records"}
-        </Button>
-        <input ref={fileRef} type="file" accept="application/json,.json" className="sr-only" tabIndex={-1} aria-hidden onChange={(e) => void importRecords(e.target.files?.[0])} />
-        <Button size="sm" variant="outline" wrap disabled={busy !== null} onClick={() => void reconcile()} data-testid="erasure-reconcile">
-          <RefreshCw className="h-4 w-4" /> {busy === "reconcile" ? "Re-applying…" : "Re-apply records"}
-        </Button>
+        {viewerIsOwner ? (
+          <>
+            <Button size="sm" variant="outline" wrap disabled={busy !== null} onClick={() => fileRef.current?.click()} data-testid="erasure-import">
+              <Upload className="h-4 w-4" /> {busy === "import" ? "Importing…" : "Import records"}
+            </Button>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="application/json,.json"
+              className="sr-only"
+              tabIndex={-1}
+              aria-hidden
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) ask({ kind: "import", file });
+              }}
+            />
+            <Button size="sm" variant="outline" wrap disabled={busy !== null} onClick={() => ask({ kind: "reconcile" })} data-testid="erasure-reconcile">
+              <RefreshCw className="h-4 w-4" /> {busy === "reconcile" ? "Re-applying…" : "Re-apply records"}
+            </Button>
+          </>
+        ) : null}
       </div>
+      {viewerIsOwner ? null : (
+        <p className="text-sm text-fg-muted" data-testid="erasure-owner-only">
+          The Owner imports and re-applies the records, after a backup is restored.
+        </p>
+      )}
+      <ReapplyDialog
+        key={opened}
+        asking={asking}
+        busy={busy === "import" || busy === "reconcile"}
+        onCancel={() => {
+          setAsking(null);
+          if (fileRef.current) fileRef.current.value = "";
+        }}
+        onRun={(typed) => {
+          if (asking?.kind === "import") void importRecords(asking.file, typed);
+          else if (asking) void reconcile(typed);
+        }}
+      />
     </div>
   );
 }

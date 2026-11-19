@@ -7,7 +7,8 @@ import { createMember, memberContext, view } from "./member-account";
   Refresh; the setup and repair jobs and the schedule's intervals sit under a closed Advanced, for
   the Owner only, and each runs only once its phrase is typed. Users & Permissions shows the
   Production check's account locked under Kept automatically, and deleting a profile takes its name
-  typed. Checked at 1440 and on a 375px phone, with axe, for the demo's local owner (the Owner);
+  typed. Personal data's Import and Re-apply (what the erasure-reconcile job does) are the Owner's,
+  with REAPPLY typed. Checked at 1440 and on a 375px phone, with axe, for the demo's local owner (the Owner);
   an administrator who is not the Owner is not sent the setup jobs or the intervals at all.
   Nothing is ever confirmed here: every dialog is checked, then cancelled (the server's side of each
   rule is tested in tests/db/admin-safety.test.ts). Viewport-independent apart from the two sizes
@@ -162,13 +163,21 @@ test("an administrator who is not the Owner gets the checks and refreshes only: 
       for (const key of SETUP_KEYS) expect(html, `${width}: ${key} sent`).not.toContain(`"${key}"`);
       expect(html).not.toContain("TURN OFF");
       await axe(deputy.page, `${width}: Data & Integrations for an administrator`);
+      // Personal data: Export and Release, but importing and re-applying the records are the Owner's.
+      await deputy.page.goto("/admin/people/privacy");
+      const records = deputy.page.getByTestId("erasure-records");
+      await expect(records.getByTestId("erasure-export")).toBeVisible();
+      await expect(records.getByTestId("erasure-owner-only")).toContainText("The Owner imports and re-applies the records");
+      await expect(records.getByTestId("erasure-reconcile")).toHaveCount(0);
+      await expect(records.getByTestId("erasure-import")).toHaveCount(0);
+      await axe(deputy.page, `${width}: Personal data for an administrator`);
     }
   } finally {
     await deputy?.context.close();
   }
 });
 
-test("Users & Permissions: the Production check's account is locked under Kept automatically, and deleting a profile takes its name typed", async ({ page }) => {
+test("Users & Permissions: the Production check's account is locked under Kept automatically, deleting a profile takes its name typed, and re-applying the erasure records REAPPLY", async ({ page }) => {
   test.setTimeout(150_000);
   await page.setViewportSize({ width: 1440, height: 900 });
   // An account made for this test, so the delete dialog's profile is nobody else's.
@@ -220,4 +229,21 @@ test("Users & Permissions: the Production check's account is locked under Kept a
   await expect(go).toBeEnabled();
   await confirm.getByRole("button", { name: "Cancel" }).click();
   await expect(confirm).toBeHidden();
+
+  // Personal data: Re-apply records is the erasure-reconcile job's work, so it waits for REAPPLY.
+  await page.goto("/admin/people/privacy");
+  const records = page.getByTestId("erasure-records");
+  await expect(records.getByTestId("erasure-owner-only")).toHaveCount(0);
+  await expect(records.getByTestId("erasure-import")).toBeVisible();
+  const reapply = await openDialog(page, records.getByTestId("erasure-reconcile"), "Re-apply every erasure?");
+  await expect(reapply).toContainText("Whatever it finds is erased for good");
+  const run = reapply.getByTestId("reapply-confirm-run");
+  await expect(run).toBeDisabled();
+  await reapply.getByTestId("reapply-confirm-input").fill("RECOMPUTE");
+  await expect(run).toBeDisabled();
+  await reapply.getByTestId("reapply-confirm-input").fill(" reapply ");
+  await expect(run).toBeEnabled();
+  await axe(page, "Personal data's typed confirmation");
+  await reapply.getByRole("button", { name: "Cancel" }).click();
+  await expect(reapply).toBeHidden();
 });

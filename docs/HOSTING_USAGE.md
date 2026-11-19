@@ -7,6 +7,10 @@ UNIIVERSE runs on the free plans of Supabase (the Postgres database) and Vercel 
 
 This page records what caused that, what was changed, how it was measured, and how to check it again. The second pass, after egress reached 7.14 GB on 20 Oct, is the next section.
 
+## 19 Nov 2026: the deploy limit raised to about 6 a day
+
+The owner asked on 19 Nov for faster delivery and for the three-a-day limit to be challenged. What a deploy costs is measured above ("What a deploy costs"): about 12.5 CPU-seconds for the signed-in Production check, plus 1–2 seconds of cold starts, so about 15–20 CPU-seconds on Vercel. A day without deploys costs about 100–150 CPU-seconds, against an allowance of about 480. Six deploys a day come to about 90–120 CPU-seconds, for a day of about 190–270: well under half the allowance. **The limit is now about 6 production deploys a day, a batch counting as one** (CLAUDE.md §4). The owner's Usage → Fluid Active CPU readings (STATUS, "Needs the owner") remain the check: a reading above about 300 CPU-seconds a day brings it back down.
+
 ## 19 Nov 2026: Vercel's memory allowance, the database's size, and what forward capture adds
 
 **Vercel's Hobby plan also caps Provisioned Memory**, which this page did not track until now (mi-evidence, 19 Nov 2026, from vercel.com/docs/plans/hobby, /docs/functions/usage-and-pricing and /docs/functions/configuring-functions/memory):
