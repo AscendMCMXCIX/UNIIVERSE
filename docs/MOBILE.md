@@ -172,8 +172,10 @@ Settings, since its two-column layout (ux/resources-settings), is 139px wider th
 but only with the root's font size doubled in CSS (the specs' method), where a 768px window keeps
 the tablet layout. With the browser's own text size, which is what a real setting changes, the
 breakpoints' rem scale too: a 768px window at 200% gets the phone layout, where Settings is as wide
-as the window (RESPONSIVE.md → Phones at a larger text size). Upright phones unchanged (393 × 852:
-53 + 57px on Team).
+as the window (RESPONSIVE.md → Phones at a larger text size). Phones held sideways from 640px do the
+same: with the root's size they keep `sm`, and Settings' two columns are 165px wider than a
+734 × 343 window and 55px wider than an 852 × 393 one at 200%; with the browser's, one column as
+wide as the window. Upright phones unchanged (393 × 852: 53 + 57px on Team).
 
 The tablet's avatar keeps an early tap as the phone's does (so does the account tile in the desktop
 sidebar), and the account menu's Sign out tells the browser's other tabs, as the account screen's

@@ -13,11 +13,12 @@ import { memberContext, unique } from "./member-account";
   At 150% to 200% on 320, 375 and 393px each card, front and back, now holds its text: none of it
   past the card's edge or out of the season's box, words whole, the pool's name and first choice
   never cut short, no "·" ending or starting a line, the card's controls clear of the role's chip
-  (its name hidden to the eye only, where the icon stands alone), the picture, the links and the
-  name, and no sideways scroll. The chip shows its name wherever it fits its lane (to the card's own
-  edge on a card without controls) and the icon alone exactly where it does not. A member's own card,
-  with Customise beside the turn control, holds the same at the same sizes, its two controls one
-  above the other on a card under 9.25rem. At the usual size nothing of this applies.
+  (its name hidden to the eye only, where the icon stands alone: screen readers are still given
+  it), the picture, the links and the name, and no sideways scroll. The chip shows its name
+  wherever it fits its lane (to the card's own edge on a card without controls) and the icon alone
+  exactly where it does not. A member's own card, with Customise beside the turn control, holds the
+  same at the same sizes, its two controls one above the other on a card under 9.25rem. At the
+  usual size nothing of this applies.
 */
 
 test.beforeEach(async ({ context, baseURL }) => {
@@ -137,11 +138,18 @@ function measureFace(face: Locator) {
     const [a, b] = [...card.querySelectorAll(":scope > [data-card-overlay] button")].map((el) => el.getBoundingClientRect());
     const controls = a && b ? (Math.abs(a.top - b.top) < 1 ? "side by side" : Math.abs(a.right - b.right) < 1 && Math.max(a.top, b.top) >= Math.min(a.bottom, b.bottom) ? "one above the other" : "neither") : null;
     const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
-    return { role: (card.getAttribute("data-testid") ?? "").replace(/^lineup-(row|sub)-/, ""), problems, chipText: chip.textContent?.trim() ?? "", labelShown: label ? shown(label) : true, rem: cb.width / rem, inner: (inner.right - inner.left) / rem, controls };
+    return { role: (card.getAttribute("data-testid") ?? "").replace(/^lineup-(row|sub)-/, ""), problems, labelShown: label ? shown(label) : true, rem: cb.width / rem, inner: (inner.right - inner.left) / rem, controls };
   });
 }
 
 const ROLE_NAMES: Record<string, string> = { TOP: "Top", JUNGLE: "Jungle", MID: "Mid", ADC: "Bottom", SUPPORT: "Support" };
+
+/**
+ * What a screen reader is given for a face's role chip (its accessibility tree, not textContent): the
+ * role's name, also where the eye sees the icon alone. A label hidden from everyone (`hidden`, or
+ * aria-hidden) gives nothing, while its textContent would still name the role.
+ */
+const chipSpoken = (face: Locator) => face.getByTestId("assigned-role").ariaSnapshot();
 
 test("at 150% to 200% text on 320, 375 and 393px phones, every lineup card holds its text: nothing cut, words whole, the card's controls clear of the role and the picture", async ({ page }, info) => {
   test.skip(info.project.name !== "phone", "phone widths, set below");
@@ -161,7 +169,7 @@ test("at 150% to 200% text on 320, 375 and 393px phones, every lineup card holds
       for (let i = 0; i < 5; i++) {
         const card = await measureFace(fronts.nth(i));
         expect(card.problems, `${at}, ${card.role} (a ${card.rem.toFixed(2)}rem card)`).toEqual([]);
-        expect(card.chipText, `${at}, ${card.role}: the chip still names the role`).toBe(ROLE_NAMES[card.role]);
+        expect(await chipSpoken(fronts.nth(i)), `${at}, ${card.role}: the chip still names the role to screen readers`).toBe(`- text: ${ROLE_NAMES[card.role]}`);
         if (!card.labelShown) narrowed.push(`${at} ${card.role}`);
       }
     }
@@ -199,7 +207,7 @@ test("at 150% to 200% text on 320, 375 and 393px phones, every lineup card holds
   await expect(top).not.toHaveAttribute("data-turn", /.+/);
   const back = await measureFace(page.getByTestId("lineup-sub-TOP"));
   expect(back.problems, "320px at 200%, the back of Top").toEqual([]);
-  expect(back.chipText).toBe("Top");
+  expect(await chipSpoken(page.getByTestId("lineup-sub-TOP")), "320px at 200%, the back of Top: the chip names the role to screen readers").toBe("- text: Top");
   await page.getByTestId("lineup-sub-TOP").getByTestId("flip-back").click();
   await expect(top).not.toHaveAttribute("data-flipped", "true");
   await page.evaluate(() => { document.documentElement.style.fontSize = ""; });
@@ -243,6 +251,26 @@ async function setTopStarter(admin: Page, name: string) {
   await admin.getByTestId("edit-lineup").click();
 }
 
+/*
+  Who started at Top before the own-card test put its member there, until they are back. The test's
+  finally puts them back, and this hook does when the test ended before its finally could: after a
+  timeout (a step that never ends, since no action here has a timeout of its own) the hooks run, and
+  then the test's browser closes under the abandoned finally. Left at Top, the test's member is who a
+  retry would put back, and every later spec (the projects share one demo database) would find them
+  starting at Top.
+*/
+let topToRestore: string | null = null;
+test.afterEach(async ({ browser }) => {
+  if (topToRestore === null) return;
+  const admin = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  try {
+    await setTopStarter(await admin.newPage(), topToRestore);
+    topToRestore = null;
+  } finally {
+    await admin.close();
+  }
+});
+
 test("a member's own card, with Customise beside the turn control, at 150% to 200% text on 320, 375 and 393px phones: the two controls side by side or one above the other, clear of the role, the picture and the name; nothing cut, words whole", async ({ browser, baseURL }, info) => {
   test.skip(info.project.name !== "phone", "phone widths, set below");
   test.setTimeout(240_000);
@@ -253,11 +281,14 @@ test("a member's own card, with Customise beside the turn control, at 150% to 20
   const adminPage = await admin.newPage();
   await adminPage.goto(baseURL! + "/team");
   await expect(adminPage.getByTestId("lineup-overview")).toHaveAttribute("data-ready", "true");
-  const before = (await adminPage.getByTestId("lineup-row-TOP").getAttribute("data-player-name"))!;
+  const atTop = (await adminPage.getByTestId("lineup-row-TOP").getAttribute("data-player-name"))!;
+  // A member an earlier attempt left at Top (its restore never ran) is not who goes back: the demo's is.
+  const before = atTop.startsWith("Own ") ? "Demo Top" : atTop;
   const display = `Own ${unique("").slice(-5)}`;
   const member = await memberContext(browser, adminPage, { width: 375, height: 667 }, { base: "Own", role: "Top", display });
   const phone = await browser.newContext({ viewport: { width: 375, height: 667 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2, storageState: await member.context.storageState() });
   try {
+    topToRestore = before;
     await setTopStarter(adminPage, display);
     const page = await phone.newPage();
     await page.goto("/team");
@@ -278,7 +309,7 @@ test("a member's own card, with Customise beside the turn control, at 150% to 20
         await expect.poll(() => overflow(page), `${at}: no sideways page scroll`).toBeLessThanOrEqual(1);
         const card = await measureFace(own);
         expect(card.problems, `${at}, your own Top card (a ${card.rem.toFixed(2)}rem card)`).toEqual([]);
-        expect(card.chipText, `${at}: the chip still names the role`).toBe("Top");
+        expect(await chipSpoken(own), `${at}: the chip still names the role to screen readers`).toBe("- text: Top");
         // One above the other on a card under 9.25rem, where side by side they left the role no room.
         expect(card.controls, `${at}: Customise and the turn control (a card ${card.inner.toFixed(2)}rem inside)`).toBe(card.inner < 9.25 ? "one above the other" : "side by side");
         if (card.labelShown) named.push(at);
@@ -289,6 +320,7 @@ test("a member's own card, with Customise beside the turn control, at 150% to 20
     expect(named, "your own card's chip with the role's name").toEqual(["320px at 100%", "375px at 100%", "393px at 100%", "393px at 150%"]);
   } finally {
     await setTopStarter(adminPage, before);
+    topToRestore = null;
     await phone.close();
     await member.context.close();
     await admin.close();
