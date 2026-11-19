@@ -560,24 +560,33 @@ function onSignOut() {
 
 /**
  * The upright tab bar's label ladder, in the bar's own width in rem (the `tabbar` container), as
- * static class lists (Tailwind reads them whole): the whole names from `rest`'s width, the short ones
- * ("Profile", "Intel"; "Users", "Platform"; the rest of each read out) down to `label`'s, and below
- * it each destination's icon alone, each pill sharing the width, the names read out only
- * (docs/MOBILE.md, the tab bar). MEASURED: see the numbers below.
+ * static class lists (Tailwind reads them whole): the whole names where `rest` allows, then the short
+ * ones (the rest of each read out only) down to `label`'s width, and below it each destination's icon
+ * alone, each pill sharing the width, the names read out only (docs/MOBILE.md, the tab bar).
+ * Measured on 19 Nov 2026 with the bundled Inter at 100% text, each tab at its own width: Player
+ * Mode's four need 16.28rem with their whole names (My Profile, Team, Matchup Intel, Resources) and
+ * 14.46rem short (Profile, Intel); Admin Mode's four 14.63rem short (Dashboard, Users, Platform,
+ * System). Admin Mode's phone bars keep the short names at every width (its whole names, 21.02rem,
+ * read out): "Platform Settings" shown in full would put a second "Settings" on the phone beside the
+ * account's own (docs/MOBILE.md, the account screen). A 320px phone's bar is 20rem at 100% text, 16rem
+ * at 125%, 13.3rem at 150% and 10rem at 200%; 375px 23.4, 18.8, 15.6 and 11.7; 393px 24.6, 19.7, 16.4
+ * and 12.3; 430px 26.9, 21.5, 17.9 and 13.4. So Player Mode shows the whole names at 100% everywhere,
+ * at 125% from 375px and at 150% on 430px, the short names at 125% on 320px and at 150% from 375px,
+ * and the icons alone only at 200%, or at 150% on 320px (e2e/mobile-nav.spec.ts, the label ladder).
  */
 const TAB_FIT = {
   member: {
-    li: "@max-[15rem]/tabbar:min-w-0",
-    link: "@max-[15rem]/tabbar:px-0.5",
-    pill: "@max-[15rem]/tabbar:w-full @max-[15rem]/tabbar:max-w-12",
-    rest: "@max-[18rem]/tabbar:sr-only",
-    label: "@max-[15rem]/tabbar:sr-only",
+    li: "@max-[14.8rem]/tabbar:min-w-0",
+    link: "@max-[14.8rem]/tabbar:px-0.5",
+    pill: "@max-[14.8rem]/tabbar:w-full @max-[14.8rem]/tabbar:max-w-12",
+    rest: "@max-[16.6rem]/tabbar:sr-only",
+    label: "@max-[14.8rem]/tabbar:sr-only",
   },
   admin: {
     li: "@max-[15rem]/tabbar:min-w-0",
     link: "@max-[15rem]/tabbar:px-0.5",
     pill: "@max-[15rem]/tabbar:w-full @max-[15rem]/tabbar:max-w-12",
-    rest: "@max-[21rem]/tabbar:sr-only",
+    rest: "sr-only",
     label: "@max-[15rem]/tabbar:sr-only",
   },
 } as const;
@@ -585,42 +594,70 @@ const TAB_FIT = {
 /**
  * A tablet's top bar at a larger text size, in the bar's own width in rem (the `topbar` container:
  * its row less its gutters, 1rem a side from sm, which grow with the text too), as static class
- * lists (Tailwind reads them whole). MEASURED: see the numbers below.
+ * lists (Tailwind reads them whole). Measured on 19 Nov 2026 with the bundled Inter at 100% text,
+ * the row's shown parts at their own widths and the gaps between them:
+ *   Player Mode  the team's name and the whole names 42.00rem, the whole names alone 35.88rem, the
+ *                short ones alone 30.38rem: the name gives way first (below 42.5rem), then the whole
+ *                names (below 36.25rem), then the short ones (below 30.75rem);
+ *   Admin Mode   the name (two lines, "Admin mode" under the team's) and the whole names 49.28rem,
+ *                the name and the short names 39.35rem, the short names alone 32.81rem: the name
+ *                says the mode, so it stays with the short names and gives way only below 39.75rem;
+ *                the whole names show from 49.75rem, the short ones down to 33.25rem.
+ * A 768px tablet's bar is 768px over the root's size less the 2rem of gutters: 46rem at 100% text,
+ * 36.4rem at 125%, 30rem at 150%, 22rem at 200%. So Player Mode shows the name and the whole names
+ * at 100%, the whole names alone at 125% and the icons alone from 150% (an 820px tablet keeps the
+ * short ones at 150%); Admin Mode the name and the short names at 100%, the short names alone at
+ * 125%, the icons alone from 150%. Back, which the installed app adds on a page reached from another,
+ * takes about the room the name had (Back and its gap: 4.67rem as "Team", 6.94rem as "Dashboard"),
+ * so beside it each step comes sooner (`besideBack`), and where both show the name shortens first. A
+ * longer Back label (a teammate's long name) can still leave the list a few pixels short, where it
+ * scrolls: the last resort. With the root's size raised (the specs' emulation), the bar keeps the
+ * tablet's frame at any size; a real text-size setting moves the breakpoints too, so at 125% a 768px
+ * window has the phone's frame (RESPONSIVE.md, "Two ways to emulate a larger text size").
  */
 const BAR_FIT = {
   member: {
     brand: "md:@max-[42.5rem]/topbar:hidden",
     rest: "md:@max-[36.25rem]/topbar:sr-only",
-    label: "md:@max-[31.5rem]/topbar:sr-only",
-    besideBack: { rest: "md:@max-[42.5rem]/topbar:sr-only", label: "md:@max-[36.25rem]/topbar:sr-only" },
-    besideBackInstalled: { rest: "md:standalone:@max-[42.5rem]/topbar:sr-only", label: "md:standalone:@max-[36.25rem]/topbar:sr-only" },
+    label: "md:@max-[30.75rem]/topbar:sr-only",
+    besideBack: { rest: "md:@max-[41rem]/topbar:sr-only", label: "md:@max-[35.5rem]/topbar:sr-only" },
+    besideBackInstalled: { rest: "md:standalone:@max-[41rem]/topbar:sr-only", label: "md:standalone:@max-[35.5rem]/topbar:sr-only" },
   },
   admin: {
-    brand: "md:@max-[39rem]/topbar:hidden",
-    rest: "md:@max-[49rem]/topbar:sr-only",
-    label: "md:@max-[33rem]/topbar:sr-only",
-    besideBack: { rest: "md:@max-[56rem]/topbar:sr-only", label: "md:@max-[40rem]/topbar:sr-only" },
-    besideBackInstalled: { rest: "md:standalone:@max-[56rem]/topbar:sr-only", label: "md:standalone:@max-[40rem]/topbar:sr-only" },
+    brand: "md:@max-[39.75rem]/topbar:hidden",
+    rest: "md:@max-[49.75rem]/topbar:sr-only",
+    label: "md:@max-[33.25rem]/topbar:sr-only",
+    besideBack: { rest: "md:@max-[56.75rem]/topbar:sr-only", label: "md:@max-[40rem]/topbar:sr-only" },
+    besideBackInstalled: { rest: "md:standalone:@max-[56.75rem]/topbar:sr-only", label: "md:standalone:@max-[40rem]/topbar:sr-only" },
   },
 } as const;
 
 /**
- * The destinations' names in a phone's bar held sideways, in the bar's own width in rem: the whole
- * names from `rest`'s width, the short ones down to `others'`, then only the current one's down to
- * `current`'s, then the icons alone. MEASURED: see the numbers below.
+ * The destinations' names in a phone's bar held sideways, in the bar's own width in rem (the row less
+ * its gutters, which take the notches' insets): the whole names where `rest` allows, the short ones
+ * down to `others`, then only the current one's (short) down to `current`, then the icons alone.
+ * Measured on 19 Nov 2026 with the bundled Inter at 100% text, with the mark and the avatar, and with
+ * Filters too (3rem more), which a page offers there once its own have scrolled away: Player Mode's
+ * four need 29.88rem with their whole names (32.88rem with Filters), 25.56rem short (28.56rem), the
+ * current one alone 18.94rem (21.94rem); Admin Mode, short names only as upright, 33.54rem (36.54rem
+ * with Filters), the current one alone 26.79rem (29.79rem) with the mode's words beside the mark and
+ * 20.75rem (23.75rem) without them. A 568 × 320 phone's row is 34.5rem at 100% text, so Player Mode
+ * names all four there in full (today's five could name only the current one); an iPhone 15 held
+ * sideways, installed (852 × 393, 734px between the notches), 45.9rem at 100%, 36.7rem at 125% and
+ * 30.6rem at 150%: all four named at every one of them, in full to 125%.
  */
 const SIDEWAYS_FIT = {
   member: {
-    rest: "@max-[33rem]/topbar:sr-only",
+    rest: "@max-[33.25rem]/topbar:sr-only",
     others: "@max-[29rem]/topbar:sr-only",
-    current: "@max-[22rem]/topbar:sr-only",
+    current: "@max-[22.25rem]/topbar:sr-only",
     mode: "",
   },
   admin: {
-    rest: "@max-[40rem]/topbar:sr-only",
-    others: "@max-[34rem]/topbar:sr-only",
-    current: "@max-[27rem]/topbar:sr-only",
-    /** Admin Mode's words beside the mark, read out only below this. */
+    rest: "sr-only",
+    others: "@max-[37rem]/topbar:sr-only",
+    current: "@max-[24rem]/topbar:sr-only",
+    /** Admin Mode's words beside the mark (6.04rem with their gap), read out only below 32rem, where the current one's name still fits with Filters (29.79rem). */
     mode: "@max-[32rem]/topbar:sr-only",
   },
 } as const;
