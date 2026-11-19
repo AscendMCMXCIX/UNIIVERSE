@@ -477,7 +477,7 @@ test("the account screen in Safari's engine: one tap opens it, it fills the scre
     expect(fit.box, path).toEqual([0, 0, ...fit.screen]);
     expect(fit.scrolls, path).toBe(false);
     expect(fit.missed, path).toBe(0);
-    // Rows measured (the demo has Settings, Resources, Install App and the mode switch), each 48px or
+    // Rows measured (the demo has Matchup Intel, Resources, Settings, Install App and the mode switch), each 48px or
     // taller and as wide as the column.
     expect(fit.rows, path).toBeGreaterThanOrEqual(2);
     expect(fit.shortest, path).toBeGreaterThanOrEqual(48);
