@@ -10,7 +10,8 @@ export function Disclosure({ title, description, children, defaultOpen = false, 
           <span className="block text-sm font-semibold text-fg">{title}</span>
           {description ? <span className="block text-sm text-fg-muted">{description}</span> : null}
         </span>
-        <ChevronDown className="h-4 w-4 shrink-0 text-fg-subtle transition-transform group-open:rotate-180" aria-hidden />
+        {/* Its own <details> only: a Disclosure inside an open one (Data & Integrations' Advanced) would follow the outer one with group-open. */}
+        <ChevronDown className="h-4 w-4 shrink-0 text-fg-subtle transition-transform [details[open]>summary>&]:rotate-180" aria-hidden />
       </summary>
       <div className="space-y-4 border-t border-border p-3 sm:p-4">{children}</div>
     </details>

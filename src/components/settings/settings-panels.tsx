@@ -81,7 +81,7 @@ function runJob(j: JobView, confirmation?: string) {
   return runJobAction(j.key, confirmation).then((r) => (r.ok ? { ok: r.data.ok, error: r.data.error, data: `${j.key}: ${r.data.ok ? "ok" : "failed"} in ${formatNumber(r.data.durationMs / 1000, 1)} s` } : r));
 }
 
-function JobRow({ job: j, title, children }: { job: JobView; title?: React.ReactNode; children: React.ReactNode }) {
+function JobRow({ job: j, title, description, children }: { job: JobView; title?: React.ReactNode; description?: string; children: React.ReactNode }) {
   return (
     <li className="grid gap-x-4 gap-y-2 py-3 text-xs first:pt-1 last:pb-1 md:grid-cols-[minmax(0,1fr)_auto] md:items-center" data-testid="job-row" data-job={j.key}>
       <div className="min-w-0 space-y-1 [overflow-wrap:anywhere]">
@@ -89,7 +89,7 @@ function JobRow({ job: j, title, children }: { job: JobView; title?: React.React
           {title ?? <span className="font-mono text-sm text-fg">{j.key}</span>}
           <Badge tone={STATUS_TONE[j.status] ?? "neutral"}>{j.status}</Badge>
         </div>
-        <p className="text-fg-subtle">{j.description}</p>
+        <p className="text-fg-subtle">{description ?? j.description}</p>
         {j.cost ? <p className="text-fg-muted" data-testid="job-cost">{j.cost}</p> : null}
         {j.lastError ? <p className="text-bad">{j.lastError}</p> : null}
         {j.consecutiveFailures >= 3 ? <p className="text-bad">{formatCount(j.consecutiveFailures)} failures in a row</p> : null}
@@ -291,6 +291,8 @@ export function JobsPanel({ jobs, ownerTools }: { jobs: JobView[]; ownerTools: b
                 <JobRow
                   key={j.key}
                   job={j}
+                  // What it does in plain words; the technical description is the job's own (the key below the title).
+                  description={j.confirm?.effect}
                   title={
                     <span className="min-w-0">
                       <span className="block text-sm font-semibold text-fg">{j.confirm?.title ?? j.key}</span>

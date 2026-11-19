@@ -163,7 +163,7 @@ Branding images, from `db-usage` on the same day:
   - Worst case: someone opens all those pages after every hourly run, about 24 × 4.5 MB, roughly 110 MB a day.
   - A realistic day is a few MB to a few tens of MB, under the 120 MB daily budget.
   - This lasts until the backlog is gone: about 3,400 games on 20 Oct, at 30 a run until 22 Oct and 60 after, and sooner for players who use Refresh.
-- **Pausing it.** Set its interval very high in **Admin → Data & Riot**, or set `FIGURES_BACKFILL_PER_RUN=0`.
+- **Pausing it.** Set its interval very high in **Admin → Data & Integrations → Details → Advanced → Schedule** (the Owner only since 19 Nov 2026; 0 turns it off after "TURN OFF figures-backfill" is typed, and `/api/health` then names it), or set `FIGURES_BACKFILL_PER_RUN=0`.
 
 **The counter's first day** (`egress` and `db-usage` runs 39417129007 and 39417193755, 20 Oct 11:45 UTC). 19 Oct reads 0 MB because counting began on 20 Oct at 00:58 UTC. 20 Oct had 136 MB by 11:45 UTC (12,297 calls), already over the 120 MB budget, so the next scheduled run fails on it, as intended. A day with four production deployments:
 

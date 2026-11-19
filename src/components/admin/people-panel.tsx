@@ -298,7 +298,7 @@ export function PeoplePanel({ players, adminAccounts = [], presets = [], current
                         <Badge tone="neutral">Production check</Badge>
                       </div>
                       <p className="flex items-center gap-1.5 text-xs text-fg-muted">
-                        <ShieldCheck className="h-3.5 w-3.5 text-fg-subtle" aria-hidden /> Default member access · locked
+                        <ShieldCheck className="h-3.5 w-3.5 text-fg-subtle" aria-hidden /> Default access, locked
                       </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-1.5">

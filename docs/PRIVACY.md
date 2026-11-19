@@ -45,7 +45,7 @@ Deactivating, deleting and archiving are different actions, and none of them is 
 | Shared games | Kept for the others. Their place becomes **"Removed player"**: side and result only; no PUUID, name, Riot ID, champion, position, items, runes, spells or figures. Team kills come from Riot's team total, so the others' figures stay right. Their timeline entries and per-minute frames are deleted, and teammates' games no longer record them as the lane opponent. The summaries are rebuilt. |
 | Legacy opponent accounts | None are left; one that holds their Riot identity is deleted. |
 | Notes others wrote | Whole-word mentions of their names, Riot names and Riot IDs (3 characters or more) become "[removed]"; the rest of each note stays. This includes the private text other players kept in the retired Ranked Development: review learning points and adjustments, session focus and closing notes, objective titles and explanations, and If–Then plans. |
-| Admin activity | Entries keep what happened. Their name becomes **"Erased member"** as actor or target, and matching details become "[removed]". |
+| Admin activity | Entries keep what happened. Their name becomes **"Erased member"** as actor or target, and matching details become "[removed]". Since 19 Nov 2026, every entry that is theirs by id (they did it, or it was done to their account, profile or Riot account) loses every text in its details, whatever it says (numbers and yes/no values stay), so a detail naming them as they were called before a rename cannot survive. **Forward only:** entries left by erasures made before that keep what those erasures left. Their ids were removed then, so neither a later erasure nor re-applying the records (`erasure-reconcile`, Personal data → Re-apply records) finds them by id; clearing them would need a one-off over the entries named "Erased member", which waits for the owner (the overhaul plan's OD21, with a read-only count first). |
 | Job logs | Their Riot IDs are taken out of `job_runs` and `data_refresh_status`. Newer sync lines name an account only as `account 1a2b3c4d`. Run records are deleted after 60 days (the daily `integrity` job, in bounded batches). |
 | Caches | Team, public page, leaderboards, public pictures and banners, proficiency and lookup caches, and the lanes Matchups keeps, are cleared on this server instance (`src/server/privacy/after-erasure.ts`); other instances follow within their cache times. |
 
@@ -55,7 +55,7 @@ It then records:
 
 **Safeguards** (`guardErasure`, every action in `src/server/actions/privacy.ts`):
 - administrators only (`manage-users`, checked on the server first);
-- never your own account, and never the Owner;
+- never your own account, never the Owner, and never the Production check's account (`verify`: it holds no one's personal data and its job keeps it; deactivate or delete it instead);
 - another administrator only when the Owner asks;
 - never the last active administrator;
 - nothing happens until the dialog's preview has been read, the username (or Riot ID) typed exactly, and the permanence acknowledged.
