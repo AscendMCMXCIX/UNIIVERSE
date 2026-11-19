@@ -655,7 +655,28 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
     if (!inline || !a || a.id !== inline) return;
     anchor.current = null;
     const el = document.getElementById(`match-${inline}`);
-    if (el) window.scrollBy({ top: el.getBoundingClientRect().top - a.top, behavior: "instant" });
+    if (!el) return;
+    const hold = () => {
+      const off = el.getBoundingClientRect().top - a.top;
+      if (Math.abs(off) > 0.5) window.scrollBy({ top: off, behavior: "instant" });
+    };
+    hold();
+    // Content above it can still settle for a few frames (the game that closed drawing its card
+    // again): the header is held where it was until then, unless the reader scrolls first.
+    let frames = 0;
+    let raf = 0;
+    const stop = () => {
+      cancelAnimationFrame(raf);
+      for (const t of ["wheel", "touchstart", "keydown", "pointerdown"]) window.removeEventListener(t, stop);
+    };
+    const tick = () => {
+      hold();
+      if (++frames < 30) raf = requestAnimationFrame(tick);
+      else stop();
+    };
+    raf = requestAnimationFrame(tick);
+    for (const t of ["wheel", "touchstart", "keydown", "pointerdown"]) window.addEventListener(t, stop, { passive: true, once: true });
+    return stop;
   }, [inline]);
   // An opened card that sits low on the screen, or above it (the game open before it closed and
   // the list moved up), is scrolled to the top so its breakdown is in view; one already in the

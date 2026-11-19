@@ -277,11 +277,12 @@ function NoteList({ title, tone, Icon, items, testId }: { title: string; tone: s
   if (!items.length) return null;
   return (
     <div data-testid={testId}>
-      <h3 className="flex items-center gap-1.5 text-2xs font-semibold uppercase tracking-label text-fg-subtle">
+      {/* A label, not a heading: the view sits under headings of different levels (a profile's page, Team Matches, the window). */}
+      <p className="flex items-center gap-1.5 text-2xs font-semibold uppercase tracking-label text-fg-subtle" aria-hidden>
         <Icon className={cn("h-3.5 w-3.5", tone)} aria-hidden />
         {title}
-      </h3>
-      <ul className="mt-0.5 space-y-0.5 text-sm text-fg">
+      </p>
+      <ul className="mt-0.5 space-y-0.5 text-sm text-fg" aria-label={title}>
         {items.map((t) => (
           <li key={t} data-testid="post-game-note">
             {t}
