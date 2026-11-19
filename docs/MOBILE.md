@@ -310,8 +310,7 @@ text below 12px; 11px (`text-2xs`) only for badges and labels.
 | A short question or form | `Dialog`: the same sheet as every other (built on `DetailModal`). | One sheet: one look, one motion, one height rule. |
 
 Every sheet and window shares `DetailModal`: native `<dialog>` (focus kept inside, the page behind
-inert), Escape and the backdrop close it, focus returns to what opened it and the page is put back
-where it was as the window opened (a card partly under the tab bar no longer moves the list), a sheet slides up in
+inert), Escape and the backdrop close it, focus returns to what opened it, a sheet slides up in
 220ms with `--ease-emphasized` and out in 140ms (instant with reduced motion). Every window's body
 grows from its content (`flex-auto`, never `flex-1`: Safari 26 collapses the other, above). The
 account screen is a screen of its own instead (`size="screen"`, above). A window opened by a tap
