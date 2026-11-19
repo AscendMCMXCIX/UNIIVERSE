@@ -36,6 +36,11 @@ export interface MatchupFilter {
    * opponents (`lane`).
    */
   exact?: boolean;
+  /**
+   * Only the tally (the champion's games and its lane opponents, from the stored rows): no match
+   * record or timeline is read. All Champions' preview asks for this on every open and switch.
+   */
+  tallyOnly?: boolean;
 }
 
 export type TimelineStatus = "frames" | "pending" | "unavailable" | "no-details";
@@ -85,6 +90,8 @@ export interface MatchupsData {
   /** Stored rift games in scope (remakes left out), and how many name a lane opponent. */
   games: number;
   gamesWithOpponent: number;
+  /** The chosen champion's games in scope (in its role when one is given), with or without a known lane opponent. */
+  championGames: number;
   champions: Array<{ championId: string; games: number; wins: number }>;
   champion: string | null;
   opponents: Array<{ championId: string; games: number; wins: number; lastPlayedAt: number }>;
@@ -206,7 +213,7 @@ export async function getPlayerMatchups(db: Db, playerId: string, filter: Matchu
   const seasonNow = await currentSeason(db);
   const requested = filter.season ?? seasonNow;
   const role = filter.role ?? null;
-  const empty: MatchupsData = { accounts, account, season: requested === "all" ? "all" : chooseSeason(requested, [seasonNow], seasonNow), seasons: [seasonNow], currentSeason: seasonNow, mode: filter.mode, games: 0, gamesWithOpponent: 0, champions: [], champion: filter.exact ? filter.champion : null, opponents: [], vs: null, role, detail: null, lane: null };
+  const empty: MatchupsData = { accounts, account, season: requested === "all" ? "all" : chooseSeason(requested, [seasonNow], seasonNow), seasons: [seasonNow], currentSeason: seasonNow, mode: filter.mode, games: 0, gamesWithOpponent: 0, championGames: 0, champions: [], champion: filter.exact ? filter.champion : null, opponents: [], vs: null, role, detail: null, lane: null };
   if (!account) return empty;
   const chosen = account === "all" ? all : all.filter((a) => a.id === account);
   const riotIdOf = new Map(all.map((a) => [a.id, a.riotId]));
@@ -246,8 +253,9 @@ export async function getPlayerMatchups(db: Db, playerId: string, filter: Matchu
   const onChampion = withOpponent.filter((r) => r.championId === champion);
   const opponents = tally(onChampion, (r) => r.enemy!).map(([championId, t]) => ({ championId, games: t.games, wins: t.wins, lastPlayedAt: t.last }));
   const vs = opponents.find((o) => o.championId === filter.vs)?.championId ?? opponents[0]?.championId ?? null;
-  const base = { ...empty, season, seasons, games: rows.length, gamesWithOpponent: withOpponent.length, champions, champion, opponents, vs };
-  if (!champion || !onChampion.length) return base;
+  const championGames = champion ? rows.filter((r) => r.championId === champion).length : 0;
+  const base = { ...empty, season, seasons, games: rows.length, gamesWithOpponent: withOpponent.length, championGames, champions, champion, opponents, vs };
+  if (!champion || !onChampion.length || filter.tallyOnly) return base;
 
   // The champion window reads every game on the champion (its lane over all opponents); the
   // Matchups list only the chosen pairing. Either way details and timelines are read once.

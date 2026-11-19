@@ -68,11 +68,10 @@ const OVERLAYS = [
   "src/components/public/sign-in.tsx",
   "src/components/matches/match-filters.tsx",
   "src/components/champions/champion-filter.tsx",
-  "src/components/players/opponent-picker.tsx",
 ];
 
 /** The pickers whose list opens under their button, inside windows among other places. */
-const PICKERS = ["src/components/matches/match-filters.tsx", "src/components/champions/champion-filter.tsx", "src/components/players/opponent-picker.tsx"];
+const PICKERS = ["src/components/matches/match-filters.tsx", "src/components/champions/champion-filter.tsx"];
 
 /** A viewport unit in a value (12dvh, 100vw, calc(100svh-...)) or a Tailwind size named after one (h-dvh, h-screen). */
 const VIEWPORT_UNIT = /(?<![\w-])\d*\.?\d+(?:d|s|l)?(?:vh|vw|vmin|vmax|vb|vi)\b|(?<![\w-])(?:min-|max-)?[hw]-(?:dvh|svh|lvh|screen|dvw|svw|lvw)\b|(?<![\w-])size-screen\b/g;
@@ -164,7 +163,7 @@ describe("a window's body grows from its content", () => {
     });
     expect(found).toEqual([]);
     // The scan read the callers there are (it would pass on reading nothing).
-    for (const file of ["src/components/ui/dialog.tsx", "src/components/public/sign-in.tsx", "src/components/players/champion-detail.tsx"]) expect([...callers]).toContain(file);
+    for (const file of ["src/components/ui/dialog.tsx", "src/components/public/sign-in.tsx"]) expect([...callers]).toContain(file);
     // And it reads a template literal or a call to its end.
     expect(attributeValues('<DetailModal bodyClassName={`${phone ? "px-0" : "px-4"} flex-1 overflow-y-auto`} />', "bodyClassName").join(" ").match(ZERO_BASIS)).not.toBeNull();
     expect(attributeValues('<DetailModal bodyClassName={cn("transition-opacity", busy && "flex-[1]")} />', "bodyClassName").join(" ").match(ZERO_BASIS)).not.toBeNull();

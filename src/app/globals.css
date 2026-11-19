@@ -545,6 +545,20 @@ p a.text-accent {
 @utility pop-in {
   animation: pop 220ms var(--ease-emphasized);
 }
+/* All Champions' preview unfolding beside the list: a 12px slide outward from the list and a fade. */
+@keyframes unfold-in {
+  from {
+    opacity: 0;
+    transform: translateX(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@utility unfold-in {
+  animation: unfold-in 200ms var(--ease-emphasized);
+}
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
