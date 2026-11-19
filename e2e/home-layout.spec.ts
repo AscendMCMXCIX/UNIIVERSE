@@ -126,7 +126,7 @@ test("Team Overview on a 1366 × 768 laptop with the sidebar open: all five in o
   expect(await overflow(page)).toBeLessThanOrEqual(1);
 });
 
-test("Team Overview on a very wide screen: the lineup keeps its maximum width, centred", async ({ page, context, baseURL }, info) => {
+test("Team Overview on a very wide screen: the lineup takes Team's column, centred, its first card under the first tab", async ({ page, context, baseURL }, info) => {
   test.skip(info.project.name !== "desktop", "wide screens");
   await context.addCookies([{ name: "uniiverse_sidebar", value: "collapsed", url: baseURL! }]);
   await page.setViewportSize({ width: 2560, height: 1440 });
@@ -135,11 +135,16 @@ test("Team Overview on a very wide screen: the lineup keeps its maximum width, c
   await lineupAtRest(page);
   const track = await box(page.getByTestId("lineup-overview"));
   const main = await box(page.locator("main"));
-  // The cap is in rem (the type scales with very large screens, the lineup with it), never the window.
+  const tab = await box(page.getByTestId("team-tabs").locator("li").first());
+  // From a 1920px window the header and cards take Team's column (100rem, in rem: the type scales
+  // with very large screens, the lineup with it), never the window (S2c, UD.T2).
   const rem = await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).fontSize));
-  expect(track.width).toBeLessThanOrEqual(84 * rem + 1);
+  expect(track.width).toBeLessThanOrEqual(100 * rem + 1);
   expect(track.width).toBeLessThan(main.width - 2 * 4 * rem);
   expect(Math.abs(track.x + track.width / 2 - (main.x + main.width / 2))).toBeLessThanOrEqual(2);
+  expect(Math.abs(track.x - tab.x), "the first card under the first tab").toBeLessThanOrEqual(1);
+  // Five cards still fit the window's height: the page does not scroll.
+  expect(await page.evaluate(() => document.documentElement.scrollHeight - innerHeight)).toBeLessThanOrEqual(1);
 });
 
 async function openTeammate(page: Page) {
