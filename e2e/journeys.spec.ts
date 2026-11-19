@@ -122,9 +122,10 @@ async function journeys(member: Page, owner: Page, start: "landing" | "profile")
     await toMyProfile(c);
     await tap(c, member.getByTestId("profile-chrome-tab-champions"));
     await tap(c, member.getByTestId("top-champion").first().getByTestId("open-champion"));
-    await expect(member.getByTestId("champion-detail")).toBeVisible();
-    await tap(c, member.getByTestId("champion-tab-matchups"));
-    await expect(member.getByTestId("champion-tab-matchups")).toHaveAttribute("aria-selected", "true");
+    // The preview (S5) replaced the champion window: on a phone its sheet holds the lane opponents on
+    // its first screen, with no tab to choose.
+    const preview = member.locator("dialog[open][data-testid=champion-preview]");
+    await expect(preview.getByTestId("champion-preview-opponents")).toBeInViewport();
   });
   await run("J9 Settings", member, "/team", async (c) => {
     await tap(c, member.getByTestId("account-sheet-button"));
@@ -177,7 +178,7 @@ test("the ten most common journeys: at most 20 taps from the landing, Matchup In
     "J5 a game we played together": 2,
     "J6 Matchup Intel": 1,
     "J7 a Resources site": 2,
-    "J8 a champion's matchups": 4,
+    "J8 a champion's matchups": 3,
     "J9 Settings": 2,
     "J10 Admin Mode → Users": 3,
   });
