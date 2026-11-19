@@ -170,7 +170,7 @@ test("held sideways, the bars at rest on a profile are the compact bar and the s
 
 test("held sideways, the band holds the longest line it is made for, on one line: the roles, the rank, the lineup status and three links", async ({ browser, baseURL }) => {
   // The worst the band's line must hold (SIDEWAYS_META in profile-header.tsx): "Support" as the
-  // primary role, two off roles, "Grandmaster · 1234 LP", "Main lineup · Support" and three links,
+  // primary role, two off roles, "Grandmaster · 1234 LP", "In the lineup · Support" and three links,
   // drawn into Demo Mid's band in place (nothing is saved): the narrower the line, the more it condenses.
   const page = await phone(browser, baseURL!, IPHONE_LANDSCAPE);
   await page.goto("/team");
@@ -196,7 +196,7 @@ test("held sideways, the band holds the longest line it is made for, on one line
         const tier = [...rank.childNodes].find((n) => n.nodeType === Node.TEXT_NODE && n.textContent!.trim());
         if (tier) tier.textContent = "Grandmaster";
         rank.querySelector(".text-fg-muted")!.textContent = tier ? "· 1234 LP" : "Grandmaster · 1234 LP";
-        for (const s of meta.querySelectorAll("[data-testid=lineup-status] span:last-child")) s.textContent = "Main lineup · Support";
+        for (const s of meta.querySelectorAll("[data-testid=lineup-status] span:last-child")) s.textContent = "In the lineup · Support";
         const links = h.querySelector("[data-testid=social-links]")!;
         if (links.children.length < 3) links.append(links.lastElementChild!.cloneNode(true));
       });

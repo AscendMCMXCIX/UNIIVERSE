@@ -317,7 +317,7 @@ test("the profile header: Main lineup is a status, Customise is one small contro
   await expect(header.getByTestId("profile-rank").getByTestId("rank-emblem")).toHaveCount(1);
   const status = header.getByTestId("lineup-status");
   if (await status.count()) {
-    await expect(status).toContainText("Main lineup");
+    await expect(status).toContainText("In the lineup");
     expect(await status.evaluate((e) => e.tagName)).toBe("SPAN");
   }
   const customise = header.getByTestId("customise-card");

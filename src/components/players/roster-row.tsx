@@ -25,6 +25,7 @@ export interface RiotState {
 // A few words for a state other than up to date, on the row's last line; the whole sentence is what a screen reader reads.
 const RIOT_SHORT: Record<RiotState["state"], string> = { synced: "up to date", syncing: "catching up", verified: "updating", pending: "updating", stale: "delayed", error: "needs attention", none: "no account" };
 // Their colour, as the account badges elsewhere: delayed in the warning colour, needs attention in the error colour, the rest quiet.
+const RIOT_BADGE: Record<RiotState["state"], "neutral" | "warn" | "bad"> = { synced: "neutral", syncing: "neutral", verified: "neutral", pending: "neutral", stale: "warn", error: "bad", none: "neutral" };
 const RIOT_TONE: Record<RiotState["state"], string> = { synced: "text-fg-subtle", syncing: "text-fg-subtle", verified: "text-fg-subtle", pending: "text-fg-subtle", stale: "text-warn", error: "text-bad", none: "text-fg-subtle" };
 
 export interface RosterRowProps {
@@ -194,8 +195,20 @@ export function RosterRow({ look, art, name, avatarUrl, role, offRoles, offRoleS
         ) : (
           nameLine
         )}
-        {status || links ? (
+        {status || links || riotNote ? (
           <span className="ml-auto flex min-h-6 max-w-full shrink-0 flex-wrap items-center justify-end gap-1.5 self-start" data-testid="roster-status">
+            {/* Riot data not up to date: a badge on the name's line (a line of its own made the row 80px, UD.P2); its words from 24rem, the state's dot alone on narrower rows, the whole read out. */}
+            {riotNote ? (
+              <span className="inline-flex max-w-full" data-testid="directory-riot" data-state={riotNote.state}>
+                <Badge tone={RIOT_BADGE[riotNote.state]} className="whitespace-nowrap">
+                  <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full bg-current", RIOT_TONE[riotNote.state])} aria-hidden />
+                  <span aria-hidden className="@max-[24rem]/row:hidden">
+                    Riot: {RIOT_SHORT[riotNote.state]}
+                  </span>
+                  <span className="sr-only">Riot data: {riotNote.label}</span>
+                </Badge>
+              </span>
+            ) : null}
             {lineupRole ? (
               <span className="inline-flex max-w-full" data-testid="directory-lineup">
                 <Badge tone="good" title={`In the current lineup as ${ROLE_LABELS[lineupRole]}`}>
@@ -232,12 +245,6 @@ export function RosterRow({ look, art, name, avatarUrl, role, offRoles, offRoleS
           ) : null}
           {role ? <PoolPreview champions={pool} total={pool.length} label={poolLabel} fit="count" size="xs" testId="directory-pool" className={pool.length ? cn("ml-0.5 basis-0 grow", pool.length > 1 ? "min-w-15" : "min-w-7") : "ml-0.5 min-w-0"} /> : null}
         </span>
-        {riotNote ? (
-          <span className={cn("order-4 basis-full text-xs", RIOT_TONE[riotNote.state])} data-testid="directory-riot" data-state={riotNote.state}>
-            <span aria-hidden>Riot data: {RIOT_SHORT[riotNote.state]}</span>
-            <span className="sr-only">Riot data: {riotNote.label}</span>
-          </span>
-        ) : null}
       </div>
       <ChevronRight className="h-4 w-4 shrink-0 self-center text-fg-subtle @max-[18rem]/row:hidden" aria-hidden />
     </li>
@@ -286,9 +293,14 @@ function RoleCluster({ role, offRoles, shown, className }: { role: Role | null; 
         </span>
       ) : offRoles.length ? (
         <>
+          {/* "also Top": said in words where the row has room (UD.P1: quiet icons alone read as decoration); the names from 30rem. */}
           <span className="hidden items-center gap-1 text-fg-subtle @min-[26rem]/row:inline-flex" aria-hidden data-testid="roster-off-roles">
+            <span>also</span>
             {offRoles.map((r) => (
-              <RoleIcon key={r} role={r} className="h-3.5 w-3.5" decorative />
+              <span key={r} className="inline-flex items-center gap-0.5">
+                <RoleIcon role={r} className="h-3.5 w-3.5" decorative />
+                <span className="hidden @min-[30rem]/row:inline">{ROLE_LABELS[r]}</span>
+              </span>
             ))}
           </span>
           <span className="sr-only">, off roles: {offRoles.map((r) => ROLE_LABELS[r]).join(", ")}</span>

@@ -71,23 +71,23 @@ const LARGE_TEXT = {
 } as const;
 
 /**
- * "Main lineup · Top": the role the player holds in the current lineup, a status pill in the accent
+ * "In the lineup · Top": the role the player holds in the current lineup (words that need no hover text, TT.P04), a status pill in the accent
  * (one form on both headers). `condense`: on the Overview, "Lineup" where its line is narrow: held
  * sideways (SIDEWAYS_META) and at a larger text size (LARGE_TEXT), the whole still read out.
  */
 function LineupStatus({ role, className, condense = false }: { role: Role; className?: string; condense?: boolean }) {
   return (
-    <span className={cn("inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-accent/40 bg-accent/10 px-2 py-0.5 text-xs font-medium text-fg", className)} data-testid="lineup-status" title="Plays this role in the current team lineup">
+    <span className={cn("inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-accent/40 bg-accent/10 px-2 py-0.5 text-xs font-medium text-fg", className)} data-testid="lineup-status">
       <RoleIcon role={role} className="h-3.5 w-3.5 text-accent" />{" "}
       {condense ? (
         <>
           <span className={cn(SIDEWAYS_META.statusShort, LARGE_TEXT.statusShort)} aria-hidden>
             Lineup
           </span>
-          <span className={cn(SIDEWAYS_META.status, LARGE_TEXT.status)}>Main lineup · {ROLE_LABELS[role]}</span>
+          <span className={cn(SIDEWAYS_META.status, LARGE_TEXT.status)}>In the lineup · {ROLE_LABELS[role]}</span>
         </>
       ) : (
-        <>Main lineup · {ROLE_LABELS[role]}</>
+        <>In the lineup · {ROLE_LABELS[role]}</>
       )}
     </span>
   );
@@ -110,7 +110,7 @@ export function ProfileHeader({ identity: served, self, editable = false, champi
   const accent = accentCss(p.look.style);
   const rank = p.showRank ? p.rank : null;
   const asOf = rank?.asOf ? formatDayMonth(rank.asOf) : null;
-  const rankTitle = rank ? `${rank.queue ? `Ranked ${QUEUE_LABEL[rank.queue]}` : "Ranked"}: last known rank${asOf ? `, read from Riot on ${asOf}` : ""}` : "No ranked placement on record";
+  const rankTitle = rank ? `${rank.queue ? `${QUEUE_LABEL[rank.queue]} rank` : "Rank"}${asOf ? `, last checked ${asOf}` : ""}` : "Unranked: no ranked games recorded";
   const customise = (variant: "overlay" | "icon", iconOnPhones = false) => (
     <CustomiseCardButton
       variant={variant}
