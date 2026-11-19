@@ -49,13 +49,16 @@ posture", below):
    Matches, Profile**, each one tap from anywhere (`PHONE_TABS` in `src/lib/nav.ts`, at most five,
    those the account may open). Where there is room (an account without one or more of Team's
    pages), Matchup Intel takes the next place, then Resources, the sidebar's order, so Matchup Intel
-   is never harder to reach than Resources (18 Nov 2026). The current tab's icon sits in an accent
-   pill and its label is bright, so it never relies on colour alone. The Profile tab shows your own
+   is never harder to reach than Resources (18 Nov 2026). There it shows as "Intel", the end of its
+   name (`short` in `PHONE_TABS`), and is read out in full: the whole label is as long as
+   Leaderboards', and a five with it lost every label on a 320px phone at the usual text size (an
+   account with the Restricted Player level, for one; 19 Nov 2026). The current tab's icon sits in an
+   accent pill and its label is bright, so it never relies on colour alone. The Profile tab shows your own
    picture when you have one. A teammate's profile belongs to Players; your own profile's sections to Profile.
-   With a larger text size, once the labels no longer fit (Player Mode's five need up to 19.6rem
-   under their icons and 34.7rem beside them in a short window, Admin Mode's four 14.6rem and
-   26rem; a five with Matchup Intel among them up to 21.1rem, its labels giving way below 21.5rem),
-   each destination shows its icon alone and the label stays its name for screen readers:
+   With a larger text size, once the labels no longer fit (any five Player Mode can hold needs up
+   to 19.6rem under their icons, Matchup Intel's "Intel" no wider than its pill; Admin Mode's four
+   14.6rem; held sideways, "Frames by posture" below), each destination shows its icon alone and the
+   label stays its name for screen readers:
    a container query in rem on the bar, so the page never becomes wider than the phone (it did at
    125% text on a 320px phone before #300).
    Tapping the current tab on its own page goes back to the top, and so does tapping the page's
@@ -80,7 +83,14 @@ posture", below):
    Safari's tab on a 375pt iPhone SE, an administrator in Admin Mode whose username shows may scroll
    a few points), measured with Sign out and a username line counted in. A 320pt-wide screen (an
    iPhone SE with Display Zoom) scrolls a little in Safari's tab. With large text, or held sideways,
-   only its body scrolls, as one region, and the bar with the close button stays put. On a page pinched to zoom,
+   only its body scrolls, as one region, and the bar with the close button stays put. With large
+   text a row's name wraps between its words instead of ending in an ellipsis, and on a narrow
+   phone the row gives its words the room (`lib/sheet.ts`, 19 Nov 2026): a page's chevron goes
+   where the row is under 12rem (150% text on a 320px phone, 175% on 375px), the icons where it is
+   under 10.25rem (175% on 320px, 200% on 375px), so every row's name is whole from 100% to 200% on
+   320 and 375px phones in both modes (before, Matchup Intel's row read "Matchup…" at 150% on a
+   320px phone, Data & Integrations and the switch between the modes were cut at 150% on 320 and
+   375px, and at 200% on 320px every page row kept two or three letters). On a page pinched to zoom,
    a finger pans the zoomed view across it. The close button is a quiet 36px circle whose touch
    area reaches 44px. The screen takes the focus itself as it opens (nothing lights up; every
    window opened by a tap does the same, below), Tab reaches the close button and the rows in order, Escape or the close button closes it and the focus goes
@@ -143,8 +153,8 @@ pages are its "Main" navigation).
 | Posture | Window | Frame |
 |---|---|---|
 | Phone held upright | below `md`, taller than 480px | The frame above: the top bar (52px plus the status bar's inset; a profile's sections a 44px second row), the bottom tab bar (56px plus the home indicator's inset) and the account screen. Unchanged by this work. |
-| Phone held sideways | 480px tall or less, below `lg`, whatever its width | **One compact bar**, 44px plus the status bar's inset, and no bottom bar: Back or the team's mark (the mark alone, no name; in Admin Mode "Admin mode" beside it in the accent, left to screen readers where the bar is narrower than 32rem, and always part of the mark's name), the phone's destinations (the same five, or Admin Mode's four), the page's title where the destinations leave it at least 6rem, Filters (PR 2b), the avatar, which opens the account screen. Each destination is a 44px target; the current one is lit twice (its icon in an accent pill, its label shown and bright), and where the bar is narrower than 38rem only its label shows, the others' left to screen readers (`SIDEWAYS_FIT` in `mobile-nav.tsx`: all five labelled need 33.3rem, 36.3rem with Filters; a five with Matchup Intel among them, an account without one or two of Team's pages, 36.6rem and 39.6rem, so there the others' labels give way below 40rem); at a larger text size, below 27rem, the current one shows its icon alone too, and past that the row scrolls sideways inside the bar, the current destination kept in view whenever the row changes size (shown by a turn of the phone, or a text size). The current destination is marked as the upright tab bar marks it, so a turn keeps the signal. A profile's sections are a 44px second row (44px targets, as everywhere on a touch screen). The bar slides away while the page scrolls down and comes back on a scroll up, with the short-window rules it had (distances from where the scroll last changed direction, so slow drags count; back while the focus is inside it). Team's section tabs are not repeated in the page (the bar's destinations are them), nor a profile's. |
-| Tablet | `md` to `lg`, taller than 480px | **The destinations in the top bar**, one tap each: in Player Mode the sidebar's four entries, My Profile, Team, Matchup Intel and Resources (Team marked on all of its sections, which stay the pinned tabs in the page; Matchup Intel on its page whatever pair it shows, Resources on the Library alone); in Admin Mode its four tabs, Dashboard, Users, Platform Settings and Health (Platform Settings by its full name here, since the avatar menu under the bar holds the account's own Settings; the phone's bar keeps the short word). The current one is marked with the sidebar's four signals: a neutral lift with a hairline of light, the brand's gradient as a short bar at its foot, its icon in the brand blue, its name bright. The drawer is gone. The avatar opens the account menu (`AccountMenu`), which holds what the desktop sidebar's footer holds: Settings, Install App, the switch between the modes above Sign out, and the patch and Riot's notice at its foot; in Admin Mode also Data & Integrations and Audit Logs, the admin pages without a tab. At a larger text size the team's name beside its mark gives way first, then the labels to the icons (`BAR_FIT`: Player Mode's four need 42.0rem with the name, 35.9rem without, so the name gives way below 42.5rem and the labels below 36.5rem; its three needed 32.8rem and 26.8rem; Admin Mode's 42.7rem and 36.2rem; a 768px tablet's bar is 46rem at 100% text, 36.8rem at 125%, 30.7rem at 150%, so it keeps the name at 100%, the labels at 125%, and shows the icons alone at 150%, as before), and as a last resort the list scrolls sideways inside the bar. |
+| Phone held sideways | 480px tall or less, below `lg`, whatever its width | **One compact bar**, 44px plus the status bar's inset, and no bottom bar: Back or the team's mark (the mark alone, no name; in Admin Mode "Admin mode" beside it in the accent, left to screen readers where the bar is narrower than 32rem, and always part of the mark's name), the phone's destinations (the same five, or Admin Mode's four), the page's title where the destinations leave it at least 6rem, Filters (PR 2b), the avatar, which opens the account screen. Each destination is a 44px target; the current one is lit twice (its icon in an accent pill, its label shown and bright), and where the bar is narrower than 38rem only its label shows, the others' left to screen readers (`SIDEWAYS_FIT` in `mobile-nav.tsx`: all five labelled need 33.3rem, 36.3rem with Filters; a five with Matchup Intel among them, an account without one or two of Team's pages, up to 34.0rem and 37.0rem, Matchup Intel shown as "Intel" as in the upright bar); at a larger text size, below 27rem, the current one shows its icon alone too, and past that the row scrolls sideways inside the bar, the current destination kept in view whenever the row changes size (shown by a turn of the phone, or a text size). The current destination is marked as the upright tab bar marks it, so a turn keeps the signal. A profile's sections are a 44px second row (44px targets, as everywhere on a touch screen). The bar slides away while the page scrolls down and comes back on a scroll up, with the short-window rules it had (distances from where the scroll last changed direction, so slow drags count; back while the focus is inside it). Team's section tabs are not repeated in the page (the bar's destinations are them), nor a profile's. |
+| Tablet | `md` to `lg`, taller than 480px | **The destinations in the top bar**, one tap each: in Player Mode the sidebar's four entries, My Profile, Team, Matchup Intel and Resources (Team marked on all of its sections, which stay the pinned tabs in the page; Matchup Intel on its page whatever pair it shows, Resources on the Library alone); in Admin Mode its four tabs, Dashboard, Users, Platform Settings and Health (Platform Settings by its full name here, since the avatar menu under the bar holds the account's own Settings; the phone's bar keeps the short word). The current one is marked with the sidebar's four signals: a neutral lift with a hairline of light, the brand's gradient as a short bar at its foot, its icon in the brand blue, its name bright. The drawer is gone. The avatar opens the account menu (`AccountMenu`), which holds what the desktop sidebar's footer holds: Settings, Install App, the switch between the modes above Sign out, and the patch and Riot's notice at its foot; in Admin Mode also Data & Integrations and Audit Logs, the admin pages without a tab. At a larger text size the team's name beside its mark gives way first, then the labels to the icons (`BAR_FIT`: Player Mode's four need 42.0rem with the name, 35.9rem without, so the name gives way below 42.5rem and the labels below 36.25rem; its three needed 32.8rem and 26.8rem; Admin Mode's 42.7rem and 36.2rem, giving way below 43rem and 36.5rem. The bar's gutters are 1rem a side and grow with the text, so a 768px tablet's bar is 46rem at 100% text, 36.4rem at 125%, 30rem at 150% and 22rem at 200%: in Player Mode it keeps the name and the labels at 100%, the labels alone at 125%, and shows the icons alone from 150%, where its three kept their labels (four need more than 30rem); in Admin Mode the name and the labels at 100% and the icons alone from 125%, as before), and as a last resort the list scrolls sideways inside the bar. Back, which the installed app adds on a page reached from another, takes about the room the name had (Back as "Team" with its gap 4.7rem, the name with its gap 6.1rem), so beside it the labels give way where the name does (below 42.5rem; Admin Mode 43rem), and where both show the name shortens first: left at the bare thresholds the list scrolled beside Back at 125% on a 768px tablet (69px) and an 820px one (23px); a longer Back label ("Team Leaderboards") can still leave it 4px short at 768px and 100%. These sizes are the root's (the specs' way to emulate large text); a real text-size setting moves the `md` breakpoint too, so at 125% a 768px window has the phone's frame and the tablet bar starts at 960px, 46rem wide (RESPONSIVE.md, "Two ways to emulate a larger text size"). |
 | Desktop | `lg` and up | The sidebar, unchanged. |
 
 **What moved where.** Nothing was removed: every destination, action and account item is reachable
@@ -366,13 +376,16 @@ click, so nothing moves under the finger first). A sheet:
 - `pnpm verify` (unit tests include the phone tab bar, `currentTab`, `profileBase` and `phoneParent`
   in `src/lib/nav.test.ts`).
 - `pnpm build && pnpm test:e2e`: `e2e/mobile-nav.spec.ts` checks the frame on a phone (the five
-  tabs, Back and its label, the title, the profile's sections, the account screen, including a tap
-  made while the page's code is held back, the screen filling the smallest iPhone in both modes and
-  at 150% text, touches that never move the page, the filter sheet and chips, a game opening full
+  tabs, an account without Leaderboards whose fifth tab, Matchup Intel shown as "Intel", keeps every
+  label on a 320px phone and held sideways, Back and its label, the title, the profile's sections,
+  the account screen, including a tap made while the page's code is held back, the screen filling
+  the smallest iPhone in both modes and at 150% text, touches that never move the page, the filter sheet and chips, a game opening full
   screen and Back closing it, the Players and Recent form rows, one primary navigation shown at a
   time in each posture, the account screen closed by Back and not reopened by Forward, upright and
   held sideways) and, on a tablet, the destinations in the top bar in both modes, one tap each, the
-  current one's gradient bar, the bar at 100% to 200% text in both modes (`BAR_FIT`), the avatar
+  current one's gradient bar, the bar at 100% to 200% text in both modes (`BAR_FIT`: its row's width
+  and what a 768px tablet shows at each size written out, and beside the installed app's Back the
+  icons alone at 125%), the avatar
   menu's items (Admin Mode's Data & Integrations and Audit Logs among them), Install App from it
   giving the focus back to the avatar, an early tap on the avatar, and that the avatar menu's Sign
   out reaches the browser's other tabs; `e2e/mobile-landscape.spec.ts` the phone held sideways: one

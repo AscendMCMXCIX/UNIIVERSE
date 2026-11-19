@@ -8,7 +8,7 @@ UNIIVERSE collects two kinds of data: Riot's static game data (champions, skins,
 
 ## Champion abilities (Matchup Intel)
 
-Resources → Matchup Intel shows each champion's abilities with their base cooldowns (`src/domain/matchup-intel/`). The roster-wide part comes from Data Dragon, which is static data Riot publishes before any game; nothing is read from a game in progress.
+Matchup Intel (a sidebar entry of its own, `/resources/matchups`) shows each champion's abilities with their base cooldowns (`src/domain/matchup-intel/`). The roster-wide part comes from Data Dragon, which is static data Riot publishes before any game; nothing is read from a game in progress.
 
 **Source.** Each champion's Data Dragon file (`champion/<id>.json`), the same files the version check reads for skins (`src/server/matchup-intel/abilities.ts`, `compactChampionAbilities`):
 - The passive becomes P and the four spells Q, W, E, R. For each: the name, the icon (`image.full`), the ranks (`maxrank`; 1 for the passive), the base cooldown array as Riot gives it, and Riot's short description with its markup removed (never a source of numbers).

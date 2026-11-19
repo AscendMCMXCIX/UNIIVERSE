@@ -408,7 +408,7 @@ The counts equal those of the player's games in Encounters for the same players 
 
 ## 16 Nov 2026: Matchup Intel's champion abilities
 
-Resources → Matchup Intel reads each champion's Data Dragon abilities from `app_settings` "champion_abilities" (`docs/DATA_PIPELINES.md`, "Champion abilities (Matchup Intel)"). Measured on PostgreSQL 16 with Data Dragon 16.22.1's 173 champions:
+Matchup Intel (then Resources' second tab; a sidebar entry of its own since 18 Nov 2026, at the same address) reads each champion's Data Dragon abilities from `app_settings` "champion_abilities" (`docs/DATA_PIPELINES.md`, "Champion abilities (Matchup Intel)"). Measured on PostgreSQL 16 with Data Dragon 16.22.1's 173 champions:
 - **Reads:** only the champions a page shows, 1.2–2.6 KB each (median 1.6 KB; 3.3 KB and about 2–3 ms of database time for a matchup of two), each kept 10 minutes per instance. When nothing changed, the hourly version check's abilities step is one statement: a few hundred bytes back and about 5 ms of database time (4–6 ms, 102 buffers). Both read the stored document once. Before a review found it (16 Nov, before release), the hourly check read the document again for every champion: about 0.5 s of database time and 11,000 buffers (about 87 MiB of 8 KB pages, all from cache) every hour, though only a few hundred bytes left the database.
 - **Writes:** about 270 KB once per game version (117 KB on disk). Writes are not egress.
 - **Data Dragon and CPU:** a new version needs no extra request, because the champion sync's detail files are reused. The first fill after the deploy requests the 173 files once (about 2.3 MB). Compacting the roster takes about 6 ms of CPU.

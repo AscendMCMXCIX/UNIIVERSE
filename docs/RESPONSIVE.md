@@ -29,7 +29,7 @@ it (`globals.css`), and every pinned element follows these rules:
 | Top bar | sticky | one compact bar (below `lg`, at any width): 44px plus the inset, holding Back or the mark, the destinations, the title where room is left, Filters and the avatar, a profile's sections as a 40px second row; slides away while the page scrolls down; back on any scroll up, at the top, and while it holds focus |
 | Tab bar | fixed at the bottom; `main` keeps room for it (`pb-tabbar`) | none: the destinations are in the top bar; `pb-tabbar` keeps only the page's own padding, clear of the home indicator, and the scroll padding at the foot only that indicator |
 | Detail windows (`DetailModal`) | whole screen below `sm`, centred window above; one whose header would fill over 40% of a phone's screen (the Team player window on a small phone) scrolls as one, as in a short window | whole screen, scrolling as one: a large header scrolls away, its close and step buttons float at the top, a footer stays pinned |
-| The account screen (`DetailModal size="screen"`, behind the phone's avatar) | the whole screen, fixed to its four edges, under the status bar; its rows in a readable column (28rem); at the usual text size nothing scrolls on phones from 375pt wide (a few points for an administrator in Admin Mode in Safari's tab on a 375pt iPhone SE; a little on a 320pt screen in Safari's tab) | the whole screen too; only its body scrolls, as one region, under its bar with the close button |
+| The account screen (`DetailModal size="screen"`, behind the phone's avatar) | the whole screen, fixed to its four edges, under the status bar; its rows in a readable column (28rem); at the usual text size nothing scrolls on phones from 375pt wide (a few points for an administrator in Admin Mode in Safari's tab on a 375pt iPhone SE; a little on a 320pt screen in Safari's tab) | the whole screen too; only its body scrolls, as one region, under its bar with the close button; a row's name wraps between its words, and on a narrow phone a page's chevron and then the icons give way (`lib/sheet.ts`), so every name is whole to 200% on a 320px phone |
 | Sheets (`DetailModal size="sheet"`: `Dialog`'s confirmations and editors, the filter sheet, the lineup sheet) | docked to the bottom edge, as tall as its content up to the screen less 2.5rem and the status bar (a share of the screen it is fixed to); a taller wider screen gets a centred window | docked to the bottom edge too, up to 44rem wide and the screen less 0.5rem; in both, the header and footer stay and only the body scrolls, unless they would leave it less room than its tallest control needs (large text or a zoomed page, mostly on a phone held sideways): then the whole sheet scrolls as one, like a page (`data-flow`) |
 | Things pinned to the bottom (toasts, a save bar) | `bottom-tabbar`: above the tab bar; over an open window or sheet the toasts are drawn inside it, in the same place, once it has finished moving in (they leave it as it starts to close) | near the bottom edge, clear of the home indicator (`bottom-tabbar`'s short rule) |
 
@@ -466,7 +466,9 @@ the account screen over the dashboard at 200% on a 320px phone as well.
     the patch and Riot's notice (in Admin Mode also Data & Integrations and Audit Logs). There is no
     drawer. At a larger text size the team's name gives way first, then the destinations' labels
     (`BAR_FIT`, measured in the bar's own width in rem; re-measured for the four on 18 Nov 2026:
-    42.0rem with the name, 35.9rem without). The menu's Sign out
+    42.0rem with the name, 35.9rem without, so they give way below 42.5rem and 36.25rem: on a 768px
+    tablet the labels stay at 125% text, the name gone; beside the installed app's Back the labels
+    give way where the name does). The menu's Sign out
     tells the browser's other tabs, as the account screen's does. In the installed app, which has no
     browser Back, the bar also shows Back on a page reached from another (a teammate's profile),
     named as on phones.
@@ -693,8 +695,9 @@ emptied the list; the fullest bar (Back, the title, Filters with its count, the 
 each posture; the account screen closed by Back and not reopened by Forward, upright and held
 sideways; a tablet's destinations (the current one's gradient bar) and avatar menu in both modes, and
 its top bar at 100% to 200% text in both modes, the team's name and then the labels giving way where
-the bar's row is narrower than `BAR_FIT` says, the destinations never scrolling and the bar never wider than
-the window. `e2e/navigation-landings.spec.ts` has the current destination on its own page going back
+the bar's row is narrower than `BAR_FIT` says (and what a 768px tablet shows at each size written
+out, so a threshold above what fits fails too), the destinations never scrolling and the bar never
+wider than the window, beside the installed app's Back too. `e2e/navigation-landings.spec.ts` has the current destination on its own page going back
 to the top without a fetch, in the sidebar and in a tablet's top bar. `e2e/filter-consistency.spec.ts`: the sheet
 opened from the pinned row at 768 and 1440 labels every field (More filters opened), holds the only
 copy of each id, and gives Team Matches' Played with the sheet's width, as its selects.

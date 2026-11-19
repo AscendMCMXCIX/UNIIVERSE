@@ -826,7 +826,7 @@ async function settingsFacts(page, kind) {
 }
 
 /**
- * The Library (Resources, its first tab): every section under its own heading, every row a link to
+ * The Library (the Resources page, /resources): every section under its own heading, every row a link to
  * its site in a new tab that cannot reach back to this page or learn its address, the index offering
  * All, Favourites and each section, no title cut short and no broken site icon. Counts and true or
  * false only.
