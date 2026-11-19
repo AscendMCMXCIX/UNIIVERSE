@@ -99,7 +99,7 @@ function KitSide({ side, kit, champion, title, subtitle, rows }: { side: "danger
                   )}
                 </p>
                 {group.items.length ? (
-                  <ul className="mt-0.5 space-y-0.5 pl-5">
+                  <ul className="mt-0.5 space-y-0.5 pl-5 @max-[9rem]/kits:pl-0">
                     {group.items.map((item) => (
                       <KitLine key={item.slot} item={item} champion={champion} rows={rows} withCooldown={firstGroupOf(kit, item.slot) === gi} />
                     ))}

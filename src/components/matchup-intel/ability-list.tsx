@@ -481,7 +481,11 @@ export function YourChampion({ intel }: { intel: ChampionIntelView }) {
     <section>
       <h2 className="sr-only">{`Your champion: ${intel.champion.name}`}</h2>
       <details className="group/yours panel-depth rounded-panel border border-border bg-surface" data-testid="matchup-your-abilities">
-        <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-panel px-3 py-2 hover:bg-surface-2/50 [&::-webkit-details-marker]:hidden">
+        {/* Under 9rem (a 320px phone at twice the text size) the chevron floats at the first line's end
+            and the words take the summary's whole width under it, so a long name keeps whole. */}
+        <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-panel px-3 py-2 hover:bg-surface-2/50 @max-[9rem]/dash:block @max-[9rem]/dash:px-2 [&::-webkit-details-marker]:hidden">
+          {/* First in the source, for the float; last in the row (order-last) where the summary is a row. */}
+          <ChevronDown className="order-last h-4 w-4 shrink-0 text-fg-subtle transition-transform group-open/yours:rotate-180 motion-reduce:transition-none @max-[9rem]/dash:float-right @max-[9rem]/dash:ml-1.5 @max-[9rem]/dash:mt-0.5" aria-hidden />
           <span className="min-w-0">
             <span className="block text-sm font-semibold text-fg [overflow-wrap:anywhere]">{`Your champion: ${intel.champion.name}`}</span>
             <span className="block text-xs text-fg-muted">
@@ -490,7 +494,6 @@ export function YourChampion({ intel }: { intel: ChampionIntelView }) {
               <FactsSourceLine intel={intel} />
             </span>
           </span>
-          <ChevronDown className="h-4 w-4 shrink-0 text-fg-subtle transition-transform group-open/yours:rotate-180 motion-reduce:transition-none" aria-hidden />
         </summary>
         <div className="border-t border-border">
           <AbilityList intel={intel} testId="matchup-your-abilities-list" />
