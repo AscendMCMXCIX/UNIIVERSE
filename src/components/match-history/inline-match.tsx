@@ -3,6 +3,7 @@
 import * as React from "react";
 import { ChevronLeft, ChevronRight, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { UnfoldHeader, UnfoldRegion } from "@/components/ui/unfold";
 import type { MatchDetailResult } from "@/server/players/match-history";
 import type { PortraitChampion } from "@/components/champion-portrait";
 import { MatchDetailCacheContext } from "./match-detail-cache";
@@ -83,12 +84,16 @@ export function GameSteps({ nav, onClose, where }: { nav: GameNav | null; onClos
  */
 export function MatchExpansion({ id, label, playerId, matchId, champ, nav, onClose }: { id: string; label: string; playerId: string; matchId: string; champ: (id: string | null) => PortraitChampion; nav: GameNav | null; onClose: () => void }) {
   return (
-    <div id={id} role="region" aria-label={label} className="rounded-b-panel border border-t-0 border-border bg-bg-elevated px-3 pt-3 motion-safe:fade-in sm:px-4 sm:pt-4" data-testid="match-expanded">
-      <InlineMatch playerId={playerId} matchId={matchId} champ={champ} />
-      <div className="sticky bottom-0 z-10 -mx-3 mt-2 flex justify-end rounded-b-panel border-t border-border/60 bg-bg-elevated/95 px-2 py-1 backdrop-blur sm:-mx-4" data-testid="match-footer">
-        <GameSteps nav={nav} onClose={onClose} where="footer" />
+    // The shared Unfold region (components/ui/unfold.tsx): it grows open, and its compact header
+    // stays pinned with Close while the game is on screen and its own header has gone up.
+    <UnfoldRegion id={id} label={label} header={<UnfoldHeader title={label} onClose={onClose} testId="match-unfold-header" />} className="rounded-b-panel border border-t-0 border-border bg-bg-elevated" testId="match-expanded">
+      <div className="px-3 pt-3 sm:px-4 sm:pt-4">
+        <InlineMatch playerId={playerId} matchId={matchId} champ={champ} />
+        <div className="sticky bottom-0 z-10 -mx-3 mt-2 flex justify-end rounded-b-panel border-t border-border/60 bg-bg-elevated/95 px-2 py-1 backdrop-blur sm:-mx-4" data-testid="match-footer">
+          <GameSteps nav={nav} onClose={onClose} where="footer" />
+        </div>
       </div>
-    </div>
+    </UnfoldRegion>
   );
 }
 

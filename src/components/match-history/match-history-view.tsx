@@ -34,7 +34,7 @@ import type { DataStatus } from "@/domain/data-status";
 import { DataStatusNote, RefreshButton, type DataRefreshTarget } from "@/components/ui/data-status";
 import { useNow } from "@/components/ui/relative-time";
 import { fmtDuration, fmtInt, fmtNum } from "./match-format";
-import { isPhone, usePhone } from "@/components/ui/use-phone";
+import { WINDOW_POSTURE_QUERY, prefersWindow } from "@/components/ui/posture";
 import { pagerFold, pagerItems } from "./pager";
 import { screenHeight } from "@/lib/screen";
 
@@ -454,6 +454,22 @@ function fallbackChampion(id: string): PortraitChampion {
   return c;
 }
 
+const noSubscribe = () => () => {};
+const no = () => false;
+function subscribePosture(onChange: () => void) {
+  const query = window.matchMedia(WINDOW_POSTURE_QUERY);
+  query.addEventListener("change", onChange);
+  return () => query.removeEventListener("change", onChange);
+}
+/**
+ * Pointer and posture decide how a game opens (components/ui/posture.ts): a touch phone, upright or
+ * sideways, a narrow window and a short one get the match window; every other screen the game under
+ * its card. Asked only while a game is open, so the list does not render twice once it has hydrated.
+ */
+function useWindowPostureWhile(enabled: boolean): boolean {
+  return React.useSyncExternalStore(enabled ? subscribePosture : noSubscribe, enabled ? prefersWindow : no, no);
+}
+
 /**
  * Match History: the player's stored Riot games, newest first, ten a page (PER_PAGE_DEFAULT; a
  * window with room below the list's top for more than ten whole cards, a portrait monitor, gets as
@@ -490,7 +506,7 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
   // Phones open a game as a whole screen of its own (the match window, which Back closes) instead of
   // under its card: a breakdown inside a list is a long detour on a narrow screen. Asked only while a
   // game is open, so the list does not render twice on a phone once it has hydrated.
-  const phone = usePhone(open !== null);
+  const phone = useWindowPostureWhile(open !== null);
   const inline = open && onPage.has(open.id) && !phone ? open.id : null;
   const windowed = open && (phone || (open.via === "link" && !onPage.has(open.id))) ? open.id : null;
   // The game this page added to the browser's history when a phone opened it, so closing it is Back.
@@ -628,7 +644,7 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
   const toggle = React.useCallback(
     (matchId: string) => {
       const current = openRef.current?.id ?? null;
-      if (current && current !== matchId && !isPhone()) {
+      if (current && current !== matchId && !prefersWindow()) {
         switchTo(matchId, document.getElementById(`match-${matchId}`));
         return;
       }
