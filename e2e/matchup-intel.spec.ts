@@ -942,8 +942,12 @@ test("phone: the briefing's threat is on the first screen, above the tab bar: wh
       expect(Math.abs(m.you - m.enemy), `${at}: the sides' heights`).toBeLessThanOrEqual(1);
     }
     // Any other pair: the assembled reference's Danger side starts on the first screen, its label and
-    // the first line of what it holds above the tab bar; for an enemy with no facts recorded (Darius,
-    // while no facts from Riot's text are committed), the whole side at 390 by 664.
+    // the line under it (whose kit it is) above the tab bar, and at 390 by 664 the first line of what it
+    // holds too; for an enemy with no facts recorded, the whole side at 390 by 664. At 320 by 568 the
+    // lines under the subtitle that say where the side's facts and numbers come from (the review's
+    // fixes of 19 Nov 2026: "From Riot's ability text, reviewed automatically (not by a person)" and
+    // "Cooldowns: Riot's data, not reviewed", two lines each there) put its first group just under
+    // the tab bar, 38px, behind Riven's curated pair's link (docs/MATCHUP_INTEL.md, "On a phone").
     await openMatchupIntel(page, "Riven", "Darius");
     await hydrated(page);
     const d = await page.evaluate(() => {
@@ -952,12 +956,15 @@ test("phone: the briefing's threat is on the first screen, above the tab bar: wh
       const first = side.querySelector('[data-testid="assembled-no-facts"], [data-testid="assembled-group"]')!;
       const range = document.createRange();
       range.selectNodeContents(first);
-      return { bar, scrollY: window.scrollY, noFacts: side.getAttribute("data-from") === "none", label: side.querySelector("h3")!.getBoundingClientRect().bottom, firstLine: range.getClientRects()[0]!.bottom, last: side.getBoundingClientRect().bottom };
+      const subtitle = document.createRange();
+      subtitle.selectNodeContents(side.querySelector("h3 + p > span")!);
+      return { bar, scrollY: window.scrollY, noFacts: side.getAttribute("data-from") === "none", label: side.querySelector("h3")!.getBoundingClientRect().bottom, subtitle: subtitle.getClientRects()[0]!.bottom, firstLine: range.getClientRects()[0]!.bottom, last: side.getBoundingClientRect().bottom };
     });
     const at = `Riven vs Darius at ${width} by ${height}`;
     expect(d.scrollY, at).toBe(0);
     expect(d.label, `${at}: the Danger side's label`).toBeLessThanOrEqual(d.bar);
-    expect(d.firstLine, `${at}: the first line it holds`).toBeLessThanOrEqual(d.bar);
+    expect(d.subtitle, `${at}: whose kit it is`).toBeLessThanOrEqual(d.bar);
+    if (whole) expect(d.firstLine, `${at}: the first line it holds`).toBeLessThanOrEqual(d.bar);
     if (whole && d.noFacts) expect(d.last, `${at}: the whole Danger side`).toBeLessThanOrEqual(d.bar);
   }
 });

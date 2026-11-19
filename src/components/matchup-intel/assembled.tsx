@@ -243,9 +243,10 @@ export function AssembledReference({ you, enemy, enemyIntel, yourIntel, curatedF
     <Panel className="overflow-hidden" data-testid="matchup-assembled" data-briefing-hidden={briefingHidden ? "" : undefined}>
       {/* The title, with the curated pairs of your champion at its row's end where there are any, and
           the sentence under them; with none, the sentence beside the title where 20rem are left for
-          it, so a long side keeps one screen. */}
+          it, so a long side keeps one screen. The title keeps whole beside the sentence, and is never
+          wider than the header: on a 320px phone at twice the text size it wraps in place. */}
       <header className={cn("border-b border-border px-3 py-2", others.length ? "space-y-0.5" : "flex flex-wrap items-baseline gap-x-3 gap-y-0.5")} data-testid="matchup-no-briefing">
-        <div className={cn("flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1", !others.length && "shrink-0")}>
+        <div className={cn("flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1", !others.length && "max-w-full shrink-0")}>
           <h2 className="text-sm font-semibold text-fg">
             {ASSEMBLED_TITLE}
             <span className="sr-only">: {`${you.name} vs ${enemy.name}`}</span>

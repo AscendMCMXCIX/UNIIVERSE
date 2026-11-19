@@ -392,7 +392,11 @@ the remembered line), then the main panel, the interactions, the level changes, 
 your champion and the sources. The slots are compact (a small portrait above the label and the name
 on a 320 or 375px phone, beside them from a row of 22rem, a 384px phone), so the briefing's threat
 starts on the first screen: whole at 390 by 664, its first line at 320 by 568, above the tab bar
-(`e2e/matchup-intel.spec.ts`), and the assembled reference's Danger side likewise. A tile puts its
+(`e2e/matchup-intel.spec.ts`), and the assembled reference's Danger side starts there too: its label
+and whose kit it is, and at 390 by 664 (375 by 667 and 360 by 640 alike) its first group. At 320 by
+568 the side's lines that say where its facts and its numbers come from (since the review of 19 Nov
+2026, two lines each there) put its first group 38px under the tab bar when your champion has
+curated pairs, whose link takes a row of the header (Riven vs Darius). A tile puts its
 icon beside the key, the name and the cooldown and its chips under them; under a tile 24rem wide
 the cooldown takes a line of its own, and under 16rem (a phone at a large text size) a smaller copy
 of the icon starts the key's line and the words take the tile's whole width. At a large text size
