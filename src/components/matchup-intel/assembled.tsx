@@ -14,14 +14,15 @@ import { ASSEMBLED_TITLE, KIND_GROUP_WORDS, SLOT_NAMES, abilityAnchor, assembled
   danger side and yours as the opportunity side (the owner's decision, 18 Nov 2026). Group, never
   judge: no threat or opportunity is chosen by code, nothing is ranked, and no sentence joins the
   two kits. Each group lists the abilities with a fact of its kind in slot order, each with its
-  chips (which open the clause or source they rest on) and its base cooldown from the tile's own
-  line; a group with none says so in fixed words, never "none". Its label says every time that it
-  was put together from each champion's facts and that no person has checked the pair.
+  chips (which open the clause or source they rest on) and, the first time the ability appears on
+  its side, its base cooldown from the tile's own line; a group with none says so in fixed words,
+  never "none". Its label says every time that it was put together from each champion's facts and
+  that no person has checked the pair.
 */
 
-/** One ability's line in a group: its key (a link to its tile), its chips of that kind, and its base cooldown when there is a number. */
-function KitLine({ item, champion, rows }: { item: KitItem; champion: ChampionChoice; rows: ReadonlySet<string> }) {
-  const cd = tightCooldownWords(item.cooldown);
+/** One ability's line in a group: its key (a link to its tile), its chips of that kind, and its base cooldown when there is a number and `withCooldown` (its first line on its side). */
+function KitLine({ item, champion, rows, withCooldown }: { item: KitItem; champion: ChampionChoice; rows: ReadonlySet<string>; withCooldown: boolean }) {
+  const cd = withCooldown ? tightCooldownWords(item.cooldown) : null;
   const key = (
     <>
       <span aria-hidden>{SLOT_NAMES[item.slot]}</span>
@@ -29,9 +30,10 @@ function KitLine({ item, champion, rows }: { item: KitItem; champion: ChampionCh
     </>
   );
   return (
-    // One line where it fits; where it does not (a phone at a large text size) the cooldown moves to
-    // the next line, rather than squeezing the chips to nothing.
-    <li className="flex flex-wrap items-start gap-x-1.5 gap-y-0.5" data-testid="assembled-item" data-slot={item.slot}>
+    // The key, then the chips and the cooldown flowing beside it: one line where they fit; where they
+    // do not, a chip or the cooldown moves to the next line whole (the cooldown at its end), rather
+    // than squeezing the chips' words into a narrow column.
+    <li className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-1.5" data-testid="assembled-item" data-slot={item.slot}>
       {rows.has(champion.id) ? (
         <AbilityRefLink anchor={abilityAnchor(champion.id, item.slot)} size="sm">
           {key}
@@ -39,19 +41,24 @@ function KitLine({ item, champion, rows }: { item: KitItem; champion: ChampionCh
       ) : (
         <span className="inline-flex min-h-6 items-center rounded-full border border-border-strong bg-surface-2 px-2 text-xs font-medium text-fg-muted">{key}</span>
       )}
-      <span className="flex min-w-0 flex-[1_1_8rem] flex-wrap gap-1">
+      <span className="flex min-w-0 flex-wrap items-start gap-1">
         {item.chips.map((c, i) => (
           <FactChipView key={i} chip={c} champion={champion.name} ability={item.ability} testId="assembled-chip" />
         ))}
+        {cd ? (
+          // The ability's own base cooldown per rank (Riot's numbers or the checked ones, as its tile's line).
+          <span className="ml-auto pl-1 pt-0.5 text-xs tabular-nums text-fg-muted" data-testid="assembled-cooldown">
+            {cd}
+          </span>
+        ) : null}
       </span>
-      {cd ? (
-        // The ability's own base cooldown per rank (Riot's numbers or the checked ones, as its tile's line).
-        <span className="ml-auto pt-0.5 text-xs tabular-nums text-fg-muted" data-testid="assembled-cooldown">
-          {cd}
-        </span>
-      ) : null}
     </li>
   );
+}
+
+/** The index in SIDE_GROUPS of the first group that lists an ability: its cooldown is given there, once for its side. */
+function firstGroupOf(kit: Kit, slot: KitItem["slot"]): number {
+  return SIDE_GROUPS.findIndex((g) => kit.groups.find((x) => x.group === g)?.items.some((i) => i.slot === slot));
 }
 
 /** One side: its kit by kind, or what is missing in words. */
@@ -74,7 +81,7 @@ function KitSide({ side, kit, champion, title, subtitle, rows }: { side: "danger
         </p>
       ) : (
         <ul className="mt-1.5 space-y-1">
-          {SIDE_GROUPS.map((g) => {
+          {SIDE_GROUPS.map((g, gi) => {
             const group = kit.groups.find((x) => x.group === g)!;
             const GroupIcon = GROUP_LOOK[g].icon;
             return (
@@ -91,7 +98,7 @@ function KitSide({ side, kit, champion, title, subtitle, rows }: { side: "danger
                 {group.items.length ? (
                   <ul className="mt-0.5 space-y-0.5 pl-5">
                     {group.items.map((item) => (
-                      <KitLine key={item.slot} item={item} champion={champion} rows={rows} />
+                      <KitLine key={item.slot} item={item} champion={champion} rows={rows} withCooldown={firstGroupOf(kit, item.slot) === gi} />
                     ))}
                   </ul>
                 ) : null}

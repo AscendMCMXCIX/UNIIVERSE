@@ -426,6 +426,39 @@ describe("each champion's data, and checks a patch or more behind", () => {
     expect(notes).toMatch(/^[^<]*Level changes When something becomes possible Level 6 Renekton: Dominus\. source Source: Renekton\. Checked notes\. Level 9 Ambessa: Drakehound\. source Source: Ambessa\. Checked notes\./);
   });
 
+  it("the two notes panels share their row by their words: the fuller one the wider", async () => {
+    const balance = (html: string) => /data-testid="matchup-notes" data-balance="([a-z]+)"/.exec(html)?.[1];
+    // The fixtures' one short interaction and one short note: even, the interactions somewhat wider.
+    expect(balance(await render({ champion: "Ambessa", vs: "Renekton" }))).toBe("even");
+    // Two long interactions beside one short note: the interactions take the wider share.
+    const long = "When the empowered stun lands during the dash, the dash she queued is cancelled and the stun runs its full length.";
+    const wordy: MatchupNotes = { ...ambessaVsRenekton, interactions: [{ text: long, abilities: ["Renekton.W", "Ambessa.E"], source: "wiki" }, { text: long, abilities: ["Renekton.W"], source: "wiki" }] };
+    const interactionsFirst = await render({ champion: "Ambessa", vs: "Renekton" }, { matchupNotes: (a, b) => (a === "Ambessa" && b === "Renekton" ? wordy : null) });
+    expect(balance(interactionsFirst)).toBe("interactions");
+    expect(interactionsFirst).toContain("@min-[40rem]/dash:grid-cols-[minmax(0,1.75fr)_minmax(0,1fr)]");
+    // Long level notes and no matchup of its own (the assembled reference): the notes take it.
+    const noted: ChampionNotes = { ...renekton, levelNotes: [{ level: 6, text: long, source: "wiki", basedOn: ["W"] }, { level: 11, text: long, source: "wiki", basedOn: ["W"] }] };
+    const levelsFirst = await render({ champion: "Renekton", vs: "Ambessa" }, { championNotes: (id) => (id === "Renekton" ? noted : null) });
+    expect(balance(levelsFirst)).toBe("levels");
+    expect(levelsFirst).toContain("@min-[40rem]/dash:grid-cols-[minmax(0,1fr)_minmax(0,1.45fr)]");
+  });
+
+  it("the assembled reference gives an ability's cooldown once on its side, on its first line", async () => {
+    // Renekton's W in two groups (crowd control, mobility): its chips in both, its cooldown in the first only.
+    const twoKinds: ChampionNotes = {
+      ...renekton,
+      abilities: { W: { ...renekton.abilities.W!, facts: [{ kind: "crowd-control", label: "Stun", detail: "On the third hit.", appliesTo: "target", source: "wiki" }, { kind: "mobility", label: "Dash", appliesTo: "self", source: "wiki" }] } },
+    };
+    const html = await render({ champion: "Garen", vs: "Renekton" }, { championNotes: (id) => (id === "Renekton" ? twoKinds : null) });
+    const danger = html.slice(html.indexOf('data-testid="assembled-danger"')).split("</section>")[0]!;
+    const lines = [...danger.matchAll(/<li class="[^"]*" data-testid="assembled-item" data-slot="W">([\s\S]*?)<\/li>/g)].map((m) => text(m[1]!));
+    expect(lines).toHaveLength(2);
+    expect(lines[0]).toContain("Stun");
+    expect(lines[0]).toContain("18/17/16/15/14 s");
+    expect(lines[1]).toContain("Dash");
+    expect(lines[1]).not.toMatch(/\d+ s/);
+  });
+
   it("a level note from an ability Riot changed after the check is flagged", async () => {
     const moved = (k: DdragonChampionAbilities) => ({ ...k, abilities: k.abilities.map((a) => (a.slot === "W" ? { ...a, cooldown: [20, 19, 18, 17, 16] } : a)) });
     const html = await render({ champion: "Ambessa", vs: "Renekton" }, { loadAbilities: storedAt({ Ambessa: "16.23.1", Renekton: "16.23.1" }, moved) });

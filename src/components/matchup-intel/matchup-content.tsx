@@ -6,7 +6,7 @@ import { AssembledReference } from "./assembled";
 import { Briefing, CuratedLinks, PAIR_CHIP, briefingShows } from "./briefing";
 import { MatchupFooter } from "./matchup-footer";
 import { OpenPickerButton, PairLink } from "./matchup-frame";
-import { InteractionsPanel, LevelNotesPanel } from "./matchup-notes";
+import { InteractionsPanel, LevelNotesPanel, notesBalance } from "./matchup-notes";
 import { behindOf } from "./matchup-status";
 import { staleDataWords } from "./wording";
 
@@ -66,6 +66,12 @@ function StaleNote({ words }: { words: string }) {
 
 /** The dashboard's two columns: one on a phone (see the module's comment). */
 const COLUMNS = "grid gap-3 @min-[60rem]/dash:grid-cols-[minmax(0,1fr)_minmax(22rem,0.72fr)] @min-[60rem]/dash:items-start";
+/** The interactions and the level notes side by side where the column has room, the fuller panel the wider (notesBalance). */
+const NOTES_SPLIT = {
+  interactions: "@min-[40rem]/dash:grid-cols-[minmax(0,1.75fr)_minmax(0,1fr)]",
+  even: "@min-[40rem]/dash:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)]",
+  levels: "@min-[40rem]/dash:grid-cols-[minmax(0,1fr)_minmax(0,1.45fr)]",
+} as const;
 
 export function MatchupContent({ view, champions, curated, legal }: { view: MatchupPageView; champions: readonly ChampionChoice[]; curated: Record<string, string[]>; legal: string }) {
   const byId = new Map(champions.map((c) => [c.id, c]));
@@ -79,6 +85,7 @@ export function MatchupContent({ view, champions, curated, legal }: { view: Matc
   const rows = new Set(shownData.map((i) => i!.champion.id));
   const stale = behind.length && current ? <StaleNote words={staleDataWords(behind, current, behind.length === shownData.length)} /> : null;
   const shows = briefingShows(matchup);
+  const balance = enemyIntel ? notesBalance(matchup, enemyIntel, yourIntel) : "even";
 
   return (
     <div className="@container/dash space-y-3" data-testid="matchup-dashboard" data-layer={you && enemy ? (shows ? "curated" : "assembled") : undefined}>
@@ -104,8 +111,8 @@ export function MatchupContent({ view, champions, curated, legal }: { view: Matc
           <div className="min-w-0 space-y-3">
             {you && enemy && matchup ? <Briefing matchup={matchup} you={you} enemy={enemy} rows={rows} /> : null}
             {you && enemy && !shows ? <AssembledReference you={you} enemy={enemy} enemyIntel={enemyIntel} yourIntel={yourIntel} curatedForYou={curatedForYou} rows={rows} /> : null}
-            {/* Side by side where the column has room, the interactions the wider. */}
-            <div className="grid gap-3 @min-[40rem]/dash:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)] @min-[40rem]/dash:items-start">
+            {/* Side by side where the column has room, the fuller of the two the wider. */}
+            <div className={`grid gap-3 @min-[40rem]/dash:items-start ${NOTES_SPLIT[balance]}`} data-testid="matchup-notes" data-balance={balance}>
               <InteractionsPanel matchup={matchup} enemyIntel={enemyIntel} yourIntel={yourIntel} you={you} rows={rows} />
               <LevelNotesPanel intels={[enemyIntel, yourIntel]} />
             </div>

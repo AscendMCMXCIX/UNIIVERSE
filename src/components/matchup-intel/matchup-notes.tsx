@@ -75,6 +75,29 @@ function ChampionInteractions({ intel, testId, rows }: { intel: ChampionIntelVie
 /** How many of the matchup's interactions show before the rest fold behind their count. */
 export const INTERACTIONS_SHOWN = 2;
 
+/** About the words of one line in a notes panel (a fold's line, "Renekton's interactions and exceptions · 7"), and of an ability chip. */
+const LINE = 40;
+const CHIP = 12;
+
+/**
+ * Which of the two notes panels holds the more words, by a rough count (each shown interaction's
+ * words and chips, each fold's line, each level note's words): where they sit side by side, the
+ * fuller one takes the wider share of the row ("interactions" or "levels", at least twice the
+ * other), so it is not left a narrow column a screen taller beside a short one; else "even" (the
+ * interactions somewhat wider). The page's own words only: nothing is judged by it.
+ */
+export function notesBalance(matchup: MatchupIntelView | null, enemyIntel: ChampionIntelView, yourIntel: ChampionIntelView | null): "interactions" | "even" | "levels" {
+  const intels = [enemyIntel, ...(yourIntel && yourIntel.champion.id !== enemyIntel.champion.id ? [yourIntel] : [])];
+  const shown = (matchup?.interactions ?? []).filter((i): i is Extract<InteractionView, { kind: "interaction" }> => i.kind === "interaction").slice(0, INTERACTIONS_SHOWN);
+  const folds = intels.filter((intel) => kitOf(intel).interactions.length > 0).length;
+  const interactions = shown.reduce((n, i) => n + i.text.length + CHIP * i.abilities.length, 0) + LINE * folds;
+  const notes = intels.flatMap((intel) => intel.levelNotes);
+  const levels = notes.reduce((n, note) => n + note.text.length + CHIP, 0);
+  if (shown.length && interactions >= 2 * Math.max(levels, LINE)) return "interactions";
+  if (notes.length && levels >= 2 * Math.max(interactions, LINE)) return "levels";
+  return "even";
+}
+
 /**
  * A note's source, one hover, focus or tap away: the word "source", whose tip names the page (the
  * page itself is linked in the sources' list at the foot, never in a tip).
