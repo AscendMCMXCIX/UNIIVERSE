@@ -9,6 +9,9 @@ import { listPermissionPresets } from "@/server/repositories/permissions";
 import { accountStatesForPlayers } from "@/server/proficiency/provenance";
 import { AddPlayerAccount } from "@/components/admin/add-player-account";
 import { PeoplePanel, type PlayerAdminRow } from "@/components/admin/people-panel";
+import { listAccountsForPlayers } from "@/server/accounts/repository";
+import { loadSocialLinks } from "@/server/repositories/profile";
+import { visibleSocialLinks } from "@/domain/social-links";
 
 export const dynamic = "force-dynamic";
 
@@ -17,13 +20,16 @@ export const dynamic = "force-dynamic";
  * setup incomplete, deactivated, personal use, archived): the list is built from the stored rows,
  * not from the player directory, which only holds set-up team members.
  */
-export default async function AdminPeoplePage() {
+export default async function AdminPeoplePage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const session = await requirePageAccess("manage-users");
   const db = await getAppDb();
   const team = await getOrCreateTeam(db);
   const canManageAccounts = hasPermission(session, "manage-users");
   const [players, lineup, accounts, presets] = await Promise.all([listProfilesForAdmin(db, team.id), getCurrentLineup(db, team.id), listAccountViews(db), canManageAccounts ? listPermissionPresets(db) : Promise.resolve([])]);
-  const riot = await accountStatesForPlayers(db, players.map((p) => p.id), !!process.env.RIOT_API_KEY);
+  const ids = players.map((p) => p.id);
+  const [riot, riotAccounts, links] = await Promise.all([accountStatesForPlayers(db, ids, !!process.env.RIOT_API_KEY), listAccountsForPlayers(db, ids), loadSocialLinks(db, ids)]);
+  const sp = await searchParams;
+  const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) ?? null;
   const accountByPlayer = new Map(accounts.filter((a) => a.playerId).map((a) => [a.playerId!, a]));
   const rows: PlayerAdminRow[] = players.map((p) => ({
     id: p.id,
@@ -37,11 +43,14 @@ export default async function AdminPeoplePage() {
     lineupRole: (ROLES.find((r) => lineup.slots[r] === p.id) as Role | undefined) ?? null,
     account: accountByPlayer.get(p.id) ?? null,
     riot: riot[p.id] ?? { state: "none", label: "no account linked" },
+    riotAccounts: riotAccounts.filter((r) => r.playerId === p.id),
+    // Only what they show publicly: a link they keep to themselves is theirs alone, even here.
+    publicLinks: visibleSocialLinks(links.get(p.id)).map((l) => ({ kind: l.kind, label: l.label, text: l.text })),
   }));
   return (
     <div className="space-y-5">
       {canManageAccounts ? <AddPlayerAccount /> : null}
-      <PeoplePanel players={rows} adminAccounts={accounts.filter((a) => !a.playerId)} presets={presets} currentUserId={session.userId} viewerIsOwner={isOwner(session)} canManageAccounts={canManageAccounts} canManageRoster={hasPermission(session, "manage-players")} />
+      <PeoplePanel initial={{ person: one(sp.person), status: one(sp.status), q: one(sp.q) }} riotConfigured={!!process.env.RIOT_API_KEY} players={rows} adminAccounts={accounts.filter((a) => !a.playerId)} presets={presets} currentUserId={session.userId} viewerIsOwner={isOwner(session)} canManageAccounts={canManageAccounts} canManageRoster={hasPermission(session, "manage-players")} />
     </div>
   );
 }

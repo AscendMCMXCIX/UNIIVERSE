@@ -1,24 +1,23 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { ROLE_LABELS, type Role } from "@/domain/roles";
+import { ChevronRight } from "lucide-react";
+import type { Role } from "@/domain/roles";
 import type { AccountView } from "@/server/auth/account-admin";
-import { archivePlayerAction } from "@/server/actions/players";
-import { RoleIcon } from "@/components/role-icon";
+import type { PermissionPreset } from "@/server/repositories/permissions";
+import type { RiotAccountRecord } from "@/server/accounts/repository";
+import type { SocialKind } from "@/domain/social-links";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { toast } from "@/components/ui/toast";
-import { cn } from "@/lib/cn";
-import { InfoTip } from "@/components/ui/info-tip";
-import { ShieldCheck } from "lucide-react";
-import type { PermissionPreset } from "@/server/repositories/permissions";
+import { Disclosure } from "@/components/ui/disclosure";
 import { SearchInput } from "@/components/ui/search-input";
-import { AccountActions, AccountStatusBadge, DeleteProfileButton, PasswordStateBadge, accountStatus } from "./account-actions";
-import { AccessDialog, accessSummary } from "./access-dialog";
-import { ErasePersonButton, ErasureResultHost } from "./erase-person";
+import { useAddressItem } from "@/components/ui/address-item";
+import { cn } from "@/lib/cn";
+import { timeAgo } from "@/lib/format";
+import { accountStatus } from "./account-actions";
+import { ErasureResultHost } from "./erase-person";
+import { PersonView } from "./person-view";
 
 export interface PlayerAdminRow {
   id: string;
@@ -33,107 +32,346 @@ export interface PlayerAdminRow {
   archived: boolean;
   lineupRole: Role | null;
   account: AccountView | null;
-  riot: { state: "synced" | "pending" | "verified" | "syncing" | "stale" | "error" | "none"; label: string };
+  riot: {
+    state:
+      | "synced"
+      | "pending"
+      | "verified"
+      | "syncing"
+      | "stale"
+      | "error"
+      | "none";
+    label: string;
+  };
+  /** Their Riot accounts, for the person view's Riot accounts section. */
+  riotAccounts: RiotAccountRecord[];
+  /** Only the links they show publicly (moderation: hide or remove); the rest are theirs alone. */
+  publicLinks: Array<{ kind: SocialKind; label: string; text: string }>;
 }
 
-type StatusFilter = "all" | "active" | "awaiting-login" | "setup" | "deactivated" | "personal" | "delayed";
+/** One person of the list: a player profile (with or without an account) or an account without a profile. */
+export interface PersonEntry {
+  key: string;
+  name: string;
+  player: PlayerAdminRow | null;
+  account: AccountView | null;
+}
+
+type StatusFilter =
+  | "all"
+  | "attention"
+  | "awaiting-login"
+  | "setup"
+  | "deactivated"
+  | "personal"
+  | "delayed";
 
 /** Riot sync in the words an admin needs: synced, still syncing, delayed, or nothing linked. */
-export function riotStatus(state: PlayerAdminRow["riot"]["state"]): { label: string; tone: BadgeTone } {
+export function riotStatus(state: PlayerAdminRow["riot"]["state"]): {
+  label: string;
+  tone: BadgeTone;
+} {
   if (state === "synced") return { label: "Riot up to date", tone: "good" };
   if (state === "error") return { label: "Riot needs attention", tone: "bad" };
   if (state === "stale") return { label: "Riot delayed", tone: "warn" };
   if (state === "none") return { label: "No Riot account", tone: "neutral" };
-  if (state === "syncing") return { label: "Catching up on history", tone: "info" };
+  if (state === "syncing")
+    return { label: "Catching up on history", tone: "info" };
   return { label: "Riot updating", tone: "info" };
 }
 
-const matches = (p: PlayerAdminRow, f: StatusFilter): boolean => {
+/** The one chip a row shows: the most urgent thing about the person, or nothing when all is well. */
+export function urgentState(
+  p: PersonEntry,
+): { label: string; tone: BadgeTone } | null {
+  const a = p.account;
+  if (a && !a.isActive) return { label: "Deactivated", tone: "bad" };
+  if (p.player?.riot.state === "error")
+    return { label: "Riot needs attention", tone: "bad" };
+  if (a?.password.state === "expired")
+    return { label: "Password expired", tone: "warn" };
+  if (a?.password.state === "none" && !a.keptAutomatically)
+    return { label: "No password yet", tone: "warn" };
+  if (a && accountStatus(a) === "awaiting-login")
+    return { label: "Awaiting first login", tone: "info" };
+  if (a && accountStatus(a) === "setup")
+    return { label: "Setup incomplete", tone: "warn" };
+  if (p.player?.riot.state === "stale")
+    return { label: "Riot delayed", tone: "warn" };
+  if (p.player?.archived) return { label: "Archived", tone: "neutral" };
+  if (p.player && !a) return { label: "No account", tone: "neutral" };
+  return null;
+}
+
+const matches = (p: PersonEntry, f: StatusFilter): boolean => {
   switch (f) {
     case "all":
       return true;
-    case "active":
+    case "attention":
+      return urgentState(p) !== null && urgentState(p)!.tone !== "neutral";
     case "awaiting-login":
     case "setup":
     case "deactivated":
       return !!p.account && accountStatus(p.account) === f;
     case "personal":
-      return !p.teamMember;
+      return !!p.player && !p.player.teamMember;
     case "delayed":
-      return p.riot.state === "stale" || p.riot.state === "error";
+      return (
+        p.player?.riot.state === "stale" || p.player?.riot.state === "error"
+      );
   }
 };
 
-const FILTERS: Array<{ id: StatusFilter; label: string; tone?: "warn" | "bad" | "info" }> = [
+const FILTERS: Array<{ id: StatusFilter; label: string }> = [
   { id: "all", label: "All" },
-  { id: "active", label: "Active" },
-  { id: "awaiting-login", label: "Awaiting first login", tone: "info" },
-  { id: "setup", label: "Setup incomplete", tone: "warn" },
-  { id: "deactivated", label: "Deactivated", tone: "bad" },
+  { id: "attention", label: "Needs attention" },
+  { id: "awaiting-login", label: "Awaiting first login" },
+  { id: "setup", label: "Setup incomplete" },
+  { id: "deactivated", label: "Deactivated" },
   { id: "personal", label: "Personal use" },
-  { id: "delayed", label: "Riot sync delayed", tone: "warn" },
+  { id: "delayed", label: "Riot sync delayed" },
 ];
+const isFilter = (v: string | null): v is StatusFilter =>
+  FILTERS.some((f) => f.id === v);
 
-const fold = (s: string) => s.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase();
+const fold = (s: string) =>
+  s.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase();
+
+/** Filters live in the address, replaced (never a new history entry), so a reload or a shared link keeps them. */
+function replaceQuery(changes: Record<string, string | null>) {
+  const url = new URL(window.location.href);
+  for (const [k, v] of Object.entries(changes)) {
+    if (v) url.searchParams.set(k, v);
+    else url.searchParams.delete(k);
+  }
+  window.history.replaceState(
+    window.history.state,
+    "",
+    `${url.pathname}${url.search}${url.hash}`,
+  );
+}
+
+function PersonRow({
+  p,
+  onOpen,
+  testId,
+}: {
+  p: PersonEntry;
+  onOpen: (key: string) => void;
+  testId: string;
+}) {
+  const state = urgentState(p);
+  const a = p.account;
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={() => onOpen(p.key)}
+        className={cn(
+          "flex min-h-13 w-full min-w-0 items-center gap-3 rounded-panel px-2 text-left transition-colors hover:bg-surface-2 focus-visible:bg-surface-2 max-sm:min-h-16",
+          p.player?.archived && "opacity-70",
+        )}
+        data-testid={testId}
+        data-person={p.key}
+      >
+        <Avatar name={p.name} src={a?.avatarUrl ?? null} size="sm" />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate font-medium text-fg">{p.name}</span>
+          {a ? (
+            <span className="block truncate text-xs text-fg-subtle">
+              @{a.username}
+            </span>
+          ) : null}
+        </span>
+        {state ? (
+          <Badge
+            tone={state.tone}
+            className="shrink-0 max-sm:max-w-32 max-sm:truncate"
+          >
+            {state.label}
+          </Badge>
+        ) : null}
+        {a?.role === "owner" ? (
+          <Badge tone="neutral" className="shrink-0">
+            Owner
+          </Badge>
+        ) : a?.isAdmin ? (
+          <Badge tone="neutral" className="shrink-0 max-sm:hidden">
+            Administrator
+          </Badge>
+        ) : null}
+        {a ? (
+          <span className="hidden w-24 shrink-0 text-right text-xs text-fg-subtle md:block">
+            {a.lastLoginAt ? timeAgo(a.lastLoginAt) : "Never signed in"}
+          </span>
+        ) : (
+          <span className="hidden w-24 shrink-0 md:block" />
+        )}
+        <ChevronRight className="h-4 w-4 shrink-0 text-fg-subtle" aria-hidden />
+      </button>
+    </li>
+  );
+}
+
+function Group({
+  title,
+  count,
+  note,
+  testId,
+  children,
+}: {
+  title: string;
+  count: number;
+  note?: string;
+  testId: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="space-y-1" data-testid={testId}>
+      <h3 className="px-2 text-sm font-semibold text-fg">
+        {title} <span className="font-normal text-fg-subtle">· {count}</span>
+      </h3>
+      {note ? <p className="px-2 text-xs text-fg-subtle">{note}</p> : null}
+      {children}
+    </section>
+  );
+}
 
 /**
- * Users & Permissions → Accounts: one list of everyone (team members, personal-use accounts, accounts
- * still awaiting their first login or setup, deactivated ones, accounts without a player profile,
- * the Production check's account and profiles without an account) with status, team membership,
- * Riot sync and access at a glance. Find a person, then Manage opens their team membership and
- * access in one dialog; account actions (password, deactivate, delete) and roster actions
- * (archive) sit on the row. The Production check's account is kept automatically: Deactivate and
- * Delete only (auth/account-admin.ts guardVerificationAccount refuses the rest).
+ * Users & Permissions → Accounts (the overhaul's S9a): everyone in one quiet list of 52px rows
+ * (64px on phones), grouped, each with the one most urgent state and no action buttons. A row
+ * opens the person view, kept in the address (?person=): every action on an account lives there.
+ * The Production check's account is kept automatically: Deactivate and Delete only
+ * (auth/account-admin.ts guardVerificationAccount refuses the rest).
  */
-export function PeoplePanel({ players, adminAccounts = [], presets = [], currentUserId, viewerIsOwner = false, canManageAccounts = true, canManageRoster = true }: { players: PlayerAdminRow[]; adminAccounts?: AccountView[]; presets?: PermissionPreset[]; currentUserId: string | null; viewerIsOwner?: boolean; canManageAccounts?: boolean; canManageRoster?: boolean }) {
-  const router = useRouter();
-  const [busy, setBusy] = React.useState(false);
-  const [showArchived, setShowArchived] = React.useState(false);
-  const [filter, setFilter] = React.useState<StatusFilter>("all");
-  const [query, setQuery] = React.useState("");
-  const [editing, setEditing] = React.useState<AccountView | null>(null);
-  const q = fold(query.trim());
-  const found = (p: PlayerAdminRow) => !q || fold(p.displayName).includes(q) || fold(p.account?.username ?? "").includes(q) || fold(p.riotId ?? "").includes(q);
-  // Only the Owner changes the Owner account (the server refuses anyone else as well).
-  const lockedReason = (a: AccountView) => (a.userId === currentUserId ? "Your own access cannot be changed here" : a.role === "owner" && !viewerIsOwner ? "Only the Owner changes the Owner account" : null);
-  // Erasure, like the server: never yourself, the Owner account or the Production check's; an administrator only by the Owner.
-  const mayErase = (a: AccountView) => a.userId !== currentUserId && a.role !== "owner" && !a.keptAutomatically && (!a.isAdmin || viewerIsOwner);
-  const accessButton = (a: AccountView) =>
-    canManageAccounts ? (
-      <Button size="sm" variant="outline" wrap onClick={() => setEditing(a)} disabled={!!lockedReason(a)} title={lockedReason(a) ?? "Team membership, access level, additional access and administrator access"} data-testid="open-access">
-        <ShieldCheck className="h-4 w-4" /> Manage access
-      </Button>
-    ) : null;
-  const run = async (fn: () => Promise<{ ok: true } | { ok: false; error: string }>, done: string) => {
-    setBusy(true);
-    const r = await fn();
-    setBusy(false);
-    if (r.ok) toast.success(done);
-    else toast.error("That did not work", { description: r.error });
-    router.refresh();
+export function PeoplePanel({
+  players,
+  adminAccounts = [],
+  presets = [],
+  currentUserId,
+  viewerIsOwner = false,
+  canManageAccounts = true,
+  canManageRoster = true,
+  riotConfigured = false,
+  initial = {},
+}: {
+  players: PlayerAdminRow[];
+  adminAccounts?: AccountView[];
+  presets?: PermissionPreset[];
+  currentUserId: string | null;
+  viewerIsOwner?: boolean;
+  canManageAccounts?: boolean;
+  canManageRoster?: boolean;
+  riotConfigured?: boolean;
+  /** The address the server rendered: the open person and the filters. */
+  initial?: {
+    person?: string | null;
+    status?: string | null;
+    q?: string | null;
   };
-  const foundAccount = (a: AccountView) => !q || fold(a.username).includes(q) || fold(a.displayName).includes(q);
-  const kept = adminAccounts.filter((a) => a.keptAutomatically);
-  const withoutProfile = adminAccounts.filter((a) => !a.keptAutomatically);
-  const current = players.filter((p) => (showArchived || !p.archived) && found(p));
-  const counts = Object.fromEntries(FILTERS.map((f) => [f.id, current.filter((p) => matches(p, f.id)).length])) as Record<StatusFilter, number>;
-  const visible = current.filter((p) => matches(p, filter));
+}) {
+  const [filter, setFilterState] = React.useState<StatusFilter>(
+    isFilter(initial.status ?? null) ? (initial.status as StatusFilter) : "all",
+  );
+  const [query, setQueryState] = React.useState(initial.q ?? "");
+  const setFilter = (f: StatusFilter) => {
+    setFilterState(f);
+    replaceQuery({ status: f === "all" ? null : f });
+  };
+  const setQuery = (q: string) => {
+    setQueryState(q);
+    replaceQuery({ q: q.trim() || null });
+  };
+
+  const everyone: PersonEntry[] = React.useMemo(
+    () => [
+      ...players.map((p) => ({
+        key: p.account?.userId ?? p.id,
+        name: p.displayName,
+        player: p,
+        account: p.account,
+      })),
+      ...adminAccounts.map((a) => ({
+        key: a.userId,
+        name: a.displayName || a.username,
+        player: null,
+        account: a,
+      })),
+    ],
+    [players, adminAccounts],
+  );
+  const byKey = React.useMemo(
+    () => new Map(everyone.map((p) => [p.key, p])),
+    [everyone],
+  );
+  const person = useAddressItem("person", {
+    initial: initial.person ?? null,
+    valid: (id) => byKey.has(id),
+  });
+
+  const q = fold(query.trim());
+  const found = (p: PersonEntry) =>
+    !q ||
+    fold(p.name).includes(q) ||
+    fold(p.account?.username ?? "").includes(q) ||
+    fold(p.player?.riotId ?? "").includes(q);
+  const shown = everyone.filter((p) => found(p) && matches(p, filter));
+  const counts = Object.fromEntries(
+    FILTERS.map((f) => [
+      f.id,
+      everyone.filter((p) => found(p) && matches(p, f.id)).length,
+    ]),
+  ) as Record<StatusFilter, number>;
+
+  const kept = shown.filter((p) => p.account?.keptAutomatically);
+  const withProfile = shown.filter((p) => p.player && p.account);
   const groups = [
-    { key: "team", title: "Team members", subtitle: "The team workspace: Team Overview, Players, Leaderboards and Matches. Listed in Players and eligible for the lineup once set up.", rows: visible.filter((p) => p.teamMember) },
-    { key: "personal", title: "Personal use", subtitle: "Their own profile and statistics; no Team pages, not in Players or the lineup.", rows: visible.filter((p) => !p.teamMember) },
+    {
+      key: "team",
+      title: "Team members",
+      rows: withProfile.filter((p) => p.player!.teamMember),
+    },
+    {
+      key: "personal",
+      title: "Personal use",
+      rows: withProfile.filter((p) => !p.player!.teamMember),
+    },
+    {
+      key: "no-profile",
+      title: "Accounts without a player profile",
+      rows: shown.filter((p) => !p.player && !p.account?.keptAutomatically),
+      note: "An account from before automatic profiles, or the Owner's after a recovery, which the Owner completes under My profile.",
+    },
   ];
+  const accountless = shown.filter((p) => p.player && !p.account);
+  // ‹ › walk the people in the order shown.
+  const order = [...groups.flatMap((g) => g.rows), ...accountless, ...kept].map(
+    (p) => p.key,
+  );
+  const open = person.id ? (byKey.get(person.id) ?? null) : null;
 
   return (
     <ErasureResultHost>
-      <section className="space-y-4 rounded-card border border-border bg-surface p-4 sm:p-5" data-testid="players-admin">
-        <header className="flex flex-wrap items-center justify-between gap-3">
-          <SearchInput value={query} onChange={setQuery} placeholder="Find a person, username or Riot ID" label="Find a person" className="sm:max-w-xs" testId="people-search" />
-          <Button size="sm" variant="ghost" wrap onClick={() => setShowArchived((v) => !v)}>
-            {showArchived ? "Hide archived" : "Show archived"}
-          </Button>
-        </header>
-
-        <div role="group" aria-label="Filter by status" className="flex flex-wrap gap-1.5" data-testid="status-filters">
+      <section
+        className="space-y-4 rounded-card border border-border bg-surface p-3 sm:p-4"
+        data-testid="players-admin"
+      >
+        <div className="flex flex-wrap items-center gap-2">
+          <SearchInput
+            value={query}
+            onChange={setQuery}
+            placeholder="Find a person, username or Riot ID"
+            label="Find a person"
+            className="min-w-0 flex-1 sm:max-w-xs"
+            testId="people-search"
+          />
+        </div>
+        <div
+          role="group"
+          aria-label="Filter by status"
+          className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 sm:flex-wrap sm:overflow-visible"
+          data-testid="status-filters"
+        >
           {FILTERS.map((f) => (
             <button
               key={f.id}
@@ -141,179 +379,119 @@ export function PeoplePanel({ players, adminAccounts = [], presets = [], current
               aria-pressed={filter === f.id}
               onClick={() => setFilter(f.id)}
               className={cn(
-                "inline-flex min-h-9 max-w-full items-center gap-1.5 rounded-full border px-3 text-sm transition-colors pointer-coarse:min-h-11 [overflow-wrap:anywhere]",
-                filter === f.id ? "border-accent bg-accent/15 text-accent" : "border-border text-fg-muted hover:text-fg",
+                "inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border px-3 text-sm transition-colors pointer-coarse:min-h-11",
+                filter === f.id
+                  ? "border-accent bg-accent/15 text-accent"
+                  : "border-border text-fg-muted hover:text-fg",
               )}
             >
               {f.label}
-              <span className={cn("rounded-full px-1.5 text-xs font-semibold tabular-nums", counts[f.id] > 0 && f.tone === "warn" ? "bg-warn/15 text-warn" : counts[f.id] > 0 && f.tone === "bad" ? "bg-bad/15 text-bad" : counts[f.id] > 0 && f.tone === "info" ? "bg-info/15 text-info" : "bg-surface-3 text-fg-muted")}>{counts[f.id]}</span>
+              <span className="rounded-full bg-surface-3 px-1.5 text-xs font-semibold tabular-nums text-fg-muted">
+                {counts[f.id]}
+              </span>
             </button>
           ))}
         </div>
 
-        {groups.map((g) => (
-          <div key={g.key} className="space-y-2" data-testid={`people-group-${g.key}`}>
-            <div>
-              <h3 className="text-sm font-semibold text-fg">
-                {g.title} <span className="font-normal text-fg-subtle">· {g.rows.length}</span>
-              </h3>
-              <p className="text-xs text-fg-subtle">{g.subtitle}</p>
-            </div>
-            {g.rows.length === 0 ? <p className="text-sm text-fg-muted">Nobody{filter !== "all" ? " with this status" : ""}.</p> : null}
-            <ul className="space-y-2">
-              {g.rows.map((p) => {
-                const riot = riotStatus(p.riot.state);
-                return (
-                  <li key={p.id} className={cn("space-y-3 rounded-panel border border-border bg-bg-elevated p-3 @container", p.archived && "opacity-70")} data-testid="admin-player-row">
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-                      <Avatar name={p.displayName} src={p.account?.avatarUrl ?? null} size="md" />
-                      {/* Beside the picture; with a larger text size on a phone (the row under 14rem), on a line of its own under it. */}
-                      <div className="min-w-0 flex-1 [overflow-wrap:anywhere] @max-[14rem]:basis-full">
-                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                          {p.primaryRole && p.teamMember ? (
-                            // Their profile is a Player Mode page: it opens in a new tab, so Admin Mode stays here.
-                            <Link href={`/players/${p.id}`} target="_blank" rel="noopener" title="Open their profile (Player Mode) in a new tab" className="min-w-0 font-semibold text-fg [overflow-wrap:anywhere] hover:underline">
-                              {p.displayName}
-                            </Link>
-                          ) : (
-                            <span className="min-w-0 font-semibold text-fg [overflow-wrap:anywhere]">{p.displayName}</span>
-                          )}
-                          {p.account ? <span className="min-w-0 text-sm text-fg-subtle [overflow-wrap:anywhere]">@{p.account.username}</span> : null}
-                          {p.account?.role === "owner" ? <Badge tone="accent">Owner</Badge> : p.account?.isAdmin ? <Badge tone="accent" title="Can open Admin Mode">Administrator</Badge> : null}
-                          {p.archived ? <Badge tone="neutral">Archived</Badge> : null}
-                        </div>
-                        <div className="flex flex-wrap items-center gap-x-2 text-sm text-fg-muted">
-                          {p.primaryRole ? (
-                            <span className="inline-flex items-center gap-1">
-                              <RoleIcon role={p.primaryRole} className="h-3.5 w-3.5" /> {ROLE_LABELS[p.primaryRole]}
-                              {p.secondaryRole ? ` / ${ROLE_LABELS[p.secondaryRole]}` : ""}
-                            </span>
-                          ) : (
-                            <span className="text-fg-subtle">Role not chosen yet</span>
-                          )}
-                          <span className="min-w-0 text-fg-subtle [overflow-wrap:anywhere]">· {p.riotId ?? "no Riot ID"}</span>
-                          {p.lineupRole ? <span className="text-fg-subtle">· lineup {ROLE_LABELS[p.lineupRole]}</span> : null}
-                        </div>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        {p.account ? (
-                          <AccountStatusBadge account={p.account} />
-                        ) : (
-                          <span className="inline-flex items-center gap-1">
-                            <Badge tone="warn">No account</Badge>
-                            <InfoTip label="About profiles without an account" text="A profile without an account: a test entry, an old placeholder, or what a deleted account left behind. Creating a player with the same Riot ID reuses it." />
-                          </span>
-                        )}
-                        <Badge tone={p.teamMember ? "accent" : "neutral"} title={p.teamMember ? "Uses the team workspace" : "Personal use only: no Team pages"}>
-                          {p.teamMember ? "Team member" : "Personal use"}
-                        </Badge>
-                        <Badge tone={riot.tone} title={p.riot.label}>
-                          {riot.label}
-                        </Badge>
-                        {p.account ? <PasswordStateBadge account={p.account} /> : null}
-                      </div>
-                    </div>
-                    {p.account && canManageAccounts ? (
-                      <p className="flex items-center gap-1.5 text-xs text-fg-muted" data-testid="access-summary">
-                        <ShieldCheck className="h-3.5 w-3.5 text-fg-subtle" aria-hidden /> {accessSummary(p.account, presets)}
-                      </p>
-                    ) : null}
-                    {(canManageAccounts || canManageRoster) ? (
-                      <div className="flex flex-wrap items-center gap-1.5 border-t border-border pt-2.5">
-                        {p.account ? accessButton(p.account) : null}
-                        {canManageAccounts && p.account ? <AccountActions account={p.account} currentUserId={currentUserId} viewerIsOwner={viewerIsOwner} /> : null}
-                        {canManageAccounts && !p.account ? <DeleteProfileButton playerId={p.id} name={p.displayName} /> : null}
-                        {canManageAccounts && (!p.account || mayErase(p.account)) ? <ErasePersonButton target={p.account ? { userId: p.account.userId } : { playerId: p.id }} name={p.account?.username ?? p.displayName} /> : null}
-                        <span className="flex-1" />
-                        {canManageRoster ? (
-                          <>
-                            {!p.account ? (
-                              <Button size="sm" variant="ghost" wrap disabled={busy} onClick={() => run(() => archivePlayerAction(p.id, !p.archived), p.archived ? "Profile restored." : "Profile archived.")}>
-                                {p.archived ? "Restore profile" : "Archive profile"}
-                              </Button>
-                            ) : null}
-                          </>
-                        ) : null}
-                      </div>
-                    ) : null}
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        ))}
+        {groups.map((g) =>
+          g.rows.length ||
+          (g.key !== "no-profile" && filter === "all" && !q) ? (
+            <Group
+              key={g.key}
+              title={g.title}
+              count={g.rows.length}
+              note={g.note}
+              testId={`people-group-${g.key}`}
+            >
+              {g.rows.length ? (
+                <ul className="divide-y divide-border">
+                  {g.rows.map((p) => (
+                    <PersonRow
+                      key={p.key}
+                      p={p}
+                      onOpen={person.open}
+                      testId={p.player ? "admin-player-row" : "admin-user-row"}
+                    />
+                  ))}
+                </ul>
+              ) : (
+                <p className="px-2 text-sm text-fg-muted">Nobody yet.</p>
+              )}
+            </Group>
+          ) : null,
+        )}
 
-        {canManageAccounts && withoutProfile.filter(foundAccount).length > 0 ? (
-          <div className="space-y-2" data-testid="people-group-no-profile">
-            <div>
-              <h3 className="text-sm font-semibold text-fg">Accounts without a player profile <span className="font-normal text-fg-subtle">· {withoutProfile.length}</span></h3>
-              <p className="text-xs text-fg-subtle">They are in no list members see and have no statistics: an account from before automatic profiles, or the Owner&apos;s after a recovery, which the Owner completes under My profile.</p>
-            </div>
-            <ul className="space-y-2">
-              {withoutProfile
-                .filter(foundAccount)
-                .map((a) => (
-                  <li key={a.userId} className="space-y-2 rounded-panel border border-border bg-bg-elevated p-3 @container" data-testid="admin-user-row">
-                    <div className="flex flex-wrap items-center gap-3">
-                      <Avatar name={a.username} src={a.avatarUrl} size="md" />
-                      <div className="min-w-0 flex-1 [overflow-wrap:anywhere] @max-[14rem]:basis-full">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="min-w-0 font-semibold text-fg [overflow-wrap:anywhere]">{a.username}</span>
-                          {a.userId === currentUserId ? <span className="text-xs text-fg-subtle">(you)</span> : null}
-                          {a.role === "owner" ? <Badge tone="accent">Owner</Badge> : a.isAdmin ? <Badge tone="accent" title="Can open Admin Mode">Administrator</Badge> : null}
-                        </div>
-                        <p className="flex items-center gap-1.5 text-xs text-fg-muted" data-testid="access-summary">
-                          <ShieldCheck className="h-3.5 w-3.5 text-fg-subtle" aria-hidden /> {accessSummary(a, presets)}
-                        </p>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <AccountStatusBadge account={a} />
-                        <PasswordStateBadge account={a} />
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-1.5 border-t border-border pt-2.5">
-                      {accessButton(a)}
-                      <AccountActions account={a} currentUserId={currentUserId} viewerIsOwner={viewerIsOwner} />
-                      {mayErase(a) ? <ErasePersonButton target={{ userId: a.userId }} name={a.username} /> : null}
-                    </div>
-                  </li>
-                ))}
-            </ul>
-          </div>
-        ) : null}
-        {canManageAccounts && kept.filter(foundAccount).length > 0 ? (
-          <div className="space-y-2" data-testid="people-group-kept">
-            <div>
-              <h3 className="text-sm font-semibold text-fg">Kept automatically <span className="font-normal text-fg-subtle">· {kept.length}</span></h3>
-              <p className="text-xs text-fg-subtle">The account the daily Production check signs in with to check the member pages: a member with no player profile and the default access, its password worked out by the check itself. Its access, password and name cannot be changed here. Deactivate it to turn the signed-in checks off; deleted, the check makes it again.</p>
-            </div>
-            <ul className="space-y-2">
-              {kept.filter(foundAccount).map((a) => (
-                <li key={a.userId} className="space-y-2 rounded-panel border border-border bg-bg-elevated p-3 @container" data-testid="admin-kept-row">
-                  <div className="flex flex-wrap items-center gap-3">
-                    <Avatar name={a.username} src={a.avatarUrl} size="md" />
-                    <div className="min-w-0 flex-1 [overflow-wrap:anywhere] @max-[14rem]:basis-full">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="min-w-0 font-semibold text-fg [overflow-wrap:anywhere]">{a.username}</span>
-                        <Badge tone="neutral">Production check</Badge>
-                      </div>
-                      <p className="flex items-center gap-1.5 text-xs text-fg-muted">
-                        <ShieldCheck className="h-3.5 w-3.5 text-fg-subtle" aria-hidden /> Default access, locked
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <AccountStatusBadge account={a} />
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-1.5 border-t border-border pt-2.5">
-                    <AccountActions account={a} currentUserId={currentUserId} viewerIsOwner={viewerIsOwner} />
-                  </div>
-                </li>
+        {accountless.length ? (
+          <Disclosure
+            title={`Profiles without an account · ${accountless.length}`}
+            description="A test entry, an old placeholder, or what a deleted account left behind. Creating a player with the same Riot ID reuses it."
+            testId="people-group-accountless"
+            defaultOpen={!!open && !open.account && !!open.player}
+          >
+            <ul className="divide-y divide-border">
+              {accountless.map((p) => (
+                <PersonRow
+                  key={p.key}
+                  p={p}
+                  onOpen={person.open}
+                  testId="admin-player-row"
+                />
               ))}
             </ul>
+          </Disclosure>
+        ) : null}
+
+        {canManageAccounts && kept.length ? (
+          <Group
+            title="Kept automatically"
+            count={kept.length}
+            note="The account the Production check signs in with. Deactivate it to turn the signed-in checks off; deleted, the check makes it again."
+            testId="people-group-kept"
+          >
+            <ul className="divide-y divide-border">
+              {kept.map((p) => (
+                <PersonRow
+                  key={p.key}
+                  p={p}
+                  onOpen={person.open}
+                  testId="admin-kept-row"
+                />
+              ))}
+            </ul>
+          </Group>
+        ) : null}
+
+        {shown.length === 0 ? (
+          <div className="space-y-2 px-2 text-sm text-fg-muted">
+            <p>Nobody matches.</p>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => (setFilter("all"), setQuery(""))}
+            >
+              Show everyone
+            </Button>
           </div>
         ) : null}
-        {editing ? <AccessDialog account={editing} presets={presets} lineupRole={players.find((p) => p.id === editing.playerId)?.lineupRole ?? null} onClose={() => setEditing(null)} /> : null}
+
+        <PersonView
+          person={open}
+          onClose={person.close}
+          onStep={(dir) => {
+            const at = open ? order.indexOf(open.key) : -1;
+            const next = at < 0 ? null : order[at + dir];
+            if (next) person.open(next);
+          }}
+          position={
+            open ? { at: order.indexOf(open.key), of: order.length } : null
+          }
+          presets={presets}
+          currentUserId={currentUserId}
+          viewerIsOwner={viewerIsOwner}
+          canManageAccounts={canManageAccounts}
+          canManageRoster={canManageRoster}
+          riotConfigured={riotConfigured}
+        />
       </section>
     </ErasureResultHost>
   );

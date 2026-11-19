@@ -242,6 +242,7 @@ export interface AccountView {
   setupComplete: boolean;
   hasPassword: boolean;
   lastLoginAt: string | null;
+  createdAt: string;
   playerId: string | null;
   playerName: string | null;
   /** set = a permanent password · temporary = waiting to be replaced · expired = temporary and expired · none = cannot sign in yet. */
@@ -274,6 +275,7 @@ export async function listAccountViews(db: Db, now: Date = new Date()): Promise<
     setupComplete: u.setupCompletedAt !== null,
     hasPassword: u.hasPassword,
     lastLoginAt: u.lastLoginAt?.toISOString() ?? null,
+    createdAt: u.createdAt.toISOString(),
     playerId: u.playerId,
     playerName: u.playerName,
     password: {

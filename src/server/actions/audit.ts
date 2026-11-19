@@ -26,3 +26,18 @@ export async function loadOlderAuditAction(filters: Record<string, unknown>, bef
     return { ok: false, error: (err as Error).name === "NotAuthorizedError" ? (err as Error).message : "Something went wrong. Please try again." };
   }
 }
+
+/** A person view's Activity: the last 10 entries they made or that were about them (administrators only). */
+export async function personActivityAction(person: { userId?: string | null; playerId?: string | null }): Promise<Result<{ entries: AuditEntry[] }>> {
+  try {
+    const session = await requireSession();
+    if (!hasPermission(session, "manage-users")) throw new NotAuthorizedError();
+    const userId = typeof person?.userId === "string" ? person.userId : null;
+    const playerId = typeof person?.playerId === "string" ? person.playerId : null;
+    if (!userId && !playerId) return { ok: false, error: "Choose a person." };
+    const entries = await queryAudit(await getAppDb(), { person: { userId, playerId }, limit: 10 });
+    return { ok: true, data: { entries } };
+  } catch (err) {
+    return { ok: false, error: (err as Error).name === "NotAuthorizedError" ? (err as Error).message : "Something went wrong. Please try again." };
+  }
+}

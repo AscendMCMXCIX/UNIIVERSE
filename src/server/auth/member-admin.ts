@@ -6,6 +6,7 @@ import { loadSocialLinks, removeAvatar, setAvatar, setDisplayName, setSocialLink
 import { setAccessGroups, setAccessLevel, type AccessLevelChoice } from "@/server/repositories/permissions";
 import type { SocialKind, SocialLinks } from "@/domain/social-links";
 import { SOCIAL_KINDS } from "@/domain/social-links";
+import { getOrCreateTeam, setTeamMember } from "@/server/repositories/team";
 import { guardOwnerAccount, guardProfileAccount, guardSelf, guardVerificationAccount, setAdministrator } from "./account-admin";
 import { revokeAllSessions } from "./sessions";
 
@@ -80,6 +81,8 @@ export interface AccessSave {
   level: AccessLevelChoice;
   groups: string[];
   administrator: boolean;
+  /** Team member (true) or personal use (false), for an account with a player profile; left as it is when omitted. */
+  teamMember?: boolean;
   /** The second confirmation the dialog asks for before granting administrator access. */
   confirmAdministrator?: boolean;
 }
@@ -87,10 +90,11 @@ export interface AccessSave {
 export interface AccessSaved {
   user: UserRecord;
   administratorChanged: boolean;
+  teamMemberChanged: boolean;
 }
 
 /**
- * Access level, extra groups and administrator access in one transaction (D6): either all of it
+ * Team membership, access level, extra groups and administrator access in one transaction (D6): either all of it
  * is saved or none of it. Each step keeps its own rules (setAccessLevel, setAccessGroups,
  * setAdministrator); granting administrator access needs `confirmAdministrator` and the Owner.
  */
@@ -102,10 +106,19 @@ export async function saveAccess(db: Db, actorId: string, userId: string, input:
   if (before.role === "owner") throw new UserError("The Owner always has full access.");
   if (input.level.level === "owner") throw new UserError("There is one Owner account (the administrative account). Other accounts get access levels and groups instead.");
   if (input.administrator && !before.isAdmin && input.confirmAdministrator !== true) throw new UserError("Confirm that they should have administrator access. Nothing was saved.");
+  if (input.teamMember !== undefined && typeof input.teamMember !== "boolean") throw new UserError("Choose team member or personal use.");
   return db.transaction(async (tx) => {
+    let teamMemberChanged = false;
+    if (input.teamMember !== undefined && before.playerId) {
+      const [profile] = await tx.select({ teamMember: players.teamMember }).from(players).where(eq(players.id, before.playerId));
+      if (profile && profile.teamMember !== input.teamMember) {
+        await setTeamMember(tx, (await getOrCreateTeam(tx)).id, before.playerId, input.teamMember);
+        teamMemberChanged = true;
+      }
+    }
     await setAccessLevel(tx, actorId, userId, input.level);
     await setAccessGroups(tx, actorId, userId, input.groups);
     const { changed } = await setAdministrator(tx, actorId, userId, input.administrator);
-    return { user: (await getUser(tx, userId))!, administratorChanged: changed };
+    return { user: (await getUser(tx, userId))!, administratorChanged: changed, teamMemberChanged };
   });
 }

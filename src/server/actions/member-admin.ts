@@ -19,7 +19,7 @@ import { SOCIAL_LABELS, type SocialKind } from "@/domain/social-links";
 
 type Result<T = null> = { ok: true; data: T } | { ok: false; error: string };
 
-const fail = (err: unknown): Result<never> => ({ ok: false, error: err instanceof UserError || (err as Error).name === "NotAuthorizedError" ? (err as Error).message : "Something went wrong. Please try again." });
+const fail = (err: unknown): Result<never> => ({ ok: false, error: err instanceof UserError || (err as Error).name === "NotAuthorizedError" || (err as Error).name === "PlayerValidationError" ? (err as Error).message : "Something went wrong. Please try again." });
 
 function touch() {
   for (const path of ["/settings", "/players", "/team", "/admin", "/admin/people", "/admin/audit"]) revalidatePath(path);
@@ -96,7 +96,7 @@ export async function moderateSocialLinkAction(playerId: string, kind: SocialKin
 }
 
 /**
- * Access level, extra access and administrator access, saved together or not at all. Granting
+ * Team membership, access level, extra access and administrator access, saved together or not at all. Granting
  * administrator access is the Owner's, and needs the dialog's second confirmation.
  */
 export async function saveAccessAction(userId: string, input: AccessSave): Promise<Result> {
@@ -104,7 +104,8 @@ export async function saveAccessAction(userId: string, input: AccessSave): Promi
     const session = await requirePermission("manage-users");
     if (!session.userId) return { ok: false, error: "No account session." };
     const db = await getAppDb();
-    const { user, administratorChanged } = await saveAccess(db, session.userId, userId, input);
+    const { user, administratorChanged, teamMemberChanged } = await saveAccess(db, session.userId, userId, input);
+    if (teamMemberChanged && user.playerId) await recordAudit(db, session, { action: "account.team-member", target: { type: "player", id: user.playerId, name: await auditPlayerName(db, user.playerId) }, details: { teamMember: input.teamMember } });
     const level = input.level.level === "preset" ? ((await auditPresetName(db, input.level.presetId)) ?? "preset") : input.level.level;
     await recordAudit(db, session, { action: "account.access", target: { type: "user", id: userId, name: user.username }, details: { level, groups: user.accessGroups.length } });
     if (administratorChanged) await recordAudit(db, session, { action: user.isAdmin ? "account.admin-grant" : "account.admin-revoke", target: { type: "user", id: userId, name: user.username } });
