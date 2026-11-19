@@ -349,3 +349,59 @@ test("the season records, multikills and milestones at 125% to 200% text on 320 
   }
   await page.evaluate(() => { document.documentElement.style.fontSize = ""; });
 });
+
+test("the boards' ⓘ bubbles at 200% text on 375 and 320px phones: never taller than the screen; the season records' definitions scroll inside theirs, a finger's drag scrolls it, a tap closes it", async ({ page }, info) => {
+  test.skip(info.project.name !== "phone", "phone widths, set below");
+  await open(page, "/leaderboards");
+  const cdp = await page.context().newCDPSession(page);
+  const drag = async (x: number, from: number, to: number) => {
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y: from }] });
+    for (let y = from - 10; y >= to; y -= 10) await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x, y }] });
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  };
+  for (const [width, height] of [
+    [375, 667],
+    [320, 568],
+  ] as const) {
+    await page.setViewportSize({ width, height });
+    await page.evaluate(() => { document.documentElement.style.fontSize = "200%"; });
+    await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
+    const at = `${width} × ${height} at 200%`;
+    for (const id of ["form-footnote", "records-definitions"]) {
+      const tip = page.getByTestId(id);
+      await tip.scrollIntoViewIfNeeded();
+      await tip.tap();
+      const bubble = page.getByTestId(`${id}-bubble`);
+      await expect(bubble, `${at}: ${id}`).toBeVisible();
+      const f = await bubble.evaluate((b) => {
+        const r = b.getBoundingClientRect();
+        return { top: r.top, bottom: r.bottom, left: r.left, width: r.width, screen: innerHeight, scrolls: b.scrollHeight > b.clientHeight + 1, pointer: getComputedStyle(b).pointerEvents };
+      });
+      // The bubble on the screen, 8px inside its edges, however long its text.
+      expect(f.top, `${at}: ${id} inside the screen's top`).toBeGreaterThanOrEqual(7.5);
+      expect(f.bottom, `${at}: ${id} inside the screen's foot`).toBeLessThanOrEqual(f.screen - 7.5);
+      // A bubble that fits lets the pointer through, as every bubble did; one whose text is longer scrolls, and takes it.
+      expect(f.pointer, `${at}: ${id}`).toBe(f.scrolls ? "auto" : "none");
+      if (id === "records-definitions") {
+        expect(f.scrolls, `${at}: the definitions longer than the screen`).toBe(true);
+        // A finger's drag on the bubble scrolls its text, and leaves it open.
+        await drag(f.left + f.width / 2, f.bottom - 40, f.top + 60);
+        await expect.poll(() => bubble.evaluate((b) => b.scrollTop), { message: `${at}: the drag scrolled the definitions` }).toBeGreaterThan(0);
+        await expect(bubble).toBeVisible();
+        // Scrolled to its end, its last line inside the bubble: every definition can be read.
+        const end = await bubble.evaluate((b) => {
+          b.scrollTop = b.scrollHeight;
+          const last = [...b.querySelectorAll("span")].at(-1)!.getBoundingClientRect();
+          return { last: last.bottom, box: b.getBoundingClientRect().bottom, text: b.textContent ?? "" };
+        });
+        expect(end.text, `${at}`).toContain("A tie goes to whoever set it first.");
+        expect(end.last, `${at}: the definitions' last line in view`).toBeLessThanOrEqual(end.box + 0.5);
+      }
+      // A tap closes it: on the bubble where it takes the pointer, as anywhere else.
+      if (f.scrolls) await bubble.tap({ position: { x: 20, y: 20 } });
+      else await page.getByRole("heading", { level: 1 }).tap();
+      await expect(bubble, `${at}: ${id} closed by a tap`).toHaveCount(0);
+    }
+  }
+  await page.evaluate(() => { document.documentElement.style.fontSize = ""; });
+});
