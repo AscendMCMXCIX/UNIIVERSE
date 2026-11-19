@@ -354,9 +354,12 @@ the account screen over the dashboard at 200% on a 320px phone as well.
 ## Tables
 
 Tables with more than four columns render as cards on phones and as the table from `md`:
-Data jobs and the player's champion proficiency table. Match history rows wrap into cards; on
-phones a game opens as the match window over the whole screen (Back closes it), and a card leaves
-both teams to that window.
+Data jobs and the player's champion proficiency table. Match history rows wrap into cards by the
+list's own width (owner decision D8): a phone's card under 36rem (about 118px; both teams left to
+the game's own screen), a two-row card from 36 to 50rem (about 120px: the game's figures and build,
+then both teams) and one row from 50rem; on phones a game opens as the match window over the whole
+screen (Back closes it). Encounters' column names pin under the section tabs where those pin (from
+md, in a window taller than 480px), as All Champions' do.
 A game's breakdown (under its Match History card, or in the match window) sizes its scoreboard by
 its own width (container `bd`, not the screen): name, KDA and items on phones, damage from 36rem,
 gold, CS and vision columns from 60rem; its four section tabs share a phone's width.

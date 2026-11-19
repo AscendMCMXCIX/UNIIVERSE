@@ -40,6 +40,52 @@ decorative chrome.
   - quiet labels and strong figures.
 - **Match History** is a finished, successful experience. Do not restyle it for novelty. Change it
   only for a bug, an accessibility fix or a product decision.
+  - **Density (owner decision D8, approved 8 Nov 2026, built 18 Nov):** denser cards that keep the
+    statistics, champions, ranks, LP and every interaction readable. The card follows the list's
+    own width (`@container/mh`), in three tiers:
+    - **a phone's card** (a list under 36rem), about 118px (131–147px before): the result line
+      across the card, with a ranked game's LP at its end; the portrait, the champion and role
+      with the build under them (from a 21.375rem list, where the widest K/D/A still fits beside
+      a line of seven 20px items; narrower, kill participation takes that place and the build
+      closes the card) and the K/D/A; then the figures. Both teams stay on the game's own screen;
+    - **a two-row card** (36–50rem: tablets, and phones held sideways under 848px, such as an
+      iPhone; a Pixel 7 held sideways has a 50.9rem list and keeps the wide card), about 120px on
+      an iPad (about 150px before): the portrait, the result line over the champion, the K/D/A, the
+      figures and the build in one row, both teams under them. The champion's name has its whole
+      box (the role takes the next line when both do not fit), so even a 36rem list keeps "Nunu &
+      Willump" whole;
+    - **the wide card** (from 50rem), one row of about 100px, unchanged.
+  - Read in the order drawn: a card's parts and the header's come in the page in the order they
+    are drawn. A phone's card has its own copies of the result line (its first line) and of the
+    build (beside the champion), placed where they are read; only one copy is ever displayed.
+  - Around the cards: the views (Games, Encounters), Filters and Refresh share one row at every
+    width where they fit, from a 320px phone up (on a phone the views drop their icons, Refresh
+    shows its icon alone, and under 360px Filters too, their names kept for screen readers); the
+    scope line follows; a narrowed filter's chips take the next row when they do not fit, and below
+    `xl` an active refinement's always do, from the row's start, clear of the Refine panel.
+  - The summary (`StatStrip`) holds every figure at once in three lines on a phone from 393px
+    (an iPhone 15): the last twenty with the streak and a trend; the record, KDA, CS and kill
+    participation; the champions played most and the ladder change. Its words are the approved
+    design's short ones ("4W streak", "+45 Solo/Duo since 3 Nov", on a phone "Better +9 pts"), the
+    full ones read by screen readers and in each figure's title. The squares share what their line
+    leaves, never under 3px. A line wraps where its figures still do not fit: at 375px a streak
+    beside a named trend takes a second row on the first line, and the longest ladder label or a
+    two-digit record on a champion can move the ladder change to a fourth line; a 360px phone's
+    ladder change, a 320px phone and a large text size wrap too. From 36rem one flowing line; from
+    60rem one row of tiles with every figure at once (a trend, a streak, three champions and the
+    ladder change, at their widest with both arrows too, on a 60rem list as well); from 78rem
+    without a trend one line of text. Measured with demo Support (a trend, a streak and the ladder
+    change) and the widest real values written in (e2e/match-history-layout.spec.ts).
+  - Encounters keeps its minimum and order in a phone's Filters sheet, as chips that count with
+    the filters and that its Reset puts back; from tablets up they stay in the list's toolbar and
+    are the list's own (the filters' Reset neither counts nor changes them). Its column names pin
+    under the section tabs.
+  - What did not change: one button per card, a game opening under its card (full screen on a
+    phone), the result said three ways, the honest-data rules (LP only where the readings prove
+    it, "Removed player", grey small samples), the compact profile band and every filter, link,
+    figure and explanation (what moved where is in MOBILE.md, section 3).
+  - Page heights against the plan's targets are in MOBILE.md, section 3; one is missed: a Pixel 7
+    held sideways (863×360), where the wide card and the phone's frame leave D8 nothing to take.
 
 ## 2. Principles
 

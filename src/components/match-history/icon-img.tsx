@@ -23,10 +23,13 @@ export function iconInitials(name: string): string {
  * an empty slot (no icon: a plain tile); and an image that failed to load (Data Dragon down, a
  * blocked host, an app offline), which shows the icon's initials on a tile with its name on hover
  * and for screen readers (docs/STANDARDS.md → Images: a designed stand-in).
+ * `size` is in px (drawn in rem); a container may set `--icon-size` to draw its icons smaller where
+ * it needs to (a phone's match card draws its build at 20px under a container query).
  */
 export function IconImg({ icon, size = 22, rounded = "rounded", className }: { icon: Icon | null; size?: number; rounded?: string; className?: string }) {
   const { failed, ref, onError } = useImageFailure(icon?.url);
-  const box = { width: `${size / 16}rem`, height: `${size / 16}rem` };
+  const side = `var(--icon-size, ${size / 16}rem)`;
+  const box = { width: side, height: side };
   if (!icon) return <span className={cn("inline-block shrink-0 bg-surface-3/70", rounded, className)} style={box} aria-hidden />;
   if (failed)
     return (

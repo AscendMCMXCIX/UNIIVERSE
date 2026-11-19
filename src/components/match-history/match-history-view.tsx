@@ -48,6 +48,52 @@ const GAP_REM = 0.375;
 const ROW_REM = 6.375 + GAP_REM;
 const PHONE_PER = 10;
 
+/*
+  A card's grid, by the list's own width (@container/mh; see MatchCard):
+    under 36rem  three columns (portrait, champion, K/D/A) and rows placed by the PHONE_* classes:
+                 1 the result line across the card; 2–3 the portrait and the K/D/A beside the
+                 champion and role (row 2) over the build (row 3); 4 the figures. Under 21.375rem
+                 the build cannot sit beside the K/D/A: kill participation takes its place under
+                 the champion (row 3), so CS and damage keep one line (4), and the build closes the
+                 card (5). The rows are 4px apart; the result line and the figures add 2px of their
+                 own, so they stand 6px off the rest.
+    36–50rem     five columns in one row (portrait, result line over the champion, K/D/A, figures,
+                 build), placed in order, and the teams across the next row.
+    from 50rem   one row (unchanged since #271).
+  Every phone placement is written for the narrowest card and changed from 16rem, 21.375rem and
+  36rem (min-width queries only, so the wider one always wins). Under 16rem (a phone at a large
+  text size: 150% on most, 125% on a 320px one) the portrait, the champion and the widest K/D/A no
+  longer fit side by side: two columns, the K/D/A and its ratio on a line under the champion (3),
+  then the figures (4) and the build in two rows (5); nothing is cut or wider than the card.
+*/
+const CARD_GRID = [
+  "relative grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1 px-3 py-2.5 @max-[16rem]/mh:grid-cols-[auto_minmax(0,1fr)]",
+  "@min-[36rem]/mh:grid-cols-[auto_minmax(0,1fr)_auto_auto_auto] @min-[36rem]/mh:gap-x-3 @min-[36rem]/mh:gap-y-2",
+  "@min-[50rem]/mh:grid-cols-[6.75rem_auto_minmax(6rem,0.7fr)_minmax(auto,0.5fr)_minmax(auto,0.6fr)_minmax(13rem,2fr)_auto] @min-[50rem]/mh:gap-x-2.5 @min-[50rem]/mh:py-2",
+  "@min-[54rem]/mh:grid-cols-[6.75rem_auto_minmax(6.25rem,0.7fr)_minmax(auto,0.5fr)_minmax(auto,0.6fr)_minmax(13rem,2fr)_auto]",
+  "@min-[61rem]/mh:grid-cols-[6.75rem_auto_minmax(6.25rem,0.7fr)_minmax(auto,0.5fr)_minmax(auto,0.6fr)_auto_minmax(13rem,2fr)_auto] @min-[64rem]/mh:gap-x-4 @min-[72rem]/mh:gap-x-5",
+].join(" ");
+/** The portrait: row 2 (rows 2–3 from 16rem); placed in order from 36rem. */
+const PHONE_PORTRAIT = "col-[1] row-[2] @min-[16rem]/mh:row-[2/span_2] @min-[36rem]/mh:col-auto @min-[36rem]/mh:row-auto";
+/** The K/D/A at the card's end, beside the champion (and the build under it), capped at the widest K/D/A on a phone. */
+const PHONE_KDA = "col-[3] row-[2] max-w-[5.75rem] @max-[16rem]/mh:col-[1/-1] @max-[16rem]/mh:row-[3] @max-[16rem]/mh:flex @max-[16rem]/mh:max-w-none @max-[16rem]/mh:flex-wrap @max-[16rem]/mh:items-baseline @max-[16rem]/mh:gap-x-2 @max-[16rem]/mh:text-left @min-[16rem]/mh:row-[2/span_2] @min-[36rem]/mh:col-auto @min-[36rem]/mh:row-auto @min-[36rem]/mh:max-w-none";
+/**
+ * The figures: a line across the card under the champion (4), a column of their own from 36rem. From
+ * 16 to 21.375rem the line steps aside (display: contents): kill participation goes under the
+ * champion (PHONE_KP), and CS and damage keep the line (PHONE_FIGURES_REST).
+ */
+const PHONE_FIGURES = "col-[1/-1] row-[4] mt-0.5 @min-[16rem]/mh:contents @min-[21.375rem]/mh:flex @min-[36rem]/mh:col-auto @min-[36rem]/mh:row-auto @min-[36rem]/mh:mt-0";
+const PHONE_KP = "@min-[16rem]/mh:col-[2] @min-[16rem]/mh:row-[3]";
+const PHONE_FIGURES_REST = "contents @min-[16rem]/mh:col-[1/-1] @min-[16rem]/mh:row-[4] @min-[16rem]/mh:mt-0.5 @min-[16rem]/mh:flex @min-[16rem]/mh:flex-wrap @min-[16rem]/mh:gap-x-3 @min-[16rem]/mh:gap-y-0.5 @min-[21.375rem]/mh:contents";
+/**
+ * The build: the card's last line under 21.375rem, then a column of its own from 36rem (PHONE_BUILD).
+ * From 21.375 to 36rem it is drawn under the champion's name beside the K/D/A (its items 20px), above
+ * the figures: there a copy placed after the K/D/A is shown instead (PHONE_BUILD_BESIDE), so the
+ * card is read in the order it is drawn. Only one of the two is ever displayed.
+ */
+const PHONE_BUILD = "col-[1/-1] row-[5] [--icon-size:1.25rem] @min-[21.375rem]/mh:hidden @min-[36rem]/mh:col-auto @min-[36rem]/mh:row-auto @min-[36rem]/mh:flex @min-[36rem]/mh:[--icon-size:initial]";
+const PHONE_BUILD_BESIDE = "col-[2] row-[3] hidden items-center overflow-hidden [--icon-size:1.25rem] @min-[21.375rem]/mh:flex @min-[36rem]/mh:hidden";
+
 export { fmtDuration, fmtNum, fmtInt } from "./match-format";
 export { pageList } from "./pager";
 
@@ -81,7 +127,12 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
   const multikill = row.multikill ? MULTIKILL_NAMES[row.multikill] : null;
   // A stored record without items: no build to draw (see the build's place below).
   const unrecorded = row.record === "stored" && !row.items;
-  const build = row.record === "stored" ? <ItemRow items={row.items} size={22} stacked className="grid-cols-7 @min-[61rem]/mh:grid-cols-4" trinketClassName="order-last ml-0.5 @min-[61rem]/mh:order-none @min-[61rem]/mh:ml-0" /> : <span className="text-xs text-fg-subtle">{row.record === "missing" ? "Items being collected" : "Items not provided by Riot"}</span>;
+  // One line of seven on a phone's card (the trinket last), two rows of three and four from 36rem
+  // (and under 16rem, at a large text size, where seven do not fit across). The line beside the
+  // K/D/A sizes its tracks by their items (seven 20px items, the gaps and the trinket's margin: the
+  // 154px a 21.375rem list leaves beside the widest K/D/A), so nothing is squeezed or clipped.
+  const itemRow = (className: string, trinketClassName: string) => (row.record === "stored" ? <ItemRow items={row.items} size={22} stacked className={className} trinketClassName={trinketClassName} /> : <span className="text-xs text-fg-subtle">{row.record === "missing" ? "Items being collected" : "Items not provided by Riot"}</span>);
+  const build = itemRow("grid-cols-7 @max-[16rem]/mh:grid-cols-4 @min-[36rem]/mh:grid-cols-4", "order-last ml-0.5 @max-[16rem]/mh:order-none @max-[16rem]/mh:ml-0 @min-[36rem]/mh:order-none @min-[36rem]/mh:ml-0");
   const teamsId = `teams-${row.matchId}`;
   const regionId = `match-${row.matchId}-details`;
   const teams = React.useMemo(() => (row.teams && checked ? withChecked(row.teams, checked) : row.teams), [row.teams, checked]);
@@ -89,33 +140,75 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
   const roleName = row.role ? ROLE_LABELS[row.role as Role] : null;
   const standout = row.standout;
   const standoutTitle = standout ? `Your highest ${standout.label} in your last ${standout.games} ${QUEUE_GROUP_WORDS[queueGroup(row.queueId)]} games${roleName ? ` as ${roleName}` : ""}: ${figureText(standout.key, standout.value)} (the highest before: ${figureText(standout.key, standout.top)})` : undefined;
-  /** "Best vision/min in 22": one chip, with the figures on every card (under them on wide cards, in their row on narrow ones). */
+  /** "Best vision/min in 22": one chip, with the figures on every card (under them on wide cards, in their row on narrow ones); under 16rem (a large text size) it wraps between its words rather than be cut. */
   const standoutChip = (className: string) =>
     standout ? (
-      <span className={cn("whitespace-nowrap rounded border border-accent/40 px-1 text-2xs font-semibold leading-4 text-accent", className)} title={standoutTitle} data-testid="match-standout" data-key={standout.key}>
+      <span className={cn("whitespace-nowrap rounded border border-accent/40 px-1 text-2xs font-semibold leading-4 text-accent @max-[16rem]/mh:whitespace-normal", className)} title={standoutTitle} data-testid="match-standout" data-key={standout.key}>
         Best {STANDOUT_SHORT[standout.key]} in {standout.games}
         <span className="sr-only">: {standoutTitle}</span>
       </span>
     ) : null;
+  /*
+    The result line: Victory or Defeat, the queue, when, and a ranked game's LP. Never cut: where the
+    line is too narrow (a 320px phone at a large text size), it wraps between its parts ("Defeat ·
+    Solo/Duo" / "· 43h ago"), so the time stays whole. A ranked game's LP ends it: at the card's end
+    on a phone, after when from 36rem. Two copies, each where its card is read in the order it is
+    drawn: a phone's first line, before the portrait; a two-row card's, over the champion. Only one
+    is ever displayed (a wide card has its result column instead).
+  */
+  const metaLine = (className: string) => (
+    <span className={cn("min-w-0 flex-wrap items-center gap-x-1 text-xs font-bold", tone.text, className)} data-testid="match-card-meta">
+      <span>{tone.word}</span>
+      {/* The line names the queue without "Ranked" (a wide card's result column has the full
+          name), so it stays one line with the LP on a phone and on a two-row card. */}
+      <span className="whitespace-nowrap font-medium text-fg-subtle">· {row.queue.replace(/^Ranked /, "")}</span>
+      {/* "3h ago" is measured on the server first, then by the browser's own clock (useNow):
+          the server's words stand while the page hydrates, which React allows only for an
+          element's own text, so the span that holds it carries the permission. */}
+      <span className="whitespace-nowrap font-medium text-fg-subtle" suppressHydrationWarning>
+        · {when}
+      </span>
+      {row.lp ? (
+        // A dash's trigger reaches 6px past it each side (its target size): the padding keeps
+        // that inside the line where the dash ends it.
+        <span className={cn("ml-auto inline-flex items-center whitespace-nowrap font-medium text-fg-subtle @min-[36rem]/mh:ml-0", row.lp.kind === "none" && "pr-1.5")}>
+          <span className="mr-1 hidden @min-[36rem]/mh:inline" aria-hidden>
+            ·
+          </span>
+          <LpChange lp={row.lp} dense />
+        </span>
+      ) : null}
+    </span>
+  );
   const open = React.useRef<HTMLButtonElement>(null);
   return (
     <li id={`match-${row.matchId}`} className="scroll-mt-0 lg:scroll-mt-3" data-testid="match-item" data-expanded={expanded || undefined}>
-      {/* One game per card, read the way a player scans a match list: the result column (queue,
-          when, Victory / Defeat, length), the champion (its level, spells and runes), the KDA
-          with the game's largest multikill and, rarely, a figure the player never beat in their
-          recent comparable games, the figures (kill participation, CS and damage, each with its
-          total or share), the build and both teams (who played what, the player in bold, team
-          members in the accent colour, everyone's stored rank). The wide layout follows the
-          list's own width (a container query), not the window's: below 50rem it stacks in rows;
-          from 50rem it is one row, the spells and runes beside the portrait from 54rem and the
-          build from 61rem (narrower, the breakdown has them). Those thresholds follow from the
-          row's real minimum width: the KDA and figure tracks are never narrower than their text
-          (minmax(auto, …), each with a floor that the widest real value fits, "10 / 10 / 10" and
-          "1,234 dmg/min (45%)", so the columns stay level from card to card), the champion's
-          name has 6rem (6.25rem from 54rem, where the longest one-word name fits) and a second
-          line, the teams keep their names (13rem), and the columns sit 10px apart until 64rem,
-          where the wider gaps fit; so no text runs under the build or the teams. The teams'
-          five lines set the card's height (about 100px). */}
+      {/* One game per card, read the way a player scans a match list: the result (Victory /
+          Defeat, the queue, when, a ranked game's LP), the champion (its level, spells and runes),
+          the KDA with the game's largest multikill and, rarely, a figure the player never beat in
+          their recent comparable games, the figures (kill participation, CS and damage, each with
+          its total or share), the build and both teams (who played what, the player in bold, team
+          members in the accent colour, everyone's stored rank). The layout follows the list's own
+          width (a container query), not the window's, in three tiers (CARD_GRID and the PHONE_*
+          placements below; owner decision D8 of 8 Nov 2026 for the first two):
+            under 36rem  the phone's card, about 118px: the result line across the card with the
+                         LP at its end; the portrait, the champion and role with the build under
+                         them (from 21.375rem, where the widest K/D/A still fits beside a line of
+                         seven 20px items; narrower, the build closes the card) and the K/D/A; then
+                         the figures. The teams are left to the game's own screen.
+            36–50rem     two rows, about 120px: the portrait, the result line over the champion and
+                         role, the K/D/A, the figures and the build; both teams under them.
+            from 50rem   one row: the result column (Victory with the length, the queue, when with
+                         the LP), the champion with its spells and runes from 54rem, the KDA, the
+                         figures, the build from 61rem (narrower, the breakdown has it), the teams.
+          The wide thresholds follow from the row's real minimum width: the KDA and figure tracks
+          are never narrower than their text (minmax(auto, …), each with a floor that the widest
+          real value fits, "10 / 10 / 10" and "1,234 dmg/min (45%)", so the columns stay level from
+          card to card; the two-row card keeps the same floors), the champion's name has 6rem
+          (6.25rem from 54rem, where the longest one-word name fits) and a second line, the teams
+          keep their names (13rem), and the columns sit 10px apart until 64rem, where the wider
+          gaps fit; so no text runs under the build or the teams. The teams' five lines set the
+          wide card's height (about 100px). */}
       {/* The whole card opens and closes the match's breakdown under it. The player links in the
           teams cannot sit inside a button, so the card is a box: a click anywhere on it (but a
           link, or the LP's tooltip, which keeps its tap) toggles it, and one button behind the
@@ -148,125 +241,113 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
           data-result={row.win ? "W" : "L"}
         />
         <MatchRail win={row.win} />
-        <span className="relative grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 px-3 py-2.5 @min-[50rem]/mh:grid-cols-[6.75rem_auto_minmax(6rem,0.7fr)_minmax(auto,0.5fr)_minmax(auto,0.6fr)_minmax(13rem,2fr)_auto] @min-[50rem]/mh:gap-x-2.5 @min-[50rem]/mh:py-2 @min-[54rem]/mh:grid-cols-[6.75rem_auto_minmax(6.25rem,0.7fr)_minmax(auto,0.5fr)_minmax(auto,0.6fr)_minmax(13rem,2fr)_auto] @min-[61rem]/mh:grid-cols-[6.75rem_auto_minmax(6.25rem,0.7fr)_minmax(auto,0.5fr)_minmax(auto,0.6fr)_auto_minmax(13rem,2fr)_auto] @min-[64rem]/mh:gap-x-4 @min-[72rem]/mh:gap-x-5">
+        <span className={CARD_GRID} data-testid="match-card-grid">
           {/* The result column: Victory or Defeat with the length, the queue, then when with a ranked game's LP after it. */}
           <MatchResult win={row.win} queue={row.queue} when={when} duration={fmtDuration(row.durationS)} extra={row.lp ? <LpChange lp={row.lp} dense /> : null} className="hidden @min-[50rem]/mh:flex" />
-          <ChampionLoadout champion={champion} spells={row.spells} keystone={row.keystone} secondary={row.secondary} level={row.champLevel} size="md" icon={22} portraitClassName="@min-[50rem]/mh:h-14 @min-[50rem]/mh:w-14" iconsClassName="@max-[54rem]/mh:hidden" />
-          {/* The champion, the role, the account it was played on and the team members in the game */}
-          <span className="min-w-0 leading-snug">
-            {/* Never cut: where the line is too narrow (a 320px phone), it wraps between its parts
-                ("Defeat · Solo/Duo" / "· 43h ago"), so the time stays whole. */}
-            <span className={cn("block text-xs font-bold @min-[50rem]/mh:hidden", tone.text)} data-testid="match-card-meta">
-              {tone.word}{" "}
-              <span className="font-medium text-fg-subtle">
-                {/* A narrow card names the queue without "Ranked", so the line stays short. */}
-                <span className="whitespace-nowrap">
-                  · <span className="@max-[36rem]/mh:hidden">{row.queue}</span>
-                  <span className="hidden @max-[36rem]/mh:inline">{row.queue.replace(/^Ranked /, "")}</span>
-                </span>{" "}
-                {/* "3h ago" is measured on the server first, then by the browser's own clock (useNow):
-                    the server's words stand while the page hydrates, which React allows only for an
-                    element's own text, so the span that holds it carries the permission. */}
-                <span className="whitespace-nowrap" suppressHydrationWarning>
-                  · {when}
+          {/* A phone's first line, across the card (36–50rem: over the champion, below). */}
+          {metaLine("col-[1/-1] row-[1] mb-0.5 flex @min-[36rem]/mh:hidden")}
+          <ChampionLoadout champion={champion} spells={row.spells} keystone={row.keystone} secondary={row.secondary} level={row.champLevel} size="md" icon={22} className={PHONE_PORTRAIT} testId="match-loadout" portraitClassName="@max-[16rem]/mh:h-10 @max-[16rem]/mh:w-10 @min-[50rem]/mh:h-14 @min-[50rem]/mh:w-14" iconsClassName="@max-[54rem]/mh:hidden" />
+          {/* The result line (36–50rem: a wide card has its result column, a phone's card its first
+              line), then the champion, the role, the account it was played on and the team members
+              in the game. On a phone the box steps aside (display: contents): the champion sits
+              beside the portrait. */}
+          <span className="min-w-0 leading-snug @max-[36rem]/mh:contents">
+            {/* A two-row card's result line, over the champion (a phone's is its first line, above). */}
+            {metaLine("hidden @min-[36rem]/mh:flex @min-[50rem]/mh:hidden")}
+            {/* The champion, then the role and account: one line on a phone's card (the name keeps up
+                to 70% of it, the role and account give way); on a two-row card one line where both
+                fit, else the role takes the next line, so the whole box is the name's (a 36rem list
+                keeps "Nunu & Willump" whole); two lines on wide cards. On a wide card a long name
+                takes a second line ("Nunu &" / "Willump") rather than lose its end: four lines still
+                fit beside the teams' five. The whole name is its hover text. */}
+            <span className="col-[2] row-[2] block min-w-0">
+              {/* Under 16rem (a large text size) the name wraps rather than lose its end, the role under it. */}
+              <span className="block @max-[50rem]/mh:flex @max-[50rem]/mh:min-w-0 @max-[50rem]/mh:items-center @max-[50rem]/mh:gap-x-2 @max-[16rem]/mh:flex-wrap @min-[36rem]/mh:flex-wrap">
+                <span className="block truncate text-md font-semibold text-fg @max-[36rem]/mh:max-w-[70%] @max-[36rem]/mh:shrink-0 @max-[16rem]/mh:max-w-full @max-[16rem]/mh:whitespace-normal @max-[16rem]/mh:[overflow-wrap:anywhere] @min-[50rem]/mh:line-clamp-2 @min-[50rem]/mh:whitespace-normal" title={champion.name} data-testid="match-champion">
+                  {champion.name}
+                </span>
+                <span className="flex min-w-0 items-center gap-1 text-xs text-fg-muted">
+                  {row.role ? <RoleIcon role={row.role as Role} className="h-3.5 w-3.5 shrink-0" /> : null}
+                  <span className="truncate">{roleName ?? "Role not recorded"}</span>
+                  {account ? (
+                    <span className="ml-0.5 truncate rounded bg-surface-2 px-1.5 py-px text-2xs text-fg-subtle" title={`Played on ${row.riotId}`} data-testid="match-row-account">
+                      {account}
+                    </span>
+                  ) : null}
                 </span>
               </span>
-              {/* From 36rem this line has room for a ranked game's LP; a narrower card keeps it under the KDA. */}
-              {row.lp ? (
-                <span className="hidden font-medium text-fg-subtle @min-[36rem]/mh:inline">
-                  {" "}
-                  <span className="whitespace-nowrap">
-                    · <LpChange lp={row.lp} dense className="align-middle" />
-                  </span>
+              {members.with.length || members.against.length ? (
+                <span className="block truncate text-2xs" title={[members.with.length ? `With team members: ${members.with.map((m) => m.name).join(", ")}` : null, members.against.length ? `Against team members: ${members.against.map((m) => m.name).join(", ")}` : null].filter(Boolean).join(". ")} data-testid="match-members" data-with={members.with.length} data-against={members.against.length}>
+                  {members.with.length ? (
+                    <span className="text-fg-subtle">
+                      With{" "}
+                      <span className="font-medium text-fg-muted">
+                        <MemberNames names={members.with.map((m) => m.name)} />
+                      </span>
+                    </span>
+                  ) : null}
+                  {members.with.length && members.against.length ? <span className="text-fg-subtle"> · </span> : null}
+                  {members.against.length ? <span className="text-fg-muted">Against <MemberNames names={members.against.map((m) => m.name)} /></span> : null}
                 </span>
               ) : null}
             </span>
-            {/* The champion, then the role and account: one line on a phone's card (the champion
-                keeps its whole name, the role and account give way), two on wider cards. On a wide
-                card a long name takes a second line ("Nunu &" / "Willump") rather than lose its end:
-                four lines still fit beside the teams' five. The whole name is its hover text. */}
-            <span className="block @max-[36rem]/mh:flex @max-[36rem]/mh:min-w-0 @max-[36rem]/mh:items-center @max-[36rem]/mh:gap-2">
-              <span className="block truncate text-md font-semibold text-fg @max-[36rem]/mh:max-w-[70%] @max-[36rem]/mh:shrink-0 @min-[50rem]/mh:line-clamp-2 @min-[50rem]/mh:whitespace-normal" title={champion.name} data-testid="match-champion">
-                {champion.name}
-              </span>
-              <span className="flex min-w-0 items-center gap-1 text-xs text-fg-muted">
-                {row.role ? <RoleIcon role={row.role as Role} className="h-3.5 w-3.5 shrink-0" /> : null}
-                <span className="truncate">{roleName ?? "Role not recorded"}</span>
-                {account ? (
-                  <span className="ml-0.5 truncate rounded bg-surface-2 px-1.5 py-px text-2xs text-fg-subtle" title={`Played on ${row.riotId}`} data-testid="match-row-account">
-                    {account}
-                  </span>
-                ) : null}
-              </span>
-            </span>
-            {members.with.length || members.against.length ? (
-              <span className="block truncate text-2xs" title={[members.with.length ? `With team members: ${members.with.map((m) => m.name).join(", ")}` : null, members.against.length ? `Against team members: ${members.against.map((m) => m.name).join(", ")}` : null].filter(Boolean).join(". ")} data-testid="match-members" data-with={members.with.length} data-against={members.against.length}>
-                {members.with.length ? (
-                  <span className="text-fg-subtle">
-                    With{" "}
-                    <span className="font-medium text-fg-muted">
-                      <MemberNames names={members.with.map((m) => m.name)} />
-                    </span>
-                  </span>
-                ) : null}
-                {members.with.length && members.against.length ? <span className="text-fg-subtle"> · </span> : null}
-                {members.against.length ? <span className="text-fg-muted">Against <MemberNames names={members.against.map((m) => m.name)} /></span> : null}
-              </span>
-            ) : null}
           </span>
-          {/* KDA: the primary performance figure. On a wide card its track is at least as wide as
+          {/* KDA: the primary performance figure. From 36rem its track is at least as wide as
               "10 / 10 / 10", the widest K/D/A a real game gives (digits are tabular, so every line
               of three two-digit numbers is that wide), and as wide as its text whenever that is
               wider: the floor keeps the columns level from card to card. The floor is in em, so it
-              follows the text's size (the narrow card's size between 50 and 54rem, larger from
-              54rem) and the reader's text size, with room to spare: Inter sets "10 / 10 / 10" at
-              5.71em, and browser builds differ by a pixel or two (CI's measured 1.5px more than a
-              local one against a floor of 5.78em). 6.25em leaves about 9%. */}
-          <span className="text-right leading-snug @min-[50rem]/mh:text-left">
-            <span className="block whitespace-nowrap text-base font-semibold tabular-nums leading-snug text-fg @min-[50rem]/mh:min-w-[6.25em] @min-[54rem]/mh:text-lg" data-testid="match-kda">
+              follows the text's size (16px below 54rem, larger from 54rem) and the reader's text
+              size, with room to spare: Inter sets "10 / 10 / 10" at 5.71em, and browser builds
+              differ by a pixel or two (CI's measured 1.5px more than a local one against a floor of
+              5.78em). 6.25em leaves about 9%. A phone's card caps the column at that K/D/A instead
+              (5.75rem), so a longer ratio line ("details not collected") wraps under it rather than
+              take the build's room. */}
+          <span className={cn("text-right leading-snug @min-[36rem]/mh:text-left", PHONE_KDA)}>
+            <span className="block whitespace-nowrap text-base font-semibold tabular-nums leading-snug text-fg @min-[36rem]/mh:min-w-[6.25em] @min-[54rem]/mh:text-lg" data-testid="match-kda">
               {kda}
             </span>
             <span className={cn("block text-xs tabular-nums", row.perfect ? "text-good" : (row.kda ?? 0) >= 3 ? "text-fg-muted" : "text-fg-subtle")}>{ratio}</span>
-            {/* A phone-width card has no room beside the result: a ranked game's LP sits under the KDA, on the right. */}
-            {row.lp ? (
-              <span className="mt-0.5 flex justify-end @min-[36rem]/mh:hidden">
-                <LpChange lp={row.lp} />
-              </span>
-            ) : null}
             {/* The game's largest multikill, quietly (see MultikillTag). */}
             {row.multikill ? (
-              <span className="mt-0.5 flex flex-wrap items-center justify-end gap-x-1.5 gap-y-0.5 @min-[50rem]/mh:justify-start">
+              <span className="mt-0.5 flex flex-wrap items-center justify-end gap-x-1.5 gap-y-0.5 @min-[36rem]/mh:justify-start">
                 <MultikillTag size={row.multikill} />
               </span>
             ) : null}
           </span>
-          {/* Kill participation, CS and damage: secondary, one per line on wide cards; each with its
-              total or share. Then at most one "best" figure, with the figures on every card: beside
-              the KDA it widened that column (on a narrow card it cut the queue and time off the line
-              beside it; on a wide one it pushed the columns after it out of line). */}
-          <span className="col-span-3 flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-fg-subtle @min-[36rem]/mh:col-span-2 @min-[50rem]/mh:col-span-1 @min-[50rem]/mh:flex-col @min-[50rem]/mh:gap-y-px">
-            <Stat label="KP" value={kp} />
-            <Stat label="CS/min" value={fmtNum(row.csPerMin)} extra={row.cs === null ? null : formatCount(row.cs)} title={row.cs === null ? undefined : `${formatCount(row.cs)} CS in the game`} testId="match-cs" />
-            <Stat label="dmg/min" value={fmtInt(row.damagePerMin)} extra={row.damageShare === null ? null : `${Math.round(row.damageShare * 100)}%`} title={row.damage === null ? undefined : `${formatCount(row.damage)} damage to champions${row.damageShare === null ? "" : `, ${Math.round(row.damageShare * 100)}% of the team's`}`} testId="match-damage" />
-            {standoutChip("self-center @min-[50rem]/mh:mt-px @min-[50rem]/mh:self-start")}
+          {/* From 21.375 to 36rem the build is drawn here, under the champion beside the K/D/A and above
+              the figures, so it is read here too (PHONE_BUILD_BESIDE). */}
+          {unrecorded ? null : <span className={PHONE_BUILD_BESIDE}>{itemRow("grid-cols-[repeat(7,auto)]", "order-last ml-0.5")}</span>}
+          {/* Kill participation, CS and damage: secondary, one line on a phone's card, one per line
+              from 36rem; each with its total or share. Then at most one "best" figure, with the
+              figures on every card: beside the KDA it widened that column (on a narrow card it cut
+              the queue and time off the line beside it; on a wide one it pushed the columns after it
+              out of line). */}
+          <span className={cn("flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-fg-subtle @min-[36rem]/mh:flex-col @min-[36rem]/mh:gap-y-px", PHONE_FIGURES)} data-testid="match-figures">
+            <Stat label="KP" value={kp} className={PHONE_KP} testId="match-kp" />
+            <span className={PHONE_FIGURES_REST}>
+              <Stat label="CS/min" value={fmtNum(row.csPerMin)} extra={row.cs === null ? null : formatCount(row.cs)} title={row.cs === null ? undefined : `${formatCount(row.cs)} CS in the game`} testId="match-cs" />
+              <Stat label="dmg/min" value={fmtInt(row.damagePerMin)} extra={row.damageShare === null ? null : `${Math.round(row.damageShare * 100)}%`} title={row.damage === null ? undefined : `${formatCount(row.damage)} damage to champions${row.damageShare === null ? "" : `, ${Math.round(row.damageShare * 100)}% of the team's`}`} testId="match-damage" />
+              {standoutChip("self-center @min-[36rem]/mh:mt-px @min-[36rem]/mh:self-start")}
+            </span>
           </span>
-          {/* The build: its own row on phones, a compact block on wide cards from 61rem (left to the
-              breakdown when the list is too narrow for it beside the teams); on narrower cards it
-              shares the figures' row when there is room, in one line. A build that was not recorded
-              draws nothing (screen readers hear it; the page's data status counts these games), and
-              a wide card keeps the build's room, so its columns stay level with the cards around it. */}
+          {/* The build: a phone's card's last line under 21.375rem (from there to 36rem the copy before
+              the figures is shown instead), a compact block of two rows from 36rem: at the end of a two-row card's first row, and on wide cards from 61rem (left to
+              the breakdown when the list is too narrow for it beside the teams). A build that was not
+              recorded draws nothing (screen readers hear it; the page's data status counts these
+              games), and a card from 36rem keeps the build's room, so its columns stay level with the
+              cards around it. */}
           {unrecorded ? (
             <>
               {build}
-              <span className="hidden @min-[61rem]/mh:block @min-[61rem]/mh:w-[5.875rem]" aria-hidden />
+              <span className="hidden @min-[36rem]/mh:block @min-[36rem]/mh:w-[5.875rem] @min-[50rem]/mh:hidden @min-[61rem]/mh:block" aria-hidden />
             </>
           ) : (
-            <span className="col-span-3 flex items-center overflow-hidden @min-[36rem]/mh:col-span-1 @min-[36rem]/mh:justify-end @min-[50rem]/mh:hidden @min-[61rem]/mh:flex @min-[61rem]/mh:justify-start">{build}</span>
+            <span className={cn("flex items-center overflow-hidden @min-[50rem]/mh:hidden @min-[61rem]/mh:flex", PHONE_BUILD)}>{build}</span>
           )}
           {/* Both teams; without the full record, a quiet note instead of empty slots. A phone's card
               leaves them to the game's own screen (its scoreboard lists all ten), so a screenful
-              holds several games instead of two. */}
-          <span className="col-span-3 min-w-0 @max-[36rem]/mh:hidden @min-[50rem]/mh:col-span-1">
+              holds several games instead of two; a two-row card gives them its second row. */}
+          <span className="hidden min-w-0 @min-[36rem]/mh:col-[1/-1] @min-[36rem]/mh:block @min-[50rem]/mh:col-auto">
             {teams ? (
               <TeamComposition teams={teams} champion={champ} queueId={row.queueId} id={teamsId} />
             ) : (
@@ -314,14 +395,14 @@ function MemberNames({ names }: { names: string[] }) {
 }
 
 /**
- * A figure, its label and its total or share, on one line. On a wide card the figures' track is at
- * least as wide as "1,234 dmg/min (45%)" (the floor keeps the columns level from card to card) and
- * as wide as the text whenever that is wider: never narrower than the text, so it cannot run under
- * the build or the teams.
+ * A figure, its label and its total or share, on one line. From 36rem (a column of figures) the
+ * figures' track is at least as wide as "1,234 dmg/min (45%)" (the floor keeps the columns level from
+ * card to card) and as wide as the text whenever that is wider: never narrower than the text, so it
+ * cannot run under the build or the teams.
  */
-function Stat({ label, value, extra = null, title, testId }: { label: string; value: string; /** A quieter figure after it: the total or the share. */ extra?: string | null; title?: string; testId?: string }) {
+function Stat({ label, value, extra = null, title, className, testId }: { label: string; value: string; /** A quieter figure after it: the total or the share. */ extra?: string | null; title?: string; className?: string; testId?: string }) {
   return (
-    <span className="flex min-w-0 items-baseline gap-1 leading-snug @min-[50rem]/mh:min-w-[8.125rem]" title={title} data-testid={testId}>
+    <span className={cn("flex min-w-0 flex-wrap items-baseline gap-x-1 leading-snug @min-[36rem]/mh:min-w-[8.125rem]", className)} title={title} data-testid={testId}>
       <span className="font-semibold tabular-nums text-fg">{value}</span>
       <span className="whitespace-nowrap">{label}</span>
       {extra ? <span className="whitespace-nowrap tabular-nums text-fg-subtle">({extra})</span> : null}
@@ -436,9 +517,9 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
 
   // The page size: ten (phones always), or as many whole cards as the room below the list's top
   // holds when that is more than ten (only very tall windows; up to 25). Cards are counted at the
-  // first one's height as drawn: about 100px in one row, 150–165px stacked (a list under 50rem,
-  // such as a portrait monitor's with the sidebar open). Ten is also the server's default, so
-  // nearly every arrival renders once.
+  // first one's height as drawn: about 100px in one row, about 120px in two (a 36–50rem list, such
+  // as a portrait monitor's with the sidebar open). Ten is also the server's default, so nearly
+  // every arrival renders once.
   React.useEffect(() => {
     const el = listRef.current;
     if (!el) return;
@@ -531,6 +612,8 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
 
   const f = data.filter;
   const narrowed = f.role || f.scope !== "all" || f.accountId || f.mode !== "all" || f.season !== data.currentSeason || narrowsGames(data.refine);
+  // What Refine narrows or groups: on a tablet its chips show under the filters (the header's toolbar then takes a row of its own).
+  const refined = !!(f.role || f.scope !== "all" || f.accountId || narrowsGames(data.refine) || data.refine.sessions);
   // Refine's own choices ride along every change of the shared filters (a player's games keep the
   // player, their side and the way back); a change of them starts again at the newest games.
   const keep = encounter ? { per: String(data.per), view: "encounters", ...encounterListParams(encounter.list), ...encounterFocusParams(encounter.focus) } : { per: String(data.per), ...refineParams(data.refine) };
@@ -558,12 +641,15 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
           </p>
         }
         status={status ? <DataStatusNote status={status} refresh={refresh} /> : null}
-        refresh={status ? <RefreshButton status={status} refresh={refresh ? { ...refresh, onNewGames: data.page > 1 ? { label: "Show the newest", run: () => go({ page: "1" }) } : undefined } : null} /> : null}
+        statusAfterText
+        narrowed={!!narrowed || data.refine.sessions}
+        refined={refined}
+        refresh={status ? <RefreshButton status={status} refresh={refresh ? { ...refresh, onNewGames: data.page > 1 ? { label: "Show the newest", run: () => go({ page: "1" }) } : undefined } : null} compact /> : null}
         controls={
           <div aria-busy={pending} className="min-w-0">
             {encounter ? (
               // A player's games: the season, game mode and account Encounters counts them in.
-              <OverviewFilters basePath={basePath} filter={f} seasons={data.seasons} currentSeason={data.currentSeason} champions={[]} accounts={data.accountOptions} keep={keep} resetQuery={new URLSearchParams(keep).toString()} modeCounts={data.modes.counts} showChampions={false} showRole={false} testId="match-filters" />
+              <OverviewFilters basePath={basePath} filter={f} seasons={data.seasons} currentSeason={data.currentSeason} champions={[]} accounts={data.accountOptions} keep={keep} resetQuery={new URLSearchParams(keep).toString()} modeCounts={data.modes.counts} showChampions={false} showRole={false} compactToggle testId="match-filters" />
             ) : (
               <OverviewFilters
                 basePath={basePath}
@@ -574,6 +660,7 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
                 accounts={data.accountOptions}
                 keep={keep}
                 modeCounts={data.modes.counts}
+                compactToggle
                 testId="match-filters"
                 refineLabel="Refine the games"
                 extraFields={<HistoryRefineFields refine={data.refine} options={data} set={refineTo} group={groupTo} pending={pending} />}

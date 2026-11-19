@@ -78,6 +78,8 @@ export function FilterBar({
   resetLabel = "Reset",
   chips = [],
   end,
+  compactToggle = false,
+  inlineReset,
 }: {
   /** What is chosen, in a few words ("Season 2026 · All supported games"): the sheet's subtitle, and read with the folded button. */
   summary: string;
@@ -110,6 +112,20 @@ export function FilterBar({
   chips?: readonly FilterChip[];
   /** Beside the folded button at the row's far end (phones): a page's own action, such as Bookmarked. */
   end?: React.ReactNode;
+  /**
+   * A folded bar that shares its row with a section's views (Match History): under 360px the Filters
+   * button shows its icon alone (its word, the summary and the count stay for screen readers), and no
+   * empty room follows it when there is no chip and no `end`, so the views, Filters and Refresh keep
+   * one row on a 320px phone. Other bars are unchanged.
+   */
+  compactToggle?: boolean;
+  /**
+   * The inline Reset (from the breakpoint up), where it differs from the sheet's: a page whose sheet
+   * also holds choices that wider screens keep elsewhere (Encounters' minimum and order, in its list's
+   * toolbar) counts them for the Filters button and the sheet's Reset only (`count`), and its inline
+   * Reset leaves them as they are (`onReset`).
+   */
+  inlineReset?: { count: number; onReset: () => void };
 }) {
   const [open, setOpen] = React.useState(false);
   const id = React.useId();
@@ -124,23 +140,27 @@ export function FilterBar({
   );
   const resetClass = (inSheet: boolean) => cn(resetCls, inSheet && "mr-auto", iconOnly(inSheet) && "max-xl:min-w-11 md:pointer-fine:max-xl:min-w-9");
   const reset = (inSheet: boolean) =>
-    activeCount > 0 && (onReset || resetHref) ? (
+    (inSheet || !inlineReset ? activeCount : inlineReset.count) > 0 && (onReset || resetHref) ? (
       resetHref ? (
         <Link href={resetHref} replace scroll={false} className={resetClass(inSheet)} title={iconOnly(inSheet) ? resetLabel : undefined} data-testid="reset-filters" onClick={inSheet ? () => setOpen(false) : undefined}>
           {resetBody(inSheet)}
         </Link>
       ) : (
-        <button type="button" onClick={onReset} className={resetClass(inSheet)} title={iconOnly(inSheet) ? resetLabel : undefined} data-testid="reset-filters">
+        <button type="button" onClick={inSheet || !inlineReset ? onReset : inlineReset.onReset} className={resetClass(inSheet)} title={iconOnly(inSheet) ? resetLabel : undefined} data-testid="reset-filters">
           {resetBody(inSheet)}
         </button>
       )
     ) : null;
   const filtersButton = (
-    <button type="button" onClick={() => setOpen(true)} aria-haspopup="dialog" aria-expanded={open} aria-controls={open ? id : undefined} className={toolbarButtonClass(activeCount > 0, at.toggle)} data-testid={toggleTestId} data-filter-toggle="">
+    <button type="button" onClick={() => setOpen(true)} aria-haspopup="dialog" aria-expanded={open} aria-controls={open ? id : undefined} className={toolbarButtonClass(activeCount > 0, cn(at.toggle, compactToggle && "max-[22.5rem]:min-w-11 max-[22.5rem]:px-2.5"))} data-testid={toggleTestId} data-filter-toggle="">
       <SlidersHorizontal className="h-4 w-4 shrink-0 text-accent" aria-hidden />
-      Filters
+      {compactToggle ? <span className="max-[22.5rem]:sr-only">Filters</span> : "Filters"}
       <span className="sr-only">: {summary}</span>
-      {activeCount ? <span className="rounded-full bg-accent px-1.5 text-xs font-semibold tabular-nums text-bg">{activeCount}</span> : null}
+      {activeCount ? (
+        <span className="rounded-full bg-accent px-1.5 text-xs font-semibold tabular-nums text-bg" data-testid="filter-count">
+          {activeCount}
+        </span>
+      ) : null}
     </button>
   );
   return (
@@ -177,7 +197,7 @@ export function FilterBar({
                     </li>
                   ))}
                 </ScrollRow>
-              ) : (
+              ) : compactToggle && !end ? null : (
                 <span className="flex-1" />
               )}
               {end}
