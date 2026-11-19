@@ -5,7 +5,6 @@ import type { ProficiencyTier } from "@/domain/proficiency";
 import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateSampleNote, winRateTone } from "@/domain/stats/win-rate";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
 import { RoleIcon } from "@/components/role-icon";
-import { InfoTip } from "@/components/ui/info-tip";
 import { cn } from "@/lib/cn";
 import { CardAvatar, CardName, CardTagline } from "./card-look";
 import { RankInline, type CompactRank } from "./rank-emblem";
@@ -77,7 +76,7 @@ const SIZERS = "invisible hidden max-h-[2lh] overflow-hidden @xl/lineup:grid [&>
  * `showRank={false}` leaves the rank out entirely (not "Unranked"): for viewers who may not see the
  * player's statistics.
  */
-export function CardIdentity({ look, name, avatarUrl, rank, showRank = true, isYou = false, status, role, size = "lg", nameClassName, tag, social, layout = "stack", align }: { look: CardLook | null | undefined; name: string; avatarUrl: string | null; rank: CompactRank | null; showRank?: boolean; isYou?: boolean; status?: "main" | "off" | null; role?: Role | null; size?: "md" | "lg"; nameClassName?: string; /** One more label after the role status (the Team card's substitute side). */ tag?: React.ReactNode; /** The player's social icons (CardSocialIcons), on the picture's row. */ social?: React.ReactNode; layout?: "stack" | "side"; /** Everyone the lineup can show, to keep cards side by side level. */ align?: ReadonlyArray<{ name: string; look: CardLook }> }) {
+export function CardIdentity({ look, name, avatarUrl, rank, showRank = true, isYou = false, status, role, size = "lg", nameClassName, tag, social, layout = "stack", align, phoneSide = false }: { look: CardLook | null | undefined; name: string; avatarUrl: string | null; rank: CompactRank | null; showRank?: boolean; isYou?: boolean; status?: "main" | "off" | null; role?: Role | null; size?: "md" | "lg"; nameClassName?: string; /** One more label after the role status (the Team card's substitute side). */ tag?: React.ReactNode; /** The player's social icons (CardSocialIcons), on the picture's row. */ social?: React.ReactNode; layout?: "stack" | "side"; /** Everyone the lineup can show, to keep cards side by side level. */ align?: ReadonlyArray<{ name: string; look: CardLook }>; /** The members' Team lineup on a phone (its track: under 36rem of lineup): the picture beside the name and labels, a shorter card (PHONE_SIDE). */ phoneSide?: boolean }) {
   const avatar = (
     <span className="relative shrink-0">
       <CardAvatar look={look} name={name} src={avatarUrl} size={size} />
@@ -142,19 +141,35 @@ export function CardIdentity({ look, name, avatarUrl, rank, showRank = true, isY
         </span>
       </span>
     );
+  const side = phoneSide ? PHONE_SIDE : null;
   return (
-    <span className="flex min-w-0 flex-col" data-testid="card-identity" data-layout="stack">
+    <span className={cn("flex min-w-0 flex-col", side?.root)} data-testid="card-identity" data-layout="stack">
       {/* The links wrap under the picture only where the two cannot share the row. */}
-      <span className="mb-2.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-2">
+      <span className={cn("mb-2.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-2", side?.row)}>
         {avatar}
         {links}
       </span>
-      {nameSlot}
-      {labels}
-      {taglineSlot}
+      {side ? <span className={side.name}>{nameSlot}</span> : nameSlot}
+      {side ? <span className={side.rest}>{labels}</span> : labels}
+      {side ? <span className={side.rest}>{taglineSlot}</span> : taglineSlot}
     </span>
   );
 }
+
+/**
+ * The members' Team card on a phone, while the lineup is a track (under 36rem of lineup, its
+ * `@container/lineup`): the picture beside the name, the labels and the tagline under the name, and
+ * the social links at the name's end, so the card is 60–70px shorter and the whole first card fits
+ * a 393 × 659 screen (docs/MOBILE.md, "Team Overview on a phone"; UM.T1). The grid's cells: the
+ * picture's row gives way (display: contents), the picture spans the rows, the links take the third
+ * column of the first. Wider lineups (a tablet, a desktop, a phone held sideways) keep the stack.
+ */
+const PHONE_SIDE = {
+  root: "@max-xl/lineup:grid @max-xl/lineup:grid-cols-[auto_minmax(0,1fr)_auto] @max-xl/lineup:items-center @max-xl/lineup:gap-x-3",
+  row: "@max-xl/lineup:contents @max-xl/lineup:[&>:first-child]:row-span-3 @max-xl/lineup:[&>:first-child]:self-center @max-xl/lineup:[&>[data-testid=card-identity-social]]:col-start-3 @max-xl/lineup:[&>[data-testid=card-identity-social]]:row-start-1",
+  name: "min-w-0 @max-xl/lineup:col-start-2 @max-xl/lineup:row-start-1",
+  rest: "min-w-0 @max-xl/lineup:col-start-2 @max-xl/lineup:col-end-4 @max-xl/lineup:[&>[data-testid=card-fit]]:mt-1",
+} as const;
 
 export interface SeasonFigures {
   games: number;
@@ -162,45 +177,6 @@ export interface SeasonFigures {
   kda: number | null;
   csPerMinute: number | null;
   visionPerGame: number | null;
-}
-
-/** Games, win rate, KDA and CS/min (average vision for Support): the card's four figures. */
-export function SeasonTiles({ season, support, placeholder = false }: { season: SeasonFigures | null; support: boolean; placeholder?: boolean }) {
-  const dash = "—";
-  const tile = "rounded-lg bg-bg-elevated px-1 py-1.5";
-  return (
-    <dl className="grid grid-cols-4 gap-1.5 text-center" data-testid="card-season">
-      <div className={tile}>
-        <dt className="text-xs text-fg-subtle">Games</dt>
-        <dd className="text-base font-semibold tabular-nums text-fg">{placeholder ? dash : (season?.games ?? 0)}</dd>
-      </div>
-      <div className={tile}>
-        <dt className="whitespace-nowrap text-xs tracking-tight text-fg-subtle">Win rate</dt>
-        <dd className={cn("text-base font-semibold tabular-nums", WIN_RATE_TONE_CLASS[winRateTone(season?.winRate, season?.games, WIN_RATE_MIN_GAMES.season)])} title={winRateSampleNote(season?.winRate, season?.games, WIN_RATE_MIN_GAMES.season) ?? undefined}>
-          {placeholder || season?.winRate == null ? dash : `${Math.round(season.winRate * 100)}%`}
-        </dd>
-      </div>
-      <div className={tile}>
-        <dt className="text-xs text-fg-subtle">KDA</dt>
-        <dd className="text-base font-semibold tabular-nums text-fg">{placeholder || season?.kda == null ? dash : season.kda.toFixed(2)}</dd>
-      </div>
-      {support ? (
-        <div className={tile} title="Average vision score per game in Support games this season (per game, not per minute)">
-          <dt className="whitespace-nowrap text-2xs leading-4 tracking-tight text-fg-subtle">Avg vision</dt>
-          <dd className="text-base font-semibold tabular-nums text-fg" data-testid="card-vision">
-            {placeholder || season?.visionPerGame == null ? dash : season.visionPerGame.toFixed(1)}
-          </dd>
-        </div>
-      ) : (
-        <div className={tile} title="Creep score per minute: lane minions plus monsters, over the games with both recorded">
-          <dt className="text-xs text-fg-subtle">CS/min</dt>
-          <dd className="text-base font-semibold tabular-nums text-fg" data-testid="card-cs">
-            {placeholder || season?.csPerMinute == null ? dash : season.csPerMinute.toFixed(1)}
-          </dd>
-        </div>
-      )}
-    </dl>
-  );
 }
 
 /** The season figures a card can show (Team cards have the record and per-game K/D/A too). */
@@ -249,7 +225,7 @@ export function CardPerformance({ season, support, roleLabel, placeholder = fals
   const decided = (wins ?? 0) + (losses ?? 0);
   const per = (n: number | null | undefined) => (n == null ? "–" : n.toFixed(1));
   const kdaLine = season && season.kills != null && season.deaths != null && season.assists != null ? `${per(season.kills)} / ${per(season.deaths)} / ${per(season.assists)}` : null;
-  const label = "block whitespace-nowrap text-2xs font-medium uppercase tracking-label text-fg-subtle @max-[15rem]/card:tracking-[0.04em]";
+  const label = "block whitespace-nowrap text-2xs font-medium uppercase tracking-label text-fg-subtle";
   const sub = "block truncate text-2xs tabular-nums text-fg-subtle";
   // KDA and CS/min (vision) on a narrow card: one above the other in the right-hand column, each its
   // label over its figure, right-aligned (a label and figure side by side did not fit "VISION 79.3").
@@ -279,7 +255,7 @@ export function CardPerformance({ season, support, roleLabel, placeholder = fals
               player's window, instead of showing cut off. On a card from 14.5rem to 16.5rem (five
               across most desktops) the three figures stand 4px apart instead of 10px, so the line
               fits whole there rather than ending in "…". */}
-          <dd className={cn(sub, narrowHidden)} title={kdaLine ? `Kills / deaths / assists per game: ${kdaLine}` : undefined}>
+          <dd className={cn(sub, narrowHidden)} title={kdaLine ? `Average kills / deaths / assists: ${kdaLine}` : undefined}>
             {placeholder || !kdaLine ? (
               "\u00a0"
             ) : (
@@ -293,7 +269,7 @@ export function CardPerformance({ season, support, roleLabel, placeholder = fals
           </dd>
         </div>
         {support ? (
-          <div className={cn(pair, "text-right")} title="Average vision score per game in Support games this season (per game, not per minute)">
+          <div className={cn(pair, "text-right")}>
             <dt className={label}>Vision</dt>
             <dd className={figure} data-testid="card-vision">
               {placeholder || season?.visionPerGame == null ? dash : season.visionPerGame.toFixed(1)}
@@ -301,7 +277,7 @@ export function CardPerformance({ season, support, roleLabel, placeholder = fals
             <dd className={cn(sub, narrowHidden)}>per game</dd>
           </div>
         ) : (
-          <div className={cn(pair, "text-right")} title="Creep score per minute: lane minions plus monsters, over the games with both recorded">
+          <div className={cn(pair, "text-right")} title="Minions and monsters killed per minute">
             <dt className={label}>CS/min</dt>
             <dd className={figure} data-testid="card-cs">
               {placeholder || season?.csPerMinute == null ? dash : season.csPerMinute.toFixed(1)}
@@ -495,57 +471,6 @@ export interface PoolRowChampion {
 }
 
 
-/**
- * The full row for a pool champion: order, portrait, name and proficiency on the left; win rate,
- * games and KDA with CS/min (vision for Support) on the right. With no games this season, the
- * mastery points stand in, labelled as mastery so they are never read as a result. With
- * `withStats={false}` only the champion is shown (order and name), for viewers who may not see
- * the player's statistics.
- */
-export function PoolChampionRow({ index, champion, row, support, withStats = true }: { index: number; champion: PortraitChampion; row: PoolRowChampion; support: boolean; withStats?: boolean }) {
-  return (
-    <li className="flex min-h-12 items-center gap-2.5 py-1.5" data-testid="pool-champion" data-champion={row.championId}>
-      <span className="w-4 shrink-0 text-right text-2xs font-semibold tabular-nums text-fg-subtle" aria-hidden>
-        {index + 1}
-      </span>
-      <ChampionPortrait champion={champion} size="sm" />
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-medium text-fg">{champion.name}</span>
-        {withStats ? (
-          <span className="mt-0.5 block">
-            <TierBadge tier={row.tier as ProficiencyTier} label={row.tierLabel} why={row.tierWhy} evidence={row.evidence} compact />
-          </span>
-        ) : null}
-      </span>
-      {withStats ? (
-        <span className="shrink-0 text-right leading-tight" data-testid="pool-champion-stats">
-          {row.games ? (
-            <>
-              <span className={cn("block text-sm font-semibold tabular-nums", WIN_RATE_TONE_CLASS[winRateTone(row.winRate, row.games, WIN_RATE_MIN_GAMES.champion)])}>{row.winRate === null ? "—" : `${Math.round(row.winRate * 100)}%`}</span>
-              <span className="block text-2xs tabular-nums text-fg-subtle">
-                {row.games} game{row.games === 1 ? "" : "s"}
-              </span>
-              <span className="block text-2xs tabular-nums text-fg-muted" data-testid={support ? "pool-champion-kda-vision" : "pool-champion-kda-cs"}>
-                {row.perfectKda ? "Perfect" : row.kdaRatio === null ? "—" : row.kdaRatio.toFixed(1)} KDA · {support ? `${row.visionPerGame === null ? "—" : Math.round(row.visionPerGame)} vis` : `${row.csPerMinute === null ? "—" : row.csPerMinute.toFixed(1)} CS`}
-              </span>
-            </>
-          ) : row.masteryPoints ? (
-            <span className="inline-flex items-center gap-1">
-              <span className="block text-right">
-                <span className="block text-sm font-semibold tabular-nums text-fg-muted">{formatCompactCount(row.masteryPoints)}</span>
-                <span className="block text-2xs text-fg-subtle">mastery</span>
-              </span>
-              <InfoTip label="About mastery points" text={`${formatCount(row.masteryPoints)} mastery points: lifetime experience on the champion, not this season's results. No games in this role this season.`} />
-            </span>
-          ) : (
-            <span className="block text-2xs text-fg-subtle">No games</span>
-          )}
-        </span>
-      ) : null}
-    </li>
-  );
-}
-
 /** The pool list's columns (Team player window): the champion, then its figures, right-aligned. */
 const POOL_TILE_GRID = "grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 sm:grid-cols-[auto_minmax(0,1fr)_4.75rem_3.5rem_3.25rem_4rem]";
 
@@ -620,10 +545,10 @@ export function PoolChampionTile({ index, champion, row, support, withStats = tr
           <span className="min-w-0 text-right max-sm:col-span-2 max-sm:col-start-2 max-sm:row-start-2 max-sm:pt-1 max-sm:text-left sm:col-span-4" data-testid="pool-champion-stats">
             {row.masteryPoints ? (
               <span className="inline-flex items-center gap-1">
-                <span className="text-xs tabular-nums text-fg-muted">
-                  <span className="font-semibold">{formatCompactCount(row.masteryPoints)}</span> mastery · no games this season
+                {/* "all-time" says what the ⓘ used to: mastery is lifetime experience, not this season's result. */}
+                <span className="text-xs tabular-nums text-fg-muted" title={`${formatCount(row.masteryPoints)} mastery points`}>
+                  <span className="font-semibold">{formatCompactCount(row.masteryPoints)}</span> mastery (all-time) · no games this season
                 </span>
-                <InfoTip label="About mastery points" text={`${formatCount(row.masteryPoints)} mastery points: lifetime experience on the champion, not this season's results. No games in this role this season.`} />
               </span>
             ) : (
               <span className="text-xs text-fg-subtle">No games this season</span>
