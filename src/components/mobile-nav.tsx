@@ -492,7 +492,10 @@ const TAB_FIT = {
  * tablet (69px) and an 820px one (23px). A longer Back label, such as a teammate's long name
  * ("Demo Sub (Support)", 10.92rem), can still leave it a few pixels short (7px at 768px and 100%),
  * where it scrolls: the last resort. Leaderboards' own heading, "Leaderboards" since it became one
- * page (8.21rem; "Team Leaderboards" was 10.74rem and left it 4px short), fits.
+ * page (8.21rem; "Team Leaderboards" was 10.74rem and left it 4px short), fits at 100% text. With
+ * the root's size raised (the specs' emulation), a bar of 42.5rem to about 44.6rem keeps the labels
+ * beside that Back and the list scrolls a few pixels (6px at 768px and 106%); a real text-size
+ * setting starts the tablet's frame at 48rem, so a member never gets such a bar.
  */
 const BAR_FIT = {
   member: {

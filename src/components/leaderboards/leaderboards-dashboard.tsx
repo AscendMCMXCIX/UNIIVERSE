@@ -28,8 +28,9 @@ import { SECTIONS } from "./sections";
                   nothing waits under Recent form for it.
   Each board keeps its own height (items-start): a short board never stretches beside a tall one.
   The page's lead card is Recent form's board (surface-lead), the others plain panels; every board's
-  first row is its title (BoardTitle), with what it counts under it and its explanations behind an
-  ⓘ, never a paragraph on the page.
+  first row is its title (BoardTitle): its icon and heading, with an ⓘ on Recent form's and Season
+  records', and a line saying what it counts on every board but Milestones (whose two captions each
+  carry an ⓘ); never a paragraph on the page.
 */
 
 /*
