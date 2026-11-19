@@ -305,12 +305,13 @@ text below 12px; 11px (`text-2xs`) only for badges and labels.
 |---|---|---|
 | Narrow a list | **Filters** opens a sheet from the bottom edge with every filter, each with its label, and Reset and Done at its foot (`FilterBar`). Beside the button, what is narrowed shows as chips that remove themselves with a tap. A search box shares the row with Filters. Choices apply at once, as on desktop. Far down the list, the top bar offers the same Filters (PR 2b), so narrowing never needs scrolling back up; Done after a change lands the list's first item under the bar. A picker in the sheet (Played with, Champions) opens its list in the sheet's body, as tall as its options, and the body scrolls it into view; a tap below the open list closes it and reaches what was tapped. | The scope stays visible without opening anything; the sheet is within reach of the thumb and never pushes the page around. One scroller: a list scrolling inside the sheet's scrolling body was cut off at its edge. Closed as a tap started, the list moved the fields below it up before the tap landed. |
 | Open a game | The game takes the whole screen (the match window), as a new entry in the browser's history, so Back (the button, the edge swipe, Android's key) closes it and returns to the list exactly as it was. Its scoreboard keeps the marks for players met in other games; following one closes the game, and Back returns to it. | A scoreboard inside a list is a detour on a narrow screen. Desktop keeps the game under its card. |
-| A champion, a player from Team | The existing detail windows, which already take the whole screen on phones. | |
+| A champion, a player from Team | The existing detail windows, which already take the whole screen on phones. A Team player is a Peek (`ui/peek.tsx`): on phones and short windows the whole-screen window, with the player in the address (`?player=`) and one history entry pushed, so Back (Android's key too) closes it however many players were seen; from 640px wide (a fine pointer) it is the docked panel beside the lineup. | One container per kind of content (DESIGN_SYSTEM §7). |
 | Account, Settings, Sign out | The account screen, from the avatar. | One menu, not two, every entry a full-width row in reach of the thumb. |
 | A short question or form | `Dialog`: the same sheet as every other (built on `DetailModal`). | One sheet: one look, one motion, one height rule. |
 
 Every sheet and window shares `DetailModal`: native `<dialog>` (focus kept inside, the page behind
-inert), Escape and the backdrop close it, focus returns to what opened it, a sheet slides up in
+inert), Escape and the backdrop close it, focus returns to what opened it and the page is put back
+where it was as the window opened (a card partly under the tab bar no longer moves the list), a sheet slides up in
 220ms with `--ease-emphasized` and out in 140ms (instant with reduced motion). Every window's body
 grows from its content (`flex-auto`, never `flex-1`: Safari 26 collapses the other, above). The
 account screen is a screen of its own instead (`size="screen"`, above). A window opened by a tap
@@ -319,7 +320,9 @@ close button, the loudest thing in the window), and holds it only until it is ta
 moves on, so a tap on its text never takes the focus from a field; opened from the keyboard, its
 close button has the focus, ringed; sign-in goes straight to its username. A window is in the
 browser's top layer, above the page, so what must show over it is drawn inside it: an ⓘ's bubble
-beside its ⓘ (Escape closes the bubble, not the window), and the toasts in their usual place above
+beside its ⓘ (Escape closes the bubble, not the window; a tap anywhere closes it, and that tap does
+nothing else; where neither side of the ⓘ has room, large text on a small phone, the text opens as a
+small sheet at the screen's far edge instead, never over its ⓘ and never scrolling), and the toasts in their usual place above
 the tab bar, where their buttons answer a tap. The toasts go into a window once it has risen into
 place and leave it as it starts to close, so they never slide with a sheet; a toast raised as its
 window closes (Save, then the window goes) is announced on the page. In a window, a picker's list

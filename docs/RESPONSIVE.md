@@ -49,7 +49,7 @@ translucent status bar, so:
 
 - 44px on touch screens (`pointer-coarse:`), 24px minimum everywhere (WCAG 2.5.8).
 - Small marks keep their look and get a bigger target: the ⓘ (`InfoTip`) is a 24px button around
-  its 16px mark (negative margins keep the line), with an invisible 40px area on touch screens;
+  its 16px mark (negative margins keep the line), with an invisible 44px area on touch screens;
   inline text links use `touch-target`.
 - Close buttons of dialogs, windows and pickers are 44px on touch screens.
 - A toast's dismiss button is 44px at every width, around its 16px mark: its negative margins reach
