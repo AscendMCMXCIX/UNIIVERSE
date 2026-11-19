@@ -10,11 +10,13 @@ import { expect, test, type Page } from "./test";
   games are synthetic demo games, never real Riot data: every demo member has a full 20-game window,
   three of them share fourth place, and two members have too few recent games. The page places its
   four boards by its own width (one column under 59rem, Recent form across with the records beside
-  the multikills from 59rem, Recent form beside the records from 86rem); each board's rows follow
-  the board's own width (Recent form: under 36rem, from 36rem, from 58rem; each record's cell: under
-  16rem, under 36rem, from 36rem). The states the demo never shows (a provisional window, your own
-  row, a shared first place, the viewer's best, a record nobody holds, the public boards) are
-  checked as markup in recent-leaderboards.test.ts, records.test.ts and leaderboards-dashboard.test.ts.
+  the multikills from 59rem, two columns from 86rem: Recent form with the milestones under it, the
+  records with the multikills under them); each board's rows follow the board's own width (Recent
+  form: under 36rem, from 36rem, from 58rem; each record's cell: under 16rem, under 36rem, from
+  36rem). The states the demo never shows (a provisional window, your own row, a shared first place,
+  the viewer's best, a record nobody holds, the public boards) are checked as markup in
+  recent-leaderboards.test.ts, records.test.ts and leaderboards-dashboard.test.ts; a member's page,
+  with a best in every record cell, is measured here with that line drawn into the demo's cells.
 */
 
 const BOARDS = "/leaderboards";

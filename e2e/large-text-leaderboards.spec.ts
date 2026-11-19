@@ -16,7 +16,8 @@ import { expect, test, type Page } from "./test";
   picture and the tie bracket off the names; no "·" ends or starts a line. The season records,
   multikills and milestones (on the same page, after Recent form) already reflow on their own; a
   record's qualifier there hides its "·" only when it starts a line of its own (the title's clipped
-  edge), never beside its record.
+  edge), never beside its record. The boards' ⓘ bubbles stay on the screen at 200%: the records'
+  definitions, longer than a phone's screen there, scroll inside theirs.
 */
 
 test.beforeEach(async ({ context, baseURL }) => {
