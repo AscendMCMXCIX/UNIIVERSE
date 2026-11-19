@@ -287,9 +287,11 @@ replaces the entry, so Back leaves the page in one step (`historyShowsEntries`).
   desktop's names, so they stay in reach however far the page scrolls; the page's own row of tabs
   (tablets and desktops) is not repeated on phones. Each section is a page of its own (Back goes
   through them, as on the desktop). Team's four names fit a 320px phone at the usual text size;
-  with larger text the row scrolls sideways with the current one in view, as a profile's does
-  (S2b turns a row that would scroll into a "Section" button and a sheet). Only the icons are left
-  out on phones, as the page's tabs leave them out below 640px.
+  with larger text, where the names would no longer fit the row whole, the row gives way to one
+  44px "Section: Players ▾" button that opens a sheet of them all (`ChromeTabs fold`: Team's below
+  19rem of row, a profile's below 17.5rem: 125% text on a 320px phone, 150% on a 393px one), so no
+  name is ever cut off or scrolled out of sight. Only the icons are left out on phones, as the page's
+  tabs leave them out below 640px.
 - **Matchup Intel and Resources** (the Library) are destinations of their own, one page each, with
   no tabs (18 Nov 2026; before, the two were Resources' tabs at the top of both pages): tabs of
   every phone's bar since navigation N1 (19 Nov 2026), Matchup Intel before Resources.
@@ -312,7 +314,7 @@ opens.
 
 | Page | Phone layout | Height at 390px (`main` at f4e5372 → this redesign) |
 |---|---|---|
-| Team (Team Overview) | The logo beside the team's name, the lineup's state and Edit lineup under them, then the role bar over a swipe track of the five cards, one at a time (RESPONSIVE.md → Team Overview's lineup). At a larger text size each card holds its text: its season's figures and its first choice wrap, the role's chip shows its icon alone where its name does not fit beside the card's controls, your own card's two controls stand one above the other, and a member's lineup state takes the line under the logo (RESPONSIVE.md → Phones at a larger text size). | — |
+| Team (Team Overview) | One 44px line under the bar (the scope over the lineup's state, Edit lineup at its end; the bar carries the team's mark and name), then the lineup pager (the five players' pictures, each with its role as a badge and the name under it; pictures alone under 18rem) over a swipe track of the five cards, one at a time, each card's picture beside the name (art band 120px), so the whole first card fits 393 × 659 and 375 × 667. Held sideways the desktop's five across, compact (RESPONSIVE.md → Team Overview's lineup). At a larger text size each card holds its text: its season's figures and its first choice wrap, the role's chip shows its icon alone where its name does not fit beside the card's controls, your own card's two controls stand one above the other, and a member's lineup state takes the line under the logo (RESPONSIVE.md → Phones at a larger text size). | — |
 | Players | One panel, a row per player, 64px tall: picture in its frame and the name in the player's own style with their emblem, the status that matters at the line's end (Lineup; "Setup" for an unfinished setup, its whole meaning read out and in its title; Archived), a long name wrapping beside it rather than pushing it down; then the main role (its icon in the card's colour, its name read out), the rank ("No Riot account" without one) and the pool as many whole portraits as fit plus a count, a line that wraps rather than cuts with larger text; the tagline on a third line only for those who have one. At 175% and 200% text on the narrowest phones a row stacks: the picture on a line of its own, the name, role, rank and pool the row's width under it, and the "·" before the rank never starts a line. A row carries the card's colours but no art, card frame or effect, and nothing is downloaded for a look. The whole row opens the profile (the card, links and every pool). The count is the title's scope line ("9 players", with what narrows it). The same rows on every width since the roster board (Nov 2026): two up on a phone held sideways. Below 768px wide the title, search and Filters then share one row (from 35rem; a split screen or a zoomed small phone stacks them, so the search keeps its width); a large iPhone in Safari, laid out at the screen's whole width (852px on an iPhone 15), keeps the tablet's toolbar on a row of its own. | 2,966 → 1,227 → 850px |
 | A profile's Overview | The profile's band, then the season's figures (three across, the kills three by two), Recent form's twenty games and the champion pools. At a larger text size the figures go two across, then one, Recent form's bars share the card's width, and under the narrowest lists the pools' figures take the row's width and name themselves in words (RESPONSIVE.md → Phones at a larger text size). | — |
 | All Champions (a profile's Champions) | The section's title is left to screen readers: the Champions tab in the top bar names it. The scope line, "6 champions · Season 2026 · All supported games", ends in the data status's ⓘ; from a 360px phone the search and Sort by share one row (the words "Sort by" read out only, the sort mark shown before the column's name, as the table's headings write it), and on a 320px phone the search keeps its own line. A row per champion: the portrait, the name with its role and In pool, the win rate and games at the right, then the other figures as labelled pairs, the one the list is sorted by first, in semibold (sorted by double, triple or quadra kills, that kind's own count). At 150% and 200% text each row stacks (the name, then the win rate and games, then the pairs), so no name is squeezed out and nothing is wider than the phone. A champion opens its window over the whole screen: a 48px portrait, the scope beside Matchup Intel, Refine at the end of the tabs' row (its panel opening right after that row), the figures three by two with short labels (CS/min, Damage/min, Mastery; screen readers hear the whole labels) and every figure and label whole (the column with KDA and Mastery points takes the room they need, the middle one keeps "Damage/min" whole; at 150% text a 320px phone's figures go one across), its tabs and both multikills ⓘ 44px targets. The lane comparison starts at 524px instead of 631 on a 393px phone, not the plan's estimated 460: the scope row also holds Matchup Intel (#292), the scope wraps rather than cutting off the account (#300), and the tabs are 44px. | 1,131 → 1,031px at 393px (Demo Top's six champions; 1.72 → 1.56 screens in Safari's 659px, the rows on the first screen 1.4 → 2.4) |
@@ -396,6 +398,65 @@ click, so nothing moves under the finger first). A sheet:
   back), and a touch that would move nothing inside it never moves the page behind (no rubber band,
   no toolbar sliding).
 
+### The phone header budget (S2b, 20 Nov 2026)
+
+Every phone page spends its first screen on content, not on saying where you are twice:
+
+- **One title row, or none where the bar names the page.** Team's sections (Players, Leaderboards,
+  Matches) and Admin Mode's set pages read their h1 out only on phones (`PageHeader sectionNamed`):
+  the sections row names them, and the scope line leads. Admin Mode's eyebrow and description go on
+  phones (`PageHeader admin`): the bar says the mode once.
+- **Team Overview** on members' phones: no logo or h1 on screen (the bar carries the team's mark and
+  name; the h1 is read out), one 44px line of "Main lineup · Season 2026" over the lineup's state,
+  with Edit lineup at its end (44px, 102px before). The public team page keeps its own header.
+- **A profile's sections other than its Overview**: the band is in the top bar from the first paint,
+  the name over the rank beside Back ("‹ Players  Demo Mid / Platinum IV · 57 LP";
+  `ProfileHeader`'s bar title, placed by globals.css `[data-bar-title]` after Back, a fixed 5.25rem
+  there, or after the team's mark on your own profile, and clear of Filters and the avatar). The
+  section starts right under the sections row (it gains the band's 86px and its gap, about 170px at
+  150% text). The Overview keeps its full card.
+- **No lone Filters row**: Profile Overview's Filters and Refresh sit at the scope line's end
+  (`SectionHeader toolbarBesideScope`).
+- **No paragraphs**: Riot Accounts leads with "Main account first; every linked account adds its
+  games", Settings' fields with one line each; the rest is behind an ⓘ, each tip 25 words or fewer.
+- **44px targets** on touch for every segment (`segmentClass`: the group is 48px there), ⓘ, tab link,
+  Team Matches' member names and the profile nudge.
+
+### The frame slides away (S2b)
+
+On an upright phone the frame (top bar, sections row, tab bar) took 29% of the screen at rest, 38%
+at 150% text and 44% on a 320 × 568 phone at 150%. Where it crowds the first screen, from 125% text or
+on a phone under 700px tall (`UPRIGHT_SLIDES`, in rem, so a larger browser text size counts), the
+top bar's first row and the tab bar slide away while the page scrolls down and come back on any
+scroll up, at the top of the page, and while they hold the focus; the sections row stays pinned under
+the status bar. After a 100px scroll the frame then takes 15% at 150% text and 11% on a 320 × 568
+phone at 100%. This revisits the 8 Nov synthesis's C1 (a fixed frame upright) on the measured
+share. Taller phones at the usual text size keep both bars in place. Held sideways nothing changes:
+the one compact bar slides away whole, as before.
+
+### Page budgets
+
+One set of ceilings with two runners (`scripts/page-budgets.mjs`): for every Player and Admin page,
+its height in screens, the frame's share at rest and after a 100px scroll, sideways overflow (none
+allowed), and touch targets under 44px on the first screen.
+
+- **`node scripts/ux-measure.mjs http://127.0.0.1:3900`**: the full matrix (19 pages × 7 setups ×
+  100, 125, 150 and 200% text, about 530 loads, about 12 minutes), locally against the demo, before a
+  pull request is ready; its table goes in the PR body. `--pages`, `--setups` and `--text` narrow it;
+  `--ceilings` prints each figure plus 2%.
+- **`e2e/page-budgets.spec.ts`** in CI (phone project): every page at i15 (393 × 852, installed) at
+  100% and at se1 (320 × 568) at 150% against `e2e/page-budgets.json`, then S2b's and S3's facts
+  (Team's 44px header line, the five pictures in the pager and the whole first card at 393 × 659 and
+  375 × 667, five cards in one row held sideways within 1.3 screens, the profile band in the bar and
+  the section under the sections row at 100% and 150%, the sections sheet at 150%, the sliding frame
+  at most 25% at 150% on 568 and 667px phones, Match History's first game above the tab bar at 320,
+  and a first paint never wider than a 320px phone). About 1 minute.
+- **A ratchet**: the ceilings started at the figures of 20 Nov 2026 plus 2%; a stage lowers the
+  ceilings of the pages it changes to its acceptance figures, never raises one.
+
+The setups are the mobile audit's (Chromium with touch and an iPhone's safe areas through CDP; the
+text size is the browser's own, `Page.setFontSizes`, so the breakpoints move as with a real setting).
+
 ## 5. The phone design system
 
 **Type on a phone** (rem sizes from the tokens in globals.css, so the reader's text size is followed):
@@ -423,7 +484,7 @@ click, so nothing moves under the finger first). A sheet:
 | Titles | One `h1` per page; on phones the page tabs and the bar's title say where you are, so instructions under a title are left out (`PageHeader guide`), while a scope line ("Season 2026 · 6 games") always shows. |
 | Interactive states | Pressed rows darken to `surface-2` (`active:`); the current tab, section or view is marked twice (colour and a pill, bar or weight); narrowed filters are accent chips; focus keeps the accent ring everywhere. The avatar tapped before the page's code has run shows pressed (`[data-early][aria-busy]`: `surface-2` in a ring of accent) until it opens the account screen. |
 | Loading, empty, errors | Unchanged components: `Skeleton`, `EmptyState`, `PageError`; the match window shows its skeleton until the game has loaded. Results of actions are toasts, which sit above the tab bar (`bottom-tabbar`; near the bottom edge held sideways, where there is no tab bar); over an open window or sheet they are drawn inside it, in the same place. |
-| Motion | The compact bar slides 200ms ease-out in short windows; sheets as above; the account screen rises 1rem into place in 200ms and fades out in 140ms; the title fades in 150ms. Everything respects reduced motion. |
+| Motion | The compact bar slides 200ms ease-out in short windows, and upright the top bar's first row and the tab bar where the frame crowds the screen ("The frame slides away"); sheets as above; the account screen rises 1rem into place in 200ms and fades out in 140ms; the title fades in 150ms. Everything respects reduced motion. |
 
 ## 6. Verifying
 
@@ -481,11 +542,12 @@ click, so nothing moves under the finger first). A sheet:
   focus, the bubble and the toast in Safari's engine); `e2e/responsive.spec.ts`,
   `e2e/mobile-landscape.spec.ts` and `e2e/quality.spec.ts` keep overflow, targets, short windows and
   axe in check at every width.
-  Team Overview's phone layout (the logo beside the team's name, the lineup's state and Edit
-  lineup on the line under them, the role bar of icons and names over the track, no bench under
-  it, and no later card's member's picture asked for while the first card's art loads) is in
-  `e2e/team-layout.spec.ts`, and held sideways (2 + 2 + 1, no sideways track, no role bar, the 44px
-  logo) in `e2e/mobile-landscape.spec.ts`.
+  Team Overview's phone layout (one 44px header line with Edit lineup, the lineup pager of the
+  five players' pictures with their roles as badges over the track, the card's picture beside the
+  name, no bench under it, and no later card's member's picture asked for while the first card's
+  art loads) is in `e2e/team-layout.spec.ts` and `e2e/page-budgets.spec.ts`, and held sideways
+  (five compact cards in one row, no pager, no logo) in `e2e/mobile-landscape.spec.ts`.
+  `e2e/page-budgets.spec.ts` holds the page budgets ("Page budgets", above).
 - Safari 26's engine: `scripts/webkit26-check.mjs` (RESPONSIVE.md → Safari 26) opens every kind of
   window in WebKit 26.0, the engine that collapsed them, on four phones, an iPad and a Mac.
 - Real devices: see RESPONSIVE.md → Safari and iPhones. Emulated phones prove layout and behaviour

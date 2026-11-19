@@ -78,7 +78,7 @@ export function DisplayNameEditor({ displayName }: { displayName: string }) {
         {shown ?? (
           <>
             Shown to teammates; it needn&apos;t be unique.{" "}
-            <InfoTip label="Where your display name shows" text={`Across the app, and ${ON_THE_PUBLIC_PAGE}. It needn't match your Riot ID.`} testId="display-name-help-info" />
+            <InfoTip label="Where it shows" text={`Across the app, and ${ON_THE_PUBLIC_PAGE}. It needn't match your Riot ID.`} testId="display-name-help-info" />
           </>
         )}
       </p>
@@ -145,7 +145,7 @@ export function UsernameEditor({ username }: { username: string }) {
         {shown ?? (
           <>
             What you sign in with; not case-sensitive.{" "}
-            <InfoTip label="Who sees your username" text="Teammates see your display name, not your username." testId="username-help-info" />
+            <InfoTip label="Who sees it" text="Teammates see your display name, not your username." testId="username-help-info" />
           </>
         )}
       </p>
@@ -157,7 +157,7 @@ export function UsernameEditor({ username }: { username: string }) {
 const PICTURE_HELP = (
   <>
     Optional. PNG, JPEG or WebP, cropped to a square.{" "}
-    <InfoTip label="Who sees your picture" text={`Teammates see it, and it shows ${ON_THE_PUBLIC_PAGE}. Change it from My Profile too.`} testId="avatar-help-info" />
+    <InfoTip label="Who sees the picture" text={`Teammates see it, and it shows ${ON_THE_PUBLIC_PAGE}. Change it from My Profile too.`} testId="avatar-help-info" />
   </>
 );
 

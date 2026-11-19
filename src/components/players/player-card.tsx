@@ -201,7 +201,7 @@ export interface CardSeason extends SeasonFigures {
  * the other on the right, each its label over its figure. Same figures, same order.
  *
  * Narrower than 9rem, which only larger text makes (a phone's card at 175% on 320px, 200% up to
- * 393px; every card at the usual size is 12.2rem or wider), the right-hand column cannot hold its
+ * 393px; every card at the usual size is 10.4rem or wider: five across a 56rem lineup), the right-hand column cannot hold its
  * labels either: "CS/MIN" ran past the card at 175% on 320px and KDA and the vision figure were cut
  * at 200%. There KDA and CS/min (vision) move under the win rate, side by side where the two fit
  * and one above the other where they do not, all on the left; the wins bar keeps at least 2rem,
