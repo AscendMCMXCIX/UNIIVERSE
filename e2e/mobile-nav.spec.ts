@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "./test";
-import { memberContext } from "./member-account";
+import { memberContext, setBaseAccess } from "./member-account";
 
 /*
   The phone frame (docs/MOBILE.md): five destinations in the bottom tab bar, a top bar that says where
@@ -74,6 +74,57 @@ test("the tab bar holds Team, Players, Leaderboards, Matches and Profile, one ta
   for (const box of await tabBar(page).getByRole("link").evaluateAll((links) => links.map((l) => l.getBoundingClientRect().height))) expect(box).toBeGreaterThanOrEqual(44);
   const label = tabBar(page).getByTestId("tab-leaderboards").locator("span").last();
   expect(await label.evaluate((e) => e.scrollWidth <= e.clientWidth + 1)).toBe(true);
+});
+
+test("an account without Leaderboards has Matchup Intel as its fifth tab, shown as Intel: on a 320px phone at 100% text every label shows, and its whole name is read out", async ({ page, browser }) => {
+  // A member with the built-in Restricted Player level: no teammates' statistics, so no Leaderboards,
+  // and Matchup Intel takes the fifth place (PHONE_TABS). In full its label is as long as
+  // Leaderboards', and such a five lost every label on a 320px phone (TAB_FIT, 19 Nov 2026).
+  const member = await memberContext(browser, page, { width: 320, height: 568 }, { base: "Restricted" });
+  await setBaseAccess(page, member.username, "Restricted Player");
+  const phone = member.page;
+  await phone.goto("/team");
+  const bar = tabBar(phone);
+  await expect(bar.getByRole("link")).toHaveText(["Team", "Players", "Matches", "Profile", "Matchup Intel"]);
+  const intel = bar.getByRole("link", { name: "Matchup Intel" });
+  await expect(intel).toHaveAccessibleName("Matchup Intel");
+  const fit = await bar.evaluate((nav) => ({
+    width: nav.getBoundingClientRect().width,
+    labels: [...nav.querySelectorAll("a")].map((a) => {
+      const label = a.querySelector(":scope > span:last-child")!;
+      // What shows: the label's text less the words read out only.
+      const quiet = [...label.querySelectorAll(".sr-only")].map((s) => s.textContent ?? "").join("");
+      return { text: (label.textContent ?? "").slice(quiet.length), shown: label.getBoundingClientRect().width > 1, whole: label.scrollWidth <= label.clientWidth + 1 };
+    }),
+    right: Math.max(...[...nav.querySelectorAll("li")].map((li) => li.getBoundingClientRect().right)),
+    page: document.documentElement.scrollWidth,
+  }));
+  expect(fit.width).toBe(320);
+  expect(fit.labels.map((l) => l.text)).toEqual(["Team", "Players", "Matches", "Profile", "Intel"]);
+  expect(fit.labels.filter((l) => !l.shown || !l.whole), "every label shown and whole").toEqual([]);
+  expect(fit.right, "the tabs within the phone").toBeLessThanOrEqual(320);
+  expect(fit.page, "the page within the phone").toBeLessThanOrEqual(320);
+  // Its own page: its tab is current, and there is no Back (a destination's own page).
+  await intel.click();
+  await expect(phone).toHaveURL(/\/resources\/matchups$/);
+  await expect(intel).toHaveAttribute("aria-current", "page");
+  await expect(phone.getByTestId("mobile-back")).toHaveCount(0);
+  // The account screen holds the rest, Resources (it has no tab here) and Settings: Matchup Intel is not repeated there.
+  await phone.getByTestId("account-sheet-button").click();
+  const screen = phone.getByTestId("account-sheet");
+  await expect(screen.getByRole("navigation", { name: "More pages and your account" }).getByRole("link")).toHaveText(["Resources", "Settings"]);
+  await phone.keyboard.press("Escape");
+  await expect(screen).toHaveCount(0);
+  // Held sideways the same five ride in the top bar, Intel too, every label shown where the bar is 38rem or wider.
+  await phone.setViewportSize({ width: 844, height: 390 });
+  const sideways = phone.getByTestId("topbar-tabs");
+  await expect(sideways.getByRole("link")).toHaveText(["Team", "Players", "Matches", "Profile", "Matchup Intel"]);
+  const row = await sideways.evaluate((nav) => ({
+    shown: [...nav.querySelectorAll("a")].map((a) => a.querySelector(":scope > span > span:last-child")!.getBoundingClientRect().width > 1),
+    scrolls: nav.querySelector("ul")!.scrollWidth > nav.querySelector("ul")!.clientWidth + 1,
+  }));
+  expect(row).toEqual({ shown: [true, true, true, true, true], scrolls: false });
+  await member.context.close();
 });
 
 test("Back from a teammate's profile returns to where you came from, named after it; opened directly, it leads to Players", async ({ page }) => {
@@ -355,13 +406,22 @@ test("a tablet's destinations are in its top bar, one tap each; its avatar menu 
 
 test("a tablet's top bar gives way at a larger text size: the team's name first, then the labels, by its own width, and never wider than the window", { tag: "@tablet" }, async ({ page, context, baseURL }) => {
   // BAR_FIT in mobile-nav.tsx, in rem of the bar's row less its gutters: Player Mode's name below
-  // 42.5rem and labels below 36.5rem (four destinations since Matchup Intel's own entry), Admin Mode's
-  // below 43rem and 36.5rem. A 768px tablet's row is 46rem at 100% text, 36.8rem at 125%, 30.7rem at
-  // 150% and 23rem at 200%.
-  const FIT = { player: { brand: 42.5, labels: 36.5 }, admin: { brand: 43, labels: 36.5 } } as const;
+  // 42.5rem and labels below 36.25rem (four destinations since Matchup Intel's own entry: 42.0rem and
+  // 35.9rem needed), Admin Mode's below 43rem and 36.5rem. The gutters are 1rem a side, so they grow
+  // with the text: a 768px tablet's row is 768px over the root's size less 2rem, 46rem at 100% text,
+  // 36.4rem at 125%, 30rem at 150% and 22rem at 200%.
+  const FIT = { player: { brand: 42.5, labels: 36.25 }, admin: { brand: 43, labels: 36.5 } } as const;
+  const ROW = { 100: 46, 125: 36.4, 150: 30, 200: 22 } as const;
+  // What the 768px tablet shows, written out, so a threshold above what fits fails here as well as
+  // one below it: Player Mode keeps its four labels at 125% (the name gone), Admin Mode its icons alone.
+  const AT_768 = {
+    player: { 100: { name: true, labels: true }, 125: { name: false, labels: true }, 150: { name: false, labels: false }, 200: { name: false, labels: false } },
+    admin: { 100: { name: true, labels: true }, 125: { name: false, labels: false }, 150: { name: false, labels: false }, 200: { name: false, labels: false } },
+  } as const;
+  expect(page.viewportSize()!.width, "the tablet project's window").toBe(768);
   for (const mode of ["player", "admin"] as const) {
     await context.addCookies([{ name: "uniiverse_view", value: mode, url: baseURL! }]);
-    for (const root of [100, 125, 150, 200]) {
+    for (const root of [100, 125, 150, 200] as const) {
       const where = `${mode === "admin" ? "Admin Mode" : "Player Mode"} at ${root}% text`;
       await page.goto(mode === "admin" ? "/admin/settings" : "/team");
       await page.evaluate((r) => {
@@ -385,8 +445,11 @@ test("a tablet's top bar gives way at a larger text size: the team's name first,
           };
         });
         const fit = FIT[mode];
+        expect(m.content, `${where}: the bar's row in rem`).toBeCloseTo(ROW[root], 1);
         expect(m.name, `${where}: the team's name (row ${m.content.toFixed(1)}rem)`).toBe(m.content >= fit.brand);
         for (const label of m.labels) expect(label, `${where}: a label (row ${m.content.toFixed(1)}rem)`).toBe(m.content >= fit.labels);
+        const shows = AT_768[mode][root];
+        expect({ name: m.name, labels: m.labels }, `${where}: what a 768px tablet shows`).toEqual({ name: shows.name, labels: [shows.labels, shows.labels, shows.labels, shows.labels] });
         // What each step leaves fits: the list needs no scrolling, and neither the bar nor its row is
         // wider than the window (the page's own content is its pages' to fit: e2e/phone-wraps.spec.ts).
         expect(m.listScrolls, `${where}: the destinations fit`).toBe(false);
@@ -394,6 +457,25 @@ test("a tablet's top bar gives way at a larger text size: the team's name first,
         expect(m.bar, `${where}: the bar within the window`).toBeLessThanOrEqual(1);
       }).toPass({ timeout: 15_000 });
     }
+  }
+  // The installed app adds Back on a page reached from another (Matchup Intel opened directly: Back
+  // to Team). Beside it the labels give way where the name does (42.5rem, BAR_FIT's besideBack), so
+  // at 125% the four show their icons alone rather than scrolling (69px at the bare threshold).
+  await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
+  await page.addInitScript(() => Object.defineProperty(Navigator.prototype, "standalone", { get: () => true }));
+  for (const [root, labels] of [[100, true], [125, false]] as const) {
+    await page.goto("/resources/matchups");
+    await page.evaluate((r) => {
+      document.documentElement.style.fontSize = `${r}%`;
+    }, root);
+    await expect(page.getByTestId("mobile-back")).toBeVisible();
+    await expect(async () => {
+      const m = await page.evaluate(() => {
+        const list = document.querySelector<HTMLElement>("[data-testid=topbar-destinations] ul")!;
+        return { labels: [...list.querySelectorAll("a")].map((a) => a.querySelector(":scope > span:last-child")!.getBoundingClientRect().width > 1), scrolls: list.scrollWidth > list.clientWidth + 1 };
+      });
+      expect(m, `installed, beside Back, at ${root}% text`).toEqual({ labels: [labels, labels, labels, labels], scrolls: false });
+    }).toPass({ timeout: 15_000 });
   }
 });
 

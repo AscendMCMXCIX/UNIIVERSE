@@ -118,6 +118,15 @@ describe("phone tab bar", () => {
     expect(PHONE_TABS.map((t) => t.href).slice(-2)).toEqual([MATCHUP_INTEL.href, RESOURCES.href]);
   });
 
+  it("Matchup Intel shows as Intel in the phone's bars, the end of its name, which is still its whole name", () => {
+    // Only Matchup Intel has a short form: in full it is as long as Leaderboards, and a five with
+    // both lost every label on a 320px phone (mobile-nav.tsx, TAB_FIT).
+    expect(PHONE_TABS.filter((t) => t.short).map((t) => [t.href, t.label, t.short])).toEqual([[MATCHUP_INTEL.href, "Matchup Intel", "Intel"]]);
+    for (const tab of PHONE_TABS.filter((t) => t.short)) expect(tab.label.endsWith(` ${tab.short}`), tab.href).toBe(true);
+    // Back still names it in full.
+    expect(pageName(MATCHUP_INTEL.href, PHONE_TABS)).toBe("Matchup Intel");
+  });
+
   it("offers only pages the account may open", () => {
     expect(hrefs(phoneTabs(["/team", "/overview", "/resources"]))).toEqual(["/team", "/overview", "/resources"]);
   });

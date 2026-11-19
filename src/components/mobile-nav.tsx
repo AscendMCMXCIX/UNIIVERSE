@@ -9,7 +9,7 @@ import { BrandMark } from "./brand-mark";
 import { Avatar } from "./ui/avatar";
 import { DetailModal } from "./ui/detail-modal";
 import { ModeSwitch } from "./mode-switch";
-import { ACCOUNT_LINKS, ADMIN_ACCOUNT_LINKS, ADMIN_TABS, MATCHUP_INTEL, PHONE_TAB_LIMIT, PROFILE_SECTIONS, RESOURCES, adminSheetLinks, backSteps, currentDestination, currentTab, isActivePath, pageName, phoneParent, phoneTabs, profileBase, tabletDestinations, type NavLink, type PhoneTab } from "@/lib/nav";
+import { ACCOUNT_LINKS, ADMIN_ACCOUNT_LINKS, ADMIN_TABS, MATCHUP_INTEL, PROFILE_SECTIONS, RESOURCES, adminSheetLinks, backSteps, currentDestination, currentTab, isActivePath, pageName, phoneParent, phoneTabs, profileBase, tabletDestinations, type NavLink, type PhoneTab } from "@/lib/nav";
 import { AccountMenu, otherUsername } from "./account-menu";
 import { announceAccountChange, markAccountChange } from "./account-guard";
 import { InstallAppEntry } from "./install/install-app";
@@ -93,12 +93,9 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
   const pathname = usePathname();
   // A phone's destinations: the bottom tab bar upright, the compact bar sideways.
   const tabs: PhoneTab[] = adminMode ? ADMIN_TABS.filter((t) => allowed.includes(t.href)) : phoneTabs(allowed);
-  // Where the labels give way to the icons alone, for this set of destinations (TAB_FIT, SIDEWAYS_FIT):
-  // a member's five with Matchup Intel among them (an account without one or two of Team's pages)
-  // need more room than the usual five.
-  const intel = !adminMode && tabs.length >= PHONE_TAB_LIMIT && tabs.some((t) => t.href === MATCHUP_INTEL.href);
-  const fit = adminMode ? TAB_FIT.admin : intel ? TAB_FIT.memberIntel : TAB_FIT.member;
-  const sideways = intel ? SIDEWAYS_FIT.intel : SIDEWAYS_FIT;
+  // Where the labels give way to the icons alone, for this mode's destinations (TAB_FIT): any five
+  // of a member's fit the same width, Matchup Intel's shown as "Intel" (its `short`).
+  const fit = adminMode ? TAB_FIT.admin : TAB_FIT.member;
   const activeTab = currentTab(pathname, tabs.map((t) => t.href));
   // A tablet's destinations, in its top bar.
   const destinations = tabletDestinations(allowed, adminMode);
@@ -145,6 +142,12 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
     ...accountLinks,
   ];
   const titleShown = heading.past && !!heading.text;
+  // A tablet's bar gives way at a larger text size (BAR_FIT): the team's name first, then the
+  // destinations' labels; beside Back (the installed app, on a page reached from another) the labels
+  // go where the name does, Back having taken its room (shown as Back is: by the browser's answer,
+  // or by the display mode until the page has run).
+  const barFit = BAR_FIT[adminMode ? "admin" : "member"];
+  const labelsFit = cn(barFit.labels, back && (standalone ? barFit.besideBack : barFit.besideBackInstalled));
 
   return (
     <>
@@ -181,7 +184,7 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
               alone, so the destinations have the room. */}
           <Link href={home} className={cn("flex min-h-11 min-w-0 items-center gap-2.5 rounded-md md:min-h-14 md:min-w-8 md:shrink-[1000] short:min-h-11 short:shrink-0", back ? "max-md:hidden short:hidden" : "max-md:pl-1.5 short:pl-1.5")} title={shortName} data-testid="mobile-brand">
             <BrandMark src={logoSrc} still={logoStill} name={shortName} className="h-8 w-8 rounded-md text-base" />
-            <span className={cn("min-w-0 transition-opacity duration-150 short:hidden", BAR_FIT[adminMode ? "admin" : "member"].brand, titleShown && "max-md:hidden")} data-testid="mobile-brand-name">
+            <span className={cn("min-w-0 transition-opacity duration-150 short:hidden", barFit.brand, titleShown && "max-md:hidden")} data-testid="mobile-brand-name">
               <span className="block truncate text-sm font-bold tracking-label text-fg">{shortName}</span>
               {adminMode ? <span className="block truncate text-xs font-semibold uppercase tracking-label text-accent">Admin mode</span> : tagline ? <span className="block truncate text-xs text-fg-subtle max-md:hidden">{tagline}</span> : null}
             </span>
@@ -203,7 +206,7 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
           {tabs.length > 0 ? (
             <nav aria-label="Primary" className="hidden min-w-0 shrink-[0.001] short:flex" data-testid="topbar-tabs">
               <ScrollRow as="ul" className="flex items-center gap-0.5" keepCurrentInView current={activeTab}>
-                {tabs.map(({ href, label, icon: Icon }) => {
+                {tabs.map(({ href, label, short, icon: Icon }) => {
                   const active = href === activeTab;
                   const own = href === "/overview" && user?.avatarUrl;
                   return (
@@ -218,7 +221,9 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
                       >
                         <span className={cn("flex h-8 items-center gap-1.5 rounded-full px-2 transition-colors duration-150", active ? "bg-accent/15 text-accent" : "text-fg-muted group-hover:bg-surface-2 group-hover:text-fg")}>
                           {own ? <Avatar name={user!.name} src={user!.avatarUrl} size="xs" className={cn(active && "ring-2 ring-accent")} /> : <Icon className="h-5 w-5 shrink-0" aria-hidden />}
-                          <span className={cn("whitespace-nowrap text-2xs font-medium leading-none", active ? cn("font-semibold text-fg", sideways.current) : sideways.others)}>{label}</span>
+                          <span className={cn("whitespace-nowrap text-2xs font-medium leading-none", active ? cn("font-semibold text-fg", SIDEWAYS_FIT.current) : SIDEWAYS_FIT.others)}>
+                            <TabName label={label} short={short} />
+                          </span>
                         </span>
                       </Link>
                     </li>
@@ -254,7 +259,7 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
                         {/* The brand's gradient as a short bar at the destination's foot, growing in from its centre, as the sidebar's at its row's edge. */}
                         <span className={cn("absolute inset-x-3 bottom-1 h-0.5 rounded-full bg-gradient-to-r from-accent to-accent-2 transition-[opacity,scale] duration-200 ease-emphasized", active ? "scale-x-100 opacity-100" : "scale-x-50 opacity-0")} aria-hidden data-testid={active ? "topbar-current-bar" : undefined} />
                         <Icon className={cn("h-[1.125rem] w-[1.125rem] shrink-0 transition-colors duration-150", active ? "text-accent" : "text-fg-subtle group-hover:text-fg-muted")} aria-hidden />
-                        <span className={BAR_FIT[adminMode ? "admin" : "member"].labels}>{label}</span>
+                        <span className={labelsFit}>{label}</span>
                       </Link>
                     </li>
                   );
@@ -396,12 +401,13 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
               without colour alone. With larger text the labels can stop fitting: then the bar shows
               the icons alone, each pill sharing the width, and the labels stay the destinations'
               names for screen readers. Measured in the bar's own width in rem, so the user's text
-              size counts (a 320px phone has 20rem at 100% and 10rem at 200%), against what each set
-              of labels needs (TAB_FIT). Wider than the phone, the bar made the browser widen the area
+              size counts (a 320px phone has 20rem at 100% and 10rem at 200%), against what each
+              mode's labels need (TAB_FIT; Matchup Intel shows its short name, "Intel", and is read
+              out in full). Wider than the phone, the bar made the browser widen the area
               every fixed element is placed in. Held sideways there is no bottom bar: the
               destinations ride in the top bar. */}
           <ul className="mx-auto flex max-w-lg">
-            {tabs.map(({ href, label, icon: Icon }) => {
+            {tabs.map(({ href, label, short, icon: Icon }) => {
               const active = href === activeTab;
               const own = href === "/overview" && user?.avatarUrl;
               return (
@@ -416,7 +422,9 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
                     <span className={cn("grid h-7 w-12 place-items-center rounded-full transition-colors duration-150", fit.pill, active ? "bg-accent/15 text-accent" : "group-hover:bg-surface-2")} aria-hidden>
                       {own ? <Avatar name={user!.name} src={user!.avatarUrl} size="xs" className={cn(active && "ring-2 ring-accent")} /> : <Icon className="h-5 w-5" />}
                     </span>
-                    <span className={cn("leading-none", fit.label)}>{label}</span>
+                    <span className={cn("leading-none", fit.label)}>
+                      <TabName label={label} short={short} />
+                    </span>
                   </Link>
                 </li>
               );
@@ -439,13 +447,13 @@ function onSignOut() {
 
 /**
  * Where the upright tab bar's labels stop fitting, as static class lists (Tailwind reads them whole).
- * Measured on 18 Nov 2026 with the bundled Inter at 100% text, by a clone of a real tab per label:
- * Player Mode's five need up to 19.64rem under their icons (with Resources as the fifth; 19.13rem
- * with Profile); Admin Mode's four 14.63rem. Below these widths of the bar, each destination shows
- * its icon alone (docs/MOBILE.md, the tab bar). A member's five with Matchup Intel among them (an
- * account without one or two of Team's pages; its label is as long as Leaderboards') need up to
- * 21.09rem (20.62rem without Resources; measured the same way on 18 Nov 2026, Matchup Intel's own
- * entry): `memberIntel`.
+ * Measured on 19 Nov 2026 with the bundled Inter at 100% text, by a clone of a real tab per label:
+ * every five Player Mode can hold needs at most 19.59rem under the icons (Leaderboards and Resources
+ * among them; 19.13rem with Profile as the fifth), Admin Mode's four 14.63rem. Below these widths of
+ * the bar, each destination shows its icon alone (docs/MOBILE.md, the tab bar). Matchup Intel, a
+ * tab for an account without one or two of Team's pages, shows as "Intel" (its `short`, nav.ts),
+ * no wider than its pill: in full its label is as long as Leaderboards', and such a five needed up
+ * to 21.09rem, more than a 320px phone's 20rem at 100% text.
  */
 const TAB_FIT = {
   member: {
@@ -453,12 +461,6 @@ const TAB_FIT = {
     link: "@max-[20rem]/tabbar:px-0.5",
     pill: "@max-[20rem]/tabbar:w-full @max-[20rem]/tabbar:max-w-12",
     label: "@max-[20rem]/tabbar:sr-only",
-  },
-  memberIntel: {
-    li: "@max-[21.5rem]/tabbar:min-w-0",
-    link: "@max-[21.5rem]/tabbar:px-0.5",
-    pill: "@max-[21.5rem]/tabbar:w-full @max-[21.5rem]/tabbar:max-w-12",
-    label: "@max-[21.5rem]/tabbar:sr-only",
   },
   admin: {
     li: "@max-[15rem]/tabbar:min-w-0",
@@ -470,25 +472,46 @@ const TAB_FIT = {
 
 /**
  * Where a tablet's top bar gives way at a larger text size, in the bar's own width in rem (the
- * `topbar` container: its row less its gutters), as static class lists (Tailwind reads them whole):
- * first the team's name beside its mark, then the destinations' labels (each keeps its name for
- * screen readers and in its title). Measured with the bundled Inter at 100% text, the row's shown
- * parts at their own widths and the gaps between them: Player Mode's four destinations (My Profile,
- * Team, Matchup Intel, Resources; 18 Nov 2026, when Matchup Intel became an entry of its own) need
- * 42.00rem with the name and 35.87rem without it (its three needed 32.84rem and 26.75rem), Admin
- * Mode's (its name two lines, "Admin mode" under it, and Platform Settings named in full) 42.68rem
- * and 36.16rem. A 768px tablet's bar is 46rem at 100% text, 36.8rem at 125%, 30.7rem at 150%: the
- * name shows at 100%, the labels at 125% too.
+ * `topbar` container: its row less its gutters, 1rem a side from sm, which grow with the text too),
+ * as static class lists (Tailwind reads them whole): first the team's name beside its mark, then
+ * the destinations' labels (each keeps its name for screen readers and in its title). Measured with
+ * the bundled Inter at 100% text, the row's shown parts at their own widths and the gaps between
+ * them: Player Mode's four destinations (My Profile, Team, Matchup Intel, Resources; 18 Nov 2026,
+ * when Matchup Intel became an entry of its own) need 42.00rem with the name and 35.87rem without
+ * it (its three needed 32.84rem and 26.75rem), Admin Mode's (its name two lines, "Admin mode" under
+ * it, and Platform Settings named in full) 42.68rem and 36.16rem; each threshold keeps 0.3rem or
+ * more beyond its need. A 768px tablet's bar is 768px over the root's size less the 2rem of
+ * gutters: 46rem at 100% text, 36.4rem at 125%, 30rem at 150%, 22rem at 200%. So Player Mode
+ * shows the name and the labels at 100%, the labels alone at 125%, the icons alone from 150% (its
+ * three kept their labels at 150%: four need more than 30rem); Admin Mode the name and the labels
+ * at 100%, the icons alone from 125%, as before. Back, which the installed app adds on a page
+ * reached from another, takes about the room the name had (the name and its gap: 6.13rem in Player
+ * Mode, 6.53rem in Admin Mode; Back and its gap: 4.67rem as "Team", 6.94rem as "Dashboard"), so
+ * beside it the labels give way where the name does (`besideBack`), and where both show the name
+ * shortens first. At the bare thresholds the list scrolled sideways beside Back at 125% on a 768px
+ * tablet (69px) and an 820px one (23px). A longer Back label ("Team Leaderboards", 10.74rem) can
+ * still leave it a few pixels short (4px at 768px and 100%), where it scrolls: the last resort.
  */
 const BAR_FIT = {
-  member: { brand: "md:@max-[42.5rem]/topbar:hidden", labels: "md:@max-[36.5rem]/topbar:sr-only" },
-  admin: { brand: "md:@max-[43rem]/topbar:hidden", labels: "md:@max-[36.5rem]/topbar:sr-only" },
+  member: {
+    brand: "md:@max-[42.5rem]/topbar:hidden",
+    labels: "md:@max-[36.25rem]/topbar:sr-only",
+    besideBack: "md:@max-[42.5rem]/topbar:sr-only",
+    besideBackInstalled: "md:standalone:@max-[42.5rem]/topbar:sr-only",
+  },
+  admin: {
+    brand: "md:@max-[43rem]/topbar:hidden",
+    labels: "md:@max-[36.5rem]/topbar:sr-only",
+    besideBack: "md:@max-[43rem]/topbar:sr-only",
+    besideBackInstalled: "md:standalone:@max-[43rem]/topbar:sr-only",
+  },
 } as const;
 
 /**
  * The destinations' labels in a phone's bar held sideways, in the bar's own width in rem: the
- * others' below 38rem (all five labelled need 33.28rem with the mark and the avatar, 36.28rem with
- * Filters too; measured on 18 Nov 2026 at 100% text), the current one's below 27rem, where a larger
+ * others' below 38rem (the usual five labelled need 33.28rem with the mark and the avatar, 36.28rem
+ * with Filters too; any five with Matchup Intel among them, "Intel" in the bar, up to 33.95rem and
+ * 36.95rem; measured on 19 Nov 2026 at 100% text), the current one's below 27rem, where a larger
  * text size leaves room for the icons alone (26.9rem with Leaderboards current and Filters; the
  * same fallback as the upright bar's, TAB_FIT).
  */
@@ -501,14 +524,22 @@ const SIDEWAYS_FIT = {
    * Filters), without them 27.14rem and 20.75rem.
    */
   mode: "@max-[32rem]/topbar:sr-only",
-  /**
-   * A member's five with Matchup Intel among them (an account without one or two of Team's pages):
-   * all five labelled need up to 36.61rem, 39.61rem with Filters (measured on 18 Nov 2026 at 100%
-   * text, its label put in place of the demo's), so the others' labels give way below 40rem; the
-   * current one alone needs no more than the usual five's.
-   */
-  intel: { others: "@max-[40rem]/topbar:sr-only", current: "@max-[27rem]/topbar:sr-only" },
 } as const;
+
+/**
+ * A phone destination's name in its bars: the end of a long name where it has one (Matchup Intel
+ * shows "Intel", PhoneTab's `short`), the words before it read out only, so screen readers and
+ * speech input have the whole name and the bar the room of a short label.
+ */
+function TabName({ label, short }: Pick<PhoneTab, "label" | "short">) {
+  if (!short || short === label || !label.endsWith(short)) return label;
+  return (
+    <>
+      <span className="sr-only">{label.slice(0, -short.length)}</span>
+      {short}
+    </>
+  );
+}
 
 /** The top bar's Filters count, over the button's corner. */
 const TOPBAR_COUNT = "absolute right-0.5 top-1 min-w-4 rounded-full bg-accent px-1 text-center text-2xs font-semibold leading-4 tabular-nums text-bg";
