@@ -269,7 +269,7 @@ const rowEdges = (nav: Locator) =>
 async function loaded(page: Page, path: string) {
   await page.goto(path);
   await expect(page.locator("main h1, main h2").first()).toBeVisible();
-  await expect(page.locator("main#content > [role=status]")).toHaveCount(0);
+  await expect(page.locator("main#content > [data-testid=page-frame] > [role=status]")).toHaveCount(0);
 }
 
 test("wide windows: every tab row starts at its pages' column, on each of their sections, never moving between them; on Team Overview the header is centred in Team's column", async ({ page, context, baseURL }) => {

@@ -1232,7 +1232,7 @@ async function skipToContent(page) {
  * no such row, or no page under it.
  */
 async function tabRowEdges(page, testId) {
-  await page.waitForFunction(() => !document.querySelector("main#content > [role=status]"), null, { timeout: 10_000 }).catch(() => {});
+  await page.waitForFunction(() => !document.querySelector("main#content > [data-testid=page-frame] > [role=status]"), null, { timeout: 10_000 }).catch(() => {});
   return page.evaluate((testId) => {
     const nav = document.querySelector(`[data-testid=${testId}]`);
     const main = document.querySelector("main#content");
