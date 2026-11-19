@@ -1,7 +1,9 @@
 import { chromium } from "@playwright/test";
 const [,, url, out, w, h] = process.argv;
 const b = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium" });
-const p = await b.newPage({ viewport: { width: +w, height: +h } });
+const ctx = await b.newContext({ viewport: { width: +w, height: +h } });
+await ctx.addCookies([{ name: "uniiverse-test-riot-text", value: "on", url: "http://127.0.0.1:3900" }]);
+const p = await ctx.newPage();
 await p.goto(url, { waitUntil: "networkidle" });
 await p.waitForTimeout(500);
 const m = await p.evaluate(() => ({ scroll: document.documentElement.scrollHeight - innerHeight, width: document.documentElement.scrollWidth - innerWidth }));

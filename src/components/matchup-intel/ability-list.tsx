@@ -4,6 +4,7 @@ import { abilityChips, factsFrom } from "@/domain/matchup-intel/kit";
 import { patchFromVersion, publicPatchName } from "@/domain/patch";
 import { Badge } from "@/components/ui/badge";
 import { HasteLine } from "./haste-line";
+import { HasteControl } from "./matchup-frame";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Panel } from "@/components/ui/panel";
 import { RemoteImage } from "@/components/ui/remote-image";
@@ -486,7 +487,7 @@ export function dataSourceOf(intel: Pick<ChampionIntelView, "dataVersion" | "off
  * without ability haste, where they come from, and where the facts come from. `notice`: a line
  * above the tiles (the ability data being older than the game's patch).
  */
-export function AbilitiesPanel({ intel, title, testId, notice }: { intel: ChampionIntelView; title: string; testId: string; notice?: React.ReactNode }) {
+export function AbilitiesPanel({ intel, title, testId, notice, haste = false }: { intel: ChampionIntelView; title: string; testId: string; notice?: React.ReactNode; haste?: boolean }) {
   const from = dataSourceOf(intel);
   const common = commonSourceOf(intel);
   return (
@@ -495,9 +496,12 @@ export function AbilitiesPanel({ intel, title, testId, notice }: { intel: Champi
         <div className="flex flex-wrap items-baseline justify-between gap-x-3">
           {/* A long name (Heimerdinger's) breaks rather than reach past the panel at a larger text size. */}
           <h2 className="min-w-0 text-sm font-semibold text-fg [overflow-wrap:anywhere]">{title}</h2>
-          <p className="text-xs text-fg-muted">Base cooldowns, without ability haste</p>
+          {/* The haste the cooldowns are also shown at, in the heading's row (the first enemy's panel only:
+              one choice for the page); the base line's words then start the source line. */}
+          {haste ? <HasteControl /> : <p className="text-xs text-fg-muted">Base cooldowns, without ability haste</p>}
         </div>
         <p className="text-xs text-fg-muted" data-testid="abilities-source">
+          {haste ? "Base cooldowns, without ability haste · " : null}
           {/* Where the abilities come from (the bar names the version too), and the cooldown lines, once for
               them all (a curated champion's are its checked notes', which the next words date). */}
           {from ? `${from} · ` : null}

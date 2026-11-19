@@ -30,8 +30,14 @@ import { useMatchupPreferences, type PickerSlot } from "./preferences";
   (data-early, src/components/early-taps.ts) and opens the picker once the code runs.
 */
 
-/** The ability haste the cooldowns are shown at (0: base only), for the ability tiles under the frame. */
-export const HasteContext = React.createContext(0);
+/** The ability haste the cooldowns are shown at (0: base only), and the way to change it, for the kit panels under the frame. */
+export const HasteContext = React.createContext<{ haste: number; setHaste: (haste: number) => void }>({ haste: 0, setHaste: () => undefined });
+
+/** The haste choice, where the enemy's kit is (its panel's header): the value lives in the frame and is remembered on this device. */
+export function HasteControl() {
+  const { haste, setHaste } = React.useContext(HasteContext);
+  return <HasteChoice haste={haste} onChange={setHaste} />;
+}
 
 const subscribeNothing = () => () => undefined;
 /** False on the server and while the page hydrates, then true: what this device remembers is known only then. */
@@ -302,7 +308,7 @@ function pairWords(l: Lineup, name: (id: string | null) => string | null): strin
  */
 function RoleSelector({ role, onChange }: { role: Role; onChange: (role: Role) => void }) {
   return (
-    <div role="group" aria-label="Lane" className="inline-flex max-w-full flex-wrap rounded-md border border-border-control bg-bg-elevated p-0.5" data-testid="matchup-role">
+    <div role="group" aria-label="Lane" className="inline-flex max-w-full flex-wrap rounded-md border border-border-control bg-bg-elevated" data-testid="matchup-role">
       {ROLES.map((r) => (
         <button
           key={r}
@@ -310,7 +316,7 @@ function RoleSelector({ role, onChange }: { role: Role; onChange: (role: Role) =
           aria-pressed={r === role}
           onClick={() => onChange(r)}
           className={cn(
-            "min-h-11 rounded px-2.5 text-xs font-semibold transition-colors pointer-fine:min-h-7",
+            "min-h-11 rounded px-2.5 text-xs font-semibold transition-colors pointer-fine:min-h-6",
             r === role ? "bg-accent/15 text-fg" : "text-fg-muted hover:bg-surface-2 hover:text-fg",
           )}
           data-role={r}
@@ -334,7 +340,7 @@ function HasteChoice({ haste, onChange }: { haste: number; onChange: (haste: num
   return (
     <div className="flex flex-wrap items-center gap-1.5 text-xs text-fg-muted" data-testid="matchup-haste" data-haste={haste}>
       <label htmlFor={id} className="whitespace-nowrap">
-        Ability haste
+        At haste
       </label>
       <div role="group" aria-label="Ability haste" className="inline-flex rounded-md border border-border-control bg-bg-elevated p-0.5">
         {HASTE_CHOICES.map((h) => (
@@ -346,7 +352,7 @@ function HasteChoice({ haste, onChange }: { haste: number; onChange: (haste: num
               setTyped("");
               onChange(h);
             }}
-            className={cn("min-h-11 min-w-8 rounded px-1.5 font-semibold tabular-nums transition-colors pointer-fine:min-h-7", h === haste ? "bg-accent/15 text-fg" : "hover:bg-surface-2 hover:text-fg")}
+            className={cn("min-h-11 min-w-8 rounded px-1.5 font-semibold tabular-nums transition-colors pointer-fine:min-h-6", h === haste ? "bg-accent/15 text-fg" : "hover:bg-surface-2 hover:text-fg")}
             data-haste={h}
           >
             {h}
@@ -367,7 +373,7 @@ function HasteChoice({ haste, onChange }: { haste: number; onChange: (haste: num
           onChange(clampHaste(v));
         }}
         // 16px on a phone, so it never zooms in.
-        className="h-11 w-16 rounded-md border border-border-control bg-bg-elevated px-2 text-base text-fg tabular-nums placeholder:text-fg-subtle pointer-fine:h-7 sm:pointer-fine:text-xs"
+        className="h-11 w-14 rounded-md border border-border-control bg-bg-elevated px-2 text-base text-fg tabular-nums placeholder:text-fg-subtle pointer-fine:h-6 sm:pointer-fine:text-xs"
         data-testid="matchup-haste-input"
       />
     </div>
@@ -400,9 +406,9 @@ function CopyLink({ href }: { href: string }) {
     }
   };
   return (
-    <Button size="sm" variant="ghost" onClick={copy} aria-label={done ? "Link copied" : "Copy link to this matchup"} title="Copy link" data-testid="matchup-copy-link" className="min-h-11 pointer-fine:min-h-7">
+    // An icon button beside the lane (its name and tooltip say what it does), so the bar keeps its height.
+    <Button size="sm" variant="ghost" onClick={copy} aria-label={done ? "Link copied" : "Copy link to this matchup"} title={done ? "Link copied" : "Copy link"} data-testid="matchup-copy-link" className="min-h-11 min-w-11 px-0 pointer-fine:min-h-7 pointer-fine:min-w-7">
       {done ? <Check className="h-4 w-4 text-good" aria-hidden /> : <Link2 className="h-4 w-4" aria-hidden />}
-      <span className="max-sm:sr-only">{done ? "Copied" : "Copy link"}</span>
     </Button>
   );
 }
@@ -572,6 +578,7 @@ export function MatchupFrame({
     go({ ...shown, role: r });
   };
   const haste = onClient ? prefs.haste : 0;
+  const hasteValue = React.useMemo(() => ({ haste, setHaste: (h: number) => set({ haste: h }) }), [haste, set]);
   const recent = (slot: FrameSlot) => prefs.recent[RECENT_OF[slot]].map(choice).filter((c): c is ChampionChoice => !!c);
   const yourChoice = choice(shown.you);
   const loading = pending && target ? `Loading ${pairWords(target, nameOf)}…` : null;
@@ -584,16 +591,19 @@ export function MatchupFrame({
 
   return (
     <FrameContext.Provider value={actions}>
-      <HasteContext.Provider value={haste}>
+      <HasteContext.Provider value={hasteValue}>
         <div className="space-y-3">
           <section aria-label="Champions" className="@container/pickers">
             {/* One row on a desktop (from a bar of 44rem): the title and the lane, the slots with the
                 swap, then the status, the haste and the remembered line at the far end. On a phone,
                 one under the other. */}
             <div className={cn("grid gap-x-4 gap-y-1.5 @min-[44rem]/pickers:items-center", duo ? "@min-[44rem]/pickers:grid-cols-[minmax(0,44rem)_minmax(0,1fr)] @min-[72rem]/pickers:grid-cols-[auto_minmax(0,44rem)_minmax(0,1fr)]" : "@min-[44rem]/pickers:grid-cols-[minmax(0,34rem)_minmax(0,1fr)] @min-[60rem]/pickers:grid-cols-[auto_minmax(0,34rem)_minmax(0,1fr)]")}>
-              <div className={cn("flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5 @min-[44rem]/pickers:col-span-2", duo ? "@min-[72rem]/pickers:col-span-1 @min-[72rem]/pickers:block @min-[72rem]/pickers:space-y-1" : "@min-[60rem]/pickers:col-span-1 @min-[60rem]/pickers:block @min-[60rem]/pickers:space-y-1")} data-testid="matchup-heading">
+              <div className={cn("flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5 @min-[44rem]/pickers:col-span-2", duo ? "@min-[72rem]/pickers:col-span-1 @min-[72rem]/pickers:block @min-[72rem]/pickers:space-y-0.5" : "@min-[60rem]/pickers:col-span-1 @min-[60rem]/pickers:block @min-[60rem]/pickers:space-y-0.5")} data-testid="matchup-heading">
                 {heading}
-                <RoleSelector role={shown.role} onChange={changeRole} />
+                <div className="flex items-center gap-1.5">
+                  <RoleSelector role={shown.role} onChange={changeRole} />
+                  <CopyLink href={lineupHref(shown)} />
+                </div>
               </div>
               {/* Side by side, or one above the other with the swap between them where the row is under
                   17.5rem: a phone at a large text size (200%; 150% on a 393px phone; 125% up to 375px
@@ -631,10 +641,6 @@ export function MatchupFrame({
               </div>
               <div className="min-w-0 space-y-0.5">
                 {patchState ? <div className="@min-[44rem]/pickers:flex @min-[44rem]/pickers:justify-end">{patchState}</div> : null}
-                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 @min-[44rem]/pickers:justify-end">
-                  <HasteChoice haste={haste} onChange={(h) => set({ haste: h })} />
-                  <CopyLink href={lineupHref(shown)} />
-                </div>
                 {/* While a choice loads, what is loading takes the remembered line's place, at its height. */}
                 {loading ? (
                   <p className="flex min-h-11 items-center gap-2 text-sm text-fg-muted @min-[44rem]/pickers:min-h-7 @min-[44rem]/pickers:justify-end @min-[44rem]/pickers:text-xs" aria-hidden data-testid="matchup-loading">

@@ -13,7 +13,7 @@ import { HasteContext } from "./matchup-frame";
 */
 
 export function HasteLine({ basis }: { basis: HasteBasis }) {
-  const haste = React.useContext(HasteContext);
+  const { haste } = React.useContext(HasteContext);
   if (haste <= 0 || basis.mark === "none") return null;
   const lines = cooldownAtHaste(basis, haste);
   const value = lines.map((l) => `${l.form ? `${l.form}: ` : ""}${formatPerRank(l.seconds, "s")}`).join("; ");
