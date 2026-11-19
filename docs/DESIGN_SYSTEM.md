@@ -393,14 +393,14 @@ With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shel
       (centred in the height as the lineup is: `data-fills-height`), and a profile opened from
       outside it as its band, tabs and section. Leaderboards and Team Matches had theirs.
     - *The 12px floor* (UD.X5): `text-2xs` is 12px on desktops (lg), 11px on phones and tablets,
-      one token for every use (globals.css). The game cards of Match History and Team Matches keep
+      one token for every use (globals.css); uppercase labels (and `label-caps`) keep 11px. The game cards of Match History and Team Matches keep
       11px until S6b rebuilds them (`type-floor-later`, listed in `design-tokens.test.ts`); `text-4xs`
       stays for letters inside small tiles (initials, the ⓘ glyph).
   - **One look at every width (S2c).** `e2e/design-parity.spec.ts` renders the shared components
     (stat label, Panel, DataRow, a badge, Button, the current section tab, InfoTip's bubble, Select)
     at 375 and at 1440 and compares their font family, size in rem, weight, letter spacing in em,
-    colours, radius and border. Listed differences, the only ones allowed: the badge's and the
-    stat label's size (the 12px floor on desktops), and Select's size (16px on a touch screen, so iOS
+    colours, radius and border. Listed differences, the only ones allowed: the badge's size (the 12px
+    floor on desktops), and Select's size (16px on a touch screen, so iOS
     never zooms into the field; 14px with a mouse). Each later stage adds the components it creates.
   - **A page's controls in reach (PR 2b, 18 Nov 2026).** Once the row is pinned and the page's own
     toolbar has gone up under it, the page's compact copy of its controls shows at the row's end

@@ -28,7 +28,6 @@ const TARGETS: Target[] = [
 /** Differences DESIGN_SYSTEM.md lists, by component and property, each with its reason. */
 const LISTED: Record<string, Partial<Record<string, string>>> = {
   "badge (chip)": { sizeRem: "the 12px floor: text-2xs is 12px on desktops, 11px on phones (globals.css)" },
-  "stat label": { sizeRem: "the 12px floor: text-2xs is 12px on desktops, 11px on phones (globals.css)" },
   Select: { sizeRem: "a field's text is 16px on a touch screen, so iOS does not zoom into it (STANDARDS: fields); 14px with a mouse" },
 };
 

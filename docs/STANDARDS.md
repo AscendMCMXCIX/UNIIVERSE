@@ -102,7 +102,7 @@ Rank crests keep their own artwork and fallback colours (`rank-emblem.tsx`, `tie
 
 **Type.** Tailwind's scale from `text-xs` (12px) up, plus `text-2xs` (the smallest text:
 chips, badges, captions, column headings, labels; 11px on phones and tablets, 12px on desktops: the
-12px floor, globals.css), `text-4xs` (10px: letters inside small tiles,
+12px floor, globals.css; uppercase labels keep 11px), `text-4xs` (10px: letters inside small tiles,
 such as initials or a count, never running text), `text-md` (15px: a list row's primary value) and
 `text-figure` (28px: headline figures from `sm` up). Hierarchy comes from size and weight first:
 a page's title, a section's title (`text-xl`), a panel's title (`text-base` semibold); a headline

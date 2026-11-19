@@ -130,6 +130,14 @@ html {
   until S6b rebuilds them (raising their text alone would widen the cards at 1280 to 1440). Only on
   the elements design-tokens.test.ts lists, each with its reason.
 */
+/* Uppercase labels (column headings, eyebrows, label-caps) keep 11px at every width: the floor is for
+   running text and names, and a label's tracked capitals read at 11px (they set the width of a
+   table's headings, measured at 1024px). */
+.uppercase,
+.label-caps {
+  --text-2xs: 0.6875rem;
+}
+
 @utility type-floor-later {
   --text-2xs: 0.6875rem;
 }
