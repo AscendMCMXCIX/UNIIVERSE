@@ -65,12 +65,18 @@ export interface CompactRank {
  * teammate's, without "view teammates' statistics") is left out by the caller instead
  * (CardIdentity's showRank, the profile header's identity.showRank), so it is never read as Unranked.
  */
-/** `wrap`: the label wraps (a list row's line, which wraps rather than cuts) instead of ending in an ellipsis. */
+/**
+ * `wrap`: the label wraps (a list row's line, which wraps rather than cuts) instead of ending in an
+ * ellipsis. Where the label does not fit beside its crest (larger text in a narrow row) it goes
+ * under the crest whole, rather than being squeezed beside it to a few letters a line ("Platinum"
+ * broke there at 175% on a 320px phone), and breaks inside a word only where the word is wider than
+ * the whole line. Where the two fit, nothing moves.
+ */
 export function RankInline({ rank, className, showQueue = false, wrap = false }: { rank: CompactRank | null; className?: string; showQueue?: boolean; wrap?: boolean }) {
   const label = rank ? rankLabel(rank.tier, rank.division) : "Unranked";
   const queue = rank?.queue === "flex" ? "Flex" : rank?.queue === "solo" ? "Solo/Duo" : null;
   return (
-    <span className={cn("inline-flex min-w-0 items-center gap-1", className)} title={rank ? `${queue ? `Ranked ${queue}` : "Ranked"} · ${label} · ${rank.leaguePoints} LP (last known)` : "No ranked placement on record"} data-testid="rank-inline">
+    <span className={cn("inline-flex min-w-0 items-center gap-1", wrap && "flex-wrap gap-y-0.5", className)} title={rank ? `${queue ? `Ranked ${queue}` : "Ranked"} · ${label} · ${rank.leaguePoints} LP (last known)` : "No ranked placement on record"} data-testid="rank-inline">
       <RankEmblem tier={rank?.tier} className="h-4 w-4 shrink-0" />
       <span className={wrap ? "min-w-0 [overflow-wrap:anywhere]" : "truncate"}>{label}</span>
       {showQueue && queue ? <span className="shrink-0 text-fg-subtle">· {queue}</span> : null}

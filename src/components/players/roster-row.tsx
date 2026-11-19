@@ -63,6 +63,40 @@ export interface RosterRowProps {
 const ART: Record<NonNullable<RosterRowProps["screen"]>, string | null> = { any: "max-md:hidden", wide: "", phone: null };
 const LINKS: Record<NonNullable<RosterRowProps["screen"]>, string | null> = { any: "hidden md:@min-[20rem]/row:flex", wide: "hidden @min-[20rem]/row:flex", phone: null };
 
+/*
+  STACKED, larger text only (see RosterRow): a row under 9.625rem, where the text beside the picture
+  (its 2.5rem and the 0.625rem gap) would have less than 6.5rem. The row wraps: the picture alone on
+  the first line (no longer centred on two lines), the text under it. A row cannot query its own
+  width (it is that container), so these read the roster's: wherever the roster lays its rows one
+  across (under 38rem) a row is the roster's width less its 1.5rem of padding, so 11.125rem of
+  roster is 9.625rem of row; two across, a row is 17.5rem or more. A row drawn outside the roster
+  (the Card Studio's previews) keeps its one layout. Written out whole, for Tailwind to find them.
+*/
+const STACKED_ROW = "@max-[11.125rem]/roster:flex-wrap @max-[11.125rem]/roster:gap-y-1";
+
+/*
+  The "·" before the rank (or "No Riot account") shows where the two share a line with the role, and
+  never starts a line. Larger text wraps the rank under the role in a narrow row, where the line
+  started with the "·" ("· Emerald III" at 200% on a 320px phone; "· No Riot account"). The dot sits
+  between parts of the line (the role's icon, the rank's crest), not inside a run of words, so a
+  no-break space (Recent form's way) has nothing to hold it to; Records' way does it (records.tsx):
+  the role keeps the dot's room on its right (`before`), the rank's group gives it back on its left
+  (`group`), so beside the role nothing moves (the two cancel exactly, and the line wraps where it
+  did), and at the start of a line the dot and its gap sit past the line's clipped left edge
+  (`line`) while the crest or the words start at the edge. The room is the dot (0.289em of Inter at
+  the line's text size) and the 0.375rem gap after it. Only in a row under 16rem, read on the roster
+  as STACKED reads it (17.5rem of roster, its rows one across): a row on Players at the usual text
+  size is 16.375rem or more (a 320px phone's), where the longest role and rank ("Roles not set · No
+  Riot account", "· Grandmaster") fit beside each other with room to spare, and the clip alone would
+  change how the line's portraits are drawn there (by a shade). The roster, not the row: the Card
+  Studio's previews draw rows outside the roster, about 9rem wide at the usual size beside the
+  controls on a 320 × 480 screen (15rem at 480 × 320), and they keep their one layout, as with
+  STACKED.
+*/
+const SEPARATOR = { line: "@max-[17.5rem]/roster:overflow-x-clip", before: "@max-[17.5rem]/roster:mr-[calc(0.289em+0.375rem)]", group: "@max-[17.5rem]/roster:-ml-[calc(0.289em+0.375rem)]" };
+const STACKED_PICTURE = "@max-[11.125rem]/roster:h-auto";
+const STACKED_TEXT = "@max-[11.125rem]/roster:basis-full";
+
 /**
  * One player on the Players roster, the same row at every width (docs/MOBILE.md: a row per player
  * in one panel), 64px tall unless a name, a tagline or Riot's state needs another line:
@@ -81,7 +115,8 @@ const LINKS: Record<NonNullable<RosterRowProps["screen"]>, string | null> = { an
  *   Riot account" in its place without one; nothing where this viewer may not see it), then the pool
  *   as whole portraits with the rest counted (PoolPreview fit="count"). Larger text wraps this line
  *   rather than cutting it: the pool moves under the role and rank once it cannot keep a portrait
- *   and its count beside them;
+ *   and its count beside them, and the rank under the role, without its "·" (SEPARATOR), once it
+ *   cannot stay beside it;
  * - a last line only for Riot data that is not up to date (delayed and needs attention in their tone).
  * The row's content starts at its top, the picture centred on the first two lines, so rows side by
  * side, one taller than the other, keep their names and second lines level.
@@ -90,6 +125,13 @@ const LINKS: Record<NonNullable<RosterRowProps["screen"]>, string | null> = { an
  * off roles from 26rem; under 19.5rem (360px phones and narrower) the word "Off" gives its room to
  * the pool, and under 18rem (the smallest phones, or two rows side by side on a phone held sideways)
  * the chevron too.
+ * Larger text makes a row narrower in rem than at 100% on any phone (a 320px phone's row is 16.4rem
+ * at 100%, 9.75rem at 150%, 7.9rem at 175% and 6.4rem at 200%), and beside the picture's 3.1rem the
+ * text kept 3.3rem at 200% on a 320px phone: names ("Halfway"), "No Riot account" and the rank
+ * ("Emerald" over three lines) broke inside their words. So where the text beside the picture would
+ * have less than 6.5rem, which the longest rank with its crest takes ("· Grandmaster", 6.44rem) and
+ * an eight-letter name with its emblem ("Newcomer", 6.1rem), the picture takes the row's first line
+ * and the text the row's whole width under it (STACKED). Nothing changes at 100% text.
  * The whole row opens the profile through one link laid over it, named after the player, so the
  * social icons drawn above it stay links of their own.
  */
@@ -98,6 +140,8 @@ export function RosterRow({ look, art, name, avatarUrl, role, offRoles, offRoleS
   const status = !!lineupRole || setupPending || archived;
   const links = social.length > 0 && LINKS[screen] !== null;
   const riotNote = riot && riot.state !== "synced" && riot.state !== "none" ? riot : null;
+  // A "·" and the rank (or "No Riot account") follow the role on its line (SEPARATOR).
+  const separated = riot?.state === "none" || showRank;
   // The name's first line 2px down its 1.5rem line (where one line of it sits centred), so a name of two lines starts level with its neighbour's.
   const nameLine = (
     <span className={cn("flex min-h-6 items-start gap-1.5 pt-0.5", tagline ? "min-w-0 @max-[24rem]/row:min-w-[min(100%,6rem)] @max-[24rem]/row:basis-0 @max-[24rem]/row:grow" : "min-w-[min(100%,6rem)] basis-0 grow")}>
@@ -113,6 +157,7 @@ export function RosterRow({ look, art, name, avatarUrl, role, offRoles, offRoleS
     <li
       className={cn(
         "group/row @container/row relative isolate flex min-h-16 items-start gap-x-2.5 border-b border-r border-border/60 px-3 py-1 transition-colors duration-150",
+        STACKED_ROW,
         // Pressed: surface-3 as on every list row; on phones (no hover) surface-2, the pressed shade of the phone row checked on 5 Nov 2026.
         href && "hover:bg-surface-2 has-[[data-row-link]:active]:bg-surface-3 max-md:has-[[data-row-link]:active]:bg-surface-2",
         isYou && "bg-accent/5",
@@ -130,12 +175,12 @@ export function RosterRow({ look, art, name, avatarUrl, role, offRoles, offRoleS
           <span className="sr-only">{name}</span>
         </Link>
       ) : null}
-      {/* Centred on the first two lines (the name's 1.5rem, the gap, the second line's 1.75rem), wherever the row grows. */}
-      <span className="flex h-[3.375rem] shrink-0 items-center">
+      {/* Centred on the first two lines (the name's 1.5rem, the gap, the second line's 1.75rem), wherever the row grows; alone on the first line where the row is stacked. */}
+      <span className={cn("flex h-[3.375rem] shrink-0 items-center", STACKED_PICTURE)}>
         <CardAvatar look={look} name={name} src={avatarUrl} size="md" />
       </span>
-      {/* One wrapping line of parts: the name's line, then the second line and the last ones, each a whole line (basis-full). */}
-      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-1.5 gap-y-0.5">
+      {/* One wrapping line of parts: the name's line, then the second line and the last ones, each a whole line (basis-full). Under the picture, across the row, where the row is stacked. */}
+      <div className={cn("flex min-w-0 flex-1 flex-wrap items-center gap-x-1.5 gap-y-0.5", STACKED_TEXT)}>
         {tagline ? (
           // From 24rem the name and the tagline share one column that wraps inside itself, beside the
           // badges and links, so those stay at the end of the name's line: the tagline beside the
@@ -171,16 +216,16 @@ export function RosterRow({ look, art, name, avatarUrl, role, offRoles, offRoleS
             the narrowest rows), and only a part wider than a whole line wraps its own words. The pool
             keeps at least a portrait and its count (one portrait for a pool of one) and takes the rest
             of its line. */}
-        <span className="order-2 flex min-h-7 min-w-0 basis-full flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-fg-muted" data-testid="roster-meta">
-          <RoleCluster role={role} offRoles={offRoles} shown={offRoleShown} />
-          {/* Without a Riot account no rank was read, so none is claimed ("Unranked" means a check found no placement). */}
+        <span className={cn("order-2 flex min-h-7 min-w-0 basis-full flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-fg-muted", SEPARATOR.line)} data-testid="roster-meta">
+          <RoleCluster role={role} offRoles={offRoles} shown={offRoleShown} className={separated ? SEPARATOR.before : undefined} />
+          {/* Without a Riot account no rank was read, so none is claimed ("Unranked" means a check found no placement). Its "·" never starts a line (SEPARATOR). */}
           {riot?.state === "none" ? (
-            <span className="inline-flex min-w-0 items-center gap-x-1.5">
+            <span className={cn("inline-flex min-w-0 items-center gap-x-1.5", SEPARATOR.group)}>
               <Dot />
               <span className="min-w-0 text-fg-subtle [overflow-wrap:anywhere]">No Riot account</span>
             </span>
           ) : showRank ? (
-            <span className="inline-flex min-w-0 items-center gap-x-1.5">
+            <span className={cn("inline-flex min-w-0 items-center gap-x-1.5", SEPARATOR.group)}>
               <Dot />
               <RankInline rank={rank} wrap />
             </span>
@@ -213,15 +258,15 @@ function Dot() {
  * alone under 19.5rem) or the other off roles as quiet icons from 26rem, always read out. "Roles not
  * set" for a member who has chosen none.
  */
-function RoleCluster({ role, offRoles, shown }: { role: Role | null; offRoles: readonly Role[]; shown: Role | null }) {
+function RoleCluster({ role, offRoles, shown, className }: { role: Role | null; offRoles: readonly Role[]; shown: Role | null; className?: string }) {
   if (!role)
     return (
-      <span className="min-w-0 text-fg-subtle [overflow-wrap:anywhere]" data-testid="directory-no-roles">
+      <span className={cn("min-w-0 text-fg-subtle [overflow-wrap:anywhere]", className)} data-testid="directory-no-roles">
         Roles not set
       </span>
     );
   return (
-    <span className="flex shrink-0 items-center gap-1.5" data-testid="roster-roles" data-role={role}>
+    <span className={cn("flex shrink-0 items-center gap-1.5", className)} data-testid="roster-roles" data-role={role}>
       <span className="inline-flex items-center gap-1">
         <span style={{ color: "var(--card-accent)" }} className="inline-flex">
           <RoleIcon role={role} className="h-3.5 w-3.5" decorative />

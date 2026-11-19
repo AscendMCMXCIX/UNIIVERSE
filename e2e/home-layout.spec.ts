@@ -17,7 +17,8 @@ test.beforeEach(async ({ context, baseURL }) => {
   await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
 });
 
-const overflow = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+// Against the layout viewport's width: a phone's (isMobile) window grows with what spills past it, so innerWidth would hide it.
+const overflow = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
 /** An element's box once it is on screen (measuring before it renders gives no box). */
 async function box(locator: Locator) {
   await expect(locator).toBeVisible();
@@ -236,7 +237,9 @@ test("profile Overview: a 2×2 dashboard at 1440 (the season beside recent form,
 // A pool's figures never shrink below their text (shrunk to a few pixels they read as one wrong
 // number) and stay under their column names, which keep to one line; on the narrowest phone a row
 // keeps the figures beside the name; while editing, a phone's list gives their room to the grip and
-// ×; with larger text they wrap under the name rather than squeeze.
+// ×; with larger text they wrap under the name rather than squeeze, the column names likewise under
+// "Champion"; and where the list is too narrow for the columns at all (under 8.5rem, 175% and 200%
+// text on a 320px phone), each figure names itself in words instead of being cut.
 test("profile pools on a phone: every figure whole and under its column, editing and larger text included", async ({ page }, info) => {
   test.skip(info.project.name !== "phone", "phone widths, set below");
   await openTeammate(page);
@@ -244,18 +247,30 @@ test("profile pools on a phone: every figure whole and under its column, editing
   const facts = () =>
     pool.evaluate((el) => {
       const shown = (e: Element) => e.checkVisibility();
+      /** Read out only: an sr-only label while it is hidden (under 8.5rem a figure's label is shown). */
+      const readOutOnly = (e: Element) => {
+        const label = e.closest(".sr-only");
+        return !!label && getComputedStyle(label).position === "absolute";
+      };
       /** The boxes of an element's visible text, line by line (not its read-out-only label). */
       const textBoxes = (e: Element) => {
         const boxes: DOMRect[] = [];
         const walk = document.createTreeWalker(e, NodeFilter.SHOW_TEXT);
         for (let n = walk.nextNode(); n; n = walk.nextNode()) {
           const parent = n.parentElement!;
-          if (!n.textContent?.trim() || parent.closest(".sr-only") || !parent.checkVisibility()) continue;
+          if (!n.textContent?.trim() || readOutOnly(parent) || !parent.checkVisibility()) continue;
           const range = document.createRange();
           range.selectNodeContents(n);
           boxes.push(...[...range.getClientRects()].filter((r) => r.width > 0));
         }
         return boxes;
+      };
+      /** An element's text as it reads on screen (without its read-out-only label). */
+      const visibleText = (e: Element) => {
+        let text = "";
+        const walk = document.createTreeWalker(e, NodeFilter.SHOW_TEXT);
+        for (let n = walk.nextNode(); n; n = walk.nextNode()) if (!readOutOnly(n.parentElement!) && n.parentElement!.checkVisibility()) text += n.textContent;
+        return text.replace(/\s+/g, " ").trim();
       };
       const extent = (boxes: DOMRect[]) => (boxes.length ? { left: Math.min(...boxes.map((b) => b.left)), right: Math.max(...boxes.map((b) => b.right)) } : null);
       // A figure is cut when its text is wider than its cell, by any fraction ("Perfect" was 0.9px
@@ -277,9 +292,10 @@ test("profile pools on a phone: every figure whole and under its column, editing
       const spans = names.flatMap((c) => {
         const text = extent(textBoxes(c));
         const clips = getComputedStyle(c).overflowX !== "visible";
-        return text ? [{ name: c.textContent?.trim() ?? "", left: text.left, right: clips ? Math.min(text.right, c.getBoundingClientRect().right) : text.right }] : [];
+        return text ? [{ name: c.textContent?.trim() ?? "", left: text.left, right: clips ? Math.min(text.right, c.getBoundingClientRect().right) : text.right, top: textBoxes(c)[0]!.top }] : [];
       });
-      const overlaps = spans.slice(1).flatMap((s, i) => (s.left < spans[i]!.right - 0.5 ? [`${spans[i]!.name} / ${s.name}`] : []));
+      // On the same line (with larger text the figures' names wrap under "Champion").
+      const overlaps = spans.slice(1).flatMap((s, i) => (s.left < spans[i]!.right - 0.5 && Math.abs(s.top - spans[i]!.top) < 2 ? [`${spans[i]!.name} / ${s.name}`] : []));
       const withGames = [...el.querySelectorAll("[data-testid=pool-item] [data-testid=pool-card-stats]")].find((s) => s.children.length >= 3) ?? null;
       // "Perfect" (no demo champion has a perfect KDA): a hidden copy of a KDA cell holding it, a
       // size smaller under 24rem as PoolRowStats writes it, measured whole against the cell.
@@ -294,6 +310,20 @@ test("profile pools on a phone: every figure whole and under its column, editing
         perfect = { need: probe.getBoundingClientRect().width, room: kda.getBoundingClientRect().width };
         probe.remove();
       }
+      // The list's width in rem (its container: under 8.5rem the figures name themselves); figures
+      // past a row's padding edge (overflow-hidden rows clipped the KDA column there); the column
+      // names past the list; "Champion" cut short; and a row's figures as they read on screen.
+      const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+      const list = columns?.parentElement ?? el;
+      const pastRow = [...el.querySelectorAll("[data-testid=pool-item]")].flatMap((li) => {
+        const stats = li.querySelector("[data-testid=pool-card-stats]");
+        if (!stats || !shown(stats)) return [];
+        const edge = li.getBoundingClientRect().right - parseFloat(getComputedStyle(li).borderRightWidth) - parseFloat(getComputedStyle(li).paddingRight);
+        const past = stats.getBoundingClientRect().right - edge;
+        return past > 0.5 ? [`${li.getAttribute("data-champion")} ${Math.round(past)}px`] : [];
+      });
+      const champion = columns?.children[1];
+      const championText = champion && shown(champion) ? extent(textBoxes(champion)) : null;
       return {
         cut,
         head: centres(headStats),
@@ -302,7 +332,13 @@ test("profile pools on a phone: every figure whole and under its column, editing
         overlaps,
         perfect,
         rowHeights: [...el.querySelectorAll("[data-testid=pool-item]")].map((li) => Math.round(li.getBoundingClientRect().height)),
-        overflow: document.documentElement.scrollWidth - innerWidth,
+        overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        listRem: list.getBoundingClientRect().width / rem,
+        headShown: !!columns && shown(columns),
+        headPast: columns && shown(columns) ? columns.scrollWidth - columns.clientWidth : 0,
+        championCut: !!championText && championText.right - championText.left > champion!.getBoundingClientRect().width + 0.25,
+        pastRow,
+        worded: withGames ? [...withGames.children].filter(shown).map(visibleText) : [],
       };
     });
   for (const width of [320, 360, 390, 430]) {
@@ -326,6 +362,33 @@ test("profile pools on a phone: every figure whole and under its column, editing
   await page.evaluate(() => { document.documentElement.style.fontSize = "125%"; });
   await expect.poll(async () => (await facts()).cut, "125% text: nothing cut").toEqual([]);
   expect((await facts()).overflow, "125% text: no sideways page scroll").toBeLessThanOrEqual(1);
+  // Larger text still. From 125% on a 320px phone the column names wrap under "Champion", whole,
+  // over the figures (which wrap under the name the same way); where the list is narrower than
+  // 8.5rem (175% and 200% on 320, 200% on 375) a row has no room for the columns at all (at 200% on
+  // 320 the KDA column was cut and the names ran 100px past the list): the column names step aside
+  // and each figure names itself in words. Nothing cut, nothing past its row, no sideways scroll.
+  for (const [width, root] of [[320, 125], [320, 150], [393, 175], [320, 175], [320, 200], [375, 200], [393, 200]] as const) {
+    await page.setViewportSize({ width, height: 800 });
+    await page.evaluate((r) => { document.documentElement.style.fontSize = `${r}%`; }, root);
+    const at = `${width}px at ${root}%`;
+    await expect.poll(async () => (await facts()).cut, `${at}: nothing cut`).toEqual([]);
+    const f = await facts();
+    expect(f.overflow, `${at}: no sideways page scroll`).toBeLessThanOrEqual(1);
+    expect(f.pastRow, `${at}: every row's figures inside the row`).toEqual([]);
+    expect(f.row.length, `${at}: a row's figures measured`).toBeGreaterThanOrEqual(3);
+    if (f.listRem < 8.5) {
+      expect(f.headShown, `${at} (list ${f.listRem.toFixed(2)}rem): the column names step aside`).toBe(false);
+      expect(f.worded.slice(0, 3), `${at}: each figure named in words`).toEqual([expect.stringMatching(/^Games?: \S/), expect.stringMatching(/^Win rate: \S/), expect.stringMatching(/^KDA: \S/)]);
+    } else {
+      expect(f.headShown, `${at} (list ${f.listRem.toFixed(2)}rem): the column names shown`).toBe(true);
+      expect(f.headPast, `${at}: the column names inside the list`).toBeLessThanOrEqual(1);
+      expect(f.championCut, `${at}: "Champion" whole`).toBe(false);
+      for (const n of f.nameLines) expect(n.lines, `${at}: "${n.name}" on one line`).toBe(1);
+      expect(f.overlaps, `${at}: no column name runs into the next`).toEqual([]);
+      f.row.forEach((x, i) => expect(Math.abs(x - f.head[i]!), `${at}: figure ${i + 1} under its column name`).toBeLessThanOrEqual(3));
+      expect(f.worded.every((w) => /^([\d—]|Perfect)/.test(w)), `${at}: figures alone under their names (${f.worded.join(" | ")})`).toBe(true);
+    }
+  }
   await page.evaluate(() => { document.documentElement.style.fontSize = ""; });
   // Editing at 390 (nothing is saved): the figures and their column names step aside for the grip
   // and ×, nothing cut; Done brings them back.
@@ -342,6 +405,33 @@ test("profile pools on a phone: every figure whole and under its column, editing
   await edit.click();
   await expect(edit).toHaveText(/Edit/);
   await expect(pool.getByTestId("pool-card-stats").first()).toBeVisible();
+});
+
+// With larger text a profile's Overview stays as wide as the phone. Recent form's twenty bars share
+// their card's width with no floor: one in rem grew with the text and ran them up to 61px past the
+// card and the screen at 200% on 320px (the pools' column names ran past it too, above).
+test("at 150% to 200% text on 320, 375 and 393px phones, a profile's Overview is no wider than the phone, Recent form's bars inside their card", async ({ page }, info) => {
+  test.skip(info.project.name !== "phone", "phone widths, set below");
+  await openTeammate(page);
+  await expect(page.getByTestId("recent-form-strip")).toBeVisible();
+  for (const width of [320, 375, 393]) {
+    await page.setViewportSize({ width, height: 800 });
+    for (const root of [150, 175, 200]) {
+      await page.evaluate((r) => { document.documentElement.style.fontSize = `${r}%`; }, root);
+      const at = `${width}px at ${root}%`;
+      await expect.poll(() => overflow(page), `${at}: no sideways page scroll`).toBeLessThanOrEqual(1);
+      const strip = await page.getByTestId("recent-form").evaluate((card) => {
+        const cs = getComputedStyle(card);
+        const inner = card.getBoundingClientRect().right - parseFloat(cs.borderRightWidth) - parseFloat(cs.paddingRight);
+        const bars = [...card.querySelectorAll("[data-testid=recent-form-strip] [data-result]")].map((b) => b.getBoundingClientRect());
+        return { count: bars.length, past: Math.max(...bars.map((b) => b.right)) - inner, narrowest: Math.min(...bars.map((b) => b.width)) };
+      });
+      expect(strip.count, `${at}: the bars measured`).toBeGreaterThanOrEqual(5);
+      expect(strip.past, `${at}: the newest bar inside the card`).toBeLessThanOrEqual(0.5);
+      expect(strip.narrowest, `${at}: every bar still a bar`).toBeGreaterThanOrEqual(4);
+    }
+  }
+  await page.evaluate(() => { document.documentElement.style.fontSize = ""; });
 });
 
 // Without recent form (one champion's games, too few for it), ranked progress spans the rail's two

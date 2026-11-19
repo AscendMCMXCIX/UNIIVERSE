@@ -95,13 +95,38 @@ export function RecentLeaderboards({ view, champions, status }: { view: RecentLe
             · bar and win rate · record · gap.
     wide    place · picture · name · bar and win rate · record · gap · main role · dates. The name
             stops at 18rem; the bar takes the rest.
+  With large text a narrow board is narrower in rem than on any phone at 100% (a 320px phone's is
+  17.9rem at 100%, 13.9rem at 125%, 11.25rem at 150% and 7.9rem at 200%), and beside the place,
+  the picture and the win rate the name kept a few letters a line, one at 175% and 200%. So the
+  row reflows there (nothing changes at 100%):
+    under 17.5rem  the record and the dates take a line each, without the "·" between them, which
+                   would end the first (together they take up to 9.8rem; a 320px phone's line has
+                   10.6rem at 100%, a 375px phone's 9.4rem at 125%);
+    under 16.5rem  the win rate takes a line of its own under the name, so the name has the text
+                   column's whole width (6.25rem or more; beside a win rate it had about 6rem at
+                   16.5rem);
+    under 13.5rem  the place and the picture take the first line, and the name, the win rate and
+                   the second line take the row's whole width under them (6.4rem at 200% on a
+                   320px phone). The tie bracket steps aside, since the names run under it; the
+                   "=" still says the tie.
+  Names wrap only between their words there, and nothing is cut (the gap, "1 win behind", ran 32px
+  past the board at 200% on a 320px phone). In your own row "You" drops under your name where your
+  name's longest word would not fit beside it (MemberCell's youWraps: below 36rem, so at 100% too,
+  where a 320px phone's line broke a name of 9 letters or more), and stays beside it where it fits.
+  An inline "·" (the captions, the "Not enough recent games" rows) is held to the words either side
+  of it by no-break spaces, so it never ends or starts a line.
 */
 const FORM_COLS =
-  "[--dl-cols:2rem_2.5rem_minmax(0,1fr)_auto] " +
+  "[--dl-cols:2rem_2.5rem_minmax(0,1fr)_auto] @max-[16.5rem]/list:[--dl-cols:2rem_2.5rem_minmax(0,1fr)] " +
   "@min-[36rem]/list:[--dl-cols:2.5rem_2.5rem_minmax(6.5rem,1fr)_minmax(8rem,1fr)_4rem_6.5rem] " +
   "@min-[58rem]/list:[--dl-cols:3rem_2.5rem_minmax(9rem,18rem)_minmax(9rem,1fr)_4rem_9.5rem_5.5rem_7rem]";
-/** A cell beside both of a row's lines below 58rem, on its one line from 58rem. */
-const BOTH_LINES = "row-[1/span_2] self-center @min-[58rem]/list:row-[1/2]";
+/**
+ * A cell beside all of a row's lines below 58rem (two, three under 16.5rem), on its one line from
+ * 58rem; on the first line, over the rest, under 13.5rem (FORM_COLS).
+ */
+const BESIDE_LINES = "row-[1/span_2] self-center @max-[16.5rem]/list:row-[1/span_3] @max-[13.5rem]/list:row-[1/2] @min-[58rem]/list:row-[1/2]";
+/** A cell across the text column, the row's whole width under 13.5rem (FORM_COLS). */
+const ACROSS_TEXT = "col-[3/-1] @max-[13.5rem]/list:col-[1/-1]";
 
 const HEADS = (
   <>
@@ -157,7 +182,7 @@ export function RecentForm({ form, player, viewer }: { form: FormView; player: (
             className="@max-[36rem]/list:divide-y-0"
             caption={
               <>
-                <span className="font-semibold text-fg">Provisional</span> · {form.window.provisionalFrom} to {form.window.games - 1} recent games, listed after every full window
+                <span className="font-semibold text-fg">Provisional</span>&nbsp;·&nbsp;{form.window.provisionalFrom} to {form.window.games - 1} recent games, listed after every full window
               </>
             }
           >
@@ -176,7 +201,7 @@ export function RecentForm({ form, player, viewer }: { form: FormView; player: (
             className="[--dl-cols:2rem_2.5rem_minmax(0,1fr)] @min-[36rem]/list:flex @min-[36rem]/list:flex-wrap @min-[36rem]/list:gap-2 @min-[36rem]/list:divide-y-0 @min-[36rem]/list:px-3 @min-[36rem]/list:py-3 @min-[58rem]/list:px-4"
             caption={
               <>
-                <span className="font-semibold text-fg">Not enough recent games</span> · {form.window.provisionalFrom} needed in the last {form.window.days} days
+                <span className="font-semibold text-fg">Not enough recent games</span>&nbsp;·&nbsp;{form.window.provisionalFrom} needed in the last {form.window.days} days
               </>
             }
           >
@@ -232,8 +257,8 @@ function FormRowItem({ r, p, tie, window }: { r: FormRow; p: BoardPlayer; tie: T
       density={{ narrow: "two-line", medium: "regular", wide: "dense" }}
       lead={
         <>
-          <Place place={r.place} tie={tie} crown={leader} testId="form-place" className={cn("col-[1/2]", BOTH_LINES)} />
-          <CardAvatar look={p.look} name={p.name} src={p.avatarUrl} size="md" className={cn("col-[2/3] justify-self-start", BOTH_LINES)} />
+          <Place place={r.place} tie={tie} crown={leader} testId="form-place" className={cn("col-[1/2]", BESIDE_LINES)} bracketClassName="@max-[13.5rem]/list:hidden" />
+          <CardAvatar look={p.look} name={p.name} src={p.avatarUrl} size="md" className={cn("col-[2/3] justify-self-start", BESIDE_LINES)} />
         </>
       }
       // The row's tooltip, shown anywhere on it (under the link no cell's own title shows): the tie, the gap's sentence, the role's games.
@@ -247,17 +272,19 @@ function FormRowItem({ r, p, tie, window }: { r: FormRow; p: BoardPlayer; tie: T
       }
       figures={
         <>
-          <QuietBar value={r.wins} segments={window.games} known={r.games} variant="row" testId="form-bar" className="col-[3/-1] @min-[36rem]/list:col-[4/5] @min-[36rem]/list:row-[1/span_2] @min-[36rem]/list:mr-12 @min-[36rem]/list:self-center @min-[58rem]/list:row-[1/2]" />
-          <FigureCell testId="form-win-rate" size="lg" emphasis="strong" label=" win rate" className="col-[4/5] row-[1/2] @min-[36rem]/list:row-[1/span_2] @min-[36rem]/list:min-w-10 @min-[36rem]/list:self-center @min-[36rem]/list:justify-self-end @min-[36rem]/list:text-base @min-[58rem]/list:row-[1/2]">
+          <QuietBar value={r.wins} segments={window.games} known={r.games} variant="row" testId="form-bar" className={cn(ACROSS_TEXT, "@min-[36rem]/list:col-[4/5] @min-[36rem]/list:row-[1/span_2] @min-[36rem]/list:mr-12 @min-[36rem]/list:self-center @min-[58rem]/list:row-[1/2]")} />
+          <FigureCell testId="form-win-rate" size="lg" emphasis="strong" label=" win rate" className="col-[4/5] row-[1/2] @max-[16.5rem]/list:col-[3/-1] @max-[16.5rem]/list:row-[2/3] @max-[16.5rem]/list:text-left @max-[13.5rem]/list:col-[1/-1] @max-[13.5rem]/list:row-[3/4] @min-[36rem]/list:row-[1/span_2] @min-[36rem]/list:min-w-10 @min-[36rem]/list:self-center @min-[36rem]/list:justify-self-end @min-[36rem]/list:text-base @min-[58rem]/list:row-[1/2]">
             {r.winRate}%
           </FigureCell>
           {/* The second line under 36rem; from 36rem its cells are the row's own (display: contents), still in its small muted text.
-              Under 36rem its parts may wrap inside (only one wider than the whole line does, with large text), so none runs past the board's edge. */}
-          <span data-testid="form-meta" className="col-[3/-1] row-[2/3] flex min-w-0 flex-wrap items-center gap-x-1 gap-y-0.5 text-xs tabular-nums text-fg-muted @min-[36rem]/list:contents">
-            <FigureCell testId="form-record" spoken={`${r.wins} wins, ${r.losses} losses`} size={null} align="start" className="@min-[36rem]/list:col-[5/6] @min-[36rem]/list:row-[1/span_2] @min-[36rem]/list:self-center @min-[36rem]/list:whitespace-nowrap @min-[36rem]/list:text-right @min-[36rem]/list:text-sm @min-[58rem]/list:row-[1/2]">
+              Under 36rem its parts may wrap inside (only one wider than the whole line does, with large text), so none runs past the board's edge.
+              Under 17.5rem (large text), where the record and the dates may not fit one line, they take a line each and the "·"
+              between them steps aside, so no line ends with one (FORM_COLS). */}
+          <span data-testid="form-meta" className={cn(ACROSS_TEXT, "row-[2/3] @max-[16.5rem]/list:row-[3/4] @max-[13.5rem]/list:row-[4/5] flex min-w-0 flex-wrap items-center gap-x-1 gap-y-0.5 text-xs tabular-nums text-fg-muted @min-[36rem]/list:contents")}>
+            <FigureCell testId="form-record" spoken={`${r.wins} wins, ${r.losses} losses`} size={null} align="start" className="@max-[17.5rem]/list:basis-full @min-[36rem]/list:col-[5/6] @min-[36rem]/list:row-[1/span_2] @min-[36rem]/list:self-center @min-[36rem]/list:whitespace-nowrap @min-[36rem]/list:text-right @min-[36rem]/list:text-sm @min-[58rem]/list:row-[1/2]">
               {r.wins}W {r.losses}L
             </FigureCell>
-            <span aria-hidden className="@min-[36rem]/list:hidden">
+            <span aria-hidden className="@max-[17.5rem]/list:hidden @min-[36rem]/list:hidden">
               ·
             </span>
             <span data-testid="form-dates" className="@min-[36rem]/list:col-[3/4] @min-[36rem]/list:row-[2/3] @min-[36rem]/list:self-start @min-[36rem]/list:whitespace-nowrap @min-[58rem]/list:col-[8/9] @min-[58rem]/list:row-[1/2] @min-[58rem]/list:self-center @min-[58rem]/list:text-right @min-[58rem]/list:text-sm">
@@ -288,7 +315,7 @@ function FormRowItem({ r, p, tie, window }: { r: FormRow; p: BoardPlayer; tie: T
             data-testid="form-role"
             title={roleTitle}
             className={cn(
-              r.role ? "absolute col-[2/3] -right-1 bottom-[calc(50%-1.5rem)] grid size-4.5 place-items-center rounded-full bg-surface-3 text-fg-muted ring-2 ring-surface [&>[data-role-icon]]:size-2.5 @min-[58rem]/list:[&>[data-role-icon]]:size-3.5" : "sr-only @min-[58rem]/list:not-sr-only",
+              r.role ? "absolute col-[2/3] -right-1 bottom-[calc(50%-1.5rem)] @max-[13.5rem]/list:row-[1/2] grid size-4.5 place-items-center rounded-full bg-surface-3 text-fg-muted ring-2 ring-surface [&>[data-role-icon]]:size-2.5 @min-[58rem]/list:[&>[data-role-icon]]:size-3.5" : "sr-only @min-[58rem]/list:not-sr-only",
               "@min-[58rem]/list:static @min-[58rem]/list:col-[7/8] @min-[58rem]/list:row-[1/2] @min-[58rem]/list:flex @min-[58rem]/list:size-auto @min-[58rem]/list:min-w-0 @min-[58rem]/list:items-center @min-[58rem]/list:gap-1.5 @min-[58rem]/list:rounded-none @min-[58rem]/list:bg-transparent @min-[58rem]/list:text-sm @min-[58rem]/list:ring-0",
             )}
           >
@@ -313,7 +340,7 @@ function FormRowItem({ r, p, tie, window }: { r: FormRow; p: BoardPlayer; tie: T
         </>
       }
     >
-      <MemberCell look={p.look} name={p.name} avatar={false} you={r.you} readName={!p.profileHref} nameTestId="board-member-name" nameClassName="text-md leading-snug @min-[36rem]/list:text-sm" className="col-[3/4] row-[1/2] @min-[36rem]/list:self-end @min-[58rem]/list:self-center" />
+      <MemberCell look={p.look} name={p.name} avatar={false} you={r.you} youWraps readName={!p.profileHref} nameTestId="board-member-name" nameClassName="text-md leading-snug @min-[36rem]/list:text-sm" className="col-[3/4] row-[1/2] @max-[13.5rem]/list:col-[1/-1] @max-[13.5rem]/list:row-[2/3] @min-[36rem]/list:self-end @min-[58rem]/list:self-center" />
     </DataRow>
   );
 }
@@ -322,7 +349,9 @@ function FormRowItem({ r, p, tie, window }: { r: FormRow; p: BoardPlayer; tie: T
  * A member without enough recent games, in the board's last group: a row on a narrow board (the
  * place column says "–": they have none), a chip from 36rem. With their picture and name as their
  * card shows them, the games they still need and their last game, and, for members, the way to
- * their profile. Not a DataRow: as a chip it drops the row's padding and height.
+ * their profile. Not a DataRow: as a chip it drops the row's padding and height. Under 13.5rem
+ * (large text) the "–" and the picture take the first line and the rest the row's whole width under
+ * them, as on the ranked rows (FORM_COLS).
  */
 function NotEnoughMember({ n, p, you }: { n: FormView["notEnough"][number]; p: BoardPlayer; you: boolean }) {
   return (
@@ -349,11 +378,12 @@ function NotEnoughMember({ n, p, you }: { n: FormView["notEnough"][number]; p: B
           {p.name}
         </RowLink>
       ) : null}
-      <span className="flex min-w-0 flex-col @min-[36rem]/list:flex-row @min-[36rem]/list:flex-wrap @min-[36rem]/list:items-baseline @min-[36rem]/list:gap-x-2">
-        <MemberCell look={p.look} name={p.name} avatar={false} you={you} readName={!p.profileHref} nameClassName="text-md leading-snug @min-[36rem]/list:text-sm" />
+      <span className="flex min-w-0 flex-col @max-[13.5rem]/list:col-[1/-1] @max-[13.5rem]/list:row-[2/3] @max-[13.5rem]/list:mt-0.5 @min-[36rem]/list:flex-row @min-[36rem]/list:flex-wrap @min-[36rem]/list:items-baseline @min-[36rem]/list:gap-x-2">
+        <MemberCell look={p.look} name={p.name} avatar={false} you={you} youWraps readName={!p.profileHref} nameClassName="text-md leading-snug @min-[36rem]/list:text-sm" />
+        {/* The "·" between the games needed and the last game held to both by no-break spaces (FORM_COLS): with large text it ended or started a line. */}
         <span className="text-xs text-fg-muted">
           Needs {n.needed} more game{n.needed === 1 ? "" : "s"}
-          <span aria-hidden> · </span>
+          <span aria-hidden>&nbsp;·&nbsp;</span>
           <span className="sr-only">, </span>
           {n.lastGame ? `last game ${n.lastGame}` : "no games yet"}
         </span>
