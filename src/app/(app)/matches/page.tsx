@@ -51,7 +51,7 @@ export default async function MatchesPage({ searchParams }: { searchParams: Prom
 
 /** What the games on this page prove and do not prove: the detail behind (i) beside the summary. */
 const TOGETHER_CAVEAT =
-  "Riot games in which two or more team members were on the same team, found in their synced match histories (no extra Riot requests). Riot's match data does not say who queued together, so these are games played together, not confirmed premade parties. Several linked accounts of one player count as one member; members on opposite sides are never counted as teammates. From Season 2026 on.";
+  "Games where two or more members were on the same team, from Season 2026. Riot doesn't say who queued together, so not necessarily a party.";
 
 /**
  * Games with two or more members that this page cannot list (which side each member was on is not
@@ -59,8 +59,8 @@ const TOGETHER_CAVEAT =
  */
 function leftOutNotes(data: Pick<PlayedTogether, "unknownSide" | "unavailableSide">): string[] {
   const notes: string[] = [];
-  if (data.unknownSide) notes.push("Some games with two or more members could not be checked yet: their match details are not stored, so which side each member was on is unknown. They appear once the details are synced.");
-  if (data.unavailableSide) notes.push(`${data.unavailableSide} game${data.unavailableSide === 1 ? "" : "s"} with two or more members ${data.unavailableSide === 1 ? "is" : "are"} left out: Riot no longer provides the record, so which side each member was on cannot be known. The results still count on the members' profiles.`);
+  if (data.unknownSide) notes.push("Some games aren't shown yet: they appear once their details load.");
+  if (data.unavailableSide) notes.push(`${data.unavailableSide} older game${data.unavailableSide === 1 ? "" : "s"} can't be shown: Riot no longer has ${data.unavailableSide === 1 ? "its" : "their"} details (the results still count on profiles).`);
   return notes;
 }
 

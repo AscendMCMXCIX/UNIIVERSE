@@ -14,7 +14,8 @@ import { FreshnessWatcher } from "@/components/ui/freshness-watcher";
 export const dynamic = "force-dynamic";
 
 /** TEAM: the current main lineup as an esports roster. Everyone else is under Players; settings under Admin. */
-export default async function TeamPage() {
+export default async function TeamPage({ searchParams }: { searchParams: Promise<{ player?: string | string[] }> }) {
+  const player = (await searchParams).player;
   const db = await getAppDb();
   const [team, session] = await Promise.all([getOrCreateTeam(db), requirePageAccess("view-team")]);
   // Statistics follow the profile's rule (own always, teammates with "view teammates' statistics"),
@@ -27,7 +28,7 @@ export default async function TeamPage() {
     <div className="mx-auto flex w-full max-w-[var(--content-wide)] flex-col lg:flex-1">
       {/* New games, ranks and lineup changes appear without a reload. */}
       <FreshnessWatcher scope={{ kind: "team" }} version={version} />
-      <TeamRoster team={{ name: branding.teamName, shortName: branding.shortName, logo: logoSrc(branding), logoStill: logoStillSrc(branding) }} slots={roster.slots} complete={roster.complete} champions={champions} canManageLineup={hasPermission(session, "manage-lineup")} canViewPlayers={hasPermission(session, "view-players")} editablePlayerIds={editablePlayerIds} viewerPlayerId={session.playerId} />
+      <TeamRoster initialPlayer={typeof player === "string" ? player : null} team={{ name: branding.teamName, shortName: branding.shortName, logo: logoSrc(branding), logoStill: logoStillSrc(branding) }} slots={roster.slots} complete={roster.complete} champions={champions} canManageLineup={hasPermission(session, "manage-lineup")} canViewPlayers={hasPermission(session, "view-players")} editablePlayerIds={editablePlayerIds} viewerPlayerId={session.playerId} />
     </div>
   );
 }

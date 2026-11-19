@@ -1,5 +1,6 @@
 "use client";
 
+import { standoutText } from "@/lib/tip-words";
 import * as React from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -139,7 +140,7 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
   const members = membersIn(row.teams);
   const roleName = row.role ? ROLE_LABELS[row.role as Role] : null;
   const standout = row.standout;
-  const standoutTitle = standout ? `Your highest ${standout.label} in your last ${standout.games} ${QUEUE_GROUP_WORDS[queueGroup(row.queueId)]} games${roleName ? ` as ${roleName}` : ""}: ${figureText(standout.key, standout.value)} (the highest before: ${figureText(standout.key, standout.top)})` : undefined;
+  const standoutTitle = standout ? standoutText({ label: standout.label, games: standout.games, queue: QUEUE_GROUP_WORDS[queueGroup(row.queueId)], role: roleName, value: figureText(standout.key, standout.value), top: figureText(standout.key, standout.top) }) : undefined;
   /** "Best vision/min in 22": one chip, with the figures on every card (under them on wide cards, in their row on narrow ones); under 16rem (a large text size) it wraps between its words rather than be cut. */
   const standoutChip = (className: string) =>
     standout ? (

@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeftRight, ArrowUpFromLine, Check, ChevronLeft, ChevronRight, Pencil, Repeat2, Undo2, UserPlus, Users, X } from "lucide-react";
+import { ArrowLeftRight, ArrowUpFromLine, Check, ChevronRight, Pencil, Repeat2, Undo2, UserPlus, Users, X } from "lucide-react";
 import type { Role } from "@/domain/roles";
 import type { RosterSlot, RosterSubstitute } from "@/server/team/roster";
 import { ACCENT_COLOR } from "@/domain/player-card";
@@ -19,6 +19,7 @@ import { CardArtLayer } from "@/components/players/card-art";
 import { CustomiseCardButton } from "@/components/players/customise-card-button";
 import { CardIdentity, CardPerformance, CardPool, CardRoleChip, PoolChampionTile, PoolColumnNames } from "@/components/players/player-card";
 import { BELOW_CONTROLS, DetailModal } from "@/components/ui/detail-modal";
+import { Peek, usePeek } from "@/components/ui/peek";
 import { InfoTip } from "@/components/ui/info-tip";
 import { BrandMark } from "@/components/brand-mark";
 import { toast } from "@/components/ui/toast";
@@ -128,7 +129,7 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
         // The whole card opens the detail panel; the controls are drawn above this button. On the
         // back, the whole card opens the substitute's details (the card stays turned); only the
         // turn control, or Escape, turns it back to the starter.
-        <button type="button" onClick={onOpen} className="absolute inset-0 z-[1] rounded-card focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent" aria-label={`${p.name}, ${slot.roleLabel}${bench ? " substitute" : ""}: ${p.statsVisible ? "champions and statistics" : "champion pool"}`} aria-haspopup="dialog" aria-expanded={selected} data-testid="open-player-detail" />
+        <button type="button" onClick={onOpen} className="absolute inset-0 z-[1] rounded-card focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent" aria-label={`${p.name}, ${slot.roleLabel}${bench ? " substitute" : ""}: ${p.statsVisible ? "champions and statistics" : "champion pool"}`} aria-haspopup="dialog" aria-expanded={selected} data-peek-row={p.id} data-testid="open-player-detail" />
       ) : null}
       {/* The artwork, with the role in its corner and the player's identity at its foot. Its
           height follows its content (a fixed height cut the identity off on narrow cards and drew
@@ -630,22 +631,15 @@ function LineupCard({ openSide, onOpenSide, ...props }: Omit<React.ComponentProp
  * for it as one aligned list, the first choice marked in its row. Previous / next move through the
  * lineup without closing it; the pool is edited on the profile.
  */
-function PlayerDetailPanel({ slot, championsById, canEdit, canViewProfile, profileHref, editHref, onClose, onPrev, onNext, position }: { slot: RosterSlot; championsById: ChampionsById; canEdit: boolean; canViewProfile: boolean; profileHref: string; /** Where this viewer edits the pool: their own profile, or the player's profile for admins. */ editHref: string; onClose: () => void; onPrev: (() => void) | null; onNext: (() => void) | null; position: string }) {
+/**
+ * A team player's details, for the Team lineup's Peek (a docked panel on wider screens, the whole
+ * screen on a phone): the player's card opened up (`hero`) and this season's figures and pool (`body`).
+ */
+function playerDetail({ slot, championsById, canEdit, canViewProfile, profileHref, editHref, position }: { slot: RosterSlot; championsById: ChampionsById; canEdit: boolean; canViewProfile: boolean; profileHref: string; /** Where this viewer edits the pool: their own profile, or the player's profile for admins. */ editHref: string; position: string }): { title: string; hero: React.ReactNode; body: React.ReactNode } {
   const p = slot.player!;
   const support = slot.role === "SUPPORT";
   const season = p.season;
   const status = assignmentStatus(p, slot.role);
-  React.useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLElement && e.target.closest("input, textarea, select")) return;
-      if (e.key === "ArrowLeft" && onPrev) onPrev();
-      if (e.key === "ArrowRight" && onNext) onNext();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onPrev, onNext]);
-  const nav = "grid h-9 w-9 place-items-center rounded-md text-fg-subtle hover:bg-surface-2 hover:text-fg disabled:opacity-30 pointer-coarse:h-11 pointer-coarse:w-11";
-
   const figure = (label: string, value: string, sub: React.ReactNode, tone?: string) => (
     <div className="min-w-0">
       <dt className="text-2xs font-semibold uppercase tracking-label text-fg-subtle">{label}</dt>
@@ -654,67 +648,49 @@ function PlayerDetailPanel({ slot, championsById, canEdit, canViewProfile, profi
     </div>
   );
 
-  return (
-    <DetailModal
-      open
-      onClose={onClose}
-      size="standard"
-      title={`${p.name} · ${slot.roleLabel}`}
-      titleId="player-detail-title"
-      // The player's card, opened up: their saved artwork and colours behind the role, identity and
-      // rank, with this season's figures in the same block and the way to the full profile. Static
-      // art only (no card motion, no blur), so opening and moving between players stays light. The
-      // window is as tall as its content. The shell style's `--card-accent` is the readable one
-      // (lightened to 4.5:1 on the surface), the same the card draws its text and icons in.
-      headerClassName="overflow-hidden"
-      header={
-        <div className="relative isolate" style={{ ...cardShellStyle(p.look, { glow: false }), borderColor: undefined }} data-testid="player-detail-hero">
-          <CardArtLayer art={p.art} accent={accentCss(p.look.style)} kind="splash" position="center 22%" look={p.look} decorate={false} strength="normal" testId="detail-art" foot />
-          <div className={cn("relative flex min-h-[11rem] flex-col justify-end gap-2.5 px-4 pb-4 sm:min-h-[12.5rem] sm:px-6 sm:pb-5", BELOW_CONTROLS)}>
-            <h2 id="player-detail-title" className="sr-only">
-              {p.name} · {slot.roleLabel}
-            </h2>
-            <CardRoleChip role={slot.role} label={slot.roleLabel} className="absolute left-4 top-3 sm:left-6 sm:top-4" />
-            <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3 [text-shadow:0_1px_10px_rgb(0_0_0/0.6)]">
-              <CardIdentity look={p.look} name={p.name} avatarUrl={p.avatarUrl} rank={p.rank} showRank={p.statsVisible} status={status} role={slot.role} layout="side" nameClassName="text-2xl sm:text-3xl" />
-              {canViewProfile ? (
-                <Link href={profileHref} className={buttonClass("primary", "sm", "shrink-0 [text-shadow:none]")} data-testid="detail-profile-link">
-                  Full profile <ChevronRight className="h-3.5 w-3.5" aria-hidden />
-                </Link>
-              ) : null}
-            </div>
-            <SocialLinks links={p.social} owner={p.name} className="[text-shadow:none]" />
-            <p className="flex flex-col gap-y-0.5 text-xs text-fg-muted" data-testid="player-detail-position">
-              <span>
-                {slot.roleLabel} · {position}{p.statsVisible ? ` · ${p.seasonLabel}` : ""}
-              </span>
-              {/* One line of ranked progress (its own line, wrapping as a sentence); the chart and every rank change are on the profile. */}
-              {p.rankChange ? (
-                <Link href={`/players/${p.id}${p.rankChange.queue === "flex" ? "?rq=flex" : ""}#ranked-progress`} className="self-start hover:text-fg" data-testid="detail-rank-change">
-                  Ranked {p.rankChange.queue === "flex" ? "Flex" : "Solo/Duo"}{" "}
-                  <span className={cn("font-semibold tabular-nums", p.rankChange.points > 0 ? "text-good" : p.rankChange.points < 0 ? "text-bad" : "text-fg-muted")}>
-                    {p.rankChange.points > 0 ? "+" : ""}
-                    {p.rankChange.points} ladder points
-                  </span>{" "}
-                  {p.rankChange.since === null ? `in ${p.rankChange.days} days` : `since ${formatDayMonth(p.rankChange.since)}`} ({p.rankChange.from} → {p.rankChange.to})
-                </Link>
-              ) : null}
-            </p>
-          </div>
+  // The player's card, opened up: their saved artwork and colours behind the role, identity and
+  // rank, with this season's figures in the same block and the way to the full profile. Static
+  // art only (no card motion, no blur), so opening and moving between players stays light. The
+  // shell style's `--card-accent` is the readable one (lightened to 4.5:1 on the surface), the same
+  // the card draws its text and icons in.
+  const hero = (
+    <div className="relative isolate" style={{ ...cardShellStyle(p.look, { glow: false }), borderColor: undefined }} data-testid="player-detail-hero">
+      <CardArtLayer art={p.art} accent={accentCss(p.look.style)} kind="splash" position="center 22%" look={p.look} decorate={false} strength="normal" testId="detail-art" foot />
+      <div className={cn("relative flex min-h-[var(--peek-hero-min,11rem)] flex-col justify-end gap-2.5 px-4 pb-4 sm:min-h-[var(--peek-hero-min,12.5rem)] sm:px-6 sm:pb-5", BELOW_CONTROLS)}>
+        <h2 id="player-detail-title" className="sr-only">
+          {p.name} · {slot.roleLabel}
+        </h2>
+        <CardRoleChip role={slot.role} label={slot.roleLabel} className="absolute left-4 top-3 sm:left-6 sm:top-4" />
+        <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3 [text-shadow:0_1px_10px_rgb(0_0_0/0.6)]">
+          <CardIdentity look={p.look} name={p.name} avatarUrl={p.avatarUrl} rank={p.rank} showRank={p.statsVisible} status={status} role={slot.role} layout="side" nameClassName="text-2xl sm:text-3xl" />
+          {canViewProfile ? (
+            <Link href={profileHref} className={buttonClass("primary", "sm", "shrink-0 [text-shadow:none]")} data-testid="detail-profile-link">
+              Full profile <ChevronRight className="h-3.5 w-3.5" aria-hidden />
+            </Link>
+          ) : null}
         </div>
-      }
-      testId="player-detail"
-      headerExtra={
-        <>
-          <button type="button" className={cn(nav, "bg-bg/60 text-fg-muted")} onClick={onPrev ?? undefined} disabled={!onPrev} aria-label="Previous player" data-testid="detail-prev">
-            <ChevronLeft className="h-4 w-4" />
-          </button>
-          <button type="button" className={cn(nav, "bg-bg/60 text-fg-muted")} onClick={onNext ?? undefined} disabled={!onNext} aria-label="Next player" data-testid="detail-next">
-            <ChevronRight className="h-4 w-4" />
-          </button>
-        </>
-      }
-    >
+        <SocialLinks links={p.social} owner={p.name} className="[text-shadow:none]" />
+        <p className="flex flex-col gap-y-0.5 text-xs text-fg-muted" data-testid="player-detail-position">
+          <span>
+            {slot.roleLabel} · {position}{p.statsVisible ? ` · ${p.seasonLabel}` : ""}
+          </span>
+          {/* One line of ranked progress (its own line, wrapping as a sentence); the chart and every rank change are on the profile. */}
+          {p.rankChange ? (
+            <Link href={`/players/${p.id}${p.rankChange.queue === "flex" ? "?rq=flex" : ""}#ranked-progress`} className="self-start hover:text-fg" data-testid="detail-rank-change">
+              Ranked {p.rankChange.queue === "flex" ? "Flex" : "Solo/Duo"}{" "}
+              <span className={cn("font-semibold tabular-nums", p.rankChange.points > 0 ? "text-good" : p.rankChange.points < 0 ? "text-bad" : "text-fg-muted")}>
+                {p.rankChange.points > 0 ? "+" : ""}
+                {p.rankChange.points} ladder points
+              </span>{" "}
+              {p.rankChange.since === null ? `in ${p.rankChange.days} days` : `since ${formatDayMonth(p.rankChange.since)}`} ({p.rankChange.from} → {p.rankChange.to})
+            </Link>
+          ) : null}
+        </p>
+      </div>
+    </div>
+  );
+  const body = (
+    <>
       {/* This season in the role: the three figures a lineup is judged on, the record as a bar,
           then the rest in one quiet line. */}
       {p.statsVisible ? (
@@ -722,7 +698,7 @@ function PlayerDetailPanel({ slot, championsById, canEdit, canViewProfile, profi
           <section aria-labelledby="detail-season" className="mb-5 rounded-panel border border-border bg-bg/40 p-3 sm:p-3.5" data-testid="detail-season">
             <h3 id="detail-season" className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-fg-muted">
               {slot.roleLabel} this season
-              <InfoTip text="Supported games this season (Ranked Solo/Duo, Ranked Flex, Normal games) played in this role, on any champion, from every linked Riot account." label="What these figures count" />
+              <InfoTip text={`This season's ranked and normal games as ${slot.roleLabel}, on any champion, from all their Riot accounts.`} label="What these figures count" />
             </h3>
             <dl className="grid grid-cols-3 gap-3">
               {figure("Win rate", season.winRate === null ? "—" : `${Math.round(season.winRate * 100)}%`, `${season.wins}W ${season.losses}L${season.games < WIN_RATE_MIN_GAMES.season ? " · small sample" : ""}`, WIN_RATE_TONE_CLASS[winRateTone(season.winRate, season.games, WIN_RATE_MIN_GAMES.season)])}
@@ -783,8 +759,9 @@ function PlayerDetailPanel({ slot, championsById, canEdit, canViewProfile, profi
           </div>
         )}
       </section>
-    </DetailModal>
+    </>
   );
+  return { title: `${p.name} · ${slot.roleLabel}`, hero, body };
 }
 
 /**
@@ -822,15 +799,27 @@ function LineupPager({ slots, index, go }: { slots: RosterSlot[]; index: SnapInd
  * swipeable track (native scrolling with snap points, each card centred with a glimpse of its neighbours) under a
  * bar of the five roles that says where you are and moves to any of them.
  */
-export function TeamRoster({ team, slots, complete, champions, canManageLineup, canViewPlayers, editablePlayerIds, viewerPlayerId, guest = null }: { team: { name: string; shortName: string; logo: string | null; logoStill: string | null }; slots: RosterSlot[]; complete: boolean; champions: PickerChampion[]; canManageLineup: boolean; /** Without the Players directory the detail panel does not offer a profile it cannot open. */ canViewPlayers: boolean; editablePlayerIds: string[]; viewerPlayerId: string | null; /** The public Team Overview: profiles open under this path, and nothing about managing the lineup is shown. */ guest?: { profileBase: string | null } | null }) {
+export function TeamRoster({ team, slots, complete, champions, canManageLineup, canViewPlayers, editablePlayerIds, viewerPlayerId, guest = null, initialPlayer = null }: { team: { name: string; shortName: string; logo: string | null; logoStill: string | null }; slots: RosterSlot[]; complete: boolean; champions: PickerChampion[]; canManageLineup: boolean; /** Without the Players directory the detail panel does not offer a profile it cannot open. */ canViewPlayers: boolean; editablePlayerIds: string[]; viewerPlayerId: string | null; /** The public Team Overview: profiles open under this path, and nothing about managing the lineup is shown. */ guest?: { profileBase: string | null } | null; /** The player the address names (`?player=`), open as the page arrives. */ initialPlayer?: string | null }) {
   const [editingLineup, setEditingLineup] = React.useState(false);
   // Interactive once hydrated (data-ready on the cards, which browser tests wait for before they
   // touch the page: React discards server HTML that changed before it hydrated, as a mismatch).
   const interactive = React.useSyncExternalStore(noopSubscribe, () => true, () => false);
   // The player whose detail panel is open: a role, and which side of its card (the starter, or the
   // substitute on a turned card). Owned here, so a turned card opening its substitute stays turned.
-  const [detail, setDetail] = React.useState<{ role: Role; side: CardSide } | null>(null);
   const filled = slots.filter((s) => s.player);
+  // Its details open in a Peek with the player in the address (`?player=`): the first open pushes
+  // one entry, switching replaces it, and Back closes it (address-item.ts). ↑/↓ and ‹ › move along
+  // the starters; a turned card opens its substitute.
+  const locate = (id: string | null): { role: Role; side: CardSide } | null => {
+    if (!id) return null;
+    for (const s of filled) {
+      if (s.player!.id === id) return { role: s.role, side: "starter" };
+      if (s.substitute?.player.id === id) return { role: s.role, side: "substitute" };
+    }
+    return null;
+  };
+  const peek = usePeek({ param: "player", ids: filled.map((s) => s.player!.id), initial: initialPlayer, valid: (id) => locate(id) !== null });
+  const detail = locate(peek.id);
   const detailIndex = filled.findIndex((s) => s.role === detail?.role);
   const detailBase = detailIndex >= 0 ? filled[detailIndex]! : null;
   // A substitute removed meanwhile leaves the starter's details.
@@ -907,7 +896,7 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
           <span className={cn("row-start-2 inline-flex items-center gap-1.5 justify-self-start rounded-full border py-px pl-2 pr-1 text-xs font-medium leading-5 [text-shadow:none] sm:col-start-2 sm:col-end-3 sm:self-start sm:text-sm short:text-xs", canManageLineup ? "col-start-1 col-end-3 @max-[11.25rem]/lineup:col-end-4" : "col-start-2 col-end-4 @max-[11.25rem]/lineup:col-start-1", complete ? "border-good/35 bg-good/10 text-good" : "border-warn/35 bg-warn/10 text-warn")} data-testid="lineup-status">
             <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
             {complete ? "Lineup complete" : canManageLineup ? "Assign all five roles" : "A lineup manager assigns the five roles"}
-            <InfoTip text="Each card is about the role the player holds in this lineup: its figures count this season's supported games (Ranked Solo/Duo, Ranked Flex, Normal games) played in that role, on any champion, from their linked Riot accounts; the champions are their whole pool for that role, in order of preference." />
+            <InfoTip text="Each card shows this season's ranked and normal games in the player's lineup role, and their champions for it in order of preference." label="About the cards" />
           </span>
         ) : null}
         {canManageLineup ? (
@@ -957,7 +946,7 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
           >
             {slots.map((s, i) => (
               <div key={s.role} className="flex w-full max-w-[26rem] shrink-0 snap-center snap-always @xl:w-auto @xl:max-w-none @xl:min-w-0" role="group" aria-roledescription="slide" aria-label={`${s.roleLabel}: ${s.player?.name ?? (s.privateMember ? "team member" : "no player")} (${i + 1} of ${slots.length})`} data-testid="lineup-cell" data-art-later={i > 0 || undefined}>
-                <LineupCard slot={s} champions={champions} championsById={championsById} canManageLineup={canManageLineup} editingLineup={editingLineup} canEdit={!!s.player && editable.has(s.player.id)} viewerPlayerId={viewerPlayerId} onOpenSide={(side) => setDetail({ role: s.role, side })} openSide={detail?.role === s.role ? detail.side : null} dimmed={detail !== null && detail.role !== s.role} guest={!!guest} startsElsewhere={startsElsewhere} align={align} priority={i === 0} />
+                <LineupCard slot={s} champions={champions} championsById={championsById} canManageLineup={canManageLineup} editingLineup={editingLineup} canEdit={!!s.player && editable.has(s.player.id)} viewerPlayerId={viewerPlayerId} onOpenSide={(side) => peek.toggle(side === "substitute" ? s.substitute!.player.id : s.player!.id)} openSide={detail?.role === s.role ? detail.side : null} guest={!!guest} startsElsewhere={startsElsewhere} align={align} priority={i === 0} />
               </div>
             ))}
           </div>
@@ -975,20 +964,24 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
           </div>
         </div>
       </div>
-      {detailSlot ? (
-        <PlayerDetailPanel
-          slot={detailSlot}
-          championsById={championsById}
-          canEdit={!!detailSlot.player && editable.has(detailSlot.player.id)}
-          canViewProfile={guest ? !!guest.profileBase : canViewPlayers || detailSlot.player?.id === viewerPlayerId}
-          profileHref={`${guest?.profileBase ?? "/players/"}${detailSlot.player?.id}`}
-          editHref={detailSlot.player?.id === viewerPlayerId ? "/overview#champion-pools" : `/players/${detailSlot.player?.id}#champion-pools`}
-          onClose={() => setDetail(null)}
-          onPrev={detailIndex > 0 ? () => setDetail({ role: filled[detailIndex - 1]!.role, side: "starter" }) : null}
-          onNext={detailIndex < filled.length - 1 ? () => setDetail({ role: filled[detailIndex + 1]!.role, side: "starter" }) : null}
-          position={detailSub ? "substitute" : `${detailIndex + 1} of ${filled.length} in the lineup`}
-        />
-      ) : null}
+      {(() => {
+        const d = detailSlot?.player
+          ? playerDetail({
+              slot: detailSlot,
+              championsById,
+              canEdit: editable.has(detailSlot.player.id),
+              canViewProfile: guest ? !!guest.profileBase : canViewPlayers || detailSlot.player.id === viewerPlayerId,
+              profileHref: `${guest?.profileBase ?? "/players/"}${detailSlot.player.id}`,
+              editHref: detailSlot.player.id === viewerPlayerId ? "/overview#champion-pools" : `/players/${detailSlot.player.id}#champion-pools`,
+              position: detailSub ? "substitute" : `${detailIndex + 1} of ${filled.length} in the lineup`,
+            })
+          : null;
+        return (
+          <Peek peek={peek} label="Player" title={d?.title ?? ""} itemKey={d ? detailSlot!.player!.id : null} hero={d?.hero} windowSize="standard" windowHeader={d?.hero} windowTitleId="player-detail-title" testId="player-detail" navTestIds={{ prev: "detail-prev", next: "detail-next" }}>
+            {d?.body}
+          </Peek>
+        );
+      })()}
     </div>
   );
 }

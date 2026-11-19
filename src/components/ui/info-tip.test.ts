@@ -25,8 +25,14 @@ describe("where a bubble goes", () => {
   });
 
   it("kept 8px inside the screen's edges", () => {
-    expect(placeTip({ left: 0, top: 300, bottom: 324, width: 24 }, { width: 120, height: 40 }, screen).left).toBe(8);
-    expect(placeTip({ left: 360, top: 300, bottom: 324, width: 24 }, { width: 120, height: 40 }, screen).left).toBe(375 - 8 - 120);
+    expect(placeTip({ left: 0, top: 300, bottom: 324, width: 24 }, { width: 120, height: 40 }, screen)).toMatchObject({ left: 8 });
+    expect(placeTip({ left: 360, top: 300, bottom: 324, width: 24 }, { width: 120, height: 40 }, screen)).toMatchObject({ left: 375 - 8 - 120 });
+  });
+
+  it("never over its own trigger: where neither side has room it is a sheet at the far edge", () => {
+    // A 300px bubble for an ⓘ in the middle of a 568px screen fits neither above nor below.
+    expect(placeTip({ left: 100, top: 260, bottom: 284, width: 24 }, { width: 304, height: 300 }, { width: 320, height: 568 })).toEqual({ side: "sheet", edge: "bottom" });
+    expect(placeTip({ left: 100, top: 300, bottom: 324, width: 24 }, { width: 304, height: 300 }, { width: 320, height: 568 })).toEqual({ side: "sheet", edge: "top" });
   });
 });
 

@@ -363,6 +363,7 @@ export function FilterBar({
             open
             onClose={closeSheet}
             size="sheet"
+            sheetWidth="filters"
             title="Filters"
             description={inlineReset && wide ? wideSummary : summary}
             testId={testId ? `${testId}-sheet` : "filter-sheet"}

@@ -112,7 +112,8 @@ test("an ⓘ in a window: its bubble is drawn inside the window, above it, where
   await expect(win).toBeHidden();
 });
 
-test("an ⓘ arriving under a pointer at rest as its window opens stays closed until the pointer moves onto it: Escape closes the window, whatever has its focus", async ({ page, isMobile }) => {
+test("an ⓘ arriving under a pointer at rest as its window opens stays closed until the pointer moves onto it: Escape closes the window, whatever has its focus", async ({ page, isMobile }, info) => {
+  test.skip(info.project.name !== "phone", "the Team player is a window on phones; from 640px it is a docked Peek, not a window");
   await page.goto("/team");
   const open = page.getByTestId("lineup-row-MID").getByTestId("open-player-detail");
   const win = page.getByTestId("player-detail");
@@ -456,7 +457,8 @@ test("a toast showing as a window opens stays where it is while the window moves
   expect(after.dismiss.reached).toBe(true);
 });
 
-test("a window opened by a tap or a click takes the focus itself, without a ring; opened from the keyboard, its close button has the focus, ringed", async ({ page }) => {
+test("a window opened by a tap or a click takes the focus itself, without a ring; opened from the keyboard, its close button has the focus, ringed", async ({ page }, info) => {
+  test.skip(info.project.name !== "phone", "the Team player is a window on phones; from 640px it is a docked Peek, not a window");
   await page.goto("/team");
   const open = page.getByTestId("lineup-row-TOP").getByTestId("open-player-detail");
   const win = page.getByTestId("player-detail");

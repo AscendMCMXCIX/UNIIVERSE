@@ -194,7 +194,8 @@ test.describe("accessibility", () => {
     await page.goto("/team");
     await page.waitForLoadState("networkidle");
     await page.getByTestId("lineup-card-MID").click({ position: { x: 40, y: 60 } });
-    await expect(page.locator("dialog[open]")).toBeVisible();
+    // The Team player's Peek: the whole-screen window on phones, the docked panel from 640px.
+    await expect(page.getByTestId("player-detail")).toBeVisible();
     await audit(page, "/team player window");
     // The champion window, whose games are whole-card buttons (named by what they show).
     await page.goto(`${teammate}/champions`);
