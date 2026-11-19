@@ -1,7 +1,7 @@
 import { devices, expect, test, type Locator, type Page } from "./test";
 import { lineupAtRest } from "./lineup";
 import { emulateKeyboard, keyboard } from "./keyboard";
-import { expectClearCorner, untilStill } from "./modal-corner";
+import { untilStill } from "./modal-corner";
 import { besideAMark, openMatchWindow } from "./match-history";
 import { bubbleFacts, NOT_A_PICTURE, NOT_A_PICTURE_ERROR, openPictureEditor, placedRight, toastFacts } from "./popups";
 import path from "node:path";
@@ -154,8 +154,12 @@ test("a teammate's profile: its sections switch, and a champion's preview sheet 
   // The sheet fills the phone's width and nothing in it scrolls sideways.
   const box = (await page.locator("dialog[open]").boundingBox())!;
   expect(box.width).toBeLessThanOrEqual(page.viewportSize()!.width + 1);
-  // Its close button keeps the corner to itself, a 44px target (e2e/modal-corner.ts).
-  await expectClearCorner(page);
+  // Its close button (the shared Peek's sheet) is the header's last control, a 44px target, in its
+  // top-right corner: within the header's 16px padding and the sheet's 1px side border.
+  const close = (await page.locator("dialog[open]").getByTestId("champion-preview-close").boundingBox())!;
+  expect(Math.min(close.width, close.height)).toBeGreaterThanOrEqual(44);
+  expect(box.x + box.width - (close.x + close.width)).toBeLessThanOrEqual(17.5);
+  expect(close.y - box.y).toBeLessThanOrEqual(24);
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("champion-preview-content")).toHaveCount(0);
   await tabs.getByRole("link", { name: "History" }).tap();
