@@ -239,7 +239,7 @@ test("Recent form ranks every full 20-game window by win rate, shared places and
   expect(Math.abs(edge.left - edge.header)).toBeLessThanOrEqual(1);
   await expect(page.getByTestId("form-row").first().getByRole("img", { name: "First place" })).toBeVisible();
   // The caveats are behind the ⓘ in the board's title (its description, read without opening it), not a footnote under it.
-  await expect(page.getByTestId("form-footnote")).toHaveAccessibleDescription(/places within 2 wins of each other are close.*The gaps assume the players above don't play in the meantime/);
+  await expect(page.getByTestId("form-footnote")).toHaveAccessibleDescription("20 games is a small sample, so places within 2 wins are close. Bars show wins first, not the order the games were played.");
   await noOverflow(page);
   await axe(page, "[data-testid=form]");
 });

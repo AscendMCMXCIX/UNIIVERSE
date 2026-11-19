@@ -287,7 +287,7 @@ export function GroupsNote({ result, teams }: { result: MatchGroupsResult | null
       <InfoTip
         label="About possible groups"
         testId="groups-info"
-        text={`Non-members on the same team in 3+ earlier games (in the ${result.windowDays} days before), rarely against each other. A guess, not a confirmed party.`}
+        text={`Non-members on one team in 3+ earlier games (the ${result.windowDays} days before), rarely opposed. A guess, not a confirmed party; members never labelled.`}
       />
     </p>
   );

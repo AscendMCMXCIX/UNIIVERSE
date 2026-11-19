@@ -618,10 +618,11 @@ export function DetailModal({
     const unlock = lockPage();
     // Where the page was as the window opened: put back as it closes, so the list under it never
     // moves (the browser brought the opener fully into view as the dialog gave its focus back: a card
-    // partly under the tab bar moved the list 70–109px; UM.X4). Only on the same page.
-    const at = { x: window.scrollX, y: window.scrollY, path: window.location.pathname };
+    // partly under the tab bar moved the list 70–109px; UM.X4). Only while the address is the one it
+    // opened on: a window that changed it (a filter chosen, a link to a section) moves the page on purpose.
+    const at = { x: window.scrollX, y: window.scrollY, href: window.location.href };
     const restore = () => {
-      if (window.location.pathname === at.path && (window.scrollX !== at.x || window.scrollY !== at.y)) window.scrollTo({ left: at.x, top: at.y, behavior: "instant" });
+      if (window.location.href === at.href && (window.scrollX !== at.x || window.scrollY !== at.y)) window.scrollTo({ left: at.x, top: at.y, behavior: "instant" });
     };
     return () => {
       window.clearTimeout(settleTimer);

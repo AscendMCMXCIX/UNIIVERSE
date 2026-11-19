@@ -52,7 +52,7 @@ export interface EncountersData {
   page: EncounterPage;
 }
 
-export const ENCOUNTERS_CAVEAT = `Everyone met in this player's recorded games, members left out. Against: other team; alongside: same team. Grey win rates rest on fewer than ${ESTABLISHED_GAMES} games.`;
+export const ENCOUNTERS_CAVEAT = `Everyone met in this player's recorded games, members left out: not parties or friends. Against: other team; alongside: same team. Grey: fewer than ${ESTABLISHED_GAMES} games.`;
 
 const PERSPECTIVE: Record<EncounterRelation, { label: string; none: string }> = {
   all: { label: "All", none: "No one met" },

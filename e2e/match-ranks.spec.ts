@@ -92,9 +92,8 @@ test("every player in the scoreboard has one rank badge: a dated current rank, U
   await expect(page.locator('[data-testid="participant"][data-player] [data-testid="participant-rank"]')).toHaveAttribute("data-state", "ranked");
   // Under the scoreboard, one line: around the game, read later, or both; the rules in its (i).
   await expect(note.getByTestId("ranks-note-lead")).toHaveText(/^(Ranks around the time of this game\.|Ranks read later \(marked\), not at the time of this game\.|Ranks around the time of this game; marked ones were read later\.)$/);
-  await expect(note).toContainText("Riot's game records hold no ranks");
-  await expect(note).toContainText(/Ranked (Solo\/Duo|Flex) ranks/);
-  await expect(note).toContainText("Unranked: no ranked entry when checked. —: not read.");
+  await expect(note).toContainText("Ranks were checked around the time of this game. A clock means it was checked well before or after, so it may differ.");
+  await expect(note).toContainText(/(Solo\/Duo ranks unless marked Flex|Flex ranks, as this is a Flex game, unless marked Solo\/Duo)\./);
   const info = note.getByTestId("ranks-info");
   await expect(info).toHaveAccessibleName("About the ranks");
 });

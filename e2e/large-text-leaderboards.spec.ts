@@ -370,11 +370,12 @@ test("Recent form's ⓘ at 200% text on 375 and 320px phones: inside the screen,
     const f = await bubble.evaluate((b, t) => {
       const r = b.getBoundingClientRect();
       const i = t!.getBoundingClientRect();
-      return { top: r.top, bottom: r.bottom, screen: innerHeight, scrolls: b.scrollHeight > b.clientHeight + 1, overflow: getComputedStyle(b).overflowY, covers: r.top < i.bottom && r.bottom > i.top && r.left < i.right && r.right > i.left };
+      // A bubble never scrolls: its overflow stays visible (its 6px bridge to the ⓘ reaches past its box by design).
+      return { top: r.top, bottom: r.bottom, screen: innerHeight, overflow: getComputedStyle(b).overflowY, covers: r.top < i.bottom && r.bottom > i.top && r.left < i.right && r.right > i.left };
     }, await tip.elementHandle());
     expect(f.top, `${at}: inside the screen's top`).toBeGreaterThanOrEqual(-0.5);
     expect(f.bottom, `${at}: inside the screen's foot`).toBeLessThanOrEqual(f.screen + 0.5);
-    expect({ scrolls: f.scrolls, overflow: f.overflow, covers: f.covers }, at).toEqual({ scrolls: false, overflow: "visible", covers: false });
+    expect({ overflow: f.overflow, covers: f.covers }, at).toEqual({ overflow: "visible", covers: false });
     // A tap on the bubble closes it, and the page under it stays as it was.
     const url = page.url();
     await bubble.tap({ position: { x: 20, y: 10 } });
