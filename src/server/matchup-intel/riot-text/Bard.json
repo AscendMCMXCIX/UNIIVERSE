@@ -1,0 +1,22 @@
+{
+  "championId": "Bard",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Traveler's Call","textHash":"1f9395c0ebb9f84a"},
+    "Q": {"name":"Cosmic Binding","textHash":"49e0c26ccb6e019a"},
+    "W": {"name":"Caretaker's Shrine","textHash":"d25587da9483eec2"},
+    "E": {"name":"Magical Journey","textHash":"ee99aa9c74ba80fe"},
+    "R": {"name":"Tempered Fate","textHash":"16a64de033d4de9a"}
+  },
+  "facts": [
+    {"slot":"P","kind":"slow","clause":"When Bard has collected enough Chimes, his meeps will also deal damage in an area and slow enemies hit.","source":"description"},
+    {"slot":"Q","kind":"stun","clause":"If it strikes a wall, it will stun the initial target; if it strikes another enemy, it will stun them both.","source":"description"},
+    {"slot":"Q","kind":"slow","clause":"Bard fires a missile which will slow the first enemy struck, and continue onward.","source":"description"},
+    {"slot":"W","kind":"heal","clause":"Reveals a Health shrine which powers up over a short time, disappearing after healing and speeding up the first ally that touches it.","source":"description"},
+    {"slot":"W","kind":"charges","clause":"This ability has […] charges.","source":"tooltip"},
+    {"slot":"R","kind":"stasis","clause":"Bard sends spirit energy arcing to a location, putting all champions, minions, monsters, and turrets hit into stasis for a brief time.","source":"description"}
+  ],
+  "disagreements": []
+}

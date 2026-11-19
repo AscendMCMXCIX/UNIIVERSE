@@ -1,0 +1,21 @@
+{
+  "championId": "Blitzcrank",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Mana Barrier","textHash":"ddaa08b6cd3a3614"},
+    "Q": {"name":"Rocket Grab","textHash":"7060666247806b00"},
+    "W": {"name":"Overdrive","textHash":"c670f9eeb1c96cc9"},
+    "E": {"name":"Power Fist","textHash":"775a774160ed9878"},
+    "R": {"name":"Static Field","textHash":"8d5269c5f447ed54"}
+  },
+  "facts": [
+    {"slot":"P","kind":"shield","clause":"Blitzcrank gains a shield based on their mana when dropping to low health.","source":"description"},
+    {"slot":"Q","kind":"pull","clause":"Blitzcrank fires their right hand, Pulling the first enemy hit towards them and dealing […] magic damage.","source":"tooltip"},
+    {"slot":"E","kind":"knockup","clause":"Blitzcrank charges up their fist, causing their next Attack to Knock Up for […] second(s) and deal […] physical damage.","source":"tooltip"},
+    {"slot":"E","kind":"empower","clause":"Blitzcrank charges up their fist, causing their next Attack to Knock Up for […] second(s) and deal […] physical damage.","source":"tooltip"},
+    {"slot":"R","kind":"silence","clause":"Additionally, Blitzcrank can activate this ability to remove nearby enemies' shields, damage them, and silence them briefly.","source":"description"}
+  ],
+  "disagreements": []
+}

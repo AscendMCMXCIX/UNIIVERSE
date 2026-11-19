@@ -1,0 +1,22 @@
+{
+  "championId": "Kalista",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Martial Poise","textHash":"638a4ac4bab2f673"},
+    "Q": {"name":"Pierce","textHash":"3935c0c4e0700e81"},
+    "W": {"name":"Sentinel","textHash":"39ba0401f33f4576"},
+    "E": {"name":"Rend","textHash":"6b993abaa0a91438"},
+    "R": {"name":"Fate's Call","textHash":"e36b5c362ae9b3c8"}
+  },
+  "facts": [
+    {"slot":"P","kind":"dash","clause":"Enter a movement command while winding up Kalista's basic attack or Pierce to lunge a short distance when she launches her attack.","source":"description"},
+    {"slot":"W","kind":"charges","clause":"charges ([…] second refresh).","source":"tooltip"},
+    {"slot":"E","kind":"slow","clause":"Activate to rip the spears out, slowing and dealing escalating damage.","source":"description"},
+    {"slot":"E","kind":"cooldownrefund","clause":"its Cooldown is refreshed and it refunds […] Mana.","source":"tooltip","conditional":true},
+    {"slot":"R","kind":"knockback","clause":"They gain the ability to dash toward a position, knocking enemy champions back.","source":"description","qualifier":"the Oathsworn ally"},
+    {"slot":"R","kind":"stasis","clause":"Kalista puts her Oathsworn into Stasis and draws them to herself","source":"tooltip"}
+  ],
+  "disagreements": []
+}

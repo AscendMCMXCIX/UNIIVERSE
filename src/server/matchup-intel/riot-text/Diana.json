@@ -1,0 +1,21 @@
+{
+  "championId": "Diana",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Moonsilver Blade","textHash":"76e889c1cf8b4796"},
+    "Q": {"name":"Crescent Strike","textHash":"078595f776b11efd"},
+    "W": {"name":"Pale Cascade","textHash":"491569d0103915c0"},
+    "E": {"name":"Lunar Rush","textHash":"ce8c5b1d79294ed1"},
+    "R": {"name":"Moonfall","textHash":"bc933336a5012634"}
+  },
+  "facts": [
+    {"slot":"W","kind":"shield","clause":"She also gains a temporary shield that absorbs damage.","source":"description"},
+    {"slot":"E","kind":"dash","clause":"Lunar Rush has no cooldown when used to dash to an enemy afflicted with Moonlight.","source":"description"},
+    {"slot":"E","kind":"cooldownrefund","clause":"If the target is afflicted with Moonlight, this Ability's Cooldown is refreshed.","source":"tooltip"},
+    {"slot":"R","kind":"pull","clause":"Diana Pulls In, Slows by […]%, and reveals nearby enemies for […] seconds.","source":"tooltip"},
+    {"slot":"R","kind":"slow","clause":"Diana reveals and draws in all nearby enemies and slows them.","source":"description"}
+  ],
+  "disagreements": []
+}

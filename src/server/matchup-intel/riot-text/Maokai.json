@@ -1,0 +1,26 @@
+{
+  "championId": "Maokai",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Sap Magic","textHash":"5ba2a39cab99b40f"},
+    "Q": {"name":"Bramble Smash","textHash":"e313084d2803a120"},
+    "W": {"name":"Twisted Advance","textHash":"5a8553cf36bcace0"},
+    "E": {"name":"Sapling Toss","textHash":"5c225c6f46ebb254"},
+    "R": {"name":"Nature's Grasp","textHash":"7ac90c2cd5ee9e40"}
+  },
+  "facts": [
+    {"slot":"P","kind":"heal","clause":"Maokai's basic attack also heals him and deals additional damage on a moderate cooldown.","source":"description"},
+    {"slot":"P","kind":"cooldownrefund","clause":"Each time Maokai casts a spell or is struck by an enemy's spell, this cooldown is reduced.","source":"description"},
+    {"slot":"Q","kind":"knockback","clause":"Maokai knocks back nearby enemies with a shockwave, dealing magic damage and slowing them.","source":"description"},
+    {"slot":"Q","kind":"slow","clause":"Maokai knocks back nearby enemies with a shockwave, dealing magic damage and slowing them.","source":"description"},
+    {"slot":"W","kind":"root","clause":"Upon arrival, he roots the target.","source":"description"},
+    {"slot":"W","kind":"dash","clause":"Maokai contorts into a mass of moving roots, becoming untargetable and dashing to the target.","source":"description"},
+    {"slot":"W","kind":"untargetable","clause":"Maokai contorts into a mass of moving roots, becoming untargetable and dashing to the target.","source":"description"},
+    {"slot":"E","kind":"slow","clause":"Saplings chase nearby enemies, detonating on arrival to deal […] magic damage and Slow surrounding enemies by […]% for […] seconds.","source":"tooltip"},
+    {"slot":"E","kind":"cooldownrefund","clause":"Sap Magic's Cooldown is reduced","source":"tooltip","qualifier":"Sap Magic","conditional":true},
+    {"slot":"R","kind":"root","clause":"Maokai summons a colossal wall of brambles and thorns that slowly advances forwards, damaging and rooting any enemies in the path.","source":"description"}
+  ],
+  "disagreements": []
+}

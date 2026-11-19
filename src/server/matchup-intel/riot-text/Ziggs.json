@@ -1,0 +1,21 @@
+{
+  "championId": "Ziggs",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Short Fuse","textHash":"24b337c677f07a7c"},
+    "Q": {"name":"Bouncing Bomb","textHash":"1a3925fd9602ad0e"},
+    "W": {"name":"Satchel Charge","textHash":"24fb5bdc7dcd7751"},
+    "E": {"name":"Hexplosive Minefield","textHash":"c974ebfb68391500"},
+    "R": {"name":"Mega Inferno Bomb","textHash":"c14b1ffbf3bab3a1"}
+  },
+  "facts": [
+    {"slot":"P","kind":"cooldownrefund","clause":"This cooldown is reduced whenever Ziggs uses an ability.","source":"description"},
+    {"slot":"P","kind":"empower","clause":"Periodically, Ziggs' next basic attack deals bonus magic damage.","source":"description"},
+    {"slot":"W","kind":"knockback","clause":"The explosion deals magic damage to enemies, knocking them away.","source":"description"},
+    {"slot":"W","kind":"recast","clause":"Ziggs flings an explosive charge that detonates after […] seconds, or when this ability is Recast.","source":"tooltip"},
+    {"slot":"E","kind":"slow","clause":"Ziggs scatters proximity mines that detonate on enemy contact, dealing magic damage and slowing.","source":"description"}
+  ],
+  "disagreements": []
+}

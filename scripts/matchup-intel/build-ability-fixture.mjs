@@ -15,12 +15,13 @@
  * same results, on Data Dragon's own files and on made-up edge cases. When the rules change, bump
  * ABILITY_RULES_FORMAT in both and run this again.
  */
+import { createHash } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { z } from "zod";
 
-export const ABILITY_RULES_FORMAT = 1;
+export const ABILITY_RULES_FORMAT = 2;
 export const DESCRIPTION_MAX = 400;
 const CHAMPION_ID = /^[A-Za-z0-9]{1,40}$/;
 const VERSION = /^\d{1,4}(?:\.\d{1,4}){1,3}$/;
@@ -50,6 +51,11 @@ function capDescription(text) {
   const at = slice.lastIndexOf(" ");
   const head = at >= room / 2 ? slice.slice(0, at) : slice.slice(0, room);
   return `${head.replace(/[\uD800-\uDBFF]$/, "").replace(/[\s.,;:(–—-]+$/, "")}…`;
+}
+
+/** A short hash of Riot's whole text for one ability: its raw description and tooltip (null for the passive), as riotTextHash in abilities.ts. */
+export function riotTextHash(description, tooltip) {
+  return createHash("sha256").update(JSON.stringify([description, tooltip])).digest("hex").slice(0, 16);
 }
 
 /** Riot's short description as plain text (see cleanDescription in abilities.ts). */
@@ -85,6 +91,7 @@ const spellSchema = z.object({
   maxrank: z.number().int().min(1).max(10),
   cooldown: z.array(z.number().min(0).max(100_000)).max(10),
   maxammo: z.union([z.string().max(20), z.number()]).optional(),
+  tooltip: z.string().max(40_000).optional(),
   image: z.object({ full: icon }),
 });
 const detailSchema = z.object({ id: z.string().regex(CHAMPION_ID), passive: passiveSchema, spells: z.array(spellSchema).min(4) });
@@ -104,10 +111,10 @@ export function compactChampionAbilities(detail, version) {
     if (!parsed.success) return null;
     const { id, passive, spells } = parsed.data;
     const abilities = [
-      { slot: "P", id: null, name: passive.name, icon: passive.image.full, maxRank: 1, cooldown: [], charges: null, description: cleanDescription(passive.description ?? "") },
+      { slot: "P", id: null, name: passive.name, icon: passive.image.full, maxRank: 1, cooldown: [], charges: null, description: cleanDescription(passive.description ?? ""), textHash: riotTextHash(passive.description ?? "", null) },
       ...SPELL_SLOTS.map((slot, i) => {
         const s = spells[i];
-        return { slot, id: s.id, name: s.name, icon: s.image.full, maxRank: s.maxrank, cooldown: [...s.cooldown], charges: chargesOf(s.maxammo), description: cleanDescription(s.description ?? "") };
+        return { slot, id: s.id, name: s.name, icon: s.image.full, maxRank: s.maxrank, cooldown: [...s.cooldown], charges: chargesOf(s.maxammo), description: cleanDescription(s.description ?? ""), textHash: riotTextHash(s.description ?? "", s.tooltip ?? "") };
       }),
     ];
     return { championId: id, version, abilities };

@@ -1,0 +1,21 @@
+{
+  "championId": "Jayce",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Hextech Capacitor","textHash":"48070cd6f01eab17"},
+    "Q": {"name":"To the Skies! / Shock Blast","textHash":"57b36468adacdf94"},
+    "W": {"name":"Lightning Field / Hyper Charge","textHash":"fd48a9685834c739"},
+    "E": {"name":"Thundering Blow / Acceleration Gate","textHash":"1b56cb65924d0b60"},
+    "R": {"name":"Mercury Cannon / Mercury Hammer","textHash":"8c018325f8549eed"}
+  },
+  "facts": [
+    {"slot":"Q","kind":"slow","clause":"Hammer Stance: Leaps to an enemy dealing physical damage and slowing enemies.","source":"description"},
+    {"slot":"Q","kind":"leap","clause":"Mercury Hammer: Jayce leaps to an enemy, dealing […] physical damage to surrounding enemies and Slowing them","source":"tooltip"},
+    {"slot":"E","kind":"knockback","clause":"Hammer Stance: Deals magic damage to an enemy and knocks them back a short distance.","source":"description"},
+    {"slot":"R","kind":"empower","clause":"Jayce's next Attack removes […] Armor and Magic Resist for […] seconds.","source":"tooltip","conditional":true},
+    {"slot":"R","kind":"transform","clause":"Hammer Stance: Transforms the Mercury Hammer into the Mercury Cannon gaining new abilities and increased range.","source":"description"}
+  ],
+  "disagreements": []
+}

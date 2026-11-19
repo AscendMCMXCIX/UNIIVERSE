@@ -1,0 +1,22 @@
+{
+  "championId": "Malphite",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Granite Shield","textHash":"cba7617c5e0bde91"},
+    "Q": {"name":"Seismic Shard","textHash":"79330e1665dbaacd"},
+    "W": {"name":"Thunderclap","textHash":"0bb5feaad483101a"},
+    "E": {"name":"Ground Slam","textHash":"4c9c81aa2ffd1662"},
+    "R": {"name":"Unstoppable Force","textHash":"fa98d0fb894d9199"}
+  },
+  "facts": [
+    {"slot":"P","kind":"shield","clause":"Malphite is shielded by a layer of rock which absorbs damage","source":"description"},
+    {"slot":"Q","kind":"slow","clause":"Malphite launches a shard of earth at an enemy, dealing […] magic damage and Slowing them by […]% for […] seconds.","source":"tooltip"},
+    {"slot":"W","kind":"empower","clause":"Active: Malphite's next Attack deals an additional […] physical damage and creates an aftershock which deals […] physical damage On-Hit in their direction.","source":"tooltip"},
+    {"slot":"R","kind":"knockup","clause":"At the end of the dash, Malphite Knocks Up","source":"tooltip"},
+    {"slot":"R","kind":"dash","clause":"Malphite charges with the force of a landslide, dashing Unstoppably.","source":"tooltip"},
+    {"slot":"R","kind":"unstoppable","clause":"Malphite charges with the force of a landslide, dashing Unstoppably.","source":"tooltip"}
+  ],
+  "disagreements": []
+}

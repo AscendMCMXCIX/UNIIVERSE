@@ -1,0 +1,24 @@
+{
+  "championId": "Gwen",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"A Thousand Cuts","textHash":"7515e5e193cca8dc"},
+    "Q": {"name":"Snip Snip!","textHash":"bca0b503eb0d3b38"},
+    "W": {"name":"Hallowed Mist","textHash":"9319c8670a1c0868"},
+    "E": {"name":"Skip 'n Slash","textHash":"8c877a949f460c95"},
+    "R": {"name":"Needlework","textHash":"00fd457f945364d4"}
+  },
+  "facts": [
+    {"slot":"P","kind":"heal","clause":"She heals for a portion of the damage dealt to champions by this effect.","source":"description"},
+    {"slot":"W","kind":"untargetable","clause":"She can only be targeted by enemies who enter the mist.","source":"description"},
+    {"slot":"W","kind":"recast","clause":"Gwen can Recast this Ability","source":"tooltip"},
+    {"slot":"E","kind":"dash","clause":"Gwen dashes a short distance then gains Attack Speed, attack range, and magic damage On-Hit for a few seconds.","source":"description"},
+    {"slot":"E","kind":"cooldownrefund","clause":"If she hits an enemy during that time, this Ability's cooldown is partially refunded.","source":"description"},
+    {"slot":"E","kind":"empower","clause":"Gwen dashes and empowers her Attacks for […] seconds.","source":"tooltip"},
+    {"slot":"R","kind":"slow","clause":"Gwen hurls a needle that slows enemies hit, deals magic damage, and applies A Thousand Cuts to champions hit.","source":"description"},
+    {"slot":"R","kind":"recast","clause":"Gwen can Recast this ability","source":"tooltip"}
+  ],
+  "disagreements": []
+}

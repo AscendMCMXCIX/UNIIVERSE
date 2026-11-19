@@ -1,0 +1,21 @@
+{
+  "championId": "Neeko",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Inherent Glamour","textHash":"c42fbc5fe67a9aeb"},
+    "Q": {"name":"Blooming Burst","textHash":"cec596c5c9214298"},
+    "W": {"name":"Shapesplitter","textHash":"aeb42cb4aa0eddb6"},
+    "E": {"name":"Tangle-Barbs","textHash":"b0caf20dad641f44"},
+    "R": {"name":"Pop Blossom","textHash":"6b49a15543053bb5"}
+  },
+  "facts": [
+    {"slot":"W","kind":"stealth","clause":"Active: Neeko becomes invisible for […] seconds and projects a clone that lasts […] seconds.","source":"tooltip"},
+    {"slot":"W","kind":"recast","clause":"Neeko can activate to send a clone in a direction and recast to change the direction of the clone.","source":"description"},
+    {"slot":"E","kind":"root","clause":"Neeko slings a tangle that damages and roots everything it passes through.","source":"description"},
+    {"slot":"R","kind":"stun","clause":"Upon landing, nearby enemies are damaged and stunned.","source":"description"},
+    {"slot":"R","kind":"knockup","clause":"After a short preparation, Neeko leaps into the air, knocking up all nearby enemies.","source":"description"}
+  ],
+  "disagreements": []
+}

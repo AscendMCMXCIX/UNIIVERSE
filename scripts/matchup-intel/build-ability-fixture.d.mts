@@ -4,6 +4,7 @@ import type { DdragonChampionAbilities } from "../../src/domain/matchup-intel/ty
 export const ABILITY_RULES_FORMAT: number;
 export const DESCRIPTION_MAX: number;
 export function cleanDescription(raw: string): string;
+export function riotTextHash(description: string, tooltip: string | null): string;
 export function compactChampionAbilities(detail: unknown, version: string): DdragonChampionAbilities | null;
 export interface AbilityFixture {
   format: number;

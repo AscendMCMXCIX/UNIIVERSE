@@ -1,0 +1,22 @@
+{
+  "championId": "Sona",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Power Chord","textHash":"bb004707c035d6ee"},
+    "Q": {"name":"Hymn of Valor","textHash":"ed419683b4d61a42"},
+    "W": {"name":"Aria of Perseverance","textHash":"9769aa810007b3b7"},
+    "E": {"name":"Song of Celerity","textHash":"37f14672f59c9830"},
+    "R": {"name":"Crescendo","textHash":"0cb79efee6fcac7e"}
+  },
+  "facts": [
+    {"slot":"P","kind":"cooldownrefund","clause":"Beyond that cap, further successful uses reduce her ultimate's remaining cooldown instead.","source":"description","qualifier":"her ultimate's remaining cooldown"},
+    {"slot":"P","kind":"empower","clause":"Power Chord: Every few spell casts, Sona's next attack will deal bonus magic damage in addition to an additional effect based on what basic Ability Sona last activated.","source":"description"},
+    {"slot":"Q","kind":"empower","clause":"Sona gains a temporary aura that grants allies tagged by the zone bonus damage on their next attack against enemies.","source":"description"},
+    {"slot":"W","kind":"shield","clause":"Sona gains a temporary aura that grants allies tagged by the zone a temporary shield.","source":"description"},
+    {"slot":"W","kind":"heal","clause":"Sona plays the Aria of Perseverance, sending out protective melodies, healing Sona and a nearby wounded ally.","source":"description"},
+    {"slot":"R","kind":"stun","clause":"Sona plays her ultimate chord, stunning enemy champions and forcing them to dance and dealing magic damage to them.","source":"description"}
+  ],
+  "disagreements": []
+}

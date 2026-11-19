@@ -9,7 +9,7 @@ import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
 import { listChampions } from "@/server/repositories/champions";
 import { invalidateCache } from "@/server/observability/cache";
-import { loadChampionAbilities, seedChampionAbilitiesFromFixture, syncChampionAbilities } from "@/server/matchup-intel/abilities";
+import { ABILITY_RULES_FORMAT, loadChampionAbilities, riotTextHash, seedChampionAbilitiesFromFixture, syncChampionAbilities } from "@/server/matchup-intel/abilities";
 import { abilityFixture } from "@/server/matchup-intel/ability-fixture";
 import { runJob } from "@/server/jobs";
 
@@ -147,7 +147,7 @@ describe("champion abilities: sync and read", () => {
     // No file was read twice: the champion sync's copies were used.
     expect(provider.requests).toHaveLength(ROSTER.length);
     const index = await storedIndex(db);
-    expect(index).toMatchObject({ format: 1, version: "16.21.1" });
+    expect(index).toMatchObject({ format: ABILITY_RULES_FORMAT, version: "16.21.1" });
     expect(index).not.toHaveProperty("source");
     expect(Object.keys(index!.champions).sort()).toEqual([...ROSTER].sort());
     expect(Number.isNaN(Date.parse(index!.updatedAt))).toBe(false);
@@ -167,9 +167,11 @@ describe("champion abilities: sync and read", () => {
     expect(ahri).toMatchObject({ championId: "Ahri", version: "16.21.1" });
     // The contract's fields only: the rules' revision stays in the store.
     expect(Object.keys(ahri)).toEqual(["championId", "version", "abilities"]);
-    expect(index!.champions.Ahri).toMatchObject({ version: "16.21.1", format: 1 });
+    expect(index!.champions.Ahri).toMatchObject({ version: "16.21.1", format: ABILITY_RULES_FORMAT });
     expect(ahri.abilities.map((a) => a.slot)).toEqual(["P", "Q", "W", "E", "R"]);
-    expect(ahri.abilities[0]).toEqual({ slot: "P", id: null, name: "Ahri Passive", icon: "Ahri_P.png", maxRank: 1, cooldown: [], charges: null, description: "Ahri's passive marks. Then it fades." });
+    // The text's pin is of Riot's own words, markup and all (so a change of either hides the facts read from it).
+    expect(ahri.abilities[0]).toEqual({ slot: "P", id: null, name: "Ahri Passive", icon: "Ahri_P.png", maxRank: 1, cooldown: [], charges: null, description: "Ahri's passive marks. Then it fades.", textHash: riotTextHash("Ahri's <keywordMajor>passive</keywordMajor> marks.<br>Then it fades.", null) });
+    expect(ahri.abilities[1]!.textHash).toBe(riotTextHash("The Q of Ahri deals damage.", "Deals {{ totaldamage }} damage over {{ duration }} seconds."));
     expect(ahri.abilities[1]).toMatchObject({ slot: "Q", id: "AhriQ", maxRank: 5, cooldown: [21, 21, 21, 21, 21], charges: null, description: "The Q of Ahri deals damage." });
     expect(ahri.abilities[3]).toMatchObject({ slot: "E", charges: 2 });
     expect(ahri.abilities[4]).toMatchObject({ slot: "R", maxRank: 3, cooldown: [100, 90, 80] });
@@ -292,15 +294,15 @@ describe("champion abilities: sync and read", () => {
     expect(result).toMatchObject({ version: "16.23.1", changed: true, degraded: false, refreshed: 9, kept: 1, failed: 1, fetched: 10, stored: 10 });
     expect(provider.requests.length - before).toBe(10);
     const index = await storedIndex(db);
-    expect(index!.format).toBe(1);
+    expect(index!.format).toBe(ABILITY_RULES_FORMAT);
     expect(index!.champions.Akali).toMatchObject({ version: "16.23.1", format: 0 });
-    expect(Object.values(index!.champions).filter((c) => c.format === 1)).toHaveLength(9);
+    expect(Object.values(index!.champions).filter((c) => c.format === ABILITY_RULES_FORMAT)).toHaveLength(9);
     expect((await loadChampionAbilities(db, ["Akali"])).champions.Akali).toMatchObject({ championId: "Akali", version: "16.23.1" });
 
     const next = provider.requests.length;
     expect(await syncChampionAbilities(db, "16.23.1", { provider })).toMatchObject({ changed: true, refreshed: 1, kept: 0, failed: 0, fetched: 1, stored: 10 });
     expect(provider.requests.slice(next)).toEqual(["Akali"]);
-    expect((await storedIndex(db))!.champions.Akali).toMatchObject({ format: 1 });
+    expect((await storedIndex(db))!.champions.Akali).toMatchObject({ format: ABILITY_RULES_FORMAT });
     expect(await syncChampionAbilities(db, "16.23.1", { provider })).toMatchObject({ changed: false, fetched: 0 });
   });
 
@@ -404,7 +406,7 @@ describe("champion abilities offline: the committed fixture", () => {
     expect(run.ok).toBe(true);
     expect(run.summary).toMatchObject({ usedFixture: true, abilities: { version: "16.22.1", source: "fixture", stored: 173, refreshed: 173, failed: 0, fetched: 0, degraded: false } });
     const index = await storedIndex(fresh.db);
-    expect(index).toMatchObject({ format: 1, version: "16.22.1", source: "fixture" });
+    expect(index).toMatchObject({ format: ABILITY_RULES_FORMAT, version: "16.22.1", source: "fixture" });
     expect(Object.keys(index!.champions)).toHaveLength(173);
 
     const loaded = await loadChampionAbilities(fresh.db, ["Riven", "Renekton"]);

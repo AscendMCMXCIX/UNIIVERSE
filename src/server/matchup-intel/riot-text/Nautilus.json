@@ -1,0 +1,23 @@
+{
+  "championId": "Nautilus",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Staggering Blow","textHash":"f93f342bea772423"},
+    "Q": {"name":"Dredge Line","textHash":"42d4438fab0852f8"},
+    "W": {"name":"Titan's Wrath","textHash":"f8be0f52665fd746"},
+    "E": {"name":"Riptide","textHash":"6f33674966a4c5a3"},
+    "R": {"name":"Depth Charge","textHash":"62e66ba99f21f795"}
+  },
+  "facts": [
+    {"slot":"P","kind":"root","clause":"Nautilus' first Attack against a target deals increased physical damage and roots them briefly.","source":"description"},
+    {"slot":"Q","kind":"stun","clause":"If it hits an enemy, Nautilus drags himself and the target together, dealing […] magic damage and Stunning them briefly.","source":"tooltip"},
+    {"slot":"Q","kind":"pull","clause":"Colliding with an enemy pulls them and Nautilus together, dealing magic damage.","source":"description"},
+    {"slot":"W","kind":"shield","clause":"Nautilus gains a temporary Shield.","source":"description"},
+    {"slot":"E","kind":"slow","clause":"Each explosion damages and slows enemies.","source":"description"},
+    {"slot":"R","kind":"stun","clause":"When it reaches the opponent, the shockwave erupts, knocking his target into the air and stunning them.","source":"description"},
+    {"slot":"R","kind":"knockup","clause":"Other enemies hit by the shockwave are also Knocked Up and Stunned and take […] magic damage.","source":"tooltip"}
+  ],
+  "disagreements": []
+}

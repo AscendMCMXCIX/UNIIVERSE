@@ -1,0 +1,20 @@
+{
+  "championId": "Gangplank",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Trial by Fire","textHash":"b7f6133d355d0c31"},
+    "Q": {"name":"Parrrley","textHash":"3626c97e3f797d3f"},
+    "W": {"name":"Remove Scurvy","textHash":"afbef10fc3b41e7a"},
+    "E": {"name":"Powder Keg","textHash":"4190a21b1e061357"},
+    "R": {"name":"Cannon Barrage","textHash":"e9919bb790d25264"}
+  },
+  "facts": [
+    {"slot":"W","kind":"cleanse","clause":"Eats citrus to cure crowd control effects and restore Health.","source":"description"},
+    {"slot":"W","kind":"heal","clause":"Eats citrus to cure crowd control effects and restore Health.","source":"description"},
+    {"slot":"E","kind":"slow","clause":"If he attacks it, it explodes, spreading the attack's damage to enemies in the area, slowing them.","source":"description"},
+    {"slot":"R","kind":"slow","clause":"Gangplank signals his ship to bombard an area, slowing and damaging enemies.","source":"description"}
+  ],
+  "disagreements": []
+}

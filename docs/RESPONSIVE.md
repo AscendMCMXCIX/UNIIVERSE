@@ -56,6 +56,10 @@ translucent status bar, so:
   into the toast's own padding, so the toast is no larger for it.
 - Controls on a card (a flip button, social icons) stop their event: using one never opens,
   turns or selects the card.
+- Rows of small targets stand far enough apart that no target's 44px area covers a neighbour's box
+  (19 Nov 2026): Matchup Intel's chips and keys 12px apart from row to row and 6px side to side on
+  touch screens (`CHIP_ROWS`), its folds and source tips likewise; `e2e/matchup-intel.spec.ts` samples
+  every control's box on the phone and the touch tablet and runs axe's WCAG 2.2 target-size rule.
 
 ## Long lists inside a page
 
@@ -295,9 +299,13 @@ ranks broken), a profile's Overview (the season's "6 champions" cut by up to 63p
 (names a letter a line, "1 win behind" cut by 32px) and the Library (titles a letter a line, a
 description cut by 47px). New, and deliberate: the roster's "·" cut off where its rank starts a line
 (below), as Records' qualifier "·" already is. What remains is outside this work: words broken at
-200% on a 320px phone on Team Matches, All Champions, Match History and Matchup Intel ("Support",
-"K'Sante", "Mordekaiser", "Choose"), and Admin Mode's status words at 175% and 200% on a 320px phone
-(200% on 375px), which Admin Mode breaks inside a word longer than its line by design (below). The
+200% on a 320px phone on Team Matches, All Champions and Match History ("Support", "K'Sante"), and
+Admin Mode's status words at 175% and 200% on a 320px phone (200% on 375px), which Admin Mode breaks
+inside a word longer than its line by design (below). Matchup Intel's ("Mordekaiser", "Choose") went
+with its redesign (19 Nov 2026): the same audit on 12 of its states (nothing chosen, one side, the
+curated pairs and their reverse, assembled pairs, a long name, a mirror) at 320, 375, 393 and 852px
+and 150% and 200% text finds nothing in either mode, 96 page states each (docs/MATCHUP_INTEL.md, "On
+a phone"). The
 public page, wider than the phone by 42, 103 and 163px at 150%, 175% and 200% on 320px (48 and 108px
 on 375, 30 and 90px on 393, at 175% and 200%), has no finding left at 125% to 200% on 320, 375 and
 393px, in either mode.
@@ -548,6 +556,18 @@ the account screen over the dashboard at 200% on a 320px phone as well.
   section's own, else 80rem): Players and a teammate's profile share `players/loading.tsx`, which reads
   the address it stands in for, and Team Matches' own `matches/loading.tsx` stands as its page does
   (Team's width from 1600px, its filter row and cards at `--content-max`, left-aligned).
+- **Matchup Intel on one screen** (the owner's request of 18 Nov 2026; docs/MATCHUP_INTEL.md, "The
+  dashboard"): the page takes `--content-wide`, its two columns from a body 60rem wide, each as tall
+  as its content. Its whole overview fits one viewport with no page scroll at 1920 × 1080, 2560 ×
+  1440 and 1920 × 950 for every one of the 880 pages of the sweep of 19 Nov 2026 (every champion as
+  the enemy against Riven, Gwen, Ambessa, K'Sante and Briar, and the 30 pairs of the six champions with
+  checked notes; the least room left 56px at 1920 × 950), and at 1440 × 900, a size it is not promised
+  to fit, for 874 of them (the tallest six scroll by 5 to 58px; docs/MATCHUP_INTEL.md, "The
+  dashboard"); on production's patch 26.23 (Riot's Data Dragon 16.23.1, the notes "Not re-checked"),
+  for all 546 pages of a second sweep at the first three sizes, and 526 at 1440 × 900; in a smaller
+  window, or at a larger text size, it reflows and scrolls as a page, with
+  nothing clipped and nothing scrolling inside it. `e2e/matchup-intel-dashboard.spec.ts` asserts the
+  fit at five sizes (3440 × 1440 too) for 40 pairs, the tallest of the sweep among them.
 - **A page's controls in reach** (PR 2b, 18 Nov 2026): a long page's own controls (its view switch,
   Filters, search) scroll away with its header. From md, once the section tabs are pinned and the
   page's own toolbar has gone up under them, the page's compact copy shows at the pinned row's end

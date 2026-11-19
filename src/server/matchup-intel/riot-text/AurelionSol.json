@@ -1,0 +1,23 @@
+{
+  "championId": "AurelionSol",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Cosmic Creator","textHash":"db92942e3eafe9af"},
+    "Q": {"name":"Breath of Light","textHash":"949596327ea68abd"},
+    "W": {"name":"Astral Flight","textHash":"e6ea7ab15b759234"},
+    "E": {"name":"Singularity","textHash":"3730f991b67fd12b"},
+    "R": {"name":"Falling Star / The Skies Descend","textHash":"5fe25fc7293e4549"}
+  },
+  "facts": [
+    {"slot":"W","kind":"recast","clause":"Recast: End flight early.","source":"tooltip"},
+    {"slot":"W","kind":"cooldownrefund","clause":"Astral Flight's remaining cooldown is reduced whenever an enemy champion dies after being recently damaged by Aurelion Sol.","source":"description"},
+    {"slot":"E","kind":"pull","clause":"Aurelion Sol summons a black hole, damaging enemies and slowly pulling them toward its center.","source":"description"},
+    {"slot":"R","kind":"stun","clause":"This impact deals magic damage and stuns enemies while also granting Stardust for each enemy champion it hits.","source":"description","qualifier":"Falling Star"},
+    {"slot":"R","kind":"knockup","clause":"The Skies Descend: Aurelion Sol drags a giant star down from the heavens with an increased impact zone and increased damage, knocking up enemies rather than stunning them.","source":"description"},
+    {"slot":"R","kind":"slow","clause":"A shockwave then spreads from the edge of the impact zone, which damages and slows the enemies it hits.","source":"description","qualifier":"The Skies Descend"},
+    {"slot":"R","kind":"transform","clause":"Gathering enough Stardust transforms Aurelion Sol's next Falling Star into The Skies Descend.","source":"description"}
+  ],
+  "disagreements": []
+}

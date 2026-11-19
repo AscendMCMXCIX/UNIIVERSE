@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { UnknownCooldownReason } from "@/domain/matchup-intel/types";
+import { KIND_GROUPS, RIOT_TEXT_KINDS, type UnknownCooldownReason } from "@/domain/matchup-intel/types";
+import { estimateWord, refusedWords } from "@/domain/matchup-intel/refused-words";
 import {
   UNKNOWN_WORDS,
   abilityAnchor,
@@ -28,6 +29,40 @@ import {
   revisionWords,
   staleDataWords,
   subjectWords,
+  ASSEMBLED_TITLE,
+  CONDITIONAL_WORDS,
+  DIFFER_NEITHER_WORDS,
+  DIFFER_WORDS,
+  KIND_GROUP_WORDS,
+  NO_ABILITY_FACTS_WORDS,
+  NO_INTERACTIONS_WORDS,
+  RIOT_TEXT_KIND_WORDS,
+  RIOT_TEXT_LABEL,
+  alsoDescribedWords,
+  assembledWords,
+  conditionalNoteWords,
+  dangerSideWords,
+  hiddenRiotTextWords,
+  moreWords,
+  noFactsWords,
+  noLevelNotesWords,
+  noneOutsideHiddenWords,
+  noneRecordedWords,
+  differSideWords,
+  qualifierChipWords,
+  qualifierWords,
+  riotTextProcessWords,
+  riotTextReviewedWords,
+  riotTextSourceWords,
+  tightCooldownWords,
+  toolsSideWords,
+  ASSEMBLED_IN_PLACE_WORDS,
+  CHECKED_NOTES_LABEL,
+  RIOT_TEXT_NO_NUMBERS_WORDS,
+  briefingHiddenAboveWords,
+  cooldownsFromWords,
+  hiddenPartsBarWords,
+  noBriefingWords,
 } from "./wording";
 
 describe("the cooldown line", () => {
@@ -244,10 +279,156 @@ describe("a check a patch or more behind, and data that is old, an offline copy 
     const c = (id: string) => ({ id, name: id, title: "", portrait: "" });
     const matchup = { verified: { patch: "26.22", ddragonVersion: "16.22.1", checkedOn: "2026-11-16" } } as Parameters<typeof announcementWords>[0]["matchup"];
     expect(announcementWords({ you: c("Riven"), enemy: c("Mordekaiser"), matchup }, true)).toBe("Riven vs Mordekaiser: curated briefing, checked on patch 26.22. Mordekaiser's abilities follow.");
-    expect(announcementWords({ you: c("Riven"), enemy: c("Mordekaiser"), matchup }, false)).toBe("Riven vs Mordekaiser: the curated briefing is hidden. Mordekaiser's abilities follow.");
-    expect(announcementWords({ you: c("Garen"), enemy: c("Darius"), matchup: null }, false)).toBe("No curated briefing for Garen vs Darius yet. Darius's abilities follow.");
+    expect(announcementWords({ you: c("Riven"), enemy: c("Mordekaiser"), matchup }, false)).toBe("Riven vs Mordekaiser: the curated briefing is hidden; an assembled reference from each champion's own facts follows. Mordekaiser's abilities follow.");
+    expect(announcementWords({ you: c("Garen"), enemy: c("Darius"), matchup: null }, false)).toBe("No curated briefing for Garen vs Darius yet: an assembled reference from each champion's own facts, which no person has checked as a pair. Darius's abilities follow.");
     expect(announcementWords({ you: c("Riven"), enemy: null, matchup: null }, false)).toBe("Playing Riven: now choose the enemy.");
     expect(announcementWords({ you: null, enemy: c("Darius"), matchup: null }, false)).toBe("Darius's abilities and base cooldowns.");
     expect(announcementWords({ you: null, enemy: null, matchup: null }, false)).toBe("Choose your champion and the enemy.");
+  });
+});
+
+describe("the assembled reference's fixed sentences and labels", () => {
+  // Every fixed sentence the page may show for a pair with no curated briefing, with neutral names.
+  const sentences = [
+    ASSEMBLED_TITLE,
+    assembledWords("Riven", "Darius"),
+    noFactsWords("Darius"),
+    noneRecordedWords("checked"),
+    noneRecordedWords("riot-text"),
+    noneOutsideHiddenWords(["R"]),
+    hiddenRiotTextWords(1, "changed", "W"),
+    hiddenRiotTextWords(3, "renamed", "R"),
+    hiddenRiotTextWords(2, "unknown", "Q"),
+    noLevelNotesWords(["Darius", "Riven"]),
+    NO_INTERACTIONS_WORDS,
+    dangerSideWords("Darius"),
+    toolsSideWords("Riven"),
+    RIOT_TEXT_LABEL,
+    riotTextSourceWords("tooltip", "Apprehend"),
+    riotTextSourceWords("description", "Apprehend"),
+    riotTextReviewedWords("26.22", "2026-11-18"),
+    CONDITIONAL_WORDS,
+    conditionalNoteWords(["stun", "pull"]),
+    DIFFER_WORDS,
+    DIFFER_NEITHER_WORDS,
+    NO_ABILITY_FACTS_WORDS,
+    qualifierWords("stun", "Mega Gnar", undefined, "Hyper / Wallop"),
+    qualifierWords("cooldownrefund", "Mantra", "tooltip", "Gathering Fire"),
+    qualifierChipWords("stun", "Mega Gnar"),
+    qualifierChipWords("cooldownrefund", "Mantra"),
+    alsoDescribedWords("leap", "description"),
+    differSideWords("pull", "description", "Fate Sealed"),
+    differSideWords("knockup", "tooltip", "Fate Sealed"),
+    riotTextProcessWords({ automatedReviewers: 2, adjudicated: true, consistencyCheckers: 2, checkedByPerson: false }),
+    hiddenRiotTextWords(2, "changed", "R", 1),
+    hiddenRiotTextWords(0, "renamed", "R", 1),
+    moreWords(2),
+    ...Object.values(KIND_GROUP_WORDS),
+    ...Object.values(RIOT_TEXT_KIND_WORDS),
+    announcementWords({ you: { id: "Riven", name: "Riven", title: "", portrait: "" }, enemy: { id: "Darius", name: "Darius", title: "", portrait: "" }, matchup: null }, false),
+  ];
+
+  it("never instructs, judges or claims too much (REFUSED_WORDS), never estimates, and never says verified", () => {
+    for (const text of sentences) {
+      expect(refusedWords(text), text).toEqual([]);
+      expect(estimateWord(text), text).toBeNull();
+      expect(text, text).not.toMatch(/verif/i);
+    }
+  });
+
+  it("says every time that the reference was put together from each champion's facts and that no person checked the pair", () => {
+    expect(assembledWords("Riven", "Darius")).toBe("Put together from each champion's own facts. No person has checked Riven vs Darius as a pair.");
+    expect(ASSEMBLED_TITLE).not.toMatch(/briefing/i);
+  });
+
+  it("labels facts from Riot's text in the owner's words", () => {
+    expect(RIOT_TEXT_LABEL).toBe("From Riot's ability text, reviewed automatically (not by a person)");
+    expect(riotTextReviewedWords("26.22", "2026-11-18")).toBe("Reviewed against Riot's text of patch 26.22, on 18 Nov 2026");
+  });
+
+  it("says what is missing in words, never a bare none: no reviewed fact, which says nothing of what an ability does", () => {
+    expect(noneRecordedWords("riot-text")).toBe("No reviewed facts of this kind");
+    expect(NO_ABILITY_FACTS_WORDS).toBe("No reviewed facts for this ability");
+    for (const words of [noneRecordedWords("riot-text"), NO_ABILITY_FACTS_WORDS, noneOutsideHiddenWords(["R"])]) expect(words, words).not.toMatch(/\bnone\b|recorded in Riot's text/i);
+    // Beside hidden facts, only what holds outside them: a hidden fact may be of the group's kind.
+    expect(noneOutsideHiddenWords(["R"])).toBe("No reviewed facts of this kind outside R");
+    expect(noneOutsideHiddenWords(["Passive", "W"])).toBe("No reviewed facts of this kind outside Passive and W");
+    expect(noFactsWords("Darius")).toBe("No reviewed facts for Darius yet: crowd control, mobility, defence and sustain are not recorded.");
+    expect(noLevelNotesWords(["Darius", "Riven"])).toBe("No level changes recorded for Darius or Riven.");
+    expect(noLevelNotesWords(["Darius"])).toBe("No level changes recorded for Darius.");
+    expect(hiddenRiotTextWords(1, "changed", "W")).toBe("Riot's text for W changed after the review: its fact is hidden.");
+    expect(hiddenRiotTextWords(3, "changed", "W")).toBe("Riot's text for W changed after the review: its 3 facts are hidden.");
+  });
+
+  it("says what a fact from Riot's text holds only with, in Riot's words, and the marker in the owner's words, never a condition of its own", () => {
+    expect(CONDITIONAL_WORDS).toBe("Conditional: see Riot's text");
+    // Under an ability's chips, once, naming the chips it marks by their own words.
+    expect(conditionalNoteWords(["slow"])).toBe("Conditional: see Riot's text (Slow)");
+    expect(conditionalNoteWords(["stun", "pull"])).toBe("Conditional: see Riot's text (Stun and Pull)");
+    expect(conditionalNoteWords(["knockback", "stun", "cooldownrefund"])).toBe("Conditional: see Riot's text (Knock-back, Stun and Cooldown refund)");
+    // On the chip, after the kind's word: the qualifier quoted; on a cooldown refund, the abilities whose cooldown it cuts.
+    expect(qualifierChipWords("stun", "Mega Gnar")).toBe(" · “Mega Gnar”");
+    expect(qualifierChipWords("cooldownrefund", "his other basic abilities")).toBe(" of “his other basic abilities”");
+    // In a tip and the details: the qualifier's line, and which text it is from where that is not the clause's.
+    expect(qualifierWords("stun", "Mega Gnar", undefined, "Hyper / Wallop")).toBe("Qualified by “Mega Gnar”");
+    expect(qualifierWords("dash", "If the lance connects with Demacian Standard", "tooltip", "Dragon Strike")).toBe("Qualified by “If the lance connects with Demacian Standard” (Riot's tooltip for Dragon Strike)");
+    expect(qualifierWords("cooldownrefund", "Mantra", undefined, "Gathering Fire")).toBe("Cuts the cooldown of “Mantra”");
+    expect(alsoDescribedWords("leap", "description")).toBe("Riot's description calls it leap");
+    expect(alsoDescribedWords("knockup", "description")).toBe("Riot's description calls it knock-up");
+  });
+
+  it("says where Riot's two texts differ, both sides alike, picking neither", () => {
+    expect(DIFFER_WORDS).toBe("Riot's texts differ");
+    expect(differSideWords("pull", "description", "Fate Sealed")).toBe("Pull, in Riot's description of Fate Sealed");
+    expect(differSideWords("knockup", "tooltip", "Fate Sealed")).toBe("Knock-up, in Riot's tooltip for Fate Sealed");
+    expect(DIFFER_NEITHER_WORDS).toBe("Neither is shown as a fact.");
+    expect(hiddenRiotTextWords(2, "changed", "R", 1)).toBe("Riot's text for R changed after the review: its 2 facts and the note that Riot's texts differ are hidden.");
+    expect(hiddenRiotTextWords(1, "changed", "R", 1)).toBe("Riot's text for R changed after the review: its fact and the note that Riot's texts differ are hidden.");
+    expect(hiddenRiotTextWords(0, "renamed", "R", 1)).toBe("Riot renamed R after the review: the note that Riot's texts differ is hidden.");
+    expect(hiddenRiotTextWords(0, "unknown", "R", 2)).toBe("Whether Riot's text for R changed since the review is not known yet: the notes that Riot's texts differ are hidden.");
+  });
+
+  it("says how the facts were reviewed from the review record (added for the import from the review's own sentence), and that no person checked them, never that each was drafted by the rules", () => {
+    expect(riotTextProcessWords({ automatedReviewers: 2, adjudicated: true, consistencyCheckers: 2, checkedByPerson: false })).toBe(
+      "Reviewed by two independent automated reviewers and an adjudicator, then a consistency pass checked by two more independent automated checkers; no person has checked them.",
+    );
+    expect(riotTextProcessWords({ automatedReviewers: 1, adjudicated: false, consistencyCheckers: 0, checkedByPerson: false })).toBe("Reviewed by one independent automated reviewer; no person has checked them.");
+    expect(riotTextProcessWords({ automatedReviewers: 3, adjudicated: true, consistencyCheckers: 1, checkedByPerson: false })).toBe("Reviewed by three independent automated reviewers and an adjudicator, then a consistency pass checked by one more independent automated checker; no person has checked them.");
+    // Some facts came in as a reviewer's addition or with the consistency pass: no "each was drafted".
+    for (const r of [{ automatedReviewers: 2, adjudicated: true, consistencyCheckers: 2, checkedByPerson: false }, { automatedReviewers: 1, adjudicated: false, consistencyCheckers: 0, checkedByPerson: false }]) expect(riotTextProcessWords(r)).not.toMatch(/drafted|each/i);
+    expect(RIOT_TEXT_NO_NUMBERS_WORDS).toBe("No number in that text is used for these facts.");
+  });
+
+  it("above the assembled reference: no curated briefing yet, or the curated briefing hidden above, never both", () => {
+    expect(noBriefingWords("Riven", "Darius")).toBe("No curated briefing for Riven vs Darius yet.");
+    expect(briefingHiddenAboveWords("Ambessa", "Renekton")).toBe("The curated briefing for Ambessa vs Renekton is hidden, above.");
+    expect(briefingHiddenAboveWords("Ambessa", "Renekton")).not.toMatch(/No curated briefing|yet/);
+    expect(ASSEMBLED_IN_PLACE_WORDS).toBe("Put together from each champion's own facts in its place. No person has checked them as a pair.");
+    expect(assembledWords("Riven", "Darius")).toBe("Put together from each champion's own facts. No person has checked Riven vs Darius as a pair.");
+  });
+
+  it("the bar's warning for parts hidden because Riot changed what they rest on, by count, or the briefing as a whole", () => {
+    expect(hiddenPartsBarWords(1, false)).toBe("Changed since the check: one part hidden");
+    expect(hiddenPartsBarWords(3, false)).toBe("Changed since the check: three parts hidden");
+    expect(hiddenPartsBarWords(12, false)).toBe("Changed since the check: 12 parts hidden");
+    expect(hiddenPartsBarWords(5, true)).toBe("Changed since the check: the briefing is hidden");
+  });
+
+  it("names who checked the checked notes, as the facts from Riot's text say who reviewed them; a side's or a panel's cooldowns said once", () => {
+    expect(CHECKED_NOTES_LABEL).toBe("Checked notes (drafted and audited by AI agents, not by a person)");
+    expect(CHECKED_NOTES_LABEL).not.toMatch(/verified/i);
+    expect(cooldownsFromWords("Riot's data, not reviewed")).toBe("Cooldowns: Riot's data, not reviewed");
+  });
+
+  it("names every kind and every group", () => {
+    for (const k of RIOT_TEXT_KINDS) expect(RIOT_TEXT_KIND_WORDS[k], k).toMatch(/^[A-Z]/);
+    for (const g of KIND_GROUPS) expect(KIND_GROUP_WORDS[g], g).toMatch(/^[A-Z]/);
+  });
+
+  it("writes a grouped fact's cooldown tight, only where it is one number per rank", () => {
+    expect(tightCooldownWords({ kind: "per-rank", seconds: [24, 21, 18, 15, 12], starts: null, from: "ddragon" })).toBe("24/21/18/15/12\u00a0s");
+    expect(tightCooldownWords({ kind: "per-rank", seconds: [13, 13, 13, 13, 13], starts: null, from: "ddragon" })).toBe("13\u00a0s at every rank");
+    expect(tightCooldownWords({ kind: "unknown", reason: "passive-not-in-ddragon" })).toBeNull();
+    expect(tightCooldownWords({ kind: "charges", charges: [3], recharge: [30] })).toBeNull();
   });
 });

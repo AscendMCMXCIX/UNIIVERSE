@@ -122,6 +122,7 @@ import { AxeBuilder } from "@axe-core/playwright";
 import { redact } from "./redact.mjs";
 import { riotKeysOnPage } from "./riot-keys.mjs";
 import { rosterRowLines } from "./roster-lines.mjs";
+import { matchupIntelVerdicts, readMatchupIntel } from "./matchup-intel-facts.mjs";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 
@@ -934,6 +935,31 @@ async function resourcesFacts(page, kind) {
   pass("resources", `${kind}: no title cut short, no broken site icon`, f.cutTitles === 0 && f.brokenIcons === 0, { cutTitles: f.cutTitles, brokenIcons: f.brokenIcons });
 }
 
+/**
+ * MATCHUP INTEL, one page load (docs/LIVE_VALIDATION.md, "What it checks"; the owner's decision of
+ * 18 Nov 2026): a curated pair on the desktop, read at the check's 1440 × 900 and again with the
+ * window made 1920 × 1080 (as the wide checks do), then put back. What is read and asserted is in
+ * scripts/matchup-intel-facts.mjs, beside its unit test: which layer the pair shows and its label (the
+ * curated briefing and when it was checked, or, once its check is too old or every part rests on an
+ * ability Riot changed, said hidden, above the assembled reference too), the enemy's five ability
+ * tiles with a name and a cooldown line each, the overview on one screen at 1920 × 1080 and the
+ * essentials (the five tiles and the sources' summary) on the screen at 1440 × 900, both passing and
+ * saying what they found while any part of the briefing is hidden, the sources and Riot's notice one
+ * press away with their summary, nothing requested from the League of Legends Wiki, that checked notes
+ * win over the facts from Riot's text (none of those shows for this pair, whose champions both have
+ * checked notes), and axe. It reads nothing beyond what the page itself reads (the session, the
+ * cached roster and patches, two champions' stored abilities and their committed facts from Riot's text).
+ */
+async function matchupIntelFacts(page, kind, wikiRequests) {
+  await page.getByTestId("matchup-dashboard").waitFor({ timeout: 20_000 });
+  const at = await page.evaluate(readMatchupIntel);
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  const wide = await page.evaluate(readMatchupIntel);
+  await page.setViewportSize(VIEWPORTS.desktop.viewport);
+  for (const v of matchupIntelVerdicts({ kind, pair: "Riven vs Mordekaiser", enemy: "Mordekaiser", at, wide, wiki: wikiRequests })) check("matchup-intel", v.name, v.status, v.detail);
+}
+
 async function allChampions(page, log, kind, playerId) {
   const path = playerId ? `/players/${playerId}/champions` : "/overview/champions";
   if (!(await visit(page, log, kind, "all-champions", path))) return;
@@ -1569,6 +1595,24 @@ for (const [kind, options] of Object.entries(VIEWPORTS)) {
       await page.unroute(siteIcon);
     }
   });
+  // Matchup Intel, once, on the desktop: one curated pair (its facts above), at the cost of one page load.
+  if (kind === "desktop") {
+    await guarded("matchup-intel", `${kind}: Matchup Intel`, async () => {
+      const wiki = [];
+      const onRequest = (r) => {
+        if (/(^|\.)wiki\.leagueoflegends\.com$/.test(new URL(r.url()).hostname)) wiki.push(r.url().slice(0, 120));
+      };
+      page.on("request", onRequest);
+      try {
+        if (await visit(page, log, kind, "matchup-intel", "/resources/matchups?champion=Riven&vs=Mordekaiser", { fullPage: false })) {
+          await matchupIntelFacts(page, kind, wiki);
+          await axe(page, kind, "matchup-intel");
+        }
+      } finally {
+        page.off("request", onRequest);
+      }
+    });
+  }
   // Wide screens in the desktop's own context (signed in already): four pages at 2560 × 1440.
   if (kind === "desktop") await guarded("wide", "2560 × 1440", () => wideChecks(page, log));
   // A phone held sideways, last in the phone's own context (signed in already): two pages at 844 × 390.

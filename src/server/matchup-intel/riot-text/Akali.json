@@ -1,0 +1,24 @@
+{
+  "championId": "Akali",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Assassin's Mark","textHash":"9f7b607bdddbf09f"},
+    "Q": {"name":"Five Point Strike","textHash":"d96c9046eb89e74f"},
+    "W": {"name":"Twilight Shroud","textHash":"4611ca28dff41b72"},
+    "E": {"name":"Shuriken Flip","textHash":"4f047b6a9e41dd88"},
+    "R": {"name":"Perfect Execution","textHash":"8da222e9c7e1c833"}
+  },
+  "facts": [
+    {"slot":"P","kind":"empower","clause":"Exiting that ring empowers Akali's next Attack with bonus range and damage.","source":"description"},
+    {"slot":"Q","kind":"slow","clause":"Akali slings kunai in an arc, dealing […] magic damage and Slowing enemies at the tip by […]% for […] seconds.","source":"tooltip"},
+    {"slot":"W","kind":"stealth","clause":"While inside the shroud, Akali becomes invisible and unable to be selected by enemy spells and attacks.","source":"description"},
+    {"slot":"E","kind":"dash","clause":"Re-cast to dash to the marked target, dealing additional damage.","source":"description"},
+    {"slot":"E","kind":"recast","clause":"Re-cast to dash to the marked target, dealing additional damage.","source":"description"},
+    {"slot":"R","kind":"dash","clause":"Re-cast: Akali dashes in a direction, executing all enemies she strikes.","source":"description"},
+    {"slot":"R","kind":"leap","clause":"Akali leaps in a direction, damaging enemies she strikes.","source":"description"},
+    {"slot":"R","kind":"recast","clause":"Re-cast: Akali dashes in a direction, executing all enemies she strikes.","source":"description"}
+  ],
+  "disagreements": []
+}

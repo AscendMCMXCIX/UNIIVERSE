@@ -182,11 +182,21 @@ test("Matchup Intel: a slot's picker fills the screen, a search and a tap choose
   // The window gave the focus back to the slot it opened from, which stays on the page.
   await expect(slot).toBeFocused();
   await fitsWidth(page, "Riven vs Mordekaiser");
-  // A row's details open with a tap (the native details element).
+  // A tile's details open with a tap, in a window over the whole screen that closes back onto the tile.
   const details = page.getByTestId("matchup-enemy-abilities").getByTestId("ability-details").first();
-  await details.locator(":scope > summary").tap();
-  await expect(details).toHaveAttribute("open", "");
-  await expect(details.getByTestId("ability-details-body")).toBeVisible();
+  await details.tap();
+  const body = page.getByTestId("ability-details-body");
+  await expect(body).toBeVisible();
+  await untilStill(page);
+  await fitsWidth(page, "an ability's details window");
+  await page.getByRole("dialog").getByRole("button", { name: /^Close/ }).tap();
+  await expect(body).toBeHidden();
+  await expect(details).toBeFocused();
+  // The sources and notices open with a tap, from their line at the dashboard's foot.
+  const sources = page.getByTestId("matchup-sources");
+  await sources.locator(":scope > summary").tap();
+  await expect(sources).toHaveAttribute("open", "");
+  await expect(page.getByTestId("matchup-footer-riot")).toBeVisible();
   // A briefing chip brings its row into view below the top bar, and gives it the focus.
   const chip = page.getByTestId("matchup-briefing").locator('[data-testid="briefing-ability"][data-anchor^="ability-Mordekaiser-"]').first();
   const anchor = (await chip.getAttribute("data-anchor"))!;
@@ -197,6 +207,42 @@ test("Matchup Intel: a slot's picker fills the screen, a search and a tap choose
   const top = (await row.boundingBox())!.y;
   const bar = (await page.getByTestId("mobile-topbar").boundingBox())!;
   expect(top, "the row's top, under the top bar").toBeGreaterThanOrEqual(bar.y + bar.height - 1);
+});
+
+test("Matchup Intel's facts from Riot's text on an iPhone: a tap on a chip quotes it, on \"Riot's texts differ\" gives both quotes, and the details window says the same; nothing is wider than the phone", async ({ page }) => {
+  await page.goto("/resources/matchups?champion=Riven&vs=Yone");
+  await expect(page.getByTestId("matchup-dashboard")).toHaveAttribute("data-layer", "assembled");
+  await expect(page.getByTestId("matchup-remembered")).not.toHaveAttribute("data-state", "loading");
+  const r = page.locator('[data-testid="matchup-enemy-abilities"] [data-testid="ability-row"][data-slot="R"]');
+  // Yone's R: Riot's description says a pull, its tooltip a knock-up; one chip says so, and a tap opens both quotes.
+  const differ = r.getByTestId("fact-chip-differ");
+  await differ.scrollIntoViewIfNeeded();
+  await differ.tap();
+  const bubble = page.getByTestId("fact-chip-differ-bubble");
+  await expect(bubble).toContainText("Pull, in Riot's description of Fate Sealed");
+  await expect(bubble).toContainText("Knock-up, in Riot's tooltip for Fate Sealed");
+  await expect(bubble).toContainText("Neither is shown as a fact.");
+  // A second tap closes it, as every tip does.
+  await differ.tap();
+  await expect(bubble).toHaveCount(0);
+  // Yone's Q: a conditional fact, the owner's marker under the chips, its quote one tap away.
+  const q = page.locator('[data-testid="matchup-enemy-abilities"] [data-testid="ability-row"][data-slot="Q"]');
+  await expect(q.getByTestId("ability-facts-conditional")).toContainText("Conditional: see Riot's text (");
+  await q.getByTestId("fact-chip").first().tap();
+  await expect(page.getByTestId("fact-chip-bubble")).toContainText("Conditional: see Riot's text.");
+  await q.getByTestId("fact-chip").first().tap();
+  await fitsWidth(page, "Riven vs Yone");
+  // The details window lists both quotes and the other wording, and closes back onto its button.
+  const details = r.getByTestId("ability-details");
+  await details.tap();
+  const body = page.getByTestId("ability-details-body");
+  await expect(body.getByTestId("ability-details-differ")).toContainText("Neither is shown as a fact.");
+  await expect(body.getByTestId("ability-details-also")).toContainText("Riot's description calls it blink");
+  await untilStill(page);
+  await fitsWidth(page, "Fate Sealed's details window");
+  await page.getByRole("dialog").getByRole("button", { name: /^Close/ }).tap();
+  await expect(body).toBeHidden();
+  await expect(details).toBeFocused();
 });
 
 test("Leaderboards on an iPhone: the index brings each section under the top bar, focused, the old Records address lands on its section, and nothing is wider than the phone, at a larger text size too", async ({ page }) => {

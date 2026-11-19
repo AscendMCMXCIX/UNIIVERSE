@@ -2,18 +2,27 @@
   MATCHUP INTEL: the types every part of the feature shares (docs/MATCHUP_INTEL.md).
 
   A player picks their own champion and an enemy, and reads in seconds what the enemy's abilities
-  do, their base cooldowns, and, where a person has written and checked it, what matters in that
-  lane. It is a static reference: base values per rank, no timers, nothing read from a game.
+  do, their base cooldowns, and what matters in that lane. It is a static reference: base values per
+  rank, no timers, nothing read from a game.
 
-  Two layers, kept apart so each can improve without the other or the interface changing:
-  - Champion intelligence: facts about one champion. Riot's Data Dragon gives every champion's
-    ability names, icons, ranks and base cooldown arrays (stored by the version-check job, once per
-    game version). Curated notes add what Data Dragon cannot say (when a cooldown starts, charges,
-    recasts, crowd control, mobility, defences, interactions), each fact with its source and the
-    patch it was checked on.
-  - Matchup intelligence: what is specific to champion A against champion B, written and reviewed
-    by people from those facts. Where none exists, the page says so and shows the enemy's champion
-    intelligence instead. Nothing is generated.
+  Layers, kept apart so each can improve without the others or the interface changing, each with
+  its own label on the page:
+  - L1, curated matchup notes: what is specific to champion A against champion B, written in our
+    own words from the League of Legends Wiki and approved by the owner (MatchupNotes; the first
+    three one-direction pairs were drafted and audited by AI agents).
+  - L2, checked champion notes: facts about one champion's abilities from the League of Legends
+    Wiki, each with its source and the patch it was checked on (ChampionNotes; the first six
+    champions' drafted and audited by AI agents, not by a person).
+  - L3, facts from Riot's ability text: the kinds of mechanic (a stun, a dash, a shield, a recast)
+    Riot's own description or tooltip names, each with the clause it quotes, reviewed automatically
+    (two independent automated reviewers and an adjudicator, then a consistency pass checked by two
+    more; not by a person), pinned to the text it was reviewed against (RiotTextChampion). Kinds
+    only, never a number.
+  - L4, Riot's data: Data Dragon's names, icons, ranks and base cooldown arrays for every champion
+    (stored by the version-check job, once per game version), "not reviewed" where nobody has.
+  - L5, the assembled reference: for a pair with no curated notes, each champion's own facts from
+    L2, else L3, grouped by kind on the page (kit.ts). Code groups and never judges: no threat or
+    opportunity is chosen, nothing is ranked, no sentence joins the two kits.
 
   Only plain data crosses into the browser: these types, never the server modules behind them.
 */
@@ -48,6 +57,13 @@ export interface DdragonAbility {
   charges: number | null;
   /** Data Dragon's short description, its markup removed (Riot's words, never a source of numbers). */
   description: string;
+  /**
+   * A short hash of Riot's whole text for the ability as Data Dragon serves it (its description and,
+   * for a spell, its tooltip: riotTextHash in src/server/matchup-intel/abilities.ts), so facts
+   * reviewed from that text can tell whether it has changed since. Never the text itself. Absent on
+   * a record stored before the rules read it (ABILITY_RULES_FORMAT 1).
+   */
+  textHash?: string | null;
 }
 
 /** One champion's abilities from Data Dragon, at one game version. */
@@ -352,6 +368,228 @@ export interface ChampionNotes {
   levelNotes?: LevelNote[];
 }
 
+/* ---------- L3: facts from Riot's ability text, reviewed automatically ---------- */
+
+/**
+ * The kinds of mechanic a fact from Riot's ability text may name (docs/MATCHUP_INTEL.md, "Facts from
+ * Riot's text"). A kind only: Riot's text names the mechanic; how long, how far or how much is never
+ * taken from it (its numbers are placeholders).
+ */
+export const RIOT_TEXT_KINDS = [
+  // Crowd control.
+  "stun",
+  "knockup",
+  "knockback",
+  "pull",
+  "root",
+  "slow",
+  "silence",
+  "fear",
+  "flee",
+  "charm",
+  "taunt",
+  "suppression",
+  "ground",
+  "polymorph",
+  "sleep",
+  "blind",
+  "disarm",
+  "nearsight",
+  "drowsy",
+  // Mobility.
+  "dash",
+  "blink",
+  "leap",
+  "teleport",
+  // Defence.
+  "unstoppable",
+  "shield",
+  "untargetable",
+  "invulnerable",
+  "stasis",
+  "spellshield",
+  "damagereduction",
+  "tenacity",
+  "cleanse",
+  "stealth",
+  "parry",
+  // Sustain.
+  "heal",
+  "lifesteal",
+  "omnivamp",
+  "regeneration",
+  // How the cooldown behaves.
+  "recast",
+  "charges",
+  "cooldownrefund",
+  "reset",
+  "toggle",
+  // Power.
+  "empower",
+  "transform",
+] as const;
+export type RiotTextKind = (typeof RIOT_TEXT_KINDS)[number];
+
+/**
+ * The groups every fact is sorted into on the page, in the order they show: crowd control first,
+ * then what strengthens the champion (burst), mobility, defence, sustain, and how a cooldown
+ * behaves. The same order on both sides, so the two kits read alike.
+ */
+export const KIND_GROUPS = ["crowd-control", "power", "mobility", "defence", "sustain", "cooldown"] as const;
+export type KindGroup = (typeof KIND_GROUPS)[number];
+
+/** The group of each kind from Riot's text. */
+export const RIOT_TEXT_KIND_GROUP: Record<RiotTextKind, KindGroup> = {
+  stun: "crowd-control",
+  knockup: "crowd-control",
+  knockback: "crowd-control",
+  pull: "crowd-control",
+  root: "crowd-control",
+  slow: "crowd-control",
+  silence: "crowd-control",
+  fear: "crowd-control",
+  flee: "crowd-control",
+  charm: "crowd-control",
+  taunt: "crowd-control",
+  suppression: "crowd-control",
+  ground: "crowd-control",
+  polymorph: "crowd-control",
+  sleep: "crowd-control",
+  blind: "crowd-control",
+  disarm: "crowd-control",
+  nearsight: "crowd-control",
+  drowsy: "crowd-control",
+  dash: "mobility",
+  blink: "mobility",
+  leap: "mobility",
+  teleport: "mobility",
+  unstoppable: "defence",
+  shield: "defence",
+  untargetable: "defence",
+  invulnerable: "defence",
+  stasis: "defence",
+  spellshield: "defence",
+  damagereduction: "defence",
+  tenacity: "defence",
+  cleanse: "defence",
+  stealth: "defence",
+  parry: "defence",
+  heal: "sustain",
+  lifesteal: "sustain",
+  omnivamp: "sustain",
+  regeneration: "sustain",
+  recast: "cooldown",
+  charges: "cooldown",
+  cooldownrefund: "cooldown",
+  reset: "cooldown",
+  toggle: "cooldown",
+  empower: "power",
+  transform: "power",
+};
+
+/** The group of each kind of checked fact (L2); interactions and exceptions are no group's: they show as interactions. */
+export const FACT_KIND_GROUP: Record<FactKind, KindGroup | null> = {
+  "crowd-control": "crowd-control",
+  damage: "power",
+  empowerment: "power",
+  mobility: "mobility",
+  defence: "defence",
+  sustain: "sustain",
+  interaction: null,
+  exception: null,
+};
+
+/** Which of Riot's two texts for an ability a fact quotes: the short description, or the tooltip. */
+export type RiotTextSource = "description" | "tooltip";
+
+/**
+ * One fact from Riot's text: the kind it names and the clause of Riot's text it rests on, quoted,
+ * with what the review recorded beside it. Every span is Riot's own words, verbatim; each of Riot's
+ * placeholders appears as "[…]", never a number (the import script, shownClause).
+ */
+export interface RiotTextFact {
+  slot: Slot;
+  kind: RiotTextKind;
+  /** The clause of Riot's text, as quoted ("Darius hooks with his axe, Pulling, and Knocking Up"). */
+  clause: string;
+  source: RiotTextSource;
+  /**
+   * Riot's words for what the clause leaves out and the fact holds only with: a form, an upgrade, a
+   * condition or a recipient ("Mega Gnar", "Max Ferocity", "nearby ally champions"). On a cooldown
+   * refund, the abilities whose cooldown it cuts ("Mantra", "his other basic abilities"); a cooldown
+   * refund without one refunds the ability's own cooldown. Shown with the fact, never apart from it.
+   */
+  qualifier?: string;
+  /** Present only when the qualifier is quoted from the ability's other text (otherwise it is the fact's own `source`). */
+  qualifierSource?: RiotTextSource;
+  /**
+   * The fact holds only under a condition that no number-free words of Riot's text name: shown with
+   * the fixed marker "Conditional: see Riot's text", the quote one tap away; never a condition in
+   * the page's own words.
+   */
+  conditional?: true;
+  /**
+   * Riot's other text words the same effect as another kind of the same family (one movement, a fear
+   * and a flee): said in the ability's details ("Riot's description calls it leap"), never a chip of
+   * its own and never counted.
+   */
+  alsoDescribedAs?: { kind: RiotTextKind; source: RiotTextSource; clause: string };
+}
+
+/**
+ * Riot's two texts for one ability state different effects (its description a knock-up, its tooltip
+ * a knock-back): no fact of either kind exists there, and the page shows both quotes and picks
+ * neither.
+ */
+export interface RiotTextDisagreement {
+  slot: Slot;
+  description: { kind: RiotTextKind; clause: string };
+  tooltip: { kind: RiotTextKind; clause: string };
+}
+
+/**
+ * How a champion's facts from Riot's text were reviewed: the reviewed table's reviewRecord, read by
+ * the import script, never assumed. The review itself wrote one sentence ("two independent automated
+ * reviews and an adjudicator, then a consistency pass checked by two more; not checked by a person");
+ * the record was added to every file and to the index for the import, from that sentence, stating it
+ * as data, and nothing else in the table changed with it. Today: the drafts (made by fixed rules from
+ * Riot's text) read by two independent automated reviewers and settled by an adjudicator, with the
+ * reviewers' own additions; then a consistency pass across the batches, which also added, removed and
+ * changed facts, checked by two more independent automated checkers; no person has checked any of it
+ * (`checkedByPerson` false). So not every fact was a draft of the fixed rules, and the page never says
+ * each was. A person's check would change the label, which is the owner's decision
+ * (docs/MATCHUP_INTEL.md, "Facts from Riot's text").
+ */
+export interface RiotTextReview {
+  /** Independent automated reviewers that read every draft (and adjudicated each other's additions). */
+  automatedReviewers: number;
+  /** An automated adjudicator settled every batch, where the reviewers split. */
+  adjudicated: boolean;
+  /** Independent automated checkers that checked the consistency pass across the batches (0 when there was none). */
+  consistencyCheckers: number;
+  /** A person checked the facts. False in every committed file: the label says "not by a person". */
+  checkedByPerson: boolean;
+}
+
+/**
+ * One champion's reviewed facts from Riot's text (src/server/matchup-intel/riot-text/<Id>.json,
+ * written by scripts/matchup-intel/import-riot-text.mjs). Each ability's facts are pinned to Riot's
+ * text as it was reviewed (`abilities[slot].textHash`, riotTextHash): once Riot's text for it
+ * changes, its facts are hidden and the page says so, as checked notes are flagged.
+ */
+export interface RiotTextChampion {
+  championId: string;
+  /** The Data Dragon version whose text was reviewed ("16.22.1"). */
+  version: string;
+  /** The day the review finished, ISO ("2026-11-18"). */
+  reviewedOn: string;
+  review: RiotTextReview;
+  /** Each ability as reviewed: its name and the hash of its text. */
+  abilities: Partial<Record<Slot, { name: string; textHash: string }>>;
+  facts: RiotTextFact[];
+  disagreements: RiotTextDisagreement[];
+}
+
 /** A pointer to one ability: "<ChampionId>.<Slot>", e.g. "Renekton.W". */
 export type AbilityRef = `${string}.${Slot}`;
 
@@ -494,6 +732,38 @@ export interface AbilityView {
   details: string[];
   /** Null when no curated notes exist for this ability. */
   freshness: Freshness | null;
+  /**
+   * The facts from Riot's text for this ability (L3), shown only for a champion with no checked
+   * notes; null when the champion has no reviewed facts, or has checked notes.
+   */
+  riotText: RiotTextAbilityView | null;
+}
+
+/** One fact from Riot's text, ready to show (RiotTextFact without its slot). */
+export type RiotTextFactView = Omit<RiotTextFact, "slot">;
+
+/** Where Riot's two texts for an ability differ, ready to show (RiotTextDisagreement without its slot). */
+export type RiotTextDisagreementView = Omit<RiotTextDisagreement, "slot">;
+
+/**
+ * An ability's facts from Riot's text as the page shows them: those whose text still matches what
+ * was reviewed, or, when it does not, how many are hidden and why (never left out silently).
+ */
+export interface RiotTextAbilityView {
+  facts: RiotTextFactView[];
+  /** Where Riot's two texts for it differ (shown as that, with both quotes, never as a fact). */
+  disagreements: RiotTextDisagreementView[];
+  /** How many reviewed facts are hidden (0 when none). */
+  hidden: number;
+  /** How many of its recorded disagreements are hidden with them (0 when none). */
+  hiddenDisagreements: number;
+  /**
+   * Why they are hidden: Riot's text changed since the review ("changed"), the ability's name is no
+   * longer the one reviewed ("renamed"), or the stored record cannot say whether its text changed
+   * ("unknown": stored before the rules kept the text's hash, on another version than the review).
+   * Null when nothing is hidden.
+   */
+  hiddenBecause: "changed" | "renamed" | "unknown" | null;
 }
 
 /**
@@ -532,6 +802,11 @@ export interface ChampionIntelView {
   /** `changed`: Riot changed an ability the note rests on after the check, so it is flagged. */
   levelNotes: Array<{ level: number; text: string; source: SourceLinkView; changed: boolean }>;
   sources: Source[];
+  /**
+   * This champion's reviewed facts from Riot's text (L3): when and how they were reviewed. Null when
+   * none are committed for it, or it has checked notes (which the page shows instead).
+   */
+  riotText: { version: string; patch: string | null; reviewedOn: string; review: RiotTextReview } | null;
 }
 
 /**

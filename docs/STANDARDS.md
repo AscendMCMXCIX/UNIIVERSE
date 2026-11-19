@@ -151,7 +151,8 @@ leaving a frame to fill.
 
 **Page layout.** One frame for every page, so pages differ by their content, not their scaffolding:
 - **Width:** `--content-max` for profiles, lists of cards, documents and forms; `--content-wide` for
-  the grids that gain from more columns (Team Overview's lineup, Leaderboards). In a window from
+  the grids that gain from more columns (Team Overview's lineup, Leaderboards, Matchup Intel's
+  single-screen dashboard). In a window from
   1600px wide the pages of one tab set share one width, so its tabs line up with each and never move
   between them (`SECTION_HUBS`' `width`, `PAGE_WIDTH` and `ROW_WIDTH` in `src/lib/nav.ts`): Team's four
   sections take `--content-wide` there (Players and Matches stay `--content-max` under 1600px, as

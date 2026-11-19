@@ -1,0 +1,19 @@
+{
+  "championId": "Kennen",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Mark of the Storm","textHash":"7c9b9ead3055a6c7"},
+    "Q": {"name":"Thundering Shuriken","textHash":"624b265d40b1cd41"},
+    "W": {"name":"Electrical Surge","textHash":"1c9716355c5061ce"},
+    "E": {"name":"Lightning Rush","textHash":"6acccd37ff012536"},
+    "R": {"name":"Slicing Maelstrom","textHash":"2e6ff3d85b7873d8"}
+  },
+  "facts": [
+    {"slot":"P","kind":"stun","clause":"Kennen stuns enemies he hits","source":"description","conditional":true},
+    {"slot":"E","kind":"recast","clause":"Kennen can Recast to end this Ability early.","source":"tooltip"},
+    {"slot":"E","kind":"transform","clause":"Kennen morphs into a lightning form, enabling him to pass through units and apply a Mark of the Storm.","source":"description"}
+  ],
+  "disagreements": []
+}

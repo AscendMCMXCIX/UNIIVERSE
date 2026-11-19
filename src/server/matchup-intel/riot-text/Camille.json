@@ -1,0 +1,28 @@
+{
+  "championId": "Camille",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Adaptive Defenses","textHash":"d57e80d11233b38e"},
+    "Q": {"name":"Precision Protocol","textHash":"afc70915b067fd26"},
+    "W": {"name":"Tactical Sweep","textHash":"fbc9a07390c612db"},
+    "E": {"name":"Hookshot","textHash":"87a177aab29148e1"},
+    "R": {"name":"The Hextech Ultimatum","textHash":"19ffda411a31b7cc"}
+  },
+  "facts": [
+    {"slot":"P","kind":"shield","clause":"Basic attacks on champions grant a shield equal to a percentage of Camille's maximum health against their damage type (Physical or Magic) for a brief duration.","source":"description"},
+    {"slot":"Q","kind":"recast","clause":"This ability can be Recast in the next […] seconds.","source":"tooltip"},
+    {"slot":"Q","kind":"empower","clause":"Camille's next attack deals bonus damage and grants bonus Move Speed.","source":"description"},
+    {"slot":"W","kind":"slow","clause":"Enemies in the outer half are slowed and take extra damage, while also healing Camille.","source":"description"},
+    {"slot":"W","kind":"heal","clause":"Enemies in the outer half are slowed and take extra damage, while also healing Camille.","source":"description"},
+    {"slot":"E","kind":"dash","clause":"Recast: Camille dashes from the wall, colliding with the first enemy champion hit.","source":"tooltip","alsoDescribedAs":{"kind":"leap","source":"description","clause":"Camille pulls herself to a wall, leaping off"}},
+    {"slot":"E","kind":"recast","clause":"Recast: Camille dashes from the wall, colliding with the first enemy champion hit.","source":"tooltip"},
+    {"slot":"R","kind":"knockback","clause":"Other nearby enemies are Knocked Away.","source":"tooltip"},
+    {"slot":"R","kind":"leap","clause":"Camille briefly becomes Untargetable and leaps onto an enemy champion, interrupting channels and locking them into an area they cannot escape by any means for […] seconds.","source":"tooltip","alsoDescribedAs":{"kind":"dash","source":"description","clause":"Camille dashes to target champion, anchoring them to the area."}},
+    {"slot":"R","kind":"untargetable","clause":"Camille briefly becomes Untargetable and leaps onto an enemy champion, interrupting channels and locking them into an area they cannot escape by any means for […] seconds.","source":"tooltip"}
+  ],
+  "disagreements": [
+    {"slot":"E","description":{"kind":"knockup","clause":"Camille pulls herself to a wall, leaping off and knocking up enemy champions upon landing."},"tooltip":{"kind":"stun","clause":"Upon landing, she gains […]% Attack Speed for […] seconds, deals […] physical damage to nearby enemies, and Stuns enemy champions"}}
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "championId": "Zilean",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Time In A Bottle","textHash":"b307236298cc50a0"},
+    "Q": {"name":"Time Bomb","textHash":"e26ccf03e2c673cf"},
+    "W": {"name":"Rewind","textHash":"afec5e4db3acaff0"},
+    "E": {"name":"Time Warp","textHash":"ecb89e0af28c16ce"},
+    "R": {"name":"Chronoshift","textHash":"a3d2e4f44f14b71c"}
+  },
+  "facts": [
+    {"slot":"Q","kind":"stun","clause":"If a Time Bomb is detonated early by another Time Bomb, it also stuns enemies.","source":"description"},
+    {"slot":"W","kind":"cooldownrefund","clause":"Zilean can prepare himself for future confrontations, reducing the cooldowns of his other basic abilities.","source":"description","qualifier":"his other basic abilities"},
+    {"slot":"E","kind":"slow","clause":"Zilean Slows an enemy champion by […]% or grants an allied champion […]% Move Speed for […] seconds.","source":"tooltip"},
+    {"slot":"R","kind":"stasis","clause":"If the target would die, the rune rewinds their timeline, putting them into Stasis for […] seconds, then reviving them","source":"tooltip","qualifier":"an allied champion"},
+    {"slot":"R","kind":"heal","clause":"If the target would die, the rune rewinds their timeline, putting them into Stasis for […] seconds, then reviving them and restoring […] Health.","source":"tooltip","qualifier":"an allied champion"}
+  ],
+  "disagreements": []
+}

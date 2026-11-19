@@ -27,6 +27,10 @@ function quoteAfter(doc: string, marker: string): string {
 
 const registration = quoteAfter(read("docs/RIOT_COMPLIANCE.md"), "**Description for the registration**");
 const matchupIntel = quoteAfter(read("docs/MATCHUP_INTEL.md"), "## For the owner");
+// The description proposed for Matchup Intel's redesign of 18 Nov 2026 (the owner's action, decision 6):
+// RIOT_COMPLIANCE.md's whole text, and MATCHUP_INTEL.md's Matchup Intel part, under step 1.
+const proposed = quoteAfter(read("docs/RIOT_COMPLIANCE.md"), "**Proposed description for the registration**");
+const proposedMatchupIntel = quoteAfter(read("docs/MATCHUP_INTEL.md"), "**For the redesign of 18 Nov 2026, the owner's action**");
 
 describe("the registration's description", () => {
   it("is in RIOT_COMPLIANCE.md, and MATCHUP_INTEL.md repeats its Matchup Intel part word for word", () => {
@@ -40,5 +44,16 @@ describe("the registration's description", () => {
       expect(matchupIntel, words).toContain(words);
     }
     expect(registration).toContain("No live-game or champion-select features, no client integration");
+  });
+
+  it("the description proposed for the redesign is in both, word for word, and says the same about Matchup Intel and what it now reads and shows", () => {
+    expect(proposed).toMatch(/^Private team tool/);
+    expect(proposedMatchupIntel).toMatch(/^Matchup Intel, /);
+    expect(proposed).toContain(proposedMatchupIntel);
+    // The rest of the product's description is the registered one's.
+    expect(proposed.replace(proposedMatchupIntel, "")).toBe(registration.replace(matchupIntel, ""));
+    for (const words of ["static reference", "chosen by hand", "base cooldowns per rank from Data Dragon", "League of Legends Wiki", "no Riot API request", "no timers or tracking", "Riot's own ability text", "reviewed automatically", "each champion's facts set side by side"]) {
+      expect(proposedMatchupIntel, words).toContain(words);
+    }
   });
 });

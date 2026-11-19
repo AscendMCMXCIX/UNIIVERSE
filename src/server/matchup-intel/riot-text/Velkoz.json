@@ -1,0 +1,21 @@
+{
+  "championId": "Velkoz",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Organic Deconstruction","textHash":"7f9b5d3130dcb107"},
+    "Q": {"name":"Plasma Fission","textHash":"ac26b2f3f6100c99"},
+    "W": {"name":"Void Rift","textHash":"89760c08bd7c99d8"},
+    "E": {"name":"Tectonic Disruption","textHash":"eef7ad4b27620c06"},
+    "R": {"name":"Life Form Disintegration Ray","textHash":"fc34f3b88f9ccc67"}
+  },
+  "facts": [
+    {"slot":"Q","kind":"slow","clause":"The bolt slows and damages on hit.","source":"description"},
+    {"slot":"Q","kind":"recast","clause":"on reactivation or upon hitting an enemy.","source":"description"},
+    {"slot":"W","kind":"charges","clause":"charges ([…] second refresh).","source":"tooltip"},
+    {"slot":"E","kind":"knockup","clause":"Vel'Koz causes an area to explode, knocking up enemies, and knocking close enemies slightly away.","source":"description"},
+    {"slot":"E","kind":"knockback","clause":"Enemies close to Vel'Koz will be Knocked Back instead of Knocked Up.","source":"tooltip"}
+  ],
+  "disagreements": []
+}

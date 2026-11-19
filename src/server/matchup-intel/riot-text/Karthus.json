@@ -1,0 +1,19 @@
+{
+  "championId": "Karthus",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Death Defied","textHash":"4a5018192add27bd"},
+    "Q": {"name":"Lay Waste","textHash":"d81f866187781ffd"},
+    "W": {"name":"Wall of Pain","textHash":"1f63637e991326b9"},
+    "E": {"name":"Defile","textHash":"ddb04613c9abc5bd"},
+    "R": {"name":"Requiem","textHash":"f642bded437b9784"}
+  },
+  "facts": [
+    {"slot":"P","kind":"transform","clause":"Upon dying, Karthus enters a spirit form that allows him to continue casting spells.","source":"description"},
+    {"slot":"W","kind":"slow","clause":"Enemies that pass through lose […]% Magic Resist for […] seconds and are Slowed by […]% decaying over the duration.","source":"tooltip"},
+    {"slot":"E","kind":"toggle","clause":"Toggle: Karthus creates a necrotic aura, dealing […] magic damage per second to nearby enemies.","source":"tooltip"}
+  ],
+  "disagreements": []
+}

@@ -1,0 +1,20 @@
+{
+  "championId": "Caitlyn",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Headshot","textHash":"b7162d2ad26a1438"},
+    "Q": {"name":"Piltover Peacemaker","textHash":"a77e2c09504c6abc"},
+    "W": {"name":"Yordle Snap Trap","textHash":"7a4528bca1200adf"},
+    "E": {"name":"90 Caliber Net","textHash":"e43b523829a25284"},
+    "R": {"name":"Ace in the Hole","textHash":"43b980022a6d849b"}
+  },
+  "facts": [
+    {"slot":"W","kind":"root","clause":"Targets rooted by this Ability take an additional […] physical damage from Headshot.","source":"tooltip"},
+    {"slot":"W","kind":"charges","clause":"This Ability has […] charges ([…] second refresh).","source":"tooltip"},
+    {"slot":"W","kind":"empower","clause":"granting Caitlyn an empowered Headshot.","source":"description","qualifier":"a trap that, when sprung, reveals and immobilizes the enemy champion"},
+    {"slot":"E","kind":"slow","clause":"Caitlyn fires a heavy net to slow her target.","source":"description"}
+  ],
+  "disagreements": []
+}

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Db } from "@/server/db/types";
@@ -22,10 +23,13 @@ import { mapWithConcurrency } from "@/server/riot/static/sync";
   - maxammo, a string such as "-1": above 0 the ability holds that many charges, and its cooldown
     array is then the time between casts, not the recharge (src/domain/matchup-intel/cooldown.ts);
   - the short description, its markup removed (cleanDescription): Riot's words, never a source of
-    numbers.
-  Never read: tooltip, leveltip, effect/effectBurn, vars, datavalues, range/rangeBurn,
-  costType/resource (their numbers are templates and placeholders, or wrong for many champions),
-  and maxammo is never taken for a recharge time.
+    numbers;
+  - a short hash of Riot's whole text for the ability, its raw description and (for a spell) its
+    tooltip (riotTextHash): never the text itself, only whether it is still the text the facts from
+    Riot's text were reviewed against (docs/MATCHUP_INTEL.md, "Facts from Riot's text").
+  Never read for their words or numbers: tooltip (hashed only), leveltip, effect/effectBurn, vars,
+  datavalues, range/rangeBurn, costType/resource (their numbers are templates and placeholders, or
+  wrong for many champions), and maxammo is never taken for a recharge time.
 
   scripts/matchup-intel/build-ability-fixture.mjs applies the same rules under plain Node to write
   the offline fixture (src/server/riot/fixtures/champion-abilities.fixture.json); abilities.test.ts
@@ -38,7 +42,7 @@ const KEY = "champion_abilities";
  * under another is read again from Data Dragon on the next run (the fixture must be rebuilt too:
  * abilities.test.ts fails until it is).
  */
-export const ABILITY_RULES_FORMAT = 1;
+export const ABILITY_RULES_FORMAT = 2;
 /** The Data Dragon version the committed fixture was built from. */
 export const ABILITY_FIXTURE_VERSION = "16.22.1";
 /** Data Dragon champion ids ("Riven", "MonkeyKing"): checked before any id reaches a query or a URL. */
@@ -101,6 +105,17 @@ function capDescription(text: string): string {
 }
 
 /**
+ * A short hash of Riot's whole text for one ability, as Data Dragon serves it: its raw description
+ * and, for a spell, its raw tooltip (null for the passive, which has none), the first 16 hex digits
+ * of their SHA-256. It tells whether the text is still the one the facts from Riot's text were
+ * reviewed against: any change to either text, a word or a placeholder, gives another hash. The
+ * same in scripts/matchup-intel/build-ability-fixture.mjs and import-riot-text.mjs.
+ */
+export function riotTextHash(description: string, tooltip: string | null): string {
+  return createHash("sha256").update(JSON.stringify([description, tooltip])).digest("hex").slice(0, 16);
+}
+
+/**
  * Riot's short description as plain text: every markup tag removed with its inner text kept (a
  * line break becomes a space), Riot's inline icons (%i:OnHit%) removed, entities decoded,
  * whitespace collapsed, at most DESCRIPTION_MAX characters. A placeholder Riot fills in elsewhere
@@ -139,6 +154,8 @@ const spellSchema = z.object({
   maxrank: z.number().int().min(1).max(10),
   cooldown: z.array(z.number().min(0).max(100_000)).max(10),
   maxammo: z.union([z.string().max(20), z.number()]).optional(),
+  // Hashed only (riotTextHash), never stored or shown.
+  tooltip: z.string().max(40_000).optional(),
   image: z.object({ full: icon }),
 });
 const detailSchema = z.object({ id: z.string().regex(CHAMPION_ID), passive: passiveSchema, spells: z.array(spellSchema).min(4) });
@@ -162,10 +179,10 @@ export function compactChampionAbilities(detail: unknown, version: string): Ddra
     if (!parsed.success) return null;
     const { id, passive, spells } = parsed.data;
     const abilities: DdragonAbility[] = [
-      { slot: "P", id: null, name: passive.name, icon: passive.image.full, maxRank: 1, cooldown: [], charges: null, description: cleanDescription(passive.description ?? "") },
+      { slot: "P", id: null, name: passive.name, icon: passive.image.full, maxRank: 1, cooldown: [], charges: null, description: cleanDescription(passive.description ?? ""), textHash: riotTextHash(passive.description ?? "", null) },
       ...SPELL_SLOTS.map((slot, i): DdragonAbility => {
         const s = spells[i]!;
-        return { slot, id: s.id, name: s.name, icon: s.image.full, maxRank: s.maxrank, cooldown: [...s.cooldown], charges: chargesOf(s.maxammo), description: cleanDescription(s.description ?? "") };
+        return { slot, id: s.id, name: s.name, icon: s.image.full, maxRank: s.maxrank, cooldown: [...s.cooldown], charges: chargesOf(s.maxammo), description: cleanDescription(s.description ?? ""), textHash: riotTextHash(s.description ?? "", s.tooltip ?? "") };
       }),
     ];
     return { championId: id, version, abilities };
@@ -408,6 +425,8 @@ const storedAbility = z.object({
   cooldown: z.array(z.number()),
   charges: z.number().int().positive().nullable(),
   description: z.string(),
+  // Absent on a record stored under the first rules (ABILITY_RULES_FORMAT 1), until the next sync re-reads it.
+  textHash: z.string().regex(/^[0-9a-f]{16}$/).nullable().optional(),
 });
 const storedChampion = z.object({ championId: z.string(), version: z.string(), abilities: z.array(storedAbility).length(SLOTS.length) });
 

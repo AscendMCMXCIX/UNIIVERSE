@@ -1,5 +1,5 @@
 import type { Db } from "@/server/db/types";
-import { FACT_TAGS, SLOTS, type AbilityRef, type AbilityView, type BriefingPoint, type BriefingPointView, type ChampionChoice, type ChampionIntelView, type ChampionNotes, type DdragonChampionAbilities, type Fact, type FactSubject, type FactTag, type FactView, type Freshness, type InteractionView, type MatchupIntelView, type MatchupNotes, type MatchupPageView, type Recheck, type Slot, type Source, type SourceLinkView } from "@/domain/matchup-intel/types";
+import { FACT_TAGS, SLOTS, type AbilityRef, type AbilityView, type BriefingPoint, type BriefingPointView, type ChampionChoice, type ChampionIntelView, type ChampionNotes, type DdragonAbility, type DdragonChampionAbilities, type Fact, type FactSubject, type FactTag, type FactView, type Freshness, type InteractionView, type MatchupIntelView, type MatchupNotes, type MatchupPageView, type Recheck, type RiotTextAbilityView, type RiotTextChampion, type Slot, type Source, type SourceLinkView } from "@/domain/matchup-intel/types";
 import { abilityChanges, abilityFreshness, compareDdragonVersions, cooldownDisplay, curatedCooldownDisplay, modifiersView, weakestFreshness } from "@/domain/matchup-intel/cooldown";
 import { patchFromVersion, patchesAfter, publicPatchName } from "@/domain/patch";
 import { keepUnitsWithNumbers } from "@/lib/format";
@@ -7,16 +7,20 @@ import { cachedFor } from "@/server/observability/cache";
 import { getCurrentPatch, listChampions, listPatchesDesc, type ChampionSummary } from "@/server/repositories/champions";
 import { loadChampionAbilities } from "./abilities";
 import { curatedEnemiesFor, getChampionNotes, getMatchupNotes } from "./curated";
+import { loadRiotText } from "./riot-text";
 
 /*
   MATCHUP INTEL's page, built on the server (docs/MATCHUP_INTEL.md): the two champions chosen in the
-  address, checked against the roster, each with its abilities from Data Dragon and the curated
-  notes that exist, and the curated matchup for this direction only. Plain data goes to the browser
-  (MatchupPageView); the curated dataset and these modules never do (src/app/client-imports.test.ts).
+  address, checked against the roster, each with its abilities from Data Dragon, the curated notes
+  that exist, or else its reviewed facts from Riot's text, and the curated matchup for this
+  direction only. Plain data goes to the browser (MatchupPageView); the curated dataset, the
+  reviewed facts and these modules never do (src/app/client-imports.test.ts). A pair with no
+  curated matchup is assembled on the page from each champion's own facts (kit.ts), grouped by kind.
 
   The work is what the page needs and no more: the session (the page's own check), the cached
   roster, current patch and list of patches, and the stored abilities of the one or two champions
-  chosen. The curated notes are committed with the code, so reading them costs no request.
+  chosen. The curated notes are committed with the code, and the reviewed facts of the champions
+  chosen are committed files loaded on demand, so reading them costs no request or query.
 */
 
 /**
@@ -45,6 +49,8 @@ export interface MatchupViewDeps {
   championNotes: (championId: string) => ChampionNotes | null;
   /** The curated matchup for your champion against the enemy, this direction only. */
   matchupNotes: (championId: string, vsId: string) => MatchupNotes | null;
+  /** The reviewed facts from Riot's text of these champions (null for one with none); absent: none for anyone. */
+  riotText?: (championIds: readonly string[]) => Promise<Record<string, RiotTextChampion | null>>;
 }
 
 /** The hosts a curated source may link to: the League of Legends Wiki and Riot's own. */
@@ -177,7 +183,7 @@ export function recheckOf(verifiedVersion: string, versions: ReadonlyArray<strin
  * the check, the line is what Riot's data alone supports, and the notes' cooldown is kept as it was
  * checked (`checkedCooldown`), to be shown with the notes, flagged.
  */
-function abilityViews(data: DdragonChampionAbilities | null, notes: ChampionNotes | null): AbilityView[] | null {
+function abilityViews(data: DdragonChampionAbilities | null, notes: ChampionNotes | null, riotText: RiotTextChampion | null): AbilityView[] | null {
   if (!data) return null;
   const bySlot = new Map(data.abilities.map((a) => [a.slot, a]));
   return SLOTS.flatMap((slot): AbilityView[] => {
@@ -205,9 +211,40 @@ function abilityViews(data: DdragonChampionAbilities | null, notes: ChampionNote
         description: drawn(a.description),
         details: n?.details ? n.details.map(drawn) : [],
         freshness,
+        // Checked notes win: a champion with them shows only those (the reviewed facts are for the others).
+        riotText: !notes && riotText ? riotTextView(a, riotText, data.version) : null,
       },
     ];
   });
+}
+
+/**
+ * An ability's facts from Riot's text, as far as Riot's text still is what was reviewed: each
+ * ability's facts, and where its two texts differ, are pinned to its name and to the hash of its
+ * whole text (description and tooltip, riotTextHash) at the review. The stored record carries the
+ * hash of the text it was read from (rules format 2), so a change to either text, or a new name,
+ * hides the ability's facts and disagreements, and the page says how many and why in their place. A
+ * record stored before the rules kept the hash shows them only on the very version reviewed; on any
+ * other its text cannot be compared, which is said too. Each fact keeps what the review recorded
+ * with it (its qualifier, the conditional marker, another kind Riot's other text words it as).
+ */
+export function riotTextView(a: DdragonAbility, reviewed: RiotTextChampion, dataVersion: string): RiotTextAbilityView {
+  const facts = reviewed.facts.filter((f) => f.slot === a.slot);
+  const disagreements = (reviewed.disagreements ?? []).filter((d) => d.slot === a.slot);
+  const pin = reviewed.abilities[a.slot];
+  const hide = (because: NonNullable<RiotTextAbilityView["hiddenBecause"]>): RiotTextAbilityView => ({ facts: [], disagreements: [], hidden: facts.length, hiddenDisagreements: disagreements.length, hiddenBecause: facts.length || disagreements.length ? because : null });
+  if (!pin) return hide("unknown");
+  if (pin.name !== a.name) return hide("renamed");
+  if (typeof a.textHash === "string") {
+    if (a.textHash !== pin.textHash) return hide("changed");
+  } else if (dataVersion !== reviewed.version) return hide("unknown");
+  return {
+    facts: facts.map(({ slot: _slot, ...f }) => ({ ...f, ...(f.alsoDescribedAs ? { alsoDescribedAs: { ...f.alsoDescribedAs } } : {}) })),
+    disagreements: disagreements.map((d) => ({ description: { ...d.description }, tooltip: { ...d.tooltip } })),
+    hidden: 0,
+    hiddenDisagreements: 0,
+    hiddenBecause: null,
+  };
 }
 
 /** The modifiers as the page draws them: what gives a refund back is curated text. */
@@ -227,7 +264,7 @@ interface IntelContext {
 }
 
 /** One champion's intelligence: Data Dragon's abilities, and the curated layer when there is one. */
-function championIntel(champion: ChampionChoice, data: DdragonChampionAbilities | null, notes: ChampionNotes | null, context: IntelContext): ChampionIntelView {
+function championIntel(champion: ChampionChoice, data: DdragonChampionAbilities | null, notes: ChampionNotes | null, riotText: RiotTextChampion | null, context: IntelContext): ChampionIntelView {
   const dataVersion = data?.version ?? null;
   const bySlot = new Map((data?.abilities ?? []).map((a) => [a.slot, a]));
   const freshnessBySlot = new Map<Slot, Freshness>();
@@ -251,7 +288,7 @@ function championIntel(champion: ChampionChoice, data: DdragonChampionAbilities 
     champion,
     dataVersion,
     offlineCopy: !!data && context.offline,
-    abilities: abilityViews(data, notes),
+    abilities: abilityViews(data, notes, riotText),
     abilitiesUnreadable: !data && context.unreadable,
     curated,
     levelNotes: notes
@@ -260,6 +297,7 @@ function championIntel(champion: ChampionChoice, data: DdragonChampionAbilities 
           .map((l) => ({ level: l.level, text: drawn(l.text), source: sourceLink(notes.sources, l.source), changed: Array.isArray(l.basedOn) && l.basedOn.some(changedSlot) }))
       : [],
     sources: notes ? safeSources(notes.sources) : [],
+    riotText: !notes && riotText ? { version: riotText.version, patch: publicPatchOf(riotText.version), reviewedOn: riotText.reviewedOn, review: { ...riotText.review } } : null,
   };
 }
 
@@ -356,19 +394,27 @@ export async function buildMatchupPageView(input: { champion?: string; vs?: stri
   const you = resolve(input.champion);
   const enemy = resolve(input.vs);
   const ids = [...new Set([you?.id, enemy?.id].filter((id): id is string => !!id))];
-  const loaded: Awaited<ReturnType<MatchupViewDeps["loadAbilities"]>> = ids.length ? await deps.loadAbilities(ids) : { version: null, champions: {} };
-  const data: Record<string, DdragonChampionAbilities | null> = Object.fromEntries(ids.map((id) => [id, loaded.champions[id] ?? null]));
   const notes: Record<string, ChampionNotes | null> = Object.fromEntries(
     ids.map((id) => {
       const n = deps.championNotes(id);
       return [id, n && n.championId === id ? n : null];
     }),
   );
+  // The facts from Riot's text only for the champions they would show for: checked notes win, so a
+  // champion with notes needs no file read (each is a dynamic import, Vercel Active CPU).
+  const textIds = ids.filter((id) => !notes[id]);
+  const [loaded, reviewed]: [Awaited<ReturnType<MatchupViewDeps["loadAbilities"]>>, Record<string, RiotTextChampion | null>] = ids.length ? await Promise.all([deps.loadAbilities(ids), deps.riotText && textIds.length ? deps.riotText(textIds) : Promise.resolve({})]) : [{ version: null, champions: {} }, {}];
+  const data: Record<string, DdragonChampionAbilities | null> = Object.fromEntries(ids.map((id) => [id, loaded.champions[id] ?? null]));
   const offline = new Set(loaded.offline ?? []);
   const unreadable = new Set(loaded.unreadable ?? []);
   const currentVersion = deps.currentPatch?.ddragonVersion ?? null;
   const knownPatches = deps.knownPatches ?? [];
-  const intel = (c: ChampionChoice | null) => (c ? championIntel(c, data[c.id] ?? null, notes[c.id] ?? null, { offline: offline.has(c.id), unreadable: unreadable.has(c.id), currentVersion, knownPatches }) : null);
+  // A champion's reviewed facts, used only when they are its own.
+  const riotTextOf = (id: string) => {
+    const r = reviewed[id];
+    return r && r.championId === id ? r : null;
+  };
+  const intel = (c: ChampionChoice | null) => (c ? championIntel(c, data[c.id] ?? null, notes[c.id] ?? null, riotTextOf(c.id), { offline: offline.has(c.id), unreadable: unreadable.has(c.id), currentVersion, knownPatches }) : null);
   const curatedMatchup = you && enemy ? deps.matchupNotes(you.id, enemy.id) : null;
   // This direction only: notes for the enemy against your champion are another matchup.
   const matchup = curatedMatchup && you && enemy && curatedMatchup.championId === you.id && curatedMatchup.vsId === enemy.id ? matchupIntel(curatedMatchup, new Set(ids), data, notes, { currentVersion, knownPatches }) : null;
@@ -419,6 +465,7 @@ export async function loadMatchupPage(db: Db, input: { champion?: string; vs?: s
     knownPatches,
     championNotes: getChampionNotes,
     matchupNotes: getMatchupNotes,
+    riotText: loadRiotText,
   });
   let curated = indexes.get(list);
   if (!curated) {

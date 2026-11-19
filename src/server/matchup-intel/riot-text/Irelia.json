@@ -1,0 +1,23 @@
+{
+  "championId": "Irelia",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Ionian Fervor","textHash":"f443a99ec014d06c"},
+    "Q": {"name":"Bladesurge","textHash":"2b4f3169bcfa105c"},
+    "W": {"name":"Defiant Dance","textHash":"279e5c3fdc7c135b"},
+    "E": {"name":"Flawless Duet","textHash":"b2656b2e55759ef9"},
+    "R": {"name":"Vanguard's Edge","textHash":"aa58cc7ed0e26b34"}
+  },
+  "facts": [
+    {"slot":"Q","kind":"dash","clause":"Irelia dashes forward to strike her target, healing herself.","source":"description"},
+    {"slot":"Q","kind":"heal","clause":"Irelia dashes forward to strike her target, healing herself.","source":"description"},
+    {"slot":"Q","kind":"cooldownrefund","clause":"If the target is Marked or dies to Bladesurge, its cooldown refreshes.","source":"description"},
+    {"slot":"W","kind":"damagereduction","clause":"She takes reduced physical damage during the charge.","source":"description"},
+    {"slot":"E","kind":"stun","clause":"Enemies caught in between are damaged, stunned and Marked.","source":"description"},
+    {"slot":"E","kind":"recast","clause":"Irelia throws a blade into the ground and can Recast for up to […] seconds.","source":"tooltip"},
+    {"slot":"R","kind":"slow","clause":"Afterwards the blades form a wall that will damage and slow enemies that walk through it.","source":"description"}
+  ],
+  "disagreements": []
+}

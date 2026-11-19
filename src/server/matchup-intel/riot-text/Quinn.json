@@ -1,0 +1,23 @@
+{
+  "championId": "Quinn",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Harrier","textHash":"8b1843eb59fd3561"},
+    "Q": {"name":"Blinding Assault","textHash":"f19aef2fc8b7a8b2"},
+    "W": {"name":"Heightened Senses","textHash":"0229e8866699eabf"},
+    "E": {"name":"Vault","textHash":"d69a6e0cf190b20f"},
+    "R": {"name":"Behind Enemy Lines","textHash":"d8689a1945ccf807"}
+  },
+  "facts": [
+    {"slot":"P","kind":"empower","clause":"Quinn's first basic attack against Harrier targets will deal bonus physical damage.","source":"description"},
+    {"slot":"Q","kind":"nearsight","clause":"making the first enemy hit with Harrier, reducing their vision radius for […] seconds and dealing […] physical damage to all surrounding enemies.","source":"tooltip"},
+    {"slot":"E","kind":"knockback","clause":"Quinn then leaps backwards from the target, slightly Knocking them Back and Slowing them","source":"tooltip"},
+    {"slot":"E","kind":"slow","clause":"Quinn dashes to an enemy, dealing physical damage and slowing the target's Move Speed.","source":"description"},
+    {"slot":"E","kind":"dash","clause":"Quinn dashes to an enemy, dealing physical damage and slowing the target's Move Speed.","source":"description"},
+    {"slot":"E","kind":"leap","clause":"Upon reaching the target, she leaps off the target, briefly interrupting it, and lands near her maximum Attack Range away from the target.","source":"description"},
+    {"slot":"R","kind":"recast","clause":"Attacking or using Blinding Assault or Vault automatically Recasts this Ability.","source":"tooltip"}
+  ],
+  "disagreements": []
+}
