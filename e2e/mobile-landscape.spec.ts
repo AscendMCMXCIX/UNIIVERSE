@@ -226,7 +226,7 @@ test("tab rows too wide for the screen fade only where more is hidden, and keep 
 test("held sideways at a tablet's width, a long page still goes back to the top from its title in the top bar", async ({ browser, baseURL }) => {
   // From md the frame is the tablet's (the menu button, no tab bar), and in a window this short the
   // section tabs do not pin, so nothing else leads back up a long page (a Pixel 7 held sideways is
-  // 863 × 360; Records needs about six screens to reach its controls).
+  // 863 × 360; Records is about five screens long there).
   for (const viewport of [{ width: 863, height: 360 }, { width: 852, height: 393 }]) {
     const page = await phone(browser, baseURL!, { ...IPHONE_LANDSCAPE, viewport });
     await page.emulateMedia({ reducedMotion: "reduce" });

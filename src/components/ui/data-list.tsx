@@ -9,13 +9,15 @@ import { cn } from "@/lib/cn";
 import { formatOrdinal } from "@/lib/format";
 
 /*
-  A list of rows that reads as one board (docs/STANDARDS.md, Components): Recent form's ranking
-  first, later Records' rows. The Players roster is its own RosterRow (players/roster-row.tsx),
-  which repeats ROW_STATES' hover and pressed classes and ROW_CONTROL's lift. The pieces:
+  A list of rows that reads as one board (docs/STANDARDS.md, Components): Recent form's ranking,
+  and Records' book, multikills and milestones. The Players roster is its own RosterRow
+  (players/roster-row.tsx), which repeats ROW_STATES' hover and pressed classes and ROW_CONTROL's
+  lift. The pieces:
 
     DataList     the board: its surface, the container its rows measure (@container/list), the
-                 column template they share (--dl-cols, set per width on the body), the headings,
-                 and one hairline between each of its parts (headings, groups, captions);
+                 column template they share (--dl-cols, set per width on the body), its title row
+                 when it names itself, the headings, and one hairline between each of its parts
+                 (title, headings, groups, captions);
     DataGroup    an ol or ul of rows, with its caption ("Provisional · 10 to 19 recent games");
     DataRow      one row: a grid on the board's columns, its cells in reading order (lead, link,
                  children, figures, trail), its height by the board's width (density), your own
@@ -62,13 +64,15 @@ const SURFACE = {
 /**
  * The board. `columns` sets the --dl-cols template for each tier, as literal classes (Recent form's
  * FORM_COLS): a container query cannot style its own container, so the template goes on the body,
- * and the headings and every row inherit it. Headings, groups and captions are the body's direct
- * children, so one divide-y draws every line between them and a missing group never doubles one.
+ * and the headings and every row inherit it. The title (a board that names itself: Records' book,
+ * multikills and milestones), the headings, groups and captions are the body's direct children, in
+ * that order, so one divide-y draws every line between them and a missing group never doubles one.
  */
-export function DataList({ columns, heads, headsTestId, headsClassName, surface = "panel", className, testId, children }: { columns?: string; /** aria-hidden column headings (DataHead), on the board's columns; every row names its own figures for screen readers. */ heads?: React.ReactNode; headsTestId?: string; headsClassName?: string; surface?: keyof typeof SURFACE; className?: string; testId?: string; children: React.ReactNode }) {
+export function DataList({ columns, title, heads, headsTestId, headsClassName, surface = "panel", className, testId, children }: { columns?: string; /** The board's own title row, above its headings. */ title?: React.ReactNode; /** aria-hidden column headings (DataHead), on the board's columns; every row names its own figures for screen readers. */ heads?: React.ReactNode; headsTestId?: string; headsClassName?: string; surface?: keyof typeof SURFACE; className?: string; testId?: string; children: React.ReactNode }) {
   return (
     <div className={cn("@container/list min-w-0 overflow-clip", SURFACE[surface], className)} data-testid={testId}>
       <div className={cn("divide-y divide-border/70", columns)}>
+        {title}
         {heads ? (
           <div aria-hidden data-testid={headsTestId} className={cn("grid grid-cols-(--dl-cols) items-end py-2 label-caps", ROW_GAP_X, ROW_PAD_X, headsClassName)}>
             {heads}
@@ -241,16 +245,16 @@ export function FigureCell({ children, spoken, label, size = "sm", emphasis = "m
 }
 
 /**
- * A member as their card shows them (the Leaderboards' Who, generalised): the framed picture, the
+ * A member as their card shows them (every row of the Leaderboards, Recent form's and Records'): the framed picture, the
  * name in their name style with their emblem, in their colours (cardColourVars, on this cell only:
  * no look colour reaches a place or a figure), and "You". Exactly one CardName, never cut.
  * `readName={false}` when the row's link already says the name: the visible one is then hidden
  * from screen readers, so it is not read twice.
  */
-export function MemberCell({ look, name, avatarUrl = null, avatar = "md", you = false, readName = true, nameClassName, nameTestId, className }: { look: CardLook | null | undefined; name: string; avatarUrl?: string | null; avatar?: "xs" | "sm" | "md" | false; you?: boolean; readName?: boolean; nameClassName?: string; nameTestId?: string; className?: string }) {
+export function MemberCell({ look, name, avatarUrl = null, avatar = "md", avatarClassName, you = false, readName = true, nameClassName, nameTestId, className }: { look: CardLook | null | undefined; name: string; avatarUrl?: string | null; avatar?: "xs" | "sm" | "md" | false; /** The picture's own classes: Records' book hides it on a phone, where the row's picture is the champion's. */ avatarClassName?: string; you?: boolean; readName?: boolean; nameClassName?: string; nameTestId?: string; className?: string }) {
   return (
     <span className={cn("flex min-w-0 items-center gap-2.5 text-sm", className)} style={cardColourVars(look)}>
-      {avatar ? <CardAvatar look={look} name={name} src={avatarUrl} size={avatar} /> : null}
+      {avatar ? <CardAvatar look={look} name={name} src={avatarUrl} size={avatar} className={avatarClassName} /> : null}
       <span className="flex min-w-0 flex-1 flex-col" data-testid={nameTestId}>
         <span className="flex min-w-0 items-center gap-1.5">
           <span className="min-w-0 text-fg" aria-hidden={readName ? undefined : true}>
