@@ -72,7 +72,7 @@ const sideOf = (html: string, side: "danger" | "opportunity") => html.split(`dat
 
 /** What only the layer draws or says. */
 const LAYER_MARKUP = ["riot-text", 'data-testid="fact-chip-differ"', 'data-testid="fact-chip-markers"', 'data-testid="ability-facts-conditional"', 'data-testid="assembled-conditional"', 'data-testid="ability-facts-hidden"', 'data-testid="assembled-hidden"'];
-const LAYER_WORDS = [RIOT_TEXT_LABEL, CONDITIONAL_WORDS, DIFFER_WORDS, NO_ABILITY_FACTS_WORDS, noneRecordedWords("riot-text"), RIOT_TEXT_NO_NUMBERS_WORDS, "Riot's text", "Riot's ability text", "reviewed automatically", "Mega Gnar"];
+const LAYER_WORDS = [RIOT_TEXT_LABEL, CONDITIONAL_WORDS, DIFFER_WORDS, NO_ABILITY_FACTS_WORDS, noneRecordedWords("riot-text"), RIOT_TEXT_NO_NUMBERS_WORDS, "Riot's text", "Riot's ability text", "reviewed automatically", "“Mega Gnar”"];
 
 afterEach(() => {
   loads.length = 0;

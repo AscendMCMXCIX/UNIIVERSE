@@ -28,6 +28,21 @@ recorded, your own champion folded into one line, and the sources and Riot's not
 The pages, sizes and words below are what the code does; the reasons are the owner's decisions of
 18 Nov 2026 (below).
 
+**As it ships (release 4, 19 Nov 2026): the facts from Riot's text (L3) are in the code, switched
+off** until the owner has pasted the new registration text in Riot's Developer Portal
+([RIOT_COMPLIANCE.md](RIOT_COMPLIANCE.md), "Proposed description for the registration"; For the
+owner, step 10). Off, the page reads none of their files and shows nothing of them: no chip, marker,
+label or sentence. A champion without checked notes then reads as one with no reviewed facts, its
+side of the assembled reference and its tiles' panel each saying so in one line ("No reviewed facts
+for Gnar yet: crowd control, mobility, defence and sustain are not recorded."); the curated briefings
+and the six champions' checked notes show as before. Switching the layer on is a one-line change:
+`RIOT_TEXT_FACTS_ENABLED = true` in `src/server/matchup-intel/riot-text/switch.ts`. The importer, the
+173 files and their tests stay as they are, and what this document says of the layer (its chips,
+labels, coverage, fit and phones) is what the page does once it is on. The browser tests keep
+testing it on, through a cookie that only the in-memory demo reads, never a deployment, and test the
+off state too: `e2e/matchup-intel.spec.ts` (Gnar, Yone and Twisted Fate show none of it, a details
+window included) and `src/components/matchup-intel/riot-text-switch.test.ts` (no file read).
+
 ### The layers and their labels
 
 Every item on the page belongs to one layer and says which, in words, never by colour alone
@@ -37,7 +52,7 @@ Every item on the page belongs to one layer and says which, in words, never by c
 | --- | --- | --- | --- | --- |
 | **L1** Curated matchup | A threat, an opportunity, one to four lane points and interactions, for one pair in one direction | Written in our own words from wiki pages, approved by the owner, through a pull request (the first batch was drafted and audited by AI agents: Curated notes) | "Curated briefing", "Checked on patch 26.22"; "Not re-checked for 26.23" once a later patch is out | 3 pairs: Ambessa vs Renekton, Gwen vs Ornn, Riven vs Mordekaiser |
 | **L2** Checked facts | A champion's facts per ability (crowd control, mobility, defence, sustain, damage, empowerment, interactions, exceptions), how its cooldowns work, level notes | The same | "Checked on patch 26.22"; each fact's tip and the ability's details say who checked it, "Checked notes (drafted and audited by AI agents, not by a person)", with its source page and revision | 6 champions (Ambessa, Gwen, Mordekaiser, Ornn, Renekton, Riven): 99 facts, 24 checked cooldowns, 7 level notes |
-| **L3** Facts from Riot's text | The kinds of mechanic Riot's own ability text names (a stun, a dash, a shield, a heal…), each with the clause it quotes and what the review recorded beside it (a qualifier, the conditional marker), and where Riot's two texts differ | Drafted by fixed rules from Data Dragon's descriptions and tooltips, with the reviewers' own additions; reviewed by two independent automated reviewers and an adjudicator, then a consistency pass (which added, removed and changed facts) checked by two more automated checkers; no person. Not every fact was a draft of the rules: 61 of the 1,112 came in as a reviewer's addition or with the consistency pass | "From Riot's ability text, reviewed automatically (not by a person)", the quoted clause one hover, focus or tap away | Imported on 19 Nov 2026: 173 champions, 1,112 facts and 7 places where Riot's texts differ, shown for the 167 champions without checked notes (Facts from Riot's text) |
+| **L3** Facts from Riot's text | The kinds of mechanic Riot's own ability text names (a stun, a dash, a shield, a heal…), each with the clause it quotes and what the review recorded beside it (a qualifier, the conditional marker), and where Riot's two texts differ | Drafted by fixed rules from Data Dragon's descriptions and tooltips, with the reviewers' own additions; reviewed by two independent automated reviewers and an adjudicator, then a consistency pass (which added, removed and changed facts) checked by two more automated checkers; no person. Not every fact was a draft of the rules: 61 of the 1,112 came in as a reviewer's addition or with the consistency pass | "From Riot's ability text, reviewed automatically (not by a person)", the quoted clause one hover, focus or tap away | Imported on 19 Nov 2026: 173 champions, 1,112 facts and 7 places where Riot's texts differ, for the 167 champions without checked notes (Facts from Riot's text). Switched off as it ships, until the registration describes it (above) |
 | **L4** Riot's data | Names, icons, ranks, base cooldowns per rank, Riot's short descriptions | Data Dragon, read once per game version, behind the cooldown rules (Cooldowns) | "Riot's data, not reviewed", or why there is no number | All 173 champions, 865 abilities: 624 with a cooldown number (24 checked, 600 Riot's), 241 with the reason there is none |
 | **L5** Assembled reference | For a pair with no curated briefing: each champion's L2 facts, else its L3 facts, grouped by kind | Code, on the server, for this pair, in fixed and tested sentences | "Assembled reference"; "No curated briefing for Riven vs Darius yet. Put together from each champion's own facts. No person has checked Riven vs Darius as a pair."; for a pair whose briefing is hidden, "The curated briefing for Ambessa vs Renekton is hidden, above. Put together from each champion's own facts in its place. No person has checked them as a pair." | Every other pair: 29,753 of the 29,756 pairs of two different champions, and the 173 mirrors |
 
@@ -48,8 +63,10 @@ The page never uses the word "verified": no person has checked any of it against
 
 Counted from the committed data on 19 Nov 2026 (Data Dragon 16.22.1, 173 champions):
 
-- **Facts from Riot's text** (imported 19 Nov 2026): a reviewed file for every one of the 173
-  champions, 1,112 facts, 7 places where Riot's two texts differ. They show for the 167 champions
+- **Facts from Riot's text** (imported 19 Nov 2026; switched off as the page ships, until the
+  registration describes them: What it is, above, and the counts below are for the layer on): a
+  reviewed file for every one of the 173 champions, 1,112 facts, 7 places where Riot's two texts
+  differ. They show for the 167 champions
   without checked notes (1,067 facts, 6 disagreements: Riven's Q is the seventh, and her checked notes
   win); the 6 with checked notes show those instead. Among the 1,067: 67 carry a qualifier (4 of them
   from the ability's other text), 42 are conditional and 11 are also worded as another kind. Every
@@ -61,7 +78,8 @@ Counted from the committed data on 19 Nov 2026 (Data Dragon 16.22.1, 173 champio
   - assembled, checked facts on both sides: 27;
   - assembled, checked facts on one side and facts from Riot's text on the other: 2,004;
   - assembled, facts from Riot's text on both sides: 27,722 (93.2%);
-  - assembled with no facts on a side: none.
+  - assembled with no facts on a side: none. With the layer off, as it ships, the 2,004 and the
+    27,722 are pairs with no facts on one side or on both, each such side saying so in one line.
 - **Ambessa, Gwen and Riven as your champion** (the owner's priority): 516 pairs. 3 have a curated
   briefing, 12 have checked facts on both sides, and 501 are against an enemy whose side shows its
   facts from Riot's text.
@@ -708,7 +726,14 @@ For a champion without checked notes, the kinds of mechanic Riot's own ability t
 dash, a shield, a heal, a recast. Each is shown with the clause of Riot's text it quotes, and only
 once it has passed the review below (the owner's decisions 4 and 5, 18 Nov 2026). They are the L3
 layer (What it is). **Imported on 19 Nov 2026**: a reviewed file for each of the 173 champions of Data
-Dragon 16.22.1, 1,112 facts and 7 places where Riot's two texts differ (Coverage, above).
+Dragon 16.22.1, 1,112 facts and 7 places where Riot's two texts differ (Coverage, above). **Switched
+off as it ships** (`RIOT_TEXT_FACTS_ENABLED = false`, `src/server/matchup-intel/riot-text/switch.ts`),
+until the owner has pasted the proposed registration text (For the owner, step 10); then a one-line
+change turns it on. Off, `loadMatchupPage` gives the view no reader of these files
+(`riotTextReader`), so none is read and the page shows nothing of them; the browser tests pin either
+state with a cookie that only the in-memory demo reads (the bounds of
+`src/server/riot/browser-test.ts`), so the layer's tests run with it on, and the off state's with it
+off, whatever the switch says.
 [MATCHUP_INTEL_RIOT_TEXT_REVIEW.md](MATCHUP_INTEL_RIOT_TEXT_REVIEW.md) is the review's own summary for
 the owner: its counts, its conventions, the decisions it leaves to the owner and what it asks of the app.
 
@@ -1684,8 +1709,13 @@ to 12 are open.
    the K'Sante-shaped markers and the others), is
    [MATCHUP_INTEL_RIOT_TEXT_REVIEW.md](MATCHUP_INTEL_RIOT_TEXT_REVIEW.md), "For the owner": each
    decision there changes rows of the table, and a new import then changes the committed files.
-10. **Paste the proposed description** (step 1) in the Developer Portal: before this branch is merged,
-    since it describes the facts from Riot's text, which it shows.
+10. **Paste the proposed description** (step 1) in the Developer Portal, **then switch the facts from
+    Riot's text on.** The layer ships in the code, switched off (release 4, 19 Nov 2026: What it is),
+    so the merge did not wait for the registration. Once the new text is pasted, the one-line change
+    is `RIOT_TEXT_FACTS_ENABLED = true` in `src/server/matchup-intel/riot-text/switch.ts`, through a
+    pull request like any other (its CI runs the layer's tests on as before); after its deploy, the
+    Production check's Matchup Intel facts hold either way (Riven vs Mordekaiser has checked notes on
+    both sides, so it shows no fact from Riot's text, on or off).
 11. **Decide who may review the facts from Riot's text, and the words for a person's check.** Today
     two automated reviewers, an adjudicator and two consistency checkers did, and the label says "not
     by a person" (decision 5). A person's review of a champion would be recorded in its row of the
