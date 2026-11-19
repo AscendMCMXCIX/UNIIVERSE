@@ -706,6 +706,46 @@ async function teamFacts(page, kind) {
 }
 
 /**
+ * The shared kit on Team (S4): a lineup card opens the player's Peek with the player in the address
+ * (?player=), and Back closes it, leaving the page where it was; on the phone (390 × 844) the lineup
+ * status ⓘ opens on a tap inside the screen and a second tap, on its bubble, closes it and reaches
+ * nothing under it (no window opens, the address stays). Counts and true/false only.
+ */
+async function sharedKitFacts(page, kind) {
+  await page.evaluate(() => window.scrollTo(0, 0));
+  const open = page.locator("[data-testid=open-player-detail]:visible").first();
+  const peekName = `${kind}: a Team card opens the player Peek with ?player= in the address, and Back closes it`;
+  if (!(await open.count())) check("team", peekName, "PASS", "not applicable: no player in the lineup");
+  else {
+    const before = await page.evaluate(() => ({ y: Math.round(scrollY), entries: history.length }));
+    await open.click();
+    const panel = page.getByTestId("player-detail");
+    const opened = await panel.waitFor({ state: "visible", timeout: 10_000 }).then(() => true, () => false);
+    const address = /[?&]player=/.test(page.url());
+    await page.goBack();
+    const closed = await panel.waitFor({ state: "hidden", timeout: 10_000 }).then(() => true, () => false);
+    const after = await page.evaluate(() => ({ y: Math.round(scrollY), path: location.pathname, player: /[?&]player=/.test(location.search) }));
+    pass("team", peekName, opened && address && closed && !after.player && after.path === "/team" && after.y === before.y, { opened, address, closed, stillOnTeam: after.path === "/team", moved: after.y - before.y });
+  }
+  if (kind !== "phone") return;
+  const tipName = "390x844: an ⓘ opens on a tap inside the screen, and a tap on its bubble closes it without reaching what is under it";
+  const tip = page.locator("main [data-testid=info-tip]:visible").first();
+  if (!(await tip.count())) return check("team", tipName, "PASS", "not applicable: no ⓘ on Team for this account");
+  await tip.scrollIntoViewIfNeeded();
+  const url = page.url();
+  await tip.tap();
+  const bubble = page.locator("[data-testid=info-tip-bubble]");
+  const shown = await bubble.waitFor({ state: "visible", timeout: 5_000 }).then(() => true, () => false);
+  const box = shown ? await bubble.boundingBox() : null;
+  const inside = !!box && box.x >= 0 && box.y >= 0 && box.x + box.width <= 390 + 0.5 && box.y + box.height <= 844 + 0.5;
+  if (box) await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
+  const gone = await bubble.waitFor({ state: "detached", timeout: 5_000 }).then(() => true, () => false);
+  await page.waitForTimeout(300);
+  const after = await page.evaluate(() => ({ dialogs: document.querySelectorAll("dialog[open]").length }));
+  pass("team", tipName, shown && inside && gone && after.dialogs === 0 && page.url() === url, { shown, inside, closed: gone, windowsOpened: after.dialogs, addressKept: page.url() === url });
+}
+
+/**
  * Recent form's board (PR 5a), as counts, heights and true/false only (the rows and the gap
  * sentences carry names, which redact() keeps): how tall its rows of two lines are, whether shared
  * places say so ("Tied for 4th") and only they, and whether each bar counts its row's games (20
@@ -1514,6 +1554,7 @@ for (const [kind, options] of Object.entries(VIEWPORTS)) {
       playerId ??= await page.locator("[data-testid^=lineup-row-][data-player-id]").first().getAttribute("data-player-id").catch(() => null);
       await axe(page, kind, "team");
       await teamFacts(page, kind);
+      await guarded("team", `${kind}: shared kit`, () => sharedKitFacts(page, kind));
     }
   });
   await guarded(kind, "players", async () => {
