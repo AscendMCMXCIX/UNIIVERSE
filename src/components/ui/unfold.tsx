@@ -77,7 +77,11 @@ export function useUnfold({ param, initial = null, valid, prefix = "unfold" }: {
     // The way back from a long item: its card, brought into view if it sits above the screen.
     if (card && (inside || document.activeElement === document.body)) {
       card.focus({ preventScroll: true });
-      if (card.getBoundingClientRect().top < 0) card.scrollIntoView({ block: "start" });
+      if (card.getBoundingClientRect().top < 0) {
+        // Brought into view on purpose: the anchor must not scroll it back up.
+        anchor.current = null;
+        card.scrollIntoView({ block: "start" });
+      }
     }
   }, [id, item, regionId]);
 

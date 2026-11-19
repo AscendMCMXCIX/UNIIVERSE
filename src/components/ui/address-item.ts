@@ -50,6 +50,8 @@ export interface AddressItem {
   close: () => void;
   /** Opens `id`, or closes it when it is the one open (the selected row pressed again). */
   toggle: (id: string) => void;
+  /** The query parameter it lives in. */
+  param: string;
 }
 
 /**
@@ -81,9 +83,8 @@ export function useAddressItem(param: string, { initial = null, valid }: { initi
         return;
       }
       const href = itemHref(`${window.location.pathname}${window.location.search}${window.location.hash}`, param, to);
-      // No state of our own: Next.js copies its router's state onto the entry and follows the new
-      // address. Passing its own state back (which carries its __NA mark) would skip that, and the
-      // router's next refresh (router.refresh() after a save) would put the old address back.
+      // No state of our own: Next.js copies its own onto the entry and, given a state without its
+      // marker, takes the new address into its router (useSearchParams, refreshes keep the item).
       if (step === "push") {
         window.history.pushState(null, "", href);
         pushed.current = true;
@@ -95,6 +96,17 @@ export function useAddressItem(param: string, { initial = null, valid }: { initi
     },
     [param],
   );
+
+  // The address as the page mounts: a page restored by Back (its cached render) may hold an item the
+  // server never rendered. Found so, it was not pushed by this page.
+  React.useLayoutEffect(() => {
+    const at = itemIn(window.location.search, param);
+    if (at !== current.current) {
+      pushed.current = false;
+      current.current = at;
+      setRaw(at);
+    }
+  }, [param]);
 
   React.useEffect(() => {
     const onPop = () => {
@@ -112,5 +124,5 @@ export function useAddressItem(param: string, { initial = null, valid }: { initi
   const open = React.useCallback((to: string) => go(to), [go]);
   const close = React.useCallback(() => go(null), [go]);
   const toggle = React.useCallback((to: string) => go(current.current === to ? null : to), [go]);
-  return { id, open, close, toggle };
+  return { id, open, close, toggle, param };
 }

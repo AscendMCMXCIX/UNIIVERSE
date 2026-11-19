@@ -50,7 +50,7 @@ export function RiotHealthPanel({ riot, credentialDetails }: { riot: RiotHealthV
         actions={
           <span className="inline-flex items-center gap-1">
             <Badge tone={s.tone}>{credentialDetails ? `Credential: ${s.label}` : riot.state === "accepted" ? "Available" : riot.state === "not-configured" ? "Not configured" : "Temporarily unavailable"}</Badge>
-            <Info text="Accepted = Riot answered a request under the current key. Rejected = Riot answered 401/403 (development keys expire after 24 hours). Unavailable = rate limit, outage or network problem." />
+            <Info text="Accepted: Riot is answering. Rejected: the API key is wrong or expired (development keys last 24 hours). Unavailable: Riot is busy or down." label="About these states" />
           </span>
         }
       />

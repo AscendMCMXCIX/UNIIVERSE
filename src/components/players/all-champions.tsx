@@ -46,7 +46,7 @@ const COLUMNS: Array<{ key: SortKey; label: string; title?: string; layout?: "me
   { key: "kills", label: "Kills", title: "Every kill on the champion in these games, each game's own count added up" },
   { key: "multikills", label: "Multikills", title: "The rarest multikill on the champion in these games: pentakills first, then quadra, triple and double kills", layout: "medium" },
   ...MULTIKILL_KINDS.map((k) => ({ key: k.key, label: MULTIKILL_SHORT[k.key], title: `${k.label} in these games`, layout: "wide" as const })),
-  { key: "mastery", label: "Mastery", title: "Champion mastery points, summed over your linked Riot accounts" },
+  { key: "mastery", label: "Mastery", title: "Mastery points from all of the player's Riot accounts" },
 ];
 const isSortKey = (v: string | null): v is SortKey => !!v && COLUMNS.some((c) => c.key === v);
 /** Which layout a column belongs to: shown only in that one (phones show neither as a column). */

@@ -254,8 +254,8 @@ One set of containers, chosen by what the content is, never by page. Each is one
 |---|---|---|---|---|---|
 | **Peek** | a quick look at one item from a list or a board (a team player, a champion, a game from a board) | `peek.tsx`: `usePeek`, `Peek` | a row (click, tap, Enter); ↑/↓ or J/K and ‹ › switch | ✕, Escape, Back, the selected row again; not an outside click | `?player=` (and so on) on the current page: the one history rule |
 | **Unfold** | an item opened under its card, for items compared down a list (games) | `unfold.tsx`: `useUnfold`, `UnfoldRegion`, `UnfoldHeader` | the card | the card again, Escape, the pinned header's Close, Back | the one history rule |
-| **Task dialog** | work that needs full attention (editors, confirmations, pickers, Card Studio, Install) | `detail-modal.tsx`: `DetailModal` | its button | Close, Escape, the backdrop | none |
-| **Popover** | anchored choices (menus, Select, filter dropdowns) | `menu.tsx` | click, Enter, Space | an outside click, Escape, a choice | none; a choice replaces the query |
+| **Task dialog** | work that needs full attention (editors, confirmations, pickers, Card Studio, Install) | `detail-modal.tsx`: `DetailModal`; a filter sheet 34rem wide where it is a centred window (`sheetWidth="filters"`) | its button | Close, Escape, the backdrop; the page is put back where it was | none |
+| **Popover** | anchored choices (menus, filter dropdowns) | `menu.tsx` | click, Enter, Space | an outside click, Escape, a choice | none; a choice replaces the query |
 | **Explain** | a short explanation beside a term | `info-tip.tsx`: `InfoTip` | hover, focus, tap | leaving, Escape, any tap | none |
 | **Fold** | secondary content in a page | `disclosure.tsx` (native `details`) | its summary | its summary | none |
 | **Record window** | everything about one record that is managed, not glanced at (Admin's person view) | `DetailModal` with `useAddressItem` (`person-view.tsx`) | a row of the list | ✕, Escape (focus back to the row), Back; ‹ › switch | `?person=`: the one history rule |
@@ -280,7 +280,7 @@ not decide.
 ```tsx
 const peek = usePeek({ param: "player", ids, initial: searchParams.get("player") });
 <li {...peek.rowProps(id)} className={PEEK_SELECTED_ROW}>…</li>
-<Peek peek={peek} label="Player" title={player?.name ?? ""} itemKey={peek.id} actions={<a href={profile}>Full profile</a>}>
+<Peek peek={peek} label="Player" title={player?.name ?? ""} itemKey={peek.id} hero={<Hero />} windowSize="standard">
   {player ? <PlayerContent player={player} /> : null}
 </Peek>
 ```
@@ -299,8 +299,29 @@ const peek = usePeek({ param: "player", ids, initial: searchParams.get("player")
 - **Motion:** in, a 16px slide and fade over 200ms (`peek-in`, `--ease-emphasized`); a switch
   cross-fades the content over 120ms (`swap-in`); out, 140ms (`peek-out`). Instant with reduced
   motion.
+- **Hero** (`hero`): the item's picture and name, edge to edge at the top of the panel's body; the
+  panel's controls then sit over its top right corner and its heading is read, not shown. A hero
+  drawn to clear a window's corner (`BELOW_CONTROLS`) clears only 2.5rem in the panel, and its
+  minimum height (`--peek-hero-min`) is its content's: the Team player fits 1440 × 900 with no
+  scrolling inside. `windowSize` and `windowHeader` give the phone's window its size and header.
+- **First consumer:** the Team player (`?player=`), its ↑/↓ moving along the starters; a turned
+  card opens its substitute.
 - **Variants a page may add:** an in-card unfold, where the list gives the panel its foldable
   columns' space (All Champions, S5).
+
+### Explain (`InfoTip`)
+
+- **Trigger:** an ⓘ (16px mark, 24px target, 44px on touch) with a specific `label` ("About KDA";
+  required), or a term with a dotted underline (children).
+- **Mouse:** opens once the pointer has rested on it for 150ms (`HOVER_OPEN_MS`), never by a window
+  opening under a pointer at rest; the bubble takes the pointer, the 6px gap is bridged, and it closes
+  100ms after the pointer has left both (`HOVER_CLOSE_MS`; WCAG 1.4.13).
+- **Keyboard:** opens at once on focus; closes on blur. Escape closes the bubble alone.
+- **Touch:** a tap opens it; any tap closes it (on the ⓘ, the bubble or elsewhere) and that tap does
+  nothing else; scrolling closes it.
+- **Placement:** above, else below, 8px inside the screen, never over its trigger; where neither side
+  has room, a small sheet at the screen's far edge with the same text. Never a bubble that scrolls.
+- **Text:** one plain sentence, at most about 25 words (`tip-length.test.ts`; STANDARDS, "Tooltips").
 
 ### Unfold
 

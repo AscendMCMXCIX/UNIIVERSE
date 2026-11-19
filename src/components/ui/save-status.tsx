@@ -16,8 +16,9 @@ export function SaveStatusIndicator({ status, error, onRetry }: { status: SaveSt
           <Check className="h-3.5 w-3.5" aria-hidden /> Saved
         </span>
       ) : status === "error" ? (
-        <span className="inline-flex items-center gap-1.5 text-bad" title={error ?? undefined}>
-          <AlertCircle className="h-3.5 w-3.5" aria-hidden /> Unable to save
+        // The reason is shown, not hidden in a title a phone or a keyboard never reaches (the tooltip inventory's G15).
+        <span className="inline-flex flex-wrap items-center gap-x-1.5 text-bad">
+          <AlertCircle className="h-3.5 w-3.5" aria-hidden /> Unable to save{error ? <span data-testid="save-error">: {error}</span> : null}
           {onRetry ? (
             <button type="button" onClick={onRetry} className="font-semibold underline underline-offset-2 hover:text-fg">
               Retry

@@ -40,7 +40,17 @@ from each section; this page does not repeat them.
   is listed under both, never folded into a third "mixed" kind; the All view shows the two records
   side by side, each with its word, not told apart by colour alone (`src/domain/encounters.ts`).
 - Explanations sit next to the figure (`InfoTip`, `Metric` labels from `src/domain/metrics.ts`),
-  in plain language.
+  in plain language. **Tooltips** (one behaviour, DESIGN_SYSTEM §7, "Explain"):
+  - one plain sentence for an ordinary League player, at most about 25 words, never more than 40
+    (`src/components/ui/tip-length.test.ts` counts every literal InfoTip text, `title` and `hint`,
+    the tip constants and the metric tips; its allowlist names the stage that rewrites each entry).
+    Longer is visible text under the heading, or a window of its own, never a bubble that scrolls;
+  - an ⓘ has a specific name (`label`, required: "About KDA"), never "More information";
+  - a `title` only names an icon-only control or shows a truncated value whole: never the only copy
+    of a fact (a phone, a keyboard and a disabled button never show it). A reason goes beside what
+    it explains (a failed save's reason, why a button is locked);
+  - wording reads right on anyone's page: no "you/your" in a text a teammate's page shows too
+    (neutral words, or `lib/tip-words.ts`, tested).
 - How current a page's Riot data is goes in the same two places on every page, in the fixed words
   of `src/domain/data-status.ts`, never a banner: the status in a few quiet words ("Synced 5 min
   ago", or the state when it is short of up to date) with one ⓘ holding the details, beside the

@@ -269,11 +269,11 @@ function PersonBody({
             <ShieldCheck className="h-4 w-4 text-fg-subtle" aria-hidden /> {kept ? "Default access, locked" : accessSummary(a, presets)}
           </p>
           {!kept ? (
-            <Button size="sm" variant="outline" onClick={() => setEditingAccess(true)} disabled={!!lockedReason} title={lockedReason ?? "Team membership, access level, additional access and administrator access"} data-testid="open-access">
+            <Button size="sm" variant="outline" onClick={() => setEditingAccess(true)} disabled={!!lockedReason} aria-describedby={lockedReason ? `locked-${a.userId}` : undefined} data-testid="open-access">
               <ShieldCheck className="h-4 w-4" /> Manage access
             </Button>
           ) : null}
-          {lockedReason && !kept ? <p className="text-xs text-fg-subtle">{lockedReason}.</p> : null}
+          {lockedReason && !kept ? <p id={`locked-${a.userId}`} className="text-xs text-fg-subtle" data-testid="access-locked-reason">{lockedReason}.</p> : null}
           {editingAccess ? <AccessDialog account={a} presets={presets} lineupRole={player?.lineupRole ?? null} viewerIsOwner={viewerIsOwner} onClose={() => setEditingAccess(false)} /> : null}
         </Section>
       ) : null}

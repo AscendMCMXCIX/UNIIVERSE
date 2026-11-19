@@ -28,7 +28,7 @@ test("Played together lists games with two or more members on one side, with hon
   // One line of what is counted; what it proves is behind (i), never claimed as a premade party.
   const summary = page.getByTestId("matches-summary");
   await expect(summary).toContainText(new RegExp(`${season} · \\d+ games? played together`));
-  await expect(summary.getByRole("button", { name: "How games played together are found" })).toHaveAccessibleDescription(/not confirmed premade parties/);
+  await expect(summary.getByRole("button", { name: "How games played together are found" })).toHaveAccessibleDescription(/Riot doesn't say who queued together, so not necessarily a party/);
   // No "played together most" ranking: the games come right after the toolbar.
   await expect(page.getByTestId("together-pairs")).toHaveCount(0);
   await expect(page.getByText("Played together most")).toHaveCount(0);

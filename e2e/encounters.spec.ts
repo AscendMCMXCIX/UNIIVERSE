@@ -64,9 +64,9 @@ test("Encounters: Against, Alongside and All, each side with its own record, in 
   await expect(page.getByTestId("match-view-encounters")).toHaveAttribute("aria-current", "page");
   // What encounters prove is behind (i); never premade, duo-partner or "counter" language, and no "Mixed".
   const caveat = page.getByRole("button", { name: "How encounters are counted" });
-  await expect(caveat).toHaveAccessibleDescription(/not parties, friendships/);
-  await expect(caveat).toHaveAccessibleDescription(/met both ways has both records and is listed under Against and Alongside/);
-  await expect(caveat).toHaveAccessibleDescription(/fewer than 5 games with a result are a small sample/);
+  await expect(caveat).toHaveAccessibleDescription(/not parties or friends/);
+  await expect(caveat).toHaveAccessibleDescription(/Against: other team; alongside: same team/);
+  await expect(caveat).toHaveAccessibleDescription(/Grey: fewer than 5 games/);
   await expect(page.getByTestId("encounters")).not.toContainText(/premade|duo partner|\bcounters?\b|\bmixed\b/i);
 
   // All by default, met twice or more: both records side by side, never added together, and no win-rate order.
@@ -290,9 +290,9 @@ test("a game's scoreboard marks the players met in other games, and a mark opens
   expect(mark, "a game on the first page meets a recurring player").not.toBeNull();
   const games = Number(await mark!.getAttribute("data-games"));
   expect(games).toBeGreaterThanOrEqual(2);
-  // "Met N×" on screen; read as "Met N times, this game included (… against, … alongside). Show your games with them".
+  // "Met N×" on screen; read as "Met N times, this game included (… against, … on the same team). Opens those games" (the same words on anyone's game).
   expect(await mark!.evaluate((el) => [...el.childNodes].filter((n) => !(n instanceof HTMLElement && n.classList.contains("sr-only"))).map((n) => n.textContent).join(""))).toBe(`Met ${games}×`);
-  await expect(mark!).toHaveAccessibleName(new RegExp(`^Met ${games} times, this game included \\((\\d+ against)?(, )?(\\d+ alongside)?\\)\\. Show your games with them$`));
+  await expect(mark!).toHaveAccessibleName(new RegExp(`^Met ${games} times, this game included \\((\\d+ against)?(, )?(\\d+ on the same team)?\\)\\. Opens those games$`));
   // The Riot ID the row names (its title), not the row's text: a possible group's label, read to
   // screen readers after the name, arrives with the groups and may or may not be there yet.
   const name = (await mark!.locator("xpath=ancestor::li[1]").getByTestId("participant-name").getAttribute("title"))!.split("#")[0]!;

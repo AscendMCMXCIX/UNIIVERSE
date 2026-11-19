@@ -37,7 +37,8 @@ test("the match window: the close button alone in its corner, Escape closes it",
   await expect(win).toBeHidden();
 });
 
-test("Team's player window: previous and next set apart from the close button, the hero clear of them", async ({ page }) => {
+test("Team's player window: previous and next set apart from the close button, the hero clear of them", async ({ page }, info) => {
+  test.skip(info.project.name !== "phone", "from 640px the Team player opens as a docked Peek, its controls in its own header (detail-panel.spec.ts)");
   await page.goto("/team");
   const open = page.getByTestId("lineup-row-TOP").getByTestId("open-player-detail");
   await open.click();

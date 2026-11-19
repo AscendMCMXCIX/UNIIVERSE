@@ -6,6 +6,7 @@ import type { MatchGroupsResult, MatchGroupsTeam, MatchGroupView } from "@/serve
 import { groupEvidenceText, groupsNoteState } from "@/domain/possible-groups";
 import type { DetailParticipant, DetailTeam, MatchRanksResult } from "@/server/players/match-history";
 import type { MatchMeeting } from "@/server/players/encounters";
+import { metSides, metText } from "@/lib/tip-words";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
 import { formatCount, formatDate, formatKilo } from "@/lib/format";
 import { cn } from "@/lib/cn";
@@ -203,14 +204,14 @@ export function RanksNote({ ranks, queueId, checking, result }: { ranks: Readonl
     ) : (
       <>Ranks around the time of this game; {clock("marked ones were")} read later.</>
     );
-  const queue = matchRankQueue(queueId) === "flex" ? "Ranked Flex ranks, as this is a Flex game (Solo/Duo where marked)" : "Ranked Solo/Duo ranks (Flex where marked)";
+  const queue = matchRankQueue(queueId) === "flex" ? "Flex ranks, as this is a Flex game, unless marked Solo/Duo" : "Solo/Duo ranks unless marked Flex";
   return (
     <p className="text-2xs text-fg-subtle" data-testid="ranks-note" data-state={checking ? "checking" : (check?.reason ?? (check?.failed ? "failed" : "done"))} data-around={around} data-away={away}>
       {lead ? <span data-testid="ranks-note-lead">{lead}</span> : null}{" "}
       <InfoTip
         label="About the ranks"
         testId="ranks-info"
-        text={`Riot's game records hold no ranks, so each rank is a reading: a member's last rank recorded before the game, or another player's rank checked with Riot within a day after it (the players of members' games are checked when a game is collected). A clock marks a rank read later than that, or before the game: the player's rank then, not at the time of this game. ${queue}. Unranked: no ranked entry when checked. —: not read.`}
+        text={`Ranks were checked around the time of this game. A clock means it was checked well before or after, so it may differ. ${queue}.`}
       />
       {status ? <span className="text-fg-muted"> {status}</span> : null}
     </p>
@@ -286,7 +287,7 @@ export function GroupsNote({ result, teams }: { result: MatchGroupsResult | null
       <InfoTip
         label="About possible groups"
         testId="groups-info"
-        text={`Possible groups only cover players who are not members: the same players all on one team in at least three of the earlier recorded games found for them (the ${result.windowDays} days before this match), and far more often as teammates than as opponents. They are an inference, not confirmed parties; members are never labelled, and players who rarely share a game with a member cannot be assessed.`}
+        text={`Non-members on one team in 3+ earlier games (the ${result.windowDays} days before), rarely opposed. A guess, not a confirmed party; members never labelled.`}
       />
     </p>
   );
@@ -315,11 +316,11 @@ function RemovedRow() {
  * History's own list, filtered to them (Match History → Encounters).
  */
 function MetChip({ met, href }: { met: MatchMeeting; href: string }) {
-  const sides = [met.opponent ? `${formatCount(met.opponent)} against` : null, met.ally ? `${formatCount(met.ally)} alongside` : null].filter(Boolean).join(", ");
+  const sides = metSides(met);
   return (
     <Link
       href={href}
-      title={`Met in ${formatCount(met.games)} recorded games, this one included (${sides}). Shows your games with them.`}
+      title={metText(met)}
       className="relative shrink-0 rounded border border-border px-1 text-2xs font-medium leading-4 tabular-nums text-fg-muted transition-colors hover:border-accent/50 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:after:absolute pointer-coarse:after:-inset-2 pointer-coarse:after:content-['']"
       data-testid="participant-met"
       data-games={met.games}
@@ -327,7 +328,7 @@ function MetChip({ met, href }: { met: MatchMeeting; href: string }) {
       {/* Read as "Met 4 times, this game included (3 against, 1 alongside). Show your games with them". */}
       Met {formatCount(met.games)}
       <span aria-hidden>×</span>
-      <span className="sr-only"> times, this game included ({sides}). Show your games with them</span>
+      <span className="sr-only"> times, this game included ({sides}). Opens those games</span>
     </Link>
   );
 }

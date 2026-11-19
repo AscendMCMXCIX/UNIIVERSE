@@ -23,6 +23,18 @@ async function expectCentred(page: Page, testId: string) {
     .toBe(true);
 }
 
+/** A Peek: docked at the right edge, the page beside it (from 640px), or the phone's whole-screen window. */
+async function expectPeek(page: Page, testId: string) {
+  const vp = page.viewportSize()!;
+  if (vp.width < 640) return expectCentred(page, testId);
+  await expect
+    .poll(async () => {
+      const b = (await page.getByTestId(testId).boundingBox())!;
+      return Math.abs(b.x + b.width - vp.width) < 1 && b.width >= 26 * 16 - 1 && b.width < vp.width && b.y + b.height >= vp.height - 1;
+    })
+    .toBe(true);
+}
+
 test.beforeEach(async ({ context, baseURL }) => {
   await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
 });
@@ -132,7 +144,7 @@ test("Team: the chosen card lifts and the others step back; pools are viewed her
   await open.click();
   const panel = page.getByTestId("player-detail");
   await expect(panel).toBeVisible();
-  await expectCentred(page, "player-detail");
+  await expectPeek(page, "player-detail");
   await expect(mid).toHaveAttribute("data-selected", "true");
   await expect(page.locator("[data-testid^=lineup-row-][data-selected]")).toHaveCount(1);
   // The pool is listed, never edited here: the owner gets a link to the profile instead.
@@ -145,6 +157,43 @@ test("Team: the chosen card lifts and the others step back; pools are viewed her
   await expect(page.locator("[data-testid^=lineup-row-][data-selected]")).toHaveCount(1);
   await page.keyboard.press("Escape");
   await expect(page.locator("[data-testid^=lineup-row-][data-selected]")).toHaveCount(0);
+});
+
+test("Team's player Peek: one history entry however many players are seen, Back closes it, ↑/↓ switch, and the page never moves", async ({ page }, info) => {
+  await page.goto("/team");
+  await expect(page.getByTestId("lineup-overview")).toHaveAttribute("data-ready", "true");
+  const panel = page.getByTestId("player-detail");
+  const before = await page.evaluate(() => ({ entries: history.length, y: scrollY }));
+  const top = page.getByTestId("lineup-row-TOP");
+  await top.getByTestId("open-player-detail").click();
+  await expect(panel).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`player=${await top.getAttribute("data-player-id")}`));
+  if (info.project.name === "phone") {
+    // Android's Back (the system key, in the installed app): closes the window and changes nothing else.
+    await page.goBack();
+    await expect(panel).toBeHidden();
+    await expect(page).not.toHaveURL(/player=/);
+    return;
+  }
+  // The list stays live: three switches (↓, ↓, ‹ then ›) replace the entry the open pushed.
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("ArrowDown");
+  await panel.getByTestId("detail-prev").click();
+  await panel.getByTestId("detail-next").click();
+  const third = page.getByTestId("lineup-row-MID");
+  await expect(third).toHaveAttribute("data-selected", "true");
+  await expect(page).toHaveURL(new RegExp(`player=${await third.getAttribute("data-player-id")}`));
+  const open = await page.evaluate(() => ({ entries: history.length, y: scrollY }));
+  expect(open).toEqual({ entries: before.entries + 1, y: before.y });
+  // No scrolling inside at 1440 × 900: the panel holds the whole player.
+  if (info.project.name === "desktop") expect(await panel.getByTestId("player-detail-body").evaluate((b) => b.scrollHeight - b.clientHeight)).toBeLessThanOrEqual(1);
+  await page.goBack();
+  await expect(panel).toBeHidden();
+  await expect(page).not.toHaveURL(/player=/);
+  expect(await page.evaluate(() => scrollY)).toBe(before.y);
+  // A link to the player opens the page with the Peek open.
+  await page.goto(`/team?player=${await third.getAttribute("data-player-id")}`);
+  await expect(panel).toBeVisible();
 });
 
 test("the Team player panel returns focus to its card when closed", async ({ page }) => {

@@ -6,6 +6,8 @@
 export type MetricUnit = "win-rate points" | "percent of games" | "games" | "0–1 scale" | "points" | "level" | "days" | "count" | "label";
 
 export interface MetricDefinition {
+  /** Its ⓘ: one plain sentence for an ordinary League player, at most about 25 words (tip-length.test.ts). */
+  tip: string;
   /** Short title shown next to the value. */
   title: string;
   unit: MetricUnit;
@@ -19,6 +21,7 @@ export interface MetricDefinition {
 
 export const METRICS = {
   "proficiency-tier": {
+    tip: "How much they have played this champion in this role, from their games and mastery (not how well).",
     title: "Experience",
     unit: "label",
     population: "Every stored game on the player's linked accounts (all seasons, supported queues), games in the role, recency and mastery; not limited by the page's filters",
@@ -26,6 +29,7 @@ export const METRICS = {
     source: "Linked Riot accounts",
   },
   "recent-games": {
+    tip: "Games on this champion in the last 30 days, from all their Riot accounts.",
     title: "Recent games",
     unit: "games",
     population: "Ranked, normal and Clash games on the champion in the last 30 days, all linked accounts",
@@ -33,6 +37,7 @@ export const METRICS = {
     source: "Linked Riot accounts (match history)",
   },
   "patch-games": {
+    tip: "Games on this champion on the current patch.",
     title: "Games this patch",
     unit: "games",
     population: "Games on the champion on the current patch, all linked accounts",
@@ -40,6 +45,7 @@ export const METRICS = {
     source: "Linked Riot accounts (match history)",
   },
   "games-on-record": {
+    tip: "Games stored from all their Riot accounts (about the last four months); each game counts once.",
     title: "Games on record",
     unit: "games",
     population: "Games on the champion in the sync window (about four months), all linked accounts",
@@ -47,6 +53,7 @@ export const METRICS = {
     source: "Linked Riot accounts (match history)",
   },
   "mastery-points": {
+    tip: "Riot's mastery points on this champion, from their strongest account: long-term play, not current form.",
     title: "Mastery",
     unit: "points",
     population: "Champion mastery on the player's strongest linked account",
@@ -54,6 +61,7 @@ export const METRICS = {
     source: "Linked Riot accounts (champion mastery)",
   },
   "role-usage": {
+    tip: "How many of their games on this champion were in this role.",
     title: "Role usage",
     unit: "percent of games",
     population: "Share of the player's games on the champion that were in the assigned role",
@@ -61,6 +69,7 @@ export const METRICS = {
     source: "Linked Riot accounts (match history)",
   },
   "proficiency-confidence": {
+    tip: "How much data the experience label rests on.",
     title: "Confidence",
     unit: "label",
     population: "Sample size behind the proficiency estimate (games, mastery, recency)",
@@ -68,6 +77,7 @@ export const METRICS = {
     source: "Proficiency model",
   },
   "last-played": {
+    tip: "Their most recent game on this champion.",
     title: "Last played",
     unit: "days",
     population: "Most recent game on the champion across linked accounts",
@@ -75,6 +85,7 @@ export const METRICS = {
     source: "Linked Riot accounts",
   },
   rank: {
+    tip: "Their Solo/Duo rank (Flex when unranked in Solo/Duo), with this season's wins and losses, as of the last check.",
     title: "Rank",
     unit: "label",
     population: "Ranked tier on the player's main linked account (Solo/Duo; Flex only when unranked in Solo/Duo)",
@@ -82,6 +93,7 @@ export const METRICS = {
     source: "Linked Riot accounts (league entries)",
   },
   "season-record": {
+    tip: "Wins and losses in this season and game mode, from all their Riot accounts; each game counts once.",
     title: "Season record",
     unit: "games",
     population: "Games in the selected season and game mode, every champion, all linked accounts",
@@ -89,6 +101,7 @@ export const METRICS = {
     source: "Linked Riot accounts (match history)",
   },
   "season-modes": {
+    tip: "This season's games by queue. Clash games count only in All supported games.",
     title: "Games by mode",
     unit: "games",
     population: "Games in the selected season, all linked accounts, split by queue",
@@ -96,6 +109,7 @@ export const METRICS = {
     source: "Linked Riot accounts (match history)",
   },
   "season-coverage": {
+    tip: "Whether every game of the season has been loaded from Riot yet; until then the figures keep growing.",
     title: "Season data",
     unit: "label",
     population: "Whether every game of the season has been collected from Riot yet",
@@ -103,6 +117,7 @@ export const METRICS = {
     source: "Account sync",
   },
   "combined-mastery": {
+    tip: "Riot's mastery points, added up over their Riot accounts: long-term play, not current form.",
     title: "Mastery",
     unit: "points",
     population: "Champion mastery points from Riot, added up over the player's linked accounts (each account once)",
@@ -110,6 +125,7 @@ export const METRICS = {
     source: "Linked Riot accounts (champion mastery)",
   },
   "last-sync": {
+    tip: "When Riot was last checked for this player (automatic every few hours).",
     title: "Last sync",
     unit: "label",
     population: "Most recent refresh of any of the player's linked accounts",
@@ -124,8 +140,7 @@ export function metric(key: MetricKey): MetricDefinition {
   return METRICS[key];
 }
 
-/** Tooltip text for a metric: title, unit, population and source in one string. */
+/** A metric's ⓘ: its one plain sentence (the population and source stay in this glossary, for the code). */
 export function metricTooltip(key: MetricKey): string {
-  const m = METRICS[key];
-  return `${m.title} (${m.unit}). ${m.description} Population: ${m.population}. Source: ${m.source}.`;
+  return METRICS[key].tip;
 }

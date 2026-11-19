@@ -29,23 +29,6 @@ import { SECTIONS } from "./sections";
   (violet, gold), as everywhere.
 */
 
-/** A record's definition and the rules every record keeps, in the records' one ⓘ (D6). */
-function Definitions({ records }: { records: RecordView[] }) {
-  return (
-    <>
-      <span className="block">Records reward playing more: every game is another chance.</span>
-      {records
-        .filter((r) => r.definition)
-        .map((r) => (
-          <span key={r.id} className="mt-1 block">
-            <span className="font-semibold">{r.label}:</span> {r.definition}
-          </span>
-        ))}
-      <span className="mt-1 block">A tie goes to whoever set it first.</span>
-    </>
-  );
-}
-
 // ── Season records ─────────────────────────────────────────────────────────────────────────────
 
 /*
@@ -97,10 +80,9 @@ export function SeasonRecords({ records, player, champ, viewer, className }: { r
         <BoardTitle
           id="season-records-title"
           icon={<Trophy className="h-4 w-4 shrink-0 text-fg-subtle" aria-hidden />}
-          aside={<InfoTip label="How these records count" text={<Definitions records={records.records} />} testId="records-definitions" />}
           // The season, only where there are two to choose from.
           end={records.seasons.length > 1 ? <SeasonChoice seasons={records.seasons} current={records.season} /> : null}
-          note={`${records.seasonLabel} · All supported games · ${formatCount(records.games)} games`}
+          note={`${records.seasonLabel} · All supported games · ${formatCount(records.games)} games · ties: first to set it`}
           noteTestId="records-scope"
         >
           Season records
