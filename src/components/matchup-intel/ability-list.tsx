@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Panel } from "@/components/ui/panel";
 import { RemoteImage } from "@/components/ui/remote-image";
+import { cn } from "@/lib/cn";
 import { DetailsDialog } from "./details-dialog";
 import { FactChipView } from "./fact-chip";
 import { NO_BREAK, SourceLink } from "./source-link";
@@ -58,15 +59,16 @@ function KeyChip({ slot }: { slot: Slot }) {
   return <span className="inline-grid h-5 min-w-5 shrink-0 place-items-center rounded-sm border border-border-strong bg-surface-2 px-1 text-2xs font-semibold text-fg-muted">{SLOT_NAMES[slot]}</span>;
 }
 
-/** The ability's icon from Data Dragon, lazy; its key on a plain tile when there is none or it fails to load. */
-function AbilityIcon({ src, slot }: { src: string | null; slot: Slot }) {
+/** The ability's icon from Data Dragon, lazy; its key on a plain tile when there is none or it fails to load. `small`: the one that starts a narrow tile's key line. */
+function AbilityIcon({ src, slot, small = false }: { src: string | null; slot: Slot; small?: boolean }) {
+  const size = small ? "h-8 w-8" : "h-10 w-10";
   const standIn = (
-    <span aria-hidden className="grid h-10 w-10 shrink-0 place-items-center rounded-md border border-border bg-surface-2 text-sm font-semibold text-fg-subtle" data-testid="ability-icon-standin">
+    <span aria-hidden className={cn("grid shrink-0 place-items-center rounded-md border border-border bg-surface-2 font-semibold text-fg-subtle", size, small ? "text-xs" : "text-sm")} data-testid="ability-icon-standin">
       {slot}
     </span>
   );
   if (!src) return standIn;
-  return <RemoteImage src={src} fallback={standIn} alt="" width={40} height={40} loading="lazy" decoding="async" className="h-10 w-10 shrink-0 rounded-md border border-border bg-surface-2 object-cover" />;
+  return <RemoteImage src={src} fallback={standIn} alt="" width={small ? 32 : 40} height={small ? 32 : 40} loading="lazy" decoding="async" className={cn("shrink-0 rounded-md border border-border bg-surface-2 object-cover", size)} />;
 }
 
 /**
@@ -268,12 +270,21 @@ function AbilityTile({ intel, ability: a, checkedPatch, dataPatch, notRecheckedF
   return (
     // A chip's jump lands here and gives the tile the focus until it moves on (jumpToAnchor,
     // ui/section-index.tsx); the tile is lit while it holds it.
-    <li id={abilityAnchor(champion.id, a.slot)} className="grid scroll-mt-4 grid-cols-[2.5rem_minmax(0,1fr)] items-start gap-x-2.5 px-3 py-1.5 transition-colors focus:bg-accent/5 focus-visible:-outline-offset-2" data-testid="ability-row" data-slot={a.slot} data-freshness={a.freshness ?? undefined}>
-      <AbilityIcon src={a.icon} slot={a.slot} />
+    // The icon beside everything from a tile 16rem wide; in a narrower one (a phone at a large text
+    // size) a smaller copy starts the key's line instead and the words take the tile's whole width,
+    // so a column beside the icon never squeezes them to a few letters a line (the hidden copy is
+    // display: none, and a lazy image out of the layout is never fetched).
+    <li id={abilityAnchor(champion.id, a.slot)} className="grid scroll-mt-4 grid-cols-1 items-start gap-x-2.5 px-3 py-1.5 transition-colors focus:bg-accent/5 focus-visible:-outline-offset-2 @min-[16rem]/abilities:grid-cols-[2.5rem_minmax(0,1fr)]" data-testid="ability-row" data-slot={a.slot} data-freshness={a.freshness ?? undefined}>
+      <span className="hidden @min-[16rem]/abilities:block">
+        <AbilityIcon src={a.icon} slot={a.slot} />
+      </span>
       <div className="min-w-0 space-y-0.5">
         {/* The key and the name, then the cooldown at the line's end where there is room (under them where
             there is not), then the details window's button: the figures line up from tile to tile. */}
         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+          <span className="shrink-0 @min-[16rem]/abilities:hidden">
+            <AbilityIcon src={a.icon} slot={a.slot} small />
+          </span>
           <KeyChip slot={a.slot} />
           <h3 className="min-w-0 text-sm font-semibold leading-snug text-fg [overflow-wrap:anywhere]" data-testid="ability-name">
             {a.name}
@@ -346,7 +357,8 @@ export function AbilityList({ intel, testId }: { intel: ChampionIntelView; testI
   const commonSource = commonSourceOf(intel);
   return (
     // Laid out by its own width (container queries, in rem, so they follow the text size): from 24rem
-    // the cooldown ends the name's line; under it (a phone, a large text size) it takes a line of its own.
+    // the cooldown ends the name's line; under it (a phone, a large text size) it takes a line of its
+    // own; under 16rem the icon joins the key's line (AbilityTile).
     <ol className="@container/abilities divide-y divide-border" aria-label={`${intel.champion.name}'s abilities`} data-testid={testId}>
       {/* Keyed by champion as well: another pair's tiles start afresh. */}
       {intel.abilities.map((a) => (

@@ -13,14 +13,16 @@ import { NO_INTERACTIONS_WORDS, SLOT_NAMES, abilityAnchor, expiredInteractionsWo
   The notes around the abilities (docs/MATCHUP_INTEL.md, "The dashboard"), each a compact panel that
   always says what is recorded, never an empty box:
   - Interactions: the curated matchup's own (L1) first, word for word, with what they rest on and
-    their source (beyond the first two, folded behind their count, never cut); then each champion's
+    their source (said once on the panel's line when they all share it, as they do in every curated
+    file; beyond the first two, folded behind their count, never cut); then each champion's
     own checked interaction and exception facts (L2), folded side by side ("Renekton's interactions
     and exceptions · 7"). Nothing else: no interaction is made
     up from the two kits (the owner's decision, 18 Nov 2026). A matchup interaction that rests on an
     ability Riot changed after the check is hidden and said, as it is when the matchup's check is too
     old to show.
   - Level changes: the levels at which something notable becomes possible, only where a checked
-    note states one, each flagged once Riot changes an ability it rests on.
+    note states one, each flagged once Riot changes an ability it rests on; the notes' source said
+    once on the panel's line when they all share it, else on each note.
 */
 
 const NO_SOURCE = { title: "", url: "" };
@@ -120,15 +122,28 @@ export function InteractionsPanel({ matchup, enemyIntel, yourIntel, you, rows }:
     return s ? { title: s.title, url: s.url } : NO_SOURCE;
   };
   const nothing = !fromMatchup.length && !expired && !enemyFacts && !yourFacts;
+  // One source for all of them (a curated file cites one page for its interactions): said once on
+  // the panel's line, not after each, where it would take a line of its own beside their chips.
+  const titles = shown.map((item) => sourceOf(item.source).title);
+  const oneSource = titles.length > 0 && titles.every((t) => t && t === titles[0]) ? titles[0]! : null;
+  const itemSource = (item: Extract<InteractionView, { kind: "interaction" }>) => (oneSource ? NO_SOURCE : sourceOf(item.source));
   return (
     <Panel className="overflow-hidden" data-testid="matchup-interactions">
       <header className="flex flex-wrap items-baseline justify-between gap-x-3 border-b border-border px-3 py-1.5">
         <h2 className="text-sm font-semibold text-fg">Interactions</h2>
-        <p className="text-xs text-fg-muted">How abilities meet{you && matchup ? " in this lane" : ""}</p>
+        <p className="text-xs text-fg-muted">
+          How abilities meet{you && matchup ? " in this lane" : ""}
+          {oneSource ? (
+            <>
+              {" · "}
+              <SourceTip text={`Source: ${oneSource}. Curated matchup notes.`} testId="interaction-source" />
+            </>
+          ) : null}
+        </p>
       </header>
       <ul className="divide-y divide-border">
         {shown.slice(0, INTERACTIONS_SHOWN).map((item, i) => (
-          <MatchupInteraction key={`m-${i}`} item={item} names={names} rows={rows} source={sourceOf(item.source)} />
+          <MatchupInteraction key={`m-${i}`} item={item} names={names} rows={rows} source={itemSource(item)} />
         ))}
         {shown.length > INTERACTIONS_SHOWN ? (
           // The rest, word for word, one press away: never cut to fit.
@@ -141,7 +156,7 @@ export function InteractionsPanel({ matchup, enemyIntel, yourIntel, you, rows }:
               </summary>
               <ul className="divide-y divide-border">
                 {shown.slice(INTERACTIONS_SHOWN).map((item, i) => (
-                  <MatchupInteraction key={`r-${i}`} item={item} names={names} rows={rows} source={sourceOf(item.source)} />
+                  <MatchupInteraction key={`r-${i}`} item={item} names={names} rows={rows} source={itemSource(item)} />
                 ))}
               </ul>
             </details>
@@ -183,12 +198,28 @@ export function LevelNotesPanel({ intels }: { intels: ReadonlyArray<ChampionInte
   const notes = present.flatMap((intel, order) => intel.levelNotes.map((n, i) => ({ ...n, champion: intel.champion, order, i }))).sort((a, b) => a.level - b.level || a.order - b.order || a.i - b.i);
   // Notes from a champion whose check is more than two patches old: said once, on the panel's line.
   const expired = Math.max(0, ...intels.flatMap((intel) => (intel?.levelNotes.length && intel.curated?.recheck?.expired ? [intel.curated.recheck.patches] : [])));
+  const sourceText = (n: (typeof notes)[number]) => {
+    if (!n.source.title) return null;
+    const revision = revisionWords(n.source.revisionTime);
+    return `Source: ${n.source.title}${revision ? `, ${revision}` : ""}. Checked notes.`;
+  };
+  // Every note from one page (one champion's checked notes): its source said once, on the panel's line.
+  const texts = notes.map(sourceText);
+  const oneSource = texts.length > 0 && texts.every((t) => t !== null && t === texts[0]) ? texts[0]! : null;
   return (
     <Panel className="overflow-hidden" data-testid="matchup-level-notes">
       <header className="flex flex-wrap items-baseline justify-between gap-x-3 border-b border-border px-3 py-1.5">
         <h2 className="text-sm font-semibold text-fg">Level changes</h2>
         <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-fg-muted">
-          <span>When something becomes possible</span>
+          <span>
+            When something becomes possible
+            {oneSource ? (
+              <>
+                {" · "}
+                <SourceTip text={oneSource} testId="level-note-source" />
+              </>
+            ) : null}
+          </span>
           {expired ? (
             <Badge tone="warn">
               <TriangleAlert className="h-3.5 w-3.5 shrink-0" aria-hidden />
@@ -202,16 +233,16 @@ export function LevelNotesPanel({ intels }: { intels: ReadonlyArray<ChampionInte
         // text size): beside it, the note would be left a column a word wide.
         <ol className="@container/levels divide-y divide-border">
           {notes.map((n) => {
-            const revision = revisionWords(n.source.revisionTime);
+            const source = oneSource ? null : sourceText(n);
             return (
               <li key={`${n.champion.id}-${n.order}-${n.i}`} className="grid grid-cols-1 gap-x-2 gap-y-0.5 px-3 py-1.5 @min-[16rem]/levels:grid-cols-[3.25rem_minmax(0,1fr)]" data-testid="matchup-level-note" data-changed={n.changed ? "" : undefined}>
                 <span className="text-xs font-semibold tabular-nums leading-snug text-fg">Level {n.level}</span>
                 <p className="min-w-0 text-xs leading-snug text-fg">
                   <span className="font-medium">{n.champion.name}:</span> {n.text}
-                  {n.source.title ? (
+                  {source ? (
                     <>
                       {" "}
-                      <SourceTip text={`Source: ${n.source.title}${revision ? `, ${revision}` : ""}. Checked notes.`} testId="level-note-source" />
+                      <SourceTip text={source} testId="level-note-source" />
                     </>
                   ) : null}
                   {n.changed ? (

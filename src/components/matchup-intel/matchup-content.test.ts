@@ -383,7 +383,8 @@ describe("each champion's data, and checks a patch or more behind", () => {
     expect(t).toContain("One interaction is hidden: it was checked on patch 26.22, three patches ago, with the briefing.");
     expect(t).not.toContain("Unstoppable answers it.");
     expect(t).toContain("Curated notes: checked on patch 26.22 Checked three patches ago: may be out of date");
-    expect(text(html.slice(html.indexOf('data-testid="matchup-level-notes"')))).toMatch(/^[^<]*Level changes When something becomes possible Checked three patches ago: may be out of date/);
+    // The notes' one source said once on the panel's line, then the warning.
+    expect(text(html.slice(html.indexOf('data-testid="matchup-level-notes"')))).toMatch(/^[^<]*Level changes When something becomes possible · source Source: Renekton\. Checked notes\. Checked three patches ago: may be out of date Level 6 Renekton: Dominus\. Renekton's abilities/);
     expect(t).toContain("The curated notes on this page were checked on 16 Nov 2026 against patch 26.22.");
     expect(t).not.toContain("the Ambessa vs Renekton briefing");
   });
@@ -399,6 +400,30 @@ describe("each champion's data, and checks a patch or more behind", () => {
     expect(html).not.toContain('href="#ability-Renekton-W"');
     expect(html).toMatch(/<span class="[^"]*" data-testid="briefing-ability-label">Renekton W<\/span>/);
     expect(html).toContain('href="#ability-Ambessa-Q"');
+  });
+
+  it("a source every note of a panel shares is said once, on its line; notes from different pages each say their own", async () => {
+    const panel = (html: string, id: string) => html.slice(html.indexOf(`data-testid="${id}"`)).split("</section>")[0]!;
+    // One page behind the matchup's interactions and the level notes: the word once, in each panel's heading.
+    const one = await render({ champion: "Ambessa", vs: "Renekton" });
+    const interactions = panel(one, "matchup-interactions");
+    expect(interactions.match(/data-testid="interaction-source"/g)).toHaveLength(1);
+    expect(text(interactions)).toMatch(/^[^<]*Interactions How abilities meet in this lane · source Source: Renekton\. Curated matchup notes\. Unstoppable answers it\./);
+    const levels = panel(one, "matchup-level-notes");
+    expect(levels.match(/data-testid="level-note-source"/g)).toHaveLength(1);
+    expect(text(levels)).toMatch(/^[^<]*Level changes When something becomes possible · source Source: Renekton\. Checked notes\. Level 6 Renekton: Dominus\./);
+    // Two pages: each interaction and each note says its own, and the headings name none.
+    const two: MatchupNotes = {
+      ...ambessaVsRenekton,
+      sources: [...ambessaVsRenekton.sources, { id: "other", title: "Ambessa", url: "https://wiki.leagueoflegends.com/en-us/Ambessa", kind: "wiki-champion", licence: "CC BY-SA 3.0" }],
+      interactions: [...ambessaVsRenekton.interactions, { text: "It goes the other way.", abilities: ["Renekton.W"], source: "other" }],
+    };
+    const ambessa: ChampionNotes = { ...renekton, championId: "Ambessa", sources: [{ id: "wiki", title: "Ambessa", url: "https://wiki.leagueoflegends.com/en-us/Ambessa", kind: "wiki-champion", licence: "CC BY-SA 3.0" }], abilities: {}, levelNotes: [{ level: 9, text: "Drakehound.", source: "wiki", basedOn: [] }] };
+    const html = await render({ champion: "Ambessa", vs: "Renekton" }, { matchupNotes: (a, b) => (a === "Ambessa" && b === "Renekton" ? two : null), championNotes: (id) => (id === "Renekton" ? renekton : id === "Ambessa" ? ambessa : null) });
+    const each = text(panel(html, "matchup-interactions"));
+    expect(each).toMatch(/^[^<]*Interactions How abilities meet in this lane Unstoppable answers it\. .*source Source: Renekton\. Curated matchup notes\. It goes the other way\. .*source Source: Ambessa\. Curated matchup notes\./);
+    const notes = text(panel(html, "matchup-level-notes"));
+    expect(notes).toMatch(/^[^<]*Level changes When something becomes possible Level 6 Renekton: Dominus\. source Source: Renekton\. Checked notes\. Level 9 Ambessa: Drakehound\. source Source: Ambessa\. Checked notes\./);
   });
 
   it("a level note from an ability Riot changed after the check is flagged", async () => {

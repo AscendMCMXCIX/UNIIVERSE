@@ -122,8 +122,10 @@ function SlotButton({ slot, champion, onOpen, buttonRef }: { slot: PickerSlot; c
       // A phone's row (max-sm:@min-[22rem]/pickers, written out whole for Tailwind to find): the
       // portrait beside the words from a row of 22rem (a 384px phone at the usual text size), with
       // a little less padding and gap, so the longest one-word name (Heimerdinger) fits whole at 384px.
+      // Under it, the portrait above the words, with a narrow padding so that name fits whole down
+      // to the 17.5rem where the two slots go one above the other.
       className={cn(
-        "group flex h-full w-full min-w-0 flex-col items-center justify-center gap-1 rounded-panel border bg-surface px-2 py-2 text-center transition-colors hover:border-border-strong hover:bg-surface-2/60 sm:justify-start sm:gap-2.5 sm:px-3 sm:py-1.5",
+        "group flex h-full w-full min-w-0 flex-col items-center justify-center gap-1 rounded-panel border bg-surface px-1 py-2 text-center transition-colors hover:border-border-strong hover:bg-surface-2/60 sm:justify-start sm:gap-2.5 sm:px-3 sm:py-1.5",
         "max-sm:@min-[22rem]/pickers:justify-start max-sm:@min-[22rem]/pickers:gap-1.5 max-sm:@min-[22rem]/pickers:px-1.5",
         you ? "max-sm:@min-[22rem]/pickers:flex-row-reverse max-sm:@min-[22rem]/pickers:text-right sm:flex-row-reverse sm:text-right" : "max-sm:@min-[22rem]/pickers:flex-row max-sm:@min-[22rem]/pickers:text-left sm:flex-row sm:text-left",
         champion ? "border-border" : "border-dashed border-border-strong",
@@ -391,10 +393,11 @@ export function MatchupFrame({
           <div className="grid gap-x-4 gap-y-1.5 @min-[44rem]/pickers:grid-cols-[minmax(0,34rem)_minmax(0,1fr)] @min-[44rem]/pickers:items-center @min-[60rem]/pickers:grid-cols-[auto_minmax(0,34rem)_minmax(0,1fr)]">
             {heading ? <div className="min-w-0 @min-[44rem]/pickers:col-span-2 @min-[60rem]/pickers:col-span-1" data-testid="matchup-heading">{heading}</div> : null}
           {/* Side by side, or one above the other with the swap between them where the row is under
-              14rem: a phone at a large text size (200%; 150% up to 375px wide), where side by side
-              each slot would be narrower than its portrait and its label. The two sides are as tall
-              as each other (stretched), whichever name wraps. */}
-          <div className="grid grid-cols-1 items-stretch gap-2 @min-[14rem]/pickers:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:gap-3" data-testid="matchup-pickers">
+              17.5rem: a phone at a large text size (200%; 150% on a 393px phone; 125% up to 375px
+              wide), where side by side the longest one-word name (Heimerdinger, 6.2rem at text-md)
+              would no longer fit a slot whole. The two sides are as tall as each other (stretched),
+              whichever name wraps. */}
+          <div className="grid grid-cols-1 items-stretch gap-2 @min-[17.5rem]/pickers:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:gap-3" data-testid="matchup-pickers">
             <SlotButton slot="you" champion={yourChoice} onOpen={() => openPicker("you")} buttonRef={youSlot} />
             <button
               type="button"
@@ -405,7 +408,7 @@ export function MatchupFrame({
               title="Swap"
               data-testid="matchup-swap"
             >
-              <ArrowLeftRight className="h-5 w-5 @max-[14rem]/pickers:rotate-90" aria-hidden />
+              <ArrowLeftRight className="h-5 w-5 @max-[17.5rem]/pickers:rotate-90" aria-hidden />
             </button>
             <SlotButton slot="enemy" champion={choice(shown.enemy)} onOpen={() => openPicker("enemy")} buttonRef={enemySlot} />
           </div>

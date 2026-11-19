@@ -48,8 +48,9 @@ test("a link to a pair opens it: both champions in their slots, the enemy's five
   for (const r of await rows.all()) {
     await expect(r.getByTestId("ability-name")).not.toBeEmpty();
     await expect(r.getByTestId("ability-cooldown-value")).not.toBeEmpty();
-    // The icon from Data Dragon, or its key on a plain tile where it cannot load (these tests run offline).
-    await expect(r.locator('img[src^="https://ddragon.leagueoflegends.com/cdn/"], [data-testid="ability-icon-standin"]')).toHaveCount(1);
+    // The icon from Data Dragon, or its key on a plain tile where it cannot load (these tests run offline):
+    // one in sight (a narrow tile shows a smaller copy on its key's line instead).
+    await expect(r.locator('img[src^="https://ddragon.leagueoflegends.com/cdn/"], [data-testid="ability-icon-standin"]').filter({ visible: true })).toHaveCount(1);
   }
   // Your own champion's abilities are there too, folded away until asked for.
   const yours = page.getByTestId("matchup-your-abilities");

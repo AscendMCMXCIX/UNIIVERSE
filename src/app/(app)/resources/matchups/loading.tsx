@@ -10,7 +10,7 @@ export default function Loading() {
       <div className="@container/pickers">
         <div className="grid gap-x-4 gap-y-1.5 @min-[44rem]/pickers:grid-cols-[minmax(0,34rem)_minmax(0,1fr)] @min-[44rem]/pickers:items-center @min-[60rem]/pickers:grid-cols-[auto_minmax(0,34rem)_minmax(0,1fr)]">
           <div className={`${block} h-7 w-40 max-w-full rounded-md @min-[44rem]/pickers:col-span-2 @min-[60rem]/pickers:col-span-1`} />
-          <div className="grid grid-cols-1 items-stretch gap-2 @min-[14rem]/pickers:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:gap-3">
+          <div className="grid grid-cols-1 items-stretch gap-2 @min-[17.5rem]/pickers:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:gap-3">
             <div className={`${block} h-24 rounded-panel sm:h-12`} />
             <div className={`${block} h-11 w-11 justify-self-center rounded-full @min-[44rem]/pickers:h-9 @min-[44rem]/pickers:w-9`} />
             <div className={`${block} h-24 rounded-panel sm:h-12`} />
