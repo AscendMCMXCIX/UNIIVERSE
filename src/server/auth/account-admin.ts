@@ -163,6 +163,18 @@ export async function guardProfileAccount(db: Db, actorId: string | null, player
   if (account) await guardOwnerAccount(db, actorId, account, what);
 }
 
+/**
+ * A profile with a sign-in account is never archived on its own (19 Nov 2026), whoever asks, the
+ * Owner included: archiving drops it from Players and the lineup, which is the team membership
+ * setTeamMemberAction guards (the Owner's only by the Owner), and Admin offers Archive only for
+ * profiles without an account. Deleting the account archives its profile. Restoring stays open: it
+ * only brings a profile back.
+ */
+export async function guardArchiveProfile(db: Db, playerId: string): Promise<void> {
+  const [account] = await db.select({ id: users.id }).from(users).where(eq(users.playerId, playerId));
+  if (account) throw new UserError("This profile belongs to an account, so it is not archived on its own: change its team membership, or delete the account (Admin Mode → Users & Permissions). Nothing was changed.");
+}
+
 /** Deactivating signs the account out everywhere and blocks sign-in; reactivating restores it with the same password. */
 export async function setAccountActive(db: Db, actorId: string | null, userId: string, active: boolean): Promise<UserRecord> {
   const target = await getUser(db, userId);

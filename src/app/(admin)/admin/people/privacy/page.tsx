@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getAppDb } from "@/server/bootstrap";
 import { requirePageAccess } from "@/server/auth/page-access";
+import { isOwner } from "@/server/auth/permissions";
 import { listErasureRecords } from "@/server/privacy/ledger";
 import { BACKUP_RETENTION_DAYS, PRIVACY_DISCORD } from "@/domain/privacy";
 import { EraseFormerMember } from "@/components/admin/erase-person";
@@ -10,11 +11,12 @@ export const dynamic = "force-dynamic";
 
 /**
  * Users & Permissions → Personal data (administrators only): how privacy requests are handled,
- * erasing what a former member left, and the erasure records (export, import, re-apply, release).
+ * erasing what a former member left, and the erasure records (export and release; import and
+ * re-apply the Owner's only, with REAPPLY typed).
  * A current member is erased from their row under Accounts.
  */
 export default async function AdminPrivacyPage() {
-  await requirePageAccess("manage-users");
+  const session = await requirePageAccess("manage-users");
   const records = await listErasureRecords(await getAppDb());
   return (
     <div className="space-y-6" data-testid="admin-privacy">
@@ -52,7 +54,7 @@ export default async function AdminPrivacyPage() {
         <p className="text-sm text-fg-muted [overflow-wrap:anywhere]">
           Backups made before an erasure still hold the person&apos;s data until they expire ({BACKUP_RETENTION_DAYS} days), and offline copies until whoever holds them deletes them. Export the records after each erasure and keep the file with the offline backups. If a backup is ever restored, import the newest records file and re-apply them before the app is used again (docs/BACKUPS.md).
         </p>
-        <ErasureRecords records={records} />
+        <ErasureRecords records={records} viewerIsOwner={isOwner(session)} />
       </section>
     </div>
   );

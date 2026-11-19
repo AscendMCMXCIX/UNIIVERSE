@@ -12,6 +12,7 @@ import { getSession, requireOpenableProfile, requirePermission, requirePlayerEdi
 import { archivePlayer, getOrCreateTeam, PlayerValidationError, setLineupSlot, setLineupSubstitute } from "@/server/repositories/team";
 import { canViewPlayerStats, isAdmin } from "@/server/auth/permissions";
 import { auditPlayerName, recordAudit } from "@/server/audit/log";
+import { guardArchiveProfile } from "@/server/auth/account-admin";
 
 export type ActionResult<T = undefined> = { ok: true; data?: T } | { ok: false; error: string };
 
@@ -48,8 +49,10 @@ export async function currentSessionAction() {
 
 /**
  * Player managers archive team members' profiles; a personal-use profile only an administrator
- * (requireOpenableProfile). Admin Mode → Users & Permissions offers it for profiles without an
- * account. An administrator's archive or restore is in the activity log (Audit Logs, Accounts).
+ * (requireOpenableProfile). Only a profile without an account is archived (guardArchiveProfile, for
+ * everyone, the Owner included): Admin Mode → Users & Permissions offers it only for those, and an
+ * account's profile leaves the team through its team membership or the account's deletion. An
+ * administrator's archive or restore is in the activity log (Audit Logs, Accounts).
  */
 export async function archivePlayerAction(playerId: string, archived: boolean): Promise<ActionResult> {
   try {
@@ -57,6 +60,7 @@ export async function archivePlayerAction(playerId: string, archived: boolean): 
     await requireOpenableProfile(session, playerId);
     if (typeof archived !== "boolean") return { ok: false, error: "Choose archive or restore." };
     const db = await getAppDb();
+    if (archived) await guardArchiveProfile(db, playerId);
     await archivePlayer(db, playerId, archived);
     // The activity log records what administrators change (the privacy notice's words); a team
     // manager who is not one stays out of it until the notice says otherwise.

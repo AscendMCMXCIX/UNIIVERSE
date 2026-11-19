@@ -13,9 +13,14 @@ describe("job registry", () => {
 
   /*
     The kind decides who may start a job from Admin Mode (server/actions/settings.ts runJobAction):
-    a setup job only the Owner, with its phrase typed. A new job without a kind, or a job that
-    changes the site's setup filed as a check or a refresh, fails here. A stage that adds a setup or
-    repair job (S1b's lane-opponent-recompute, S7b's prep-backfill) adds it to SETUP with its job.
+    a setup job only the Owner, with its phrase typed. What fails here: a job without a kind; a job
+    on the SETUP list below filed as a check or a refresh, or without its title, effect and phrase;
+    a setup job missing from the list; a check or a refresh that asks for a phrase; and a check or
+    a setup job that runs on a schedule. The list is written by hand, so nothing here can tell that
+    a new job changes the site's setup or repairs data: filed as a check or a refresh, it passes,
+    and its author and reviewer must catch it. A stage that adds a setup or repair job (S1b's
+    lane-opponent-recompute, S7b's prep-backfill) adds it to SETUP here and in
+    tests/db/admin-safety.test.ts, and counts it in e2e/admin-safety.spec.ts.
   */
   const SETUP = ["rank-schedule", "rank-schedule-off", "history-rescan", "erasure-reconcile", "verify-account", "lane-opponent-recompute"];
   const KINDS: readonly JobKind[] = ["check", "refresh", "setup"];
