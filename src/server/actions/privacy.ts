@@ -4,7 +4,8 @@ import { publicErrorMessage } from "@/server/errors";
 import { log } from "@/server/observability/log";
 import { revalidatePath } from "next/cache";
 import { getAppDb } from "@/server/bootstrap";
-import { requirePermission } from "@/server/auth/session";
+import { isOwner, requirePermission, type Session } from "@/server/auth/session";
+import { REAPPLY_PHRASE, typedMatches } from "@/domain/typed-confirmation";
 import { UserError } from "@/server/repositories/users";
 import { recordAudit } from "@/server/audit/log";
 import { parseRiotId } from "@/server/accounts/repository";
@@ -163,10 +164,23 @@ export async function releaseErasureAction(reference: string, confirmation: stri
   }
 }
 
-/** Applies every erasure record to the database as it is now (after restoring a backup: import the records first). */
-export async function reconcileErasuresAction(): Promise<Result<ReconcileResult>> {
+/**
+ * Re-applying the records (Re-apply, and Import, which re-applies them all) is what the
+ * erasure-reconcile job does, a setup job: the Owner's only, with REAPPLY typed, checked here as
+ * well as on the page (19 Nov 2026). Null when it may go ahead, else the refusal.
+ */
+function reapplyRefusal(session: Session, confirmation: unknown, nothing: string): { ok: false; error: string } | null {
+  if (!isOwner(session)) return { ok: false, error: `Only the Owner re-applies the erasure records, after restoring a backup. ${nothing}` };
+  if (!typedMatches(confirmation, REAPPLY_PHRASE)) return { ok: false, error: `Type ${REAPPLY_PHRASE} to confirm. ${nothing}` };
+  return null;
+}
+
+/** Applies every erasure record to the database as it is now (after restoring a backup: import the records first). The Owner only, with REAPPLY typed. */
+export async function reconcileErasuresAction(confirmation?: string): Promise<Result<ReconcileResult>> {
   try {
     const session = await requirePermission("manage-users");
+    const refused = reapplyRefusal(session, confirmation, "Nothing was changed.");
+    if (refused) return refused;
     const db = await getAppDb();
     const result = await reconcileErasures(db, { mode: "full" });
     await recordAudit(db, session, { action: "privacy.reconcile", details: { records: result.records, unusable: result.unusable, people: result.people, traces: result.traces } });
@@ -190,10 +204,12 @@ export async function exportErasuresAction(): Promise<Result<ErasureExport>> {
   }
 }
 
-/** Adds the records of an exported file (a restored backup lacks later ones), then applies them all. */
-export async function importErasuresAction(text: string): Promise<Result<{ added: number; updated: number; reconcile: ReconcileResult }>> {
+/** Adds the records of an exported file (a restored backup lacks later ones), then applies them all. The Owner only, with REAPPLY typed. */
+export async function importErasuresAction(text: string, confirmation?: string): Promise<Result<{ added: number; updated: number; reconcile: ReconcileResult }>> {
   try {
     const session = await requirePermission("manage-users");
+    const refused = reapplyRefusal(session, confirmation, "Nothing was imported.");
+    if (refused) return refused;
     if (typeof text !== "string" || text.length > 2_000_000) return { ok: false, error: "That file is not an erasure records file." };
     let file: unknown;
     try {

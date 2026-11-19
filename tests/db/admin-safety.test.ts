@@ -16,8 +16,9 @@ import type { DbHandle } from "@/server/db/create";
     its job still creates and keeps it;
   - only the Owner changes the Owner's profile's team membership (D5a);
   - archive and restore are audited; a profile without an account is deleted only with its name;
-  - an erasure clears the texts of the person's activity entries matched by id, and leaves the
-    entries of erasures made before as they were (forward only).
+  - an erasure clears the texts of the activity entries about the person matched by id, keeps the
+    details of entries they only made about someone else (only the actor's name changes), and
+    leaves the entries of erasures made before as they were (forward only).
 */
 
 const state = vi.hoisted(() => ({ db: null as unknown, cookies: new Map<string, string>(), redirects: [] as string[] }));
@@ -291,6 +292,29 @@ describe("the Owner's profile", () => {
     expect(await usersActions.setTeamMemberAction(ownerProfileId, false)).toEqual({ ok: true, data: null });
     expect(await usersActions.setTeamMemberAction(ownerProfileId, true)).toEqual({ ok: true, data: null });
   });
+
+  it("is not taken off the team by archiving it, nor is any profile with an account, whoever asks", async () => {
+    // A member who manages players without being an administrator (the Player Manager group).
+    await signInAs(ownerId);
+    const lead = await registerAccount(handle.db, { username: "Lead", password: "Lead-pass-1234", role: "player", primaryRiot: { riotId: "Lead#OCE", platform: "oc1" }, primaryRole: "ADC" });
+    expect(await usersActions.setAccessGroupsAction(lead.id, ["player-manager"])).toMatchObject({ ok: true });
+    const archives = (await audit("profile.archive")).length;
+    for (const [who, userId] of [["an administrator", adminId], ["a player manager", lead.id], ["the Owner", ownerId]] as const) {
+      await signInAs(userId);
+      for (const [whose, profile] of [["the Owner's", ownerProfileId], ["a member's", memberProfileId]] as const) {
+        expect(await playerActions.archivePlayerAction(profile, true), `${who}, ${whose}`).toEqual({ ok: false, error: expect.stringMatching(/^This profile belongs to an account, so it is not archived on its own/) });
+      }
+    }
+    const kept = await handle.db.select({ archivedAt: players.archivedAt, teamMember: players.teamMember }).from(players).where(inArray(players.id, [ownerProfileId, memberProfileId]));
+    expect(kept).toEqual([
+      { archivedAt: null, teamMember: true },
+      { archivedAt: null, teamMember: true },
+    ]);
+    expect((await audit("profile.archive")).length).toBe(archives);
+    // Restoring only brings a profile back, and stays open.
+    await signInAs(lead.id);
+    expect(await playerActions.archivePlayerAction(memberProfileId, false)).toEqual({ ok: true });
+  });
 });
 
 describe("profiles without an account", () => {
@@ -322,16 +346,23 @@ describe("profiles without an account", () => {
 });
 
 describe("erasure, forward only", () => {
-  it("clears every text in the details of the person's entries matched by id; entries of earlier erasures and other people's stay as they were", async () => {
+  it("clears every text in the details of the entries about the person matched by id; what they did to others keeps its details; entries of earlier erasures and other people's stay as they were", async () => {
     await signInAs(ownerId);
     const leaving = await registerAccount(handle.db, { username: "Leaving", password: "Leaving-pass-123", role: "player", primaryRiot: { riotId: "Leaving#OCE", platform: "oc1" }, primaryRole: "SUPPORT" });
     const rows = await handle.db
       .insert(auditEvents)
       .values([
-        // Theirs by id: the target, and the actor.
+        // About them by id: done to their account (by someone else, or by them) and to their profile.
         { actorUserId: ownerId, actorName: "Founder", action: "account.access", targetType: "user", targetId: leaving.id, targetName: "Leaving", details: { level: "Team Manager", capabilities: 4, custom: false } },
         { actorUserId: leaving.id, actorName: "Leaving", action: "password.change", targetType: "user", targetId: leaving.id, targetName: "Leaving", details: { note: "first password" } },
         { actorUserId: ownerId, actorName: "Founder", action: "account.team-member", targetType: "player", targetId: leaving.playerId, targetName: "Leaving", details: { teamMember: true } },
+        // Made by them about someone or something else: the other member's level, groups and role, and a job.
+        { actorUserId: leaving.id, actorName: "Leaving", action: "account.access", targetType: "user", targetId: memberId, targetName: "Teammate", details: { level: "Team Manager", capabilities: 4, custom: false } },
+        { actorUserId: leaving.id, actorName: "Leaving", action: "account.groups", targetType: "user", targetId: memberId, targetName: "Teammate", details: { groups: "player-manager" } },
+        { actorUserId: leaving.id, actorName: "Leaving", action: "account.role", targetType: "user", targetId: memberId, targetName: "Teammate", details: { role: "player" } },
+        { actorUserId: leaving.id, actorName: "Leaving", action: "jobs.run", targetType: "job", targetId: null, targetName: "integrity", details: { ok: true, kind: "check" } },
+        // Made by them, a detail naming them: only that value goes.
+        { actorUserId: leaving.id, actorName: "Leaving", action: "account.access", targetType: "user", targetId: memberId, targetName: "Teammate", details: { level: "Team Manager", note: "Leaving" } },
         // An earlier erasure's entry, as it left it (ids gone, the name replaced, a text detail kept).
         { actorUserId: null, actorName: ERASED_MEMBER, action: "account.groups", targetType: "user", targetId: null, targetName: ERASED_MEMBER, details: { groups: "player-manager" } },
         // Someone else's.
@@ -343,22 +374,27 @@ describe("erasure, forward only", () => {
       const got = await handle.db.select().from(auditEvents).where(inArray(auditEvents.id, ids));
       return ids.map((id) => got.find((g) => g.id === id)!);
     };
-    const [, , , earlierBefore, othersBefore] = await read();
+    const before = await read();
+    const [, , , ...madeBefore] = before.slice(0, 8);
+    const [earlierBefore, othersBefore] = before.slice(8);
 
     const done = await privacyActions.eraseAction({ userId: leaving.id }, "Leaving");
     expect(done.ok).toBe(true);
-    const [byTarget, byActor, noText, earlier, others] = await read();
+    const after = await read();
+    const [byTarget, byActor, noText] = after;
     expect(byTarget).toMatchObject({ targetId: null, targetName: ERASED_MEMBER, details: { level: "[removed]", capabilities: 4, custom: false } });
     expect(byActor).toMatchObject({ actorUserId: null, actorName: ERASED_MEMBER, targetId: null, details: { note: "[removed]" } });
     expect(noText).toMatchObject({ targetId: null, targetName: ERASED_MEMBER, details: { teamMember: true } });
+    // What they did to someone else keeps what happened: only the actor becomes "Erased member".
+    for (const [i, was] of madeBefore.slice(0, 4).entries()) expect(after[3 + i], was.action).toEqual({ ...was, actorUserId: null, actorName: ERASED_MEMBER });
+    expect(after[7]).toEqual({ ...madeBefore[4], actorUserId: null, actorName: ERASED_MEMBER, details: { level: "Team Manager", note: "[removed]" } });
+    const [earlier, others] = after.slice(8);
     expect(earlier).toEqual(earlierBefore);
     expect(others).toEqual(othersBefore);
 
     // Re-applying every record (erasure-reconcile, Personal data's Re-apply) finds nothing more to
     // change in the log: the earlier erasure's entry keeps its text (OD21 decides about those).
     await reconcileErasures(handle.db, { mode: "full" });
-    const [, , , earlierAfter, othersAfter] = await read();
-    expect(earlierAfter).toEqual(earlierBefore);
-    expect(othersAfter).toEqual(othersBefore);
+    expect(await read()).toEqual(after);
   });
 });

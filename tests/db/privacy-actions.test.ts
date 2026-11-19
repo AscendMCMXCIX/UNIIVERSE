@@ -138,12 +138,24 @@ describe("erasing a member", () => {
     const file = exported.ok ? exported.data : null;
     expect(file?.records.map((r) => r.reference)).toEqual([reference]);
     expect(JSON.stringify(file).toLowerCase()).not.toMatch(/pat|puuid-|oce/);
-    expect(await importErasuresAction("not json")).toEqual({ ok: false, error: "That file is not an erasure records file." });
-    expect(await importErasuresAction(JSON.stringify({ hello: "world" }))).toEqual({ ok: false, error: "This is not a UNIIVERSE erasure records file." });
-    expect(await importErasuresAction(JSON.stringify({ ...file, records: [{ ...file!.records[0], tokens: ["riotid:PatExample#OCE"] }] }))).toEqual({ ok: false, error: `Record ${reference} has malformed tokens.` });
-    // Importing the same file again adds nothing and finds nothing to erase.
-    expect(await importErasuresAction(JSON.stringify(file))).toMatchObject({ ok: true, data: { added: 0, updated: 0, reconcile: { people: 0, traces: 0 } } });
-    expect(await reconcileErasuresAction()).toMatchObject({ ok: true, data: { mode: "full", records: 1, unusable: 0, people: 0, traces: 0 } });
+    // Importing and re-applying are the erasure-reconcile job's work, a setup job: the Owner's only,
+    // with REAPPLY typed. An administrator who is not the Owner is refused, phrase or not.
+    for (const typed of [undefined, "REAPPLY"]) {
+      expect(await importErasuresAction(JSON.stringify(file), typed)).toEqual({ ok: false, error: "Only the Owner re-applies the erasure records, after restoring a backup. Nothing was imported." });
+      expect(await reconcileErasuresAction(typed)).toEqual({ ok: false, error: "Only the Owner re-applies the erasure records, after restoring a backup. Nothing was changed." });
+    }
+    asOwner();
+    for (const typed of [undefined, "", "RECOMPUTE", "REAPPLY ALL"]) {
+      expect(await importErasuresAction(JSON.stringify(file), typed)).toEqual({ ok: false, error: "Type REAPPLY to confirm. Nothing was imported." });
+      expect(await reconcileErasuresAction(typed)).toEqual({ ok: false, error: "Type REAPPLY to confirm. Nothing was changed." });
+    }
+    expect(await importErasuresAction("not json", "REAPPLY")).toEqual({ ok: false, error: "That file is not an erasure records file." });
+    expect(await importErasuresAction(JSON.stringify({ hello: "world" }), "REAPPLY")).toEqual({ ok: false, error: "This is not a UNIIVERSE erasure records file." });
+    expect(await importErasuresAction(JSON.stringify({ ...file, records: [{ ...file!.records[0], tokens: ["riotid:PatExample#OCE"] }] }), "REAPPLY")).toEqual({ ok: false, error: `Record ${reference} has malformed tokens.` });
+    // Importing the same file again adds nothing and finds nothing to erase (any letter case).
+    expect(await importErasuresAction(JSON.stringify(file), " reapply ")).toMatchObject({ ok: true, data: { added: 0, updated: 0, reconcile: { people: 0, traces: 0 } } });
+    expect(await reconcileErasuresAction("Reapply")).toMatchObject({ ok: true, data: { mode: "full", records: 1, unusable: 0, people: 0, traces: 0 } });
+    // The refusals left nothing in the log.
     const actions = (await handle.db.select({ action: auditEvents.action }).from(auditEvents).orderBy(auditEvents.id)).map((a) => a.action);
     expect(actions).toEqual(["privacy.erase", "privacy.export", "privacy.import", "privacy.reconcile"]);
   });

@@ -392,6 +392,9 @@ describe("the lane and the gold difference of a stored game", () => {
     // A removed player (erased) keeps their place but no figures: the gold curve is not drawn.
     const removed = players("OC1_REMOVED").map((p) => (p.puuid === "OC1_REMOVED-r-TOP" ? { ...p, puuid: "", name: null, position: null, removed: true as const } : p));
     await store("OC1_REMOVED", removed, framedTimeline("OC1_REMOVED", players("OC1_REMOVED").map((p) => p.puuid), 16, goldAt, (slot) => slot === 5), account.id);
+    // The same game stored with Riot's two readings (records from 20 Nov 2026 on); the removed player keeps neither.
+    const read = players("OC1_REMOVED_TP").map((p) => (p.puuid === "OC1_REMOVED_TP-r-TOP" ? { ...p, puuid: "", name: null, position: null, removed: true as const } : { ...p, teamPosition: p.position ?? "", individualPosition: p.position ?? "" }));
+    await store("OC1_REMOVED_TP", read, framedTimeline("OC1_REMOVED_TP", players("OC1_REMOVED_TP").map((p) => p.puuid), 16, goldAt, (slot) => slot === 5), account.id);
     // A game over before 15:00.
     const short = players("OC1_SHORT");
     await store("OC1_SHORT", short, framedTimeline("OC1_SHORT", short.map((p) => p.puuid), 12, goldAt), account.id);
@@ -427,10 +430,17 @@ describe("the lane and the gold difference of a stored game", () => {
   });
 
   it("draws no gold curve when a player's figures are missing, and never pairs a removed player", async () => {
+    // An older record keeps one merged position, which two players of a side can share, and the
+    // removed player's went with them: they may have held the lane too, so it is unclear.
     const r = await getMatchTimeline(handle.db, owner, "OC1_REMOVED");
     if (r.status !== "ok") throw new Error(r.message);
     expect(r.timeline.gold).toBeNull();
-    expect(r.timeline.lane?.opponentSlot).toBe(7);
+    expect(r.timeline.lane).toBeNull();
+    // With Riot's team position (one player per position on each team) the enemy laner stays.
+    const read = await getMatchTimeline(handle.db, owner, "OC1_REMOVED_TP");
+    if (read.status !== "ok") throw new Error(read.message);
+    expect(read.timeline.gold).toBeNull();
+    expect(read.timeline.lane?.opponentSlot).toBe(7);
   });
 
   it("leaves a minute the game never reached empty", async () => {

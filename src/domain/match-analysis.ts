@@ -212,13 +212,18 @@ export function laneReadingOf(me: LaneSeat): "teamPosition" | "individualPositio
  * individual position, under the same rule. Records stored before both were kept have one merged
  * position (the team position, else the individual position), so for them the merged position must
  * be held by exactly one player on each side. Anything else is null, "lane opponent unclear": no
- * opponent is guessed. A removed player (personal data erased) is never one, and holds no position.
+ * opponent is guessed. A removed player (personal data erased) is never one, and their positions
+ * went with them. Riot's team position gives one player per position on each team, so with it a
+ * removed seat cannot have shared the lane unseen. The merged and the individual readings can be
+ * shared, so a game with a removed player is unclear under them: Riot's answer might have named no
+ * one, and the stored record cannot tell (as the repair leaves such games as stored).
  */
 export function laneOpponentOf(parts: readonly LaneSeat[], meSlot: number): number | null {
   const me = parts[meSlot];
   if (!me || me.removed) return null;
   const reading = laneReadingOf(me);
   if (!reading) return null;
+  if (reading !== "teamPosition" && parts.some((p) => p.removed)) return null;
   const lane = laneOf(me[reading]);
   const holders = parts.flatMap((p, i) => (!p.removed && laneOf(p[reading]) === lane ? [i] : []));
   const mine = holders.filter((i) => parts[i]!.teamId === me.teamId);
