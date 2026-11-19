@@ -1471,7 +1471,7 @@ first three came before its merge, because a merge deploys; steps 5 to 8 were de
     2048 × 1152 all fit; at 1536 × 864 six fit, and Riven vs Mordekaiser and Ambessa vs Renekton
     scroll by 8px and 3px, the page's own bottom padding (their lowest part ends 20px and 25px above
     the window's foot); at 1366 × 768 and 1280 × 720 every pair but Garen vs Darius scrolls, by up to
-    415px and 477px, the page reflowing rather than clipping. If the second monitor's window is
+    443px and 505px, the page reflowing rather than clipping. If the second monitor's window is
     smaller than 1920 × 950, saying which size it gives lets the layout be tuned for it.
 
 The open compliance questions above keep their defaults unless the owner decides otherwise.
