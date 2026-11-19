@@ -133,11 +133,21 @@ export function ConditionalNote({ chips, testId, className }: { chips: readonly 
   );
 }
 
+/**
+ * A chip's trigger and badge, sized so that rows of chips never overlap: the trigger is the badge's
+ * own box (not the tip's 24px line box with negative margins, which a chip that wraps, at a large
+ * text size or with a long qualifier, overlapped the next row with), and the badge's target reaches
+ * 24px and more with a pseudo-element that takes no room (44px on touch screens: touch-target). The
+ * lists set their rows with no gap between them, so single-line rows keep their density.
+ */
+const CHIP_TRIGGER = "my-0! min-h-0!";
+const CHIP_BADGE = "touch-target text-left before:absolute before:inset-x-0 before:-inset-y-0.5 before:content-['']";
+
 /** The chip "Riot's texts differ": neutral, with its icon and its words, opening both quotes. */
 function DifferChipView({ chip, champion, ability, testId }: { chip: DifferChip; champion: string; ability: string; testId: string }) {
   return (
-    <InfoTip text={<ChipTip chip={chip} champion={champion} ability={ability} />} testId={`${testId}-differ`}>
-      <Badge tone="neutral" className="touch-target text-left">
+    <InfoTip text={<ChipTip chip={chip} champion={champion} ability={ability} />} testId={`${testId}-differ`} className={CHIP_TRIGGER}>
+      <Badge tone="neutral" className={CHIP_BADGE}>
         <EqualNot className="h-3.5 w-3.5 shrink-0" aria-hidden />
         <span>{DIFFER_WORDS}</span>
       </Badge>
@@ -153,9 +163,9 @@ export function FactChipView({ chip, champion, ability, testId = "fact-chip" }: 
   const markers = chip.layer === "riot-text" ? chipMarkers(chip) : "";
   const Icon = look.icon;
   return (
-    <InfoTip text={<ChipTip chip={chip} champion={champion} ability={ability} />} testId={testId}>
+    <InfoTip text={<ChipTip chip={chip} champion={champion} ability={ability} />} testId={testId} className={CHIP_TRIGGER}>
       {/* A long qualifier wraps inside the chip, its lines starting at the left. */}
-      <Badge tone={look.tone} className="touch-target text-left">
+      <Badge tone={look.tone} className={CHIP_BADGE}>
         <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden />
         <span className="sr-only">{kindWord}: </span>
         <span>

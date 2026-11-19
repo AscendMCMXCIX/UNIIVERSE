@@ -329,7 +329,9 @@ function AbilityTile({ intel, ability: a, checkedPatch, dataPatch, notRecheckedF
           </span>
         </div>
         {chips.length ? (
-          <ul className="flex flex-wrap gap-1" aria-label={`What ${a.name} does`} data-testid="ability-facts" data-from={from}>
+          // Rows of chips with no gap between them: each chip is its badge's own box (fact-chip.tsx), so
+          // they touch and never overlap, a chip that wraps included.
+          <ul className="flex flex-wrap gap-x-1 gap-y-0" aria-label={`What ${a.name} does`} data-testid="ability-facts" data-from={from}>
             {chips.map((c, i) => (
               <li key={`${c.layer}-${c.layer === "checked" ? c.word : c.layer === "riot-text" ? c.kind : "differ"}-${i}`} data-tags={c.layer === "checked" ? (c.tags.length ? c.tags.join(" ") : undefined) : c.layer === "riot-text" ? c.kind : undefined} data-differ={c.layer === "riot-text-differ" ? `${c.disagreement.description.kind} ${c.disagreement.tooltip.kind}` : undefined}>
                 <FactChipView chip={c} champion={champion.name} ability={a.name} />

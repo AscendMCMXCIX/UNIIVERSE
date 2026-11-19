@@ -204,14 +204,16 @@ test("every pair gives a meaningful reference, labelled for what it is: a sweep 
       await expect(tile.getByTestId("ability-cooldown-value"), at).not.toBeEmpty();
     }
     await expect(page.getByTestId("matchup-dashboard"), at).not.toContainText(/\bverified\b/i);
-    // Facts from Riot's text: an ability with none says so, never "none"; every chip is labelled.
+    // Facts from Riot's text: every chip of the enemy's labelled; a tile with none says so in words,
+    // never "none" (read in one go: a tile with no chips has no list to wait for).
     await expect(page.getByTestId("matchup-dashboard"), at).not.toContainText("None recorded in Riot's text");
-    for (const tile of await enemyAbilities(page).all()) {
-      if ((await tile.getByTestId("ability-facts").getAttribute("data-from").catch(() => null)) !== "riot-text") continue;
-      const chip = tile.locator('[data-testid="fact-chip"]').first();
-      await expect(chip, at).toHaveAccessibleDescription(/From Riot's ability text, reviewed automatically \(not by a person\)\.$/);
-    }
-    if ((await enemyAbilities(page).first().getByTestId("ability-facts-none").count()) && (await page.getByTestId("matchup-riot-text-label").count())) await expect(enemyAbilities(page).first().getByTestId("ability-facts-none"), at).toHaveText("No reviewed facts for this ability");
+    const riot = await page.getByTestId("matchup-enemy-abilities").evaluate((panel) => ({
+      label: !!panel.querySelector('[data-testid="matchup-riot-text-label"]'),
+      descriptions: [...panel.querySelectorAll('[data-testid="ability-facts"][data-from="riot-text"] :is([data-testid="fact-chip"], [data-testid="fact-chip-differ"])')].map((b) => document.getElementById(b.getAttribute("aria-describedby") ?? "")?.textContent ?? ""),
+      none: [...panel.querySelectorAll('[data-testid="ability-facts-none"]')].map((e) => e.textContent?.trim() ?? ""),
+    }));
+    for (const d of riot.descriptions) expect(d, at).toMatch(/From Riot's ability text, reviewed automatically \(not by a person\)\.$/);
+    if (riot.label) for (const n of riot.none) expect(n, at).toBe("No reviewed facts for this ability");
   }
   expect(errors).toEqual([]);
 });
@@ -267,7 +269,7 @@ test("each chip opens what it rests on, and says it to a screen reader; a checke
   await hydrated(page);
   const riotText = page.locator('[data-testid="ability-facts"][data-from="riot-text"] [data-testid="fact-chip"]');
   expect(await riotText.count()).toBeGreaterThan(0);
-  await expect(riotText.first()).toHaveAccessibleDescription(/^“.+” \(Riot's (tooltip|description) (for|of) .+\)(Qualified by .+|Cuts the cooldown of .+|Conditional: see Riot's text\.)*\s*From Riot's ability text, reviewed automatically \(not by a person\)\.$/);
+  await expect(riotText.first()).toHaveAccessibleDescription(/^“.+” \(Riot's (tooltip|description) (for|of) [^)]+\)( (Qualified by|Cuts the cooldown of) “[^”]+”( \(Riot's [^)]+\))?)?( Conditional: see Riot's text\.)? From Riot's ability text, reviewed automatically \(not by a person\)\.$/);
   await riotText.first().hover();
   await expect(page.getByTestId("fact-chip-bubble")).toContainText("From Riot's ability text, reviewed automatically (not by a person).");
 });
@@ -283,7 +285,7 @@ test("the facts from Riot's text, as the review recorded them: a qualifier with 
   const gnarW = tileOf(page, "W").getByTestId("fact-chip");
   await expect(gnarW).toHaveCount(1);
   await expect(gnarW).toContainText("Stun · “Mega Gnar”");
-  await expect(gnarW).toHaveAccessibleDescription("“stunning enemies in an area.” (Riot's description of Hyper / Wallop)Qualified by “Mega Gnar”From Riot's ability text, reviewed automatically (not by a person).");
+  await expect(gnarW).toHaveAccessibleDescription("“stunning enemies in an area.” (Riot's description of Hyper / Wallop) Qualified by “Mega Gnar” From Riot's ability text, reviewed automatically (not by a person).");
   // The assembled reference shows the same chip in its group.
   await expect(page.getByTestId("assembled-danger").getByTestId("assembled-chip").filter({ hasText: "Mega Gnar" })).toHaveCount(2);
   // Annie's passive: the stun holds only under a condition Riot's text names with a number, so the
@@ -337,7 +339,7 @@ test("the facts from Riot's text, as the review recorded them: a qualifier with 
   await expect(page.getByTestId("matchup-enemy-abilities").getByTestId("ability-facts-none")).toHaveText(Array(4).fill("No reviewed facts for this ability"));
   await expect(page.getByTestId("assembled-danger").getByTestId("assembled-none")).toHaveText(Array(4).fill("· No reviewed facts of this kind"));
   // How they were reviewed, in the sources, from the review's record; never "verified".
-  await page.getByTestId("matchup-sources").locator("summary").click();
+  await page.getByTestId("matchup-sources").locator(":scope > summary").click();
   await expect(page.getByTestId("matchup-footer-riot-text")).toContainText("read by two independent automated reviewers and settled by an adjudicator, then checked in a consistency pass by two more independent automated checkers; no person has checked them.");
   await expect(page.getByTestId("matchup-dashboard")).not.toContainText(/\bverified\b/i);
 });

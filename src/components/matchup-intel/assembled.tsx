@@ -44,7 +44,7 @@ function KitLine({ item, champion, rows, withCooldown }: { item: KitItem; champi
       ) : (
         <span className="inline-flex min-h-6 items-center rounded-full border border-border-strong bg-surface-2 px-2 text-xs font-medium text-fg-muted">{key}</span>
       )}
-      <span className="flex min-w-0 flex-[1_1_8rem] flex-wrap items-start gap-1">
+      <span className="flex min-w-0 flex-[1_1_8rem] flex-wrap items-start gap-x-1 gap-y-0">
         {item.chips.map((c, i) => (
           <FactChipView key={i} chip={c} champion={champion.name} ability={item.ability} testId="assembled-chip" />
         ))}

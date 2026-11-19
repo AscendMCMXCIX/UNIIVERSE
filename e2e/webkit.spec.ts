@@ -209,6 +209,42 @@ test("Matchup Intel: a slot's picker fills the screen, a search and a tap choose
   expect(top, "the row's top, under the top bar").toBeGreaterThanOrEqual(bar.y + bar.height - 1);
 });
 
+test("Matchup Intel's facts from Riot's text on an iPhone: a tap on a chip quotes it, on \"Riot's texts differ\" gives both quotes, and the details window says the same; nothing is wider than the phone", async ({ page }) => {
+  await page.goto("/resources/matchups?champion=Riven&vs=Yone");
+  await expect(page.getByTestId("matchup-dashboard")).toHaveAttribute("data-layer", "assembled");
+  await expect(page.getByTestId("matchup-remembered")).not.toHaveAttribute("data-state", "loading");
+  const r = page.locator('[data-testid="matchup-enemy-abilities"] [data-testid="ability-row"][data-slot="R"]');
+  // Yone's R: Riot's description says a pull, its tooltip a knock-up; one chip says so, and a tap opens both quotes.
+  const differ = r.getByTestId("fact-chip-differ");
+  await differ.scrollIntoViewIfNeeded();
+  await differ.tap();
+  const bubble = page.getByTestId("fact-chip-differ-bubble");
+  await expect(bubble).toContainText("Pull, in Riot's description of Fate Sealed");
+  await expect(bubble).toContainText("Knock-up, in Riot's tooltip for Fate Sealed");
+  await expect(bubble).toContainText("Neither is shown as a fact.");
+  // A second tap closes it, as every tip does.
+  await differ.tap();
+  await expect(bubble).toHaveCount(0);
+  // Yone's Q: a conditional fact, the owner's marker under the chips, its quote one tap away.
+  const q = page.locator('[data-testid="matchup-enemy-abilities"] [data-testid="ability-row"][data-slot="Q"]');
+  await expect(q.getByTestId("ability-facts-conditional")).toContainText("Conditional: see Riot's text (");
+  await q.getByTestId("fact-chip").first().tap();
+  await expect(page.getByTestId("fact-chip-bubble")).toContainText("Conditional: see Riot's text.");
+  await q.getByTestId("fact-chip").first().tap();
+  await fitsWidth(page, "Riven vs Yone");
+  // The details window lists both quotes and the other wording, and closes back onto its button.
+  const details = r.getByTestId("ability-details");
+  await details.tap();
+  const body = page.getByTestId("ability-details-body");
+  await expect(body.getByTestId("ability-details-differ")).toContainText("Neither is shown as a fact.");
+  await expect(body.getByTestId("ability-details-also")).toContainText("Riot's description calls it blink");
+  await untilStill(page);
+  await fitsWidth(page, "Fate Sealed's details window");
+  await page.getByRole("dialog").getByRole("button", { name: /^Close/ }).tap();
+  await expect(body).toBeHidden();
+  await expect(details).toBeFocused();
+});
+
 test("Leaderboards' Records on an iPhone: the index brings each section under the top bar, focused, and nothing is wider than the phone, at a larger text size too", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/leaderboards?view=records");

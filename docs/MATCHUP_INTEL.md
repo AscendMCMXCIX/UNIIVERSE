@@ -37,7 +37,7 @@ Every item on the page belongs to one layer and says which, in words, never by c
 | --- | --- | --- | --- | --- |
 | **L1** Curated matchup | A threat, an opportunity, one to four lane points and interactions, for one pair in one direction | Written in our own words from wiki pages, approved by the owner, through a pull request (the first batch was drafted and audited by AI agents: Curated notes) | "Curated briefing", "Checked on patch 26.22"; "Not re-checked for 26.23" once a later patch is out | 3 pairs: Ambessa vs Renekton, Gwen vs Ornn, Riven vs Mordekaiser |
 | **L2** Checked facts | A champion's facts per ability (crowd control, mobility, defence, sustain, damage, empowerment, interactions, exceptions), how its cooldowns work, level notes | The same | "Checked on patch 26.22"; each fact's source page and revision in its tip and in the ability's details | 6 champions (Ambessa, Gwen, Mordekaiser, Ornn, Renekton, Riven): 99 facts, 24 checked cooldowns, 7 level notes |
-| **L3** Facts from Riot's text | The kinds of mechanic Riot's own ability text names (a stun, a dash, a shield, a heal…), each with the clause it quotes | Drafted by fixed rules from Data Dragon's descriptions and tooltips; kept only where two independent automated reviews and an adjudicator accept it; no person | "From Riot's ability text, reviewed automatically (not by a person)", the quoted clause one hover, focus or tap away | None imported in this branch's state: the review is still running, and its import is a separate, reviewed step (Facts from Riot's text) |
+| **L3** Facts from Riot's text | The kinds of mechanic Riot's own ability text names (a stun, a dash, a shield, a heal…), each with the clause it quotes and what the review recorded beside it (a qualifier, the conditional marker), and where Riot's two texts differ | Drafted by fixed rules from Data Dragon's descriptions and tooltips; kept only where two independent automated reviewers and an adjudicator accept it, then a consistency pass checked by two more automated checkers; no person | "From Riot's ability text, reviewed automatically (not by a person)", the quoted clause one hover, focus or tap away | Imported on 19 Nov 2026: 173 champions, 1,112 facts and 7 places where Riot's texts differ, shown for the 167 champions without checked notes (Facts from Riot's text) |
 | **L4** Riot's data | Names, icons, ranks, base cooldowns per rank, Riot's short descriptions | Data Dragon, read once per game version, behind the cooldown rules (Cooldowns) | "Riot's data, not reviewed", or why there is no number | All 173 champions, 865 abilities: 624 with a cooldown number (24 checked, 600 Riot's), 241 with the reason there is none |
 | **L5** Assembled reference | For a pair with no curated briefing: each champion's L2 facts, else its L3 facts, grouped by kind | Code, on the server, for this pair, in fixed and tested sentences | "Assembled reference"; "No curated briefing for Riven vs Darius yet. Put together from each champion's own facts. No person has checked Riven vs Darius as a pair." | Every other pair: 29,753 of the 29,756 pairs of two different champions, and the 173 mirrors |
 
@@ -48,21 +48,27 @@ The page never uses the word "verified": no person has checked any of it against
 
 Counted from the committed data on 19 Nov 2026 (Data Dragon 16.22.1, 173 champions):
 
+- **Facts from Riot's text** (imported 19 Nov 2026): a reviewed file for every one of the 173
+  champions, 1,112 facts, 7 places where Riot's two texts differ. They show for the 167 champions
+  without checked notes (1,067 facts, 6 disagreements: Riven's Q is the seventh, and her checked notes
+  win); the 6 with checked notes show those instead. Among the 1,067: 67 carry a qualifier (4 of them
+  from the ability's other text), 42 are conditional and 11 are also worded as another kind. Every
+  champion has at least one fact (Kog'Maw one; Aphelios, Brand, Corki, Ezreal, Jinx, Miss Fortune and
+  Veigar two; K'Sante the most, 18), and 207 of those champions' 835 abilities have none, which the
+  page says in words ("No reviewed facts for this ability"), never as "none".
 - **Pairs of two different champions**, in one direction: 173 × 172 = 29,756.
   - curated briefing: 3 (0.01%);
   - assembled, checked facts on both sides: 27;
-  - assembled, checked facts on one side: 2,004;
-  - assembled, checked facts on neither side: 27,722 (93.2%).
+  - assembled, checked facts on one side and facts from Riot's text on the other: 2,004;
+  - assembled, facts from Riot's text on both sides: 27,722 (93.2%);
+  - assembled with no facts on a side: none.
 - **Ambessa, Gwen and Riven as your champion** (the owner's priority): 516 pairs. 3 have a curated
-  briefing, 12 have checked facts on both sides, and 501 are against an enemy with no checked facts.
-- **Until facts from Riot's text are imported**, a champion without checked facts has none at all:
-  its side of the assembled reference says so ("No reviewed facts for Darius yet: crowd control,
-  mobility, defence and sustain are not recorded."), and its tiles show Riot's names, icons and base
-  cooldowns, or why there is no number. So 27,722 pairs show no facts for either side, and the 2,004
-  with one checked side show that side's alone.
+  briefing, 12 have checked facts on both sides, and 501 are against an enemy whose side shows its
+  facts from Riot's text.
 - **No person has checked any of it.** The 3 briefings and the 6 champions' 99 facts were drafted
   and audited by AI agents, and the owner approved the three briefings "for now" (Curated notes);
-  the facts from Riot's text, once imported, are reviewed by automated reviews only, and say so.
+  the facts from Riot's text were reviewed by automated reviewers, an adjudicator and automated
+  checkers only, and say so on every one.
 - **What a pair without a matchup file never gets**: a threat, an opportunity, lane points, or an
   interaction between the two kits. Those come only from a curated file (the owner's decisions 2
   and 3, below).
@@ -95,43 +101,64 @@ Leaderboards do, since it is a destination of its own (the owner's decision 12).
 height and nothing is clipped or scrolls inside the page: at a larger text size, or in a smaller
 window, the page reflows and scrolls as any page does.
 
-**Measured** on the demo (Chromium, 100% zoom, the sidebar open, Data Dragon 16.22.1, no facts from
-Riot's text imported; 19 Nov 2026): the whole overview fits one viewport, with no page scroll either
-way, at 1920 × 1080, 2560 × 1440, 1920 × 950 (a maximised window on a 1080p screen) and 3440 × 1440,
-and at 1440 × 900 too, for each of 20 pairs: the three curated pairs and their reverse, Riven vs
-Renekton (checked facts on both sides, no file), Riven vs Darius, Ambessa vs Aatrox, the complex
-kits (Aphelios, Nidalee, Jayce, Elise, Gnar, Kayn, Hwei, Udyr, Kled), Garen vs Darius (no facts on
-either side) and the mirror Riven vs Riven. Under the lowest part (the sources' line, or a
-taller column) each window leaves:
+**Measured** on the demo with the facts from Riot's text imported (Chromium, 100% zoom, the sidebar
+open, Data Dragon 16.22.1; 19 Nov 2026): the whole overview fits one viewport, with no page scroll
+either way and nothing scrolling inside it, at 1920 × 1080, 2560 × 1440, 1920 × 950 (a maximised
+window on a 1080p screen), 3440 × 1440 and 1440 × 900, for each of 29 pairs: the three curated pairs
+and their reverse, Riven vs Renekton (checked facts on both sides, no file), the pairs with the most
+facts from Riot's text (K'Sante 18, Briar 14, Shyvana 12, Hwei 11: K'Sante vs Briar and the reverse,
+Riven vs K'Sante with the curated links in its header, Shyvana vs K'Sante and the reverse, Hwei vs
+K'Sante), Riven vs Darius, Ambessa vs Aatrox, the complex kits (Aphelios, Nidalee, Jayce, Elise, Gnar,
+Kayn, Hwei, Udyr, Kled, Yone with Riot's texts differing, Camille, Twisted Fate with his placeholders),
+Garen vs Darius and the mirror Riven vs Riven. Under the lowest part (the sources' line, or a taller
+column) each window leaves:
 
 | Window | Root size | Fits | Least room left | Most room left |
 | --- | --- | --- | --- | --- |
-| 1920 × 1080 | 17.7px | 20 of 20 | 194px (10.9rem), Ambessa vs Renekton | 461px, Garen vs Darius |
-| 2560 × 1440 | 20.6px | 20 of 20 | 470px (22.8rem), Ambessa vs Renekton | 723px, Garen vs Darius |
-| 1920 × 950 | 17.7px | 20 of 20 | 64px (3.6rem), Ambessa vs Renekton | 331px, Garen vs Darius |
-| 3440 × 1440 | 22px | 20 of 20 | 405px (18.4rem), Ambessa vs Renekton | 675px, Garen vs Darius |
-| 1440 × 900 | 16px | 20 of 20 | 28px (1.8rem), Ornn vs Gwen | 302px, Garen vs Darius |
+| 1920 × 1080 | 17.7px | 29 of 29 | 206px (11.6rem), Ambessa vs Renekton | 427px, Garen vs Darius |
+| 2560 × 1440 | 20.6px | 29 of 29 | 483px (23.4rem), Ambessa vs Renekton | 683px, Garen vs Darius |
+| 1920 × 950 | 17.7px | 29 of 29 | 76px (4.3rem), Ambessa vs Renekton | 297px, Garen vs Darius |
+| 3440 × 1440 | 22px | 29 of 29 | 419px (19rem), Ambessa vs Renekton | 632px, Garen vs Darius |
+| 1440 × 900 | 16px | 29 of 29 | 42px (2.6rem), Ambessa vs Renekton | 255px, Garen vs Darius |
+
+Of the pairs with facts from Riot's text the tightest is Riven vs K'Sante: 235, 496, 105, 432 and 54px
+left at the five sizes, in that order.
 
 Before the redesign, Riven vs Mordekaiser was 2,959px tall at 1920 × 1080 (2.74 screens) and no
 enemy ability was whole on the first screen; it now ends 835px down, its five tiles from 101px to
 617px.
 
-With facts from Riot's text on the page the assembled sides grow. To measure that before any is
-imported, a build for the measurement only (never committed) showed every one of the 1,223
-unreviewed drafts for all 173 champions, more than a review can accept and so at least as tall as
-the reviewed facts can make the page: 20 pairs (16 of those above, and pairs of the champions with
-the most drafts: Riven vs K'Sante, K'Sante vs Briar, Briar vs Udyr, Camille vs Sion) still fitted at
-all five sizes, 100 page loads with nothing overlapping, cut or scrolling inside. The least room left
-was 48px (2.7rem) at 1920 × 950, K'Sante vs Briar (66 chips), and 28px at 1440 × 900, Ornn vs Gwen.
+**Where it does not fit.** A sweep of every champion as the enemy against Riven, Gwen, Ambessa,
+K'Sante (the tallest side from Riot's text) and Briar, at 1920 × 950 and 1440 × 900 (1,730 page loads
+on the final build, 19 Nov 2026; an earlier sweep against K'Sante and Ambessa at 1920 × 1080 found
+none, and their tightest pairs, re-measured on the final build, leave 118 to 143px), finds the page one
+screen in every one except these, each a tall side against a champion with checked notes whose
+interactions and level changes fill the row under the main panel:
+- 1920 × 1080: none;
+- 1920 × 950: Ambessa vs Mordekaiser (the page scrolls by 55px) and vs Ornn (34px), which have no
+  facts from Riot's text and scrolled before the import too (63 and 43px); K'Sante vs Mordekaiser
+  (30px) and Briar vs Mordekaiser (32px);
+- 1440 × 900: Ambessa vs Mordekaiser (72px) and vs Ornn (65px; 84px each before the import), Ambessa
+  vs K'Sante (25px), K'Sante vs Ambessa (17px), vs Ornn (50px) and vs Mordekaiser (64px), and Briar vs
+  Mordekaiser (13px).
+The page then reflows and scrolls as any page does: nothing is cut or scrolls inside it. The changes
+that brought these down: the marker for a conditional fact said once under an ability's chips rather
+than inside each (it made K'Sante's side 44px taller at 1920 × 950), and on an assembled side the
+groups 2px apart (were 4px) and, where the panel is narrower than 44rem (1440 × 900 and phones), the
+lines without their indent under the group's label. Riven vs Ornn at 1440 × 900, which scrolled by
+8px before the import, now fits. Fitting the rest would need a choice of layout (the level changes
+beside your champion when the main panel is the taller, say), which is the owner's.
 
 Running text is never smaller than `text-xs` (0.75rem: 13.3px at 1920, 15.5px at 2560, the app's
 root growing with the window), the chips and badges included; only labels are `text-2xs`, as
 STANDARDS.md allows: the uppercase ones (Threat, Opportunity, Danger), the ability keys, a tile's
 own source label ("Not reviewed") and the word "source". Each tile's cooldown numbers are `text-md`
-(0.9375rem). In every one of those 100 page loads no region overlapped another, no text was cut by
-a box, no word broke mid-word and nothing scrolled inside the page. `e2e/matchup-intel-dashboard.spec.ts` asserts the fit, the text
-sizes and the inner scrollers at the five sizes for 19 of the pairs (the mirror aside); the
-screenshots are kept with the work's notes, not in the repository.
+(0.9375rem), and the chips of the facts from Riot's text, their qualifiers and the conditional marker's
+line are `text-xs` too. In every one of those 145 page loads (29 pairs at five sizes) nothing reached
+past the page's width, no chip overlapped another and nothing scrolled inside the page.
+`e2e/matchup-intel-dashboard.spec.ts` asserts the fit, the text sizes and the inner scrollers at the
+five sizes for 28 of the pairs (the mirror aside); the screenshots are kept with the work's notes, not
+in the repository.
 
 ### The curated briefing
 
@@ -183,10 +210,17 @@ For every pair without a curated briefing, or whose briefing is hidden whole (`a
   else its facts from Riot's text (L3), else none. Checked facts win: a champion with checked notes
   shows only those, and any facts from Riot's text committed for it are left out of its view.
 - **What is missing is said in words**, never an empty box that reads as "none": a group with
-  nothing, "· None in the checked notes" or "· None recorded in Riot's text"; a champion with neither
-  layer, "No reviewed facts for Darius yet: crowd control, mobility, defence and sustain are not
-  recorded."; an ability whose facts from Riot's text are hidden, "Riot's text for W changed after
-  the review: its 2 facts are hidden."
+  nothing, "· None in the checked notes" or "· No reviewed facts of this kind" (no fact of it passed
+  the review, which says nothing of what the champion has); a champion with neither layer, "No
+  reviewed facts for Darius yet: crowd control, mobility, defence and sustain are not recorded." (no
+  committed champion is in that state since the import, but a file that cannot be read would be); an
+  ability whose facts from Riot's text are hidden, "Riot's text for W changed after the review: its 2
+  facts are hidden."
+- **Facts from Riot's text keep what the review recorded with them** here as on the tiles (below): a
+  qualifier on its chip ("Stun · “Mega Gnar”"), a conditional fact named in the owner's marker under
+  the ability's chips on its line ("Conditional: see Riot's text (Stun and Pull)"), and where Riot's
+  two texts differ, a neutral chip "Riot's texts differ" in the group of the kinds they name, opening
+  both quotes. How a cooldown behaves (cooldown refunds among it) shows on the tiles only.
 - **Group, never judge.** Nothing chooses a threat or an opportunity, ranks one fact above another,
   joins the two kits in a sentence or pairs an ability of one with an ability of the other by rule.
   Every sentence is fixed, and `wording.test.ts` holds each to `REFUSED_WORDS`, the estimate words
@@ -218,6 +252,28 @@ visible on a desktop (`ability-list.tsx`):
   and resets among them, and the checked notes' wait between casts, refunds, resets and recasts in
   one short line under them ("0.3125 s between casts, unaffected by ability haste · Can be cast 2
   more times");
+- for a fact from Riot's text, what the review recorded with it, in fixed and tested words
+  (`wording.ts`, `fact-chip.tsx`):
+  - a **qualifier** on the chip itself, in Riot's words, so the fact reads as holding only then or
+    only for them: "Stun · “Mega Gnar”", "Shield · “an ally champion”"; on a cooldown refund it names
+    the abilities whose cooldown is cut, "Cooldown refund of “Mantra”" (one without a qualifier
+    refunds its own ability's cooldown). In the chip's tip and the Details window its line reads
+    "Qualified by “Mega Gnar”" or "Cuts the cooldown of “Mantra”", and names the other text where the
+    qualifier is quoted from it rather than from the clause's ("(Riot's tooltip for Dragon Strike)");
+  - a **conditional** fact: the owner's fixed marker, once under the ability's chips, naming the
+    chips it marks ("Conditional: see Riot's text (Stun and Pull)"), and in the chip's tip after its
+    quote ("Conditional: see Riot's text."), one tap away; the page never says the condition in its
+    own words (it holds a number or a count, so no number-free words of Riot's name it). One line for
+    the ability rather than the marker inside each chip: K'Sante's four conditional facts made each
+    chip a line of its own, 75px of a 1920 × 950 screen;
+  - **where Riot's two texts differ** (their description says one kind, their tooltip another): a
+    neutral chip with its icon, "Riot's texts differ", whose tip and Details give both quotes alike, the
+    description's first ("Pull, in Riot's description of Fate Sealed: “…”", "Knock-up, in Riot's
+    tooltip for Fate Sealed: “…”"), and "Neither is shown as a fact."; no chip of either kind exists
+    for that ability, so the page never picks one;
+  - **another kind Riot's description words it as** (`alsoDescribedAs`): no chip of its own and never
+    counted; in the Details window only, "Riot's description calls it blink: “…”";
+  - an ability with **no reviewed fact**: "No reviewed facts for this ability", never "none";
 - "Changed since the check" once Riot's data moved after the check, the line then Riot's and the
   notes flagged in the details;
 - a Details button (an icon, its name "Details: Obliterate, Q"), which opens the ability's window:
@@ -260,12 +316,18 @@ The dashboard keeps each part to its essentials and puts the rest one step away,
 
 - **a chip's tip** (the app's one tooltip, `InfoTip`, on hover, focus or a tap): a checked fact's own
   sentence and its source page and revision; a kind from Riot's text, the clause it quotes, which
-  text, and "From Riot's ability text, reviewed automatically (not by a person)". The same words are
-  the chip's accessible description. A tip holds no link (the sources are linked in the Details
-  window), and a clause from Riot's text holds no number: each of Riot's placeholders reads "[…]";
+  text, its qualifier's line, the conditional marker where it has one, and "From Riot's ability text,
+  reviewed automatically (not by a person)"; "Riot's texts differ", both quotes and that neither is
+  shown as a fact. The same words are the chip's accessible description. A tip holds no link (the
+  sources are linked in the Details window), and a clause from Riot's text holds no number: each of
+  Riot's placeholders reads "[…]" (Twisted Fate's W stuns "for […] seconds", never the 1 to 2 of
+  Riot's effectBurn);
 - **an ability's Details window** (`details-dialog.tsx`, the app's standard `DetailModal`: the
   whole screen on a phone, a centred window wider up; Escape and Close shut it, and the focus goes
-  back to the button): everything the tile leaves out, the sources linked;
+  back to the button): everything the tile leaves out, the sources linked; for the facts from Riot's
+  text, each kind with its marker, its quote and which text, its qualifier's line, and the other kind
+  Riot's description words it as ("Riot's description calls it leap: “…”"), then where Riot's texts
+  differ, both quotes and "Neither is shown as a fact.";
 - **folds**, native `details` elements: the lane points beyond two, the matchup's interactions beyond
   two, each champion's interactions and exceptions, your champion, the wiki's pages, and the sources
   and notices;
@@ -291,8 +353,26 @@ and in the picker window: a word too long for its line breaks rather than being 
 words wrap.
 
 Measured on 19 Nov 2026 (Chromium, the demo): no page is wider than the phone at 320, 375, 390 and
-393px upright or 852px held sideways, at 100%, 150% and 200% text. Riven vs Mordekaiser is 2,456px
-tall at 390px (4,837px before the redesign) and Garen vs Darius 1,420px (1,958px). The large-text
+393px upright or 852px held sideways, at 100%, 150% and 200% text. With the facts from Riot's text
+imported, Riven vs Mordekaiser is 2,421px tall at 390px (4,837px before the redesign, 2,456px before
+the chips' rows were made overlap-free, below) and Garen vs Darius 1,984px (1,958px before the
+redesign; 1,420px while neither side had facts), Briar vs K'Sante, the most facts on both sides,
+2,452px.
+
+**Facts from Riot's text on a phone** (19 Nov 2026): a chip with a qualifier wraps its words inside
+the chip, its lines starting at the left ("Heal · “Briar can reactivate this ability while frenzied”"
+over two lines on a 320px phone); a conditional fact's marker is one line under the ability's chips;
+"Riot's texts differ" is one chip, its tip a tap away like every chip's. A chip is its badge's own
+box, and the rows of chips touch with no gap between them, so a chip that wraps (at a larger text
+size, or a long qualifier) pushes the next row down instead of overlapping it, as the chips of
+checked notes did at 150% and 200% text before (the tip's 24px line box with negative margins); each
+chip's target still reaches 24px, 44px on a touch screen, with a pseudo-element that takes no room.
+Measured at 320 × 640, 375 × 667 and 393 × 852 upright and 852 × 393 held sideways, at 100%, 150% and
+200% text, for Briar vs K'Sante, Riven vs Yone, Gwen vs Caitlyn (the longest qualifier), Garen vs
+Darius, Riven vs Gnar and Riven vs Mordekaiser (72 page states): nothing wider than the phone, no chip
+overlapping another, nothing scrolling inside the page, and the chips, markers and their words never
+under `text-xs`; `e2e/matchup-intel.spec.ts` asserts the same, and that nothing is cut or reaches past
+its box, for the first three pairs at those sizes. The large-text
 audit (nothing chosen, either side alone, the three curated pairs and two of them reversed, Riven
 vs Darius, Garen vs Darius, Heimerdinger vs Aphelios and the mirror Riven vs Riven: 12 states at
 320, 375, 393 and 852px, at 150% and 200%, in both ways of emulating a larger text size:
@@ -457,8 +537,9 @@ step 2).
   `riot-docs`), and every wiki source the `revisionTime` of the revision read; the ability details
   give that revision's day ("revision of 23 Sep 2026").
 - **Facts from Riot's text** (`src/server/matchup-intel/riot-text/`): the reviewed kinds of mechanic
-  for champions without checked notes, each pinned to Riot's text (Facts from Riot's text, below).
-  None is committed in this branch's state.
+  for champions without checked notes, each pinned to Riot's text (Facts from Riot's text, below):
+  one file per champion, all 173, imported on 19 Nov 2026, loaded only for the champions on the page
+  that have no checked notes.
 - **Facts** say who has the effect (`appliesTo`: `self`, `target`, `allies`, `area`; the notes
   always give it). A chip's tip and the ability's Details window add it only where the fact's kind
   would not say it: crowd control and damage fall on the target, the other kinds on the champion
@@ -555,9 +636,10 @@ step 2).
 For a champion without checked notes, the kinds of mechanic Riot's own ability text names: a stun, a
 dash, a shield, a heal, a recast. Each is shown with the clause of Riot's text it quotes, and only
 once it has passed the review below (the owner's decisions 4 and 5, 18 Nov 2026). They are the L3
-layer (What it is). **None is imported in this branch's state**: the review is still running, and
-its import is a separate step with its own review. Until then every champion without checked notes
-says "No reviewed facts for … yet", as above.
+layer (What it is). **Imported on 19 Nov 2026**: a reviewed file for each of the 173 champions of Data
+Dragon 16.22.1, 1,112 facts and 7 places where Riot's two texts differ (Coverage, above).
+[MATCHUP_INTEL_RIOT_TEXT_REVIEW.md](MATCHUP_INTEL_RIOT_TEXT_REVIEW.md) is the review's own summary for
+the owner: its counts, its conventions, the decisions it leaves to the owner and what it asks of the app.
 
 **The kinds** (`RIOT_TEXT_KINDS`, 45, in `src/domain/matchup-intel/types.ts`, each in one group):
 - crowd control: stun, knock-up, knock-back, pull, root, slow, silence, fear, flee, charm, taunt,
@@ -569,69 +651,123 @@ says "No reviewed facts for … yet", as above.
 - burst and power: empowered, transforms;
 - how a cooldown behaves (on the tiles only): recast, charges, cooldown refund, reset, toggle.
 
-**How they are made.**
+**How they were made.** No person has checked any of it.
 1. **Drafted** by fixed rules from Data Dragon 16.22.1's `championFull.json`, read from a local
    file: nothing was fetched, and nothing was read from the League of Legends Wiki or any Weird
-   Gloop site. 1,223 drafts on all 173 champions, 827 quoting a description and 396 a tooltip; 200
-   of the 865 abilities have none. Each draft is one ability and one kind, with the exact words of
-   Riot's text it rests on: 3 to 30 words, no digit, one draft per ability and kind. The rules read
-   Riot's text for kinds only, never for numbers: most of its numbers are placeholders, and the
-   description and the tooltip disagree on at least six abilities.
-2. **Reviewed**: two independent automated reviews of every draft, and an adjudicator who settles
-   them. Only accepted drafts are kept. No person reviews them, and the page says so on every one
-   ("From Riot's ability text, reviewed automatically (not by a person)"). Each committed file
-   records its review (`review: { automatedReviews, adjudicated, person }`), and the sources say how
-   many reviews it had ("by two independent automated reviews and an adjudicator"), read from those
-   records.
-3. **Imported** by `scripts/matchup-intel/import-riot-text.mjs --from <review> --ddragon
-   <championFull.json>`, only once the review is complete (its `DONE` marker) and every file reads:
-   all or nothing. It checks each file against Data Dragon's own `championFull.json` of the version
-   reviewed, read from a file (the script downloads nothing):
-   - the champion and each ability's name are Riot's, and the version is the one reviewed;
-   - each fact names a known kind, a slot and which of Riot's two texts it quotes, and its clause is
-     in that text (markup removed, placeholders read alike); one that is not, or whose clause holds a
-     digit, markup or more than 400 characters, is left out and reported;
-   - each of Riot's placeholders in a clause is stored as "[…]", so no template and no number
-     reaches the page;
-   - a file that does not record how many automated reviews it had, or has no list of reviewed
-     facts (a copy of the drafts, say), is refused: nothing is made up for it;
-   - `_index.json`, where the review wrote one, must list exactly the champions' files.
+   Gloop site. 1,223 drafts on all 173 champions. Each draft is one ability and one kind, with the
+   exact words of Riot's text it rests on (a passive's description, a spell's description or
+   tooltip, with markup removed): 3 to 30 words, no digit outside Riot's placeholders, one per
+   ability and kind. The rules read Riot's text for kinds only, never for numbers: most of its
+   numbers are placeholders, and the description and the tooltip disagree on some abilities.
+2. **Reviewed**: two independent automated reviewers read every draft (they gave the same decision
+   on 1,178 of the 1,223, 96.3%), and an automated adjudicator settled each batch (1,092 accepted).
+3. **Made consistent**: a consistency pass across all nine batches, checked by two further
+   independent automated checkers (5 objections, all upheld; 27 instances they found missed, applied
+   in their safe form), gave the final 1,112 facts. It recorded with each fact what it holds only
+   with (a qualifier, or the conditional marker), another kind Riot's other text words it as, and the
+   7 abilities whose two texts state different effects.
+4. **Recorded**: every file of the table, and its index, says how it was reviewed, as a sentence
+   ("two independent automated reviews and an adjudicator, then a consistency pass checked by two
+   more; not checked by a person") and, since the import, as data: `"reviewRecord":
+   {"automatedReviewers": 2, "adjudicated": true, "consistencyCheckers": 2, "checkedByPerson":
+   false}`. The committed files carry the same record (`review`), and the sources and notices state
+   the process from it ("Each was drafted by fixed rules from that text, read by two independent
+   automated reviewers and settled by an adjudicator, then checked in a consistency pass by two more
+   independent automated checkers; no person has checked them.", `riotTextProcessWords`).
+5. **Imported** by `scripts/matchup-intel/import-riot-text.mjs --from <the table> --ddragon
+   <championFull.json>`: all 173 files or none, nothing refused, no fact changed. It reads Data
+   Dragon's own `championFull.json` of the version reviewed, from a file (it downloads nothing), and
+   refuses the whole table at the first of these that fails:
+   - the table is complete (its `DONE`), its `_index.json` lists exactly the champions' files with
+     each one's counts, and the totals in the index and in `DONE` are the files';
+   - **the review record**: every file, and the index, has one, whole and of the right types; nothing
+     is assumed for a file without it, and a file whose record differs from the index's is refused.
+     A record saying a person checked the facts is refused too, until the owner has decided the words
+     such facts carry (below);
+   - the champion, the version and each ability's name are Riot's;
+   - **the hashes**: each ability's `descriptionHash` and `tooltipHash` (null for a passive) are the
+     SHA-256 of Riot's description and tooltip cleaned exactly as the drafts were (`preparedText`, a
+     port of the drafting rules' `prepare()`: entities decoded, the description-append placeholder,
+     inline icons and comments removed, one line per line break, markup removed, whitespace
+     collapsed, the lines joined by a line break). A file whose hashes are not Riot's text of that
+     version was reviewed against other words. All 1,557 hashes match Data Dragon 16.22.1;
+   - **verbatim**: every clause, qualifier (from the fact's own text, or the other one where
+     `qualifierSource` says so), `alsoDescribedAs` clause and disagreement clause is in the text it
+     names, character for character, on one line (1,205 spans); none holds markup or a digit outside
+     Riot's placeholders, a clause is at most 400 characters and a qualifier at most 12 words;
+   - every fact names a known kind, slot and source, one per ability and kind, and no field the app
+     does not show (a field it would drop could narrow the fact); `conditional` is `true` or absent;
+     an `alsoDescribedAs` names another known kind; a disagreement names two different kinds, and no
+     fact on its ability names either (that would pick one).
 
-   `--check` compares the committed files with the review instead of writing them.
+   Each of Riot's placeholders is stored as "[…]", never resolved into a number from any field
+   (effectBurn, datavalues, vars). `--check` compares the committed files with the table instead of
+   writing them. `riot-text.test.ts` holds the importer to each refusal (a missing or partial review
+   record, a hash that is not Riot's text, a clause, qualifier, other wording or disagreement that is
+   not verbatim, a number, a fact that picks a side) and to Braum's passive, whose cleaned text has
+   the hash the review recorded.
 
 **Where they live.** `src/server/matchup-intel/riot-text/<ChampionId>.json`, one per champion, one
-fact per line, and the generated `riot-text/index.ts`, with one dynamic import per file, so a page
-loads only its two champions' files and a cold start loads none (`loadRiotText`,
-`src/server/matchup-intel/riot-text.ts`), which keeps them off every other page's server work
-(Vercel Active CPU: docs/HOSTING_USAGE.md). The page reads them defensively
-(`parseRiotText`): a file in another shape, or a fact that is not one, is left out, never shown.
-`riot-text.test.ts` checks that every file is listed and reads whole, records at least two reviews,
-and is pinned to the offline copy's text at its version. They stay on the server: the browser gets
-only the plain view built from them.
+fact and one disagreement per line, and the generated `riot-text/index.ts`, with one dynamic import
+per file, so a page loads only its two champions' files, and only for a champion without checked
+notes (they win), and a cold start loads none (`loadRiotText`, `src/server/matchup-intel/riot-text.ts`),
+which keeps them off every other page's server work (Vercel Active CPU: docs/HOSTING_USAGE.md). No
+database query reads them. The page reads them defensively (`parseRiotText`): a file in another shape
+or without its review record, or a fact or disagreement that is not one in every field, is left out,
+never shown in part (a fact without its qualifier would read as holding always).
+`riot-text.test.ts` checks that every file is listed and reads whole with its review record, that the
+committed table is the whole one (173 files, 1,112 facts, 7 disagreements, 68 qualifiers, 44
+conditional, 11 other wordings, 224 clauses with "[…]"), and that each ability is pinned to the
+offline copy's text at its version. They stay on the server: the browser gets only the plain view
+built from them.
 
-**Pinned to Riot's text.** Each ability's facts are pinned to its name and to a hash of its whole
-text (`riotTextHash`: the first 16 hex digits of SHA-256 over its raw description and tooltip),
-which the version-check job stores with each ability (rules format 2; DATA_PIPELINES.md). Once Riot
-changes either text, or renames the ability, its facts are hidden, and the tile and the assembled
-side say how many and why: "Riot's text for W changed after the review: its 2 facts are hidden.",
-"Riot renamed W after the review: …". On a record stored before the hash was kept, the facts show
-only on the very version reviewed; on any other, "Whether Riot's text for Q changed since the review
-is not known yet: …". They hold no numbers, so they do not expire by patch count, as checked notes
-do.
+**Pinned to Riot's text.** Each ability's facts, and where its texts differ, are pinned to its name
+and to a hash of its whole raw text (`riotTextHash`: the first 16 hex digits of SHA-256 over its raw
+description and tooltip), which the version-check job stores with each ability (rules format 2;
+DATA_PIPELINES.md). Once Riot changes either text, or renames the ability, all of it is hidden, and
+the tile and the assembled side say how much and why: "Riot's text for W changed after the review: its
+2 facts are hidden.", "… its fact and the note that Riot's texts differ are hidden.", "Riot renamed W
+after the review: …". The whole ability, not only the text that changed: the cautious choice the
+review asked for (Data Dragon 16.23.1 changes only Mel's W tooltip, whose one fact quotes the
+description; the page hides it all the same). On a record stored before the hash was kept, the facts
+show only on the very version reviewed; on any other, "Whether Riot's text for Q changed since the
+review is not known yet: …". They hold no numbers, so they do not expire by patch count, as checked
+notes do. A name is pinned as the app stores it, trimmed (Data Dragon gives Bel'Veth's passive a
+trailing space).
 
-**Where they show**: as chips on the tiles, one per kind, whose tip quotes every clause that names
-it and which text it is ("Riot's tooltip for Apprehend"); in the assembled reference's groups; in
-the ability's Details window ("Facts from Riot's ability text", with the label, when they were
-reviewed and each kind's clauses); in the panel's heading ("From Riot's ability text, reviewed
-automatically (not by a person) · Reviewed against Riot's text of patch 26.22, on 18 Nov 2026");
-and in the sources and notices.
+**Where they show**: as chips on the tiles, one per kind, whose tip quotes the clause and which text
+it is ("Riot's tooltip for Apprehend"); in the assembled reference's groups; in the ability's Details
+window ("Facts from Riot's ability text", with the label, when they were reviewed and each kind's
+clause); in the panel's heading ("From Riot's ability text, reviewed automatically (not by a person)
+· Reviewed against Riot's text of patch 26.22, on 19 Nov 2026"); and in the sources and notices, with
+the process from the review record. What the review recorded with a fact shows with it, in fixed and
+tested words (The ability tiles, above): its qualifier on its chip ("Stun · “Mega Gnar”", "Cooldown
+refund of “Mantra”"), the conditional marker under the ability's chips naming them ("Conditional: see
+Riot's text (Stun and Pull)"), "Riot's texts differ" with both quotes where its texts disagree, and,
+in the Details window only, another kind Riot's description words it as ("Riot's description calls it
+blink: “…”"). An ability with no fact says "No reviewed facts for this ability"; a group with none,
+"No reviewed facts of this kind".
 
 **What they never do**: give a number (a duration, an amount, a range), say who has the upper hand,
-join the two kits, show before the review accepted them, or replace a champion's checked notes,
-which win wherever they exist. Riot's text does not state everything: on the six champions with
-checked notes, an extraction test of 18 Nov 2026 found it states 37 of their 44 checked crowd-control,
-mobility, defence and sustain facts (not, for example, Mordekaiser R's slow and heal, Ornn E and R's
-stun or Ornn Q's knock-aside). So "None recorded in Riot's text" says only that.
+join the two kits, show before the review accepted them, show a fact without its qualifier or marker,
+pick one of Riot's two texts where they differ, or replace a champion's checked notes, which win
+wherever they exist. Riot's text does not state everything, and the review did not keep everything
+it states: an ability with no fact means only that no fact of it passed the review. On the six
+champions with checked notes, an extraction test of 18 Nov 2026 found Riot's text states 37 of their
+44 checked crowd-control, mobility, defence and sustain facts (not, for example, Mordekaiser R's slow
+and heal, Ornn E and R's stun or Ornn Q's knock-aside).
+
+**How a later person's review upgrades a row.** A champion's row in the table (its file and its row
+in `_index.json`) records who checked it. A person who checks a champion's facts, and its
+disagreements, against Riot's text in Data Dragon (each quote is one tap away on the page, and
+verbatim in Riot's text) would record it in that row's review record (`checkedByPerson: true`, in the
+file and in its index row, which may carry its own record for that), and the import then carries it
+to the page. Two things come first, both the owner's: the words the page shows for such facts, in
+place of "reviewed automatically (not by a person)" for that champion (never "verified"), and whether
+a person's check may also settle the review's open decisions for those facts
+(MATCHUP_INTEL_RIOT_TEXT_REVIEW.md, "For the owner"). Until the label is decided, the importer refuses
+a record that says a person checked it, and the page's reader leaves such a file out, so no page
+claims more, or less, than was done (For the owner, step 11).
 
 ## Curated notes
 
@@ -1145,7 +1281,7 @@ pages were read on 16 Nov 2026: the League of Legends documentation
 | Riot's words (where) | How the page meets them |
 | --- | --- |
 | "You must post the following legal boilerplate to your product in a location that is readily visible to players" (General Policies) | The sources and notices show the full notice (`riotLegal`, with the installation's name), one press away from their summary line, which is always on the screen and ends "Not endorsed by Riot Games" (the owner's decision 14), as well as the app's other places for it: the sidebar's "Not endorsed by Riot Games" → Details, on every page. |
-| "Any new features or changes to a product must be audited through the product's page in the Developer Portal" (General Policies); "You must make sure its description and metadata are kept up to date with the current version of your product." (League docs) | Done for the first version: the owner reported on 17 Nov 2026 (Sydney) that the product's description in the Developer Portal is now the one in RIOT_COMPLIANCE.md, which includes Matchup Intel (For the owner, step 1). The redesign changes what is read (Riot's tooltips, for the hash of each ability's text) and what is shown (the assembled reference, and clauses of Riot's text once the reviewed facts are imported), so an updated description is proposed beside it, for the owner to paste: the owner's action, which does not block the merge (decision 6). |
+| "Any new features or changes to a product must be audited through the product's page in the Developer Portal" (General Policies); "You must make sure its description and metadata are kept up to date with the current version of your product." (League docs) | Done for the first version: the owner reported on 17 Nov 2026 (Sydney) that the product's description in the Developer Portal is now the one in RIOT_COMPLIANCE.md, which includes Matchup Intel (For the owner, step 1). The redesign changes what is read (Riot's tooltips, for the hash of each ability's text) and what is shown (the assembled reference, and clauses of Riot's text: the reviewed facts, imported on this branch on 19 Nov 2026), so an updated description is proposed beside it, for the owner to paste: the owner's action, which does not block the merge (decision 6). |
 | "Products should use supported services from Riot Games for data ingestion" (General Policies) | Data Dragon only: no CommunityDragon data, and no value taken from the game's files. |
 | "You may not run your application for public consumption using a personal key" (portal page) | Signed-in accounts only. `/resources/*` is not a public path (`src/proxy.ts`), the page calls `requirePageAccess` itself, and the Production check proves that a signed-out request, or one with a forged session cookie, is sent to sign-in (LIVE_VALIDATION.md). |
 
@@ -1240,7 +1376,7 @@ Each has a default that the code follows today. Only the owner changes one.
 
 | Question | The default the code follows now | Who decides |
 | --- | --- | --- |
-| **The Developer Portal description.** Riot audits every new feature through the product's registered description (above). | Done for the first version on 17 Nov 2026 (Sydney): the owner reported the registered description replaced with the one in [RIOT_COMPLIANCE.md](RIOT_COMPLIANCE.md) ("Description for the registration"), which includes Matchup Intel. For the redesign of 18 Nov (Riot's tooltips hashed, the assembled reference, and clauses of Riot's text once imported) an updated description is proposed there ("Proposed description for the registration") and in For the owner, step 1: the owner pastes it; it does not block the merge (the owner's decision 6). | The owner |
+| **The Developer Portal description.** Riot audits every new feature through the product's registered description (above). | Done for the first version on 17 Nov 2026 (Sydney): the owner reported the registered description replaced with the one in [RIOT_COMPLIANCE.md](RIOT_COMPLIANCE.md) ("Description for the registration"), which includes Matchup Intel. For the redesign of 18 Nov (Riot's tooltips hashed, the assembled reference, and clauses of Riot's text, imported on 19 Nov 2026) an updated description is proposed there ("Proposed description for the registration") and in For the owner, step 1: the owner pastes it; it does not block the merge (the owner's decision 6). | The owner |
 | **A licence header on the curated files.** The repository is public and has no licence of its own. | Our own words, credited, not relicensed: each file's header says its texts are UNIIVERSE's own summaries, its sources list each page with its revision, and the sources and notices credit them. No file declares a licence for itself. A scan of the notes against the pages they cite finds no copied sentence, only runs of numbers and game terms (six to ten words), so the risk that a passage counts as adapted is small, but not none. The recommended choice is a conditional header in each file ("Any material in this file adapted from the League of Legends Wiki is available under CC BY-SA 3.0"), which would cover any such passage without saying anything was adapted; it is not added, because a licence grant is the copyright holder's act. | The owner |
 | **Scripted reads of the wiki** (for example drafts of changes on patch day). | None of its pages. Weird Gloop's prior consent would be needed first (its Terms of Use, above). If it were given, a script would only draft changes for a person to review in a pull request, never publish them. One kind of small automated request exists today, outside Matchup Intel: the browser tests that open the Library or its manager can load the wiki's favicon, in CI and in the WebKit workflow (No automated use, above). Blocking icons in those tests, or a built-in icon for the wiki's entry (the Library and the manager draw the same one), would end it. | The owner, after asking Weird Gloop |
 | **Who curates, and who approves briefings.** The owner's rule is a briefing only where a person wrote and checked it. | Decided on 17 Nov 2026 (Sydney): the owner alone curates the notes and approves briefings. Notes change only through pull requests, reviewed there: the page generates nothing, and nothing is published by itself. The first notes (16 Nov 2026) were drafted and cross-checked by AI agents; the owner approved their three briefings "for now", as drafted, and set the rule for every note, "Don't assume, if you don't know because the wiki doesn't say then don't use that data", under which AI agents then audited and corrected every note; no person has checked each fact against its page (For the owner, step 2). | The owner (decided) |
@@ -1385,7 +1521,8 @@ or generates from it, and building it needs no model, key or outside service.
 
 The steps only the owner can take. Steps 1 to 4 were for the first version (16 Nov 2026), and the
 first three came before its merge, because a merge deploys; steps 5 to 8 were decided on 18 Nov
-2026 (The owner's decisions of 18 Nov 2026); steps 9 to 12 are open.
+2026 (The owner's decisions of 18 Nov 2026); step 9 is done on this branch (19 Nov 2026), and steps 10
+to 12 are open.
 
 1. **Update the product's description in Riot's Developer Portal.** Done by the owner on 17 Nov
    2026 (Sydney): the description is now the one in RIOT_COMPLIANCE.md ("Description for the
@@ -1452,17 +1589,22 @@ first three came before its merge, because a merge deploys; steps 5 to 8 were de
    The dashboard shows the threat and the opportunity side by side and the first two lane points,
    and folds the rest behind their count; the briefing's title is "Curated briefing", no longer
    "The ten-second briefing".
-9. **Import the reviewed facts from Riot's text** once their review is complete: a separate pull
-   request, with its own review. `node scripts/matchup-intel/import-riot-text.mjs --from <the
-   review> --ddragon <championFull.json of Data Dragon 16.22.1>` writes the files and their index
-   (it refuses an incomplete review, and reports each fact it leaves out); then `pnpm verify`
-   (`riot-text.test.ts` reads every file), the build, the browser specs (the fit on one screen
-   included) and screenshots. Until then no champion without checked notes shows any fact.
-10. **Paste the proposed description** (step 1) in the Developer Portal: before or with step 9,
-    since it describes the facts from Riot's text.
-11. **Decide who may review the facts from Riot's text.** Today two automated reviews and an
-    adjudicator do, and the label says "not by a person" (decision 5). A person's review, recorded in
-    each file (`review.person`), would be a change of label, which the owner decides.
+9. **Import the reviewed facts from Riot's text.** Done on 19 Nov 2026 on this branch: all 173
+   files of the completed review (1,112 facts, 7 disagreements), with the review record added to the
+   table first (Facts from Riot's text); then `pnpm verify`, the build, the browser specs (the fit
+   on one screen included, re-measured with the facts: The dashboard) and screenshots. The review's
+   own summary, with the decisions it leaves to the owner (the count-like words, the C5 swaps, Fizz E,
+   the K'Sante-shaped markers and the others), is
+   [MATCHUP_INTEL_RIOT_TEXT_REVIEW.md](MATCHUP_INTEL_RIOT_TEXT_REVIEW.md), "For the owner": each
+   decision there changes rows of the table, and a new import then changes the committed files.
+10. **Paste the proposed description** (step 1) in the Developer Portal: before this branch is merged,
+    since it describes the facts from Riot's text, which it shows.
+11. **Decide who may review the facts from Riot's text, and the words for a person's check.** Today
+    two automated reviewers, an adjudicator and two consistency checkers did, and the label says "not
+    by a person" (decision 5). A person's review of a champion would be recorded in its row of the
+    table (`reviewRecord.checkedByPerson`) and change its label; until the owner decides those words,
+    the importer refuses such a record and the page leaves such a file out (Facts from Riot's text,
+    "How a later person's review upgrades a row").
 12. **Confirm the second monitor's settings.** The single screen is measured at 100% zoom with the
     browser's usual text size: a maximised browser on a 1920 × 1080 screen leaves about 1920 × 950,
     and an operating system's display scale above 100% gives the browser fewer CSS pixels (a 2560 ×
