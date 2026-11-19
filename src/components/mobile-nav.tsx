@@ -489,8 +489,10 @@ const TAB_FIT = {
  * Mode, 6.53rem in Admin Mode; Back and its gap: 4.67rem as "Team", 6.94rem as "Dashboard"), so
  * beside it the labels give way where the name does (`besideBack`), and where both show the name
  * shortens first. At the bare thresholds the list scrolled sideways beside Back at 125% on a 768px
- * tablet (69px) and an 820px one (23px). A longer Back label ("Team Leaderboards", 10.74rem) can
- * still leave it a few pixels short (4px at 768px and 100%), where it scrolls: the last resort.
+ * tablet (69px) and an 820px one (23px). A longer Back label, such as a teammate's long name
+ * ("Demo Sub (Support)", 10.92rem), can still leave it a few pixels short (7px at 768px and 100%),
+ * where it scrolls: the last resort. Leaderboards' own heading, "Leaderboards" since it became one
+ * page (8.21rem; "Team Leaderboards" was 10.74rem and left it 4px short), fits.
  */
 const BAR_FIT = {
   member: {
