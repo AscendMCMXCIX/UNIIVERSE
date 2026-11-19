@@ -253,9 +253,11 @@ navigation contract").
      beside it;
    - the collapse control under it. It is quieter than the pages: `fg-subtle`, normal weight, and
      its Ctrl \ hint appears over the row's end only while the row is pointed at or focused.
-2. **Pages:** My Profile, Team and Resources in Player Mode (Resources stands for its Library and
-   Matchup Intel, the tabs at the top of both, as Team stands for its sections); Admin Mode's six
-   sections.
+2. **Pages:** My Profile, Team, Matchup Intel and Resources in Player Mode (Team stands for its
+   sections, the tabs at the top of its pages; Matchup Intel, with the swords, and Resources, the
+   Library, are one page each, with no tabs, since 18 Nov 2026); Admin Mode's six sections. Folded
+   to the rail, the four icons sit one 2.625rem step apart on its centre line, each named by its
+   tooltip.
 3. **Footer:**
    - the switch between the modes (administrators only), as a quiet row;
    - Install App;
@@ -313,7 +315,7 @@ decision of 8 Nov 2026, PR 2d), and exactly one `nav[aria-label=Primary]` is sho
   The current destination is marked as the upright tab bar marks it, its icon in an accent pill and
   its label shown and in `fg` (`aria-current`), so a turn of the phone keeps the same signal.
 - **A tablet** (`md` to `lg`, taller than 480px): the destinations in the top bar, one tap each (Player
-  Mode: My Profile, Team, Resources; Admin Mode: its four tabs, Platform Settings by its full name,
+  Mode: My Profile, Team, Matchup Intel, Resources; Admin Mode: its four tabs, Platform Settings by its full name,
   since the avatar menu holds the account's Settings), the current one marked with the sidebar's
   four signals (a neutral lift with a hairline of light, the brand gradient as a short bar at its
   foot, the icon in `accent`, the name in `fg`); the section tabs pinned in the page; the avatar menu
@@ -327,8 +329,8 @@ keeps the accent when it leads to Admin Mode.
 
 With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shell):
 
-- **Pinned section tabs (tablets and desktops).** Team's, Resources', a profile's and Platform
-  Settings' section tabs stay pinned at the top of the page once it has scrolled past them. They sit under
+- **Pinned section tabs (tablets and desktops).** Team's, a profile's and Platform Settings'
+  section tabs stay pinned at the top of the page once it has scrolled past them. They sit under
   the tablet's top bar (`--bar-top`) and at the window's edge beside the sidebar, 2.8125rem tall.
   - While pinned (`data-stuck`, set by `TabBar`), the row is frame, not content: the frame's ink
     (`chrome` at 90%) blurred like the phone top bar. At rest it is plain, part of the page, so
@@ -337,8 +339,8 @@ With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shel
   - Nothing is pinned in a window under 481px tall.
   - **One composition at every width (PR 10, 18 Nov 2026).** In a window from 1600px wide the pages
     of a tab set share one width (`SECTION_HUBS`' `width`): Team's four sections `--content-wide`
-    (Players and Matches join Team Overview and Leaderboards there), Resources' and Platform
-    Settings' `--content-max`. From 1600px the bar's row of tabs takes it (`TabBar`'s `inner`,
+    (Players and Matches join Team Overview and Leaderboards there), Platform Settings'
+    `--content-max`. From 1600px the bar's row of tabs takes it (`TabBar`'s `inner`,
     `ROW_WIDTH`), so where the pages stop growing and centre beside the sidebar (80rem pages from
     about 1650px with the sidebar open and from 1600px with it folded; Team's 100rem from about
     2370px and 1926px) the first tab still starts at the page's column, Team's name at the row's end
@@ -347,8 +349,8 @@ With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shel
     sidebar open). In a window under 1600px every page and the row are as they always were, the
     sidebar open or folded (measured against main's build at 1280, 1366, 1440, 1536 and 1599: no
     difference; PR 2b's 44px dense tabs on touch screens from 1024px aside, below), so with the
-    sidebar folded between 1417 and 1599px Players, Matches, Resources and
-    Platform Settings still start up to about 79px inside the row (60px at 1536), as before. The
+    sidebar folded between 1417 and 1599px Players, Matches and Platform Settings still start up
+    to about 79px inside the row (60px at 1536), as before. The
     line under the tabs and the pinned ink span the room beside the sidebar, as a frame does. A
     profile's tabs, and a section's views (`SubTabs`), sit inside their page's own column, so they
     always lined up. On Team Overview the column is Team's 100rem and the header and lineup keep
@@ -370,8 +372,8 @@ With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shel
     shortens the page never leaves the focus with nowhere to return (`useHeld`). Never in a short
     window (nothing is pinned there). The row never grows: the controls are 32px with a mouse and 38px
     on touch screens (a 44px target), centred in the whole bar, the search 44px on touch screens with
-    its 40px clear button, and from 1024px on touch screens the dense section tabs (Team's,
-    Resources', Platform Settings') are 44px, not 40px, so the bar holds those targets and is the
+    its 40px clear button, and from 1024px on touch screens the dense section tabs (Team's and
+    Platform Settings') are 44px, not 40px, so the bar holds those targets and is the
     2.75rem `--tabs-top` assumes (with a mouse they stay 40px); where the row is narrower than 56rem
     (a tablet, a laptop with the sidebar open) they
     show their icons alone, named for screen readers, and Team's name at the row's end gives them its
@@ -440,8 +442,9 @@ test):
   compact bar does, and the title where the bar has room for it (at least 6rem beside the
   destinations), at any width. A page under a tab (a teammate's profile under Players) still goes to
   the tab's page. The current section tab (Team's on tablets and desktops,
-  Resources', Platform Settings' and a profile's everywhere, the phone's in the top bar included)
-  and the frame's entry for the page shown (the sidebar's, a tablet's top bar's) do the same, and keep the page as it is: its view and
+  Platform Settings' and a profile's everywhere, the phone's in the top bar included)
+  and the frame's entry for the page shown (the sidebar's, a tablet's top bar's, the phone's account
+  screen's row: Matchup Intel's keeps its pair) do the same, and keep the page as it is: its view and
   filters stay (the link's own address leaves the query out, and following it used to bring back
   the defaults, Leaderboards' season back to the current one). A click with a modifier key or another button still opens a new tab or window, and leaves
   this page alone (`src/lib/back-to-top.ts`; `e2e/navigation-landings.spec.ts`).

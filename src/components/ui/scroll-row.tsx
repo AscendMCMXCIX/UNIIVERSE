@@ -58,13 +58,17 @@ export function useScrollEdges<T extends HTMLElement>(ref: React.RefObject<T | n
   }, [ref, keepCurrentInView, current]);
 }
 
-/** A row that scrolls sideways when it does not fit, with faded edges where more of it is hidden (see useScrollEdges). */
+/**
+ * A row that scrolls sideways when it does not fit, with faded edges where more of it is hidden (see
+ * useScrollEdges), and never up and down: overflow-x auto makes the other axis auto too, so without
+ * overflow-y hidden a fraction of a pixel below its items would make it a vertical scroller as well.
+ */
 export function ScrollRow({ as = "div", className, children, keepCurrentInView = false, current, ...rest }: React.HTMLAttributes<HTMLElement> & { as?: "div" | "nav" | "ul"; keepCurrentInView?: boolean; current?: unknown; "data-testid"?: string }) {
   const ref = React.useRef<HTMLElement>(null);
   useScrollEdges(ref, { keepCurrentInView, current });
   const Tag = as as React.ElementType;
   return (
-    <Tag ref={ref} className={cn("scroll-fade-x overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden", className)} {...rest}>
+    <Tag ref={ref} className={cn("scroll-fade-x overflow-x-auto overflow-y-hidden overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden", className)} {...rest}>
       {children}
     </Tag>
   );

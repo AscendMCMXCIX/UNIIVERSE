@@ -29,7 +29,7 @@ it (`globals.css`), and every pinned element follows these rules:
 | Top bar | sticky | one compact bar (below `lg`, at any width): 44px plus the inset, holding Back or the mark, the destinations, the title where room is left, Filters and the avatar, a profile's sections as a 40px second row; slides away while the page scrolls down; back on any scroll up, at the top, and while it holds focus |
 | Tab bar | fixed at the bottom; `main` keeps room for it (`pb-tabbar`) | none: the destinations are in the top bar; `pb-tabbar` keeps only the page's own padding, clear of the home indicator, and the scroll padding at the foot only that indicator |
 | Detail windows (`DetailModal`) | whole screen below `sm`, centred window above; one whose header would fill over 40% of a phone's screen (the Team player window on a small phone) scrolls as one, as in a short window | whole screen, scrolling as one: a large header scrolls away, its close and step buttons float at the top, a footer stays pinned |
-| The account screen (`DetailModal size="screen"`, behind the phone's avatar) | the whole screen, fixed to its four edges, under the status bar; its rows in a readable column (28rem); at the usual text size nothing scrolls on phones from 375pt wide (a few points for an administrator in Admin Mode in Safari's tab on a 375pt iPhone SE; a little on a 320pt screen in Safari's tab) | the whole screen too; only its body scrolls, as one region, under its bar with the close button |
+| The account screen (`DetailModal size="screen"`, behind the phone's avatar) | the whole screen, fixed to its four edges, under the status bar; its rows in a readable column (28rem); at the usual text size nothing scrolls on phones from 375pt wide (a few points for an administrator in Admin Mode in Safari's tab on a 375pt iPhone SE; a little on a 320pt screen in Safari's tab) | the whole screen too; only its body scrolls, as one region, under its bar with the close button; a row's name wraps between its words, and on a narrow phone a page's chevron and then the icons give way (`lib/sheet.ts`), so every name is whole to 200% on a 320px phone |
 | Sheets (`DetailModal size="sheet"`: `Dialog`'s confirmations and editors, the filter sheet, the lineup sheet) | docked to the bottom edge, as tall as its content up to the screen less 2.5rem and the status bar (a share of the screen it is fixed to); a taller wider screen gets a centred window | docked to the bottom edge too, up to 44rem wide and the screen less 0.5rem; in both, the header and footer stay and only the body scrolls, unless they would leave it less room than its tallest control needs (large text or a zoomed page, mostly on a phone held sideways): then the whole sheet scrolls as one, like a page (`data-flow`) |
 | Things pinned to the bottom (toasts, a save bar) | `bottom-tabbar`: above the tab bar; over an open window or sheet the toasts are drawn inside it, in the same place, once it has finished moving in (they leave it as it starts to close) | near the bottom edge, clear of the home indicator (`bottom-tabbar`'s short rule) |
 
@@ -91,6 +91,27 @@ Tabs and chip rows that do not fit scroll sideways inside themselves (never the 
 `ScrollRow` or `useScrollEdges` (`ui/scroll-row.tsx`): an edge fades (`scroll-fade-x`) only where
 more is hidden, and the current item is kept in view. The Team tabs share the width when they
 fit (iPhone 15 and wider) and scroll on narrower phones.
+
+Such a row scrolls sideways only, and draws no scrollbar (18 Nov 2026). `overflow-x: auto` makes
+the other axis `auto` too, so a row that reaches a fraction of a pixel below its box becomes a
+vertical scroll box as well, and where scrollbars are classic (Windows, a desktop set to always show
+them) it draws one: the owner saw a tiny vertical scrollbar just left of the team's name at the end
+of the Team tabs on Leaderboards. Measured with the browser's scrollbars shown, on the base it
+appeared in 128 of 480 measurements (Team's four sections at 1280, 1440, 1920, 2560 and 3440, the
+sidebar open and folded, at 80-150% text and 80-150% zoom), among them every section at 1920 and
+3440 at 100% zoom and text, where the app's root size is 17.7px and 22px. Its three causes, each
+fixed where it was:
+- the selected tab's bar sat 0.125rem below the tab's padding, in a 2px transparent border: more
+  than the border wherever the root size is above 16px, and borders are rounded to whole device
+  pixels at some zoom levels, so it reached past the tab. It is drawn at the foot of the tab's own
+  padding now, in the same room (`tabIndicatorClass`, every row of tabs);
+- the rows scroll sideways only (`overflow-y: hidden` on `TabBar`'s list and `ScrollRow`);
+- their `scrollbar-width: none` never applied: the stylesheet's thin scrollbars for every element
+  were outside any layer and beat every Tailwind utility, which are in one, and Chrome then ignores
+  `::-webkit-scrollbar` too. The rule is in the base layer now, so the rows that hide their
+  scrollbar do and every other scrollbar is as it was.
+`e2e/section-tabs-scrollbar.spec.ts` runs with scrollbars shown and checks every scroll box in the
+Team tabs' row at those sizes, and that a row narrower than its tabs still scrolls to its end.
 
 ## Team Overview's lineup
 
@@ -166,7 +187,7 @@ Substitute side of the Team cards).
 
 ## The Library and Settings
 
-**The Library** (Resources' first tab, `resources/resources-view.tsx`; 18 Nov 2026). A search, the
+**The Library** (the Resources page, its sidebar entry's one page, `resources/resources-view.tsx`; 18 Nov 2026). A search, the
 index (All, ★ Favourites and each section with its count, the counts following the search: one
 choice that filters the list, `segmentClass` buttons in a radio group) and the live count at the
 index's end, then the sites grouped by section, an `h2` each:
@@ -289,14 +310,24 @@ on 375, 30 and 90px on 393, at 175% and 200%), has no finding left at 125% to 20
   `LT_MODE=browser`), which is what a real text-size setting changes: the media queries' rem grows
   too, so the breakpoints move with the text (at 200% `sm` is 1280px).
 
-On a phone the two agree: a phone is under every breakpoint either way, so the specs' method stands
-for a real setting there. At tablet and desktop widths only the first gives a desktop layout with
-doubled text, a combination a real setting never makes: at 200% a 768px window keeps the tablet
-layout with it, while with the browser's own size it gets the phone layout (24rem wide, what a 384px
-window shows at 100%). So a fault the first mode alone finds at those widths is not one a reader
-meets: Settings is 139px wider than a 768px window at 200% with the root's size doubled, and as wide
-as the window with the browser's (MOBILE.md → The frame); the Library's rows at 1024px and wider
-likewise.
+The two agree wherever no media query in rem falls between the window's width counted in the one rem
+and in the other. The container queries every fix below uses read the root's rem in both, so they
+always agree, and on a 320px phone nothing differs up to 200%. Wider phones meet a few media queries
+that differ. Upright, from 360px, Match History's and Encounters' Filters show their word with the
+root's size and the icon alone with the browser's (`max-[22.5rem]`; 177 against 88px wide at 200%),
+and from 375px a profile's header keeps the layout it has there at the usual size
+(`min-[23.4375rem]`: a little less padding, and at 125% the picture over two rows with the roles
+beside it) only with the root's. Held sideways, a 568px phone keeps Players' title beside its search
+and Filters (`min-[35rem]`) only with the root's, and from 640px (734 × 343, 852 × 393) the root's
+size keeps `sm` (at 852px `md` too): Settings has two columns there and is 165px wider than a 734px
+window at 200% (55px at 852px), and one column as wide as the window with the browser's. At tablet
+and desktop widths only the first gives a desktop layout with doubled text, a combination a real
+setting never makes: at 200% a 768px window keeps the tablet layout with it, while with the
+browser's own size it gets the phone layout (24rem wide, what a 384px window shows at 100%). So a
+fault the first mode alone finds where the two differ is not one a reader meets, and a layout there
+is checked with the browser's own size: Settings is 139px wider than a 768px window at 200% with the
+root's size doubled, and as wide as the window with the browser's (MOBILE.md → The frame); the
+Library's rows at 1024px and wider likewise.
 
 **What each fix does** (the widths measured in Inter on the demo build; each pinned by its spec, on
 the phone project):
@@ -312,11 +343,25 @@ the phone project):
     no-break spaces, so "14 games · 29%" never leaves the dot at a line's end.
   - The role chip has a lane from its corner to the card's controls (0.125rem short of them), or to
     the card's own edge where there are none (its clip, what a chip fitted before it had a lane).
-    Where the lane is narrower than the chip, the chip shows its icon alone as a round badge, the
-    role's name kept for screen readers. The thresholds are the chips rounded up to the next 0.01rem
-    (Mid 4.88, Top 4.98, Jungle 7.01, Bottom 7.34, Support 7.78rem; each chip the same at every size
-    to 0.005rem): a name that shows always fits its lane, and a chip that fits keeps its name (the
-    closest, Support beside its control at 150% on a 375px phone, has 7.79rem).
+    Where the lane is narrower than the role's threshold, the chip shows its icon alone as a round
+    badge, the role's name kept for screen readers. A threshold is the chip plus a margin for the
+    browsers' text, rounded up to the next 0.01rem: Mid 4.91, Top 5.02, Jungle 7.04, Bottom 7.38 and
+    Support 7.81rem. The chips (Mid 4.872, Top 4.978, Jungle 7.001, Bottom 7.335, Support 7.773rem)
+    measure the same in Chromium and in WebKit, within 0.1px at every size from 100% to 200%, and the
+    margin over them is at least 0.036rem (0.6px at 100%, 0.9px at 150%, 1.2px at 200%). Text drawn
+    with hinting differs by size: the Chromium headless shell the specs run in on GitHub rounds each
+    letter's advance to whole pixels and draws a chip up to 0.12rem wider or narrower. Its Support
+    chip, 7.818rem at 150%, ran past its 7.79rem lane on a 375px phone when the thresholds were the
+    chips themselves (CI run 44442818521); at the sizes the specs check (150, 175 and 200%) its chips
+    are within their thresholds, but for Support's at 150%, 0.2px over, inside the specs' half-pixel
+    allowance. The margin can be no larger: the narrowest lane at 100%, beside a control on a 12.2rem
+    card five across, is 125.19px, and WebKit tests a container's width in whole pixels (lanes of
+    125.2 to 125.8px read as narrower than a 125.12px threshold, measured in Playwright's WebKit 27.2),
+    so Support's threshold must be 125px or less for its name to show there at 100%, as it did before
+    the chip had a lane. The spec also narrows each chip's lane to the chip's own width less half a
+    pixel, at each size, and finds the icon alone there: in the browser it runs in, no lane narrower
+    than a chip by more than half a pixel (the allowance of its other checks) shows the name, not
+    only the lanes the demo's cards give.
   - Two controls (your own card's Customise and the turn control) stand one above the other under
     9.25rem; on a touch screen the art keeps its top clear of the controls where they reach over the
     picture (under 7.75rem with one control, 10.875rem with two side by side).
@@ -326,21 +371,27 @@ the phone project):
   - The spec checks the five fronts and Top's back at 150%, 175% and 200% on 320, 375 and 393px:
     nothing past the card or out of the season's box, words whole, the pool's heading and first
     choice never cut short, no "·" ending or starting a line, the controls clear of the chip, the
-    picture, the name and "You", and exactly which chips show their icon alone (fourteen of the 45);
-    then a member's own card with both controls at the same sizes (stacked under 9.25rem, the role's
-    name only at 150% on 393px), and the usual layout at 100%.
+    picture, the name and "You", every chip's name still given to screen readers (its aria snapshot:
+    a name hidden to the eye only passes, one hidden from everyone fails), and exactly which chips
+    show their icon alone (fourteen of the 45); then a member's own card with both controls at the
+    same sizes (stacked under 9.25rem, the role's name only at 150% on 393px; the lineup put back by
+    an `afterEach` should the test end before its own `finally` could), and the usual layout at 100%.
 - **Players** (`roster-row.tsx`, `rank-emblem.tsx`; `e2e/large-text-roster-figures.spec.ts`). A row
   under 9.625rem (one across, so the roster under 11.125rem: 175% and 200% on 320 and 360px, 200% on
   375 to 414px), where the text beside the picture would have less than 6.5rem (what "· Grandmaster"
   with its crest and an eight-letter name with its emblem take), stacks: the picture alone on the
   first line, the text the row's whole width under it ("Emerald" had gone over three lines). A rank
   that does not fit beside its crest goes under it whole. The "·" before the rank (or "No Riot
-  account") shows beside the role and never starts a line: in a row under 16rem (a row at the usual
-  size is 16.4rem or more, where the rank always fits beside the role), where the rank wraps under the
-  role, the dot is cut off with its room past the line's clipped left edge (Records' way; the dot
-  sits between the role's icon and the rank's crest, where a no-break space has nothing to hold it
-  to). The spec checks words whole on the demo's rows, nothing cut or past its row, every "·" either
-  beside its role or cut off where the rank starts its line, at 100% and fourteen large sizes.
+  account") shows beside the role and never starts a line: in a row under 16rem (a roster under
+  17.5rem, read as the stacked rows read it; a row on Players at the usual size is 16.375rem or
+  more, where the rank always fits beside the role), where the rank wraps under the role, the dot is
+  cut off with its room past the line's clipped left edge (Records' way; the dot sits between the
+  role's icon and the rank's crest, where a no-break space has nothing to hold it to). The Card
+  Studio's previews of a row, drawn outside the roster and about 9rem wide at the usual size beside
+  the controls on a 320 × 480 screen, keep their one layout, as they do for the stacked rows. The
+  spec checks words whole on the demo's rows, nothing cut or past its row, every "·" either beside
+  its role or cut off where the rank starts its line, at 100% and fourteen large sizes, and the
+  Studio's previews at 100% on that screen drawn as before.
 - **A profile's Overview** (`recent-form.tsx`, `profile-editor.tsx`, `player-overview.tsx`;
   `e2e/home-layout.spec.ts`, `e2e/large-text-roster-figures.spec.ts`). Recent form's twenty bars
   share the card's width with no floor in rem (61px past the card at 200% on 320px). The champion
@@ -439,12 +490,15 @@ the account screen over the dashboard at 200% on a 320px phone as well.
     screen readers below 32rem of bar, and always in the mark's name). Team's section tabs and a
     profile's are not repeated in the page;
   - tablets (`md` to `lg`, taller than 480px): the top bar with the destinations, one tap each (Player
-    Mode: My Profile, Team, Resources; Admin Mode: its four tabs, Platform Settings by its full name;
+    Mode: My Profile, Team, Matchup Intel, Resources; Admin Mode: its four tabs, Platform Settings by its full name;
     `tabletDestinations` in `src/lib/nav.ts`), the current one with the sidebar's four signals, and
     the account menu behind the avatar, which holds Settings, Install App, the mode switch, Sign out,
     the patch and Riot's notice (in Admin Mode also Data & Integrations and Audit Logs). There is no
     drawer. At a larger text size the team's name gives way first, then the destinations' labels
-    (`BAR_FIT`, measured in the bar's own width in rem). The menu's Sign out
+    (`BAR_FIT`, measured in the bar's own width in rem; re-measured for the four on 18 Nov 2026:
+    42.0rem with the name, 35.9rem without, so they give way below 42.5rem and 36.25rem: on a 768px
+    tablet the labels stay at 125% text, the name gone; beside the installed app's Back the labels
+    give way where the name does). The menu's Sign out
     tells the browser's other tabs, as the account screen's does. In the installed app, which has no
     browser Back, the bar also shows Back on a page reached from another (a teammate's profile),
     named as on phones.
@@ -459,8 +513,8 @@ the account screen over the dashboard at 200% on a 320px phone as well.
     `scroll-padding-top` to its measured height (and the stylesheet clears the tab bar upright, the
     home indicator sideways); on tablets the stylesheet's value stands, so whatever scrolls into view
     stays clear of the bars.
-- **Section tabs stay in reach** on tablets and desktops: Team's sections, Resources' (the Library
-  and Matchup Intel), a profile's sections and Platform Settings' (`TabBar` with `sticky`, the `sticky-tabs` utility in globals.css) stay
+- **Section tabs stay in reach** on tablets and desktops: Team's sections, a profile's sections and
+  Platform Settings' (`TabBar` with `sticky`, the `sticky-tabs` utility in globals.css) stay
   pinned at the top of the page once it has scrolled past them, under the tablet's top bar
   (`--bar-top`) and at the window's edge beside the sidebar, so a long section (Matches, a Match
   History, Players with a full roster) never needs scrolling back up
@@ -476,7 +530,7 @@ the account screen over the dashboard at 200% on a 320px phone as well.
 - **One composition at every width** (PR 10, 18 Nov 2026): in a window from 1600px (100rem) wide
   the pages of a tab set share one width (`SECTION_HUBS`' `width` in `src/lib/nav.ts`: Team's four
   sections `--content-wide`, Players and Matches joining Team Overview and Leaderboards there;
-  Resources' and Platform Settings' `--content-max`), and a bar of `main`'s own (`SectionTabs`) gives
+  Platform Settings' `--content-max`), and a bar of `main`'s own (`SectionTabs`) gives
   its row of tabs that width (`TabBar`'s `inner`, `ROW_WIDTH`). Where the pages then stop growing and
   centre in the room beside the sidebar (80rem pages from about 1650px with the sidebar open and
   from 1600px with it folded; Team's 100rem from about 2370px and 1926px), the first tab still starts
@@ -501,8 +555,8 @@ the account screen over the dashboard at 200% on a 320px phone as well.
   mouse, 38px on touch screens with a 44px target; the search field 44px on touch screens, kept in
   the row by its negative margins), centred in the whole bar, the labels where the row is 56rem or
   wider and the icons alone below that; Team's name at the row's end gives way to it. So that the
-  row holds those 44px targets, from 1024px on touch screens the dense section tabs (Team's,
-  Resources' and Platform Settings') are 44px, as a profile's are, not 40px: the bar is then the
+  row holds those 44px targets, from 1024px on touch screens the dense section tabs (Team's and
+  Platform Settings') are 44px, as a profile's are, not 40px: the bar is then the
   2.75rem `--tabs-top` and the scroll padding assume (with a mouse they stay 40px, level with the
   sidebar's brand row). It is watched against the pinned stack's
   foot (the tablet's top bar and the tabs, measured from the pinned row), drawn only while it shows,
@@ -625,9 +679,9 @@ far down the page starts at its top once its content has arrived (tapped in plac
 Playwright's own scroll into view); on tablets and desktops the Team and profile tabs stay pinned
 as a long page scrolls, All Champions' column headings pin under them, and nothing is pinned in a
 short window; at 2560 × 1440 and 3440 × 1440 every tab row's first tab starts at its pages' column
-within 1px on each section of its set (Team's, Resources', Platform Settings', a profile's,
+within 1px on each section of its set (Team's, Platform Settings', a profile's,
 Match History's views, Users & Permissions'), and at 1920 × 1080 with the sidebar
-folded the bars of `main`'s own (Team's, Resources', Platform Settings'), measured once the page
+folded the bars of `main`'s own (Team's, Platform Settings'), measured once the page
 itself has replaced its loading state: the row in the same place on all of a set's sections, Team's
 name ending at the column's right edge, the bar's line spanning the room, and on Team Overview the
 header centred in Team's column; under a 1600px window (1536 × 864, the sidebar folded) Players and
@@ -671,8 +725,9 @@ emptied the list; the fullest bar (Back, the title, Filters with its count, the 
 each posture; the account screen closed by Back and not reopened by Forward, upright and held
 sideways; a tablet's destinations (the current one's gradient bar) and avatar menu in both modes, and
 its top bar at 100% to 200% text in both modes, the team's name and then the labels giving way where
-the bar's row is narrower than `BAR_FIT` says, the destinations never scrolling and the bar never wider than
-the window. `e2e/navigation-landings.spec.ts` has the current destination on its own page going back
+the bar's row is narrower than `BAR_FIT` says (and what a 768px tablet shows at each size written
+out, so a threshold above what fits fails too), the destinations never scrolling and the bar never
+wider than the window, beside the installed app's Back too. `e2e/navigation-landings.spec.ts` has the current destination on its own page going back
 to the top without a fetch, in the sidebar and in a tablet's top bar. `e2e/filter-consistency.spec.ts`: the sheet
 opened from the pinned row at 768 and 1440 labels every field (More filters opened), holds the only
 copy of each id, and gives Team Matches' Played with the sheet's width, as its selects.
@@ -735,8 +790,8 @@ the responsive pass report.
 (phone landscape), 568×320 (a 320pt iPhone held sideways, the compact bar's narrowest) and 1366×600
 (short laptop) and fails on any horizontal overflow or a missing heading; admin pages at six sizes
 (568×320 among them). The same file runs axe (WCAG 2.1 A/AA) on every page and fails
-on critical or serious violations, and again at 1920 on Team's four sections and Resources, where
-the section tabs' row takes the pages' width, and at 1440 × 600 with a page's compact controls
+on critical or serious violations, and again at 1920 on Team's four sections, Matchup Intel and
+Resources, where the section tabs' row takes the pages' width, and at 1440 × 600 with a page's compact controls
 showing in the pinned row (Team Matches, a profile's Overview, Match History, Encounters).
 Panel layouts that live in variable-width columns use container queries (`@container`, `@xl:`) rather than viewport breakpoints.
 For example, Team Matches' cards take their four columns from their list's width (`@container/tm`, from 58rem), because the sidebar beside the list takes 4.5 or 16rem of the same window (`e2e/played-together.spec.ts`); inside a card the members go two to a row from a 34rem column of their own (`@container/members`: a tablet's stacked card, or the four columns beside the open sidebar at 1440), and from sm a member's CS and damage show where the member's row is 19rem (`@container/member`): beside the role and champion where both fit whole, on a line of their own under them otherwise, so a long role and champion ("Role unknown · Nunu & Willump", the longest the game can show) is never cut for them. On narrower cards the result, its game and the count of members are one line of words that wraps, the bookmark in the corner; on a phone's card the count is read out only.
@@ -872,8 +927,8 @@ Three levels, each saying what it proves:
   8. On an iPad, add to Home Screen and open it: Players shows the whole roster on one screen, two
      up, and a row opens its profile with one tap; Matches scrolls under the pinned Team
      tabs, a tab from there switches the section; a teammate's profile shows "‹ Players" in the top
-     bar (the installed app has no browser Back) and it leads back; My Profile, Team and Resources
-     are each one tap in the top bar; the avatar's menu holds Settings, the mode switch, Sign out,
+     bar (the installed app has no browser Back) and it leads back; My Profile, Team, Matchup Intel
+     and Resources are each one tap in the top bar; the avatar's menu holds Settings, the mode switch, Sign out,
      the patch and Riot's notice (Install App too, outside the installed app).
   9. In the installed app and in Safari, tap your avatar on Team, on Resources scrolled to its end,
      and after typing in a field and closing the keyboard: the account screen fills the screen under
@@ -900,6 +955,7 @@ Safari 16.4 or later, so that is the floor. Nothing the app uses needs more:
   Popover API, View Transitions or anchor positioning.
 - CSS: container queries, `:has()`, `dvh`, `lh`, `color-mix()`, `inert` and `<dialog>` all work from
   16.4.
-- Fallbacks: hidden scrollbars carry the WebKit rule (`[&::-webkit-scrollbar]:hidden`), and the
-  build adds the `-webkit-` prefixes for `backdrop-filter` and `mask-image`.
+- Fallbacks: hidden scrollbars carry the WebKit rule (`[&::-webkit-scrollbar]:hidden`) for a Safari
+  without `scrollbar-width` (before 18.2), and the build adds the `-webkit-` prefixes for
+  `backdrop-filter` and `mask-image`.
 

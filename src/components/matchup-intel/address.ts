@@ -1,4 +1,4 @@
-/** Matchup Intel's page: Resources' second section (src/lib/nav.ts). */
+/** Matchup Intel's page, a sidebar entry of its own (MATCHUP_INTEL, src/lib/nav.ts), at the address it had as Resources' second section, so every link to it still works. */
 export const MATCHUP_INTEL_PATH = "/resources/matchups";
 
 /**

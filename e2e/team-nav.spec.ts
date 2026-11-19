@@ -91,14 +91,14 @@ test("the collapsed sidebar keeps Team as one marked icon", async ({ page }, inf
 
 test("Clash Scout is gone: no entry, tab or link in any navigation, the phone bar is its five destinations, and its addresses are not found", async ({ page }) => {
   const width = page.viewportSize()?.width ?? 0;
-  const entries = ["nav-overview", "nav-team", "nav-resources"];
+  const entries = ["nav-overview", "nav-team", "nav-resources-matchups", "nav-resources"];
   await page.goto("/team");
   await expect(page.locator("a[href^='/clash']")).toHaveCount(0);
   await expect(page.getByRole("link", { name: /Clash Scout|Scout/ })).toHaveCount(0);
   if (width >= 1024) {
     const aside = page.locator("aside");
     expect(await aside.locator("nav[aria-label='Main'] > a").evaluateAll((as) => as.map((a) => a.getAttribute("data-testid")))).toEqual(entries);
-    // Collapsed to icons: the same three, nothing in between.
+    // Collapsed to icons: the same four, nothing in between.
     await aside.getByTestId("sidebar-toggle").click();
     await expect(aside).toHaveAttribute("data-collapsed", "true");
     expect(await aside.locator("nav[aria-label='Main'] > a").evaluateAll((as) => as.map((a) => a.getAttribute("data-testid")))).toEqual(entries);
@@ -116,6 +116,7 @@ test("Clash Scout is gone: no entry, tab or link in any navigation, the phone ba
       expect(Math.abs(cells.reduce((a, b) => a + b, 0) - list.width)).toBeLessThanOrEqual(1);
       await page.getByTestId("account-sheet-button").click();
       const sheet = page.getByTestId("account-sheet");
+      await expect(sheet.getByRole("link", { name: "Matchup Intel" })).toBeVisible();
       await expect(sheet.getByRole("link", { name: "Resources" })).toBeVisible();
       await expect(sheet.locator("a[href^='/clash']")).toHaveCount(0);
       await page.keyboard.press("Escape");

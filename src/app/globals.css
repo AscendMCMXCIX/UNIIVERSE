@@ -387,10 +387,20 @@ p a.text-accent {
   color: var(--color-fg-subtle);
 }
 
-/* Thin, unobtrusive scrollbars */
-* {
-  scrollbar-width: thin;
-  scrollbar-color: var(--color-border-strong) transparent;
+/*
+  Thin, unobtrusive scrollbars, in the base layer so that a component's own choice wins: a row that
+  scrolls sideways with faded edges hides its scrollbar (`[scrollbar-width:none]`: TabBar, ScrollRow,
+  the segmented controls, the phone's lineup track). Unlayered, this rule beat every utility, since
+  Tailwind's are in a layer, so those rows drew a thin scrollbar wherever scrollbars are classic
+  (Windows, a desktop set to always show them), and Chrome then ignored their ::-webkit-scrollbar rule
+  as well: the Team tabs' list drew a vertical one beside the team's name (18 Nov 2026). Every other
+  scrollbar is as it was.
+*/
+@layer base {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-border-strong) transparent;
+  }
 }
 
 /* Motion: short, purposeful transitions; everything collapses to instant for reduced motion. */

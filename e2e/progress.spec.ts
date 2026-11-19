@@ -83,7 +83,13 @@ test("a profile shows recent form and ranked progress per queue", async ({ page 
   await expect(page.getByTestId("profile-rank")).toContainText(current);
 
   // The pointer (or a finger) on a reading shows it; so do the arrow keys, for a screen reader too.
+  // The chart answers once its script runs, which first measures the chart's box: the drawing (its
+  // viewBox) then becomes as wide as the box, where the server drew it 480 wide (the box is 309 to
+  // 414px wide in these projects). A pointer that arrived before then reached no handler, and
+  // nothing moved it again, so the reading never showed (on GitHub, 19 Nov): the pointer goes to
+  // the reading once the drawing is measured.
   await chart.scrollIntoViewIfNeeded();
+  await expect.poll(async () => Number((await chart.getAttribute("viewBox"))!.split(" ")[2]) - Math.round((await chart.boundingBox())!.width), "the chart measured: its script is running").toBe(0);
   const dot = ranked.getByTestId("ranked-reading").last();
   const at = (await dot.boundingBox())!;
   if (info.project.name === "phone") await page.touchscreen.tap(at.x + at.width / 2, at.y + at.height / 2);
@@ -97,21 +103,9 @@ test("a profile shows recent form and ranked progress per queue", async ({ page 
   expect(inDemoWindow(read), `read ${read}: within the demo's dates`).toBe(true);
   await page.keyboard.press("Escape");
 
-  // The details, closed at first: the ranked year's coverage (the year's games week by week, the
-  // part with readings lit, what cannot be recovered), every rank change and every reading.
-  const details = page.getByTestId("ranked-details");
-  await expect(details).not.toHaveAttribute("open", "");
-  await expect(page.getByTestId("ranked-table")).toBeHidden();
-  await page.getByTestId("ranked-details-toggle").click();
-  await expect(details).toHaveAttribute("open", "");
-  await expect(page.getByTestId("ranked-coverage-days")).toHaveText(/^Rank known on \d+ of \d+ days$/);
-  await expect(page.getByTestId("ranked-coverage-tracked")).toBeVisible();
-  expect(await ranked.getByTestId("ranked-week").count()).toBeGreaterThan(3);
-  await expect(page.getByTestId("ranked-coverage-note")).toContainText("cannot be recovered");
-  await expect(page.getByTestId("ranked-coverage")).toContainText("Season 3");
-  await expect(page.getByTestId("ranked-events").locator("li").first()).toContainText(/Promoted|Demoted/);
-  expect(await page.getByTestId("ranked-table").locator("tbody tr").count()).toBeGreaterThan(3);
-  await page.getByTestId("ranked-details-toggle").click();
+  // The card ends with the chart (18 Nov 2026): no History and coverage disclosure under it, so no
+  // year strip, rank changes or readings table (the readings themselves are unchanged).
+  await expectEndsWithChart(ranked, "Demo Top");
 
   // Accounts are tabbed by their Riot names alone, every one the same way: never "Main", and no
   // "Primary" badge beside the main one (it simply comes first).
@@ -229,71 +223,41 @@ function headerClash(ranked: Locator) {
 }
 
 /**
- * The W–L cells of the readings that end past the box's inner right edge (their text's own extent,
- * from a Range: a cell's padding may overflow while its figures are whole), as "row: text".
+ * Ranked progress ends with its chart (or the line saying there is nothing to draw): no disclosure,
+ * no year strip, rank changes or readings table in the card; the card's last part holds the chart,
+ * whose foot is at least the card's padding from the card's inner foot (the chart may stand beside
+ * the rank's column and end above it), the padding at the foot is the header's at the top, and the
+ * card keeps its rounded corners.
  */
-function winLossOutside(table: Locator) {
-  return table.evaluate((box) => {
-    const right = box.getBoundingClientRect().left + box.clientLeft + box.clientWidth;
-    return [...box.querySelectorAll("tbody tr")].flatMap((tr, i) => {
-      const cell = tr.querySelector("td:nth-child(3)");
-      if (!cell) return [];
-      const range = document.createRange();
-      range.selectNodeContents(cell);
-      const end = range.getBoundingClientRect().right;
-      return end > right + 1 ? [`${i + 1}: ${cell.textContent?.trim()} ends ${Math.round(end - right)}px out`] : [];
-    });
+async function expectEndsWithChart(ranked: Locator, where: string) {
+  for (const gone of ["ranked-details", "ranked-details-toggle", "ranked-coverage", "ranked-events", "ranked-key", "ranked-table"]) await expect(ranked.getByTestId(gone), `${where}: no ${gone}`).toHaveCount(0);
+  await expect(ranked.locator("details, summary"), `${where}: no disclosure`).toHaveCount(0);
+  await expect(ranked, where).not.toContainText("History and coverage");
+  const box = await ranked.evaluate((card) => {
+    const cs = getComputedStyle(card);
+    const outer = card.getBoundingClientRect();
+    const chart = card.querySelector("[data-testid=ranked-chart], [data-testid=ranked-no-chart]")!.getBoundingClientRect();
+    const header = card.firstElementChild!.getBoundingClientRect();
+    const last = card.lastElementChild!;
+    const lastBox = last.getBoundingClientRect();
+    const inner = { top: outer.top + parseFloat(cs.borderTopWidth), bottom: outer.bottom - parseFloat(cs.borderBottomWidth) };
+    return {
+      chartFoot: Math.round((inner.bottom - chart.bottom) * 10) / 10,
+      lastFoot: Math.round((inner.bottom - lastBox.bottom) * 10) / 10,
+      headerTop: Math.round((header.top - inner.top) * 10) / 10,
+      padBottom: parseFloat(cs.paddingBottom),
+      lastHoldsChart: !!last.querySelector("[data-testid=ranked-chart], [data-testid=ranked-no-chart]"),
+      radius: parseFloat(cs.borderBottomLeftRadius) > 0 && parseFloat(cs.borderBottomRightRadius) > 0,
+    };
   });
+  expect(box.lastHoldsChart, `${where}: the chart is in the card's last part`).toBe(true);
+  expect(Math.abs(box.lastFoot - box.padBottom), `${where}: the last part ends ${box.lastFoot}px above the card's inner foot, its padding ${box.padBottom}px`).toBeLessThanOrEqual(0.5);
+  expect(box.chartFoot, `${where}: the chart's foot ${box.chartFoot}px from the card's inner foot`).toBeGreaterThanOrEqual(box.padBottom - 0.5);
+  expect(Math.abs(box.padBottom - box.headerTop), `${where}: the same padding at the foot (${box.padBottom}px) as at the top (${box.headerTop}px)`).toBeLessThanOrEqual(0.5);
+  expect(box.radius, `${where}: rounded corners at its foot`).toBe(true);
 }
 
-/**
- * The "confirmed …" line under each first reading (where the Last confirmed column does not fit),
- * with the two instants as the table writes them in full: the first reading, and the Last confirmed
- * cell, which stays in the markup while hidden. Each of the line's parts (its child elements: the
- * day, the time) with the number of line boxes it takes.
- */
-function confirmedLines(table: Locator) {
-  return table.evaluate((box) =>
-    [...box.querySelectorAll("tbody tr")].flatMap((tr) => {
-      const first = tr.querySelector("td:first-child")!;
-      const line = first.querySelector<HTMLElement>(":scope > span");
-      if (!line) return [];
-      return [
-        {
-          firstRead: [...first.childNodes].filter((n) => n.nodeType === Node.TEXT_NODE).map((n) => n.textContent).join("").trim(),
-          lastConfirmed: tr.querySelector("td:nth-child(4)")!.textContent!.trim(),
-          line: line.innerText.replace(/\s+/g, " ").trim(),
-          // Lines, not rectangles: Chrome gives one rectangle per text run, and "14 Nov," is two ("14 Nov" and ","), side by side on one line.
-          parts: [...line.children].map((part) => ({ text: part.textContent!.trim(), lines: new Set([...part.getClientRects()].map((r) => Math.round(r.top))).size })),
-        },
-      ];
-    }),
-  );
-}
-
-/**
- * Every confirmed line says only what it does not share with the first reading above it: the
- * time alone on the same day ("confirmed 3:04 pm"), the day and the time in the same year
- * ("confirmed 21 Oct, 3:04 pm"), the full date only in another year; and its day and its time each
- * stay on one line (never "pm" alone).
- */
-async function expectConfirmedShort(table: Locator, at: string) {
-  const rows = await confirmedLines(table);
-  expect(rows.length, `${at}: readings confirmed later than first read`).toBeGreaterThan(0);
-  const full = /^(\d{1,2} [A-Z][a-z]{2}) (\d{4}), (\d{1,2}:\d{2} [ap]m)$/;
-  for (const r of rows) {
-    const reading = `${at}, first read ${r.firstRead}, last confirmed ${r.lastConfirmed}`;
-    const [, fromDay, fromYear] = full.exec(r.firstRead) ?? [];
-    const [, day, year, time] = full.exec(r.lastConfirmed) ?? [];
-    expect(fromDay && day, `${reading}: both written in full`).toBeTruthy();
-    const said = fromYear !== year ? `${day} ${year}, ${time}` : fromDay !== day ? `${day}, ${time}` : time;
-    expect(r.line, reading).toBe(`confirmed ${said}`);
-    expect(r.parts.at(-1)?.text, `${reading}: the time a part of its own`).toBe(time);
-    expect(r.parts.filter((p) => p.lines !== 1), `${reading}: each part on one line`).toEqual([]);
-  }
-}
-
-test("on a phone Ranked progress's header never lets the queue switch cover the title or its ⓘ, and the readings keep W–L in their box", async ({ page }, info) => {
+test("on a phone Ranked progress's header never lets the queue switch cover the title or its ⓘ", async ({ page }, info) => {
   test.skip(info.project.name !== "phone", "phone widths, set below");
   await page.goto(await profileOf(page, "Demo Top"));
   const ranked = page.getByTestId("ranked-progress");
@@ -310,28 +274,24 @@ test("on a phone Ranked progress's header never lets the queue switch cover the 
     if (size === "100%") expect(clash.oneRow, "320, default text: the switch on the title's row").toBe(true);
   }
   await page.evaluate(() => { document.documentElement.style.fontSize = ""; });
+});
 
-  // History and coverage open: every W–L figure inside the readings' box (the "confirmed …" line
-  // under each first reading no longer widens its column): Demo Top on this project's phone (375),
-  // Demo Mid on an iPhone 15 (393), whose rows are the widest.
-  const table = page.getByTestId("ranked-table");
-  const openDetails = async () => {
-    const details = page.getByTestId("ranked-details");
-    await expect(async () => {
-      if (!(await details.evaluate((d) => (d as HTMLDetailsElement).open))) await page.getByTestId("ranked-details-toggle").click();
-      await expect(table).toBeVisible({ timeout: 2_000 });
-    }).toPass({ timeout: 15_000 });
-  };
-  await page.setViewportSize({ width: 375, height: 667 });
-  await openDetails();
-  expect(await table.locator("tbody tr").count(), "Demo Top: readings listed").toBeGreaterThan(3);
-  expect(await winLossOutside(table), "Demo Top at 375: W–L inside the box").toEqual([]);
-  await expectConfirmedShort(table, "Demo Top at 375");
-  await page.setViewportSize({ width: 393, height: 852 });
-  await page.goto(await profileOf(page, "Demo Mid"));
-  await expect(page.getByTestId("ranked-progress")).toBeVisible();
-  await openDetails();
-  expect(await table.locator("tbody tr").count(), "Demo Mid: readings listed").toBeGreaterThan(3);
-  expect(await winLossOutside(table), "Demo Mid at 393: W–L inside the box").toEqual([]);
-  await expectConfirmedShort(table, "Demo Mid at 393");
+test("Ranked progress ends with its chart at every width: no History and coverage, its corners and padding whole", async ({ page }, info) => {
+  // The phone (375, and the narrowest, 320), the tablet and the 1440 desktop (the 2×2's rail), with
+  // the default text and larger: the card's last part holds the chart, as far from the card's foot as
+  // the header is from its top.
+  const widths = info.project.name === "phone" ? [375, 320] : [page.viewportSize()!.width];
+  for (const name of ["Demo Top", "Demo Mid"]) {
+    await page.goto(await profileOf(page, name));
+    const ranked = page.getByTestId("ranked-progress");
+    await expect(ranked).toBeVisible();
+    for (const width of widths) {
+      await page.setViewportSize({ width, height: page.viewportSize()!.height });
+      for (const size of ["100%", "150%"]) {
+        await page.evaluate((s) => { document.documentElement.style.fontSize = s; }, size);
+        await expectEndsWithChart(ranked, `${name} at ${width}px, ${size} text`);
+      }
+      await page.evaluate(() => { document.documentElement.style.fontSize = ""; });
+    }
+  }
 });

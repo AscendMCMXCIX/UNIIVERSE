@@ -40,6 +40,23 @@ export async function createMember(admin: Page, base = "Viewer"): Promise<{ user
   return { username, temporary };
 }
 
+/**
+ * Sets an account's base access level (a built-in one, "Restricted Player", or one of the owner's)
+ * in Users & Permissions → Accounts → Manage access, as the admin page. The account's next request
+ * has it: a member signed in elsewhere needs no new sign-in.
+ */
+export async function setBaseAccess(admin: Page, username: string, level: string) {
+  if (!admin.url().startsWith("http")) await admin.goto("/");
+  await view(admin.context(), admin.url().split("/").slice(0, 3).join("/"), "admin");
+  await admin.goto("/admin/people");
+  await admin.getByTestId("people-search").fill(username);
+  const row = admin.getByTestId("admin-player-row").filter({ hasText: username });
+  await row.getByTestId("open-access").click();
+  await admin.getByTestId("access-dialog").getByTestId("base-access").selectOption({ label: level });
+  await admin.getByTestId("save-access").click();
+  await expect(row.getByTestId("access-summary")).toContainText(level);
+}
+
 /** Signs in with the temporary password and chooses the permanent one; the setup form opens next. */
 export async function choosePassword(page: Page, username: string, temporary: string, password = "Mine#2026-team") {
   await signIn(page, username, temporary);

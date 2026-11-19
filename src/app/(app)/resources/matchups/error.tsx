@@ -8,9 +8,9 @@ import { Button, buttonClass } from "@/components/ui/button";
 
 /**
  * Matchup Intel when its page threw (the roster, the current patch or the stored abilities could
- * not be read, and nothing cached stood in): said for this page, inside the app's shell and the
- * Resources tabs, with Try again (the server's page read afresh, then shown) and Start again (the
- * page with no champions chosen). The app-wide boundary would offer Team instead.
+ * not be read, and nothing cached stood in): said for this page, inside the app's shell (its
+ * sidebar entry still marked), with Try again (the server's page read afresh, then shown) and Start
+ * again (the page with no champions chosen). The app-wide boundary would offer Team instead.
  */
 export default function MatchupIntelError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   const router = useRouter();

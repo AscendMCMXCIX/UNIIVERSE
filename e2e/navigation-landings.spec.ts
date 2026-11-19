@@ -123,9 +123,10 @@ test("tablets and desktops: the current section tab, and the frame's entry for t
   // With a modifier key the tab keeps its meaning: it opens in a new tab.
   const [opened] = await Promise.all([page.context().waitForEvent("page"), page.getByTestId("team-tab-leaderboards").click({ modifiers: ["ControlOrMeta"] })]);
   await opened.close();
-  // Matchup Intel's current tab (Resources' tabs are at every width) keeps the pair it shows and goes
-  // to the top, as Leaderboards' tab keeps its season: its own link has no query, and following it cleared
-  // the pair. The page is made long enough to scroll, as the Library's below.
+  // Matchup Intel's own entry in the frame (the sidebar's on a desktop, a tablet's top bar's), pressed
+  // on its page, keeps the pair it shows and goes to the top, as Leaderboards' tab keeps its season: its
+  // own link has no query, and following it cleared the pair. The page is made long enough to scroll, as
+  // the Library's below.
   await page.goto("/resources/matchups?champion=Riven&vs=Mordekaiser");
   await expect(page.getByTestId("matchup-enemy-abilities")).toHaveAttribute("data-champion", "Mordekaiser");
   // Once the page's code runs: a click before then follows the tab's bare link.
@@ -139,9 +140,11 @@ test("tablets and desktops: the current section tab, and the frame's entry for t
   });
   await expect.poll(() => scrollY(page)).toBeGreaterThan(200);
   navigations = watchNavigations(page);
-  await page.getByTestId("resources-tab-matchups").click();
+  const intel = page.getByTestId(info.project.name === "desktop" ? "nav-resources-matchups" : "topbar-nav-resources-matchups");
+  await expect(intel).toHaveAttribute("aria-current", "page");
+  await intel.click();
   await expect.poll(() => scrollY(page)).toBe(0);
-  expect(await navigations(), "the current Matchup Intel tab fetches nothing").toEqual([]);
+  expect(await navigations(), "Matchup Intel's entry on its own page fetches nothing").toEqual([]);
   await expect(page).toHaveURL(/\/resources\/matchups\?champion=Riven&vs=Mordekaiser$/);
   await expect(page.getByTestId("matchup-enemy-abilities")).toHaveAttribute("data-champion", "Mordekaiser");
   {
@@ -223,19 +226,25 @@ test("phones: a dialog is the one shared sheet, docked to the bottom edge with i
   await expect(dialog).toBeHidden();
 });
 
-test("phones: Matchup Intel's current tab, in the page, keeps the pair and goes back to the top", async ({ page }, info) => {
-  test.skip(info.project.name !== "phone", "Resources' tabs sit in the page on phones (the test above has tablets and desktops)");
+test("phones: Matchup Intel's row on the account screen, on its own page, keeps the pair, closes the screen and goes back to the top", async ({ page }, info) => {
+  test.skip(info.project.name !== "phone", "the phone's account screen (the test above has tablets and desktops)");
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/resources/matchups?champion=Riven&vs=Mordekaiser");
   await expect(page.getByTestId("matchup-enemy-abilities")).toHaveAttribute("data-champion", "Mordekaiser");
   await expect(page.getByTestId("matchup-remembered")).not.toHaveAttribute("data-state", "loading");
+  // No tabs in the page any more: Matchup Intel is a destination of its own.
+  await expect(page.getByTestId("resources-tabs")).toHaveCount(0);
   await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
   await expect.poll(() => scrollY(page)).toBeGreaterThan(200);
   const navigations = watchNavigations(page);
-  // Dispatched, not tapped: a phone does not pin these tabs, and a tap would first scroll them into
-  // view (Playwright's own scroll), which is already the page's top.
-  await page.getByTestId("resources-tab-matchups").dispatchEvent("click");
+  await page.getByTestId("account-sheet-button").click();
+  const screen = page.getByTestId("account-sheet");
+  const row = screen.getByRole("link", { name: "Matchup Intel" });
+  await expect(row).toHaveAttribute("aria-current", "page");
+  await row.click();
+  await expect(screen).toHaveCount(0);
   await expect.poll(() => scrollY(page)).toBe(0);
-  expect(await navigations(), "the current tab fetches nothing").toEqual([]);
+  expect(await navigations(), "the row of the page shown fetches nothing").toEqual([]);
   await expect(page).toHaveURL(/\/resources\/matchups\?champion=Riven&vs=Mordekaiser$/);
+  await expect(page.getByTestId("matchup-enemy-abilities")).toHaveAttribute("data-champion", "Mordekaiser");
 });

@@ -1,16 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { ADMIN_ACCOUNT_LINKS, ADMIN_ENTRIES, ADMIN_HOME, ADMIN_LINKS, ADMIN_TABS, NAV_ENTRIES, NAV_LINKS, PAGE_WIDTH, PHONE_TABS, ROW_WIDTH, PHONE_TAB_LIMIT, RESOURCES, RESOURCES_SECTIONS, SECTION_HUBS, TEAM_SECTIONS, activeHref, adminSheetLinks, backSteps, canOpen, currentDestination, currentTab, encountersRedirect, entryLinks, isActivePath, pageName, pageWidthOf, phoneParent, phoneTabs, profileBase, tabletDestinations } from "./nav";
+import { ADMIN_ACCOUNT_LINKS, ADMIN_ENTRIES, ADMIN_HOME, ADMIN_LINKS, ADMIN_TABS, MATCHUP_INTEL, NAV_ENTRIES, NAV_LINKS, PAGE_WIDTH, PHONE_TABS, ROW_WIDTH, PHONE_TAB_LIMIT, RESOURCES, SECTION_HUBS, TEAM_SECTIONS, activeHref, adminSheetLinks, backSteps, canOpen, currentDestination, currentTab, encountersRedirect, entryLinks, isActivePath, isNavHub, pageName, pageWidthOf, phoneParent, phoneTabs, profileBase, tabletDestinations } from "./nav";
+import { MATCHUP_INTEL_PATH } from "@/components/matchup-intel/address";
+import { BookMarked, Swords } from "lucide-react";
 import type { Session } from "@/server/auth/permissions";
 
 const entryId = (e: (typeof NAV_ENTRIES)[number]) => ("key" in e ? e.key : e.href);
 
 describe("navigation entries", () => {
-  it("Player Mode has single entries only: My Profile, Team, then Resources", () => {
-    expect(NAV_ENTRIES.map(entryId)).toEqual(["/overview", "team", "resources"]);
+  it("Player Mode has single entries only: My Profile, Team, Matchup Intel, then Resources", () => {
+    expect(NAV_ENTRIES.map(entryId)).toEqual(["/overview", "team", "/resources/matchups", "/resources"]);
+    expect(NAV_ENTRIES.map((e) => e.label)).toEqual(["My Profile", "Team", "Matchup Intel", "Resources"]);
   });
 
   it("Resources is for every signed-in account, and is managed in Admin Mode's Platform Settings", () => {
-    expect(NAV_LINKS.find((l) => l.href === "/resources")).toMatchObject({ label: "Library" });
+    expect(NAV_LINKS.find((l) => l.href === "/resources")).toMatchObject({ label: "Resources" });
     expect(NAV_LINKS.find((l) => l.href === "/resources")).not.toHaveProperty("permission");
     expect(SECTION_HUBS.find((h) => h.key === "admin-settings")!.sections.map((s) => s.href)).toEqual(["/admin/branding", "/admin/previews", "/admin/resources"]);
     expect(ADMIN_LINKS.find((l) => l.href === "/admin/resources")).toMatchObject({ permission: "manage-branding" });
@@ -41,24 +44,36 @@ describe("navigation entries", () => {
   it("no navigation anywhere leads to the removed Meta & Trends or Clash Scout pages", () => {
     const hrefs = [...NAV_LINKS, ...ADMIN_ENTRIES.flatMap(entryLinks), ...SECTION_HUBS.flatMap((h) => h.sections), ...ADMIN_TABS, ...PHONE_TABS].map((l) => l.href);
     expect(hrefs.filter((h) => h.startsWith("/trends") || h.startsWith("/clash"))).toEqual([]);
-    expect(SECTION_HUBS.map((h) => h.key)).toEqual(["team", "resources", "admin-settings"]);
+    expect(SECTION_HUBS.map((h) => h.key)).toEqual(["team", "admin-settings"]);
   });
 
-  it("Resources is one entry for its two sections, the library and Matchup Intel, which every account may open", () => {
-    const hub = NAV_ENTRIES.find((e) => entryId(e) === "resources")!;
-    expect(hub).toMatchObject({ label: "Resources", icon: RESOURCES.icon });
-    // The library first: the entry opens it, and the account screen's Resources row leads there.
-    expect(entryLinks(hub).map((l) => [l.href, l.label])).toEqual([
-      ["/resources", "Library"],
-      ["/resources/matchups", "Matchup Intel"],
-    ]);
-    expect(RESOURCES).toMatchObject({ href: "/resources", label: "Resources" });
-    // Both are tabs at the top of both pages, and nowhere else.
-    expect(SECTION_HUBS.find((h) => h.key === "resources")!.sections).toBe(RESOURCES_SECTIONS);
+  it("Matchup Intel and Resources are entries of their own, one page each, with no tabs, which every account may open", () => {
+    // Matchup Intel with its swords, at the address every link to it has used (nothing redirects).
+    expect(MATCHUP_INTEL).toEqual({ href: "/resources/matchups", label: "Matchup Intel", icon: Swords });
+    expect(MATCHUP_INTEL.href).toBe(MATCHUP_INTEL_PATH);
+    expect(RESOURCES).toEqual({ href: "/resources", label: "Resources", icon: BookMarked });
+    for (const link of [MATCHUP_INTEL, RESOURCES]) {
+      const entry = NAV_ENTRIES.find((e) => !isNavHub(e) && e.href === link.href)!;
+      expect(entry, link.label).toBe(link);
+      // Neither has tabs, and neither is a section of anything: one place in the sidebar each.
+      expect(SECTION_HUBS.some((h) => h.sections.some((s) => s.href === link.href)), link.label).toBe(false);
+      expect(NAV_LINKS.filter((l) => l.href === link.href), link.label).toHaveLength(1);
+    }
     const stranger: Session = { userId: "u", role: "player", label: "P", playerId: null, username: "p", hasPassword: true, mustChangePassword: false, setupComplete: true, capabilities: [] };
-    expect(RESOURCES_SECTIONS.every((l) => canOpen(stranger, l))).toBe(true);
+    expect([MATCHUP_INTEL, RESOURCES].every((l) => canOpen(stranger, l))).toBe(true);
     // Matchup Intel is the static reference, kept apart by name from a champion's own Matchups.
     expect(NAV_LINKS.filter((l) => /matchups/i.test(l.href)).map((l) => l.label)).toEqual(["Matchup Intel"]);
+  });
+
+  it("Matchup Intel is marked on its page, whatever pair it shows, and Resources on the Library alone", () => {
+    const hrefs = NAV_LINKS.map((l) => l.href);
+    expect(activeHref("/resources/matchups", hrefs)).toBe("/resources/matchups");
+    expect(activeHref("/resources", hrefs)).toBe("/resources");
+    // Resources' address starts Matchup Intel's (kept from when it was Resources' second section),
+    // yet Matchup Intel is not under Resources: Resources is the current page only on itself.
+    expect(isActivePath("/resources/matchups", RESOURCES.href)).toBe(false);
+    expect(isActivePath("/resources", RESOURCES.href)).toBe(true);
+    expect(activeHref("/resources/matchups", [RESOURCES.href, "/settings"])).toBeNull();
   });
 
   it("every hub section belongs to exactly one tab bar", () => {
@@ -69,7 +84,6 @@ describe("navigation entries", () => {
   it("from a 1600px window the pages of a tab bar share one width (Team's the wide one), and under it every page keeps the width it always had", () => {
     expect(SECTION_HUBS.map((h) => [h.key, h.width])).toEqual([
       ["team", "wide"],
-      ["resources", "max"],
       ["admin-settings", "max"],
     ]);
     // Team Overview and Leaderboards were always 100rem; Players and Matches join them from 1600px.
@@ -85,14 +99,32 @@ describe("navigation entries", () => {
 describe("phone tab bar", () => {
   // A team member may open every Player Mode page.
   const member = phoneTabs(NAV_LINKS.map((l) => l.href));
-  // An account outside the team: its profile and Resources only.
-  const personal = phoneTabs(["/overview", "/resources", "/settings"]);
+  // An account outside the team: its profile, Matchup Intel and Resources only.
+  const personal = phoneTabs(["/overview", "/resources/matchups", "/resources", "/settings"]);
   const hrefs = (tabs: typeof member) => tabs.map((t) => t.href);
 
-  it("a team member's bar: Team, Players, Leaderboards, Matches and Profile, one tap each; Resources moves to the account screen", () => {
+  it("a team member's bar: Team, Players, Leaderboards, Matches and Profile, one tap each; Matchup Intel and Resources move to the account screen", () => {
     expect(hrefs(member)).toEqual(["/team", "/players", "/leaderboards", "/matches", "/overview"]);
     expect(member).toHaveLength(PHONE_TAB_LIMIT);
-    expect(hrefs(personal)).toEqual(["/overview", "/resources"]);
+    expect(hrefs(personal)).toEqual(["/overview", "/resources/matchups", "/resources"]);
+  });
+
+  it("where there is room, Matchup Intel comes before Resources, as in the sidebar, so it is never the harder of the two to reach", () => {
+    const all = NAV_LINKS.map((l) => l.href);
+    // Without Leaderboards: Matchup Intel takes the fifth place, Resources stays on the account screen.
+    expect(hrefs(phoneTabs(all.filter((h) => h !== "/leaderboards")))).toEqual(["/team", "/players", "/matches", "/overview", "/resources/matchups"]);
+    // Without two of Team's pages: both.
+    expect(hrefs(phoneTabs(all.filter((h) => h !== "/leaderboards" && h !== "/matches")))).toEqual(["/team", "/players", "/overview", "/resources/matchups", "/resources"]);
+    expect(PHONE_TABS.map((t) => t.href).slice(-2)).toEqual([MATCHUP_INTEL.href, RESOURCES.href]);
+  });
+
+  it("Matchup Intel shows as Intel in the phone's bars, the end of its name, which is still its whole name", () => {
+    // Only Matchup Intel has a short form: in full it is as long as Leaderboards, and a five with
+    // both lost every label on a 320px phone (mobile-nav.tsx, TAB_FIT).
+    expect(PHONE_TABS.filter((t) => t.short).map((t) => [t.href, t.label, t.short])).toEqual([[MATCHUP_INTEL.href, "Matchup Intel", "Intel"]]);
+    for (const tab of PHONE_TABS.filter((t) => t.short)) expect(tab.label.endsWith(` ${tab.short}`), tab.href).toBe(true);
+    // Back still names it in full.
+    expect(pageName(MATCHUP_INTEL.href, PHONE_TABS)).toBe("Matchup Intel");
   });
 
   it("offers only pages the account may open", () => {
@@ -108,6 +140,8 @@ describe("phone tab bar", () => {
       }
       const entry = NAV_ENTRIES.find((e) => ("sections" in e ? e.sections[0]!.href : e.href) === tab.href);
       if (entry) expect(tab.icon, tab.href).toBe(entry.icon);
+      // Matchup Intel and Resources by the sidebar's own names (only My Profile is shortened, to Profile).
+      if (entry && !isNavHub(entry) && tab.href !== "/overview") expect(tab.label, tab.href).toBe(entry.label);
     }
   });
 
@@ -120,9 +154,10 @@ describe("phone tab bar", () => {
     expect(currentTab("/overview/champions", m)).toBe("/overview");
     expect(currentTab("/me", m)).toBe("/overview");
     expect(currentTab("/resources", hrefs(personal))).toBe("/resources");
-    // Matchup Intel is Resources' second section: its tab where Resources has one, none where it has not.
-    expect(currentTab("/resources/matchups", hrefs(personal))).toBe("/resources");
+    // Matchup Intel is a destination of its own: its own tab where it has one, never Resources'.
+    expect(currentTab("/resources/matchups", hrefs(personal))).toBe("/resources/matchups");
     expect(currentTab("/resources/matchups", m)).toBeNull();
+    expect(currentTab("/resources/matchups", ["/overview", "/resources"])).toBeNull();
   });
 
   it("Admin Mode's Platform Settings pages are its Settings tab", () => {
@@ -146,20 +181,22 @@ describe("tablet top bar", () => {
   const all = NAV_LINKS.map((l) => l.href);
   const adminAll = ADMIN_LINKS.map((l) => l.href);
 
-  it("Player Mode: the sidebar's three entries, one tap each, a hub's to its first page this account may open", () => {
+  it("Player Mode: the sidebar's four entries, one tap each, a hub's to its first page this account may open", () => {
     const bar = tabletDestinations(all, false);
     expect(bar.map((d) => [d.href, d.label])).toEqual([
       ["/overview", "My Profile"],
       ["/team", "Team"],
+      ["/resources/matchups", "Matchup Intel"],
       ["/resources", "Resources"],
     ]);
     // The same icons as the sidebar's entries.
     expect(bar.map((d) => d.icon)).toEqual(NAV_ENTRIES.map((e) => e.icon));
-    // Team stands for its four sections, Resources for its two.
+    // Team stands for its four sections; Matchup Intel and Resources for their own page each.
     expect(bar[1]!.pages).toEqual(TEAM_SECTIONS.map((s) => s.href));
-    expect(bar[2]!.pages).toEqual(RESOURCES_SECTIONS.map((s) => s.href));
+    expect(bar[2]!.pages).toEqual(["/resources/matchups"]);
+    expect(bar[3]!.pages).toEqual(["/resources"]);
     // An account outside the team: no Team entry; one that may open only Players: Team leads there.
-    expect(tabletDestinations(["/overview", "/resources", "/resources/matchups"], false).map((d) => d.href)).toEqual(["/overview", "/resources"]);
+    expect(tabletDestinations(["/overview", "/resources", "/resources/matchups"], false).map((d) => d.href)).toEqual(["/overview", "/resources/matchups", "/resources"]);
     expect(tabletDestinations(["/overview", "/players", "/resources"], false).map((d) => d.href)).toEqual(["/overview", "/players", "/resources"]);
   });
 
@@ -180,7 +217,8 @@ describe("tablet top bar", () => {
     expect(currentDestination("/matches", bar, false)).toBe("/team");
     expect(currentDestination("/players/abc/matches", bar, false)).toBe("/team");
     expect(currentDestination("/overview/champions", bar, false)).toBe("/overview");
-    expect(currentDestination("/resources/matchups", bar, false)).toBe("/resources");
+    expect(currentDestination("/resources/matchups", bar, false)).toBe("/resources/matchups");
+    expect(currentDestination("/resources", bar, false)).toBe("/resources");
     expect(currentDestination("/settings", bar, false)).toBeNull();
     const admin = tabletDestinations(adminAll, true);
     expect(currentDestination("/admin", admin, true)).toBe(ADMIN_HOME);
@@ -213,8 +251,8 @@ describe("phone top bar", () => {
     expect(phoneParent("/overview/champions", member, "/team")).toBeNull();
   });
 
-  it("Matchup Intel's Back leads to Resources, not Team; where Resources is a tab, its sections are where you start", () => {
-    expect(phoneParent("/resources/matchups", member, "/team")).toEqual({ href: "/resources", label: "Resources" });
+  it("Matchup Intel, a destination of its own, leads home as Resources does where it has no tab, not to Resources; where it is a tab it is where you start", () => {
+    expect(phoneParent("/resources/matchups", member, "/team")).toEqual({ href: "/team", label: "Team" });
     const personal = phoneTabs(["/overview", "/resources", "/resources/matchups", "/settings"]);
     expect(phoneParent("/resources/matchups", personal, "/overview")).toBeNull();
     expect(phoneParent("/resources", personal, "/overview")).toBeNull();

@@ -1,7 +1,7 @@
 import { expect, type Locator, type Page } from "./test";
 
 /*
-  Matchup Intel (Resources → Matchup Intel, docs/MATCHUP_INTEL.md): its address, its two pickers
+  Matchup Intel (a sidebar entry of its own, docs/MATCHUP_INTEL.md): its address, its two pickers
   and their windows. Shared by e2e/matchup-intel.spec.ts.
 */
 

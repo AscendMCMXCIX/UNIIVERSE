@@ -56,22 +56,32 @@ const ART_BUTTON = "grid h-8 w-8 place-items-center rounded-full bg-bg/80 text-f
   keeps its name). A control is a 2.75rem touch target 0.625rem from the edge (2rem with a mouse;
   the lane keeps the touch size), and two stand side by side, or one above the other five across and
   on a card under 9.25rem, where side by side they left the chip no room; the lane ends 0.125rem
-  short of them. Where the lane is narrower than the role's chip, the chip shows the icon alone, as
-  a round badge of the same height, and the name stays its text for screen readers. CHIP_FIT holds
-  each role's chip (its name in the chip's capitals beside its icon), measured in Inter at 100% to
-  200%: Mid 4.872rem, Top 4.978, Jungle 7.001, Bottom 7.335 and Support 7.773, the same at every size
-  to 0.005rem. Each threshold is its chip rounded up to the next 0.01rem, so a name that shows always
-  fits its lane, and a chip that fits keeps its name (the least room a demo chip fits in is Support's
-  7.79rem beside its control at 150% on a 375px phone). Every card at the usual text size is 12.2rem
-  wide or more, which holds the chip beside its controls, so there nothing changes.
+  short of them. Where the lane is narrower than the role's threshold (CHIP_FIT), the chip shows the
+  icon alone, as a round badge of the same height, and the name stays its text for screen readers.
+  Each threshold is the role's chip (its name in the chip's capitals beside its icon) plus a margin
+  for the browsers' text, rounded up to the next 0.01rem. Measured in Inter from 100% to 200% text,
+  every 2.5%, the chips are the same in Chromium and in WebKit within 0.1px: Mid 4.872rem, Top 4.978,
+  Jungle 7.001, Bottom 7.335 and Support 7.773 at most, each within 0.008rem at every size. Text drawn
+  with hinting differs: the Chromium headless shell the browser tests run in on GitHub rounds each
+  letter's advance to whole pixels, which makes a chip up to 0.12rem wider or narrower, by size.
+  Support's chip is 7.818rem there at 150% (1.1px wider), and without a margin it ran past its
+  7.79rem lane on a 375px phone. The margin is at least 0.036rem (0.6px at the usual size, 0.9px at
+  150%, 1.2px at 200%): a name that shows has that much room beyond its chip in Chromium and WebKit
+  at every size. In the headless shell, at the sizes the tests check (150, 175, 200%), every chip is
+  within its threshold but Support's at 150%, 0.2px over, inside the tests' half-pixel allowance.
+  The margin can be no larger: every card at the usual size is 12.2rem wide or more, its narrowest
+  lane (beside a control, five across) is 125.19px, and WebKit tests a container's width in whole
+  pixels (it took lanes of 125.2 to 125.8px for narrower than 125.12px), so Support's threshold must
+  be 125px or less (7.81rem is 124.96px) for every chip there to keep its name, as it did before it
+  had a lane. So at the usual size nothing changes.
 */
 const CHIP_LANE = ["right-0", "right-14", "right-26.5 @5xl/lineup:right-14 @max-[9.25rem]/card:right-14"] as const;
 const CHIP_FIT: Record<Role, { chip: string; label: string }> = {
-  TOP: { chip: "@max-[4.98rem]/chip:p-1.5", label: "@max-[4.98rem]/chip:sr-only" },
-  JUNGLE: { chip: "@max-[7.01rem]/chip:p-1.5", label: "@max-[7.01rem]/chip:sr-only" },
-  MID: { chip: "@max-[4.88rem]/chip:p-1.5", label: "@max-[4.88rem]/chip:sr-only" },
-  ADC: { chip: "@max-[7.34rem]/chip:p-1.5", label: "@max-[7.34rem]/chip:sr-only" },
-  SUPPORT: { chip: "@max-[7.78rem]/chip:p-1.5", label: "@max-[7.78rem]/chip:sr-only" },
+  TOP: { chip: "@max-[5.02rem]/chip:p-1.5", label: "@max-[5.02rem]/chip:sr-only" },
+  JUNGLE: { chip: "@max-[7.04rem]/chip:p-1.5", label: "@max-[7.04rem]/chip:sr-only" },
+  MID: { chip: "@max-[4.91rem]/chip:p-1.5", label: "@max-[4.91rem]/chip:sr-only" },
+  ADC: { chip: "@max-[7.38rem]/chip:p-1.5", label: "@max-[7.38rem]/chip:sr-only" },
+  SUPPORT: { chip: "@max-[7.81rem]/chip:p-1.5", label: "@max-[7.81rem]/chip:sr-only" },
 };
 
 /** How a member fits a role, as the lineup sheets name it. */

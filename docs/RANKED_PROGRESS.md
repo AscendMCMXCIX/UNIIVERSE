@@ -44,8 +44,9 @@ hold rows stored without a length that may be those games: `withoutLength` under
 so Riot's count spans the year. Every linked account plays on OCE, where no season reset anything.
 
 So Ranked progress does not offer the seasons as separate periods (it did until November 2026: Season
-1 and Season 2 could only ever show "not recorded"). It names the season now ("2026 Season 3") and
-marks the three seasons on the year's coverage strip. Games are placed by patch; a reading by date.
+1 and Season 2 could only ever show "not recorded"). It names the season now ("2026 Season 3"); the
+year's coverage strip that marked the three seasons left the page on 18 Nov 2026 (below). Games are
+placed by patch; a reading by date.
 
 ## What Ranked progress shows
 
@@ -71,14 +72,23 @@ Compact, in Profile Overview (`ranked-progress.tsx`): under Recent form, in the 
   too wide for every division); a narrow chart (under 25.5rem: a phone, a tablet's third) writes
   every line as match cards write a rank: "P2", a tier's line by its first division, "E4",
   Master's "M".
-- **History and coverage** (closed at first, a native disclosure): the ranked year as one strip
-  (every stored ranked game week by week, the three seasons marked, the stretch since the first
-  reading lit, and "Rank known on N of M days": the installation's calendar days covered by a
-  reading, from its first sight to its last confirmation, or between two readings at most one game
-  apart, out of the days of the ranked year so far), what cannot be recovered and why, every rank change, the chart's
-  key, and every reading (the newest 200) with its first and last time (on a narrow card the last
-  under the first, without what the two share: "confirmed 21 Oct, 3:04 pm", the time alone on the
-  same day, so the W–L column stays in its box).
+- **The card ends with the chart** (the owner's decision, 18 Nov 2026). The disclosure that sat
+  under it, History and coverage (the ranked year's strip of stored games week by week with the
+  days the rank is known, every rank change, the chart's key and every reading), was removed from
+  the page. Presentation only: the readings, the rank changes and the history are stored and read
+  as before, `rankedYearCoverage` (the coverage's calculation, `src/domain/rank-timeline.ts`) is
+  unchanged and tested, and no job changed. The card's tracking line still names the season
+  (`rankedSeasonAt`). The readings remain in `rank-audit`'s report (below).
+  - **Still read, shown nowhere: the weekly games** (a decision for the owner, 19 Nov 2026). The
+    strip's stored ranked games week by week are still counted whenever an Overview with its
+    statistics opens for a player with a linked account (your own, or a teammate's where you may
+    see their statistics): `rankedWeeks` in `src/server/accounts/rank-history.ts`, one GROUP BY
+    over those accounts' 2026 ranked games beside the readings' query, a few KB a view (about
+    15 KB at most for a player with several active accounts), into each account's `weeks`, which
+    nothing reads since the strip left. It was kept because the change was presentation only, with
+    no server change. Dropping it is one query fewer per such view and touches only that function
+    and the field (`rankedYearCoverage`, which takes the weeks as an argument, keeps its tests;
+    `rank-audit` counts its own); it waits for the owner's word.
 
 ## LP per game: the rule
 
@@ -213,4 +223,6 @@ traffic per run. No GitHub Actions minutes.
   how often ranks were read: for that, Data jobs `rank-schedule-status` (the schedule's runs and
   calls) and `/api/health` (`rank-watch`'s last success). Its LP tally reads the confirmations, as
   the match cards do, since #255.
-- **Ranked progress → History and coverage**: every reading with its first and last time.
+- **Ranked progress**: the chart's readings, each with its time in the chart's tip (the list of every
+  reading with its first and last time left the page with History and coverage on 18 Nov 2026;
+  `rank-audit` still lists them).

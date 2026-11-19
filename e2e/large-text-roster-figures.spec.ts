@@ -13,7 +13,9 @@ import { playerEntry } from "./players";
   the card at 150% on a 320px phone (63px at 200%). No "·" starts or ends a line: the one before
   the rank (or "No Riot account") shows beside the role and is cut off with its room where the rank
   wraps under the role ("· Emerald III" started a line at 200% on a 320px phone). At 100% nothing
-  changes: the picture beside the name, the figures three across, every "·" beside its role.
+  changes: the picture beside the name, the figures three across, every "·" beside its role, and
+  the Card Studio's previews of a row (narrower at 100% beside the controls on a 320 × 480 screen
+  than any row on Players) as they were.
 */
 
 test.beforeEach(async ({ context, baseURL }) => {
@@ -244,6 +246,44 @@ test("Players at 125% to 200% text on 320 to 414px phones: names, ranks and Riot
   await page.evaluate(() => {
     document.documentElement.style.fontSize = "";
   });
+});
+
+test("the Card Studio's previews of a Players row are drawn as before at the usual text size, though beside the controls on a 320 × 480 screen they are narrower than any row on Players", async ({ page }, info) => {
+  test.skip(info.project.name !== "phone", "a phone's window 480px tall, set below");
+  // A screen 480px tall puts the preview beside the controls, in a pane two fifths of the screen
+  // wide, where a row is about 9rem at 100%. The roster's larger-text rules read the roster (STACKED,
+  // SEPARATOR in roster-row.tsx), which a preview is outside, so none applies there at any size.
+  await page.setViewportSize({ width: 320, height: 480 });
+  await page.goto("/players");
+  await playerEntry(page, "Demo Top").click();
+  await expect(page.getByTestId("profile-header")).toBeVisible();
+  // Until the page has hydrated, Customise does nothing: press it until the Studio opens (nothing is saved).
+  await expect(async () => {
+    await page.getByTestId("profile-header").getByTestId("customise-card").click();
+    await expect(page.getByTestId("card-studio")).toBeVisible({ timeout: 1_000 });
+  }).toPass({ timeout: 15_000 });
+  await page.getByTestId("preview-directory").click();
+  const rows = page.locator("[data-testid=card-preview][data-view=directory] [data-testid=roster-row-preview]");
+  await expect(rows).toHaveCount(2);
+  await page.evaluate(() => document.fonts.ready);
+  const facts = await rows.evaluateAll((lis) =>
+    lis.map((li) => {
+      const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+      const cs = getComputedStyle(li);
+      const meta = li.querySelector("[data-testid=roster-meta]")!;
+      return {
+        // The row's own width, its content box in its own CSS px (the preview's zoom aside).
+        narrow: (li.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)) / rem < 16,
+        clip: getComputedStyle(meta).overflowX,
+        room: getComputedStyle(meta.querySelector("[data-testid=roster-roles]")!).marginRight,
+        wrap: cs.flexWrap,
+      };
+    }),
+  );
+  // Under 16rem of row, and still no clipped second line, no room kept for the "·" (SEPARATOR) and
+  // the picture beside the text (STACKED): what the previews drew before either rule.
+  const before = { narrow: true, clip: "visible", room: "0px", wrap: "nowrap" };
+  expect(facts, "both previews (a tablet's row and a phone's)").toEqual([before, before]);
 });
 
 /**
