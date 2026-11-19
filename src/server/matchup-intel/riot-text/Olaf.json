@@ -1,0 +1,22 @@
+{
+  "championId": "Olaf",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Berserker Rage","textHash":"af85fd00e61ffd5c"},
+    "Q": {"name":"Undertow","textHash":"16929495f1e423b1"},
+    "W": {"name":"Tough It Out","textHash":"e5f361143ec9dbd8"},
+    "E": {"name":"Reckless Swing","textHash":"4605ff9944047b61"},
+    "R": {"name":"Ragnarok","textHash":"b048ae47512a196b"}
+  },
+  "facts": [
+    {"slot":"P","kind":"lifesteal","clause":"Olaf gains Attack Speed and Life Steal based on his missing Health.","source":"description"},
+    {"slot":"Q","kind":"slow","clause":"Olaf throws an axe, dealing […] physical damage and Slowing by […]% for up to […] seconds (based on distance travelled).","source":"tooltip"},
+    {"slot":"Q","kind":"cooldownrefund","clause":"If Olaf picks up the axe, this Ability's Cooldown is reduced","source":"tooltip"},
+    {"slot":"W","kind":"shield","clause":"Olaf's Attack Speed is increased and he gains a Shield.","source":"description"},
+    {"slot":"E","kind":"cooldownrefund","clause":"Attacks lower the Cooldown of this Ability","source":"tooltip"},
+    {"slot":"R","kind":"cleanse","clause":"Active: Olaf cleanses all Immobilizing and Disabling effects on himself and becomes immune to them for […] seconds.","source":"tooltip"}
+  ],
+  "disagreements": []
+}

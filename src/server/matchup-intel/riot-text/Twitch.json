@@ -1,0 +1,19 @@
+{
+  "championId": "Twitch",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Deadly Venom","textHash":"e498ad246df57b4d"},
+    "Q": {"name":"Ambush","textHash":"e083c166ad37dcc7"},
+    "W": {"name":"Venom Cask","textHash":"7490c6552d065a71"},
+    "E": {"name":"Contaminate","textHash":"213c253933bf79c4"},
+    "R": {"name":"Spray and Pray","textHash":"523a9e293689703e"}
+  },
+  "facts": [
+    {"slot":"Q","kind":"stealth","clause":"Twitch becomes Camouflaged for a short duration and gains Move Speed.","source":"description"},
+    {"slot":"Q","kind":"cooldownrefund","clause":"When an enemy champion with Deadly Venom dies, Ambush's cooldown is reset.","source":"description"},
+    {"slot":"W","kind":"slow","clause":"Twitch hurls a cask of venom that explodes in an area, slowing targets and applying deadly venom to the target.","source":"description"}
+  ],
+  "disagreements": []
+}

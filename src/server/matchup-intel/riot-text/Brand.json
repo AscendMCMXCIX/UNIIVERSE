@@ -1,0 +1,18 @@
+{
+  "championId": "Brand",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Blaze","textHash":"50d8edda2ec62982"},
+    "Q": {"name":"Sear","textHash":"2237e77d9df185b4"},
+    "W": {"name":"Pillar of Flame","textHash":"cae7765d0be296de"},
+    "E": {"name":"Conflagration","textHash":"da063eafc1d2f3cc"},
+    "R": {"name":"Pyroclasm","textHash":"7a1a1da4ff8e0e0c"}
+  },
+  "facts": [
+    {"slot":"Q","kind":"stun","clause":"If the target is ablaze, Sear will stun the target.","source":"description"},
+    {"slot":"R","kind":"slow","clause":"If a target is ablaze, Pyroclasm will briefly slow them.","source":"description"}
+  ],
+  "disagreements": []
+}

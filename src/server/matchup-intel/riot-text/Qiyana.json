@@ -1,0 +1,24 @@
+{
+  "championId": "Qiyana",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Royal Privilege","textHash":"364ed54df63bc7d2"},
+    "Q": {"name":"Elemental Wrath / Edge of Ixtal","textHash":"1e3ac0ffefd6b554"},
+    "W": {"name":"Terrashape","textHash":"07cc2a7ee4951e21"},
+    "E": {"name":"Audacity","textHash":"4ae213f9b240b628"},
+    "R": {"name":"Supreme Display of Talent","textHash":"f7ee016d8425cfe1"}
+  },
+  "facts": [
+    {"slot":"Q","kind":"root","clause":"Ice Enchantment: Briefly Roots, then Slows","source":"tooltip"},
+    {"slot":"Q","kind":"slow","clause":"Ice Enchantment: Briefly Roots, then Slows by […]% for […] second.","source":"tooltip"},
+    {"slot":"Q","kind":"stealth","clause":"Wild Enchantment: Leaves a trail that turns Qiyana Invisible and grants […]% Move Speed.","source":"tooltip"},
+    {"slot":"W","kind":"dash","clause":"Qiyana dashes to a location and enchants her weapon with an element.","source":"description"},
+    {"slot":"W","kind":"cooldownrefund","clause":"This refreshes Elemental Wrath / Edge of Ixtal's Cooldown.","source":"tooltip","qualifier":"Elemental Wrath / Edge of Ixtal"},
+    {"slot":"E","kind":"dash","clause":"Qiyana dashes to an enemy, damaging them.","source":"description"},
+    {"slot":"R","kind":"stun","clause":"Qiyana sends out a shockwave that detonates whatever elements she hits with it, stunning and damaging nearby enemies.","source":"description"},
+    {"slot":"R","kind":"knockback","clause":"Qiyana launches a shockwave that Knocks Back enemies and detonates when it hits terrain.","source":"tooltip"}
+  ],
+  "disagreements": []
+}

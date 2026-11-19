@@ -1,0 +1,25 @@
+{
+  "championId": "Viego",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Sovereign's Domination","textHash":"5e3a51df761ed574"},
+    "Q": {"name":"Blade of the Ruined King","textHash":"8df30609d8b2cd36"},
+    "W": {"name":"Spectral Maw","textHash":"478d1688e30152b3"},
+    "E": {"name":"Harrowed Path","textHash":"5dee01876aa52457"},
+    "R": {"name":"Heartbreaker","textHash":"48a10e0fe442c734"}
+  },
+  "facts": [
+    {"slot":"P","kind":"heal","clause":"Viego temporarily seizes control of the dead enemy's body, healing for a percentage of his target's max health and gaining access to their basic abilities and items.","source":"description"},
+    {"slot":"P","kind":"transform","clause":"By attacking a wraith, Viego temporarily seizes control of the dead enemy's body","source":"description"},
+    {"slot":"Q","kind":"heal","clause":"dealing […] physical damage and restoring […]% of damage dealt as Health.","source":"tooltip","qualifier":"against an enemy he has recently damaged with an Ability"},
+    {"slot":"W","kind":"stun","clause":"Viego charges up before dashing forward, releasing a ball of concentrated Black Mist that stuns the first enemy hit.","source":"description"},
+    {"slot":"W","kind":"dash","clause":"Viego charges up before dashing forward, releasing a ball of concentrated Black Mist that stuns the first enemy hit.","source":"description"},
+    {"slot":"E","kind":"stealth","clause":"Viego can hide in the Mist as a wraith, gaining camouflage, Move Speed, and Attack Speed.","source":"description"},
+    {"slot":"R","kind":"knockback","clause":"Viego teleports to a nearby location and executes an enemy champion on arrival, piercing their heart and causing a destructive shockwave around them that knocks away their allies.","source":"description"},
+    {"slot":"R","kind":"slow","clause":"briefly Slowing them by […]% and dealing […] + […]% missing Health physical damage.","source":"tooltip"},
+    {"slot":"R","kind":"teleport","clause":"Viego teleports to a nearby location and executes an enemy champion on arrival, piercing their heart and causing a destructive shockwave around them that knocks away their allies.","source":"description"}
+  ],
+  "disagreements": []
+}

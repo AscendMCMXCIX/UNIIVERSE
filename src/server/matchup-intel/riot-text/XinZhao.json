@@ -1,0 +1,24 @@
+{
+  "championId": "XinZhao",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Determination","textHash":"4c372e98cee01db3"},
+    "Q": {"name":"Three Talon Strike","textHash":"66e3f42b799e5e17"},
+    "W": {"name":"Wind Becomes Lightning","textHash":"22392f1004f97cda"},
+    "E": {"name":"Audacious Charge","textHash":"98fc84f84c933a1b"},
+    "R": {"name":"Crescent Guard","textHash":"3abfd02072b33879"}
+  },
+  "facts": [
+    {"slot":"P","kind":"heal","clause":"deals bonus damage and heals Xin Zhao.","source":"description","conditional":true},
+    {"slot":"Q","kind":"knockup","clause":"knocking an opponent into the air.","source":"description","conditional":true},
+    {"slot":"Q","kind":"cooldownrefund","clause":"deal an additional […] physical damage and reduces his other Ability's Cooldowns","source":"tooltip","qualifier":"his other Ability's Cooldowns","conditional":true},
+    {"slot":"W","kind":"slow","clause":"Xin Zhao slashes in front of himself with his spear, then thrusts it forward, slowing affected enemies and marking them as Challenged.","source":"description"},
+    {"slot":"E","kind":"slow","clause":"Xin Zhao charges to an enemy, gaining increased Attack Speed and dealing damage to all enemies in the area, slowing them briefly.","source":"description"},
+    {"slot":"E","kind":"dash","clause":"Xin Zhao charges to an enemy, gaining increased Attack Speed and dealing damage to all enemies in the area, slowing them briefly.","source":"description"},
+    {"slot":"R","kind":"knockback","clause":"Active: Xin Zhao unleashes a sweep around him that deals […] plus […]% current Health physical damage and Knocks Back all non-Challenged enemies.","source":"tooltip"},
+    {"slot":"R","kind":"invulnerable","clause":"Afterwards, Xin Zhao becomes immune to damage from enemies outside the sweep range","source":"tooltip"}
+  ],
+  "disagreements": []
+}

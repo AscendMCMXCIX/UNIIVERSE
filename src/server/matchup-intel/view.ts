@@ -220,22 +220,31 @@ function abilityViews(data: DdragonChampionAbilities | null, notes: ChampionNote
 
 /**
  * An ability's facts from Riot's text, as far as Riot's text still is what was reviewed: each
- * ability's facts are pinned to its name and to the hash of its whole text (description and tooltip,
- * riotTextHash) at the review. The stored record carries the hash of the text it was read from
- * (rules format 2), so a change to either text, or a new name, hides the ability's facts, and the
- * page says how many and why in their place. A record stored before the rules kept the hash shows
- * them only on the very version reviewed; on any other its text cannot be compared, which is said too.
+ * ability's facts, and where its two texts differ, are pinned to its name and to the hash of its
+ * whole text (description and tooltip, riotTextHash) at the review. The stored record carries the
+ * hash of the text it was read from (rules format 2), so a change to either text, or a new name,
+ * hides the ability's facts and disagreements, and the page says how many and why in their place. A
+ * record stored before the rules kept the hash shows them only on the very version reviewed; on any
+ * other its text cannot be compared, which is said too. Each fact keeps what the review recorded
+ * with it (its qualifier, the conditional marker, another kind Riot's other text words it as).
  */
 export function riotTextView(a: DdragonAbility, reviewed: RiotTextChampion, dataVersion: string): RiotTextAbilityView {
   const facts = reviewed.facts.filter((f) => f.slot === a.slot);
+  const disagreements = (reviewed.disagreements ?? []).filter((d) => d.slot === a.slot);
   const pin = reviewed.abilities[a.slot];
-  const hide = (because: NonNullable<RiotTextAbilityView["hiddenBecause"]>): RiotTextAbilityView => ({ facts: [], hidden: facts.length, hiddenBecause: facts.length ? because : null });
+  const hide = (because: NonNullable<RiotTextAbilityView["hiddenBecause"]>): RiotTextAbilityView => ({ facts: [], disagreements: [], hidden: facts.length, hiddenDisagreements: disagreements.length, hiddenBecause: facts.length || disagreements.length ? because : null });
   if (!pin) return hide("unknown");
   if (pin.name !== a.name) return hide("renamed");
   if (typeof a.textHash === "string") {
     if (a.textHash !== pin.textHash) return hide("changed");
   } else if (dataVersion !== reviewed.version) return hide("unknown");
-  return { facts: facts.map((f) => ({ kind: f.kind, clause: f.clause, source: f.source })), hidden: 0, hiddenBecause: null };
+  return {
+    facts: facts.map(({ slot: _slot, ...f }) => ({ ...f, ...(f.alsoDescribedAs ? { alsoDescribedAs: { ...f.alsoDescribedAs } } : {}) })),
+    disagreements: disagreements.map((d) => ({ description: { ...d.description }, tooltip: { ...d.tooltip } })),
+    hidden: 0,
+    hiddenDisagreements: 0,
+    hiddenBecause: null,
+  };
 }
 
 /** The modifiers as the page draws them: what gives a refund back is curated text. */

@@ -3,10 +3,12 @@ import type { RiotTextChampion, RiotTextReview } from "../../src/domain/matchup-
 
 export const SLOTS: string[];
 export const KINDS: string[];
-export function plainText(raw: string): string;
-export function clauseInText(clause: string, raw: string): boolean;
-export function shownClause(clause: string): string;
-export function reviewOf(review: unknown): RiotTextReview;
-export function importChampion(reviewed: unknown, full: unknown): { record: RiotTextChampion; notes: string[]; left: string[] };
+export function preparedText(raw: string | null | undefined): string;
+export function spanInText(span: unknown, prepared: string | null): boolean;
+export function shownClause(span: string): string;
+export function reviewRecordOf(record: unknown): RiotTextReview;
+export function importChampion(reviewed: unknown, full: unknown): { record: RiotTextChampion };
+export function countsOf(records: readonly RiotTextChampion[]): { champions: number; facts: number; disagreements: number; qualifier: number; qualifierSource: number; conditional: number; alsoDescribedAs: number };
+export function importTable(from: string, full: unknown): Promise<RiotTextChampion[]>;
 export function serialise(record: RiotTextChampion): string;
 export function serialiseIndex(ids: readonly string[]): string;

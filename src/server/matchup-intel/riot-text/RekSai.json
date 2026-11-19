@@ -1,0 +1,23 @@
+{
+  "championId": "RekSai",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Fury of the Xer'Sai","textHash":"9651080b05f39864"},
+    "Q": {"name":"Queen's Wrath / Prey Seeker","textHash":"1a1a86bae10e2fd2"},
+    "W": {"name":"Burrow / Un-burrow","textHash":"f7dda2a901b9fa03"},
+    "E": {"name":"Furious Bite / Tunnel","textHash":"c4cac390e133f35f"},
+    "R": {"name":"Void Rush","textHash":"406da31b7ad7f27c"}
+  },
+  "facts": [
+    {"slot":"P","kind":"heal","clause":"She consumes this Fury while Burrowed to restore health.","source":"description"},
+    {"slot":"W","kind":"knockup","clause":"While Burrowed, Rek'Sai may cast Unburrow to knock up and damage nearby enemies.","source":"description"},
+    {"slot":"W","kind":"transform","clause":"Rek'Sai burrows into the ground, gaining new abilities and increased Move Speed.","source":"description"},
+    {"slot":"R","kind":"leap","clause":"Moments later, she leaps unstoppably at her target, dealing […] plus […]% max Health physical damage and resets the cooldown of Burrow / Un-burrow.","source":"tooltip"},
+    {"slot":"R","kind":"unstoppable","clause":"Moments later, she leaps unstoppably at her target, dealing […] plus […]% max Health physical damage and resets the cooldown of Burrow / Un-burrow.","source":"tooltip"},
+    {"slot":"R","kind":"untargetable","clause":"She can activate this ability to become briefly untargetable and lunge at a marked target for heavy damage based on their maximum health.","source":"description"},
+    {"slot":"R","kind":"cooldownrefund","clause":"Moments later, she leaps unstoppably at her target, dealing […] plus […]% max Health physical damage and resets the cooldown of Burrow / Un-burrow.","source":"tooltip","qualifier":"Burrow / Un-burrow"}
+  ],
+  "disagreements": []
+}

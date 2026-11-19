@@ -1,0 +1,22 @@
+{
+  "championId": "Anivia",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Rebirth","textHash":"fb51a147387f20e5"},
+    "Q": {"name":"Flash Frost","textHash":"2e076d7881bd0639"},
+    "W": {"name":"Crystallize","textHash":"37648abca18e0163"},
+    "E": {"name":"Frostbite","textHash":"6533ce107676e531"},
+    "R": {"name":"Glacial Storm","textHash":"57f94887929decd7"}
+  },
+  "facts": [
+    {"slot":"P","kind":"transform","clause":"Upon taking fatal damage, Anivia reverts to an egg and is reborn with full health.","source":"description"},
+    {"slot":"Q","kind":"stun","clause":"When the sphere explodes it does moderate damage in a radius, stunning anyone in the area.","source":"description"},
+    {"slot":"Q","kind":"slow","clause":"Anivia fires a massive chunk of ice, dealing […] magic damage and Chilling enemies for […] seconds, Slowing them","source":"tooltip"},
+    {"slot":"Q","kind":"recast","clause":"Anivia can Recast this ability while the ice flies to detonate it early.","source":"tooltip"},
+    {"slot":"R","kind":"slow","clause":"Anivia summons a driving rain of ice and hail to damage her enemies and slow their advance.","source":"description"},
+    {"slot":"R","kind":"toggle","clause":"Toggle: Anivia calls forth a driving rain of ice and hail that Slows enemies","source":"tooltip"}
+  ],
+  "disagreements": []
+}

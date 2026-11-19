@@ -1,0 +1,24 @@
+{
+  "championId": "Nocturne",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Umbra Blades","textHash":"adf929fa4f28014f"},
+    "Q": {"name":"Duskbringer","textHash":"8a955a5e88b4c556"},
+    "W": {"name":"Shroud of Darkness","textHash":"cc5c2119a69f1458"},
+    "E": {"name":"Unspeakable Horror","textHash":"cb73f0181c1a4c8f"},
+    "R": {"name":"Paranoia","textHash":"7b6f989d0b6e7bbb"}
+  },
+  "facts": [
+    {"slot":"P","kind":"heal","clause":"Every few seconds, Nocturne's next attack strikes surrounding enemies for bonus physical damage and heals himself.","source":"description"},
+    {"slot":"P","kind":"cooldownrefund","clause":"Nocturne's basic attacks reduce this cooldown.","source":"description"},
+    {"slot":"P","kind":"empower","clause":"Every few seconds, Nocturne's next attack strikes surrounding enemies for bonus physical damage and heals himself.","source":"description"},
+    {"slot":"W","kind":"spellshield","clause":"that blocks the next enemy Ability.","source":"tooltip"},
+    {"slot":"E","kind":"fear","clause":"dealing damage each second and applying fear to the target if they do not get out of range by the end of the duration.","source":"description"},
+    {"slot":"R","kind":"nearsight","clause":"Nocturne reduces the sight radius of all enemy champions and removes their ally vision in the process.","source":"description"},
+    {"slot":"R","kind":"dash","clause":"He can then launch himself at a nearby enemy champion.","source":"description"},
+    {"slot":"R","kind":"recast","clause":"Nocturne can Recast this Ability during the duration to launch himself at an enemy champion dealing […] physical damage.","source":"tooltip"}
+  ],
+  "disagreements": []
+}

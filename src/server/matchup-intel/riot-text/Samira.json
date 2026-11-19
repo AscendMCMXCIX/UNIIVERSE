@@ -1,0 +1,20 @@
+{
+  "championId": "Samira",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Daredevil Impulse","textHash":"ddc342d53647fa87"},
+    "Q": {"name":"Flair","textHash":"bedd4c4efe89f0c3"},
+    "W": {"name":"Blade Whirl","textHash":"1b7f867f6cb42238"},
+    "E": {"name":"Wild Rush","textHash":"41a1603f09b901ff"},
+    "R": {"name":"Inferno Trigger","textHash":"b09128684aa99b85"}
+  },
+  "facts": [
+    {"slot":"P","kind":"dash","clause":"Samira's attacks against enemies affected by Immobilizing effects will dash her to her attack range.","source":"description"},
+    {"slot":"E","kind":"dash","clause":"Samira dashes through an enemy (including structures), slashing enemies she passes through and gaining Attack Speed.","source":"description"},
+    {"slot":"E","kind":"cooldownrefund","clause":"Killing an enemy champion refreshes this ability's cooldown.","source":"description"},
+    {"slot":"R","kind":"lifesteal","clause":"each shot dealing […] physical damage and applying Life Steal at […]% effectiveness.","source":"tooltip"}
+  ],
+  "disagreements": []
+}

@@ -1,0 +1,22 @@
+{
+  "championId": "JarvanIV",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Martial Cadence","textHash":"ceabb46811906d68"},
+    "Q": {"name":"Dragon Strike","textHash":"ffdc02b32cd693fb"},
+    "W": {"name":"Golden Aegis","textHash":"c41ec258d4fdbc1a"},
+    "E": {"name":"Demacian Standard","textHash":"bf4e728c7517e2aa"},
+    "R": {"name":"Cataclysm","textHash":"9d1b671d00692a5b"}
+  },
+  "facts": [
+    {"slot":"Q","kind":"knockup","clause":"Additionally, this will pull Jarvan to his Demacian Standard, knocking up enemies in his path.","source":"description","qualifier":"If the lance connects with Demacian Standard","qualifierSource":"tooltip"},
+    {"slot":"Q","kind":"dash","clause":"Additionally, this will pull Jarvan to his Demacian Standard, knocking up enemies in his path.","source":"description","qualifier":"If the lance connects with Demacian Standard","qualifierSource":"tooltip"},
+    {"slot":"W","kind":"slow","clause":"Jarvan IV calls upon the ancient kings of Demacia to shield him from harm and slow surrounding enemies.","source":"description"},
+    {"slot":"W","kind":"shield","clause":"Jarvan IV calls upon the ancient kings of Demacia to shield him from harm and slow surrounding enemies.","source":"description"},
+    {"slot":"R","kind":"leap","clause":"Jarvan IV heroically leaps into battle at a target with such force that he terraforms the surrounding area to create an arena around them.","source":"description"},
+    {"slot":"R","kind":"recast","clause":"Jarvan can Recast to collapse the terrain.","source":"tooltip"}
+  ],
+  "disagreements": []
+}

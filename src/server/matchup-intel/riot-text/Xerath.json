@@ -1,0 +1,20 @@
+{
+  "championId": "Xerath",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Mana Surge","textHash":"50b687f2c5b55e09"},
+    "Q": {"name":"Arcanopulse","textHash":"5eabbafe692845bf"},
+    "W": {"name":"Eye of Destruction","textHash":"5d6e120cd1cfb0e0"},
+    "E": {"name":"Shocking Orb","textHash":"78eea97bcbf16244"},
+    "R": {"name":"Rite of the Arcane","textHash":"617ba38b21db45b3"}
+  },
+  "facts": [
+    {"slot":"P","kind":"cooldownrefund","clause":"Whenever Xerath kills a unit, this cooldown is reduced.","source":"description"},
+    {"slot":"W","kind":"slow","clause":"Calls down a barrage of arcane energy, slowing and dealing magic damage to all enemies in an area.","source":"description"},
+    {"slot":"E","kind":"stun","clause":"Deals magic damage to an enemy and stuns them.","source":"description"},
+    {"slot":"R","kind":"recast","clause":"During this time he may Recast up to […] times.","source":"tooltip"}
+  ],
+  "disagreements": []
+}

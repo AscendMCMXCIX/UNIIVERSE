@@ -1,0 +1,21 @@
+{
+  "championId": "Lulu",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Pix, Faerie Companion","textHash":"4d45fc72b6ed9716"},
+    "Q": {"name":"Glitterlance","textHash":"7a862ab3f829384e"},
+    "W": {"name":"Whimsy","textHash":"a2d7ad0664f9de7b"},
+    "E": {"name":"Help, Pix!","textHash":"19db8608706a406b"},
+    "R": {"name":"Wild Growth","textHash":"4b2a0ab0b9bc1c93"}
+  },
+  "facts": [
+    {"slot":"Q","kind":"slow","clause":"Pix and Lulu each fire a bolt of magical energy that damages and heavily slows all enemies it hits.","source":"description"},
+    {"slot":"W","kind":"polymorph","clause":"When used on an enemy, Lulu Polymorphs them for […] seconds.","source":"tooltip"},
+    {"slot":"E","kind":"shield","clause":"If cast on an ally, commands Pix to jump to an ally and shield them.","source":"description"},
+    {"slot":"R","kind":"knockup","clause":"Lulu enlarges an ally, Knocking Up surrounding enemies","source":"tooltip"},
+    {"slot":"R","kind":"slow","clause":"For the next few seconds, that ally gains an aura that slows nearby enemies.","source":"description"}
+  ],
+  "disagreements": []
+}

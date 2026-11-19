@@ -1,0 +1,19 @@
+{
+  "championId": "Malzahar",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Void Shift","textHash":"6cb15ff99255f469"},
+    "Q": {"name":"Call of the Void","textHash":"a09761e88dd3754b"},
+    "W": {"name":"Void Swarm","textHash":"c3406a11784d0e34"},
+    "E": {"name":"Malefic Visions","textHash":"08a40265600be8b4"},
+    "R": {"name":"Nether Grasp","textHash":"7434fdbcf9ad3e11"}
+  },
+  "facts": [
+    {"slot":"P","kind":"damagereduction","clause":"When he hasn't recently taken damage or been crowd controlled, Malzahar gains massive damage reduction and crowd control immunity, lingering for a short period after taking damage.","source":"description"},
+    {"slot":"Q","kind":"silence","clause":"After a short delay, they fire projectiles that deal Magic Damage and silence enemy champions.","source":"description"},
+    {"slot":"R","kind":"suppression","clause":"Malzahar channels the essence of the Void to suppress an enemy champion over a zone of damaging negative energy.","source":"description"}
+  ],
+  "disagreements": []
+}

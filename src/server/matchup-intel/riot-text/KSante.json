@@ -1,0 +1,34 @@
+{
+  "championId": "KSante",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Dauntless Instinct","textHash":"fa7c78410761704d"},
+    "Q": {"name":"Ntofo Strikes","textHash":"cbc6336ad7b91408"},
+    "W": {"name":"Path Maker","textHash":"22a26da9335c923f"},
+    "E": {"name":"Footwork","textHash":"860b9e9382ab0bb6"},
+    "R": {"name":"All Out","textHash":"7ab5d62fc8026935"}
+  },
+  "facts": [
+    {"slot":"P","kind":"empower","clause":"K'Sante's Abilities mark targets to take more damage on his next Attack.","source":"description"},
+    {"slot":"Q","kind":"stun","clause":"he instead fires a shockwave that Stuns and Pulls enemies for […] second.","source":"tooltip","conditional":true},
+    {"slot":"Q","kind":"pull","clause":"K'Sante fires a shockwave that pulls enemies in.","source":"description","conditional":true},
+    {"slot":"Q","kind":"slow","clause":"K'Sante strikes, damaging and slowing enemies in a short line.","source":"description"},
+    {"slot":"Q","kind":"cooldownrefund","clause":"When All Out, cooldown is reduced.","source":"description"},
+    {"slot":"W","kind":"stun","clause":"K'Sante charges up, taking reduced damage, then dashes, knocking back and stunning enemies.","source":"description","conditional":true},
+    {"slot":"W","kind":"knockback","clause":"K'Sante charges up, taking reduced damage, then dashes, knocking back and stunning enemies.","source":"description","conditional":true},
+    {"slot":"W","kind":"dash","clause":"K'Sante charges up, taking reduced damage, then dashes, knocking back and stunning enemies.","source":"description"},
+    {"slot":"W","kind":"unstoppable","clause":"K'Sante raises his weapons defensively for […]-[…]s, becoming Unstoppable and reducing incoming damage","source":"tooltip"},
+    {"slot":"W","kind":"damagereduction","clause":"K'Sante charges up, taking reduced damage, then dashes, knocking back and stunning enemies.","source":"description"},
+    {"slot":"W","kind":"cooldownrefund","clause":"All Out: Cooldown is refreshed.","source":"tooltip"},
+    {"slot":"E","kind":"dash","clause":"K'Sante dashes and gains a shield.","source":"description"},
+    {"slot":"E","kind":"shield","clause":"K'Sante dashes and gains a shield.","source":"description"},
+    {"slot":"E","kind":"cooldownrefund","clause":"When All Out, cooldown is reduced and speed is increased.","source":"description"},
+    {"slot":"R","kind":"knockback","clause":"K'Sante knocks an enemy back, launching them through any wall in their path.","source":"description"},
+    {"slot":"R","kind":"dash","clause":"Then, K'Sante goes All Out and dashes after them, gaining increased damage, healing, and transformed abilities at the cost of reduced defenses.","source":"description"},
+    {"slot":"R","kind":"omnivamp","clause":"K'Sante's Abilities are upgraded and he gains […]% Attack Speed, […]% Bonus Armor Penetration, and […]% Omnivamp, but loses […]% max Health","source":"tooltip"},
+    {"slot":"R","kind":"transform","clause":"Then, K'Sante goes All Out and dashes after them, gaining increased damage, healing, and transformed abilities at the cost of reduced defenses.","source":"description"}
+  ],
+  "disagreements": []
+}

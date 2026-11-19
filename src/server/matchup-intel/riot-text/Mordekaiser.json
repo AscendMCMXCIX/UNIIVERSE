@@ -1,0 +1,20 @@
+{
+  "championId": "Mordekaiser",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Darkness Rise","textHash":"15047fc9d122cc06"},
+    "Q": {"name":"Obliterate","textHash":"00af9c17d2d2a202"},
+    "W": {"name":"Indestructible","textHash":"c4d70d6500d8bfb0"},
+    "E": {"name":"Death's Grasp","textHash":"ca0ce6ebe774ade3"},
+    "R": {"name":"Realm of Death","textHash":"c8e5a3df22892654"}
+  },
+  "facts": [
+    {"slot":"W","kind":"shield","clause":"Mordekaiser stores damage he deals and takes to create a shield.","source":"description"},
+    {"slot":"W","kind":"heal","clause":"He may consume the shield to heal.","source":"description"},
+    {"slot":"W","kind":"recast","clause":"He may Recast this Ability","source":"tooltip"},
+    {"slot":"E","kind":"pull","clause":"Mordekaiser pulls all enemies in an area.","source":"description"}
+  ],
+  "disagreements": []
+}

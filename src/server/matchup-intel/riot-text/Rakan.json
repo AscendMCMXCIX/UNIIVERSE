@@ -1,0 +1,24 @@
+{
+  "championId": "Rakan",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Fey Feathers","textHash":"ebaf401628c28203"},
+    "Q": {"name":"Gleaming Quill","textHash":"ccff83f9e1470651"},
+    "W": {"name":"Grand Entrance","textHash":"434b269d2230851d"},
+    "E": {"name":"Battle Dance","textHash":"b4b3d4e83b3c295a"},
+    "R": {"name":"The Quickness","textHash":"05fed252ad03b6dd"}
+  },
+  "facts": [
+    {"slot":"P","kind":"shield","clause":"Rakan periodically gains a shield.","source":"description"},
+    {"slot":"Q","kind":"heal","clause":"Striking a champion or epic monster enables Rakan to heal his allies.","source":"description"},
+    {"slot":"W","kind":"knockup","clause":"Dashes to a location, knocking up nearby enemies on arrival.","source":"description"},
+    {"slot":"W","kind":"dash","clause":"Dashes to a location, knocking up nearby enemies on arrival.","source":"description"},
+    {"slot":"E","kind":"dash","clause":"Rakan dashes to an allied champion, granting them","source":"tooltip"},
+    {"slot":"E","kind":"shield","clause":"Flies to an allied champion granting them a shield.","source":"description"},
+    {"slot":"E","kind":"recast","clause":"Can be re-cast for free for a short duration.","source":"description"},
+    {"slot":"R","kind":"charm","clause":"Gains Move Speed, charming and dealing magic damage to enemies touched.","source":"description"}
+  ],
+  "disagreements": []
+}

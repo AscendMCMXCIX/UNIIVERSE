@@ -1,0 +1,19 @@
+{
+  "championId": "Orianna",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Clockwork Windup","textHash":"9f96766bcae14422"},
+    "Q": {"name":"Command: Attack","textHash":"6798c508b975d211"},
+    "W": {"name":"Command: Dissonance","textHash":"878102c46f246b2d"},
+    "E": {"name":"Command: Protect","textHash":"1184c9428bec9070"},
+    "R": {"name":"Command: Shockwave","textHash":"45ceaac47aa9a693"}
+  },
+  "facts": [
+    {"slot":"W","kind":"slow","clause":"This leaves a field behind that speeds up allies and slows enemies.","source":"description"},
+    {"slot":"E","kind":"shield","clause":"Orianna commands her Ball to attach to an allied champion, Shielding them and dealing magic damage to any enemies it passes through on the way.","source":"description"},
+    {"slot":"R","kind":"pull","clause":"Orianna commands her Ball to unleash a shockwave, dealing magic damage and launching nearby enemies towards the Ball after a short delay.","source":"description"}
+  ],
+  "disagreements": []
+}

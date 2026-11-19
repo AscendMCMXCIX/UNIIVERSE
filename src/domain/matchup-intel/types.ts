@@ -499,27 +499,68 @@ export const FACT_KIND_GROUP: Record<FactKind, KindGroup | null> = {
 /** Which of Riot's two texts for an ability a fact quotes: the short description, or the tooltip. */
 export type RiotTextSource = "description" | "tooltip";
 
-/** One fact from Riot's text: the kind it names and the clause of Riot's text it rests on, quoted. */
+/**
+ * One fact from Riot's text: the kind it names and the clause of Riot's text it rests on, quoted,
+ * with what the review recorded beside it. Every span is Riot's own words, verbatim; each of Riot's
+ * placeholders appears as "[…]", never a number (the import script, shownClause).
+ */
 export interface RiotTextFact {
   slot: Slot;
   kind: RiotTextKind;
-  /** The clause of Riot's text, as quoted ("Darius hooks with his axe, Pulling, and Knocking Up"); each of Riot's placeholders appears as "[…]", never a number (the import script, shownClause). */
+  /** The clause of Riot's text, as quoted ("Darius hooks with his axe, Pulling, and Knocking Up"). */
   clause: string;
   source: RiotTextSource;
+  /**
+   * Riot's words for what the clause leaves out and the fact holds only with: a form, an upgrade, a
+   * condition or a recipient ("Mega Gnar", "Max Ferocity", "nearby ally champions"). On a cooldown
+   * refund, the abilities whose cooldown it cuts ("Mantra", "his other basic abilities"); a cooldown
+   * refund without one refunds the ability's own cooldown. Shown with the fact, never apart from it.
+   */
+  qualifier?: string;
+  /** Present only when the qualifier is quoted from the ability's other text (otherwise it is the fact's own `source`). */
+  qualifierSource?: RiotTextSource;
+  /**
+   * The fact holds only under a condition that no number-free words of Riot's text name: shown with
+   * the fixed marker "Conditional: see Riot's text", the quote one tap away; never a condition in
+   * the page's own words.
+   */
+  conditional?: true;
+  /**
+   * Riot's other text words the same effect as another kind of the same family (one movement, a fear
+   * and a flee): said in the ability's details ("Riot's description calls it leap"), never a chip of
+   * its own and never counted.
+   */
+  alsoDescribedAs?: { kind: RiotTextKind; source: RiotTextSource; clause: string };
 }
 
 /**
- * How a champion's facts from Riot's text were reviewed. Today: drafted from the text, then two
- * independent automated reviews and an adjudicator; no person has reviewed them (`person` false).
- * The owner's review by a person upgrades a champion's record (docs/MATCHUP_INTEL.md).
+ * Riot's two texts for one ability state different effects (its description a knock-up, its tooltip
+ * a knock-back): no fact of either kind exists there, and the page shows both quotes and picks
+ * neither.
+ */
+export interface RiotTextDisagreement {
+  slot: Slot;
+  description: { kind: RiotTextKind; clause: string };
+  tooltip: { kind: RiotTextKind; clause: string };
+}
+
+/**
+ * How a champion's facts from Riot's text were reviewed, as the review recorded it (its
+ * reviewRecord, read by the import script, never assumed). Today: drafted by fixed rules from Riot's
+ * text, every draft read by two independent automated reviewers and settled by an adjudicator, then a
+ * consistency pass across the batches checked by two more independent automated checkers; no person
+ * has checked any of it (`checkedByPerson` false). A person's check would change the label, which
+ * is the owner's decision (docs/MATCHUP_INTEL.md, "Facts from Riot's text").
  */
 export interface RiotTextReview {
-  /** Independent automated reviews each fact passed. */
-  automatedReviews: number;
-  /** An automated adjudicator settled where the reviews disagreed. */
+  /** Independent automated reviewers that read every draft. */
+  automatedReviewers: number;
+  /** An automated adjudicator settled every batch, where the reviewers split. */
   adjudicated: boolean;
-  /** A person reviewed every fact. */
-  person: boolean;
+  /** Independent automated checkers that checked the consistency pass across the batches (0 when there was none). */
+  consistencyCheckers: number;
+  /** A person checked the facts. False in every committed file: the label says "not by a person". */
+  checkedByPerson: boolean;
 }
 
 /**
@@ -538,6 +579,7 @@ export interface RiotTextChampion {
   /** Each ability as reviewed: its name and the hash of its text. */
   abilities: Partial<Record<Slot, { name: string; textHash: string }>>;
   facts: RiotTextFact[];
+  disagreements: RiotTextDisagreement[];
 }
 
 /** A pointer to one ability: "<ChampionId>.<Slot>", e.g. "Renekton.W". */
@@ -689,12 +731,11 @@ export interface AbilityView {
   riotText: RiotTextAbilityView | null;
 }
 
-/** One fact from Riot's text, ready to show. */
-export interface RiotTextFactView {
-  kind: RiotTextKind;
-  clause: string;
-  source: RiotTextSource;
-}
+/** One fact from Riot's text, ready to show (RiotTextFact without its slot). */
+export type RiotTextFactView = Omit<RiotTextFact, "slot">;
+
+/** Where Riot's two texts for an ability differ, ready to show (RiotTextDisagreement without its slot). */
+export type RiotTextDisagreementView = Omit<RiotTextDisagreement, "slot">;
 
 /**
  * An ability's facts from Riot's text as the page shows them: those whose text still matches what
@@ -702,8 +743,12 @@ export interface RiotTextFactView {
  */
 export interface RiotTextAbilityView {
   facts: RiotTextFactView[];
+  /** Where Riot's two texts for it differ (shown as that, with both quotes, never as a fact). */
+  disagreements: RiotTextDisagreementView[];
   /** How many reviewed facts are hidden (0 when none). */
   hidden: number;
+  /** How many of its recorded disagreements are hidden with them (0 when none). */
+  hiddenDisagreements: number;
   /**
    * Why they are hidden: Riot's text changed since the review ("changed"), the ability's name is no
    * longer the one reviewed ("renamed"), or the stored record cannot say whether its text changed

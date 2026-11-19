@@ -1,0 +1,17 @@
+{
+  "championId": "KogMaw",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Icathian Surprise","textHash":"20bcc0336cea5cef"},
+    "Q": {"name":"Caustic Spittle","textHash":"5f957a6f67cf5299"},
+    "W": {"name":"Bio-Arcane Barrage","textHash":"4b2e82b5bf8fc01d"},
+    "E": {"name":"Void Ooze","textHash":"5f9349c5e32a7fe7"},
+    "R": {"name":"Living Artillery","textHash":"80986441925c4980"}
+  },
+  "facts": [
+    {"slot":"E","kind":"slow","clause":"Kog'Maw launches a peculiar ooze which damages all enemies it passes through and leaves a trail which slows enemies who stand on it.","source":"description"}
+  ],
+  "disagreements": []
+}

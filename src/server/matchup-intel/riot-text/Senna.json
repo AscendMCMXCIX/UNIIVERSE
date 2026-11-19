@@ -1,0 +1,22 @@
+{
+  "championId": "Senna",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Absolution","textHash":"1ab38a5adcf8784c"},
+    "Q": {"name":"Piercing Darkness","textHash":"b15b69916f58206b"},
+    "W": {"name":"Last Embrace","textHash":"1d46ad8e0e34fe41"},
+    "E": {"name":"Curse of the Black Mist","textHash":"e9c0fe15c701c450"},
+    "R": {"name":"Dawning Shadow","textHash":"5833450a34ddc8ba"}
+  },
+  "facts": [
+    {"slot":"Q","kind":"slow","clause":"dealing […] physical damage to enemies and Slowing them by […] for […] second(s).","source":"tooltip"},
+    {"slot":"Q","kind":"heal","clause":"From the twin barrels of her Relic Cannon, Senna fires a unified beam of light and shadow through a target, healing allies and damaging enemies.","source":"description"},
+    {"slot":"Q","kind":"cooldownrefund","clause":"Attacks reduce this Ability's Cooldown by […] second.","source":"tooltip"},
+    {"slot":"W","kind":"root","clause":"If it hits an enemy it latches onto them hungrily, rooting them and everything nearby after a brief delay.","source":"description"},
+    {"slot":"E","kind":"stealth","clause":"Allies who enter the area are camouflaged and also appear as wraiths as the Mist shrouds them.","source":"description"},
+    {"slot":"R","kind":"shield","clause":"She then fires a global beam that shields allies from harm, while damaging enemies caught in the center.","source":"description"}
+  ],
+  "disagreements": []
+}
