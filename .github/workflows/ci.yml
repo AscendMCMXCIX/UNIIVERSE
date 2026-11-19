@@ -248,8 +248,12 @@ jobs:
     needs: check
     if: github.event_name == 'pull_request' && needs.check.outputs.tested != 'true'
     # Ubuntu 24.04, not ubuntu-latest (26.04): Playwright 1.58.2, whose WebKit 26.0 the Safari 26
-    # step needs, has no WebKit for 26.04.
+    # step needs, has no WebKit for 26.04. The job runs in Playwright's own image of the same
+    # version on Ubuntu 24.04, which ships WebKit and its system libraries: on 19 Nov 2026 installing
+    # those libraries from the runner's Ubuntu mirror took 42 of the job's 45 minutes (#319).
     runs-on: ubuntu-24.04
+    container:
+      image: mcr.microsoft.com/playwright:v1.64.1-noble
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
@@ -261,17 +265,10 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - id: playwright
-        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
-      - uses: actions/cache@v6
-        id: browsers
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-ubuntu-24.04-${{ steps.playwright.outputs.version }}-webkit
-      - if: steps.browsers.outputs.cache-hit != 'true'
-        run: pnpm exec playwright install --with-deps webkit
-      - if: steps.browsers.outputs.cache-hit == 'true'
-        run: pnpm exec playwright install-deps webkit
+      # The image's WebKit must be the one this Playwright drives (its version is in the image's tag).
+      - run: |
+          want="$(node -p "require('@playwright/test/package.json').version")"
+          [ "$want" = "1.64.1" ] || { echo "::error::Playwright is $want; update the WebKit job's image tag (v1.64.1-noble)."; exit 1; }
       - id: build
         run: pnpm build
         env:
