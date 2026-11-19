@@ -237,7 +237,12 @@ export function InfoTip({ text, className, label, children, testId = "info-tip",
       e.stopPropagation();
       hide();
     };
-    const onScroll = () => (tapped.current ? hide() : place());
+    const onScroll = () => {
+      // A press that became a scroll is no tap: the click after it is not swallowed.
+      swallow = false;
+      if (tapped.current) hide();
+      else place();
+    };
     window.addEventListener("pointerdown", onDown, true);
     window.addEventListener("keydown", onKey, true);
     window.addEventListener("scroll", onScroll, true);

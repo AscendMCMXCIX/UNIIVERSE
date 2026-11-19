@@ -63,6 +63,8 @@ export interface PeekControl {
   rowProps: (id: string) => { "data-peek-row": string; "data-peek-selected"?: true; "aria-current"?: "true"; onClick: (e: React.MouseEvent<HTMLElement>) => void };
   /** Whether the open was from the keyboard (the panel's heading then takes the focus). */
   fromKeyboard: boolean;
+  /** The query parameter the item lives in. */
+  param: string;
 }
 
 /** The focusable element of a row: the row itself, or the first control in it. */
@@ -166,7 +168,7 @@ export function usePeek({ param, ids, initial = null, valid: validProp }: { para
     },
     [id, toggle],
   );
-  return { id, open, close, toggle, prev, next, rowProps, fromKeyboard };
+  return { id, open, close, toggle, prev, next, rowProps, fromKeyboard, param };
 }
 
 /**
@@ -199,10 +201,9 @@ export function Peek({ peek, title, itemKey, children, actions, hero, windowSize
   // The last item shown, kept through the closing motion.
   const [shown, setShown] = React.useState<{ key: string; title: string; children: React.ReactNode } | null>(open ? { key: itemKey, title, children } : null);
   const [closing, setClosing] = React.useState(false);
-  if (open && (shown?.key !== itemKey || shown.title !== title)) {
-    setShown({ key: itemKey, title, children });
-    if (closing) setClosing(false);
-  }
+  if (open && (shown?.key !== itemKey || shown.title !== title)) setShown({ key: itemKey, title, children });
+  // Opened again during its closing motion (the same row pressed twice quickly): open, not closing.
+  if (open && closing) setClosing(false);
   if (!open && shown && !closing) setClosing(true);
   React.useEffect(() => {
     if (!closing) return;
@@ -236,7 +237,7 @@ export function Peek({ peek, title, itemKey, children, actions, hero, windowSize
 
   if (windowed) {
     return (
-      <DetailModal open={open} onClose={peek.close} title={shown?.title ?? title} size={windowSize} headerExtra={nav} header={windowHeader} headerClassName={windowHeader ? "overflow-hidden" : undefined} titleId={windowTitleId} testId={testId} closeTestId={navTestIds?.close ?? `${testId}-close`}>
+      <DetailModal open={open} onClose={peek.close} title={shown?.title ?? title} size={windowSize} headerExtra={nav} header={windowHeader} headerClassName={windowHeader ? "overflow-hidden" : undefined} titleId={windowTitleId} addressParam={peek.param} testId={testId} closeTestId={navTestIds?.close ?? `${testId}-close`}>
         {shown ? (
           <div key={shown.key}>
             {windowHeader ? null : hero}
