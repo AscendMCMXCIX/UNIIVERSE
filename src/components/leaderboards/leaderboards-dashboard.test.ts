@@ -4,10 +4,20 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { cardLookFor } from "@/domain/card-style";
 import { teamDataStatus } from "@/domain/data-status";
 import type { BoardPlayer, LeaderboardsView } from "@/server/leaderboards/recent-view";
+import { PageToolbar } from "@/components/ui/page-toolbar";
 import { LeaderboardsDashboard } from "./leaderboards-dashboard";
 
 // The season's choice (a client component) asks for the router, which a markup test has none of.
 vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: () => {} }) }));
+// The pinned row's copy of a page's controls (PageToolbar) draws nothing on the server, where there is
+// no row to draw into, so markup alone could not show that the page puts nothing there: here it draws
+// a mark of its own wherever a page renders one.
+vi.mock(import("@/components/ui/page-toolbar"), async (original) => {
+  const { createElement: h } = await import("react");
+  const toolbar = await original();
+  const mark = ({ label }: { label?: string }) => h("div", { "data-pinned-copy": label ?? "" });
+  return { ...toolbar, PageToolbar: mark as unknown as typeof toolbar.PageToolbar };
+});
 
 /*
   Leaderboards as one page (since 19 Nov 2026: no views, no tabs): the header, the index of the sections on a long
@@ -57,7 +67,10 @@ describe("Leaderboards, one page", () => {
     expect(html).not.toContain("leaderboards-tab-");
     expect(html).not.toContain("view=records");
     expect(html).not.toContain("Records &amp; achievements");
-    expect(html).not.toContain("page-toolbar");
+    // No copy for the pinned row anywhere on the page (the mark shows where one is rendered, as for any page that has one).
+    const mark = PageToolbar as unknown as (props: { label: string }) => ReturnType<typeof createElement>;
+    expect(renderToStaticMarkup(createElement(mark, { label: "Some page's controls" }))).toContain('data-pinned-copy="Some page&#x27;s controls"');
+    expect(html).not.toContain("data-pinned-copy");
   });
 
   it("reads in one order: its title and who is on it, then Recent form, the season records, the multikills, the milestones", () => {
@@ -85,15 +98,24 @@ describe("Leaderboards, one page", () => {
     expect(html).not.toContain("records-volume-note");
   });
 
-  it("places the four boards on one grid by the page's own width: across the page, then beside each other", () => {
+  it("places the four boards on one grid by the page's own width: across the page, then in two columns, each board under the one before it in its own", () => {
     expect(html).toContain("@container/dash");
     const grid = /<div class="([^"]*)" data-testid="leaderboards-grid">/.exec(html)![1]!;
     expect(grid).toContain("@min-[59rem]/dash:grid-cols-[minmax(36rem,1fr)_minmax(21rem,24rem)]");
-    expect(grid).toContain("@min-[86rem]/dash:grid-cols-[minmax(22rem,25rem)_minmax(34.5rem,1fr)_minmax(26.5rem,38.5rem)]");
-    // From 86rem the season records stand beside Recent form, in its first row.
-    expect(html).toMatch(/<section id="season-records" aria-labelledby="season-records-title" class="min-w-0 @min-\[86rem\]\/dash:col-start-3 @min-\[86rem\]\/dash:row-start-1" data-testid="records">/);
-    expect(html).toMatch(/<section id="recent-form" aria-labelledby="form-board-title" class="[^"]*@min-\[59rem\]\/dash:col-span-2" data-testid="form">/);
-    expect(html).toMatch(/<section id="milestones" aria-labelledby="milestones-title" class="min-w-0 @min-\[59rem\]\/dash:col-span-2">/);
+    // From 86rem: Recent form's column at least 58rem of board inside its 1px border (its one-line rows) with room to spare, the
+    // records' column from 26.25rem, so the two and the gap come to 86rem exactly; the second row takes what the records' column has beyond Recent form.
+    expect(grid).toContain("@min-[86rem]/dash:grid-cols-[minmax(58.25rem,1fr)_minmax(26.25rem,38.5rem)]");
+    expect(grid).toContain("@min-[86rem]/dash:grid-rows-[auto_1fr]");
+    // Recent form across the page from 59rem; from 86rem the first column's first row, the milestones under it.
+    expect(html).toMatch(/<section id="recent-form" aria-labelledby="form-board-title" class="[^"]*@min-\[59rem\]\/dash:col-span-2 @min-\[86rem\]\/dash:col-\[1\/2\] @min-\[86rem\]\/dash:row-\[1\/2\]" data-testid="form">/);
+    expect(html).toMatch(/<section id="milestones" aria-labelledby="milestones-title" class="min-w-0 @min-\[59rem\]\/dash:col-span-2 @min-\[86rem\]\/dash:col-\[1\/2\] @min-\[86rem\]\/dash:row-\[2\/3\]">/);
+    // The season records and the multikills: two of the grid's boards under 86rem (the wrapper draws no box), from 86rem
+    // one column beside the other across both rows, the records first.
+    const side = /<div class="([^"]*)" data-testid="leaderboards-side">([\s\S]*?)<section id="milestones"/.exec(html)!;
+    expect(side[1]!.split(" ")).toEqual(["contents", "@min-[86rem]/dash:col-[2/3]", "@min-[86rem]/dash:row-[1/span_2]", "@min-[86rem]/dash:flex", "@min-[86rem]/dash:min-w-0", "@min-[86rem]/dash:flex-col", "@min-[86rem]/dash:gap-6"]);
+    expect(side[2]!.indexOf('<section id="season-records"')).toBeGreaterThanOrEqual(0);
+    expect(side[2]!.indexOf('<section id="season-records"')).toBeLessThan(side[2]!.indexOf('<section id="multikills"'));
+    expect(html).toMatch(/<section id="season-records" aria-labelledby="season-records-title" class="min-w-0" data-testid="records">/);
   });
 
   it("indexes the sections below Recent form for a one-column page, each link to a section on the page", () => {

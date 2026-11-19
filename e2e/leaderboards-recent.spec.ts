@@ -1,4 +1,5 @@
 import { AxeBuilder } from "@axe-core/playwright";
+import { RECORD_YOURS, RECORD_YOURS_VALUE } from "../src/components/leaderboards/record-yours";
 import { expect, test, type Page } from "./test";
 
 /*
@@ -87,6 +88,17 @@ test("Records & achievements' old address lands on the same page at its season r
   if (!atEnd) expect(top, "the records at the window's top").toBeLessThanOrEqual(pinned + 24);
   // One entry for the page: the landing replaced the old address, it did not add one.
   expect(await page.evaluate(() => history.length)).toBe(entries + 1);
+  // The router keeps its own state in the replaced entry: after a link in the app, Back shows this page again, at its address
+  // (an entry without the router's state is one it does not restore: the address said Leaderboards over the page left on screen).
+  expect(await page.evaluate(() => !!(history.state as { __NA?: boolean } | null)?.__NA), "the router's state in the entry").toBe(true);
+  // Players: the section tabs' (a tablet, a desktop), the tab bar's on a phone.
+  await page.locator("[data-testid=team-tabs], [data-testid=phone-tabbar]").locator("a[href='/players']:visible").first().click();
+  await expect(page).toHaveURL(/\/players$/);
+  await expect(page.getByTestId("players-directory")).toBeVisible();
+  await page.goBack();
+  await expect(page).toHaveURL(/\/leaderboards\?season=16#season-records$/);
+  await expect(page.getByTestId("players-directory")).toHaveCount(0);
+  await expect(page.getByTestId("records-book")).toBeVisible();
   await page.goBack();
   await expect(page).toHaveURL(/\/team$/);
   await page.goForward();
@@ -425,19 +437,41 @@ async function openRecords(page: Page) {
   await page.evaluate(() => document.fonts.ready);
 }
 
-/** Each record's cell: its own width in rem (what its row's tiers measure), its height, whether its qualifier takes a line of its own. */
+/**
+ * Each record's cell: its own width in rem (what its row's tiers measure), its own height, whether its
+ * qualifier takes a line of its own. Two cells side by side share a grid row, which each stretches to
+ * (the hairline between them runs the row's height), so a cell's box is the taller one's: the stretch
+ * is lifted for the measure and put back in the same step, before anything is drawn.
+ */
 const recordCells = (page: Page) =>
-  page.getByTestId("season-record").evaluateAll((rows) =>
-    rows.map((row) => {
-      const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+  page.getByTestId("season-record").evaluateAll((rows) => {
+    const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+    const lifted = rows.flatMap((r) => [r.closest("li")!, r.parentElement!, r as HTMLElement]);
+    const kept = lifted.map((el) => [el.style.alignSelf, el.style.height] as const);
+    for (const el of lifted) {
+      if (el.tagName === "LI") el.style.alignSelf = "start";
+      else el.style.height = "auto";
+    }
+    const cells = rows.map((row) => {
       const cell = row.closest("li")!;
       const label = row.querySelector("[data-testid=record-label]")!.getBoundingClientRect();
       const qualifier = row.querySelector("[data-testid=record-qualifier]")?.getBoundingClientRect() ?? null;
-      return { id: row.getAttribute("data-record"), rem: cell.clientWidth / rem, height: row.getBoundingClientRect().height, rowRem: row.getBoundingClientRect().height / rem, ownLine: !!qualifier && qualifier.top >= label.bottom - 2 };
-    }),
-  );
+      const height = row.getBoundingClientRect().height;
+      return { id: row.getAttribute("data-record"), rem: cell.clientWidth / rem, height, rowRem: height / rem, ownLine: !!qualifier && qualifier.top >= label.bottom - 2 };
+    });
+    lifted.forEach((el, i) => {
+      [el.style.alignSelf, el.style.height] = kept[i]!;
+    });
+    return cells;
+  });
 
 test("the season records: seven cells in one panel, each opening its game; multikills rarest first; milestones", async ({ page }) => {
+  // The cells' games are not prefetched (each would be a server render of its own, on every visit): only a click asks for one.
+  const prefetched: string[] = [];
+  page.on("request", (r) => {
+    const url = new URL(r.url());
+    if (/^\/players\/[^/]+\/matches$/.test(url.pathname) && (url.searchParams.has("_rsc") || r.headers()["rsc"] === "1")) prefetched.push(url.search);
+  });
   await openRecords(page);
   // One panel holding the seven records, its definitions (and that records reward playing more) behind one ⓘ in its title.
   const book = page.getByTestId("records-book");
@@ -499,6 +533,10 @@ test("the season records: seven cells in one panel, each opening its game; multi
   await expect(page.getByTestId("milestones-mastery-hint")).toHaveAccessibleDescription(/100K, 500K and 1M points/);
   await noOverflow(page);
   await axe(page, "[data-testid=leaderboards]");
+  // Every cell has been in view (the page scrolled through them), and no game was asked for.
+  for (const cell of await page.getByTestId("season-record").all()) await cell.scrollIntoViewIfNeeded();
+  await page.waitForLoadState("networkidle");
+  expect(prefetched, "the record cells' games prefetched").toEqual([]);
   // The whole row opens its game in the holder's Match History (under its card, or in the match window).
   const kills = page.locator('[data-testid=season-record][data-record="kills"]');
   await expect(kills.locator("[data-row-link]")).toHaveAttribute("href", /^\/players\/[^/]+\/matches\?match=/);
@@ -510,7 +548,7 @@ test("the season records: seven cells in one panel, each opening its game; multi
   await expect(page.locator("[data-testid=match-detail], [data-testid=match-breakdown]").first()).toBeVisible();
 });
 
-/** Where each board is on the page (document px), and the window. */
+/** Where each board is on the page (document px), the grid's gap, Recent form's tier (its rows' columns: 4, 6 or 8), and the window. */
 const boards = (page: Page) =>
   page.evaluate(() => {
     const box = (id: string) => {
@@ -519,17 +557,56 @@ const boards = (page: Page) =>
     };
     const bottoms = (id: string) => [...document.querySelectorAll(`[data-testid=${id}]`)].map((e) => e.getBoundingClientRect().bottom + scrollY);
     const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
-    return { rem, page: document.querySelector("[data-testid=leaderboards]")!.clientWidth / rem, form: box("form-board"), records: box("records-book"), multikills: box("records-multikills"), milestones: box("records-milestones"), formRows: bottoms("form-row"), recordRows: bottoms("season-record"), height: document.documentElement.scrollHeight, window: innerHeight };
+    const formRow = document.querySelector<HTMLElement>("[data-testid=form-row]")!;
+    return {
+      rem,
+      page: document.querySelector("[data-testid=leaderboards]")!.clientWidth / rem,
+      gap: parseFloat(getComputedStyle(document.querySelector("[data-testid=leaderboards-grid]")!).rowGap),
+      formTracks: getComputedStyle(formRow).gridTemplateColumns.split(" ").filter(Boolean).length,
+      form: box("form-board"),
+      records: box("records-book"),
+      multikills: box("records-multikills"),
+      milestones: box("records-milestones"),
+      formRows: bottoms("form-row"),
+      recordRows: bottoms("season-record"),
+      height: document.documentElement.scrollHeight,
+      window: innerHeight,
+    };
   });
 
-test("the page's own width places its boards: Recent form across with the records beside the multikills at 1280 and 1440; from 1920 Recent form beside the records, every ranking row and record on the first screen, the achievements starting on it", async ({ page, context, baseURL }, info) => {
+/**
+ * A member's own bests, as a member with a best on every record sees them ("Your best: 9 · 4 Oct
+ * 2026", where its holder sees "You hold this record"): the demo's viewer has no player profile, so
+ * no cell carries one. Each cell gets the line RecordRow draws (record-yours.ts): a fourth line in a
+ * narrow cell, under the value from 36rem.
+ */
+const addOwnBests = (page: Page) =>
+  page.evaluate(
+    ({ line, value }) => {
+      for (const row of document.querySelectorAll("[data-testid=season-record]")) {
+        const yours = document.createElement("span");
+        yours.dataset.testid = "record-yours";
+        yours.className = line;
+        const figure = document.createElement("span");
+        figure.className = value;
+        figure.textContent = "9";
+        yours.append("Your best: ", figure, " · 4 Oct 2026");
+        row.append(yours);
+      }
+    },
+    { line: RECORD_YOURS, value: RECORD_YOURS_VALUE },
+  );
+
+test("the page's own width places its boards: Recent form across with the records beside the multikills at 1280 and 1440; from 86rem two columns, each board under the one before it in its own (a member's bests included), every ranking row and record on the first screen, the achievements starting on it", async ({ page, context, baseURL }, info) => {
   test.skip(info.project.name !== "desktop", "explicit window sizes");
-  test.setTimeout(120_000);
+  test.setTimeout(180_000);
   for (const sidebar of ["expanded", "collapsed"] as const) {
     await context.addCookies([{ name: "uniiverse_sidebar", value: sidebar, url: baseURL! }]);
     for (const [width, height] of [
       [1280, 800],
       [1440, 900],
+      // A 14-inch MacBook Pro's window: with the sidebar folded the page is 86rem, where the two columns start.
+      [1512, 945],
       [1920, 1080],
       [2560, 1440],
       [3440, 1440],
@@ -541,19 +618,31 @@ test("the page's own width places its boards: Recent form across with the record
       // A short board never stretches beside a tall one; nothing is wider than the window.
       await noOverflow(page);
       if (f.page >= 86) {
-        // Recent form beside the records, tops level; the multikills under Recent form's start, the milestones beside them to the page's end.
-        expect(Math.abs(f.form.top - f.records.top), `${at}: the records beside Recent form`).toBeLessThanOrEqual(1);
-        expect(f.records.left, `${at}`).toBeGreaterThan(f.form.right);
-        expect(Math.abs(f.multikills.left - f.form.left), `${at}: the multikills under Recent form's start`).toBeLessThanOrEqual(1);
-        expect(Math.abs(f.multikills.top - f.milestones.top), `${at}: the milestones beside the multikills`).toBeLessThanOrEqual(1);
-        expect(Math.abs(f.milestones.right - f.records.right), `${at}: the milestones to the page's end`).toBeLessThanOrEqual(1);
-        expect(f.multikills.top, `${at}: the achievements under both`).toBeGreaterThanOrEqual(Math.max(f.form.bottom, f.records.bottom));
-        // Recent form keeps its one-line rows (a wide board), and every ranking row and record is on the first screen.
-        expect(f.form.width / f.rem, `${at}: Recent form at least 58rem`).toBeGreaterThanOrEqual(58);
-        for (const b of [...f.formRows, ...f.recordRows]) expect(b, `${at}: on the first screen`).toBeLessThanOrEqual(f.window);
-        // The achievements start on the first screen, under both. (Where their last rows fall depends on
-        // how many members the demo has by then: other specs add members, each a chip in Recent form's last group.)
-        expect(Math.min(f.multikills.top, f.milestones.top), `${at}: the achievements start on the first screen`).toBeLessThan(f.window);
+        /** Two columns: Recent form, the milestones under it; the records beside it, the multikills under them; each board under the one before it, the gap apart. */
+        const columns = (g: Awaited<ReturnType<typeof boards>>, who: string) => {
+          expect(Math.abs(g.form.top - g.records.top), `${who}: the records beside Recent form`).toBeLessThanOrEqual(1);
+          expect(g.records.left, `${who}`).toBeGreaterThan(g.form.right);
+          expect(Math.abs(g.milestones.left - g.form.left) + Math.abs(g.milestones.right - g.form.right), `${who}: the milestones in Recent form's column`).toBeLessThanOrEqual(1);
+          expect(Math.abs(g.milestones.top - g.form.bottom - g.gap), `${who}: the milestones right under Recent form, whatever the records' height`).toBeLessThanOrEqual(1);
+          expect(Math.abs(g.multikills.left - g.records.left) + Math.abs(g.multikills.right - g.records.right), `${who}: the multikills in the records' column`).toBeLessThanOrEqual(1);
+          expect(Math.abs(g.multikills.top - g.records.bottom - g.gap), `${who}: the multikills right under the records`).toBeLessThanOrEqual(1);
+          // Every ranking row and record on the first screen, and the achievements start on it. (Where their last rows fall depends
+          // on how many members the demo has by then: other specs add members, each a chip in Recent form's last group.)
+          for (const b of [...g.formRows, ...g.recordRows]) expect(b, `${who}: on the first screen`).toBeLessThanOrEqual(g.window);
+          expect(Math.min(g.multikills.top, g.milestones.top), `${who}: the achievements start on the first screen`).toBeLessThan(g.window);
+        };
+        columns(f, at);
+        // Recent form keeps its one-line rows: its wide tier (eight columns), with its board's room inside its border at least 58rem.
+        expect(f.formTracks, `${at}: Recent form's one-line rows`).toBe(8);
+        await expect(page.getByTestId("form-heads").getByText("To the place above"), at).toBeVisible();
+        expect((f.form.width - 2) / f.rem, `${at}: Recent form's board at least 58rem inside its border`).toBeGreaterThanOrEqual(58);
+        // As a member sees it, with their own best on every record: taller cells where they are narrow lengthen the records'
+        // column alone, and nothing waits under Recent form for them.
+        await addOwnBests(page);
+        const member = await boards(page);
+        expect(member.records.height, `${at}: a member's records panel is no shorter`).toBeGreaterThanOrEqual(f.records.height);
+        expect(Math.abs(member.form.bottom - f.form.bottom), `${at}: Recent form as it was`).toBeLessThanOrEqual(1);
+        columns(member, `${at}, a member's bests`);
       } else {
         // Recent form across the page (at most the measure), the records beside the multikills, the milestones across under both.
         expect(f.records.top, `${at}: the records under Recent form`).toBeGreaterThanOrEqual(f.form.bottom);

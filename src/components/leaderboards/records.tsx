@@ -9,6 +9,7 @@ import { cn } from "@/lib/cn";
 import { formatCount } from "@/lib/format";
 import type { BoardPlayer, MilestoneGroup, RecordHolder, RecordsView, RecordView } from "@/server/leaderboards/recent-view";
 import { BoardTitle } from "./board-title";
+import { RECORD_YOURS, RECORD_YOURS_VALUE } from "./record-yours";
 import { SeasonChoice } from "./season-choice";
 import { SECTIONS } from "./sections";
 
@@ -51,8 +52,9 @@ function Definitions({ records }: { records: RecordView[] }) {
   The records' cells, by the panel's width and the page's: a column of cells, two columns from a
   40rem panel (cells of at least 19.25rem, a phone's room for the three-line layout: narrower, as in
   1280's 36rem panel, the holders' names wrap mid-name) while the page is under 86rem (a tablet
-  either way round, a phone held sideways, 1440 wide); from 86rem the panel is the column beside
-  Recent form, and one column of cells keeps it as tall as the board beside it. The seventh (the
+  either way round, a phone held sideways, 1440 wide); from 86rem the panel heads the column beside
+  Recent form (26.25–38.5rem, under 40rem, so one column of cells), the multikills under it, so a
+  taller panel (a member's own bests) lengthens that column alone. The seventh (the
   streak) goes across both columns, so no cell stands empty. A hairline between neighbours: above every
   cell but the first row's, and right of each left-hand cell. Each cell (an li) is its own
   @container/list and holds its column template (BOOK_COLS), so its row picks its layout by the
@@ -126,7 +128,7 @@ function yoursText(record: RecordView, viewer: string | null): ReactNode {
   if (!record.yours) return null;
   return (
     <>
-      Your best: <span className="font-semibold tabular-nums text-fg">{record.yours.value}</span>
+      Your best: <span className={RECORD_YOURS_VALUE}>{record.yours.value}</span>
       {record.yours.when ? ` · ${record.yours.when}` : ""}
     </>
   );
@@ -158,9 +160,11 @@ export function RecordRow({ record, player, champ, viewer }: { record: RecordVie
         className="h-full"
         lead={<RecordPicture record={record} holder={holder} champion={c} />}
         // Named by the record, so speech control finds it by the words on the row; the visible words are then not read twice.
+        // Not prefetched: on the one page every visit draws the seven cells, and a prefetch of each game's Match History in view
+        // would be a server render of its own (Vercel Active CPU); the game loads in full on the click anyway.
         link={
           href ? (
-            <RowLink href={href} testId="record-open">
+            <RowLink href={href} prefetch={false} testId="record-open">
               {record.label}: open the game
             </RowLink>
           ) : null
@@ -179,7 +183,7 @@ export function RecordRow({ record, player, champ, viewer }: { record: RecordVie
                 </span>
               </span>
               {yours ? (
-                <span data-testid="record-yours" className="col-[2/-1] row-[4/5] min-w-0 text-xs text-fg-muted @max-[16rem]/list:col-[1/-1] @max-[16rem]/list:row-[6/7] @min-[36rem]/list:col-[3/4] @min-[36rem]/list:row-[2/3] @min-[36rem]/list:self-start @min-[36rem]/list:justify-self-end @min-[36rem]/list:text-right">
+                <span data-testid="record-yours" className={RECORD_YOURS}>
                   {yours}
                 </span>
               ) : null}

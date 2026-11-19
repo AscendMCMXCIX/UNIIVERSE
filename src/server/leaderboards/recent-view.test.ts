@@ -119,6 +119,14 @@ describe("one page from one load", () => {
     expect(earlier.records.season).toBe(16);
     expect(earlier.records.games).toBeGreaterThan(current.records.games);
     expect(earlier.form).toEqual(current.form);
+    // The multikills and the games on one champion follow the season the records name (the new season has no games yet);
+    // mastery is all-time, the same in either. The season's choice stands in the records' title row only, and changes all three.
+    expect(current.records.multikills).toEqual([]);
+    expect(earlier.records.multikills.length).toBeGreaterThan(0);
+    expect(current.records.championGames).toEqual([]);
+    expect(earlier.records.championGames.map((g) => g.playerId)).toEqual(["ash"]);
+    expect(earlier.records.mastery).toEqual(current.records.mastery);
+    expect(current.records.mastery.length).toBeGreaterThan(0);
     // Each season's address names it, but for the current one.
     expect(current.records.seasons.map((x) => x.href)).toEqual(["/leaderboards?season=16", "/leaderboards"]);
   });

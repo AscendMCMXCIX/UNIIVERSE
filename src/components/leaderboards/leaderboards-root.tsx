@@ -30,19 +30,32 @@ const RECORDS_SECTIONS: readonly string[] = [SECTIONS.records, SECTIONS.multikil
  * Records' lands on its section (or on the multikills or milestones its old index named), as the
  * index's jump does: in view under the bars, and focused. The season stays. The server never reads
  * `view`: the page is the same either way, and without this code it simply opens at its top.
+ *
+ * The address is replaced once the router is listening, not in the effect itself. The router takes
+ * over history.replaceState in an effect of its own (from then on a replace keeps its state in the
+ * entry and gives it the new address, with no request), and React runs a parent's effects after its
+ * children's. On a page whose code arrives in one piece with the router's (the public board, which
+ * has no loading state of its own) this effect ran first, in the same commit: the browser's own
+ * replace then wiped the router's state from the entry, and after a link and Back the address said
+ * Leaderboards while the page left on screen was the other one, which the router does not restore
+ * from an entry without its state. A task queued here runs after every effect of the commit.
  */
 export function RetiredViewLanding() {
   React.useEffect(() => {
-    const url = new URL(window.location.href);
-    const view = url.searchParams.get("view");
-    if (view === null) return;
-    url.searchParams.delete("view");
-    const named = url.hash.slice(1);
-    const target = view === "records" ? (RECORDS_SECTIONS.includes(named) ? named : SECTIONS.records) : null;
-    if (target) url.hash = target;
-    // Next.js copies its own state into the entry (as for SectionIndex's jumps).
-    window.history.replaceState(null, "", url);
-    if (target) jumpToAnchor(target);
+    if (!new URLSearchParams(window.location.search).has("view")) return;
+    const later = window.setTimeout(() => {
+      const url = new URL(window.location.href);
+      const view = url.searchParams.get("view");
+      if (view === null) return;
+      url.searchParams.delete("view");
+      const named = url.hash.slice(1);
+      const target = view === "records" ? (RECORDS_SECTIONS.includes(named) ? named : SECTIONS.records) : null;
+      if (target) url.hash = target;
+      // The router copies its own state into the entry and takes the address as its own (as for SectionIndex's jumps).
+      window.history.replaceState(null, "", url);
+      if (target) jumpToAnchor(target);
+    }, 0);
+    return () => window.clearTimeout(later);
   }, []);
   return null;
 }
