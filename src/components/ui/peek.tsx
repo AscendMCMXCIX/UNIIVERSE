@@ -63,8 +63,8 @@ export interface PeekControl {
   rowProps: (id: string) => { "data-peek-row": string; "data-peek-selected"?: true; "aria-current"?: "true"; onClick: (e: React.MouseEvent<HTMLElement>) => void };
   /** Whether the open was from the keyboard (the panel's heading then takes the focus). */
   fromKeyboard: boolean;
-  /** The query parameter the item lives in. */
-  param: string;
+  /** The query parameter the item lives in (or the parameters, for an item with several: All Champions' `champion`, `crole` and `vs`). */
+  param: string | readonly string[];
 }
 
 /** The focusable element of a row: the row itself, or the first control in it. */

@@ -36,7 +36,7 @@ export interface PreviewSelection {
 }
 
 /** The preview's address parameters (old links' `tab` included, so closing drops it). */
-const KEYS = ["champion", "crole", "vs", "tab"];
+export const PREVIEW_KEYS: readonly string[] = ["champion", "crole", "vs", "tab"];
 
 export function previewFrom(sp: URLSearchParams): PreviewSelection | null {
   const championId = sp.get("champion");
@@ -92,7 +92,7 @@ export function usePreviewAddress() {
     if (pushed.current) {
       pushed.current = false;
       window.history.back();
-    } else window.history.replaceState(null, "", urlWith(Object.fromEntries(KEYS.map((k) => [k, null]))));
+    } else window.history.replaceState(null, "", urlWith(Object.fromEntries(PREVIEW_KEYS.map((k) => [k, null]))));
   };
   // Back closed it: a later open pushes again.
   React.useEffect(() => {

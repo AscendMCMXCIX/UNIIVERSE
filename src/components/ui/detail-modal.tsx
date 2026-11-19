@@ -400,8 +400,8 @@ export function DetailModal({
   onSettled?: () => void;
   /** A sheet's width where it is a centred window (taller wider screens): wide for an editor with a table (48rem), filters for a filter sheet (34rem: the five role segments in view, no sideways scroller). */
   sheetWidth?: "standard" | "wide" | "filters";
-  /** The query parameter that holds this window's item (a Peek's `?player=`): its changes are the window's own, not the page moving on. */
-  addressParam?: string;
+  /** The query parameter that holds this window's item (a Peek's `?player=`; several for an item that needs them): its changes are the window's own, not the page moving on. */
+  addressParam?: string | readonly string[];
   /**
    * The content scrolls itself (an editor with a fixed preview and toolbar): the body is a
    * fixed-height column that never scrolls, on every screen, short windows and phones included,
@@ -629,7 +629,7 @@ export function DetailModal({
     // opened on: a window that changed it (a filter chosen, a link to a section) moves the page on purpose.
     const address = () => {
       const url = new URL(window.location.href);
-      if (addressParamRef.current) url.searchParams.delete(addressParamRef.current);
+      for (const key of [addressParamRef.current ?? []].flat()) url.searchParams.delete(key);
       return url.href;
     };
     const at = { x: window.scrollX, y: window.scrollY, href: address() };

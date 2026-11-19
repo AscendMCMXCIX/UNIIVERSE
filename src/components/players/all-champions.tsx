@@ -18,7 +18,7 @@ import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateSampleNote, winRateTone
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import { Peek, type PeekControl } from "@/components/ui/peek";
 import { isTyping, modalOpen, useWindowPosture } from "@/components/ui/posture";
-import { PreviewContent, cardFor, usePreviewAddress, usePreviewData, type ListScope } from "./champion-preview";
+import { PREVIEW_KEYS, PreviewContent, cardFor, usePreviewAddress, usePreviewData, type ListScope } from "./champion-preview";
 import { MatchDetailModal } from "@/components/match-history/match-detail";
 import { MULTIKILL_KINDS, compareMultikills, multikillCoverage, rarestMultikill, type MultikillCounts, type MultikillSummary } from "@/domain/multikills";
 import { MULTIKILL_HELP, MULTIKILL_SHORT } from "./multikill-summary";
@@ -447,6 +447,7 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
     next: selected && at >= 0 && at < shown.length - 1 ? () => step(selected, 1, false) : null,
     rowProps: (id) => ({ "data-peek-row": id, onClick: () => undefined }),
     fromKeyboard: viaKeys,
+    param: PREVIEW_KEYS,
   };
   const onListKey = (e: React.KeyboardEvent) => {
     if (!selected || e.altKey || e.ctrlKey || e.metaKey) return;
