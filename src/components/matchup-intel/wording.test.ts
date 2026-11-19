@@ -351,8 +351,8 @@ describe("the assembled reference's fixed sentences and labels", () => {
     expect(NO_ABILITY_FACTS_WORDS).toBe("No reviewed facts for this ability");
     for (const words of [noneRecordedWords("riot-text"), NO_ABILITY_FACTS_WORDS, noneOutsideHiddenWords(["R"])]) expect(words, words).not.toMatch(/\bnone\b|recorded in Riot's text/i);
     // Beside hidden facts, only what holds outside them: a hidden fact may be of the group's kind.
-    expect(noneOutsideHiddenWords(["R"])).toBe("No reviewed facts of this kind outside R (hidden, below)");
-    expect(noneOutsideHiddenWords(["Passive", "W"])).toBe("No reviewed facts of this kind outside Passive and W (hidden, below)");
+    expect(noneOutsideHiddenWords(["R"])).toBe("No reviewed facts of this kind outside R");
+    expect(noneOutsideHiddenWords(["Passive", "W"])).toBe("No reviewed facts of this kind outside Passive and W");
     expect(noFactsWords("Darius")).toBe("No reviewed facts for Darius yet: crowd control, mobility, defence and sustain are not recorded.");
     expect(noLevelNotesWords(["Darius", "Riven"])).toBe("No level changes recorded for Darius or Riven.");
     expect(noLevelNotesWords(["Darius"])).toBe("No level changes recorded for Darius.");

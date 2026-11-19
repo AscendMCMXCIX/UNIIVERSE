@@ -568,8 +568,8 @@ describe("facts from Riot's text, as the review recorded them", () => {
     expect(danger.split('data-testid="assembled-conditional"').length - 1).toBe(1);
     // Darius R's facts are hidden (its text changed): an empty group says only what holds outside it,
     // since the hidden fact (a heal) is of a kind the side would otherwise call empty.
-    expect(t).toContain("Burst and power · No reviewed facts of this kind outside R (hidden, below)");
-    expect(t).toContain("Sustain · No reviewed facts of this kind outside R (hidden, below)");
+    expect(t).toContain("Burst and power · No reviewed facts of this kind outside R");
+    expect(t).toContain("Sustain · No reviewed facts of this kind outside R");
     expect(t).not.toMatch(/No reviewed facts of this kind(?! outside R)/);
     const cc = danger.slice(danger.indexOf('data-group="crowd-control"')).split('data-group="power"')[0]!;
     expect(cc.split('data-testid="assembled-chip-differ"').length - 1).toBe(1);

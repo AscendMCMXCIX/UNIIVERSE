@@ -557,12 +557,12 @@ export function noneRecordedWords(from: "checked" | "riot-text"): string {
 
 /**
  * The same, on a side where some abilities' facts from Riot's text are hidden (Riot changed or renamed
- * them after the review, said at the side's foot): what is hidden may be of this kind, and its kinds
- * are not shown, so the group says only what holds outside them: "No reviewed facts of this kind
- * outside R (hidden, below)".
+ * them after the review, said at the side's foot, right under the groups): what is hidden may be of
+ * this kind, and its kinds are not shown, so the group says only what holds outside them: "No
+ * reviewed facts of this kind outside R". Short enough to share its group's line at 1920 wide.
  */
 export function noneOutsideHiddenWords(keys: readonly string[]): string {
-  return `No reviewed facts of this kind outside ${listWords(keys)} (hidden, below)`;
+  return `No reviewed facts of this kind outside ${listWords(keys)}`;
 }
 
 /**
