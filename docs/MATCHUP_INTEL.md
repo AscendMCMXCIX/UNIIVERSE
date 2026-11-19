@@ -264,8 +264,8 @@ visible on a desktop (`ability-list.tsx`):
     chips it marks ("Conditional: see Riot's text (Stun and Pull)"), and in the chip's tip after its
     quote ("Conditional: see Riot's text."), one tap away; the page never says the condition in its
     own words (it holds a number or a count, so no number-free words of Riot's name it). One line for
-    the ability rather than the marker inside each chip: K'Sante's four conditional facts made each
-    chip a line of its own, 75px of a 1920 × 950 screen;
+    the ability rather than the marker inside each chip: inside them, K'Sante's four conditional facts
+    made each chip a line of its own, and his side 44px taller at 1920 × 950;
   - **where Riot's two texts differ** (their description says one kind, their tooltip another): a
     neutral chip with its icon, "Riot's texts differ", whose tip and Details give both quotes alike, the
     description's first ("Pull, in Riot's description of Fate Sealed: “…”", "Knock-up, in Riot's
