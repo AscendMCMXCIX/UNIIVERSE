@@ -6,9 +6,10 @@ import { selectClass } from "@/components/ui/input";
 import { cn } from "@/lib/cn";
 
 /**
- * Records & achievements' one choice: the season (the current one by default). A native select, so
- * keyboards, screen readers and phone pickers behave as expected; the choice is kept in the address
- * and the page shows it at once while the season loads.
+ * The season of the records, multikills and champion games (the current one by default), at the end
+ * of the season records' title row; Recent form, which counts the last 60 days, and all-time mastery
+ * take none. A native select, so keyboards, screen readers and phone pickers behave as expected; the
+ * choice is kept in the address (`?season=`) and the page shows it at once while the season loads.
  */
 export function SeasonChoice({ seasons, current }: { seasons: ReadonlyArray<{ value: number; label: string; href: string }>; current: number }) {
   const router = useRouter();

@@ -1,85 +1,25 @@
-import type { PortraitChampion } from "@/components/champion-portrait";
+import { TrendingUp } from "lucide-react";
 import { CardAvatar } from "@/components/players/card-look";
 import { RoleIcon } from "@/components/role-icon";
 import { DataGroup, DataHead, DataList, DataRow, FigureCell, MemberCell, Place, ROW_STATES, RowLink, tieRuns, type TiePosition } from "@/components/ui/data-list";
 import { EmptyState } from "@/components/ui/empty-state";
+import { InfoTip } from "@/components/ui/info-tip";
 import { QuietBar } from "@/components/ui/quiet-bar";
-import { SectionHeader } from "@/components/ui/section-header";
-import { DataStatusNote } from "@/components/ui/data-status";
-import type { DataStatus } from "@/domain/data-status";
 import { ROLE_LABELS } from "@/domain/roles";
 import { cn } from "@/lib/cn";
-import { formatCount, formatDateTime, formatOrdinal } from "@/lib/format";
-import type { BoardPlayer, FormRow, FormView, RecentLeaderboardView } from "@/server/leaderboards/recent-view";
-import { LeaderboardsRoot } from "./leaderboards-root";
-import { LeaderboardsViews } from "./leaderboards-views";
-import { Records } from "./records";
-import { SeasonChoice } from "./season-choice";
+import { formatOrdinal } from "@/lib/format";
+import type { BoardPlayer, FormRow, FormView } from "@/server/leaderboards/recent-view";
+import { BoardTitle } from "./board-title";
+import { SECTIONS } from "./sections";
 
 /*
-  TEAM LEADERBOARDS (docs/LEADERBOARDS_MODEL.md): two views of equal weight as
-  secondary tabs under the Team tabs, as Match History's Games and Encounters are under a profile's.
-    Recent form              one board, everyone on the same 20 recent games, ranked by win rate.
-                             Every row says what counts: the record (also as a bar of 20 games,
-                             wins first), the dates and the main role, and the gap to the place
-                             above in wins. Styling is neutral on purpose: no red for a cold streak
-                             (unlike win rates elsewhere), only the first place's crown and your own
-                             row are marked.
-    Records & achievements   single games and milestones, which reward playing more, and say so
-                             (./records.tsx).
+  RECENT FORM (docs/LEADERBOARDS_MODEL.md), the Leaderboards page's first section and its lead
+  card: one board, everyone on the same 20 recent games, ranked by win rate. Every row says what
+  counts: the record (also as a bar of 20 games, wins first), the dates and the main role, and the
+  gap to the place above in wins. Styling is neutral on purpose: no red for a cold streak (unlike win
+  rates elsewhere), only the first place's crown and your own row are marked. The season's records
+  and achievements follow it on the same page (./records.tsx).
 */
-
-export function RecentLeaderboards({ view, champions, status }: { view: RecentLeaderboardView; champions: Record<string, PortraitChampion>; /** The members' page: the team's data status. */ status?: DataStatus | null }) {
-  const player = (id: string) => view.players[id]!;
-  const champ = (id: string | null) => (id ? (champions[id] ?? { id, name: id, portraitUrl: "" }) : null);
-  const updated = view.lastUpdated ? formatDateTime(view.lastUpdated) : null;
-  const members = `${view.playerCount} member${view.playerCount === 1 ? "" : "s"}`;
-  // What the figures count, part by part; the last part and the data status stay together.
-  const parts =
-    view.tab === "form" && view.form
-      ? [`Latest ${view.form.window.games} games from the last ${view.form.window.days} days`, "Summoner's Rift, 5 minutes or longer", members]
-      : view.records
-        ? [view.records.seasonLabel, "All supported games", `${formatCount(view.records.games)} games`, members]
-        : [members];
-  return (
-    <LeaderboardsRoot className="mx-auto flex w-full max-w-[var(--content-wide)] flex-col gap-4">
-      <h1 className="sr-only">Team Leaderboards</h1>
-      <SectionHeader
-        id="leaderboards-view-title"
-        title={view.tab === "form" ? "Recent form" : "Records & achievements"}
-        nav={<LeaderboardsViews current={view.tab} hrefs={view.tabs} />}
-        description={
-          <p className="text-sm text-fg-muted" data-testid="scope-label">
-            {parts.slice(0, -1).map((t) => `${t} · `).join("")}
-            {/* The last part and the status as one unit: they move to the next line together, so the ⓘ never stands on a line alone. */}
-            <span className="inline-flex max-w-full flex-wrap items-baseline gap-x-2">
-              <span data-testid="scope-count">{parts.at(-1)}</span>
-              {status ? <DataStatusNote status={status} testId="leaderboards-status" /> : null}
-            </span>
-          </p>
-        }
-        status={
-          status ? undefined : (
-            <p className="text-xs text-fg-subtle" data-testid="last-updated">
-              {updated ? `Updated from the last account sync: ${updated}` : "No account sync yet"}
-            </p>
-          )
-        }
-        // The season, only where there are two to choose from (an empty toolbar would still take its row's gap).
-        controls={view.records && view.records.seasons.length > 1 ? <SeasonChoice seasons={view.records.seasons} current={view.records.season} /> : null}
-      />
-      {view.playerCount === 0 ? (
-        <p className="rounded-panel border border-border bg-surface p-6 text-sm text-fg-muted" data-testid="leaderboards-empty">
-          No team members to compare yet. Members appear here as soon as they join the team.
-        </p>
-      ) : view.form ? (
-        <RecentForm form={view.form} player={player} viewer={view.viewer} />
-      ) : view.records ? (
-        <Records records={view.records} player={player} champ={champ} viewer={view.viewer} />
-      ) : null}
-    </LeaderboardsRoot>
-  );
-}
 
 // ── Recent form ─────────────────────────────────────────────────────────────────────────────────
 
@@ -149,18 +89,46 @@ const HEADS = (
   </>
 );
 
-/** Recent form's board; exported for its markup test (the states the demo cannot reach). */
-export function RecentForm({ form, player, viewer }: { form: FormView; player: (id: string) => BoardPlayer; viewer: string | null }) {
+/**
+ * What the board's figures can and cannot say, behind the ⓘ in its title (they were a footnote under
+ * the board): a short sample, the gaps' assumption, what a bar counts, which games count.
+ */
+function caveats(window: FormView["window"]): string {
+  return `${window.games} games is a short sample: places within 2 wins of each other are close. The gaps assume the players above don't play in the meantime. Each bar counts the window's games, wins first, not the order they were played. Every linked account counts, a game seen from two accounts once; remakes are left out.`;
+}
+
+/**
+ * Recent form's board, the page's lead card (surface-lead): its title row (what it counts, and its
+ * caveats behind the ⓘ), the column headings from 36rem, the ranking, the provisional windows and the
+ * members without enough recent games. `className` places it on the page; it is never wider than
+ * the measure. Exported for its markup test (the states the demo cannot reach).
+ */
+export function RecentForm({ form, player, viewer, className }: { form: FormView; player: (id: string) => BoardPlayer; viewer: string | null; className?: string }) {
   const ranked = form.rows.filter((r) => r.status === "established");
   const provisional = form.rows.filter((r) => r.status === "provisional");
   const ties = tieRuns(ranked.map((r) => r.place));
   return (
     // At most the measure wide, at the page's left edge: one edge with the header.
-    <section aria-labelledby="form-board-title" className="flex min-w-0 max-w-[var(--measure)] flex-col gap-3" data-testid="form">
-      <h3 id="form-board-title" className="sr-only">
-        Ranked by win rate over each member&apos;s latest {form.window.games} games
-      </h3>
-      <DataList surface="lead" columns={FORM_COLS} testId="form-board" headsTestId="form-heads" headsClassName="hidden @min-[36rem]/list:grid" heads={form.rows.length ? HEADS : undefined}>
+    <section id={SECTIONS.form} aria-labelledby="form-board-title" className={cn("flex min-w-0 max-w-[var(--measure)] flex-col", className)} data-testid="form">
+      <DataList
+        surface="lead"
+        columns={FORM_COLS}
+        testId="form-board"
+        title={
+          <BoardTitle
+            id="form-board-title"
+            icon={<TrendingUp className="h-4 w-4 shrink-0 text-fg-subtle" aria-hidden />}
+            aside={<InfoTip label="How Recent form counts" text={caveats(form.window)} testId="form-footnote" />}
+            note={`Latest ${form.window.games} games from the last ${form.window.days} days · Summoner's Rift, 5 minutes or longer`}
+            noteTestId="form-scope"
+          >
+            Recent form<span className="sr-only">, ranked by win rate over each member&apos;s latest {form.window.games} games</span>
+          </BoardTitle>
+        }
+        headsTestId="form-heads"
+        headsClassName="hidden @min-[36rem]/list:grid"
+        heads={form.rows.length ? HEADS : undefined}
+      >
         {form.rows.length === 0 ? (
           <EmptyState variant="row" testId="form-empty" title={`Nobody has ${form.window.provisionalFrom} games in the last ${form.window.days} days yet.`}>
             Members appear here from their {formatOrdinal(form.window.provisionalFrom)} recent game.
@@ -211,9 +179,6 @@ export function RecentForm({ form, player, viewer }: { form: FormView; player: (
           </DataGroup>
         ) : null}
       </DataList>
-      <p className="px-1 text-xs text-fg-muted" data-testid="form-footnote">
-        {form.window.games} games is a short sample: places within 2 wins of each other are close. The gaps assume the players above don&apos;t play in the meantime. Each bar counts the window&apos;s games, wins first, not the order they were played. Every linked account counts, a game seen from two accounts once; remakes are left out.
-      </p>
     </section>
   );
 }

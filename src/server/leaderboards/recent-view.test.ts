@@ -2,20 +2,23 @@ import { describe, expect, it } from "vitest";
 import { cardLookFor } from "@/domain/card-style";
 import type { LeaderboardGame, LeaderboardMastery } from "@/domain/leaderboards";
 import { formatCompactCount, formatCount } from "@/lib/format";
-import { buildRecentLeaderboardView, parseLeaderboardTab, RECORD_QUALIFIERS, recentLeaderboardHref, type RecordsView } from "./recent-view";
+import { buildFormView, buildLeaderboardsView, buildRecordsView, leaderboardsHref, parseLeaderboardsQuery, RECORD_QUALIFIERS, type RecordsView } from "./recent-view";
 import type { LeaderboardData } from "./service";
 
 describe("the Leaderboards' addresses", () => {
-  it("reads the view from the address: Recent form unless Records & achievements is asked for", () => {
-    expect(parseLeaderboardTab({})).toEqual({ tab: "form", season: null });
-    expect(parseLeaderboardTab({ view: "records", season: "15" })).toEqual({ tab: "records", season: "15" });
-    expect(parseLeaderboardTab({ view: "anything" }).tab).toBe("form");
+  it("reads the records' season from the address, and nothing from a retired view", () => {
+    expect(parseLeaderboardsQuery({})).toEqual({ season: null });
+    expect(parseLeaderboardsQuery({ season: "15" })).toEqual({ season: "15" });
+    expect(parseLeaderboardsQuery({ season: ["15", "16"] })).toEqual({ season: "15" });
+    // Records & achievements' old address (?view=records) asks the server for nothing: one page either way.
+    expect(parseLeaderboardsQuery({ view: "records", season: "15" })).toEqual({ season: "15" });
+    expect(parseLeaderboardsQuery({ view: "anything" })).toEqual({ season: null });
   });
 
-  it("writes addresses that leave out the defaults", () => {
-    expect(recentLeaderboardHref({ tab: "form" })).toBe("/leaderboards");
-    expect(recentLeaderboardHref({ tab: "records" })).toBe("/leaderboards?view=records");
-    expect(recentLeaderboardHref({ tab: "records", season: 15 }, { basePath: "/public/leaderboards" })).toBe("/public/leaderboards?view=records&season=15");
+  it("writes the page's address, the season only when it is not the current one, and never a view", () => {
+    expect(leaderboardsHref(null)).toBe("/leaderboards");
+    expect(leaderboardsHref(15)).toBe("/leaderboards?season=15");
+    expect(leaderboardsHref(15, { basePath: "/public/leaderboards" })).toBe("/public/leaderboards?season=15");
   });
 });
 
@@ -61,13 +64,17 @@ function fixture(): LeaderboardData {
   return { players: [player("ash", "Ash"), player("bo", "Bo"), player("cy", "Cy")], games, mastery, lineupIds: ["ash", "bo", "cy"], currentSeason: 16, seasons: [16], lastUpdated: null, extraSince: null, rawGames: 0 };
 }
 const NOW = new Date(T0 + 60 * DAY);
-const records = (viewer: string | null, profiles = true) => buildRecentLeaderboardView(fixture(), { tab: "records" }, viewer, { now: NOW, profiles, basePath: profiles ? "/leaderboards" : "/public/leaderboards" }).records!;
+const records = (viewer: string | null, profiles = true) => buildLeaderboardsView(fixture(), {}, viewer, { now: NOW, profiles, basePath: profiles ? "/leaderboards" : "/public/leaderboards" }).records;
 
-/** Records as main sent them before the qualifiers and the chips' short figures (b9528fbf), for Bo, who holds two records and has a best on four others. */
+/**
+ * Records as main sent them before the qualifiers and the chips' short figures (b9528fbf), for Bo,
+ * who holds two records and has a best on four others; the season's address is the page's own since
+ * the records joined Recent form on one page (it was "/leaderboards?view=records").
+ */
 const BEFORE = {
   season: 16,
   seasonLabel: "Season 2026",
-  seasons: [{"value": 16, "label": "Season 2026", "href": "/leaderboards?view=records"}],
+  seasons: [{"value": 16, "label": "Season 2026", "href": "/leaderboards"}],
   games: 32,
   records: [
     {"id": "kills", "label": "Most kills in a game", "definition": "", "holder": {"playerId": "ash", "value": "18", "unit": "kills", "championId": "Zed", "role": "MID", "kda": "18/2/7", "when": "2 Sep 2026", "href": "/players/ash/matches?match=OC1_001"}, "yours": {"playerId": "bo", "value": "4", "unit": "kills", "championId": "Leona", "role": "SUPPORT", "kda": "4/4/6", "when": "6 Sep 2026", "href": "/players/bo/matches?match=OC1_029"}},
@@ -91,6 +98,40 @@ const withoutAdditions = (r: RecordsView) => ({
   mastery: r.mastery.map((g) => ({ ...g, items: g.items.map(({ short: _s, ...rest }) => rest) })),
 });
 
+describe("one page from one load", () => {
+  it("builds Recent form and the season's records together, each the same as built alone", () => {
+    const data = fixture();
+    const page = buildLeaderboardsView(data, {}, "bo", { now: NOW });
+    expect(page.form).toEqual(buildFormView(data, "bo", { now: NOW }));
+    expect(page.records).toEqual(buildRecordsView(data, {}, "bo", { now: NOW }));
+    expect(page.playerCount).toBe(3);
+    expect(page.viewer).toBe("bo");
+    expect(Object.keys(page.players)).toEqual(["ash", "bo", "cy"]);
+    // The fixture's members have games in the window: Recent form has rows, not only the empty state.
+    expect(page.form.rows.length + page.form.notEnough.length).toBe(3);
+  });
+
+  it("gives the season to the records alone: Recent form counts the last 60 days whatever season the address names", () => {
+    const data = { ...fixture(), seasons: [16, 17], currentSeason: 17 };
+    const current = buildLeaderboardsView(data, {}, null, { now: NOW });
+    const earlier = buildLeaderboardsView(data, { season: "16" }, null, { now: NOW });
+    expect(current.records.season).toBe(17);
+    expect(earlier.records.season).toBe(16);
+    expect(earlier.records.games).toBeGreaterThan(current.records.games);
+    expect(earlier.form).toEqual(current.form);
+    // The multikills and the games on one champion follow the season the records name (the new season has no games yet);
+    // mastery is all-time, the same in either. The season's choice stands in the records' title row only, and changes all three.
+    expect(current.records.multikills).toEqual([]);
+    expect(earlier.records.multikills.length).toBeGreaterThan(0);
+    expect(current.records.championGames).toEqual([]);
+    expect(earlier.records.championGames.map((g) => g.playerId)).toEqual(["ash"]);
+    expect(earlier.records.mastery).toEqual(current.records.mastery);
+    expect(current.records.mastery.length).toBeGreaterThan(0);
+    // Each season's address names it, but for the current one.
+    expect(current.records.seasons.map((x) => x.href)).toEqual(["/leaderboards?season=16", "/leaderboards"]);
+  });
+});
+
 describe("Records & achievements' display fields", () => {
   it("leave every figure, holder, game, date, link, multikill and milestone exactly as before", () => {
     expect(withoutAdditions(records("bo"))).toEqual(BEFORE);
@@ -99,7 +140,7 @@ describe("Records & achievements' display fields", () => {
     expect(off).toEqual({ ...BEFORE, records: BEFORE.records.map((r) => ({ ...r, yours: null })) });
     // The public boards: the same figures, opening no game.
     const open = withoutAdditions(records(null, false));
-    expect(open).toEqual({ ...BEFORE, seasons: [{ ...BEFORE.seasons[0]!, href: "/public/leaderboards?view=records" }], records: BEFORE.records.map((r) => ({ ...r, yours: null, holder: r.holder ? { ...r.holder, href: null } : null })) });
+    expect(open).toEqual({ ...BEFORE, seasons: [{ ...BEFORE.seasons[0]!, href: "/public/leaderboards" }], records: BEFORE.records.map((r) => ({ ...r, yours: null, holder: r.holder ? { ...r.holder, href: null } : null })) });
   });
 
   it("give each record the qualifier its row shows, from the rules' own thresholds", () => {

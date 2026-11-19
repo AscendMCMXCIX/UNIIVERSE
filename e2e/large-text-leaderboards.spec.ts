@@ -13,9 +13,11 @@ import { expect, test, type Page } from "./test";
   profile, so no row of theirs): "You" drops under a name whose longest word would not fit beside
   it, where the name broke mid-word before ("Suppor|t" at 125% on a 375px phone, "Christopher" even
   at 100% on a 320px phone), and stays beside it where it fits. The role badge stays on its
-  picture and the tie bracket off the names; no "·" ends or starts a line. Records' boards already
-  reflow on their own; a record's qualifier there hides its "·" only when it starts a line of its
-  own (the title's clipped edge), never beside its record.
+  picture and the tie bracket off the names; no "·" ends or starts a line. The season records,
+  multikills and milestones (on the same page, after Recent form) already reflow on their own; a
+  record's qualifier there hides its "·" only when it starts a line of its own (the title's clipped
+  edge), never beside its record. The boards' ⓘ bubbles stay on the screen at 200%: the records'
+  definitions, longer than a phone's screen there, scroll inside theirs.
 */
 
 test.beforeEach(async ({ context, baseURL }) => {
@@ -171,11 +173,11 @@ function rowBoxes(page: Page) {
 
 /**
  * Each visible "·" in Recent form's second lines, its captions and its "Not enough recent games"
- * rows, that ends or starts a line: with a character of its own text either side of it on its
- * line, it does neither.
+ * rows, and in the index of the page's sections, that ends or starts a line: with a character of its
+ * own text either side of it on its line, it does neither.
  */
 function danglingDots(page: Page) {
-  return page.locator("[data-testid=form-meta], [data-testid=form-not-enough-member], [data-testid=form-not-enough-head], [data-testid=form-provisional-head]").evaluateAll((els) =>
+  return page.locator("[data-testid=form-meta], [data-testid=form-not-enough-member], [data-testid=form-not-enough-head], [data-testid=form-provisional-head], [data-testid=section-index]").evaluateAll((els) =>
     els.flatMap((el) => {
       const srOnly = (e: Element) => {
         for (let p: Element | null = e; p && p !== el.parentElement; p = p.parentElement) {
@@ -309,10 +311,10 @@ test("Recent form, your own row, at 100% to 200% text on 320 to 393px phones: \"
   await page.evaluate(() => { document.documentElement.style.fontSize = ""; });
 });
 
-test("Records at 125% to 200% text on 320 to 393px phones: words whole, nothing cut but the separator of a qualifier on a line of its own, no sideways scroll", async ({ page }, info) => {
+test("the season records, multikills and milestones at 125% to 200% text on 320 to 393px phones: words whole, nothing cut but the separator of a qualifier on a line of its own, no sideways scroll", async ({ page }, info) => {
   test.skip(info.project.name !== "phone", "phone widths, set below");
   test.setTimeout(120_000);
-  await open(page, "/leaderboards?view=records");
+  await open(page, "/leaderboards");
   await expect(page.getByTestId("season-record").first()).toBeVisible();
   await expect(page.getByTestId("record-qualifier")).not.toHaveCount(0);
   for (const [width, root] of [[320, 100], [375, 100], ...SIZES] as const) {
@@ -345,6 +347,62 @@ test("Records at 125% to 200% text on 320 to 393px phones: words whole, nothing 
       }),
     );
     expect.soft(separators, `${at}: each qualifier's · shown beside its record, hidden only on a line of its own`).toEqual([]);
+  }
+  await page.evaluate(() => { document.documentElement.style.fontSize = ""; });
+});
+
+test("the boards' ⓘ bubbles at 200% text on 375 and 320px phones: never taller than the screen; the season records' definitions scroll inside theirs, a finger's drag scrolls it, a tap closes it", async ({ page }, info) => {
+  test.skip(info.project.name !== "phone", "phone widths, set below");
+  await open(page, "/leaderboards");
+  const cdp = await page.context().newCDPSession(page);
+  const drag = async (x: number, from: number, to: number) => {
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y: from }] });
+    for (let y = from - 10; y >= to; y -= 10) await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x, y }] });
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  };
+  for (const [width, height] of [
+    [375, 667],
+    [320, 568],
+  ] as const) {
+    await page.setViewportSize({ width, height });
+    await page.evaluate(() => { document.documentElement.style.fontSize = "200%"; });
+    await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
+    const at = `${width} × ${height} at 200%`;
+    for (const id of ["form-footnote", "records-definitions"]) {
+      const tip = page.getByTestId(id);
+      await tip.scrollIntoViewIfNeeded();
+      await tip.tap();
+      const bubble = page.getByTestId(`${id}-bubble`);
+      await expect(bubble, `${at}: ${id}`).toBeVisible();
+      const f = await bubble.evaluate((b) => {
+        const r = b.getBoundingClientRect();
+        return { top: r.top, bottom: r.bottom, left: r.left, width: r.width, screen: innerHeight, scrolls: b.scrollHeight > b.clientHeight + 1, pointer: getComputedStyle(b).pointerEvents };
+      });
+      // The bubble on the screen, 8px inside its edges, however long its text.
+      expect(f.top, `${at}: ${id} inside the screen's top`).toBeGreaterThanOrEqual(7.5);
+      expect(f.bottom, `${at}: ${id} inside the screen's foot`).toBeLessThanOrEqual(f.screen - 7.5);
+      // A bubble that fits lets the pointer through, as every bubble did; one whose text is longer scrolls, and takes it.
+      expect(f.pointer, `${at}: ${id}`).toBe(f.scrolls ? "auto" : "none");
+      if (id === "records-definitions") {
+        expect(f.scrolls, `${at}: the definitions longer than the screen`).toBe(true);
+        // A finger's drag on the bubble scrolls its text, and leaves it open.
+        await drag(f.left + f.width / 2, f.bottom - 40, f.top + 60);
+        await expect.poll(() => bubble.evaluate((b) => b.scrollTop), { message: `${at}: the drag scrolled the definitions` }).toBeGreaterThan(0);
+        await expect(bubble).toBeVisible();
+        // Scrolled to its end, its last line inside the bubble: every definition can be read.
+        const end = await bubble.evaluate((b) => {
+          b.scrollTop = b.scrollHeight;
+          const last = [...b.querySelectorAll("span")].at(-1)!.getBoundingClientRect();
+          return { last: last.bottom, box: b.getBoundingClientRect().bottom, text: b.textContent ?? "" };
+        });
+        expect(end.text, `${at}`).toContain("A tie goes to whoever set it first.");
+        expect(end.last, `${at}: the definitions' last line in view`).toBeLessThanOrEqual(end.box + 0.5);
+      }
+      // A tap closes it: on the bubble where it takes the pointer, as anywhere else.
+      if (f.scrolls) await bubble.tap({ position: { x: 20, y: 20 } });
+      else await page.getByRole("heading", { level: 1 }).tap();
+      await expect(bubble, `${at}: ${id} closed by a tap`).toHaveCount(0);
+    }
   }
   await page.evaluate(() => { document.documentElement.style.fontSize = ""; });
 });

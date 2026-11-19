@@ -1,6 +1,5 @@
 "use client";
 
-import type * as React from "react";
 import Link, { useLinkStatus } from "next/link";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -10,9 +9,6 @@ export interface SubTab {
   key: string;
   href: string;
   label: string;
-  /** The start of the label, shown alone on phones when the full labels would not share a line
-   * ("Records" for "Records & achievements"); the rest is still read out, so the name is the same. */
-  short?: string;
   icon?: LucideIcon;
   testId?: string;
 }
@@ -56,25 +52,20 @@ function Pending() {
  * address, so Back/Forward, new tabs and the keyboard work, and the current one is
  * aria-current="page". `keepScroll` (the default): the page stays where it is, as views of one
  * section do; separate pages (SubNav) start at the top. On phones the tabs share the width of one
- * track (a long label shows its `short` start), and wrap onto a second line rather than run off the
- * screen.
+ * track, and wrap onto a second line rather than run off the screen.
  */
-export function SubTabs({ label, items, current, keepScroll = true, className, testId, size = "default", ref }: { label: string; items: readonly SubTab[]; current: string; keepScroll?: boolean; className?: string; testId?: string; /** `compact`: the copy in the pinned row (PageToolbar), its test ids prefixed with "toolbar-". */ size?: "default" | "compact"; /** The nav, for a page whose own toolbar is these tabs (Leaderboards': PageToolbar's anchor). */ ref?: React.Ref<HTMLElement> }) {
+export function SubTabs({ label, items, current, keepScroll = true, className, testId, size = "default" }: { label: string; items: readonly SubTab[]; current: string; keepScroll?: boolean; className?: string; testId?: string; /** `compact`: the copy in the pinned row (PageToolbar), its test ids prefixed with "toolbar-". */ size?: "default" | "compact" }) {
   if (size === "compact") {
     // In the pinned row's group of controls: a labelled list, not a second landmark of the same name.
     return (
       <ul aria-label={label} className={cn("flex items-center gap-1", className)} data-testid={testId ? `toolbar-${testId}` : undefined}>
         {items.map((t) => {
           const on = t.key === current;
-          const shown = t.short && t.label.startsWith(t.short) ? t.short : t.label;
           return (
             <li key={t.key}>
               <Link href={t.href} scroll={!keepScroll} aria-current={on ? "page" : undefined} className={compactTabClass(on)} title={t.label} data-testid={t.testId ? `toolbar-${t.testId}` : undefined}>
                 {t.icon ? <t.icon className={cn("h-4 w-4 shrink-0", on ? "text-accent" : "text-fg-subtle")} aria-hidden /> : null}
-                <span>
-                  <span className={COMPACT_LABEL}>{shown}</span>
-                  {shown !== t.label ? <span className="sr-only">{t.label.slice(shown.length)}</span> : null}
-                </span>
+                <span className={COMPACT_LABEL}>{t.label}</span>
                 <Pending />
               </Link>
             </li>
@@ -84,7 +75,7 @@ export function SubTabs({ label, items, current, keepScroll = true, className, t
     );
   }
   return (
-    <nav ref={ref} aria-label={label} className={cn("min-w-0 max-sm:w-full", className)} data-testid={testId}>
+    <nav aria-label={label} className={cn("min-w-0 max-sm:w-full", className)} data-testid={testId}>
       {/* Phones: the views share one quiet track, so the pair reads as one choice of view rather than
           two buttons. */}
       <ul className="flex min-w-0 flex-wrap items-center gap-1 max-sm:rounded-[0.875rem] max-sm:bg-surface/70 max-sm:p-1 max-sm:ring-1 max-sm:ring-inset max-sm:ring-border">
@@ -94,14 +85,7 @@ export function SubTabs({ label, items, current, keepScroll = true, className, t
             <li key={t.key} className="max-sm:flex-1">
               <Link href={t.href} scroll={!keepScroll} aria-current={on ? "page" : undefined} className={subTabClass(on, "max-sm:w-full")} data-testid={t.testId}>
                 {t.icon ? <t.icon className={cn("h-4 w-4 shrink-0", on ? "text-accent" : "text-fg-subtle")} aria-hidden /> : null}
-                {t.short && t.label.startsWith(t.short) ? (
-                  <span>
-                    {t.short}
-                    <span className="max-sm:sr-only">{t.label.slice(t.short.length)}</span>
-                  </span>
-                ) : (
-                  t.label
-                )}
+                {t.label}
                 <Pending />
               </Link>
             </li>

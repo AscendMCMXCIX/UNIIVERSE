@@ -138,12 +138,13 @@ test("Back from a teammate's profile returns to where you came from, named after
   await back.click();
   await expect(page).toHaveURL(/\/players$/);
 
-  // From Leaderboards, Back is named after it.
+  // From Leaderboards, Back is named after it (its heading, "Leaderboards", as Players' is "Players").
   await page.goto("/leaderboards");
   await expect(page.getByTestId("leaderboards")).toHaveAttribute("data-ready", "true");
   await page.getByTestId("form-row").first().click();
   await expect(page).toHaveURL(/\/players\/[^/]+$/);
-  await expect(back).toContainText("Team Leaderboards");
+  await expect(back).toHaveAccessibleName(/^Leaderboards\b/);
+  await expect(back).toContainText("Leaderboards");
   await back.click();
   await expect(page).toHaveURL(/\/leaderboards$/);
 
@@ -716,21 +717,22 @@ test("Team → Matches opens a game as a whole screen too, and its cards keep to
   await expect(page).toHaveURL(/\/matches$/);
 });
 
-test("a page's views share one track on the narrowest phones, a long label by its start and still named in full", async ({ page }) => {
-  await page.goto("/leaderboards");
-  await expect(page.getByTestId("leaderboards")).toHaveAttribute("data-ready", "true");
-  const form = page.getByTestId("leaderboards-tab-form");
-  const records = page.getByTestId("leaderboards-tab-records");
+test("a page's views share one track on the narrowest phones, each named in full", async ({ page }) => {
+  // Match History's Games and Encounters: since 19 Nov 2026 the only views in Player Mode (Leaderboards is one page).
+  await page.goto("/team");
+  const id = (await page.getByTestId("lineup-row-MID").getAttribute("data-player-id"))!;
+  await page.goto(`/players/${id}/matches`);
+  await expect(page.locator("[data-testid='match-history'][data-ready]")).toBeVisible();
+  const games = page.getByTestId("match-view-games");
+  const encounters = page.getByTestId("match-view-encounters");
   for (const width of [375, 320]) {
     await page.setViewportSize({ width, height: 667 });
-    const [a, b] = [(await form.boundingBox())!, (await records.boundingBox())!];
+    const [a, b] = [(await games.boundingBox())!, (await encounters.boundingBox())!];
     expect(Math.abs(a.y - b.y), `one line at ${width}px`).toBeLessThan(1);
     expect(b.x + b.width).toBeLessThanOrEqual(width);
   }
-  await expect(records).toHaveAccessibleName("Records & achievements");
-  await expect(records).toHaveText("Records & achievements");
-  // What shows is "Records": the rest of the name is read out but takes no room.
-  expect((await records.getByText("& achievements").boundingBox())!.width).toBeLessThanOrEqual(1);
+  await expect(games).toHaveAccessibleName("Games");
+  await expect(encounters).toHaveAccessibleName("Encounters");
 });
 
 test("Players and Leaderboards read as lists on a phone: a row per player, a row per member, each row one tap", async ({ page }) => {

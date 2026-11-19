@@ -221,7 +221,7 @@ export function AvatarEditor({ name, src }: { name: string; src: string | null }
 }
 
 /**
- * Settings' sections, in the account card: Records' SectionIndex (plain links whose click jumps
+ * Settings' sections, in the account card: Leaderboards' SectionIndex (plain links whose click jumps
  * through the router's history, jumpToAnchor), restyled. On a phone, and in a window 480px tall or
  * less, chips (Name, Links, Password; 44px on a touch screen, 8px apart, no dots between them), the
  * section being read marked as a chosen chip is; from md in a taller window a list down the card,

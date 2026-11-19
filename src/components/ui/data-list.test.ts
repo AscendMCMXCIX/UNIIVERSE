@@ -143,7 +143,7 @@ describe("FigureCell and MemberCell", () => {
     expect(read).not.toContain("card-you");
   });
 
-  it("gives the picture its own classes when asked (Records' book hides it on a phone)", () => {
+  it("gives the picture its own classes when asked (Leaderboards' season records hide it in a cell under 36rem)", () => {
     expect(html(h(MemberCell, { look: null, name: "Ash", avatar: "xs", avatarClassName: "@max-[36rem]/list:hidden" }))).toMatch(/^<span class="flex min-w-0 items-center gap-2.5 text-sm"[^>]*><span class="relative inline-flex shrink-0 rounded-full @max-\[36rem\]\/list:hidden" data-avatar-frame="none">/);
     expect(html(h(MemberCell, { look: null, name: "Ash", avatar: "xs" }))).toContain('<span class="relative inline-flex shrink-0 rounded-full" data-avatar-frame="none">');
   });

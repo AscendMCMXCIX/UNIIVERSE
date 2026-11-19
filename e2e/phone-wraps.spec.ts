@@ -5,7 +5,7 @@ import { memberContext } from "./member-account";
   On a 320px phone, the narrowest docs/MOBILE.md supports, what a row is about wraps rather than
   being cut: a member's name beside their multikill in Team Matches, a resource's title, and the
   account the champion window's figures come from; and at a larger text size the pages are no wider
-  than the phone (Leaderboards' Records, Settings, every Admin Mode page), and a profile's header on
+  than the phone (Leaderboards' season records, Settings, every Admin Mode page), and a profile's header on
   320 and 375px phones cuts nothing and breaks no word. Demo data, in-memory only.
 */
 
@@ -178,13 +178,13 @@ test("with the browser's own text at twice its size on a 320px phone, a profile'
   await context.close();
 });
 
-test("on a 320px phone, at 100%, 150% and 200% text, Leaderboards' Records is no wider than the phone, every record's words, holder, value and unit whole and inside their boxes, the holder at least 5rem", async ({ page }) => {
+test("on a 320px phone, at 100%, 150% and 200% text, Leaderboards' season records are no wider than the phone, every record's words, holder, value and unit whole and inside their boxes, the holder at least 5rem", async ({ page }) => {
   // Each record's value was held beside its unit ("1,039" beside "damage/min"): the page was 374px
   // wide at 150% and about 500px at 200%. At 100% the holder keeps at least 5rem beside the figure,
   // whose unit wraps under the value (the damage record's holder was 68px before that floor); under a
   // 16rem book (150% and 200%) a record's row is one column, the holder across it, and the value and
   // unit wrap.
-  await page.goto("/leaderboards?view=records");
+  await page.goto("/leaderboards");
   await expect(page.getByTestId("records")).toBeVisible();
   for (const root of [100, 150, 200]) {
     if (root !== 100) await page.addStyleTag({ content: `html { font-size: ${root}% !important; }` });

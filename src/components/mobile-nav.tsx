@@ -489,8 +489,13 @@ const TAB_FIT = {
  * Mode, 6.53rem in Admin Mode; Back and its gap: 4.67rem as "Team", 6.94rem as "Dashboard"), so
  * beside it the labels give way where the name does (`besideBack`), and where both show the name
  * shortens first. At the bare thresholds the list scrolled sideways beside Back at 125% on a 768px
- * tablet (69px) and an 820px one (23px). A longer Back label ("Team Leaderboards", 10.74rem) can
- * still leave it a few pixels short (4px at 768px and 100%), where it scrolls: the last resort.
+ * tablet (69px) and an 820px one (23px). A longer Back label, such as a teammate's long name
+ * ("Demo Sub (Support)", 10.92rem), can still leave it a few pixels short (7px at 768px and 100%),
+ * where it scrolls: the last resort. Leaderboards' own heading, "Leaderboards" since it became one
+ * page (8.21rem; "Team Leaderboards" was 10.74rem and left it 4px short), fits at 100% text. With
+ * the root's size raised (the specs' emulation), a bar of 42.5rem to about 44.6rem keeps the labels
+ * beside that Back and the list scrolls a few pixels (6px at 768px and 106%); a real text-size
+ * setting starts the tablet's frame at 48rem, so a member never gets such a bar.
  */
 const BAR_FIT = {
   member: {
@@ -711,7 +716,7 @@ function usePageHeading(pathname: string, barHeight: number): { text: string | n
 /*
   Back on a phone. The pages visited in this tab of the browser since the app opened, newest last,
   each with its heading: when the page before this one is known, Back goes to it (the browser's own
-  history, so the place on that page is kept) and is named after it ("Team Leaderboards", "Demo Mid");
+  history, so the place on that page is kept) and is named after it ("Leaderboards", "Demo Mid");
   otherwise (a link from elsewhere, a reload, the installed app's start) Back leads to the page
   above this one (phoneParent). Moving between a profile's sections replaces the entry, as the
   sections do on phones (ProfileTabs), so Back leaves the profile rather than stepping through them.
