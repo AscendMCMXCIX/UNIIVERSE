@@ -1,10 +1,10 @@
 import type { Db } from "@/server/db/types";
 import type { Session } from "@/server/auth/permissions";
 import { canEditPlayer, hasPermission } from "@/server/auth/permissions";
-import { isGameRole, isSeasonMode, seasonModeInfo } from "@/domain/season-stats";
+import { isSeasonMode, seasonModeInfo } from "@/domain/season-stats";
 import { profileVersion } from "@/server/repositories/team";
 import { getPlayerOverview } from "@/server/players/overview";
-import { getPlayerMatchups } from "@/server/players/matchups";
+import { redirect } from "next/navigation";
 import { type ProfileHeaderData } from "@/server/players/profile-header";
 import { loadPickerChampions } from "@/server/champions/picker";
 import { getMatchSyncStatus } from "@/server/accounts/refresh";
@@ -20,7 +20,6 @@ import { FORM_MIN_GAMES } from "@/domain/recent-form";
 import type { PoolStats } from "@/components/profile/pool-stats";
 import type { OverviewCard } from "@/server/players/overview";
 import { championMap, IdentitySync, refreshFor, type ProfileSearch } from "./profile-sections";
-import { cardLookFor } from "@/domain/card-style";
 
 /* The player profile's Overview tab (components/players/profile-sections.tsx has the frame shared by every tab). */
 
@@ -56,6 +55,11 @@ export async function ProfileOverviewTab(props: { db: Db; header: ProfileHeaderD
 
 async function ProfileOverviewTabBody({ db, header, session, basePath, search }: { db: Db; header: ProfileHeaderData; session: Session | null; basePath: string; search: ProfileSearch }) {
   const player = header.player;
+  // An old link to a pool champion's window (?champ=): All Champions with its preview open.
+  if (search.champ) {
+    const q = new URLSearchParams(Object.entries({ season: search.season, mode: search.mode, account: search.account, champion: search.champ, crole: search.crole, vs: search.vs }).filter((e): e is [string, string] => typeof e[1] === "string" && !!e[1]));
+    redirect(`${basePath}/champions?${q.toString()}`);
+  }
   const self = session?.playerId === player.id;
   const editable = canEditPlayer(session, player.id);
   const showStats = self || hasPermission(session, "view-teammate-stats");
@@ -68,11 +72,10 @@ async function ProfileOverviewTabBody({ db, header, session, basePath, search }:
     // When the accounts were last read and the newest game: the page's one status line (two small queries).
     showStats ? getMatchSyncStatus(db, player.id) : Promise.resolve(null),
   ]);
-  // A pool champion's window (the same one as All Champions): its lane data in this page's scope.
-  const detail =
-    showStats && search.champ
-      ? await getPlayerMatchups(db, player.id, { account: overview.filter.accountId ?? "all", season: overview.season, mode: overview.mode, champion: search.champ, vs: search.vs ?? null, role: isGameRole(search.crole) ? search.crole : null, exact: true })
-      : null;
+  // All Champions with a pool champion's preview open, in this page's scope (the season, mode and
+  // account chosen here; the role is the pool's own).
+  const scopeQuery = Object.entries({ season: search.season, mode: search.mode, account: search.account }).filter((e): e is [string, string] => typeof e[1] === "string" && !!e[1]);
+  const championsScope = new URLSearchParams(scopeQuery).toString();
   // Ranked progress opens on the queue the header's rank comes from (Solo/Duo unless only Flex is ranked).
   const defaultQueue = header.rank?.queue === "flex" ? "flex" : "solo";
   const rankQueue = search.rq === "flex" || search.rq === "solo" ? search.rq : defaultQueue;
@@ -126,13 +129,8 @@ async function ProfileOverviewTabBody({ db, header, session, basePath, search }:
               heading: poolsHeading,
               intro: poolsIntro,
             }}
-            // Without statistics access the champion window never opens, so its figures and the Riot IDs of
-            // the account filter stay on the server.
-            scope={{ topChampions: showStats ? overview.topChampions : [], season: overview.season, seasons: overview.seasons, currentSeason: overview.currentSeason, mode: overview.mode, filter: overview.filter, accountOptions: showStats ? overview.accountOptions : [] }}
-            detail={detail}
-            championsById={championsById}
-            playerId={player.id}
-            look={cardLookFor(player)}
+            championsPath={`${basePath}/champions`}
+            championsScope={championsScope}
             inspect={showStats}
           />
         </div>

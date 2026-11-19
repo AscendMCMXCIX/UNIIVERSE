@@ -1,39 +1,69 @@
-# Champion window and Matchups
+# All Champions' preview and Matchups
 
-Profile → **All Champions** → a champion opens the **champion window** (the shared centred
-`DetailModal`), in the list's scope (season, game mode, account) and in the role of the row. It has
-two views:
+Profile → **All Champions** → a champion opens its **preview**, in the list's scope (season, game
+mode, account) and in the role of the row (PLAN S5, overhaul audit CM §4). It shows the player's own
+results, the same for every viewer who may see the profile; preparation (abilities, cooldowns,
+notes) is Matchup Intel's (docs/MATCHUP_INTEL.md), reached by one link per opponent.
 
-- **Overview:** the champion's games, win rate, KDA, CS and damage per minute and mastery; the
-  proficiency and why; the lane against every opponent at 5, 10, 15 and 20 minutes (with the
-  games behind each column); the opponents faced most; the latest games as match cards.
-- **Matchups:** one lane opponent at a time, chosen in a searchable list ("Gwen vs Nasus", each
-  option with its games and record) or from up to three frequent-opponent shortcuts:
-  - games, record and win rate, always with the sample size; where the games came from (queue,
-    account);
-  - the lane chart: the average gold, experience or CS difference per minute (one selector),
-    drawn only where at least 3 games reached the minute, single games as faint lines, a zero
-    line; hover, touch or the arrow keys read one minute with its average and its games;
-  - the checkpoint table and the cautious sentences;
-  - every game behind the numbers as the shared match card. A game replaces the window with the
-    match window (never two dimmed layers); its **Back** button returns to the same view.
+**Where it opens.** On a list wide enough (26rem or more beside Win rate, a pointer screen of
+1024px or more), the preview unfolds **inside the list's card**: the columns after Win rate fold
+(`visibility: hidden`, so their widths hold), and Champion, Games and Win rate keep their exact x.
+The selected row takes `surface-3` and a 2px accent bar. The preview is pinned under the section
+tabs and is as tall as its content; it scrolls inside only past the screen's height. With less
+room, on tablets and on phones, it is a **sheet** (`DetailModal size="sheet"`) with ‹ › to the
+next or previous champion in the list's order; pull down, ✕ or Back close it.
 
-A **Refine** button in the window's header changes the season, the game mode and (with several
-linked accounts) the account, for the window and the list behind it. Beside it, **Matchup Intel**
-opens the static reference for this champion, a page of its own in the sidebar (the enemy's
-abilities, base cooldowns and curated briefings: docs/MATCHUP_INTEL.md), with the lane opponent
-chosen in Matchups when that view is open. Matchups is the player's own games; Matchup Intel is the same for everyone.
+**Content, in this order and nothing else:**
 
-The window lives in the URL (`?champion=Gwen&crole=TOP&tab=matchups&vs=Nasus`), so it can be
-linked and reloaded; Back closes it. The old section addresses (`/overview/matchups`,
-`/players/[id]/matchups`) redirect into it, keeping the champion, the opponent, the season, the
-game mode and the account; without a champion, the most played one opens. Matchups is no longer a
-profile section.
+1. **Header:** the portrait, the name, the role and "In pool"; ✕. With several roles, "Also as Mid:
+   3 games · 1W 2L" switches to that row.
+2. **Figures:** the win rate large (coloured by `winRateTone` from 5 games), "14 games · 4W 10L",
+   and one quiet "KDA · CS/min · mastery" line.
+3. **Against each lane opponent**, sorted by Most games, Best or Worst
+   (`src/domain/champion-preview.ts`):
+   - an opponent shows a win rate from **3 games**, coloured from **5**, always with its games
+     beside it;
+   - opponents with 1–2 games fold into "N more opponents with 1–2 games" (W/L only);
+   - with none at 3 games, every opponent is listed with W/L only, and "No opponent met 3 times yet";
+   - Best and Worst rank opponents with 5+ games first, then 3–4; ties go to more games, then the
+     most recent.
+4. **An opponent unfolds in place** (`vs` in the address): one sentence only with at least 5 games
+   with a timeline ("At 10:00 you had more gold than Nasus in 5 of 6 games with a timeline (+623 on
+   average)", "Gwen had" on a teammate's profile: wording follows the viewer,
+   `src/domain/viewer-words.ts`), its games as compact rows (W/L, K/D/A, CS, the gold difference at
+   10:00 or "no timeline", the date; the first five, then "Show all"), each opening the match
+   window; and "Prepare Gwen vs Nasus in Matchup Intel →".
+5. **Foot line:** "Lane opponent: the enemy Riot placed in your position" ("their position" on a
+   teammate's), with "Known in N of M games" when some games name none.
 
-**Scope differences, disclosed in the window:** the Overview tiles count every game on the
-champion in the role (as All Champions does); the lane figures count only Summoner's Rift games of
-5 minutes or more with an identified lane opponent. The window defaults to all linked accounts, like
-All Champions (the old Matchups page defaulted to the Main account).
+Removed with the old champion window (19 Nov 2026): its tabs, the six tiles, the multikill strip,
+the lane tables, chart and second checkpoint table, the queue and account split, "How these figures
+are made", and the window's own Refine (the page's filters sit beside the preview). If the
+lane-by-minute views are missed, they come back as a fold under an opponent, never as a tab.
+
+**Address and history.** One key: `?champion=Gwen&crole=TOP[&vs=Nasus]`. The first open pushes one
+history entry; switching champion or opponent replaces it; closing goes Back when this page pushed
+it. So Back always closes and never walks through champions. The address changes through the
+History API, never a navigation, so the page does not re-render. A deep link renders the preview's
+data in the first HTML. Old links keep working: `tab=matchups&vs=X` opens the preview with X
+unfolded; `/overview/matchups` and `/players/[id]/matchups` redirect into it (the most played
+champion when none is named); the Overview's old `?champ=` key redirects to All Champions. A pool
+card on the Overview links to All Champions with that champion's preview open, in the pool's role.
+
+**Keyboard.** A click on a row opens it (focus stays on the row; the preview's summary is
+announced), Enter opens it and moves focus to its heading; ↑/↓ (or K/J) move it to the row above or
+below; Escape, ✕, Back or the selected row again close it, and focus returns to the row.
+
+**Data path** (`src/server/actions/champion-preview.ts`, `src/server/players/champion-preview.ts`):
+
+- `getChampionPreviewAction`: the lane opponents' tally from the stored rows (`getPlayerMatchups`
+  with `tallyOnly`), no match record or timeline read. About 0.4 KB per answer on the demo.
+- `getPairingGamesAction`: one opponent's games, through Matchups' pairing path (only that pair's
+  records and timelines).
+- Answers are kept per page (switching back asks nothing); pressing a row with a mouse fetches its
+  tally ahead.
+- The lane opponent is the game's stored one: the fold's strict rule (`laneOpponentOf`: only when
+  exactly one enemy held the player's position).
 
 ## Comparison with other players (not built)
 
@@ -68,29 +98,30 @@ The `timeline-backfill` job is part of the scheduler tick:
 - Rows stored earlier for the build order keep their purchases; the frames are added to them.
 - The Match History details panel also stores frames whenever it fetches a timeline.
 
-Nothing is fetched while a page renders. The champion window says how many of the games have a timeline, how many are still to be collected, how many Riot no longer provides, and how many have no clear lane opponent.
+Nothing is fetched while a page renders. The preview's foot line says in how many of the champion's games the lane opponent is known; an opponent's games say "no timeline" where none is stored.
 
 ## How the numbers are made (`src/domain/matchups.ts`)
 
 - **Alignment:** each value is read at an exact moment (10:00 = 600,000 ms) by interpolating linearly between the two frames around it, never by frame number.
 - **Game length:** a game that had ended before a moment has no value there and is left out of that moment's figures. Every column shows the number of games behind it.
 - **Direction:** differences are the player minus their lane opponent. The opponent is the game's stored one (the rule above), found in the stored match details by its champion on the other side.
-- **The graph:** gold, experience or CS, one at a time. Each game is a faint line, coloured by result. The average line is drawn only for minutes that at least 3 games reached; other minutes are a gap, never zero. With no such minute there is no curve, only the checkpoint table.
 - **Sentences:** they appear only with at least 5 games that have a timeline at the moments compared. They describe what happened in these games, for example "ahead in gold at 10:00 in 6 of 8 games" or "the gold lead grew between 10:00 and 20:00". They never say "always", never give a reason, and there are no grades or advice. A fixed note says the pattern is not its cause.
 
 ## Access
 
-The champion window has the same access as All Champions and Match History:
+The preview and its two actions have the same access as All Champions and Match History:
 - players always see their own;
-- teammates' matchups need *view teammate statistics*, checked on the server.
+- teammates' figures need *view teammate statistics*, checked on the server by each action;
+- a personal-use profile is its player's and the administrators' only (`mayOpenProfile`), answered
+  as one that does not exist (`tests/db/champion-preview.test.ts`).
 
 The page receives only figures. No PUUIDs, names or other players' identities are sent.
 
-The default is every linked account. Refine offers each account, the season and the game mode.
+The default is every linked account. The page's Refine offers each account, the season and the game mode.
 
 ## Known limitations
 
 - Coverage depends on the backfill. On release, few games have frames; about 30 are added per hourly tick, which shares Riot's limits with ranked collection.
 - Older games may have no timeline at Riot (shown as "no longer provided").
-- The current season is the default; Refine chooses another one.
+- The current season is the default; the page's Refine chooses another one.
 - Lane swaps (for example a bot-lane swap) follow Riot's assigned positions.

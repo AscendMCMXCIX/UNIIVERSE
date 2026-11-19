@@ -95,9 +95,11 @@
     first three cards' CS totals and damage shares end before the next column (the build or the
     teams), and a copy of a card with the widest K/D/A and the longest champion names stays level
     with it and keeps the names whole; on the phone (390x844) the first game card is complete above
-    the tab bar; its Encounters view and the champion window still open.
+    the tab bar; its Encounters view still opens. All Champions' preview: at 1440 beside the list in
+    its card (Champion, Games and Win rate in place, the page not scrolled), Escape and Back close it;
+    on the phone a sheet and on the tablet the docked panel, which Back closes; phone rows at most 64px.
   - accessibility (#173): axe (WCAG 2.1 A and AA, plus label-content-name-mismatch) on the main pages
-    at every width, with a game open, and in the champion window: no serious or critical violation.
+    at every width, with a game open, and in All Champions' preview: no serious or critical violation.
   - players (the roster board, Nov 2026), at every width: one profile link per listed player, and no
     pool counts "+1"; on the phone every roster row of two lines is at most 72px tall; at 1440 with
     the sidebar open the roster shows two columns once it lists two or more players. A roster too
@@ -1070,6 +1072,7 @@ async function allChampions(page, log, kind, playerId) {
   else {
     pass("all-champions", `${kind}: lists champions`, facts.rows > 0, facts.rows);
     if (kind !== "phone") pass("all-champions", `${kind}: rows are compact (at most 56 px)`, facts.heights.length > 0 && Math.max(...facts.heights) <= 56, facts.heights);
+    else pass("all-champions", `${kind}: rows are compact (at most 64 px: the name over the role, the win rate over the games)`, facts.heights.length > 0 && Math.max(...facts.heights) <= 64, facts.heights);
     if (kind !== "phone") {
       const roles = await everyRoleRow(page);
       pass("all-champions", `${kind}: rows stay compact for every role beside "In pool" (at most 56 px)`, !!roles && Math.max(...Object.values(roles.heights)) <= 56, roles ?? "no row with a role line to measure");
@@ -1078,21 +1081,43 @@ async function allChampions(page, log, kind, playerId) {
   }
   pass("all-champions", `${kind}: no heading cut short`, facts.cut.length === 0, facts.cut);
   await axe(page, kind, "all-champions");
-  // The champion window still opens from the list, and Escape closes it.
+  // All Champions' preview: at 1440 it unfolds beside the list, inside its card, with Champion,
+  // Games and Win rate in place (±1px) and the page not scrolled; Escape and Back close it. On the
+  // phone it is a sheet, on the tablet the docked panel, and Back closes it.
   const open = page.getByTestId("open-champion").first();
   if (await open.count()) {
+    const columns = () => page.evaluate(() => ["champion", "games", "win"].map((k) => Math.round(document.querySelector(`[data-testid=sort-${k}]`)?.getBoundingClientRect().x ?? -1)));
+    const before = { x: await columns(), y: await page.evaluate(() => scrollY) };
     await open.click();
-    const win = page.getByTestId("champion-detail");
-    const opened = await win.waitFor({ timeout: 15_000 }).then(() => true, () => false);
-    if (opened) {
-      await page.getByTestId("champion-detail-loading").waitFor({ state: "detached", timeout: 20_000 }).catch(() => {});
-      await page.waitForTimeout(600);
-      await shot(page, `${kind}-champion-window`);
-      await axe(page, kind, "champion-window", "[data-testid=champion-detail]");
-      await page.keyboard.press("Escape");
+    const content = page.getByTestId("champion-preview-content");
+    const opened = await content.waitFor({ timeout: 15_000 }).then(() => true, () => false);
+    if (kind === "desktop") {
+      const after = { x: await columns(), y: await page.evaluate(() => scrollY), aside: await page.evaluate(() => document.querySelector("[data-testid=champion-preview]")?.tagName === "ASIDE" && !document.querySelector("dialog[open]")) };
+      if (opened) {
+        await page.getByTestId("champion-preview-foot").waitFor({ timeout: 15_000 }).catch(() => {});
+        await shot(page, `${kind}-champion-preview`);
+        await axe(page, kind, "champion-preview", "[data-testid=champion-preview]");
+        await page.keyboard.press("Escape");
+      }
+      const escaped = await content.waitFor({ state: "detached", timeout: 5_000 }).then(() => true, () => false);
+      await open.click();
+      const again = await content.waitFor({ timeout: 15_000 }).then(() => true, () => false);
+      await page.goBack();
+      const backed = await content.waitFor({ state: "detached", timeout: 5_000 }).then(() => true, () => false);
+      const still = after.x.every((x, i) => Math.abs(x - before.x[i]) <= 1) && after.y === before.y;
+      pass("games", `${kind}: the champion preview opens beside the list (Champion, Games and Win rate in place, the page not scrolled); Escape and Back close it`, opened && after.aside && still && escaped && again && backed, { opened, aside: after.aside, before, after: { x: after.x, y: after.y }, escaped, backed });
+    } else {
+      // The shared Peek: a sheet on the phone, the panel docked at the right on the tablet.
+      const sheet = await page.locator(kind === "phone" ? "dialog[open][data-testid=champion-preview]" : "aside[data-peek-panel][data-testid=champion-preview]").count();
+      if (opened) {
+        await page.waitForTimeout(500);
+        await shot(page, `${kind}-champion-preview`);
+        await axe(page, kind, "champion-preview", "[data-testid=champion-preview]");
+        await page.goBack();
+      }
+      const closed = await content.waitFor({ state: "detached", timeout: 5_000 }).then(() => true, () => false);
+      pass("games", `${kind}: the champion preview opens (${kind === "phone" ? "a sheet" : "the docked panel"}) and Back closes it`, opened && sheet === 1 && closed, { opened, sheet, closed });
     }
-    const closed = await win.waitFor({ state: "hidden", timeout: 5_000 }).then(() => true, () => false);
-    pass("games", `${kind}: the champion window opens and Escape closes it`, opened && closed, { opened, closed });
   }
 }
 

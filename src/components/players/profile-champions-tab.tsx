@@ -4,12 +4,11 @@ import type { Session } from "@/server/auth/permissions";
 import { hasPermission } from "@/server/auth/permissions";
 import { isGameRole, isSeasonMode } from "@/domain/season-stats";
 import { getPlayerOverview } from "@/server/players/overview";
-import { getPlayerMatchups } from "@/server/players/matchups";
+import { getChampionPreview, getPairingGames } from "@/server/players/champion-preview";
 import { type ProfileHeaderData } from "@/server/players/profile-header";
 import { getMatchSyncStatus } from "@/server/accounts/refresh";
 import { dataStatus } from "@/domain/data-status";
 import { AllChampions } from "@/components/players/all-champions";
-import { cardLookFor } from "@/domain/card-style";
 import { championMap, IdentitySync, refreshFor, type ProfileSearch } from "./profile-sections";
 
 /* The player profile's All Champions tab (components/players/profile-sections.tsx has the frame shared by every tab). */
@@ -39,12 +38,14 @@ async function ProfileChampionsTabBody({ db, header, session, basePath, search }
     q.set("champion", overview.topChampions[0].championId);
     redirect(`${basePath}/champions?${q.toString()}`);
   }
-  // The champion window's lane data, in the list's scope (all linked accounts unless one is chosen).
-  const detail = search.champion
-    ? await getPlayerMatchups(db, player.id, { account: overview.filter.accountId ?? "all", season: overview.season, mode: overview.mode, champion: search.champion, vs: search.vs ?? null, role: isGameRole(search.crole) ? search.crole : null, exact: true })
-    : null;
+  // A linked preview (?champion=&crole=[&vs=]) is in the first HTML: its tally, and the opponent's
+  // games when one is open, in the list's scope (all linked accounts unless one is chosen).
+  const role = isGameRole(search.crole) ? search.crole : null;
+  const card = search.champion ? (overview.topChampions.filter((c) => c.championId === search.champion).sort((a, b) => (role ? Number(b.role === role) - Number(a.role === role) : 0) || b.selected.games - a.selected.games)[0] ?? null) : null;
+  const scope = card ? { season: overview.season, mode: overview.mode, account: overview.filter.accountId ?? "all", champion: card.championId, role: card.role } : null;
+  const [initialPreview, initialPairing] = scope ? await Promise.all([getChampionPreview(db, player.id, scope), search.vs ? getPairingGames(db, player.id, scope, search.vs) : null]) : [null, null];
   const m = overview.summary.multikills;
   const perf = overview.summary.performance;
   const status = dataStatus({ accounts: overview.accounts.map((a) => a.sync), checkedAt: sync.checkedAt, attemptedAt: sync.attemptedAt, newestGameAt: sync.newestGameAt, season: overview.completeness, multikills: m, details: { games: perf.games, detailed: perf.detailedGames, unavailable: perf.unavailableGames } });
-  return <AllChampions data={overview} basePath={`${basePath}/champions`} championsById={championsById} playerId={player.id} look={cardLookFor(player)} detail={detail} status={status} refresh={refreshFor(session, player.id, sync, m.games - m.counted - m.unavailable > 0)} />;
+  return <AllChampions data={overview} basePath={`${basePath}/champions`} championsById={championsById} playerId={player.id} isOwn={self} initialPreview={initialPreview} initialPairing={initialPairing} status={status} refresh={refreshFor(session, player.id, sync, m.games - m.counted - m.unavailable > 0)} />;
 }

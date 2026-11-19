@@ -224,7 +224,6 @@ function PoolPreview({ ids, championsById, onInspect, inspectHref, testId }: { i
                   onInspect(id);
                 }}
                 className="block rounded-md transition-transform hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent motion-reduce:hover:translate-y-0"
-                aria-haspopup="dialog"
                 title={c.name}
                 data-testid="pool-preview-inspect"
               >

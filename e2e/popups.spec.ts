@@ -489,16 +489,23 @@ test("a window that took the focus as it opened lets it go when pressed inside: 
   await page.setViewportSize({ width: 1440, height: 540 });
   const profile = await teammateProfile(page);
   await page.goto(`${profile}/champions`);
+  // A game's window, opened from All Champions' preview (an opponent's games).
   const open = page.getByTestId("top-champion").first().getByTestId("open-champion");
-  const win = page.getByTestId("champion-detail");
+  const opponent = page.getByTestId("champion-preview-opponent").first();
   await expect(async () => {
-    if (!(await win.isVisible())) await press(page, open, { timeout: 2_000 });
-    await expect(win).toBeVisible({ timeout: 1_000 });
+    if (!(await page.getByTestId("champion-preview-content").count())) await press(page, open, { timeout: 2_000 });
+    await expect(opponent).toBeVisible({ timeout: 1_000 });
   }).toPass({ timeout: 15_000 });
+  await press(page, opponent.getByRole("button").first());
+  const game = page.getByTestId("champion-preview-game").first();
+  await expect(game).toBeVisible();
+  await press(page, game);
+  const win = page.locator("dialog[open]").filter({ has: page.getByTestId("match-detail-body") });
+  await expect(win).toBeVisible();
   await untilStill(page);
   // Opened by a tap or a click: the window holds the focus itself.
   await expect(win).toBeFocused();
-  const body = win.getByTestId("champion-detail-body");
+  const body = win.getByTestId("match-detail-body");
   await expect(body).toHaveCSS("opacity", "1", { timeout: 15_000 });
   expect(await body.evaluate((el) => el.scrollHeight - el.clientHeight), "the window's body scrolls").toBeGreaterThan(40);
   expect(await body.evaluate((el) => el.scrollTop)).toBe(0);
@@ -615,34 +622,6 @@ test.describe("phones", () => {
     await expect(panel).toHaveAttribute("data-flow", "true");
     await expectInWindowBody(page, panel);
     expect(await pageScroll(page)).toBe(before);
-  });
-
-  test("the champion window's opponent picker opens its list in the window's body, and its search is 16px", async ({ page }) => {
-    const profile = await teammateProfile(page);
-    await page.goto(`${profile}/champions`);
-    const open = page.getByTestId("top-champion").first().getByTestId("open-champion");
-    const win = page.getByTestId("champion-detail");
-    await expect(async () => {
-      if (!(await win.isVisible())) await open.tap({ timeout: 2_000 });
-      await expect(win).toBeVisible({ timeout: 1_000 });
-    }).toPass({ timeout: 15_000 });
-    await page.getByTestId("champion-tab-matchups").tap();
-    const button = win.getByTestId("opponent-picker-button");
-    await expect(button).toBeVisible();
-    await untilStill(page);
-    const before = await pageScroll(page);
-    await button.tap();
-    const popover = win.getByTestId("opponent-picker-popover");
-    await expect(popover).toBeVisible();
-    await expect(popover).toHaveAttribute("data-flow", "true");
-    // iOS zooms the page into a field under 16px as it is focused.
-    expect(await win.getByTestId("opponent-picker-search").evaluate((el) => getComputedStyle(el).fontSize)).toBe("16px");
-    await expectInWindowBody(page, popover);
-    expect(await pageScroll(page)).toBe(before);
-    // Escape closes the list, never the window.
-    await win.getByTestId("opponent-picker-search").press("Escape");
-    await expect(popover).toHaveCount(0);
-    await expect(win).toBeVisible();
   });
 
   test("the add-champion list ends above the tab bar: near it, the list opens above its field", async ({ page }) => {
