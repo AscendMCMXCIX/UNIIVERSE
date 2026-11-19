@@ -1,12 +1,11 @@
 import Link from "next/link";
-import { ArrowDown, ArrowUp, ChevronRight, RotateCcw } from "lucide-react";
 import { rankProgress, type RankQueue } from "@/domain/rank-progress";
-import { rankedYearCoverage, rankMovement, rankTimeline, type RankedYearCoverage, type RankMovement, type RankTimeline, type TimelineMarker } from "@/domain/rank-timeline";
-import { RANKED_YEAR } from "@/domain/ranked-year";
+import { rankMovement, rankTimeline, type RankMovement } from "@/domain/rank-timeline";
+import { RANKED_YEAR, rankedSeasonAt } from "@/domain/ranked-year";
 import type { RankHistoryAccount } from "@/server/accounts/rank-history";
 import { InfoTip } from "@/components/ui/info-tip";
 import { segmentClass, segmentedGroupClass } from "@/components/ui/segmented";
-import { formatCount, formatDate, formatDateTime, formatDateTimeAfter, formatDayMonth, formatLpChange } from "@/lib/format";
+import { formatDate, formatDayMonth, formatLpChange } from "@/lib/format";
 import { accountShortNames } from "@/domain/account-names";
 import { cn } from "@/lib/cn";
 import { RankEmblem } from "./rank-emblem";
@@ -14,8 +13,6 @@ import { RankTimelineChart } from "./rank-timeline-chart";
 
 const QUEUE_LABEL: Record<RankQueue, string> = { solo: "Ranked Solo/Duo", flex: "Ranked Flex" };
 const QUEUE_SHORT: Record<RankQueue, string> = { solo: "Solo/Duo", flex: "Flex" };
-/** The readings table lists at most this many, newest first. */
-const TABLE_ROWS = 200;
 
 export type RankedProgressHref = (change: { rq?: RankQueue; ra?: string | null }) => string;
 
@@ -23,9 +20,10 @@ export type RankedProgressHref = (change: { rq?: RankQueue; ra?: string | null }
  * Ranked progress of one linked account (the Main account unless another is chosen), one queue at
  * a time, in the 2026 ranked year. Compact: where the account stands now (Riot's current rank, LP
  * and the year's wins and losses), how it moved, and a small chart of the stretch UNIIVERSE has
- * read. Riot reports no past ranks, so nothing before the first reading is drawn; the details say
- * how much of the year that covers, beside the ranked games stored for the whole year, and list
- * every reading and rank change.
+ * read. Riot reports no past ranks, so nothing before the first reading is drawn. The card ends with
+ * the chart (18 Nov 2026: the History and coverage disclosure under it, with the ranked year's strip,
+ * the rank changes and every reading, was removed from the page; the readings, the history and their
+ * calculations are unchanged, docs/RANKED_PROGRESS.md).
  */
 export function RankedProgress({ accounts, queue, accountId, href, now }: { accounts: RankHistoryAccount[]; queue: RankQueue; accountId: string | null; href: RankedProgressHref; now: number }) {
   if (accounts.length === 0) return null;
@@ -34,10 +32,9 @@ export function RankedProgress({ accounts, queue, accountId, href, now }: { acco
   const cur = rankProgress(queue, snapshots, now).current;
   const timeline = rankTimeline(snapshots, now);
   const movement = rankMovement(timeline, now);
-  const coverage = rankedYearCoverage(timeline, account.weeks[queue], now);
   const names = accountShortNames(accounts);
-  const changes = [...timeline.markers].reverse();
-  const season = coverage.season ? `${RANKED_YEAR} ${coverage.season.label}` : null;
+  const seasonNow = rankedSeasonAt(now);
+  const season = seasonNow ? `${RANKED_YEAR} ${seasonNow.label}` : null;
   const hasLine = timeline.readings.some((r) => r.score !== null);
   return (
     <section id="ranked-progress" aria-labelledby="ranked-progress-title" className="@container/rank space-y-3 rounded-card border border-border bg-surface p-4 panel-depth" data-testid="ranked-progress">
@@ -142,36 +139,6 @@ export function RankedProgress({ accounts, queue, accountId, href, now }: { acco
           </p>
         )}
       </div>
-
-      <details className="group/details border-t border-border pt-2" data-testid="ranked-details">
-        <summary className="flex min-h-8 cursor-pointer list-none items-center gap-1.5 rounded-sm text-xs font-medium text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:min-h-11 [&::-webkit-details-marker]:hidden" data-testid="ranked-details-toggle">
-          <ChevronRight className="h-3.5 w-3.5 shrink-0 transition-transform duration-150 group-open/details:rotate-90" aria-hidden />
-          History and coverage
-          {/* From 25.5rem, as the chart's full names (a 2×2's rail at 1440 holds them, sidebar open). */}
-          <span className="hidden font-normal text-fg-subtle @min-[25.5rem]/rank:inline">
-            · {formatCount(timeline.readings.length)} reading{timeline.readings.length === 1 ? "" : "s"} · {formatCount(changes.length)} rank change{changes.length === 1 ? "" : "s"}
-          </span>
-        </summary>
-        <div className="mt-3 space-y-5">
-          <YearCoverage c={coverage} queue={queue} />
-          <div className="grid gap-x-6 gap-y-4 @min-[44rem]/rank:grid-cols-2">
-            <div className="min-w-0">
-              <h3 className="mb-1.5 text-xs font-medium text-fg-subtle">Rank changes recorded</h3>
-              {changes.length === 0 ? (
-                <p className="text-xs text-fg-muted">No promotion, demotion or reset recorded.</p>
-              ) : (
-                <ol className="space-y-1" data-testid="ranked-events">
-                  {changes.map((m, i) => (
-                    <ChangeRow key={`${m.at}-${i}`} m={m} />
-                  ))}
-                </ol>
-              )}
-            </div>
-            {hasLine ? <ChartKey t={timeline} /> : null}
-          </div>
-          {timeline.readings.length ? <ReadingsTable t={timeline} /> : null}
-        </div>
-      </details>
     </section>
   );
 }
@@ -211,184 +178,6 @@ function Movement({ m, unranked }: { m: RankMovement | null; unranked: boolean }
           {m.from === m.to ? `${m.to.label} ${m.to.lp ?? 0} LP since ${formatDayMonth(m.to.from)}` : `from ${m.from.label} ${m.from.lp ?? 0} LP`}
         </span>
       </dd>
-    </div>
-  );
-}
-
-/**
- * The ranked year so far as one strip: the stored ranked games week by week (wins up, losses
- * down), Riot's seasons marked on it, and the part with rank readings lit. Says in words what can
- * and cannot be known before the first reading.
- */
-function YearCoverage({ c, queue }: { c: RankedYearCoverage; queue: RankQueue }) {
-  const span = Math.max(1, c.to - c.from);
-  const pos = (at: number) => `${(Math.min(Math.max(at, c.from), c.to) - c.from) / span * 100}%`;
-  const week = 7 * 86_400_000;
-  const max = Math.max(1, ...c.weeks.map((w) => Math.max(w.wins, w.losses)));
-  const played = c.games.wins + c.games.losses;
-  return (
-    <div className="min-w-0" data-testid="ranked-coverage">
-      <div className="mb-1.5 flex flex-wrap items-baseline justify-between gap-x-3">
-        <h3 className="text-xs font-medium text-fg-subtle">{RANKED_YEAR} ranked year</h3>
-        <span className="text-2xs tabular-nums text-fg-subtle" data-testid="ranked-coverage-days" title="Calendar days covered by a reading (from its first sight to its last confirmation), or between two readings at most one game apart">
-          Rank known on {formatCount(c.knownDays)} of {formatCount(c.yearDays)} days
-        </span>
-      </div>
-      <div className="relative h-10" aria-hidden>
-        {c.trackedFrom !== null ? <span className="absolute inset-y-0 right-0 rounded-sm border-l border-accent/70 bg-accent/10" style={{ left: pos(c.trackedFrom) }} data-testid="ranked-coverage-tracked" /> : null}
-        <span className="absolute inset-x-0 top-1/2 h-px bg-border" />
-        {c.seasons.slice(1).map((s) => (
-          <span key={s.label} className="absolute inset-y-0 w-px bg-border-strong" style={{ left: pos(s.from) }} />
-        ))}
-        {c.weeks.map((w) => (
-          <span key={w.week} className="absolute inset-y-0 flex flex-col justify-center px-px" style={{ left: pos(w.week), width: `${(week / span) * 100}%` }} data-testid="ranked-week" data-wins={w.wins} data-losses={w.losses}>
-            <span className="flex h-1/2 flex-col justify-end pb-px">{w.wins > 0 ? <span className="block rounded-t-sm bg-blue/85" style={{ height: `${Math.max(8, (w.wins / max) * 100)}%` }} /> : null}</span>
-            <span className="flex h-1/2 flex-col justify-start pt-px">{w.losses > 0 ? <span className="block rounded-b-sm bg-red/80" style={{ height: `${Math.max(8, (w.losses / max) * 100)}%` }} /> : null}</span>
-          </span>
-        ))}
-      </div>
-      <div className="relative mt-1 h-4 text-2xs text-fg-subtle" aria-hidden>
-        {c.seasons.map((s, i) => (
-          <span key={s.label} className={cn("absolute whitespace-nowrap", i === 0 ? "" : "pl-1")} style={{ left: pos(s.from) }}>
-            {s.label}
-          </span>
-        ))}
-      </div>
-      <p className="mt-1.5 text-2xs leading-relaxed text-fg-muted" data-testid="ranked-coverage-note">
-        Games: {played > 0 ? `${formatCount(played)} ${QUEUE_LABEL[queue]} games stored since 8 January (${c.games.wins}W ${c.games.losses}L), wins above the line, losses below.` : `no ${QUEUE_LABEL[queue]} game stored this year.`}{" "}
-        Rank and LP: {c.trackedFrom !== null ? `only from the first reading, ${formatDateTime(c.trackedFrom)} (lit).` : "no reading yet."} Riot&apos;s API gives only the current rank, so earlier ranks, LP and each earlier game&apos;s LP cannot be recovered.
-      </p>
-    </div>
-  );
-}
-
-function ChangeRow({ m }: { m: TimelineMarker }) {
-  const up = m.kind === "promotion" || m.kind === "placed";
-  const Icon = m.kind === "reset" ? RotateCcw : up ? ArrowUp : ArrowDown;
-  const word = { promotion: "Promoted", demotion: "Demoted", reset: "Reset", placed: "Placed" }[m.kind];
-  return (
-    <li className="flex items-center gap-2 text-xs" data-kind={m.kind} data-exact={m.exact}>
-      <Icon className={cn("h-3.5 w-3.5 shrink-0", m.kind === "reset" ? "text-fg-muted" : up ? "text-good" : "text-bad")} aria-hidden />
-      <span className="min-w-0 flex-1 truncate text-fg">
-        {word}: {m.kind === "reset" ? `${m.from} → ${m.to}` : m.to}
-      </span>
-      <span className="shrink-0 tabular-nums text-fg-subtle" title={m.exact ? "Between two readings one game apart" : m.kind === "reset" || m.kind === "placed" ? "Somewhere between these two readings" : "Somewhere between these two readings, several games apart"}>
-        {m.exact ? formatDate(m.at) : `${formatDayMonth(m.since)} – ${formatDayMonth(m.at)}`}
-      </span>
-    </li>
-  );
-}
-
-function ChartKey({ t }: { t: RankTimeline }) {
-  const hasGap = t.links.some((l) => l.kind === "gap");
-  const hasUntracked = t.trackingSince !== null && t.trackingSince > t.from;
-  return (
-    <div className="min-w-0">
-      <h3 className="mb-1.5 text-xs font-medium text-fg-subtle">Reading the chart</h3>
-      <ul className="space-y-1 text-2xs text-fg-muted" data-testid="ranked-key">
-        <li className="flex items-center gap-1.5">
-          <span className="h-0.5 w-4 shrink-0 rounded bg-gradient-to-r from-accent to-accent-2" aria-hidden />
-          Rank read by UNIIVERSE
-        </li>
-        <li className="flex items-center gap-1.5">
-          <span className="shrink-0 text-good" aria-hidden>
-            ▲
-          </span>
-          <span className="shrink-0 text-bad" aria-hidden>
-            ▼
-          </span>
-          Promotion, demotion (hollow: somewhere within several games)
-        </li>
-        <li className="flex items-center gap-1.5">
-          <span className="shrink-0 text-accent-2" aria-hidden>
-            ◆
-          </span>
-          Highest recorded
-        </li>
-        {hasGap ? (
-          <li className="flex items-center gap-1.5">
-            <span className="h-3 w-3 shrink-0 rounded-sm border border-dashed border-fg-subtle/60 bg-fg-subtle/10" aria-hidden />
-            Several games between two readings: not seen one by one
-          </li>
-        ) : null}
-        {hasUntracked ? (
-          <li className="flex items-center gap-1.5">
-            <span className="h-3 w-3 shrink-0 rounded-sm border border-fg-subtle/40 bg-[repeating-linear-gradient(45deg,var(--color-fg-subtle)_0_1px,transparent_1px_4px)] opacity-60" aria-hidden />
-            Not recorded
-          </li>
-        ) : null}
-      </ul>
-    </div>
-  );
-}
-
-/** "confirmed 21 Oct, 3:04 pm" ("confirmed 3:04 pm" the same day; the year only in another one). */
-function ConfirmedUnder({ from, to }: { from: number; to: number }) {
-  const at = formatDateTimeAfter(to, from);
-  return (
-    <span className="block whitespace-normal text-2xs text-fg-subtle @min-[32rem]/rank:hidden">
-      confirmed{" "}
-      {at.day ? (
-        <>
-          <span className="whitespace-nowrap">{at.day},</span>{" "}
-        </>
-      ) : null}
-      <span className="whitespace-nowrap">{at.time}</span>
-    </span>
-  );
-}
-
-function ReadingsTable({ t }: { t: RankTimeline }) {
-  const rows = [...t.readings].reverse().slice(0, TABLE_ROWS);
-  return (
-    <div className="min-w-0">
-      <h3 className="mb-1.5 text-xs font-medium text-fg-subtle">
-        Every reading{t.readings.length > TABLE_ROWS ? ` (newest ${TABLE_ROWS} of ${formatCount(t.readings.length)})` : ""}
-      </h3>
-      {/* A height limit and its own scroll only with a mouse: on a touch screen the rows run with the
-          page (no scroll inside a scroll, docs/RESPONSIVE.md, "Long lists inside a page"); a row too
-          wide for a narrow phone still scrolls sideways inside the box, never the page. */}
-      <div className="overflow-x-auto rounded-card border border-border pointer-fine:max-h-64 pointer-fine:overflow-y-auto" data-testid="ranked-table" tabIndex={0} role="region" aria-label="Rank readings, newest first">
-        <table className="w-full text-left text-xs tabular-nums">
-          <caption className="sr-only">Rank readings, newest first</caption>
-          <thead className="sticky top-0 bg-bg-elevated text-2xs text-fg-subtle">
-            <tr>
-              <th scope="col" className="px-2 py-1.5 font-medium">
-                First read
-              </th>
-              <th scope="col" className="px-2 py-1.5 font-medium">
-                Rank
-              </th>
-              <th scope="col" className="px-2 py-1.5 text-right font-medium" title="Riot's count of wins and losses in the ranked year at that reading">
-                W–L
-              </th>
-              <th scope="col" className="hidden px-2 py-1.5 font-medium @min-[32rem]/rank:table-cell">
-                Last confirmed
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.from} className="border-t border-border/60">
-                <td className="whitespace-nowrap px-2 py-1 text-fg-muted">
-                  {formatDateTime(r.from)}
-                  {/* Where the Last confirmed column does not fit: under the first reading, without
-                      what the two share (the year, the day), so it is rarely wider than the date
-                      above it and the row keeps W–L in the box; it wraps only between whole parts
-                      ("21 Oct," and "3:04 pm"), never leaving "pm" alone on a line. */}
-                  {r.to > r.from ? <ConfirmedUnder from={r.from} to={r.to} /> : null}
-                </td>
-                <td className="whitespace-nowrap px-2 py-1 font-medium text-fg">
-                  {r.label}
-                  {r.lp !== null ? ` · ${r.lp} LP` : ""}
-                </td>
-                <td className="whitespace-nowrap px-2 py-1 text-right text-fg-muted">{r.wins !== null && r.losses !== null ? `${r.wins}–${r.losses}` : "—"}</td>
-                <td className="hidden whitespace-nowrap px-2 py-1 text-fg-subtle @min-[32rem]/rank:table-cell">{r.to > r.from ? formatDateTime(r.to) : "—"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
     </div>
   );
 }

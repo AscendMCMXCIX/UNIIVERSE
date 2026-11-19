@@ -167,6 +167,9 @@ test("held sideways and with large text, the account screen scrolls as one regio
     // Safari's page zoom at 150% gives the page a smaller viewport in CSS px.
     { size: "sideways, page zoomed to 150%", viewport: { width: 489, height: 229 }, root: 100 },
     { size: "150% text upright", viewport: { width: 393, height: 659 }, root: 150 },
+    // A page row's chevron gives way here (its row under 12rem), and at 200% its icon too (under
+    // 10.25rem): lib/sheet.ts.
+    { size: "150% text upright on a 320px phone", viewport: { width: 320, height: 568 }, root: 150 },
     { size: "200% text upright on a 320px phone", viewport: { width: 320, height: 568 }, root: 200 },
   ];
   for (const { size, viewport, root } of cases) {
@@ -205,6 +208,16 @@ test("held sideways and with large text, the account screen scrolls as one regio
       });
       expect(whole.length, where).toBeGreaterThanOrEqual(3);
       expect(whole, where).not.toContain(false);
+      // Every row's name is whole: its words wrap between them where the row is narrow, and none is
+      // cut to an ellipsis or broken inside (Matchup Intel's row was "Matchup…" at 150% on a 320px
+      // phone; Data & Integrations', Switch to Admin Mode's and Return to Player Mode's at 150% on any).
+      const cut = await screen.evaluate((d) =>
+        [...d.querySelectorAll<HTMLElement>("[data-sheet-scroll] nav a, [data-sheet-scroll] nav button, [data-testid=mode-switch]")]
+          .map((row) => [...row.children].find((c): c is HTMLElement => c instanceof HTMLElement && c.tagName === "SPAN")!)
+          .filter((label) => label.scrollWidth > label.clientWidth + 1)
+          .map((label) => label.textContent),
+      );
+      expect(cut, `${where}: rows cut short`).toEqual([]);
       await expect(screen.getByText("Not endorsed by Riot Games."), where).toBeInViewport();
       expect((await screen.getByTestId("account-sheet-close").boundingBox())!.y, where).toBe(close.y);
       await page.keyboard.press("Escape");

@@ -19,7 +19,7 @@ const unique = (base: string) => `${base}${Date.now().toString(36).slice(-5)}`;
 /** Admin Mode's sections, in sidebar order. */
 const ADMIN_SECTIONS = ["Dashboard", "Users & Permissions", "Platform Settings", "Data & Integrations", "System Health", "Audit Logs"];
 /** Player Mode's sidebar for a team member (and for the Owner). */
-const PLAYER_ENTRIES = ["My Profile", "Team", "Resources"];
+const PLAYER_ENTRIES = ["My Profile", "Team", "Matchup Intel", "Resources"];
 
 async function createAccount(page: Page, username: string, access: "team" | "personal", riotId = `${username}#OCE`) {
   const form = page.getByTestId("add-player-form");
@@ -116,10 +116,10 @@ test("on a phone the switch is in the account screen, and each mode has its own 
   await expect(sheet.getByTestId("mode-switch")).toHaveText("Return to Player Mode");
   await sheet.getByTestId("mode-switch").click();
   await expect(page).toHaveURL(/\/team$/);
-  // Player Mode: its five destinations in the bar; the sheet holds Resources, Settings and the switch.
+  // Player Mode: its five destinations in the bar; the sheet holds Matchup Intel, Resources, Settings and the switch.
   await expect(tabs).toHaveText(["Team", "Players", "Leaderboards", "Matches", "Profile"]);
   await openSheet();
-  await expect(sheet.getByRole("link", { name: "Resources" })).toBeVisible();
+  await expect(sheet.getByRole("navigation").getByRole("link")).toHaveText(["Matchup Intel", "Resources", "Settings"]);
   await sheet.getByTestId("mode-switch").click();
   await expect(page).toHaveURL(/\/admin$/);
   // The installed app opens at "/": the mode used last.

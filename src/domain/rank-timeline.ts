@@ -10,8 +10,9 @@ import { isoDay, localPeriodStarts } from "@/lib/format";
   UNIIVERSE read it. The chart therefore spans the stretch that has readings: from the first
   reading in the 2026 ranked year to now (at least a few days, so a new account's chart is not a
   dot). The months before the first reading are not drawn as an empty band; `rankedYearCoverage`
-  says in words and as a small strip how much of the ranked year that is, beside the games stored
-  for the whole year (which are real: MATCH-V5).
+  works out how much of the ranked year that is, beside the games stored for the whole year (which
+  are real: MATCH-V5). Ranked progress showed it in words and as a small strip until 18 Nov 2026,
+  when History and coverage left the card; it is kept, with its tests (docs/RANKED_PROGRESS.md).
 
   A reading is a rank Riot reported, seen from its first sight to its last confirmation. Between
   two consecutive readings the line goes on only where nothing could have happened unseen: no game
@@ -234,7 +235,8 @@ function daysTouched(spans: ReadonlyArray<[number, number]>): Set<string> {
 }
 
 /**
- * The 2026 ranked year so far, for the coverage strip: its seasons (one ladder, Riot's "Season 1",
+ * The 2026 ranked year so far, as the coverage strip drew it (no page shows it since 18 Nov 2026; see
+ * the file's head): its seasons (one ladder, Riot's "Season 1",
  * "Season 2", "Season 3"), the stored ranked games week by week (MATCH-V5: the whole year), and the
  * part of the year that has rank readings.
  */

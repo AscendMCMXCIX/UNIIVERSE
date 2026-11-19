@@ -43,8 +43,17 @@ describe("RankedProgress", () => {
     expect(text(html, "ranked-change-none")).toBe("Unranked now: nothing to compare");
   });
 
-  it("counts the days the rank is known in the installation's calendar days", () => {
+  it("ends with the chart: no History and coverage disclosure, no year strip, rank changes or readings table", () => {
+    // The days the rank is known (5 of 301 here) are still worked out by rankedYearCoverage, and
+    // tested there (domain/rank-timeline.test.ts); the card no longer shows them.
     const html = render([snap(D(10, 15), "GOLD", "II", 46, 100, 90, D(10, 15, 20)), snap(D(10, 16), "GOLD", "II", 70, 101, 90), snap(D(10, 18), "GOLD", "I", 12, 104, 91, D(10, 18, 18)), snap(D(10, 20), "GOLD", "II", 75, 104, 92)]);
-    expect(text(html, "ranked-coverage-days")?.trim()).toBe("Rank known on 5 of 301 days");
+    for (const gone of ["<details", "<summary", "History and coverage", "ranked-details", "ranked-coverage", "ranked-events", "ranked-key", "ranked-table", "Every reading", "Rank changes recorded"]) expect(html, gone).not.toContain(gone);
+    // What the card keeps: the season and the first reading, the current rank and LP, Riot's record,
+    // the change and the highest recorded rank, and the chart, which ends the card.
+    expect(text(html, "ranked-tracking")).toBe("Name#TAG · 2026 Season 3 · rank recorded since 15 Oct 2026");
+    expect(text(html, "ranked-current")).toBe("Gold II · 75 LP");
+    expect(html).toContain("104W 92L · 53% · 2026 (Riot)");
+    expect(html).toContain('data-testid="ranked-peak-stat"');
+    expect(html).toMatch(/data-testid="ranked-chart"[\s\S]*<\/section>$/);
   });
 });

@@ -340,7 +340,8 @@ test("held sideways, the avatar opens the account screen at every width, and Tea
     const screen = page.getByTestId("account-sheet");
     await expect(screen, where).toHaveAttribute("data-entered", "true");
     expect(await screen.boundingBox(), where).toEqual({ x: 0, y: 0, width: viewport.width, height: viewport.height });
-    // Resources is not a destination of the bar: the screen holds it, with Settings.
+    // Matchup Intel and Resources are not destinations of the bar: the screen holds them, with Settings.
+    await expect(screen.getByRole("link", { name: "Matchup Intel" }), where).toBeVisible();
     await expect(screen.getByRole("link", { name: "Resources" }), where).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(screen).toHaveCount(0);

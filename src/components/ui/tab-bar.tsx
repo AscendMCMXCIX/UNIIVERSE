@@ -12,11 +12,17 @@ import { publishToolbarSlot } from "@/components/ui/page-toolbar";
  * The look of a tab and its indicator, shared by every row of tabs (a page's sections, a game's
  * Scoreboard/Analysis/Timeline/Build, a champion's views): the label in the secondary grey, brighter
  * while pointed at with a quiet line under it; the selected tab in the main text colour over a short
- * bar in the brand gradient (accent to accent-2). The 2px border keeps every tab the same height.
+ * bar in the brand gradient (accent to accent-2). Every tab keeps the bar's room at its foot, so all
+ * are the same height. The bar is drawn inside the tab's own box, at the foot of its padding: it sat
+ * in a 2px transparent border, 0.125rem below the padding, which is more than 2px wherever the root
+ * size is above 16px (from a 1536px window, and at a larger text size) and, borders being rounded to
+ * whole device pixels, at some zoom levels too, so it reached up to a pixel below the tab and its
+ * row. A row of tabs scrolls sideways, and a scroll box that overflows by a pixel scrolls the other
+ * way as well: the Team tabs drew a vertical scrollbar beside the team's name (18 Nov 2026).
  */
 export function tabIndicatorClass(on: boolean): string {
   return cn(
-    "relative border-b-2 border-transparent after:pointer-events-none after:absolute after:inset-x-2 after:-bottom-0.5 after:h-0.5 after:rounded-full after:transition-opacity after:duration-150",
+    "relative pb-0.5 after:pointer-events-none after:absolute after:inset-x-2 after:bottom-0 after:h-0.5 after:rounded-full after:transition-opacity after:duration-150",
     on ? "text-fg after:bg-gradient-to-r after:from-accent after:to-accent-2" : "text-fg-muted after:bg-border-strong after:opacity-0 hover:text-fg hover:after:opacity-100",
   );
 }
@@ -102,8 +108,8 @@ function useToolbarSlot(nav: React.RefObject<HTMLElement | null>, slot: React.Re
  * however long the page (globals.css sticky-tabs; docs/RESPONSIVE.md → Shell); it must be a child of
  * the element the page scrolls through, never of a wrapper that ends with it. `end`: content at the
  * bar's right end (Team names the team there). `inner`: classes for the row's width, for a bar that
- * spans more than the pages under it (Team's, Resources' and Platform Settings' sections, a child of
- * `main` above pages centred in their own width). SectionTabs passes ROW_WIDTH: the bar's width in a
+ * spans more than the pages under it (Team's and Platform Settings' sections, a child of `main` above
+ * pages centred in their own width). SectionTabs passes ROW_WIDTH: the bar's width in a
  * window under 1600px, the set's width from there. From 1600px the first tab starts at the pages'
  * column and `end` ends where it ends; the bar's line and its pinned background still span the bar.
  * The current tab, pressed again, keeps the page as it is (its view and filters, which its own link
@@ -122,7 +128,9 @@ export function TabBar({ label, items, current, keepScroll = false, dense = fals
       {/* The row: as wide as the bar, or as the pages under it (`inner`), centred as they are. Its
           width decides whether a page's compact controls show their labels (COMPACT_LABEL). */}
       <div className={cn("group/tabrow @container/tabrow mx-auto flex w-full min-w-0 items-end gap-4", inner)} data-testid={testId ? `${testId}-row` : undefined}>
-        <ul ref={listRef} className="scroll-fade-x -mb-px flex min-w-0 flex-1 snap-x gap-1 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {/* Sideways only: overflow-x auto would make the other axis auto too, so a fraction of a pixel
+            below the tabs made the list a vertical scroller, with a scrollbar where they are classic. */}
+        <ul ref={listRef} className="scroll-fade-x -mb-px flex min-w-0 flex-1 snap-x gap-1 overflow-x-auto overflow-y-hidden overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {items.map((s) => {
             const on = s.key === current;
             return (
