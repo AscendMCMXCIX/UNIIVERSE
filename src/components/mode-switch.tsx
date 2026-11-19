@@ -1,7 +1,7 @@
 import { Gamepad2, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { RAIL_FADE, RAIL_HIGHLIGHT, RAIL_HOVER, RAIL_ICON, RAIL_ROW } from "@/lib/sidebar";
-import { ACCOUNT_ROW, ACCOUNT_ROW_ICON } from "@/lib/sheet";
+import { ACCOUNT_ROW, ACCOUNT_ROW_ICON, ACCOUNT_ROW_LABEL } from "@/lib/sheet";
 import { menuItemClass } from "./ui/menu-style";
 
 /**
@@ -40,7 +40,7 @@ export function ModeSwitch({ mode, variant }: { mode: "player" | "admin"; varian
     >
       {variant === "sidebar" ? <span className={cn(RAIL_HIGHLIGHT, RAIL_HOVER)} aria-hidden /> : null}
       <Icon className={cn(variant === "row" ? ACCOUNT_ROW_ICON : variant === "menu" ? "h-4 w-4 shrink-0" : RAIL_ICON, variant === "sidebar" && (toAdmin ? "text-fg-subtle group-hover:text-accent" : "text-fg-subtle group-hover:text-fg-muted"), variant !== "sidebar" && !toAdmin && "text-fg-subtle")} aria-hidden />
-      <span className={cn("truncate", variant === "sidebar" && RAIL_FADE, variant === "menu" && "min-w-0 flex-1")}>{label}</span>
+      <span className={variant === "row" ? ACCOUNT_ROW_LABEL : cn("truncate", variant === "sidebar" && RAIL_FADE, variant === "menu" && "min-w-0 flex-1")}>{label}</span>
     </a>
   );
 }

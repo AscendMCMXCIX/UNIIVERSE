@@ -19,7 +19,7 @@ import { useHeld, usePageFilters, useScrolledAway } from "./ui/page-toolbar";
 import { ScrollRow } from "./ui/scroll-row";
 import { releaseEarlyTaps } from "./early-taps";
 import { cn } from "@/lib/cn";
-import { ACCOUNT_GROUP, ACCOUNT_ROW, ACCOUNT_ROW_CHEVRON, ACCOUNT_ROW_CURRENT, ACCOUNT_ROW_ICON, ACCOUNT_ROW_IDLE } from "@/lib/sheet";
+import { ACCOUNT_GROUP, ACCOUNT_ROW, ACCOUNT_ROW_CHEVRON, ACCOUNT_ROW_CURRENT, ACCOUNT_ROW_ICON, ACCOUNT_ROW_IDLE, ACCOUNT_ROW_LABEL } from "@/lib/sheet";
 import { RAIL_CURRENT, RAIL_HOVER } from "@/lib/sidebar";
 
 export interface MobileNavProps {
@@ -572,7 +572,7 @@ function AccountRow({ href, icon: Icon, active, here, onNavigate, children }: { 
       className={cn(ACCOUNT_ROW, active ? ACCOUNT_ROW_CURRENT : ACCOUNT_ROW_IDLE)}
     >
       <Icon className={cn(ACCOUNT_ROW_ICON, active ? "text-accent" : "text-fg-subtle")} aria-hidden />
-      <span className="min-w-0 flex-1 truncate">{children}</span>
+      <span className={ACCOUNT_ROW_LABEL}>{children}</span>
       <ChevronRight className={ACCOUNT_ROW_CHEVRON} aria-hidden />
     </Link>
   );
