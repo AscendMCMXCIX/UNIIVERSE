@@ -40,7 +40,7 @@ const STORED: Array<{ what: string; why: string; who: string; kept: string }> = 
     kept: "While the profile exists. When an account is deleted, an administrator archives the profile with its history or deletes it too; permanent removal takes all of it (below)",
   },
   {
-    what: "Match records: for each stored game, the record Riot publishes (all ten players' in-game names, PUUIDs, champions, items, runes and results) and its timeline (what each player bought, their skill order, their gold, experience and CS minute by minute and when they took part in a kill, and the objectives each team took), kept once per game",
+    what: "Match records: for each stored game, the record Riot publishes (all ten players' in-game names, PUUIDs, champions, positions, items, runes, per-game figures and results) and its timeline (what each player bought, sold and used up, their skill order and when they reached each level, their gold, experience, CS, level, ability haste and place on the map minute by minute, when they took part in a kill, and the objectives and turret plates each team took), kept once per game",
     why: "Match details, Matchups, Played Together and Encounters",
     who: "Team members, for games in a profile's history",
     kept: "Not deleted automatically: a game stays stored after the profiles that played it are deleted, but is no longer shown. Permanent removal takes the person out of every stored game (below)",
@@ -149,7 +149,7 @@ export default async function PrivacyPage() {
         {name} is a private app for one League of Legends team. Administrators create every account; there is no public sign-up. This notice explains what it stores about members, why, who can see it, how long it stays, and how to reach us about it.
       </p>
       <p className="mt-1 text-xs text-fg-subtle">
-        Updated <time dateTime="2026-11-06">{PRIVACY_UPDATED}</time>
+        Updated <time dateTime="2026-11-20">{PRIVACY_UPDATED}</time>
       </p>
 
       <nav aria-label="On this page" className="mt-4" data-testid="privacy-index">

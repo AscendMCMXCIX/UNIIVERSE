@@ -1,11 +1,33 @@
 # Hosting usage (Supabase and Vercel free plans)
 
-UNIIVERSE runs on the free plans of Supabase (the Postgres database) and Vercel (the app). The newest record is first: Vercel Active CPU on 8–9 Nov. On 19 Oct 2026 the owner reported:
+UNIIVERSE runs on the free plans of Supabase (the Postgres database) and Vercel (the app). The newest record is first. On 19 Oct 2026 the owner reported:
 - Supabase egress at 6.25 GB of the 5 GB a month;
 - database size at 0.311 GB of 0.5 GB;
 - a Vercel allowance of 10 GB described as "Functions Storage" at 100%.
 
 This page records what caused that, what was changed, how it was measured, and how to check it again. The second pass, after egress reached 7.14 GB on 20 Oct, is the next section.
+
+## 19 Nov 2026: Vercel's memory allowance, the database's size, and what forward capture adds
+
+**Vercel's Hobby plan also caps Provisioned Memory**, which this page did not track until now (mi-evidence, 19 Nov 2026, from vercel.com/docs/plans/hobby, /docs/functions/usage-and-pricing and /docs/functions/configuring-functions/memory):
+- Hobby includes "Active CPU 4 CPU-hrs" and "Provisioned Memory 360 GB-hrs" in 30 days, about 12 GB-hours a day, beside 1,000,000 function invocations and a 300-second function limit.
+- "Hobby users will always use the default memory size of 2 GB (1 vCPU)", and Provisioned Memory "continues billing while handling requests, even during I/O operations". So a function's memory-time is its wall time × 2 GB, including the time it waits on the database or on Riot, which Active CPU does not count.
+- Exceeding any Hobby allowance pauses the deployment, as Active CPU did on 8 Nov.
+- No API on Hobby reads either figure: the owner reads Usage → Provisioned Memory beside Fluid Active CPU in the dashboard. A job that waits on Riot for long (a sampler held to Riot's rate limits, mi-evidence §4) costs memory-time far more than CPU, so any such job is sized against both.
+
+**The database is 173 MB, 34% of its 500 MB plan** (Production check 44324710345, 18 Nov 2026), not the 361–380 MB of 2 Nov below: #86 and #138 dropped about 206 MB of retired tables on 4 Nov. It grows by about 2 MB a day.
+
+**Forward capture (20 Nov 2026) adds to every game stored from then on** (docs/DATA_PIPELINES.md, "What a stored game keeps from 20 Nov 2026 on"), measured on games shaped like Riot's (`tests/db/forward-capture.test.ts`, against the same games as compaction kept them before):
+
+| | Stored (compressed, as the 500 MB counts it) | As text (what reading it whole sends) |
+|---|---|---|
+| A match record (ten players) | about +1 KB (0.9–1.0 KB) | about +4.8 KB |
+| A timeline | +130 to +180 bytes a minute of game: +3.2 KB at 25 minutes, +5.3 KB at 31, +6.0 KB at 38 | +330 to +400 bytes a minute: +8.6 to +12.0 KB |
+
+- The positions (x and y at every frame) and the items used up are the largest parts of a timeline's growth; the ten challenge figures are the largest part of a record's.
+- At the rate of 3–7 Nov (about 75 new account games a day, an upper bound: a game two members played is stored once), that is at most about 0.5 MB a day more, against a guard of 1 MB a day above the 2 MB a day: the next `db-usage` after the deploy, and one a week later, show it.
+- Egress: the champion window reads only its two players' gold, experience and CS series, as before. Opening one game reads its whole record and timeline, about 15 KB more for a game stored since; a Match History page of 10 new games reads about 48 KB more. Small against the 120 MB a day.
+- The overhaul plan's first estimate (4 KB a timeline and 0.8 KB a record) covered the shards, the positions and the haste; the list grew to the level, the four timeline events, the ten challenge figures and the support figures, so the measured figures above replace it.
 
 ## 18 Nov 2026: a batch of merges deploys once
 

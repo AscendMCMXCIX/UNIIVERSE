@@ -713,3 +713,12 @@ On the live site, after the deployment (checked locally on demo data at 1440, 76
 - [ ] Once the five-minute schedule runs (`docs/RANKED_PROGRESS.md`): Admin → Data & Riot shows `rank-watch` succeeding every few minutes; after a member's next ranked game, its Match History card shows `+N LP` or `−N LP`, and the hover text names two readings minutes before and after the game.
 - [ ] A member's Overview: Ranked progress is compact (about 270 px on a computer, under 520 px on a phone): rank, LP and record, the change ("Last 30 days" or "Since …"), the highest recorded, a chart that starts at the first reading, and the card ends with that chart (History and coverage was removed on 18 Nov 2026); Flex is its own ladder.
 
+
+## The lane opponent rule and forward capture (20 Nov 2026)
+
+Server-side only, apart from the privacy notice's list of what a stored game keeps; the Production check's facts are unchanged (it loads no page for this). docs/DATA_PIPELINES.md, "The lane opponent: one rule" and "What a stored game keeps from 20 Nov 2026 on". On the live site, after the deployment:
+- [ ] Data jobs → `data-audit rank-schedule-status` (one run): `laneOpponents` gives `rows`, `sourcePositions`, `leftAsStored`, `unclear` and `disagree` by kind, counts only. Report `disagree.total` before anything is repaired.
+- [ ] Only if `disagree.total` is above 0: Data jobs → `lane-opponent-recompute`, by hand, once: `changed` equals that `disagree`, `skipped` 0, and its answer names no player or game. Then `data-audit` again: `disagree.total` is 0.
+- [ ] Over the next days `laneOpponents.sourcePositions` grows with the games stored since the deployment; `db-usage` a day and a week later shows the database growing by at most about 0.5 MB a day more than its usual 2 MB (docs/HOSTING_USAGE.md, "19 Nov 2026").
+- [ ] A game stored since the deployment, opened in Match History: the scoreboard, Analysis (with its lane at 10:00 and 15:00) and Timeline read as before; the new fields are stored, not shown.
+- [ ] `/privacy` → What is stored → Match records names the timeline's level times, sales, items used up, place on the map, ability haste and turret plates, and the notice reads "Updated 20 November 2026".

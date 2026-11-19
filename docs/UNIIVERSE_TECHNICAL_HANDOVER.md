@@ -469,7 +469,7 @@ Riot ID typed (account creation, or an Alt added on the profile)
   | figures-backfill | 60 min |
   | integrity | 24 h |
 
-  - `static-sync` (forced) and the diagnostic jobs run on demand only. Diagnostic jobs: `auth-audit`, `data-audit`, `perf-probe`, `riot-check`, `skin-audit`, `proficiency-audit`.
+  - `static-sync` (forced) and the diagnostic jobs run on demand only. Diagnostic jobs: `auth-audit`, `data-audit`, `perf-probe`, `riot-check`, `skin-audit`, `proficiency-audit`. One-off repairs, also on demand only: `history-rescan`, `erasure-reconcile` and `lane-opponent-recompute` (docs/DATA_PIPELINES.md).
 - **Triggers:** GitHub hourly (best-effort; often skipped), Vercel daily 04:00 UTC, visits (every 30 min while people use the site), and since 7 Nov 2026 `pg_cron`: the tick every 10 minutes and the rank watch every 5.
 - **Retry / back-off:**
   - Accounts: 5 min after the first failure, doubling up to 6 h.
