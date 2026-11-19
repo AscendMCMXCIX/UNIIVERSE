@@ -4,24 +4,26 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { stayOnCurrentPage } from "@/lib/back-to-top";
 import { cn } from "@/lib/cn";
-import { ADMIN_ENTRIES, ADMIN_LINKS, NAV_ENTRIES, NAV_LINKS, activeHref, isNavHub, type NavEntry, type NavLink } from "@/lib/nav";
+import { currentDestination, destinations, prefetchOf, type Destination } from "@/lib/nav";
 import { RAIL_CURRENT, RAIL_FADE, RAIL_HIGHLIGHT, RAIL_HOVER, RAIL_ICON, RAIL_ICON_IDLE, RAIL_ROW } from "@/lib/sidebar";
 
 export { ADMIN_LINKS, NAV_LINKS, isActivePath, canOpen, type NavLink } from "@/lib/nav";
 
-function NavItem({ link, active, here, large, onNavigate, testId }: { link: NavLink; active: boolean; /** The link is to the page already shown. */ here: boolean; large: boolean; onNavigate?: () => void; testId?: string }) {
-  const Icon = link.icon;
+function NavItem({ destination, active, here, large, onNavigate }: { destination: Destination; active: boolean; /** The link is to the page already shown. */ here: boolean; large: boolean; onNavigate?: () => void }) {
+  const { href, label, icon: Icon } = destination;
   return (
     <Link
-      href={link.href}
+      href={href}
+      // My Profile is never fetched ahead (its layout starts the account's Riot refresh: docs/HOSTING_USAGE.md).
+      prefetch={prefetchOf(href)}
       onClick={(e) => {
         // The page already shown stays as it is (its view and filters) and goes back to the top.
         stayOnCurrentPage(e, here);
         onNavigate?.();
       }}
       aria-current={active ? "page" : undefined}
-      data-testid={testId}
-      title={link.label}
+      data-testid={`nav-${destination.hub ?? href.slice(1).replaceAll("/", "-")}`}
+      title={label}
       // The shared sidebar row (src/lib/sidebar.ts): its icon sits on the collapsed rail's centre line.
       className={cn(RAIL_ROW, large && "min-h-11 py-1.5", active ? "text-fg" : "text-fg-muted hover:text-fg")}
     >
@@ -32,32 +34,26 @@ function NavItem({ link, active, here, large, onNavigate, testId }: { link: NavL
       <span className={cn("absolute inset-y-2.5 left-0 w-0.5 rounded-full bg-gradient-to-b from-accent to-accent-2 transition-[opacity,scale] duration-200 ease-emphasized", active ? "scale-y-100 opacity-100" : "scale-y-50 opacity-0")} aria-hidden />
       <Icon className={cn(RAIL_ICON, active ? "text-accent" : RAIL_ICON_IDLE)} aria-hidden />
       {/* Collapsed sidebar: icon only; the label stays for screen readers and as the tooltip (title). */}
-      <span className={cn("truncate", RAIL_FADE)}>{link.label}</span>
+      <span className={cn("truncate", RAIL_FADE)}>{label}</span>
     </Link>
   );
 }
 
 /**
- * Vertical navigation: the desktop sidebar's pages (a tablet has the same entries in its top bar:
- * tabletDestinations, MobileNav). The server decides which pages this account may open and passes
- * their paths (`allowed`); icons stay here.
+ * Vertical navigation: the desktop sidebar's destinations, the mode's entries in order (a tablet
+ * and a phone show the same ones in their bars: MobileNav), each to the first page of it this account
+ * may open and marked on all of them. The server decides which pages this account may open and
+ * passes their paths (`allowed`); icons stay here.
  */
 export function NavLinks({ allowed, admin = false, onNavigate, large = false }: { allowed: string[]; admin?: boolean; onNavigate?: () => void; large?: boolean }) {
   const pathname = usePathname();
-  const may = (l: NavLink) => allowed.includes(l.href);
-  const current = activeHref(pathname, admin ? ADMIN_LINKS.map((l) => l.href) : NAV_LINKS.map((l) => l.href));
-  const entries: NavEntry[] = admin ? ADMIN_ENTRIES : NAV_ENTRIES;
+  const list = destinations(allowed, admin);
+  const current = currentDestination(pathname, list);
   return (
     <nav className="flex flex-col gap-0.5 px-3" aria-label="Main">
-      {entries.map((entry) => {
-        if (isNavHub(entry)) {
-          // Team (or an Admin Mode section with tabs): one entry, to the first section this account may open, marked on all of them.
-          const sections = entry.sections.filter(may);
-          if (sections.length === 0) return null;
-          return <NavItem key={entry.key} link={{ href: sections[0]!.href, label: entry.label, icon: entry.icon }} active={sections.some((l) => l.href === current)} here={sections[0]!.href === pathname} large={large} onNavigate={onNavigate} testId={`nav-${entry.key}`} />;
-        }
-        return may(entry) ? <NavItem key={entry.href} link={entry} active={entry.href === current} here={entry.href === pathname} large={large} onNavigate={onNavigate} testId={`nav-${entry.href.slice(1).replaceAll("/", "-")}`} /> : null;
-      })}
+      {list.map((d) => (
+        <NavItem key={d.key} destination={d} active={d.key === current?.key} here={d.href === pathname} large={large} onNavigate={onNavigate} />
+      ))}
     </nav>
   );
 }

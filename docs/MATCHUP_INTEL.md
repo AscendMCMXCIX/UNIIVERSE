@@ -500,14 +500,14 @@ step 2).
   `MATCHUP_INTEL_PATH` in `address.ts`). The entry is marked on the page whatever pair it shows,
   and Resources (the Library, `/resources`, one page now) only on the Library: Resources is current
   only on its own address (`isActivePath`). Neither page has tabs, so each is listed once.
-  - A tablet's top bar holds the same four destinations (`tabletDestinations`).
-  - A member's phone keeps its five tabs (Team, Players, Leaderboards, Matches, Profile): Matchup
-    Intel is the first row of the account screen behind the avatar, above Resources, and a tab of
-    its own where the bar has room (an account without one or two of Team's pages), before
-    Resources (`PHONE_TABS`). Its row on its own page keeps the pair, closes the screen and goes back
-    to the top.
-  - On a phone, Back from Matchup Intel opened directly (a link, a reload) leads home, as from
-    Resources and Settings, not to Resources (`phoneParent`). Each pair chosen is an entry in the
+  - Every bar holds the same four destinations, in the sidebar's order (navigation N1, 19 Nov 2026;
+    `destinations()` in `src/lib/nav.ts`): a tablet's top bar, a phone's bottom bar (where it shows
+    as "Intel" when the bar has no room for its whole name, read out in full) and its compact bar
+    held sideways, and the installed app's shortcuts. On a phone it is one tap, a tab of its own
+    (before, it was a row of the account screen behind the avatar: two taps). The tab on its own page
+    goes back to the top and keeps the pair.
+  - On a phone Matchup Intel has no Back: it is a destination, where you start (`phoneParent`; before
+    navigation N1, opened directly it said "‹ Team"). Each pair chosen is an entry in the
     browser's history, so the browser's Back steps through them; the top bar's Back, named after the
     page before Matchup Intel, goes past them to that page (`backSteps`). That needs the browser's
     Navigation API (Chrome, Safari from 26.2, Firefox from 147): without it the page cannot see

@@ -14,7 +14,7 @@ import { SectionTabs } from "./section-tabs";
 import { InstallAppEntry, InstallAppProvider } from "./install/install-app";
 import { ModeSwitch } from "./mode-switch";
 import { ScrollOnNavigate } from "./scroll-on-navigate";
-import { ADMIN_HOME } from "@/lib/nav";
+import { ADMIN_HOME, prefetchOf } from "@/lib/nav";
 import { RAIL_FADE, SIDEBAR_RAIL_COLUMN } from "@/lib/sidebar";
 import { cn } from "@/lib/cn";
 
@@ -114,7 +114,8 @@ export function AppShell({ status, children }: { status: ShellStatus; children: 
               // inside it, where the edge cannot clip it.
               // The logo sits on a plate (brand-plate, globals.css): a hairline of light around it and a
               // soft shadow under it, so any uploaded square, light or dark, reads as set into the frame.
-              <Link href={home} className="group/brand flex min-h-12 min-w-0 items-center rounded-lg focus-visible:-outline-offset-2" title={b.teamName}>
+              // Home is My Profile for a member with one: never fetched ahead (nav.ts, prefetchOf).
+              <Link href={home} prefetch={prefetchOf(home)} className="group/brand flex min-h-12 min-w-0 items-center rounded-lg focus-visible:-outline-offset-2" title={b.teamName}>
                 <span className={SIDEBAR_RAIL_COLUMN}>
                   <span className="brand-plate rounded-lg transition-transform duration-200 ease-emphasized group-hover/brand:scale-[1.04] motion-reduce:transition-none motion-reduce:group-hover/brand:scale-100">
                     <BrandMark src={logoSrc(b)} still={logoStillSrc(b)} name={b.shortName} className="h-10 w-10 text-lg" />

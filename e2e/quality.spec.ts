@@ -416,11 +416,12 @@ test.describe("sidebar entries", () => {
     await expect(aside.getByTestId("nav-team")).toHaveAttribute("aria-current", "page");
   });
 
-  test("Admin Mode is six single entries; a section with several pages shows them as tabs and stays marked on each", async ({ page }) => {
+  test("Admin Mode is four single entries; a section with several pages shows them as tabs and stays marked on each", async ({ page }) => {
     await page.goto("/admin/previews");
     const aside = page.locator("aside");
     const order = await aside.locator("nav[aria-label='Main'] a").evaluateAll((els) => els.map((e) => e.getAttribute("data-testid")));
-    expect(order).toEqual(["nav-admin", "nav-admin-users", "nav-admin-settings", "nav-admin-data", "nav-admin-system", "nav-admin-audit"]);
+    expect(order).toEqual(["nav-admin", "nav-admin-users", "nav-admin-settings", "nav-admin-system"]);
+    await expect(aside.locator("nav[aria-label='Main'] a")).toHaveText(["Dashboard", "Users & Permissions", "Platform Settings", "System"]);
     const settings = aside.getByTestId("nav-admin-settings");
     await expect(settings).toHaveAttribute("aria-current", "page");
     await expect(settings).toHaveAttribute("href", "/admin/branding");
@@ -429,10 +430,15 @@ test.describe("sidebar entries", () => {
     await tabs.getByRole("link", { name: "Branding" }).click();
     await expect(page).toHaveURL(/\/admin\/branding$/);
     await expect(settings).toHaveAttribute("aria-current", "page");
-    // Users & Permissions: Accounts and Access levels, under one entry.
+    // Users & Permissions: Accounts, Access levels and Personal data, under one entry, as section tabs.
     await page.goto("/admin/people/access");
     await expect(aside.getByTestId("nav-admin-users")).toHaveAttribute("aria-current", "page");
     await expect(aside.getByTestId("nav-admin")).not.toHaveAttribute("aria-current", "page");
+    await expect(page.getByTestId("admin-users-tabs").getByRole("link")).toHaveText(["Accounts", "Access levels", "Personal data"]);
+    // System: Health, Data & Integrations and Audit Logs, under one entry, at the addresses they always had.
+    await page.goto("/admin/data");
+    await expect(aside.getByTestId("nav-admin-system")).toHaveAttribute("aria-current", "page");
+    await expect(page.getByTestId("admin-system-tabs").getByRole("link")).toHaveText(["Health", "Data & Integrations", "Audit Logs"]);
   });
 
   test("My Profile is one sidebar link; a profile's sections are the bar on the page, and every section address still works", async ({ page }) => {

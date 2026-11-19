@@ -51,7 +51,7 @@ function Pending() {
  * and Encounters), directly under the section's primary tabs. Every view is a link with its own
  * address, so Back/Forward, new tabs and the keyboard work, and the current one is
  * aria-current="page". `keepScroll` (the default): the page stays where it is, as views of one
- * section do; separate pages (SubNav) start at the top. On phones the tabs share the width of one
+ * section do; `keepScroll={false}` starts each at the top. On phones the tabs share the width of one
  * track, and wrap onto a second line rather than run off the screen.
  */
 export function SubTabs({ label, items, current, keepScroll = true, className, testId, size = "default" }: { label: string; items: readonly SubTab[]; current: string; keepScroll?: boolean; className?: string; testId?: string; /** `compact`: the copy in the pinned row (PageToolbar), its test ids prefixed with "toolbar-". */ size?: "default" | "compact" }) {

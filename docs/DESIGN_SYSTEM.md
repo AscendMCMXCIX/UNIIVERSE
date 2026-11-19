@@ -312,25 +312,30 @@ reads as set into the frame rather than pasted on a flat block.
 ### Tablets and phones: frames by posture
 
 Below `lg` the frame follows how the screen is held (MOBILE.md, "Frames by posture"; the owner's
-decision of 8 Nov 2026, PR 2d), and exactly one `nav[aria-label=Primary]` is shown at a time:
+decision of 8 Nov 2026, PR 2d), and exactly one `nav[aria-label=Primary]` is shown at a time. Every
+posture shows the same destinations as the sidebar, in its order, with its names and icons
+(navigation N1, 19 Nov 2026: `destinations()` in `src/lib/nav.ts`; `nav-parity.test.ts` holds the
+bars to it): My Profile, Team, Matchup Intel and Resources; in Admin Mode Dashboard, Users &
+Permissions, Platform Settings and System. Each bar names them by one label ladder, by its own width
+in rem: the whole names, then the short ones ("Profile", "Intel"; "Users", "Platform"; the rest of
+each name read out only, `data-name="rest"`), then the icons alone with the names read out.
 
-- **A phone held upright** (below `md`, taller than 480px): the top bar, the five-tab bar and the
-  account screen (MOBILE.md).
+- **A phone held upright** (below `md`, taller than 480px): the top bar (a destination's tabs or a
+  profile's sections as its 44px second row, `ChromeTabs`), the four-tab bar and the account screen,
+  which holds the account's own items only (MOBILE.md).
 - **A phone held sideways** (480px tall or less, below `lg`, whatever its width): one compact bar,
   44px plus the inset, with Back or the team's mark (in Admin Mode "Admin mode" beside it, in the
-  accent, and in the mark's name), the phone's destinations (only the current one labelled where the
-  bar is narrower than 38rem), the title where room is left, Filters and the avatar (the account
-  screen); a profile's sections as its 44px second row; no bottom bar. It slides away while reading.
+  accent, and in the mark's name), the four destinations (by the ladder, then only the current one
+  named), the title where room is left, Filters and the avatar (the account screen); a destination's
+  tabs or a profile's sections as its 44px second row; no bottom bar. It slides away while reading.
   The current destination is marked as the upright tab bar marks it, its icon in an accent pill and
-  its label shown and in `fg` (`aria-current`), so a turn of the phone keeps the same signal.
-- **A tablet** (`md` to `lg`, taller than 480px): the destinations in the top bar, one tap each (Player
-  Mode: My Profile, Team, Matchup Intel, Resources; Admin Mode: its four tabs, Platform Settings by its full name,
-  since the avatar menu holds the account's Settings), the current one marked with the sidebar's
-  four signals (a neutral lift with a hairline of light, the brand gradient as a short bar at its
-  foot, the icon in `accent`, the name in `fg`); the section tabs pinned in the page; the avatar menu
-  (`AccountMenu`) with what the sidebar's footer holds on a desktop: Settings, Install App, the
-  switch between the modes above Sign out, the patch and Riot's notice (and Admin Mode's Data &
-  Integrations and Audit Logs). There is no drawer.
+  its name shown and in `fg` (`aria-current`), so a turn of the phone keeps the same signal.
+- **A tablet** (`md` to `lg`, taller than 480px): the destinations in the top bar, one tap each, the
+  current one marked with the sidebar's four signals (a neutral lift with a hairline of light, the
+  brand gradient as a short bar at its foot, the icon in `accent`, the name in `fg`); the section tabs
+  pinned in the page; the avatar menu (`AccountMenu`) with what the sidebar's footer holds on a
+  desktop: Settings, Install App, the switch between the modes above Sign out, the patch and Riot's
+  notice. There is no drawer.
 
 They pick up the `chrome` ink automatically. On the account screen the mode switch is a row like the
 others, above Sign out in a panel of their own, and in the avatar menu an item above Sign out; each
@@ -412,11 +417,11 @@ Every page follows the same rules, so moving around never needs thought (#266; e
 test):
 
 - **Three levels, each always in the same place.** Destinations: the sidebar (desktop), the top bar
-  (tablet), the five-tab bar (a phone held upright) and the one compact bar (a phone held sideways,
-  whatever its width), one tap each in every posture, one `nav[aria-label=Primary]` shown at a time.
-  Sections: the section tabs, pinned once the page scrolls past them (tablet, desktop), the top bar's
-  second row on a phone profile, either way round (Team's sections are the phone's destinations
-  themselves, so the page does not repeat them on a phone). A page's own views and scope (its view
+  (tablet), the four-tab bar (a phone held upright) and the one compact bar (a phone held sideways,
+  whatever its width), the same four in each, one tap each in every posture, one
+  `nav[aria-label=Primary]` shown at a time. Sections: the section tabs, pinned once the page scrolls
+  past them (tablet, desktop), the top bar's second row on a phone, either way round (Team's sections,
+  Admin Mode's sets and a profile's: `ChromeTabs`, so the page does not repeat them on a phone). A page's own views and scope (its view
   switch, filters, search): in its header; once the header has scrolled away, still one press away:
   from md their compact copy at the pinned tabs' end (`PageToolbar`, above), on a phone either way
   round (where nothing pins sideways) Filters in the top bar, 44px with the count of narrowed

@@ -69,13 +69,21 @@ test("Match History's next page starts with its first game under the bars, not a
   expect(box.y).toBeLessThan(height / 3);
 });
 
-test("phones: the current tab on its own page, and the page's title in the top bar, go back to the top", async ({ page }, info) => {
+test("phones: the current tab on its own page, the current section in the top bar's row, and the page's title in the top bar, go back to the top", async ({ page }, info) => {
   test.skip(info.project.name !== "phone", "the phone tab bar");
   await page.emulateMedia({ reducedMotion: "reduce" });
+  // Matchup Intel's tab on its own page.
+  await page.goto("/resources");
+  await page.evaluate(() => window.scrollTo(0, 400));
+  await expect.poll(() => scrollY(page)).toBeGreaterThan(0);
+  await page.getByTestId("phone-tabbar").getByTestId("tab-resources").click();
+  await expect(page).toHaveURL(/\/resources$/);
+  await expect.poll(() => scrollY(page)).toBe(0);
+  // Players, one of Team's sections: its tab in the top bar's row.
   await page.goto("/players");
   await page.evaluate(() => window.scrollTo(0, 400));
   await expect.poll(() => scrollY(page)).toBeGreaterThan(0);
-  await page.getByTestId("phone-tabbar").getByTestId("tab-players").click();
+  await page.getByTestId("team-chrome-tab-players").click();
   await expect(page).toHaveURL(/\/players$/);
   await expect.poll(() => scrollY(page)).toBe(0);
   // The title moves into the bar once the heading has gone under it; a tap on it goes to the top.
@@ -226,25 +234,22 @@ test("phones: a dialog is the one shared sheet, docked to the bottom edge with i
   await expect(dialog).toBeHidden();
 });
 
-test("phones: Matchup Intel's row on the account screen, on its own page, keeps the pair, closes the screen and goes back to the top", async ({ page }, info) => {
-  test.skip(info.project.name !== "phone", "the phone's account screen (the test above has tablets and desktops)");
+test("phones: Matchup Intel's tab, on its own page, keeps the pair and goes back to the top, fetching nothing", async ({ page }, info) => {
+  test.skip(info.project.name !== "phone", "the phone's tab bar (the test above has tablets and desktops)");
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/resources/matchups?champion=Riven&vs=Mordekaiser");
   await expect(page.getByTestId("matchup-enemy-abilities")).toHaveAttribute("data-champion", "Mordekaiser");
   await expect(page.getByTestId("matchup-remembered")).not.toHaveAttribute("data-state", "loading");
-  // No tabs in the page any more: Matchup Intel is a destination of its own.
+  // No tabs in the page any more: Matchup Intel is a destination of its own, a tab of the bar.
   await expect(page.getByTestId("resources-tabs")).toHaveCount(0);
   await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
   await expect.poll(() => scrollY(page)).toBeGreaterThan(200);
   const navigations = watchNavigations(page);
-  await page.getByTestId("account-sheet-button").click();
-  const screen = page.getByTestId("account-sheet");
-  const row = screen.getByRole("link", { name: "Matchup Intel" });
-  await expect(row).toHaveAttribute("aria-current", "page");
-  await row.click();
-  await expect(screen).toHaveCount(0);
+  const tab = page.getByTestId("phone-tabbar").getByTestId("tab-resources-matchups");
+  await expect(tab).toHaveAttribute("aria-current", "page");
+  await tab.click();
   await expect.poll(() => scrollY(page)).toBe(0);
-  expect(await navigations(), "the row of the page shown fetches nothing").toEqual([]);
+  expect(await navigations(), "the tab of the page shown fetches nothing").toEqual([]);
   await expect(page).toHaveURL(/\/resources\/matchups\?champion=Riven&vs=Mordekaiser$/);
   await expect(page.getByTestId("matchup-enemy-abilities")).toHaveAttribute("data-champion", "Mordekaiser");
 });

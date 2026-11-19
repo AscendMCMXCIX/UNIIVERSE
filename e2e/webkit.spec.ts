@@ -519,7 +519,7 @@ test("the account screen in Safari's engine: one tap opens it, it fills the scre
     expect(fit.box, path).toEqual([0, 0, ...fit.screen]);
     expect(fit.scrolls, path).toBe(false);
     expect(fit.missed, path).toBe(0);
-    // Rows measured (the demo has Matchup Intel, Resources, Settings, Install App and the mode switch), each 48px or
+    // Rows measured (the account's own items: Settings, Install App and the mode switch on the demo), each 48px or
     // taller and as wide as the column.
     expect(fit.rows, path).toBeGreaterThanOrEqual(2);
     expect(fit.shortest, path).toBeGreaterThanOrEqual(48);
@@ -532,18 +532,25 @@ test("the account screen in Safari's engine: one tap opens it, it fills the scre
   }
 });
 
-test("Admin Mode: the account screen's switch moves between Admin Mode and Player Mode, each with its own tab bar", async ({ page }) => {
+test("Admin Mode: the account screen's switch moves between Admin Mode and Player Mode, each with the sidebar's four destinations; Back closes the account screen", async ({ page }) => {
   const tabs = page.getByRole("navigation", { name: "Primary" }).getByRole("link");
   const sheet = page.getByTestId("account-sheet");
   await page.goto("/admin");
   await expect(page.getByTestId("mobile-topbar")).toContainText("Admin mode");
-  await expect(tabs).toHaveText(["Dashboard", "Users", "Settings", "Health"]);
+  await expect(tabs).toHaveText(["Dashboard", "Users & Permissions", "Platform Settings", "System"]);
   // One tap: kept if it lands before the page's code has run (early-taps.ts).
   await page.getByTestId("account-sheet-button").tap();
   await expect(sheet).toBeVisible();
   await sheet.getByTestId("mode-switch").tap();
   await expect(page).toHaveURL(/\/team$/);
-  await expect(tabs).toHaveText(["Team", "Players", "Leaderboards", "Matches", "Profile"]);
+  await expect(tabs).toHaveText(["My Profile", "Team", "Matchup Intel", "Resources"]);
+  await expect(page.getByTestId("team-chrome-tabs").getByRole("link")).toHaveText(["Overview", "Players", "Leaderboards", "Matches"]);
+  // Back (Safari's swipe from the edge) closes the account screen and the page stays.
+  await page.getByTestId("account-sheet-button").tap();
+  await expect(sheet).toBeVisible();
+  await page.goBack();
+  await expect(sheet).toHaveCount(0);
+  await expect(page).toHaveURL(/\/team$/);
 });
 
 test("forms: text fields are at least 16px (Safari zooms into smaller ones) and sign-in offers saved passwords", async ({ browser, page, baseURL }) => {
@@ -702,7 +709,8 @@ test("held sideways: the pages fit, the destinations are in one compact bar with
       await expect(nav, `${route} at ${where}`).toHaveCount(1);
       await expect(page.getByTestId("mobile-topbar").getByRole("navigation", { name: "Primary" }), `${route} at ${where}`).toBeVisible();
       await expect(page.getByTestId("phone-tabbar"), `${route} at ${where}`).toBeHidden();
-      expect((await page.getByTestId("mobile-topbar").boundingBox())!.height, `${route} at ${where}: one compact bar`).toBeLessThanOrEqual(45.5);
+      // One compact bar, with Team's sections as its second row on Team's pages: at most 90px.
+      expect((await page.getByTestId("mobile-topbar").boundingBox())!.height, `${route} at ${where}: one compact bar`).toBeLessThanOrEqual(route === "/resources" ? 45.5 : 90);
     }
     // Teammates' profiles: their sections the bar's 44px second row, the bars at rest about 89px, the
     // band at most 80px: Demo Top's, and Demo Mid's with an off role, the lineup status and two links.

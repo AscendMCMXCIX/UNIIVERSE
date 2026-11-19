@@ -43,19 +43,21 @@
     puuid, gameName, tagLine or riotId key (scripts/riot-keys.mjs; counts only).
   - frame (#178): the charcoal frame token; the sidebar, open and folded, with the gradient bar on
     the current page; the phone and tablet top bar and the phone's tab bar; the tablet's destinations
-    in its top bar, one tap each, with no drawer (frames by posture); Matchup Intel a destination of
-    its own (18 Nov 2026): the sidebar's entries and the tablet's destinations are My Profile, Team,
-    Matchup Intel and Resources, in that order, Matchup Intel at /resources/matchups, and on the phone Matchup Intel and
-    Resources are each offered once (a tab or an account screen row, Matchup Intel's row first; no
-    page is opened for it); held sideways (844 × 390, in the
-    phone's context: two page loads) one compact bar holding the destinations and no bottom bar, and
-    on the teammate's profile its sections under the bar, the bars at rest at most 90px and the
-    profile's band at most 80px. Phone: the avatar opens the
-    account screen on the first tap, made as soon as it is on screen; the screen comes to rest (its
-    motion run and dropped) filling the screen exactly, nothing in it scrolls, every control in it is
-    a full-width target at least 48px tall reached by a tap where it is drawn, the screen itself has
-    the focus, and Sign out is in view. Tablet and desktop: the account menu opens on the first tap or
-    click on its avatar or tile, made as soon as it is on screen.
+    in its top bar, one tap each, with no drawer (frames by posture); one set of destinations
+    everywhere (navigation N1, 19 Nov 2026): the sidebar's entries, the tablet's destinations and the
+    phone's tab bar are My Profile, Team, Matchup Intel and Resources, in that order, Matchup Intel at
+    /resources/matchups, the phone's four each named in full at 390px (Matchup Intel and Resources
+    tabs, not account screen rows), and on Team the phone's top bar holds Team's sections as its second
+    row; held sideways (844 × 390, in the phone's context: two page loads) one compact bar holding the
+    same four and no bottom bar, Team's sections or the teammate's profile's under it, the bars at
+    rest at most 90px and the profile's band at most 80px. Phone: the avatar opens the account screen
+    on the first tap, made as soon as it is on screen; the screen comes to rest (its motion run and
+    dropped) filling the screen exactly, nothing in it scrolls, every control in it is a full-width
+    target at least 48px tall reached by a tap where it is drawn, the screen itself has the focus, it
+    holds the account's own items only (Settings, Install App where offered, the mode switch for an
+    administrator, Sign out) and no destination, and Sign out is in view. Tablet and desktop: the
+    account menu opens on the first tap or click on its avatar or tile, made as soon as it is on
+    screen.
   - Team Overview (November 2026: the approved design, before #275), on whatever lineup production
     has: at 1440 the lineup centred in the height under the section tabs (or starting at the top
     when taller than the window), and the header's 80px logo and "Team Overview" eyebrow with the
@@ -450,9 +452,11 @@ const colours = (page, selectors) =>
 const sameAsFrame = (c, chrome) => !!c && c.slice(0, 3).every((v, i) => Math.abs(v - chrome[i]) <= 3) && c[3] > 0;
 
 /**
- * Player Mode's destinations as the sidebar and a tablet's top bar list them (18 Nov 2026): My Profile,
- * Team, Matchup Intel and Resources, in that order, Matchup Intel at its own address. An account
- * without Team's pages lists the others in the same order.
+ * Player Mode's destinations as every bar lists them (navigation N1, 19 Nov 2026: the sidebar, a
+ * tablet's top bar, a phone's tab bar and its compact bar held sideways): My Profile, Team, Matchup
+ * Intel and Resources, in that order, Matchup Intel at its own address. An account without Team's
+ * pages lists the others in the same order. Team leads to the Team page it opens (a phone's to the
+ * section last used), so its address is not compared.
  */
 function destinationsInOrder(entries) {
   const labels = entries.map((e) => e.label);
@@ -489,6 +493,29 @@ async function frameChecks(page, kind, context) {
   pass("frame", `${kind}: the top bar is painted with the frame colour`, sameAsFrame(paint.top, paint.chrome), { topBar: paint.top, chrome: paint.chrome });
   if (kind === "phone") {
     pass("frame", "phone: the tab bar is painted with the frame colour", sameAsFrame(paint.tabs, paint.chrome), { tabBar: paint.tabs, chrome: paint.chrome });
+    // The tab bar holds the sidebar's destinations (navigation N1), each named in full at 390px and
+    // 100% text (a name left to screen readers is 1px wide); on Team, Team's sections are the top bar's
+    // second row. Labels, sizes and true or false only.
+    const bar = await page.evaluate(() => {
+      const links = [...document.querySelectorAll("[data-testid=phone-tabbar] a")];
+      const row = document.querySelector("[data-testid=team-chrome-tabs]");
+      const rowLinks = row ? [...row.querySelectorAll("a")] : [];
+      // Named in full: the name drawn, and the part a narrower bar reads out only drawn too.
+      const wide = (el) => (el?.getBoundingClientRect().width ?? 0) > 1;
+      const full = (a) => wide(a.querySelector("[data-name=label]")) && (!a.querySelector("[data-name=rest]") || wide(a.querySelector("[data-name=rest]")));
+      return {
+        entries: links.map((a) => ({ label: a.textContent.trim(), href: a.getAttribute("href"), shown: full(a) })),
+        inTopBar: !!row?.closest("[data-testid=mobile-topbar]"),
+        sections: rowLinks.map((a) => a.textContent.trim()),
+        current: rowLinks.filter((a) => a.getAttribute("aria-current") === "page").map((a) => a.textContent.trim()),
+        rowHeight: row ? Math.round(row.getBoundingClientRect().height) : null,
+        inPage: !!document.querySelector("[data-testid=team-tabs]") && getComputedStyle(document.querySelector("[data-testid=team-tabs]")).display !== "none",
+      };
+    });
+    pass("frame", "phone: the tab bar's destinations are the sidebar's, My Profile, Team, Matchup Intel and Resources, each named in full at 390px", destinationsInOrder(bar.entries) && bar.entries.every((e) => e.shown), { entries: bar.entries.map((e) => e.label), named: bar.entries.map((e) => e.shown), matchupIntel: bar.entries.find((e) => e.label === "Matchup Intel")?.href ?? null });
+    const TEAM_ROW = ["Overview", "Players", "Leaderboards", "Matches"];
+    const inOrder = bar.sections.length >= 2 && bar.sections.every((l, i) => TEAM_ROW.indexOf(l) >= 0 && (i === 0 || TEAM_ROW.indexOf(l) > TEAM_ROW.indexOf(bar.sections[i - 1])));
+    pass("frame", "phone (390): Team's sections are the top bar's second row, Overview marked on Team, 44px, not repeated in the page", bar.inTopBar && inOrder && bar.sections[0] === "Overview" && bar.current.join() === "Overview" && (bar.rowHeight ?? 0) >= 44 && !bar.inPage, { sections: bar.sections, current: bar.current, rowHeight: bar.rowHeight, inPage: bar.inPage });
     // Phones have no drawer: the avatar opens the account screen (docs/MOBILE.md, "The account screen").
     // The first tap counts: a fresh load, one tap as soon as the avatar is on screen (before the
     // page's code has run, on a slow load, it is kept and applied once it runs: early-taps.ts), and
@@ -544,12 +571,10 @@ async function frameChecks(page, kind, context) {
       pass("frame", "phone: the account screen comes to rest filling the screen, nothing in it scrolling", rested && fills && !fit.bodyScrolls, { rested, box: fit.box, screen: fit.screen, bodyScrolls: fit.bodyScrolls });
       pass("frame", "phone: every control in the account screen is a full-width target reached by a tap where it is drawn", fit.controls >= 3 && fit.missed === 0 && fit.shortest >= 48 && fit.column > 0 && fit.narrowest >= fit.column - 2, { controls: fit.controls, missed: fit.missed, shortestRow: fit.shortest, narrowestRow: fit.narrowest, column: fit.column });
       pass("frame", "phone: the account screen takes the focus itself as it opens", fit.focus, { focus: fit.focus });
-      // The pages the tab bar does not hold: Matchup Intel's row, then Resources' (a member's five tabs
-      // are Team's pages and Profile). Each is offered once, a tab or a row, Matchup Intel first.
-      const offered = (name) => fit.tabs.filter((t) => t === name).length + fit.pages.filter((t) => t === name).length;
-      const rows = fit.pages.filter((t) => t === "Matchup Intel" || t === "Resources");
-      const intelFirst = rows.length < 2 || rows[0] === "Matchup Intel";
-      pass("frame", "phone: Matchup Intel and Resources are each offered once, Matchup Intel's row before Resources' on the account screen", offered("Matchup Intel") === 1 && offered("Resources") === 1 && intelFirst, { pages: fit.pages, tabs: fit.tabs });
+      // The account's own items only (navigation N1): every page is a destination of the tab bar, so
+      // no row repeats one; Matchup Intel and Resources are tabs, not rows.
+      const destinationsShown = fit.pages.filter((t) => ["My Profile", "Team", "Matchup Intel", "Resources", "Players", "Leaderboards", "Matches"].includes(t));
+      pass("frame", "phone: the account screen holds the account's own items only, no destination among them (Matchup Intel and Resources are tabs)", destinationsShown.length === 0 && fit.pages.includes("Settings") && fit.tabs.includes("Matchup Intel") && fit.tabs.includes("Resources"), { rows: fit.pages, tabs: fit.tabs });
       if (fit.signOut) pass("frame", "phone: Sign out is in view without scrolling the account screen", fit.signOut.inView, fit.signOut);
       else if (local) warn("frame", "phone: Sign out not offered", { why: "LIVE_LOCAL=1: the demo build has no sign-in; the screen holds the mode switch" });
       else pass("frame", "phone: Sign out is in view without scrolling the account screen", false, { signOut: null });
@@ -600,19 +625,21 @@ async function sidewaysFrame(page, log, profileId) {
         navs: navs.length,
         inTopBar: !!navs[0]?.closest("[data-testid=mobile-topbar]"),
         destinations: navs[0] ? navs[0].querySelectorAll("a[href]").length : 0,
+        entries: navs[0] ? [...navs[0].querySelectorAll("a[href]")].map((a) => ({ label: a.textContent.trim(), href: a.getAttribute("href") })) : [],
         bottomBar: shown(document.querySelector("[data-testid=phone-tabbar]")),
         bars: top ? Math.round(top.getBoundingClientRect().height) : null,
         sections: shown(document.querySelector("[data-testid=profile-chrome-tabs]")),
+        teamRow: shown(document.querySelector("[data-testid=team-chrome-tabs]")),
         band: shown(band) ? Math.round(band.getBoundingClientRect().height) : null,
       };
     });
   if (await visit(page, log, "phone", "sideways-team", "/team", { fullPage: false })) {
-    const f = await facts();
-    pass("frame", "phone held sideways (844 × 390): one compact bar holds the destinations, with no bottom bar", f.navs === 1 && f.inTopBar && f.destinations >= 2 && !f.bottomBar && f.bars !== null && f.bars <= 46, f);
+    const { entries, ...f } = await facts();
+    pass("frame", "phone held sideways (844 × 390): one compact bar holds the four destinations, Team's sections under it, with no bottom bar, the bars at most 90px", f.navs === 1 && f.inTopBar && destinationsInOrder(entries) && f.teamRow && !f.bottomBar && f.bars !== null && f.bars <= 90, { ...f, entries: entries.map((e) => e.label) });
   }
   if (!profileId) return check("frame", "phone held sideways (844 × 390): a profile's sections and band", "PASS", "not applicable: no teammate's profile to open");
   if (await visit(page, log, "phone", "sideways-profile", `/players/${profileId}`, { fullPage: false })) {
-    const f = await facts();
+    const { entries: _entries, ...f } = await facts();
     pass("frame", "phone held sideways (844 × 390): a profile's sections under the bar, the bars at rest at most 90px, the band at most 80px", f.navs === 1 && f.sections && !f.bottomBar && f.bars !== null && f.bars <= 90 && f.band !== null && f.band <= 80, f);
   }
 }

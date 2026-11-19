@@ -51,14 +51,17 @@ test.describe("pages", () => {
 test("navigation is usable", async ({ page }) => {
   await page.goto("/team");
   if (isPhone(page)) {
-    // Bottom tab bar on phones: the five places members go to most, the current one lit
-    // (docs/MOBILE.md; e2e/mobile-nav.spec.ts checks the rest of the phone frame).
+    // Bottom tab bar on phones: the sidebar's four destinations, the current one lit, Team's sections
+    // under the top bar (docs/MOBILE.md; e2e/mobile-nav.spec.ts checks the rest of the phone frame).
     const tabs = page.getByTestId("phone-tabbar").locator("a");
-    await expect(tabs).toHaveText(["Team", "Players", "Leaderboards", "Matches", "Profile"]);
-    await expect(tabs.filter({ hasText: "Team" })).toHaveAttribute("aria-current", "page");
-    await tabs.filter({ hasText: "Matches" }).click();
+    await expect(tabs).toHaveText(["My Profile", "Team", "Matchup Intel", "Resources"]);
+    await expect(page.getByTestId("phone-tabbar").getByTestId("tab-team")).toHaveAttribute("aria-current", "page");
+    await page.getByTestId("team-chrome-tab-matches").click();
     await expect(page).toHaveURL(/\/matches$/);
-    await expect(tabs.filter({ hasText: "Matches" })).toHaveAttribute("aria-current", "page");
+    await expect(page.getByTestId("team-chrome-tab-matches")).toHaveAttribute("aria-current", "page");
+    await page.getByTestId("phone-tabbar").getByTestId("tab-resources-matchups").click();
+    await expect(page).toHaveURL(/\/resources\/matchups$/);
+    await expect(page.getByTestId("phone-tabbar").getByTestId("tab-resources-matchups")).toHaveAttribute("aria-current", "page");
     // The account screen behind the avatar holds the rest; no menu drawer anywhere.
     await expect(page.getByTestId("menu-button")).toHaveCount(0);
     await page.getByTestId("account-sheet-button").click();

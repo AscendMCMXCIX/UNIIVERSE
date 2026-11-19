@@ -93,8 +93,8 @@ test("Records & achievements' old address lands on the same page at its season r
   // The router keeps its own state in the replaced entry: after a link in the app, Back shows this page again, at its address
   // (an entry without the router's state is one it does not restore: the address said Leaderboards over the page left on screen).
   expect(await page.evaluate(() => !!(history.state as { __NA?: boolean } | null)?.__NA), "the router's state in the entry").toBe(true);
-  // Players: the section tabs' (a tablet, a desktop), the tab bar's on a phone.
-  await page.locator("[data-testid=team-tabs], [data-testid=phone-tabbar]").locator("a[href='/players']:visible").first().click();
+  // Players: the section tabs' (a tablet, a desktop), the top bar's row of Team's sections on a phone.
+  await page.locator("[data-testid=team-tabs], [data-testid=team-chrome-tabs]").locator("a[href='/players']:visible").first().click();
   await expect(page).toHaveURL(/\/players$/);
   await expect(page.getByTestId("players-directory")).toBeVisible();
   await page.goBack();
