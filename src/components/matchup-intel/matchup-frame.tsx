@@ -417,8 +417,9 @@ function CopyLink({ href }: { href: string }) {
     }
   };
   return (
-    // An icon button beside the lane (its name and tooltip say what it does), so the bar keeps its height.
-    <Button size="sm" variant="ghost" onClick={copy} aria-label={done ? "Link copied" : "Copy link to this matchup"} title={done ? "Link copied" : "Copy link"} data-testid="matchup-copy-link" className="min-h-11 min-w-11 px-0 pointer-fine:min-h-7 pointer-fine:min-w-7">
+    // An icon button at the title's row end (its name and tooltip say what it does); on a touch screen its
+    // 44px area overhangs the row by 6px each way, so the row is only as tall as the title.
+    <Button size="sm" variant="ghost" onClick={copy} aria-label={done ? "Link copied" : "Copy link to this matchup"} title={done ? "Link copied" : "Copy link"} data-testid="matchup-copy-link" className="-my-1.5 min-h-11 min-w-11 px-0 pointer-fine:my-0 pointer-fine:min-h-7 pointer-fine:min-w-7">
       {done ? <Check className="h-4 w-4 text-good" aria-hidden /> : <Link2 className="h-4 w-4" aria-hidden />}
     </Button>
   );
@@ -609,7 +610,7 @@ export function MatchupFrame({
                 swap, then the status, the haste and the remembered line at the far end. On a phone,
                 one under the other. */}
             <div className={cn("grid gap-x-4 gap-y-1.5 @min-[44rem]/pickers:items-center", duo ? "@min-[44rem]/pickers:grid-cols-[minmax(0,44rem)_minmax(0,1fr)] @min-[72rem]/pickers:grid-cols-[auto_minmax(0,44rem)_minmax(0,1fr)]" : "@min-[44rem]/pickers:grid-cols-[minmax(0,34rem)_minmax(0,1fr)] @min-[60rem]/pickers:grid-cols-[auto_minmax(0,34rem)_minmax(0,1fr)]")}>
-              <div className={cn("flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5 @min-[44rem]/pickers:col-span-2", duo ? "@min-[72rem]/pickers:col-span-1 @min-[72rem]/pickers:block @min-[72rem]/pickers:space-y-0.5" : "@min-[60rem]/pickers:col-span-1 @min-[60rem]/pickers:block @min-[60rem]/pickers:space-y-0.5")} data-testid="matchup-heading">
+              <div className={cn("flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 @min-[44rem]/pickers:col-span-2", duo ? "@min-[72rem]/pickers:col-span-1 @min-[72rem]/pickers:block @min-[72rem]/pickers:space-y-0.5" : "@min-[60rem]/pickers:col-span-1 @min-[60rem]/pickers:block @min-[60rem]/pickers:space-y-0.5")} data-testid="matchup-heading">
                 {/* The title with "Copy link" at its row's end; under them the lane, one row (a phone's full width). */}
                 <div className="flex min-w-0 items-center justify-between gap-2 max-sm:w-full">
                   {heading}
