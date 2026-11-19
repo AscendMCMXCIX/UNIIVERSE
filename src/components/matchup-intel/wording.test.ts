@@ -55,6 +55,13 @@ import {
   riotTextSourceWords,
   tightCooldownWords,
   toolsSideWords,
+  ASSEMBLED_IN_PLACE_WORDS,
+  CHECKED_NOTES_LABEL,
+  RIOT_TEXT_NO_NUMBERS_WORDS,
+  briefingHiddenAboveWords,
+  cooldownsFromWords,
+  hiddenPartsBarWords,
+  noBriefingWords,
 } from "./wording";
 
 describe("the cooldown line", () => {
@@ -376,12 +383,36 @@ describe("the assembled reference's fixed sentences and labels", () => {
     expect(hiddenRiotTextWords(0, "unknown", "R", 2)).toBe("Whether Riot's text for R changed since the review is not known yet: the notes that Riot's texts differ are hidden.");
   });
 
-  it("says how the facts were reviewed from the review's own record, and that no person checked them", () => {
+  it("says how the facts were reviewed from the review record (added for the import from the review's own sentence), and that no person checked them, never that each was drafted by the rules", () => {
     expect(riotTextProcessWords({ automatedReviewers: 2, adjudicated: true, consistencyCheckers: 2, checkedByPerson: false })).toBe(
-      "Each was drafted by fixed rules from that text, read by two independent automated reviewers and settled by an adjudicator, then checked in a consistency pass by two more independent automated checkers; no person has checked them.",
+      "Reviewed by two independent automated reviewers and an adjudicator, then a consistency pass checked by two more independent automated checkers; no person has checked them.",
     );
-    expect(riotTextProcessWords({ automatedReviewers: 1, adjudicated: false, consistencyCheckers: 0, checkedByPerson: false })).toBe("Each was drafted by fixed rules from that text, read by one independent automated reviewer; no person has checked them.");
-    expect(riotTextProcessWords({ automatedReviewers: 3, adjudicated: true, consistencyCheckers: 1, checkedByPerson: false })).toContain("read by three independent automated reviewers and settled by an adjudicator, then checked in a consistency pass by one more independent automated checker;");
+    expect(riotTextProcessWords({ automatedReviewers: 1, adjudicated: false, consistencyCheckers: 0, checkedByPerson: false })).toBe("Reviewed by one independent automated reviewer; no person has checked them.");
+    expect(riotTextProcessWords({ automatedReviewers: 3, adjudicated: true, consistencyCheckers: 1, checkedByPerson: false })).toBe("Reviewed by three independent automated reviewers and an adjudicator, then a consistency pass checked by one more independent automated checker; no person has checked them.");
+    // Some facts came in as a reviewer's addition or with the consistency pass: no "each was drafted".
+    for (const r of [{ automatedReviewers: 2, adjudicated: true, consistencyCheckers: 2, checkedByPerson: false }, { automatedReviewers: 1, adjudicated: false, consistencyCheckers: 0, checkedByPerson: false }]) expect(riotTextProcessWords(r)).not.toMatch(/drafted|each/i);
+    expect(RIOT_TEXT_NO_NUMBERS_WORDS).toBe("No number in that text is used for these facts.");
+  });
+
+  it("above the assembled reference: no curated briefing yet, or the curated briefing hidden above, never both", () => {
+    expect(noBriefingWords("Riven", "Darius")).toBe("No curated briefing for Riven vs Darius yet.");
+    expect(briefingHiddenAboveWords("Ambessa", "Renekton")).toBe("The curated briefing for Ambessa vs Renekton is hidden, above.");
+    expect(briefingHiddenAboveWords("Ambessa", "Renekton")).not.toMatch(/No curated briefing|yet/);
+    expect(ASSEMBLED_IN_PLACE_WORDS).toBe("Put together from each champion's own facts in its place. No person has checked them as a pair.");
+    expect(assembledWords("Riven", "Darius")).toBe("Put together from each champion's own facts. No person has checked Riven vs Darius as a pair.");
+  });
+
+  it("the bar's warning for parts hidden because Riot changed what they rest on, by count, or the briefing as a whole", () => {
+    expect(hiddenPartsBarWords(1, false)).toBe("Changed since the check: one part hidden");
+    expect(hiddenPartsBarWords(3, false)).toBe("Changed since the check: three parts hidden");
+    expect(hiddenPartsBarWords(12, false)).toBe("Changed since the check: 12 parts hidden");
+    expect(hiddenPartsBarWords(5, true)).toBe("Changed since the check: the briefing is hidden");
+  });
+
+  it("names who checked the checked notes, as the facts from Riot's text say who reviewed them; a side's or a panel's cooldowns said once", () => {
+    expect(CHECKED_NOTES_LABEL).toBe("Checked notes (drafted and audited by AI agents, not by a person)");
+    expect(CHECKED_NOTES_LABEL).not.toMatch(/verified/i);
+    expect(cooldownsFromWords("Riot's data, not reviewed")).toBe("Cooldowns: Riot's data, not reviewed");
   });
 
   it("names every kind and every group", () => {

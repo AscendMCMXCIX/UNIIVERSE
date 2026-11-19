@@ -17,8 +17,10 @@
  * Gloop site), and one that fails any check refuses the whole import: all or nothing.
  *   - the review record (reviewRecord: how many independent automated reviewers, whether an
  *     adjudicator settled them, how many automated checkers checked the consistency pass, whether a
- *     person checked it) is read as the review wrote it: a file without one is refused, never given
- *     a count, and _index.json must record the same;
+ *     person checked it) is read as the table holds it: a file without one is refused, never given a
+ *     count, and _index.json must record the same. The review itself wrote only its sentence
+ *     (`review`); the record was added to the table for this import, from that sentence, as data
+ *     (docs/MATCHUP_INTEL_RIOT_TEXT_REVIEW.md, "The review record");
  *   - the champion, the version and each ability's name are Riot's;
  *   - each ability's descriptionHash and tooltipHash (null for the passive) are the SHA-256 of
  *     Riot's description and tooltip with their markup removed as the drafts were (preparedText,
@@ -124,9 +126,11 @@ const isObject = (v) => !!v && typeof v === "object" && !Array.isArray(v);
 /* ---------- The review record ---------- */
 
 /**
- * The review's record of how it was done, as the table wrote it (reviewRecord): how many
- * independent automated reviewers read every draft, whether an adjudicator settled them, how many
- * independent automated checkers checked the consistency pass, and whether a person checked it.
+ * The record of how the review was done (reviewRecord), as the table holds it: how many independent
+ * automated reviewers read every draft, whether an adjudicator settled them, how many independent
+ * automated checkers checked the consistency pass, and whether a person checked it. The review wrote
+ * these in one sentence; the record was added to every file and to _index.json for the import, from
+ * that sentence, the same everywhere.
  * Nothing is assumed: a file without the record, or with a field missing or of another type, is
  * refused. A record saying a person checked the facts is refused too, until the owner has decided
  * the words such facts carry (docs/MATCHUP_INTEL.md, "For the owner"): the page's label says "not by

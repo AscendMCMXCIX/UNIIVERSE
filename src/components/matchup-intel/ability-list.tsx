@@ -8,9 +8,10 @@ import { Panel } from "@/components/ui/panel";
 import { RemoteImage } from "@/components/ui/remote-image";
 import { cn } from "@/lib/cn";
 import { DetailsDialog } from "./details-dialog";
-import { ConditionalNote, DifferQuotes, FactChipView } from "./fact-chip";
+import { CHIP_ROWS, ConditionalNote, DifferQuotes, FactChipView } from "./fact-chip";
 import { NO_BREAK, SourceLink } from "./source-link";
 import {
+  CHECKED_NOTES_LABEL,
   CONDITIONAL_WORDS,
   DIFFER_NEITHER_WORDS,
   DIFFER_WORDS,
@@ -23,6 +24,7 @@ import {
   changedAbilitiesWords,
   cooldownLines,
   cooldownSourceWords,
+  cooldownsFromWords,
   dataSourceWords,
   expiredNotesWords,
   flaggedNotesWords,
@@ -209,6 +211,9 @@ export function AbilityDetailsBody({ champion, ability: a, intel, source, checke
       {a.facts.length ? (
         <section>
           <DetailsHeading>Checked facts</DetailsHeading>
+          <p className="mb-1.5 text-xs text-fg-muted" data-testid="ability-details-checked-label">
+            {CHECKED_NOTES_LABEL}.
+          </p>
           <ul className="space-y-1.5 text-fg-muted">
             {a.facts.map((f, i) => (
               <FactDetail key={`${f.kind}-${f.label}-${i}`} fact={f} championName={champion.name} />
@@ -330,8 +335,9 @@ function AbilityTile({ intel, ability: a, checkedPatch, dataPatch, notRecheckedF
         </div>
         {chips.length ? (
           // Rows of chips with no gap between them: each chip is its badge's own box (fact-chip.tsx), so
-          // they touch and never overlap, a chip that wraps included.
-          <ul className="flex flex-wrap gap-x-1 gap-y-0" aria-label={`What ${a.name} does`} data-testid="ability-facts" data-from={from}>
+          // they touch and never overlap, a chip that wraps included; on a touch screen far enough
+          // apart that no chip's 44px area covers another (CHIP_ROWS).
+          <ul className={cn("flex flex-wrap", CHIP_ROWS)} aria-label={`What ${a.name} does`} data-testid="ability-facts" data-from={from}>
             {chips.map((c, i) => (
               <li key={`${c.layer}-${c.layer === "checked" ? c.word : c.layer === "riot-text" ? c.kind : "differ"}-${i}`} data-tags={c.layer === "checked" ? (c.tags.length ? c.tags.join(" ") : undefined) : c.layer === "riot-text" ? c.kind : undefined} data-differ={c.layer === "riot-text-differ" ? `${c.disagreement.description.kind} ${c.disagreement.tooltip.kind}` : undefined}>
                 <FactChipView chip={c} champion={champion.name} ability={a.name} />
@@ -493,7 +499,7 @@ export function AbilitiesPanel({ intel, title, testId, notice }: { intel: Champi
           {from ? `${from} · ` : null}
           {common && !intel.curated ? (
             <>
-              <span data-testid="abilities-cooldown-source">{`Cooldowns: ${common}`}</span>
+              <span data-testid="abilities-cooldown-source">{cooldownsFromWords(common)}</span>
               {" · "}
             </>
           ) : null}
@@ -508,10 +514,14 @@ export function AbilitiesPanel({ intel, title, testId, notice }: { intel: Champi
 
 /**
  * Your own champion, folded into one line until asked for (the native details element: it works
- * before the page's code has run, and a chip's jump to one of its tiles opens it).
+ * before the page's code has run, and a chip's jump to one of its tiles opens it). Its summary says
+ * where the cooldowns come from once for them all, as the enemy's panel does ("Cooldowns: Riot's
+ * data, not reviewed"; a curated champion's are its notes', which their line dates), so its tiles
+ * leave it out as theirs do.
  */
 export function YourChampion({ intel }: { intel: ChampionIntelView }) {
   const from = dataSourceOf(intel);
+  const common = commonSourceOf(intel);
   return (
     // A section with a heading of its own, so its abilities' headings sit under it: the summary's
     // words are not read as a heading everywhere, so the heading is for screen readers alone.
@@ -527,6 +537,12 @@ export function YourChampion({ intel }: { intel: ChampionIntelView }) {
             <span className="block text-sm font-semibold text-fg [overflow-wrap:anywhere]">{`Your champion: ${intel.champion.name}`}</span>
             <span className="block text-xs text-fg-muted">
               Abilities and base cooldowns{from ? ` · ${from}` : ""}
+              {common && !intel.curated ? (
+                <>
+                  {" · "}
+                  <span data-testid="your-cooldown-source">{cooldownsFromWords(common)}</span>
+                </>
+              ) : null}
               {" · "}
               <FactsSourceLine intel={intel} />
             </span>

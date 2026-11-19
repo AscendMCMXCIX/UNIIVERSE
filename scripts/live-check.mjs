@@ -117,6 +117,7 @@ import { AxeBuilder } from "@axe-core/playwright";
 import { redact } from "./redact.mjs";
 import { riotKeysOnPage } from "./riot-keys.mjs";
 import { rosterRowLines } from "./roster-lines.mjs";
+import { matchupIntelVerdicts, readMatchupIntel } from "./matchup-intel-facts.mjs";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 
@@ -867,56 +868,27 @@ async function resourcesFacts(page, kind) {
 
 /**
  * MATCHUP INTEL, one page load (docs/LIVE_VALIDATION.md, "What it checks"; the owner's decision of
- * 18 Nov 2026): a curated pair on the desktop. Which layer the pair shows and its label (the curated
- * briefing and when it was checked, or, once its check is too old, said hidden), the enemy's five
- * ability tiles with a name and a cooldown line each, the whole overview on one screen at the
- * check's desktop size, the sources and Riot's notice one press away with their summary on screen,
- * nothing requested from the League of Legends Wiki, that checked notes win over the facts from
- * Riot's text (none of those shows for this pair, whose champions both have checked notes), and axe.
- * It reads nothing beyond what the page itself reads (the session, the cached roster and patches, two
- * champions' stored abilities and their committed facts from Riot's text).
+ * 18 Nov 2026): a curated pair on the desktop, read at the check's 1440 × 900 and again with the
+ * window made 1920 × 1080 (as the wide checks do), then put back. What is read and asserted is in
+ * scripts/matchup-intel-facts.mjs, beside its unit test: which layer the pair shows and its label (the
+ * curated briefing and when it was checked, or, once its check is too old or every part rests on an
+ * ability Riot changed, said hidden, above the assembled reference too), the enemy's five ability
+ * tiles with a name and a cooldown line each, the overview on one screen at 1920 × 1080 and the
+ * essentials (the five tiles and the sources' summary) on the screen at 1440 × 900, both passing and
+ * saying what they found while any part of the briefing is hidden, the sources and Riot's notice one
+ * press away with their summary, nothing requested from the League of Legends Wiki, that checked notes
+ * win over the facts from Riot's text (none of those shows for this pair, whose champions both have
+ * checked notes), and axe. It reads nothing beyond what the page itself reads (the session, the
+ * cached roster and patches, two champions' stored abilities and their committed facts from Riot's text).
  */
 async function matchupIntelFacts(page, kind, wikiRequests) {
   await page.getByTestId("matchup-dashboard").waitFor({ timeout: 20_000 });
-  const f = await page.evaluate(() => {
-    const text = (sel) => document.querySelector(sel)?.textContent?.replace(/\s+/g, " ").trim() ?? "";
-    const tiles = [...document.querySelectorAll('[data-testid="matchup-enemy-abilities"] [data-testid="ability-row"]')];
-    return {
-      heading: text("main h1"),
-      layer: document.querySelector('[data-testid="matchup-dashboard"]')?.getAttribute("data-layer") ?? null,
-      label: text('[data-testid="matchup-layer"]'),
-      threat: text('[data-testid="briefing-threat"]').length,
-      opportunity: text('[data-testid="briefing-opportunity"]').length,
-      checked: text('[data-testid="matchup-briefing-checked"]'),
-      expired: !!document.querySelector('[data-testid="briefing-expired"]'),
-      slots: tiles.map((t) => t.getAttribute("data-slot")).join(""),
-      named: tiles.filter((t) => t.querySelector('[data-testid="ability-name"]')?.textContent?.trim() && t.querySelector('[data-testid="ability-cooldown-value"]')?.textContent?.trim()).length,
-      missing: !!document.querySelector('[data-testid="matchup-abilities-missing"]'),
-      summary: text('[data-testid="matchup-sources-summary"]'),
-      summaryShown: (() => {
-        const r = document.querySelector('[data-testid="matchup-sources-summary"]')?.getBoundingClientRect();
-        return !!r && r.height > 0 && r.bottom <= innerHeight;
-      })(),
-      ddragon: text('[data-testid="matchup-footer-ddragon"]'),
-      notice: text('[data-testid="matchup-footer-riot"]'),
-      licence: document.querySelector('[data-testid="matchup-licence-link"]')?.getAttribute("href") ?? null,
-      fits: document.documentElement.scrollHeight <= innerHeight,
-      overBy: document.documentElement.scrollHeight - innerHeight,
-      // Facts from Riot's text (L3) on the page: none for a pair whose champions both have checked notes, which win.
-      riotTextChips: document.querySelectorAll('[data-testid="ability-facts"][data-from="riot-text"] [data-testid^="fact-chip"]').length,
-      riotTextLabel: !!document.querySelector('[data-testid="matchup-riot-text-label"]'),
-    };
-  });
-  pass("matchup-intel", `${kind}: Matchup Intel opens Riven vs Mordekaiser under its own heading`, f.heading === "Matchup Intel", { heading: f.heading });
-  if (f.expired) pass("matchup-intel", `${kind}: the curated briefing is hidden as too old to show, and says so`, f.layer === "assembled", { layer: f.layer, checked: f.checked });
-  else pass("matchup-intel", `${kind}: the curated briefing shows its threat and opportunity, labelled with when it was checked`, f.layer === "curated" && f.threat > 0 && f.opportunity > 0 && /Checked on patch \d+\.\d+/.test(f.checked) && f.label.startsWith("Curated briefing"), { layer: f.layer, label: f.label, checked: f.checked });
-  if (f.missing) warn("matchup-intel", `${kind}: Mordekaiser's abilities are not stored yet: the page says so`, { slots: f.slots });
-  else pass("matchup-intel", `${kind}: Mordekaiser's five ability tiles, P to R, each with its name and cooldown line`, f.slots === "PQWER" && f.named === 5, { slots: f.slots, named: f.named });
-  pass("matchup-intel", `${kind}: the whole overview fits the screen, no page scroll`, f.fits, { overBy: f.overBy });
-  pass("matchup-intel", `${kind}: the sources' summary is on screen: a static reference with no live tracking, Riot's data, not endorsed by Riot Games`, f.summaryShown && f.summary.startsWith("A static reference: no live tracking") && /Riot Data Dragon \d/.test(f.summary) && f.summary.endsWith("Not endorsed by Riot Games"), { summary: f.summary });
-  pass("matchup-intel", `${kind}: one press away, the Data Dragon version, the wiki's licence and Riot's notice`, /^Ability names, icons and base cooldowns: Riot Data Dragon \d/.test(f.ddragon) && f.licence === "https://creativecommons.org/licenses/by-sa/3.0/" && /isn't endorsed by Riot Games/.test(f.notice), { ddragon: f.ddragon, licence: f.licence });
-  pass("matchup-intel", `${kind}: nothing requested from the League of Legends Wiki`, wikiRequests.length === 0, wikiRequests.slice(0, 3));
-  pass("matchup-intel", `${kind}: checked notes win over the facts from Riot's text: none of those on a pair whose champions both have checked notes, nor Riot's text in the sources' summary`, f.riotTextChips === 0 && !f.riotTextLabel && !f.summary.includes("Riot's text"), { chips: f.riotTextChips, label: f.riotTextLabel });
+  const at = await page.evaluate(readMatchupIntel);
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  const wide = await page.evaluate(readMatchupIntel);
+  await page.setViewportSize(VIEWPORTS.desktop.viewport);
+  for (const v of matchupIntelVerdicts({ kind, pair: "Riven vs Mordekaiser", enemy: "Mordekaiser", at, wide, wiki: wikiRequests })) check("matchup-intel", v.name, v.status, v.detail);
 }
 
 async function allChampions(page, log, kind, playerId) {

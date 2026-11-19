@@ -14,8 +14,9 @@ import { riotTextView } from "./view";
 /*
   Matchup Intel's facts from Riot's ability text (L3): the committed files' shape, how the page reads
   them defensively, how each ability's facts are pinned to Riot's text (riotTextView), and the
-  import script's checks: the review record read as the review wrote it, the review's hashes of
-  Riot's text, every span verbatim in Riot's text, Riot's placeholders kept unresolved.
+  import script's checks: the review record read as the table holds it (added for the import, from
+  the review's own sentence), the review's hashes of Riot's text, every span verbatim in Riot's
+  text, Riot's placeholders kept unresolved.
 */
 
 const DIR = join(__dirname, "riot-text");

@@ -42,7 +42,7 @@ function NothingChosen({ curated, byId }: { curated: Record<string, string[]>; b
     <EmptyState icon={Swords} title="Choose your champion and the enemy" action={<OpenPickerButton slot="you" testId="matchup-start">Choose your champion</OpenPickerButton>} testId="matchup-empty" className="max-sm:px-3">
       <p>Then read the enemy&apos;s abilities with their base cooldowns and crowd control, and what matters in lane: a curated briefing where one exists, otherwise each champion&apos;s own facts side by side.</p>
       {pairs.length ? (
-        <p className="mt-3 flex flex-wrap items-center justify-center gap-1.5" data-testid="matchup-curated-pairs">
+        <p className="mt-3 flex flex-wrap items-center justify-center gap-1.5 pointer-coarse:gap-y-2" data-testid="matchup-curated-pairs">
           <span>Curated briefings so far:</span>
           {pairs.map(({ you, enemy }) => (
             <PairLink key={`${you.id}-${enemy.id}`} you={you.id} enemy={enemy.id} className={PAIR_CHIP} testId="matchup-curated-pair">
@@ -72,6 +72,8 @@ const NOTES_SPLIT = {
   interactions: "@min-[40rem]/dash:grid-cols-[minmax(0,1.75fr)_minmax(0,1fr)]",
   even: "@min-[40rem]/dash:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)]",
   levels: "@min-[40rem]/dash:grid-cols-[minmax(0,1fr)_minmax(0,1.45fr)]",
+  // The interactions only each champion's folded line: a third is room enough for it.
+  folds: "@min-[40rem]/dash:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]",
 } as const;
 
 export function MatchupContent({ view, champions, curated, legal }: { view: MatchupPageView; champions: readonly ChampionChoice[]; curated: Record<string, string[]>; legal: string }) {
@@ -111,7 +113,8 @@ export function MatchupContent({ view, champions, curated, legal }: { view: Matc
         <div className={COLUMNS}>
           <div className="min-w-0 space-y-3">
             {you && enemy && matchup ? <Briefing matchup={matchup} you={you} enemy={enemy} rows={rows} /> : null}
-            {you && enemy && !shows ? <AssembledReference you={you} enemy={enemy} enemyIntel={enemyIntel} yourIntel={yourIntel} curatedForYou={curatedForYou} rows={rows} /> : null}
+            {/* A briefing that exists but shows nothing (too old, or every part resting on a change) is hidden above, and said so there. */}
+            {you && enemy && !shows ? <AssembledReference you={you} enemy={enemy} enemyIntel={enemyIntel} yourIntel={yourIntel} curatedForYou={curatedForYou} rows={rows} briefingHidden={!!matchup} /> : null}
             {/* Side by side where the column has room, the fuller of the two the wider. */}
             <div className={`grid gap-3 @min-[40rem]/dash:items-start ${NOTES_SPLIT[balance]}`} data-testid="matchup-notes" data-balance={balance}>
               <InteractionsPanel matchup={matchup} enemyIntel={enemyIntel} yourIntel={yourIntel} you={you} rows={rows} />

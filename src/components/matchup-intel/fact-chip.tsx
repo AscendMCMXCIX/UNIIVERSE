@@ -4,12 +4,13 @@ import type { DifferChip, FactChip, RiotTextChip } from "@/domain/matchup-intel/
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { InfoTip } from "@/components/ui/info-tip";
 import { cn } from "@/lib/cn";
-import { CONDITIONAL_WORDS, DIFFER_NEITHER_WORDS, DIFFER_WORDS, FACT_KINDS, KIND_GROUP_WORDS, RIOT_TEXT_KIND_WORDS, RIOT_TEXT_LABEL, conditionalNoteWords, differSideWords, qualifierChipWords, qualifierWords, revisionWords, riotTextSourceWords, subjectWords } from "./wording";
+import { CHECKED_NOTES_LABEL, CONDITIONAL_WORDS, DIFFER_NEITHER_WORDS, DIFFER_WORDS, FACT_KINDS, KIND_GROUP_WORDS, RIOT_TEXT_KIND_WORDS, RIOT_TEXT_LABEL, conditionalNoteWords, differSideWords, qualifierChipWords, qualifierWords, revisionWords, riotTextSourceWords, subjectWords } from "./wording";
 
 /*
   A fact as a chip (docs/MATCHUP_INTEL.md, "The ability tiles"): its kind's icon, the kind for screen
   readers, and one word or a few, never colour alone. Every chip opens what it rests on, on hover,
-  focus or a tap (the app's one tooltip, InfoTip): a checked fact's own sentence and its source page;
+  focus or a tap (the app's one tooltip, InfoTip): a checked fact's own sentence, who checked it (AI
+  agents, not a person: CHECKED_NOTES_LABEL) and its source page;
   a kind from Riot's text the clause of Riot's text it quotes, which text it is, its qualifier, and
   how it was reviewed. The same words are the chip's accessible description, so a screen reader hears
   them without opening it. Links to the sources are in the ability's details window, never in a tip.
@@ -93,12 +94,10 @@ function ChipTip({ chip, champion, ability }: { chip: FactChip; champion: string
         {subject ? ` (${subject})` : ""}
         {chip.detail ? `: ${chip.detail}` : ""}
       </span>
-      {chip.source.title ? (
-        <span className="mt-1 block text-fg-muted">
-          Checked notes · Source: {chip.source.title}
-          {revision ? `, ${revision}` : ""}
-        </span>
-      ) : null}
+      <span className="mt-1 block text-fg-muted">
+        {CHECKED_NOTES_LABEL}
+        {chip.source.title ? ` · Source: ${chip.source.title}${revision ? `, ${revision}` : ""}` : ""}
+      </span>
     </>
   );
 }
@@ -138,9 +137,12 @@ export function ConditionalNote({ chips, testId, className }: { chips: readonly 
  * own box (not the tip's 24px line box with negative margins, which a chip that wraps, at a large
  * text size or with a long qualifier, overlapped the next row with), and the badge's target reaches
  * 24px and more with a pseudo-element that takes no room (44px on touch screens: touch-target). The
- * lists set their rows with no gap between them, so single-line rows keep their density.
+ * lists set their rows with no gap between them, so single-line rows keep their density; on a touch
+ * screen 12px apart and the chips 6px apart (CHIP_ROWS), so no chip's 44px area covers another's box.
  */
 const CHIP_TRIGGER = "my-0! min-h-0!";
+/** The gaps of a list of chips: none with a mouse; on a touch screen 6px between chips and 12px between rows, where each chip's 44px area (touch-target) reaches 6px past its sides and about 11px above and below. */
+export const CHIP_ROWS = "gap-x-1 gap-y-0 pointer-coarse:gap-x-1.5 pointer-coarse:gap-y-3";
 const CHIP_BADGE = "touch-target text-left before:absolute before:inset-x-0 before:-inset-y-0.5 before:content-['']";
 
 /** The chip "Riot's texts differ": neutral, with its icon and its words, opening both quotes. */

@@ -93,18 +93,18 @@ describe("Riot's data and notice", () => {
     const view = { ...uncuratedPair, enemyIntel: { ...uncuratedPair.enemyIntel!, riotText: { version: "16.22.1", review } } };
     const html = render(view);
     expect(text(part(html, "matchup-footer-riot-text")!)).toBe(
-      "Kinds of mechanic from Riot's ability text (its descriptions and tooltips, Data Dragon 16.22.1), each with the clause it quotes: from Riot's ability text, reviewed automatically (not by a person). Each was drafted by fixed rules from that text, read by two independent automated reviewers and settled by an adjudicator, then checked in a consistency pass by two more independent automated checkers; no person has checked them. Riot's numbers in that text are never used.",
+      "Kinds of mechanic from Riot's ability text (its descriptions and tooltips, Data Dragon 16.22.1), each with the clause it quotes: from Riot's ability text, reviewed automatically (not by a person). Reviewed by two independent automated reviewers and an adjudicator, then a consistency pass checked by two more independent automated checkers; no person has checked them. No number in that text is used for these facts.",
     );
     expect(text(part(html, "matchup-sources-summary")!)).toContain("Riot's text, reviewed automatically");
     expect(render(uncuratedPair)).not.toContain('data-testid="matchup-footer-riot-text"');
     // Only what the records say: once where the two champions' agree, each champion's where they differ, nothing where no record can be read.
     const both = (a: typeof review | undefined, b: typeof review | undefined) => render({ ...view, yourIntel: { ...uncuratedPair.yourIntel!, riotText: { version: "16.22.1", review: b } }, enemyIntel: { ...view.enemyIntel, riotText: { version: "16.22.1", review: a } } });
-    expect(text(part(both(review, review), "matchup-footer-riot-text")!).match(/drafted by fixed rules/g)).toHaveLength(1);
+    expect(text(part(both(review, review), "matchup-footer-riot-text")!).match(/Reviewed by /g)).toHaveLength(1);
     const differ = text(part(both(review, { automatedReviewers: 3, adjudicated: false, consistencyCheckers: 0, checkedByPerson: false }), "matchup-footer-riot-text")!);
-    expect(differ).toContain("(not by a person). Darius's: Each was drafted by fixed rules from that text, read by two independent automated reviewers and settled by an adjudicator, then checked in a consistency pass by two more independent automated checkers; no person has checked them. Garen's: Each was drafted by fixed rules from that text, read by three independent automated reviewers; no person has checked them. Riot's");
-    expect(text(part(render({ ...view, enemyIntel: { ...view.enemyIntel, riotText: { version: "16.22.1" } } }), "matchup-footer-riot-text")!)).toContain("(not by a person). Riot's numbers");
+    expect(differ).toContain("(not by a person). Darius's: Reviewed by two independent automated reviewers and an adjudicator, then a consistency pass checked by two more independent automated checkers; no person has checked them. Garen's: Reviewed by three independent automated reviewers; no person has checked them. No number");
+    expect(text(part(render({ ...view, enemyIntel: { ...view.enemyIntel, riotText: { version: "16.22.1" } } }), "matchup-footer-riot-text")!)).toContain("(not by a person). No number in that text is used for these facts.");
     // A record of the first version (a count under another name) is not read as one.
-    expect(text(part(both({ automatedReviews: 2, adjudicated: true } as unknown as typeof review, undefined), "matchup-footer-riot-text")!)).toContain("(not by a person). Riot's numbers");
+    expect(text(part(both({ automatedReviews: 2, adjudicated: true } as unknown as typeof review, undefined), "matchup-footer-riot-text")!)).toContain("(not by a person). No number in that text is used for these facts.");
   });
 });
 

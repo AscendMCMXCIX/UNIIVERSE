@@ -3,7 +3,7 @@ import type { RiotTextReview, Source, Verification } from "@/domain/matchup-inte
 import { patchFromVersion, publicPatchName } from "@/domain/patch";
 import { formatCount, formatIsoDay } from "@/lib/format";
 import { SourceLink } from "./source-link";
-import { RIOT_TEXT_LABEL, dataSourceWords, riotTextProcessWords } from "./wording";
+import { RIOT_TEXT_LABEL, RIOT_TEXT_NO_NUMBERS_WORDS, dataSourceWords, riotTextProcessWords } from "./wording";
 
 /*
   The page's sources and notices (docs/MATCHUP_INTEL.md, "Compliance"), behind one compact control at
@@ -20,9 +20,12 @@ import { RIOT_TEXT_LABEL, dataSourceWords, riotTextProcessWords } from "./wordin
     no text was adapted, so the word "adapted" is never used), and that the wiki does not endorse
     this page. Each page is listed once, folded into one line until opened, so a phone shows the
     whole credit in a few lines;
-  - where facts from Riot's ability text appear: that they were drafted from Riot's own text and
+  - where facts from Riot's ability text appear: that they come from Riot's own text and were
     reviewed automatically, not by a person, and how, from each file's review record (how many
-    automated reviewers, the adjudicator, how many automated checkers of the consistency pass);
+    automated reviewers, the adjudicator, how many automated checkers of the consistency pass; the
+    record was added to the reviewed table for the import, from the review's own sentence), and that
+    no number in that text is used for them (the ability's details show Riot's description, numbers
+    and all, as Riot's);
   - that this is a static reference;
   - Riot's notice, the same words as the rest of the app, with the installation's own name.
   It types only what it reads, so it takes the page's view as it is and a test can hand it just
@@ -211,7 +214,7 @@ function riotTextSentence(sides: ReadonlyArray<{ name: string; version: string; 
   let process = "";
   if (first && known.every((s) => JSON.stringify(s.review) === JSON.stringify(first.review))) process = ` ${riotTextProcessWords(first.review!)}`;
   else if (known.length) process = known.map((s) => ` ${s.name}'s: ${riotTextProcessWords(s.review!)}`).join("");
-  return `${head}${process} Riot's numbers in that text are never used.`;
+  return `${head}${process} ${RIOT_TEXT_NO_NUMBERS_WORDS}`;
 }
 
 export function MatchupFooter({ view, legal }: { view: FooterView; legal: string }) {

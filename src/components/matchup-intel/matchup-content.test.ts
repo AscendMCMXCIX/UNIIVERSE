@@ -6,6 +6,7 @@ import { buildMatchupPageView, type MatchupViewDeps } from "@/server/matchup-int
 import { AbilityDetailsBody, AbilityList } from "./ability-list";
 import { MatchupContent } from "./matchup-content";
 import { MatchupFrame } from "./matchup-frame";
+import { MatchupStatus } from "./matchup-status";
 
 /*
   The page body as the server renders it (react-dom/server, no browser): every state renders, says
@@ -56,6 +57,8 @@ const deps: MatchupViewDeps = {
 };
 const curated = { Ambessa: ["Renekton"] };
 const LEGAL = "UNIIVERSE isn't endorsed by Riot Games.";
+/** Who checked the checked notes, as every place that names them says it. */
+const CHECKED = "Checked notes (drafted and audited by AI agents, not by a person)";
 
 async function render(input: { champion?: string; vs?: string }, over: Partial<MatchupViewDeps> = {}) {
   const view = await buildMatchupPageView(input, { ...deps, ...over });
@@ -64,7 +67,7 @@ async function render(input: { champion?: string; vs?: string }, over: Partial<M
 }
 // A source link holds its last word's end with its icon in a nowrap span (source-link.tsx), drawn
 // joined to the rest of the word: that tag is read without a space, every other tag as one.
-const text = (html: string) => html.replace(/<span class="whitespace-nowrap">/g, "").replace(/<[^>]+>/g, " ").replace(/&#x27;|&#39;/g, "'").replace(/&quot;/g, '"').replace(/&amp;/g, "&").replace(/\s+/g, " ");
+const text = (html: string) => html.replace(/<span class="whitespace-nowrap">|<wbr\/?>/g, "").replace(/<[^>]+>/g, " ").replace(/&#x27;|&#39;/g, "'").replace(/&quot;/g, '"').replace(/&amp;/g, "&").replace(/\s+/g, " ");
 
 describe("the page body", () => {
   it("a curated pair: the briefing with its chips, five ability rows with cooldowns, the notes and the sources", async () => {
@@ -88,11 +91,11 @@ describe("the page body", () => {
     expect(t).toContain("Riot Data Dragon 16.22.1 · Curated notes: checked on patch 26.22");
     // A fact's chip: its kind for screen readers and its word, its sentence and source one hover away.
     expect(t).toContain("Crowd control: Stun");
-    expect(t).toContain("Stun: On the third hit. Checked notes · Source: Renekton");
+    expect(t).toContain(`Stun: On the third hit. ${CHECKED} · Source: Renekton`);
     // Each tile's details window: its button names the ability; the window holds the facts with their links.
     expect(t).toContain("Details: Renekton W, W");
     const w = await detailsText({ champion: "Ambessa", vs: "Renekton" }, {}, "Renekton", "W");
-    expect(w).toContain("Checked facts Stun : On the third hit. · Source: Renekton");
+    expect(w).toContain(`Checked facts ${CHECKED}. Stun : On the third hit. · Source: Renekton`);
     expect(w).toContain("Notes Empowered, it stuns longer.");
     expect(w).toContain("Riot's description The W.");
     expect(t).toContain("Unstoppable answers it.");
@@ -131,7 +134,8 @@ describe("the page body", () => {
     expect(t).toContain("No level changes recorded for Darius or Garen.");
     // An enemy with curated notes and no briefing for this pair: its checked facts, grouped by kind, each group saying what it holds.
     const renekton = text(await render({ champion: "Garen", vs: "Renekton" }));
-    expect(renekton).toContain("Danger Renekton's kit, by kind Crowd control");
+    // The side names its layer under its subtitle: the checked notes' line, as their tiles' heading does.
+    expect(renekton).toContain("Danger Renekton's kit, by kind Curated notes: checked on patch 26.22 Crowd control");
     expect(renekton).toContain("Burst and power · None in the checked notes");
     expect(renekton).toContain("Crowd control: Stun");
     // No abilities stored: the panel says so, and the side says nothing is stored.
@@ -248,7 +252,7 @@ describe("the cooldown decision table, as the page says it", () => {
     expect(rowText(html, "Renekton", "E")).toContain("0.3125 s between casts, unaffected by ability haste");
     // Who has the effect, where its kind would not say it (in the chip's tip); the tags as data, not words; the page's revision in the details.
     expect(rowText(html, "Renekton", "E")).toContain("Interaction: Fails on spell shields");
-    expect(rowText(html, "Renekton", "E")).toContain("Fails on spell shields (on the target): A spell shield on the target stops it. Checked notes · Source: A page, revision of 5 Jun 2026");
+    expect(rowText(html, "Renekton", "E")).toContain(`Fails on spell shields (on the target): A spell shield on the target stops it. ${CHECKED} · Source: A page, revision of 5 Jun 2026`);
     const e = await detailsText({ vs: "Renekton" }, { loadAbilities: async (ids) => ({ version: "16.22.1", champions: Object.fromEntries(ids.map((id) => [id, kitWith(id)])) }), championNotes: (id) => (id === "Renekton" ? notes : null) }, "Renekton", "E");
     expect(e).toContain("Fails on spell shields (on the target): A spell shield on the target stops it. · Source: A page");
     expect(e).toContain(", revision of 5 Jun 2026");
@@ -384,7 +388,7 @@ describe("each champion's data, and checks a patch or more behind", () => {
     expect(t).not.toContain("Unstoppable answers it.");
     expect(t).toContain("Curated notes: checked on patch 26.22 Checked three patches ago: may be out of date");
     // The notes' one source said once on the panel's line, then the warning.
-    expect(text(html.slice(html.indexOf('data-testid="matchup-level-notes"')))).toMatch(/^[^<]*Level changes When something becomes possible · source Source: Renekton\. Checked notes\. Checked three patches ago: may be out of date Level 6 Renekton: Dominus\. Renekton's abilities/);
+    expect(text(html.slice(html.indexOf('data-testid="matchup-level-notes"')))).toMatch(/^[^<]*Level changes When something becomes possible · source Source: Renekton\. Checked notes \(drafted and audited by AI agents, not by a person\)\. Checked three patches ago: may be out of date Level 6 Renekton: Dominus\. Renekton's abilities/);
     expect(t).toContain("The curated notes on this page were checked on 16 Nov 2026 against patch 26.22.");
     expect(t).not.toContain("the Ambessa vs Renekton briefing");
   });
@@ -411,7 +415,7 @@ describe("each champion's data, and checks a patch or more behind", () => {
     expect(text(interactions)).toMatch(/^[^<]*Interactions How abilities meet in this lane · source Source: Renekton\. Curated matchup notes\. Unstoppable answers it\./);
     const levels = panel(one, "matchup-level-notes");
     expect(levels.match(/data-testid="level-note-source"/g)).toHaveLength(1);
-    expect(text(levels)).toMatch(/^[^<]*Level changes When something becomes possible · source Source: Renekton\. Checked notes\. Level 6 Renekton: Dominus\./);
+    expect(text(levels)).toMatch(/^[^<]*Level changes When something becomes possible · source Source: Renekton\. Checked notes \(drafted and audited by AI agents, not by a person\)\. Level 6 Renekton: Dominus\./);
     // Two pages: each interaction and each note says its own, and the headings name none.
     const two: MatchupNotes = {
       ...ambessaVsRenekton,
@@ -423,7 +427,7 @@ describe("each champion's data, and checks a patch or more behind", () => {
     const each = text(panel(html, "matchup-interactions"));
     expect(each).toMatch(/^[^<]*Interactions How abilities meet in this lane Unstoppable answers it\. .*source Source: Renekton\. Curated matchup notes\. It goes the other way\. .*source Source: Ambessa\. Curated matchup notes\./);
     const notes = text(panel(html, "matchup-level-notes"));
-    expect(notes).toMatch(/^[^<]*Level changes When something becomes possible Level 6 Renekton: Dominus\. source Source: Renekton\. Checked notes\. Level 9 Ambessa: Drakehound\. source Source: Ambessa\. Checked notes\./);
+    expect(notes).toMatch(/^[^<]*Level changes When something becomes possible Level 6 Renekton: Dominus\. source Source: Renekton\. Checked notes \(drafted and audited by AI agents, not by a person\)\. Level 9 Ambessa: Drakehound\. source Source: Ambessa\. Checked notes \(drafted and audited by AI agents, not by a person\)\./);
   });
 
   it("the two notes panels share their row by their words: the fuller one the wider", async () => {
@@ -436,11 +440,16 @@ describe("each champion's data, and checks a patch or more behind", () => {
     const interactionsFirst = await render({ champion: "Ambessa", vs: "Renekton" }, { matchupNotes: (a, b) => (a === "Ambessa" && b === "Renekton" ? wordy : null) });
     expect(balance(interactionsFirst)).toBe("interactions");
     expect(interactionsFirst).toContain("@min-[40rem]/dash:grid-cols-[minmax(0,1.75fr)_minmax(0,1fr)]");
-    // Long level notes and no matchup of its own (the assembled reference): the notes take it.
+    // Long level notes and no matchup of its own (the assembled reference): the notes take it, two
+    // thirds where the interactions are only a champion's folded line.
     const noted: ChampionNotes = { ...renekton, levelNotes: [{ level: 6, text: long, source: "wiki", basedOn: ["W"] }, { level: 11, text: long, source: "wiki", basedOn: ["W"] }] };
     const levelsFirst = await render({ champion: "Renekton", vs: "Ambessa" }, { championNotes: (id) => (id === "Renekton" ? noted : null) });
-    expect(balance(levelsFirst)).toBe("levels");
-    expect(levelsFirst).toContain("@min-[40rem]/dash:grid-cols-[minmax(0,1fr)_minmax(0,1.45fr)]");
+    expect(balance(levelsFirst)).toBe("folds");
+    expect(levelsFirst).toContain("@min-[40rem]/dash:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]");
+    // With a note that the matchup's interactions are hidden (its check too old), the interactions keep more room.
+    const old = await render({ champion: "Ambessa", vs: "Renekton" }, { currentPatch: { patch: "16.25", ddragonVersion: "16.25.1" }, loadAbilities: storedAt({ Ambessa: "16.25.1", Renekton: "16.25.1" }), championNotes: (id) => (id === "Renekton" ? noted : null) });
+    expect(balance(old)).toBe("levels");
+    expect(old).toContain("@min-[40rem]/dash:grid-cols-[minmax(0,1fr)_minmax(0,1.45fr)]");
   });
 
   it("the assembled reference gives an ability's cooldown once on its side, on its first line", async () => {
@@ -582,6 +591,130 @@ describe("facts from Riot's text, as the review recorded them", () => {
     const r = await detailsText({ champion: "Garen", vs: "Darius" }, over, "Darius", "R");
     expect(r).toContain("Riot's text for R changed after the review: its fact and the note that Riot's texts differ are hidden.");
     const html = await render({ champion: "Garen", vs: "Darius" }, over);
-    expect(text(html)).toContain("read by two independent automated reviewers and settled by an adjudicator, then checked in a consistency pass by two more independent automated checkers; no person has checked them.");
+    expect(text(html)).toContain("Reviewed by two independent automated reviewers and an adjudicator, then a consistency pass checked by two more independent automated checkers; no person has checked them. No number in that text is used for these facts.");
+  });
+});
+
+/*
+  The review fixes of 19 Nov 2026: a curated briefing that is hidden is said as hidden above the
+  assembled reference, never as missing, and the pair on the page is no link of its own; each
+  assembled side names its layer and its notes' freshness, flags a line whose ability Riot changed,
+  and says once where its cooldown numbers come from, as your champion's summary does; the bar
+  warns of parts hidden for a change; an unreadable record is said as that; the notes panels carry
+  their freshness on their line; level notes beyond two fold; cooldown numbers break only after a
+  slash.
+*/
+describe("hidden, changed and behind, on the assembled reference and the notes", () => {
+  /** One part of the page: from the element with this test id to the end of its section, or of `until`. */
+  const part = (html: string, testId: string, until = "</section>") => html.slice(html.indexOf(`data-testid="${testId}"`)).split(until)[0]!;
+  const allOnW: MatchupNotes = { ...ambessaVsRenekton, briefing: { threat: { text: "A.", basedOn: ["Renekton.W"] }, opportunity: { text: "B.", basedOn: ["Renekton.W"] }, lane: [{ text: "C.", basedOn: ["Renekton.W"] }] } };
+  const movedW = (k: DdragonChampionAbilities) => ({ ...k, abilities: k.abilities.map((a) => (a.slot === "W" ? { ...a, cooldown: [20, 19, 18, 17, 16] } : a)) });
+  const at = (version: string, over?: (k: DdragonChampionAbilities) => DdragonChampionAbilities): Partial<MatchupViewDeps> => ({ currentPatch: { patch: version.split(".").slice(0, 2).join("."), ddragonVersion: version }, loadAbilities: storedAt(Object.fromEntries(ROSTER.map((c) => [c.id, version])), over) });
+
+  it("a briefing hidden as too old: the assembled reference says it is hidden above, never that there is none, and links no pair already on the page", async () => {
+    const html = await render({ champion: "Ambessa", vs: "Renekton" }, at("16.25.1"));
+    const header = text(part(html, "matchup-no-briefing", "</header>"));
+    expect(text(html)).toContain("This briefing is hidden: it was checked on patch 26.22, three patches ago, and not since.");
+    expect(header).toContain("The curated briefing for Ambessa vs Renekton is hidden, above. Put together from each champion's own facts in its place. No person has checked them as a pair.");
+    expect(text(html)).not.toContain("No curated briefing for Ambessa vs Renekton yet");
+    expect(html).toContain('data-testid="matchup-assembled" data-briefing-hidden=""');
+    // Ambessa's only curated pair is the one on the page: no link to it.
+    expect(html).not.toContain('data-testid="matchup-curated-links"');
+    // The checked side says how old its notes are; so do both notes panels' lines.
+    expect(text(part(html, "assembled-danger"))).toContain("Danger Renekton's kit, by kind Curated notes: checked on patch 26.22 Checked three patches ago: may be out of date");
+    expect(text(part(html, "matchup-interactions", "</header>"))).toContain("Checked three patches ago: may be out of date");
+    expect(text(part(html, "matchup-level-notes", "</header>"))).toContain("Checked three patches ago: may be out of date");
+  });
+
+  it("a briefing with every part hidden for a change: said hidden above the assembled reference too; the bar warns, and the pair on the page is left out of the links", async () => {
+    const two: MatchupViewDeps["matchupNotes"] = (a, b) => (a === "Ambessa" && (b === "Renekton" || b === "Riven") ? { ...allOnW, vsId: b } : null);
+    const deps2 = { ...at("16.23.1", movedW), matchupNotes: two };
+    const view = await buildMatchupPageView({ champion: "Ambessa", vs: "Renekton" }, { ...deps, ...deps2 });
+    const html = renderToStaticMarkup(createElement(MatchupContent, { view, champions: ROSTER, curated: { Ambessa: ["Renekton", "Riven"] }, legal: LEGAL }));
+    expect(text(html)).toContain("This briefing is hidden: Riot changed Renekton W after it was checked.");
+    expect(text(part(html, "matchup-no-briefing", "</header>"))).toContain("The curated briefing for Ambessa vs Renekton is hidden, above.");
+    expect(text(html)).not.toContain("No curated briefing for");
+    // The other curated pair is linked; the one on the page is not.
+    const links = part(html, "matchup-curated-links", "</p>");
+    expect(links).toContain("?champion=Ambessa&amp;vs=Riven");
+    expect(links).not.toContain("vs=Renekton");
+    const bar = text(renderToStaticMarkup(createElement(MatchupStatus, { view })));
+    expect(bar).toContain("Assembled reference");
+    expect(bar).toContain("Changed since the check: the briefing is hidden");
+  });
+
+  it("the bar warns of the parts hidden because Riot changed what they rest on, by count; nothing when none is", async () => {
+    const changed = await buildMatchupPageView({ champion: "Ambessa", vs: "Renekton" }, { ...deps, ...at("16.23.1", movedW) });
+    const bar = text(renderToStaticMarkup(createElement(MatchupStatus, { view: changed })));
+    expect(bar).toContain("Curated briefing");
+    // The threat and the lane point rest on Renekton W; the opportunity and the interaction do not.
+    expect(bar).toContain("Changed since the check: two parts hidden");
+    const now = await buildMatchupPageView({ champion: "Ambessa", vs: "Renekton" }, deps);
+    expect(text(renderToStaticMarkup(createElement(MatchupStatus, { view: now })))).not.toContain("Changed since the check");
+    // Too old is not a change: the briefing says why itself.
+    const old = await buildMatchupPageView({ champion: "Ambessa", vs: "Renekton" }, { ...deps, ...at("16.25.1") });
+    expect(text(renderToStaticMarkup(createElement(MatchupStatus, { view: old })))).not.toContain("Changed since the check");
+  });
+
+  it("an assembled side whose ability Riot changed after the check: its line flagged, its number said as Riot's, the side's notes line saying so", async () => {
+    const html = await render({ champion: "Garen", vs: "Renekton" }, at("16.23.1", movedW));
+    const danger = part(html, "assembled-danger");
+    const w = text(danger.slice(danger.indexOf('data-slot="W"')).split("</li>")[0]!);
+    expect(danger).toContain('data-testid="assembled-item" data-slot="W" data-flagged=""');
+    expect(w).toContain("Changed since the check");
+    expect(w).toContain("20/19/18/17/16 s · Riot's data for patch 26.23, not re-checked");
+    expect(text(danger)).toContain("Curated notes: checked on patch 26.22 Not re-checked for 26.23 Riot changed one ability after the check: its notes are flagged");
+  });
+
+  it("one patch since the check: each checked side, and the notes panels' lines, say not re-checked; a current check says nothing", async () => {
+    const html = await render({ champion: "Garen", vs: "Renekton" }, at("16.23.1"));
+    expect(text(part(html, "assembled-danger"))).toContain("Renekton's kit, by kind Curated notes: checked on patch 26.22 Not re-checked for 26.23");
+    // The checked numbers need no word of their own: the side's line dates them.
+    expect(part(html, "assembled-danger")).not.toContain('data-testid="assembled-cooldown-source"');
+    expect(text(part(html, "matchup-interactions", "</header>"))).toContain("Not re-checked for 26.23");
+    expect(text(part(html, "matchup-level-notes", "</header>"))).toContain("Not re-checked for 26.23");
+    const now = await render({ champion: "Garen", vs: "Renekton" });
+    expect(text(now)).not.toContain("Not re-checked");
+    expect(text(part(now, "matchup-level-notes", "</header>"))).not.toContain("may be out of date");
+  });
+
+  it("an unreadable record is said as unreadable on the assembled side, never as not stored", async () => {
+    const html = await render({ champion: "Garen", vs: "Darius" }, { loadAbilities: async (ids) => ({ version: "16.22.1", champions: Object.fromEntries(ids.map((id) => [id, id === "Darius" ? null : kit(id)])), unreadable: ["Darius"] }) });
+    expect(text(part(html, "assembled-danger"))).toContain("Riot's ability data for Darius could not be read");
+    expect(text(html)).not.toContain("Ability details aren't stored yet");
+    // A record not stored at all still says so.
+    const none = await render({ champion: "Garen", vs: "Darius" }, { loadAbilities: async (ids) => ({ version: "16.22.1", champions: Object.fromEntries(ids.map((id) => [id, id === "Darius" ? null : kit(id)])) }) });
+    expect(text(part(none, "assembled-danger"))).toContain("Ability details aren't stored yet");
+  });
+
+  it("your champion's summary says once that its cooldowns are Riot's data, not reviewed, as the enemy's panel does; a curated champion's are its notes'", async () => {
+    const t = text(await render({ champion: "Garen", vs: "Darius" }));
+    expect(t).toContain("Your champion: Garen Abilities and base cooldowns · Riot Data Dragon 16.22.1 · Cooldowns: Riot's data, not reviewed ·");
+    expect(t).toContain("Darius's abilities Base cooldowns, without ability haste Riot Data Dragon 16.22.1 · Cooldowns: Riot's data, not reviewed");
+    const curatedYou = await render({ champion: "Renekton", vs: "Darius" });
+    expect(text(curatedYou)).toContain("Your champion: Renekton Abilities and base cooldowns · Riot Data Dragon 16.22.1 · Curated notes: checked on patch 26.22");
+    expect(curatedYou).not.toContain('data-testid="your-cooldown-source"');
+  });
+
+  it("level notes beyond two fold behind their count, the lowest levels first, word for word inside", async () => {
+    const three: ChampionNotes = { ...renekton, levelNotes: [{ level: 11, text: "Third.", source: "wiki", basedOn: ["W"] }, { level: 6, text: "Dominus.", source: "wiki", basedOn: ["W"] }, { level: 9, text: "Second.", source: "wiki", basedOn: ["W"] }] };
+    const html = await render({ champion: "Garen", vs: "Renekton" }, { championNotes: (id) => (id === "Renekton" ? three : null) });
+    const levels = part(html, "matchup-level-notes");
+    const shown = levels.split('data-testid="matchup-level-notes-more"')[0]!;
+    expect(text(shown)).toContain("Level 6 Renekton: Dominus. Level 9 Renekton: Second.");
+    expect(text(shown)).not.toContain("Third.");
+    expect(text(levels.slice(levels.indexOf('data-testid="matchup-level-notes-more"')))).toMatch(/^[^<]*1 more level changes Level 11 Renekton: Third\./);
+    // Two notes: no fold.
+    expect(await render({ champion: "Garen", vs: "Renekton" })).not.toContain("matchup-level-notes-more");
+  });
+
+  it("a tight cooldown breaks only after a slash, and each source tip is a 44px target on a touch screen", async () => {
+    const html = await render({ champion: "Garen", vs: "Renekton" });
+    const cd = /<span class="([^"]*)" data-testid="assembled-cooldown">([\s\S]*?)<\/span>/.exec(html)!;
+    expect(cd[1]).toContain("[overflow-wrap:normal]");
+    // The unit held to the last number by a no-break space.
+    expect(cd[2]).toBe("18/<wbr/>17/<wbr/>16/<wbr/>15/<wbr/>14\u00a0s");
+    for (const m of html.matchAll(/<button[^>]*data-testid="level-note-source"[^>]*>/g)) expect(m[0]).toMatch(/class="[^"]*\btouch-target\b/);
+    expect(html).toMatch(/data-testid="level-note-source"/);
   });
 });

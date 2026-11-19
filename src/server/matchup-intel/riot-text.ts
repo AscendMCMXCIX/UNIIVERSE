@@ -6,8 +6,9 @@ import { RIOT_TEXT_FILES } from "./riot-text/index";
   text"): for each champion, the kinds of mechanic Riot's own description or tooltip names, each with
   the clause it quotes and what the review recorded beside it (a qualifier, the conditional marker,
   another kind Riot's other text words it as), and where Riot's two texts differ, as the review
-  accepted them (two independent automated reviewers and an adjudicator, then a consistency pass
-  checked by two more; not a person). Committed one file per champion (riot-text/<Id>.json) and
+  left them (two independent automated reviewers and an adjudicator, then a consistency pass checked
+  by two more automated checkers; not a person), with the review record the import added from the
+  review's own sentence. Committed one file per champion (riot-text/<Id>.json) and
   loaded on the server only for the champions on the page; the browser gets the plain view built
   from them.
 

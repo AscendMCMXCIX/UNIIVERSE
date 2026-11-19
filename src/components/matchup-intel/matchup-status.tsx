@@ -3,16 +3,17 @@ import type { ChampionIntelView, MatchupPageView } from "@/domain/matchup-intel/
 import { comparePatches } from "@/domain/patch";
 import { Badge } from "@/components/ui/badge";
 import { dataSourceOf, publicPatchOf } from "./ability-list";
-import { briefingShows } from "./briefing";
-import { ASSEMBLED_TITLE, freshnessWords, notRecheckedWords } from "./wording";
+import { briefingShows, hiddenPartsOf } from "./briefing";
+import { ASSEMBLED_TITLE, freshnessWords, hiddenPartsBarWords, notRecheckedWords } from "./wording";
 
 /*
   The patch and how fresh the page is, in the picker bar (docs/MATCHUP_INTEL.md, "The dashboard"):
   the game's current patch (or that it is not known, on the offline copy), where the abilities come
   from, which layer the pair shows (a curated briefing and when it was checked, or the assembled
-  reference), and the warnings: not re-checked for a later patch, Riot's data changed since the
-  check, the ability data older than the game's patch. Short words; each is said in full where it
-  applies on the page below.
+  reference), and the warnings: not re-checked for a later patch, parts of the curated briefing or
+  its interactions hidden because Riot changed an ability they rest on after the check ("Changed
+  since the check: two parts hidden", or the briefing as a whole), the ability data older than the
+  game's patch. Short words; each is said in full where it applies on the page below.
 */
 
 /** The champions whose ability data is older than the game's current patch. */
@@ -48,6 +49,7 @@ export function MatchupStatus({ view }: { view: MatchupPageView }) {
   const shows = briefingShows(matchup);
   const f = matchup ? freshnessWords(matchup.freshness, matchup.verified.patch) : null;
   const recheck = matchup?.recheck ?? null;
+  const hidden = hiddenPartsOf(matchup);
   return (
     <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-fg-muted @min-[44rem]/pickers:justify-end" data-testid="matchup-patch-state">
       <span>
@@ -82,11 +84,13 @@ export function MatchupStatus({ view }: { view: MatchupPageView }) {
               {notRecheckedWords(recheck.patch)}
             </Badge>
           ) : null}
-          {matchup && shows && f?.warning ? (
-            <Badge tone="warn">
-              <TriangleAlert className="h-3.5 w-3.5 shrink-0" aria-hidden />
-              Changed since the check
-            </Badge>
+          {hidden.count ? (
+            <span className="inline-flex max-w-full" data-testid="matchup-hidden-parts">
+              <Badge tone="warn">
+                <TriangleAlert className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                {hiddenPartsBarWords(hidden.count, hidden.whole)}
+              </Badge>
+            </span>
           ) : null}
         </>
       ) : null}

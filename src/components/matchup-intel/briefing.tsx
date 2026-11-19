@@ -63,7 +63,8 @@ export function AbilityChips({ refs, names, rows, label, inline = false }: { ref
   });
   if (!chips.length) return null;
   return (
-    <ul className={cn("flex-wrap gap-1", inline ? "ml-1 inline-flex align-[0.0625rem]" : "flex")} aria-label={label}>
+    // On a touch screen far enough apart that no chip's 44px area (touch-target) covers another's box.
+    <ul className={cn("flex-wrap gap-1 pointer-coarse:gap-x-1.5 pointer-coarse:gap-y-3", inline ? "ml-1 inline-flex align-[0.0625rem]" : "flex")} aria-label={label}>
       {chips.map((c) => (
         <li key={c.ref}>
           {!rows || rows.has(c.id) ? (
@@ -124,6 +125,19 @@ export function changedOf(points: readonly BriefingPointView[]): AbilityRef[] {
 export function briefingShows(matchup: MatchupIntelView | null): boolean {
   const b = matchup?.briefing;
   return !!b && [b.threat, b.opportunity, ...b.lane].some((p) => p.kind === "point");
+}
+
+/**
+ * How much of a curated matchup is hidden because Riot changed an ability it rests on after its
+ * check: its parts (the threat, the opportunity, each lane point and each interaction) hidden so, and
+ * whether nothing of the briefing is left to show (`whole`). None for a matchup hidden as too old,
+ * which says so on its own.
+ */
+export function hiddenPartsOf(matchup: MatchupIntelView | null): { count: number; whole: boolean } {
+  const b = matchup?.briefing;
+  if (!matchup || !b) return { count: 0, whole: false };
+  const count = [b.threat, b.opportunity, ...b.lane, ...matchup.interactions].filter((p) => p.kind === "hidden").length;
+  return { count, whole: count > 0 && !briefingShows(matchup) };
 }
 
 /** A lane point: its words and the chips of what it rests on. */
@@ -261,7 +275,7 @@ export const PAIR_CHIP = "touch-target inline-flex min-h-7 items-center rounded-
 export function CuratedLinks({ you, enemies, current, label, centered = false, className }: { you: ChampionChoice; enemies: readonly ChampionChoice[]; current?: string | null; label: string; centered?: boolean; className?: string }) {
   if (!enemies.length) return null;
   return (
-    <p className={cn("flex flex-wrap items-center gap-1.5 text-sm", centered && "justify-center", className)} data-testid="matchup-curated-links">
+    <p className={cn("flex flex-wrap items-center gap-1.5 text-sm pointer-coarse:gap-y-2", centered && "justify-center", className)} data-testid="matchup-curated-links">
       <span className="text-fg-muted">{label}</span>
       {enemies.map((e) => (
         <PairLink key={e.id} you={you.id} enemy={e.id} current={e.id === current} className={PAIR_CHIP} testId="matchup-curated-link" champion={e.id}>

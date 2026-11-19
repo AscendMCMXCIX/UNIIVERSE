@@ -7,14 +7,17 @@
 
   Layers, kept apart so each can improve without the others or the interface changing, each with
   its own label on the page:
-  - L1, curated matchup notes: what is specific to champion A against champion B, written and
-    checked by people (MatchupNotes). Three one-direction pairs so far.
+  - L1, curated matchup notes: what is specific to champion A against champion B, written in our
+    own words from the League of Legends Wiki and approved by the owner (MatchupNotes; the first
+    three one-direction pairs were drafted and audited by AI agents).
   - L2, checked champion notes: facts about one champion's abilities from the League of Legends
-    Wiki, read by hand, each with its source and the patch it was checked on (ChampionNotes).
+    Wiki, each with its source and the patch it was checked on (ChampionNotes; the first six
+    champions' drafted and audited by AI agents, not by a person).
   - L3, facts from Riot's ability text: the kinds of mechanic (a stun, a dash, a shield, a recast)
     Riot's own description or tooltip names, each with the clause it quotes, reviewed automatically
-    (two independent reviews and an adjudicator; not by a person), pinned to the text it was
-    reviewed against (RiotTextChampion). Kinds only, never a number.
+    (two independent automated reviewers and an adjudicator, then a consistency pass checked by two
+    more; not by a person), pinned to the text it was reviewed against (RiotTextChampion). Kinds
+    only, never a number.
   - L4, Riot's data: Data Dragon's names, icons, ranks and base cooldown arrays for every champion
     (stored by the version-check job, once per game version), "not reviewed" where nobody has.
   - L5, the assembled reference: for a pair with no curated notes, each champion's own facts from
@@ -545,15 +548,20 @@ export interface RiotTextDisagreement {
 }
 
 /**
- * How a champion's facts from Riot's text were reviewed, as the review recorded it (its
- * reviewRecord, read by the import script, never assumed). Today: drafted by fixed rules from Riot's
- * text, every draft read by two independent automated reviewers and settled by an adjudicator, then a
- * consistency pass across the batches checked by two more independent automated checkers; no person
- * has checked any of it (`checkedByPerson` false). A person's check would change the label, which
- * is the owner's decision (docs/MATCHUP_INTEL.md, "Facts from Riot's text").
+ * How a champion's facts from Riot's text were reviewed: the reviewed table's reviewRecord, read by
+ * the import script, never assumed. The review itself wrote one sentence ("two independent automated
+ * reviews and an adjudicator, then a consistency pass checked by two more; not checked by a person");
+ * the record was added to every file and to the index for the import, from that sentence, stating it
+ * as data, and nothing else in the table changed with it. Today: the drafts (made by fixed rules from
+ * Riot's text) read by two independent automated reviewers and settled by an adjudicator, with the
+ * reviewers' own additions; then a consistency pass across the batches, which also added, removed and
+ * changed facts, checked by two more independent automated checkers; no person has checked any of it
+ * (`checkedByPerson` false). So not every fact was a draft of the fixed rules, and the page never says
+ * each was. A person's check would change the label, which is the owner's decision
+ * (docs/MATCHUP_INTEL.md, "Facts from Riot's text").
  */
 export interface RiotTextReview {
-  /** Independent automated reviewers that read every draft. */
+  /** Independent automated reviewers that read every draft (and adjudicated each other's additions). */
   automatedReviewers: number;
   /** An automated adjudicator settled every batch, where the reviewers split. */
   adjudicated: boolean;

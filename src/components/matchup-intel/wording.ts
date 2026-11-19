@@ -237,6 +237,16 @@ export function notRecheckedWords(patch: string): string {
   return `Not re-checked for ${patch}`;
 }
 
+/**
+ * The bar's warning once parts of the curated briefing or its interactions are hidden because Riot
+ * changed an ability they rest on after the check (each said in full where it was): "Changed since
+ * the check: two parts hidden", or, with nothing of the briefing left to show, "Changed since the
+ * check: the briefing is hidden".
+ */
+export function hiddenPartsBarWords(count: number, whole: boolean): string {
+  return `Changed since the check: ${whole ? "the briefing is hidden" : `${countWord(count).toLowerCase()} ${count === 1 ? "part" : "parts"} hidden`}`;
+}
+
 /** "three patches ago", "12 patches ago", "one patch ago". */
 const patchesAgo = (n: number) => `${n === 1 ? "one" : countWord(n).toLowerCase()} ${n === 1 ? "patch" : "patches"} ago`;
 
@@ -407,6 +417,19 @@ export const KIND_GROUP_WORDS: Record<KindGroup, string> = {
 /** The label every fact from Riot's text carries, in the owner's words (18 Nov 2026). */
 export const RIOT_TEXT_LABEL = "From Riot's ability text, reviewed automatically (not by a person)";
 
+/**
+ * Who checked the checked notes (L2), said where they are named ("Checked notes"), as the label of
+ * the facts from Riot's text says who reviewed those: AI agents drafted and audited the six
+ * champions' notes, and no person has checked them (docs/MATCHUP_INTEL.md, Coverage). Once a
+ * person checks a champion's notes, this changes with them.
+ */
+export const CHECKED_NOTES_LABEL = "Checked notes (drafted and audited by AI agents, not by a person)";
+
+/** Where a side's or a panel's cooldown numbers are Riot's, said once for them all: "Cooldowns: Riot's data, not reviewed". */
+export function cooldownsFromWords(source: string): string {
+  return `Cooldowns: ${source}`;
+}
+
 /** Which of Riot's texts a clause is quoted from: "Riot's tooltip for Ki Burst", "Riot's description of Ki Burst". */
 export function riotTextSourceWords(source: RiotTextSource, ability: string): string {
   return source === "tooltip" ? `Riot's tooltip for ${ability}` : `Riot's description of ${ability}`;
@@ -470,16 +493,22 @@ export function differSideWords(kind: RiotTextKind, source: RiotTextSource, abil
 const countLower = (n: number) => countWord(n).toLowerCase();
 
 /**
- * How the facts from Riot's text were reviewed, from the review's own record (reviewRecord), for the
- * sources and notices: "Each was drafted by fixed rules from that text, read by two independent
- * automated reviewers and settled by an adjudicator, then checked in a consistency pass by two more
- * independent automated checkers; no person has checked them."
+ * How the facts from Riot's text were reviewed, for the sources and notices, from each file's review
+ * record (reviewRecord: added for the import, from the review's own sentence, "two independent
+ * automated reviews and an adjudicator, then a consistency pass checked by two more; not checked by
+ * a person"): "Reviewed by two independent automated reviewers and an adjudicator, then a consistency
+ * pass checked by two more independent automated checkers; no person has checked them." It says how
+ * the facts as a whole were reviewed, never that each went through every step: some came in as a
+ * reviewer's addition or with the consistency pass, not as a draft of the fixed rules.
  */
 export function riotTextProcessWords(review: RiotTextReview): string {
-  const reviewers = `read by ${countLower(review.automatedReviewers)} independent automated ${review.automatedReviewers === 1 ? "reviewer" : "reviewers"}${review.adjudicated ? " and settled by an adjudicator" : ""}`;
-  const checkers = review.consistencyCheckers > 0 ? `, then checked in a consistency pass by ${countLower(review.consistencyCheckers)} more independent automated ${review.consistencyCheckers === 1 ? "checker" : "checkers"}` : "";
-  return `Each was drafted by fixed rules from that text, ${reviewers}${checkers}; ${review.checkedByPerson ? "a person has checked them" : "no person has checked them"}.`;
+  const reviewers = `Reviewed by ${countLower(review.automatedReviewers)} independent automated ${review.automatedReviewers === 1 ? "reviewer" : "reviewers"}${review.adjudicated ? " and an adjudicator" : ""}`;
+  const checkers = review.consistencyCheckers > 0 ? `, then a consistency pass checked by ${countLower(review.consistencyCheckers)} more independent automated ${review.consistencyCheckers === 1 ? "checker" : "checkers"}` : "";
+  return `${reviewers}${checkers}; ${review.checkedByPerson ? "a person has checked them" : "no person has checked them"}.`;
 }
+
+/** After the sentence on the facts from Riot's text, in the sources: the numbers in Riot's text (which the ability's details show with Riot's description) are no part of them. */
+export const RIOT_TEXT_NO_NUMBERS_WORDS = "No number in that text is used for these facts.";
 
 /** When a champion's facts from Riot's text were reviewed: "Reviewed against Riot's text of patch 26.22, on 18 Nov 2026". */
 export function riotTextReviewedWords(patch: string | null, reviewedOn: string): string {
@@ -494,6 +523,23 @@ export const ASSEMBLED_TITLE = "Assembled reference";
 export function assembledWords(you: string, enemy: string): string {
   return `Put together from each champion's own facts. No person has checked ${you} vs ${enemy} as a pair.`;
 }
+
+/** Above the assembled reference where the pair has no curated briefing: "No curated briefing for Riven vs Darius yet." */
+export function noBriefingWords(you: string, enemy: string): string {
+  return `No curated briefing for ${you} vs ${enemy} yet.`;
+}
+
+/**
+ * Above the assembled reference where the pair's curated briefing exists but shows nothing (its
+ * check too old, or every part resting on an ability Riot changed since), drawn just above it:
+ * "The curated briefing for Ambessa vs Renekton is hidden, above." Never "no curated briefing".
+ */
+export function briefingHiddenAboveWords(you: string, enemy: string): string {
+  return `The curated briefing for ${you} vs ${enemy} is hidden, above.`;
+}
+
+/** What the assembled reference is when it stands in for a hidden briefing: the briefing was checked as a pair, what is put together in its place was not. */
+export const ASSEMBLED_IN_PLACE_WORDS = "Put together from each champion's own facts in its place. No person has checked them as a pair.";
 
 /** A champion with neither checked notes nor reviewed facts: "No reviewed facts for Darius yet: crowd control, mobility, defence and sustain are not recorded." */
 export function noFactsWords(name: string): string {

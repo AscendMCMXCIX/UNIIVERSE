@@ -1,4 +1,4 @@
-import { FACT_KIND_GROUP, KIND_GROUPS, RIOT_TEXT_KIND_GROUP, RIOT_TEXT_KINDS, type AbilityView, type ChampionIntelView, type CooldownDisplay, type FactKind, type FactSubject, type FactTag, type KindGroup, type RiotTextDisagreementView, type RiotTextFactView, type RiotTextKind, type Slot, type SourceLinkView } from "./types";
+import { FACT_KIND_GROUP, KIND_GROUPS, RIOT_TEXT_KIND_GROUP, RIOT_TEXT_KINDS, type AbilityView, type ChampionIntelView, type CooldownDisplay, type FactKind, type FactSubject, type FactTag, type Freshness, type KindGroup, type RiotTextDisagreementView, type RiotTextFactView, type RiotTextKind, type Slot, type SourceLinkView } from "./types";
 
 /*
   MATCHUP INTEL's assembled reference (docs/MATCHUP_INTEL.md, "The assembled reference"): one
@@ -64,6 +64,8 @@ export interface KitItem {
   ability: string;
   chips: FactChip[];
   cooldown: CooldownDisplay;
+  /** How fresh the ability's checked notes are (null without notes): its cooldown line's source says it, as on its tile. */
+  freshness: Freshness | null;
   /** Riot's data for this ability moved after its checked notes were checked: they are flagged. */
   flagged: boolean;
 }
@@ -90,6 +92,8 @@ export interface Kit {
   from: "checked" | "riot-text" | "none";
   /** No ability data is stored for this champion (or it cannot be read). */
   noAbilities: boolean;
+  /** A record is stored for this champion that cannot be read: said as that, never as missing. */
+  unreadable: boolean;
   /** Every group, in KIND_GROUPS' order, each with the abilities that have a fact of it (possibly none). */
   groups: KitGroup[];
   /** Checked interactions and exceptions (L2), in slot order: they are no group's. */
@@ -146,15 +150,17 @@ export function kitOf(intel: ChampionIntelView): Kit {
   for (const a of abilities) {
     const chips = abilityChips(a);
     const flagged = a.freshness === "changed-since";
+    const item = { slot: a.slot, ability: a.name, cooldown: a.cooldown, freshness: a.freshness, flagged };
     for (const g of groups) {
       const mine = chips.filter((c) => inGroup(c, g.group));
-      if (mine.length) g.items.push({ slot: a.slot, ability: a.name, chips: mine, cooldown: a.cooldown, flagged });
+      if (mine.length) g.items.push({ ...item, chips: mine });
     }
     const other = chips.filter((c) => inGroup(c, null));
-    if (other.length) interactions.push({ slot: a.slot, ability: a.name, chips: other, cooldown: a.cooldown, flagged });
+    if (other.length) interactions.push({ ...item, chips: other });
     if (a.riotText && (a.riotText.hidden > 0 || a.riotText.hiddenDisagreements > 0) && a.riotText.hiddenBecause) hidden.push({ slot: a.slot, ability: a.name, count: a.riotText.hidden, disagreements: a.riotText.hiddenDisagreements, because: a.riotText.hiddenBecause });
   }
-  return { championId: intel.champion.id, name: intel.champion.name, from, noAbilities: !intel.abilities || intel.abilities.length === 0, groups, interactions, hidden };
+  const noAbilities = !intel.abilities || intel.abilities.length === 0;
+  return { championId: intel.champion.id, name: intel.champion.name, from, noAbilities, unreadable: noAbilities && intel.abilitiesUnreadable, groups, interactions, hidden };
 }
 
 /** The groups a side of the dashboard lists (how a cooldown behaves shows on the ability tiles instead). */
