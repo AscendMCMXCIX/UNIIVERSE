@@ -62,9 +62,10 @@
     heights and true/false only: the rows carry names.
   - records (19 Nov 2026: Recent form and the season's records and achievements on one page): on
     /leaderboards, at 1440, the season records stand beside the multikills (their tops within 1px), and
-    every record cell is no taller than its layout allows: two lines (from a 36rem cell) at most 72px,
-    three lines (under it) at most 96px (cells of more lines, a long name or champion, are counted, not
-    failed; the verification account has no profile, so no cell carries "Your best"). At every width,
+    every record cell, at its own height (not the taller neighbour's its grid row stretches it to), is
+    no taller than its layout allows: two lines (from a 36rem cell) at most 72px, three lines (under it)
+    at most 96px (cells of more lines, a long name or champion, are counted, not failed; the
+    verification account has no profile, so no cell carries "Your best"). At every width,
     Records & achievements' old address (/leaderboards?view=records) opens the same page, the view gone
     from its address, at the season records (in view, focused). Counts, heights and true/false only.
   - settings: the picture and display-name help name the public team page, and Settings never
@@ -98,7 +99,8 @@
     column does (within 1px; on Team Overview Team's 100rem column, its header's inset reported), a
     missing row failing, and Team's row is in the same place on its three sections; on Leaderboards
     Recent form stands beside the season records (their tops within 1px), every record on the first
-    screen (19 Nov 2026).
+    screen, and the milestones stand right under Recent form, in its column, whatever the records'
+    column beside them holds (19 Nov 2026).
   - reach (PR 2b): from the end of Match History, on the desktop and the tablet the pinned row offers
     Filters and it opens the filter sheet; on the phone the top bar's Filters opens it (Escape closes
     it again; no filter is touched).
@@ -731,8 +733,12 @@ async function leaderboardsFacts(page, kind) {
  * A cell from 36rem is two lines beside its picture (its record on one line over its holder and game
  * on one), at most 72px; a narrower cell three lines (the record, the holder with the value, the
  * game), at most 96px. A cell of more lines (a long name or champion wrapping, a qualifier on a line
- * of its own) is counted, not failed, as Recent form's rows are. The verification account has no
- * profile, so no cell carries "Your best".
+ * of its own) is counted, not failed, as Recent form's rows are. Each cell is measured at its own
+ * height: two cells side by side share a grid row, which each stretches to (its hairline runs the
+ * row's height), so a cell's box is the taller one's; the stretch is lifted for the measure and put
+ * back in the same step, before anything is drawn (else the CS cell beside a damage record of more
+ * lines read as a three-line cell of its neighbour's 108px, and failed). The verification account
+ * has no profile, so no cell carries "Your best".
  */
 async function recordsFacts(page, kind) {
   if (kind !== "desktop") return;
@@ -743,13 +749,24 @@ async function recordsFacts(page, kind) {
     const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
     const multikills = document.querySelector("[data-testid=records-multikills]");
     const oneLine = (el) => !el || box(el).height <= (parseFloat(getComputedStyle(el).lineHeight) || 20) + 2;
-    const cells = [...book.querySelectorAll("[data-testid=season-record]")].map((r) => {
+    const rows = [...book.querySelectorAll("[data-testid=season-record]")];
+    // Each cell at its own height: the cell (li) set to its content's height, its row and the row's wrapper no longer filling it.
+    const lifted = rows.flatMap((r) => [r.closest("li"), r.parentElement, r]);
+    const kept = lifted.map((el) => [el.style.alignSelf, el.style.height]);
+    for (const el of lifted) {
+      if (el.tagName === "LI") el.style.alignSelf = "start";
+      else el.style.height = "auto";
+    }
+    const cells = rows.map((r) => {
       const two = r.closest("li").clientWidth / rem >= 36;
       const title = oneLine(r.querySelector("[data-testid=record-title]"));
       const game = r.querySelector("[data-testid=record-game]");
       // Two lines: the holder and the game's parts level with each other; three: the holder's line and the game's line each one line.
       const gameFits = !game ? true : two ? (() => { const mids = [...game.children].filter((c) => box(c).width > 0).map((c) => box(c).top + box(c).height / 2); return mids.length === 0 || Math.max(...mids) - Math.min(...mids) <= 6; })() : oneLine(r.querySelector("[data-testid=card-name]")) && oneLine(r.querySelector("[data-testid=record-context]"));
       return { h: Math.round(box(r).height * 10) / 10, two, fits: title && gameFits };
+    });
+    lifted.forEach((el, i) => {
+      [el.style.alignSelf, el.style.height] = kept[i];
     });
     return {
       cells: cells.length,
@@ -786,19 +803,33 @@ async function recordsLandingFacts(page, kind) {
 
 /**
  * Leaderboards at 2560 × 1440 (19 Nov 2026, the wide check): Recent form beside the season records, their
- * tops within 1px, and every record on the first screen. Positions and true or false only.
+ * tops within 1px, every record on the first screen, and the milestones right under Recent form in its
+ * column (the page's gap apart, within 1px, its edges level with Recent form's), whatever the records'
+ * column beside them holds. Positions and true or false only.
  */
 async function dashboardFacts(page) {
   const f = await page.evaluate(() => {
     const form = document.querySelector("[data-testid=form-board]")?.getBoundingClientRect();
     const book = document.querySelector("[data-testid=records-book]")?.getBoundingClientRect();
-    if (!form || !book) return null;
+    const milestones = document.querySelector("[data-testid=records-milestones]")?.getBoundingClientRect();
+    const grid = document.querySelector("[data-testid=leaderboards-grid]");
+    if (!form || !book || !milestones || !grid) return null;
+    const gap = parseFloat(getComputedStyle(grid).rowGap) || 0;
     const records = [...document.querySelectorAll("[data-testid=season-record]")].map((r) => Math.round(r.getBoundingClientRect().bottom + scrollY));
-    return { beside: book.left >= form.right, topsApart: Math.round(Math.abs(form.top - book.top) * 10) / 10, records: records.length, lastRecord: Math.max(0, ...records), window: innerHeight };
+    return {
+      beside: book.left >= form.right,
+      topsApart: Math.round(Math.abs(form.top - book.top) * 10) / 10,
+      records: records.length,
+      lastRecord: Math.max(0, ...records),
+      window: innerHeight,
+      underForm: Math.round((milestones.top - form.bottom - gap) * 10) / 10,
+      edges: Math.round((Math.abs(milestones.left - form.left) + Math.abs(milestones.right - form.right)) * 10) / 10,
+    };
   });
-  if (!f) return pass("wide", "2560: Leaderboards' Recent form and season records are on the page", false, "no form-board or records-book");
+  if (!f) return pass("wide", "2560: Leaderboards' Recent form, season records and milestones are on the page", false, "no form-board, records-book or records-milestones");
   pass("wide", "2560: on Leaderboards, Recent form beside the season records, their tops within 1px", f.beside && f.topsApart <= 1, { beside: f.beside, topsApart: f.topsApart });
   pass("wide", "2560: on Leaderboards, every record on the first screen", f.records === 7 && f.lastRecord <= f.window, { records: f.records, lastRecord: f.lastRecord, window: f.window });
+  pass("wide", "2560: on Leaderboards, the milestones right under Recent form, in its column", Math.abs(f.underForm) <= 1 && f.edges <= 1, { underForm: f.underForm, edges: f.edges });
 }
 
 /**
