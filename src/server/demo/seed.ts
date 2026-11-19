@@ -5,8 +5,10 @@ import { listPlayers } from "@/server/repositories/team";
 import { invalidateProficiencyCache } from "@/server/proficiency/service";
 import { ROLES } from "@/domain/roles";
 import { createPlayer, getOrCreateTeam, setLineup, setLineupSubstitute } from "@/server/repositories/team";
-import { createUser } from "@/server/repositories/users";
+import { createUser, findUserByUsername } from "@/server/repositories/users";
 import { ensureLocalOwnerAccount, isProductionDeployment } from "@/server/auth/session";
+import { VERIFY_DISPLAY_NAME, VERIFY_USERNAME } from "@/server/auth/verification-account";
+import { randomToken } from "@/server/auth/password";
 import { demoBackdropPng } from "./backdrop-art";
 import { invalidateCache } from "@/server/observability/cache";
 import { currentSeason } from "@/server/accounts/sync";
@@ -762,6 +764,18 @@ const SCREENSHOT_LOOKS: Record<string, Record<string, unknown>> = {
 };
 // Added after Demo Top's six, so one Primary Role pool is longer than any card shows.
 const SCREENSHOT_LONG_POOL = ["Darius", "Garen", "Sett", "Fiora", "Camille", "Aatrox", "Riven", "Irelia"];
+
+/**
+ * The local demo's stand-in for production's verification account ("verify", a member with no
+ * player profile: jobs/verify-account.ts keeps the real one), so Admin Mode's People page shows its
+ * locked "Kept automatically" row as production's does, and the browser tests check it. Its
+ * password is random and thrown away (an active account, as production's is, that nobody can sign
+ * in to), and it is in no list members see. Never on a deployment.
+ */
+export async function seedDemoVerificationAccount(db: Db): Promise<void> {
+  if (isProductionDeployment() || (await findUserByUsername(db, VERIFY_USERNAME))) return;
+  await createUser(db, { username: VERIFY_USERNAME, displayName: VERIFY_DISPLAY_NAME, password: randomToken(24), role: "player", playerId: null });
+}
 
 export async function applyScreenshotFixture(db: Db): Promise<void> {
   const ids: Record<string, string> = {};

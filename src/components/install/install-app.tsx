@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Check, Copy, Download, Ellipsis, EllipsisVertical, Menu as MenuIcon, MonitorDown, Share, SquarePlus, type LucideIcon } from "lucide-react";
 import { DetailModal } from "@/components/ui/detail-modal";
+import { useBackCloses } from "@/components/ui/use-back-closes";
 import { Button, buttonClass } from "@/components/ui/button";
 import { useBrandNames } from "@/components/brand-names";
 import { installGuideFor, type InstallGuide } from "@/domain/install-guide";
@@ -95,6 +96,9 @@ export function InstallAppEntry({ variant, beforeOpen, className }: { variant: "
 type Phase = "ready" | "asking" | "accepted" | "dismissed";
 
 function InstallWindow({ onClose }: { onClose: () => void }) {
+  // Back (the browser's, a phone's) closes the window and the page stays; opened from the phone's
+  // account screen, it takes over that screen's history entry (useBackCloses).
+  useBackCloses(true, onClose);
   const { productName: name } = useBrandNames();
   const state = useInstallState();
   const [phase, setPhase] = React.useState<Phase>("ready");

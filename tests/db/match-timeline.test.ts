@@ -10,7 +10,7 @@ import { addAccount } from "@/server/accounts/repository";
 import { buildSteps, completedTimeline, getMatchTimeline, maxOrderOf, timelineEvents, timelineFrames, timelineParticipants, timelineRow } from "@/server/accounts/match-timeline";
 import { RiotApiClient } from "@/server/riot/api/client";
 import { RateLimiter } from "@/server/riot/api/rate-limiter";
-import type { RiotMatchTimeline } from "@/server/riot/api/schemas";
+import { matchTimelineSchema, type RiotMatchTimeline } from "@/server/riot/api/schemas";
 
 /*
   A match minute by minute from Riot's match timeline: build and skill order, the lane at fixed
@@ -53,8 +53,82 @@ function timeline(matchId: string, puuids: string[]): RiotMatchTimeline {
 describe("reading a timeline", () => {
   it("keeps purchases in order, removes undone ones, and records skill level-ups (not evolutions)", () => {
     const [me, other] = timelineParticipants(timeline("OC1_T", ["p1", "p2"]));
-    expect(me).toEqual({ puuid: "p1", purchases: [[2_000, 1055], [2_500, 2003], [2_600, 2003], [402_000, 1036]], skills: [1, 3, 2], kills: [], deaths: [], assists: [] });
+    // The potion drunk at 6:50 is an item used up (kept from 20 Nov 2026 on).
+    expect(me).toEqual({ puuid: "p1", purchases: [[2_000, 1055], [2_500, 2003], [2_600, 2003], [402_000, 1036]], skills: [1, 3, 2], kills: [], deaths: [], assists: [], destroyed: [[410_000, 2003]] });
     expect(other).toEqual({ puuid: "p2", purchases: [[3_000, 1056]], skills: [], kills: [], deaths: [], assists: [] });
+  });
+
+  it("keeps when each level was reached, what was sold and what was used up, undone ones removed", () => {
+    const t = timeline("OC1_T", ["p1", "p2", "p3"]);
+    t.info.frames[1]!.events.push(
+      // Player 1 reaches levels 2 to 4, two at once after a kill.
+      ev("LEVEL_UP", 98_000, 1, { level: 2 }),
+      ev("LEVEL_UP", 241_000, 1, { level: 4 }),
+      ev("LEVEL_UP", 241_000, 1, { level: 3 }),
+      // Player 2's events skip level 3: not kept rather than guessed.
+      ev("LEVEL_UP", 100_000, 2, { level: 2 }),
+      ev("LEVEL_UP", 300_000, 2, { level: 4 }),
+      // Player 3 starts at level 3 (a mode that starts higher): kept from there.
+      ev("LEVEL_UP", 50_000, 3, { level: 4 }),
+      ev("LEVEL_UP", 90_000, 3, { level: 5 }),
+      // Player 1 sells the starting item, undoes the sale, then sells it again.
+      ev("ITEM_SOLD", 900_000, 1, { itemId: 1055 }),
+      ev("ITEM_UNDO", 901_000, 1, { beforeId: 0, afterId: 1055 }),
+      ev("ITEM_SOLD", 1_000_000, 1, { itemId: 1055 }),
+      // Player 2 builds an item from two components, undoes it (the components come back), then builds it again.
+      ev("ITEM_DESTROYED", 1_200_000, 2, { itemId: 1036 }),
+      ev("ITEM_DESTROYED", 1_200_000, 2, { itemId: 1037 }),
+      ev("ITEM_PURCHASED", 1_200_000, 2, { itemId: 3071 }),
+      ev("ITEM_UNDO", 1_203_000, 2, { beforeId: 3071, afterId: 0 }),
+      ev("ITEM_DESTROYED", 1_260_000, 2, { itemId: 1036 }),
+      ev("ITEM_DESTROYED", 1_260_000, 2, { itemId: 1037 }),
+      ev("ITEM_PURCHASED", 1_260_000, 2, { itemId: 3071 }),
+      // A control ward placed.
+      ev("ITEM_DESTROYED", 1_300_000, 3, { itemId: 2055 }),
+    );
+    const [p1, p2, p3] = timelineParticipants(t);
+    expect(p1).toMatchObject({ levels: [98_000, 241_000, 241_000], sold: [[1_000_000, 1055]], destroyed: [[410_000, 2003]] });
+    expect(p1).not.toHaveProperty("levelFrom");
+    expect(p2).not.toHaveProperty("levels");
+    expect(p2).toMatchObject({ purchases: [[3_000, 1056], [1_260_000, 3071]], destroyed: [[1_260_000, 1036], [1_260_000, 1037]] });
+    expect(p2).not.toHaveProperty("sold");
+    expect(p3).toMatchObject({ levels: [50_000, 90_000], levelFrom: 4, destroyed: [[1_300_000, 2055]] });
+  });
+
+  it("keeps each player's place on the map, ability haste and level at every frame, and leaves out a series with a gap", () => {
+    const t = timeline("OC1_T", ["p1", "p2"]);
+    const pf = (gold: number, extra: Record<string, unknown>) => ({ totalGold: gold, xp: gold - 500, minionsKilled: 0, jungleMinionsKilled: 0, ...extra });
+    t.info.frames = [
+      { timestamp: 0, participantFrames: { "1": pf(500, { position: { x: 554, y: 581 }, championStats: { abilityHaste: 0, armor: 30 }, level: 1 }), "2": pf(500, { position: { x: 14_340, y: 14_391 }, level: 1 }) }, events: [] },
+      { timestamp: 60_031, participantFrames: { "1": pf(700, { position: { x: 5_212, y: 5_101 }, championStats: { abilityHaste: 8 }, level: 2 }), "2": pf(650, { position: { x: 9_800, y: 9_650 }, championStats: { abilityHaste: 0 }, level: 1 }) }, events: [] },
+    ];
+    const frames = timelineFrames(t);
+    expect(frames.p.p1).toEqual({ g: [500, 700], x: [0, 200], c: [0, 0], px: [554, 5_212], py: [581, 5_101], ah: [0, 8], lv: [1, 2] });
+    // Player 2's haste is missing from the first frame: that series alone is left out.
+    expect(frames.p.p2).toEqual({ g: [500, 650], x: [0, 150], c: [0, 0], px: [14_340, 9_800], py: [14_391, 9_650], lv: [1, 1] });
+    // An odd value is read as absent, never as a number.
+    const odd = matchTimelineSchema.parse({ ...t, info: { ...t.info, frames: [{ timestamp: 0, participantFrames: { "1": { totalGold: 500, xp: 0, position: { x: "far" }, championStats: { abilityHaste: "x" }, level: null } }, events: [] }] } });
+    expect(timelineFrames(odd).p.p1).toEqual({ g: [500], x: [0], c: [0] });
+  });
+
+  it("keeps the turret plates each team took, with their lane, apart from the objectives", () => {
+    const t = timeline("OC1_T", ["p1", "p2"]);
+    t.info.frames[1]!.events.push(
+      // Riot names the side that lost the plate.
+      { type: "TURRET_PLATE_DESTROYED", timestamp: 500_000, killerId: 1, teamId: 200, laneType: "BOT_LANE" },
+      { type: "TURRET_PLATE_DESTROYED", timestamp: 520_000, killerId: 0, teamId: 100, laneType: "MID_LANE" },
+      // No lane or no side: left out.
+      { type: "TURRET_PLATE_DESTROYED", timestamp: 530_000, killerId: 2, teamId: 300, laneType: "TOP_LANE" },
+      { type: "TURRET_PLATE_DESTROYED", timestamp: 540_000, killerId: 2, teamId: 100, laneType: "JUNGLE" },
+    );
+    const events = timelineEvents(t);
+    expect(events.plates).toEqual([
+      { t: 500_000, team: 100, lane: "BOT" },
+      { t: 520_000, team: 200, lane: "MID" },
+    ]);
+    expect(events.objectives).toEqual([]);
+    // A timeline with no plates still says it was read for them.
+    expect(timelineEvents(timeline("OC1_T", ["p1"])).plates).toEqual([]);
   });
 
   it("falls back to the metadata order when the timeline lists no participants", () => {
@@ -153,6 +227,28 @@ describe("reading a timeline", () => {
     expect(completedTimeline(undefined, fresh)).toEqual({ participants: fresh.participants, frames: fresh.frames, events: fresh.events });
     const gone = completedTimeline(stored, timelineRow("M", "oc1", null));
     expect(gone).toEqual({ participants: stored.participants, frames: stored.frames, events: { objectives: [], missing: true } });
+  });
+
+  it("completes a timeline kept before 20 Nov 2026 with the newer fields, and leaves a newer one as it is", () => {
+    const frames = { t: [0, 60_000], p: { a: { g: [500, 900], x: [0, 100], c: [0, 5] } } };
+    const stored = { participants: [{ puuid: "a", purchases: [[1000, 1055]] as Array<[number, number]>, skills: [1], kills: [], deaths: [], assists: [] }], frames, events: { objectives: [] } };
+    const fresh = {
+      matchId: "M",
+      platform: "oc1",
+      participants: [{ puuid: "a", purchases: [[1000, 1055]] as Array<[number, number]>, skills: [1], kills: [], deaths: [], assists: [], levels: [98_000], sold: [[900_000, 1055]] as Array<[number, number]>, destroyed: [[410_000, 2003]] as Array<[number, number]> }],
+      frames: { t: [0, 60_000], p: { a: { g: [500, 900], x: [0, 100], c: [0, 5], px: [554, 5_000], py: [581, 5_100], ah: [0, 0], lv: [1, 2] } } },
+      events: { objectives: [], plates: [{ t: 500_000, team: 100, lane: "BOT" }] },
+    };
+    const done = completedTimeline(stored, fresh);
+    expect(done.participants[0]).toMatchObject({ purchases: [[1000, 1055]], levels: [98_000], sold: [[900_000, 1055]], destroyed: [[410_000, 2003]] });
+    expect(done.frames).toEqual(fresh.frames);
+    expect(done.events).toEqual({ objectives: [], plates: fresh.events.plates });
+    // Different frames (not the same timestamps): the kept frames stay as they are.
+    expect(completedTimeline(stored, { ...fresh, frames: { ...fresh.frames, t: [0, 60_412] } }).frames).toEqual(frames);
+    // A timeline kept since (it has plates) lacks a list only because there was nothing to keep: nothing is added.
+    const newer = { ...stored, events: { objectives: [], plates: [] } };
+    expect(completedTimeline(newer, fresh).participants[0]).not.toHaveProperty("sold");
+    expect(completedTimeline(newer, fresh).events).toEqual({ objectives: [], plates: [] });
   });
 
   it("groups purchases by minute with counts, and finds the max order", () => {
@@ -296,6 +392,9 @@ describe("the lane and the gold difference of a stored game", () => {
     // A removed player (erased) keeps their place but no figures: the gold curve is not drawn.
     const removed = players("OC1_REMOVED").map((p) => (p.puuid === "OC1_REMOVED-r-TOP" ? { ...p, puuid: "", name: null, position: null, removed: true as const } : p));
     await store("OC1_REMOVED", removed, framedTimeline("OC1_REMOVED", players("OC1_REMOVED").map((p) => p.puuid), 16, goldAt, (slot) => slot === 5), account.id);
+    // The same game stored with Riot's two readings (records from 20 Nov 2026 on); the removed player keeps neither.
+    const read = players("OC1_REMOVED_TP").map((p) => (p.puuid === "OC1_REMOVED_TP-r-TOP" ? { ...p, puuid: "", name: null, position: null, removed: true as const } : { ...p, teamPosition: p.position ?? "", individualPosition: p.position ?? "" }));
+    await store("OC1_REMOVED_TP", read, framedTimeline("OC1_REMOVED_TP", players("OC1_REMOVED_TP").map((p) => p.puuid), 16, goldAt, (slot) => slot === 5), account.id);
     // A game over before 15:00.
     const short = players("OC1_SHORT");
     await store("OC1_SHORT", short, framedTimeline("OC1_SHORT", short.map((p) => p.puuid), 12, goldAt), account.id);
@@ -331,10 +430,17 @@ describe("the lane and the gold difference of a stored game", () => {
   });
 
   it("draws no gold curve when a player's figures are missing, and never pairs a removed player", async () => {
+    // An older record keeps one merged position, which two players of a side can share, and the
+    // removed player's went with them: they may have held the lane too, so it is unclear.
     const r = await getMatchTimeline(handle.db, owner, "OC1_REMOVED");
     if (r.status !== "ok") throw new Error(r.message);
     expect(r.timeline.gold).toBeNull();
-    expect(r.timeline.lane?.opponentSlot).toBe(7);
+    expect(r.timeline.lane).toBeNull();
+    // With Riot's team position (one player per position on each team) the enemy laner stays.
+    const read = await getMatchTimeline(handle.db, owner, "OC1_REMOVED_TP");
+    if (read.status !== "ok") throw new Error(read.message);
+    expect(read.timeline.gold).toBeNull();
+    expect(read.timeline.lane?.opponentSlot).toBe(7);
   });
 
   it("leaves a minute the game never reached empty", async () => {

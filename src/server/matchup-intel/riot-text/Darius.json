@@ -1,0 +1,26 @@
+{
+  "championId": "Darius",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Hemorrhage","textHash":"7f130fc4e2b9bc5a"},
+    "Q": {"name":"Decimate","textHash":"76c6317ff2f5963b"},
+    "W": {"name":"Crippling Strike","textHash":"19dff4669b4d1727"},
+    "E": {"name":"Apprehend","textHash":"657d8ee151edab75"},
+    "R": {"name":"Noxian Guillotine","textHash":"2c7f94c1e8d5423e"}
+  },
+  "facts": [
+    {"slot":"Q","kind":"heal","clause":"Darius heals based on enemy champions and large monsters hit by the blade.","source":"description"},
+    {"slot":"W","kind":"slow","clause":"As they bleed out, their Move Speed is slowed.","source":"description"},
+    {"slot":"W","kind":"cooldownrefund","clause":"This Ability refunds its Mana cost and reduces its Cooldown by […]% if it kills the target.","source":"tooltip"},
+    {"slot":"W","kind":"empower","clause":"Darius's next attack strikes an enemy's crucial artery.","source":"description"},
+    {"slot":"E","kind":"knockup","clause":"Active: Darius hooks with his axe, Pulling, and Knocking Up and Slowing","source":"tooltip"},
+    {"slot":"E","kind":"pull","clause":"When activated, Darius sweeps up his enemies with his axe's hook and pulls them to him.","source":"description"},
+    {"slot":"E","kind":"slow","clause":"Active: Darius hooks with his axe, Pulling, and Knocking Up and Slowing by […]% for […] second.","source":"tooltip"},
+    {"slot":"R","kind":"leap","clause":"Darius leaps to an enemy champion and strikes a lethal blow, dealing true damage.","source":"description"},
+    {"slot":"R","kind":"recast","clause":"If this kills the target, Darius may Recast this Ability","source":"tooltip"},
+    {"slot":"R","kind":"cooldownrefund","clause":"If Noxian Guillotine is a killing blow, its cooldown is refreshed for a brief duration.","source":"description"}
+  ],
+  "disagreements": []
+}

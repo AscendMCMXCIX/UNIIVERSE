@@ -8,6 +8,8 @@ import { RETIRED_JOB_KEYS, failuresInARow } from "@/server/ops/refresh-status";
 import { getRiotCredentialStatus } from "@/server/riot/credential";
 import { lastRankScheduleCall } from "@/server/ops/rank-schedule-calls";
 import { lastTickScheduleCalls, tickScheduleSilentMs } from "@/server/ops/tick-schedule-calls";
+import { getScheduleOverrides, TICK_JOB_ORDER } from "@/server/jobs/scheduler";
+import { healthNotices } from "@/server/ops/health-notices";
 import { log } from "@/server/observability/log";
 
 export const dynamic = "force-dynamic";
@@ -24,7 +26,9 @@ const RANK_SCHEDULE_SILENT_MS = 20 * 60_000;
  * what is failing and whether Riot accepts the configured key. Reads only the tiny status tables
  * (the key's state is the outcome the jobs recorded, cached for 30 s); never touches statistics or
  * external providers, so it stays fast and never reports a provider outage as an app outage. No
- * secrets (of the key, only the state word), no personal data.
+ * secrets (of the key, only the state word), no personal data. `notices` says what is off by choice
+ * (server/ops/health-notices.ts): the five-minute schedule turned off after it was on, and jobs set
+ * to 0 in Admin; they warn in the Production check and never fail a scheduled run.
  */
 export async function GET() {
   const started = performance.now();
@@ -62,6 +66,10 @@ export async function GET() {
     // pg_cron stopped). One row, read on every check; no pg_cron or Vault read here either.
     const tick = await lastTickScheduleCalls(handle.db);
     if (tick.at > 0 && now - tick.at > tickScheduleSilentMs(tick)) failing.push("tick-schedule");
+    // What is off by choice, not failing: the five-minute schedule removed after it was installed
+    // (the two status rows above), and the tick's jobs set to 0 in Admin (the one "schedule" row of
+    // the overrides). The day only, never who: that is in Admin → Audit Logs.
+    const notices = healthNotices({ rankScheduleOnAt: installedAt, rankScheduleOffAt: successAt("rank-schedule-off"), intervals: (await getScheduleOverrides(handle.db)).intervals, scheduledJobs: TICK_JOB_ORDER });
     // While Riot rejects the key (expired or revoked), every linked account waits, backing off
     // for hours, and the account sync finds nothing due and reports success. So the key itself
     // is listed as failing, which fails the scheduled Data jobs run (the owner's email).
@@ -82,6 +90,7 @@ export async function GET() {
       data: { champions: jobs.find((j) => j.key === "version-check")?.lastSuccessAt ?? jobs.find((j) => j.key === "static-sync")?.lastSuccessAt ?? null, accounts: accountsReadAt },
       jobs: jobs.map((j) => ({ key: j.key, status: j.status, lastSuccessAt: j.lastSuccessAt })),
       failingJobs: failing,
+      notices,
       riot: { credential: credential.state },
       ms: Math.round((performance.now() - started) * 10) / 10,
     });

@@ -4,6 +4,7 @@ import { emulateKeyboard, keyboard } from "./keyboard";
 import { expectClearCorner, untilStill } from "./modal-corner";
 import { besideAMark, openMatchWindow } from "./match-history";
 import { bubbleFacts, NOT_A_PICTURE, NOT_A_PICTURE_ERROR, openPictureEditor, placedRight, toastFacts } from "./popups";
+import { riotText } from "./matchup-intel";
 import path from "node:path";
 
 /*
@@ -182,11 +183,21 @@ test("Matchup Intel: a slot's picker fills the screen, a search and a tap choose
   // The window gave the focus back to the slot it opened from, which stays on the page.
   await expect(slot).toBeFocused();
   await fitsWidth(page, "Riven vs Mordekaiser");
-  // A row's details open with a tap (the native details element).
+  // A tile's details open with a tap, in a window over the whole screen that closes back onto the tile.
   const details = page.getByTestId("matchup-enemy-abilities").getByTestId("ability-details").first();
-  await details.locator(":scope > summary").tap();
-  await expect(details).toHaveAttribute("open", "");
-  await expect(details.getByTestId("ability-details-body")).toBeVisible();
+  await details.tap();
+  const body = page.getByTestId("ability-details-body");
+  await expect(body).toBeVisible();
+  await untilStill(page);
+  await fitsWidth(page, "an ability's details window");
+  await page.getByRole("dialog").getByRole("button", { name: /^Close/ }).tap();
+  await expect(body).toBeHidden();
+  await expect(details).toBeFocused();
+  // The sources and notices open with a tap, from their line at the dashboard's foot.
+  const sources = page.getByTestId("matchup-sources");
+  await sources.locator(":scope > summary").tap();
+  await expect(sources).toHaveAttribute("open", "");
+  await expect(page.getByTestId("matchup-footer-riot")).toBeVisible();
   // A briefing chip brings its row into view below the top bar, and gives it the focus.
   const chip = page.getByTestId("matchup-briefing").locator('[data-testid="briefing-ability"][data-anchor^="ability-Mordekaiser-"]').first();
   const anchor = (await chip.getAttribute("data-anchor"))!;
@@ -197,6 +208,44 @@ test("Matchup Intel: a slot's picker fills the screen, a search and a tap choose
   const top = (await row.boundingBox())!.y;
   const bar = (await page.getByTestId("mobile-topbar").boundingBox())!;
   expect(top, "the row's top, under the top bar").toBeGreaterThanOrEqual(bar.y + bar.height - 1);
+});
+
+test("Matchup Intel's facts from Riot's text on an iPhone: a tap on a chip quotes it, on \"Riot's texts differ\" gives both quotes, and the details window says the same; nothing is wider than the phone", async ({ page }) => {
+  // The facts from Riot's text ship switched off (src/server/matchup-intel/riot-text/switch.ts): on for this test.
+  await riotText(page, "on");
+  await page.goto("/resources/matchups?champion=Riven&vs=Yone");
+  await expect(page.getByTestId("matchup-dashboard")).toHaveAttribute("data-layer", "assembled");
+  await expect(page.getByTestId("matchup-remembered")).not.toHaveAttribute("data-state", "loading");
+  const r = page.locator('[data-testid="matchup-enemy-abilities"] [data-testid="ability-row"][data-slot="R"]');
+  // Yone's R: Riot's description says a pull, its tooltip a knock-up; one chip says so, and a tap opens both quotes.
+  const differ = r.getByTestId("fact-chip-differ");
+  await differ.scrollIntoViewIfNeeded();
+  await differ.tap();
+  const bubble = page.getByTestId("fact-chip-differ-bubble");
+  await expect(bubble).toContainText("Pull, in Riot's description of Fate Sealed");
+  await expect(bubble).toContainText("Knock-up, in Riot's tooltip for Fate Sealed");
+  await expect(bubble).toContainText("Neither is shown as a fact.");
+  // A second tap closes it, as every tip does.
+  await differ.tap();
+  await expect(bubble).toHaveCount(0);
+  // Yone's Q: a conditional fact, the owner's marker under the chips, its quote one tap away.
+  const q = page.locator('[data-testid="matchup-enemy-abilities"] [data-testid="ability-row"][data-slot="Q"]');
+  await expect(q.getByTestId("ability-facts-conditional")).toContainText("Conditional: see Riot's text (");
+  await q.getByTestId("fact-chip").first().tap();
+  await expect(page.getByTestId("fact-chip-bubble")).toContainText("Conditional: see Riot's text.");
+  await q.getByTestId("fact-chip").first().tap();
+  await fitsWidth(page, "Riven vs Yone");
+  // The details window lists both quotes and the other wording, and closes back onto its button.
+  const details = r.getByTestId("ability-details");
+  await details.tap();
+  const body = page.getByTestId("ability-details-body");
+  await expect(body.getByTestId("ability-details-differ")).toContainText("Neither is shown as a fact.");
+  await expect(body.getByTestId("ability-details-also")).toContainText("Riot's description calls it blink");
+  await untilStill(page);
+  await fitsWidth(page, "Fate Sealed's details window");
+  await page.getByRole("dialog").getByRole("button", { name: /^Close/ }).tap();
+  await expect(body).toBeHidden();
+  await expect(details).toBeFocused();
 });
 
 test("Leaderboards on an iPhone: the index brings each section under the top bar, focused, the old Records address lands on its section, and nothing is wider than the phone, at a larger text size too", async ({ page }) => {
@@ -473,7 +522,7 @@ test("the account screen in Safari's engine: one tap opens it, it fills the scre
     expect(fit.box, path).toEqual([0, 0, ...fit.screen]);
     expect(fit.scrolls, path).toBe(false);
     expect(fit.missed, path).toBe(0);
-    // Rows measured (the demo has Matchup Intel, Resources, Settings, Install App and the mode switch), each 48px or
+    // Rows measured (the account's own items: Settings, Install App and the mode switch on the demo), each 48px or
     // taller and as wide as the column.
     expect(fit.rows, path).toBeGreaterThanOrEqual(2);
     expect(fit.shortest, path).toBeGreaterThanOrEqual(48);
@@ -486,18 +535,25 @@ test("the account screen in Safari's engine: one tap opens it, it fills the scre
   }
 });
 
-test("Admin Mode: the account screen's switch moves between Admin Mode and Player Mode, each with its own tab bar", async ({ page }) => {
+test("Admin Mode: the account screen's switch moves between Admin Mode and Player Mode, each with the sidebar's four destinations; Back closes the account screen", async ({ page }) => {
   const tabs = page.getByRole("navigation", { name: "Primary" }).getByRole("link");
   const sheet = page.getByTestId("account-sheet");
   await page.goto("/admin");
   await expect(page.getByTestId("mobile-topbar")).toContainText("Admin mode");
-  await expect(tabs).toHaveText(["Dashboard", "Users", "Settings", "Health"]);
+  await expect(tabs).toHaveText(["Dashboard", "Users & Permissions", "Platform Settings", "System"]);
   // One tap: kept if it lands before the page's code has run (early-taps.ts).
   await page.getByTestId("account-sheet-button").tap();
   await expect(sheet).toBeVisible();
   await sheet.getByTestId("mode-switch").tap();
   await expect(page).toHaveURL(/\/team$/);
-  await expect(tabs).toHaveText(["Team", "Players", "Leaderboards", "Matches", "Profile"]);
+  await expect(tabs).toHaveText(["My Profile", "Team", "Matchup Intel", "Resources"]);
+  await expect(page.getByTestId("team-chrome-tabs").getByRole("link")).toHaveText(["Overview", "Players", "Leaderboards", "Matches"]);
+  // Back (Safari's swipe from the edge) closes the account screen and the page stays.
+  await page.getByTestId("account-sheet-button").tap();
+  await expect(sheet).toBeVisible();
+  await page.goBack();
+  await expect(sheet).toHaveCount(0);
+  await expect(page).toHaveURL(/\/team$/);
 });
 
 test("forms: text fields are at least 16px (Safari zooms into smaller ones) and sign-in offers saved passwords", async ({ browser, page, baseURL }) => {
@@ -520,6 +576,37 @@ test("forms: text fields are at least 16px (Safari zooms into smaller ones) and 
   await username.fill("someone");
   await expect(username).toHaveValue("someone");
   await guest.close();
+});
+
+test("Admin's typed confirmation on an iPhone: a tap opens it, the phrase field is 16px, the phrase typed in any case enables Run, the sheet fits the screen, and Cancel closes it", async ({ page }) => {
+  // Data & Integrations → Details → Advanced → a setup job (the overhaul's S1a). Nothing is run.
+  await page.goto("/admin/data");
+  for (const id of ["data-details", "jobs-advanced"]) {
+    const details = page.getByTestId(id);
+    await expect(async () => {
+      if ((await details.getAttribute("open")) === null) await details.locator("summary").first().tap({ timeout: 2_000 });
+      await expect(details).toHaveAttribute("open", "", { timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
+  }
+  const dialog = page.getByRole("dialog", { name: "Turn off LP tracking's five-minute schedule?" });
+  const open = page.getByTestId("jobs-setup").locator("[data-job=rank-schedule-off]").getByTestId("run-job");
+  await expect(async () => {
+    if (!(await dialog.isVisible())) await open.tap({ timeout: 2_000 });
+    await expect(dialog).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
+  const phrase = dialog.getByTestId("job-confirm-input");
+  const run = dialog.getByTestId("job-confirm-run");
+  expect(parseFloat(await phrase.evaluate((el) => getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(16);
+  await expect(run).toBeDisabled();
+  await phrase.tap();
+  await phrase.fill("Turn off");
+  await expect(run).toBeEnabled();
+  await fitsWidth(page, "the typed confirmation");
+  const box = (await dialog.boundingBox())!;
+  expect(box.x, "the sheet inside the screen").toBeGreaterThanOrEqual(-1);
+  expect(box.x + box.width, "the sheet inside the screen").toBeLessThanOrEqual(page.viewportSize()!.width + 1);
+  await dialog.getByRole("button", { name: "Cancel" }).tap();
+  await expect(dialog).toBeHidden();
 });
 
 test("a switch turns on and off with a tap on its words, not only the knob (the Studio's effects; Settings' Show publicly switches are the same control)", async ({ page }) => {
@@ -625,7 +712,8 @@ test("held sideways: the pages fit, the destinations are in one compact bar with
       await expect(nav, `${route} at ${where}`).toHaveCount(1);
       await expect(page.getByTestId("mobile-topbar").getByRole("navigation", { name: "Primary" }), `${route} at ${where}`).toBeVisible();
       await expect(page.getByTestId("phone-tabbar"), `${route} at ${where}`).toBeHidden();
-      expect((await page.getByTestId("mobile-topbar").boundingBox())!.height, `${route} at ${where}: one compact bar`).toBeLessThanOrEqual(45.5);
+      // One compact bar, with Team's sections as its second row on Team's pages: at most 90px.
+      expect((await page.getByTestId("mobile-topbar").boundingBox())!.height, `${route} at ${where}: one compact bar`).toBeLessThanOrEqual(route === "/resources" ? 45.5 : 90);
     }
     // Teammates' profiles: their sections the bar's 44px second row, the bars at rest about 89px, the
     // band at most 80px: Demo Top's, and Demo Mid's with an off role, the lineup status and two links.

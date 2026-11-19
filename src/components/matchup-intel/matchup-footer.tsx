@@ -1,12 +1,15 @@
-import { ChevronDown, ExternalLink } from "lucide-react";
-import type { Source, Verification } from "@/domain/matchup-intel/types";
+import { ChevronDown, ExternalLink, ScrollText } from "lucide-react";
+import type { RiotTextReview, Source, Verification } from "@/domain/matchup-intel/types";
 import { patchFromVersion, publicPatchName } from "@/domain/patch";
 import { formatCount, formatIsoDay } from "@/lib/format";
 import { SourceLink } from "./source-link";
-import { dataSourceWords } from "./wording";
+import { RIOT_TEXT_LABEL, RIOT_TEXT_NO_NUMBERS_WORDS, dataSourceWords, riotTextProcessWords } from "./wording";
 
 /*
-  The page's quiet footer (docs/MATCHUP_INTEL.md, "Compliance"), in this order:
+  The page's sources and notices (docs/MATCHUP_INTEL.md, "Compliance"), behind one compact control at
+  the dashboard's foot that is always there: its summary line stays visible (that this is a static
+  reference with no live tracking, Riot's data and its version, the wiki's licence, and that Riot
+  does not endorse it), and one press opens the whole, in this order:
   - Riot's data: the Data Dragon version the abilities come from, and its public patch; each
     champion's own when the two differ (a champion whose file could not be read keeps an older
     record), and said as an offline copy when it is the one committed with the app;
@@ -17,6 +20,12 @@ import { dataSourceWords } from "./wording";
     no text was adapted, so the word "adapted" is never used), and that the wiki does not endorse
     this page. Each page is listed once, folded into one line until opened, so a phone shows the
     whole credit in a few lines;
+  - where facts from Riot's ability text appear: that they come from Riot's own text and were
+    reviewed automatically, not by a person, and how, from each file's review record (how many
+    automated reviewers, the adjudicator, how many automated checkers of the consistency pass; the
+    record was added to the reviewed table for the import, from the review's own sentence), and that
+    no number in that text is used for them (the ability's details show Riot's description, numbers
+    and all, as Riot's);
   - that this is a static reference;
   - Riot's notice, the same words as the rest of the app, with the installation's own name.
   It types only what it reads, so it takes the page's view as it is and a test can hand it just
@@ -43,6 +52,8 @@ interface FooterIntel {
   offlineCopy?: boolean;
   sources: readonly FooterSource[];
   curated: { verified: Checked } | null;
+  /** Its facts from Riot's text, when the page shows them (absent: none), and how they were reviewed, as the review recorded it. */
+  riotText?: { version: string; review?: RiotTextReview } | null;
 }
 
 /** The page's view (MatchupPageView), as far as the footer reads it. */
@@ -168,7 +179,8 @@ function WikiCredit({ pages }: { pages: readonly WikiPage[] }) {
           <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open/pages:rotate-180 motion-reduce:transition-none" aria-hidden />
           {pages.length === 1 ? "The wiki page" : `The ${formatCount(pages.length)} wiki pages`}
         </summary>
-        <ul className="mt-1 flex flex-wrap gap-x-3 gap-y-1.5 pointer-coarse:gap-y-3" data-testid="matchup-footer-wiki-list">
+        {/* On a touch screen the links' 44px areas stop short of the summary above them. */}
+        <ul className="mt-1 flex flex-wrap gap-x-3 gap-y-1.5 pointer-coarse:mt-4 pointer-coarse:gap-y-3" data-testid="matchup-footer-wiki-list">
           {pages.map((p) => (
             <li key={p.key} data-testid="matchup-footer-wiki-page">
               <SourceLink source={p} />
@@ -180,6 +192,32 @@ function WikiCredit({ pages }: { pages: readonly WikiPage[] }) {
   );
 }
 
+/** The words a static reference is said in: on the summary line, and in full inside. */
+export const STATIC_SHORT = "A static reference: no live tracking";
+export const STATIC_WORDS = "A static reference: no live tracking, no timers, nothing read from a game in progress.";
+
+/** A review record as the footer can say it: every field of the right type (the page's own reader checks the same). */
+function readable(r: RiotTextReview | undefined): r is RiotTextReview {
+  return !!r && Number.isInteger(r.automatedReviewers) && r.automatedReviewers > 0 && typeof r.adjudicated === "boolean" && Number.isInteger(r.consistencyCheckers) && r.consistencyCheckers >= 0 && r.checkedByPerson === false;
+}
+
+/**
+ * The facts from Riot's text on the page: where they come from, and how they were reviewed, from
+ * each champion's review record: said once when the records agree, for each champion where they
+ * differ, and left out for any record that cannot be read (nothing is said that no record states).
+ */
+function riotTextSentence(sides: ReadonlyArray<{ name: string; version: string; review?: RiotTextReview }>): string | null {
+  if (!sides.length) return null;
+  const list = [...new Set(sides.map((s) => s.version))];
+  const head = `Kinds of mechanic from Riot's ability text (its descriptions and tooltips, Data Dragon ${list.join(" and ")}), each with the clause it quotes: ${RIOT_TEXT_LABEL.charAt(0).toLowerCase()}${RIOT_TEXT_LABEL.slice(1)}.`;
+  const known = sides.filter((s) => readable(s.review));
+  const first = known[0];
+  let process = "";
+  if (first && known.every((s) => JSON.stringify(s.review) === JSON.stringify(first.review))) process = ` ${riotTextProcessWords(first.review!)}`;
+  else if (known.length) process = known.map((s) => ` ${s.name}'s: ${riotTextProcessWords(s.review!)}`).join("");
+  return `${head}${process} ${RIOT_TEXT_NO_NUMBERS_WORDS}`;
+}
+
 export function MatchupFooter({ view, legal }: { view: FooterView; legal: string }) {
   // The enemy's first, then yours (once for a mirror); only versions that are versions.
   const intels = [view.enemyIntel, view.yourIntel?.champion.id !== view.enemyIntel?.champion.id ? view.yourIntel : null];
@@ -187,14 +225,35 @@ export function MatchupFooter({ view, legal }: { view: FooterView; legal: string
   const { briefing, enemy, you } = notesOnPage(view);
   const checked = checkedSentence([briefing, enemy, you].filter((n): n is NotesOnPage => !!n));
   const pages = wikiPages([enemy, you, briefing]);
+  const riotText = riotTextSentence(intels.flatMap((i) => (i?.riotText && VERSION.test(i.riotText.version) ? [{ name: i.champion.name, version: i.riotText.version, review: i.riotText.review }] : [])));
+  const first = sides[0];
+  const summaryData = first ? `${dataSourceWords(first.version, first.offline, true)}${sides.some((s) => s.version !== first.version) ? " and others" : ""}` : "Riot Data Dragon";
   return (
-    <footer className="space-y-1.5 border-t border-border pt-4 text-xs leading-relaxed text-fg-subtle" data-testid="matchup-footer">
+    <footer className="text-xs text-fg-subtle" data-testid="matchup-footer">
       <h2 className="sr-only">Sources and notices</h2>
-      <DataDragonLine sides={sides} currentKnown={view.patch?.current != null} />
-      {checked ? <p data-testid="matchup-footer-checked">{checked}</p> : null}
-      {pages.length ? <WikiCredit pages={pages} /> : null}
-      <p data-testid="matchup-footer-static">A static reference for preparation: no live tracking, no timers, nothing read from a game in progress.</p>
-      <p data-testid="matchup-footer-riot">{legal}</p>
+      {/* One press away and always there; the native details element works before the page's code has run. */}
+      <details className="group/sources rounded-panel border border-border bg-surface/60" data-testid="matchup-sources">
+        <summary className="flex min-h-9 cursor-pointer list-none flex-wrap items-center gap-x-2 gap-y-0.5 rounded-panel px-3 py-1.5 hover:bg-surface-2/50 pointer-coarse:min-h-11 [&::-webkit-details-marker]:hidden">
+          <span className="inline-flex items-center gap-1.5 font-medium text-fg">
+            <ScrollText className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            Sources and notices
+            <ChevronDown className="h-3.5 w-3.5 shrink-0 text-fg-subtle transition-transform group-open/sources:rotate-180 motion-reduce:transition-none" aria-hidden />
+          </span>
+          <span className="min-w-0" data-testid="matchup-sources-summary">
+            {STATIC_SHORT} · {summaryData}
+            {pages.length ? " · League of Legends Wiki, CC BY-SA 3.0" : ""}
+            {riotText ? " · Riot's text, reviewed automatically" : ""} · Not endorsed by Riot Games
+          </span>
+        </summary>
+        <div className="space-y-1.5 border-t border-border px-3 py-2.5 leading-relaxed">
+          <DataDragonLine sides={sides} currentKnown={view.patch?.current != null} />
+          {riotText ? <p data-testid="matchup-footer-riot-text">{riotText}</p> : null}
+          {checked ? <p data-testid="matchup-footer-checked">{checked}</p> : null}
+          {pages.length ? <WikiCredit pages={pages} /> : null}
+          <p data-testid="matchup-footer-static">{STATIC_WORDS}</p>
+          <p data-testid="matchup-footer-riot">{legal}</p>
+        </div>
+      </details>
     </footer>
   );
 }

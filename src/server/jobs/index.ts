@@ -19,6 +19,7 @@ import "./privacy";
 import "./history-rescan";
 import "./rank-schedule";
 import "./verify-account";
+import "./lane-opponents";
 
 export * from "./registry";
 export * from "./scheduler";

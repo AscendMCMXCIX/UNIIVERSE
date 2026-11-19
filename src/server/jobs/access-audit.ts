@@ -223,6 +223,7 @@ export async function accessReport(db: Db) {
  */
 defineJob({
   key: "access-audit",
+  kind: "check",
   description: "Read-only database access check: who the app connects as, table owners, Row Level Security, views, functions, what Supabase's Data API roles hold and could read, whether the backup role can read every table, and what new tables are granted automatically. Changes nothing.",
   defaultIntervalMinutes: null,
   allowConcurrent: true,

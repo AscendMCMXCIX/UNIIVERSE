@@ -1,9 +1,12 @@
 import { defineJob } from "./registry";
 import { clearCachesAfterErasure } from "@/server/privacy/after-erasure";
 import { reconcileErasures } from "@/server/privacy/reconcile";
+import { REAPPLY_PHRASE } from "@/domain/typed-confirmation";
 
 defineJob({
   key: "erasure-reconcile",
+  kind: "setup",
+  confirm: { title: "Re-apply every erasure", effect: "Applies every personal-data erasure record to the whole database again, as after restoring a backup. Whatever it finds is erased for good.", phrase: REAPPLY_PHRASE },
   description: "Re-applies every personal-data erasure record to the whole database: after restoring a backup made before an erasure, import the records first (docs/BACKUPS.md). By hand only.",
   defaultIntervalMinutes: null,
   run: async (ctx) => {

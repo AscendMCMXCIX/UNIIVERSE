@@ -1,0 +1,24 @@
+{
+  "championId": "Janna",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Tailwind","textHash":"16d86e4266f2aa29"},
+    "Q": {"name":"Howling Gale","textHash":"7a8d3f400fbfc1aa"},
+    "W": {"name":"Zephyr","textHash":"090f20b49fbfd187"},
+    "E": {"name":"Eye Of The Storm","textHash":"4ffd6cbb372e0c20"},
+    "R": {"name":"Monsoon","textHash":"33bc2189f05f19e5"}
+  },
+  "facts": [
+    {"slot":"Q","kind":"recast","clause":"Janna can Recast to send the tornado early.","source":"tooltip"},
+    {"slot":"W","kind":"slow","clause":"She may also activate this ability to deal damage and slow an enemy's Move Speed.","source":"description"},
+    {"slot":"E","kind":"shield","clause":"Janna conjures a defensive gale that shields an ally champion or turret from incoming damage and increases their Attack Damage.","source":"description"},
+    {"slot":"E","kind":"cooldownrefund","clause":"Janna refunds […]% of the cooldown whenever she impairs an enemy champion's movement with an Ability.","source":"tooltip"},
+    {"slot":"R","kind":"knockback","clause":"Janna summons a magical monsoon, Knocking Back nearby enemies then healing nearby allies","source":"tooltip"},
+    {"slot":"R","kind":"heal","clause":"After the storm has settled, soothing winds heal nearby allies while the ability is active.","source":"description"}
+  ],
+  "disagreements": [
+    {"slot":"Q","description":{"kind":"knockback","clause":"On release this storm will fly towards the direction it was cast in, dealing damage and knocking away any enemies in its path."},"tooltip":{"kind":"knockup","clause":"It deals […] - […] magic damage and Knocks Up"}}
+  ]
+}

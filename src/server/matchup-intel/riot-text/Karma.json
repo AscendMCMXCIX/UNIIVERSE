@@ -1,0 +1,22 @@
+{
+  "championId": "Karma",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Gathering Fire","textHash":"437e885e26b1b1b0"},
+    "Q": {"name":"Inner Flame","textHash":"287ca04d89b0a930"},
+    "W": {"name":"Focused Resolve","textHash":"d9f9af2fc5c1f400"},
+    "E": {"name":"Inspire","textHash":"95b22f3baf84b869"},
+    "R": {"name":"Mantra","textHash":"5d694491011fe535"}
+  },
+  "facts": [
+    {"slot":"P","kind":"cooldownrefund","clause":"Karma's damaging abilities will reduce the cooldown of Mantra.","source":"description","qualifier":"Mantra"},
+    {"slot":"Q","kind":"slow","clause":"dealing […] magic damage to the first target hit and surrounding enemies, and Slowing them by […]% for […] seconds.","source":"tooltip"},
+    {"slot":"W","kind":"root","clause":"If the tether is not broken, the enemy will be rooted and damaged again.","source":"description"},
+    {"slot":"W","kind":"heal","clause":"Mantra Bonus: Karma strengthens the link, healing herself and extending the root duration.","source":"description"},
+    {"slot":"E","kind":"shield","clause":"Karma summons a protective shield that absorbs incoming damage and increases the Move Speed of the protected ally.","source":"description"},
+    {"slot":"R","kind":"empower","clause":"Karma empowers her next ability to do an additional effect.","source":"description"}
+  ],
+  "disagreements": []
+}

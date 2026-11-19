@@ -1,0 +1,22 @@
+{
+  "championId": "Zoe",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"More Sparkles!","textHash":"3b5ad83829625ca1"},
+    "Q": {"name":"Paddle Star!","textHash":"789f59b23a7874c5"},
+    "W": {"name":"Spell Thief","textHash":"70c86dc37af7ae14"},
+    "E": {"name":"Sleepy Trouble Bubble","textHash":"9c53b8d975d64112"},
+    "R": {"name":"Portal Jump","textHash":"97121ec2cf44e424"}
+  },
+  "facts": [
+    {"slot":"P","kind":"empower","clause":"Zoe's next basic attack after casting a spell deals bonus magic damage.","source":"description"},
+    {"slot":"Q","kind":"recast","clause":"Zoe can Recast this Ability to redirect the missile to a new position near Zoe.","source":"tooltip"},
+    {"slot":"E","kind":"sleep","clause":"Causes the target to become drowsy, then fall asleep.","source":"description"},
+    {"slot":"E","kind":"drowsy","clause":"Causes the target to become drowsy, then fall asleep.","source":"description"},
+    {"slot":"E","kind":"cooldownrefund","clause":"If either the bubble or trap hits an enemy champion she refreshes […]% of her cooldown.","source":"tooltip"},
+    {"slot":"R","kind":"teleport","clause":"Afterwards, she teleports back.","source":"tooltip","alsoDescribedAs":{"kind":"blink","source":"description","clause":"Then blink back."}}
+  ],
+  "disagreements": []
+}

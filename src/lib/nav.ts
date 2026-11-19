@@ -1,9 +1,16 @@
-import { BookMarked, Fingerprint, Medal, Users, UserCog, Settings, History, UserPlus, Database, Paintbrush, Activity, LayoutGrid, LayoutDashboard, CircleUserRound, Gauge, Library, ScrollText, Link2, KeyRound, MonitorSmartphone, SlidersHorizontal, ClipboardList, Swords, type LucideIcon } from "lucide-react";
+import { BookMarked, Fingerprint, Medal, Users, UserCog, Settings, History, UserPlus, Database, Paintbrush, Activity, LayoutGrid, LayoutDashboard, CircleUserRound, Gauge, Library, ScrollText, Link2, KeyRound, MonitorSmartphone, SlidersHorizontal, ClipboardList, Swords, ServerCog, type LucideIcon } from "lucide-react";
 import { hasPermission, type Permission, type Session } from "@/server/auth/permissions";
 
 export interface NavLink {
   href: string;
   label: string;
+  /**
+   * A shorter name for the bars where the full one does not fit (the label ladder: the full name,
+   * then this one with the rest of the full name read out, then the icon alone; mobile-nav.tsx). The
+   * full name starts or ends with it ("Matchup Intel": "Intel"), so what shows is always part of
+   * what is read out.
+   */
+  short?: string;
   icon: LucideIcon;
   /** Shown only to accounts holding this permission (checked again on the page itself). */
   permission?: Permission;
@@ -21,6 +28,8 @@ export interface NavLink {
 export interface NavHub {
   key: string;
   label: string;
+  /** A shorter name for the bars (NavLink's `short`). */
+  short?: string;
   icon: LucideIcon;
   sections: NavLink[];
 }
@@ -93,27 +102,47 @@ export const TEAM_SECTIONS: NavLink[] = [
 ];
 
 /**
- * MATCHUP INTEL, a sidebar entry of its own (owner's decision, 18 Nov 2026), for every signed-in
+ * MATCHUP INTEL, a destination of its own (owner's decision, 18 Nov 2026), for every signed-in
  * account: a static reference for preparation, pick your champion and the enemy, read the enemy's
  * abilities, base cooldowns and what matters in lane (docs/MATCHUP_INTEL.md). Not the personal
  * Matchups (a player's own games against an opponent), which live in a champion's window. Its
  * address stays /resources/matchups, as every link to it was written (?champion=…&vs=… included):
- * nothing redirects. It is no longer one of Resources' sections: the two have no tabs.
+ * nothing redirects. It is not one of Resources' sections: the two have no tabs. Where a bar has no
+ * room for its whole name it shows "Intel", the end of it (the label ladder), and is read out in full.
  */
-export const MATCHUP_INTEL: NavLink = { href: "/resources/matchups", label: "Matchup Intel", icon: Swords };
+export const MATCHUP_INTEL: NavLink = { href: "/resources/matchups", label: "Matchup Intel", short: "Intel", icon: Swords };
 
 /**
- * RESOURCES, a sidebar entry of its own, for every signed-in account: the Library, the team's
- * library of League of Legends sites (news, statistics, builds, guides), kept by administrators in
- * Admin Mode → Platform Settings → Resources. One page, so no tabs.
+ * RESOURCES, a destination of its own, for every signed-in account: the Library, the team's library
+ * of League of Legends sites (news, statistics, builds, guides), kept by administrators in Admin
+ * Mode → Platform Settings → Resources. One page, so no tabs.
  */
 export const RESOURCES: NavLink = { href: "/resources", label: "Resources", icon: BookMarked };
+
+/** Admin Mode's Users & Permissions: every account and its access, the access levels and groups, and personal data (privacy requests, erasure and its records). */
+export const ADMIN_USERS_SECTIONS: NavLink[] = [
+  { href: "/admin/people", label: "Accounts", icon: UserPlus, permission: "manage-users" },
+  { href: "/admin/people/access", label: "Access levels", icon: KeyRound, permission: "manage-users" },
+  { href: "/admin/people/privacy", label: "Personal data", icon: Fingerprint, permission: "manage-users" },
+];
 
 /** Admin Mode's Platform Settings: the site's look, how its pages appear, and the Resources library (administrators only). */
 export const ADMIN_SETTINGS_SECTIONS: NavLink[] = [
   { href: "/admin/branding", label: "Branding", icon: Paintbrush, permission: "manage-branding" },
   { href: "/admin/previews", label: "Previews", icon: MonitorSmartphone, permission: "manage-branding" },
   { href: "/admin/resources", label: "Resources", icon: BookMarked, permission: "manage-branding" },
+];
+
+/**
+ * Admin Mode's System (19 Nov 2026, navigation N1): the platform's own state, its three pages at the
+ * addresses they always had: Health (database, background jobs and the evidence behind each status),
+ * Data & Integrations (Riot data: linked accounts, syncing and the Riot API) and Audit Logs (who
+ * changed what, newest first).
+ */
+export const ADMIN_SYSTEM_SECTIONS: NavLink[] = [
+  { href: "/admin/system", label: "Health", icon: Activity, permission: "manage-data" },
+  { href: "/admin/data", label: "Data & Integrations", icon: Database, permission: "manage-data" },
+  { href: "/admin/audit", label: "Audit Logs", icon: ClipboardList, anyOf: ["manage-users", "manage-branding", "manage-data"] },
 ];
 
 /**
@@ -140,16 +169,25 @@ export const ROW_WIDTH: Record<"max" | "wide", string> = {
 };
 
 /**
- * The sets of pages shown as tabs at the top of each of their pages (SectionTabs), one per
- * sidebar entry that stands for several pages. `label` names the tab bar for screen readers.
- * `width`: the one width every page of the set takes in a window from 1600px wide, so there the
- * tabs start and end where each page does and never move between them (the bar's row: ROW_WIDTH).
- * Under 1600px every page and the row keep the widths they always had (a section's own `width`).
+ * The sets of pages shown as tabs at the top of each of their pages, one per entry that stands for
+ * several pages (every NavHub of both modes, in their order): on tablets and desktops a row of tabs
+ * in the page (SectionTabs), on phones the top bar's second row (MobileNav), so they stay in reach
+ * however far the page scrolls. `label` names the row for screen readers. `width`: the one width
+ * every page of the set takes in a window from 1600px wide, so there the tabs start and end where
+ * each page does and never move between them (the bar's row: ROW_WIDTH). Under 1600px every page
+ * and the row keep the widths they always had (a section's own `width`).
  */
 export const SECTION_HUBS: Array<{ key: string; label: string; width: "max" | "wide"; sections: NavLink[] }> = [
   { key: "team", label: "Team sections", width: "wide", sections: TEAM_SECTIONS },
+  { key: "admin-users", label: "Users & Permissions sections", width: "max", sections: ADMIN_USERS_SECTIONS },
   { key: "admin-settings", label: "Platform Settings sections", width: "max", sections: ADMIN_SETTINGS_SECTIONS },
+  { key: "admin-system", label: "System sections", width: "max", sections: ADMIN_SYSTEM_SECTIONS },
 ];
+
+/** The set of tabs a page is one of (its address exactly), or none. */
+export function sectionHubOf(pathname: string): (typeof SECTION_HUBS)[number] | null {
+  return SECTION_HUBS.find((h) => h.sections.some((s) => s.href === pathname)) ?? null;
+}
 
 /**
  * The width of the page at `pathname`, for its loading state: a section's own width, else its set's,
@@ -169,21 +207,24 @@ export function entryLinks(entry: NavEntry): NavLink[] {
 }
 
 /**
- * Player View, as the sidebar shows it, in this order:
- *   My Profile     one link (marked on every profile section). Its sections are the bar under the
- *                  profile card, the one place they are listed, so the sidebar and the page no longer
- *                  repeat the same six links side by side; every section keeps its own address;
- *   Team           one entry for our own team (only for members of the team): it opens Team
- *                  Overview, the team's home page, and stays marked on all of its sections, which
- *                  are the tabs at the top of every Team page (TEAM_SECTIONS);
+ * Player Mode, in this order, the same four everywhere (navigation N1, 19 Nov 2026): the desktop's
+ * sidebar, a tablet's top bar, a phone's bottom bar and its compact bar held sideways, and the
+ * installed app's shortcuts (MANIFEST_SHORTCUTS):
+ *   My Profile     one link (marked on every profile section of your own). Its sections are the bar
+ *                  under the profile card (on phones the top bar's second row), the one place they
+ *                  are listed; every section keeps its own address. "Profile" where a bar has no room;
+ *   Team           one entry for our own team (only for members of the team): Team Overview, the
+ *                  team's home page, first, and marked on all of its sections, which are the tabs at
+ *                  the top of every Team page (TEAM_SECTIONS; on phones the top bar's second row);
  *   Matchup Intel  one link (MATCHUP_INTEL), marked on its page whatever pair the address holds;
  *   Resources      one link (RESOURCES), the Library, marked on it alone (Matchup Intel's address
  *                  starts with its own, so the longest match decides: activeHref).
- * The account menu holds Settings and Sign out (on a tablet, which has no sidebar, also Install App,
- * the switch between the modes, the patch line and Riot's notice).
+ * The account's own items (Settings, Install App, the switch between the modes, Sign out, the patch
+ * and Riot's notice) are never destinations: the sidebar's footer, a tablet's avatar menu, a phone's
+ * account screen.
  */
 export const NAV_ENTRIES: NavEntry[] = [
-  { href: "/overview", label: "My Profile", icon: CircleUserRound },
+  { href: "/overview", label: "My Profile", short: "Profile", icon: CircleUserRound },
   { key: "team", label: "Team", icon: Users, sections: TEAM_SECTIONS },
   MATCHUP_INTEL,
   RESOURCES,
@@ -195,68 +236,102 @@ export const NAV_LINKS: NavLink[] = NAV_ENTRIES.flatMap(entryLinks);
 /** The account menu (your avatar): account settings only; profile pages live under My Profile. */
 export const ACCOUNT_LINKS: NavLink[] = [{ href: "/settings", label: "Settings", icon: Settings }];
 
-/** A destination of the phone tab bar. */
-export interface PhoneTab {
-  href: string;
-  /** Its name: what screen readers hear, and what Back is named after on the way back to it. */
-  label: string;
-  /**
-   * The end of a long name, all the phone's bars show of it (Matchup Intel: "Intel"); the words
-   * before it are read out only, so the whole name is still its accessible name.
-   */
-  short?: string;
-  icon: LucideIcon;
-}
+/**
+ * The installed app's shortcuts (the icon's menu: a long press on Android, a right-click on the
+ * Windows taskbar or Start), read from Player Mode's entries so they cannot drift from the bars: the
+ * same four, in the same order, under the same names, each to the entry's first page (Team to Team
+ * Overview). Each page still checks who may open it.
+ */
+export const MANIFEST_SHORTCUTS: ReadonlyArray<{ name: string; url: string }> = NAV_ENTRIES.map((e) => ({ name: e.label, url: entryLinks(e)[0]!.href }));
+
+/** Admin Mode's start page (its dashboard). It is current only on itself, not on the pages beneath it. */
+export const ADMIN_HOME = "/admin";
 
 /**
- * PHONES (below md) have no sidebar and no page tabs for Team: the bottom tab bar holds the places a
- * member goes to most, each one tap from anywhere, in this order:
- *   Team           the lineup (Team Overview), the team's home page;
- *   Players        everyone, and the way into a teammate's profile;
- *   Leaderboards   the team's comparisons;
- *   Matches        the games members played together;
- *   Profile        your own profile and its sections;
- *   Matchup Intel  when there is room (an account without one or more of the Team pages), before
- *                  Resources, as the sidebar orders them. The bars show it as "Intel" (`short`;
- *                  its whole name is read out), no wider than its icon's pill, so a five with it
- *                  keeps its labels wherever the usual five does (mobile-nav.tsx, TAB_FIT);
- *   Resources      likewise. Where there is no room, each is a row of the account screen behind
- *                  your avatar (Matchup Intel first), with Settings and Sign out: never in both.
- * At most five, those this account may open (the pages check again). Held sideways (a short window
- * below lg) the phone keeps them, in its one compact top bar instead of a bottom bar. Tablets and
- * desktops keep the sidebar's four entries (in a tablet's top bar: tabletDestinations) and the page
- * tabs (TEAM_SECTIONS), so the two never disagree on names.
+ * ADMIN MODE (administrators only; see src/app/(admin)), the same four on every screen (navigation
+ * N1, 19 Nov 2026), and none of the player pages:
+ *   Dashboard               the state of accounts, data and recent admin activity, at a glance;
+ *   Users & Permissions     every account and its access, the access levels, and personal data
+ *                           (three tabs); "Users" where a bar has no room;
+ *   Platform Settings       branding, the page previews and the Resources library (three tabs);
+ *                           "Platform" where a bar has no room, so a phone never shows two
+ *                           "Settings" (the account's own is on the account screen);
+ *   System                  Health, Data & Integrations and Audit Logs (three tabs).
+ * The team's own pages (lineup, players, leaderboards, matches) are Player Mode's, where an
+ * administrator manages them like any lineup manager. "Return to Player Mode" sits apart from these.
  */
-export const PHONE_TABS: PhoneTab[] = [
-  { href: "/team", label: "Team", icon: Users },
-  { href: "/players", label: "Players", icon: UserCog },
-  { href: "/leaderboards", label: "Leaderboards", icon: Medal },
-  { href: "/matches", label: "Matches", icon: History },
-  { href: "/overview", label: "Profile", icon: CircleUserRound },
-  { href: MATCHUP_INTEL.href, label: MATCHUP_INTEL.label, short: "Intel", icon: MATCHUP_INTEL.icon },
-  { href: RESOURCES.href, label: RESOURCES.label, icon: RESOURCES.icon },
+export const ADMIN_ENTRIES: NavEntry[] = [
+  { href: ADMIN_HOME, label: "Dashboard", icon: LayoutDashboard, anyOf: ["manage-users", "manage-branding", "manage-data"] },
+  { key: "admin-users", label: "Users & Permissions", short: "Users", icon: UserCog, sections: ADMIN_USERS_SECTIONS },
+  { key: "admin-settings", label: "Platform Settings", short: "Platform", icon: SlidersHorizontal, sections: ADMIN_SETTINGS_SECTIONS },
+  { key: "admin-system", label: "System", icon: ServerCog, sections: ADMIN_SYSTEM_SECTIONS },
 ];
 
-/** The most destinations a phone tab bar holds: more would leave each too narrow for a thumb and its label. */
-export const PHONE_TAB_LIMIT = 5;
+/** Every Admin Mode page in sidebar order (hubs flattened). */
+export const ADMIN_LINKS: NavLink[] = ADMIN_ENTRIES.flatMap(entryLinks);
 
-/** The phone tab bar for an account: the destinations it may open, in PHONE_TABS order, at most PHONE_TAB_LIMIT. */
-export function phoneTabs(allowed: readonly string[]): PhoneTab[] {
-  return PHONE_TABS.filter((t) => allowed.includes(t.href)).slice(0, PHONE_TAB_LIMIT);
+/** Account settings in Admin Mode: the same page as Player Mode's, without leaving Admin Mode. */
+export const ADMIN_ACCOUNT_LINKS: NavLink[] = [{ href: "/admin/settings", label: "Settings", icon: Settings }];
+
+/**
+ * A destination, as every bar shows it: one entry of the mode (NAV_ENTRIES, ADMIN_ENTRIES), leading
+ * to the first of its pages this account may open, and marked on all of them (`pages`). `hub` is the
+ * set of tabs it stands for (SECTION_HUBS), if it is one.
+ */
+export interface Destination {
+  key: string;
+  href: string;
+  label: string;
+  short?: string;
+  icon: LucideIcon;
+  pages: string[];
+  hub?: string;
 }
 
 /**
- * The bottom tab a page belongs to: its own (the longest match, so a teammate's profile under
- * /players/… is Players, your own profile's sections are Profile, and Matchup Intel is its own tab
- * where it has one, never Resources'), else the first tab of its section set (Admin Mode's Platform
- * Settings pages are its Settings tab), else none (Settings).
+ * The destinations of a mode for an account: its entries in order, each with the pages of it this
+ * account may open (`allowed`, decided by the server; the pages check again), leaving out an entry
+ * it may open none of. The one list every bar draws (the sidebar, a tablet's top bar, a phone's bar
+ * either way round), so they never disagree on names, icons or order (nav-parity.test.ts).
  */
-export function currentTab(pathname: string, tabs: readonly string[]): string | null {
-  const own = activeHref(pathname, tabs);
-  if (own) return own;
-  if (pathname === "/me" && tabs.includes("/overview")) return "/overview";
-  const hub = SECTION_HUBS.find((h) => h.sections.some((l) => isActivePath(pathname, l.href)));
-  return hub?.sections.map((l) => l.href).find((href) => tabs.includes(href)) ?? null;
+export function destinations(allowed: readonly string[], admin: boolean): Destination[] {
+  return (admin ? ADMIN_ENTRIES : NAV_ENTRIES).flatMap((entry): Destination[] => {
+    const pages = entryLinks(entry)
+      .filter((l) => allowed.includes(l.href))
+      .map((l) => l.href);
+    if (!pages.length) return [];
+    const hub = isNavHub(entry);
+    return [{ key: hub ? entry.key : entry.href, href: pages[0]!, label: entry.label, ...(entry.short ? { short: entry.short } : {}), icon: entry.icon, pages, ...(hub ? { hub: entry.key } : {}) }];
+  });
+}
+
+/**
+ * The destination a page belongs to: the one holding the longest matching page (a teammate's profile
+ * under /players/… is Team's, your own profile's sections My Profile's, Matchup Intel its own
+ * whatever pair its address holds, never Resources'; every admin page its entry's); none for Settings
+ * and the few pages outside them. /me, which leads to your own profile, is My Profile's.
+ */
+export function currentDestination(pathname: string, list: readonly Destination[]): Destination | null {
+  const path = pathname === "/me" ? "/overview" : pathname;
+  const page = activeHref(path, list.flatMap((d) => d.pages));
+  return page === null ? null : (list.find((d) => d.pages.includes(page)) ?? null);
+}
+
+/**
+ * Where a phone's destinations lead, with the section each set of tabs was last left on (`memory`,
+ * by hub; the iOS per-tab pattern): a destination that stands for a set of tabs reopens the one last
+ * used in this tab of the browser, while it is not the current destination; tapped again while it
+ * is, it leads to its first section (Team: Overview). A remembered page this account may no longer
+ * open is ignored.
+ */
+export function withSectionMemory(list: readonly Destination[], pathname: string, memory: Readonly<Record<string, string>> | null): Destination[] {
+  if (!memory) return [...list];
+  const current = currentDestination(pathname, list);
+  return list.map((d) => {
+    if (!d.hub || d === current) return d;
+    const last = memory[d.hub];
+    return last && last !== d.href && d.pages.includes(last) ? { ...d, href: last } : d;
+  });
 }
 
 /**
@@ -273,37 +348,51 @@ export function profileBase(pathname: string): string | null {
 }
 
 /**
- * On a phone, where Back leads from a page opened with no page of this app before it (a link from
- * elsewhere, a reload, the installed app's start): the page above it, named for the button. A tab's
- * own pages and their sections have none: they are where you start. Matchup Intel and Resources,
- * destinations of their own, lead home where they have no tab (the account screen holds them), as
- * Settings does: Matchup Intel is not under Resources, whatever its address.
+ * Whether the frame's link to `href` may be fetched ahead of a tap (Next's prefetch on viewport and
+ * on intent): never for a profile, yours or a teammate's, any section of it (its layout starts the
+ * refresh of the player's Riot accounts, so a prefetch of My Profile on every page synced your own
+ * accounts: docs/HOSTING_USAGE.md, "Prefetches start Riot syncs"); the default otherwise. Next's Link
+ * takes `false` as "never" and `undefined` as its default.
  */
-export function phoneParent(pathname: string, tabs: readonly PhoneTab[], home: string): { href: string; label: string } | null {
-  const tabHrefs = tabs.map((t) => t.href);
-  const homeLabel = tabs.find((t) => t.href === home)?.label ?? (home === ADMIN_HOME ? "Dashboard" : "Home");
+export function prefetchOf(href: string): false | undefined {
+  return profileBase(href.split(/[?#]/)[0]!) ? false : undefined;
+}
+
+/**
+ * On a phone, where Back leads from a page opened with no page of this app before it (a link from
+ * elsewhere, a reload, the installed app's start): the page above it, named for the button. Every
+ * destination's own pages (Team's sections, your profile's, Matchup Intel, Resources, every admin
+ * page under its entry) have none: they are where you start, so no page claims Team as its parent
+ * unless it is under Team (a teammate's profile, under Players). Settings, which is not a
+ * destination, leads home (Back named after the page before goes there instead, when it is known:
+ * MobileNav's useBack).
+ */
+export function phoneParent(pathname: string, list: readonly Destination[], home: string): { href: string; label: string } | null {
   if (/^\/players\/[^/]+/.test(pathname)) return { href: "/players", label: "Players" };
-  if (pathname === "/me") return { href: "/overview", label: "Profile" };
-  if (pathname.startsWith("/admin")) {
-    if (pathname === ADMIN_HOME || currentTab(pathname, tabHrefs)) return null;
-    return { href: ADMIN_HOME, label: "Dashboard" };
-  }
-  if (currentTab(pathname, tabHrefs) || pathname === home) return null;
-  if (pathname === "/no-access") return null;
-  return { href: home, label: homeLabel };
+  if (pathname === "/no-access" || pathname === home || currentDestination(pathname, list)) return null;
+  if (pathname.startsWith("/admin")) return { href: ADMIN_HOME, label: "Dashboard" };
+  const label = home === ADMIN_HOME ? "Dashboard" : (currentDestination(home, list)?.label ?? "Home");
+  return { href: home, label };
 }
 
 /**
  * The name of the page a path opens, for a phone's Back when that page's heading was never read: a
- * page with a name of its own (Matchup Intel), else its tab's, else the few pages outside the tabs
- * by name; "Back" for anything else.
+ * page with a name of its own (Matchup Intel), else a section by its tab's name (Players,
+ * Leaderboards; a set's first section by its destination's: Team for Team Overview), else its
+ * destination's, else the few pages outside them by name; "Back" for anything else.
  */
-export function pageName(path: string, tabs: readonly PhoneTab[]): string {
+export function pageName(path: string, list: readonly Destination[]): string {
   if (path === MATCHUP_INTEL.href) return MATCHUP_INTEL.label;
-  const tab = tabs.find((t) => isActivePath(path, t.href));
-  if (tab) return tab.label;
+  for (const hub of SECTION_HUBS) {
+    const section = activeHref(path, hub.sections.map((s) => s.href));
+    if (!section) continue;
+    if (section !== hub.sections[0]!.href) return hub.sections.find((s) => s.href === section)!.label;
+    const entry = [...NAV_ENTRIES, ...ADMIN_ENTRIES].find((e) => isNavHub(e) && e.key === hub.key);
+    return entry?.label ?? "Back";
+  }
+  const destination = currentDestination(path, list);
+  if (destination) return destination.label;
   if (path.startsWith("/settings") || path === "/admin/settings") return "Settings";
-  if (isActivePath(path, RESOURCES.href)) return RESOURCES.label;
   return "Back";
 }
 
@@ -317,10 +406,10 @@ function samePlace(a: string, b: string): boolean {
 /**
  * How far back, in this tab's history, the page a phone's Back is named after lies: the steps to
  * give history.go (negative), past the entries the current page made of itself (Matchup Intel's
- * pairs, each a new entry of its own address, so the browser's Back steps through them). Null when
- * the history does not show that page there: the entry before those is another page, or an entry's
- * address is not known. `entries` are the tab's history in order (the Navigation API's), `index`
- * the current one's place in them.
+ * pairs, each a new entry of its own address, so the browser's Back steps through them; a window's
+ * own entry, which Back closes). Null when the history does not show that page there: the entry
+ * before those is another page, or an entry's address is not known. `entries` are the tab's history
+ * in order (the Navigation API's), `index` the current one's place in them.
  */
 export function backSteps(entries: ReadonlyArray<{ url: string | null }>, index: number, path: string, target: string): number | null {
   if (index < 1 || index >= entries.length) return null;
@@ -349,121 +438,6 @@ export function historyShowsEntries(): boolean {
   return typeof window !== "undefined" && !!(window as unknown as { navigation?: { currentEntry?: unknown } }).navigation?.currentEntry;
 }
 
-/** Admin Mode's start page (its dashboard). It is current only on itself, not on the pages beneath it. */
-export const ADMIN_HOME = "/admin";
-
-/**
- * ADMIN MODE (administrators only; see src/app/(admin)): six entries and none of the player pages.
- *   Dashboard               the state of accounts, data and recent admin activity, at a glance;
- *   Users & Permissions     every account and its access, the access levels, and personal data
- *                           (privacy requests, erasure and its records): three tabs;
- *   Platform Settings       branding, the page previews and the Resources library (three tabs);
- *   Data & Integrations     Riot data: linked accounts, syncing and the Riot API;
- *   System Health           database, background jobs and the evidence behind each status;
- *   Audit Logs              who changed what, newest first.
- * The team's own pages (lineup, players, leaderboards, matches) are Player Mode's, where an
- * administrator manages them like any lineup manager. "Return to Player Mode" sits apart from these.
- */
-export const ADMIN_ENTRIES: NavEntry[] = [
-  { href: ADMIN_HOME, label: "Dashboard", icon: LayoutDashboard, anyOf: ["manage-users", "manage-branding", "manage-data"] },
-  {
-    key: "admin-users",
-    label: "Users & Permissions",
-    icon: UserCog,
-    sections: [
-      { href: "/admin/people", label: "Accounts", icon: UserPlus, permission: "manage-users" },
-      { href: "/admin/people/access", label: "Access levels", icon: KeyRound, permission: "manage-users" },
-      { href: "/admin/people/privacy", label: "Personal data", icon: Fingerprint, permission: "manage-users" },
-    ],
-  },
-  { key: "admin-settings", label: "Platform Settings", icon: SlidersHorizontal, sections: ADMIN_SETTINGS_SECTIONS },
-  { href: "/admin/data", label: "Data & Integrations", icon: Database, permission: "manage-data" },
-  { href: "/admin/system", label: "System Health", icon: Activity, permission: "manage-data" },
-  { href: "/admin/audit", label: "Audit Logs", icon: ClipboardList, anyOf: ["manage-users", "manage-branding", "manage-data"] },
-];
-
-/** Every Admin Mode page in sidebar order (hubs flattened). */
-export const ADMIN_LINKS: NavLink[] = ADMIN_ENTRIES.flatMap(entryLinks);
-
-/** Admin Mode's tabs, with short labels: the phone's (its bottom bar, or its compact bar held sideways) and a tablet's top bar; the rest are on the account screen or in the avatar menu. */
-export const ADMIN_TABS: Array<{ href: string; label: string; icon: LucideIcon }> = [
-  { href: ADMIN_HOME, label: "Dashboard", icon: LayoutDashboard },
-  { href: "/admin/people", label: "Users", icon: UserCog },
-  { href: "/admin/branding", label: "Settings", icon: SlidersHorizontal },
-  { href: "/admin/system", label: "Health", icon: Activity },
-];
-
-/**
- * Admin Mode's pages on the phone's account screen and in a tablet's avatar menu: one link per
- * entry, as the sidebar lists them (a hub's link opens its first section this account may open,
- * under the hub's name), less the pages the tabs already hold, so neither repeats anything that is
- * one tap away (as Player Mode's account screen holds Matchup Intel and Resources only where they have
- * no tab).
- */
-export function adminSheetLinks(allowed: readonly string[], tabHrefs: readonly string[]): NavLink[] {
-  return ADMIN_ENTRIES.flatMap((entry): NavLink[] => {
-    if (isNavHub(entry)) {
-      const first = entry.sections.find((l) => allowed.includes(l.href));
-      return first && !tabHrefs.includes(first.href) ? [{ href: first.href, label: entry.label, icon: entry.icon }] : [];
-    }
-    return allowed.includes(entry.href) && !tabHrefs.includes(entry.href) ? [entry] : [];
-  });
-}
-
-/** Account settings in Admin Mode: the same page as Player Mode's, without leaving Admin Mode. */
-export const ADMIN_ACCOUNT_LINKS: NavLink[] = [{ href: "/admin/settings", label: "Settings", icon: Settings }];
-
-/**
- * Admin Mode's tab names in a tablet's top bar where the phone's short one would be ambiguous: there
- * the avatar menu, opened under the bar, shows the account's own "Settings" beside it.
- */
-const TABLET_ADMIN_LABELS: Record<string, string> = { "/admin/branding": "Platform Settings" };
-
-/**
- * A destination in a tablet's top bar (md to lg, in a window taller than 480px): `pages` are every
- * page it stands for, each of which marks it as the current one.
- */
-export interface BarDestination {
-  href: string;
-  label: string;
-  icon: LucideIcon;
-  pages: string[];
-}
-
-/**
- * TABLETS (md to lg, not a short window) have no sidebar and no drawer: their destinations sit in
- * the top bar, one tap each (docs/MOBILE.md, "Frames by posture"):
- *   Player Mode   the sidebar's entries, My Profile, Team, Matchup Intel and Resources, each to the
- *                 first page of it this account may open, under the entry's name, marked on all of
- *                 its pages (Team's sections stay the pinned tabs in the page);
- *   Admin Mode    the phone's four tabs (ADMIN_TABS), Platform Settings by its full name (the avatar
- *                 menu, open under the bar, holds the account's own Settings); the admin pages without
- *                 a tab (Data & Integrations, Audit Logs) are in the avatar menu (adminSheetLinks).
- * A phone held sideways (a short window below lg) keeps the phone's destinations (PHONE_TABS) in its
- * one compact bar instead.
- */
-export function tabletDestinations(allowed: readonly string[], admin: boolean): BarDestination[] {
-  if (admin) return ADMIN_TABS.filter((t) => allowed.includes(t.href)).map((t) => ({ ...t, label: TABLET_ADMIN_LABELS[t.href] ?? t.label, pages: [t.href] }));
-  return NAV_ENTRIES.flatMap((entry): BarDestination[] => {
-    const pages = entryLinks(entry)
-      .filter((l) => allowed.includes(l.href))
-      .map((l) => l.href);
-    return pages.length ? [{ href: pages[0]!, label: entry.label, icon: entry.icon, pages }] : [];
-  });
-}
-
-/**
- * The tablet's destination a page belongs to: in Player Mode as the sidebar marks it (a teammate's
- * profile is Team's, your own profile's sections My Profile's, Matchup Intel its own, whatever pair
- * its address holds), in Admin Mode as its tabs do (Platform Settings' pages are its Settings tab);
- * none for Settings and pages outside them.
- */
-export function currentDestination(pathname: string, destinations: readonly BarDestination[], admin: boolean): string | null {
-  if (admin) return currentTab(pathname, destinations.map((d) => d.href));
-  const page = activeHref(pathname, destinations.flatMap((d) => d.pages));
-  return page === null ? null : (destinations.find((d) => d.pages.includes(page))?.href ?? null);
-}
-
 /** May this session open the link? (Pages enforce the same rule on the server.) */
 export function canOpen(session: Session | null, link: Pick<NavLink, "permission" | "anyOf">): boolean {
   if (link.permission && !hasPermission(session, link.permission)) return false;
@@ -487,4 +461,3 @@ export function isActivePath(pathname: string, href: string): boolean {
 export function activeHref(pathname: string, hrefs: readonly string[]): string | null {
   return hrefs.filter((h) => isActivePath(pathname, h)).sort((a, b) => b.length - a.length)[0] ?? null;
 }
-

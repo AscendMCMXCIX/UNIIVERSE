@@ -42,10 +42,10 @@ Deactivating, deleting and archiving are different actions, and none of them is 
 | Profile | Deleted: roles, champion pools, card design, banner, picture, social links, the records kept from the retired Ranked Development (sessions, reviews, objectives, plans), notes about them on their own profile |
 | Riot accounts | Deleted, with their games, ranks, mastery, season figures, last-known ranks, tracked-summoner and sync state (the Draft feature's scouting rows went with its tables, migration `0063`) |
 | Games only they used | Deleted: the match record, its timeline and any bookmark to it |
-| Shared games | Kept for the others. Their place becomes **"Removed player"**: side and result only; no PUUID, name, Riot ID, champion, position, items, runes, spells or figures. Team kills come from Riot's team total, so the others' figures stay right. Their timeline entries and per-minute frames are deleted, and teammates' games no longer record them as the lane opponent. The summaries are rebuilt. |
+| Shared games | Kept for the others. Their place becomes **"Removed player"**: side and result only; no PUUID, name, Riot ID, champion, position (either of Riot's two), items, runes or shards, spells or figures (the challenge figures included). Team kills come from Riot's team total, so the others' figures stay right. Their timeline entries (level times, sales and items used up among them) and per-minute frames (their place on the map, haste and level among them) are deleted, and teammates' games no longer record them as the lane opponent. The summaries are rebuilt. |
 | Legacy opponent accounts | None are left; one that holds their Riot identity is deleted. |
 | Notes others wrote | Whole-word mentions of their names, Riot names and Riot IDs (3 characters or more) become "[removed]"; the rest of each note stays. This includes the private text other players kept in the retired Ranked Development: review learning points and adjustments, session focus and closing notes, objective titles and explanations, and If–Then plans. |
-| Admin activity | Entries keep what happened. Their name becomes **"Erased member"** as actor or target, and matching details become "[removed]". |
+| Admin activity | Entries keep what happened. Their name becomes **"Erased member"** as actor or target, and matching details become "[removed]". Since 19 Nov 2026, every entry about them by id (done to their account, profile or Riot account, by anyone, themselves included) loses every text in its details, whatever it says (numbers and yes/no values stay), so a detail naming them as they were called before a rename cannot survive. An entry they only made, about another member or a setting, keeps its details apart from values that name them: what access they gave someone else stays that person's record. **Forward only:** entries left by erasures made before that keep what those erasures left. Their ids were removed then, so neither a later erasure nor re-applying the records (`erasure-reconcile`, Personal data → Re-apply records) finds them by id; clearing them would need a one-off over the entries named "Erased member", which waits for the owner (the overhaul plan's OD21, with a read-only count first). |
 | Job logs | Their Riot IDs are taken out of `job_runs` and `data_refresh_status`. Newer sync lines name an account only as `account 1a2b3c4d`. Run records are deleted after 60 days (the daily `integrity` job, in bounded batches). |
 | Caches | Team, public page, leaderboards, public pictures and banners, proficiency and lookup caches, and the lanes Matchups keeps, are cleared on this server instance (`src/server/privacy/after-erasure.ts`); other instances follow within their cache times. |
 
@@ -55,10 +55,11 @@ It then records:
 
 **Safeguards** (`guardErasure`, every action in `src/server/actions/privacy.ts`):
 - administrators only (`manage-users`, checked on the server first);
-- never your own account, and never the Owner;
+- never your own account, never the Owner, and never the Production check's account (`verify`: it holds no one's personal data and its job keeps it; deactivate or delete it instead);
 - another administrator only when the Owner asks;
 - never the last active administrator;
-- nothing happens until the dialog's preview has been read, the username (or Riot ID) typed exactly, and the permanence acknowledged.
+- nothing happens until the dialog's preview has been read, the username (or Riot ID) typed exactly, and the permanence acknowledged;
+- importing and re-applying the records (the `erasure-reconcile` job's work): the Owner only, with REAPPLY typed, checked on the server too (19 Nov 2026).
 
 ## Keeping it in force
 
@@ -71,7 +72,7 @@ It then records:
   - the rank checks of a game's players (when a member opens it, and after a member's game is collected), which never ask Riot about them or store a rank for them (`src/server/players/participant-ranks.ts`).
 - **API key changes:** Riot's PUUIDs change with the API key, so people are also matched by Riot ID. A PUUID first seen that way is added to their record.
 - **Safety net:** the daily `integrity` job re-applies every record to anything stored in the last two days.
-- **Full re-apply:** run the `erasure-reconcile` job (Data jobs, on demand), or use Personal data → **Re-apply records**. It goes through the whole database.
+- **Full re-apply:** run the `erasure-reconcile` job (Data jobs, on demand), or, as the Owner, Personal data → **Re-apply records** with REAPPLY typed (19 Nov 2026: it is the job's work, a setup job, so other administrators no longer see Import or Re-apply). It goes through the whole database.
 - **Release:** if the person asks to come back, Personal data → **Release** (type the reference). Their Riot accounts can then be linked again, and games synced from then on include them. Nothing erased comes back.
 - **Backups:** see `docs/BACKUPS.md`, "Backups and permanent removal". In short:
   - export the records after each erasure and keep the file with the offline copy;

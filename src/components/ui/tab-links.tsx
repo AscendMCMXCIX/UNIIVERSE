@@ -18,7 +18,7 @@ export interface TabLink {
  * Section tabs: switching between views of one page (Matches, a profile, Settings, Admin). One
  * underlined row that scrolls sideways on narrow screens instead of wrapping, with an edge faded
  * where more tabs are hidden and the current tab kept in view. The caller decides which tab is
- * current (a path or a query parameter); SubNav derives it from the path.
+ * current (a path or a query parameter).
  */
 export function TabLinks({ items, label, className, testId }: { items: TabLink[]; label: string; className?: string; testId?: string }) {
   return (

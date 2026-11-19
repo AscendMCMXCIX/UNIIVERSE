@@ -1,0 +1,19 @@
+{
+  "championId": "Yunara",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Vow of the First Lands","textHash":"4e97bea93f470059"},
+    "Q": {"name":"Cultivation of Spirit","textHash":"6e65b0f0d77d8ed6"},
+    "W": {"name":"Arc of Judgment | Arc of Ruin","textHash":"e97dd8c75bc7778e"},
+    "E": {"name":"Kanmei's Steps | Untouchable Shadow","textHash":"f2cddac7f41655d5"},
+    "R": {"name":"Transcend One's Self","textHash":"5ca19a0095812a1f"}
+  },
+  "facts": [
+    {"slot":"W","kind":"slow","clause":"Yunara fires a spinning prayer bead that deals damage and slows enemies.","source":"description"},
+    {"slot":"E","kind":"dash","clause":"While in her Transcendent State she instead dashes in a direction.","source":"description"},
+    {"slot":"R","kind":"transform","clause":"Yunara enters a Transcendent State that upgrades her basic Abilities.","source":"description"}
+  ],
+  "disagreements": []
+}

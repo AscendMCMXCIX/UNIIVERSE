@@ -14,6 +14,7 @@ export const FOLD_MISSING_PRESENCES = false;
 
 defineJob({
   key: "integrity",
+  kind: "refresh",
   description: "Housekeeping: unstick job states left running by an interrupted process (each counts as a failed run) and close the runs left open; delete run records older than 60 days, sign-in sessions that ended over a week ago and failed sign-ins past the throttling window; fold into each account's history the stored records that name it but that its own collection never stored (no Riot request); keep personal-data erasures in force on what was stored lately.",
   defaultIntervalMinutes: 24 * 60,
   run: async (ctx) => {

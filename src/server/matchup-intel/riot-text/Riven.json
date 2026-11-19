@@ -1,0 +1,26 @@
+{
+  "championId": "Riven",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Runic Blade","textHash":"9822c19c0312a90d"},
+    "Q": {"name":"Broken Wings","textHash":"dddc41c53134d5e2"},
+    "W": {"name":"Ki Burst","textHash":"48312786b1536a1c"},
+    "E": {"name":"Valor","textHash":"9abd655c1c00941f"},
+    "R": {"name":"Blade of the Exile","textHash":"c0578c6991ba3548"}
+  },
+  "facts": [
+    {"slot":"P","kind":"empower","clause":"Riven's abilities charge her blade, and her basic attacks expend charges to deal an additional damage.","source":"description"},
+    {"slot":"Q","kind":"dash","clause":"Riven dashes forward, dealing […] physical damage.","source":"tooltip"},
+    {"slot":"Q","kind":"leap","clause":"Recast: Riven leaps forward and slams","source":"tooltip","conditional":true},
+    {"slot":"Q","kind":"recast","clause":"The first Recast is the same as the original, but the second has a different effect:","source":"tooltip"},
+    {"slot":"W","kind":"stun","clause":"Riven emits a Ki Burst, damaging and stunning nearby enemies.","source":"description"},
+    {"slot":"E","kind":"dash","clause":"Riven quickly dashes","source":"tooltip"},
+    {"slot":"E","kind":"shield","clause":"Riven quickly dashes and gains […] Shield","source":"tooltip"},
+    {"slot":"R","kind":"recast","clause":"While active, she can Recast.","source":"tooltip"}
+  ],
+  "disagreements": [
+    {"slot":"Q","description":{"kind":"knockback","clause":"knocking back nearby enemies."},"tooltip":{"kind":"knockup","clause":"Recast: Riven leaps forward and slams, dealing […] physical damage and Knocks Up nearby enemies"}}
+  ]
+}

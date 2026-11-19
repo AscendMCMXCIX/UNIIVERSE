@@ -1,4 +1,4 @@
-import { expect, type Browser, type BrowserContext, type Page } from "@playwright/test";
+import { expect, type Browser, type BrowserContext, type BrowserContextOptions, type Page } from "@playwright/test";
 
 /*
   A real team member account for e2e checks that need a player profile (the in-memory demo's local
@@ -73,10 +73,10 @@ export async function choosePassword(page: Page, username: string, temporary: st
   await save.click();
 }
 
-/** A team member account, signed in on its own browser context (first-time setup included, with `role` as their Primary Role, and `display` as their display name where given). */
-export async function memberContext(browser: Browser, admin: Page, viewport = { width: 1440, height: 900 }, { base = "Viewer", role = "Mid", display }: { base?: string; role?: "Top" | "Jungle" | "Mid" | "Bottom" | "Support"; display?: string } = {}): Promise<{ context: BrowserContext; page: Page; username: string }> {
+/** A team member account, signed in on its own browser context (first-time setup included, with `role` as their Primary Role, `display` as their display name where given, and `device` for a phone's touch screen). */
+export async function memberContext(browser: Browser, admin: Page, viewport = { width: 1440, height: 900 }, { base = "Viewer", role = "Mid", display, device }: { base?: string; role?: "Top" | "Jungle" | "Mid" | "Bottom" | "Support"; display?: string; device?: Pick<BrowserContextOptions, "isMobile" | "hasTouch" | "deviceScaleFactor"> } = {}): Promise<{ context: BrowserContext; page: Page; username: string }> {
   const { username, temporary } = await createMember(admin, base);
-  const context = await browser.newContext({ viewport });
+  const context = await browser.newContext({ viewport, ...device });
   const page = await context.newPage();
   await choosePassword(page, username, temporary);
   const setup = page.getByTestId("setup-form");

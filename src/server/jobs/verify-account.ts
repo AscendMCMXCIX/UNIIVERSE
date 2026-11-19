@@ -196,6 +196,8 @@ async function withdrawnByThisJob(db: Db, userId: string): Promise<boolean> {
 
 defineJob({
   key: "verify-account",
+  kind: "setup",
+  confirm: { title: "Set up the Production check's account again", effect: "Creates the account the daily Production check signs in with, or sets its password again. Production only; the Production check runs it itself before every check.", phrase: "SET UP" },
   description: "Production only: keeps the member account the Production check signs in with (\"verify\"): no player profile, so it is in no list, statistic or leaderboard and nothing is collected from Riot for it; the default member access; its password worked out from VERIFY_ACCOUNT_SECRET (CRON_SECRET until that is set), never stored or shown. Creates it, or changes nothing, or updates the password (and ends its sessions) after a change of that key; withdraws the password (and ends its sessions) if the account was given more access, a profile or another name.",
   defaultIntervalMinutes: null,
   run: async (ctx) => {

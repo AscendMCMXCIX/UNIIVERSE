@@ -1,0 +1,18 @@
+{
+  "championId": "Aphelios",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"The Hitman and the Seer","textHash":"5a4af8b3ced572d5"},
+    "Q": {"name":"Weapon Abilites","textHash":"dd28e0b2747df81a"},
+    "W": {"name":"Phase","textHash":"3f6c74ae2c420ff0"},
+    "E": {"name":"Weapon Queue System","textHash":"2ca7286cc9088081"},
+    "R": {"name":"Moonlight Vigil","textHash":"a596ad85dc7ac240"}
+  },
+  "facts": [
+    {"slot":"Q","kind":"root","clause":"Gravitum (Cannon): Root all enemies slowed by this weapon.","source":"description"},
+    {"slot":"W","kind":"transform","clause":"Aphelios swaps his main-hand gun with his off-hand gun, replacing his basic attack and activated ability.","source":"description"}
+  ],
+  "disagreements": []
+}

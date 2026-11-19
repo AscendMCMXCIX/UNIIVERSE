@@ -233,6 +233,15 @@ export function formatCooldowns(values: readonly number[], per: "rank" | "level"
 }
 
 /**
+ * A base cooldown at each rank in a dense list, as Matchup Intel's grouped facts write it beside a
+ * fact ("14/12/10/8/6 s"): formatCooldowns without the spaces around each "/". The same value at
+ * every rank stays "13 s at every rank", and "—" where there is no number.
+ */
+export function formatCooldownsTight(values: readonly number[]): string {
+  return formatCooldowns(values).replace(/ \/ /g, "/");
+}
+
+/**
  * A number, with its "%" or "°" if it has one, followed by one space and a word: whatever the word is,
  * a unit or a count ("1.625 s", "50 Fury", "7% AP", "360 radius", "6 snips", "180° sweep") or any
  * other ("2 more times"). No list of units to keep up to date: a curator's new unit is covered too.

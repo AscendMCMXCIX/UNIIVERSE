@@ -1,0 +1,21 @@
+{
+  "championId": "Trundle",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"King's Tribute","textHash":"93edcdb8d1fc7149"},
+    "Q": {"name":"Chomp","textHash":"de0281489db7431b"},
+    "W": {"name":"Frozen Domain","textHash":"bb037072c5b71c43"},
+    "E": {"name":"Pillar of Ice","textHash":"565605dba56aed08"},
+    "R": {"name":"Subjugate","textHash":"cc1231ab6e235dbd"}
+  },
+  "facts": [
+    {"slot":"P","kind":"heal","clause":"When an enemy unit dies near Trundle, he heals for a percent of its maximum Health.","source":"description"},
+    {"slot":"Q","kind":"slow","clause":"Trundle bites his opponent, dealing damage, briefly slowing and sapping some of their Attack Damage.","source":"description"},
+    {"slot":"Q","kind":"empower","clause":"Trundle's next Attack deals […] physical damage and briefly Slows","source":"tooltip"},
+    {"slot":"E","kind":"knockback","clause":"Trundle creates an icy pillar for […] seconds, briefly Knocking Back enemies directly over it and Slowing nearby enemies","source":"tooltip"},
+    {"slot":"E","kind":"slow","clause":"Trundle creates an ice pillar at target location, becoming impassable terrain and slowing all nearby enemy units.","source":"description"}
+  ],
+  "disagreements": []
+}

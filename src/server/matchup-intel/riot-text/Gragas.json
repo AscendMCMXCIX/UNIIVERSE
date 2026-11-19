@@ -1,0 +1,26 @@
+{
+  "championId": "Gragas",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Happy Hour","textHash":"ca5fdd24bcb490ea"},
+    "Q": {"name":"Barrel Roll","textHash":"07edf5d9c629d072"},
+    "W": {"name":"Drunken Rage","textHash":"4ba307f7eb0aa333"},
+    "E": {"name":"Body Slam","textHash":"b0b2d6746ae65ecc"},
+    "R": {"name":"Explosive Cask","textHash":"5c0ca6a68f53ad33"}
+  },
+  "facts": [
+    {"slot":"P","kind":"heal","clause":"Gragas periodically heals upon using a skill.","source":"description"},
+    {"slot":"Q","kind":"slow","clause":"Enemies struck by the blast have their Move Speed slowed.","source":"description"},
+    {"slot":"Q","kind":"recast","clause":"Gragas can Recast to detonate the cask early.","source":"tooltip"},
+    {"slot":"W","kind":"damagereduction","clause":"After finishing, he becomes boisterous and belligerent, dealing magic damage to all nearby enemies on his next basic attack and reducing damage received.","source":"description"},
+    {"slot":"W","kind":"empower","clause":"brew, reducing incoming damage by […] for […] seconds and empowering his next Attack","source":"tooltip"},
+    {"slot":"E","kind":"dash","clause":"Gragas charges to a location and collides with the first enemy unit he comes across","source":"description"},
+    {"slot":"E","kind":"cooldownrefund","clause":"This Ability's Cooldown is reduced by […]% if Gragas collides with an enemy.","source":"tooltip"},
+    {"slot":"R","kind":"knockback","clause":"Gragas hurls his cask to a location, dealing damage and knocking back enemies caught in the blast radius.","source":"description"}
+  ],
+  "disagreements": [
+    {"slot":"E","description":{"kind":"stun","clause":"Gragas charges to a location and collides with the first enemy unit he comes across, dealing damage to all nearby enemy units and stunning them."},"tooltip":{"kind":"knockup","clause":"Gragas charges forward, colliding with the first enemy, Knocking Up nearby enemies"}}
+  ]
+}

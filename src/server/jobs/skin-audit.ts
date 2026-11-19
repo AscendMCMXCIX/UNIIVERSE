@@ -13,6 +13,7 @@ const BASE = (process.env.DDRAGON_BASE_URL ?? "https://ddragon.leagueoflegends.c
  */
 defineJob({
   key: "skin-audit",
+  kind: "check",
   description: "Read-only check of stored champion skins against Data Dragon: duplicates, chroma entries, splash images that do not exist. Changes nothing.",
   defaultIntervalMinutes: null,
   allowConcurrent: true,

@@ -1,7 +1,7 @@
 import { and, desc, eq, isNotNull, sql, type SQL } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
-import { accountMatches, matchDetails, type MatchParticipantDetail, type MatchTeamDetail, type ParticipantExtraStats } from "@/server/db/schema";
-import type { RiotMatch, RiotParticipant } from "@/server/riot/api/schemas";
+import { accountMatches, matchDetails, type LaneChallenges, type MatchParticipantDetail, type MatchTeamDetail, type ParticipantExtraStats } from "@/server/db/schema";
+import { LANE_CHALLENGE_KEYS, type RiotMatch, type RiotParticipant } from "@/server/riot/api/schemas";
 import { erasureFilter, type ErasureFilter } from "@/server/privacy/ledger";
 import { redactParticipants } from "@/server/privacy/redact";
 import { summariseMatches } from "./match-summary";
@@ -29,7 +29,9 @@ export function participantDetail(p: RiotParticipant, keyToId: Map<number, strin
   const styles = p.perks?.styles ?? [];
   const primary = styles.find((s) => s.description === "primaryStyle") ?? styles[0];
   const secondary = styles.find((s) => s.description === "subStyle") ?? styles[1];
+  const shards = p.perks?.statPerks;
   const name = p.riotIdGameName ? `${p.riotIdGameName}${p.riotIdTagline ? `#${p.riotIdTagline}` : ""}` : p.summonerName || null;
+  const challenges = laneChallenges(p);
   return {
     puuid: p.puuid,
     name,
@@ -38,6 +40,9 @@ export function participantDetail(p: RiotParticipant, keyToId: Map<number, strin
     championKey: p.championId,
     champLevel: opt(p.champLevel),
     position: p.teamPosition || p.individualPosition || null,
+    // Both of Riot's readings as sent, so the lane opponent rule can tell them apart (absent on older records).
+    teamPosition: p.teamPosition ?? "",
+    individualPosition: p.individualPosition ?? "",
     win: p.win,
     kills: p.kills,
     deaths: p.deaths,
@@ -51,8 +56,32 @@ export function participantDetail(p: RiotParticipant, keyToId: Map<number, strin
     items: hasItems ? items.map((i) => i ?? 0) : null,
     spells: typeof p.summoner1Id === "number" && typeof p.summoner2Id === "number" ? [p.summoner1Id, p.summoner2Id] : null,
     stats: extraStats(p),
-    runes: p.perks ? { keystone: primary?.selections[0]?.perk ?? null, primary: primary?.style ?? null, secondary: secondary?.style ?? null, primaryPerks: primary?.selections.map((x) => x.perk) ?? [], secondaryPerks: secondary?.selections.map((x) => x.perk) ?? [] } : null,
+    runes: p.perks
+      ? {
+          keystone: primary?.selections[0]?.perk ?? null,
+          primary: primary?.style ?? null,
+          secondary: secondary?.style ?? null,
+          primaryPerks: primary?.selections.map((x) => x.perk) ?? [],
+          secondaryPerks: secondary?.selections.map((x) => x.perk) ?? [],
+          ...(shards ? { shards: [shards.offense, shards.flex, shards.defense] as [number, number, number] } : {}),
+        }
+      : null,
+    ...(challenges ? { challenges } : {}),
   };
+}
+
+/**
+ * Riot's lane and jungle challenge figures for this participant, under Riot's own names: only the
+ * ones it sent as numbers (none sent: undefined). Fractions are rounded to two decimals (Riot sends
+ * some as long binary fractions); nothing else is changed.
+ */
+export function laneChallenges(p: RiotParticipant): LaneChallenges | undefined {
+  const out: LaneChallenges = {};
+  for (const key of LANE_CHALLENGE_KEYS) {
+    const v = p.challenges?.[key];
+    if (typeof v === "number" && Number.isFinite(v)) out[key] = Math.round(v * 100) / 100;
+  }
+  return Object.keys(out).length ? out : undefined;
 }
 
 /** The leaderboard figures Riot sent for this participant (fields it left out stay absent). */
@@ -74,6 +103,11 @@ export function extraStats(p: RiotParticipant): ParticipantExtraStats {
   num("turretTakedowns", p.turretTakedowns);
   num("ccSeconds", p.timeCCingOthers);
   num("soloKills", p.challenges?.soloKills);
+  num("deadSeconds", p.totalTimeSpentDead);
+  num("platesTaken", p.challenges?.turretPlatesTaken);
+  num("teamHealing", p.totalHealsOnTeammates);
+  num("teamShielding", p.totalDamageShieldedOnTeammates);
+  num("damageMitigated", p.damageSelfMitigated);
   if (typeof p.firstBloodKill === "boolean") out.firstBloodKill = p.firstBloodKill;
   if (typeof p.firstBloodAssist === "boolean") out.firstBloodAssist = p.firstBloodAssist;
   return out;

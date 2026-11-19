@@ -1,0 +1,23 @@
+{
+  "championId": "Nilah",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Joy Unending","textHash":"48631794adc797e8"},
+    "Q": {"name":"Formless Blade","textHash":"0a1a759a103c6296"},
+    "W": {"name":"Jubilant Veil","textHash":"715cfe890b5472bf"},
+    "E": {"name":"Slipstream","textHash":"628a7f4297db2356"},
+    "R": {"name":"Apotheosis","textHash":"6e1262dc75026cd7"}
+  },
+  "facts": [
+    {"slot":"Q","kind":"shield","clause":"Overhealing from this is converted into a Shield for […] seconds.","source":"tooltip"},
+    {"slot":"Q","kind":"heal","clause":"her Attacks against champions restore […] damage dealt as Health.","source":"tooltip"},
+    {"slot":"W","kind":"damagereduction","clause":"Nilah envelops herself in mist for […] seconds, becoming Ghosted, gaining […]% Move Speed, dodging Attacks, and reducing magic damage taken","source":"tooltip"},
+    {"slot":"E","kind":"dash","clause":"Nilah enthusiastically dashes toward her target, dealing damage to any enemies she passes through on the way.","source":"description"},
+    {"slot":"R","kind":"pull","clause":"Twirling her whip-blade in joyful exuberance, Nilah deals damage to enemies around her before pulling them closer with her weapon.","source":"description"},
+    {"slot":"R","kind":"shield","clause":"converting any overhealing into a Shield for […] seconds.","source":"tooltip","qualifier":"Nilah and her nearby allies"},
+    {"slot":"R","kind":"heal","clause":"Apotheosis heals Nilah and her nearby allies","source":"tooltip"}
+  ],
+  "disagreements": []
+}

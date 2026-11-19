@@ -5,6 +5,7 @@ import { pruneAuthFailures } from "@/server/auth/throttle";
 import { accountSyncLeaseKey, figuresCatchUpLeaseKey, viewRefreshLeaseKey } from "@/server/jobs/background";
 import { summariseMatches } from "@/server/accounts/match-summary";
 import type { AccessRole } from "@/server/auth/permissions";
+import { isVerificationAccount } from "@/server/auth/verification-account";
 import { getUser, UserError } from "@/server/repositories/users";
 import { forgetErasureCache, newReference } from "./ledger";
 import { redactParticipants } from "./redact";
@@ -297,6 +298,18 @@ function scrubDetails(details: Record<string, string | number | boolean | null>,
   return Object.fromEntries(Object.entries(details).map(([k, v]) => [k, typeof v === "string" && (m.name(v) || m.typed(v)) ? REMOVED_TEXT : v]));
 }
 
+/**
+ * Every text of an activity entry's details, whatever it says: for the entries about the person by
+ * id (done to their account, profile or Riot account, by anyone, themselves included). Matching by
+ * their names alone would miss a detail that names them as they were called before a rename, or
+ * anything else a detail says about them. Numbers and yes/no values stay (counts, never a name).
+ * An entry they only made, about someone or something else, keeps its details apart from values
+ * that name them (scrubDetails): what access another member was given is that member's record.
+ */
+function clearDetails(details: Record<string, string | number | boolean | null>): Record<string, string | number | boolean | null> {
+  return Object.fromEntries(Object.entries(details).map(([k, v]) => [k, typeof v === "string" ? REMOVED_TEXT : v]));
+}
+
 const escapeLike = (s: string) => s.replace(/[\\%_]/g, "\\$&");
 
 /** The words that name them in free text: their names, Riot names and Riot IDs (3 characters or more), longest first. */
@@ -383,12 +396,19 @@ async function planErasure(db: Db, s: ErasureSubject): Promise<Plan> {
     const rows = await db.select().from(auditEvents).where(sql.join(auditWhere, sql` OR `));
     for (const r of rows) {
       const set: Partial<typeof auditEvents.$inferInsert> = {};
-      const actorIsThem = (!!s.userId && r.actorUserId === s.userId) || (m.name(r.actorName) && (!r.actorUserId || !currentUserIds.has(r.actorUserId)));
+      const actorById = !!s.userId && r.actorUserId === s.userId;
+      const actorIsThem = actorById || (m.name(r.actorName) && (!r.actorUserId || !currentUserIds.has(r.actorUserId)));
       if (actorIsThem) Object.assign(set, { actorUserId: null, actorName: ERASED_MEMBER });
       const person = r.targetType === "user" || r.targetType === "player";
-      const targetIsThem = (!!r.targetId && ids.includes(r.targetId)) || (person && (m.name(r.targetName) || m.typed(r.targetName)) && (!r.targetId || (!currentUserIds.has(r.targetId) && !currentPlayerIds.has(r.targetId))));
+      const targetById = !!r.targetId && ids.includes(r.targetId);
+      const targetIsThem = targetById || (person && (m.name(r.targetName) || m.typed(r.targetName)) && (!r.targetId || (!currentUserIds.has(r.targetId) && !currentPlayerIds.has(r.targetId))));
       if (targetIsThem) Object.assign(set, { targetId: null, targetName: ERASED_MEMBER });
-      const details = scrubDetails(r.details, m);
+      // Entries about them by id lose every text in their details (since 19 Nov 2026: forward
+      // only). Entries they only made keep theirs, apart from values that name them: those details
+      // say what was done to someone else or to a setting. Entries of erasures made before keep what
+      // those left: their ids are gone, so no later erasure or re-application finds them by id
+      // (docs/PRIVACY.md).
+      const details = targetById ? clearDetails(r.details) : scrubDetails(r.details, m);
       if (JSON.stringify(details) !== JSON.stringify(r.details)) set.details = details;
       if (Object.keys(set).length) audit.push({ id: r.id, set });
     }
@@ -481,12 +501,17 @@ export async function previewErasure(db: Db, subject: ErasureSubject): Promise<E
 
 /**
  * The rules that protect the site: nobody erases themselves, the Owner account is never erased,
- * an administrator only by the Owner, and never the last administrator able to sign in.
+ * nor the Production check's account, an administrator only by the Owner, and never the last
+ * administrator able to sign in.
  */
 export async function guardErasure(db: Db, actorUserId: string | null, s: ErasureSubject): Promise<void> {
   if (!s.userId) return;
   if (actorUserId && actorUserId === s.userId) throw new UserError("You cannot erase your own account.");
   if (s.role === "owner") throw new UserError("The Owner account cannot be erased.");
+  // The Production check's account holds no one's personal data and is kept by its job
+  // (jobs/verify-account.ts): deactivate or delete it instead. Never refused for a re-application
+  // (no actor), which only finds erased people.
+  if (actorUserId && isVerificationAccount({ username: s.username, playerId: s.playerId, role: s.role })) throw new UserError("The Production check's account is kept automatically and holds no one's personal data: you cannot erase it. Deactivate it to turn the signed-in checks off, or delete it.");
   if (s.isAdmin) {
     const actor = actorUserId ? await getUser(db, actorUserId) : null;
     if (actorUserId && actor?.role !== "owner") throw new UserError("Only the Owner can erase an administrator. Remove their administrator access first, or ask the Owner.");

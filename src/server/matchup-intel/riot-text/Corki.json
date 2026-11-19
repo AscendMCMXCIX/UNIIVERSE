@@ -1,0 +1,18 @@
+{
+  "championId": "Corki",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Hextech Munitions","textHash":"618c5364b779d29b"},
+    "Q": {"name":"Phosphorus Bomb","textHash":"1f17606903866998"},
+    "W": {"name":"Valkyrie","textHash":"95da397ac4ed8f96"},
+    "E": {"name":"Gatling Gun","textHash":"ddabfb8108583a94"},
+    "R": {"name":"Missile Barrage","textHash":"5dc3663b89908b3d"}
+  },
+  "facts": [
+    {"slot":"W","kind":"dash","clause":"Corki flies a short distance, dropping bombs that create a trail of fire that damages opponents who remain in it.","source":"description"},
+    {"slot":"R","kind":"charges","clause":"This Ability has up to […] charges.","source":"tooltip"}
+  ],
+  "disagreements": []
+}

@@ -1,36 +1,35 @@
 import { History, Swords } from "lucide-react";
-import type { ChampionChoice, ChampionIntelView, MatchupPageView } from "@/domain/matchup-intel/types";
-import { comparePatches, patchFromVersion, publicPatchName } from "@/domain/patch";
-import { Disclosure } from "@/components/ui/disclosure";
+import type { ChampionChoice, MatchupPageView } from "@/domain/matchup-intel/types";
 import { EmptyState } from "@/components/ui/empty-state";
-import { AbilitiesPanel, AbilityList, CuratedLine, dataSourceOf } from "./ability-list";
-import { Briefing, CuratedLinks, NoBriefing, PAIR_CHIP } from "./briefing";
+import { AbilitiesPanel, YourChampion } from "./ability-list";
+import { AssembledReference } from "./assembled";
+import { Briefing, CuratedLinks, PAIR_CHIP, briefingShows } from "./briefing";
 import { MatchupFooter } from "./matchup-footer";
 import { OpenPickerButton, PairLink } from "./matchup-frame";
-import { InteractionsPanel, LevelNotesPanel } from "./matchup-notes";
+import { InteractionsPanel, LevelNotesPanel, notesBalance } from "./matchup-notes";
+import { behindOf } from "./matchup-status";
 import { staleDataWords } from "./wording";
 
 /*
-  MATCHUP INTEL's page body, under the pickers (docs/MATCHUP_INTEL.md), in the order a player needs
-  it before lane, one column on a phone:
-    (a) the ten-second briefing, where a curated one exists for this pair, or (b) a calm line that
-        none exists yet and what follows is the enemy's general reference;
-    (c) the enemy's abilities, P Q W E R, with base cooldowns per rank and the checked facts;
-    (d) interactions and (e) level notes, one under the other at every width (side by side, the
-        short level notes left a column of empty space beside the interactions on a desktop);
-    (f) your own champion's abilities, collapsed;
-    (g) the sources, the patch and Riot's notice.
-  With nothing chosen, or one side only, it says what to do next. Ability data older than the
-  game's current patch is said once, above the abilities, naming whose it is when only some is.
+  MATCHUP INTEL's page body, under the picker bar (docs/MATCHUP_INTEL.md, "The dashboard"): on a
+  desktop one screen, read in a glance, with no page scroll at 1920 by 1080, 2560 by 1440 and a
+  maximised 1920 by 950 window; on a phone one column, the essentials first.
+
+  On a desktop, two columns (from a body 60rem wide), each as tall as its own content:
+    left    the main panel: the curated briefing (threat, opportunity, lane points) where one exists
+            for this pair, else the assembled reference (the enemy's kit as the danger side, yours as
+            the opportunity side, grouped by kind); under it the interactions and the level changes,
+            side by side;
+    right   the enemy's abilities, P Q W E R, one compact tile each, always in that order; under
+            them your own champion, folded into one line.
+  The patch and how fresh the page is sit in the bar above (MatchupStatus); the sources and Riot's
+  notice at the foot, behind one control whose summary line stays visible.
+  On a phone, the same order in one column: the main panel, the interactions, the level changes,
+  the enemy's tiles, your champion, the sources. With nothing chosen, or one side only, it says
+  what to do next.
 */
 
 const toChoices = (ids: readonly string[] | undefined, byId: ReadonlyMap<string, ChampionChoice>) => (ids ?? []).map((id) => byId.get(id)).filter((c): c is ChampionChoice => !!c);
-
-/** "26.22" for Data Dragon "16.22.1"; null without a version. */
-function publicPatchOf(version: string | null): string | null {
-  const patch = version ? patchFromVersion(version) : null;
-  return patch ? publicPatchName(patch) : null;
-}
 
 /** Nothing chosen: what the page does, and the curated briefings there are so far. */
 function NothingChosen({ curated, byId }: { curated: Record<string, string[]>; byId: ReadonlyMap<string, ChampionChoice> }) {
@@ -39,10 +38,11 @@ function NothingChosen({ curated, byId }: { curated: Record<string, string[]>; b
     return a ? toChoices(enemies, byId).map((b) => ({ you: a, enemy: b })) : [];
   });
   return (
-    <EmptyState icon={Swords} title="Choose your champion and the enemy" action={<OpenPickerButton slot="you" testId="matchup-start">Choose your champion</OpenPickerButton>} testId="matchup-empty">
-      <p>Then read the enemy&apos;s abilities with their base cooldowns and, where a curated briefing exists, what matters in lane.</p>
+    // A phone's narrower padding: at twice the text size on a 320px phone, the words and the pairs keep whole.
+    <EmptyState icon={Swords} title="Choose your champion and the enemy" action={<OpenPickerButton slot="you" testId="matchup-start">Choose your champion</OpenPickerButton>} testId="matchup-empty" className="max-sm:px-3">
+      <p>Then read the enemy&apos;s abilities with their base cooldowns and crowd control, and what matters in lane: a curated briefing where one exists, otherwise each champion&apos;s own facts side by side.</p>
       {pairs.length ? (
-        <p className="mt-3 flex flex-wrap items-center justify-center gap-1.5" data-testid="matchup-curated-pairs">
+        <p className="mt-3 flex flex-wrap items-center justify-center gap-1.5 pointer-coarse:gap-y-2" data-testid="matchup-curated-pairs">
           <span>Curated briefings so far:</span>
           {pairs.map(({ you, enemy }) => (
             <PairLink key={`${you.id}-${enemy.id}`} you={you.id} enemy={enemy.id} className={PAIR_CHIP} testId="matchup-curated-pair">
@@ -58,86 +58,74 @@ function NothingChosen({ curated, byId }: { curated: Record<string, string[]>; b
 /** Ability data older than the game's current patch: said once, above the abilities, naming whose. */
 function StaleNote({ words }: { words: string }) {
   return (
-    <p className="flex items-start gap-2 rounded-panel border border-warn/30 bg-warn/10 px-4 py-3 text-sm text-fg" data-testid="matchup-stale">
-      <History className="mt-0.5 h-4 w-4 shrink-0 text-warn" aria-hidden />
+    <p className="flex items-start gap-2 border-b border-warn/30 bg-warn/10 px-3 py-2 text-xs text-fg" data-testid="matchup-stale">
+      <History className="mt-px h-3.5 w-3.5 shrink-0 text-warn" aria-hidden />
       <span>{words}</span>
     </p>
   );
 }
+
+/** The dashboard's two columns: one on a phone (see the module's comment). */
+const COLUMNS = "grid gap-3 @min-[60rem]/dash:grid-cols-[minmax(0,1fr)_minmax(22rem,0.72fr)] @min-[60rem]/dash:items-start";
+/** The interactions and the level notes side by side where the column has room, the fuller panel the wider (notesBalance). */
+const NOTES_SPLIT = {
+  interactions: "@min-[40rem]/dash:grid-cols-[minmax(0,1.75fr)_minmax(0,1fr)]",
+  even: "@min-[40rem]/dash:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)]",
+  levels: "@min-[40rem]/dash:grid-cols-[minmax(0,1fr)_minmax(0,1.45fr)]",
+  // The interactions only each champion's folded line: a third is room enough for it.
+  folds: "@min-[40rem]/dash:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]",
+} as const;
 
 export function MatchupContent({ view, champions, curated, legal }: { view: MatchupPageView; champions: readonly ChampionChoice[]; curated: Record<string, string[]>; legal: string }) {
   const byId = new Map(champions.map((c) => [c.id, c]));
   const { you, enemy, enemyIntel, yourIntel, matchup } = view;
   const curatedForYou = you ? toChoices(curated[you.id], byId) : [];
   const mirror = !!you && !!enemy && you.id === enemy.id;
-  // Each champion's data judged by its own version: one whose file could not be read keeps an older
-  // record while the other's is current, and is named.
   const current = view.patch.current;
-  const shownData = [enemyIntel, mirror ? null : yourIntel].filter((i): i is ChampionIntelView => !!i?.abilities);
-  const behind = current
-    ? shownData.flatMap((i) => {
-        const patch = publicPatchOf(i.dataVersion);
-        return patch && comparePatches(patch, current) < 0 ? [{ name: i.champion.name, patch }] : [];
-      })
-    : [];
-  // The champions whose ability rows are on the page, for the briefing's chips.
-  const rows = new Set(shownData.map((i) => i.champion.id));
-  const interactions = enemyIntel ? <InteractionsPanel matchup={matchup} enemyIntel={enemyIntel} you={you} rows={rows} /> : null;
-  const levels = <LevelNotesPanel intels={[enemyIntel, yourIntel]} />;
-  const hasInteractions = !!enemyIntel && (!!matchup?.interactions.length || !!matchup?.expiredInteractions || !!enemyIntel.abilities?.some((a) => a.facts.some((f) => f.kind === "interaction" || f.kind === "exception")));
-  const hasLevels = [enemyIntel, yourIntel].some((i) => !!i?.levelNotes.length);
-  const yourSource = yourIntel ? dataSourceOf(yourIntel) : null;
+  const shownData = [enemyIntel, mirror ? null : yourIntel].filter((i) => !!i?.abilities);
+  const behind = behindOf(view);
+  // The champions whose ability tiles are on the page (yours folded, but there), for the chips.
+  const rows = new Set(shownData.map((i) => i!.champion.id));
+  const stale = behind.length && current ? <StaleNote words={staleDataWords(behind, current, behind.length === shownData.length)} /> : null;
+  const shows = briefingShows(matchup);
+  const balance = enemyIntel ? notesBalance(matchup, enemyIntel, yourIntel) : "even";
 
   return (
-    <div className="space-y-5">
-      {behind.length && current ? <StaleNote words={staleDataWords(behind, current, behind.length === shownData.length)} /> : null}
-
+    <div className="@container/dash space-y-3" data-testid="matchup-dashboard" data-layer={you && enemy ? (shows ? "curated" : "assembled") : undefined}>
       {!you && !enemy ? <NothingChosen curated={curated} byId={byId} /> : null}
 
       {you && !enemy ? (
         <EmptyState icon={Swords} title={`Playing ${you.name}: now choose the enemy`} action={<OpenPickerButton slot="enemy" testId="matchup-choose-enemy">Choose the enemy</OpenPickerButton>} testId="matchup-need-enemy" compact>
-          {curatedForYou.length ? <CuratedLinks you={you} enemies={curatedForYou} label={`Curated briefings for ${you.name}:`} centered /> : <p>The enemy&apos;s abilities and base cooldowns follow once you choose them.</p>}
+          {curatedForYou.length ? <CuratedLinks you={you} enemies={curatedForYou} label={`Curated briefings for ${you.name}:`} centered /> : <p>The enemy&apos;s abilities, base cooldowns and crowd control follow once you choose them.</p>}
         </EmptyState>
       ) : null}
 
       {enemy && !you ? (
-        <p className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-panel border border-border bg-surface/60 px-4 py-3 text-sm text-fg-muted" data-testid="matchup-need-you">
-          <span>Choose your champion for a curated briefing on this lane, where one exists. Below is the general reference for {enemy.name}.</span>
+        <p className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-panel border border-border bg-surface/60 px-3 py-2 text-sm text-fg-muted" data-testid="matchup-need-you">
+          <span>Choose your champion for a curated briefing on this lane where one exists, or both champions&apos; facts side by side. Below are {enemy.name}&apos;s abilities.</span>
           <OpenPickerButton slot="you" testId="matchup-choose-you">
             Choose your champion
           </OpenPickerButton>
         </p>
       ) : null}
 
-      {you && enemy ? matchup ? <Briefing matchup={matchup} you={you} enemy={enemy} rows={rows} /> : <NoBriefing you={you} enemy={enemy} curatedForYou={curatedForYou} reference={{ abilities: !!enemyIntel?.abilities, notes: !!enemyIntel?.curated }} /> : null}
-
-      {enemyIntel ? <AbilitiesPanel intel={enemyIntel} title={mirror ? `${enemyIntel.champion.name}'s abilities (both sides)` : `${enemyIntel.champion.name}'s abilities`} testId="matchup-enemy-abilities" /> : null}
-
-      {hasInteractions ? interactions : null}
-      {hasLevels ? levels : null}
-
-      {yourIntel && !mirror ? (
-        // A section with a heading of its own, so its abilities' headings sit under it rather than
-        // under the panel before it: the disclosure's title is not one (a heading inside its
-        // summary is not read as one everywhere), so the heading is for screen readers alone.
-        <section>
-          <h2 className="sr-only">{`Your champion: ${yourIntel.champion.name}`}</h2>
-          <Disclosure
-            title={<span className="[overflow-wrap:anywhere]">{`Your champion: ${yourIntel.champion.name}`}</span>}
-            description={
-              // Where its abilities come from, its own version (which may differ from the enemy's), and its notes' check.
-              <span className="flex flex-col gap-1">
-                <span>Abilities and base cooldowns, for reference{yourSource ? ` · ${yourSource}` : ""}</span>
-                <CuratedLine intel={yourIntel} />
-              </span>
-            }
-            testId="matchup-your-abilities"
-          >
-            <div className="-m-3 sm:-m-4">
-              <AbilityList intel={yourIntel} testId="matchup-your-abilities-list" />
+      {enemyIntel ? (
+        <div className={COLUMNS}>
+          <div className="min-w-0 space-y-3">
+            {you && enemy && matchup ? <Briefing matchup={matchup} you={you} enemy={enemy} rows={rows} /> : null}
+            {/* A briefing that exists but shows nothing (too old, or every part resting on a change) is hidden above, and said so there. */}
+            {you && enemy && !shows ? <AssembledReference you={you} enemy={enemy} enemyIntel={enemyIntel} yourIntel={yourIntel} curatedForYou={curatedForYou} rows={rows} briefingHidden={!!matchup} /> : null}
+            {/* Side by side where the column has room, the fuller of the two the wider. */}
+            <div className={`grid gap-3 @min-[40rem]/dash:items-start ${NOTES_SPLIT[balance]}`} data-testid="matchup-notes" data-balance={balance}>
+              <InteractionsPanel matchup={matchup} enemyIntel={enemyIntel} yourIntel={yourIntel} you={you} rows={rows} />
+              <LevelNotesPanel intels={[enemyIntel, yourIntel]} />
             </div>
-          </Disclosure>
-        </section>
+          </div>
+          <div className="min-w-0 space-y-3">
+            <AbilitiesPanel intel={enemyIntel} title={mirror ? `${enemyIntel.champion.name}'s abilities (both sides)` : `${enemyIntel.champion.name}'s abilities`} testId="matchup-enemy-abilities" notice={stale} />
+            {yourIntel && !mirror ? <YourChampion intel={yourIntel} /> : null}
+          </div>
+        </div>
       ) : null}
 
       <MatchupFooter view={view} legal={legal} />

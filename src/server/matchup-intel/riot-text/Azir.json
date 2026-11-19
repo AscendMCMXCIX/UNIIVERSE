@@ -1,0 +1,21 @@
+{
+  "championId": "Azir",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Shurima's Legacy","textHash":"2b48e6cebd3bd115"},
+    "Q": {"name":"Conquering Sands","textHash":"635ae0e558f0d4be"},
+    "W": {"name":"Arise!","textHash":"abe35fed639d196f"},
+    "E": {"name":"Shifting Sands","textHash":"56ba4f6a8164f8f1"},
+    "R": {"name":"Emperor's Divide","textHash":"a80807dd73f5c632"}
+  },
+  "facts": [
+    {"slot":"Q","kind":"slow","clause":"Sand Soldiers deal magic damage to enemies they pass through and apply a slow","source":"description"},
+    {"slot":"W","kind":"charges","clause":"This Ability has […] charges.","source":"tooltip"},
+    {"slot":"E","kind":"dash","clause":"Azir shields himself briefly and dashes","source":"description","conditional":true},
+    {"slot":"E","kind":"shield","clause":"Azir shields himself briefly and dashes","source":"description"},
+    {"slot":"R","kind":"knockback","clause":"Azir summons a wall of soldiers which charge forward, knocking back and damaging enemies.","source":"description"}
+  ],
+  "disagreements": []
+}

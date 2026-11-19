@@ -1,0 +1,25 @@
+{
+  "championId": "Aatrox",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Deathbringer Stance","textHash":"9c3f3ab269373067"},
+    "Q": {"name":"The Darkin Blade","textHash":"976118deb9ac011e"},
+    "W": {"name":"Infernal Chains","textHash":"e67911c7dc6485f4"},
+    "E": {"name":"Umbral Dash","textHash":"73849734e58f16f8"},
+    "R": {"name":"World Ender","textHash":"2eb88ae49300706c"}
+  },
+  "facts": [
+    {"slot":"P","kind":"heal","clause":"Periodically, Aatrox's next basic attack deals bonus magic damage and heals him, based on the target's max health.","source":"description"},
+    {"slot":"P","kind":"empower","clause":"Periodically, Aatrox's next basic attack deals bonus magic damage and heals him, based on the target's max health.","source":"description"},
+    {"slot":"Q","kind":"knockup","clause":"If they are hit on the edge, they are briefly Knocked Up and they take […] instead.","source":"tooltip"},
+    {"slot":"Q","kind":"recast","clause":"This Ability can be Recast","source":"tooltip"},
+    {"slot":"W","kind":"pull","clause":"leave the impact area or be Pulled back to the center and damaged again for the same amount.","source":"tooltip"},
+    {"slot":"W","kind":"slow","clause":"Aatrox fires a chain, Slowing the first enemy hit by […]% for […] seconds and dealing […] physical damage.","source":"tooltip"},
+    {"slot":"E","kind":"dash","clause":"On activation, he dashes in a direction.","source":"description"},
+    {"slot":"E","kind":"heal","clause":"Passively, Aatrox heals when damaging enemy champions.","source":"description"},
+    {"slot":"R","kind":"transform","clause":"Aatrox unleashes his demonic form, fearing nearby enemy minions and gaining attack damage, increased healing, and Move Speed.","source":"description"}
+  ],
+  "disagreements": []
+}

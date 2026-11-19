@@ -1,0 +1,22 @@
+{
+  "championId": "Amumu",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Cursed Touch","textHash":"550478d1d9a2bcec"},
+    "Q": {"name":"Bandage Toss","textHash":"13d0a2238b3acee0"},
+    "W": {"name":"Despair","textHash":"4b58dc8b8a8c4e78"},
+    "E": {"name":"Tantrum","textHash":"71a9842ed4a919a5"},
+    "R": {"name":"Curse of the Sad Mummy","textHash":"de59bdaa63a5957c"}
+  },
+  "facts": [
+    {"slot":"Q","kind":"stun","clause":"Amumu tosses a sticky bandage at a target, stunning and damaging the target while he pulls himself to them.","source":"description"},
+    {"slot":"Q","kind":"dash","clause":"Amumu tosses a sticky bandage at a target, stunning and damaging the target while he pulls himself to them.","source":"description"},
+    {"slot":"W","kind":"toggle","clause":"Toggle: Amumu begins crying, dealing […] plus […]% max Health magic damage to nearby enemies every second and refreshing Curse.","source":"tooltip"},
+    {"slot":"E","kind":"damagereduction","clause":"Permanently reduces the physical damage Amumu would take.","source":"description"},
+    {"slot":"E","kind":"cooldownrefund","clause":"Each time Amumu is hit, the cooldown on Tantrum is reduced.","source":"description"},
+    {"slot":"R","kind":"stun","clause":"Amumu entangles surrounding enemy units in bandages, applying his Curse, damaging and stunning them.","source":"description"}
+  ],
+  "disagreements": []
+}

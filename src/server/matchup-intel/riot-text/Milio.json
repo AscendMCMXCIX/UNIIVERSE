@@ -1,0 +1,25 @@
+{
+  "championId": "Milio",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Fired Up!","textHash":"ca56820a48bad328"},
+    "Q": {"name":"Ultra Mega Fire Kick","textHash":"7cb183a2b824799f"},
+    "W": {"name":"Cozy Campfire","textHash":"82e1310ee50289ce"},
+    "E": {"name":"Warm Hugs","textHash":"66b2bcbbae76577a"},
+    "R": {"name":"Breath of Life","textHash":"3d79b88edcc7fb72"}
+  },
+  "facts": [
+    {"slot":"P","kind":"empower","clause":"Milio's abilities enchant allies on touch, making their next damage deal a burst of extra damage and burn the target.","source":"description"},
+    {"slot":"Q","kind":"knockback","clause":"Kick a ball that knocks back an enemy.","source":"description"},
+    {"slot":"Q","kind":"slow","clause":"The ball launches upward on hit and falls toward the enemy, damaging and slowing enemies in the area upon impact.","source":"description"},
+    {"slot":"W","kind":"heal","clause":"Create an empowering zone that heals allies and increases attack range to those inside.","source":"description"},
+    {"slot":"W","kind":"recast","clause":"Recast: Change the hearth's follow ally.","source":"tooltip"},
+    {"slot":"E","kind":"shield","clause":"Milio tosses a shield to an ally, temporarily increasing their movement speed.","source":"description"},
+    {"slot":"R","kind":"tenacity","clause":"granting […]% Tenacity for […] seconds.","source":"tooltip","qualifier":"nearby ally champions"},
+    {"slot":"R","kind":"cleanse","clause":"Milio unleashes a wave of soothing flames that heal and remove crowd control effects from allies in range.","source":"description"},
+    {"slot":"R","kind":"heal","clause":"Milio unleashes a wave of soothing flames that heal and remove crowd control effects from allies in range.","source":"description"}
+  ],
+  "disagreements": []
+}

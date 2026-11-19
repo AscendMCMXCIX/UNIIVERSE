@@ -1,0 +1,25 @@
+{
+  "championId": "Vex",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Doom 'n Gloom","textHash":"e2f642cf07bf7722"},
+    "Q": {"name":"Mistral Bolt","textHash":"4abeedeb0fa9f5f0"},
+    "W": {"name":"Personal Space","textHash":"c016d4c0afdf7a79"},
+    "E": {"name":"Looming Darkness","textHash":"69257b27cc05f95a"},
+    "R": {"name":"Shadow Surge","textHash":"78eea6790b3b2c5f"}
+  },
+  "facts": [
+    {"slot":"P","kind":"fear","clause":"Vex periodically becomes empowered, causing her next basic Ability to fear enemies and interrupt dashes.","source":"description"},
+    {"slot":"P","kind":"cooldownrefund","clause":"Whenever a nearby enemy dashes, Vex applies a mark that can be consumed for bonus damage that also reduces the cooldown of her empowered state.","source":"description"},
+    {"slot":"P","kind":"empower","clause":"Vex periodically becomes empowered, causing her next basic Ability to fear enemies and interrupt dashes.","source":"description"},
+    {"slot":"W","kind":"shield","clause":"Gain a shield and damage nearby enemies.","source":"description"},
+    {"slot":"E","kind":"slow","clause":"Summon a damaging and slowing zone that applies Gloom to enemies.","source":"description"},
+    {"slot":"E","kind":"cooldownrefund","clause":"Killing an enemy with this ability reduces Doom'n Gloom's Cooldown","source":"tooltip","qualifier":"Doom'n Gloom"},
+    {"slot":"R","kind":"dash","clause":"Recast to dash to them and deal damage.","source":"description"},
+    {"slot":"R","kind":"recast","clause":"Recast to dash to them and deal damage.","source":"description"},
+    {"slot":"R","kind":"cooldownrefund","clause":"If the marked champion dies within […] seconds of taking damage from this Ability, its Cooldown is temporarily reset.","source":"tooltip"}
+  ],
+  "disagreements": []
+}

@@ -1,0 +1,22 @@
+{
+  "championId": "Nidalee",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Prowl","textHash":"42b15a0c4ba50b41"},
+    "Q": {"name":"Javelin Toss / Takedown","textHash":"ae86f5619112b7d3"},
+    "W": {"name":"Bushwhack / Pounce","textHash":"d503db27b8e79a45"},
+    "E": {"name":"Primal Surge / Swipe","textHash":"abe4727579c41b31"},
+    "R": {"name":"Aspect Of The Cougar","textHash":"6c2e459be1d6dfb9"}
+  },
+  "facts": [
+    {"slot":"P","kind":"empower","clause":"toward the Hunted target) and her Takedown and Pounce are enhanced against them.","source":"description"},
+    {"slot":"Q","kind":"empower","clause":"As a cougar, her next attack will attempt to fatally wound her target, dealing more damage the less life they have.","source":"description"},
+    {"slot":"W","kind":"leap","clause":"As a cougar, she jumps in a direction, dealing damage in an area where she lands.","source":"description"},
+    {"slot":"E","kind":"heal","clause":"In human form, Nidalee channels the spirit of the cougar to heal her allies and imbue them with Attack Speed for a short duration.","source":"description"},
+    {"slot":"R","kind":"cooldownrefund","clause":"Passive: While in Human Form, applying Hunted refreshes this Ability's Cooldown.","source":"tooltip"},
+    {"slot":"R","kind":"transform","clause":"Nidalee transforms into a cougar, gaining new abilities.","source":"description"}
+  ],
+  "disagreements": []
+}

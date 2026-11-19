@@ -1,0 +1,22 @@
+{
+  "championId": "Syndra",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Transcendent","textHash":"d0f35ae0932df324"},
+    "Q": {"name":"Dark Sphere","textHash":"ee26e9b9d90f4ecf"},
+    "W": {"name":"Force of Will","textHash":"c7736d79bd9eeb86"},
+    "E": {"name":"Scatter the Weak","textHash":"bc5091fbe66d2ee1"},
+    "R": {"name":"Unleashed Power","textHash":"06905ea32f17dd91"}
+  },
+  "facts": [
+    {"slot":"Q","kind":"charges","clause":"Splinters of Wrath: Syndra can store […] charges of Dark Sphere.","source":"tooltip","conditional":true},
+    {"slot":"W","kind":"slow","clause":"Syndra picks up and throws a Dark Sphere or enemy minion dealing magic damage and slowing the Move Speed of enemies.","source":"description"},
+    {"slot":"W","kind":"recast","clause":"She drags it with her and can Recast","source":"tooltip"},
+    {"slot":"E","kind":"stun","clause":"Enemies hit by Dark Spheres become stunned.","source":"description"},
+    {"slot":"E","kind":"knockback","clause":"Syndra projects a wave of force, Knocking Back enemies and Dark Spheres and dealing […] magic damage.","source":"tooltip"},
+    {"slot":"E","kind":"slow","clause":"Splinters of Wrath: This Ability's width is increased and Slows enemies by […]% for […] seconds.","source":"tooltip","conditional":true}
+  ],
+  "disagreements": []
+}

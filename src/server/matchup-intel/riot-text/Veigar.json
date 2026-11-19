@@ -1,0 +1,18 @@
+{
+  "championId": "Veigar",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Phenomenal Evil Power","textHash":"274aefd55af85305"},
+    "Q": {"name":"Baleful Strike","textHash":"bb6dac84e89c2259"},
+    "W": {"name":"Dark Matter","textHash":"df472c0102c379d4"},
+    "E": {"name":"Event Horizon","textHash":"8d30a952e60ef94f"},
+    "R": {"name":"Primordial Burst","textHash":"a50df98b7478d930"}
+  },
+  "facts": [
+    {"slot":"W","kind":"cooldownrefund","clause":"Stacks of Phenomenal Evil reduce Dark Matter's cooldown.","source":"description"},
+    {"slot":"E","kind":"stun","clause":"Veigar twists the edges of space, creating a cage that Stuns enemies that pass through.","source":"description"}
+  ],
+  "disagreements": []
+}

@@ -1,0 +1,22 @@
+{
+  "championId": "Shaco",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Backstab","textHash":"f6629be77b5668c0"},
+    "Q": {"name":"Deceive","textHash":"2e50b3f258a84eab"},
+    "W": {"name":"Jack In The Box","textHash":"33b1e7d01f45a04d"},
+    "E": {"name":"Two-Shiv Poison","textHash":"c65dec17f017271f"},
+    "R": {"name":"Hallucinate","textHash":"944086bd6f1f8235"}
+  },
+  "facts": [
+    {"slot":"Q","kind":"teleport","clause":"Shaco becomes Invisible and teleports to target location.","source":"description"},
+    {"slot":"Q","kind":"stealth","clause":"Shaco becomes Invisible and teleports to target location.","source":"description"},
+    {"slot":"Q","kind":"empower","clause":"His first attack while Invisible is empowered, dealing bonus damage and critically striking if he attacks from behind.","source":"description"},
+    {"slot":"W","kind":"fear","clause":"When triggered, it will fear and attack nearby enemies.","source":"description"},
+    {"slot":"E","kind":"slow","clause":"Shaco's Shivs passively poison targets on hit, slowing their Move Speed.","source":"description"},
+    {"slot":"R","kind":"fear","clause":"and Fear for […] second.","source":"tooltip","conditional":true}
+  ],
+  "disagreements": []
+}

@@ -279,11 +279,12 @@ test("wide windows: every tab row starts at its pages' column, on each of their 
   const SETS: Array<{ nav: string; mode: "player" | "admin"; pages: string[]; ownBar?: boolean }> = [
     // Bars of main's own, above pages centred in their set's width (SECTION_HUBS).
     { nav: "team-tabs", mode: "player", pages: ["/team", "/players", "/leaderboards", "/matches"], ownBar: true },
+    { nav: "admin-users-tabs", mode: "admin", pages: ["/admin/people", "/admin/people/access", "/admin/people/privacy"], ownBar: true },
     { nav: "admin-settings-tabs", mode: "admin", pages: ["/admin/branding", "/admin/previews", "/admin/resources"], ownBar: true },
+    { nav: "admin-system-tabs", mode: "admin", pages: ["/admin/system", "/admin/data", "/admin/audit"], ownBar: true },
     // Bars inside their pages: a profile's sections, and the views of a section (Leaderboards has none since 19 Nov 2026: one page).
     { nav: "profile-tabs", mode: "player", pages: [profile, `${profile}/champions`, `${profile}/matches`, `${profile}/accounts`] },
     { nav: "match-views", mode: "player", pages: [`${profile}/matches`, `${profile}/matches?view=encounters`] },
-    { nav: "people-tabs", mode: "admin", pages: ["/admin/people", "/admin/people/access", "/admin/people/privacy"] },
   ];
   // Ultrawide and 1440p, the sidebar open; and 1080p with it folded, where 80rem pages stop growing
   // while Team's 100rem fill the room. (Under a 1600px window nothing changed: the test below.)
@@ -300,7 +301,7 @@ test("wide windows: every tab row starts at its pages' column, on each of their 
       const starts: number[] = [];
       for (const path of set.pages) {
         await loaded(page, path);
-        const nav = set.nav === "people-tabs" ? page.getByRole("navigation", { name: "Users & Permissions" }) : page.getByTestId(set.nav);
+        const nav = page.getByTestId(set.nav);
         await expect(nav).toBeVisible();
         const at = await rowEdges(nav);
         const where = `${set.nav} on ${path.replace(profile, "a profile")} at ${w.width} × ${w.height} (sidebar ${w.sidebar})`;

@@ -1,0 +1,24 @@
+{
+  "championId": "Garen",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Perseverance","textHash":"537e793e4d91bb11"},
+    "Q": {"name":"Decisive Strike","textHash":"24442a8e81c226f3"},
+    "W": {"name":"Courage","textHash":"4b2343199696411d"},
+    "E": {"name":"Judgment","textHash":"b5584b0378c39cae"},
+    "R": {"name":"Demacian Justice","textHash":"e41ebeca64204dfc"}
+  },
+  "facts": [
+    {"slot":"P","kind":"regeneration","clause":"If Garen has not recently been struck by damage or enemy abilities, he regenerates a percentage of his total health each second.","source":"description"},
+    {"slot":"Q","kind":"silence","clause":"His next attack strikes a vital area of his foe, dealing bonus damage and silencing them.","source":"description"},
+    {"slot":"Q","kind":"cleanse","clause":"Garen gains a burst of Move Speed, breaking free of all slows affecting him.","source":"description"},
+    {"slot":"Q","kind":"empower","clause":"His next attack strikes a vital area of his foe, dealing bonus damage and silencing them.","source":"description"},
+    {"slot":"W","kind":"shield","clause":"He may also activate this ability to give him a shield and tenacity for a brief moment followed by a lesser amount of damage reduction for a longer duration.","source":"description"},
+    {"slot":"W","kind":"damagereduction","clause":"He may also activate this ability to give him a shield and tenacity for a brief moment followed by a lesser amount of damage reduction for a longer duration.","source":"description"},
+    {"slot":"W","kind":"tenacity","clause":"He may also activate this ability to give him a shield and tenacity for a brief moment followed by a lesser amount of damage reduction for a longer duration.","source":"description"},
+    {"slot":"E","kind":"recast","clause":"Recast: Garen ends this Ability early.","source":"tooltip"}
+  ],
+  "disagreements": []
+}

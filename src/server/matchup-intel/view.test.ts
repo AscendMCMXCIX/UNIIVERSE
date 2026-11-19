@@ -212,6 +212,16 @@ describe("no curated matchup (Garen vs Darius)", () => {
     expect(v).toMatchObject({ you: null, enemy: null, enemyIntel: null, yourIntel: null, matchup: null, patch: { current: "26.22", data: null } });
     expect(d.loadAbilities).not.toHaveBeenCalled();
   });
+
+  it("reads the facts from Riot's text only for the champions they would show for: none for a champion with checked notes, which win", async () => {
+    const riotText = vi.fn(async (ids: readonly string[]) => Object.fromEntries(ids.map((id) => [id, null])));
+    await buildMatchupPageView({ champion: "Garen", vs: "Renekton" }, { ...deps(), riotText });
+    expect(riotText).toHaveBeenLastCalledWith(["Garen"]);
+    // Both with checked notes (Renekton's, in this mirror): no file is read at all.
+    riotText.mockClear();
+    await buildMatchupPageView({ champion: "Renekton", vs: "Renekton" }, { ...deps(), riotText });
+    expect(riotText).not.toHaveBeenCalled();
+  });
 });
 
 /** Both champions stored as given (keyed by id), at the version each record carries. */

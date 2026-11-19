@@ -1,6 +1,6 @@
 # Hosting usage (Supabase and Vercel free plans)
 
-UNIIVERSE runs on the free plans of Supabase (the Postgres database) and Vercel (the app). The newest record is first: Vercel Active CPU on 8–9 Nov. On 19 Oct 2026 the owner reported:
+UNIIVERSE runs on the free plans of Supabase (the Postgres database) and Vercel (the app). The newest record is first. On 19 Oct 2026 the owner reported:
 - Supabase egress at 6.25 GB of the 5 GB a month;
 - database size at 0.311 GB of 0.5 GB;
 - a Vercel allowance of 10 GB described as "Functions Storage" at 100%.
@@ -10,6 +10,28 @@ This page records what caused that, what was changed, how it was measured, and h
 ## 19 Nov 2026: the deploy limit raised to about 6 a day
 
 The owner asked on 19 Nov for faster delivery and for the three-a-day limit to be challenged. What a deploy costs is measured above ("What a deploy costs"): about 12.5 CPU-seconds for the signed-in Production check, plus 1–2 seconds of cold starts, so about 15–20 CPU-seconds on Vercel. A day without deploys costs about 100–150 CPU-seconds, against an allowance of about 480. Six deploys a day come to about 90–120 CPU-seconds, for a day of about 190–270: well under half the allowance. **The limit is now about 6 production deploys a day, a batch counting as one** (CLAUDE.md §4). The owner's Usage → Fluid Active CPU readings (STATUS, "Needs the owner") remain the check: a reading above about 300 CPU-seconds a day brings it back down.
+
+## 19 Nov 2026: Vercel's memory allowance, the database's size, and what forward capture adds
+
+**Vercel's Hobby plan also caps Provisioned Memory**, which this page did not track until now (mi-evidence, 19 Nov 2026, from vercel.com/docs/plans/hobby, /docs/functions/usage-and-pricing and /docs/functions/configuring-functions/memory):
+- Hobby includes "Active CPU 4 CPU-hrs" and "Provisioned Memory 360 GB-hrs" in 30 days, about 12 GB-hours a day, beside 1,000,000 function invocations and a 300-second function limit.
+- "Hobby users will always use the default memory size of 2 GB (1 vCPU)", and Provisioned Memory "continues billing while handling requests, even during I/O operations". So a function's memory-time is its wall time × 2 GB, including the time it waits on the database or on Riot, which Active CPU does not count.
+- Exceeding any Hobby allowance pauses the deployment, as Active CPU did on 8 Nov.
+- No API on Hobby reads either figure: the owner reads Usage → Provisioned Memory beside Fluid Active CPU in the dashboard. A job that waits on Riot for long (a sampler held to Riot's rate limits, mi-evidence §4) costs memory-time far more than CPU, so any such job is sized against both.
+
+**The database is 173 MB, 34% of its 500 MB plan** (Production check 44324710345, 18 Nov 2026), not the 361–380 MB of 2 Nov below: #86 and #138 dropped about 206 MB of retired tables on 4 Nov. It grows by about 2 MB a day.
+
+**Forward capture (20 Nov 2026) adds to every game stored from then on** (docs/DATA_PIPELINES.md, "What a stored game keeps from 20 Nov 2026 on"), measured on games shaped like Riot's (`tests/db/forward-capture.test.ts`, against the same games as compaction kept them before):
+
+| | Stored (compressed, as the 500 MB counts it) | As text (what reading it whole sends) |
+|---|---|---|
+| A match record (ten players) | about +1 KB (0.9–1.0 KB) | about +4.8 KB |
+| A timeline | +130 to +180 bytes a minute of game: +3.2 KB at 25 minutes, +5.3 KB at 31, +6.0 KB at 38 | +330 to +400 bytes a minute: +8.6 to +12.0 KB |
+
+- The positions (x and y at every frame) and the items used up are the largest parts of a timeline's growth; the ten challenge figures are the largest part of a record's.
+- At the rate of 3–7 Nov (about 75 new account games a day, an upper bound: a game two members played is stored once), that is at most about 0.5 MB a day more, against a guard of 1 MB a day above the 2 MB a day: the next `db-usage` after the deploy, and one a week later, show it.
+- Egress: the champion window reads only its two players' gold, experience and CS series, as before. Opening one game reads its whole record and timeline, about 15 KB more for a game stored since; a Match History page of 10 new games reads about 48 KB more. Small against the 120 MB a day.
+- The overhaul plan's first estimate (4 KB a timeline and 0.8 KB a record) covered the shards, the positions and the haste; the list grew to the level, the four timeline events, the ten challenge figures and the support figures, so the measured figures above replace it.
 
 ## 18 Nov 2026: a batch of merges deploys once
 
@@ -82,6 +104,7 @@ This change touches only tests, scripts and docs, so by its own rule it does not
 - **Prefetches start Riot syncs.** A prefetch of a profile renders the profile's layout, and the layout starts the background account refresh. So seeing a teammate's name on Players syncs their accounts if they are 15 minutes old or more: about 55 Riot requests and about 3 CPU-seconds a day.
   - The layout cannot tell a prefetch from a visit. Next 16 removes its router headers (`next-router-prefetch`, `next-router-segment-prefetch`) before the proxy runs (`server/web/adapter.js`), and hides them from `headers()` too. A proxy-set mark was tried and measured to make no difference.
   - The fix is to start the refresh from the mounted page's first freshness request instead (`/api/freshness`, which already checks access). The history slices that continue while a profile stays open start from the same render, so they move with it. That needs its own review.
+  - **Done meanwhile (navigation N1, 19 Nov 2026):** no link of the frame fetches a profile ahead of a tap (`prefetchOf` in `src/lib/nav.ts`): My Profile in every bar (before, a member's own profile was prefetched on every page view, so their own accounts were synced every 15 minutes of browsing), and a profile's sections, in the phone's top bar and the tablet's and desktop's tabs. Links to profiles inside pages (Players' rows, the lineup, a record's holder) still prefetch until the refresh moves (`e2e/journeys.spec.ts` checks the bar).
 - **The rank watch's writes.** It writes two locked transactions per account and queue on every reading, about 130 statements a run, even when nothing changed. Batching them would save about 18 s a day, but it touches the LP readings, so it needs a careful review first.
 - **Account sync** reads the rank again although the rank watch read it within 5 minutes, and rewrites every mastery row. About 1 s a day in all.
 - **Admin pages left open** re-render on every routine job run (0–3 s a day).
@@ -167,7 +190,7 @@ Branding images, from `db-usage` on the same day:
   - Worst case: someone opens all those pages after every hourly run, about 24 × 4.5 MB, roughly 110 MB a day.
   - A realistic day is a few MB to a few tens of MB, under the 120 MB daily budget.
   - This lasts until the backlog is gone: about 3,400 games on 20 Oct, at 30 a run until 22 Oct and 60 after, and sooner for players who use Refresh.
-- **Pausing it.** Set its interval very high in **Admin → Data & Riot**, or set `FIGURES_BACKFILL_PER_RUN=0`.
+- **Pausing it.** Set its interval very high in **Admin → Data & Integrations → Details → Advanced → Schedule** (the Owner only since 19 Nov 2026; 0 turns it off after "TURN OFF figures-backfill" is typed, and `/api/health` then names it), or set `FIGURES_BACKFILL_PER_RUN=0`.
 
 **The counter's first day** (`egress` and `db-usage` runs 39417129007 and 39417193755, 20 Oct 11:45 UTC). 19 Oct reads 0 MB because counting began on 20 Oct at 00:58 UTC. 20 Oct had 136 MB by 11:45 UTC (12,297 calls), already over the 120 MB budget, so the next scheduled run fails on it, as intended. A day with four production deployments:
 

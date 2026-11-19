@@ -1,0 +1,22 @@
+{
+  "championId": "Talon",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Blade's End","textHash":"19c303ca05c81b6e"},
+    "Q": {"name":"Noxian Diplomacy","textHash":"6001291414fb475d"},
+    "W": {"name":"Rake","textHash":"9ad933d6d92c5a61"},
+    "E": {"name":"Assassin's Path","textHash":"d0e681bb02ed2940"},
+    "R": {"name":"Shadow Assault","textHash":"02663ee43296d5a6"}
+  },
+  "facts": [
+    {"slot":"Q","kind":"leap","clause":"If they are outside melee range, Talon will leap at his target before stabbing them.","source":"description"},
+    {"slot":"Q","kind":"heal","clause":"If this Ability kills the target, Talon restores […] Health and refunds","source":"tooltip"},
+    {"slot":"Q","kind":"cooldownrefund","clause":"Talon refunds some health and cooldown if this ability kills the target.","source":"description"},
+    {"slot":"W","kind":"slow","clause":"The returning blades deal bonus damage and slow units hit.","source":"description"},
+    {"slot":"E","kind":"leap","clause":"Talon vaults over any terrain or structure, up to a max distance.","source":"description"},
+    {"slot":"R","kind":"stealth","clause":"Talon disperses a ring of blades and becomes Invisible while gaining additional Move Speed.","source":"description"}
+  ],
+  "disagreements": []
+}

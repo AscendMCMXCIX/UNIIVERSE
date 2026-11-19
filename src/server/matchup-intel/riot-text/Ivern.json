@@ -1,0 +1,24 @@
+{
+  "championId": "Ivern",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Friend of the Forest","textHash":"00973e637fefe44a"},
+    "Q": {"name":"Rootcaller","textHash":"ae707b4439fdd220"},
+    "W": {"name":"Brushmaker","textHash":"6f529f080620a719"},
+    "E": {"name":"Triggerseed","textHash":"d31596764a9bbc86"},
+    "R": {"name":"Daisy!","textHash":"711501caf7fe92bd"}
+  },
+  "facts": [
+    {"slot":"Q","kind":"root","clause":"Ivern conjures a vine, dealing damage and rooting enemy targets hit.","source":"description"},
+    {"slot":"Q","kind":"dash","clause":"Recast: Ivern dashes directly onto the Rooted enemy.","source":"tooltip"},
+    {"slot":"Q","kind":"recast","clause":"Recast: Ivern dashes directly onto the Rooted enemy.","source":"tooltip"},
+    {"slot":"Q","kind":"cooldownrefund","clause":"Hitting non-epic monsters reduces Rootcaller's cooldown","source":"tooltip"},
+    {"slot":"E","kind":"slow","clause":"Ivern places a shield on an ally which explodes after a short duration slowing and damaging enemies.","source":"description"},
+    {"slot":"E","kind":"shield","clause":"Ivern places a shield on an ally which explodes after a short duration slowing and damaging enemies.","source":"description"},
+    {"slot":"R","kind":"knockup","clause":"dealing […] magic damage to all enemies hit as well as Knocking Up for […] second.","source":"tooltip","conditional":true},
+    {"slot":"R","kind":"recast","clause":"Re-cast command Daisy to attack or move.","source":"description"}
+  ],
+  "disagreements": []
+}

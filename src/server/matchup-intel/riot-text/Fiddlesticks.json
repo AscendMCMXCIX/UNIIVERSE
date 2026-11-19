@@ -1,0 +1,22 @@
+{
+  "championId": "Fiddlesticks",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"A Harmless Scarecrow","textHash":"66c0237a28319c71"},
+    "Q": {"name":"Terrify","textHash":"dcb54cd5bb92712f"},
+    "W": {"name":"Bountiful Harvest","textHash":"6eac95a9229834cf"},
+    "E": {"name":"Reap","textHash":"c4d0699c3897dca2"},
+    "R": {"name":"Crowstorm","textHash":"6acc7e450b3ccf65"}
+  },
+  "facts": [
+    {"slot":"Q","kind":"fear","clause":"Fiddlesticks damaging enemies with spells while unseen or targeting an enemy with Terrify's activation strikes a target unit with fear, causing it to flee in terror for a duration.","source":"description"},
+    {"slot":"W","kind":"heal","clause":"Fiddlesticks restores […]% of damage as Health.","source":"tooltip"},
+    {"slot":"W","kind":"cooldownrefund","clause":"If Fiddlesticks ends the channel without interruption, the remaining Cooldown is reduced","source":"tooltip"},
+    {"slot":"E","kind":"slow","clause":"Fiddlesticks slashes an area with its scythe, slowing all enemies hit and silencing enemies hit in the center of the slash.","source":"description"},
+    {"slot":"E","kind":"silence","clause":"Fiddlesticks slashes an area with its scythe, slowing all enemies hit and silencing enemies hit in the center of the slash.","source":"description"},
+    {"slot":"R","kind":"teleport","clause":"Fiddlesticks channels for […] seconds, then teleports and unleashes a murder of crows, dealing […] magic damage over […] seconds.","source":"tooltip"}
+  ],
+  "disagreements": []
+}

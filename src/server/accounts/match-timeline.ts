@@ -1,6 +1,6 @@
 import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
-import { accountMatches, matchDetails, matchTimelines, type MatchEvents, type MatchFrames, type MatchObjectiveEvent, type MatchTimelineParticipant } from "@/server/db/schema";
+import { accountMatches, matchDetails, matchTimelines, type MatchEvents, type MatchFramePlayer, type MatchFrames, type MatchObjectiveEvent, type MatchPlateEvent, type MatchTimelineParticipant } from "@/server/db/schema";
 import type { RiotMatchTimeline } from "@/server/riot/api/schemas";
 import { listAccountsForPlayer } from "@/server/accounts/repository";
 import { createRiotClient, RiotApiError, type RiotApiClient } from "@/server/riot/api/client";
@@ -19,13 +19,20 @@ import type { TimelineEventsView } from "@/domain/match-events";
   renders or during the account sync: it is fetched once, when a player first opens that match's
   breakdown or when the timeline backfill reaches it, and kept compactly: the purchases and skill
   level-ups, when each player took part in a champion kill, each player's gold, experience and CS
-  at every frame (nothing else of the frames), and the objectives and buildings each team took.
-  Timelines kept before the kills and objectives were (29 Oct 2026) are fetched again once, the
-  next time someone opens their Timeline. Nothing is reconstructed from the final inventory or the
-  final figures: without a timeline the page says so.
+  at every frame, and the objectives and buildings each team took. From 20 Nov 2026 on also each
+  player's place on the map, ability haste and level at every frame, when they reached each level,
+  what they sold and what was used up (potions, wards, components), and the turret plates each team
+  took (nothing else of the frames or events). Timelines kept before the kills and objectives were
+  (29 Oct 2026) are fetched again once, the next time someone opens their Timeline; older timelines
+  are never fetched again for the newer fields. Nothing is reconstructed from the final inventory or
+  the final figures: without a timeline the page says so.
 */
 
-/** Each player's gold, experience and CS at every frame, aligned with the frames' own timestamps. */
+/**
+ * Each player's gold, experience and CS at every frame, aligned with the frames' own timestamps, and
+ * where Riot sent them in every one of the player's frames, their place on the map (x and y), ability
+ * haste and level.
+ */
 export function timelineFrames(t: RiotMatchTimeline): MatchFrames {
   const puuidOf = new Map<number, string>(t.info.participants.map((p) => [p.participantId, p.puuid]));
   if (!puuidOf.size) t.metadata.participants.forEach((puuid, i) => puuidOf.set(i + 1, puuid));
@@ -35,6 +42,10 @@ export function timelineFrames(t: RiotMatchTimeline): MatchFrames {
   const out: MatchFrames = { t: frames.map((f) => f.timestamp!), p: {} };
   for (const [id, puuid] of puuidOf) {
     const row = { g: [] as number[], x: [] as number[], c: [] as number[] };
+    const px: number[] = [];
+    const py: number[] = [];
+    const ah: number[] = [];
+    const lv: number[] = [];
     let complete = true;
     for (const f of frames) {
       const pf = f.participantFrames![String(id)];
@@ -45,9 +56,20 @@ export function timelineFrames(t: RiotMatchTimeline): MatchFrames {
       row.g.push(pf.totalGold);
       row.x.push(pf.xp);
       row.c.push((pf.minionsKilled ?? 0) + (pf.jungleMinionsKilled ?? 0));
+      if (pf.position && Number.isFinite(pf.position.x) && Number.isFinite(pf.position.y)) {
+        px.push(Math.round(pf.position.x));
+        py.push(Math.round(pf.position.y));
+      }
+      const haste = pf.championStats?.abilityHaste;
+      if (typeof haste === "number" && Number.isFinite(haste)) ah.push(haste);
+      if (typeof pf.level === "number" && Number.isFinite(pf.level)) lv.push(pf.level);
     }
-    // A player with a gap in the frames is left out rather than given invented values.
-    if (complete && frames.length) out.p[puuid] = row;
+    // A player with a gap in the frames is left out rather than given invented values, and so is
+    // any newer series with a gap of its own (the others are kept).
+    if (complete && frames.length) {
+      const all = frames.length;
+      out.p[puuid] = { ...row, ...(px.length === all ? { px, py } : {}), ...(ah.length === all ? { ah } : {}), ...(lv.length === all ? { lv } : {}) };
+    }
   }
   return out;
 }
@@ -66,14 +88,21 @@ const TOWER_TIER: Record<string, string> = { OUTER_TURRET: "OUTER", INNER_TURRET
 
 /**
  * The objectives and buildings each team took, in order: epic monsters (dragons with their element,
- * the Elder Dragon, Baron, the Rift Herald, voidgrubs, Atakhan), towers and inhibitors. Team facts
- * only: who took part is not kept here. Riot names the side that lost a building; the other side took it.
+ * the Elder Dragon, Baron, the Rift Herald, voidgrubs, Atakhan), towers and inhibitors; and apart
+ * from them, the turret plates (`plates`, with their lane). Team facts only: who took part is not
+ * kept here. Riot names the side that lost a building or a plate; the other side took it.
  */
 export function timelineEvents(t: RiotMatchTimeline): MatchEvents {
   // Riot's participants 1 to 5 play on the blue side (100), 6 to 10 on the red side (200).
   const sideOf = (participantId: number | undefined) => (participantId && participantId >= 1 && participantId <= 10 ? (participantId <= 5 ? 100 : 200) : null);
   const objectives: MatchObjectiveEvent[] = [];
+  const plates: MatchPlateEvent[] = [];
   for (const e of t.info.frames.flatMap((f) => f.events).sort((a, b) => a.timestamp - b.timestamp)) {
+    if (e.type === "TURRET_PLATE_DESTROYED") {
+      const lane = LANE[e.laneType ?? ""];
+      if (lane && (e.teamId === 100 || e.teamId === 200)) plates.push({ t: e.timestamp, team: e.teamId === 100 ? 200 : 100, lane });
+      continue;
+    }
     if (e.type === "ELITE_MONSTER_KILL") {
       const kind = MONSTER_KIND[e.monsterType ?? ""];
       const team = e.killerTeamId === 100 || e.killerTeamId === 200 ? e.killerTeamId : sideOf(e.killerId);
@@ -87,7 +116,7 @@ export function timelineEvents(t: RiotMatchTimeline): MatchEvents {
       objectives.push({ t: e.timestamp, team: e.teamId === 100 ? 200 : 100, kind, ...(detail ? { detail } : {}) });
     }
   }
-  return { objectives };
+  return { objectives, plates };
 }
 
 /**
@@ -110,17 +139,23 @@ export async function keptTimeline(db: Db, row: typeof matchTimelines.$inferInse
 /**
  * A timeline fetched again, added to the one kept before (if any) without replacing what that held:
  * each player's stored purchases and skills stay, and the answer only fills what the row lacked
- * (kill, death and assist times, frames, the objectives). Both have been through keptTimeline, so a
- * player erased since appears in neither. A timeline Riot no longer provides keeps everything kept.
+ * (kill, death and assist times, frames, the objectives, and the fields kept from 20 Nov 2026 on:
+ * level times, sales, items used up, the turret plates, and each player's place, haste and level at
+ * frames that are the answer's own frames). Both have been through keptTimeline, so a player erased
+ * since appears in neither. A timeline Riot no longer provides keeps everything kept.
  */
 export function completedTimeline(stored: Pick<TimelineRow, "participants" | "frames" | "events"> | undefined, fresh: typeof matchTimelines.$inferInsert): Pick<typeof matchTimelines.$inferInsert, "participants" | "frames" | "events"> {
   if (!stored) return { participants: fresh.participants, frames: fresh.frames, events: fresh.events };
   const answer = new Map(fresh.participants.map((p) => [p.puuid, p]));
   const kept = new Set(stored.participants.map((p) => p.puuid));
+  // The newer per-player lists are filled only on a timeline kept before them (no plates yet): on a
+  // newer one, a list it lacks means there was nothing to keep.
+  const older = !stored.events?.plates;
   const participants = stored.participants.length
     ? [
         ...stored.participants.map((p) => {
           const f = answer.get(p.puuid);
+          const levels = p.levels ? { levels: p.levels, ...(p.levelFrom ? { levelFrom: p.levelFrom } : {}) } : older && f?.levels ? { levels: f.levels, ...(f.levelFrom ? { levelFrom: f.levelFrom } : {}) } : {};
           return {
             ...p,
             purchases: p.purchases.length ? p.purchases : (f?.purchases ?? []),
@@ -128,25 +163,49 @@ export function completedTimeline(stored: Pick<TimelineRow, "participants" | "fr
             ...((p.kills ?? f?.kills) ? { kills: p.kills ?? f!.kills } : {}),
             ...((p.deaths ?? f?.deaths) ? { deaths: p.deaths ?? f!.deaths } : {}),
             ...((p.assists ?? f?.assists) ? { assists: p.assists ?? f!.assists } : {}),
+            ...levels,
+            ...((p.sold ?? (older ? f?.sold : undefined)) ? { sold: p.sold ?? f!.sold } : {}),
+            ...((p.destroyed ?? (older ? f?.destroyed : undefined)) ? { destroyed: p.destroyed ?? f!.destroyed } : {}),
           };
         }),
         ...fresh.participants.filter((p) => !kept.has(p.puuid)),
       ]
     : fresh.participants;
-  return {
-    participants,
-    frames: stored.frames && stored.frames.t.length ? stored.frames : fresh.frames,
-    events: stored.events && !stored.events.missing ? stored.events : (fresh.events ?? stored.events),
-  };
+  const events = stored.events && !stored.events.missing ? (stored.events.plates || !fresh.events?.plates ? stored.events : { ...stored.events, plates: fresh.events.plates }) : (fresh.events ?? stored.events);
+  return { participants, frames: completedFrames(stored.frames, fresh.frames), events };
 }
 
-/** Purchases (undone ones removed), skill level-ups and the champion kills each player took part in, from a Riot timeline. */
+/** Kept frames with the newer series filled from an answer whose frames are the same frames (the same timestamps); else as kept. */
+function completedFrames(stored: MatchFrames | null | undefined, fresh: MatchFrames | null | undefined): MatchFrames | null | undefined {
+  if (!stored || !stored.t.length) return fresh;
+  if (!fresh || fresh.t.length !== stored.t.length || fresh.t.some((ms, i) => ms !== stored.t[i])) return stored;
+  const p: Record<string, MatchFramePlayer> = {};
+  for (const [puuid, mine] of Object.entries(stored.p)) {
+    const theirs = fresh.p[puuid];
+    p[puuid] = theirs
+      ? {
+          ...mine,
+          ...(!mine.px && theirs.px && theirs.py ? { px: theirs.px, py: theirs.py } : {}),
+          ...(!mine.ah && theirs.ah ? { ah: theirs.ah } : {}),
+          ...(!mine.lv && theirs.lv ? { lv: theirs.lv } : {}),
+        }
+      : mine;
+  }
+  return { t: stored.t, p };
+}
+
+/**
+ * Purchases (undone ones removed), skill level-ups and the champion kills each player took part in,
+ * from a Riot timeline; and when each player reached each level, what they sold and what was used
+ * up (`levels`, `sold`, `destroyed`, each only when there is something to keep).
+ */
 export function timelineParticipants(t: RiotMatchTimeline): MatchTimelineParticipant[] {
   const puuidOf = new Map<number, string>(t.info.participants.map((p) => [p.participantId, p.puuid]));
   // Older timelines leave info.participants empty: participant n is the n-th of metadata.participants.
   if (!puuidOf.size) t.metadata.participants.forEach((puuid, i) => puuidOf.set(i + 1, puuid));
-  const by = new Map<number, Required<MatchTimelineParticipant>>();
-  for (const [id, puuid] of puuidOf) by.set(id, { puuid, purchases: [], skills: [], kills: [], deaths: [], assists: [] });
+  type Entry = Required<Pick<MatchTimelineParticipant, "puuid" | "purchases" | "skills" | "kills" | "deaths" | "assists" | "sold" | "destroyed">> & { levelUps: Array<[number, number]> };
+  const by = new Map<number, Entry>();
+  for (const [id, puuid] of puuidOf) by.set(id, { puuid, purchases: [], skills: [], kills: [], deaths: [], assists: [], sold: [], destroyed: [], levelUps: [] });
   const events = t.info.frames.flatMap((f) => f.events).sort((a, b) => a.timestamp - b.timestamp);
   for (const e of events) {
     if (e.type === "CHAMPION_KILL") {
@@ -159,16 +218,42 @@ export function timelineParticipants(t: RiotMatchTimeline): MatchTimelinePartici
     const p = e.participantId !== undefined ? by.get(e.participantId) : undefined;
     if (!p) continue;
     if (e.type === "ITEM_PURCHASED" && e.itemId) p.purchases.push([e.timestamp, e.itemId]);
+    else if (e.type === "ITEM_SOLD" && e.itemId) p.sold.push([e.timestamp, e.itemId]);
+    else if (e.type === "ITEM_DESTROYED" && e.itemId) p.destroyed.push([e.timestamp, e.itemId]);
     else if (e.type === "ITEM_UNDO" && e.beforeId) {
-      // An undone purchase: drop the latest purchase of that item.
+      // An undone purchase: drop the latest purchase of that item, and what that purchase used up
+      // (the components it consumed, recorded at the same moment), which the undo gives back.
       for (let i = p.purchases.length - 1; i >= 0; i--)
         if (p.purchases[i]![1] === e.beforeId) {
-          p.purchases.splice(i, 1);
+          const [at] = p.purchases.splice(i, 1)[0]!;
+          p.destroyed = p.destroyed.filter(([ms]) => ms !== at);
+          break;
+        }
+    } else if (e.type === "ITEM_UNDO" && e.afterId) {
+      // An undone sale: the item comes back, so the latest sale of it is dropped.
+      for (let i = p.sold.length - 1; i >= 0; i--)
+        if (p.sold[i]![1] === e.afterId) {
+          p.sold.splice(i, 1);
           break;
         }
     } else if (e.type === "SKILL_LEVEL_UP" && e.levelUpType !== "EVOLVE" && e.skillSlot && e.skillSlot >= 1 && e.skillSlot <= 4) p.skills.push(e.skillSlot);
+    else if (e.type === "LEVEL_UP" && typeof e.level === "number") p.levelUps.push([e.timestamp, e.level]);
   }
-  return [...by.values()];
+  return [...by.values()].map(({ levelUps, sold, destroyed, ...p }) => ({ ...p, ...levelsOf(levelUps), ...(sold.length ? { sold } : {}), ...(destroyed.length ? { destroyed } : {}) }));
+}
+
+/**
+ * Riot's LEVEL_UP events as kept: when each level was reached, starting from the first level they
+ * name (`levelFrom`, given only when it is not 2). Nothing when they skip or repeat a level: the
+ * level at every frame is kept as well (`lv`), and a wrong time is worse than none.
+ */
+function levelsOf(levelUps: ReadonlyArray<[number, number]>): Pick<MatchTimelineParticipant, "levels" | "levelFrom"> {
+  if (!levelUps.length) return {};
+  // Two levels gained at once share a moment: in level order.
+  const ups = [...levelUps].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const from = ups[0]![1];
+  if (!Number.isInteger(from) || from < 2 || ups.some(([, level], i) => level !== from + i)) return {};
+  return { levels: ups.map(([ms]) => ms), ...(from !== 2 ? { levelFrom: from } : {}) };
 }
 
 export interface BuildStep {
@@ -356,7 +441,8 @@ export async function getMatchTimeline(db: Db, playerId: string, matchId: string
   if ("status" in found) return found;
   const { row, puuids, eventsNote } = found;
   const meTimeline = row.participants.find((p) => puuids.has(p.puuid)) ?? null;
-  const parts = (await loadCompositionParticipants(db, [matchId])).get(matchId) ?? [];
+  // With Riot's two readings of each position: the lane is found by the one lane opponent rule.
+  const parts = (await loadCompositionParticipants(db, [matchId], { lanes: true })).get(matchId) ?? [];
   const meSlot = parts.findIndex((p) => puuids.has(p.puuid));
   const me = meSlot >= 0 ? parts[meSlot]! : null;
   const frames = row.frames && row.frames.t.length ? row.frames : null;

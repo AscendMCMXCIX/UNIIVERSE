@@ -26,6 +26,7 @@ function syncFailureSummary(failed: number, tried: number): string | undefined {
 
 defineJob({
   key: "account-sync",
+  kind: "refresh",
   description: "Refresh linked Riot accounts, most urgent first (new links, unfinished season history, active players, then the rest): PUUID, rank, mastery and match history.",
   defaultIntervalMinutes: 15,
   run: async (ctx) => {
@@ -68,6 +69,7 @@ defineJob({
 
 defineJob({
   key: "timeline-backfill",
+  kind: "refresh",
   description: "Fetch the match timelines Matchups needs (the linked players' own rift games with a lane opponent), newest first, a few per run, stopping at the first Riot refusal. Timelines Riot no longer provides are recorded and not asked for again; one Riot cannot serve right now is passed over, a few a run, and asked for again later.",
   defaultIntervalMinutes: 60,
   run: async (ctx) => {
@@ -84,6 +86,7 @@ defineJob({
 
 defineJob({
   key: "figures-backfill",
+  kind: "refresh",
   description: "Fetch again, once, the full record of the linked players' games stored before multikills and the other extra figures were kept (Season 2026 on), newest first, a few per run, stopping at the first Riot refusal. Records Riot no longer provides are marked and not asked for again; one Riot cannot serve right now is passed over, a few a run, and asked for again later.",
   defaultIntervalMinutes: 60,
   run: async (ctx) => {
@@ -102,6 +105,7 @@ defineJob({
 
 defineJob({
   key: "rank-checks",
+  kind: "refresh",
   description: "Check the current rank of the other players in the members' games of the last 7 days once each game is collected (LEAGUE-V4, one request a player, at most 30 a run), so every recent game shows the ranks around it whether or not anyone opened it. Within 600 of the 1,000 daily rank checks and half of Riot's rate limits; waits only for Riot's one-second window to turn over, within its 15 seconds.",
   defaultIntervalMinutes: 15,
   run: async (ctx) => {

@@ -1,0 +1,21 @@
+{
+  "championId": "Draven",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"League of Draven","textHash":"43bfe2061224048b"},
+    "Q": {"name":"Spinning Axe","textHash":"1e3056d522324a6f"},
+    "W": {"name":"Blood Rush","textHash":"e74664da79027fda"},
+    "E": {"name":"Stand Aside","textHash":"bbcc539c84cfeee6"},
+    "R": {"name":"Whirling Death","textHash":"45693828ed35dcbe"}
+  },
+  "facts": [
+    {"slot":"Q","kind":"empower","clause":"Draven's next attack will deal bonus physical damage.","source":"description"},
+    {"slot":"W","kind":"cooldownrefund","clause":"Catching a Spinning Axe will refresh the cooldown of Blood Rush.","source":"description"},
+    {"slot":"E","kind":"knockback","clause":"Draven throws his axes, dealing physical damage to targets hit and knocking them aside.","source":"description"},
+    {"slot":"E","kind":"slow","clause":"Targets hit are slowed.","source":"description"},
+    {"slot":"R","kind":"recast","clause":"Upon hitting a champion or Recasting, they reverse direction and return to Draven.","source":"tooltip"}
+  ],
+  "disagreements": []
+}

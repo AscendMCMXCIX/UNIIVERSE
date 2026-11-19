@@ -6,6 +6,7 @@ import { avatarUrl, createUser, findUserByUsername, getUser, listUsers, normalis
 import { revokeAllSessions } from "./sessions";
 import type { IdentityCheck } from "@/server/riot/verify-identity";
 import { ERASED_IDENTITY_MESSAGE, erasureFilter } from "@/server/privacy/ledger";
+import { isVerificationAccount } from "./verification-account";
 
 /*
   Account administration, shared by Admin Mode → Users & Permissions.
@@ -13,7 +14,9 @@ import { ERASED_IDENTITY_MESSAGE, erasureFilter } from "@/server/privacy/ledger"
   the caller is an administrator and pass the result on. The rules that keep the site run by
   someone: nobody changes their own account here, the last active administrator stays one, and
   only the Owner changes the Owner account (other administrators cannot reset its password,
-  deactivate, delete or demote it).
+  deactivate, delete or demote it, or take its profile off the team). The Production check's
+  verification account is kept by its job: Admin may deactivate it (the off switch for the
+  signed-in checks) or delete it (the job makes it again), and nothing else.
 */
 
 type VerifiedIdentity = Extract<IdentityCheck, { status: "verified" }>;
@@ -138,6 +141,40 @@ export async function guardOwnerAccount(db: Db, actorId: string | null, target: 
   if (actor?.role !== "owner") throw new UserError(`Only the Owner can ${what} the Owner account.`);
 }
 
+/**
+ * The Production check's verification account ("verify", no player profile: jobs/verify-account.ts)
+ * is kept by its job, which withdraws its password once its access, profile or name changes. So
+ * Admin refuses every such change outright (access level, groups, permissions, administrator,
+ * role, password reset, rename, erasure) instead of leaving the derived password open until the
+ * job's next run. Deactivating it (the documented off switch for the signed-in checks) and deleting
+ * it (the job creates it again) stay allowed. A call with no actor (a script on the server, the job
+ * itself, never a request) is not refused here.
+ */
+export function guardVerificationAccount(actorId: string | null, target: Pick<UserRecord, "username" | "playerId" | "role">, what: string): void {
+  if (actorId && isVerificationAccount(target)) throw new UserError(`The Production check's account is kept automatically: you cannot ${what} it. Deactivate it to turn the signed-in checks off.`);
+}
+
+/**
+ * Only the Owner changes the Owner's profile's team membership (taking it off the team would drop
+ * the Owner from Players and the lineup). The profile's account, if it has one, decides.
+ */
+export async function guardProfileAccount(db: Db, actorId: string | null, playerId: string, what: string): Promise<void> {
+  const [account] = await db.select({ role: users.role }).from(users).where(eq(users.playerId, playerId));
+  if (account) await guardOwnerAccount(db, actorId, account, what);
+}
+
+/**
+ * A profile with a sign-in account is never archived on its own (19 Nov 2026), whoever asks, the
+ * Owner included: archiving drops it from Players and the lineup, which is the team membership
+ * setTeamMemberAction guards (the Owner's only by the Owner), and Admin offers Archive only for
+ * profiles without an account. Deleting the account archives its profile. Restoring stays open: it
+ * only brings a profile back.
+ */
+export async function guardArchiveProfile(db: Db, playerId: string): Promise<void> {
+  const [account] = await db.select({ id: users.id }).from(users).where(eq(users.playerId, playerId));
+  if (account) throw new UserError("This profile belongs to an account, so it is not archived on its own: change its team membership, or delete the account (Admin Mode → Users & Permissions). Nothing was changed.");
+}
+
 /** Deactivating signs the account out everywhere and blocks sign-in; reactivating restores it with the same password. */
 export async function setAccountActive(db: Db, actorId: string | null, userId: string, active: boolean): Promise<UserRecord> {
   const target = await getUser(db, userId);
@@ -196,6 +233,7 @@ export async function setAccountRole(db: Db, actorId: string | null, userId: str
   const target = await getUser(db, userId);
   if (!target) throw new UserError("Account not found.");
   if (role === "owner" && target.role !== "owner") throw new UserError("There is one Owner account (the administrative account). Other accounts get access levels and groups instead.");
+  guardVerificationAccount(actorId, target, "change the role of");
   if (role !== "owner") {
     guardSelf(actorId, userId, "remove Owner access from");
     await guardLastAdmin(db, target, "remove Owner access from");
@@ -231,6 +269,8 @@ export interface AccountView {
   avatarUrl: string | null;
   /** Member of the competitive team (accounts without a player profile count as members). */
   teamMember: boolean;
+  /** The Production check's verification account, kept by its job: Admin offers only Deactivate and Delete. */
+  keptAutomatically: boolean;
 }
 
 /** Every account with its status and password state (never the password), for both admin pages. */
@@ -259,6 +299,7 @@ export async function listAccountViews(db: Db, now: Date = new Date()): Promise<
     hasCustomCapabilities: u.hasCustomCapabilities,
     avatarUrl: avatarUrl(u.id, u.avatarVersion),
     teamMember: u.teamMember,
+    keptAutomatically: isVerificationAccount(u),
   }));
 }
 
@@ -267,6 +308,7 @@ export async function resetPasswordToTemporary(db: Db, actorId: string | null, u
   const target = await getUser(db, userId);
   if (!target) throw new UserError("Account not found.");
   if (actorId && actorId === userId) throw new UserError("Change your own password under Settings instead.");
+  guardVerificationAccount(actorId, target, "reset the password of");
   await guardOwnerAccount(db, actorId, target, "reset the password of");
   if (!target.isActive) throw new UserError("This account is deactivated. Reactivate it first.");
   return setTemporaryPassword(db, userId);
@@ -283,6 +325,7 @@ export async function setAdministrator(db: Db, actorId: string | null, userId: s
   const target = await getUser(db, userId);
   if (!target) throw new UserError("Account not found.");
   guardSelf(actorId, userId, "change the administrator access of");
+  guardVerificationAccount(actorId, target, "change the administrator access of");
   if (target.role === "owner") throw new UserError("The Owner is always an administrator.");
   if (target.isAdmin === on) return { user: target, changed: false };
   if (on && !target.isActive) throw new UserError("This account is deactivated. Reactivate it first.");

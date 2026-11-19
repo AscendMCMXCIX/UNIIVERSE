@@ -267,8 +267,21 @@ export interface MatchObjectiveEvent {
 
 export interface MatchEvents {
   objectives: MatchObjectiveEvent[];
+  /**
+   * The turret plates each team took, in order (team facts, like the objectives): kept from 20 Nov
+   * 2026 on, and always present on timelines kept since, so an absent list marks an older timeline.
+   */
+  plates?: MatchPlateEvent[];
   /** Riot no longer provides the timeline: the events were asked for and are not available. */
   missing?: true;
+}
+
+/** A turret plate taken: when, by which team (Riot names the side that lost it) and on which lane. */
+export interface MatchPlateEvent {
+  t: number;
+  team: number;
+  /** TOP, MID or BOT. */
+  lane: string;
 }
 
 /**
@@ -279,7 +292,24 @@ export interface MatchEvents {
  */
 export interface MatchFrames {
   t: number[];
-  p: Record<string, { g: number[]; x: number[]; c: number[] }>;
+  p: Record<string, MatchFramePlayer>;
+}
+
+export interface MatchFramePlayer {
+  g: number[];
+  x: number[];
+  c: number[];
+  /*
+    Kept from 20 Nov 2026 on (absent on older timelines), each only when Riot sent it in every
+    frame the player has: a gap leaves that one series out rather than filling it in.
+  */
+  /** Where the champion stood, in Riot's map units (x and y apart, aligned with `t`). */
+  px?: number[];
+  py?: number[];
+  /** Ability haste (Riot's championStats.abilityHaste). */
+  ah?: number[];
+  /** Champion level. */
+  lv?: number[];
 }
 
 export interface MatchTimelineParticipant {
@@ -295,6 +325,26 @@ export interface MatchTimelineParticipant {
   kills?: number[];
   deaths?: number[];
   assists?: number[];
+  /*
+    Kept from 20 Nov 2026 on, on timelines whose events carry `plates` (older ones never had them),
+    and only when there is something to keep: on such a timeline an absent list means none.
+  */
+  /**
+   * When the champion reached each level (ms into the game, from Riot's LEVEL_UP events): the first
+   * entry is level `levelFrom` (2 unless given), each next one a level more. Left out when Riot's
+   * events skip or repeat a level, rather than guessed.
+   */
+  levels?: number[];
+  /** The level `levels` starts at, only when it is not 2. */
+  levelFrom?: number;
+  /** Items sold, in order: [ms, item id] (an undone sale removed). */
+  sold?: Array<[number, number]>;
+  /**
+   * Items used up or turned into another, in order: [ms, item id], as Riot reports them (a potion
+   * drunk, a ward placed, components consumed by the item they built); those of an undone purchase
+   * removed.
+   */
+  destroyed?: Array<[number, number]>;
 }
 
 export interface MatchTeamDetail {
@@ -313,7 +363,17 @@ export interface MatchParticipantDetail {
   championId: string | null;
   championKey: number;
   champLevel: number | null;
+  /** Riot's team position, or its individual position when the team position is empty: what every record keeps. */
   position: string | null;
+  /**
+   * Riot's two readings of the position, as sent ("" when Riot sent none), on records stored from
+   * 20 Nov 2026 on (absent on older ones, which keep only the merged `position`): `teamPosition` is
+   * its assignment with one player per position on each team, `individualPosition` its reading of
+   * the player alone ("Invalid" when it has none). The lane opponent rule reads them
+   * (domain/match-analysis `laneOpponentOf`).
+   */
+  teamPosition?: string;
+  individualPosition?: string;
   win: boolean;
   kills: number;
   deaths: number;
@@ -329,15 +389,24 @@ export interface MatchParticipantDetail {
   spells: number[] | null;
   /**
    * Keystone, primary and secondary rune paths; the full page (every rune chosen in each path) on
-   * records stored from this phase on (older records have only the keystone and paths).
+   * records stored from this phase on (older records have only the keystone and paths). `shards`:
+   * the three stat shards [offense, flex, defense] (Riot's perk ids, 5001–5013), on records stored
+   * from 20 Nov 2026 on when Riot sent them.
    */
-  runes: { keystone: number | null; primary: number | null; secondary: number | null; primaryPerks?: number[]; secondaryPerks?: number[] } | null;
+  runes: { keystone: number | null; primary: number | null; secondary: number | null; primaryPerks?: number[]; secondaryPerks?: number[]; shards?: [number, number, number] } | null;
   /**
    * Extra per-game figures for Team Leaderboards, on records stored from Phase 14 on (absent on
    * older records: those games are left out of these figures, never counted as zero). Each field
    * is present only when Riot sent it.
    */
   stats?: ParticipantExtraStats;
+  /**
+   * Riot's lane and jungle challenge figures (its own names and values: `challenges.*` in match-v5),
+   * kept as evidence from the same match request, on records stored from 20 Nov 2026 on; each one
+   * only when Riot sent it. `laningPhaseGoldExpAdvantage` is Riot's own measure, which it does not
+   * document: it is never shown as a "laning phase".
+   */
+  challenges?: LaneChallenges;
   /**
    * A player whose personal data was permanently erased (server/privacy/redact.ts): only their
    * side and the game's result are kept. PUUID "", no name, champion, position or figures (the
@@ -363,6 +432,33 @@ export interface ParticipantExtraStats {
   /** Seconds of crowd control applied to enemy champions (Riot's timeCCingOthers). */
   ccSeconds?: number;
   soloKills?: number;
+  /*
+    From 20 Nov 2026 on: figures that serve supports and tanks, whom damage alone describes poorly.
+  */
+  /** Seconds spent dead (Riot's totalTimeSpentDead). */
+  deadSeconds?: number;
+  /** Turret plates taken (Riot's challenges.turretPlatesTaken). */
+  platesTaken?: number;
+  /** Healing done to teammates (Riot's totalHealsOnTeammates). */
+  teamHealing?: number;
+  /** Damage shielded on teammates (Riot's totalDamageShieldedOnTeammates). */
+  teamShielding?: number;
+  /** Damage the player mitigated (Riot's damageSelfMitigated). */
+  damageMitigated?: number;
+}
+
+/** The lane and jungle figures of `MatchParticipantDetail.challenges` (Riot's names; server/riot/api/schemas `LANE_CHALLENGE_KEYS`). */
+export interface LaneChallenges {
+  jungleCsBefore10Minutes?: number;
+  initialCrabCount?: number;
+  scuttleCrabKills?: number;
+  enemyJungleMonsterKills?: number;
+  junglerKillsEarlyJungle?: number;
+  killsOnLanersEarlyJungleAsJungler?: number;
+  maxCsAdvantageOnLaneOpponent?: number;
+  maxLevelLeadLaneOpponent?: number;
+  laningPhaseGoldExpAdvantage?: number;
+  playedChampSelectPosition?: number;
 }
 
 /**

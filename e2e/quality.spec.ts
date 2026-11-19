@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "./test";
 import { AxeBuilder } from "@axe-core/playwright";
 import { playerEntry } from "./players";
+import { riotText } from "./matchup-intel";
 
 /*
   Phase 3 quality gates, run once (desktop project) with explicit viewports:
@@ -10,11 +11,19 @@ import { playerEntry } from "./players";
     - automated accessibility (axe, WCAG 2.1 A/AA): no critical or serious violations.
 */
 
-test.beforeEach(async ({ context, baseURL }) => {
+test.beforeEach(async ({ context, baseURL, page }) => {
   await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
+  // Matchup Intel's routes below are audited with the facts from Riot's text on, as they were
+  // written; the layer ships switched off (src/server/matchup-intel/riot-text/switch.ts), and its
+  // off state is audited in e2e/matchup-intel.spec.ts. The cookie changes no other page.
+  await riotText(page, "on");
 });
 
-const PLAYER_ROUTES = ["/team", "/players", "/leaderboards", "/matches", "/overview", "/overview/champions", "/overview/matches", "/resources", "/resources/matchups", "/resources/matchups?champion=Riven&vs=Mordekaiser", "/settings"];
+// Matchup Intel: nothing chosen, a curated briefing, and the assembled reference with checked facts on
+// both sides (Ornn vs Gwen), with facts from Riot's text for the enemy (Riven vs Darius), on both sides
+// with the most of them (Briar vs K'Sante: conditional markers, qualifiers), and where Riot's two texts
+// differ (Riven vs Yone: the "Riot's texts differ" chip, an ability with no reviewed fact).
+const PLAYER_ROUTES = ["/team", "/players", "/leaderboards", "/matches", "/overview", "/overview/champions", "/overview/matches", "/resources", "/resources/matchups", "/resources/matchups?champion=Riven&vs=Mordekaiser", "/resources/matchups?champion=Ornn&vs=Gwen", "/resources/matchups?champion=Riven&vs=Darius", "/resources/matchups?champion=Briar&vs=KSante", "/resources/matchups?champion=Riven&vs=Yone", "/settings"];
 const ADMIN_ROUTES = ["/admin", "/admin/people", "/admin/people/access", "/admin/people/privacy", "/admin/branding", "/admin/previews", "/admin/resources", "/admin/data", "/admin/system", "/admin/audit", "/admin/settings"];
 const SIZES: Array<[number, number]> = [
   [320, 640],
@@ -43,7 +52,8 @@ test.describe("layout across screen sizes", () => {
   test.beforeEach(({}, info) => test.skip(info.project.name !== "desktop", "runs once with explicit viewports"));
 
   test("player pages fit every width", async ({ page }) => {
-    test.setTimeout(300_000);
+    // 16 sizes by 15 routes, 240 page loads.
+    test.setTimeout(420_000);
     for (const [width, height] of SIZES) {
       await page.setViewportSize({ width, height });
       for (const route of PLAYER_ROUTES) {
@@ -411,11 +421,12 @@ test.describe("sidebar entries", () => {
     await expect(aside.getByTestId("nav-team")).toHaveAttribute("aria-current", "page");
   });
 
-  test("Admin Mode is six single entries; a section with several pages shows them as tabs and stays marked on each", async ({ page }) => {
+  test("Admin Mode is four single entries; a section with several pages shows them as tabs and stays marked on each", async ({ page }) => {
     await page.goto("/admin/previews");
     const aside = page.locator("aside");
     const order = await aside.locator("nav[aria-label='Main'] a").evaluateAll((els) => els.map((e) => e.getAttribute("data-testid")));
-    expect(order).toEqual(["nav-admin", "nav-admin-users", "nav-admin-settings", "nav-admin-data", "nav-admin-system", "nav-admin-audit"]);
+    expect(order).toEqual(["nav-admin", "nav-admin-users", "nav-admin-settings", "nav-admin-system"]);
+    await expect(aside.locator("nav[aria-label='Main'] a")).toHaveText(["Dashboard", "Users & Permissions", "Platform Settings", "System"]);
     const settings = aside.getByTestId("nav-admin-settings");
     await expect(settings).toHaveAttribute("aria-current", "page");
     await expect(settings).toHaveAttribute("href", "/admin/branding");
@@ -424,10 +435,15 @@ test.describe("sidebar entries", () => {
     await tabs.getByRole("link", { name: "Branding" }).click();
     await expect(page).toHaveURL(/\/admin\/branding$/);
     await expect(settings).toHaveAttribute("aria-current", "page");
-    // Users & Permissions: Accounts and Access levels, under one entry.
+    // Users & Permissions: Accounts, Access levels and Personal data, under one entry, as section tabs.
     await page.goto("/admin/people/access");
     await expect(aside.getByTestId("nav-admin-users")).toHaveAttribute("aria-current", "page");
     await expect(aside.getByTestId("nav-admin")).not.toHaveAttribute("aria-current", "page");
+    await expect(page.getByTestId("admin-users-tabs").getByRole("link")).toHaveText(["Accounts", "Access levels", "Personal data"]);
+    // System: Health, Data & Integrations and Audit Logs, under one entry, at the addresses they always had.
+    await page.goto("/admin/data");
+    await expect(aside.getByTestId("nav-admin-system")).toHaveAttribute("aria-current", "page");
+    await expect(page.getByTestId("admin-system-tabs").getByRole("link")).toHaveText(["Health", "Data & Integrations", "Audit Logs"]);
   });
 
   test("My Profile is one sidebar link; a profile's sections are the bar on the page, and every section address still works", async ({ page }) => {

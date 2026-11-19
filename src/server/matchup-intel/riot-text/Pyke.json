@@ -1,0 +1,24 @@
+{
+  "championId": "Pyke",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Gift of the Drowned Ones","textHash":"745811cdb4e10bdb"},
+    "Q": {"name":"Bone Skewer","textHash":"a1b27b3f412a0977"},
+    "W": {"name":"Ghostwater Dive","textHash":"c17ab1b8dcf5e76b"},
+    "E": {"name":"Phantom Undertow","textHash":"aac5fa34db4a1890"},
+    "R": {"name":"Death From Below","textHash":"807336d8565e5a47"}
+  },
+  "facts": [
+    {"slot":"P","kind":"regeneration","clause":"When Pyke is hidden from enemies, he regenerates damage that he has recently taken from champions.","source":"description"},
+    {"slot":"Q","kind":"pull","clause":"Pyke either stabs an enemy in front of him or pulls an enemy towards him.","source":"description"},
+    {"slot":"Q","kind":"slow","clause":"They are then Slowed by […]% for […] second.","source":"tooltip"},
+    {"slot":"W","kind":"stealth","clause":"Pyke enters Camouflage and gains significant Move Speed that decays over time.","source":"description"},
+    {"slot":"E","kind":"stun","clause":"Pyke dashes and leaves behind a phantom that will return to him, stunning enemy champions along its path.","source":"description"},
+    {"slot":"E","kind":"dash","clause":"Pyke dashes and leaves behind a phantom that will return to him, stunning enemy champions along its path.","source":"description"},
+    {"slot":"R","kind":"teleport","clause":"Pyke strikes all enemy champions in an X, teleporting to and executing targets below […] Health.","source":"tooltip","alsoDescribedAs":{"kind":"blink","source":"description","clause":"Pyke blinks to and executes low health enemies, allowing him to cast this spell again and granting additional gold to an ally who assists."}},
+    {"slot":"R","kind":"recast","clause":"When an enemy champion dies inside the X, Pyke can Recast this Ability for free within […] seconds.","source":"tooltip"}
+  ],
+  "disagreements": []
+}

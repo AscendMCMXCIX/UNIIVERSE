@@ -1,0 +1,20 @@
+{
+  "championId": "Zeri",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Living Battery","textHash":"94338aa01936979a"},
+    "Q": {"name":"Burst Fire","textHash":"a5afe646c98384d3"},
+    "W": {"name":"Ultrashock Laser","textHash":"01f84562159e3bf1"},
+    "E": {"name":"Spark Surge","textHash":"fc6c324083c86209"},
+    "R": {"name":"Lightning Crash","textHash":"064be02cb116e2fb"}
+  },
+  "facts": [
+    {"slot":"P","kind":"empower","clause":"When fully charged her next Attack deals bonus damage.","source":"description"},
+    {"slot":"W","kind":"slow","clause":"Zeri fires an electric pulse that slows and damages the first enemy hit.","source":"description"},
+    {"slot":"E","kind":"dash","clause":"Zeri dashes a short distance and energizes Burst Fire to pierce through enemies.","source":"description"},
+    {"slot":"E","kind":"cooldownrefund","clause":"Hitting an enemy with an Attack reduces this Ability's cooldown by […] seconds.","source":"tooltip"}
+  ],
+  "disagreements": []
+}

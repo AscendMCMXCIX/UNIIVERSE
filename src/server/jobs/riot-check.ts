@@ -13,6 +13,7 @@ import { checkRiotCredential, riotKeyCheckLimits } from "@/server/riot/credentia
  */
 defineJob({
   key: "riot-check",
+  kind: "check",
   description: "Check whether the configured Riot API key is accepted (one platform-status request; while a refusal is recorded, also the requests an account sync makes for at most one linked account per server, within 30 seconds; records the credential status for Data health).",
   defaultIntervalMinutes: null,
   allowConcurrent: true,

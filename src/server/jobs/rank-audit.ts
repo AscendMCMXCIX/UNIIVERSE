@@ -51,6 +51,7 @@ function lpTally(records: Iterable<LpRecord>) {
 
 defineJob({
   key: "rank-audit",
+  kind: "check",
   description: "Read-only: the 2026 ranked year's rank history per account and queue (Riot's game count against the stored games, the rows stored without a length or a champion by kind, the stored readings (one per rank change) and the gaps between them, the games with a recorded LP change and why the others have none), the 2026 seasons' first patches, the account syncs and rank changes per day, and the year's games and rank changes by week. Accounts as P1/A1 only. Changes nothing.",
   defaultIntervalMinutes: null,
   allowConcurrent: true,

@@ -1,0 +1,24 @@
+{
+  "championId": "Shen",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Ki Barrier","textHash":"4fba27f1886f31e6"},
+    "Q": {"name":"Twilight Assault","textHash":"4621093ce6a23e69"},
+    "W": {"name":"Spirit's Refuge","textHash":"f17aca2572e378f2"},
+    "E": {"name":"Shadow Dash","textHash":"f535bdf6e485fcc9"},
+    "R": {"name":"Stand United","textHash":"821b3fac15350749"}
+  },
+  "facts": [
+    {"slot":"P","kind":"shield","clause":"After casting a spell, Shen gets a shield.","source":"description"},
+    {"slot":"P","kind":"cooldownrefund","clause":"Affecting other champions reduces the cooldown of this effect.","source":"description"},
+    {"slot":"Q","kind":"slow","clause":"The attacks are greatly empowered if it collides with an enemy champion, and all collided enemies are slowed while running away from Shen.","source":"description"},
+    {"slot":"Q","kind":"empower","clause":"The attacks are greatly empowered if it collides with an enemy champion, and all collided enemies are slowed while running away from Shen.","source":"description"},
+    {"slot":"E","kind":"taunt","clause":"Shen dashes in a direction, taunting enemies in his path.","source":"description"},
+    {"slot":"E","kind":"dash","clause":"Shen dashes in a direction, taunting enemies in his path.","source":"description"},
+    {"slot":"R","kind":"teleport","clause":"After channeling for […] seconds, Shen teleports to his ally's location with his Spirit Blade.","source":"tooltip"},
+    {"slot":"R","kind":"shield","clause":"Shen shields target allied champion from incoming damage, and soon after teleports to their location.","source":"description"}
+  ],
+  "disagreements": []
+}

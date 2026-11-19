@@ -1,0 +1,22 @@
+{
+  "championId": "Renekton",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Reign of Anger","textHash":"cba0988400917a14"},
+    "Q": {"name":"Cull the Meek","textHash":"d2b39e6fdb84ac3d"},
+    "W": {"name":"Ruthless Predator","textHash":"d8ca89fa18425182"},
+    "E": {"name":"Slice and Dice","textHash":"b81b42ec03721ad1"},
+    "R": {"name":"Dominus","textHash":"f94b82c38366b6eb"}
+  },
+  "facts": [
+    {"slot":"P","kind":"empower","clause":"This Fury can empower his abilities with bonus effects.","source":"description"},
+    {"slot":"Q","kind":"heal","clause":"Renekton swings his blade, dealing moderate physical damage to all targets around him, and heals for a small portion of the damage dealt.","source":"description"},
+    {"slot":"W","kind":"stun","clause":"dealing moderate physical damage and stuns them","source":"description"},
+    {"slot":"E","kind":"dash","clause":"Renekton dashes, dealing damage to units along the way.","source":"description"},
+    {"slot":"E","kind":"recast","clause":"allows Renekton to Recast this Ability","source":"tooltip","conditional":true},
+    {"slot":"R","kind":"transform","clause":"Renekton transforms into the Tyrant form, gaining bonus Health and dealing damage to enemies around him.","source":"description"}
+  ],
+  "disagreements": []
+}

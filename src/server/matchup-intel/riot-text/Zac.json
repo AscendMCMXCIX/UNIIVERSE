@@ -1,0 +1,26 @@
+{
+  "championId": "Zac",
+  "version": "16.22.1",
+  "reviewedOn": "2026-11-19",
+  "review": {"automatedReviewers":2,"adjudicated":true,"consistencyCheckers":2,"checkedByPerson":false},
+  "abilities": {
+    "P": {"name":"Cell Division","textHash":"2ddb1ee9140f00da"},
+    "Q": {"name":"Stretching Strikes","textHash":"eb5c952c803713df"},
+    "W": {"name":"Unstable Matter","textHash":"7cf97f3285a31860"},
+    "E": {"name":"Elastic Slingshot","textHash":"5f9e5e2910af8f16"},
+    "R": {"name":"Let's Bounce!","textHash":"2bbe493ef53bdf06"}
+  },
+  "facts": [
+    {"slot":"P","kind":"heal","clause":"Each time Zac hits an enemy with an ability, he sheds a chunk of himself that can be reabsorbed to restore Health.","source":"description"},
+    {"slot":"Q","kind":"knockup","clause":"If Zac hits a different enemy with this Attack, he Knocks Up both towards each other.","source":"tooltip"},
+    {"slot":"Q","kind":"slow","clause":"Zac's next Attack gains increased range and applies the same damage and Slow.","source":"tooltip"},
+    {"slot":"Q","kind":"empower","clause":"Zac's next Attack gains increased range and applies the same damage and Slow.","source":"tooltip"},
+    {"slot":"W","kind":"cooldownrefund","clause":"Absorbing Goo reduces this Ability's Cooldown","source":"tooltip"},
+    {"slot":"E","kind":"knockup","clause":"Release: Zac launches himself and Knocks Up enemies where he lands","source":"tooltip"},
+    {"slot":"E","kind":"dash","clause":"Begin Charging: Zac pulls himself taut, charging up a dash over […] seconds.","source":"tooltip"},
+    {"slot":"R","kind":"slow","clause":"Subsequent bounces deal […] magic damage and Slow by […]% for […] second.","source":"tooltip"}
+  ],
+  "disagreements": [
+    {"slot":"R","description":{"kind":"knockup","clause":"knocking up enemies hit and slowing them."},"tooltip":{"kind":"knockback","clause":"The first bounce to hit each enemy Knocks them back and deals […] magic damage."}}
+  ]
+}
