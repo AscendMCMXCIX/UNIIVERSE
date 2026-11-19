@@ -274,7 +274,7 @@ function AbilityTile({ intel, ability: a, checkedPatch, dataPatch, notRecheckedF
     // size) a smaller copy starts the key's line instead and the words take the tile's whole width,
     // so a column beside the icon never squeezes them to a few letters a line (the hidden copy is
     // display: none, and a lazy image out of the layout is never fetched).
-    <li id={abilityAnchor(champion.id, a.slot)} className="grid scroll-mt-4 grid-cols-1 items-start gap-x-2.5 px-3 py-1.5 transition-colors focus:bg-accent/5 focus-visible:-outline-offset-2 @min-[16rem]/abilities:grid-cols-[2.5rem_minmax(0,1fr)]" data-testid="ability-row" data-slot={a.slot} data-freshness={a.freshness ?? undefined}>
+    <li id={abilityAnchor(champion.id, a.slot)} className="grid scroll-mt-4 grid-cols-1 items-start gap-x-2.5 px-2 py-1.5 transition-colors focus:bg-accent/5 focus-visible:-outline-offset-2 @min-[16rem]/abilities:grid-cols-[2.5rem_minmax(0,1fr)] @min-[16rem]/abilities:px-3" data-testid="ability-row" data-slot={a.slot} data-freshness={a.freshness ?? undefined}>
       <span className="hidden @min-[16rem]/abilities:block">
         <AbilityIcon src={a.icon} slot={a.slot} />
       </span>

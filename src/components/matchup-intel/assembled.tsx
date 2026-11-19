@@ -32,8 +32,9 @@ function KitLine({ item, champion, rows, withCooldown }: { item: KitItem; champi
   return (
     // The key, then the chips and the cooldown flowing beside it: one line where they fit; where they
     // do not, a chip or the cooldown moves to the next line whole (the cooldown at its end), rather
-    // than squeezing the chips' words into a narrow column.
-    <li className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-1.5" data-testid="assembled-item" data-slot={item.slot}>
+    // than squeezing the chips' words into a narrow column. Under 16rem (a phone at a large text
+    // size) the chips go under the key unless 8rem are left beside it.
+    <li className="flex flex-wrap items-start gap-x-1.5 gap-y-0.5 @min-[16rem]/kits:grid @min-[16rem]/kits:grid-cols-[auto_minmax(0,1fr)]" data-testid="assembled-item" data-slot={item.slot}>
       {rows.has(champion.id) ? (
         <AbilityRefLink anchor={abilityAnchor(champion.id, item.slot)} size="sm">
           {key}
@@ -41,7 +42,7 @@ function KitLine({ item, champion, rows, withCooldown }: { item: KitItem; champi
       ) : (
         <span className="inline-flex min-h-6 items-center rounded-full border border-border-strong bg-surface-2 px-2 text-xs font-medium text-fg-muted">{key}</span>
       )}
-      <span className="flex min-w-0 flex-wrap items-start gap-1">
+      <span className="flex min-w-0 flex-[1_1_8rem] flex-wrap items-start gap-1">
         {item.chips.map((c, i) => (
           <FactChipView key={i} chip={c} champion={champion.name} ability={item.ability} testId="assembled-chip" />
         ))}
@@ -67,9 +68,11 @@ function KitSide({ side, kit, champion, title, subtitle, rows }: { side: "danger
   const missing = kit.noAbilities ? missingAbilitiesWords(kit.name, false).title : null;
   const recorded: "checked" | "riot-text" = kit.from === "checked" ? "checked" : "riot-text";
   return (
-    <section className={cn("min-w-0 px-3 py-2.5", side === "danger" ? "bg-warn/5" : side === "opportunity" ? "bg-good/5" : "")} aria-label={`${title}: ${subtitle}`} data-testid={`assembled-${side}`} data-from={kit.from}>
-      <h3 className={cn("label-caps flex items-center gap-1.5", side === "danger" ? "text-warn" : side === "opportunity" ? "text-good" : "text-fg-muted")}>
-        <Icon className="h-4 w-4 shrink-0" aria-hidden />
+    // Under 9rem (a 320px phone at twice the text size) a narrower padding and no icon before the
+    // label, so the longest label (Opportunity) and chip words keep whole.
+    <section className={cn("min-w-0 px-3 py-2.5 @max-[9rem]/kits:px-2", side === "danger" ? "bg-warn/5" : side === "opportunity" ? "bg-good/5" : "")} aria-label={`${title}: ${subtitle}`} data-testid={`assembled-${side}`} data-from={kit.from}>
+      <h3 className={cn("label-caps flex items-center gap-1.5 [overflow-wrap:anywhere]", side === "danger" ? "text-warn" : side === "opportunity" ? "text-good" : "text-fg-muted")}>
+        <Icon className="h-4 w-4 shrink-0 @max-[9rem]/kits:hidden" aria-hidden />
         {title}
       </h3>
       <p className="text-xs text-fg-muted">{subtitle}</p>

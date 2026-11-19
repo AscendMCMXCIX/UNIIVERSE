@@ -31,15 +31,19 @@ const SIZES: Array<[number, number]> = [
 
 /**
  * The pairs measured: the three curated pairs (Riven vs Mordekaiser holds the longest briefing),
- * checked notes on both sides with no curated file (Riven vs Renekton), assembled pairs, the
- * complex kits (two forms, a weapon wheel, a transformation, a dismount, five spells in one slot),
- * and a pair where neither side has checked notes (Garen vs Darius).
+ * checked notes on both sides with no curated file (Riven vs Renekton), the curated pairs the other
+ * way round (an assembled reference of two checked kits beside their level notes: Ornn vs Gwen is
+ * the tallest), assembled pairs, the complex kits (two forms, a weapon wheel, a transformation, a
+ * dismount, five spells in one slot), and a pair where neither side has checked notes (Garen vs Darius).
  */
 const FIT_PAIRS: Array<[string, string]> = [
   ["Riven", "Mordekaiser"],
   ["Ambessa", "Renekton"],
   ["Gwen", "Ornn"],
   ["Riven", "Renekton"],
+  ["Ornn", "Gwen"],
+  ["Mordekaiser", "Riven"],
+  ["Renekton", "Ambessa"],
   ["Riven", "Darius"],
   ["Ambessa", "Aatrox"],
   ["Riven", "Aphelios"],

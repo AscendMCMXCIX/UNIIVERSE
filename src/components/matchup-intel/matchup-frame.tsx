@@ -104,7 +104,8 @@ const portraitOf = (c: ChampionChoice) => ({ id: c.id, name: c.name, portraitUrl
  * One side: its label, the champion's portrait and name, or the invitation to choose one. Compact,
  * so the dashboard under it starts high: on a phone a small portrait above the label and the name in
  * a narrow row (320 and 375px phones), beside them where the row has room (from 22rem), the two
- * sides mirrored around the swap; from sm the portrait beside the words, as the two sides of a lane.
+ * sides mirrored around the swap; from sm (where the row is 27rem wide) the portrait beside the
+ * words, as the two sides of a lane.
  */
 function SlotButton({ slot, champion, onOpen, buttonRef }: { slot: PickerSlot; champion: ChampionChoice | null; onOpen: () => void; buttonRef: React.Ref<HTMLButtonElement> }) {
   const you = slot === "you";
@@ -123,11 +124,13 @@ function SlotButton({ slot, champion, onOpen, buttonRef }: { slot: PickerSlot; c
       // portrait beside the words from a row of 22rem (a 384px phone at the usual text size), with
       // a little less padding and gap, so the longest one-word name (Heimerdinger) fits whole at 384px.
       // Under it, the portrait above the words, with a narrow padding so that name fits whole down
-      // to the 17.5rem where the two slots go one above the other.
+      // to the 17.5rem where the two slots go one above the other. From sm the portrait beside the
+      // words where the row is 27rem wide; a narrower one (a phone held sideways at twice the text
+      // size) keeps the portrait above them, where the longest name still fits whole.
       className={cn(
-        "group flex h-full w-full min-w-0 flex-col items-center justify-center gap-1 rounded-panel border bg-surface px-1 py-2 text-center transition-colors hover:border-border-strong hover:bg-surface-2/60 sm:justify-start sm:gap-2.5 sm:px-3 sm:py-1.5",
+        "group flex h-full w-full min-w-0 flex-col items-center justify-center gap-1 rounded-panel border bg-surface px-1 py-2 text-center transition-colors hover:border-border-strong hover:bg-surface-2/60 sm:@min-[27rem]/pickers:justify-start sm:@min-[27rem]/pickers:gap-2.5 sm:@min-[27rem]/pickers:px-3 sm:@min-[27rem]/pickers:py-1.5",
         "max-sm:@min-[22rem]/pickers:justify-start max-sm:@min-[22rem]/pickers:gap-1.5 max-sm:@min-[22rem]/pickers:px-1.5",
-        you ? "max-sm:@min-[22rem]/pickers:flex-row-reverse max-sm:@min-[22rem]/pickers:text-right sm:flex-row-reverse sm:text-right" : "max-sm:@min-[22rem]/pickers:flex-row max-sm:@min-[22rem]/pickers:text-left sm:flex-row sm:text-left",
+        you ? "max-sm:@min-[22rem]/pickers:flex-row-reverse max-sm:@min-[22rem]/pickers:text-right sm:@min-[27rem]/pickers:flex-row-reverse sm:@min-[27rem]/pickers:text-right" : "max-sm:@min-[22rem]/pickers:flex-row max-sm:@min-[22rem]/pickers:text-left sm:@min-[27rem]/pickers:flex-row sm:@min-[27rem]/pickers:text-left",
         champion ? "border-border" : "border-dashed border-border-strong",
       )}
       data-testid={`matchup-pick-${slot}`}
@@ -146,7 +149,7 @@ function SlotButton({ slot, champion, onOpen, buttonRef }: { slot: PickerSlot; c
       </span>
       <span className="min-w-0 max-w-full">
         <span className={cn("block text-xs font-semibold uppercase leading-tight tracking-label", you ? "text-blue" : "text-red")}>{you ? "You" : "Enemy"}</span>
-        <span className="line-clamp-2 text-md font-semibold leading-snug text-fg [overflow-wrap:anywhere] max-sm:@min-[22rem]/pickers:text-sm max-sm:@min-[22rem]/pickers:tracking-tight sm:text-base" data-testid={`matchup-pick-${slot}-name`}>
+        <span className="line-clamp-2 text-md font-semibold leading-snug text-fg [overflow-wrap:anywhere] max-sm:@min-[22rem]/pickers:text-sm max-sm:@min-[22rem]/pickers:tracking-tight sm:@min-[27rem]/pickers:text-base" data-testid={`matchup-pick-${slot}-name`}>
           {champion ? champion.name : you ? "Choose your champion" : "Choose the enemy"}
         </span>
         {champion ? <span className="sr-only">, change</span> : null}

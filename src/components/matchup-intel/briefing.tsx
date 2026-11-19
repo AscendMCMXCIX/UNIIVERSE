@@ -85,9 +85,11 @@ function Point({ kind, point, names, rows }: { kind: "threat" | "opportunity"; p
   const threat = kind === "threat";
   const Icon = threat ? TriangleAlert : Crosshair;
   return (
-    <div className={cn("min-w-0 px-3 py-2.5", threat ? "bg-warn/5" : "bg-good/5")} data-testid={`briefing-${kind}`} data-hidden={point.kind === "hidden" ? "" : undefined}>
+    // Under 9rem (a 320px phone at twice the text size) a narrower padding and no icon before the
+    // label, so the longest label (Opportunity) and the words keep whole.
+    <div className={cn("min-w-0 px-3 py-2.5 @max-[9rem]/brief:px-2", threat ? "bg-warn/5" : "bg-good/5")} data-testid={`briefing-${kind}`} data-hidden={point.kind === "hidden" ? "" : undefined}>
       <h3 className={cn("label-caps flex items-center gap-1.5 [overflow-wrap:anywhere]", threat ? "text-warn" : "text-good")}>
-        <Icon className="h-4 w-4 shrink-0" aria-hidden />
+        <Icon className="h-4 w-4 shrink-0 @max-[9rem]/brief:hidden" aria-hidden />
         {threat ? "Threat" : "Opportunity"}
       </h3>
       {point.kind === "point" ? (
@@ -127,7 +129,7 @@ export function briefingShows(matchup: MatchupIntelView | null): boolean {
 /** A lane point: its words and the chips of what it rests on. */
 function LanePoint({ point, names, rows }: { point: Extract<BriefingPointView, { kind: "point" }>; names: ReadonlyMap<string, string>; rows?: ReadonlySet<string> }) {
   return (
-    <li className="min-w-0 border-l-2 border-border pl-2.5 text-sm leading-snug text-fg" data-testid="briefing-lane-point">
+    <li className="min-w-0 border-l-2 border-border pl-2.5 text-sm leading-snug text-fg @max-[9rem]/brief:pl-1.5" data-testid="briefing-lane-point">
       <span>{point.text}</span>
       <AbilityChips refs={point.basedOn} names={names} rows={rows} label="This point rests on" inline />
     </li>
@@ -208,9 +210,9 @@ export function Briefing({ matchup, you, enemy, rows }: { matchup: MatchupIntelV
             <Point kind="opportunity" point={opportunity} names={names} rows={rows} />
           </div>
           {lane.length ? (
-            <section className="border-t border-border px-3 py-2.5" aria-labelledby="briefing-lane-title" data-testid="briefing-lane">
+            <section className="border-t border-border px-3 py-2.5 @max-[9rem]/brief:px-2" aria-labelledby="briefing-lane-title" data-testid="briefing-lane">
               <h3 id="briefing-lane-title" className="label-caps flex items-center gap-1.5 [overflow-wrap:anywhere]">
-                <Waypoints className="h-4 w-4 shrink-0" aria-hidden />
+                <Waypoints className="h-4 w-4 shrink-0 @max-[9rem]/brief:hidden" aria-hidden />
                 In lane
               </h3>
               {first.length ? (

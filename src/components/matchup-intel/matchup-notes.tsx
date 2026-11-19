@@ -37,17 +37,20 @@ function ChampionInteractions({ intel, testId, rows }: { intel: ChampionIntelVie
   const champion = intel.champion;
   return (
     <details className="group/facts min-w-0 basis-full open:order-last" data-testid={testId}>
-      <summary className="touch-target flex min-h-7 w-fit cursor-pointer list-none flex-wrap items-center gap-x-1.5 gap-y-1 rounded-sm text-xs font-medium text-fg hover:text-accent-strong [&::-webkit-details-marker]:hidden">
-        <ChevronDown className="h-3.5 w-3.5 shrink-0 text-fg-subtle transition-transform group-open/facts:rotate-180 motion-reduce:transition-none" aria-hidden />
-        <span>
-          {champion.name}&apos;s interactions and exceptions <span className="font-normal text-fg-muted">· {count}</span>
+      {/* The chevron stays beside the words' first line; in a narrow panel the words wrap beside it, never under it. */}
+      <summary className="touch-target flex min-h-7 w-fit cursor-pointer list-none items-center gap-x-1.5 rounded-sm text-xs font-medium text-fg hover:text-accent-strong [&::-webkit-details-marker]:hidden">
+        <ChevronDown className="mt-0.5 h-3.5 w-3.5 shrink-0 self-start text-fg-subtle transition-transform group-open/facts:rotate-180 motion-reduce:transition-none" aria-hidden />
+        <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
+          <span>
+            {champion.name}&apos;s interactions and exceptions <span className="font-normal text-fg-muted">· {count}</span>
+          </span>
+          {flagged ? (
+            <Badge tone="warn">
+              <TriangleAlert className="h-3.5 w-3.5 shrink-0" aria-hidden />
+              {flagged === count ? "Changed since the check" : `${flagged} changed since the check`}
+            </Badge>
+          ) : null}
         </span>
-        {flagged ? (
-          <Badge tone="warn">
-            <TriangleAlert className="h-3.5 w-3.5 shrink-0" aria-hidden />
-            {flagged === count ? "Changed since the check" : `${flagged} changed since the check`}
-          </Badge>
-        ) : null}
       </summary>
       <ul className="mt-1 space-y-1">
         {items.map((item) => (

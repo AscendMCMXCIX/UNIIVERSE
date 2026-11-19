@@ -38,7 +38,8 @@ function NothingChosen({ curated, byId }: { curated: Record<string, string[]>; b
     return a ? toChoices(enemies, byId).map((b) => ({ you: a, enemy: b })) : [];
   });
   return (
-    <EmptyState icon={Swords} title="Choose your champion and the enemy" action={<OpenPickerButton slot="you" testId="matchup-start">Choose your champion</OpenPickerButton>} testId="matchup-empty">
+    // A phone's narrower padding: at twice the text size on a 320px phone, the words and the pairs keep whole.
+    <EmptyState icon={Swords} title="Choose your champion and the enemy" action={<OpenPickerButton slot="you" testId="matchup-start">Choose your champion</OpenPickerButton>} testId="matchup-empty" className="max-sm:px-3">
       <p>Then read the enemy&apos;s abilities with their base cooldowns and crowd control, and what matters in lane: a curated briefing where one exists, otherwise each champion&apos;s own facts side by side.</p>
       {pairs.length ? (
         <p className="mt-3 flex flex-wrap items-center justify-center gap-1.5" data-testid="matchup-curated-pairs">
