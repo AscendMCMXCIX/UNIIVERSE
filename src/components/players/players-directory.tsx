@@ -82,6 +82,7 @@ export function PlayersDirectory({ entries, championsById, archived = null, myPr
         <PageHeader
           className="max-md:short:min-[35rem]:max-w-[15rem] max-md:short:min-[35rem]:shrink-0 [&_p]:text-balance"
           title="Players"
+          sectionNamed
           description={
             <span aria-live="polite" data-testid="players-scope">
               {scopeLine}

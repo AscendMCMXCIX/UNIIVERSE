@@ -52,7 +52,7 @@ export default async function AdminDataPage() {
     <div className="space-y-5">
       {/* Job runs and statuses update without a reload. */}
       <FreshnessWatcher scope={{ kind: "jobs" }} version={version} />
-      <PageHeader eyebrow="Admin Mode" title="Data & Integrations" description="The Riot connection, data collection and its schedule." />
+      <PageHeader admin sectionNamed eyebrow="Admin Mode" title="Data & Integrations" description="The Riot connection, data collection and its schedule." />
       <section className="space-y-3">
         <div>
           <h2 className="text-base font-semibold">Riot data at a glance</h2>

@@ -799,3 +799,42 @@ p a.text-accent {
   .flip-card-inner, .flip-card[data-flipped] .flip-card-inner, .flip-face-back { rotate: none; scale: none; }
   .flip-face { transition: none !important; }
 }
+
+/* The frame slides away on an upright phone it crowds (MobileNav's useHideOnScroll, "row"): the top
+   bar's first row fades as the bar rises by its height, the sections row staying pinned under the
+   status bar. Focus inside the bar keeps it. */
+[data-testid=mobile-topbar-row] { transition: opacity 200ms ease-out; }
+[data-testid=mobile-topbar][data-hidden=row]:not(:focus-within) > [data-testid=mobile-topbar-row] { opacity: 0; }
+
+/* A profile's band in the top bar (ProfileHeader's bar title, an upright phone on the sections
+   other than the Overview): fixed in the bar's first row, after Back (a fixed 5.25rem there,
+   MobileNav's BACK_BESIDE_BAND) or after the team's mark, clear of Filters and the avatar at the
+   row's end; it goes with the row when the row slides away. */
+[data-bar-title] {
+  left: calc(max(0.5rem, env(safe-area-inset-left)) + 3rem);
+  right: calc(max(0.5rem, env(safe-area-inset-right)) + 3.25rem);
+  top: env(safe-area-inset-top);
+  transition: opacity 200ms ease-out, translate 200ms ease-out;
+}
+body:has([data-testid=mobile-back]) [data-bar-title] { left: calc(max(0.5rem, env(safe-area-inset-left)) + 5.25rem); }
+body:has([data-testid=topbar-filters]) [data-bar-title] { right: calc(max(0.5rem, env(safe-area-inset-right)) + 6rem); }
+body:has([data-testid=mobile-topbar][data-hidden=row]:not(:focus-within)) [data-bar-title] { opacity: 0; translate: 0 -100%; }
+@media (prefers-reduced-motion: reduce) {
+  [data-testid=mobile-topbar-row], [data-bar-title] { transition: none; }
+}
+
+/* Team Overview held sideways (team-roster.tsx, SIDEWAYS_ROW): five compact cards in one row. Each
+   keeps the role, the name and rank over the art, and the season's three figures; the picture, the
+   tagline, the role status, the record lines and the pool are in the player's window, one tap away. */
+@media (max-height: 480px) {
+  @container lineup (min-width: 36rem) {
+    [data-sideways-row] [data-testid=card-identity] > :first-child,
+    [data-sideways-row] [data-testid=card-tagline],
+    [data-sideways-row] [data-testid=main-role-badge],
+    [data-sideways-row] [data-testid=off-role-badge],
+    [data-sideways-row] [data-testid=card-season] dl > div > dd:nth-child(3),
+    [data-sideways-row] [data-testid=card-season] > :not(dl),
+    [data-sideways-row] [data-card-pool] { display: none; }
+    [data-sideways-row] [data-testid=card-fit] { margin-top: 0.25rem; }
+  }
+}

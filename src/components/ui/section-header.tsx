@@ -21,7 +21,7 @@ import { cn } from "@/lib/cn";
   the scope line under both; a toolbar too wide for the row (a tablet's several selects) takes the
   next row, and so do filters whose chips need the room (`toolbarFills`).
 */
-export function SectionHeader({ id, title, titleOnPhones = "shown", nav, aside, description, status, statusAfterText = false, controls, refresh, toolbarBesideNav = false, toolbarFills, className, testId }: {
+export function SectionHeader({ id, title, titleOnPhones = "shown", nav, aside, description, status, statusAfterText = false, controls, refresh, toolbarBesideNav = false, toolbarFills, toolbarBesideScope = false, className, testId }: {
   /** The heading's id, for the section's aria-labelledby. */
   id: string;
   title: React.ReactNode;
@@ -52,6 +52,8 @@ export function SectionHeader({ id, title, titleOnPhones = "shown", nav, aside, 
    * clear of the Refine panel that opens from the right. From xl it stays beside the views.
    */
   toolbarFills?: boolean | "below-xl";
+  /** Phones (below sm): the folded Filters and Refresh at the scope line's end, never a row of their own (the phone header budget, docs/MOBILE.md). */
+  toolbarBesideScope?: boolean;
   className?: string;
   testId?: string;
 }) {
@@ -111,8 +113,8 @@ export function SectionHeader({ id, title, titleOnPhones = "shown", nav, aside, 
       </div>
     );
   return (
-    <div className={cn("grid grid-cols-[minmax(0,1fr)] gap-y-3 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start xl:gap-x-6", className)} data-testid={testId}>
-      <div className="min-w-0 xl:pt-0.5">
+    <div className={cn("grid grid-cols-[minmax(0,1fr)] gap-y-3 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start xl:gap-x-6", toolbarBesideScope && "max-sm:grid-cols-[minmax(0,1fr)_auto] max-sm:items-center max-sm:gap-x-2 max-sm:gap-y-1 max-sm:[&>[data-testid=section-toolbar]]:col-start-2 max-sm:[&>[data-testid=section-toolbar]]:row-start-2", className)} data-testid={testId}>
+      <div className={cn("min-w-0 xl:pt-0.5", toolbarBesideScope && "max-sm:contents max-sm:[&>[data-testid=section-scope]]:mt-0 max-sm:[&>:first-child]:col-span-2")}>
         {heading}
         {scope}
       </div>

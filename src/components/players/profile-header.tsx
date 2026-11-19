@@ -130,7 +130,20 @@ export function ProfileHeader({ identity: served, self, editable = false, champi
   );
   if (basePath && pathname !== basePath && pathname.startsWith(`${basePath}/`))
     return (
-      <header className={cn("relative overflow-hidden rounded-card border border-border bg-surface", LARGE_TEXT.container)} style={cardShellStyle(p.look)} data-testid="profile-header" data-compact data-art-champion={p.art?.championId ?? ""} data-accent={p.accent} data-frame={p.look.style.frame}>
+      <>
+        {/* An upright phone: the band is in the top bar from the first paint, the name over the rank
+            beside Back ("‹ Players  Demo Mid / Gold II · 40 LP"), so the section starts right under
+            the sections row (globals.css, [data-bar-title]; docs/MOBILE.md, "A profile on a phone").
+            Its h1 is the page's there, and the bar never repeats it as a title. */}
+        <div className="pointer-events-none fixed z-50 flex h-13 min-w-0 flex-col justify-center md:hidden short:hidden" data-bar-title data-testid="profile-bar-title">
+          <h1 className="truncate text-sm font-semibold leading-tight text-fg">{p.displayName}</h1>
+          {p.showRank ? (
+            <p className="truncate text-xs leading-tight text-fg-muted" data-testid="profile-bar-rank">
+              {rank ? `${rankLabel(rank.tier, rank.division)} · ${rank.leaguePoints} LP` : "Unranked"}
+            </p>
+          ) : null}
+        </div>
+      <header className={cn("relative overflow-hidden rounded-card border border-border bg-surface max-md:not-short:hidden", LARGE_TEXT.container)} style={cardShellStyle(p.look)} data-testid="profile-header" data-compact data-art-champion={p.art?.championId ?? ""} data-accent={p.accent} data-frame={p.look.style.frame}>
         <CardArtLayer art={p.art} accent={accent} kind="splash" position="center 25%" strength="strong" testId="profile-art" look={p.look} />
         <CardFrame look={p.look} />
         {/* One band: the picture, the name (its tagline after it from sm, cut before the name is),
@@ -178,6 +191,7 @@ export function ProfileHeader({ identity: served, self, editable = false, champi
           {editable ? <div className={cn("relative z-10 shrink-0", LARGE_TEXT.bandCustomise)}>{customise("icon")}</div> : null}
         </div>
       </header>
+      </>
     );
   return (
     <header className={cn("relative overflow-hidden rounded-card border border-border bg-surface", LARGE_TEXT.container)} style={cardShellStyle(p.look)} data-testid="profile-header" data-art-champion={p.art?.championId ?? ""} data-accent={p.accent} data-frame={p.look.style.frame}>

@@ -136,7 +136,8 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
   // The installed app has no browser Back: tablets get one in the bar too (phones always have it).
   const { standalone } = useInstallState();
   const headerRef = React.useRef<HTMLElement>(null);
-  const hidden = useHideOnScroll();
+  const rowRef = React.useRef<HTMLDivElement>(null);
+  const hidden = useHideOnScroll(headerRef, rowRef);
   const bar = useTopBarHeight(headerRef);
   const heading = usePageHeading(pathname, bar);
   const back = useBack(pathname, heading.text, list, home);
@@ -152,6 +153,10 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
   const profile = adminMode ? null : profileBase(pathname);
   const sections = profile === "/overview" && !hasPlayer ? null : profile;
   const titleShown = heading.past && !!heading.text;
+  // A profile's sections other than its Overview: on an upright phone its band is in this bar
+  // (ProfileHeader's bar title, placed after Back or the team's mark: globals.css), so Back keeps
+  // a fixed width there and the team's name gives it the room.
+  const barTitled = !!sections && pathname !== sections && pathname.startsWith(`${sections}/`);
   // A tablet's bar gives way at a larger text size (BAR_FIT): the team's name first, then the
   // destinations' whole names to their short ones, then to the icons; beside Back (the installed
   // app, on a page reached from another) each step comes sooner, Back having taken the name's room
@@ -165,25 +170,25 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
     <>
       <header
         ref={headerRef}
-        className="sticky top-0 z-40 border-b border-border bg-chrome/90 pt-safe backdrop-blur-md transition-transform duration-200 ease-out data-[hidden=true]:not-focus-within:-translate-y-full lg:hidden"
-        data-hidden={hidden && !sheetOpen}
+        className="sticky top-0 z-40 border-b border-border bg-chrome/90 pt-safe backdrop-blur-md transition-transform duration-200 ease-out data-[hidden=true]:not-focus-within:-translate-y-full data-[hidden=row]:not-focus-within:translate-y-[calc(-1*var(--bar-row,0px))] lg:hidden"
+        data-hidden={sheetOpen || !hidden ? "false" : hidden === "all" ? "true" : "row"}
         data-testid="mobile-topbar"
       >
         {/* The bar's row is the container its parts give way by (in rem, so the reader's text size
             counts): a phone held sideways names its destinations by SIDEWAYS_FIT, a tablet's brand
             name and names give way at large text (BAR_FIT). */}
-        <div className="@container/topbar flex min-h-13 items-center gap-1 px-safe-2 sm:px-safe-4 md:min-h-14 md:gap-2 short:min-h-11 short:gap-1">
+        <div ref={rowRef} className="@container/topbar flex min-h-13 items-center gap-1 px-safe-2 sm:px-safe-4 md:min-h-14 md:gap-2 short:min-h-11 short:gap-1" data-testid="mobile-topbar-row">
           {/* Back where the page was reached from another (labelled with where it leads), else the
               team's mark: on phones either way round; on tablets in the installed app only. */}
           {back ? (
             back.history ? (
-              <button type="button" onClick={back.go} className={cn(BACK_CLASS, !standalone && BACK_TABLET)} data-testid="mobile-back">
+              <button type="button" onClick={back.go} className={cn(BACK_CLASS, !standalone && BACK_TABLET, barTitled && BACK_BESIDE_BAND)} data-testid="mobile-back">
                 <ChevronLeft className="h-5 w-5 shrink-0" aria-hidden />
                 <span className="truncate">{back.label}</span>
                 <span className="sr-only">, back</span>
               </button>
             ) : (
-              <Link href={back.href} prefetch={prefetchOf(back.href)} className={cn(BACK_CLASS, !standalone && BACK_TABLET)} data-testid="mobile-back">
+              <Link href={back.href} prefetch={prefetchOf(back.href)} className={cn(BACK_CLASS, !standalone && BACK_TABLET, barTitled && BACK_BESIDE_BAND)} data-testid="mobile-back">
                 <ChevronLeft className="h-5 w-5 shrink-0" aria-hidden />
                 <span className="truncate">{back.label}</span>
                 <span className="sr-only">, back</span>
@@ -196,7 +201,7 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
               alone, so the destinations have the room. */}
           <Link href={home} prefetch={prefetchOf(home)} className={cn("flex min-h-11 min-w-0 items-center gap-2.5 rounded-md md:min-h-14 md:min-w-8 md:shrink-[1000] short:min-h-11 short:shrink-0", back ? "max-md:hidden short:hidden" : "max-md:pl-1.5 short:pl-1.5")} title={shortName} data-testid="mobile-brand">
             <BrandMark src={logoSrc} still={logoStill} name={shortName} className="h-8 w-8 rounded-md text-base" />
-            <span className={cn("min-w-0 transition-opacity duration-150 short:hidden", barFit.brand, titleShown && "max-md:hidden")} data-testid="mobile-brand-name">
+            <span className={cn("min-w-0 transition-opacity duration-150 short:hidden", barFit.brand, (titleShown || barTitled) && "max-md:hidden")} data-testid="mobile-brand-name">
               <span className="block truncate text-sm font-bold tracking-label text-fg">{shortName}</span>
               {adminMode ? <span className="block truncate text-xs font-semibold uppercase tracking-label text-accent">Admin mode</span> : tagline ? <span className="block truncate text-xs text-fg-subtle max-md:hidden">{tagline}</span> : null}
             </span>
@@ -330,7 +335,7 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
           </div>
         ) : hub && hubSections.length > 1 ? (
           <div className="px-safe-2 md:not-short:hidden" data-testid="hub-sections-bar">
-            <ChromeTabs label={hub.label} items={hubSections.map((s) => ({ key: s.href, href: s.href, label: s.label, testId: `${hub.key}-chrome-tab-${s.href.split("/").pop()}` }))} current={pathname} testId={`${hub.key}-chrome-tabs`} />
+            <ChromeTabs label={hub.label} items={hubSections.map((s) => ({ key: s.href, href: s.href, label: s.label, testId: `${hub.key}-chrome-tab-${s.href.split("/").pop()}` }))} current={pathname} testId={`${hub.key}-chrome-tabs`} fold={hub.key === "team" ? "team" : undefined} />
           </div>
         ) : null}
       </header>
@@ -437,7 +442,7 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
       ) : null}
 
       {tabs.length > 0 ? (
-        <nav className="@container/tabbar fixed inset-x-0 bottom-0 z-40 border-t border-border bg-chrome/95 px-safe pb-safe backdrop-blur-md md:hidden short:hidden" aria-label="Primary" data-testid="phone-tabbar">
+        <nav className="@container/tabbar fixed inset-x-0 bottom-0 z-40 border-t border-border bg-chrome/95 px-safe pb-safe backdrop-blur-md transition-transform duration-200 ease-out data-[hidden=row]:not-focus-within:translate-y-full motion-reduce:transition-none md:hidden short:hidden" aria-label="Primary" data-hidden={hidden === "row" && !sheetOpen ? "row" : undefined} data-testid="phone-tabbar">
           {/* One column per destination, as wide as the bar allows and never narrower than its name,
               so the names stay whole on a 320px screen. The current tab is lit twice over: its icon
               sits in an accent pill and its name turns bright, so it reads at a glance without colour
@@ -678,6 +683,8 @@ const TOPBAR_COUNT = "absolute right-0.5 top-1 min-w-4 rounded-full bg-accent px
  * Filters and the avatar; held sideways, where the destinations share the bar, likewise when the bar
  * is full, down to the chevron (a 44px target), so the destinations keep their room.
  */
+/** Back beside a profile's band in the bar (an upright phone): a fixed 5.25rem ("‹ Players" whole at any text size), where the band starts (globals.css, [data-bar-title]). */
+const BACK_BESIDE_BAND = "max-md:not-short:w-[5.25rem] max-md:not-short:max-w-none max-md:not-short:shrink-0";
 const BACK_CLASS = "-ml-1 flex min-h-11 min-w-0 max-w-[45%] shrink items-center gap-0.5 rounded-md pr-2 text-sm font-medium text-accent hover:bg-surface-2 short:min-w-11";
 /**
  * Tablets: hidden in a browser, shown in the installed app's display mode from the first paint (the
@@ -813,6 +820,11 @@ function usePageHeading(pathname: string, barHeight: number): { text: string | n
         return;
       }
       const text = (h1.textContent ?? "").replace(/\s+/g, " ").trim() || null;
+      // A heading already in the bar (a profile's band, ProfileHeader's bar title) is never repeated there.
+      if (h1.closest("[data-bar-title]") && h1.getClientRects().length) {
+        setState({ text, past: false });
+        return;
+      }
       const bar = barHeight || 56;
       io = new IntersectionObserver(
         ([e]) => {
@@ -905,21 +917,45 @@ function goBackTo(target: string, pathname: string, back: () => void) {
 const HIDE_AFTER = 64;
 /** Distance scrolled one way, from where that direction began, that hides or shows the bar. */
 const INTENT = 8;
+/** A phone held upright whose first screen the frame crowds: under 700px tall at the usual text size (in rem, so a larger browser text size counts: 875px at 125%). */
+const UPRIGHT_SLIDES = "(max-width: 47.99rem) and (min-height: 480.02px) and (max-height: 43.74rem)";
 
 /**
- * In short windows (a phone held sideways) even the one compact bar takes a share of the screen, so
- * it slides away while the page scrolls down and returns on any scroll up, at the top of the page,
- * and whenever focus moves into it. Taller windows keep it in place. Distances count from where the
- * scroll last changed direction, so a slow drag (a pixel or two a frame) counts as well.
+ * The bars slide away while the page scrolls down and return on any scroll up, at the top of the
+ * page, and whenever focus moves into them. Distances count from where the scroll last changed
+ * direction, so a slow drag (a pixel or two a frame) counts as well.
+ *   "all"  held sideways (a short window): the one compact bar, sections row and all.
+ *   "row"  an upright phone that the frame crowds (UPRIGHT_SLIDES: under 700px tall, or from 125%
+ *          text): the top bar's first row and the bottom tab bar, the sections row staying pinned
+ *          under the status bar (the 8 Nov synthesis C1 kept the frame fixed; at 150% text it took
+ *          38–44% of the screen: docs/MOBILE.md, "The frame slides away"). The row's height is
+ *          the bar's --bar-row.
+ * Taller windows at the usual text size keep both bars in place.
  */
-function useHideOnScroll() {
-  const [hidden, setHidden] = React.useState(false);
+function useHideOnScroll(header: React.RefObject<HTMLElement | null>, row: React.RefObject<HTMLElement | null>): false | "all" | "row" {
+  const [hidden, setHidden] = React.useState<false | "all" | "row">(false);
   React.useEffect(() => {
     const short = window.matchMedia("(max-height: 480px)");
+    const upright = window.matchMedia(UPRIGHT_SLIDES);
+    const phone = window.matchMedia("(max-width: 47.99rem) and (min-height: 480.02px)");
+    const mode = (): false | "all" | "row" => {
+      if (short.matches) return "all";
+      if (!phone.matches) return false;
+      // A larger text size set on the page itself (the root's size) leaves the media queries' rem at 16px.
+      return upright.matches || parseFloat(getComputedStyle(document.documentElement).fontSize) >= 20 ? "row" : false;
+    };
+    let slides = mode();
     let last = window.scrollY;
     let turn = last;
     let down = true;
     let frame = 0;
+    const measure = () => {
+      const h = row.current?.offsetHeight ?? 0;
+      header.current?.style.setProperty("--bar-row", `${h}px`);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    if (row.current) observer.observe(row.current);
     const update = () => {
       frame = 0;
       const y = window.scrollY;
@@ -927,8 +963,8 @@ function useHideOnScroll() {
         down = y > last;
         turn = last;
       }
-      if (!short.matches || y < HIDE_AFTER) setHidden(false);
-      else if (down && y - turn > INTENT) setHidden(true);
+      if (!slides || y < HIDE_AFTER) setHidden(false);
+      else if (down && y - turn > INTENT) setHidden(slides);
       else if (!down && turn - y > INTENT) setHidden(false);
       last = y;
     };
@@ -936,16 +972,18 @@ function useHideOnScroll() {
       if (!frame) frame = requestAnimationFrame(update);
     };
     const onChange = () => {
+      slides = mode();
       last = turn = window.scrollY;
       update();
     };
     window.addEventListener("scroll", onScroll, { passive: true });
-    short.addEventListener("change", onChange);
+    for (const q of [short, upright, phone]) q.addEventListener("change", onChange);
     return () => {
       if (frame) cancelAnimationFrame(frame);
+      observer.disconnect();
       window.removeEventListener("scroll", onScroll);
-      short.removeEventListener("change", onChange);
+      for (const q of [short, upright, phone]) q.removeEventListener("change", onChange);
     };
-  }, []);
+  }, [header, row]);
   return hidden;
 }

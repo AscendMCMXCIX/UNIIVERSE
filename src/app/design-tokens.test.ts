@@ -128,7 +128,8 @@ export function tokenProblems(source: string, tokens: Map<string, string>, optio
       const classes = m[2]!.split(/\s+/);
       if (classes.includes("rounded-full")) continue;
       for (const c of classes) {
-        if (/(^|:)tracking-(tighter|tight|normal|wide|wider|widest)$/.test(c)) problems.push(`${at}: ${c} on an uppercase label; use tracking-label`);
+        // One spacing at every width, too: a label tracked 0.44px on a laptop and 1.32px on a phone read as two (UM.T5).
+        if (/(^|:)tracking-(tighter|tight|normal|wide|wider|widest)$/.test(c) || /:tracking-\[[^\]]+\]$/.test(c)) problems.push(`${at}: ${c} on an uppercase label; use tracking-label`);
       }
     }
     // label-caps sets a label's size, weight, case and letter spacing: none of them beside it.
@@ -211,7 +212,7 @@ describe("design tokens", () => {
       `<p className="tracking-[0.12em] tracking-[.12em] tracking-[0.20em] tracking-[0.04em] rounded-[4px] rounded-t-[10px] rounded-[3px] rounded-[12px] rounded-t-[0.75rem] rounded-xl sm:rounded-t-2xl" />`,
       `<p className="bg-[#f5c451] hover:border-[#abc]/40 text-gold" />`,
       `el.animate(frames, { easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" }); const odd = "cubic-bezier(0.1, 0.7, 0.1, 1)"; const c = "ease-[cubic-bezier(0.2,_0.8,_0.2,_1)]";`,
-      `<span className="text-2xs uppercase tracking-wide" /><span className="rounded-full uppercase tracking-wide" /><span className="uppercase tracking-label sm:tracking-wider" />`,
+      `<span className="text-2xs uppercase tracking-wide" /><span className="rounded-full uppercase tracking-wide" /><span className="uppercase tracking-label sm:tracking-wider" /><span className="uppercase tracking-label @max-[15rem]/card:tracking-[0.04em]" />`,
       `<span className="label-caps text-xs" /><span className="label-caps tracking-wide" /><span className="label-caps uppercase font-medium" /><span className="label-caps text-fg-muted" />`,
       `<div className="max-w-[72rem] lg:max-w-6xl max-w-[var(--measure)] max-w-[80rem]" />`,
       `<div className="px-4 py-4 pb-safe sm:py-5" /><div className="pt-3 pb-safe-3" /><div className="p-2 pt-safe-2" /><div className="pb-safe-4 sm:pb-safe-5 short:pb-safe-4 pt-4" /><div className="max-sm:pb-safe-4 pb-tabbar" />`,
@@ -240,6 +241,7 @@ describe("design tokens", () => {
       "4: cubic-bezier(0.1, 0.7, 0.1, 1) is not an --ease token",
       "5: tracking-wide on an uppercase label; use tracking-label",
       "5: sm:tracking-wider on an uppercase label; use tracking-label",
+      "5: @max-[15rem]/card:tracking-[0.04em] on an uppercase label; use tracking-label",
       "6: text-xs beside label-caps, which sets the label's size, weight, case and letter spacing",
       "6: tracking-wide beside label-caps, which sets the label's size, weight, case and letter spacing",
       "6: uppercase beside label-caps, which sets the label's size, weight, case and letter spacing",

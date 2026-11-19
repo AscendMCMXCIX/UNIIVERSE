@@ -18,7 +18,7 @@ export function ChangePasswordPanel({ hasPassword, className }: { hasPassword: b
   const [busy, setBusy] = React.useState(false);
   return (
     <Panel className={cn(!hasPassword && "border-warn/50", className)} id="password">
-      <PanelHeader title={hasPassword ? "Password" : "Set a password"} subtitle={hasPassword ? "Enter your current password to confirm it is you. Changing it signs out your other devices." : "Your account has no password yet. Set one now so you can sign in again after this session ends or on another device."} />
+      <PanelHeader title={hasPassword ? "Password" : "Set a password"} subtitle={hasPassword ? "Your current one confirms it's you; changing it signs out your other devices." : "Your account has no password yet. Set one now so you can sign in again after this session ends or on another device."} />
       <PanelBody>
         <form
           className="space-y-3"
