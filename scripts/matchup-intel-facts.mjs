@@ -94,7 +94,8 @@ export function matchupIntelVerdicts({ kind, pair, enemy, at, wide, wiki }) {
       at.layer === "curated" && at.threat > 0 && at.opportunity > 0 && /Checked on patch \d+\.\d+/.test(at.checked) && at.label.startsWith("Curated briefing") && (state === "shown" || /^Changed since the check: \w+ parts? hidden$/.test(at.barWarning)),
       { layer: at.layer, label: at.label, checked: at.checked, ...(state === "parts hidden" ? { hiddenParts: at.hiddenParts, bar: at.barWarning } : {}) },
     );
-  if (at.missing) out.push({ name: `${kind}: ${enemy}'s abilities are not stored yet: the page says so`, status: "WARN", detail: { slots: at.slots } });
+  // No tiles: none stored yet, or a stored copy the page cannot read; the page says which, in place of them.
+  if (at.missing) out.push({ name: `${kind}: ${enemy}'s abilities are not on the page (not stored yet, or not readable): the page says so`, status: "WARN", detail: { slots: at.slots } });
   else fact(`${enemy}'s five ability tiles, P to R, each with its name and cooldown line`, at.slots === "PQWER" && at.named === 5, { slots: at.slots, named: at.named });
   // The fit, as the owner asked it: one screen at 1920 × 1080, the essentials on screen at 1440 × 900.
   const overBy = wide.scrollHeight - wide.innerHeight;
@@ -105,7 +106,10 @@ export function matchupIntelVerdicts({ kind, pair, enemy, at, wide, wiki }) {
     out.push({ name: `${kind}: 1440 × 900: with the briefing ${state}, the five tiles and the sources' summary are ${essentials ? "on the screen" : "not all on the screen"} (not judged in this state)`, status: "PASS", detail: { ...found, tilesBottom: at.tilesBottom, summaryBottom: at.summaryBottom, innerHeight: at.innerHeight } });
   } else {
     fact("1920 × 1080: the whole overview fits the screen, no page scroll", wide.size === "1920x1080" && overBy <= 0, { ...found, overBy, size: wide.size });
-    fact("1440 × 900: the essentials are on the screen: the enemy's five ability tiles and the sources' summary", essentials, { ...found, tilesBottom: at.tilesBottom, summaryBottom: at.summaryBottom, innerHeight: at.innerHeight, overBy: at.scrollHeight - at.innerHeight });
+    // With no tiles (the warning above) only the sources' summary can be asked for: the state is the
+    // warning's, not a second failure of its own.
+    if (at.missing) fact("1440 × 900: with no ability tiles (the warning above), the sources' summary is on the screen", at.summaryShown, { ...found, summaryBottom: at.summaryBottom, innerHeight: at.innerHeight });
+    else fact("1440 × 900: the essentials are on the screen: the enemy's five ability tiles and the sources' summary", essentials, { ...found, tilesBottom: at.tilesBottom, summaryBottom: at.summaryBottom, innerHeight: at.innerHeight, overBy: at.scrollHeight - at.innerHeight });
   }
   fact("the sources' summary: a static reference with no live tracking, Riot's data, not endorsed by Riot Games", at.summary.startsWith("A static reference: no live tracking") && /Riot Data Dragon \d/.test(at.summary) && at.summary.endsWith("Not endorsed by Riot Games"), { summary: at.summary });
   fact("one press away, the Data Dragon version, the wiki's licence and Riot's notice", /^Ability names, icons and base cooldowns: Riot Data Dragon \d/.test(at.ddragon) && at.licence === "https://creativecommons.org/licenses/by-sa/3.0/" && /isn't endorsed by Riot Games/.test(at.notice), { ddragon: at.ddragon, licence: at.licence });

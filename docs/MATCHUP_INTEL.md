@@ -1650,7 +1650,8 @@ to 12 are open.
 5. **The Production check opens Matchup Intel signed in.** Decided on 18 Nov 2026 (decision 11):
    one page load, Riven vs Mordekaiser at the check's desktop size, 1440 × 900 and again with the
    window made 1920 × 1080, which checks the heading, the layer and its label, the enemy's five tiles
-   (or the "not stored yet" state, as a warning), no page scroll at 1920 × 1080 and the five tiles and
+   (or, with none stored or none readable, that the page says so, as a warning), no page scroll at
+   1920 × 1080 and the five tiles and
    the sources' summary on the screen at 1440 × 900 (the fit the owner asked for; since 19 Nov 2026
    no longer "no page scroll at 1440 × 900", which production's patch 26.23 alone fails: the page is
    23px taller than 900 there, all of it in view), a briefing hidden as too old or for a change passing and saying what it found, the Data

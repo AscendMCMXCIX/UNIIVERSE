@@ -94,7 +94,7 @@ describe("the Production check's Matchup Intel facts", () => {
     expect(failed(judge(NOW, { ...WIDE, size: "1440x900" }))).toContain("desktop: 1920 × 1080: the whole overview fits the screen, no page scroll");
   });
 
-  it("fail a hidden briefing said as missing, a hidden state the bar does not warn of, and everything that holds in every state", () => {
+  it("fail a hidden briefing said as missing, a hidden state the bar does not warn of, and everything that holds in every state; warn of abilities not on the page", () => {
     expect(failed(judge({ ...EXPIRED, assembledWhy: "No curated briefing for Riven vs Mordekaiser yet." }))).toEqual(["desktop: the curated briefing is hidden as too old to show, and says so, above the assembled reference too"]);
     expect(failed(judge({ ...WHOLE_HIDDEN, barWarning: "" }, { ...WIDE, scrollHeight: 1270 }))).toHaveLength(1);
     expect(failed(judge({ ...PARTS_HIDDEN, barWarning: "" }))).toHaveLength(1);
@@ -103,7 +103,11 @@ describe("the Production check's Matchup Intel facts", () => {
     expect(failed(judge({ ...NOW, summary: "Sources and notices" }))).toContain("desktop: the sources' summary: a static reference with no live tracking, Riot's data, not endorsed by Riot Games");
     expect(failed(judge(NOW, WIDE, ["https://wiki.leagueoflegends.com/en-us/Riven"]))).toEqual(["desktop: nothing requested from the League of Legends Wiki"]);
     expect(failed(judge({ ...NOW, riotTextChips: 3 }))).toEqual(["desktop: checked notes win over the facts from Riot's text: none of those on a pair whose champions both have checked notes, nor Riot's text in the sources' summary"]);
-    // No abilities stored is a warning, as the page says so.
-    expect(judge({ ...NOW, missing: true, slots: "", named: 0 }).filter((x) => x.status === "WARN").map((x) => x.name)).toEqual(["desktop: Mordekaiser's abilities are not stored yet: the page says so"]);
+    // No abilities on the page (none stored yet, or a stored copy that cannot be read) is a warning, as the
+    // page says so, and no second failure: at 1440 x 900 only the sources' summary is asked for then.
+    const missing = { ...NOW, missing: true, slots: "", named: 0, tilesBottom: 0, summaryBottom: 807 };
+    expect(judge(missing).filter((x) => x.status === "WARN").map((x) => x.name)).toEqual(["desktop: Mordekaiser's abilities are not on the page (not stored yet, or not readable): the page says so"]);
+    expect(failed(judge(missing))).toEqual([]);
+    expect(failed(judge({ ...missing, summaryShown: false, summaryBottom: 912 }))).toEqual(["desktop: 1440 × 900: with no ability tiles (the warning above), the sources' summary is on the screen"]);
   });
 });
