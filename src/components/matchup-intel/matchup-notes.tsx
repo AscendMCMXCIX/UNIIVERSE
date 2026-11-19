@@ -13,8 +13,8 @@ import { NO_INTERACTIONS_WORDS, SLOT_NAMES, abilityAnchor, expiredInteractionsWo
   The notes around the abilities (docs/MATCHUP_INTEL.md, "The dashboard"), each a compact panel that
   always says what is recorded, never an empty box:
   - Interactions: the curated matchup's own (L1) first, word for word, with what they rest on and
-    their source (said once on the panel's line when they all share it, as they do in every curated
-    file; beyond the first two, folded behind their count, never cut); then each champion's
+    their source (said once on the panel's line when they all cite one page, as two of the three
+    curated files do; beyond the first two, folded behind their count, never cut); then each champion's
     own checked interaction and exception facts (L2), folded side by side ("Renekton's interactions
     and exceptions · 7"). Nothing else: no interaction is made
     up from the two kits (the owner's decision, 18 Nov 2026). A matchup interaction that rests on an
@@ -148,8 +148,9 @@ export function InteractionsPanel({ matchup, enemyIntel, yourIntel, you, rows }:
     return s ? { title: s.title, url: s.url } : NO_SOURCE;
   };
   const nothing = !fromMatchup.length && !expired && !enemyFacts && !yourFacts;
-  // One source for all of them (a curated file cites one page for its interactions): said once on
-  // the panel's line, not after each, where it would take a line of its own beside their chips.
+  // One source for all of them (Gwen vs Ornn and Riven vs Mordekaiser each cite one page for their
+  // interactions): said once on the panel's line, not after each, where it would take a line of its
+  // own beside their chips. Interactions from different pages (Ambessa vs Renekton) each say their own.
   const titles = shown.map((item) => sourceOf(item.source).title);
   const oneSource = titles.length > 0 && titles.every((t) => t && t === titles[0]) ? titles[0]! : null;
   const itemSource = (item: Extract<InteractionView, { kind: "interaction" }>) => (oneSource ? NO_SOURCE : sourceOf(item.source));

@@ -38,6 +38,15 @@ decorative chrome.
   - a compact first screen of opaque panels in a clear order of importance;
   - a single `panel-featured` lead card;
   - quiet labels and strong figures.
+- **Matchup Intel** (the owner's request of 18 Nov 2026) is the single-screen reference, read in a
+  glance on a second monitor: on a desktop its whole overview fits one viewport from 1920 × 1080 (a
+  maximised 1920 × 950 window included), in two columns each as tall as its content, at
+  `--content-wide`. Nothing in it is clipped or scrolls inside it, so a larger text size reflows and
+  scrolls the page instead. Its danger and opportunity sides (a curated briefing's threat and
+  opportunity, the assembled reference's Danger and Opportunity) take `warn` and `good`, as a 5%
+  tint and in their label, always with an icon (a warning sign, a crosshair) and the word; facts are
+  chips with their kind's icon and a word; what the dashboard leaves out is one step away (a chip's
+  tip, a Details window, a fold), never cut (docs/MATCHUP_INTEL.md, "The dashboard").
 - **Match History** is a finished, successful experience. Do not restyle it for novelty. Change it
   only for a bug, an accessibility fix or a product decision.
   - **Density (owner decision D8, approved 8 Nov 2026, built 18 Nov):** denser cards that keep the

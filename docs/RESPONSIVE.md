@@ -295,9 +295,13 @@ ranks broken), a profile's Overview (the season's "6 champions" cut by up to 63p
 (names a letter a line, "1 win behind" cut by 32px) and the Library (titles a letter a line, a
 description cut by 47px). New, and deliberate: the roster's "·" cut off where its rank starts a line
 (below), as Records' qualifier "·" already is. What remains is outside this work: words broken at
-200% on a 320px phone on Team Matches, All Champions, Match History and Matchup Intel ("Support",
-"K'Sante", "Mordekaiser", "Choose"), and Admin Mode's status words at 175% and 200% on a 320px phone
-(200% on 375px), which Admin Mode breaks inside a word longer than its line by design (below). The
+200% on a 320px phone on Team Matches, All Champions and Match History ("Support", "K'Sante"), and
+Admin Mode's status words at 175% and 200% on a 320px phone (200% on 375px), which Admin Mode breaks
+inside a word longer than its line by design (below). Matchup Intel's ("Mordekaiser", "Choose") went
+with its redesign (19 Nov 2026): the same audit on 12 of its states (nothing chosen, one side, the
+curated pairs and their reverse, assembled pairs, a long name, a mirror) at 320, 375, 393 and 852px
+and 150% and 200% text finds nothing in either mode, 96 page states each (docs/MATCHUP_INTEL.md, "On
+a phone"). The
 public page, wider than the phone by 42, 103 and 163px at 150%, 175% and 200% on 320px (48 and 108px
 on 375, 30 and 90px on 393, at 175% and 200%), has no finding left at 125% to 200% on 320, 375 and
 393px, in either mode.
@@ -516,6 +520,13 @@ the account screen over the dashboard at 200% on a 320px phone as well.
   section's own, else 80rem): Players and a teammate's profile share `players/loading.tsx`, which reads
   the address it stands in for, and Team Matches' own `matches/loading.tsx` stands as its page does
   (Team's width from 1600px, its filter row and cards at `--content-max`, left-aligned).
+- **Matchup Intel on one screen** (the owner's request of 18 Nov 2026; docs/MATCHUP_INTEL.md, "The
+  dashboard"): the page takes `--content-wide`, its two columns from a body 60rem wide, each as tall
+  as its content. Its whole overview fits one viewport with no page scroll at 1920 × 1080, 2560 ×
+  1440, 1920 × 950 and 3440 × 1440, and at 1440 × 900, for 20 pairs (the least room left 64px at
+  1920 × 950 and 28px at 1440 × 900, measured on 19 Nov 2026); in a smaller window, or at a larger
+  text size, it reflows and scrolls as a page, with nothing clipped and nothing scrolling inside it.
+  `e2e/matchup-intel-dashboard.spec.ts` asserts the fit at those five sizes.
 - **A page's controls in reach** (PR 2b, 18 Nov 2026): a long page's own controls (its view switch,
   Filters, search) scroll away with its header. From md, once the section tabs are pinned and the
   page's own toolbar has gone up under them, the page's compact copy shows at the pinned row's end
