@@ -93,6 +93,7 @@ export function MatchupContent({ view, champions, curated, legal }: { view: Matc
   const stale = behind.length && current ? <StaleNote words={staleDataWords(behind, current, behind.length === shownData.length)} /> : null;
   const shows = briefingShows(matchup);
   const balance = enemyIntel ? notesBalance(matchup, enemyIntel, yourIntel) : "even";
+  const tips = <RiotTipsPanel enemies={[enemyIntel, enemy2Intel].filter((i): i is ChampionIntelView => !!i)} yours={[mirror ? null : yourIntel, allyIntel].filter((i): i is ChampionIntelView => !!i)} duo={duo} />;
 
   return (
     <div className="@container/dash space-y-3" data-testid="matchup-dashboard" data-layer={you && enemy ? (shows ? "curated" : "assembled") : undefined}>
@@ -124,6 +125,8 @@ export function MatchupContent({ view, champions, curated, legal }: { view: Matc
               <InteractionsPanel matchup={matchup} enemyIntel={enemyIntel} yourIntel={yourIntel} you={you} rows={rows} />
               <LevelNotesPanel intels={[enemyIntel, yourIntel]} />
             </div>
+            {/* In the bot lane the right column holds two kits, so the tips come under the notes. */}
+            {duo ? tips : null}
           </div>
           <div className="min-w-0 space-y-3">
             {/* In the bot lane with both enemies chosen, their two kits side by side where the column has room. */}
@@ -131,9 +134,12 @@ export function MatchupContent({ view, champions, curated, legal }: { view: Matc
               <AbilitiesPanel intel={enemyIntel} title={mirror ? `${enemyIntel.champion.name}'s abilities (both sides)` : `${enemyIntel.champion.name}'s abilities`} testId="matchup-enemy-abilities" notice={stale} />
               {enemy2Intel ? <AbilitiesPanel intel={enemy2Intel} title={`${enemy2Intel.champion.name}'s abilities`} testId="matchup-enemy2-abilities" /> : null}
             </div>
-            {yourIntel && !mirror ? <YourChampion intel={yourIntel} label={duo ? slotWords(role, "you").label : undefined} /> : null}
-            {allyIntel ? <YourChampion intel={allyIntel} label={slotWords(role, "ally").label} testId="matchup-ally-abilities" /> : null}
-            <RiotTipsPanel enemies={[enemyIntel, enemy2Intel].filter((i): i is ChampionIntelView => !!i)} yours={[mirror ? null : yourIntel, allyIntel].filter((i): i is ChampionIntelView => !!i)} duo={duo} />
+            {/* Your duo's two kits side by side under the enemies' where the column has room. */}
+            <div className={duo && allyIntel && yourIntel && !mirror ? "grid gap-3 @min-[84rem]/dash:grid-cols-2 @min-[84rem]/dash:items-start" : undefined}>
+              {yourIntel && !mirror ? <YourChampion intel={yourIntel} label={duo ? slotWords(role, "you").label : undefined} /> : null}
+              {allyIntel ? <YourChampion intel={allyIntel} label={slotWords(role, "ally").label} testId="matchup-ally-abilities" /> : null}
+            </div>
+            {duo ? null : tips}
           </div>
         </div>
       ) : null}

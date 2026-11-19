@@ -367,7 +367,7 @@ function HasteChoice({ haste, onChange }: { haste: number; onChange: (haste: num
           onChange(clampHaste(v));
         }}
         // 16px on a phone, so it never zooms in.
-        className="h-11 w-16 rounded-md border border-border-control bg-bg-elevated px-2 text-base text-fg tabular-nums placeholder:text-fg-subtle pointer-fine:h-7 sm:text-xs"
+        className="h-11 w-16 rounded-md border border-border-control bg-bg-elevated px-2 text-base text-fg tabular-nums placeholder:text-fg-subtle pointer-fine:h-7 sm:pointer-fine:text-xs"
         data-testid="matchup-haste-input"
       />
     </div>

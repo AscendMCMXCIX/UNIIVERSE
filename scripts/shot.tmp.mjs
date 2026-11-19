@@ -1,0 +1,10 @@
+import { chromium } from "@playwright/test";
+const [,, url, out, w, h] = process.argv;
+const b = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium" });
+const p = await b.newPage({ viewport: { width: +w, height: +h } });
+await p.goto(url, { waitUntil: "networkidle" });
+await p.waitForTimeout(500);
+const m = await p.evaluate(() => ({ scroll: document.documentElement.scrollHeight - innerHeight, width: document.documentElement.scrollWidth - innerWidth }));
+console.log(JSON.stringify(m));
+await p.screenshot({ path: out, fullPage: true });
+await b.close();
