@@ -326,7 +326,8 @@ With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shel
     the room's edge: 74px left of Players at 1920 and 250px at 2560, 400 to 620px at 3440 (the
     sidebar open). In a window under 1600px every page and the row are as they always were, the
     sidebar open or folded (measured against main's build at 1280, 1366, 1440, 1536 and 1599: no
-    difference), so with the sidebar folded between 1417 and 1599px Players, Matches, Resources and
+    difference; PR 2b's 44px dense tabs on touch screens from 1024px aside, below), so with the
+    sidebar folded between 1417 and 1599px Players, Matches, Resources and
     Platform Settings still start up to about 79px inside the row (60px at 1536), as before. The
     line under the tabs and the pinned ink span the room beside the sidebar, as a frame does. A
     profile's tabs, and a section's views (`SubTabs`), sit inside their page's own column, so they
@@ -338,6 +339,32 @@ With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shel
     never longer than before. A page's loading state takes the width `pageWidthOf` gives its address
     (a Team section's own; the ordinary 80rem elsewhere); Team Matches' own skeleton stands as its
     page does, its list at `--content-max`.
+  - **A page's controls in reach (PR 2b, 18 Nov 2026).** Once the row is pinned and the page's own
+    toolbar has gone up under it, the page's compact copy of its controls shows at the row's end
+    (`PageToolbar`, `src/components/ui/page-toolbar.tsx`): Match History and Encounters
+    [Games | Encounters] + [Filters · n]; Overview [Filters · n]; All Champions and Players
+    [Search] + [Filters · n]; Team Matches [Filters · n] + [Bookmarked]; Leaderboards
+    [Recent form | Records]. Back up at the toolbar the copy goes, and it is drawn only while it
+    shows, so nothing hidden can be tabbed to. In use it stays: pressed or focused, while the sheet
+    its Filters opened is open, and until that sheet has handed the focus back, so a change that
+    shortens the page never leaves the focus with nowhere to return (`useHeld`). Never in a short
+    window (nothing is pinned there). The row never grows: the controls are 32px with a mouse and 38px
+    on touch screens (a 44px target), centred in the whole bar, the search 44px on touch screens with
+    its 40px clear button, and from 1024px on touch screens the dense section tabs (Team's,
+    Resources', Platform Settings') are 44px, not 40px, so the bar holds those targets and is the
+    2.75rem `--tabs-top` assumes (with a mouse they stay 40px); where the row is narrower than 56rem
+    (a tablet, a laptop with the sidebar open) they
+    show their icons alone, named for screen readers, and Team's name at the row's end gives them its
+    place. Their Filters opens the page's Filters sheet at every width, in its sheet form (labels
+    shown, fields the sheet's width, a page's Refine fields in place, in one column behind More
+    filters), while the toolbar in the page keeps its size; closed after a choice made in it, within
+    8 s of the change arriving and before the reader scrolls, presses, types or steps Back, it brings
+    the list's first item under the pinned stack; closed unchanged, or once the reader moves on,
+    nothing later moves the page. Bookmarked keeps the place, as every filter does. The page's
+    own toolbar is found by the page's filter bar, or named by the page (All Champions' table search,
+    Leaderboards' views). The copy's Filters counts and names what the page's own bar narrows at its
+    width (from md Encounters' Minimum games and Sort by are its list toolbar's, so the pinned row
+    and the sheet there leave them out, as the inline bar does, following the width while open).
 - **Tablet drawer.** It is a native `<dialog>`: it keeps focus inside, the page behind it cannot
   be used and is locked as behind a window (no scrolling, no rubber band), the focus starts as in a
   window (on the menu itself after a tap, on its close button from the keyboard), and closing it
@@ -353,7 +380,11 @@ test):
 - **Three levels, each always in the same place.** Destinations: the sidebar (desktop), the drawer
   (tablet), the five-tab bar (phone). Sections: the section tabs, pinned once the page scrolls past
   them (tablet, desktop), the top bar's second row on a phone profile (Team's sections are the phone
-  tab bar itself). A page's own views and scope (its view switch, filters, search): in its header.
+  tab bar itself). A page's own views and scope (its view switch, filters, search): in its header;
+  once the header has scrolled away, still one press away: from md their compact copy at the pinned
+  tabs' end (`PageToolbar`, above), on a phone (and in a short window as wide as a tablet, where
+  nothing pins) Filters in the top bar, 44px with the count of narrowed filters, named "Filters:"
+  and what is chosen (PR 2b). (`e2e/navigation-reach.spec.ts`, `e2e/mobile-nav.spec.ts`)
 - **Where a page starts.** A page opened by a link or by code starts at its top
   (`ScrollOnNavigate`); Back and Forward restore the exact place (the browser and Next, untouched);
   a link to a `#fragment` lands on its target. A link that changes the address but keeps the place

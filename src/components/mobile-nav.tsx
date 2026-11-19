@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { scrollToTop, stayOnCurrentPage } from "@/lib/back-to-top";
 import { usePathname, useRouter } from "next/navigation";
-import { ChevronLeft, ChevronRight, LogOut, Menu, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, LogOut, Menu, SlidersHorizontal, X } from "lucide-react";
 import { BrandMark } from "./brand-mark";
 import { NavLinks } from "./nav-links";
 import { Avatar } from "./ui/avatar";
@@ -19,6 +19,7 @@ import { InstallAppEntry } from "./install/install-app";
 import { useInstallState } from "./install/install-state";
 import { ProfileTabs } from "./players/profile-tabs";
 import { PHONE_QUERY } from "./ui/use-phone";
+import { useHeld, usePageFilters, useScrolledAway } from "./ui/page-toolbar";
 import { releaseEarlyTaps } from "./early-taps";
 import { cn } from "@/lib/cn";
 import { ACCOUNT_GROUP, ACCOUNT_ROW, ACCOUNT_ROW_CHEVRON, ACCOUNT_ROW_CURRENT, ACCOUNT_ROW_ICON, ACCOUNT_ROW_IDLE } from "@/lib/sheet";
@@ -117,6 +118,14 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
   const bar = useTopBarHeight(headerRef);
   const heading = usePageHeading(pathname, bar);
   const back = useBack(pathname, heading.text, tabs, home);
+  // The page's filters (its FilterBar), offered in the bar once the page's own have gone up under it,
+  // and kept while in use: pressed or focused, while the sheet it opened is open, and until that sheet
+  // has handed it the focus back (useHeld).
+  const filters = usePageFilters();
+  const filtersAway = useScrolledAway(filters?.root ?? null, bar || null);
+  const filtersButton = React.useRef<HTMLButtonElement>(null);
+  const filtersSheet = filters?.openedFrom === "topbar";
+  const filtersHold = useHeld(filtersButton, filtersAway, filtersSheet);
   // A profile's sections, when this page is one (your own only when you have a profile).
   const profile = adminMode ? null : profileBase(pathname);
   const sections = profile === "/overview" && !hasPlayer ? null : profile;
@@ -187,6 +196,19 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
           ) : (
             <p className="min-w-0 flex-1 px-1 opacity-0 md:hidden" aria-hidden data-testid="mobile-title" />
           )}
+          {/* Phones, and tablet widths in a window 480px tall or less (where the section tabs do not pin
+              and their row cannot offer them): the page's Filters, once its own have scrolled up under
+              the bar; its sheet, as from the page's own button. 44px, with the count of narrowed filters. */}
+          {filters && (filtersAway || filtersHold.held || filtersSheet) ? (
+            <button ref={filtersButton} type="button" onClick={() => filters.open("topbar")} onFocus={filtersHold.grab} onPointerDown={filtersHold.grab} onBlur={filtersHold.onBlur} aria-haspopup="dialog" className="relative grid h-11 w-11 shrink-0 place-items-center rounded-md text-fg-muted hover:bg-surface-2 hover:text-fg md:not-short:hidden" data-testid="topbar-filters">
+              <SlidersHorizontal className="h-5 w-5 text-accent" aria-hidden />
+              {/* At tablet widths (a phone held sideways) a list's own choices are its toolbar's, not the sheet's: the bar's own name and count there. */}
+              <span className={cn("sr-only", filters.wideSummary !== filters.summary && "md:hidden")}>Filters: {filters.summary}</span>
+              {filters.wideSummary !== filters.summary ? <span className="sr-only max-md:hidden">Filters: {filters.wideSummary}</span> : null}
+              {filters.count ? <span className={cn(TOPBAR_COUNT, filters.wideCount !== filters.count && "md:hidden")}>{filters.count}</span> : null}
+              {filters.wideCount && filters.wideCount !== filters.count ? <span className={cn(TOPBAR_COUNT, "max-md:hidden")}>{filters.wideCount}</span> : null}
+            </button>
+          ) : null}
           {user ? (
             <>
               <span className="max-md:hidden">
@@ -397,8 +419,15 @@ const TAB_FIT = {
   },
 } as const;
 
-/** Phones; and tablets in the installed app, which has no browser Back (a tablet in a browser has the browser's). */
-const BACK_CLASS = "-ml-1 flex min-h-11 min-w-0 max-w-[45%] shrink-0 items-center gap-0.5 rounded-md pr-2 text-sm font-medium text-accent hover:bg-surface-2";
+/** The top bar's Filters count, over the button's corner. */
+const TOPBAR_COUNT = "absolute right-0.5 top-1 min-w-4 rounded-full bg-accent px-1 text-center text-2xs font-semibold leading-4 tabular-nums text-bg";
+
+/**
+ * Phones; and tablets in the installed app, which has no browser Back (a tablet in a browser has the
+ * browser's). Up to 45% of the bar, and it gives way first (its label shortens, its name stays whole
+ * for screen readers) when a larger text size leaves the bar too little room for Filters and the avatar.
+ */
+const BACK_CLASS = "-ml-1 flex min-h-11 min-w-0 max-w-[45%] shrink items-center gap-0.5 rounded-md pr-2 text-sm font-medium text-accent hover:bg-surface-2";
 /**
  * Tablets: hidden in a browser, shown in the installed app's display mode from the first paint (the
  * `standalone` variant, globals.css), so a cold start never draws the bar without it and then with

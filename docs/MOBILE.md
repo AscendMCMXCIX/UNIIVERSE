@@ -35,7 +35,15 @@ anywhere else:
    reached from one (a teammate's profile, Settings), labelled with where it leads ("‹ Players",
    "‹ Team Leaderboards"). Once the page's own heading has scrolled up under the bar, the bar shows
    its words (the player's name, "Team Leaderboards"), so the title is in view however far down you
-   are (the iOS large-title pattern). At its right end, your avatar opens the account screen.
+   are (the iOS large-title pattern). Once the page's own Filters has scrolled up under the bar, the
+   bar offers it beside your avatar (PR 2b): a 44px button with the count of narrowed filters,
+   named "Filters:" and what is chosen, opening the same sheet, which hands the focus back to it as
+   it closes (the button stays while the sheet is open and while it has the focus, even once a change
+   has brought the page's own Filters back into view); Done after a change brings the list's first
+   item (the first game, the first player) under the bar, or as near as the page's end allows. With
+   Back, the title, Filters and the avatar in the bar at large text, Back gives way first (its label
+   shortens, its name stays whole for screen readers), so the bar never runs past the screen. At its right end, your avatar opens
+   the account screen.
 2. **The bottom tab bar** (fixed, within reach of the thumb): **Team, Players, Leaderboards,
    Matches, Profile**, each one tap from anywhere (`PHONE_TABS` in `src/lib/nav.ts`, at most five,
    those the account may open). The current tab's icon sits in an accent pill and its label is
@@ -213,7 +221,7 @@ text below 12px; 11px (`text-2xs`) only for badges and labels.
 
 | Need | Phone pattern | Why |
 |---|---|---|
-| Narrow a list | **Filters** opens a sheet from the bottom edge with every filter, each with its label, and Reset and Done at its foot (`FilterBar`). Beside the button, what is narrowed shows as chips that remove themselves with a tap. A search box shares the row with Filters. Choices apply at once, as on desktop. A picker in the sheet (Played with, Champions) opens its list in the sheet's body, as tall as its options, and the body scrolls it into view; a tap below the open list closes it and reaches what was tapped. | The scope stays visible without opening anything; the sheet is within reach of the thumb and never pushes the page around. One scroller: a list scrolling inside the sheet's scrolling body was cut off at its edge. Closed as a tap started, the list moved the fields below it up before the tap landed. |
+| Narrow a list | **Filters** opens a sheet from the bottom edge with every filter, each with its label, and Reset and Done at its foot (`FilterBar`). Beside the button, what is narrowed shows as chips that remove themselves with a tap. A search box shares the row with Filters. Choices apply at once, as on desktop. Far down the list, the top bar offers the same Filters (PR 2b), so narrowing never needs scrolling back up; Done after a change lands the list's first item under the bar. A picker in the sheet (Played with, Champions) opens its list in the sheet's body, as tall as its options, and the body scrolls it into view; a tap below the open list closes it and reaches what was tapped. | The scope stays visible without opening anything; the sheet is within reach of the thumb and never pushes the page around. One scroller: a list scrolling inside the sheet's scrolling body was cut off at its edge. Closed as a tap started, the list moved the fields below it up before the tap landed. |
 | Open a game | The game takes the whole screen (the match window), as a new entry in the browser's history, so Back (the button, the edge swipe, Android's key) closes it and returns to the list exactly as it was. Its scoreboard keeps the marks for players met in other games; following one closes the game, and Back returns to it. | A scoreboard inside a list is a detour on a narrow screen. Desktop keeps the game under its card. |
 | A champion, a player from Team | The existing detail windows, which already take the whole screen on phones. | |
 | Account, Settings, Sign out | The account screen, from the avatar. | One menu, not two, every entry a full-width row in reach of the thumb. |

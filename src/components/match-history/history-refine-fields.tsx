@@ -3,7 +3,7 @@
 import * as React from "react";
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { FilterField } from "@/components/ui/filter-bar";
+import { FilterField, useInFilterSheet } from "@/components/ui/filter-bar";
 import { Input, Select } from "@/components/ui/input";
 import { segmentClass, segmentedGroupClass } from "@/components/ui/segmented";
 import { InfoTip } from "@/components/ui/info-tip";
@@ -75,8 +75,10 @@ export function HistoryRefineFields({ refine, options, set, group, pending }: { 
   const patchKnown = !refine.patch || options.patchOptions.some((p) => p.patch === refine.patch);
   const inUse = [refine.highlight, refine.patch, refine.member, refine.from || refine.to, refine.sessions].filter(Boolean).length;
   const [more, setMore] = React.useState(inUse > 0);
+  // In the Filters sheet (a phone, or the sheet the pinned row opens at any width): its form, one column with More filters.
+  const inSheet = useInFilterSheet();
   return (
-    <div className="flex min-w-0 flex-col gap-3 md:grid md:grid-cols-2 md:gap-3" data-testid="history-refine">
+    <div className={cn("flex min-w-0 flex-col gap-3", !inSheet && "md:grid md:grid-cols-2 md:gap-3")} data-testid="history-refine">
       <FilterField label="Result" labelId={`${id}-result`} alwaysLabel>
         <div role="radiogroup" aria-labelledby={`${id}-result`} className={segmentedGroupClass("w-fit")} data-testid="refine-result">
           {RESULTS.map((r) => {
@@ -94,14 +96,14 @@ export function HistoryRefineFields({ refine, options, set, group, pending }: { 
         onClick={() => setMore((m) => !m)}
         aria-expanded={more}
         aria-controls={`${id}-more`}
-        className="-my-1 inline-flex min-h-9 w-fit items-center gap-1 rounded-lg text-sm font-medium text-accent focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:min-h-11 md:hidden"
+        className={cn("-my-1 inline-flex min-h-9 w-fit items-center gap-1 rounded-lg text-sm font-medium text-accent focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:min-h-11", !inSheet && "md:hidden")}
         data-testid="refine-more"
       >
         {more ? "Fewer filters" : "More filters"}
         {inUse ? <span className="text-fg-muted"> · {inUse} in use</span> : null}
         <ChevronDown className={cn("h-4 w-4 transition-transform motion-reduce:transition-none", more && "rotate-180")} aria-hidden />
       </button>
-      <div id={`${id}-more`} className={cn("contents", !more && "max-md:hidden")} data-testid="refine-more-fields">
+      <div id={`${id}-more`} className={cn("contents", !more && (inSheet ? "hidden" : "max-md:hidden"))} data-testid="refine-more-fields">
       <FilterField label="Highlights" htmlFor={`${id}-hl`} alwaysLabel>
         <Select id={`${id}-hl`} value={refine.highlight ?? ""} disabled={pending} onChange={(e) => set({ hl: e.target.value || null })} className="w-full" data-testid="refine-highlight">
           <option value="">Every game</option>

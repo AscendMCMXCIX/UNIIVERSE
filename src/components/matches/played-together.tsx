@@ -7,6 +7,7 @@ import { seasonLabel } from "@/domain/season";
 import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateTone } from "@/domain/stats/win-rate";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FilterBar, FilterField } from "@/components/ui/filter-bar";
+import { FiltersControl, PageToolbar, ToolbarChip } from "@/components/ui/page-toolbar";
 import { chipClass } from "@/components/ui/segmented";
 import { queueLabel } from "@/server/players/match-history";
 import type { PlayedTogether } from "@/server/matches/played-together";
@@ -78,6 +79,13 @@ export function PlayedTogetherView({ data, seasons, currentSeason, shown, teams 
     // The list under the header stays at the ordinary width, left-aligned, however wide Team's page is:
     // more room never makes a game's row longer (docs/STANDARDS.md, Page layout).
     <div className="max-w-[var(--content-max)] space-y-4" data-testid="played-together">
+      {/* From md, once the filters have scrolled away: Filters and Bookmarked at the pinned tabs' end (ui/page-toolbar.tsx). */}
+      <PageToolbar label="Matches controls" land="[data-testid=together-card]">
+        <FiltersControl />
+        <ToolbarChip href={href({ saved: !filters.saved, limit: 20 })} on={filters.saved} label="Bookmarked" count={savedCount} testId="toolbar-together-saved">
+          <Bookmark className="h-3.5 w-3.5" aria-hidden />
+        </ToolbarChip>
+      </PageToolbar>
       {/* The filters, then the page's own action at the row's end: Bookmarked (on phones the bar's
           own end, beside Filters; FilterBar shows `end` only while folded). */}
       <div className="flex min-w-0 items-start gap-2">

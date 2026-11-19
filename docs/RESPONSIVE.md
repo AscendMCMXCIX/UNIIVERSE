@@ -287,10 +287,12 @@ the account screen over the dashboard at 200% on a 320px phone as well.
 - `src/components/app-shell.tsx`: sidebar from `lg`; `MobileNav` below.
 - `src/components/mobile-nav.tsx` (the phone frame is described in full in [MOBILE.md](MOBILE.md)):
   - phones: a sticky top bar with Back (named after where it leads) or the team's mark, the page's
-    title once its heading has scrolled up under the bar, and your avatar, which opens the account
-    screen (a screen of its own: who is signed in, then full-width rows for the pages without a tab,
-    Settings and Install App, the mode switch and Sign out, then the patch and Riot's notice); on a
-    profile, its sections ride under the bar;
+    title once its heading has scrolled up under the bar, the page's Filters once its own have
+    scrolled up under the bar (44px, the count of narrowed filters on it, named "Filters:" and what
+    is chosen; the same sheet; PR 2b), and your avatar, which opens the account screen (a screen of
+    its own: who is signed in, then full-width rows for the pages without a tab, Settings and
+    Install App, the mode switch and Sign out, then the patch and Riot's notice); on a profile, its
+    sections ride under the bar;
   - phones: a bottom tab bar with Team, Players, Leaderboards, Matches and Profile (`PHONE_TABS`,
     at most five, those the account may open). A teammate's profile is under Players. The current
     tab's icon sits in an accent pill and its label is bright, so it does not rely on colour alone;
@@ -339,7 +341,8 @@ the account screen over the dashboard at 200% on a 320px phone as well.
   at the page's column and Team's name at the row's end stops at its right edge, and the row stays in
   the same place on every section of the set; the line under it and its pinned ink span the room. In
   a window under 1600px every page and the row are exactly as before, the sidebar open or folded
-  (Players and Matches 80rem, the row the bar's width; measured against main's build). A profile's
+  (Players and Matches 80rem, the row the bar's width; measured against main's build), but for PR
+  2b's 44px dense tabs on touch screens from 1024px (below). A profile's
   tabs and a section's views (`SubTabs`) are inside their page's column, so they always lined up. On
   Team Overview the column is Team's 100rem, and its header and lineup keep their 84rem, centred in
   it (the logo 38px inside at 1920, 165px at 2560 and 176px at 3440 with the sidebar open). With
@@ -349,6 +352,36 @@ the account screen over the dashboard at 200% on a 320px phone as well.
   section's own, else 80rem): Players and a teammate's profile share `players/loading.tsx`, which reads
   the address it stands in for, and Team Matches' own `matches/loading.tsx` stands as its page does
   (Team's width from 1600px, its filter row and cards at `--content-max`, left-aligned).
+- **A page's controls in reach** (PR 2b, 18 Nov 2026): a long page's own controls (its view switch,
+  Filters, search) scroll away with its header. From md, once the section tabs are pinned and the
+  page's own toolbar has gone up under them, the page's compact copy shows at the pinned row's end
+  (`PageToolbar`; which page offers what: DESIGN_SYSTEM.md §7), at the row's own height (32px with a
+  mouse, 38px on touch screens with a 44px target; the search field 44px on touch screens, kept in
+  the row by its negative margins), centred in the whole bar, the labels where the row is 56rem or
+  wider and the icons alone below that; Team's name at the row's end gives way to it. So that the
+  row holds those 44px targets, from 1024px on touch screens the dense section tabs (Team's,
+  Resources' and Platform Settings') are 44px, as a profile's are, not 40px: the bar is then the
+  2.75rem `--tabs-top` and the scroll padding assume (with a mouse they stay 40px, level with the
+  sidebar's brand row). It is watched against the pinned stack's
+  foot (the tablet's top bar and the tabs, measured from the pinned row), drawn only while it shows,
+  kept while in use (pressed or focused, while the sheet it opened is open, and until that sheet has
+  handed the focus back), and never in a short window. On phones the top bar offers the page's
+  Filters instead (above), kept the same way, and so does a tablet-wide short window (a phone held
+  sideways), where nothing pins; in the fullest bar at large text, Back gives way to it (its label
+  shortens). Either way the page's Filters sheet opens: at any width in its sheet form (Refine's
+  fields in one column behind More filters, Players' "Archived and deactivated" whole), the inline
+  toolbar keeping its size in the page (an empty box of its size while its fields are in the sheet,
+  one copy of each field and id), and closed after a choice made in it, once the change has arrived
+  (within 8 s, and before the reader scrolls, presses, types or steps Back), it brings the list's
+  first item under what is pinned (and under anything pinned over its start, as All Champions'
+  column headings); closed unchanged, or once the reader moves on, nothing later moves the page. The
+  pinned row's buttons and fields take the scroll padding back as its links do, so focus moving onto
+  them never scrolls the page. The copy's Filters counts and names what the page's own bar narrows
+  at its width: from md Encounters' Minimum games and Sort by are its list toolbar's (FilterBar's
+  `inlineReset`), so the pinned row's count and name, a sideways phone's top bar, and the sheet from
+  md (its subtitle, its Reset the inline one) leave them out; on an upright phone the top bar and the
+  sheet count, name and reset them, as the phone's sheet holds them. The sheet follows the width
+  while it is open, so a phone turned across 768px changes what it holds and resets, as its fields do.
 - `main` pads for the tab bar (`pb-tabbar`) so content never hides behind it.
 
 ## Primitives
@@ -456,7 +489,37 @@ name ending at the column's right edge, the bar's line spanning the room, and on
 header centred in Team's column; under a 1600px window (1536 × 864, the sidebar folded) Players and
 Matches stay 80rem and the row spans the bar, as before; the tablet's menu keeps focus inside and gives it back to the menu button; the
 installed app's Back on a tablet (the display mode stood in for, as Chromium cannot emulate it);
-the filter sheet's Done leaves with its motion; Admin Mode's Settings has its title.
+the filter sheet's Done leaves with its motion; Admin Mode's Settings has its title; and a page's
+controls in reach (PR 2b): from md the pinned row offers Match History's views and Filters exactly
+once the page's filter bar has gone 10px above the pinned stack's foot, and not 10px below it (the
+row pinned at both), at the row's resting height and inside it, gone again at the top, none in a
+short window; a copy keeps the focus while it has it and goes once the focus moves on; from the end
+of Match History (768 and 1440) Filters opens the sheet in its sheet form (Refine in one column), the
+toolbar in the page keeping its size; Escape and Done hand the focus back to it, still drawn, even
+after a change that emptied the list; a sheet closed after only a look (More filters opened) moves
+nothing once the reader has moved on (a later change in the page's own filters keeps the place), nor
+does Bookmarked after a look at Team Matches' Played with; closed after a change, the first game
+lands under the pinned tabs, and on the desktop Encounters' first player under its pinned column
+names, Team Matches' first game, the Overview's dashboard, All Champions' first champion under its
+pinned headings and Players' first player do too; the compact search narrows Players and All
+Champions in the row's own height, and its Clear lets the copy go once the page's own search is back
+in view, with no focus left in the row; Bookmarked from the row replaces the entry, is marked and
+keeps the place; Records → Recent form from the pinned row; on a touch screen at 1180 and 1366,
+Team's tabs and the bar 44px, the 2.75rem `--tabs-top` assumes, at rest and pinned, Filters and
+Bookmarked centred inside it, a change from it landing the first game 8px under it, and at 175% text
+the compact search filling the bar exactly; with a mouse at 1440 the tabs 40px, the controls centred
+in the bar; Encounters in its own order and a game mode: from md the pinned row counts and names the
+mode alone and its sheet's Reset keeps the order, on a phone both are counted, named and reset; a
+phone held sideways (852 × 393) counts and names the bar's own; and an open sheet follows the phone
+turning across 768px (upright to sideways: the order and its Reset leave it; back upright: the
+order is in it again, and its Reset puts both back).
+`e2e/mobile-nav.spec.ts` has the phone's: the top bar's Filters (44px, "Filters:" and what is chosen)
+only once the page's own has gone, opening the sheet, Done after a change landing the first game
+under the bars, its badge counting; Escape and Done hand the focus back, even after a change that
+emptied the list; the fullest bar (Back, the title, Filters with its count, the avatar) within a
+320px phone at 100%, 175% and 200% text, Back giving way. `e2e/filter-consistency.spec.ts`: the sheet
+opened from the pinned row at 768 and 1440 labels every field (More filters opened), holds the only
+copy of each id, and gives Team Matches' Played with the sheet's width, as its selects.
 `e2e/popups.spec.ts` keeps what shows over a window inside it: an ⓘ's bubble in a window drawn
 inside the window and above it where its trigger puts it (also while the window is moved and
 scaled, and once a motion of the window's own is over), Escape closing the bubble alone; an ⓘ
@@ -509,7 +572,8 @@ the responsive pass report.
 (phone landscape) and 1366×600 (short laptop) and fails on any horizontal overflow or a missing
 heading; admin pages at five widths. The same file runs axe (WCAG 2.1 A/AA) on every page and fails
 on critical or serious violations, and again at 1920 on Team's four sections and Resources, where
-the section tabs' row takes the pages' width.
+the section tabs' row takes the pages' width, and at 1440 × 600 with a page's compact controls
+showing in the pinned row (Team Matches, Records, a profile's Overview, Match History, Encounters).
 Panel layouts that live in variable-width columns use container queries (`@container`, `@xl:`) rather than viewport breakpoints.
 For example, Team Matches' cards take their four columns from their list's width (`@container/tm`, from 58rem), because the sidebar beside the list takes 4.5 or 16rem of the same window (`e2e/played-together.spec.ts`); inside a card the members go two to a row from a 34rem column of their own (`@container/members`: a tablet's stacked card, or the four columns beside the open sidebar at 1440), and from sm a member's CS and damage show where the member's row is 19rem (`@container/member`): beside the role and champion where both fit whole, on a line of their own under them otherwise, so a long role and champion ("Role unknown · Nunu & Willump", the longest the game can show) is never cut for them. On narrower cards the result, its game and the count of members are one line of words that wraps, the bookmark in the corner; on a phone's card the count is read out only.
 Leaderboards' Records places its three boards by its own width (`@container/records`): one column under 62rem (with an index of its sections under 36rem, on phones), the record book beside the multikills from 62rem (1440 with the sidebar open; 1280 with it open is 60rem, one column), three columns from 98rem (2560 and wider; the milestones' column then keeps the 32rem from which a chip names its champion). Each board's rows follow the board's own width (`@container/list`): the book's are three lines under 36rem and two beside the picture from it (the record and its qualifier over the holder, champion, role, K/D/A and date; 64px where each fits its line), a member's multikills one line from a 21rem list, a member's milestones one line from 40rem. Under a 16rem book, a phone at 150% or 200% text, a record's row is one column (the picture over the record, the holder, the game and the value with its unit, which wrap), so the page is no wider than a 320px phone at either size (`e2e/phone-wraps.spec.ts`; the screen counts are in `docs/TEAM_LEADERBOARDS.md`).
@@ -545,6 +609,9 @@ Three levels, each saying what it proves:
   - the priority pages load with no page error (hydration included) and no sideways scrolling;
   - Team's card track and role tabs, by tap;
   - a teammate's profile sections and a champion's window;
+  - the top bar's Filters on Match History (PR 2b): gone at the top, offered once the page's own has
+    scrolled away, 44px, a tap opens the filter sheet, and a choice and Done bring the first game
+    under the bars, its count shown;
   - the Card Studio's section list, a palette and Cancel;
   - the account screen: one tap opens it, at rest it fills the screen exactly with nothing in it
     scrolling, every control a row at least 48px tall reached by a tap where it is drawn, the screen

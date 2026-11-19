@@ -92,6 +92,9 @@
     teammate's profile (as every page, with axe): each tab row's first tab starts where its page's
     column does (within 1px; on Team Overview Team's 100rem column, its header's inset reported), a
     missing row failing, and Team's row is in the same place on its three sections.
+  - reach (PR 2b): from the end of Match History, on the desktop and the tablet the pinned row offers
+    Filters and it opens the filter sheet; on the phone the top bar's Filters opens it (Escape closes
+    it again; no filter is touched).
   - every page at every width: it loads signed in, no sideways scroll, no page error, no app console
     error, no failed request to the app, no broken image from the app, and a screenshot to review.
 */
@@ -1132,6 +1135,51 @@ async function teamMatches(page, log, kind, context) {
   }
 }
 
+/**
+ * Page controls in reach (PR 2b), from the end of Match History: on the tablet and the desktop the
+ * pinned tabs' row offers Filters once the page's filter bar has gone up under it, and it opens the
+ * filter sheet; on the phone the top bar does. Opening and closing the sheet changes nothing (no
+ * filter is touched). Positions in px and true or false only. Not applicable exactly when the frame
+ * would not offer it: the filter bar's bottom still below the pinned stack's foot at the list's end
+ * (the pinned row's bottom on the tablet and the desktop, the top bar's on the phone), or nothing
+ * pinned while the filter bar is still on screen (a list too short to pin). Nothing pinned with the
+ * bar gone above the window fails: the tabs above it are past their sticky offset there.
+ */
+async function reachFacts(page, kind) {
+  const name = kind === "phone" ? "phone: from the end of Match History the top bar's Filters opens the filter sheet" : `${kind}: from the end of Match History the pinned row offers Filters and it opens the filter sheet`;
+  const at = await page.evaluate(async (phone) => {
+    const end = document.documentElement.scrollHeight - innerHeight;
+    for (let y = window.scrollY; y < end; y += 240) {
+      window.scrollTo(0, y);
+      await new Promise((r) => requestAnimationFrame(() => r(null)));
+    }
+    window.scrollTo(0, end);
+    await new Promise((r) => setTimeout(r, 300));
+    // What the frame watches (the page's filter bar) against where it watches it from.
+    const bar = document.querySelector("[data-testid=match-history] [data-filter-bar]");
+    const stuck = document.querySelector("[data-sticky-tabs][data-stuck]");
+    const top = document.querySelector("[data-testid=mobile-topbar]");
+    const foot = phone ? (top ? top.getBoundingClientRect().bottom : null) : stuck ? stuck.getBoundingClientRect().bottom : null;
+    return { barBottom: bar ? Math.round(bar.getBoundingClientRect().bottom) : null, foot: foot === null ? null : Math.round(foot) };
+  }, kind === "phone");
+  if (at.barBottom === null) return pass("reach", name, false, { missing: "no filter bar on Match History" });
+  if (at.foot === null) return at.barBottom > 0 ? check("reach", name, "PASS", { notApplicable: "nothing pinned while the filter bar is still on screen (the list too short)", ...at }) : pass("reach", name, false, { pinned: false, ...at });
+  if (at.barBottom > at.foot + 1) return check("reach", name, "PASS", { notApplicable: "the list is too short for its filter bar to go up under what is pinned", ...at });
+  const control = page.getByTestId(kind === "phone" ? "topbar-filters" : "toolbar-filters");
+  const offered = await control.waitFor({ timeout: 5_000 }).then(() => true, () => false);
+  let opened = false;
+  if (offered) {
+    if (kind === "phone") await control.tap();
+    else await control.click();
+    const sheet = page.getByTestId("filter-sheet");
+    opened = await sheet.waitFor({ timeout: 10_000 }).then(() => true, () => false);
+    await shot(page, `${kind}-match-history-filters-from-the-frame`);
+    await page.keyboard.press("Escape");
+    await sheet.waitFor({ state: "detached", timeout: 5_000 }).catch(() => {});
+  }
+  pass("reach", name, offered && opened, { offered, opened, ...at });
+}
+
 async function matchHistory(page, log, kind, playerId) {
   const path = playerId ? `/players/${playerId}/matches` : "/overview/matches";
   if (!(await visit(page, log, kind, "match-history", path, { fullPage: false }))) return;
@@ -1214,6 +1262,8 @@ async function matchHistory(page, log, kind, playerId) {
     await shot(page, `${kind}-match-history-open`);
     if (kind !== "tablet") await axe(page, kind, "match-history-game-open");
   }
+  // The page's controls in reach from the end of its list (PR 2b): the pinned row's or the top bar's Filters.
+  await guarded("reach", `${kind}: Filters from the end of Match History`, () => reachFacts(page, kind));
   // Encounters, the players met, from the view switch.
   const switcher = page.getByTestId("match-views").getByRole("link", { name: /encounters/i }).or(page.getByTestId("match-views").getByRole("button", { name: /encounters/i })).or(page.getByTestId("match-views").getByRole("tab", { name: /encounters/i }));
   if (await switcher.count()) {

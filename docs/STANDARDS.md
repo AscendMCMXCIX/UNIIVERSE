@@ -174,7 +174,9 @@ leaving a frame to fill.
   `compactToggle`: Filters its icon alone under 360px), and a narrowed filter's chips take the next
   row when they do not fit (`toolbarFills`; below `xl` an active refinement's always do, from the
   row's start, clear of the Refine panel that opens from the right). The scope line comes after
-  the toolbar in the page as on screen, so the header is read and tabbed in the order drawn.
+  the toolbar in the page as on screen, so the header is read and tabbed in the order drawn. On a
+  long page its compact copy stays in reach once it has scrolled away (`PageToolbar` at the pinned
+  tabs' end from md; Filters in the phone's top bar).
 - **Density, by what the page is for:**
   - an analytical table has 2rem portraits and rows of about 48px wherever it is a table. Its
     figure columns are as wide as their heading needs and a little more (at least room for the sort
@@ -230,10 +232,11 @@ Use the shared component before writing a new one (`src/components/ui`):
 | Details over the page (a match, a player, a champion) | `DetailModal` (the standard size fits its content up to the screen's height); a custom `header` keeps clear of the close button's corner with `CLEAR_OF_CONTROLS` (content beside it) or `BELOW_CONTROLS` (content that starts under it), never a fixed padding |
 | A question or a short form | `Dialog`, `ConfirmDialog` |
 | Choices in a list | `Menu`, `MenuItem`, `MenuLink` |
-| Filters | `FilterBar`, `RefineButton`, `FilterField`, `SearchInput`, `ToggleChip`. On phones the bar folds to a Filters button that opens a sheet, with what is narrowed as removable chips beside it (`chips`). A bar with several filters keeps to one row inline with `compact` (a narrower search to start from, Reset as its icon below `xl`) |
+| Filters | `FilterBar`, `RefineButton`, `FilterField`, `SearchInput`, `ToggleChip`. On phones the bar folds to a Filters button that opens a sheet, with what is narrowed as removable chips beside it (`chips`). A bar with several filters keeps to one row inline with `compact` (a narrower search to start from, Reset as its icon below `xl`). One bar a page; once it has scrolled away its sheet also opens from the frame (the pinned row's `FiltersControl`, the phone's top bar), at any width in its sheet form (`useInFilterSheet`, `InFilterSheet` for fields the page draws itself, as Refine's) |
+| A long page's controls kept in reach | `PageToolbar` (`ui/page-toolbar.tsx`): the page's compact controls, shown at the pinned section tabs' end once its own toolbar has scrolled away: `SubTabs size="compact"`, `FiltersControl`, a `SearchInput` with `COMPACT_SEARCH`, `ToolbarChip` for a page's own action. `land` names the list's first item for the sheet closed after a change; `fallback` for a shared part's own (OverviewFilters' Filters), outranked by the page's |
 | One choice out of a few that filters what a page shows (a role, a side, a sort) | `segmentedGroupClass` with `segmentClass` (`size: "md"` for a list's main filter, as Encounters' All, Against and Alongside), `RoleSegmented` (`compactBelow="xl"`: icons only for the roles not chosen on tablets and laptops, in a crowded toolbar). Never to move between views or pages |
 | A page's sections (primary) | `TabBar`: a profile's Overview, All Champions, Match History and Riot Accounts; Team's sections. On tablets and desktops the bar stays pinned at the top of the page once it scrolls (`sticky`; [RESPONSIVE.md](RESPONSIVE.md) → Shell). A bar wider than the pages under it (`SectionTabs`, a child of `main`) gives its row their width from a 1600px window (`inner`, `ROW_WIDTH`), so there its first tab starts at their column. On phones Team's sections are the bottom tab bar and a profile's ride in the top bar (`ProfileTabs variant="chrome"`) |
-| Equal views of one section, or related pages (secondary) | `SubTabs` (`ui/sub-tabs.tsx`): links with `aria-current`, directly under the primary tabs, in the section title's place (`SectionHeader`'s `nav`): Match History's Games and Encounters. `SubNav` when the path decides the current one (Admin's Users & Permissions) |
+| Equal views of one section, or related pages (secondary) | `SubTabs` (`ui/sub-tabs.tsx`): links with `aria-current`, directly under the primary tabs, in the section title's place (`SectionHeader`'s `nav`): Match History's Games and Encounters. `size="compact"` for their copy in the pinned row (`PageToolbar`; its test ids prefixed with `toolbar-`). `SubNav` when the path decides the current one (Admin's Users & Permissions) |
 | Views inside one panel (a game's Scoreboard, Analysis, Timeline and Build; a champion's views) | `role="tablist"` buttons with `tabIndicatorClass` |
 | Tabs that filter one list | `TabLinks`, only where it is today (Admin's audit categories), until that page is redesigned |
 | Buttons and links that look like buttons | `Button`, `buttonClass` (links never wrap buttons) |

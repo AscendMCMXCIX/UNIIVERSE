@@ -18,7 +18,8 @@ import { cn } from "@/lib/cn";
  * Every tab is a link with its own address, so deep links, Back/Forward and new tabs work as
  * before. The bar sits in the same place on every section. Team's sections other than Overview
  * (the team's home page, whose header already shows it) name the team at the bar's right end.
- * On desktop the bar is compact (40 px tabs level with the sidebar's brand row). The bar is the
+ * On desktop the bar is compact (40 px tabs level with the sidebar's brand row; 44px on touch screens,
+ * so the compact controls a page puts at its end when pinned keep their 44px targets). The bar is the
  * shared TabBar (ui/tab-bar.tsx), as on a profile: on phones the tabs share the width when they
  * fit, and otherwise scroll sideways with the current one in view; on tablets and desktops it stays
  * pinned at the top of the page once it has scrolled past (TabBar's sticky), so a long section
@@ -29,8 +30,8 @@ import { cn } from "@/lib/cn";
  * column and the team's name ends where it ends, and the row never moves between the sections; the
  * bar's line and its pinned background span the room. On Team Overview that column is 100rem and the
  * team's header and lineup keep their own 84rem, centred in it. Under 1600px every page and the row
- * are as they always were. Pages inside a section (a profile, a match) have their own headers and
- * no Team bar.
+ * are as they always were (PR 10), but for the 44px tabs on touch screens from 1024px (PR 2b). Pages
+ * inside a section (a profile, a match) have their own headers and no Team bar.
  */
 export function SectionTabs({ allowed, team }: { allowed: string[]; team: { name: string; logo: string | null; logoStill: string | null } }) {
   const pathname = usePathname();

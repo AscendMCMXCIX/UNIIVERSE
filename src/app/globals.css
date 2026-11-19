@@ -307,10 +307,10 @@ p a.text-accent {
 }
 /*
   The scroll padding keeps the page's content clear of what is pinned above it, but the pinned
-  bars' own controls sit inside that band: focus moving onto a pinned tab, the sidebar's logo or
-  the top bar's buttons would otherwise scroll the page up each time. Their scroll margin takes the
-  padding back exactly: the stylesheet's value from md, the measured one on phones (--bar-pad, set
-  on the bar by useTopBarHeight).
+  bars' own controls sit inside that band: focus moving onto a pinned tab, a page's compact control
+  at the pinned row's end (PageToolbar), the sidebar's logo or the top bar's buttons would otherwise
+  scroll the page up each time. Their scroll margin takes the padding back exactly: the stylesheet's
+  value from md, the measured one on phones (--bar-pad, set on the bar by useTopBarHeight).
 */
 [data-testid="mobile-topbar"] {
   --bar-pad: calc(var(--bar-top) + 0.5rem);
@@ -324,7 +324,7 @@ p a.text-accent {
   scroll-margin-top: calc(-1 * var(--bar-pad));
 }
 @media (min-width: 48rem) and (min-height: 481px) {
-  [data-sticky-tabs] a,
+  [data-sticky-tabs] :is(a, button, input),
   html:has([data-sticky-tabs]) [data-testid="sidebar"] :is(a, button) {
     scroll-margin-top: calc(-1 * (var(--bar-top) + var(--tabs-top) + 0.5rem));
   }
