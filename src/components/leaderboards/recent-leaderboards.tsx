@@ -94,7 +94,7 @@ const HEADS = (
  * the board): a short sample, the gaps' assumption, what a bar counts, which games count.
  */
 function caveats(window: FormView["window"]): string {
-  return `${window.games} games is a short sample: places within 2 wins of each other are close. The gaps assume the players above don't play in the meantime. Each bar counts the window's games, wins first, not the order they were played. Every linked account counts, a game seen from two accounts once; remakes are left out.`;
+  return `${window.games} games is a small sample, so places within 2 wins are close. Bars show wins first, not the order the games were played.`;
 }
 
 /**

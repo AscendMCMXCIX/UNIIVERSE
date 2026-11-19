@@ -69,7 +69,7 @@ export function HistorySummaryStrip({ summary, ladder, championsById }: { summar
               <span className="inline-flex @min-[60rem]/strip:-my-px">
                 <InfoTip
                   label="About these figures"
-                  text={`Over the newest ${form.recent.games} games this list holds with its filters (all ${form.season.games} for the trend). KDA, CS and kill participation count only the games that record them. A trend is named only with enough games and a clear gap, the same rule as the Overview's Recent form. The ladder change comes from rank readings taken at each sync, so it is not split by game.`}
+                  text={`The latest ${form.recent.games} games with these filters (all ${form.season.games} for the trend). The LP change comes from rank checks, not from each game.`}
                 />
               </span>
             </>

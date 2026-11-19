@@ -117,7 +117,7 @@ function Lane({ me, opponent, champ, timeline }: { me: DetailParticipant; oppone
     <section aria-labelledby={id} className="space-y-1.5" data-testid="lane-comparison" data-state={moments ? "timeline" : "end"}>
       <SectionTitle
         id={id}
-        tip={<InfoTip label="About the lane comparison" text="The enemy Riot recorded in the same position as you (its reading of where each player spent the game), only when exactly one enemy has it. Each cell is your figure minus theirs, with both under it. 10:00 and 15:00 are read from the match timeline between its minute frames; the last row is the end of the game." />}
+        tip={<InfoTip label="About the lane comparison" text="Against the enemy in the same position. Each number is this player's minus the enemy's, at 10 and 15 minutes and at the end." />}
       >
         Lane against
         <ChampionPortrait champion={c} size="xs" className="h-5 w-5 rounded text-4xs" title={c.name} />
@@ -202,7 +202,7 @@ function Lane({ me, opponent, champ, timeline }: { me: DetailParticipant; oppone
  */
 function Personal({ personal }: { personal: PersonalComparison | null }) {
   const id = React.useId();
-  const method = `Your previous games in the same role and the same kind of queue (ranked with ranked, normal with normal, Swiftplay and Quickplay together, Clash apart), at most ${BASELINE_GAMES}, newest first; this game and later ones never count. Each figure says how many of those games it is higher than; the track places it among them (a tie counts half), and the mark at the middle is their median. A figure is compared once ${BASELINE_MIN} games carry it, and called your best only when it is higher than every one of at least ${BEST_MIN}. No figure is weighted against another, and nothing here is a score.`;
+  const method = `Compared with up to ${BASELINE_GAMES} earlier games in the same role and queue type. "Best" means higher than all of them (at least ${BEST_MIN} games).`;
   if (!personal)
     return (
       <section aria-labelledby={id} className="space-y-1.5" data-testid="personal-comparison" data-state="none">

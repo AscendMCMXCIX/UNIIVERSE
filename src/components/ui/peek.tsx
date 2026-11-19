@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
-import { DetailModal } from "./detail-modal";
+import { DetailModal, type ModalSize } from "./detail-modal";
 import { lastInput } from "./input-kind";
 import { useAddressItem } from "./address-item";
 import { isTyping, modalOpen, useWindowPosture } from "./posture";
@@ -76,12 +76,16 @@ function rowFocusTarget(id: string): HTMLElement | null {
  * A Peek's state for a list: the item in the address under `param` (`initial` from the page's
  * search params, for a deep link), the ids in the list's order (for ↑/↓ and ‹ ›), and the keys.
  */
-export function usePeek({ param, ids, initial = null }: { param: string; ids: readonly string[]; initial?: string | null }): PeekControl {
+export function usePeek({ param, ids, initial = null, valid: validProp }: { param: string; ids: readonly string[]; initial?: string | null; /** Ids the Peek may show beyond `ids` (a substitute opened from a turned card); ↑/↓ move through `ids` only. */ valid?: (id: string) => boolean }): PeekControl {
   const idsRef = React.useRef(ids);
   React.useLayoutEffect(() => {
     idsRef.current = ids;
   });
-  const valid = React.useCallback((id: string) => idsRef.current.includes(id), []);
+  const validRef = React.useRef(validProp);
+  React.useLayoutEffect(() => {
+    validRef.current = validProp;
+  });
+  const valid = React.useCallback((id: string) => idsRef.current.includes(id) || !!validRef.current?.(id), []);
   const item = useAddressItem(param, { initial, valid });
   const [fromKeyboard, setFromKeyboard] = React.useState(false);
   const id = item.id;
@@ -167,7 +171,25 @@ export function usePeek({ param, ids, initial = null }: { param: string; ids: re
  * announcement); `children` is the item's content, the same in both forms. `actions`: links in the
  * header beside ‹ › (an "Open full profile").
  */
-export function Peek({ peek, title, itemKey, children, actions, testId = "peek", label }: { peek: PeekControl; title: string; itemKey: string | null; children: React.ReactNode; actions?: React.ReactNode; testId?: string; /** What the panel holds, for its name ("Player"); the title follows it. */ label: string }) {
+export function Peek({ peek, title, itemKey, children, actions, hero, windowSize = "sheet", windowHeader, windowTitleId, testId = "peek", navTestIds, label }: {
+  peek: PeekControl;
+  title: string;
+  itemKey: string | null;
+  children: React.ReactNode;
+  actions?: React.ReactNode;
+  /** The item's picture and identity, edge to edge at the top of the panel's body. */
+  hero?: React.ReactNode;
+  /** The window's size where it opens as one (touch phones, short windows): a sheet, or the whole screen for a long item. */
+  windowSize?: ModalSize;
+  /** The window's own header there (DetailModal's `header`, with an element of id `windowTitleId`), in place of its title bar and the hero. */
+  windowHeader?: React.ReactNode;
+  windowTitleId?: string;
+  testId?: string;
+  /** Test ids of ‹ › and ✕ (default `${testId}-prev` and so on). */
+  navTestIds?: { prev?: string; next?: string; close?: string };
+  /** What the panel holds, for its name ("Player"); the title follows it. */
+  label: string;
+}) {
   const windowed = useWindowPosture();
   const open = peek.id !== null && itemKey !== null;
   // The last item shown, kept through the closing motion.
@@ -199,10 +221,10 @@ export function Peek({ peek, title, itemKey, children, actions, testId = "peek",
   const nav = (
     <div className="flex items-center gap-1">
       {actions}
-      <button type="button" onClick={peek.prev ?? undefined} disabled={!peek.prev} aria-label={`Previous ${label.toLowerCase()}`} className={NAV} data-testid={`${testId}-prev`}>
+      <button type="button" onClick={peek.prev ?? undefined} disabled={!peek.prev} aria-label={`Previous ${label.toLowerCase()}`} className={NAV} data-testid={navTestIds?.prev ?? `${testId}-prev`}>
         <ChevronLeft className="h-4 w-4" aria-hidden />
       </button>
-      <button type="button" onClick={peek.next ?? undefined} disabled={!peek.next} aria-label={`Next ${label.toLowerCase()}`} className={NAV} data-testid={`${testId}-next`}>
+      <button type="button" onClick={peek.next ?? undefined} disabled={!peek.next} aria-label={`Next ${label.toLowerCase()}`} className={NAV} data-testid={navTestIds?.next ?? `${testId}-next`}>
         <ChevronRight className="h-4 w-4" aria-hidden />
       </button>
     </div>
@@ -210,8 +232,13 @@ export function Peek({ peek, title, itemKey, children, actions, testId = "peek",
 
   if (windowed) {
     return (
-      <DetailModal open={open} onClose={peek.close} title={shown?.title ?? title} size="sheet" headerExtra={nav} testId={testId} closeTestId={`${testId}-close`}>
-        {shown ? <div key={shown.key}>{body}</div> : null}
+      <DetailModal open={open} onClose={peek.close} title={shown?.title ?? title} size={windowSize} headerExtra={nav} header={windowHeader} headerClassName={windowHeader ? "overflow-hidden" : undefined} titleId={windowTitleId} testId={testId} closeTestId={navTestIds?.close ?? `${testId}-close`}>
+        {shown ? (
+          <div key={shown.key}>
+            {windowHeader ? null : hero}
+            {body}
+          </div>
+        ) : null}
       </DetailModal>
     );
   }
@@ -219,26 +246,28 @@ export function Peek({ peek, title, itemKey, children, actions, testId = "peek",
   return (
     <aside
       data-peek-panel
-      aria-labelledby={`${testId}-title`}
+      aria-labelledby={`${testId}-heading`}
       data-closing={closing || undefined}
       className="fixed right-0 top-[var(--bar-top)] bottom-0 z-30 flex w-[clamp(26rem,34vw,36rem)] max-w-full flex-col border-l border-border bg-bg-elevated shadow-2xl shadow-black/50 motion-safe:peek-in data-[closing=true]:peek-out max-md:bottom-[calc(4rem+env(safe-area-inset-bottom))]"
       data-testid={testId}
       data-peek-item={shown.key}
     >
-      <header className="flex min-h-14 shrink-0 items-center gap-2 border-b border-border px-4">
-        <h2 ref={headingRef} tabIndex={-1} id={`${testId}-title`} className="min-w-0 flex-1 truncate text-base font-semibold outline-none focus-visible:outline-2 focus-visible:outline-accent">
+      <header className="flex min-h-12 shrink-0 items-center gap-2 border-b border-border px-4">
+        <h2 ref={headingRef} tabIndex={-1} id={`${testId}-heading`} className="min-w-0 flex-1 truncate text-base font-semibold outline-none focus-visible:outline-2 focus-visible:outline-accent">
           <span className="sr-only">{label}: </span>
           {shown.title}
         </h2>
         {nav}
         <span className="mx-1 h-5 w-px bg-border" aria-hidden />
-        <button type="button" onClick={peek.close} aria-label={`Close ${label.toLowerCase()}`} className={NAV} data-testid={`${testId}-close`}>
+        <button type="button" onClick={peek.close} aria-label={`Close ${label.toLowerCase()}`} className={NAV} data-testid={navTestIds?.close ?? `${testId}-close`}>
           <X className="h-4 w-4" aria-hidden />
         </button>
       </header>
-      <div className="min-h-0 flex-auto overflow-y-auto overscroll-contain p-4" data-testid={`${testId}-body`}>
+      {/* The panel's controls are in its header, not over its content: content drawn to clear a window's corner controls (BELOW_CONTROLS) needs only a little room here, and a hero ('--peek-hero-min') only its content's height. */}
+      <div className="min-h-0 flex-auto overflow-y-auto overscroll-contain [--modal-clear-top:2.75rem] [--peek-hero-min:0rem]" data-testid={`${testId}-body`}>
         <div key={shown.key} className="motion-safe:swap-in">
-          {body}
+          {hero}
+          <div className="px-4 py-3">{body}</div>
         </div>
       </div>
       <p className="sr-only" aria-live="polite">
@@ -248,4 +277,4 @@ export function Peek({ peek, title, itemKey, children, actions, testId = "peek",
   );
 }
 
-const NAV = "inline-flex h-9 w-9 items-center justify-center rounded-lg text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg disabled:opacity-40 disabled:hover:bg-transparent focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:h-11 pointer-coarse:w-11";
+const NAV = "inline-flex h-9 w-9 items-center justify-center rounded-lg bg-bg/60 text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg disabled:opacity-40 disabled:hover:bg-transparent focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:h-11 pointer-coarse:w-11";

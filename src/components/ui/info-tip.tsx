@@ -12,15 +12,23 @@ const GAP = 6;
 
 /**
  * Where an open bubble goes: above its trigger, or below when there is no room above; centred on
- * it but kept inside the viewport. Fixed to the viewport, so no card, table or window clips it.
+ * it but kept 8px inside the screen. Fixed to the screen, so no card, table or window clips it.
+ * Never over its own trigger: where neither side has room (large text on a small phone), it opens
+ * as a small sheet at the screen's edge away from the trigger instead ("sheet", with `edge`).
  */
-export function placeTip(anchor: { left: number; top: number; bottom: number; width: number }, bubble: { width: number; height: number }, viewport: { width: number; height: number }): { left: number; top: number; side: "top" | "bottom" } {
+export function placeTip(anchor: { left: number; top: number; bottom: number; width: number }, bubble: { width: number; height: number }, viewport: { width: number; height: number }): { left: number; top: number; side: "top" | "bottom" } | { side: "sheet"; edge: "top" | "bottom" } {
   const centre = anchor.left + anchor.width / 2;
   const left = Math.min(Math.max(MARGIN, centre - bubble.width / 2), Math.max(MARGIN, viewport.width - MARGIN - bubble.width));
   const above = anchor.top - GAP - bubble.height;
-  if (above >= MARGIN || anchor.bottom + GAP + bubble.height > viewport.height - MARGIN) return { left, top: Math.max(MARGIN, above), side: "top" };
-  return { left, top: anchor.bottom + GAP, side: "bottom" };
+  if (above >= MARGIN) return { left, top: above, side: "top" };
+  if (anchor.bottom + GAP + bubble.height <= viewport.height - MARGIN) return { left, top: anchor.bottom + GAP, side: "bottom" };
+  return { side: "sheet", edge: (anchor.top + anchor.bottom) / 2 > viewport.height / 2 ? "top" : "bottom" };
 }
+
+/** How long a mouse rests on a trigger before its bubble opens (none on keyboard focus or a tap). */
+export const HOVER_OPEN_MS = 150;
+/** How long after the pointer leaves both the trigger and its bubble the bubble closes (the way across the gap). */
+export const HOVER_CLOSE_MS = 100;
 
 /**
  * The style position (left, top) that lands the bubble's box at `target` on screen. A fixed bubble
@@ -70,68 +78,106 @@ export function restsAfterMovingOnto(trigger: { contains(other: Node | null): bo
 }
 
 /**
- * The one tooltip of the app: explanatory text for whatever it wraps (by default a small ⓘ).
- * Mouse: opens as the pointer moves over it, once a visit, and closes when the pointer leaves. A
- * trigger that a window opening brings under a pointer at rest stays closed until the pointer moves:
- * a window opening under the pointer that pressed its opener sends what it lays there pointerover
- * and pointerenter but no pointermove, in Chromium and WebKit alike, and a bubble opened by those,
- * never pointed at, took the Escape meant for its window (the Team player window at a tablet's size,
- * opened by a click on the MID card: a pool row's tier label arrived under the pointer). Scrolling
- * differs: a page or window scrolled under a still pointer gets no pointermove in Chromium, but one
- * with no movement in WebKit (measured in Playwright's WebKit, not Safari), so there a trigger
- * scrolled under the pointer opens, as a hover does, and the first Escape closes its bubble alone.
- * A move onto the trigger while the page is still hydrating is heard by nothing here (React replays
- * the pointer's coming in once the trigger has hydrated, never its moves), so a mouse resting on the
- * trigger as it hydrates, having moved onto it, opens it then (restsAfterMovingOnto: the head's
- * script notes where the mouse last moved); the replayed coming in starts no new visit.
- * Keyboard: opens on focus, closes on blur or Escape. Touch: a tap opens it,
- * another tap (on it or anywhere else) closes it. Escape
- * closes the bubble alone, never the window or the list it sits in. The bubble is drawn in a layer
- * above the page, so the card it sits in never cuts it off: on the page, or inside the window the
- * tip sits in (tipHost), placed where placeTip says however that window is moving (landAt), and
- * placed again at every frame while it moves (moving). The text
- * is also the trigger's accessible description, so screen readers read it without opening it.
- * A bubble is never taller than the screen less its 8px margins: a longer text (the season records'
- * definitions at 200% on a phone ran 207px past a 375 × 667 screen, unreadable) scrolls inside it,
- * and that bubble alone takes the pointer, so a finger drags it and a wheel turns it: a press on it
- * starts no close, a tap or click on it closes it (as a tap anywhere else does), and a mouse may
- * move from the ⓘ onto it and stays in one visit until it leaves both. A bubble that fits lets the
- * pointer through, as before.
+ * The one tooltip of the app: a short explanation of whatever it wraps (by default a small ⓘ), one
+ * behaviour everywhere (docs/DESIGN_SYSTEM.md §7, "Explain").
+ *
+ * - **Mouse:** opens once the pointer has rested on the trigger for 150ms (HOVER_OPEN_MS), moving
+ *   onto it, never by coming in alone: a trigger that a window opening lays under a pointer at rest
+ *   gets a pointerenter with no move, and stays closed until the pointer moves (a bubble opened so,
+ *   never pointed at, took the Escape meant for its window). The bubble is hoverable (WCAG 1.4.13):
+ *   it takes the pointer, the 6px gap to the trigger is bridged, and it closes 100ms
+ *   (HOVER_CLOSE_MS) after the pointer has left both. A mouse resting on the trigger as it hydrates,
+ *   having moved onto it, opens it then (restsAfterMovingOnto).
+ * - **Keyboard:** opens at once on focus; closes on blur or Escape.
+ * - **Touch:** a tap opens it. Any tap closes it (on the ⓘ, on the bubble or anywhere else), and
+ *   that closing tap does nothing else: a tap on the text a bubble covers never reaches the link or
+ *   button under it. Scrolling closes it.
+ * - **Escape** closes the bubble alone, never the window or the list it sits in.
+ * - **Placement** (placeTip): above, else below, 8px inside the screen, never over its own trigger;
+ *   where neither side has room, a small sheet at the screen's far edge with the same text. Never a
+ *   bubble that scrolls inside itself. Drawn in a layer above the page, or inside the window the
+ *   trigger sits in (tipHost), and placed again at every frame while that window moves (landAt,
+ *   moving).
+ * - **Name:** `label` names an ⓘ specifically ("About KDA"): never "More information". A text
+ *   trigger (children) is named by its text and drawn with a dotted underline.
+ * - The text is also the trigger's accessible description, so screen readers read it without
+ *   opening it. Keep it to one plain sentence, at most about 25 words (tip-length.test.ts).
+ *
  * Interactive menus are not tooltips: they stay click-to-open popovers.
  */
-export function InfoTip({ text, className, label, children, testId = "info-tip", tabIndex }: { text: React.ReactNode; className?: string; label?: string; children?: React.ReactNode; testId?: string; /** -1 leaves it out of the tab order where what it sits on is already the one stop (a match card); pointers, taps and screen readers still reach it. */ tabIndex?: number }) {
+export function InfoTip({ text, className, label, children, testId = "info-tip", tabIndex }: { text: React.ReactNode; className?: string; testId?: string; /** -1 leaves it out of the tab order where what it sits on is already the one stop; pointers, taps and screen readers still reach it. */ tabIndex?: number } & ({ children: React.ReactNode; label?: string } | { children?: undefined; /** The ⓘ's name: what it explains ("About KDA"). */ label: string })) {
   const [open, setOpen] = React.useState(false);
-  const [pos, setPos] = React.useState<{ left: number; top: number } | null>(null);
+  const [pos, setPos] = React.useState<{ left: number; top: number; side: "top" | "bottom" } | null>(null);
+  // Where neither side has room: a sheet at this edge of the screen, until it closes.
+  const [sheet, setSheet] = React.useState<"top" | "bottom" | null>(null);
   // Where the open bubble is drawn, chosen as it opens (tipHost).
   const [host, setHost] = React.useState<HTMLElement | null>(null);
-  // The open bubble's text is longer than the bubble can be (the screen less its margins): it scrolls, and takes the pointer.
-  const [scrolls, setScrolls] = React.useState(false);
   const trigger = React.useRef<HTMLButtonElement>(null);
   const bubble = React.useRef<HTMLSpanElement>(null);
   // The pointer that pressed the trigger, so a tap does not count as keyboard focus.
   const pressed = React.useRef<string | null>(null);
+  // Opened by a tap: scrolling closes it.
+  const tapped = React.useRef(false);
   // A mouse over the trigger has opened the bubble on this visit (from its coming in to its leaving):
   // closed by Escape, it stays closed while the pointer moves on over the trigger.
   const visited = React.useRef(false);
+  const openTimer = React.useRef(0);
+  const closeTimer = React.useRef(0);
   const id = React.useId();
+
+  const clearTimers = () => {
+    window.clearTimeout(openTimer.current);
+    window.clearTimeout(closeTimer.current);
+  };
+  React.useEffect(() => clearTimers, []);
 
   const place = React.useCallback(() => {
     const t = trigger.current;
     const b = bubble.current;
-    if (!t || !b) return;
+    if (!t || !b || b.dataset.sheet) return;
     const landed = b.getBoundingClientRect();
     // The screen as fixed positioning sees it, the box the tip is placed in (lib/screen.ts).
     const target = placeTip(t.getBoundingClientRect(), landed, screenBox());
+    if (target.side === "sheet") {
+      setSheet(target.edge);
+      return;
+    }
     // Its size before any transform, unrounded (landAt): the border box, as every box here is sized.
     const size = getComputedStyle(b);
     const at = landAt(target, { left: parseFloat(b.style.left) || 0, top: parseFloat(b.style.top) || 0 }, landed, { width: parseFloat(size.width), height: parseFloat(size.height) });
-    setPos((cur) => (cur && Math.abs(cur.left - at.left) < 0.5 && Math.abs(cur.top - at.top) < 0.5 ? cur : at));
-    setScrolls(b.scrollHeight > b.clientHeight + 1);
+    setPos((cur) => (cur && cur.side === target.side && Math.abs(cur.left - at.left) < 0.5 && Math.abs(cur.top - at.top) < 0.5 ? cur : { ...at, side: target.side }));
   }, []);
 
   React.useLayoutEffect(() => {
     if (open) place();
   }, [open, place]);
+
+  const show = React.useCallback((viaTap = false) => {
+    clearTimers();
+    tapped.current = viaTap;
+    setOpen((was) => {
+      if (!was) {
+        setPos(null);
+        setSheet(null);
+        setHost(tipHost(trigger.current));
+      }
+      return true;
+    });
+  }, []);
+  const hide = React.useCallback(() => {
+    clearTimers();
+    setOpen(false);
+  }, []);
+  /** The pointer left the trigger or the bubble: closes once it has been off both for HOVER_CLOSE_MS. */
+  const leave = () => {
+    window.clearTimeout(openTimer.current);
+    window.clearTimeout(closeTimer.current);
+    closeTimer.current = window.setTimeout(() => {
+      visited.current = false;
+      setOpen(false);
+    }, HOVER_CLOSE_MS);
+  };
+  const stay = () => window.clearTimeout(closeTimer.current);
 
   // As the trigger hydrates (a layout effect: before React replays the pointer's coming in, which
   // then starts no new visit), a mouse that moved onto it while the page hydrated, and rests on it
@@ -140,10 +186,8 @@ export function InfoTip({ text, className, label, children, testId = "info-tip",
     const t = trigger.current;
     if (!t || !restsAfterMovingOnto(t, lastMouseMove())) return;
     visited.current = true;
-    setPos(null);
-    setHost(tipHost(t));
-    setOpen(true);
-  }, []);
+    show();
+  }, [show]);
 
   // While the window holding the bubble moves (its opening motion, as a pointer moving over the
   // window opens a bubble in it), the bubble is placed again at every frame, and once more as it comes
@@ -169,10 +213,20 @@ export function InfoTip({ text, className, label, children, testId = "info-tip",
 
   React.useEffect(() => {
     if (!open) return;
-    // A press on a bubble that takes the pointer (one that scrolls) may be a finger starting to drag it.
+    // A tap or a press anywhere but the trigger and the bubble closes it. A tap's own effect is
+    // kept from the page (the press here, the click it becomes below): the tap that closes a bubble
+    // does nothing else. A mouse's click elsewhere still does what it does (its bubble follows the
+    // pointer, so nothing it covers is hidden from it).
+    let swallow = false;
     const onDown = (e: PointerEvent) => {
       const at = e.target as Node;
-      if (!trigger.current?.contains(at) && !bubble.current?.contains(at)) setOpen(false);
+      if (trigger.current?.contains(at) || bubble.current?.contains(at)) return;
+      if (e.pointerType !== "mouse") {
+        swallow = true;
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      hide();
     };
     // Escape closes the bubble, and only the bubble: heard first (on the window, as it is captured)
     // and kept from everything else, the window it sits in included, whose close request is the
@@ -181,34 +235,30 @@ export function InfoTip({ text, className, label, children, testId = "info-tip",
       if (e.key !== "Escape") return;
       e.preventDefault();
       e.stopPropagation();
-      setOpen(false);
+      hide();
     };
-    document.addEventListener("pointerdown", onDown);
+    const onScroll = () => (tapped.current ? hide() : place());
+    window.addEventListener("pointerdown", onDown, true);
     window.addEventListener("keydown", onKey, true);
-    window.addEventListener("scroll", place, true);
+    window.addEventListener("scroll", onScroll, true);
     window.addEventListener("resize", place);
     return () => {
-      document.removeEventListener("pointerdown", onDown);
+      window.removeEventListener("pointerdown", onDown, true);
       window.removeEventListener("keydown", onKey, true);
-      window.removeEventListener("scroll", place, true);
+      window.removeEventListener("scroll", onScroll, true);
       window.removeEventListener("resize", place);
+      // The click that the closing tap becomes, after the bubble has gone: kept from the page too.
+      if (swallow) swallowNextClick();
     };
-  }, [open, place]);
+  }, [open, place, hide]);
 
-  const show = () => {
-    if (open) return;
-    setPos(null);
-    setScrolls(false);
-    setHost(tipHost(trigger.current));
-    setOpen(true);
-  };
-
+  const sheetOpen = sheet !== null;
   return (
     <span className="inline-flex align-middle">
       <button
         ref={trigger}
         type="button"
-        aria-label={children ? undefined : (label ?? "More information")}
+        aria-label={label}
         aria-describedby={id}
         tabIndex={tabIndex}
         data-testid={testId}
@@ -221,41 +271,45 @@ export function InfoTip({ text, className, label, children, testId = "info-tip",
           e.stopPropagation();
           // A mouse click keeps the hover bubble open; a tap toggles it.
           if (pressed.current === "mouse") show();
-          else if (open) setOpen(false);
-          else show();
+          else if (open) hide();
+          else show(true);
           pressed.current = null;
         }}
-        // A mouse opens it by moving over it, never by coming in alone: a trigger that a window opening
-        // lays under a pointer at rest gets a pointerenter with no move (see above). Coming in starts a
-        // visit, unless the bubble is open already: the coming in React replays after the trigger has
-        // hydrated, under a mouse that opened it then (above), is the same visit.
+        // A mouse opens it by resting on it, moving: coming in starts a visit (unless the bubble is
+        // open already, under a mouse that opened it as the trigger hydrated), and a move starts the
+        // wait. A pointer coming back from the bubble keeps it open.
         onPointerEnter={(e) => {
-          if (e.pointerType === "mouse" && !open) visited.current = false;
+          if (e.pointerType !== "mouse") return;
+          stay();
+          if (!open) visited.current = false;
         }}
         onPointerMove={(e) => {
           if (e.pointerType !== "mouse" || visited.current) return;
           visited.current = true;
-          show();
+          window.clearTimeout(openTimer.current);
+          openTimer.current = window.setTimeout(() => show(), HOVER_OPEN_MS);
         }}
         onPointerLeave={(e) => {
           if (e.pointerType !== "mouse") return;
-          // Onto a bubble that scrolls (it may cover its ⓘ): the same visit, until the pointer leaves it too.
-          if (e.relatedTarget instanceof Node && bubble.current?.contains(e.relatedTarget)) return;
-          visited.current = false;
-          setOpen(false);
+          if (!open) {
+            window.clearTimeout(openTimer.current);
+            visited.current = false;
+            return;
+          }
+          leave();
         }}
         onFocus={() => {
           if (!pressed.current) show();
         }}
-        onBlur={() => setOpen(false)}
+        onBlur={() => hide()}
         // The ⓘ is a 24px target (WCAG 2.5.8) around its 16px mark, with negative margins so the line
-        // around it keeps its size; on touch screens an invisible area makes it 40px. Wrapped text is
-        // 24px tall the same way, and gets no larger area: it often sits on a card that is itself a
-        // link, which must keep its taps.
+        // around it keeps its size; on touch screens an invisible area makes it 44px. Wrapped text is
+        // 24px tall the same way, with a dotted underline to show it opens, and gets no larger area:
+        // it often sits on a card that is itself a link, which must keep its taps.
         className={cn(
           children
-            ? "-my-1 inline-flex min-h-6 cursor-help items-center rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
-            : "group/tip relative -m-1 inline-flex h-6 w-6 shrink-0 cursor-help items-center justify-center rounded-full text-fg-subtle hover:text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:after:absolute pointer-coarse:after:-inset-2 pointer-coarse:after:content-['']",
+            ? "-my-1 inline-flex min-h-6 cursor-help items-center rounded-sm underline decoration-current/40 decoration-dotted underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+            : "group/tip relative -m-1 inline-flex h-6 w-6 shrink-0 cursor-help items-center justify-center rounded-full text-fg-subtle hover:text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:after:absolute pointer-coarse:after:-inset-2.5 pointer-coarse:after:content-['']",
           className,
         )}
       >
@@ -271,27 +325,39 @@ export function InfoTip({ text, className, label, children, testId = "info-tip",
       </span>
       {open && host
         ? createPortal(
-            // Its handlers act only while it scrolls: a bubble that fits lets every pointer through.
+            // It takes the pointer (hoverable), and a press or a click on it reaches nothing under it:
+            // a click or a tap on it closes it, and nothing else.
             <span
               ref={bubble}
               role="tooltip"
               aria-hidden
-              style={{ left: pos?.left ?? 0, top: pos?.top ?? 0, visibility: pos ? "visible" : "hidden" }}
-              className="pointer-events-none fixed z-[100] block max-h-[calc(100%-16px)] w-max max-w-[min(18rem,calc(100%-16px))] overflow-y-auto overscroll-contain rounded-md border border-border-strong bg-bg-elevated px-2.5 py-1.5 text-left text-xs font-normal normal-case leading-snug tracking-normal text-fg shadow-lg motion-safe:animate-[fade-in_100ms_ease-out] data-[scrolls]:pointer-events-auto"
+              style={sheetOpen ? undefined : { left: pos?.left ?? 0, top: pos?.top ?? 0, visibility: pos ? "visible" : "hidden" }}
+              className={cn(
+                "fixed z-[100] block border border-border-strong bg-bg-elevated text-left font-normal normal-case tracking-normal text-fg shadow-lg",
+                sheetOpen
+                  ? cn("inset-x-0 px-safe-4 py-3 text-sm leading-normal motion-safe:fade-in", sheet === "bottom" ? "bottom-0 rounded-t-[1.25rem] border-b-0 pb-safe-4" : "top-0 rounded-b-[1.25rem] border-t-0 pt-safe-4")
+                  : cn(
+                      "w-max max-w-[min(18rem,calc(100%-16px))] rounded-md px-2.5 py-1.5 text-xs leading-snug motion-safe:animate-[fade-in_100ms_ease-out]",
+                      // The 6px between the bubble and its trigger belongs to the bubble, so a pointer crossing it stays in one visit.
+                      "before:absolute before:inset-x-0 before:h-1.5 before:content-['']",
+                      pos?.side === "bottom" ? "before:bottom-full" : "before:top-full",
+                    ),
+              )}
               data-testid={`${testId}-bubble`}
-              data-scrolls={scrolls || undefined}
-              // Neither press nor click reaches what the ⓘ sits on (a card or a row that opens on a press), as the ⓘ's own click does not.
+              data-sheet={sheet ?? undefined}
               onPointerDown={(e) => e.stopPropagation()}
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setOpen(false);
+              onPointerEnter={(e) => {
+                if (e.pointerType === "mouse") stay();
               }}
               onPointerLeave={(e) => {
                 if (e.pointerType !== "mouse") return;
                 if (e.relatedTarget instanceof Node && trigger.current?.contains(e.relatedTarget)) return;
-                visited.current = false;
-                setOpen(false);
+                leave();
+              }}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                hide();
               }}
             >
               {text}
@@ -301,4 +367,19 @@ export function InfoTip({ text, className, label, children, testId = "info-tip",
         : null}
     </span>
   );
+}
+
+/** Keeps the next click (within a moment) from reaching the page: the click a closing tap becomes. */
+function swallowNextClick() {
+  const stop = (e: Event) => {
+    e.preventDefault();
+    e.stopPropagation();
+    done();
+  };
+  const done = () => {
+    window.removeEventListener("click", stop, true);
+    window.clearTimeout(timer);
+  };
+  window.addEventListener("click", stop, true);
+  const timer = window.setTimeout(done, 700);
 }
