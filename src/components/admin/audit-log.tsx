@@ -10,7 +10,7 @@ import { FilterBar, FilterField } from "@/components/ui/filter-bar";
 import { Input, Select } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toast";
-import { formatDateTime, timeAgo } from "@/lib/format";
+import { RelativeTime } from "@/components/ui/relative-time";
 
 export interface AuditFilterValues {
   category: string | null;
@@ -25,9 +25,7 @@ export function AuditRow({ entry }: { entry: AuditEntry }) {
   const details = auditDetailsSentence(entry.details);
   return (
     <li className="flex min-w-0 gap-3 py-2 text-sm" data-testid="admin-activity-row">
-      <time className="w-20 shrink-0 pt-px text-xs tabular-nums text-fg-subtle" dateTime={at.toISOString()} title={formatDateTime(at)}>
-        {timeAgo(at)}
-      </time>
+      <RelativeTime date={at} className="w-20 shrink-0 pt-px text-xs tabular-nums text-fg-subtle" />
       <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">
         <span className="block text-fg">{auditSentence(entry)}</span>
         {details ? <span className="block text-xs text-fg-subtle">{details}</span> : null}

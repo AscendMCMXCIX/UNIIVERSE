@@ -19,7 +19,8 @@ import { ConfirmDialog } from "@/components/ui/dialog";
 import { Input, Label } from "@/components/ui/input";
 import { toast } from "@/components/ui/toast";
 import { RiotAccountsPanel } from "@/components/team/riot-accounts-panel";
-import { formatDate, formatDateTime, timeAgo } from "@/lib/format";
+import { formatDate, formatDateTime } from "@/lib/format";
+import { RelativeTime } from "@/components/ui/relative-time";
 import { ACCOUNT_STATUS, AccountActions, DeleteProfileButton, accountStatus } from "./account-actions";
 import { AccessDialog, accessSummary } from "./access-dialog";
 import { ErasePersonButton } from "./erase-person";
@@ -73,9 +74,7 @@ function Activity({ userId, playerId }: { userId: string | null; playerId: strin
           <li key={e.id} className="py-1.5 text-sm">
             <p className="text-fg">{auditSentence(e)}</p>
             <p className="text-xs text-fg-subtle">
-              <time dateTime={at.toISOString()} title={formatDateTime(at)}>
-                {timeAgo(at)}
-              </time>
+              <RelativeTime date={at} />
               {details ? ` · ${details}` : ""}
             </p>
           </li>

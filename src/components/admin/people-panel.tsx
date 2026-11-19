@@ -15,7 +15,7 @@ import { SearchInput } from "@/components/ui/search-input";
 import { Select } from "@/components/ui/input";
 import { useAddressItem } from "@/components/ui/address-item";
 import { cn } from "@/lib/cn";
-import { timeAgo } from "@/lib/format";
+import { RelativeTime } from "@/components/ui/relative-time";
 import { accountStatus } from "./account-actions";
 import { ErasureResultHost } from "./erase-person";
 import { PersonView } from "./person-view";
@@ -129,17 +129,17 @@ function PersonRow({ p, onOpen, testId, you = false }: { p: PersonEntry; onOpen:
       <button
         type="button"
         onClick={() => onOpen(p.key)}
-        className={cn("flex min-h-13 w-full min-w-0 items-center gap-3 rounded-panel px-2 text-left transition-colors hover:bg-surface-2 focus-visible:bg-surface-2 max-sm:min-h-16", p.player?.archived && "opacity-70")}
+        className={cn("flex min-h-13 w-full min-w-0 flex-wrap items-center gap-x-3 gap-y-1 rounded-panel px-2 py-1 text-left transition-colors hover:bg-surface-2 focus-visible:bg-surface-2 max-sm:min-h-16", p.player?.archived && "opacity-70")}
         data-testid={testId}
         data-person={p.key}
       >
         <Avatar name={p.name} src={a?.avatarUrl ?? null} size="sm" />
-        <span className="min-w-0 flex-1">
+        <span className="min-w-0 flex-1 basis-24">
           <span className="block truncate font-medium text-fg">{p.name}</span>
           {a ? <span className="block truncate text-xs text-fg-subtle">@{a.username}{you ? " (you)" : ""}</span> : null}
         </span>
         {state ? (
-          <Badge tone={state.tone} className="shrink-0 max-sm:max-w-32 max-sm:truncate">
+          <Badge tone={state.tone} className="min-w-0 max-w-full shrink [overflow-wrap:anywhere]">
             {state.label}
           </Badge>
         ) : null}
@@ -152,7 +152,7 @@ function PersonRow({ p, onOpen, testId, you = false }: { p: PersonEntry; onOpen:
             Administrator
           </Badge>
         ) : null}
-        {a ? <span className="hidden w-24 shrink-0 text-right text-xs text-fg-subtle md:block">{a.lastLoginAt ? timeAgo(a.lastLoginAt) : "Never signed in"}</span> : <span className="hidden w-24 shrink-0 md:block" />}
+        {a ? <span className="hidden w-24 shrink-0 text-right text-xs text-fg-subtle md:block">{a.lastLoginAt ? <RelativeTime date={a.lastLoginAt} /> : "Never signed in"}</span> : <span className="hidden w-24 shrink-0 md:block" />}
         <ChevronRight className="h-4 w-4 shrink-0 text-fg-subtle" aria-hidden />
       </button>
     </li>
@@ -274,10 +274,10 @@ export function PeoplePanel({
   return (
     <ErasureResultHost>
       <section className="space-y-3" data-testid="players-admin">
-        <div className="flex items-center gap-2">
-          <SearchInput value={query} onChange={setQuery} placeholder="Find a person, username or Riot ID" label="Find a person" className="min-w-0 flex-1 sm:max-w-xs" testId="people-search" />
+        <div className="flex flex-wrap items-center gap-2">
+          <SearchInput value={query} onChange={setQuery} placeholder="Find a person, username or Riot ID" label="Find a person" className="min-w-0 flex-1 basis-40 sm:max-w-xs" testId="people-search" />
           {/* The status filter is a select in the search row, so the list starts high in the first screen. */}
-          <Select aria-label="Filter by status" value={filter} onChange={(e) => setFilter(e.target.value as StatusFilter)} className="w-32 shrink-0 sm:w-56" data-testid="status-filter-select">
+          <Select aria-label="Filter by status" value={filter} onChange={(e) => setFilter(e.target.value as StatusFilter)} className="w-32 min-w-0 shrink sm:w-56" data-testid="status-filter-select">
             {FILTERS.map((f) => (
               <option key={f.id} value={f.id}>
                 {f.label} ({counts[f.id]})
