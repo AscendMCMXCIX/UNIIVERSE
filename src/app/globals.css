@@ -612,6 +612,41 @@ p a.text-accent {
 @utility sheet-out {
   animation: sheet-out 140ms ease-in forwards;
 }
+/* The Peek panel (peek.tsx): a 16px slide in from the right with a fade, quicker on the way out; its content cross-fades on a switch. */
+@keyframes peek-in {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes peek-out {
+  to {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+}
+@utility peek-in {
+  animation: peek-in 200ms var(--ease-emphasized);
+}
+@utility peek-out {
+  animation: peek-out 140ms ease-in forwards;
+}
+@utility swap-in {
+  animation: fade-in 120ms ease-out;
+}
+/* An Unfold's region (unfold.tsx): its height grows from nothing (0fr to 1fr) over 200ms, its content fading in over 120ms. */
+@utility unfold-grow {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 200ms var(--ease-emphasized);
+  @starting-style {
+    grid-template-rows: 0fr;
+  }
+}
 /*
   A whole screen of its own (DetailModal size "screen": the phone's account menu): a short rise into
   place and a fade, the rise every other window makes; back down a little as it closes. No frame of
