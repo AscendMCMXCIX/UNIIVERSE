@@ -289,8 +289,18 @@ const peek = usePeek({ param: "player", ids, initial: searchParams.get("player")
 - **Motion:** in, a 16px slide and fade over 200ms (`peek-in`, `--ease-emphasized`); a switch
   cross-fades the content over 120ms (`swap-in`); out, 140ms (`peek-out`). Instant with reduced
   motion.
-- **Variants a page may add:** an in-card unfold, where the list gives the panel its foldable
-  columns' space (All Champions, S5).
+- **The in-card variant (All Champions, S5: `all-champions.tsx`, `champion-preview.tsx`):** where
+  the list has 26rem or more beside its Win rate column on a pointer screen of 1024px or more, the
+  preview unfolds inside the list's card instead of the docked panel. The columns after Win rate
+  fold (`visibility: hidden` through `group-data-[folded=true]/card:invisible`, so no width
+  changes), Champion, Games and Win rate keep their x, and the panel takes the folded space with the
+  card's surface, a hairline `border-border-strong` at its left and the card's right radius. It is
+  sticky under the pinned tabs and as tall as its content (`max-w-xl`); it slides 12px outward and
+  fades in (`unfold-in`, 200ms, `--ease-emphasized`). With less room the page falls back to `Peek`
+  (the docked panel, then the sheet by posture), with the same content and address
+  (`?champion=&crole=[&vs=]`, two keys, so the page keeps its own address hook with the same
+  history rule). Nothing is drawn until the room is measured after hydration, so a linked preview
+  never appears in one place and moves to another.
 
 ### Unfold
 
@@ -564,7 +574,7 @@ test):
   opener), so that Escape closes the window (in WebKit an ⓘ scrolled under a still pointer does open,
   as a hover does); a move onto an ⓘ made while the page hydrates counts once the ⓘ has hydrated,
   the pointer resting on it. A picker's list inside a window (the Filters
-  sheet's member and champion pickers, the champion window's opponent picker) opens in the flow of
+  sheet's member and champion pickers) opens in the flow of
   the window's body, which stays its one scroller: no list scrolling inside it, nothing cut off at
   its edge; it fades in where it rests, and a press below it closes it on the press's click, so
   nothing moves under the finger first. (`e2e/popups.spec.ts`; Safari's engine in

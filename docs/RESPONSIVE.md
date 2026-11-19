@@ -66,7 +66,7 @@ moving. With a mouse or trackpad (`pointer-fine:`) it may keep a height limit an
 their header sticks only there). Windows and dialogs keep their one scrolling body (above).
 
 A picker's list inside a window keeps that rule too. The member and champion pickers (in the
-Filters sheet on phones) and the champion window's opponent picker open their list in the flow of
+Filters sheet on phones) open their list in the flow of
 the window's body, as tall as its options, at every width inside a window and anywhere on a phone
 (`src/components/ui/picker-flow.ts`): the body is the one thing that scrolls, and it brings the list
 into view as it opens (`scrollIntoView`, block `nearest`; the page behind is put back if a browser
@@ -643,9 +643,15 @@ touch screen. From `sm` the window is as it was (three figures across, six from 
 44px on a touch screen. `e2e/profile.spec.ts` checks the phone's title (upright and sideways), its
 scope line, toolbar and sorted pair at 393, 375, 360 and 320px, 200% text on a 320px phone, the bar
 and its legend against the filters' games, and the groups with the 76rem grid's headings, arrows and
-figures at 1536 and 1680px; `e2e/matchups.spec.ts` checks the window on a 393px phone (the portrait,
-Refine and its panel's order, the tiles and their labels, the 44px tab and ⓘ, the lane's top) and on
-a 320px one (whole figures, seven-digit mastery too), and from `sm` on the tablet and the desktop.
+figures at 1536 and 1680px. All Champions' preview (S5, 19 Nov 2026; docs/MATCHUPS.md) replaces the
+champion window: at 1280, 1440 and 1920 it unfolds inside the list's card over the columns after Win
+rate (Champion, Games and Win rate keep their x to the pixel, the page does not scroll, rows keep
+their height: 0px moved at all three widths on the demo); with under 26rem beside Win rate, and on
+every screen under 1024px wide, the shared Peek's docked panel; on touch phones and short windows its
+sheet. The wide (76rem) tier drops the Kills column (it sorts like Games; per-game kills are in KDA;
+CM AC-11, reversible: OD20). `e2e/champion-preview.spec.ts` checks the geometry, ↑/↓, Back and
+Escape at 1440, the content and old addresses on all three projects, and the sheet (phone) and docked
+panel (tablet).
 
 ## Tests
 
