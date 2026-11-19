@@ -10,8 +10,9 @@ import { test, expect, type Page } from "./test";
 test.skip(({ viewport }) => viewport?.width !== 1440, "desktop windows, set by the test itself");
 
 async function teammate(page: Page) {
-  await page.goto("/players");
-  return (await page.locator("main a[href^='/players/']").first().getAttribute("href"))!;
+  // The lineup's Mid: a teammate with games, whatever members other tests have added.
+  await page.goto("/team");
+  return `/players/${(await page.getByTestId("lineup-row-MID").getAttribute("data-player-id"))!}`;
 }
 
 async function sidebar(page: Page, baseURL: string, state: "expanded" | "collapsed") {

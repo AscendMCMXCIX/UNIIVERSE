@@ -63,8 +63,9 @@ test("the shared components look the same on a phone and on a desktop", async ({
   const phone = await browser.newContext({ viewport: { width: 375, height: 667 }, isMobile: true, hasTouch: true });
   const dp = await desk.newPage();
   const pp = await phone.newPage();
-  await dp.goto("/players");
-  const mate = (await dp.locator("main a[href^='/players/']").first().getAttribute("href"))!;
+  // The lineup's Mid: a teammate with games, whatever members other tests have added.
+  await dp.goto("/team");
+  const mate = `/players/${(await dp.getByTestId("lineup-row-MID").getAttribute("data-player-id"))!}`;
   const problems: string[] = [];
   for (const t of TARGETS) {
     await dp.goto(t.path(mate));
