@@ -7,16 +7,17 @@ import { Input, Label } from "@/components/ui/input";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 import { NewPasswordFields, newPasswordReady } from "@/components/forms/new-password-fields";
 import { toast } from "@/components/ui/toast";
+import { cn } from "@/lib/cn";
 
 /** Your password: the current one re-authenticates the change, the new one is typed twice. Never autosaved. */
-export function ChangePasswordPanel({ hasPassword }: { hasPassword: boolean }) {
+export function ChangePasswordPanel({ hasPassword, className }: { hasPassword: boolean; className?: string }) {
   const [current, setCurrent] = React.useState("");
   const [next, setNext] = React.useState("");
   const [confirmValue, setConfirmValue] = React.useState("");
   const [fieldError, setFieldError] = React.useState<{ field: "current" | "next"; text: string } | null>(null);
   const [busy, setBusy] = React.useState(false);
   return (
-    <Panel className={hasPassword ? undefined : "border-warn/50"} id="password">
+    <Panel className={cn(!hasPassword && "border-warn/50", className)} id="password">
       <PanelHeader title={hasPassword ? "Password" : "Set a password"} subtitle={hasPassword ? "Enter your current password to confirm it is you. Changing it signs out your other devices." : "Your account has no password yet. Set one now so you can sign in again after this session ends or on another device."} />
       <PanelBody>
         <form

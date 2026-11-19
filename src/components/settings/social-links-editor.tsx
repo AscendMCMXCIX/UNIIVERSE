@@ -83,13 +83,18 @@ export function SocialLinksFields({ draft, onChange, disabled = false, idPrefix 
   );
 }
 
+/** What the links are for and who sees them, under their heading. */
+const SOCIAL_LINKS_HELP = "Optional. A link stays private until you switch on Show publicly: then teammates and visitors to the public team page see it. YouTube and Twitch open your channel; Discord shows your username for others to copy. No account is connected and nothing is embedded.";
+
 /**
- * Settings → Profile (and the optional welcome step): the member's own YouTube, Twitch and Discord,
- * each with one switch, "Show publicly". Nothing shows anywhere until they switch a link on; values
- * are checked as they type with the server's own rule and saved with one button. The Player Card
- * Studio edits the same links (its Links step). `preview`: Admin → Previews, where nothing may be saved.
+ * Settings → Social links (and the optional welcome step): the member's own YouTube, Twitch and
+ * Discord, each with one switch, "Show publicly". Nothing shows anywhere until they switch a link
+ * on; values are checked as they type with the server's own rule and saved with one button. The
+ * Player Card Studio edits the same links (its Links step). `preview`: Admin → Previews, where
+ * nothing may be saved. `titled`: its own title above the help (the welcome step); Settings'
+ * section has the title in its header instead.
  */
-export function SocialLinksEditor({ initial, preview = false }: { initial: SocialLinks | null; preview?: boolean }) {
+export function SocialLinksEditor({ initial, preview = false, titled = true }: { initial: SocialLinks | null; preview?: boolean; titled?: boolean }) {
   const router = useRouter();
   const [saved, setSaved] = React.useState(() => socialDraftOf(initial));
   const [draft, setDraft] = React.useState(saved);
@@ -117,8 +122,8 @@ export function SocialLinksEditor({ initial, preview = false }: { initial: Socia
   return (
     <form onSubmit={save} className="space-y-3" data-testid="social-links-form">
       <div>
-        <p className="text-sm font-medium text-fg">Social links</p>
-        <p className="mt-0.5 text-xs text-fg-subtle">Optional. A link stays private until you switch on Show publicly: then teammates and visitors to the public team page see it. YouTube and Twitch open your channel; Discord shows your username for others to copy. No account is connected and nothing is embedded.</p>
+        {titled ? <p className="text-sm font-medium text-fg">Social links</p> : null}
+        <p className={titled ? "mt-0.5 text-xs text-fg-subtle" : "text-xs text-fg-subtle"}>{SOCIAL_LINKS_HELP}</p>
       </div>
       <SocialLinksFields draft={draft} onChange={set} disabled={preview} />
       {error ? (

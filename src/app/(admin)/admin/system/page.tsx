@@ -90,7 +90,7 @@ export default async function AdminSystemPage() {
               const malformed = riotKey ? riotKeyWarning(riotKey) : undefined;
               return (
                 <div key={f.key} className="flex min-w-0 flex-wrap items-center justify-between gap-2 rounded-sm border border-border px-2 py-1.5">
-                  <span className="min-w-0">
+                  <span className="min-w-0 [overflow-wrap:anywhere]">
                     <span className="break-all font-mono text-fg">{f.key}</span>
                     <span className="ml-2 text-fg-subtle">{f.label}</span>
                   </span>
@@ -114,7 +114,7 @@ export default async function AdminSystemPage() {
       </p>
       <Panel id="compliance">
         <PanelHeader title="Riot Games compliance" subtitle={`How ${branding.productName} uses Riot data, and the notice Riot requires.`} />
-        <PanelBody className="space-y-2 text-xs text-fg-muted">
+        <PanelBody className="space-y-2 text-xs text-fg-muted [overflow-wrap:anywhere]">
           <p>{riotLegal(branding.productName)}</p>
           <p>Riot API keys stay on the server and are never sent to browsers. Game data (matches and their timelines, champion mastery and ranks) is read only for accounts a player linked on purpose, plus the current rank of the other players in those accounts&apos; games, and it is used solely for this team&apos;s own preparation and improvement. {branding.productName} never attempts to de-anonymise players or discover hidden real identities, and removes a linked account&apos;s data when the account is unlinked.</p>
           <p>Matchup Intel (Resources) is a static reference for two champions chosen by hand: abilities and base cooldowns from Riot&apos;s Data Dragon, and notes written in our own words from the League of Legends Wiki, credited on the page. It makes no Riot API request, has no timers or tracking, and reads nothing from a game or champion select.</p>

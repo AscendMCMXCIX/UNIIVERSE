@@ -5,7 +5,7 @@ import { memberContext } from "./member-account";
   On a 320px phone, the narrowest docs/MOBILE.md supports, what a row is about wraps rather than
   being cut: a member's name beside their multikill in Team Matches, a resource's title, and the
   account the champion window's figures come from; and at a larger text size the pages are no wider
-  than the phone. Demo data, in-memory only.
+  than the phone (Leaderboards' Records, Settings, every Admin Mode page). Demo data, in-memory only.
 */
 
 test.beforeEach(async ({ context, baseURL, page }, info) => {
@@ -130,5 +130,82 @@ test("on a 320px phone, at 100%, 150% and 200% text, Leaderboards' Records is no
       }),
     );
     expect(wrong, `${root}%`).toEqual([]);
+  }
+});
+
+const ADMIN_PAGES = ["/admin", "/admin/people", "/admin/people/access", "/admin/people/privacy", "/admin/branding", "/admin/previews", "/admin/resources", "/admin/data", "/admin/system", "/admin/audit", "/admin/settings"];
+
+test("at 200% and 150% text on 320, 375 and 393px phones, every Admin Mode page is no wider than the phone", async ({ page, context, baseURL }) => {
+  // Its health cards, Branding's Reset colours and save bar, Previews' switches, Users & Permissions'
+  // tabs and row buttons (Erase personal data among them), the access levels, the manager's row
+  // buttons and the Data jobs: each wraps or breaks a long word inside its line (docs/RESPONSIVE.md).
+  // The container queries that let some of them wrap switch at rem widths, so each phone falls on
+  // its own side of them: every page is checked at each width.
+  test.setTimeout(360_000);
+  await page.route(/\/favicon\.ico$/, (route) => route.abort());
+  await context.addCookies([{ name: "uniiverse_view", value: "admin", url: baseURL! }]);
+  for (const path of ADMIN_PAGES) {
+    await page.goto(path);
+    await expect(page.locator("main h1")).toBeVisible();
+    for (const width of [320, 375, 393]) {
+      await page.setViewportSize({ width, height: 700 });
+      for (const root of [200, 150]) {
+        await page.evaluate((r) => (document.documentElement.style.fontSize = `${r}%`), root);
+        await page.evaluate(() => document.fonts.ready);
+        await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth), { message: `${path} at ${root}% on ${width}px: as wide as the phone` }).toBeLessThanOrEqual(width);
+      }
+      await page.evaluate(() => (document.documentElement.style.fontSize = ""));
+    }
+  }
+});
+
+test("at 200% and 150% text on 320, 375 and 393px phones, an administrator who is not the owner finds Settings no wider than the phone, the badge Administrator inside the card", async ({ browser, page: owner, baseURL }) => {
+  // The longest role a badge says ("Administrator", one word): beside a phone's picture there is not
+  // room for it at 200% text, so who you are moves under the picture where a larger text size leaves
+  // the card under 11rem inside (AccountPicture). The demo owner's badge says "Owner".
+  test.setTimeout(180_000);
+  await owner.setViewportSize({ width: 1440, height: 900 });
+  const member = await memberContext(browser, owner, undefined, { base: "Deputy" });
+  try {
+    // The owner grants administrator access in Users & Permissions (again until the page has hydrated).
+    await owner.goto("/admin/people");
+    const dialog = owner.getByTestId("access-dialog");
+    await expect(async () => {
+      await owner.getByTestId("people-search").fill(member.username);
+      await owner.getByTestId("admin-player-row").filter({ hasText: member.username }).getByTestId("open-access").click({ timeout: 2_000 });
+      await expect(dialog).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: 30_000 });
+    const access = dialog.getByTestId("administrator-access");
+    await access.getByText("Administrator access").click();
+    await expect(access.getByLabel("Administrator access")).toBeChecked();
+    await owner.getByTestId("save-access").click();
+    await expect(owner.getByTestId("admin-player-row").filter({ hasText: member.username })).toContainText("Administrator");
+    // Their phone, in Admin Mode.
+    const phone = await browser.newContext({ storageState: await member.context.storageState(), viewport: { width: 320, height: 700 }, isMobile: true, hasTouch: true });
+    try {
+      await phone.addCookies([{ name: "uniiverse_view", value: "admin", url: baseURL! }]);
+      const page = await phone.newPage();
+      await page.goto("/admin/settings");
+      const card = page.getByTestId("settings-account");
+      const badge = card.getByTestId("settings-role");
+      await expect(badge).toHaveText("Administrator");
+      for (const width of [320, 375, 393]) {
+        await page.setViewportSize({ width, height: 700 });
+        for (const root of [200, 150]) {
+          await page.evaluate((r) => (document.documentElement.style.fontSize = `${r}%`), root);
+          await page.evaluate(() => document.fonts.ready);
+          const where = `${root}% on ${width}px`;
+          await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth), { message: `${where}: as wide as the phone` }).toBeLessThanOrEqual(width);
+          const inside = (await card.boundingBox())!;
+          const role = (await badge.boundingBox())!;
+          expect(role.x + role.width, `${where}: the badge inside the card`).toBeLessThanOrEqual(inside.x + inside.width);
+        }
+        await page.evaluate(() => (document.documentElement.style.fontSize = ""));
+      }
+    } finally {
+      await phone.close();
+    }
+  } finally {
+    await member.context.close();
   }
 });

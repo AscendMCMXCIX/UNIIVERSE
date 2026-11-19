@@ -40,17 +40,20 @@ export default async function AdminDashboardPage() {
   return (
     <div className="space-y-5" data-testid="admin-dashboard">
       <PageHeader eyebrow="Admin Mode" title="Dashboard" description="The state of the platform at a glance." />
-      <ul className="grid grid-cols-2 gap-3 lg:grid-cols-4" data-testid="dashboard-accounts">
-        {tiles.map((t) => (
-          <li key={t.key} className="rounded-panel border border-border bg-surface p-4" data-tile={t.key}>
-            <div className="text-xs font-semibold uppercase tracking-label text-fg-subtle">{t.label}</div>
-            <div className="mt-1 text-2xl font-semibold tabular-nums text-fg" data-testid={`dashboard-${t.key}`}>
-              {t.value}
-            </div>
-            <div className="mt-0.5 text-xs text-fg-subtle">{t.note}</div>
-          </li>
-        ))}
-      </ul>
+      {/* With a larger text size on a phone (the list under 16rem) the tiles stack, a long word broken inside its line. */}
+      <div className="@container">
+        <ul className="grid grid-cols-2 gap-3 @max-[16rem]:grid-cols-1 lg:grid-cols-4" data-testid="dashboard-accounts">
+          {tiles.map((t) => (
+            <li key={t.key} className="min-w-0 rounded-panel border border-border bg-surface p-4 @max-[16rem]:[overflow-wrap:anywhere]" data-tile={t.key}>
+              <div className="text-xs font-semibold uppercase tracking-label text-fg-subtle">{t.label}</div>
+              <div className="mt-1 text-2xl font-semibold tabular-nums text-fg" data-testid={`dashboard-${t.key}`}>
+                {t.value}
+              </div>
+              <div className="mt-0.5 text-xs text-fg-subtle">{t.note}</div>
+            </li>
+          ))}
+        </ul>
+      </div>
       <section className="space-y-3" aria-labelledby="dashboard-status">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 id="dashboard-status" className="text-base font-semibold">
@@ -60,7 +63,7 @@ export default async function AdminDashboardPage() {
         </div>
         <StatusCards items={status} testId="dashboard-status" />
       </section>
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <Panel data-testid="dashboard-activity">
           <PanelHeader
             title="Recent admin activity"
@@ -78,7 +81,7 @@ export default async function AdminDashboardPage() {
           {SECTIONS.map(({ href, label, description, icon: Icon }) => (
             <Link key={href} href={href} className="group flex items-start gap-3 rounded-panel border border-border bg-surface p-3 transition-colors hover:border-border-strong hover:bg-surface-2" data-testid="dashboard-section">
               <Icon className="mt-0.5 h-5 w-5 shrink-0 text-accent" aria-hidden />
-              <span className="min-w-0">
+              <span className="min-w-0 [overflow-wrap:anywhere]">
                 <span className="block text-sm font-semibold text-fg">{label}</span>
                 <span className="block text-sm text-fg-muted">{description}</span>
               </span>
