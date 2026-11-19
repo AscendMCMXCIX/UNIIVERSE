@@ -13,7 +13,7 @@ import { isGameRole } from "@/domain/season-stats";
 import { OPPONENT_MIN_GAMES, OPPONENT_SORTS, OPPONENT_TONED_GAMES, arrangeOpponents, opponentFootLine, opponentSentence, type OpponentSort, type OpponentTally } from "@/domain/champion-preview";
 import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateTone } from "@/domain/stats/win-rate";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
-import { DetailModal } from "@/components/ui/detail-modal";
+import { CLEAR_OF_CONTROLS, DetailModal } from "@/components/ui/detail-modal";
 import { MatchDetailModal } from "@/components/match-history/match-detail";
 import { matchupHref } from "@/components/matchup-intel/address";
 import { formatCompactCount, formatCount, formatDate, percent } from "@/lib/format";
@@ -150,6 +150,8 @@ function useAnswer<T>(key: string | null, load: (() => Promise<PreviewResult<T>>
   return got && got.key === key ? got.result : null;
 }
 
+/** A pairing's games shown before "Show all": the preview stays about one screen tall. */
+const GAMES_SHOWN = 5;
 const plural = (n: number, word: string) => `${formatCount(n)} ${word}${n === 1 ? "" : "s"}`;
 const record = (wins: number, games: number) => `${formatCount(wins)}W ${formatCount(games - wins)}L`;
 
@@ -316,6 +318,7 @@ function PairingGames({ id, me, them, card, isOwn, data, onMatch }: { id: string
   const seed = init && init.champion === card.championId && init.role === card.role && init.vs === them.id ? init : null;
   const answer = useAnswer(key, () => data.pairing(card.championId, card.role, them.id), seed);
   const pairing = answer?.status === "ok" ? answer.data : null;
+  const [all, setAll] = React.useState(false);
   const sentence = pairing ? opponentSentence(pairing.ten, { isOwn, champion: me.name, opponent: them.name }) : null;
   return (
     <div id={id} className="mb-2 flex flex-col gap-2 rounded-md bg-surface-2/40 px-2.5 py-2" data-testid="champion-preview-pairing">
@@ -324,7 +327,7 @@ function PairingGames({ id, me, them, card, isOwn, data, onMatch }: { id: string
         <div className="h-8 animate-pulse rounded bg-surface-2/70" aria-hidden />
       ) : (
         <ul className="flex flex-col" data-testid="champion-preview-games">
-          {pairing.games.map((g) => (
+          {(all ? pairing.games : pairing.games.slice(0, GAMES_SHOWN)).map((g) => (
             <li key={g.matchId}>
               <button type="button" onClick={() => onMatch(g.matchId)} className="grid min-h-8 w-full grid-cols-[1.5rem_minmax(0,1fr)_auto_auto] items-center gap-2 rounded px-1 text-left text-xs tabular-nums hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-accent" data-testid="champion-preview-game">
                 <span className={cn("font-semibold", g.win ? "text-good" : "text-bad")}>{g.win ? "W" : "L"}</span>
@@ -337,6 +340,13 @@ function PairingGames({ id, me, them, card, isOwn, data, onMatch }: { id: string
               </button>
             </li>
           ))}
+          {!all && pairing.games.length > GAMES_SHOWN ? (
+            <li>
+              <button type="button" onClick={() => setAll(true)} className="min-h-8 px-1 text-xs font-medium text-accent hover:underline" data-testid="champion-preview-all-games">
+                Show all {formatCount(pairing.games.length)} games
+              </button>
+            </li>
+          ) : null}
         </ul>
       )}
       <Link href={matchupHref(me.id, them.id)} prefetch={false} className="inline-flex items-center gap-1.5 self-start text-xs font-medium text-accent hover:underline" data-testid="champion-preview-intel">
@@ -368,7 +378,7 @@ export function PreviewSheet({ championsById, contentKey, ...props }: PreviewPro
         testId="champion-preview"
         closeTestId="champion-preview-close"
         header={
-          <div className="flex min-w-0 items-center gap-3">
+          <div className={cn("flex min-w-0 items-center gap-3 py-3 pl-4", CLEAR_OF_CONTROLS)}>
             <ChampionPortrait champion={me} size="lg" className="h-12 w-12 shrink-0 rounded-lg ring-1 ring-border-strong/60" />
             <div className="min-w-0">
               <h2 id={titleId} className="truncate text-lg font-bold leading-tight text-fg" data-testid="champion-preview-title">
