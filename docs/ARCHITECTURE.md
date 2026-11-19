@@ -361,15 +361,19 @@ request is a game's match timeline, once per game, when a section that needs it 
   2–4 ms in the database locally at production volume (`docs/HOSTING_USAGE.md`). Accounts stay
   in the database; the page gets Encounters' opaque key. The match window marks no one (a window
   does not open another).
-- **Analysis** (`match-analysis-panel.tsx`, rules in `src/domain/match-analysis.ts`): plain
-  comparisons, never a score. The player's shares of the team's kills, damage and gold and their
-  place in the game for each figure; the lane opponent only when exactly one enemy has the same
-  recorded position (`laneOpponentOf`, otherwise "no single lane opponent"), at 10:00 and 15:00
-  from the timeline (`laneMoments`, read between frames as Matchups does) and at the end; the
-  player beside their own usual (`personalComparison`): the same role and queue group (ranked,
-  normal, Swiftplay/Quickplay and Clash are never mixed), earlier games only, the newest 50 at
-  most, nothing below 10, "best of the last N" only from 20, a tie counting half. Supports are not
-  compared on CS. Every comparison states its sample, and the methodology is in its (i).
+- **The post-game view** (`post-game.tsx`, since 19 Nov 2026, replacing the four tabs and the
+  Analysis): one view, no subtabs; the loadout, the rune page (shards from the forward capture of
+  20 Nov 2026), six figure tiles (each figure once), the lane by role (the strict
+  `laneOpponentOf`; the bot lane two against two from `botPairOf` and `pairMoments`), the notes and
+  the compact scoreboard (`TeamTable compact`), with the gold curve and the build and skill order
+  as folds. The notes are written rules (`src/domain/match-notes.ts`, `docs/MATCH_NOTES.md`): facts
+  with their numbers and comparison base, never a cause; worded for the viewer
+  (`MatchDetailView.own`), Focus next on one's own game only. Their baseline is
+  `personalComparison` with `NOTE_FIGURES` (the four figures plus kill participation, from the
+  ledger's team kills: `SeasonGame` carries `gold`, `teamKills` and `teamDamage`). The timeline is
+  asked for as the game opens. The open card folds into a header with Previous and Next; opening
+  pushes one history entry, switching replaces it, closing goes Back; switching is anchored (the
+  new header lands where the old one was, scrolled before paint).
 - **Timeline** (`match-timeline-panel.tsx`, `getMatchTimeline` in
   `src/server/accounts/match-timeline.ts`, `getMatchTimelineAction`): the two teams' gold
   difference per frame, only when the stored timeline holds all ten players

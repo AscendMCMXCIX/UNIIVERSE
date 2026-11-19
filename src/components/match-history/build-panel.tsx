@@ -3,18 +3,17 @@
 import * as React from "react";
 import { ChevronRight } from "lucide-react";
 import type { MatchTimelineResult } from "@/server/accounts/match-timeline";
-import type { DetailParticipant, RunePage } from "@/server/players/match-history";
 import { cn } from "@/lib/cn";
 import { IconImg } from "./icon-img";
 
 const SKILL_TONE: Record<string, string> = { Q: "bg-blue/20 text-blue", W: "bg-good/20 text-good", E: "bg-warn/20 text-warn", R: "bg-red/20 text-red" };
 
 /**
- * Build order (items bought, minute by minute), skill order and the full rune page. The build comes
+ * Build order (items bought, minute by minute) and skill order (the rune page is in the post-game view's loadout). The build comes
  * from Riot's match timeline, requested once per match the first time a section that needs it opens
  * and then kept; without a timeline it says so rather than guessing from the final items.
  */
-export function BuildPanel({ result, runePage, player }: { result: MatchTimelineResult | null; runePage: RunePage | null; player: DetailParticipant }) {
+export function BuildPanel({ result }: { result: MatchTimelineResult | null }) {
   const uid = React.useId();
   const build = result?.status === "ok" ? result.timeline.build : null;
   const message = !result ? null : result.status !== "ok" ? result.message : !build ? "This player is not in the stored timeline of this game." : null;
@@ -69,44 +68,6 @@ export function BuildPanel({ result, runePage, player }: { result: MatchTimeline
           </ol>
         </section>
       ) : null}
-      <section aria-labelledby={`${uid}-runes`} className="space-y-2">
-        <h3 id={`${uid}-runes`} className="text-sm font-semibold text-fg">
-          Runes and summoner spells
-        </h3>
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-3" data-testid="rune-page">
-          {runePage ? (
-            <>
-              <RuneLine tree={runePage.primaryTree} runes={runePage.primary} />
-              <RuneLine tree={runePage.secondaryTree} runes={runePage.secondary} />
-            </>
-          ) : (
-            <span className="flex items-center gap-2 text-sm text-fg-muted">
-              <IconImg icon={player.keystone} size={28} rounded="rounded-full" />
-              <IconImg icon={player.secondary} size={20} rounded="rounded-full" />
-              <span className="text-xs text-fg-subtle">Keystone and secondary path (the full page is kept for games stored from now on).</span>
-            </span>
-          )}
-          <span className="flex items-center gap-1">
-            {player.spells?.map((s, i) => (
-              <span key={i} className="flex items-center gap-1.5 text-xs text-fg-muted">
-                <IconImg icon={s} size={24} />
-                <span className="pr-2">{s.name}</span>
-              </span>
-            ))}
-          </span>
-        </div>
-      </section>
     </div>
-  );
-}
-
-function RuneLine({ tree, runes }: { tree: { url: string; name: string } | null; runes: Array<{ url: string; name: string }> }) {
-  return (
-    <span className="flex items-center gap-1.5">
-      <IconImg icon={tree} size={20} rounded="rounded-full" className="opacity-80" />
-      {runes.map((r, i) => (
-        <IconImg key={i} icon={r} size={i === 0 && runes.length === 4 ? 32 : 24} rounded="rounded-full" />
-      ))}
-    </span>
   );
 }

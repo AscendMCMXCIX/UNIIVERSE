@@ -766,12 +766,30 @@ test("turning a small phone with the player window open keeps it open and whole-
   await done(page);
 });
 
+test("a phone held sideways opens a game as the match window, never under its card, and Back closes it", async ({ browser, baseURL }) => {
+  const page = await phone(browser, baseURL!, IPHONE_LANDSCAPE);
+  await page.goto("/team");
+  await page.goto(`/players/${await page.getByTestId("lineup-row-TOP").getAttribute("data-player-id")}/matches`);
+  await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
+  const win = page.getByTestId("match-detail");
+  await expect(async () => {
+    if (!(await win.isVisible())) await page.getByTestId("match-card").first().tap({ position: { x: 24, y: 16 }, timeout: 2_000 });
+    await expect(win).toBeVisible({ timeout: 1_000 });
+  }).toPass({ timeout: 15_000 });
+  await expect(page.getByTestId("match-expanded")).toHaveCount(0);
+  await expect(win.getByTestId("match-detail-nav")).toBeVisible();
+  await page.goBack();
+  await expect(win).toHaveCount(0);
+  await expect(page).not.toHaveURL(/match=/);
+  await done(page);
+});
+
 test("a window whose header leaves room keeps its own scrolling body on a phone held upright", async ({ browser, baseURL }) => {
   const page = await phone(browser, baseURL!, IPHONE);
   // A link to a game that is not on the page shown opens it in the match window (lists open their
   // games under their cards).
   const win = await openMatchWindow(page);
-  await expect(page.getByTestId("match-detail-figures")).toBeVisible();
+  await expect(page.getByTestId("post-game-figures")).toBeVisible();
   await expect(win).not.toHaveAttribute("data-flow", /.*/);
   // The header stays; the body below it scrolls.
   expect(await page.getByTestId("match-detail-body").evaluate((b) => b.scrollHeight > b.clientHeight && getComputedStyle(b).overflowY === "auto")).toBe(true);

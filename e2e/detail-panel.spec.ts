@@ -53,14 +53,14 @@ test("a game opens under its card and closes from it, one at a time; a link to a
   await expect(breakdown).toHaveAttribute("data-variant", "inline");
   await expect(row).toBeFocused();
   await expect(row).toHaveAttribute("aria-controls", (await expandedOf(card).getAttribute("id"))!);
-  await expect(breakdown.getByTestId("match-tab-scoreboard")).toHaveAttribute("aria-selected", "true");
+  await expect(breakdown.locator("[role=tab]")).toHaveCount(0);
   // No window, and the page still scrolls.
   await expect(page.getByTestId("match-detail")).toHaveCount(0);
   expect(await page.evaluate(() => getComputedStyle(document.documentElement).overflow)).not.toBe("hidden");
-  // The address names the open game (replaced, so Back still leaves the page).
+  // The address names the open game (a new entry, so Back closes it: one history rule).
   await expect(page).toHaveURL(/match=/);
   const matchId = (await row.getAttribute("data-match"))!;
-  // One at a time: opening the next game closes this one; closing it clears the address.
+  // One at a time: opening the next game takes this one's place; closing it clears the address.
   const next = page.getByTestId("match-card").nth(1);
   await openGame(next);
   await expect(expandedOf(card)).toHaveCount(0);
@@ -82,7 +82,7 @@ test("a game opens under its card and closes from it, one at a time; a link to a
   await expect(panel).toHaveAttribute("data-size", "wide");
   await expectCentred(page, "match-detail");
   await expect(page.getByTestId("match-result")).toHaveText(/Victory|Defeat/);
-  await expect(panel.getByTestId("match-detail-figures")).toBeVisible();
+  await expect(panel.getByTestId("post-game-figures")).toBeVisible();
   await expect(panel.getByTestId("match-breakdown")).toHaveAttribute("data-variant", "window");
   // Demo games have no real Riot server, so no OP.GG history link is made for them (domain/opgg).
   await expect(panel.getByTestId("match-opgg-history")).toHaveCount(0);
@@ -221,7 +221,8 @@ test("a game opened again shows what this page already loaded", async ({ page })
   // Everything it asks for has answered (the record, the possible groups, any rank check).
   await expect(breakdown.getByTestId("possible-groups-note")).not.toHaveAttribute("data-state", "loading", { timeout: 15_000 });
   await expect(breakdown.getByTestId("ranks-note")).not.toHaveAttribute("data-state", "checking", { timeout: 15_000 });
-  const [record, groups] = actions;
+  // The record first, then the timeline and the possible groups (each kept by the page).
+  const [record, timeline, groups] = actions;
   expect(record).toBeTruthy();
   const before = actions.length;
   await closeGame(card);
@@ -229,7 +230,7 @@ test("a game opened again shows what this page already loaded", async ({ page })
   await expect(again.getByTestId("possible-groups-note")).not.toHaveAttribute("data-state", "loading");
   // The record and the possible groups come from what the page kept. (A rank check that came back
   // incomplete, skipped or failed, is asked again by design: match-detail-cache.tsx.)
-  expect(actions.slice(before).filter((a) => a === record || a === groups)).toEqual([]);
+  expect(actions.slice(before).filter((a) => a === record || a === timeline || a === groups)).toEqual([]);
   // Under its card the card keeps the focus; a phone's whole-screen game gives it back on closing.
   if (opensFullScreen(page)) await closeGame(card);
   await expect(card.getByTestId("match-row")).toBeFocused();

@@ -9,7 +9,7 @@ import { getCurrentPatch } from "@/server/repositories/champions";
 import { erasureFilter } from "@/server/privacy/ledger";
 import { redactTimeline } from "@/server/privacy/redact";
 import { loadCompositionParticipants } from "@/server/matches/compositions";
-import { LANE_MINUTES, goldContradictsRecord, laneMoments, laneOpponentOf, teamGoldDifference, type GoldPoint, type LaneMoment } from "@/domain/match-analysis";
+import { LANE_MINUTES, goldContradictsRecord, laneMoments, botPairOf, laneOpponentOf, pairMoments, teamGoldDifference, type GoldPoint, type LaneMoment } from "@/domain/match-analysis";
 import type { TimelineEventsView } from "@/domain/match-events";
 
 /*
@@ -379,6 +379,8 @@ export interface MatchTimelineView {
    * an enemy (exactly one) or without both players' frames. `opponentSlot` is their place in the record.
    */
   lane: { opponentSlot: number; moments: LaneMoment[] } | null;
+  /** The bot lane at 10:00, two against two (domain/match-analysis botPairOf): the partner's and the two enemies' places in the record, and the pair's gold minus theirs; null outside the bot lane or without all four seats clear. */
+  pair: { allySlot: number; opponentSlots: [number, number]; gold: number } | null;
   /** The two teams' gold difference at every frame, from the player's side; null unless all ten players' frames are kept. */
   gold: GoldPoint[] | null;
   /** Why `gold` is null when frames exist: "incomplete" (a player's frames are missing) or "contradicts" (the timeline and the record disagree). */
@@ -453,6 +455,14 @@ export async function getMatchTimeline(db: Db, playerId: string, matchId: string
     const theirs = frames.p[parts[opponentSlot]!.puuid];
     if (mine && theirs) lane = { opponentSlot, moments: laneMoments(frames.t, mine, theirs, LANE_MINUTES) };
   }
+  let pair: MatchTimelineView["pair"] = null;
+  const seats = me ? botPairOf(parts, meSlot) : null;
+  if (frames && me && seats) {
+    const f = (slot: number) => frames.p[parts[slot]!.puuid];
+    const [a, b, c, d] = [f(meSlot), f(seats.ally), f(seats.opponents[0]), f(seats.opponents[1])];
+    const gold = a && b && c && d ? pairMoments(frames.t, [a, b], [c, d], 10) : null;
+    if (gold !== null) pair = { allySlot: seats.ally, opponentSlots: seats.opponents, gold };
+  }
   const series = frames ? parts.filter((p) => !p.removed && frames.p[p.puuid]).map((p) => ({ teamId: p.teamId, g: frames.p[p.puuid]!.g })) : [];
   let gold = frames && me ? teamGoldDifference(frames.t, series, me.teamId) : null;
   // A timeline that tells a different game from the record (one side clearly ahead in one, clearly
@@ -461,12 +471,14 @@ export async function getMatchTimeline(db: Db, playerId: string, matchId: string
   if (contradicts) {
     gold = null;
     lane = null;
+    pair = null;
   }
   return {
     status: "ok",
     timeline: {
       build: meTimeline ? await buildOf(db, matchId, meTimeline) : null,
       lane,
+      pair,
       gold,
       goldNote: contradicts ? "contradicts" : frames && !gold ? "incomplete" : null,
       minutes: frames ? frames.t[frames.t.length - 1]! / MINUTE : null,
