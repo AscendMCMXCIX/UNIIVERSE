@@ -193,13 +193,13 @@ test("with reduced motion a window opens and closes without motion and its conte
   await page.goto(`/players/${id}/champions`);
   const open = page.getByTestId("open-champion").first();
   await expect(async () => {
-    if (!(await page.getByTestId("champion-preview").count())) await open.click({ timeout: 2_000 });
+    if (!(await page.getByTestId("champion-preview-content").count())) await open.click({ timeout: 2_000 });
     await expect(page.getByTestId("champion-preview-figures")).toBeVisible({ timeout: 1_000 });
   }).toPass({ timeout: 15_000 });
   // All Champions' preview: a sheet on phones and tablets, beside the list on a computer.
   const moving = await page.evaluate(() => [document.querySelector("dialog[open]"), document.querySelector("aside#champion-preview")].filter(Boolean).map((el) => getComputedStyle(el!).animationDuration));
   for (const d of moving) expect(parseFloat(d)).toBeLessThan(0.01);
   await page.keyboard.press("Escape");
-  await expect(page.getByTestId("champion-preview")).toHaveCount(0);
+  await expect(page.getByTestId("champion-preview-content")).toHaveCount(0);
   await expect(open).toBeFocused();
 });

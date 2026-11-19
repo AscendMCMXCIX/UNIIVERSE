@@ -136,8 +136,8 @@ test("old addresses land on the preview: Matchups, a deep link with an opponent,
   await expect(page.getByTestId("champion-preview-content")).toHaveAttribute("data-champion", id);
 });
 
-test("phones and tablets: a sheet with ‹ ›; Back closes it and the list keeps its place", async ({ page }, info) => {
-  test.skip(info.project.name === "desktop", "the sheet is for phones and tablets");
+test("phones: a sheet; tablets: the docked panel; ‹ › switch, Back closes it and the list keeps its place", async ({ page }, info) => {
+  test.skip(info.project.name === "desktop", "the sheet and the docked panel are for phones and tablets");
   const profile = await demoTop(page);
   await page.goto(`${profile}/champions`);
   const rows = page.getByTestId("top-champion");
@@ -148,17 +148,18 @@ test("phones and tablets: a sheet with ‹ ›; Back closes it and the list keep
   }
   const y = await page.evaluate(() => scrollY);
   await openRow(page, rows.nth(0));
-  const sheet = page.locator("dialog[open][data-testid=champion-preview]");
-  await expect(sheet).toBeVisible();
-  await expect(sheet.getByTestId("champion-preview-opponents")).toBeInViewport();
-  await sheet.getByTestId("champion-preview-next").click();
+  // The shared Peek: a sheet (a window) on a phone, the panel docked at the right on a tablet.
+  const preview = page.locator(info.project.name === "phone" ? "dialog[open][data-testid=champion-preview]" : "aside[data-peek-panel][data-testid=champion-preview]");
+  await expect(preview).toBeVisible();
+  await expect(preview.getByTestId("champion-preview-opponents")).toBeInViewport();
+  await preview.getByTestId("champion-preview-next").click();
   await expect(page.getByTestId("champion-preview-content")).toHaveAttribute("data-champion", (await rows.nth(1).getAttribute("data-champion"))!);
   await page.goBack();
-  await expect(sheet).toHaveCount(0);
+  await expect(preview).toHaveCount(0);
   await expect(page).not.toHaveURL(/champion=/);
   expect(await page.evaluate(() => scrollY)).toBe(y);
   // ✕ closes it too.
   await openRow(page, rows.nth(0));
-  await sheet.getByTestId("champion-preview-close").click();
-  await expect(sheet).toHaveCount(0);
+  await preview.getByTestId("champion-preview-close").click();
+  await expect(preview).toHaveCount(0);
 });

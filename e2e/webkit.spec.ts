@@ -145,7 +145,7 @@ test("a teammate's profile: its sections switch, and a champion's preview sheet 
   }).toPass({ timeout: 15_000 });
   // All Champions' preview is a sheet on a phone: Back closes it (one history entry), and it opens again.
   await page.goBack();
-  await expect(page.getByTestId("champion-preview")).toHaveCount(0);
+  await expect(page.getByTestId("champion-preview-content")).toHaveCount(0);
   await expect(page).not.toHaveURL(/champion=/);
   await expect(async () => {
     if (!(await page.locator("dialog[open]").count())) await open.tap();
@@ -157,7 +157,7 @@ test("a teammate's profile: its sections switch, and a champion's preview sheet 
   // Its close button keeps the corner to itself, a 44px target (e2e/modal-corner.ts).
   await expectClearCorner(page);
   await page.keyboard.press("Escape");
-  await expect(page.getByTestId("champion-preview")).toHaveCount(0);
+  await expect(page.getByTestId("champion-preview-content")).toHaveCount(0);
   await tabs.getByRole("link", { name: "History" }).tap();
   await expect(page).toHaveURL(new RegExp(`${href}/matches$`));
   await expect(tabs.getByRole("link", { name: "History" })).toHaveAttribute("aria-current", "page");

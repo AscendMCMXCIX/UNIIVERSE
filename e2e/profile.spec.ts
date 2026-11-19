@@ -38,7 +38,7 @@ test("All Champions: column headings sort both ways within the current filters; 
   await expect(page.getByTestId("all-champions")).not.toContainText(/Played a lot|Played regularly|Not played lately|Some experience/);
   // The champion's preview neither.
   await expect(async () => {
-    if (!(await page.getByTestId("champion-preview").count())) await rows.first().getByTestId("open-champion").click({ timeout: 2_000 });
+    if (!(await page.getByTestId("champion-preview-content").count())) await rows.first().getByTestId("open-champion").click({ timeout: 2_000 });
     await expect(page.getByTestId("champion-preview-figures")).toBeVisible({ timeout: 1_000 });
   }).toPass({ timeout: 15_000 });
   await expect(page.getByTestId("champion-proficiency")).toHaveCount(0);
@@ -196,7 +196,7 @@ test("All Champions on tablets and computers: a quiet bar under each champion's 
   // The bar lets a click through to the row: a click on its fill opens the champion's preview.
   const fill = (await rows.first().getByTestId("champion-games-share").boundingBox())!;
   await expect(async () => {
-    if (!(await page.getByTestId("champion-preview").count())) await page.mouse.click(fill.x + 3, fill.y + fill.height / 2);
+    if (!(await page.getByTestId("champion-preview-content").count())) await page.mouse.click(fill.x + 3, fill.y + fill.height / 2);
     await expect(page.getByTestId("champion-preview-figures")).toBeVisible({ timeout: 1_000 });
   }).toPass({ timeout: 15_000 });
 });

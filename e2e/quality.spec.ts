@@ -191,7 +191,7 @@ test.describe("accessibility", () => {
     const open = page.getByTestId("top-champion").first().getByTestId("open-champion");
     const opponent = page.getByTestId("champion-preview-opponent").first();
     await expect(async () => {
-      if (!(await page.getByTestId("champion-preview").count())) await open.click({ timeout: 2_000 });
+      if (!(await page.getByTestId("champion-preview-content").count())) await open.click({ timeout: 2_000 });
       await expect(opponent).toBeVisible({ timeout: 1_000 });
     }).toPass({ timeout: 15_000 });
     await audit(page, "champion preview");

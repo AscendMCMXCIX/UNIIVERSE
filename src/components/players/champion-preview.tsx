@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { ChevronDown, ChevronLeft, ChevronRight, Swords, X } from "lucide-react";
+import { ChevronDown, Swords, X } from "lucide-react";
 import type { OverviewCard } from "@/server/players/overview";
 import type { ChampionPreviewData, PairingGamesData, PreviewScope } from "@/server/players/champion-preview";
 import type { PreviewResult } from "@/server/actions/champion-preview";
@@ -13,8 +13,6 @@ import { isGameRole } from "@/domain/season-stats";
 import { OPPONENT_MIN_GAMES, OPPONENT_SORTS, OPPONENT_TONED_GAMES, arrangeOpponents, opponentFootLine, opponentSentence, type OpponentSort, type OpponentTally } from "@/domain/champion-preview";
 import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateTone } from "@/domain/stats/win-rate";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
-import { CLEAR_OF_CONTROLS, DetailModal } from "@/components/ui/detail-modal";
-import { MatchDetailModal } from "@/components/match-history/match-detail";
 import { matchupHref } from "@/components/matchup-intel/address";
 import { formatCompactCount, formatCount, formatDate, percent } from "@/lib/format";
 import { cn } from "@/lib/cn";
@@ -167,14 +165,14 @@ export interface PreviewProps {
   onVs: (vs: string | null) => void;
   onSwitch: (card: OverviewCard) => void;
   onClose: () => void;
-  /** The sheet's header is its window's: the content leaves out its own. */
-  inSheet?: boolean;
+  /** In the shared Peek, whose header has the name, ‹ › and ✕: the content leads with the portrait and role only. */
+  compact?: boolean;
   titleId: string;
   onMatch: (matchId: string) => void;
 }
 
 /** The preview's content: the same in the page and in the sheet. */
-export function PreviewContent({ playerId, isOwn, card, otherRoles, vs, champ, data, onVs, onSwitch, onClose, inSheet, titleId, onMatch }: PreviewProps) {
+export function PreviewContent({ playerId, isOwn, card, otherRoles, vs, champ, data, onVs, onSwitch, onClose, compact, titleId, onMatch }: PreviewProps) {
   const me = champ(card.championId);
   const r = card.selected;
   const p = card.performance;
@@ -195,7 +193,15 @@ export function PreviewContent({ playerId, isOwn, card, otherRoles, vs, champ, d
     list.map((o) => <OpponentRow key={o.championId} o={o} withRate={withRate} open={vs === o.championId} me={me} champ={champ} card={card} isOwn={isOwn} data={data} onToggle={() => onVs(vs === o.championId ? null : o.championId)} onMatch={onMatch} playerId={playerId} />);
   return (
     <div className="flex flex-col gap-4" data-testid="champion-preview-content" data-champion={card.championId} data-role={card.role}>
-      {inSheet ? null : (
+      {compact ? (
+        <div className="flex items-center gap-3">
+          <ChampionPortrait champion={me} size="lg" className="h-12 w-12 shrink-0 rounded-lg ring-1 ring-border-strong/60" />
+          <p className="text-sm text-fg-subtle">
+            {ROLE_LABELS[card.role]}
+            {card.inPool ? " · In pool" : ""}
+          </p>
+        </div>
+      ) : (
         <header className="flex items-start gap-3">
           <ChampionPortrait champion={me} size="lg" className="h-14 w-14 shrink-0 rounded-lg ring-1 ring-border-strong/60" />
           <div className="min-w-0 flex-1">
@@ -354,53 +360,5 @@ function PairingGames({ id, me, them, card, isOwn, data, onMatch }: { id: string
         Prepare {me.name} vs {them.name} in Matchup Intel →
       </Link>
     </div>
-  );
-}
-
-/** The preview as a sheet (phones, tablets, and a list without room beside it): ‹ › switch, pull down or Back closes. */
-export function PreviewSheet({ championsById, contentKey, ...props }: PreviewProps & { onStep: (step: -1 | 1) => void; canStep: boolean; championsById: Record<string, PortraitChampion>; contentKey: string }) {
-  const { card, champ, onClose, onStep, canStep, titleId, playerId } = props;
-  const me = champ(card.championId);
-  const [match, setMatch] = React.useState<string | null>(null);
-  const step = (d: -1 | 1, label: string, Icon: typeof ChevronLeft) => (
-    <button type="button" onClick={() => onStep(d)} disabled={!canStep} className="grid h-10 w-10 place-items-center rounded-md text-fg-muted hover:bg-surface-2 hover:text-fg disabled:opacity-40" aria-label={label} data-testid={d < 0 ? "champion-preview-prev" : "champion-preview-next"}>
-      <Icon className="h-5 w-5" aria-hidden />
-    </button>
-  );
-  return (
-    <>
-      <DetailModal
-        open={!match}
-        onClose={onClose}
-        size="sheet"
-        title={me.name}
-        titleId={titleId}
-        testId="champion-preview"
-        closeTestId="champion-preview-close"
-        header={
-          <div className={cn("flex min-w-0 items-center gap-3 py-3 pl-4", CLEAR_OF_CONTROLS)}>
-            <ChampionPortrait champion={me} size="lg" className="h-12 w-12 shrink-0 rounded-lg ring-1 ring-border-strong/60" />
-            <div className="min-w-0">
-              <h2 id={titleId} className="truncate text-lg font-bold leading-tight text-fg" data-testid="champion-preview-title">
-                {me.name}
-              </h2>
-              <p className="text-xs text-fg-subtle">
-                {ROLE_LABELS[card.role]}
-                {card.inPool ? " · In pool" : ""}
-              </p>
-            </div>
-          </div>
-        }
-        headerExtra={
-          <span className="flex items-center">
-            {step(-1, "Previous champion", ChevronLeft)}
-            {step(1, "Next champion", ChevronRight)}
-          </span>
-        }
-      >
-        <PreviewContent key={contentKey} {...props} inSheet onMatch={setMatch} />
-      </DetailModal>
-      {match ? <MatchDetailModal playerId={playerId} matchId={match} championsById={championsById} onClose={() => setMatch(null)} back={{ label: me.name, onBack: () => setMatch(null) }} /> : null}
-    </>
   );
 }

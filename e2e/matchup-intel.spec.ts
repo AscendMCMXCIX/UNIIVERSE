@@ -472,7 +472,7 @@ test("All Champions' preview links to Matchup Intel with the pair chosen", async
   const champion = (await first.getAttribute("data-champion"))!;
   const opponent = page.getByTestId("champion-preview-opponent").first();
   await expect(async () => {
-    if (!(await page.getByTestId("champion-preview").count())) await first.getByTestId("open-champion").click({ timeout: 2_000 });
+    if (!(await page.getByTestId("champion-preview-content").count())) await first.getByTestId("open-champion").click({ timeout: 2_000 });
     await expect(opponent).toBeVisible({ timeout: 1_000 });
   }).toPass({ timeout: 15_000 });
   // The one link to the pre-game tool sits under an opponent (the player's own games), naming the pair.

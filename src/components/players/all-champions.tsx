@@ -16,7 +16,9 @@ import { percent, formatCount, formatCompactCount } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateSampleNote, winRateTone } from "@/domain/stats/win-rate";
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
-import { PreviewContent, PreviewSheet, cardFor, usePreviewAddress, usePreviewData, type ListScope } from "./champion-preview";
+import { Peek, type PeekControl } from "@/components/ui/peek";
+import { modalOpen, useWindowPosture } from "@/components/ui/posture";
+import { PreviewContent, cardFor, usePreviewAddress, usePreviewData, type ListScope } from "./champion-preview";
 import { MatchDetailModal } from "@/components/match-history/match-detail";
 import { MULTIKILL_KINDS, compareMultikills, multikillCoverage, rarestMultikill, type MultikillCounts, type MultikillSummary } from "@/domain/multikills";
 import { MULTIKILL_HELP, MULTIKILL_SHORT } from "./multikill-summary";
@@ -341,7 +343,9 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
   const [match, setMatch] = React.useState<string | null>(null);
   // Room beside the list: the preview unfolds in the card over the columns after Win rate when that
   // room is 26rem or more, on a pointer (not touch) screen of 1024px or more; otherwise a sheet.
-  const [room, setRoom] = React.useState<number | null>(null);
+  // Undefined until measured after hydration: nothing is drawn before then, so a linked preview
+  // never shows in one place and then moves to another.
+  const [room, setRoom] = React.useState<number | null | undefined>(undefined);
   const hasRows = rows.length > 0;
   React.useLayoutEffect(() => {
     const card = cardRef.current;
@@ -349,8 +353,8 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
     const measure = () => {
       const win = card.querySelector<HTMLElement>("[data-testid=sort-win]")?.parentElement;
       const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
-      const touchPhone = window.matchMedia("(pointer: coarse)").matches && window.innerWidth < 1024;
-      if (!win || !win.getClientRects().length || touchPhone || window.innerWidth < 1024) return setRoom(null);
+      // Tablets and narrower windows get the docked Peek (a drawer) instead.
+      if (!win || !win.getClientRects().length || window.innerWidth < 1024) return setRoom(null);
       const left = Math.round(win.getBoundingClientRect().right - card.getBoundingClientRect().left + rem * 0.25);
       setRoom(card.clientWidth - left >= rem * 26 ? left : null);
     };
@@ -359,7 +363,10 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
     ro.observe(card);
     return () => ro.disconnect();
   }, [hasRows]);
-  const inCard = !!selected && room !== null;
+  // Touch phones and short windows get the sheet (posture.ts), whatever the room.
+  const windowed = useWindowPosture();
+  const measured = room !== undefined;
+  const inCard = !!selected && typeof room === "number" && !windowed;
   // The card is at least as tall as the preview beside its rows.
   React.useLayoutEffect(() => {
     const card = cardRef.current;
@@ -379,9 +386,11 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
   }, [inCard]);
   const rowButton = (c: { championId: string; role: string }) => cardRef.current?.querySelector<HTMLButtonElement>(`[data-testid=top-champion][data-champion="${c.championId}"][data-role="${c.role}"] [data-open-champion]`);
   const focusTitle = React.useRef(false);
-  const choose = (c: OverviewCard, viaKeys: boolean) => {
-    if (selected && selected.championId === c.championId && selected.role === c.role) return address.close();
-    focusTitle.current = viaKeys;
+  const [viaKeys, setViaKeys] = React.useState(false);
+  const choose = (c: OverviewCard, keys: boolean) => {
+    if (selected && selected.championId === c.championId && selected.role === c.role) return close();
+    focusTitle.current = keys;
+    setViaKeys(keys);
     address.show(c.championId, c.role);
   };
   const close = () => {
@@ -401,17 +410,19 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
     focusTitle.current = false;
     document.getElementById("champion-preview-title")?.focus({ preventScroll: true });
   }, [inCard, selectedKey]);
-  // Escape closes the preview beside the list (a window opened over it closes first, by itself).
+  // Escape closes the preview beside the list or in the docked panel (a window opened over it
+  // closes first, by itself; the sheet is a window).
+  const besideList = !!selected && !windowed;
   React.useEffect(() => {
-    if (!inCard) return;
+    if (!besideList) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape" || e.defaultPrevented || document.querySelector("dialog[open]")) return;
+      if (e.key !== "Escape" || e.defaultPrevented || modalOpen()) return;
       e.preventDefault();
       closeRef.current();
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [inCard]);
+  }, [besideList]);
   /** ↑/↓ (or K/J) on the list move the preview to the row above or below. */
   const step = (from: OverviewCard, d: -1 | 1, focus: boolean) => {
     const i = shown.findIndex((c) => c.championId === from.championId && c.role === from.role);
@@ -423,6 +434,17 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
       b?.focus({ preventScroll: true });
       b?.closest("li")?.scrollIntoView({ block: "nearest" });
     }
+  };
+  const at = selected ? shown.findIndex((c) => c.championId === selected.championId && c.role === selected.role) : -1;
+  const peekControl: PeekControl = {
+    id: selected && measured && !inCard ? selectedKey : null,
+    open: () => undefined,
+    toggle: () => undefined,
+    close,
+    prev: selected && at > 0 ? () => step(selected, -1, false) : null,
+    next: selected && at >= 0 && at < shown.length - 1 ? () => step(selected, 1, false) : null,
+    rowProps: (id) => ({ "data-peek-row": id, onClick: () => undefined }),
+    fromKeyboard: viaKeys,
   };
   const onListKey = (e: React.KeyboardEvent) => {
     if (!selected || e.altKey || e.ctrlKey || e.metaKey) return;
@@ -651,9 +673,12 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
           {multikillsIncomplete ? <InfoTip text={MULTIKILL_HELP} label="About multikills" /> : null}
         </p>
       ) : null}
-      {selected && room === null ? (
-        <PreviewSheet contentKey={selectedKey ?? ""} playerId={playerId} isOwn={isOwn} card={selected} otherRoles={data.topChampions.filter((o) => o.championId === selected.championId && o.role !== selected.role)} vs={address.sel?.vs ?? null} champ={champ} championsById={championsById} data={previewData} onVs={address.setVs} onSwitch={(o) => address.show(o.championId, o.role)} onClose={close} titleId="champion-preview-title" onMatch={setMatch} canStep={shown.length > 1} onStep={(d) => step(selected, d, false)} />
-      ) : null}
+      {/* Without room in the card: the shared Peek, docked at the right (tablets, narrower windows)
+          or a sheet (touch phones, short windows). While a game's window is open over a sheet, the
+          sheet steps aside (never two windows) and comes back when the game closes. */}
+      <Peek peek={peekControl} title={selected ? champ(selected.championId).name : ""} itemKey={selected && measured && !inCard && !(windowed && match) ? selectedKey : null} label="Champion" testId="champion-preview">
+        {selected && !inCard ? <PreviewContent key={selectedKey} compact playerId={playerId} isOwn={isOwn} card={selected} otherRoles={data.topChampions.filter((o) => o.championId === selected.championId && o.role !== selected.role)} vs={address.sel?.vs ?? null} champ={champ} data={previewData} onVs={address.setVs} onSwitch={(o) => address.show(o.championId, o.role)} onClose={close} titleId="champion-preview-title" onMatch={setMatch} /> : null}
+      </Peek>
       {match ? <MatchDetailModal playerId={playerId} matchId={match} championsById={championsById} onClose={() => setMatch(null)} /> : null}
     </section>
   );
