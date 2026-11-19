@@ -158,8 +158,19 @@ function SlotButton({ slot, role, champion, onOpen, buttonRef }: { slot: FrameSl
         )}
       </span>
       <span className="min-w-0 max-w-full">
-        <span className={cn("block text-xs font-semibold uppercase leading-tight tracking-label", you ? "text-blue" : "text-red")} data-testid={`matchup-pick-${slot}-label`}>
-          {words.label}
+        {/* A label a size smaller on a phone; in the narrowest row (a 320px phone) "Your champion" shows as
+            "You", as the enemy's is one word, and a screen reader still hears the whole label. */}
+        <span className={cn("block text-xs font-semibold uppercase leading-tight tracking-label max-sm:text-2xs", you ? "text-blue" : "text-red")} data-testid={`matchup-pick-${slot}-label`}>
+          {words.label === "Your champion" ? (
+            <>
+              <span aria-hidden className="hidden @max-[20rem]/pickers:inline">
+                You
+              </span>
+              <span className="@max-[20rem]/pickers:sr-only">{words.label}</span>
+            </>
+          ) : (
+            words.label
+          )}
         </span>
         <span className="line-clamp-2 text-md font-semibold leading-snug text-fg [overflow-wrap:anywhere] max-sm:@min-[22rem]/pickers:text-sm max-sm:@min-[22rem]/pickers:tracking-tight sm:@min-[27rem]/pickers:text-base" data-testid={`matchup-pick-${slot}-name`}>
           {champion ? champion.name : words.choose}
@@ -308,7 +319,7 @@ function pairWords(l: Lineup, name: (id: string | null) => string | null): strin
  */
 function RoleSelector({ role, onChange }: { role: Role; onChange: (role: Role) => void }) {
   return (
-    <div role="group" aria-label="Lane" className="inline-flex max-w-full flex-wrap rounded-md border border-border-control bg-bg-elevated" data-testid="matchup-role">
+    <div role="group" aria-label="Lane" className="flex max-w-full flex-wrap rounded-md border border-border-control bg-bg-elevated max-sm:w-full sm:inline-flex" data-testid="matchup-role">
       {ROLES.map((r) => (
         <button
           key={r}
@@ -316,7 +327,7 @@ function RoleSelector({ role, onChange }: { role: Role; onChange: (role: Role) =
           aria-pressed={r === role}
           onClick={() => onChange(r)}
           className={cn(
-            "min-h-11 rounded px-2.5 text-xs font-semibold transition-colors pointer-fine:min-h-6",
+            "min-h-11 grow rounded px-2 text-xs font-semibold transition-colors pointer-fine:min-h-6 sm:grow-0 sm:px-2.5",
             r === role ? "bg-accent/15 text-fg" : "text-fg-muted hover:bg-surface-2 hover:text-fg",
           )}
           data-role={r}
@@ -342,7 +353,7 @@ function HasteChoice({ haste, onChange }: { haste: number; onChange: (haste: num
       <label htmlFor={id} className="whitespace-nowrap">
         At haste
       </label>
-      <div role="group" aria-label="Ability haste" className="inline-flex rounded-md border border-border-control bg-bg-elevated p-0.5">
+      <div role="group" aria-label="Ability haste" className="inline-flex max-w-full flex-wrap rounded-md border border-border-control bg-bg-elevated p-0.5">
         {HASTE_CHOICES.map((h) => (
           <button
             key={h}
@@ -599,11 +610,12 @@ export function MatchupFrame({
                 one under the other. */}
             <div className={cn("grid gap-x-4 gap-y-1.5 @min-[44rem]/pickers:items-center", duo ? "@min-[44rem]/pickers:grid-cols-[minmax(0,44rem)_minmax(0,1fr)] @min-[72rem]/pickers:grid-cols-[auto_minmax(0,44rem)_minmax(0,1fr)]" : "@min-[44rem]/pickers:grid-cols-[minmax(0,34rem)_minmax(0,1fr)] @min-[60rem]/pickers:grid-cols-[auto_minmax(0,34rem)_minmax(0,1fr)]")}>
               <div className={cn("flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5 @min-[44rem]/pickers:col-span-2", duo ? "@min-[72rem]/pickers:col-span-1 @min-[72rem]/pickers:block @min-[72rem]/pickers:space-y-0.5" : "@min-[60rem]/pickers:col-span-1 @min-[60rem]/pickers:block @min-[60rem]/pickers:space-y-0.5")} data-testid="matchup-heading">
-                {heading}
-                <div className="flex items-center gap-1.5">
-                  <RoleSelector role={shown.role} onChange={changeRole} />
+                {/* The title with "Copy link" at its row's end; under them the lane, one row (a phone's full width). */}
+                <div className="flex min-w-0 items-center justify-between gap-2 max-sm:w-full">
+                  {heading}
                   <CopyLink href={lineupHref(shown)} />
                 </div>
+                <RoleSelector role={shown.role} onChange={changeRole} />
               </div>
               {/* Side by side, or one above the other with the swap between them where the row is under
                   17.5rem: a phone at a large text size (200%; 150% on a 393px phone; 125% up to 375px
