@@ -448,7 +448,8 @@ test("turning the phone keeps the open window, the chosen filters and the place 
   await page.goto("/players");
   const profile = new URL((await page.locator("main a[data-testid='player-card'][data-player-name='Demo Mid']").getAttribute("href"))!, "http://x").pathname;
   await page.goto(`${profile}/champions?mode=solo`);
-  const win = page.getByTestId("champion-detail");
+  // All Champions' preview: a sheet on a phone, both ways round.
+  const win = page.locator("dialog[open][data-testid=champion-preview]");
   const open = page.getByTestId("top-champion").first().getByTestId("open-champion");
   await expect(async () => {
     if (!(await win.isVisible())) await open.click({ timeout: 2_000 });
@@ -461,14 +462,14 @@ test("turning the phone keeps the open window, the chosen filters and the place 
     await page.setViewportSize(size);
     await expect(win).toBeVisible();
     expect(page.url()).toBe(url);
-    const box = await rect(page, "[data-testid=champion-detail]");
-    // Whole screen both ways round on a phone.
-    expect(box.width).toBeGreaterThanOrEqual(size.width - 1);
-    expect(box.height).toBeGreaterThanOrEqual(size.height - 1);
+    const box = await rect(page, "dialog[open][data-testid=champion-preview]");
+    // Docked to the bottom edge, within the screen both ways round.
+    expect(box.width).toBeLessThanOrEqual(size.width + 1);
+    expect(box.bottom).toBeGreaterThanOrEqual(size.height - 1);
     expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
   }
-  await page.getByTestId("champion-detail-close").click();
-  await expect(win).toBeHidden();
+  await win.getByTestId("champion-preview-close").click();
+  await expect(win).toHaveCount(0);
   await expect(page).toHaveURL(/mode=solo/);
   await done(page);
 });

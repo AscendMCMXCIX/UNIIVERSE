@@ -130,7 +130,7 @@ test("Team Overview: a card turns over with nothing of the side turned away left
   await expect(page.getByTestId("lineup-row-SUPPORT")).toBeVisible();
 });
 
-test("a teammate's profile: its sections switch, and a champion's window opens and closes", async ({ page }) => {
+test("a teammate's profile: its sections switch, and a champion's preview sheet opens and closes by Back and Escape", async ({ page }) => {
   await page.goto("/players");
   const href = (await page.locator("main a[data-testid='player-card'][data-player-name='Demo Top']").getAttribute("href"))!;
   await page.goto(`${href}/champions`);
@@ -140,16 +140,24 @@ test("a teammate's profile: its sections switch, and a champion's window opens a
   await fitsWidth(page, "All Champions");
   const open = page.getByTestId("open-champion").first();
   await expect(async () => {
-    await open.tap();
-    await expect(page.getByTestId("champion-overview")).toBeVisible({ timeout: 1_000 });
+    if (!(await page.locator("dialog[open]").count())) await open.tap();
+    await expect(page.getByTestId("champion-preview-figures")).toBeVisible({ timeout: 1_000 });
   }).toPass({ timeout: 15_000 });
-  // The window fills the phone's width and nothing in it scrolls sideways.
+  // All Champions' preview is a sheet on a phone: Back closes it (one history entry), and it opens again.
+  await page.goBack();
+  await expect(page.getByTestId("champion-preview")).toHaveCount(0);
+  await expect(page).not.toHaveURL(/champion=/);
+  await expect(async () => {
+    if (!(await page.locator("dialog[open]").count())) await open.tap();
+    await expect(page.getByTestId("champion-preview-figures")).toBeVisible({ timeout: 1_000 });
+  }).toPass({ timeout: 15_000 });
+  // The sheet fills the phone's width and nothing in it scrolls sideways.
   const box = (await page.locator("dialog[open]").boundingBox())!;
   expect(box.width).toBeLessThanOrEqual(page.viewportSize()!.width + 1);
   // Its close button keeps the corner to itself, a 44px target (e2e/modal-corner.ts).
   await expectClearCorner(page);
   await page.keyboard.press("Escape");
-  await expect(page.getByTestId("champion-detail")).toBeHidden();
+  await expect(page.getByTestId("champion-preview")).toHaveCount(0);
   await tabs.getByRole("link", { name: "History" }).tap();
   await expect(page).toHaveURL(new RegExp(`${href}/matches$`));
   await expect(tabs.getByRole("link", { name: "History" })).toHaveAttribute("aria-current", "page");

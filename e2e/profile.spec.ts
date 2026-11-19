@@ -36,12 +36,13 @@ test("All Champions: column headings sort both ways within the current filters; 
   await expect(page.getByTestId("sort-proficiency")).toHaveCount(0);
   await expect(page.getByTestId("all-champions-header")).not.toContainText(/Experience/i);
   await expect(page.getByTestId("all-champions")).not.toContainText(/Played a lot|Played regularly|Not played lately|Some experience/);
-  // The champion's window neither.
-  await rows.first().getByTestId("open-champion").click();
-  await expect(page.getByTestId("champion-detail")).toBeVisible();
-  await expect(page.getByTestId("champion-detail-tier")).toHaveCount(0);
+  // The champion's preview neither.
+  await expect(async () => {
+    if (!(await page.getByTestId("champion-preview").count())) await rows.first().getByTestId("open-champion").click({ timeout: 2_000 });
+    await expect(page.getByTestId("champion-preview-figures")).toBeVisible({ timeout: 1_000 });
+  }).toPass({ timeout: 15_000 });
   await expect(page.getByTestId("champion-proficiency")).toHaveCount(0);
-  await expect(page.getByTestId("champion-detail")).not.toContainText(/Played a lot|Played regularly|Not played lately|Some experience/);
+  await expect(page.getByTestId("champion-preview")).not.toContainText(/Played a lot|Played regularly|Not played lately|Some experience/);
 });
 
 test("All Champions on a phone: a Sort by control with a direction toggle, no sideways scrolling", async ({ page }) => {
@@ -108,21 +109,15 @@ test("All Champions on a phone: the tab names it, the scope's words on one line 
   expect(await title.evaluate((h) => h.getBoundingClientRect().width), "held sideways: the title read out only").toBeLessThanOrEqual(1);
   await expect(page.getByRole("heading", { level: 2, name: "All champions" })).toHaveCount(1);
   await page.setViewportSize({ width: 393, height: 852 });
-  // The pair the list is sorted by comes first, in semibold; sorted by games (at the row's right), the pairs keep their order, none marked.
-  const firstPairs = () =>
-    rows.evaluateAll((els) =>
-      els.map((r) => {
-        const pair = r.querySelector("[data-testid=champion-summary] > div")!;
-        return { label: pair.querySelector("dt")!.textContent, sorted: pair.hasAttribute("data-sorted"), weight: Number(getComputedStyle(pair.querySelector("dd")!).fontWeight) };
-      }),
-    );
+  // Sorted by a figure other than games or win rate, that figure follows the role on each row (in
+  // place of "In pool"); sorted by games, none.
+  const figures = () => rows.evaluateAll((els) => els.map((r) => r.querySelector("[data-testid=champion-sorted-figure]")?.textContent?.trim() ?? null));
   await page.locator("#all-champions-sort-by").selectOption("kills");
-  for (const p of await firstPairs()) expect(p).toEqual({ label: "Kills", sorted: true, weight: 600 });
+  for (const f of await figures()) expect(f).toMatch(/^· Kills /);
   await page.locator("#all-champions-sort-by").selectOption("double");
-  for (const p of await firstPairs()) expect(p.label).toBe("Double kills");
+  for (const f of await figures()) expect(f).toMatch(/^· Double kills /);
   await page.locator("#all-champions-sort-by").selectOption("games");
-  for (const p of await firstPairs()) expect(p).toEqual({ label: "KDA", sorted: false, weight: 500 });
-  await expect(rows.locator("[data-sorted]")).toHaveCount(0);
+  for (const f of await figures()) expect(f).toBeNull();
 });
 
 test("at 200% text on a 320px phone, All Champions is no wider than the phone: each row stacks under the name, every name whole, and the profile header's rank inside the phone", async ({ page }) => {
@@ -198,11 +193,11 @@ test("All Champions on tablets and computers: a quiet bar under each champion's 
     const [k, search] = [(await key.boundingBox())!, (await page.getByTestId("all-champions-search").boundingBox())!];
     expect(Math.abs(k.y + k.height / 2 - (search.y + search.height / 2)), "the key on the search's row").toBeLessThanOrEqual(2);
   }
-  // The bar lets a click through to the row: a click on its fill opens the champion's window.
+  // The bar lets a click through to the row: a click on its fill opens the champion's preview.
   const fill = (await rows.first().getByTestId("champion-games-share").boundingBox())!;
   await expect(async () => {
-    if (!(await page.getByTestId("champion-detail").isVisible())) await page.mouse.click(fill.x + 3, fill.y + fill.height / 2);
-    await expect(page.getByTestId("champion-detail")).toBeVisible({ timeout: 1_000 });
+    if (!(await page.getByTestId("champion-preview").count())) await page.mouse.click(fill.x + 3, fill.y + fill.height / 2);
+    await expect(page.getByTestId("champion-preview-figures")).toBeVisible({ timeout: 1_000 });
   }).toPass({ timeout: 15_000 });
 });
 
@@ -227,13 +222,14 @@ test("All Champions from a 76rem list: the figures in groups, a clearly larger s
     };
   });
   const labels = heads.cells.map((c) => c.label);
-  expect(labels).toEqual(["Champion", "Games", "Win rate", "KDA", "CS/min", "Kills", "Double", "Triple", "Quadra", "Penta", "Mastery"]);
+  // No Kills column at this width: it sorts like Games, and per-game kills are in KDA (CM AC-11).
+  expect(labels).toEqual(["Champion", "Games", "Win rate", "KDA", "CS/min", "Double", "Triple", "Quadra", "Penta", "Mastery"]);
   // The empty space before each heading, from the one before it.
   const space = (label: string) => {
     const i = labels.indexOf(label);
     return (heads.cells[i]!.left - heads.cells[i - 1]!.right) / heads.rem;
   };
-  const inside = ["Win rate", "CS/min", "Kills", "Triple", "Quadra", "Penta"].map(space);
+  const inside = ["Win rate", "CS/min", "Triple", "Quadra", "Penta"].map(space);
   for (const start of ["KDA", "Double", "Mastery"]) expect(space(start), `${start}: ${space(start).toFixed(2)}rem against at most ${Math.max(...inside).toFixed(2)}rem inside a group`).toBeGreaterThan(Math.max(...inside) + 0.4);
   // The 76rem grid's headings, sort arrows and figures whole and clear, here and at its narrowest
   // (a 1536px window beside the open sidebar: a 76rem list, every track at its minimum).
@@ -241,7 +237,7 @@ test("All Champions from a 76rem list: the figures in groups, a clearly larger s
     await page.setViewportSize(viewport);
     const table = await championTable(page);
     const at = `${viewport.width}px`;
-    expect(table.columns, `${at}: Champion and ten figure columns`).toBe(11);
+    expect(table.columns, `${at}: Champion and nine figure columns`).toBe(10);
     expect(Math.max(...table.heights), `${at}: rows ${table.heights.join(", ")}`).toBeLessThanOrEqual(56);
     expect(table.spilled, `${at}: headings inside their columns`).toEqual([]);
     expect(table.arrowsOver, `${at}: sort arrows clear of the headings beside them`).toEqual([]);

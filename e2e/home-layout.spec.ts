@@ -195,14 +195,10 @@ test("profile Overview: a 2×2 dashboard at 1440 (the season beside recent form,
   await expect(off.getByTestId("secondary-pool-list")).toBeHidden();
   const toggle = off.getByTestId("secondary-pool-expand");
   await expect(toggle).toHaveAttribute("aria-expanded", "false");
-  // A portrait opens that champion's window, in the off role.
+  // A portrait links to All Champions with that champion's preview open, in the off role.
   const portrait = off.getByTestId("pool-preview-inspect").first();
   const champion = await portrait.locator("xpath=..").getAttribute("data-champion");
-  await portrait.click();
-  await expect(page.getByTestId("champion-detail")).toBeVisible();
-  await expect(page).toHaveURL(new RegExp(`champ=${champion}`));
-  await page.keyboard.press("Escape");
-  await expect(page.getByTestId("champion-detail")).toHaveCount(0);
+  await expect(portrait).toHaveAttribute("href", new RegExp(`/champions\\?.*champion=${champion}&crole=`));
   // Opening shows the full pool; closing folds it back.
   await toggle.click();
   await expect(toggle).toHaveAttribute("aria-expanded", "true");
