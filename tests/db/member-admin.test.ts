@@ -53,6 +53,11 @@ import { queryAudit } from "@/server/audit/log";
 import * as adminActions from "@/server/actions/member-admin";
 import * as accountActions from "@/server/actions/account";
 import * as auditActions from "@/server/actions/audit";
+import { loadNeedsYou } from "@/server/admin/needs-you";
+import { listAccountViews } from "@/server/auth/account-admin";
+import { setScheduleOverrides } from "@/server/jobs/scheduler";
+import { setTemporaryPassword } from "@/server/repositories/users";
+import { dataRefreshStatus } from "@/server/db/schema";
 
 let handle: DbHandle;
 let ownerId: string;
@@ -302,5 +307,31 @@ describe("the activity log", () => {
     // A member cannot read the log.
     await signInAs(memberId);
     expect(await auditActions.loadOlderAuditAction(filters, { at: last.at.toISOString(), id: last.id })).toMatchObject({ ok: false });
+  });
+});
+
+describe("the Dashboard's Needs you", () => {
+  it("lists an expired temporary password, the LP schedule turned off with who and when, and a job at interval 0", async () => {
+    const day = 86_400_000;
+    await setTemporaryPassword(handle.db, otherId, { now: new Date(Date.now() - 30 * day) });
+    const on = new Date(Date.now() - 3 * day);
+    const off = new Date(Date.now() - 2 * day);
+    await handle.db.insert(dataRefreshStatus).values([
+      { key: "rank-schedule", status: "ok", lastStartedAt: on, lastSuccessAt: on },
+      { key: "rank-schedule-off", status: "ok", lastStartedAt: off, lastSuccessAt: off },
+    ]);
+    await handle.db.insert(auditEvents).values({ at: off, actorUserId: ownerId, actorName: "Founder", action: "jobs.run", targetType: "job", targetName: "rank-schedule-off", details: { ok: true, kind: "setup" } });
+    await setScheduleOverrides(handle.db, { intervals: { integrity: 0 } });
+    await handle.db.insert(auditEvents).values({ at: off, actorUserId: adminId, actorName: "Captain", action: "jobs.schedule", targetType: "job", targetName: "integrity", details: { fromMinutes: 60, toMinutes: 0 } });
+    const items = await loadNeedsYou(handle.db, await listAccountViews(handle.db));
+    const text = items.map((i) => i.text).join("\n");
+    expect(items.find((i) => i.key === `expired-${otherId}`)).toMatchObject({ href: `/admin/people?person=${otherId}` });
+    expect(text).toMatch(/Benchy's temporary password expired/);
+    const schedule = items.find((i) => i.key === "schedule-off")!;
+    expect(schedule.text).toMatch(/^The LP five-minute schedule was turned off by Founder on /);
+    expect(schedule.href).toMatch(/^\/admin\/audit\?category=data&from=\d{4}-\d{2}-\d{2}&to=/);
+    expect(items.find((i) => i.key === "off-integrity")!.text).toMatch(/^integrity is off \(interval 0\), set by Captain on /);
+    // No session count, no password, anywhere in it.
+    expect(text).not.toMatch(/session/i);
   });
 });

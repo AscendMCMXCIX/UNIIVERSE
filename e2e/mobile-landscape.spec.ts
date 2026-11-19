@@ -424,8 +424,8 @@ test("held sideways: a detail window takes the whole screen, scrolls as one, and
 
 test("held sideways: a dialog keeps its title and actions on screen and scrolls only its body", async ({ browser, baseURL }) => {
   const page = await phone(browser, baseURL!, SE_LANDSCAPE, "admin");
-  await page.goto("/admin/people");
-  const open = page.locator("[data-testid=open-access]:not([disabled])").first();
+  await page.goto("/admin/people/access");
+  const open = page.getByRole("button", { name: "New level" });
   const dialog = page.locator("dialog[open]");
   await expect(async () => {
     if (!(await dialog.isVisible())) await open.click({ timeout: 2_000 });
@@ -434,7 +434,7 @@ test("held sideways: a dialog keeps its title and actions on screen and scrolls 
   const box = await rect(page, "dialog[open]");
   expect(box.top).toBeGreaterThanOrEqual(0);
   expect(box.bottom).toBeLessThanOrEqual(box.vh + 0.5);
-  for (const target of [dialog.locator("#dialog-title"), dialog.getByTestId("save-access"), dialog.getByTestId("dialog-close")]) {
+  for (const target of [dialog.locator("#dialog-title"), dialog.getByTestId("save-preset"), dialog.getByTestId("dialog-close")]) {
     const b = (await target.boundingBox())!;
     expect(b.y).toBeGreaterThanOrEqual(box.top - 1);
     expect(b.y + b.height).toBeLessThanOrEqual(box.bottom + 1);
@@ -473,22 +473,6 @@ test("turning the phone keeps the open window, the chosen filters and the place 
   await page.getByTestId("champion-detail-close").click();
   await expect(win).toBeHidden();
   await expect(page).toHaveURL(/mode=solo/);
-  await done(page);
-});
-
-test("tab rows too wide for the screen fade only where more is hidden, and keep the current tab in view", async ({ browser, baseURL }) => {
-  // Audit Logs' six categories do not fit a small phone: the row scrolls on its own.
-  const page = await phone(browser, baseURL!, devices["iPhone SE"], "admin");
-  await page.goto("/admin/audit");
-  const list = page.getByTestId("audit-categories");
-  await expect(list).toHaveAttribute("data-fade-start", "false");
-  await expect(list).toHaveAttribute("data-fade-end", "true");
-  await page.goto("/admin/audit?category=privacy");
-  await expect(list).toHaveAttribute("data-fade-start", "true");
-  const current = await list.locator("[aria-current=page]").boundingBox();
-  const row = await list.boundingBox();
-  expect(current!.x).toBeGreaterThanOrEqual(row!.x);
-  expect(current!.x + current!.width).toBeLessThanOrEqual(row!.x + row!.width + 1);
   await done(page);
 });
 

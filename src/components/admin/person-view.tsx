@@ -7,12 +7,7 @@ import { ChevronLeft, ChevronRight, ShieldCheck } from "lucide-react";
 import type { PermissionPreset } from "@/server/repositories/permissions";
 import type { AuditEntry } from "@/server/audit/log";
 import { archivePlayerAction } from "@/server/actions/players";
-import {
-  moderatePictureAction,
-  moderateSocialLinkAction,
-  setMemberDisplayNameAction,
-  signOutEverywhereAction,
-} from "@/server/actions/member-admin";
+import { moderatePictureAction, moderateSocialLinkAction, setMemberDisplayNameAction, signOutEverywhereAction } from "@/server/actions/member-admin";
 import { personActivityAction } from "@/server/actions/audit";
 import { auditDetailsSentence, auditSentence } from "@/domain/audit-sentence";
 import { ROLE_LABELS } from "@/domain/roles";
@@ -25,90 +20,50 @@ import { Input, Label } from "@/components/ui/input";
 import { toast } from "@/components/ui/toast";
 import { RiotAccountsPanel } from "@/components/team/riot-accounts-panel";
 import { formatDate, formatDateTime, timeAgo } from "@/lib/format";
-import {
-  ACCOUNT_STATUS,
-  AccountActions,
-  DeleteProfileButton,
-  accountStatus,
-} from "./account-actions";
+import { ACCOUNT_STATUS, AccountActions, DeleteProfileButton, accountStatus } from "./account-actions";
 import { AccessDialog, accessSummary } from "./access-dialog";
 import { ErasePersonButton } from "./erase-person";
 import { riotStatus, type PersonEntry } from "./people-panel";
 
 type Result = { ok: true } | { ok: false; error: string };
 
-function Section({
-  title,
-  testId,
-  children,
-}: {
-  title: string;
-  testId: string;
-  children: React.ReactNode;
-}) {
+function Section({ title, testId, children }: { title: string; testId: string; children: React.ReactNode }) {
   return (
-    <section
-      className="space-y-2 border-t border-border pt-4 first:border-t-0 first:pt-0"
-      data-testid={testId}
-    >
+    <section className="space-y-2 border-t border-border pt-4 first:border-t-0 first:pt-0" data-testid={testId}>
       <h3 className="text-sm font-semibold text-fg">{title}</h3>
       {children}
     </section>
   );
 }
 
-function Fact({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
+function Fact({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 py-1">
       <dt className="text-sm text-fg-muted">{label}</dt>
-      <dd className="min-w-0 text-right text-sm text-fg [overflow-wrap:anywhere]">
-        {children}
-      </dd>
+      <dd className="min-w-0 text-right text-sm text-fg [overflow-wrap:anywhere]">{children}</dd>
     </div>
   );
 }
 
 /** The password's state in words (never the password: a temporary one is shown once, when issued). */
-function passwordWords(
-  state: "set" | "temporary" | "expired" | "none",
-  expiresAt: string | null,
-): string {
+function passwordWords(state: "set" | "temporary" | "expired" | "none", expiresAt: string | null): string {
   if (state === "set") return "They chose their own password.";
-  if (state === "temporary")
-    return `A temporary password waits for their first sign-in${expiresAt ? `, until ${formatDateTime(expiresAt)}` : ""}.`;
-  if (state === "expired")
-    return `Their temporary password expired${expiresAt ? ` on ${formatDateTime(expiresAt)}` : ""}. Issue a new one.`;
+  if (state === "temporary") return `A temporary password waits for their first sign-in${expiresAt ? `, until ${formatDateTime(expiresAt)}` : ""}.`;
+  if (state === "expired") return `Their temporary password expired${expiresAt ? ` on ${formatDateTime(expiresAt)}` : ""}. Issue a new one.`;
   return "No password yet: issue a temporary one so they can sign in.";
 }
 
-function Activity({
-  userId,
-  playerId,
-}: {
-  userId: string | null;
-  playerId: string | null;
-}) {
+function Activity({ userId, playerId }: { userId: string | null; playerId: string | null }) {
   const [entries, setEntries] = React.useState<AuditEntry[] | null>(null);
   React.useEffect(() => {
     let live = true;
-    void personActivityAction({ userId, playerId }).then(
-      (r) => live && setEntries(r.ok ? r.data.entries : []),
-    );
+    void personActivityAction({ userId, playerId }).then((r) => live && setEntries(r.ok ? r.data.entries : []));
     return () => {
       live = false;
     };
   }, [userId, playerId]);
   if (!entries) return <p className="text-sm text-fg-subtle">Loading…</p>;
-  if (!entries.length)
-    return (
-      <p className="text-sm text-fg-muted">Nothing recorded about them yet.</p>
-    );
+  if (!entries.length) return <p className="text-sm text-fg-muted">Nothing recorded about them yet.</p>;
   return (
     <ul className="divide-y divide-border" data-testid="person-activity-list">
       {entries.map((e) => {
@@ -170,56 +125,23 @@ export function PersonView({
       open={!!person}
       onClose={onClose}
       title={p?.name ?? "Person"}
-      description={
-        p?.account
-          ? `@${p.account.username}`
-          : p?.player
-            ? "A profile without an account"
-            : undefined
-      }
+      description={p?.account ? `@${p.account.username}` : p?.player ? "A profile without an account" : undefined}
       testId="person-view"
       closeTestId="person-view-close"
       headerExtra={
         position && position.of > 1 ? (
           <span className="flex items-center">
-            <Button
-              size="sm"
-              variant="ghost"
-              className="min-w-11 px-0"
-              aria-label="Previous person"
-              disabled={position.at <= 0}
-              onClick={() => onStep(-1)}
-              data-testid="person-prev"
-            >
+            <Button size="sm" variant="ghost" className="min-w-11 px-0" aria-label="Previous person" disabled={position.at <= 0} onClick={() => onStep(-1)} data-testid="person-prev">
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="min-w-11 px-0"
-              aria-label="Next person"
-              disabled={position.at >= position.of - 1}
-              onClick={() => onStep(1)}
-              data-testid="person-next"
-            >
+            <Button size="sm" variant="ghost" className="min-w-11 px-0" aria-label="Next person" disabled={position.at >= position.of - 1} onClick={() => onStep(1)} data-testid="person-next">
               <ChevronRight className="h-4 w-4" />
             </Button>
           </span>
         ) : null
       }
     >
-      {p ? (
-        <PersonBody
-          key={p.key}
-          p={p}
-          presets={presets}
-          currentUserId={currentUserId}
-          viewerIsOwner={viewerIsOwner}
-          canManageAccounts={canManageAccounts}
-          canManageRoster={canManageRoster}
-          riotConfigured={riotConfigured}
-        />
-      ) : null}
+      {p ? <PersonBody key={p.key} p={p} presets={presets} currentUserId={currentUserId} viewerIsOwner={viewerIsOwner} canManageAccounts={canManageAccounts} canManageRoster={canManageRoster} riotConfigured={riotConfigured} /> : null}
     </DetailModal>
   );
 }
@@ -246,9 +168,7 @@ function PersonBody({
   const player = p.player;
   const [busy, setBusy] = React.useState(false);
   const [editingAccess, setEditingAccess] = React.useState(false);
-  const [confirm, setConfirm] = React.useState<
-    "sign-out" | "remove-picture" | null
-  >(null);
+  const [confirm, setConfirm] = React.useState<"sign-out" | "remove-picture" | null>(null);
   const [name, setName] = React.useState(a?.displayName ?? p.name);
   const file = React.useRef<HTMLInputElement>(null);
 
@@ -257,19 +177,8 @@ function PersonBody({
   const kept = !!a?.keptAutomatically;
   // What this viewer may change on this account (the server checks it again).
   const manage = canManageAccounts && !!a && !self && !ownerByOther;
-  const lockedReason = self
-    ? "Your own access cannot be changed here"
-    : ownerByOther
-      ? "Only the Owner changes the Owner account"
-      : kept
-        ? "Kept automatically"
-        : null;
-  const mayErase =
-    !!a &&
-    !self &&
-    a.role !== "owner" &&
-    !kept &&
-    (!a.isAdmin || viewerIsOwner);
+  const lockedReason = self ? "Your own access cannot be changed here" : ownerByOther ? "Only the Owner changes the Owner account" : kept ? "Kept automatically" : null;
+  const mayErase = !!a && !self && a.role !== "owner" && !kept && (!a.isAdmin || viewerIsOwner);
 
   const run = async (fn: () => Promise<Result>, done: string) => {
     setBusy(true);
@@ -284,18 +193,14 @@ function PersonBody({
 
   const replacePicture = async (f: File | undefined) => {
     if (!f || !a) return;
-    if (f.size > 400_000)
-      return toast.error("That picture is too large (400 KB at most).");
+    if (f.size > 400_000) return toast.error("That picture is too large (400 KB at most).");
     const dataUrl = await new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => resolve(String(reader.result));
       reader.onerror = () => reject(reader.error);
       reader.readAsDataURL(f);
     });
-    await run(
-      () => moderatePictureAction(a.userId, dataUrl),
-      "Picture replaced.",
-    );
+    await run(() => moderatePictureAction(a.userId, dataUrl), "Picture replaced.");
   };
 
   const status = a ? ACCOUNT_STATUS[accountStatus(a)] : null;
@@ -310,58 +215,30 @@ function PersonBody({
               <span title={status!.hint}>{status!.label}</span>
             </Fact>
             <Fact label="Created">{formatDate(a.createdAt)}</Fact>
-            <Fact label="Last sign-in">
-              {a.lastLoginAt ? formatDateTime(a.lastLoginAt) : "Never"}
-            </Fact>
-            {a.role === "owner" ? (
-              <Fact label="Role">Owner</Fact>
-            ) : a.isAdmin ? (
-              <Fact label="Role">Administrator</Fact>
-            ) : null}
+            <Fact label="Last sign-in">{a.lastLoginAt ? formatDateTime(a.lastLoginAt) : "Never"}</Fact>
+            {a.role === "owner" ? <Fact label="Role">Owner</Fact> : a.isAdmin ? <Fact label="Role">Administrator</Fact> : null}
           </dl>
           {viewerIsOwner && !self && !kept ? (
             <form
               className="flex flex-wrap items-end gap-2"
               onSubmit={(e) => {
                 e.preventDefault();
-                void run(
-                  () => setMemberDisplayNameAction(a.userId, name),
-                  "Display name saved.",
-                );
+                void run(() => setMemberDisplayNameAction(a.userId, name), "Display name saved.");
               }}
               data-testid="member-display-name"
             >
               <div className="min-w-0 flex-1 space-y-1">
-                <Label htmlFor={`name-${a.userId}`}>
-                  Change their display name
-                </Label>
-                <Input
-                  id={`name-${a.userId}`}
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  autoComplete="off"
-                  maxLength={40}
-                />
+                <Label htmlFor={`name-${a.userId}`}>Change their display name</Label>
+                <Input id={`name-${a.userId}`} value={name} onChange={(e) => setName(e.target.value)} autoComplete="off" maxLength={40} />
               </div>
-              <Button
-                type="submit"
-                size="sm"
-                variant="outline"
-                disabled={busy || name.trim() === (a.displayName || p.name)}
-              >
+              <Button type="submit" size="sm" variant="outline" disabled={busy || name.trim() === (a.displayName || p.name)}>
                 Save name
               </Button>
             </form>
           ) : null}
           {manage && !kept ? (
             <div className="flex flex-wrap gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={busy}
-                onClick={() => setConfirm("sign-out")}
-                data-testid="sign-out-everywhere"
-              >
+              <Button size="sm" variant="outline" disabled={busy} onClick={() => setConfirm("sign-out")} data-testid="sign-out-everywhere">
                 Sign out everywhere
               </Button>
             </div>
@@ -373,105 +250,47 @@ function PersonBody({
             description="Every device they are signed in on is signed out at once. Their password stays the same."
             confirmLabel="Sign out everywhere"
             onCancel={() => setConfirm(null)}
-            onConfirm={() =>
-              void run(
-                () => signOutEverywhereAction(a.userId),
-                "Signed out everywhere.",
-              )
-            }
+            onConfirm={() => void run(() => signOutEverywhereAction(a.userId), "Signed out everywhere.")}
           />
         </Section>
       ) : null}
 
       {a && !kept ? (
         <Section title="Password" testId="person-password">
-          <p className="text-sm text-fg-muted">
-            {passwordWords(a.password.state, a.password.expiresAt)}
-          </p>
-          {manage ? (
-            <AccountActions
-              account={a}
-              currentUserId={currentUserId}
-              viewerIsOwner={viewerIsOwner}
-              only="password"
-            />
-          ) : null}
-          {self ? (
-            <p className="text-xs text-fg-subtle">
-              Change your own password in Settings.
-            </p>
-          ) : null}
+          <p className="text-sm text-fg-muted">{passwordWords(a.password.state, a.password.expiresAt)}</p>
+          {manage ? <AccountActions account={a} currentUserId={currentUserId} viewerIsOwner={viewerIsOwner} only="password" /> : null}
+          {self ? <p className="text-xs text-fg-subtle">Change your own password in Settings.</p> : null}
         </Section>
       ) : null}
 
       {a && canManageAccounts ? (
         <Section title="Access" testId="person-access">
-          <p
-            className="flex items-center gap-1.5 text-sm text-fg-muted"
-            data-testid="access-summary"
-          >
-            <ShieldCheck className="h-4 w-4 text-fg-subtle" aria-hidden />{" "}
-            {kept ? "Default access, locked" : accessSummary(a, presets)}
+          <p className="flex items-center gap-1.5 text-sm text-fg-muted" data-testid="access-summary">
+            <ShieldCheck className="h-4 w-4 text-fg-subtle" aria-hidden /> {kept ? "Default access, locked" : accessSummary(a, presets)}
           </p>
           {!kept ? (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setEditingAccess(true)}
-              disabled={!!lockedReason}
-              title={
-                lockedReason ??
-                "Team membership, access level, additional access and administrator access"
-              }
-              data-testid="open-access"
-            >
+            <Button size="sm" variant="outline" onClick={() => setEditingAccess(true)} disabled={!!lockedReason} title={lockedReason ?? "Team membership, access level, additional access and administrator access"} data-testid="open-access">
               <ShieldCheck className="h-4 w-4" /> Manage access
             </Button>
           ) : null}
-          {lockedReason && !kept ? (
-            <p className="text-xs text-fg-subtle">{lockedReason}.</p>
-          ) : null}
-          {editingAccess ? (
-            <AccessDialog
-              account={a}
-              presets={presets}
-              lineupRole={player?.lineupRole ?? null}
-              viewerIsOwner={viewerIsOwner}
-              onClose={() => setEditingAccess(false)}
-            />
-          ) : null}
+          {lockedReason && !kept ? <p className="text-xs text-fg-subtle">{lockedReason}.</p> : null}
+          {editingAccess ? <AccessDialog account={a} presets={presets} lineupRole={player?.lineupRole ?? null} viewerIsOwner={viewerIsOwner} onClose={() => setEditingAccess(false)} /> : null}
         </Section>
       ) : null}
 
       {player ? (
         <Section title="Riot accounts" testId="person-riot">
           <p className="text-sm text-fg-muted">
-            {riotStatus(player.riot.state).label}: {player.riot.label}.
-            {player.primaryRole
-              ? ` Plays ${ROLE_LABELS[player.primaryRole]}${player.secondaryRole ? ` and ${ROLE_LABELS[player.secondaryRole]}` : ""}.`
-              : " Role not chosen yet."}
-            {player.lineupRole
-              ? ` In the lineup at ${ROLE_LABELS[player.lineupRole]}.`
-              : ""}
+            {riotStatus(player.riot.state).label}: {player.riot.label}.{player.primaryRole ? ` Plays ${ROLE_LABELS[player.primaryRole]}${player.secondaryRole ? ` and ${ROLE_LABELS[player.secondaryRole]}` : ""}.` : " Role not chosen yet."}
+            {player.lineupRole ? ` In the lineup at ${ROLE_LABELS[player.lineupRole]}.` : ""}
           </p>
           {player.riotAccounts.length ? (
-            <RiotAccountsPanel
-              playerId={player.id}
-              accounts={player.riotAccounts}
-              riotConfigured={riotConfigured}
-              editable={canManageAccounts && !ownerByOther}
-              title="Linked Riot accounts"
-            />
+            <RiotAccountsPanel playerId={player.id} accounts={player.riotAccounts} riotConfigured={riotConfigured} editable={canManageAccounts && !ownerByOther} title="Linked Riot accounts" />
           ) : (
             <p className="text-sm text-fg-muted">No Riot account linked.</p>
           )}
           {player.primaryRole && player.teamMember ? (
-            <Link
-              href={`/players/${player.id}`}
-              target="_blank"
-              rel="noopener"
-              className="inline-flex min-h-11 items-center text-sm text-accent hover:underline"
-            >
+            <Link href={`/players/${player.id}`} target="_blank" rel="noopener" className="inline-flex min-h-11 items-center text-sm text-accent hover:underline">
               Open their profile in Player Mode
             </Link>
           ) : null}
@@ -484,34 +303,12 @@ function PersonBody({
             <Avatar name={p.name} src={a.avatarUrl} size="lg" />
             {manage ? (
               <span className="flex flex-wrap gap-2">
-                <input
-                  ref={file}
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp"
-                  className="sr-only"
-                  tabIndex={-1}
-                  aria-hidden
-                  onChange={(e) =>
-                    void replacePicture(e.target.files?.[0]).finally(
-                      () => e.target.value && (e.target.value = ""),
-                    )
-                  }
-                />
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={busy}
-                  onClick={() => file.current?.click()}
-                >
+                <input ref={file} type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" tabIndex={-1} aria-hidden onChange={(e) => void replacePicture(e.target.files?.[0]).finally(() => e.target.value && (e.target.value = ""))} />
+                <Button size="sm" variant="outline" disabled={busy} onClick={() => file.current?.click()}>
                   Replace picture
                 </Button>
                 {a.avatarUrl ? (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    disabled={busy}
-                    onClick={() => setConfirm("remove-picture")}
-                  >
+                  <Button size="sm" variant="ghost" disabled={busy} onClick={() => setConfirm("remove-picture")}>
                     Remove picture
                   </Button>
                 ) : null}
@@ -521,51 +318,16 @@ function PersonBody({
           {player?.publicLinks.length ? (
             <ul className="divide-y divide-border" data-testid="person-links">
               {player.publicLinks.map((l) => (
-                <li
-                  key={l.kind}
-                  className="flex flex-wrap items-center justify-between gap-2 py-1.5 text-sm"
-                >
+                <li key={l.kind} className="flex flex-wrap items-center justify-between gap-2 py-1.5 text-sm">
                   <span className="min-w-0 [overflow-wrap:anywhere]">
-                    <span className="font-medium text-fg">{l.label}</span>{" "}
-                    <span className="text-fg-muted">{l.text}</span>
+                    <span className="font-medium text-fg">{l.label}</span> <span className="text-fg-muted">{l.text}</span>
                   </span>
                   {manage ? (
                     <span className="flex gap-1">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        disabled={busy}
-                        onClick={() =>
-                          void run(
-                            () =>
-                              moderateSocialLinkAction(
-                                player.id,
-                                l.kind,
-                                "hide",
-                              ),
-                            `${l.label} hidden; it stays theirs in Settings.`,
-                          )
-                        }
-                      >
+                      <Button size="sm" variant="ghost" disabled={busy} onClick={() => void run(() => moderateSocialLinkAction(player.id, l.kind, "hide"), `${l.label} hidden; it stays theirs in Settings.`)}>
                         Hide
                       </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="text-bad"
-                        disabled={busy}
-                        onClick={() =>
-                          void run(
-                            () =>
-                              moderateSocialLinkAction(
-                                player.id,
-                                l.kind,
-                                "remove",
-                              ),
-                            `${l.label} removed.`,
-                          )
-                        }
-                      >
+                      <Button size="sm" variant="ghost" className="text-bad" disabled={busy} onClick={() => void run(() => moderateSocialLinkAction(player.id, l.kind, "remove"), `${l.label} removed.`)}>
                         Remove
                       </Button>
                     </span>
@@ -583,12 +345,7 @@ function PersonBody({
             description="Their initials show instead. They can choose a new picture in Settings."
             confirmLabel="Remove picture"
             onCancel={() => setConfirm(null)}
-            onConfirm={() =>
-              void run(
-                () => moderatePictureAction(a.userId, null),
-                "Picture removed.",
-              )
-            }
+            onConfirm={() => void run(() => moderatePictureAction(a.userId, null), "Picture removed.")}
           />
         </Section>
       ) : null}
@@ -599,46 +356,14 @@ function PersonBody({
         </Section>
       ) : null}
 
-      {(canManageAccounts && (manage || !a)) ||
-      (canManageRoster && player && !a) ? (
-        <Disclosure
-          title="Danger zone"
-          description="Deactivate, delete or erase. Anything permanent asks for the name typed first."
-          testId="person-danger"
-        >
+      {(canManageAccounts && (manage || !a)) || (canManageRoster && player && !a) ? (
+        <Disclosure title="Danger zone" description="Deactivate, delete or erase. Anything permanent asks for the name typed first." testId="person-danger">
           <div className="flex flex-wrap items-center gap-2">
-            {a && manage ? (
-              <AccountActions
-                account={a}
-                currentUserId={currentUserId}
-                viewerIsOwner={viewerIsOwner}
-                only="danger"
-              />
-            ) : null}
-            {canManageAccounts && player && !a ? (
-              <DeleteProfileButton
-                playerId={player.id}
-                name={player.displayName}
-              />
-            ) : null}
-            {canManageAccounts && (mayErase || (player && !a)) ? (
-              <ErasePersonButton
-                target={a ? { userId: a.userId } : { playerId: player!.id }}
-                name={a?.username ?? player!.displayName}
-              />
-            ) : null}
+            {a && manage ? <AccountActions account={a} currentUserId={currentUserId} viewerIsOwner={viewerIsOwner} only="danger" /> : null}
+            {canManageAccounts && player && !a ? <DeleteProfileButton playerId={player.id} name={player.displayName} /> : null}
+            {canManageAccounts && (mayErase || (player && !a)) ? <ErasePersonButton target={a ? { userId: a.userId } : { playerId: player!.id }} name={a?.username ?? player!.displayName} /> : null}
             {canManageRoster && player && !a ? (
-              <Button
-                size="sm"
-                variant="ghost"
-                disabled={busy}
-                onClick={() =>
-                  void run(
-                    () => archivePlayerAction(player.id, !player.archived),
-                    player.archived ? "Profile restored." : "Profile archived.",
-                  )
-                }
-              >
+              <Button size="sm" variant="ghost" disabled={busy} onClick={() => void run(() => archivePlayerAction(player.id, !player.archived), player.archived ? "Profile restored." : "Profile archived.")}>
                 {player.archived ? "Restore profile" : "Archive profile"}
               </Button>
             ) : null}

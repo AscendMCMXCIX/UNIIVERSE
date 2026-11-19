@@ -1,6 +1,6 @@
 import { AxeBuilder } from "@axe-core/playwright";
 import { expect, test, type BrowserContext, type Locator, type Page } from "./test";
-import { createMember, memberContext, view } from "./member-account";
+import { createMember, grantAdministrator, memberContext, openDanger, openPerson, view } from "./member-account";
 
 /*
   ADMIN SAFETY (the overhaul's S1a). Admin Mode → Data & Integrations lists its jobs as Checks and
@@ -136,15 +136,7 @@ test("an administrator who is not the Owner gets the checks and refreshes only: 
   try {
     deputy = await memberContext(browser, owner, undefined, { base: "Deputy" });
     await owner.goto("/admin/people");
-    const dialog = owner.getByTestId("access-dialog");
-    await expect(async () => {
-      await owner.getByTestId("people-search").fill(deputy!.username);
-      await owner.getByTestId("admin-player-row").filter({ hasText: deputy!.username }).getByTestId("open-access").click({ timeout: 2_000 });
-      await expect(dialog).toBeVisible({ timeout: 2_000 });
-    }).toPass({ timeout: 30_000 });
-    await dialog.getByTestId("administrator-access").getByText("Administrator access").click();
-    await owner.getByTestId("save-access").click();
-    await expect(owner.getByTestId("admin-player-row").filter({ hasText: deputy.username })).toContainText("Administrator");
+    await grantAdministrator(owner, deputy.username);
 
     for (const [width, height] of [[1440, 900], [375, 667]] as const) {
       await deputy.page.setViewportSize({ width, height });
@@ -175,24 +167,29 @@ test("Users & Permissions: the Production check's account is locked under Kept a
   const { username } = await createMember(page, "Typed");
   await page.goto("/admin/people");
 
-  // The Production check's account: its own locked group, Deactivate and Delete only.
+  // The Production check's account: its own locked group; its view offers Deactivate and Delete only.
   const kept = page.getByTestId("people-group-kept");
   await expect(kept).toContainText("Kept automatically");
   await expect(kept).toContainText("Deactivate it to turn the signed-in checks off");
-  const row = kept.getByTestId("admin-kept-row");
-  await expect(row).toHaveCount(1);
-  await expect(row).toContainText("verify");
-  await expect(row.getByRole("button", { name: "Deactivate" })).toBeVisible();
-  await expect(row.getByTestId("delete-account")).toBeVisible();
-  await expect(row.getByTestId("open-access")).toHaveCount(0);
-  await expect(row.getByRole("button", { name: /Reset password|temporary password/ })).toHaveCount(0);
-  await expect(row.getByTestId("erase-person")).toHaveCount(0);
+  await expect(kept.getByTestId("admin-kept-row")).toHaveCount(1);
+  await expect(kept.getByTestId("admin-kept-row")).toContainText("verify");
   // The stale "admin account" words are gone.
   await expect(page.getByTestId("players-admin")).not.toContainText("The admin account");
+  const keptView = await openPerson(page, "verify", "admin-kept-row");
+  await openDanger(keptView);
+  await expect(keptView.getByRole("button", { name: "Deactivate" })).toBeVisible();
+  await expect(keptView.getByTestId("delete-account")).toBeVisible();
+  await expect(keptView.getByTestId("open-access")).toHaveCount(0);
+  await expect(keptView.getByTestId("sign-out-everywhere")).toHaveCount(0);
+  await expect(keptView.getByTestId("member-display-name")).toHaveCount(0);
+  await expect(keptView.getByRole("button", { name: /Reset password|temporary password/ })).toHaveCount(0);
+  await expect(keptView.getByTestId("erase-person")).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await expect(keptView).toBeHidden();
 
   // An account with a profile: "Delete with profile" waits for the username; the two deletes share a row.
-  await page.getByTestId("people-search").fill(username);
-  const member = page.getByTestId("admin-player-row").filter({ hasText: `@${username}` });
+  const member = await openPerson(page, username);
+  await openDanger(member);
   const dialog = await openDialog(page, member.getByTestId("delete-account"), `Delete ${username}?`);
   const keep = dialog.getByTestId("delete-keep-profile");
   const withProfile = dialog.getByTestId("delete-with-profile");
@@ -207,10 +204,12 @@ test("Users & Permissions: the Production check's account is locked under Kept a
   await axe(page, "the delete dialog");
   await dialog.getByRole("button", { name: "Cancel" }).click();
   await expect(dialog).toBeHidden();
+  await page.keyboard.press("Escape");
+  await expect(member).toBeHidden();
 
   // A profile without an account: Delete permanently waits for its name.
-  await page.getByTestId("people-search").fill("Demo Sub (Top)");
-  const accountless = page.getByTestId("admin-player-row").filter({ hasText: "Demo Sub (Top)" }).first();
+  const accountless = await openPerson(page, "Demo Sub (Top)");
+  await openDanger(accountless);
   const confirm = await openDialog(page, accountless.getByTestId("delete-profile"), /^Delete Demo Sub \(Top\)\?$/);
   const go = confirm.getByTestId("delete-profile-confirm");
   await expect(go).toBeDisabled();

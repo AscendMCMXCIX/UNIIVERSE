@@ -46,7 +46,7 @@ const WITH_TARGET: Record<string, string> = {
   "resources.remove": "removed the resource {t}",
   "jobs.schedule": "changed the schedule of {t}",
   "jobs.run": "ran {t}",
-  "privacy.erase": "permanently erased the personal data of {t}",
+  "privacy.erase": "permanently erased a person's personal data, reference {t}",
   "privacy.release": "released the Riot accounts of {t}",
 };
 
