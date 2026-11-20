@@ -20,7 +20,7 @@ export const METRICS = {
     unit: "label",
   },
   "recent-games": {
-    tip: "Games on this champion in the last 30 days, from all their Riot accounts.",
+    tip: "Games on this champion from each patch, queue and role they played it in during the last 30 days, counted whole.",
     title: "Recent games",
     unit: "games",
   },

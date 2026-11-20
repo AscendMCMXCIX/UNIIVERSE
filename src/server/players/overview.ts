@@ -146,13 +146,13 @@ export interface PlayerOverviewOptions {
 
 /**
  * Why a champion has its experience label, after the label itself (which already says "Played a
- * lot"): "40 games on this champion (32 in this role), 9 in the last 30 days." The evidence is said
+ * lot"): "40 games on this champion (32 in this role), 9 recent." The evidence is said
  * once, beside it (TierBadge), not here again (the tooltip inventory's T14).
  */
 export function tierExplanation(est: { tier: ProficiencyTier; games: number; recentGames: number; roleGames?: number; confidence?: number; notes: string[] } | null | undefined): string {
   if (!est || est.tier === "unknown") return TIER_DESCRIPTIONS.unknown;
-  const parts = [est.games ? `${est.games} game${est.games === 1 ? "" : "s"} on this champion${est.roleGames !== undefined && est.roleGames !== est.games ? ` (${est.roleGames} in this role)` : ""}, ${est.recentGames} in the last 30 days.` : "No games stored, only mastery."];
-  const note = est.notes.find((n) => !/^\d+ games in the last|^Played a lot/.test(n));
+  const parts = [est.games ? `${est.games} game${est.games === 1 ? "" : "s"} on this champion${est.roleGames !== undefined && est.roleGames !== est.games ? ` (${est.roleGames} in this role)` : ""}, ${est.recentGames} recent.` : "No games stored, only mastery."];
+  const note = est.notes.find((n) => !/^\d+ recent games|^Played a lot/.test(n));
   if (note) parts.push(`${note}.`);
   return parts.join(" ");
 }

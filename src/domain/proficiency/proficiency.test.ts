@@ -38,6 +38,7 @@ describe("proficiency", () => {
   it("recognises off-role experience", () => {
     const p = estimateProficiency("Sylas", "TOP", [row("Sylas", 30, 16, daysAgo(5), "MID"), row("Sylas", 2, 1, daysAgo(5), "TOP")], null, { now });
     expect(p.roleShare).toBeLessThan(0.1);
+    expect(p.knownRoleGames).toBe(32);
     expect(p.notes.join(" ")).toMatch(/outside TOP/);
   });
 

@@ -108,12 +108,12 @@ export function PlayerDataPanel({ report, championsById, admin = false, playerNa
                     <TierWhy tier={c.tier} label={c.tierLabel} notes={c.notes} />
                   </div>
                   <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-fg-muted">
-                    <span>{c.recentGames} in the last 30 days</span>
+                    <span>{c.recentGames} recent</span>
                     <span>{c.patchGames} this patch</span>
                     <span>{c.games} on record</span>
                     <span>last game {c.lastPlayedAt ? timeAgo(c.lastPlayedAt) : "—"}</span>
                     {c.mastery ? <span>{formatCount(c.mastery.points)} mastery · M{c.mastery.level}</span> : null}
-                    {c.roleGames > 0 ? <span>{percent(c.roleShare, 0)} of its games with a known role in {ROLE_LABELS[c.role]}</span> : null}
+                    {c.knownRoleGames > 0 ? <span>{percent(c.roleShare, 0)} of its games with a known role in {ROLE_LABELS[c.role]}</span> : null}
                     <span>{c.confidenceWord} confidence</span>
                   </div>
                 </div>
@@ -125,7 +125,7 @@ export function PlayerDataPanel({ report, championsById, admin = false, playerNa
                   <tr>
                     <th className="py-1 pr-3 font-medium">Champion</th>
                     <th className="py-1 pr-3 font-medium"><MetricLabel id="proficiency-tier">Experience</MetricLabel></th>
-                    <th className="py-1 pr-3 font-medium"><MetricLabel id="recent-games">Recent (30d)</MetricLabel></th>
+                    <th className="py-1 pr-3 font-medium"><MetricLabel id="recent-games">Recent</MetricLabel></th>
                     <th className="py-1 pr-3 font-medium"><MetricLabel id="patch-games">This patch</MetricLabel></th>
                     <th className="py-1 pr-3 font-medium"><MetricLabel id="games-on-record">On record</MetricLabel></th>
                     <th className="py-1 pr-3 font-medium"><MetricLabel id="last-played" /></th>
@@ -159,7 +159,7 @@ export function PlayerDataPanel({ report, championsById, admin = false, playerNa
                       <td className="py-1.5 pr-3">{c.games}</td>
                       <td className="py-1.5 pr-3 text-fg-muted">{c.lastPlayedAt ? timeAgo(c.lastPlayedAt) : "—"}</td>
                       <td className="py-1.5 pr-3 text-fg-muted">{c.mastery ? `${formatCount(c.mastery.points)} pts · M${c.mastery.level}` : "—"}</td>
-                      <td className="py-1.5 pr-3 text-fg-muted">{c.roleGames > 0 ? `${percent(c.roleShare, 0)} in ${ROLE_LABELS[c.role]}` : "—"}</td>
+                      <td className="py-1.5 pr-3 text-fg-muted">{c.knownRoleGames > 0 ? `${percent(c.roleShare, 0)} in ${ROLE_LABELS[c.role]}` : "—"}</td>
                       <td className="py-1.5 pr-3 text-fg-muted">{c.confidenceWord}</td>
                     </tr>
                   ))}
