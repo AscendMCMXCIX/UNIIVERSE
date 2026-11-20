@@ -4,7 +4,7 @@ import * as React from "react";
 import { RotateCcw, SlidersHorizontal, X } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/cn";
-import { scrollToStart } from "@/lib/screen";
+import { focusInSlidingBar, scrollToStart } from "@/lib/screen";
 import { Button } from "./button";
 import { DetailModal, useModalClose } from "./detail-modal";
 import { ScrollRow } from "./scroll-row";
@@ -204,6 +204,10 @@ export function FilterBar({
   // it bring the list's start into view.
   const chose = React.useRef(false);
   const [landBy, setLandBy] = React.useState<number | null>(null);
+  // Opened with the focus in a phone's top bar (its Filters, tapped or reached with the keys; a tap
+  // focuses no button in Safari): closing, the sheet hands the focus back there (DetailModal), and
+  // the bar keeps its sliding row while it has the focus, so the list lands under the whole bar.
+  const rowStays = React.useRef(false);
   // From md (the pinned row's sheet, a phone held sideways) the sheet holds the bar's own fields only:
   // a list's own choices (`inlineReset`) are its toolbar's there (their fields md:hidden), so the sheet
   // counts, names and resets what the bar narrows. Followed live, as the fields are: a phone turned, or
@@ -214,6 +218,7 @@ export function FilterBar({
     setKept(row && row.offsetHeight ? { width: row.offsetWidth, height: row.offsetHeight } : null);
     atOpen.current = now.current;
     chose.current = false;
+    rowStays.current = focusInSlidingBar();
     setLandBy(null);
     setOpenedFrom(from);
   }, []);
@@ -260,7 +265,7 @@ export function FilterBar({
       };
     }
     setLandBy(null);
-    land(landTarget() ?? rootRef.current);
+    land(landTarget() ?? rootRef.current, rowStays.current);
   }, [landBy, open, pending, summary, activeCount]);
   const resetCls = "inline-flex min-h-11 items-center justify-center gap-1 rounded-md px-2 text-sm font-medium text-accent hover:bg-accent/10 md:pointer-fine:min-h-9";
   // Inline in a compact bar, below xl: the icon alone, as wide as it is tall.
@@ -410,14 +415,17 @@ export function FilterBar({
  * Brings the list's first item to the top, under what is pinned (the page's scroll padding: the
  * phone's top bar, the pinned tabs, and a phone's sliding bar row as it comes back: scrollToStart),
  * and under anything else pinned over its start (All Champions' column headings, pinned under the tabs).
+ * `rowStays`: the focus goes back into a phone's top bar as the sheet closes, and the bar keeps its row with it.
+ * The top bar is scrollToStart's to clear, as it will be once landed: measured as it is now, its row
+ * on its way out on a move down, it stopped the list a row lower than the bar would be (R6 review BX2).
  */
-function land(target: Element | null) {
+function land(target: Element | null, rowStays = false) {
   if (!target) return;
-  if (target instanceof HTMLElement) scrollToStart(target);
+  if (target instanceof HTMLElement) scrollToStart(target, "instant", { rowStays });
   else target.scrollIntoView({ block: "start", behavior: "instant" });
   const at = target.getBoundingClientRect();
   const over = document.elementFromPoint(at.left + Math.min(16, at.width / 2), at.top + 1);
-  if (!over || target.contains(over) || over.contains(target)) return;
+  if (!over || target.contains(over) || over.contains(target) || over.closest("[data-testid=mobile-topbar]")) return;
   const covered = over.getBoundingClientRect().bottom - at.top;
   // Whole pixels, rounded up: a bar at a fractional edge (the status bar's inset) would otherwise keep a hairline over the target.
   if (covered > 0) window.scrollBy({ top: -Math.ceil(covered + 0.5), behavior: "instant" });

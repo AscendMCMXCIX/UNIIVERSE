@@ -262,12 +262,11 @@ describe("Sign out everywhere", () => {
 });
 
 describe("the atomic access save", () => {
-  it("saves level, groups and administrator access together, and the grant needs the Owner and a second confirmation", async () => {
+  it("saves level, groups and administrator access together, and the grant needs a second confirmation", async () => {
     const standard = (await listPermissionPresets(handle.db)).find((p) => p.levelKey === "standard")!;
+    // Any administrator grants it to another account, as before the overhaul: an Owner-only grant
+    // waits for the owner's decision (PLAN OD8c).
     await signInAs(adminId);
-    // An administrator cannot make another administrator.
-    expect(await adminActions.saveAccessAction(otherId, { level: { level: "preset", presetId: standard.id }, groups: [], administrator: true, confirmAdministrator: true })).toMatchObject({ ok: false, error: expect.stringMatching(/Only the Owner grants/) });
-    await signInAs(ownerId);
     expect(await adminActions.saveAccessAction(otherId, { level: { level: "preset", presetId: standard.id }, groups: ["lineup-manager"], administrator: true })).toMatchObject({ ok: false, error: expect.stringMatching(/Confirm/) });
     expect((await getUser(handle.db, otherId))!).toMatchObject({ isAdmin: false, accessGroups: [] });
     expect(await adminActions.saveAccessAction(otherId, { level: { level: "preset", presetId: standard.id }, groups: ["lineup-manager"], administrator: true, confirmAdministrator: true })).toEqual({ ok: true, data: null });

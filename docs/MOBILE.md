@@ -447,6 +447,14 @@ phone at 100%. This revisits the 8 Nov synthesis's C1 (a fixed frame upright) on
 share. Taller phones at the usual text size keep both bars in place. Held sideways nothing changes:
 the one compact bar slides away whole, as before.
 
+What the page brings into view itself (a game's card after its window, the next page's first game,
+a list landed after a filter, a jump to a section) stops 8px under the bar as it will be once the
+page has moved (`scrollToStart`, `src/lib/screen.ts`): under the sections row on a move down, as the
+row goes, and under the whole bar on a move up, near the top, or where the focus goes back into the
+bar, which keeps its row while it has the focus (Filters' sheet, opened with the focus on the bar's
+Filters, hands it back there; Safari focuses no button it taps, so there the row goes). The scroll
+padding counts the row from the moment the focus comes into the bar (R6 review BX2).
+
 ### Page budgets
 
 One set of ceilings with two runners (`scripts/page-budgets.mjs`): for every Player and Admin page,

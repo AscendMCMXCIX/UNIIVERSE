@@ -772,13 +772,13 @@ function useTopBarHeight(ref: React.RefObject<HTMLElement | null>): number {
     if (!el) return;
     const root = document.documentElement;
     const phone = window.matchMedia(MEASURED_BAR);
-    const apply = () => {
+    /** Sets the page's scroll padding to the bar's height, and returns that height. */
+    const pad = () => {
       // Where the first row slides away (useHideOnScroll's "row"), what scrolls into view does so
       // with the page scrolling down, the row going: the sections row is what stays over it.
       // While the bar holds the focus its row stays (Filters' sheet handing the focus back): the whole bar then.
       const rowGoes = el.dataset.slides === "row" && !el.matches(":focus-within");
       const h = el.offsetHeight - (rowGoes ? (el.querySelector<HTMLElement>("[data-testid=mobile-topbar-row]")?.offsetHeight ?? 0) : 0);
-      setHeight(h);
       // The bar's own controls keep clear of that padding (globals.css: their scroll margin takes it
       // back), so focus moving onto them never scrolls the page; the value sits on the bar, which
       // re-styles the bar alone.
@@ -789,18 +789,29 @@ function useTopBarHeight(ref: React.RefObject<HTMLElement | null>): number {
         root.style.removeProperty("scroll-padding-top");
         el.style.removeProperty("--bar-pad");
       }
+      return h;
     };
+    const apply = () => setHeight(pad());
     const observer = new ResizeObserver(apply);
     observer.observe(el);
     const slides = new MutationObserver(apply);
     slides.observe(el, { attributes: true, attributeFilter: ["data-slides"] });
-    const onFocus = () => requestAnimationFrame(apply);
-    el.addEventListener("focusin", onFocus);
-    el.addEventListener("focusout", onFocus);
+    // The focus coming in keeps the row, and the padding counts it at once: what lands in the frame
+    // the focus came back in (a filter sheet's list, its Filters handed the focus back) stops under
+    // the whole bar (scrollToStart, R6 review BX2). The height itself, and the rest, follow on the
+    // next frame, as when the focus goes, once a move between the bar's own controls has settled:
+    // nothing renders between a press that focuses a control in the bar and its release.
+    const onFocusIn = () => {
+      pad();
+      requestAnimationFrame(apply);
+    };
+    const onFocusOut = () => requestAnimationFrame(apply);
+    el.addEventListener("focusin", onFocusIn);
+    el.addEventListener("focusout", onFocusOut);
     phone.addEventListener("change", apply);
     return () => {
-      el.removeEventListener("focusin", onFocus);
-      el.removeEventListener("focusout", onFocus);
+      el.removeEventListener("focusin", onFocusIn);
+      el.removeEventListener("focusout", onFocusOut);
       slides.disconnect();
       observer.disconnect();
       phone.removeEventListener("change", apply);

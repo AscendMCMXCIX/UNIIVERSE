@@ -60,6 +60,14 @@ function slidingRow(): { bar: HTMLElement; row: number } | null {
 }
 
 /**
+ * Whether the focus is in the top bar whose first row slides away: the row stays while it is, and a
+ * window opened now hands the focus back there as it closes (DetailModal), so the row stays then too.
+ */
+export function focusInSlidingBar(): boolean {
+  return !!document.activeElement?.closest("[data-testid=mobile-topbar][data-slides=row]");
+}
+
+/**
  * The line under everything pinned at the top of the screen now: the scroll padding, and the top
  * bar's first row too while it is in view where the padding leaves it out (slidingRow).
  */
@@ -76,8 +84,14 @@ export function pinnedTop(): number {
  * page's top; a move too small to count leaves it as it is (useHideOnScroll). There `el` stops the
  * row's height lower, so the row never comes back over what was brought into view (a game's card
  * after its window closes, a list's first game after the pager or a filter: R6 review BX2).
+ *
+ * `rowStays`: the focus goes back into the bar as the page lands (a sheet opened with the focus on
+ * the bar's Filters hands it back there on the next frame: focusInSlidingBar), and the bar keeps its
+ * row while it has the focus, so the row counts whichever way the page moves. A list landed by a move
+ * down was left under the row that came back with the focus (R6 review BX2: 44px at 100% text, 88px
+ * at 200%).
  */
-export function scrollToStart(el: HTMLElement, behavior: ScrollBehavior = "instant"): void {
+export function scrollToStart(el: HTMLElement, behavior: ScrollBehavior = "instant", { rowStays = false }: { rowStays?: boolean } = {}): void {
   const sliding = slidingRow();
   let below = 0;
   if (sliding) {
@@ -85,7 +99,7 @@ export function scrollToStart(el: HTMLElement, behavior: ScrollBehavior = "insta
     const margin = parseFloat(getComputedStyle(el).scrollMarginTop) || 0;
     const end = Math.max(0, Math.min(from + el.getBoundingClientRect().top - clearArea().top - margin, document.documentElement.scrollHeight - window.innerHeight));
     const shown = sliding.bar.dataset.hidden === "false";
-    if (end < from - 0.5 || end < BAR_HIDE_AFTER || (shown && end - from <= BAR_INTENT)) below = sliding.row;
+    if (rowStays || end < from - 0.5 || end < BAR_HIDE_AFTER || (shown && end - from <= BAR_INTENT)) below = sliding.row;
   }
   if (!below) {
     el.scrollIntoView({ block: "start", behavior });
