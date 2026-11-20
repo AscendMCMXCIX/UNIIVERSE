@@ -31,10 +31,12 @@ export default async function RecoverPage() {
         <div className="mt-4 text-sm text-fg-muted" data-testid="recover-not-configured">
           <p>The setup key is not configured, so recovery cannot run yet.</p>
           {/* The deployment's instructions are the owner's: folded, so the page leads with what it is for (UD.PB2). */}
-          <Fold className="mt-2" title="How to set the setup key" testId="recover-instructions" bodyClassName="space-y-2">
-            <p>Add it in your hosting environment and redeploy, then return here:</p>
-            <pre className="whitespace-pre-wrap rounded-md border border-border bg-bg p-3 text-xs [overflow-wrap:anywhere]">UNIIVERSE_ACCESS_PASSWORD=a-long-random-string-only-you-know</pre>
-            <p className="text-xs text-fg-subtle">On Vercel: Project → Settings → Environment Variables (Production), then Deployments → ⋯ → Redeploy.</p>
+          <Fold variant="row" className="mt-2 rounded-md border border-border bg-bg-elevated/60" summaryClassName="px-3" summary={<span className="text-sm font-medium text-fg">How to set the setup key</span>} testId="recover-instructions">
+            <div className="space-y-2 px-3 pb-3">
+              <p>Add it in your hosting environment and redeploy, then return here:</p>
+              <pre className="whitespace-pre-wrap rounded-md border border-border bg-bg p-3 text-xs [overflow-wrap:anywhere]">UNIIVERSE_ACCESS_PASSWORD=a-long-random-string-only-you-know</pre>
+              <p className="text-xs text-fg-subtle">On Vercel: Project → Settings → Environment Variables (Production), then Deployments → ⋯ → Redeploy.</p>
+            </div>
           </Fold>
         </div>
       )}

@@ -230,6 +230,27 @@ test("Team Matches follows the one history rule: a game opened under its card ad
   await expect(page).toHaveURL(/\/team$/);
 });
 
+test("Team Matches' open game steps with Next and Previous: the address replaced (no new entry), the first game's Previous disabled, and which game it is said once", async ({ page }) => {
+  test.skip(page.viewportSize()?.width !== 1440, "the desktop project: the steps work the same at every width the game opens in place");
+  await page.goto("/matches");
+  const games = page.getByTestId("together-game");
+  await expect(games.first()).toBeVisible();
+  test.skip((await games.count()) < 2, "two games to step between");
+  const entries = await page.evaluate(() => history.length);
+  await openTogether(games.first());
+  await expect(games.first().getByTestId("game-prev").first()).toBeDisabled();
+  const first = new URL(page.url()).searchParams.get("match");
+  await games.first().getByTestId("game-next").first().click();
+  await expect.poll(() => new URL(page.url()).searchParams.get("match")).not.toBe(first);
+  await expect(games.nth(1).getByTestId("match-expanded")).toBeVisible();
+  await expect(games.first().getByTestId("match-expanded")).toHaveCount(0);
+  await expect(page.getByTestId("together-said")).toHaveText(/^Game 2 of \d+/);
+  await games.nth(1).getByTestId("game-prev").first().click();
+  await expect.poll(() => new URL(page.url()).searchParams.get("match")).toBe(first);
+  await expect(games.first().getByTestId("match-expanded")).toBeVisible();
+  expect(await page.evaluate(() => history.length), "one entry for the whole visit").toBe(entries + 1);
+});
+
 test("wide cards follow their list's width, not the window's: four columns exactly from a 58rem list, every name keeps its room and no member runs into the teams", async ({ page, context, baseURL }, info) => {
   test.skip(info.project.name !== "desktop", "desktop windows, with the sidebar open and folded");
   // Four columns (the result, the members, both teams, the bookmark) once the list is 58rem wide,

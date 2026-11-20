@@ -1361,3 +1361,18 @@ test("phone: the bot lane's four slots keep every word of their labels and names
     expect(slots[2]!.top, `${width}px`).toBeLessThan(slots[3]!.top);
   }
 });
+
+test("phone at 200% text, your champion chosen: the title keeps its words whole, the Remember toggle and Copy link taking a line of their own where they need it (320 and 390 wide)", async ({ page }) => {
+  test.skip((page.viewportSize()?.width ?? 1000) >= 640, "a phone");
+  for (const width of [320, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto("/resources/matchups?role=adc&champion=Jinx&ally=Thresh&vs=Caitlyn&vs2=Leona");
+    await hydrated(page);
+    await page.addStyleTag({ content: "html { font-size: 200% !important; }" });
+    await expect(page.getByTestId("matchup-remember-toggle")).toBeVisible();
+    // "Matchup Intel" in two lines at most (it was seven, a column of letters, at 320).
+    const lines = await page.locator("h1").evaluate((h) => h.getBoundingClientRect().height / parseFloat(getComputedStyle(h).lineHeight));
+    expect(lines, `${width}px: the title's lines`).toBeLessThanOrEqual(2.2);
+    expect(await overflow(page), `${width}px: nothing sideways`).toBeLessThanOrEqual(1);
+  }
+});

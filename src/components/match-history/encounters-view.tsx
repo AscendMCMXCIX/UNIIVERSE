@@ -367,7 +367,7 @@ export function EncountersView({ data, basePath, status, refresh }: { data: Enco
               section tabs as the list scrolls), the players, then the next page one press away. */}
           <div className="@container/enc rounded-card border border-border bg-surface panel-depth" data-testid="encounter-table">
             <div className="flex flex-wrap items-center gap-2 border-b border-border/70 px-3 py-2.5 @min-[40rem]/enc:px-4">
-              <nav aria-label="Which players" className={segmentedGroupClass("@max-[40rem]/enc:min-w-0 @max-[40rem]/enc:flex-1")} data-testid="encounter-relations">
+              <nav aria-label="Which players" className={segmentedGroupClass("@max-[40rem]/enc:min-w-0 @max-[40rem]/enc:flex-[1_1_auto]")} data-testid="encounter-relations">
                 {RELATIONS.map((r) => (
                   // relative: the hidden " players" stays inside the group, which scrolls sideways when
                   // its choices outgrow it (a large text size), instead of widening the page.
@@ -385,7 +385,8 @@ export function EncountersView({ data, basePath, status, refresh }: { data: Enco
               <span className="contents max-sm:hidden">
                 <InfoTip text={ENCOUNTERS_CAVEAT} label="How encounters are counted" testId="encounters-caveat" />
               </span>
-              {/* A phone's search behind its icon: the box opens on a line of its own, focused, and folds away again when left empty. */}
+              {/* A phone's search behind its icon: the box opens on a line of its own, focused, and folds away again when left empty.
+                  The choice keeps its whole width (flex-basis auto): on a 320–360px phone the icon takes the next line rather than cut "Alongside". */}
               <button
                 type="button"
                 onClick={() => {

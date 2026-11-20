@@ -6,6 +6,7 @@ import { History } from "lucide-react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { isPlainClick } from "@/lib/back-to-top";
 import { Peek, usePeek } from "@/components/ui/peek";
+import { closeInPlace } from "@/components/ui/address-item";
 import { RowLink } from "@/components/ui/data-list";
 import type { PortraitChampion } from "@/components/champion-portrait";
 import { MatchDetailCacheContext, createMatchDetailCache } from "@/components/match-history/match-detail-cache";
@@ -39,15 +40,13 @@ export interface RecordGame {
 /**
  * Leaderboards' two Peeks (a player, `?player=`, and a record's game, `?match=`) share the board's
  * right edge, so one at a time: opening one first takes the other out of the address (replacing its
- * entry, not adding one) and tells it so, as Back would (its address item follows popstate). So Back
- * then closes the one in view and leaves the board.
+ * entry, not adding one) and tells it so, as Back would (its address item follows popstate); the one
+ * opening takes over that entry where it was pushed (closeInPlace). So Back then closes the one in
+ * view and leaves the board.
  */
 export function dropOtherPeek(param: "player" | "match") {
-  const url = new URL(window.location.href);
-  if (!url.searchParams.has(param)) return;
-  url.searchParams.delete(param);
-  window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
-  window.dispatchEvent(new PopStateEvent("popstate", { state: window.history.state }));
+  // Where its entry was pushed, the Peek opened next takes that entry over (address-item.ts).
+  closeInPlace(param);
 }
 
 const RecordGameContext = React.createContext<{

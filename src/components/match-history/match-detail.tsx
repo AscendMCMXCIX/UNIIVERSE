@@ -79,7 +79,10 @@ export function MatchDetailModal({ playerId, matchId, championsById, onClose, ba
     </div>
   );
   const footer = nav ? (
-    <div className="flex items-center justify-between gap-2" data-testid="match-detail-nav">
+    // At a large text size (a row narrower than 17.5rem) "Game n of m" takes a line under the two
+    // steps, so neither runs off the screen (at 150% on a 320px phone Previous started 45px off it).
+    <div className="@container/mdnav w-full min-w-0">
+    <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1" data-testid="match-detail-nav">
       <button type="button" className={NAV_BUTTON} disabled={!nav.prev} onClick={() => {
           if (!nav.prev) return;
           nav.go(nav.prev);
@@ -88,7 +91,7 @@ export function MatchDetailModal({ playerId, matchId, championsById, onClose, ba
         <ChevronLeft className="h-4 w-4" aria-hidden />
         Previous
       </button>
-      <span className="text-xs tabular-nums text-fg-muted" data-testid="match-detail-position">
+      <span className="text-center text-xs tabular-nums text-fg-muted @max-[17.5rem]/mdnav:order-last @max-[17.5rem]/mdnav:basis-full" data-testid="match-detail-position">
         Game {nav.index + 1} of {nav.total}
       </span>
       <button type="button" className={NAV_BUTTON} disabled={!nav.next} onClick={() => {
@@ -102,6 +105,7 @@ export function MatchDetailModal({ playerId, matchId, championsById, onClose, ba
       <span className="sr-only" aria-live="polite">
         {said}
       </span>
+    </div>
     </div>
   ) : undefined;
   return (

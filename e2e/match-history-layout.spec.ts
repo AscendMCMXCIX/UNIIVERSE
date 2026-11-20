@@ -191,7 +191,8 @@ const cardGeometry = (els: Element[]) =>
     const build = card.querySelector('[data-testid="match-card-build"]');
     return {
       build: shown(build),
-      items: build ? build.querySelectorAll("img").length : 0,
+      // The build's slots (six items and the trinket, an empty slot drawn as one).
+      items: build ? (build.firstElementChild?.children.length ?? 0) : 0,
       cs: text(cs).right,
       damage: text(damage).right,
       next: next ? box(next).left : null,
@@ -225,6 +226,7 @@ test("a wide card's figures end before the next column, the teams keep their nam
       expect(c.damage, `${at}: the damage share ends before the next column`).toBeLessThanOrEqual(c.next! + 0.5);
       // The build on every card at these widths (1280 included, where it showed none before S6c), the rosters left to the game's scoreboard there.
       if (size.width >= 1000) expect(c.build, `${at}: the build is drawn`).toBe(true);
+      if (size.width >= 1000) expect(c.items, `${at}: six items and the trinket`).toBe(7);
       if (size.width === 1280) {
         expect(c.teams, `${at}: the build in the teams' place`).toBeNull();
         expect(c.height, `${at}: D8's density, unchanged`).toBeLessThanOrEqual(106);

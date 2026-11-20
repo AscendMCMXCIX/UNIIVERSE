@@ -798,3 +798,23 @@ test("tablet: one column, the season records two to a row, the streak across bot
   expect(f.milestones.top).toBeGreaterThanOrEqual(f.multikills.bottom);
   await noOverflow(page);
 });
+
+test("tablet and desktop: one Peek giving way to the other (a player, then a record's game, and back again) keeps one entry, so Back after closing leaves the board for the page before", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "the docked Peeks: one project's time (the history rule is the same on a tablet)");
+  await page.goto("/matches");
+  await page.goto("/leaderboards");
+  await expect(page.getByTestId("leaderboards")).toHaveAttribute("data-ready", "true");
+  const before = await page.evaluate(() => history.length);
+  for (const order of [["player", "record"], ["record", "player"]] as const) {
+    for (const what of order) {
+      if (what === "player") await page.getByTestId("board-peek-open").first().click();
+      else await page.locator('[data-testid=season-record][data-record="kills"] [data-row-link]').click();
+      await expect(page).toHaveURL(what === "player" ? /\/leaderboards\?player=/ : /\/leaderboards\?match=/);
+    }
+    expect(await page.evaluate(() => history.length), `${order.join(" then ")}: one entry for the Peek`).toBe(before + 1);
+    await page.keyboard.press("Escape");
+    await expect(page).toHaveURL(/\/leaderboards$/);
+  }
+  await page.goBack();
+  await expect(page).toHaveURL(/\/matches$/);
+});

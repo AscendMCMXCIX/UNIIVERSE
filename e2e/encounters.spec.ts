@@ -281,6 +281,7 @@ test("one player's games: Match History's own list, both records, each side, a g
 });
 
 test("an encounter keeps the list's place: opened from a scrolled list, Back and \"‹ All encounters\" return to it with 0px drift and the focus on its row", async ({ page }) => {
+  test.skip(test.info().project.name !== "phone", "the list's place is kept the same way at every width: one project's time (PLAN S6c names the phone)");
   await page.goto("/team");
   const support = `/players/${await page.getByTestId("lineup-row-SUPPORT").getAttribute("data-player-id")}`;
   await openEncounters(page, `${support}/matches?view=encounters&min=1&limit=500`);
@@ -300,6 +301,35 @@ test("an encounter keeps the list's place: opened from a scrolled list, Back and
     await expect(page.locator("[data-testid='encounters'][data-ready]")).toBeVisible();
     await expect.poll(() => page.evaluate(() => window.scrollY), way).toBe(y);
     await expect(page.locator(`[data-encounter-row="${key}"]`)).toBeFocused();
+  }
+});
+
+test("desktop: Encounters shows Refine off, with its reason reachable (focusable, described, and in its ⓘ), and pressing it opens nothing", async ({ page }) => {
+  test.skip(test.info().project.name !== "desktop", "from lg (a tablet keeps the views beside its toolbar)");
+  await openEncounters(page, `${await teammate(page)}/matches?view=encounters`);
+  const refine = page.getByTestId("refine-unavailable").getByTestId("refine-filters");
+  await expect(refine).toBeVisible();
+  await expect(refine).toHaveAttribute("aria-disabled", "true");
+  await expect(refine).toHaveAccessibleDescription(/^Refine narrows the games list/);
+  await refine.focus();
+  await expect(refine).toBeFocused();
+  // aria-disabled: Playwright waits for an enabled control, so the press is forced, as a reader's would land.
+  await refine.click({ force: true });
+  await expect(refine).not.toHaveAttribute("aria-expanded", "true");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.getByTestId("refine-unavailable-tip")).toBeVisible();
+});
+
+test("phone 320 and 360 wide: Against, Alongside and All keep their whole width (nothing scrolls sideways in the choice), the search's icon taking the next line where they need the row", async ({ page }) => {
+  test.skip(test.info().project.name !== "phone", "a narrow phone");
+  const profile = await teammate(page);
+  for (const width of [320, 360]) {
+    await page.setViewportSize({ width, height: 700 });
+    await openEncounters(page, `${profile}/matches?view=encounters`);
+    const nav = page.getByTestId("encounter-relations");
+    const m = await nav.evaluate((n) => ({ spill: n.scrollWidth - n.clientWidth }));
+    expect(m.spill, `${width}px: the choice scrolls sideways by`).toBeLessThanOrEqual(1);
+    await expect(page.getByTestId("encounter-search-open")).toBeInViewport();
   }
 });
 

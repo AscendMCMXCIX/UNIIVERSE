@@ -701,9 +701,11 @@ export function MatchupFrame({
             <div className={cn("grid gap-x-4 gap-y-1.5 @min-[44rem]/pickers:items-center", duo ? "@min-[44rem]/pickers:grid-cols-[minmax(0,44rem)_minmax(0,1fr)] @min-[72rem]/pickers:grid-cols-[auto_minmax(0,44rem)_minmax(0,1fr)]" : "@min-[44rem]/pickers:grid-cols-[minmax(0,34rem)_minmax(0,1fr)] @min-[68rem]/pickers:grid-cols-[auto_minmax(0,34rem)_minmax(0,1fr)]")}>
               <div className={cn("flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 @min-[44rem]/pickers:col-span-2", duo ? "@min-[72rem]/pickers:col-span-1 @min-[72rem]/pickers:block @min-[72rem]/pickers:space-y-0.5" : "@min-[68rem]/pickers:col-span-1 @min-[68rem]/pickers:block @min-[68rem]/pickers:space-y-0.5")} data-testid="matchup-heading">
                 {/* The title with "Copy link" at its row's end; under them the lane, one row (a phone's full width). */}
-                <div className="flex min-w-0 items-center justify-between gap-2 max-sm:w-full">
+                {/* It wraps rather than squeeze the title: at 200% text on a 320px phone the Remember toggle and
+                    Copy link (88px each) left "Matchup Intel" a column of letters (Release 9 review). */}
+                <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 max-sm:w-full">
                   {heading}
-                  <span className="flex items-center gap-1">
+                  <span className="ml-auto flex items-center gap-1">
                     {yourChoice ? <RememberToggle you={yourChoice} remembered={choice(prefs.you)} onRemember={remember} /> : null}
                     <CopyLink href={lineupHref(shown)} />
                   </span>

@@ -690,7 +690,12 @@ open game has Previous and Next (the footer's, by Match History's rules: they re
 new card's header keeps its y within 1px, they are disabled at the ends and say "Game 5 of 6:
 Defeat on Ornn"); Back or Close lands on the last game viewed, with the focus on its card. A
 record's game opens over Leaderboards as a docked Peek from md and the window on phones and short
-windows (`/leaderboards?match=`, TEAM_LEADERBOARDS.md).
+windows (`/leaderboards?match=`, TEAM_LEADERBOARDS.md). One Peek at a time: opening the record's
+game with a player's Peek open (or the other way round) takes over the entry the first one pushed,
+so after closing it Back leaves the board in one step (Release 9 review: it took two). In the game
+window's footer, at a large text size (a row narrower than 17.5rem), "Game n of m" takes a line
+under Previous and Next, so neither runs off the screen. Encounters' Against, Alongside and All
+keep their whole width on a 320–360px phone, the search's icon taking the next line.
 
 All Champions follows its list's own width too (a container query, so the sidebar counts):
 

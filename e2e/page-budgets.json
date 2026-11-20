@@ -60,7 +60,7 @@
    "frame": 0.24,
    "frameScrolled": 0.24,
    "small": 0,
-   "why": "Release 6 (S7a, 20 Nov 2026): Matchup Intel's lane selector (Top, Jungle, Mid, ADC, Support), a 46px row the page did not have when the ceilings were set; measured 1.12 at i15 and 3.60 at se1 150%. S7a's unbuilt phone 'Remember' icon toggle would give a row back."
+   "why": "Release 6 (S7a, 20 Nov 2026): Matchup Intel's lane selector (Top, Jungle, Mid, ADC, Support), a 46px row the page did not have when the ceilings were set; measured 1.12 at i15 and 3.60 at se1 150%. Release 9 (20 Nov 2026) built the phone 'Remember' icon toggle; the row it gave back went to the glance strip (every enemy cooldown and the evidence's first row): re-measured 1.12 and 3.64, so neither ceiling can come down within the ratchet."
   },
   "resources@i15-100": {
    "screens": 1.85,
@@ -179,7 +179,7 @@
    "frame": 0.33,
    "frameScrolled": 0.04,
    "small": 0,
-   "why": "Release 6 (S7a, 20 Nov 2026): Matchup Intel's lane selector (Top, Jungle, Mid, ADC, Support), a 46px row the page did not have when the ceilings were set; measured 1.12 at i15 and 3.60 at se1 150%. S7a's unbuilt phone 'Remember' icon toggle would give a row back."
+   "why": "Release 6 (S7a, 20 Nov 2026): Matchup Intel's lane selector (Top, Jungle, Mid, ADC, Support), a 46px row the page did not have when the ceilings were set; measured 1.12 at i15 and 3.60 at se1 150%. Release 9 (20 Nov 2026) built the phone 'Remember' icon toggle; the row it gave back went to the glance strip (every enemy cooldown and the evidence's first row): re-measured 1.12 and 3.64, so neither ceiling can come down within the ratchet."
   },
   "resources@se1-150": {
    "screens": 6.06,

@@ -173,6 +173,29 @@ test("phone 390 × 844 (i12): a game's window, header, body and the Previous/Nex
   }
 });
 
+test("phone at 150% (320 wide) and 200% (390 wide): the game window's Previous, Next and \"Game n of m\" stay on the screen", async ({ page }) => {
+  test.skip(!isPhone(page), "the phone's window over Match History");
+  const profile = await teammate(page);
+  for (const [width, size] of [[320, 150], [390, 200]] as const) {
+    await page.setViewportSize({ width, height: 700 });
+    await page.goto(`${profile}/matches`);
+    await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
+    await page.addStyleTag({ content: `html { font-size: ${size}% !important; }` });
+    // The row in the middle of the screen, clear of the pinned bars (taller at a large text size).
+    const target = page.getByTestId("match-row").nth(2);
+    await target.evaluate((r) => r.scrollIntoView({ block: "center" }));
+    const row = await target.boundingBox();
+    await page.touchscreen.tap(row!.x + 20, row!.y + row!.height / 2);
+    const win = page.getByTestId("match-detail");
+    await expect(win.getByTestId("match-detail-nav")).toBeVisible();
+    for (const id of ["match-detail-prev", "match-detail-position", "match-detail-next"]) {
+      const b = (await win.getByTestId(id).boundingBox())!;
+      expect(b.x, `${width}px at ${size}%: ${id}`).toBeGreaterThanOrEqual(0);
+      expect(b.x + b.width, `${width}px at ${size}%: ${id}`).toBeLessThanOrEqual(width);
+    }
+  }
+});
+
 test("desktop: the pinned row's Filters is a 34rem popover with Support whole and nothing scrolling sideways at 1440, 1920 and 2560; Escape gives the focus back", async ({ page }) => {
   test.skip(page.viewportSize()?.width !== 1440, "the desktop project sets its sizes itself");
   await page.emulateMedia({ reducedMotion: "reduce" });
