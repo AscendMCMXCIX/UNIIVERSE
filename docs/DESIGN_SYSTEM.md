@@ -491,14 +491,41 @@ With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shel
     to about 79px inside the row (60px at 1536), as before. The
     line under the tabs and the pinned ink span the room beside the sidebar, as a frame does. A
     profile's tabs, and a section's views (`SubTabs`), sit inside their page's own column, so they
-    always lined up. On Team Overview the column is Team's 100rem and the header and lineup keep
-    their own 84rem, centred in it (its approved design): the first tab starts at the column and the
-    logo (column − 84rem)/2 further in, 38px at 1920, 165px at 2560 and 176px at 3440 with the
-    sidebar open (before, 38, 208 and 576px from the first tab), 140px at 1920 with it folded. Team
+    always lined up. On Team Overview the column is Team's 100rem; the header and lineup keep
+    their own 84rem, centred in it (its approved design), under a 1920px window, and from 1920px
+    take the whole column (S2c, 19 Nov 2026), so the first tab, the logo and the first card share
+    one left edge (before, the logo sat 38px inside at 1920 and 165px at 2560). Team
     Matches' list keeps `--content-max` under Team's wider header, left-aligned, so a game's row is
     never longer than before. A page's loading state takes the width `pageWidthOf` gives its address
     (a Team section's own; the ordinary 80rem elsewhere); Team Matches' own skeleton stands as its
     page does, its list at `--content-max`.
+  - **One frame, one place for everything (S2c, 19 Nov 2026).**
+    - *The shared frame* (`app-shell.tsx`, `FRAME`): one content column, at most `--content-wide`
+      and centred in the room beside the sidebar. A page narrower than it (80rem profiles, lists,
+      documents, Settings, Admin) starts at its left edge and simply ends earlier, so every title
+      starts at one x and nothing jumps sideways between destinations (UD.X3: up to 536px apart at
+      2560 before). A narrower set's tab row starts there too (`ROW_WIDTH.max`). Under 100rem of room
+      the frame is the whole width, so phones, tablets and laptops are unchanged.
+    - *Settings* (UD.S2): from lg the title spans the frame, the account card is its first column.
+    - *The profile's header is one band on every section* from `sm` (the `band` variant: a short
+      window or 40rem and up): the Overview's card takes the band's layout (the picture, the name with
+      its tagline, then the roles, rank, lineup status and links on one line, Customise at the end),
+      74px like the other sections', so the section tabs never move on a click (UD.PO1: 66px at 1280,
+      86px at 2560 before). A phone held upright keeps the full card.
+    - *Skeletons in the page's shape* (`ui/skeleton.tsx`; UD.X4, P3): Players' rows (one, two or three
+      across by the roster's width), All Champions' table, Match History's cards, Team's lineup
+      (centred in the height as the lineup is: `data-fills-height`), and a profile opened from
+      outside it as its band, tabs and section. Leaderboards and Team Matches had theirs.
+    - *The 12px floor* (UD.X5): `text-2xs` is 12px on desktops (lg), 11px on phones and tablets,
+      one token for every use (globals.css); uppercase labels (and `label-caps`) keep 11px. The game cards of Match History and Team Matches keep
+      11px until S6b rebuilds them (`type-floor-later`, listed in `design-tokens.test.ts`); `text-4xs`
+      stays for letters inside small tiles (initials, the ⓘ glyph).
+  - **One look at every width (S2c).** `e2e/design-parity.spec.ts` renders the shared components
+    (stat label, Panel, DataRow, a badge, Button, the current section tab, InfoTip's bubble, Select)
+    at 375 and at 1440 and compares their font family, size in rem, weight, letter spacing in em,
+    colours, radius and border. Listed differences, the only ones allowed: the badge's size (the 12px
+    floor on desktops), and Select's size (16px on a touch screen, so iOS
+    never zooms into the field; 14px with a mouse). Each later stage adds the components it creates.
   - **A page's controls in reach (PR 2b, 18 Nov 2026).** Once the row is pinned and the page's own
     toolbar has gone up under it, the page's compact copy of its controls shows at the row's end
     (`PageToolbar`, `src/components/ui/page-toolbar.tsx`): Match History and Encounters

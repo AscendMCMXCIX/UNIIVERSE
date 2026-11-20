@@ -26,7 +26,7 @@ import { cn } from "@/lib/cn";
 const SIZE = {
   md: "h-9 w-9 [&_svg]:h-5 [&_svg]:w-5",
   /** `md`, and 32px in a short window (the profile's band held sideways keeps to 80px); still a 44px target on touch screens. */
-  header: "h-9 w-9 [&_svg]:h-5 [&_svg]:w-5 short:h-8 short:w-8 short:[&_svg]:h-4 short:[&_svg]:w-4",
+  header: "h-9 w-9 [&_svg]:h-5 [&_svg]:w-5 band:h-8 band:w-8 band:[&_svg]:h-4 band:[&_svg]:w-4",
   card: "h-7 w-7 pointer-coarse:h-8 pointer-coarse:w-8 [&_svg]:h-4 [&_svg]:w-4 @min-[17rem]/card:h-8 @min-[17rem]/card:w-8 @min-[17rem]/card:pointer-coarse:h-9 @min-[17rem]/card:pointer-coarse:w-9 @min-[17rem]/card:[&_svg]:h-[1.125rem] @min-[17rem]/card:[&_svg]:w-[1.125rem]",
   row: "h-6 w-6 [&_svg]:h-3.5 [&_svg]:w-3.5",
 } as const;

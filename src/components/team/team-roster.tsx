@@ -180,7 +180,7 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
                 word fits there, otherwise it takes a line of its own, still on the right. */}
             <p className="flex items-center justify-between text-2xs font-medium uppercase tracking-label text-fg-subtle @max-[9.75rem]/card:flex-wrap">
               <span className="truncate @max-[9.75rem]/card:min-w-min @max-[9.75rem]/card:grow @max-[9.75rem]/card:basis-0 @max-[9.75rem]/card:whitespace-normal">{slot.roleLabel} pool</span>
-              <span className="inline-flex items-center gap-0.5 normal-case tracking-normal group-hover/card:text-[var(--card-accent)] @max-[9.75rem]/card:ml-auto">
+              <span className="inline-flex items-center gap-0.5 text-2xs normal-case tracking-normal group-hover/card:text-[var(--card-accent)] @max-[9.75rem]/card:ml-auto">
                 {slot.champions.length ? (
                   <>
                     {slot.champions.length}
@@ -767,9 +767,13 @@ function playerDetail({ slot, championsById, canEdit, canViewProfile, profileHre
 /**
  * One width for the header and the cards, following the card grid's own breakpoints. Five across
  * from a 64rem content area (normal desktops, sidebar open or not) up to a shared maximum, so on
- * wide screens the lineup stays one centred group of equal cards instead of stretching.
+ * wide screens the lineup stays one centred group of equal cards instead of stretching. From a
+ * 1920px window (LINEUP_FULL) the header and the cards take Team's whole column instead (100rem at
+ * most), so the section tabs, the logo and the first card share one left edge (UD.T2: 38px apart at
+ * 1920, 165px at 2560 before) and the tabs keep one place on all four sections.
  */
-const LINEUP_WIDTH = "mx-auto w-full max-w-[26rem] @xl:max-w-[54rem] @4xl:max-w-[80rem] @5xl:max-w-[84rem]";
+const LINEUP_FULL = "min-[120rem]:@5xl:max-w-full";
+const LINEUP_WIDTH = `mx-auto w-full max-w-[26rem] @xl:max-w-[54rem] @4xl:max-w-[80rem] @5xl:max-w-[84rem] ${LINEUP_FULL}`;
 
 /**
  * The five roles as one bar (phones only): where you are in the track, and a tap away from any
@@ -870,7 +874,7 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
     // the header as below the cards and the header stays right above them. On a short window the content is taller than that minimum,
     // so it simply starts at the top and scrolls. The floor's light is clipped at the frame, so it
     // never adds a scroll.
-    <div className="@container/lineup flex flex-col gap-5 lg:flex-1 lg:justify-center lg:gap-6 lg:overflow-y-clip @7xl/lineup:gap-7" data-testid="lineup-frame">
+    <div className="@container/lineup flex flex-col gap-5 lg:flex-1 lg:justify-center lg:gap-6 lg:overflow-y-clip @7xl/lineup:gap-7" data-testid="lineup-frame" data-fills-height>
       {/* The team's identity: logo, name and the lineup's state, with Edit lineup. Wider screens: one
           row, the logo and Edit lineup either side of the name, its line and the state. Phones: the
           logo and the name on the first line, then the state and Edit lineup on a line of their own,
@@ -936,6 +940,7 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
               "@xl:mx-auto @xl:my-0 @xl:grid @xl:w-full @xl:max-w-[54rem] @xl:grid-cols-4 @xl:overflow-visible @xl:px-0 @xl:py-0 @xl:[&>*]:col-span-2 @xl:[&>*:nth-child(5)]:col-start-2",
               "@4xl:max-w-[80rem] @4xl:grid-cols-6 @4xl:[&>*:nth-child(4)]:col-start-2 @4xl:[&>*:nth-child(5)]:col-start-auto",
               "@5xl:max-w-[84rem] @5xl:grid-cols-5 @5xl:[&>*]:col-span-1 @5xl:[&>*:nth-child(4)]:col-start-auto @7xl:gap-5",
+              LINEUP_FULL,
             )}
             role="region"
             aria-roledescription="carousel"

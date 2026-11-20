@@ -112,6 +112,42 @@ html {
   font-size: clamp(100%, calc(100% + (100vw - 1536px) * 0.0045), 137.5%);
 }
 
+/*
+  The 12px floor (UD.X5; docs/DESIGN_SYSTEM.md → Type): on a desktop (lg, 64rem) the smallest text,
+  text-2xs, is 12px, so names, chips, captions and labels never read at 11px where the root is
+  still 16px (1024 to 1536px wide; above that the fluid root lifts them anyway). Phones and tablets
+  keep 11px, where it was measured to fit. One token, so every use follows it;
+  src/app/design-tokens.test.ts checks this rule and the one place that waits for it (type-floor-later).
+*/
+@media (min-width: 64rem) {
+  :root {
+    --text-2xs: 0.75rem;
+    --text-2xs-floor: 0.75rem;
+  }
+}
+
+/*
+  Where the 12px floor does not reach yet: the game cards of Match History and Team Matches keep 11px
+  until S6b rebuilds them (raising their text alone would widen the cards at 1280 to 1440). Only on
+  the elements design-tokens.test.ts lists, each with its reason.
+*/
+/* Uppercase labels (column headings, eyebrows, label-caps) keep 11px at every width: the floor is for
+   running text and names, and a label's tracked capitals read at 11px (they set the width of a
+   table's headings, measured at 1024px). */
+.uppercase,
+.label-caps {
+  --text-2xs: 0.6875rem;
+}
+/* What sits inside a label in normal case ("6 champions" beside "TOP POOL") is running text again. */
+:is(.uppercase, .label-caps) :where(:not(.uppercase, .label-caps)) {
+  --text-2xs: var(--text-2xs-floor, 0.6875rem);
+}
+
+@utility type-floor-later {
+  --text-2xs: 0.6875rem;
+  --text-2xs-floor: 0.6875rem;
+}
+
 html, body {
   background: var(--color-bg);
   color: var(--color-fg);
@@ -190,6 +226,18 @@ p a.text-accent {
   scrolls down; detail windows, editors and pickers take the whole screen (see docs/RESPONSIVE.md).
 */
 @custom-variant short (@media (max-height: 480px));
+
+/*
+  The profile's one-band header (docs/DESIGN_SYSTEM.md → Profile header): a short window, as above,
+  or any window from sm (40rem). There the Overview's header is the same band as the other sections',
+  so the section tabs keep one place on a click (UD.PO1). A phone held upright keeps the full card.
+  The block form, for the list (as standalone's below).
+*/
+@custom-variant band {
+  @media (max-height: 480px), (min-width: 40rem) {
+    @slot;
+  }
+}
 
 /* The installed app, in the display modes an install opens in (see install-state.ts): what a browser's own chrome would otherwise provide, such as Back on a tablet.
    The block form: in the one-line form Tailwind read the list's commas as a selector list once the

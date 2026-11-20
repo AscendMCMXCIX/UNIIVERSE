@@ -161,10 +161,12 @@ export type PageWidth = keyof typeof PAGE_WIDTH;
 
 /**
  * A set's row of tabs (TabBar's `inner`): as wide as the bar in a window under 1600px wide, as it
- * always was, and from there the set's one width, centred as its pages are.
+ * always was, and from there the set's one width, starting where its pages start: at the left edge
+ * of the shared frame (app-shell.tsx, FRAME: --content-wide, centred), so a narrower set's row is
+ * not centred on its own.
  */
 export const ROW_WIDTH: Record<"max" | "wide", string> = {
-  max: "min-[100rem]:max-w-[var(--content-max)]",
+  max: "min-[100rem]:max-w-[var(--content-max)] min-[100rem]:ml-[max(0px,calc((100%-var(--content-wide))/2))]",
   wide: "min-[100rem]:max-w-[var(--content-wide)]",
 };
 

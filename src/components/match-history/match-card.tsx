@@ -28,10 +28,14 @@ export function matchTone(win: MatchOutcome) {
   return win === true ? TONES.win : win === false ? TONES.loss : TONES.none;
 }
 
-/** The card's outer surface: a result-coloured rail on the left and a faint wash of the same colour. */
+/**
+ * The card's outer surface: a result-coloured rail on the left and a faint wash of the same colour.
+ * Its text keeps 11px on desktops for now (type-floor-later: S6b rebuilds the game cards with the 12px
+ * floor; globals.css).
+ */
 export function matchCardClass(win: MatchOutcome, { interactive = false }: { interactive?: boolean } = {}) {
   const t = matchTone(win);
-  return cn("relative isolate overflow-hidden rounded-panel border pl-1.5", t.card, interactive && cn("transition-colors", t.hover));
+  return cn("type-floor-later relative isolate overflow-hidden rounded-panel border pl-1.5", t.card, interactive && cn("transition-colors", t.hover));
 }
 
 export function MatchRail({ win }: { win: MatchOutcome }) {

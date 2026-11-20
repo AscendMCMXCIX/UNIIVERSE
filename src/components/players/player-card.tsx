@@ -263,7 +263,7 @@ export function CardPerformance({ season, support, roleLabel, placeholder = fals
           Support). The outer figures take the room they need and KDA the rest, so nothing is cut off.
           A narrow card: the win rate on the left, KDA over CS/min (vision) on the right. Under 9rem:
           a line for the win rate, then KDA and CS/min (vision) wrapping as they fit. */}
-      <dl className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-end gap-x-2.5 @min-[14.5rem]/card:@max-[16.5rem]/card:gap-x-1 @max-[12.5rem]/card:grid-cols-[auto_minmax(0,1fr)] @max-[12.5rem]/card:items-center @max-[12.5rem]/card:gap-x-2 @max-[12.5rem]/card:gap-y-1 @max-[9rem]/card:flex @max-[9rem]/card:flex-wrap @max-[9rem]/card:gap-x-3 @max-[9rem]/card:gap-y-1.5">
+      <dl className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-end gap-x-2.5 @min-[14.5rem]/card:@max-[18rem]/card:gap-x-1 @max-[12.5rem]/card:grid-cols-[auto_minmax(0,1fr)] @max-[12.5rem]/card:items-center @max-[12.5rem]/card:gap-x-2 @max-[12.5rem]/card:gap-y-1 @max-[9rem]/card:flex @max-[9rem]/card:flex-wrap @max-[9rem]/card:gap-x-3 @max-[9rem]/card:gap-y-1.5">
         <div className="min-w-0 @max-[12.5rem]/card:row-span-2 @max-[9rem]/card:basis-full">
           <dt className={label}>Win rate</dt>
           <dd className={cn("text-2xl font-bold leading-tight tabular-nums", wr === null ? "text-fg-muted" : tone)} title={winRateSampleNote(season?.winRate, games, WIN_RATE_MIN_GAMES.season) ?? undefined} data-testid="card-winrate">
@@ -276,9 +276,10 @@ export function CardPerformance({ season, support, roleLabel, placeholder = fals
           <dd className={figure}>{placeholder || season?.kda == null ? dash : season.kda.toFixed(2)}</dd>
           {/* Kills / deaths / assists per game need about 4.5rem: on a card too narrow for them (five
               across a laptop screen) they stay in the hover text, for screen readers and in the
-              player's window, instead of showing cut off. On a card from 14.5rem to 16.5rem (five
-              across most desktops) the three figures stand 4px apart instead of 10px, so the line
-              fits whole there rather than ending in "…". */}
+              player's window, instead of showing cut off. On a card from 14.5rem to 18rem (five
+              across most desktops; 18rem since the 12px floor and Team's full column from 1920px)
+              the three figures stand 4px apart instead of 10px, so the line fits whole there rather
+              than ending in "…". */}
           <dd className={cn(sub, narrowHidden)} title={kdaLine ? `Average kills / deaths / assists: ${kdaLine}` : undefined}>
             {placeholder || !kdaLine ? (
               "\u00a0"
