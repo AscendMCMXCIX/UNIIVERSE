@@ -13,7 +13,10 @@ import { ASSEMBLED_TITLE, freshnessWords, hiddenPartsBarWords, notRecheckedWords
   reference), and the warnings: not re-checked for a later patch, parts of the curated briefing or
   its interactions hidden because Riot changed an ability they rest on after the check ("Changed
   since the check: two parts hidden", or the briefing as a whole), the ability data older than the
-  game's patch. Short words; each is said in full where it applies on the page below.
+  game's patch. Short words; each is said in full where it applies on the page below. Its badges are
+  as tall as its words (Badge size "line") and its lines sit without a gap, so production's "Not
+  re-checked for 26.23" costs the bar one line of words, not a badge's row (Production check of 20
+  Nov 2026: at 1440 × 900 it put the enemy's tiles and the sources' summary 23px lower).
 */
 
 /** The champions whose ability data is older than the game's current patch. */
@@ -51,7 +54,7 @@ export function MatchupStatus({ view }: { view: MatchupPageView }) {
   const recheck = matchup?.recheck ?? null;
   const hidden = hiddenPartsOf(matchup);
   return (
-    <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-fg-muted @min-[44rem]/pickers:justify-end" data-testid="matchup-patch-state">
+    <p className="flex flex-wrap items-center gap-x-2 text-xs text-fg-muted @min-[44rem]/pickers:justify-end" data-testid="matchup-patch-state">
       <span>
         <span className="font-medium text-fg" data-testid="matchup-patch">
           {patch.current ? `Patch ${patch.current}` : "Game patch not known"}
@@ -80,14 +83,14 @@ export function MatchupStatus({ view }: { view: MatchupPageView }) {
             </span>
           )}
           {matchup && shows && recheck && !recheck.expired ? (
-            <Badge tone="neutral">
+            <Badge tone="neutral" size="line">
               <History className="h-3.5 w-3.5 shrink-0" aria-hidden />
               {notRecheckedWords(recheck.patch)}
             </Badge>
           ) : null}
           {hidden.count ? (
             <span className="inline-flex max-w-full" data-testid="matchup-hidden-parts">
-              <Badge tone="warn">
+              <Badge tone="warn" size="line">
                 <TriangleAlert className="h-3.5 w-3.5 shrink-0" aria-hidden />
                 {hiddenPartsBarWords(hidden.count, hidden.whole)}
               </Badge>
@@ -96,7 +99,7 @@ export function MatchupStatus({ view }: { view: MatchupPageView }) {
         </>
       ) : null}
       {behind.length ? (
-        <Badge tone="warn">
+        <Badge tone="warn" size="line">
           <History className="h-3.5 w-3.5 shrink-0" aria-hidden />
           Ability data from patch {behind[0]!.patch}
         </Badge>

@@ -15,9 +15,18 @@ const tones: Record<BadgeTone, string> = {
   info: "bg-info/15 text-info border-info/30",
 };
 
-export function Badge({ tone = "neutral", className, children, title }: { tone?: BadgeTone; className?: string; children: React.ReactNode; title?: string }) {
+/**
+ * "md": the badge's own padding (21px tall at text-xs). "line": no taller than the line of text-xs
+ * words it sits in (16px with its border) and 4px narrower, for a badge that is part of a line of
+ * words, such as a check's "Not re-checked for 26.23": the line it sits in is no taller for it.
+ */
+export type BadgeSize = "md" | "line";
+
+const sizes: Record<BadgeSize, string> = { md: "px-1.5 py-0.5 text-xs font-medium leading-tight", line: "px-1 text-xs font-medium leading-3.5" };
+
+export function Badge({ tone = "neutral", size = "md", className, children, title }: { tone?: BadgeTone; size?: BadgeSize; className?: string; children: React.ReactNode; title?: string }) {
   return (
-    <span title={title} className={cn("inline-flex max-w-full items-center gap-1 rounded-sm border px-1.5 py-0.5 text-xs font-medium leading-tight", tones[tone], className)}>
+    <span title={title} className={cn("inline-flex max-w-full items-center gap-1 rounded-sm border", sizes[size], tones[tone], className)}>
       {children}
     </span>
   );

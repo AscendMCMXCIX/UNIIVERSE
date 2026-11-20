@@ -5,6 +5,7 @@ import { getBranding } from "@/server/repositories/branding";
 import { loadMatchupPage } from "@/server/matchup-intel/view";
 import { loadMatchupEvidence } from "@/server/matchup-intel/evidence";
 import { RIOT_TEXT_TEST_COOKIE, riotTextFactsShown } from "@/server/matchup-intel/riot-text/switch";
+import { NOTES_AGE_TEST_COOKIE, notesAgeForTest } from "@/server/matchup-intel/notes-age";
 import { riotLegal } from "@/components/app-shell";
 import { MatchupFrame } from "@/components/matchup-intel/matchup-frame";
 import { MatchupContent } from "@/components/matchup-intel/matchup-content";
@@ -37,7 +38,9 @@ export default async function MatchupIntelPage({ searchParams }: { searchParams:
   const input = { role: one(sp.role), champion: one(sp.champion), vs: one(sp.vs), ally: one(sp.ally), vs2: one(sp.vs2) };
   // The facts from Riot's text only while their switch is on (riot-text/switch.ts; a browser test's cookie on the demo).
   const riotText = riotTextFactsShown(jar.get(RIOT_TEXT_TEST_COOKIE)?.value);
-  const [{ view, champions, curated }, branding] = await Promise.all([loadMatchupPage(db, input, riotText), getBranding(db)]);
+  // Browser tests only: the curated notes as production shows them once later patches are out (notes-age.ts; 0 anywhere but the demo).
+  const notesAge = notesAgeForTest(jar.get(NOTES_AGE_TEST_COOKIE)?.value);
+  const [{ view, champions, curated }, branding] = await Promise.all([loadMatchupPage(db, input, riotText, notesAge), getBranding(db)]);
   const { you, enemy, ally, enemy2, role } = view;
   // The evidence from the team's own games: counted in SQL for this viewer's own games and the team's they may see.
   const evidence = await loadMatchupEvidence(db, session, { role, you, ally, enemy, enemy2 }, champions);

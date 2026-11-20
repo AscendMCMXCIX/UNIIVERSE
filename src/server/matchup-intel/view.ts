@@ -8,6 +8,7 @@ import { getCurrentPatch, listChampions, listPatchesDesc, type ChampionSummary }
 import { hasteBasisOf } from "@/domain/matchup-intel/haste";
 import { loadChampionAbilities } from "./abilities";
 import { curatedEnemiesFor, getChampionNotes, getMatchupNotes } from "./curated";
+import { checkedEarlier } from "./notes-age";
 import { loadRiotText } from "./riot-text";
 import { RIOT_TEXT_FACTS_ENABLED } from "./riot-text/switch";
 
@@ -493,8 +494,12 @@ export function riotTextReader(shown: boolean): MatchupViewDeps["riotText"] {
   return shown ? loadRiotText : undefined;
 }
 
-/** What the page needs, from the real modules. `riotText`: whether it shows the facts from Riot's text (the switch, by default). */
-export async function loadMatchupPage(db: Db, input: MatchupInput, riotText: boolean = RIOT_TEXT_FACTS_ENABLED): Promise<{ view: MatchupPageView; champions: ChampionChoice[]; curated: Record<string, string[]> }> {
+/**
+ * What the page needs, from the real modules. `riotText`: whether it shows the facts from Riot's text
+ * (the switch, by default). `notesAge`: browser tests only, the patches earlier the curated notes read
+ * as checked (notes-age.ts; 0, as they are, everywhere else).
+ */
+export async function loadMatchupPage(db: Db, input: MatchupInput, riotText: boolean = RIOT_TEXT_FACTS_ENABLED, notesAge = 0): Promise<{ view: MatchupPageView; champions: ChampionChoice[]; curated: Record<string, string[]> }> {
   const [list, current, knownPatches] = await Promise.all([listChampions(db), getCurrentPatch(db), knownPatchesOf(db)]);
   const champions = championChoices(list);
   const view = await buildMatchupPageView(input, {
@@ -502,8 +507,8 @@ export async function loadMatchupPage(db: Db, input: MatchupInput, riotText: boo
     currentPatch: current && !current.isFixture ? { patch: current.patch, ddragonVersion: current.ddragonVersion } : null,
     loadAbilities: (ids) => loadChampionAbilities(db, ids),
     knownPatches,
-    championNotes: getChampionNotes,
-    matchupNotes: getMatchupNotes,
+    championNotes: notesAge ? (id) => checkedEarlier(getChampionNotes(id), notesAge) : getChampionNotes,
+    matchupNotes: notesAge ? (you, enemy) => checkedEarlier(getMatchupNotes(you, enemy), notesAge) : getMatchupNotes,
     riotText: riotTextReader(riotText),
   });
   let curated = indexes.get(list);

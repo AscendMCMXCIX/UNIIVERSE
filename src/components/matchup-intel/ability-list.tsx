@@ -443,18 +443,18 @@ export function CuratedLine({ intel }: { intel: ChampionIntelView }) {
   const changed = (intel.abilities ?? []).filter((a) => a.freshness === "changed-since").length;
   const warnings = [...(changed > 0 ? [changedAbilitiesWords(changed)] : f.warning ? [f.warning] : []), ...(recheck?.expired ? [expiredNotesWords(recheck.patches)] : [])];
   return (
-    <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1" data-testid="matchup-curated-checked">
+    <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-0.5" data-testid="matchup-curated-checked">
       <span>Curated notes: {f.checked.charAt(0).toLowerCase() + f.checked.slice(1)}</span>
       {recheck && !recheck.expired ? (
         <span className="inline-flex max-w-full" data-testid="matchup-not-rechecked">
-          <Badge tone="neutral">
+          <Badge tone="neutral" size="line">
             <History className="h-3.5 w-3.5 shrink-0" aria-hidden />
             {notRecheckedWords(recheck.patch)}
           </Badge>
         </span>
       ) : null}
       {warnings.map((w) => (
-        <Badge key={w} tone="warn">
+        <Badge key={w} tone="warn" size="line">
           <TriangleAlert className="h-3.5 w-3.5 shrink-0" aria-hidden />
           {w}
         </Badge>
@@ -492,21 +492,21 @@ export function AbilitiesPanel({ intel, title, testId, notice, haste = false }: 
   const common = commonSourceOf(intel);
   return (
     <Panel className="overflow-hidden" data-testid={testId} data-champion={intel.champion.id}>
-      <header className="space-y-0.5 border-b border-border px-3 py-2">
+      <header className="space-y-0.5 border-b border-border px-3 py-1.5">
         <div className="flex flex-wrap items-baseline justify-between gap-x-3">
           {/* A long name (Heimerdinger's) breaks rather than reach past the panel at a larger text size. */}
-          <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
-            <h2 className="min-w-0 text-sm font-semibold text-fg [overflow-wrap:anywhere]">{title}</h2>
-            {/* Riot's data: the abilities' names, icons and base cooldowns. A curated champion's facts say
-                "Checked notes" on the source line under it and on each fact; the heading's row has no
-                room for both tiers beside the haste control (1920 × 950 and 1440 × 900 keep one line). */}
-            <TierLabel>Riot&apos;s data</TierLabel>
-          </div>
+          <h2 className="min-w-0 text-sm font-semibold text-fg [overflow-wrap:anywhere]">{title}</h2>
           {/* The haste the cooldowns are also shown at, in the heading's row (the first enemy's panel only:
               one choice for the page); the base line's words then start the source line. */}
           {haste ? <HasteControl /> : <p className="text-xs text-fg-muted">Base cooldowns, without ability haste</p>}
         </div>
         <p className="text-xs text-fg-muted" data-testid="abilities-source">
+          {/* Riot's data, the tier of the abilities' names, icons and base cooldowns, first on the line that
+              says where they come from (a curated champion's facts say "Checked notes" at its end and on
+              each fact). Beside the title it put the haste control on a row of its own at 1440 × 900, 26px
+              that, with production's "Not re-checked", the sources' summary could not spare (Production
+              check, 20 Nov 2026). */}
+          <TierLabel className="mr-1.5">Riot&apos;s data</TierLabel>
           {haste ? "Base cooldowns, without ability haste · " : null}
           {/* Where the abilities come from (the bar names the version too), and the cooldown lines, once for
               them all (a curated champion's are its checked notes', which the next words date). */}
