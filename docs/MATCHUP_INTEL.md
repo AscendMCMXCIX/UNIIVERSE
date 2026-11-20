@@ -741,8 +741,11 @@ and finds none.
 - **Lane occupancy** (mi-evidence §2.1, test 4) is not stored: the confirmed-opponent rule uses the
   three position tests, and a game whose readings disagree is "role unclear".
 - **The jungle's lane end** (the first contested epic objective): the stored events cannot tell it.
-- **Health and Admin for the diff:** `/api/health` and Admin's data health do not yet list the
-  digests' counts; `changedCounts` (`digests.ts`) gives them for a later stage.
+- **Admin for the diff:** `/api/health` lists the digests' counts (`digests`, docs/MONITORING.md);
+  Admin's data health does not yet. It should show the same figures from `digestHealth`
+  (`digests.ts`): the newest patch recorded with its champion, item and rune counts, the patch it was
+  compared with, and how many of each changed ("26.23 against 26.22: 4 champions, 11 items, 0 runes
+  changed"), plus a failed attempt's mark when the newest patch has no digests (Admin stage R8c).
 - **The Production check** reads the tiers (below), not that the page's Data Dragon patch equals
   `/api/health`'s.
 - **On a phone** the evidence sits in the tips' fold below the kits, not on the first screen.

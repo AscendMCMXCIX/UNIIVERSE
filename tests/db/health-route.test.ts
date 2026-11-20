@@ -4,7 +4,7 @@ import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
 import type { Db } from "@/server/db/types";
 import * as schema from "@/server/db/schema";
-import { appSettings, auditEvents, dataRefreshStatus, riotAccounts } from "@/server/db/schema";
+import { appSettings, auditEvents, dataRefreshStatus, riotAccounts, staticDigests } from "@/server/db/schema";
 import { createPlayer, getOrCreateTeam } from "@/server/repositories/team";
 import { setScheduleOverrides } from "@/server/jobs/scheduler";
 import { markRankScheduleCall, RANK_SCHEDULE_CALL_KEY } from "@/server/ops/rank-schedule-calls";
@@ -158,6 +158,33 @@ describe("/api/health notices", () => {
     } finally {
       state.handle = handle;
       await clear();
+    }
+  });
+
+  it("lists Matchup Intel's per-version diff as counts and patches only (static_digests)", async () => {
+    const db = handle.db;
+    type Digests = { digests: { patch: string; recorded: Record<string, number>; previous: string | null; changed: Record<string, number> | null } | null };
+    expect(((await (await GET()).json()) as Digests).digests).toBeNull();
+    try {
+      await db.insert(staticDigests).values([
+        { patch: "16.21", kind: "champion", key: "Darius", hash: "a" },
+        { patch: "16.21", kind: "champion", key: "Garen", hash: "a" },
+        { patch: "16.21", kind: "item", key: "3071", hash: "a" },
+        { patch: "16.22", kind: "champion", key: "Darius", hash: "b" },
+        { patch: "16.22", kind: "champion", key: "Garen", hash: "a" },
+        { patch: "16.22", kind: "item", key: "3071", hash: "a" },
+        { patch: "16.22", kind: "rune", key: "8010", hash: "a" },
+        // A failed attempt's mark is not a digest, and a newer patch with only that mark is not listed.
+        { patch: "16.23", kind: "patch", key: "failed", hash: "" },
+      ]);
+      const body = (await (await GET()).json()) as Digests;
+      expect(body.digests).toEqual({ patch: "16.22", recorded: { champion: 2, item: 1, rune: 1 }, previous: "16.21", changed: { champion: 1, item: 0, rune: 1 } });
+      // Nothing but counts and patch names: no champion, item or rune is named.
+      expect(JSON.stringify(body.digests)).not.toMatch(/Darius|Garen|3071|8010/);
+      await db.delete(staticDigests).where(inArray(staticDigests.patch, ["16.21"]));
+      expect(((await (await GET()).json()) as Digests).digests).toEqual({ patch: "16.22", recorded: { champion: 2, item: 1, rune: 1 }, previous: null, changed: null });
+    } finally {
+      await db.delete(staticDigests);
     }
   });
 });
