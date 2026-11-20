@@ -97,7 +97,7 @@ export async function moderateSocialLinkAction(playerId: string, kind: SocialKin
 
 /**
  * Team membership, access level, extra access and administrator access, saved together or not at all. Granting
- * administrator access is the Owner's, and needs the dialog's second confirmation.
+ * administrator access needs the dialog's second confirmation.
  */
 export async function saveAccessAction(userId: string, input: AccessSave): Promise<Result> {
   try {

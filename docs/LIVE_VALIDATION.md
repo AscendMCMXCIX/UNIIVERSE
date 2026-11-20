@@ -740,7 +740,7 @@ Admin only, apart from Settings' **Sign out of other devices**. The Production c
 - [ ] A row opens the person view, its address `?person=`: Account, Password, Access, Riot accounts, Picture and links, Activity (the last 10 entries, in sentences) and a closed Danger zone. Copy the address into a new tab: it opens there too. Back closes it; ‹ › go to the next person without a new history entry.
 - [ ] As the Owner: change a member's display name in their view; Team and the public page show it on the next load (the public page no longer waits its minute). The username stays.
 - [ ] **Sign out everywhere** on a test member: their other browser is signed out at its next page; the notice says "Signed out everywhere", and Audit Logs says "… signed … out everywhere." with no number.
-- [ ] Manage access → Administrator access → Save asks a second time ("Grant administrator access"). Signed in as another administrator, the switch is off and says only the Owner grants it.
+- [ ] Manage access → Administrator access → Save asks a second time ("Grant administrator access").
 - [ ] Settings → Password → **Sign out of other devices**: another browser of yours is signed out; this one stays.
 - [ ] Audit Logs: filters for category, person and dates stay in the address; every entry is a sentence (no `key: value`); **Load older** adds the next 50.
 - [ ] Dashboard: **Needs you** first (expired temporary passwords, unfinished setups, Riot accounts needing attention, failing jobs, the LP five-minute schedule turned off with who and when, jobs set to 0), then the account counts, then recent activity.

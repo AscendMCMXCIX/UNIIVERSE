@@ -1,6 +1,6 @@
 "use client";
 
-import type * as React from "react";
+import * as React from "react";
 import { Button } from "./button";
 import { DetailModal } from "./detail-modal";
 
@@ -15,6 +15,10 @@ import { DetailModal } from "./detail-modal";
  * scroll lock, and actions on the bottom edge in a browser.
  */
 export function Dialog({ open, onClose, title, description, children, footer, width = "standard" }: { open: boolean; onClose: () => void; title: string; description?: React.ReactNode; children?: React.ReactNode; footer?: React.ReactNode; /** wide: an editor with a table (48rem where it is a centred window). */ width?: "standard" | "wide" }) {
+  // Each dialog its own title id, which names it (aria-labelledby): a confirmation can open over
+  // another dialog (the administrator grant over Manage access), and with one shared id both were
+  // named after the first one's title (R6 review NEW-1). Tests find a dialog's title by its prefix.
+  const titleId = `dialog-title-${React.useId()}`;
   return (
     <DetailModal
       open={open}
@@ -22,8 +26,7 @@ export function Dialog({ open, onClose, title, description, children, footer, wi
       size="sheet"
       sheetWidth={width}
       title={title}
-      // One dialog is open at a time; the id is what tests and the header's label read.
-      titleId="dialog-title"
+      titleId={titleId}
       description={description}
       closeTestId="dialog-close"
       footer={footer}

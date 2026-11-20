@@ -232,7 +232,7 @@ test("phones: a dialog is the one shared sheet, docked to the bottom edge with i
   await expect(async () => expect(await dialog.evaluate((d) => getComputedStyle(d).transform)).toBe("none")).toPass();
   const docked = await dialog.evaluate((d) => Math.abs(d.getBoundingClientRect().bottom - innerHeight) <= 1);
   expect(docked).toBe(true);
-  await expect(dialog.locator("#dialog-title")).toBeVisible();
+  await expect(dialog.locator("[id^=dialog-title]")).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(dialog).toBeHidden();
 });
