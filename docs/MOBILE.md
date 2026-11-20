@@ -595,7 +595,11 @@ Recorded, not changed here, with the reason:
 - Words split at 200% on a 320px phone only: the player card's name in the setup preview (a fixed
   card design, `overflow-wrap: anywhere` on purpose), a champion's name in own Champions' narrow
   column, and "Leaderboards" in its h1 (`hyphens: auto`, hyphenated on purpose).
-- Team's lineup dots at 200% on 320 (5 under 44px): Team's own layout (S3a), outside this pass.
+- Team's lineup dots at 200% on 320 (5 under 44px): Team's own layout (S3a), outside this pass. Fixed
+  on 20 Nov 2026 (§6 row 1.2h): the pager's gap and padding are 4px at every text size instead of
+  rem, so each target is 46px wide at 200% on 320 (41px before) and 48px or more at 125–175%; at
+  100% nothing moves (288px pager, 52px targets). `ux-measure` gives team@se1-200 small 0 (5 before);
+  `e2e/large-text-lineup.spec.ts` checks the members' and the public pager at 100–200% on 320 × 568.
 - The public header for a signed-in member at 375px and 150% text: three rows where it was two,
   since "Open the app" is 14px as the decision asks (a visitor's header keeps its rows at every
   size; the mark's 44px target is the touch-target utility's invisible box, so it adds no width or height).

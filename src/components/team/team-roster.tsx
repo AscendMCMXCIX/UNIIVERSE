@@ -781,10 +781,15 @@ const LINEUP_WIDTH = `mx-auto w-full max-w-[26rem] @xl:max-w-[54rem] @4xl:max-w-
  * player. The one part of the lineup that follows the track as it scrolls (useSnapIndex), so a
  * swipe never draws the cards again.
  */
+/*
+  The pager's gap and padding are 4px at every text size (gap-1 and p-1 at the usual size): in rem
+  they doubled at 200% on a 320px phone and left each of the five targets 41px wide. In px each is
+  46px there, and at 100% nothing moves (§6 row 1.2h; e2e/large-text-lineup.spec.ts).
+*/
 function LineupPager({ slots, index, go, people = false, artWait = false }: { slots: RosterSlot[]; index: SnapIndex; go: (i: number) => void; /** Members' phones: the lineup pager (each player's picture, the role as its badge, the name under it); the public page keeps the roles. */ people?: boolean; /** The first card's art has not arrived: the other players' pictures wait for it (globals.css, data-art-wait). */ artWait?: boolean }) {
   const current = useSnapIndex(index);
   return (
-    <div className={cn("relative z-[1] mx-auto mb-3 grid max-w-[26rem] grid-cols-5 gap-1 rounded-card border border-border bg-surface/85 p-1 shadow-sm shadow-black/20 @xl:hidden", people && "@container/pager mb-2 max-w-[30rem] max-lg:short:hidden")} role="tablist" aria-label="Lineup position" data-testid="lineup-pager" data-people={people || undefined} data-art-wait={(people && artWait) || undefined}>
+    <div className={cn("relative z-[1] mx-auto mb-3 grid max-w-[26rem] grid-cols-5 gap-[4px] rounded-card border border-border bg-surface/85 p-[4px] shadow-sm shadow-black/20 @xl:hidden", people && "@container/pager mb-2 max-w-[30rem] max-lg:short:hidden")} role="tablist" aria-label="Lineup position" data-testid="lineup-pager" data-people={people || undefined} data-art-wait={(people && artWait) || undefined}>
       {slots.map((s, i) => (
         <button key={s.role} type="button" role="tab" aria-selected={current === i} aria-label={people ? undefined : `${s.roleLabel}${s.player ? `: ${s.player.name}` : ""}`} onClick={() => go(i)} className={cn("flex min-h-12 min-w-0 flex-col items-center justify-center gap-1 rounded-panel px-1 text-2xs font-semibold leading-none transition-[background-color,color,box-shadow] duration-150 motion-reduce:transition-none", people && "gap-0.5", current === i ? "bg-accent/15 text-accent ring-1 ring-inset ring-accent/40" : "text-fg-muted hover:bg-surface-2/60 hover:text-fg")} data-testid="lineup-dot" data-art-later={i > 0 || undefined}>
           {people ? (
