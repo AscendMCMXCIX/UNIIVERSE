@@ -54,7 +54,7 @@ function writeMatch(matchId: string | null, push = false) {
  * address (?match=), so a link to it opens it here, and Back and Forward follow it. Details the
  * list has loaded are kept (MatchDetailCache) while it is shown.
  */
-export function TogetherList({ entries, championsById, className, children }: { entries: Array<{ entry: string; matchId: string; playerId: string; /** "Victory on Gwen": said after Previous or Next, as "Game 4 of 10: Victory on Gwen". */ said?: string }>; /** For a phone's whole-screen game. */ championsById: Record<string, PortraitChampion>; className?: string; children: React.ReactNode }) {
+export function TogetherList({ entries, total, championsById, className, children }: { /** The games the filters find, when more than the list shows ("Show more"): "Game 4 of 25 shown". */ total?: number; entries: Array<{ entry: string; matchId: string; playerId: string; /** "Victory on Gwen": said after Previous or Next, as "Game 4 of 10: Victory on Gwen". */ said?: string }>; /** For a phone's whole-screen game. */ championsById: Record<string, PortraitChampion>; className?: string; children: React.ReactNode }) {
   // A link to a game (?match= on arrival): it opens under its card when listed, and is brought into view.
   const params = useSearchParams();
   const [arrival] = React.useState(() => {
@@ -64,7 +64,15 @@ export function TogetherList({ entries, championsById, className, children }: { 
   const [open, setOpen] = React.useState<string | null>(arrival);
   // Set when a card opens, so the card is brought into view once it has.
   const reveal = React.useRef<string | null>(arrival);
+  const openRef = React.useRef(open);
+  React.useLayoutEffect(() => {
+    openRef.current = open;
+  });
   const entriesRef = React.useRef(entries);
+  const totalRef = React.useRef(total);
+  React.useLayoutEffect(() => {
+    totalRef.current = total;
+  });
   React.useLayoutEffect(() => {
     entriesRef.current = entries;
   });
@@ -109,10 +117,6 @@ export function TogetherList({ entries, championsById, className, children }: { 
     return () => window.removeEventListener("popstate", onPop);
   }, [fromAddress]);
   const cache = React.useMemo<MatchDetailCache>(() => createMatchDetailCache(), []);
-  const openRef = React.useRef(open);
-  React.useLayoutEffect(() => {
-    openRef.current = open;
-  });
   const toggle = React.useCallback((entry: string, matchId: string) => {
     // The game open, if the list still shows it (one the filters no longer list is not open).
     const current = openRef.current && entriesRef.current.some((e) => e.entry === openRef.current) ? openRef.current : null;
@@ -158,7 +162,7 @@ export function TogetherList({ entries, championsById, className, children }: { 
     if (pushed.current) pushed.current = entry;
     writeMatch(list[at]!.matchId);
     // The phone's window says it itself (MatchDetailModal), once the game has loaded.
-    if (!isPhone()) setSaid(`Game ${at + 1} of ${list.length}${list[at]!.said ? `: ${list[at]!.said}` : ""}`);
+    if (!isPhone()) setSaid(`Game ${at + 1} of ${list.length}${totalRef.current !== undefined && totalRef.current > list.length ? " shown" : ""}${list[at]!.said ? `: ${list[at]!.said}` : ""}`);
   }, []);
   const navFor = React.useCallback(
     (entry: string): GameNav | null => {

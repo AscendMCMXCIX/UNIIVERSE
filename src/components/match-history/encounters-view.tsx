@@ -19,6 +19,7 @@ import { FilterField } from "@/components/ui/filter-bar";
 import { ModeElsewhere, OverviewFilters } from "@/components/players/overview-filters";
 import { formatCount, formatDate, percent } from "@/lib/format";
 import { cn } from "@/lib/cn";
+import { isPlainClick } from "@/lib/back-to-top";
 import { MatchHistoryHeader, scopeText } from "./match-history-header";
 
 /*
@@ -345,7 +346,7 @@ export function EncountersView({ data, basePath, status, refresh }: { data: Enco
               sheetFields={<ListChoiceFields choice={c} sorts={sorts} pending={pending} go={go} />}
               sheetChips={listChips}
               compactToggle
-              refineUnavailable="Refine narrows the games list: role, champion, result and more. Encounters counts every game the season, game mode and account choose."
+              refineUnavailable="Refine narrows the games list: role, champion, result and more. Encounters counts the players met in the season and game mode chosen."
               testId="encounter-filters"
             />
           </div>
@@ -381,7 +382,7 @@ export function EncountersView({ data, basePath, status, refresh }: { data: Enco
                 ))}
               </nav>
               {/* What Against and Alongside mean, and what the records count: beside the choice it explains. */}
-              <span className="contents @max-[40rem]/enc:hidden">
+              <span className="contents max-sm:hidden">
                 <InfoTip text={ENCOUNTERS_CAVEAT} label="How encounters are counted" testId="encounters-caveat" />
               </span>
               {/* A phone's search behind its icon: the box opens on a line of its own, focused, and folds away again when left empty. */}
@@ -619,7 +620,7 @@ function EncounterRow({ s, relation, href }: { s: EncounterSummary; relation: En
           <SideFigures relation="ally" wl={s.ally} />
         </span>
         <ChevronRight className="hidden h-4 w-4 text-fg-subtle transition-colors group-hover/row:text-fg-muted @min-[60rem]/enc:col-start-6 @min-[60rem]/enc:row-start-1 @min-[60rem]/enc:block" aria-hidden />
-        <Link href={href} className={rowLink} onClick={() => rememberEncounterReturn(s.key, href)} data-encounter-row={s.key} aria-label={`${s.name}: ${s.opponent.games ? `${gamesText(s.opponent.games)} against, ${recordText(s.opponent)}` : "never against"}; ${s.ally.games ? `${gamesText(s.ally.games)} alongside, ${recordText(s.ally)}` : "never alongside"}. Show your games with them`} data-testid="open-encounter" />
+        <Link href={href} className={rowLink} onClick={(e) => isPlainClick(e) && rememberEncounterReturn(s.key, href)} data-encounter-row={s.key} aria-label={`${s.name}: ${s.opponent.games ? `${gamesText(s.opponent.games)} against, ${recordText(s.opponent)}` : "never against"}; ${s.ally.games ? `${gamesText(s.ally.games)} alongside, ${recordText(s.ally)}` : "never alongside"}. Show your games with them`} data-testid="open-encounter" />
       </li>
     );
   }
@@ -653,7 +654,7 @@ function EncounterRow({ s, relation, href }: { s: EncounterSummary; relation: En
         <Rate wl={rec} className="font-semibold @min-[40rem]/enc:text-right" />
       </span>
       <ChevronRight className="hidden h-4 w-4 text-fg-subtle transition-colors group-hover/row:text-fg-muted @min-[40rem]/enc:col-start-6 @min-[40rem]/enc:row-start-1 @min-[40rem]/enc:block" aria-hidden />
-      <Link href={href} className={rowLink} onClick={() => rememberEncounterReturn(s.key, href)} data-encounter-row={s.key} aria-label={`${s.name}: ${gamesText(rec.games)} ${REL[side].word.toLowerCase()}, ${recordText(rec)}. Show your games with them`} data-testid="open-encounter" />
+      <Link href={href} className={rowLink} onClick={(e) => isPlainClick(e) && rememberEncounterReturn(s.key, href)} data-encounter-row={s.key} aria-label={`${s.name}: ${gamesText(rec.games)} ${REL[side].word.toLowerCase()}, ${recordText(rec)}. Show your games with them`} data-testid="open-encounter" />
     </li>
   );
 }

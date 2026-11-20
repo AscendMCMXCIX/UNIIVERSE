@@ -52,8 +52,11 @@ export function EncounterGamesPanel({ basePath, filter, encounter, playerName }:
         // Opened from the list in this tab: back is Back (one entry for the visit, and the list where it was); else the list's address.
         onClick={(e) => {
           if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-          // This entry is the one a row of the list opened (its address is the row's link): Back is that list.
-          if (encounterReturn()?.to !== window.location.pathname + window.location.search) return;
+          // This entry is the one a row of the list opened (the same player on the same page; a side chosen
+          // here replaces the entry): Back is that list.
+          const r = encounterReturn();
+          const to = r ? new URL(r.to, window.location.origin) : null;
+          if (!to || to.pathname !== window.location.pathname || to.searchParams.get("met") !== new URLSearchParams(window.location.search).get("met")) return;
           e.preventDefault();
           window.history.back();
         }}

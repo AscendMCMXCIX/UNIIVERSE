@@ -129,13 +129,15 @@ describe("The season's records and achievements on stored games", () => {
     expect(r.season).toBe(season);
     const kills = r.records.find((x) => x.id === "kills")!;
     expect(kills.holder).toMatchObject({ playerId: id.Ed, value: "22", unit: "kills", championId: "Riven", role: "ADC", kda: "22/1/6" });
-    expect(kills.holder!.href).toBe(`/players/${id.Ed}/matches?match=ED_13`);
+    // Over the board (PLAN S6c), with the way to the holder's Match History inside.
+    expect(kills.holder!.href).toMatch(/^\/leaderboards(\?season=\d+&|\?)match=ED_13$/);
+    expect(kills.holder!.game).toEqual({ matchId: "ED_13", historyHref: `/players/${id.Ed}/matches?match=ED_13` });
     expect(kills.yours).toMatchObject({ playerId: id.Bo, value: "5" });
     const assists = r.records.find((x) => x.id === "assists")!;
     expect(assists.holder).toMatchObject({ playerId: id.Di, value: "21" });
     // Gu's 30 wins in a row (70+ days ago, still this season) are the longest streak; a streak opens no single game.
     const streak = r.records.find((x) => x.id === "win-streak")!;
-    expect(streak.holder).toMatchObject({ playerId: id.Gu, value: "30", href: null });
+    expect(streak.holder).toMatchObject({ playerId: id.Gu, value: "30", href: null, game: null });
     expect(r.mastery).toEqual([{ playerId: id.Ash, items: [{ championId: "Riven", value: "520K points", short: "520K", milestone: "500K+", tier: 2 }], more: 0 }]);
     // Gu's 30 games on Riven reach 25; Ash's 24 (one match on two accounts counted once) do not.
     expect(r.championGames).toEqual([{ playerId: id.Gu, items: [{ championId: "Riven", value: "30 games", short: "30", milestone: "25+ games", tier: 1 }], more: 0 }]);
@@ -144,7 +146,7 @@ describe("The season's records and achievements on stored games", () => {
   it("links nowhere on the public boards, whose links keep to the public address", async () => {
     const data = await loadLeaderboardData(handle.db, teamId);
     const open = buildLeaderboardsView(data, {}, null, { now: NOW, profiles: false, basePath: "/public/leaderboards" });
-    expect(open.records.records.every((x) => x.holder === null || x.holder.href === null)).toBe(true);
+    expect(open.records.records.every((x) => x.holder === null || (x.holder.href === null && x.holder.game === null))).toBe(true);
     expect(Object.values(open.players).every((p) => p.profileHref === null)).toBe(true);
     // The season's choice keeps to the public address; the current season's address names none.
     expect(open.records.seasons.map((s) => s.href)).toEqual(open.records.seasons.map((s) => (s.value === data.currentSeason ? "/public/leaderboards" : `/public/leaderboards?season=${s.value}`)));

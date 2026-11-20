@@ -36,6 +36,20 @@ export interface RecordGame {
   historyHref: string;
 }
 
+/**
+ * Leaderboards' two Peeks (a player, `?player=`, and a record's game, `?match=`) share the board's
+ * right edge, so one at a time: opening one first takes the other out of the address (replacing its
+ * entry, not adding one) and tells it so, as Back would (its address item follows popstate). So Back
+ * then closes the one in view and leaves the board.
+ */
+export function dropOtherPeek(param: "player" | "match") {
+  const url = new URL(window.location.href);
+  if (!url.searchParams.has(param)) return;
+  url.searchParams.delete(param);
+  window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+  window.dispatchEvent(new PopStateEvent("popstate", { state: window.history.state }));
+}
+
 const RecordGameContext = React.createContext<{
   row: (matchId: string) => {
     href: string;
@@ -60,6 +74,7 @@ export function RecordGamePeek({ games, championsById, children }: { games: Reco
           // A click that asks for another tab or window is the browser's.
           if (!isPlainClick(e)) return;
           e.preventDefault();
+          dropOtherPeek("player");
           peek.toggle(matchId, e.currentTarget);
         },
         selected: peek.id === matchId,
@@ -68,6 +83,10 @@ export function RecordGamePeek({ games, championsById, children }: { games: Reco
     [pathname, search, peek],
   );
   const value = React.useMemo(() => ({ row }), [row]);
+  // An address naming both (a copied link): the game, the later and narrower one, stays.
+  React.useEffect(() => {
+    if (new URLSearchParams(window.location.search).has("match")) dropOtherPeek("player");
+  }, []);
   const game = peek.id ? (games.find((g) => g.matchId === peek.id) ?? null) : null;
   return (
     <RecordGameContext.Provider value={value}>
