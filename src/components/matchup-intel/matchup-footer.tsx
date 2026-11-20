@@ -231,6 +231,7 @@ export function MatchupFooter({ view, legal }: { view: FooterView; legal: string
       <Fold
         testId="matchup-sources"
         flush
+        dense
         bodyClassName="space-y-1.5 p-3 leading-relaxed sm:p-4"
         summary={
           <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">

@@ -51,8 +51,10 @@ function KitRow({ intel, testId }: { intel: ChampionIntelView; testId: string })
         <span className="font-semibold text-fg">{name}</span> · base cooldowns, first to last rank or level
       </p>
       {/* Five across; three and two where five would leave a tile too narrow for its words (a phone at
-          a large text size: the row is measured in rem, which grow with the text). */}
-      <ol className="grid grid-cols-3 gap-1 @min-[17rem]/glance:grid-cols-5">
+          a large text size: the row is measured in rem, which grow with the text). The tiles are 2px
+          apart and their lines run to the border: "140–100 s" needs 64px, which a 390px phone's tile
+          gives it only so (with 4px gaps and 2px padding it had 62, and its line wrapped, 15px taller). */}
+      <ol className="grid grid-cols-3 gap-0.5 @min-[17rem]/glance:grid-cols-5">
         {SLOTS.map((slot) => {
           const a = abilities.find((x) => x.slot === slot);
           if (!a) return <li key={slot} aria-hidden className="min-h-14 rounded-md border border-dashed border-border" />;
@@ -63,7 +65,7 @@ function KitRow({ intel, testId }: { intel: ChampionIntelView; testId: string })
               <AbilityRefLink
                 anchor={abilityAnchor(intel.champion.id, slot)}
                 testId="glance-ability-link"
-                className="@container/tile flex min-h-14 w-full flex-col items-center justify-center gap-0.5 rounded-md border border-border bg-surface px-0.5 py-1 text-center transition-colors hover:border-accent/60"
+                className="@container/tile flex min-h-14 w-full flex-col items-center justify-center gap-0.5 rounded-md border border-border bg-surface py-1 text-center transition-colors hover:border-accent/60"
               >
                 {/* As wide as the tile allows up to 32px, square: at a large text size it shrinks, never stretches. */}
                 <span className="relative aspect-square w-full max-w-8">

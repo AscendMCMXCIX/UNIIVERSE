@@ -10,10 +10,26 @@ export async function pullDown(target: Locator, distance = 320): Promise<void> {
     const r = el.getBoundingClientRect();
     const x = r.left + Math.min(60, r.width / 2);
     const y0 = r.top + Math.min(20, r.height / 2);
+    // Safari's engine as Playwright runs it has no Touch constructor ("Illegal constructor"), and its
+    // TouchEvent takes TouchLists only, not arrays: there its older factories, document.createTouch
+    // (page and screen coordinates) and document.createTouchList, make the same touches.
+    type LegacyDocument = Document & {
+      createTouch(view: Window, target: EventTarget, id: number, pageX: number, pageY: number, screenX: number, screenY: number): Touch;
+      createTouchList(...touches: Touch[]): TouchList;
+    };
+    const doc = document as LegacyDocument;
+    let legacy = false;
+    try {
+      new Touch({ identifier: 1, target: el, clientX: x, clientY: y0 });
+    } catch {
+      legacy = true;
+    }
+    const touchAt = (y: number): Touch => (legacy ? doc.createTouch(window, el, 1, x + window.scrollX, y + window.scrollY, x, y) : new Touch({ identifier: 1, target: el, clientX: x, clientY: y }));
+    const list = (...touches: Touch[]) => (legacy ? doc.createTouchList(...touches) : touches) as unknown as Touch[];
     const fire = (type: string, y: number) => {
-      const t = new Touch({ identifier: 1, target: el, clientX: x, clientY: y });
-      const touches = type === "touchend" ? [] : [t];
-      el.dispatchEvent(new TouchEvent(type, { touches, targetTouches: touches, changedTouches: [t], bubbles: true, cancelable: true }));
+      const t = touchAt(y);
+      const touches = type === "touchend" ? list() : list(t);
+      el.dispatchEvent(new TouchEvent(type, { touches, targetTouches: touches, changedTouches: list(t), bubbles: true, cancelable: true }));
     };
     fire("touchstart", y0);
     for (let i = 1; i <= 12; i++) {
