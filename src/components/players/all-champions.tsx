@@ -578,7 +578,10 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
                   <SampleNote note={winRateSampleNote(r.winRate, r.games, WIN_RATE_MIN_GAMES.champion)} />
                 </span>
                 <span className="block text-xs text-fg-subtle">
-                  {formatCount(r.games)} game{r.games === 1 ? "" : "s"}
+                  {/* Sorted by games: the count drawn strong, as the desktop's Games column. */}
+                  <span className={cn(strong("games") && "font-semibold text-fg-muted")} data-testid="champion-row-games">
+                    {formatCount(r.games)} game{r.games === 1 ? "" : "s"}
+                  </span>
                   {r.games > 0 ? ` · ${r.wins}W ${r.games - r.wins}L` : ""}
                 </span>
               </span>

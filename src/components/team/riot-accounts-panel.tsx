@@ -16,6 +16,7 @@ import { ConfirmDialog, Dialog } from "@/components/ui/dialog";
 import { Input, Label } from "@/components/ui/input";
 import { InfoTip } from "@/components/ui/info-tip";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
+import { SectionHeader } from "@/components/ui/section-header";
 import { toast } from "@/components/ui/toast";
 import { RelativeTime } from "@/components/ui/relative-time";
 import { RefreshButton, type DataRefreshTarget } from "@/components/ui/data-status";
@@ -37,7 +38,7 @@ export { PLATFORMS } from "@/domain/platforms";
  * Alternatives are numbered and can be moved up or down (buttons, so keyboard and touch work the
  * same); that one order is used wherever the accounts are listed. Ordering changes no statistic.
  */
-export function RiotAccountsPanel({ playerId, accounts, riotConfigured, editable = true, title = "Linked Riot accounts", status, refresh, theirs = false }: { playerId: string; accounts: RiotAccountRecord[]; riotConfigured: boolean; defaultPlatform?: string; editable?: boolean; title?: string; /** Someone else's accounts (an administrator or player manager editing a teammate's): "their" and Unlink. */ theirs?: boolean; /** The accounts' data status, for the profile's Refresh (each row shows its own account's state). */ status?: DataStatus | null; refresh?: DataRefreshTarget | null }) {
+export function RiotAccountsPanel({ playerId, accounts, riotConfigured, editable = true, title = "Linked Riot accounts", status, refresh, theirs = false, heading = "panel" }: { playerId: string; /** "section": the title and its lead line as the profile tabs' heading (SectionHeader) above the panel, as All Champions and Overview; "panel": in the panel's own header (the admin's person view). */ heading?: "panel" | "section"; accounts: RiotAccountRecord[]; riotConfigured: boolean; defaultPlatform?: string; editable?: boolean; title?: string; /** Someone else's accounts (an administrator or player manager editing a teammate's): "their" and Unlink. */ theirs?: boolean; /** The accounts' data status, for the profile's Refresh (each row shows its own account's state). */ status?: DataStatus | null; refresh?: DataRefreshTarget | null }) {
   const router = useRouter();
   const your = theirs ? "their" : "your";
   const removeWord = theirs ? "Unlink" : "Remove";
@@ -98,22 +99,26 @@ export function RiotAccountsPanel({ playerId, accounts, riotConfigured, editable
     router.refresh();
   };
 
-  return (
+  const lead = (
+    <span data-testid="riot-accounts-lead">
+      Main account first; every linked account adds its games.{" "}
+      <InfoTip label="How linked accounts count" text="The Main account sets the profile's rank; the others follow in the order set. Each adds its games and mastery, counting a shared game once." testId="riot-accounts-info" />
+    </span>
+  );
+  const refreshButton = status && refresh ? <RefreshButton status={status} refresh={refresh} /> : null;
+  const panel = (
     <Panel>
       {/* The profile's Refresh, in the header's toolbar as on every tab (at its end, on the right);
           the rows below already say each account's state and when it was updated, so no status
           note repeats them. */}
-      <PanelHeader
-        title={title}
-        // One line, the rest behind ⓘ (the phone header budget, docs/MOBILE.md); the same at every width.
-        subtitle={
-          <span data-testid="riot-accounts-lead">
-            Main account first; every linked account adds its games.{" "}
-            <InfoTip label="How linked accounts count" text="The Main account sets the profile's rank; the others follow in the order set. Each adds its games and mastery, counting a shared game once." testId="riot-accounts-info" />
-          </span>
-        }
-        actions={status && refresh ? <RefreshButton status={status} refresh={refresh} /> : null}
-      />
+      {heading === "panel" ? (
+        <PanelHeader
+          title={title}
+          // One line, the rest behind ⓘ (the phone header budget, docs/MOBILE.md); the same at every width.
+          subtitle={lead}
+          actions={refreshButton}
+        />
+      ) : null}
       <PanelBody className="space-y-3">
         <p className="sr-only" aria-live="polite" data-testid="riot-accounts-announce">
           {announce}
@@ -299,6 +304,14 @@ export function RiotAccountsPanel({ playerId, accounts, riotConfigured, editable
         }}
       />
     </Panel>
+  );
+  if (heading === "panel") return panel;
+  return (
+    <section className="space-y-3" aria-labelledby="riot-accounts-title" data-testid="riot-accounts-section">
+      {/* The profile's one heading layout (as All Champions and Season performance); on a phone the current tab names it. */}
+      <SectionHeader id="riot-accounts-title" title={title} titleOnPhones="tab" description={<p className="text-sm text-fg-muted">{lead}</p>} refresh={refreshButton} toolbarBesideScope />
+      {panel}
+    </section>
   );
 }
 

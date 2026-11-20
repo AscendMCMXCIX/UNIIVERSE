@@ -437,6 +437,20 @@ p a.text-accent {
 }
 
 /*
+  The phone posture's native select (input.tsx's NativeSelect) with the chevron the app's own Select
+  draws (select.tsx: lucide's ChevronDown, 16px, fg-subtle, 8px in) instead of the system arrow; the
+  phone keeps its own picker. The stroke is --color-fg-subtle, written out: a data URI cannot read a
+  variable.
+*/
+@utility select-chevron {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238f95aa' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.5rem center;
+  background-size: 1rem 1rem;
+}
+
+/*
   Column headings and small labels, written one way: the size, weight, case and letter spacing come
   from here (design-tokens.test.ts refuses them beside it; a colour may replace fg-subtle). No line
   height: the label keeps the line it sits in, as text-2xs does.

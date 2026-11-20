@@ -789,7 +789,7 @@ function LineupPager({ slots, index, go, people = false, artWait = false }: { sl
   return (
     <div className={cn("relative z-[1] mx-auto mb-3 grid max-w-[26rem] grid-cols-5 gap-1 rounded-card border border-border bg-surface/85 p-1 shadow-sm shadow-black/20 @xl:hidden", people && "@container/pager mb-2 max-w-[30rem] max-lg:short:hidden")} role="tablist" aria-label="Lineup position" data-testid="lineup-pager" data-people={people || undefined} data-art-wait={(people && artWait) || undefined}>
       {slots.map((s, i) => (
-        <button key={s.role} type="button" role="tab" aria-selected={current === i} aria-label={people ? undefined : `${s.roleLabel}${s.player ? `: ${s.player.name}` : ""}`} onClick={() => go(i)} className={cn("flex min-h-12 min-w-0 flex-col items-center justify-center gap-1 rounded-panel px-1 text-2xs font-semibold leading-none transition-[background-color,color,box-shadow] duration-150 motion-reduce:transition-none", people && "gap-0.5", current === i ? "bg-accent/15 text-accent ring-1 ring-inset ring-accent/40" : "text-fg-muted hover:bg-surface-2/60 hover:text-fg")} data-testid="lineup-dot" data-art-later={i > 0 || undefined}>
+        <button key={s.role} type="button" role="tab" aria-selected={current === i} aria-label={people ? undefined : `${s.roleLabel}${s.player ? `: ${s.player.name}` : ""}`} onClick={() => go(i)} className={cn("flex min-w-0 flex-col items-center justify-center rounded-panel px-1 text-2xs font-semibold leading-none transition-[background-color,color,box-shadow] duration-150 motion-reduce:transition-none", people ? "min-h-13 gap-0.5" : "min-h-12 gap-1", current === i ? "bg-accent/15 text-accent ring-1 ring-inset ring-accent/40" : "text-fg-muted hover:bg-surface-2/60 hover:text-fg")} data-testid="lineup-dot" data-art-later={i > 0 || undefined}>
           {people ? (
             <>
               {/* The player's picture with the role's icon as its badge (an empty role: the icon alone). */}
@@ -801,7 +801,7 @@ function LineupPager({ slots, index, go, people = false, artWait = false }: { sl
               </span>
               {/* The name, cut where it must (the picture carries who it is); under 18rem of pager the pictures alone, the names read out. */}
               {/* Named by its content (the role read out first), so what shows is what is read (axe's label-content-name-mismatch). */}
-              <span className="max-w-full truncate @max-[18rem]/pager:sr-only" data-testid="lineup-dot-name">
+              <span className="max-w-full truncate leading-tight @max-[18rem]/pager:sr-only" data-testid="lineup-dot-name">
                 <span className="sr-only">{s.roleLabel}: </span>
                 {s.player?.name ?? (
                   <>

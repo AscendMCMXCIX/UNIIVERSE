@@ -176,7 +176,7 @@ export function MemberPicker({ label, emptyLabel, members, clearHref, multiple =
         aria-expanded={open}
         aria-label={`${label}: ${buttonText}`}
         disabled={pending && !open}
-        className={cn("flex h-11 w-full min-w-0 items-center gap-2 rounded-md border bg-bg-elevated px-2.5 text-left text-sm text-fg transition-colors hover:border-border-strong md:pointer-fine:h-9", !inSheet && "md:w-auto md:max-w-[16rem]", chosen.length ? "border-accent/50" : "border-border")}
+        className={cn("flex h-11 w-full min-w-0 items-center gap-2 rounded-md border bg-bg-elevated px-2.5 text-left text-sm text-fg transition-colors md:pointer-fine:h-9", !inSheet && "md:w-auto md:max-w-[16rem]", chosen.length ? "border-accent/50 hover:border-border-strong" : "border-border-control hover:border-fg-subtle")}
         data-testid={`${testId}-button`}
       >
         {chosen.length ? (

@@ -267,9 +267,9 @@ export function ProfileHeader({ identity: served, self, editable = false, champi
               {p.offRoles.map((r) => (
                 <span key={r} className="inline-flex flex-wrap items-center gap-x-1.5 band:gap-1" data-testid="additional-role">
                   {/* On a phone "(off)" (the word "role" read out), so an off role is told from the main one in words, not by colour alone.
-                      Held sideways a quiet icon, its name and "(off role)" read out, as on Players' rows. */}
-                  <RoleIcon role={r} className="h-4 w-4 text-fg-subtle band:h-3.5 band:w-3.5" /> <span className="band:sr-only">{ROLE_LABELS[r]}</span>{" "}
-                  <span className="text-fg-subtle band:sr-only">
+                      Held sideways, or in the band under xl, a quiet icon, its name and "(off role)" read out, as on Players' rows; from xl the band writes "Top (off)". */}
+                  <RoleIcon role={r} className="h-4 w-4 text-fg-subtle band:h-3.5 band:w-3.5" /> <span className="max-xl:band:sr-only">{ROLE_LABELS[r]}</span>{" "}
+                  <span className="text-fg-subtle max-xl:band:sr-only">
                     (off<span className="max-sm:sr-only band:sr-only"> role</span>)
                   </span>
                 </span>
@@ -281,7 +281,7 @@ export function ProfileHeader({ identity: served, self, editable = false, champi
                     <>
                       {rankLabel(rank.tier, rank.division)}
                       <span className="text-fg-muted">· {rank.leaguePoints} LP</span>
-                      {rank.queue ? <span className="text-xs text-fg-subtle band:hidden">{QUEUE_LABEL[rank.queue]}</span> : null}
+                      {rank.queue ? <span className="text-xs text-fg-subtle max-xl:band:hidden">{QUEUE_LABEL[rank.queue]}</span> : null}
                     </>
                   ) : (
                     <span className="text-fg-muted">Unranked</span>

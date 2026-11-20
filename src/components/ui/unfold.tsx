@@ -155,9 +155,13 @@ export function UnfoldHeader({ title, onClose, closeLabel = "Close", testId = "u
   return (
     <>
       <div ref={sentinel} aria-hidden className="h-0" />
-      <div className="sticky top-[calc(var(--bar-top)+var(--tabs-top))] z-10 h-0 max-md:top-[calc(3.5rem+env(safe-area-inset-top))]">
+      {/* As tall as the strip, so sticky positioning stops it at the region's last pixel: it leaves with
+          the game rather than lying over the next card (a zero-height wrapper let it overhang by its
+          own height). The empty block after it takes that height back, so it still takes no room; a
+          negative margin on the wrapper itself would shrink the box sticky positioning keeps inside. */}
+      <div className="pointer-events-none sticky top-[calc(var(--bar-top)+var(--tabs-top))] z-10 h-11 max-md:top-[calc(3.5rem+env(safe-area-inset-top))]">
         <div
-          className={cn("flex min-h-11 items-center gap-2 rounded-panel border border-border bg-bg-elevated/95 px-3 shadow-lg shadow-black/40 transition-opacity duration-150", stuck ? "opacity-100" : "pointer-events-none opacity-0")}
+          className={cn("flex min-h-11 items-center gap-2 rounded-panel border border-border bg-bg-elevated/95 px-3 shadow-lg shadow-black/40 transition-opacity duration-150", stuck ? "pointer-events-auto opacity-100" : "opacity-0")}
           aria-hidden={!stuck}
           data-testid={testId}
           data-stuck={stuck || undefined}
@@ -169,6 +173,7 @@ export function UnfoldHeader({ title, onClose, closeLabel = "Close", testId = "u
           </button>
         </div>
       </div>
+      <div aria-hidden className="-mt-11" />
     </>
   );
 }

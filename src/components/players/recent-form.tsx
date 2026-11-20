@@ -90,9 +90,10 @@ export function RecentFormStrip({ form, championsById, historyHref, narrowed = n
             <dt className="text-xs text-fg-subtle">{m.label}</dt>
             <dd className="text-lg font-semibold tabular-nums text-fg">
               {fmt(m)}
+              {/* The trend beside the figure, so it shares the figure's line when "vs …" drops to its own. */}
+              {m.direction === "up" ? <TrendingUp className="ml-1 inline h-3.5 w-3.5 text-good" aria-label="higher lately" /> : m.direction === "down" ? <TrendingDown className="ml-1 inline h-3.5 w-3.5 text-bad" aria-label="lower lately" /> : null}
               {m.season !== null ? <span className="text-xs font-normal text-fg-muted @min-[18rem]:@max-lg:block"> vs {fmt({ ...m, recent: m.season })}</span> : null}
               <span className="sr-only">{`: the last ${m.recentGames} games against all ${m.seasonGames}${m.direction === null ? ", too few to compare" : ""}`}</span>
-              {m.direction === "up" ? <TrendingUp className="ml-1 inline h-3.5 w-3.5 text-good" aria-label="higher lately" /> : m.direction === "down" ? <TrendingDown className="ml-1 inline h-3.5 w-3.5 text-bad" aria-label="lower lately" /> : null}
             </dd>
           </div>
         ))}

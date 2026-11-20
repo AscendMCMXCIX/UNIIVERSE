@@ -15,6 +15,7 @@ import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateTone } from "@/domain/s
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
 import { matchupHref } from "@/components/matchup-intel/address";
 import { formatCompactCount, formatCount, formatDate, percent } from "@/lib/format";
+import { segmentClass, segmentedGroupClass } from "@/components/ui/segmented";
 import { cn } from "@/lib/cn";
 
 /*
@@ -273,9 +274,9 @@ export function PreviewContent({ playerId, isOwn, card, otherRoles, vs, champ, d
             Against each lane opponent
           </h3>
           {arranged.listed.length > 1 && !arranged.noneEstablished ? (
-            <div role="group" aria-label="Sort the opponents" className="inline-flex rounded-md border border-border bg-bg-elevated p-0.5 text-xs">
+            <div role="group" aria-label="Sort the opponents" className={segmentedGroupClass()}>
               {OPPONENT_SORTS.map((s) => (
-                <button key={s.key} type="button" aria-pressed={sort === s.key} onClick={() => setSort(s.key)} className={cn("rounded px-2 py-1 font-medium transition-colors pointer-coarse:min-h-11 pointer-coarse:min-w-11", sort === s.key ? "bg-surface-3 text-fg" : "text-fg-muted hover:text-fg")} data-testid={`opponent-sort-${s.key}`}>
+                <button key={s.key} type="button" aria-pressed={sort === s.key} onClick={() => setSort(s.key)} className={segmentClass(sort === s.key, { size: "sm", className: "pointer-coarse:min-w-11" })} data-testid={`opponent-sort-${s.key}`}>
                   {s.label}
                 </button>
               ))}
