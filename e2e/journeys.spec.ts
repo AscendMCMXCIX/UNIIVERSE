@@ -153,7 +153,11 @@ async function phoneContext(page: Page, baseURL: string): Promise<BrowserContext
 
 test("the ten most common journeys: at most 20 taps from the landing, Matchup Intel in 1 and a Resources site in 2, at most 21 from My Profile with section memory, and no scroll-backs", async ({ page, browser, baseURL }) => {
   // A member with games of their own (their account's three, by one Refresh: setup, not counted).
-  const member = await memberContext(browser, page, I15, { base: "Journeys", device: { isMobile: true, hasTouch: true, deviceScaleFactor: 2 } });
+  // Named in two short words: with games, the member is on Recent form's board for the rest of the
+  // run, and large-text-leaderboards.spec holds every name there to wrapping only between words. The
+  // username alone ("Journeys" and five letters from the clock) is one word of 13 letters, which
+  // some of those letters made too wide for the row at 125% text on a 320px phone (20 Nov 2026).
+  const member = await memberContext(browser, page, I15, { base: "Journeys", display: "Journeys Tester", device: { isMobile: true, hasTouch: true, deviceScaleFactor: 2 } });
   await member.context.addCookies([{ ...PLAYER, url: baseURL! }]);
   // Resources' sites open in a new tab: answered here, never fetched from the sites themselves.
   await member.context.route(/^https?:\/\/(?!127\.0\.0\.1|localhost)/, (route) => route.fulfill({ status: 200, contentType: "text/html", body: "<title>site</title>" }));
