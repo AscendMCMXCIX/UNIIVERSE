@@ -8,6 +8,7 @@ import { isVerificationAccount } from "@/server/auth/verification-account";
 import { validatePasswordStrength, verifyPassword } from "@/server/auth/password";
 import { getUser, setPassword, UserError, type UserRecord } from "@/server/repositories/users";
 import { groupsOf, levelOf } from "@/server/auth/member-admin";
+import { sanitiseAccessGroups } from "@/server/auth/permissions";
 import { completeLegacyProfile, defaultPlatform, type RiotIdInput } from "@/server/auth/signup";
 import { createVerifiedPlayerAccount, deleteAccount, deleteProfile, guardProfileAccount, reactivateWithTemporaryPassword, resetPasswordToTemporary, setAccountActive, setAccountRole, setAdministrator } from "@/server/auth/account-admin";
 import { revokeOtherSessions } from "@/server/auth/sessions";
@@ -328,7 +329,7 @@ export async function setAccessGroupsAction(userId: string, groups: string[]): P
     const { setAccessGroups } = await import("@/server/repositories/permissions");
     const db = await getAppDb();
     const changed = await changedUnderLock(db, userId, (tx) => setAccessGroups(tx, session.userId, userId, groups), (before, after) => groupsOf(before) !== groupsOf(after));
-    if (changed) await recordAudit(db, session, { action: "account.groups", target: { type: "user", id: userId }, details: { groups: groups.join(", ") || "none" } });
+    if (changed) await recordAudit(db, session, { action: "account.groups", target: { type: "user", id: userId }, details: { groups: sanitiseAccessGroups(groups).join(", ") || "none" } });
     touchAdmin();
     return { ok: true, data: null };
   } catch (err) {

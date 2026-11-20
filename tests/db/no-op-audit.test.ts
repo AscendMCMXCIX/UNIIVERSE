@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
 
@@ -150,6 +150,10 @@ describe("a change that does nothing writes no audit row", () => {
     await onceThenNothing("account.permissions", () => userActions.setUserPermissionsAction(memberId, { custom: ["view-team"] }));
     await onceThenNothing("account.groups", () => userActions.setAccessGroupsAction(memberId, ["player-manager"]));
     await onceThenNothing("account.groups", () => userActions.setAccessGroupsAction(memberId, []));
+    // The row names what was saved: a name that is no group is dropped, so it is not recorded either.
+    expect(await userActions.setAccessGroupsAction(memberId, ["player-manager", "view-teammate-stats"])).toMatchObject({ ok: true });
+    const [last] = await handle.db.select({ details: auditEvents.details }).from(auditEvents).where(eq(auditEvents.action, "account.groups")).orderBy(desc(auditEvents.id)).limit(1);
+    expect(last!.details).toEqual({ groups: "player-manager" });
   });
 
   it("administrator access (any administrator grants and removes it, OD8c), each once", async () => {
