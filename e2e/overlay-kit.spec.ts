@@ -270,3 +270,202 @@ test("desktop: a choice in the Filters popover stays when it closes (Done, Escap
   await page.goBack();
   await expect(page).toHaveURL(/\/team$/);
 });
+
+/*
+  The phone window shell at large text (Release 10, PLAN S2b's frame rule): at 320 × 568 and
+  375 × 667, at 100, 150 and 200% text, once the body has scrolled 100px every whole-screen window's
+  frame (what stays at the top while the content goes under it: the header, its 56px bar, or the
+  floating controls of a window that scrolls as one) takes at most a quarter of the screen. A plain
+  title bar collapses too, its title kept on one line (cut short with an ellipsis, the whole title
+  still the window's name): the person window in Admin was 387px of 568 at 200%. Every control of
+  the frame stays on the screen, ✕ closes it with the focus back on what opened it, and Back closes
+  the windows that have an address.
+*/
+const WINDOWS: { name: string; view: "player" | "admin"; path: (page: Page) => Promise<string>; opener: string; win: string; address?: RegExp }[] = [
+  { name: "Team player", view: "player", path: async () => "/team", opener: "[data-testid=lineup-row-TOP] [data-testid=open-player-detail]", win: "player-detail", address: /player=/ },
+  { name: "Players Peek", view: "player", path: async () => "/players", opener: "[data-testid=player-peek-open] >> nth=1", win: "player-peek", address: /player=/ },
+  { name: "Leaderboards Peek", view: "player", path: async () => "/leaderboards", opener: "[data-testid=board-peek-open] >> nth=1", win: "player-peek", address: /player=/ },
+  { name: "game", view: "player", path: async (page) => `${await teammate(page)}/matches`, opener: "[data-testid=match-row] >> nth=1", win: "match-detail", address: /match=/ },
+  { name: "Matchup Intel picker", view: "player", path: async () => "/resources/matchups", opener: "[data-testid=matchup-pick-you]", win: "matchup-picker" },
+  { name: "Matchup Intel details", view: "player", path: async () => "/resources/matchups?champion=Riven&vs=Yone", opener: "[data-testid=ability-details] >> nth=0", win: "", },
+  { name: "Admin person", view: "admin", path: async () => "/admin/people", opener: "[data-person] >> nth=1", win: "person-view", address: /person=/ },
+];
+
+test("phone 320 × 568 and 375 × 667 at 100, 150 and 200% text: after a 100px scroll every whole-screen window's frame is at most 25% of the screen, its controls on it; ✕ and Back close it", async ({ page, context, baseURL }) => {
+  test.skip(!isPhone(page), "the phone window shell");
+  test.setTimeout(240_000);
+  for (const w of WINDOWS) {
+    for (const [width, height] of [[320, 568], [375, 667]] as const) {
+      await context.addCookies([{ name: "uniiverse_view", value: w.view, url: baseURL! }]);
+      await page.setViewportSize({ width, height });
+      await page.goto(await w.path(page));
+      await page.waitForLoadState("networkidle");
+      const opener = page.locator(w.opener);
+      const open = () => opener.evaluate((e) => { (e as HTMLElement).focus({ preventScroll: true }); (e as HTMLElement).click(); });
+      await open();
+      const win = page.locator("dialog[open]");
+      await expect(win).toHaveCount(1);
+      if (w.win) await expect(win).toHaveAttribute("data-testid", w.win);
+      for (const size of [100, 150, 200]) {
+        await page.evaluate((s) => { document.documentElement.style.fontSize = `${s}%`; }, size);
+        const m = await win.evaluate(async (d) => {
+          const frames = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+          await frames();
+          const header = d.querySelector<HTMLElement>("[data-modal-handle]:not([data-testid=modal-compact-bar])") ?? (d.firstElementChild as HTMLElement);
+          const flow = getComputedStyle(d).overflowY === "auto";
+          const scroller = flow ? d : (header.nextElementSibling as HTMLElement);
+          scroller.scrollTop = 0;
+          await frames();
+          scroller.scrollTop = 100;
+          await new Promise((r) => setTimeout(r, 350));
+          const bar = d.querySelector<HTMLElement>("[data-testid=modal-compact-bar]");
+          const barBottom = bar && getComputedStyle(bar).opacity === "1" ? bar.getBoundingClientRect().bottom : 0;
+          const controls = d.querySelector<HTMLElement>("[data-testid=modal-controls]")!;
+          const fixed = getComputedStyle(controls).position === "fixed" ? controls.getBoundingClientRect().bottom : 0;
+          const frame = flow ? Math.max(barBottom, fixed) : Math.max(barBottom, header.getBoundingClientRect().bottom);
+          const vw = document.documentElement.clientWidth;
+          const off = [...controls.querySelectorAll<HTMLElement>("button, a[href]")].filter((b) => { const r = b.getBoundingClientRect(); return r.left < -0.5 || r.right > vw + 0.5; }).map((b) => b.getAttribute("aria-label") ?? b.textContent);
+          return { frame: Math.round(frame), scrolled: Math.round(scroller.scrollTop), off, title: d.querySelector("h2")?.textContent ?? "" };
+        });
+        const at = `${w.name} at ${width} × ${height}, ${size}%`;
+        expect(m.off, `${at}: controls on the screen`).toEqual([]);
+        // A body too short to scroll 100px leaves its header as it is: nothing to give back.
+        if (m.scrolled >= 100) expect(m.frame, `${at}: the frame after a 100px scroll`).toBeLessThanOrEqual(height * 0.25);
+      }
+      // The whole title stays the window's name, whatever the bar draws.
+      const name = await win.evaluate((d) => document.getElementById(d.getAttribute("aria-labelledby")!)?.textContent?.trim() ?? "");
+      expect(name.length, `${w.name}: the window is named`).toBeGreaterThan(0);
+      if (width === 320) {
+        if (w.address) {
+          await expect(page).toHaveURL(w.address);
+          await page.goBack();
+          await expect(win).toHaveCount(0);
+          await expect(page).not.toHaveURL(w.address);
+          await open();
+          await expect(win).toHaveCount(1);
+        }
+        await win.locator("[data-testid=modal-controls] button[aria-label=Close], [data-testid=modal-controls] button[aria-label^='Close']").last().tap();
+        await expect(win).toHaveCount(0);
+        if (w.address) await expect(page).not.toHaveURL(w.address);
+        // The focus goes back to what opened the window.
+        await expect.poll(() => page.evaluate(() => (document.activeElement === document.body ? "body" : document.activeElement?.closest("dialog") ? "dialog" : "page")), `${w.name}: the focus is back on the page`).toBe("page");
+      }
+      await page.evaluate(() => { document.documentElement.style.fontSize = ""; });
+    }
+  }
+});
+
+/*
+  The player Peek at 320px with large text (Release 9's report: "Previous player" 9px past the left
+  edge at 200%): on Players' and Leaderboards' rows, upright (320 × 568) and sideways (568 × 320), at
+  125, 150, 175 and 200% text, every control of the Peek, its ‹ › and ✕ and everything in its body,
+  is on the screen, the frame's controls 44px on touch, nothing scrolls sideways, and the pool's
+  experience labels are whole (the name's column was 0px wide at 200%, the label 23px past the edge).
+*/
+test("phone: the player Peek on Players and Leaderboards keeps every control on a 320px screen at 125–200% text, upright and sideways", async ({ page }) => {
+  test.skip(!isPhone(page), "the Peek's phone window");
+  test.setTimeout(120_000);
+  for (const [path, opener] of [["/players", "player-peek-open"], ["/leaderboards", "board-peek-open"]] as const) {
+    for (const [width, height] of [[320, 568], [568, 320]] as const) {
+      await page.setViewportSize({ width, height });
+      await page.goto(path);
+      await page.waitForLoadState("networkidle");
+      await page.getByTestId(opener).nth(1).evaluate((e) => (e as HTMLElement).click());
+      const win = page.getByTestId("player-peek");
+      await expect(win).toBeVisible();
+      await expect(win.getByTestId("pool-list").first()).toBeVisible();
+      for (const size of [125, 150, 175, 200]) {
+        await page.evaluate((s) => { document.documentElement.style.fontSize = `${s}%`; }, size);
+        const m = await win.evaluate(async (d) => {
+          await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+          const vw = document.documentElement.clientWidth;
+          const name = (e: Element) => e.getAttribute("aria-label") ?? e.textContent?.trim().slice(0, 30);
+          const off = [...d.querySelectorAll<HTMLElement>("button, a[href]")].filter((e) => { const r = e.getBoundingClientRect(); return r.width > 0 && (r.left < -0.5 || r.right > vw + 0.5); }).map(name);
+          const small = [...d.querySelectorAll<HTMLElement>("[data-testid=modal-controls] button")].filter((e) => { const r = e.getBoundingClientRect(); return r.width < 43.5 || r.height < 43.5; }).map(name);
+          const cut = [...d.querySelectorAll<HTMLElement>("[data-testid=tier-quiet]")].filter((e) => { const r = e.getBoundingClientRect(); const cell = e.closest("li")!.getBoundingClientRect(); return r.right > cell.right + 0.5; }).map(name);
+          return { off, small, cut, sideways: document.documentElement.scrollWidth - vw, inside: d.scrollWidth - d.clientWidth };
+        });
+        const at = `${path} at ${width} × ${height}, ${size}%`;
+        expect(m.off, `${at}: controls off the screen`).toEqual([]);
+        expect(m.small, `${at}: the frame's controls under 44px`).toEqual([]);
+        expect(m.cut, `${at}: experience labels past their row`).toEqual([]);
+        expect(m.sideways, `${at}: the page scrolls sideways`).toBeLessThanOrEqual(0);
+        expect(m.inside, `${at}: the window scrolls sideways`).toBeLessThanOrEqual(0);
+      }
+      await page.evaluate(() => { document.documentElement.style.fontSize = ""; });
+    }
+  }
+});
+
+/*
+  The kit's dialogs at 320 × 568 with 200% text (Release 10's sweep): the Task dialog at its two
+  sizes (a confirmation, `form`: "Sign out everywhere" began 44px off the left; a picker: Manage
+  access ran 70px sideways, its grid as wide as the base-access select's widest option), a sheet (a
+  lineup place: the members' names were cut to 0px beside "Now", its radio 3px past the edge) and the
+  sign-in form (the brand's name ended in an ellipsis). In each, every control is on the screen and no
+  text is cut short. (Popover and the desktop Select do not open on a phone: Select is the browser's
+  own there, checked here inside Manage access.)
+*/
+test("phone 320 × 568 at 200% text: the Task dialog (form, picker), a sheet and the sign-in form keep every control on the screen and every word whole", async ({ page, context, browser, baseURL }) => {
+  test.skip(!isPhone(page), "the kit at a phone's width");
+  await page.setViewportSize({ width: 320, height: 568 });
+  const big = () => page.evaluate(() => { document.documentElement.style.fontSize = "200%"; });
+  const check = async (p: Page, what: string) => {
+    const m = await p.locator("dialog[open]").last().evaluate(async (d) => {
+      await new Promise((r) => setTimeout(r, 300));
+      const vw = document.documentElement.clientWidth;
+      const name = (e: Element) => (e.getAttribute("aria-label") ?? e.textContent ?? "").trim().slice(0, 30);
+      const off = [...d.querySelectorAll<HTMLElement>("button, a[href], input, select, textarea")].filter((e) => { const r = e.getBoundingClientRect(); return r.width > 1 && (r.left < -0.5 || r.right > vw + 0.5); }).map(name);
+      // Text cut short: an element with its own text, clipped or ending in an ellipsis, narrower than its text.
+      const cut = [...d.querySelectorAll<HTMLElement>("*")].filter((e) => {
+        if (e.closest(".sr-only") || ![...e.childNodes].some((n) => n.nodeType === 3 && n.textContent!.trim())) return false;
+        const cs = getComputedStyle(e);
+        return (cs.overflowX !== "visible" || cs.textOverflow === "ellipsis") && e.scrollWidth > e.clientWidth + 1;
+      }).map(name);
+      // What a finger could scroll sideways: the window, or a scroller in it.
+      const sideways = [d, ...d.querySelectorAll<HTMLElement>("*")].filter((e) => /auto|scroll/.test(getComputedStyle(e).overflowX) && e.scrollWidth > e.clientWidth + 1).length;
+      return { off, cut, sideways };
+    });
+    expect(m.off, `${what}: controls off the screen`).toEqual([]);
+    expect(m.cut, `${what}: text cut short`).toEqual([]);
+    expect(m.sideways, `${what}: scrolls sideways`).toBe(0);
+  };
+
+  // Admin: a confirmation (form) and Manage access (picker), from the person window.
+  await context.addCookies([{ name: "uniiverse_view", value: "admin", url: baseURL! }]);
+  await page.goto("/admin/people");
+  await page.waitForLoadState("networkidle");
+  await big();
+  await page.locator("[data-person]").nth(1).evaluate((e) => (e as HTMLElement).click());
+  const person = page.getByTestId("person-view");
+  await expect(person).toBeVisible();
+  for (const [opener, what] of [["sign-out-everywhere", "a confirmation (form)"], ["", "Manage access (picker)"]] as const) {
+    const button = opener ? person.getByTestId(opener) : person.getByRole("button", { name: "Manage access" });
+    await button.evaluate((e) => (e as HTMLElement).click());
+    await expect(page.locator("dialog[open]")).toHaveCount(2);
+    await check(page, what);
+    await page.locator("dialog[open]").last().getByTestId("dialog-close").click();
+    await expect(page.locator("dialog[open]")).toHaveCount(1);
+  }
+
+  // A sheet: who starts in a lineup place.
+  await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
+  await page.goto("/team");
+  await page.waitForLoadState("networkidle");
+  await big();
+  await page.getByTestId("edit-lineup").evaluate((e) => (e as HTMLElement).click());
+  await page.getByTestId("lineup-change-TOP").evaluate((e) => (e as HTMLElement).click());
+  await expect(page.getByTestId("lineup-sheet-TOP")).toBeVisible();
+  await check(page, "a lineup sheet");
+
+  // The sign-in form, for a guest.
+  const guest = await browser.newContext({ viewport: { width: 320, height: 568 }, isMobile: true, hasTouch: true });
+  await guest.addCookies([{ name: "uniiverse_guest", value: "1", url: baseURL! }]);
+  const g = await guest.newPage();
+  await g.goto("/public");
+  await g.evaluate(() => { document.documentElement.style.fontSize = "200%"; });
+  await g.getByTestId("public-sign-in").evaluate((e) => (e as HTMLElement).click());
+  await expect(g.getByTestId("sign-in-window")).toBeVisible();
+  await check(g, "the sign-in form");
+  await guest.close();
+});

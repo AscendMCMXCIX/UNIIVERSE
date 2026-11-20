@@ -352,12 +352,14 @@ function LineupSheet({ slot, kind, pick, startsElsewhere, onClose }: { slot: Ros
             o.id,
             <>
               <Avatar name={o.name} src={o.avatarUrl} size="sm" />
-              <span className="min-w-0">
-                <span className="flex items-center gap-1.5">
-                  <span className="truncate text-sm font-medium text-fg">{o.name}</span>
+              {/* The name and its hint wrap where the row is narrow (a 320px phone at 200% text), never cut
+                  to nothing: truncated, "Demo Top" was 0px wide beside "Now". */}
+              <span className="min-w-0 grow">
+                <span className="flex flex-wrap items-center gap-x-1.5">
+                  <span className="min-w-0 text-sm font-medium text-fg [overflow-wrap:anywhere]">{o.name}</span>
                   {o.id === current ? <Badge tone="accent">Now</Badge> : null}
                 </span>
-                <span className="block truncate text-xs text-fg-muted">{o.hint}</span>
+                <span className="block text-xs text-fg-muted [overflow-wrap:anywhere]">{o.hint}</span>
                 {o.moves ? <span className="block text-xs text-warn">Starts at {o.moves} now: saving moves them and leaves {o.moves} empty</span> : null}
               </span>
             </>,
@@ -365,7 +367,7 @@ function LineupSheet({ slot, kind, pick, startsElsewhere, onClose }: { slot: Ros
             { name: o.name },
           ),
         )}
-        {none ? option(null, <span className="flex items-center gap-3 text-sm text-fg-muted"><span className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-dashed border-border-strong"><X className="h-4 w-4" aria-hidden /></span>{none}</span>, starter ? "clear-role" : "remove-substitute") : null}
+        {none ? option(null, <span className="flex min-w-0 items-center gap-3 text-sm text-fg-muted"><span className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-dashed border-border-strong"><X className="h-4 w-4" aria-hidden /></span><span className="min-w-0 [overflow-wrap:anywhere]">{none}</span></span>, starter ? "clear-role" : "remove-substitute") : null}
         {starter && slot.waiting.length ? (
           <>
             <p className="pt-2.5 text-xs font-medium text-fg-subtle">Roles not chosen yet</p>
@@ -373,7 +375,7 @@ function LineupSheet({ slot, kind, pick, startsElsewhere, onClose }: { slot: Ros
               option(
                 w.id,
                 <span className="min-w-0">
-                  <span className="block truncate text-sm font-medium text-fg">{w.name}</span>
+                  <span className="block text-sm font-medium text-fg [overflow-wrap:anywhere]">{w.name}</span>
                   <span className="block text-xs text-fg-subtle">setup incomplete: no role chosen yet</span>
                 </span>,
                 "lineup-waiting",
