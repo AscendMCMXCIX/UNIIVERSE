@@ -60,7 +60,7 @@ test("All Champions on a phone: a Sort by control with a direction toggle, no si
   expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
 });
 
-test("All Champions on a phone: the tab names it, Filters on the title's line above the scope's one line, search and Sort by (its mark shown) on one row from 360px, the sorted pair first in semibold", async ({ page }) => {
+test("All Champions on a phone: the tab names it, the scope's one line right under it, the search, Filters and Sort by on one row from 375px (Filters never a line of its own at any text size), the sheet and chips as before, the sorted pair first in semibold", async ({ page }) => {
   test.skip(test.info().project.name !== "phone", "phone only");
   await page.goto("/players");
   const href = await playerEntry(page, "Demo Top").first().getAttribute("href");
@@ -81,34 +81,98 @@ test("All Champions on a phone: the tab names it, Filters on the title's line ab
   const scope = page.getByTestId("all-champions-scope");
   await expect(scope).toHaveText(new RegExp(`^${n} champions? · Season \\d{4} · All supported games$`));
   const lines = (el: HTMLElement) => el.getBoundingClientRect().height / parseFloat(getComputedStyle(el).lineHeight);
-  // One line at 393px with its status's ⓘ (Demo Top's status is the ⓘ alone); Filters at the end of the
-  // title's line above it (SectionHeader's toolbarBesideScope as Release 8 has it, as Season performance).
+  // One line at 393px with its status's ⓘ (Demo Top's status is the ⓘ alone), right under the tabs:
+  // Filters is not on a row of its own above it (PLAN §S2b) but in the list's search and sort row.
   expect(await page.getByTestId("section-scope").evaluate(lines), "393px: the scope and its ⓘ on one line").toBeLessThan(1.5);
-  const [sc, tb] = [(await page.getByTestId("section-scope").boundingBox())!, (await page.getByTestId("section-toolbar").boundingBox())!];
-  expect(tb.y + tb.height, "393px: Filters above the scope").toBeLessThanOrEqual(sc.y + 1);
-  expect(tb.x + tb.width, "393px: Filters at the line's end").toBeGreaterThanOrEqual(sc.x + sc.width - 1);
+  expect((await page.getByTestId("section-toolbar").boundingBox())?.height ?? 0, "393px: nothing above the scope (no chips)").toBeLessThanOrEqual(1);
   const search = page.getByTestId("all-champions-search");
   const sort = page.getByTestId("all-champions-sort-mobile");
   const card = page.getByTestId("all-champions-table");
-  // From a 20.5rem card (a 360px phone) the search and Sort by share one row: the words "Sort by"
-  // read out only (the control's accessible name), the sort mark shown before the column's name.
-  for (const width of [393, 375, 360]) {
+  const toggle = page.getByTestId("filter-toggle");
+  // In the list's row once the page knows it is a phone (the server's render keeps its room there), and only there.
+  await expect(page.getByTestId("all-champions-toolbar").getByTestId("filter-toggle"), "Filters in the list's row").toBeVisible();
+  await expect(toggle).toHaveCount(1);
+  const mid = (b: { y: number; height: number }) => b.y + b.height / 2;
+  // From 375px the search, Filters and Sort by share one row: the words "Sort by" read out only (the
+  // control's accessible name); Filters its icon (its word and the summary read out), 44px square.
+  for (const width of [393, 375]) {
     await page.setViewportSize({ width, height: 852 });
-    const [s, o, c] = [(await search.boundingBox())!, (await sort.boundingBox())!, (await card.boundingBox())!];
-    expect(Math.abs(s.y + s.height / 2 - (o.y + o.height / 2)), `${width}px: one row`).toBeLessThanOrEqual(2);
+    const [s, f, o, c] = [(await search.boundingBox())!, (await toggle.boundingBox())!, (await sort.boundingBox())!, (await card.boundingBox())!];
+    // One row at 393 (375 too where the text's width allows: a few px to spare, so not pinned here).
+    if (width === 393) expect(Math.abs(mid(s) - mid(o)), `${width}px: the search and Sort by on one row`).toBeLessThanOrEqual(2);
+    expect(Math.abs(mid(s) - mid(f)), `${width}px: Filters on the search's row`).toBeLessThanOrEqual(2);
+    expect(f.x, `${width}px: Filters after the search`).toBeGreaterThanOrEqual(s.x + s.width - 1);
+    expect(Math.round(f.width) >= 44 && Math.round(f.height) >= 44, `${width}px: Filters 44px`).toBe(true);
     expect(o.x + o.width, `${width}px: inside the card`).toBeLessThanOrEqual(c.x + c.width);
-    expect(s.width, `${width}px: the search keeps room to type`).toBeGreaterThanOrEqual(width >= 375 ? 120 : 100);
+    // Room for its short placeholder whole ("Find…": the icon's 36px, the text, 12px), never "F…".
+    expect(s.width, `${width}px: the search keeps room to type`).toBeGreaterThanOrEqual(84);
+    await expect(search).toHaveAttribute("placeholder", "Find…");
     await expect(page.getByLabel("Sort by")).toBeVisible();
-    expect(await sort.locator("label").evaluate((l) => l.getBoundingClientRect().width), `${width}px: the label read out only`).toBeLessThanOrEqual(1);
-    await expect(page.getByTestId("all-champions-sort-mark"), `${width}px: the sort mark shown`).toBeVisible();
+    if (width === 393) expect(await sort.locator("label").evaluate((l) => l.getBoundingClientRect().width), `${width}px: the label read out only`).toBeLessThanOrEqual(1);
     if (width >= 375) expect(await scope.evaluate(lines), `${width}px: the scope's words on one line`).toBeLessThan(1.5);
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), `${width}px: no sideways scroll`).toBeLessThanOrEqual(0);
   }
-  // On a 320px phone the search keeps its own line, with Sort by and its label under it.
+  await expect(toggle).toHaveAccessibleName(/^Filters: /);
+  // On a 320px phone the search and Filters keep their line, with Sort by and its label under it.
   await page.setViewportSize({ width: 320, height: 568 });
-  const [s, o] = [(await search.boundingBox())!, (await sort.boundingBox())!];
-  expect(o.y, "320px: Sort by under the search").toBeGreaterThanOrEqual(s.y + s.height - 1);
-  expect(await sort.locator("label").evaluate((l) => l.getBoundingClientRect().width), "320px: the label shown").toBeGreaterThan(1);
+  {
+    const [s, f, o] = [(await search.boundingBox())!, (await toggle.boundingBox())!, (await sort.boundingBox())!];
+    expect(Math.abs(mid(s) - mid(f)), "320px: Filters on the search's line").toBeLessThanOrEqual(2);
+    expect(o.y, "320px: Sort by under the search").toBeGreaterThanOrEqual(s.y + s.height - 1);
+    expect(await sort.locator("label").evaluate((l) => l.getBoundingClientRect().width), "320px: the label shown").toBeGreaterThan(1);
+  }
+  // At a large text size, where the search and Filters cannot share a line, Filters ends the "Sort by"
+  // line: never a line of its own, never wider than the phone.
+  for (const [width, size] of [[320, 150], [320, 200], [375, 200], [393, 200]] as const) {
+    await page.setViewportSize({ width, height: 700 });
+    await page.addStyleTag({ content: `html { font-size: ${size}% !important; }` });
+    await expect
+      .poll(async () => {
+        const f = await toggle.boundingBox();
+        if (!f) return false;
+        const others = await Promise.all([search.boundingBox(), sort.locator("label").boundingBox()]);
+        return others.some((b) => b && b.width > 1 && Math.abs(mid(b) - mid(f)) <= f.height / 2);
+      }, { message: `${width}px at ${size}%: Filters shares its line` })
+      .toBe(true);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), `${width}px at ${size}%: no sideways scroll`).toBeLessThanOrEqual(0);
+    await page.reload();
+    await expect(rows.first()).toBeVisible();
+  }
+  await page.setViewportSize({ width: 393, height: 852 });
+  // The sheet as before: opened from the row, closed by Escape with the focus back on Filters; a
+  // choice there is set in the address, counts on the button and shows as a chip above the scope,
+  // which removes itself.
+  await expect(page.getByTestId("all-champions-toolbar").getByTestId("filter-toggle")).toBeVisible();
+  await toggle.click();
+  const sheet = page.getByTestId("filter-sheet");
+  await expect(sheet).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(sheet).toHaveCount(0);
+  await expect(toggle).toBeFocused();
+  // Turned with the sheet open (Filters is drawn in the header from 640px): closed, the focus goes to
+  // the button where it now is, not to the page.
+  await toggle.click();
+  await expect(sheet).toBeVisible();
+  await page.setViewportSize({ width: 700, height: 393 });
+  await page.keyboard.press("Escape");
+  await expect(sheet).toHaveCount(0);
+  await expect(toggle).toBeFocused();
+  await page.setViewportSize({ width: 393, height: 852 });
+  await expect(page.getByTestId("all-champions-toolbar").getByTestId("filter-toggle")).toBeVisible();
+  await toggle.click();
+  await pick(sheet.locator("select[name=mode]"), "solo");
+  await expect(page).toHaveURL(/[?&]mode=solo/);
+  await page.getByTestId("filter-sheet-done").click();
+  await expect(sheet).toHaveCount(0);
+  await expect(toggle.getByTestId("filter-count")).toHaveText("1");
+  const chip = page.getByRole("button", { name: /: remove this filter$/ });
+  await expect(chip).toBeVisible();
+  const [chipBox, scopeBox] = [(await chip.boundingBox())!, (await page.getByTestId("section-scope").boundingBox())!];
+  expect(chipBox.y + chipBox.height, "the chip above the scope").toBeLessThanOrEqual(scopeBox.y + 1);
+  expect(chipBox.x + chipBox.width, "the chip whole on screen").toBeLessThanOrEqual(393 - 15);
+  await chip.click();
+  await expect(page).not.toHaveURL(/mode=solo/);
+  await expect(toggle.getByTestId("filter-count")).toHaveCount(0);
   // Held sideways (a short window), the section's tabs are right above it: the title is read out only there too.
   await page.setViewportSize({ width: 852, height: 393 });
   expect(await title.evaluate((h) => h.getBoundingClientRect().width), "held sideways: the title read out only").toBeLessThanOrEqual(1);

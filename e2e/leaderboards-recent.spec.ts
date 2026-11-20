@@ -584,6 +584,21 @@ test("the season records: seven cells in one panel, each opening its game; multi
   await expect(page).toHaveURL(/\/leaderboards$/);
   await expect(peek).toBeHidden();
   await expect(kills.locator("[data-row-link]")).toBeFocused();
+  // The shared list's row links: on a touch screen each covers its row's dividing line too, so none
+  // is under 44px (43 before: Release 7's report); with a mouse each is its row inside the line, as
+  // before, and the dense rows keep their 44px minimum (the rows' heights are not the links' to set).
+  const links = await page.locator("main [data-row-link]").evaluateAll((els) =>
+    els
+      .filter((e) => e.getBoundingClientRect().height > 0)
+      .map((e) => ({ link: e.getBoundingClientRect().height, inside: e.parentElement!.clientHeight, row: e.parentElement!.getBoundingClientRect().height, minimum: parseFloat(getComputedStyle(e.parentElement!).minHeight) || 0, testId: e.parentElement!.dataset.testid ?? "" })),
+  );
+  expect(links.length).toBeGreaterThan(10);
+  const touch = await page.evaluate(() => matchMedia("(pointer: coarse)").matches);
+  for (const l of links) {
+    if (touch) expect(Math.round(l.link), `${l.testId}: its link on a touch screen`).toBeGreaterThanOrEqual(44);
+    else expect(Math.round(l.link), `${l.testId}: a mouse's link is the row inside its line`).toBe(Math.round(l.inside));
+    if (l.testId === "multikill-row" || l.testId === "milestone-member") expect(l.minimum, `${l.testId}: the dense row's minimum`).toBe(44);
+  }
 });
 
 /** Where each board is on the page (document px), the grid's gap, Recent form's tier (its rows' columns: 4, 6 or 8), and the window. */

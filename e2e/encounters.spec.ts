@@ -320,7 +320,7 @@ test("desktop: Encounters shows Refine off, with its reason reachable (focusable
   await expect(page.getByTestId("refine-unavailable-tip")).toBeVisible();
 });
 
-test("phone 320 and 360 wide: Against, Alongside and All keep their whole width (nothing scrolls sideways in the choice), the search's icon taking the next line where they need the row", async ({ page }) => {
+test("phone 320 and 360 wide: Against, Alongside and All keep their whole width (nothing scrolls sideways in the choice), the search's icon taking the next line where they need the row; the highlights one line and the page never wider than the screen from 320 to 430", async ({ page }) => {
   test.skip(test.info().project.name !== "phone", "a narrow phone");
   const profile = await teammate(page);
   for (const width of [320, 360]) {
@@ -338,7 +338,22 @@ test("phone 320 and 360 wide: Against, Alongside and All keep their whole width 
   const top = `/players/${await page.getByTestId("lineup-row-TOP").getAttribute("data-player-id")}`;
   await openEncounters(page, `${top}/matches?view=encounters&rel=against&min=1&limit=500&sort=recent&mode=solo`);
   await expect(page.getByTestId("encounter-insights")).toBeVisible();
-  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), "375px: the page scrolls sideways by").toBeLessThanOrEqual(0);
+  // At every phone width the highlights keep one line (each at the same height, side by side, the row
+  // scrolling sideways when they outgrow it) and the page is never wider than the screen.
+  for (const width of [320, 360, 375, 390, 430]) {
+    await page.setViewportSize({ width, height: 667 });
+    const row = await page.getByTestId("encounter-insights").evaluate((section) => {
+      const shown = [...section.querySelectorAll<HTMLElement>("[data-testid=encounter-insight]")].filter((a) => a.getBoundingClientRect().width > 0);
+      const tops = shown.map((a) => Math.round(a.getBoundingClientRect().top));
+      // Each highlight's own words on one line: its height that of one line box at most.
+      const lines = shown.map((a) => a.getBoundingClientRect().height / Math.max(44, parseFloat(getComputedStyle(a).lineHeight)));
+      return { n: shown.length, rows: new Set(tops).size, tallest: Math.max(...lines) };
+    });
+    expect(row.n, `${width}px: highlights shown`).toBeGreaterThan(0);
+    expect(row.rows, `${width}px: the highlights on one line`).toBe(1);
+    expect(row.tallest, `${width}px: each highlight's words on one line`).toBeLessThanOrEqual(1.05);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), `${width}px: the page scrolls sideways by`).toBeLessThanOrEqual(0);
+  }
 });
 
 test("a game's scoreboard marks the players met in other games, and a mark opens their games with the same count", async ({ page }) => {

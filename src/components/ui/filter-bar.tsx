@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { RotateCcw, SlidersHorizontal, X } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/cn";
@@ -135,6 +136,7 @@ export function FilterBar({
   end,
   compactToggle = false,
   inlineReset,
+  toggleOnPhones,
 }: {
   /** What is chosen, in a few words ("Season 2026 · All supported games"): the sheet's subtitle, and read with the folded button. */
   summary: string;
@@ -184,6 +186,15 @@ export function FilterBar({
    * leaves the list's choices as they are.
    */
   inlineReset?: { count: number; summary: string; onReset: () => void };
+  /**
+   * Phones (below sm): the folded Filters button is drawn in `host`, a place in the list's own row
+   * (All Champions' search and sort row), so it never takes a row of its own (PLAN §S2b). There it
+   * shows its icon, with the count on its corner, its word and the summary kept for screen readers.
+   * The bar, its chips and its sheet stay where they are (the sheet is in the top layer). `host` is
+   * null until the page has measured that it is a phone: meanwhile the button is not drawn below sm
+   * (the host keeps its room), so the page never moves as it starts. From sm the button stays here.
+   */
+  toggleOnPhones?: { host: HTMLElement | null };
 }) {
   // Who opened the sheet: its own Filters button (phones), or the frame once the bar has scrolled away.
   const [openedFrom, setOpenedFrom] = React.useState<"own" | "toolbar" | "topbar" | null>(null);
@@ -240,6 +251,16 @@ export function FilterBar({
     const was = atOpen.current;
     const changed = chose.current || was.summary !== now.current.summary || was.activeCount !== now.current.activeCount;
     if ((from.current === "toolbar" || from.current === "topbar") && changed) setLandBy(Date.now() + LAND_WITHIN_MS);
+    // Opened from its own button, which a phone turned (or a text size's reflow) has since redrawn
+    // elsewhere (toggleOnPhones): the window hands the focus back to the button it saved, now gone
+    // from the page, so the focus would fall to the page. After its hand-back, to the button as it is.
+    if (from.current === "own")
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() => {
+          const now = document.activeElement;
+          if ((!now || now === document.body || !now.isConnected) && ownRef.current?.isConnected) ownRef.current.focus({ preventScroll: true });
+        }),
+      );
     setOpenedFrom(null);
   }, []);
   const choose = React.useCallback(() => {
@@ -339,18 +360,38 @@ export function FilterBar({
         </button>
       )
     ) : null;
+  // Drawn in the page's own row on a phone (toggleOnPhones): its icon alone, the count on its corner.
+  const hosted = !!toggleOnPhones?.host;
   const filtersButton = (
-    <button ref={ownRef} type="button" onClick={() => openSheet("own")} aria-haspopup="dialog" aria-expanded={open} aria-controls={open ? id : undefined} className={toolbarButtonClass(activeCount > 0, cn(at.toggle, compactToggle && "max-[22.5rem]:min-w-11 max-[22.5rem]:px-2.5"))} data-testid={toggleTestId} data-filter-toggle="">
+    <button
+      ref={ownRef}
+      type="button"
+      onClick={() => openSheet("own")}
+      aria-haspopup="dialog"
+      aria-expanded={open}
+      aria-controls={open ? id : undefined}
+      className={toolbarButtonClass(activeCount > 0, cn(hosted ? cn("relative w-11 px-0 transition-opacity motion-reduce:transition-none", pending && "opacity-60") : at.toggle, !hosted && toggleOnPhones && "max-sm:hidden", compactToggle && "max-[22.5rem]:min-w-11 max-[22.5rem]:px-2.5"))}
+      data-testid={toggleTestId}
+      data-filter-toggle=""
+    >
       <SlidersHorizontal className="h-4 w-4 shrink-0 text-accent" aria-hidden />
-      {compactToggle ? <span className="max-[22.5rem]:sr-only">Filters</span> : "Filters"}
-      <span className="sr-only">: {summary}</span>
+      {hosted ? (
+        <span className="sr-only">Filters: {summary}</span>
+      ) : (
+        <>
+          {compactToggle ? <span className="max-[22.5rem]:sr-only">Filters</span> : "Filters"}
+          <span className="sr-only">: {summary}</span>
+        </>
+      )}
       {activeCount ? (
-        <span className="rounded-full bg-accent px-1.5 text-xs font-semibold tabular-nums text-bg" data-testid="filter-count">
+        <span className={cn("rounded-full bg-accent px-1.5 text-xs font-semibold tabular-nums text-bg", hosted && "absolute -right-1.5 -top-1.5 min-w-5 text-center leading-5")} data-testid="filter-count">
           {activeCount}
         </span>
       ) : null}
     </button>
   );
+  // On a phone, in the page's row instead of here (one button: the sheet hands the focus back to it).
+  const toggleHere = hosted ? null : filtersButton;
   return (
     <FoldContext.Provider value={foldBelow}>
       <div ref={rootRef} className={cn("flex min-w-0 flex-col gap-2 transition-opacity motion-reduce:transition-none", pending && "opacity-60", className)} data-testid={testId} data-filter-bar="" aria-busy={pending || undefined}>
@@ -362,14 +403,15 @@ export function FilterBar({
             // Folded and narrower than 21rem (a phone from 125% text), the search takes a line of its own, so its words are never cut ("Searc…"; UM.P1).
             <div className={cn("@container/fbar flex min-w-0 flex-wrap items-center gap-2 [&>:first-child]:@max-[21rem]/fbar:basis-full", INLINE[foldBelow].contents)}>
               <div className={cn("w-full min-w-0 flex-1", compact ? at.searchCompact : at.search)}>{search}</div>
-              {filtersButton}
+              {toggleHere}
             </div>
           ) : null}
           {!search || chips.length > 0 || end ? (
             // It wraps only when a larger text size leaves no room for Filters and the page's own
             // action side by side (the chips and the spacer take no room of their own: flex-1).
-            <div className={cn("flex min-w-0 flex-wrap items-center gap-2", at.toggle)}>
-              {search ? null : filtersButton}
+            // With the button in the page's row on a phone (toggleOnPhones), this row is the chips' alone, and none without chips.
+            <div className={cn("flex min-w-0 flex-wrap items-center gap-2", at.toggle, toggleOnPhones && !chips.length && !end && "max-sm:hidden")}>
+              {search ? null : toggleHere}
               {chips.length ? (
                 <ScrollRow as="ul" className="-my-1 flex min-w-0 flex-1 gap-1.5 py-1" aria-label="Active filters" data-testid={testId ? `${testId}-chips` : undefined}>
                   {chips.map((c) => (
@@ -403,6 +445,7 @@ export function FilterBar({
             </div>
           )}
         </div>
+        {hosted ? createPortal(filtersButton, toggleOnPhones!.host!) : null}
         {after}
         {/* The sheet: a native dialog in the browser's top layer, so its place inside the bar changes
             nothing on screen, and the bar's fields stay the bar's for whoever looks for them there. */}

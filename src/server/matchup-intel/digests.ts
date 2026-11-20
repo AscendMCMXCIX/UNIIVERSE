@@ -157,3 +157,16 @@ export async function digestHealth(db: Db): Promise<{ patch: string; recorded: R
   for (const r of list) if (r.patch === patch && r.kind in recorded) recorded[r.kind as DigestKind] = Number(r.n);
   return { patch, recorded, previous, changed: previous ? await changedCounts(db, patch, previous) : null };
 }
+
+/**
+ * Admin's data health (Data & Integrations): digestHealth's figures, and the newest patch whose
+ * attempt failed and that has no digests yet (a "patch" mark newer than the newest digests), or
+ * null. Counts and patch names only, as on `/api/health`.
+ */
+export async function staticDiffHealth(db: Db): Promise<{ digests: Awaited<ReturnType<typeof digestHealth>>; failedPatch: string | null }> {
+  const [digests, marks] = await Promise.all([digestHealth(db), db.execute(sql`SELECT DISTINCT patch FROM static_digests WHERE kind = 'patch'`)]);
+  const list = ((marks as unknown as { rows?: Array<{ patch: string }> }).rows ?? (marks as unknown as Array<{ patch: string }>)).map((r) => r.patch);
+  const newer = list.filter((p) => !digests || comparePatches(p, digests.patch) > 0).sort((a, b) => comparePatches(b, a));
+  return { digests, failedPatch: newer[0] ?? null };
+}
+
