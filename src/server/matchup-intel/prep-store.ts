@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
-import { matchPrep, PREP_FORMAT, type MatchPrep, type PrepItemInfo, type PrepParticipant, type PrepTimeline } from "@/domain/matchup-intel/prep";
+import { confirmedOpponent, matchPrep, PREP_FORMAT, type MatchPrep, type PrepItemInfo, type PrepParticipant, type PrepTimeline } from "@/domain/matchup-intel/prep";
 import { loadRiotAssets } from "@/server/riot/static/assets";
 import { invalidateCache } from "@/server/observability/cache";
 
@@ -111,9 +111,11 @@ async function makeRows(db: Db, games: readonly GameRow[], items: Readonly<Recor
     const slot = g.puuid ? parts.findIndex((p) => !p.removed && p.puuid === g.puuid) : -1;
     slots.set(`${g.account_id}|${g.match_id}`, slot);
     if (slot < 0) continue;
+    // The member's own purchases and skill points, and the positions of the member and their lane opponent (the lane's end).
+    const opp = confirmedOpponent(parts, slot);
     const list = wanted.get(g.match_id) ?? [];
-    list.push(...parts.filter((p) => !p.removed && p.puuid).map((p) => p.puuid));
-    wanted.set(g.match_id, [...new Set(list)]);
+    list.push(g.puuid!, ...(opp ? [parts[opp.slot]!.puuid] : []));
+    wanted.set(g.match_id, [...new Set(list.filter(Boolean))]);
   }
   const timelines = await timelinesOf(db, wanted);
   const out: Array<{ accountId: string; matchId: string; prep: MatchPrep }> = [];
