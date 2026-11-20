@@ -241,11 +241,11 @@ export function FilterBar({
   const choose = React.useCallback(() => {
     chose.current = true;
   }, []);
-  // The popover has a history entry of its own while it is open (the one history rule): Back (the
-  // installed Android app's included) closes it and changes nothing else; closed any other way it
-  // takes the entry away again. A choice in it replaces the page's query, and the entry with it,
-  // so a changed filter is never undone by closing (use-back-closes.ts).
-  useBackCloses(asPopover, closeSheet);
+  // The Filters, popover or sheet, have a history entry of their own while open (the one history
+  // rule): Back (the installed Android app's included) closes them and changes nothing else; closed
+  // any other way they take the entry away again. A choice in them replaces the page's query, and
+  // the entry with it, so a changed filter is never undone by closing (use-back-closes.ts).
+  useBackCloses(open, closeSheet);
   const closePopover = React.useCallback(
     (restoreFocus: boolean) => {
       const back = anchor();

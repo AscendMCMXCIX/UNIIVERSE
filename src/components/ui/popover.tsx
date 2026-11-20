@@ -94,8 +94,13 @@ export function Popover({ anchor, onClose, title, description, children, footer,
   }, [place]);
   // The focus moves in once it is placed (a hidden panel cannot take it), once.
   const placed = pos !== null;
-  React.useLayoutEffect(() => {
-    if (placed) ref.current?.focus({ preventScroll: true });
+  React.useEffect(() => {
+    if (!placed) return;
+    const frame = requestAnimationFrame(() => {
+      const p = ref.current;
+      if (p && !p.contains(document.activeElement)) p.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
   }, [placed]);
 
   React.useEffect(() => {
@@ -150,7 +155,9 @@ export function Popover({ anchor, onClose, title, description, children, footer,
         if (to && !ref.current?.contains(to) && !latest.current.anchor()?.contains(to)) latest.current.onClose(false);
       }}
       style={{ position: "fixed", top: pos?.top ?? 0, left: pos?.left ?? 0, maxHeight: pos?.maxHeight, visibility: pos ? "visible" : "hidden" }}
-      className={cn("z-50 flex flex-col overflow-hidden rounded-lg border border-border-strong bg-bg-elevated text-fg shadow-2xl outline-none", widthClassName, pos && (pos.up ? "popover-in-up" : "popover-in"))}
+      // No transition of its own: with reduced motion every element's transitions last 0.01ms
+      // (globals.css), which would hold its first frame hidden, where it cannot take the focus.
+      className={cn("z-50 flex flex-col overflow-hidden rounded-lg border border-border-strong bg-bg-elevated text-fg shadow-2xl outline-none transition-none", widthClassName, pos && (pos.up ? "popover-in-up" : "popover-in"))}
     >
       <div className="flex shrink-0 items-start justify-between gap-3 border-b border-border px-4 py-3">
         <div className="min-w-0">

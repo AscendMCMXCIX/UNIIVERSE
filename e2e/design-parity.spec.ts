@@ -11,7 +11,20 @@ import { test, expect, type Page } from "./test";
 */
 test.skip(({ viewport, browserName }) => viewport?.width !== 1440 || browserName !== "chromium", "the desktop project sets both sizes itself");
 
-type Target = { name: string; path: (mate: string) => string; phone?: (mate: string) => string; selector: string; phoneSelector?: string; open?: string };
+type Target = { name: string; path: (mate: string) => string; phone?: (mate: string) => string; selector: string; phoneSelector?: string; open?: string; phoneOpen?: string; prepare?: (page: Page) => Promise<void> };
+
+/** Down to the end of the page in steps, as a reader scrolls (the pinned row then offers Filters). */
+async function toTheEnd(page: Page) {
+  await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
+  await page.evaluate(async () => {
+    const end = document.documentElement.scrollHeight - innerHeight;
+    for (let y = window.scrollY; y < end; y += 240) {
+      window.scrollTo(0, y);
+      await new Promise((r) => requestAnimationFrame(() => r(null)));
+    }
+    window.scrollTo(0, end);
+  });
+}
 
 const TARGETS: Target[] = [
   { name: "stat label", path: (m) => m, selector: "main [class*=tracking-label]" },
@@ -24,12 +37,20 @@ const TARGETS: Target[] = [
   // One Select (ui/select.tsx): the app's popover button on a desktop (the Overview's game filter), the
   // browser's own select in the phone posture (All Champions' sort), both drawn by selectClass.
   { name: "Select", path: (m) => m, phone: (m) => `${m}/champions`, selector: "main [data-select]", phoneSelector: "select#all-champions-sort-by" },
+  // The overlay kit (S4a): the Team player Peek, docked on a desktop and in its phone window; the
+  // phone window shell's ‹ › (PreviewWindow's SiblingSteps, the same buttons in the docked panel);
+  // the pinned row's Filters, a Popover on a desktop and the sheet a touch phone keeps.
+  { name: "Peek", path: () => "/team", selector: "[data-peek-panel]", phoneSelector: "dialog[data-testid=player-detail]", open: "[data-testid=lineup-row-MID] [data-testid=open-player-detail]" },
+  { name: "PreviewWindow (‹ ›)", path: () => "/team", selector: "[data-testid=detail-next]", open: "[data-testid=lineup-row-MID] [data-testid=open-player-detail]" },
+  { name: "Popover", path: (m) => `${m}/matches`, selector: "[data-popover]", phoneSelector: "dialog[data-testid=filter-sheet]", prepare: toTheEnd, open: "[data-testid=toolbar-filters]", phoneOpen: "[data-testid=match-history] [data-testid=filter-toggle]" },
 ];
 
 /** Differences DESIGN_SYSTEM.md lists, by component and property, each with its reason. */
 const LISTED: Record<string, Partial<Record<string, string>>> = {
   "badge (chip)": { sizeRem: "the 12px floor: text-2xs is 12px on desktops, 11px on phones (globals.css)" },
   Select: { sizeRem: "a field's text is 16px on a touch screen, so iOS does not zoom into it (STANDARDS: fields); 14px with a mouse" },
+  Peek: { border: "the docked panel's edge is its left border alone (border-l), over the page; the phone's window has the window's border all round" },
+  Popover: { radius: "a touch phone keeps the sheet, docked to the bottom edge with the sheet's 1.25rem top corners; the popover has a menu's rounded-lg" },
 };
 
 async function look(page: Page, selector: string, open?: string) {
@@ -70,8 +91,9 @@ test("the shared components look the same on a phone and on a desktop", async ({
   for (const t of TARGETS) {
     await dp.goto(t.path(mate));
     await pp.goto((t.phone ?? t.path)(mate));
+    if (t.prepare) await t.prepare(dp);
     const d = await look(dp, t.selector, t.open);
-    const p = await look(pp, t.phoneSelector ?? t.selector, t.open);
+    const p = await look(pp, t.phoneSelector ?? t.selector, t.phoneOpen ?? t.open);
     for (const key of Object.keys(d) as Array<keyof typeof d>) {
       if (d[key] === p[key] || LISTED[t.name]?.[key]) continue;
       problems.push(`${t.name}: ${key} is ${String(p[key])} on a phone, ${String(d[key])} on a desktop`);
