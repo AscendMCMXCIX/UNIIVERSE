@@ -113,8 +113,9 @@ test("the toolbar Select at 200% text: every option whole and inside the screen,
   const profile = await teammate(page);
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto(profile);
-  await page.evaluate(() => (document.documentElement.style.fontSize = "200%"));
   const mode = page.locator("#overview-mode");
+  await ready(mode);
+  await page.evaluate(() => (document.documentElement.style.fontSize = "200%"));
   await mode.scrollIntoViewIfNeeded();
   await mode.click();
   const list = page.getByRole("listbox", { name: "Game mode" });
@@ -144,4 +145,19 @@ test("on a phone, the Select is the browser's own select, with the phone's own p
   expect(await sort.evaluate((el) => el.tagName)).toBe("SELECT");
   await sort.selectOption("games");
   await expect(sort).toHaveValue("games");
+});
+
+test("without JavaScript, a form's Select is the browser's own select, so the Overview's filters form still carries the choice", async ({ browser, baseURL }, info) => {
+  test.skip(info.project.name !== "desktop", "the server's own markup, the same at every width");
+  const ctx = await browser.newContext({ javaScriptEnabled: false, viewport: { width: 1280, height: 800 } });
+  await ctx.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
+  const page = await ctx.newPage();
+  await page.goto("/team");
+  const id = await page.locator("[data-testid=lineup-row-MID]").first().getAttribute("data-player-id");
+  await page.goto(`/players/${id}`);
+  const mode = page.locator("form[method=get] select#overview-mode");
+  await expect(mode).toHaveCount(1);
+  await expect(mode).toHaveAttribute("name", "mode");
+  await expect(page.locator("form[method=get] input[type=hidden][name=mode]")).toHaveCount(0);
+  await ctx.close();
 });

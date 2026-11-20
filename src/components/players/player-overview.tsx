@@ -220,7 +220,7 @@ function KillsTotal({ perf }: { perf: PerformanceSummary }) {
       <span className="font-semibold text-fg-muted tabular-nums" data-testid="stat-total-kills-value">
         {formatCount(perf.totalKills)}
       </span>{" "}
-      kills
+      {perf.totalKills === 1 ? "kill" : "kills"}
       {partial ? <span className="sr-only">{`, counted in ${formatCount(perf.detailedGames)} of ${formatCount(perf.games)} games`}</span> : null}
     </span>
   );

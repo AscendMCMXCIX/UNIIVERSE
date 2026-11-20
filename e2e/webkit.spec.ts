@@ -672,6 +672,20 @@ test("the one Select in Safari's engine: the iPhone keeps its own picker; with a
   await expect(dp).toHaveURL(/mode=/);
   await expect(mode).toBeFocused();
   await desk.close();
+  // An iPad (768 × 1024, touch): the popover, and a tap on an option chooses it (WebKit sends no click
+  // after a cancelled press, which had left the list open and the address as it was).
+  const pad = await browser.newContext({ viewport: { width: 768, height: 1024 }, hasTouch: true });
+  await pad.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
+  const tp = await pad.newPage();
+  await tp.goto(`${profile}?mode=all`);
+  const padMode = tp.locator("#overview-mode");
+  await ready(padMode);
+  expect(await padMode.evaluate((el) => el.tagName)).toBe("BUTTON");
+  await padMode.tap();
+  await tp.getByRole("listbox", { name: "Game mode" }).locator("[data-value=flex]").tap();
+  await expect(tp).toHaveURL(/mode=flex/);
+  await expect(tp.getByRole("listbox", { name: "Game mode" })).toHaveCount(0);
+  await pad.close();
 });
 
 test("forms: text fields are at least 16px (Safari zooms into smaller ones) and sign-in offers saved passwords", async ({ browser, page, baseURL }) => {

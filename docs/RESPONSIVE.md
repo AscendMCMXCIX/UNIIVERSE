@@ -703,6 +703,12 @@ CM AC-11, reversible: OD20). `e2e/champion-preview.spec.ts` checks the geometry,
 Escape at 1440, the content and old addresses on all three projects, and the sheet (phone) and docked
 panel (tablet).
 
+The player Peek's pool list (Team, Players, Leaderboards; `PoolChampionTile`) takes its columns
+(Win rate, Games, KDA, CS/min or Vision) from its own width, 28rem or more (`@container/pool`), and
+below that each champion's figures in a short block. Until 20 Nov 2026 the columns came from a 640px
+screen, and the docked panel at 1280 (a 25rem list) cut the names to "A.." with the headings running
+together; the 1440 panel (28.6rem) keeps the columns. `e2e/players-directory.spec.ts` checks 1280.
+
 ## Tests
 
 `pnpm build && pnpm test:e2e` runs `e2e/responsive.spec.ts` on phone (375), tablet (768) and

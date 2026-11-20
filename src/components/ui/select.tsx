@@ -24,8 +24,9 @@ import { useWindowPosture } from "./posture";
   - **Opens** on a click, Enter, Space, ↓ or ↑. **Moves** with ↑ ↓, Home, End, Page Up and Down, and
     type-ahead (the first option starting with what was typed in the last half second; typed while
     closed, it chooses, as a native select does). **Chooses** with Enter, Space or a click.
-    **Closes** on a choice, Escape, Tab, an outside press, a resize, or the button leaving the screen
-    (a scroll otherwise moves the list with it).
+    **Closes** on a choice, Escape, Tab, an outside press (which does nothing else, as a native
+    picker takes it), a resize, or the button leaving the screen or the view of what scrolls it (a
+    scroll otherwise moves the list with it).
   - **A choice** calls `onValueChange` with the option's value, exactly as the native select's change
     did: each caller writes it into the address as before.
   - **Width.** The closed button is as wide as its widest option, as a native select is, so a
@@ -112,10 +113,13 @@ export function nextEnabled(options: readonly SelectOption[], from: number, step
 
 export function Select(props: SelectProps) {
   const native = useWindowPosture();
-  if (native) {
+  const ready = React.useSyncExternalStore(noop, yes, no);
+  // A field of a form (it has a `name`) is the browser's own select until the page's code runs, so
+  // the form works without JavaScript (the Overview's filters and their noscript Apply).
+  if (native || (props.name && !ready)) {
     const { value, options, onValueChange, className, "data-testid": testId, ...rest } = props;
     return (
-      <NativeSelect {...rest} value={value} onChange={(e) => onValueChange(e.target.value)} className={className} data-testid={testId}>
+      <NativeSelect {...rest} value={value} onChange={(e) => onValueChange(e.target.value)} className={className} data-testid={testId} data-ready={ready || undefined}>
         {runsOf(options).map((run) => {
           const items = run.items.map(({ option: o }) => (
             <option key={o.value} value={o.value} disabled={o.disabled}>
@@ -159,6 +163,8 @@ function PopoverSelect({ value, options, onValueChange, id, "aria-label": ariaLa
 
   const show = () => {
     if (disabled) return;
+    // Safari does not focus a clicked button; the keys work on the list through the button's focus.
+    buttonRef.current?.focus({ preventScroll: true });
     setListName(ariaLabel ?? labelOf(buttonRef.current));
     setActive(selected >= 0 ? selected : nextEnabled(options, -1, 1));
     setOpen(true);
@@ -198,9 +204,19 @@ function PopoverSelect({ value, options, onValueChange, id, "aria-label": ariaLa
 
   React.useEffect(() => {
     if (!open) return;
+    // A press outside closes the list and does nothing else, as a native select's picker takes it:
+    // in the Filters window it closed the list and the window with it. The press's click is dropped.
     const onPointer = (e: PointerEvent) => {
       const t = e.target as Node;
       if (listRef.current?.contains(t) || buttonRef.current?.contains(t)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const drop = (c: Event) => {
+        c.preventDefault();
+        c.stopPropagation();
+      };
+      document.addEventListener("click", drop, { capture: true, once: true });
+      window.setTimeout(() => document.removeEventListener("click", drop, true), 600);
       close();
     };
     let frame = 0;
@@ -208,8 +224,12 @@ function PopoverSelect({ value, options, onValueChange, id, "aria-label": ariaLa
       if (listRef.current?.contains(e.target as Node)) return;
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
-        const r = buttonRef.current?.getBoundingClientRect();
-        if (!r || r.bottom < 0 || r.top > screenHeight()) close();
+        const b = buttonRef.current;
+        const r = b?.getBoundingClientRect();
+        // Gone from the screen, or from view inside what scrolls it (a window's body, Refine's panel,
+        // under a pinned bar): nothing is drawn at its centre but something else.
+        const hit = r ? document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2) : null;
+        if (!b || !r || r.bottom < 0 || r.top > screenHeight() || !hit || !b.contains(hit)) close();
         else place();
       });
     };
@@ -378,8 +398,11 @@ function PopoverSelect({ value, options, onValueChange, id, "aria-label": ariaLa
               className={cn("z-[60] max-w-[min(24rem,calc(100vw-1rem))] overflow-y-auto overscroll-contain rounded-lg border border-border-strong bg-bg-elevated p-1 shadow-2xl", pos && (pos.up ? "popover-in-up" : "popover-in"))}
               data-testid={testId ? `${testId}-list` : undefined}
               data-select-list=""
-              // A press on the list keeps the focus on the button.
-              onPointerDown={(e) => e.preventDefault()}
+              // A mouse press on the list keeps the focus on the button (on a touch screen, WebKit sends
+              // no click after a cancelled press, so a tap is left alone: it never moves the focus).
+              onPointerDown={(e) => {
+                if (e.pointerType === "mouse") e.preventDefault();
+              }}
             >
               {runsOf(options).map((run) => {
                 const items = run.items.map(({ option: o, index: i }) => (
