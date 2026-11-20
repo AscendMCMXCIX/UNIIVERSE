@@ -136,6 +136,8 @@ import { redact } from "./redact.mjs";
 import { riotKeysOnPage } from "./riot-keys.mjs";
 import { rosterRowLines } from "./roster-lines.mjs";
 import { matchupIntelVerdicts, readMatchupIntel } from "./matchup-intel-facts.mjs";
+import { noteRules, postGameVerdicts, readPostGame } from "./post-game-facts.mjs";
+import { championPreviewVerdicts, firstWithGames, readChampionPreview, readChampionRows } from "./champion-preview-facts.mjs";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 
@@ -1226,6 +1228,7 @@ async function allChampions(page, log, kind, playerId) {
       const backed = await content.waitFor({ state: "detached", timeout: 5_000 }).then(() => true, () => false);
       const still = after.x.every((x, i) => Math.abs(x - before.x[i]) <= 1) && after.y === before.y;
       pass("games", `${kind}: the champion preview opens beside the list (Champion, Games and Win rate in place, the page not scrolled); Escape and Back close it`, opened && after.aside && still && escaped && again && backed, { opened, aside: after.aside, before, after: { x: after.x, y: after.y }, escaped, backed });
+      await guarded("all-champions", `${kind}: the preview's content`, () => championPreviewFacts(page, kind));
     } else {
       // The shared Peek: a sheet on the phone, the panel docked at the right on the tablet.
       const sheet = await page.locator(kind === "phone" ? "dialog[open][data-testid=champion-preview]" : "aside[data-peek-panel][data-testid=champion-preview]").count();
@@ -1239,6 +1242,56 @@ async function allChampions(page, log, kind, playerId) {
       pass("games", `${kind}: the champion preview opens (${kind === "phone" ? "a sheet" : "the docked panel"}) and Back closes it`, opened && sheet === 1 && closed, { opened, sheet, closed });
     }
   }
+}
+
+/**
+ * All Champions' preview, its content (PLAN §6 rows 4.5a–4.10; scripts/champion-preview-facts.mjs), on
+ * the desktop, from the page already loaded: the first champion with 3+ games opens (its answer is
+ * usually the one the fact above already asked for), its first opponent opens (one server action:
+ * the pairing's games), ↓ moves to the next row (one more: that row's preview), and Escape closes it.
+ * A list with no such champion is a warning, not a failure.
+ */
+async function championPreviewFacts(page, kind) {
+  const rows = await page.evaluate(readChampionRows);
+  const i = firstWithGames(rows, 3);
+  if (i < 0) return warn("all-champions", `${kind}: skipped: no champion on the list has 3 or more games, so the preview's content was not read`, { rows: rows.length });
+  const button = page.locator("[data-testid=top-champion]").nth(i).locator("[data-open-champion]");
+  await button.click();
+  const content = page.getByTestId("champion-preview-content");
+  await content.waitFor({ timeout: 15_000 }).catch(() => {});
+  // Loaded: the foot line comes with the answer (or the "could not be loaded" line in its place).
+  await page.waitForFunction(() => !document.querySelector("[data-testid=champion-preview-loading]"), null, { timeout: 15_000 }).catch(() => {});
+  const opponent = content.locator("[data-testid=champion-preview-opponent] > button").first();
+  if (await opponent.count()) {
+    await opponent.click();
+    await content.getByTestId("champion-preview-intel").waitFor({ timeout: 15_000 }).catch(() => {});
+  }
+  const at = await page.evaluate(readChampionPreview, i);
+  // ↓ from the row: the next row's preview, the address replaced (the list keeps the keys while the focus is in it).
+  let step = null;
+  if (rows.length > 1) {
+    const before = await page.evaluate(() => ({ url: location.href, length: history.length }));
+    await button.focus();
+    await page.keyboard.press("ArrowDown");
+    const next = (i + 1) % rows.length;
+    const moved = await page
+      .waitForFunction((n) => {
+        const row = document.querySelectorAll("[data-testid=top-champion]")[n];
+        const c = document.querySelector("[data-testid=champion-preview-content]");
+        return !!row && !!c && c.getAttribute("data-champion") === row.getAttribute("data-champion") && c.getAttribute("data-role") === row.getAttribute("data-role");
+      }, next, { timeout: 10_000 })
+      .then(() => true, () => false);
+    const after = await page.evaluate((n) => {
+      const row = document.querySelectorAll("[data-testid=top-champion]")[n];
+      const q = new URLSearchParams(location.search);
+      return { url: location.href, length: history.length, address: q.get("champion") === row?.getAttribute("data-champion") && q.get("crole") === row?.getAttribute("data-role") };
+    }, next);
+    step = { next: moved, address: after.address && after.url !== before.url, replaced: after.length === before.length };
+  }
+  await page.keyboard.press("Escape");
+  const closed = await content.waitFor({ state: "detached", timeout: 5_000 }).then(() => true, () => false);
+  const escaped = { closed, address: await page.waitForFunction(() => !new URLSearchParams(location.search).has("champion"), null, { timeout: 5_000 }).then(() => true, () => false) };
+  for (const v of championPreviewVerdicts({ kind, at, step, escaped })) check("all-champions", v.name, v.status, v.detail);
 }
 
 /**
@@ -1766,6 +1819,13 @@ async function matchHistory(page, log, kind, playerId) {
           return Math.round(end - top);
         });
         pass("games", `${kind}: the card and its open game fit one screen (${fit}px of ${page.viewportSize().height})`, fit <= page.viewportSize().height, fit);
+        // The post-game view's content (PLAN §6 rows 5.2–5.8; scripts/post-game-facts.mjs), from the game
+        // already open: no interaction of its own, the notes once its timeline has loaded.
+        await guarded("games", `${kind}: the open game's post-game view`, async () => {
+          await page.waitForFunction(() => document.querySelector("li[data-expanded] [data-testid=post-game-notes], li[data-expanded] [data-testid=notes-fallback], li[data-expanded] [data-testid=timeline-missing]"), null, { timeout: 15_000 }).catch(() => {});
+          const at = await page.evaluate(readPostGame);
+          for (const v of postGameVerdicts({ kind, at, rules: noteRules() })) check("games", v.name, v.status, v.detail);
+        });
       }
       const next = open.getByTestId("game-header-next");
       if (await next.isEnabled()) {
