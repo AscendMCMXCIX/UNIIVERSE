@@ -12,7 +12,8 @@ import { loadMatchupEvidence } from "@/server/matchup-intel/evidence";
 import { patchSortKey } from "@/domain/patch";
 import type { Session } from "@/server/auth/permissions";
 import { backfillMatchPrep } from "@/server/matchup-intel/prep-store";
-import { eraseSubject, formerMemberSubject } from "@/server/privacy/erasure";
+import { eraseSubject, formerMemberSubject, previewErasure } from "@/server/privacy/erasure";
+import { erasureLines } from "@/components/admin/erase-person";
 
 /*
   Matchup Intel's evidence rows against the rest of the app's rules (S7b review): a permanent erasure
@@ -51,9 +52,14 @@ describe("Matchup Intel's evidence rows and the app's other rules", () => {
     await db.insert(matchTimelines).values({ matchId: "M1", platform: "oc1", participants: [{ puuid: "me-puuid", purchases: [], skills: [] }, { puuid: "gone-puuid", purchases: [], skills: [] }], frames: { t: [0, 60000], p: {} }, events: { objectives: [] } });
     await backfillMatchPrep(db);
     expect((await db.select().from(accountMatchPrep))[0]!.prep.vs).toBe("Darius");
-    await eraseSubject(db, owner!.id, await formerMemberSubject(db, { puuid: "gone-puuid", riotId: "GoneGuy#OCE" }));
-    expect(await db.select().from(accountMatchPrep)).toEqual([]);
-    await backfillMatchPrep(db);
+    const subject = await formerMemberSubject(db, { puuid: "gone-puuid", riotId: "GoneGuy#OCE" });
+    // The preview says what happens to the others' evidence rows of the shared games (R7 review B2).
+    const preview = await previewErasure(db, subject);
+    expect(preview.counts.evidenceRows).toBe(1);
+    expect(erasureLines(preview.counts).join(" ")).toContain("1 Matchup Intel evidence row of those games is made again without them.");
+    await eraseSubject(db, owner!.id, subject);
+    // Made again from the de-identified record by the erasure itself, not left for a backfill run.
+    expect(await backfillMatchPrep(db)).toMatchObject({ read: 0, inserted: 0 });
     const [again] = await db.select().from(accountMatchPrep);
     expect(again!.prep).toMatchObject({ lane: "TOP", rule: null, spells: "4,14" });
     expect(again!.prep.vs).toBeUndefined();

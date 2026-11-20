@@ -653,7 +653,8 @@ curated note or a recommendation. Nothing is inferred beyond what the games reco
   A remake (under 5 minutes, as Matchups counts one) or a game without a known result is never
   counted. Archived profiles are not in the team's games, and making a profile personal-use or
   archiving it counts the team again at once; a permanent erasure deletes the evidence rows of the
-  games it de-identifies (prep-backfill makes them again from the de-identified records).
+  games it de-identifies and makes them again from the de-identified records at once (the erasure
+  preview counts them); removing a Riot account or deleting a profile clears the team counts too.
 - **"Against X"** uses the confirmed-opponent rule (`confirmedOpponent`, `src/domain/matchup-intel/prep.ts`,
   mi-evidence §2.1): Riot's `teamPosition` names the lane for both players, every team's five team
   positions differ, and `individualPosition` agrees for both. Anything else is "role unclear" and is
