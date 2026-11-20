@@ -86,8 +86,11 @@ function breakable(label: string): React.ReactNode {
  * mark keeps its place beside the label, and the label gets that room. On a 320px phone "Damage/"
  * needs about 51px and had 50 (it ran 1px into its ⓘ, which newer Chromium builds round to 2px);
  * it now has about 54. Where the label is short, the row ends after the ⓘ and nothing moves.
+ * On touch screens the ⓘ is its own 44px button (Release 6), whose -0.875rem margins keep 16px of
+ * it in the line, not 12; `pointer-coarse:-mr-4.5` hangs it 4px further into the padding, so the
+ * label keeps the same 54px there too (it had 50 again, and CI's Chromium measured "Damage/" 2px over).
  */
-const LABEL_TIP = "-mr-2";
+const LABEL_TIP = "-mr-2 pointer-coarse:-mr-4.5";
 
 /** A headline figure: its label, the number at the size of the page's main figures, its context. */
 function Headline({ label, value, sub, info, tone = "plain", testId, className, children }: { label: string; value: React.ReactNode; sub?: React.ReactNode; info?: string; tone?: WinRateTone; testId: string; className?: string; children?: React.ReactNode }) {
