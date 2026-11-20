@@ -134,7 +134,7 @@ test.describe("accessibility", () => {
   test("every control the keyboard reaches shows the same focus ring", async ({ page }) => {
     // The accent outline of the shared controls (globals.css), on links and hand-made buttons too:
     // never the browser's own ring, which differs between browsers, and never none. A text field
-    // marks its focus with its accent border instead.
+    // marks its focus with its accent border instead, and so does a Select (ui/select.tsx), a field.
     for (const route of ["/team", "/players", "/leaderboards", "/resources", "/admin/people"]) {
       await page.goto(route);
       await page.waitForLoadState("networkidle");
@@ -156,7 +156,7 @@ test.describe("accessibility", () => {
           for (const animation of el.getAnimations()) animation.finish();
           const s = getComputedStyle(el);
           const label = (el.getAttribute("aria-label") ?? el.textContent ?? "").trim().slice(0, 40);
-          return { what: `${el.tagName.toLowerCase()}${el.dataset.testid ? `[${el.dataset.testid}]` : ""} "${label}"`, field: el.matches("input:not([type=checkbox]):not([type=radio]), textarea, select"), ring: [s.outlineStyle, s.outlineWidth, s.outlineColor], border: s.borderTopColor };
+          return { what: `${el.tagName.toLowerCase()}${el.dataset.testid ? `[${el.dataset.testid}]` : ""} "${label}"`, field: el.matches("input:not([type=checkbox]):not([type=radio]), textarea, select, [data-select]"), ring: [s.outlineStyle, s.outlineWidth, s.outlineColor], border: s.borderTopColor };
         });
         if (!focus) continue;
         reached.push(focus.what);

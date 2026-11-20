@@ -58,7 +58,7 @@ test("Overview: the multikill totals as figures of their own, from the same game
   // The season card's multikills line: each kind with its total ("Double 33 · Triple 3 · Quadra 1 ·
   // Penta 0", PLAN S8a); screen readers hear the full names. Total kills is under the KDA.
   await expect(strip.getByTestId("stat-total-kills")).toHaveCount(0);
-  await expect(page.getByTestId("stat-kda").getByTestId("stat-total-kills")).toHaveText(/^[\d,]+ kills$/);
+  await expect(page.getByTestId("stat-kda").getByTestId("stat-total-kills")).toHaveText(/^[\d,]+ kills?$/);
   const short = { double: "Double", triple: "Triple", quadra: "Quadra", penta: "Penta" } as const;
   for (const [key, label] of KINDS) await expect(strip.getByTestId(`multikill-${key}`)).toHaveText(new RegExp(`^${short[key]}${label}\\s*\\d+\\s*·?$`));
   // No heading of their own on screen (each count names itself); screen readers keep one.
