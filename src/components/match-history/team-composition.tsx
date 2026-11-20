@@ -133,7 +133,7 @@ export function TeamComposition({
                 const rank = labels[side][i];
                 if (s.removed)
                   return (
-                    <span key={i} className={cn("flex min-w-0 items-center gap-1 leading-none", L.slot, ranked && L.stacked)} title="Removed player: their personal data was erased" data-testid="team-slot" data-removed>
+                    <span key={i} className={cn("flex min-w-0 items-center gap-1 leading-none", L.slot, ranked && L.stacked)} data-testid="team-slot" data-removed>
                       <RemovedIcon />
                       <span data-testid="team-slot-name" className={cn("truncate text-2xs leading-4 text-fg-subtle", L.name)}>
                         Removed player

@@ -14,6 +14,7 @@ import type { ParticipantRank } from "@/domain/known-rank";
 import type { PortraitChampion } from "@/components/champion-portrait";
 import { RoleIcon } from "@/components/role-icon";
 import { timeAgo, formatCount, formatDayMonth, formatNumber, formatTimeOfDay } from "@/lib/format";
+import { InfoTip } from "@/components/ui/info-tip";
 import { cn } from "@/lib/cn";
 import { MatchDetailModal } from "./match-detail";
 import { MatchDetailCacheContext, createMatchDetailCache, type MatchDetailCache } from "./match-detail-cache";
@@ -144,10 +145,13 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
   /** "Best vision/min in 22": one chip, with the figures on every card (under them on wide cards, in their row on narrow ones); under 16rem (a large text size) it wraps between its words rather than be cut. */
   const standoutChip = (className: string) =>
     standout ? (
-      <span className={cn("whitespace-nowrap rounded border border-accent/40 px-1 text-2xs font-semibold leading-4 text-accent @max-[16rem]/mh:whitespace-normal", className)} title={standoutTitle} data-testid="match-standout" data-key={standout.key}>
-        Best {STANDOUT_SHORT[standout.key]} in {standout.games}
-        <span className="sr-only">: {standoutTitle}</span>
-      </span>
+      // Its sentence one hover or tap away, as the LP's is (no tab stop: the card is the one stop, and the chip reads it out).
+      <InfoTip text={standoutTitle} testId="match-standout-tip" tabIndex={-1} className={cn("relative z-[2]", className)}>
+        <span className="whitespace-nowrap rounded border border-accent/40 px-1 text-2xs font-semibold leading-4 text-accent @max-[16rem]/mh:whitespace-normal" data-testid="match-standout" data-key={standout.key}>
+          Best {STANDOUT_SHORT[standout.key]} in {standout.games}
+          <span className="sr-only">: {standoutTitle}</span>
+        </span>
+      </InfoTip>
     ) : null;
   /*
     The result line: Victory or Defeat, the queue, when, and a ranked game's LP. Never cut: where the
@@ -360,8 +364,8 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
           <span className={cn("flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-fg-subtle @min-[36rem]/mh:flex-col @min-[36rem]/mh:gap-y-px", PHONE_FIGURES)} data-testid="match-figures">
             <Stat label="KP" value={kp} className={PHONE_KP} testId="match-kp" />
             <span className={PHONE_FIGURES_REST}>
-              <Stat label="CS/min" value={fmtNum(row.csPerMin)} extra={row.cs === null ? null : formatCount(row.cs)} title={row.cs === null ? undefined : `${formatCount(row.cs)} CS in the game`} testId="match-cs" />
-              <Stat label="dmg/min" value={fmtInt(row.damagePerMin)} extra={row.damageShare === null ? null : `${Math.round(row.damageShare * 100)}%`} title={row.damage === null ? undefined : `${formatCount(row.damage)} damage to champions${row.damageShare === null ? "" : `, ${Math.round(row.damageShare * 100)}% of the team's`}`} testId="match-damage" />
+              <Stat label="CS/min" value={fmtNum(row.csPerMin)} extra={row.cs === null ? null : formatCount(row.cs)} detail={row.cs === null ? undefined : `, ${formatCount(row.cs)} CS in the game`} testId="match-cs" />
+              <Stat label="dmg/min" value={fmtInt(row.damagePerMin)} extra={row.damageShare === null ? null : `${Math.round(row.damageShare * 100)}%`} detail={row.damage === null ? undefined : `, ${formatCount(row.damage)} damage to champions${row.damageShare === null ? "" : `, ${Math.round(row.damageShare * 100)}% of the team's`}`} testId="match-damage" />
               {standoutChip("self-center @min-[36rem]/mh:mt-px @min-[36rem]/mh:self-start")}
             </span>
           </span>
@@ -429,12 +433,13 @@ function MemberNames({ names }: { names: string[] }) {
  * card to card) and as wide as the text whenever that is wider: never narrower than the text, so it
  * cannot run under the build or the teams.
  */
-function Stat({ label, value, extra = null, title, className, testId }: { label: string; value: string; /** A quieter figure after it: the total or the share. */ extra?: string | null; title?: string; className?: string; testId?: string }) {
+function Stat({ label, value, extra = null, detail, className, testId }: { label: string; value: string; /** A quieter figure after it: the total or the share. */ extra?: string | null; /** What the quieter figure is, for screen readers. */ detail?: string; className?: string; testId?: string }) {
   return (
-    <span className={cn("flex min-w-0 flex-wrap items-baseline gap-x-1 leading-snug @min-[36rem]/mh:min-w-[8.125rem]", className)} title={title} data-testid={testId}>
+    <span className={cn("flex min-w-0 flex-wrap items-baseline gap-x-1 leading-snug @min-[36rem]/mh:min-w-[8.125rem]", className)} data-testid={testId}>
       <span className="font-semibold tabular-nums text-fg">{value}</span>
       <span className="whitespace-nowrap">{label}</span>
       {extra ? <span className="whitespace-nowrap tabular-nums text-fg-subtle">({extra})</span> : null}
+      {detail ? <span className="sr-only">{detail}</span> : null}
     </span>
   );
 }

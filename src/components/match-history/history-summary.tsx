@@ -28,8 +28,9 @@ const metricText = (m: Pick<FormMetric, "key" | "recent">) => (m.recent === null
        ("4W streak") and, when one is named, the trend ("Better +9 pts");
     2. the record, KDA, CS and kill participation, spread across;
     3. the champions played most and the ladder change ("+45 Solo/Duo since 30 Sep").
-  The words a phone's line leaves out are read by screen readers and are in each figure's title
-  ("4 wins in a row", "Solo/Duo points", "Better lately"); from 36rem the trend says them again. A
+  The words a phone's line leaves out are read by screen readers ("4 wins in a row", "Solo/Duo
+  points", "Better lately"); from 36rem the trend says them again. What KP and the ladder change
+  count is in the "Last 20" ⓘ, never in a hover title. A
   line wraps where its figures still do not fit: at 375px a streak beside a named trend takes a
   second row on the first line (the squares, never under 3px, go under "Last 20 ⓘ" or the trend
   moves down), and the longest ladder label or a two-digit record on a champion can move the ladder
@@ -51,7 +52,7 @@ export function HistorySummaryStrip({ summary, ladder, championsById }: { summar
   const streakWords = streak ? `${streak.games} ${streak.win ? "wins" : "losses"} in a row` : "";
   const gap = form.gapPoints ?? 0;
   return (
-    <StatStrip label={`Your last ${form.recent.games} games in this list`} testId="history-summary">
+    <StatStrip label={`The last ${form.recent.games} games in this list`} testId="history-summary">
       <StatLine>
         <StatTile
           wideLine={wideLine}
@@ -69,7 +70,7 @@ export function HistorySummaryStrip({ summary, ladder, championsById }: { summar
               <span className="inline-flex @min-[60rem]/strip:-my-px">
                 <InfoTip
                   label="About these figures"
-                  text={`The latest ${form.recent.games} games with these filters (all ${form.season.games} for the trend). The LP change comes from rank checks, not from each game.`}
+                  text={`The latest ${form.recent.games} games with these filters (all ${form.season.games} for the trend). KP is the share of the team's kills taken part in.${ladder ? ` The LP change (${ladder.from} → ${ladder.to}) comes from rank checks, counting 100 per division.` : ""}`}
                 />
               </span>
             </>
@@ -95,7 +96,6 @@ export function HistorySummaryStrip({ summary, ladder, championsById }: { summar
               </span>
             }
             label={<span aria-hidden>streak</span>}
-            title={streakWords}
             testId="history-summary-streak"
           />
         ) : null}
@@ -116,7 +116,7 @@ export function HistorySummaryStrip({ summary, ladder, championsById }: { summar
                 {form.gapPoints} pts<span className="@max-[36rem]/strip:sr-only">)</span>
               </>
             }
-            title={`${form.trend === "up" ? "Better" : "Worse"} lately: the last ${form.recent.games} games' win rate is ${Math.abs(gap)} points ${gap > 0 ? "above" : "below"} that of all ${form.season.games} in this list`}
+            detail={`: the last ${form.recent.games} games' win rate is ${Math.abs(gap)} points ${gap > 0 ? "above" : "below"} that of all ${form.season.games} in this list`}
             testId="history-summary-trend"
           />
         ) : null}
@@ -134,11 +134,11 @@ export function HistorySummaryStrip({ summary, ladder, championsById }: { summar
               </>
             }
             label={m.key === "cs" ? "CS/min" : m.key === "vision" ? "vision" : "KDA"}
-            title={`${m.label} over the last ${m.recentGames} games${m.season !== null ? `; ${metricText({ ...m, recent: m.season })} over all ${m.seasonGames} in this list` : ""}`}
+            detail={`, over the last ${m.recentGames} games${m.season !== null ? `; ${metricText({ ...m, recent: m.season })} over all ${m.seasonGames} in this list` : ""}`}
             testId={`history-summary-${m.key}`}
           />
         ))}
-        <StatTile wideLine={wideLine} value={kp.value === null ? "—" : `${Math.round(kp.value * 100)}%`} label="KP" title={kp.games ? `Kills and assists over the team's kills, in the ${kp.games} recent games that record both` : "Team kills are not recorded for these games"} testId="history-summary-kp" />
+        <StatTile wideLine={wideLine} value={kp.value === null ? "—" : `${Math.round(kp.value * 100)}%`} label="KP" detail={kp.games ? `kill participation, in the ${kp.games} recent games that record it` : "kill participation: team kills are not recorded for these games"} testId="history-summary-kp" />
       </StatLine>
       <StatLine>
         {summary.mostPlayed.length ? (
@@ -149,7 +149,7 @@ export function HistorySummaryStrip({ summary, ladder, championsById }: { summar
             value={
               <ul className="flex flex-wrap items-center gap-x-1 gap-y-1 @min-[36rem]/strip:gap-x-2" aria-label="Played most in these games" data-testid="history-summary-champions">
                 {summary.mostPlayed.map((c) => (
-                  <li key={c.championId} className="flex items-center gap-0.5 @min-[36rem]/strip:gap-1" title={`${champ(c.championId).name}: ${c.wins} won, ${c.games - c.wins} lost`}>
+                  <li key={c.championId} className="flex items-center gap-0.5 @min-[36rem]/strip:gap-1" title={champ(c.championId).name}>
                     {/* 20px, the line's height: the portrait's own size (xs) is drawn inside this box. */}
                     <span className="flex h-5 w-5 shrink-0 [&>*]:h-full [&>*]:w-full [&>*]:rounded [&>*]:text-4xs">
                       <ChampionPortrait champion={champ(c.championId)} size="xs" />
@@ -181,7 +181,7 @@ export function HistorySummaryStrip({ summary, ladder, championsById }: { summar
                 {ladder.since === null ? `, ${ladder.days} days` : ` since ${formatDayMonth(ladder.since)}`}
               </>
             }
-            title={`${ladder.from} → ${ladder.to}${ladder.riotId ? ` on ${ladder.riotId}` : ""}. Ladder points: LP, with 100 for each division gained or lost. From stored rank readings, not per game.`}
+            detail={`, ${ladder.from} to ${ladder.to}${ladder.riotId ? ` on ${ladder.riotId}` : ""}`}
             testId="history-summary-ladder"
           />
         ) : null}

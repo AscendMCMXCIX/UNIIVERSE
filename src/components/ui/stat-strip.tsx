@@ -52,8 +52,10 @@ export function StatLine({ children, className, testId }: { children: React.Reac
  * order it is drawn in is its order in the page. `labelFrom60`: a label shown only in the tile (a
  * value that names itself on one line, as a row of champion portraits does for screen readers).
  * `valueClassName`: the value's own box (a value that fills its line, as a phone's squares do).
+ * `detail`: the figure in words, for screen readers (never a hover title: it explains nothing to a
+ * finger or a keyboard; what a reader needs to see goes in the strip's ⓘ).
  */
-export function StatTile({ value, label, title, lead = false, labelFirst = false, labelFrom60 = false, wideLine = false, className, valueClassName, testId }: { value: React.ReactNode; label: React.ReactNode; title?: string; lead?: boolean; labelFirst?: boolean; labelFrom60?: boolean; /** From 78rem, value and label side by side again (see StatStrip). */ wideLine?: boolean; className?: string; valueClassName?: string; testId?: string }) {
+export function StatTile({ value, label, detail, lead = false, labelFirst = false, labelFrom60 = false, wideLine = false, className, valueClassName, testId }: { value: React.ReactNode; label: React.ReactNode; detail?: string; lead?: boolean; labelFirst?: boolean; labelFrom60?: boolean; /** From 78rem, value and label side by side again (see StatStrip). */ wideLine?: boolean; className?: string; valueClassName?: string; testId?: string }) {
   const labelSize = cn("text-xs leading-5 text-fg-subtle @min-[60rem]/strip:text-2xs @min-[60rem]/strip:leading-3.5", wideLine && "@min-[78rem]/strip:text-xs @min-[78rem]/strip:leading-5");
   return (
     <div
@@ -66,7 +68,6 @@ export function StatTile({ value, label, title, lead = false, labelFirst = false
         lead ? "@min-[60rem]/strip:pl-0" : "@min-[60rem]/strip:border-l @min-[60rem]/strip:border-border/60",
         className,
       )}
-      title={title}
       data-stat-tile=""
       data-testid={testId}
     >
@@ -77,6 +78,7 @@ export function StatTile({ value, label, title, lead = false, labelFirst = false
           {label}
         </span>
       )}
+      {detail ? <span className="sr-only">{detail}</span> : null}
     </div>
   );
 }

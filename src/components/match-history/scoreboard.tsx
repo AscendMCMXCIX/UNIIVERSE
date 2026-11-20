@@ -6,7 +6,7 @@ import type { MatchGroupsResult, MatchGroupsTeam, MatchGroupView } from "@/serve
 import { groupEvidenceText, groupsNoteState } from "@/domain/possible-groups";
 import type { DetailParticipant, DetailTeam, MatchRanksResult } from "@/server/players/match-history";
 import type { MatchMeeting } from "@/server/players/encounters";
-import { metSides, metText } from "@/lib/tip-words";
+import { metSides } from "@/lib/tip-words";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
 import { formatCount, formatDate, formatKilo } from "@/lib/format";
 import { cn } from "@/lib/cn";
@@ -332,12 +332,11 @@ function MetChip({ met, href }: { met: MatchMeeting; href: string }) {
   return (
     <Link
       href={href}
-      title={metText(met)}
       className="relative shrink-0 rounded border border-border px-1 text-2xs font-medium leading-4 tabular-nums text-fg-muted transition-colors hover:border-accent/50 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:after:absolute pointer-coarse:after:-inset-2 pointer-coarse:after:content-['']"
       data-testid="participant-met"
       data-games={met.games}
     >
-      {/* Read as "Met 4 times, this game included (3 against, 1 alongside). Show your games with them". */}
+      {/* Read as "Met 4 times, this game included (3 against, 1 on the same team). Opens those games" (the sides in sr-only text, never a hover title). */}
       Met {formatCount(met.games)}
       <span aria-hidden>×</span>
       <span className="sr-only"> times, this game included ({sides}). Opens those games</span>
@@ -440,8 +439,8 @@ function ParticipantRow({ x, champ, maxDamage, group, lane, rank, queueId, check
               {x.teamMember && !x.isPlayer ? <span className="text-accent"> · {x.teamMember}</span> : null}
             </span>
             {lane ? (
-              <span className="shrink-0 rounded border border-border px-1 text-2xs leading-4 text-fg-muted" title="The enemy in the same recorded position" data-testid="lane-opponent-mark">
-                Lane
+              <span className="shrink-0 rounded border border-border px-1 text-2xs leading-4 text-fg-muted" data-testid="lane-opponent-mark">
+                Lane<span className="sr-only"> opponent</span>
               </span>
             ) : null}
             {rank ? <RankBadge rank={rank} queueId={queueId} checking={checking && rank.stale} /> : null}
@@ -461,7 +460,8 @@ function ParticipantRow({ x, champ, maxDamage, group, lane, rank, queueId, check
       </span>
       {/* Damage, then (one-line layout) gold, CS and vision in their own columns; grouped under the
           bar below it. On a phone the items lead the damage's line, so a row is three lines. */}
-      <span className="leading-tight @max-[36rem]/bd:col-span-2" title={x.damage !== null ? `${formatCount(x.damage)} damage to champions${share ? `, ${share} of the team's` : ""}` : undefined}>
+      <span className="leading-tight @max-[36rem]/bd:col-span-2">
+        {x.damage !== null ? <span className="sr-only">{`${formatCount(x.damage)} damage to champions${share ? `, ${share} of the team's` : ""}`}</span> : null}
         <span className="flex items-center gap-1.5 text-xs tabular-nums text-fg-muted">
           <span className="shrink-0 @min-[36rem]/bd:hidden" data-testid="participant-items-phone">
             <ItemRow items={x.items} size={18} />
@@ -486,9 +486,12 @@ function ParticipantRow({ x, champ, maxDamage, group, lane, rank, queueId, check
         <span className="block text-sm font-medium tabular-nums text-fg">{intText(x.cs)}</span>
         <span className="block text-2xs tabular-nums text-fg-subtle">{decText(x.csPerMin)}/min</span>
       </span>
-      <span className="hidden leading-tight @min-[60rem]/bd:block" title={x.wardsPlaced !== null ? `${x.wardsPlaced} wards placed${x.stats?.wardsKilled !== undefined ? `, ${x.stats.wardsKilled} destroyed` : ""}` : undefined}>
+      <span className="hidden leading-tight @min-[60rem]/bd:block">
         <span className="block text-sm font-medium tabular-nums text-fg">{intText(x.vision)}</span>
-        <span className="block text-2xs tabular-nums text-fg-subtle">{x.wardsPlaced === null ? "" : `${x.wardsPlaced} wards`}</span>
+        <span className="block text-2xs tabular-nums text-fg-subtle">
+          {x.wardsPlaced === null ? "" : `${x.wardsPlaced} wards`}
+          {x.wardsPlaced !== null && x.stats?.wardsKilled !== undefined ? <span className="sr-only">{` placed, ${x.stats.wardsKilled} destroyed`}</span> : null}
+        </span>
       </span>
       <span className="hidden @min-[36rem]/bd:block">
         <span className="@min-[60rem]/bd:hidden">

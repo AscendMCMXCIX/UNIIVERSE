@@ -25,7 +25,6 @@ const TIP_CONSTANTS = ["MULTIKILL_HELP", "ENCOUNTERS_CAVEAT", "EDITING_HELP", "T
 const ALLOWLIST: Array<{ id: string; fragment: string; reason: string }> = [
   // Riot's required notice (G13) and screen-reader-only descriptions (I08) are not tips, and are not
   // written as a tip's literal, so they need no entry here.
-  { id: "H09", fragment: "count as one sitting", reason: "S6 rewrites Refine's playing sessions" },
 ];
 
 function sources(dir: string): string[] {

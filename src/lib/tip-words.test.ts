@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { metText, standoutText } from "./tip-words";
+import { metSides, standoutText } from "./tip-words";
 
 describe("tooltip templates read right on anyone's page", () => {
-  it("the Met chip names the games without 'your' (H22)", () => {
-    const t = metText({ games: 4, opponent: 3, ally: 1 });
-    expect(t).toBe("Met in 4 recorded games, this one included (3 against, 1 on the same team). Opens those games.");
+  it("the Met chip names the sides without 'your' (H22)", () => {
+    const t = metSides({ opponent: 3, ally: 1 });
+    expect(t).toBe("3 against, 1 on the same team");
     expect(t).not.toMatch(/\byour?\b/i);
   });
   it("the Best chip says the player's figure without 'your' (H12)", () => {
