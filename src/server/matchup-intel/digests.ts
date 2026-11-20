@@ -45,10 +45,22 @@ export function digestsOf(champions: unknown, items: unknown, runes: unknown, ab
   return out;
 }
 
-/** Whether this patch's digests are stored. */
+/**
+ * Whether this patch needs no attempt now: its digests are stored, or an attempt failed within the
+ * last day (a "patch" row marks it), so a Data Dragon that fails is asked again at most once a day.
+ */
 export async function hasDigests(db: Db, patch: string): Promise<boolean> {
-  const [row] = await db.select({ key: staticDigests.key }).from(staticDigests).where(eq(staticDigests.patch, patch)).limit(1);
+  const [row] = await db
+    .select({ key: staticDigests.key })
+    .from(staticDigests)
+    .where(and(eq(staticDigests.patch, patch), sql`(${staticDigests.kind} <> 'patch' OR ${staticDigests.recordedAt} > now() - interval '1 day')`))
+    .limit(1);
   return !!row;
+}
+
+/** Marks a failed attempt for a patch (see hasDigests); the next one replaces the mark. */
+async function markFailed(db: Db, patch: string): Promise<void> {
+  await db.insert(staticDigests).values({ patch, kind: "patch", key: "failed", hash: "" }).onConflictDoUpdate({ target: [staticDigests.patch, staticDigests.kind, staticDigests.key], set: { recordedAt: new Date() } });
 }
 
 /**
@@ -68,10 +80,16 @@ export async function ensureStaticDigests(db: Db, version: string, options: { fe
     if (!res.ok) throw new Error(`Data Dragon ${file}: HTTP ${res.status}`);
     return res.json();
   };
-  const [champions, items, runes] = await Promise.all([get("champion.json"), get("item.json"), get("runesReforged.json")]);
-  const rows = digestsOf(champions, items, runes, abilities, version);
-  // Validation before keeping (docs/MATCHUP_INTEL.md, "Pipeline"): a patch whose files name no champion, item or rune is not kept.
-  if (!rows.some((r) => r.kind === "champion") || !rows.some((r) => r.kind === "item") || !rows.some((r) => r.kind === "rune")) throw new Error("Data Dragon's files for this version are incomplete; no digests kept.");
+  let rows: Array<{ kind: DigestKind; key: string; hash: string }>;
+  try {
+    const [champions, items, runes] = await Promise.all([get("champion.json"), get("item.json"), get("runesReforged.json")]);
+    rows = digestsOf(champions, items, runes, abilities, version);
+    // Validation before keeping (docs/MATCHUP_INTEL.md, "Pipeline"): a patch whose files name no champion, item or rune is not kept.
+    if (!rows.some((r) => r.kind === "champion") || !rows.some((r) => r.kind === "item") || !rows.some((r) => r.kind === "rune")) throw new Error("Data Dragon's files for this version are incomplete; no digests kept.");
+  } catch (err) {
+    await markFailed(db, patch);
+    throw err;
+  }
   for (let i = 0; i < rows.length; i += 500) await db.insert(staticDigests).values(rows.slice(i, i + 500).map((r) => ({ patch, ...r }))).onConflictDoNothing();
   return { recorded: rows.length };
 }

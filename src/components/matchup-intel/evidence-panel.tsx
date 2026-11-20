@@ -33,7 +33,8 @@ function summaryOf(s: EvidenceSection): string {
 function Section({ section }: { section: EvidenceSection }) {
   return (
     <section className="space-y-0.5" data-testid={`evidence-${section.scope}`} aria-label={section.tier ?? (section.scope === "own" ? "In your games" : "In the team's games")}>
-      {section.tier ? <h3 className="text-xs font-semibold text-fg">{section.tier}</h3> : null}
+      {/* With nothing counted, the one honest line names the scope itself. */}
+      {section.tier && section.lines.length ? <h3 className="text-xs font-semibold text-fg">{section.tier}</h3> : null}
       {section.lines.length ? (
         <ul className="space-y-0.5">
           {section.lines.map((l) => (
