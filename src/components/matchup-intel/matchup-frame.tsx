@@ -4,10 +4,11 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeftRight, BookmarkPlus, Check, Link2, LoaderCircle, Plus } from "lucide-react";
 import { DUO_ROLES, ROLES, ROLE_NAMES, type ChampionChoice, type Role } from "@/domain/matchup-intel/types";
-import { HASTE_CHOICES, HASTE_MAX, clampHaste } from "@/domain/matchup-intel/haste";
+import { GENERAL_RULE_TIP, HASTE_CHOICES, HASTE_MAX, clampHaste } from "@/domain/matchup-intel/haste";
 import { ChampionPortrait } from "@/components/champion-portrait";
 import { releaseEarlyTaps, type EarlyTap } from "@/components/early-taps";
 import { Button } from "@/components/ui/button";
+import { InfoTip } from "@/components/ui/info-tip";
 import { cn } from "@/lib/cn";
 import { lineupHref, matchupHref, type Lineup } from "./address";
 import { RECENT_OF, slotWords, type FrameSlot } from "./slots";
@@ -342,7 +343,8 @@ function RoleSelector({ role, onChange }: { role: Role; onChange: (role: Role) =
 /**
  * The ability haste the enemy's cooldowns are shown at: 0 (base cooldowns only), 20, 40, 60, or a
  * whole number typed up to HASTE_MAX. Remembered on this device. Never a timer: only the cooldown's
- * length at that haste, beside the base.
+ * length at that haste, beside the base. Its ⓘ says what Riot's general rule rests on, once for every
+ * line marked with it (the shared InfoTip: tap on touch screens, hover and focus elsewhere).
  */
 function HasteChoice({ haste, onChange }: { haste: number; onChange: (haste: number) => void }) {
   const id = React.useId();
@@ -387,6 +389,7 @@ function HasteChoice({ haste, onChange }: { haste: number; onChange: (haste: num
         className="h-11 w-14 rounded-md border border-border-control bg-bg-elevated px-2 text-base text-fg tabular-nums placeholder:text-fg-subtle pointer-fine:h-6 sm:pointer-fine:text-xs"
         data-testid="matchup-haste-input"
       />
+      <InfoTip label="About Riot's general rule for haste" text={GENERAL_RULE_TIP} testId="matchup-haste-rule" />
     </div>
   );
 }

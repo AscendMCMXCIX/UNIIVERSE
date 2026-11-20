@@ -102,9 +102,13 @@ export function hasteMarkWords(basis: HasteBasis): string {
   }
 }
 
-/** The tip of the general rule: what it rests on, and what it does not know. */
+/**
+ * The tip of the general rule (the ⓘ beside the haste choice, HasteChoice): what it rests on, and what
+ * it does not know. At most about 25 words (tip-length.test.ts counts it). On R the mark itself says
+ * "ability haste only" (ultimate haste from some runes and items is not counted).
+ */
 export const GENERAL_RULE_TIP =
-  "Riot's published rule since patch 10.23: cooldown = base × 100 / (100 + ability haste). Riot's data does not list the abilities the rule does not apply to; checked notes cover 6 champions. Ultimate haste from some runes and items is not counted.";
+  "Riot's rule since patch 10.23: cooldown = base × 100 / (100 + haste). Riot's data doesn't list the abilities it doesn't apply to; checked notes cover 6 champions.";
 
 /** A summoner spell's line: its base cooldown only, never shortened by ability haste. */
 export const SUMMONER_SPELL_HASTE_WORDS = "Summoner spell haste is a separate stat";

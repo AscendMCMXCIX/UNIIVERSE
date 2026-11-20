@@ -2,6 +2,7 @@ import { createElement, type ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { AbilityNotes, ChampionChoice, ChampionNotes, DdragonAbility, DdragonChampionAbilities, MatchupNotes, RiotTextChampion } from "@/domain/matchup-intel/types";
+import { GENERAL_RULE_TIP } from "@/domain/matchup-intel/haste";
 import { buildMatchupPageView, type MatchupViewDeps } from "@/server/matchup-intel/view";
 import { AbilityDetailsBody, AbilityList } from "./ability-list";
 import { MatchupContent } from "./matchup-content";
@@ -693,7 +694,8 @@ describe("hidden, changed and behind, on the assembled reference and the notes",
   it("your champion's summary says once that its cooldowns are Riot's data, not reviewed, as the enemy's panel does; a curated champion's are its notes'", async () => {
     const t = text(await render({ champion: "Garen", vs: "Darius" }));
     expect(t).toContain("Your champion: Garen Abilities and base cooldowns · Riot Data Dragon 16.22.1 · Cooldowns: Riot's data, not reviewed ·");
-    expect(t).toContain("Darius's abilities At haste 0 20 40 60 Base cooldowns, without ability haste · Riot Data Dragon 16.22.1 · Cooldowns: Riot's data, not reviewed");
+    // The haste choice's ⓘ (its mark, then the rule it explains, read out) sits between the choice and the base line.
+    expect(t).toContain(`Darius's abilities At haste 0 20 40 60 i ${GENERAL_RULE_TIP} Base cooldowns, without ability haste · Riot Data Dragon 16.22.1 · Cooldowns: Riot's data, not reviewed`);
     const curatedYou = await render({ champion: "Renekton", vs: "Darius" });
     expect(text(curatedYou)).toContain("Your champion: Renekton Abilities and base cooldowns · Riot Data Dragon 16.22.1 · Curated notes: checked on patch 26.22");
     expect(curatedYou).not.toContain('data-testid="your-cooldown-source"');
