@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from "./test";
+import { NOTES_AGE_TEST_COOKIE } from "../src/server/matchup-intel/notes-age";
 import { RIOT_TEXT_TEST_COOKIE } from "../src/server/matchup-intel/riot-text/switch";
 
 /*
@@ -14,6 +15,16 @@ import { RIOT_TEXT_TEST_COOKIE } from "../src/server/matchup-intel/riot-text/swi
  */
 export async function riotText(page: Page, state: "on" | "off") {
   await page.context().addCookies([{ name: RIOT_TEXT_TEST_COOKIE, value: state, url: test.info().project.use.baseURL! }]);
+}
+
+/**
+ * Matchup Intel as production shows it once `patches` patches have come out after the curated notes'
+ * check (src/server/matchup-intel/notes-age.ts): the demo is pinned to the version they were checked
+ * on, so on its own it never shows "Not re-checked for …". The notes read as checked that many patches
+ * earlier, with Riot's records unchanged. A cookie only the in-memory demo reads.
+ */
+export async function notesAge(page: Page, patches: 1 | 2 | 3) {
+  await page.context().addCookies([{ name: NOTES_AGE_TEST_COOKIE, value: String(patches), url: test.info().project.use.baseURL! }]);
 }
 
 /** The page for a choice of champions (either may be left out), once its heading is drawn. */

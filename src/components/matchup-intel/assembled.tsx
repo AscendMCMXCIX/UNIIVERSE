@@ -246,7 +246,7 @@ export function AssembledReference({ you, enemy, enemyIntel, yourIntel, curatedF
           the sentence under them; with none, the sentence beside the title where 20rem are left for
           it, so a long side keeps one screen. The title keeps whole beside the sentence, and is never
           wider than the header: on a 320px phone at twice the text size it wraps in place. */}
-      <header className={cn("border-b border-border px-3 py-2", others.length ? "space-y-0.5" : "flex flex-wrap items-baseline gap-x-3 gap-y-0.5")} data-testid="matchup-no-briefing">
+      <header className={cn("border-b border-border px-3 py-1.5", others.length ? "space-y-0.5" : "flex flex-wrap items-baseline gap-x-3 gap-y-0.5")} data-testid="matchup-no-briefing">
         <div className={cn("flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1", !others.length && "max-w-full shrink-0")}>
           <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
             <h2 className="text-sm font-semibold text-fg">

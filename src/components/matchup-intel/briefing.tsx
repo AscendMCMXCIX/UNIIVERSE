@@ -167,25 +167,27 @@ export function Briefing({ matchup, you, enemy, rows }: { matchup: MatchupIntelV
   const f = freshnessWords(matchup.freshness, matchup.verified.patch);
   const recheck = matchup.recheck;
   const header = (
-    <header className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 border-b border-border px-3 py-2">
-      <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+    // One row where it fits (at 1440 × 900 too, with production's "Not re-checked"): the title and its
+    // tier, then when it was checked, its badges as tall as its words.
+    <header className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5 border-b border-border px-3 py-1.5">
+      <div className="flex min-w-0 flex-wrap items-baseline gap-x-1.5">
         <h2 className="text-sm font-semibold text-fg">
           Curated briefing<span className="sr-only">: {`${you.name} vs ${enemy.name}`}</span>
         </h2>
         <TierLabel>{CHECKED_TIER}</TierLabel>
       </div>
-      <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-fg-muted" data-testid="matchup-briefing-checked">
+      <p className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-fg-muted" data-testid="matchup-briefing-checked">
         <span>{f.checked}</span>
         {recheck && !recheck.expired ? (
           <span className="inline-flex max-w-full" data-testid="matchup-not-rechecked">
-            <Badge tone="neutral">
+            <Badge tone="neutral" size="line">
               <History className="h-3.5 w-3.5 shrink-0" aria-hidden />
               {notRecheckedWords(recheck.patch)}
             </Badge>
           </span>
         ) : null}
         {f.warning ? (
-          <Badge tone="warn">
+          <Badge tone="warn" size="line">
             <TriangleAlert className="h-3.5 w-3.5 shrink-0" aria-hidden />
             {f.warning}
           </Badge>

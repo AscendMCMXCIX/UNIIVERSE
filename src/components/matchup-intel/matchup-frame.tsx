@@ -342,7 +342,8 @@ function RoleSelector({ role, onChange }: { role: Role; onChange: (role: Role) =
 /**
  * The ability haste the enemy's cooldowns are shown at: 0 (base cooldowns only), 20, 40, 60, or a
  * whole number typed up to HASTE_MAX. Remembered on this device. Never a timer: only the cooldown's
- * length at that haste, beside the base.
+ * length at that haste, beside the base. Its buttons fill their group as the lane's do (no inner
+ * padding), so the kit's heading row, where it sits, is 26px with a mouse.
  */
 function HasteChoice({ haste, onChange }: { haste: number; onChange: (haste: number) => void }) {
   const id = React.useId();
@@ -353,7 +354,7 @@ function HasteChoice({ haste, onChange }: { haste: number; onChange: (haste: num
       <label htmlFor={id} className="whitespace-nowrap">
         At haste
       </label>
-      <div role="group" aria-label="Ability haste" className="inline-flex max-w-full flex-wrap rounded-md border border-border-control bg-bg-elevated p-0.5">
+      <div role="group" aria-label="Ability haste" className="inline-flex max-w-full flex-wrap rounded-md border border-border-control bg-bg-elevated">
         {HASTE_CHOICES.map((h) => (
           <button
             key={h}
@@ -644,14 +645,19 @@ export function MatchupFrame({
   return (
     <FrameContext.Provider value={actions}>
       <HasteContext.Provider value={hasteValue}>
-        <div className="space-y-3">
+        {/* The dashboard 8px under the bar on a desktop, where the page is one screen (12px on a phone). */}
+        <div className="space-y-3 lg:space-y-2">
           <section aria-label="Champions" className="@container/pickers">
             {/* From a bar of 44rem the title and the lane take a row, the slots and the status (the
                 patch, the remembered line) the row under it; one row from a bar of 68rem (1v1) or 72rem
                 (the bot lane), where the status keeps room for its lines (at 60rem, 1280 with the
                 sidebar open, it was 126px wide and three lines tall, which put the enemy's R off the
-                screen: R6 review BX5). On a phone, one under the other. */}
-            <div className={cn("grid gap-x-4 gap-y-1.5 @min-[44rem]/pickers:items-center", duo ? "@min-[44rem]/pickers:grid-cols-[minmax(0,44rem)_minmax(0,1fr)] @min-[72rem]/pickers:grid-cols-[auto_minmax(0,44rem)_minmax(0,1fr)]" : "@min-[44rem]/pickers:grid-cols-[minmax(0,34rem)_minmax(0,1fr)] @min-[68rem]/pickers:grid-cols-[auto_minmax(0,34rem)_minmax(0,1fr)]")}>
+                screen: R6 review BX5). Under the title's row the 1v1 slots take at most 30rem (each
+                still holds Heimerdinger whole), so the status beside them keeps "Curated briefing ·
+                checked on patch 26.22" and its "Not re-checked for 26.23" on one line at 1280 and 1366
+                with the sidebar open, as production shows them once a patch is out after the check.
+                On a phone, one under the other. */}
+            <div className={cn("grid gap-x-4 gap-y-1.5 @min-[44rem]/pickers:items-center", duo ? "@min-[44rem]/pickers:grid-cols-[minmax(0,44rem)_minmax(0,1fr)] @min-[72rem]/pickers:grid-cols-[auto_minmax(0,44rem)_minmax(0,1fr)]" : "@min-[44rem]/pickers:grid-cols-[minmax(0,30rem)_minmax(0,1fr)] @min-[68rem]/pickers:grid-cols-[auto_minmax(0,34rem)_minmax(0,1fr)]")}>
               <div className={cn("flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 @min-[44rem]/pickers:col-span-2", duo ? "@min-[72rem]/pickers:col-span-1 @min-[72rem]/pickers:block @min-[72rem]/pickers:space-y-0.5" : "@min-[68rem]/pickers:col-span-1 @min-[68rem]/pickers:block @min-[68rem]/pickers:space-y-0.5")} data-testid="matchup-heading">
                 {/* The title with "Copy link" at its row's end; under them the lane, one row (a phone's full width). */}
                 <div className="flex min-w-0 items-center justify-between gap-2 max-sm:w-full">
@@ -694,7 +700,7 @@ export function MatchupFrame({
                   slotButton("enemy")
                 )}
               </div>
-              <div className="min-w-0 space-y-0.5">
+              <div className="min-w-0">
                 {patchState ? <div className="@min-[44rem]/pickers:flex @min-[44rem]/pickers:justify-end">{patchState}</div> : null}
                 {/* While a choice loads, what is loading takes the remembered line's place, at its height. */}
                 {loading ? (

@@ -1,7 +1,11 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { expect, test, type Page } from "./test";
-import { choose, enemyAbilities, hydrated, localPictures, openMatchupIntel, riotText } from "./matchup-intel";
+import { E2E_DDRAGON_VERSION } from "./ddragon-version";
+import { choose, enemyAbilities, hydrated, localPictures, notesAge, openMatchupIntel, riotText } from "./matchup-intel";
+import { briefingState, matchupIntelVerdicts, readMatchupIntel } from "../scripts/matchup-intel-facts.mjs";
+import { patchFromVersion, publicPatchName } from "../src/domain/patch";
+import { notRecheckedWords } from "../src/components/matchup-intel/wording";
 
 /*
   MATCHUP INTEL as a single-screen dashboard (docs/MATCHUP_INTEL.md, "The dashboard"; the owner's
@@ -193,6 +197,69 @@ test("the whole overview fits one desktop screen, with no page scroll, at 1920×
       expect.soft(Math.min(...m.body), `${at}: running text at least text-xs (0.75rem)`).toBeGreaterThanOrEqual(0.75 - 0.001);
       expect.soft(Math.min(...m.figures), `${at}: the cooldowns larger (text-md, 0.9375rem)`).toBeGreaterThanOrEqual(0.9375 - 0.001);
     }
+  }
+});
+
+/**
+ * The pages a later patch adds most to: the three curated pairs, whose bar, briefing, kits' lines and
+ * notes panels each say "Not re-checked for …" then, and the other way round (two checked kits, put
+ * together), whose kits' lines and notes panels say it.
+ */
+const LATER_PATCH_PAIRS: Array<[string, string]> = [
+  ["Riven", "Mordekaiser"],
+  ["Ambessa", "Renekton"],
+  ["Gwen", "Ornn"],
+  ["Mordekaiser", "Riven"],
+  ["Renekton", "Ambessa"],
+  ["Ornn", "Gwen"],
+];
+
+/** The demo's patch (26.22): a patch after the notes' check, they are "Not re-checked for 26.22". */
+const DEMO_PATCH = publicPatchName(patchFromVersion(E2E_DDRAGON_VERSION)!);
+
+test("a patch after the curated notes' check, as production is until they are re-checked (Release 6's Production check): each check says it is not re-checked, and the Production check's fit facts hold, the essentials on the first screen at 1440×900 and 1280×800, no page scroll at 1920×1080 and 1920×950", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "desktop sizes");
+  test.setTimeout(300_000);
+  await localPictures(page);
+  // As production runs: the facts from Riot's text off, as they ship (none would show here: checked notes win).
+  await riotText(page, "off");
+  // The demo is pinned to the version the notes were checked on: they read as checked a patch before it.
+  await notesAge(page, 1);
+  const frames = () => page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  for (const [you, enemy] of LATER_PATCH_PAIRS) {
+    const pair = `${you} vs ${enemy}`;
+    // As the Production check reads its pair: opened at 1440 x 900, then the window made 1920 x 1080.
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await openMatchupIntel(page, you, enemy);
+    await hydrated(page);
+    await expect(enemyAbilities(page), pair).toHaveCount(5);
+    // The state: every checked part beside its check, "Not re-checked for 26.22" (production's "… for 26.23").
+    const notices = page.getByTestId("matchup-intel").getByTestId("matchup-not-rechecked");
+    await expect(notices.first(), pair).toHaveText(notRecheckedWords(DEMO_PATCH));
+    await expect(page.getByTestId("matchup-curated-checked").first(), pair).toContainText(notRecheckedWords(DEMO_PATCH));
+    await frames();
+    const at = await page.evaluate(readMatchupIntel);
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    await frames();
+    const wide = await page.evaluate(readMatchupIntel);
+    expect(briefingState(at), pair).toBe("shown");
+    if (at.layer === "curated") expect(at.notRechecked, `${pair}: the bar and the briefing say it`).toBe(true);
+    // The Production check's own fit facts (scripts/matchup-intel-facts.mjs), judged as it judges them.
+    const fits = matchupIntelVerdicts({ kind: "desktop", pair, enemy, at, wide, wiki: [] }).filter((v) => /^desktop: (1920 × 1080|1440 × 900): /.test(v.name));
+    expect(fits, pair).toHaveLength(2);
+    for (const v of fits) expect.soft(v.status, `${pair}: ${v.name} ${JSON.stringify(v.detail)}`).toBe("PASS");
+    // 1280 x 800 (the sidebar open), as ESSENTIALS_ONLY: the bar, every enemy cooldown line, the main panel's start.
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await frames();
+    const small = await measure(page);
+    expect.soft(small.parts.bar?.bottom ?? Infinity, `${pair} at 1280×800: the bar on the screen`).toBeLessThanOrEqual(small.innerHeight + 0.5);
+    expect.soft(small.parts.cooldowns?.bottom ?? Infinity, `${pair} at 1280×800: every enemy cooldown line on the screen`).toBeLessThanOrEqual(small.innerHeight + 0.5);
+    expect.soft(small.parts.main?.top ?? Infinity, `${pair} at 1280×800: the main panel starts on the screen`).toBeLessThanOrEqual(small.innerHeight / 2);
+    // A maximised 1920 x 1080 window: still one screen.
+    await page.setViewportSize({ width: 1920, height: 950 });
+    await frames();
+    const maximised = await measure(page);
+    expect.soft(maximised.scrollHeight, `${pair} at 1920×950: no vertical page scroll`).toBeLessThanOrEqual(maximised.innerHeight);
   }
 });
 
