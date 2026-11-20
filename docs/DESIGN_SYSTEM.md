@@ -336,6 +336,9 @@ Safari.
   popover; in the phone posture (under 768px wide, or 480px tall or less) the browser's own select,
   whose wheel or sheet is what a phone's owner expects. The closed control looks the same either way
   (`selectClass`): the server draws the popover's button and a phone swaps it as the page hydrates.
+  The native select draws the popover's chevron too (`select-chevron` in globals.css: lucide's
+  ChevronDown, 16px, `fg-subtle`, 8px in, `appearance: none`), not the system's bold arrow (the
+  design review's G2-6, 20 Nov 2026); the phone keeps its own picker.
 - **Pattern:** WAI-ARIA's select-only combobox. The button is a `combobox` owning a `listbox`; the
   focus never leaves the button (the active option is `aria-activedescendant`), so it is on the
   button whenever the list closes. axe passes with the list open.
@@ -352,6 +355,29 @@ Safari.
 - **Tests:** `e2e/select.ts` chooses an option in either form (`pick`, `optionsOf`, `valueOf`);
   `e2e/select.spec.ts` checks the component once; `webkit.spec.ts` checks it draws the same figures in
   WebKit (`SELECT_LOOK`); `select.test.ts` fails on any native select outside `select.tsx`.
+
+### Conventions the design review settled (20 Nov 2026, Release 11)
+
+The review compared desktop and phone against the benchmark pages; these held where the pages had drifted:
+
+- **A control at rest is neutral.** Filters' sliders take the button's own colour (`fg-muted`,
+  stepping up on hover), as the desktop's Refine; accent marks a narrowed list only, with its count
+  (the folded toggle, the page toolbar's Filters, the top bar's). The camera badge on one's own
+  picture is `bg-elevated` with a `border-strong` edge, accent only while the picture is pointed at
+  or focused. A dropdown at rest carries `border-control` (Team Matches' "Played with" included).
+- **One look per kind of control:** a choice of a few (Most games | Best | Worst in a champion's
+  preview) is `segmentedGroupClass` and `segmentClass`, the chosen one ringed and semibold.
+- **One heading per profile tab:** Riot Accounts' title and lead line are its `SectionHeader`
+  (20px, left to the tab on a phone), as All Champions and Season performance; the admin's person
+  view keeps the panel's own header (`RiotAccountsPanel heading`).
+- **Cells side by side start level** (`DataRow align="start"` where a grid row stretches them, as
+  Season records); a table's figure columns are as wide as their headings (Multikills).
+- **A pinned strip leaves with its item:** `UnfoldHeader`'s sticky wrapper is the strip's height
+  (an empty block after it takes the room back), so it stops at the game's last pixel.
+- **Sorted figures are strong where they are drawn:** a phone row of All Champions sorted by games
+  sets its "15 games" semibold, as the desktop's Games column.
+- **The profile band from xl** writes the off role ("Top (off)") and the rank's queue; under xl
+  they are read out only, so the band stays one line.
 
 ### The one history rule (`address-item.ts`)
 

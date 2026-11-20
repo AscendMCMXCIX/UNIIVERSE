@@ -96,6 +96,9 @@ test("the content: opponents from 3 games with their games, one unfolding into i
   await expect(content.getByTestId("champion-preview-figures")).toContainText(/\d+ games? · \d+W \d+L/);
   const opponents = content.getByTestId("champion-preview-opponent");
   await expect(opponents.first()).toBeVisible();
+  // The opponents' sort is the app's segmented control: the chosen one ringed and semibold (the design review's G2-11).
+  const sorts = content.locator("[data-testid^=opponent-sort-]");
+  if (await sorts.count()) expect(await sorts.evaluateAll((els) => els.map((e) => [e.getAttribute("aria-pressed"), getComputedStyle(e).fontWeight, getComputedStyle(e).boxShadow !== "none"]))).toEqual(await sorts.evaluateAll((els) => els.map((e) => (e.getAttribute("aria-pressed") === "true" ? ["true", "600", true] : ["false", "500", false]))));
   // A win rate only from 3 games, each with its games beside it.
   for (const o of await opponents.evaluateAll((els) => els.map((e) => ({ games: Number((e as HTMLElement).dataset.games), text: e.textContent ?? "" })))) {
     expect(o.text).toMatch(/\d+ games?/);

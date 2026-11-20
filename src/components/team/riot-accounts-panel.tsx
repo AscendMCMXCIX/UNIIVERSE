@@ -308,8 +308,9 @@ export function RiotAccountsPanel({ playerId, accounts, riotConfigured, editable
   if (heading === "panel") return panel;
   return (
     <section className="space-y-3" aria-labelledby="riot-accounts-title" data-testid="riot-accounts-section">
-      {/* The profile's one heading layout (as All Champions and Season performance); on a phone the current tab names it. */}
-      <SectionHeader id="riot-accounts-title" title={title} titleOnPhones="tab" description={<p className="text-sm text-fg-muted">{lead}</p>} refresh={refreshButton} toolbarBesideScope />
+      {/* The profile's one heading layout (as All Champions and Season performance); on a phone the current tab names it.
+          No filters here, so Refresh ends the title's line at every width (toolbarBesideNav), never a row of its own. */}
+      <SectionHeader id="riot-accounts-title" title={title} titleOnPhones="tab" description={<p className="text-sm text-fg-muted">{lead}</p>} refresh={refreshButton} toolbarBesideNav />
       {panel}
     </section>
   );

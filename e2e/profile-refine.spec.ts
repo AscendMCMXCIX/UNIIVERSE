@@ -97,7 +97,10 @@ test("phones: the same fields sit in the full-width filter panel, without a hori
   await openProfile(page);
   const bar = page.getByTestId("overview-filters");
   await expect(bar.getByTestId("refine-filters")).toBeHidden();
-  await bar.getByTestId("filter-toggle").click();
+  // The folded Filters draws its sliders in the button's own colour while nothing is narrowed; accent marks a narrowed list only (the design review's G1-7).
+  const toggle = bar.getByTestId("filter-toggle");
+  expect(await toggle.evaluate((b) => getComputedStyle(b.querySelector("svg")!).color === getComputedStyle(b).color)).toBe(true);
+  await toggle.click();
   await expect(bar.getByTestId("refine-panel")).toBeVisible();
   await expect(bar.getByRole("radio", { name: "All roles" })).toBeVisible();
   const heading = await page.locator("#season-stats").boundingBox();

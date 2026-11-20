@@ -544,6 +544,12 @@ test("the season records: seven cells in one panel, each opening its game; multi
     expect(n.inside, `${n.name}: inside its row`).toBe(true);
     expect(n.cut, `${n.name}: whole`).toBe(false);
   }
+  // Two cells side by side start level: each at its own top padding, the shorter not centred in the
+  // taller's row (the design review's G1-4: 18px lower).
+  const tops = await page.getByTestId("season-record").evaluateAll((rows) => rows.map((r) => [Math.round(r.closest("li")!.getBoundingClientRect().top), r.querySelector("[data-testid=record-label]")!.getBoundingClientRect().top - r.getBoundingClientRect().top]));
+  for (const [row, offset] of tops) for (const [other, o] of tops) if (row === other) expect(Math.abs(offset! - o!), "level with the cell beside it").toBeLessThanOrEqual(1);
+  // At 1440 each count column is as wide as its heading, so every member's name keeps one line (G1-10: one ran to two).
+  if (test.info().project.name === "desktop") expect(new Set(await page.getByTestId("multikill-row").evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().height)))).size, "the multikill rows one height").toBe(1);
   // The milestones' figures as format.ts shortens them (486K), the rest of a member's counted, what
   // counts behind each kind's ⓘ.
   await expect(page.getByTestId("milestones-mastery").getByTestId("milestone-figure").first()).toHaveText(/^\d+(\.\d)?[KM]$/);
