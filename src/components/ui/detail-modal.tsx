@@ -887,7 +887,7 @@ export function DetailModal({
               )}
             >
               {/* Two lines at most: at a large text size the controls leave the name little room. */}
-              <span className="line-clamp-2 min-w-24 flex-1 py-2 text-base font-semibold leading-tight">{compactTitle ?? title}</span>
+              <span className="line-clamp-2 min-w-24 grow py-2 text-base font-semibold leading-tight">{compactTitle ?? title}</span>
               <span aria-hidden className="ml-auto h-[calc(3.5rem-1px)] w-[calc(var(--modal-clear-right,4.5rem)-1rem)] shrink-0" />
             </div>
           ) : null}
