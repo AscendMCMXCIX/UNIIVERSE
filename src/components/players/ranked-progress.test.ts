@@ -18,10 +18,10 @@ const text = (html: string, testId: string) => {
 };
 
 describe("RankedProgress", () => {
-  it("writes the highest recorded rank whole, LP never cut off, with the rank in a tooltip", () => {
+  it("writes the highest recorded rank whole, LP never cut off, with no title repeating it", () => {
     const html = render([snap(D(10, 15), "GRANDMASTER", null, 999, 300, 200), snap(D(11, 1), "GRANDMASTER", null, 950, 310, 205)]);
     expect(html).toContain("Grandmaster · 999 LP");
-    expect(html).toMatch(/<span class="block text-sm font-semibold text-fg" title="Grandmaster 999 LP">/);
+    expect(html).toMatch(/<span class="block text-sm font-semibold text-fg">Grandmaster · /);
   });
 
   it("never credits the 30 days with unseen games that straddle their start", () => {
