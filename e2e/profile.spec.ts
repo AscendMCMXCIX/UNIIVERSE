@@ -59,7 +59,7 @@ test("All Champions on a phone: a Sort by control with a direction toggle, no si
   expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
 });
 
-test("All Champions on a phone: the tab names it, the scope's words on one line from 375px, search and Sort by (its mark shown) on one row from 360px, the sorted pair first in semibold", async ({ page }) => {
+test("All Champions on a phone: the tab names it, Filters at the scope line's end (no row of its own), search and Sort by (its mark shown) on one row from 360px, the sorted pair first in semibold", async ({ page }) => {
   test.skip(test.info().project.name !== "phone", "phone only");
   await page.goto("/players");
   const href = await playerEntry(page, "Demo Top").first().getAttribute("href");
@@ -80,8 +80,12 @@ test("All Champions on a phone: the tab names it, the scope's words on one line 
   const scope = page.getByTestId("all-champions-scope");
   await expect(scope).toHaveText(new RegExp(`^${n} champions? · Season \\d{4} · All supported games$`));
   const lines = (el: HTMLElement) => el.getBoundingClientRect().height / parseFloat(getComputedStyle(el).lineHeight);
-  // One line at 393px with its status's ⓘ (Demo Top's status is the ⓘ alone); the words alone from 375px.
-  expect(await page.getByTestId("section-scope").evaluate(lines), "393px: the scope and its ⓘ on one line").toBeLessThan(1.5);
+  // Filters at the scope line's end, never a row of its own (S2b, 20 Nov 2026, as Season performance):
+  // the scope's words (329px at 393) then take two lines beside it, 34px less than a row of its own.
+  expect(await page.getByTestId("section-scope").evaluate(lines), "393px: the scope and its ⓘ in two lines at most").toBeLessThan(2.5);
+  const [sc, tb] = [(await page.getByTestId("section-scope").boundingBox())!, (await page.getByTestId("section-toolbar").boundingBox())!];
+  expect(tb.y, "393px: Filters on the scope's row").toBeLessThan(sc.y + sc.height);
+  expect(tb.x, "393px: Filters at the scope's end").toBeGreaterThanOrEqual(sc.x + sc.width - 1);
   const search = page.getByTestId("all-champions-search");
   const sort = page.getByTestId("all-champions-sort-mobile");
   const card = page.getByTestId("all-champions-table");
@@ -96,7 +100,7 @@ test("All Champions on a phone: the tab names it, the scope's words on one line 
     await expect(page.getByLabel("Sort by")).toBeVisible();
     expect(await sort.locator("label").evaluate((l) => l.getBoundingClientRect().width), `${width}px: the label read out only`).toBeLessThanOrEqual(1);
     await expect(page.getByTestId("all-champions-sort-mark"), `${width}px: the sort mark shown`).toBeVisible();
-    if (width >= 375) expect(await scope.evaluate(lines), `${width}px: the scope's words on one line`).toBeLessThan(1.5);
+    expect(await scope.evaluate(lines), `${width}px: the scope's words in two lines at most, beside Filters`).toBeLessThan(2.5);
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), `${width}px: no sideways scroll`).toBeLessThanOrEqual(0);
   }
   // On a 320px phone the search keeps its own line, with Sort by and its label under it.

@@ -74,7 +74,7 @@ export function MatchDetailModal({ playerId, matchId, championsById, onClose, ba
           "Match details"
         )}
       </h2>
-      {view && lp ? <LpChange lp={lp} /> : null}
+      {view && lp ? <LpChange lp={lp} focusable /> : null}
     </div>
   );
   const footer = nav ? (

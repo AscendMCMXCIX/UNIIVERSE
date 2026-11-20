@@ -590,6 +590,8 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
           </p>
         }
         statusAfterText
+        // Phones: Filters (and Refresh) at the scope line's end, never a row of their own (S2b, as Season performance).
+        toolbarBesideScope
         status={status ? <DataStatusNote status={status} refresh={refresh} /> : null}
         refresh={status ? <RefreshButton status={status} refresh={refresh} /> : null}
         controls={<OverviewFilters basePath={basePath} filter={f} seasons={data.seasons} currentSeason={data.currentSeason} champions={[]} accounts={data.accountOptions} showChampions={false} modeCounts={data.modes.counts} testId="all-champions-filters" />}
