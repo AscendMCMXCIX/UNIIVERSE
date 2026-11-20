@@ -20,6 +20,20 @@ async function profileOf(page: Page, name: string): Promise<string> {
   return (await page.locator(`main a[data-testid='player-card'][data-player-name='${name}']`).first().getAttribute("href"))!;
 }
 
+/**
+ * A phone's Sort by (narrow rows, under 640px). A choice made before the page's code runs is lost
+ * (React puts the control back as it hydrates), so it is made again until the first row shows the
+ * figure it sorts by, under that figure's name.
+ */
+async function sortOnPhone(page: Page, key: string) {
+  const select = page.locator("#all-champions-sort-by");
+  const label = (await select.locator(`option[value="${key}"]`).textContent())!.trim();
+  await expect(async () => {
+    await select.selectOption(key);
+    await expect(page.getByTestId("top-champion").first().getByTestId("champion-sorted-figure")).toContainText(label, { timeout: 1_000 });
+  }).toPass({ timeout: 15_000 });
+}
+
 const seasonGames = async (page: Page) => Number((await page.getByTestId("season-record").textContent())!.replace(/,/g, "").trim());
 
 const KINDS = [
@@ -136,7 +150,7 @@ test("Total kills: each game's own kills over the same games as the other figure
   const kills = async () => rows.evaluateAll((els) => els.map((e) => e.getAttribute("data-kills")).filter((v): v is string => !!v).map(Number));
   expect((await kills()).reduce((a, b) => a + b, 0)).toBe(total);
   // Sorted by them: from the heading, or Sort by on phones.
-  if (page.viewportSize()!.width < 768) await page.locator("#all-champions-sort-by").selectOption("kills");
+  if (page.viewportSize()!.width < 768) await sortOnPhone(page, "kills");
   else await page.getByTestId("sort-kills").click();
   const sorted = await kills();
   expect(sorted).toEqual([...sorted].sort((a, b) => b - a));
@@ -197,7 +211,7 @@ test("partial counts are said once, in the page's status (the ⓘ), and in each 
   const phone = page.viewportSize()!.width < 640;
   if (phone) {
     // Narrow rows, sorted by multikills: the rarest kind after the role, a dash where nothing is counted yet.
-    await page.locator("#all-champions-sort-by").selectOption("multikills");
+    await sortOnPhone(page, "multikills");
     await expect(none.getByTestId("champion-sorted-figure")).toContainText("Multikills —");
     await expect(partial.getByTestId("champion-sorted-figure")).toContainText(/Multikills (\d+ (double|triple|quadra|penta)|none)\*/);
   } else {
@@ -222,7 +236,7 @@ test("All Champions: multikills sort from their headings (or Sort by on phones) 
   const multikills = () => rows.evaluateAll((els) => els.map((e) => e.getAttribute("data-multikills") ?? "").map((v) => (v ? v.split(",").map(Number) : null)));
   const phone = page.viewportSize()!.width < 640;
   const sortBy = async (key: "double" | "penta" | "multikills") => {
-    if (phone) await page.locator("#all-champions-sort-by").selectOption(key);
+    if (phone) await sortOnPhone(page, key);
     else await page.getByTestId(`sort-${key}`).click();
   };
   if (!phone) await page.setViewportSize({ width: 1680, height: 1000 });
