@@ -128,7 +128,7 @@ function TypedName({ expected, action, value, onChange, testId }: { expected: st
 }
 
 /** Delete for a player profile that has no account (test entries, old placeholders, leftovers of deleted accounts): its name typed first. */
-export function DeleteProfileButton({ playerId, name }: { playerId: string; name: string }) {
+export function DeleteProfileButton({ playerId, name, onDeleted }: { playerId: string; name: string; /** Once it is deleted (the person view closes by its address). */ onDeleted?: () => void }) {
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
@@ -147,6 +147,7 @@ export function DeleteProfileButton({ playerId, name }: { playerId: string; name
     setTyped("");
     toast.success(`${name} deleted.`);
     router.refresh();
+    onDeleted?.();
   };
   return (
     <>
@@ -182,14 +183,14 @@ export function DeleteProfileButton({ playerId, name }: { playerId: string; name
  * The Production check's account (keptAutomatically) offers Deactivate / Reactivate and Delete only:
  * its job keeps its password, and the server refuses a reset.
  */
-export function AccountActions({ account, currentUserId, viewerIsOwner = false }: { account: AccountView; currentUserId: string | null; viewerIsOwner?: boolean }) {
+export function AccountActions({ account, currentUserId, viewerIsOwner = false, only, onDeleted }: { account: AccountView; currentUserId: string | null; viewerIsOwner?: boolean; /** The person view's sections: the password's button, or the Danger zone's. */ only?: "password" | "danger"; /** Once the account is deleted (the person view closes by its address). */ onDeleted?: () => void }) {
   const router = useRouter();
   const [busy, setBusy] = React.useState(false);
   const [issued, setIssued] = React.useState<{ temporaryPassword: string; expiresAt: string } | null>(null);
   const [confirming, setConfirming] = React.useState<"reset" | "deactivate" | "delete" | null>(null);
   const [typed, setTyped] = React.useState("");
   const self = account.userId === currentUserId;
-  const run = async <T,>(fn: () => Promise<{ ok: true; data: T } | { ok: false; error: string }>, done: string | null): Promise<T | null> => {
+  const run = async <T,>(fn: () => Promise<{ ok: true; data: T } | { ok: false; error: string }>, done: string | null, deletes = false): Promise<T | null> => {
     setBusy(true);
     const r = await fn();
     setBusy(false);
@@ -201,6 +202,7 @@ export function AccountActions({ account, currentUserId, viewerIsOwner = false }
     setTyped("");
     if (done) toast.success(done);
     router.refresh();
+    if (deletes) onDeleted?.();
     return r.data;
   };
   const closeDelete = () => {
@@ -215,12 +217,12 @@ export function AccountActions({ account, currentUserId, viewerIsOwner = false }
   const withProfile = !!account.playerId;
   return (
     <div className="flex flex-wrap items-center gap-1.5" data-testid="account-actions">
-      {account.isActive && !account.keptAutomatically ? (
+      {account.isActive && !account.keptAutomatically && only !== "danger" ? (
         <Button size="sm" variant="outline" wrap disabled={busy} onClick={() => (account.password.state === "none" ? resetPassword() : setConfirming("reset"))}>
           {account.password.state === "none" ? "Create temporary password" : "Reset password"}
         </Button>
       ) : null}
-      {account.isActive ? (
+      {only === "password" ? null : account.isActive ? (
         <Button size="sm" variant="ghost" wrap disabled={busy} onClick={() => setConfirming("deactivate")}>
           Deactivate
         </Button>
@@ -229,9 +231,11 @@ export function AccountActions({ account, currentUserId, viewerIsOwner = false }
           Reactivate
         </Button>
       )}
-      <Button size="sm" variant="ghost" className="text-bad" wrap disabled={busy} onClick={() => setConfirming("delete")} data-testid="delete-account">
-        Delete
-      </Button>
+      {only === "password" ? null : (
+        <Button size="sm" variant="ghost" className="text-bad" wrap disabled={busy} onClick={() => setConfirming("delete")} data-testid="delete-account">
+          Delete
+        </Button>
+      )}
 
       <ConfirmDialog
         open={confirming === "reset"}
@@ -264,10 +268,10 @@ export function AccountActions({ account, currentUserId, viewerIsOwner = false }
               </Button>
               {/* The two deletes stay together on one row; on a phone they wrap as a pair. */}
               <span className="flex flex-wrap justify-end gap-2">
-                <Button variant="outline" disabled={busy} onClick={() => void run(() => deleteAccountAction(account.userId), `${account.username} deleted; their profile is archived.`)} data-testid="delete-keep-profile">
+                <Button variant="outline" disabled={busy} onClick={() => void run(() => deleteAccountAction(account.userId), `${account.username} deleted; their profile is archived.`, true)} data-testid="delete-keep-profile">
                   Delete, keep profile
                 </Button>
-                <Button variant="danger" disabled={busy || !typedMatches(typed, account.username)} onClick={() => void run(() => deleteAccountAction(account.userId, { eraseProfile: true, confirmation: typed }), `${account.username} and their profile deleted.`)} data-testid="delete-with-profile">
+                <Button variant="danger" disabled={busy || !typedMatches(typed, account.username)} onClick={() => void run(() => deleteAccountAction(account.userId, { eraseProfile: true, confirmation: typed }), `${account.username} and their profile deleted.`, true)} data-testid="delete-with-profile">
                   Delete with profile
                 </Button>
               </span>
@@ -284,7 +288,7 @@ export function AccountActions({ account, currentUserId, viewerIsOwner = false }
           description={account.keptAutomatically ? "It has no player profile. The Production check makes it again at its next run; to turn the signed-in checks off, deactivate it instead." : "It has no player profile; only the account goes. This cannot be undone."}
           confirmLabel="Delete account"
           onCancel={closeDelete}
-          onConfirm={() => void run(() => deleteAccountAction(account.userId), `${account.username} deleted.`)}
+          onConfirm={() => void run(() => deleteAccountAction(account.userId), `${account.username} deleted.`, true)}
         />
       )}
       <Dialog open={issued !== null} onClose={() => setIssued(null)} title="Temporary password" description="Shown only once." footer={<Button variant="primary" onClick={() => setIssued(null)}>Done</Button>}>

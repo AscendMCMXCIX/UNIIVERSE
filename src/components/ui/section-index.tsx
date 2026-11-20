@@ -4,6 +4,7 @@ import * as React from "react";
 import { isPlainClick } from "@/lib/back-to-top";
 import { cn } from "@/lib/cn";
 import { historyShowsEntries } from "@/lib/nav";
+import { scrollToStart } from "@/lib/screen";
 
 /**
  * Jumps to the element with this id, as following a link to it would, through the router's own
@@ -28,7 +29,8 @@ export function jumpToAnchor(anchor: string): void {
     if (historyShowsEntries()) window.history.pushState(null, "", hash);
     else window.history.replaceState(null, "", hash);
   }
-  row.scrollIntoView({ block: "start" });
+  // Under the bars as they will be once landed (a phone's sliding bar row comes back on a jump up).
+  scrollToStart(row, "auto");
   if (!row.hasAttribute("tabindex")) {
     row.setAttribute("tabindex", "-1");
     row.addEventListener("blur", () => row.removeAttribute("tabindex"), { once: true });

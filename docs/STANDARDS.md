@@ -110,8 +110,9 @@ list fades out before the figures (a pool row's left half).
 
 Rank crests keep their own artwork and fallback colours (`rank-emblem.tsx`, `tierTextClass` for the text tokens), as do social brands (`brand-icons.tsx`).
 
-**Type.** Tailwind's scale from `text-xs` (12px) up, plus `text-2xs` (11px: the smallest text:
-chips, badges, captions, column headings, labels), `text-4xs` (10px: letters inside small tiles,
+**Type.** Tailwind's scale from `text-xs` (12px) up, plus `text-2xs` (the smallest text:
+chips, badges, captions, column headings, labels; 11px on phones and tablets, 12px on desktops: the
+12px floor, globals.css; uppercase labels keep 11px), `text-4xs` (10px: letters inside small tiles,
 such as initials or a count, never running text), `text-md` (15px: a list row's primary value) and
 `text-figure` (28px: headline figures from `sm` up). Hierarchy comes from size and weight first:
 a page's title, a section's title (`text-xl`), a panel's title (`text-base` semibold); a headline
@@ -160,6 +161,9 @@ expressive; Settings and forms are plain and roomy. Empty or thin data shrinks a
 leaving a frame to fill.
 
 **Page layout.** One frame for every page, so pages differ by their content, not their scaffolding:
+- **The shared frame** (S2c, `app-shell.tsx`): every page sits in one column, at most `--content-wide`
+  and centred; a narrower page starts at its left edge (never centred on its own), so titles share one
+  x on every destination. A loading state takes its page's shape (`ui/skeleton.tsx`), not generic panels.
 - **Width:** `--content-max` for profiles, lists of cards, documents and forms; `--content-wide` for
   the grids that gain from more columns (Team Overview's lineup, Leaderboards, Matchup Intel's
   single-screen dashboard). In a window from
@@ -250,7 +254,7 @@ Use the shared component before writing a new one (`src/components/ui`):
 | A page's sections (primary) | `TabBar`: a profile's Overview, All Champions, Match History and Riot Accounts; Team's sections. On tablets and desktops the bar stays pinned at the top of the page once it scrolls (`sticky`; [RESPONSIVE.md](RESPONSIVE.md) → Shell). A bar wider than the pages under it (`SectionTabs`, a child of `main`) gives its row their width from a 1600px window (`inner`, `ROW_WIDTH`), so there its first tab starts at their column. Admin Mode's Users & Permissions, Platform Settings and System use the same bar. On phones every one of these rides in the top bar as its second row (`ChromeTabs`: a destination's tabs from `SECTION_HUBS`, a profile's through `ProfileTabs variant="chrome"`) |
 | Equal views of one section, or related pages (secondary) | `SubTabs` (`ui/sub-tabs.tsx`): links with `aria-current`, directly under the primary tabs, in the section title's place (`SectionHeader`'s `nav`): Match History's Games and Encounters. `size="compact"` for their copy in the pinned row (`PageToolbar`; its test ids prefixed with `toolbar-`). Separate pages are sections, not views: Users & Permissions' pages use `TabBar` (since 19 Nov 2026) |
 | Views inside one panel (a champion's views; a game has none since the post-game view of 19 Nov 2026) | `role="tablist"` buttons with `tabIndicatorClass` |
-| Tabs that filter one list | `TabLinks`, only where it is today (Admin's audit categories), until that page is redesigned |
+| Tabs that filter one list | none: a `FilterBar` (Audit Logs retired `TabLinks`, its last use, in the overhaul's S9) |
 | Buttons and links that look like buttons | `Button`, `buttonClass` (links never wrap buttons) |
 | Fields | `Input`, `Textarea`, `Select`, `Label`, `Switch` |
 | A section that opens and closes | `Disclosure` |
@@ -323,6 +327,19 @@ below-the-fold ones lazily, and keep uploaded brand images small ([HOSTING_USAGE
     by its content, plus hidden words where needed (`<span className="sr-only">`), not by
     `aria-label`.
   - A lettered stand-in for a picture is named like the picture (`ChampionPortrait`).
+- A name (`aria-label`, `aria-labelledby`) only on an element whose role may be named: never on a
+  `div`, `span` or `p` with no role (axe's aria-prohibited-attr; screen readers drop the name).
+  `src/app/aria-naming.test.ts` refuses it.
+  - A loading placeholder is a polite status (`role="status"`) whose sr-only text says what loads
+    ("Loading the notes"), its pulsing shapes hidden; `e2e/match-breakdown.spec.ts` runs axe with a
+    game's notes held back (#323: the notes' placeholder failed the Production check's axe).
+  - A row of things with a name is `role="group"`; a mark that means something ("—" for not counted
+    yet) is hidden, with its meaning in sr-only text beside it.
+- A state that follows an element through an IntersectionObserver (a pinned bar, a header gone
+  under the frame) reads the callback's newest entry: a late callback carries every change since
+  the last, oldest first (#323: the pinned row stayed marked at rest).
+  `src/components/ui/observer-entries.test.ts` refuses `([entry]) =>`, `entries[0]` and
+  `const [entry] = entries`.
 - Axe runs on every player and admin page at desktop and phone width, on a teammate's profile, and
   in the Team player and champion windows (`e2e/quality.spec.ts`).
 - Valid nesting: no block inside a paragraph, no link inside a link or button. The browser

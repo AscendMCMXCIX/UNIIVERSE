@@ -156,14 +156,15 @@ const NAV_BUTTON = "inline-flex h-11 min-w-11 items-center gap-1 rounded-lg px-3
 
 function DetailSkeleton() {
   return (
-    <div className="space-y-3" aria-busy="true" aria-label="Loading the match">
-      <div className="h-20 animate-pulse rounded-lg bg-surface-2" />
-      <div className="grid grid-cols-3 gap-2">
+    <div className="space-y-3" role="status">
+      <span className="sr-only">Loading the match</span>
+      <div className="h-20 animate-pulse rounded-lg bg-surface-2" aria-hidden />
+      <div className="grid grid-cols-3 gap-2" aria-hidden>
         {Array.from({ length: 6 }, (_, i) => (
           <div key={i} className="h-14 animate-pulse rounded-lg bg-surface-2" />
         ))}
       </div>
-      <div className="h-64 animate-pulse rounded-panel bg-surface-2" />
+      <div className="h-64 animate-pulse rounded-panel bg-surface-2" aria-hidden />
     </div>
   );
 }

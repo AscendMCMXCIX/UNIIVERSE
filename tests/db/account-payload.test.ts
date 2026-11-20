@@ -80,6 +80,16 @@ describe("linked accounts in the browser", () => {
       else process.env.RIOT_API_KEY = prev.key;
     }
   });
+
+  it("Users & Permissions hands the person view each linked account without its PUUID (R6 review SR6-SEC-1)", async () => {
+    state.session = owner();
+    const { default: AdminPeoplePage } = await import("@/app/(admin)/admin/people/page");
+    const page = (await AdminPeoplePage({ searchParams: Promise.resolve({}) })) as { props: { children: { props: { players: Array<{ riotAccounts: Array<{ puuid: string | null }> }> } } } };
+    const accounts = page.props.children.props.players.flatMap((p) => p.riotAccounts);
+    expect(accounts.length).toBeGreaterThanOrEqual(2);
+    expect(accounts.map((a) => a.puuid)).toEqual(accounts.map(() => PUUID_KEPT_ON_SERVER));
+    expect(JSON.stringify(page.props.children.props)).not.toMatch(/secret-puuid/);
+  });
 });
 
 describe("match-history actions and the first-time setup", () => {

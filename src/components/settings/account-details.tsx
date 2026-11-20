@@ -9,6 +9,7 @@ import { ON_THE_PUBLIC_PAGE } from "@/domain/privacy";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
+import { InfoTip } from "@/components/ui/info-tip";
 import { toast } from "@/components/ui/toast";
 import { useAvatarUpload } from "@/components/profile/avatar-upload";
 import { SectionIndex, type SectionIndexItem } from "@/components/ui/section-index";
@@ -74,7 +75,12 @@ export function DisplayNameEditor({ displayName }: { displayName: string }) {
         <SaveButton busy={busy} disabled={busy || !changed || !!local} what="display name" />
       </div>
       <p id="display-name-help" className={shown ? "mt-1.5 text-xs text-bad" : "mt-1.5 text-pretty text-xs text-fg-subtle"} role={shown ? "alert" : undefined}>
-        {shown ?? `Shown to teammates across the app, and ${ON_THE_PUBLIC_PAGE}. It doesn't have to be unique or match your Riot ID.`}
+        {shown ?? (
+          <>
+            Shown to teammates; it needn&apos;t be unique.{" "}
+            <InfoTip label="Where it shows" text={`Across the app, and ${ON_THE_PUBLIC_PAGE}. It needn't match your Riot ID.`} testId="display-name-help-info" />
+          </>
+        )}
       </p>
     </form>
   );
@@ -136,13 +142,24 @@ export function UsernameEditor({ username }: { username: string }) {
         <SaveButton busy={busy} disabled={busy || !changed || !!local} what="username" />
       </div>
       <p id="username-help" className={shown ? "mt-1.5 text-xs text-bad" : "mt-1.5 text-xs text-fg-subtle"}>
-        {shown ?? "What you sign in with. Not case-sensitive. Teammates see your display name, not this."}
+        {shown ?? (
+          <>
+            What you sign in with; not case-sensitive.{" "}
+            <InfoTip label="Who sees it" text="Teammates see your display name, not your username." testId="username-help-info" />
+          </>
+        )}
       </p>
     </form>
   );
 }
 
-const PICTURE_HELP = `Optional. PNG, JPEG or WebP, cropped to a square. Shown to teammates, and ${ON_THE_PUBLIC_PAGE}. You can also change it from My Profile.`;
+/** One line under the field, the rest behind ⓘ (the phone header budget, docs/MOBILE.md). */
+const PICTURE_HELP = (
+  <>
+    Optional. PNG, JPEG or WebP, cropped to a square.{" "}
+    <InfoTip label="Who sees the picture" text={`Shown to teammates, and ${ON_THE_PUBLIC_PAGE}. Change it from My Profile too.`} testId="avatar-help-info" />
+  </>
+);
 
 /**
  * The picture part of Settings' account card: the picture, who you are (`children`: the name,

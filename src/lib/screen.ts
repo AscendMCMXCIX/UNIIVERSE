@@ -40,3 +40,74 @@ export function clearArea(): { top: number; bottom: number } {
   const style = getComputedStyle(document.documentElement);
   return { top: parseFloat(style.scrollPaddingTop) || 0, bottom: screenHeight() - (parseFloat(style.scrollPaddingBottom) || 0) };
 }
+
+/** How far the page scrolls before a phone's top bar may slide away (about the bar's height): MobileNav's useHideOnScroll. */
+export const BAR_HIDE_AFTER = 64;
+/** The distance scrolled one way, from where that direction began, that hides or shows the bar: MobileNav's useHideOnScroll. */
+export const BAR_INTENT = 8;
+
+/**
+ * The top bar whose first row slides away (MobileNav's "row": an upright phone the frame crowds),
+ * with that row's height: the part of the bar the scroll padding leaves out, since the row goes as
+ * the page scrolls down. Null where nothing slides that way, and while the bar holds the focus (its
+ * row then stays, and the padding counts it).
+ */
+function slidingRow(): { bar: HTMLElement; row: number } | null {
+  const bar = document.querySelector<HTMLElement>("[data-testid=mobile-topbar][data-slides=row]");
+  if (!bar || bar.matches(":focus-within")) return null;
+  const row = parseFloat(bar.style.getPropertyValue("--bar-row")) || 0;
+  return row > 0 ? { bar, row } : null;
+}
+
+/**
+ * Whether the focus is in the top bar whose first row slides away: the row stays while it is, and a
+ * window opened now hands the focus back there as it closes (DetailModal), so the row stays then too.
+ */
+export function focusInSlidingBar(): boolean {
+  return !!document.activeElement?.closest("[data-testid=mobile-topbar][data-slides=row]");
+}
+
+/**
+ * The line under everything pinned at the top of the screen now: the scroll padding, and the top
+ * bar's first row too while it is in view where the padding leaves it out (slidingRow).
+ */
+export function pinnedTop(): number {
+  const sliding = slidingRow();
+  return clearArea().top + (sliding && sliding.bar.dataset.hidden === "false" ? sliding.row : 0);
+}
+
+/**
+ * Scrolls the page so `el` starts just under what is pinned over it, as scrollIntoView({ block:
+ * "start" }) does with the page's scroll padding, and clear of the top bar as the bar will be once
+ * the page has moved. Where the bar's first row slides away, the padding leaves the row out, which
+ * suits a move down: the row goes. A move up brings the row back, and so does a stop near the
+ * page's top; a move too small to count leaves it as it is (useHideOnScroll). There `el` stops the
+ * row's height lower, so the row never comes back over what was brought into view (a game's card
+ * after its window closes, a list's first game after the pager or a filter: R6 review BX2).
+ *
+ * `rowStays`: the focus goes back into the bar as the page lands (a sheet opened with the focus on
+ * the bar's Filters hands it back there on the next frame: focusInSlidingBar), and the bar keeps its
+ * row while it has the focus, so the row counts whichever way the page moves. A list landed by a move
+ * down was left under the row that came back with the focus (R6 review BX2: 44px at 100% text, 88px
+ * at 200%).
+ */
+export function scrollToStart(el: HTMLElement, behavior: ScrollBehavior = "instant", { rowStays = false }: { rowStays?: boolean } = {}): void {
+  const sliding = slidingRow();
+  let below = 0;
+  if (sliding) {
+    const from = window.scrollY;
+    const margin = parseFloat(getComputedStyle(el).scrollMarginTop) || 0;
+    const end = Math.max(0, Math.min(from + el.getBoundingClientRect().top - clearArea().top - margin, document.documentElement.scrollHeight - window.innerHeight));
+    const shown = sliding.bar.dataset.hidden === "false";
+    if (rowStays || end < from - 0.5 || end < BAR_HIDE_AFTER || (shown && end - from <= BAR_INTENT)) below = sliding.row;
+  }
+  if (!below) {
+    el.scrollIntoView({ block: "start", behavior });
+    return;
+  }
+  // The position is worked out as the call is made, a smooth scroll's too: the margin can go at once.
+  const inline = el.style.scrollMarginTop;
+  el.style.scrollMarginTop = `${(parseFloat(getComputedStyle(el).scrollMarginTop) || 0) + below}px`;
+  el.scrollIntoView({ block: "start", behavior });
+  el.style.scrollMarginTop = inline;
+}

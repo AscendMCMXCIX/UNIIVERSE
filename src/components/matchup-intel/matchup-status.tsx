@@ -58,8 +58,9 @@ export function MatchupStatus({ view }: { view: MatchupPageView }) {
         </span>
         {source || (you && enemy) ? <Dot /> : null}
       </span>
+      {/* Where the abilities come from: on a phone said in the sources' line at the foot instead, so the bar keeps to one line. */}
       {source ? (
-        <span>
+        <span className="max-sm:sr-only">
           {source}
           {you && enemy ? <Dot /> : null}
         </span>

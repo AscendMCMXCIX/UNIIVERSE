@@ -689,13 +689,17 @@ export function DetailModal({
   return (
     <dialog
       ref={ref}
-      // Escape asks to close (so the motion runs and unsaved edits can be kept).
+      // Escape asks to close (so the motion runs and unsaved edits can be kept). This window's own
+      // cancel and close only: React hands a window the cancel and close events of the windows opened
+      // inside it too (a confirmation in the person view), which would close it with them.
       onCancel={(e) => {
+        if (e.target !== e.currentTarget) return;
         e.preventDefault();
         requestClose();
       }}
       // A close the browser forced (e.g. a repeated Escape) still reaches the owner.
-      onClose={() => {
+      onClose={(e) => {
+        if (e.target !== e.currentTarget) return;
         if (selfClosing.current) {
           selfClosing.current = false;
           return;
@@ -780,8 +784,13 @@ export function DetailModal({
               </span>
             </div>
           ) : (
-            <div ref={headerRef} className={cn("flex shrink-0 items-start justify-between gap-3 border-b border-border bg-bg-elevated px-4 py-3 sm:px-5 sm:py-4", !(docked && flow) && "short:sticky short:top-0 short:z-10", headerClassName)} data-testid={headerTestId}>
-              <div className="min-w-0">
+            // With the window's own navigation beside the close button (headerExtra: ‹ ›), the title keeps
+            // 7rem at least: where that leaves the controls no room (a phone at a large text size), they
+            // take a row of their own above it (wrap-reverse; items-end is then the top), the close
+            // button first on its right, rather than be drawn over the title or past the screen's edge
+            // (R6 review BX4). Without one the title and the close button always share the row.
+            <div ref={headerRef} className={cn("flex shrink-0 justify-between border-b border-border bg-bg-elevated px-4 py-3 sm:px-5 sm:py-4", headerExtra ? "flex-wrap-reverse items-end gap-x-3 gap-y-2" : "items-start gap-3", !(docked && flow) && "short:sticky short:top-0 short:z-10", headerClassName)} data-testid={headerTestId}>
+              <div className={cn("min-w-0", headerExtra && "grow basis-28")}>
                 <h2 id={titleId} className="text-lg font-semibold leading-tight">
                   {title}
                 </h2>
@@ -791,7 +800,7 @@ export function DetailModal({
                   </p>
                 ) : null}
               </div>
-              <span className="flex shrink-0 items-center gap-1" data-testid="modal-controls">
+              <span className={cn("flex shrink-0 items-center gap-1", headerExtra && "ml-auto max-w-full flex-wrap-reverse justify-end")} data-testid="modal-controls">
                 {controls}
               </span>
             </div>

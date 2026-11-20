@@ -128,7 +128,7 @@ export function ErasureResultHost({ children }: { children: React.ReactNode }) {
 const matches = (typed: string, expected: string) => typed.trim().normalize("NFKC").toLowerCase() === expected.trim().normalize("NFKC").toLowerCase() && expected !== "";
 
 /** "Erase personal data" for an account (with its profile) or a profile without an account. */
-export function ErasePersonButton({ target, name }: { target: { userId?: string | null; playerId?: string | null }; name: string }) {
+export function ErasePersonButton({ target, name, onErased }: { target: { userId?: string | null; playerId?: string | null }; name: string; /** Once they are erased (the person view closes by its address; the reference stays on screen from the list's ErasureResultHost). */ onErased?: () => void }) {
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
   const [check, setCheck] = React.useState<ErasureCheck | null>(null);
@@ -153,7 +153,9 @@ export function ErasePersonButton({ target, name }: { target: { userId?: string 
   const close = () => {
     if (busy) return;
     setOpen(false);
-    if (done) router.refresh();
+    if (!done) return;
+    router.refresh();
+    onErased?.();
   };
   const erase = async () => {
     if (!check) return;
@@ -168,6 +170,7 @@ export function ErasePersonButton({ target, name }: { target: { userId?: string 
     if (!report) return setDone(r.data);
     setOpen(false);
     report(r.data);
+    onErased?.();
   };
   const ready = !!check && understood && matches(typed, check.confirmWith);
 

@@ -532,7 +532,8 @@ test("Players in short narrow windows (a split screen, a small phone zoomed in):
       const box = (el: Element | null) => el!.getBoundingClientRect();
       const input = box(document.querySelector("input[data-testid=players-search]"));
       const toggle = box(document.querySelector("main [data-filter-toggle]"));
-      const title = box(document.querySelector("main h1"));
+      // The header's visible line (the h1 is read out only on phones: the sections row names the page).
+      const title = box(document.querySelector("[data-testid=players-scope]"));
       const bar = box(document.querySelector("[data-testid=players-filters]"));
       const overlap = Math.min(input.right, toggle.right) - Math.max(input.left, toggle.left) > 0 && Math.min(input.bottom, toggle.bottom) - Math.max(input.top, toggle.top) > 0;
       return { rem: parseFloat(getComputedStyle(document.documentElement).fontSize), search: input.width, overlap, shared: bar.left >= title.right, overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth };

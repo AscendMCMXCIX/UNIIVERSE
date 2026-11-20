@@ -295,7 +295,12 @@ function NoteList({ title, tone, Icon, items, testId }: { title: string; tone: s
 }
 
 function Notes({ notes }: { notes: MatchNotes | null }) {
-  if (!notes) return <div className="h-16 animate-pulse rounded-lg bg-surface-2 motion-reduce:animate-none" aria-busy="true" aria-label="Loading the notes" data-testid="post-game-notes-loading" />;
+  if (!notes) return (
+      // A polite status that says what loads; the pulse itself is hidden (a div may not be named: aria-naming.test.ts).
+      <div role="status" className="h-16 animate-pulse rounded-lg bg-surface-2 motion-reduce:animate-none" data-testid="post-game-notes-loading">
+        <span className="sr-only">Loading the notes</span>
+      </div>
+    );
   return (
     <section aria-label="Notes" className="space-y-2" data-testid="post-game-notes" data-well={notes.well.length} data-wrong={notes.wrong.length} data-focus={notes.focus ? 1 : 0}>
       <NoteList title="Went well" tone="text-good" Icon={TrendingUp} items={notes.well.map((n) => n.text)} testId="notes-well" />

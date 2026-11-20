@@ -5,11 +5,11 @@ import { useRouter } from "next/navigation";
 import { Check, ShieldCheck } from "lucide-react";
 import type { AccountView } from "@/server/auth/account-admin";
 import type { PermissionPreset } from "@/server/repositories/permissions";
-import { setAccessGroupsAction, setAccessLevelAction, setAdministratorAction, setTeamMemberAction } from "@/server/actions/users";
+import { saveAccessAction } from "@/server/actions/member-admin";
 import { ROLE_LABELS, type Role } from "@/domain/roles";
 import { ACCESS_GROUPS, ALWAYS_AVAILABLE, CAPABILITIES, effectiveCapabilities, type Capability } from "@/server/auth/permissions";
 import { Button } from "@/components/ui/button";
-import { Dialog } from "@/components/ui/dialog";
+import { ConfirmDialog, Dialog } from "@/components/ui/dialog";
 import { Label, Select } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { useBrandNames } from "@/components/brand-names";
@@ -55,44 +55,24 @@ export function AccessDialog({ account, presets, lineupRole = null, onClose }: {
   const fromGroup = (key: Capability) => !owner && !baseCaps.includes(key) && effective.has(key);
   const ownerChange = (base === OWNER) !== (account.role === "owner");
 
-  const save = async () => {
+  const [confirmAdmin, setConfirmAdmin] = React.useState(false);
+  // Granting administrator access asks a second time (the server checks it too).
+  const granting = account.role !== "owner" && admin && !account.isAdmin;
+  // Team membership, level, groups and administrator access in one atomic save (saveAccessAction).
+  const save = async (confirmed = false) => {
+    if (granting && !confirmed) return setConfirmAdmin(true);
     setBusy(true);
-    if (account.playerId && member !== account.teamMember) {
-      const r = await setTeamMemberAction(account.playerId, member);
-      if (!r.ok) {
-        setBusy(false);
-        return toast.error(r.error);
-      }
-    }
-    const baseChanged = base !== startBase || (base === CUSTOM && custom.join() !== account.baseCapabilities.join());
-    if (baseChanged) {
-      const r = await setAccessLevelAction(account.userId, owner ? { level: "owner" } : base === CUSTOM ? { level: "custom", capabilities: custom } : { level: "preset", presetId: base });
-      if (!r.ok) {
-        setBusy(false);
-        return toast.error(r.error);
-      }
-    }
-    if (!owner && groups.slice().sort().join() !== account.accessGroups.slice().sort().join()) {
-      const r = await setAccessGroupsAction(account.userId, groups);
-      if (!r.ok) {
-        setBusy(false);
-        return toast.error(r.error);
-      }
-    }
-    if (account.role !== "owner" && admin !== account.isAdmin) {
-      const r = await setAdministratorAction(account.userId, admin);
-      if (!r.ok) {
-        setBusy(false);
-        return toast.error(r.error);
-      }
-    }
+    const r = await saveAccessAction(account.userId, { level: base === CUSTOM ? { level: "custom", capabilities: custom } : { level: "preset", presetId: base }, groups, administrator: admin, confirmAdministrator: confirmed, ...(account.playerId ? { teamMember: member } : {}) });
     setBusy(false);
+    setConfirmAdmin(false);
+    if (!r.ok) return toast.error(r.error);
     toast.success(`${account.username}: access saved.`, { description: "It applies the next time they open a page." });
     onClose();
     router.refresh();
   };
 
   return (
+    <>
     <Dialog
       open
       onClose={onClose}
@@ -104,7 +84,7 @@ export function AccessDialog({ account, presets, lineupRole = null, onClose }: {
           <Button variant="ghost" onClick={onClose} disabled={busy}>
             Cancel
           </Button>
-          <Button variant="primary" onClick={save} disabled={busy || ownerChange} data-testid="save-access">
+          <Button variant="primary" onClick={() => void save()} disabled={busy || ownerChange || account.role === "owner"} data-testid="save-access">
             {busy ? "Saving…" : "Save access"}
           </Button>
         </>
@@ -217,5 +197,7 @@ export function AccessDialog({ account, presets, lineupRole = null, onClose }: {
         </section>
       </div>
     </Dialog>
+    <ConfirmDialog open={confirmAdmin} busy={busy} tone="primary" title={`Make ${account.username} an administrator?`} description="They can open Admin Mode: every account but the Owner's, access, platform settings, data and audit logs. You can remove it again here." confirmLabel="Grant administrator access" onCancel={() => setConfirmAdmin(false)} onConfirm={() => void save(true)} />
+    </>
   );
 }

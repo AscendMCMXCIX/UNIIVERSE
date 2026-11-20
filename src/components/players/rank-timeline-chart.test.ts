@@ -27,8 +27,8 @@ describe("RankTimelineChart's time axis", () => {
   it("puts each day's tick on the installation's midnight, the day its label names", () => {
     const t = rankTimeline([snap(Date.UTC(2026, 9, 15), 40, 10), snap(Date.UTC(2026, 9, 16), 60, 11)], NOW);
     const html = renderToStaticMarkup(createElement(RankTimelineChart, { t, label: "Ranked Solo/Duo rank" }));
-    // Drawn 480 wide before it measures: plot from x 64 to 472. 17 Oct begins at 16 Oct 13:00 UTC in Sydney.
-    const x = 64 + ((Date.UTC(2026, 9, 16, 13) - t.from) / (t.to - t.from)) * 408;
+    // Drawn 480 wide before it measures: plot from x 76 (the 4.75rem gutter) to 472. 17 Oct begins at 16 Oct 13:00 UTC in Sydney.
+    const x = 76 + ((Date.UTC(2026, 9, 16, 13) - t.from) / (t.to - t.from)) * 396;
     const tick = new RegExp(`<text x="([\\d.]+)"[^>]*>17 Oct</text>`).exec(html);
     expect(Number(tick?.[1])).toBeCloseTo(x, 3);
   });

@@ -21,7 +21,7 @@ import { cn } from "@/lib/cn";
 const QUEUE_LABEL = { solo: "Solo/Duo", flex: "Flex" } as const;
 
 /** The Overview's picture in its band held sideways (a short window): 56px, as on a phone, beside one line of name and one of roles and rank. */
-const SHORT_PICTURE = "short:h-14 short:w-14 short:text-lg";
+const SHORT_PICTURE = "band:h-14 band:w-14 band:text-lg";
 
 /**
  * The Overview's band held sideways (a short window) keeps to one line of name and one of roles, rank
@@ -35,7 +35,7 @@ const SHORT_PICTURE = "short:h-14 short:w-14 short:text-lg";
  * is 16.5rem on a 568px phone and 20rem at 640px. Past that (three or four off roles on the
  * narrowest phones) the line wraps rather than cut anything off.
  */
-const SIDEWAYS_META = { container: "short:@container/meta", role: "short:@max-[23.5rem]/meta:sr-only", status: "short:@max-[29rem]/meta:sr-only", statusShort: "hidden short:@max-[29rem]/meta:inline" } as const;
+const SIDEWAYS_META = { container: "band:@container/meta", role: "band:@max-[23.5rem]/meta:sr-only", status: "band:@max-[29rem]/meta:sr-only", statusShort: "hidden band:@max-[29rem]/meta:inline" } as const;
 
 /**
  * The header at a larger text size, by its own width in rem (the `phead` container: the header less
@@ -71,23 +71,23 @@ const LARGE_TEXT = {
 } as const;
 
 /**
- * "Main lineup · Top": the role the player holds in the current lineup, a status pill in the accent
+ * "In the lineup · Top": the role the player holds in the current lineup (words that need no hover text, TT.P04), a status pill in the accent
  * (one form on both headers). `condense`: on the Overview, "Lineup" where its line is narrow: held
  * sideways (SIDEWAYS_META) and at a larger text size (LARGE_TEXT), the whole still read out.
  */
 function LineupStatus({ role, className, condense = false }: { role: Role; className?: string; condense?: boolean }) {
   return (
-    <span className={cn("inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-accent/40 bg-accent/10 px-2 py-0.5 text-xs font-medium text-fg", className)} data-testid="lineup-status" title="Plays this role in the current team lineup">
+    <span className={cn("inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-accent/40 bg-accent/10 px-2 py-0.5 text-xs font-medium text-fg", className)} data-testid="lineup-status">
       <RoleIcon role={role} className="h-3.5 w-3.5 text-accent" />{" "}
       {condense ? (
         <>
           <span className={cn(SIDEWAYS_META.statusShort, LARGE_TEXT.statusShort)} aria-hidden>
             Lineup
           </span>
-          <span className={cn(SIDEWAYS_META.status, LARGE_TEXT.status)}>Main lineup · {ROLE_LABELS[role]}</span>
+          <span className={cn(SIDEWAYS_META.status, LARGE_TEXT.status)}>In the lineup · {ROLE_LABELS[role]}</span>
         </>
       ) : (
-        <>Main lineup · {ROLE_LABELS[role]}</>
+        <>In the lineup · {ROLE_LABELS[role]}</>
       )}
     </span>
   );
@@ -110,7 +110,7 @@ export function ProfileHeader({ identity: served, self, editable = false, champi
   const accent = accentCss(p.look.style);
   const rank = p.showRank ? p.rank : null;
   const asOf = rank?.asOf ? formatDayMonth(rank.asOf) : null;
-  const rankTitle = rank ? `${rank.queue ? `Ranked ${QUEUE_LABEL[rank.queue]}` : "Ranked"}: last known rank${asOf ? `, read from Riot on ${asOf}` : ""}` : "No ranked placement on record";
+  const rankTitle = rank ? `${rank.queue ? `${QUEUE_LABEL[rank.queue]} rank` : "Rank"}${asOf ? `, last checked ${asOf}` : ""}` : "Unranked: no ranked games recorded";
   const customise = (variant: "overlay" | "icon", iconOnPhones = false) => (
     <CustomiseCardButton
       variant={variant}
@@ -130,14 +130,15 @@ export function ProfileHeader({ identity: served, self, editable = false, champi
   );
   if (basePath && pathname !== basePath && pathname.startsWith(`${basePath}/`))
     return (
-      <header className={cn("relative overflow-hidden rounded-card border border-border bg-surface", LARGE_TEXT.container)} style={cardShellStyle(p.look)} data-testid="profile-header" data-compact data-art-champion={p.art?.championId ?? ""} data-accent={p.accent} data-frame={p.look.style.frame}>
+      <>
+      <header className={cn("relative overflow-hidden rounded-card border border-border bg-surface max-md:not-short:hidden", LARGE_TEXT.container)} style={cardShellStyle(p.look)} data-testid="profile-header" data-compact data-art-champion={p.art?.championId ?? ""} data-accent={p.accent} data-frame={p.look.style.frame}>
         <CardArtLayer art={p.art} accent={accent} kind="splash" position="center 25%" strength="strong" testId="profile-art" look={p.look} />
         <CardFrame look={p.look} />
         {/* One band: the picture, the name (its tagline after it from sm, cut before the name is),
             then the role, the rank and the lineup status on one line; the off roles in full, the
             links and the picture's editor stay on the Overview. At a larger text size, where the band is
             narrow, the name and that line go under the picture and Customise (LARGE_TEXT). */}
-        <div className={cn("relative flex min-h-16 items-center gap-3 px-3 py-2.5 sm:px-4", LARGE_TEXT.band)}>
+        <div className={cn("relative flex min-h-16 items-center gap-3 px-3 py-2.5 sm:min-h-18 sm:px-4", LARGE_TEXT.band)}>
           <CardAvatar look={p.look} name={p.displayName} src={p.avatarUrl} size="md" />
           <div className={cn("min-w-0 flex-1", LARGE_TEXT.bandText)}>
             <div className="flex min-w-0 items-center gap-2">
@@ -178,6 +179,19 @@ export function ProfileHeader({ identity: served, self, editable = false, champi
           {editable ? <div className={cn("relative z-10 shrink-0", LARGE_TEXT.bandCustomise)}>{customise("icon")}</div> : null}
         </div>
       </header>
+        {/* An upright phone: the band is in the top bar from the first paint, the name over the rank
+            beside Back ("‹ Players  Demo Mid / Gold II · 40 LP"), so the section starts right under
+            the sections row (globals.css, [data-bar-title]; docs/MOBILE.md, "A profile on a phone").
+            Its h1 is the page's there (the band's, before it, is not displayed), and the bar never repeats it as a title. */}
+        <div className="pointer-events-none fixed z-50 flex h-13 min-w-0 flex-col justify-center md:hidden short:hidden" data-bar-title data-testid="profile-bar-title">
+          <h1 className="truncate text-sm font-semibold leading-tight text-fg">{p.displayName}</h1>
+          {p.showRank ? (
+            <p className="truncate text-xs leading-tight text-fg-muted" data-testid="profile-bar-rank">
+              {rank ? `${rankLabel(rank.tier, rank.division)} · ${rank.leaguePoints} LP` : "Unranked"}
+            </p>
+          ) : null}
+        </div>
+      </>
     );
   return (
     <header className={cn("relative overflow-hidden rounded-card border border-border bg-surface", LARGE_TEXT.container)} style={cardShellStyle(p.look)} data-testid="profile-header" data-art-champion={p.art?.championId ?? ""} data-accent={p.accent} data-frame={p.look.style.frame}>
@@ -186,7 +200,7 @@ export function ProfileHeader({ identity: served, self, editable = false, champi
       <CardFrame look={p.look} />
       {/* Customise: a labelled overlay from sm, a round icon chip on phones (its word read out); held
           sideways the chip too, centred on the band's height. */}
-      {editable ? <div className="absolute right-2.5 top-2.5 z-10 sm:right-3 sm:top-3 short:top-1/2 short:-translate-y-1/2">{customise("overlay", true)}</div> : null}
+      {editable ? <div className="absolute right-2.5 top-2.5 z-10 sm:right-3 sm:top-3 band:top-1/2 band:-translate-y-1/2">{customise("overlay", true)}</div> : null}
       {/* Phones under 375px: the picture beside the name, then roles, rank and links across the full
           width (a narrow column beside the picture would break the rank over three lines). From
           375px to sm the picture spans two rows, the name and then the roles, rank and links beside
@@ -206,21 +220,21 @@ export function ProfileHeader({ identity: served, self, editable = false, champi
           round chip at the band's end: 8 + 28 + 32 + 8px and its border, 78px at most. On a phone held
           upright the art shows behind the header with no band of its own above the name (204px tall,
           it left the first screen no figure on an SE). */}
-      <div className={cn("relative grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-2 p-4 min-[23.4375rem]:max-sm:gap-y-1.5 min-[23.4375rem]:max-sm:p-3.5 sm:flex sm:min-h-40 sm:items-end sm:gap-4 sm:p-5 sm:pt-12 lg:min-h-32 lg:pt-9 short:flex short:min-h-0 short:items-center short:gap-3 short:px-3.5 short:py-2", editable && "short:pr-16")}>
-        <CardAvatar look={p.look} name={p.displayName} src={p.avatarUrl} className={cn(LARGE_TEXT.pictureRows, "short:self-center")}>
+      <div className={cn("relative grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-2 p-4 min-[23.4375rem]:max-sm:gap-y-1.5 min-[23.4375rem]:max-sm:p-3.5 sm:flex sm:min-h-40 sm:items-end sm:gap-4 sm:p-5 sm:pt-12 lg:min-h-32 lg:pt-9 band:flex band:min-h-0 band:items-center band:gap-3 band:px-3.5 band:py-2 band:not-short:min-h-18 band:not-short:py-1", editable && "band:pr-16 band:not-short:pr-36")}>
+        <CardAvatar look={p.look} name={p.displayName} src={p.avatarUrl} className={cn(LARGE_TEXT.pictureRows, "band:self-center")}>
           {self ? <ProfileAvatarEditable name={p.displayName} src={p.avatarUrl} avatarClassName={SHORT_PICTURE} /> : <Avatar name={p.displayName} src={p.avatarUrl} size="hero" className={SHORT_PICTURE} />}
         </CardAvatar>
-        <div className="contents sm:block sm:min-w-0 sm:flex-1 sm:pb-0.5 short:block short:min-w-0 short:flex-1 short:pb-0">
+        <div className="contents sm:block sm:min-w-0 sm:flex-1 sm:pb-0.5 band:block band:min-w-0 band:flex-1 band:pb-0">
           {/* On a phone the Customise chip sits at the name's row end: the name keeps clear of it
               (under the picture, at a larger text size, the chip is on the picture's row and the name
               has its own). Held sideways the band keeps the chip's room at its end instead. */}
-          <div className={cn("min-w-0 short:flex short:items-baseline short:gap-2", LARGE_TEXT.stackName, editable && LARGE_TEXT.customiseRoom)}>
+          <div className={cn("min-w-0 band:flex band:items-baseline band:gap-2", LARGE_TEXT.stackName, editable && LARGE_TEXT.customiseRoom)}>
             {/* Upright and from sm the tagline sits above the name; held sideways after it, on the
                 name's line: a second copy there, so the reading order is the order drawn (one copy
                 is displayed at a time, so one is read). */}
-            <CardTagline look={p.look} className="text-sm drop-shadow short:hidden" />
-            <div className="flex flex-wrap items-center gap-2 short:min-w-0 short:flex-nowrap">
-              <h1 className={cn("min-w-0 max-w-full text-2xl tracking-tight text-fg drop-shadow sm:text-3xl short:truncate short:text-xl", LARGE_TEXT.title)}>
+            <CardTagline look={p.look} className="text-sm drop-shadow band:hidden" />
+            <div className="flex flex-wrap items-center gap-2 band:min-w-0 band:flex-nowrap">
+              <h1 className={cn("min-w-0 max-w-full text-2xl tracking-tight text-fg drop-shadow sm:text-3xl band:truncate band:text-xl", LARGE_TEXT.title)}>
                 <CardName look={p.look} name={p.displayName} />
               </h1>
               {self ? <Badge tone="accent">You</Badge> : null}
@@ -228,17 +242,17 @@ export function ProfileHeader({ identity: served, self, editable = false, champi
               {p.setupPending ? <SetupIncompleteBadge /> : null}
             </div>
             {p.look.style.identity.tagline ? (
-              <span className="hidden min-w-0 flex-1 short:block" title={p.look.style.identity.tagline} data-testid="profile-band-tagline">
-                <CardTagline look={p.look} lines={1} decorative className="drop-shadow short:text-xs" />
+              <span className="hidden min-w-0 flex-1 band:block" title={p.look.style.identity.tagline} data-testid="profile-band-tagline">
+                <CardTagline look={p.look} lines={1} decorative className="drop-shadow band:text-xs" />
               </span>
             ) : null}
           </div>
-          <div className={cn("col-span-2 min-w-0 short:flex short:items-center short:gap-3", LARGE_TEXT.metaBeside)}>
-            <div className={cn("flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-fg-muted sm:mt-1.5 short:mt-0 short:min-w-0 short:flex-1 short:gap-x-2.5 short:gap-y-0.5 short:text-xs", SIDEWAYS_META.container)} data-testid="profile-meta">
+          <div className={cn("col-span-2 min-w-0 band:flex band:items-center band:gap-3", LARGE_TEXT.metaBeside)}>
+            <div className={cn("flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-fg-muted sm:mt-1.5 band:mt-0 band:min-w-0 band:flex-1 band:gap-x-2.5 band:gap-y-0.5 band:text-xs", SIDEWAYS_META.container)} data-testid="profile-meta">
               {p.primaryRole ? (
-                <span className="inline-flex items-center gap-1.5 text-fg short:gap-1">
+                <span className="inline-flex items-center gap-1.5 text-fg band:gap-1">
                   <span style={{ color: "var(--card-accent)" }} className="inline-flex">
-                    <RoleIcon role={p.primaryRole} className="h-4 w-4 short:h-3.5 short:w-3.5" />
+                    <RoleIcon role={p.primaryRole} className="h-4 w-4 band:h-3.5 band:w-3.5" />
                   </span>
                   <span className={SIDEWAYS_META.role}>{ROLE_LABELS[p.primaryRole]}</span>
                 </span>
@@ -248,32 +262,32 @@ export function ProfileHeader({ identity: served, self, editable = false, champi
                 </span>
               )}
               {p.offRoles.map((r) => (
-                <span key={r} className="inline-flex flex-wrap items-center gap-x-1.5 short:gap-1" data-testid="additional-role">
+                <span key={r} className="inline-flex flex-wrap items-center gap-x-1.5 band:gap-1" data-testid="additional-role">
                   {/* On a phone "(off)" (the word "role" read out), so an off role is told from the main one in words, not by colour alone.
                       Held sideways a quiet icon, its name and "(off role)" read out, as on Players' rows. */}
-                  <RoleIcon role={r} className="h-4 w-4 text-fg-subtle short:h-3.5 short:w-3.5" /> <span className="short:sr-only">{ROLE_LABELS[r]}</span>{" "}
-                  <span className="text-fg-subtle short:sr-only">
-                    (off<span className="max-sm:sr-only short:sr-only"> role</span>)
+                  <RoleIcon role={r} className="h-4 w-4 text-fg-subtle band:h-3.5 band:w-3.5" /> <span className="band:sr-only">{ROLE_LABELS[r]}</span>{" "}
+                  <span className="text-fg-subtle band:sr-only">
+                    (off<span className="max-sm:sr-only band:sr-only"> role</span>)
                   </span>
                 </span>
               ))}
               {p.showRank ? (
-                <span className="inline-flex flex-wrap items-center gap-x-1.5 text-fg short:gap-1" data-testid="profile-rank" title={rankTitle}>
-                  <RankEmblem tier={rank?.tier} className="h-5 w-5 short:h-4 short:w-4" />
+                <span className="inline-flex flex-wrap items-center gap-x-1.5 text-fg band:gap-1" data-testid="profile-rank" title={rankTitle}>
+                  <RankEmblem tier={rank?.tier} className="h-5 w-5 band:h-4 band:w-4" />
                   {rank ? (
                     <>
                       {rankLabel(rank.tier, rank.division)}
                       <span className="text-fg-muted">· {rank.leaguePoints} LP</span>
-                      {rank.queue ? <span className="text-xs text-fg-subtle short:hidden">{QUEUE_LABEL[rank.queue]}</span> : null}
+                      {rank.queue ? <span className="text-xs text-fg-subtle band:hidden">{QUEUE_LABEL[rank.queue]}</span> : null}
                     </>
                   ) : (
                     <span className="text-fg-muted">Unranked</span>
                   )}
                 </span>
               ) : null}
-              {p.lineupRole ? <LineupStatus role={p.lineupRole} className="max-sm:short:hidden" condense /> : null}
+              {p.lineupRole ? <LineupStatus role={p.lineupRole} className="max-sm:band:hidden" condense /> : null}
             </div>
-            <SocialLinks links={p.social} owner={p.displayName} size="header" className="mt-2 short:mt-0 short:shrink-0" />
+            <SocialLinks links={p.social} owner={p.displayName} size="header" className="mt-2 band:mt-0 band:shrink-0" />
           </div>
         </div>
       </div>

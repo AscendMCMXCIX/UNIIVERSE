@@ -60,6 +60,11 @@ export function readMatchupIntel() {
     // Facts from Riot's text (L3) on the page: none for a pair whose champions both have checked notes, which win.
     riotTextChips: document.querySelectorAll('[data-testid="ability-facts"][data-from="riot-text"] [data-testid^="fact-chip"]').length,
     riotTextLabel: !!document.querySelector('[data-testid="matchup-riot-text-label"]'),
+    // S7a: the lane selector (its five lanes, the one pressed), the slots it sets, Riot's tips' label and the evidence not collected.
+    roles: [...document.querySelectorAll('[data-testid="matchup-role"] button')].map((b) => `${b.textContent?.trim()}${b.getAttribute("aria-pressed") === "true" ? "*" : ""}`).join(" "),
+    slotCount: document.querySelector('[data-testid="matchup-pickers"]')?.getAttribute("data-slots") ?? null,
+    tipsLabel: text('[data-testid="riot-tips-label"]'),
+    highElo: document.querySelector('[data-testid="matchup-evidence-high-elo"]')?.textContent?.replace(/\s+/g, " ").trim() ?? "",
   };
 }
 
@@ -113,6 +118,7 @@ export function matchupIntelVerdicts({ kind, pair, enemy, at, wide, wiki }) {
   }
   fact("the sources' summary: a static reference with no live tracking, Riot's data, not endorsed by Riot Games", at.summary.startsWith("A static reference: no live tracking") && /Riot Data Dragon \d/.test(at.summary) && at.summary.endsWith("Not endorsed by Riot Games"), { summary: at.summary });
   fact("one press away, the Data Dragon version, the wiki's licence and Riot's notice", /^Ability names, icons and base cooldowns: Riot Data Dragon \d/.test(at.ddragon) && at.licence === "https://creativecommons.org/licenses/by-sa/3.0/" && /isn't endorsed by Riot Games/.test(at.notice), { ddragon: at.ddragon, licence: at.licence });
+  fact("the lane selector offers Top, Jungle, Mid, ADC and Support, one pressed, and its slots (two for a solo lane); Riot's tips are labelled as Riot's; no high-elo evidence is claimed", /^Top\*? Jungle\*? Mid\*? ADC\*? Support\*?$/.test(at.roles ?? "") && (at.roles ?? "").split("*").length === 2 && (at.slotCount === "2" || at.slotCount === "4") && at.tipsLabel === "Riot's tip (may predate later changes)" && at.highElo === "Runes, items and skill order: No high-elo evidence (not collected)", { roles: at.roles, slots: at.slotCount, tipsLabel: at.tipsLabel, highElo: at.highElo });
   fact("nothing requested from the League of Legends Wiki", wiki.length === 0, wiki.slice(0, 3));
   fact("checked notes win over the facts from Riot's text: none of those on a pair whose champions both have checked notes, nor Riot's text in the sources' summary", at.riotTextChips === 0 && !at.riotTextLabel && !at.summary.includes("Riot's text"), { chips: at.riotTextChips, label: at.riotTextLabel });
   return out;

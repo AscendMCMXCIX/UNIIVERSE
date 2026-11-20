@@ -13,11 +13,12 @@ import path from "node:path";
 
 const GIF = path.join(__dirname, "fixtures/animated-logo.gif");
 
+// On a member's phone, upright and held sideways, the header shows no logo (S2b): the top bar's mark carries it (32px).
 const SCREENS = [
-  { name: "phone", viewport: { width: 375, height: 667 }, isMobile: true, hasTouch: true, side: 48 },
-  { name: "phone sideways", viewport: { width: 812, height: 375 }, isMobile: true, hasTouch: true, side: 44 },
-  { name: "tablet", viewport: { width: 768, height: 1024 }, isMobile: false, hasTouch: true, side: 64 },
-  { name: "desktop", viewport: { width: 1440, height: 900 }, isMobile: false, hasTouch: false, side: 80 },
+  { name: "phone", viewport: { width: 375, height: 667 }, isMobile: true, hasTouch: true, side: 32, logo: "[data-testid=mobile-brand] img" },
+  { name: "phone sideways", viewport: { width: 812, height: 375 }, isMobile: true, hasTouch: true, side: 32, logo: "[data-testid=mobile-brand] img" },
+  { name: "tablet", viewport: { width: 768, height: 1024 }, isMobile: false, hasTouch: true, side: 64, logo: "[data-testid=team-header] img" },
+  { name: "desktop", viewport: { width: 1440, height: 900 }, isMobile: false, hasTouch: false, side: 80, logo: "[data-testid=team-header] img" },
 ] as const;
 
 /** Uploads the animated logo, runs `checks`, then removes the logo again whatever happened. */
@@ -52,8 +53,8 @@ async function openPage(browser: Browser, baseURL: string, path: string, logo: s
 }
 
 async function teamLogo(browser: Browser, baseURL: string, screen: (typeof SCREENS)[number], reducedMotion: "reduce" | "no-preference") {
-  const page = await openPage(browser, baseURL, "/team", "[data-testid=team-header] img", { viewport: screen.viewport, isMobile: screen.isMobile, hasTouch: screen.hasTouch, reducedMotion });
-  const img = page.getByTestId("team-header").locator("img").first();
+  const page = await openPage(browser, baseURL, "/team", screen.logo, { viewport: screen.viewport, isMobile: screen.isMobile, hasTouch: screen.hasTouch, reducedMotion });
+  const img = page.locator(screen.logo).first();
   const box = (await img.boundingBox())!;
   const shown = await img.evaluate((i: HTMLImageElement) => ({ src: i.currentSrc, fit: getComputedStyle(i).objectFit, ratio: i.naturalWidth / i.naturalHeight }));
   await page.context().close();
@@ -192,8 +193,8 @@ test("everywhere else the logo starts its row: nothing unseen stands before it, 
       });
       expect(Math.abs(off), `${at}: the sign-in page's logo and name are ${off}px off centre`).toBeLessThanOrEqual(0.5);
       await signIn.context().close();
-      // Team Overview's header, a grid: no empty row under the header's own.
-      const team = await openPage(browser, baseURL!, "/team", "[data-testid=team-header] img", options);
+      // Team Overview's header, a grid: no empty row under the header's own (on a phone it has no logo: the bar's mark carries it).
+      const team = await openPage(browser, baseURL!, "/team", options === phone ? "[data-testid=mobile-brand] img" : "[data-testid=team-header] img", options);
       // Measured once the header is in place: while the page streams in, its parts can stand in a
       // hidden container (nothing has a size there yet, and its rows read as none).
       await expect(team.getByTestId("team-header")).toBeVisible();

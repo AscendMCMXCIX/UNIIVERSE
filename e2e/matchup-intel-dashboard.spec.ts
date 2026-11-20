@@ -10,8 +10,8 @@ import { choose, enemyAbilities, hydrated, localPictures, openMatchupIntel, riot
     1080, 2560 by 1440, a maximised 1920 by 950 window, 3440 by 1440 and 1440 by 900, for the
     curated pairs (the longest briefing among them), pairs with checked notes on both sides but no
     curated file, pairs assembled from facts, a pair where neither side has checked notes, the
-    most complex kits and the tallest pages of the sweep (at 1440 by 900, a size not promised, the
-    tallest few scroll a little, by at most what was measured: SCROLLS_AT_1440); its text no smaller
+    most complex kits and the tallest pages of the sweep (at 1440 by 900 and 1280 by 800, sizes not
+    promised, the essentials on the first screen: ESSENTIALS_ONLY); its text no smaller
     than the app's text-xs, the cooldowns larger, nothing scrolling inside it;
   - every pair gives a meaningful reference, labelled for what it is (a sweep of many pairs);
   - switching is a navigation: deep links, reloads, Back and Forward keep the pair;
@@ -31,13 +31,14 @@ test.beforeEach(async ({ context, baseURL, page }) => {
   await riotText(page, "on");
 });
 
-/** The desktop sizes the overview must fit at 100% zoom (a maximised 1920 by 1080 window leaves about 1920 by 950). */
+/** The desktop sizes the overview must fit at 100% zoom (a maximised 1920 by 1080 window leaves about 1920 by 950), and the two where only its essentials must be on the first screen (ESSENTIALS_ONLY). */
 const SIZES: Array<[number, number]> = [
   [1920, 1080],
   [2560, 1440],
   [1920, 950],
   [3440, 1440],
   [1440, 900],
+  [1280, 800],
 ];
 
 /**
@@ -130,6 +131,11 @@ function measure(page: Page) {
         bar: box('[aria-label="Champions"]'),
         main: box('[data-testid="matchup-briefing"]') ?? box('[data-testid="matchup-assembled"]'),
         tiles: box('[data-testid="matchup-enemy-abilities"]'),
+        // The enemy's cooldown lines, P to R: the lowest one's box.
+        cooldowns: (() => {
+          const lines = [...document.querySelectorAll('[data-testid="matchup-enemy-abilities"] [data-testid="ability-cooldown"]')].filter((e) => e.getClientRects().length);
+          return lines.length ? { top: Math.min(...lines.map((e) => e.getBoundingClientRect().top)), bottom: Math.max(...lines.map((e) => e.getBoundingClientRect().bottom)), left: 0, right: 0 } : null;
+        })(),
         interactions: box('[data-testid="matchup-interactions"]'),
         levels: box('[data-testid="matchup-level-notes"]'),
         yours: box('[data-testid="matchup-your-abilities"]'),
@@ -145,22 +151,16 @@ function measure(page: Page) {
 }
 
 /**
- * 1440 by 900 is no size the overview is promised to fit (docs/MATCHUP_INTEL.md, "The dashboard"):
- * the pages that scroll there, by how much on 19 Nov 2026. Each still has the essentials on the
- * screen where it says so (the five tiles, and the sources' summary), and nothing cut or scrolling
- * inside it; the rest of the pairs fit it whole, as at every other size.
+ * 1440 by 900 and 1280 by 800 (the sidebar open, as it opens) are no sizes the overview is promised
+ * to fit (docs/MATCHUP_INTEL.md, "The dashboard"; the overhaul's S7 acceptance): there the
+ * essentials must be on the first screen, the bar with the slots, the lane and the haste, the
+ * enemy's five tiles with their cooldowns (at 1280 their cooldown lines: R's had gone under the
+ * fold there behind a header three lines tall, R6 review BX5), and the start of the main panel,
+ * with nothing cut or scrolling inside the page; the rest may follow under the fold.
  */
-const SCROLLS_AT_1440: Record<string, { by: number; essentials: boolean }> = {
-  "KSante vs Mordekaiser": { by: 58, essentials: false },
-  "Mordekaiser vs KSante": { by: 58, essentials: false },
-  "KSante vs Ornn": { by: 21, essentials: true },
-  "Ambessa vs KSante": { by: 15, essentials: true },
-  "Briar vs Mordekaiser": { by: 7, essentials: true },
-  "Mordekaiser vs Briar": { by: 7, essentials: true },
-  "Riven vs KSante": { by: 5, essentials: true },
-};
+const ESSENTIALS_ONLY: Record<number, "tiles" | "cooldowns"> = { 1440: "tiles", 1280: "cooldowns" };
 
-test("the whole overview fits one desktop screen, with no page scroll, at 1920×1080, 2560×1440, 1920×950, 3440×1440 and 1440×900, every test pair (the tallest scrolling a little at 1440×900, said); text at least text-xs, the cooldowns larger", async ({ page }, info) => {
+test("the whole overview fits one desktop screen, with no page scroll, at 1920×1080, 2560×1440, 1920×950 and 3440×1440, every test pair, and at 1440×900 and 1280×800 the essentials on the first screen; text at least text-xs, the cooldowns larger", async ({ page }, info) => {
   test.skip(info.project.name !== "desktop", "desktop sizes");
   test.setTimeout(900_000);
   await localPictures(page);
@@ -175,14 +175,12 @@ test("the whole overview fits one desktop screen, with no page scroll, at 1920×
       await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
       const m = await measure(page);
       const at = `${you} vs ${enemy} at ${width}×${height}`;
-      const known = width === 1440 ? SCROLLS_AT_1440[`${you} vs ${enemy}`] : undefined;
-      if (known) {
-        // A known overrun at 1440 × 900: no more than measured, and the essentials as said.
-        expect.soft(m.scrollHeight - m.innerHeight, `${at}: scrolls no more than the ${known.by}px measured`).toBeLessThanOrEqual(known.by + 2);
-        if (known.essentials) {
-          expect.soft(m.parts.tiles?.bottom ?? Infinity, `${at}: the five tiles on the screen`).toBeLessThanOrEqual(m.innerHeight + 0.5);
-          expect.soft(m.parts.sources?.bottom ?? Infinity, `${at}: the sources' summary on the screen`).toBeLessThanOrEqual(m.innerHeight + 0.5);
-        }
+      const essentials = ESSENTIALS_ONLY[width];
+      if (essentials) {
+        expect.soft(m.parts.bar?.bottom ?? Infinity, `${at}: the bar on the screen`).toBeLessThanOrEqual(m.innerHeight + 0.5);
+        if (essentials === "tiles") expect.soft(m.parts.tiles?.bottom ?? Infinity, `${at}: the five tiles on the screen`).toBeLessThanOrEqual(m.innerHeight + 0.5);
+        else expect.soft(m.parts.cooldowns?.bottom ?? Infinity, `${at}: every enemy cooldown line on the screen`).toBeLessThanOrEqual(m.innerHeight + 0.5);
+        expect.soft(m.parts.main?.top ?? Infinity, `${at}: the main panel starts on the screen`).toBeLessThanOrEqual(m.innerHeight / 2);
       } else {
         expect.soft(m.scrollHeight, `${at}: no vertical page scroll`).toBeLessThanOrEqual(m.innerHeight);
         for (const [part, b] of Object.entries(m.parts)) {
@@ -277,35 +275,32 @@ test("every pair gives a meaningful reference, labelled for what it is: a sweep 
   expect(errors).toEqual([]);
 });
 
-test("switching is a navigation: the pair is in the address, a deep link and a reload keep it, Back and Forward step through the pairs", async ({ page }) => {
+test("switching keeps the lineup in the address: a deep link and a reload keep it, and after three changes Back leaves Matchup Intel", async ({ page }) => {
+  await page.goto("/resources");
   await openMatchupIntel(page, "Riven", "Mordekaiser");
   await hydrated(page);
   await expect(page.getByTestId("matchup-dashboard")).toHaveAttribute("data-layer", "curated");
   await choose(page, "enemy", "darius", "Darius");
-  await expect(page).toHaveURL(/\?champion=Riven&vs=Darius$/);
+  await expect(page).toHaveURL(/\?role=top&champion=Riven&vs=Darius$/);
   await expect(page.getByTestId("matchup-dashboard")).toHaveAttribute("data-layer", "assembled");
   await expect(page.getByTestId("matchup-enemy-abilities")).toHaveAttribute("data-champion", "Darius");
   // The swap trades the sides, in the address too.
   await page.getByTestId("matchup-swap").click();
-  await expect(page).toHaveURL(/\?champion=Darius&vs=Riven$/);
+  await expect(page).toHaveURL(/\?role=top&champion=Darius&vs=Riven$/);
   await expect(page.getByTestId("matchup-enemy-abilities")).toHaveAttribute("data-champion", "Riven");
-  // A reload keeps the pair the address names.
+  // The lane, a third change: Mid keeps the pair.
+  await page.getByTestId("matchup-role").getByRole("button", { name: "Mid" }).click();
+  await expect(page).toHaveURL(/\?role=mid&champion=Darius&vs=Riven$/);
+  await expect(page.getByTestId("matchup-role").getByRole("button", { name: "Mid" })).toHaveAttribute("aria-pressed", "true");
+  // A reload keeps the lineup the address names.
   await page.reload();
   await expect(page.getByTestId("matchup-pick-you")).toHaveAttribute("data-champion", "Darius");
   await expect(page.getByTestId("matchup-enemy-abilities")).toHaveAttribute("data-champion", "Riven");
-  // Back and Forward, where the browser keeps each pair as an entry (the Navigation API; without it
-  // each pair replaces the entry, as e2e/matchup-intel.spec.ts checks).
-  if (await page.evaluate(() => "navigation" in window)) {
-    await page.goBack();
-    await expect(page).toHaveURL(/\?champion=Riven&vs=Darius$/);
-    await expect(page.getByTestId("matchup-enemy-abilities")).toHaveAttribute("data-champion", "Darius");
-    await page.goBack();
-    await expect(page).toHaveURL(/\?champion=Riven&vs=Mordekaiser$/);
-    await expect(page.getByTestId("matchup-dashboard")).toHaveAttribute("data-layer", "curated");
-    await page.goForward();
-    await expect(page).toHaveURL(/\?champion=Riven&vs=Darius$/);
-    await expect(page.getByTestId("matchup-enemy-abilities")).toHaveAttribute("data-champion", "Darius");
-  }
+  await expect(page.getByTestId("matchup-role").getByRole("button", { name: "Mid" })).toHaveAttribute("aria-pressed", "true");
+  // Each change replaced the entry: Back leaves for the page before, in one step.
+  await page.goBack();
+  await expect(page).toHaveURL(/\/resources$/);
+  await page.goForward();
   // A deep link opens its pair at once, by id or by name.
   await page.goto("/resources/matchups?champion=gwen&vs=ornn");
   await expect(page.getByTestId("matchup-pick-you")).toHaveAttribute("data-champion", "Gwen");
@@ -401,4 +396,90 @@ test("the facts from Riot's text, as the review recorded them: a qualifier with 
   await page.getByTestId("matchup-sources").locator(":scope > summary").click();
   await expect(page.getByTestId("matchup-footer-riot-text")).toContainText("Reviewed by two independent automated reviewers and an adjudicator, then a consistency pass checked by two more independent automated checkers; no person has checked them. No number in that text is used for these facts.");
   await expect(page.getByTestId("matchup-dashboard")).not.toContainText(/\bverified\b/i);
+});
+
+test("the five roles: a solo lane sets two slots, the bot lane four; an empty slot names what it wants and filling it moves nothing; the haste, Riot's tips and the link", async ({ page, context }, info) => {
+  await openMatchupIntel(page);
+  await hydrated(page);
+  const role = (name: string) => page.getByTestId("matchup-role").getByRole("button", { name, exact: true });
+  const pickers = page.getByTestId("matchup-pickers");
+  // Top, Jungle and Mid: you against one enemy, and nothing else asked for.
+  for (const r of ["Top", "Jungle", "Mid"]) {
+    await role(r).click();
+    await expect(role(r)).toHaveAttribute("aria-pressed", "true");
+    await expect(pickers).toHaveAttribute("data-slots", "2");
+    await expect(page.getByTestId("matchup-pick-ally")).toHaveCount(0);
+    await expect(page.getByTestId("matchup-pick-enemy2")).toHaveCount(0);
+  }
+  // ADC: your ADC and support against theirs, each empty slot saying what it wants.
+  await role("ADC").click();
+  await expect(page).toHaveURL(/\?role=adc$/);
+  await expect(pickers).toHaveAttribute("data-slots", "4");
+  await expect(page.getByTestId("matchup-pick-you-name")).toHaveText("Choose your ADC");
+  await expect(page.getByTestId("matchup-pick-ally-name")).toHaveText("Choose your support");
+  await expect(page.getByTestId("matchup-pick-enemy-name")).toHaveText("Choose the enemy ADC");
+  await expect(page.getByTestId("matchup-pick-enemy2-name")).toHaveText("Choose the enemy support");
+  // Filling one slot moves no other element (±1px): every slot keeps its place.
+  const boxes = () => Promise.all(["you", "ally", "enemy", "enemy2", "swap"].map((s) => page.getByTestId(s === "swap" ? "matchup-swap" : `matchup-pick-${s}`).boundingBox()));
+  const before = await boxes();
+  await choose(page, "enemy2", "lux", "Lux");
+  const after = await boxes();
+  for (const [i, b] of before.entries()) {
+    if (i === 3) continue;
+    expect(Math.abs(after[i]!.x - b!.x), `slot ${i} x`).toBeLessThanOrEqual(1);
+    expect(Math.abs(after[i]!.y - b!.y), `slot ${i} y`).toBeLessThanOrEqual(1);
+  }
+  await choose(page, "enemy", "caitlyn", "Caitlyn");
+  await choose(page, "you", "jinx", "Jinx");
+  await choose(page, "ally", "lulu", "Lulu");
+  await expect(page).toHaveURL(/\?role=adc&champion=Jinx&ally=Lulu&vs=Caitlyn&vs2=Lux$/);
+  // Both enemies' kits, your duo folded, Riot's tips quoted and attributed, the evidence not collected said as such.
+  await expect(page.getByTestId("matchup-enemy-abilities")).toHaveAttribute("data-champion", "Caitlyn");
+  await expect(page.getByTestId("matchup-enemy2-abilities")).toHaveAttribute("data-champion", "Lux");
+  await expect(page.getByTestId("matchup-your-abilities")).not.toHaveAttribute("open", "");
+  await expect(page.getByTestId("matchup-ally-abilities")).not.toHaveAttribute("open", "");
+  const tips = page.getByTestId("matchup-riot-tips");
+  await expect(tips.getByTestId("riot-tips-label")).toHaveText("Riot's tip (may predate later changes)");
+  await tips.getByTestId("matchup-riot-tips-summary").click();
+  await expect(tips.getByTestId("riot-tips-enemy").first()).toContainText("Against Caitlyn");
+  await expect(tips.getByTestId("riot-tip-text").first()).toHaveText("Keep behind allied minions if Caitlyn is harassing you with Piltover Peacemaker (it deals less damage with each subsequent target).");
+  await expect(tips.getByTestId("matchup-evidence-high-elo")).toHaveText("Runes, items and skill order: No high-elo evidence (not collected)");
+  await expect(tips.getByTestId("matchup-evidence-duo")).toHaveText("No curated notes for this 2v2");
+  // Support: seen from the support's side; the swap trades both duos.
+  await role("Support").click();
+  await expect(page).toHaveURL(/\?role=support&champion=Jinx&ally=Lulu&vs=Caitlyn&vs2=Lux$/);
+  await expect(page.getByTestId("matchup-pick-you-label")).toHaveText("Your support");
+  await page.getByTestId("matchup-swap").click();
+  await expect(page).toHaveURL(/\?role=support&champion=Caitlyn&ally=Lux&vs=Jinx&vs2=Lulu$/);
+
+  // The haste: Riot's general rule on a Riot number (Darius's Q, 9 s at rank 1, at 20 haste: 7.5 s),
+  // a checked open question kept at its base (Death's Grasp), and nothing at 0.
+  await page.goto("/resources/matchups?role=top&champion=Riven&vs=Darius");
+  await hydrated(page);
+  const q = page.getByTestId("matchup-enemy-abilities").locator('[data-testid="ability-row"][data-slot="Q"]');
+  await expect(q.getByTestId("ability-haste")).toHaveCount(0);
+  await page.getByTestId("matchup-haste").getByRole("button", { name: "20", exact: true }).click();
+  await expect(q.getByTestId("ability-haste-value")).toHaveText(/^7\.5 \/ /);
+  await expect(q.getByTestId("ability-haste-mark")).toHaveText(" · Riot's general rule");
+  await expect(page.getByTestId("matchup-enemy-abilities").locator('[data-slot="R"]').getByTestId("ability-haste-mark")).toHaveText(" · Riot's general rule · ability haste only");
+  await page.goto("/resources/matchups?role=top&champion=Riven&vs=Mordekaiser");
+  const e = page.getByTestId("matchup-enemy-abilities").locator('[data-testid="ability-row"][data-slot="E"]');
+  // The haste chosen is remembered on this device.
+  await expect(e.getByTestId("ability-haste")).toHaveAttribute("data-mark", "unknown");
+  await expect(e.getByTestId("ability-haste-value")).toHaveText("16 / 14 / 12 / 10 / 8 s");
+  await expect(e.getByTestId("ability-haste-mark")).toHaveText(" · Whether haste shortens it isn't known");
+  // Never a timer: no "ready at" anywhere.
+  await expect(page.getByTestId("matchup-dashboard")).not.toContainText(/ready at|ready in/i);
+
+  // An old link with no role opens in the lane this device used last (Support, above).
+  await page.goto("/resources/matchups?champion=Jinx&vs=Caitlyn");
+  await expect(page).toHaveURL(/\?role=support&champion=Jinx&vs=Caitlyn$/);
+
+  // Copy link: the address with the lineup (the clipboard, where there is no share sheet).
+  if (info.project.name === "desktop") {
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    await page.getByTestId("matchup-copy-link").click();
+    await expect(page.getByTestId("matchup-copy-link")).toHaveAccessibleName("Link copied");
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toMatch(/\/resources\/matchups\?role=support&champion=Jinx&vs=Caitlyn$/);
+  }
 });

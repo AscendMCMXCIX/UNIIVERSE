@@ -106,6 +106,7 @@ export function tokenProblems(source: string, tokens: Map<string, string>, optio
       const token = named("text", m[1]!);
       if (token) problems.push(`${at}: ${m[0]} is ${token}`);
       else if (m[1]!.endsWith("px")) problems.push(`${at}: ${m[0]} is a font size in px; use a rem size or a text token`);
+      else if (Number(m[1]!.replace(/^length:|rem$/g, "")) < 0.75) problems.push(`${at}: ${m[0]} is under the 12px floor; use text-2xs (12px on desktops), or text-4xs inside a small tile`);
     }
     for (const m of text.matchAll(/(?<![\w-])tracking-\[([-\d.]+em)\]/g)) {
       const token = named("tracking", m[1]!);
@@ -128,7 +129,8 @@ export function tokenProblems(source: string, tokens: Map<string, string>, optio
       const classes = m[2]!.split(/\s+/);
       if (classes.includes("rounded-full")) continue;
       for (const c of classes) {
-        if (/(^|:)tracking-(tighter|tight|normal|wide|wider|widest)$/.test(c)) problems.push(`${at}: ${c} on an uppercase label; use tracking-label`);
+        // One spacing at every width, too: a label tracked 0.44px on a laptop and 1.32px on a phone read as two (UM.T5).
+        if (/(^|:)tracking-(tighter|tight|normal|wide|wider|widest)$/.test(c) || /:tracking-\[[^\]]+\]$/.test(c)) problems.push(`${at}: ${c} on an uppercase label; use tracking-label`);
       }
     }
     // label-caps sets a label's size, weight, case and letter spacing: none of them beside it.
@@ -205,19 +207,38 @@ describe("design tokens", () => {
     expect(problems).toEqual([]);
   });
 
+  /*
+    The 12px floor (UD.X5): on desktops text-2xs is 12px, so no running text or name reads at 11px
+    where the root is 16px. Phones and tablets keep 11px. The places the floor does not reach yet
+    carry type-floor-later, each listed here with its reason; a stage that brings the floor to one
+    removes its entry.
+  */
+  const FLOOR_LATER: Record<string, string> = {
+    "src/components/match-history/match-card.tsx": "the game cards of Match History and Team Matches (matchCardClass), rebuilt in Release 5 (S6) before the floor: raising their text alone would widen them at 1280 to 1440, so the floor waits for their next measured pass",
+  };
+  it("keeps the 12px floor on desktops, and lists the places it does not reach yet", () => {
+    const floor = /@media \(min-width: 64rem\) \{\s*:root \{\s*--text-2xs: 0\.75rem;/.test(CSS);
+    expect(floor, "globals.css sets --text-2xs to 0.75rem from lg").toBe(true);
+    const users = sourceFiles(path.join(ROOT, "src"))
+      .map((file) => path.relative(ROOT, file).split(path.sep).join("/"))
+      .filter((rel) => rel !== "src/app/globals.css" && /(?<![\w-])type-floor-later\b/.test(readFileSync(path.join(ROOT, rel), "utf8")));
+    expect(users.sort()).toEqual(Object.keys(FLOOR_LATER).sort());
+  });
+
   it("names each kind of drift, and the token to use instead", () => {
     const source = [
       `<p className="text-[11px] text-[0.6875rem] text-[13px] text-[1.375rem] text-[0.92em] text-[length:11px] text-[72px]" />`,
       `<p className="tracking-[0.12em] tracking-[.12em] tracking-[0.20em] tracking-[0.04em] rounded-[4px] rounded-t-[10px] rounded-[3px] rounded-[12px] rounded-t-[0.75rem] rounded-xl sm:rounded-t-2xl" />`,
       `<p className="bg-[#f5c451] hover:border-[#abc]/40 text-gold" />`,
       `el.animate(frames, { easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" }); const odd = "cubic-bezier(0.1, 0.7, 0.1, 1)"; const c = "ease-[cubic-bezier(0.2,_0.8,_0.2,_1)]";`,
-      `<span className="text-2xs uppercase tracking-wide" /><span className="rounded-full uppercase tracking-wide" /><span className="uppercase tracking-label sm:tracking-wider" />`,
+      `<span className="text-2xs uppercase tracking-wide" /><span className="rounded-full uppercase tracking-wide" /><span className="uppercase tracking-label sm:tracking-wider" /><span className="uppercase tracking-label @max-[15rem]/card:tracking-[0.04em]" />`,
       `<span className="label-caps text-xs" /><span className="label-caps tracking-wide" /><span className="label-caps uppercase font-medium" /><span className="label-caps text-fg-muted" />`,
       `<div className="max-w-[72rem] lg:max-w-6xl max-w-[var(--measure)] max-w-[80rem]" />`,
       `<div className="px-4 py-4 pb-safe sm:py-5" /><div className="pt-3 pb-safe-3" /><div className="p-2 pt-safe-2" /><div className="pb-safe-4 sm:pb-safe-5 short:pb-safe-4 pt-4" /><div className="max-sm:pb-safe-4 pb-tabbar" />`,
       `<div className="pb-[max(1rem,env(safe-area-inset-bottom))] max-sm:pt-[max(0.75rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-top))] pb-[max(0.6rem,env(safe-area-inset-bottom))] pb-[calc(1rem+env(safe-area-inset-bottom))]" />`,
       `<p className="shadow-accent/15 hover:shadow-accent drop-shadow-accent shadow-accent-strong shadow-[0_0_60px_-20px_var(--color-accent)] shadow-accent-2 shadow-black/40 shadow-[0_0_60px_-20px_var(--color-accent-2)] ring-1 ring-inset ring-accent/40" />`,
       `<p className="shadow-(color:--color-accent) inset-shadow-(color:--color-accent-strong)/30 drop-shadow-(--color-accent) shadow-(color:--color-accent-2) shadow-(--my-shadow)" />`,
+      `<p className="text-[0.65rem] text-[0.75rem] text-[0.7rem]" />`,
       `<input className="h-11 text-base placeholder:text-fg-subtle md:text-sm" /><input className="text-base focus:outline-none md:pointer-fine:text-sm sm:pointer-fine:text-xs" /><p className="text-base md:text-sm" /><input className="text-base placeholder:text-fg-subtle sm:text-xs" />`,
     ].join("\n");
     expect(tokenProblems(source, tokens)).toEqual([
@@ -240,6 +261,7 @@ describe("design tokens", () => {
       "4: cubic-bezier(0.1, 0.7, 0.1, 1) is not an --ease token",
       "5: tracking-wide on an uppercase label; use tracking-label",
       "5: sm:tracking-wider on an uppercase label; use tracking-label",
+      "5: @max-[15rem]/card:tracking-[0.04em] on an uppercase label; use tracking-label",
       "6: text-xs beside label-caps, which sets the label's size, weight, case and letter spacing",
       "6: tracking-wide beside label-caps, which sets the label's size, weight, case and letter spacing",
       "6: uppercase beside label-caps, which sets the label's size, weight, case and letter spacing",
@@ -260,8 +282,11 @@ describe("design tokens", () => {
       "11: shadow-(color:--color-accent) is a blue glow or shadow; use a neutral shadow (shadow-black/40), or violet (accent-2) for light",
       "11: inset-shadow-(color:--color-accent-strong)/30 is a blue glow or shadow; use a neutral shadow (shadow-black/40), or violet (accent-2) for light",
       "11: drop-shadow-(--color-accent) is a blue glow or shadow; use a neutral shadow (shadow-black/40), or violet (accent-2) for light",
-      "12: md:text-sm on a 16px field; use md:pointer-fine:text-sm (iOS zooms into a focused field under 16px on a touch screen)",
-      "12: sm:text-xs on a 16px field; use sm:pointer-fine:text-xs (iOS zooms into a focused field under 16px on a touch screen)",
+      "12: text-[0.65rem] is under the 12px floor; use text-2xs (12px on desktops), or text-4xs inside a small tile",
+      "12: text-[0.75rem] is text-xs",
+      "12: text-[0.7rem] is under the 12px floor; use text-2xs (12px on desktops), or text-4xs inside a small tile",
+      "13: md:text-sm on a 16px field; use md:pointer-fine:text-sm (iOS zooms into a focused field under 16px on a touch screen)",
+      "13: sm:text-xs on a 16px field; use sm:pointer-fine:text-xs (iOS zooms into a focused field under 16px on a touch screen)",
     ]);
   });
 });
