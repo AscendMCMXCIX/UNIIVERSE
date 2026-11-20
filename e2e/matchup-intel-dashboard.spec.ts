@@ -201,6 +201,121 @@ test("the whole overview fits one desktop screen, with no page scroll, at 1920×
 });
 
 /**
+ * The bot lane's lineups measured (ADC and Support, four champions each; the overhaul's S7 acceptance:
+ * 10 per role here, 2 per role in CI): the kits with the most facts from Riot's text and the longest
+ * lines, each lineup first for CI the tightest of the sweep of 20 Nov 2026 at 1440 × 900 and 1280 ×
+ * 800 (Varus and Renata against Kalista and Senna; Renata and Jhin against Milio and Smolder) and at
+ * 1920 × 950 (Yuumi and Ezreal against Seraphine and Draven, whose two sides are the longest).
+ * [role, you, ally, enemy, enemy's partner].
+ */
+const DUO_FIT: Array<["adc" | "support", string, string, string, string]> = [
+  ["adc", "Varus", "Renata", "Kalista", "Senna"],
+  ["adc", "Samira", "Leona", "Nilah", "Bard"],
+  ["adc", "Jinx", "Lulu", "Caitlyn", "Lux"],
+  ["adc", "Aphelios", "Thresh", "Kaisa", "Nautilus"],
+  ["adc", "Zeri", "Yuumi", "Jhin", "Pyke"],
+  ["adc", "Ezreal", "Karma", "Xayah", "Rakan"],
+  ["adc", "Draven", "Seraphine", "Smolder", "Milio"],
+  ["adc", "MissFortune", "Brand", "Twitch", "Zyra"],
+  ["adc", "Ashe", "Soraka", "Vayne", "Braum"],
+  ["adc", "Lucian", "Nami", "Aphelios", "Thresh"],
+  ["support", "Renata", "Jhin", "Milio", "Smolder"],
+  ["support", "Yuumi", "Ezreal", "Seraphine", "Draven"],
+  ["support", "Thresh", "Aphelios", "Nautilus", "Kaisa"],
+  ["support", "Pyke", "Zeri", "Rakan", "Xayah"],
+  ["support", "Bard", "Samira", "Senna", "Varus"],
+  ["support", "Lux", "Jinx", "Leona", "Caitlyn"],
+  ["support", "Zyra", "MissFortune", "Brand", "Twitch"],
+  ["support", "Karma", "Lucian", "Nami", "Vayne"],
+  ["support", "Braum", "Ashe", "Soraka", "Kalista"],
+  ["support", "Nautilus", "Kaisa", "Pyke", "Aphelios"],
+];
+/** CI's subset: the first two lineups of each role (the plan's "2 per role in CI"). */
+const DUO_FIT_RUN = process.env.CI ? (["adc", "support"] as const).flatMap((r) => DUO_FIT.filter((l) => l[0] === r).slice(0, 2)) : DUO_FIT;
+
+/** What a 2v2 needs, measured in the browser: the scroll, both enemies' kits and every cooldown line in them, the sources' summary, the text sizes. */
+function measureDuo(page: Page) {
+  return page.evaluate(() => {
+    const de = document.documentElement;
+    const root = parseFloat(getComputedStyle(de).fontSize);
+    const bottom = (sel: string) => {
+      const els = [...document.querySelectorAll(sel)].filter((e) => e.getClientRects().length);
+      return els.length ? Math.max(...els.map((e) => e.getBoundingClientRect().bottom)) : null;
+    };
+    const kits = '[data-testid="matchup-enemy-abilities"], [data-testid="matchup-enemy2-abilities"]';
+    const scrollers = [...document.querySelectorAll("main *")].filter((e) => {
+      const st = getComputedStyle(e);
+      return (/(auto|scroll)/.test(st.overflowY) && e.scrollHeight > e.clientHeight + 1) || (/(auto|scroll)/.test(st.overflowX) && e.scrollWidth > e.clientWidth + 1);
+    });
+    return {
+      innerHeight,
+      scrollHeight: de.scrollHeight,
+      clientWidth: de.clientWidth,
+      scrollWidth: de.scrollWidth,
+      kits: document.querySelectorAll(kits).length,
+      bar: bottom('[aria-label="Champions"]'),
+      tiles: bottom(kits),
+      cooldowns: bottom(`:is(${kits}) [data-testid="ability-cooldown"]`),
+      cooldownLines: document.querySelectorAll(`:is(${kits}) [data-testid="ability-cooldown"]`).length,
+      sources: bottom('[data-testid="matchup-sources-summary"]'),
+      small: [...document.querySelectorAll<HTMLElement>('[data-testid="matchup-dashboard"] :is(p, span, li, h2, h3, summary)')]
+        .filter((e) => e.getClientRects().length && [...e.childNodes].some((n) => n.nodeType === 3 && n.textContent!.trim()))
+        .map((e) => parseFloat(getComputedStyle(e).fontSize) / root)
+        .reduce((a, b) => Math.min(a, b), Infinity),
+      scrollers: scrollers.map((e) => e.getAttribute("data-testid") ?? e.tagName.toLowerCase()),
+    };
+  });
+}
+
+test("the bot lane fits too: each 2v2 one screen at 1920×1080 and 1920×950, both enemies' tiles and the sources' summary on the first screen at 1440×900, every cooldown line of both at 1280×800, with the facts from Riot's text on and off", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "desktop sizes");
+  test.setTimeout(600_000);
+  await localPictures(page);
+  for (const layer of ["on", "off"] as const) {
+    await riotText(page, layer);
+    for (const [role, you, ally, enemy, enemy2] of DUO_FIT_RUN) {
+      await page.setViewportSize({ width: 1920, height: 1080 });
+      await page.goto(`/resources/matchups?role=${role}&champion=${you}&ally=${ally}&vs=${enemy}&vs2=${enemy2}`);
+      await hydrated(page);
+      await expect(page.getByTestId("matchup-enemy2-abilities").getByTestId("ability-row")).toHaveCount(5);
+      await expect(page.getByTestId("matchup-ally-abilities")).toBeVisible();
+      for (const [width, height] of [[1920, 1080], [1920, 950], [1440, 900], [1280, 800]] as const) {
+        await page.setViewportSize({ width, height });
+        await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+        const m = await measureDuo(page);
+        const at = `${role}: ${you} and ${ally} vs ${enemy} and ${enemy2}, Riot's text ${layer}, at ${width}×${height}`;
+        expect.soft(m.kits, `${at}: both enemies' kits`).toBe(2);
+        expect.soft(m.cooldownLines, `${at}: ten cooldown lines`).toBeGreaterThanOrEqual(10);
+        expect.soft(m.bar ?? Infinity, `${at}: the bar on the screen`).toBeLessThanOrEqual(m.innerHeight + 0.5);
+        if (width === 1920) {
+          expect.soft(m.scrollHeight, `${at}: no vertical page scroll`).toBeLessThanOrEqual(m.innerHeight);
+          expect.soft(m.sources ?? Infinity, `${at}: the sources' summary on the screen`).toBeLessThanOrEqual(m.innerHeight + 0.5);
+        } else if (width === 1440) {
+          expect.soft(m.tiles ?? Infinity, `${at}: both enemies' tiles on the screen`).toBeLessThanOrEqual(m.innerHeight + 0.5);
+          expect.soft(m.sources ?? Infinity, `${at}: the sources' summary on the screen`).toBeLessThanOrEqual(m.innerHeight + 0.5);
+        } else {
+          expect.soft(m.cooldowns ?? Infinity, `${at}: every cooldown line of both enemies on the screen`).toBeLessThanOrEqual(m.innerHeight + 0.5);
+        }
+        expect.soft(m.scrollWidth, `${at}: no sideways page scroll`).toBeLessThanOrEqual(m.clientWidth);
+        expect.soft(m.scrollers, `${at}: nothing scrolls inside the page`).toEqual([]);
+        expect.soft(m.small, `${at}: no text under the 2xs size (0.6875rem)`).toBeGreaterThanOrEqual(0.6875 - 0.001);
+      }
+    }
+  }
+  // What the layout put one step away is there, not cut: each kit's sources in its fold, your duo's
+  // inside theirs (the last lineup's page, with Riot's text off).
+  const kit = page.getByTestId("matchup-enemy-abilities");
+  await expect(kit.getByTestId("abilities-source-lead")).toBeVisible();
+  await kit.getByTestId("matchup-enemy-abilities-sources").locator(":scope > summary").click();
+  await expect(kit.getByTestId("abilities-source")).toBeVisible();
+  await expect(kit.getByTestId("abilities-source")).toContainText("Base cooldowns, without ability haste");
+  await expect(page.getByTestId("matchup-enemy2-abilities")).toContainText("Base cooldowns, without ability haste");
+  await page.getByTestId("matchup-ally-abilities").locator(":scope > summary").click();
+  await expect(page.getByTestId("matchup-ally-abilities").getByTestId("your-abilities-source")).toBeVisible();
+  await expect(page.getByTestId("matchup-ally-abilities").getByTestId("your-abilities-source")).toContainText("Abilities and base cooldowns");
+});
+
+/**
  * The pages a later patch adds most to: the three curated pairs, whose bar, briefing, kits' lines and
  * notes panels each say "Not re-checked for …" then, and the other way round (two checked kits, put
  * together), whose kits' lines and notes panels say it.

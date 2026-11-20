@@ -26,6 +26,7 @@ import {
   RIOT_TEXT_KIND_WORDS,
   RIOT_TEXT_LABEL,
   SLOT_NAMES,
+  SOURCES_FOLD_WORDS,
   alsoDescribedWords,
   abilityAnchor,
   changedAbilitiesWords,
@@ -544,13 +545,51 @@ export function dataSourceOf(intel: Pick<ChampionIntelView, "dataVersion" | "off
 }
 
 /**
+ * Whether a champion's sources line may go one step away, into a fold (the bot lane's kits side by
+ * side): not where it carries a warning a reader needs in view, the checked notes' line (not
+ * re-checked, changed since, too old) or an offline copy's words.
+ */
+export function sourcesFold(intel: ChampionIntelView): boolean {
+  return factsFrom(intel) !== "checked" && !intel.offlineCopy;
+}
+
+/**
  * A champion's ability tiles as a panel: its heading says once that the cooldowns are base values,
  * without ability haste, where they come from, and where the facts come from. `notice`: a line
  * above the tiles (the ability data being older than the game's patch).
  */
-export function AbilitiesPanel({ intel, title, testId, notice, haste = false }: { intel: ChampionIntelView; title: string; testId: string; notice?: React.ReactNode; haste?: boolean }) {
+export function AbilitiesPanel({ intel, title, testId, notice, haste = false, foldSources = false }: { intel: ChampionIntelView; title: string; testId: string; notice?: React.ReactNode; haste?: boolean; /** The bot lane's two kits side by side: where the facts come from one step away (sourcesFold). */ foldSources?: boolean }) {
   const from = dataSourceOf(intel);
   const common = commonSourceOf(intel);
+  const changed = !!intel.riotChangedOn && !intel.offlineCopy;
+  const fold = foldSources && sourcesFold(intel);
+  // Where the abilities come from (the bar names the version too), and the cooldown lines, once for
+  // them all (a curated champion's are its checked notes', which the next words date).
+  const rest = (
+    <>
+      {from && !changed ? `${from} · ` : null}
+      {common && !intel.curated ? (
+        <>
+          <span data-testid="abilities-cooldown-source">{cooldownsFromWords(common)}</span>
+          {" · "}
+        </>
+      ) : null}
+      <FactsSourceLine intel={intel} />
+    </>
+  );
+  const lead = (
+    <>
+      <TierLabel className={changed ? undefined : "mr-1.5"}>Riot&apos;s data</TierLabel>
+      {changed ? (
+        <>
+          {" "}
+          <RiotChangedLabel patch={intel.riotChangedOn} after />
+          {" · "}
+        </>
+      ) : null}
+      {haste && !fold ? "Base cooldowns, without ability haste · " : null}
+    </>
+  );
   return (
     <Panel className="overflow-hidden" data-testid={testId} data-champion={intel.champion.id}>
       <header className="space-y-0.5 border-b border-border px-3 py-1.5">
@@ -561,37 +600,40 @@ export function AbilitiesPanel({ intel, title, testId, notice, haste = false }: 
               one choice for the page); the base line's words then start the source line. */}
           {haste ? <HasteControl /> : <p className="text-xs text-fg-muted">Base cooldowns, without ability haste</p>}
         </div>
-        <p className="text-xs text-fg-muted" data-testid="abilities-source">
-          {/* Riot's data, the tier of the abilities' names, icons and base cooldowns, first on the line that
-              says where they come from (a curated champion's facts say "Checked notes" at its end and on
-              each fact). Beside the title it put the haste control on a row of its own at 1440 × 900, 26px
-              that, with production's "Not re-checked", the sources' summary could not spare (Production
-              check, 20 Nov 2026). */}
-          <TierLabel className={intel.riotChangedOn && !intel.offlineCopy ? undefined : "mr-1.5"}>Riot&apos;s data</TierLabel>
-          {intel.riotChangedOn && !intel.offlineCopy ? (
-            <>
-              {" "}
-              <RiotChangedLabel patch={intel.riotChangedOn} after />
-              {" · "}
-            </>
-          ) : null}
-
-          {haste ? "Base cooldowns, without ability haste · " : null}
-          {/* Where the abilities come from (the bar names the version too), and the cooldown lines, once for
-              them all (a curated champion's are its checked notes', which the next words date). */}
-          {/* The version, unless Riot changed this champion on the newest patch: then the words after the
-              tier say so ("Riot's data changed on 26.24"), as the bar names the version too. Beside the
-              version, or on the title's row, the label wrapped a line at 1440 × 900 (16–20px), which put
-              the sources' summary under the fold with production's "Not re-checked". An offline copy keeps its words. */}
-          {from && !(intel.riotChangedOn && !intel.offlineCopy) ? `${from} · ` : null}
-          {common && !intel.curated ? (
-            <>
-              <span data-testid="abilities-cooldown-source">{cooldownsFromWords(common)}</span>
-              {" · "}
-            </>
-          ) : null}
-          <FactsSourceLine intel={intel} />
-        </p>
+        {fold ? (
+          // In the bot lane the two enemies' kits stand side by side, each a third of the page wide: their
+          // sources there took five or six lines each, which put the cooldown lines under the fold at
+          // 1280 × 800 and the sources' summary at 1440 × 900 (20 Nov 2026). The tier and the base line
+          // stay in view; where the abilities and their facts come from is one step away, in this fold.
+          <Fold variant="inline" tone="muted" testId={`${testId}-sources`} summaryClassName="pointer-fine:min-h-6 [&>[data-fold-chevron]]:order-last" bodyClassName="mt-0.5 pointer-coarse:mt-4"
+            summary={
+              <span className="min-w-0" data-testid="abilities-source-lead">
+                {lead}
+                {SOURCES_FOLD_WORDS}
+              </span>
+            }
+          >
+            <p className="text-xs text-fg-muted" data-testid="abilities-source">
+              {/* The first kit's base line, its title's row holding the haste: the second kit's title row says it in view. */}
+              {haste ? "Base cooldowns, without ability haste · " : null}
+              {rest}
+            </p>
+          </Fold>
+        ) : (
+          <p className="text-xs text-fg-muted" data-testid="abilities-source">
+            {/* Riot's data, the tier of the abilities' names, icons and base cooldowns, first on the line that
+                says where they come from (a curated champion's facts say "Checked notes" at its end and on
+                each fact). Beside the title it put the haste control on a row of its own at 1440 × 900, 26px
+                that, with production's "Not re-checked", the sources' summary could not spare (Production
+                check, 20 Nov 2026). The version, unless Riot changed this champion on the newest patch: then
+                the words after the tier say so ("Riot's data changed on 26.24"), as the bar names the version
+                too. Beside the version, or on the title's row, the label wrapped a line at 1440 × 900
+                (16–20px), which put the sources' summary under the fold with production's "Not re-checked".
+                An offline copy keeps its words. */}
+            {lead}
+            {rest}
+          </p>
+        )}
       </header>
       {notice}
       <AbilityList intel={intel} testId={`${testId}-list`} />
@@ -606,9 +648,40 @@ export function AbilitiesPanel({ intel, title, testId, notice, haste = false }: 
  * data, not reviewed"; a curated champion's are its notes', which their line dates), so its tiles
  * leave it out as theirs do.
  */
-export function YourChampion({ intel, label = "Your champion", testId = "matchup-your-abilities" }: { intel: ChampionIntelView; label?: string; testId?: string }) {
+export function YourChampion({ intel, label = "Your champion", testId = "matchup-your-abilities", foldSources = false }: { intel: ChampionIntelView; label?: string; testId?: string; /** The bot lane's duo, two folds side by side: the sources line inside the fold, over the tiles (sourcesFold). */ foldSources?: boolean }) {
   const from = dataSourceOf(intel);
   const common = commonSourceOf(intel);
+  const changed = !!intel.riotChangedOn && !intel.offlineCopy;
+  const inside = foldSources && sourcesFold(intel);
+  // Where the abilities come from: in the summary, or (the bot lane's duo) inside the fold, over the
+  // tiles, where its five lines in each of two folds side by side pushed the sources' summary under
+  // the fold at 1440 × 900 (20 Nov 2026). "Riot's data changed on 26.24" stays in the summary.
+  // Inside the fold "Riot's data changed on 26.24" is said once, in the summary.
+  const source = (withChanged: boolean) => (
+    <>
+      {/* As on the enemy's panel: "Riot's data changed on 26.24" in place of the version, which the bar
+          names too. Beside the title it grew the summary by a line or two on phones (R11b review). */}
+      Abilities and base cooldowns
+      {changed && !withChanged ? null : changed ? (
+        <>
+          {" · Riot's data "}
+          <RiotChangedLabel patch={intel.riotChangedOn} after />
+        </>
+      ) : from ? (
+        ` · ${from}`
+      ) : (
+        ""
+      )}
+      {common && !intel.curated ? (
+        <>
+          {" · "}
+          <span data-testid="your-cooldown-source">{cooldownsFromWords(common)}</span>
+        </>
+      ) : null}
+      {" · "}
+      <FactsSourceLine intel={intel} />
+    </>
+  );
   return (
     // A section with a heading of its own, so its abilities' headings sit under it: the summary's
     // words are not read as a heading everywhere, so the heading is for screen readers alone.
@@ -626,34 +699,28 @@ export function YourChampion({ intel, label = "Your champion", testId = "matchup
         summary={
           <span className="min-w-0">
             <span className="block text-sm font-semibold text-fg [overflow-wrap:anywhere]">{`${label}: ${intel.champion.name}`}</span>
-            <span className="block text-xs text-fg-muted">
-              {/* As on the enemy's panel: "Riot's data changed on 26.24" in place of the version, which the bar
-                  names too. Beside the title it grew the summary by a line or two on phones (R11b review). */}
-              Abilities and base cooldowns
-              {intel.riotChangedOn && !intel.offlineCopy ? (
-                <>
-                  {" · Riot's data "}
+            {inside ? (
+              changed ? (
+                <span className="block text-xs text-fg-muted">
+                  {"Riot's data "}
                   <RiotChangedLabel patch={intel.riotChangedOn} after />
-                </>
-              ) : from ? (
-                ` · ${from}`
-              ) : (
-                ""
-              )}
-              {common && !intel.curated ? (
-                <>
-                  {" · "}
-                  <span data-testid="your-cooldown-source">{cooldownsFromWords(common)}</span>
-                </>
-              ) : null}
-              {" · "}
-              <FactsSourceLine intel={intel} />
-            </span>
+                </span>
+              ) : null
+            ) : (
+              <span className="block text-xs text-fg-muted" data-testid="your-abilities-source">
+                {source(true)}
+              </span>
+            )}
           </span>
         }
       >
         {/* On a touch screen 4px more under the summary, so the first tile's Details button, whose 44px
             area reaches 10px past it, covers none of the summary. */}
+        {inside ? (
+          <p className="border-b border-border px-3 py-1.5 text-xs text-fg-muted" data-testid="your-abilities-source">
+            {source(false)}
+          </p>
+        ) : null}
         <AbilityList intel={intel} testId={`${testId}-list`} />
       </Fold>
     </section>

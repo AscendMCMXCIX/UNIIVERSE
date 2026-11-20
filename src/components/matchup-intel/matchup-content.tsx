@@ -72,14 +72,16 @@ function StaleNote({ words }: { words: string }) {
   );
 }
 
-/** The dashboard's two columns: one on a phone (see the module's comment). */
 /**
  * The dashboard's columns: one on a phone; two from a body 60rem wide (see the module's comment). In
- * the bot lane the kit column is as wide as the main one: it holds the two enemies' kits side by side.
+ * the bot lane the kit column is the wider: it holds the two enemies' kits side by side. Under 70rem
+ * (1280 × 800 with the sidebar open) it takes more again, so each kit's haste row keeps one line
+ * and every cooldown line is on the first screen; the main column's two sides stack there. From
+ * 70rem (1440 × 900) the main column keeps 28rem, its two sides side by side (AssembledReference).
  */
 const COLUMNS = {
   solo: "grid gap-3 @min-[60rem]/dash:grid-cols-[minmax(0,1fr)_minmax(22rem,0.72fr)] @min-[60rem]/dash:items-start",
-  duo: "grid gap-3 @min-[60rem]/dash:grid-cols-[minmax(0,0.9fr)_minmax(22rem,1.1fr)] @min-[60rem]/dash:items-start",
+  duo: "grid gap-3 @min-[60rem]/dash:grid-cols-[minmax(0,0.75fr)_minmax(22rem,1.25fr)] @min-[70rem]/dash:grid-cols-[minmax(0,0.85fr)_minmax(22rem,1.15fr)] @min-[60rem]/dash:items-start",
 } as const;
 /** The interactions and the level notes side by side where the column has room, the fuller panel the wider (notesBalance). */
 const NOTES_SPLIT = {
@@ -104,6 +106,17 @@ export function MatchupContent({ view, champions, curated, legal, evidence = nul
   const stale = behind.length && current ? <StaleNote words={staleDataWords(behind, current, behind.length === shownData.length)} /> : null;
   const shows = briefingShows(matchup);
   const balance = enemyIntel ? notesBalance(matchup, enemyIntel, yourIntel) : "even";
+  // Your champion folded; in the bot lane your duo's two kits side by side where the column has room,
+  // under the main column: the kit column, holding both enemies' kits, Riot's tips and the evidence,
+  // is the taller there, and with your duo under it the sources' summary had 7px to spare at 1440 ×
+  // 900 (20 Nov 2026). On a phone they follow the notes, after the glance's enemy cooldowns.
+  const yours =
+    (yourIntel && !mirror) || allyIntel ? (
+      <div className={duo && allyIntel && yourIntel && !mirror ? "grid gap-3 @min-[60rem]/dash:grid-cols-2 @min-[60rem]/dash:items-start" : undefined} data-testid={duo ? "matchup-duo-kits" : undefined}>
+        {yourIntel && !mirror ? <YourChampion intel={yourIntel} label={duo ? slotWords(role, "you").label : undefined} foldSources={duo && !!allyIntel} /> : null}
+        {allyIntel ? <YourChampion intel={allyIntel} label={slotWords(role, "ally").label} testId="matchup-ally-abilities" foldSources={!!yourIntel && !mirror} /> : null}
+      </div>
+    ) : null;
   // Riot's tips and the evidence from the team's games share one fold, its line stating both.
   const tips = <RiotTipsPanel enemies={[enemyIntel, enemy2Intel].filter((i): i is ChampionIntelView => !!i)} yours={[mirror ? null : yourIntel, allyIntel].filter((i): i is ChampionIntelView => !!i)} evidenceSummary={<EvidenceSummary evidence={evidence} />} evidence={<EvidenceBody evidence={evidence} duo={duo} pair={{ chosen: !!you && !!enemy, curated: shows, hidden: !shows && !!matchup }} />} />;
 
@@ -137,26 +150,21 @@ export function MatchupContent({ view, champions, curated, legal, evidence = nul
           <div className="min-w-0 space-y-3 @min-[60rem]/dash:space-y-2">
             {you && enemy && matchup ? <Briefing matchup={matchup} you={you} enemy={enemy} rows={rows} /> : null}
             {/* A briefing that exists but shows nothing (too old, or every part resting on a change) is hidden above, and said so there. */}
-            {you && enemy && !shows ? <AssembledReference you={you} enemy={enemy} enemyIntel={enemyIntel} yourIntel={yourIntel} curatedForYou={curatedForYou} rows={rows} briefingHidden={!!matchup} /> : null}
+            {you && enemy && !shows ? <AssembledReference you={you} enemy={enemy} enemyIntel={enemyIntel} yourIntel={yourIntel} curatedForYou={curatedForYou} rows={rows} briefingHidden={!!matchup} duo={duo} /> : null}
             {/* Side by side where the column has room, the fuller of the two the wider. */}
             <div className={`grid gap-3 @min-[40rem]/dash:items-start ${NOTES_SPLIT[balance]}`} data-testid="matchup-notes" data-balance={balance}>
               <InteractionsPanel matchup={matchup} enemyIntel={enemyIntel} yourIntel={yourIntel} you={you} rows={rows} />
               <LevelNotesPanel intels={[enemyIntel, yourIntel]} />
             </div>
+            {duo ? yours : null}
           </div>
           <div className="min-w-0 space-y-3 @min-[60rem]/dash:space-y-2">
             {/* In the bot lane with both enemies chosen, their two kits side by side where the column has room. */}
             <div className={enemy2Intel ? "grid gap-3 @min-[60rem]/dash:grid-cols-2" : undefined} data-testid="matchup-enemy-kits">
-              <AbilitiesPanel intel={enemyIntel} title={mirror ? `${enemyIntel.champion.name}'s abilities (both sides)` : `${enemyIntel.champion.name}'s abilities`} testId="matchup-enemy-abilities" notice={stale} haste />
-              {enemy2Intel ? <AbilitiesPanel intel={enemy2Intel} title={`${enemy2Intel.champion.name}'s abilities`} testId="matchup-enemy2-abilities" /> : null}
+              <AbilitiesPanel intel={enemyIntel} title={mirror ? `${enemyIntel.champion.name}'s abilities (both sides)` : `${enemyIntel.champion.name}'s abilities`} testId="matchup-enemy-abilities" notice={stale} haste foldSources={!!enemy2Intel} />
+              {enemy2Intel ? <AbilitiesPanel intel={enemy2Intel} title={`${enemy2Intel.champion.name}'s abilities`} testId="matchup-enemy2-abilities" foldSources /> : null}
             </div>
-            {/* Your duo's two kits side by side under the enemies' where the column has room. */}
-            {(yourIntel && !mirror) || allyIntel ? (
-              <div className={duo && allyIntel && yourIntel && !mirror ? "grid gap-3 @min-[60rem]/dash:grid-cols-2 @min-[60rem]/dash:items-start" : undefined}>
-                {yourIntel && !mirror ? <YourChampion intel={yourIntel} label={duo ? slotWords(role, "you").label : undefined} /> : null}
-                {allyIntel ? <YourChampion intel={allyIntel} label={slotWords(role, "ally").label} testId="matchup-ally-abilities" /> : null}
-              </div>
-            ) : null}
+            {duo ? null : yours}
             {/* Riot's tips and the evidence from the team's games: one folded line under the kits, so the one-screen fit holds. */}
             {tips}
           </div>

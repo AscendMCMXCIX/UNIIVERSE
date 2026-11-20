@@ -448,6 +448,12 @@ export const KIND_GROUP_WORDS: Record<KindGroup, string> = {
   cooldown: "Cooldown",
 };
 
+/**
+ * The bot lane's kits side by side (AbilitiesPanel, YourChampion with `foldSources`): the word that
+ * opens where a kit's abilities, cooldowns and facts come from, one step away.
+ */
+export const SOURCES_FOLD_WORDS = "Sources";
+
 /** The label every fact from Riot's text carries, in the owner's words (18 Nov 2026). */
 export const RIOT_TEXT_LABEL = "From Riot's ability text, reviewed automatically (not by a person)";
 
