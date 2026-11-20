@@ -82,7 +82,7 @@ export function championPreviewVerdicts({ kind, at, step, escaped }) {
   const games = m ? Number(m[1]) : null;
   const wins = m ? Number(m[2]) : null;
   const losses = m ? Number(m[3]) : null;
-  fact("the preview of the first champion with 3+ games shows that champion: its portrait, its name and its role", at.sameChampion && at.portrait && at.named && ROLE_LINE.test(at.role ?? ""), { sameChampion: at.sameChampion, portrait: at.portrait, named: at.named, role: at.role });
+  fact("the preview of the first champion with 3+ games shows that champion: its portrait, its name and its role", at.sameChampion && at.portrait && at.named && ROLE_LINE.test(at.role ?? ""), { sameChampion: at.sameChampion, portrait: at.portrait, named: at.named, role: ROLE_LINE.test(at.role ?? "") ? at.role : `other words (${(at.role ?? "").length} characters)` });
   fact('the preview says "N games · NW NL", the row\'s games, the wins and losses adding up', !!m && games === at.rowGames && wins + losses === games, { record: at.record, rowGames: at.rowGames });
   const rate = /^(\d{1,3})%$/.exec(at.winRate ?? "");
   fact("the preview shows the win rate, the wins over the games", !!rate && !!m && games > 0 && Math.abs(Number(rate[1]) - (100 * wins) / games) <= 0.5 + 1e-9, { winRate: at.winRate, record: at.record });
