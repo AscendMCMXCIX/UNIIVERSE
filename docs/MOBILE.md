@@ -448,7 +448,9 @@ Every phone page spends its first screen on content, not on saying where you are
 - **One title row, or none where the bar names the page.** Team's sections (Players, Leaderboards,
   Matches) and Admin Mode's set pages read their h1 out only on phones (`PageHeader sectionNamed`):
   the sections row names them, and the scope line leads. Admin Mode's eyebrow and description go on
-  phones (`PageHeader admin`): the bar says the mode once.
+  phones (`PageHeader admin`): the bar says the mode once. With nothing left to show (no actions),
+  the whole header is read out only, so its stack margin goes too and the page's content starts
+  under the bars (G4-1: y 117 at 390 × 844, from 133–137).
 - **Team Overview** on members' phones: no logo or h1 on screen (the bar carries the team's mark and
   name; the h1 is read out), one 44px line of "Main lineup · Season 2026" over the lineup's state,
   with Edit lineup at its end (44px, 102px before). The public team page keeps its own header.

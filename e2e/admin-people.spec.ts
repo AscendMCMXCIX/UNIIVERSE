@@ -47,6 +47,30 @@ test("the list starts high, its rows are one height, and it has no action button
   expect(m.firstTop, "the first row's top").toBeLessThanOrEqual(phone ? 300 : 220);
   expect(m.destructive, "destructive buttons on the list").toBe(0);
   expect(m.screens, "screens of the page").toBeLessThanOrEqual(phone ? 2.0 : 1.3);
+
+  // The design review (G4-1, G4-4): on a phone the header, which shows nothing there, leaves the
+  // flow with its margin (the search row was 16px lower); the accountless group's fold is drawn as
+  // its sibling groups' heading, unboxed, its title on their line.
+  const look = await page.evaluate(() => {
+    const header = document.querySelector("main header")!;
+    const fold = document.querySelector("[data-testid=people-group-accountless]");
+    const heading = document.querySelector("[data-testid=people-group-team] h3");
+    const title = fold?.querySelector("summary > span > span");
+    const textX = (e: Element) => e.getBoundingClientRect().x + parseFloat(getComputedStyle(e).paddingLeft);
+    return {
+      headerHeight: header.getBoundingClientRect().height,
+      searchTop: document.querySelector("[data-testid=people-search]")!.getBoundingClientRect().top - header.parentElement!.getBoundingClientRect().top,
+      fold: fold && heading && title ? { border: getComputedStyle(fold).borderTopWidth, dx: Math.abs(title.getBoundingClientRect().x - textX(heading)) } : null,
+    };
+  });
+  if (phone) {
+    expect(look.headerHeight, "the phone's header takes no room").toBeLessThanOrEqual(1);
+    expect(look.searchTop, "the search row starts the page").toBeLessThanOrEqual(1);
+  }
+  if (look.fold) {
+    expect(look.fold.border, "the accountless fold has no box").toBe("0px");
+    expect(look.fold.dx, "its title on the groups' headings' line").toBeLessThanOrEqual(1);
+  }
 });
 
 test("the person view: a deep link opens it, ‹ › replace, Back closes it, Escape returns focus", async ({ page }) => {
@@ -55,6 +79,21 @@ test("the person view: a deep link opens it, ‹ › replace, Back closes it, Es
   await expect(page).toHaveURL(/[?&]person=/);
   const id = new URL(page.url()).searchParams.get("person")!;
   for (const section of ["person-account", "person-password", "person-access", "person-riot", "person-picture", "person-activity", "person-danger"]) await expect(view.getByTestId(section), section).toBeVisible();
+  // The design review (G4-7, G4-18, G4-19): Save name is the field's height on its line; with no
+  // Riot account the section says so once; the Status value stays on its label's line.
+  const geo = await view.evaluate((v) => {
+    const box = (e: Element | null | undefined) => e?.getBoundingClientRect() ?? null;
+    const field = box(v.querySelector("[data-testid=member-display-name] input"));
+    const save = box([...v.querySelectorAll("[data-testid=member-display-name] button")].find((b) => b.textContent?.trim() === "Save name"));
+    const dt = [...v.querySelectorAll("dt")].find((d) => d.textContent?.trim() === "Status");
+    return { field, save, dt: box(dt), dd: box(dt?.nextElementSibling), riot: v.querySelector("[data-testid=person-riot]")!.textContent ?? "" };
+  });
+  if (geo.field && geo.save) {
+    expect(Math.abs(geo.save.height - geo.field.height), "Save name is the field's height").toBeLessThanOrEqual(1);
+    expect(Math.abs(geo.save.top - geo.field.top), "and on its line").toBeLessThanOrEqual(1);
+  }
+  expect(geo.riot.match(/No Riot account/g)?.length, "no Riot account, said once").toBe(1);
+  expect(geo.dt && geo.dd && Math.abs(geo.dd.top - geo.dt.top), "Status's value beside its label").toBeLessThanOrEqual(2);
   // The Danger zone stays closed until asked.
   expect(await view.getByTestId("person-danger").evaluate((d) => (d as HTMLDetailsElement).open)).toBe(false);
   // No count of sessions, anywhere in it.
