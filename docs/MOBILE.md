@@ -455,7 +455,10 @@ allowed), and touch targets under 44px on the first screen.
   at most 25% at 150% on 568 and 667px phones, Match History's first game above the tab bar at 320,
   and a first paint never wider than a 320px phone). About 1 minute.
 - **A ratchet**: the ceilings started at the figures of 20 Nov 2026 plus 2%; a stage lowers the
-  ceilings of the pages it changes to its acceptance figures, never raises one.
+  ceilings of the pages it changes to its acceptance figures, never raises one. The one exception is
+  a control a later stage added on purpose, measured in its release plus 2%, with its reason on the
+  entry (`why`): in Release 6, Matchup Intel's lane selector (S7a) and Settings' "Sign out of other
+  devices" (S9b), built beside S2b, so measured only once the lanes met.
 
 The setups are the mobile audit's (Chromium with touch and an iPhone's safe areas through CDP; the
 text size is the browser's own, `Page.setFontSizes`, so the breakpoints move as with a real setting).
