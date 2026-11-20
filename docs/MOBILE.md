@@ -550,6 +550,9 @@ heights), and its worst figures across the matrix. Figures in screens; the ceili
   established. Since the ceilings were set (19 Nov) the page changed in Release 9 (the Fold in place
   of Disclosure for its comparisons, the list's count for the game window's steps). Listed for the
   next stage that touches Team Matches.
+- Re-run on the merge of `release/r10` (4a3b7727, Release 10): the same two overs and nothing else
+  over, no overflow; 38 of the 952 figures moved by 0.03 screens or more, All Champions down at both
+  CI setups (i15 100% 1.05 → 1.00, se1 150% 3.37 → 3.25; R10a's Filters row). The table below is `main`'s.
 - 156 against 153: the same figures on 20 of 34 pages at both setups; elsewhere within 0.10 screens
   (156 lays text out wider, so a line wraps sooner), none crossing a ceiling but Team Matches'.
 
