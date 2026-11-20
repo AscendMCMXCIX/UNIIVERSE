@@ -592,6 +592,33 @@ p a.text-accent {
 @utility rise-in {
   animation: rise-in 200ms var(--ease-emphasized);
 }
+/* A popover's list (ui/select.tsx): a 160ms fade with a 2px slide away from its button. */
+@keyframes popover-in {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes popover-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@utility popover-in {
+  animation: popover-in 160ms ease-out;
+}
+@utility popover-in-up {
+  animation: popover-in-up 160ms ease-out;
+}
 @utility pop-in {
   animation: pop 220ms var(--ease-emphasized);
 }

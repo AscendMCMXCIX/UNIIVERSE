@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from "./test";
+import { pick, valueOf } from "./select";
 import { closeFilterSheet, openFilterBar } from "./filters";
 import { playerEntry } from "./players";
 import { memberContext } from "./member-account";
@@ -421,13 +422,13 @@ test("players list and profile: browse, tabs, edit champions in place, season st
   // Overview tab: season performance with its filters.
   await expect(page.getByTestId("season-summary")).toBeVisible();
   await expect(page.getByTestId("stat-kda")).toBeVisible();
-  await expect(page.locator("#overview-mode")).toHaveValue("all");
+  await expect.poll(() => valueOf(page.locator("#overview-mode"))).toBe("all");
   // The season choice appears only when there is more than one season to choose from.
   expect(await page.locator("#overview-season").count()).toBeLessThanOrEqual(1);
   await openFilterBar(page.getByTestId("overview-filters"));
-  await page.selectOption("#overview-mode", "solo");
+  await pick(page.locator("#overview-mode"), "solo");
   await page.waitForURL(/mode=solo/);
-  await expect(page.locator("#overview-mode")).toHaveValue("solo");
+  await expect.poll(() => valueOf(page.locator("#overview-mode"))).toBe("solo");
   await closeFilterSheet(page);
   // The pools are on Overview: one card per champion; the local owner may edit any profile.
   await expect(page.getByRole("heading", { name: /Roles & champion pools/ })).toBeVisible();
@@ -446,7 +447,7 @@ test("players list and profile: browse, tabs, edit champions in place, season st
   await expect(page.getByTestId("match-filters")).toBeVisible();
   const filters = page.getByTestId("match-filters");
   // The game mode chosen on Overview comes along to Match History.
-  await expect(filters.getByLabel("Game mode")).toHaveValue("solo");
+  await expect.poll(() => valueOf(filters.getByLabel("Game mode"))).toBe("solo");
   // Role, champions and account sit behind Refine on wide screens and in the opened filter bar on
   // phones, as on the Overview; one linked account at most here, so no account choice.
   if (await openFilterBar(filters)) {

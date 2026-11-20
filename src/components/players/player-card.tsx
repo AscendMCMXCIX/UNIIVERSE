@@ -483,14 +483,20 @@ export interface PoolRowChampion {
 }
 
 
-/** The pool list's columns (Team player window): the champion, then its figures, right-aligned. */
-const POOL_TILE_GRID = "grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 sm:grid-cols-[auto_minmax(0,1fr)_4.75rem_3.5rem_3.25rem_4rem]";
+/**
+ * The pool list's columns (the player Peek and window): the champion, then its figures, right-aligned,
+ * where the list is 28rem wide or more; narrower, each champion's figures in a short block. The list's
+ * own width decides (a container query, `@container/pool` on its box), not the screen's: the docked
+ * Peek at 1280 is 25rem wide, and the columns left the names "A..", their headings run together
+ * (until 20 Nov 2026 the columns came from a 640px screen); a 26rem drawer the same.
+ */
+const POOL_TILE_GRID = "grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 @min-[28rem]/pool:grid-cols-[auto_minmax(0,1fr)_4.75rem_3.5rem_3.25rem_4rem]";
 
-/** The column names over the pool list, from small tablets up (phones put each champion's figures in a short block). */
+/** The column names over the pool list, where it has the columns (narrower, each champion's figures in a short block). */
 export function PoolColumnNames({ support }: { support: boolean }) {
   const head = "whitespace-nowrap text-right text-2xs font-semibold uppercase tracking-label text-fg-subtle";
   return (
-    <div className={cn(POOL_TILE_GRID, "hidden border-b border-border/70 bg-bg/30 px-3 py-1.5 sm:grid")} aria-hidden data-testid="pool-columns">
+    <div className={cn(POOL_TILE_GRID, "hidden border-b border-border/70 bg-bg/30 px-3 py-1.5 @min-[28rem]/pool:grid")} aria-hidden data-testid="pool-columns">
       <span className="w-10" />
       <span className="text-2xs font-semibold uppercase tracking-label text-fg-subtle">Champion</span>
       <span className={head}>Win rate</span>
@@ -503,8 +509,8 @@ export function PoolColumnNames({ support }: { support: boolean }) {
 
 /**
  * One champion of a pool as a row of the Team player window's list: its place, portrait, name and
- * experience label, then the season's figures in this role in aligned columns (a short block on
- * phones). The first choice is marked in its row in the card's own colour, never set apart, so the
+ * experience label, then the season's figures in this role in aligned columns (a short block in a
+ * narrow list). The first choice is marked in its row in the card's own colour, never set apart, so the
  * pool reads as one list. Its test ids are the pool row's.
  */
 export function PoolChampionTile({ index, champion, row, support, withStats = true }: { index: number; champion: PortraitChampion; row: PoolRowChampion; support: boolean; withStats?: boolean }) {
@@ -538,8 +544,8 @@ export function PoolChampionTile({ index, champion, row, support, withStats = tr
       {withStats ? (
         row.games ? (
           <>
-            {/* Phones: the win rate and games, then KDA and CS (vision for supports), in one short block. */}
-            <span className="text-right leading-tight sm:hidden" data-testid="pool-champion-stats">
+            {/* A narrow list: the win rate and games, then KDA and CS (vision for supports), in one short block. */}
+            <span className="text-right leading-tight @min-[28rem]/pool:hidden" data-testid="pool-champion-stats">
               <span className={cn("block text-sm font-semibold tabular-nums", tone)}>{rate}</span>
               <span className="block text-2xs tabular-nums text-fg-subtle">
                 {row.games} game{row.games === 1 ? "" : "s"}
@@ -548,15 +554,15 @@ export function PoolChampionTile({ index, champion, row, support, withStats = tr
                 {kda} KDA · {third} {support ? "vis" : "CS"}
               </span>
             </span>
-            <span className={cn("hidden text-right text-sm font-semibold tabular-nums sm:block", tone)}>{rate}</span>
-            <span className="hidden text-right text-sm tabular-nums text-fg-muted sm:block">{row.games}</span>
-            <span className="hidden text-right text-sm tabular-nums text-fg-muted sm:block">{kda}</span>
-            <span className="hidden text-right text-sm tabular-nums text-fg-muted sm:block">{third}</span>
+            <span className={cn("hidden text-right text-sm font-semibold tabular-nums @min-[28rem]/pool:block", tone)}>{rate}</span>
+            <span className="hidden text-right text-sm tabular-nums text-fg-muted @min-[28rem]/pool:block">{row.games}</span>
+            <span className="hidden text-right text-sm tabular-nums text-fg-muted @min-[28rem]/pool:block">{kda}</span>
+            <span className="hidden text-right text-sm tabular-nums text-fg-muted @min-[28rem]/pool:block">{third}</span>
           </>
         ) : (
-          // A note too long for a phone's figure column ("189K mastery · no games this season") would
-          // leave the name one letter: there it takes a line of its own under the name instead.
-          <span className="min-w-0 text-right max-sm:col-span-2 max-sm:col-start-2 max-sm:row-start-2 max-sm:pt-1 max-sm:text-left sm:col-span-4" data-testid="pool-champion-stats">
+          // A note too long for a narrow list's figure column ("189K mastery · no games this season")
+          // would leave the name one letter: there it takes a line of its own under the name instead.
+          <span className="min-w-0 text-right @max-[28rem]/pool:col-span-2 @max-[28rem]/pool:col-start-2 @max-[28rem]/pool:row-start-2 @max-[28rem]/pool:pt-1 @max-[28rem]/pool:text-left @min-[28rem]/pool:col-span-4" data-testid="pool-champion-stats">
             {row.masteryPoints ? (
               <span className="text-xs tabular-nums text-fg-muted" title={`${formatCount(row.masteryPoints)} mastery points`}>
                 <span className="font-semibold">{formatCompactCount(row.masteryPoints)}</span> mastery (all-time) · no games this season

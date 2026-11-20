@@ -620,6 +620,9 @@ the account screen over the dashboard at 200% on a 320px phone as well.
 - `Button`: desktop heights unchanged; `max-md:min-h-11` and `pointer-coarse:min-h-11`. `wrap`: on a
   phone a label that a larger text size makes too long wraps and the button grows with it (a form's
   Save beside little room); without it a label stays on one line.
+- `Select` (`ui/select.tsx`, since 20 Nov 2026): the browser's own select in the phone posture (its
+  wheel or sheet), the app's popover elsewhere, one look closed (docs/DESIGN_SYSTEM.md §7, Select);
+  its options are 44px on a touch screen and 36px under a mouse.
 - `Input`, `Select`, `Textarea`, `SearchInput` and the champion grid's search: 44px and 16px text
   on phones and on every touch screen, 36px / 14px from `md` with a mouse (`md:pointer-fine:`) (in
   `SearchInput`, a placeholder longer than its field ends in an ellipsis): iOS
@@ -699,6 +702,12 @@ a mouse as with touch) and on short windows its sheet. The wide (76rem) tier dro
 CM AC-11, reversible: OD20). `e2e/champion-preview.spec.ts` checks the geometry, ↑/↓, Back and
 Escape at 1440, the content and old addresses on all three projects, and the sheet (phone) and docked
 panel (tablet).
+
+The player Peek's pool list (Team, Players, Leaderboards; `PoolChampionTile`) takes its columns
+(Win rate, Games, KDA, CS/min or Vision) from its own width, 28rem or more (`@container/pool`), and
+below that each champion's figures in a short block. Until 20 Nov 2026 the columns came from a 640px
+screen, and the docked panel at 1280 (a 25rem list) cut the names to "A.." with the headings running
+together; the 1440 panel (28.6rem) keeps the columns. `e2e/players-directory.spec.ts` checks 1280.
 
 ## Tests
 
@@ -894,6 +903,10 @@ Three levels, each saying what it proves:
   - the top bar's Filters on Match History (PR 2b): gone at the top, offered once the page's own has
     scrolled away, 44px, a tap opens the filter sheet, and a choice and Done bring the first game
     under the bars, its count shown;
+  - the one Select (20 Nov 2026): the iPhone keeps the browser's own select; in a desktop-sized
+    WebKit window the app's popover draws the same figures as Chromium (`SELECT_LOOK`, with the
+    touch sizes where Playwright's WebKit reports no fine pointer), opens and chooses from the
+    keyboard, and Escape gives the focus back;
   - the Card Studio's section list, a palette and Cancel;
   - the account screen: one tap opens it, at rest it fills the screen exactly with nothing in it
     scrolling, every control a row at least 48px tall reached by a tap where it is drawn, the screen

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "./test";
+import { pick } from "./select";
 import { closeFilterSheet, openFilterBar } from "./filters";
 
 /*
@@ -193,10 +194,10 @@ test("Team Matches' filters replace the history entry, as every filter does: Bac
   const bar = page.getByTestId("together-filters");
   const show = () => openFilterBar(bar, "together-filters-toggle");
   await show();
-  await page.getByTestId("together-queue").selectOption("solo");
+  await pick(page.getByTestId("together-queue"), "solo");
   await expect(page).toHaveURL(/queue=solo/);
   await show();
-  await page.getByTestId("together-min").selectOption("3");
+  await pick(page.getByTestId("together-min"), "3");
   await expect(page).toHaveURL(/min=3/);
   await show();
   await bar.getByTestId("reset-filters").click();

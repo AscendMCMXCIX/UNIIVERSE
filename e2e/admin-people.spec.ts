@@ -27,7 +27,7 @@ const PLAN_ROWS = 13;
 async function measure(page: Page) {
   return page.evaluate(([sel, planRows]) => {
     const rows = [...document.querySelectorAll(sel)].filter((e) => e.getBoundingClientRect().height > 0);
-    const buttons = [...document.querySelectorAll("[data-testid=players-admin] button")].filter((b) => b.getBoundingClientRect().height > 0 && !b.closest("[data-testid=status-filters]"));
+    const buttons = [...document.querySelectorAll("[data-testid=players-admin] button")].filter((b) => b.getBoundingClientRect().height > 0 && !b.closest("[data-testid=status-filters]") && b.getAttribute("role") !== "combobox");
     const extra = Math.max(0, rows.length - planRows) * rows[0]!.getBoundingClientRect().height;
     return {
       firstTop: rows[0]!.getBoundingClientRect().top + scrollY,

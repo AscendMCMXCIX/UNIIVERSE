@@ -26,7 +26,7 @@
    "small": 0
   },
   "p-overview@i15-100": {
-   "screens": 2.48,
+   "screens": 2.45,
    "frame": 0.3,
    "frameScrolled": 0.3,
    "small": 0
@@ -144,7 +144,7 @@
    "small": 0
   },
   "p-overview@se1-150": {
-   "screens": 7.85,
+   "screens": 7.64,
    "frame": 0.45,
    "frameScrolled": 0.15,
    "small": 0
