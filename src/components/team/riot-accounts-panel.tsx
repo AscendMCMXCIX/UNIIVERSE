@@ -10,6 +10,7 @@ import type { RiotAccountRecord } from "@/server/accounts/repository";
 import { addPlayerAccountAction, changeRiotIdAction, removePlayerAccountAction, reorderAccountsAction, setMainAccountAction, syncPlayerAccountAction } from "@/server/actions/accounts";
 import { moveAccount, orderAccounts } from "@/domain/account-order";
 import { Menu, MenuItem, MenuSeparator } from "@/components/ui/menu";
+import { InfoTip } from "@/components/ui/info-tip";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonClass } from "@/components/ui/button";
 import { ConfirmDialog, Dialog } from "@/components/ui/dialog";
@@ -136,13 +137,15 @@ export function RiotAccountsPanel({ playerId, accounts, riotConfigured, editable
                     <div className="flex flex-wrap items-center gap-1.5">
                       <span className="truncate font-semibold text-fg">{a.riotId}</span>
                       {main ? (
-                        <Badge tone="accent" title="Main account: shown on the profile and used for rank">
-                          <Star className="mr-0.5 h-3 w-3" aria-hidden /> Main
-                        </Badge>
+                        <InfoTip label="About the main account" text="The main account is shown on the profile and gives the rank.">
+                          <Badge tone="accent">
+                            <Star className="mr-0.5 h-3 w-3" aria-hidden /> Main
+                          </Badge>
+                        </InfoTip>
                       ) : a.label === "alt" ? (
-                        <Badge tone="neutral" title="Alternative account: counts in every statistic">
-                          Alt{alternatives > 1 ? ` ${ordered.slice(0, index + 1).filter((x) => x.label === "alt").length}` : ""}
-                        </Badge>
+                        <InfoTip label="About alternative accounts" text="An alternative account's games count in every statistic.">
+                          <Badge tone="neutral">Alt{alternatives > 1 ? ` ${ordered.slice(0, index + 1).filter((x) => x.label === "alt").length}` : ""}</Badge>
+                        </InfoTip>
                       ) : null}
                     </div>
                     <div className="mt-0.5 text-xs text-fg-subtle">
@@ -223,7 +226,7 @@ export function RiotAccountsPanel({ playerId, accounts, riotConfigured, editable
                   ) : null}
                 </div>
                 <div className="flex flex-wrap items-center gap-2 text-xs">
-                  <Badge tone={sync.tone} title={sync.detail}>
+                  <Badge tone={sync.tone}>
                     {sync.label}
                   </Badge>
                   <span className="text-fg-subtle">{sync.lastUpdatedAt ? <>Updated <RelativeTime date={sync.lastUpdatedAt} /></> : "Not updated yet"}</span>

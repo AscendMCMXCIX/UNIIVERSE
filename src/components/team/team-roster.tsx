@@ -215,18 +215,18 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
             {slot.suggestions.length === 0 ? (
               <p className="mt-1 text-sm text-fg-muted">No registered player lists {slot.roleLabel} as a role.{canManageLineup ? " An administrator can add their account." : ""}</p>
             ) : (
-              // One line per suggestion (the full reasons on hover and for screen readers), so an
-              // empty role is no taller than a filled card and never stretches its row.
+              // One line per suggestion (its first two reasons, cut short where they do not fit; all of
+              // them for screen readers), so an empty role is no taller than a filled card.
               <ul className="mt-1.5 divide-y divide-border/60" data-testid="lineup-suggestions">
                 {slot.suggestions.slice(0, 3).map((sg) => (
-                  <li key={sg.playerId} className="flex items-center justify-between gap-2 py-1.5" title={sg.reasons.join(" · ")}>
+                  <li key={sg.playerId} className="flex items-center justify-between gap-2 py-1.5">
                     <span className="min-w-0">
                       <Link href={`/players/${sg.playerId}`} className="block truncate text-sm font-medium text-fg hover:underline">
                         {sg.name}
                       </Link>
                       <span className="block truncate text-xs text-fg-muted">
-                        {sg.reasons[0]}
-                        {sg.reasons.length > 1 ? <span className="sr-only"> · {sg.reasons.slice(1).join(" · ")}</span> : null}
+                        {sg.reasons.slice(0, 2).join(" · ")}
+                        {sg.reasons.length > 2 ? <span className="sr-only"> · {sg.reasons.slice(2).join(" · ")}</span> : null}
                       </span>
                     </span>
                     {canManageLineup && editingLineup ? (
@@ -400,7 +400,7 @@ function SubstituteTag() {
 /** Turns a starter's card over to the role's substitute: one quiet icon on the artwork, like Customise. */
 function FlipButton({ flip, roleLabel, buttonRef }: { flip: FlipControl; roleLabel: string; buttonRef?: React.Ref<HTMLButtonElement> }) {
   return (
-    <button type="button" ref={buttonRef} onClick={flip.onFlip} onPointerEnter={flip.onIntent} onPointerDown={flip.onIntent} onFocus={flip.onIntent} className={ART_BUTTON} aria-label={`Turn over to the ${roleLabel} substitute, ${flip.substituteName}`} title="Substitute" data-testid="flip-to-substitute">
+    <button type="button" ref={buttonRef} onClick={flip.onFlip} onPointerEnter={flip.onIntent} onPointerDown={flip.onIntent} onFocus={flip.onIntent} className={ART_BUTTON} aria-label={`Turn over to the ${roleLabel} substitute, ${flip.substituteName}`} title="Show the substitute" data-testid="flip-to-substitute">
       <Repeat2 className="h-4 w-4" aria-hidden />
     </button>
   );
