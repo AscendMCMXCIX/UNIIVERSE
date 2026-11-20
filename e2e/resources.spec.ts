@@ -145,7 +145,9 @@ test("the layout: one panel on a phone, a panel per section packed into columns 
     const index = page.getByTestId("resources-index");
     const box = (await index.boundingBox())!;
     const segs = await Promise.all((await index.getByRole("radio").all()).map(async (r) => (await r.boundingBox())!));
-    const rowStarts = [...new Map(segs.map((r) => [Math.round(r.y), r.x])).values()];
+    // A row's first segment: the leftmost of those whose centre is on its line (the star's segment is not quite the height of the others).
+    const rowStarts = segs.filter((r) => !segs.some((o) => Math.abs(o.y + o.height / 2 - (r.y + r.height / 2)) < r.height / 2 && o.x < r.x)).map((r) => r.x);
+    expect(rowStarts.length, "the index wraps on a phone").toBeGreaterThanOrEqual(1);
     for (const x of rowStarts) expect(Math.abs(x - rowStarts[0]!), "each row of the index starts at the left").toBeLessThanOrEqual(1);
     expect(Math.min(...segs.map((r) => r.y)) - box.y, "the index's inset at its top").toBeGreaterThanOrEqual(1.5);
     expect(box.y + box.height - Math.max(...segs.map((r) => r.y + r.height)), "the index's inset at its foot").toBeGreaterThanOrEqual(1.5);

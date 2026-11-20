@@ -289,7 +289,12 @@ test("Settings: the account card leads, drawn in the order it is read, with Sign
     // (surface-3 against the hover's surface-2, G3-13).
     await expect(links.first()).toHaveAttribute("aria-current", "location");
     await expect(links.nth(1)).not.toHaveAttribute("aria-current", "location");
-    expect(await links.first().evaluate((el) => getComputedStyle(el).backgroundColor)).toBe(await page.evaluate(() => { const p = document.createElement("i"); p.className = "bg-surface-3"; document.body.append(p); const c = getComputedStyle(p).backgroundColor; p.remove(); return c; }));
+    // and still while its top is in the window (a jump to Name lands it under the bar, a step below the top).
+    await page.evaluate(() => window.scrollTo(0, 40));
+    await expect(links.first()).toHaveAttribute("aria-current", "location");
+    await page.evaluate(() => window.scrollTo(0, 0));
+    const surface3 = await page.evaluate(() => { const p = document.createElement("i"); p.className = "bg-surface-3"; document.body.append(p); const c = getComputedStyle(p).backgroundColor; p.remove(); return c; });
+    await expect.poll(() => links.first().evaluate((el) => getComputedStyle(el).backgroundColor), "the section being read on surface-3").toBe(surface3);
     // Current, New and Confirm password share one grid: Current ends where New does (G3-6: it overhung New by 35px).
     const [cur, next] = [(await page.locator("#current").boundingBox())!, (await page.locator("input[type=password]").nth(1).boundingBox())!];
     expect(Math.abs(cur.x + cur.width - (next.x + next.width)), "Current password ends with New").toBeLessThanOrEqual(1);
