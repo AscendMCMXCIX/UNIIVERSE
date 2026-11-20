@@ -1,5 +1,6 @@
 import { TierLabel, kitTier } from "./evidence-panel";
-import { ChevronDown, EqualNot, History, Timer, TriangleAlert } from "lucide-react";
+import { EqualNot, History, Timer, TriangleAlert } from "lucide-react";
+import { Fold } from "@/components/ui/fold";
 import { ChangedBadge } from "./changed-badge";
 import type { AbilityView, ChampionChoice, ChampionIntelView, CooldownDisplay, FactView, Slot } from "@/domain/matchup-intel/types";
 import { abilityChips, factsFrom } from "@/domain/matchup-intel/kit";
@@ -538,12 +539,16 @@ export function YourChampion({ intel, label = "Your champion", testId = "matchup
     // words are not read as a heading everywhere, so the heading is for screen readers alone.
     <section>
       <h2 className="sr-only">{`${label}: ${intel.champion.name}`}</h2>
-      <details className="group/yours panel-depth rounded-panel border border-border bg-surface" data-testid={testId}>
-        {/* Under 9rem (a 320px phone at twice the text size) the chevron floats at the first line's end
-            and the words take the summary's whole width under it, so a long name keeps whole. */}
-        <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-panel px-3 py-2 hover:bg-surface-2/50 @max-[9rem]/dash:block @max-[9rem]/dash:px-2 [&::-webkit-details-marker]:hidden">
-          {/* First in the source, for the float; last in the row (order-last) where the summary is a row. */}
-          <ChevronDown className="order-last h-4 w-4 shrink-0 text-fg-subtle transition-transform group-open/yours:rotate-180 motion-reduce:transition-none @max-[9rem]/dash:float-right @max-[9rem]/dash:ml-1.5 @max-[9rem]/dash:mt-0.5" aria-hidden />
+      {/* Under 9rem (a 320px phone at twice the text size) the chevron floats at the first line's end
+          and the words take the summary's whole width under it, so a long name keeps whole (the
+          Fold's chevron is first in the source, for the float; last in the row where the summary is a row). */}
+      <Fold
+        className="panel-depth"
+        testId={testId}
+        flush
+        summaryClassName="@max-[9rem]/dash:block @max-[9rem]/dash:px-2 @max-[9rem]/dash:[&>[data-fold-chevron]]:float-right @max-[9rem]/dash:[&>[data-fold-chevron]]:ml-1.5 @max-[9rem]/dash:[&>[data-fold-chevron]]:mt-0.5"
+        bodyClassName="pointer-coarse:pt-1"
+        summary={
           <span className="min-w-0">
             <span className="block text-sm font-semibold text-fg [overflow-wrap:anywhere]">{`${label}: ${intel.champion.name}`}</span>
             <span className="block text-xs text-fg-muted">
@@ -558,13 +563,12 @@ export function YourChampion({ intel, label = "Your champion", testId = "matchup
               <FactsSourceLine intel={intel} />
             </span>
           </span>
-        </summary>
+        }
+      >
         {/* On a touch screen 4px more under the summary, so the first tile's Details button, whose 44px
             area reaches 10px past it, covers none of the summary. */}
-        <div className="border-t border-border pointer-coarse:pt-1">
-          <AbilityList intel={intel} testId={`${testId}-list`} />
-        </div>
-      </details>
+        <AbilityList intel={intel} testId={`${testId}-list`} />
+      </Fold>
     </section>
   );
 }

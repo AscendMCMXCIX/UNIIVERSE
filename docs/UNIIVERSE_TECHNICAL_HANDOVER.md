@@ -807,7 +807,7 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
 | Component | Path | Used on |
 |---|---|---|
 | Button, Input/Select/Textarea, Switch, Toggle chips, Badge, Avatar | `src/components/ui/*` | everywhere |
-| Panel / PanelHeader / PanelBody, PageHeader, TabBar and ChromeTabs (a page's sections), SubTabs (a section's views), Disclosure, MobileSection | `src/components/ui/*` | all pages |
+| Panel / PanelHeader / PanelBody, PageHeader, TabBar and ChromeTabs (a page's sections), SubTabs (a section's views), Fold, MobileSection | `src/components/ui/*` | all pages |
 | Dialog (`dialog.tsx`), ConfirmDialog, Toast notifications (`toast.tsx`) | `src/components/ui/*` | admin, profile, Team |
 | **Menu** (portal-rendered, flips, keyboard; never clipped) | `src/components/ui/menu.tsx` | account menu, Riot account ⋯, Team lineup menu |
 | InfoTip (ⓘ, hover/focus/tap), Metric, SaveStatus (autosave state), Skeleton, FreshnessWatcher (pages that update themselves) | `src/components/ui/*` | profiles, team pages, admin |

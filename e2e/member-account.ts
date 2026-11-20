@@ -133,7 +133,7 @@ export async function signIn(page: Page, username: string, password: string) {
   await form.getByRole("button", { name: "Sign in" }).click();
 }
 
-/** Opens the person view's Danger zone (a closed Disclosure). */
+/** Opens the person view's Danger zone (a closed Fold). */
 export async function openDanger(view: Locator) {
   const zone = view.getByTestId("person-danger");
   if (!(await zone.evaluate((d) => (d as HTMLDetailsElement).open))) await zone.locator("summary").click();

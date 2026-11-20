@@ -8,6 +8,7 @@ import type { MatchTimelineResult } from "@/server/accounts/match-timeline";
 import { InfoTip } from "@/components/ui/info-tip";
 import { formatCount } from "@/lib/format";
 import { cn } from "@/lib/cn";
+import { Fold } from "@/components/ui/fold";
 
 /*
   The game minute by minute: the two teams' gold difference from the player's side, from Riot's
@@ -181,16 +182,21 @@ function EventList({ events }: { events: TimelineEventsView }) {
   ].sort((a, b) => a.minute - b.minute);
   const kills = events.kills;
   return (
-    <details className="text-xs" data-testid="timeline-events-list">
-      <summary className="inline-flex min-h-9 cursor-pointer items-center rounded text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:min-h-11">
-        {/* One run of text, so it wraps as a sentence on a phone. */}
+    <Fold
+      variant="inline"
+      tone="muted"
+      className="text-xs"
+      testId="timeline-events-list"
+      summary={
+        // One run of text, so it wraps as a sentence on a phone.
         <span>
           Every objective, and your kills, assists and deaths
           {kills ? <span className="tabular-nums text-fg-subtle"> ({teamKillWords(kills.own.length, kills.enemy.length)})</span> : null}
         </span>
-      </summary>
+      }
+    >
       {/* On a touch screen the table runs with the page: a box that scrolls inside the page would catch the finger. */}
-      <div className="mt-1 rounded-lg border border-border pointer-fine:max-h-64 pointer-fine:overflow-y-auto">
+      <div className="rounded-lg border border-border pointer-fine:max-h-64 pointer-fine:overflow-y-auto">
         <table className="w-full text-xs" data-testid="timeline-events-table">
           <caption className="sr-only">Objectives taken by each team and your kills, assists and deaths, in game time order</caption>
           <thead className="bg-surface text-fg-subtle pointer-fine:sticky pointer-fine:top-0">
@@ -224,7 +230,7 @@ function EventList({ events }: { events: TimelineEventsView }) {
           </tbody>
         </table>
       </div>
-    </details>
+    </Fold>
   );
 }
 
@@ -446,9 +452,8 @@ export function GoldChart({ points, events = null, testId = "gold-chart" }: { po
 /** Every frame of the gold difference as a table: the chart's values without hovering, for any reader. */
 function GoldTable({ points }: { points: GoldPoint[] }) {
   return (
-    <details className="text-xs">
-      <summary className="inline-flex min-h-9 cursor-pointer items-center rounded text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:min-h-11">Every minute as a table</summary>
-      <div className="mt-1 rounded-lg border border-border pointer-fine:max-h-56 pointer-fine:overflow-y-auto">
+    <Fold variant="inline" tone="muted" className="text-xs" summary="Every minute as a table">
+      <div className="rounded-lg border border-border pointer-fine:max-h-56 pointer-fine:overflow-y-auto">
         <table className="w-full text-xs tabular-nums" data-testid="gold-chart-table">
           <caption className="sr-only">Gold difference at every frame, your team minus the other team</caption>
           <thead className="bg-surface text-fg-subtle pointer-fine:sticky pointer-fine:top-0">
@@ -471,6 +476,6 @@ function GoldTable({ points }: { points: GoldPoint[] }) {
           </tbody>
         </table>
       </div>
-    </details>
+    </Fold>
   );
 }

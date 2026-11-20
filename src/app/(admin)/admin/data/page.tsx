@@ -8,7 +8,7 @@ import { getDataHealth } from "@/server/ops/status";
 import { DatasetsList } from "@/components/settings/datasets-list";
 import { RiotHealthPanel } from "@/components/settings/riot-health-panel";
 import { JobsPanel, type JobView } from "@/components/settings/settings-panels";
-import { Disclosure } from "@/components/ui/disclosure";
+import { Fold } from "@/components/ui/fold";
 import { StatusCards } from "@/components/admin/status-cards";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 import { jobsFreshness } from "@/server/ops/freshness";
@@ -60,7 +60,7 @@ export default async function AdminDataPage() {
         </div>
         <StatusCards items={health.answers.map((a) => ({ key: a.key, title: a.question, label: a.label, detail: a.detail }))} testId="health-answers" />
       </section>
-      <Disclosure title="Details" description="Datasets and freshness, the Riot API key and the background jobs." testId="data-details">
+      <Fold title="Details" description="Datasets and freshness, the Riot API key and the background jobs." testId="data-details">
       <Panel className={health.warnings.length ? "border-warn/50" : undefined}>
         <PanelHeader title="Data health" subtitle={`Patch ${health.patch?.id ?? "—"} (Data Dragon ${health.patch?.ddragonVersion ?? "—"}) · ${handle.description}`} />
         <PanelBody className="space-y-3 text-sm">
@@ -75,7 +75,7 @@ export default async function AdminDataPage() {
       </Panel>
       <RiotHealthPanel riot={{ ...health.riot, lastOkAt: health.riot.lastOkAt?.toISOString() ?? null, lastErrorAt: health.riot.lastErrorAt?.toISOString() ?? null }} credentialDetails />
       <JobsPanel jobs={jobs} ownerTools={owner} />
-      </Disclosure>
+      </Fold>
     </div>
   );
 }

@@ -7,7 +7,7 @@ import { demoDataAction, runJobAction, saveScheduleAction } from "@/server/actio
 import { Button } from "@/components/ui/button";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { ConfirmDialog, Dialog } from "@/components/ui/dialog";
-import { Disclosure } from "@/components/ui/disclosure";
+import { Fold } from "@/components/ui/fold";
 import { Input, Label } from "@/components/ui/input";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 import { toast } from "@/components/ui/toast";
@@ -285,7 +285,7 @@ export function JobsPanel({ jobs, ownerTools }: { jobs: JobView[]; ownerTools: b
           ))}
         </JobGroup>
         {ownerTools ? (
-          <Disclosure title="Advanced" description="Setup and repair jobs, and the schedule. Only the Owner sees these." testId="jobs-advanced">
+          <Fold title="Advanced" description="Setup and repair jobs, and the schedule. Only the Owner sees these." testId="jobs-advanced">
             <JobGroup title="Setup and repair" subtitle="Each changes the site's setup or repairs data once. Type its phrase to run it." testId="jobs-setup">
               {setup.map((j) => (
                 <JobRow
@@ -307,7 +307,7 @@ export function JobsPanel({ jobs, ownerTools }: { jobs: JobView[]; ownerTools: b
               ))}
             </JobGroup>
             <ScheduleEditor jobs={jobs} />
-          </Disclosure>
+          </Fold>
         ) : (
           <p className="text-xs text-fg-muted" data-testid="jobs-owner-only">
             The schedule and the setup and repair jobs are the Owner&apos;s.

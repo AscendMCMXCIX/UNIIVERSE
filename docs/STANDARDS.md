@@ -265,7 +265,7 @@ Use the shared component before writing a new one (`src/components/ui`):
 | Tabs that filter one list | none: a `FilterBar` (Audit Logs retired `TabLinks`, its last use, in the overhaul's S9) |
 | Buttons and links that look like buttons | `Button`, `buttonClass` (links never wrap buttons) |
 | Fields | `Input`, `Textarea`, `Select`, `Label`, `Switch` |
-| A section that opens and closes | `Disclosure` |
+| A section that opens and closes, or the rest of a list | `Fold` (`ui/fold.tsx`: `panel`, `row` or `inline`); never a `details` of its own |
 | A table that can be wider than the screen | `ScrollRegion` with a `label`: the keyboard can focus and scroll it, and screen readers name it |
 | A status or a tag | `Badge` |
 | Nothing to show | `EmptyState`: the default `block` (a dashed panel of its own, `compact` for less padding), `variant="row"` in place of a group of rows inside a `DataList`, `variant="inline"` as one line of running text (a `<p>`: phrasing content only) |

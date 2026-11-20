@@ -1,4 +1,5 @@
-import { ChevronDown, History, TriangleAlert } from "lucide-react";
+import { History, TriangleAlert } from "lucide-react";
+import { Fold } from "@/components/ui/fold";
 import { ChangedBadge } from "./changed-badge";
 import type * as React from "react";
 import type { ChampionChoice, ChampionIntelView, InteractionView, MatchupIntelView } from "@/domain/matchup-intel/types";
@@ -43,10 +44,13 @@ function ChampionInteractions({ intel, testId, rows }: { intel: ChampionIntelVie
   const flagged = items.filter((i) => i.flagged).reduce((n, item) => n + item.chips.length, 0);
   const champion = intel.champion;
   return (
-    <details className="group/facts min-w-0 basis-full open:order-last" data-testid={testId}>
-      {/* The chevron stays beside the words; in a narrow panel they wrap beside it, never under it. */}
-      <summary className="touch-target flex min-h-7 w-fit cursor-pointer list-none items-center gap-x-1.5 rounded-sm text-xs font-medium text-fg hover:text-accent-strong [&::-webkit-details-marker]:hidden">
-        <ChevronDown className="h-3.5 w-3.5 shrink-0 text-fg-subtle transition-transform group-open/facts:rotate-180 motion-reduce:transition-none" aria-hidden />
+    <Fold
+      variant="inline"
+      tone="fg"
+      className="min-w-0 basis-full open:order-last"
+      testId={testId}
+      // The chevron stays beside the words; in a narrow panel they wrap beside it, never under it.
+      summary={
         <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
           <span>
             {champion.name}&apos;s interactions and exceptions <span className="font-normal text-fg-muted">· {count}</span>
@@ -58,8 +62,9 @@ function ChampionInteractions({ intel, testId, rows }: { intel: ChampionIntelVie
             </Badge>
           ) : null}
         </span>
-      </summary>
-      <ul className="mt-1 space-y-1 pointer-coarse:mt-3 pointer-coarse:space-y-3">
+      }
+    >
+      <ul className="space-y-1 pointer-coarse:space-y-3">
         {items.map((item) => (
           <li key={item.slot} className="flex flex-wrap items-center gap-1 pointer-coarse:gap-x-1.5 pointer-coarse:gap-y-3" data-testid="enemy-interaction">
             {rows.has(champion.id) ? (
@@ -76,7 +81,7 @@ function ChampionInteractions({ intel, testId, rows }: { intel: ChampionIntelVie
           </li>
         ))}
       </ul>
-    </details>
+    </Fold>
   );
 }
 
@@ -236,18 +241,13 @@ export function InteractionsPanel({ matchup, enemyIntel, yourIntel, you, rows }:
         {shown.length > INTERACTIONS_SHOWN ? (
           // The rest, word for word, one press away: never cut to fit.
           <li className="py-1">
-            <details className="group/more" data-testid="matchup-interactions-more">
-              <summary className="touch-target mx-3 inline-flex min-h-7 cursor-pointer list-none items-center gap-1 rounded-sm text-xs font-medium text-accent hover:text-accent-strong [&::-webkit-details-marker]:hidden">
-                <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open/more:rotate-180 motion-reduce:transition-none" aria-hidden />
-                {moreWords(shown.length - INTERACTIONS_SHOWN)}
-                <span className="sr-only"> interactions</span>
-              </summary>
+            <Fold variant="inline" tone="accent" summaryClassName="mx-3" testId="matchup-interactions-more" summary={<>{moreWords(shown.length - INTERACTIONS_SHOWN)}<span className="sr-only"> interactions</span></>}>
               <ul className="divide-y divide-border">
                 {shown.slice(INTERACTIONS_SHOWN).map((item, i) => (
                   <MatchupInteraction key={`r-${i}`} item={item} names={names} rows={rows} source={itemSource(item)} />
                 ))}
               </ul>
-            </details>
+            </Fold>
           </li>
         ) : null}
         {hidden.length ? (
@@ -347,18 +347,13 @@ export function LevelNotesPanel({ intels }: { intels: ReadonlyArray<ChampionInte
           {notes.length > LEVELS_SHOWN ? (
             // The rest, word for word, one press away: never cut to fit.
             <li className="py-1">
-              <details className="group/more" data-testid="matchup-level-notes-more">
-                <summary className="touch-target mx-3 inline-flex min-h-7 cursor-pointer list-none items-center gap-1 rounded-sm text-xs font-medium text-accent hover:text-accent-strong [&::-webkit-details-marker]:hidden">
-                  <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open/more:rotate-180 motion-reduce:transition-none" aria-hidden />
-                  {moreWords(notes.length - LEVELS_SHOWN)}
-                  <span className="sr-only"> level changes</span>
-                </summary>
+              <Fold variant="inline" tone="accent" summaryClassName="mx-3" testId="matchup-level-notes-more" summary={<>{moreWords(notes.length - LEVELS_SHOWN)}<span className="sr-only"> level changes</span></>}>
                 <ol className="divide-y divide-border">
                   {notes.slice(LEVELS_SHOWN).map((n) => (
                     <LevelNote key={`${n.champion.id}-${n.order}-${n.i}`} note={n} source={oneSource ? null : sourceText(n)} />
                   ))}
                 </ol>
-              </details>
+              </Fold>
             </li>
           ) : null}
         </ol>

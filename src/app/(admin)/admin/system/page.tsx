@@ -13,7 +13,7 @@ import { riotLegal } from "@/components/app-shell";
 import { getBranding } from "@/server/repositories/branding";
 import { normaliseRiotKey, riotKeyFingerprint, riotKeyWarning } from "@/server/riot/api/client";
 import { Badge } from "@/components/ui/badge";
-import { Disclosure } from "@/components/ui/disclosure";
+import { Fold } from "@/components/ui/fold";
 import { StatusCards } from "@/components/admin/status-cards";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 import { FieldPerformancePanel } from "@/components/admin/field-performance";
@@ -57,7 +57,7 @@ export default async function AdminSystemPage() {
         <StatusCards items={status} testId="system-status" />
       </section>
       {vitals ? <FieldPerformancePanel report={vitals} /> : null}
-      <Disclosure title="Technical details" description="Build, database, recent job runs and errors, configured secrets (never their values) and demo data." testId="system-details">
+      <Fold title="Technical details" description="Build, database, recent job runs and errors, configured secrets (never their values) and demo data." testId="system-details">
         <Panel>
           <PanelHeader title="Build & database" subtitle="What is running and where." />
           <PanelBody className="flex flex-wrap items-center gap-2 text-sm">
@@ -104,7 +104,7 @@ export default async function AdminSystemPage() {
           </PanelBody>
         </Panel>
         <DemoPanel canSeed />
-      </Disclosure>
+      </Fold>
       <p className="text-sm text-fg-muted">
         Who changed accounts, access, passwords, settings or jobs is recorded under{" "}
         <Link href="/admin/audit" className="text-accent underline-offset-2 hover:underline" data-testid="system-audit-link">
