@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { DEVICE_ITEMS, clearDeviceItem, deviceKey, readDeviceItem } from "./device-storage";
+import { DEVICE_ITEMS, clearAllOnDevice, clearDeviceItem, deviceKey, readDeviceItem } from "./device-storage";
 
 /*
   Settings' "On this device" (PLAN S8a): Clear empties each stored item, and the panel lists only
@@ -32,6 +32,13 @@ describe("On this device", () => {
       expect(storage.has(other)).toBe(true);
     });
   }
+
+  it("Clear all removes every item for every account in this browser, and nothing else", () => {
+    const m = new Map<string, string>([["uniiverse_recent_champions:aaaa", "[\"Ahri\"]"], ["uniiverse_recent_champions", "[]"], ["uniiverse.matchup-intel.v1:bbbb", "{}"], ["uniiverse.studio.preview", "hidden"], ["uniiverse.resources.favourites.v1", "[]"], ["uniiverse_who_else", "kept"], ["uniiverse.matchup-intel.v1x", "kept"]]);
+    const storage = { get length() { return m.size; }, key: (i: number) => [...m.keys()][i] ?? null, removeItem: (k: string) => void m.delete(k) };
+    clearAllOnDevice(storage);
+    expect([...m.keys()].sort()).toEqual(["uniiverse.matchup-intel.v1x", "uniiverse_who_else"]);
+  });
 
   it("reads nothing worth naming as nothing kept", () => {
     const storage = memoryStorage({ uniiverse_recent_champions: "[]", "uniiverse.resources.favourites.v1": "not json" });

@@ -38,6 +38,11 @@ describe("Leaderboards' games cache", () => {
     await handle.db.insert(accountMatches).values({ accountId: account, matchId: "OC1_CACHE_2", gameCreation: Date.now() - 60_000, queueId: 420, championId: "Gwen", role: "TOP", win: false, teamId: 100, patch: "16.20", gameDuration: 1700, kills: 1, deaths: 5, assists: 3, cs: 150, damage: 12000, visionScore: 14 });
     const afterGame = await historyFingerprint(handle.db, [account]);
     expect(afterGame, "a game stored").not.toBe(before);
+    // A row's figures filled in place (its K/D/A from details a teammate's sync had already stored): emptied too.
+    await handle.db.update(accountMatches).set({ kills: null }).where(eq(accountMatches.matchId, "OC1_CACHE_2"));
+    const unfilled = await historyFingerprint(handle.db, [account]);
+    await handle.db.update(accountMatches).set({ kills: 1 }).where(eq(accountMatches.matchId, "OC1_CACHE_2"));
+    expect(await historyFingerprint(handle.db, [account]), "figures filled in place").not.toBe(unfilled);
     // Mastery read again unchanged: kept; changed: emptied.
     await handle.db.insert(accountMastery).values({ accountId: account, championId: "Gwen", points: 1000, level: 3 });
     const withMastery = await historyFingerprint(handle.db, [account]);

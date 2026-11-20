@@ -12,7 +12,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const state = vi.hoisted(() => ({ session: null as unknown, due: false, open: true, refreshed: [] as string[], deferred: [] as Array<() => unknown> }));
 vi.mock("next/server", () => ({ after: (fn: () => unknown) => void state.deferred.push(fn) }));
 vi.mock("@/server/bootstrap", () => ({ getAppDb: async () => ({}) }));
-vi.mock("@/server/auth/session", () => ({ getAuthState: async () => ({ session: state.session }) }));
+vi.mock("@/server/auth/session", () => ({ getAuthState: async () => ({ session: state.session }), needsSetup: (s: { setupComplete?: boolean } | null) => !!s && s.setupComplete === false }));
 vi.mock("@/server/auth/profile-access", () => ({ mayOpenProfile: async () => state.open }));
 vi.mock("@/server/accounts/kickoff", () => ({ refreshPlayerAccountsIfDue: async (_db: unknown, id: string) => void state.refreshed.push(id) }));
 vi.mock("@/server/ops/freshness", () => ({
@@ -52,11 +52,13 @@ describe("a profile's visit refresh", () => {
     expect(state.refreshed).toEqual([ID]);
   });
 
-  it("never starts for a viewer the profile would refuse: signed out, without the Players directory, or a personal-use profile", async () => {
+  it("never starts for a viewer the profile would refuse: signed out, without the Players directory, still in first-time setup, or a personal-use profile", async () => {
     state.due = true;
     state.session = null;
     expect((await ask(`player:${ID}`)).status).toBe(401);
     state.session = viewer({ capabilities: [] });
+    expect((await ask(`player:${ID}`)).status).toBe(403);
+    state.session = viewer({ setupComplete: false });
     expect((await ask(`player:${ID}`)).status).toBe(403);
     state.session = viewer();
     state.open = false;

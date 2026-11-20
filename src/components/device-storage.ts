@@ -73,6 +73,23 @@ export function readDeviceItem(item: DeviceItem, storage: Pick<Storage, "getItem
   }
 }
 
+/**
+ * "Clear all on this device": every item, for every account that used this browser (each
+ * per-account key, "<base>:<marker>", and the base itself), not only the signed-in account's.
+ */
+export function clearAllOnDevice(storage: Pick<Storage, "removeItem" | "key" | "length"> = window.localStorage): void {
+  try {
+    const keys: string[] = [];
+    for (let i = 0; i < storage.length; i++) {
+      const k = storage.key(i);
+      if (k && DEVICE_ITEMS.some((item) => k === item.base || k.startsWith(`${item.base}:`))) keys.push(k);
+    }
+    for (const k of keys) storage.removeItem(k);
+  } catch {
+    // Storage unavailable: nothing is kept to forget.
+  }
+}
+
 /** Forgets an item in this browser (this account's, for a per-account item). Other tabs hear it through the storage event. */
 export function clearDeviceItem(item: DeviceItem, storage: Pick<Storage, "removeItem"> = window.localStorage): void {
   try {

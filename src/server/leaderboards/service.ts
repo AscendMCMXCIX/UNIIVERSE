@@ -126,7 +126,7 @@ export async function historyFingerprint(db: Db, accountIds: string[]): Promise<
     SELECT
       (SELECT count(*)::int FROM account_matches WHERE account_id IN (${ids})) AS games,
       (SELECT max(game_creation) FROM account_matches WHERE account_id IN (${ids})) AS newest,
-      (SELECT max(summarised_at)::text FROM account_matches WHERE account_id IN (${ids})) AS summarised,
+      (SELECT concat_ws(':', max(summarised_at)::text, count(*) FILTER (WHERE kills IS NOT NULL), count(*) FILTER (WHERE extra_stats IS NOT NULL)) FROM account_matches WHERE account_id IN (${ids})) AS summarised,
       (SELECT concat_ws(':', count(*), sum(points), max(last_played_at)) FROM account_mastery WHERE account_id IN (${ids})) AS mastery`);
   const [r] = rowsOf<{ games: number; newest: number | string | null; summarised: string | null; mastery: string | null }>(result);
   return [accountIds.join(","), r?.games, r?.newest, r?.summarised, r?.mastery].join("|");

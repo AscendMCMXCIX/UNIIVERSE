@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Button } from "@/components/ui/button";
-import { DEVICE_ITEMS, clearDeviceItem, readDeviceItem, type DeviceItem } from "@/components/device-storage";
+import { DEVICE_ITEMS, clearAllOnDevice, clearDeviceItem, readDeviceItem, type DeviceItem } from "@/components/device-storage";
 
 /*
   Settings → On this device (PLAN S8a; directive §7.2c): what this browser remembers for the
@@ -19,13 +19,14 @@ export function OnThisDevice() {
   const [version, setVersion] = React.useState(0);
   const states = React.useMemo(() => (hydrated ? DEVICE_ITEMS.map((i) => readDeviceItem(i)) : DEVICE_ITEMS.map(() => null)), [hydrated, version]); // eslint-disable-line react-hooks/exhaustive-deps
   const any = states.some((s) => s !== null);
-  const clear = (items: readonly DeviceItem[]) => {
-    for (const i of items) clearDeviceItem(i);
+  const clear = (items: readonly DeviceItem[] | "all") => {
+    if (items === "all") clearAllOnDevice();
+    else for (const i of items) clearDeviceItem(i);
     setVersion((v) => v + 1);
   };
   return (
     <div className="space-y-3" data-testid="on-this-device">
-      <p className="text-sm text-fg-muted">What this browser remembers for you. It stays on this device and is never sent to the server.</p>
+      <p className="text-sm text-fg-muted">What this browser remembers. It stays on this device and is never sent to the server.</p>
       <ul className="divide-y divide-border rounded-panel border border-border">
         {DEVICE_ITEMS.map((item, n) => {
           const state = states[n];
@@ -34,7 +35,8 @@ export function OnThisDevice() {
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium text-fg">{item.label}</p>
                 <p className="text-xs text-fg-muted">
-                  {item.where} · <span data-testid="device-item-state">{hydrated ? (state ?? "Nothing kept") : " "}</span>
+                  {item.where}
+                  {item.perAccount ? "" : " · for everyone using this browser"} · <span data-testid="device-item-state">{hydrated ? (state ?? "Nothing kept") : " "}</span>
                 </p>
               </div>
               <Button variant="ghost" size="sm" disabled={!state} onClick={() => clear([item])} aria-label={`Clear ${item.label.toLowerCase()} on this device`} data-testid="device-item-clear">
@@ -44,7 +46,7 @@ export function OnThisDevice() {
           );
         })}
       </ul>
-      <Button variant="secondary" size="sm" disabled={!any} onClick={() => clear(DEVICE_ITEMS)} data-testid="device-clear-all">
+      <Button variant="secondary" size="sm" disabled={!any} onClick={() => clear("all")} data-testid="device-clear-all">
         Clear all on this device
       </Button>
     </div>

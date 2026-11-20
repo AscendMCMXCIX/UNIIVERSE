@@ -109,7 +109,8 @@ export async function playerFreshnessAndDue(db: Db, playerId: string, { now = ne
       v: digest([row?.profile ?? null, row?.pools ?? null, accounts.map((a) => [a.id, a.sync_status, a.sync_error, time(a.last_sync_at), a.riot_id, a.history?.completedAt ?? null, a.rank]), row?.games, row?.ranks, Number(row?.mastery ?? 0), row?.timelines ?? null, time(row?.lookups), sliceCanStart]),
       pace,
     },
-    due: refreshStarting || sliceCanStart,
+    // Not while a view's slice holds the player: each poll would queue a refresh that only fails to claim the lease.
+    due: (refreshStarting && !leaseHeld) || sliceCanStart,
   };
 }
 

@@ -1,5 +1,5 @@
 import { getAppDb } from "@/server/bootstrap";
-import { getAuthState } from "@/server/auth/session";
+import { getAuthState, needsSetup } from "@/server/auth/session";
 import { canWatchFreshness } from "@/server/auth/permissions";
 import { mayOpenProfile } from "@/server/auth/profile-access";
 import { after } from "next/server";
@@ -29,6 +29,8 @@ export async function GET(request: Request) {
   if (!session) return Response.json({ error: "Sign in required" }, { status: 401 });
   if (!canWatchFreshness(session, scope) || (scope.kind === "player" && !(await mayOpenProfile(db, session, scope.playerId)))) return Response.json({ error: "Not allowed" }, { status: 403 });
   if (scope.kind === "player") {
+    // As the profile page (requirePageAccess): an account still in its first-time setup opens no profile, so starts no refresh.
+    if (needsSetup(session)) return Response.json({ error: "Not allowed" }, { status: 403 });
     const { freshness: version, due } = await playerFreshnessAndDue(db, scope.playerId, { visit: true });
     if (due) after(() => refreshPlayerAccountsIfDue(db, scope.playerId));
     return Response.json(version, { headers: { "Cache-Control": "private, no-store" } });
