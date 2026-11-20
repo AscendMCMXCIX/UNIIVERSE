@@ -467,7 +467,9 @@ function Highlights({ insights, gamesOf, repeated }: { insights: EncounterInsigh
   return (
     // On a phone, one line (MH-9): the highlights side by side, the line scrolling sideways when they outgrow it.
     <section aria-label="Highlights" className={cn("rounded-panel border border-border bg-surface px-1.5 py-1", !onPhones && "max-sm:hidden")} data-testid="encounter-insights" data-phone-count={onPhones}>
-      <ul className="flex flex-wrap gap-x-1 gap-y-0 max-sm:flex-nowrap max-sm:overflow-x-auto max-sm:[scrollbar-width:none]">
+      {/* relative: the screen-reader words (sr-only, absolute) of a highlight scrolled out of a phone's
+          row stay inside the row's clip; without it they widened the page to 430px at 375 (Release 9). */}
+      <ul className="relative flex flex-wrap gap-x-1 gap-y-0 max-sm:flex-nowrap max-sm:overflow-x-auto max-sm:[scrollbar-width:none]">
         {insights.map((i) => {
           const relation = INSIGHT_RELATION[i.kind];
           return (

@@ -331,6 +331,14 @@ test("phone 320 and 360 wide: Against, Alongside and All keep their whole width 
     expect(m.spill, `${width}px: the choice scrolls sideways by`).toBeLessThanOrEqual(1);
     await expect(page.getByTestId("encounter-search-open")).toBeInViewport();
   }
+  // The highlights' row, shown on a phone with any number of games: a highlight scrolled out of it
+  // (its screen-reader words included) never widens the page (430px at 375 before Release 9's fix).
+  await page.setViewportSize({ width: 375, height: 667 });
+  await page.goto("/team");
+  const top = `/players/${await page.getByTestId("lineup-row-TOP").getAttribute("data-player-id")}`;
+  await openEncounters(page, `${top}/matches?view=encounters&rel=against&min=1&limit=500&sort=recent&mode=solo`);
+  await expect(page.getByTestId("encounter-insights")).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), "375px: the page scrolls sideways by").toBeLessThanOrEqual(0);
 });
 
 test("a game's scoreboard marks the players met in other games, and a mark opens their games with the same count", async ({ page }) => {
