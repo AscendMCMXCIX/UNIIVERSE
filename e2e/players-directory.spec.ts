@@ -624,6 +624,43 @@ test("the player Peek: a Players row and a Leaderboards row open it with ?player
   await expect(page).toHaveURL(/\/players\/[0-9a-f-]{36}$/);
 });
 
+test("the docked player Peek gives the focus back to the row that opened it, after Escape and after Back, where a member has rows on several boards (R7 review A1, A2)", async ({ page }, info) => {
+  test.skip(info.project.name === "phone", "the phone's sheet returns the focus itself");
+  await page.goto("/leaderboards");
+  const rows = page.locator("[data-testid=board-peek-open]");
+  await expect(rows.first()).toBeVisible();
+  // A row whose member already has a row on an earlier board.
+  const at = await rows.evaluateAll((els) => els.findIndex((el, i) => els.slice(0, i).some((e) => e.getAttribute("data-peek-row") === el.getAttribute("data-peek-row"))));
+  expect(at, "a member with rows on two boards").toBeGreaterThan(0);
+  const opener = rows.nth(at);
+  const isOpener = () => page.evaluate((i) => document.activeElement === document.querySelectorAll("[data-testid=board-peek-open]")[i], at);
+  for (const leave of ["Escape", "Back"] as const) {
+    await opener.focus();
+    await page.keyboard.press("Enter");
+    await expect(page).toHaveURL(/\?player=/);
+    await expect(page.getByTestId("player-detail-hero")).toBeVisible();
+    if (leave === "Escape") await page.keyboard.press("Escape");
+    else await page.goBack();
+    await expect(page).not.toHaveURL(/\?player=/);
+    await expect.poll(isOpener, `${leave}: the focus is back on the row that opened it`).toBe(true);
+  }
+  // ↓ from that row moves along its own board where the next member has a row there.
+  await opener.focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByTestId("player-detail-hero")).toBeVisible();
+  await opener.focus();
+  await page.keyboard.press("ArrowDown");
+  const same = await page.evaluate((i) => {
+    const from = document.querySelectorAll("[data-testid=board-peek-open]")[i]!;
+    const list = from.closest("ul, ol");
+    const to = document.activeElement as HTMLElement | null;
+    const id = to?.getAttribute("data-peek-row");
+    const onBoard = !!id && !!list?.querySelector(`[data-peek-row="${CSS.escape(id)}"]`);
+    return { onBoard, sameList: !!list && !!to && list.contains(to) };
+  }, at);
+  if (same.onBoard) expect(same.sameList, "↓ stays on the board that has the next member").toBe(true);
+});
+
 test("members' links fetch a profile ahead on intent only: none as Players and Leaderboards are seen, one once a pointer rests on a name", async ({ page }, info) => {
   test.skip(info.project.name !== "desktop", "a pointer's intent; touch starts the same fetch (IntentLink)");
   const ahead: string[] = [];
