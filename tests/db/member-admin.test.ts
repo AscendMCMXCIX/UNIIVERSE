@@ -58,6 +58,7 @@ import { listAccountViews } from "@/server/auth/account-admin";
 import { setScheduleOverrides } from "@/server/jobs/scheduler";
 import { setTemporaryPassword } from "@/server/repositories/users";
 import { dataRefreshStatus } from "@/server/db/schema";
+import { formatDate, isoDay } from "@/lib/format";
 
 let handle: DbHandle;
 let ownerId: string;
@@ -206,6 +207,28 @@ describe("moderation", () => {
     await signInAs(otherId);
     expect(await adminActions.moderateSocialLinkAction(memberProfileId, "youtube", "remove")).toMatchObject({ ok: false });
   });
+
+  it("never touches a link its owner keeps to themselves, answered as one that is not there, nor your own profile's links (R6 review SR6-SEC-2)", async () => {
+    const kept = { discord: { value: "example", public: false } };
+    await setSocialLinks(handle.db, memberProfileId, kept);
+    const before = (await audit("account.link-hide")).length + (await audit("account.link-remove")).length;
+    await signInAs(adminId);
+    const absent = await adminActions.moderateSocialLinkAction(memberProfileId, "twitch", "hide");
+    expect(absent).toEqual({ ok: false, error: "That link is not there any more." });
+    // A private link gets the very same answer, hidden or removed: nothing tells it apart from none.
+    expect(await adminActions.moderateSocialLinkAction(memberProfileId, "discord", "hide")).toEqual(absent);
+    expect(await adminActions.moderateSocialLinkAction(memberProfileId, "discord", "remove")).toEqual(absent);
+    expect((await loadSocialLinks(handle.db, [memberProfileId])).get(memberProfileId)).toEqual(kept);
+    // Your own profile's links are yours to change in Settings, not here.
+    const ownProfile = (await getUser(handle.db, adminId))!.playerId!;
+    const own = { youtube: { value: "https://www.youtube.com/@example", public: true } };
+    await setSocialLinks(handle.db, ownProfile, own);
+    expect(await adminActions.moderateSocialLinkAction(ownProfile, "youtube", "hide")).toEqual({ ok: false, error: "You cannot moderate the links of your own account." });
+    expect(await adminActions.moderateSocialLinkAction(ownProfile, "youtube", "remove")).toMatchObject({ ok: false });
+    expect((await loadSocialLinks(handle.db, [ownProfile])).get(ownProfile)).toEqual(own);
+    // Nothing refused was recorded as done.
+    expect((await audit("account.link-hide")).length + (await audit("account.link-remove")).length).toBe(before);
+  });
 });
 
 describe("Sign out everywhere", () => {
@@ -264,6 +287,30 @@ describe("the atomic access save", () => {
     const after = (await getUser(handle.db, otherId))!;
     expect(after).toMatchObject({ isAdmin: false, accessGroups: before.accessGroups, hasCustomCapabilities: before.hasCustomCapabilities, permissionPresetId: before.permissionPresetId });
     await handle.db.update(users).set({ isActive: true }).where(eq(users.id, otherId));
+  });
+
+  it("records each change as it was made, and nothing that did not change (R6 review SR6-SEC-3)", async () => {
+    const standard = (await listPermissionPresets(handle.db)).find((p) => p.levelKey === "standard")!;
+    const level = { level: "preset" as const, presetId: standard.id };
+    const lastId = async () => Math.max(0, ...(await handle.db.select({ id: auditEvents.id }).from(auditEvents)).map((r) => r.id));
+    /** What a save wrote, as the activity log reads it. */
+    const save = async (input: Parameters<typeof adminActions.saveAccessAction>[1]) => {
+      const mark = await lastId();
+      expect(await adminActions.saveAccessAction(otherId, input)).toEqual({ ok: true, data: null });
+      return (await handle.db.select().from(auditEvents)).filter((r) => r.id > mark).map((r) => ({ action: r.action, details: r.details }));
+    };
+    await signInAs(ownerId);
+    // The team membership alone: its own row, no level or groups said to have changed.
+    expect(await save({ level, groups: [], administrator: false, teamMember: false })).toEqual([{ action: "account.team-member", details: { teamMember: false } }]);
+    // A group added, then swapped for another: each row names the groups, so the two differ.
+    expect(await save({ level, groups: ["player-manager"], administrator: false, teamMember: false })).toEqual([{ action: "account.groups", details: { groups: "player-manager" } }]);
+    expect(await save({ level, groups: ["match-manager"], administrator: false, teamMember: false })).toEqual([{ action: "account.groups", details: { groups: "match-manager" } }]);
+    // Saved again unchanged: nothing.
+    expect(await save({ level, groups: ["match-manager"], administrator: false, teamMember: false })).toEqual([]);
+    // The level alone.
+    expect(await save({ level: { level: "custom", capabilities: ["view-team"] }, groups: ["match-manager"], administrator: false, teamMember: false })).toEqual([{ action: "account.access", details: { level: "custom" } }]);
+    // Back as it was: the three parts, each once.
+    expect((await save({ level, groups: [], administrator: false, teamMember: true })).map((r) => r.action).sort()).toEqual(["account.access", "account.groups", "account.team-member"]);
   });
 
   it("never acts on the Owner, on your own account or on the verification account", async () => {
@@ -333,5 +380,23 @@ describe("the Dashboard's Needs you", () => {
     expect(items.find((i) => i.key === "off-integrity")!.text).toMatch(/^integrity is off \(interval 0\), set by Captain on /);
     // No session count, no password, anywhere in it.
     expect(text).not.toMatch(/session/i);
+  });
+
+  it("names nobody for a turn-off Admin did not make: an older Admin run, or a failed one, is not the turn-off in force (R6 review SR6-SEC-4)", async () => {
+    const day = 86_400_000;
+    const scheduleOff = async () => (await loadNeedsYou(handle.db, await listAccountViews(handle.db))).find((i) => i.key === "schedule-off")!;
+    // Since the Owner's audited turn-off above, Data jobs turned the schedule on and off again
+    // through /api/jobs, which writes no audit row.
+    const on = new Date(Date.now() - 1.5 * day);
+    const off = new Date(Date.now() - day);
+    await handle.db.update(dataRefreshStatus).set({ lastStartedAt: on, lastSuccessAt: on }).where(eq(dataRefreshStatus.key, "rank-schedule"));
+    await handle.db.update(dataRefreshStatus).set({ lastStartedAt: off, lastSuccessAt: off }).where(eq(dataRefreshStatus.key, "rank-schedule-off"));
+    const unnamed = { text: `The LP five-minute schedule was turned off on ${formatDate(off)}.`, href: `/admin/audit?category=data&from=${isoDay(off)}&to=${isoDay(off)}` };
+    expect(await scheduleOff()).toMatchObject(unnamed);
+    // An Admin run after it that failed: the turn-off in force is still the one before, and nobody is named.
+    const failed = new Date(off.getTime() + 60_000);
+    await handle.db.update(dataRefreshStatus).set({ lastStartedAt: failed, lastFailureAt: failed }).where(eq(dataRefreshStatus.key, "rank-schedule-off"));
+    await handle.db.insert(auditEvents).values({ at: new Date(failed.getTime() + 500), actorUserId: adminId, actorName: "Captain", action: "jobs.run", targetType: "job", targetName: "rank-schedule-off", details: { ok: false, kind: "setup" } });
+    expect(await scheduleOff()).toMatchObject(unnamed);
   });
 });

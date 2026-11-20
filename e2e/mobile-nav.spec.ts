@@ -823,6 +823,59 @@ test("a game opens as a whole screen of its own; Back closes it and the list is 
   await expect(page).not.toHaveURL(/match=/);
 });
 
+test("under 700px tall, what the page brings back up lands clear of the top bar's returning row: a game's card after its window, and the next page's first game", async ({ page }) => {
+  // The project's phone (375 × 667) is under 700px tall: the top bar's first row slides away as the
+  // page scrolls down and comes back on any scroll up (docs/MOBILE.md, "The frame slides away"), so
+  // a card brought up into view must stop under the whole bar, not under its sections row alone.
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto(`/players/${await idOf(page, "TOP")}/matches`);
+  await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
+  const bar = page.getByTestId("mobile-topbar");
+  await expect(bar).toHaveAttribute("data-slides", "row");
+  const cards = page.getByTestId("match-card");
+  /** Down the page by steps, as a reader scrolls, to `to` (the end when null): the row goes. */
+  const readDown = (to: number | null) =>
+    page.evaluate(async (until) => {
+      const end = until ?? document.documentElement.scrollHeight;
+      for (let y = window.scrollY; y <= end; y += 40) {
+        window.scrollTo(0, y);
+        await new Promise((r) => requestAnimationFrame(() => r(null)));
+      }
+      if (until === null) window.scrollTo(0, document.documentElement.scrollHeight);
+    }, to);
+  /** The first card's top less the bar's bottom, once the bar is at rest with its row back (a scroll up). */
+  const clearOfBar = async () => {
+    await expect(bar).toHaveAttribute("data-hidden", "false");
+    await expect.poll(() => bar.evaluate((b) => b.getAnimations({ subtree: true }).length)).toBe(0);
+    return page.evaluate(() => Math.round(document.querySelector("[data-testid=match-card]")!.getBoundingClientRect().top - document.querySelector("[data-testid=mobile-topbar]")!.getBoundingClientRect().bottom));
+  };
+
+  // The fifth game's window, stepped back to the first game and closed: the first card comes back.
+  await readDown(await cards.nth(4).evaluate((e) => e.getBoundingClientRect().top + window.scrollY - 250));
+  await expect(bar).toHaveAttribute("data-hidden", "row");
+  await cards.nth(4).click({ position: { x: 24, y: 16 } });
+  const win = page.getByTestId("match-detail");
+  await expect(win).toBeVisible();
+  const first = (await cards.first().getByTestId("match-row").getAttribute("data-match"))!;
+  for (let i = 0; i < 4; i++) {
+    const at = new URL(page.url()).searchParams.get("match");
+    await win.getByTestId("match-detail-prev").click();
+    await expect.poll(() => new URL(page.url()).searchParams.get("match")).not.toBe(at);
+  }
+  await expect(page).toHaveURL(new RegExp(`match=${first}`));
+  await win.getByTestId("match-detail-close").click();
+  await expect(win).toHaveCount(0);
+  expect(await clearOfBar(), "the first card under the whole bar").toBeGreaterThanOrEqual(0);
+
+  // The pager at the list's end: the next page opens at its first game, clear of the bar too.
+  await readDown(null);
+  await expect(bar).toHaveAttribute("data-hidden", "row");
+  await page.getByTestId("match-pages").getByRole("button", { name: "Page 2" }).click();
+  await expect(page).toHaveURL(/[?&]page=2/);
+  await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
+  expect(await clearOfBar(), "the next page's first game under the whole bar").toBeGreaterThanOrEqual(0);
+});
+
 test("Team → Matches opens a game as a whole screen too, and its cards keep to the members who played", async ({ page }) => {
   await page.goto("/matches");
   const game = page.getByTestId("together-game").first();

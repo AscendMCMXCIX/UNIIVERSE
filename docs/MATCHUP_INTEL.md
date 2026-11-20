@@ -95,7 +95,7 @@ Counted from the committed data on 19 Nov 2026 (Data Dragon 16.22.1, 173 champio
 
 On a desktop the page is one screen, read in a glance (`matchup-content.tsx`, `matchup-frame.tsx`):
 
-- **The bar**, one row from a bar 60rem wide: the title; your champion and the enemy as slots, each
+- **The bar**, one row from a bar 68rem wide (the bot lane's from 72rem; under that the title and the lane take a row of their own above the slots, as at 1280 and 1366 with the sidebar open, where a third column would leave the status 126–212px and three lines tall): the title; your champion and the enemy as slots, each
   a 36px portrait, "You" in blue or "Enemy" in red (always with the word) and the name, with the
   swap between them; at the far end the game's patch ("Patch 26.22"), where the abilities come from
   ("Riot Data Dragon 16.22.1"), which layer the pair shows ("Curated briefing · checked on patch
@@ -618,10 +618,14 @@ anywhere: what the page counts from the team's own games follows (S7b).
 
 ### Static data for the build evidence
 
-`compactAssets` (`src/server/riot/static/assets.ts`, rules format 2: stored maps of format 1 are read
-again on the next run) now keeps, from the `item.json`, `summoner.json` and `runesReforged.json`
-version-check already downloads: each Summoner's Rift item's gold, tags, `from`/`into`, depth and the
-ability haste its `<stats>` name; each summoner spell's base cooldown; each rune tree's slots.
+`compactBuildData` (`src/server/riot/static/assets.ts`, rules format 2: names stored under format 1
+are read again on the next run, which stores this too) keeps, from the `item.json`, `summoner.json`
+and `runesReforged.json` the version-check already downloads: each Summoner's Rift item's gold,
+tags, `from`/`into`, depth and the ability haste its `<stats>` name; each summoner spell's base
+cooldown; each rune tree's slots. It is stored under its own `app_settings` key, `riot_build_data`
+(`loadRiotBuildData`), not in `riot_assets` beside the names and icons: every match history and
+timeline read loads those (about 33 KB at 16.22.1), and none of them needs the build data (about 57
+KB more; the Release 6 review measured 90 KB per read with both in one value).
 **Measured at 16.22.1: 72 Summoner's Rift items (map 11, ids of up to four digits) name ability haste
 in their stats, 65 of them purchasable** (the plan's estimate was 70); the parser reads all 72
 (`assets.test.ts`, against Riot's own text in `tests/fixtures/ddragon-16.22.1-item-haste.json`,

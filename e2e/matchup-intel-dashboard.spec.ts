@@ -10,8 +10,8 @@ import { choose, enemyAbilities, hydrated, localPictures, openMatchupIntel, riot
     1080, 2560 by 1440, a maximised 1920 by 950 window, 3440 by 1440 and 1440 by 900, for the
     curated pairs (the longest briefing among them), pairs with checked notes on both sides but no
     curated file, pairs assembled from facts, a pair where neither side has checked notes, the
-    most complex kits and the tallest pages of the sweep (at 1440 by 900, a size not promised, the
-    essentials on the first screen: ESSENTIALS_ONLY_WIDTH); its text no smaller
+    most complex kits and the tallest pages of the sweep (at 1440 by 900 and 1280 by 800, sizes not
+    promised, the essentials on the first screen: ESSENTIALS_ONLY); its text no smaller
     than the app's text-xs, the cooldowns larger, nothing scrolling inside it;
   - every pair gives a meaningful reference, labelled for what it is (a sweep of many pairs);
   - switching is a navigation: deep links, reloads, Back and Forward keep the pair;
@@ -31,13 +31,14 @@ test.beforeEach(async ({ context, baseURL, page }) => {
   await riotText(page, "on");
 });
 
-/** The desktop sizes the overview must fit at 100% zoom (a maximised 1920 by 1080 window leaves about 1920 by 950). */
+/** The desktop sizes the overview must fit at 100% zoom (a maximised 1920 by 1080 window leaves about 1920 by 950), and the two where only its essentials must be on the first screen (ESSENTIALS_ONLY). */
 const SIZES: Array<[number, number]> = [
   [1920, 1080],
   [2560, 1440],
   [1920, 950],
   [3440, 1440],
   [1440, 900],
+  [1280, 800],
 ];
 
 /**
@@ -130,6 +131,11 @@ function measure(page: Page) {
         bar: box('[aria-label="Champions"]'),
         main: box('[data-testid="matchup-briefing"]') ?? box('[data-testid="matchup-assembled"]'),
         tiles: box('[data-testid="matchup-enemy-abilities"]'),
+        // The enemy's cooldown lines, P to R: the lowest one's box.
+        cooldowns: (() => {
+          const lines = [...document.querySelectorAll('[data-testid="matchup-enemy-abilities"] [data-testid="ability-cooldown"]')].filter((e) => e.getClientRects().length);
+          return lines.length ? { top: Math.min(...lines.map((e) => e.getBoundingClientRect().top)), bottom: Math.max(...lines.map((e) => e.getBoundingClientRect().bottom)), left: 0, right: 0 } : null;
+        })(),
         interactions: box('[data-testid="matchup-interactions"]'),
         levels: box('[data-testid="matchup-level-notes"]'),
         yours: box('[data-testid="matchup-your-abilities"]'),
@@ -145,14 +151,16 @@ function measure(page: Page) {
 }
 
 /**
- * 1440 by 900 is no size the overview is promised to fit (docs/MATCHUP_INTEL.md, "The dashboard";
- * the overhaul's S7 acceptance): there the essentials must be on the first screen, the bar with the
- * slots, the lane and the haste, the enemy's five tiles with their cooldowns, and the start of the
- * main panel, with nothing cut or scrolling inside the page; the rest may follow under the fold.
+ * 1440 by 900 and 1280 by 800 (the sidebar open, as it opens) are no sizes the overview is promised
+ * to fit (docs/MATCHUP_INTEL.md, "The dashboard"; the overhaul's S7 acceptance): there the
+ * essentials must be on the first screen, the bar with the slots, the lane and the haste, the
+ * enemy's five tiles with their cooldowns (at 1280 their cooldown lines: R's had gone under the
+ * fold there behind a header three lines tall, R6 review BX5), and the start of the main panel,
+ * with nothing cut or scrolling inside the page; the rest may follow under the fold.
  */
-const ESSENTIALS_ONLY_WIDTH = 1440;
+const ESSENTIALS_ONLY: Record<number, "tiles" | "cooldowns"> = { 1440: "tiles", 1280: "cooldowns" };
 
-test("the whole overview fits one desktop screen, with no page scroll, at 1920×1080, 2560×1440, 1920×950 and 3440×1440, every test pair, and at 1440×900 the essentials on the first screen; text at least text-xs, the cooldowns larger", async ({ page }, info) => {
+test("the whole overview fits one desktop screen, with no page scroll, at 1920×1080, 2560×1440, 1920×950 and 3440×1440, every test pair, and at 1440×900 and 1280×800 the essentials on the first screen; text at least text-xs, the cooldowns larger", async ({ page }, info) => {
   test.skip(info.project.name !== "desktop", "desktop sizes");
   test.setTimeout(900_000);
   await localPictures(page);
@@ -167,9 +175,11 @@ test("the whole overview fits one desktop screen, with no page scroll, at 1920×
       await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
       const m = await measure(page);
       const at = `${you} vs ${enemy} at ${width}×${height}`;
-      if (width === ESSENTIALS_ONLY_WIDTH) {
+      const essentials = ESSENTIALS_ONLY[width];
+      if (essentials) {
         expect.soft(m.parts.bar?.bottom ?? Infinity, `${at}: the bar on the screen`).toBeLessThanOrEqual(m.innerHeight + 0.5);
-        expect.soft(m.parts.tiles?.bottom ?? Infinity, `${at}: the five tiles on the screen`).toBeLessThanOrEqual(m.innerHeight + 0.5);
+        if (essentials === "tiles") expect.soft(m.parts.tiles?.bottom ?? Infinity, `${at}: the five tiles on the screen`).toBeLessThanOrEqual(m.innerHeight + 0.5);
+        else expect.soft(m.parts.cooldowns?.bottom ?? Infinity, `${at}: every enemy cooldown line on the screen`).toBeLessThanOrEqual(m.innerHeight + 0.5);
         expect.soft(m.parts.main?.top ?? Infinity, `${at}: the main panel starts on the screen`).toBeLessThanOrEqual(m.innerHeight / 2);
       } else {
         expect.soft(m.scrollHeight, `${at}: no vertical page scroll`).toBeLessThanOrEqual(m.innerHeight);

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "./test";
-import { openPerson } from "./member-account";
+import { createMember, openPerson } from "./member-account";
 
 /*
   Users & Permissions after the overhaul's S9a: one quiet list (52px rows on desktop, 64px on
@@ -97,6 +97,90 @@ test("saving access keeps the person view and its address, and it still closes",
   await view.getByTestId("person-view-close").click();
   await expect(view).toBeHidden();
   await expect(page).not.toHaveURL(/person=/);
+});
+
+test("a window opened inside the person view closes alone: a confirmation's Cancel and Escape, the temporary password after a reset, and the grant's Cancel", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "one pass: the windows close the same way at every width");
+  // A member of this run's own (a reset would lock a demo account out for other specs).
+  const { username } = await createMember(page, "Nested");
+  await page.goto("/admin/people");
+  const view = await openPerson(page, username);
+  const url = page.url();
+  const stays = async (what: string) => {
+    await expect(view, what).toBeVisible();
+    expect(page.url(), what).toBe(url);
+  };
+
+  // Sign out everywhere's confirmation, cancelled by its button and by Escape: nothing else closes.
+  for (const how of ["Cancel", "Escape"] as const) {
+    await view.getByTestId("sign-out-everywhere").click();
+    const confirm = page.getByRole("dialog", { name: /out everywhere\?$/ });
+    await expect(confirm).toBeVisible();
+    if (how === "Cancel") await confirm.getByRole("button", { name: "Cancel" }).click();
+    else await page.keyboard.press("Escape");
+    await expect(confirm).toBeHidden();
+    await stays(`after the confirmation's ${how}`);
+  }
+
+  // Reset password, confirmed: the one-time password is shown, and Done leaves the person view open.
+  await view.getByTestId("person-password").getByRole("button", { name: "Reset password" }).click();
+  await page.getByRole("dialog", { name: /password\?$/ }).getByTestId("confirm-dialog-confirm").click();
+  const issued = page.getByRole("dialog", { name: "Temporary password" });
+  await expect(issued.getByTestId("temporary-password-value")).not.toBeEmpty();
+  await stays("with the temporary password shown");
+  await issued.getByRole("button", { name: "Done" }).click();
+  await expect(issued).toBeHidden();
+  await stays("after Done");
+
+  // Making them an administrator, cancelled at the second question: Manage access keeps its edits.
+  await view.getByTestId("open-access").click();
+  const access = page.getByTestId("access-dialog");
+  await access.getByTestId("administrator-access").getByText("Administrator access").click();
+  await page.getByTestId("save-access").click();
+  // Found by its heading (opened over Manage access, the two sheets share the title's id, Dialog's
+  // "dialog-title"), the innermost window holding it: it is drawn inside the person view.
+  const grant = page.locator("dialog[open]").filter({ has: page.getByRole("heading", { name: /an administrator\?$/ }) }).last();
+  await grant.getByRole("button", { name: "Cancel" }).click();
+  await expect(grant).toBeHidden();
+  await expect(access).toBeVisible();
+  await stays("after the grant's Cancel");
+  await page.keyboard.press("Escape");
+  await expect(access).toBeHidden();
+  await stays("after Manage access closed");
+  await view.getByTestId("person-view-close").click();
+  await expect(view).toBeHidden();
+  await expect(page).not.toHaveURL(/person=/);
+});
+
+test("phone at 200% text: the person view's ‹ › and close button stay on the screen and off the name, and the name field keeps its width", async ({ page }, info) => {
+  test.skip(info.project.name !== "phone", "a phone at a large text size");
+  await page.goto("/admin/people");
+  await openPerson(page, "Demo Halfway");
+  const id = new URL(page.url()).searchParams.get("person")!;
+  for (const width of [390, 320]) {
+    await page.setViewportSize({ width, height: 844 });
+    // Opened from its address, with the whole list behind it (so ‹ › are there), then the text doubled.
+    await page.goto(`/admin/people?person=${id}`);
+    const view = page.getByTestId("person-view");
+    await expect(view.getByTestId("person-next")).toBeVisible();
+    await page.addStyleTag({ content: "html { font-size: 200% !important; }" });
+    const m = await view.evaluate((d) => {
+      const box = (el: Element | null) => {
+        const r = el!.getBoundingClientRect();
+        return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width };
+      };
+      const form = d.querySelector("[data-testid=member-display-name]")!;
+      return { screen: innerWidth, title: box(d.querySelector("h2")), controls: ["person-prev", "person-next", "person-view-close"].map((testId) => ({ testId, ...box(d.querySelector(`[data-testid=${testId}]`)) })), field: box(form.querySelector("input")), form: box(form) };
+    });
+    const at = `${width}px at 200%`;
+    expect(m.title.width, `${at}: the name's room`).toBeGreaterThanOrEqual(96);
+    for (const c of m.controls) {
+      expect(c.left, `${at}: ${c.testId} on the screen`).toBeGreaterThanOrEqual(0);
+      expect(c.right, `${at}: ${c.testId} on the screen`).toBeLessThanOrEqual(m.screen);
+      expect(c.left < m.title.right && c.right > m.title.left && c.top < m.title.bottom && c.bottom > m.title.top, `${at}: ${c.testId} off the name`).toBe(false);
+    }
+    expect(m.field.width, `${at}: the name field as wide as its form`).toBeGreaterThanOrEqual(m.form.width * 0.9);
+  }
 });
 
 test("Back keeps the list's scroll where it was", async ({ page }, info) => {

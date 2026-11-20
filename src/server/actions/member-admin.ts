@@ -104,10 +104,15 @@ export async function saveAccessAction(userId: string, input: AccessSave): Promi
     const session = await requirePermission("manage-users");
     if (!session.userId) return { ok: false, error: "No account session." };
     const db = await getAppDb();
-    const { user, administratorChanged, teamMemberChanged } = await saveAccess(db, session.userId, userId, input);
+    const { user, administratorChanged, teamMemberChanged, levelChanged, groupsChanged } = await saveAccess(db, session.userId, userId, input);
+    // Each change recorded as made, and nothing that was not changed (R6 review SR6-SEC-3): the
+    // level by its name, the extra access by its groups (as Settings → Access recorded them).
     if (teamMemberChanged && user.playerId) await recordAudit(db, session, { action: "account.team-member", target: { type: "player", id: user.playerId, name: await auditPlayerName(db, user.playerId) }, details: { teamMember: input.teamMember } });
-    const level = input.level.level === "preset" ? ((await auditPresetName(db, input.level.presetId)) ?? "preset") : input.level.level;
-    await recordAudit(db, session, { action: "account.access", target: { type: "user", id: userId, name: user.username }, details: { level, groups: user.accessGroups.length } });
+    if (levelChanged) {
+      const level = input.level.level === "preset" ? ((await auditPresetName(db, input.level.presetId)) ?? "preset") : input.level.level;
+      await recordAudit(db, session, { action: "account.access", target: { type: "user", id: userId, name: user.username }, details: { level } });
+    }
+    if (groupsChanged) await recordAudit(db, session, { action: "account.groups", target: { type: "user", id: userId, name: user.username }, details: { groups: user.accessGroups.join(", ") || "none" } });
     if (administratorChanged) await recordAudit(db, session, { action: user.isAdmin ? "account.admin-grant" : "account.admin-revoke", target: { type: "user", id: userId, name: user.username } });
     touch();
     return { ok: true, data: null };

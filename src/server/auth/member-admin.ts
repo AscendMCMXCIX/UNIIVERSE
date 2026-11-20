@@ -1,11 +1,11 @@
 import { eq } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
-import { players } from "@/server/db/schema";
+import { players, users } from "@/server/db/schema";
 import { getUser, UserError, type UserRecord } from "@/server/repositories/users";
 import { loadSocialLinks, removeAvatar, setAvatar, setDisplayName, setSocialLinks } from "@/server/repositories/profile";
 import { setAccessGroups, setAccessLevel, type AccessLevelChoice } from "@/server/repositories/permissions";
 import type { SocialKind, SocialLinks } from "@/domain/social-links";
-import { SOCIAL_KINDS } from "@/domain/social-links";
+import { SOCIAL_KINDS, visibleSocialLinks } from "@/domain/social-links";
 import { getOrCreateTeam, setTeamMember } from "@/server/repositories/team";
 import { guardOwnerAccount, guardProfileAccount, guardSelf, guardVerificationAccount, setAdministrator } from "./account-admin";
 import { revokeAllSessions } from "./sessions";
@@ -60,15 +60,22 @@ export async function moderateAvatar(db: Db, actorId: string, userId: string, da
   return setAvatar(db, userId, data);
 }
 
-/** Hides a public social link (it stays, seen only by its owner in Settings) or removes it. */
+/**
+ * Hides a public social link (it stays, seen only by its owner in Settings) or removes it. Only a
+ * link its owner shows publicly, as Admin lists them: one they keep to themselves is theirs alone,
+ * even here, and is answered exactly as a link that is not there, so nothing tells the two apart.
+ * Never on your own profile's links (Settings has them).
+ */
 export async function moderateSocialLink(db: Db, actorId: string, playerId: string, kind: SocialKind, mode: "hide" | "remove"): Promise<SocialLinks | null> {
   if (!SOCIAL_KINDS.includes(kind)) throw new UserError("Unknown link.");
   if (mode !== "hide" && mode !== "remove") throw new UserError("Choose hide or remove.");
   const [profile] = typeof playerId === "string" ? await db.select({ id: players.id }).from(players).where(eq(players.id, playerId)) : [];
   if (!profile) throw new UserError("Player not found.");
+  const [account] = await db.select({ id: users.id }).from(users).where(eq(users.playerId, playerId));
+  if (account) guardSelf(actorId, account.id, "moderate the links of");
   await guardProfileAccount(db, actorId, playerId, "change the links of");
   const links = (await loadSocialLinks(db, [playerId])).get(playerId) ?? null;
-  if (!links?.[kind]) throw new UserError("That link is not there any more.");
+  if (!links?.[kind] || !visibleSocialLinks(links).some((l) => l.kind === kind)) throw new UserError("That link is not there any more.");
   const next: SocialLinks = { ...links };
   if (mode === "remove") delete next[kind];
   else next[kind] = { ...links[kind]!, public: false };
@@ -91,7 +98,15 @@ export interface AccessSaved {
   user: UserRecord;
   administratorChanged: boolean;
   teamMemberChanged: boolean;
+  /** The base level changed (another preset, custom from or to a preset, or other custom abilities). */
+  levelChanged: boolean;
+  /** The extra access groups changed. */
+  groupsChanged: boolean;
 }
+
+/** An account's base level, comparable before and after a save: its preset (null is the default), or its own abilities. */
+const levelOf = (u: UserRecord) => (u.hasCustomCapabilities ? `custom:${[...u.baseCapabilities].sort().join()}` : `preset:${u.permissionPresetId ?? "default"}`);
+const groupsOf = (u: UserRecord) => [...u.accessGroups].sort().join();
 
 /**
  * Team membership, access level, extra groups and administrator access in one transaction (D6): either all of it
@@ -119,6 +134,7 @@ export async function saveAccess(db: Db, actorId: string, userId: string, input:
     await setAccessLevel(tx, actorId, userId, input.level);
     await setAccessGroups(tx, actorId, userId, input.groups);
     const { changed } = await setAdministrator(tx, actorId, userId, input.administrator);
-    return { user: (await getUser(tx, userId))!, administratorChanged: changed, teamMemberChanged };
+    const user = (await getUser(tx, userId))!;
+    return { user, administratorChanged: changed, teamMemberChanged, levelChanged: levelOf(user) !== levelOf(before), groupsChanged: groupsOf(user) !== groupsOf(before) };
   });
 }

@@ -37,7 +37,7 @@ import { useNow } from "@/components/ui/relative-time";
 import { fmtDuration, fmtInt, fmtNum } from "./match-format";
 import { WINDOW_POSTURE_QUERY, isTyping, modalOpen, prefersWindow } from "@/components/ui/posture";
 import { pagerFold, pagerItems } from "./pager";
-import { screenHeight } from "@/lib/screen";
+import { screenHeight, scrollToStart } from "@/lib/screen";
 
 /**
  * The gap between cards in rem, and ROW_REM, a wide card's height plus that gap (6.375rem: the
@@ -851,9 +851,10 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
               pending={pending}
               go={(p) => {
                 go({ page: String(p) });
-                // The next page starts with its first game, just under the bars (scroll padding): the
-                // pager sits at the list's end, where the new page would otherwise open at its last game.
-                listRef.current?.scrollIntoView({ block: "start", behavior: "instant" });
+                // The next page starts with its first game, just under the bars (scroll padding, and a
+                // phone's sliding bar as it comes back: scrollToStart): the pager sits at the list's
+                // end, where the new page would otherwise open at its last game.
+                if (listRef.current) scrollToStart(listRef.current);
               }}
             />
           ) : null}

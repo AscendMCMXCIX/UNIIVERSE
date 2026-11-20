@@ -26,9 +26,9 @@ export interface NeedsYouItem {
 const day = (at: Date) => isoDay(at);
 
 /** Who changed a job's schedule last, and when, from the audit log (null when it was not Admin). */
-async function lastAudit(db: Db, action: string, targetNames: string[]): Promise<{ who: string | null; at: Date } | null> {
+async function lastAudit(db: Db, action: string, targetNames: string[]): Promise<{ who: string | null; at: Date; details: unknown } | null> {
   const [row] = await db
-    .select({ who: auditEvents.actorName, at: auditEvents.at })
+    .select({ who: auditEvents.actorName, at: auditEvents.at, details: auditEvents.details })
     .from(auditEvents)
     .where(and(eq(auditEvents.action, action), inArray(auditEvents.targetName, targetNames)))
     .orderBy(desc(auditEvents.at), desc(auditEvents.id))
@@ -60,7 +60,13 @@ export async function loadNeedsYou(db: Db, accounts: AccountView[], now = new Da
   const intervals = (await getScheduleOverrides(db)).intervals;
   for (const notice of healthNotices({ rankScheduleOnAt: successAt("rank-schedule"), rankScheduleOffAt: successAt("rank-schedule-off"), intervals, scheduledJobs: TICK_JOB_ORDER })) {
     if (notice.kind === "schedule-off") {
-      const by = await lastAudit(db, "jobs.run", ["rank-schedule-off"]);
+      // Named only from the Admin run that put the turn-off now in force: one that finished, at or
+      // after the start of the job's last run. Data jobs runs it through /api/jobs, which writes no
+      // audit row, so an older Admin run would otherwise be named with its own day (R6 review SR6-SEC-4).
+      const run = await lastAudit(db, "jobs.run", ["rank-schedule-off"]);
+      const startedAt = jobs.find((j) => j.key === "rank-schedule-off")?.lastStartedAt?.getTime() ?? Infinity;
+      // The run's start is the server function's clock, the audit row's time the database's: a second's slack between the two.
+      const by = run && (run.details as { ok?: unknown } | null)?.ok === true && run.at.getTime() >= startedAt - 1_000 ? run : null;
       const when = by ? by.at : new Date(successAt("rank-schedule-off"));
       items.push({ key: "schedule-off", text: `The LP five-minute schedule was turned off${by?.who ? ` by ${by.who}` : ""} on ${formatDate(when)}.`, href: `/admin/audit?category=data&from=${day(when)}&to=${day(when)}`, tone: "warn" });
     } else {
