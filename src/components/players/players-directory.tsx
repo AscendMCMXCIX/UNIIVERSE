@@ -76,7 +76,8 @@ export function PlayersDirectory({ entries, championsById, archived = null, myPr
   const { row: peekRow, panel } = usePlayerPeek({ ids: peekIds, names, viewerPlayerId: entries.find((e) => e.isYou)?.player.id ?? null });
   const scopeLine = [shown.length === entries.length ? players(entries.length) : `${formatCount(shown.length)} of ${players(entries.length)}`, filtered ? `${ROLE_LABELS[filtered]} as primary or off role` : null, scope === "lineup" ? "Main lineup" : null, archived?.on ? "With archived and deactivated" : null].filter(Boolean).join(" · ");
   return (
-    <div className="space-y-4">
+    <>
+      <div className="space-y-4">
       {/* From md, once the toolbar has scrolled away: the search and Filters at the pinned tabs' end (ui/page-toolbar.tsx). */}
       <PageToolbar label="Players controls" land="[data-testid=player-card]">
         <SearchInput value={query} onChange={setQuery} placeholder="Search players" label="Search players by name or Riot ID" className={COMPACT_SEARCH} testId="toolbar-players-search" />
@@ -168,8 +169,13 @@ export function PlayersDirectory({ entries, championsById, archived = null, myPr
           </p>
         )}
       </div>
+      </div>
+      {/* The Peek outside the spaced stack: on a phone its window's element exists only once the
+          page's code runs, and as the stack's last child it gave the list's last block a gap it did
+          not have before, so the page grew 16px after load and a page scrolled to its end moved (R7:
+          CI's account-screen jumps). */}
       {panel}
-    </div>
+    </>
   );
 }
 
