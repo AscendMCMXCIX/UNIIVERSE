@@ -350,7 +350,7 @@ export function Milestones({ records, player, champ, className }: { records: Rec
         }
       >
         <MilestoneKind title={`Games on one champion · ${records.seasonLabel}`} hint="Champions with 25, 50 or 100 games this season." empty="Nobody has 25 games on one champion this season yet." groups={records.championGames} player={player} champ={champ} testId="milestones-games" />
-        <MilestoneKind title="Mastery on one champion · all-time" hint="100K, 500K or 1M mastery points on one champion, added up over their Riot accounts. The best three are shown; the rest are on their profile." empty="Nobody has 100K mastery points on one champion yet." groups={records.mastery} player={player} champ={champ} testId="milestones-mastery" />
+        <MilestoneKind title="Mastery on one champion · all-time" hint="100K, 500K or 1M mastery points on one champion, added up over their Riot accounts. Each member's best is shown; the rest are on their profile." empty="Nobody has 100K mastery points on one champion yet." groups={records.mastery} player={player} champ={champ} testId="milestones-mastery" />
       </DataList>
     </section>
   );

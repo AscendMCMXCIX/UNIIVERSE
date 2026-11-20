@@ -267,6 +267,8 @@ describe("the sections", () => {
     expect(games).toContain('aria-label="What counts: Games on one champion · Season 2026"');
     expect(games).toMatch(/<span id="[^"]+" class="sr-only">Champions with 25, 50 or 100 games this season\.<\/span>/);
     expect(innerOf(html, "milestones-mastery")).toMatch(/<span id="[^"]+" class="sr-only">100K, 500K or 1M mastery points on one champion, added up over their Riot accounts\./);
+    // A row shows each member's best milestone and counts the rest ("+N"), so the ⓘ says the same (not "the best three").
+    expect(innerOf(html, "milestones-mastery")).toContain("Each member&#x27;s best is shown; the rest are on their profile.");
     // The multikills' coverage stays in words under their title (which games the counts come from), the sentence behind its ⓘ.
     expect(shownOf(html, "multikill-short")).toBe("From 31 of 32 games");
   });
