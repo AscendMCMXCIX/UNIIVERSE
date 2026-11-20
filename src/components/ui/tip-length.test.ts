@@ -119,6 +119,12 @@ describe("tooltips are short", () => {
     }
   });
 
+  it("the LP tip never says the earlier check was before the game: rule 2 lets it fall during the game (R7 review C6)", () => {
+    const lp = LP_STATES.find((l) => l.kind === "lp")!;
+    expect(lpNote(lp)).not.toMatch(/just before/);
+    expect(lpNote(lp)).toMatch(/either side of this game's result\.$/);
+  });
+
   it("every allowlist entry still matches a tip and names its reason", () => {
     for (const a of ALLOWLIST) {
       expect(a.reason.length, a.id).toBeGreaterThan(10);
