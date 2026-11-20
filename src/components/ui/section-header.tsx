@@ -118,7 +118,12 @@ export function SectionHeader({ id, title, titleOnPhones = "shown", nav, aside, 
       </div>
     );
   return (
-    <div className={cn("grid grid-cols-[minmax(0,1fr)] gap-y-3 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start xl:gap-x-6", toolbarBesideScope && "max-sm:grid-cols-[minmax(0,1fr)_auto] max-sm:items-center max-sm:gap-x-2 max-sm:gap-y-1 max-sm:[&>[data-testid=section-toolbar]]:col-start-2 max-sm:[&>[data-testid=section-toolbar]]:row-start-1", className)} data-testid={testId}>
+    <div className={cn("grid grid-cols-[minmax(0,1fr)] gap-y-3 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start xl:gap-x-6", toolbarBesideScope && "max-sm:grid-cols-[minmax(0,1fr)_auto] max-sm:items-center max-sm:gap-x-2 max-sm:gap-y-1 max-sm:[&>[data-testid=section-toolbar]]:row-start-1",
+        // Nothing of the title's on screen (the tab names the section): the toolbar takes the line's
+        // whole width, its chips from its start; else it ends the title's line.
+        toolbarBesideScope && (titleOnPhones === "tab" && !aside ? "max-sm:[&>[data-testid=section-toolbar]]:col-[1/-1]" : "max-sm:[&>[data-testid=section-toolbar]]:col-start-2"),
+        className,
+      )} data-testid={testId}>
       <div className={cn("min-w-0 xl:pt-0.5", toolbarBesideScope && "max-sm:contents max-sm:[&>[data-testid=section-scope]]:col-span-2 max-sm:[&>[data-testid=section-scope]]:mt-0 max-sm:[&>:first-child]:col-start-1 max-sm:[&>:first-child]:row-start-1")}>
         {heading}
         {scope}
