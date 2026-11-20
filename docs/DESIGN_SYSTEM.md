@@ -24,6 +24,10 @@ The personality comes from:
 - **Light:** the violet ambient glow, the team's art and the player's banner colours. Light sits at
   the edges, never behind the figures.
 - **Precision:** one rhythm, one centre line and one radius family.
+  The radii nest outward-in: a card (`rounded-card`, 16px; the sign-in and setup frames' card
+  since 20 Nov 2026) holds panels and lists (`rounded-panel`, 12px), which hold controls
+  (`rounded-md`, 6px; chips `rounded-lg`). A box is never rounder than the box around it (the
+  design review's G3-14: Privacy's 12px contact panel sat in a 10px card).
 - **Restrained motion:** short entrances that land softly. Nothing loops, bounces or demands
   attention.
 
@@ -114,7 +118,9 @@ decorative chrome.
 - **The public header's links** (`components/public/nav-link.ts`): Team, Leaderboards, Install App
   and Sign in (or Open the app) in one style, the app's nav at 14px, 44px tall on touch screens.
 - **Long public text on a desktop** (Privacy): from lg a table of contents sticks beside the text;
-  below lg it is the row of chips under the title. A frame holding something sticky clips sideways
+  below lg it is the row of chips under the title. The table's column (13rem) keeps every entry on
+  one line (in 12rem "Cookies and your browser" wrapped, G3-15). Its contact panel leads as a
+  neutral `surface-lead` panel, not a brand-blue box (G3-7). A frame holding something sticky clips sideways
   without becoming a scroll box (`BrandFrameView`'s `stickyInside`).
 - **Instructions for the owner on a public page** (recovery's setup key) sit behind a fold, so the
   page leads with what it is for.
@@ -690,7 +696,10 @@ test):
   under 59rem: phones held either way and tablets; Settings
   keeps its index in its account card: Name, Links and Password as chips on a phone and in a window
   480px tall or less (the approved plan's look there) and a list from md in a taller window, the
-  section being read marked either way). Each is
+  section being read marked either way: a chosen chip on a phone, `surface-3` and semibold in the
+  list, a step above the `surface-2` of a pointed-at entry). At the page's top the first section is
+  the one being read, at its end the last (G3-5: a short first panel put the next one's top above
+  the window's upper third). Each is
   a plain link to its section's anchor, so it works before the page's code has run; once it runs a
   click jumps through the router's history (`jumpToAnchor`, which Matchup Intel's chips share): the
   section comes under the top bar, takes the focus, and the jump is an entry of the page's own where

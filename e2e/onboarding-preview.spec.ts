@@ -50,6 +50,10 @@ test("the new player setup preview runs end to end, with real checks, back and f
   const name = setup.getByTestId("setup-display-name");
   await expect(name).toHaveValue("NewPlayer");
   await expect(setup.getByTestId("setup-account-facts")).toContainText("NewPlayer");
+  // The stepper's labels are whole, wrapping rather than cut on a phone (G3-2: "Roles & champi…"), and both account facts end at the box's right edge (G3-8).
+  for (const label of await page.getByTestId("setup-step-label").all()) expect(await label.evaluate((el) => el.scrollWidth - el.clientWidth), (await label.textContent())!).toBeLessThanOrEqual(0);
+  const ends = await setup.getByTestId("setup-account-facts").locator("dd").evaluateAll((dds) => dds.map((el) => Math.round(el.getBoundingClientRect().right)));
+  expect(new Set(ends).size, `the facts' right edges ${ends}`).toBe(1);
   await name.fill("x");
   await expect(setup.getByTestId("setup-continue")).toBeDisabled();
   await name.fill("Mid Lane Hero");

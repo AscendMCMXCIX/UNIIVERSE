@@ -89,6 +89,9 @@ test("presets change the live preview only; Cancel and Escape keep the saved car
   // The last preset is still there (the Team card view shows its frame).
   await page.getByTestId("preview-team").click();
   await expect(page.getByTestId("card-preview")).toHaveAttribute("data-frame", FRAME_OF.neon!);
+  // The chosen view is marked as every other choice of the Studio is (G3-12): the tint with an inset accent ring and the semibold weight.
+  const marks = (el: Element) => { const c = getComputedStyle(el); return { ring: c.boxShadow.includes("inset"), weight: c.fontWeight }; };
+  expect(await page.getByTestId("preview-team").first().evaluate(marks)).toEqual({ ring: true, weight: "600" });
   // Cancel asks the same; Discard leaves the saved card as it was: nothing was saved.
   await discard(page);
   await expect(header).toHaveAttribute("data-frame", savedFrame ?? "none");

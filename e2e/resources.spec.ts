@@ -141,6 +141,14 @@ test("the layout: one panel on a phone, a panel per section packed into columns 
     expect(await list.evaluate((el) => getComputedStyle(el).borderTopWidth)).toBe("1px");
     expect(await groups.first().evaluate((el) => getComputedStyle(el).borderTopWidth)).toBe("0px");
     expect(heading, "a phone's compact headings").toBe(14);
+    // The index wraps as one inset group (G3-4): every row starts at the left, and the segments keep the group's inset off its edges.
+    const index = page.getByTestId("resources-index");
+    const box = (await index.boundingBox())!;
+    const segs = await Promise.all((await index.getByRole("radio").all()).map(async (r) => (await r.boundingBox())!));
+    const rowStarts = [...new Map(segs.map((r) => [Math.round(r.y), r.x])).values()];
+    for (const x of rowStarts) expect(Math.abs(x - rowStarts[0]!), "each row of the index starts at the left").toBeLessThanOrEqual(1);
+    expect(Math.min(...segs.map((r) => r.y)) - box.y, "the index's inset at its top").toBeGreaterThanOrEqual(1.5);
+    expect(box.y + box.height - Math.max(...segs.map((r) => r.y + r.height)), "the index's inset at its foot").toBeGreaterThanOrEqual(1.5);
   } else {
     // Two columns on a tablet, three from xl; each section a panel kept whole, titled as a panel is.
     expect(columns).toBe(info.project.name === "desktop" ? "3" : "2");
