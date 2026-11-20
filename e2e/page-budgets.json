@@ -362,10 +362,11 @@
    "small": 0
   },
   "personalise@se1-150": {
-   "screens": 5.66,
+   "screens": 5.8,
    "frame": 0,
    "frameScrolled": 0,
-   "small": 0
+   "small": 0,
+   "why": "S8a (20 Nov 2026), new in this release: the demo's member viewer is on the local owner's account row, which other specs change before this one runs (its picture and links), so the page measures 5.63 on a fresh demo and 5.68 after a spec run; the ceiling is the latter plus 2%."
   },
   "own-overview@se1-150": {
    "screens": 6.04,
