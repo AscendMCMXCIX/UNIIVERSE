@@ -79,7 +79,7 @@ export interface PrepTimeline {
   events?: { objectives: ReadonlyArray<{ t: number; team: number; kind: string; detail?: string }> } | null;
 }
 
-/** What preparation reads of an item: Data Dragon's shop facts (RiotAssets.itemInfo). */
+/** What preparation reads of an item: Data Dragon's shop facts (RiotBuildData.itemInfo, app_settings "riot_build_data"). */
 export interface PrepItemInfo {
   gold: { total: number };
   tags: readonly string[];

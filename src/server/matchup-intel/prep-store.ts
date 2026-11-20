@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { confirmedOpponent, matchPrep, PREP_FORMAT, type MatchPrep, type PrepItemInfo, type PrepParticipant, type PrepTimeline } from "@/domain/matchup-intel/prep";
-import { loadRiotAssets } from "@/server/riot/static/assets";
+import { loadRiotBuildData } from "@/server/riot/static/assets";
 import { invalidateCache } from "@/server/observability/cache";
 
 /*
@@ -133,7 +133,7 @@ async function makeRows(db: Db, games: readonly GameRow[], items: Readonly<Recor
 
 async function itemFacts(db: Db): Promise<Readonly<Record<string, PrepItemInfo>> | null> {
   try {
-    return (await loadRiotAssets(db))?.itemInfo ?? null;
+    return (await loadRiotBuildData(db))?.itemInfo ?? null;
   } catch {
     return null;
   }

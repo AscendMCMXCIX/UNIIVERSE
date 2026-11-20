@@ -9,7 +9,7 @@ import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
 import { createPlayer, getOrCreateTeam } from "@/server/repositories/team";
 import { addAccount } from "@/server/accounts/repository";
-import { accountMatchPrep, accountMatches, matchDetails, matchTimelines, patches, players, staticDigests, type MatchParticipantDetail } from "@/server/db/schema";
+import { accountMatchPrep, accountMatches, appSettings, matchDetails, matchTimelines, patches, players, staticDigests, type MatchParticipantDetail } from "@/server/db/schema";
 import { backfillMatchPrep, prepPending, refreshMatchPrep } from "@/server/matchup-intel/prep-store";
 import { loadMatchupEvidence } from "@/server/matchup-intel/evidence";
 import { unchangedBetween } from "@/server/matchup-intel/digests";
@@ -201,6 +201,20 @@ describe("prep-backfill", () => {
     expect(await refreshMatchPrep(db, [noTimeline!.matchId])).toBe(1);
     const [row] = await db.select({ prep: accountMatchPrep.prep }).from(accountMatchPrep).where(eq(accountMatchPrep.matchId, noTimeline!.matchId));
     expect(row!.prep).toMatchObject({ tl: true, start: "1055", skills: "QWE" });
+  });
+
+  it("reads the completed items' shop facts from the build data's own key (riot_build_data, R6 review SR6-SEC-5)", async () => {
+    const facts = (gold: number, depth: number, tags: string[] = []) => ({ gold: { base: gold, total: gold, sell: 0, purchasable: true }, tags, from: [], into: [], depth, haste: null });
+    const build = { version: `${CURRENT}.1`, format: 2, itemInfo: { "1055": { ...facts(450, 1), into: ["3071"] }, "2003": facts(50, 1, ["Consumable"]), "3071": facts(3000, 3) }, spellCooldowns: {}, runeSlots: {} };
+    await db.insert(appSettings).values({ key: "riot_build_data", value: build, updatedAt: new Date() }).onConflictDoUpdate({ target: appSettings.key, set: { value: build } });
+    invalidateAllCaches();
+    const [mine] = await db.select({ matchId: accountMatchPrep.matchId }).from(accountMatchPrep).where(sql`${accountMatchPrep.prep}->>'tl' = 'true' AND ${accountMatchPrep.accountId} = ${accounts.mate!}`).limit(1);
+    await db.update(matchTimelines).set({ participants: [{ puuid: "mate-puuid", purchases: [[10_000, 1055], [12_000, 2003], [600_000, 3071]], skills: [1, 2, 3] }] }).where(eq(matchTimelines.matchId, mine!.matchId));
+    expect(await refreshMatchPrep(db, [mine!.matchId])).toBe(1);
+    const [row] = await db.select({ prep: accountMatchPrep.prep }).from(accountMatchPrep).where(eq(accountMatchPrep.matchId, mine!.matchId));
+    expect(row!.prep.items).toBe("3071");
+    await db.delete(appSettings).where(eq(appSettings.key, "riot_build_data"));
+    invalidateAllCaches();
   });
 });
 
