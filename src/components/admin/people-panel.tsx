@@ -309,7 +309,7 @@ export function PeoplePanel({
                 <span className="block text-sm font-semibold text-fg">
                   Profiles without an account <span className="font-normal text-fg-subtle">· {accountless.length}</span>
                 </span>
-                <span className="block text-xs text-fg-subtle">Nobody can sign in to these profiles (a test, a placeholder or a deleted account). Adding a player with the same Riot ID reuses it.</span>
+                <span className="mt-1 block text-xs text-fg-subtle">Nobody can sign in to these profiles (a test, a placeholder or a deleted account). Adding a player with the same Riot ID reuses it.</span>
               </span>
             }
             testId="people-group-accountless"

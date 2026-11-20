@@ -51,7 +51,7 @@ const AT: Record<Breakpoint, { row: string; toggle: string; controls: string; se
     searchCompact: "md:w-auto md:max-w-sm md:flex-[1_1_9rem]",
     label: "md:sr-only",
     field: "md:w-auto",
-    beside: "md:flex-row md:items-center md:gap-2",
+    beside: "md:ml-1 md:flex-row md:items-center md:gap-1.5",
   },
   lg: {
     row: "lg:flex-row lg:flex-wrap lg:items-center",
@@ -61,7 +61,7 @@ const AT: Record<Breakpoint, { row: string; toggle: string; controls: string; se
     searchCompact: "lg:w-auto lg:max-w-sm lg:flex-[1_1_9rem]",
     label: "lg:sr-only",
     field: "lg:w-auto",
-    beside: "lg:flex-row lg:items-center lg:gap-2",
+    beside: "lg:ml-1 lg:flex-row lg:items-center lg:gap-1.5",
   },
   phone: {
     row: "md:not-short:flex-row md:not-short:flex-wrap md:not-short:items-center",
@@ -71,7 +71,7 @@ const AT: Record<Breakpoint, { row: string; toggle: string; controls: string; se
     searchCompact: "md:not-short:w-auto md:not-short:max-w-sm md:not-short:flex-[1_1_9rem]",
     label: "md:not-short:sr-only",
     field: "md:not-short:w-auto",
-    beside: "md:not-short:flex-row md:not-short:items-center md:not-short:gap-2",
+    beside: "md:not-short:ml-1 md:not-short:flex-row md:not-short:items-center md:not-short:gap-1.5",
   },
 };
 /** The same breakpoints for the bar's own layout (static class lists, which Tailwind reads whole). */
