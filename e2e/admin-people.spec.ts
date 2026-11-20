@@ -27,7 +27,7 @@ const PLAN_ROWS = 13;
 async function measure(page: Page) {
   return page.evaluate(([sel, planRows]) => {
     const rows = [...document.querySelectorAll(sel)].filter((e) => e.getBoundingClientRect().height > 0);
-    const buttons = [...document.querySelectorAll("[data-testid=players-admin] button")].filter((b) => b.getBoundingClientRect().height > 0 && !b.closest("[data-testid=status-filters]"));
+    const buttons = [...document.querySelectorAll("[data-testid=players-admin] button")].filter((b) => b.getBoundingClientRect().height > 0 && !b.closest("[data-testid=status-filters]") && b.getAttribute("role") !== "combobox");
     const extra = Math.max(0, rows.length - planRows) * rows[0]!.getBoundingClientRect().height;
     return {
       firstTop: rows[0]!.getBoundingClientRect().top + scrollY,
@@ -265,4 +265,28 @@ test("Back keeps the list's scroll where it was", async ({ page }, info) => {
   await page.goBack();
   await expect(page.getByTestId("person-view")).toBeHidden();
   await expect.poll(() => page.evaluate(() => scrollY)).toBeGreaterThan(before - 2);
+});
+
+test("Reactivate with a new temporary password: a deactivated member comes back with a one-time password, and the plain Reactivate stays beside it", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "one pass: the person view's actions are the same at every width");
+  // A member of this run's own (deactivating a demo account would lock it out for other specs).
+  const { username } = await createMember(page, "Reissue");
+  await page.goto("/admin/people");
+  const view = await openPerson(page, username);
+  await view.getByTestId("person-danger").locator("summary").click();
+  await view.getByTestId("person-danger").getByRole("button", { name: "Deactivate" }).click();
+  await page.getByRole("dialog", { name: new RegExp(`^Deactivate ${username}\\?$`) }).getByTestId("confirm-dialog-confirm").click();
+  const again = view.getByTestId("reactivate-new-password");
+  await expect(again).toBeVisible();
+  await expect(view.getByTestId("reactivate").first()).toBeVisible();
+  await again.click();
+  const confirm = page.getByRole("dialog", { name: new RegExp(`^Reactivate ${username} with a new temporary password\\?$`) });
+  await expect(confirm).toContainText("Their old password never works again.");
+  await confirm.getByTestId("confirm-dialog-confirm").click();
+  const issued = page.getByRole("dialog", { name: "Temporary password" });
+  await expect(issued.getByTestId("temporary-password-value")).not.toBeEmpty();
+  await issued.getByRole("button", { name: "Done" }).click();
+  // Active again: Reactivate is gone and Deactivate is back.
+  await expect(view.getByTestId("reactivate-new-password")).toHaveCount(0);
+  await expect(view.getByTestId("person-danger").getByRole("button", { name: "Deactivate" })).toBeVisible();
 });

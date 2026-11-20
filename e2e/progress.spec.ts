@@ -23,6 +23,22 @@ function inDemoWindow(date: string): boolean {
   return at >= Date.now() - 100 * DAY && at <= Date.now() + DAY;
 }
 
+/**
+ * On a touch phone Ranked progress is a Fold (PLAN S8a's Overview heights): its heading and the
+ * current rank show, and its chevron brings back the account line, the switches, the movement, the
+ * highest rank and the chart. Elsewhere there is no chevron and everything shows.
+ */
+async function openRankedFold(page: Page, phone: boolean) {
+  const fold = page.getByTestId("ranked-fold");
+  if (!phone) {
+    await expect(fold).toBeHidden();
+    return;
+  }
+  await expect(fold).toHaveAttribute("aria-expanded", "false");
+  await fold.click();
+  await expect(fold).toHaveAttribute("aria-expanded", "true");
+}
+
 test.beforeEach(async ({ context, baseURL }) => {
   await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
 });
@@ -52,6 +68,7 @@ test("a profile shows recent form and ranked progress per queue", async ({ page 
   // gaps of several games left unjoined (demo readings are synthetic, demo mode only).
   const ranked = page.getByTestId("ranked-progress");
   await expect(ranked).toBeVisible();
+  await openRankedFold(page, info.project.name === "phone");
   await expect(page.getByTestId("ranked-queue-solo")).toHaveAttribute("aria-current", "page");
   // The ranked year is the app's (domain/ranked-year); the first reading's date is the demo's.
   const tracking = page.getByTestId("ranked-tracking");
@@ -121,6 +138,8 @@ test("a profile shows recent form and ranked progress per queue", async ({ page 
 
   // An old link to a season view still opens Ranked progress, which shows what was read.
   await page.goto(`/players/${id}?rv=s1#ranked-progress`);
+  // On a phone the address's #ranked-progress opens its Fold.
+  if (info.project.name === "phone") await expect(page.getByTestId("ranked-fold")).toHaveAttribute("aria-expanded", "true");
   await expect(page.getByTestId("ranked-chart")).toBeVisible();
   await page.getByTestId("ranked-queue-flex").click();
   await expect(page).not.toHaveURL(/rv=/);
@@ -150,6 +169,17 @@ test("the chart's box has its final height before the page is interactive, so no
     if (!interactive) await page.route("**/_next/static/chunks/**/*.js", (route) => route.abort());
     await page.goto(`/players/${id}`);
     const chart = page.getByTestId("ranked-chart");
+    if (info.project.name === "phone") {
+      // A phone's chart is folded in the server's HTML (CSS, not script), so it cannot move what is
+      // below it while the page hydrates; opened, its drawing fills its box.
+      if (!interactive) {
+        await expect(page.getByTestId("ranked-current")).toBeVisible();
+        await expect(chart).toBeHidden();
+        await context.close();
+        continue;
+      }
+      await openRankedFold(page, true);
+    }
     await expect(chart).toBeVisible();
     if (interactive) {
       // Measured: the drawing's own height (its viewBox) is the box's.
@@ -158,6 +188,7 @@ test("the chart's box has its final height before the page is interactive, so no
     heights.push((await chart.boundingBox())!.height);
     await context.close();
   }
+  if (info.project.name === "phone") return;
   expect(Math.abs(heights[0]! - heights[1]!), `before hydration ${heights[0]} px, interactive ${heights[1]} px`).toBeLessThanOrEqual(1);
 });
 

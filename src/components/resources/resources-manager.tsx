@@ -5,7 +5,8 @@ import { ArrowDown, ArrowUp, Eye, EyeOff, Pencil, Plus, RotateCcw, Trash2 } from
 import { RESOURCE_ICONS, RESOURCE_ICON_LABELS, RESOURCE_LIMITS, RESOURCE_SECTIONS, checkResourceUrl, orderedBySection, resourceHost, sectionLabel, type Resource, type ResourceIcon as IconKey, type ResourceSection } from "@/domain/resource-entry";
 import { addResourceAction, moveResourceAction, removeResourceAction, restoreResourceDefaultsAction, setResourceHiddenAction, updateResourceAction, type ManagedResources } from "@/server/actions/resources";
 import { Button } from "@/components/ui/button";
-import { Input, Label, Select } from "@/components/ui/input";
+import { Input, Label } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { ConfirmDialog } from "@/components/ui/dialog";
 import { toast } from "@/components/ui/toast";
@@ -98,12 +99,12 @@ export function ResourcesManager({ initial }: { initial: ManagedResources }) {
                       />
                     </li>
                   ) : (
-                    <li key={e.id} className={cn("flex flex-wrap items-center gap-x-3 gap-y-2 rounded-md border border-border bg-surface p-2.5", e.hidden && "border-dashed bg-surface/50")} data-testid="managed-resource" data-id={e.id} data-hidden={e.hidden ? "true" : "false"}>
+                    <li key={e.id} className={cn("flex flex-wrap items-center gap-x-3 gap-y-2 rounded-md border border-border bg-surface-2 p-2.5", e.hidden && "border-dashed bg-surface/50")} data-testid="managed-resource" data-id={e.id} data-hidden={e.hidden ? "true" : "false"}>
                       <div className={cn("flex min-w-0 flex-[1_1_16rem] items-start gap-2.5", e.hidden && "opacity-60")}>
                         <ResourceIcon icon={e.icon} url={e.url} />
                         <div className="min-w-0 [overflow-wrap:anywhere]">
                           <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
-                            <a href={e.url} target="_blank" rel="noopener noreferrer" className="min-w-0 truncate py-0.5 text-sm font-medium text-fg underline-offset-2 hover:underline">
+                            <a href={e.url} target="_blank" rel="noopener noreferrer" className="min-w-0 truncate py-0.5 text-sm pointer-coarse:py-3 font-medium text-fg underline-offset-2 hover:underline">
                               {e.title}
                             </a>
                             {e.hidden ? <Badge tone="neutral">Hidden</Badge> : null}
@@ -193,7 +194,7 @@ function IconButton({ label, onClick, disabled, children, testId, pressed, dange
       aria-label={label}
       aria-pressed={pressed}
       title={label}
-      className={cn("grid h-8 w-8 place-items-center rounded-md text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-40 max-md:h-11 max-md:w-11", danger && "hover:text-bad")}
+      className={cn("grid h-8 w-8 place-items-center rounded-md text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-40 max-md:h-11 max-md:w-11 pointer-coarse:h-11 pointer-coarse:w-11", danger && "hover:text-bad")}
       data-testid={testId}
     >
       {children}
@@ -245,27 +246,21 @@ function ResourceForm({ initial, busy, submitLabel, onSubmit, onCancel }: { init
         </div>
         <div className="space-y-1">
           <Label htmlFor={`${id}-section`}>Section</Label>
-          <Select id={`${id}-section`} value={d.section} onChange={(e) => set("section", e.target.value as ResourceSection)} data-testid="resource-section">
-            {/* The sections offered, and the one this entry is in when that is no longer offered (it may stay, not come back). */}
-            {RESOURCE_SECTIONS.filter((s) => s.offered || s.key === initial.section).map((s) => (
-              <option key={s.key} value={s.key}>
-                {s.offered ? s.label : `${s.label} (no longer offered)`}
-              </option>
-            ))}
-          </Select>
+          {/* The sections offered, and the one this entry is in when that is no longer offered (it may stay, not come back). */}
+          <Select
+            id={`${id}-section`}
+            value={d.section}
+            onValueChange={(v) => set("section", v as ResourceSection)}
+            data-testid="resource-section"
+            options={RESOURCE_SECTIONS.filter((s) => s.offered || s.key === initial.section).map((s) => ({ value: s.key, label: s.offered ? s.label : `${s.label} (no longer offered)` }))}
+          />
         </div>
         <div className="space-y-1">
           <Label htmlFor={`${id}-icon`}>Icon</Label>
           <div className="flex items-center gap-2">
             {/* The preview loads a favicon only for a valid address (keyed by it, so a new address tries again). */}
             <ResourceIcon key={url?.ok ? url.url : "none"} icon={url?.ok || d.icon !== "favicon" ? d.icon : "globe"} url={url?.ok ? url.url : ""} />
-            <Select id={`${id}-icon`} value={d.icon} onChange={(e) => set("icon", e.target.value as IconKey)} className="min-w-0 flex-1" data-testid="resource-icon">
-              {RESOURCE_ICONS.map((k) => (
-                <option key={k} value={k}>
-                  {RESOURCE_ICON_LABELS[k]}
-                </option>
-              ))}
-            </Select>
+            <Select id={`${id}-icon`} value={d.icon} onValueChange={(v) => set("icon", v as IconKey)} className="min-w-0 flex-1" data-testid="resource-icon" options={RESOURCE_ICONS.map((k) => ({ value: k, label: RESOURCE_ICON_LABELS[k] }))} />
           </div>
         </div>
       </div>

@@ -283,3 +283,22 @@ test("at 200% and 150% text on 320, 375 and 393px phones, an administrator who i
     await member.context.close();
   }
 });
+
+test("at 200% text on a 320px phone, Previews' page switch and the first sign-in's Back and Skip for now stay inside the phone", async ({ page, context, baseURL }, info) => {
+  test.skip(info.project.name !== "phone", "a phone's widths, set below");
+  await page.setViewportSize({ width: 320, height: 640 });
+  const rights = (selector: string) => page.locator(selector).evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().right)));
+  const big = async () => {
+    await page.evaluate(() => (document.documentElement.style.fontSize = "200%"));
+    await page.evaluate(() => document.fonts.ready);
+  };
+  await context.addCookies([{ name: "uniiverse_view", value: "admin", url: baseURL! }]);
+  await page.goto("/admin/previews");
+  await big();
+  for (const r of await rights("[data-testid^=preview-screen-]")) expect(r, "a Previews page button").toBeLessThanOrEqual(320 - 8);
+  await context.clearCookies({ name: "uniiverse_view" });
+  await context.addCookies([{ name: "uniiverse_demo_viewer", value: "member", url: baseURL! }]);
+  await page.goto("/welcome/personalise");
+  await big();
+  for (const r of await rights("[data-testid=personalise-back], [data-testid=personalise-done]")) expect(r, "Back and Skip for now").toBeLessThanOrEqual(320 - 8);
+});

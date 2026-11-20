@@ -16,6 +16,9 @@ import { checkRiotCredential, riotKeyCheckLimits, type CredentialState } from "@
 import { invalidateProficiencyCache } from "@/server/proficiency/service";
 import { defaultPlatform } from "@/server/auth/signup";
 import { canViewPlayerStats } from "@/server/auth/permissions";
+import { auditPlayerName, recordAudit } from "@/server/audit/log";
+import type { Session } from "@/server/auth/permissions";
+import type { Db } from "@/server/db/types";
 
 type Result<T = null> = { ok: true; data: T } | { ok: false; error: string };
 const fail = (err: unknown): Result<never> => ({ ok: false, error: err instanceof AccountError ? err.message : publicErrorMessage(err) });
@@ -24,6 +27,18 @@ function touch() {
   revalidatePath("/team");
   revalidatePath("/players");
   revalidatePath("/me");
+}
+
+/**
+ * A change to someone else's Riot accounts (an administrator's, from Users & Permissions) is
+ * recorded; a member's own changes are not (they wait for OD9, as every member's own change does).
+ * The record names the profile and the account by its label (Main or Alt), never its Riot ID or
+ * PUUID.
+ */
+async function auditOthers(db: Db, session: Session, playerId: string, action: "riot.link" | "riot.unlink" | "riot.replace" | "riot.main", details: Record<string, string>): Promise<void> {
+  if (session.playerId === playerId) return;
+  await recordAudit(db, session, { action, target: { type: "player", id: playerId, name: await auditPlayerName(db, playerId) }, details });
+  revalidatePath("/admin/audit");
 }
 
 /**
@@ -57,6 +72,7 @@ export async function addPlayerAccountAction(playerId: string, input: { riotId: 
     const own = (await listAccountsForPlayer(db, playerId)).find((a) => a.puuid === riot.puuid);
     if (own) return { ok: false, error: own.riotId === riot.riotId ? `${riot.riotId} is already one of your linked accounts.` : `${riot.riotId} is your linked account ${own.riotId}, renamed in Riot. Its name here updates on its own, or now with Change Riot ID in its menu.` };
     const account = await addAccount(db, { ...request, riotId: riot.riotId, puuid: riot.puuid });
+    await auditOthers(db, session, playerId, "riot.link", { account: account.label });
     // The first sync at once when a key is available, so the user sees the account's data (under
     // the account's sync lease, like every sync: a view's slice must not start on the new row
     // while this runs). The claim is given back as soon as the sync is done, as the sign-up
@@ -88,7 +104,7 @@ export async function addPlayerAccountAction(playerId: string, input: { riotId: 
  */
 export async function changeRiotIdAction(playerId: string, accountId: string, riotId: string, options: { confirmReplace?: boolean } = {}): Promise<Result<RiotIdChange>> {
   try {
-    await requireRiotAccountEditor(playerId);
+    const session = await requireRiotAccountEditor(playerId);
     const db = await getAppDb();
     // One deadline for the lookup and the replacement's first sync (ACCOUNT_ACTION_BUDGET_MS): a
     // lookup it stops is "Riot is not answering right now, so nothing was changed".
@@ -98,6 +114,8 @@ export async function changeRiotIdAction(playerId: string, accountId: string, ri
     if (!account) return { ok: false, error: "Account not found." };
     const r = await changeAccountRiotId(db, client, account, riotId, options);
     if (r.kind !== "different-account") {
+      // The same Riot ID typed again changes nothing, so nothing is recorded.
+      if (r.kind === "replaced" || r.riotId !== account.riotId) await auditOthers(db, session, playerId, "riot.replace", { account: account.label, riotChange: r.kind });
       invalidateProficiencyCache();
       touch();
     }
@@ -109,11 +127,13 @@ export async function changeRiotIdAction(playerId: string, accountId: string, ri
 
 export async function removePlayerAccountAction(playerId: string, accountId: string): Promise<Result> {
   try {
-    await requireRiotAccountEditor(playerId);
+    const session = await requireRiotAccountEditor(playerId);
     const db = await getAppDb();
     // The account must belong to the player the caller may edit (never someone else's).
-    if (!(await listAccountsForPlayer(db, playerId)).some((a) => a.id === accountId)) return { ok: false, error: "Account not found." };
+    const account = (await listAccountsForPlayer(db, playerId)).find((a) => a.id === accountId);
+    if (!account) return { ok: false, error: "Account not found." };
     await removeAccount(db, accountId);
+    await auditOthers(db, session, playerId, "riot.unlink", { account: account.label });
     invalidateProficiencyCache();
     touch();
     return { ok: true, data: null };
@@ -125,9 +145,12 @@ export async function removePlayerAccountAction(playerId: string, accountId: str
 /** Makes one of the player's linked accounts their Main (the others become Alts; all keep counting). */
 export async function setMainAccountAction(playerId: string, accountId: string): Promise<Result> {
   try {
-    await requireRiotAccountEditor(playerId);
+    const session = await requireRiotAccountEditor(playerId);
     const db = await getAppDb();
+    // Already the Main (a double click, a stale page): nothing changes, so nothing is recorded.
+    const wasMain = (await listAccountsForPlayer(db, playerId)).find((a) => a.id === accountId)?.label === "main";
     await setMainAccount(db, playerId, accountId);
+    if (!wasMain) await auditOthers(db, session, playerId, "riot.main", { account: "main" });
     touch();
     return { ok: true, data: null };
   } catch (err) {

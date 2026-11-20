@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from "./test";
+import { pick } from "./select";
 
 /*
   Where you are, and where you can go, stay in reach on every screen (docs/RESPONSIVE.md → Shell,
@@ -647,7 +648,7 @@ test("tablet and desktop: a sheet closed after only a look moves nothing once th
   await expect.poll(() => page.evaluate(() => window.scrollY), { message: "the wheel took the page up" }).toBeLessThan(400);
   await scrollTo(page, 0);
   // The page's own Game mode, at the top: the new list arrives and the page stays at its top.
-  await page.locator("#overview-mode").selectOption("solo");
+  await pick(page.locator("#overview-mode"), "solo");
   await expect(page).toHaveURL(/mode=solo/);
   await expect(page.getByTestId("match-scope")).toContainText("Ranked Solo/Duo");
   await page.waitForTimeout(800);
@@ -682,10 +683,10 @@ test("desktop: from the pinned row of every page that offers Filters, a change b
   // enough at that size for its column headings (from a 44rem table), which pin under the tabs.
   const CASES: Array<{ what: string; path: string; tabs: string; first: string; under?: string; text?: number; viewport?: { width: number; height: number }; change: (sheet: Locator) => Promise<unknown>; url?: RegExp }> = [
     // Every player met against (a list long enough to land in), under its pinned column names.
-    { what: "Encounters' first player met, under its pinned column names", path: `${profile}/matches?view=encounters&rel=against&min=1&limit=500`, tabs: "profile-tabs", first: "[data-testid=encounter-row]", under: "[data-testid=encounter-heads]", change: (s) => s.getByLabel("Game mode").selectOption("solo"), url: /mode=solo/ },
-    { what: "Team Matches' first game", path: "/matches", tabs: "team-tabs", first: "[data-testid=together-card]", change: (s) => s.getByTestId("together-min").selectOption("3"), url: /min=3/ },
-    { what: "the Overview's dashboard", path: profile, tabs: "profile-tabs", first: "[data-testid=overview-dashboard]", change: (s) => s.getByLabel("Game mode").selectOption("solo"), url: /mode=solo/ },
-    { what: "All Champions' first champion, under its pinned column headings", path: `${profile}/champions`, tabs: "profile-tabs", first: "[data-testid=top-champion]", under: "[data-testid=all-champions-header]", text: 175, viewport: { width: 1920, height: 560 }, change: (s) => s.getByLabel("Game mode").selectOption("solo"), url: /mode=solo/ },
+    { what: "Encounters' first player met, under its pinned column names", path: `${profile}/matches?view=encounters&rel=against&min=1&limit=500`, tabs: "profile-tabs", first: "[data-testid=encounter-row]", under: "[data-testid=encounter-heads]", change: (s) => pick(s.getByLabel("Game mode"), "solo"), url: /mode=solo/ },
+    { what: "Team Matches' first game", path: "/matches", tabs: "team-tabs", first: "[data-testid=together-card]", change: (s) => pick(s.getByTestId("together-min"), "3"), url: /min=3/ },
+    { what: "the Overview's dashboard", path: profile, tabs: "profile-tabs", first: "[data-testid=overview-dashboard]", change: (s) => pick(s.getByLabel("Game mode"), "solo"), url: /mode=solo/ },
+    { what: "All Champions' first champion, under its pinned column headings", path: `${profile}/champions`, tabs: "profile-tabs", first: "[data-testid=top-champion]", under: "[data-testid=all-champions-header]", text: 175, viewport: { width: 1920, height: 560 }, change: (s) => pick(s.getByLabel("Game mode"), "solo"), url: /mode=solo/ },
     { what: "Players' first player", path: "/players", tabs: "team-tabs", first: "[data-testid=player-card]", text: 175, change: (s) => s.getByTestId("role-filter-MID").click() },
   ];
   for (const c of CASES) {
@@ -866,7 +867,7 @@ test("touch screens from 1024px (an iPad held sideways, a touch laptop): Team's 
     await page.getByTestId("toolbar-filters").click();
     const sheet = page.getByTestId("together-filters-sheet");
     await expect(sheet).toBeVisible();
-    await sheet.getByTestId("together-min").selectOption("3");
+    await pick(sheet.getByTestId("together-min"), "3");
     await expect(page).toHaveURL(/min=3/);
     await sheet.getByRole("button", { name: "Done" }).click();
     await expect(sheet).toHaveCount(0);

@@ -6,6 +6,8 @@ import { randomToken } from "./password";
 import { missingProductionSetup as missingProductionSetupFromEnv, requiresAccounts } from "./mode";
 import { sessionCookieOptions } from "./config";
 import { createSession, findSession, looksLikeSessionToken } from "./sessions";
+import { DEMO_MEMBER_PLAYER, DEMO_SETUP_USERNAMES, DEMO_VIEWER_COOKIE, demoViewerFromCookie, type DemoViewer } from "./demo-viewer";
+import { eq } from "drizzle-orm";
 import { signOutOfAll } from "./account-jar";
 import { clearRemembered, readJarState, writeIdentity } from "./browser-accounts";
 import { hasPermission, isOwner as isOwnerPerm, type Permission, type Session } from "./permissions";
@@ -119,6 +121,14 @@ async function resolveAuthState(db: Db): Promise<AuthState> {
   if (isProductionDeployment()) {
     return { mode: total === 0 ? "setup" : "accounts", session: null };
   }
+  // The in-memory demo only (demo-viewer.ts refuses every other configuration): a browser holding
+  // the demo viewer cookie sees the pages as a member with a player profile, or as one of the
+  // demo's members still in their first sign-in.
+  const demo = demoViewerFromCookie(store.get(DEMO_VIEWER_COOKIE)?.value);
+  if (demo) {
+    // A viewer whose demo row is missing is signed out, never the automatic local owner (an administrator).
+    return { mode: "accounts", session: await demoViewerSession(db, demo) };
+  }
   // Local development: a browser holding the guest cookie is a visitor without an account (to
   // try the public pages). It can only take access away, so it needs no production guard.
   if (store.get(GUEST_COOKIE)?.value === "1") return { mode: "accounts", session: null };
@@ -126,6 +136,22 @@ async function resolveAuthState(db: Db): Promise<AuthState> {
   const local = await ensureLocalOwner(db);
   if (local) return { mode: "open", session: local };
   return { mode: "accounts", session: null };
+}
+
+/** The demo viewer's session (demo-viewer.ts; the caller has checked it is allowed here). */
+async function demoViewerSession(db: Db, viewer: DemoViewer): Promise<Session | null> {
+  if (viewer !== "member") {
+    const row = await findUserByUsername(db, DEMO_SETUP_USERNAMES[viewer]);
+    const user = row ? await getUser(db, row.id) : null;
+    return user && user.isActive ? sessionFromUser(user) : null;
+  }
+  // A Standard Player whose profile is the demo's ADC, on the local owner's account row (so the
+  // demo's account lists are unchanged): never an administrator.
+  const owner = await findUserByUsername(db, LOCAL_OWNER_USERNAME);
+  const { players } = await import("@/server/db/schema");
+  const [player] = await db.select({ id: players.id }).from(players).where(eq(players.displayName, DEMO_MEMBER_PLAYER)).limit(1);
+  if (!owner || !player) return null;
+  return { userId: owner.id, role: "player", label: DEMO_MEMBER_PLAYER, playerId: player.id, username: owner.username, hasPassword: true, mustChangePassword: false, setupComplete: true, avatarVersion: owner.avatarVersion ?? null, teamMember: true, admin: false };
 }
 
 async function ensureLocalOwner(db: Db): Promise<Session | null> {

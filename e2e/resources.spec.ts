@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from "./test";
+import { optionLabels, pick } from "./select";
 import { DEFAULT_RESOURCES } from "../src/domain/resources";
 import { memberContext, view } from "./member-account";
 
@@ -309,9 +310,9 @@ test("an administrator keeps the library in Admin Mode; members see each change,
   await form.getByTestId("resource-url").fill(site);
   await form.getByTestId("resource-description").fill("Builds and tier lists.");
   // Only the sections offered: the ones that left the defaults take nothing new.
-  await expect(form.getByTestId("resource-section").locator("option")).toHaveText(["League of Legends", "Summoner's Rift", "ARAM", "Arena", "Esports"]);
-  await form.getByTestId("resource-section").selectOption("sr");
-  await form.getByTestId("resource-icon").selectOption("stats");
+  expect(await optionLabels(form.getByTestId("resource-section"))).toEqual(["League of Legends", "Summoner's Rift", "ARAM", "Arena", "Esports"]);
+  await pick(form.getByTestId("resource-section"), "sr");
+  await pick(form.getByTestId("resource-icon"), "stats");
   await form.getByTestId("resource-save").click();
   await expect(managed("U.GG test")).toBeVisible();
   await expect(managed("U.GG test").locator("a")).toHaveAttribute("href", `https://${site}/`);
@@ -374,4 +375,18 @@ test("a member who is not an administrator browses the library but cannot manage
   } finally {
     await context.close();
   }
+});
+
+test("on a touch tablet, Admin Mode's row buttons in Resources and Branding's colour fields are 44px", async ({ page, context, baseURL }, info) => {
+  test.skip(info.project.name !== "tablet", "touch at 768px, where the phone's sizes no longer apply");
+  await blockFavicons(page);
+  await context.addCookies([{ name: "uniiverse_view", value: "admin", url: baseURL! }]);
+  await page.goto("/admin/resources");
+  const sizes = await page.getByTestId("managed-resource").first().locator("button").evaluateAll((els) => els.map((e) => Math.round(Math.min(e.getBoundingClientRect().width, e.getBoundingClientRect().height))));
+  expect(sizes.length).toBeGreaterThan(0);
+  for (const s of sizes) expect(s, "a row button").toBeGreaterThanOrEqual(44);
+  await page.goto("/admin/branding");
+  const hex = await page.locator("input[aria-label$=' hex']").evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().height)));
+  expect(hex.length).toBe(5);
+  for (const h of hex) expect(h, "a colour's hex field").toBeGreaterThanOrEqual(44);
 });

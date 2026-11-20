@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { PUBLIC_NAV_LINK } from "@/components/public/nav-link";
 import { Check, Copy, Download, Ellipsis, EllipsisVertical, Menu as MenuIcon, MonitorDown, Share, SquarePlus, type LucideIcon } from "lucide-react";
 import { DetailModal } from "@/components/ui/detail-modal";
 import { useBackCloses } from "@/components/ui/use-back-closes";
@@ -56,10 +57,10 @@ export function InstallAppEntry({ variant, beforeOpen, className }: { variant: "
   };
   const hiddenWhenInstalled = "[@media(display-mode:standalone)]:hidden [@media(display-mode:fullscreen)]:hidden [@media(display-mode:minimal-ui)]:hidden [@media(display-mode:window-controls-overlay)]:hidden";
   if (variant === "public") {
-    // The public team page's header: discreet, in the same style as Sign in beside it; on a phone
+    // The public team page's header: in the header links' style (14px, as Sign in beside it); on a phone
     // the icon alone (a 44 px target), its name kept for screen readers.
     return (
-      <button type="button" onClick={onClick} aria-haspopup="dialog" className={cn(buttonClass("ghost", "sm", "text-fg-muted max-sm:min-w-11"), hiddenWhenInstalled, className)} data-testid="install-app">
+      <button type="button" onClick={onClick} aria-haspopup="dialog" className={cn(PUBLIC_NAV_LINK, "text-fg-muted hover:text-fg max-sm:min-w-11 max-sm:px-2.5", hiddenWhenInstalled, className)} data-testid="install-app">
         <Download className="h-4 w-4" aria-hidden />
         <span className="max-sm:sr-only">Install App</span>
       </button>

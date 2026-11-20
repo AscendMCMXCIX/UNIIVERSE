@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from "./test";
+import { pick } from "./select";
 import { playerEntry } from "./players";
 
 /* My Profile pieces: All Champions sorting (both ways, filters kept) and the profile header controls. */
@@ -52,7 +53,7 @@ test("All Champions on a phone: a Sort by control with a direction toggle, no si
   await page.goto(`${href}/champions`);
   const rows = page.getByTestId("top-champion");
   test.skip((await rows.count()) < 2, "needs stored games");
-  await page.locator("#all-champions-sort-by").selectOption("games");
+  await pick(page.locator("#all-champions-sort-by"), "games");
   await page.getByTestId("all-champions-sort-dir").click();
   const asc = await rows.evaluateAll((els) => els.map((e) => Number(e.getAttribute("data-games"))));
   expect(asc).toEqual([...asc].sort((a, b) => a - b));
@@ -112,11 +113,11 @@ test("All Champions on a phone: the tab names it, the scope's words on one line 
   // Sorted by a figure other than games or win rate, that figure follows the role on each row (in
   // place of "In pool"); sorted by games, none.
   const figures = () => rows.evaluateAll((els) => els.map((r) => r.querySelector("[data-testid=champion-sorted-figure]")?.textContent?.trim() ?? null));
-  await page.locator("#all-champions-sort-by").selectOption("kills");
+  await pick(page.locator("#all-champions-sort-by"), "kills");
   for (const f of await figures()) expect(f).toMatch(/^· Kills /);
-  await page.locator("#all-champions-sort-by").selectOption("double");
+  await pick(page.locator("#all-champions-sort-by"), "double");
   for (const f of await figures()) expect(f).toMatch(/^· Double kills /);
-  await page.locator("#all-champions-sort-by").selectOption("games");
+  await pick(page.locator("#all-champions-sort-by"), "games");
   for (const f of await figures()) expect(f).toBeNull();
 });
 

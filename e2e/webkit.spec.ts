@@ -5,6 +5,7 @@ import { untilStill } from "./modal-corner";
 import { besideAMark, openMatchWindow } from "./match-history";
 import { bubbleFacts, NOT_A_PICTURE, NOT_A_PICTURE_ERROR, openPictureEditor, placedRight, toastFacts } from "./popups";
 import { riotText } from "./matchup-intel";
+import { pick, ready, SELECT_LOOK, selectLook, valueOf } from "./select";
 import path from "node:path";
 
 /*
@@ -591,6 +592,58 @@ test("Admin Mode: the account screen's switch moves between Admin Mode and Playe
   await expect(page).toHaveURL(/\/team$/);
 });
 
+test("the one Select in Safari's engine: the iPhone keeps its own picker; with a mouse on a larger screen, the app's popover draws as in Chromium, opens and chooses from the keyboard, and Escape gives the focus back", async ({ browser, page, baseURL }) => {
+  await page.goto("/team");
+  const profile = `/players/${(await page.getByTestId("lineup-row-MID").getAttribute("data-player-id"))!}`;
+  // The iPhone: the browser's own select (its wheel), as before.
+  await page.goto(`${profile}/champions`);
+  const sort = page.locator("#all-champions-sort-by");
+  await ready(sort);
+  expect(await sort.evaluate((el) => el.tagName)).toBe("SELECT");
+  await pick(sort, "games");
+  await expect.poll(() => valueOf(sort)).toBe("games");
+  // A desktop-sized window with a mouse: the popover.
+  const desk = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  await desk.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
+  const dp = await desk.newPage();
+  await dp.goto(profile);
+  const mode = dp.locator("#overview-mode");
+  // The same figures as Chromium's. Playwright's WebKit on Linux reports no fine pointer, so it gets
+  // the touch sizes every field and menu row has there (44px, 16px text): the same rule, not a difference.
+  const fine = await dp.evaluate(() => matchMedia("(pointer: fine)").matches);
+  const touch = { button: { ...SELECT_LOOK.button, font: "16px", height: 44 }, option: { ...SELECT_LOOK.option, height: 44 } };
+  expect(await selectLook(mode)).toEqual(fine ? SELECT_LOOK : { ...SELECT_LOOK, ...touch });
+  await mode.focus();
+  await dp.keyboard.press("Enter");
+  const list = dp.getByRole("listbox", { name: "Game mode" });
+  await expect(list).toBeVisible();
+  await dp.keyboard.press("Escape");
+  await expect(list).toHaveCount(0);
+  await expect(mode).toBeFocused();
+  await dp.keyboard.press("ArrowDown");
+  await expect(list).toBeVisible();
+  await dp.keyboard.press("End");
+  await dp.keyboard.press("Enter");
+  await expect(list).toHaveCount(0);
+  await expect(dp).toHaveURL(/mode=/);
+  await expect(mode).toBeFocused();
+  await desk.close();
+  // An iPad (768 × 1024, touch): the popover, and a tap on an option chooses it (WebKit sends no click
+  // after a cancelled press, which had left the list open and the address as it was).
+  const pad = await browser.newContext({ viewport: { width: 768, height: 1024 }, hasTouch: true });
+  await pad.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
+  const tp = await pad.newPage();
+  await tp.goto(`${profile}?mode=all`);
+  const padMode = tp.locator("#overview-mode");
+  await ready(padMode);
+  expect(await padMode.evaluate((el) => el.tagName)).toBe("BUTTON");
+  await padMode.tap();
+  await tp.getByRole("listbox", { name: "Game mode" }).locator("[data-value=flex]").tap();
+  await expect(tp).toHaveURL(/mode=flex/);
+  await expect(tp.getByRole("listbox", { name: "Game mode" })).toHaveCount(0);
+  await pad.close();
+});
+
 test("forms: text fields are at least 16px (Safari zooms into smaller ones) and sign-in offers saved passwords", async ({ browser, page, baseURL }) => {
   await page.goto("/settings");
   const field = page.getByTestId("display-name-form").getByLabel("Display name");
@@ -949,4 +1002,39 @@ test("popups: an error toast raised over the picture editor is drawn in the wind
   await page.touchscreen.tap((f.dismiss.box.left + f.dismiss.box.right) / 2, (f.dismiss.box.top + f.dismiss.box.bottom) / 2);
   await expect(toast).toHaveCount(0);
   await expect(win).toBeVisible();
+});
+
+test("the public pages and Install App in Safari's engine: the header's links 44px and 14px, the window's guide fits the screen and closes; in the app opened from the Home Screen there is no entry", async ({ browser, baseURL }) => {
+  const tab = await browser.newContext({ ...devices["iPhone 15"] });
+  await tab.addCookies([{ name: "uniiverse_guest", value: "1", url: baseURL! }]);
+  const page = await tab.newPage();
+  for (const path of ["/public", "/login", "/recover", "/privacy"]) {
+    await page.goto(path);
+    await fitsWidth(page, path);
+  }
+  await page.goto("/public");
+  const links = page.getByRole("navigation", { name: "Public pages" }).locator("a, button");
+  for (const box of await links.evaluateAll((els) => els.filter((e) => (e as HTMLElement).offsetParent).map((e) => ({ h: e.getBoundingClientRect().height, w: e.getBoundingClientRect().width, size: getComputedStyle(e).fontSize })))) {
+    expect(Math.min(box.h, box.w), "a 44px target").toBeGreaterThanOrEqual(44);
+    expect(box.size).toBe("14px");
+  }
+  await page.getByTestId("install-app").tap();
+  const win = page.getByTestId("install-window");
+  await expect(win.getByTestId("install-body")).toHaveAttribute("data-guide", "ios");
+  const box = await win.boundingBox();
+  expect(box!.x).toBeGreaterThanOrEqual(0);
+  expect(box!.x + box!.width).toBeLessThanOrEqual(393 + 1);
+  await fitsWidth(page, "the install window");
+  await page.keyboard.press("Escape");
+  await expect(win).toHaveCount(0);
+  await tab.close();
+  // Opened from the Home Screen (navigator.standalone): the public header has no Install App.
+  const app = await browser.newContext({ ...devices["iPhone 15"] });
+  await app.addCookies([{ name: "uniiverse_guest", value: "1", url: baseURL! }]);
+  await app.addInitScript(() => Object.defineProperty(Navigator.prototype, "standalone", { get: () => true }));
+  const installed = await app.newPage();
+  await installed.goto("/public");
+  await expect(installed.getByTestId("public-sign-in")).toBeVisible();
+  await expect(installed.getByTestId("install-app").filter({ visible: true })).toHaveCount(0);
+  await app.close();
 });

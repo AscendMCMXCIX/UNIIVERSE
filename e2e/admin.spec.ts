@@ -1,4 +1,5 @@
 import { devices, expect, test, type Page } from "./test";
+import { pick } from "./select";
 import { NEUTRAL_NAME } from "../src/domain/branding";
 import { memberContext, openPerson } from "./member-account";
 
@@ -281,10 +282,10 @@ test("Audit Logs list admin activity newest first, by category, with no password
   await expect(activity).not.toContainText(/\w: /);
   await expect(activity).not.toContainText(password);
   // Categories: the account is under Accounts, not under Settings.
-  await page.getByTestId("audit-category").selectOption("accounts");
+  await pick(page.getByTestId("audit-category"), "accounts");
   await expect(page).toHaveURL(/category=accounts/);
   await expect(activity.getByTestId("admin-activity-row").first()).toContainText(username);
-  await page.getByTestId("audit-category").selectOption("settings");
+  await pick(page.getByTestId("audit-category"), "settings");
   await expect(page).toHaveURL(/category=settings/);
   await expect(activity).not.toContainText(username);
 });

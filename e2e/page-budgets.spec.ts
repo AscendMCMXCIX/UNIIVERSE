@@ -40,7 +40,8 @@ for (const [setup, text] of [["i15", 100], ["se1", 150]] as const) {
     const over: string[] = [];
     for (const admin of [false, true]) {
       const page = await setupPage(browser, setup, text, admin);
-      for (const key of Object.keys(PAGES).filter((k) => !!PAGES[k]!.admin === admin)) {
+      // A page that needs a deployment setting the CI demo does not set is left to the full matrix.
+      for (const key of Object.keys(PAGES).filter((k) => !!PAGES[k]!.admin === admin && !PAGES[k]!.requires)) {
         const id = `${key}@${setup}-${text}`;
         const figures = await openAndMeasure(page, BASE, key, playerId);
         for (const problem of overBudget(figures, CEILINGS[id], { height: !PAGES[key]!.data })) over.push(`${id}: ${problem}`);
@@ -142,5 +143,40 @@ test("first paint within a 320px phone: the page is never wider than the screen 
     await page.goto(`${BASE}${path}`, { waitUntil: "domcontentloaded" });
     expect(await page.evaluate(() => document.documentElement.scrollWidth), path).toBeLessThanOrEqual(320);
   }
+  await ctx.close();
+});
+
+test("Admin's S9c figures at 375 × 667: System Health in at most 2.0 screens with nothing sideways; Data & Integrations' 12px text at most 30% with its sections open (each job's How it works closed, as it loads)", async ({ browser }) => {
+  const ctx = await browser.newContext({ viewport: { width: 375, height: 667 }, hasTouch: true, isMobile: true });
+  await ctx.addCookies([{ name: "uniiverse_view", value: "admin", url: BASE }]);
+  const page = await ctx.newPage();
+  await page.goto(`${BASE}/admin/system`);
+  await page.getByTestId("system-status").waitFor();
+  const system = await page.evaluate(() => ({
+    screens: document.documentElement.scrollHeight / window.innerHeight,
+    sideways: [...document.querySelectorAll("main *")].filter((e) => e.scrollWidth > e.clientWidth + 1 && ["auto", "scroll"].includes(getComputedStyle(e).overflowX)).length,
+  }));
+  expect(system.screens).toBeLessThanOrEqual(2.0);
+  expect(system.sideways).toBe(0);
+  await page.goto(`${BASE}/admin/data`);
+  await page.getByTestId("health-answers").waitFor();
+  // Every section open (the rows' own "How it works" stay closed, as they load), then the share of characters at 12px or less.
+  const small = await page.evaluate(() => {
+    document.querySelectorAll("main details").forEach((d) => {
+      if (!d.closest("[data-testid=job-row]")) (d as HTMLDetailsElement).open = true;
+    });
+    let all = 0;
+    let tiny = 0;
+    const walker = document.createTreeWalker(document.querySelector("main")!, NodeFilter.SHOW_TEXT);
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+      const text = n.textContent?.trim() ?? "";
+      const el = n.parentElement!;
+      if (!text || !el.checkVisibility()) continue;
+      all += text.length;
+      if (parseFloat(getComputedStyle(el).fontSize) <= 12.5) tiny += text.length;
+    }
+    return tiny / all;
+  });
+  expect(small).toBeLessThanOrEqual(0.3);
   await ctx.close();
 });

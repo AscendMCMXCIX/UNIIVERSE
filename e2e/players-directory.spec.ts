@@ -624,6 +624,40 @@ test("the player Peek: a Players row and a Leaderboards row open it with ?player
   await expect(page).toHaveURL(/\/players\/[0-9a-f-]{36}$/);
 });
 
+test("the docked player Peek at 1280: its pool list takes the short figure blocks, so every champion's name is whole and no column heading runs into another", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "the docked panel's width at 1280 (34vw, 25rem of list)");
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto("/players");
+  for (const n of [0, 1, 2]) {
+    // Off the name (the profile's link): the row's own press.
+    const row = page.locator("[data-testid=player-peek-open]").nth(n);
+    await expect(row).toBeVisible();
+    await row.scrollIntoViewIfNeeded();
+    const box = (await row.boundingBox())!;
+    await row.click({ position: { x: box.width - 24, y: box.height / 2 } });
+    const list = page.getByTestId("player-peek").getByTestId("pool-list");
+    await expect(list.getByTestId("pool-champion").first()).toBeVisible();
+    await page.evaluate(() => document.fonts.ready);
+    const facts = await list.evaluate((ol) => {
+      const box = ol.parentElement!;
+      const heads = box.querySelector<HTMLElement>("[data-testid=pool-columns]");
+      return {
+        width: box.getBoundingClientRect().width / parseFloat(getComputedStyle(document.documentElement).fontSize),
+        headings: heads ? getComputedStyle(heads).display : "none",
+        cut: [...ol.querySelectorAll<HTMLElement>("[data-testid=pool-champion-name]")].filter((e) => e.scrollWidth > e.clientWidth + 1).map((e) => e.textContent),
+        outside: [...ol.querySelectorAll<HTMLElement>("[data-testid=pool-champion-stats]")].filter((e) => e.getClientRects().length && e.getBoundingClientRect().right > ol.getBoundingClientRect().right + 0.5).length,
+      };
+    });
+    expect(facts.width, "the docked list is narrower than the columns need").toBeLessThan(28);
+    expect(facts.headings, "no column headings over the short blocks").toBe("none");
+    expect(facts.cut, "every name whole").toEqual([]);
+    expect(facts.outside).toBe(0);
+    // Closed before the next row (the docked panel lies over the rows' right-hand end).
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("player-detail-hero")).toHaveCount(0);
+  }
+});
+
 test("on a phone the Players page keeps the height it had when its rows appeared: the closed Peek adds no gap once the page's code runs (R7: CI's account-screen jumps)", async ({ page }, info) => {
   test.skip(info.project.name !== "phone", "the Peek's window exists only on phones");
   // The page's height on the first frame after its rows are hydrated, before any later render (the

@@ -14,8 +14,8 @@ export function DiagnosticsPanel({ d }: { d: Diagnostics }) {
         <div className="flex flex-wrap gap-2">
           <Badge tone="neutral">build {d.build.commit ?? "local"}</Badge>
           <Badge tone="neutral">region {d.build.region ?? "local"}</Badge>
-          <Badge tone={dbTone} title="Round trip of SELECT 1 from this server instance to the database">db ping {d.db.pingMs} ms</Badge>
-          <Badge tone="neutral" title={d.db.description}>pool max {d.db.poolMax}</Badge>
+          <Badge tone={dbTone}>database answers in {d.db.pingMs} ms</Badge>
+          <Badge tone="neutral">pool max {d.db.poolMax}</Badge>
           <Badge tone="neutral">instance up {d.build.uptimeSeconds}s · {d.build.memoryMb} MB</Badge>
           <Badge tone="neutral">{d.build.node}</Badge>
         </div>

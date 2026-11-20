@@ -1,4 +1,5 @@
 import { expect, test } from "./test";
+import { optionLabels } from "./select";
 
 /*
   Season 2026 is the earliest season offered anywhere (domain/season). No page offers Season 2025
@@ -16,6 +17,11 @@ test("no season choice offers 2025 or older, on any page", async ({ page }) => {
   for (const path of PAGES) {
     await page.goto(path);
     await expect(page.locator("main"), path).toBeVisible();
+    // Every season choice on the page (the app's Select lists its options only while open).
+    for (const control of await page.locator("main [data-select]").all()) {
+      if (!(await control.isVisible())) continue;
+      expect((await optionLabels(control)).filter((l) => /Season 20(1\d|2[0-5])\b/.test(l)), path).toEqual([]);
+    }
     await expect(page.locator("option", { hasText: /Season 20(1\d|2[0-5])\b/ }), path).toHaveCount(0);
     await expect(page.locator("main").getByText(/Season 20(1\d|2[0-5])\b/), path).toHaveCount(0);
   }

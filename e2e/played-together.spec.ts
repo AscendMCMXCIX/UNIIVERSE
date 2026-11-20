@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "./test";
+import { pick } from "./select";
 import { openTogether } from "./match-history";
 import { openFilterBar } from "./filters";
 import { demoSeasonLabel } from "./demo-season";
@@ -63,14 +64,14 @@ test("Played together lists games with two or more members on one side, with hon
 
   // Three or more members only.
   await showFilters(page);
-  await page.getByTestId("together-min").selectOption("3");
+  await pick(page.getByTestId("together-min"), "3");
   await expect(page).toHaveURL(/min=3/);
   const three = await page.getByTestId("together-game").evaluateAll((els) => els.map((e) => Number(e.getAttribute("data-members"))));
   expect(three.length).toBeGreaterThan(0);
   expect(Math.min(...three)).toBeGreaterThanOrEqual(3);
   // Ranked Solo/Duo with three: not all of them can have queued together, and the page says so.
   await showFilters(page);
-  await page.getByTestId("together-queue").selectOption("solo");
+  await pick(page.getByTestId("together-queue"), "solo");
   await expect(page).toHaveURL(/queue=solo/);
   // Text on the card, never only behind an (i): whole on a stacked card; in the four columns' narrow
   // result column a short line on screen that keeps the point, under the queue's own "Ranked
@@ -91,7 +92,7 @@ test("Played together lists games with two or more members on one side, with hon
   if (wide) expect(shown.lines, "one line in the 8.5rem result column").toBe(1);
   // All five, Clash: none in the demo, so an honest empty state, and Clear filters puts every filter back.
   await showFilters(page);
-  await page.getByTestId("together-queue").selectOption("clash");
+  await pick(page.getByTestId("together-queue"), "clash");
   await expect(page).toHaveURL(/queue=clash/);
   await expect(page.getByTestId("together-empty")).toBeVisible();
   await expect(page.getByTestId("matches-summary")).toContainText("0 games");

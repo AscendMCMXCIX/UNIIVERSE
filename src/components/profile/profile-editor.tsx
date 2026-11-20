@@ -14,6 +14,8 @@ import { Button } from "@/components/ui/button";
 import { Menu, MenuItem, MenuLabel, MenuSeparator } from "@/components/ui/menu";
 import { SaveStatusIndicator } from "@/components/ui/save-status";
 import { InfoTip } from "@/components/ui/info-tip";
+import { PhoneFoldToggle, usePhoneFold } from "@/components/ui/phone-fold";
+import { PHONE_HIDDEN } from "@/components/ui/phone-fold-classes";
 import { cn } from "@/lib/cn";
 import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateTone } from "@/domain/stats/win-rate";
 import { moveRolePatch, roleOrder, useProfileAutosave, type ProfileState } from "./use-profile-autosave";
@@ -94,6 +96,9 @@ export function RolePicker({
  * there is no Save button and nothing else on the page moves. Pools have no size limit. Whatever
  * follows the pool (that role's statistics) is passed as children.
  */
+/** How many of the primary pool's champions a touch phone shows before its Show all (the player's top choices). */
+export const PRIMARY_POOL_PHONE_TOP = 3;
+
 export function PoolSection({
   title,
   eyebrow,
@@ -111,8 +116,15 @@ export function PoolSection({
   onInspect,
   inspectHref,
   collapsible,
+  phoneTop,
   children,
 }: {
+  /**
+   * On a touch phone, only the first this many champions show until the pool's Show all (a Fold,
+   * phone-fold.tsx: the profile's primary pool, 20 Nov 2026). Never while editing, and only with
+   * statistics (the profile's rows). Tablets and desktop show the whole pool.
+   */
+  phoneTop?: number;
   /**
    * Shown as a one-line summary (the role, its champions as small portraits) until opened: off
    * roles on the profile, so the page leads with the primary pool. Opening shows the full,
@@ -145,9 +157,11 @@ export function PoolSection({
   const selected = React.useMemo(() => new Set(ids), [ids]);
   const bodyId = React.useId();
   const closed = !!collapsible && !collapsible.open;
+  const fold = usePhoneFold(`pool-${testId}`);
+  const folds = phoneTop !== undefined && !!stats && !editable && !closed && ids.length > phoneTop;
   const addChampion = (compact: boolean) => <AddChampion role={role} champions={champions} exclude={selected} onAdd={(id) => onChange([...ids, id])} testId={testId} compact={compact} />;
   return (
-    <section className={cn("space-y-3", closed && "space-y-0")} data-testid={testId} data-open={collapsible ? collapsible.open : undefined}>
+    <section className={cn("space-y-3", closed && "space-y-0", folds && fold.groupProps.className)} data-testid={testId} data-open={collapsible ? collapsible.open : undefined} data-fold={folds ? fold.groupProps["data-fold"] : undefined}>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         {/* One line: the role (its menu while editing), how many champions, and what the role is to the player. */}
         <h3 className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1 text-sm font-semibold">
@@ -159,9 +173,10 @@ export function PoolSection({
           {eyebrow ? <span className="whitespace-nowrap rounded-full border border-accent-2/40 bg-accent-2/10 px-2 py-px text-2xs font-semibold uppercase tracking-label text-accent-2">{eyebrow}</span> : null}
         </h3>
         {closed && ids.length ? <PoolPreview ids={ids} championsById={championsById} onInspect={onInspect} inspectHref={inspectHref} testId={`${testId}-preview`} /> : null}
-        {actions || (editable && stats && !closed) || collapsible ? (
+        {actions || (editable && stats && !closed) || collapsible || folds ? (
           <div className="ml-auto flex items-center gap-1">
             {editable && stats && !closed ? addChampion(true) : null}
+            {folds ? <PhoneFoldToggle open={fold.open} onToggle={fold.toggle} controls={bodyId} label={`${ROLE_LABELS[role]} champions`} showText={`All ${ids.length}`} hideText={`Top ${phoneTop}`} testId={`${testId}-fold`} /> : null}
             {actions}
             {collapsible ? (
               <Button size="sm" variant="ghost" onClick={collapsible.onToggle} aria-expanded={collapsible.open} aria-controls={bodyId} data-testid={`${testId}-expand`}>
@@ -187,6 +202,7 @@ export function PoolSection({
           controls={controls}
           testId={`${testId}-list`}
           variant={stats ? "rows" : "cards"}
+          phoneFoldFrom={folds ? phoneTop : undefined}
           renderStats={stats ? (id) => <PoolRowStats s={stats[id]} role={role} editing={editable} /> : undefined}
           onInspect={onInspect}
           inspectHref={inspectHref}
@@ -563,6 +579,11 @@ export function ProfileEditor({
   // With statistics the off roles start as one-line summaries, so the section leads with the
   // primary pool; each opens in place. While editing they are all open.
   const [openRoles, setOpenRoles] = React.useState<ReadonlySet<Role>>(() => new Set());
+  // On a touch phone the off roles are one Fold under their heading (20 Nov 2026, PLAN S8a's Profile
+  // Overview heights): the page ends at the primary pool, and Show brings the off roles' rows back.
+  // Only with statistics (the profile) and not while editing; tablets and desktop are unchanged.
+  const offFold = usePhoneFold("off-roles");
+  const offFolds = !!stats && !live && offCount > 0;
   const toggleRole = (r: Role) => setOpenRoles((was) => (was.has(r) ? new Set([...was].filter((x) => x !== r)) : new Set([...was, r])));
 
   const renderSection = (o: { role: Role; pool: string[] }, i: number) => (
@@ -591,6 +612,7 @@ export function ProfileEditor({
       }
       actions={i > 0 ? removeButton(o.role, () => onRemove(i)) : undefined}
       collapsible={i > 0 && stats && !live ? { open: openRoles.has(o.role), onToggle: () => toggleRole(o.role) } : undefined}
+      phoneTop={i === 0 ? PRIMARY_POOL_PHONE_TOP : undefined}
     />
   );
 
@@ -632,14 +654,16 @@ export function ProfileEditor({
           <React.Fragment key={o.role}>
             {drag.lineBefore(i) ? <li aria-hidden className="h-1 rounded-full bg-accent" data-testid="role-drop-line" /> : null}
             {i === 1 ? (
-              <li aria-hidden className="border-t border-border/70 pt-3" data-testid="off-roles-heading">
-                <p className="text-2xs font-semibold uppercase tracking-label text-fg-subtle">
+              <li aria-hidden={offFolds ? undefined : true} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-border/70 pt-3" data-testid="off-roles-heading">
+                {/* The words wrap beside the phone's Show while they keep 6rem; with larger text Show goes under them. */}
+                <p aria-hidden className="min-w-0 shrink grow basis-24 text-2xs font-semibold uppercase tracking-label text-fg-subtle">
                   Off roles <span className="font-normal normal-case tracking-normal">· in order of preference</span>
                 </p>
+                {offFolds ? <PhoneFoldToggle open={offFold.open} onToggle={offFold.toggle} controls={sections.slice(1).map((x) => `role-section-${x.role.toLowerCase()}`).join(" ")} label={`the ${offCount === 1 ? "off role" : `${offCount} off roles`}`} testId="off-roles-fold" /> : null}
               </li>
             ) : null}
             {/* The primary pool is the section's body; each off role is a row of its own. */}
-            <li ref={drag.ref(i)} className={cn("relative", i > 0 && "rounded-panel border border-border/70 bg-surface-2/40 px-3 py-2", drag.dragging === i && "z-20 rounded-card bg-bg-elevated/95 shadow-2xl ring-1 ring-accent/50")} style={drag.style(i)} data-testid="role-section" data-role={o.role} data-dragging={drag.dragging === i || undefined}>
+            <li ref={drag.ref(i)} id={i > 0 ? `role-section-${o.role.toLowerCase()}` : undefined} className={cn("relative", i > 0 && "rounded-panel border border-border/70 bg-surface-2/40 px-3 py-2", i > 0 && offFolds && !offFold.open && PHONE_HIDDEN, drag.dragging === i && "z-20 rounded-card bg-bg-elevated/95 shadow-2xl ring-1 ring-accent/50")} style={drag.style(i)} data-testid="role-section" data-role={o.role} data-dragging={drag.dragging === i || undefined}>
               {renderSection(o, i)}
             </li>
           </React.Fragment>

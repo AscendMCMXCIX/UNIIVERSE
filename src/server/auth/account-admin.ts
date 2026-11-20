@@ -192,6 +192,29 @@ export async function setAccountActive(db: Db, actorId: string | null, userId: s
 }
 
 /**
+ * Reactivates a deactivated account with a new temporary password, for a deactivation made for
+ * security (a password that may be known to someone else): the old password never works again.
+ * The same guards as Reactivate and Reset password (never your own account, the Owner's only by the
+ * Owner, never the Production check's account, whose job keeps its password). In one transaction:
+ * the account is never left active with its old password.
+ */
+export async function reactivateWithTemporaryPassword(db: Db, actorId: string | null, userId: string): Promise<{ password: string; expiresAt: Date }> {
+  const target = await getUser(db, userId);
+  if (!target) throw new UserError("Account not found.");
+  if (actorId && actorId === userId) throw new UserError("Change your own password under Settings instead.");
+  guardVerificationAccount(actorId, target, "reset the password of");
+  await guardOwnerAccount(db, actorId, target, "reactivate");
+  if (target.isActive) throw new UserError("This account is already active: use Reset password instead. Nothing was changed.");
+  return db.transaction(async (tx) => {
+    // Read again inside: two calls at once, or a Reactivate between, must not issue a second password.
+    if ((await getUser(tx, userId))?.isActive) throw new UserError("This account is already active: use Reset password instead. Nothing was changed.");
+    const issued = await setTemporaryPassword(tx, userId);
+    await updateUser(tx, userId, { isActive: true });
+    return issued;
+  });
+}
+
+/**
  * Deletes the account. By default its player profile is archived, not deleted: statistics keep
  * pointing at the same profile; the same Riot ID can later get a new account, which reuses the
  * profile. `eraseProfile` removes the profile too (pools, Riot accounts, statistics, the retired

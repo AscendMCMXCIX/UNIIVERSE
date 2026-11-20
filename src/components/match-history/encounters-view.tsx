@@ -12,7 +12,7 @@ import type { EncounterPage } from "@/server/players/encounters";
 import { InfoTip } from "@/components/ui/info-tip";
 import { DataStatusNote, RefreshButton, type DataRefreshTarget } from "@/components/ui/data-status";
 import type { DataStatus } from "@/domain/data-status";
-import { Select } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { SearchInput } from "@/components/ui/search-input";
 import { chipClass, segmentClass, segmentedGroupClass } from "@/components/ui/segmented";
 import { FilterField } from "@/components/ui/filter-bar";
@@ -304,20 +304,8 @@ export function EncountersView({ data, basePath, status, refresh }: { data: Enco
               {/* The minimum and, where the column names are not shown, their orders as one Sort by
                   control: one line, from md (a phone has them in its Filters sheet, as chips). */}
               <div className="flex w-full gap-2 max-md:hidden @min-[40rem]/enc:ml-auto @min-[40rem]/enc:w-auto">
-                <Select aria-label="Minimum games" value={String(c.min)} disabled={pending} onChange={(e) => go({ min: Number(e.target.value) })} className="min-w-0 flex-1 @min-[40rem]/enc:w-auto @min-[40rem]/enc:flex-none" data-testid="encounter-min">
-                  {ENCOUNTER_MINIMUMS.map((n) => (
-                    <option key={n} value={n}>
-                      {minimumText(n)}
-                    </option>
-                  ))}
-                </Select>
-                <Select aria-label="Sort by" value={c.sort} disabled={pending} onChange={(e) => go({ sort: e.target.value as EncounterSort })} className={cn("min-w-0 flex-1", c.relation === "all" ? "@min-[60rem]/enc:hidden" : "@min-[40rem]/enc:hidden")} data-testid="encounter-sort">
-                  {sorts.map((k) => (
-                    <option key={k} value={k}>
-                      {SORT_LABEL[k]}
-                    </option>
-                  ))}
-                </Select>
+                <Select aria-label="Minimum games" value={String(c.min)} disabled={pending} onValueChange={(v) => go({ min: Number(v) })} className="min-w-0 flex-1 @min-[40rem]/enc:w-auto @min-[40rem]/enc:flex-none" data-testid="encounter-min" options={ENCOUNTER_MINIMUMS.map((n) => ({ value: String(n), label: minimumText(n) }))} />
+                <Select aria-label="Sort by" value={c.sort} disabled={pending} onValueChange={(v) => go({ sort: v as EncounterSort })} className={cn("min-w-0 flex-1", c.relation === "all" ? "@min-[60rem]/enc:hidden" : "@min-[40rem]/enc:hidden")} data-testid="encounter-sort" options={sorts.map((k) => ({ value: k, label: SORT_LABEL[k] }))} />
               </div>
             </div>
 

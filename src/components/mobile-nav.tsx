@@ -200,7 +200,7 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
               truncates, or goes on a tablet: BAR_FIT) only when a larger text size leaves the bar
               no room, so the bar never makes the page wider than the screen. Held sideways the mark
               alone, so the destinations have the room. */}
-          <Link href={home} prefetch={prefetchOf(home)} className={cn("flex min-h-11 min-w-0 items-center gap-2.5 rounded-md md:min-h-14 md:min-w-8 md:shrink-[1000] short:min-h-11 short:shrink-0", back ? "max-md:hidden short:hidden" : "max-md:pl-1.5 short:pl-1.5")} title={shortName} data-testid="mobile-brand">
+          <Link href={home} prefetch={prefetchOf(home)} className={cn("flex min-h-11 min-w-0 items-center gap-2.5 rounded-md md:min-h-14 md:min-w-8 md:shrink-[1000] short:min-h-11 short:shrink-0", back ? "max-md:hidden short:hidden" : "max-md:min-w-11 max-md:pl-1.5 short:pl-1.5")} title={shortName} data-testid="mobile-brand">
             <BrandMark src={logoSrc} still={logoStill} name={shortName} className="h-8 w-8 rounded-md text-base" />
             <span className={cn("min-w-0 transition-opacity duration-150 short:hidden", barFit.brand, (titleShown || barTitled) && "max-md:hidden")} data-testid="mobile-brand-name">
               <span className="block truncate text-sm font-bold tracking-label text-fg">{shortName}</span>

@@ -90,9 +90,12 @@ export async function demoDataAction(): Promise<Result<string>> {
   try {
     const session = await requirePermission("manage-data");
     const db = await getAppDb();
-    await recordAudit(db, session, { action: "demo.data", details: { change: "seed-roster" } });
     const r = await seedDemoRoster(db);
-    touch();
+    // Recorded only when the roster was created: players already there means nothing changed (S9c).
+    if (r.created) {
+      await recordAudit(db, session, { action: "demo.data", details: { change: "seed-roster" } });
+      touch();
+    }
     return { ok: true, data: r.created ? `Created ${r.created} demo players.` : "Players already exist; nothing created." };
   } catch (err) {
     return { ok: false, error: publicErrorMessage(err) };

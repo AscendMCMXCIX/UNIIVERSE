@@ -3,7 +3,7 @@
 import * as React from "react";
 import { ExternalLink, Laptop, Monitor, RotateCw, Smartphone, Tablet } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/cn";
+import { segmentClass, segmentedGroupClass } from "@/components/ui/segmented";
 
 const SCREENS = [
   { key: "login", label: "Sign in", src: "/preview/login" },
@@ -45,31 +45,31 @@ export function PreviewStudio() {
   return (
     <section className="space-y-3 rounded-card border border-border bg-surface p-3 sm:p-4" data-testid="preview-studio">
       <div className="flex flex-wrap items-center gap-2">
-        <div role="radiogroup" aria-label="Page" className="flex min-w-0 flex-wrap gap-0.5 rounded-lg border border-border bg-bg-elevated p-0.5">
+        <div role="radiogroup" aria-label="Page" className={segmentedGroupClass("flex-wrap overflow-visible")}>
           {SCREENS.map((s) => (
-            <button key={s.key} type="button" role="radio" aria-checked={screen === s.key} onClick={() => setScreen(s.key)} className={cn("min-h-9 rounded-md px-3 text-sm font-medium", screen === s.key ? "bg-surface-3 text-fg" : "text-fg-muted hover:text-fg")} data-testid={`preview-screen-${s.key}`}>
+            <button key={s.key} type="button" role="radio" aria-checked={screen === s.key} onClick={() => setScreen(s.key)} className={segmentClass(screen === s.key, { size: "md", className: "max-sm:max-w-full max-sm:whitespace-normal max-sm:text-center" })} data-testid={`preview-screen-${s.key}`}>
               {s.label}
             </button>
           ))}
         </div>
-        <div role="radiogroup" aria-label="Screen size" className="flex min-w-0 flex-wrap gap-0.5 rounded-lg border border-border bg-bg-elevated p-0.5">
+        <div role="radiogroup" aria-label="Screen size" className={segmentedGroupClass("flex-wrap overflow-visible")}>
           {DEVICES.map(({ key, label, icon: Icon }) => (
-            <button key={key} type="button" role="radio" aria-checked={device === key} onClick={() => setDevice(key)} className={cn("inline-flex min-h-9 items-center gap-1.5 rounded-md px-2.5 text-sm", device === key ? "bg-surface-3 text-fg" : "text-fg-muted hover:text-fg")} data-testid={`preview-device-${key}`}>
+            <button key={key} type="button" role="radio" aria-checked={device === key} onClick={() => setDevice(key)} className={segmentClass(device === key, { size: "md", className: "pointer-coarse:min-w-11" })} data-testid={`preview-device-${key}`}>
               <Icon className="h-4 w-4" aria-hidden /> <span className="max-sm:sr-only">{label}</span>
             </button>
           ))}
         </div>
-        <Button size="sm" variant="ghost" onClick={() => setLandscape((v) => !v)} aria-pressed={landscape} title="Turn the device">
-          <RotateCw className="h-4 w-4" /> {landscape ? "Landscape" : "Portrait"}
+        <Button size="sm" variant="ghost" onClick={() => setLandscape((v) => !v)} aria-pressed={landscape} data-testid="preview-rotate">
+          <RotateCw className="h-4 w-4" /> Rotate
         </Button>
         <Button size="sm" variant="ghost" onClick={() => setReload((n) => n + 1)}>
           Reset
         </Button>
-        <a href={src} target="_blank" rel="noreferrer" className="ml-auto inline-flex min-h-9 items-center gap-1.5 text-sm text-accent hover:underline">
+        <a href={src} target="_blank" rel="noreferrer" className="ml-auto inline-flex min-h-9 items-center gap-1.5 text-sm text-accent hover:underline pointer-coarse:min-h-11">
           Open full size <ExternalLink className="h-3.5 w-3.5" aria-hidden />
         </a>
       </div>
-      <p className="text-xs text-fg-subtle">
+      <p className="text-sm text-fg-subtle">
         {w} × {h} px{scale < 1 ? ` · shown at ${Math.round(scale * 100)}% to fit` : ""}. The page inside works as for a real visitor; anything typed or chosen stays here.
       </p>
       <div ref={box} className="w-full overflow-hidden">

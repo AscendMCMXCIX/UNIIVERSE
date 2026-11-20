@@ -193,6 +193,8 @@ test("profile Overview: a 2×2 dashboard at 1440 (the season beside recent form,
   await expect(primary.getByTestId("primary-pool-columns")).toHaveCount(1);
   await expect(primary.getByTestId("pool-item").first().getByTestId("pool-card-stats")).toBeVisible();
   await expect(page.getByTestId("champion-pools")).not.toContainText(/Played a lot|Played regularly|Not played lately|Some experience/);
+  // On a touch phone the off roles sit behind one Show under their heading (the next test).
+  if (info.project.name === "phone") await page.getByTestId("off-roles-fold").click();
   // Off roles: one line each, with the champions as portraits; the rows are behind "Show".
   const off = page.getByTestId("secondary-pool");
   await expect(off).toHaveAttribute("data-open", "false");
@@ -233,6 +235,76 @@ test("profile Overview: a 2×2 dashboard at 1440 (the season beside recent form,
   await expect(pools.getByTestId("pool-grip")).toHaveCount(0);
   await expect(off.getByTestId("secondary-pool-list")).toBeHidden();
   expect(await overflow(page)).toBeLessThanOrEqual(1);
+});
+
+// On a touch phone (posture.ts) Profile Overview keeps to about two screens (PLAN S8a): the primary
+// pool shows its top three champions with All N, the off roles are one Show under their heading, and
+// Ranked progress shows its heading and the current rank with a chevron for the rest. Nothing is
+// dropped: each is one tap away. A tablet sees the whole page, with no Fold buttons.
+test("profile Overview on a touch phone: the pools' top three, the off roles and ranked progress's details one tap away; tablets unchanged", async ({ page }, info) => {
+  test.skip(info.project.name === "desktop", "the phone's Folds, and the tablet without them");
+  await openTeammate(page);
+  const phone = info.project.name === "phone";
+  const primary = page.getByTestId("primary-pool");
+  const rows = primary.getByTestId("pool-item");
+  const total = await rows.count();
+  expect(total, "the demo's primary pool is longer than three").toBeGreaterThan(3);
+  const visibleRows = () => rows.evaluateAll((els) => els.filter((e) => e.getBoundingClientRect().height > 0).length);
+  const allFold = page.getByTestId("primary-pool-fold");
+  const offFold = page.getByTestId("off-roles-fold");
+  const rankedFold = page.getByTestId("ranked-fold");
+  if (!phone) {
+    for (const f of [allFold, offFold, rankedFold]) await expect(f).toBeHidden();
+    expect(await visibleRows()).toBe(total);
+    await expect(page.getByTestId("secondary-pool")).toBeVisible();
+    await expect(page.getByTestId("ranked-chart")).toBeVisible();
+    await expect(page.getByTestId("ranked-tracking")).toBeVisible();
+    return;
+  }
+  // The pool: the top three, then All N brings the rest in order, and Top 3 folds them again.
+  expect(await visibleRows()).toBe(3);
+  await expect(allFold).toHaveText(new RegExp(`^All ${total}`));
+  await expect(allFold).toHaveAttribute("aria-expanded", "false");
+  await allFold.click();
+  expect(await visibleRows()).toBe(total);
+  await expect(allFold).toHaveText(/^Top 3/);
+  await allFold.click();
+  expect(await visibleRows()).toBe(3);
+  // Off roles: hidden under their heading until Show.
+  await expect(page.getByTestId("secondary-pool")).toBeHidden();
+  await offFold.click();
+  await expect(offFold).toHaveAttribute("aria-expanded", "true");
+  await expect(page.getByTestId("secondary-pool")).toBeVisible();
+  // Ranked progress: the heading and the current rank stay; the rest is behind the chevron.
+  await expect(page.getByRole("heading", { name: /Ranked progress/ })).toBeVisible();
+  await expect(page.getByTestId("ranked-current")).toBeVisible();
+  for (const id of ["ranked-chart", "ranked-tracking", "ranked-queue-solo", "ranked-peak-stat"]) await expect(page.getByTestId(id), `${id} folded`).toBeHidden();
+  await expect(rankedFold).toHaveAccessibleName(/^Show the details of ranked progress$/);
+  const box44 = (await rankedFold.boundingBox())!;
+  expect(Math.min(box44.width, box44.height), "a 44px target").toBeGreaterThanOrEqual(44);
+  await rankedFold.click();
+  for (const id of ["ranked-chart", "ranked-tracking", "ranked-queue-solo", "ranked-peak-stat"]) await expect(page.getByTestId(id), `${id} shown`).toBeVisible();
+  await expect(rankedFold).toHaveAccessibleName(/^Hide the details of ranked progress$/);
+  // Editing shows every champion, as before.
+  await page.getByTestId("pools-edit").click();
+  expect(await visibleRows()).toBe(total);
+  await expect(allFold).toHaveCount(0);
+  await page.getByTestId("pools-edit").click();
+  expect(await visibleRows()).toBe(3);
+  // Back to the page reopens what was open (kept on the history entry), so the reader lands where they were.
+  await allFold.click();
+  expect(await visibleRows()).toBe(total);
+  await page.getByTestId("secondary-pool").scrollIntoViewIfNeeded();
+  const y = await page.evaluate(() => Math.round(window.scrollY));
+  // The tab bar has slid away with the scroll: its link is followed as a tap on it would be.
+  await page.getByTestId("phone-tabbar").getByRole("link").first().evaluate((a) => (a as HTMLAnchorElement).click());
+  await expect(page.getByTestId("primary-pool")).toHaveCount(0);
+  await page.goBack();
+  await expect(allFold).toHaveAttribute("aria-expanded", "true");
+  await expect(offFold).toHaveAttribute("aria-expanded", "true");
+  expect(await visibleRows()).toBe(total);
+  await expect(page.getByTestId("secondary-pool")).toBeVisible();
+  await expect.poll(() => page.evaluate(() => Math.round(window.scrollY)), { message: "the place on the page kept" }).toBeGreaterThan(y - 60);
 });
 
 // A pool's figures never shrink below their text (shrunk to a few pixels they read as one wrong

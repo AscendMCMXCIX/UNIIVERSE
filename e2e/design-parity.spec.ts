@@ -21,8 +21,9 @@ const TARGETS: Target[] = [
   { name: "Button", path: () => "/settings", selector: "main button:has-text('Change password')" },
   { name: "section tabs (current)", path: () => "/players", selector: "[data-testid=team-tabs] a[aria-current=page]", phoneSelector: "[data-testid=mobile-topbar] a[aria-current=page]" },
   { name: "InfoTip bubble", path: () => "/team", selector: "[data-testid=info-tip-bubble]", open: "[data-testid=team-header] [data-testid=info-tip]" },
-  // The phone shows All Champions' own sort, the desktop the Overview's game filter: both selectClass.
-  { name: "Select", path: (m) => m, phone: (m) => `${m}/champions`, selector: "main select", phoneSelector: "#all-champions-sort-by" },
+  // One Select (ui/select.tsx): the app's popover button on a desktop (the Overview's game filter), the
+  // browser's own select in the phone posture (All Champions' sort), both drawn by selectClass.
+  { name: "Select", path: (m) => m, phone: (m) => `${m}/champions`, selector: "main [data-select]", phoneSelector: "select#all-champions-sort-by" },
 ];
 
 /** Differences DESIGN_SYSTEM.md lists, by component and property, each with its reason. */

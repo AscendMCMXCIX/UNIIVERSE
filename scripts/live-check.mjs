@@ -239,7 +239,7 @@ function healthAndSecurity(playerId) {
   if (local) return warn("security", "security checks skipped", "LIVE_LOCAL=1: the demo build has no sign-in");
   const forged = `uniiverse_session=s1.${"x".repeat(40)}`;
   // Every Admin Mode page (#258; the rest since 19 Nov 2026) and the sign-in previews Admin Mode
-  // opens. /admin/users and /admin/players redirect to /admin/people; /admin/public-access to /public.
+  // opens. /admin/users and /admin/players redirect to /admin/people; /admin/public-access to /admin/branding#brand-public.
   // (Written out, not spread: src/server/ops/live-check-boundary.test.ts reads this list against docs/LIVE_VALIDATION.md.)
   const paths = ["/team", "/players", "/matches", "/leaderboards", "/overview", "/overview/accounts", "/me", "/settings", "/resources/matchups", "/admin", "/admin/players", "/admin/people", "/admin/audit", "/admin/system", "/admin/data", "/admin/people/access", "/admin/people/privacy", "/admin/branding", "/admin/previews", "/admin/resources", "/admin/settings", "/preview/login", "/preview/setup"];
   playerId ??= publicPlayerId();
@@ -317,6 +317,28 @@ async function memberRefusals(context) {
 }
 
 // ── Browser ───────────────────────────────────────────────────────────────────────────────────
+/**
+ * S8a's public pages: the app's h1 (no wordmark spacing), the public header's links at 14px, and
+ * from desktop width Privacy's table of contents still in view at the notice's end.
+ */
+async function publicPageFacts(page, kind, name) {
+  if (name === "sign-in" || name === "privacy") {
+    const tracking = await page.locator("h1").first().evaluate((h) => parseFloat(getComputedStyle(h).letterSpacing) || 0);
+    pass(kind, `public ${name}: the app's h1, without the wordmark's spacing`, tracking <= 0, { tracking });
+  }
+  if (name === "public-team") {
+    const sizes = await page.locator("nav[aria-label='Public pages']").locator("a, button").evaluateAll((els) => [...new Set(els.filter((e) => e.offsetParent).map((e) => getComputedStyle(e).fontSize))]);
+    pass(kind, "public team page: the header's links at 14px", sizes.length === 1 && sizes[0] === "14px", { sizes });
+  }
+  if (name === "privacy" && kind === "desktop") {
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    await page.waitForTimeout(150);
+    const box = await page.locator("[data-testid=privacy-index]").evaluate((n) => { const r = n.getBoundingClientRect(); return { top: Math.round(r.top), bottom: Math.round(r.bottom), height: innerHeight }; });
+    pass(kind, "privacy: the table of contents still in view at the notice's end", box.top >= 0 && box.bottom <= box.height, box);
+    await page.evaluate(() => window.scrollTo(0, 0));
+  }
+}
+
 const VIEWPORTS = {
   desktop: { viewport: { width: 1440, height: 900 } },
   tablet: { viewport: { width: 768, height: 1024 }, hasTouch: true, deviceScaleFactor: 2 },
@@ -1746,7 +1768,10 @@ if (!local) {
     for (const [name, path] of [["sign-in", "/login"], ["privacy", "/privacy"], ["home", "/"], ["public-team", "/public"]]) {
       await guarded(kind, `public ${name}`, async () => {
         if (path === "/public" && http(path).status !== 200) return check(kind, "public team page", "PASS", "not turned on: nothing public to check");
-        if (await visit(page, log, kind, `public-${name}`, path, { publicPage: true })) await axe(page, kind, `public-${name}`);
+        if (await visit(page, log, kind, `public-${name}`, path, { publicPage: true })) {
+          await axe(page, kind, `public-${name}`);
+          await guarded(kind, `public ${name}: S8a facts`, () => publicPageFacts(page, kind, name));
+        }
       });
     }
     await context.close();

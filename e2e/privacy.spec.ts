@@ -117,7 +117,7 @@ test("fits a phone held sideways, with finger-sized controls", async ({ browser,
   const copyBox = await guest.getByTestId("privacy-discord-copy").boundingBox();
   expect(copyBox!.height).toBeGreaterThanOrEqual(44);
   const indexBox = await guest.getByTestId("privacy-index").getByRole("link").first().boundingBox();
-  expect(indexBox!.height).toBeGreaterThanOrEqual(40);
+  expect(indexBox!.height).toBeGreaterThanOrEqual(44);
   await context.close();
 });
 
@@ -155,4 +155,49 @@ test("browser storage Clash Scout left behind is deleted on the next visit, from
   await expect
     .poll(() => page.evaluate(async () => ({ draft: localStorage.getItem("uniiverse.clash-scout.draft.v1"), cache: (await indexedDB.databases()).some((d) => d.name === "keyval-store") })))
     .toEqual({ draft: null, cache: false });
+});
+
+test("from 1280px the table of contents stays beside the notice while it scrolls; below lg it is the chips under the title", async ({ browser, baseURL }, info) => {
+  test.skip(info.project.name !== "desktop", "the desktop table of contents");
+  for (const width of [1280, 1440]) {
+    const context = await browser.newContext({ viewport: { width, height: 800 } });
+    await context.addCookies([{ name: GUEST_COOKIE, value: "1", url: baseURL! }]);
+    const guest = await context.newPage();
+    await guest.goto("/privacy");
+    const index = guest.getByTestId("privacy-index");
+    const contact = await guest.getByTestId("privacy-contact").boundingBox();
+    const at = await index.boundingBox();
+    expect(at!.x + at!.width, `${width}: the table sits left of the notice`).toBeLessThanOrEqual(contact!.x);
+    await guest.getByTestId("privacy-index").getByRole("link", { name: "Your choices" }).click();
+    await expect(guest.getByRole("heading", { name: "Your choices", level: 2 })).toBeInViewport();
+    await expect(index, `${width}: still in view at the notice's end`).toBeInViewport({ ratio: 1 });
+    expect(await fitsWidth(guest)).toBe(true);
+    await context.close();
+  }
+});
+
+test("the public pages in the app's voice: the app's h1, 14px header links, the recovery instructions folded", async ({ browser, baseURL }, info) => {
+  test.skip(info.project.name !== "desktop", "type and a fold: one size");
+  const context = await browser.newContext();
+  await context.addCookies([{ name: GUEST_COOKIE, value: "1", url: baseURL! }]);
+  const guest = await context.newPage();
+  const h1 = (p: Page) => p.getByRole("heading", { level: 1 }).first().evaluate((h) => ({ size: getComputedStyle(h).fontSize, tracking: parseFloat(getComputedStyle(h).letterSpacing) || 0 }));
+  for (const path of ["/login", "/recover", "/privacy", "/public"]) {
+    await guest.goto(path);
+    const t = await h1(guest);
+    // The wordmark's 0.2em spacing is the team's name only; titles are tight (tracking-tight, negative).
+    expect(t.tracking, `${path}: no wide letter-spacing`).toBeLessThanOrEqual(0);
+    if (path !== "/public") expect(t.size, path).toBe("24px");
+  }
+  await guest.goto("/public");
+  const sizes = await guest.getByRole("navigation", { name: "Public pages" }).locator("a, button").evaluateAll((els) => els.filter((e) => (e as HTMLElement).offsetParent).map((e) => getComputedStyle(e).fontSize));
+  expect(sizes.length).toBeGreaterThanOrEqual(3);
+  expect(new Set(sizes)).toEqual(new Set(["14px"]));
+  await guest.goto("/recover");
+  const fold = guest.getByTestId("recover-instructions");
+  await expect(fold).toBeVisible();
+  await expect(fold.locator("pre")).toBeHidden();
+  await fold.locator("summary").click();
+  await expect(fold.locator("pre")).toBeVisible();
+  await context.close();
 });

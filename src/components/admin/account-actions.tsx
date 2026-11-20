@@ -4,14 +4,14 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Check, Copy } from "lucide-react";
 import type { AccountView } from "@/server/auth/account-admin";
-import { deleteAccountAction, deleteProfileAction, resetPasswordAction, setAccountActiveAction } from "@/server/actions/users";
-import { Badge, type BadgeTone } from "@/components/ui/badge";
+import { deleteAccountAction, deleteProfileAction, resetPasswordAction, reactivateWithTemporaryPasswordAction, setAccountActiveAction } from "@/server/actions/users";
+import type { BadgeTone } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog, Dialog } from "@/components/ui/dialog";
 import { Input, Label } from "@/components/ui/input";
 import { toast } from "@/components/ui/toast";
 import { useBrandNames } from "@/components/brand-names";
-import { formatDateTime, formatDayMonth } from "@/lib/format";
+import { formatDateTime } from "@/lib/format";
 import { typedMatches } from "@/domain/typed-confirmation";
 
 /** An account's state in one word an admin acts on. */
@@ -31,34 +31,6 @@ export function accountStatus(account: Pick<AccountView, "isActive" | "setupComp
   return "active";
 }
 
-/** Account state in one badge: what an admin needs to know at a glance. */
-export function AccountStatusBadge({ account }: { account: AccountView }) {
-  const s = ACCOUNT_STATUS[accountStatus(account)];
-  return (
-    <Badge tone={s.tone} title={s.hint}>
-      {s.label}
-    </Badge>
-  );
-}
-
-const PASSWORD_TEXT: Record<Exclude<AccountView["password"]["state"], "set">, { label: string; tone: BadgeTone; hint: string }> = {
-  temporary: { label: "Temporary password", tone: "info", hint: "They choose their own password at their next sign-in." },
-  expired: { label: "Temporary password expired", tone: "warn", hint: "Reset the password to give them a new one." },
-  none: { label: "No password yet", tone: "warn", hint: "Create a temporary password so they can sign in." },
-};
-
-/** The password state, only when it needs attention (a permanent password shows nothing). */
-export function PasswordStateBadge({ account }: { account: AccountView }) {
-  if (account.password.state === "set") return null;
-  const c = PASSWORD_TEXT[account.password.state];
-  const until = account.password.state === "temporary" && account.password.expiresAt ? ` · until ${formatDayMonth(account.password.expiresAt)}` : "";
-  return (
-    <Badge tone={c.tone} title={c.hint}>
-      {c.label}
-      {until}
-    </Badge>
-  );
-}
 
 /** The temporary password, shown once, with copy and plain instructions for the player. */
 export function TemporaryPasswordBox({ username, password, expiresAt }: { username: string; password: string; expiresAt: string }) {
@@ -187,7 +159,7 @@ export function AccountActions({ account, currentUserId, viewerIsOwner = false, 
   const router = useRouter();
   const [busy, setBusy] = React.useState(false);
   const [issued, setIssued] = React.useState<{ temporaryPassword: string; expiresAt: string } | null>(null);
-  const [confirming, setConfirming] = React.useState<"reset" | "deactivate" | "delete" | null>(null);
+  const [confirming, setConfirming] = React.useState<"reset" | "deactivate" | "reactivate" | "reactivate-new" | "delete" | null>(null);
   const [typed, setTyped] = React.useState("");
   const self = account.userId === currentUserId;
   const run = async <T,>(fn: () => Promise<{ ok: true; data: T } | { ok: false; error: string }>, done: string | null, deletes = false): Promise<T | null> => {
@@ -222,14 +194,23 @@ export function AccountActions({ account, currentUserId, viewerIsOwner = false, 
           {account.password.state === "none" ? "Create temporary password" : "Reset password"}
         </Button>
       ) : null}
-      {only === "password" ? null : account.isActive ? (
+      {/* Reactivate belongs with the password (the person view's Password section; the Danger zone for the Production check's account, which has none), Deactivate with the Danger zone. */}
+      {account.isActive ? (only === "password" ? null : (
         <Button size="sm" variant="ghost" wrap disabled={busy} onClick={() => setConfirming("deactivate")}>
           Deactivate
         </Button>
-      ) : (
-        <Button size="sm" variant="ghost" wrap disabled={busy} onClick={() => void run(() => setAccountActiveAction(account.userId, true), `${account.username} reactivated; their password works again.`)}>
-          Reactivate
-        </Button>
+      )) : only === "danger" && !account.keptAutomatically ? null : (
+        <>
+          <Button size="sm" variant="ghost" wrap disabled={busy} onClick={() => setConfirming("reactivate")} data-testid="reactivate">
+            Reactivate
+          </Button>
+          {/* For a deactivation made for security: the old password never works again (not for the Production check's account, whose job keeps its password). */}
+          {account.keptAutomatically ? null : (
+            <Button size="sm" variant="ghost" wrap disabled={busy} onClick={() => setConfirming("reactivate-new")} data-testid="reactivate-new-password">
+              Reactivate with a new temporary password
+            </Button>
+          )}
+        </>
       )}
       {only === "password" ? null : (
         <Button size="sm" variant="ghost" className="text-bad" wrap disabled={busy} onClick={() => setConfirming("delete")} data-testid="delete-account">
@@ -254,6 +235,24 @@ export function AccountActions({ account, currentUserId, viewerIsOwner = false, 
         confirmLabel="Deactivate"
         onCancel={() => setConfirming(null)}
         onConfirm={() => void run(() => setAccountActiveAction(account.userId, false), `${account.username} deactivated.`)}
+      />
+      <ConfirmDialog
+        open={confirming === "reactivate"}
+        busy={busy}
+        title={`Reactivate ${account.username}?`}
+        description="They can sign in again with the password they had. If they were deactivated for security, reactivate with a new temporary password instead."
+        confirmLabel="Reactivate"
+        onCancel={() => setConfirming(null)}
+        onConfirm={() => void run(() => setAccountActiveAction(account.userId, true), `${account.username} reactivated; their password works again.`)}
+      />
+      <ConfirmDialog
+        open={confirming === "reactivate-new"}
+        busy={busy}
+        title={`Reactivate ${account.username} with a new temporary password?`}
+        description="Their old password never works again. You get a temporary password to give them; they choose a new one at their next sign-in."
+        confirmLabel="Reactivate with a new password"
+        onCancel={() => setConfirming(null)}
+        onConfirm={() => void run(() => reactivateWithTemporaryPasswordAction(account.userId), `${account.username} reactivated with a new temporary password.`).then((d) => d && setIssued(d))}
       />
       {withProfile ? (
         <Dialog
