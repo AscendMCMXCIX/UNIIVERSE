@@ -994,6 +994,21 @@ test("phone: the first screen holds the glance (every enemy tile's cooldown line
   }
 });
 
+test("phone: in the bot lane at 390 by 844 the first screen holds both enemies' tiles (two rows of five, each with its cooldown line) and the evidence's first row (PLAN S7)", async ({ page }) => {
+  test.skip((page.viewportSize()?.width ?? 1000) >= 640, "a phone");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/resources/matchups?role=adc&champion=Jinx&ally=Lulu&vs=Caitlyn&vs2=Lux");
+  await hydrated(page);
+  const m = await page.evaluate(() => ({
+    bar: document.querySelector('[data-testid="phone-tabbar"]')!.getBoundingClientRect().top,
+    rows: ["glance-enemy", "glance-enemy2"].map((id) => [...document.querySelectorAll(`[data-testid="${id}"] [data-testid="glance-cooldown"]`)].map((e) => e.getBoundingClientRect().bottom)),
+    evidence: document.querySelector('[data-testid="glance-evidence"]')!.getBoundingClientRect().bottom,
+  }));
+  expect(m.rows.map((r) => r.length)).toEqual([5, 5]);
+  expect(Math.max(...m.rows.flat()), "every tile's cooldown line").toBeLessThanOrEqual(m.bar);
+  expect(m.evidence, "the evidence's first row").toBeLessThanOrEqual(m.bar);
+});
+
 test("phone: a cooldown's dot and a source's comma never start a line, and a link's icon stays with its last word", async ({ page }) => {
   test.skip((page.viewportSize()?.width ?? 1000) >= 768, "a phone");
   for (const width of [320, 393]) {
