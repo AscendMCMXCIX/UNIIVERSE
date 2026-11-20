@@ -9,6 +9,9 @@ import { invalidatePublicTeam } from "@/server/public/team";
 import { normaliseSocialLinks, SOCIAL_LABELS, type SocialKind, type SocialLinks } from "@/domain/social-links";
 import { decodeDataUrl } from "@/server/images";
 import { isVerificationAccount } from "@/server/auth/verification-account";
+import { SESSION_COOKIE } from "@/server/auth/session";
+import { revokeOtherSessions } from "@/server/auth/sessions";
+import { cookies } from "next/headers";
 
 /** The verification account keeps the name its job gives it (server/jobs/verify-account.ts). */
 const KEPT_BY_JOB = "This account's name and password are kept by the verify-account job; they cannot be changed here.";
@@ -22,7 +25,9 @@ type Result<T = null> = { ok: true; data: T } | { ok: false; error: string };
 
 const fail = (err: unknown): Result<never> => ({ ok: false, error: err instanceof UserError || (err as Error).name === "NotAuthorizedError" ? (err as Error).message : "Something went wrong. Please try again." });
 
+/** Every change here shows on the public team page too: it refreshes on the next request instead of within its cache's minute. */
 function touch() {
+  invalidatePublicTeam();
   for (const path of ["/settings", "/players", "/team", "/overview"]) revalidatePath(path);
   revalidatePath("/", "layout");
 }
@@ -83,7 +88,6 @@ export async function saveSocialLinksAction(input: Partial<Record<SocialKind, { 
     const r = normaliseSocialLinks(input);
     if (!r.ok) return { ok: false, error: `${SOCIAL_LABELS[r.kind]}: ${r.error}` };
     await setSocialLinks(await getAppDb(), session.playerId, r.links);
-    invalidatePublicTeam();
     touch();
     return { ok: true, data: { links: r.links } };
   } catch (err) {
@@ -113,6 +117,23 @@ export async function removeAvatarAction(): Promise<Result> {
     if (!session.userId) return { ok: false, error: "No account session." };
     await removeAvatar(await getAppDb(), session.userId);
     touch();
+    return { ok: true, data: null };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/**
+ * Settings → Sign out of other devices: ends every session of the account except this one. Not
+ * audited (members' own changes wait for the owner's decision OD9), and no count is returned.
+ */
+export async function signOutOtherDevicesAction(): Promise<Result> {
+  try {
+    const session = await requireSession();
+    if (!session.userId) return { ok: false, error: "No account session." };
+    const token = (await cookies()).get(SESSION_COOKIE)?.value;
+    if (!token) return { ok: false, error: "No account session." };
+    await revokeOtherSessions(await getAppDb(), session.userId, token);
     return { ok: true, data: null };
   } catch (err) {
     return fail(err);

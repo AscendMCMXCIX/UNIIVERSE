@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { GENERAL_RULE_TIP, cooldownAtHaste, hasteMarkWords, type HasteBasis } from "@/domain/matchup-intel/haste";
+import { InfoTip } from "@/components/ui/info-tip";
 import { formatPerRank } from "@/lib/format";
 import { HasteContext } from "./matchup-frame";
 
@@ -9,7 +10,11 @@ import { HasteContext } from "./matchup-frame";
   An ability's cooldown at the haste chosen in the bar (docs/MATCHUP_INTEL.md, "Cooldowns at a
   haste"), under its base line: nothing at 0 haste (the base line says it all), otherwise the value
   at that haste where Riot's general rule applies, the base where the checked notes mark it static
-  or leave it open, and which case it is, in words. Never a timer or "ready at".
+  or leave it open, and which case it is, in words. Never a timer or "ready at". "Riot's general
+  rule" opens what the rule rests on (GENERAL_RULE_TIP): the shared InfoTip with the mark's own words
+  as its trigger (a tap on touch screens, hover or focus elsewhere), never a hover-only title
+  (DESIGN_SYSTEM §7, "Explain"). The space before it is its own: inside the trigger a line's leading
+  space is not drawn.
 */
 
 export function HasteLine({ basis }: { basis: HasteBasis }) {
@@ -24,9 +29,18 @@ export function HasteLine({ basis }: { basis: HasteBasis }) {
       <span className={hasted ? "font-semibold tabular-nums text-fg" : "tabular-nums"} data-testid="ability-haste-value">
         {value}
       </span>
-      <span className="text-2xs text-fg-subtle" title={hasted ? GENERAL_RULE_TIP : undefined} data-testid="ability-haste-mark">
-        {` · ${hasteMarkWords(basis)}`}
-      </span>
+      {hasted ? (
+        <>
+          {" "}
+          <InfoTip text={GENERAL_RULE_TIP} testId="ability-haste-rule" className="touch-target text-2xs text-fg-subtle">
+            <span data-testid="ability-haste-mark">{` · ${hasteMarkWords(basis)}`}</span>
+          </InfoTip>
+        </>
+      ) : (
+        <span className="text-2xs text-fg-subtle" data-testid="ability-haste-mark">
+          {` · ${hasteMarkWords(basis)}`}
+        </span>
+      )}
     </p>
   );
 }

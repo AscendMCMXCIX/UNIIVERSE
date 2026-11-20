@@ -571,8 +571,10 @@ changes. Every case says which it is (`src/domain/matchup-intel/haste.ts`):
 | Charges' recharge, a passive's own cooldown | the base only | "How haste applies is not in Riot's data" |
 | No number | nothing | — |
 
-The rule is Riot's published one (patch 10.23); its tip says Riot's data does not list the abilities
-it does not apply to and that checked notes cover 6 champions. **Of the 24 checked cooldowns**, the
+The rule is Riot's published one (patch 10.23); its tip (the mark "Riot's general rule" opens it, the
+shared InfoTip: a tap on a touch screen, hover or focus elsewhere; never a hover-only title) says
+Riot's data does not list the abilities it does not apply to and that checked notes cover 6
+champions. **Of the 24 checked cooldowns**, the
 notes mark none as static (their two static marks are lockouts between casts, said in words), leave
 one open (Death's Grasp, base only), and the rule is applied to the other 23: the notes record
 nothing that contradicts it, which is not the same as having checked each hasted value. Summoner

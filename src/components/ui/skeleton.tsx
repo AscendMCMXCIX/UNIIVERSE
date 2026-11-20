@@ -17,7 +17,7 @@ export function PageSkeleton({ panels = 3, title = true, width = "max" }: { pane
       {title ? (
         <div className="space-y-2">
           <Skeleton className="h-6 w-48" />
-          <Skeleton className="h-4 w-80" />
+          <Skeleton className="h-4 w-80 max-w-full" />
         </div>
       ) : null}
       {Array.from({ length: panels }, (_, i) => (
@@ -74,6 +74,156 @@ export function OverviewSkeleton() {
         </div>
       </div>
       <p className="sr-only">Loading…</p>
+    </div>
+  );
+}
+
+/*
+  Skeletons in their page's shape (UD.X4, P3): rows, a table, cards and a lineup, each with the same
+  container rules and heights as the page it stands for (measured at 1440 × 900 on 19 Nov 2026), so
+  nothing jumps sideways or changes columns when the content arrives. Hidden from screen readers
+  but for the status and its "Loading…".
+*/
+
+/** A section's heading: the title, then its scope line, at the heights PageHeader and SectionHeader draw them. */
+function HeadingSkeleton({ title = "w-40", tall = false }: { title?: string; tall?: boolean }) {
+  return (
+    <div className="space-y-2">
+      <Skeleton className={cn(tall ? "h-8" : "h-7", title)} />
+      <Skeleton className="h-4 w-[min(20rem,100%)]" />
+    </div>
+  );
+}
+
+/** A row's placeholder: a picture, then its name and a quieter line. */
+function RowSkeleton({ className, picture = "h-10 w-10 rounded-full" }: { className?: string; picture?: string }) {
+  return (
+    <div className={cn("flex items-center gap-3 px-3", className)}>
+      <Skeleton className={cn("shrink-0", picture)} />
+      <div className="min-w-0 flex-1 space-y-2">
+        <Skeleton className="h-4 w-36 max-w-full" />
+        <Skeleton className="h-3 w-52 max-w-full" />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Players (players-directory.tsx): the title and its count, the toolbar, then one panel of 64px rows,
+ * one, two or three across by the roster's own width (two from 38rem, three from 84rem), at the
+ * page's width (80rem, Team's 100rem from a 1600px window).
+ */
+export function PlayersSkeleton() {
+  return (
+    <div className={cn("space-y-4", PAGE_WIDTH.wideFrom1600)} role="status" aria-live="polite" aria-label="Loading" data-testid="players-skeleton">
+      <div className="space-y-4">
+        <div className="space-y-1">
+          <Skeleton className="h-8 w-24" />
+          <Skeleton className="h-5 w-28" />
+        </div>
+        <Skeleton className="h-11 w-full md:pointer-fine:h-9" />
+      </div>
+      <div className="@container/roster overflow-clip rounded-card border border-border bg-surface panel-depth" aria-hidden>
+        <div className="-mb-px -mr-px grid grid-cols-1 @min-[38rem]/roster:grid-cols-2 @min-[84rem]/roster:grid-cols-3">
+          {Array.from({ length: 9 }, (_, i) => (
+            <RowSkeleton key={i} className="h-16 border-b border-r border-border/60" />
+          ))}
+        </div>
+      </div>
+      <p className="sr-only">Loading…</p>
+    </div>
+  );
+}
+
+/**
+ * All Champions (all-champions.tsx), under the profile's header and tabs: its heading, then the
+ * table's panel: the search row, the column headings and the champions' rows.
+ */
+export function ChampionsSkeleton() {
+  return (
+    <div className="space-y-3" role="status" aria-live="polite" aria-label="Loading" data-testid="champions-skeleton">
+      <HeadingSkeleton />
+      <div className="rounded-card border border-border bg-surface panel-depth" aria-hidden>
+        <div className="flex items-center gap-3 border-b border-border px-3 py-2.5">
+          <Skeleton className="h-11 w-full max-w-xs md:pointer-fine:h-9" />
+        </div>
+        <div className="flex h-9.5 items-center border-b border-border px-3">
+          <Skeleton className="h-3 w-24" />
+        </div>
+        <div className="divide-y divide-border/60">
+          {Array.from({ length: 6 }, (_, i) => (
+            <RowSkeleton key={i} className="h-14" picture="h-9 w-9 rounded-md" />
+          ))}
+        </div>
+      </div>
+      <p className="sr-only">Loading…</p>
+    </div>
+  );
+}
+
+/**
+ * Match History (match-history-view.tsx), under the profile's header and tabs: the views and the
+ * scope line, the season's summary strip, then game cards (about 100px each on a wide card).
+ */
+export function HistorySkeleton() {
+  return (
+    <div className="space-y-3" role="status" aria-live="polite" aria-label="Loading" data-testid="history-skeleton">
+      <div className="space-y-1">
+        <Skeleton className="h-11 w-56 md:pointer-fine:h-9" />
+        <Skeleton className="h-4 w-[min(20rem,100%)]" />
+      </div>
+      <Skeleton className="h-11 w-full rounded-panel" />
+      <div className="space-y-1.5" aria-hidden>
+        {Array.from({ length: 5 }, (_, i) => (
+          <div key={i} className="h-36 rounded-panel border border-border bg-surface sm:h-26" />
+        ))}
+      </div>
+      <p className="sr-only">Loading…</p>
+    </div>
+  );
+}
+
+/**
+ * Team Overview (team-roster.tsx): the team's header (logo, name and the lineup's state) above the
+ * five cards, with the lineup's widths and its columns (one card on a phone, 3 + 2 from a 36rem
+ * lineup, five across from 56rem: S3a), centred in the height under the tabs as the lineup is
+ * (data-fills-height). On a phone the header is its one line (S2b: the top bar carries the logo and
+ * the name).
+ */
+export function LineupSkeleton() {
+  return (
+    <div className="mx-auto flex w-full max-w-[var(--content-wide)] flex-col lg:flex-1" role="status" aria-live="polite" aria-label="Loading" data-testid="lineup-skeleton">
+      <div className="@container/lineup flex flex-col gap-5 lg:flex-1 lg:justify-center lg:gap-6" data-fills-height>
+        <div className="mx-auto flex w-full max-w-[26rem] items-center gap-3 @xl:max-w-[54rem] @4xl:max-w-[80rem] @5xl:max-w-[84rem] min-[120rem]:@5xl:max-w-full sm:gap-4" aria-hidden>
+          <Skeleton className="h-12 w-12 shrink-0 rounded-panel max-sm:hidden max-lg:short:hidden sm:h-16 sm:w-16 lg:h-20 lg:w-20" />
+          <div className="min-w-0 flex-1 space-y-2">
+            <Skeleton className="h-7 w-48 max-w-full max-sm:hidden max-lg:short:hidden lg:h-9" />
+            <Skeleton className="h-4 w-36 max-w-full" />
+          </div>
+        </div>
+        <div className="mx-auto grid w-full max-w-[26rem] grid-cols-1 gap-3 @xl:max-w-[54rem] @xl:grid-cols-6 @4xl:max-w-[84rem] @4xl:grid-cols-5 @7xl:gap-5 min-[120rem]:@5xl:max-w-full" aria-hidden>
+          {Array.from({ length: 5 }, (_, i) => (
+            <div key={i} className={cn("h-116 rounded-card border border-border bg-surface panel-depth @xl:col-span-2 @4xl:col-span-1", i > 0 && "hidden @xl:block", i === 3 && "@xl:col-start-2 @4xl:col-start-auto")} />
+          ))}
+        </div>
+      </div>
+      <p className="sr-only">Loading…</p>
+    </div>
+  );
+}
+
+/**
+ * A profile opened from outside it (players/[id]: the boundary above the profile's layout): the
+ * header as tall as it is drawn (the band from sm; the full card on a phone held upright), the
+ * section tabs, then the section's own skeleton.
+ */
+export function ProfileSkeleton({ section }: { section: "overview" | "champions" | "matches" | "accounts" }) {
+  return (
+    <div className="max-w-[var(--content-max)] space-y-4" role="status" aria-live="polite" aria-label="Loading" data-testid="profile-skeleton">
+      {/* On a phone held upright the band of Champions, History and Accounts is in the top bar (S2b), and the section tabs are always there. */}
+      <div className={cn("h-36 rounded-card border border-border bg-surface band:h-18", section !== "overview" && "max-md:not-short:hidden")} aria-hidden />
+      <Skeleton className="h-11 w-full max-w-lg max-md:hidden max-lg:short:hidden" />
+      {section === "overview" ? <OverviewSkeleton /> : section === "champions" ? <ChampionsSkeleton /> : section === "matches" ? <HistorySkeleton /> : <PageSkeleton panels={2} title={false} />}
     </div>
   );
 }

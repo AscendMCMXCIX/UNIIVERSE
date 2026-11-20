@@ -130,8 +130,9 @@ describe("navigation entries", () => {
     // A teammate's profile sits under Players' address, in the profile's own (ordinary) width.
     for (const path of ["/players/p1", "/players/p1/matches", "/resources", "/resources/matchups", "/admin/branding", "/settings", "/overview"]) expect(pageWidthOf(path), path).toBe("max");
     expect(PAGE_WIDTH).toEqual({ max: "max-w-[var(--content-max)]", wide: "max-w-[var(--content-wide)]", wideFrom1600: "max-w-[var(--content-max)] min-[100rem]:max-w-[var(--content-wide)]" });
-    // The row of tabs is the bar's width under 1600px, as it always was, and the set's width from there.
-    expect(ROW_WIDTH).toEqual({ max: "min-[100rem]:max-w-[var(--content-max)]", wide: "min-[100rem]:max-w-[var(--content-wide)]" });
+    // The row of tabs is the bar's width under 1600px, as it always was, and the set's width from
+    // there, starting at the shared frame's left edge (a narrower set's row is not centred: S2c).
+    expect(ROW_WIDTH).toEqual({ max: "min-[100rem]:max-w-[var(--content-max)] min-[100rem]:ml-[max(0px,calc((100%-var(--content-wide))/2))]", wide: "min-[100rem]:max-w-[var(--content-wide)]" });
   });
 });
 

@@ -1,5 +1,5 @@
 import { expect, test, type Locator } from "./test";
-import { memberContext } from "./member-account";
+import { grantAdministrator, memberContext } from "./member-account";
 
 /*
   On a 320px phone, the narrowest docs/MOBILE.md supports, what a row is about wraps rather than
@@ -121,6 +121,8 @@ test("at 150%, 175% and 200% text on 320px and 375px phones, a profile's header 
     await page.setViewportSize({ width, height: 800 });
     for (const [i, profile] of profiles.entries())
       for (const section of ["", "/champions"]) {
+        // The band shows in the page only in a short window on a phone (upright it rides in the top bar, S2b).
+        await page.setViewportSize({ width, height: section ? 400 : 800 });
         await page.goto(`${profile}${section}`);
         await expect(page.getByTestId("profile-header")).toBeVisible();
         await page.evaluate(() => document.fonts.ready);
@@ -151,6 +153,8 @@ test("with the browser's own text at twice its size on a 320px phone, a profile'
   await page.goto("/team");
   const profile = `/players/${await page.getByTestId("lineup-row-SUPPORT").getAttribute("data-player-id")}`;
   for (const section of ["", "/champions"]) {
+    // The band shows in the page only in a short window on a phone (upright it rides in the top bar, S2b).
+    await page.setViewportSize({ width: 320, height: section ? 400 : 800 });
     await page.goto(`${profile}${section}`);
     await expect(page.getByTestId("profile-header")).toBeVisible();
     await page.evaluate(() => document.fonts.ready);
@@ -249,17 +253,7 @@ test("at 200% and 150% text on 320, 375 and 393px phones, an administrator who i
   try {
     // The owner grants administrator access in Users & Permissions (again until the page has hydrated).
     await owner.goto("/admin/people");
-    const dialog = owner.getByTestId("access-dialog");
-    await expect(async () => {
-      await owner.getByTestId("people-search").fill(member.username);
-      await owner.getByTestId("admin-player-row").filter({ hasText: member.username }).getByTestId("open-access").click({ timeout: 2_000 });
-      await expect(dialog).toBeVisible({ timeout: 2_000 });
-    }).toPass({ timeout: 30_000 });
-    const access = dialog.getByTestId("administrator-access");
-    await access.getByText("Administrator access").click();
-    await expect(access.getByLabel("Administrator access")).toBeChecked();
-    await owner.getByTestId("save-access").click();
-    await expect(owner.getByTestId("admin-player-row").filter({ hasText: member.username })).toContainText("Administrator");
+    await grantAdministrator(owner, member.username);
     // Their phone, in Admin Mode.
     const phone = await browser.newContext({ storageState: await member.context.storageState(), viewport: { width: 320, height: 700 }, isMobile: true, hasTouch: true });
     try {

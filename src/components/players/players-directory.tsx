@@ -82,6 +82,7 @@ export function PlayersDirectory({ entries, championsById, archived = null, myPr
         <PageHeader
           className="max-md:short:min-[35rem]:max-w-[15rem] max-md:short:min-[35rem]:shrink-0 [&_p]:text-balance"
           title="Players"
+          sectionNamed
           description={
             <span aria-live="polite" data-testid="players-scope">
               {scopeLine}
@@ -112,7 +113,9 @@ export function PlayersDirectory({ entries, championsById, archived = null, myPr
           }}
           align="end"
           compact
-          search={<SearchInput value={query} onChange={setQuery} placeholder="Search by name or Riot ID" label="Search players by name or Riot ID" testId="players-search" />}
+          // One filter interface on every phone, upright and held sideways: the Filters sheet (UM.P1, X3).
+          foldBelow="phone"
+          search={<SearchInput value={query} onChange={setQuery} placeholder="Name or Riot ID" label="Search players by name or Riot ID" testId="players-search" />}
         >
           <FilterField label="Role" labelId="players-role-label">
             <RoleSegmented label="Filter by role" roles={ROLES} value={filtered} onChange={(r) => setRole(r ?? "ALL")} allowAll compactBelow="xl" testId="role-filter" />

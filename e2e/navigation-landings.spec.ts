@@ -72,6 +72,8 @@ test("Match History's next page starts with its first game under the bars, not a
 test("phones: the current tab on its own page, the current section in the top bar's row, and the page's title in the top bar, go back to the top", async ({ page }, info) => {
   test.skip(info.project.name !== "phone", "the phone tab bar");
   await page.emulateMedia({ reducedMotion: "reduce" });
+  // A tall phone, whose bars stay put while the page scrolls (under 700px tall they slide away: docs/MOBILE.md, "The frame slides away").
+  await page.setViewportSize({ width: 393, height: 852 });
   // Matchup Intel's tab on its own page.
   await page.goto("/resources");
   await page.evaluate(() => window.scrollTo(0, 400));
@@ -218,8 +220,8 @@ test("Skip to content is the first stop on the page and moves focus to the page 
 test("phones: a dialog is the one shared sheet, docked to the bottom edge with its handle", async ({ page, context, baseURL }, info) => {
   test.skip(info.project.name !== "phone", "the phone sheet");
   await context.addCookies([{ name: "uniiverse_view", value: "admin", url: baseURL! }]);
-  await page.goto("/admin/people");
-  const open = page.locator("[data-testid=open-access]:not([disabled])").first();
+  await page.goto("/admin/people/access");
+  const open = page.getByRole("button", { name: "New level" });
   const dialog = page.locator("dialog[open]");
   await expect(async () => {
     if (!(await dialog.isVisible())) await open.click({ timeout: 2_000 });
@@ -237,6 +239,8 @@ test("phones: a dialog is the one shared sheet, docked to the bottom edge with i
 test("phones: Matchup Intel's tab, on its own page, keeps the pair and goes back to the top, fetching nothing", async ({ page }, info) => {
   test.skip(info.project.name !== "phone", "the phone's tab bar (the test above has tablets and desktops)");
   await page.emulateMedia({ reducedMotion: "reduce" });
+  // A tall phone, whose bars stay put while the page scrolls (under 700px tall they slide away: docs/MOBILE.md, "The frame slides away").
+  await page.setViewportSize({ width: 393, height: 852 });
   await page.goto("/resources/matchups?champion=Riven&vs=Mordekaiser");
   await expect(page.getByTestId("matchup-enemy-abilities")).toHaveAttribute("data-champion", "Mordekaiser");
   await expect(page.getByTestId("matchup-remembered")).not.toHaveAttribute("data-state", "loading");

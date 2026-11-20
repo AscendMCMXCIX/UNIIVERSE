@@ -254,6 +254,7 @@ export interface AccountView {
   setupComplete: boolean;
   hasPassword: boolean;
   lastLoginAt: string | null;
+  createdAt: string;
   playerId: string | null;
   playerName: string | null;
   /** set = a permanent password · temporary = waiting to be replaced · expired = temporary and expired · none = cannot sign in yet. */
@@ -286,6 +287,7 @@ export async function listAccountViews(db: Db, now: Date = new Date()): Promise<
     setupComplete: u.setupCompletedAt !== null,
     hasPassword: u.hasPassword,
     lastLoginAt: u.lastLoginAt?.toISOString() ?? null,
+    createdAt: u.createdAt.toISOString(),
     playerId: u.playerId,
     playerName: u.playerName,
     password: {
@@ -317,7 +319,7 @@ export async function resetPasswordToTemporary(db: Db, actorId: string | null, u
 /**
  * Grants or removes administrator access: Admin Mode on top of the account's own player access,
  * which stays exactly as it was (level, groups, profile, Riot accounts, statistics). Any
- * administrator may do it for another account; nobody changes their own; the Owner is always one;
+ * administrator may remove it from another account, only the Owner grants it; nobody changes their own; the Owner is always one;
  * the last active administrator keeps it. It applies from the account's next request: every
  * request reads it again, so a removal also closes Admin Mode where it is open.
  */
@@ -328,6 +330,8 @@ export async function setAdministrator(db: Db, actorId: string | null, userId: s
   guardVerificationAccount(actorId, target, "change the administrator access of");
   if (target.role === "owner") throw new UserError("The Owner is always an administrator.");
   if (target.isAdmin === on) return { user: target, changed: false };
+  // Only the Owner grants it (the overhaul's S9b): an administrator cannot make more administrators.
+  if (on && actorId && (await getUser(db, actorId))?.role !== "owner") throw new UserError("Only the Owner grants administrator access.");
   if (on && !target.isActive) throw new UserError("This account is deactivated. Reactivate it first.");
   if (!on) await guardLastAdmin(db, target, "remove administrator access from");
   await updateUser(db, userId, { isAdmin: on });

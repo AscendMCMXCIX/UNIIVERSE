@@ -140,7 +140,7 @@ async function measure(face: Locator) {
     const tagline = card.querySelector<HTMLElement>("[data-testid=card-tagline]");
     const coarse = matchMedia("(pointer: coarse)").matches;
     // On a touch screen each icon's invisible margin (its ::after, drawn past its edges) adds to its target.
-    const icons = [...card.querySelectorAll<HTMLElement>("[data-testid^=card-social-]")].map((el) => {
+    const icons = [...card.querySelectorAll<HTMLElement>("[data-testid^=card-social-]")].filter((el) => el.getClientRects().length).map((el) => {
       const b = box(el);
       const reach = coarse ? -2 * (parseFloat(getComputedStyle(el, "::after").top) || 0) : 0;
       return { kind: el.dataset.kind, size: Math.round(Math.min(b.width, b.height)), target: Math.round(Math.min(b.width, b.height) + reach) };
@@ -158,7 +158,9 @@ function expectWhole(m: Awaited<ReturnType<typeof measure>>, who: Who, label: st
   expect(m.clipped, `${label}: nothing is cut off the card`).toBe(false);
   expect(m.overlaps, `${label}: nothing covers anything else`).toEqual([]);
   expect(m.outside, `${label}: every part inside the card`).toEqual([]);
-  expect(m.icons.map((i) => i.kind).sort(), `${label}: all three links`).toEqual(["discord", "twitch", "youtube"]);
+  // A phone's card, upright (the lineup's track) and held sideways (five compact cards), leaves the links to the player's window, one tap away (S3a).
+  const phoneTrack = /^(phone|landscape)-/.test(label);
+  expect(m.icons.map((i) => i.kind).sort(), `${label}: ${phoneTrack ? "no links on the phone's card" : "all three links"}`).toEqual(phoneTrack ? [] : ["discord", "twitch", "youtube"]);
   for (const icon of m.icons) {
     expect(icon.size, `${label}: ${icon.kind} drawn full size`).toBeGreaterThanOrEqual(28);
     if (m.coarse) expect(icon.target, `${label}: ${icon.kind} is a finger-sized target`).toBeGreaterThanOrEqual(44);
@@ -236,7 +238,8 @@ test("a Top card with everything on both sides: whole and uncovered at every siz
       await shot(page, `team-${size}`);
       await shot(front, `card-TOP-${size}`);
       expectWhole(await measure(front), topStarter, `${size}, front`);
-      await expect(front.getByTestId("main-role-badge")).toBeVisible();
+      // Held sideways the compact card says the rank alone (the role status is in the player's window).
+      await expect(front.getByTestId("main-role-badge")).toBeVisible({ visible: size !== "landscape-844" });
       // Side by side (not the phone track), every row's parts are level.
       if (!(await page.getByTestId("lineup-pager").isVisible()))
         for (const row of await levelRows(page)) {
@@ -256,13 +259,13 @@ test("a Top card with everything on both sides: whole and uncovered at every siz
       await expect(back).toBeVisible();
       await shot(back, `card-TOP-sub-${size}`);
       expectWhole(await measure(back), topSub, `${size}, substitute`);
-      await expect(back.getByTestId("off-role-badge")).toBeVisible();
+      await expect(back.getByTestId("off-role-badge")).toBeVisible({ visible: size !== "landscape-844" });
       await expect(back.getByTestId("substitute-label")).toBeVisible();
       await ctx.close();
     }
 
     // A link is a control of its own: it opens in a new tab, and the card neither turns nor opens.
-    for (const options of [SIZES[1]![1], SIZES[5]![1]]) {
+    for (const options of [SIZES[1]![1], SIZES[4]![1]]) {
       const { ctx, page, front, card } = await openTop(browser, state, options);
       const youtube = front.getByTestId("card-social-youtube");
       await expect(youtube).toHaveAttribute("href", "https://www.youtube.com/@ValkPlays");
