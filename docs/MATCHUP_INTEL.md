@@ -602,7 +602,7 @@ facts from Riot's text, so `RIOT_TEXT_FACTS_ENABLED` (still false) governs none 
 
 Both enemies' kits side by side (from a dashboard 60rem wide), each with its cooldowns, in the
 wider column; your duo's two kits folded side by side under the main column; Riot's tips for all
-four under the kits; and "No curated notes for this 2v2" in the evidence line.
+four under the kits (with Release 10, the sources and notices between them); and "No curated notes for this 2v2" in the evidence line.
 
 **The one-screen fit (Release 11, 20 Nov 2026).** With the facts from Riot's text on (the state the
 tests read, and production's once OD1 switches the layer on) a 2v2 had scrolled 101–129px at 1920 ×
@@ -625,16 +625,18 @@ with the layer off it fitted. Layout only, every word kept, one step away where 
   one in every lineup measured; on a phone they follow the notes, after the glance's enemy cooldowns.
 
 Measured on the demo (Chromium 153 and Chrome Headless Shell 156 gave the same figures; 100% zoom,
-the sidebar open), 10 lineups per role, the facts from Riot's text on, before → after:
+the sidebar open), 10 lineups per role, the facts from Riot's text on. "Before" is lane R11b's tree;
+"after" is this change, first alone (the sources' footer still at the page's foot), then with
+Release 10 merged, which puts the sources and notices directly under the enemies' kits:
 
-| Size | What must hold | Before (worst of 20) | After (worst of 20, its margin) |
-|---|---|---|---|
-| 1920 × 1080 | no page scroll | none | none (the sources' summary ≥ 179px above the fold) |
-| 1920 × 950 | no page scroll | 128px of scroll | none (the sources' summary ≥ 84px above the fold) |
-| 1440 × 900 | both enemies' tiles and the sources' summary on the screen | the summary 184px under the fold | on the screen, 30px to spare |
-| 1280 × 800 | every cooldown line of both enemies on the screen | 67px under the fold | on the screen, 88px to spare |
+| Size | What must hold | Before (worst of 20) | After, alone | After, with Release 10 |
+|---|---|---|---|---|
+| 1920 × 1080 | no page scroll | none | none | none |
+| 1920 × 950 | no page scroll | 128px of scroll | none (the sources' summary ≥ 84px above the fold) | none (the page's end ≥ 122px above the fold) |
+| 1440 × 900 | both enemies' tiles and the sources' summary on the screen | the summary 184px under the fold | on the screen, 30px to spare | on the screen, 85px to spare |
+| 1280 × 800 | every cooldown line of both enemies on the screen | 67px under the fold | on the screen, 88px to spare | on the screen, 88px to spare |
 
-With the layer off every size holds with at least 93px to spare. The test is "the bot lane fits too"
+With the layer off every size holds with at least 215px to spare (with Release 10). The test is "the bot lane fits too"
 in `e2e/matchup-intel-dashboard.spec.ts` (`DUO_FIT`: 10 lineups per role, the first two of each role
 in CI, each with the layer on and off); on the layout before the change it fails at 1920 × 950, 1440 × 900 and 1280 × 800.
 
