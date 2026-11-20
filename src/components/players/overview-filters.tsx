@@ -65,7 +65,7 @@ export function OverviewFilters({
   compactToggle = false,
   refineUnavailable,
 }: {
-  /** A page whose list Refine cannot narrow (Match History's Encounters, UD.H4): with no field to offer, Refine stays in view, off, with this reason beside it. */
+  /** A page whose list Refine cannot narrow (Match History's Encounters, UD.H4): with no field to offer, Refine stays in view from lg (where Games shows it beside the same filters), off, with this reason beside it; a tablet's toolbar keeps its place beside the views. */
   refineUnavailable?: string;
   /** The folded bar shares a row with a section's views (Match History): see FilterBar. */
   compactToggle?: boolean;
@@ -220,7 +220,7 @@ export function OverviewFilters({
           <InFilterSheet>
             {(inSheet) =>
               inSheet ? null : (
-                <span className="inline-flex items-center gap-1 max-md:hidden" data-testid="refine-unavailable">
+                <span className="inline-flex items-center gap-1 max-lg:hidden" data-testid="refine-unavailable">
                   <RefineButton open={false} onClick={() => {}} unavailable={{ describedBy: "refine-unavailable-reason" }} testId="refine-filters" />
                   <span id="refine-unavailable-reason" className="sr-only">
                     {refineUnavailable}
