@@ -3,6 +3,8 @@
 import * as React from "react";
 import { usePlayerPeek, type PlayerPeekRow } from "@/components/players/player-peek";
 import { RowLink } from "@/components/ui/data-list";
+import { isPlainClick } from "@/lib/back-to-top";
+import { dropOtherPeek } from "./record-game";
 
 /*
   The player Peek on the Leaderboards' member rows (PLAN S8a): the boards are drawn on the server,
@@ -37,7 +39,13 @@ export function PeekRowLink({ playerId, name, profileHref, hint, testId }: { pla
     );
   const r = peek.row(playerId);
   return (
-    <a href={r.href} onClick={r.onClick} aria-current={r.selected ? "true" : undefined} className="absolute inset-0 z-[1] rounded-[inherit] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent" data-row-link="" data-peek-open="" data-peek-row={playerId} data-player-id={playerId} data-selected={r.selected || undefined} data-testid={testId ?? "board-peek-open"}>
+    <a
+      href={r.href}
+      onClick={(e) => {
+        // One Peek at a time on the board: a record's game open gives way to the player (record-game.tsx).
+        if (isPlainClick(e)) dropOtherPeek("match");
+        r.onClick(e);
+      }} aria-current={r.selected ? "true" : undefined} className="absolute inset-0 z-[1] rounded-[inherit] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent" data-row-link="" data-peek-open="" data-peek-row={playerId} data-player-id={playerId} data-selected={r.selected || undefined} data-testid={testId ?? "board-peek-open"}>
       <span className="sr-only">Quick look: {name}</span>
       {hint ? <span aria-hidden title={hint} className="absolute inset-0 rounded-[inherit]" /> : null}
     </a>

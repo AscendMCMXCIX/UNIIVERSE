@@ -42,7 +42,7 @@ function view(o: Partial<LeaderboardsView> = {}): LeaderboardsView {
       seasonLabel: "Season 2026",
       seasons: [{ value: 16, label: "Season 2026", href: "/leaderboards" }],
       games: 41,
-      records: [{ id: "kills", label: "Most kills in a game", definition: "", qualifier: null, holder: { playerId: "ash", value: "18", unit: "kills", championId: "Zed", role: "MID", kda: "18/2/7", when: "2 Sep 2026", href: "/players/ash/matches?match=OC1_001" }, yours: null }],
+      records: [{ id: "kills", label: "Most kills in a game", definition: "", qualifier: null, holder: { playerId: "ash", value: "18", unit: "kills", championId: "Zed", role: "MID", kda: "18/2/7", when: "2 Sep 2026", href: "/leaderboards?match=OC1_001", game: { matchId: "OC1_001", historyHref: "/players/ash/matches?match=OC1_001" } }, yours: null }],
       multikills: [{ playerId: "ash", penta: 0, quadra: 1, triple: 2 }],
       multikillNote: null,
       multikillShort: null,

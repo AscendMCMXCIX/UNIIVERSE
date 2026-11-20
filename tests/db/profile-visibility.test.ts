@@ -86,6 +86,7 @@ import AccountsPage from "@/app/(app)/players/[id]/accounts/page";
 import ChampionsPage from "@/app/(app)/players/[id]/champions/page";
 import MatchesPage from "@/app/(app)/players/[id]/matches/page";
 import PlayersPage from "@/app/(app)/players/page";
+import LeaderboardsPage from "@/app/(app)/leaderboards/page";
 
 const RESTRICTED: Capability[] = ["view-team", "view-players", "view-matches", "edit-own-profile", "manage-own-riot-accounts"];
 const MATCH = "OC1_900000001";
@@ -362,6 +363,43 @@ describe("decision 1: a teammate's rank is a statistic", () => {
     // A teammate's stays hidden for the same account.
     const other = (await loadProfileHeader(handle.db, player.mate!))!;
     expect(headerIdentity(other, session)).toMatchObject({ showRank: false, rank: null });
+  });
+});
+
+describe("a record's game over the board (/leaderboards?match=, PLAN S6c and §1.11)", () => {
+  type Holder = { playerId: string; game: { matchId: string; historyHref: string } | null; href: string | null } | null;
+  /** The board as the browser receives it, for an address naming the game: who each record's game belongs to. */
+  const board = async (match: string) => {
+    const payload = await browserPayload(await LeaderboardsPage({ searchParams: Promise.resolve({ match }) }));
+    const [props] = propsOf(payload, "LeaderboardsDashboard");
+    const records = (props!.view as { records: { records: Array<{ holder: Holder; yours: Holder }> } }).records.records;
+    return { payload, games: records.flatMap((r) => [r.holder, r.yours]).filter((h): h is NonNullable<Holder> => !!h?.game) };
+  };
+
+  it("a member with teammates' statistics opens a teammate's record game over the board, read through Match History's checked action", async () => {
+    await signInAs("mate");
+    const { games } = await board(MATCH);
+    const ace = games.find((g) => g.playerId === player.ace);
+    expect(ace).toMatchObject({ game: { matchId: MATCH, historyHref: `/players/${player.ace}/matches?match=${MATCH}` }, href: `/leaderboards?match=${MATCH}` });
+    expect(await matchActions.getMatchDetailAction(player.ace!, MATCH)).toMatchObject({ status: "ok" });
+  });
+
+  it("a viewer without view-teammate-stats gets nothing: the board refuses them, and so does the game's action", async () => {
+    await signInAs("rex");
+    await expect(board(MATCH)).rejects.toThrow(/NEXT_REDIRECT|NEXT_NOT_FOUND/);
+    for (const read of [() => matchActions.getMatchDetailAction(player.ace!, MATCH), () => matchActions.getMatchTimelineAction(player.ace!, MATCH), () => matchActions.getMatchGroupsAction(player.ace!, MATCH), () => matchActions.getMatchRanksAction(player.ace!, MATCH)]) {
+      expect(await read()).toMatchObject({ status: "not-found" });
+    }
+  });
+
+  it("a personal-use profile's game is never served to another member: not on the board, and refused by the action", async () => {
+    for (const name of ["mate", "pam"]) {
+      await signInAs(name);
+      const { games, payload } = await board(MATCH);
+      expect(games.some((g) => g.playerId === player.solo), name).toBe(false);
+      expect(payload, name).not.toContain(`/players/${player.solo}/matches`);
+      expect(await matchActions.getMatchDetailAction(player.solo!, MATCH), name).toEqual({ status: "not-found", message: "This match is not in this player's history." });
+    }
   });
 });
 

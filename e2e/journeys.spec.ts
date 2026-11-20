@@ -280,3 +280,40 @@ test("the bar never fetches a profile ahead of a tap (a profile starts its playe
   expect(ahead.filter((path) => path.startsWith(`/players/${id}`)), "a profile's sections, never ahead of a tap").toEqual([]);
   await context.close();
 });
+
+test("J11 a game, Next and close, and J13 a record's game and back: 0 scroll-backs and 2 taps, ending on the last game viewed and on /leaderboards", async ({ page, baseURL }) => {
+  const context = await phoneContext(page, baseURL!);
+  const p = await context.newPage();
+  // J13 (PLAN S6c, UD.L3): a record's game opens over the board, and closing leaves you there.
+  const j13: Count = { taps: 0, scrolls: 0, scrollBacks: 0 };
+  await p.goto("/leaderboards");
+  await expect(p.getByTestId("leaderboards")).toHaveAttribute("data-ready", "true");
+  await tap(j13, p.getByTestId("record-open").first());
+  const window = p.locator("dialog[open][data-testid=record-game-peek]");
+  await expect(window.getByTestId("record-game-history")).toBeVisible();
+  await expect(p).toHaveURL(/\/leaderboards\?match=/);
+  await tap(j13, window.getByTestId("record-game-peek-close"));
+  await expect(window).toBeHidden();
+  await expect(p).toHaveURL(/\/leaderboards$/);
+  // The records are below Recent form, so reaching the first is a scroll down (counted, not a tap).
+  expect(j13.taps).toBe(2);
+  expect(j13.scrollBacks).toBe(0);
+
+  // J11: a teammate's latest game, Next, then close: the list on the last game viewed, nothing to scroll back for.
+  const holder = (await p.locator("a[href^='/players/']").first().getAttribute("href"))!.split(/[/?#]/)[2]!;
+  const j11: Count = { taps: 0, scrolls: 0, scrollBacks: 0 };
+  await p.goto(`/players/${holder}/matches`);
+  await expect(p.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
+  await tap(j11, p.getByTestId("match-card").first(), { x: 24, y: 16 });
+  const game = p.locator("dialog[open][data-testid=match-detail]");
+  await expect(game.getByTestId("match-detail-position")).toHaveText(/Game 1 of/);
+  await tap(j11, game.getByTestId("match-detail-next"));
+  await expect(game.getByTestId("match-detail-position")).toHaveText(/Game 2 of/);
+  const second = new URL(p.url()).searchParams.get("match");
+  await tap(j11, game.getByTestId("match-detail-close"));
+  await expect(game).toHaveCount(0);
+  await expect.poll(() => p.evaluate(() => document.activeElement?.closest("li")?.id ?? null)).toBe(`match-${second}`);
+  expect(j11.scrollBacks).toBe(0);
+  expect(j11.taps).toBe(3);
+  await context.close();
+});

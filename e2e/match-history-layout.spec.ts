@@ -185,21 +185,28 @@ const cardGeometry = (els: Element[]) =>
     // The figures' column (the CS and damage sit in a line of their own inside it on a narrow phone).
     let next = cs.closest('[data-testid="match-figures"]')!.nextElementSibling;
     while (next && !inRow(next)) next = next.nextElementSibling;
+    // From 50 to 61rem of list (1280 with the sidebar open) the build takes the teams' place (S6c, UD.H1): no teams drawn there.
+    const shown = (e: Element | null) => !!e && box(e).width > 0;
     const teams = card.querySelector('[data-testid="match-teams"]');
+    const build = card.querySelector('[data-testid="match-card-build"]');
     return {
+      build: shown(build),
+      items: build ? build.querySelectorAll("img").length : 0,
       cs: text(cs).right,
       damage: text(damage).right,
       next: next ? box(next).left : null,
       nextIs: next ? (next.getAttribute("data-testid") ?? next.firstElementChild?.getAttribute("data-testid") ?? next.tagName) : null,
       names: [...card.querySelectorAll('[data-testid="team-slot-name"]')].map((n) => box(n).width),
-      teams: teams ? box(teams).left : null,
+      teams: shown(teams) ? box(teams!).left : null,
+      // The last column's left edge: the teams, or the build where it takes their place.
+      col: shown(teams) ? box(teams!).left : shown(build) ? box(build!).left : null,
       height: box(card).height,
     };
   });
 
 test("a wide card's figures end before the next column, the teams keep their names, and the columns stay level", async ({ page, context, baseURL }, info) => {
   test.skip(info.project.name !== "desktop", "wide cards, at the window sizes that matter (the desktop project sizes its own windows)");
-  // The sidebar open, as most members keep it: a 60rem list at 1280×800 (no build), 65.4rem at
+  // The sidebar open, as most members keep it: a 60rem list at 1280×800 (the build in the teams' place since S6c), 65.4rem at
   // 1366×768 and 70rem at 1440×900 (with the build), and 50.75rem at 860×700 (no sidebar below lg;
   // the one-row card's narrowest widths, without the spells and runes).
   await context.addCookies([{ name: "uniiverse_sidebar", value: "expanded", url: baseURL! }]);
@@ -216,6 +223,12 @@ test("a wide card's figures end before the next column, the teams keep their nam
       expect(c.next, at).not.toBeNull();
       expect(c.cs, `${at}: the CS total ends before the next column`).toBeLessThanOrEqual(c.next! + 0.5);
       expect(c.damage, `${at}: the damage share ends before the next column`).toBeLessThanOrEqual(c.next! + 0.5);
+      // The build on every card at these widths (1280 included, where it showed none before S6c), the rosters left to the game's scoreboard there.
+      if (size.width >= 1000) expect(c.build, `${at}: the build is drawn`).toBe(true);
+      if (size.width === 1280) {
+        expect(c.teams, `${at}: the build in the teams' place`).toBeNull();
+        expect(c.height, `${at}: D8's density, unchanged`).toBeLessThanOrEqual(106);
+      }
       if (c.teams === null) continue;
       expect(c.names, at).toHaveLength(10);
       expect(Math.min(...c.names), `${at}: the teams keep their names`).toBeGreaterThan(24);
@@ -223,7 +236,7 @@ test("a wide card's figures end before the next column, the teams keep their nam
       expect(c.height, `${at}: a compact card`).toBeLessThanOrEqual(106);
     }
     const lefts = cards.map((c) => c.teams).filter((x): x is number => x !== null);
-    expect(Math.max(...lefts) - Math.min(...lefts), `${size.width}px: the teams start at the same place on every card`).toBeLessThanOrEqual(1);
+    if (lefts.length) expect(Math.max(...lefts) - Math.min(...lefts), `${size.width}px: the teams start at the same place on every card`).toBeLessThanOrEqual(1);
 
     // Real games go further than the demo's (its deaths stop at 9): the widest K/D/A, three
     // two-digit numbers, fits the KDA column's floor, so that card stays level with the others;
@@ -242,7 +255,10 @@ test("a wide card's figures end before the next column, the teams keep their nam
       range.selectNodeContents(kda);
       const lines = (e: HTMLElement) => Math.round(e.getBoundingClientRect().height / parseFloat(getComputedStyle(e).lineHeight));
       return {
-        teams: [first, second].map((c) => c.querySelector('[data-testid="match-teams"]')!.getBoundingClientRect().left),
+        teams: [first, second].map((c) => {
+          const teams = c.querySelector('[data-testid="match-teams"]')!;
+          return (teams.getBoundingClientRect().width > 0 ? teams : c.querySelector('[data-testid="match-card-build"]')!).getBoundingClientRect().left;
+        }),
         kda: { text: range.getBoundingClientRect().width, box: kda.getBoundingClientRect().width },
         // scrollWidth and scrollHeight are whole pixels: a cut name overflows by far more than one.
         nunu: { cut: nunu.scrollWidth > nunu.clientWidth + 1 || nunu.scrollHeight > nunu.clientHeight + 1, lines: lines(nunu), title: nunu.title },
@@ -253,7 +269,7 @@ test("a wide card's figures end before the next column, the teams keep their nam
     const at = `${size.width}px`;
     expect(edited.kda.text, `${at}: "10 / 10 / 10" fits its column`).toBeLessThanOrEqual(edited.kda.box + 0.5);
     expect(Math.abs(edited.teams[0]! - edited.teams[1]!), `${at}: a card with "10 / 10 / 10" stays level with the next one`).toBeLessThanOrEqual(1);
-    expect(Math.abs(edited.teams[1]! - cards[1]!.teams!), `${at}: the next card has not moved`).toBeLessThanOrEqual(1);
+    expect(Math.abs(edited.teams[1]! - cards[1]!.col!), `${at}: the next card has not moved`).toBeLessThanOrEqual(1);
     expect(edited.nunu.cut, `${at}: "Nunu & Willump" whole`).toBe(false);
     expect(edited.nunu.lines, `${at}: "Nunu & Willump" on two lines at most`).toBeLessThanOrEqual(2);
     expect(edited.nunu.title, `${at}: the name is the hover text`).not.toBe("");

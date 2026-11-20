@@ -20,7 +20,7 @@ const NAMES: Record<string, string> = { ash: "Ash", bo: "Bo", cy: "Cy" };
 const players = (profiles: boolean) => (id: string): BoardPlayer => ({ id, name: NAMES[id]!, profileHref: profiles ? `/players/${id}` : null, avatarUrl: null, look: cardLookFor({ id }) });
 const champ = (id: string | null) => (id ? { id, name: id === "MissFortune" ? "Miss Fortune" : id, portraitUrl: "" } : null);
 
-const holder = (o: Partial<RecordHolder> & Pick<RecordHolder, "playerId" | "value" | "unit">, profiles = true): RecordHolder => ({ championId: "Zed", role: "MID", kda: "18/2/7", when: "2 Sep 2026", href: profiles ? `/players/${o.playerId}/matches?match=OC1_001` : null, ...o });
+const holder = (o: Partial<RecordHolder> & Pick<RecordHolder, "playerId" | "value" | "unit">, profiles = true): RecordHolder => ({ championId: "Zed", role: "MID", kda: "18/2/7", when: "2 Sep 2026", href: profiles ? "/leaderboards?match=OC1_001" : null, game: profiles ? { matchId: "OC1_001", historyHref: `/players/${o.playerId}/matches?match=OC1_001` } : null, ...o });
 const record = (o: Partial<RecordView> & Pick<RecordView, "id" | "label">): RecordView => ({ definition: "", qualifier: null, holder: null, yours: null, ...o });
 
 function view(profiles: boolean, o: Partial<RecordsView> = {}): RecordsView {
@@ -41,7 +41,7 @@ function view(profiles: boolean, o: Partial<RecordsView> = {}): RecordsView {
       record({ id: "vision-per-minute", label: "Most vision per minute", definition: "Vision score, in a game of 15 minutes or more.", qualifier: "15+ min games", holder: h({ playerId: "bo", value: "3.20", unit: "vision/min" }) }),
       record({ id: "kda", label: "Best KDA in a game", definition: "(Kills + assists) ÷ deaths, in a game with 10 or more takedowns; no deaths counts as one.", qualifier: "10+ takedowns", holder: h({ playerId: "cy", value: "13.0", unit: "KDA" }) }),
       // A streak opens no single game.
-      record({ id: "win-streak", label: "Longest win streak", definition: "In the order the games were played.", qualifier: "in game order", holder: { playerId: "ash", value: "5", unit: "wins in a row", championId: null, role: null, kda: null, when: "5 Sep 2026", href: null }, yours: { playerId: "bo", value: "2", unit: "wins in a row", championId: null, role: null, kda: null, when: "5 Sep 2026", href: null } }),
+      record({ id: "win-streak", label: "Longest win streak", definition: "In the order the games were played.", qualifier: "in game order", holder: { playerId: "ash", value: "5", unit: "wins in a row", championId: null, role: null, kda: null, when: "5 Sep 2026", href: null, game: null }, yours: { playerId: "bo", value: "2", unit: "wins in a row", championId: null, role: null, kda: null, when: "5 Sep 2026", href: null, game: null } }),
     ],
     multikills: [
       { playerId: "ash", penta: 1, quadra: 1, triple: 1 },
@@ -137,7 +137,7 @@ describe("the season records", () => {
   it("opens each record's game from the whole row, named by the record; the streak and an empty record open none", () => {
     for (const id of ["kills", "assists", "damage-per-minute", "vision-per-minute", "kda"]) {
       expect(count(rows[id]!, /data-row-link=""/g), id).toBe(1);
-      expect(rows[id]).toMatch(/href="\/players\/\w+\/matches\?match=OC1_001"/);
+      expect(rows[id]).toMatch(/href="\/leaderboards\?match=OC1_001"/);
       // The chevron where a row opens its game.
       expect(rows[id]).toContain("lucide-chevron-right");
     }

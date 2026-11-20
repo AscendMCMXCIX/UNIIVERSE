@@ -511,17 +511,20 @@ export function toolbarButtonClass(on = false, className?: string): string {
  * 44px on touch screens), highlighted while open or while any of its filters is narrowed, with
  * their count.
  */
-export function RefineButton({ open, count = 0, controls, onClick, haspopup, buttonRef, className, testId }: { open: boolean; count?: number; controls: string; onClick: () => void; haspopup?: "dialog"; buttonRef?: React.Ref<HTMLButtonElement>; className?: string; testId?: string }) {
+export function RefineButton({ open, count = 0, controls, onClick, haspopup, buttonRef, className, testId, unavailable }: { open: boolean; count?: number; controls?: string; onClick: () => void; haspopup?: "dialog"; buttonRef?: React.Ref<HTMLButtonElement>; className?: string; testId?: string; /** Shown but off on a page whose list it cannot narrow (Encounters, UD.H4): still focusable, so its reason (aria-describedby) is reached. */ unavailable?: { describedBy: string } }) {
   return (
     <button
       ref={buttonRef}
       type="button"
-      onClick={onClick}
-      aria-expanded={open}
-      aria-controls={controls}
-      aria-haspopup={haspopup}
-      className={toolbarButtonClass(open || count > 0, className)}
+      onClick={unavailable ? undefined : onClick}
+      aria-expanded={unavailable ? undefined : open}
+      aria-controls={unavailable ? undefined : controls}
+      aria-haspopup={unavailable ? undefined : haspopup}
+      aria-disabled={unavailable ? true : undefined}
+      aria-describedby={unavailable?.describedBy}
+      className={toolbarButtonClass(!unavailable && (open || count > 0), cn(unavailable && "cursor-not-allowed opacity-50 hover:border-border-control hover:text-fg-muted", className))}
       data-testid={testId}
+      data-unavailable={unavailable ? true : undefined}
     >
       <SlidersHorizontal className="h-4 w-4" aria-hidden /> Refine
       {count ? <span className="rounded-full bg-accent px-1.5 text-xs font-semibold tabular-nums text-bg">{count}</span> : null}

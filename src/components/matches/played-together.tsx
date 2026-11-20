@@ -165,7 +165,7 @@ export function PlayedTogetherView({ data, seasons, currentSeason, shown, teams 
           )}
         </EmptyState>
       ) : (
-        <TogetherList entries={shown.map((g) => ({ entry: togetherEntry(g.matchId, g.teamId), matchId: g.matchId, playerId: g.members[0]!.playerId }))} championsById={champions} className="@container/tm space-y-2.5">
+        <TogetherList total={total} entries={shown.map((g) => ({ entry: togetherEntry(g.matchId, g.teamId), matchId: g.matchId, playerId: g.members[0]!.playerId, said: `${g.win === null ? "Game" : g.win ? "Victory" : "Defeat"} on ${champions[g.members[0]!.championId]?.name ?? g.members[0]!.championId}` }))} championsById={champions} className="@container/tm space-y-2.5">
           {shown.map((g) => (
             <TogetherCard key={togetherEntry(g.matchId, g.teamId)} g={g} p={p} champions={champions} teams={teams[togetherEntry(g.matchId, g.teamId)] ?? teams[g.matchId] ?? null} />
           ))}
