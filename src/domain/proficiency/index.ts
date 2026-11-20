@@ -69,7 +69,7 @@ export interface ProficiencyEstimate {
   tier: ProficiencyTier;
   /** Games on record across the player's linked accounts (deduplicated upstream). */
   games: number;
-  /** Games in the last ~30 days. */
+  /** Games of the patch, queue and role groups last played within the recent window (30 days): bucket granularity, so it can hold older games of those groups. */
   recentGames: number;
   /** Games on the current patch. */
   patchGames: number;
@@ -78,7 +78,10 @@ export interface ProficiencyEstimate {
   /** Ranked (Solo/Duo, Flex, Clash) and Normal games among `games`. */
   rankedGames: number;
   normalGames: number;
+  /** `roleGames` of `knownRoleGames`; 1 when no game's role is known. */
   roleShare: number;
+  /** Games whose role is known (the share's denominator; 0: no share to show). */
+  knownRoleGames: number;
   /** Champion mastery combined across the player's accounts, when known. */
   mastery: { points: number; level: number; accounts?: number } | null;
   /** Shrunk win rate relative to the player's baseline (0.5 = baseline). */
@@ -216,7 +219,7 @@ export function estimateProficiency(
 
   const confidence = clamp01(wGames / (wGames + 15)) * 0.7 + (mastery ? 0.15 : 0) + (lastPlayedAt ? 0.15 : 0);
   if (games === 0 && !mastery) {
-    return { championId, role, score: 0.5, confidence: 0, tier: "unknown", games: 0, recentGames: 0, patchGames: 0, roleGames: 0, rankedGames: 0, normalGames: 0, roleShare: 1, mastery: null, performance: 0.5, lastPlayedAt: null, notes: ["No linked-account history for this champion"] };
+    return { championId, role, score: 0.5, confidence: 0, tier: "unknown", games: 0, recentGames: 0, patchGames: 0, roleGames: 0, rankedGames: 0, normalGames: 0, roleShare: 1, knownRoleGames: 0, mastery: null, performance: 0.5, lastPlayedAt: null, notes: ["No linked-account history for this champion"] };
   }
 
   const raw = familiarity * 0.5 + recencyFactor * 0.25 + roleFit * 0.1 + clamp01(performance) * 0.15;
@@ -250,7 +253,7 @@ export function estimateProficiency(
   if (mostlyMastery) notes.push(`Mostly mastery: only ${games} game${games === 1 ? "" : "s"} on record, so not rated higher yet`);
   if (tier === "core") notes.push(`Played a lot: ${games} games, played recently`);
   if (tier === "rusty") notes.push(`Not played for ${Math.round(daysSince ?? 0)} days`);
-  if (recentGames >= 5) notes.push(`${recentGames} games in the last ${cfg.recentDays} days`);
+  if (recentGames >= 5) notes.push(`${recentGames} recent games (from patches played in the last ${cfg.recentDays} days)`);
   if (knownRoleGames >= 5 && roleShare < 0.3) notes.push(`Mostly played outside ${role} (${roleGames} of ${knownRoleGames} games in this role), so rated lower here`);
   if (perf.confidence >= 0.4 && performance >= 0.54) notes.push(`Strong personal results (${Math.round(perf.estimate * 100)}% win rate)`);
   if (perf.confidence >= 0.4 && performance <= 0.46) notes.push(`Below their usual results (${Math.round(perf.estimate * 100)}% win rate)`);
@@ -258,7 +261,7 @@ export function estimateProficiency(
   if (normalGames > 0) notes.push(`${normalGames} of ${games} games are Normal games (counted at ${Math.round(QUEUE_WEIGHTS.normal! * 100)}% weight)`);
   if (mastery?.accounts && mastery.accounts > 1) notes.push(`Mastery combined from ${mastery.accounts} accounts`);
 
-  return { championId, role, score: clamp01(score), confidence: clamp01(confidence), tier, games, recentGames, patchGames, roleGames, rankedGames: games - normalGames, normalGames, roleShare, mastery: masteryInfo, performance, lastPlayedAt, notes };
+  return { championId, role, score: clamp01(score), confidence: clamp01(confidence), tier, games, recentGames, patchGames, roleGames, rankedGames: games - normalGames, normalGames, roleShare, knownRoleGames, mastery: masteryInfo, performance, lastPlayedAt, notes };
 }
 
 /**

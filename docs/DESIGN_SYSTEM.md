@@ -267,7 +267,7 @@ One set of containers, chosen by what the content is, never by page. Each is one
 
 | Container | For | Component | Opens | Closes | Address and history |
 |---|---|---|---|---|---|
-| **Peek** | a quick look at one item from a list or a board (a team player, a champion, a game from a board) | `peek.tsx`: `usePeek`, `Peek` | a row (click, tap, Enter); ↑/↓ or J/K and ‹ › switch | ✕, Escape, Back, the selected row again; not an outside click | `?player=` (and so on) on the current page: the one history rule |
+| **Peek** | a quick look at one item from a list or a board (a team player; a Players row or a Leaderboards member, `player-peek.tsx` since 20 Nov 2026, the row's name still the profile's link; a champion; a game from a board) | `peek.tsx`: `usePeek`, `Peek` | a row (click, tap, Enter); ↑/↓ or J/K and ‹ › switch | ✕, Escape, Back, the selected row again; not an outside click | `?player=` (and so on) on the current page: the one history rule |
 | **Unfold** | an item opened under its card, for items compared down a list (games) | `unfold.tsx`: `useUnfold`, `UnfoldRegion`, `UnfoldHeader` | the card | the card again, Escape, the pinned header's Close, Back | the one history rule |
 | **Task dialog** | work that needs full attention (editors, confirmations, pickers, Card Studio, Install) | `detail-modal.tsx`: `DetailModal`; a filter sheet 34rem wide where it is a centred window (`sheetWidth="filters"`) | its button | Close, Escape, the backdrop | none |
 | **Popover** | anchored choices (menus, filter dropdowns) | `menu.tsx` | click, Enter, Space | an outside click, Escape, a choice | none; a choice replaces the query |
@@ -349,7 +349,15 @@ const peek = usePeek({ param: "player", ids, initial: searchParams.get("player")
   nothing else; scrolling closes it.
 - **Placement:** above, else below, 8px inside the screen, never over its trigger; where neither side
   has room, a small sheet at the screen's far edge with the same text. Never a bubble that scrolls.
-- **Text:** one plain sentence, at most about 25 words (`tip-length.test.ts`; STANDARDS, "Tooltips").
+- **Text:** one plain sentence, at most about 25 words (`tip-length.test.ts`; STANDARDS, "Tooltips"),
+  in the page's words. A tip on a text trigger (children) can wrap a badge or a chip, as the LP and
+  the Best chip on a match card, Setup incomplete, Riot accounts' Main and Alt, the experience label
+  in the champion data panel and "Changed since the check" do.
+- **Not a `title`:** a native title explains nothing (`title-use.test.ts`). It names an icon-only
+  control or mark, or shows a cut value whole; anything else is an InfoTip, visible text or
+  sr-only words.
+- **Chart readouts** take the bubble's look: the rank chart's readout has the same border, corners,
+  type and fade (`rank-timeline-chart.tsx`), beside the reading it describes.
 
 ### Unfold
 

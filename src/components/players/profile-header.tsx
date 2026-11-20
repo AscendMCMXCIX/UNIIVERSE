@@ -110,7 +110,8 @@ export function ProfileHeader({ identity: served, self, editable = false, champi
   const accent = accentCss(p.look.style);
   const rank = p.showRank ? p.rank : null;
   const asOf = rank?.asOf ? formatDayMonth(rank.asOf) : null;
-  const rankTitle = rank ? `${rank.queue ? `${QUEUE_LABEL[rank.queue]} rank` : "Rank"}${asOf ? `, last checked ${asOf}` : ""}` : "Unranked: no ranked games recorded";
+  // When the rank was last checked, for screen readers (the Overview's Ranked progress shows the checks).
+  const rankChecked = rank ? <span className="sr-only">{`${rank.queue ? `, ${QUEUE_LABEL[rank.queue]}` : ""}${asOf ? `, last checked ${asOf}` : ""}`}</span> : null;
   const customise = (variant: "overlay" | "icon", iconOnPhones = false) => (
     <CustomiseCardButton
       variant={variant}
@@ -161,7 +162,7 @@ export function ProfileHeader({ identity: served, self, editable = false, champi
               ) : null}
               {p.showRank ? (
                 // At a large text size on a narrow phone the LP go under the rank rather than past the screen's edge.
-                <span className="inline-flex min-w-0 flex-wrap items-center gap-x-1 text-fg" data-testid="profile-rank" title={rankTitle}>
+                <span className="inline-flex min-w-0 flex-wrap items-center gap-x-1 text-fg" data-testid="profile-rank">
                   <RankEmblem tier={rank?.tier} className="h-4 w-4" />
                   {rank ? (
                     <>
@@ -173,6 +174,8 @@ export function ProfileHeader({ identity: served, self, editable = false, champi
                   )}
                 </span>
               ) : null}
+              {/* Beside the rank, not in it: its words are measured to stay inside the phone. */}
+              {p.showRank ? rankChecked : null}
               {p.lineupRole ? <LineupStatus role={p.lineupRole} className="max-sm:hidden" /> : null}
             </div>
           </div>
@@ -272,7 +275,7 @@ export function ProfileHeader({ identity: served, self, editable = false, champi
                 </span>
               ))}
               {p.showRank ? (
-                <span className="inline-flex flex-wrap items-center gap-x-1.5 text-fg band:gap-1" data-testid="profile-rank" title={rankTitle}>
+                <span className="inline-flex flex-wrap items-center gap-x-1.5 text-fg band:gap-1" data-testid="profile-rank">
                   <RankEmblem tier={rank?.tier} className="h-5 w-5 band:h-4 band:w-4" />
                   {rank ? (
                     <>
@@ -285,6 +288,7 @@ export function ProfileHeader({ identity: served, self, editable = false, champi
                   )}
                 </span>
               ) : null}
+              {p.showRank && rank && asOf ? <span className="sr-only">, last checked {asOf}</span> : null}
               {p.lineupRole ? <LineupStatus role={p.lineupRole} className="max-sm:band:hidden" condense /> : null}
             </div>
             <SocialLinks links={p.social} owner={p.displayName} size="header" className="mt-2 band:mt-0 band:shrink-0" />

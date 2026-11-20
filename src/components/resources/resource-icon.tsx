@@ -2,8 +2,7 @@
 
 import * as React from "react";
 import { BookOpen, ChartColumn, Globe, GraduationCap, Newspaper, PlaySquare, Swords, Trophy, Wrench, type LucideIcon } from "lucide-react";
-import { faviconUrl, resourceHost, type ResourceIcon as IconKey } from "@/domain/resource-entry";
-import { RemoteImage } from "@/components/ui/remote-image";
+import { resourceHost, resourceIconAsset, type ResourceIcon as IconKey } from "@/domain/resource-entry";
 import { hueOf } from "@/components/ui/avatar";
 import { cn } from "@/lib/cn";
 
@@ -37,31 +36,20 @@ function HostTile({ host, className }: { host: string; className?: string }) {
 }
 
 /**
- * A resource's icon: the site's own favicon, loaded by the browser from the site (no referrer is
- * sent, lazily, 20 px), or the icon an administrator chose. The favicon is in the server's HTML,
- * so its request starts with the page; one that fails, before or after the page is interactive
- * (RemoteImage), becomes the host's initial, never a broken image.
+ * A resource's icon: the site's own icon, shipped with the app (public/resource-icons, for the
+ * library's own sites: resourceIconAsset), or the host's initial for any other site; or the icon an
+ * administrator chose. Nothing is loaded from the site itself (UD.R1: every visit logged a
+ * cross-origin error, and most hosts serve no icon there), so it costs no request beyond the
+ * app's own, cached, and never shows a broken image.
  */
 export function ResourceIcon({ icon, url, className }: { icon: IconKey; url: string; className?: string }) {
-  const src = icon === "favicon" ? faviconUrl(url) : null;
-  if (src) {
-    return (
-      <RemoteImage
-        src={src}
-        fallback={<HostTile host={resourceHost(url)} className={className} />}
-        alt=""
-        aria-hidden
-        width={20}
-        height={20}
-        loading="lazy"
-        decoding="async"
-        referrerPolicy="no-referrer"
-        // The image is its own tile: the 20 px icon sits in the tile's padding.
-        className={cn(TILE, "p-1.5 object-contain", className)}
-      />
-    );
+  if (icon === "favicon") {
+    const asset = resourceIconAsset(url);
+    // eslint-disable-next-line @next/next/no-img-element -- a 40px file of the app's own, drawn at 20px: no optimisation to gain.
+    if (asset) return <img src={asset} alt="" aria-hidden width={20} height={20} loading="lazy" decoding="async" className={cn(TILE, "p-1.5 object-contain", className)} data-testid="resource-icon-asset" />;
+    return <HostTile host={resourceHost(url)} className={className} />;
   }
-  const Icon = icon === "favicon" ? Globe : RESOURCE_ICON_COMPONENTS[icon];
+  const Icon = RESOURCE_ICON_COMPONENTS[icon];
   return (
     <span className={cn(TILE, className)} aria-hidden>
       <Icon className="h-4 w-4" />

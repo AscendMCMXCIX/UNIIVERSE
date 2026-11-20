@@ -7,6 +7,8 @@ import { revokeAllSessions } from "./sessions";
 import type { IdentityCheck } from "@/server/riot/verify-identity";
 import { ERASED_IDENTITY_MESSAGE, erasureFilter } from "@/server/privacy/ledger";
 import { isVerificationAccount } from "./verification-account";
+import { invalidateCache } from "@/server/observability/cache";
+import { EVIDENCE_CACHE } from "@/server/matchup-intel/evidence-cache";
 
 /*
   Account administration, shared by Admin Mode → Users & Permissions.
@@ -211,6 +213,8 @@ export async function deleteAccount(db: Db, actorId: string | null, userId: stri
       else await tx.update(players).set({ archivedAt: new Date(), socialLinks: null, updatedAt: new Date() }).where(eq(players.id, target.playerId));
     }
   });
+  // Erased or archived, the profile no longer counts in Matchup Intel's team counts (R7 review B1).
+  if (target.playerId) invalidateCache(EVIDENCE_CACHE);
 }
 
 /** Permanently removes a player profile that has no account (a test entry, an old roster placeholder, or what a deleted account left behind). */
@@ -223,6 +227,7 @@ export async function deleteProfile(db: Db, playerId: string): Promise<void> {
     await tx.delete(lineupSlots).where(eq(lineupSlots.playerId, playerId));
     await tx.delete(players).where(eq(players.id, playerId)); // pools, Riot accounts, statistics and retired Ranked Development records cascade
   });
+  invalidateCache(EVIDENCE_CACHE); // its evidence rows went with its games (R7 review B1)
 }
 
 /**

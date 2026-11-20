@@ -8,6 +8,7 @@ import { perAccountKey } from "@/components/account-storage";
 import { ChampionPortrait } from "@/components/champion-portrait";
 import { RoleIcon } from "@/components/role-icon";
 import { cn } from "@/lib/cn";
+import { deviceBase } from "@/components/device-storage";
 
 export type RoleFilter = Role | "ALL";
 
@@ -24,10 +25,10 @@ export function RoleFilterBar({ value, onChange, className }: { value: RoleFilte
             type="button"
             aria-pressed={active}
             onClick={() => onChange(o)}
-            title={o === "ALL" ? "All champions" : ROLE_LABELS[o]}
+            title={o === "ALL" ? "All roles" : ROLE_LABELS[o]}
             className={cn("grid h-9 min-w-9 place-items-center rounded-md px-2 text-xs font-semibold transition-colors pointer-coarse:h-11 pointer-coarse:min-w-11", active ? "bg-accent/15 text-accent" : "text-fg-muted hover:bg-surface-2 hover:text-fg")}
           >
-            {o === "ALL" ? "All" : <RoleIcon role={o} className="h-[18px] w-[18px]" title={ROLE_LABELS[o]} />}
+            {o === "ALL" ? "All" : <RoleIcon role={o} className="h-[18px] w-[18px]" decorative />}
             <span className="sr-only">{o === "ALL" ? "All roles" : ROLE_LABELS[o]}</span>
           </button>
         );
@@ -83,7 +84,7 @@ export interface ChampionGridProps {
 const noopSubscribe = () => () => {};
 const RECENT_MAX = 12;
 /** Per account: people who use one browser one after the other keep their recent picks apart. */
-const recentKey = () => perAccountKey("uniiverse_recent_champions");
+const recentKey = () => perAccountKey(deviceBase("recent-champions"));
 /** Champions recently chosen in any picker on this device by this account (a convenience; empty when storage is unavailable). */
 function readRecent(): string[] {
   try {
@@ -223,7 +224,7 @@ export function ChampionGrid({ champions, selectedIds, disabledIds, disabledReas
               disabled={(disabled && !selected) || readOnly}
               aria-pressed={selectedIds ? selected : undefined}
               onClick={() => pick(c.id)}
-              title={disabled && !selected && disabledReason ? `${c.name} — ${disabledReason}` : prioritised && prioritisedLabel ? `${c.name} — ${prioritisedLabel}` : c.name}
+              title={c.name}
               className={cn("group relative flex flex-col items-center gap-1 rounded-lg p-1.5 text-center transition-colors hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:hover:bg-transparent", selected && "bg-accent/10")}
               data-champion={c.id}
               data-unavailable={disabled ? "true" : undefined}
@@ -241,6 +242,7 @@ export function ChampionGrid({ champions, selectedIds, disabledIds, disabledReas
               </span>
               {/* Two lines where a name needs them (Nunu & Willump, a large text size), never cut. */}
               <span className={cn("line-clamp-2 w-full break-words leading-tight", c.name.length > 7 ? "text-2xs tracking-tight" : "text-xs", disabled && !selected ? "text-fg-subtle" : selected ? "text-fg" : "text-fg-muted group-hover:text-fg")}>{c.name}</span>
+              {disabled && !selected && disabledReason ? <span className="sr-only">, {disabledReason}</span> : prioritised && prioritisedLabel ? <span className="sr-only">, {prioritisedLabel}</span> : null}
             </button>
           );
         })}

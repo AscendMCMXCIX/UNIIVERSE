@@ -1,4 +1,7 @@
 import { eq, inArray, sql, type SQL } from "drizzle-orm";
+import { invalidateCache } from "@/server/observability/cache";
+import { EVIDENCE_CACHE } from "@/server/matchup-intel/evidence-cache";
+import { refreshMatchPrep } from "@/server/matchup-intel/prep-store";
 import type { Db } from "@/server/db/types";
 import { activationCodes, appSettings, auditEvents, dataRefreshStatus, invites, jobRuns, lastKnownRanks, matchDetails, players, privacyErasures, riotAccounts, users, type MatchParticipantDetail } from "@/server/db/schema";
 import { pruneAuthFailures } from "@/server/auth/throttle";
@@ -75,6 +78,8 @@ export interface ErasureCounts {
   gamesDeidentified: number;
   timelines: number;
   lanePartners: number;
+  /** Matchup Intel's evidence rows of the others' shared games: made again from the de-identified records. */
+  evidenceRows: number;
   /** Notes other people wrote that named them (the names are replaced, the rest of the note kept). */
   notes: number;
   auditEntries: number;
@@ -431,12 +436,14 @@ async function planErasure(db: Db, s: ErasureSubject): Promise<Plan> {
   const notes = await notesToEdit(db, s);
 
   // What their own records add up to.
-  const [games, journal, ranks, retired, lanePartners] = await Promise.all([
+  const notTheirs = s.accountIds.length ? sql`AND account_id NOT IN (${uuidList(s.accountIds)})` : sql``;
+  const [games, journal, ranks, retired, lanePartners, evidenceRows] = await Promise.all([
     s.accountIds.length ? count(db, sql`SELECT count(*) AS n FROM account_matches WHERE account_id IN (${uuidList(s.accountIds)}) AND champion_id IS NOT NULL`) : 0,
     s.playerId ? count(db, sql`SELECT count(*) AS n FROM ranked_games WHERE player_id = ${s.playerId}::uuid`) : 0,
     s.puuids.length ? count(db, sql`SELECT count(*) AS n FROM last_known_ranks WHERE puuid IN (${textList(s.puuids)})`) : 0,
     s.puuids.length ? count(db, sql`SELECT count(*) AS n FROM tracked_summoners WHERE puuid IN (${textList(s.puuids)})`) : 0,
     shared.length ? countLanePartners(db, s, shared) : 0,
+    shared.length ? count(db, sql`SELECT count(*) AS n FROM account_match_prep WHERE match_id IN (${textList(shared)}) ${notTheirs}`) : 0,
   ]);
 
   return {
@@ -460,6 +467,7 @@ async function planErasure(db: Db, s: ErasureSubject): Promise<Plan> {
       gamesDeidentified: shared.length,
       timelines: timelinesDeleted + timelinesTouched,
       lanePartners,
+      evidenceRows,
       notes: notes.edits.length,
       auditEntries: audit.length,
       jobLogs: jobRows.length + refreshRows.length,
@@ -558,10 +566,16 @@ export async function eraseSubject(db: Db, actorUserId: string | null, target: {
       await tx.insert(privacyErasures).values({ reference, tokens: tokensFor(s), keyCheck: keyCheckOf() });
     }
     await applyPlan(tx, plan);
-    return { reference, counts: plan.counts, mentions: plan.mentions };
+    return { reference, counts: plan.counts, mentions: plan.mentions, shared: plan.shared };
   });
   forgetErasureCache();
-  return result;
+  invalidateCache(EVIDENCE_CACHE);
+  // The others' evidence rows of the shared games were deleted with what named them: made again now
+  // from the de-identified records (a removed seat leaves the opponent unclear), so their counts do
+  // not wait for a prep-backfill run (R7 review B2). Never throws; a game it misses the backfill makes.
+  const { shared, ...done } = result;
+  for (let i = 0; i < shared.length; i += 100) await refreshMatchPrep(db, shared.slice(i, i + 100));
+  return done;
 }
 
 async function applyPlan(tx: Db, plan: Plan): Promise<void> {
@@ -603,6 +617,10 @@ async function applyPlan(tx: Db, plan: Plan): Promise<void> {
           participants = (SELECT coalesce(jsonb_agg(x ORDER BY ord), '[]'::jsonb) FROM jsonb_array_elements(participants) WITH ORDINALITY t(x, ord) WHERE NOT (x->>'puuid' IN (${textList(gone)}))),
           frames = CASE WHEN frames IS NULL THEN NULL ELSE jsonb_set(frames, '{p}', coalesce(frames->'p', '{}'::jsonb) - ARRAY[${textList(gone)}]::text[]) END
         WHERE match_id IN (${textList(plan.shared)})`);
+    // Matchup Intel's evidence rows of these games named them (a lane opponent or partner, their
+    // positions in the lane's end): deleted, so prep-backfill makes them again from the
+    // de-identified records, where a removed seat leaves the opponent unclear.
+    await tx.execute(sql`DELETE FROM account_match_prep WHERE match_id IN (${textList(plan.shared)})`);
     // The others' stored summaries of these games included their figures (team kills and damage):
     // copied again from the de-identified records.
     await tx.execute(sql`UPDATE account_matches SET summarised_at = NULL WHERE match_id IN (${textList(plan.shared)})`);

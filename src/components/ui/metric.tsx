@@ -8,7 +8,7 @@ export function Info({ text, label, className }: { text: string; /** What it exp
   return <InfoTip text={text} label={label} className={className} />;
 }
 
-/** A labelled metric: title, value, unit and an ⓘ tooltip with population and source. */
+/** A labelled metric: title, value, unit and an ⓘ with its one plain sentence. */
 export function Metric({ id, value, showUnit = true, className, valueClassName, inline = false }: { id: MetricKey; value: React.ReactNode; showUnit?: boolean; className?: string; valueClassName?: string; inline?: boolean }) {
   const m = metric(id);
   const unit = m.unit === "label" || m.unit === "count" ? null : m.unit;
@@ -38,19 +38,8 @@ export function Metric({ id, value, showUnit = true, className, valueClassName, 
 /** Column header or label with the metric's ⓘ. */
 export function MetricLabel({ id, children, className }: { id: MetricKey; children?: React.ReactNode; className?: string }) {
   return (
-    <span className={cn("inline-flex items-center gap-1", className)} title={metricTooltip(id)}>
+    <span className={cn("inline-flex items-center gap-1", className)}>
       {children ?? metric(id).title} <Info text={metricTooltip(id)} label={`About ${metric(id).title}`} />
     </span>
-  );
-}
-
-/** "Source: … · Population: … · Updated …" line under a panel. */
-export function SourceLine({ source, population, updated, className }: { source: string; population?: string; updated?: string | null; className?: string }) {
-  return (
-    <p className={cn("text-xs text-fg-subtle", className)}>
-      Source: {source}
-      {population ? ` · Population: ${population}` : ""}
-      {updated ? ` · Updated ${updated}` : ""}
-    </p>
   );
 }

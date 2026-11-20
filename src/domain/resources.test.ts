@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_RESOURCES,
@@ -7,7 +8,8 @@ import {
   addResource,
   checkResourceUrl,
   cleanResourceInput,
-  faviconUrl,
+  resourceIconAsset,
+  RESOURCE_ICON_ASSETS,
   libraryFrom,
   moveResource,
   plainText,
@@ -82,8 +84,11 @@ describe("addresses", () => {
   it("names the host and the favicon a link has", () => {
     expect(resourceHost("https://www.metatft.com/")).toBe("metatft.com");
     expect(resourceHost("https://wiki.leagueoflegends.com/en-us/")).toBe("wiki.leagueoflegends.com");
-    expect(faviconUrl("https://op.gg/lol/modes/aram")).toBe("https://op.gg/favicon.ico");
-    expect(faviconUrl("http://op.gg/")).toBeNull();
+    // Shipped icons for the library's own sites (nothing fetched from a site at run time), each a file in public/.
+    expect(resourceIconAsset("https://op.gg/lol/modes/aram")).toBe("/resource-icons/op.gg.png");
+    expect(resourceIconAsset("https://www.leagueoflegends.com/en-us/news/")).toBe("/resource-icons/leagueoflegends.com.png");
+    expect(resourceIconAsset("https://example.com/")).toBeNull();
+    for (const path of Object.values(RESOURCE_ICON_ASSETS)) expect(existsSync(`public${path}`), path).toBe(true);
   });
 });
 

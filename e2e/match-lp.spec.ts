@@ -41,7 +41,7 @@ test("ranked cards show the LP their readings prove, or a dash that says why", a
   for (const f of figures) {
     // "+19 LP" or "−22 LP" (a true minus), resting on two named readings.
     expect(f.text).toMatch(/^(\+\d+|−\d+|0) LP$/);
-    expect(f.note).toMatch(/^Recorded: .+ before this game \(read .+\) and .+ after it \(read .+\)\.$/);
+    expect(f.note).toMatch(/^.+ \d+ LP → .+ \d+ LP: checked \d{1,2} [A-Z][a-z]{2} \d{4}, \d{1,2}:\d{2} [ap]m and .*\d{1,2}:\d{2} [ap]m, either side of this game's result\.$/);
   }
   for (const d of dashes) {
     expect(d.text).toContain("—");

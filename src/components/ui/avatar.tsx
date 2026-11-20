@@ -12,10 +12,10 @@ export function hueOf(name: string): number {
 }
 
 /** A member's picture, or a clean initial on a tinted disc when they have none (or it cannot load). */
-export function Avatar({ name, src, size = "md", className, ring }: { name: string; src?: string | null; size?: keyof typeof SIZES; className?: string; ring?: "blue" | "red" | "accent" }) {
+export function Avatar({ name, seed, src, size = "md", className, ring }: { name: string; /** What the disc's colour is seeded from where the name can differ by place (an account: its user id, so the sidebar, the top bar and Settings agree, UD.S1); the name otherwise. */ seed?: string | null; src?: string | null; size?: keyof typeof SIZES; className?: string; ring?: "blue" | "red" | "accent" }) {
   const ringClass = ring ? { blue: "ring-2 ring-blue", red: "ring-2 ring-red", accent: "ring-2 ring-accent" }[ring] : "";
   const initial = (name.trim()[0] ?? "?").toUpperCase();
-  const hue = hueOf(name);
+  const hue = hueOf(seed || name);
   const disc = (
     <span aria-hidden className={cn("inline-flex shrink-0 select-none items-center justify-center rounded-full font-semibold", SIZES[size], ringClass, className)} style={{ background: `hsl(${hue} 45% 22%)`, color: `hsl(${hue} 80% 82%)` }}>
       {initial}

@@ -8,6 +8,8 @@ import { MatchupFooter } from "./matchup-footer";
 import { OpenPickerButton, PairLink } from "./matchup-frame";
 import { slotWords } from "./slots";
 import { RiotTipsPanel } from "./riot-tips";
+import { EvidenceBody, EvidenceSummary } from "./evidence-panel";
+import type { MatchupEvidence } from "@/domain/matchup-intel/evidence";
 import { InteractionsPanel, LevelNotesPanel, notesBalance } from "./matchup-notes";
 import { behindOf } from "./matchup-status";
 import { staleDataWords } from "./wording";
@@ -86,7 +88,7 @@ const NOTES_SPLIT = {
   folds: "@min-[40rem]/dash:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]",
 } as const;
 
-export function MatchupContent({ view, champions, curated, legal }: { view: MatchupPageView; champions: readonly ChampionChoice[]; curated: Record<string, string[]>; legal: string }) {
+export function MatchupContent({ view, champions, curated, legal, evidence = null }: { view: MatchupPageView; champions: readonly ChampionChoice[]; curated: Record<string, string[]>; legal: string; evidence?: MatchupEvidence | null }) {
   const byId = new Map(champions.map((c) => [c.id, c]));
   const { you, enemy, enemyIntel, yourIntel, matchup, role, allyIntel, enemy2Intel } = view;
   const duo = DUO_ROLES.has(role);
@@ -100,7 +102,8 @@ export function MatchupContent({ view, champions, curated, legal }: { view: Matc
   const stale = behind.length && current ? <StaleNote words={staleDataWords(behind, current, behind.length === shownData.length)} /> : null;
   const shows = briefingShows(matchup);
   const balance = enemyIntel ? notesBalance(matchup, enemyIntel, yourIntel) : "even";
-  const tips = <RiotTipsPanel enemies={[enemyIntel, enemy2Intel].filter((i): i is ChampionIntelView => !!i)} yours={[mirror ? null : yourIntel, allyIntel].filter((i): i is ChampionIntelView => !!i)} duo={duo} />;
+  // Riot's tips and the evidence from the team's games share one fold, its line stating both.
+  const tips = <RiotTipsPanel enemies={[enemyIntel, enemy2Intel].filter((i): i is ChampionIntelView => !!i)} yours={[mirror ? null : yourIntel, allyIntel].filter((i): i is ChampionIntelView => !!i)} evidenceSummary={<EvidenceSummary evidence={evidence} />} evidence={<EvidenceBody evidence={evidence} duo={duo} pair={{ chosen: !!you && !!enemy, curated: shows, hidden: !shows && !!matchup }} />} />;
 
   return (
     <div className="@container/dash space-y-3" data-testid="matchup-dashboard" data-layer={you && enemy ? (shows ? "curated" : "assembled") : undefined}>
@@ -146,7 +149,7 @@ export function MatchupContent({ view, champions, curated, legal }: { view: Matc
                 {allyIntel ? <YourChampion intel={allyIntel} label={slotWords(role, "ally").label} testId="matchup-ally-abilities" /> : null}
               </div>
             ) : null}
-            {/* Riot's tips: one folded line under the kits, so the one-screen fit holds. */}
+            {/* Riot's tips and the evidence from the team's games: one folded line under the kits, so the one-screen fit holds. */}
             {tips}
           </div>
         </div>

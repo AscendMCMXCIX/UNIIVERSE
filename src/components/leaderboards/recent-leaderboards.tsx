@@ -1,7 +1,8 @@
 import { TrendingUp } from "lucide-react";
 import { CardAvatar } from "@/components/players/card-look";
 import { RoleIcon } from "@/components/role-icon";
-import { DataGroup, DataHead, DataList, DataRow, FigureCell, MemberCell, Place, ROW_STATES, RowLink, tieRuns, type TiePosition } from "@/components/ui/data-list";
+import { DataGroup, DataHead, DataList, DataRow, FigureCell, MemberCell, Place, ROW_STATES, tieRuns, type TiePosition } from "@/components/ui/data-list";
+import { PeekRowLink } from "./leaderboards-peek";
 import { EmptyState } from "@/components/ui/empty-state";
 import { InfoTip } from "@/components/ui/info-tip";
 import { QuietBar } from "@/components/ui/quiet-bar";
@@ -184,14 +185,20 @@ export function RecentForm({ form, player, viewer, className }: { form: FormView
 }
 
 /**
- * The gap to the place above, short (D5): "1 win behind", "Next win: 3=" (the place one win would
- * share), "14 of 20 games" for a provisional window, "—" for first place. The sentence (FormRow.note)
- * stays: it is read out, and it is the row's tooltip. A change of wording ("A win ties 3rd") is a
- * change here only.
+ * The gap to the place above, short (D5): "1 win behind", "A win ties 3rd" (the place one win would
+ * share; it was "Next win: 3=", a token to decode, UD.L5), "14 of 20 games" for a provisional
+ * window, "—" for first place. The sentence (FormRow.note) stays: it is read out.
  */
+/** 1st, 2nd, 3rd, 4th … 11th, 12th, 13th, 21st (English ordinals; places are small whole numbers). */
+function ordinal(n: number): string {
+  const tens = n % 100;
+  const suffix = tens >= 11 && tens <= 13 ? "th" : (["th", "st", "nd", "rd"][n % 10] ?? "th");
+  return `${n}${suffix}`;
+}
+
 export function gapToken(gap: FormRow["gap"], window: FormView["window"]): string {
   if (!gap) return "—";
-  if (gap.kind === "level") return `Next win: ${gap.place}=`;
+  if (gap.kind === "level") return `A win ties ${ordinal(gap.place)}`;
   if (gap.kind === "behind") return `${gap.wins} ${gap.wins === 1 ? "win" : "wins"} behind`;
   return `${gap.games} of ${window.games} games`;
 }
@@ -230,9 +237,7 @@ function FormRowItem({ r, p, tie, window }: { r: FormRow; p: BoardPlayer; tie: T
       // The public board has no link, so no row tooltip: its cells keep their own titles.
       link={
         p.profileHref ? (
-          <RowLink href={p.profileHref} hint={[tieWords, r.note, roleTitle].filter(Boolean).join(". ")}>
-            {p.name}
-          </RowLink>
+          <PeekRowLink playerId={p.id} name={p.name} profileHref={p.profileHref} hint={[tieWords, r.note, roleTitle].filter(Boolean).join(". ")} />
         ) : null
       }
       figures={
@@ -305,7 +310,7 @@ function FormRowItem({ r, p, tie, window }: { r: FormRow; p: BoardPlayer; tie: T
         </>
       }
     >
-      <MemberCell look={p.look} name={p.name} avatar={false} you={r.you} youWraps readName={!p.profileHref} nameTestId="board-member-name" nameClassName="text-md leading-snug @min-[36rem]/list:text-sm" className="col-[3/4] row-[1/2] @max-[13.5rem]/list:col-[1/-1] @max-[13.5rem]/list:row-[2/3] @min-[36rem]/list:self-end @min-[58rem]/list:self-center" />
+      <MemberCell look={p.look} name={p.name} avatar={false} you={r.you} youWraps readName={!p.profileHref} nameHref={p.profileHref ?? undefined} nameTestId="board-member-name" nameClassName="text-md leading-snug @min-[36rem]/list:text-sm" className="col-[3/4] row-[1/2] @max-[13.5rem]/list:col-[1/-1] @max-[13.5rem]/list:row-[2/3] @min-[36rem]/list:self-end @min-[58rem]/list:self-center" />
     </DataRow>
   );
 }
@@ -339,12 +344,10 @@ function NotEnoughMember({ n, p, you }: { n: FormView["notEnough"][number]; p: B
       <CardAvatar look={p.look} name={p.name} src={p.avatarUrl} size="sm" className="justify-self-center" />
       {/* Not prefetched: these names linked nowhere before, so they add no server render (Vercel Active CPU). */}
       {p.profileHref ? (
-        <RowLink href={p.profileHref} prefetch={false}>
-          {p.name}
-        </RowLink>
+        <PeekRowLink playerId={p.id} name={p.name} profileHref={p.profileHref} />
       ) : null}
       <span className="flex min-w-0 flex-col @max-[13.5rem]/list:col-[1/-1] @max-[13.5rem]/list:row-[2/3] @max-[13.5rem]/list:mt-0.5 @min-[36rem]/list:flex-row @min-[36rem]/list:flex-wrap @min-[36rem]/list:items-baseline @min-[36rem]/list:gap-x-2">
-        <MemberCell look={p.look} name={p.name} avatar={false} you={you} youWraps readName={!p.profileHref} nameClassName="text-md leading-snug @min-[36rem]/list:text-sm" />
+        <MemberCell look={p.look} name={p.name} avatar={false} you={you} youWraps readName={!p.profileHref} nameHref={p.profileHref ?? undefined} nameClassName="text-md leading-snug @min-[36rem]/list:text-sm" />
         {/* The "·" between the games needed and the last game held to both by no-break spaces (FORM_COLS): with large text it ended or started a line. */}
         <span className="text-xs text-fg-muted">
           Needs {n.needed} more game{n.needed === 1 ? "" : "s"}

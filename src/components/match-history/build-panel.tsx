@@ -62,7 +62,7 @@ export function BuildPanel({ result }: { result: MatchTimelineResult | null }) {
           </h3>
           <ol className="flex flex-wrap gap-1" data-testid="skill-order">
             {build.skills.map((k, i) => (
-              <li key={i} className="flex w-7 flex-col items-center gap-0.5" title={`Level ${i + 1}: ${k}`}>
+              <li key={i} className="flex w-7 flex-col items-center gap-0.5">
                 <span className={cn("grid h-7 w-7 place-items-center rounded-md text-xs font-bold", SKILL_TONE[k])}>{k}</span>
                 <span className="text-2xs tabular-nums text-fg-subtle">{i + 1}</span>
               </li>

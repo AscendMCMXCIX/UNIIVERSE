@@ -166,3 +166,63 @@ test("zoom, arrow keys and Reset; Cancel keeps the old picture and Save stores t
   expect(colour[0]).toBeGreaterThan(150);
   expect(colour[2]).toBeLessThan(100);
 });
+
+test("Settings → On this device at 200% text on a narrow phone: each Clear takes its own line, never over the words, and nothing scrolls sideways (R7 review A3)", async ({ page }, info) => {
+  test.skip(info.project.name !== "phone", "the narrowest posture");
+  await page.setViewportSize({ width: 320, height: 640 });
+  await page.goto("/settings");
+  await expect(page.getByTestId("device-item").first()).toBeVisible();
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = "200%";
+  });
+  const rows = await page.getByTestId("device-item").evaluateAll((lis) =>
+    lis.map((li) => {
+      // The words' own extent (they can overflow a column squeezed narrower than they are).
+      const range = document.createRange();
+      range.selectNodeContents(li.querySelector("div")!);
+      const t = range.getBoundingClientRect();
+      const b = li.querySelector("button")!.getBoundingClientRect();
+      return Math.min(t.right, b.right) > Math.max(t.left, b.left) && Math.min(t.bottom, b.bottom) > Math.max(t.top, b.top);
+    }),
+  );
+  expect(rows.length).toBeGreaterThan(0);
+  expect(rows.filter(Boolean), "no Clear button over its row's words").toEqual([]);
+  expect(await page.evaluate(() => document.scrollingElement!.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
+});
+
+test("Settings → On this device: what this browser remembers, each with Clear and Clear all, nothing sent to the server; the account's picture the same colour in the frame and in Settings", async ({ page }, info) => {
+  await page.goto("/settings");
+  const panel = page.getByTestId("on-this-device");
+  await expect(panel).toBeVisible();
+  await expect(panel.getByTestId("device-item")).toHaveCount(4);
+  // Something remembered: favourites and Card Studio's preview (keys as the app writes them).
+  await page.evaluate(() => {
+    localStorage.setItem("uniiverse.resources.favourites.v1", JSON.stringify(["d-opgg", "d-lolalytics"]));
+    localStorage.setItem("uniiverse.studio.preview", "hidden");
+  });
+  await page.reload();
+  const fav = panel.locator("[data-item=resource-favourites]");
+  await expect(fav.getByTestId("device-item-state")).toHaveText("2 sites");
+  await expect(panel.locator("[data-item=card-preview]").getByTestId("device-item-state")).toHaveText("Put away");
+  // Clearing sends nothing to the server.
+  const requests: string[] = [];
+  page.on("request", (r) => {
+    if (r.method() !== "GET" || r.url().includes("/api/")) requests.push(`${r.method()} ${new URL(r.url()).pathname}`);
+  });
+  await fav.getByTestId("device-item-clear").click();
+  await expect(fav.getByTestId("device-item-state")).toHaveText("Nothing kept");
+  expect(await page.evaluate(() => localStorage.getItem("uniiverse.resources.favourites.v1"))).toBeNull();
+  await page.getByTestId("device-clear-all").click();
+  await expect(panel.locator("[data-stored]")).toHaveCount(0);
+  expect(await page.evaluate(() => localStorage.getItem("uniiverse.studio.preview"))).toBeNull();
+  await expect(page.getByTestId("device-clear-all")).toBeDisabled();
+  expect(requests, "nothing sent to the server").toEqual([]);
+  // The account's picture: one colour, in Settings and in the frame (sidebar, top bar), seeded from the account (UD.S1).
+  const colour = (sel: string) => page.locator(sel).first().evaluate((el) => {
+    const disc = el.querySelector<HTMLElement>("span[aria-hidden][style*=background]") ?? (el.matches("span[style*=background]") ? (el as HTMLElement) : null);
+    return disc ? getComputedStyle(disc).backgroundColor : "picture";
+  });
+  const inSettings = await colour("[data-testid=avatar-editor]");
+  // (A picture saved by an earlier test in this file shows as the picture in both places; else the same disc colour.)
+  expect(await colour("[data-testid=account-menu-button]:visible, [data-testid=account-sheet-button]:visible"), info.project.name).toBe(inSettings);
+});

@@ -1015,7 +1015,7 @@ test("tablet and desktop: Games → Encounters from the pinned row", async ({ pa
   await expect(page.getByTestId("match-view-encounters")).toHaveAttribute("aria-current", "page");
 });
 
-test("tablet and desktop: Leaderboards is one page, with no views for the pinned row; its sections are in reach by scrolling, and its old Records address lands at them", async ({ page }) => {
+test("tablet and desktop: Leaderboards is one page, with no views for the pinned row (its section index only); its sections are in reach, and its old Records address lands at them", async ({ page }) => {
   test.skip(isPhone(page), "the pinned row is from md");
   if (!isTablet(page)) await page.setViewportSize({ width: 1440, height: 600 });
   await page.goto("/leaderboards?view=records");
@@ -1024,8 +1024,9 @@ test("tablet and desktop: Leaderboards is one page, with no views for the pinned
   await expect(page.locator("section#season-records")).toBeFocused();
   await scrollTo(page, "end");
   await expect(page.getByTestId("team-tabs")).toHaveAttribute("data-stuck", "");
-  // No views to copy into the pinned row: it holds the section tabs (and the team's name) alone.
-  await expect(pageToolbar(page)).toHaveCount(0);
+  // No views to copy into the pinned row: it holds the section tabs, the team's name and the page's index (UD.L1).
+  await expect(pageToolbar(page)).toHaveCount(1);
+  await expect(pageToolbar(page).getByRole("link")).toHaveText(["Recent form", "Season records", "Multikills", "Milestones"]);
   await expect(page.getByTestId("toolbar-leaderboards-tab-form")).toHaveCount(0);
 });
 

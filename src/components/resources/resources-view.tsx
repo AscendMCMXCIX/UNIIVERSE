@@ -27,6 +27,9 @@ import { useFavourites } from "./favourites";
 
 type Filter = ResourceSection | "all" | "favourites";
 
+/** A section's shorter name in a phone's index (its full name from sm). */
+const PHONE_LABELS: Partial<Record<string, string>> = { league: "League" };
+
 export function ResourcesView({ entries }: { entries: Resource[] }) {
   const [query, setQuery] = React.useState("");
   const [filter, setFilter] = React.useState<Filter>("all");
@@ -50,7 +53,7 @@ export function ResourcesView({ entries }: { entries: Resource[] }) {
       <div className="flex flex-col gap-3 sm:short:flex-row sm:short:items-center lg:flex-row lg:flex-wrap lg:items-center">
         <SearchInput value={query} onChange={setQuery} placeholder="Search resources" label="Search resources by name, site or description" testId="resources-search" className="sm:max-w-md lg:w-64 lg:max-w-none lg:shrink-0 sm:short:w-56 sm:short:max-w-none sm:short:shrink-0" />
         <div className="flex min-w-0 flex-1 items-center gap-3 lg:basis-auto">
-          <ScrollRow role="radiogroup" aria-label="Show" className={segmentedGroupClass("min-w-0 lg:flex-wrap lg:overflow-visible")} data-testid="resources-index">
+          <ScrollRow role="radiogroup" aria-label="Show" className={segmentedGroupClass("min-w-0 max-sm:flex-wrap max-sm:justify-center max-sm:overflow-visible max-sm:[mask-image:none] max-sm:[&>button]:gap-1 max-sm:[&>button]:px-2 lg:flex-wrap lg:overflow-visible")} data-testid="resources-index">
             {index.map(({ key, label }) => {
               const on = filter === key;
               const n = count(key);
@@ -58,9 +61,18 @@ export function ResourcesView({ entries }: { entries: Resource[] }) {
               // the segment with an empty slot of the count's width, so nothing moves when it fills.
               const shownCount = key === "favourites" && !known ? null : n;
               return (
-                <button key={key} type="button" role="radio" aria-checked={on} onClick={() => setFilter(key)} className={segmentClass(on)} title={key === "favourites" ? "The sites you starred, kept on this device" : undefined} data-testid={`resources-index-${key}`}>
+                <button key={key} type="button" role="radio" aria-checked={on} onClick={() => setFilter(key)} className={segmentClass(on)} data-testid={`resources-index-${key}`}>
                   {key === "favourites" ? <Star className={cn("h-3.5 w-3.5 shrink-0", on || n ? "fill-current text-warn" : "text-fg-subtle")} aria-hidden /> : null}
-                  {label}
+                  {/* On a phone the index wraps onto two lines (UM.R1): Favourites is its star there (its name read out), and the
+                      League of Legends section "League", so the seven fit two lines at 375px. */}
+                  {key === "favourites" ? <span className="max-sm:sr-only">{label}</span> : PHONE_LABELS[key] ? (
+                    <>
+                      <span className="sm:hidden">{PHONE_LABELS[key]}</span>
+                      <span className="max-sm:hidden">{label}</span>
+                    </>
+                  ) : (
+                    label
+                  )}
                   <span className={cn("min-w-6 rounded px-1 text-center text-2xs tabular-nums", shownCount === null ? "bg-transparent" : n ? "bg-surface-3 text-fg-muted" : "text-fg-subtle")} data-testid="resources-index-count">
                     {shownCount === null ? "" : formatCount(shownCount)}
                   </span>
@@ -68,24 +80,16 @@ export function ResourcesView({ entries }: { entries: Resource[] }) {
               );
             })}
           </ScrollRow>
-          {/* The live count: on a phone each segment's count says it, so it is left to screen readers.
-              From lg it keeps the room of its longest form ("11 of 11 resources", an invisible copy
-              in the same cell), so a section chosen or a search typed never changes whether the index
-              fits beside the search, or moves it. */}
-          <div className="ml-auto grid shrink-0 max-sm:contents">
-            <p className="col-start-1 row-start-1 whitespace-nowrap text-right text-sm tabular-nums text-fg-muted max-sm:sr-only" aria-live="polite" data-testid="resources-count">
-              {entries.length === 0 ? "No resources yet." : shown.length === entries.length ? `${formatCount(entries.length)} resource${entries.length === 1 ? "" : "s"}` : `${formatCount(shown.length)} of ${formatCount(entries.length)} resources`}
-            </p>
-            <span aria-hidden className="invisible col-start-1 row-start-1 hidden whitespace-nowrap text-sm tabular-nums lg:block">
-              {`${formatCount(entries.length)} of ${formatCount(entries.length)} resources`}
-            </span>
-          </div>
+          {/* The live count, read out only: each segment's count says it on screen (one count, UD.R1: "All 11" and "11 resources" both showed). */}
+          <p className="sr-only" aria-live="polite" data-testid="resources-count">
+            {entries.length === 0 ? "No resources yet." : shown.length === entries.length ? `${formatCount(entries.length)} resource${entries.length === 1 ? "" : "s"}` : `${formatCount(shown.length)} of ${formatCount(entries.length)} resources`}
+          </p>
         </div>
       </div>
 
-      {/* With nothing in the library, a phone says so on screen too (its live count is read out only). */}
+      {/* With nothing in the library, it says so on screen too (the live count is read out only). */}
       {entries.length === 0 ? (
-        <p className="text-sm text-fg-muted sm:hidden" aria-hidden data-testid="resources-empty">
+        <p className="text-sm text-fg-muted" aria-hidden data-testid="resources-empty">
           No resources yet.
         </p>
       ) : null}
@@ -151,15 +155,15 @@ function ResourceRow({ resource: e, favourite, onToggle }: { resource: Resource;
               semibold, docs/MOBILE.md); the host beside it gives way first, cut short, then ↗. Under
               16rem of list (larger text) the line wraps: the host goes under the title where the two
               do not fit side by side, still the one cut short. */}
-          <span className="flex min-w-0 items-baseline gap-2 @max-[16rem]/resources:flex-wrap @max-[16rem]/resources:gap-y-0.5">
-            <span className="min-w-0 text-md font-semibold leading-snug text-fg [overflow-wrap:anywhere] group-hover:text-accent md:text-sm md:font-medium" data-testid="resource-title">
-              {e.title}
-            </span>
-            <span className="flex min-w-14 flex-1 basis-0 items-baseline gap-1 text-xs text-fg-subtle" data-testid="resource-host">
-              <span className="min-w-0 truncate">{resourceHost(e.url)}</span>
-              <span className="shrink-0" aria-hidden>
-                ↗
-              </span>
+          <span className="block min-w-0 text-md font-semibold leading-snug text-fg [overflow-wrap:anywhere] group-hover:text-accent md:text-sm md:font-medium" data-testid="resource-title">
+            {e.title}
+          </span>
+          {/* The host on a line of its own, whole (UD.R1: beside the title it was cut, "leagueofl…"); cut short only in a list under
+              16rem (a large text size), where a host is one long word wider than the row. */}
+          <span className="flex min-w-0 items-baseline gap-1 text-xs text-fg-subtle" data-testid="resource-host">
+            <span className="min-w-0 @max-[16rem]/resources:truncate">{resourceHost(e.url)}</span>
+            <span className="shrink-0" aria-hidden>
+              ↗
             </span>
           </span>
           {/* Whole on a touch screen; with a mouse two lines at most, the rest shown on hover (and read out). */}

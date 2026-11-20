@@ -42,10 +42,16 @@ export const fmt = {
   games' "champions" ran 21px past the card at 150% on a 320px phone (63px at 200%), the win rate
   ran over the line beside it and "Damage/" under its ⓘ. So under 17.5rem each band goes two across
   (a third of the card holds "By champion" with its arrow, and "Damage/" with its ⓘ, from 17.34rem),
-  its third figure across both columns (games, vision; the kills in three rows of two, the link in
-  the sixth cell); and under 11.75rem one across (half of the card holds them, and "100%", from
-  11.66rem). Nothing changes at 100% text.
+  its third figure across both columns (games, vision); and under 11.75rem one across, each figure
+  a row from 9rem: its label (and context) at the left, the number at the right, so six figures
+  take three quarters of the height they took stacked (913px on a 320px phone at 150%: UM.PO1);
+  stacked under 9rem (200% text), where a number beside the label would push it under its ⓘ.
+  Nothing changes at 100% text.
 */
+
+/** One across (9 to 11.75rem of card): a figure's cell as a row, the number at its right across its lines. */
+const ROW_CELL = "@min-[9rem]/perf:@max-[11.75rem]/perf:grid @min-[9rem]/perf:@max-[11.75rem]/perf:grid-cols-[minmax(0,1fr)_auto] @min-[9rem]/perf:@max-[11.75rem]/perf:items-center @min-[9rem]/perf:@max-[11.75rem]/perf:gap-x-3";
+const ROW_VALUE = "@min-[9rem]/perf:@max-[11.75rem]/perf:col-start-2 @min-[9rem]/perf:@max-[11.75rem]/perf:row-span-3 @min-[9rem]/perf:@max-[11.75rem]/perf:row-start-1 @min-[9rem]/perf:@max-[11.75rem]/perf:mt-0";
 
 /** A band's columns (see above): three, two under 17.5rem of card, one under 11.75rem. */
 const BAND_COLUMNS = "@max-[17.5rem]/perf:grid-cols-2 @max-[11.75rem]/perf:grid-cols-1";
@@ -89,11 +95,11 @@ const LABEL_TIP = "-mr-2 pointer-coarse:-mr-4.5";
 /** A headline figure: its label, the number at the size of the page's main figures, its context. */
 function Headline({ label, value, sub, info, tone = "plain", testId, className, children }: { label: string; value: React.ReactNode; sub?: React.ReactNode; info?: string; tone?: WinRateTone; testId: string; className?: string; children?: React.ReactNode }) {
   return (
-    <div className={cn("min-w-0 px-3 py-3 @min-[34rem]/perf:px-5 @min-[34rem]/perf:py-4", className)} data-testid={testId}>
+    <div className={cn("min-w-0 px-3 py-3 @min-[34rem]/perf:px-5 @min-[34rem]/perf:py-4", ROW_CELL, className)} data-testid={testId}>
       <div className="flex items-center gap-1 text-xs font-medium text-fg-muted">
         <span className="min-w-0 leading-tight">{breakable(label)}</span> {info ? <InfoTip text={info} label={`About ${label}`} className={LABEL_TIP} /> : null}
       </div>
-      <div className={cn("mt-1.5 text-2xl font-semibold leading-none tracking-tight tabular-nums @min-[34rem]/perf:text-figure", TONE_CLASS[tone])} data-testid={`${testId}-value`}>
+      <div className={cn("mt-1.5 text-2xl font-semibold leading-none tracking-tight tabular-nums @min-[34rem]/perf:text-figure", ROW_VALUE, TONE_CLASS[tone])} data-testid={`${testId}-value`}>
         {value}
       </div>
       {children}
@@ -106,11 +112,11 @@ function Headline({ label, value, sub, info, tone = "plain", testId, className, 
 /** A supporting figure: the same reading as a headline one, a size smaller, its context beside it where there is room. */
 function Supporting({ label, value, sub, info, muted, testId, className }: { label: string; value: React.ReactNode; sub?: string; info?: string; muted?: boolean; testId: string; className?: string }) {
   return (
-    <div className={cn("min-w-0 px-3 py-2.5 @min-[34rem]/perf:px-5", className)} data-testid={testId}>
+    <div className={cn("min-w-0 px-3 py-2.5 @min-[34rem]/perf:px-5", ROW_CELL, className)} data-testid={testId}>
       <div className="flex items-center gap-1 text-xs text-fg-muted">
         <span className="min-w-0 leading-tight">{breakable(label)}</span> {info ? <InfoTip text={info} label={`About ${label}`} className={LABEL_TIP} /> : null}
       </div>
-      <div className="mt-1 flex min-w-0 items-baseline gap-2">
+      <div className={cn("mt-1 flex min-w-0 items-baseline gap-2", ROW_VALUE)}>
         <span className={cn("text-lg font-semibold leading-tight tabular-nums", muted ? "text-fg-subtle" : "text-fg")} data-testid={`${testId}-value`}>
           {value}
         </span>
@@ -132,39 +138,16 @@ function RecordBar({ wins, losses }: { wins: number; losses: number }) {
   );
 }
 
-/** How often a multikill came, over the games that have counts: "1 every 8 games". */
-function multikillRate(count: number, counted: number): string {
-  if (count === 0) return "None yet";
-  const every = Math.max(1, Math.round(counted / count));
-  return every === 1 ? `${count >= counted ? "Every game" : "About every game"}` : `1 every ${formatCount(every)} games`;
-}
-
-/** One count in the kills row: its label, the number, how often (or its context). */
-function KillCount({ label, value, sub, muted, testId, className }: { label: string; value: React.ReactNode; sub: string; muted?: boolean; testId: string; className?: string }) {
-  return (
-    <div className={cn("min-w-0 px-2.5 py-2.5 @min-[34rem]/perf:px-3", className)} data-testid={testId}>
-      <div className="text-xs leading-tight text-fg-muted @min-[34rem]/perf:truncate">{label}</div>
-      <div className={cn("mt-0.5 text-lg font-semibold leading-tight tabular-nums", muted ? "text-fg-subtle" : "text-fg")} data-testid={`${testId}-value`}>
-        {value}
-      </div>
-      {/* Three across on a narrow card ("1 every 12 games" in a third of a phone): it wraps, never cut. */}
-      <div className="text-2xs leading-snug text-fg-subtle @min-[34rem]/perf:truncate" title={sub}>
-        {sub}
-      </div>
-    </div>
-  );
-}
-
 /**
- * The kills band: Total kills, then the four multikill kinds, every count in the same colour, size
- * and weight (no kind is highlighted for being rare), with no visible heading of its own since each
- * count names itself (screen readers get one). Total kills adds up each game's own kill count over
- * the same games as the figures above; the multikills add up Riot's counts. Whether every game has
- * its counts is the page's status, beside the scope line under the title, never a mark here. A
- * count no game has yet is a dash, never 0. The champions behind them are one quiet link away, at
- * the row's end. On a card narrower than 34rem (phones): three by two, Total kills first and the link in
- * the sixth cell, where it was a row of its own under Total kills across the top and two by two
- * (245px on an iPhone 15).
+ * The kills band as one line under the season's figures: total kills, then the four multikill kinds
+ * ("Kills 312 · Double 19 · Triple 3 · Quadra 1 · Penta 0"), every count in the same colour and
+ * weight (no kind is highlighted for being rare), and the champions behind them one quiet link away
+ * at the line's end. It was a band of five tiles with how often each came (three by two on a phone,
+ * about 150px); the line is one row (two on the narrowest phones and at large text, where it wraps
+ * between counts, never inside one). Total kills adds up each game's own kill count over the same
+ * games as the figures above; the multikills add up Riot's counts. Whether every game has its counts
+ * is the page's status, never a mark here. A count no game has yet is a dash, never 0. Screen
+ * readers get a heading, with which counts come from only some of the games.
  */
 function KillsBand({ perf, m, byChampionHref }: { perf: PerformanceSummary; m: MultikillSummary; byChampionHref: string }) {
   const unknown = m.counted === 0;
@@ -172,29 +155,48 @@ function KillsBand({ perf, m, byChampionHref }: { perf: PerformanceSummary; m: M
   const killsPartial = perf.totalKills !== null && perf.detailedGames < perf.games;
   // What screen readers hear with the heading: which counts come from only some of the games.
   const notes = [killsPartial ? `kills counted in ${formatCount(perf.detailedGames)} of ${formatCount(perf.games)} games` : null, partial ? `multikills counted in ${formatCount(m.counted)} of ${formatCount(m.games)} games` : null].filter(Boolean);
-  const kinds: Record<keyof MultikillCounts, string> = { double: "Double kills", triple: "Triple kills", quadra: "Quadra kills", penta: "Pentakills" };
+  const kinds: Record<keyof MultikillCounts, string> = { double: "Double", triple: "Triple", quadra: "Quadra", penta: "Penta" };
+  const spoken: Record<keyof MultikillCounts, string> = { double: "Double kills", triple: "Triple kills", quadra: "Quadra kills", penta: "Pentakills" };
   const notYet = (
     <>
       <span aria-hidden>—</span>
       <span className="sr-only">not counted yet</span>
     </>
   );
+  const counts: { key: string; label: string; spoken: string; value: React.ReactNode; muted: boolean; testId: string }[] = [
+    { key: "kills", label: "Kills", spoken: "Total kills", value: perf.totalKills === null ? notYet : formatCount(perf.totalKills), muted: perf.totalKills === null, testId: "stat-total-kills" },
+    ...MULTIKILL_KINDS.map((k) => ({ key: k.key, label: kinds[k.key], spoken: spoken[k.key], value: unknown ? notYet : formatCount(m[k.key]), muted: unknown, testId: `multikill-${k.key}` })),
+  ];
   return (
     <section aria-labelledby="multikills-heading" className="border-t border-border/70" data-testid="multikills" data-coverage={unknown ? "none" : partial ? "partial" : "complete"}>
       <h3 id="multikills-heading" className="sr-only">
         Kills and multikills{notes.length ? ` (${notes.join("; ")})` : ""}
       </h3>
-      <div className={cn("grid grid-cols-3 @min-[34rem]/perf:grid-cols-5 @min-[48rem]/perf:grid-cols-[repeat(5,minmax(0,1fr))_auto]", BAND_COLUMNS)} data-testid="multikill-tiles">
-        <KillCount label="Total kills" value={perf.totalKills === null ? notYet : formatCount(perf.totalKills)} muted={perf.totalKills === null} sub={perf.totalKills === null ? "Not counted yet" : `${fmt.one(perf.kills)} a game`} testId="stat-total-kills" />
-        {MULTIKILL_KINDS.map((k) => (
-          <KillCount key={k.key} label={kinds[k.key]} value={unknown ? notYet : formatCount(m[k.key])} muted={unknown} sub={unknown ? "Not counted yet" : multikillRate(m[k.key], m.counted)} testId={`multikill-${k.key}`} className="@min-[34rem]/perf:border-l @min-[34rem]/perf:border-border/60" />
-        ))}
-        <p className="flex items-center justify-end px-2.5 text-right @min-[34rem]/perf:col-span-5 @min-[34rem]/perf:-mt-1 @min-[34rem]/perf:px-3 @min-[34rem]/perf:pb-2 @min-[48rem]/perf:col-span-1 @min-[48rem]/perf:mt-0 @min-[48rem]/perf:pb-0 @min-[48rem]/perf:pl-1 @min-[48rem]/perf:pr-4">
-          {/* A small link with a finger-sized area on touch screens that takes no room of its own. */}
-          <Link href={byChampionHref} className="relative inline-flex min-h-6 items-center gap-0.5 rounded-md text-xs font-medium @min-[34rem]/perf:whitespace-nowrap text-fg-muted transition-colors hover:text-accent focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:after:absolute pointer-coarse:after:-inset-y-2.5 pointer-coarse:after:-left-3 pointer-coarse:after:right-0 pointer-coarse:after:content-['']" aria-label="Multikills by champion, in All Champions" data-testid="multikills-by-champion">
-            By champion <ChevronRight className="h-3.5 w-3.5" aria-hidden />
-          </Link>
-        </p>
+      <div className="flex items-center gap-x-2 px-3 py-2 @min-[34rem]/perf:px-5" data-testid="multikill-tiles">
+        <dl className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-sm">
+          {counts.map((c, i) => (
+            <div key={c.key} className="flex min-w-0 flex-wrap items-baseline gap-x-1" data-testid={c.testId}>
+              <dt className="text-xs text-fg-muted">
+                <span aria-hidden>{c.label}</span>
+                <span className="sr-only">{c.spoken}</span>
+              </dt>
+              <dd className={cn("font-semibold tabular-nums", c.muted ? "text-fg-subtle" : "text-fg")}>
+                <span data-testid={`${c.testId}-value`}>{c.value}</span>
+                {/* The separator ends a line where the line wraps, never starts the next. */}
+                {i < counts.length - 1 ? (
+                  <span aria-hidden className="ms-1.5 font-normal text-fg-subtle">
+                    ·
+                  </span>
+                ) : null}
+              </dd>
+            </div>
+          ))}
+        </dl>
+        {/* A small link; on touch screens a 44px target (as wide as a finger, the area above and below the line). */}
+        <Link href={byChampionHref} className="touch-target ms-auto inline-flex min-h-6 items-center justify-end gap-0.5 whitespace-nowrap rounded-md text-xs font-medium text-fg-muted transition-colors hover:text-accent focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:min-w-11" aria-label="Multikills by champion, in All Champions" data-testid="multikills-by-champion">
+          {/* The words from 34rem of card; on a phone the chevron alone, leaving the counts most of the line (two lines at 375-393). */}
+          <span className="@max-[34rem]/perf:sr-only">By champion</span> <ChevronRight className="h-3.5 w-3.5" aria-hidden />
+        </Link>
       </div>
     </section>
   );
@@ -221,13 +223,13 @@ function PerformanceCard({ data, basePath }: { data: PlayerOverviewData; basePat
         <Headline label="Win rate" value={rec.winRate === null ? "—" : percent(rec.winRate, 0)} sub={rec.games ? `${rec.wins}W ${rec.losses}L` : "No games yet"} tone={winRateTone(rec.winRate, rec.games, WIN_RATE_MIN_GAMES.season)} testId="stat-winrate" className={BAND_FIRST}>
           <RecordBar wins={rec.wins} losses={rec.losses} />
         </Headline>
-        <Headline label="KDA" value={fmt.kda(perf)} sub={kda} info="(Kills + assists) ÷ deaths, added up over all the games, so one deathless game cannot make it infinite." tone={perf.kdaRatio === null ? "muted" : "plain"} testId="stat-kda" className={BAND_SECOND} />
+        <Headline label="KDA" value={fmt.kda(perf)} sub={kda} info="Kills plus assists for each death, across all these games." tone={perf.kdaRatio === null ? "muted" : "plain"} testId="stat-kda" className={BAND_SECOND} />
         <Headline label="Games" value={<span data-testid="season-record">{rec.games ? fmt.int(rec.games) : "—"}</span>} sub={rec.games ? `${data.topChampions.length} champion${data.topChampions.length === 1 ? "" : "s"}` : "No games yet"} tone={rec.games ? "plain" : "muted"} testId="stat-games" className={BAND_THIRD} />
       </div>
       <div className={cn("grid grid-cols-3 divide-x divide-border/60 border-t border-border/70 bg-bg/25", BAND_COLUMNS)} data-testid="season-supporting">
-        <Supporting label="CS/min" value={fmt.csm(perf)} sub={rec.games ? "minions + monsters" : undefined} info="Lane minions plus jungle monsters: total CS ÷ total minutes played, over the games with both recorded (remakes under five minutes left out)." muted={perf.csPerMinute === null} testId="stat-cs" className={BAND_FIRST} />
-        <Supporting label="Damage/min" value={fmt.int(perf.damagePerMinute)} sub={rec.games ? "to champions" : undefined} info="Damage dealt to enemy champions: total damage ÷ total minutes played, over the games with both recorded (remakes left out)." muted={perf.damagePerMinute === null} testId="stat-damage" className={BAND_SECOND} />
-        <Supporting label="Vision score" value={fmt.int(perf.visionPerGame)} sub={rec.games ? "per game" : undefined} info="Average Riot vision score per game: wards placed and cleared, and time spent revealing enemies." muted={perf.visionPerGame === null} testId="stat-vision" className={BAND_THIRD} />
+        <Supporting label="CS/min" value={fmt.csm(perf)} sub={rec.games ? "minions + monsters" : undefined} muted={perf.csPerMinute === null} testId="stat-cs" className={BAND_FIRST} />
+        <Supporting label="Damage/min" value={fmt.int(perf.damagePerMinute)} sub={rec.games ? "to champions" : undefined} muted={perf.damagePerMinute === null} testId="stat-damage" className={BAND_SECOND} />
+        <Supporting label="Vision score" value={fmt.int(perf.visionPerGame)} sub={rec.games ? "per game" : undefined} info="Riot's vision score per game: points for placing and clearing wards and spotting enemies." muted={perf.visionPerGame === null} testId="stat-vision" className={BAND_THIRD} />
       </div>
       {/* The kills over the same games; per champion in All Champions (same filters, sorted by multikills). */}
       {rec.games > 0 ? <KillsBand perf={perf} m={data.summary.multikills} byChampionHref={`${basePath}/champions?${statsQuery({ season: data.filter.season, mode: data.filter.mode, role: data.filter.role, accountId: data.filter.accountId }, { sort: "multikills" })}`} /> : null}
@@ -270,30 +272,25 @@ function OverviewDashboard({ perf, form, ranked, pools }: { perf: React.ReactNod
   const two = !!ranked;
   return (
     <div className="@container/ov" data-testid="overview-dashboard">
-      {/* Without recent form, ranked progress spans both rows of the rail: the second row takes
-          whatever height it has beyond the season's card, so that card never stretches and the
-          pools stay put. */}
-      <div className={cn("grid grid-cols-[minmax(0,1fr)] items-start gap-3 sm:gap-4", form && "@min-[58rem]/ov:grid-cols-[minmax(0,1fr)_minmax(18rem,21rem)]", two && GRID_2X2, two && !form && "min-[90rem]:@min-[68rem]/ov:grid-rows-[auto_1fr]")}>
-        <div className={cn("min-w-0 self-stretch", two && "min-[90rem]:@min-[68rem]/ov:col-start-1 min-[90rem]:@min-[68rem]/ov:row-start-1")}>{perf}</div>
-        {form ? (
-          <div className={cn("min-w-0 self-stretch", two && "min-[90rem]:@min-[68rem]/ov:col-start-2 min-[90rem]:@min-[68rem]/ov:row-start-1")} data-testid="overview-form">
-            {form}
-          </div>
-        ) : null}
-        {ranked ? (
-          <div
-            className={cn(
-              "min-w-0",
-              wide,
-              form
-                ? "min-[90rem]:@min-[68rem]/ov:col-span-1 min-[90rem]:@min-[68rem]/ov:col-start-2 min-[90rem]:@min-[68rem]/ov:row-start-2 min-[90rem]:@min-[68rem]/ov:self-start"
-                : "min-[90rem]:@min-[68rem]/ov:col-start-2 min-[90rem]:@min-[68rem]/ov:row-span-2 min-[90rem]:@min-[68rem]/ov:row-start-1 min-[90rem]:@min-[68rem]/ov:self-start",
-            )}
-            data-testid="overview-ranked"
-          >
-            {ranked}
-          </div>
-        ) : null}
+      {/* In the 2×2 the rail (recent form, then ranked progress straight under it) spans both rows:
+          recent form ends at its content (UD.PO2) and ranked progress follows it, whatever the
+          season card's height; the second row takes whatever height the rail has beyond that card,
+          so the card never stretches and the pools stay put. Elsewhere the rail's box is
+          display:contents, so its cards are the grid's own items. */}
+      <div className={cn("grid grid-cols-[minmax(0,1fr)] items-start gap-3 sm:gap-4", form && "@min-[58rem]/ov:grid-cols-[minmax(0,1fr)_minmax(18rem,21rem)]", two && GRID_2X2, two && "min-[90rem]:@min-[68rem]/ov:grid-rows-[auto_1fr]")}>
+        <div className={cn("min-w-0 self-stretch", two && "min-[90rem]:@min-[68rem]/ov:col-start-1 min-[90rem]:@min-[68rem]/ov:row-start-1 min-[90rem]:@min-[68rem]/ov:self-start")}>{perf}</div>
+        <div className={cn("contents", two && "min-[90rem]:@min-[68rem]/ov:col-start-2 min-[90rem]:@min-[68rem]/ov:row-span-2 min-[90rem]:@min-[68rem]/ov:row-start-1 min-[90rem]:@min-[68rem]/ov:flex min-[90rem]:@min-[68rem]/ov:min-w-0 min-[90rem]:@min-[68rem]/ov:flex-col min-[90rem]:@min-[68rem]/ov:gap-4 min-[90rem]:@min-[68rem]/ov:self-start")}>
+          {form ? (
+            <div className="min-w-0 self-start min-[90rem]:@min-[68rem]/ov:self-auto" data-testid="overview-form">
+              {form}
+            </div>
+          ) : null}
+          {ranked ? (
+            <div className={cn("min-w-0", wide)} data-testid="overview-ranked">
+              {ranked}
+            </div>
+          ) : null}
+        </div>
         {pools ? <div className={cn("min-w-0", wide, two && "min-[90rem]:@min-[68rem]/ov:col-span-1 min-[90rem]:@min-[68rem]/ov:col-start-1 min-[90rem]:@min-[68rem]/ov:row-start-2 min-[90rem]:@min-[68rem]/ov:self-start")} data-testid="overview-pools">{pools}</div> : null}
       </div>
     </div>

@@ -199,7 +199,7 @@ export async function getTeamRoster(db: Db, teamId: string, options: { statsFor?
  * pool for it. The starter of a role and each of its substitutes are built the same way, so both
  * sides of a card carry the same parts. Without statistics access nothing numerical is filled in.
  */
-function rosterCard(p: PlayerRecord & PlayerProfile, role: Role, from: { season: PlayerOverviewData | null; summary: SeasonSummary | null; avatarUrl: string | null; rankChange: RankChange | null; statsVisible: boolean; pool: PoolChampionContext[]; social: SocialLinks | null }): RosterSubstitute {
+export function rosterCard(p: PlayerRecord & PlayerProfile, role: Role, from: { season: PlayerOverviewData | null; summary: SeasonSummary | null; avatarUrl: string | null; rankChange: RankChange | null; statsVisible: boolean; pool: PoolChampionContext[]; social: SocialLinks | null }): RosterSubstitute {
   const { season, summary, statsVisible } = from;
   const byChampion = new Map<string, OverviewCard>((season?.cards ?? []).filter((c) => c.role === role).map((c) => [c.championId, c]));
   const champions = poolFor(p, role).map((championId): RosterChampion => {

@@ -43,12 +43,20 @@ from each section; this page does not repeat them.
   in plain language. **Tooltips** (one behaviour, DESIGN_SYSTEM §7, "Explain"):
   - one plain sentence for an ordinary League player, at most about 25 words, never more than 40
     (`src/components/ui/tip-length.test.ts` counts every literal InfoTip text, `title` and `hint`,
-    the tip constants and the metric tips; its allowlist names the stage that rewrites each entry).
-    Longer is visible text under the heading, or a window of its own, never a bubble that scrolls;
+    the tip constants, the metric tips and each state of the LP tip; its allowlist is empty since
+    S8b, and an entry needs its reason). Longer is visible text under the heading, or a window of
+    its own, never a bubble that scrolls;
+  - in the page's words, never the code's: no "PUUID", "Riot's API", "frame" for a minute of the
+    timeline, "sync window", "Population:", "Source:" or "SELECT" in member-facing help (the same
+    test). A source reads "from …"; a stored reading of a rank is a "rank check";
   - an ⓘ has a specific name (`label`, required: "About KDA"), never "More information";
-  - a `title` only names an icon-only control or shows a truncated value whole: never the only copy
-    of a fact (a phone, a keyboard and a disabled button never show it). A reason goes beside what
-    it explains (a failed save's reason, why a button is locked);
+  - a `title` only names an icon-only control or mark, or shows a truncated value whole: never the
+    only copy of a fact (a phone, a keyboard and a disabled button never show it). A reason goes
+    beside what it explains (a failed save's reason, why a button is locked); a figure's words for
+    screen readers go in sr-only text (`StatTile`'s `detail`). `src/components/ui/title-use.test.ts`
+    finds every `title` on an element or a component that hands it on, and passes a short literal
+    name; every other one is listed there with what it names or shows whole (Admin Mode's are the
+    administration stage's);
   - wording reads right on anyone's page: no "you/your" in a text a teammate's page shows too
     (neutral words, or `lib/tip-words.ts`, tested).
 - How current a page's Riot data is goes in the same two places on every page, in the fixed words
@@ -212,7 +220,7 @@ by its figures in the main text weight; no gradient, glow or bar behind a figure
 the figure itself: Recent form's record as 20 neutral segments, wins first (`QuietBar`), in the
 text's own grey, never a state colour, and All Champions' share of the games, one continuous
 `QuietBar` under each champion's games (its games over every game in the filters, said by a key
-in the table's toolbar, and in words in the cell's title and to screen readers; a share is never
+in the table's toolbar, and in words in the cell's title (the bar's name) and to screen readers; a share is never
 written "0%" or "100%" when it is neither). Win rates take their colour only from `winRateTone`
 (`src/domain/stats/win-rate.ts`), except on Recent form, which stays neutral; below the minimum
 games they stay grey and say "small sample", and a sort by win rate ranks established records

@@ -96,7 +96,7 @@ function ChipTip({ chip, champion, ability }: { chip: FactChip; champion: string
       </span>
       <span className="mt-1 block text-fg-muted">
         {CHECKED_NOTES_LABEL}
-        {chip.source.title ? ` · Source: ${chip.source.title}${revision ? `, ${revision}` : ""}` : ""}
+        {chip.source.title ? ` · from ${chip.source.title}${revision ? `, ${revision}` : ""}` : ""}
       </span>
     </>
   );

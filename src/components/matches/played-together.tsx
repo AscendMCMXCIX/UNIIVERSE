@@ -1,5 +1,6 @@
 import * as React from "react";
 import Link from "next/link";
+import { IntentLink } from "@/components/ui/intent-link";
 import { Bookmark, ChevronRight } from "lucide-react";
 import { ROLE_LABELS, type Role } from "@/domain/roles";
 import { SOLO_DUO_QUEUE, togetherEntry, type TogetherGame, type TogetherSummary } from "@/domain/played-together";
@@ -290,11 +291,11 @@ function TogetherCard({ g, p, champions, teams }: { g: TogetherListGame; p: (id:
           <MatchResult win={g.win} queue={queueLabel(g.queueId)} when={formatDate(new Date(g.gameCreation))} duration={fmtDuration(g.durationS)} lineBelow="teamMatches" className="@max-[58rem]/tm:contents" />
           <span className={cn("text-xs text-fg-subtle @min-[58rem]/tm:mt-1 @min-[58rem]/tm:block", !g.sharedBy && "@max-[30rem]/tm:sr-only")}>
             {g.sharedBy ? (
-              <span title="A member's own game, shared with the team by them" data-testid="together-shared-by">
+              <span data-testid="together-shared-by">
                 Shared by {p(g.sharedBy)?.name ?? "a member"}
               </span>
             ) : (
-              <span title="Team members on the same team in this game (who queued together is not recorded)" data-testid="together-size">
+              <span data-testid="together-size">
                 {g.members.length} team members
               </span>
             )}
@@ -333,9 +334,9 @@ function TogetherCard({ g, p, champions, teams }: { g: TogetherListGame; p: (id:
                   <span className="min-w-0 flex-1">
                     {/* The name whole (a long one wraps, never cut), the K/D/A and the largest multikill right after it. */}
                     <span className="flex min-w-0 flex-wrap items-baseline gap-x-1.5">
-                      <Link href={`/players/${m.playerId}`} className="relative min-w-0 break-words py-0.5 text-sm font-semibold text-fg hover:underline pointer-coarse:-my-2.5 pointer-coarse:py-3">
+                      <IntentLink href={`/players/${m.playerId}`} className="relative min-w-0 break-words py-0.5 text-sm font-semibold text-fg hover:underline pointer-coarse:-my-2.5 pointer-coarse:py-3">
                         {pl?.name ?? "Player"}
-                      </Link>
+                      </IntentLink>
                       <span className="whitespace-nowrap text-sm font-semibold tabular-nums text-fg" title={extra} data-testid="together-kda">
                         {kda}
                       </span>

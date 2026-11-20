@@ -67,9 +67,16 @@ export interface PeekControl {
   param: string | readonly string[];
 }
 
-/** The focusable element of a row: the row itself, or the first control in it. */
-function rowFocusTarget(id: string): HTMLElement | null {
-  const row = document.querySelector<HTMLElement>(`[data-peek-row="${CSS.escape(id)}"]`);
+/**
+ * The focusable element of a row: the row itself, or the first control in it. A member can have a
+ * row on several lists (the Leaderboards' boards): `near`, the row the Peek was opened or moved from,
+ * picks that one, or the row in its own list, before the page's first (R7 review A1).
+ */
+function rowFocusTarget(id: string, near?: HTMLElement | null): HTMLElement | null {
+  const sel = `[data-peek-row="${CSS.escape(id)}"]`;
+  const mine = near?.isConnected ? (near.closest(sel) as HTMLElement | null) : null;
+  const list = near?.isConnected ? near.closest("ul, ol, table, [role=list]") : null;
+  const row = mine ?? list?.querySelector<HTMLElement>(sel) ?? document.querySelector<HTMLElement>(sel);
   if (!row) return null;
   if (row.matches("a[href], button, [tabindex]")) return row;
   return row.querySelector<HTMLElement>("a[href], button, [tabindex]:not([tabindex='-1'])") ?? row;
@@ -97,8 +104,10 @@ export function usePeek({ param, ids, initial = null, valid: validProp }: { para
     idRef.current = id;
   });
 
+  // The row the Peek was opened or last moved from (a member may have several rows on the page).
+  const openerRef = React.useRef<HTMLElement | null>(null);
   const focusRow = React.useCallback((rowId: string | null) => {
-    if (rowId) rowFocusTarget(rowId)?.focus({ preventScroll: true });
+    if (rowId) rowFocusTarget(rowId, openerRef.current)?.focus({ preventScroll: true });
   }, []);
   const close = React.useCallback(() => {
     const was = idRef.current;
@@ -107,13 +116,23 @@ export function usePeek({ param, ids, initial = null, valid: validProp }: { para
     if (inside || document.activeElement === document.body) focusRow(was);
   }, [item, focusRow]);
   const open = React.useCallback(
-    (to: string) => {
+    (to: string, from?: HTMLElement | null) => {
       setFromKeyboard(lastInput() === "keyboard");
+      if (from) openerRef.current = from;
       item.open(to);
     },
     [item],
   );
-  const toggle = React.useCallback((to: string) => (idRef.current === to ? close() : open(to)), [open, close]);
+  const toggle = React.useCallback((to: string, from?: HTMLElement | null) => (idRef.current === to ? close() : open(to, from)), [open, close]);
+  // Closed by the address (Back, or a link to the list): the focus, left on the page when the panel
+  // went, returns to the row as Escape's does (R7 review A2).
+  const shownRef = React.useRef(id);
+  React.useEffect(() => {
+    const was = shownRef.current;
+    shownRef.current = id;
+    const at = document.activeElement;
+    if (was !== null && id === null && (!at || at === document.body || !!at.closest("[data-peek-panel]"))) focusRow(was);
+  }, [id, focusRow]);
   const move = React.useCallback(
     (delta: number) => {
       const to = stepId(idsRef.current, idRef.current, delta);
@@ -121,8 +140,9 @@ export function usePeek({ param, ids, initial = null, valid: validProp }: { para
       setFromKeyboard(false);
       item.open(to);
       // The selection follows on the list: the row takes the focus, brought into view only when it is off the screen.
-      const row = rowFocusTarget(to);
+      const row = rowFocusTarget(to, openerRef.current);
       if (row && !document.activeElement?.closest("[data-peek-panel]")) {
+        openerRef.current = row;
         row.focus({ preventScroll: true });
         const r = row.getBoundingClientRect();
         if (r.bottom < 0 || r.top > window.innerHeight) row.scrollIntoView({ block: "nearest" });
@@ -163,7 +183,7 @@ export function usePeek({ param, ids, initial = null, valid: validProp }: { para
       return {
         "data-peek-row": rowId,
         ...(selected ? { "data-peek-selected": true as const, "aria-current": "true" as const } : {}),
-        onClick: () => toggle(rowId),
+        onClick: (e: React.MouseEvent<HTMLElement>) => toggle(rowId, e.currentTarget),
       };
     },
     [id, toggle],

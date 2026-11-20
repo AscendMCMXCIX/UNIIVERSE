@@ -6,6 +6,8 @@ import type { Role } from "@/domain/roles";
 import { orderAccounts } from "@/domain/account-order";
 import { isRiotPlatform } from "@/domain/riot-platforms";
 import { ERASED_IDENTITY_MESSAGE, erasureFilter } from "@/server/privacy/ledger";
+import { invalidateCache } from "@/server/observability/cache";
+import { EVIDENCE_CACHE } from "@/server/matchup-intel/evidence-cache";
 
 export interface RiotAccountRecord {
   id: string;
@@ -206,6 +208,8 @@ export async function removeAccount(db: Db, id: string): Promise<void> {
     const [next] = (await listAccountsForPlayer(db, gone.playerId)).filter((a) => a.label !== "demo");
     if (next) await setMainAccount(db, gone.playerId, next.id);
   }
+  // Its games' evidence rows went by cascade: Matchup Intel's team counts are counted again (R7 review B1).
+  if (gone) invalidateCache(EVIDENCE_CACHE);
 }
 
 /**

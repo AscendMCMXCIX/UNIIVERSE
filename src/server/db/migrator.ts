@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import type { Db } from "./types";
-import { EMBEDDED_MIGRATIONS } from "./migrations.generated";
+import { EMBEDDED_MIGRATIONS, type EmbeddedMigration } from "./migrations.generated";
 
 const LOCK_KEY = 7245017;
 
@@ -21,12 +21,19 @@ const CREATE_LEDGER = sql`CREATE TABLE IF NOT EXISTS uniiverse_migrations (
     applied_at timestamptz NOT NULL DEFAULT now()
   )`;
 
-export async function runMigrations(db: Db, options: { useAdvisoryLock: boolean }): Promise<{ applied: string[] }> {
+/**
+ * Which migrations to apply is decided by tag alone: every embedded migration whose tag the ledger
+ * lacks is applied, in the embedded (journal) order, wherever it sits. So a migration that lands
+ * after a later-numbered one was applied (a held 0066 merged after 0067) is still applied, never
+ * skipped; drizzle's journal `when` is not read (tests/db/migrate.test.ts, "out of order").
+ * `migrations` is for that test; the app always applies the embedded list.
+ */
+export async function runMigrations(db: Db, options: { useAdvisoryLock: boolean }, migrations: readonly EmbeddedMigration[] = EMBEDDED_MIGRATIONS): Promise<{ applied: string[] }> {
   const applied: string[] = [];
   const apply = async (executor: Pick<Db, "execute">) => {
     const rows = await executor.execute(sql`SELECT tag FROM uniiverse_migrations`);
     const done = new Set((rows as unknown as { rows?: Array<{ tag: string }> }).rows?.map((r) => r.tag) ?? (rows as unknown as Array<{ tag: string }>).map?.((r) => r.tag) ?? []);
-    for (const m of EMBEDDED_MIGRATIONS) {
+    for (const m of migrations) {
       if (done.has(m.tag)) continue;
       for (const statement of m.statements) await executor.execute(sql.raw(statement));
       await executor.execute(sql`INSERT INTO uniiverse_migrations (tag, hash) VALUES (${m.tag}, ${m.hash})`);
@@ -41,7 +48,7 @@ export async function runMigrations(db: Db, options: { useAdvisoryLock: boolean 
     try {
       const rows = await db.execute(sql`SELECT tag FROM uniiverse_migrations`);
       const done = new Set((rows as unknown as { rows?: Array<{ tag: string }> }).rows?.map((r) => r.tag) ?? (rows as unknown as Array<{ tag: string }>).map?.((r) => r.tag) ?? []);
-      if (EMBEDDED_MIGRATIONS.every((m) => done.has(m.tag))) return { applied };
+      if (migrations.every((m) => done.has(m.tag))) return { applied };
     } catch {
       // No ledger yet (first ever start): fall through to the locked path, which creates it.
     }
@@ -57,7 +64,7 @@ export async function runMigrations(db: Db, options: { useAdvisoryLock: boolean 
     await db.execute(CREATE_LEDGER);
     const rows = await db.execute(sql`SELECT tag FROM uniiverse_migrations`);
     const done = new Set((rows as unknown as { rows?: Array<{ tag: string }> }).rows?.map((r) => r.tag) ?? (rows as unknown as Array<{ tag: string }>).map?.((r) => r.tag) ?? []);
-    for (const m of EMBEDDED_MIGRATIONS) {
+    for (const m of migrations) {
       if (done.has(m.tag)) continue;
       await db.transaction(async (tx) => {
         for (const statement of m.statements) await tx.execute(sql.raw(statement));

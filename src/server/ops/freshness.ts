@@ -43,7 +43,16 @@ interface PlayerAccountRow {
  * the timelines of their games (Matchups) and profile edits. `visit`: asked while rendering the profile, whose visit refresh starts right
  * after the page is sent when an account is due, so the page should ask again soon.
  */
-export async function playerFreshness(db: Db, playerId: string, { now = new Date(), visit = false }: { now?: Date; visit?: boolean } = {}): Promise<Freshness> {
+export async function playerFreshness(db: Db, playerId: string, options: { now?: Date; visit?: boolean } = {}): Promise<Freshness> {
+  return (await playerFreshnessAndDue(db, playerId, options)).freshness;
+}
+
+/**
+ * playerFreshness, and whether the player's visit refresh (or the next slice of a season still
+ * filling in) is due now: the freshness request of a mounted profile page starts it then
+ * (/api/freshness), so a page that is only prefetched never starts a Riot sync.
+ */
+export async function playerFreshnessAndDue(db: Db, playerId: string, { now = new Date(), visit = false }: { now?: Date; visit?: boolean } = {}): Promise<{ freshness: Freshness; due: boolean }> {
   const [row] = rowsOf<{ profile: string | null; pools: string | null; accounts: PlayerAccountRow[] | null; games: unknown; ranks: unknown; mastery: string | number | null; timelines: unknown; lookups: string | null; lease: string | null; slice: { stuck?: unknown } | string | null; account_leases: Record<string, string> | null }>(
     await db.execute(sql`
       WITH acc AS (SELECT id FROM riot_accounts WHERE player_id = ${playerId} AND owner_type = 'player')
@@ -96,8 +105,12 @@ export async function playerFreshness(db: Db, playerId: string, { now = new Date
   const sliceCanStart =
     riotConfigured && backgroundRefreshEnabled() && !leaseHeld && accounts.some((a, i) => states[i] === "syncing" && dueForViewRefresh(facts[i]!, now) && !heldByAnotherSync(a.id) && !stuck.has(a.id));
   return {
-    v: digest([row?.profile ?? null, row?.pools ?? null, accounts.map((a) => [a.id, a.sync_status, a.sync_error, time(a.last_sync_at), a.riot_id, a.history?.completedAt ?? null, a.rank]), row?.games, row?.ranks, Number(row?.mastery ?? 0), row?.timelines ?? null, time(row?.lookups), sliceCanStart]),
-    pace,
+    freshness: {
+      v: digest([row?.profile ?? null, row?.pools ?? null, accounts.map((a) => [a.id, a.sync_status, a.sync_error, time(a.last_sync_at), a.riot_id, a.history?.completedAt ?? null, a.rank]), row?.games, row?.ranks, Number(row?.mastery ?? 0), row?.timelines ?? null, time(row?.lookups), sliceCanStart]),
+      pace,
+    },
+    // Not while a view's slice holds the player: each poll would queue a refresh that only fails to claim the lease.
+    due: (refreshStarting && !leaseHeld) || sliceCanStart,
   };
 }
 

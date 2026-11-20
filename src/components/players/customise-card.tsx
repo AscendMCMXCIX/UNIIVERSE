@@ -47,6 +47,7 @@ import { CardFrame, cardShellStyle, EMBLEM_ICONS } from "./card-look";
 import type { CardSeason } from "./player-card";
 import { prepareBanner } from "./banner-image";
 import { CardPreview, type PreviewView, type StudioPreviewData } from "./card-preview";
+import { deviceBase } from "@/components/device-storage";
 
 export interface CustomiseCardProps {
   playerId: string;
@@ -130,7 +131,7 @@ function useMedia(query: string): boolean {
 /** Where the preview stands beside the controls: desktops, and phones held sideways (no height to spare above them). */
 const SIDE_BY_SIDE = "(min-width: 64rem), (max-height: 480px)";
 /** Phones and tablets remember whether the preview was put away. */
-const PREVIEW_KEY = "uniiverse.studio.preview";
+const PREVIEW_KEY = deviceBase("card-preview");
 
 /**
  * While `active` (unsaved changes), going back in the browser (a desktop's Back button, an
@@ -371,7 +372,7 @@ export function CardStudio({ playerId, name, avatarUrl, art, accent, look, champ
       <ol className="hidden min-w-0 gap-1 overflow-x-auto lg:mx-auto lg:flex" aria-label="Studio steps" data-testid="studio-steps">
         {steps.map((id, i) => (
           <li key={id} className="shrink-0">
-            <button type="button" onClick={() => goTo(id)} aria-current={step === id ? "step" : undefined} title={STEP_INFO[id].hint} className={cn("inline-flex min-h-9 items-center gap-1.5 rounded-full border px-2.5 text-sm font-medium transition-colors", step === id ? "border-accent bg-accent/15 text-fg" : "border-transparent text-fg-muted hover:bg-surface-2 hover:text-fg")} data-testid={`studio-step-${id}`}>
+            <button type="button" onClick={() => goTo(id)} aria-current={step === id ? "step" : undefined} className={cn("inline-flex min-h-9 items-center gap-1.5 rounded-full border px-2.5 text-sm font-medium transition-colors", step === id ? "border-accent bg-accent/15 text-fg" : "border-transparent text-fg-muted hover:bg-surface-2 hover:text-fg")} data-testid={`studio-step-${id}`}>
               <span className={cn("grid h-5 w-5 place-items-center rounded-full text-2xs tabular-nums", step === id ? "bg-accent text-bg" : i < at ? "bg-accent/25 text-accent" : "bg-surface-3 text-fg-subtle")} aria-hidden>
                 {i + 1}
               </span>
@@ -398,7 +399,7 @@ export function CardStudio({ playerId, name, avatarUrl, art, accent, look, champ
           {error}
         </p>
       ) : null}
-      <Button variant="ghost" onClick={() => setConfirm("reset")} disabled={busy} className="mr-auto px-2.5" data-testid="studio-reset-all" title="Back to the standard look (your champion, tagline and emblem stay)">
+      <Button variant="ghost" onClick={() => setConfirm("reset")} disabled={busy} className="mr-auto px-2.5" data-testid="studio-reset-all" title="Reset look">
         <RotateCcw className="h-4 w-4" aria-hidden /> <span className="max-[359px]:sr-only">Reset look</span>
       </Button>
       <span className="hidden items-center gap-1 lg:flex">
@@ -726,6 +727,9 @@ function ConfirmBar({ kind, onKeep, onConfirm }: { kind: "reset" | "discard"; on
 
 // ── Controls ────────────────────────────────────────────────────────────────────────────────────
 
+/** An emblem's name as a person reads it: "Flame", "Paw" (its id is lowercase; tooltip inventory S16). */
+const emblemName = (id: string) => `${id.charAt(0).toUpperCase()}${id.slice(1).replace(/-/g, " ")}`;
+
 /** A preset: a starting point every setting can still change. Wrapped on phones, never scrolled sideways. */
 function Presets({ style, onApply }: { style: CardStyle; onApply: (id: (typeof CARD_PRESETS)[number]) => void }) {
   return (
@@ -738,7 +742,7 @@ function Presets({ style, onApply }: { style: CardStyle; onApply: (id: (typeof C
           const p = PRESET_INFO[id];
           const on = style.preset === id;
           return (
-            <button key={id} type="button" onClick={() => onApply(id)} aria-pressed={on} title={p.description} className={cn("inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors pointer-coarse:min-h-11", on ? "border-accent bg-accent/15 text-fg ring-1 ring-accent" : "border-border text-fg-muted hover:border-border-strong hover:text-fg")} data-testid={`preset-${id}`}>
+            <button key={id} type="button" onClick={() => onApply(id)} aria-pressed={on} aria-describedby={on ? "studio-preset-about" : undefined} className={cn("inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors pointer-coarse:min-h-11", on ? "border-accent bg-accent/15 text-fg ring-1 ring-accent" : "border-border text-fg-muted hover:border-border-strong hover:text-fg")} data-testid={`preset-${id}`}>
               <span className="h-3.5 w-3.5 rounded-full" style={{ background: `linear-gradient(135deg, ${p.look.colours.primary}, ${p.look.colours.secondary})` }} aria-hidden />
               {p.label}
               {on ? <Check className="h-3.5 w-3.5 text-accent" aria-hidden /> : null}
@@ -746,6 +750,12 @@ function Presets({ style, onApply }: { style: CardStyle; onApply: (id: (typeof C
           );
         })}
       </div>
+      {/* What the chosen preset is, in words (it was only a hover title on each chip). */}
+      {style.preset ? (
+        <p id="studio-preset-about" className="mt-1.5 text-xs text-fg-subtle" data-testid="studio-preset-about">
+          {PRESET_INFO[style.preset].description}
+        </p>
+      ) : null}
     </section>
   );
 }
@@ -1201,7 +1211,7 @@ function IdentityPanel({ style, set, problem }: { style: CardStyle; set: Setter;
           {CARD_EMBLEMS.map((e) => {
             const Icon = EMBLEM_ICONS[e];
             return (
-              <button key={e} type="button" role="radio" aria-checked={id.emblem === e} aria-label={e} title={e} onClick={() => set((s) => ({ ...s, identity: { ...s.identity, emblem: e } }))} className={cn("grid h-10 place-items-center rounded-lg border pointer-coarse:h-11", id.emblem === e ? "border-accent bg-accent/15 text-accent ring-1 ring-accent" : "border-border text-fg-muted hover:text-fg")} data-value={e}>
+              <button key={e} type="button" role="radio" aria-checked={id.emblem === e} aria-label={emblemName(e)} title={emblemName(e)} onClick={() => set((s) => ({ ...s, identity: { ...s.identity, emblem: e } }))} className={cn("grid h-10 place-items-center rounded-lg border pointer-coarse:h-11", id.emblem === e ? "border-accent bg-accent/15 text-accent ring-1 ring-accent" : "border-border text-fg-muted hover:text-fg")} data-value={e}>
                 <Icon className="h-4 w-4" aria-hidden />
               </button>
             );

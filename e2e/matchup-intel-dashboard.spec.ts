@@ -314,16 +314,16 @@ test("each chip opens what it rests on, and says it to a screen reader; a checke
   await hydrated(page);
   // A checked fact (Renekton's W stun): its own words and its source page.
   const chip = page.locator('[data-testid="matchup-enemy-abilities"] [data-testid="ability-row"][data-slot="W"] [data-testid="fact-chip"]').first();
-  await expect(chip).toHaveAccessibleDescription(/Checked notes \(drafted and audited by AI agents, not by a person\) · Source: League of Legends Wiki: /);
+  await expect(chip).toHaveAccessibleDescription(/Checked notes \(drafted and audited by AI agents, not by a person\) · from League of Legends Wiki: /);
   await chip.hover();
   await expect(page.getByTestId("fact-chip-bubble")).toBeVisible();
-  await expect(page.getByTestId("fact-chip-bubble")).toContainText("Source: League of Legends Wiki:");
+  await expect(page.getByTestId("fact-chip-bubble")).toContainText("from League of Legends Wiki:");
   // Wherever facts from Riot's text are shown, each chip quotes the clause and says how it was reviewed.
   await openMatchupIntel(page, "Riven", "Darius");
   await hydrated(page);
   const riotText = page.locator('[data-testid="ability-facts"][data-from="riot-text"] [data-testid="fact-chip"]');
   expect(await riotText.count()).toBeGreaterThan(0);
-  await expect(riotText.first()).toHaveAccessibleDescription(/^“.+” \(Riot's (tooltip|description) (for|of) [^)]+\)( (Qualified by|Cuts the cooldown of) “[^”]+”( \(Riot's [^)]+\))?)?( Conditional: see Riot's text\.)? From Riot's ability text, reviewed automatically \(not by a person\)\.$/);
+  await expect(riotText.first()).toHaveAccessibleDescription(/^“.+” \(Riot's (tooltip|description) (for|of) [^)]+\)( (Riot adds|Cuts the cooldown of) “[^”]+”( \(Riot's [^)]+\))?)?( Conditional: see Riot's text\.)? From Riot's ability text, reviewed automatically \(not by a person\)\.$/);
   await riotText.first().hover();
   await expect(page.getByTestId("fact-chip-bubble")).toContainText("From Riot's ability text, reviewed automatically (not by a person).");
 });
@@ -339,7 +339,7 @@ test("the facts from Riot's text, as the review recorded them: a qualifier with 
   const gnarW = tileOf(page, "W").getByTestId("fact-chip");
   await expect(gnarW).toHaveCount(1);
   await expect(gnarW).toContainText("Stun · “Mega Gnar”");
-  await expect(gnarW).toHaveAccessibleDescription("“stunning enemies in an area.” (Riot's description of Hyper / Wallop) Qualified by “Mega Gnar” From Riot's ability text, reviewed automatically (not by a person).");
+  await expect(gnarW).toHaveAccessibleDescription("“stunning enemies in an area.” (Riot's description of Hyper / Wallop) Riot adds “Mega Gnar” From Riot's ability text, reviewed automatically (not by a person).");
   // The assembled reference shows the same chip in its group.
   await expect(page.getByTestId("assembled-danger").getByTestId("assembled-chip").filter({ hasText: "Mega Gnar" })).toHaveCount(2);
   // Annie's passive: the stun holds only under a condition Riot's text names with a number, so the
@@ -443,8 +443,18 @@ test("the five roles: a solo lane sets two slots, the bot lane four; an empty sl
   await tips.getByTestId("matchup-riot-tips-summary").click();
   await expect(tips.getByTestId("riot-tips-enemy").first()).toContainText("Against Caitlyn");
   await expect(tips.getByTestId("riot-tip-text").first()).toHaveText("Keep behind allied minions if Caitlyn is harassing you with Piltover Peacemaker (it deals less damage with each subsequent target).");
-  await expect(tips.getByTestId("matchup-evidence-high-elo")).toHaveText("Runes, items and skill order: No high-elo evidence (not collected)");
-  await expect(tips.getByTestId("matchup-evidence-duo")).toHaveText("No curated notes for this 2v2");
+  // The evidence from the team's games (S7b), in the tips' fold: its tiers in the fold's line, each section's honest line
+  // (the demo's games are on earlier patches than the current one, so nothing is counted), the
+  // pairwise slots all chosen, then what the page has not collected.
+  const evidence = tips.getByTestId("matchup-evidence-panel");
+  await expect(tips.getByTestId("matchup-evidence-tiers")).toHaveText(/^In your games(: no player profile| \(n = \d+\)) · In the team's games( \(n = \d+\)|: not part of this access)$/);
+  await expect(evidence.getByTestId("evidence-team").getByTestId("evidence-empty")).toHaveText("In the team's games: none as Jinx with Lulu against Caitlyn and Lux on patch 26.22.");
+  await expect(evidence.getByTestId("evidence-ignored")).toHaveCount(0);
+  await expect(evidence.getByTestId("matchup-uncertain")).toHaveText("Matchup uncertain: no curated notes and no counted games for this pair, so each champion's own facts follow");
+  await expect(evidence.getByTestId("matchup-evidence-high-elo")).toHaveText("Runes, items and skill order: No high-elo evidence (not collected)");
+  await expect(evidence.getByTestId("matchup-evidence-duo")).toHaveText("No curated notes for this 2v2");
+  // Every row states its tier: Riot's data on each kit.
+  await expect(page.getByTestId("matchup-enemy-abilities").getByTestId("evidence-tier")).toHaveText("Riot's data");
   // Support: seen from the support's side; the swap trades both duos.
   await role("Support").click();
   await expect(page).toHaveURL(/\?role=support&champion=Jinx&ally=Lulu&vs=Caitlyn&vs2=Lux$/);

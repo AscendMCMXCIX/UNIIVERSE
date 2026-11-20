@@ -1,4 +1,5 @@
 import { matchesWithoutDetails, storeMatchDetail, storeMatchUnavailable } from "./match-details";
+import { refreshMatchPrep } from "@/server/matchup-intel/prep-store";
 import { errorLabel } from "@/server/errors";
 import { summariseMatches } from "./match-summary";
 import { and, desc, eq, inArray, isNotNull, isNull, like, ne, sql } from "drizzle-orm";
@@ -342,7 +343,14 @@ export async function syncAccount(db: Db, client: RiotApiClient, account: RiotAc
     }
 
     // Match history: every supported queue, the whole current season, collected incrementally.
-    const history = await collectSeasonHistory(db, client, { ...account, puuid, platform }, options, result, log, keyToId);
+    // The evidence rows of the games this run folds, made once at the end, whatever stops the run.
+    const prep: string[] = [];
+    let history: HistoryBackfill;
+    try {
+      history = await collectSeasonHistory(db, client, { ...account, puuid, platform }, options, result, log, keyToId, prep);
+    } finally {
+      await flushPrep(db, prep, log);
+    }
     // Time ran out before any of the history that was due could be read: this run did not sync the
     // account, so it is not recorded as synced (no "ok", no new cursor, nothing said for the key).
     // It stopped for time, unless Riot failed on the way, which is then the outcome. A run with no
@@ -428,7 +436,7 @@ export function summariseBackfill(state: HistoryBackfill): { season: number; com
  * top, a game Riot refuses for good is recorded without a champion, and a game on a champion not
  * in the champion list yet is asked for again (readPage and foldMatch below).
  */
-async function collectSeasonHistory(db: Db, client: RiotApiClient, account: RiotAccountRecord & { puuid: string }, options: AccountSyncOptions, result: AccountSyncResult, log: (m: string) => void, keyToId: Map<number, string>): Promise<HistoryBackfill> {
+async function collectSeasonHistory(db: Db, client: RiotApiClient, account: RiotAccountRecord & { puuid: string }, options: AccountSyncOptions, result: AccountSyncResult, log: (m: string) => void, keyToId: Map<number, string>, prep: string[]): Promise<HistoryBackfill> {
   const now = options.now?.() ?? new Date();
   const season = options.season ?? (await currentSeason(db, now));
   const queueIds = options.queueIds ?? SYNC_QUEUE_IDS;
@@ -513,7 +521,7 @@ async function collectSeasonHistory(db: Db, client: RiotApiClient, account: Riot
         if (deadlinePassed || options.outOfTime?.()) return stop(i);
         // From the record: no Riot request, so it does not count against the run's Riot limit. It
         // does not count as Riot serving the list's games either (newerRead stays as it was).
-        const outcome = await foldGame(db, account, record, keyToId, queueIds, erased, now, null);
+        const outcome = await foldGame(db, account, record, keyToId, queueIds, erased, now, null, prep);
         if (outcome !== "not-listed") {
           result.matchesFromRecords = (result.matchesFromRecords ?? 0) + 1;
           if (outcome === "folded") result.matchesFolded += 1;
@@ -566,7 +574,7 @@ async function collectSeasonHistory(db: Db, client: RiotApiClient, account: Riot
       }
       newerRead = true;
       result.matchesFetched += 1;
-      const outcome = await foldMatch(db, account, match, keyToId, queueIds, erased, now);
+      const outcome = await foldMatch(db, account, match, keyToId, queueIds, erased, now, prep);
       if (outcome === "folded") result.matchesFolded += 1;
       if (outcome === "later") {
         later += 1;
@@ -749,8 +757,8 @@ async function collectSeasonHistory(db: Db, client: RiotApiClient, account: Riot
  * another queue, a game without this account); "later" when nothing was stored because the
  * account's champion is not in the champion list yet.
  */
-async function foldMatch(db: Db, account: RiotAccountRecord & { puuid: string }, match: RiotMatch, keyToId: Map<number, string>, queueIds: readonly number[], erased: ErasureFilter, now: Date): Promise<"folded" | "skipped" | "later"> {
-  const outcome = await foldGame(db, account, foldInputFromMatch(match), keyToId, queueIds, erased, now, match);
+async function foldMatch(db: Db, account: RiotAccountRecord & { puuid: string }, match: RiotMatch, keyToId: Map<number, string>, queueIds: readonly number[], erased: ErasureFilter, now: Date, prep: string[]): Promise<"folded" | "skipped" | "later"> {
+  const outcome = await foldGame(db, account, foldInputFromMatch(match), keyToId, queueIds, erased, now, match, prep);
   return outcome === "not-listed" ? "skipped" : outcome;
 }
 
@@ -761,7 +769,7 @@ async function foldMatch(db: Db, account: RiotAccountRecord & { puuid: string },
  * record stored under an earlier Riot key, whose ids differ) is "not-listed" and nothing is
  * written: the caller asks Riot instead.
  */
-async function foldGame(db: Db, account: RiotAccountRecord & { puuid: string }, game: FoldInput, keyToId: Map<number, string>, queueIds: readonly number[], erased: ErasureFilter, now: Date, riotMatch: RiotMatch | null): Promise<"folded" | "skipped" | "later" | "not-listed"> {
+async function foldGame(db: Db, account: RiotAccountRecord & { puuid: string }, game: FoldInput, keyToId: Map<number, string>, queueIds: readonly number[], erased: ErasureFilter, now: Date, riotMatch: RiotMatch | null, prep: string[]): Promise<"folded" | "skipped" | "later" | "not-listed"> {
   const matchId = game.matchId;
   const meSlot = game.participants.findIndex((p) => !p.removed && p.puuid === account.puuid);
   const me = meSlot >= 0 ? game.participants[meSlot] : undefined;
@@ -824,6 +832,9 @@ async function foldGame(db: Db, account: RiotAccountRecord & { puuid: string }, 
   // The record was stored before this game's row existed: copy its figures now, once, for every
   // linked account's row of the game (another account's row may have waited for the record too).
   if (riotMatch || folded) await summariseMatches(db, { matchIds: [matchId], maxBatches: 1 });
+  // Matchup Intel's evidence rows of the new game, from its record (its timeline adds the rest when
+  // stored): made once for the run's folded games (flushPrep), not once a game (R7 review B4).
+  if (folded) prep.push(matchId);
   return folded ? "folded" : "skipped";
 }
 
@@ -882,7 +893,7 @@ export interface MissingPresenceFold {
 export async function foldMissingPresences(db: Db, options: { limit?: number; now?: Date; hold?: boolean } = {}): Promise<MissingPresenceFold> {
   const now = options.now ?? new Date();
   const hold = options.hold ?? false;
-  let budget = options.limit ?? 200;
+  const budget = options.limit ?? 200;
   const owners = await db
     .selectDistinct({ playerId: riotAccounts.playerId })
     .from(riotAccounts)
@@ -890,7 +901,18 @@ export async function foldMissingPresences(db: Db, options: { limit?: number; no
   const accounts = (await listAccountsForPlayers(db, owners.map((o) => o.playerId!))).filter((a): a is RiotAccountRecord & { puuid: string } => !!a.puuid && a.label !== "demo");
   const out: MissingPresenceFold = { accounts: accounts.length, candidates: 0, folded: 0, skipped: 0, later: 0, held: hold, kinds: { thisSeason: 0, earlierSeasons: 0, teamMembers: 0, personalUse: 0 } };
   if (accounts.length === 0) return out;
-  const memberOf = new Map((await db.select({ id: players.id, teamMember: players.teamMember }).from(players).where(inArray(players.id, owners.map((o) => o.playerId!)))).map((r) => [r.id, r.teamMember]));
+  const prep: string[] = [];
+  try {
+    return await foldMissingInto(db, accounts, owners.map((o) => o.playerId!), out, { now, hold, budget }, prep);
+  } finally {
+    await flushPrep(db, prep);
+  }
+}
+
+async function foldMissingInto(db: Db, accounts: Array<RiotAccountRecord & { puuid: string }>, ownerIds: string[], out: MissingPresenceFold, o: { now: Date; hold: boolean; budget: number }, prep: string[]): Promise<MissingPresenceFold> {
+  const { now, hold } = o;
+  let budget = o.budget;
+  const memberOf = new Map((await db.select({ id: players.id, teamMember: players.teamMember }).from(players).where(inArray(players.id, ownerIds))).map((r) => [r.id, r.teamMember]));
   const seasonStartMs = seasonStartUnix(seasonForDate(now)) * 1000;
   const keyToId = new Map((await db.select({ key: champions.key, id: champions.id }).from(champions)).map((c) => [c.key, c.id]));
   const erased = await erasureFilter(db);
@@ -920,13 +942,19 @@ export async function foldMissingPresences(db: Db, options: { limit?: number; no
     for (const matchId of ids) {
       const record = records.get(matchId);
       if (!record) continue;
-      const outcome = await foldGame(db, account, record, keyToId, SYNC_QUEUE_IDS, erased, now, null);
+      const outcome = await foldGame(db, account, record, keyToId, SYNC_QUEUE_IDS, erased, now, null, prep);
       if (outcome === "folded") out.folded += 1;
       else if (outcome === "later") out.later += 1;
       else out.skipped += 1;
     }
   }
   return out;
+}
+
+/** Makes the evidence rows of a run's folded games: 100 games a call, never throws (refreshMatchPrep). */
+async function flushPrep(db: Db, prep: readonly string[], log?: (message: string) => void): Promise<void> {
+  const ids = [...new Set(prep)];
+  for (let i = 0; i < ids.length; i += 100) await refreshMatchPrep(db, ids.slice(i, i + 100), log);
 }
 
 /**

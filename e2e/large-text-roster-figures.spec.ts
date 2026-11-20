@@ -343,12 +343,12 @@ test("a profile's season figures at 125% to 200% text on 320 to 414px phones: ev
   await page.evaluate(() => document.fonts.ready);
   await expect(page.getByTestId("stat-games")).toContainText("champion");
 
-  // At 100% the card keeps its phone layout: three figures across, the kills three by two.
+  // At 100% the card keeps its phone layout: three figures across, the kills on one line or two.
   for (const width of [320, 375]) {
     await setSize(page, width, 100);
     expect(await bandRows(page, "season-headline"), `${width}px at 100%: win rate, KDA and games on one row`).toBe(1);
     expect(await bandRows(page, "season-supporting"), `${width}px at 100%: CS/min, damage/min and vision on one row`).toBe(1);
-    expect(await bandRows(page, "multikill-tiles"), `${width}px at 100%: the kills three by two`).toBe(2);
+    expect(await page.getByTestId("multikill-tiles").locator("dl").evaluate((dl) => new Set([...dl.children].map((c) => Math.round(c.getBoundingClientRect().top))).size), `${width}px at 100%: the kills on two lines at most`).toBeLessThanOrEqual(2);
     const cells = await figureCells(page);
     expect(cells.outside, `${width}px at 100%: every figure inside its cell`).toEqual([]);
   }
@@ -357,11 +357,11 @@ test("a profile's season figures at 125% to 200% text on 320 to 414px phones: ev
     await setSize(page, width, root);
     const at = `${width}px at ${root}%`;
     const facts = await textFacts(page, "[data-testid=season-figures]");
-    expect(facts.words, `${at}: the card's words measured`).toBeGreaterThan(30);
+    expect(facts.words, `${at}: the card's words measured`).toBeGreaterThan(20);
     expect(facts.cut, `${at}: nothing cut by the card`).toEqual([]);
     expect(facts.broken, `${at}: every word whole`).toEqual([]);
     const cells = await figureCells(page);
-    expect(cells.cells, `${at}: the twelve cells (six figures, five counts and the link)`).toBe(12);
+    expect(cells.cells, `${at}: the eight cells (six figures, the kills line and its link)`).toBe(8);
     expect(cells.outside, `${at}: every figure inside its cell`).toEqual([]);
     expect(cells.underTip, `${at}: no label under its ⓘ`).toEqual([]);
     expect(await sideways(page), `${at}: no sideways scroll`).toBeLessThanOrEqual(1);

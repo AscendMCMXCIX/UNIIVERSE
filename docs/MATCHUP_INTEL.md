@@ -312,7 +312,7 @@ visible on a desktop (`ability-list.tsx`):
     only for them: "Stun · “Mega Gnar”", "Shield · “an ally champion”"; on a cooldown refund it names
     the abilities whose cooldown is cut, "Cooldown refund of “Mantra”" (one without a qualifier
     refunds its own ability's cooldown). In the chip's tip and the Details window its line reads
-    "Qualified by “Mega Gnar”" or "Cuts the cooldown of “Mantra”", and names the other text where the
+    "Riot adds “Mega Gnar”" or "Cuts the cooldown of “Mantra”", and names the other text where the
     qualifier is quoted from it rather than from the clause's ("(Riot's tooltip for Dragon Strike)");
   - a **conditional** fact: the owner's fixed marker, once under the ability's chips, naming the
     chips it marks ("Conditional: see Riot's text (Stun and Pull)"), and in the chip's tip after its
@@ -612,9 +612,9 @@ numbers). A tip of more than 600 characters would be left out whole, never cut (
 
 ### Evidence
 
-Until S7b counts the team's own games, the page claims none: the tips' fold ends with "Runes, items
-and skill order: No high-elo evidence (not collected)", and in the bot lane "No curated notes for
-this 2v2". No build, rune page or skill order is suggested anywhere.
+The tips' fold ends with "Runes, items and skill order: No high-elo evidence (not collected)", and in
+the bot lane "No curated notes for this 2v2". No build, rune page or skill order is suggested
+anywhere: what the page counts from the team's own games follows (S7b).
 
 ### Static data for the build evidence
 
@@ -631,6 +631,121 @@ in their stats, 65 of them purchasable** (the plan's estimate was 70); the parse
 (`assets.test.ts`, against Riot's own text in `tests/fixtures/ddragon-16.22.1-item-haste.json`,
 written by `scripts/matchup-intel/build-item-digest.mjs`). The page shows none of it yet: S7b's
 build evidence uses it.
+
+
+## In your games: evidence from the team's own games (S7b, 20 Nov 2026)
+
+Every line is counted from stored games, with its sample, under its tier, and is never presented as a
+curated note or a recommendation. Nothing is inferred beyond what the games record.
+
+### What is counted, and for whom
+
+- **Two scopes,** in the fold Riot's tips share (one line for both, so the one-screen fit holds; its
+  line reads, for example, "Evidence: In your games (n = 9) · In the team's games (n = 23)"):
+  - **In your games:** the viewer's own player's linked accounts. An account with no player profile
+    (the Production check's) is told it has no games of its own.
+  - **In the team's games:** the other team members, only for a viewer with "view teammates'
+    statistics" (#207's levels); counts only, no name. A personal-use profile (`players.team_member`
+    false) is never counted for anyone else. A viewer without the capability gets no team counts.
+- **The games:** Summoner's Rift queues (Normal Draft, Solo/Duo, Blind, Flex, Swiftplay, Quickplay,
+  Clash), your champion in the chosen lane, matching **every chosen slot**; the empty ones are named
+  under the lines ("These counts ignore the empty slots: the allied support, the enemy support").
+  A remake (under 5 minutes, as Matchups counts one) or a game without a known result is never
+  counted. Archived profiles are not in the team's games, and making a profile personal-use or
+  archiving it counts the team again at once; a permanent erasure deletes the evidence rows of the
+  games it de-identifies and makes them again from the de-identified records at once (the erasure
+  preview counts them); removing a Riot account or deleting a profile clears the team counts too.
+- **"Against X"** uses the confirmed-opponent rule (`confirmedOpponent`, `src/domain/matchup-intel/prep.ts`,
+  mi-evidence §2.1): Riot's `teamPosition` names the lane for both players, every team's five team
+  positions differ, and `individualPosition` agrees for both. Anything else is "role unclear" and is
+  not counted against anyone (no fallback to the individual position). Records stored before both
+  readings were kept (before 20 Nov 2026) use the one lane opponent rule on their merged position,
+  and the section says "their lane opponent is by Riot's position".
+- **The lines** (each shown from **3 games**; under that the section's one honest line, "In your
+  games: 2 as Riven against Darius on patch 26.22, fewer than the 3 a line needs."):
+  - the record ("4 games, 3 won");
+  - the rune page (keystone and five runes; shards are not named by Data Dragon, so left out), the
+    summoner spells, the starting items (bought in the first minute), the first shop visit (purchases
+    less than 30 s apart after it), the first three completed items (building into nothing, from
+    components, at least 1,000 gold, not boots, consumables or trinkets; left out of a game where any
+    item bought is unknown to Data Dragon's facts, never skipped over), the first three skill points
+    and the skills to reach five points, in the order they did (a skill short of five is never
+    called maxed: some champions' skills take six): each with its one or two most counted values, "Flash + Ignite in 6, Flash +
+    Teleport in 3", then "of 9 games · patch 26.22 · Normal Draft 6, Solo/Duo 3";
+  - **Jungle**, with the enemy jungler chosen: the dragons, voidgrubs and heralds taken before 15:00,
+    "7 of 12 to Lee Sin's team", from the stored objectives;
+  - **the bot lane, pairwise:** with two or more slots chosen, the record with the ally, against the
+    enemy ADC and against the enemy support, each counted on its own; the four-champion combination
+    only from 3 games ("This 2v2: too few games" beside the pairs otherwise);
+  - **the lane's end,** measured per game (`laneEnd`): the earlier of the lane's outer turret falling
+    and either player out of the lane's region two frames in a row from 2:00 (frames in a base count
+    neither way). Only from timelines that keep both players' positions (stored from 20 Nov 2026 on);
+    shown from **10 games** as the middle half and the median ("the middle half between 11:40 and
+    15:10, median 13:20"), never one minute; under it, "Not measured yet". Never for the jungle: the
+    stored events do not say when an objective was contested.
+- **Patches:** the current patch. The previous patch is added to a line only where the per-version
+  diff shows no change in Riot's data for every chosen champion and everything the line names (its
+  items or runes), and only when games on it are counted; the line says so; never more than two. The
+  tier's n is the record's: the games every chosen slot matches, on the patches the record counts. Data Dragon cannot show a change Riot made
+  without changing its data.
+- **Queues:** every line names the queues its games come from.
+- **"Matchup uncertain":** a pair with no curated notes and no counted line says so, and each
+  champion's own facts follow.
+
+### Evidence tiers
+
+Every row says what it rests on, in small type beside its title: the curated briefing "Checked notes
+(AI reviewers)", the kits "Riot's data" (their abilities; a curated champion's facts say "Checked
+notes" on the kit's source line and on each fact, the heading's row having no room for a second tier
+beside the haste control at 1920 × 950), the assembled reference "Riot's data" with
+"Checked notes (AI reviewers)" beside the title of each side whose facts are checked notes (where it
+fits on a 320px phone; the header's row has no room for both), Riot's tips "Riot's tip (may
+predate later changes)", the evidence "In your games (n = …)" and "In the team's games (n = …)", and
+"No high-elo evidence (not collected)". "Matchup uncertain" says "no curated notes" only where the
+pair has no curated briefing; where it has one that is hidden (too old, or resting on a change), it
+says the briefing is hidden above. The facts from Riot's text keep their own label ("Riot's
+text (reviewed automatically)") while their switch is off.
+
+### Words
+
+The evidence templates (`src/domain/matchup-intel/evidence.ts`) are held to
+`EVIDENCE_REFUSED_WORDS`: `evidence.test.ts` renders every template, and the panel's fixed sentences,
+and finds none.
+
+### Where it is stored, and how it is filled
+
+- **`account_match_prep`** (migration 0067): one row per member's stored game, what its record and
+  timeline say (`matchPrep`), counted in SQL by `src/server/matchup-intel/evidence.ts` so only counts
+  leave the database (a few KB a view). Cached an hour per (scope, viewer, role, champions, patches)
+  and cleared whenever rows are written. Derived data only: it can be made again from `match_details`
+  and `match_timelines`, and goes with its game.
+- **Forward capture:** storing a timeline (a player opening the game, or `timeline-backfill`) makes
+  its game's rows again (`refreshMatchPrep`), never failing what stored it.
+- **`prep-backfill`**, a setup (repair) job: the Owner's from Admin ("BACKFILL"), or the session's
+  through Data jobs with `CRON_SECRET`. It inserts the rows still missing, at most 1,000 games a run,
+  newest first; insert only, so a second run inserts nothing and a stopped run keeps what it did. No
+  Riot request; counts only (`before`, `read`, `inserted`, `withTimeline`, `unnamed`, `remaining`).
+  About 5 KB of database egress a game, 5 MB a full run (docs/HOSTING_USAGE.md).
+- **`static_digests`** (migration 0067), the per-version diff: version-check records, once a patch,
+  a hash per champion (base stats; each ability's cooldowns, ranks, charges and Riot's text hash),
+  item (its whole entry) and rune (its whole entry), from three Data Dragon files (champion.json,
+  item.json, runesReforged.json; nothing from Riot's API). Validated before keeping (a file naming no
+  champion, item or rune keeps nothing); a failed attempt is retried at most once a day; the first
+  copy of a patch stays. Until two patches are recorded, every line counts the current patch only.
+
+### Not built in S7b
+
+- **Lane occupancy** (mi-evidence §2.1, test 4) is not stored: the confirmed-opponent rule uses the
+  three position tests, and a game whose readings disagree is "role unclear".
+- **The jungle's lane end** (the first contested epic objective): the stored events cannot tell it.
+- **Health and Admin for the diff:** `/api/health` and Admin's data health do not yet list the
+  digests' counts; `changedCounts` (`digests.ts`) gives them for a later stage.
+- **The Production check** reads the tiers (below), not that the page's Data Dragon patch equals
+  `/api/health`'s.
+- **On a phone** the evidence sits in the tips' fold below the kits, not on the first screen.
+- **Items sold** in the first minute stay in the starting set (`sold` is not read), and whether Riot
+  reports a support item's quest upgrade as a purchase (which would show in the first shop visit) is
+  not verified on a real timeline.
 
 ## Where it is
 
@@ -1577,14 +1692,12 @@ pages were read on 16 Nov 2026: the League of Legends documentation
   the browser's own record of every request it starts (Chromium's DevTools protocol, which also sees
   the favicons Playwright never reports, and each redirect hop), the page's resource timing, and the
   page's markup.
-  One request does go there, from other parts of the app: the Library (Resources) and its
-  manager in Admin Mode (`/admin/resources`) draw each link with its site's icon, and one of the
-  default links is the League of Legends Wiki (`src/domain/resources.ts`), so the browser of a
-  visitor, or of an administrator in the manager, loads `wiki.leagueoflegends.com/favicon.ico`, as it
-  loads every linked site's icon. The browser tests that open either page without blocking icons can
-  load it too: 17 in CI's browser job (the Library: `account-screen` 8, `quality` 4, and
-  `cross-device`, `matchup-intel` and `mobile-nav` one each; the manager only: `quality`'s two
-  admin-page tests; counted from the specs on 16 Nov 2026) and 2 in the WebKit workflow (`webkit`).
+  No request goes there from other parts of the app either since 20 Nov 2026 (PLAN S8a): the
+  Library (Resources) and its manager in Admin Mode draw each link with an icon shipped with the
+  app, or the host's initial, and the League of Legends Wiki's link (`src/domain/resources.ts`)
+  shows its initial: nothing is loaded from `wiki.leagueoflegends.com`. Until then the browser of a
+  visitor, an administrator in the manager, or a browser test opening either page loaded its
+  `favicon.ico` (17 in CI's browser job and 2 in the WebKit workflow, counted on 16 Nov 2026).
   Since then a second Matchup Intel phone test of the top bar's Back (in a browser without the
   Navigation API, 18 Nov) opens the Library without blocking icons, so that figure is no longer
   exact.
@@ -1611,7 +1724,7 @@ Each has a default that the code follows today. Only the owner changes one.
 | --- | --- | --- |
 | **The Developer Portal description.** Riot audits every new feature through the product's registered description (above). | Done for the first version on 17 Nov 2026 (Sydney): the owner reported the registered description replaced with the one in [RIOT_COMPLIANCE.md](RIOT_COMPLIANCE.md) ("Description for the registration"), which includes Matchup Intel. For the redesign of 18 Nov (Riot's tooltips hashed, the assembled reference, and clauses of Riot's text, imported on 19 Nov 2026) an updated description is proposed there ("Proposed description for the registration") and in For the owner, step 1: the owner pastes it; it does not block the merge (the owner's decision 6). | The owner |
 | **A licence header on the curated files.** The repository is public and has no licence of its own. | Our own words, credited, not relicensed: each file's header says its texts are UNIIVERSE's own summaries, its sources list each page with its revision, and the sources and notices credit them. No file declares a licence for itself. A scan of the notes against the pages they cite finds no copied sentence, only runs of numbers and game terms (six to ten words), so the risk that a passage counts as adapted is small, but not none. The recommended choice is a conditional header in each file ("Any material in this file adapted from the League of Legends Wiki is available under CC BY-SA 3.0"), which would cover any such passage without saying anything was adapted; it is not added, because a licence grant is the copyright holder's act. | The owner |
-| **Scripted reads of the wiki** (for example drafts of changes on patch day). | None of its pages. Weird Gloop's prior consent would be needed first (its Terms of Use, above). If it were given, a script would only draft changes for a person to review in a pull request, never publish them. One kind of small automated request exists today, outside Matchup Intel: the browser tests that open the Library or its manager can load the wiki's favicon, in CI and in the WebKit workflow (No automated use, above). Blocking icons in those tests, or a built-in icon for the wiki's entry (the Library and the manager draw the same one), would end it. | The owner, after asking Weird Gloop |
+| **Scripted reads of the wiki** (for example drafts of changes on patch day). | None of its pages. Weird Gloop's prior consent would be needed first (its Terms of Use, above). If it were given, a script would only draft changes for a person to review in a pull request, never publish them. No automated request goes to the wiki today: the browser tests' Library and manager loaded its favicon until 20 Nov 2026, when the Library's icons began to ship with the app (No automated use, above). Blocking icons in those tests, or a built-in icon for the wiki's entry (the Library and the manager draw the same one), would end it. | The owner, after asking Weird Gloop |
 | **Who curates, and who approves briefings.** The owner's rule is a briefing only where a person wrote and checked it. | Decided on 17 Nov 2026 (Sydney): the owner alone curates the notes and approves briefings. Notes change only through pull requests, reviewed there: the page generates nothing, and nothing is published by itself. The first notes (16 Nov 2026) were drafted and cross-checked by AI agents; the owner approved their three briefings "for now", as drafted, and set the rule for every note, "Don't assume, if you don't know because the wiki doesn't say then don't use that data", under which AI agents then audited and corrected every note; no person has checked each fact against its page (For the owner, step 2). | The owner (decided) |
 | **How the first notes were researched.** On 16 Nov 2026, between 05:51 and 06:43 UTC, while researching the first batch, AI agents made 40 scripted requests to wiki.leagueoflegends.com and 8 to Weird Gloop's own sites. The wiki's: a first probe at 05:51 (one API request, the Ambessa page, then its robots.txt, which disallows `/*api.php` and `/*?action=` for every crawler), two API requests at 06:01 and 06:07, and from 06:13 the robots.txt again, 33 API requests and the Renekton page: 36 to its API in all, every one at `/en-us/api.php?action=…`, two pages and the robots.txt twice. Weird Gloop's: the robots.txt of meta.weirdgloop.org and of weirdgloop.org, Meta:Copyrights twice, and its Terms of Use four times (weirdgloop.org/terms twice, each answered with a redirect to /terms/, and /terms/ twice). They saved copies of the pages the notes cite and of others they consulted (other champions' ability data, the six champions' patch histories and main pages, the wiki's modules and policy pages), and drafted and cross-checked the notes from those copies, which were never committed; all 34 cited revisions come from them. The Terms of Use (above) do not allow automated use without prior consent. | Disclosed in this feature's pull request, and here. Nothing in the app, its jobs or its tests reads the wiki's pages (the one request they make there is the wiki's favicon, drawn by the Library and its manager: No automated use, above), and curators read it in a browser from now on. The remedy is not chosen: a person re-reads each cited revision in a browser and records it in the pull request, or Weird Gloop is asked for consent after the fact, or both. | The owner |
 | **Riot's "Legal Jibber Jabber" sentence**: "[The title of your Project] was created under Riot Games' "Legal Jibber Jabber" policy using assets owned by Riot Games. Riot Games does not endorse or sponsor this project." (https://www.riotgames.com/en/legal) | Not shown. The app shows the Developer Portal's notice word for word, which the General Policies require. | The owner |

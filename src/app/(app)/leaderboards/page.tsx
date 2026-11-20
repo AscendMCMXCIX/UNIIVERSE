@@ -26,7 +26,7 @@ export default async function LeaderboardsPage({ searchParams }: { searchParams:
   return (
     <>
       <FreshnessWatcher scope={{ kind: "team" }} version={version} />
-      <LeaderboardsDashboard view={view} status={membersDataStatus(data)} champions={Object.fromEntries(champions.map((c) => [c.id, { id: c.id, name: c.name, portraitUrl: c.portraitUrl }]))} />
+      <LeaderboardsDashboard view={view} peekable={data.players.filter((p) => p.primaryRole).map((p) => p.id)} status={membersDataStatus(data)} champions={Object.fromEntries(champions.map((c) => [c.id, { id: c.id, name: c.name, portraitUrl: c.portraitUrl }]))} />
     </>
   );
 }

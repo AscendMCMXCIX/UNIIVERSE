@@ -98,8 +98,8 @@ test("a profile shows recent form and ranked progress per queue", async ({ page 
   await page.mouse.move(0, 0);
   await chart.focus();
   await page.keyboard.press("ArrowLeft");
-  await expect(page.getByTestId("ranked-tip")).toContainText(/Read \d{1,2} [A-Z][a-z]{2} \d{4}/);
-  const read = /Read (\d{1,2} [A-Z][a-z]{2} \d{4})/.exec(await page.getByTestId("ranked-tip").innerText())![1]!;
+  await expect(page.getByTestId("ranked-tip")).toContainText(/Checked \d{1,2} [A-Z][a-z]{2} \d{4}/);
+  const read = /Checked (\d{1,2} [A-Z][a-z]{2} \d{4})/.exec(await page.getByTestId("ranked-tip").innerText())![1]!;
   expect(inDemoWindow(read), `read ${read}: within the demo's dates`).toBe(true);
   await page.keyboard.press("Escape");
 

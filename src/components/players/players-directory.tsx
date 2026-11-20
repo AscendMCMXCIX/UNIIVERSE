@@ -20,6 +20,7 @@ import { COMPACT_SEARCH, FiltersControl, PageToolbar } from "@/components/ui/pag
 import { formatCount } from "@/lib/format";
 import type { CompactRank } from "./rank-emblem";
 import { RosterRow, type RiotState } from "./roster-row";
+import { usePlayerPeek, type PlayerPeekRow } from "./player-peek";
 
 export interface DirectoryEntry {
   player: PlayerRecord;
@@ -69,9 +70,14 @@ export function PlayersDirectory({ entries, championsById, archived = null, myPr
     return fold(e.player.displayName).includes(q) || e.riotIds.some((id) => fold(id).includes(q));
   });
   const filtered = role === "ALL" ? null : role;
+  // A row opens the player Peek (?player=), its name the profile; a player with no main role yet has no Peek (their row opens the profile).
+  const peekIds = React.useMemo(() => shown.filter((e) => e.player.primaryRole).map((e) => e.player.id), [shown]);
+  const names = React.useMemo(() => new Map(entries.map((e) => [e.player.id, e.player.displayName])), [entries]);
+  const { row: peekRow, panel } = usePlayerPeek({ ids: peekIds, names, viewerPlayerId: entries.find((e) => e.isYou)?.player.id ?? null });
   const scopeLine = [shown.length === entries.length ? players(entries.length) : `${formatCount(shown.length)} of ${players(entries.length)}`, filtered ? `${ROLE_LABELS[filtered]} as primary or off role` : null, scope === "lineup" ? "Main lineup" : null, archived?.on ? "With archived and deactivated" : null].filter(Boolean).join(" · ");
   return (
-    <div className="space-y-4">
+    <>
+      <div className="space-y-4">
       {/* From md, once the toolbar has scrolled away: the search and Filters at the pinned tabs' end (ui/page-toolbar.tsx). */}
       <PageToolbar label="Players controls" land="[data-testid=player-card]">
         <SearchInput value={query} onChange={setQuery} placeholder="Search players" label="Search players by name or Riot ID" className={COMPACT_SEARCH} testId="toolbar-players-search" />
@@ -145,7 +151,7 @@ export function PlayersDirectory({ entries, championsById, archived = null, myPr
         {shown.length ? (
           <ol className="-mb-px -mr-px grid grid-cols-1 @min-[38rem]/roster:grid-cols-2 @min-[84rem]/roster:grid-cols-3" aria-label="Players">
             {shown.map((e) => (
-              <Row key={e.player.id} entry={e} role={filtered} championsById={championsById} />
+              <Row key={e.player.id} entry={e} role={filtered} championsById={championsById} peek={e.player.primaryRole ? peekRow(e.player.id) : undefined} />
             ))}
           </ol>
         ) : (
@@ -163,12 +169,18 @@ export function PlayersDirectory({ entries, championsById, archived = null, myPr
           </p>
         )}
       </div>
-    </div>
+      </div>
+      {/* The Peek outside the spaced stack: on a phone its window's element exists only once the
+          page's code runs, and as the stack's last child it gave the list's last block a gap it did
+          not have before, so the page grew 16px after load and a page scrolled to its end moved (R7:
+          CI's account-screen jumps). */}
+      {panel}
+    </>
   );
 }
 
 /** A directory entry as its row: the pool of the role the list is narrowed to (their main role's otherwise). */
-function Row({ entry: e, role, championsById }: { entry: DirectoryEntry; role: Role | null; championsById: Record<string, PortraitChampion> }) {
+function Row({ entry: e, role, championsById, peek }: { entry: DirectoryEntry; role: Role | null; championsById: Record<string, PortraitChampion>; peek?: PlayerPeekRow }) {
   const p = e.player;
   const shown = poolForRole(p, role);
   const off = shown.slot === "primary" ? null : shown.role;
@@ -176,6 +188,7 @@ function Row({ entry: e, role, championsById }: { entry: DirectoryEntry; role: R
   return (
     <RosterRow
       href={`/players/${p.id}`}
+      peek={peek}
       look={cardLookFor(p)}
       art={cardArt(p)}
       name={p.displayName}

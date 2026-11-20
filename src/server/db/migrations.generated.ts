@@ -938,5 +938,19 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
     "statements": [
       "ALTER TABLE \"rank_snapshots\" ADD COLUMN \"confirmed_at\" timestamp with time zone;"
     ]
+  },
+  {
+    "idx": 67,
+    "tag": "0067_match_prep",
+    "hash": "5e9291873b98207c8f0cc53d4ed8cc0e4f83c8c0a1d893fbab0c84b40ec39b33",
+    "statements": [
+      "CREATE TABLE \"account_match_prep\" (\n\t\"account_id\" uuid NOT NULL,\n\t\"match_id\" text NOT NULL,\n\t\"format\" integer NOT NULL,\n\t\"prep\" jsonb NOT NULL,\n\t\"made_at\" timestamp with time zone DEFAULT now() NOT NULL,\n\tCONSTRAINT \"account_match_prep_account_id_match_id_pk\" PRIMARY KEY(\"account_id\",\"match_id\")\n);",
+      "CREATE TABLE \"static_digests\" (\n\t\"patch\" text NOT NULL,\n\t\"kind\" text NOT NULL,\n\t\"key\" text NOT NULL,\n\t\"hash\" text NOT NULL,\n\t\"recorded_at\" timestamp with time zone DEFAULT now() NOT NULL,\n\tCONSTRAINT \"static_digests_patch_kind_key_pk\" PRIMARY KEY(\"patch\",\"kind\",\"key\")\n);",
+      "ALTER TABLE \"account_match_prep\" ADD CONSTRAINT \"account_match_prep_game_fk\" FOREIGN KEY (\"account_id\",\"match_id\") REFERENCES \"public\".\"account_matches\"(\"account_id\",\"match_id\") ON DELETE cascade ON UPDATE no action;",
+      "CREATE INDEX \"account_match_prep_vs_idx\" ON \"account_match_prep\" USING btree ((\"prep\"->>'vs'));",
+      "ALTER TABLE \"account_match_prep\" ENABLE ROW LEVEL SECURITY;",
+      "ALTER TABLE \"static_digests\" ENABLE ROW LEVEL SECURITY;",
+      "-- Closed to Supabase's Data API whatever the project's default privileges, and readable by the\n-- backup role where it exists (docs/DATABASE_PERMISSIONS.md).\nDO $$ BEGIN\n  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN\n    REVOKE ALL ON TABLE public.account_match_prep FROM anon;\n    REVOKE ALL ON TABLE public.static_digests FROM anon;\n  END IF;\n  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN\n    REVOKE ALL ON TABLE public.account_match_prep FROM authenticated;\n    REVOKE ALL ON TABLE public.static_digests FROM authenticated;\n  END IF;\n  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'uniiverse_backup') THEN\n    GRANT SELECT ON TABLE public.account_match_prep TO uniiverse_backup;\n    GRANT SELECT ON TABLE public.static_digests TO uniiverse_backup;\n  END IF;\nEND $$;"
+    ]
   }
 ];

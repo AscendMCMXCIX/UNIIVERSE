@@ -86,12 +86,12 @@ const BEFORE = {
     {"id": "win-streak", "label": "Longest win streak", "definition": "In the order the games were played.", "holder": {"playerId": "ash", "value": "5", "unit": "wins in a row", "championId": null, "role": null, "kda": null, "when": "5 Sep 2026", "href": null}, "yours": {"playerId": "bo", "value": "2", "unit": "wins in a row", "championId": null, "role": null, "kda": null, "when": "5 Sep 2026", "href": null}},
   ],
   multikills: [{"playerId": "ash", "penta": 1, "quadra": 1, "triple": 1}, {"playerId": "bo", "penta": 0, "quadra": 1, "triple": 2}, {"playerId": "cy", "penta": 0, "quadra": 0, "triple": 3}],
-  multikillNote: "From the 31 of 32 games this season that carry Riot's multikill figures; the others are left out, not counted as zero.",
+  multikillNote: "Counted from 31 of 32 games this season; the rest are left out, never counted as zero.",
   championGames: [{"playerId": "ash", "items": [{"championId": "Riven", "value": "25 games", "milestone": "25+ games", "tier": 1}], "more": 0}],
   mastery: [{"playerId": "ash", "items": [{"championId": "Riven", "value": "1.2M points", "milestone": "1M+", "tier": 3}, {"championId": "Zed", "value": "486K points", "milestone": "100K+", "tier": 1}, {"championId": "Yasuo", "value": "333K points", "milestone": "100K+", "tier": 1}], "more": 2}, {"playerId": "bo", "items": [{"championId": "Thresh", "value": "512K points", "milestone": "500K+", "tier": 2}], "more": 0}, {"playerId": "cy", "items": [{"championId": "Jinx", "value": "510K points", "milestone": "500K+", "tier": 2}], "more": 0}],
 };
-/** The view without what this change adds: each record's qualifier and each milestone's short figure. */
-const withoutAdditions = (r: RecordsView) => ({
+/** The view without what later changes add: each record's qualifier, each milestone's short figure, the multikills' short note. */
+const withoutAdditions = ({ multikillShort: _m, ...r }: RecordsView) => ({
   ...r,
   records: r.records.map(({ qualifier: _q, ...rest }) => rest),
   championGames: r.championGames.map((g) => ({ ...g, items: g.items.map(({ short: _s, ...rest }) => rest) })),

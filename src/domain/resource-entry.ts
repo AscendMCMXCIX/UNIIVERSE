@@ -103,15 +103,25 @@ export function resourceHost(url: string): string {
   }
 }
 
-/** Where the site's own icon is: its favicon, loaded by the browser from the site itself. */
-export function faviconUrl(url: string): string | null {
-  try {
-    const u = new URL(url);
-    return u.protocol === "https:" ? `https://${u.hostname}/favicon.ico` : null;
-  } catch {
-    return null;
-  }
+/**
+ * The library's own sites whose icon ships with the app (public/resource-icons, 40px PNGs made
+ * once from each site's declared icon on 20 Nov 2026), by host without "www.". A host not here
+ * shows its initial: nothing is fetched from a site at run time.
+ */
+export const RESOURCE_ICON_ASSETS: Readonly<Record<string, string>> = {
+  "leagueoflegends.com": "/resource-icons/leagueoflegends.com.png",
+  "op.gg": "/resource-icons/op.gg.png",
+  "lolalytics.com": "/resource-icons/lolalytics.com.png",
+  "lolesports.com": "/resource-icons/lolesports.com.png",
+  "tactics.tools": "/resource-icons/tactics.tools.png",
+  "metatft.com": "/resource-icons/metatft.com.png",
+};
+
+/** The shipped icon for a resource's site, or null (its initial is shown). */
+export function resourceIconAsset(url: string): string | null {
+  return RESOURCE_ICON_ASSETS[resourceHost(url)] ?? null;
 }
+
 
 export function orderedBySection(entries: readonly Resource[]): Resource[] {
   const rank = new Map(SECTION_KEYS.map((k, i) => [k, i]));

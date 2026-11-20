@@ -80,6 +80,8 @@ describe("rank snapshots", () => {
     expect(await recordRankSnapshots(db, main, [solo("GOLD", "IV", 20, 3, 2), flex("SILVER", "I", 10, 5, 5)], day(33))).toBe(1);
     const { accounts } = await loadRankHistory(db, playerId);
     expect(accounts.map((a) => a.label)).toEqual(["main", "alt"]);
+    // The readings alone: the weekly games nothing showed are no longer counted (one query fewer per Overview, PLAN S8a).
+    for (const a of accounts) expect(Object.keys(a).sort()).toEqual(["id", "label", "riotId", "snapshots"]);
     const p = rankProgress("solo", accounts[0]!.snapshots, day(34).getTime());
     expect(p.trackingSince).toBe(day(0).getTime());
     expect(p.segments).toBe(2);

@@ -22,7 +22,7 @@ describe("job registry", () => {
     lane-opponent-recompute, S7b's prep-backfill) adds it to SETUP here and in
     tests/db/admin-safety.test.ts, and counts it in e2e/admin-safety.spec.ts.
   */
-  const SETUP = ["rank-schedule", "rank-schedule-off", "history-rescan", "erasure-reconcile", "verify-account", "lane-opponent-recompute"];
+  const SETUP = ["rank-schedule", "rank-schedule-off", "history-rescan", "erasure-reconcile", "verify-account", "lane-opponent-recompute", "prep-backfill"];
   const KINDS: readonly JobKind[] = ["check", "refresh", "setup"];
 
   it("gives every job a kind: check, refresh or setup", () => {

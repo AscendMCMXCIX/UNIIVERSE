@@ -3,6 +3,7 @@ import type { Role } from "@/domain/roles";
 import type { CardLook } from "@/domain/card-style";
 import type { ProficiencyTier } from "@/domain/proficiency";
 import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateSampleNote, winRateTone } from "@/domain/stats/win-rate";
+import { SampleNote } from "./sample-note";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
 import { RoleIcon } from "@/components/role-icon";
 import { cn } from "@/lib/cn";
@@ -10,7 +11,7 @@ import { CardAvatar, CardName, CardTagline } from "./card-look";
 import { RankInline, type CompactRank } from "./rank-emblem";
 import { RoleStatusBadge } from "./role-status-badge";
 import { TierBadge } from "./tier-badge";
-import { formatCount, formatCompactCount } from "@/lib/format";
+import { formatCompactCount, formatCount } from "@/lib/format";
 
 /*
   The pieces every player card is made of, so the Team card, its detail panel, the Players
@@ -248,8 +249,9 @@ export function CardPerformance({ season, support, roleLabel, placeholder = fals
       <dl className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-end gap-x-2.5 @min-[14.5rem]/card:@max-[18rem]/card:gap-x-1 @max-[12.5rem]/card:grid-cols-[auto_minmax(0,1fr)] @max-[12.5rem]/card:items-center @max-[12.5rem]/card:gap-x-2 @max-[12.5rem]/card:gap-y-1 @max-[9rem]/card:flex @max-[9rem]/card:flex-wrap @max-[9rem]/card:gap-x-3 @max-[9rem]/card:gap-y-1.5">
         <div className="min-w-0 @max-[12.5rem]/card:row-span-2 @max-[9rem]/card:basis-full">
           <dt className={label}>Win rate</dt>
-          <dd className={cn("text-2xl font-bold leading-tight tabular-nums", wr === null ? "text-fg-muted" : tone)} title={winRateSampleNote(season?.winRate, games, WIN_RATE_MIN_GAMES.season) ?? undefined} data-testid="card-winrate">
+          <dd className={cn("text-2xl font-bold leading-tight tabular-nums", wr === null ? "text-fg-muted" : tone)} data-testid="card-winrate">
             {wr === null ? dash : `${Math.round(wr * 100)}%`}
+            <SampleNote note={winRateSampleNote(season?.winRate, games, WIN_RATE_MIN_GAMES.season)} />
           </dd>
           <dd className={sub}>{!placeholder && wins !== null && losses !== null ? `${wins}W ${losses}L` : "\u00a0"}</dd>
         </div>
@@ -262,12 +264,15 @@ export function CardPerformance({ season, support, roleLabel, placeholder = fals
               across most desktops; 18rem since the 12px floor and Team's full column from 1920px)
               the three figures stand 4px apart instead of 10px, so the line fits whole there rather
               than ending in "…". */}
-          <dd className={cn(sub, narrowHidden)} title={kdaLine ? `Average kills / deaths / assists: ${kdaLine}` : undefined}>
+          <dd className={cn(sub, narrowHidden)}>
             {placeholder || !kdaLine ? (
               "\u00a0"
             ) : (
               <>
-                <span className="@max-[14.5rem]/card:sr-only">{kdaLine}</span>
+                <span className="@max-[14.5rem]/card:sr-only">
+                  <span className="sr-only">Average kills / deaths / assists: </span>
+                  {kdaLine}
+                </span>
                 <span aria-hidden className="hidden @max-[14.5rem]/card:inline">
                   {"\u00a0"}
                 </span>
@@ -284,7 +289,7 @@ export function CardPerformance({ season, support, roleLabel, placeholder = fals
             <dd className={cn(sub, narrowHidden)}>per game</dd>
           </div>
         ) : (
-          <div className={cn(pair, "text-right")} title="Minions and monsters killed per minute">
+          <div className={cn(pair, "text-right")}>
             <dt className={label}>CS/min</dt>
             <dd className={figure} data-testid="card-cs">
               {placeholder || season?.csPerMinute == null ? dash : season.csPerMinute.toFixed(1)}
@@ -500,7 +505,7 @@ export function PoolColumnNames({ support }: { support: boolean }) {
  * One champion of a pool as a row of the Team player window's list: its place, portrait, name and
  * experience label, then the season's figures in this role in aligned columns (a short block on
  * phones). The first choice is marked in its row in the card's own colour, never set apart, so the
- * pool reads as one list. Same data and test ids as PoolChampionRow.
+ * pool reads as one list. Its test ids are the pool row's.
  */
 export function PoolChampionTile({ index, champion, row, support, withStats = true }: { index: number; champion: PortraitChampion; row: PoolRowChampion; support: boolean; withStats?: boolean }) {
   const first = index === 0;

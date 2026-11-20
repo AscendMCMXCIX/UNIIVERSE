@@ -1,8 +1,9 @@
+import { TierLabel } from "./evidence-panel";
 import { Fragment } from "react";
+import { ChangedBadge } from "./changed-badge";
 import { Crosshair, History, Swords, TriangleAlert } from "lucide-react";
 import type { ChampionChoice, ChampionIntelView } from "@/domain/matchup-intel/types";
 import { SIDE_GROUPS, kitOf, type Kit, type KitItem } from "@/domain/matchup-intel/kit";
-import { Badge } from "@/components/ui/badge";
 import { Panel } from "@/components/ui/panel";
 import { cn } from "@/lib/cn";
 import { CuratedLine, publicPatchOf } from "./ability-list";
@@ -100,9 +101,7 @@ function KitLine({ item, champion, rows, withCooldown, ownSource }: { item: KitI
           <FactChipView key={i} chip={c} champion={champion.name} ability={item.ability} testId="assembled-chip" />
         ))}
         {item.flagged ? (
-          <Badge tone="warn" title="Riot's data for this ability changed after the curated notes were checked: they may be out of date">
-            <span data-testid="assembled-flagged">Changed since the check</span>
-          </Badge>
+          <ChangedBadge testId="assembled-flagged" />
         ) : null}
         {cd ? (
           // The ability's own base cooldown per rank (Riot's numbers or the checked ones, as its tile's line).
@@ -158,9 +157,11 @@ function KitSide({ side, kit, intel, champion, title, subtitle, rows }: { side: 
     // Under 9rem (a 320px phone at twice the text size) a narrower padding and no icon before the
     // label, so the longest label (Opportunity) and chip words keep whole.
     <section className={cn("min-w-0 px-3 py-2.5 @max-[9rem]/kits:px-2", side === "danger" ? "bg-warn/5" : side === "opportunity" ? "bg-good/5" : "")} aria-label={`${title}: ${subtitle}`} data-testid={`assembled-${side}`} data-from={kit.from}>
-      <h3 className={cn("label-caps flex items-center gap-1.5 [overflow-wrap:anywhere]", side === "danger" ? "text-warn" : side === "opportunity" ? "text-good" : "text-fg-muted")}>
+      <h3 className={cn("label-caps flex flex-wrap items-center gap-x-1.5 gap-y-0.5 [overflow-wrap:anywhere]", side === "danger" ? "text-warn" : side === "opportunity" ? "text-good" : "text-fg-muted")}>
         <Icon className="h-4 w-4 shrink-0 @max-[9rem]/kits:hidden" aria-hidden />
         {title}
+        {/* This side's facts are its champion's checked notes: its tier, beside its title (R7 review C1). */}
+        {kit.from === "checked" ? <TierLabel className="normal-case tracking-normal">Checked notes (AI reviewers)</TierLabel> : null}
       </h3>
       {/* The subtitle, and at the row's end, over the cooldown numbers' column, where they come from
           where the side's notes do not date them ("Cooldowns: Riot's data, not reviewed"), once. */}
@@ -247,10 +248,14 @@ export function AssembledReference({ you, enemy, enemyIntel, yourIntel, curatedF
           wider than the header: on a 320px phone at twice the text size it wraps in place. */}
       <header className={cn("border-b border-border px-3 py-2", others.length ? "space-y-0.5" : "flex flex-wrap items-baseline gap-x-3 gap-y-0.5")} data-testid="matchup-no-briefing">
         <div className={cn("flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1", !others.length && "max-w-full shrink-0")}>
-          <h2 className="text-sm font-semibold text-fg">
-            {ASSEMBLED_TITLE}
-            <span className="sr-only">: {`${you.name} vs ${enemy.name}`}</span>
-          </h2>
+          <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+            <h2 className="text-sm font-semibold text-fg">
+              {ASSEMBLED_TITLE}
+              <span className="sr-only">: {`${you.name} vs ${enemy.name}`}</span>
+            </h2>
+            {/* Riot's data: each side whose facts are a champion's checked notes says so beside its own title (R7 review C1). */}
+            <TierLabel>Riot&apos;s data</TierLabel>
+          </div>
           <CuratedLinks you={you} enemies={others} label={`Curated for ${you.name}:`} className="text-xs" />
         </div>
         <p className={cn("text-xs text-fg-muted", !others.length && "min-w-0 flex-[1_1_20rem]")}>

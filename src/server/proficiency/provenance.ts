@@ -44,6 +44,10 @@ export interface ChampionProficiencyRow {
   recentGames: number;
   patchGames: number;
   roleShare: number;
+  /** Games on the champion in this role. */
+  roleGames: number;
+  /** Games on the champion whose role is known (0: no share is shown; the share is of these). */
+  knownRoleGames: number;
   lastPlayedAt: Date | null;
   mastery: { points: number; level: number } | null;
   notes: string[];
@@ -129,6 +133,8 @@ export async function getPlayerDataReport(db: Db, player: RosterPlayer, options:
       recentGames: est.recentGames,
       patchGames: est.patchGames,
       roleShare: est.roleShare,
+      roleGames: est.roleGames,
+      knownRoleGames: est.knownRoleGames,
       lastPlayedAt: est.lastPlayedAt,
       mastery: est.mastery,
       notes: est.notes,

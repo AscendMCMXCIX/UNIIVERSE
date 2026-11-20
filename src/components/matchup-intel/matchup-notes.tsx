@@ -1,4 +1,5 @@
 import { ChevronDown, History, TriangleAlert } from "lucide-react";
+import { ChangedBadge } from "./changed-badge";
 import type * as React from "react";
 import type { ChampionChoice, ChampionIntelView, InteractionView, MatchupIntelView } from "@/domain/matchup-intel/types";
 import { kitOf } from "@/domain/matchup-intel/kit";
@@ -70,9 +71,7 @@ function ChampionInteractions({ intel, testId, rows }: { intel: ChampionIntelVie
               <FactChipView key={i} chip={c} champion={champion.name} ability={item.ability} />
             ))}
             {item.flagged ? (
-              <Badge tone="warn" title="Riot's data for this ability changed after the curated notes were checked: they may be out of date">
-                Changed since the check
-              </Badge>
+              <ChangedBadge />
             ) : null}
           </li>
         ))}
@@ -178,7 +177,7 @@ function MatchupInteraction({ item, names, rows, source }: { item: Extract<Inter
       {source.title ? (
         <>
           {" "}
-          <SourceTip text={`Source: ${source.title}. Curated matchup notes.`} testId="interaction-source" />
+          <SourceTip text={`From ${source.title}. Curated matchup notes.`} testId="interaction-source" />
         </>
       ) : null}
     </li>
@@ -223,7 +222,7 @@ export function InteractionsPanel({ matchup, enemyIntel, yourIntel, you, rows }:
             {oneSource ? (
               <>
                 {" · "}
-                <SourceTip text={`Source: ${oneSource}. Curated matchup notes.`} testId="interaction-source" />
+                <SourceTip text={`From ${oneSource}. Curated matchup notes.`} testId="interaction-source" />
               </>
             ) : null}
           </p>
@@ -298,9 +297,7 @@ function LevelNote({ note: n, source }: { note: ChampionIntelView["levelNotes"][
         {n.changed ? (
           <>
             {" "}
-            <Badge tone="warn" title="Riot's data for an ability this note rests on changed after the curated notes were checked: it may be out of date">
-              Changed since the check
-            </Badge>
+            <ChangedBadge note />
           </>
         ) : null}
       </p>
@@ -318,7 +315,7 @@ export function LevelNotesPanel({ intels }: { intels: ReadonlyArray<ChampionInte
   const sourceText = (n: (typeof notes)[number]) => {
     if (!n.source.title) return null;
     const revision = revisionWords(n.source.revisionTime);
-    return `Source: ${n.source.title}${revision ? `, ${revision}` : ""}. ${CHECKED_NOTES_LABEL}.`;
+    return `From ${n.source.title}${revision ? `, ${revision}` : ""}. ${CHECKED_NOTES_LABEL}.`;
   };
   // Every note from one page (one champion's checked notes): its source said once, on the panel's line.
   const texts = notes.map(sourceText);

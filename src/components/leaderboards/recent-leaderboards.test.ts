@@ -1,4 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+// The names link with IntentLink (prefetch on intent), which asks for the router: none in a markup test.
+vi.mock("next/navigation", () => ({ useRouter: () => ({ prefetch: () => {} }), usePathname: () => "/leaderboards", useSearchParams: () => new URLSearchParams() }));
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { cardLookFor } from "@/domain/card-style";
@@ -85,10 +88,10 @@ describe("Recent form's rows", () => {
     expect(publicRows.bo).toMatch(/<span aria-hidden="true" data-testid="form-gap" title="Win your next game to draw level with Ash"/);
   });
 
-  it("shows the gap short and keeps the sentence for screen readers: Next win: 2=, 1 win behind", () => {
-    expect(textOf(rows.bo!, "form-gap")).toBe("Next win: 1=");
+  it("shows the gap short and keeps the sentence for screen readers: A win ties 2nd, 1 win behind", () => {
+    expect(textOf(rows.bo!, "form-gap")).toBe("A win ties 1st");
     expect(textOf(rows.cy!, "form-gap")).toBe("1 win behind");
-    expect(textOf(rows.di!, "form-gap")).toBe("Next win: 2=");
+    expect(textOf(rows.di!, "form-gap")).toBe("A win ties 2nd");
     expect(textOf(rows.di!, "form-note")).toBe("Win your next game to draw level with Bo and Cy");
     expect(rows.di).toMatch(/<span aria-hidden="true" data-testid="form-gap"/);
     expect(rows.di).toMatch(/<span class="sr-only" data-testid="form-note">/);
@@ -99,7 +102,7 @@ describe("Recent form's rows", () => {
     expect(rows.di).toContain('<span aria-hidden="true" class="pointer-events-none absolute inset-y-0 left-0 w-0.5 bg-accent"></span>');
     expect(rows.di).toContain(">You<");
     // On a narrow board "You" drops under a name whose longest word would not fit beside it (MemberCell's youWraps; e2e/large-text-leaderboards.spec.ts).
-    expect(rows.di).toMatch(/<span class="flex min-w-0 items-center gap-1\.5 @max-\[36rem\]\/list:flex-wrap"><span class="min-w-0 text-fg @max-\[36rem\]\/list:w-min @max-\[36rem\]\/list:max-w-max @max-\[36rem\]\/list:grow"[\s\S]*?data-testid="card-you"/);
+    expect(rows.di).toMatch(/<span class="flex min-w-0 items-center gap-1\.5 @max-\[36rem\]\/list:flex-wrap"><a [^>]*class="[^"]*min-w-0[^"]*text-fg[^"]*@max-\[36rem\]\/list:w-min @max-\[36rem\]\/list:max-w-max @max-\[36rem\]\/list:grow"[\s\S]*?data-testid="card-you"/);
     for (const id of ["ash", "bo", "cy", "ed"]) expect(rows[id]).not.toMatch(/bg-accent\/5|data-you|>You</);
   });
 
@@ -120,7 +123,10 @@ describe("Recent form's rows", () => {
     expect(rows.ash).toContain("Support</span><span class=\"sr-only\"> main role (14 of 20 games)</span>");
     // The link says the member's name (its tooltip layer after it is aria-hidden), so the visible one is not read twice.
     expect(rows.ash).toContain('data-row-link="" href="/players/ash"><span class="sr-only">Ash</span><span aria-hidden="true" title=');
-    expect(rows.ash).toMatch(/<span class="min-w-0 text-fg[^"]*" aria-hidden="true">/);
+    // The name itself is the profile's link (over the row's own, which opens the player Peek on the page: PLAN S8a).
+    const nameLink = /<a [^>]*data-testid="board-member-profile"[^>]*>/.exec(rows.ash!)?.[0] ?? "";
+    expect(nameLink).toContain('href="/players/ash"');
+    expect(nameLink).toContain('data-prefetch="intent"');
   });
 });
 
@@ -198,7 +204,8 @@ describe("the board's markup", () => {
 describe("gapToken (D5)", () => {
   it("is the gap short, in one place", () => {
     expect(gapToken(null, WINDOW)).toBe("—");
-    expect(gapToken({ kind: "level", place: 3 }, WINDOW)).toBe("Next win: 3=");
+    expect(gapToken({ kind: "level", place: 3 }, WINDOW)).toBe("A win ties 3rd");
+    expect([1, 2, 3, 4, 11, 12, 13, 21, 22].map((place) => gapToken({ kind: "level", place }, WINDOW))).toEqual(["A win ties 1st", "A win ties 2nd", "A win ties 3rd", "A win ties 4th", "A win ties 11th", "A win ties 12th", "A win ties 13th", "A win ties 21st", "A win ties 22nd"]);
     expect(gapToken({ kind: "behind", wins: 1, place: 2 }, WINDOW)).toBe("1 win behind");
     expect(gapToken({ kind: "behind", wins: 3, place: 2 }, WINDOW)).toBe("3 wins behind");
     expect(gapToken({ kind: "provisional", games: 14 }, WINDOW)).toBe("14 of 20 games");

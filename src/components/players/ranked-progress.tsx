@@ -105,7 +105,7 @@ export function RankedProgress({ accounts, queue, accountId, href, now }: { acco
                 </p>
                 <LpBar tier={cur.tier} lp={cur.leaguePoints} />
                 {cur.wins !== null && cur.losses !== null ? (
-                  <p className="text-2xs tabular-nums text-fg-muted" title={`Riot's count of ${QUEUE_LABEL[queue]} games in the ${RANKED_YEAR} ranked year`}>
+                  <p className="text-2xs tabular-nums text-fg-muted">
                     {cur.wins}W {cur.losses}L{cur.wins + cur.losses > 0 ? ` · ${Math.round((cur.wins / (cur.wins + cur.losses)) * 100)}%` : ""} · {RANKED_YEAR} (Riot)
                   </p>
                 ) : null}
@@ -124,10 +124,10 @@ export function RankedProgress({ accounts, queue, accountId, href, now }: { acco
                 <dd>
                   {timeline.peak ? (
                     <>
-                      <span className="block text-sm font-semibold text-fg" title={`${timeline.peak.label} ${timeline.peak.lp} LP`}>
+                      <span className="block text-sm font-semibold text-fg">
                         {timeline.peak.label} · {`${timeline.peak.lp}\u00a0LP`}
                       </span>
-                      <span className="block text-2xs text-fg-subtle">first read {formatDayMonth(timeline.peak.at)}</span>
+                      <span className="block text-2xs text-fg-subtle">first checked {formatDayMonth(timeline.peak.at)}</span>
                     </>
                   ) : (
                     <span className="block text-sm text-fg-muted">Not recorded</span>
@@ -141,7 +141,7 @@ export function RankedProgress({ accounts, queue, accountId, href, now }: { acco
           <RankTimelineChart t={timeline} label={`${QUEUE_LABEL[queue]} rank since ${formatDate(timeline.trackingSince!)}`} />
         ) : (
           <p className="rounded-card border border-dashed border-border px-3 py-4 text-center text-xs text-fg-muted" data-testid="ranked-no-chart">
-            {timeline.trackingSince === null ? "The chart starts at the first reading of this rank. Riot reports no past ranks, so none can be filled in." : "No ranked reading to draw: this queue was read as unranked."}
+            {timeline.trackingSince === null ? "The chart starts at the first check of this rank. Riot shares no past ranks, so none can be filled in." : "No rank to draw: this queue was unranked at every check."}
           </p>
         )}
       </div>

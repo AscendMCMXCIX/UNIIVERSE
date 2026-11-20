@@ -200,17 +200,20 @@ index's end, then the sites grouped by section, an `h2` each:
 
 | Width | Layout |
 | --- | --- |
-| phone (< 640px) | a full-width search; the index under it, scrolling sideways (`ScrollRow`); the live count left to screen readers (each segment says it); one panel, a heading per section, hairlines between the rows |
+| phone (< 640px) | a full-width search; the index under it, wrapping onto two lines of 44px chips at 375px and wider (since 20 Nov 2026, UM.R1: it scrolled sideways, 4 of 7 sections off the screen at 393; Favourites is its ★ there, the League of Legends section "League"); one panel, a heading per section, hairlines between the rows |
 | a phone held sideways, from 640px wide (`sm` in a window 480px tall or less; a 320pt iPhone held sideways is 568px wide and keeps the upright layout) | the search and the index share a row; a panel per section, two columns |
 | tablet (640–1023px) | the search on its own row, the index under it, scrolling sideways, with the live count at its end; a panel per section packed into two columns (`columns-2`, each panel kept whole) |
-| from `lg` | the index whole wherever it is shown: beside the search only where the row has room for all of it and the count's longest form (1366 to 1480 with the sidebar folded), else on a row of its own, its segments wrapping onto a second line only where even that row is too narrow (1024, the sidebar open or folded); the count keeps the room of "11 of 11 resources" (an invisible copy in its cell), so a section chosen or a search typed never moves the index or the list; two columns, three from `xl` |
+| from `lg` | the index whole wherever it is shown: beside the search only where the row has room for all of it and the count's longest form (1366 to 1480 with the sidebar folded), else on a row of its own, its segments wrapping onto a second line only where even that row is too narrow (1024, the sidebar open or folded); two columns, three from `xl` |
 
 The plan said two columns from `md`; they start at `sm` so a phone held sideways (an iPhone 15 in
 Safari is 734px wide) gets them too, which its 2.4-screen target needs (`e2e/resources.spec.ts`
 pins it at 734 × 343, and one panel at 600px). A section panel's title is `text-base` from `md`, as
-a panel's title is (STANDARDS.md, Type); a phone's headings, upright or sideways, stay `text-sm`. A
-row is its site's icon, the title (it wraps, never cut), the host beside it (cut first, then ↗) and
-the description: whole on a touch screen, as in the base (whose clamp never applied), and with a
+a panel's title is (STANDARDS.md, Type); a phone's headings, upright or sideways, stay `text-sm`. The live count ("11 resources") is read out only, at every width: each segment's count says it on
+screen (one count, UD.R1, 20 Nov 2026). A
+row is its site's icon (shipped with the app in `public/resource-icons` for the library's own sites,
+else the host's initial: nothing is fetched from a site), the title (it wraps, never cut), the host
+on a line of its own under it, whole (cut short only in a list under 16rem, a large text size), then
+↗, and the description: whole on a touch screen, as in the base (whose clamp never applied), and with a
 mouse two lines at most, its title showing the rest on hover; a screen reader reads it whole either
 way. The star at the row's end keeps a favourite in this browser. The ★ segment is in the server's
 page with an empty slot of its count's width (two digits; at most 50 favourites), which fills once

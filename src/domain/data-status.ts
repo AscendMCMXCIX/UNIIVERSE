@@ -147,7 +147,7 @@ export function teamDataStatus(f: { accounts: readonly AccountSyncView[]; checke
   const stale = count(["stale"]);
   if (stale) parts.push({ key: "accounts", state: "delayed", label: `${accounts(stale)} not read for a while`, detail: "Riot is retried automatically; the games already stored still count." });
   if (!parts.length) parts.push({ key: "accounts", state: "current", label: "Every member's games, rank and mastery are up to date", detail: null });
-  parts.push({ key: "note", state: "current", label: "The boards follow the account syncs", detail: "A new game appears after the player's next account sync, not live, or at once when they press Refresh on their profile." });
+  parts.push({ key: "note", state: "current", label: "The boards follow the account syncs", detail: "New games appear after the next automatic update, not live, or straight away when a player presses Refresh on their profile." });
   const state = PRECEDENCE.find((s) => parts.some((p) => p.state === s)) ?? "current";
   return { ...base, state, label: DATA_STATUS_LABEL[state], headline: parts.find((p) => p.state === state)!.label, parts };
 }

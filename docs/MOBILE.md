@@ -300,6 +300,16 @@ replaces the entry, so Back leaves the page in one step (`historyShowsEntries`).
   Leaderboards has none since 19 Nov 2026: Recent form and the season's records and achievements are one
   page, its sections below Recent form reached from the index under its header.
 
+### Pinned section index (Leaderboards, 20 Nov 2026)
+
+A long one-column page whose sections a reader jumps between keeps its index in reach: once the
+header has gone up under the top bar, a row of 44px chips pins at the bar's foot (fixed, so nothing
+moves), the section being read marked, and the page's scroll padding takes the row's height while
+the page is open. It follows the bar's first row as it slides away, and is not drawn where its chips
+would need more than two lines (large text: the index under the header stays the way). Leaderboards
+is the first page (`leaderboards-index.tsx`; docs/TEAM_LEADERBOARDS.md). The Library's section
+index wraps onto two lines of 44px chips on a phone instead of scrolling sideways (UM.R1).
+
 ### Phones held sideways
 
 Short windows (480px tall or shorter, below `lg`) have one compact bar holding the four

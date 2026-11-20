@@ -171,12 +171,12 @@ const PICTURE_HELP = (
  * part is a cell of the card's grid, in the order it is drawn, so reading and the keyboard follow
  * what is seen (account-settings.tsx). The same editor as My Profile's (useAvatarUpload).
  */
-export function AccountPicture({ name, src, children, afterIdentity }: { name: string; src: string | null; children: React.ReactNode; afterIdentity?: React.ReactNode }) {
+export function AccountPicture({ name, seed, src, children, afterIdentity }: { name: string; /** The account's user id: the picture's colour, as in the sidebar (ui/avatar). */ seed?: string; src: string | null; children: React.ReactNode; afterIdentity?: React.ReactNode }) {
   const { choose, remove, busy, ui } = useAvatarUpload();
   return (
     <div className="contents" data-testid="avatar-editor">
       {/* 56px on a phone and in a window 480px tall or less, 80px in the card's column from md. */}
-      <Avatar name={name} src={src} size="xl" className="max-md:h-14 max-md:w-14 max-md:text-lg short:h-14 short:w-14 short:text-lg" />
+      <Avatar name={name} seed={seed} src={src} size="xl" className="max-md:h-14 max-md:w-14 max-md:text-lg short:h-14 short:w-14 short:text-lg" />
       <div className="min-w-0 @max-[11rem]:col-span-2 md:not-short:col-span-2" data-testid="account-card-identity">
         {children}
       </div>
