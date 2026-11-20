@@ -274,7 +274,7 @@ export function PreviewContent({ playerId, isOwn, card, otherRoles, vs, champ, d
             Against each lane opponent
           </h3>
           {arranged.listed.length > 1 && !arranged.noneEstablished ? (
-            <div role="group" aria-label="Sort the opponents" className={segmentedGroupClass()}>
+            <div role="group" aria-label="Sort the opponents" className={segmentedGroupClass("flex-wrap overflow-visible")}>
               {OPPONENT_SORTS.map((s) => (
                 <button key={s.key} type="button" aria-pressed={sort === s.key} onClick={() => setSort(s.key)} className={segmentClass(sort === s.key, { size: "sm", className: "pointer-coarse:min-w-11" })} data-testid={`opponent-sort-${s.key}`}>
                   {s.label}

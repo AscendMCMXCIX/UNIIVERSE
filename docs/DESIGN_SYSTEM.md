@@ -337,7 +337,7 @@ Safari.
   whose wheel or sheet is what a phone's owner expects. The closed control looks the same either way
   (`selectClass`): the server draws the popover's button and a phone swaps it as the page hydrates.
   The native select draws the popover's chevron too (`select-chevron` in globals.css: lucide's
-  ChevronDown, 16px, `fg-subtle`, 8px in, `appearance: none`), not the system's bold arrow (the
+  ChevronDown, 16px, `fg-subtle`, 8px in, fixed in px at every text size, `appearance: none`), not the system's bold arrow (the
   design review's G2-6, 20 Nov 2026); the phone keeps its own picker.
 - **Pattern:** WAI-ARIA's select-only combobox. The button is a `combobox` owning a `listbox`; the
   focus never leaves the button (the active option is `aria-activedescendant`), so it is on the

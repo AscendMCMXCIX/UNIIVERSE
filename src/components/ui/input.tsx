@@ -46,7 +46,7 @@ export function selectClass(className?: string): string {
  */
 export function NativeSelect({ className, children, ...props }: React.ComponentProps<"select">) {
   return (
-    <select className={cn(selectClass(className), "select-chevron pr-8")} {...props}>
+    <select className={cn(selectClass(className), "select-chevron pr-[28px]")} {...props}>
       {children}
     </select>
   );

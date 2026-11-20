@@ -117,9 +117,10 @@ export function RankTimelineChart({ t, label }: { t: RankTimeline; label: string
     for (const at of localPeriodStarts(t.from, t.to, long ? "month" : "day")) {
       const mx = x(at);
       // A tick near the right edge is drawn end-anchored, so its whole label runs left of it: it
-      // needs half the previous label, its own width and 8 px (about 70 px at 16 px text).
+      // needs half the previous label, its own width and 8 px (about 70 px at 16 px text). Both grow with
+      // the text size, as the labels do.
       const end = mx + 40 > width - pad.r;
-      const room = end ? Math.max(70, 4.4 * rem) : 56;
+      const room = end ? Math.max(70, 4.4 * rem) : Math.max(56, 3.9 * rem);
       if (ticks.every((tk) => Math.abs(x(tk.at) - mx) >= room) && mx - pad.l >= 18) ticks.push({ at, label: long ? formatMonth(at) : formatDayMonth(at), end });
     }
   }
