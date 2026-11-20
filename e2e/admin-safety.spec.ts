@@ -20,7 +20,7 @@ test.beforeEach(async ({ context, baseURL }, info) => {
   await view(context, baseURL!, "admin");
 });
 
-const SETUP_KEYS = ["rank-schedule-off", "history-rescan", "erasure-reconcile", "verify-account", "lane-opponent-recompute"];
+const SETUP_KEYS = ["rank-schedule-off", "history-rescan", "erasure-reconcile", "verify-account", "lane-opponent-recompute", "prep-backfill"];
 
 async function axe(page: Page, label: string) {
   const result = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();

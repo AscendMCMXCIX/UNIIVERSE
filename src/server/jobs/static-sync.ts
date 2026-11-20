@@ -7,6 +7,7 @@ import { syncRiotAssets } from "@/server/riot/static/assets";
 import { invalidateChampionMap } from "@/server/champions/map";
 import { invalidateChampionCaches } from "@/server/repositories/champions";
 import { invalidateCache } from "@/server/observability/cache";
+import { ensureStaticDigests } from "@/server/matchup-intel/digests";
 import { seedChampionAbilitiesFromFixture, syncChampionAbilities, type AbilitySyncResult } from "@/server/matchup-intel/abilities";
 
 /** The longest the champion abilities may take inside a run (their files are requested only on a new version or a first fill). */
@@ -66,7 +67,18 @@ async function run(ctx: Pick<JobContext, "db" | "log" | "startedAt" | "budgetMs"
       ctx.log(`Item/rune data not refreshed: ${(err as Error).message}`);
     }
   }
+  // Matchup Intel's per-version diff: this patch's digests, once (three Data Dragon files), after
+  // the abilities they read. A failure leaves the evidence on the current patch alone.
+  let digests: number | null = null;
+  if (!result.usedFixture && result.ok && !result.degraded && result.version && !abilities?.degraded) {
+    try {
+      digests = (await ensureStaticDigests(ctx.db, result.version))?.recorded ?? null;
+    } catch (err) {
+      ctx.log(`Patch digests not recorded: ${(err as Error).message}`);
+    }
+  }
   const summary = {
+    digests,
     version: result.version,
     patch: result.patch,
     newPatch: result.newPatch,
