@@ -4,6 +4,7 @@ import * as React from "react";
 import { RotateCcw, SlidersHorizontal, X } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/cn";
+import { scrollToStart } from "@/lib/screen";
 import { Button } from "./button";
 import { DetailModal, useModalClose } from "./detail-modal";
 import { ScrollRow } from "./scroll-row";
@@ -407,12 +408,13 @@ export function FilterBar({
 
 /**
  * Brings the list's first item to the top, under what is pinned (the page's scroll padding: the
- * phone's top bar, the pinned tabs), and under anything else pinned over its start (All Champions'
- * column headings, pinned under the tabs).
+ * phone's top bar, the pinned tabs, and a phone's sliding bar row as it comes back: scrollToStart),
+ * and under anything else pinned over its start (All Champions' column headings, pinned under the tabs).
  */
 function land(target: Element | null) {
   if (!target) return;
-  target.scrollIntoView({ block: "start", behavior: "instant" });
+  if (target instanceof HTMLElement) scrollToStart(target);
+  else target.scrollIntoView({ block: "start", behavior: "instant" });
   const at = target.getBoundingClientRect();
   const over = document.elementFromPoint(at.left + Math.min(16, at.width / 2), at.top + 1);
   if (!over || target.contains(over) || over.contains(target)) return;

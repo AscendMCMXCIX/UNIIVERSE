@@ -8,7 +8,7 @@ import type { MatchDetailResult } from "@/server/players/match-history";
 import type { PortraitChampion } from "@/components/champion-portrait";
 import { MatchDetailCacheContext } from "./match-detail-cache";
 import { PostGame } from "./post-game";
-import { screenHeight } from "@/lib/screen";
+import { pinnedTop, screenHeight, scrollToStart } from "@/lib/screen";
 
 /*
   A game opened under its card: the one way a list of games opens a game (a player's Match History
@@ -23,11 +23,15 @@ import { screenHeight } from "@/lib/screen";
 
 const reduced = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-/** What is pinned above the page (the top bar, a profile's or Team's pinned section tabs): the page's scroll padding, which scrollIntoView honours. */
-const pinnedAbove = () => parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop) || 0;
+/**
+ * What is pinned above the page now (the top bar, a profile's or Team's pinned section tabs): the
+ * page's scroll padding, and a phone's sliding top bar row while it is in view (pinnedTop). Cards
+ * are brought under it by scrollToStart, which keeps them clear of that row as it comes back.
+ */
+const pinnedAbove = () => pinnedTop();
 
 export function revealIfAbove(el: HTMLElement | null) {
-  if (el && el.getBoundingClientRect().top < pinnedAbove()) el.scrollIntoView({ block: "start", behavior: reduced() ? "auto" : "smooth" });
+  if (el && el.getBoundingClientRect().top < pinnedAbove()) scrollToStart(el, reduced() ? "auto" : "smooth");
 }
 
 /**
@@ -38,14 +42,14 @@ export function revealIfAbove(el: HTMLElement | null) {
 export function bringBack(el: HTMLElement | null) {
   if (!el) return;
   const r = el.getBoundingClientRect();
-  if (r.top < pinnedAbove() || r.top > screenHeight() - 48) el.scrollIntoView({ block: "start", behavior: "instant" });
+  if (r.top < pinnedAbove() || r.top > screenHeight() - 48) scrollToStart(el);
 }
 
 /** Brings a card just opened into view when it sits low on the screen or under what is pinned above it; one in the upper part of the screen stays where it is. */
 export function revealOpened(el: HTMLElement | null) {
   if (!el) return;
   const top = el.getBoundingClientRect().top;
-  if (top < pinnedAbove() || top > screenHeight() * 0.55) el.scrollIntoView({ block: "start", behavior: reduced() ? "auto" : "smooth" });
+  if (top < pinnedAbove() || top > screenHeight() * 0.55) scrollToStart(el, reduced() ? "auto" : "smooth");
 }
 
 /** The open game's way to its neighbours on the page: null at that end. */

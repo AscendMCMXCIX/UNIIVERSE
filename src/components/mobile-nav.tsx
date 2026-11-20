@@ -21,6 +21,7 @@ import { ScrollRow } from "./ui/scroll-row";
 import { useBackCloses } from "./ui/use-back-closes";
 import { releaseEarlyTaps } from "./early-taps";
 import { cn } from "@/lib/cn";
+import { BAR_HIDE_AFTER, BAR_INTENT } from "@/lib/screen";
 import { ACCOUNT_GROUP, ACCOUNT_ROW, ACCOUNT_ROW_CHEVRON, ACCOUNT_ROW_CURRENT, ACCOUNT_ROW_ICON, ACCOUNT_ROW_IDLE, ACCOUNT_ROW_LABEL } from "@/lib/sheet";
 import { RAIL_CURRENT, RAIL_HOVER } from "@/lib/sidebar";
 
@@ -926,10 +927,9 @@ function goBackTo(target: string, pathname: string, back: () => void) {
   else back();
 }
 
-/** Distance the page must scroll before the bar may slide away (about the top bar's height). */
-const HIDE_AFTER = 64;
-/** Distance scrolled one way, from where that direction began, that hides or shows the bar. */
-const INTENT = 8;
+/** Distance the page must scroll before the bar may slide away (about the top bar's height), and the distance scrolled one way, from where that direction began, that hides or shows it; shared with scrollToStart, which lands what the page brings into view clear of the bar as it will be. */
+const HIDE_AFTER = BAR_HIDE_AFTER;
+const INTENT = BAR_INTENT;
 /** A phone held upright whose first screen the frame crowds: under 700px tall at the usual text size (in rem, so a larger browser text size counts: 875px at 125%). */
 const UPRIGHT_SLIDES = "(max-width: 47.99rem) and (min-height: 480.02px) and (max-height: 43.74rem)";
 
