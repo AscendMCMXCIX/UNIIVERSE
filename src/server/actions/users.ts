@@ -6,13 +6,14 @@ import { getAppDb } from "@/server/bootstrap";
 import { requireOwner, requirePermission, requireSession, SESSION_COOKIE } from "@/server/auth/session";
 import { isVerificationAccount } from "@/server/auth/verification-account";
 import { validatePasswordStrength, verifyPassword } from "@/server/auth/password";
-import { setPassword, UserError } from "@/server/repositories/users";
+import { getUser, setPassword, UserError } from "@/server/repositories/users";
+import { groupsOf, levelOf } from "@/server/auth/member-admin";
 import { completeLegacyProfile, defaultPlatform, type RiotIdInput } from "@/server/auth/signup";
 import { createVerifiedPlayerAccount, deleteAccount, deleteProfile, guardProfileAccount, reactivateWithTemporaryPassword, resetPasswordToTemporary, setAccountActive, setAccountRole, setAdministrator } from "@/server/auth/account-admin";
 import { revokeOtherSessions } from "@/server/auth/sessions";
 import { cookies } from "next/headers";
 import { createVerificationClient, verifyRiotIdentity, type IdentityCheck } from "@/server/riot/verify-identity";
-import { users as usersTable } from "@/server/db/schema";
+import { players as playersTable, users as usersTable } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 import type { Role } from "@/domain/roles";
 import { kickoffAccountSync } from "@/server/accounts/kickoff";
@@ -89,8 +90,10 @@ export async function setTeamMemberAction(playerId: string, member: boolean): Pr
     const db = await getAppDb();
     await guardProfileAccount(db, session.userId, playerId, "change the team membership of");
     const { getOrCreateTeam, setTeamMember } = await import("@/server/repositories/team");
+    // A change that does nothing (already a team member, or already personal use) records nothing.
+    const [before] = await db.select({ teamMember: playersTable.teamMember }).from(playersTable).where(eq(playersTable.id, playerId));
     await setTeamMember(db, (await getOrCreateTeam(db)).id, playerId, member);
-    await recordAudit(db, session, { action: "account.team-member", target: { type: "player", id: playerId, name: await auditPlayerName(db, playerId) }, details: { teamMember: member } });
+    if (before?.teamMember !== member) await recordAudit(db, session, { action: "account.team-member", target: { type: "player", id: playerId, name: await auditPlayerName(db, playerId) }, details: { teamMember: member } });
     touchAdmin();
     revalidatePath("/team");
     revalidatePath("/players");
@@ -118,8 +121,9 @@ export async function setAccountActiveAction(userId: string, active: boolean): P
   try {
     const session = await requirePermission("manage-users");
     const db = await getAppDb();
-    await setAccountActive(db, session.userId, userId, active);
-    await recordAudit(db, session, { action: active ? "account.activate" : "account.deactivate", target: { type: "user", id: userId } });
+    // Reactivating an active account, or deactivating an inactive one, changes nothing and records nothing.
+    const { changed } = await setAccountActive(db, session.userId, userId, active);
+    if (changed) await recordAudit(db, session, { action: active ? "account.activate" : "account.deactivate", target: { type: "user", id: userId } });
     touchAdmin();
     return { ok: true, data: null };
   } catch (err) {
@@ -202,8 +206,9 @@ export async function setAccountRoleAction(userId: string, role: "owner" | "play
     const session = await requirePermission("manage-users");
     if (role !== "owner" && role !== "player") return { ok: false, error: "Unknown role." };
     const db = await getAppDb();
-    await setAccountRole(db, session.userId, userId, role);
-    await recordAudit(db, session, { action: "account.role", target: { type: "user", id: userId }, details: { role } });
+    const before = await getUser(db, userId);
+    const after = await setAccountRole(db, session.userId, userId, role);
+    if (before?.role !== after.role) await recordAudit(db, session, { action: "account.role", target: { type: "user", id: userId }, details: { role } });
     touchAdmin();
     return { ok: true, data: null };
   } catch (err) {
@@ -271,8 +276,10 @@ export async function setUserPermissionsAction(userId: string, choice: { presetI
     const session = await requirePermission("manage-users");
     const { setUserPermissions } = await import("@/server/repositories/permissions");
     const db = await getAppDb();
+    const before = await getUser(db, userId);
     await setUserPermissions(db, session.userId, userId, choice);
-    await recordAudit(db, session, { action: "account.permissions", target: { type: "user", id: userId }, details: "custom" in choice ? { level: "custom", capabilities: choice.custom.length } : { level: (choice.presetId && (await auditPresetName(db, choice.presetId))) || "default" } });
+    const after = await getUser(db, userId);
+    if (before && after && levelOf(before) !== levelOf(after)) await recordAudit(db, session, { action: "account.permissions", target: { type: "user", id: userId }, details: "custom" in choice ? { level: "custom", capabilities: choice.custom.length } : { level: (choice.presetId && (await auditPresetName(db, choice.presetId))) || "default" } });
     touchAdmin();
     return { ok: true, data: null };
   } catch (err) {
@@ -287,8 +294,10 @@ export async function setAccessLevelAction(userId: string, choice: { level: "own
     if (!choice || !["owner", "preset", "custom"].includes(choice.level)) return { ok: false, error: "Choose an access level." };
     const { setAccessLevel } = await import("@/server/repositories/permissions");
     const db = await getAppDb();
+    const before = await getUser(db, userId);
     await setAccessLevel(db, session.userId, userId, choice);
-    await recordAudit(db, session, { action: "account.access", target: { type: "user", id: userId }, details: { level: choice.level === "preset" ? ((await auditPresetName(db, choice.presetId)) ?? "preset") : choice.level } });
+    const after = await getUser(db, userId);
+    if (before && after && (levelOf(before) !== levelOf(after) || before.role !== after.role)) await recordAudit(db, session, { action: "account.access", target: { type: "user", id: userId }, details: { level: choice.level === "preset" ? ((await auditPresetName(db, choice.presetId)) ?? "preset") : choice.level } });
     touchAdmin();
     return { ok: true, data: null };
   } catch (err) {
@@ -303,8 +312,10 @@ export async function setAccessGroupsAction(userId: string, groups: string[]): P
     if (!Array.isArray(groups)) return { ok: false, error: "Choose the additional access." };
     const { setAccessGroups } = await import("@/server/repositories/permissions");
     const db = await getAppDb();
+    const before = await getUser(db, userId);
     await setAccessGroups(db, session.userId, userId, groups);
-    await recordAudit(db, session, { action: "account.groups", target: { type: "user", id: userId }, details: { groups: groups.join(", ") || "none" } });
+    const after = await getUser(db, userId);
+    if (before && after && groupsOf(before) !== groupsOf(after)) await recordAudit(db, session, { action: "account.groups", target: { type: "user", id: userId }, details: { groups: groups.join(", ") || "none" } });
     touchAdmin();
     return { ok: true, data: null };
   } catch (err) {
