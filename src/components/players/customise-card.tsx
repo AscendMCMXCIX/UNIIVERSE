@@ -442,10 +442,11 @@ export function CardStudio({ playerId, name, avatarUrl, art, accent, look, champ
             </PreviewStrip>
           ) : (
             <>
-              <div className="flex items-center gap-2">
+              {/* Wraps where larger text leaves no room on the line: Full card and Hide go under the switch, never off the screen. */}
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                 <span className="text-xs font-medium text-fg-subtle max-lg:sr-only short:sr-only">Preview</span>
                 <ViewSwitch view={view} onView={setView} />
-                <span className="ml-auto flex items-center gap-1">
+                <span className="ml-auto flex flex-wrap items-center justify-end gap-1">
                   <button type="button" onClick={() => setFullCard(true)} className="inline-flex min-h-8 items-center gap-1 rounded-md px-2 text-xs text-fg-muted hover:bg-surface-2 hover:text-fg pointer-coarse:min-h-11 lg:hidden" data-testid="studio-full-card-open">
                     <Expand className="h-3.5 w-3.5" aria-hidden /> Full card
                   </button>

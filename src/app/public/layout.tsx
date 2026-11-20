@@ -58,7 +58,7 @@ export default async function PublicLayout({ children }: { children: React.React
                 reach into but never past) and grows to its own width, so where everything fits on
                 one line it is exactly the line it was. */}
             <header className="relative mx-auto flex w-full max-w-[var(--content-wide)] flex-wrap items-center justify-between gap-x-3 gap-y-1 px-safe-4 pb-3 pt-safe-3 sm:px-safe-6" data-testid="public-header">
-              <Link href="/public" className="flex min-w-6 max-w-max grow basis-0 items-center gap-3 rounded-lg pointer-coarse:min-h-11 pointer-coarse:min-w-11">
+              <Link href="/public" className="flex min-w-6 max-w-max grow basis-0 items-center gap-3 rounded-lg pointer-coarse:-m-1 pointer-coarse:p-1">
                 <BrandMark src={logoSrc(branding)} still={logoStillSrc(branding)} name={branding.shortName} className="h-9 w-9 text-base" />
                 {/* With a second page in the header, phones keep the mark alone: the page's own header names the team. */}
                 <span className={`truncate text-sm font-bold tracking-label text-fg${leaderboards ? " max-sm:sr-only" : ""}`}>{branding.shortName}</span>
@@ -68,7 +68,7 @@ export default async function PublicLayout({ children }: { children: React.React
                   Team
                 </Link>
                 {leaderboards ? (
-                  <Link href="/public/leaderboards" className={`${PUBLIC_NAV_LINK} text-fg max-sm:px-2.5`} data-testid="public-leaderboards-link">
+                  <Link href="/public/leaderboards" className={`${PUBLIC_NAV_LINK} text-fg`} data-testid="public-leaderboards-link">
                     Leaderboards
                   </Link>
                 ) : null}
