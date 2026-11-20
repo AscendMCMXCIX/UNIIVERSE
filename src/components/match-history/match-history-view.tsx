@@ -276,8 +276,10 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
               <span className="whitespace-nowrap text-xs tabular-nums text-fg-subtle" suppressHydrationWarning>
                 {fmtDuration(row.durationS)} · {row.queue} · {when}
               </span>
-              {/* The open game's header: a tab stop of its own, so a keyboard reaches what the LP rests on (TT.TD12). */}
-              {row.lp ? <LpChange lp={row.lp} dense focusable /> : null}
+              {/* The open game's header: a tab stop of its own, so a keyboard reaches what the LP rests on (TT.TD12).
+                  Above the card's own button (relative z-10, as the steps are), so a pointer or a tap
+                  reaches it too instead of closing the game. */}
+              {row.lp ? <LpChange lp={row.lp} dense focusable className="relative z-10" /> : null}
             </span>
             <GameSteps nav={nav} onClose={() => onToggle(row.matchId)} where="header" />
           </span>

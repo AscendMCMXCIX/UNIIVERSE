@@ -3,8 +3,9 @@ import { expect, test, type Page } from "./test";
 /*
   A ranked game's LP on its card (demo roster; the rank readings are synthetic demo data, seeded in
   demo mode only, from the demo games): the figure the readings prove, in the gain or loss colour,
-  or a quiet dash, each with its tooltip (what it rests on, or why there is none: on hover, or a
-  tap on a touch screen) and words for screen readers. On a wide card it follows when the game was
+  or a quiet dash, each with its tooltip (what it rests on, or why there is none: on hover; on a
+  touch screen the card's mark is no button, and the opened game's tip takes the tap, 44px each way)
+  and words for screen readers. On a wide card it follows when the game was
   played, on that line of the result column (a promotion's longer mark takes the next line); on a
   tablet's it ends the result line; on a phone's it ends the result line too, at the card's end
   (owner decision D8, 18 Nov 2026: it sat under the KDA). Nothing crowds the card.
@@ -20,8 +21,9 @@ async function matchesOf(page: Page, role: string) {
   await page.goto(`/players/${id}/matches`, { waitUntil: "networkidle" });
 }
 
-test("ranked cards show the LP their readings prove, or a dash that says why", async ({ page }) => {
+test("ranked cards show the LP their readings prove, or a dash that says why", async ({ page }, info) => {
   await matchesOf(page, "TOP");
+  const touch = !!info.project.use.hasTouch;
   const lps = page.locator('[data-testid="match-lp"]:visible');
   await expect(lps.first()).toBeVisible();
   // Each mark's tooltip text is its trigger's description, which the bubble shows.
@@ -29,11 +31,15 @@ test("ranked cards show the LP their readings prove, or a dash that says why", a
     els.map((e) => {
       const tip = e.closest("[data-testid=match-lp-tip]");
       const note = (tip && document.getElementById(tip.getAttribute("aria-describedby") ?? "")?.textContent) ?? "";
-      return { lp: e.getAttribute("data-lp"), text: (e.textContent ?? "").trim(), note, tabIndex: tip?.getAttribute("tabindex") ?? null, reason: e.getAttribute("data-reason") };
+      return { lp: e.getAttribute("data-lp"), text: (e.textContent ?? "").trim(), note, tip: !!tip, tabIndex: tip?.getAttribute("tabindex") ?? null, reason: e.getAttribute("data-reason") };
     }),
   );
-  // Never a tab stop of its own: the card is the one stop, and its label says the LP.
-  for (const f of found) expect(f.tabIndex).toBe("-1");
+  // Never a tab stop of its own: the card is the one stop, and its label says the LP. On a touch
+  // screen no button at all (row 2.21: no target under 44px on a card); the opened game has the tip.
+  for (const f of found) {
+    if (touch) expect(f.tip, "no tip button on a card on touch").toBe(false);
+    else expect(f.tabIndex).toBe("-1");
+  }
   const figures = found.filter((f) => f.lp !== null && /^-?\d+$/.test(f.lp));
   const dashes = found.filter((f) => f.lp === "none");
   expect(figures.length, "some games have a recorded figure").toBeGreaterThan(0);
@@ -41,12 +47,12 @@ test("ranked cards show the LP their readings prove, or a dash that says why", a
   for (const f of figures) {
     // "+19 LP" or "−22 LP" (a true minus), resting on two named readings.
     expect(f.text).toMatch(/^(\+\d+|−\d+|0) LP$/);
-    expect(f.note).toMatch(/^.+ \d+ LP → .+ \d+ LP: checked \d{1,2} [A-Z][a-z]{2} \d{4}, \d{1,2}:\d{2} [ap]m and .*\d{1,2}:\d{2} [ap]m, either side of this game's result\.$/);
+    if (!touch) expect(f.note).toMatch(/^.+ \d+ LP → .+ \d+ LP: checked \d{1,2} [A-Z][a-z]{2} \d{4}, \d{1,2}:\d{2} [ap]m and .*\d{1,2}:\d{2} [ap]m, either side of this game's result\.$/);
   }
   for (const d of dashes) {
     expect(d.text).toContain("—");
     expect(d.text).toContain("LP not recorded");
-    expect(d.note.length).toBeGreaterThan(20);
+    if (!touch) expect(d.note.length).toBeGreaterThan(20);
   }
   // The gain colour on a win, the loss colour on a loss: the figure agrees with the result.
   const cards = page.getByTestId("match-card");
@@ -113,35 +119,56 @@ test("the LP sits in the result column on a wide card and at the end of the resu
   }
 });
 
-test("a dash's reason opens on a tap (touch) or on hover, without opening the game; the rest of the card still opens it", async ({ page }, info) => {
+test("a dash's reason: on hover over the card's mark without opening the game; on a touch screen a tap on the mark opens the game, whose tip (44px each way) takes the tap", async ({ page }, info) => {
   await matchesOf(page, "TOP");
   const card = page.getByTestId("match-card").filter({ has: page.locator('[data-testid="match-lp"][data-lp="none"]:visible') }).first();
+  const bubble = page.getByTestId("match-lp-tip-bubble");
+  const touch = !!info.project.use.hasTouch;
+  if (touch) {
+    // Row 2.21 (PLAN S2b): no target under 44px on a card. The mark is no button; a tap on it is a
+    // tap on the card, which opens the game.
+    const mark = card.getByTestId("match-lp-mark").filter({ visible: true });
+    await mark.scrollIntoViewIfNeeded();
+    await expect(card.locator('[data-testid="match-lp-tip"]')).toHaveCount(0);
+    await mark.tap();
+    await expect(page).toHaveURL(/[?&]match=/);
+    const opened = info.project.name === "phone" ? page.getByRole("dialog") : page.getByTestId("match-card-header");
+    const tip = opened.locator('[data-testid="match-lp-tip"]').first();
+    await expect(tip).toBeVisible();
+    const t = (await tip.boundingBox())!;
+    expect(t.width, "the opened game's tip: 44px wide on touch").toBeGreaterThanOrEqual(43.5);
+    expect(t.height, "and 44px tall").toBeGreaterThanOrEqual(43.5);
+    const note = await tip.evaluate((el) => document.getElementById(el.getAttribute("aria-describedby") ?? "")?.textContent ?? "");
+    expect(note.length).toBeGreaterThan(20);
+    await tip.tap();
+    await expect(bubble).toHaveText(note);
+    const b = (await bubble.boundingBox())!;
+    expect(b.x).toBeGreaterThanOrEqual(0);
+    expect(b.x + b.width).toBeLessThanOrEqual(page.viewportSize()!.width);
+    await tip.tap();
+    await expect(bubble).toHaveCount(0);
+    // The game stays open.
+    await expect(page).toHaveURL(/[?&]match=/);
+    return;
+  }
   const tip = card.locator('[data-testid="match-lp-tip"]:visible');
   await tip.scrollIntoViewIfNeeded();
   const note = await tip.evaluate((el) => document.getElementById(el.getAttribute("aria-describedby") ?? "")?.textContent ?? "");
   expect(note.length).toBeGreaterThan(20);
-  const bubble = page.getByTestId("match-lp-tip-bubble");
-  const touch = !!info.project.use.hasTouch;
   // The dash is narrow; its trigger is as wide as a target (24px) and as tall.
   const t = (await tip.boundingBox())!;
   expect(t.width).toBeGreaterThanOrEqual(23.5);
   expect(t.height).toBeGreaterThanOrEqual(23.5);
-  if (touch) await tip.tap();
-  else await tip.hover();
+  await tip.hover();
   await expect(bubble).toHaveText(note);
   const b = (await bubble.boundingBox())!;
   expect(b.x).toBeGreaterThanOrEqual(0);
   expect(b.x + b.width).toBeLessThanOrEqual(page.viewportSize()!.width);
-  // A tap toggles it closed; a click with a mouse keeps it open. Neither opens the game.
-  if (touch) {
-    await tip.tap();
-    await expect(bubble).toHaveCount(0);
-  } else {
-    await tip.click();
-    await expect(bubble).toBeVisible();
-    await page.mouse.move(2, 2);
-    await expect(bubble).toHaveCount(0);
-  }
+  // A click with a mouse keeps it open, and does not open the game.
+  await tip.click();
+  await expect(bubble).toBeVisible();
+  await page.mouse.move(2, 2);
+  await expect(bubble).toHaveCount(0);
   // The game did not open: an open game is kept in the address (?match=), under its card or on a
   // screen of its own, and draws its breakdown. A moment for either to show, had it opened.
   await page.waitForTimeout(400);
@@ -149,8 +176,7 @@ test("a dash's reason opens on a tap (touch) or on hover, without opening the ga
   await expect(page.getByTestId("match-breakdown")).toHaveCount(0);
   // Anywhere else on the card still opens the game (its portrait, at the card's start).
   const c = (await card.boundingBox())!;
-  if (touch) await card.tap({ position: { x: 24, y: c.height / 2 } });
-  else await card.click({ position: { x: 24, y: c.height / 2 } });
+  await card.click({ position: { x: 24, y: c.height / 2 } });
   await expect(page).toHaveURL(/[?&]match=/);
 });
 
@@ -169,4 +195,14 @@ test("in an opened game, the LP's reason is within a keyboard's reach: its tip i
   const note = await tip.evaluate((el) => document.getElementById(el.getAttribute("aria-describedby") ?? "")?.textContent ?? "");
   await tip.focus();
   await expect(page.getByTestId("match-lp-tip-bubble")).toHaveText(note);
+  // A pointer reaches it too: above the card's own button, a hover opens it and leaves the game open
+  // (the card's button lay over it, so a pointer on the header's LP reached the card).
+  if (info.project.name === "desktop") {
+    await tip.blur();
+    await expect(page.getByTestId("match-lp-tip-bubble")).toHaveCount(0);
+    await tip.hover();
+    await expect(page.getByTestId("match-lp-tip-bubble")).toHaveText(note);
+    await tip.click();
+    await expect(page.getByTestId("match-card-header")).toBeVisible();
+  }
 });

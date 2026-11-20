@@ -442,31 +442,33 @@ test("Match History's gold fold: a tap on or just beside a mark under the curve 
   await fitsWidth(page, "the Timeline");
 });
 
-test("Match History: a tap on a game's LP dash says why it has no figure, on screen, and leaves the card closed; another tap closes it", async ({ page }) => {
+test("Match History: a game's LP dash is no button on its card; a tap opens the game, whose tip (44px) says why it has no figure, and another tap closes it", async ({ page }) => {
   await page.goto("/team");
   const id = (await page.getByTestId("lineup-row-TOP").getAttribute("data-player-id"))!;
   await page.goto(`/players/${id}/matches`);
   const card = page.getByTestId("match-card").filter({ has: page.locator('[data-testid="match-lp"][data-lp="none"]:visible') }).first();
-  const tip = card.locator('[data-testid="match-lp-tip"]:visible');
+  const mark = card.getByTestId("match-lp-mark").filter({ visible: true });
   const bubble = page.getByTestId("match-lp-tip-bubble");
-  await tip.scrollIntoViewIfNeeded();
-  // Until the page is interactive a tap does nothing, so tap until the bubble answers.
-  await expect(async () => {
-    if ((await bubble.count()) === 0) await tip.tap({ timeout: 2_000 });
-    await expect(bubble).toBeVisible({ timeout: 1_000 });
-  }).toPass({ timeout: 15_000 });
+  // Until the page is interactive the card's tip is still drawn; once hydrated on touch it is the mark alone.
+  await expect(mark).toBeVisible({ timeout: 15_000 });
+  await expect(card.locator('[data-testid="match-lp-tip"]')).toHaveCount(0);
+  await mark.scrollIntoViewIfNeeded();
+  await mark.tap();
+  await expect(page).toHaveURL(/[?&]match=/);
+  const tip = page.getByRole("dialog").locator('[data-testid="match-lp-tip"]').first();
+  await expect(tip).toBeVisible();
+  const t = (await tip.boundingBox())!;
+  expect(Math.min(t.width, t.height)).toBeGreaterThanOrEqual(43.5);
   const note = await tip.evaluate((el) => document.getElementById(el.getAttribute("aria-describedby") ?? "")?.textContent ?? "");
   expect(note.length).toBeGreaterThan(20);
+  await tip.tap();
   await expect(bubble).toHaveText(note);
   const b = (await bubble.boundingBox())!;
   expect(b.x).toBeGreaterThanOrEqual(0);
   expect(b.x + b.width).toBeLessThanOrEqual(page.viewportSize()!.width);
   await tip.tap();
   await expect(bubble).toHaveCount(0);
-  // Neither tap opened the game, which would be kept in the address (?match=) and draw its breakdown.
-  await page.waitForTimeout(400);
-  await expect(page).not.toHaveURL(/[?&]match=/);
-  await expect(page.getByTestId("match-breakdown")).toHaveCount(0);
+  await expect(page).toHaveURL(/[?&]match=/);
 });
 
 test("Match History: once the page's own Filters has scrolled away, the top bar's Filters (44px) opens the filter sheet with a tap; a choice and Done bring the first game under the bars", async ({ page }) => {

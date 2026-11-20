@@ -1,6 +1,7 @@
 import type * as React from "react";
 import { ArrowDown, ArrowUp } from "lucide-react";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
+import { NotOnTouch } from "@/components/ui/coarse-pointer";
 import { InfoTip } from "@/components/ui/info-tip";
 import type { LpRecord } from "@/domain/lp-attribution";
 import { formatDate, formatDateTime, formatDateTimeAfter, formatLpChange } from "@/lib/format";
@@ -134,7 +135,9 @@ export function lpSpoken(lp: LpRecord): string {
  * A ranked game's LP change on its card: the figure the rank readings prove ("+24 LP" in the gain
  * colour, "−21 LP" in the loss colour), a promotion or demotion (a change of division has no single
  * figure), or a quiet dash where none is recorded. Its tooltip says what it rests on, or why there
- * is none: on hover, or a tap on a touch screen (which leaves the card closed). Nothing is ever
+ * is none: on hover, and in the opened game on hover, focus or a tap. On a game card on a touch
+ * screen the mark is no button (S2b, row 2.21: no target under 44px on a card): a tap on it opens
+ * the game, like the rest of the card, where the tip waits with a 44px touch area. Nothing is ever
  * estimated.
  */
 export function LpChange({ lp, className, dense = false, focusable = false }: { lp: LpRecord | null; className?: string; /** Inside a line of text: no taller than the line. */ dense?: boolean; /** A tab stop of its own (the game window's header, where no card's label says it): the reason within a keyboard's reach (TT.TD12). */ focusable?: boolean }) {
@@ -169,12 +172,25 @@ export function LpChange({ lp, className, dense = false, focusable = false }: { 
   // a 20px pill gets 2px of padding around that, so the card keeps its layout. The dash's trigger
   // is widened the same way (padding, cancelled by margins). On a card it is no tab stop: the card is
   // the one stop, and the card's label already says the LP; in the game window's header it is one
-  // (`focusable`), so a keyboard reaches what the figure rests on, or why there is none.
+  // (`focusable`), so a keyboard reaches what the figure rests on, or why there is none. There, on a
+  // touch screen, the trigger is 44px each way, its larger negative margins keeping the same room in
+  // the line (as the ⓘ's are). On a card on a touch screen the mark stands alone (NotOnTouch): its
+  // outer box is the same, so nothing moves as the page hydrates.
+  const box = cn("inline-flex", !dense && "py-0.5", className);
+  const tip = (
+    <InfoTip
+      text={lpNote(lp)}
+      testId="match-lp-tip"
+      tabIndex={focusable ? undefined : -1}
+      className={cn(lp.kind === "none" && "-mx-1.5 px-1.5", focusable && "pointer-coarse:-my-3.5 pointer-coarse:min-h-11 pointer-coarse:min-w-11 pointer-coarse:justify-center", focusable && lp.kind === "none" && "pointer-coarse:-mx-4")}
+    >
+      {mark}
+    </InfoTip>
+  );
+  if (focusable) return <span className={box}>{tip}</span>;
   return (
-    <span className={cn("inline-flex", !dense && "py-0.5", className)}>
-      <InfoTip text={lpNote(lp)} testId="match-lp-tip" tabIndex={focusable ? undefined : -1} className={lp.kind === "none" ? "-mx-1.5 px-1.5" : undefined}>
-        {mark}
-      </InfoTip>
+    <span className={box}>
+      <NotOnTouch plain={<span className="inline-flex align-middle" data-testid="match-lp-mark">{mark}</span>}>{tip}</NotOnTouch>
     </span>
   );
 }

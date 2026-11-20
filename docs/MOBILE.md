@@ -591,8 +591,11 @@ design). Findings, most visible first, and what was done:
 
 Recorded, not changed here, with the reason:
 
-- Own Match History's LP marks (4 on the first screen at i15): the tip's trigger is 24px by design
-  (S6: the card is the one stop; WCAG 2.5.8's 24px minimum). Its ceiling carries the reason.
+- Own Match History's LP marks (4 on the first screen at i15): the tip's trigger was 24px by design
+  (S6: the card is the one stop). Since Release 11 (row 2.21) a game card's LP mark is no button on a
+  touch screen: a tap on it opens the game, like the rest of the card, and the opened game's LP tip
+  (a tab stop, TT.TD12) is 44px each way on touch. History's and own History's small targets at i15
+  are 0, and so are their ceilings (with Admin People's and Riot Accounts', measured 0).
 - Words split at 200% on a 320px phone only: the player card's name in the setup preview (a fixed
   card design, `overflow-wrap: anywhere` on purpose), a champion's name in own Champions' narrow
   column, and "Leaderboards" in its h1 (`hyphens: auto`, hyphenated on purpose).
