@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowDown, ArrowUp, ArrowUpDown, ChevronRight } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronRight, Search } from "lucide-react";
 import { ENCOUNTER_MINIMUMS, ENCOUNTER_PAGE, ESTABLISHED_GAMES, INSIGHT_LABELS, INSIGHT_RELATION, RELATIONS, defaultMinimum, encounterFocusParams, encounterListParams, recordFor, sortsFor, type EncounterInsight, type EncounterListChoice, type EncounterRelation, type EncounterSort, type EncounterSummary, type Relation, type RelationRecord, type WinLoss } from "@/domain/encounters";
 import { statsQuery, type SeasonMode, type StatsFilter } from "@/domain/season-stats";
 import { seasonLabel } from "@/domain/season";
@@ -150,6 +150,75 @@ export function RiotId({ name, className }: { name: string; className?: string }
 const noopSubscribe = () => () => {};
 
 /*
+  An encounter is a view of the list (S4a's table, UX_CONSISTENCY "Encounters is a view"): a row
+  opens the player's games at `?met=` (one history entry), and Back or "‹ All encounters" returns to
+  the list where it was, to the pixel, with the focus on that row. The list's address and scroll
+  position are kept for this tab only (sessionStorage), read once when the list is shown again at
+  that address, and forgotten then.
+*/
+const RETURN_KEY = "uniiverse:encounter-return";
+export interface EncounterReturn {
+  /** The list's address, where it was left. */
+  url: string;
+  /** The encounter's address it opened (so its "‹ All encounters" knows Back leads to that list). */
+  to: string;
+  y: number;
+  key: string;
+}
+export function rememberEncounterReturn(key: string, to: string) {
+  try {
+    sessionStorage.setItem(RETURN_KEY, JSON.stringify({ url: window.location.pathname + window.location.search, to, y: window.scrollY, key } satisfies EncounterReturn));
+  } catch {
+    // Storage blocked (a private window): the list opens at its top, as before.
+  }
+}
+export function encounterReturn(): EncounterReturn | null {
+  try {
+    const raw = sessionStorage.getItem(RETURN_KEY);
+    const r = raw ? (JSON.parse(raw) as Partial<EncounterReturn>) : null;
+    return r && typeof r.url === "string" && typeof r.to === "string" && typeof r.y === "number" && typeof r.key === "string" ? (r as EncounterReturn) : null;
+  } catch {
+    return null;
+  }
+}
+function forgetEncounterReturn() {
+  try {
+    sessionStorage.removeItem(RETURN_KEY);
+  } catch {
+    // Nothing kept.
+  }
+}
+
+/** Shown again at the address it was left from: the list where it was, and the focus on the row that was opened. */
+function useEncounterReturn() {
+  React.useLayoutEffect(() => {
+    const r = encounterReturn();
+    if (!r || r.url !== window.location.pathname + window.location.search) return;
+    forgetEncounterReturn();
+    const place = () => {
+      if (Math.abs(window.scrollY - r.y) > 0.5) window.scrollTo({ top: r.y, left: 0, behavior: "instant" });
+    };
+    place();
+    document.querySelector<HTMLElement>(`[data-encounter-row="${CSS.escape(r.key)}"]`)?.focus({ preventScroll: true });
+    // The router may still restore its own place, or the page settle, for a few frames: held until then, unless the reader moves first.
+    let frames = 0;
+    let raf = 0;
+    const stop = () => {
+      cancelAnimationFrame(raf);
+      for (const t of ["wheel", "touchstart", "keydown", "pointerdown"]) window.removeEventListener(t, stop);
+    };
+    const tick = () => {
+      place();
+      if (++frames < 20) raf = requestAnimationFrame(tick);
+      else stop();
+    };
+    raf = requestAnimationFrame(tick);
+    for (const t of ["wheel", "touchstart", "keydown", "pointerdown"]) window.addEventListener(t, stop, { passive: true, once: true });
+    return stop;
+  }, []);
+}
+
+/*
   The table's columns follow its own width (a container query), so the open or collapsed sidebar is
   allowed for. Narrow, each player is a short stack: the name and when you last met, then each
   record on a line of its own. Wider, a table whose figures sit in fixed columns, right-aligned so
@@ -169,7 +238,13 @@ export function EncountersView({ data, basePath, status, refresh }: { data: Enco
   const interactive = React.useSyncExternalStore(noopSubscribe, () => true, () => false);
   const [pending, startTransition] = React.useTransition();
   const { filter: f, choice: c, page } = data;
+  useEncounterReturn();
   const [query, setQuery] = React.useState(c.q);
+  // A phone keeps the search behind the toolbar's icon until tapped (MH-9), so the list starts higher;
+  // open while it holds a search. Wider toolbars always show the box.
+  const [searchOpen, setSearchOpen] = React.useState(!!c.q);
+  const searchRef = React.useRef<HTMLInputElement>(null);
+  const searchId = React.useId();
   // The search the box last asked for: the box follows the address only when something else
   // changed it (Back, a link), never mid-typing when its own request comes back.
   const requested = React.useRef(c.q);
@@ -235,7 +310,13 @@ export function EncountersView({ data, basePath, status, refresh }: { data: Enco
             // the data status beside it (the line's parts join the header's row), rather than
             // breaking it after a "·" and leaving the status alone on a third line.
             <p className="flex flex-wrap items-center gap-x-1.5 text-sm text-fg-muted max-sm:contents" data-testid="encounters-scope">
-              <span className="max-sm:basis-full">{page.withPlayers === page.games ? `Players met in ${gamesText(page.games)}` : `Players met in ${formatCount(page.withPlayers)} of ${gamesText(page.games)} (the others have no recorded players yet)`}</span>
+              <span className="max-sm:basis-full">
+                {page.withPlayers === page.games ? `Players met in ${gamesText(page.games)}` : `Players met in ${formatCount(page.withPlayers)} of ${gamesText(page.games)} (the others have no recorded players yet)`}
+                {/* A phone's toolbar keeps its row for the sides and the search icon: what the list counts is explained here. */}
+                <span className="ml-2 sm:hidden">
+                  <InfoTip text={ENCOUNTERS_CAVEAT} label="How encounters are counted" testId="encounters-caveat-phone" />
+                </span>
+              </span>
               <span aria-hidden className="max-sm:hidden">
                 ·
               </span>
@@ -264,6 +345,7 @@ export function EncountersView({ data, basePath, status, refresh }: { data: Enco
               sheetFields={<ListChoiceFields choice={c} sorts={sorts} pending={pending} go={go} />}
               sheetChips={listChips}
               compactToggle
+              refineUnavailable="Refine narrows the games list: role, champion, result and more. Encounters counts every game the season, game mode and account choose."
               testId="encounter-filters"
             />
           </div>
@@ -277,18 +359,18 @@ export function EncountersView({ data, basePath, status, refresh }: { data: Enco
         </p>
       ) : (
         <div className={cn("space-y-3 transition-opacity duration-150", pending && "opacity-60")} aria-busy={pending}>
-          {insights.length ? <Highlights insights={insights} gamesOf={gamesOf} /> : null}
+          {insights.length ? <Highlights insights={insights} gamesOf={gamesOf} repeated={page.list[0]?.key ?? null} /> : null}
 
           {/* One card: its toolbar (the filter, the search, and from md the minimum and Sort by
               where the column names are not shown), the column names (each sorts; pinned under the
               section tabs as the list scrolls), the players, then the next page one press away. */}
           <div className="@container/enc rounded-card border border-border bg-surface panel-depth" data-testid="encounter-table">
             <div className="flex flex-wrap items-center gap-2 border-b border-border/70 px-3 py-2.5 @min-[40rem]/enc:px-4">
-              <nav aria-label="Which players" className={segmentedGroupClass("@max-[40rem]/enc:w-full")} data-testid="encounter-relations">
+              <nav aria-label="Which players" className={segmentedGroupClass("@max-[40rem]/enc:min-w-0 @max-[40rem]/enc:flex-1")} data-testid="encounter-relations">
                 {RELATIONS.map((r) => (
                   // relative: the hidden " players" stays inside the group, which scrolls sideways when
                   // its choices outgrow it (a large text size), instead of widening the page.
-                  <Link key={r} href={href({ relation: r })} replace scroll={false} aria-current={c.relation === r ? "page" : undefined} className={segmentClass(c.relation === r, { size: "md", className: "relative @max-[40rem]/enc:flex-1" })} data-testid={`encounter-relation-${r}`}>
+                  <Link key={r} href={href({ relation: r })} replace scroll={false} aria-current={c.relation === r ? "page" : undefined} className={segmentClass(c.relation === r, { size: "md", className: "relative @max-[40rem]/enc:flex-1 @max-[40rem]/enc:px-2" })} data-testid={`encounter-relation-${r}`}>
                     {r !== "all" ? <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", REL[relationOf(r)].dot)} aria-hidden /> : null}
                     {PERSPECTIVE[r].label}
                     <span className={cn("tabular-nums", c.relation === r ? "text-fg-muted" : "text-fg-subtle")} data-testid="encounter-relation-count">
@@ -299,8 +381,38 @@ export function EncountersView({ data, basePath, status, refresh }: { data: Enco
                 ))}
               </nav>
               {/* What Against and Alongside mean, and what the records count: beside the choice it explains. */}
-              <InfoTip text={ENCOUNTERS_CAVEAT} label="How encounters are counted" testId="encounters-caveat" />
-              <SearchInput value={query} onChange={setQuery} label="Find a player by name or Riot ID" placeholder="Find a player or Riot ID" className="flex-[1_1_12rem] @min-[40rem]/enc:max-w-72" maxLength={32} testId="encounter-search" />
+              <span className="contents @max-[40rem]/enc:hidden">
+                <InfoTip text={ENCOUNTERS_CAVEAT} label="How encounters are counted" testId="encounters-caveat" />
+              </span>
+              {/* A phone's search behind its icon: the box opens on a line of its own, focused, and folds away again when left empty. */}
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchOpen(true);
+                  requestAnimationFrame(() => searchRef.current?.focus());
+                }}
+                aria-expanded={searchOpen}
+                aria-controls={searchId}
+                aria-label="Find a player by name or Riot ID"
+                className={cn("grid h-11 w-11 shrink-0 place-items-center rounded-md border border-border-control bg-bg-elevated text-fg-muted transition-colors hover:text-fg focus-visible:outline-2 focus-visible:outline-accent @min-[40rem]/enc:hidden", searchOpen && "hidden")}
+                data-testid="encounter-search-open"
+              >
+                <Search className="h-4 w-4" aria-hidden />
+              </button>
+              <SearchInput
+                ref={searchRef}
+                id={searchId}
+                value={query}
+                onChange={setQuery}
+                onBlur={() => {
+                  if (!query.trim()) setSearchOpen(false);
+                }}
+                label="Find a player by name or Riot ID"
+                placeholder="Find a player or Riot ID"
+                className={cn("flex-[1_1_12rem] @min-[40rem]/enc:block @min-[40rem]/enc:max-w-72", !searchOpen && "@max-[40rem]/enc:hidden")}
+                maxLength={32}
+                testId="encounter-search"
+              />
               {/* The minimum and, where the column names are not shown, their orders as one Sort by
                   control: one line, from md (a phone has them in its Filters sheet, as chips). */}
               <div className="flex w-full gap-2 max-md:hidden @min-[40rem]/enc:ml-auto @min-[40rem]/enc:w-auto">
@@ -360,16 +472,18 @@ export function EncountersView({ data, basePath, status, refresh }: { data: Enco
  * The highlights as one line above the table, as the games list has its summary line: what each
  * is, who, and the record behind it. Each opens that player's games on its side.
  */
-function Highlights({ insights, gamesOf }: { insights: EncounterInsight[]; gamesOf: (key: string, side: EncounterRelation) => string }) {
+function Highlights({ insights, gamesOf, repeated }: { insights: EncounterInsight[]; gamesOf: (key: string, side: EncounterRelation) => string; /** The list's first player: on a phone, a highlight about them repeats the row under it (UM.E1) and is left out. */ repeated: string | null }) {
+  const onPhones = insights.filter((i) => i.summary.key !== repeated).length;
   return (
-    <section aria-label="Highlights" className="rounded-panel border border-border bg-surface px-1.5 py-1" data-testid="encounter-insights">
-      <ul className="flex flex-wrap gap-x-1 gap-y-0">
+    // On a phone, one line (MH-9): the highlights side by side, the line scrolling sideways when they outgrow it.
+    <section aria-label="Highlights" className={cn("rounded-panel border border-border bg-surface px-1.5 py-1", !onPhones && "max-sm:hidden")} data-testid="encounter-insights" data-phone-count={onPhones}>
+      <ul className="flex flex-wrap gap-x-1 gap-y-0 max-sm:flex-nowrap max-sm:overflow-x-auto max-sm:[scrollbar-width:none]">
         {insights.map((i) => {
           const relation = INSIGHT_RELATION[i.kind];
           return (
-            <li key={i.kind} className="min-w-0">
+            <li key={i.kind} className={cn("min-w-0 max-sm:shrink-0", i.summary.key === repeated && "max-sm:hidden")} data-repeats-row={i.summary.key === repeated || undefined}>
               {/* What it is, then who and the record; on a narrow screen the two wrap onto lines of their own rather than cut the name. */}
-              <Link href={gamesOf(i.summary.key, relation === "opponent" ? "against" : "alongside")} className="group flex min-h-10 min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 rounded-lg px-2 py-1 transition-colors hover:bg-surface-2/60 focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:min-h-11" data-testid="encounter-insight" data-kind={i.kind}>
+              <Link href={gamesOf(i.summary.key, relation === "opponent" ? "against" : "alongside")} className="group flex min-h-10 min-w-0 flex-wrap items-center max-sm:flex-nowrap max-sm:whitespace-nowrap gap-x-2 gap-y-0.5 rounded-lg px-2 py-1 transition-colors hover:bg-surface-2/60 focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:min-h-11" data-testid="encounter-insight" data-kind={i.kind}>
                 {/* The label stays one line unless it alone is wider than the screen (a large text size). */}
                 <span className="flex min-w-0 items-center gap-x-2">
                   <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", REL[relation].dot)} aria-hidden />
@@ -505,7 +619,7 @@ function EncounterRow({ s, relation, href }: { s: EncounterSummary; relation: En
           <SideFigures relation="ally" wl={s.ally} />
         </span>
         <ChevronRight className="hidden h-4 w-4 text-fg-subtle transition-colors group-hover/row:text-fg-muted @min-[60rem]/enc:col-start-6 @min-[60rem]/enc:row-start-1 @min-[60rem]/enc:block" aria-hidden />
-        <Link href={href} className={rowLink} aria-label={`${s.name}: ${s.opponent.games ? `${gamesText(s.opponent.games)} against, ${recordText(s.opponent)}` : "never against"}; ${s.ally.games ? `${gamesText(s.ally.games)} alongside, ${recordText(s.ally)}` : "never alongside"}. Show your games with them`} data-testid="open-encounter" />
+        <Link href={href} className={rowLink} onClick={() => rememberEncounterReturn(s.key, href)} data-encounter-row={s.key} aria-label={`${s.name}: ${s.opponent.games ? `${gamesText(s.opponent.games)} against, ${recordText(s.opponent)}` : "never against"}; ${s.ally.games ? `${gamesText(s.ally.games)} alongside, ${recordText(s.ally)}` : "never alongside"}. Show your games with them`} data-testid="open-encounter" />
       </li>
     );
   }
@@ -539,7 +653,7 @@ function EncounterRow({ s, relation, href }: { s: EncounterSummary; relation: En
         <Rate wl={rec} className="font-semibold @min-[40rem]/enc:text-right" />
       </span>
       <ChevronRight className="hidden h-4 w-4 text-fg-subtle transition-colors group-hover/row:text-fg-muted @min-[40rem]/enc:col-start-6 @min-[40rem]/enc:row-start-1 @min-[40rem]/enc:block" aria-hidden />
-      <Link href={href} className={rowLink} aria-label={`${s.name}: ${gamesText(rec.games)} ${REL[side].word.toLowerCase()}, ${recordText(rec)}. Show your games with them`} data-testid="open-encounter" />
+      <Link href={href} className={rowLink} onClick={() => rememberEncounterReturn(s.key, href)} data-encounter-row={s.key} aria-label={`${s.name}: ${gamesText(rec.games)} ${REL[side].word.toLowerCase()}, ${recordText(rec)}. Show your games with them`} data-testid="open-encounter" />
     </li>
   );
 }

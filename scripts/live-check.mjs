@@ -939,6 +939,27 @@ async function recordsFacts(page, kind) {
 }
 
 /**
+ * A record's game keeps /leaderboards (PLAN S6c, UD.L3, 20 Nov 2026): the first record that opens a game
+ * opens it over the board (a docked Peek on the desktop, the window on the phone) with "Open in Match
+ * History" inside, the address /leaderboards?match= (one history entry), and Back closes it on
+ * /leaderboards. No page load of its own: the game is read through Match History's actions (the
+ * profile's checks). True or false and the address's shape only.
+ */
+async function recordGameFacts(page, kind) {
+  const opener = page.locator("[data-testid=record-open]").first();
+  if (!(await opener.count())) return check("leaderboards", `${kind}: a record's game keeps /leaderboards`, "PASS", "not applicable: no record opens a game yet");
+  const before = await page.evaluate(() => history.length);
+  await opener.scrollIntoViewIfNeeded();
+  await opener.click();
+  const opened = await page.waitForSelector("[data-testid=record-game] [data-testid=record-game-history]", { timeout: 15_000 }).then(() => true, () => false);
+  const open = await page.evaluate((n) => ({ path: location.pathname, match: new URLSearchParams(location.search).has("match"), pushed: history.length - n }), before);
+  await page.goBack();
+  const closed = await page.waitForFunction(() => !new URLSearchParams(location.search).has("match") && !document.querySelector("[data-testid=record-game]"), null, { timeout: 10_000 }).then(() => true, () => false);
+  const after = await page.evaluate(() => ({ path: location.pathname, match: new URLSearchParams(location.search).has("match") }));
+  pass("leaderboards", `${kind}: a record's game keeps /leaderboards`, opened && open.path === "/leaderboards" && open.match && open.pushed === 1 && closed && after.path === "/leaderboards" && !after.match, { opened, open, closed, after });
+}
+
+/**
  * Records & achievements' old address (19 Nov 2026): /leaderboards?view=records opens the one page, the view
  * gone from its address (the page's own in the same history entry), at the season records: the
  * section in view and focused. True or false and the address's shape only.
@@ -1797,6 +1818,7 @@ for (const [kind, options] of Object.entries(VIEWPORTS)) {
       await recordsFacts(page, kind);
       await axe(page, kind, "leaderboards");
       await leaderboardsIndexFacts(page, kind);
+      if (kind === "desktop" || kind === "phone") await recordGameFacts(page, kind);
     }
   });
   // Records & achievements' old address: the same page, at its records (the page itself is checked above, so no axe here).

@@ -8,7 +8,7 @@ import { statsQuery, type StatsFilter } from "@/domain/season-stats";
 import { segmentClass, segmentedGroupClass } from "@/components/ui/segmented";
 import { formatCount, formatDate } from "@/lib/format";
 import { cn } from "@/lib/cn";
-import { REL, Rate, RelationTag, RiotId, gamesText, recordText, relationOf } from "./encounters-view";
+import { REL, Rate, RelationTag, RiotId, encounterReturn, gamesText, recordText, relationOf } from "./encounters-view";
 
 /*
   One player met, opened from Encounters (a row or a highlight) or from a game's scoreboard: their
@@ -47,7 +47,17 @@ export function EncounterGamesPanel({ basePath, filter, encounter, playerName }:
   }, [focus.key]);
   return (
     <section aria-labelledby="encounter-title" className="rounded-panel border border-border bg-surface px-3 py-3 sm:px-4" data-testid="encounter-games" data-key={focus.key} data-side={focus.side}>
-      <Link href={back} className="-ml-1 inline-flex min-h-9 items-center gap-1 rounded-md px-1 text-sm font-medium text-fg-muted transition-colors hover:text-fg focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:min-h-11" data-testid="encounter-back">
+      <Link
+        href={back}
+        // Opened from the list in this tab: back is Back (one entry for the visit, and the list where it was); else the list's address.
+        onClick={(e) => {
+          if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+          // This entry is the one a row of the list opened (its address is the row's link): Back is that list.
+          if (encounterReturn()?.to !== window.location.pathname + window.location.search) return;
+          e.preventDefault();
+          window.history.back();
+        }}
+        className="-ml-1 inline-flex min-h-9 items-center gap-1 rounded-md px-1 text-sm font-medium text-fg-muted transition-colors hover:text-fg focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:min-h-11" data-testid="encounter-back">
         <ChevronLeft className="h-4 w-4" aria-hidden />
         All encounters
       </Link>

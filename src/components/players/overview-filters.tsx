@@ -7,6 +7,7 @@ import { X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { RoleSegmented } from "@/components/ui/segmented";
 import { FilterBar, FilterField, InFilterSheet, RefineButton, type FilterChip } from "@/components/ui/filter-bar";
+import { InfoTip } from "@/components/ui/info-tip";
 import { FiltersControl, PageToolbar } from "@/components/ui/page-toolbar";
 import {
   SEASON_MODES,
@@ -62,7 +63,10 @@ export function OverviewFilters({
   sheetFields,
   sheetChips = [],
   compactToggle = false,
+  refineUnavailable,
 }: {
+  /** A page whose list Refine cannot narrow (Match History's Encounters, UD.H4): with no field to offer, Refine stays in view, off, with this reason beside it. */
+  refineUnavailable?: string;
   /** The folded bar shares a row with a section's views (Match History): see FilterBar. */
   compactToggle?: boolean;
   /** A list's own fields that only a phone's Filters sheet holds (see above). */
@@ -212,6 +216,21 @@ export function OverviewFilters({
         {/* Refine and its panel. In the Filters sheet (phones, and the sheet the pinned row opens at any
             width): no box or button of its own (display: contents), so the fields sit in the sheet.
             From md in the page: the anchor of the floating panel. Without a field to offer, none. */}
+        {!(showRole || showChampions || accounts.length > 1 || extraFields) && refineUnavailable ? (
+          <InFilterSheet>
+            {(inSheet) =>
+              inSheet ? null : (
+                <span className="inline-flex items-center gap-1 max-md:hidden" data-testid="refine-unavailable">
+                  <RefineButton open={false} onClick={() => {}} unavailable={{ describedBy: "refine-unavailable-reason" }} testId="refine-filters" />
+                  <span id="refine-unavailable-reason" className="sr-only">
+                    {refineUnavailable}
+                  </span>
+                  <InfoTip text={refineUnavailable} label="Why Refine is off here" testId="refine-unavailable-tip" />
+                </span>
+              )
+            }
+          </InFilterSheet>
+        ) : null}
         {showRole || showChampions || accounts.length > 1 || extraFields ? (
           <InFilterSheet>
             {(inSheet) => (
