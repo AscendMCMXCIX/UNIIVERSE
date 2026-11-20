@@ -3,7 +3,8 @@
 import * as React from "react";
 import { Search, X } from "lucide-react";
 import type { ChampionChoice } from "@/domain/matchup-intel/types";
-import { ChampionGrid } from "@/components/champions/champion-grid";
+import { ChampionGrid, RoleFilterBar, type RoleFilter } from "@/components/champions/champion-grid";
+import { ROLE_LABELS, type Role as GameRole } from "@/domain/roles";
 import type { PickerChampion } from "@/components/champions/types";
 import { ChampionPortrait } from "@/components/champion-portrait";
 import { AfterOpen, DetailModal, useModalClose } from "@/components/ui/detail-modal";
@@ -16,7 +17,10 @@ import { searchChampions } from "./search";
   phone, a centred window wider up (DetailModal "standard", as tall as its content: the grid grows
   with it and the window's body scrolls). A search field first, 16px so a phone never zooms into it,
   that filters as you type; with nothing typed, the champions chosen lately on this side, for the
-  enemy the curated matchups that exist for your champion, then the whole roster. Enter takes the
+  enemy the curated matchups that exist for your champion, in your own slot your own pool for the
+  lane (your player profile's, never anyone else's), then the whole roster, which a role filter
+  narrows to the champions Riot recorded in that position in the team's stored games (offered only
+  to an account that may see teammates' statistics; src/server/matchup-intel/picker.ts). Enter takes the
   first match; Escape clears what was typed before it closes the window.
 */
 
@@ -65,13 +69,20 @@ function GridSkeleton() {
   );
 }
 
-function PickerBody({ slot, champions, selected, recent, curated, curatedTitle, inputRef, onPick }: { slot: PickerSlot; champions: readonly ChampionChoice[]; selected: string | null; recent: readonly ChampionChoice[]; curated: readonly ChampionChoice[]; curatedTitle: string; inputRef: React.RefObject<HTMLInputElement | null>; onPick: (id: string) => void }) {
+type RecordedRoles = Partial<Record<GameRole, string[]>>;
+
+function PickerBody({ slot, champions, selected, recent, pool, curated, curatedTitle, recordedRoles, inputRef, onPick }: { slot: PickerSlot; champions: readonly ChampionChoice[]; selected: string | null; recent: readonly ChampionChoice[]; pool: readonly ChampionChoice[]; curated: readonly ChampionChoice[]; curatedTitle: string; recordedRoles: RecordedRoles | null; inputRef: React.RefObject<HTMLInputElement | null>; onPick: (id: string) => void }) {
   const close = useModalClose();
   const [query, setQuery] = React.useState("");
+  // The role filter: the picker's own (the page's address keeps its lane); All when it opens.
+  const [role, setRole] = React.useState<RoleFilter>("ALL");
   const gridRef = React.useRef<HTMLDivElement>(null);
   const typed = query.trim() !== "";
   const results = React.useMemo(() => searchChampions(champions, query), [champions, query]);
-  const all = React.useMemo(() => champions.map(portraitOf), [champions]);
+  const all = React.useMemo(() => {
+    const recorded = role !== "ALL" && recordedRoles ? new Set(recordedRoles[role] ?? []) : null;
+    return (recorded ? champions.filter((c) => recorded.has(c.id)) : champions).map(portraitOf);
+  }, [champions, role, recordedRoles]);
   const found = React.useMemo(() => results.map(portraitOf), [results]);
   const selectedIds = React.useMemo(() => new Set(selected ? [selected] : []), [selected]);
   const pick = (id: string) => {
@@ -168,12 +179,21 @@ function PickerBody({ slot, champions, selected, recent, curated, curatedTitle, 
         ) : (
           <div className="space-y-5">
             <ChoiceRow title="Recent" choices={recent} selected={selected} onPick={pick} testId="matchup-picker-recent" />
+            <ChoiceRow title="Your pool" choices={pool} selected={selected} onPick={pick} testId="matchup-picker-pool" />
             <ChoiceRow title={curatedTitle} choices={curated} selected={selected} onPick={pick} testId="matchup-picker-curated" />
             <section aria-label="All champions" className="space-y-2">
-              <h3 className="text-xs font-semibold uppercase tracking-label text-fg-subtle">
-                All champions <span className="font-normal normal-case tracking-normal">· {champions.length}</span>
-              </h3>
-              {champions.length ? grid(all) : <p className="text-sm text-fg-muted">The champion list arrives with the first game-data update.</p>}
+              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+                <h3 className="text-xs font-semibold uppercase tracking-label text-fg-subtle" data-testid="matchup-picker-all-title">
+                  {role === "ALL" ? "All champions" : ROLE_LABELS[role]} <span className="font-normal normal-case tracking-normal">· {all.length}</span>
+                </h3>
+                {recordedRoles && champions.length ? <RoleFilterBar value={role} onChange={setRole} className="flex-wrap" /> : null}
+              </div>
+              {role !== "ALL" ? (
+                <p className="text-xs text-fg-muted" data-testid="matchup-picker-role-note">
+                  The champions Riot recorded as {ROLE_LABELS[role]} in the team&apos;s stored games. The search finds every champion.
+                </p>
+              ) : null}
+              {champions.length ? (all.length ? grid(all) : <p className="text-sm text-fg-muted">No stored game records a champion as {role === "ALL" ? "this" : ROLE_LABELS[role]} yet.</p>) : <p className="text-sm text-fg-muted">The champion list arrives with the first game-data update.</p>}
             </section>
           </div>
         )}
@@ -183,7 +203,7 @@ function PickerBody({ slot, champions, selected, recent, curated, curatedTitle, 
 }
 
 /** The picker window for one side: your champion, or the enemy. */
-export function ChampionPickerWindow({ slot, title, description, champions, selected, recent, curated, yourName, onPick, onClose }: { slot: PickerSlot; title?: string; description?: string; champions: readonly ChampionChoice[]; selected: string | null; recent: readonly ChampionChoice[]; curated: readonly ChampionChoice[]; yourName: string | null; onPick: (id: string) => void; onClose: () => void }) {
+export function ChampionPickerWindow({ slot, title, description, champions, selected, recent, pool = [], curated, yourName, recordedRoles = null, onPick, onClose }: { slot: PickerSlot; title?: string; description?: string; champions: readonly ChampionChoice[]; selected: string | null; recent: readonly ChampionChoice[]; /** The viewer's own pool for the lane, in their own slot's picker only. */ pool?: readonly ChampionChoice[]; curated: readonly ChampionChoice[]; yourName: string | null; recordedRoles?: RecordedRoles | null; onPick: (id: string) => void; onClose: () => void }) {
   const inputRef = React.useRef<HTMLInputElement>(null);
   return (
     <DetailModal
@@ -201,7 +221,7 @@ export function ChampionPickerWindow({ slot, title, description, champions, sele
         if (window.matchMedia("(pointer: fine)").matches) inputRef.current?.focus({ preventScroll: true });
       }}
     >
-      <PickerBody slot={slot} champions={champions} selected={selected} recent={recent} curated={curated} curatedTitle={yourName ? `Curated briefings for ${yourName}` : "Curated briefings"} inputRef={inputRef} onPick={onPick} />
+      <PickerBody slot={slot} champions={champions} selected={selected} recent={recent} pool={pool} curated={curated} recordedRoles={recordedRoles} curatedTitle={yourName ? `Curated briefings for ${yourName}` : "Curated briefings"} inputRef={inputRef} onPick={onPick} />
     </DetailModal>
   );
 }

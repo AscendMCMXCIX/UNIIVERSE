@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeftRight, BookmarkCheck, BookmarkPlus, Check, Link2, LoaderCircle, Plus } from "lucide-react";
+import type { Role as GameRole } from "@/domain/roles";
 import { DUO_ROLES, ROLES, ROLE_NAMES, type ChampionChoice, type Role } from "@/domain/matchup-intel/types";
 import { HASTE_CHOICES, HASTE_MAX, clampHaste } from "@/domain/matchup-intel/haste";
 import { ChampionPortrait } from "@/components/champion-portrait";
@@ -560,6 +561,8 @@ export function MatchupFrame({
   enemy2 = null,
   champions,
   curated,
+  pool = [],
+  recordedRoles = null,
   announcement = "",
   heading,
   patchState,
@@ -575,6 +578,10 @@ export function MatchupFrame({
   enemy2?: ChampionChoice | null;
   champions: ChampionChoice[];
   curated: Record<string, string[]>;
+  /** The viewer's own champion pool for the lane (their player profile's; [] without one): offered in the picker of their own slot only. */
+  pool?: readonly string[];
+  /** The champions Riot recorded in each position in the team's stored games, for the picker's role filter; null when not offered. */
+  recordedRoles?: Partial<Record<GameRole, string[]>> | null;
   /** What a screen reader is told once the page for a choice made here has arrived ("Riven vs Mordekaiser: curated briefing, checked on patch 26.22."). */
   announcement?: string;
   /** The page's title (its h1), at the bar's start on a desktop, above it on a phone. */
@@ -785,6 +792,9 @@ export function MatchupFrame({
             recent={recent(picking)}
             curated={picking === "enemy" && shown.you && !duo ? (curated[shown.you] ?? []).map(choice).filter((c): c is ChampionChoice => !!c) : []}
             yourName={yourChoice?.name ?? null}
+            // Whose pool: your own slot's only (never your duo partner's, never the enemy's).
+            pool={picking === "you" ? pool.map(choice).filter((c): c is ChampionChoice => !!c) : []}
+            recordedRoles={recordedRoles}
             onPick={(id) => pick(picking, id)}
             onClose={closePicker}
           />

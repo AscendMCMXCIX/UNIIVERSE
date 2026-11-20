@@ -20,6 +20,17 @@ const sizes = {
 const pixels: Record<keyof typeof sizes, number> = { xs: 28, sm: 36, md: 48, lg: 64, xl: 80 };
 
 /**
+ * A lettered tile's letters: the champion's initials, the first letters of its first two words
+ * ("Lee Sin" → "LS", "Nunu & Willump" → "NW", "Dr. Mundo" → "DM"), else the first two letters of
+ * its one word ("Ahri" → "AH", "Kai'Sa" → "KA"); always capitals.
+ */
+export function championInitials(name: string): string {
+  const words = name.split(/\s+/).filter((w) => /^\p{L}/u.test(w));
+  if (words.length >= 2) return (words[0]![0]! + words[1]![0]!).toUpperCase();
+  return [...(words[0] ?? name.trim())].filter((ch) => /\p{L}/u.test(ch)).slice(0, 2).join("").toUpperCase();
+}
+
+/**
  * Champion portrait from Data Dragon. Falls back to a lettered tile when no portrait URL is
  * known (offline fixture mode) or the portrait cannot load, so layouts never break and a broken
  * image never shows. Lazy, async-decoded and sized up front.
@@ -35,7 +46,7 @@ export function ChampionPortrait({ champion, size = "md", className, dimmed = fa
   // compare an aria-label with the letters shown (WCAG 2.5.3, label in name).
   const letters = (
     <div role="img" aria-label={champion.name} className={cn(base, "grid place-content-center text-xs font-semibold text-fg-muted")} title={title ?? champion.name}>
-      <span aria-hidden>{champion.name.slice(0, 2).toUpperCase()}</span>
+      <span aria-hidden>{championInitials(champion.name)}</span>
     </div>
   );
   if (!champion.portraitUrl) return letters;

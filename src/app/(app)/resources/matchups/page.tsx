@@ -4,6 +4,7 @@ import { requirePageAccess } from "@/server/auth/page-access";
 import { getBranding } from "@/server/repositories/branding";
 import { loadMatchupPage } from "@/server/matchup-intel/view";
 import { loadMatchupEvidence } from "@/server/matchup-intel/evidence";
+import { recordedRoles, viewerPool } from "@/server/matchup-intel/picker";
 import { RIOT_TEXT_TEST_COOKIE, riotTextFactsShown } from "@/server/matchup-intel/riot-text/switch";
 import { CHANGED_ABILITIES_TEST_COOKIE, NOTES_AGE_TEST_COOKIE, changedAbilitiesForTest, notesAgeForTest } from "@/server/matchup-intel/notes-age";
 import { riotLegal } from "@/components/app-shell";
@@ -45,7 +46,9 @@ export default async function MatchupIntelPage({ searchParams }: { searchParams:
   const [{ view, champions, curated }, branding] = await Promise.all([loadMatchupPage(db, input, riotText, notesAge, changed), getBranding(db)]);
   const { you, enemy, ally, enemy2, role } = view;
   // The evidence from the team's own games: counted in SQL for this viewer's own games and the team's they may see.
-  const evidence = await loadMatchupEvidence(db, session, { role, you, ally, enemy, enemy2 }, champions);
+  // And the picker's two lists beyond the roster: the viewer's own pool for the lane, and the positions Riot recorded (picker.ts).
+  const roster = new Set(champions.map((c) => c.id));
+  const [evidence, pool, recorded] = await Promise.all([loadMatchupEvidence(db, session, { role, you, ally, enemy, enemy2 }, champions), viewerPool(db, session, role, roster), recordedRoles(db, session)]);
   const duo = DUO_ROLES.has(role);
   // A champion named in the address that is not on the roster is left out, never repeated back.
   const dropped = (named(sp.champion) && !you) || (named(sp.vs) && !enemy) || (duo && named(sp.ally) && !ally) || (duo && named(sp.vs2) && !enemy2);
@@ -72,6 +75,8 @@ export default async function MatchupIntelPage({ searchParams }: { searchParams:
         enemy2={enemy2}
         champions={champions}
         curated={curated}
+        pool={pool}
+        recordedRoles={recorded}
         announcement={announcementWords(view, shows)}
         heading={
           <header>
