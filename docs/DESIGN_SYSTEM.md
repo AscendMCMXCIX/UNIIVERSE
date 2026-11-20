@@ -608,6 +608,17 @@ With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shel
     floor on desktops), and Select's size (16px on a touch screen, so iOS
     never zooms into the field; 14px with a mouse). Select compares the popover's button on the
     desktop with the browser's own select on the phone (§7, Select). Each later stage adds the components it creates.
+    Since Release 11 (20 Nov 2026) a second test compares the components S5–S9 created, each opened
+    as a member opens it: All Champions' preview (its panel, figures, an opponent, the foot line), the
+    post-game view (the loadout and its name, an answer and its label, the scoreboard, a row and a
+    name), Matchup Intel (your slot, the enemy's slot label, an ability tile's name and cooldown, the
+    phone's glance cooldown against the full tile's) and Admin's person view (the window, a section
+    heading, the Riot accounts panel and a row). Its listed differences, each with its reason in the
+    spec: the preview's surface, corners and edge (docked inside the list's card on a desktop, a sheet
+    on a phone); the compact scoreboard's names (text-xs under a 30rem scoreboard); Matchup Intel's
+    slot label (text-2xs on a phone) and the glance's cooldown (text-xs in a 64px tile); the person
+    view's corners (DetailModal fills a phone's screen). Everything else is equal at 375 and 1440, in
+    Chromium 153 and Chrome Headless Shell 156.
   - **A page's controls in reach (PR 2b, 18 Nov 2026).** Once the row is pinned and the page's own
     toolbar has gone up under it, the page's compact copy of its controls shows at the row's end
     (`PageToolbar`, `src/components/ui/page-toolbar.tsx`): Match History and Encounters
