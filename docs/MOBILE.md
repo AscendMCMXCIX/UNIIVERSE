@@ -515,6 +515,73 @@ History). Card Studio is measured open (`then: "studio"`): an open window is mea
 `UNIIVERSE_PUBLIC_RIOT_DATA=true`, which the CI demo does not set, so it is measured only in the
 full matrix on a server started with it (`requires`).
 
+#### The full matrix, Release 11 (20 Nov 2026)
+
+`node scripts/ux-measure.mjs` on `main` at Release 9 (8f03ac91; this release changes tests and docs
+only), on a fresh in-memory demo, in Chrome Headless Shell 156 (CI's and the Production check's
+browser, `PW_CHROMIUM_PATH` at its headless shell) and in the container's Chromium 153: 34 pages × 7
+setups × 4 text sizes, 952 figures in each. Public Leaderboards is not measured (it needs
+`UNIIVERSE_PUBLIC_RIOT_DATA=true`, as above). Below, each page at the two setups CI holds, beside
+stage 0's baseline (the mobile audit UM §3, installed setups; the desktop audit UD has no phone
+heights), and its worst figures across the matrix. Figures in screens; the ceiling in brackets.
+
+- **Nothing is wider than its screen**: sideways overflow is 0 on every page, setup and text size, in both browsers.
+- **Over a ceiling, in both browsers: Team Matches** (`matches`), 1.86 at i15 100% (ceiling 1.82;
+  1.77 when audited) and 6.05 in 156 and 5.99 in 153 at se1 150% (ceiling 5.94; 5.78 when audited).
+  CI does not catch it: the page is marked `data` (its height grows with the games the demo's members
+  played together, which other specs add to), so CI holds its frame, overflow and targets only. Its
+  list of games is 1,138px of the page's 1,491 at 393 × 852 in the browser's tab. The ceiling is not
+  raised (the ratchet's exception is for a control added on purpose); the cause is not yet
+  established. Since the ceilings were set (19 Nov) the page changed in Release 9 (the Fold in place
+  of Disclosure for its comparisons, the list's count for the game window's steps). Listed for the
+  next stage that touches Team Matches.
+- 156 against 153: the same figures on 20 of 34 pages at both setups; elsewhere within 0.10 screens
+  (156 lays text out wider, so a line wraps sooner), none crossing a ceiling but Team Matches'.
+
+| Page | i15 100%: audit → 156 / 153 (ceiling) | se1 150%: audit → 156 / 153 (ceiling) | most screens in 156 (setup) | frame at rest, most | targets under 44px on the first screen, most |
+|---|---|---|---|---|---|
+| team | 1 → 1 / 1 (1.02) | 2.16 → 2.18 / 2.18 (2.78) | 3.86 (se1-200) | 0.57 | 5 |
+| players | 1.2 → 1.12 / 1.12 (1.14) | 3.84 → 3.65 / 3.65 (3.72) | 6.38 (se1-200) | 0.57 | 4 |
+| leaderboards | ≈3.15 → 3.14 / 3.14 (3.21) | 9.76 (Records view) → 11.85 / 11.85 (12.09) | 18.88 (se1-200) | 0.57 | 1 |
+| matches | 1.77 → 1.86 / 1.86 (1.82) **over** | 5.78 → 6.05 / 5.99 (5.94) **over** | 10.19 (se1-200) | 0.57 | 1 |
+| p-overview | 2.57 → 1.92 / 1.92 (1.96) | 8.77 → 5.88 / 5.84 (5.96) | 10.08 (se1-200) | 0.57 | 0 |
+| p-champions | 1.32 → 1.05 / 1.05 (1.49) | 5.06 → 3.37 / 3.37 (5.59) | 5.7 (se1-200) | 0.57 | 8 |
+| p-history | 2.15 → 2.13 / 2.13 (2.17) | 8.57 → 8.13 / 8.13 (8.29) | 14.6 (se1-200) | 0.57 | 5 |
+| p-accounts | 1 → 1 / 1 (1.02) | 2.38 → 1.62 / 1.62 (1.67) | 3.18 (land-200) | 0.45 | 0 |
+| me | not audited → 1 / 1 (1.02) | not audited → 1 / 1 (1.02) | 1.59 (se1-200) | 0.42 | 1 |
+| intel | 1.04 → 1.09 / 1.12 (1.14) | 3.26 → 3.67 / 3.62 (3.67) | 6.24 (se1-200) | 0.42 | 3 |
+| resources | 1.55 → 1.79 / 1.81 (1.85) | 5.32 → 5.94 / 5.94 (6.06) | 9.4 (se1-200) | 0.42 | 1 |
+| settings | 1.7 → 2.28 / 2.3 (2.32) | 4.8 → 7.19 / 7.1 (7.68) | 11.96 (se1-200) | 0.42 | 0 |
+| login | not audited → 1 / 1 (1.02) | not audited → 2.33 / 2.28 (2.33) | 3.89 (se1-200) | 0.00 | 0 |
+| recover | not audited → 1 / 1 (1.02) | not audited → 2.17 / 2.17 (2.21) | 4.15 (se1-200) | 0.00 | 0 |
+| privacy | not audited → 9.06 / 9.14 (9.37) | not audited → 46.85 / 46.79 (48) | 94.23 (se1-200) | 0.00 | 0 |
+| no-access | not audited → 1 / 1 (1.02) | not audited → 2.01 / 2.01 (2.05) | 3.04 (se1-200) | 0.42 | 1 |
+| public | not audited → 1 / 1 (1.02) | not audited → 2.11 / 2.11 (2.7) | 3.82 (se1-200) | 0.00 | 5 |
+| welcome-password | not audited → 1 / 1 (1.02) | not audited → 1.94 / 1.94 (1.98) | 3.3 (se1-200) | 0.00 | 0 |
+| welcome-setup | not audited → 1.31 / 1.34 (1.37) | not audited → 3.84 / 3.79 (3.87) | 6.89 (se1-200) | 0.00 | 0 |
+| personalise | not audited → 1.91 / 1.91 (1.95) | not audited → 5.63 / 5.63 (5.8) | 9.39 (se1-200) | 0.00 | 0 |
+| own-overview | not audited → 1.9 / 1.9 (1.94) | not audited → 5.96 / 5.92 (6.04) | 10.29 (se1-200) | 0.57 | 1 |
+| own-history | not audited → 2.05 / 2.05 (2.09) | not audited → 8.22 / 8.22 (8.38) | 14.41 (se1-200) | 0.57 | 5 |
+| studio | not audited → 1.27 / 1.27 (1.3) | not audited → 3.35 / 3.35 (3.42) | 4.83 (land-200) | 0.57 | 0 |
+| a-dash | 2.38 → 1 / 1 (2.27) | 7.7 → 1.93 / 1.93 (7.18) | 3.28 (se1-200) | 0.42 | 0 |
+| a-people | 5.59 → 1.16 / 1.16 (5.48) | 19.51 → 3.19 / 3.19 (19.2) | 6.33 (se1-200) | 0.57 | 0 |
+| a-branding | 3.87 → 4.17 / 4.19 (4.27) | 12.12 → 13.08 / 13.08 (13.34) | 21.87 (se1-200) | 0.57 | 0 |
+| a-system | 3.37 → 1.54 / 1.54 (1.71) | 11.19 → 5.77 / 5.67 (6.25) | 12.4 (se1-200) | 0.57 | 0 |
+| a-data | not audited → 1 / 1 (1.07) | not audited → 2.67 / 2.67 (2.75) | 7.58 (se1-200) | 0.57 | 0 |
+| a-audit | not audited → 1 / 1 (1.02) | not audited → 1 / 1 (1.02) | 1.36 (land-200) | 0.57 | 0 |
+| a-settings | not audited → 2.28 / 2.3 (2.32) | not audited → 7.19 / 7.1 (7.68) | 11.96 (se1-200) | 0.42 | 0 |
+| a-access | not audited → 1.79 / 1.81 (1.85) | not audited → 7.5 / 7.5 (7.65) | 18.79 (se1-200) | 0.57 | 0 |
+| a-privacy | not audited → 1.71 / 1.73 (1.8) | not audited → 5.8 / 5.8 (5.98) | 10.75 (se1-200) | 0.57 | 0 |
+| a-previews | not audited → 1.5 / 1.5 (1.53) | not audited → 2.68 / 2.68 (2.73) | 4.16 (land-200) | 0.57 | 0 |
+| a-resources | not audited → 2.8 / 2.8 (2.86) | not audited → 8.91 / 8.91 (9.09) | 15.67 (se1-200) | 0.57 | 1 |
+
+The game window on a phone (S6c's acceptance, Release 11): at i12 (390 × 844, its 47px and 34px
+insets told), the opened game's header is 101px with the inset (54 without; at most 112), and the
+result, loadout, runes, figures, lane and answers end 116–245px above the window's steps (Previous,
+Next) with the folds closed, in 156 and 153. The whole game is 1.50–1.82 screens (Release 9), so the
+scoreboard and the folds are below the first screen, as designed. `e2e/match-breakdown.spec.ts`
+("an iPhone 12 …") holds it on the phone project.
+
 ### The demo viewer (S8a, 20 Nov 2026)
 
 Every audit before S8a used the demo's automatic viewer, the Owner without a player profile. The
