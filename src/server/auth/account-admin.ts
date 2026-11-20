@@ -353,7 +353,9 @@ export async function resetPasswordToTemporary(db: Db, actorId: string | null, u
  * never the Production check's account, the Owner's only by the Owner), and never the last active
  * administrator, who would be left unable to sign in. Sessions end as after a reset. Only a
  * temporary password (waiting, or expired) is withdrawn: a password the member chose is refused,
- * and an account with no password changes nothing (`changed: false`, so nothing is recorded).
+ * and an account with no password changes nothing (`changed: false`, so nothing is recorded). Unlike
+ * Reset password, a deactivated account is accepted: withdrawing only takes a way in away, so a
+ * later plain Reactivate does not reopen a temporary password that may have reached the wrong person.
  */
 export async function withdrawTemporaryPassword(db: Db, actorId: string | null, userId: string): Promise<{ changed: boolean }> {
   const target = await getUser(db, userId);

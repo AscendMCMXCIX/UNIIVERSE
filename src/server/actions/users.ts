@@ -143,14 +143,15 @@ export async function resetPasswordAction(userId: string): Promise<Result<{ temp
  * usable password until a new one is issued. One audit row (labels only), none for a withdrawal
  * that changes nothing.
  */
-export async function withdrawTemporaryPasswordAction(userId: string): Promise<Result> {
+export async function withdrawTemporaryPasswordAction(userId: string): Promise<Result<{ changed: boolean }>> {
   try {
     const session = await requirePermission("manage-users");
     const db = await getAppDb();
     const { changed } = await withdrawTemporaryPassword(db, session.userId, userId);
     if (changed) await recordAudit(db, session, { action: "account.password-withdrawn", target: { type: "user", id: userId } });
     touchAdmin();
-    return { ok: true, data: null };
+    // `changed: false` (another administrator withdrew it first): the dialog says nothing was changed, not that it was withdrawn.
+    return { ok: true, data: { changed } };
   } catch (err) {
     return fail(err);
   }

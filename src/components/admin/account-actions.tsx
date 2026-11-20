@@ -240,7 +240,11 @@ export function AccountActions({ account, currentUserId, viewerIsOwner = false, 
         description="The temporary password you issued stops working at once, and any session it opened ends. They then have no password and cannot sign in until you issue a new temporary password. Nothing else about the account changes."
         confirmLabel="Withdraw password"
         onCancel={() => setConfirming(null)}
-        onConfirm={() => void run(() => withdrawTemporaryPasswordAction(account.userId), `${account.username}'s temporary password withdrawn; they cannot sign in until you issue a new one.`)}
+        onConfirm={() =>
+          void run(() => withdrawTemporaryPasswordAction(account.userId), null).then((d) => {
+            if (d) toast.success(d.changed ? `${account.username}'s temporary password withdrawn; they cannot sign in until you issue a new one.` : `${account.username} had no temporary password waiting any more. Nothing was changed.`);
+          })
+        }
       />
       <ConfirmDialog
         open={confirming === "deactivate"}

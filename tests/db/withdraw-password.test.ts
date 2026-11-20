@@ -88,7 +88,7 @@ describe("withdraw a temporary password", () => {
     const opened = await createSession(handle.db, memberId);
     const before = (await rows()).length;
     await signInAs(adminId);
-    expect(await userActions.withdrawTemporaryPasswordAction(memberId)).toEqual({ ok: true, data: null });
+    expect(await userActions.withdrawTemporaryPasswordAction(memberId)).toEqual({ ok: true, data: { changed: true } });
     expect(await authenticate(handle.db, "Teammate", temporary)).toBeNull();
     expect(await findSession(handle.db, opened.token)).toBeNull();
     const user = (await getUser(handle.db, memberId))!;
@@ -102,8 +102,8 @@ describe("withdraw a temporary password", () => {
     const text = JSON.stringify(row);
     expect(text).not.toContain(temporary);
     expect(text).not.toMatch(/#OCE|@/);
-    // Again: nothing left to withdraw, nothing recorded.
-    expect(await userActions.withdrawTemporaryPasswordAction(memberId)).toEqual({ ok: true, data: null });
+    // Again (a second administrator's stale button): nothing left to withdraw, nothing recorded, and the answer says so.
+    expect(await userActions.withdrawTemporaryPasswordAction(memberId)).toEqual({ ok: true, data: { changed: false } });
     expect((await rows()).length).toBe(before + 1);
     // A new temporary password signs in again.
     const again = await userActions.resetPasswordAction(memberId);
