@@ -276,14 +276,14 @@ describe("Riot's data moved after the check", () => {
     const html = await render({ champion: "Ambessa", vs: "Renekton" }, { ...changed, championNotes: (id) => (id === "Renekton" ? withStart : null) });
     const w = rowText(html, "Renekton", "W");
     expect(w).toContain("Changed since the check");
-    // Riot's numbers keep the name's row; where they come from is the line under them (Release 10), and the badge leads the flagged notes.
+    // Riot's numbers keep the name's row; where they come from is the line under them (Release 10).
     expect(w).toContain("Cooldown: 20 / 19 / 18 / 17 / 16 s");
-    // The warning comes before the facts it flags (read and seen first under the name's row).
-    expect(w).toMatch(/16 s Details: Renekton W, W Riot's data for patch 26\.23, not re-checked Changed since the check .* Notes from patch 26\.22 · may be out of date: Riot changed its cooldown since Crowd control/);
-    expect(w).toContain("Changed since the check Riot's data for this ability changed after the notes were checked, so they may be out of date. Notes from patch 26.22");
-    // The checked start is not on Riot's line: it goes with the notes, under their flag.
-    expect(w.split("Notes from patch")[0]).not.toContain("starts when the effect ends");
-    expect(w).toContain("Notes from patch 26.22 · may be out of date: Riot changed its cooldown since");
+    // The badge comes before the facts it flags, leading their row (read and seen first under the name's row).
+    expect(w).toMatch(/16 s Details: Renekton W, W Riot's data for patch 26\.23, not re-checked Changed since the check Riot's data for this ability changed after the notes were checked, so they may be out of date\. Crowd control: Stun/);
+    // The flagged notes are in the Details window only (Release 10's integration), one step away: not on the tile.
+    expect(w).not.toContain("Notes from patch");
+    // The checked start is not on Riot's line: it goes with the notes, under their flag, in the window.
+    expect(w).not.toContain("starts when the effect ends");
     // The window holds the notes under the flag, their cooldown as checked included.
     const details = await detailsText({ champion: "Ambessa", vs: "Renekton" }, { ...changed, championNotes: (id) => (id === "Renekton" ? withStart : null) }, "Renekton", "W");
     expect(details).toContain("Notes from patch 26.22 · may be out of date: Riot changed its cooldown since As checked: 18 / 17 / 16 / 15 / 14 s · starts when the effect ends");

@@ -165,6 +165,10 @@ test("zoom, arrow keys and Reset; Cancel keeps the old picture and Save stores t
   });
   expect(colour[0]).toBeGreaterThan(150);
   expect(colour[2]).toBeLessThan(100);
+  // The account as the demo began, with no picture: pages measured later read it (Personalise's page
+  // budget, whose demo viewer is this account row), so the suite never depends on the specs' order.
+  await page.getByTestId("settings-account").getByRole("button", { name: "Remove picture" }).click();
+  await expect(page.getByTestId("avatar-editor").locator('img[src*="/api/avatars/"]')).toHaveCount(0);
 });
 
 test("Settings → On this device at 200% text on a narrow phone: each Clear takes its own line, never over the words, and nothing scrolls sideways (R7 review A3)", async ({ page }, info) => {
