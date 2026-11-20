@@ -52,6 +52,24 @@ async function idOf(page: Page, role: "TOP" | "MID") {
   return (await page.getByTestId(`lineup-row-${role}`).getAttribute("data-player-id"))!;
 }
 
+/**
+ * Scrolls a phone's page down to `y`, then brings the top bar's first row back as a finger does before
+ * tapping the avatar, and returns where the page comes to rest. Under 700px tall that row slides away as
+ * the page scrolls down (docs/MOBILE.md). Tapped mid-slide, the test runner first scrolls the page to
+ * reveal the avatar (to the top, or 48px up where the page's end moves as the frame settles), so a
+ * place noted straight after the scroll was not the page's (account-screen.spec.ts does the same).
+ */
+async function scrolledAtRest(page: Page, y: number): Promise<number> {
+  await page.evaluate((to) => window.scrollTo(0, to), y);
+  await page.mouse.wheel(0, -30);
+  const bar = page.getByTestId("mobile-topbar");
+  await expect(bar).toHaveAttribute("data-hidden", "false");
+  await expect.poll(() => bar.evaluate((b) => b.getAnimations().length === 0 && Math.round(b.getBoundingClientRect().top) === 0)).toBe(true);
+  const at = () => page.evaluate(() => `${scrollY},${document.documentElement.scrollHeight}`);
+  await expect.poll(async () => { const before = await at(); await page.waitForTimeout(150); return before === (await at()); }).toBe(true);
+  return page.evaluate(() => scrollY);
+}
+
 /** What each bar's destination shows of its name (the part read out only left out), whether it shows any, and whether it is whole. */
 const shownNames = (nav: ReturnType<Page["getByTestId"]>) =>
   nav.evaluate((el) =>
@@ -276,13 +294,8 @@ test("the avatar opens the account screen: the account's own items only (Setting
 
 test("Back closes the account screen and the page stays where it was; Forward does not reopen it; the close button takes its history entry away", async ({ page }) => {
   await page.goto("/players");
-  await page.evaluate(() => window.scrollTo(0, 300));
-  // A little back up (past the 8px intent), as a reader does to reach the bar: on a phone under 700px tall its first row slides away while the page
-  // scrolls down (useHideOnScroll), and the account button would otherwise be off the screen (a click then scrolls the page to it).
-  await page.waitForTimeout(100);
-  await page.evaluate(() => window.scrollBy(0, -20));
-  await expect(page.getByTestId("mobile-topbar")).not.toHaveAttribute("data-hidden", "row");
-  const scrolled = await page.evaluate(() => scrollY);
+  const scrolled = await scrolledAtRest(page, 300);
+  expect(scrolled).toBeGreaterThan(0);
   const screen = page.getByTestId("account-sheet");
   await page.getByTestId("account-sheet-button").click();
   await expect(screen).toBeVisible();
@@ -352,13 +365,8 @@ test("the account screen fills a small phone in Player Mode and Admin Mode: ever
 
 test("touches on the account screen never move the page behind; there is nothing to pull", async ({ page, context }) => {
   await page.goto("/players");
-  await page.evaluate(() => window.scrollTo(0, 300));
-  // A little back up (past the 8px intent), as a reader does to reach the bar: on a phone under 700px tall its first row slides away while the page
-  // scrolls down (useHideOnScroll), and the account button would otherwise be off the screen (a click then scrolls the page to it).
-  await page.waitForTimeout(100);
-  await page.evaluate(() => window.scrollBy(0, -20));
-  await expect(page.getByTestId("mobile-topbar")).not.toHaveAttribute("data-hidden", "row");
-  const scrolled = await page.evaluate(() => scrollY);
+  const scrolled = await scrolledAtRest(page, 300);
+  expect(scrolled).toBeGreaterThan(0);
   const screen = page.getByTestId("account-sheet");
   const cdp = await context.newCDPSession(page);
   const touch = (type: "touchStart" | "touchMove" | "touchEnd", x: number, y: number) => cdp.send("Input.dispatchTouchEvent", { type, touchPoints: type === "touchEnd" ? [] : [{ x, y }] });
