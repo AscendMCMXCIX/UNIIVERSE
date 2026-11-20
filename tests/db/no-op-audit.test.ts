@@ -39,7 +39,7 @@ import { createSession } from "@/server/auth/sessions";
 import { registerAccount } from "@/server/auth/signup";
 import { getUser } from "@/server/repositories/users";
 import { listPermissionPresets } from "@/server/repositories/permissions";
-import { auditEvents } from "@/server/db/schema";
+import { auditEvents, players } from "@/server/db/schema";
 import { setAdministrator } from "@/server/auth/account-admin";
 import * as adminActions from "@/server/actions/member-admin";
 import * as userActions from "@/server/actions/users";
@@ -165,6 +165,10 @@ describe("a change that does nothing writes no audit row", () => {
     const named = await rows("account.display-name");
     expect(await adminActions.setMemberDisplayNameAction(memberId, "  Jungle   Prime ")).toEqual({ ok: true, data: { displayName: "Jungle Prime" } });
     expect(await rows("account.display-name")).toBe(named);
+    // The profile's name (what teammates see) out of step with the account's: setting it is a change, recorded.
+    await handle.db.update(players).set({ displayName: "Old Profile" }).where(eq(players.id, memberProfileId));
+    expect(await adminActions.setMemberDisplayNameAction(memberId, "Jungle Prime")).toMatchObject({ ok: true });
+    expect(await rows("account.display-name")).toBe(named + 1);
     await signInAs(adminId);
     const replaced = await rows("account.picture-replace");
     expect(await adminActions.moderatePictureAction(memberId, dataUrl(png(64)))).toEqual({ ok: true, data: null });

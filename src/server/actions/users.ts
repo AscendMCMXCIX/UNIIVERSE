@@ -6,7 +6,7 @@ import { getAppDb } from "@/server/bootstrap";
 import { requireOwner, requirePermission, requireSession, SESSION_COOKIE } from "@/server/auth/session";
 import { isVerificationAccount } from "@/server/auth/verification-account";
 import { validatePasswordStrength, verifyPassword } from "@/server/auth/password";
-import { getUser, setPassword, UserError } from "@/server/repositories/users";
+import { getUser, setPassword, UserError, type UserRecord } from "@/server/repositories/users";
 import { groupsOf, levelOf } from "@/server/auth/member-admin";
 import { completeLegacyProfile, defaultPlatform, type RiotIdInput } from "@/server/auth/signup";
 import { createVerifiedPlayerAccount, deleteAccount, deleteProfile, guardProfileAccount, reactivateWithTemporaryPassword, resetPasswordToTemporary, setAccountActive, setAccountRole, setAdministrator } from "@/server/auth/account-admin";
@@ -19,6 +19,22 @@ import type { Role } from "@/domain/roles";
 import { kickoffAccountSync } from "@/server/accounts/kickoff";
 import { auditPlayerName, auditPresetName, auditUserName, recordAudit } from "@/server/audit/log";
 import { typedMatches } from "@/domain/typed-confirmation";
+
+/**
+ * Runs an Admin change with the account's row locked from the read before it to the read after it,
+ * so two calls at once wait for each other and each compares its own before and after: whether the
+ * change changed anything (a change that does nothing records nothing; a real one is never missed).
+ * The change's own guards run inside, exactly as without the lock.
+ */
+async function changedUnderLock(db: Awaited<ReturnType<typeof getAppDb>>, userId: string, change: (tx: Awaited<ReturnType<typeof getAppDb>>) => Promise<unknown>, differ: (before: UserRecord, after: UserRecord) => boolean): Promise<boolean> {
+  return db.transaction(async (tx) => {
+    await tx.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.id, userId)).for("update");
+    const before = await getUser(tx, userId);
+    await change(tx);
+    const after = await getUser(tx, userId);
+    return !!before && !!after && differ(before, after);
+  });
+}
 
 /*
   Account management for administrators (Admin Mode → Users & Permissions). Every action checks
@@ -91,9 +107,13 @@ export async function setTeamMemberAction(playerId: string, member: boolean): Pr
     await guardProfileAccount(db, session.userId, playerId, "change the team membership of");
     const { getOrCreateTeam, setTeamMember } = await import("@/server/repositories/team");
     // A change that does nothing (already a team member, or already personal use) records nothing.
-    const [before] = await db.select({ teamMember: playersTable.teamMember }).from(playersTable).where(eq(playersTable.id, playerId));
-    await setTeamMember(db, (await getOrCreateTeam(db)).id, playerId, member);
-    if (before?.teamMember !== member) await recordAudit(db, session, { action: "account.team-member", target: { type: "player", id: playerId, name: await auditPlayerName(db, playerId) }, details: { teamMember: member } });
+    // The profile's row locked from the read to the write: two calls at once each see the other's result.
+    const changed = await db.transaction(async (tx) => {
+      const [before] = await tx.select({ teamMember: playersTable.teamMember }).from(playersTable).where(eq(playersTable.id, playerId)).for("update");
+      await setTeamMember(tx, (await getOrCreateTeam(tx)).id, playerId, member);
+      return before?.teamMember !== member;
+    });
+    if (changed) await recordAudit(db, session, { action: "account.team-member", target: { type: "player", id: playerId, name: await auditPlayerName(db, playerId) }, details: { teamMember: member } });
     touchAdmin();
     revalidatePath("/team");
     revalidatePath("/players");
@@ -206,9 +226,8 @@ export async function setAccountRoleAction(userId: string, role: "owner" | "play
     const session = await requirePermission("manage-users");
     if (role !== "owner" && role !== "player") return { ok: false, error: "Unknown role." };
     const db = await getAppDb();
-    const before = await getUser(db, userId);
-    const after = await setAccountRole(db, session.userId, userId, role);
-    if (before?.role !== after.role) await recordAudit(db, session, { action: "account.role", target: { type: "user", id: userId }, details: { role } });
+    const changed = await changedUnderLock(db, userId, (tx) => setAccountRole(tx, session.userId, userId, role), (before, after) => before.role !== after.role);
+    if (changed) await recordAudit(db, session, { action: "account.role", target: { type: "user", id: userId }, details: { role } });
     touchAdmin();
     return { ok: true, data: null };
   } catch (err) {
@@ -276,10 +295,8 @@ export async function setUserPermissionsAction(userId: string, choice: { presetI
     const session = await requirePermission("manage-users");
     const { setUserPermissions } = await import("@/server/repositories/permissions");
     const db = await getAppDb();
-    const before = await getUser(db, userId);
-    await setUserPermissions(db, session.userId, userId, choice);
-    const after = await getUser(db, userId);
-    if (before && after && levelOf(before) !== levelOf(after)) await recordAudit(db, session, { action: "account.permissions", target: { type: "user", id: userId }, details: "custom" in choice ? { level: "custom", capabilities: choice.custom.length } : { level: (choice.presetId && (await auditPresetName(db, choice.presetId))) || "default" } });
+    const changed = await changedUnderLock(db, userId, (tx) => setUserPermissions(tx, session.userId, userId, choice), (before, after) => levelOf(before) !== levelOf(after));
+    if (changed) await recordAudit(db, session, { action: "account.permissions", target: { type: "user", id: userId }, details: "custom" in choice ? { level: "custom", capabilities: choice.custom.length } : { level: (choice.presetId && (await auditPresetName(db, choice.presetId))) || "default" } });
     touchAdmin();
     return { ok: true, data: null };
   } catch (err) {
@@ -294,10 +311,8 @@ export async function setAccessLevelAction(userId: string, choice: { level: "own
     if (!choice || !["owner", "preset", "custom"].includes(choice.level)) return { ok: false, error: "Choose an access level." };
     const { setAccessLevel } = await import("@/server/repositories/permissions");
     const db = await getAppDb();
-    const before = await getUser(db, userId);
-    await setAccessLevel(db, session.userId, userId, choice);
-    const after = await getUser(db, userId);
-    if (before && after && (levelOf(before) !== levelOf(after) || before.role !== after.role)) await recordAudit(db, session, { action: "account.access", target: { type: "user", id: userId }, details: { level: choice.level === "preset" ? ((await auditPresetName(db, choice.presetId)) ?? "preset") : choice.level } });
+    const changed = await changedUnderLock(db, userId, (tx) => setAccessLevel(tx, session.userId, userId, choice), (before, after) => levelOf(before) !== levelOf(after) || before.role !== after.role);
+    if (changed) await recordAudit(db, session, { action: "account.access", target: { type: "user", id: userId }, details: { level: choice.level === "preset" ? ((await auditPresetName(db, choice.presetId)) ?? "preset") : choice.level } });
     touchAdmin();
     return { ok: true, data: null };
   } catch (err) {
@@ -312,10 +327,8 @@ export async function setAccessGroupsAction(userId: string, groups: string[]): P
     if (!Array.isArray(groups)) return { ok: false, error: "Choose the additional access." };
     const { setAccessGroups } = await import("@/server/repositories/permissions");
     const db = await getAppDb();
-    const before = await getUser(db, userId);
-    await setAccessGroups(db, session.userId, userId, groups);
-    const after = await getUser(db, userId);
-    if (before && after && groupsOf(before) !== groupsOf(after)) await recordAudit(db, session, { action: "account.groups", target: { type: "user", id: userId }, details: { groups: groups.join(", ") || "none" } });
+    const changed = await changedUnderLock(db, userId, (tx) => setAccessGroups(tx, session.userId, userId, groups), (before, after) => groupsOf(before) !== groupsOf(after));
+    if (changed) await recordAudit(db, session, { action: "account.groups", target: { type: "user", id: userId }, details: { groups: groups.join(", ") || "none" } });
     touchAdmin();
     return { ok: true, data: null };
   } catch (err) {

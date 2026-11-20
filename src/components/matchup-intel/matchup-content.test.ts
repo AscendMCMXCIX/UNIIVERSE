@@ -278,7 +278,8 @@ describe("Riot's data moved after the check", () => {
     expect(w).toContain("Changed since the check");
     // Riot's numbers keep the name's row; where they come from is the line under them (Release 10), and the badge leads the flagged notes.
     expect(w).toContain("Cooldown: 20 / 19 / 18 / 17 / 16 s");
-    expect(w).toMatch(/16 s Details: Renekton W, W Riot's data for patch 26\.23, not re-checked Crowd control/);
+    // The warning comes before the facts it flags (read and seen first under the name's row).
+    expect(w).toMatch(/16 s Details: Renekton W, W Riot's data for patch 26\.23, not re-checked Changed since the check .* Notes from patch 26\.22 · may be out of date: Riot changed its cooldown since Crowd control/);
     expect(w).toContain("Changed since the check Riot's data for this ability changed after the notes were checked, so they may be out of date. Notes from patch 26.22");
     // The checked start is not on Riot's line: it goes with the notes, under their flag.
     expect(w.split("Notes from patch")[0]).not.toContain("starts when the effect ends");

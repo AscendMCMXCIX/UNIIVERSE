@@ -312,6 +312,35 @@ test("an ability Riot changed after the curated check, on the Production check's
       expect.soft(wide.scrollHeight, `${pair} at 1920×1080: no page scroll`).toBeLessThanOrEqual(wide.innerHeight);
     }
   }
+  // The same state at 320 x 568 and twice the text size: the hidden point's chip keeps whole (its icon
+  // steps aside), a badge that starts a line of the curated notes' line is not indented, nothing wider.
+  await page.setViewportSize({ width: 320, height: 568 });
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Page.setFontSizes", { fontSizes: { standard: 32, fixed: 26 } });
+  await openMatchupIntel(page, you, enemy);
+  await hydrated(page);
+  const narrow = await page.evaluate(() => {
+    const broken: string[] = [];
+    for (const root of document.querySelectorAll('[data-testid$="-hidden"]')) {
+      const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+      for (let n = w.nextNode(); n; n = w.nextNode())
+        for (const m of (n.textContent ?? "").matchAll(/\S+/g)) {
+          const r = document.createRange();
+          r.setStart(n, m.index!);
+          r.setEnd(n, m.index! + m[0].length);
+          if (new Set([...r.getClientRects()].filter((x) => x.width > 0).map((x) => Math.round(x.top))).size > 1) broken.push(m[0]);
+        }
+    }
+    // A badge first on its line sits at the line's start: no more to its left than the line's own words.
+    const indented = [...document.querySelectorAll('[data-testid="matchup-curated-checked"]')].flatMap((line) => {
+      const start = Math.min(...[...line.getClientRects()].map((r) => r.left));
+      return [...line.querySelectorAll(":scope > span.inline-flex")].map((b) => b.getBoundingClientRect().left - start).filter((d) => d > 0.5 && d < 24);
+    });
+    return { broken, indented, sideways: document.documentElement.scrollWidth - document.documentElement.clientWidth };
+  });
+  expect.soft(narrow.broken, "320 at 200%: no word of a hidden point's note broken").toEqual([]);
+  expect.soft(narrow.indented, "320 at 200%: no badge indented at a line's start").toEqual([]);
+  expect.soft(narrow.sideways, "320 at 200%: nothing wider than the phone").toBeLessThanOrEqual(0);
 });
 
 /** Pairs across the roster, fixed so a failure names the same ones every run: priority champions, other lanes, mirrors, odd kits. */

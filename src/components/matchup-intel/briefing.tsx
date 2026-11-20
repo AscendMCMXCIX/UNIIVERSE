@@ -42,7 +42,8 @@ export function HiddenNote({ words, changed, names, rows, testId }: { words: str
     // The chips follow the words on their last line, as a point's chips do (a line of their own made
     // the briefing a row taller, which the Production check's pair could not spare at 1440 × 900).
     <div className="flex items-start gap-1.5 text-sm text-fg-muted" data-testid={testId}>
-      <History className="mt-0.5 h-4 w-4 shrink-0 text-warn" aria-hidden />
+      {/* Under 9rem (a 320px phone at twice the text size) the icon steps aside, as a point's does, so a chip keeps whole. */}
+      <History className="mt-0.5 h-4 w-4 shrink-0 text-warn @max-[9rem]/brief:hidden" aria-hidden />
       <div className="min-w-0">
         {words}
         <AbilityChips refs={changed} names={names} rows={rows} label="Changed since the check" inline />

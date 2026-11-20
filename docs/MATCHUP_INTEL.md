@@ -1511,8 +1511,13 @@ Matchup Intel page added to it would need `DDRAGON_VERSION` passed as well.
   …" while most of its lines have it (every tile repeated it once one line differed); the curated
   notes' line flows on from the words before it, each badge whole (the folded champion's summary a
   row shorter in every state); a changed ability keeps its cooldown on the name's row, its source
-  under it, and its "Changed since the check" badge on the row of the notes it qualifies; a hidden
-  point's chips follow its sentence. Measured on the demo (1440 × 900 summary, 1280 × 800 lowest
+  under it, and its "Changed since the check" badge on the row of the notes it qualifies, first
+  under the name's row, before the facts they flag (seen and read before them); a hidden point's
+  chips follow its sentence, its icon stepping aside under 9rem as a point's does (so the chip keeps
+  whole at 320px and 200% text); each badge of the curated notes' line follows a space, which a
+  wrapped line drops, so a badge starting a line is not indented. The spec checks the last two at
+  320 × 568 and 200% text. Not changed: the badge's tap area on a touch screen (21px tall, as
+  before); a 44px area there would cover the chips under it, which the touch spec forbids. Measured on the demo (1440 × 900 summary, 1280 × 800 lowest
   enemy cooldown line), before → after: nothing changed 873 → 855, 761 → 743; Riven's Q or E changed
   907 → 887; W or R 891 → 871.
 - **Known gap: an enemy ability changed.** With one of the enemy's abilities changed, its tile carries

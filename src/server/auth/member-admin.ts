@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { players, users } from "@/server/db/schema";
 import { getUser, UserError, type UserRecord } from "@/server/repositories/users";
-import { loadSocialLinks, removeAvatar, setAvatar, setDisplayName, setSocialLinks } from "@/server/repositories/profile";
+import { currentDisplayName, loadSocialLinks, removeAvatar, setAvatar, setDisplayName, setSocialLinks } from "@/server/repositories/profile";
 import { setAccessGroups, setAccessLevel, type AccessLevelChoice } from "@/server/repositories/permissions";
 import type { SocialKind, SocialLinks } from "@/domain/social-links";
 import { SOCIAL_KINDS, visibleSocialLinks } from "@/domain/social-links";
@@ -31,9 +31,10 @@ export async function setMemberDisplayName(db: Db, actorId: string, userId: stri
   guardSelf(actorId, userId, "rename here");
   guardVerificationAccount(actorId, user, "rename");
   if (typeof next !== "string") throw new UserError("Enter a display name.");
+  // The name it already had (after the members' own spacing rules), on the account and its profile, is no change.
+  const shown = await currentDisplayName(db, user);
   const done = await setDisplayName(db, userId, next);
-  // The name it already had (after the members' own spacing rules) is no change.
-  return { ...done, changed: done.displayName !== user.displayName };
+  return { ...done, changed: done.displayName !== user.displayName || done.displayName !== shown };
 }
 
 /**
@@ -56,9 +57,8 @@ export async function moderateAvatar(db: Db, actorId: string, userId: string, da
   guardVerificationAccount(actorId, user, "change the picture of");
   await guardOwnerAccount(db, actorId, user, "change the picture of");
   if (data === null) {
-    // Removing a picture that is not there changes nothing.
-    await removeAvatar(db, userId);
-    return { version: null, changed: user.avatarVersion !== null };
+    // Removing a picture that is not there changes nothing (what was removed, from the delete itself).
+    return { version: null, changed: await removeAvatar(db, userId) };
   }
   return { version: await setAvatar(db, userId, data), changed: true };
 }

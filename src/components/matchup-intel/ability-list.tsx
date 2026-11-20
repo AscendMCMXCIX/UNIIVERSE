@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import { TierLabel } from "./evidence-panel";
 import { EqualNot, History, Timer, TriangleAlert } from "lucide-react";
 import { Fold } from "@/components/ui/fold";
@@ -345,6 +346,17 @@ function AbilityTile({ intel, ability: a, checkedPatch, dataPatch, notRecheckedF
           {/* At the haste chosen in the bar (none at 0): a line of its own, so the base line never moves. */}
           <HasteLine basis={a.haste} />
         </div>
+        {/* The badge on the row of the notes it qualifies, first under the name's row, before the facts it
+            flags (beside the name it pushed the cooldown to a row of its own, which the Production
+            check's pair could not spare at 1440 × 900). */}
+        {flagged ? (
+          <div className="text-xs font-medium text-warn">
+            <span className="mr-1.5 inline-flex align-top">
+              <ChangedBadge />
+            </span>
+            {flaggedNotesWords(checkedPatch, a.changes)}
+          </div>
+        ) : null}
         {chips.length ? (
           // Rows of chips with no gap between them: each chip is its badge's own box (fact-chip.tsx), so
           // they touch and never overlap, a chip that wraps included; on a touch screen far enough
@@ -377,16 +389,7 @@ function AbilityTile({ intel, ability: a, checkedPatch, dataPatch, notRecheckedF
             {notes.join(" · ")}
           </p>
         ) : null}
-        {/* The badge on the row of the notes it qualifies (beside the name it pushed the cooldown to a
-            row of its own, which the Production check's pair could not spare at 1440 × 900). */}
-        {flagged ? (
-          <div className="text-xs font-medium text-warn">
-            <span className="mr-1.5 inline-flex align-top">
-              <ChangedBadge />
-            </span>
-            {flaggedNotesWords(checkedPatch, a.changes)}
-          </div>
-        ) : null}
+
       </div>
     </li>
   );
@@ -470,26 +473,33 @@ export function CuratedLine({ intel }: { intel: ChampionIntelView }) {
   const warnings = [...(changed > 0 ? [changedAbilitiesWords(changed)] : f.warning ? [f.warning] : []), ...(recheck?.expired ? [expiredNotesWords(recheck.patches)] : [])];
   return (
     // In the flow of the words before it (not a box of its own): the line starts where the source
-    // line's words end and wraps as words do, each badge kept whole, so the folded champion's summary
+    // line's words end and wraps as words do, each badge kept whole after a space (which a wrapped
+    // line drops, so a badge starting one is not indented), so the folded champion's summary
     // and a panel's heading take a row less (a box wrapped whole to a line of its own, and put its
     // first badge on another).
     <span data-testid="matchup-curated-checked">
       <span>Curated notes: {f.checked.charAt(0).toLowerCase() + f.checked.slice(1)}</span>
       {recheck && !recheck.expired ? (
-        <span className="ml-2 inline-flex max-w-full align-top" data-testid="matchup-not-rechecked">
-          <Badge tone="neutral" size="line">
-            <History className="h-3.5 w-3.5 shrink-0" aria-hidden />
-            {notRecheckedWords(recheck.patch)}
-          </Badge>
-        </span>
+        <>
+          {" "}
+          <span className="inline-flex max-w-full align-top" data-testid="matchup-not-rechecked">
+            <Badge tone="neutral" size="line">
+              <History className="h-3.5 w-3.5 shrink-0" aria-hidden />
+              {notRecheckedWords(recheck.patch)}
+            </Badge>
+          </span>
+        </>
       ) : null}
       {warnings.map((w) => (
-        <span key={w} className="ml-2 inline-flex max-w-full align-top">
-          <Badge tone="warn" size="line">
-            <TriangleAlert className="h-3.5 w-3.5 shrink-0" aria-hidden />
-            {w}
-          </Badge>
-        </span>
+        <Fragment key={w}>
+          {" "}
+          <span className="inline-flex max-w-full align-top">
+            <Badge tone="warn" size="line">
+              <TriangleAlert className="h-3.5 w-3.5 shrink-0" aria-hidden />
+              {w}
+            </Badge>
+          </span>
+        </Fragment>
       ))}
     </span>
   );
