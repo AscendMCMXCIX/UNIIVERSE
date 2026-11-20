@@ -65,8 +65,8 @@ export function RiotHealthPanel({ riot, credentialDetails }: { riot: RiotHealthV
               <Fact label="Last error" value={riot.lastErrorAt ? <><RelativeTime date={riot.lastErrorAt} />{riot.lastStatusCode ? ` · HTTP ${riot.lastStatusCode}` : ""}</> : "none recorded"} />
               <Fact label="Linked accounts waiting for Riot" value={String(riot.pendingAccounts)} />
             </div>
-            {riot.lastError ? <p className="text-xs text-fg-muted">{riot.lastError}</p> : null}
-            {riot.advice ? <p className={riot.state === "rejected" ? "rounded-md border border-bad/40 bg-bad/10 px-3 py-2 text-xs text-bad" : "text-xs text-fg-subtle"}>{riot.advice}</p> : null}
+            {riot.lastError ? <p className="text-sm text-fg-muted">{riot.lastError}</p> : null}
+            {riot.advice ? <p className={riot.state === "rejected" ? "rounded-md border border-bad/40 bg-bad/10 px-3 py-2 text-sm text-bad" : "text-sm text-fg-muted"}>{riot.advice}</p> : null}
             <div className="flex flex-wrap gap-2">
               <Button size="sm" variant="outline" wrap disabled={busy !== null || !riot.configured} onClick={async () => { setBusy("check"); const r = await checkRiotKeyAction(); setBusy(null); if (!r.ok) toast.error("Could not check the key", { description: r.error }); else if (r.data.state === "accepted") toast.success(r.data.message); else if (r.data.state === "rejected") toast.error(r.data.message); else toast.info(r.data.message); router.refresh(); }}>
                 <KeyRound className="h-3.5 w-3.5" /> {busy === "check" ? "Checking…" : "Check key now"}
@@ -84,7 +84,7 @@ export function RiotHealthPanel({ riot, credentialDetails }: { riot: RiotHealthV
 
 function Fact({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="min-w-0 rounded-md border border-border bg-bg-elevated px-2.5 py-1.5 [overflow-wrap:anywhere]">
+    <div className="min-w-0 rounded-md border border-border bg-surface-2 px-2.5 py-1.5 [overflow-wrap:anywhere]">
       <div className="text-xs font-semibold uppercase tracking-label text-fg-subtle">{label}</div>
       <div className="text-sm font-semibold text-fg">{value}</div>
     </div>

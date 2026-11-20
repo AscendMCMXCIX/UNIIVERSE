@@ -58,11 +58,16 @@ test("the preview says what it read, what stands out (or that nothing does), and
   expect(overflow).toBeLessThanOrEqual(1);
 });
 
-test("a member who is not an administrator is sent to Team → Matches", async ({ browser, page: admin }) => {
+test("Team Matches links it for administrators only; a member who is not one is sent to Team → Matches", async ({ browser, page: admin }) => {
   test.skip(test.info().project.name !== "desktop", "one device is enough for the access check");
+  // The demo viewer is the Owner: the link is in Team Matches' header and opens the preview (S9c).
+  await admin.goto("/matches");
+  await admin.getByTestId("team-insights-link").click();
+  await expect(admin).toHaveURL(/\/matches\/insights$/);
   const { context, page } = await memberContext(browser, admin, undefined, { base: "Insight" });
   await page.goto("/matches/insights");
   await expect(page).toHaveURL(/\/matches$/);
   await expect(page.getByTestId("team-insights")).toHaveCount(0);
+  await expect(page.getByTestId("team-insights-link")).toHaveCount(0);
   await context.close();
 });

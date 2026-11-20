@@ -5,7 +5,7 @@ playing together, and which of it is more than chance.
 
 Status: **an administrators' preview.** Members are sent to Team → Matches until the owner decides
 (`TEAM_INSIGHTS_AUDIENCE` in `src/server/matches/team-insights-view.ts`; activation is that one value,
-plus a link from Team → Matches if wanted). Nothing links to the page yet.
+). Since S9c (20 Nov 2026) Team → Matches links it in its header for those who can open it (`canOpenTeamInsights`), "Team insights · preview for administrators"; members see no link.
 
 ## What it compares
 

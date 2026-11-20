@@ -1,6 +1,6 @@
 # Help text: the tooltip inventory, verdict by verdict
 
-The overhaul's stage-0 inventory (`docs/overhaul/tooltips.json` on the `overhaul/plan` branch, 19 Nov 2026) listed 196 help texts: 86 kept as they were, and 110 to rewrite (77), remove (19) or replace with a better label (14). This page records where each of the 110 was applied. The rules they follow are in STANDARDS ("Tooltips") and DESIGN_SYSTEM §7 ("Explain"); the checks that keep them are `src/components/ui/tip-length.test.ts` (length, jargon, each LP state) and `src/components/ui/title-use.test.ts` (no explanation in a `title`).
+The overhaul's stage-0 inventory (`docs/overhaul/tooltips.json` on the `overhaul/plan` branch, 19 Nov 2026) listed 196 help texts: 86 kept as they were, and 110 to rewrite (77), remove (19) or replace with a better label (14). This page records where each of the 110 was applied. The rules they follow are in STANDARDS ("Tooltips") and DESIGN_SYSTEM §7 ("Explain"); the checks that keep them are `src/components/ui/tip-length.test.ts` (length, jargon, each LP state) and `src/components/ui/title-use.test.ts` (no explanation in a `title`; Admin Mode included since S9c).
 
 | Id | Verdict | Where |
 |---|---|---|
@@ -95,17 +95,17 @@ The overhaul's stage-0 inventory (`docs/overhaul/tooltips.json` on the `overhaul
 | S12 | rewrite | S8b (this branch) (with TD9) |
 | S15 | rewrite | S4b |
 | S16 | rewrite | S8b (this branch) |
-| A01 | rewrite | S9c (Admin Mode's text is the administration lane's) |
-| A02 | improve-label | S9c (Admin Mode's text is the administration lane's) |
-| A03 | rewrite | S9c (Admin Mode's text is the administration lane's) |
-| A05 | remove | S9c (Admin Mode's text is the administration lane's) |
-| A07 | rewrite | S9c (Admin Mode's text is the administration lane's) |
-| A09 | rewrite | S9c (Admin Mode's text is the administration lane's) |
-| A10 | rewrite | S9c (Admin Mode's text is the administration lane's) |
-| A11 | rewrite | S9c (Admin Mode's text is the administration lane's) |
-| A12 | rewrite | S9c (Admin Mode's text is the administration lane's) |
-| A13 | rewrite | S9c (Admin Mode's text is the administration lane's) |
-| A14 | improve-label | S9c (Admin Mode's text is the administration lane's) |
+| A01 | rewrite | S9a/S9c: the people list's rows were rebuilt (Release 6); the "No account" tip is gone; its words, as proposed, are the "Profiles without an account" group's description |
+| A02 | improve-label | S9a/S9c: the reason is visible text beside the disabled Manage access (`access-locked-reason`); no title |
+| A03 | rewrite | S9a/S9c: the name link is gone; the person view's "Open their profile in Player Mode" is visible text |
+| A05 | remove | S9a/S9c: removed with the rebuilt list |
+| A07 | rewrite | S9c: visible text beside the badge, "Made with an older security key, so it can no longer be applied."; no title |
+| A09 | rewrite | S9c: applied as proposed (label "About these states") |
+| A10 | rewrite | S9c: the badge says it, "database answers in 12 ms"; no title (and pool max lost its title) |
+| A11 | rewrite | S9c: `RelativeTime` (its title is the date and time in words, formatDateTime) |
+| A12 | rewrite | S9c: Page speed is in words first ("Main content showed", "Taps and clicks answered", "The page stayed still"); the technical table names each measure in full, "Largest Contentful Paint (LCP)"; no abbr title |
+| A13 | rewrite | S9c: "Reset to default" |
+| A14 | improve-label | S9c: the button says "Rotate", its state in aria-pressed; no title |
 | D01 | rewrite | S8b (this branch) |
 | D02 | rewrite | S8b (this branch) |
 | D03 | rewrite | S8b (this branch) |

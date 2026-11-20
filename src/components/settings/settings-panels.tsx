@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Play } from "lucide-react";
 import { demoDataAction, runJobAction, saveScheduleAction } from "@/server/actions/settings";
 import { Button } from "@/components/ui/button";
+import { JOB_NAMES, jobName } from "@/domain/job-names";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { ConfirmDialog, Dialog } from "@/components/ui/dialog";
 import { Disclosure } from "@/components/ui/disclosure";
@@ -78,26 +79,41 @@ function scheduleWords(j: JobView): string {
 
 /** One job's run through the server action, as a notification: "rank-audit: ok in 1.2 s". */
 function runJob(j: JobView, confirmation?: string) {
-  return runJobAction(j.key, confirmation).then((r) => (r.ok ? { ok: r.data.ok, error: r.data.error, data: `${j.key}: ${r.data.ok ? "ok" : "failed"} in ${formatNumber(r.data.durationMs / 1000, 1)} s` } : r));
+  return runJobAction(j.key, confirmation).then((r) => (r.ok ? { ok: r.data.ok, error: r.data.error, data: `${jobName(j.key)}: ${r.data.ok ? "worked" : "failed"} in ${formatNumber(r.data.durationMs / 1000, 1)} s` } : r));
 }
 
+/** A job's state in words (its chip). */
+const STATUS_WORDS: Record<string, string> = { ok: "Working", degraded: "Partly working", failed: "Failing", running: "Running", never: "Not run yet" };
+
+/**
+ * One job (the overhaul's S9c): its plain name, state and one sentence at the body size; when it
+ * last succeeded and how long it took; its key and technical description under "How it works".
+ * The interval lives in Advanced → Schedule (the Owner's).
+ */
 function JobRow({ job: j, title, description, children }: { job: JobView; title?: React.ReactNode; description?: string; children: React.ReactNode }) {
+  const plain = JOB_NAMES[j.key];
   return (
-    <li className="grid gap-x-4 gap-y-2 py-3 text-xs first:pt-1 last:pb-1 md:grid-cols-[minmax(0,1fr)_auto] md:items-center" data-testid="job-row" data-job={j.key}>
+    <li className="grid gap-x-4 gap-y-2 py-3 text-sm first:pt-1 last:pb-1 md:grid-cols-[minmax(0,1fr)_auto] md:items-center" data-testid="job-row" data-job={j.key}>
       <div className="min-w-0 space-y-1 [overflow-wrap:anywhere]">
         <div className="flex flex-wrap items-center gap-2">
-          {title ?? <span className="font-mono text-sm text-fg">{j.key}</span>}
-          <Badge tone={STATUS_TONE[j.status] ?? "neutral"}>{j.status}</Badge>
+          {title ?? <span className="font-medium text-fg">{plain?.name ?? j.key}</span>}
+          <Badge tone={STATUS_TONE[j.status] ?? "neutral"}>{STATUS_WORDS[j.status] ?? j.status}</Badge>
         </div>
-        <p className="text-fg-subtle">{description ?? j.description}</p>
+        <p className="text-fg-muted">{description ?? plain?.summary ?? j.description}</p>
         {j.cost ? <p className="text-fg-muted" data-testid="job-cost">{j.cost}</p> : null}
         {j.lastError ? <p className="text-bad">{j.lastError}</p> : null}
         {j.consecutiveFailures >= 3 ? <p className="text-bad">{formatCount(j.consecutiveFailures)} failures in a row</p> : null}
-        <p className="flex flex-wrap gap-x-3 text-fg-muted">
-          <span>last success {j.lastSuccessAt ? <RelativeTime date={j.lastSuccessAt} /> : "never"}</span>
-          <span>{j.lastDurationMs !== null ? `took ${formatNumber(j.lastDurationMs / 1000, 1)} s` : "no run timed yet"}</span>
-          <span>{scheduleWords(j)}</span>
+        <p className="text-fg-subtle">
+          {j.lastSuccessAt ? <>Last worked <RelativeTime date={j.lastSuccessAt} /></> : "Never worked yet"}
+          {j.lastDurationMs !== null ? `, in ${formatNumber(j.lastDurationMs / 1000, 1)} s` : ""}
+          {intervalOf(j) === 0 ? " · turned off" : ""}
         </p>
+        <details className="group text-xs text-fg-subtle" data-testid="job-how">
+          <summary className="cursor-pointer py-3 underline-offset-2 hover:text-fg hover:underline pointer-fine:py-0.5">How it works</summary>
+          <p className="mt-1">
+            <span className="font-mono text-fg-muted">{j.key}</span> · {scheduleWords(j)}. {j.description}
+          </p>
+        </details>
       </div>
       <div className="flex flex-wrap items-center md:justify-end">{children}</div>
     </li>
@@ -110,7 +126,7 @@ function JobGroup({ title, subtitle, testId, children }: { title: string; subtit
       <h3 id={`${testId}-title`} className="text-sm font-semibold text-fg">
         {title}
       </h3>
-      <p className="text-xs text-fg-subtle">{subtitle}</p>
+      <p className="text-sm text-fg-muted">{subtitle}</p>
       <ul className="divide-y divide-border">{children}</ul>
     </section>
   );
@@ -189,18 +205,20 @@ function ScheduleEditor({ jobs }: { jobs: JobView[] }) {
         <h3 id={`${id}-title`} className="text-sm font-semibold text-fg">
           Schedule
         </h3>
-        <p className="text-xs text-fg-subtle">Minutes between runs when the scheduler&apos;s tick comes round. 0 turns a job off: it then runs only when started by hand, and the health check names it.</p>
+        <p className="text-sm text-fg-muted">Minutes between runs when the scheduler&apos;s tick comes round. 0 turns a job off: it then runs only when started by hand, and the health check names it.</p>
       </div>
       <ul className="divide-y divide-border">
         {scheduled.map((j) => (
-          <li key={j.key} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 py-2 text-xs" data-testid="schedule-row" data-job={j.key}>
+          <li key={j.key} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 py-2 text-sm" data-testid="schedule-row" data-job={j.key}>
             <label htmlFor={`${id}-${j.key}`} className="min-w-0 [overflow-wrap:anywhere]">
-              <span className="font-mono text-sm text-fg">{j.key}</span>
-              <span className="block text-fg-subtle">default every {formatCount(j.defaultIntervalMinutes ?? 0)} min</span>
+              <span className="text-fg">{jobName(j.key)}</span>
+              <span className="block text-xs text-fg-subtle">
+                <span className="font-mono">{j.key}</span> · default every {formatCount(j.defaultIntervalMinutes ?? 0)} min
+              </span>
             </label>
             <span className="flex items-center gap-1.5 text-fg-subtle">
               every
-              <Input id={`${id}-${j.key}`} type="number" inputMode="numeric" min={0} step={1} className="w-24" value={values[j.key] ?? ""} aria-label={`${j.key} interval in minutes`} aria-invalid={invalid.includes(j.key) || undefined} onChange={(e) => setValues((v) => ({ ...v, [j.key]: e.target.value }))} />
+              <Input id={`${id}-${j.key}`} type="number" inputMode="numeric" min={0} step={1} className="w-24" value={values[j.key] ?? ""} aria-label={`${jobName(j.key)} interval in minutes`} aria-invalid={invalid.includes(j.key) || undefined} onChange={(e) => setValues((v) => ({ ...v, [j.key]: e.target.value }))} />
               min
             </span>
           </li>
@@ -232,14 +250,14 @@ function ScheduleEditor({ jobs }: { jobs: JobView[] }) {
           <ul className="space-y-1 text-fg-muted">
             {changes.map((c) => (
               <li key={c.job.key}>
-                <span className="font-mono text-fg">{c.job.key}</span>: {minutes(c.from)} → {minutes(c.to)}
+                <span className="text-fg">{jobName(c.job.key)}</span>: {minutes(c.from)} → {minutes(c.to)}
               </li>
             ))}
           </ul>
           {turningOff.map((c) => (
             <div key={c.job.key} className="space-y-1">
               <Label htmlFor={`${id}-off-${c.job.key}`}>
-                Type <span className="font-semibold text-fg">{turnOffPhrase(c.job.key)}</span> to turn it off
+                Type <span className="font-semibold text-fg">{turnOffPhrase(c.job.key)}</span> to turn off {jobName(c.job.key)}
               </Label>
               <Input id={`${id}-off-${c.job.key}`} value={phrases[c.job.key] ?? ""} onChange={(e) => setPhrases((p) => ({ ...p, [c.job.key]: e.target.value }))} autoComplete="off" autoCapitalize="characters" spellCheck={false} data-testid="schedule-turn-off-input" data-job={c.job.key} />
             </div>
@@ -293,12 +311,7 @@ export function JobsPanel({ jobs, ownerTools }: { jobs: JobView[]; ownerTools: b
                   job={j}
                   // What it does in plain words; the technical description is the job's own (the key below the title).
                   description={j.confirm?.effect}
-                  title={
-                    <span className="min-w-0">
-                      <span className="block text-sm font-semibold text-fg">{j.confirm?.title ?? j.key}</span>
-                      <span className="block font-mono text-fg-subtle">{j.key}</span>
-                    </span>
-                  }
+                  title={<span className="min-w-0 font-medium text-fg">{j.confirm?.title ?? jobName(j.key)}</span>}
                 >
                   <Button size="sm" variant="danger" disabled={!!busy} onClick={() => setConfirming(j)} data-testid="run-job">
                     <Play className="h-3 w-3" aria-hidden /> {busy === j.key ? "Running…" : "Run…"}
@@ -309,7 +322,7 @@ export function JobsPanel({ jobs, ownerTools }: { jobs: JobView[]; ownerTools: b
             <ScheduleEditor jobs={jobs} />
           </Disclosure>
         ) : (
-          <p className="text-xs text-fg-muted" data-testid="jobs-owner-only">
+          <p className="text-sm text-fg-muted" data-testid="jobs-owner-only">
             The schedule and the setup and repair jobs are the Owner&apos;s.
           </p>
         )}
@@ -318,7 +331,7 @@ export function JobsPanel({ jobs, ownerTools }: { jobs: JobView[]; ownerTools: b
         open={!!asking}
         tone="primary"
         busy={!!busy}
-        title={`Run ${asking?.key ?? "this job"} now?`}
+        title={`Run ${asking ? jobName(asking.key) : "this job"} now?`}
         description={asking?.asks ?? undefined}
         confirmLabel="Run now"
         onCancel={() => setAsking(null)}

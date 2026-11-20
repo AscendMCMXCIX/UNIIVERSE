@@ -35,6 +35,10 @@ const WITH_TARGET: Record<string, string> = {
   "account.picture-remove": "removed the picture of {t}",
   "account.link-hide": "hid a public link of {t}",
   "account.link-remove": "removed a link of {t}",
+  "riot.link": "linked a Riot account to {t}",
+  "riot.unlink": "unlinked a Riot account from {t}",
+  "riot.replace": "changed a Riot account of {t}",
+  "riot.main": "changed the Main Riot account of {t}",
   "profile.delete": "deleted the profile {t}",
   "profile.archive": "archived the profile {t}",
   "profile.restore": "restored the profile {t}",
@@ -96,6 +100,12 @@ function phrase(key: string, value: string | number | boolean | null, all: Audit
       return value === "seed-roster" ? "the demo roster was added" : String(value);
     case "link":
       return `their ${String(value)}`;
+    case "temporaryIssued":
+      return value ? "with a new temporary password" : null;
+    case "account":
+      return value === "main" ? "the Main account" : value === "alt" ? "an Alt account" : null;
+    case "riotChange":
+      return value === "renamed" ? "renamed in Riot, the same account" : value === "replaced" ? "replaced by a different Riot account" : null;
     case "usernameChanged":
       return value ? "the username changed" : null;
     case "riotAccounts":

@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 import { PageHeader } from "@/components/ui/page-header";
 import { getAppDb } from "@/server/bootstrap";
 import { requirePageAccess } from "@/server/auth/page-access";
@@ -14,6 +16,15 @@ export default async function AdminBrandingPage() {
     <div className="space-y-5">
       <PageHeader admin sectionNamed eyebrow="Platform Settings" title="Branding" description="The app and team names, logo, backgrounds and colours. Check the result under Previews." />
       <BrandingPanel branding={branding} canEdit />
+      {/* The public team page has no switch (it is always on); the old /admin/public-access address lands here, inside Admin Mode. */}
+      <Panel id="brand-public" data-testid="brand-public">
+        <PanelHeader title="Public team page" subtitle="Always on, for anyone with the link: the team name and look, the lineup's and substitutes' cards and the links each player shows publicly; never usernames, Riot IDs or settings. Ranks and statistics only where the deployment allows Riot data on public pages." />
+        <PanelBody>
+          <Link href="/public" target="_blank" rel="noopener" className="inline-flex min-h-11 items-center text-sm text-accent underline-offset-2 hover:underline">
+            Open the public team page
+          </Link>
+        </PanelBody>
+      </Panel>
     </div>
   );
 }

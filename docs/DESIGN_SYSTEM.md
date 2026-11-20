@@ -148,7 +148,7 @@ Each surface is a step from the ground up. Lighter means closer to the reader.
 | 0 | `bg` + `--ambient-light` | the page ground, with violet light at the top edge and a low horizon |
 | 0.5 | `chrome` (+ `chrome-light` on the sidebar) | the app's frame: sidebar, top bar, tab bar |
 | 1 | `surface` + `panel-depth` | panels and cards; `panel-featured` or `surface-lead` for the one card a page leads with |
-| 2 | `surface-2` | rows and tiles inside panels, hovered rows on panels |
+| 2 | `surface-2` | rows and tiles inside panels, hovered rows on panels (Admin's access levels, datasets, Riot API facts, resources and access dialog since S9c; never `bg-elevated`) |
 | 3 | `surface-3` | selected or pressed rows on panels |
 | float | `bg-elevated` + border + `shadow-2xl` | menus, popovers, pickers, a dragged card |
 
