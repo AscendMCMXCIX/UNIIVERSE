@@ -9,7 +9,7 @@ import { ROLE_SLOTS, matchupRolesVerdicts, type Role, type RoleBarRead } from ".
   the regressions they exist for.
 */
 
-const bar = (role: Role, addressRole: string | null = role, length = 3): RoleBarRead => ({ pressed: role, slots: String(ROLE_SLOTS[role].length), labels: [...ROLE_SLOTS[role]], addressRole, path: "/resources/matchups", length, busy: false });
+const bar = (role: Role, addressRole: string | null = role, length = 3): RoleBarRead => ({ pressed: role, slots: String(ROLE_SLOTS[role].length), labels: [...ROLE_SLOTS[role]], inputs: ROLE_SLOTS[role].length, addressRole, path: "/resources/matchups", length, busy: false });
 const start = bar("top", null);
 const demo = () => [{ role: "top", at: start }, ...(["jungle", "mid", "adc", "support"] as const).map((r) => ({ role: r, at: bar(r) }))];
 const failed = (reads: Array<{ role: string; at: RoleBarRead }>) => matchupRolesVerdicts({ kind: "desktop", start, reads }).filter((v) => v.status === "FAIL").map((v) => v.name);
@@ -30,6 +30,11 @@ describe("Matchup Intel's role facts", () => {
     reads[1] = { role: "jungle", at: { ...bar("jungle"), slots: "4", labels: [...ROLE_SLOTS.adc] } };
     reads[2] = { role: "mid", at: bar("mid", null) };
     expect(failed(reads)).toHaveLength(2);
+  });
+  it("fail a role whose drawn inputs disagree with the frame's data-slots", () => {
+    const reads = demo();
+    reads[4] = { role: "support", at: { ...bar("support"), inputs: 2 } };
+    expect(failed(reads)).toEqual([expect.stringContaining("ADC and Support")]);
   });
   it("fail each group on one role alone", () => {
     const reads = demo();

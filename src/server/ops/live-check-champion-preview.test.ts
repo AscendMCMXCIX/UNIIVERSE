@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { championPreviewVerdicts, firstWithGames, type ChampionPreviewRead } from "../../../scripts/champion-preview-facts.mjs";
+import { championPreviewVerdicts, firstWithGames, targetRow, type ChampionPreviewRead } from "../../../scripts/champion-preview-facts.mjs";
 
 /*
   The Production check's All Champions preview facts (scripts/champion-preview-facts.mjs): the
@@ -28,12 +28,13 @@ const DEMO: ChampionPreviewRead = {
 };
 const STEP = { next: true, address: true, replaced: true };
 const ESC = { closed: true, address: true };
-const run = (at: ChampionPreviewRead, step: typeof STEP | null = STEP, escaped = ESC) => championPreviewVerdicts({ kind: "desktop", at, step, escaped });
+const KEPT = { scrolled: 412, open: 0, closed: 0 };
+const run = (at: ChampionPreviewRead, step: typeof STEP | null = STEP, escaped = ESC, kept = KEPT) => championPreviewVerdicts({ kind: "desktop", at, step, escaped, kept });
 const failed = (at: ChampionPreviewRead, step: typeof STEP | null = STEP, escaped = ESC) => run(at, step, escaped).filter((v) => v.status === "FAIL").map((v) => v.name);
 
 describe("All Champions' preview facts", () => {
   it("pass on the demo's preview", () => {
-    expect(run(DEMO).map((v) => v.status)).toEqual(Array(7).fill("PASS"));
+    expect(run(DEMO).map((v) => v.status)).toEqual(Array(8).fill("PASS"));
   });
   it("choose the first row with 3 or more games, or none", () => {
     expect(firstWithGames([{ games: 2, open: false }, { games: 3, open: false }])).toBe(1);
@@ -67,6 +68,18 @@ describe("All Champions' preview facts", () => {
   it("fail, not warn, a preview whose answer could not be loaded", () => {
     expect(failed({ ...DEMO, opponents: [], intel: 0, answered: false })).toEqual(["desktop: the opponents loaded"]);
     expect(failed({ ...DEMO, opponents: [], intel: 0 })).toHaveLength(2);
+  });
+  it("choose a row with 3+ games below the first screen when there is one", () => {
+    const rows = [{ games: 9, open: false, top: 300, screen: 900 }, { games: 2, open: false, top: 1000, screen: 900 }, { games: 4, open: false, top: 1100, screen: 900 }];
+    expect(targetRow(rows)).toBe(2);
+    expect(targetRow(rows.slice(0, 2))).toBe(0);
+  });
+  it("fail a jump of the browsing position, and pass a list that cannot scroll as not applicable", () => {
+    const pos = (kept: typeof KEPT) => run(DEMO, STEP, ESC, kept).at(-1)!;
+    expect(pos({ scrolled: 412, open: 0, closed: 412 }).status).toBe("FAIL");
+    expect(pos({ scrolled: 412, open: -40, closed: 0 }).status).toBe("FAIL");
+    expect(pos({ scrolled: 412, open: 2, closed: -2 }).status).toBe("PASS");
+    expect(pos({ scrolled: 0, open: 0, closed: 0 }).detail).toMatchObject({ notApplicable: expect.any(String) });
   });
   it("fail a preview that never opened", () => {
     expect(failed({ open: false })).toHaveLength(1);

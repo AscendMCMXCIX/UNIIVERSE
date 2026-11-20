@@ -12,7 +12,7 @@
 
 /** The rows the list shows, in order: each one's games and whether it is the open one (self-contained, for evaluate). */
 export function readChampionRows() {
-  return [...document.querySelectorAll("[data-testid=top-champion]")].map((r) => ({ games: Number(r.getAttribute("data-games") ?? "0"), open: r.getAttribute("data-selected") === "true" || r.querySelector("[data-open-champion][aria-expanded=true]") !== null }));
+  return [...document.querySelectorAll("[data-testid=top-champion]")].map((r) => ({ games: Number(r.getAttribute("data-games") ?? "0"), open: r.getAttribute("data-selected") === "true" || r.querySelector("[data-open-champion][aria-expanded=true]") !== null, top: Math.round(r.getBoundingClientRect().top + scrollY), screen: innerHeight }));
 }
 
 /** The open preview, read in the page (self-contained, for evaluate). `rowIndex` is the row it was opened from. */
@@ -63,6 +63,15 @@ export function readChampionPreview(rowIndex) {
 /** The roles the preview's header may name (src/domain/roles.ts, ROLE_LABELS), "· In pool" after it or not. */
 const ROLE_LINE = /^(Top|Jungle|Mid|Bottom|Support)( · In pool)?$/;
 
+/**
+ * The row the preview is read from: the first with at least `min` games below the first screen (so
+ * a jump back to the top shows in the browsing position), else the first with `min` games, or -1.
+ */
+export function targetRow(rows, min = 3) {
+  const below = rows.findIndex((r) => r.games >= min && typeof r.top === "number" && r.top > r.screen);
+  return below >= 0 ? below : firstWithGames(rows, min);
+}
+
 /** The index of the first row with at least `min` games, or -1. */
 export function firstWithGames(rows, min = 3) {
   return rows.findIndex((r) => r.games >= min);
@@ -73,7 +82,7 @@ export function firstWithGames(rows, min = 3) {
  * (`step`: the address replaced and the next row shown, or null when there is no next row) and what
  * Escape did (`escaped`). Each verdict: its name, PASS, FAIL or WARN, and what was found.
  */
-export function championPreviewVerdicts({ kind, at, step, escaped }) {
+export function championPreviewVerdicts({ kind, at, step, escaped, kept }) {
   const out = [];
   const fact = (name, ok, detail) => out.push({ name: `${kind}: ${name}`, status: ok ? "PASS" : "FAIL", detail });
   if (!at?.open) {
@@ -97,5 +106,10 @@ export function championPreviewVerdicts({ kind, at, step, escaped }) {
   if (step === null) out.push({ name: `${kind}: skipped: ↓ has no next row (the list has one champion)`, status: "WARN", detail: null });
   else fact("↓ moves the preview to the next row, replacing the address (no new history entry)", step.next && step.address && step.replaced, step);
   fact("Escape closes the preview and takes it out of the address", escaped.closed && escaped.address, escaped);
+  // The browsing position (row 4.5d): the page scrolled to the row first, the row where it was (±3px) with the preview open and after Escape.
+  if (kept) {
+    if (!(kept.scrolled > 0)) out.push({ name: `${kind}: the browsing position kept while the preview opens and closes`, status: "PASS", detail: { notApplicable: "the list fits the first screen, so it cannot be scrolled", ...kept } });
+    else fact("the browsing position: with the list scrolled to the row, the row stays where it was (±3px) while the preview opens and after Escape", Math.abs(kept.open) <= 3 && Math.abs(kept.closed) <= 3, kept);
+  }
   return out;
 }

@@ -138,7 +138,7 @@ import { rosterRowLines } from "./roster-lines.mjs";
 import { matchupIntelVerdicts, readMatchupIntel } from "./matchup-intel-facts.mjs";
 import { matchupRolesVerdicts, readRoleBar } from "./matchup-roles-facts.mjs";
 import { noteRules, postGameVerdicts, readPostGame } from "./post-game-facts.mjs";
-import { championPreviewVerdicts, firstWithGames, readChampionPreview, readChampionRows } from "./champion-preview-facts.mjs";
+import { championPreviewVerdicts, readChampionPreview, readChampionRows, targetRow } from "./champion-preview-facts.mjs";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 
@@ -1288,10 +1288,33 @@ async function allChampions(page, log, kind, playerId) {
  * A list with no such champion is a warning, not a failure.
  */
 async function championPreviewFacts(page, kind) {
+  // The whole list ("Show all", a toggle in the page: no request), so the page can scroll for the browsing position.
+  const all = page.getByTestId("all-champions-more");
+  if (await all.count()) await all.click().catch(() => {});
   const rows = await page.evaluate(readChampionRows);
-  const i = firstWithGames(rows, 3);
+  const i = targetRow(rows, 3);
   if (i < 0) return warn("all-champions", `${kind}: skipped: no champion on the list has 3 or more games, so the preview's content was not read`, { rows: rows.length });
-  const button = page.locator("[data-testid=top-champion]").nth(i).locator("[data-open-champion]");
+  const row = page.locator("[data-testid=top-champion]").nth(i);
+  const button = row.locator("[data-open-champion]");
+  // The browsing position (row 4.5d): the row brought to the middle of the screen, where it stays.
+  // In the middle of the screen; a row near the list's top is scrolled up to about 200px from the
+  // window's top instead, then down a step at a time while anything pinned covers it.
+  await row.evaluate(async (r) => {
+    const frame = () => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
+    r.scrollIntoView({ block: "center" });
+    await frame();
+    if (scrollY === 0) window.scrollBy(0, r.getBoundingClientRect().top - 200);
+    for (let k = 0; k < 4; k++) {
+      await frame();
+      const b = r.getBoundingClientRect();
+      if (r.contains(document.elementFromPoint(b.left + 24, b.top + b.height / 2))) break;
+      window.scrollBy(0, -60);
+    }
+  });
+  await page.waitForTimeout(200);
+  const rowTop = () => row.evaluate((r) => Math.round(r.getBoundingClientRect().top));
+  const y0 = await rowTop();
+  const scrolled = await page.evaluate(() => Math.round(scrollY));
   await button.click();
   const content = page.getByTestId("champion-preview-content");
   await content.waitFor({ timeout: 15_000 }).catch(() => {});
@@ -1303,6 +1326,14 @@ async function championPreviewFacts(page, kind) {
     await content.getByTestId("champion-preview-intel").waitFor({ timeout: 15_000 }).catch(() => {});
   }
   const at = await page.evaluate(readChampionPreview, i);
+  const yOpen = await rowTop();
+  // Escape from here first, for the position (the next row's step below opens it again).
+  await page.keyboard.press("Escape");
+  await page.getByTestId("champion-preview-content").waitFor({ state: "detached", timeout: 5_000 }).catch(() => {});
+  await page.waitForTimeout(200);
+  const kept = { scrolled, open: yOpen - y0, closed: (await rowTop()) - y0 };
+  await button.click();
+  await content.waitFor({ timeout: 15_000 }).catch(() => {});
   // ↓ from the row: the next row's preview, the address replaced (the list keeps the keys while the focus is in it).
   let step = null;
   if (rows.length > 1) {
@@ -1327,7 +1358,7 @@ async function championPreviewFacts(page, kind) {
   await page.keyboard.press("Escape");
   const closed = await content.waitFor({ state: "detached", timeout: 5_000 }).then(() => true, () => false);
   const escaped = { closed, address: await page.waitForFunction(() => !new URLSearchParams(location.search).has("champion"), null, { timeout: 5_000 }).then(() => true, () => false) };
-  for (const v of championPreviewVerdicts({ kind, at, step, escaped })) check("all-champions", v.name, v.status, v.detail);
+  for (const v of championPreviewVerdicts({ kind, at, step, escaped, kept })) check("all-champions", v.name, v.status, v.detail);
 }
 
 /**

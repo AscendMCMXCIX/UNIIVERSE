@@ -31,6 +31,8 @@ export function readRoleBar() {
     pressed: pressed.length === 1 ? pressed[0] : null,
     slots: document.querySelector('[data-testid="matchup-pickers"]')?.getAttribute("data-slots") ?? null,
     labels,
+    // The slot inputs drawn (each a button), counted apart from the frame's data-slots.
+    inputs: document.querySelectorAll('[data-testid="matchup-pickers"] button[data-testid^="matchup-pick-"]').length,
     addressRole: new URLSearchParams(location.search).get("role"),
     path: location.pathname,
     length: history.length,
@@ -51,8 +53,8 @@ export function matchupRolesVerdicts({ kind, start, reads }) {
   const verdict = (role) => {
     const r = reads.find((x) => x.role === role)?.at ?? null;
     const want = ROLE_SLOTS[role];
-    const ok = !!r && r.pressed === role && r.slots === String(want.length) && r.labels.length === want.length && r.labels.every((l, i) => l === want[i]) && (r.addressRole === role || (r === start && r.addressRole === null));
-    return { role, ok, ...(r ? { slots: r.slots, labels: r.labels.join(", "), addressRole: r.addressRole } : { read: false }) };
+    const ok = !!r && r.pressed === role && r.slots === String(want.length) && r.inputs === want.length && r.labels.length === want.length && r.labels.every((l, i) => l === want[i]) && (r.addressRole === role || (r === start && r.addressRole === null));
+    return { role, ok, ...(r ? { inputs: r.inputs, labels: r.labels.join(", "), addressRole: r.addressRole } : { read: false }) };
   };
   const solo = ["top", "jungle", "mid"].map(verdict);
   const duo = ["adc", "support"].map(verdict);
