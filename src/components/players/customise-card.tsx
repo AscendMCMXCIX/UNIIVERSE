@@ -43,6 +43,7 @@ import { useKeyboardFit } from "@/components/ui/keyboard-fit";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/cn";
+import { segmentClass, segmentedGroupClass } from "@/components/ui/segmented";
 import { CardFrame, cardShellStyle, EMBLEM_ICONS } from "./card-look";
 import type { CardSeason } from "./player-card";
 import { prepareBanner } from "./banner-image";
@@ -635,9 +636,9 @@ const VIEWS = [
 /** Which card the preview shows: the Team card, a phone's, or the player's row on Players. */
 function ViewSwitch({ view, onView, labels = false, testIdPrefix = "preview" }: { view: PreviewView; onView: (v: PreviewView) => void; /** Always name each view (otherwise icons only on phones). */ labels?: boolean; testIdPrefix?: string }) {
   return (
-    <div role="radiogroup" aria-label="Preview" className="flex rounded-lg border border-border bg-bg/40 p-0.5">
+    <div role="radiogroup" aria-label="Preview" className={segmentedGroupClass()}>
       {VIEWS.map(([v, Icon, label]) => (
-        <button key={v} type="button" role="radio" aria-checked={view === v} onClick={() => onView(v)} title={label} className={cn("inline-flex min-h-8 items-center justify-center gap-1 rounded-md px-2 text-xs transition-colors pointer-coarse:min-h-11 pointer-coarse:min-w-11 pointer-coarse:px-2.5", view === v ? "bg-accent/15 font-semibold text-fg ring-1 ring-inset ring-accent/60" : "text-fg-muted hover:text-fg")} data-testid={`${testIdPrefix}-${v}`}>
+        <button key={v} type="button" role="radio" aria-checked={view === v} onClick={() => onView(v)} title={label} className={segmentClass(view === v, { className: "pointer-coarse:min-w-11" })} data-testid={`${testIdPrefix}-${v}`}>
           <Icon className="h-3.5 w-3.5" aria-hidden /> <span className={labels ? undefined : "max-sm:sr-only short:sr-only"}>{label}</span>
         </button>
       ))}

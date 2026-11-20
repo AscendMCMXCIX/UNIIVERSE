@@ -172,7 +172,7 @@ export default async function PrivacyPage() {
       </nav>
 
       <div className="min-w-0">
-      <Section id="contact" title="Contact us about your privacy" className="mt-6 scroll-mt-4 rounded-panel border border-border bg-surface surface-lead p-4 lg:mt-0">
+      <Section id="contact" title="Contact us about your privacy" className="mt-6 scroll-mt-4 overflow-clip rounded-panel border border-border bg-surface surface-lead p-4 lg:mt-0">
         <div data-testid="privacy-contact">
           <p className="mt-1 text-sm text-fg-muted">You can request access to, correction of, or permanent removal of your personal information stored by {name}.</p>
           <div className="mt-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-md border border-border bg-bg/60 px-3 py-2">
