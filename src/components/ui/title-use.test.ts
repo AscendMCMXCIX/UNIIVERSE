@@ -86,7 +86,6 @@ const NAMES: Array<{ file: string; fragment: string; kind: Kind; what: string }>
   { file: "src/components/matches/played-together.tsx", fragment: "SOLO_CAVEAT", kind: "truncation", what: "the Solo/Duo sentence the narrow column shortens" },
   { file: "src/components/matches/played-together.tsx", fragment: "{extra}", kind: "truncation", what: "the CS and damage a narrow row leaves out" },
   { file: "src/components/players/all-champions.tsx", fragment: "mastery points", kind: "truncation", what: "the mastery shown short (\"189K\") whole" },
-  { file: "src/components/players/player-overview.tsx", fragment: "{sub}", kind: "truncation", what: "a figure's caption, cut to one line" },
   { file: "src/components/players/rank-emblem.tsx", fragment: "rank.leaguePoints", kind: "truncation", what: "the rank, cut short in a row, whole with its LP" },
   { file: "src/components/players/recent-form.tsx", fragment: "Filtered: ${narrowed}", kind: "truncation", what: "the filters line, cut to one line" },
   { file: "src/components/resources/resources-view.tsx", fragment: "e.description", kind: "truncation", what: "a site's description, clamped to two lines" },
@@ -105,6 +104,7 @@ const NAMES: Array<{ file: string; fragment: string; kind: Kind; what: string }>
   { file: "src/components/players/profile-header.tsx", fragment: "tagline", kind: "truncation", what: "the card's tagline" },
   { file: "src/components/profile/profile-editor.tsx", fragment: "c.name", kind: "truncation", what: "a champion's name" },
   { file: "src/components/ui/data-list.tsx", fragment: "{hint}", kind: "name", what: "a row's marks in words (its tie, gap or milestones), anywhere on the row" },
+  { file: "src/components/leaderboards/leaderboards-peek.tsx", fragment: "{hint}", kind: "name", what: "a Peek row's marks in words, as RowLink's hint layer (the same row, opening the Peek)" },
 ];
 
 function sources(dir: string): string[] {
