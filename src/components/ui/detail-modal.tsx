@@ -941,7 +941,7 @@ export function DetailModal({
             // readers only: at 320px with 200% text the bar takes under a quarter of the screen.
             <div ref={headerRef} className={cn("flex shrink-0 justify-between border-b border-border bg-bg-elevated px-4 sm:px-5 sm:py-4", compact ? "py-1.5" : "py-3", headerExtra ? cn("flex-wrap-reverse items-end gap-x-3", compact ? "gap-y-1" : "gap-y-2") : compact ? "items-center gap-3" : "items-start gap-3", !(docked && flow) && "short:sticky short:top-0 short:z-10", headerClassName)} data-testid={headerTestId} data-modal-handle={whole ? "" : undefined} data-compact={compact || undefined}>
               <div className={cn("min-w-0", headerExtra && "grow basis-28")}>
-                <h2 id={titleId} className={cn("text-lg font-semibold leading-tight", compact && "truncate")} data-testid="modal-title">
+                <h2 id={titleId} className={cn("text-lg font-semibold leading-tight [overflow-wrap:anywhere]", compact && "truncate")} data-testid="modal-title">
                   {title}
                 </h2>
                 {description ? (
