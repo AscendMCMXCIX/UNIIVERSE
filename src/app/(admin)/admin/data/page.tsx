@@ -13,6 +13,9 @@ import { StatusCards } from "@/components/admin/status-cards";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 import { jobsFreshness } from "@/server/ops/freshness";
 import { FreshnessWatcher } from "@/components/ui/freshness-watcher";
+import { staticDiffHealth } from "@/server/matchup-intel/digests";
+import { StaticDiffCard } from "@/components/admin/static-diff";
+import { log } from "@/server/observability/log";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +28,17 @@ export default async function AdminDataPage() {
   const session = await requirePageAccess("manage-data");
   const owner = isOwner(session);
   const db = await getAppDb();
-  const [health, handle, overrides, version] = await Promise.all([getDataHealth(db), getDbHandle(), getScheduleOverrides(db), jobsFreshness(db)]);
+  // Matchup Intel's per-version diff (counts and patch names only); one query failing never fails the page.
+  const [health, handle, overrides, version, diff] = await Promise.all([
+    getDataHealth(db),
+    getDbHandle(),
+    getScheduleOverrides(db),
+    jobsFreshness(db),
+    staticDiffHealth(db).catch((error: unknown) => {
+      log("warn", "admin.static_diff_failed", { error });
+      return null;
+    }),
+  ]);
   const statusByKey = new Map(health.jobs.map((j) => [j.key, j]));
   const jobs: JobView[] = listJobs()
     .filter((j) => owner || j.kind !== "setup")
@@ -65,6 +78,7 @@ export default async function AdminDataPage() {
         <PanelHeader title="Data health" subtitle={`Patch ${health.patch?.id ?? "—"} (Data Dragon ${health.patch?.ddragonVersion ?? "—"}) · ${handle.description}`} />
         <PanelBody className="space-y-3 text-sm">
           <DatasetsList datasets={health.datasets} />
+          {diff ? <StaticDiffCard diff={diff} /> : null}
           {health.warnings.length === 0 ? <p className="text-good">No job failures.</p> : null}
           {health.warnings.map((w) => (
             <p key={w} className="text-warn [overflow-wrap:anywhere]">

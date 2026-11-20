@@ -55,6 +55,8 @@ async function ownerJobs(page: Page, size: string) {
   await page.goto("/admin/data");
   const details = page.getByTestId("data-details");
   await openDetails(details);
+  // Matchup Intel's static-data diff, beside the datasets: the demo records no digests (src/components/admin/static-diff.test.ts has every state).
+  await expect(details.getByTestId("static-diff")).toContainText("No patch recorded yet.");
   const panel = page.getByTestId("jobs-panel");
   // Checks and Refresh in view, each with its button; the costly reads say so.
   await expect(panel.getByTestId("jobs-checks").getByTestId("job-row")).not.toHaveCount(0);
