@@ -60,7 +60,7 @@ UNIIVERSE keeps both shut for everyone but the owner. Either one alone would kee
 
 ## Permissions matrix
 
-All 68 tables are **private**. No table is meant to be read through the Data API, by anyone, so every table gets the same database access:
+All 70 tables are **private** (68 until migration 0067 added `account_match_prep` and `static_digests`, Matchup Intel's evidence, each with the grants block). No table is meant to be read through the Data API, by anyone, so every table gets the same database access:
 
 | Role | Access to every table |
 |---|---|

@@ -94,6 +94,16 @@ From the same match and timeline requests as before (no new request, no new endp
 - **Privacy:** an erased player keeps none of it (a "Removed player" keeps only the side and the result, and their timeline entries and frames go: `server/privacy/redact.ts`).
 - **What it costs** (measured on games shaped like Riot's, `tests/db/forward-capture.test.ts`): stored, about 1 KB more per match record and 130–180 bytes per minute of game per timeline (about 3–6 KB for 25–38 minutes); as text, about 4.8 KB per record and 330–400 bytes per minute of timeline. At the rate of 3–7 Nov 2026 (about 75 new account games a day, an upper bound: a game two members played is one record and one timeline) that is at most about 0.5 MB a day of database growth (docs/HOSTING_USAGE.md, "19 Nov 2026"). The champion window reads only the gold, experience and CS series of its two players, as before.
 
+### Matchup Intel's evidence rows (20 Nov 2026)
+
+- **`account_match_prep`:** one row per member's stored rift game, what its record and timeline say
+  about the member's preparation (docs/MATCHUP_INTEL.md, "In your games"). Storing a timeline makes
+  its game's rows again; the by-hand `prep-backfill` (a setup job, "BACKFILL") inserts the missing
+  ones, at most 1,000 games a run, insert only, no Riot request, counts only.
+- **`static_digests`:** version-check records a hash per champion, item and rune once a patch, from
+  three Data Dragon files, for the evidence's two-patch rule; a failed attempt is retried at most
+  once a day.
+
 ## Rank readings and LP per game (`rank-watch`)
 
 A linked account's rank is read from LEAGUE-V4 (one request answers Solo/Duo and Flex) by account sync and by the rank watch. `rank_snapshots` keeps one row per change; an unchanged reading moves the last row's `confirmed_at` on (migration 0065), under a per-account-and-queue lock, so overlapping runs never duplicate a reading and a slow answer never moves one back. The rank watch (`src/server/jobs/rank-watch.ts`, in every tick, interval 5 minutes, and callable on its own at `/api/jobs/rank-watch`) reads the accounts that played ranked in the last 30 days every run and the others about hourly; at most 40 accounts a run, half of each rate-limit window, no retries, and a full limit or a refused key ends the run. A game's LP is never stored: it is worked out when a page shows it, from the readings around it (`src/domain/lp-attribution.ts`; the rule and its limits in [RANKED_PROGRESS.md](RANKED_PROGRESS.md)). `rank-audit` reports what the readings prove on real data, read-only.
