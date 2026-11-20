@@ -27,7 +27,7 @@ export default async function WelcomePage({ searchParams }: { searchParams: Prom
   const { step } = await searchParams;
   const signOut = (
     <form action="/api/auth/logout" method="post" className="mt-4 text-center">
-      <button type="submit" className="text-xs text-fg-subtle hover:text-fg">
+      <button type="submit" className="inline-flex min-h-8 items-center px-2 text-xs text-fg-subtle hover:text-fg pointer-coarse:min-h-11">
         Sign out (your progress is kept)
       </button>
     </form>

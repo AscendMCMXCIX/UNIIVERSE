@@ -40,7 +40,8 @@ for (const [setup, text] of [["i15", 100], ["se1", 150]] as const) {
     const over: string[] = [];
     for (const admin of [false, true]) {
       const page = await setupPage(browser, setup, text, admin);
-      for (const key of Object.keys(PAGES).filter((k) => !!PAGES[k]!.admin === admin)) {
+      // A page that needs a deployment setting the CI demo does not set is left to the full matrix.
+      for (const key of Object.keys(PAGES).filter((k) => !!PAGES[k]!.admin === admin && !PAGES[k]!.requires)) {
         const id = `${key}@${setup}-${text}`;
         const figures = await openAndMeasure(page, BASE, key, playerId);
         for (const problem of overBudget(figures, CEILINGS[id], { height: !PAGES[key]!.data })) over.push(`${id}: ${problem}`);

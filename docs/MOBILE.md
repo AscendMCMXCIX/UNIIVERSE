@@ -454,7 +454,7 @@ One set of ceilings with two runners (`scripts/page-budgets.mjs`): for every Pla
 its height in screens, the frame's share at rest and after a 100px scroll, sideways overflow (none
 allowed), and touch targets under 44px on the first screen.
 
-- **`node scripts/ux-measure.mjs http://127.0.0.1:3900`**: the full matrix (19 pages × 7 setups ×
+- **`node scripts/ux-measure.mjs http://127.0.0.1:3900`**: the full matrix (31 pages × 7 setups ×
   100, 125, 150 and 200% text, about 530 loads, about 12 minutes), locally against the demo, before a
   pull request is ready; its table goes in the PR body. `--pages`, `--setups` and `--text` narrow it;
   `--ceilings` prints each figure plus 2%.
@@ -473,6 +473,99 @@ allowed), and touch targets under 44px on the first screen.
 
 The setups are the mobile audit's (Chromium with touch and an iPhone's safe areas through CDP; the
 text size is the browser's own, `Page.setFontSizes`, so the breakpoints move as with a real setting).
+
+Since S8a (20 Nov 2026) the pages carry their visitor: a signed-out one (the local guest cookie) for
+sign-in, recovery, Privacy and the public team page, and the in-memory demo's viewers
+(`server/auth/demo-viewer.ts`) for the first sign-in (`/welcome` with a temporary password and with
+the profile half chosen, `/welcome/personalise`) and a member's own My Profile (Overview and Match
+History). Card Studio is measured open (`then: "studio"`). Public Leaderboards needs
+`UNIIVERSE_PUBLIC_RIOT_DATA=true`, which the CI demo does not set, so it is measured only in the
+full matrix on a server started with it (`requires`).
+
+### The demo viewer (S8a, 20 Nov 2026)
+
+Every audit before S8a used the demo's automatic viewer, the Owner without a player profile. The
+cookie `uniiverse_demo_viewer` chooses another, **in the in-memory demo only**
+(`demoViewerAllowed`: no Vercel, no database URL, accounts not required, `UNIIVERSE_DB_MODE=memory`
+and the demo seeded; anything else ignores the cookie, unit-tested in `demo-viewer.test.ts`):
+
+- `member`: a Standard Player (not an administrator) whose player profile is the demo's ADC, set
+  up, with games. It is the local owner's account row seen as that member, so the demo's account
+  lists do not change. It serves the "your" tests (PLAN §1.12; `e2e/demo-viewer.spec.ts`).
+- `newcomer` and `halfway`: the demo's two members still in their first sign-in (`/welcome`).
+
+Its limits, by design (it changes nothing outside the demo): the `member` viewer's account row is the
+local owner's, so Settings' account panel shows the local owner and its username, display name and
+picture changes land on that row (its profile, pools, card and links are Demo ADC's); a viewer whose
+demo row is missing is signed out, never the local owner; and Sign out does not clear the cookie
+(delete it to return to the local owner).
+
+### S8a: the pages stage 0 did not audit (20 Nov 2026)
+
+Read-only first, at the mobile audit's setups and the desktop sizes, as stage 0 did: height in
+screens, the frame's share, touch targets under 44px on the first screen, sideways scroll, words
+split inside (not at a hyphen) at 150% and 200%, axe (WCAG 2.1 A and AA, at 375 × 667 and 1440 ×
+900) and console errors. Through Admin → Previews (`/preview/setup`) and for real through the demo
+viewers. Figures after the fixes; "small" is i15 / se3 / se1 / i15s at 100%, before → after.
+
+| Page | i15 | se1 150% | 1280 / 1440 / 1920 | small | axe |
+|---|---|---|---|---|---|
+| `/preview/setup` sign-in, password, done steps | 1.14–1.23 | 3.85–4.54 | 1.00–1.14 | 8/6/0/6 → 0 | 0 |
+| `/preview/setup` name, profile, personalise | 1.72–2.43 | 5.66–7.95 | 1.06–1.82 | 0 | 2 → 0 |
+| `/welcome`, temporary password | 1.00 | 1.94 | 1.00 | 1 → 0 | 0 |
+| `/welcome`, the profile | 1.34 | 3.79 | 1.00–1.03 | 0 | 2 → 0 |
+| `/welcome/personalise` | 1.91 | 5.55 | 1.20–1.46 | 0 | 0 |
+| `/login` on phones | 1.00 | 2.28 | 1.00 | 0 | 0 |
+| `/recover` on phones | 1.00 | 2.17 | 1.00 | 0 | 0 |
+| `/privacy` | 9.19 | 47.06 | 5.35 / 4.76 / 4.39 (6.07 / 5.40 / 4.99 before) | 8 → 0 | 0 |
+| `/no-access` | 1.00 | 2.01 | 1.00 | 7 → 0 | 0 |
+| `/public` on phones | 1.00 | 2.65 | 1.00 | 2 → 0 | 0 |
+| `/public/leaderboards` on phones | 3.04 | 11.91 | 2.06 / 1.46 / 1.26 | 1 → 0 | 0 |
+| Card Studio (a profile, opened) | 2.43 | 7.76 | 1.63 / 1.19 / 1.09 | 5/5/6/5 → 0 | 0 |
+| Roles and pools in edit | 2.79 | 9.19 | 1.87 / 1.40 / 1.29 | 0 | 0 |
+| Team in Edit lineup | 1.00 | 2.18 | 1.00 | 0 | 0 |
+| Install App's window (public header) | 1.00 | 2.65 | 1.00 | 0 | 0 |
+| A member's own Overview | 2.41 | 7.92 | 1.63 / 1.19 / 1.09 | 0 | 0 |
+| Own Champions, Matchups tab | 1.00 | 3.09 | 1.00 | 4 → 0 | 0 |
+| Own Match History | 2.05 | 8.22 | 1.80 / 1.60 / 1.46 | 5 → 4 | 0 |
+| Own Riot accounts | 1.00 | 1.28 | 1.00 | 2 → 0 | 0 |
+| Settings as a member | 2.30 | 7.17 | 1.48 / 1.30 / 1.20 | 0 | 0 |
+
+No page scrolls sideways at any setup or text size, and none logs a console error (public
+Leaderboards answers 404, with the browser's one error for it, where public Riot data is off: by
+design). Findings, most visible first, and what was done:
+
+1. **Privacy on the desktop** (UD.PB1): 5.40 screens at 1440 with its index chips only at the top.
+   From lg the card widens beside a sticky table of contents (still in view at the notice's end,
+   `privacy.spec`); its chips are 44px on touch screens (40 before). On phones it stays a long page
+   (9.19 screens at i15): its words are the approved notice, which this pass does not change.
+2. **The public header** (UD.PB1): Install App and Sign in at 12px beside Team at 14px. One link
+   style at 14px (`components/public/nav-link.ts`); the mark alone and Privacy were 36px wide on
+   phones, now 44px.
+3. **Titles in another voice** (UD.PB1): "Sign in", "Privacy", "Recover the owner account", the
+   welcome steps, Personalise and the invitation page had the wordmark's 0.2em spacing at 20px. One
+   h1 style, the app's (`PAGE_TITLE`, 24px, tight); `/setup`'s two notices had no h1 and get it.
+4. **Recovery's instructions** (UD.PB2): the deployment's environment variable shown to anyone, the
+   variable's name split at every phone size. Behind a fold, "How to set the setup key".
+5. **Touch targets under 44px:** No access's page links (36px), the onboarding preview's steps and
+   account type (32 and 28px), Card Studio's preview switch, Full card, Hide (40px) and Reset look
+   at 320px (36px wide), the Matchups sort (24px), a Riot account's options (28px wide), the phone
+   bar's mark alone on My Profile (38px wide) and the welcome page's Sign out (16px): all 44px on
+   touch screens now.
+6. **axe `definition-list`** on the setup form's account facts (a paragraph inside the list): the
+   note now follows the list.
+
+Recorded, not changed here, with the reason:
+
+- Own Match History's LP marks (4 on the first screen at i15): the tip's trigger is 24px by design
+  (S6: the card is the one stop; WCAG 2.5.8's 24px minimum). Its ceiling carries the reason.
+- Words split at 200% on a 320px phone only: the player card's name in the setup preview (a fixed
+  card design, `overflow-wrap: anywhere` on purpose), a champion's name in own Champions' narrow
+  column, and "Leaderboards" in its h1 (`hyphens: auto`, hyphenated on purpose).
+- Team's lineup dots at 200% on 320 (5 under 44px): Team's own layout (S3a), outside this pass.
+- The public header for a signed-in member at 375px and 150% text: three rows where it was two,
+  since "Open the app" is 14px as the decision asks (a visitor's header keeps its rows at every
+  size; the mark's 44px target is the touch-target utility's invisible box, so it adds no width or height).
 
 ## 5. The phone design system
 

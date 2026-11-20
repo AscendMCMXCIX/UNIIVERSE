@@ -22,12 +22,12 @@ const PAD_TOP = "pt-safe-6";
 /** The top padding of a preview page, which also clears the "Preview" badge fixed above it. */
 export const PREVIEW_PAD_TOP = "pt-[calc(3.25rem+env(safe-area-inset-top))]";
 
-export function BrandFrameView({ branding: b, eyebrow, children, width = "max-w-sm", fixedBackdrop = true, padTop = PAD_TOP, className }: { branding: Branding; eyebrow: string; children: ReactNode; width?: string; fixedBackdrop?: boolean; /** Replaces the top padding (a class list merges nothing here). */ padTop?: string; className?: string }) {
+export function BrandFrameView({ branding: b, eyebrow, children, width = "max-w-sm", fixedBackdrop = true, padTop = PAD_TOP, stickyInside = false, className }: { branding: Branding; eyebrow: string; children: ReactNode; width?: string; fixedBackdrop?: boolean; /** Replaces the top padding (a class list merges nothing here). */ padTop?: string; /** Something inside sticks to the window (Privacy's table of contents): the frame clips sideways without becoming a scroll box. */ stickyInside?: boolean; className?: string }) {
   const themeCss = brandThemeCss(b);
   const background = backgroundSrc(b);
   const logo = logoSrc(b);
   return (
-    <main className={cn("relative isolate flex min-h-dvh flex-col overflow-x-hidden px-4 pb-safe-6 sm:px-6", padTop, className)} data-testid="brand-frame">
+    <main className={cn("relative isolate flex min-h-dvh flex-col px-4 pb-safe-6 sm:px-6", stickyInside ? "overflow-x-clip" : "overflow-x-hidden", padTop, className)} data-testid="brand-frame">
       {themeCss ? <style dangerouslySetInnerHTML={{ __html: themeCss }} /> : null}
       <div aria-hidden className={cn(fixedBackdrop ? "fixed" : "absolute", "inset-0 -z-10 overflow-hidden bg-bg")} data-testid="brand-frame-backdrop">
         {background ? (

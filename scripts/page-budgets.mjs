@@ -51,6 +51,23 @@ export const PAGES = {
   intel: { path: "/resources/matchups" },
   resources: { path: "/resources" },
   settings: { path: "/settings" },
+  // S8a's audit of the pages stage 0 did not cover. `cookies`: a visitor without an account (the
+  // local guest cookie) or one of the in-memory demo's viewers (server/auth/demo-viewer.ts: a member
+  // with a player profile, or the demo's members in their first sign-in). `then`: what is opened on
+  // the page before it is measured. `requires`: a deployment setting the CI demo does not set (the
+  // page answers 404 without it), measured only in the full matrix on a server started with it.
+  login: { path: "/login", cookies: { uniiverse_guest: "1" } },
+  recover: { path: "/recover", cookies: { uniiverse_guest: "1" } },
+  privacy: { path: "/privacy", cookies: { uniiverse_guest: "1" } },
+  "no-access": { path: "/no-access" },
+  public: { path: "/public", cookies: { uniiverse_guest: "1" } },
+  "public-lb": { path: "/public/leaderboards", cookies: { uniiverse_guest: "1" }, requires: "UNIIVERSE_PUBLIC_RIOT_DATA" },
+  "welcome-password": { path: "/welcome", cookies: { uniiverse_demo_viewer: "newcomer" } },
+  "welcome-setup": { path: "/welcome", cookies: { uniiverse_demo_viewer: "halfway" } },
+  personalise: { path: "/welcome/personalise", cookies: { uniiverse_demo_viewer: "member" } },
+  "own-overview": { path: "/overview", cookies: { uniiverse_demo_viewer: "member" } },
+  "own-history": { path: "/overview/matches", cookies: { uniiverse_demo_viewer: "member" } },
+  studio: { path: "/players/{player}", then: "studio" },
   "a-dash": { data: true, path: "/admin", admin: true },
   "a-people": { data: true, path: "/admin/people", admin: true },
   "a-branding": { path: "/admin/branding", admin: true },
@@ -140,11 +157,29 @@ export async function measure(page) {
 export async function openAndMeasure(page, base, key, playerId) {
   const p = PAGES[key];
   const path = p.path.replace("{player}", playerId ?? "");
-  await page.goto(`${base}${path}`, { waitUntil: "load" });
+  // Each page's own visitor: the cookies of the page before are taken away first.
+  const ctx = page.context();
+  for (const name of VISITOR_COOKIES) await ctx.clearCookies({ name });
+  if (p.cookies) await ctx.addCookies(Object.entries(p.cookies).map(([name, value]) => ({ name, value, url: base })));
+  const res = await page.goto(`${base}${path}`, { waitUntil: "load" });
+  if (p.requires && res?.status() === 404) throw new Error(`needs ${p.requires}=true on the server`);
   await page.waitForLoadState("networkidle").catch(() => {});
   await page.evaluate(() => document.fonts.ready);
+  if (p.then) await OPEN[p.then](page);
   return measure(page);
 }
+
+const VISITOR_COOKIES = ["uniiverse_guest", "uniiverse_demo_viewer"];
+
+/** What a page's `then` opens before it is measured. */
+const OPEN = {
+  // Card Studio, from the profile's header (the demo's viewer, the Owner, may edit any card).
+  studio: async (page) => {
+    await page.locator("[data-testid=profile-header] [data-testid=customise-card]").first().click();
+    await page.locator("[data-testid=card-studio]").waitFor();
+    await page.waitForTimeout(400);
+  },
+};
 
 /** A figure over its ceiling (ceilings: e2e/page-budgets.json). Sideways overflow has no ceiling but 0. */
 export function overBudget(figures, ceiling, { height = true } = {}) {

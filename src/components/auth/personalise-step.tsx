@@ -1,5 +1,7 @@
 "use client";
 
+import { PAGE_TITLE } from "@/components/ui/page-header";
+import { cn } from "@/lib/cn";
 import Link from "next/link";
 import { ArrowLeft, Camera, Paintbrush } from "lucide-react";
 import type { CardLook } from "@/domain/card-style";
@@ -46,7 +48,7 @@ export function PersonaliseStep({ card, champions, customised, social = null, pr
   const { productName } = useBrandNames();
   return (
     <div data-testid="personalise-step">
-      <h1 className="mt-1 text-xl font-bold tracking-wordmark">Make it yours</h1>
+      <h1 className={cn("mt-1", PAGE_TITLE)}>Make it yours</h1>
       <p className="mt-2 text-sm text-fg-muted">Optional: add a picture, style your card and add your social links. You can skip this and do it any time from My Profile or Settings.</p>
       <SetupSteps current="personalise" />
       <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1fr)_18rem] lg:gap-6">
@@ -109,11 +111,11 @@ export function PersonaliseStep({ card, champions, customised, social = null, pr
               </Link>
             )}
             {preview ? (
-              <Button type="button" variant="primary" size="lg" className="flex-1" onClick={onPreviewDone} data-testid="personalise-done">
+              <Button type="button" variant="primary" size="lg" wrap className="min-w-0 flex-1 max-sm:min-h-11" onClick={onPreviewDone} data-testid="personalise-done">
                 Skip for now
               </Button>
             ) : (
-              <Link href="/" className={buttonClass("primary", "lg", "flex-1")} data-testid="personalise-done">
+              <Link href="/" className={buttonClass("primary", "lg", "min-w-0 flex-1 max-sm:h-auto max-sm:min-h-11 max-sm:whitespace-normal max-sm:py-2 max-sm:text-center")} data-testid="personalise-done">
                 {customised ? `Done: open ${productName}` : "Skip for now"}
               </Link>
             )}

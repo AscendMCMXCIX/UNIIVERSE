@@ -275,7 +275,7 @@ export function PreviewContent({ playerId, isOwn, card, otherRoles, vs, champ, d
           {arranged.listed.length > 1 && !arranged.noneEstablished ? (
             <div role="group" aria-label="Sort the opponents" className="inline-flex rounded-md border border-border bg-bg-elevated p-0.5 text-xs">
               {OPPONENT_SORTS.map((s) => (
-                <button key={s.key} type="button" aria-pressed={sort === s.key} onClick={() => setSort(s.key)} className={cn("rounded px-2 py-1 font-medium transition-colors", sort === s.key ? "bg-surface-3 text-fg" : "text-fg-muted hover:text-fg")} data-testid={`opponent-sort-${s.key}`}>
+                <button key={s.key} type="button" aria-pressed={sort === s.key} onClick={() => setSort(s.key)} className={cn("rounded px-2 py-1 font-medium transition-colors pointer-coarse:min-h-11 pointer-coarse:min-w-11", sort === s.key ? "bg-surface-3 text-fg" : "text-fg-muted hover:text-fg")} data-testid={`opponent-sort-${s.key}`}>
                   {s.label}
                 </button>
               ))}
