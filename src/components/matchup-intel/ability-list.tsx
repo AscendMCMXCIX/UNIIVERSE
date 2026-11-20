@@ -350,16 +350,15 @@ function AbilityTile({ intel, ability: a, checkedPatch, dataPatch, notRecheckedF
           {/* At the haste chosen in the bar (none at 0): a line of its own, so the base line never moves. */}
           <HasteLine basis={a.haste} />
         </div>
-        {/* The badge on the row of the notes it qualifies, first under the name's row, before the facts it
-            flags (beside the name it pushed the cooldown to a row of its own, which the Production
-            check's pair could not spare at 1440 × 900). */}
-        {flagged ? (
-          <div className="text-xs font-medium text-warn">
-            <span className="mr-1.5 inline-flex align-top">
-              <ChangedBadge />
-            </span>
-            {flaggedNotesWords(checkedPatch, a.changes)}
-          </div>
+        {/* Once Riot changed the ability: its badge first under the name's row, before the facts it flags,
+            leading their row (a row of its own where there are none); beside the name it pushed the cooldown
+            to a row of its own. The flagged notes themselves are in the Details window, one step away
+            (Release 10: on the tile they put the Production check's pair past the 1440 × 900 and
+            1280 × 800 fits with an enemy ability changed; docs/MATCHUP_INTEL.md). */}
+        {flagged && !chips.length ? (
+          <span className="flex" data-testid="ability-changed-badge">
+            <ChangedBadge />
+          </span>
         ) : null}
         {chips.length ? (
           // Rows of chips with no gap between them: each chip is its badge's own box (fact-chip.tsx), so
@@ -367,6 +366,11 @@ function AbilityTile({ intel, ability: a, checkedPatch, dataPatch, notRecheckedF
           // apart that no chip's 44px area covers another (CHIP_ROWS), and 12px under the key's line,
           // so none covers the Details button there.
           <ul className={cn("flex flex-wrap pointer-coarse:mt-3", CHIP_ROWS)} aria-label={`What ${a.name} does`} data-testid="ability-facts" data-from={from}>
+            {flagged ? (
+              <li className="flex items-center" role="presentation" data-testid="ability-changed-badge">
+                <ChangedBadge />
+              </li>
+            ) : null}
             {chips.map((c, i) => (
               <li key={`${c.layer}-${c.layer === "checked" ? c.word : c.layer === "riot-text" ? c.kind : "differ"}-${i}`} data-tags={c.layer === "checked" ? (c.tags.length ? c.tags.join(" ") : undefined) : c.layer === "riot-text" ? c.kind : undefined} data-differ={c.layer === "riot-text-differ" ? `${c.disagreement.description.kind} ${c.disagreement.tooltip.kind}` : undefined}>
                 <FactChipView chip={c} champion={champion.name} ability={a.name} />

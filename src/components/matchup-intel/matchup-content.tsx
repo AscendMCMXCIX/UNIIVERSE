@@ -164,6 +164,12 @@ export function MatchupContent({ view, champions, curated, legal, evidence = nul
               <AbilitiesPanel intel={enemyIntel} title={mirror ? `${enemyIntel.champion.name}'s abilities (both sides)` : `${enemyIntel.champion.name}'s abilities`} testId="matchup-enemy-abilities" notice={stale} haste foldSources={!!enemy2Intel} />
               {enemy2Intel ? <AbilitiesPanel intel={enemy2Intel} title={`${enemy2Intel.champion.name}'s abilities`} testId="matchup-enemy2-abilities" foldSources /> : null}
             </div>
+            {/* The sources and notices, directly under the enemy's kits: on a desktop (two columns) so the
+                first screen keeps them in every state of the briefing, whatever the left column holds
+                (Release 10: with an enemy ability changed, the briefing's notes put them under the fold at
+                1440 × 900). In one column too, in the same place: the order read and tabbed through is
+                the order seen (a visual reorder took the focus to the page's foot and back up). */}
+            <MatchupFooter view={view} legal={legal} />
             {duo ? null : yours}
             {/* Riot's tips and the evidence from the team's games: one folded line under the kits, so the one-screen fit holds. */}
             {tips}
@@ -171,7 +177,7 @@ export function MatchupContent({ view, champions, curated, legal, evidence = nul
         </div>
       ) : null}
 
-      <MatchupFooter view={view} legal={legal} />
+      {enemyIntel ? null : <MatchupFooter view={view} legal={legal} />}
     </div>
   );
 }

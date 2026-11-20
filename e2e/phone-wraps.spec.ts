@@ -36,7 +36,7 @@ test("Resources: a title wraps rather than being cut", async ({ page }) => {
   await expect(page.getByTestId("resource-title").filter({ hasText: "League of Legends Wiki" })).toBeVisible();
 });
 
-test("at 200% text on a 320px phone, and at 175% and 200% from 768 to 1440, Settings for a member with a player profile (its Social links too) is no wider than the window, and no button spills its label", async ({ browser, page }) => {
+test("at 200% text on a 320px phone, and at 100–200% from 768 to 2560, Settings for a member with a player profile (its Social links too) is no wider than the window, and no button spills its label", async ({ browser, page }) => {
   // A member with a profile sees Social links, which the local owner (no profile) does not.
   const member = await memberContext(browser, page, { width: 320, height: 568 }, { base: "Wide" });
   try {
@@ -50,8 +50,9 @@ test("at 200% text on a 320px phone, and at 175% and 200% from 768 to 1440, Sett
     // Tablets and desktops at 175% and 200%: the account column no wider than 40% of the page and the
     // password panel's buttons wrapping, nothing scrolls sideways (Release 7's report: "Sign out of
     // other devices" ran 87–235px past the window at 1280 and 1440).
-    for (const width of [768, 1024, 1280, 1440]) {
-      for (const size of [175, 200]) {
+    // From 100% to 200% and up to 2560 (Release 10's acceptance: never sideways at 320–2560, 100–200%).
+    for (const width of [768, 1024, 1280, 1440, 1920, 2560]) {
+      for (const size of [100, 150, 175, 200]) {
         await member.page.setViewportSize({ width, height: 900 });
         await member.page.addStyleTag({ content: `html { font-size: ${size}% !important; }` });
         await expect.poll(() => member.page.evaluate(() => document.documentElement.scrollWidth), { message: `${width}px at ${size}%: the page as wide as the window` }).toBeLessThanOrEqual(width);

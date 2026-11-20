@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { curatedEnemiesFor, getChampionNotes } from "./curated";
+import { MIN_GAME_SECONDS } from "./evidence";
 
 /*
   Matchup Intel's curation priorities, for Admin only (Data & Integrations; PLAN S11, OD6): the
@@ -9,7 +10,8 @@ import { curatedEnemiesFor, getChampionNotes } from "./curated";
   notes or a curated pair. Champion names and counts only: never whose pool a cell came from. With a
   handful of profiles a role's cells can point at one person, so the figures stay on Admin's page:
   never in a log, a job's output, /api/health, the Production check or the repository's docs.
-  Team members only, as the evidence rules count them: no personal-use or archived profile.
+  Team members only, as the evidence rules count them: no personal-use or archived profile; and games
+  as the evidence counts them: a result known, no remake.
 */
 
 /** The roles in the order the panel lists them: the lanes without checked notes first, top lane last. */
@@ -32,6 +34,8 @@ export async function curationPriorities(db: Db): Promise<CurationRole[]> {
       SELECT am.role, am.champion_id, count(*) AS n FROM account_matches am
       JOIN riot_accounts ra ON ra.id = am.account_id AND ra.owner_type = 'player'
       JOIN players p ON p.id = ra.player_id AND ${MEMBER}
+      -- A game counts as the evidence counts one (evidence.ts): a result known, and not a remake.
+      WHERE am.win IS NOT NULL AND am.game_duration >= ${MIN_GAME_SECONDS}
       GROUP BY am.role, am.champion_id
     )
     SELECT c.role, c.champion_id, coalesce(ch.name, c.champion_id) AS name, coalesce(g.n, 0) AS games

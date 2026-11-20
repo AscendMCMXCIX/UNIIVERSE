@@ -328,6 +328,8 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
   // Opened from Overview's multikills (?sort=multikills) or any other link with a sort: that order first.
   const initialSort = useSearchParams().get("sort");
   const [sort, setSort] = React.useState<{ key: SortKey; dir: Dir }>(() => (isSortKey(initialSort) ? { key: initialSort, dir: defaultDir(initialSort) } : { key: "games", dir: "desc" }));
+  // A filter changed keeps the sort the address held (Overview's ?sort=multikills): the address keeps every choice it had.
+  const keep = React.useMemo(() => (isSortKey(initialSort) ? { sort: initialSort } : undefined), [initialSort]);
   const [all, setAll] = React.useState(false);
   // Phones: Filters (the bar's own button, drawn here) and Refresh join the search and sort row
   // instead of a row of their own above the scope line (PLAN §S2b). Before the page knows it is a
@@ -554,8 +556,9 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
                       would shorten before "In pool" moves, though the column leaves room for both). */}
                   <span className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-fg-subtle @min-[44rem]:flex-nowrap" data-testid="champion-role-line">
                     <RoleTag role={c.role} className="min-w-0" />
+                    {/* Kept on one line, except in a list under 17rem (a large text size), where it wraps inside the phone. */}
                     {narrowFigure ? (
-                      <span className="shrink-0 whitespace-nowrap font-medium text-fg-muted @min-[44rem]:hidden" data-testid="champion-sorted-figure">
+                      <span className="shrink-0 whitespace-nowrap font-medium text-fg-muted @max-[17rem]:min-w-0 @max-[17rem]:shrink @max-[17rem]:whitespace-normal @max-[17rem]:[overflow-wrap:anywhere] @min-[44rem]:hidden" data-testid="champion-sorted-figure">
                         · {narrowFigure.label} {narrowFigure.value}
                       </span>
                     ) : null}
@@ -642,7 +645,7 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
         status={status ? <DataStatusNote status={status} refresh={refresh} /> : null}
         // Below sm Refresh is in the list's row (with Filters); its place here is drawn from sm only.
         refresh={status && !(phone && toolsInRow) ? <RefreshButton status={status} refresh={refresh} className={toolsInRow ? "max-sm:hidden" : undefined} /> : null}
-        controls={<OverviewFilters basePath={basePath} filter={f} seasons={data.seasons} currentSeason={data.currentSeason} champions={[]} accounts={data.accountOptions} showChampions={false} modeCounts={data.modes.counts} testId="all-champions-filters" toggleOnPhones={toggleOnPhones} />}
+        controls={<OverviewFilters basePath={basePath} filter={f} seasons={data.seasons} currentSeason={data.currentSeason} champions={[]} accounts={data.accountOptions} showChampions={false} modeCounts={data.modes.counts} testId="all-champions-filters" toggleOnPhones={toggleOnPhones} keep={keep} />}
       />
       <PageToolbar anchor={searchRef} label="All Champions controls" land="[data-testid=top-champion]">
         <SearchInput value={query} onChange={setQuery} placeholder="Find a champion…" label="Find a champion or a role" className={COMPACT_SEARCH} testId="toolbar-all-champions-search" />
@@ -658,11 +661,12 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
           // the count and the bar's key, wrapping only if a larger text size leaves no room.
           // Phones (below sm): the search and Filters (and Refresh, where it is offered) keep together,
           // and Sort by joins them where the row has room (8.5rem for the search and Filters: the
-          // search then shows its short placeholder "Find…" whole, from a 375px phone), else takes the next line; the search keeps
+          // search then shows its short placeholder "Find…" whole, from a 375px phone, its padding there 4px
+          // less beside the icon and 6px at the end while empty: 52px of room for the word's 47), else takes the next line; the search keeps
           // at least 4.5rem and the tools take the line under it only when it would not (a large text size).
           <div ref={toolbarRef} className="flex flex-wrap items-center gap-2 border-b border-border/70 px-3 py-2.5 sm:@min-[20.5rem]:flex-nowrap @min-[44rem]:flex-wrap @min-[76rem]:px-4" data-testid="all-champions-toolbar">
             <div className={cn("flex min-w-0 flex-[1_1_12rem] flex-wrap items-center gap-2 max-sm:flex-[1_1_0%] @min-[44rem]:max-w-xs", refreshHere ? "max-sm:min-w-[min(11.75rem,100%)]" : "max-sm:min-w-[min(8.5rem,100%)]")}>
-              <SearchInput ref={searchRef} value={query} onChange={setQuery} placeholder={phone ? "Find…" : "Find a champion or role…"} label="Find a champion or a role" className="flex-[1_1_4.5rem]" testId="all-champions-search" />
+              <SearchInput ref={searchRef} value={query} onChange={setQuery} placeholder={phone ? "Find…" : "Find a champion or role…"} label="Find a champion or a role" className="flex-[1_1_4.5rem] max-sm:[&_input]:pl-8 max-sm:[&_input:placeholder-shown]:pr-1.5" testId="all-champions-search" />
               {toolsBesideSort ? null : phoneTools}
             </div>
             <span className="ml-auto hidden text-xs tabular-nums text-fg-subtle @min-[44rem]:inline" aria-live="polite" data-testid="all-champions-count">
