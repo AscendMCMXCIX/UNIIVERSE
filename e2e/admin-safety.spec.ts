@@ -57,6 +57,13 @@ async function ownerJobs(page: Page, size: string) {
   await openDetails(details);
   // Matchup Intel's static-data diff, beside the datasets: none recorded yet, or the patch the demo read from Data Dragon with its counts (static-diff.test.ts has every state).
   await expect(details.getByTestId("static-diff").getByTestId("static-diff-line").first()).toHaveText(/^(No patch recorded yet\.|\d+\.\d+ recorded: [\d,]+ champions?, [\d,]+ items?, [\d,]+ runes?\.)$/);
+  // Matchup Intel's curation priorities: per role, the lanes without checked notes first and Top last;
+  // champion names and counts only, never a member's name (the demo's players are "Demo …").
+  const curation = details.getByTestId("curation-priorities");
+  await expect(curation.getByTestId("curation-role")).toHaveCount(5);
+  expect(await curation.getByTestId("curation-role").evaluateAll((els) => els.map((e) => e.getAttribute("data-role")))).toEqual(["JUNGLE", "MID", "ADC", "SUPPORT", "TOP"]);
+  await expect(curation.getByTestId("curation-cell")).not.toHaveCount(0);
+  await expect(curation).not.toContainText("Demo");
   const panel = page.getByTestId("jobs-panel");
   // Checks and Refresh in view, each with its button; the costly reads say so.
   await expect(panel.getByTestId("jobs-checks").getByTestId("job-row")).not.toHaveCount(0);

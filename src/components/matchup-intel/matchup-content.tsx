@@ -150,6 +150,12 @@ export function MatchupContent({ view, champions, curated, legal, evidence = nul
               <AbilitiesPanel intel={enemyIntel} title={mirror ? `${enemyIntel.champion.name}'s abilities (both sides)` : `${enemyIntel.champion.name}'s abilities`} testId="matchup-enemy-abilities" notice={stale} haste />
               {enemy2Intel ? <AbilitiesPanel intel={enemy2Intel} title={`${enemy2Intel.champion.name}'s abilities`} testId="matchup-enemy2-abilities" /> : null}
             </div>
+            {/* The sources and notices, directly under the enemy's kits: on a desktop (two columns) so the
+                first screen keeps them in every state of the briefing, whatever the left column holds
+                (Release 10: with an enemy ability changed, the briefing's notes put them under the fold at
+                1440 × 900). In one column too, in the same place: the order read and tabbed through is
+                the order seen (a visual reorder took the focus to the page's foot and back up). */}
+            <MatchupFooter view={view} legal={legal} />
             {/* Your duo's two kits side by side under the enemies' where the column has room. */}
             {(yourIntel && !mirror) || allyIntel ? (
               <div className={duo && allyIntel && yourIntel && !mirror ? "grid gap-3 @min-[60rem]/dash:grid-cols-2 @min-[60rem]/dash:items-start" : undefined}>
@@ -163,7 +169,7 @@ export function MatchupContent({ view, champions, curated, legal, evidence = nul
         </div>
       ) : null}
 
-      <MatchupFooter view={view} legal={legal} />
+      {enemyIntel ? null : <MatchupFooter view={view} legal={legal} />}
     </div>
   );
 }

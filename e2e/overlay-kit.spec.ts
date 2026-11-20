@@ -337,7 +337,7 @@ test("phone 320 × 568, 375 × 667 and sideways 568 × 320 at 100, 150 and 200% 
             const off = [...controls.querySelectorAll<HTMLElement>("button, a[href]")].filter((b) => { const r = b.getBoundingClientRect(); return r.left < -0.5 || r.right > vw + 0.5; }).map((b) => b.getAttribute("aria-label") ?? b.textContent ?? "");
             depths.push({ depth, scrolled: Math.round(scroller.scrollTop), frame: Math.round(frame), off });
           }
-          return { depths, range: scroller.scrollHeight - scroller.clientHeight, plain: !d.querySelector("[data-testid=modal-compact-bar]") };
+          return { depths, range: scroller.scrollHeight - scroller.clientHeight, plain: !d.querySelector("[data-testid=modal-compact-bar]"), top: Math.max(0, Math.round(d.getBoundingClientRect().top)) };
         });
         const at = `${w.name} at ${width} × ${height}, ${size}%`;
         // A body with room to scroll is scrolled: the frame rule is never skipped for want of a scroll.
@@ -346,6 +346,9 @@ test("phone 320 × 568, 375 × 667 and sideways 568 × 320 at 100, 150 and 200% 
           expect(d.off, `${at}, ${d.scrolled}px down: controls on the screen`).toEqual([]);
           // A body too short to scroll 100px leaves its header as it is: nothing to give back.
           if (d.scrolled >= 100) expect(d.frame, `${at}, ${d.scrolled}px down: the frame`).toBeLessThanOrEqual(height * 0.25);
+          // A window that collapses to the compact bar keeps it at 56px at every text size (measured at most
+          // 60 with its edge; in rem it was 112px at 200%), not merely under 25%.
+          if (d.scrolled >= 100 && !m.plain) expect(d.frame - m.top, `${at}, ${d.scrolled}px down: the 56px bar`).toBeLessThanOrEqual(61);
         }
         plain = m.plain;
       }

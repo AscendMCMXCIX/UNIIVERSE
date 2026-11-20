@@ -47,7 +47,7 @@ import { unchangedKeys } from "./digests";
 const ROLE_LANE: Record<Role, PrepLane> = { top: "TOP", jungle: "JUNGLE", mid: "MIDDLE", adc: "BOTTOM", support: "UTILITY" };
 const CACHE_MS = 60 * 60_000;
 /** Shorter games are remakes, as Matchups and the timeline backfill count them (MIN_LANE_GAME_SECONDS). */
-const MIN_GAME_SECONDS = 300;
+export const MIN_GAME_SECONDS = 300;
 const queueList = sql.raw(RIFT_QUEUES.join(", "));
 const rowsOf = <T,>(result: unknown): T[] => ((result as { rows?: T[] }).rows ?? (result as T[])) as T[];
 

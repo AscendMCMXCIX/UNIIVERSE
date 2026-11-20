@@ -112,8 +112,9 @@ On a desktop the page is one screen, read in a glance (`matchup-content.tsx`, `m
 - **Right**, the enemy's five ability tiles, P, Q, W, E and R, always in that order (The ability
   tiles), then your champion, folded into one line ("Your champion: Riven", where its abilities and
   facts come from under it); opened, its own five tiles.
-- **At the foot**, across both columns, "Sources and notices": one line that is always on the
-  screen, its summary visible, the rest one press away (Compliance).
+- **"Sources and notices"**: directly under the enemy's kits (since Release 10; before, at the foot
+  across both columns), in one column as in two, so the order read and tabbed through is the order
+  seen; one line that is always on the screen, its summary visible, the rest one press away (Compliance).
 
 The two columns start where the page's body is 60rem wide (a container query on the dashboard; the
 right one at least 22rem and 0.72 of the left), each as tall as its content: nothing is stretched to
@@ -953,7 +954,8 @@ the timeline keeps sales. Still not built:
   - the data held is older than the check: a difference is the data's age, not Riot's change, so
     this too is said only as "Checked on patch N", and the notes stay the line;
   - something compared changed after the check: "changed since". The ability's line is then only
-    what Riot's data supports (Cooldowns, below), and its notes follow under "Notes from patch
+    what Riot's data supports (Cooldowns, below), the tile carries the badge "Changed since the
+    check", and its notes follow in the ability's Details window (since Release 10) under "Notes from patch
     26.22 · may be out of date: Riot changed its cooldown since", their cooldown as checked
     included ("As checked: 16 / 14 / 12 / 10 / 8 s · starts when the effect ends"). The champion's
     line says how many changed ("Riot changed one ability after the check: its notes are
@@ -1542,17 +1544,26 @@ Matchup Intel page added to it would need `DDRAGON_VERSION` passed as well.
   earlier (Indestructible's, +16px). Measured on the demo (1440 × 900 summary, 1280 × 800 lowest enemy
   cooldown line), before → after, Chromium 153 / Chrome 156 after: nothing changed 873 → 848 / 851,
   761 → 725; Riven's Q or E changed 907 → 868 / 883 (17px to spare in 156); W or R 891 → 861 / 867.
-- **Known gap: an enemy ability changed.** With one of the enemy's abilities changed, its tile carries
-  its flagged notes, the panel's heading a warning and the briefing a hidden point, and the pair is
-  taller in both columns than 1440 × 900 leaves: with Mordekaiser's Q changed, the page 1112px tall
-  before, the sources' summary at 929px (153) / 941px (156) after, and the lowest enemy cooldown line
-  at 1280 × 800 958 → 829px (Release 10's layout; the five tiles stay on the screen, 883 → 753 /
-  769px, and 1920 × 1080 keeps one screen). No layout that
-  keeps every word on the first screen makes up the 30–40px in each column; the owner may choose
-  (PLAN OD20) between the sources' summary under the enemy's tiles on a desktop, or the flagged notes
-  in the ability's Details window only (the badge staying on the tile). The spec holds what holds
-  there: the tiles at 1440 × 900 and one screen at 1920 × 1080. The Production check does not judge
-  the fit in that state ("not judged in this state"), so production would not fail on it.
+- **An enemy ability changed (Release 10's integration).** With one of the enemy's abilities changed,
+  its tile carries its "Changed since the check" badge, the panel's heading a warning and the briefing
+  a hidden point. Two layout changes (no word, notice or attribution removed) make the Production
+  check's fit facts hold in that state too:
+  - the flagged notes ("Notes from patch 26.21 · may be out of date: Riot changed its cooldown since",
+    the cooldown as checked and its parts) are in the ability's Details window only, one step away
+    (DESIGN_SYSTEM §1); the badge stays on the tile, leading the row of the facts it flags (a row of
+    its own where there are none), and the cooldown's source stays under its numbers. Same for the
+    player's own tiles;
+  - the sources and notices sit directly under the enemy's kits, so a desktop's first screen keeps
+    them whatever the left column holds (the briefing's hidden point and the interactions' "changed"
+    badge put them under the fold at 1440 × 900 before: no layout of the tile alone could make that
+    up); in one column in the same place, before your champion and Riot's tips (a visual reorder to
+    the page's foot took the keyboard's focus there and back up, which the review found).
+  Measured in Chrome Headless Shell 156 (CI's browser) on the demo, Riven vs Mordekaiser, before →
+  after: Mordekaiser's Q changed, the sources' summary at 1440 × 900 941 → 796px and the lowest enemy
+  cooldown line at 1280 × 800 829 → 790px; W 764 / 756; R 796 / 771; nothing changed 851 → 745px,
+  725px; Riven's Q 883 → 761px, 741px. `matchup-intel-dashboard.spec.ts` judges the 1440 × 900 and
+  1920 × 1080 facts and the 1280 × 800 cooldown lines for the enemy's ability as for the player's, and
+  opens the flagged ability's Details window for its notes; it failed before (941px, no badge on the tile).
 - **Too old (three patches).** The notes' age of three hides the briefing on purpose ("This briefing
   is hidden: it was checked on patch 26.19, three patches ago, and not since"), and the assembled
   reference stands in its place; the Production check does not judge the fit then. Measured at

@@ -46,8 +46,9 @@ async function account(playerId: string) {
   const [row] = await handle.db.insert(riotAccounts).values({ ownerType: "player", playerId, gameName: puuid, tagLine: "TEST", platform: "oc1", puuid, label: "main" }).returning({ id: riotAccounts.id });
   return row!.id;
 }
-async function games(accountId: string, role: string, championId: string, count: number) {
-  await handle.db.insert(accountMatches).values(Array.from({ length: count }, (_, i) => ({ accountId, matchId: `OC1_${accountId.slice(0, 8)}_${role}_${championId}_${i}`, gameCreation: 1_700_000_000_000 + i, queueId: 420, championId, role, win: true })));
+async function games(accountId: string, role: string, championId: string, count: number, game: { win?: boolean | null; gameDuration?: number; tag?: string } = {}) {
+  const { win = true, gameDuration = 1800, tag = "" } = game;
+  await handle.db.insert(accountMatches).values(Array.from({ length: count }, (_, i) => ({ accountId, matchId: `OC1_${accountId.slice(0, 8)}_${role}_${championId}${tag}_${i}`, gameCreation: 1_700_000_000_000 + i, queueId: 420, championId, role, win, gameDuration })));
 }
 
 const saved = { auth: process.env.UNIIVERSE_REQUIRE_AUTH, url: process.env.DATABASE_URL, secret: process.env.UNIIVERSE_AUTH_SECRET };
@@ -73,6 +74,9 @@ beforeAll(async () => {
   const m = await account(mid);
   await games(j, "JUNGLE", "Viego", 3);
   await games(j, "JUNGLE", "Lillia", 1);
+  // Remakes (under 5 minutes) and games with no known result count as the evidence counts them: not at all.
+  await games(j, "JUNGLE", "Viego", 6, { gameDuration: 200, tag: "remake" });
+  await games(j, "JUNGLE", "Viego", 6, { win: null, tag: "unknown" });
   await games(m, "JUNGLE", "Lillia", 4);
   // Ahri played in another role is not Ahri mid.
   await games(m, "MID", "Ahri", 2);
@@ -94,7 +98,7 @@ describe("Matchup Intel's curation priorities", () => {
     expect(roles.map((r) => r.role)).toEqual([...CURATION_ROLE_ORDER]);
     expect(CURATION_ROLE_ORDER[CURATION_ROLE_ORDER.length - 1]).toBe("TOP");
     const by = Object.fromEntries(roles.map((r) => [r.role, r.cells.map((c) => [c.championId, c.games])]));
-    // Lillia: one cell from two pools, 1 + 4 games; ahead of Viego's 3 (the personal-use profile's 50 left out).
+    // Lillia: one cell from two pools, 1 + 4 games; ahead of Viego's 3 (the personal-use profile's 50, and the remakes and unknown results, left out).
     expect(by.JUNGLE).toEqual([["Lillia", 5], ["Viego", 3]]);
     expect(by.MID).toEqual([["Ahri", 2]]);
     // The personal-use profile's Thresh and the archived profile's Jinx are no cells.
