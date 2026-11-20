@@ -33,9 +33,12 @@ export function TierBadge({ tier, label, why, evidence, compact = false, quiet =
           </>
         }
       >
-        {/* On one line wherever it fits; in a row too narrow for it (a pool on a 320px phone at 200% text,
-            where it ran past the screen's edge) its words wrap, the mark staying with the first. */}
-        <span className={cn("inline-flex items-baseline gap-1 text-xs font-medium", TIER_TEXT[tier])} data-tier={tier}>
+        {/* On one line; in a phone's pool row (under 24rem: from a 320px phone at 200% text, where it ran
+            past the screen's edge, to a 375px one at 125%, where it lay over the figures) its words wrap,
+            the mark staying with the first. Not in the desktop Peek's (28rem): wrapping there, where one
+            line fits, narrowed its column and made the rows two and three lines tall (Demo Mid's Peek
+            scrolled 11px at 1440 × 900, Release 10's integration). */}
+        <span className={cn("inline-flex items-baseline gap-1 whitespace-nowrap text-xs font-medium @max-[24rem]/pool:whitespace-normal", TIER_TEXT[tier])} data-tier={tier}>
           <span aria-hidden className="text-2xs">
             {TIER_MARK[tier]}
           </span>
