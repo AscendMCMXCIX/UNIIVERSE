@@ -39,12 +39,14 @@ export function abilityNames(refs: readonly AbilityRef[], names: ReadonlyMap<str
 /** Why a part is hidden, in its place: the words, and the changed abilities as chips to their tiles. */
 export function HiddenNote({ words, changed, names, rows, testId }: { words: string; changed: readonly AbilityRef[]; names: ReadonlyMap<string, string>; rows?: ReadonlySet<string>; testId: string }) {
   return (
-    <div className="space-y-1" data-testid={testId}>
-      <p className="flex items-start gap-1.5 text-sm text-fg-muted">
-        <History className="mt-0.5 h-4 w-4 shrink-0 text-warn" aria-hidden />
-        <span>{words}</span>
-      </p>
-      <AbilityChips refs={changed} names={names} rows={rows} label="Changed since the check" />
+    // The chips follow the words on their last line, as a point's chips do (a line of their own made
+    // the briefing a row taller, which the Production check's pair could not spare at 1440 × 900).
+    <div className="flex items-start gap-1.5 text-sm text-fg-muted" data-testid={testId}>
+      <History className="mt-0.5 h-4 w-4 shrink-0 text-warn" aria-hidden />
+      <div className="min-w-0">
+        {words}
+        <AbilityChips refs={changed} names={names} rows={rows} label="Changed since the check" inline />
+      </div>
     </div>
   );
 }

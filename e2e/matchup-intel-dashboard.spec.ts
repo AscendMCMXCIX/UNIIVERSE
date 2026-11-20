@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { expect, test, type Page } from "./test";
 import { E2E_DDRAGON_VERSION } from "./ddragon-version";
-import { choose, enemyAbilities, hydrated, localPictures, notesAge, openMatchupIntel, riotText } from "./matchup-intel";
+import { changedAbilities, choose, enemyAbilities, hydrated, localPictures, notesAge, openMatchupIntel, riotText } from "./matchup-intel";
 import { briefingState, matchupIntelVerdicts, readMatchupIntel } from "../scripts/matchup-intel-facts.mjs";
 import { patchFromVersion, publicPatchName } from "../src/domain/patch";
 import { notRecheckedWords } from "../src/components/matchup-intel/wording";
@@ -260,6 +260,57 @@ test("a patch after the curated notes' check, as production is until they are re
     await frames();
     const maximised = await measure(page);
     expect.soft(maximised.scrollHeight, `${pair} at 1920×950: no vertical page scroll`).toBeLessThanOrEqual(maximised.innerHeight);
+  }
+});
+
+/**
+ * Riot changed one of the Production check's pair's abilities after the curated check (Release 8's
+ * verifier: the one state of the pair CI could not reach; the warnings' extra lines put its sources'
+ * summary 7px under the fold at 1440 x 900). One patch on, as a change comes with a patch. The
+ * player's own abilities (Riven's: the bar's warning where a briefing point rests on one, the folded
+ * champion's warning) and, apart, the enemy's (its tile flagged), where only the tiles and the
+ * 1920 x 1080 screen hold (docs/MATCHUP_INTEL.md, "What the browser tests pin").
+ */
+const CHANGED_OWN = ["Riven.Q", "Riven.W", "Riven.E", "Riven.R"];
+
+test("an ability Riot changed after the curated check, on the Production check's pair: its fit facts hold at 1440×900 (judged as when nothing is hidden), every enemy cooldown line on the screen at 1280×800, no page scroll at 1920×1080; an enemy ability changed: its tiles on the screen at 1440×900, no page scroll at 1920×1080", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "desktop sizes");
+  test.setTimeout(300_000);
+  await localPictures(page);
+  await riotText(page, "off");
+  await notesAge(page, 1);
+  const [you, enemy] = ["Riven", "Mordekaiser"];
+  const frames = () => page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  for (const ref of [...CHANGED_OWN, "Mordekaiser.Q"]) {
+    const pair = `${you} vs ${enemy} (${ref} changed)`;
+    const own = ref.startsWith(`${you}.`);
+    await changedAbilities(page, [ref]);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await openMatchupIntel(page, you, enemy);
+    await hydrated(page);
+    await expect(enemyAbilities(page), pair).toHaveCount(5);
+    // The state: the ability flagged where its tile is (the folded champion's, or the enemy's).
+    const tiles = page.getByTestId(own ? "matchup-your-abilities" : "matchup-enemy-abilities").getByTestId("ability-row");
+    await expect(tiles.and(page.locator(`[data-slot="${ref.split(".")[1]}"]`)), pair).toHaveAttribute("data-freshness", "changed-since");
+    await frames();
+    const at = await page.evaluate(readMatchupIntel);
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    await frames();
+    const wide = await page.evaluate(readMatchupIntel);
+    if (own) {
+      // The Production check judges the fit only while nothing is hidden: judged here as then.
+      const fits = matchupIntelVerdicts({ kind: "desktop", pair, enemy, at: { ...at, hiddenParts: 0 }, wide: { ...wide, hiddenParts: 0 }, wiki: [] }).filter((v) => /^desktop: (1920 × 1080|1440 × 900): /.test(v.name));
+      expect(fits, pair).toHaveLength(2);
+      for (const v of fits) expect.soft(v.status, `${pair}: ${v.name} ${JSON.stringify(v.detail)}`).toBe("PASS");
+      await page.setViewportSize({ width: 1280, height: 800 });
+      await frames();
+      const small = await measure(page);
+      expect.soft(small.parts.cooldowns?.bottom ?? Infinity, `${pair} at 1280×800: every enemy cooldown line on the screen`).toBeLessThanOrEqual(small.innerHeight + 0.5);
+      expect.soft(small.parts.main?.top ?? Infinity, `${pair} at 1280×800: the main panel starts on the screen`).toBeLessThanOrEqual(small.innerHeight / 2);
+    } else {
+      expect.soft(at.tilesBottom, `${pair} at 1440×900: the enemy's five tiles on the screen`).toBeLessThanOrEqual(at.innerHeight);
+      expect.soft(wide.scrollHeight, `${pair} at 1920×1080: no page scroll`).toBeLessThanOrEqual(wide.innerHeight);
+    }
   }
 });
 
