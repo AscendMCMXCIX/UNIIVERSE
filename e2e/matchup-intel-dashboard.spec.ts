@@ -297,20 +297,28 @@ test("an ability Riot changed after the curated check, on the Production check's
     await page.setViewportSize({ width: 1920, height: 1080 });
     await frames();
     const wide = await page.evaluate(readMatchupIntel);
-    if (own) {
-      // The Production check judges the fit only while nothing is hidden: judged here as then.
-      const fits = matchupIntelVerdicts({ kind: "desktop", pair, enemy, at: { ...at, hiddenParts: 0 }, wide: { ...wide, hiddenParts: 0 }, wiki: [] }).filter((v) => /^desktop: (1920 × 1080|1440 × 900): /.test(v.name));
-      expect(fits, pair).toHaveLength(2);
-      for (const v of fits) expect.soft(v.status, `${pair}: ${v.name} ${JSON.stringify(v.detail)}`).toBe("PASS");
-      await page.setViewportSize({ width: 1280, height: 800 });
-      await frames();
-      const small = await measure(page);
-      expect.soft(small.parts.cooldowns?.bottom ?? Infinity, `${pair} at 1280×800: every enemy cooldown line on the screen`).toBeLessThanOrEqual(small.innerHeight + 0.5);
-      expect.soft(small.parts.main?.top ?? Infinity, `${pair} at 1280×800: the main panel starts on the screen`).toBeLessThanOrEqual(small.innerHeight / 2);
-    } else {
-      expect.soft(at.tilesBottom, `${pair} at 1440×900: the enemy's five tiles on the screen`).toBeLessThanOrEqual(at.innerHeight);
-      expect.soft(wide.scrollHeight, `${pair} at 1920×1080: no page scroll`).toBeLessThanOrEqual(wide.innerHeight);
+    // The Production check judges the fit only while nothing is hidden: judged here as then, for the
+    // player's ability and the enemy's alike (Release 10: an enemy ability's flagged notes are in its
+    // Details window, its badge on the tile, so the enemy's column fits as the player's does).
+    const fits = matchupIntelVerdicts({ kind: "desktop", pair, enemy, at: { ...at, hiddenParts: 0 }, wide: { ...wide, hiddenParts: 0 }, wiki: [] }).filter((v) => /^desktop: (1920 × 1080|1440 × 900): /.test(v.name));
+    expect(fits, pair).toHaveLength(2);
+    for (const v of fits) expect.soft(v.status, `${pair}: ${v.name} ${JSON.stringify(v.detail)}`).toBe("PASS");
+    expect.soft(at.tilesBottom, `${pair} at 1440×900: the enemy's five tiles on the screen`).toBeLessThanOrEqual(at.innerHeight);
+    if (!own) {
+      // The flagged notes one step away: the badge on the tile, the notes in its Details window.
+      const tile = tiles.and(page.locator(`[data-slot="${ref.split(".")[1]}"]`));
+      await expect(tile.getByTestId("ability-changed-badge"), pair).toBeVisible();
+      await expect(tile.getByText(/^Notes from patch/), pair).toBeHidden();
+      await tile.getByTestId("ability-details").click();
+      await expect(page.getByTestId("ability-details-body").getByTestId("ability-flagged-notes"), pair).toBeVisible();
+      await page.keyboard.press("Escape");
+      await expect(page.getByTestId("ability-details-body"), pair).toHaveCount(0);
     }
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await frames();
+    const small = await measure(page);
+    expect.soft(small.parts.cooldowns?.bottom ?? Infinity, `${pair} at 1280×800: every enemy cooldown line on the screen`).toBeLessThanOrEqual(small.innerHeight + 0.5);
+    expect.soft(small.parts.main?.top ?? Infinity, `${pair} at 1280×800: the main panel starts on the screen`).toBeLessThanOrEqual(small.innerHeight / 2);
   }
   // The same state at 320 x 568 and twice the text size: the hidden point's chip keeps whole (its icon
   // steps aside), a badge that starts a line of the curated notes' line is not indented, nothing wider.
