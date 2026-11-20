@@ -493,6 +493,12 @@ and the demo seeded; anything else ignores the cookie, unit-tested in `demo-view
   lists do not change. It serves the "your" tests (PLAN §1.12; `e2e/demo-viewer.spec.ts`).
 - `newcomer` and `halfway`: the demo's two members still in their first sign-in (`/welcome`).
 
+Its limits, by design (it changes nothing outside the demo): the `member` viewer's account row is the
+local owner's, so Settings' account panel shows the local owner and its username, display name and
+picture changes land on that row (its profile, pools, card and links are Demo ADC's); a viewer whose
+demo row is missing is signed out, never the local owner; and Sign out does not clear the cookie
+(delete it to return to the local owner).
+
 ### S8a: the pages stage 0 did not audit (20 Nov 2026)
 
 Read-only first, at the mobile audit's setups and the desktop sizes, as stage 0 did: height in

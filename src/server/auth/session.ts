@@ -126,8 +126,8 @@ async function resolveAuthState(db: Db): Promise<AuthState> {
   // demo's members still in their first sign-in.
   const demo = demoViewerFromCookie(store.get(DEMO_VIEWER_COOKIE)?.value);
   if (demo) {
-    const viewer = await demoViewerSession(db, demo);
-    if (viewer) return { mode: "accounts", session: viewer };
+    // A viewer whose demo row is missing is signed out, never the automatic local owner (an administrator).
+    return { mode: "accounts", session: await demoViewerSession(db, demo) };
   }
   // Local development: a browser holding the guest cookie is a visitor without an account (to
   // try the public pages). It can only take access away, so it needs no production guard.
