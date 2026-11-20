@@ -42,7 +42,7 @@ type Breakpoint = "md" | "lg" | "phone";
 
 // Static class strings per breakpoint (Tailwind only sees whole class names). `searchCompact`: the
 // search starts from 9rem instead of 16rem (a `compact` bar), and grows into what the filters leave.
-const AT: Record<Breakpoint, { row: string; toggle: string; controls: string; search: string; searchCompact: string; label: string; field: string; beside: string }> = {
+const AT: Record<Breakpoint, { row: string; toggle: string; controls: string; search: string; searchCompact: string; label: string; field: string }> = {
   md: {
     row: "md:flex-row md:flex-wrap md:items-center",
     toggle: "md:hidden",
@@ -51,7 +51,6 @@ const AT: Record<Breakpoint, { row: string; toggle: string; controls: string; se
     searchCompact: "md:w-auto md:max-w-sm md:flex-[1_1_9rem]",
     label: "md:sr-only",
     field: "md:w-auto",
-    beside: "md:ml-1 md:flex-row md:items-center md:gap-1.5",
   },
   lg: {
     row: "lg:flex-row lg:flex-wrap lg:items-center",
@@ -61,7 +60,6 @@ const AT: Record<Breakpoint, { row: string; toggle: string; controls: string; se
     searchCompact: "lg:w-auto lg:max-w-sm lg:flex-[1_1_9rem]",
     label: "lg:sr-only",
     field: "lg:w-auto",
-    beside: "lg:ml-1 lg:flex-row lg:items-center lg:gap-1.5",
   },
   phone: {
     row: "md:not-short:flex-row md:not-short:flex-wrap md:not-short:items-center",
@@ -71,7 +69,6 @@ const AT: Record<Breakpoint, { row: string; toggle: string; controls: string; se
     searchCompact: "md:not-short:w-auto md:not-short:max-w-sm md:not-short:flex-[1_1_9rem]",
     label: "md:not-short:sr-only",
     field: "md:not-short:w-auto",
-    beside: "md:not-short:ml-1 md:not-short:flex-row md:not-short:items-center md:not-short:gap-1.5",
   },
 };
 /** The same breakpoints for the bar's own layout (static class lists, which Tailwind reads whole). */
@@ -578,6 +575,8 @@ export function RefineButton({ open, count = 0, controls, onClick, haspopup, but
   );
 }
 
+const BESIDE = "xl:ml-1 xl:flex-row xl:items-center xl:gap-1.5";
+
 /**
  * One filter inside a FilterBar: its label shows above it when the bar is unfolded on a phone and is
  * read by screen readers on wide screens, where the control's own text says what it holds.
@@ -587,9 +586,11 @@ export function FilterField({ label, htmlFor, labelId, children, className, alwa
   // In the sheet the label shows at every width, and the field takes the sheet's width.
   const inSheet = React.useContext(SheetContext);
   const inline = !alwaysLabel && !inSheet;
-  const cls = cn("text-xs font-medium text-fg-muted", inline && !labelBeside && at.label);
+  // Beside the field only where the row has room for it (xl, in rem: 1280px at the usual text size,
+  // so not at 150–200% text or on a phone held sideways, where it would push a field onto a row of its own).
+  const cls = cn("text-xs font-medium text-fg-muted", inline && at.label, inline && labelBeside && "xl:not-sr-only");
   return (
-    <div className={cn("flex min-w-0 flex-col gap-1", inline && at.field, inline && labelBeside && at.beside, className)}>
+    <div className={cn("flex min-w-0 flex-col gap-1", inline && at.field, inline && labelBeside && BESIDE, className)}>
       {htmlFor ? (
         <label htmlFor={htmlFor} className={cls} data-filter-label="">
           {label}

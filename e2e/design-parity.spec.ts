@@ -179,6 +179,12 @@ test("Admin's pages: one header rhythm, one panel depth, one fold, aligned toolb
   await pp.goto("/admin/previews");
   const tops = await pp.getByTestId("preview-actions").evaluate((s) => [...s.querySelectorAll("button")].map((b) => Math.round(b.getBoundingClientRect().top)));
   check(new Set(tops).size === 1, `Rotate and Reset split across lines (${tops.join(", ")})`);
+  // …and on a 320px phone at 200% text they stack rather than push the page sideways.
+  await pp.setViewportSize({ width: 320, height: 640 });
+  await pp.evaluate(() => (document.documentElement.style.fontSize = "200%"));
+  const wide = await pp.evaluate(() => document.documentElement.scrollWidth - innerWidth);
+  check(wide <= 0, `Previews scrolls ${wide}px sideways at 320px and 200% text`);
+  await pp.setViewportSize({ width: 375, height: 667 });
 
   // G4-16: Add resource is the page-level action's size, as Add account is.
   await dp.goto("/admin/resources");

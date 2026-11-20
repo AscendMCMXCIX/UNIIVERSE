@@ -42,7 +42,7 @@ function Fact({ label, children }: { label: string; children: React.ReactNode })
   return (
     <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 py-1">
       <dt className="text-sm text-fg-muted">{label}</dt>
-      <dd className="min-w-0 flex-1 basis-40 text-right text-sm text-fg [overflow-wrap:anywhere]">{children}</dd>
+      <dd className="min-w-0 flex-1 basis-24 text-right text-sm text-fg [overflow-wrap:anywhere]">{children}</dd>
     </div>
   );
 }

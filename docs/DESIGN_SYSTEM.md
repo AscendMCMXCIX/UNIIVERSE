@@ -481,11 +481,13 @@ are fixed in one place each, and `e2e/design-parity.spec.ts` ("Admin's pages") a
   needs work, AlertTriangle poor, CircleDashed no data).
 - **Toolbar sizes:** a page-level action and a toolbar's buttons beside 14px segments are `md`
   Buttons (Add resource, Previews' Rotate and Reset, the person view's Save name); Rotate and Reset
-  wrap together.
+  wrap together, and stack where one line cannot hold the two (320px at 200%).
 - **Date fields:** the browser's own field and picker, its glyph drawn as a calendar in fg-subtle
-  (`globals.css`); in an inline FilterBar the From and To labels show beside them (`FilterField
-  labelBeside`), as the phone's sheet shows them above.
-- **Grids that line up:** Access levels' base levels use the groups' three columns from xl; the
+  (`globals.css`); in an inline FilterBar the From and To labels show beside them from xl (`FilterField
+  labelBeside`, in rem, so not at 150–200% text or on a phone held sideways, where they would push a
+  field onto a row of its own), as the phone's sheet shows them above.
+- **Grids that line up:** Access levels' base levels and its groups share one grid from xl, as many
+  20rem columns as fit (three at 1440 × 900; fewer at a large text size, never a 181px tile); the
   image cards' hints keep two lines from md (`md:min-h-10`), so the three drop zones start on one line.
 - **A wrapped index:** `SectionIndex clipLineDots` (Branding's phone index) never starts a line with a dot.
 
