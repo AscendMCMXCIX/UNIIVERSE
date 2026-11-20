@@ -7,6 +7,9 @@ import { cn } from "@/lib/cn";
 import { scrollToStart } from "@/lib/screen";
 import { Button } from "./button";
 import { DetailModal, useModalClose } from "./detail-modal";
+import { Popover } from "./popover";
+import { useWindowPosture } from "./posture";
+import { useBackCloses } from "./use-back-closes";
 import { ScrollRow } from "./scroll-row";
 import { landTarget, publishPageFilters } from "./page-toolbar";
 
@@ -209,12 +212,22 @@ export function FilterBar({
   // counts, names and resets what the bar narrows. Followed live, as the fields are: a phone turned, or
   // a window resized, with the sheet open.
   const wide = React.useSyncExternalStore(subscribeWide, isWide, notWide);
+  // Pointer and posture decide (posture.ts): a screen that opens previews beside the list gets the
+  // Filters as a popover under the button that opened it (the pinned row's, or the bar's own where it
+  // is folded); a touch phone, or a window that small, and a sideways phone's top bar keep the sheet.
+  const windowed = useWindowPosture();
+  const ownRef = React.useRef<HTMLButtonElement>(null);
+  const asPopover = open && !windowed && openedFrom !== "topbar";
+  // Who opened it, as it opens (before the layout effect above has caught up): what the popover hangs from.
+  const openedBy = React.useRef<"own" | "toolbar" | "topbar" | null>(null);
+  const anchor = React.useCallback(() => (openedBy.current === "own" ? ownRef.current : document.querySelector<HTMLElement>("[data-testid=toolbar-filters]")), []);
   const openSheet = React.useCallback((from: "own" | "toolbar" | "topbar") => {
     const row = controlsRef.current;
     setKept(row && row.offsetHeight ? { width: row.offsetWidth, height: row.offsetHeight } : null);
     atOpen.current = now.current;
     chose.current = false;
     setLandBy(null);
+    openedBy.current = from;
     setOpenedFrom(from);
   }, []);
   const closeSheet = React.useCallback(() => {
@@ -228,6 +241,19 @@ export function FilterBar({
   const choose = React.useCallback(() => {
     chose.current = true;
   }, []);
+  // The popover has a history entry of its own while it is open (the one history rule): Back (the
+  // installed Android app's included) closes it and changes nothing else; closed any other way it
+  // takes the entry away again. A choice in it replaces the page's query, and the entry with it,
+  // so a changed filter is never undone by closing (use-back-closes.ts).
+  useBackCloses(asPopover, closeSheet);
+  const closePopover = React.useCallback(
+    (restoreFocus: boolean) => {
+      const back = anchor();
+      closeSheet();
+      if (restoreFocus) requestAnimationFrame(() => back?.isConnected && back.focus({ preventScroll: true }));
+    },
+    [anchor, closeSheet],
+  );
   // One bar a page tells the frame how to open its sheet, and whether its sheet is open and from where
   // (ui/page-toolbar.tsx: the control that opened it stays until it has the focus back).
   // From md a list's own choices are not this bar's (`inlineReset`): the pinned row's Filters counts and names what the bar narrows there.
@@ -310,7 +336,7 @@ export function FilterBar({
       )
     ) : null;
   const filtersButton = (
-    <button type="button" onClick={() => openSheet("own")} aria-haspopup="dialog" aria-expanded={open} aria-controls={open ? id : undefined} className={toolbarButtonClass(activeCount > 0, cn(at.toggle, compactToggle && "max-[22.5rem]:min-w-11 max-[22.5rem]:px-2.5"))} data-testid={toggleTestId} data-filter-toggle="">
+    <button ref={ownRef} type="button" onClick={() => openSheet("own")} aria-haspopup="dialog" aria-expanded={open} aria-controls={open ? id : undefined} className={toolbarButtonClass(activeCount > 0, cn(at.toggle, compactToggle && "max-[22.5rem]:min-w-11 max-[22.5rem]:px-2.5"))} data-testid={toggleTestId} data-filter-toggle="">
       <SlidersHorizontal className="h-4 w-4 shrink-0 text-accent" aria-hidden />
       {compactToggle ? <span className="max-[22.5rem]:sr-only">Filters</span> : "Filters"}
       <span className="sr-only">: {summary}</span>
@@ -376,7 +402,30 @@ export function FilterBar({
         {after}
         {/* The sheet: a native dialog in the browser's top layer, so its place inside the bar changes
             nothing on screen, and the bar's fields stay the bar's for whoever looks for them there. */}
-        {open ? (
+        {asPopover ? (
+          <Popover
+            anchor={anchor}
+            onClose={closePopover}
+            title="Filters"
+            description={inlineReset && wide ? wideSummary : summary}
+            testId={testId ? `${testId}-sheet` : "filter-sheet"}
+            closeTestId="filter-sheet-close"
+            footer={
+              <>
+                {reset(true)}
+                <Button variant="primary" onClick={() => closePopover(true)} className="min-w-24" data-testid="filter-sheet-done">
+                  Done
+                </Button>
+              </>
+            }
+          >
+            <SheetContext.Provider value>
+              <div id={id} className={cn("flex min-w-0 flex-col gap-4 transition-opacity [&_select]:w-full", pending && "opacity-60")} onChangeCapture={choose} onClickCapture={choose} data-testid={testId ? `${testId}-controls` : undefined} data-filter-controls="" aria-busy={pending || undefined}>
+                {children}
+              </div>
+            </SheetContext.Provider>
+          </Popover>
+        ) : open ? (
           <DetailModal
             open
             onClose={closeSheet}

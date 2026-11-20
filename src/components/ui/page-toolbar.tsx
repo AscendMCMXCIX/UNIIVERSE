@@ -307,6 +307,7 @@ export function FiltersControl() {
       type="button"
       onClick={() => filters.open("toolbar")}
       aria-haspopup="dialog"
+      aria-expanded={filters.openedFrom === "toolbar"}
       className={cn(
         "touch-target inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border px-2.5 text-sm font-medium transition-colors",
         COMPACT_CONTROL,
