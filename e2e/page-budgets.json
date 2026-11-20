@@ -89,11 +89,11 @@
    "small": 2
   },
   "a-branding@i15-100": {
-   "screens": 4.2,
+   "screens": 4.27,
    "frame": 0.3,
    "frameScrolled": 0.3,
    "small": 0,
-   "why": "S9c (20 Nov 2026): Branding's phone section index (one line of links) and the Public team page section, where /admin/public-access now lands inside Admin Mode; measured 4.12 at i15 and 12.71 at se1 150%."
+   "why": "S9c (20 Nov 2026): Branding's phone section index (one line of links) and the Public team page section, where /admin/public-access now lands inside Admin Mode; measured 4.19 at i15 and 13.08 at se1 150%."
   },
   "a-system@i15-100": {
    "screens": 1.71,
@@ -232,11 +232,11 @@
    "small": 0
   },
   "a-branding@se1-150": {
-   "screens": 12.96,
+   "screens": 13.34,
    "frame": 0.45,
    "frameScrolled": 0.15,
    "small": 0,
-   "why": "S9c (20 Nov 2026): Branding's phone section index (one line of links) and the Public team page section, where /admin/public-access now lands inside Admin Mode; measured 4.12 at i15 and 12.71 at se1 150%."
+   "why": "S9c (20 Nov 2026): Branding's phone section index (one line of links) and the Public team page section, where /admin/public-access now lands inside Admin Mode; measured 4.19 at i15 and 13.08 at se1 150%."
   },
   "a-system@se1-150": {
    "screens": 6.25,
@@ -276,7 +276,7 @@
    "small": 0
   },
   "a-previews@se1-150": {
-   "screens": 2.49,
+   "screens": 2.73,
    "frame": 0.45,
    "frameScrolled": 0.15,
    "small": 0

@@ -56,12 +56,12 @@ export default async function AdminSystemPage() {
       <section className="space-y-2">
         <div>
           <h2 className="text-base font-semibold">System health</h2>
-          <p className="text-sm text-fg-muted">Checked when this page loaded; Healthy only with evidence.</p>
+          <p className="text-sm text-fg-muted">Checked as the page loaded; Healthy only with evidence.</p>
         </div>
         <StatusCards items={status} testId="system-status" />
       </section>
       {vitals ? <FieldPerformancePanel report={vitals} /> : null}
-      <Disclosure title="Technical details" description={Number(playerCount) === 0 ? "Build, database, job runs, secrets (never their values) and demo data." : "Build, database, job runs and secrets (never their values)."} testId="system-details">
+      <Disclosure title="Technical details" description={Number(playerCount) === 0 ? "Build, database, job runs, secrets and demo data." : "Build, database, job runs and secrets."} testId="system-details">
         <Panel>
           <PanelHeader title="Build & database" subtitle="What is running and where." />
           <PanelBody className="flex flex-wrap items-center gap-2 text-sm">
@@ -110,13 +110,13 @@ export default async function AdminSystemPage() {
         {Number(playerCount) === 0 ? <DemoPanel canSeed /> : null}
       </Disclosure>
       <p className="text-sm text-fg-muted">
-        Who changed accounts, access, passwords, settings or jobs is recorded under{" "}
+        Who changed what is recorded under{" "}
         <Link href="/admin/audit" className="text-accent underline-offset-2 hover:underline" data-testid="system-audit-link">
           Audit Logs
         </Link>
         .
       </p>
-      <Disclosure id="compliance" title="Riot Games compliance" description={`How ${branding.productName} uses Riot data, and the notice Riot requires.`} testId="system-compliance">
+      <Disclosure id="compliance" title="Riot Games compliance" description="How Riot data is used, and Riot's notice." testId="system-compliance">
         <div className="space-y-2 text-sm text-fg-muted [overflow-wrap:anywhere]">
           <p>{riotLegal(branding.productName)}</p>
           <p>Riot API keys stay on the server and are never sent to browsers. Game data (matches and their timelines, champion mastery and ranks) is read only for accounts a player linked on purpose, plus the current rank of the other players in those accounts&apos; games, and it is used solely for this team&apos;s own preparation and improvement. {branding.productName} never attempts to de-anonymise players or discover hidden real identities, and removes a linked account&apos;s data when the account is unlinked.</p>

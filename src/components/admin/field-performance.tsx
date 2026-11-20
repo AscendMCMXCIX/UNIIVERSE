@@ -54,7 +54,7 @@ export function FieldPerformancePanel({ report }: { report: VitalsReport }) {
   const empty = loads === 0 && report.metrics.every((m) => !m.all);
   return (
     <Panel data-testid="field-performance">
-      <PanelHeader title="Page speed in members' browsers" subtitle={`Real page loads over the last ${report.days} days, not a lab test.`} />
+      <PanelHeader title="Page speed in members' browsers" subtitle={`Real page loads, last ${report.days} days.`} />
       <PanelBody className="space-y-3">
         {empty ? (
           <p className="text-sm text-fg-muted" data-testid="field-performance-empty">
@@ -78,9 +78,9 @@ export function FieldPerformancePanel({ report }: { report: VitalsReport }) {
                 );
               })}
             </ul>
-            <Disclosure title="Technical details" description="Every measure, by device and by page." testId="field-performance-details">
+            <Disclosure title="Technical details" description="By device and by page." testId="field-performance-details">
               <div className="space-y-4 text-xs">
-                <p className="text-fg-subtle">Since {report.since}. A figure is the value 75% of loads stayed within.</p>
+                <p className="text-fg-subtle">Field data from members' own browsers since {report.since}, not a lab test. A figure is the value 75% of loads stayed within.</p>
                 <table className={TABLE}>
                   <thead className={HEAD}>
                     <tr>

@@ -45,14 +45,14 @@ export function PreviewStudio() {
   return (
     <section className="space-y-3 rounded-card border border-border bg-surface p-3 sm:p-4" data-testid="preview-studio">
       <div className="flex flex-wrap items-center gap-2">
-        <div role="radiogroup" aria-label="Page" className={segmentedGroupClass()}>
+        <div role="radiogroup" aria-label="Page" className={segmentedGroupClass("flex-wrap overflow-visible")}>
           {SCREENS.map((s) => (
             <button key={s.key} type="button" role="radio" aria-checked={screen === s.key} onClick={() => setScreen(s.key)} className={segmentClass(screen === s.key, { size: "md" })} data-testid={`preview-screen-${s.key}`}>
               {s.label}
             </button>
           ))}
         </div>
-        <div role="radiogroup" aria-label="Screen size" className={segmentedGroupClass()}>
+        <div role="radiogroup" aria-label="Screen size" className={segmentedGroupClass("flex-wrap overflow-visible")}>
           {DEVICES.map(({ key, label, icon: Icon }) => (
             <button key={key} type="button" role="radio" aria-checked={device === key} onClick={() => setDevice(key)} className={segmentClass(device === key, { size: "md", className: "pointer-coarse:min-w-11" })} data-testid={`preview-device-${key}`}>
               <Icon className="h-4 w-4" aria-hidden /> <span className="max-sm:sr-only">{label}</span>
