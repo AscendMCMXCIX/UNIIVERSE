@@ -46,6 +46,8 @@ import {
   recastWords,
   revisionWords,
   riotTextReviewedWords,
+  riotChangedAfterTierWords,
+  riotChangedWords,
   riotTextSourceWords,
   subjectWords,
 } from "./wording";
@@ -519,6 +521,21 @@ export function FactsSourceLine({ intel }: { intel: ChampionIntelView }) {
   return <span data-testid="matchup-no-facts">{noFactsWords(intel.champion.name)}</span>;
 }
 
+/**
+ * "Riot changed this on 26.24": the champion's Data Dragon record (base stats, or an ability's
+ * cooldowns, ranks, charges or text) differs on the newest recorded patch from the one before. Quiet,
+ * small type on the row it qualifies; nothing without a change.
+ */
+export function RiotChangedLabel({ patch, after = false }: { patch: string | null | undefined; /** Continuing the "Riot's data" tier label: "changed on 26.24". */ after?: boolean }) {
+  if (!patch) return null;
+  return (
+    // Inline words, not a box: they wrap as the line's other words do rather than move to a line of their own.
+    <span className="text-2xs font-normal text-fg-subtle" data-testid="riot-changed">
+      {after ? riotChangedAfterTierWords(patch) : riotChangedWords(patch)}
+    </span>
+  );
+}
+
 /** Where a champion's abilities come from, as a label after a "·": "Riot Data Dragon 16.22.1", or "Offline copy of …"; null without a version. */
 export function dataSourceOf(intel: Pick<ChampionIntelView, "dataVersion" | "offlineCopy">): string | null {
   return intel.dataVersion ? dataSourceWords(intel.dataVersion, intel.offlineCopy, true) : null;
@@ -548,11 +565,23 @@ export function AbilitiesPanel({ intel, title, testId, notice, haste = false }: 
               each fact). Beside the title it put the haste control on a row of its own at 1440 × 900, 26px
               that, with production's "Not re-checked", the sources' summary could not spare (Production
               check, 20 Nov 2026). */}
-          <TierLabel className="mr-1.5">Riot&apos;s data</TierLabel>
+          <TierLabel className={intel.riotChangedOn && !intel.offlineCopy ? undefined : "mr-1.5"}>Riot&apos;s data</TierLabel>
+          {intel.riotChangedOn && !intel.offlineCopy ? (
+            <>
+              {" "}
+              <RiotChangedLabel patch={intel.riotChangedOn} after />
+              {" · "}
+            </>
+          ) : null}
+
           {haste ? "Base cooldowns, without ability haste · " : null}
           {/* Where the abilities come from (the bar names the version too), and the cooldown lines, once for
               them all (a curated champion's are its checked notes', which the next words date). */}
-          {from ? `${from} · ` : null}
+          {/* The version, unless Riot changed this champion on the newest patch: then the words after the
+              tier say so ("Riot's data changed on 26.24"), as the bar names the version too. Beside the
+              version, or on the title's row, the label wrapped a line at 1440 × 900 (16–20px), which put
+              the sources' summary under the fold with production's "Not re-checked". An offline copy keeps its words. */}
+          {from && !(intel.riotChangedOn && !intel.offlineCopy) ? `${from} · ` : null}
           {common && !intel.curated ? (
             <>
               <span data-testid="abilities-cooldown-source">{cooldownsFromWords(common)}</span>
@@ -594,7 +623,11 @@ export function YourChampion({ intel, label = "Your champion", testId = "matchup
         bodyClassName="pointer-coarse:pt-1"
         summary={
           <span className="min-w-0">
-            <span className="block text-sm font-semibold text-fg [overflow-wrap:anywhere]">{`${label}: ${intel.champion.name}`}</span>
+            <span className="block text-sm font-semibold text-fg [overflow-wrap:anywhere]">
+              {`${label}: ${intel.champion.name}`}
+              {intel.riotChangedOn ? " " : null}
+              <RiotChangedLabel patch={intel.riotChangedOn} />
+            </span>
             <span className="block text-xs text-fg-muted">
               Abilities and base cooldowns{from ? ` · ${from}` : ""}
               {common && !intel.curated ? (

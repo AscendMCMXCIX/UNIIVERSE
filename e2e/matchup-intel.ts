@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from "./test";
-import { CHANGED_ABILITIES_TEST_COOKIE, NOTES_AGE_TEST_COOKIE } from "../src/server/matchup-intel/notes-age";
+import { CHANGED_ABILITIES_TEST_COOKIE, NOTES_AGE_TEST_COOKIE, RIOT_CHANGED_TEST_COOKIE } from "../src/server/matchup-intel/notes-age";
 import { RIOT_TEXT_TEST_COOKIE } from "../src/server/matchup-intel/riot-text/switch";
 
 /*
@@ -34,6 +34,16 @@ export async function notesAge(page: Page, patches: 1 | 2 | 3) {
  */
 export async function changedAbilities(page: Page, refs: readonly string[]) {
   await page.context().addCookies([{ name: CHANGED_ABILITIES_TEST_COOKIE, value: refs.join(","), url: test.info().project.use.baseURL! }]);
+}
+
+/**
+ * Matchup Intel as production shows it once Riot changed these on the newest patch ("champion:Riven",
+ * "item:1055"; src/server/matchup-intel/notes-age.ts): the per-version diff's "Riot changed this on
+ * 26.22" labels, which the demo, recording no digests, never shows on its own. A cookie only the
+ * in-memory demo reads.
+ */
+export async function riotChanged(page: Page, keys: readonly string[]) {
+  await page.context().addCookies([{ name: RIOT_CHANGED_TEST_COOKIE, value: keys.join(","), url: test.info().project.use.baseURL! }]);
 }
 
 /** The page for a choice of champions (either may be left out), once its heading is drawn. */

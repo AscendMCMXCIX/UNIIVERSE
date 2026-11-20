@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { expect, test, type Page } from "./test";
 import { E2E_DDRAGON_VERSION } from "./ddragon-version";
-import { changedAbilities, choose, enemyAbilities, hydrated, localPictures, notesAge, openMatchupIntel, riotText } from "./matchup-intel";
+import { changedAbilities, choose, enemyAbilities, hydrated, localPictures, notesAge, openMatchupIntel, riotChanged, riotText } from "./matchup-intel";
 import { briefingState, matchupIntelVerdicts, readMatchupIntel } from "../scripts/matchup-intel-facts.mjs";
 import { patchFromVersion, publicPatchName } from "../src/domain/patch";
 import { notRecheckedWords } from "../src/components/matchup-intel/wording";
@@ -237,6 +237,18 @@ test("a patch after the curated notes' check, as production is until they are re
     const notices = page.getByTestId("matchup-intel").getByTestId("matchup-not-rechecked");
     await expect(notices.first(), pair).toHaveText(notRecheckedWords(DEMO_PATCH));
     await expect(page.getByTestId("matchup-curated-checked").first(), pair).toContainText(notRecheckedWords(DEMO_PATCH));
+    // The labels: the enemy's continuing its panel's "Riot's data" tier words, yours on its folded summary's title line, quiet (no larger than text-2xs).
+    const patch = publicPatchName(patchFromVersion(E2E_DDRAGON_VERSION)!);
+    const label = page.getByTestId("matchup-enemy-abilities").getByTestId("riot-changed");
+    await expect(label, pair).toHaveText(`changed on ${patch}`);
+    await expect(page.getByTestId("matchup-your-abilities").getByTestId("riot-changed"), pair).toHaveText(`Riot changed this on ${patch}`);
+    const row = await label.evaluate((el) => {
+      const tier = el.parentElement!.querySelector('[data-testid="evidence-tier"]')!.getBoundingClientRect();
+      const r = el.getClientRects()[0]!;
+      return { sameRow: Math.abs(r.bottom - tier.bottom) < 6, size: parseFloat(getComputedStyle(el).fontSize) };
+    });
+    expect.soft(row.sameRow, `${pair}: the label on the tier's row at 1440×900`).toBe(true);
+    expect.soft(row.size, `${pair}: the label in small type`).toBeLessThanOrEqual(12);
     await frames();
     const at = await page.evaluate(readMatchupIntel);
     await page.setViewportSize({ width: 1920, height: 1080 });
@@ -281,6 +293,8 @@ test("an ability Riot changed after the curated check, on the Production check's
   await notesAge(page, 1);
   const [you, enemy] = ["Riven", "Mordekaiser"];
   const frames = () => page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  // And Riot's per-version diff saying so: "Riot changed this on 26.22" on both champions' rows (PLAN S7b), so every fit below holds with the labels.
+  await riotChanged(page, [`champion:${you}`, `champion:${enemy}`]);
   for (const ref of [...CHANGED_OWN, "Mordekaiser.Q"]) {
     const pair = `${you} vs ${enemy} (${ref} changed)`;
     const own = ref.startsWith(`${you}.`);

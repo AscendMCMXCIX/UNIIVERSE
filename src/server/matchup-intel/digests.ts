@@ -1,10 +1,10 @@
 import { createHash } from "node:crypto";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
-import { invalidateCache } from "@/server/observability/cache";
+import { cachedFor, invalidateCache } from "@/server/observability/cache";
 import { EVIDENCE_CACHE } from "./evidence-cache";
 import { appSettings, staticDigests } from "@/server/db/schema";
-import { comparePatches, patchFromVersion } from "@/domain/patch";
+import { comparePatches, patchFromVersion, publicPatchName } from "@/domain/patch";
 import type { ChampionAbilitiesIndex } from "./abilities";
 
 /*
@@ -170,3 +170,44 @@ export async function staticDiffHealth(db: Db): Promise<{ digests: Awaited<Retur
   return { digests, failedPatch: newer[0] ?? null };
 }
 
+
+/** What Riot changed on the newest recorded patch, for the page's labels: that patch's public name and the keys ("champion:Ahri", "item:3020", "rune:8112") whose digests differ from the patch before. */
+export interface RiotChanges {
+  /** The newest recorded patch's public name ("26.24"), as the label says it. */
+  patch: string;
+  changed: ReadonlySet<string>;
+}
+
+/**
+ * Of the things named, those whose digest changed between the two newest patches recorded in
+ * static_digests ("Riot changed this on 26.24", docs/MATCHUP_INTEL.md, "Patches"): each has a digest
+ * at both and they differ. A key recorded at one patch only is not a change (unknown is never
+ * "changed"), and with fewer than two patches recorded there is nothing to say (null). Two small
+ * queries: the patches recorded, then the named keys at those two.
+ */
+export async function riotChangesOf(db: Db, named: ReadonlyArray<{ kind: DigestKind; key: string }>): Promise<RiotChanges | null> {
+  const keys = [...new Set(named.map((n) => `${n.kind}:${n.key}`))];
+  if (!keys.length) return null;
+  // The patches recorded, cached with the evidence (cleared when a patch's digests are recorded).
+  const patches = await cachedFor(`${EVIDENCE_CACHE}:digest-patches`, 10 * 60_000, async () => {
+    const res = await db.execute(sql`SELECT DISTINCT patch FROM static_digests WHERE kind <> 'patch'`);
+    return ((res as unknown as { rows?: Array<{ patch: string }> }).rows ?? (res as unknown as Array<{ patch: string }>)).map((r) => r.patch).sort((a, b) => comparePatches(b, a));
+  }, db);
+  const [current, previous] = patches;
+  if (!current || !previous) return null;
+  const rows = await db
+    .select({ patch: staticDigests.patch, kind: staticDigests.kind, key: staticDigests.key, hash: staticDigests.hash })
+    .from(staticDigests)
+    .where(and(inArray(staticDigests.patch, [current, previous]), inArray(sql`${staticDigests.kind} || ':' || ${staticDigests.key}`, keys)));
+  return { patch: publicPatchName(current), changed: changedOf(rows, current, previous, keys) };
+}
+
+/** The keys whose digests differ between two patches, of rows read at both; a key missing at either is left out. */
+export function changedOf(rows: ReadonlyArray<{ patch: string; kind: string; key: string; hash: string }>, current: string, previous: string, keys: readonly string[]): Set<string> {
+  const at = (patch: string, k: string) => rows.find((r) => r.patch === patch && `${r.kind}:${r.key}` === k)?.hash;
+  return new Set(keys.filter((k) => {
+    const a = at(current, k);
+    const b = at(previous, k);
+    return !!a && !!b && a !== b;
+  }));
+}

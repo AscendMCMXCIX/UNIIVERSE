@@ -1,7 +1,7 @@
 import { AxeBuilder } from "@axe-core/playwright";
 import sharp from "sharp";
 import { expect, test, type Page } from "./test";
-import { choiceIds, choose, cutOrSpilled, enemyAbilities, hydrated, localPictures, openMatchupIntel, openPicker, overflow, pickerCuts, pickerSpill, riotText, rosterIds } from "./matchup-intel";
+import { choiceIds, choose, cutOrSpilled, enemyAbilities, hydrated, localPictures, openMatchupIntel, openPicker, overflow, pickerCuts, pickerSpill, riotChanged, riotText, rosterIds } from "./matchup-intel";
 import { untilStill } from "./modal-corner";
 import { E2E_DDRAGON_VERSION } from "./ddragon-version";
 import { patchFromVersion, publicPatchName } from "../src/domain/patch";
@@ -630,6 +630,8 @@ test("phone at 200% text: nothing is cut or spills sideways in the bar, the brie
   // Written with the facts from Riot's text on the page: turned on for it while they ship off.
   await riotText(page, "on");
   test.skip((page.viewportSize()?.width ?? 1000) >= 768, "a phone");
+  // With Riot's per-version diff labelling every champion shown ("Riot changed this on 26.22", PLAN S7b): the first screen holds as without.
+  await riotChanged(page, [...new Set([...CURATED.flat(), "Riven", "Darius"])].map((id) => `champion:${id}`));
   // A phone with its text at 200%, as the other large-text tests set it (html's font size: the
   // page's sizes are in rem, so everything but the screen grows). The three validation pairs: the
   // most a page holds, with a briefing, two curated champions and their level notes. Each swapped
@@ -679,6 +681,8 @@ test("phone at 100%, 150% and 200% text, with facts from Riot's text: nothing cu
   // Written with the facts from Riot's text on the page: turned on for it while they ship off.
   await riotText(page, "on");
   test.skip((page.viewportSize()?.width ?? 1000) >= 768, "a phone");
+  // With Riot's per-version diff labelling every champion shown ("Riot changed this on 26.22", PLAN S7b): the first screen holds as without.
+  await riotChanged(page, [...new Set([...CURATED.flat(), "Riven", "Darius"])].map((id) => `champion:${id}`));
   test.setTimeout(300_000);
   await localPictures(page);
   for (const [width, height] of [
@@ -810,6 +814,8 @@ test("phone at 200% text: a cooldown breaks only after a slash or a space, never
   // Written with the facts from Riot's text on the page: turned on for it while they ship off.
   await riotText(page, "on");
   test.skip((page.viewportSize()?.width ?? 1000) >= 768, "a phone");
+  // With Riot's per-version diff labelling every champion shown ("Riot changed this on 26.22", PLAN S7b): the first screen holds as without.
+  await riotChanged(page, [...new Set([...CURATED.flat(), "Riven", "Darius"])].map((id) => `champion:${id}`));
   test.setTimeout(180_000);
   await localPictures(page);
   for (const [you, enemy] of COOLDOWN_PAIRS) {
@@ -931,6 +937,8 @@ test("phone: the first screen holds the glance (every enemy tile's cooldown line
   // Written with the facts from Riot's text on the page: turned on for it while they ship off.
   await riotText(page, "on");
   test.skip((page.viewportSize()?.width ?? 1000) >= 768, "a phone");
+  // With Riot's per-version diff labelling every champion shown ("Riot changed this on 26.22", PLAN S7b): the first screen holds as without.
+  await riotChanged(page, [...new Set([...CURATED.flat(), "Riven", "Darius"])].map((id) => `champion:${id}`));
   for (const [width, height, whole] of [
     [390, 664, true],
     [320, 568, false],
@@ -987,6 +995,7 @@ test("phone: the first screen holds the glance (every enemy tile's cooldown line
     });
     const at = `Riven vs Darius at ${width} by ${height}`;
     expect(d.scrollY, at).toBe(0);
+    await expect(page.getByTestId("matchup-enemy-abilities").getByTestId("riot-changed"), `${at}: the label shown`).toHaveCount(1);
     // At 320 by 568 the glance takes the first screen, as above, and the side starts on the next.
     if (whole) expect(d.label, `${at}: the Danger side's label`).toBeLessThanOrEqual(d.bar);
     if (whole) expect(d.subtitle, `${at}: whose kit it is`).toBeLessThanOrEqual(d.bar);

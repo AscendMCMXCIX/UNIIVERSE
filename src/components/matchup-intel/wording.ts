@@ -647,3 +647,8 @@ export function tightCooldownWords(d: CooldownDisplay): string | null {
   const value = formatCooldownsTight(d.seconds);
   return value === "—" ? null : value;
 }
+
+/** The per-version diff's label, on the row of what Riot changed on the newest recorded patch (docs/MATCHUP_INTEL.md, "Patches"). */
+export const riotChangedWords = (patch: string) => `Riot changed this on ${patch}`;
+/** The same, continuing the "Riot's data" tier label of a champion's panel ("Riot's data changed on 26.24"), where the line has no room for more. */
+export const riotChangedAfterTierWords = (patch: string) => `changed on ${patch}`;

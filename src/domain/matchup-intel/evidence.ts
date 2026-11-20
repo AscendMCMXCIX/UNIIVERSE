@@ -70,6 +70,10 @@ export interface EvidenceLine {
   sample: string;
   /** Where the line's patches or positions need saying (the previous patch pooled, the older records' rule). */
   note?: string;
+  /** The items and runes its values name (the per-version diff's keys), read on the server for the label below and never sent to the page. */
+  named?: Array<{ kind: "item" | "rune"; key: string }>;
+  /** The newest recorded patch's public name when Riot changed an item or rune its values name ("Riot changed this on 26.24"). */
+  changedOn?: string;
 }
 
 /** The patches a line counts: the current one, and the previous one only where Riot's data shows no change for what the line names. */
@@ -178,7 +182,8 @@ export function fieldLine(field: EvidenceField, counts: EvidenceCounts, window: 
   const use = patches.length > 1 ? pooled : current;
   if (use.n < MIN_GAMES || !use.top.length) return null;
   const values = use.top.map((t) => `${valueWords(field, t.value, names)} in ${formatCount(t.n)}`).join(", ");
-  return { key: field, label: FIELD_LABEL[field], values, sample: sampleWords(use.n, patches, use.queues), ...(patches.length > 1 ? { note: PREVIOUS_NOTE } : {}) };
+  const shown = use.top.flatMap((t) => namedBy(field, t.value));
+  return { key: field, label: FIELD_LABEL[field], values, sample: sampleWords(use.n, patches, use.queues), ...(patches.length > 1 ? { note: PREVIOUS_NOTE } : {}), ...(shown.length ? { named: shown } : {}) };
 }
 
 /** The record of a set of games: "9 games, 5 won · patch 26.22 · Solo/Duo 3, Normal Draft 6"; null under MIN_GAMES. */

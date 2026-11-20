@@ -1,5 +1,6 @@
 import { Sigma } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { riotChangedWords } from "./wording";
 import type { MatchupEvidence, EvidenceSection } from "@/domain/matchup-intel/evidence";
 
 /*
@@ -49,6 +50,14 @@ function Section({ section }: { section: EvidenceSection }) {
                   <span className="text-fg-subtle" data-testid="evidence-sample">
                     {l.sample.startsWith("of ") ? "" : "· "}
                     {l.sample}
+                  </span>
+                </>
+              ) : null}
+              {l.changedOn ? (
+                <>
+                  {" "}
+                  <span className="text-2xs text-fg-subtle" data-testid="riot-changed">
+                    · {riotChangedWords(l.changedOn)}
                   </span>
                 </>
               ) : null}
