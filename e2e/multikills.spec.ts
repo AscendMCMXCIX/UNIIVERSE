@@ -157,7 +157,7 @@ test("Total kills: each game's own kills over the same games as the other figure
   // The figure is in the row: its own column, or after the role on phones (the sorted figure).
   const first = rows.first();
   if (page.viewportSize()!.width < 640) await expect(first.getByTestId("champion-sorted-figure")).toContainText(`Kills ${sorted[0]!.toLocaleString("en")}`);
-  else await expect(first.getByTestId("champion-kills")).toHaveText(sorted[0]!.toLocaleString("en"));
+  else await expect(first.getByTestId("champion-kills").locator("[aria-hidden]")).toHaveText(sorted[0]!.toLocaleString("en"));
   expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
 });
 

@@ -15,6 +15,7 @@ import { selectClass } from "@/components/ui/input";
 import { percent, formatCount, formatCompactCount } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateSampleNote, winRateTone } from "@/domain/stats/win-rate";
+import { SampleNote } from "./sample-note";
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import { Peek, type PeekControl } from "@/components/ui/peek";
 import { useAddressItem } from "@/components/ui/address-item";
@@ -40,16 +41,16 @@ type Dir = "asc" | "desc";
  * it is wide; phones sort by any of them from Sort by, which names them as the headings do. Figures
  * are right-aligned, so they compare down the column.
  */
-const COLUMNS: Array<{ key: SortKey; label: string; title?: string; layout?: "medium" | "wide" }> = [
+const COLUMNS: Array<{ key: SortKey; label: string; layout?: "medium" | "wide" }> = [
   { key: "champion", label: "Champion" },
   { key: "games", label: "Games" },
   { key: "win", label: "Win rate" },
   { key: "kda", label: "KDA" },
-  { key: "cs", label: "CS/min", title: "Creep score per minute" },
-  { key: "kills", label: "Kills", title: "Every kill on the champion in these games, each game's own count added up", layout: "medium" },
-  { key: "multikills", label: "Multikills", title: "The rarest multikill on the champion in these games: pentakills first, then quadra, triple and double kills", layout: "medium" },
-  ...MULTIKILL_KINDS.map((k) => ({ key: k.key, label: MULTIKILL_SHORT[k.key], title: `${k.label} in these games`, layout: "wide" as const })),
-  { key: "mastery", label: "Mastery", title: "Mastery points from all of the player's Riot accounts" },
+  { key: "cs", label: "CS/min" },
+  { key: "kills", label: "Kills", layout: "medium" },
+  { key: "multikills", label: "Multikills", layout: "medium" },
+  ...MULTIKILL_KINDS.map((k) => ({ key: k.key, label: MULTIKILL_SHORT[k.key], layout: "wide" as const })),
+  { key: "mastery", label: "Mastery" },
 ];
 const isSortKey = (v: string | null): v is SortKey => !!v && COLUMNS.some((c) => c.key === v);
 /** Which layout a column belongs to: shown only in that one (phones show neither as a column). */
@@ -114,7 +115,7 @@ const isKind = (key: SortKey): key is KindKey => MULTIKILL_KINDS.some((k) => k.k
 /** Sorting by the rarest multikill and by pentakills give the same order: either heading shows it. */
 const sortsAs = (column: SortKey, key: SortKey) => column === key || (column === "penta" && key === "multikills") || (column === "multikills" && key === "penta");
 
-/** A champion's multikills in words, for its cells' hover text and screen readers. */
+/** A champion's multikills in words, for screen readers (the champion's window shows each kind). */
 function multikillText(c: OverviewCard): string {
   const m = c.multikills;
   if (!m || !m.games) return "No games";
@@ -135,21 +136,24 @@ function PartialMark() {
   );
 }
 
-/** A champion's kills in words, for the cell's hover text and screen readers. */
+/** A champion's kills in words, for screen readers. */
 function killsText(c: OverviewCard): string {
   const p = c.performance;
-  if (p.totalKills === null) return "Kills not counted yet: Riot's full record of these games is still being collected";
-  const counted = p.detailedGames < c.selected.games ? ` · from ${formatCount(p.detailedGames)} of ${formatCount(c.selected.games)} games (the others' records are still being collected)` : "";
-  return `${formatCount(p.totalKills)} kill${p.totalKills === 1 ? "" : "s"} in ${formatCount(p.detailedGames)} game${p.detailedGames === 1 ? "" : "s"}${counted}`;
+  if (p.totalKills === null) return "Not counted yet: these games are still loading from Riot";
+  const loading = c.selected.games - p.detailedGames;
+  return `${formatCount(p.totalKills)} kill${p.totalKills === 1 ? "" : "s"} in ${formatCount(p.detailedGames)} game${p.detailedGames === 1 ? "" : "s"}${loading > 0 ? ` (${formatCount(loading)} game${loading === 1 ? "" : "s"} still loading)` : ""}`;
 }
 
 /** Every kill on the champion in these games (each game's own count added up), in both layouts. */
 function TotalKills({ c, strong }: { c: OverviewCard; strong: boolean }) {
   const p = c.performance;
   return (
-    <span className={cn("hidden text-right text-sm tabular-nums @min-[44rem]:block", LAYOUT_CLASS.medium, FOLD, p.totalKills === null ? "text-fg-subtle" : strong ? "font-semibold text-fg" : "text-fg-muted")} title={killsText(c)} data-testid="champion-kills">
-      {p.totalKills === null ? <span aria-label="Not counted yet">—</span> : formatCount(p.totalKills)}
-      {p.totalKills !== null && p.detailedGames < c.selected.games ? <PartialMark /> : null}
+    <span className={cn("hidden text-right text-sm tabular-nums @min-[44rem]:block", LAYOUT_CLASS.medium, FOLD, p.totalKills === null ? "text-fg-subtle" : strong ? "font-semibold text-fg" : "text-fg-muted")} data-testid="champion-kills">
+      <span aria-hidden>
+        {p.totalKills === null ? "—" : formatCount(p.totalKills)}
+        {p.totalKills !== null && p.detailedGames < c.selected.games ? <span className="ml-0.5 align-super text-2xs font-semibold text-warn">*</span> : null}
+      </span>
+      <span className="sr-only">{killsText(c)}</span>
     </span>
   );
 }
@@ -166,11 +170,10 @@ function RarestMultikill({ c, strong }: { c: OverviewCard; strong: boolean }) {
   const m = countedMultikills(c);
   const top = m ? rarestMultikill(m) : null;
   return (
-    <span className={cn("hidden min-w-0 whitespace-nowrap text-right text-sm @min-[44rem]:block", LAYOUT_CLASS.medium, FOLD)} title={multikillText(c)} data-testid="champion-multikills">
+    <span className={cn("hidden min-w-0 whitespace-nowrap text-right text-sm @min-[44rem]:block", LAYOUT_CLASS.medium, FOLD)} data-testid="champion-multikills">
+      <span aria-hidden>
       {!m ? (
-        <span className="text-fg-subtle" aria-label="Not counted yet">
-          —
-        </span>
+        <span className="text-fg-subtle">—</span>
       ) : top ? (
         <>
           <span className={cn("tabular-nums", strong ? "font-semibold text-fg" : "font-medium text-fg-muted")}>{formatCount(top.count)}</span> <span className="text-xs text-fg-subtle">{MULTIKILL_SHORT[top.key].toLowerCase()}</span>
@@ -178,7 +181,9 @@ function RarestMultikill({ c, strong }: { c: OverviewCard; strong: boolean }) {
       ) : (
         <span className="text-xs text-fg-subtle">None</span>
       )}
-      {m && m.counted < m.games ? <PartialMark /> : null}
+      {m && m.counted < m.games ? <span className="ml-0.5 align-super text-2xs font-semibold text-warn">*</span> : null}
+      </span>
+      <span className="sr-only">{multikillText(c)}</span>
     </span>
   );
 }
@@ -187,7 +192,7 @@ function RarestMultikill({ c, strong }: { c: OverviewCard; strong: boolean }) {
 function KindCount({ c, kind, strong }: { c: OverviewCard; kind: KindKey; strong: boolean }) {
   const m = countedMultikills(c);
   return (
-    <span className={cn("text-right text-sm tabular-nums", LAYOUT_CLASS.wide, FOLD, m && m[kind] ? (strong ? "font-semibold text-fg" : "text-fg-muted") : "text-fg-subtle")} title={multikillText(c)} data-testid={`champion-${kind}`}>
+    <span className={cn("text-right text-sm tabular-nums", LAYOUT_CLASS.wide, FOLD, m && m[kind] ? (strong ? "font-semibold text-fg" : "text-fg-muted") : "text-fg-subtle")} data-testid={`champion-${kind}`}>
       {m ? (
         formatCount(m[kind])
       ) : (
@@ -509,8 +514,8 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
                       </span>
                     ) : null}
                     {c.inPool ? (
-                      <span className={cn("shrink-0 whitespace-nowrap rounded-full border border-border-strong px-1.5 text-2xs font-medium leading-4 text-fg-muted", narrowFigure && "@max-[44rem]:hidden")} title="In the player's champion pool for this role: their own choice, not worked out from games" data-testid="in-pool">
-                        In pool
+                      <span className={cn("shrink-0 whitespace-nowrap rounded-full border border-border-strong px-1.5 text-2xs font-medium leading-4 text-fg-muted", narrowFigure && "@max-[44rem]:hidden")} data-testid="in-pool">
+                        In pool<span className="sr-only"> (their own pick for this role)</span>
                       </span>
                     ) : null}
                   </span>
@@ -518,23 +523,29 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
               </span>
               {/* Narrow rows: the win rate and the games at the right, as the columns put them first.
                   Under a 17rem list (a large text size on a phone) everything stacks under the name. */}
-              <span className="text-right tabular-nums @max-[17rem]:pl-[3.25rem] @max-[17rem]:text-left @min-[44rem]:hidden" title={winRateSampleNote(r.winRate, r.games, WIN_RATE_MIN_GAMES.champion) ?? undefined}>
-                <span className={cn("block text-base font-semibold leading-tight", WIN_RATE_TONE_CLASS[winRateTone(r.winRate, r.games, WIN_RATE_MIN_GAMES.champion)])}>{r.winRate === null ? "—" : percent(r.winRate, 0)}</span>
+              <span className="text-right tabular-nums @max-[17rem]:pl-[3.25rem] @max-[17rem]:text-left @min-[44rem]:hidden">
+                <span className={cn("block text-base font-semibold leading-tight", WIN_RATE_TONE_CLASS[winRateTone(r.winRate, r.games, WIN_RATE_MIN_GAMES.champion)])}>
+                  {r.winRate === null ? "—" : percent(r.winRate, 0)}
+                  <SampleNote note={winRateSampleNote(r.winRate, r.games, WIN_RATE_MIN_GAMES.champion)} />
+                </span>
                 <span className="block text-xs text-fg-subtle">
                   {formatCount(r.games)} game{r.games === 1 ? "" : "s"}
                   {r.games > 0 ? ` · ${r.wins}W ${r.games - r.wins}L` : ""}
                 </span>
               </span>
               {/* Games, with a quiet bar under it: the champion's share of every game in the filters
-                  (QuietBar, neutral and continuous), said in words in its title and to screen readers. */}
-              <span className="hidden text-right @min-[44rem]:block" title={`${formatCount(r.games)} game${r.games === 1 ? "" : "s"} · ${shareWords(share)} of the ${formatCount(total)} game${total === 1 ? "" : "s"} in these filters`} data-testid="champion-games">
+                  (QuietBar, neutral and continuous), said in words to screen readers. */}
+              <span className="hidden text-right @min-[44rem]:block" data-testid="champion-games">
                 <span className={cn("block tabular-nums", strong("games") ? "font-semibold text-fg" : "font-medium text-fg")}>{formatCount(r.games)}</span>
                 {/* Clicks pass through to the row (its fill's transform would otherwise paint it above the row's button). */}
                 <QuietBar value={share} className="pointer-events-none mt-1" testId="champion-games-share" />
                 <span className="sr-only">, {shareWords(share)} of the games in these filters</span>
               </span>
-              <span className="hidden min-w-0 text-right @min-[44rem]:block" title={winRateSampleNote(r.winRate, r.games, WIN_RATE_MIN_GAMES.champion) ?? undefined}>
-                <span className={cn("block text-sm font-semibold tabular-nums leading-tight", WIN_RATE_TONE_CLASS[winRateTone(r.winRate, r.games, WIN_RATE_MIN_GAMES.champion)])}>{r.winRate === null ? "—" : percent(r.winRate, 0)}</span>
+              <span className="hidden min-w-0 text-right @min-[44rem]:block">
+                <span className={cn("block text-sm font-semibold tabular-nums leading-tight", WIN_RATE_TONE_CLASS[winRateTone(r.winRate, r.games, WIN_RATE_MIN_GAMES.champion)])}>
+                  {r.winRate === null ? "—" : percent(r.winRate, 0)}
+                  <SampleNote note={winRateSampleNote(r.winRate, r.games, WIN_RATE_MIN_GAMES.champion)} />
+                </span>
                 {r.games > 0 ? (
                   <span className="block text-2xs tabular-nums text-fg-subtle">
                     {r.wins}W {r.games - r.wins}L
@@ -548,7 +559,7 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
               {MULTIKILL_KINDS.map((k) => (
                 <KindCount key={k.key} c={c} kind={k.key} strong={strong(k.key)} />
               ))}
-              <span className={cn(figure("mastery"), FOLD)} title={c.mastery?.points ? `${formatCount(c.mastery.points)} mastery points` : "No mastery recorded"} data-testid="mastery-points">
+              <span className={cn(figure("mastery"), FOLD)} title={c.mastery?.points ? `${formatCount(c.mastery.points)} mastery points` : undefined} data-testid="mastery-points">
                 {masteryText(c.mastery?.points)}
               </span>
             </li>
@@ -646,7 +657,7 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
                 const Arrow = active ? (sort.dir === "asc" ? ArrowUp : ArrowDown) : ArrowUpDown;
                 return (
                   <span key={c.key} className={cn("min-w-0", right && "text-right", c.layout && LAYOUT_CLASS[c.layout], c.key !== "champion" && c.key !== "games" && c.key !== "win" && FOLD)} data-sort={active ? sort.dir : undefined}>
-                    <button type="button" onClick={() => sortBy(c.key)} title={c.title ? `${c.title} · click to sort` : "Click to sort"} className={cn("group/sort relative inline-flex items-center whitespace-nowrap rounded py-2.5 text-2xs font-semibold uppercase tracking-label transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-accent", active ? "text-fg" : "text-fg-subtle hover:text-fg-muted")} data-testid={`sort-${c.key}`}>
+                    <button type="button" onClick={() => sortBy(c.key)} className={cn("group/sort relative inline-flex items-center whitespace-nowrap rounded py-2.5 text-2xs font-semibold uppercase tracking-label transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-accent", active ? "text-fg" : "text-fg-subtle hover:text-fg-muted")} data-testid={`sort-${c.key}`}>
                       {/* The arrow sits beside the name without taking its width: the name always fits its column. */}
                       <Arrow className={cn("absolute top-1/2 h-3 w-3 -translate-y-1/2", right ? "right-full mr-0.5" : "left-full ml-0.5", active ? "opacity-100" : "opacity-0 transition-opacity duration-150 group-hover/sort:opacity-60 group-focus-visible/sort:opacity-60")} aria-hidden />
                       {c.label}
@@ -680,7 +691,7 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
       {rows.length && (multikillsIncomplete || killsIncomplete) ? (
         <p className="flex flex-wrap items-center gap-x-1.5 px-1 text-xs text-fg-muted" data-testid="multikill-legend">
           <span>
-            {multikillsIncomplete && killsIncomplete ? "Kills and multikills" : killsIncomplete ? "Kills" : "Multikills"}: <span className="font-semibold text-warn">*</span> from only some of the champion&apos;s games, <span className="text-fg-subtle">—</span> none of its games has counts yet. Those still being fetched from Riot are never counted as zero.
+            {multikillsIncomplete && killsIncomplete ? "Kills and multikills" : killsIncomplete ? "Kills" : "Multikills"}: <span className="font-semibold text-warn">*</span> only some games counted so far · <span className="text-fg-subtle">—</span> not counted yet (never shown as zero)
           </span>
           {multikillsIncomplete ? <InfoTip text={MULTIKILL_HELP} label="About multikills" /> : null}
         </p>

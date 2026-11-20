@@ -432,7 +432,7 @@ export function GoldChart({ points, events = null, testId = "gold-chart" }: { po
             {since && (since.objectives.length || since.kills?.own || since.kills?.enemy || since.you?.deaths || since.you?.kills) ? <span className="text-fg-muted"> · since the minute before: {windowWords(since)}</span> : null}
           </>
         ) : (
-          "Hover, touch or use the arrow keys to read a minute."
+          "Point at or tap the chart, or use the arrow keys, to read a minute."
         )}
       </p>
     </figure>

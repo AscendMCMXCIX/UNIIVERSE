@@ -3,6 +3,7 @@ import type { Role } from "@/domain/roles";
 import type { CardLook } from "@/domain/card-style";
 import type { ProficiencyTier } from "@/domain/proficiency";
 import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateSampleNote, winRateTone } from "@/domain/stats/win-rate";
+import { SampleNote } from "./sample-note";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
 import { RoleIcon } from "@/components/role-icon";
 import { cn } from "@/lib/cn";
@@ -545,9 +546,4 @@ export function PoolChampionTile({ index, champion, row, support, withStats = tr
       ) : null}
     </li>
   );
-}
-
-/** Why a win rate is in the quiet colour (too few games), for screen readers; the games are counted beside it. */
-export function SampleNote({ note }: { note: string | null }) {
-  return note ? <span className="sr-only"> ({note})</span> : null;
 }
