@@ -179,13 +179,9 @@ describe("administrator access", () => {
     expect(await usersActions.setAccessLevelAction(otherId, { level: "owner" })).toMatchObject({ ok: false, error: expect.stringMatching(/one Owner/) });
   });
 
-  it("supports several administrators: only the Owner grants it, and one administrator can remove it from another", async () => {
+  it("supports several administrators: one administrator can grant and remove it for another", async () => {
     await signInAs(adminId);
-    expect(await usersActions.setAdministratorAction(otherId, true)).toMatchObject({ ok: false, error: expect.stringMatching(/Only the Owner grants/) });
-    expect((await getUser(handle.db, otherId))!.isAdmin).toBe(false);
-    await signInAs(ownerId);
     expect((await usersActions.setAdministratorAction(otherId, true)).ok).toBe(true);
-    await signInAs(adminId);
     expect((await getUser(handle.db, otherId))!.isAdmin).toBe(true);
     // The read-only account audit counts them, and names none.
     const audit = await runJob(handle.db, "auth-audit", "cli");
