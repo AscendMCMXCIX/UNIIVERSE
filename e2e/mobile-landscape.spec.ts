@@ -436,7 +436,7 @@ test("held sideways: a dialog keeps its title and actions on screen and scrolls 
   const box = await rect(page, "dialog[open]");
   expect(box.top).toBeGreaterThanOrEqual(0);
   expect(box.bottom).toBeLessThanOrEqual(box.vh + 0.5);
-  for (const target of [dialog.locator("#dialog-title"), dialog.getByTestId("save-preset"), dialog.getByTestId("dialog-close")]) {
+  for (const target of [dialog.locator("[id^=dialog-title]"), dialog.getByTestId("save-preset"), dialog.getByTestId("dialog-close")]) {
     const b = (await target.boundingBox())!;
     expect(b.y).toBeGreaterThanOrEqual(box.top - 1);
     expect(b.y + b.height).toBeLessThanOrEqual(box.bottom + 1);

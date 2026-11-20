@@ -91,7 +91,7 @@ test("a plain dialog keeps 12 px between its title and the close button", async 
   }).toPass({ timeout: 15_000 });
   await untilStill(page);
   // Measured on screen: from the title's block (it takes all the width the header leaves it) to the close button.
-  const room = await dialog.evaluate((d) => d.querySelector("[data-testid=dialog-close]")!.getBoundingClientRect().left - d.querySelector("#dialog-title")!.parentElement!.getBoundingClientRect().right);
+  const room = await dialog.evaluate((d) => d.querySelector("[data-testid=dialog-close]")!.getBoundingClientRect().left - d.querySelector("[id^=dialog-title]")!.parentElement!.getBoundingClientRect().right);
   expect(room).toBeGreaterThanOrEqual(CLEARANCE);
   if (await page.evaluate(() => matchMedia("(pointer: coarse)").matches)) {
     const close = (await dialog.getByTestId("dialog-close").boundingBox())!;

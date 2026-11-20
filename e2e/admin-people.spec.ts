@@ -137,9 +137,11 @@ test("a window opened inside the person view closes alone: a confirmation's Canc
   const access = page.getByTestId("access-dialog");
   await access.getByTestId("administrator-access").getByText("Administrator access").click();
   await page.getByTestId("save-access").click();
-  // Found by its heading (opened over Manage access, the two sheets share the title's id, Dialog's
-  // "dialog-title"), the innermost window holding it: it is drawn inside the person view.
-  const grant = page.locator("dialog[open]").filter({ has: page.getByRole("heading", { name: /an administrator\?$/ }) }).last();
+  // The second question is named by its own title, not by Manage access's under it (each Dialog has
+  // its own title id: two windows with one id were both named after the first, R6 review NEW-1).
+  const grant = page.getByRole("dialog", { name: /an administrator\?$/ });
+  await expect(grant).toBeVisible();
+  await expect(access.locator("xpath=ancestor::dialog[1]")).toHaveAccessibleName(/^Access for /);
   await grant.getByRole("button", { name: "Cancel" }).click();
   await expect(grant).toBeHidden();
   await expect(access).toBeVisible();
