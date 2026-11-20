@@ -121,7 +121,9 @@ export function useScrolledAway(target: HTMLElement | React.RefObject<HTMLElemen
     if (!el || top === null) return;
     const line = Math.max(0, Math.round(top));
     const observer = new IntersectionObserver(
-      ([entry]) => {
+      (entries) => {
+        // The newest entry: a late callback carries every change since the last, oldest first (#323).
+        const entry = entries[entries.length - 1];
         if (!entry) return;
         // An element with no box (hidden at this width) is never away: there is nothing to scroll back to.
         const box = entry.boundingClientRect;

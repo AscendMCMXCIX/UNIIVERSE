@@ -141,7 +141,14 @@ export function UnfoldHeader({ title, onClose, closeLabel = "Close", testId = "u
     const el = sentinel.current;
     if (!el) return;
     const pinned = parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop) || 0;
-    const io = new IntersectionObserver(([entry]) => setStuck(!!entry && !entry.isIntersecting && entry.boundingClientRect.top < pinned + 1), { rootMargin: `-${Math.round(pinned)}px 0px 0px 0px` });
+    // The newest entry: a late callback carries every change since the last, oldest first.
+    const io = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[entries.length - 1];
+        setStuck(!!entry && !entry.isIntersecting && entry.boundingClientRect.top < pinned + 1);
+      },
+      { rootMargin: `-${Math.round(pinned)}px 0px 0px 0px` },
+    );
     io.observe(el);
     return () => io.disconnect();
   }, []);

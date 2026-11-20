@@ -148,7 +148,7 @@ function TotalKills({ c, strong }: { c: OverviewCard; strong: boolean }) {
   const p = c.performance;
   return (
     <span className={cn("hidden text-right text-sm tabular-nums @min-[44rem]:block", LAYOUT_CLASS.medium, FOLD, p.totalKills === null ? "text-fg-subtle" : strong ? "font-semibold text-fg" : "text-fg-muted")} title={killsText(c)} data-testid="champion-kills">
-      {p.totalKills === null ? <span aria-label="Not counted yet">—</span> : formatCount(p.totalKills)}
+      {p.totalKills === null ? <><span aria-hidden>—</span><span className="sr-only">Not counted yet</span></> : formatCount(p.totalKills)}
       {p.totalKills !== null && p.detailedGames < c.selected.games ? <PartialMark /> : null}
     </span>
   );
@@ -168,8 +168,9 @@ function RarestMultikill({ c, strong }: { c: OverviewCard; strong: boolean }) {
   return (
     <span className={cn("hidden min-w-0 whitespace-nowrap text-right text-sm @min-[44rem]:block", LAYOUT_CLASS.medium, FOLD)} title={multikillText(c)} data-testid="champion-multikills">
       {!m ? (
-        <span className="text-fg-subtle" aria-label="Not counted yet">
-          —
+        <span className="text-fg-subtle">
+          <span aria-hidden>—</span>
+          <span className="sr-only">Not counted yet</span>
         </span>
       ) : top ? (
         <>
@@ -191,7 +192,7 @@ function KindCount({ c, kind, strong }: { c: OverviewCard; kind: KindKey; strong
       {m ? (
         formatCount(m[kind])
       ) : (
-        <span aria-label="Not counted yet">—</span>
+        <><span aria-hidden>—</span><span className="sr-only">Not counted yet</span></>
       )}
       {m && m.counted < m.games ? <PartialMark /> : null}
     </span>

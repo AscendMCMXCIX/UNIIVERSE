@@ -345,7 +345,7 @@ export function CardPool({ champions, roleLabel, showFigures = true, testId = "p
   const [first, ...rest] = champions;
   if (!first)
     return (
-      <div className="rounded-lg border border-dashed border-border-strong/60 px-3 py-2.5 text-center text-xs text-warn" aria-label={`${roleLabel} champion pool`} data-testid={testId}>
+      <div className="rounded-lg border border-dashed border-border-strong/60 px-3 py-2.5 text-center text-xs text-warn" role="group" aria-label={`${roleLabel} champion pool`} data-testid={testId}>
         No {roleLabel} champions chosen yet
       </div>
     );
@@ -355,7 +355,7 @@ export function CardPool({ champions, roleLabel, showFigures = true, testId = "p
   // starts one, as on Recent form.
   const firstLine = !showFigures ? "First choice" : games > 0 ? `${games} game${games === 1 ? "" : "s"}${first.winRate != null ? ` · ${Math.round(first.winRate * 100)}%` : ""}` : (first.tierLabel ?? "No games this season");
   return (
-    <div className="flex min-w-0 items-center gap-2.5" aria-label={`${roleLabel} champion pool, in order of preference`} data-testid={testId} data-card-pool>
+    <div className="flex min-w-0 items-center gap-2.5" role="group" aria-label={`${roleLabel} champion pool, in order of preference`} data-testid={testId} data-card-pool>
       <span className="flex min-w-0 shrink-0 items-center gap-2 @max-[9.75rem]/card:shrink @max-[9.75rem]/card:flex-wrap" data-testid="pool-first">
         <ChampionPortrait champion={first} size="md" className="ring-1 ring-[color:var(--card-accent)]/50" />
         <span className="min-w-0 max-w-[7.5rem]">
@@ -461,7 +461,7 @@ export function PoolPreview({ champions, total, label, max = 4, fit = false, siz
   const shown = champions.slice(0, fit ? Math.min(max, FIT_HIDDEN.length) : max);
   const more = total - shown.length;
   const row = (
-    <div className="flex min-w-0 items-center gap-1" aria-label={label} data-testid={testId}>
+    <div className="flex min-w-0 items-center gap-1" role="group" aria-label={label} data-testid={testId}>
       {shown.length === 0 ? <span className="text-xs text-warn">No champions yet</span> : null}
       {shown.map((c, i) =>
         fit ? (
