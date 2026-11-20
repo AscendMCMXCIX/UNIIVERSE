@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import abilityFixture from "@/server/riot/fixtures/champion-abilities.fixture.json";
-import { NO_HIGH_ELO, TIP_LABEL } from "@/components/matchup-intel/riot-tips";
+import { TIP_LABEL } from "@/components/matchup-intel/riot-tips";
+import { NO_HIGH_ELO } from "@/components/matchup-intel/evidence-panel";
 import { slotWords } from "@/components/matchup-intel/slots";
 import { ROLES } from "./types";
 import { EVIDENCE_REFUSED_WORDS, evidenceRefusedWords, refusedWords } from "./refused-words";

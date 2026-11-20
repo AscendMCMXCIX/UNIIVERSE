@@ -77,22 +77,29 @@ export async function ensureStaticDigests(db: Db, version: string, options: { fe
 }
 
 /**
- * Whether Riot's data shows no change between two patches for everything named: true only when
- * every one has a digest at both patches and they are equal. Anything not recorded at either patch
- * counts as changed (unknown is never "unchanged").
+ * Of the things named, those whose Riot data shows no change between two patches: each has a digest
+ * at both patches and they are equal. Anything not recorded at either patch is left out (unknown is
+ * never "unchanged"). One query.
  */
-export async function unchangedBetween(db: Db, current: string, previous: string, named: ReadonlyArray<{ kind: DigestKind; key: string }>): Promise<boolean> {
-  if (!named.length) return false;
+export async function unchangedKeys(db: Db, current: string, previous: string, named: ReadonlyArray<{ kind: DigestKind; key: string }>): Promise<Set<string>> {
   const keys = [...new Set(named.map((n) => `${n.kind}:${n.key}`))];
+  if (!keys.length) return new Set();
   const rows = await db
     .select({ patch: staticDigests.patch, kind: staticDigests.kind, key: staticDigests.key, hash: staticDigests.hash })
     .from(staticDigests)
     .where(and(inArray(staticDigests.patch, [current, previous]), inArray(sql`${staticDigests.kind} || ':' || ${staticDigests.key}`, keys)));
   const at = (patch: string, k: string) => rows.find((r) => r.patch === patch && `${r.kind}:${r.key}` === k)?.hash;
-  return keys.every((k) => {
+  return new Set(keys.filter((k) => {
     const a = at(current, k);
     return !!a && a === at(previous, k);
-  });
+  }));
+}
+
+/** Whether everything named is unchanged between the two patches (unchangedKeys); false for an empty list. */
+export async function unchangedBetween(db: Db, current: string, previous: string, named: ReadonlyArray<{ kind: DigestKind; key: string }>): Promise<boolean> {
+  if (!named.length) return false;
+  const same = await unchangedKeys(db, current, previous, named);
+  return named.every((n) => same.has(`${n.kind}:${n.key}`));
 }
 
 /** The champions, items and runes whose Data Dragon entries changed between two patches, counted (Admin's data health; the job's log). */

@@ -12,12 +12,11 @@ import { TipsDisclosure } from "./tips-disclosure";
   enemy shows; the rest, and your side's, fold. A champion Riot gives none says so; a record stored
   before the tips were read says that instead, never that Riot publishes none.
 
-  Under them, the evidence this page does not have, said as such ("No high-elo evidence (not
-  collected)"): no build, rune or skill order is ever suggested without it.
+  The evidence from the team's games, and what the page does not have, follow in their own fold
+  (evidence-panel.tsx).
 */
 
 export const TIP_LABEL = "Riot's tip (may predate later changes)";
-export const NO_HIGH_ELO = "No high-elo evidence (not collected)";
 
 function TipQuote({ text }: { text: string }) {
   return (
@@ -92,16 +91,14 @@ function TipGroup({
 
 /**
  * Riot's tips for the enemies (the first of each shown, the rest in one fold) and your side (one
- * fold), with the evidence the page has not collected. Compact, so it fits the one-screen dashboard.
+ * fold). Compact, so it fits the one-screen dashboard.
  */
 export function RiotTipsPanel({
   enemies,
   yours,
-  duo,
 }: {
   enemies: readonly ChampionIntelView[];
   yours: readonly ChampionIntelView[];
-  duo: boolean;
 }) {
   if (!enemies.length && !yours.length) return null;
   const none = [
@@ -178,22 +175,6 @@ export function RiotTipsPanel({
               {w}
             </p>
           ))}
-          <ul
-            className="space-y-0.5 border-t border-border pt-1.5 text-xs text-fg-muted"
-            data-testid="matchup-evidence"
-          >
-            <li data-testid="matchup-evidence-high-elo">
-              <span className="font-medium text-fg">
-                Runes, items and skill order:
-              </span>{" "}
-              {NO_HIGH_ELO}
-            </li>
-            {duo ? (
-              <li data-testid="matchup-evidence-duo">
-                No curated notes for this 2v2
-              </li>
-            ) : null}
-          </ul>
         </div>
       </TipsDisclosure>
     </Panel>
