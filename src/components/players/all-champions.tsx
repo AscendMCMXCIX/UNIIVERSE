@@ -301,6 +301,16 @@ export function sortChampions(rows: readonly OverviewCard[], key: SortKey, dir: 
     return sign * (va - vb) || byName(a, b);
   });
 }
+/** An upright phone, as the sm breakpoint (below 40rem): Filters and Refresh join the list's search and sort row there. */
+const PHONE_QUERY = "(max-width: 39.99rem)";
+function subscribePhone(change: () => void) {
+  const query = window.matchMedia(PHONE_QUERY);
+  query.addEventListener("change", change);
+  return () => query.removeEventListener("change", change);
+}
+const isPhone = () => window.matchMedia(PHONE_QUERY).matches;
+const notPhone = () => false;
+
 const defaultDir = (key: SortKey): Dir => (key === "champion" ? "asc" : "desc");
 const masteryText = (n: number | null | undefined) => (n == null ? "—" : formatCompactCount(n));
 
@@ -319,6 +329,35 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
   const initialSort = useSearchParams().get("sort");
   const [sort, setSort] = React.useState<{ key: SortKey; dir: Dir }>(() => (isSortKey(initialSort) ? { key: initialSort, dir: defaultDir(initialSort) } : { key: "games", dir: "desc" }));
   const [all, setAll] = React.useState(false);
+  // Phones: Filters (the bar's own button, drawn here) and Refresh join the search and sort row
+  // instead of a row of their own above the scope line (PLAN §S2b). Before the page knows it is a
+  // phone (the server's render) they are not drawn below sm, and their place here keeps its room.
+  const phone = React.useSyncExternalStore(subscribePhone, isPhone, notPhone);
+  const [toolsHost, setToolsHost] = React.useState<HTMLElement | null>(null);
+  // Refresh is offered (RefreshButton draws nothing otherwise): the phone's row keeps room for it beside Filters.
+  const refreshHere = !!status && !!refresh && status.state !== "none";
+  // Only where the list has its row (it has champions): else Filters and Refresh keep the header's row.
+  const toolsInRow = data.topChampions.length > 0;
+  const toggleOnPhones = React.useMemo(() => (toolsInRow ? { host: phone ? toolsHost : null } : undefined), [toolsInRow, phone, toolsHost]);
+  // A row too narrow for the search and the tools side by side (a large text size on a small phone):
+  // the tools end the visible "Sort by" line instead of taking a line of their own.
+  const toolbarRef = React.useRef<HTMLDivElement>(null);
+  const [toolsBesideSort, setToolsBesideSort] = React.useState(false);
+  React.useEffect(() => {
+    const row = toolbarRef.current;
+    if (!row || !phone) return setToolsBesideSort(false);
+    const check = () => {
+      const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+      const style = getComputedStyle(row);
+      const room = row.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+      // The search's least (4.5rem), a gap, Filters (2.75rem), and Refresh and its gap where offered.
+      setToolsBesideSort(room < (4.5 + 0.5 + 2.75 + (refreshHere ? 3.25 : 0)) * rem - 0.5);
+    };
+    check();
+    const observer = new ResizeObserver(check);
+    observer.observe(row);
+    return () => observer.disconnect();
+  }, [phone, refreshHere, toolsInRow]);
   const champ = React.useCallback((id: string): PortraitChampion => championsById[id] ?? { id, name: id, portraitUrl: "" }, [championsById]);
   const q = normalise(query.trim());
   // Sorting only reorders the champions in the current filters (season, mode, role, account, search).
@@ -575,6 +614,13 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
     ),
     [shown, champ, sorted, total, selectedKey, previewData],
   );
+  // Phones: Filters (the bar's button is drawn in the host: OverviewFilters' toggleOnPhones; the host keeps its room until then) and Refresh.
+  const phoneTools = (
+    <div className="flex shrink-0 items-center gap-2 sm:hidden" data-testid="all-champions-phone-tools">
+      <span ref={setToolsHost} className="flex min-h-11 min-w-11" />
+      {status && phone ? <RefreshButton status={status} refresh={refresh} compact /> : null}
+    </div>
+  );
   return (
     <section className="@container space-y-3" aria-labelledby="all-champions" data-testid="all-champions">
       {/* The profile's one heading layout (as Season performance and Match History). */}
@@ -593,8 +639,9 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
         // Phones: Filters (and Refresh) on the title's line, the scope under them (SectionHeader's toolbarBesideScope, as Season performance).
         toolbarBesideScope
         status={status ? <DataStatusNote status={status} refresh={refresh} /> : null}
-        refresh={status ? <RefreshButton status={status} refresh={refresh} /> : null}
-        controls={<OverviewFilters basePath={basePath} filter={f} seasons={data.seasons} currentSeason={data.currentSeason} champions={[]} accounts={data.accountOptions} showChampions={false} modeCounts={data.modes.counts} testId="all-champions-filters" />}
+        // Below sm Refresh is in the list's row (with Filters); its place here is drawn from sm only.
+        refresh={status && !(phone && toolsInRow) ? <RefreshButton status={status} refresh={refresh} className={toolsInRow ? "max-sm:hidden" : undefined} /> : null}
+        controls={<OverviewFilters basePath={basePath} filter={f} seasons={data.seasons} currentSeason={data.currentSeason} champions={[]} accounts={data.accountOptions} showChampions={false} modeCounts={data.modes.counts} testId="all-champions-filters" toggleOnPhones={toggleOnPhones} />}
       />
       <PageToolbar anchor={searchRef} label="All Champions controls" land="[data-testid=top-champion]">
         <SearchInput value={query} onChange={setQuery} placeholder="Find a champion…" label="Find a champion or a role" className={COMPACT_SEARCH} testId="toolbar-all-champions-search" />
@@ -608,8 +655,14 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
           // From a 20.5rem card (a 360px phone) the search and Sort by share one row; on a narrower
           // card the search takes its own line above Sort by. From 44rem the row holds the search,
           // the count and the bar's key, wrapping only if a larger text size leaves no room.
-          <div className="flex flex-wrap items-center gap-2 border-b border-border/70 px-3 py-2.5 @min-[20.5rem]:flex-nowrap @min-[44rem]:flex-wrap @min-[76rem]:px-4">
-            <SearchInput ref={searchRef} value={query} onChange={setQuery} placeholder="Find a champion or role…" label="Find a champion or a role" className="flex-[1_1_12rem] @min-[44rem]:max-w-xs" testId="all-champions-search" />
+          // Phones (below sm): the search and Filters (and Refresh, where it is offered) keep together,
+          // and Sort by joins them where the row has room, else takes the next line; the search keeps
+          // at least 4.5rem and the tools take the line under it only when it would not (a large text size).
+          <div ref={toolbarRef} className="flex flex-wrap items-center gap-2 border-b border-border/70 px-3 py-2.5 sm:@min-[20.5rem]:flex-nowrap @min-[44rem]:flex-wrap @min-[76rem]:px-4" data-testid="all-champions-toolbar">
+            <div className={cn("flex min-w-0 flex-[1_1_12rem] flex-wrap items-center gap-2 max-sm:flex-[1_1_0%] @min-[44rem]:max-w-xs", refreshHere ? "max-sm:min-w-[min(11rem,100%)]" : "max-sm:min-w-[min(7.75rem,100%)]")}>
+              <SearchInput ref={searchRef} value={query} onChange={setQuery} placeholder="Find a champion or role…" label="Find a champion or a role" className="flex-[1_1_4.5rem]" testId="all-champions-search" />
+              {toolsBesideSort ? null : phoneTools}
+            </div>
             <span className="ml-auto hidden text-xs tabular-nums text-fg-subtle @min-[44rem]:inline" aria-live="polite" data-testid="all-champions-count">
               {q ? `${rows.length} of ${data.topChampions.length}` : data.topChampions.length} champion{(q ? rows.length : data.topChampions.length) === 1 ? "" : "s"}
             </span>
@@ -624,18 +677,28 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
             </span>
             {/* Phones: the table's columns as one compact Sort by control and a direction toggle. */}
             {/* Sharing the search's row (from a 20.5rem card), the words "Sort by" are read out only,
-                and the control shows the sort mark in their place, before the column's short name (the
-                names keep it narrow). At a large text size Sort by takes a line of its own over the
+                and from sm the control shows the sort mark in their place, before the column's short
+                name (the names keep it narrow); on a phone, where Filters shares the row too, the
+                direction button beside it says what it is. At a large text size Sort by takes a line of its own over the
                 control and its arrow, and the control narrows, so the toolbar is never wider than the
                 phone. */}
             <div className="flex min-w-0 flex-wrap items-center gap-1.5 @min-[20.5rem]:shrink-0 @min-[20.5rem]:flex-nowrap @min-[44rem]:hidden" data-testid="all-champions-sort-mobile">
-              <label htmlFor="all-champions-sort-by" className="text-xs text-fg-muted @min-[20.5rem]:sr-only">
-                Sort by
-              </label>
+              {toolsBesideSort ? (
+                <div className="flex w-full items-center justify-between gap-2">
+                  <label htmlFor="all-champions-sort-by" className="text-xs text-fg-muted">
+                    Sort by
+                  </label>
+                  {phoneTools}
+                </div>
+              ) : (
+                <label htmlFor="all-champions-sort-by" className="text-xs text-fg-muted @min-[20.5rem]:sr-only">
+                  Sort by
+                </label>
+              )}
               <div className="flex min-w-0 items-center gap-1.5">
                 <span className="relative flex min-w-0">
-                  <ArrowUpDown className="pointer-events-none absolute left-2 top-1/2 hidden h-4 w-4 -translate-y-1/2 text-fg-subtle @min-[20.5rem]:block" aria-hidden data-testid="all-champions-sort-mark" />
-                  <Select id="all-champions-sort-by" value={sort.key} onValueChange={(v) => setSort({ key: v as SortKey, dir: defaultDir(v as SortKey) })} className="w-auto @min-[20.5rem]:pl-7" options={COLUMNS.map((c) => ({ value: c.key, label: c.label }))} />
+                  <ArrowUpDown className="pointer-events-none absolute left-2 top-1/2 hidden h-4 w-4 -translate-y-1/2 text-fg-subtle sm:@min-[20.5rem]:block" aria-hidden data-testid="all-champions-sort-mark" />
+                  <Select id="all-champions-sort-by" value={sort.key} onValueChange={(v) => setSort({ key: v as SortKey, dir: defaultDir(v as SortKey) })} className="w-auto sm:@min-[20.5rem]:pl-7" options={COLUMNS.map((c) => ({ value: c.key, label: c.label }))} />
                 </span>
                 <button type="button" onClick={() => setSort((cur) => ({ ...cur, dir: cur.dir === "asc" ? "desc" : "asc" }))} className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-border-control bg-bg-elevated text-fg transition-colors hover:border-fg-subtle" aria-label={`${label}, ${sort.dir === "asc" ? "ascending" : "descending"}: reverse`} data-testid="all-champions-sort-dir">
                   {sort.dir === "asc" ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />}
