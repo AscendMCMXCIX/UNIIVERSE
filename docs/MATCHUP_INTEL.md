@@ -112,9 +112,9 @@ On a desktop the page is one screen, read in a glance (`matchup-content.tsx`, `m
 - **Right**, the enemy's five ability tiles, P, Q, W, E and R, always in that order (The ability
   tiles), then your champion, folded into one line ("Your champion: Riven", where its abilities and
   facts come from under it); opened, its own five tiles.
-- **"Sources and notices"**: on a desktop (two columns) directly under the enemy's kits, in one column
-  at the page's foot (since Release 10); one line that is always on the screen, its summary visible,
-  the rest one press away (Compliance).
+- **"Sources and notices"**: directly under the enemy's kits (since Release 10; before, at the foot
+  across both columns), in one column as in two, so the order read and tabbed through is the order
+  seen; one line that is always on the screen, its summary visible, the rest one press away (Compliance).
 
 The two columns start where the page's body is 60rem wide (a container query on the dashboard; the
 right one at least 22rem and 0.72 of the left), each as tall as its content: nothing is stretched to
@@ -1553,10 +1553,11 @@ Matchup Intel page added to it would need `DDRAGON_VERSION` passed as well.
     (DESIGN_SYSTEM §1); the badge stays on the tile, leading the row of the facts it flags (a row of
     its own where there are none), and the cooldown's source stays under its numbers. Same for the
     player's own tiles;
-  - on a desktop (two columns) the sources and notices sit directly under the enemy's kits, so the
-    first screen keeps them whatever the left column holds (the briefing's hidden point and the
-    interactions' "changed" badge put them under the fold at 1440 × 900 before: no layout of the tile
-    alone could make that up); in one column they stay last, at the page's foot.
+  - the sources and notices sit directly under the enemy's kits, so a desktop's first screen keeps
+    them whatever the left column holds (the briefing's hidden point and the interactions' "changed"
+    badge put them under the fold at 1440 × 900 before: no layout of the tile alone could make that
+    up); in one column in the same place, before your champion and Riot's tips (a visual reorder to
+    the page's foot took the keyboard's focus there and back up, which the review found).
   Measured in Chrome Headless Shell 156 (CI's browser) on the demo, Riven vs Mordekaiser, before →
   after: Mordekaiser's Q changed, the sources' summary at 1440 × 900 941 → 796px and the lowest enemy
   cooldown line at 1280 × 800 829 → 790px; W 764 / 756; R 796 / 771; nothing changed 851 → 745px,

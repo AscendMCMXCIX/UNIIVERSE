@@ -104,9 +104,17 @@ test("All Champions on a phone: the tab names it, the scope's one line right und
     expect(f.x, `${width}px: Filters after the search`).toBeGreaterThanOrEqual(s.x + s.width - 1);
     expect(Math.round(f.width) >= 44 && Math.round(f.height) >= 44, `${width}px: Filters 44px`).toBe(true);
     expect(o.x + o.width, `${width}px: inside the card`).toBeLessThanOrEqual(c.x + c.width);
-    // Room for its short placeholder whole ("Find…": the icon's 36px, the text, 12px), never "F…".
+    // Room for its short placeholder whole ("Find…" between the icon and the field's end), never "Fin…":
+    // its text's width against the room the field's padding leaves (at 375 it was 42px for 47).
     expect(s.width, `${width}px: the search keeps room to type`).toBeGreaterThanOrEqual(84);
     await expect(search).toHaveAttribute("placeholder", "Find…");
+    const room = await search.evaluate((i: HTMLInputElement) => {
+      const cs = getComputedStyle(i);
+      const c = document.createElement("canvas").getContext("2d")!;
+      c.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+      return { avail: i.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight), need: c.measureText(i.placeholder).width };
+    });
+    expect(room.avail, `${width}px: "Find…" whole`).toBeGreaterThanOrEqual(room.need);
     await expect(page.getByLabel("Sort by")).toBeVisible();
     if (width === 393) expect(await sort.locator("label").evaluate((l) => l.getBoundingClientRect().width), `${width}px: the label read out only`).toBeLessThanOrEqual(1);
     if (width >= 375) expect(await scope.evaluate(lines), `${width}px: the scope's words on one line`).toBeLessThan(1.5);
@@ -222,6 +230,13 @@ test("at 200% text on a 320px phone, All Champions is no wider than the phone: e
     return words.getBoundingClientRect().right;
   });
   expect(rankRight, "the rank's words inside the phone").toBeLessThanOrEqual(320.5);
+  // Sorted by multikills (Overview's link, its ?sort= kept as the filters change): the sorted figure
+  // under each name wraps inside the phone (it reached 379px, the page scrolling sideways).
+  await page.goto(`${href}/champions?sort=multikills`);
+  await expect(rows.first()).toBeVisible();
+  await page.addStyleTag({ content: "html { font-size: 200% !important; }" });
+  await page.evaluate(() => document.fonts.ready);
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), { message: "sorted by multikills: the page as wide as the phone" }).toBeLessThanOrEqual(0);
 });
 
 test("All Champions on tablets and computers: a quiet bar under each champion's games, its share of every game in the filters, said on screen; a click on it opens the champion", async ({ page }) => {

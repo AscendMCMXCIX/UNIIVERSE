@@ -648,3 +648,33 @@ test("the five roles: a solo lane sets two slots, the bot lane four; an empty sl
     expect(await page.evaluate(() => navigator.clipboard.readText())).toMatch(/\/resources\/matchups\?role=support&champion=Jinx&vs=Caitlyn$/);
   }
 });
+
+test("the sources and notices sit directly under the enemy's kits, in the order they are read and tabbed through, in one column and in two", async ({ page }) => {
+  await openMatchupIntel(page, "Riven", "Mordekaiser");
+  await hydrated(page);
+  const order = await page.evaluate(() => {
+    const parts = ["matchup-enemy-abilities", "matchup-footer", "matchup-your-abilities"].map((id) => document.querySelector(`[data-testid="${id}"]`)!);
+    const dom = [...parts].sort((a, b) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1)).map((e) => e.getAttribute("data-testid"));
+    const seen = [...parts].sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top).map((e) => e.getAttribute("data-testid"));
+    return { dom, seen };
+  });
+  expect(order.seen).toEqual(["matchup-enemy-abilities", "matchup-footer", "matchup-your-abilities"]);
+  expect(order.dom).toEqual(order.seen);
+});
+
+test("checked three patches ago: the briefing hidden and said, the assembled reference in its place, the enemy's tiles and the sources' summary on the screen at 1440×900", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "desktop sizes");
+  await localPictures(page);
+  await riotText(page, "off");
+  await notesAge(page, 3);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openMatchupIntel(page, "Riven", "Mordekaiser");
+  await hydrated(page);
+  await expect(page.getByTestId("briefing-expired")).toContainText("three patches ago");
+  await expect(page.getByTestId("matchup-dashboard")).toHaveAttribute("data-layer", "assembled");
+  await expect(enemyAbilities(page)).toHaveCount(5);
+  const at = await page.evaluate(readMatchupIntel);
+  expect(at.expired).toBe(true);
+  expect(at.tilesBottom, "the enemy's five tiles on the screen").toBeLessThanOrEqual(at.innerHeight);
+  expect(at.summaryBottom ?? Infinity, "the sources' summary on the screen").toBeLessThanOrEqual(at.innerHeight);
+});

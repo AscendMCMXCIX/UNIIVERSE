@@ -144,21 +144,18 @@ export function MatchupContent({ view, champions, curated, legal, evidence = nul
               <LevelNotesPanel intels={[enemyIntel, yourIntel]} />
             </div>
           </div>
-          {/* A flex column, so the sources' line can sit under the enemy's kits on a desktop and at the
-              page's foot in one column (order), as before. */}
-          <div className="flex min-w-0 flex-col gap-3 @min-[60rem]/dash:gap-2">
+          <div className="min-w-0 space-y-3 @min-[60rem]/dash:space-y-2">
             {/* In the bot lane with both enemies chosen, their two kits side by side where the column has room. */}
             <div className={enemy2Intel ? "grid gap-3 @min-[60rem]/dash:grid-cols-2" : undefined} data-testid="matchup-enemy-kits">
               <AbilitiesPanel intel={enemyIntel} title={mirror ? `${enemyIntel.champion.name}'s abilities (both sides)` : `${enemyIntel.champion.name}'s abilities`} testId="matchup-enemy-abilities" notice={stale} haste />
               {enemy2Intel ? <AbilitiesPanel intel={enemy2Intel} title={`${enemy2Intel.champion.name}'s abilities`} testId="matchup-enemy2-abilities" /> : null}
             </div>
-            {/* The sources and notices: on a desktop (two columns) directly under the enemy's kits, so the
+            {/* The sources and notices, directly under the enemy's kits: on a desktop (two columns) so the
                 first screen keeps them in every state of the briefing, whatever the left column holds
                 (Release 10: with an enemy ability changed, the briefing's notes put them under the fold at
-                1440 × 900); in one column, last, at the page's foot. */}
-            <div className="order-last @min-[60rem]/dash:order-none">
-              <MatchupFooter view={view} legal={legal} />
-            </div>
+                1440 × 900). In one column too, in the same place: the order read and tabbed through is
+                the order seen (a visual reorder took the focus to the page's foot and back up). */}
+            <MatchupFooter view={view} legal={legal} />
             {/* Your duo's two kits side by side under the enemies' where the column has room. */}
             {(yourIntel && !mirror) || allyIntel ? (
               <div className={duo && allyIntel && yourIntel && !mirror ? "grid gap-3 @min-[60rem]/dash:grid-cols-2 @min-[60rem]/dash:items-start" : undefined}>
