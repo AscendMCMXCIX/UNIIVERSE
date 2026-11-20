@@ -213,9 +213,11 @@ test("Settings: the account card leads, drawn in the order it is read, with Sign
   await expect(page.locator("#current")).toBeVisible();
   // The index: Leaderboards' SectionIndex, a link per section.
   const index = page.getByTestId("settings-index");
-  await expect(index.getByRole("link")).toHaveText(["Name", "Password"]);
+  // S8a's "On this device" is a section of its own (Release 7).
+  await expect(index.getByRole("link")).toHaveText(["Name", "Password", "This device"]);
   await expect(index.getByRole("link", { name: "Password" })).toHaveAttribute("href", "#password");
-  await expect(index.getByTestId("settings-index-link")).toHaveCount(2);
+  await expect(index.getByRole("link", { name: "This device" })).toHaveAttribute("href", "#device");
+  await expect(index.getByTestId("settings-index-link")).toHaveCount(3);
   // Read in the order it is drawn: Tab moves down the card, and along each line.
   const order = await cardTabOrder(page);
   expect(order.length, "the card's controls").toBeGreaterThanOrEqual(5);
