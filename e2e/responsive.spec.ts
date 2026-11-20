@@ -318,7 +318,7 @@ test("Settings for a member with Social links: the index marks the section being
   try {
     await page.goto("/settings");
     const index = page.getByTestId("settings-index");
-    await expect(index.getByRole("link")).toHaveText(["Name", "Links", "Password"]);
+    await expect(index.getByRole("link")).toHaveText(["Name", "Links", "Password", "This device"]);
     await expect(index.getByRole("link", { name: "Name" })).toHaveAttribute("aria-current", "location");
     // Links' top just past the upper third of the window, the page far from its end: Links is current.
     await page.evaluate(() => {
