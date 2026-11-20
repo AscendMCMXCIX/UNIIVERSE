@@ -177,7 +177,7 @@ function MatchupInteraction({ item, names, rows, source }: { item: Extract<Inter
       {source.title ? (
         <>
           {" "}
-          <SourceTip text={`Source: ${source.title}. Curated matchup notes.`} testId="interaction-source" />
+          <SourceTip text={`From ${source.title}. Curated matchup notes.`} testId="interaction-source" />
         </>
       ) : null}
     </li>
@@ -222,7 +222,7 @@ export function InteractionsPanel({ matchup, enemyIntel, yourIntel, you, rows }:
             {oneSource ? (
               <>
                 {" · "}
-                <SourceTip text={`Source: ${oneSource}. Curated matchup notes.`} testId="interaction-source" />
+                <SourceTip text={`From ${oneSource}. Curated matchup notes.`} testId="interaction-source" />
               </>
             ) : null}
           </p>
@@ -315,7 +315,7 @@ export function LevelNotesPanel({ intels }: { intels: ReadonlyArray<ChampionInte
   const sourceText = (n: (typeof notes)[number]) => {
     if (!n.source.title) return null;
     const revision = revisionWords(n.source.revisionTime);
-    return `Source: ${n.source.title}${revision ? `, ${revision}` : ""}. ${CHECKED_NOTES_LABEL}.`;
+    return `From ${n.source.title}${revision ? `, ${revision}` : ""}. ${CHECKED_NOTES_LABEL}.`;
   };
   // Every note from one page (one champion's checked notes): its source said once, on the panel's line.
   const texts = notes.map(sourceText);

@@ -150,7 +150,7 @@ function FactDetail({ fact: f, championName }: { fact: FactView; championName: s
       {f.source.title ? (
         <span className="text-fg-subtle">
           {" "}
-          · Source: <SourceLink source={f.source} />
+          · from <SourceLink source={f.source} />
           {revision ? `${NO_BREAK}, ${revision}` : null}
         </span>
       ) : null}

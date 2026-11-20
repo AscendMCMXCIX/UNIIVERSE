@@ -103,7 +103,7 @@ export function lpNote(lp: LpRecord): string {
     case "awaiting-reading":
       return "LP not known yet: it shows after the next rank check.";
     case "several-games":
-      return `LP unknown: ${lp.games} games were played between two rank checks${lp.before && lp.after ? ` (${reading(lp.before)} to ${reading(lp.after)})` : ""}, so no single game's change is known.`;
+      return `LP unknown: ${lp.games} games came between two rank checks${lp.before && lp.after ? ` (${reading(lp.before)} to ${reading(lp.after)})` : ""}, so no one game's change is known.`;
     case "readings-too-far":
       return "LP unknown: the rank checks around this game were too far apart to rule out another change.";
     case "series":

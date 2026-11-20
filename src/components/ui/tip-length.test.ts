@@ -2,6 +2,8 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
 import { METRICS } from "@/domain/metrics";
+import type { LpRecord } from "@/domain/lp-attribution";
+import { lpNote } from "@/components/match-history/match-card";
 
 /*
   Every explanation is short (docs/STANDARDS.md, "Tooltips"; DESIGN_SYSTEM §7, "Explain"): one plain
@@ -10,8 +12,13 @@ import { METRICS } from "@/domain/metrics";
   as one word), every constant a tip reads (TIP_CONSTANTS) and every metric's tip. A text with
   several states or entries is counted per state: each literal on its own.
 
-  ALLOWLIST holds the few that may be longer, each with its reason: two that are not tips at all,
-  and those a later stage of the overhaul rewrites (the stage named empties its entries).
+  ALLOWLIST is empty: the overhaul's last long tips were rewritten (S8b). The two permanent
+  exemptions are not tips, and are not written as a tip's literal, so they need no entry: Riot's
+  required notice (G13), shown whole where it must be, and screen-reader-only descriptions (I08).
+  A new entry needs its reason.
+
+  Member-facing help also uses the page's words, never the code's (JARGON): no "PUUID", "Riot's
+  API", "frame" for a minute of the timeline, "sync window", "Population:", "Source:" or "SELECT".
 */
 
 const ROOT = join(__dirname, "..", "..", "..");
@@ -62,6 +69,20 @@ function tipTexts(): Array<{ file: string; text: string }> {
   return out.filter((t) => t.text.trim().length > 0);
 }
 
+/** The code's words, refused in member-facing help (Admin Mode's own pages are the administration stage's). */
+const JARGON = /PUUID|Riot's API|\b(per|minute|timeline) frames?\b|sync window|Population:|Source:|\bSELECT\b/;
+const MEMBER_FACING = (file: string) => !/^src\/(components\/admin\/|app\/\(admin\)\/|components\/settings\/(settings-panels|branding-panel|diagnostics-panel|riot-health-panel|datasets-list)\.tsx)/.test(file);
+
+/** Every state of the LP tip on a match card (H10), each one counted on its own. */
+const reading = { label: "Platinum IV", leaguePoints: 75, at: 0 } as const;
+const LP_STATES: LpRecord[] = [
+  { kind: "lp", delta: -18, before: reading, after: { ...reading, leaguePoints: 57 } },
+  { kind: "promoted", before: reading, after: { ...reading, label: "Platinum III", leaguePoints: 0 } },
+  ...(["remake", "unknown-length", "before-tracking", "awaiting-reading", "readings-too-far", "series", "season-reset", "unranked", "inconsistent"] as const).map((reason): LpRecord => ({ kind: "none", reason })),
+  { kind: "none", reason: "before-tracking", trackingSince: Date.UTC(2026, 9, 1) },
+  { kind: "none", reason: "several-games", games: 3, before: reading, after: { ...reading, leaguePoints: 40 } },
+];
+
 const allowed = (text: string) => ALLOWLIST.find((a) => text.includes(a.fragment));
 
 describe("tooltips are short", () => {
@@ -81,6 +102,21 @@ describe("tooltips are short", () => {
     const counted = tips.filter((t) => !allowed(t.text));
     const short = counted.filter((t) => words(t.text) <= ABOUT).length;
     expect(short / counted.length, counted.filter((t) => words(t.text) > ABOUT).map((t) => `${t.file}: ${words(t.text)}`).join("\n")).toBeGreaterThanOrEqual(0.95);
+  });
+
+  it("member-facing help uses the page's words, not the code's", () => {
+    const jargon = tips.filter((t) => MEMBER_FACING(t.file) && JARGON.test(t.text)).map((t) => `${t.file}: ${t.text.slice(0, 80)}`);
+    expect(jargon).toEqual([]);
+    expect(JARGON.test("Gold is read once per frame")).toBe(true);
+    expect(JARGON.test("Wash, border and frame")).toBe(false);
+  });
+
+  it("the LP tip on a match card: every state alone at most about 25 words, in plain words (H10)", () => {
+    for (const lp of LP_STATES) {
+      const text = lpNote(lp);
+      expect(words(text), text).toBeLessThanOrEqual(ABOUT);
+      expect(text, text).not.toMatch(/UNIIVERSE|reading/);
+    }
   });
 
   it("every allowlist entry still matches a tip and names its reason", () => {

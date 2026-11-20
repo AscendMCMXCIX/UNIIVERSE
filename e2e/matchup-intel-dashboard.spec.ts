@@ -319,10 +319,10 @@ test("each chip opens what it rests on, and says it to a screen reader; a checke
   await hydrated(page);
   // A checked fact (Renekton's W stun): its own words and its source page.
   const chip = page.locator('[data-testid="matchup-enemy-abilities"] [data-testid="ability-row"][data-slot="W"] [data-testid="fact-chip"]').first();
-  await expect(chip).toHaveAccessibleDescription(/Checked notes \(drafted and audited by AI agents, not by a person\) · Source: League of Legends Wiki: /);
+  await expect(chip).toHaveAccessibleDescription(/Checked notes \(drafted and audited by AI agents, not by a person\) · from League of Legends Wiki: /);
   await chip.hover();
   await expect(page.getByTestId("fact-chip-bubble")).toBeVisible();
-  await expect(page.getByTestId("fact-chip-bubble")).toContainText("Source: League of Legends Wiki:");
+  await expect(page.getByTestId("fact-chip-bubble")).toContainText("from League of Legends Wiki:");
   // Wherever facts from Riot's text are shown, each chip quotes the clause and says how it was reviewed.
   await openMatchupIntel(page, "Riven", "Darius");
   await hydrated(page);
