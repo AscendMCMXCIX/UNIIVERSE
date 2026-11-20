@@ -4,7 +4,7 @@ import type { Db } from "@/server/db/types";
 import { hasPermission, type Session } from "@/server/auth/permissions";
 import { cachedFor } from "@/server/observability/cache";
 import { getCurrentPatch, listPatchesDesc } from "@/server/repositories/champions";
-import { loadRiotAssets } from "@/server/riot/static/assets";
+import { loadRiotAssets, loadRiotBuildData } from "@/server/riot/static/assets";
 import { comparePatches, publicPatchName } from "@/domain/patch";
 import { DUO_ROLES, type ChampionChoice, type Role } from "@/domain/matchup-intel/types";
 import {
@@ -151,13 +151,16 @@ export async function loadMatchupEvidence(db: Db, session: Session | null, input
   const chosenIds = [you.id, ally?.id, enemy?.id, enemy2?.id].filter((x): x is string => !!x);
 
   // The per-version diff, read once for everything the lines may name.
-  const assets = await loadRiotAssets(db).catch(() => null);
+  const [assets, build] = await Promise.all([loadRiotAssets(db).catch(() => null), loadRiotBuildData(db).catch(() => null)]);
   const byId = new Map(champions.map((c) => [c.id, c.name]));
   const names: EvidenceNames = {
     champion: (id) => byId.get(id) ?? id,
     item: (id) => assets?.items[id] ?? null,
     spell: (key) => assets?.spells[key]?.name ?? null,
     rune: (id) => assets?.runes[id]?.name ?? null,
+    // Summoner spells' base cooldowns, as the static sync stored them from Data Dragon (nothing said until it has).
+    // Only from format 3, which keeps a spell with charges (Smite) apart: before it, Smite's array, the wait between casts, would read as its cooldown.
+    ...(build?.spellCooldowns && (build.format ?? 0) >= 3 ? { spellCooldown: (key: string) => build.spellCooldowns[key] ?? null, spellCharges: (key: string) => build.spellCharges?.[key] ?? null } : {}),
   };
 
   const what = [you.name, duo && ally ? `with ${ally.name}` : null, enemy ? `against ${enemy.name}` : null, duo && enemy2 ? `${enemy ? "and" : "against"} ${enemy2.name}` : null].filter(Boolean).join(" ");

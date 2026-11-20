@@ -4,6 +4,7 @@ import { requirePageAccess } from "@/server/auth/page-access";
 import { getBranding } from "@/server/repositories/branding";
 import { loadMatchupPage } from "@/server/matchup-intel/view";
 import { loadMatchupEvidence } from "@/server/matchup-intel/evidence";
+import { recordedRoles, viewerPool } from "@/server/matchup-intel/picker";
 import { RIOT_TEXT_TEST_COOKIE, riotTextFactsShown } from "@/server/matchup-intel/riot-text/switch";
 import { CHANGED_ABILITIES_TEST_COOKIE, NOTES_AGE_TEST_COOKIE, RIOT_CHANGED_TEST_COOKIE, changedAbilitiesForTest, notesAgeForTest, riotChangesForTest } from "@/server/matchup-intel/notes-age";
 import { riotChangesOf } from "@/server/matchup-intel/digests";
@@ -47,7 +48,9 @@ export default async function MatchupIntelPage({ searchParams }: { searchParams:
   const [{ view: loaded, champions, curated }, branding] = await Promise.all([loadMatchupPage(db, input, riotText, notesAge, changed), getBranding(db)]);
   const { you, enemy, ally, enemy2, role } = loaded;
   // The evidence from the team's own games: counted in SQL for this viewer's own games and the team's they may see.
-  const counted = await loadMatchupEvidence(db, session, { role, you, ally, enemy, enemy2 }, champions);
+  // And the picker's two lists beyond the roster: the viewer's own pool for the lane, and the positions Riot recorded (picker.ts).
+  const roster = new Set(champions.map((c) => c.id));
+  const [counted, pool, recorded] = await Promise.all([loadMatchupEvidence(db, session, { role, you, ally, enemy, enemy2 }, champions), viewerPool(db, session, role, roster), recordedRoles(db, session)]);
   // "Riot changed this on 26.24": the per-version diff for what the page shows (a browser test's cookie on the demo; nothing with fewer than two patches recorded).
   const shown = namedOnPage(loaded, counted);
   const riotChanges = riotChangesForTest(jar.get(RIOT_CHANGED_TEST_COOKIE)?.value, loaded.patch.current) ?? (await riotChangesOf(db, shown).catch(() => null));
@@ -78,6 +81,8 @@ export default async function MatchupIntelPage({ searchParams }: { searchParams:
         enemy2={enemy2}
         champions={champions}
         curated={curated}
+        pool={pool}
+        recordedRoles={recorded}
         announcement={announcementWords(view, shows)}
         heading={
           <header>

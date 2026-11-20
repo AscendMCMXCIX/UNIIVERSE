@@ -37,8 +37,14 @@ export interface RiotBuildData {
    * they build from and into, their depth, and the ability haste their stats name (null when none).
    */
   itemInfo: Record<string, ItemInfo>;
-  /** Each summoner spell's base cooldown per rank, in seconds, by its key ("4" Flash). */
+  /**
+   * Each summoner spell's base cooldown per rank, in seconds, by its key ("4" Flash). Not for a spell
+   * with charges (Smite: maxammo 2), whose array is the wait between two casts, not its cooldown (the
+   * ability tiles' rule): those are in `spellCharges` instead.
+   */
   spellCooldowns: Record<string, number[]>;
+  /** The spells Data Dragon gives charges (maxammo above 0), by key, with their count; absent on data stored before format 3. */
+  spellCharges?: Record<string, number>;
   /** Each rune tree's slots as rune ids, keystones first, by the tree's id. */
   runeSlots: Record<string, number[][]>;
 }
@@ -54,8 +60,8 @@ export interface ItemInfo {
   haste: number | null;
 }
 
-/** The rules' revision: maps stored under another are read again on the next run. */
-export const ASSET_RULES_FORMAT = 2;
+/** The rules' revision: maps stored under another are read again on the next run (3: a summoner spell with charges keeps no cooldown, R11a). */
+export const ASSET_RULES_FORMAT = 3;
 
 /**
  * The ability haste an item's stats give, from the `<stats>` block of its Data Dragon description
@@ -109,15 +115,22 @@ export function compactBuildData(version: string, items: Json, summoner: Json, r
     };
   }
   const spellCooldowns: Record<string, number[]> = {};
-  for (const v of Object.values((summoner.data ?? {}) as Record<string, { key?: string; cooldown?: unknown }>)) {
-    const cd = Array.isArray(v?.cooldown) ? v.cooldown.filter((x): x is number => typeof x === "number" && Number.isFinite(x) && x >= 0) : [];
-    if (v?.key && cd.length) spellCooldowns[v.key] = cd;
+  const spellCharges: Record<string, number> = {};
+  for (const v of Object.values((summoner.data ?? {}) as Record<string, { key?: string; cooldown?: unknown; maxammo?: unknown }>)) {
+    if (!v?.key) continue;
+    const ammo = Number(v.maxammo);
+    if (Number.isFinite(ammo) && ammo > 0) {
+      spellCharges[v.key] = ammo;
+      continue;
+    }
+    const cd = Array.isArray(v.cooldown) ? v.cooldown.filter((x): x is number => typeof x === "number" && Number.isFinite(x) && x >= 0) : [];
+    if (cd.length) spellCooldowns[v.key] = cd;
   }
   const runeSlots: Record<string, number[][]> = {};
   for (const style of (Array.isArray(runes) ? runes : []) as Array<{ id: number; slots?: Array<{ runes?: Array<{ id: number }> }> }>) {
     runeSlots[String(style.id)] = (style.slots ?? []).map((slot) => (slot.runes ?? []).map((r) => r.id).filter((x) => typeof x === "number"));
   }
-  return { version, format: ASSET_RULES_FORMAT, itemInfo, spellCooldowns, runeSlots };
+  return { version, format: ASSET_RULES_FORMAT, itemInfo, spellCooldowns, spellCharges, runeSlots };
 }
 
 /** What a version's three files failed on (counts only): a file naming nothing, ids it refers to that it does not hold, haste figures that cannot be read. */

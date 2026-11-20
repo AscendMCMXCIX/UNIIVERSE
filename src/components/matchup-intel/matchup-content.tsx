@@ -14,6 +14,14 @@ import type { MatchupEvidence } from "@/domain/matchup-intel/evidence";
 import { InteractionsPanel, LevelNotesPanel, notesBalance } from "./matchup-notes";
 import { behindOf } from "./matchup-status";
 import { staleDataWords } from "./wording";
+import type { MeansAbility } from "@/domain/matchup-intel/haste";
+import type { AbilityRef } from "@/domain/matchup-intel/types";
+
+/** The enemy's abilities by their ref ("Darius.E"), for the briefing rows' "what it means" lines; none without stored abilities. */
+function meansOf(intel: ChampionIntelView | null): Partial<Record<AbilityRef, MeansAbility>> | undefined {
+  if (!intel?.abilities) return undefined;
+  return Object.fromEntries(intel.abilities.map((a) => [`${intel.champion.id}.${a.slot}`, { champion: intel.champion.name, slot: a.slot, basis: a.haste }]));
+}
 
 /*
   MATCHUP INTEL's page body, under the picker bar (docs/MATCHUP_INTEL.md, "The dashboard"): on a
@@ -148,7 +156,7 @@ export function MatchupContent({ view, champions, curated, legal, evidence = nul
       {enemyIntel ? (
         <div className={duo ? COLUMNS.duo : COLUMNS.solo}>
           <div className="min-w-0 space-y-3 @min-[60rem]/dash:space-y-2">
-            {you && enemy && matchup ? <Briefing matchup={matchup} you={you} enemy={enemy} rows={rows} /> : null}
+            {you && enemy && matchup ? <Briefing matchup={matchup} you={you} enemy={enemy} rows={rows} means={meansOf(enemyIntel)} /> : null}
             {/* A briefing that exists but shows nothing (too old, or every part resting on a change) is hidden above, and said so there. */}
             {you && enemy && !shows ? <AssembledReference you={you} enemy={enemy} enemyIntel={enemyIntel} yourIntel={yourIntel} curatedForYou={curatedForYou} rows={rows} briefingHidden={!!matchup} duo={duo} /> : null}
             {/* Side by side where the column has room, the fuller of the two the wider. */}

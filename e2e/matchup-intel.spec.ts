@@ -85,6 +85,20 @@ test("Ambessa vs Renekton: the curated briefing, its chips jumping to the abilit
   await expect(briefing.getByTestId("briefing-opportunity")).not.toBeEmpty();
   await expect(briefing.getByTestId("matchup-briefing-checked")).toContainText(/Checked on patch \d+\.\d+/);
   await expect(page.getByTestId("matchup-no-briefing")).toHaveCount(0);
+  // "What it means": the enemy's cooldowns a row rests on, numbers only, by the cooldown table's own rule (Renekton's W: 16 s at rank 1 in Riot's data).
+  const means = briefing.getByTestId("briefing-threat").getByTestId("briefing-means");
+  await expect(means).toHaveAccessibleName("What the threat means");
+  await expect(means).toHaveAccessibleDescription("What it means: Renekton's W cooldown 16 / 14 / 12 / 10 / 8\u00a0s at 0 haste (base).");
+  await hydrated(page);
+  await page.getByTestId("matchup-haste").getByRole("button", { name: "20", exact: true }).click();
+  await expect(means).toHaveAccessibleDescription("What it means: Renekton's W cooldown 13.33 / 11.67 / 10 / 8.33 / 6.67\u00a0s at 20 haste (Riot's general rule).");
+  // Opened, the bubble says the same; no row's line uses "you", a timer or "ready".
+  await means.hover();
+  await expect(page.getByTestId("briefing-means-bubble")).toContainText("13.33 / 11.67 / 10 / 8.33 / 6.67");
+  for (const m of await briefing.getByTestId("briefing-means").all()) expect(await m.getAttribute("aria-describedby")).toBeTruthy();
+  for (const t of await briefing.locator("[data-means]").evaluateAll((els) => els.map((e) => e.getAttribute("data-means") ?? ""))) expect(t).not.toMatch(/\byou(r)?\b|ready|timer/i);
+  await page.getByTestId("matchup-haste").getByRole("button", { name: "0", exact: true }).click();
+  await expect(means).toHaveAccessibleDescription(/at 0 haste \(base\)\.$/);
   // A chip names the ability ("Renekton W") and jumps to its row.
   const chip = briefing.locator('[data-testid="briefing-ability"][data-anchor^="ability-Renekton-"]').first();
   await expect(chip).toHaveText(/^Renekton (passive|[QWER])$/);
@@ -934,6 +948,86 @@ test("phone at 200% and 150% text: the states with one side or none chosen, and 
   await expect(rows.getByTestId("matchup-picker-curated").locator('button[data-champion="Mordekaiser"]')).toBeVisible();
   expect(await pickerSpill(rows), "the picker's rows at 320px, 200%: past the window's edge").toBeLessThanOrEqual(1);
   for (const r of ["matchup-picker-recent", "matchup-picker-curated"]) expect.soft(await cutOrSpilled(rows.getByTestId(r)), `the picker at 320px, 200%: ${r}`).toEqual([]);
+});
+
+test("the picker: your own pool for the lane in your own slot only, one tap away; a role filter from the positions Riot recorded; Escape gives the focus back to the slot; 44px on touch, axe clean, nothing cut at 320px and 200%", async ({ page, context, baseURL }, info) => {
+  // An account with no player profile (the demo's local owner, as production's verification account): no "Your pool", and nothing said about anyone's.
+  await page.goto("/resources/matchups?role=adc");
+  let win = await openPicker(page, "you");
+  await expect(win.getByTestId("matchup-picker-grid")).toBeVisible();
+  await expect(win.getByTestId("matchup-picker-pool")).toHaveCount(0);
+  await expect(win).not.toContainText(/pool/i);
+  await page.keyboard.press("Escape");
+  await expect(win).toHaveCount(0);
+  // The demo's member: their profile's ADC pool, in their own order, on your champion's side only.
+  await context.addCookies([{ name: "uniiverse_demo_viewer", value: "member", url: baseURL! }]);
+  await page.goto("/resources/matchups?role=adc&vs=Caitlyn");
+  win = await openPicker(page, "you");
+  const pool = win.getByTestId("matchup-picker-pool");
+  await expect(pool.getByRole("heading", { name: "Your pool" })).toBeVisible();
+  const ids = await choiceIds(pool);
+  expect(ids.length).toBeGreaterThan(0);
+  // One tap from the open picker to a champion of the pool; the role and the enemy stay in the address.
+  await pool.locator(`button[data-champion="${ids[0]}"]`).click();
+  await expect(win).toHaveCount(0);
+  await expect(page.getByTestId("matchup-pick-you")).toHaveAttribute("data-champion", ids[0]!);
+  await expect(page).toHaveURL(new RegExp(`role=adc.*champion=${ids[0]}|champion=${ids[0]}.*role=adc`));
+  await expect(page).toHaveURL(/vs=Caitlyn/);
+  // The enemy's picker and the allied support's show no pool.
+  for (const slot of ["enemy", "ally"] as const) {
+    win = await openPicker(page, slot);
+    await expect(win.getByTestId("matchup-picker-grid")).toBeVisible();
+    await expect(win.getByTestId("matchup-picker-pool")).toHaveCount(0);
+    await page.keyboard.press("Escape");
+    await expect(win).toHaveCount(0);
+    await expect(page.getByTestId(`matchup-pick-${slot}`)).toBeFocused();
+  }
+  // The role filter narrows the roster to the champions Riot recorded in that position, and says so; All shows the whole roster again.
+  win = await openPicker(page, "you");
+  await expect(win.getByTestId("matchup-picker-grid")).toBeVisible();
+  const all = (await rosterIds(win)).length;
+  expect(all).toBeGreaterThan(100);
+  const filter = win.getByRole("group", { name: "Filter by role" });
+  await filter.getByRole("button", { name: "Bottom" }).click();
+  await expect(win.getByTestId("matchup-picker-role-note")).toHaveText("The champions Riot recorded as Bottom in the team's stored games. The search finds every champion.");
+  const bottom = await rosterIds(win);
+  expect(bottom.length).toBeGreaterThan(0);
+  expect(bottom.length).toBeLessThan(all);
+  await expect(win.getByTestId("matchup-picker-all-title")).toHaveText(`Bottom · ${bottom.length}`);
+  // Said to a screen reader in the picker's live region, and the section named for the filter.
+  await expect(win.getByTestId("matchup-picker-count")).toHaveText(`Bottom: ${bottom.length} champions recorded in the team's games`);
+  await expect(win.getByRole("region", { name: "Bottom champions" })).toBeVisible();
+  // The search still finds every champion.
+  await win.getByTestId("matchup-picker-search").fill("Garen");
+  await expect(win.getByTestId("matchup-picker-grid").locator('button[data-champion="Garen"]')).toBeVisible();
+  await win.getByTestId("matchup-picker-search").fill("");
+  await filter.getByRole("button", { name: "All roles" }).click();
+  expect((await rosterIds(win)).length).toBe(all);
+  await untilStill(page);
+  // axe with the picker open.
+  const axe = await new AxeBuilder({ page }).include('[data-testid="matchup-picker"]').withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"]).analyze();
+  expect(axe.violations.map((v) => `${v.id}: ${v.help}`)).toEqual([]);
+  // Touch screens: the pool's champions and the role filter's buttons reach 44px.
+  if (info.project.name !== "desktop") {
+    for (const b of await win.locator('[data-testid="matchup-picker-pool"] button, [role="group"][aria-label="Filter by role"] button').all()) {
+      const box = (await b.boundingBox())!;
+      expect.soft(Math.min(box.width, box.height), `a picker target: ${await b.textContent()}`).toBeGreaterThanOrEqual(44);
+    }
+  }
+  await page.keyboard.press("Escape");
+  await expect(win).toHaveCount(0);
+  await expect(page.getByTestId("matchup-pick-you")).toBeFocused();
+  // Nothing cut or spilling at 320px and 200% text, the pool and the filter shown.
+  if ((page.viewportSize()?.width ?? 1000) < 768) {
+    await page.setViewportSize({ width: 320, height: 844 });
+    await page.addStyleTag({ content: "html { font-size: 200% !important; }" });
+    win = await openPicker(page, "you");
+    await untilStill(page);
+    await expect(win.getByTestId("matchup-picker-pool")).toBeVisible();
+    expect(await pickerSpill(win), "the picker at 320px, 200%: past the window's edge").toBeLessThanOrEqual(1);
+    for (const part of ["matchup-picker-pool", "matchup-picker-all-title"]) expect.soft(await cutOrSpilled(win.getByTestId(part)), `the picker at 320px, 200%: ${part}`).toEqual([]);
+    expect.soft(await cutOrSpilled(win.getByRole("group", { name: "Filter by role" })), "the picker at 320px, 200%: the role filter").toEqual([]);
+  }
 });
 
 test("phone: the first screen holds the glance (every enemy tile's cooldown line) and, at 390 by 664, the briefing's whole threat; an assembled pair's Danger side starts there too", async ({ page }) => {
