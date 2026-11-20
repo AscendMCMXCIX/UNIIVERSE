@@ -20,6 +20,7 @@ import { formatDate, isoDay } from "@/lib/format";
 const state = vi.hoisted(() => ({ handle: null as unknown }));
 vi.mock("@/server/db/client", () => ({ getDbHandle: async () => state.handle }));
 import { GET } from "@/app/api/health/route";
+import { staticDiffHealth } from "@/server/matchup-intel/digests";
 
 let handle: DbHandle;
 beforeAll(async () => {
@@ -184,6 +185,39 @@ describe("/api/health notices", () => {
       expect(JSON.stringify(body.digests)).not.toMatch(/Darius|Garen|3071|8010/);
       await db.delete(staticDigests).where(inArray(staticDigests.patch, ["16.21"]));
       expect(((await (await GET()).json()) as Digests).digests).toEqual({ patch: "16.22", recorded: { champion: 2, item: 1, rune: 1 }, previous: null, changed: null });
+    } finally {
+      await db.delete(staticDigests);
+    }
+  });
+
+  it("gives Admin's data health the same figures, with the newest failed attempt that has no digests (counts and patch names only)", async () => {
+    const db = handle.db;
+    try {
+      // No digests yet.
+      expect(await staticDiffHealth(db)).toEqual({ digests: null, failedPatch: null });
+      // A failed attempt and nothing recorded.
+      await db.insert(staticDigests).values({ patch: "16.21", kind: "patch", key: "failed", hash: "" });
+      expect(await staticDiffHealth(db)).toEqual({ digests: null, failedPatch: "16.21" });
+      // One patch only: its earlier failure (since recorded) is no longer a failed attempt.
+      await db.insert(staticDigests).values([
+        { patch: "16.21", kind: "champion", key: "Darius", hash: "a" },
+        { patch: "16.21", kind: "item", key: "3071", hash: "a" },
+        { patch: "16.21", kind: "rune", key: "8010", hash: "a" },
+      ]);
+      expect(await staticDiffHealth(db)).toEqual({ digests: { patch: "16.21", recorded: { champion: 1, item: 1, rune: 1 }, previous: null, changed: null }, failedPatch: null });
+      // Two patches.
+      await db.insert(staticDigests).values([
+        { patch: "16.22", kind: "champion", key: "Darius", hash: "b" },
+        { patch: "16.22", kind: "item", key: "3071", hash: "a" },
+        { patch: "16.22", kind: "rune", key: "8010", hash: "a" },
+      ]);
+      expect(await staticDiffHealth(db)).toEqual({ digests: { patch: "16.22", recorded: { champion: 1, item: 1, rune: 1 }, previous: "16.21", changed: { champion: 1, item: 0, rune: 0 } }, failedPatch: null });
+      // A newer patch's failed attempt: marked, the figures kept.
+      await db.insert(staticDigests).values({ patch: "16.23", kind: "patch", key: "failed", hash: "" });
+      const diff = await staticDiffHealth(db);
+      expect(diff.failedPatch).toBe("16.23");
+      expect(diff.digests?.patch).toBe("16.22");
+      expect(JSON.stringify(diff)).not.toMatch(/Darius|3071|8010/);
     } finally {
       await db.delete(staticDigests);
     }

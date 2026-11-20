@@ -89,10 +89,12 @@ export async function setAvatar(db: Db, userId: string, data: Buffer): Promise<n
   return version;
 }
 
-export async function removeAvatar(db: Db, userId: string): Promise<void> {
-  await db.delete(userAvatars).where(eq(userAvatars.userId, userId));
-  await db.update(users).set({ avatarVersion: null, updatedAt: new Date() }).where(eq(users.id, userId));
+/** Removes the picture; whether there was one to remove (a stored picture, or a version still set). */
+export async function removeAvatar(db: Db, userId: string): Promise<boolean> {
+  const deleted = await db.delete(userAvatars).where(eq(userAvatars.userId, userId)).returning({ userId: userAvatars.userId });
+  const cleared = await db.update(users).set({ avatarVersion: null, updatedAt: new Date() }).where(and(eq(users.id, userId), isNotNull(users.avatarVersion))).returning({ id: users.id });
   invalidateCache(`public-image:avatar:${userId}`);
+  return deleted.length > 0 || cleared.length > 0;
 }
 
 export async function getAvatar(db: Db, userId: string): Promise<{ contentType: string; data: Buffer } | null> {

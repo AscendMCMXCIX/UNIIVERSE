@@ -316,6 +316,14 @@ public page, wider than the phone by 42, 103 and 163px at 150%, 175% and 200% on
 on 375, 30 and 90px on 393, at 175% and 200%), has no finding left at 125% to 200% on 320, 375 and
 393px, in either mode.
 
+**Windows and sheets at 320px with large text** (Release 10, 20 Nov 2026; `e2e/overlay-kit.spec.ts`):
+a window's own icon controls (‹ ›, ✕) are 44px on touch screens at every text size (in rem they
+were 88px at 200% and pushed "Previous player" off a 320px screen); a plain title bar collapses
+to one line once the body scrolls (sideways too), and the 56px bar stays 56px, so the frame once
+scrolled is at most a quarter of a 320 × 568, 375 × 667 or 568 × 320 screen at 100–200%; and the Task dialog, the sheets, the sign-in form and the
+player Peek keep every control on the screen, nothing scrolling sideways and no word cut short, at
+200% (the Peek at 125–200%, upright and sideways). DESIGN_SYSTEM §7, "The phone window shell".
+
 **Two ways to emulate a larger text size.**
 - The root's font size in CSS (`document.documentElement.style.fontSize = "200%"`), as the specs
   do: every rem grows, but a media query's rem stays the browser's default 16px, so the breakpoints
@@ -440,6 +448,30 @@ Team Overview, a profile's Overview, the Library and the public page are identic
 Players and Leaderboards in every row of the demo's members (the base's server held four members
 other tests had added, and the demo dates its games from each server's start: "17 Oct" there, "18
 Oct" here). The lineup cards' two new wrappers (the chip's lane and its label) draw nothing there.
+
+## The first-run page (`/setup`)
+
+The demo always has an owner, so the real form (Create the owner account, with the setup key a
+production deployment asks for) never shows there, and no browser spec reaches it: CI's server is
+the demo. Its audit is `scripts/setup-audit.mjs`, against a server started as a fresh production
+deployment is (required accounts, no owner, a setup key; nothing changed in the app):
+
+```
+createdb uniiverse_setup        # empty: the app applies its migrations on start
+UNIIVERSE_REQUIRE_AUTH=true UNIIVERSE_SEED_DEMO=false UNIIVERSE_AUTH_SECRET=<any> \
+  UNIIVERSE_ACCESS_PASSWORD=<any> DATABASE_URL=postgres://…/uniiverse_setup pnpm start -p 3951
+node scripts/setup-audit.mjs http://127.0.0.1:3951
+```
+
+At i15, se3 and se1 (touch) and 1280 × 800, 1440 × 900 and 1920 × 1080, at 100, 150 and 200% text, it
+checks axe (WCAG 2.1 A/AA and 2.2 AA) at 0, every target 44px on a touch screen, no sideways scroll,
+no word broken across lines, and one h1 in `PAGE_TITLE`'s style like the other signed-out pages.
+Release 10's run (20 Nov 2026) found one thing: "Add an off role" was 36px tall on phones at 100%
+(now 44px on a touch screen, `pointer-coarse:min-h-11`, also on the invite form and Welcome, which
+share it). The setup key's label now reads as the other fields' ("SETUP KEY *", with the variable
+it names on the line under the field, breakable only at its underscores). After: all 18 clean;
+heights 1.35 / 1.71 / 2.22 screens at i15 / se3 / se1 at 100% (7.3 at se1 200%), 1.30 / 1.16 /
+1.07 on the desktops.
 
 ## Admin Mode at a larger text size
 

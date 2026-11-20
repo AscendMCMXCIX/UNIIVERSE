@@ -1,5 +1,5 @@
 import { publicPatchName } from "@/domain/patch";
-import type { Verification } from "@/domain/matchup-intel/types";
+import type { ChampionNotes, Slot, Verification } from "@/domain/matchup-intel/types";
 
 /*
   BROWSER TESTS ONLY: Matchup Intel as production shows it once patches have come out after the
@@ -17,10 +17,59 @@ import type { Verification } from "@/domain/matchup-intel/types";
 
 export const NOTES_AGE_TEST_COOKIE = "uniiverse-test-notes-age";
 
+/**
+ * Whether this server may read the browser tests' Matchup Intel cookies: the in-memory demo only,
+ * never on Vercel and never with a database address set (a real database, even with the memory mode
+ * named beside it by mistake).
+ */
+export function demoTestHooksAllowed(): boolean {
+  return process.env.UNIIVERSE_DB_MODE === "memory" && !process.env.VERCEL && !process.env.DATABASE_URL;
+}
+
 /** How many patches earlier the curated notes read as checked: a browser test's cookie on the in-memory demo, else 0. */
 export function notesAgeForTest(cookie?: string | null): number {
-  const demo = process.env.UNIIVERSE_DB_MODE === "memory" && !process.env.VERCEL;
-  return demo && typeof cookie === "string" && /^[1-3]$/.test(cookie) ? Number(cookie) : 0;
+  return demoTestHooksAllowed() && typeof cookie === "string" && /^[1-3]$/.test(cookie) ? Number(cookie) : 0;
+}
+
+/*
+  BROWSER TESTS ONLY, with the notes' age above: Matchup Intel as production shows it once Riot has
+  changed some of the curated abilities after the check (the "Changed since the check" state: the
+  tile's badge and flagged notes, the panel's warning, the briefing's points on them hidden). The
+  pinned demo's records match the notes, so on its own it never shows it. A test names the abilities
+  ("Mordekaiser.Q,Mordekaiser.E", at most ten), and the notes' record of Riot's cooldown array for
+  each reads as one Riot no longer has: nothing shown is made up, since the page then shows Riot's own
+  stored line for the ability, and the curated cooldown as checked, flagged, both as they are. Only
+  with a notes' age of one patch or more (a change comes with a later patch), and, like the age, read
+  only on the in-memory demo.
+*/
+
+export const CHANGED_ABILITIES_TEST_COOKIE = "uniiverse-test-changed-abilities";
+
+const REF = /^([A-Za-z0-9]{1,40})\.(P|Q|W|E|R)$/;
+
+/** The abilities a browser test's cookie names as changed since the check, by champion: none anywhere but the in-memory demo, or for a value that is not a list of up to ten "Champion.Slot". */
+export function changedAbilitiesForTest(cookie?: string | null): ReadonlyMap<string, ReadonlySet<Slot>> {
+  const out = new Map<string, Set<Slot>>();
+  if (!demoTestHooksAllowed() || typeof cookie !== "string" || cookie.length > 500) return out;
+  const refs = cookie.split(",");
+  if (refs.length > 10 || !refs.every((r) => REF.test(r))) return out;
+  for (const r of refs) {
+    const [, id, slot] = REF.exec(r)!;
+    if (!out.has(id!)) out.set(id!, new Set());
+    out.get(id!)!.add(slot as Slot);
+  }
+  return out;
+}
+
+/** A champion's notes with the named abilities' record of Riot's cooldown read as one Riot no longer has (empty); everything else, the curated cooldown included, as it is. */
+export function changedSinceCheck(notes: ChampionNotes | null, slots: ReadonlySet<Slot> | undefined): ChampionNotes | null {
+  if (!notes || !slots || slots.size === 0) return notes;
+  const abilities = { ...notes.abilities };
+  for (const slot of slots) {
+    const n = abilities[slot];
+    if (n) abilities[slot] = { ...n, ddragonCooldown: [] };
+  }
+  return { ...notes, abilities };
 }
 
 /**
