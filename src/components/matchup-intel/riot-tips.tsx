@@ -122,7 +122,7 @@ export function RiotTipsPanel({
           <span className="flex min-w-0 flex-wrap items-baseline gap-x-2">
             <span className="flex items-center gap-1.5 text-sm font-semibold text-fg">
               <Quote className="h-3.5 w-3.5 text-fg-subtle" aria-hidden />
-              {`Riot's tips (${formatCount(count)})`}
+              {count ? `Riot's tips (${formatCount(count)})` : "Riot's tips"}
             </span>
             <span className="text-2xs text-fg-subtle" data-testid="riot-tips-label">
               {TIP_LABEL}
