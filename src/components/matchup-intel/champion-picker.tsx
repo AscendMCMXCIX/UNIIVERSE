@@ -169,7 +169,7 @@ function PickerBody({ slot, champions, selected, recent, pool, curated, curatedT
           opening, empty until something is typed: one created with its first words is often not
           read. */}
       <p className={typed ? "text-sm text-fg-muted" : "sr-only"} aria-live="polite" data-testid="matchup-picker-count">
-        {typed ? (results.length ? `${results.length} ${results.length === 1 ? "champion" : "champions"} found` : `No champion matches “${query.trim()}”.`) : ""}
+        {typed ? (results.length ? `${results.length} ${results.length === 1 ? "champion" : "champions"} found` : `No champion matches “${query.trim()}”.`) : role !== "ALL" ? `${ROLE_LABELS[role]}: ${all.length} ${all.length === 1 ? "champion" : "champions"} recorded in the team's games` : ""}
       </p>
       <AfterOpen fallback={<GridSkeleton />}>
         {typed ? (
@@ -181,7 +181,7 @@ function PickerBody({ slot, champions, selected, recent, pool, curated, curatedT
             <ChoiceRow title="Recent" choices={recent} selected={selected} onPick={pick} testId="matchup-picker-recent" />
             <ChoiceRow title="Your pool" choices={pool} selected={selected} onPick={pick} testId="matchup-picker-pool" />
             <ChoiceRow title={curatedTitle} choices={curated} selected={selected} onPick={pick} testId="matchup-picker-curated" />
-            <section aria-label="All champions" className="space-y-2">
+            <section aria-label={role === "ALL" ? "All champions" : `${ROLE_LABELS[role]} champions`} className="space-y-2">
               <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
                 <h3 className="text-xs font-semibold uppercase tracking-label text-fg-subtle" data-testid="matchup-picker-all-title">
                   {role === "ALL" ? "All champions" : ROLE_LABELS[role]} <span className="font-normal normal-case tracking-normal">· {all.length}</span>

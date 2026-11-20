@@ -84,7 +84,7 @@ test("Ambessa vs Renekton: the curated briefing, its chips jumping to the abilit
   await expect(page.getByTestId("matchup-no-briefing")).toHaveCount(0);
   // "What it means": the enemy's cooldowns a row rests on, numbers only, by the cooldown table's own rule (Renekton's W: 16 s at rank 1 in Riot's data).
   const means = briefing.getByTestId("briefing-threat").getByTestId("briefing-means");
-  await expect(means).toHaveAccessibleName("What it means");
+  await expect(means).toHaveAccessibleName("What the threat means");
   await expect(means).toHaveAccessibleDescription("What it means: Renekton's W cooldown 16 / 14 / 12 / 10 / 8\u00a0s at 0 haste (base).");
   await hydrated(page);
   await page.getByTestId("matchup-haste").getByRole("button", { name: "20", exact: true }).click();
@@ -985,6 +985,9 @@ test("the picker: your own pool for the lane in your own slot only, one tap away
   expect(bottom.length).toBeGreaterThan(0);
   expect(bottom.length).toBeLessThan(all);
   await expect(win.getByTestId("matchup-picker-all-title")).toHaveText(`Bottom · ${bottom.length}`);
+  // Said to a screen reader in the picker's live region, and the section named for the filter.
+  await expect(win.getByTestId("matchup-picker-count")).toHaveText(`Bottom: ${bottom.length} champions recorded in the team's games`);
+  await expect(win.getByRole("region", { name: "Bottom champions" })).toBeVisible();
   // The search still finds every champion.
   await win.getByTestId("matchup-picker-search").fill("Garen");
   await expect(win.getByTestId("matchup-picker-grid").locator('button[data-champion="Garen"]')).toBeVisible();

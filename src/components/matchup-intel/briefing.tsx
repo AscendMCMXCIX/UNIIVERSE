@@ -101,12 +101,12 @@ function Point({ kind, point, names, rows, means }: { kind: "threat" | "opportun
       <h3 className={cn("label-caps flex items-center gap-1.5 [overflow-wrap:anywhere]", threat ? "text-warn" : "text-good")}>
         <Icon className="h-4 w-4 shrink-0 @max-[9rem]/brief:hidden" aria-hidden />
         {threat ? "Threat" : "Opportunity"}
+        {point.kind === "point" ? <MeansLine refs={point.basedOn} means={means} label={threat ? "What the threat means" : "What the opportunity means"} /> : null}
       </h3>
       {point.kind === "point" ? (
         <div className="mt-1 text-sm leading-snug text-fg">
           <span>{point.text}</span>
           <AbilityChips refs={point.basedOn} names={names} rows={rows} label={threat ? "The threat rests on" : "The opportunity rests on"} inline />
-          <MeansLine refs={point.basedOn} means={means} />
         </div>
       ) : (
         <div className="mt-1">
@@ -151,12 +151,11 @@ export function hiddenPartsOf(matchup: MatchupIntelView | null): { count: number
 }
 
 /** A lane point: its words and the chips of what it rests on. */
-function LanePoint({ point, names, rows, means }: { point: Extract<BriefingPointView, { kind: "point" }>; names: ReadonlyMap<string, string>; rows?: ReadonlySet<string>; means?: Means }) {
+function LanePoint({ point, names, rows }: { point: Extract<BriefingPointView, { kind: "point" }>; names: ReadonlyMap<string, string>; rows?: ReadonlySet<string> }) {
   return (
     <li className="min-w-0 border-l-2 border-border pl-2.5 text-sm leading-snug text-fg @max-[9rem]/brief:pl-1.5" data-testid="briefing-lane-point">
       <span>{point.text}</span>
       <AbilityChips refs={point.basedOn} names={names} rows={rows} label="This point rests on" inline />
-      <MeansLine refs={point.basedOn} means={means} />
     </li>
   );
 }
@@ -251,11 +250,13 @@ export function Briefing({ matchup, you, enemy, rows, means }: { matchup: Matchu
               <h3 id="briefing-lane-title" className="label-caps flex items-center gap-1.5 [overflow-wrap:anywhere]">
                 <Waypoints className="h-4 w-4 shrink-0 @max-[9rem]/brief:hidden" aria-hidden />
                 In lane
+                {/* The lane points' "what it means", in the heading (a row of its own would cost the one-screen fit): each enemy ability once. */}
+                <MeansLine refs={[...new Set(shownLane.flatMap((p) => p.basedOn))]} means={means} label="What the lane points mean" />
               </h3>
               {first.length ? (
                 <ul className="mt-1.5 grid gap-x-5 gap-y-2 @min-[34rem]/brief:grid-cols-2">
                   {first.map((p, i) => (
-                    <LanePoint key={i} point={p} names={names} rows={rows} means={means} />
+                    <LanePoint key={i} point={p} names={names} rows={rows} />
                   ))}
                 </ul>
               ) : null}
@@ -265,7 +266,7 @@ export function Briefing({ matchup, you, enemy, rows, means }: { matchup: Matchu
                 <Fold variant="inline" tone="accent" className="mt-1.5 pointer-coarse:mt-3" testId="briefing-lane-more" summary={<>{moreWords(rest.length)}<span className="sr-only"> in lane</span></>}>
                   <ul className="grid gap-x-5 gap-y-2 @min-[34rem]/brief:grid-cols-2">
                     {rest.map((p, i) => (
-                      <LanePoint key={i} point={p} names={names} rows={rows} means={means} />
+                      <LanePoint key={i} point={p} names={names} rows={rows} />
                     ))}
                   </ul>
                 </Fold>

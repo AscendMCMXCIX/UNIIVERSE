@@ -645,11 +645,13 @@ nothing until the next version check reads it again). A key the stored copy has 
 
 Each curated briefing row (the threat, the opportunity, each lane point) whose abilities include
 the enemy's has one line of numbers only (`meansLine`, `haste.ts`; `MeansLine`, `haste-line.tsx`),
-behind an ⓘ named "What it means" after the row's chips (the shared InfoTip: a tap on a touch
-screen, hover or focus elsewhere; a screen reader reads the line as the ⓘ's description). Shown as a
-line of its own under each row it made the overview 24px taller at 1440 × 900 and 147px over on
-Ambessa vs Renekton a patch after the check, which the one-screen fit cannot spare; the ⓘ takes no
-height. The line is
+behind an ⓘ in the row's heading: "What the threat means" and "What the opportunity means" beside
+their labels, and the lane points' together beside "In lane" ("What the lane points mean", each
+enemy ability once). The shared InfoTip: a tap on a touch screen, hover or focus elsewhere; a screen
+reader reads the line as the ⓘ's description. Shown as a line of its own under each row it made the
+overview 24px taller at 1440 × 900 and 147px over on Ambessa vs Renekton a patch after the check, and
+after each row's chips still 19px a row there (both measured in Chrome 156), which the one-screen fit
+cannot spare; in the headings it takes no height. The line is
 the cooldown per rank of each enemy ability the row rests on (its `basedOn`), at the haste chosen in
 the bar, by the cooldown table's own rule, and which case that is. "What it means: Renekton's W
 cooldown 16 / 14 / 12 / 10 / 8 s at 0 haste (base)"; at 20 haste "13.33 / 11.67 / 10 / 8.33 / 6.67 s at
