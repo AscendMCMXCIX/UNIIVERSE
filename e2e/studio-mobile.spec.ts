@@ -258,8 +258,8 @@ test("Artwork, Position and Effects on a phone: the chosen champion, readable sl
   // Another champion than the chosen one (marked in the grid).
   await expect(grid.locator("button[data-champion][aria-pressed=true]")).toHaveCount(1);
   const other = grid.locator("button[data-champion][aria-pressed=false]").first();
-  // Its name is the button's last line (above it, the portrait, or its initials while the image loads).
-  const otherName = (await other.innerText()).trim().split("\n").pop()!;
+  // Its name is the button's title (S8b: what it adds, "in your pools", is screen-reader text after the name).
+  const otherName = (await other.getAttribute("title"))!;
   await other.tap();
   await expect(grid).toBeHidden();
   await expect(chosen).toContainText(otherName);

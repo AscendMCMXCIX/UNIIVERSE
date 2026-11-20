@@ -77,9 +77,16 @@ function measureFace(face: Locator) {
       const sb = season.getBoundingClientRect();
       for (const el of season.querySelectorAll("dt, dd")) {
         if (!shown(el) || !el.textContent?.trim()) continue;
-        const range = document.createRange();
-        range.selectNodeContents(el);
-        const rects = [...range.getClientRects()].filter((b) => b.width > 0.5);
+        // The text the eye sees: a screen reader's words inside it (S8b's "Average kills / deaths /
+        // assists: ") are drawn in a 1px box, and their line runs past it unseen.
+        const rects: DOMRect[] = [];
+        const texts = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+        for (let t = texts.nextNode(); t; t = texts.nextNode()) {
+          if (!t.textContent?.trim() || !t.parentElement || !shown(t.parentElement)) continue;
+          const range = document.createRange();
+          range.selectNodeContents(t);
+          rects.push(...[...range.getClientRects()].filter((b) => b.width > 0.5));
+        }
         if (!rects.length) continue;
         const past = Math.max(Math.max(...rects.map((b) => b.right)) - sb.right, sb.left - Math.min(...rects.map((b) => b.left)));
         if (past > 0.5) problems.push(`season "${el.textContent.trim()}" ${Math.round(past)}px out of its box`);

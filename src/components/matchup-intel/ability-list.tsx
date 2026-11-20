@@ -1,4 +1,4 @@
-import { TierLabel, kitTier } from "./evidence-panel";
+import { TierLabel } from "./evidence-panel";
 import { EqualNot, History, Timer, TriangleAlert } from "lucide-react";
 import { Fold } from "@/components/ui/fold";
 import { ChangedBadge } from "./changed-badge";
@@ -498,7 +498,10 @@ export function AbilitiesPanel({ intel, title, testId, notice, haste = false }: 
           {/* A long name (Heimerdinger's) breaks rather than reach past the panel at a larger text size. */}
           <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
             <h2 className="min-w-0 text-sm font-semibold text-fg [overflow-wrap:anywhere]">{title}</h2>
-            <TierLabel>{kitTier(!!intel.curated)}</TierLabel>
+            {/* Riot's data: the abilities' names, icons and base cooldowns. A curated champion's facts say
+                "Checked notes" on the source line under it and on each fact; the heading's row has no
+                room for both tiers beside the haste control (1920 × 950 and 1440 × 900 keep one line). */}
+            <TierLabel>Riot&apos;s data</TierLabel>
           </div>
           {/* The haste the cooldowns are also shown at, in the heading's row (the first enemy's panel only:
               one choice for the page); the base line's words then start the source line. */}

@@ -407,7 +407,9 @@ describe("each champion's data, and checks a patch or more behind", () => {
     // Renekton has checked notes: its panel rests on both, and the assembled reference's Danger side (its facts) says so.
     expect(tiers('data-testid="matchup-assembled"')).toBe("Riot's data");
     expect(tiers('data-testid="assembled-danger"')).toBe("Checked notes (AI reviewers)");
-    expect(tiers('data-testid="matchup-enemy-abilities"')).toBe("Riot's data · Checked notes (AI reviewers)");
+    // The kit panel's heading: Riot's data (its abilities); its checked facts say so on its source line and on each fact.
+    expect(tiers('data-testid="matchup-enemy-abilities"')).toBe("Riot's data");
+    expect(html.slice(html.indexOf('data-testid="matchup-enemy-abilities"'))).toContain("Curated notes: checked on patch 26.22");
     // Darius has none: Riot's data alone.
     const darius = await render({ champion: "Riven", vs: "Darius" });
     expect([...darius.slice(darius.indexOf('data-testid="matchup-assembled"')).matchAll(/data-testid="evidence-tier">([^<]*)</g)].map((m) => m[1]!.replace(/&#x27;/g, "'"))[0]).toBe("Riot's data");
