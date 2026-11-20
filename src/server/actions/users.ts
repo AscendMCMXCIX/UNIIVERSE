@@ -8,7 +8,7 @@ import { isVerificationAccount } from "@/server/auth/verification-account";
 import { validatePasswordStrength, verifyPassword } from "@/server/auth/password";
 import { setPassword, UserError } from "@/server/repositories/users";
 import { completeLegacyProfile, defaultPlatform, type RiotIdInput } from "@/server/auth/signup";
-import { createVerifiedPlayerAccount, deleteAccount, deleteProfile, guardProfileAccount, resetPasswordToTemporary, setAccountActive, setAccountRole, setAdministrator } from "@/server/auth/account-admin";
+import { createVerifiedPlayerAccount, deleteAccount, deleteProfile, guardProfileAccount, reactivateWithTemporaryPassword, resetPasswordToTemporary, setAccountActive, setAccountRole, setAdministrator } from "@/server/auth/account-admin";
 import { revokeOtherSessions } from "@/server/auth/sessions";
 import { cookies } from "next/headers";
 import { createVerificationClient, verifyRiotIdentity, type IdentityCheck } from "@/server/riot/verify-identity";
@@ -122,6 +122,20 @@ export async function setAccountActiveAction(userId: string, active: boolean): P
     await recordAudit(db, session, { action: active ? "account.activate" : "account.deactivate", target: { type: "user", id: userId } });
     touchAdmin();
     return { ok: true, data: null };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/** Reactivate with a new temporary password (a deactivation made for security): shown once; the old password never works again. */
+export async function reactivateWithTemporaryPasswordAction(userId: string): Promise<Result<{ temporaryPassword: string; expiresAt: string }>> {
+  try {
+    const session = await requirePermission("manage-users");
+    const db = await getAppDb();
+    const issued = await reactivateWithTemporaryPassword(db, session.userId, userId);
+    await recordAudit(db, session, { action: "account.activate", target: { type: "user", id: userId }, details: { temporaryIssued: true } });
+    touchAdmin();
+    return { ok: true, data: { temporaryPassword: issued.password, expiresAt: issued.expiresAt.toISOString() } };
   } catch (err) {
     return fail(err);
   }
