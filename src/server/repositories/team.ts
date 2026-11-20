@@ -300,6 +300,8 @@ export async function archivePlayer(db: Db, playerId: string, archived: boolean)
 
 export async function deletePlayer(db: Db, playerId: string) {
   await db.delete(players).where(eq(players.id, playerId));
+  // Its games' evidence rows went by cascade (R7 review B1).
+  invalidateCache(EVIDENCE_CACHE);
 }
 
 export interface LineupView {

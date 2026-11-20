@@ -4,8 +4,9 @@ import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
 import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
-import { archivePlayer, createPlayer, getOrCreateTeam, setTeamMember } from "@/server/repositories/team";
-import { addAccount } from "@/server/accounts/repository";
+import { archivePlayer, createPlayer, deletePlayer, getOrCreateTeam, setTeamMember } from "@/server/repositories/team";
+import { addAccount, removeAccount } from "@/server/accounts/repository";
+import { deleteAccount, deleteProfile } from "@/server/auth/account-admin";
 import { accountMatchPrep, accountMatches, matchDetails, matchTimelines, patches, players, users, type MatchParticipantDetail } from "@/server/db/schema";
 import { loadMatchupEvidence } from "@/server/matchup-intel/evidence";
 import { patchSortKey } from "@/domain/patch";
@@ -81,5 +82,49 @@ describe("Matchup Intel's evidence rows and the app's other rules", () => {
     await archivePlayer(db, mate.id, true);
     expect(await teamN()).toBe(0);
     expect((await db.select({ id: players.id }).from(players).where(eq(players.id, mate.id))).length).toBe(1);
+  });
+
+  /*
+    R7 review B1: the rows go by cascade when a Riot account or a profile is removed, and the cached
+    team counts must go with them, not an hour later. Each way out: removing the account, deleting
+    the profile (three paths), and deleting the member's account, which archives the profile.
+  */
+  it("a removed Riot account, a deleted profile or a deleted member's account stops counting in the team's games at once", async () => {
+    const db = handle.db;
+    const team = await getOrCreateTeam(db);
+    const viewer = { userId: "u", role: "player", label: "v", playerId: null, username: null, hasPassword: true, mustChangePassword: false, setupComplete: true } as Session;
+    const champ = (id: string) => ({ id, name: id, title: "", portrait: "" });
+    const teamN = async () => (await loadMatchupEvidence(db, viewer, { role: "top", you: champ("Riven"), enemy: champ("Darius"), ally: null, enemy2: null }, [champ("Riven"), champ("Darius")]))!.sections.find((s) => s.scope === "team")!.n;
+    // Nothing of the earlier tests' teammate is counted from here on.
+    await db.update(players).set({ teamMember: false });
+    let k = 0;
+    const member = async (label: string) => {
+      const p = await createPlayer(db, team.id, { displayName: label, primaryRole: "TOP", primaryPool: ["Riven"] });
+      const acc = await addAccount(db, { ownerType: "player", playerId: p.id, riotId: `${label}#OCE`, platform: "oc1", puuid: `${label}-puuid` });
+      for (let i = 0; i < 3; i++) {
+        const matchId = `GONE${k++}`;
+        const parts = rec().map((x, j) => (j === 0 ? { ...x, puuid: `${label}-puuid` } : x.puuid === "gone-puuid" ? { ...x, puuid: `foe${matchId}` } : x));
+        await db.insert(accountMatches).values({ accountId: acc.id, matchId, gameCreation: 10 + i, queueId: 420, championId: "Riven", role: "TOP", win: true, enemyChampionId: "Darius", patch: "16.22", gameDuration: 1800, teamId: 100 });
+        await db.insert(matchDetails).values({ matchId, platform: "oc1", queueId: 420, gameCreation: 10 + i, gameDuration: 1800, gameVersion: "16.22.1", teams: [], participants: parts });
+      }
+      await backfillMatchPrep(db);
+      expect(await teamN()).toBe(3);
+      return { p, acc };
+    };
+    const a = await member("acct");
+    await removeAccount(db, a.acc.id);
+    expect(await teamN()).toBe(0);
+    const b = await member("plain");
+    await deletePlayer(db, b.p.id);
+    expect(await teamN()).toBe(0);
+    const c = await member("noaccount");
+    await deleteProfile(db, c.p.id);
+    expect(await teamN()).toBe(0);
+    for (const eraseProfile of [true, false]) {
+      const d = await member(`withuser${eraseProfile}`);
+      const [u] = await db.insert(users).values({ username: `u${eraseProfile}`, displayName: "U", role: "player", passwordHash: "x", playerId: d.p.id }).returning();
+      await deleteAccount(db, null, u!.id, { eraseProfile });
+      expect(await teamN(), `eraseProfile ${eraseProfile}`).toBe(0);
+    }
   });
 });
