@@ -328,6 +328,8 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
   // Opened from Overview's multikills (?sort=multikills) or any other link with a sort: that order first.
   const initialSort = useSearchParams().get("sort");
   const [sort, setSort] = React.useState<{ key: SortKey; dir: Dir }>(() => (isSortKey(initialSort) ? { key: initialSort, dir: defaultDir(initialSort) } : { key: "games", dir: "desc" }));
+  // A filter changed keeps the sort the address held (Overview's ?sort=multikills): the address keeps every choice it had.
+  const keep = React.useMemo(() => (isSortKey(initialSort) ? { sort: initialSort } : undefined), [initialSort]);
   const [all, setAll] = React.useState(false);
   // Phones: Filters (the bar's own button, drawn here) and Refresh join the search and sort row
   // instead of a row of their own above the scope line (PLAN §S2b). Before the page knows it is a
@@ -642,7 +644,7 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
         status={status ? <DataStatusNote status={status} refresh={refresh} /> : null}
         // Below sm Refresh is in the list's row (with Filters); its place here is drawn from sm only.
         refresh={status && !(phone && toolsInRow) ? <RefreshButton status={status} refresh={refresh} className={toolsInRow ? "max-sm:hidden" : undefined} /> : null}
-        controls={<OverviewFilters basePath={basePath} filter={f} seasons={data.seasons} currentSeason={data.currentSeason} champions={[]} accounts={data.accountOptions} showChampions={false} modeCounts={data.modes.counts} testId="all-champions-filters" toggleOnPhones={toggleOnPhones} />}
+        controls={<OverviewFilters basePath={basePath} filter={f} seasons={data.seasons} currentSeason={data.currentSeason} champions={[]} accounts={data.accountOptions} showChampions={false} modeCounts={data.modes.counts} testId="all-champions-filters" toggleOnPhones={toggleOnPhones} keep={keep} />}
       />
       <PageToolbar anchor={searchRef} label="All Champions controls" land="[data-testid=top-champion]">
         <SearchInput value={query} onChange={setQuery} placeholder="Find a champion…" label="Find a champion or a role" className={COMPACT_SEARCH} testId="toolbar-all-champions-search" />
