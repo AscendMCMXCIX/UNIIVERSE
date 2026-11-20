@@ -478,6 +478,12 @@ test("phone 320 × 568 at 200% text: the Task dialog (form, picker), a sheet and
     await button.evaluate((e) => (e as HTMLElement).click());
     await expect(page.locator("dialog[open]")).toHaveCount(2);
     await check(page, what);
+    // A long username in its title ("Sign … out everywhere?") breaks inside the window, not past it (an
+    // account an earlier spec made, "lineupmanag…", put the confirmation 22px past the phone).
+    if (opener) {
+      await page.locator("dialog[open]").last().getByTestId("modal-title").evaluate((h) => { h.textContent = "Sign averyveryverylongusername2026 out everywhere?"; });
+      await check(page, `${what}, a long username`);
+    }
     await page.locator("dialog[open]").last().getByTestId("dialog-close").click();
     await expect(page.locator("dialog[open]")).toHaveCount(1);
   }
