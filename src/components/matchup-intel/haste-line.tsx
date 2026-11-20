@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { GENERAL_RULE_TIP, cooldownAtHaste, hasteMarkWords, type HasteBasis } from "@/domain/matchup-intel/haste";
+import { GENERAL_RULE_TIP, cooldownAtHaste, hasteMarkWords, meansLine, type HasteBasis, type MeansAbility } from "@/domain/matchup-intel/haste";
+import type { AbilityRef } from "@/domain/matchup-intel/types";
 import { InfoTip } from "@/components/ui/info-tip";
 import { formatPerRank } from "@/lib/format";
 import { HasteContext } from "./matchup-frame";
@@ -42,5 +43,24 @@ export function HasteLine({ basis }: { basis: HasteBasis }) {
         </span>
       )}
     </p>
+  );
+}
+
+/**
+ * A briefing row's "what it means" line (docs/MATCHUP_INTEL.md, "What it means"): the cooldowns of
+ * the enemy's abilities the row rests on, at the haste chosen in the bar, by the cooldown table's own
+ * rule, and which case each is. Numbers only, never a verdict, a timer or a "ready at"; nothing for a
+ * row that names no enemy ability, or whose numbers do not allow one (meansPart).
+ */
+export function MeansLine({ refs, means }: { refs: readonly AbilityRef[]; means: Readonly<Partial<Record<AbilityRef, MeansAbility>>> | undefined }) {
+  const { haste } = React.useContext(HasteContext);
+  if (!means) return null;
+  const line = meansLine(refs.flatMap((r) => (means[r] ? [means[r]!] : [])), haste);
+  if (!line) return null;
+  return (
+    <span className="mt-0.5 block text-2xs leading-snug text-fg-subtle" data-testid="briefing-means">
+      <span className="font-semibold text-fg-muted">What it means: </span>
+      {line}
+    </span>
   );
 }

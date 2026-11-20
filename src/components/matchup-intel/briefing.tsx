@@ -7,6 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Panel } from "@/components/ui/panel";
 import { cn } from "@/lib/cn";
 import { AbilityRefLink } from "./ability-ref-link";
+import { MeansLine } from "./haste-line";
+import type { MeansAbility } from "@/domain/matchup-intel/haste";
 import { PairLink } from "./matchup-frame";
 import { abilityAnchor, abilityName, expiredBriefingWords, freshnessWords, hiddenBriefingWords, hiddenPartWords, hiddenPointsWords, moreWords, notRecheckedWords } from "./wording";
 
@@ -87,7 +89,9 @@ export function AbilityChips({ refs, names, rows, label, inline = false }: { ref
   );
 }
 
-function Point({ kind, point, names, rows }: { kind: "threat" | "opportunity"; point: BriefingPointView; names: ReadonlyMap<string, string>; rows?: ReadonlySet<string> }) {
+type Means = Readonly<Partial<Record<AbilityRef, MeansAbility>>>;
+
+function Point({ kind, point, names, rows, means }: { kind: "threat" | "opportunity"; point: BriefingPointView; names: ReadonlyMap<string, string>; rows?: ReadonlySet<string>; means?: Means }) {
   const threat = kind === "threat";
   const Icon = threat ? TriangleAlert : Crosshair;
   return (
@@ -102,6 +106,7 @@ function Point({ kind, point, names, rows }: { kind: "threat" | "opportunity"; p
         <div className="mt-1 text-sm leading-snug text-fg">
           <span>{point.text}</span>
           <AbilityChips refs={point.basedOn} names={names} rows={rows} label={threat ? "The threat rests on" : "The opportunity rests on"} inline />
+          <MeansLine refs={point.basedOn} means={means} />
         </div>
       ) : (
         <div className="mt-1">
@@ -146,11 +151,12 @@ export function hiddenPartsOf(matchup: MatchupIntelView | null): { count: number
 }
 
 /** A lane point: its words and the chips of what it rests on. */
-function LanePoint({ point, names, rows }: { point: Extract<BriefingPointView, { kind: "point" }>; names: ReadonlyMap<string, string>; rows?: ReadonlySet<string> }) {
+function LanePoint({ point, names, rows, means }: { point: Extract<BriefingPointView, { kind: "point" }>; names: ReadonlyMap<string, string>; rows?: ReadonlySet<string>; means?: Means }) {
   return (
     <li className="min-w-0 border-l-2 border-border pl-2.5 text-sm leading-snug text-fg @max-[9rem]/brief:pl-1.5" data-testid="briefing-lane-point">
       <span>{point.text}</span>
       <AbilityChips refs={point.basedOn} names={names} rows={rows} label="This point rests on" inline />
+      <MeansLine refs={point.basedOn} means={means} />
     </li>
   );
 }
@@ -163,7 +169,11 @@ function LanePoint({ point, names, rows }: { point: Extract<BriefingPointView, {
 /** The tier of the curated notes (docs/MATCHUP_INTEL.md, "Evidence tiers"). */
 export const CHECKED_TIER = "Checked notes (AI reviewers)";
 
-export function Briefing({ matchup, you, enemy, rows }: { matchup: MatchupIntelView; you: ChampionChoice; enemy: ChampionChoice; rows?: ReadonlySet<string> }) {
+/**
+ * `means`: the enemy's abilities by their ref, for each row's "what it means" line (MeansLine); only
+ * the enemy's, so a row resting on your own champion's abilities alone has none.
+ */
+export function Briefing({ matchup, you, enemy, rows, means }: { matchup: MatchupIntelView; you: ChampionChoice; enemy: ChampionChoice; rows?: ReadonlySet<string>; means?: Means }) {
   const names = new Map([
     [you.id, you.name],
     [enemy.id, enemy.name],
@@ -233,8 +243,8 @@ export function Briefing({ matchup, you, enemy, rows }: { matchup: MatchupIntelV
           {/* Side by side from 34rem, each as wide as its words need against the other's (between 40%
               and 62% of the row), so the longer one is not left twice as tall. */}
           <div className="grid divide-y divide-border @min-[34rem]/brief:grid-cols-[minmax(0,var(--threat-share))_minmax(0,1fr)] @min-[34rem]/brief:divide-x @min-[34rem]/brief:divide-y-0" style={{ "--threat-share": `${threatShare(threat, opportunity)}%` } as React.CSSProperties}>
-            <Point kind="threat" point={threat} names={names} rows={rows} />
-            <Point kind="opportunity" point={opportunity} names={names} rows={rows} />
+            <Point kind="threat" point={threat} names={names} rows={rows} means={means} />
+            <Point kind="opportunity" point={opportunity} names={names} rows={rows} means={means} />
           </div>
           {lane.length ? (
             <section className="border-t border-border px-3 py-2.5 @max-[9rem]/brief:px-2" aria-labelledby="briefing-lane-title" data-testid="briefing-lane">
@@ -245,7 +255,7 @@ export function Briefing({ matchup, you, enemy, rows }: { matchup: MatchupIntelV
               {first.length ? (
                 <ul className="mt-1.5 grid gap-x-5 gap-y-2 @min-[34rem]/brief:grid-cols-2">
                   {first.map((p, i) => (
-                    <LanePoint key={i} point={p} names={names} rows={rows} />
+                    <LanePoint key={i} point={p} names={names} rows={rows} means={means} />
                   ))}
                 </ul>
               ) : null}
@@ -255,7 +265,7 @@ export function Briefing({ matchup, you, enemy, rows }: { matchup: MatchupIntelV
                 <Fold variant="inline" tone="accent" className="mt-1.5 pointer-coarse:mt-3" testId="briefing-lane-more" summary={<>{moreWords(rest.length)}<span className="sr-only"> in lane</span></>}>
                   <ul className="grid gap-x-5 gap-y-2 @min-[34rem]/brief:grid-cols-2">
                     {rest.map((p, i) => (
-                      <LanePoint key={i} point={p} names={names} rows={rows} />
+                      <LanePoint key={i} point={p} names={names} rows={rows} means={means} />
                     ))}
                   </ul>
                 </Fold>

@@ -82,6 +82,15 @@ test("Ambessa vs Renekton: the curated briefing, its chips jumping to the abilit
   await expect(briefing.getByTestId("briefing-opportunity")).not.toBeEmpty();
   await expect(briefing.getByTestId("matchup-briefing-checked")).toContainText(/Checked on patch \d+\.\d+/);
   await expect(page.getByTestId("matchup-no-briefing")).toHaveCount(0);
+  // "What it means": the enemy's cooldowns a row rests on, numbers only, by the cooldown table's own rule (Renekton's W: 16 s at rank 1 in Riot's data).
+  const means = briefing.getByTestId("briefing-threat").getByTestId("briefing-means");
+  await expect(means).toHaveText("What it means: Renekton's W cooldown 16 / 14 / 12 / 10 / 8\u00a0s, at 0 ability haste (base)");
+  await hydrated(page);
+  await page.getByTestId("matchup-haste").getByRole("button", { name: "20", exact: true }).click();
+  await expect(means).toHaveText("What it means: Renekton's W cooldown 13.33 / 11.67 / 10 / 8.33 / 6.67\u00a0s, at 20 ability haste (Riot's general rule)");
+  for (const t of await briefing.getByTestId("briefing-means").allTextContents()) expect(t).not.toMatch(/\byou(r)?\b|ready|timer/i);
+  await page.getByTestId("matchup-haste").getByRole("button", { name: "0", exact: true }).click();
+  await expect(means).toContainText("at 0 ability haste (base)");
   // A chip names the ability ("Renekton W") and jumps to its row.
   const chip = briefing.locator('[data-testid="briefing-ability"][data-anchor^="ability-Renekton-"]').first();
   await expect(chip).toHaveText(/^Renekton (passive|[QWER])$/);

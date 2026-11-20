@@ -1,3 +1,4 @@
+import { formatPerRank } from "@/lib/format";
 import type { AbilityModifiers, CooldownDisplay, Slot } from "./types";
 
 /*
@@ -117,4 +118,50 @@ export const SUMMONER_SPELL_HASTE_WORDS = "Summoner spell haste is a separate st
 /** A summoner spell's cooldown at any ability haste: its base, always (summoner spell haste is a separate stat, not counted). */
 export function summonerSpellCooldown(base: readonly number[], _abilityHaste: number): number[] {
   return [...base];
+}
+
+/** What a "what it means" line needs of one ability: whose, which key, and its haste basis. */
+export interface MeansAbility {
+  champion: string;
+  slot: Slot;
+  basis: HasteBasis;
+}
+
+/** The words of the case a "what it means" line is, at a haste (hasteMarkWords' own, lower-cased, with the base said at 0). */
+function meansMark(basis: HasteBasis, haste: number): string | null {
+  switch (basis.mark) {
+    case "static":
+      return "static per the checked notes: haste doesn't shorten it";
+    case "unknown":
+      return "whether haste shortens it isn't known";
+    case "general": {
+      const how = haste > 0 ? "Riot's general rule" : "base";
+      return basis.ultimate ? `${how}, ability haste only` : how;
+    }
+    default:
+      return null;
+  }
+}
+
+/**
+ * A briefing row's "what it means" part for one enemy ability (docs/MATCHUP_INTEL.md, "What it
+ * means"): a fact built only from numbers, never a verdict, a timer or a "ready at". Its cooldown
+ * per rank at the chosen haste, by the same rule as the cooldown table (cooldownAtHaste), and which
+ * case that is: "Renekton's W cooldown 13/12/11/10/9 s at 0 ability haste (base)". Null where the
+ * numbers do not allow one: no number, charges or a passive's own (how haste applies is not in
+ * Riot's data), or more than one line (a champion who transforms).
+ */
+export function meansPart(a: MeansAbility, haste: number): string | null {
+  const mark = meansMark(a.basis, haste);
+  if (!mark || a.basis.lines.length !== 1) return null;
+  const h = clampHaste(haste);
+  const [line] = cooldownAtHaste(a.basis, h);
+  if (!line?.seconds.length) return null;
+  return `${a.champion}'s ${a.slot} cooldown ${formatPerRank(line.seconds, "s")}, at ${h} ability haste (${mark})`;
+}
+
+/** A briefing row's whole "what it means" line: its enemy abilities' parts, joined; null when none has one. */
+export function meansLine(abilities: readonly MeansAbility[], haste: number): string | null {
+  const parts = abilities.map((a) => meansPart(a, haste)).filter((p): p is string => !!p);
+  return parts.length ? parts.join("; ") : null;
 }

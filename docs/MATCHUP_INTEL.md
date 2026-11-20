@@ -628,7 +628,32 @@ notes mark none as static (their two static marks are lockouts between casts, sa
 one open (Death's Grasp, base only), and the rule is applied to the other 23: the notes record
 nothing that contradicts it, which is not the same as having checked each hasted value. Summoner
 spells are never shortened by ability haste ("Summoner spell haste is a separate stat";
-`summonerSpellCooldown`). **Never a timer, a countdown or "ready at"**: only the cooldown's length
+`summonerSpellCooldown`). **Where the page names a summoner spell** (the evidence's "Summoner
+spells" line, "Flash + Ignite in 6 of 9 games"), each named spell's base cooldown follows from Riot's
+data, as the static sync stored it (`riot_build_data.spellCooldowns`): "Base cooldowns in Riot's
+data: Flash 300 s, Ignite 180 s", and "Summoner spell haste is a separate stat" once in the panel
+(`spellCooldownWords`, `evidence-panel.tsx`). The haste choice never changes it (the panel reads no
+haste; `evidence-panel.test.ts` renders it at 0, 20, 40, 60 and 300). A spell Riot's data gives no
+cooldown for says "Smite: no cooldown in Riot's data"; before the static sync has stored any
+cooldown, nothing is said.
+
+### What it means
+
+Each curated briefing row (the threat, the opportunity, each lane point) whose abilities include
+the enemy's adds one line of numbers only (`meansLine`, `haste.ts`; `MeansLine`, `haste-line.tsx`):
+the cooldown per rank of each enemy ability the row rests on (its `basedOn`), at the haste chosen in
+the bar, by the cooldown table's own rule, and which case that is. "What it means: Renekton's W
+cooldown 16 / 14 / 12 / 10 / 8 s, at 0 ability haste (base)"; at 20 haste "13.33 / 11.67 / 10 / 8.33 /
+6.67 s, at 20 ability haste (Riot's general rule)"; "(static per the checked notes: haste doesn't
+shorten it)" and "(whether haste shortens it isn't known)" give the base; R adds "ability haste
+only". No rank is chosen for the reader (every rank is listed), no start of the cooldown is assumed
+("after it is used" is not said: the notes state a start for few abilities), and never a timer or
+"ready at". A row that names no enemy ability (only your own champion's) has none, nor one whose
+numbers do not allow it: no number, charges' recharge or a passive's own cooldown (how haste applies
+is not in Riot's data), or a champion with two forms in the slot. Its words are held to
+`REFUSED_WORDS` with no estimate word (`means.test.ts`, every case at 0 to 300 haste). It is a fact
+about the enemy's numbers, never a verdict: the plan's "After E, Darius has no pull for 21 s" was not
+built, as "no pull" would be a claim about the kit that the numbers alone do not hold. **Never a timer, a countdown or "ready at"**: only the cooldown's length
 (game integrity; the browser spec checks the words are absent). `curated.test.ts` checks that every
 "whether ability haste shortens …" line in a note has its ability's `hasteUnknown` flag, and no other
 ability has one. `haste.test.ts` holds every ability of the 173 to the rule at four haste values.
@@ -855,8 +880,26 @@ the timeline keeps sales. Still not built:
     44px clear button with a mouse too, which hands the focus back to the field, and Escape that
     clears before it closes;
   - with nothing typed, the champions chosen lately on that side (Recent);
+  - **Your pool** (R11a, 20 Nov 2026), in your own slot's picker only: your player profile's
+    champion pool for the page's lane, in its own order (`viewerPool`,
+    `src/server/matchup-intel/picker.ts`), so a member's pair is one tap from the open picker. Never
+    in the enemy's, your duo partner's or their enemy's picker, and never anyone else's pool: an
+    account with no player profile (production's verification account) has no such row, and
+    nothing is said about whose pools hold what;
   - for the enemy, the curated matchups that exist for your champion;
-  - then the whole roster (`ChampionGrid` without its own toolbar).
+  - then the whole roster (`ChampionGrid` without its own toolbar), with **a role filter** (All ·
+    Top · Jungle · Mid · Bottom · Support, the shared `RoleFilterBar`, 44px on touch screens). The
+    app holds no catalogue of champions' roles, so the filter never guesses one: it narrows the
+    roster to the champions Riot recorded in that position in the team's stored Summoner's Rift
+    games (`account_champion_history`, the rows All Champions shows by role; `recordedRoles`, cached
+    for ten minutes), and says so under the title ("The champions Riot recorded as Jungle in the
+    team's stored games. The search finds every champion."). It counts teammates' games, so it is
+    offered only to an account that may see teammates' statistics (`view-teammate-stats`), and it
+    names champions only, never who played them or how often. It is the picker's own state, All
+    when the window opens: the page's lane stays in the address as before;
+  - a portrait that cannot load, or is not known (the offline fixture), shows the champion's
+    initials on a lettered tile ("LS" Lee Sin, "NW" Nunu & Willump, "AH" Ahri: `championInitials`,
+    `src/components/champion-portrait.tsx`), named for screen readers by the champion's name.
 
   Enter takes the first match. Escape clears the search, then closes the window. A choice goes into
   the address at once (`router.push`; `router.replace` where the browser has no Navigation API): the slots show it while the page under them dims until the
@@ -1878,7 +1921,7 @@ For later, each its own decision:
   the privacy notice (OD9).
 
 Decided on 20 Nov 2026 (S7a): **sharing a briefing** is delivered by the address and "Copy link"
-(Roles, above). **Favourite matchups** are not built: Recent and the remembered champion already
+(Roles, above). **Favourite matchups** are not built: Recent, Your pool and the remembered champion already
 return to a pair in one tap, and a third list would be a control for the same need (the directive,
 "no unnecessary controls").
 
