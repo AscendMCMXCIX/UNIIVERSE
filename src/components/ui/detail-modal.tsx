@@ -882,7 +882,7 @@ export function DetailModal({
               className={cn(
                 // The name beside the controls' room (a spacer as wide as they are), or, where that
                 // leaves it under 6rem (a large text size), on a line of its own under them.
-                "pointer-events-none fixed inset-x-0 top-[env(safe-area-inset-top)] z-10 flex touch-none flex-wrap-reverse items-center border-b border-border bg-bg-elevated px-4 opacity-0 transition-opacity duration-150 data-[compact=true]:pointer-events-auto data-[compact=true]:opacity-100 sm:hidden",
+                "pointer-events-none fixed inset-x-0 top-[env(safe-area-inset-top)] z-10 flex touch-none flex-wrap-reverse items-center border-b border-border bg-bg-elevated px-4 invisible opacity-0 transition-[opacity,visibility] duration-150 data-[compact=true]:pointer-events-auto data-[compact=true]:visible data-[compact=true]:opacity-100 sm:hidden",
                 COMPACT_BAR,
               )}
             >
