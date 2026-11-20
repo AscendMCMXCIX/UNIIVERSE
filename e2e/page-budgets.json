@@ -14,7 +14,7 @@
    "small": 0
   },
   "leaderboards@i15-100": {
-   "screens": 3.37,
+   "screens": 3.21,
    "frame": 0.3,
    "frameScrolled": 0.3,
    "small": 0
@@ -26,7 +26,7 @@
    "small": 0
   },
   "p-overview@i15-100": {
-   "screens": 2.64,
+   "screens": 2.48,
    "frame": 0.3,
    "frameScrolled": 0.3,
    "small": 0
@@ -63,17 +63,18 @@
    "why": "Release 6 (S7a, 20 Nov 2026): Matchup Intel's lane selector (Top, Jungle, Mid, ADC, Support), a 46px row the page did not have when the ceilings were set; measured 1.12 at i15 and 3.60 at se1 150%. S7a's unbuilt phone 'Remember' icon toggle would give a row back."
   },
   "resources@i15-100": {
-   "screens": 1.58,
-   "frame": 0.24,
-   "frameScrolled": 0.24,
-   "small": 0
-  },
-  "settings@i15-100": {
-   "screens": 1.77,
+   "screens": 1.85,
    "frame": 0.24,
    "frameScrolled": 0.24,
    "small": 0,
-   "why": "Release 6 (S9b, 20 Nov 2026): Settings' 'Sign out of other devices' (DIRECTIVE §7, sessions), a 109px block in the Password panel the page did not have when the ceilings were set; measured 1.74 at i15 and 4.76 at se1 150%."
+   "why": "S8a (20 Nov 2026): each site's host on a line of its own (UD.R1: beside the title it was cut), a line more on every row; measured 1.81 at i15 and 5.94 at se1 150%."
+  },
+  "settings@i15-100": {
+   "screens": 2.32,
+   "frame": 0.24,
+   "frameScrolled": 0.24,
+   "small": 0,
+   "why": "Release 6 (S9b): 'Sign out of other devices', 109px; S8a (20 Nov 2026): 'On this device' (DIRECTIVE §7.2c), what this browser remembers with Clear, about 400px; measured 2.27 at i15 and 7.10 at se1 150%."
   },
   "a-dash@i15-100": {
    "screens": 2.27,
@@ -112,11 +113,11 @@
    "small": 0
   },
   "a-settings@i15-100": {
-   "screens": 1.77,
+   "screens": 2.32,
    "frame": 0.24,
    "frameScrolled": 0.24,
    "small": 0,
-   "why": "Release 6 (S9b, 20 Nov 2026): Settings' 'Sign out of other devices' (DIRECTIVE §7, sessions), a 109px block in the Password panel the page did not have when the ceilings were set; measured 1.74 at i15 and 4.76 at se1 150%."
+   "why": "Release 6 (S9b): 'Sign out of other devices', 109px; S8a (20 Nov 2026): 'On this device' (DIRECTIVE §7.2c), what this browser remembers with Clear, about 400px; measured 2.27 at i15 and 7.10 at se1 150%."
   },
   "team@se1-150": {
    "screens": 2.78,
@@ -131,7 +132,7 @@
    "small": 0
   },
   "leaderboards@se1-150": {
-   "screens": 12.97,
+   "screens": 12.09,
    "frame": 0.45,
    "frameScrolled": 0.15,
    "small": 0
@@ -143,7 +144,7 @@
    "small": 0
   },
   "p-overview@se1-150": {
-   "screens": 9.01,
+   "screens": 7.85,
    "frame": 0.45,
    "frameScrolled": 0.15,
    "small": 0
@@ -180,17 +181,18 @@
    "why": "Release 6 (S7a, 20 Nov 2026): Matchup Intel's lane selector (Top, Jungle, Mid, ADC, Support), a 46px row the page did not have when the ceilings were set; measured 1.12 at i15 and 3.60 at se1 150%. S7a's unbuilt phone 'Remember' icon toggle would give a row back."
   },
   "resources@se1-150": {
-   "screens": 5.44,
-   "frame": 0.33,
-   "frameScrolled": 0.04,
-   "small": 0
-  },
-  "settings@se1-150": {
-   "screens": 4.86,
+   "screens": 6.06,
    "frame": 0.33,
    "frameScrolled": 0.04,
    "small": 0,
-   "why": "Release 6 (S9b, 20 Nov 2026): Settings' 'Sign out of other devices' (DIRECTIVE §7, sessions), a 109px block in the Password panel the page did not have when the ceilings were set; measured 1.74 at i15 and 4.76 at se1 150%."
+   "why": "S8a (20 Nov 2026): each site's host on a line of its own (UD.R1: beside the title it was cut), a line more on every row; measured 1.81 at i15 and 5.94 at se1 150%."
+  },
+  "settings@se1-150": {
+   "screens": 7.25,
+   "frame": 0.33,
+   "frameScrolled": 0.04,
+   "small": 0,
+   "why": "Release 6 (S9b): 'Sign out of other devices', 109px; S8a (20 Nov 2026): 'On this device' (DIRECTIVE §7.2c), what this browser remembers with Clear, about 400px; measured 2.27 at i15 and 7.10 at se1 150%."
   },
   "a-dash@se1-150": {
    "screens": 7.18,
@@ -229,11 +231,11 @@
    "small": 0
   },
   "a-settings@se1-150": {
-   "screens": 4.86,
+   "screens": 7.25,
    "frame": 0.33,
    "frameScrolled": 0.04,
    "small": 0,
-   "why": "Release 6 (S9b, 20 Nov 2026): Settings' 'Sign out of other devices' (DIRECTIVE §7, sessions), a 109px block in the Password panel the page did not have when the ceilings were set; measured 1.74 at i15 and 4.76 at se1 150%."
+   "why": "Release 6 (S9b): 'Sign out of other devices', 109px; S8a (20 Nov 2026): 'On this device' (DIRECTIVE §7.2c), what this browser remembers with Clear, about 400px; measured 2.27 at i15 and 7.10 at se1 150%."
   }
  }
 }

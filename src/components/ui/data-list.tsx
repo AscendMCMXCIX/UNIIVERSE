@@ -283,7 +283,7 @@ export function MemberCell({ look, name, avatarUrl = null, avatar = "md", avatar
       <span className="flex min-w-0 flex-1 flex-col" data-testid={nameTestId}>
         <span className={cn("flex min-w-0 items-center gap-1.5", youWraps && YOU_WRAPS.line)}>
           {nameHref ? (
-            <IntentLink href={nameHref} className={cn("relative z-[2] min-w-0 rounded-sm text-fg underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-accent", youWraps && YOU_WRAPS.name)} data-testid="board-member-profile">
+            <IntentLink href={nameHref} className={cn("touch-target relative z-[2] min-w-0 rounded-sm text-fg underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-accent", youWraps && YOU_WRAPS.name)} data-testid="board-member-profile">
               <CardName look={look} name={name} className={cn(nameClassName, youWraps && YOU_WRAPS.words)} />
             </IntentLink>
           ) : (

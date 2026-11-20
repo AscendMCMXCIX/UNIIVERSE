@@ -154,7 +154,7 @@ export function RosterRow({ look, art, name, avatarUrl, role, offRoles, offRoleS
     <span className={cn("flex min-h-6 items-start gap-1.5 pt-0.5", tagline ? "min-w-0 @max-[24rem]/row:min-w-[min(100%,6rem)] @max-[24rem]/row:basis-0 @max-[24rem]/row:grow" : "min-w-[min(100%,6rem)] basis-0 grow")}>
       {peek && href ? (
         // Over the row's own link (the Peek): the name opens the full profile, one tap as before (J3).
-        <IntentLink href={href} className="relative z-[2] rounded-sm underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-accent" data-testid="player-card" data-player-name={name}>
+        <IntentLink href={href} className="touch-target relative z-[2] rounded-sm underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-accent" data-testid="player-card" data-player-name={name}>
           <CardName look={look} name={name} className="text-md leading-snug text-fg" />
         </IntentLink>
       ) : (
