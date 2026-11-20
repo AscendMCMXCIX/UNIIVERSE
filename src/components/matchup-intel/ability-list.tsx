@@ -1,4 +1,4 @@
-import { TierLabel, kitTier } from "./evidence-panel";
+import { TierLabel } from "./evidence-panel";
 import { ChevronDown, EqualNot, History, Timer, TriangleAlert } from "lucide-react";
 import { ChangedBadge } from "./changed-badge";
 import type { AbilityView, ChampionChoice, ChampionIntelView, CooldownDisplay, FactView, Slot } from "@/domain/matchup-intel/types";
@@ -500,7 +500,7 @@ export function AbilitiesPanel({ intel, title, testId, notice, haste = false }: 
             {/* Riot's data: the abilities' names, icons and base cooldowns. A curated champion's facts say
                 "Checked notes" on the source line under it and on each fact; the heading's row has no
                 room for both tiers beside the haste control (1920 × 950 and 1440 × 900 keep one line). */}
-            <TierLabel>{kitTier(false)}</TierLabel>
+            <TierLabel>Riot&apos;s data</TierLabel>
           </div>
           {/* The haste the cooldowns are also shown at, in the heading's row (the first enemy's panel only:
               one choice for the page); the base line's words then start the source line. */}
