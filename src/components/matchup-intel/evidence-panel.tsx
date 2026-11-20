@@ -1,6 +1,7 @@
 import { Sigma } from "lucide-react";
 import { cn } from "@/lib/cn";
 import type { MatchupEvidence, EvidenceSection } from "@/domain/matchup-intel/evidence";
+import { SUMMONER_SPELL_HASTE_WORDS } from "@/domain/matchup-intel/haste";
 
 /*
   MATCHUP INTEL's evidence from the team's own games (docs/MATCHUP_INTEL.md, "In your games"): in
@@ -33,7 +34,13 @@ function summaryOf(s: EvidenceSection): string {
   return s.scope === "own" ? "In your games: no player profile" : "In the team's games: not part of this access";
 }
 
-function Section({ section }: { section: EvidenceSection }) {
+/** Where the panel says that summoner spell haste is a separate stat: after the first line with summoner spells' cooldowns, once. */
+export function hasteWordsAt(evidence: MatchupEvidence | null): string | null {
+  for (const s of evidence?.sections ?? []) for (const l of s.lines) if (l.cooldowns) return `${s.scope}:${l.key}`;
+  return null;
+}
+
+function Section({ section, hasteWordsAt }: { section: EvidenceSection; hasteWordsAt: string | null }) {
   return (
     <div className="space-y-0.5" data-testid={`evidence-${section.scope}`}>
       {/* With nothing counted, the one honest line names the scope itself. */}
@@ -53,6 +60,13 @@ function Section({ section }: { section: EvidenceSection }) {
                 </>
               ) : null}
               {l.note ? <span className="block text-2xs text-fg-subtle">{l.note}</span> : null}
+              {/* Riot's base cooldowns only: the haste choice never shortens a summoner spell. */}
+              {l.cooldowns ? (
+                <span className="block text-2xs text-fg-subtle" data-testid="evidence-spell-cooldowns">
+                  {l.cooldowns}
+                  {hasteWordsAt === `${section.scope}:${l.key}` ? `. ${SUMMONER_SPELL_HASTE_WORDS}.` : "."}
+                </span>
+              ) : null}
             </li>
           ))}
         </ul>
@@ -118,7 +132,7 @@ export function EvidenceBody({ evidence, duo, pair }: { evidence: MatchupEvidenc
           {pair.hidden ? UNCERTAIN_HIDDEN : UNCERTAIN}
         </p>
       ) : null}
-      {evidence?.sections.map((s) => <Section key={s.scope} section={s} />)}
+      {evidence?.sections.map((s) => <Section key={s.scope} section={s} hasteWordsAt={hasteWordsAt(evidence)} />)}
       {evidence?.ignored.length ? (
         <p className="text-2xs text-fg-subtle" data-testid="evidence-ignored">
           {`These counts ignore the empty ${evidence.ignored.length === 1 ? "slot" : "slots"}: ${evidence.ignored.join(", ")}.`}
