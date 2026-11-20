@@ -32,7 +32,9 @@ text sizes, target sizes) and its interactions were walked through.
 desktop sidebar's four destinations, in its order, with its names and icons: **My Profile, Team,
 Matchup Intel and Resources** in Player Mode, **Dashboard, Users & Permissions, Platform Settings
 and System** in Admin Mode. A tablet's top bar and a phone held sideways show the same four, and so
-does the installed app's icon menu (its shortcuts). `destinations()` in `src/lib/nav.ts` is the one
+does the installed app's icon menu (its shortcuts, each with its destination's own icon: a 96×96 PNG
+in `public/icons/shortcuts` named after the bars' lucide icon, drawn by `scripts/shortcut-icons.mjs`
+with sharp, in the accent on the app's background). `destinations()` in `src/lib/nav.ts` is the one
 list every bar draws, and `src/components/nav-parity.test.ts` renders the sidebar, the tablet's bar,
 the phone's bar and its sideways bar and holds them, and the manifest's shortcuts, to the same
 entries, names, icons and order in both modes. Before, the phone's bar was Team's four sections and
@@ -509,7 +511,11 @@ text size is the browser's own, `Page.setFontSizes`, so the breakpoints move as 
   tab's memory, `profileBase`, `phoneParent`, `pageName` and `prefetchOf` in `src/lib/nav.test.ts`,
   and `src/components/nav-parity.test.ts`, which renders the sidebar, a tablet's bar, a phone's bar
   and its sideways bar and holds them and the manifest's shortcuts to the same entries, names, icons
-  and order in Player and Admin Mode).
+  and order in Player and Admin Mode; each shortcut's PNG is the icon the bars draw, 96×96, and
+  exists).
+- axe (WCAG 2.1 A and AA, serious and critical: 0) on the open account screen upright and sideways
+  (`e2e/account-screen.spec.ts`, `e2e/mobile-landscape.spec.ts`), on the sideways compact bar at
+  568 × 320, 734 × 343 and 852 × 393, and on Team's pinned row upright and sideways (`e2e/axe.ts`).
 - `pnpm build && pnpm test:e2e`: `e2e/journeys.spec.ts` counts the ten most common journeys at an
   iPhone 15's size (20 taps from the landing, 19 from My Profile with the Team tab's memory, Matchup
   Intel in 1 and a Resources site in 2, no scroll-backs), checks the four destinations by name and

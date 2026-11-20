@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { ADMIN_LINKS, MANIFEST_SHORTCUTS, NAV_LINKS, destinations } from "@/lib/nav";
 
 /*
@@ -122,8 +124,24 @@ describe("navigation parity: one set of destinations on every screen", () => {
 
   it("the installed app's shortcuts are the same four, in the same order, under the same names, each to the entry's first page", async () => {
     const m = await manifest();
-    expect(m.shortcuts!.map((s) => ({ name: s.name, url: s.url }))).toEqual(MANIFEST_SHORTCUTS);
+    expect(m.shortcuts!.map((s) => ({ name: s.name, url: s.url, icon: s.icons![0]!.src }))).toEqual(MANIFEST_SHORTCUTS);
     expect(m.shortcuts!.map((s) => s.name)).toEqual(render("/team", PLAYER, false).sidebar.map((l) => l.name));
     expect(m.shortcuts!.map((s) => s.url)).toEqual(expected(PLAYER, false).map((l) => l.href));
+  });
+
+  it("each shortcut carries its destination's own icon, the one the bars draw, as a 96×96 PNG that exists", async () => {
+    const m = await manifest();
+    // The bars draw the lucide icon whose class is lucide-<name>; the shortcut's PNG has that name.
+    const drawn = expected(PLAYER, false).map((l) => `/icons/shortcuts/${l.icon}.png`);
+    expect(m.shortcuts!.map((s) => s.icons![0]!.src)).toEqual(drawn);
+    expect(new Set(drawn).size).toBe(drawn.length);
+    for (const s of m.shortcuts!) {
+      const icon = s.icons![0]!;
+      expect(icon.sizes).toBe("96x96");
+      const png = readFileSync(join(process.cwd(), "public", icon.src));
+      // PNG signature, then the IHDR's width and height (scripts/shortcut-icons.mjs draws them).
+      expect(png.subarray(1, 4).toString("ascii"), icon.src).toBe("PNG");
+      expect([png.readUInt32BE(16), png.readUInt32BE(20)], icon.src).toEqual([96, 96]);
+    }
   });
 });

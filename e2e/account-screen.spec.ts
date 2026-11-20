@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "./test";
+import { expectNoSeriousAxe } from "./axe";
 import { memberContext } from "./member-account";
 
 /*
@@ -141,6 +142,14 @@ for (const phone of PHONES) {
     }
   });
 }
+
+test("held upright, Team's pinned row and the open account screen have no serious or critical axe finding", async ({ page }) => {
+  await page.goto("/team");
+  await expect(page.getByTestId("mobile-topbar").getByTestId("team-chrome-tabs")).toBeVisible();
+  await expectNoSeriousAxe(page, "Team's pinned row", ["[data-testid=mobile-topbar]"]);
+  await openScreen(page);
+  await expectNoSeriousAxe(page, "the account screen", ["[data-testid=account-sheet]"]);
+});
 
 test("the close button's touch area reaches 44px around its 36px circle", async ({ page }) => {
   await page.goto("/team");
