@@ -117,7 +117,10 @@ Status: **live.** The owner approved the rules, and these boards replaced the pr
   established window has 20 games, so one win can at best draw level with the place above, and only
   when the window's oldest game was a loss. The page says so: the board shows "Next win: 3=" (the
   place that win would share), and the sentence "Win your next game to draw level with Demo Jungle"
-  is spoken by screen readers and shown on hover.
+  is spoken by screen readers and shown on hover. The sentence follows the viewer (PLAN §1.12,
+  `viewerWords`): "your" on the viewer's own row only; on anyone else's, "Winning their next game
+  draws Demo Mid level with Demo Jungle" (`drawLevelWords`, since 20 Nov 2026; before, every row said
+  "your").
 - **Otherwise** it shows the gap in wins to the place above. When the oldest game was a win, a win
   only keeps the gap, so the row says "1 win behind", not "win your next game".
 - **These gaps assume the players above do not play in the meantime.** The page says this once,

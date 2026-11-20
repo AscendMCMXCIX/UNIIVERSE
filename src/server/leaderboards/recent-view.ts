@@ -216,7 +216,7 @@ function formView(data: LeaderboardData, ctx: BoardContext): FormView {
   const { names, ids, byPlayer, viewer, now } = ctx;
   const scope = { board: "overall" as const, mode: "all" as const, now };
   const entries = ids.map((id) => recentEntry(id, byPlayer.get(id)!, scope));
-  const board = rankRecentBoard(entries, "overall", "winRate", names);
+  const board = rankRecentBoard(entries, "overall", "winRate", names, viewer);
   const primary = new Map(data.players.map((p) => [p.id, p.primaryRole as GameRole | null]));
   const rows: FormRow[] = board.rows.map((r) => ({
     playerId: r.entry.playerId,

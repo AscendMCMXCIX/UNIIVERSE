@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { LeaderboardGame } from "./leaderboards";
-import { BOARD_FIGURES, eligibleGames, mainRoleOf, rankRecentBoard, recentEntry, recentSamples, statusOf, winRateAfterNextGame, type RecentScope } from "./leaderboard-recent";
+import { BOARD_FIGURES, drawLevelWords, eligibleGames, mainRoleOf, rankRecentBoard, recentEntry, recentSamples, statusOf, winRateAfterNextGame, type RecentScope } from "./leaderboard-recent";
 
 const NOW = new Date(Date.UTC(2026, 10, 2, 12));
 const DAY = 86_400_000;
@@ -138,7 +138,8 @@ describe("ranking", () => {
     const bo = recentEntry("b", run("b", 20, 12), scope()); // 12 of 20, the oldest a loss
     const di = recentEntry("d", run("d", 20, 12).map((g, i) => ({ ...g, win: i >= 8 })), scope()); // 12 of 20, the oldest a win
     const cy = recentEntry("c", run("c", 20, 9), scope());
-    const board = rankRecentBoard([ash, bo, cy, di], "overall", "winRate", names);
+    // Seen by Bo: Bo's own row says "your" (PLAN §1.12).
+    const board = rankRecentBoard([ash, bo, cy, di], "overall", "winRate", names, "b");
     expect(board.rows.map((r) => [r.entry.playerId, r.rank, r.note])).toEqual([
       ["a", 1, null],
       ["b", 2, "Win your next game to draw level with Ash"],
@@ -185,6 +186,18 @@ describe("ranking", () => {
     expect(rankRecentBoard(entries, "SUPPORT", "visionPerMin", names).rows[1]!.gap).toBeNull();
   });
 
+  it("words the draw-level note for who reads it: \"your\" on the viewer's own row, the player's name on anyone else's (PLAN §1.12)", () => {
+    const ash = recentEntry("a", run("a", 20, 13), scope());
+    const bo = recentEntry("b", run("b", 20, 12), scope()); // one win from Ash
+    const noteOf = (viewer: string | null) => rankRecentBoard([ash, bo], "overall", "winRate", names, viewer).rows.find((r) => r.entry.playerId === "b")!.note;
+    expect(noteOf("b")).toBe("Win your next game to draw level with Ash");
+    expect(noteOf("a")).toBe("Winning their next game draws Bo level with Ash");
+    expect(noteOf(null)).toBe("Winning their next game draws Bo level with Ash");
+    // Nobody's row but the viewer's ever says "you" or "your".
+    expect(noteOf("a")).not.toMatch(/\byour?\b/i);
+    expect(drawLevelWords(false, null, "Ash")).toBe("Winning their next game draws them level with Ash");
+  });
+
   it("the parts say what the sentence says, on a board of every kind of gap", () => {
     // Eight full windows (wins from 8 to 15 of 20, the oldest game won or lost) and a provisional
     // one, so the board has level and behind gaps, shared places above and below a row, gaps of
@@ -200,14 +213,14 @@ describe("ranking", () => {
     for (const r of board.rows) {
       expect(r.note === null, `${r.entry.playerId}: a note exactly when there are parts`).toBe(r.gap === null);
       if (!r.gap || !r.note) continue;
-      expect(r.gap.kind === "level", `${r.entry.playerId}: "level" exactly when one win draws level`).toBe(r.note.startsWith("Win your next game to draw level with "));
+      expect(r.gap.kind === "level", `${r.entry.playerId}: "level" exactly when one win draws level`).toBe(/^Winning their next game draws \S+ level with /.test(r.note));
       if (r.gap.kind === "behind") expect(r.note.startsWith(`${r.gap.wins} ${r.gap.wins === 1 ? "win" : "wins"} behind `)).toBe(true);
       if (r.gap.kind === "provisional") {
         expect(r.note).toBe(`Provisional · ${r.gap.games} of 20 games`);
         continue;
       }
       // Every member the sentence names holds the place the parts give.
-      const named = r.note.replace(/^(Win your next game to draw level with |\d+ wins? behind )/, "").split(/, | and /);
+      const named = r.note.replace(/^(Winning their next game draws \S+ level with |\d+ wins? behind )/, "").split(/, | and /);
       expect(named.length).toBeGreaterThan(0);
       for (const name of named) expect(board.rows.find((o) => o.entry.playerId === byName.get(name))!.rank, `${r.entry.playerId}: ${name}`).toBe(r.gap.place);
     }
