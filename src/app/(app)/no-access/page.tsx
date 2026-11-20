@@ -11,16 +11,19 @@ export default async function NoAccessPage() {
   const session = await getSession();
   const open = NAV_LINKS.filter((l) => canOpen(session, l));
   return (
-    <div className="mx-auto mt-10 max-w-md space-y-4 text-center">
-      <ShieldOff className="mx-auto h-10 w-10 text-fg-subtle" aria-hidden />
-      <h1 className={PAGE_TITLE}>You don&apos;t have access to that page</h1>
-      <p className="text-sm text-fg-muted">An admin chooses what each account can use. Ask them if you think you should see it.</p>
-      <div className="flex flex-wrap justify-center gap-2">
-        {open.map((l) => (
-          <Link key={l.href} href={l.href} className="inline-flex min-h-9 items-center rounded-md border border-border px-3 text-sm hover:bg-surface pointer-coarse:min-h-11">
-            {l.label}
-          </Link>
-        ))}
+    // The frame's `*:ml-0` pins a page's root to the column's left edge: the root spans the column, and the inner wrapper centres the state in it.
+    <div className="mt-10 w-full">
+      <div className="mx-auto max-w-md space-y-4 text-center" data-testid="no-access">
+        <ShieldOff className="mx-auto h-10 w-10 text-fg-subtle" aria-hidden />
+        <h1 className={`${PAGE_TITLE} text-balance`}>You don&apos;t have access to that page</h1>
+        <p className="text-sm text-fg-muted">An admin chooses what each account can use. Ask them if you think you should see it.</p>
+        <div className="flex flex-wrap justify-center gap-2">
+          {open.map((l) => (
+            <Link key={l.href} href={l.href} className="inline-flex min-h-9 items-center rounded-md border border-border px-3 text-sm hover:bg-surface pointer-coarse:min-h-11">
+              {l.label}
+            </Link>
+          ))}
+        </div>
       </div>
     </div>
   );

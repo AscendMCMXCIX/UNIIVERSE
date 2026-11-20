@@ -66,6 +66,8 @@ function useSectionInView(ids: string): string | null {
         const el = document.getElementById(id);
         if (el && el.getBoundingClientRect().top <= line) at = id;
       }
+      // At the page's top the first section is the one being read, even where a short first panel puts the next one's top above the line (Settings' Password); at its end, the last.
+      if (window.scrollY <= 0) at = list[0]!;
       const root = document.documentElement;
       if (window.scrollY > 0 && window.scrollY + window.innerHeight >= root.scrollHeight - 2) at = list[list.length - 1]!;
       setCurrent(at);

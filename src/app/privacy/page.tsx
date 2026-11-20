@@ -156,7 +156,7 @@ export default async function PrivacyPage() {
         Updated <time dateTime="2026-11-20">{PRIVACY_UPDATED}</time>
       </p>
 
-      <div className="lg:mt-6 lg:grid lg:grid-cols-[12rem_minmax(0,1fr)] lg:gap-8">
+      <div className="lg:mt-6 lg:grid lg:grid-cols-[13rem_minmax(0,1fr)] lg:gap-8">
       {/* Phones and tablets: chips under the title. From lg: a table of contents that stays in view beside the notice. */}
       <nav aria-label="On this page" className="mt-4 lg:sticky lg:top-6 lg:mt-0 lg:self-start" data-testid="privacy-index">
         <p className="mb-2 hidden text-xs font-semibold uppercase tracking-label text-fg-subtle lg:block">On this page</p>
@@ -172,7 +172,7 @@ export default async function PrivacyPage() {
       </nav>
 
       <div className="min-w-0">
-      <Section id="contact" title="Contact us about your privacy" className="mt-6 scroll-mt-4 rounded-panel border border-accent/40 bg-accent/5 p-4 lg:mt-0">
+      <Section id="contact" title="Contact us about your privacy" className="mt-6 scroll-mt-4 rounded-panel border border-border bg-surface surface-lead p-4 lg:mt-0">
         <div data-testid="privacy-contact">
           <p className="mt-1 text-sm text-fg-muted">You can request access to, correction of, or permanent removal of your personal information stored by {name}.</p>
           <div className="mt-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-md border border-border bg-bg/60 px-3 py-2">
@@ -196,7 +196,7 @@ export default async function PrivacyPage() {
       </Section>
 
       <Section id="stored">
-        <ul className="mt-2 divide-y divide-border/70 rounded-md border border-border text-sm" data-testid="privacy-stored">
+        <ul className="mt-2 divide-y divide-border/70 rounded-panel border border-border text-sm" data-testid="privacy-stored">
           {STORED.map((row) => (
             <li key={row.what} className="space-y-1 p-3">
               <p className="text-fg">{row.what}</p>

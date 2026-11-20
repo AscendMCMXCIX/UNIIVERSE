@@ -21,9 +21,9 @@ export function SetupSteps({ current }: { current: SetupStepKey }) {
         {SETUP_STEPS.map((s, i) => (
           <li key={s.key} aria-current={i === at ? "step" : undefined} className="min-w-0">
             <span className={cn("block h-1 rounded-full", i <= at ? "bg-accent" : "bg-surface-2")} aria-hidden />
-            <span className={cn("mt-1.5 flex min-w-0 items-center gap-1 text-xs", i === at ? "font-medium text-fg" : i < at ? "text-fg-muted" : "text-fg-subtle")}>
-              {i < at ? <Check className="h-3 w-3 shrink-0 text-accent" aria-hidden /> : null}
-              <span className="truncate">{s.label}</span>
+            <span className={cn("mt-1.5 flex min-w-0 items-start gap-1 text-xs leading-tight", i === at ? "font-medium text-fg" : i < at ? "text-fg-muted" : "text-fg-subtle")}>
+              {i < at ? <Check className="mt-px h-3 w-3 shrink-0 text-accent" aria-hidden /> : null}
+              <span className="min-w-0 text-balance" data-testid="setup-step-label">{s.label}</span>
               {"optional" in s && s.optional ? <span className="shrink-0 text-fg-subtle max-sm:hidden">(optional)</span> : null}
               {i < at ? <span className="sr-only">(done)</span> : null}
             </span>
