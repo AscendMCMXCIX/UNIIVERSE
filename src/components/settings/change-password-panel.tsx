@@ -53,7 +53,7 @@ export function ChangePasswordPanel({ hasPassword, className }: { hasPassword: b
           ) : null}
           <NewPasswordFields next={next} confirm={confirmValue} onNext={setNext} onConfirm={setConfirmValue} idPrefix="change" />
           {fieldError?.field === "next" ? <p className="text-xs text-bad">{fieldError.text}</p> : null}
-          <Button type="submit" variant={hasPassword ? "outline" : "primary"} wrap disabled={busy || (hasPassword && !current) || !newPasswordReady(next, confirmValue)}>
+          <Button type="submit" variant={hasPassword ? "outline" : "primary"} wrap className={LONG_LABEL} disabled={busy || (hasPassword && !current) || !newPasswordReady(next, confirmValue)}>
             {busy ? "Saving…" : hasPassword ? "Change password" : "Set password"}
           </Button>
         </form>
@@ -63,6 +63,13 @@ export function ChangePasswordPanel({ hasPassword, className }: { hasPassword: b
   );
 }
 
+/**
+ * A label that a large text size makes wider than the panel wraps at every width, not only on a
+ * phone (Button's `wrap`): at 175–200% text on a tablet or desktop "Sign out of other devices" ran
+ * past the page (Release 7's report). At the usual size it keeps one line and its height.
+ */
+const LONG_LABEL = "h-auto min-h-11 max-w-full whitespace-normal py-1.5 text-center md:pointer-fine:min-h-9";
+
 /** Ends every other session of your account; this device stays signed in. */
 function SignOutOtherDevices() {
   const [open, setOpen] = React.useState(false);
@@ -70,7 +77,7 @@ function SignOutOtherDevices() {
   return (
     <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-4" data-testid="sign-out-other-devices">
       <p className="min-w-0 text-sm text-fg-muted">Signed in somewhere you no longer use? Sign out everywhere else; this device stays signed in.</p>
-      <Button variant="outline" wrap onClick={() => setOpen(true)}>
+      <Button variant="outline" wrap className={LONG_LABEL} onClick={() => setOpen(true)}>
         Sign out of other devices
       </Button>
       <ConfirmDialog

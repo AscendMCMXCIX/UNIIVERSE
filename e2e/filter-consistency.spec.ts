@@ -29,9 +29,11 @@ async function controlBoxes(controls: Locator) {
   );
 }
 
-async function checkBar(page: Page, scope: Locator, toggleTestId = "filter-toggle") {
-  await expect(scope).toBeVisible();
-  const toggle = scope.getByTestId(toggleTestId);
+/** `toggleIn`: where the folded button is, when not in the bar (All Champions on a phone: the list's own search and sort row). */
+async function checkBar(page: Page, scope: Locator, toggleTestId = "filter-toggle", toggleIn: Locator = scope) {
+  // (A bar whose button is elsewhere can have nothing of its own on screen: no chips.)
+  await expect(toggleIn).toBeVisible();
+  const toggle = toggleIn.getByTestId(toggleTestId);
   // The bar's own markers (not its generated ids, which a re-render may change).
   const controls = scope.locator("[data-filter-controls]");
   if (await toggle.isVisible()) {
@@ -39,7 +41,7 @@ async function checkBar(page: Page, scope: Locator, toggleTestId = "filter-toggl
     await expect(toggle).toContainText("Filters");
     await expect(controls).toBeHidden();
     expect(Math.round((await toggle.boundingBox())!.height)).toBeGreaterThanOrEqual(44);
-    await openFilterBar(scope, toggleTestId);
+    await openFilterBar(toggleIn, toggleTestId);
     await expect(controls).toBeVisible();
     for (const select of await controls.locator("select").filter({ visible: true }).all()) expect(Math.round((await select.boundingBox())!.height)).toBeGreaterThanOrEqual(44);
     await noHorizontalOverflow(page);
@@ -62,7 +64,7 @@ async function checkBar(page: Page, scope: Locator, toggleTestId = "filter-toggl
   await noHorizontalOverflow(page);
 }
 
-test("every filter bar folds on phones and lines up on wide screens", async ({ page }) => {
+test("every filter bar folds on phones and lines up on wide screens", async ({ page }, info) => {
   test.setTimeout(120_000);
   await page.goto("/players");
   const card = page.locator("main a[data-testid='player-card'][data-player-name='Demo Top']");
@@ -75,7 +77,10 @@ test("every filter bar folds on phones and lines up on wide screens", async ({ p
     [`${profile}/matches`, "match-filters"],
   ] as const) {
     await page.goto(path);
-    await checkBar(page, page.getByTestId(testId));
+    // All Champions on a phone: Filters is in the list's own row (PLAN §S2b), its sheet still the bar's.
+    const phoneRow = info.project.name === "phone" && testId === "all-champions-filters";
+    if (phoneRow) await expect(page.getByTestId("all-champions-toolbar").getByTestId("filter-toggle")).toBeVisible();
+    await checkBar(page, page.getByTestId(testId), "filter-toggle", phoneRow ? page.getByTestId("all-champions-toolbar") : undefined);
   }
 
   await page.goto("/matches");

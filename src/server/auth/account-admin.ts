@@ -178,7 +178,7 @@ export async function guardArchiveProfile(db: Db, playerId: string): Promise<voi
 }
 
 /** Deactivating signs the account out everywhere and blocks sign-in; reactivating restores it with the same password. */
-export async function setAccountActive(db: Db, actorId: string | null, userId: string, active: boolean): Promise<UserRecord> {
+export async function setAccountActive(db: Db, actorId: string | null, userId: string, active: boolean): Promise<{ user: UserRecord; changed: boolean }> {
   const target = await getUser(db, userId);
   if (!target) throw new UserError("Account not found.");
   if (!active) {
@@ -186,9 +186,11 @@ export async function setAccountActive(db: Db, actorId: string | null, userId: s
     await guardLastAdmin(db, target, "deactivate");
   }
   await guardOwnerAccount(db, actorId, target, active ? "reactivate" : "deactivate");
-  await updateUser(db, userId, { isActive: active });
+  // Only a real change is written (and so audited by the caller): one already in that state, or a
+  // second call at the same moment, changes nothing. The guards above apply either way.
+  const changedRows = await db.update(users).set({ isActive: active, updatedAt: new Date() }).where(and(eq(users.id, userId), eq(users.isActive, !active))).returning({ id: users.id });
   if (!active) await revokeAllSessions(db, userId);
-  return (await getUser(db, userId))!;
+  return { user: (await getUser(db, userId))!, changed: changedRows.length > 0 };
 }
 
 /**

@@ -62,7 +62,7 @@ export function RoleFields({ initialPrimary, initialSecondary, onChange }: { ini
             {ROLES.map((r) => chip(r, secondary === r, primary === r, () => chooseSecondary(r)))}
           </div>
         ) : !secondary ? (
-          <button type="button" onClick={() => setAddingSecondary(true)} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-dashed border-border px-3 text-sm text-fg-muted hover:border-accent/60 hover:text-fg" data-testid="add-secondary-role">
+          <button type="button" onClick={() => setAddingSecondary(true)} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-dashed border-border px-3 text-sm text-fg-muted hover:border-accent/60 hover:text-fg pointer-coarse:min-h-11" data-testid="add-secondary-role">
             <Plus className="h-4 w-4" /> Add an off role
           </button>
         ) : null}
