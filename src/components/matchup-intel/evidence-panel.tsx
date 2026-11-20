@@ -17,10 +17,6 @@ export const UNCERTAIN = "Matchup uncertain: no curated notes and no counted gam
 /** The pair has a curated briefing, hidden above (too old, or resting on a change): never "no curated notes". */
 export const UNCERTAIN_HIDDEN = "Matchup uncertain: this pair's curated briefing is hidden above and no games are counted, so each champion's own facts follow";
 
-/** A kit's or the assembled reference's tier: Riot's data, with the checked notes where its champions have them (their facts are checked notes). */
-export function kitTier(checked: boolean): string {
-  return checked ? "Riot's data · Checked notes (AI reviewers)" : "Riot's data";
-}
 
 /** The tier a row of the page rests on, in small type beside its title ("Riot's data", "Checked notes (AI reviewers)"). */
 export function TierLabel({ children, className }: { children: string; className?: string }) {
