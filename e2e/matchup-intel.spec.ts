@@ -506,26 +506,23 @@ test("Matchup Intel is a destination of its own: the address and its pair open a
   await expect(m.intel).not.toHaveAttribute("aria-current", "page");
 });
 
-test("the champion window links to Matchup Intel with its champion chosen", async ({ page }) => {
+test("All Champions' preview links to Matchup Intel with the pair chosen", async ({ page }) => {
   await page.goto("/team");
   const id = await page.getByTestId("lineup-row-TOP").getAttribute("data-player-id");
   await page.goto(`/players/${id}/champions`);
   const first = page.getByTestId("top-champion").first();
   const champion = (await first.getAttribute("data-champion"))!;
-  const win = page.getByTestId("champion-detail");
+  const opponent = page.getByTestId("champion-preview-opponent").first();
   await expect(async () => {
-    if (!(await win.isVisible())) await first.getByTestId("open-champion").click({ timeout: 2_000 });
-    await expect(win).toBeVisible({ timeout: 1_000 });
+    if (!(await page.getByTestId("champion-preview-content").count())) await first.getByTestId("open-champion").click({ timeout: 2_000 });
+    await expect(opponent).toBeVisible({ timeout: 1_000 });
   }).toPass({ timeout: 15_000 });
-  const link = page.getByTestId("champion-matchup-intel");
-  await expect(link).toHaveAttribute("href", `/resources/matchups?champion=${champion}`);
-  // With a lane opponent chosen in Matchups (the player's own games), the link names that pair.
-  await page.getByTestId("champion-tab-matchups").click();
-  const picker = page.getByTestId("opponent-picker-button");
-  await expect(picker.or(page.getByTestId("matchups-empty"))).toBeVisible();
-  if (await picker.isVisible()) await expect(link).toHaveAttribute("href", new RegExp(`^/resources/matchups\\?champion=${champion}&vs=[A-Za-z0-9]+$`));
+  // The one link to the pre-game tool sits under an opponent (the player's own games), naming the pair.
+  await opponent.getByRole("button").first().click();
+  const link = page.getByTestId("champion-preview-intel");
+  await expect(link).toHaveAttribute("href", new RegExp(`^/resources/matchups\\?champion=${champion}&vs=[A-Za-z0-9]+$`));
   await link.click();
-  await expect(page).toHaveURL(new RegExp(`/resources/matchups\\?champion=${champion}(&vs=[A-Za-z0-9]+)?$`));
+  await expect(page).toHaveURL(new RegExp(`/resources/matchups\\?champion=${champion}&vs=[A-Za-z0-9]+$`));
   await expect(page.getByTestId("matchup-pick-you")).toHaveAttribute("data-champion", champion);
 });
 

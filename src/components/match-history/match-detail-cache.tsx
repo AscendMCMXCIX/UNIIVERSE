@@ -22,7 +22,7 @@ export interface MatchDetailCache {
   groups(playerId: string, matchId: string): Promise<MatchGroupsResult>;
   /** The match's rank checks (after its details); a check left incomplete is asked again next time. */
   ranks(playerId: string, matchId: string): Promise<MatchRanksResult>;
-  /** The match's timeline figures (build, lane at 10:00 and 15:00, gold difference), when a section that needs them opens. */
+  /** The match's timeline figures (build, lane at 10:00 and 15:00, the bot lane, gold difference), as the game opens. */
   timeline(playerId: string, matchId: string): Promise<MatchTimelineResult>;
   /** The match's players met in the player's other games of the list's season, game mode and account (after its details). */
   meetings(playerId: string, matchId: string, scope: MeetingScope): Promise<MatchMeetingsResult>;
@@ -67,7 +67,8 @@ export function createMatchDetailCache({ onRanks }: { onRanks?: (matchId: string
   return {
     load: memo(getMatchDetailAction),
     groups: memo(getMatchGroupsAction),
-    timeline: memo(getMatchTimelineAction),
+    // A timeline Riot does not provide (or cannot be asked for here) stays so for this page: only a passing error is asked again.
+    timeline: memo(getMatchTimelineAction, (r) => r.status !== "error"),
     meetings: memo(getMatchMeetingsAction),
     ranks: (playerId, matchId) =>
       ranks(playerId, matchId).then((r) => {

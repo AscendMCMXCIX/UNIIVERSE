@@ -6,6 +6,7 @@ import type { MatchGroupsResult, MatchGroupsTeam, MatchGroupView } from "@/serve
 import { groupEvidenceText, groupsNoteState } from "@/domain/possible-groups";
 import type { DetailParticipant, DetailTeam, MatchRanksResult } from "@/server/players/match-history";
 import type { MatchMeeting } from "@/server/players/encounters";
+import { metSides, metText } from "@/lib/tip-words";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
 import { formatCount, formatDate, formatKilo } from "@/lib/format";
 import { cn } from "@/lib/cn";
@@ -64,8 +65,9 @@ export interface MeetProps {
   meetHref?: ((key: string) => string) | null;
 }
 
-export function TeamTable({ team, champ, maxDamage, groups, laneSlot, rankOf, queueId, checking, met, meetHref }: { team: DetailTeam; champ: (id: string | null) => PortraitChampion; maxDamage: number; groups: MatchGroupsTeam | null; /** The player's lane opponent, by place in the record. */ laneSlot: number | null } & RankProps & MeetProps) {
-  const objectives = OBJECTIVES.filter(([k]) => team.objectives[k] !== undefined);
+export function TeamTable({ team, champ, maxDamage, groups, laneSlot, rankOf, queueId, checking, met, meetHref, compact = false }: { team: DetailTeam; champ: (id: string | null) => PortraitChampion; maxDamage: number; groups: MatchGroupsTeam | null; /** The player's lane opponent, by place in the record. */ laneSlot: number | null; /** The post-game view's scoreboard (CompactRow): K/D/A, the build, CS and damage, the player's other figures left to their tiles. */ compact?: boolean } & RankProps & MeetProps) {
+  // The post-game scoreboard keeps the band to one line: kills, gold, towers, dragons and barons.
+  const objectives = OBJECTIVES.filter(([k]) => team.objectives[k] !== undefined && (!compact || k === "tower" || k === "dragon" || k === "baron"));
   const found = groups?.groups ?? [];
   const groupOf = new Map(found.flatMap((g, i) => g.slots.map((s) => [s, { index: i, label: g.label }] as const)));
   const nameOf = (slot: number) => {
@@ -76,7 +78,7 @@ export function TeamTable({ team, champ, maxDamage, groups, laneSlot, rankOf, qu
   return (
     <section className={cn("overflow-hidden rounded-panel border bg-surface", team.win ? "border-blue/35" : "border-red/35")} data-testid={`team-${team.side}`} aria-label={`${team.side === "blue" ? "Blue" : "Red"} team, ${team.win ? "victory" : "defeat"}`}>
       {/* The team's band: its side and result first (the word, never the colour alone), then its totals, each number brighter than its word. */}
-      <header className={cn("flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b px-3 py-2 text-xs", team.win ? "border-blue/25 bg-blue/10" : "border-red/25 bg-red/10")}>
+      <header className={cn("flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b px-3 text-xs", compact ? "py-1.5" : "py-2", team.win ? "border-blue/25 bg-blue/10" : "border-red/25 bg-red/10")}>
         <span className="flex items-center gap-2">
           <span className={cn("font-semibold uppercase tracking-label", team.side === "blue" ? "text-blue" : "text-red")}>{team.side === "blue" ? "Blue side" : "Red side"}</span>
           <Badge tone={team.win ? "blue" : "red"} className="font-semibold">
@@ -97,7 +99,7 @@ export function TeamTable({ team, champ, maxDamage, groups, laneSlot, rankOf, qu
               <span className="font-semibold tabular-nums text-fg">{team.objectives[k]}</span> {team.objectives[k] === 1 ? one : many}
             </span>
           ))}
-          {team.bans.length ? (
+          {team.bans.length && !compact ? (
             <span className="flex items-center gap-1" data-testid="team-bans">
               Bans
               {team.bans.map((b) => (
@@ -114,21 +116,32 @@ export function TeamTable({ team, champ, maxDamage, groups, laneSlot, rankOf, qu
           ))}
         </div>
       ) : null}
-      {/* Column names over the one-line layout only: below it each figure says what it is. */}
-      <div className={cn(ROW, "hidden border-b border-border bg-surface-2/60 px-3 py-1.5 text-2xs font-semibold uppercase tracking-label text-fg-subtle @min-[60rem]/bd:grid")} aria-hidden>
-        <span>Player</span>
-        <span>KDA · KP</span>
-        <span>Damage</span>
-        <span>Gold</span>
-        <span>CS</span>
-        <span>Vision</span>
-        <span>Items</span>
-      </div>
-      <ul className="divide-y divide-border">
-        {team.participants.map((x, i) => (
-          <ParticipantRow key={i} x={x} champ={champ} maxDamage={maxDamage} group={groupOf.get(x.slot) ?? null} lane={laneSlot !== null && x.slot === laneSlot} rank={rankOf(x)} queueId={queueId} checking={checking} met={meetHref ? (met?.get(x.slot) ?? null) : null} meetHref={meetHref ?? null} />
-        ))}
-      </ul>
+      {compact ? (
+        <ul className="divide-y divide-border/70">
+          {team.participants.map((x, i) => (
+            <CompactRow key={i} x={x} champ={champ} group={groupOf.get(x.slot) ?? null} lane={laneSlot !== null && x.slot === laneSlot} rank={rankOf(x)} queueId={queueId} checking={checking} met={meetHref ? (met?.get(x.slot) ?? null) : null} meetHref={meetHref ?? null} />
+          ))}
+        </ul>
+      ) : null}
+      {compact ? null : (
+        <>
+          {/* Column names over the one-line layout only: below it each figure says what it is. */}
+          <div className={cn(ROW, "hidden border-b border-border bg-surface-2/60 px-3 py-1.5 text-2xs font-semibold uppercase tracking-label text-fg-subtle @min-[60rem]/bd:grid")} aria-hidden>
+            <span>Player</span>
+            <span>KDA · KP</span>
+            <span>Damage</span>
+            <span>Gold</span>
+            <span>CS</span>
+            <span>Vision</span>
+            <span>Items</span>
+          </div>
+          <ul className="divide-y divide-border">
+            {team.participants.map((x, i) => (
+              <ParticipantRow key={i} x={x} champ={champ} maxDamage={maxDamage} group={groupOf.get(x.slot) ?? null} lane={laneSlot !== null && x.slot === laneSlot} rank={rankOf(x)} queueId={queueId} checking={checking} met={meetHref ? (met?.get(x.slot) ?? null) : null} meetHref={meetHref ?? null} />
+            ))}
+          </ul>
+        </>
+      )}
     </section>
   );
 }
@@ -203,14 +216,14 @@ export function RanksNote({ ranks, queueId, checking, result }: { ranks: Readonl
     ) : (
       <>Ranks around the time of this game; {clock("marked ones were")} read later.</>
     );
-  const queue = matchRankQueue(queueId) === "flex" ? "Ranked Flex ranks, as this is a Flex game (Solo/Duo where marked)" : "Ranked Solo/Duo ranks (Flex where marked)";
+  const queue = matchRankQueue(queueId) === "flex" ? "Flex ranks, as this is a Flex game, unless marked Solo/Duo" : "Solo/Duo ranks unless marked Flex";
   return (
     <p className="text-2xs text-fg-subtle" data-testid="ranks-note" data-state={checking ? "checking" : (check?.reason ?? (check?.failed ? "failed" : "done"))} data-around={around} data-away={away}>
       {lead ? <span data-testid="ranks-note-lead">{lead}</span> : null}{" "}
       <InfoTip
         label="About the ranks"
         testId="ranks-info"
-        text={`Riot's game records hold no ranks, so each rank is a reading: a member's last rank recorded before the game, or another player's rank checked with Riot within a day after it (the players of members' games are checked when a game is collected). A clock marks a rank read later than that, or before the game: the player's rank then, not at the time of this game. ${queue}. Unranked: no ranked entry when checked. —: not read.`}
+        text={`Ranks were checked around the time of this game. A clock means it was checked well before or after, so it may differ. ${queue}.`}
       />
       {status ? <span className="text-fg-muted"> {status}</span> : null}
     </p>
@@ -286,7 +299,7 @@ export function GroupsNote({ result, teams }: { result: MatchGroupsResult | null
       <InfoTip
         label="About possible groups"
         testId="groups-info"
-        text={`Possible groups only cover players who are not members: the same players all on one team in at least three of the earlier recorded games found for them (the ${result.windowDays} days before this match), and far more often as teammates than as opponents. They are an inference, not confirmed parties; members are never labelled, and players who rarely share a game with a member cannot be assessed.`}
+        text={`Non-members on one team in 3+ earlier games (the ${result.windowDays} days before), rarely opposed. A guess, not a confirmed party; members never labelled.`}
       />
     </p>
   );
@@ -315,11 +328,11 @@ function RemovedRow() {
  * History's own list, filtered to them (Match History → Encounters).
  */
 function MetChip({ met, href }: { met: MatchMeeting; href: string }) {
-  const sides = [met.opponent ? `${formatCount(met.opponent)} against` : null, met.ally ? `${formatCount(met.ally)} alongside` : null].filter(Boolean).join(", ");
+  const sides = metSides(met);
   return (
     <Link
       href={href}
-      title={`Met in ${formatCount(met.games)} recorded games, this one included (${sides}). Shows your games with them.`}
+      title={metText(met)}
       className="relative shrink-0 rounded border border-border px-1 text-2xs font-medium leading-4 tabular-nums text-fg-muted transition-colors hover:border-accent/50 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:after:absolute pointer-coarse:after:-inset-2 pointer-coarse:after:content-['']"
       data-testid="participant-met"
       data-games={met.games}
@@ -327,8 +340,66 @@ function MetChip({ met, href }: { met: MatchMeeting; href: string }) {
       {/* Read as "Met 4 times, this game included (3 against, 1 alongside). Show your games with them". */}
       Met {formatCount(met.games)}
       <span aria-hidden>×</span>
-      <span className="sr-only"> times, this game included ({sides}). Show your games with them</span>
+      <span className="sr-only"> times, this game included ({sides}). Opens those games</span>
     </Link>
+  );
+}
+
+/**
+ * One player in the post-game scoreboard, about 37px on a wide column and two lines of about 48px
+ * on a phone (@container/sb under 30rem): the portrait with its level, the name over the champion
+ * and rank, the K/D/A, the build (six items and the trinket), and CS over damage. Each figure of
+ * the player's own is said once in the view, in its tiles, so the rows carry no ratio, share or
+ * per-minute figure. Team members are marked by weight and a ring on the portrait, not by colour.
+ */
+function CompactRow({ x, champ, group, lane, rank, queueId, checking, met, meetHref }: { x: DetailParticipant; champ: (id: string | null) => PortraitChampion; group: { index: number; label: string } | null; lane: boolean; rank: ParticipantRank | null; queueId: number | null; checking: boolean; met: MatchMeeting | null; meetHref: ((key: string) => string) | null }) {
+  if (x.removed) return <RemovedRow />;
+  const c = champ(x.championId);
+  const member = !!x.teamMember && !x.isPlayer;
+  // One grid, placed by the scoreboard's width: from 30rem one row (the portrait, the name over the
+  // champion and rank, the K/D/A, the build, CS over damage); under it two lines (the name and the
+  // K/D/A, then the build, the rank and CS with damage), the champion left to its portrait.
+  return (
+    <li className={cn("relative grid grid-cols-[auto_auto_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-0.5 px-2.5 py-1 @min-[30rem]/sb:grid-cols-[auto_minmax(0,1fr)_auto_auto_auto] @min-[30rem]/sb:gap-x-3 @min-[30rem]/sb:gap-y-0 @min-[30rem]/sb:py-px", x.isPlayer && "bg-accent/10")} data-testid="participant" data-player={x.isPlayer || undefined} data-group={group ? group.index : undefined} data-lane={lane || undefined} data-member={member || undefined}>
+      {group ? <span className={cn("absolute inset-y-1 left-0 w-[3px] rounded-r-full", GROUP_MARK[group.index] ?? GROUP_MARK[0])} aria-hidden /> : null}
+      <span className="relative row-span-2 shrink-0 self-center">
+        <ChampionPortrait champion={c} size="xs" className={cn(member && "ring-2 ring-fg-muted/70")} />
+        {x.champLevel !== null ? <span className="absolute -bottom-1 -right-1 rounded bg-bg px-0.5 text-4xs font-semibold tabular-nums leading-3 text-fg-muted">{x.champLevel}</span> : null}
+      </span>
+      <span className="col-span-2 flex min-w-0 items-center gap-1.5 leading-tight @min-[30rem]/sb:col-span-1 @min-[30rem]/sb:self-end">
+        <span className={cn("min-w-0 truncate text-xs leading-tight @min-[30rem]/sb:text-sm @min-[30rem]/sb:leading-tight", x.isPlayer || member ? "font-semibold text-fg" : "text-fg")} title={x.name ?? undefined} data-testid="participant-name">
+          <PlayerLink memberId={x.memberId} opgg={x.opgg} label={x.teamMember ?? x.name?.split("#")[0] ?? c.name}>
+            {x.teamMember && !x.isPlayer ? x.teamMember : x.name ? x.name.split("#")[0] : c.name}
+          </PlayerLink>
+          {group ? <span className="sr-only"> ({group.label.toLowerCase()})</span> : null}
+        </span>
+        {met && meetHref ? <MetChip met={met} href={meetHref(met.key)} /> : null}
+      </span>
+      <span className="col-start-4 row-start-1 text-right text-sm font-semibold tabular-nums text-fg @min-[30rem]/sb:col-start-3 @min-[30rem]/sb:row-span-2" data-testid="participant-kda">
+        {x.kills}/{x.deaths}/{x.assists}
+      </span>
+      <span className="col-start-2 row-start-2 [--icon-size:1rem] @min-[30rem]/sb:col-start-4 @min-[30rem]/sb:row-span-2 @min-[30rem]/sb:row-start-1 @min-[30rem]/sb:[--icon-size:1.25rem]" data-testid="participant-items">
+        <ItemRow items={x.items} size={20} />
+      </span>
+      <span className="col-start-3 row-start-2 flex min-w-0 items-center gap-1 text-2xs leading-tight text-fg-muted @min-[30rem]/sb:col-start-2 @min-[30rem]/sb:self-start">
+        <span className="hidden truncate @min-[30rem]/sb:inline">{c.name}</span>
+        {lane ? (
+          <span className="shrink-0 rounded border border-border px-1 leading-4 text-fg-muted" data-testid="lane-opponent-mark">
+            Lane<span className="@max-[40rem]/sb:sr-only"> opponent</span>
+          </span>
+        ) : null}
+        {rank ? <RankBadge rank={rank} queueId={queueId} checking={checking && rank.stale} /> : null}
+      </span>
+      <span className="col-start-4 row-start-2 whitespace-nowrap text-right text-2xs leading-tight tabular-nums text-fg-muted @min-[30rem]/sb:col-start-5 @min-[30rem]/sb:row-span-2 @min-[30rem]/sb:row-start-1 @min-[30rem]/sb:w-16" data-testid="participant-cs">
+        <span className="font-medium text-fg">{intText(x.cs)}</span> CS
+        <span className="@max-[30rem]/sb:hidden">
+          <br />
+        </span>
+        <span className="@min-[30rem]/sb:hidden"> · </span>
+        <span className="font-medium text-fg">{x.damage === null ? "—" : formatKilo(x.damage)}</span>
+        <span className="@max-[30rem]/sb:hidden"> dmg</span>
+      </span>
+    </li>
   );
 }
 

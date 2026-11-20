@@ -163,6 +163,14 @@ export function applyPreset(style: CardStyle, id: CardPresetId): CardStyle {
   });
 }
 
+/** A palette colour's name for its swatch ("Signature", "Gold rush, second colour"), never its hex code; a colour from no palette is "Custom colour". */
+export function swatchName(colour: string): string {
+  const main = CARD_PALETTES.find((p) => p.primary === colour);
+  if (main) return main.label;
+  const second = CARD_PALETTES.find((p) => p.secondary === colour);
+  return second ? `${second.label}, second colour` : "Custom colour";
+}
+
 /** Colour palettes offered as one-tap pairs (custom colours remain available). */
 export const CARD_PALETTES: Array<{ label: string; primary: string; secondary: string }> = [
   { label: "Signature", primary: "#1fc3ff", secondary: "#58a8f2" },

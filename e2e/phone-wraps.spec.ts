@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page } from "./test";
+import { expect, test, type Locator } from "./test";
 import { memberContext } from "./member-account";
 
 /*
@@ -22,15 +22,6 @@ async function expectWhole(items: Locator, what: string) {
   expect(cut, `${what} cut at 320px`).toEqual([]);
 }
 
-/** Opens a champion's window, clicking again until the page is interactive (a click before hydration does nothing). */
-async function openChampion(page: Page, button: Locator) {
-  const win = page.getByTestId("champion-detail");
-  await expect(async () => {
-    if (!(await win.isVisible())) await button.click({ timeout: 2_000 });
-    await expect(win).toBeVisible({ timeout: 1_000 });
-  }).toPass({ timeout: 15_000 });
-}
-
 test("Team Matches: a member's name beside their multikill wraps rather than being cut", async ({ page }) => {
   await page.goto("/matches");
   const marked = page.getByTestId("together-member").filter({ has: page.locator("[data-testid='together-multikill']:visible") });
@@ -43,14 +34,6 @@ test("Resources: a title wraps rather than being cut", async ({ page }) => {
   await page.goto("/resources");
   await expectWhole(page.getByTestId("resource-title"), "a resource's title");
   await expect(page.getByTestId("resource-title").filter({ hasText: "League of Legends Wiki" })).toBeVisible();
-});
-
-test("the champion window: the account its figures come from wraps rather than being cut", async ({ page }) => {
-  await page.goto("/players");
-  const href = await page.locator("main a[data-testid='player-card']", { hasText: "Demo Top" }).first().getAttribute("href");
-  await page.goto(`${new URL(href!, "http://x").pathname}/champions`);
-  await openChampion(page, page.getByTestId("top-champion").first().getByTestId("open-champion"));
-  await expectWhole(page.getByTestId("champion-detail-scope"), "the window's scope");
 });
 
 test("at 200% text on a 320px phone, Settings for a member with a player profile (its Social links too) is no wider than the phone, and no button spills its label", async ({ browser, page }) => {

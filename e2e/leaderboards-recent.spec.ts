@@ -239,7 +239,7 @@ test("Recent form ranks every full 20-game window by win rate, shared places and
   expect(Math.abs(edge.left - edge.header)).toBeLessThanOrEqual(1);
   await expect(page.getByTestId("form-row").first().getByRole("img", { name: "First place" })).toBeVisible();
   // The caveats are behind the ⓘ in the board's title (its description, read without opening it), not a footnote under it.
-  await expect(page.getByTestId("form-footnote")).toHaveAccessibleDescription(/places within 2 wins of each other are close.*The gaps assume the players above don't play in the meantime/);
+  await expect(page.getByTestId("form-footnote")).toHaveAccessibleDescription("20 games is a small sample, so places within 2 wins are close. Bars show wins first, not the order the games were played.");
   await noOverflow(page);
   await axe(page, "[data-testid=form]");
 });
@@ -475,7 +475,7 @@ test("the season records: seven cells in one panel, each opening its game; multi
     if (/^\/players\/[^/]+\/matches$/.test(url.pathname) && (url.searchParams.has("_rsc") || r.headers()["rsc"] === "1")) prefetched.push(url.search);
   });
   await openRecords(page);
-  // One panel holding the seven records, its definitions (and that records reward playing more) behind one ⓘ in its title.
+  // One panel holding the seven records: each record's qualifier says what it counts, the scope line how ties go (no ⓘ of definitions).
   const book = page.getByTestId("records-book");
   await expect(book.getByTestId("season-record")).toHaveCount(7);
   await expect(page.getByTestId("season-record")).toHaveCount(7);
@@ -483,10 +483,8 @@ test("the season records: seven cells in one panel, each opening its game; multi
   await expect(book).not.toHaveClass(/surface-lead/);
   await expect(page.locator("main .surface-lead")).toHaveCount(1);
   await expect(page.getByTestId("form-board")).toHaveClass(/surface-lead/);
-  await expect(page.getByTestId("records-scope")).toHaveText(/^Season \d{4} · All supported games · [\d,]+ games$/);
-  const definitions = book.getByTestId("records-definitions");
-  await expect(definitions).toHaveAccessibleName("How these records count");
-  await expect(definitions).toHaveAccessibleDescription(/Records reward playing more: every game is another chance\..*Damage to champions, in a game of 15 minutes or more\..*A tie goes to whoever set it first\./);
+  await expect(page.getByTestId("records-scope")).toHaveText(/^Season \d{4} · All supported games · [\d,]+ games · ties: first to set it$/);
+  await expect(book.getByTestId("records-definitions")).toHaveCount(0);
   // Each record's qualifier on its row.
   await expect(book.locator("[data-record=damage-per-minute] [data-testid=record-qualifier]")).toContainText("to champions · 15+ min games");
   await expect(book.locator("[data-record=cs-per-minute] [data-testid=record-qualifier]")).toContainText("15+ min games");

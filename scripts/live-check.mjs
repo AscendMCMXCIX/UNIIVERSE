@@ -89,15 +89,20 @@
     route, and the Library's own below), Playwright itself aborts every request for /favicon.ico,
     unreported, so every row shows its stand-in. Counts only.
   - games (#178): Team Matches opens a game under its card (no window), with ?match= in the address;
+    Match History's post-game view (S6) has no tabs, fits one screen with its card at 1440×900, keeps
+    the open header in place on Next and closes on Back; a phone's window has Previous and Next, Next
+    replacing the address;
     on the tablet and the desktop a game with 4 or more members lists them in two columns;
     a copied link opens it; Back returns to it; the keyboard toggles it; "Close this game" closes it
     and keeps the focus on the card. Match History opens games under their cards; at 1440 the
     first three cards' CS totals and damage shares end before the next column (the build or the
     teams), and a copy of a card with the widest K/D/A and the longest champion names stays level
     with it and keeps the names whole; on the phone (390x844) the first game card is complete above
-    the tab bar; its Encounters view and the champion window still open.
+    the tab bar; its Encounters view still opens. All Champions' preview: at 1440 beside the list in
+    its card (Champion, Games and Win rate in place, the page not scrolled), Escape and Back close it;
+    on the phone a sheet and on the tablet the docked panel, which Back closes; phone rows at most 64px.
   - accessibility (#173): axe (WCAG 2.1 A and AA, plus label-content-name-mismatch) on the main pages
-    at every width, with a game open, and in the champion window: no serious or critical violation.
+    at every width, with a game open, and in All Champions' preview: no serious or critical violation.
   - players (the roster board, Nov 2026), at every width: one profile link per listed player, and no
     pool counts "+1"; on the phone every roster row of two lines is at most 72px tall; at 1440 with
     the sidebar open the roster shows two columns once it lists two or more players. A roster too
@@ -750,6 +755,46 @@ async function teamFacts(page, kind) {
 }
 
 /**
+ * The shared kit on Team (S4): a lineup card opens the player's Peek with the player in the address
+ * (?player=), and Back closes it, leaving the page where it was; on the phone (390 × 844) the lineup
+ * status ⓘ opens on a tap inside the screen and a second tap, on its bubble, closes it and reaches
+ * nothing under it (no window opens, the address stays). Counts and true/false only.
+ */
+async function sharedKitFacts(page, kind) {
+  await page.evaluate(() => window.scrollTo(0, 0));
+  const open = page.locator("[data-testid=open-player-detail]:visible").first();
+  const peekName = `${kind}: a Team card opens the player Peek with ?player= in the address, and Back closes it`;
+  if (!(await open.count())) check("team", peekName, "PASS", "not applicable: no player in the lineup");
+  else {
+    const before = await page.evaluate(() => ({ y: Math.round(scrollY), entries: history.length }));
+    await open.click();
+    const panel = page.getByTestId("player-detail");
+    const opened = await panel.waitFor({ state: "visible", timeout: 10_000 }).then(() => true, () => false);
+    const address = /[?&]player=/.test(page.url());
+    await page.goBack();
+    const closed = await panel.waitFor({ state: "hidden", timeout: 10_000 }).then(() => true, () => false);
+    const after = await page.evaluate(() => ({ y: Math.round(scrollY), path: location.pathname, player: /[?&]player=/.test(location.search) }));
+    pass("team", peekName, opened && address && closed && !after.player && after.path === "/team" && after.y === before.y, { opened, address, closed, stillOnTeam: after.path === "/team", moved: after.y - before.y });
+  }
+  if (kind !== "phone") return;
+  const tipName = "390x844: an ⓘ opens on a tap inside the screen, and a tap on its bubble closes it without reaching what is under it";
+  const tip = page.locator("main [data-testid=info-tip]:visible").first();
+  if (!(await tip.count())) return check("team", tipName, "PASS", "not applicable: no ⓘ on Team for this account");
+  await tip.scrollIntoViewIfNeeded();
+  const url = page.url();
+  await tip.tap();
+  const bubble = page.locator("[data-testid=info-tip-bubble]");
+  const shown = await bubble.waitFor({ state: "visible", timeout: 5_000 }).then(() => true, () => false);
+  const box = shown ? await bubble.boundingBox() : null;
+  const inside = !!box && box.x >= 0 && box.y >= 0 && box.x + box.width <= 390 + 0.5 && box.y + box.height <= 844 + 0.5;
+  if (box) await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
+  const gone = await bubble.waitFor({ state: "detached", timeout: 5_000 }).then(() => true, () => false);
+  await page.waitForTimeout(300);
+  const after = await page.evaluate(() => ({ dialogs: document.querySelectorAll("dialog[open]").length }));
+  pass("team", tipName, shown && inside && gone && after.dialogs === 0 && page.url() === url, { shown, inside, closed: gone, windowsOpened: after.dialogs, addressKept: page.url() === url });
+}
+
+/**
  * Recent form's board (PR 5a), as counts, heights and true/false only (the rows and the gap
  * sentences carry names, which redact() keeps): how tall its rows of two lines are, whether shared
  * places say so ("Tied for 4th") and only they, and whether each bar counts its row's games (20
@@ -1030,6 +1075,7 @@ async function allChampions(page, log, kind, playerId) {
   else {
     pass("all-champions", `${kind}: lists champions`, facts.rows > 0, facts.rows);
     if (kind !== "phone") pass("all-champions", `${kind}: rows are compact (at most 56 px)`, facts.heights.length > 0 && Math.max(...facts.heights) <= 56, facts.heights);
+    else pass("all-champions", `${kind}: rows are compact (at most 64 px: the name over the role, the win rate over the games)`, facts.heights.length > 0 && Math.max(...facts.heights) <= 64, facts.heights);
     if (kind !== "phone") {
       const roles = await everyRoleRow(page);
       pass("all-champions", `${kind}: rows stay compact for every role beside "In pool" (at most 56 px)`, !!roles && Math.max(...Object.values(roles.heights)) <= 56, roles ?? "no row with a role line to measure");
@@ -1038,21 +1084,43 @@ async function allChampions(page, log, kind, playerId) {
   }
   pass("all-champions", `${kind}: no heading cut short`, facts.cut.length === 0, facts.cut);
   await axe(page, kind, "all-champions");
-  // The champion window still opens from the list, and Escape closes it.
+  // All Champions' preview: at 1440 it unfolds beside the list, inside its card, with Champion,
+  // Games and Win rate in place (±1px) and the page not scrolled; Escape and Back close it. On the
+  // phone it is a sheet, on the tablet the docked panel, and Back closes it.
   const open = page.getByTestId("open-champion").first();
   if (await open.count()) {
+    const columns = () => page.evaluate(() => ["champion", "games", "win"].map((k) => Math.round(document.querySelector(`[data-testid=sort-${k}]`)?.getBoundingClientRect().x ?? -1)));
+    const before = { x: await columns(), y: await page.evaluate(() => scrollY) };
     await open.click();
-    const win = page.getByTestId("champion-detail");
-    const opened = await win.waitFor({ timeout: 15_000 }).then(() => true, () => false);
-    if (opened) {
-      await page.getByTestId("champion-detail-loading").waitFor({ state: "detached", timeout: 20_000 }).catch(() => {});
-      await page.waitForTimeout(600);
-      await shot(page, `${kind}-champion-window`);
-      await axe(page, kind, "champion-window", "[data-testid=champion-detail]");
-      await page.keyboard.press("Escape");
+    const content = page.getByTestId("champion-preview-content");
+    const opened = await content.waitFor({ timeout: 15_000 }).then(() => true, () => false);
+    if (kind === "desktop") {
+      const after = { x: await columns(), y: await page.evaluate(() => scrollY), aside: await page.evaluate(() => document.querySelector("[data-testid=champion-preview]")?.tagName === "ASIDE" && !document.querySelector("dialog[open]")) };
+      if (opened) {
+        await page.getByTestId("champion-preview-foot").waitFor({ timeout: 15_000 }).catch(() => {});
+        await shot(page, `${kind}-champion-preview`);
+        await axe(page, kind, "champion-preview", "[data-testid=champion-preview]");
+        await page.keyboard.press("Escape");
+      }
+      const escaped = await content.waitFor({ state: "detached", timeout: 5_000 }).then(() => true, () => false);
+      await open.click();
+      const again = await content.waitFor({ timeout: 15_000 }).then(() => true, () => false);
+      await page.goBack();
+      const backed = await content.waitFor({ state: "detached", timeout: 5_000 }).then(() => true, () => false);
+      const still = after.x.every((x, i) => Math.abs(x - before.x[i]) <= 1) && after.y === before.y;
+      pass("games", `${kind}: the champion preview opens beside the list (Champion, Games and Win rate in place, the page not scrolled); Escape and Back close it`, opened && after.aside && still && escaped && again && backed, { opened, aside: after.aside, before, after: { x: after.x, y: after.y }, escaped, backed });
+    } else {
+      // The shared Peek: a sheet on the phone, the panel docked at the right on the tablet.
+      const sheet = await page.locator(kind === "phone" ? "dialog[open][data-testid=champion-preview]" : "aside[data-peek-panel][data-testid=champion-preview]").count();
+      if (opened) {
+        await page.waitForTimeout(500);
+        await shot(page, `${kind}-champion-preview`);
+        await axe(page, kind, "champion-preview", "[data-testid=champion-preview]");
+        await page.goBack();
+      }
+      const closed = await content.waitFor({ state: "detached", timeout: 5_000 }).then(() => true, () => false);
+      pass("games", `${kind}: the champion preview opens (${kind === "phone" ? "a sheet" : "the docked panel"}) and Back closes it`, opened && sheet === 1 && closed, { opened, sheet, closed });
     }
-    const closed = await win.waitFor({ state: "hidden", timeout: 5_000 }).then(() => true, () => false);
-    pass("games", `${kind}: the champion window opens and Escape closes it`, opened && closed, { opened, closed });
   }
 }
 
@@ -1109,6 +1177,16 @@ async function phoneGame(page, kind, name, slug, open) {
   if (shown) {
     await shot(page, `${kind}-${slug}-open`);
     await axe(page, kind, `${slug}-game-open`, "[data-testid=match-detail]");
+    // The post-game window (S6): no tabs, a bar with Previous and Next, and Next replaces the address (Back still closes).
+    pass("games", `${kind}: ${name}'s game has no tabs`, (await win.locator("[role=tab]").count()) === 0, await win.locator("[role=tab]").count());
+    const next = win.getByTestId("match-detail-next");
+    if ((await next.count()) && (await next.isEnabled())) {
+      const before = page.url();
+      const length = await page.evaluate(() => history.length);
+      await next.click();
+      const moved = await page.waitForFunction((b) => location.href !== b, before, { timeout: 10_000 }).then(() => true, () => false);
+      pass("games", `${kind}: ${name}'s Next shows the next game in place of the address, not a new entry`, moved && (await page.evaluate(() => history.length)) === length, { moved, length });
+    }
   }
   await page.goBack();
   const closed = await win.waitFor({ state: "detached", timeout: 15_000 }).then(() => true, () => false);
@@ -1533,6 +1611,40 @@ async function matchHistory(page, log, kind, playerId) {
     pass("games", `${kind}: Match History opens a game under its card`, opened);
     await shot(page, `${kind}-match-history-open`);
     if (kind !== "tablet") await axe(page, kind, "match-history-game-open");
+    // The post-game view (S6): no tabs; at 1440×900 the card and its game take one screen; Next keeps
+    // the open game's header where it was (±2px) and replaces the address; Back closes the game.
+    if (opened) {
+      const open = page.locator("li[data-expanded]");
+      pass("games", `${kind}: the open game has no tabs`, (await open.locator("[role=tab]").count()) === 0, await open.locator("[role=tab]").count());
+      if (kind === "desktop") {
+        const fit = await open.evaluate((li) => {
+          const top = li.querySelector("[data-testid=match-card]").getBoundingClientRect().top;
+          const end = li.querySelector("[data-testid=match-expanded]").getBoundingClientRect().bottom;
+          return Math.round(end - top);
+        });
+        pass("games", `${kind}: the card and its open game fit one screen (${fit}px of ${page.viewportSize().height})`, fit <= page.viewportSize().height, fit);
+      }
+      const next = open.getByTestId("game-header-next");
+      if (await next.isEnabled()) {
+        // Once the opening's own scroll (a card low on the screen is brought up smoothly) has stopped.
+        let y0 = (await open.getByTestId("match-card").boundingBox()).y;
+        for (let i = 0; i < 20; i++) {
+          await page.waitForTimeout(100);
+          const y = (await open.getByTestId("match-card").boundingBox()).y;
+          if (Math.abs(y - y0) < 0.5) break;
+          y0 = y;
+        }
+        const before = page.url();
+        await next.click();
+        await page.waitForFunction((b) => location.href !== b, before, { timeout: 10_000 }).catch(() => {});
+        await page.waitForTimeout(300);
+        const y1 = (await page.locator("li[data-expanded] [data-testid=match-card]").boundingBox())?.y ?? null;
+        pass("games", `${kind}: Next keeps the open game's header in place (±2px)`, y1 !== null && Math.abs(y1 - y0) <= 2, { y0: Math.round(y0), y1: y1 === null ? null : Math.round(y1) });
+      }
+      await page.goBack();
+      const closed = await page.locator("li[data-expanded]").waitFor({ state: "detached", timeout: 10_000 }).then(() => true, () => false);
+      pass("games", `${kind}: Back closes the open game and keeps Match History`, closed && !/[?&]match=/.test(page.url()) && /\/matches/.test(page.url()), page.url().replace(base, ""));
+    }
   }
   // The page's controls in reach from the end of its list (PR 2b): the pinned row's or the top bar's Filters.
   await guarded("reach", `${kind}: Filters from the end of Match History`, () => reachFacts(page, kind));
@@ -1583,6 +1695,7 @@ for (const [kind, options] of Object.entries(VIEWPORTS)) {
       playerId ??= await page.locator("[data-testid^=lineup-row-][data-player-id]").first().getAttribute("data-player-id").catch(() => null);
       await axe(page, kind, "team");
       await teamFacts(page, kind);
+      await guarded("team", `${kind}: shared kit`, () => sharedKitFacts(page, kind));
     }
   });
   await guarded(kind, "players", async () => {

@@ -173,16 +173,13 @@ describe("the board's markup", () => {
     expect(html.indexOf('data-testid="form-empty"')).toBeLessThan(html.indexOf('data-testid="form-not-enough"'));
   });
 
-  it("keeps the board's caveats behind the ⓘ in its title (no footnote under it): a short sample, the gaps' assumption, what the bar counts", () => {
+  it("keeps the board's caveats behind the ⓘ in its title (no footnote under it), in two short sentences: a small sample, what the bar counts", () => {
     const html = render();
     expect(html).toContain('aria-label="How Recent form counts"');
     // The ⓘ's text is its trigger's description, always in the page for screen readers.
     const tip = /<span id="[^"]+" class="sr-only">([^<]*)<\/span>/.exec(html.slice(html.indexOf('data-testid="form-footnote"')))![1]!;
     const foot = decode(tip);
-    expect(foot).toContain("20 games is a short sample: places within 2 wins of each other are close");
-    expect(foot).toContain("The gaps assume the players above don't play in the meantime");
-    expect(foot).toContain("Each bar counts the window's games, wins first, not the order they were played");
-    expect(foot).toContain("Every linked account counts, a game seen from two accounts once; remakes are left out.");
+    expect(foot).toBe("20 games is a small sample, so places within 2 wins are close. Bars show wins first, not the order the games were played.");
     expect(html).not.toMatch(/<p[^>]*data-testid="form-footnote"/);
   });
 

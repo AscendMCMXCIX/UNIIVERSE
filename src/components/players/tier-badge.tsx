@@ -9,7 +9,7 @@ const TIER_TONE: Record<ProficiencyTier, BadgeTone> = { core: "good", strong: "g
 /** A shape per tier as well as a colour, so the label never depends on colour alone. */
 const TIER_MARK: Record<ProficiencyTier, string> = { core: "◆◆", strong: "◆", comfortable: "●", moderate: "○", rusty: "◇", unknown: "–" };
 const EVIDENCE_BARS: Record<EvidenceWord, number> = { high: 3, medium: 2, low: 1, none: 0 };
-const EVIDENCE_TEXT: Record<EvidenceWord, string> = { high: "Solid evidence", medium: "Reasonable evidence", low: "Thin evidence: few games so far", none: "No evidence" };
+const EVIDENCE_TEXT: Record<EvidenceWord, string> = { high: "Plenty of recent games", medium: "Enough games to go on", low: "Few games so far", none: "No games yet" };
 
 const TIER_TEXT: Record<ProficiencyTier, string> = { core: "text-good", strong: "text-good", comfortable: "text-info", moderate: "text-fg-muted", rusty: "text-warn", unknown: "text-fg-subtle" };
 

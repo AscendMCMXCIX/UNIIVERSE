@@ -23,7 +23,7 @@ describe("winRateTone", () => {
 
 describe("winRateSampleNote", () => {
   it("explains a small sample and stays silent otherwise", () => {
-    expect(winRateSampleNote(1, 1, 5)).toMatch(/Only 1 game:/);
+    expect(winRateSampleNote(1, 1, 5)).toBe("Only 1 game, so this win rate isn't reliable yet.");
     expect(winRateSampleNote(0.6, 5, 5)).toBeNull();
     expect(winRateSampleNote(null, 1, 5)).toBeNull();
   });

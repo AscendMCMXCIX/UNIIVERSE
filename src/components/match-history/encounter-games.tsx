@@ -5,11 +5,10 @@ import Link from "next/link";
 import { ChevronLeft, ExternalLink } from "lucide-react";
 import { RELATIONS, encounterFocusParams, encounterListParams, recordFor, type EncounterFocus, type EncounterListChoice, type EncounterRelation, type EncounterSummary } from "@/domain/encounters";
 import { statsQuery, type StatsFilter } from "@/domain/season-stats";
-import { InfoTip } from "@/components/ui/info-tip";
 import { segmentClass, segmentedGroupClass } from "@/components/ui/segmented";
 import { formatCount, formatDate } from "@/lib/format";
 import { cn } from "@/lib/cn";
-import { ENCOUNTERS_CAVEAT, REL, Rate, RelationTag, RiotId, gamesText, recordText, relationOf } from "./encounters-view";
+import { REL, Rate, RelationTag, RiotId, gamesText, recordText, relationOf } from "./encounters-view";
 
 /*
   One player met, opened from Encounters (a row or a highlight) or from a game's scoreboard: their
@@ -74,7 +73,6 @@ export function EncounterGamesPanel({ basePath, filter, encounter, playerName }:
             <span>
               {gamesText(s.games)} with {playerName} · last met {formatDate(new Date(s.lastPlayedAt))}
             </span>
-            <InfoTip text={ENCOUNTERS_CAVEAT} label="How encounters are counted" />
           </p>
           <div className="mt-2.5 flex flex-wrap items-center justify-between gap-x-4 gap-y-2.5">
             {/* The two records, never added together: against them, then alongside them. */}

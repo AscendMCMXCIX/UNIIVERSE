@@ -41,7 +41,7 @@ export function queueGroup(queueId: number | null | undefined): QueueGroup {
 
 export const QUEUE_GROUP_WORDS: Record<QueueGroup, string> = { ranked: "ranked", normal: "normal", fast: "Swiftplay and Quickplay", clash: "Clash", other: "" };
 
-export type FigureKey = "kda" | "csPerMin" | "damagePerMin" | "visionPerMin";
+export type FigureKey = "kda" | "csPerMin" | "damagePerMin" | "visionPerMin" | "killParticipation" | "goldPerMin" | "damageShare";
 
 export interface FigureInfo {
   label: string;
@@ -56,9 +56,14 @@ export const FIGURES: Record<FigureKey, FigureInfo> = {
   csPerMin: { label: "CS/min", digits: 1, forSupport: false },
   damagePerMin: { label: "Damage/min", digits: 0, forSupport: true },
   visionPerMin: { label: "Vision/min", digits: 2, forSupport: true },
+  killParticipation: { label: "Kill participation", digits: 2, forSupport: true },
+  goldPerMin: { label: "Gold/min", digits: 0, forSupport: true },
+  damageShare: { label: "Damage share", digits: 2, forSupport: false },
 };
 
 export const FIGURE_ORDER: FigureKey[] = ["kda", "damagePerMin", "csPerMin", "visionPerMin"];
+/** The post-game notes compare these as well (D-3: from the ledger's team kills, gold and team damage); the card's standout keeps FIGURE_ORDER. */
+export const NOTE_FIGURES: FigureKey[] = [...FIGURE_ORDER, "killParticipation"];
 
 /** A figure as the pages write it: damage as a count, the others with their decimals. */
 export function figureText(key: FigureKey, value: number): string {
@@ -79,7 +84,15 @@ const minutesOf = (g: Pick<SeasonGame, "gameDuration">): number | null => {
 };
 
 /** One game's figure, or null when the game does not carry it (or its length is not valid). */
-export function figureOf(g: Pick<SeasonGame, "kills" | "deaths" | "assists" | "cs" | "damage" | "visionScore" | "gameDuration">, key: FigureKey): number | null {
+export function figureOf(g: Pick<SeasonGame, "kills" | "deaths" | "assists" | "cs" | "damage" | "visionScore" | "gameDuration" | "gold" | "teamKills" | "teamDamage">, key: FigureKey): number | null {
+  if (key === "killParticipation") {
+    const { kills: k, assists: a, teamKills: t } = g;
+    return typeof k === "number" && typeof a === "number" && k >= 0 && typeof t === "number" && t > 0 ? Math.min(1, (k + a) / t) : null;
+  }
+  if (key === "damageShare") {
+    const { damage: d, teamDamage: t } = g;
+    return typeof d === "number" && d >= 0 && typeof t === "number" && t > 0 ? Math.min(1, d / t) : null;
+  }
   if (key === "kda") {
     const { kills: k, deaths: d, assists: a } = g;
     if (typeof k !== "number" || typeof d !== "number" || typeof a !== "number" || k < 0) return null;
@@ -87,7 +100,7 @@ export function figureOf(g: Pick<SeasonGame, "kills" | "deaths" | "assists" | "c
   }
   const minutes = minutesOf(g);
   if (minutes === null) return null;
-  const v = key === "csPerMin" ? g.cs : key === "damagePerMin" ? g.damage : g.visionScore;
+  const v = key === "csPerMin" ? g.cs : key === "damagePerMin" ? g.damage : key === "goldPerMin" ? g.gold : g.visionScore;
   return typeof v === "number" && v >= 0 ? v / minutes : null;
 }
 
@@ -126,7 +139,7 @@ function median(xs: number[]): number {
  * most BASELINE_GAMES; the game itself and later games never count). Null when the game has no
  * recorded role, or fewer than BASELINE_MIN earlier games carry a figure.
  */
-export function personalComparison(target: SeasonGame, history: readonly SeasonGame[]): PersonalComparison | null {
+export function personalComparison(target: SeasonGame, history: readonly SeasonGame[], keys: readonly FigureKey[] = FIGURE_ORDER): PersonalComparison | null {
   const role = gameRole(target);
   const group = queueGroup(target.queueId);
   if (!role || group === "other") return null;
@@ -137,7 +150,7 @@ export function personalComparison(target: SeasonGame, history: readonly SeasonG
   const seen = new Set<string>();
   const sample = earlier.filter((g) => !seen.has(g.matchId) && (seen.add(g.matchId), true)).slice(0, BASELINE_GAMES);
   const figures: FigureComparison[] = [];
-  for (const key of FIGURE_ORDER) {
+  for (const key of keys) {
     if (role === "SUPPORT" && !FIGURES[key].forSupport) continue;
     const value = figureOf(target, key);
     if (value === null) continue;
@@ -250,6 +263,34 @@ export function laneMoments(t: readonly number[], you: PlayerSeries, opponent: P
     return gold === null || xp === null || cs === null ? null : { gold: Math.round(gold), xp: Math.round(xp), cs: Math.round(cs) };
   };
   return minutes.map((minute) => ({ minute, you: at(you, minute * 60_000), opponent: at(opponent, minute * 60_000) }));
+}
+
+/**
+ * The bot lane, two against two: the player and their lane partner (the one ally in the other
+ * bottom-lane position) against the two enemies in those positions, by the one lane opponent rule
+ * for each seat. Null unless all four seats are clear. Slots are places in the record.
+ */
+export function botPairOf(parts: readonly LaneSeat[], meSlot: number): { ally: number; opponents: [number, number] } | null {
+  const me = parts[meSlot];
+  const reading = me ? laneReadingOf(me) : null;
+  if (!me || !reading) return null;
+  const lane = laneOf(me[reading]);
+  if (lane !== "BOTTOM" && lane !== "UTILITY") return null;
+  const other = lane === "BOTTOM" ? "UTILITY" : "BOTTOM";
+  const allies = parts.flatMap((p, i) => (!p.removed && p.teamId === me.teamId && laneOf(p[reading]) === other ? [i] : []));
+  if (allies.length !== 1) return null;
+  const mine = laneOpponentOf(parts, meSlot);
+  const theirs = laneOpponentOf(parts, allies[0]!);
+  return mine === null || theirs === null ? null : { ally: allies[0]!, opponents: [mine, theirs] };
+}
+
+/** The pair's gold minus the other pair's at an exact minute, read between the frames; null when a frame does not cover it. */
+export function pairMoments(t: readonly number[], ours: readonly [PlayerSeries, PlayerSeries], theirs: readonly [PlayerSeries, PlayerSeries], minute: number): number | null {
+  const gold = (s: PlayerSeries) => valueAt(t, s.g, minute * 60_000);
+  const vals = [...ours, ...theirs].map(gold);
+  if (vals.some((v) => v === null)) return null;
+  const [a, b, c, d] = vals as number[];
+  return Math.round(a! + b! - c! - d!);
 }
 
 export interface GoldPoint {

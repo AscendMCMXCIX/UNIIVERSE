@@ -52,7 +52,7 @@ export interface EncountersData {
   page: EncounterPage;
 }
 
-export const ENCOUNTERS_CAVEAT = `From this player's stored Riot games (no extra Riot requests). Against: the other player was on the other team; alongside: on the player's team. A player met both ways has both records and is listed under Against and Alongside. Every result is the player's own. A player is recognised by their Riot account, not their name (the latest Riot ID is shown), and teammates with a profile here are left out. Historical encounters only: not parties, friendships or every game they played. Games that were not recorded are not counted, so a missing game is not proof two players never met. Win rates from fewer than ${ESTABLISHED_GAMES} games with a result are a small sample, shown in grey and ranked after the rest. Highlights cover the whole season and game mode: most games needs 3 games; the best record alongside and the toughest record against need ${ESTABLISHED_GAMES} games with a result, and appear only when you won (or lost) more often than not. Ties go to the larger sample, then the most recent.`;
+export const ENCOUNTERS_CAVEAT = `Everyone met in this player's recorded games, members left out: not parties or friends. Against: other team; alongside: same team. Grey: fewer than ${ESTABLISHED_GAMES} games.`;
 
 const PERSPECTIVE: Record<EncounterRelation, { label: string; none: string }> = {
   all: { label: "All", none: "No one met" },

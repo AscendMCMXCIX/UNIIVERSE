@@ -28,7 +28,7 @@ test("Played together lists games with two or more members on one side, with hon
   // One line of what is counted; what it proves is behind (i), never claimed as a premade party.
   const summary = page.getByTestId("matches-summary");
   await expect(summary).toContainText(new RegExp(`${season} · \\d+ games? played together`));
-  await expect(summary.getByRole("button", { name: "How games played together are found" })).toHaveAccessibleDescription(/not confirmed premade parties/);
+  await expect(summary.getByRole("button", { name: "How games played together are found" })).toHaveAccessibleDescription(/Riot doesn't say who queued together, so not necessarily a party/);
   // No "played together most" ranking: the games come right after the toolbar.
   await expect(page.getByTestId("together-pairs")).toHaveCount(0);
   await expect(page.getByText("Played together most")).toHaveCount(0);
@@ -203,6 +203,30 @@ test("a Team Matches card opens its game under it, as Match History does; names 
   const name = linked.getByTestId("together-member").first().getByRole("link").first();
   await name.click();
   await expect(page).toHaveURL(/\/players\/[0-9a-f-]+$/);
+});
+
+test("Team Matches follows the one history rule: a game opened under its card adds one entry, another game replaces it, and Back closes it", async ({ page }) => {
+  test.skip((page.viewportSize()?.width ?? 1440) < 768, "phones open a game as a whole screen, with its own entry: e2e/mobile-nav.spec.ts");
+  await page.goto("/team");
+  await page.goto("/matches");
+  const games = page.getByTestId("together-game");
+  await expect(games.first()).toBeVisible();
+  const entries = await page.evaluate(() => history.length);
+  await openTogether(games.first());
+  await expect(page).toHaveURL(/\/matches\?match=/);
+  expect(await page.evaluate(() => history.length)).toBe(entries + 1);
+  if ((await games.count()) > 1) {
+    await openTogether(games.nth(1));
+    await expect(games.first().getByTestId("match-expanded")).toHaveCount(0);
+    expect(await page.evaluate(() => history.length)).toBe(entries + 1);
+  }
+  // Back closes the game and stays on Team Matches, as Match History's games do.
+  await page.goBack();
+  await expect(page.getByTestId("match-expanded")).toHaveCount(0);
+  await expect(page).toHaveURL(/\/matches$/);
+  // The next Back leaves Team Matches for the page before it.
+  await page.goBack();
+  await expect(page).toHaveURL(/\/team$/);
 });
 
 test("wide cards follow their list's width, not the window's: four columns exactly from a 58rem list, every name keeps its room and no member runs into the teams", async ({ page, context, baseURL }, info) => {
