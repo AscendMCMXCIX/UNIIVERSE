@@ -636,8 +636,8 @@ the account screen over the dashboard at 200% on a 320px phone as well.
 - A section that folds on phones: `Fold` (`ui/fold.tsx`, a native `<details>`; it replaced
   `Disclosure` and every page's own fold in S4a) or a CSS breakpoint. The former `MobileSection`
   was removed. A Fold inside another (Data & Integrations' Advanced, inside Details) turns its
-  chevron only for its own `<details>`. Every fold's summary is 44px tall on touch screens and its body
-  starts 16px under it, so the touch areas of the links in it reach nothing of the summary.
+  chevron only for its own `<details>`. Every fold's summary is 44px tall on touch screens and the body of
+  a row or an inline fold starts 16px under it (a panel's past its border and padding), so the touch areas of the links in it reach nothing of the summary.
 - A typed confirmation (Admin's setup jobs, a job turned off, Delete with profile, a profile
   without an account; 19 Nov 2026): the same `Dialog`, its phrase above an `Input` (16px on touch,
   so Safari does not zoom), any letter case accepted since a phone's keyboard capitalises; the danger

@@ -17,8 +17,8 @@ import { cn } from "@/lib/cn";
  *   body under it.
  *
  * Every summary is a 44px row on a touch screen (its own height, not an invisible area over its
- * words, which would take the press from them), and the body starts 16px under it there, so the
- * touch areas of the links in it reach nothing of the summary.
+ * words, which would take the press from them), and a row's or an inline fold's body starts 16px under it there (a panel's past its border and
+ * padding), so the touch areas of the links in it reach nothing of the summary.
  *
  * Its open state is the browser's: `onToggle` reports it, `lazy` keeps the body out of the page until
  * the first open (a chart that costs something to draw), and SectionIndex opens a closed fold it

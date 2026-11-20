@@ -106,6 +106,41 @@ test("phone: closing a window opened from a row partly under the tab bar moves t
   }
 });
 
+test("phone 320 × 568: after stepping through games in the window, closing it (✕ or Back) leaves the last game viewed on screen, under the bars, with the focus", async ({ page }) => {
+  test.skip(!isPhone(page), "the phone's window over Match History");
+  await page.setViewportSize({ width: 320, height: 568 });
+  const profile = await teammate(page);
+  for (const close of ["button", "back"] as const) {
+    await page.goto(`${profile}/matches`);
+    await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
+    const first = await page.getByTestId("match-row").first().boundingBox();
+    await page.touchscreen.tap(first!.x + 30, first!.y + 20);
+    const win = page.getByTestId("match-detail");
+    await expect(win).toBeVisible();
+    for (let i = 0; i < 5; i++) {
+      const at = page.url();
+      await win.getByTestId("match-detail-next").tap();
+      await expect.poll(() => page.url()).not.toBe(at);
+    }
+    const last = new URL(page.url()).searchParams.get("match")!;
+    if (close === "back") await page.goBack();
+    else await win.getByTestId("match-detail-close").tap();
+    await expect(win).toHaveCount(0);
+    await expect
+      .poll(() =>
+        page.evaluate((id) => {
+          const li = document.getElementById(`match-${id}`)!;
+          const r = li.getBoundingClientRect();
+          const top = document.querySelector("[data-testid=mobile-topbar]")!.getBoundingClientRect().bottom;
+          const bar = document.querySelector("[data-testid=phone-tabbar]")!.getBoundingClientRect().top;
+          return { focused: li.contains(document.activeElement), onScreen: r.top >= top - 1 && r.top + 48 <= bar };
+        }, last),
+      { message: close },
+      )
+      .toEqual({ focused: true, onScreen: true });
+  }
+});
+
 test("desktop: the pinned row's Filters is a 34rem popover with Support whole and nothing scrolling sideways at 1440, 1920 and 2560; Escape gives the focus back", async ({ page }) => {
   test.skip(page.viewportSize()?.width !== 1440, "the desktop project sets its sizes itself");
   await page.emulateMedia({ reducedMotion: "reduce" });

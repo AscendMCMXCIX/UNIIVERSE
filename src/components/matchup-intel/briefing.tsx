@@ -238,7 +238,7 @@ export function Briefing({ matchup, you, enemy, rows }: { matchup: MatchupIntelV
                 In lane
               </h3>
               {first.length ? (
-                <ul className="grid gap-x-5 gap-y-2 @min-[34rem]/brief:grid-cols-2">
+                <ul className="mt-1.5 grid gap-x-5 gap-y-2 @min-[34rem]/brief:grid-cols-2">
                   {first.map((p, i) => (
                     <LanePoint key={i} point={p} names={names} rows={rows} />
                   ))}
@@ -248,7 +248,7 @@ export function Briefing({ matchup, you, enemy, rows }: { matchup: MatchupIntelV
                 // The rest, word for word, one press away: never cut to fit.
                 // On a touch screen 12px under the chips above, so neither's 44px area covers the other.
                 <Fold variant="inline" tone="accent" className="mt-1.5 pointer-coarse:mt-3" testId="briefing-lane-more" summary={<>{moreWords(rest.length)}<span className="sr-only"> in lane</span></>}>
-                  <ul className="mt-1.5 grid gap-x-5 gap-y-2 @min-[34rem]/brief:grid-cols-2">
+                  <ul className="grid gap-x-5 gap-y-2 @min-[34rem]/brief:grid-cols-2">
                     {rest.map((p, i) => (
                       <LanePoint key={i} point={p} names={names} rows={rows} />
                     ))}
