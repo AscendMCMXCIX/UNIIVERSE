@@ -1357,7 +1357,7 @@ test("phone: the bot lane's four slots keep every word of their labels and names
     );
     for (const s of slots) expect(s.split, `${width}px: ${s.slot}`).toEqual([]);
     // A side's two slots one above the other: the partner over you, the enemy's laner over their support.
-    expect(slots[0].top, `${width}px`).toBeLessThan(slots[1].top);
-    expect(slots[2].top, `${width}px`).toBeLessThan(slots[3].top);
+    expect(slots[0]!.top, `${width}px`).toBeLessThan(slots[1]!.top);
+    expect(slots[2]!.top, `${width}px`).toBeLessThan(slots[3]!.top);
   }
 });
