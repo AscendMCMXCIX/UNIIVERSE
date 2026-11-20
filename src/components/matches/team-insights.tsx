@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ArrowDownRight, ArrowLeft, ArrowUpRight, Scale } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
-import { Disclosure } from "@/components/ui/disclosure";
+import { Fold } from "@/components/ui/fold";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/cn";
@@ -29,7 +29,7 @@ function Comparisons({ rows }: { rows: readonly Row[] }) {
   const blocked = rows.filter((r) => r.status === "untested" && r.reason !== "too-few-games");
   const description = [checked.length ? `${checked.length} checked` : null, waiting.length ? `${waiting.length} waiting for more games` : null, blocked.length ? `${blocked.length} not compared` : null].filter(Boolean).join(", ");
   return (
-    <Disclosure title="Every comparison" description={description} testId="insights-all">
+    <Fold title="Every comparison" description={description} testId="insights-all">
       {checked.length ? (
         <ul className="divide-y divide-border" aria-label="Comparisons checked" data-testid="insights-rows">
           {checked.map((r) => {
@@ -51,7 +51,7 @@ function Comparisons({ rows }: { rows: readonly Row[] }) {
       ) : null}
       <UncheckedList title="Waiting for more games" rows={waiting} testId="insights-waiting" />
       <UncheckedList title="Not compared" rows={blocked} testId="insights-blocked" />
-    </Disclosure>
+    </Fold>
   );
 }
 
@@ -118,14 +118,14 @@ export function TeamInsights({ view, preview }: { view: TeamInsightsPageView; pr
         </PanelBody>
       </Panel>
 
-      <Disclosure title="How this is worked out" description="What is compared, and what it does not say" testId="insights-method">
+      <Fold title="How this is worked out" description="What is compared, and what it does not say" testId="insights-method">
         <ul className="list-disc space-y-2 pl-5 text-sm text-fg-muted">
           {view.method.map((m) => (
             <li key={m}>{m}</li>
           ))}
         </ul>
         {view.excluded ? <p className="text-sm text-fg-muted">{view.excluded}</p> : null}
-      </Disclosure>
+      </Fold>
 
       {view.rows.length ? <Comparisons rows={view.rows} /> : null}
     </div>

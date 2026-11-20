@@ -12,6 +12,7 @@ import { matchNotes, type MatchNotes, type NotesInput } from "@/domain/match-not
 import { isGameRole } from "@/domain/season-stats";
 import { formatCount, formatDateTime, formatKilo } from "@/lib/format";
 import { cn } from "@/lib/cn";
+import { Fold } from "@/components/ui/fold";
 import { MatchDetailCacheContext, type MeetingScope } from "./match-detail-cache";
 import { OpggHistoryLink } from "./opgg-history-link";
 import { GroupsNote, RanksNote, TeamTable } from "./scoreboard";
@@ -367,30 +368,23 @@ export function PostGame({ playerId, view, champ, variant, encounterLinks = fals
         </p>
       ) : (
         <div className="grid grid-cols-2 items-start gap-2" data-testid="post-game-folds">
-          <Fold title="Gold over the game" testId="fold-gold">
+          <PostGameFold title="Gold over the game" testId="fold-gold">
             <TimelinePanel result={timeline} />
-          </Fold>
-          <Fold title="Build and skill order" testId="fold-build">
+          </PostGameFold>
+          <PostGameFold title="Build and skill order" testId="fold-build">
             <BuildPanel result={timeline} />
-          </Fold>
+          </PostGameFold>
         </div>
       )}
     </div>
   );
 }
 
-/** A fold (native details): closed by default, one chevron. */
-function Fold({ title, children, testId }: { title: string; children: React.ReactNode; testId: string }) {
-  const [opened, setOpened] = React.useState(false);
+/** A fold of the view (the shared Fold): closed by default, its chart drawn once it is first opened. */
+function PostGameFold({ title, children, testId }: { title: string; children: React.ReactNode; testId: string }) {
   return (
-    <details className="group rounded-lg border border-border bg-surface open:col-span-2" data-testid={testId} onToggle={(e) => setOpened((e.currentTarget as HTMLDetailsElement).open)}>
-      <summary className="flex min-h-10 cursor-pointer list-none items-center gap-2 rounded-lg px-3 text-sm font-medium text-fg hover:bg-surface-2/60 focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:min-h-11 [&::-webkit-details-marker]:hidden">
-        <span className="text-fg-subtle transition-transform group-open:rotate-90" aria-hidden>
-          ›
-        </span>
-        {title}
-      </summary>
-      {opened ? <div className="border-t border-border p-3">{children}</div> : null}
-    </details>
+    <Fold variant="panel" title={title} lazy className="open:col-span-2" testId={testId}>
+      {children}
+    </Fold>
   );
 }

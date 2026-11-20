@@ -15,7 +15,7 @@ import { riotLegal } from "@/components/app-shell";
 import { getBranding } from "@/server/repositories/branding";
 import { normaliseRiotKey, riotKeyFingerprint, riotKeyWarning } from "@/server/riot/api/client";
 import { Badge } from "@/components/ui/badge";
-import { Disclosure } from "@/components/ui/disclosure";
+import { Fold } from "@/components/ui/fold";
 import { StatusCards } from "@/components/admin/status-cards";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 import { FieldPerformancePanel } from "@/components/admin/field-performance";
@@ -61,7 +61,7 @@ export default async function AdminSystemPage() {
         <StatusCards items={status} testId="system-status" />
       </section>
       {vitals ? <FieldPerformancePanel report={vitals} /> : null}
-      <Disclosure title="Technical details" description={Number(playerCount) === 0 ? "Build, database, job runs, secrets and demo data." : "Build, database, job runs and secrets."} testId="system-details">
+      <Fold title="Technical details" description={Number(playerCount) === 0 ? "Build, database, job runs, secrets and demo data." : "Build, database, job runs and secrets."} testId="system-details">
         <Panel>
           <PanelHeader title="Build & database" subtitle="What is running and where." />
           <PanelBody className="flex flex-wrap items-center gap-2 text-sm">
@@ -109,7 +109,7 @@ export default async function AdminSystemPage() {
           </PanelBody>
         </Panel>
         {Number(playerCount) === 0 ? <DemoPanel canSeed /> : null}
-      </Disclosure>
+      </Fold>
       <p className="text-sm text-fg-muted">
         Who changed what is recorded under{" "}
         <Link href="/admin/audit" className="text-accent underline-offset-2 hover:underline" data-testid="system-audit-link">
@@ -117,14 +117,14 @@ export default async function AdminSystemPage() {
         </Link>
         .
       </p>
-      <Disclosure id="compliance" title="Riot Games compliance" description="How Riot data is used, and Riot's notice." testId="system-compliance">
+      <Fold id="compliance" title="Riot Games compliance" description="How Riot data is used, and Riot's notice." testId="system-compliance">
         <div className="space-y-2 text-sm text-fg-muted [overflow-wrap:anywhere]">
           <p>{riotLegal(branding.productName)}</p>
           <p>Riot API keys stay on the server and are never sent to browsers. Game data (matches and their timelines, champion mastery and ranks) is read only for accounts a player linked on purpose, plus the current rank of the other players in those accounts&apos; games, and it is used solely for this team&apos;s own preparation and improvement. {branding.productName} never attempts to de-anonymise players or discover hidden real identities, and removes a linked account&apos;s data when the account is unlinked.</p>
           <p>Matchup Intel is a static reference for two champions chosen by hand: abilities and base cooldowns from Riot&apos;s Data Dragon, and notes written in our own words from the League of Legends Wiki, credited on the page. It makes no Riot API request, has no timers or tracking, and reads nothing from a game or champion select.</p>
           <p>The full checklist is in the repository&apos;s Riot compliance notes.</p>
         </div>
-      </Disclosure>
+      </Fold>
     </div>
   );
 }

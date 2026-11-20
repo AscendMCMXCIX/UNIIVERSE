@@ -170,7 +170,8 @@ export function useHeld(el: React.RefObject<HTMLElement | null>, wanted: boolean
   const onBlur = React.useCallback(
     (e: React.FocusEvent) => {
       const next = e.relatedTarget as Element | null;
-      if (el.current?.contains(next) || next?.closest?.("dialog")) return;
+      // Into the window or the popover its Filters opened (popover.tsx): still in use.
+      if (el.current?.contains(next) || next?.closest?.("dialog, [data-popover]")) return;
       setHeld(false);
     },
     [el],
@@ -307,6 +308,7 @@ export function FiltersControl() {
       type="button"
       onClick={() => filters.open("toolbar")}
       aria-haspopup="dialog"
+      aria-expanded={filters.openedFrom === "toolbar"}
       className={cn(
         "touch-target inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border px-2.5 text-sm font-medium transition-colors",
         COMPACT_CONTROL,

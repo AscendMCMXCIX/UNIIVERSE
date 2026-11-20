@@ -119,7 +119,7 @@ export function ErasureResultHost({ children }: { children: React.ReactNode }) {
   return (
     <ResultContext.Provider value={setDone}>
       {children}
-      <Dialog open={!!done} onClose={() => setDone(null)} title="Personal data erased">
+      <Dialog size="form" open={!!done} onClose={() => setDone(null)} title="Personal data erased">
         {done ? <Done done={done} onClose={() => setDone(null)} /> : null}
       </Dialog>
     </ResultContext.Provider>
@@ -180,7 +180,7 @@ export function ErasePersonButton({ target, name, onErased }: { target: { userId
       <Button size="sm" variant="ghost" className="text-bad" wrap onClick={() => void start()} data-testid="erase-person">
         Erase personal data
       </Button>
-      <Dialog
+      <Dialog size="form"
         open={open}
         onClose={close}
         title={done ? "Personal data erased" : `Erase ${name}'s personal data?`}

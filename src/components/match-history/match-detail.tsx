@@ -9,7 +9,8 @@ import type { LpRecord } from "@/domain/lp-attribution";
 import type { PortraitChampion } from "@/components/champion-portrait";
 import { formatDate } from "@/lib/format";
 import { cn } from "@/lib/cn";
-import { BELOW_CONTROLS_ON_PHONES, CLEAR_OF_CONTROLS, DetailModal } from "@/components/ui/detail-modal";
+import { BELOW_CONTROLS_ON_PHONES, CLEAR_OF_CONTROLS } from "@/components/ui/detail-modal";
+import { PreviewWindow } from "@/components/ui/preview-window";
 import { MatchDetailCacheContext } from "./match-detail-cache";
 import { fmtDuration } from "./match-format";
 import { LpChange } from "./match-card";
@@ -104,11 +105,12 @@ export function MatchDetailModal({ playerId, matchId, championsById, onClose, ba
     </div>
   ) : undefined;
   return (
-    <DetailModal
+    <PreviewWindow
       open
       onClose={onClose}
       size="wide"
       title="Match details"
+      compactTitle={view ? `${view.win ? "Victory" : "Defeat"} · ${champ(view.championId).name}` : undefined}
       titleId="match-detail-title"
       header={header}
       headerClassName={view ? (view.win ? "bg-gradient-to-r from-blue/15 via-blue/5 to-transparent" : "bg-gradient-to-r from-red/15 via-red/5 to-transparent") : "bg-surface"}
@@ -148,7 +150,7 @@ export function MatchDetailModal({ playerId, matchId, championsById, onClose, ba
           )}
         </div>
       )}
-    </DetailModal>
+    </PreviewWindow>
   );
 }
 

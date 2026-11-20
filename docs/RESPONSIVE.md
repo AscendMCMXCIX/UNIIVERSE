@@ -646,9 +646,11 @@ the account screen over the dashboard at 200% on a 320px phone as well.
   field also keep 16px on every touch screen and turn 14px only with a mouse (`pointer-fine:`):
   iOS zoomed the page into the opponent search at 14px.
 - `ToggleChip` (`ui/toggle.tsx`): every selectable chip (roles, modes, filters).
-- A section that folds on phones: `Disclosure` (`ui/disclosure.tsx`, a native `<details>`) or a CSS
-  breakpoint. The former `MobileSection` was removed. A Disclosure inside another (Data &
-  Integrations' Advanced, inside Details) turns its chevron only for its own `<details>`.
+- A section that folds on phones: `Fold` (`ui/fold.tsx`, a native `<details>`; it replaced
+  `Disclosure` and every page's own fold in S4a) or a CSS breakpoint. The former `MobileSection`
+  was removed. A Fold inside another (Data & Integrations' Advanced, inside Details) turns its
+  chevron only for its own `<details>`. Every fold's summary is 44px tall on touch screens and the body of
+  a row or an inline fold starts 16px under it (a panel's past its border and padding), so the touch areas of the links in it reach nothing of the summary.
 - A typed confirmation (Admin's setup jobs, a job turned off, Delete with profile, a profile
   without an account; 19 Nov 2026): the same `Dialog`, its phrase above an `Input` (16px on touch,
   so Safari does not zoom), any letter case accepted since a phone's keyboard capitalises; the danger
@@ -913,6 +915,11 @@ Three levels, each saying what it proves:
   - the priority pages load with no page error (hydration included) and no sideways scrolling;
   - Team's card track and role tabs, by tap;
   - a teammate's profile sections and a champion's window;
+  - the phone window shell (S4a, 20 Nov 2026): a pull on a game's header closes it, closing a game
+    opened from a row partly under the tab bar moves the list 0px, and the Team player window's
+    header collapses to its 56px bar, which closes the window when pulled down (touch events
+    dispatched in the page, `e2e/pull.ts`; Chromium's phone project runs the same in
+    `e2e/overlay-kit.spec.ts`);
   - the top bar's Filters on Match History (PR 2b): gone at the top, offered once the page's own has
     scrolled away, 44px, a tap opens the filter sheet, and a choice and Done bring the first game
     under the bars, its count shown;

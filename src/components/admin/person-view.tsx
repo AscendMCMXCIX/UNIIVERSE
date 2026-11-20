@@ -12,7 +12,7 @@ import { personActivityAction } from "@/server/actions/audit";
 import { auditDetailsSentence, auditSentence } from "@/domain/audit-sentence";
 import { ROLE_LABELS } from "@/domain/roles";
 import { DetailModal } from "@/components/ui/detail-modal";
-import { Disclosure } from "@/components/ui/disclosure";
+import { Fold } from "@/components/ui/fold";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/dialog";
@@ -369,7 +369,7 @@ function PersonBody({
       ) : null}
 
       {(canManageAccounts && (manage || !a)) || (canManageRoster && player && !a) ? (
-        <Disclosure title="Danger zone" description="Deactivate, delete or erase. Anything permanent asks for the name typed first." testId="person-danger">
+        <Fold title="Danger zone" description="Deactivate, delete or erase. Anything permanent asks for the name typed first." testId="person-danger">
           <div className="flex flex-wrap items-center gap-2">
             {a && manage ? <AccountActions account={a} currentUserId={currentUserId} viewerIsOwner={viewerIsOwner} only="danger" onDeleted={onGone} /> : null}
             {canManageAccounts && player && !a ? <DeleteProfileButton playerId={player.id} name={player.displayName} onDeleted={onGone} /> : null}
@@ -380,7 +380,7 @@ function PersonBody({
               </Button>
             ) : null}
           </div>
-        </Disclosure>
+        </Fold>
       ) : null}
     </div>
   );

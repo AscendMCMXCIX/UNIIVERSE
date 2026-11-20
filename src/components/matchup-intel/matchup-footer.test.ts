@@ -178,9 +178,11 @@ describe("compact on a phone", () => {
     const details = /<details[^>]*data-testid="matchup-footer-wiki-pages"[^>]*>/.exec(html)?.[0];
     expect(details).toBeDefined();
     expect(details).not.toMatch(/\sopen/);
-    expect(html).toMatch(/<details[^>]*data-testid="matchup-footer-wiki-pages"[^>]*><summary[^>]*>[\s\S]*?The 4 wiki pages<\/summary><ul/);
-    // A 44px target on a touch screen, like the page's other folds.
-    expect(/<summary class="([^"]*)"/.exec(html)?.[1]?.split(" ")).toContain("pointer-coarse:min-h-11");
+    expect(html).toMatch(/<details[^>]*data-testid="matchup-footer-wiki-pages"[^>]*><summary[^>]*>[\s\S]*?The 4 wiki pages<\/summary><div[^>]*><ul/);
+    // The shared Fold: every summary a 44px row on a touch screen.
+    const summaries = [...html.matchAll(/<summary class="([^"]*)"/g)].map((m) => m[1]!.split(" "));
+    expect(summaries[0]).toContain("min-h-11");
+    expect(/data-testid="matchup-footer-wiki-pages"[^>]*><summary class="([^"]*)"/.exec(html)?.[1]?.split(" ")).toContain("min-h-11");
   });
 
   it("says the day of the check once when the notes on the page share it", () => {

@@ -37,7 +37,7 @@ export function isTyping(target: EventTarget | null): boolean {
   return !!(target as Element).closest("input, textarea, select, [contenteditable=''], [contenteditable=true], [role=listbox], [role=menu], [role=combobox]");
 }
 
-/** Whether a modal window is open above the page (its own Escape and keys come first). */
+/** Whether a modal window, or a popover (popover.tsx: the Filters), is open above the page (its own Escape and keys come first). */
 export function modalOpen(): boolean {
-  return !!document.querySelector("dialog[open]:modal");
+  return !!document.querySelector("dialog[open]:modal, [data-popover]");
 }

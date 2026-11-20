@@ -1,0 +1,55 @@
+"use client";
+
+import type * as React from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { DetailModal } from "./detail-modal";
+
+/*
+  PreviewWindow: the phone window shell (PLAN S4a, container 8; docs/DESIGN_SYSTEM.md §7). The
+  window an item opens in on a touch phone or in a short window: a Peek's (a player, a champion)
+  and a game's. It is DetailModal at a whole-screen size, which gives the shell itself:
+  - its header collapses to a 56px bar once the body scrolls (DetailModal's `compact`);
+  - pulling the header (or that bar) down closes it, as a sheet closes (useSheetDrag's handles);
+  - focus goes back to what opened it without scrolling the page, which never moves (UM.X4).
+  What it adds is the one ‹ › for the item's siblings, where the opener has siblings (the rows of
+  the list it was opened from), beside the close button, with the same names and the same size on
+  every window.
+*/
+
+export interface PreviewSiblings {
+  prev: (() => void) | null;
+  next: (() => void) | null;
+  /** What the items are, for the buttons' names ("player": "Previous player"). */
+  label: string;
+  prevTestId?: string;
+  nextTestId?: string;
+}
+
+/** The look of a window's and a Peek's own controls (‹ ›, ✕): 36px, 44px on touch screens. */
+export const PREVIEW_NAV = "inline-flex h-9 w-9 items-center justify-center rounded-lg bg-bg/60 text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg disabled:opacity-40 disabled:hover:bg-transparent focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:h-11 pointer-coarse:w-11";
+
+/** ‹ › for an item's siblings: disabled at either end of the list, never wrapping. */
+export function SiblingSteps({ siblings }: { siblings: PreviewSiblings }) {
+  const label = siblings.label.toLowerCase();
+  return (
+    <>
+      <button type="button" onClick={siblings.prev ?? undefined} disabled={!siblings.prev} aria-label={`Previous ${label}`} className={PREVIEW_NAV} data-testid={siblings.prevTestId}>
+        <ChevronLeft className="h-4 w-4" aria-hidden />
+      </button>
+      <button type="button" onClick={siblings.next ?? undefined} disabled={!siblings.next} aria-label={`Next ${label}`} className={PREVIEW_NAV} data-testid={siblings.nextTestId}>
+        <ChevronRight className="h-4 w-4" aria-hidden />
+      </button>
+    </>
+  );
+}
+
+export function PreviewWindow({ siblings, headerExtra, size = "standard", ...modal }: Omit<React.ComponentProps<typeof DetailModal>, "size"> & { siblings?: PreviewSiblings | null; size?: "standard" | "wide" | "full" | "sheet" }) {
+  const extra =
+    siblings || headerExtra ? (
+      <div className="flex items-center gap-1" data-testid="preview-window-nav">
+        {headerExtra}
+        {siblings ? <SiblingSteps siblings={siblings} /> : null}
+      </div>
+    ) : undefined;
+  return <DetailModal {...modal} size={size} headerExtra={extra} />;
+}
