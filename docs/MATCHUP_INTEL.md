@@ -784,6 +784,32 @@ and finds none.
   item.json, runesReforged.json; nothing from Riot's API). Validated before keeping (a file naming no
   champion, item or rune keeps nothing); a failed attempt is retried at most once a day; the first
   copy of a patch stays. Until two patches are recorded, every line counts the current patch only.
+- **"Riot changed this on 26.24"** (Release 11, PLAN S7b; `riot-changes.ts`, `riotChangesOf` in
+  `digests.ts`): a champion whose digest differs between the two newest patches recorded says so on
+  its panel's "Riot's data" line, "Riot's data changed on 26.24", in place of the Data Dragon version
+  (the bar names it too; beside the version, or on the title's row with the haste control, the words
+  wrapped a line at 1440 × 900, 16–20px, which put the sources' summary under the fold with
+  production's "Not re-checked"), and on the folded champion's title, "Riot changed this on 26.24";
+  an evidence line whose values name a changed item or rune ends with "· Riot changed this on 26.24".
+  The digest is the champion's, not an ability's, so the label is on the champion, never on one
+  tile. Nothing with fewer than two patches recorded, and a key recorded at one patch only is never
+  a change. The patch list is cached with the evidence (cleared when a patch's digests are
+  recorded); the named keys are one query. The evidence lines' item and rune keys are read on the
+  server and removed before the page. Browser tests: the cookie `uniiverse-test-riot-changed`
+  ("champion:Riven,item:1055", at most twenty; `riotChangesForTest` in `notes-age.ts`, the in-memory
+  demo only, never with `VERCEL` or `DATABASE_URL`) reads as changed on the current patch; the
+  changed-ability fit test and the phone first-screen test run with it (0px added at 1440 × 900; the
+  phone's first screen holds as without). Unit tests: `riot-changes.test.ts`.
+- **Validation before publishing the static data** (Release 11, PLAN S7b; `staticProblems` in
+  `src/server/riot/static/assets.ts`): the item, summoner and rune files of a version are kept only
+  when each names something, every id an item builds from or into is in that version's item.json and
+  every Rift item has a name, and every ability haste figure in a Rift item's stats parses. On a
+  failure the last good copy stays (names and build data), the attempt is recorded in `app_settings`
+  `riot_assets_attempt` (version, reason, first and latest time, counts), version-check's run is
+  degraded with the reason in counts, and `/api/health` lists it (`staticData`, docs/MONITORING.md).
+  Riot's own files pass: 0 dangling ids and 0 unreadable haste figures at 15.10.1, 15.24.1, 16.20.1,
+  16.22.1 and 16.23.1. The `prep` totals' check named in the plan is not part of this (the evidence
+  rows are made from stored records, `prep.ts`).
 
 ### Not built in S7b
 

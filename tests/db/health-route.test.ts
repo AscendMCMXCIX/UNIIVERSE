@@ -1,10 +1,13 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
 import type { Db } from "@/server/db/types";
 import * as schema from "@/server/db/schema";
-import { appSettings, auditEvents, dataRefreshStatus, riotAccounts, staticDigests } from "@/server/db/schema";
+import { appSettings, auditEvents, dataRefreshStatus, patches, riotAccounts, staticDigests } from "@/server/db/schema";
+import { loadRiotAssets, loadRiotBuildData, StaticValidationError, STATIC_ATTEMPT_KEY, syncRiotAssets } from "@/server/riot/static/assets";
+import { invalidateAllCaches } from "@/server/observability/cache";
+import { patchSortKey } from "@/domain/patch";
 import { createPlayer, getOrCreateTeam } from "@/server/repositories/team";
 import { setScheduleOverrides } from "@/server/jobs/scheduler";
 import { markRankScheduleCall, RANK_SCHEDULE_CALL_KEY } from "@/server/ops/rank-schedule-calls";
@@ -220,6 +223,74 @@ describe("/api/health notices", () => {
       expect(JSON.stringify(diff)).not.toMatch(/Darius|3071|8010/);
     } finally {
       await db.delete(staticDigests);
+    }
+  });
+
+  it("keeps the last good static copy when a version's files fail validation, says so as counts and patch names, and clears once a good copy is kept", async () => {
+    const db = handle.db;
+    const files = (bad: boolean) => ({
+      "item.json": { data: { "3067": { name: "Kindlegem", description: `<mainText><stats><attention>${bad ? "ten" : "10"}</attention> Ability Haste</stats></mainText>`, from: bad ? ["9999"] : [], into: [], maps: { "11": true } } } },
+      "summoner.json": { data: { SummonerFlash: { id: "SummonerFlash", key: "4", name: "Flash", cooldown: [300] } } },
+      "runesReforged.json": bad ? [] : [{ id: 8100, name: "Domination", icon: "d.png", slots: [{ runes: [{ id: 8112, name: "Electrocute", icon: "e.png" }] }] }],
+    });
+    const fetchOf = (bad: boolean) => (async (url: string) => new Response(JSON.stringify(files(bad)[url.split("/").pop() as "item.json"]), { status: 200 })) as unknown as typeof fetch;
+    type Body = { failingJobs: string[]; staticData: { state: string; patch: string | null; stored: string | null; reason: string | null; problems: unknown } };
+    const current = async (version: string) => {
+      await db.update(patches).set({ isCurrent: false });
+      const id = version.split(".").slice(0, 2).join(".");
+      await db.insert(patches).values({ id, ddragonVersion: version, isCurrent: true, sortKey: patchSortKey(id) }).onConflictDoUpdate({ target: patches.id, set: { isCurrent: true } });
+    };
+    try {
+      await current("16.22.1");
+      expect(await syncRiotAssets(db, "16.22.1", fetchOf(false))).toBe(true);
+      expect(((await (await GET()).json()) as Body).staticData).toEqual({ state: "ok", patch: "26.22", stored: "26.22", reason: null, problems: null });
+      // 16.23.1's files fail: the 16.22.1 copy stays, the attempt is recorded, health lists it.
+      await current("16.23.1");
+      await expect(syncRiotAssets(db, "16.23.1", fetchOf(true))).rejects.toBeInstanceOf(StaticValidationError);
+      invalidateAllCaches();
+      expect((await loadRiotAssets(db))?.version).toBe("16.22.1");
+      expect((await loadRiotBuildData(db))?.version).toBe("16.22.1");
+      const text = await (await GET()).text();
+      const failed = JSON.parse(text) as Body;
+      expect(failed.failingJobs).toContain("static-data");
+      expect(failed.staticData).toEqual({ state: "failed", patch: "26.23", stored: "26.22", reason: "validation", problems: { empty: ["rune"], missingIds: 1, unparsedHaste: 1 } });
+      expect(text).not.toMatch(/Kindlegem|Flash|9999/);
+      // A good copy of 16.23.1: kept, the attempt cleared, health ok again.
+      expect(await syncRiotAssets(db, "16.23.1", fetchOf(false))).toBe(true);
+      const ok = (await (await GET()).json()) as Body;
+      expect(ok.failingJobs).not.toContain("static-data");
+      expect(ok.staticData.state).toBe("ok");
+      expect(await db.select().from(appSettings).where(eq(appSettings.key, STATIC_ATTEMPT_KEY))).toEqual([]);
+      // A download that fails is recorded too, and listed only after a day.
+      await current("16.24.1");
+      await expect(syncRiotAssets(db, "16.24.1", (async () => new Response("", { status: 503 })) as unknown as typeof fetch)).rejects.toThrow(/HTTP 503/);
+      expect(((await (await GET()).json()) as Body).staticData.state).toBe("ok");
+      await db.update(appSettings).set({ value: sql`jsonb_set(${appSettings.value}, '{firstAt}', to_jsonb(${new Date(Date.now() - 25 * 3_600_000).toISOString()}::text))` }).where(eq(appSettings.key, STATIC_ATTEMPT_KEY));
+      const stale = (await (await GET()).json()) as Body;
+      expect(stale.staticData).toMatchObject({ state: "stale", reason: "download", patch: "26.24", stored: "26.23" });
+      expect(stale.failingJobs).toContain("static-data");
+    } finally {
+      await db.delete(appSettings).where(inArray(appSettings.key, ["riot_assets", "riot_build_data", STATIC_ATTEMPT_KEY]));
+      await db.delete(patches).where(inArray(patches.id, ["16.22", "16.23", "16.24"]));
+      invalidateAllCaches();
+    }
+  });
+
+  it("lists a static refresh with no version-check success for 72 hours, never one off by choice", async () => {
+    type Body = { failingJobs: string[]; staticData: { state: string; reason: string | null } };
+    const at = new Date(Date.now() - 73 * 3_600_000);
+    try {
+      await handle.db.insert(dataRefreshStatus).values({ key: "version-check", status: "ok", lastStartedAt: at, lastSuccessAt: at, updatedAt: at, consecutiveFailures: 0 });
+      const stale = (await (await GET()).json()) as Body;
+      expect(stale.staticData).toMatchObject({ state: "stale", reason: "no-success" });
+      expect(stale.failingJobs).toContain("static-data");
+      await setScheduleOverrides(handle.db, { intervals: { "version-check": 0 } });
+      const off = (await (await GET()).json()) as Body;
+      expect(off.staticData.state).toBe("ok");
+      expect(off.failingJobs).not.toContain("static-data");
+    } finally {
+      await handle.db.delete(dataRefreshStatus).where(eq(dataRefreshStatus.key, "version-check"));
+      await handle.db.delete(appSettings).where(eq(appSettings.key, "schedule"));
     }
   });
 });

@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { and, eq, ne, sql } from "drizzle-orm";
+import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import { getDbHandle } from "@/server/db/client";
 import { deploymentInfo } from "@/server/ops/deployment";
 import { requiresAccounts, missingProductionSetup } from "@/server/auth/mode";
-import { patches, dataRefreshStatus, riotAccounts } from "@/server/db/schema";
+import { appSettings, patches, dataRefreshStatus, riotAccounts } from "@/server/db/schema";
 import { RETIRED_JOB_KEYS, failuresInARow } from "@/server/ops/refresh-status";
 import { getRiotCredentialStatus } from "@/server/riot/credential";
 import { lastRankScheduleCall } from "@/server/ops/rank-schedule-calls";
@@ -12,6 +12,8 @@ import { getScheduleOverrides, TICK_JOB_ORDER } from "@/server/jobs/scheduler";
 import { healthNotices } from "@/server/ops/health-notices";
 import { log } from "@/server/observability/log";
 import { digestHealth } from "@/server/matchup-intel/digests";
+import { staticDataHealth } from "@/server/ops/static-health";
+import { STATIC_ATTEMPT_KEY, type StaticAttempt } from "@/server/riot/static/assets";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +30,9 @@ const RANK_SCHEDULE_SILENT_MS = 20 * 60_000;
  * (the key's state is the outcome the jobs recorded, cached for 30 s); never touches statistics or
  * external providers, so it stays fast and never reports a provider outage as an app outage. No
  * secrets (of the key, only the state word), no personal data. `digests` is Matchup Intel's
- * per-version diff of Data Dragon, counted (champions, items and runes recorded and changed). `notices` says what is off by choice
+ * per-version diff of Data Dragon, counted (champions, items and runes recorded and changed). `staticData` is the static
+ * refresh's state (server/ops/static-health.ts: ok, failed validation or stale; patch names and counts only), listed in
+ * `failingJobs` as "static-data" when not ok. `notices` says what is off by choice
  * (server/ops/health-notices.ts): the five-minute schedule turned off after it was on, and jobs set
  * to 0 in Admin; they warn in the Production check and never fail a scheduled run.
  */
@@ -71,7 +75,25 @@ export async function GET() {
     // What is off by choice, not failing: the five-minute schedule removed after it was installed
     // (the two status rows above), and the tick's jobs set to 0 in Admin (the one "schedule" row of
     // the overrides). The day only, never who: that is in Admin → Audit Logs.
-    const notices = healthNotices({ rankScheduleOnAt: installedAt, rankScheduleOffAt: successAt("rank-schedule-off"), intervals: (await getScheduleOverrides(handle.db)).intervals, scheduledJobs: TICK_JOB_ORDER });
+    const { intervals } = await getScheduleOverrides(handle.db);
+    const notices = healthNotices({ rankScheduleOnAt: installedAt, rankScheduleOffAt: successAt("rank-schedule-off"), intervals, scheduledJobs: TICK_JOB_ORDER });
+    // The static refresh (static-health.ts): the item and rune names' version (read in the database:
+    // the 33 KB maps never leave it) and the last attempt that kept nothing. Listed as "static-data"
+    // when the newest files failed validation, or it has gone stale by the documented rule.
+    const settings = await handle.db
+      .select({ key: appSettings.key, version: sql<string | null>`${appSettings.value}->>'version'`, attempt: sql<StaticAttempt | null>`CASE WHEN ${appSettings.key} = ${STATIC_ATTEMPT_KEY} THEN ${appSettings.value} END` })
+      .from(appSettings)
+      .where(inArray(appSettings.key, ["riot_assets", STATIC_ATTEMPT_KEY]));
+    const lastStatic = Math.max(successAt("version-check"), successAt("static-sync"));
+    const staticData = staticDataHealth({
+      currentVersion: patch?.ddragonVersion ?? null,
+      storedVersion: settings.find((r) => r.key === "riot_assets")?.version ?? null,
+      attempt: settings.find((r) => r.key === STATIC_ATTEMPT_KEY)?.attempt ?? null,
+      lastSuccessAt: lastStatic > 0 ? lastStatic : null,
+      turnedOff: intervals["version-check"] === 0,
+      now,
+    });
+    if (staticData.state !== "ok") failing.push("static-data");
     // While Riot rejects the key (expired or revoked), every linked account waits, backing off
     // for hours, and the account sync finds nothing due and reports success. So the key itself
     // is listed as failing, which fails the scheduled Data jobs run (the owner's email).
@@ -101,6 +123,7 @@ export async function GET() {
       failingJobs: failing,
       notices,
       digests,
+      staticData,
       riot: { credential: credential.state },
       ms: Math.round((performance.now() - started) * 10) / 10,
     });
