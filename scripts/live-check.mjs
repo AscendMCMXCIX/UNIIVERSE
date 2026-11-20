@@ -136,6 +136,7 @@ import { redact } from "./redact.mjs";
 import { riotKeysOnPage } from "./riot-keys.mjs";
 import { rosterRowLines } from "./roster-lines.mjs";
 import { matchupIntelVerdicts, readMatchupIntel } from "./matchup-intel-facts.mjs";
+import { matchupRolesVerdicts, readRoleBar } from "./matchup-roles-facts.mjs";
 import { noteRules, postGameVerdicts, readPostGame } from "./post-game-facts.mjs";
 import { championPreviewVerdicts, firstWithGames, readChampionPreview, readChampionRows } from "./champion-preview-facts.mjs";
 import { execFileSync } from "node:child_process";
@@ -1147,6 +1148,28 @@ async function matchupIntelFacts(page, kind, wikiRequests) {
 }
 
 /**
+ * Matchup Intel's five roles (PLAN §6 rows 3.2–3.6; scripts/matchup-roles-facts.mjs), on the desktop,
+ * on the page the facts above loaded: the lane selector pressed for each role it is not on (four
+ * presses, each a render of the page on the server), the slots and the address read after each.
+ */
+async function matchupRolesFacts(page, kind) {
+  const start = await page.evaluate(readRoleBar);
+  const reads = start.pressed ? [{ role: start.pressed, at: start }] : [];
+  for (const role of ["top", "jungle", "mid", "adc", "support"]) {
+    if (role === start.pressed) continue;
+    await page.locator(`[data-testid=matchup-role] button[data-role=${role}]`).click();
+    await page
+      .waitForFunction((r) => {
+        const pressed = document.querySelector(`[data-testid=matchup-role] button[data-role=${r}][aria-pressed=true]`);
+        return !!pressed && new URLSearchParams(location.search).get("role") === r && !document.querySelector('[data-testid="matchup-intel-content"][aria-busy="true"]');
+      }, role, { timeout: 15_000 })
+      .catch(() => {});
+    reads.push({ role, at: await page.evaluate(readRoleBar) });
+  }
+  for (const v of matchupRolesVerdicts({ kind, start, reads })) check("matchup-intel", v.name, v.status, v.detail);
+}
+
+/**
  * The profile's tabs keep one place on every section (S2c, 19 Nov 2026; UD.PO1): the desktop's visits
  * of the teammate's Overview, All Champions and Match History each note where the tabs' row starts
  * (y, from the page's top) and, at the end, one fact compares them within 1px. Before, the Overview's
@@ -1972,6 +1995,7 @@ for (const [kind, options] of Object.entries(VIEWPORTS)) {
         if (await visit(page, log, kind, "matchup-intel", "/resources/matchups?champion=Riven&vs=Mordekaiser", { fullPage: false })) {
           await matchupIntelFacts(page, kind, wiki);
           await axe(page, kind, "matchup-intel");
+          await guarded("matchup-intel", `${kind}: the five roles`, () => matchupRolesFacts(page, kind));
         }
       } finally {
         page.off("request", onRequest);
