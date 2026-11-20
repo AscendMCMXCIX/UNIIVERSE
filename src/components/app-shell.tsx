@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { publicPatchName } from "@/domain/patch";
 import type { ReactNode } from "react";
 import type React from "react";
 import { NavLinks } from "./nav-links";
@@ -55,7 +56,8 @@ export interface ShellStatus {
 
 /** One quiet line at the foot of the navigation: the current patch. */
 function DataLine({ status }: { status: ShellStatus }) {
-  return <p className="truncate text-xs text-fg-subtle">Patch {status.patch ?? "—"}</p>;
+  // The public, year-based name ("26.22"), as Matchup Intel says it: never Data Dragon's "16.22" (G14).
+  return <p className="truncate text-xs text-fg-subtle">Patch {status.patch ? publicPatchName(status.patch) : "—"}</p>;
 }
 
 /** Things only this person can fix about their own account: an action card at the top of the page, not a header error. */

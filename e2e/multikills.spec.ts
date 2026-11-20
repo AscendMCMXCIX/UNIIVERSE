@@ -189,7 +189,7 @@ test("partial counts are said once, in the page's status (the ⓘ), and in each 
   expect(Number(counted)).toBeLessThan(games);
   // Why: still being fetched, and no longer at Riot.
   await expect(part).toContainText(/still being fetched from Riot .* not complete yet/);
-  await expect(part).toContainText(/Riot no longer provides the records? of \d+ games?/);
+  await expect(part).toContainText(/\d+ games? (is|are) no longer available from Riot/);
   await page.keyboard.press("Escape");
   // The totals still show, from the games that have them, and the section fits the screen.
   for (const [key] of KINDS) await expect(strip.getByTestId(`multikill-${key}`)).toBeVisible();
