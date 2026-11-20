@@ -167,6 +167,29 @@ test("zoom, arrow keys and Reset; Cancel keeps the old picture and Save stores t
   expect(colour[2]).toBeLessThan(100);
 });
 
+test("Settings → On this device at 200% text on a narrow phone: each Clear takes its own line, never over the words, and nothing scrolls sideways (R7 review A3)", async ({ page }, info) => {
+  test.skip(info.project.name !== "phone", "the narrowest posture");
+  await page.setViewportSize({ width: 320, height: 640 });
+  await page.goto("/settings");
+  await expect(page.getByTestId("device-item").first()).toBeVisible();
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = "200%";
+  });
+  const rows = await page.getByTestId("device-item").evaluateAll((lis) =>
+    lis.map((li) => {
+      // The words' own extent (they can overflow a column squeezed narrower than they are).
+      const range = document.createRange();
+      range.selectNodeContents(li.querySelector("div")!);
+      const t = range.getBoundingClientRect();
+      const b = li.querySelector("button")!.getBoundingClientRect();
+      return Math.min(t.right, b.right) > Math.max(t.left, b.left) && Math.min(t.bottom, b.bottom) > Math.max(t.top, b.top);
+    }),
+  );
+  expect(rows.length).toBeGreaterThan(0);
+  expect(rows.filter(Boolean), "no Clear button over its row's words").toEqual([]);
+  expect(await page.evaluate(() => document.scrollingElement!.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
+});
+
 test("Settings → On this device: what this browser remembers, each with Clear and Clear all, nothing sent to the server; the account's picture the same colour in the frame and in Settings", async ({ page }, info) => {
   await page.goto("/settings");
   const panel = page.getByTestId("on-this-device");
