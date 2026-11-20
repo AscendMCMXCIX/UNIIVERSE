@@ -12,6 +12,7 @@ import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toast";
 import { RelativeTime } from "@/components/ui/relative-time";
+import { formatDate, formatTimeOfDay } from "@/lib/format";
 
 export interface AuditFilterValues {
   category: string | null;
@@ -20,16 +21,33 @@ export interface AuditFilterValues {
   to: string | null;
 }
 
-/** One entry as a sentence, its time in words beside it and the exact time on hover. */
+/**
+ * When an entry was made, in the row's own words: "21 Oct 2026, 3:04 pm · 12d ago". The date and
+ * time are written out, not left to a hover title that touch screens cannot reach (§6 row 7.3j).
+ */
+export function AuditWhen({ at }: { at: Date }) {
+  return (
+    <span data-testid="audit-when">
+      {/* Three pieces that never break inside, so at large text on a narrow phone a line ends between them, never inside a date. */}
+      <time dateTime={Number.isNaN(at.getTime()) ? undefined : at.toISOString()}>
+        <span className="whitespace-nowrap">{formatDate(at)},</span> <span className="whitespace-nowrap">{formatTimeOfDay(at)}</span>
+      </time>
+      {" · "}
+      <RelativeTime date={at} className="whitespace-nowrap tabular-nums" />
+    </span>
+  );
+}
+
+/** One entry as a sentence, then its date and time in words (and how long ago), then its details. */
 export function AuditRow({ entry }: { entry: AuditEntry }) {
   const at = new Date(entry.at);
   const details = auditDetailsSentence(entry.details);
   return (
-    <li className="flex min-w-0 gap-3 py-2 text-sm" data-testid="admin-activity-row">
-      <RelativeTime date={at} className="w-20 shrink-0 pt-px text-xs tabular-nums text-fg-subtle" />
-      <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">
-        <span className="block text-fg">{auditSentence(entry)}</span>
-        {details ? <span className="block text-xs text-fg-subtle">{details}</span> : null}
+    <li className="min-w-0 py-2 text-sm [overflow-wrap:anywhere]" data-testid="admin-activity-row">
+      <span className="block text-fg">{auditSentence(entry)}</span>
+      <span className="block text-xs text-fg-subtle">
+        <AuditWhen at={at} />
+        {details ? <span data-testid="audit-details">{` · ${details}`}</span> : null}
       </span>
     </li>
   );

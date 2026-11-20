@@ -302,4 +302,17 @@ test("Reactivate with a new temporary password: a deactivated member comes back 
   await expect(password).toContainText("No password yet");
   await expect(password.getByTestId("withdraw-temporary-password")).toHaveCount(0);
   await expect(password.getByRole("button", { name: "Create temporary password" })).toBeVisible();
+
+  // Activity records it, the date and time in words, and "See all in Audit Logs" opens the log filtered to them; Back returns to their view.
+  const activity = view.getByTestId("person-activity");
+  await expect(activity.getByTestId("admin-activity-row").first()).toContainText(`withdrew the password of ${username}`);
+  await expect(activity.getByTestId("audit-when").first()).toHaveText(/^\d{1,2} [A-Z][a-z]{2} \d{4}, \d{1,2}:\d{2} (am|pm) · /);
+  const personUrl = page.url();
+  await activity.getByTestId("person-activity-all").click();
+  await expect(page).toHaveURL(/\/admin\/audit\?person=[0-9a-f-]{36}$/);
+  await expect(page.getByTestId("admin-activity").getByTestId("admin-activity-row").first()).toContainText(`withdrew the password of ${username}`);
+  await expect(page.getByTestId("admin-activity")).not.toContainText("Demo Halfway");
+  await page.goBack();
+  await expect(page).toHaveURL(personUrl);
+  await expect(page.getByTestId("person-view")).toBeVisible();
 });

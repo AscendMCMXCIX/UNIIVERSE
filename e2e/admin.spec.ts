@@ -289,3 +289,38 @@ test("Audit Logs list admin activity newest first, by category, with no password
   await expect(page).toHaveURL(/category=settings/);
   await expect(activity).not.toContainText(username);
 });
+
+test("Audit Logs rows say their date and time in words, and at 375, 1440 and 320 with 200% text no word is cut", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "one pass: the widths are set here");
+  for (const [width, text] of [[1440, 1], [375, 1], [320, 2]] as const) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/admin/audit");
+    if (text > 1) await page.addStyleTag({ content: `html { font-size: ${text * 100}% !important; }` });
+    const rows = page.getByTestId("admin-activity").getByTestId("admin-activity-row");
+    await expect(rows.first()).toBeVisible();
+    // The date and time in the row's own words ("21 Oct 2026, 3:04 pm · 12d ago"), not only in a hover title.
+    await expect(rows.first().getByTestId("audit-when")).toHaveText(/^\d{1,2} [A-Z][a-z]{2} \d{4}, \d{1,2}:\d{2} (am|pm) · (just now|\d+[mhd] ago)$/);
+    const m = await page.getByTestId("admin-activity").evaluate((panel) => {
+      const edge = panel.getBoundingClientRect();
+      const out: string[] = [];
+      for (const row of Array.from(panel.querySelectorAll("[data-testid=admin-activity-row]")).slice(0, 15)) {
+        const walker = document.createTreeWalker(row, NodeFilter.SHOW_TEXT);
+        for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+          const t = n.textContent ?? "";
+          for (const w of t.matchAll(/[^\s-]+/g)) {
+            const r = document.createRange();
+            r.setStart(n, w.index!);
+            r.setEnd(n, w.index! + w[0].length);
+            const rects = Array.from(r.getClientRects()).filter((x) => x.width > 0);
+            // A word of up to 12 letters (a hyphen is a fair place for a line to end) is never broken across lines, and no word leaves the panel.
+            if (w[0].length <= 12 && rects.length > 1) out.push(`broken: ${w[0]}`);
+            for (const x of rects) if (x.right > edge.right + 0.5 || x.left < edge.left - 0.5) out.push(`outside: ${w[0]}`);
+          }
+        }
+      }
+      return { out, scroll: document.documentElement.scrollWidth - innerWidth };
+    });
+    expect(m.out, `${width}px at ${text * 100}%`).toEqual([]);
+    expect(m.scroll, `${width}px at ${text * 100}%: no sideways scroll`).toBeLessThanOrEqual(0);
+  }
+});
