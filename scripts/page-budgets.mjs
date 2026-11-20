@@ -58,6 +58,11 @@ export const PAGES = {
   "a-data": { data: true, path: "/admin/data", admin: true },
   "a-audit": { data: true, path: "/admin/audit", admin: true },
   "a-settings": { path: "/admin/settings", admin: true },
+  // Every Admin page since S9c (20 Nov 2026).
+  "a-access": { path: "/admin/people/access", admin: true },
+  "a-privacy": { data: true, path: "/admin/people/privacy", admin: true },
+  "a-previews": { path: "/admin/previews", admin: true },
+  "a-resources": { data: true, path: "/admin/resources", admin: true },
 };
 
 /** A demo player's id with a full profile (the lineup's first card), from Team Overview. */

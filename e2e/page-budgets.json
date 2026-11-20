@@ -89,13 +89,14 @@
    "small": 2
   },
   "a-branding@i15-100": {
-   "screens": 3.81,
+   "screens": 4.2,
    "frame": 0.3,
    "frameScrolled": 0.3,
-   "small": 0
+   "small": 0,
+   "why": "S9c (20 Nov 2026): Branding's phone section index (one line of links) and the Public team page section, where /admin/public-access now lands inside Admin Mode; measured 4.12 at i15 and 12.71 at se1 150%."
   },
   "a-system@i15-100": {
-   "screens": 3.23,
+   "screens": 1.71,
    "frame": 0.3,
    "frameScrolled": 0.3,
    "small": 0
@@ -118,6 +119,30 @@
    "frameScrolled": 0.24,
    "small": 0,
    "why": "Release 6 (S9b): 'Sign out of other devices', 109px; S8a (20 Nov 2026): 'On this device' (DIRECTIVE §7.2c), what this browser remembers with Clear, about 400px (more at large text, where its lines and button wrap); measured 2.27 at i15 and 7.52 at se1 150%."
+  },
+  "a-access@i15-100": {
+   "screens": 1.85,
+   "frame": 0.3,
+   "frameScrolled": 0.3,
+   "small": 0
+  },
+  "a-privacy@i15-100": {
+   "screens": 1.8,
+   "frame": 0.3,
+   "frameScrolled": 0.3,
+   "small": 0
+  },
+  "a-previews@i15-100": {
+   "screens": 1.53,
+   "frame": 0.3,
+   "frameScrolled": 0.3,
+   "small": 0
+  },
+  "a-resources@i15-100": {
+   "screens": 2.59,
+   "frame": 0.3,
+   "frameScrolled": 0.3,
+   "small": 0
   },
   "team@se1-150": {
    "screens": 2.78,
@@ -207,13 +232,14 @@
    "small": 0
   },
   "a-branding@se1-150": {
-   "screens": 11.95,
+   "screens": 12.96,
    "frame": 0.45,
    "frameScrolled": 0.15,
-   "small": 0
+   "small": 0,
+   "why": "S9c (20 Nov 2026): Branding's phone section index (one line of links) and the Public team page section, where /admin/public-access now lands inside Admin Mode; measured 4.12 at i15 and 12.71 at se1 150%."
   },
   "a-system@se1-150": {
-   "screens": 10.7,
+   "screens": 6.25,
    "frame": 0.45,
    "frameScrolled": 0.15,
    "small": 0
@@ -236,6 +262,30 @@
    "frameScrolled": 0.04,
    "small": 0,
    "why": "Release 6 (S9b): 'Sign out of other devices', 109px; S8a (20 Nov 2026): 'On this device' (DIRECTIVE §7.2c), what this browser remembers with Clear, about 400px (more at large text, where its lines and button wrap); measured 2.27 at i15 and 7.52 at se1 150%."
+  },
+  "a-access@se1-150": {
+   "screens": 7.65,
+   "frame": 0.45,
+   "frameScrolled": 0.15,
+   "small": 0
+  },
+  "a-privacy@se1-150": {
+   "screens": 5.98,
+   "frame": 0.45,
+   "frameScrolled": 0.15,
+   "small": 0
+  },
+  "a-previews@se1-150": {
+   "screens": 2.49,
+   "frame": 0.45,
+   "frameScrolled": 0.15,
+   "small": 0
+  },
+  "a-resources@se1-150": {
+   "screens": 8.5,
+   "frame": 0.45,
+   "frameScrolled": 0.15,
+   "small": 0
   }
  }
 }

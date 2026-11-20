@@ -453,7 +453,7 @@ One set of ceilings with two runners (`scripts/page-budgets.mjs`): for every Pla
 its height in screens, the frame's share at rest and after a 100px scroll, sideways overflow (none
 allowed), and touch targets under 44px on the first screen.
 
-- **`node scripts/ux-measure.mjs http://127.0.0.1:3900`**: the full matrix (19 pages × 7 setups ×
+- **`node scripts/ux-measure.mjs http://127.0.0.1:3900`**: the full matrix (23 pages since S9c added Admin's Access levels, Personal data, Previews and Resources; × 7 setups ×
   100, 125, 150 and 200% text, about 530 loads, about 12 minutes), locally against the demo, before a
   pull request is ready; its table goes in the PR body. `--pages`, `--setups` and `--text` narrow it;
   `--ceilings` prints each figure plus 2%.
@@ -463,7 +463,9 @@ allowed), and touch targets under 44px on the first screen.
   375 × 667, five cards in one row held sideways within 1.3 screens, the profile band in the bar and
   the section under the sections row at 100% and 150%, the sections sheet at 150%, the sliding frame
   at most 25% at 150% on 568 and 667px phones, Match History's first game above the tab bar at 320,
-  and a first paint never wider than a 320px phone). About 1 minute.
+  a first paint never wider than a 320px phone, and S9c's Admin figures at 375 × 667: System Health
+  within 2.0 screens with nothing sideways, Data & Integrations' 12px text at most 30% with every
+  section open). About 1 minute.
 - **A ratchet**: the ceilings started at the figures of 20 Nov 2026 plus 2%; a stage lowers the
   ceilings of the pages it changes to its acceptance figures, never raises one. The one exception is
   a control a later stage added on purpose, measured in its release plus 2%, with its reason on the

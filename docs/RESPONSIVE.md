@@ -442,6 +442,19 @@ Oct" here). The lineup cards' two new wrappers (the chip's lane and its label) d
 
 ## Admin Mode at a larger text size
 
+**S9c (20 Nov 2026).** System Health is 1.72 screens at 375 × 667 (4.21 in the audit, 3.09 on
+Release 7's base): its five statuses are neutral rows of about 56–76px on phones (the area and its
+state chip on one line, one sentence under it), Page speed is three plain sentences with a verdict
+chip, its tables under Technical details, where below 640px every table row becomes label-and-figure
+lines (`max-sm:` and the cells' `data-label`), so nothing scrolls sideways at any width; Riot
+compliance is a Disclosure. Data & Integrations' 12px text is 20% of its text with every section
+open (85–87% before): jobs read by plain name and one sentence at the body size (`domain/job-names.ts`),
+the key and technical description under each row's How it works, the interval under Advanced →
+Schedule. Branding has a phone section index (the shared `SectionIndex`, 44px on touch) and
+Previews' switches are the shared `Segmented` control (44px on touch). `e2e/page-budgets.spec.ts`
+asserts both figures, and every Admin page (Access levels, Personal data, Previews and Resources
+since S9c) has its ceilings in `e2e/page-budgets.json`.
+
 Every Admin Mode page is as wide as the phone at 150% and 200% text on 320, 375 and 393px phones (18
 Nov 2026; before, the dashboard was 404–440px wide at 200%, Branding 430, Users & Permissions 457,
 Previews 367, Platform Settings → Resources 525 at 200% and 394 already at 150% on 375 and 393px,
@@ -460,8 +473,8 @@ Data & Integrations 357 and System Health 387). Nothing new, only the means #300
 - where one of those would also move something at the usual text size, a container query in rem
   waits until its container is that narrow, which on a phone only a larger text size makes it (the
   usual size gives 18rem and more): the dashboard's account tiles stack, a long word broken, under
-  16rem; the health cards (`StatusCards`, on the dashboard, Data & Integrations and System Health)
-  break a long word under 17rem; Branding's colour rows give the name a line of its own and the hex
+  16rem; the health rows (`StatusCards`, on Data & Integrations and System Health; neutral rows
+  since S9c, the chip beside the name) break a long word anywhere; Branding's colour rows give the name a line of its own and the hex
   field the rest of the next under 14rem; a member's name and role go under the picture under
   14rem; Users & Permissions' pages are the section tabs (since 19 Nov 2026), which scroll
   sideways with the current one in view rather than wrap; Settings' account card puts who you are under the picture under 11rem

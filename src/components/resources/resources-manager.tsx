@@ -98,12 +98,12 @@ export function ResourcesManager({ initial }: { initial: ManagedResources }) {
                       />
                     </li>
                   ) : (
-                    <li key={e.id} className={cn("flex flex-wrap items-center gap-x-3 gap-y-2 rounded-md border border-border bg-surface p-2.5", e.hidden && "border-dashed bg-surface/50")} data-testid="managed-resource" data-id={e.id} data-hidden={e.hidden ? "true" : "false"}>
+                    <li key={e.id} className={cn("flex flex-wrap items-center gap-x-3 gap-y-2 rounded-md border border-border bg-surface-2 p-2.5", e.hidden && "border-dashed bg-surface/50")} data-testid="managed-resource" data-id={e.id} data-hidden={e.hidden ? "true" : "false"}>
                       <div className={cn("flex min-w-0 flex-[1_1_16rem] items-start gap-2.5", e.hidden && "opacity-60")}>
                         <ResourceIcon icon={e.icon} url={e.url} />
                         <div className="min-w-0 [overflow-wrap:anywhere]">
                           <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
-                            <a href={e.url} target="_blank" rel="noopener noreferrer" className="min-w-0 truncate py-0.5 text-sm font-medium text-fg underline-offset-2 hover:underline">
+                            <a href={e.url} target="_blank" rel="noopener noreferrer" className="min-w-0 truncate py-0.5 text-sm pointer-coarse:py-3 font-medium text-fg underline-offset-2 hover:underline">
                               {e.title}
                             </a>
                             {e.hidden ? <Badge tone="neutral">Hidden</Badge> : null}
