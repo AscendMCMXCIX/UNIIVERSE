@@ -1,5 +1,6 @@
 import * as React from "react";
 import Link from "next/link";
+import { IntentLink } from "@/components/ui/intent-link";
 import { Crown } from "lucide-react";
 import { CardAvatar, CardName, cardColourVars } from "@/components/players/card-look";
 import { Badge } from "@/components/ui/badge";
@@ -282,9 +283,9 @@ export function MemberCell({ look, name, avatarUrl = null, avatar = "md", avatar
       <span className="flex min-w-0 flex-1 flex-col" data-testid={nameTestId}>
         <span className={cn("flex min-w-0 items-center gap-1.5", youWraps && YOU_WRAPS.line)}>
           {nameHref ? (
-            <Link href={nameHref} prefetch={false} className={cn("relative z-[2] min-w-0 rounded-sm text-fg underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-accent", youWraps && YOU_WRAPS.name)} data-testid="board-member-profile">
+            <IntentLink href={nameHref} className={cn("relative z-[2] min-w-0 rounded-sm text-fg underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-accent", youWraps && YOU_WRAPS.name)} data-testid="board-member-profile">
               <CardName look={look} name={name} className={cn(nameClassName, youWraps && YOU_WRAPS.words)} />
-            </Link>
+            </IntentLink>
           ) : (
             <span className={cn("min-w-0 text-fg", youWraps && YOU_WRAPS.name)} aria-hidden={readName ? undefined : true}>
               <CardName look={look} name={name} className={cn(nameClassName, youWraps && YOU_WRAPS.words)} />

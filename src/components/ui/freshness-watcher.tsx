@@ -16,6 +16,7 @@ import { RETURN_CHECK_AFTER_MS, nextCheckMs, scopeKey, type Freshness, type Fres
 export function FreshnessWatcher({ scope, version }: { scope: FreshnessScope; version: Freshness }) {
   const router = useRouter();
   const key = scopeKey(scope);
+  const profile = scope.kind === "player";
   const known = React.useRef(version);
   /** Starts the wait again from the current pace (set by the loop below). */
   const restart = React.useRef<() => void>(() => {});
@@ -71,7 +72,10 @@ export function FreshnessWatcher({ scope, version }: { scope: FreshnessScope; ve
       quiet = 0;
       schedule();
     };
-    schedule();
+    // A profile asks at once as it mounts: that request starts the player's visit refresh (the
+    // server's /api/freshness), which a prefetch, never mounting, does not. Other pages wait for their pace.
+    if (profile) void ask();
+    else schedule();
     document.addEventListener("visibilitychange", onReturn);
     window.addEventListener("focus", onReturn);
     window.addEventListener("online", onReturn);
@@ -83,6 +87,6 @@ export function FreshnessWatcher({ scope, version }: { scope: FreshnessScope; ve
       window.removeEventListener("focus", onReturn);
       window.removeEventListener("online", onReturn);
     };
-  }, [key, router]);
+  }, [key, router, profile]);
   return null;
 }

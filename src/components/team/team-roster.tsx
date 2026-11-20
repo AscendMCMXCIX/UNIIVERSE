@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { IntentLink } from "@/components/ui/intent-link";
 import { useRouter } from "next/navigation";
 import { ArrowLeftRight, ArrowUpFromLine, Check, ChevronRight, Pencil, Repeat2, Undo2, UserPlus, Users, X } from "lucide-react";
 import type { Role } from "@/domain/roles";
@@ -221,9 +222,9 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
                 {slot.suggestions.slice(0, 3).map((sg) => (
                   <li key={sg.playerId} className="flex items-center justify-between gap-2 py-1.5">
                     <span className="min-w-0">
-                      <Link href={`/players/${sg.playerId}`} className="block truncate text-sm font-medium text-fg hover:underline">
+                      <IntentLink href={`/players/${sg.playerId}`} className="block truncate text-sm font-medium text-fg hover:underline">
                         {sg.name}
-                      </Link>
+                      </IntentLink>
                       <span className="block truncate text-xs text-fg-muted">
                         {sg.reasons.slice(0, 2).join(" · ")}
                         {sg.reasons.length > 2 ? <span className="sr-only"> · {sg.reasons.slice(2).join(" · ")}</span> : null}
@@ -664,9 +665,9 @@ export function playerDetail({ slot, championsById, canEdit, canViewProfile, pro
         <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3 [text-shadow:0_1px_10px_rgb(0_0_0/0.6)]">
           <CardIdentity look={p.look} name={p.name} avatarUrl={p.avatarUrl} rank={p.rank} showRank={p.statsVisible} status={status} role={slot.role} layout="side" nameClassName="text-2xl sm:text-3xl" />
           {canViewProfile ? (
-            <Link href={profileHref} className={buttonClass("primary", "sm", "shrink-0 [text-shadow:none]")} data-testid="detail-profile-link">
+            <IntentLink href={profileHref} className={buttonClass("primary", "sm", "shrink-0 [text-shadow:none]")} data-testid="detail-profile-link">
               Full profile <ChevronRight className="h-3.5 w-3.5" aria-hidden />
-            </Link>
+            </IntentLink>
           ) : null}
         </div>
         <SocialLinks links={p.social} owner={p.name} className="[text-shadow:none]" />

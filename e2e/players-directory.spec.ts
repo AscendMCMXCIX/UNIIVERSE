@@ -623,3 +623,27 @@ test("the player Peek: a Players row and a Leaderboards row open it with ?player
   else await name.click();
   await expect(page).toHaveURL(/\/players\/[0-9a-f-]{36}$/);
 });
+
+test("members' links fetch a profile ahead on intent only: none as Players and Leaderboards are seen, one once a pointer rests on a name", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "a pointer's intent; touch starts the same fetch (IntentLink)");
+  const ahead: string[] = [];
+  page.on("request", (r) => {
+    const h = r.headers();
+    if (h["next-router-prefetch"] || h["next-router-segment-prefetch"]) ahead.push(new URL(r.url()).pathname);
+  });
+  for (const path of ["/players", "/leaderboards"]) {
+    ahead.length = 0;
+    await page.goto(path);
+    await page.waitForLoadState("networkidle");
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    await page.waitForTimeout(600);
+    expect(ahead.filter((p) => /^\/players\/[0-9a-f-]{36}/.test(p)), `${path}: no profile fetched ahead on sight`).toEqual([]);
+  }
+  await page.goto("/players");
+  await page.waitForLoadState("networkidle");
+  ahead.length = 0;
+  const name = page.locator("main a[data-testid=player-card][data-prefetch=intent]").first();
+  const href = (await name.getAttribute("href"))!;
+  await name.hover();
+  await expect.poll(() => ahead.some((p) => p.startsWith(href)), { message: "fetched ahead once pointed at" }).toBe(true);
+});

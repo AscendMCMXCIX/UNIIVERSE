@@ -1,8 +1,6 @@
 import Link from "next/link";
-import { after } from "next/server";
 import { getAppDb } from "@/server/bootstrap";
 import { getSession, isOwner } from "@/server/auth/session";
-import { refreshPlayerAccountsIfDue } from "@/server/accounts/kickoff";
 import { playerFreshness } from "@/server/ops/freshness";
 import { FreshnessWatcher } from "@/components/ui/freshness-watcher";
 import { ProfileFrame, profileHeader } from "@/components/players/profile-sections";
@@ -42,9 +40,9 @@ export default async function MyProfileLayout({ children }: { children: React.Re
       </div>
     );
   }
-  // Your Riot data refreshes while you look at it (after the page is sent; never blocks it), and the
-  // page shows what that refresh brings without a reload.
-  after(() => refreshPlayerAccountsIfDue(db, header.player.id));
+  // Your Riot data refreshes while you look at it: started by the mounted page's first freshness
+  // request (/api/freshness), never by this render, so a prefetch of the page starts no Riot sync;
+  // the page shows what that refresh brings without a reload.
   return (
     <ProfileFrame db={db} header={header} session={session} basePath="/overview">
       <FreshnessWatcher scope={{ kind: "player", playerId: header.player.id }} version={version} />

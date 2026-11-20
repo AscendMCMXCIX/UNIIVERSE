@@ -1,5 +1,5 @@
 import * as React from "react";
-import Link from "next/link";
+import { IntentLink } from "@/components/ui/intent-link";
 import { ChevronRight } from "lucide-react";
 import type { CardArt } from "@/domain/player-card";
 import type { CardLook } from "@/domain/card-style";
@@ -154,9 +154,9 @@ export function RosterRow({ look, art, name, avatarUrl, role, offRoles, offRoleS
     <span className={cn("flex min-h-6 items-start gap-1.5 pt-0.5", tagline ? "min-w-0 @max-[24rem]/row:min-w-[min(100%,6rem)] @max-[24rem]/row:basis-0 @max-[24rem]/row:grow" : "min-w-[min(100%,6rem)] basis-0 grow")}>
       {peek && href ? (
         // Over the row's own link (the Peek): the name opens the full profile, one tap as before (J3).
-        <Link href={href} className="relative z-[2] rounded-sm underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-accent" data-testid="player-card" data-player-name={name}>
+        <IntentLink href={href} className="relative z-[2] rounded-sm underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-accent" data-testid="player-card" data-player-name={name}>
           <CardName look={look} name={name} className="text-md leading-snug text-fg" />
-        </Link>
+        </IntentLink>
       ) : (
         <CardName look={look} name={name} className="text-md leading-snug text-fg" />
       )}
@@ -191,9 +191,9 @@ export function RosterRow({ look, art, name, avatarUrl, role, offRoles, offRoleS
           <span className="sr-only">Quick look: {name}</span>
         </a>
       ) : href ? (
-        <Link href={href} className="absolute inset-0 z-[1] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent" data-testid="player-card" data-player-name={name} data-row-link="">
+        <IntentLink href={href} className="absolute inset-0 z-[1] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent" data-testid="player-card" data-player-name={name} data-row-link="">
           <span className="sr-only">{name}</span>
-        </Link>
+        </IntentLink>
       ) : null}
       {/* Centred on the first two lines (the name's 1.5rem, the gap, the second line's 1.75rem), wherever the row grows; alone on the first line where the row is stacked. */}
       <span className={cn("flex h-[3.375rem] shrink-0 items-center", STACKED_PICTURE)}>

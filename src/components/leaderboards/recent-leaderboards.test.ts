@@ -1,4 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+// The names link with IntentLink (prefetch on intent), which asks for the router: none in a markup test.
+vi.mock("next/navigation", () => ({ useRouter: () => ({ prefetch: () => {} }), usePathname: () => "/leaderboards", useSearchParams: () => new URLSearchParams() }));
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { cardLookFor } from "@/domain/card-style";
@@ -121,7 +124,9 @@ describe("Recent form's rows", () => {
     // The link says the member's name (its tooltip layer after it is aria-hidden), so the visible one is not read twice.
     expect(rows.ash).toContain('data-row-link="" href="/players/ash"><span class="sr-only">Ash</span><span aria-hidden="true" title=');
     // The name itself is the profile's link (over the row's own, which opens the player Peek on the page: PLAN S8a).
-    expect(rows.ash).toMatch(/<a class="relative z-\[2\] min-w-0[^"]*" data-testid="board-member-profile" href="\/players\/ash">/);
+    const nameLink = /<a [^>]*data-testid="board-member-profile"[^>]*>/.exec(rows.ash!)?.[0] ?? "";
+    expect(nameLink).toContain('href="/players/ash"');
+    expect(nameLink).toContain('data-prefetch="intent"');
   });
 });
 

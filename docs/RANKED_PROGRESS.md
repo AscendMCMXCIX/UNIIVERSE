@@ -79,16 +79,11 @@ Compact, in Profile Overview (`ranked-progress.tsx`): under Recent form, in the 
   as before, `rankedYearCoverage` (the coverage's calculation, `src/domain/rank-timeline.ts`) is
   unchanged and tested, and no job changed. The card's tracking line still names the season
   (`rankedSeasonAt`). The readings remain in `rank-audit`'s report (below).
-  - **Still read, shown nowhere: the weekly games** (a decision for the owner, 19 Nov 2026). The
-    strip's stored ranked games week by week are still counted whenever an Overview with its
-    statistics opens for a player with a linked account (your own, or a teammate's where you may
-    see their statistics): `rankedWeeks` in `src/server/accounts/rank-history.ts`, one GROUP BY
-    over those accounts' 2026 ranked games beside the readings' query, a few KB a view (about
-    15 KB at most for a player with several active accounts), into each account's `weeks`, which
-    nothing reads since the strip left. It was kept because the change was presentation only, with
-    no server change. Dropping it is one query fewer per such view and touches only that function
-    and the field (`rankedYearCoverage`, which takes the weeks as an argument, keeps its tests;
-    `rank-audit` counts its own); it waits for the owner's word.
+  - **The weekly games are no longer read** (20 Nov 2026, PLAN S8a, as RC§5.3 delegated). The
+    strip's stored ranked games week by week were still counted for every Overview with its
+    statistics (`rankedWeeks`, one GROUP BY beside the readings' query, a few KB a view) after the
+    strip left on 18 Nov; the query and each account's `weeks` are gone. `rankedYearCoverage`, which
+    takes the weeks as an argument, keeps its tests; `rank-audit` counts its own.
 
 ## LP per game: the rule
 
