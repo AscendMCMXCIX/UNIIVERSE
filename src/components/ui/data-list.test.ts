@@ -74,7 +74,8 @@ describe("DataRow", () => {
     expect(at("LEAD")).toBeLessThan(at('data-row-link=""'));
     expect(at('data-row-link=""')).toBeLessThan(at("MEMBER"));
     expect(at("MEMBER")).toBeLessThan(at("FIGURES"));
-    expect(linked).toContain('<a class="absolute inset-0 z-[1] rounded-[inherit] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent" data-row-link="" href="/players/p1"><span class="sr-only">Ash</span></a>');
+    // Over the whole row, its dividing line too on a touch screen (a 44px row's link is 44px, not 43).
+    expect(linked).toContain('<a class="absolute inset-0 z-[1] pointer-coarse:-bottom-px focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent rounded-[inherit]" data-row-link="" href="/players/p1"><span class="sr-only">Ash</span></a>');
     const plain = row({ children: h("span", null, "MEMBER") });
     expect(plain).not.toContain("hover:");
     expect(plain).not.toContain("<a ");

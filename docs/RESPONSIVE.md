@@ -52,6 +52,7 @@ translucent status bar, so:
   its 16px mark (negative margins keep the line), with an invisible 44px area on touch screens;
   inline text links use `touch-target`.
 - Close buttons of dialogs, windows and pickers are 44px on touch screens.
+- A list row's link (the shared list's `RowLink`, a Peek row's, a roster card's: `ROW_LINK_COVER` in `ui/data-list.tsx`) covers the row's dividing line too on touch screens, so a 44px row's link is 44px, not 43 (Release 10); a mouse's rows keep their heights.
 - A toast's dismiss button is 44px at every width, around its 16px mark: its negative margins reach
   into the toast's own padding, so the toast is no larger for it.
 - Controls on a card (a flip button, social icons) stop their event: using one never opens,
@@ -230,7 +231,7 @@ section could drop the index to a row of its own (about 1284–1314px folded, 14
 it at 1024 folded.
 
 **Settings** (`settings/account-settings.tsx`, the same page in both modes; 18 Nov 2026), 64rem wide
-(`max-w-5xl`):
+(`max-w-5xl`): At 175% and 200% text on a tablet or desktop (Release 10) the account column is at most 40% of the page (`min(15rem,40%)`, `min(16rem,40%)` from lg) and the password panel's Change password and Sign out of other devices wrap at any width (they ran 87–235px past a 1280 or 1440 window before): nothing scrolls sideways from 320 to 2560 at 100–200% (phone-wraps.spec.ts).
 
 | Width | Layout |
 | --- | --- |
