@@ -634,13 +634,22 @@ data, as the static sync stored it (`riot_build_data.spellCooldowns`): "Base coo
 data: Flash 300 s, Ignite 180 s", and "Summoner spell haste is a separate stat" once in the panel
 (`spellCooldownWords`, `evidence-panel.tsx`). The haste choice never changes it (the panel reads no
 haste; `evidence-panel.test.ts` renders it at 0, 20, 40, 60 and 300). A spell Riot's data gives no
-cooldown for says "Smite: no cooldown in Riot's data"; before the static sync has stored any
-cooldown, nothing is said.
+cooldown for says so; before the static sync has stored any
+cooldown, nothing is said. A spell Data Dragon gives charges (Smite: `maxammo` 2) never shows its
+array, which is the wait between two casts (as on the ability tiles): "Smite: 2 charges, its recharge
+not in Riot's data" (rules format 3 keeps it apart, `spellCharges`; data stored under format 2 says
+nothing until the next version check reads it again). A key the stored copy has no number for says
+"no cooldown in the stored Riot data".
 
 ### What it means
 
 Each curated briefing row (the threat, the opportunity, each lane point) whose abilities include
-the enemy's adds one line of numbers only (`meansLine`, `haste.ts`; `MeansLine`, `haste-line.tsx`):
+the enemy's has one line of numbers only (`meansLine`, `haste.ts`; `MeansLine`, `haste-line.tsx`),
+behind an ⓘ named "What it means" after the row's chips (the shared InfoTip: a tap on a touch
+screen, hover or focus elsewhere; a screen reader reads the line as the ⓘ's description). Shown as a
+line of its own under each row it made the overview 24px taller at 1440 × 900 and 147px over on
+Ambessa vs Renekton a patch after the check, which the one-screen fit cannot spare; the ⓘ takes no
+height. The line is
 the cooldown per rank of each enemy ability the row rests on (its `basedOn`), at the haste chosen in
 the bar, by the cooldown table's own rule, and which case that is. "What it means: Renekton's W
 cooldown 16 / 14 / 12 / 10 / 8 s at 0 haste (base)"; at 20 haste "13.33 / 11.67 / 10 / 8.33 / 6.67 s at
@@ -692,7 +701,7 @@ anywhere: what the page counts from the team's own games follows (S7b).
 
 ### Static data for the build evidence
 
-`compactBuildData` (`src/server/riot/static/assets.ts`, rules format 2: names stored under format 1
+`compactBuildData` (`src/server/riot/static/assets.ts`, rules format 3 since R11a, which keeps summoner spells with charges apart; 2 before: names stored under an older format
 are read again on the next run, which stores this too) keeps, from the `item.json`, `summoner.json`
 and `runesReforged.json` the version-check already downloads: each Summoner's Rift item's gold,
 tags, `from`/`into`, depth and the ability haste its `<stats>` name; each summoner spell's base
@@ -891,8 +900,10 @@ the timeline keeps sales. Still not built:
     Top · Jungle · Mid · Bottom · Support, the shared `RoleFilterBar`, 44px on touch screens). The
     app holds no catalogue of champions' roles, so the filter never guesses one: it narrows the
     roster to the champions Riot recorded in that position in the team's stored Summoner's Rift
-    games (`account_champion_history`, the rows All Champions shows by role; `recordedRoles`, cached
-    for ten minutes), and says so under the title ("The champions Riot recorded as Jungle in the
+    games (`account_champion_history`, the rows All Champions shows by role, from Riot's
+    `teamPosition`; `recordedRoles`, cached for ten minutes), counting the team's members now only,
+    as the evidence's "team's games" do (never a personal-use profile, an archived player or a
+    scouting account; the demo's rows come from its players' pools, so there the lists are short), and says so under the title ("The champions Riot recorded as Jungle in the
     team's stored games. The search finds every champion."). It counts teammates' games, so it is
     offered only to an account that may see teammates' statistics (`view-teammate-stats`), and it
     names champions only, never who played them or how often. It is the picker's own state, All

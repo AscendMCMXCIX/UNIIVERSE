@@ -15,7 +15,8 @@ import type { Role } from "@/domain/matchup-intel/types";
     about whose pools hold what.
   - **The role filter:** the champions Riot recorded in each position in the team's stored games
     (account_champion_history, the rows All Champions shows by role), never a guess at a champion's
-    roles. It counts teammates' games, so it is offered only to a viewer who may see teammates'
+    roles; the team's members now only, as the evidence's "team's games" (never a personal-use
+    profile, an archived player or a scouting account). It counts teammates' games, so it is offered only to a viewer who may see teammates'
     statistics ("view-teammate-stats"); it names champions only, never who played them or how often.
 */
 
@@ -33,9 +34,14 @@ export async function viewerPool(db: Db, session: Session | null, role: Role, ro
 export async function recordedRoles(db: Db, session: Session | null): Promise<Partial<Record<GameRole, string[]>> | null> {
   if (!session || !hasPermission(session, "view-teammate-stats")) return null;
   return cachedFor("matchup:picker-roles", 10 * 60_000, async () => {
-    const result = await db.execute(sql`SELECT role, champion_id FROM account_champion_history
-      WHERE games > 0 AND role IN ('TOP', 'JUNGLE', 'MID', 'ADC', 'SUPPORT') AND queue_group IN ('solo', 'flex', 'normal')
-      GROUP BY role, champion_id ORDER BY role, champion_id`);
+    // The team's own accounts only, as the evidence counts "the team's games" (evidence.ts, playersOf):
+    // members now, never a personal-use profile (its player's and the administrators' only), an
+    // archived player or a scouting account.
+    const result = await db.execute(sql`SELECT h.role, h.champion_id FROM account_champion_history h
+      JOIN riot_accounts ra ON ra.id = h.account_id AND ra.owner_type = 'player'
+      WHERE ra.player_id IN (SELECT id FROM players WHERE team_member AND archived_at IS NULL)
+        AND h.games > 0 AND h.role IN ('TOP', 'JUNGLE', 'MID', 'ADC', 'SUPPORT') AND h.queue_group IN ('solo', 'flex', 'normal')
+      GROUP BY h.role, h.champion_id ORDER BY h.role, h.champion_id`);
     const rows = (Array.isArray(result) ? result : ((result as { rows?: unknown[] }).rows ?? [])) as Array<{ role: string; champion_id: string }>;
     const out: Partial<Record<GameRole, string[]>> = {};
     for (const r of rows) {

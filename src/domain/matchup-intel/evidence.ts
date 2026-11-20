@@ -61,6 +61,8 @@ export interface EvidenceNames {
   rune: (id: string) => string | null;
   /** A summoner spell's base cooldown per rank in seconds, from Riot's data (Data Dragon's summoner.json); null when it gives none. */
   spellCooldown?: (key: string) => readonly number[] | null;
+  /** A summoner spell's charges where Riot's data gives it some (Smite: 2), whose array is then not its cooldown; null otherwise. */
+  spellCharges?: (key: string) => number | null;
 }
 
 export interface EvidenceLine {
@@ -197,7 +199,8 @@ const secondsWords = (seconds: readonly number[]) => `${[...new Set(seconds)].ma
 /**
  * The summoner spells a line names (its values, "4,14"), each with its base cooldown from Riot's
  * data, in the order they first appear: "Base cooldowns in Riot's data: Flash 300 s, Ignite 180 s".
- * A spell Riot's data gives no cooldown for says so ("Smite: no cooldown in Riot's data"). The base
+ * A spell with charges says so, never its array (Smite's [15] is the wait between casts: "Smite: 2
+ * charges, its recharge not in Riot's data"); one the stored data has no number for says that. The base
  * only, at any ability haste (summonerSpellCooldown); null when the line names no spell, or when no
  * cooldowns are stored (`names.spellCooldown` absent).
  */
@@ -206,17 +209,25 @@ export function spellCooldownWords(values: readonly string[], names: EvidenceNam
   // No cooldowns stored at all (the static sync has not read them yet): nothing said, rather than "none".
   if (!keys.length || !names.spellCooldown) return null;
   const known: string[] = [];
+  const charged: string[] = [];
   const missing: string[] = [];
   for (const key of keys) {
     const name = names.spell(key) ?? `spell ${key}`;
-    const base = names.spellCooldown?.(key) ?? null;
+    const charges = names.spellCharges?.(key) ?? null;
+    if (charges) {
+      charged.push(`${name}: ${formatCount(charges)} charges, its recharge not in Riot's data`);
+      continue;
+    }
+    const base = names.spellCooldown(key);
     const seconds = base ? summonerSpellCooldown(base, 0).filter((v) => Number.isFinite(v) && v > 0) : [];
     if (seconds.length) known.push(`${name} ${secondsWords(seconds)}`);
     else missing.push(name);
   }
   const parts: string[] = [];
   if (known.length) parts.push(`Base cooldowns in Riot's data: ${known.join(", ")}`);
-  if (missing.length) parts.push(`${missing.join(", ")}: no cooldown in Riot's data`);
+  parts.push(...charged);
+  // Not in the stored copy of Riot's data: said as such, not as a fact about the spell.
+  if (missing.length) parts.push(`${missing.join(", ")}: no cooldown in the stored Riot data`);
   return parts.join(". ");
 }
 

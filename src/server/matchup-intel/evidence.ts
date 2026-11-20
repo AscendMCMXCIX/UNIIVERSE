@@ -159,7 +159,8 @@ export async function loadMatchupEvidence(db: Db, session: Session | null, input
     spell: (key) => assets?.spells[key]?.name ?? null,
     rune: (id) => assets?.runes[id]?.name ?? null,
     // Summoner spells' base cooldowns, as the static sync stored them from Data Dragon (nothing said until it has).
-    ...(build?.spellCooldowns ? { spellCooldown: (key: string) => build.spellCooldowns[key] ?? null } : {}),
+    // Only from format 3, which keeps a spell with charges (Smite) apart: before it, Smite's array, the wait between casts, would read as its cooldown.
+    ...(build?.spellCooldowns && (build.format ?? 0) >= 3 ? { spellCooldown: (key: string) => build.spellCooldowns[key] ?? null, spellCharges: (key: string) => build.spellCharges?.[key] ?? null } : {}),
   };
 
   const what = [you.name, duo && ally ? `with ${ally.name}` : null, enemy ? `against ${enemy.name}` : null, duo && enemy2 ? `${enemy ? "and" : "against"} ${enemy2.name}` : null].filter(Boolean).join(" ");

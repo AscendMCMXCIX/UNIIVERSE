@@ -50,7 +50,10 @@ export function HasteLine({ basis }: { basis: HasteBasis }) {
  * A briefing row's "what it means" line (docs/MATCHUP_INTEL.md, "What it means"): the cooldowns of
  * the enemy's abilities the row rests on, at the haste chosen in the bar, by the cooldown table's own
  * rule, and which case each is. Numbers only, never a verdict, a timer or a "ready at"; nothing for a
- * row that names no enemy ability, or whose numbers do not allow one (meansPart).
+ * row that names no enemy ability, or whose numbers do not allow one (meansPart). An ⓘ after the
+ * row's chips opens it (the shared InfoTip: a tap on a touch screen, hover or focus elsewhere; a
+ * screen reader reads it as the ⓘ's description), so it takes no room of its own: the one-screen fit
+ * at 1440 × 900 has none to spare. Clear of the chips' 44px areas on a touch screen.
  */
 export function MeansLine({ refs, means }: { refs: readonly AbilityRef[]; means: Readonly<Partial<Record<AbilityRef, MeansAbility>>> | undefined }) {
   const { haste } = React.useContext(HasteContext);
@@ -58,10 +61,8 @@ export function MeansLine({ refs, means }: { refs: readonly AbilityRef[]; means:
   const line = meansLine(refs.flatMap((r) => (means[r] ? [means[r]!] : [])), haste);
   if (!line) return null;
   return (
-    // After the chips on their line, so it takes a line of its own only where the row has no room left
-    // (the one-screen fit at 1440 × 900 keeps the sources' summary on the screen).
-    <span className="ml-1.5 text-2xs leading-snug text-fg-subtle" data-testid="briefing-means">
-      <span className="font-semibold text-fg-muted">What it means:</span> {line}
+    <span className="ml-1.5 inline-flex align-middle pointer-coarse:ml-4" data-means={line}>
+      <InfoTip text={`What it means: ${line}.`} label="What it means" testId="briefing-means" />
     </span>
   );
 }

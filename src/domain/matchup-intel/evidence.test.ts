@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { EVIDENCE_FIELDS, MIN_LANE_ENDS, fewGamesWords, fieldLine, spellCooldownWords, laneEndLine, objectivesLine, queueSplit, recordLine, sampleWords, scopeTier, type EvidenceCounts, type EvidenceNames, type PatchWindow } from "./evidence";
-import { evidenceRefusedWords } from "./refused-words";
+import { evidenceRefusedWords, refusedWords } from "./refused-words";
 import { UNCERTAIN, UNCERTAIN_HIDDEN, NO_DUO_NOTES, NO_HIGH_ELO } from "@/components/matchup-intel/evidence-panel";
 
 const names: EvidenceNames = { champion: (id) => ({ Riven: "Riven", Darius: "Darius", LeeSin: "Lee Sin" })[id] ?? id, item: (id) => ({ "1055": "Doran's Blade", "2003": "Health Potion", "3071": "Black Cleaver" })[id] ?? null, spell: (k) => ({ "4": "Flash", "14": "Ignite", "12": "Teleport" })[k] ?? null, rune: (id) => ({ "8010": "Conqueror" })[id] ?? null };
@@ -96,10 +96,15 @@ describe("summoner spells' cooldowns on the spells line", () => {
     expect(spellCooldownWords(["4"], { ...withCooldowns, spellCooldown: () => [15, 12, 12] })).toBe("Base cooldowns in Riot's data: Flash 15/12 s");
   });
 
-  it("says when Riot's data gives a spell no cooldown, and invents none", () => {
-    expect(spellCooldownWords(["4,11"], { ...withCooldowns, spell: (k) => ({ "4": "Flash", "11": "Smite" })[k] ?? null })).toBe("Base cooldowns in Riot's data: Flash 300 s. Smite: no cooldown in Riot's data");
-    expect(spellCooldownWords(["4"], { ...withCooldowns, spellCooldown: () => [0] })).toBe("Flash: no cooldown in Riot's data");
-    expect(spellCooldownWords(["4"], { ...withCooldowns, spellCooldown: () => [] })).toBe("Flash: no cooldown in Riot's data");
+  it("says when the stored data gives a spell no cooldown, and invents none", () => {
+    expect(spellCooldownWords(["4,99"], withCooldowns)).toBe("Base cooldowns in Riot's data: Flash 300 s. spell 99: no cooldown in the stored Riot data");
+    expect(spellCooldownWords(["4"], { ...withCooldowns, spellCooldown: () => [0] })).toBe("Flash: no cooldown in the stored Riot data");
+    expect(spellCooldownWords(["4"], { ...withCooldowns, spellCooldown: () => [] })).toBe("Flash: no cooldown in the stored Riot data");
+  });
+
+  it("never gives a spell with charges its array as a cooldown (Smite's 15 s is the wait between casts)", () => {
+    const smite: EvidenceNames = { ...withCooldowns, spell: (k) => ({ "4": "Flash", "11": "Smite" })[k] ?? null, spellCooldown: (k) => ({ "4": [300], "11": [15] })[k] ?? null, spellCharges: (k) => (k === "11" ? 2 : null) };
+    expect(spellCooldownWords(["4,11"], smite)).toBe("Base cooldowns in Riot's data: Flash 300 s. Smite: 2 charges, its recharge not in Riot's data");
   });
 
   it("says nothing before any cooldown is stored, and only on the spells line", () => {
@@ -109,7 +114,9 @@ describe("summoner spells' cooldowns on the spells line", () => {
   });
 
   it("passes EVIDENCE_REFUSED_WORDS and REFUSED_WORDS", () => {
-    for (const t of [spellCooldownWords(["4,14", "4,11"], withCooldowns)!, "Summoner spell haste is a separate stat"]) {
+    const smite: EvidenceNames = { ...withCooldowns, spellCharges: (k) => (k === "11" ? 2 : null) };
+    for (const t of [spellCooldownWords(["4,14", "4,11", "4,99"], smite)!, "Summoner spell haste is a separate stat"]) {
+      expect(refusedWords(t), t).toEqual([]);
       expect(evidenceRefusedWords(t), t).toEqual([]);
     }
   });

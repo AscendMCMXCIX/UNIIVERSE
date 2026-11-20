@@ -84,13 +84,18 @@ test("Ambessa vs Renekton: the curated briefing, its chips jumping to the abilit
   await expect(page.getByTestId("matchup-no-briefing")).toHaveCount(0);
   // "What it means": the enemy's cooldowns a row rests on, numbers only, by the cooldown table's own rule (Renekton's W: 16 s at rank 1 in Riot's data).
   const means = briefing.getByTestId("briefing-threat").getByTestId("briefing-means");
-  await expect(means).toHaveText("What it means: Renekton's W cooldown 16 / 14 / 12 / 10 / 8\u00a0s at 0 haste (base)");
+  await expect(means).toHaveAccessibleName("What it means");
+  await expect(means).toHaveAccessibleDescription("What it means: Renekton's W cooldown 16 / 14 / 12 / 10 / 8\u00a0s at 0 haste (base).");
   await hydrated(page);
   await page.getByTestId("matchup-haste").getByRole("button", { name: "20", exact: true }).click();
-  await expect(means).toHaveText("What it means: Renekton's W cooldown 13.33 / 11.67 / 10 / 8.33 / 6.67\u00a0s at 20 haste (Riot's general rule)");
-  for (const t of await briefing.getByTestId("briefing-means").allTextContents()) expect(t).not.toMatch(/\byou(r)?\b|ready|timer/i);
+  await expect(means).toHaveAccessibleDescription("What it means: Renekton's W cooldown 13.33 / 11.67 / 10 / 8.33 / 6.67\u00a0s at 20 haste (Riot's general rule).");
+  // Opened, the bubble says the same; no row's line uses "you", a timer or "ready".
+  await means.hover();
+  await expect(page.getByTestId("briefing-means-bubble")).toContainText("13.33 / 11.67 / 10 / 8.33 / 6.67");
+  for (const m of await briefing.getByTestId("briefing-means").all()) expect(await m.getAttribute("aria-describedby")).toBeTruthy();
+  for (const t of await briefing.locator("[data-means]").evaluateAll((els) => els.map((e) => e.getAttribute("data-means") ?? ""))) expect(t).not.toMatch(/\byou(r)?\b|ready|timer/i);
   await page.getByTestId("matchup-haste").getByRole("button", { name: "0", exact: true }).click();
-  await expect(means).toContainText("at 0 haste (base)");
+  await expect(means).toHaveAccessibleDescription(/at 0 haste \(base\)\.$/);
   // A chip names the ability ("Renekton W") and jumps to its row.
   const chip = briefing.locator('[data-testid="briefing-ability"][data-anchor^="ability-Renekton-"]').first();
   await expect(chip).toHaveText(/^Renekton (passive|[QWER])$/);
