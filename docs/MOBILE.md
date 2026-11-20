@@ -488,7 +488,7 @@ Since S8a (20 Nov 2026) the pages carry their visitor: a signed-out one (the loc
 sign-in, recovery, Privacy and the public team page, and the in-memory demo's viewers
 (`server/auth/demo-viewer.ts`) for the first sign-in (`/welcome` with a temporary password and with
 the profile half chosen, `/welcome/personalise`) and a member's own My Profile (Overview and Match
-History). Card Studio is measured open (`then: "studio"`). Public Leaderboards needs
+History). Card Studio is measured open (`then: "studio"`): an open window is measured by its own height plus what its scrolling area holds, not the page under it. Public Leaderboards needs
 `UNIIVERSE_PUBLIC_RIOT_DATA=true`, which the CI demo does not set, so it is measured only in the
 full matrix on a server started with it (`requires`).
 
@@ -531,7 +531,7 @@ viewers. Figures after the fixes; "small" is i15 / se3 / se1 / i15s at 100%, bef
 | `/no-access` | 1.00 | 2.01 | 1.00 | 7 → 0 | 0 |
 | `/public` on phones | 1.00 | 2.65 | 1.00 | 2 → 0 | 0 |
 | `/public/leaderboards` on phones | 3.04 | 11.91 | 2.06 / 1.46 / 1.26 | 1 → 0 | 0 |
-| Card Studio (a profile, opened) | 2.43 | 7.76 | 1.63 / 1.19 / 1.09 | 5/5/6/5 → 0 | 0 |
+| Card Studio (a profile, opened; its window measured since 20 Nov 2026: 2.43 and 7.76 were the profile under it) | 1.27 | 3.35 | 1.63 / 1.19 / 1.09 | 5/5/6/5 → 0 | 0 |
 | Roles and pools in edit | 2.79 | 9.19 | 1.87 / 1.40 / 1.29 | 0 | 0 |
 | Team in Edit lineup | 1.00 | 2.18 | 1.00 | 0 | 0 |
 | Install App's window (public header) | 1.00 | 2.65 | 1.00 | 0 | 0 |
