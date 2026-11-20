@@ -1013,3 +1013,8 @@ Safari 16.4 or later, so that is the floor. Nothing the app uses needs more:
   without `scrollbar-width` (before 18.2), and the build adds the `-webkit-` prefixes for
   `backdrop-filter` and `mask-image`.
 
+Since S8a (20 Nov 2026) the WebKit spec also opens the public pages and Install App in Safari's
+tab on an iPhone 15 (no sideways scroll on `/public`, `/login`, `/recover` and `/privacy`; the
+header's links 44px and 14px; the install window's iOS guide inside the screen, closed by Escape)
+and as opened from the Home Screen (`navigator.standalone`: no Install App in the header).
+

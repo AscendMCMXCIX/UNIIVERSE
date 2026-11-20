@@ -106,6 +106,19 @@ decorative chrome.
   - Page heights against the plan's targets are in MOBILE.md, section 3; one is missed: a Pixel 7
     held sideways (863×360), where the wide card and the phone's frame leave D8 nothing to take.
 
+### Page titles and the public header (S8a, 20 Nov 2026)
+
+- **One h1 style** (`PAGE_TITLE`, `components/ui/page-header.tsx`): 24px, semibold, tight. Every
+  page's title uses it, the sign-in, setup, recovery, welcome, Personalise, Privacy and invitation
+  cards included. The wordmark's 0.2em spacing (`tracking-wordmark`) is for the team's name only.
+- **The public header's links** (`components/public/nav-link.ts`): Team, Leaderboards, Install App
+  and Sign in (or Open the app) in one style, the app's nav at 14px, 44px tall on touch screens.
+- **Long public text on a desktop** (Privacy): from lg a table of contents sticks beside the text;
+  below lg it is the row of chips under the title. A frame holding something sticky clips sideways
+  without becoming a scroll box (`BrandFrameView`'s `stickyInside`).
+- **Instructions for the owner on a public page** (recovery's setup key) sit behind a fold, so the
+  page leads with what it is for.
+
 ## 2. Principles
 
 1. **Content leads, the frame recedes.** Navigation is the page's own ink, half a step lighter. In

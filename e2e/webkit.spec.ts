@@ -950,3 +950,38 @@ test("popups: an error toast raised over the picture editor is drawn in the wind
   await expect(toast).toHaveCount(0);
   await expect(win).toBeVisible();
 });
+
+test("the public pages and Install App in Safari's engine: the header's links 44px and 14px, the window's guide fits the screen and closes; in the app opened from the Home Screen there is no entry", async ({ browser, baseURL }) => {
+  const tab = await browser.newContext({ ...devices["iPhone 15"] });
+  await tab.addCookies([{ name: "uniiverse_guest", value: "1", url: baseURL! }]);
+  const page = await tab.newPage();
+  for (const path of ["/public", "/login", "/recover", "/privacy"]) {
+    await page.goto(path);
+    await fitsWidth(page, path);
+  }
+  await page.goto("/public");
+  const links = page.getByRole("navigation", { name: "Public pages" }).locator("a, button");
+  for (const box of await links.evaluateAll((els) => els.filter((e) => (e as HTMLElement).offsetParent).map((e) => ({ h: e.getBoundingClientRect().height, w: e.getBoundingClientRect().width, size: getComputedStyle(e).fontSize })))) {
+    expect(Math.min(box.h, box.w), "a 44px target").toBeGreaterThanOrEqual(44);
+    expect(box.size).toBe("14px");
+  }
+  await page.getByTestId("install-app").tap();
+  const win = page.getByTestId("install-window");
+  await expect(win.getByTestId("install-body")).toHaveAttribute("data-guide", "ios");
+  const box = await win.boundingBox();
+  expect(box!.x).toBeGreaterThanOrEqual(0);
+  expect(box!.x + box!.width).toBeLessThanOrEqual(393 + 1);
+  await fitsWidth(page, "the install window");
+  await page.keyboard.press("Escape");
+  await expect(win).toHaveCount(0);
+  await tab.close();
+  // Opened from the Home Screen (navigator.standalone): the public header has no Install App.
+  const app = await browser.newContext({ ...devices["iPhone 15"] });
+  await app.addCookies([{ name: "uniiverse_guest", value: "1", url: baseURL! }]);
+  await app.addInitScript(() => Object.defineProperty(Navigator.prototype, "standalone", { get: () => true }));
+  const installed = await app.newPage();
+  await installed.goto("/public");
+  await expect(installed.getByTestId("public-sign-in")).toBeVisible();
+  await expect(installed.getByTestId("install-app").filter({ visible: true })).toHaveCount(0);
+  await app.close();
+});
