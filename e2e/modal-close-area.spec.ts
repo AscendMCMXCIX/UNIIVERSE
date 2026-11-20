@@ -1,6 +1,7 @@
 import { devices, expect, test, type Browser, type Locator, type Page } from "./test";
 import { openMatchWindow } from "./match-history";
 import { CLEARANCE, expectClearCorner, untilStill } from "./modal-corner";
+import { openDanger, openPerson } from "./member-account";
 
 /*
   Every window keeps its close button's corner to itself (the shared DetailModal and Dialog): nothing
@@ -19,6 +20,19 @@ async function expectEscapeReturnsTo(page: Page, window: Locator, opener: Locato
   await page.keyboard.press("Escape");
   await expect(window).toBeHidden();
   await expect(opener).toBeFocused();
+}
+
+/**
+ * A task dialog's width (dialog.tsx, TASK_DIALOG_REM): from sm (640px) its size, capped by the window
+ * less its margin (2rem, 3rem for Card Studio); below sm the phone's whole width, never wider.
+ */
+async function expectTaskWidth(page: Page, win: Locator, rem: number, marginRem: number, what: string) {
+  const vw = page.viewportSize()!.width;
+  await untilStill(page);
+  const w = (await win.boundingBox())!.width;
+  const want = vw < 640 ? vw : Math.min(rem * 16, vw - marginRem * 16);
+  expect(Math.abs(w - want), `${what} at ${vw}px: ${Math.round(w)}px, not ${Math.round(want)}px`).toBeLessThanOrEqual(1.5);
+  expect(w, `${what}: never wider than the window`).toBeLessThanOrEqual(vw);
 }
 
 async function topPlayer(page: Page) {
@@ -59,6 +73,8 @@ test("Player Card Studio keeps the corner clear", async ({ page }) => {
   await customise.click();
   await expect(studio.getByTestId("card-studio")).toBeVisible();
   await expectClearCorner(page);
+  // Card Studio alone is 76rem (DetailModal size="wide"), the window less 3rem below that.
+  await expectTaskWidth(page, studio, 76, 3, "Card Studio");
   await expectEscapeReturnsTo(page, studio, customise);
 });
 
@@ -80,7 +96,7 @@ test("the sign-in window on the public page keeps the corner clear", async ({ br
   await context.close();
 });
 
-test("a plain dialog keeps 12 px between its title and the close button", async ({ page, baseURL }) => {
+test("a plain dialog keeps 12 px between its title and the close button; the task dialogs' widths: a picker 42rem, a form 30rem, each capped by the window", async ({ page, baseURL }) => {
   await page.context().addCookies([{ name: "uniiverse_view", value: "admin", url: baseURL! }]);
   await page.goto("/admin/people/access");
   const open = page.getByRole("button", { name: "New level" });
@@ -99,6 +115,22 @@ test("a plain dialog keeps 12 px between its title and the close button", async 
   }
   await page.keyboard.press("Escape");
   await expect(dialog).toBeHidden();
+  // Its size (a picker: an editor with a table), 42rem; a confirmation's (a form), 30rem.
+  await open.click();
+  await expect(dialog).toBeVisible();
+  await expectTaskWidth(page, dialog, 42, 2, "A new access level (picker)");
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  await page.goto("/admin/people");
+  const view = await openPerson(page, "Demo Halfway");
+  // Deactivate's question (a confirmation, nothing done until it is answered; Escape cancels it).
+  await openDanger(view);
+  await view.getByTestId("person-danger").getByRole("button", { name: "Deactivate" }).click();
+  const confirm = page.getByRole("dialog", { name: /^Deactivate .+\?$/ });
+  await expect(confirm).toBeVisible();
+  await expectTaskWidth(page, confirm, 30, 2, "Deactivate's confirmation (form)");
+  await page.keyboard.press("Escape");
+  await expect(confirm).toBeHidden();
 });
 
 async function sideways(browser: Browser, baseURL: string): Promise<Page> {
