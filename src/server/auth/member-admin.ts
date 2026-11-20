@@ -111,7 +111,7 @@ const groupsOf = (u: UserRecord) => [...u.accessGroups].sort().join();
 /**
  * Team membership, access level, extra groups and administrator access in one transaction (D6): either all of it
  * is saved or none of it. Each step keeps its own rules (setAccessLevel, setAccessGroups,
- * setAdministrator); granting administrator access needs `confirmAdministrator` and the Owner.
+ * setAdministrator); granting administrator access needs `confirmAdministrator`.
  */
 export async function saveAccess(db: Db, actorId: string, userId: string, input: AccessSave): Promise<AccessSaved> {
   if (!input || typeof input !== "object" || !input.level || !Array.isArray(input.groups) || typeof input.administrator !== "boolean") throw new UserError("Choose the access to save.");

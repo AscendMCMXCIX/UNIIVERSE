@@ -36,7 +36,7 @@ export function accessSummary(account: Pick<AccountView, "role" | "isAdmin" | "p
  * administrators open this, nobody edits their own access, nobody is made an Owner, only the
  * Owner changes the Owner account, and no level or group reaches Admin Mode, accounts or settings.
  */
-export function AccessDialog({ account, presets, lineupRole = null, viewerIsOwner = false, onClose }: { account: AccountView; presets: PermissionPreset[]; lineupRole?: Role | null; viewerIsOwner?: boolean; onClose: () => void }) {
+export function AccessDialog({ account, presets, lineupRole = null, onClose }: { account: AccountView; presets: PermissionPreset[]; lineupRole?: Role | null; onClose: () => void }) {
   const router = useRouter();
   const { teamName } = useBrandNames();
   const defaultPreset = presets.find((p) => p.isDefault);
@@ -56,7 +56,7 @@ export function AccessDialog({ account, presets, lineupRole = null, viewerIsOwne
   const ownerChange = (base === OWNER) !== (account.role === "owner");
 
   const [confirmAdmin, setConfirmAdmin] = React.useState(false);
-  // Granting administrator access is the Owner's, after a second confirmation (the server checks both).
+  // Granting administrator access asks a second time (the server checks it too).
   const granting = account.role !== "owner" && admin && !account.isAdmin;
   // Team membership, level, groups and administrator access in one atomic save (saveAccessAction).
   const save = async (confirmed = false) => {
@@ -133,9 +133,7 @@ export function AccessDialog({ account, presets, lineupRole = null, viewerIsOwne
                   description={admin ? "Can open Admin Mode: accounts and permissions, platform settings, data, system health and audit logs. Everything a player can do too. Not the Owner account." : "Plays as a normal player and never sees Admin Mode."}
                   checked={admin}
                   onChange={setAdmin}
-                  disabled={!viewerIsOwner && !account.isAdmin}
                 />
-                {!viewerIsOwner && !account.isAdmin ? <p className="text-xs text-fg-subtle">Only the Owner grants administrator access.</p> : null}
                 <p className="text-xs text-fg-subtle">Their profile, Riot accounts and statistics stay theirs. Turning it off returns them to the access set here, at their next page.</p>
               </>
             )}

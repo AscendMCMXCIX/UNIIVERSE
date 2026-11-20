@@ -274,7 +274,7 @@ function PersonBody({
             </Button>
           ) : null}
           {lockedReason && !kept ? <p id={`locked-${a.userId}`} className="text-xs text-fg-subtle" data-testid="access-locked-reason">{lockedReason}.</p> : null}
-          {editingAccess ? <AccessDialog account={a} presets={presets} lineupRole={player?.lineupRole ?? null} viewerIsOwner={viewerIsOwner} onClose={() => setEditingAccess(false)} /> : null}
+          {editingAccess ? <AccessDialog account={a} presets={presets} lineupRole={player?.lineupRole ?? null} onClose={() => setEditingAccess(false)} /> : null}
         </Section>
       ) : null}
 
