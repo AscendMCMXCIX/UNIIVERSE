@@ -1,4 +1,5 @@
 import { ChevronDown, History, TriangleAlert } from "lucide-react";
+import { ChangedBadge } from "./changed-badge";
 import type * as React from "react";
 import type { ChampionChoice, ChampionIntelView, InteractionView, MatchupIntelView } from "@/domain/matchup-intel/types";
 import { kitOf } from "@/domain/matchup-intel/kit";
@@ -70,9 +71,7 @@ function ChampionInteractions({ intel, testId, rows }: { intel: ChampionIntelVie
               <FactChipView key={i} chip={c} champion={champion.name} ability={item.ability} />
             ))}
             {item.flagged ? (
-              <Badge tone="warn" title="Riot's data for this ability changed after the curated notes were checked: they may be out of date">
-                Changed since the check
-              </Badge>
+              <ChangedBadge />
             ) : null}
           </li>
         ))}
@@ -298,9 +297,7 @@ function LevelNote({ note: n, source }: { note: ChampionIntelView["levelNotes"][
         {n.changed ? (
           <>
             {" "}
-            <Badge tone="warn" title="Riot's data for an ability this note rests on changed after the curated notes were checked: it may be out of date">
-              Changed since the check
-            </Badge>
+            <ChangedBadge note />
           </>
         ) : null}
       </p>

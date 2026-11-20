@@ -309,11 +309,12 @@ function PoolRowStats({ s, role, editing }: { s: PoolChampionStats | undefined; 
         </span>
       </span>
     );
-  const cell = (label: string, value: React.ReactNode, extra?: { tone?: string; title?: string; testId?: string; className?: string }) => (
-    <span className={cn("min-w-0 truncate text-center text-xs font-semibold tabular-nums @sm:text-sm @max-[8.5rem]:overflow-visible @max-[8.5rem]:whitespace-normal @max-[8.5rem]:text-left", extra?.tone ?? "text-fg", extra?.className)} title={extra?.title} data-testid={extra?.testId}>
+  const cell = (label: string, value: React.ReactNode, extra?: { tone?: string; note?: string; testId?: string; className?: string }) => (
+    <span className={cn("min-w-0 truncate text-center text-xs font-semibold tabular-nums @sm:text-sm @max-[8.5rem]:overflow-visible @max-[8.5rem]:whitespace-normal @max-[8.5rem]:text-left", extra?.tone ?? "text-fg", extra?.className)} data-testid={extra?.testId}>
       {/* Read out always; shown where the column names step aside (under 8.5rem, STATS_COLUMNS). */}
       <span className="sr-only @max-[8.5rem]:not-sr-only @max-[8.5rem]:font-normal @max-[8.5rem]:text-fg-subtle">{label}: </span>
       {value}
+      {extra?.note ? <span className="sr-only"> ({extra.note})</span> : null}
     </span>
   );
   return (
@@ -323,8 +324,8 @@ function PoolRowStats({ s, role, editing }: { s: PoolChampionStats | undefined; 
       {/* "Perfect" a size smaller in a phone's narrower column, so it stays whole. */}
       {cell("KDA", s.perfectKda ? "Perfect" : s.kdaRatio === null ? "—" : s.kdaRatio.toFixed(2), s.perfectKda ? { className: "@max-sm:text-2xs" } : undefined)}
       {role === "SUPPORT"
-        ? cell("Vision", s.visionPerGame === null ? "—" : s.visionPerGame.toFixed(1), { title: s.visionPerGame === null ? "Vision score is not available: these games' details were not collected" : "Average vision score per game (Support is judged on vision rather than farm)", testId: "pool-card-vision", className: "hidden @lg:block" })
-        : cell("CS/min", s.csPerMinute === null ? "—" : s.csPerMinute.toFixed(1), { title: s.csPerMinute === null ? "CS/min is not available: these games' details were not collected" : "Creep score per minute (minions and monsters)", className: "hidden @lg:block" })}
+        ? cell("Vision", s.visionPerGame === null ? "—" : s.visionPerGame.toFixed(1), { note: s.visionPerGame === null ? "not available for these games" : "average per game", testId: "pool-card-vision", className: "hidden @lg:block" })
+        : cell("CS/min", s.csPerMinute === null ? "—" : s.csPerMinute.toFixed(1), { note: s.csPerMinute === null ? "not available for these games" : undefined, className: "hidden @lg:block" })}
     </span>
   );
 }

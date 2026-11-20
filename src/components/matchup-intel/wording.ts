@@ -470,12 +470,12 @@ export function qualifierChipWords(kind: RiotTextKind, qualifier: string): strin
 }
 
 /**
- * A qualifier's line, in a chip's tip and in the details window: "Qualified by “Mega Gnar”", or on a
+ * A qualifier's line, in a chip's tip and in the details window: "Only with “Mega Gnar”", or on a
  * cooldown refund "Cuts the cooldown of “Mantra”"; and, where it is quoted from the ability's other
  * text rather than the clause's, which ("(Riot's tooltip for Dragon Strike)").
  */
 export function qualifierWords(kind: RiotTextKind, qualifier: string, otherSource: RiotTextSource | null | undefined, ability: string): string {
-  const lead = kind === "cooldownrefund" ? "Cuts the cooldown of" : "Qualified by";
+  const lead = kind === "cooldownrefund" ? "Cuts the cooldown of" : "Only with";
   return `${lead} “${qualifier}”${otherSource ? ` (${riotTextSourceWords(otherSource, ability)})` : ""}`;
 }
 

@@ -1,8 +1,8 @@
 import { Fragment } from "react";
+import { ChangedBadge } from "./changed-badge";
 import { Crosshair, History, Swords, TriangleAlert } from "lucide-react";
 import type { ChampionChoice, ChampionIntelView } from "@/domain/matchup-intel/types";
 import { SIDE_GROUPS, kitOf, type Kit, type KitItem } from "@/domain/matchup-intel/kit";
-import { Badge } from "@/components/ui/badge";
 import { Panel } from "@/components/ui/panel";
 import { cn } from "@/lib/cn";
 import { CuratedLine, publicPatchOf } from "./ability-list";
@@ -100,9 +100,7 @@ function KitLine({ item, champion, rows, withCooldown, ownSource }: { item: KitI
           <FactChipView key={i} chip={c} champion={champion.name} ability={item.ability} testId="assembled-chip" />
         ))}
         {item.flagged ? (
-          <Badge tone="warn" title="Riot's data for this ability changed after the curated notes were checked: they may be out of date">
-            <span data-testid="assembled-flagged">Changed since the check</span>
-          </Badge>
+          <ChangedBadge testId="assembled-flagged" />
         ) : null}
         {cd ? (
           // The ability's own base cooldown per rank (Riot's numbers or the checked ones, as its tile's line).

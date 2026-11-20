@@ -408,7 +408,7 @@ export function MatchupFrame({
               disabled={!shown.you && !shown.enemy}
               className="grid h-11 w-11 place-items-center self-center justify-self-center rounded-full border border-border-control bg-bg-elevated text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg disabled:cursor-not-allowed disabled:opacity-40 @min-[44rem]/pickers:pointer-fine:h-9 @min-[44rem]/pickers:pointer-fine:w-9"
               aria-label="Swap your champion and the enemy"
-              title="Swap"
+              title="Swap champions"
               data-testid="matchup-swap"
             >
               <ArrowLeftRight className="h-5 w-5 @max-[17.5rem]/pickers:rotate-90" aria-hidden />

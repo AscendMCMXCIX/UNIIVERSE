@@ -516,7 +516,7 @@ describe("facts from Riot's text, as the review recorded them", () => {
     const html = await render({ champion: "Garen", vs: "Darius" }, over);
     const q = rowText(html, "Darius", "Q");
     expect(q).toContain("Crowd control: Stun · “Mega Darius”");
-    expect(q).toContain("“stunning enemies in an area.” (Riot's description of Darius Q) Qualified by “Mega Darius” From Riot's ability text, reviewed automatically (not by a person).");
+    expect(q).toContain("“stunning enemies in an area.” (Riot's description of Darius Q) Only with “Mega Darius” From Riot's ability text, reviewed automatically (not by a person).");
     // A cooldown refund names the abilities whose cooldown it cuts; the conditional one is named under
     // the chips, once, in the owner's fixed words, and its tip says the same with its quote.
     expect(q).toContain("Cooldown: Cooldown refund of “his other basic abilities”");
@@ -526,7 +526,7 @@ describe("facts from Riot's text, as the review recorded them", () => {
     expect(w).toContain("Crowd control: Slow “and Slows them”");
     expect(w).toContain("Conditional: see Riot's text (Slow)");
     // A qualifier from the ability's other text says which.
-    expect(w).toContain("Qualified by “If the axe connects” (Riot's description of Darius W)");
+    expect(w).toContain("Only with “If the axe connects” (Riot's description of Darius W)");
     // The other wording is no chip of its own, and is not counted.
     expect(chips(html.slice(html.indexOf('<li id="ability-Darius-W"')).split('<li id="ability-Darius-E"')[0]!)).toBe(3);
     expect(w).not.toMatch(/\bLeap\b|calls it/);
@@ -586,7 +586,7 @@ describe("facts from Riot's text, as the review recorded them", () => {
     expect(w).toContain("Facts from Riot's ability text From Riot's ability text, reviewed automatically (not by a person). Reviewed against Riot's text of patch 26.22, on 19 Nov 2026.");
     expect(w).toContain("Slow · Conditional: see Riot's text “and Slows them” (Riot's tooltip for Darius W)");
     expect(w).toContain("Dash “Darius dashes forward” (Riot's tooltip for Darius W) Riot's description calls it leap: “Darius leaps forward”");
-    expect(w).toContain("Shield “Darius gains a Shield” (Riot's tooltip for Darius W) Qualified by “If the axe connects” (Riot's description of Darius W)");
+    expect(w).toContain("Shield “Darius gains a Shield” (Riot's tooltip for Darius W) Only with “If the axe connects” (Riot's description of Darius W)");
     const q = await detailsText({ champion: "Garen", vs: "Darius" }, over, "Darius", "Q");
     expect(q).toContain("Cooldown refund · Conditional: see Riot's text “reducing the cooldowns” (Riot's tooltip for Darius Q) Cuts the cooldown of “his other basic abilities”");
     const e = await detailsText({ champion: "Garen", vs: "Darius" }, over, "Darius", "E");

@@ -530,7 +530,7 @@ test("the season records: seven cells in one panel, each opening its game; multi
   // counts behind each kind's ⓘ.
   await expect(page.getByTestId("milestones-mastery").getByTestId("milestone-figure").first()).toHaveText(/^\d+(\.\d)?[KM]$/);
   await expect(page.getByTestId("milestones-mastery").getByTestId("milestone-more").first()).toHaveText(/^\+\d+ more/);
-  await expect(page.getByTestId("milestones-mastery-hint")).toHaveAccessibleDescription(/100K, 500K and 1M points/);
+  await expect(page.getByTestId("milestones-mastery-hint")).toHaveAccessibleDescription(/100K, 500K or 1M mastery points/);
   await noOverflow(page);
   await axe(page, "[data-testid=leaderboards]");
   // Every cell has been in view (the page scrolled through them), and no game was asked for.

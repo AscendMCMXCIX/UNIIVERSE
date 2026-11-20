@@ -328,7 +328,7 @@ test("each chip opens what it rests on, and says it to a screen reader; a checke
   await hydrated(page);
   const riotText = page.locator('[data-testid="ability-facts"][data-from="riot-text"] [data-testid="fact-chip"]');
   expect(await riotText.count()).toBeGreaterThan(0);
-  await expect(riotText.first()).toHaveAccessibleDescription(/^“.+” \(Riot's (tooltip|description) (for|of) [^)]+\)( (Qualified by|Cuts the cooldown of) “[^”]+”( \(Riot's [^)]+\))?)?( Conditional: see Riot's text\.)? From Riot's ability text, reviewed automatically \(not by a person\)\.$/);
+  await expect(riotText.first()).toHaveAccessibleDescription(/^“.+” \(Riot's (tooltip|description) (for|of) [^)]+\)( (Only with|Cuts the cooldown of) “[^”]+”( \(Riot's [^)]+\))?)?( Conditional: see Riot's text\.)? From Riot's ability text, reviewed automatically \(not by a person\)\.$/);
   await riotText.first().hover();
   await expect(page.getByTestId("fact-chip-bubble")).toContainText("From Riot's ability text, reviewed automatically (not by a person).");
 });
@@ -344,7 +344,7 @@ test("the facts from Riot's text, as the review recorded them: a qualifier with 
   const gnarW = tileOf(page, "W").getByTestId("fact-chip");
   await expect(gnarW).toHaveCount(1);
   await expect(gnarW).toContainText("Stun · “Mega Gnar”");
-  await expect(gnarW).toHaveAccessibleDescription("“stunning enemies in an area.” (Riot's description of Hyper / Wallop) Qualified by “Mega Gnar” From Riot's ability text, reviewed automatically (not by a person).");
+  await expect(gnarW).toHaveAccessibleDescription("“stunning enemies in an area.” (Riot's description of Hyper / Wallop) Only with “Mega Gnar” From Riot's ability text, reviewed automatically (not by a person).");
   // The assembled reference shows the same chip in its group.
   await expect(page.getByTestId("assembled-danger").getByTestId("assembled-chip").filter({ hasText: "Mega Gnar" })).toHaveCount(2);
   // Annie's passive: the stun holds only under a condition Riot's text names with a number, so the
