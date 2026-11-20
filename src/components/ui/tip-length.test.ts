@@ -76,7 +76,7 @@ const MEMBER_FACING = (file: string) => !/^src\/(components\/admin\/|app\/\(admi
 /** Every state of the LP tip on a match card (H10), each one counted on its own. */
 const reading = { label: "Platinum IV", leaguePoints: 75, at: 0 } as const;
 const LP_STATES: LpRecord[] = [
-  { kind: "lp", delta: -18, before: reading, after: { ...reading, leaguePoints: 57 } },
+  { kind: "lp", delta: -18, before: { ...reading, at: Date.UTC(2026, 10, 17, 9, 41) }, after: { ...reading, leaguePoints: 57, at: Date.UTC(2026, 10, 18, 10, 20) } },
   { kind: "promoted", before: reading, after: { ...reading, label: "Platinum III", leaguePoints: 0 } },
   ...(["remake", "unknown-length", "before-tracking", "awaiting-reading", "readings-too-far", "series", "season-reset", "unranked", "inconsistent"] as const).map((reason): LpRecord => ({ kind: "none", reason })),
   { kind: "none", reason: "before-tracking", trackingSince: Date.UTC(2026, 9, 1) },

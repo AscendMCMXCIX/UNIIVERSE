@@ -3,7 +3,7 @@ import { ArrowDown, ArrowUp } from "lucide-react";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
 import { InfoTip } from "@/components/ui/info-tip";
 import type { LpRecord } from "@/domain/lp-attribution";
-import { formatDate, formatLpChange } from "@/lib/format";
+import { formatDate, formatDateTime, formatDateTimeAfter, formatLpChange } from "@/lib/format";
 import type { Icon } from "@/server/players/match-history";
 import { cn } from "@/lib/cn";
 import { IconImg } from "./icon-img";
@@ -91,7 +91,11 @@ const reading = (r: { label: string; leaguePoints: number }) => `${r.label} ${r.
  * reading of the account's rank.
  */
 export function lpNote(lp: LpRecord): string {
-  if (lp.kind === "lp") return `${reading(lp.before)} → ${reading(lp.after)}, checked just before and after this game.`;
+  if (lp.kind === "lp") {
+    // The two checks' times stay, so the figure can be checked (docs/RANKED_PROGRESS.md); the second without what it shares with the first.
+    const later = formatDateTimeAfter(lp.after.at, lp.before.at);
+    return `${reading(lp.before)} → ${reading(lp.after)}: checked ${formatDateTime(lp.before.at)} and ${later.day ? `${later.day}, ` : ""}${later.time}, just before and after this game.`;
+  }
   if (lp.kind === "promoted" || lp.kind === "demoted") return `${lp.kind === "promoted" ? "Promoted" : "Demoted"}: ${reading(lp.before)} before this game, ${reading(lp.after)} after it. A new division has no single LP figure.`;
   switch (lp.reason) {
     case "remake":
