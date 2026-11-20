@@ -165,7 +165,8 @@ test("on a large screen the chart's division names stay whole, and a narrow char
   // The root size grows above 1536px (globals.css), and the labels with it: the gutter follows
   // (it was a fixed 64px, which cut "Platinum II" on the left above about 1700px). Demo Mid, whose
   // readings are Platinum IV to II, the longest names a division line carries (Demo Top's Silver
-  // ones fit even the old gutter).
+  // ones fit even the old gutter). From lg the labels are 12px at least (the desktop's floor), so
+  // 1440 is measured too: with a 4rem gutter "Platinum IV" started 6px left of the drawing there.
   test.skip(info.project.name !== "desktop", "a desktop window, then a phone-wide one");
   await page.goto("/team");
   const id = (await page.getByTestId("lineup-row-MID").getAttribute("data-player-id"))!;
@@ -173,17 +174,19 @@ test("on a large screen the chart's division names stay whole, and a narrow char
     page.getByTestId("ranked-chart").evaluate((svg) =>
       [...svg.querySelectorAll<SVGTextElement>("text[data-division]")].map((t) => ({ x: t.getBBox().x, text: t.textContent ?? "" })),
     );
-  await page.setViewportSize({ width: 2560, height: 1440 });
-  await page.goto(`/players/${id}`);
-  await expect(page.getByTestId("ranked-chart")).toBeVisible();
-  // Measured: the drawing is as tall as its box (7.5rem) at this root size too.
-  await expect.poll(async () => Math.abs(Number((await page.getByTestId("ranked-chart").getAttribute("viewBox"))!.split(" ")[3]) - (await page.getByTestId("ranked-chart").boundingBox())!.height)).toBeLessThanOrEqual(1);
-  const wide = await labels();
-  expect(wide.length, "division names drawn").toBeGreaterThan(0);
-  for (const l of wide) expect(l.x, `"${l.text}" starts inside the drawing`).toBeGreaterThanOrEqual(0);
-  // The longest names the wide chart writes ("Platinum II", "Emerald III", "Diamond IV") are what
-  // the gutter must hold; at 2560 the root is about 22px.
-  expect(wide.some((l) => / I{1,3}V?$|IV$/.test(l.text)), "the wide chart names divisions in full").toBe(true);
+  for (const [width, height] of [[2560, 1440], [1440, 900]] as const) {
+    await page.setViewportSize({ width, height });
+    await page.goto(`/players/${id}`);
+    await expect(page.getByTestId("ranked-chart")).toBeVisible();
+    // Measured: the drawing is as tall as its box (7.5rem) at this root size too.
+    await expect.poll(async () => Math.abs(Number((await page.getByTestId("ranked-chart").getAttribute("viewBox"))!.split(" ")[3]) - (await page.getByTestId("ranked-chart").boundingBox())!.height)).toBeLessThanOrEqual(1);
+    const wide = await labels();
+    expect(wide.length, `${width}: division names drawn`).toBeGreaterThan(0);
+    for (const l of wide) expect(l.x, `${width}: "${l.text}" starts inside the drawing`).toBeGreaterThanOrEqual(0);
+    // The longest names the wide chart writes ("Platinum II", "Emerald III", "Diamond IV") are what
+    // the gutter must hold; at 2560 the root is about 21px.
+    expect(wide.some((l) => / I{1,3}V?$|IV$/.test(l.text)), `${width}: the wide chart names divisions in full`).toBe(true);
+  }
   // A phone-wide window: every line by its code, as match cards write a rank (P2, a tier's line by
   // its first division, E4; the apex M), never a bare letter or a short word beside codes; whole.
   await page.setViewportSize({ width: 360, height: 800 });
