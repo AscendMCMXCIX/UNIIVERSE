@@ -145,3 +145,19 @@ test("on a phone, the Select is the browser's own select, with the phone's own p
   await sort.selectOption("games");
   await expect(sort).toHaveValue("games");
 });
+
+test("without JavaScript, a form's Select is the browser's own select, so the Overview's filters still apply", async ({ browser, baseURL }, info) => {
+  test.skip(info.project.name !== "desktop", "the server's own markup, the same at every width");
+  const ctx = await browser.newContext({ javaScriptEnabled: false, viewport: { width: 1280, height: 800 } });
+  await ctx.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
+  const page = await ctx.newPage();
+  await page.goto("/team");
+  const id = await page.locator("[data-testid=lineup-row-MID]").first().getAttribute("data-player-id");
+  await page.goto(`/players/${id}`);
+  const mode = page.locator("select#overview-mode");
+  await expect(mode).toHaveAttribute("name", "mode");
+  await mode.selectOption("solo");
+  await mode.evaluate((el) => (el as HTMLSelectElement).form!.submit());
+  await expect(page).toHaveURL(/mode=solo/);
+  await ctx.close();
+});

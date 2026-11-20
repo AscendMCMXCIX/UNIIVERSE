@@ -30,13 +30,13 @@ function only(field: Locator): Locator {
 }
 
 /**
- * Waits for the page's code: the server draws the popover's button everywhere, and the phone posture
- * swaps it for the browser's own select as the page hydrates.
+ * Waits for the page's code (`data-ready`): the server draws the popover's button (a form's field:
+ * the browser's own select), and the page swaps it for the form its posture takes as it hydrates.
  */
 export async function ready(field: Locator): Promise<void> {
   const control = only(field);
   await expect(control).toBeVisible();
-  await expect.poll(() => control.evaluate((el) => el.tagName === "SELECT" || el.hasAttribute("data-ready"))).toBe(true);
+  await expect.poll(() => control.evaluate((el) => el.hasAttribute("data-ready"))).toBe(true);
 }
 
 /** The value a Select shows: the native select's, or the popover's (`data-value`). */

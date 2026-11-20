@@ -112,10 +112,13 @@ export function nextEnabled(options: readonly SelectOption[], from: number, step
 
 export function Select(props: SelectProps) {
   const native = useWindowPosture();
-  if (native) {
+  const ready = React.useSyncExternalStore(noop, yes, no);
+  // A field of a form (it has a `name`) is the browser's own select until the page's code runs, so
+  // the form works without JavaScript (the Overview's filters and their noscript Apply).
+  if (native || (props.name && !ready)) {
     const { value, options, onValueChange, className, "data-testid": testId, ...rest } = props;
     return (
-      <NativeSelect {...rest} value={value} onChange={(e) => onValueChange(e.target.value)} className={className} data-testid={testId}>
+      <NativeSelect {...rest} value={value} onChange={(e) => onValueChange(e.target.value)} className={className} data-testid={testId} data-ready={ready || undefined}>
         {runsOf(options).map((run) => {
           const items = run.items.map(({ option: o }) => (
             <option key={o.value} value={o.value} disabled={o.disabled}>
