@@ -168,13 +168,14 @@ export function ProfileHeader({ identity: served, self, editable = false, champi
                     <>
                       <span className="whitespace-nowrap">{rankLabel(rank.tier, rank.division)}</span>
                       <span className="whitespace-nowrap text-fg-muted">· {rank.leaguePoints} LP</span>
-                      {rankChecked}
                     </>
                   ) : (
                     <span className="text-fg-muted">Unranked</span>
                   )}
                 </span>
               ) : null}
+              {/* Beside the rank, not in it: its words are measured to stay inside the phone. */}
+              {p.showRank ? rankChecked : null}
               {p.lineupRole ? <LineupStatus role={p.lineupRole} className="max-sm:hidden" /> : null}
             </div>
           </div>
@@ -281,13 +282,13 @@ export function ProfileHeader({ identity: served, self, editable = false, champi
                       {rankLabel(rank.tier, rank.division)}
                       <span className="text-fg-muted">· {rank.leaguePoints} LP</span>
                       {rank.queue ? <span className="text-xs text-fg-subtle band:hidden">{QUEUE_LABEL[rank.queue]}</span> : null}
-                      {asOf ? <span className="sr-only">, last checked {asOf}</span> : null}
                     </>
                   ) : (
                     <span className="text-fg-muted">Unranked</span>
                   )}
                 </span>
               ) : null}
+              {p.showRank && rank && asOf ? <span className="sr-only">, last checked {asOf}</span> : null}
               {p.lineupRole ? <LineupStatus role={p.lineupRole} className="max-sm:band:hidden" condense /> : null}
             </div>
             <SocialLinks links={p.social} owner={p.displayName} size="header" className="mt-2 band:mt-0 band:shrink-0" />
