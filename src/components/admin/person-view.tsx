@@ -226,7 +226,8 @@ function PersonBody({
               }}
               data-testid="member-display-name"
             >
-              <div className="min-w-0 flex-1 space-y-1">
+              {/* The field keeps 12rem: at a large text size Save name goes under it rather than leave it two letters wide. */}
+              <div className="min-w-0 grow basis-48 space-y-1">
                 <Label htmlFor={`name-${a.userId}`}>Change their display name</Label>
                 <Input id={`name-${a.userId}`} value={name} onChange={(e) => setName(e.target.value)} autoComplete="off" maxLength={40} />
               </div>
