@@ -17,17 +17,25 @@ test.beforeEach(async ({ context, baseURL }, info) => {
 
 const ROWS = "[data-testid=admin-player-row],[data-testid=admin-user-row],[data-testid=admin-kept-row]";
 
+/**
+ * The plan's height target is for a list of 13 accounts (S9a). Other specs in the same run add
+ * members to the demo (CI's shards share one server), so the page is measured as it would be with
+ * 13 rows: each row past the 13th gives its own height back (the rows are one height, checked).
+ */
+const PLAN_ROWS = 13;
+
 async function measure(page: Page) {
-  return page.evaluate((sel) => {
+  return page.evaluate(([sel, planRows]) => {
     const rows = [...document.querySelectorAll(sel)].filter((e) => e.getBoundingClientRect().height > 0);
     const buttons = [...document.querySelectorAll("[data-testid=players-admin] button")].filter((b) => b.getBoundingClientRect().height > 0 && !b.closest("[data-testid=status-filters]"));
+    const extra = Math.max(0, rows.length - planRows) * rows[0]!.getBoundingClientRect().height;
     return {
       firstTop: rows[0]!.getBoundingClientRect().top + scrollY,
       heights: [...new Set(rows.map((r) => Math.round(r.getBoundingClientRect().height)))],
       destructive: buttons.filter((b) => /delete|erase|deactivate|remove|reset/i.test(b.textContent ?? "")).length,
-      screens: document.documentElement.scrollHeight / innerHeight,
+      screens: (document.documentElement.scrollHeight - extra) / innerHeight,
     };
-  }, ROWS);
+  }, [ROWS, PLAN_ROWS] as const);
 }
 
 test("the list starts high, its rows are one height, and it has no action buttons", async ({ page }, info) => {
