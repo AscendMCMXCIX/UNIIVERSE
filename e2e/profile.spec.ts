@@ -98,14 +98,17 @@ test("All Champions on a phone: the tab names it, the scope's one line right und
   for (const width of [393, 375]) {
     await page.setViewportSize({ width, height: 852 });
     const [s, f, o, c] = [(await search.boundingBox())!, (await toggle.boundingBox())!, (await sort.boundingBox())!, (await card.boundingBox())!];
-    expect(Math.abs(mid(s) - mid(o)), `${width}px: the search and Sort by on one row`).toBeLessThanOrEqual(2);
+    // One row at 393 (375 too where the text's width allows: a few px to spare, so not pinned here).
+    if (width === 393) expect(Math.abs(mid(s) - mid(o)), `${width}px: the search and Sort by on one row`).toBeLessThanOrEqual(2);
     expect(Math.abs(mid(s) - mid(f)), `${width}px: Filters on the search's row`).toBeLessThanOrEqual(2);
     expect(f.x, `${width}px: Filters after the search`).toBeGreaterThanOrEqual(s.x + s.width - 1);
     expect(Math.round(f.width) >= 44 && Math.round(f.height) >= 44, `${width}px: Filters 44px`).toBe(true);
     expect(o.x + o.width, `${width}px: inside the card`).toBeLessThanOrEqual(c.x + c.width);
-    expect(s.width, `${width}px: the search keeps room to type`).toBeGreaterThanOrEqual(72);
+    // Room for its short placeholder whole ("Find…": the icon's 36px, the text, 12px), never "F…".
+    expect(s.width, `${width}px: the search keeps room to type`).toBeGreaterThanOrEqual(84);
+    await expect(search).toHaveAttribute("placeholder", "Find…");
     await expect(page.getByLabel("Sort by")).toBeVisible();
-    expect(await sort.locator("label").evaluate((l) => l.getBoundingClientRect().width), `${width}px: the label read out only`).toBeLessThanOrEqual(1);
+    if (width === 393) expect(await sort.locator("label").evaluate((l) => l.getBoundingClientRect().width), `${width}px: the label read out only`).toBeLessThanOrEqual(1);
     if (width >= 375) expect(await scope.evaluate(lines), `${width}px: the scope's words on one line`).toBeLessThan(1.5);
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), `${width}px: no sideways scroll`).toBeLessThanOrEqual(0);
   }
@@ -146,6 +149,16 @@ test("All Champions on a phone: the tab names it, the scope's one line right und
   await page.keyboard.press("Escape");
   await expect(sheet).toHaveCount(0);
   await expect(toggle).toBeFocused();
+  // Turned with the sheet open (Filters is drawn in the header from 640px): closed, the focus goes to
+  // the button where it now is, not to the page.
+  await toggle.click();
+  await expect(sheet).toBeVisible();
+  await page.setViewportSize({ width: 700, height: 393 });
+  await page.keyboard.press("Escape");
+  await expect(sheet).toHaveCount(0);
+  await expect(toggle).toBeFocused();
+  await page.setViewportSize({ width: 393, height: 852 });
+  await expect(page.getByTestId("all-champions-toolbar").getByTestId("filter-toggle")).toBeVisible();
   await toggle.click();
   await pick(sheet.locator("select[name=mode]"), "solo");
   await expect(page).toHaveURL(/[?&]mode=solo/);

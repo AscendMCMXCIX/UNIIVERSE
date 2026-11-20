@@ -302,7 +302,7 @@ export function sortChampions(rows: readonly OverviewCard[], key: SortKey, dir: 
   });
 }
 /** An upright phone, as the sm breakpoint (below 40rem): Filters and Refresh join the list's search and sort row there. */
-const PHONE_QUERY = "(max-width: 39.99rem)";
+const PHONE_QUERY = "(width < 40rem)";
 function subscribePhone(change: () => void) {
   const query = window.matchMedia(PHONE_QUERY);
   query.addEventListener("change", change);
@@ -343,7 +343,8 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
   // the tools end the visible "Sort by" line instead of taking a line of their own.
   const toolbarRef = React.useRef<HTMLDivElement>(null);
   const [toolsBesideSort, setToolsBesideSort] = React.useState(false);
-  React.useEffect(() => {
+  // Before paint, so the row is drawn once where it belongs.
+  React.useLayoutEffect(() => {
     const row = toolbarRef.current;
     if (!row || !phone) return setToolsBesideSort(false);
     const check = () => {
@@ -656,11 +657,12 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
           // card the search takes its own line above Sort by. From 44rem the row holds the search,
           // the count and the bar's key, wrapping only if a larger text size leaves no room.
           // Phones (below sm): the search and Filters (and Refresh, where it is offered) keep together,
-          // and Sort by joins them where the row has room, else takes the next line; the search keeps
+          // and Sort by joins them where the row has room (8.5rem for the search and Filters: the
+          // search then shows its short placeholder "Find…" whole, from a 375px phone), else takes the next line; the search keeps
           // at least 4.5rem and the tools take the line under it only when it would not (a large text size).
           <div ref={toolbarRef} className="flex flex-wrap items-center gap-2 border-b border-border/70 px-3 py-2.5 sm:@min-[20.5rem]:flex-nowrap @min-[44rem]:flex-wrap @min-[76rem]:px-4" data-testid="all-champions-toolbar">
-            <div className={cn("flex min-w-0 flex-[1_1_12rem] flex-wrap items-center gap-2 max-sm:flex-[1_1_0%] @min-[44rem]:max-w-xs", refreshHere ? "max-sm:min-w-[min(11rem,100%)]" : "max-sm:min-w-[min(7.75rem,100%)]")}>
-              <SearchInput ref={searchRef} value={query} onChange={setQuery} placeholder="Find a champion or role…" label="Find a champion or a role" className="flex-[1_1_4.5rem]" testId="all-champions-search" />
+            <div className={cn("flex min-w-0 flex-[1_1_12rem] flex-wrap items-center gap-2 max-sm:flex-[1_1_0%] @min-[44rem]:max-w-xs", refreshHere ? "max-sm:min-w-[min(11.75rem,100%)]" : "max-sm:min-w-[min(8.5rem,100%)]")}>
+              <SearchInput ref={searchRef} value={query} onChange={setQuery} placeholder={phone ? "Find…" : "Find a champion or role…"} label="Find a champion or a role" className="flex-[1_1_4.5rem]" testId="all-champions-search" />
               {toolsBesideSort ? null : phoneTools}
             </div>
             <span className="ml-auto hidden text-xs tabular-nums text-fg-subtle @min-[44rem]:inline" aria-live="polite" data-testid="all-champions-count">

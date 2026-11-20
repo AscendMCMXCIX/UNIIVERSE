@@ -251,6 +251,16 @@ export function FilterBar({
     const was = atOpen.current;
     const changed = chose.current || was.summary !== now.current.summary || was.activeCount !== now.current.activeCount;
     if ((from.current === "toolbar" || from.current === "topbar") && changed) setLandBy(Date.now() + LAND_WITHIN_MS);
+    // Opened from its own button, which a phone turned (or a text size's reflow) has since redrawn
+    // elsewhere (toggleOnPhones): the window hands the focus back to the button it saved, now gone
+    // from the page, so the focus would fall to the page. After its hand-back, to the button as it is.
+    if (from.current === "own")
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() => {
+          const now = document.activeElement;
+          if ((!now || now === document.body || !now.isConnected) && ownRef.current?.isConnected) ownRef.current.focus({ preventScroll: true });
+        }),
+      );
     setOpenedFrom(null);
   }, []);
   const choose = React.useCallback(() => {
@@ -360,7 +370,7 @@ export function FilterBar({
       aria-haspopup="dialog"
       aria-expanded={open}
       aria-controls={open ? id : undefined}
-      className={toolbarButtonClass(activeCount > 0, cn(hosted ? "relative w-11 px-0" : at.toggle, !hosted && toggleOnPhones && "max-sm:hidden", compactToggle && "max-[22.5rem]:min-w-11 max-[22.5rem]:px-2.5"))}
+      className={toolbarButtonClass(activeCount > 0, cn(hosted ? cn("relative w-11 px-0 transition-opacity motion-reduce:transition-none", pending && "opacity-60") : at.toggle, !hosted && toggleOnPhones && "max-sm:hidden", compactToggle && "max-[22.5rem]:min-w-11 max-[22.5rem]:px-2.5"))}
       data-testid={toggleTestId}
       data-filter-toggle=""
     >
