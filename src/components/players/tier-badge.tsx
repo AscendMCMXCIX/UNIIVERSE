@@ -35,7 +35,7 @@ export function TierBadge({ tier, label, why, evidence, compact = false, quiet =
       >
         {/* On one line wherever it fits; in a row too narrow for it (a pool on a 320px phone at 200% text,
             where it ran past the screen's edge) its words wrap, the mark staying with the first. */}
-        <span className={cn("inline-flex items-center gap-1 text-xs font-medium", TIER_TEXT[tier])} data-tier={tier}>
+        <span className={cn("inline-flex items-baseline gap-1 text-xs font-medium", TIER_TEXT[tier])} data-tier={tier}>
           <span aria-hidden className="text-2xs">
             {TIER_MARK[tier]}
           </span>

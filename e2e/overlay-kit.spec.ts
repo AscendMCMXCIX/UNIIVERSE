@@ -325,16 +325,17 @@ test("phone 320 × 568 and 375 × 667 at 100, 150 and 200% text: after a 100px s
           const frame = flow ? Math.max(barBottom, fixed) : Math.max(barBottom, header.getBoundingClientRect().bottom);
           const vw = document.documentElement.clientWidth;
           const off = [...controls.querySelectorAll<HTMLElement>("button, a[href]")].filter((b) => { const r = b.getBoundingClientRect(); return r.left < -0.5 || r.right > vw + 0.5; }).map((b) => b.getAttribute("aria-label") ?? b.textContent);
-          return { frame: Math.round(frame), scrolled: Math.round(scroller.scrollTop), off, title: d.querySelector("h2")?.textContent ?? "" };
+          return { frame: Math.round(frame), scrolled: Math.round(scroller.scrollTop), off };
         });
         const at = `${w.name} at ${width} × ${height}, ${size}%`;
         expect(m.off, `${at}: controls on the screen`).toEqual([]);
         // A body too short to scroll 100px leaves its header as it is: nothing to give back.
         if (m.scrolled >= 100) expect(m.frame, `${at}: the frame after a 100px scroll`).toBeLessThanOrEqual(height * 0.25);
       }
-      // The whole title stays the window's name, whatever the bar draws.
+      // The whole title stays the window's name, whatever the collapsed bar draws (still scrolled, at 200%).
       const name = await win.evaluate((d) => document.getElementById(d.getAttribute("aria-labelledby")!)?.textContent?.trim() ?? "");
       expect(name.length, `${w.name}: the window is named`).toBeGreaterThan(0);
+      await expect(page.getByRole("dialog", { name, exact: true }), `${w.name}: named by its whole title`).toHaveCount(1);
       if (width === 320) {
         if (w.address) {
           await expect(page).toHaveURL(w.address);
@@ -348,7 +349,7 @@ test("phone 320 × 568 and 375 × 667 at 100, 150 and 200% text: after a 100px s
         await expect(win).toHaveCount(0);
         if (w.address) await expect(page).not.toHaveURL(w.address);
         // The focus goes back to what opened the window.
-        await expect.poll(() => page.evaluate(() => (document.activeElement === document.body ? "body" : document.activeElement?.closest("dialog") ? "dialog" : "page")), `${w.name}: the focus is back on the page`).toBe("page");
+        await expect(opener, `${w.name}: the focus is back on what opened it`).toBeFocused();
       }
       await page.evaluate(() => { document.documentElement.style.fontSize = ""; });
     }
