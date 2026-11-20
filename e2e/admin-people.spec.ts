@@ -315,4 +315,12 @@ test("Reactivate with a new temporary password: a deactivated member comes back 
   await page.goBack();
   await expect(page).toHaveURL(personUrl);
   await expect(page.getByTestId("person-view")).toBeVisible();
+  // Closed now, it goes Back to the list's own entry: one more Back leaves the page, never a second
+  // copy of the list (the entry the person view pushed, restored by Back, is still the one it pushed).
+  const at = () => page.evaluate(() => (window as unknown as { navigation: { currentEntry: { index: number } } }).navigation.currentEntry.index);
+  const opened = await at();
+  await page.getByTestId("person-view-close").click();
+  await expect(page.getByTestId("person-view")).toBeHidden();
+  await expect(page).not.toHaveURL(/person=/);
+  expect(await at(), "closing went Back, not a replace").toBe(opened - 1);
 });

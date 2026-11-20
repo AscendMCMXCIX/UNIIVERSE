@@ -356,7 +356,12 @@ Safari.
 ### The one history rule (`address-item.ts`)
 
 Opening pushes one entry, switching to another item replaces it, and closing goes Back when this
-page pushed that entry (otherwise it replaces the address without the item: a deep link). So Back
+page pushed that entry, or when the entry before is the same address without the item (otherwise
+it replaces the address without the item: a deep link). The second case is a page returned to by
+Back after a link inside the open item left it (a person view's "See all in Audit Logs"): the
+remounted page reads the entry before through the Navigation API (`entryBeforeIsWithout`), so
+closing still goes Back and one more Back leaves the page; a browser without the API replaces, as
+for a deep link (20 Nov 2026; `e2e/admin-people.spec.ts`). So Back
 always closes what is open and never walks through the items seen, and Forward reopens the last
 one. `useAddressItem(param, { initial, valid })` returns `{ id, open, close, toggle }`; `historyStep`
 is the rule as a pure function (`peek.test.ts`).

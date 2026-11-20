@@ -5,8 +5,9 @@ import * as React from "react";
 /*
   The one history rule for whatever a page opens over or inside itself (a Peek, an Unfold, a
   window with an address): opening pushes one entry, switching to another item replaces it, and
-  closing goes Back when this page pushed that entry (else it replaces the address without the
-  item: a deep link, or an item opened before a reload). So Back always closes what is open and
+  closing goes Back when this page pushed that entry, or when the entry before is the same address
+  without the item (else it replaces the address without the item: a deep link, or an item opened
+  before a reload). So Back always closes what is open and
   never walks through the items seen; Forward reopens the last one. Back and Forward are followed
   (popstate): the item the address names is the one open.
 
@@ -66,6 +67,26 @@ export function closeInPlace(param: string): boolean {
     }, 0);
   }
   return true;
+}
+
+/**
+ * Whether the history entry before the current one is this page's address without `param` (what
+ * opening the item pushed from). Read through the Navigation API where the browser has it; without
+ * it, false (closing then replaces, as for a deep link).
+ */
+export function entryBeforeIsWithout(param: string): boolean {
+  try {
+    const nav = (window as unknown as { navigation?: { currentEntry?: { index: number } | null; entries?: () => Array<{ url: string | null }> } }).navigation;
+    const index = nav?.currentEntry?.index;
+    if (!nav?.entries || typeof index !== "number" || index < 1) return false;
+    const before = nav.entries()[index - 1]?.url;
+    if (!before) return false;
+    const url = new URL(before);
+    const without = itemHref(`${window.location.pathname}${window.location.search}${window.location.hash}`, param, null);
+    return url.origin === window.location.origin && `${url.pathname}${url.search}${url.hash}` === without;
+  } catch {
+    return false;
+  }
 }
 
 export interface AddressItem {
@@ -138,11 +159,13 @@ export function useAddressItem(param: string, { initial = null, valid }: { initi
   );
 
   // The address as the page mounts: a page restored by Back (its cached render) may hold an item the
-  // server never rendered. Found so, it was not pushed by this page.
+  // server never rendered. Found so, it was not pushed by this page, unless the entry before is this
+  // same address without the item: then this page pushed it before a link left it (a person view's
+  // "See all in Audit Logs", then Back), and closing goes Back so one Back still leaves the page.
   React.useLayoutEffect(() => {
     const at = itemIn(window.location.search, param);
+    setPushed(at !== null && entryBeforeIsWithout(param));
     if (at !== current.current) {
-      setPushed(false);
       current.current = at;
       setRaw(at);
     }
