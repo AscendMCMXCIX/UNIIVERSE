@@ -208,7 +208,7 @@ const VELOCITY_WINDOW = 100;
  * Without `pull` (a screen, which has nothing to pull) only that last part stays, at every width: a
  * touch scrolls the screen's body where the body scrolls, and moves nothing anywhere else.
  */
-function useSheetDrag(ref: React.RefObject<HTMLDialogElement | null>, enabled: boolean, onDismiss: () => void, pull = true, handles?: string, native = false) {
+function useSheetDrag(ref: React.RefObject<HTMLDialogElement | null>, enabled: boolean, onDismiss: () => boolean | void, pull = true, handles?: string, native = false) {
   React.useEffect(() => {
     const d = ref.current;
     if (!enabled || !d) return;
@@ -262,6 +262,9 @@ function useSheetDrag(ref: React.RefObject<HTMLDialogElement | null>, enabled: b
       mode = "pending";
       // The dimmed page around the sheet is the dialog itself (its ::backdrop); content is inside it.
       scroller = e.target === d ? null : ((e.target as Element | null)?.closest?.("[data-sheet-scroll]") as HTMLElement | null);
+      // A whole-screen window that scrolls as one (a small phone, large text, a short window) is
+      // its own scroller: scrolled away from its top, a pull on its header scrolls it back up.
+      if (onHandle && d.scrollHeight > d.clientHeight + 1) scroller = d;
     };
     const onMove = (e: TouchEvent) => {
       const t = e.touches[0];
@@ -299,15 +302,16 @@ function useSheetDrag(ref: React.RefObject<HTMLDialogElement | null>, enabled: b
       if (dy > Math.min(140, d.offsetHeight * DISMISS_SHARE) || velocity > DISMISS_VELOCITY) {
         // A whole-screen window carries on down from where the finger left it (its own closing
         // motion, a fade towards the centre, would jump back first); then it closes as any does.
-        if (handles && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        // Asked first: a window with unsaved edits may stay (canClose), and then settles back.
+        const closes = onDismiss() !== false;
+        if (closes && handles && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
           d.style.animation = "none";
           d.style.transition = "transform 140ms var(--ease-emphasized), opacity 140ms linear";
           d.style.transform = "translateY(100%)";
           d.style.opacity = "0";
         }
         // Closes with sheet-out from this offset (its keyframes have no start), or at once for reduced motion.
-        onDismiss();
-        return;
+        if (closes) return;
       }
       d.style.transition = "transform 180ms var(--ease-emphasized)";
       d.style.removeProperty("transform");
@@ -331,7 +335,7 @@ function useSheetDrag(ref: React.RefObject<HTMLDialogElement | null>, enabled: b
 /** What a whole-screen window is pulled down by: its header, and the bar it collapses to. */
 const HANDLE = "[data-modal-handle]";
 /** The bar a whole-screen phone window's header collapses to once its body scrolls (3.5rem: 56px). */
-const COMPACT_BAR = "h-14";
+const COMPACT_BAR = "min-h-14";
 /** How far the body scrolls before the header collapses, in px (back at its top it opens again). */
 const COMPACT_AFTER_PX = 8;
 
@@ -640,8 +644,18 @@ export function DetailModal({
       const top = scroller.scrollTop;
       if (top <= 0) return setCompact(false);
       const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
-      const saved = Math.max(0, h.offsetHeight - 3.5 * rem);
-      if (top > COMPACT_AFTER_PX && scroller.scrollHeight - scroller.clientHeight > saved + COMPACT_AFTER_PX) setCompact(true);
+      // The header's own height, whether collapsed or not (scrollHeight: its content's).
+      const full = h.scrollHeight;
+      if (flow) {
+        // Scrolling as one, nothing collapses: the bar comes once the header has gone up under it.
+        if (top > Math.max(COMPACT_AFTER_PX, full - 3.5 * rem)) setCompact(true);
+        else setCompact(false);
+        return;
+      }
+      // A header no taller than the bar has nothing to give back: no bar over it.
+      if (custom && full <= 3.5 * rem + 1) return setCompact(false);
+      const saved = Math.max(0, full - 2.5 * rem);
+      if (top > COMPACT_AFTER_PX && scroller.scrollHeight - scroller.clientHeight > saved + 3 * COMPACT_AFTER_PX) setCompact(true);
     };
     const onScroll = () => {
       if (!frame) frame = requestAnimationFrame(check);
@@ -653,7 +667,7 @@ export function DetailModal({
       scroller.removeEventListener("scroll", onScroll);
       phone.removeEventListener("change", check);
     };
-  }, [open, whole, innerScroll, flow]);
+  }, [open, whole, innerScroll, flow, custom]);
 
   // The window is out of the top layer as it closes or leaves the page, said while it is still on
   // the page (a layout effect's cleanup), so the toasts drawn in it are back in place before the
@@ -726,13 +740,14 @@ export function DetailModal({
     [],
   );
 
-  const requestClose = React.useCallback(() => {
-    if (timer.current !== null) return;
-    if (latest.current.canClose && !latest.current.canClose()) return;
+  /** Asks to close; false when the owner keeps it open (canClose: unsaved edits). */
+  const requestClose = React.useCallback((): boolean => {
+    if (timer.current !== null) return true;
+    if (latest.current.canClose && !latest.current.canClose()) return false;
     const reduce = typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (reduce) {
       latest.current.onClose();
-      return;
+      return true;
     }
     setClosing(true);
     // Out of the top layer from now: the toasts drawn in it go back in place as its closing motion
@@ -742,13 +757,15 @@ export function DetailModal({
       timer.current = null;
       latest.current.onClose();
     }, EXIT_MS);
+    return true;
   }, []);
   // Sheets are pulled down from anywhere on them; whole-screen windows from their header (the
   // shell's bar included), on phones and in short windows, where they take the whole screen (PLAN
   // S4a: pull-down closes every full-screen phone window, not only sheets). The account screen is a
   // screen, not a window over an item: nothing on it pulls, and a touch moves nothing behind it.
   useSheetDrag(ref, open && (docked || screen), requestClose, docked);
-  useSheetDrag(ref, open && whole, requestClose, false, HANDLE, true);
+  // Not a window whose content scrolls itself (Card Studio's editor: innerScroll), which has its own touch handling.
+  useSheetDrag(ref, open && whole && !innerScroll, requestClose, false, HANDLE, true);
 
   // The close button alone in the top-right corner: the window's own navigation sits left of it,
   // past a divider, and nothing in the header comes within CLEARANCE_PX of either.
@@ -863,11 +880,15 @@ export function DetailModal({
               data-testid="modal-compact-bar"
               data-compact={compact || undefined}
               className={cn(
-                "pointer-events-none fixed inset-x-0 top-[env(safe-area-inset-top)] z-10 flex touch-none items-center border-b border-border bg-bg-elevated pl-4 pr-[var(--modal-clear-right,4.5rem)] opacity-0 transition-opacity duration-150 data-[compact=true]:pointer-events-auto data-[compact=true]:opacity-100 sm:hidden",
+                // The name beside the controls' room (a spacer as wide as they are), or, where that
+                // leaves it under 6rem (a large text size), on a line of its own under them.
+                "pointer-events-none fixed inset-x-0 top-[env(safe-area-inset-top)] z-10 flex touch-none flex-wrap-reverse items-center border-b border-border bg-bg-elevated px-4 opacity-0 transition-opacity duration-150 data-[compact=true]:pointer-events-auto data-[compact=true]:opacity-100 sm:hidden",
                 COMPACT_BAR,
               )}
             >
-              <span className="truncate text-base font-semibold">{compactTitle ?? title}</span>
+              {/* Two lines at most: at a large text size the controls leave the name little room. */}
+              <span className="line-clamp-2 min-w-24 flex-1 py-2 text-base font-semibold leading-tight">{compactTitle ?? title}</span>
+              <span aria-hidden className="ml-auto h-[calc(3.5rem-1px)] w-[calc(var(--modal-clear-right,4.5rem)-1rem)] shrink-0" />
             </div>
           ) : null}
           {header ? (
