@@ -616,8 +616,13 @@ With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shel
       outside it as its band, tabs and section. Leaderboards and Team Matches had theirs.
     - *The 12px floor* (UD.X5): `text-2xs` is 12px on desktops (lg), 11px on phones and tablets,
       one token for every use (globals.css); uppercase labels (and `label-caps`) keep 11px. The game cards of Match History and Team Matches
-      took it in Release 11 after a measured pass at 1280, 1440, 1920 and 2560 (no new wrap, no cut word, the
-      build whole), so `type-floor-later` has no place left in `design-tokens.test.ts`; `text-4xs`
+      took it in Release 11 after a measured pass at 1024, 1280, 1366, 1440, 1536, 1920 and 2560: no new wrap,
+      the build whole, heights +1px at most. Where the card holds the build and the teams (a 61–70rem list,
+      1366 and 1440 with the sidebar open) its columns stay 10px apart (16px from 70rem), which gives the
+      teams the room 12px needs: cut roster names on the demo went from 146 to 26 at 1366 and 38 to 12 at
+      1440 against the 11px cards. The one-line "With …" list of team members, already cut short with
+      its full text as hover text, cuts one or two more at 1024 to 1366. `type-floor-later` has no place
+      left in `design-tokens.test.ts`; `text-4xs`
       stays for letters inside small tiles (initials, the ⓘ glyph).
   - **One look at every width (S2c).** `e2e/design-parity.spec.ts` renders the shared components
     (stat label, Panel, DataRow, a badge, Button, the current section tab, InfoTip's bubble, Select)

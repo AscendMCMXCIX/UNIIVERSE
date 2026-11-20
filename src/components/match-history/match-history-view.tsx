@@ -73,7 +73,7 @@ const CARD_GRID = [
   "@min-[36rem]/mh:grid-cols-[auto_minmax(0,1fr)_auto_auto_auto] @min-[36rem]/mh:gap-x-3 @min-[36rem]/mh:gap-y-2",
   "@min-[50rem]/mh:grid-cols-[6.75rem_auto_minmax(6rem,0.7fr)_minmax(auto,0.5fr)_minmax(auto,0.6fr)_minmax(13rem,2fr)_auto] @min-[50rem]/mh:gap-x-2.5 @min-[50rem]/mh:py-2",
   "@min-[54rem]/mh:grid-cols-[6.75rem_auto_minmax(6.25rem,0.7fr)_minmax(auto,0.5fr)_minmax(auto,0.6fr)_minmax(13rem,2fr)_auto]",
-  "@min-[61rem]/mh:grid-cols-[6.75rem_auto_minmax(6.25rem,0.7fr)_minmax(auto,0.5fr)_minmax(auto,0.6fr)_auto_minmax(13rem,2fr)_auto] @min-[64rem]/mh:gap-x-4 @min-[72rem]/mh:gap-x-5",
+  "@min-[61rem]/mh:grid-cols-[6.75rem_auto_minmax(6.25rem,0.7fr)_minmax(auto,0.5fr)_minmax(auto,0.6fr)_auto_minmax(13rem,2fr)_auto] @min-[70rem]/mh:gap-x-4 @min-[72rem]/mh:gap-x-5",
 ].join(" ");
 /** The portrait: row 2 (rows 2–3 from 16rem); placed in order from 36rem. */
 const PHONE_PORTRAIT = "col-[1] row-[2] @min-[16rem]/mh:row-[2/span_2] @min-[36rem]/mh:col-auto @min-[36rem]/mh:row-auto";
@@ -227,7 +227,7 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
           real value fits, "10 / 10 / 10" and "1,234 dmg/min (45%)", so the columns stay level from
           card to card; the two-row card keeps the same floors), the champion's name has 6rem
           (6.25rem from 54rem, where the longest one-word name fits) and a second line, the teams
-          keep their names (13rem), and the columns sit 10px apart until 64rem, where the wider
+          keep their names (13rem), and the columns sit 10px apart until 70rem, where the wider
           gaps fit; so no text runs under the build or the teams. The teams' five lines set the
           wide card's height (about 100px). */}
       {/* The whole card opens and closes the match's breakdown under it. The player links in the

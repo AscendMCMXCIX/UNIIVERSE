@@ -31,8 +31,9 @@ export function matchTone(win: MatchOutcome) {
 
 /**
  * The card's outer surface: a result-coloured rail on the left and a faint wash of the same colour.
- * Its text follows the 12px floor on desktops like every other page (Release 11, measured at 1280,
- * 1440, 1920 and 2560: no new wrap, no cut word, the build whole; globals.css).
+ * Its text follows the 12px floor on desktops like every other page (Release 11, measured at 1024,
+ * 1280, 1366, 1440, 1536, 1920 and 2560: no new wrap, the build whole, heights +1px at most; with the
+ * columns 10px apart up to a 70rem list, fewer roster names are cut than at 11px; globals.css).
  */
 export function matchCardClass(win: MatchOutcome, { interactive = false }: { interactive?: boolean } = {}) {
   const t = matchTone(win);
