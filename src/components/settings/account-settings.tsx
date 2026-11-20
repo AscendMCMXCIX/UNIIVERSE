@@ -102,10 +102,15 @@ export async function AccountSettings({ mode }: { mode: "player" | "admin" }) {
   const modeSwitch = isAdmin(session) ? mode : null;
   const sections = [...(user ? [{ id: "name", label: "Name" }] : []), ...(social !== undefined ? [{ id: "links", label: "Links" }] : []), ...(session?.userId ? [{ id: "password", label: "Password" }] : []), { id: "device", label: "This device" }];
   return (
-    <div className="mx-auto grid max-w-5xl gap-3 sm:grid-cols-[15rem_minmax(0,1fr)] sm:grid-rows-[auto_1fr] sm:gap-x-5 sm:gap-y-4 md:gap-x-6 md:gap-y-5 lg:grid-cols-[16rem_minmax(0,1fr)]">
-      <PageHeader className="sm:col-start-2 sm:row-start-1 lg:col-span-2 lg:col-start-1" title="Settings" description="Your picture, display name, username and password." guide />
+    // Two columns only where the page has room for them in rem (36rem: at the usual size from sm, as
+    // before), and the account column at most 40% of it: at 175–200% text on a tablet or desktop the
+    // 15–16rem column left the panels too little room (a sideways scroll, Release 7's report), and
+    // beside a 16rem sidebar the page is about 12rem at 1024 × 200%. With less, one column, as a phone's.
+    <div className="@container/settings">
+      <div className="mx-auto grid max-w-5xl gap-3 sm:@min-[36rem]/settings:grid-cols-[min(15rem,40%)_minmax(0,1fr)] sm:@min-[36rem]/settings:grid-rows-[auto_1fr] sm:gap-x-5 sm:gap-y-4 md:gap-x-6 md:gap-y-5 lg:@min-[36rem]/settings:grid-cols-[min(16rem,40%)_minmax(0,1fr)]">
+      <PageHeader className="sm:@min-[36rem]/settings:col-start-2 sm:@min-[36rem]/settings:row-start-1 lg:@min-[36rem]/settings:col-span-2 lg:@min-[36rem]/settings:col-start-1" title="Settings" description="Your picture, display name, username and password." guide />
 
-      <section aria-label="Your account" className="surface-lead @container grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-3 rounded-panel border border-border bg-surface p-3 sm:col-start-1 sm:row-span-2 sm:row-start-1 sm:self-start lg:row-span-1 lg:row-start-2 sm:p-4 md:not-short:sticky md:not-short:top-[calc(var(--bar-top)+1rem)]" data-testid="settings-account">
+      <section aria-label="Your account" className="surface-lead @container grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-3 rounded-panel border border-border bg-surface p-3 sm:@min-[36rem]/settings:col-start-1 sm:@min-[36rem]/settings:row-span-2 sm:@min-[36rem]/settings:row-start-1 sm:@min-[36rem]/settings:self-start lg:@min-[36rem]/settings:row-span-1 lg:@min-[36rem]/settings:row-start-2 sm:p-4 md:not-short:@min-[36rem]/settings:sticky md:not-short:@min-[36rem]/settings:top-[calc(var(--bar-top)+1rem)]" data-testid="settings-account">
         {user ? (
           <AccountPicture name={displayName} seed={user.id} src={avatarUrl(user.id, user.avatarVersion)} afterIdentity={<AccountActions variant="quiet" profileLinks={profileLinks} modeSwitch={modeSwitch} />}>
             <p className="text-lg font-semibold leading-tight text-fg [overflow-wrap:anywhere]" data-testid="settings-name">
@@ -131,7 +136,7 @@ export async function AccountSettings({ mode }: { mode: "player" | "admin" }) {
         <AccountActions variant="rows" profileLinks={profileLinks} modeSwitch={modeSwitch} />
       </section>
 
-      <div className="min-w-0 space-y-4 sm:col-start-2 sm:row-start-2 md:space-y-5">
+      <div className="min-w-0 space-y-4 sm:@min-[36rem]/settings:col-start-2 sm:@min-[36rem]/settings:row-start-2 md:space-y-5">
         {user ? (
           <Panel id="name" className="lg:scroll-mt-6">
             <PanelHeader title="Name & username" />
@@ -163,6 +168,7 @@ export async function AccountSettings({ mode }: { mode: "player" | "admin" }) {
             Privacy: what this app stores about you, and how to ask for it to be corrected or removed
           </Link>
         </p>
+      </div>
       </div>
     </div>
   );
