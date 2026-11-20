@@ -636,11 +636,16 @@ async function sidewaysFrame(page, log, profileId) {
         sections: shown(document.querySelector("[data-testid=profile-chrome-tabs]")),
         teamRow: shown(document.querySelector("[data-testid=team-chrome-tabs]")),
         band: shown(band) ? Math.round(band.getBoundingClientRect().height) : null,
+        lineupRows: new Set([...document.querySelectorAll("[data-testid=lineup-cell]")].map((c) => Math.round(c.getBoundingClientRect().top))).size,
+        lineupCells: document.querySelectorAll("[data-testid=lineup-cell]").length,
       };
     });
   if (await visit(page, log, "phone", "sideways-team", "/team", { fullPage: false })) {
     const { entries, ...f } = await facts();
-    pass("frame", "phone held sideways (844 × 390): one compact bar holds the four destinations, Team's sections under it, with no bottom bar, the bars at most 90px", f.navs === 1 && f.inTopBar && destinationsInOrder(entries) && f.teamRow && !f.bottomBar && f.bars !== null && f.bars <= 90, { ...f, entries: entries.map((e) => e.label) });
+    const { lineupRows, lineupCells, ...frame } = f;
+    pass("frame", "phone held sideways (844 × 390): one compact bar holds the four destinations, Team's sections under it, with no bottom bar, the bars at most 90px", frame.navs === 1 && frame.inTopBar && destinationsInOrder(entries) && frame.teamRow && !frame.bottomBar && frame.bars !== null && frame.bars <= 90, { ...frame, entries: entries.map((e) => e.label) });
+    // S3a: the five cards in one row held sideways, never 2 + 2 + 1 with an orphan.
+    pass("team", "844x390: the lineup's five cards in one row, no orphan", lineupCells === 5 && lineupRows === 1, { lineupCells, lineupRows });
   }
   if (!profileId) return check("frame", "phone held sideways (844 × 390): a profile's sections and band", "PASS", "not applicable: no teammate's profile to open");
   if (await visit(page, log, "phone", "sideways-profile", `/players/${profileId}`, { fullPage: false })) {
@@ -676,7 +681,8 @@ async function accountMenuFirstTap(page, kind, trigger) {
  *   reaching the window's foot), or start at the top when they are taller than the window; and the
  *   header shows the logo at 80px and the "Team Overview" eyebrow over the name, with the cards on
  *   the stage's floor (drawn from just under them, hidden from screen readers);
- * - phone (390 × 844): the first lineup card ends above the tab bar;
+ * - phone (390 × 844): the first lineup card ends above the tab bar, and the lineup pager holds
+ *   the five players' pictures (S3a);
  * - every width: no bench of substitutes under the lineup (the approved design shows a substitute
  *   on their starter's card, turned to by its control).
  */
@@ -716,6 +722,8 @@ async function teamFacts(page, kind) {
       firstCardEnd: cells[0] ? Math.round(cells[0].bottom) : null,
       tabBarTop: nav ? Math.round(nav.getBoundingClientRect().top) : null,
       faces: document.querySelectorAll("[data-testid^=lineup-sub-]").length,
+      // The lineup pager's pictures (members' phones: each player's picture with the role as its badge).
+      pagerPictures: shown(q("[data-testid=lineup-pager]")) ? [...document.querySelectorAll("[data-testid=lineup-dot-picture]")].filter(shown).length : 0,
       bench: document.querySelectorAll("[data-testid=lineup-bench], [data-testid^=bench-]").length,
     };
   });
@@ -749,6 +757,8 @@ async function teamFacts(page, kind) {
     const name = "390x844 (the live check's phone): the first lineup card ends above the tab bar";
     if (f.tabBarTop === null || f.firstCardEnd === null) check("team", name, "PASS", `not applicable: ${f.tabBarTop === null ? "no tab bar shown" : "no lineup card"}`);
     else pass("team", name, f.firstCardEnd + f.scrollY <= f.tabBarTop, { firstCardEnd: f.firstCardEnd + f.scrollY, tabBarTop: f.tabBarTop });
+    // The lineup pager shows the team: one picture per role (S3a; the role names alone before).
+    pass("team", "390x844: the lineup pager holds the five players' pictures", f.pagerPictures === 5, { pagerPictures: f.pagerPictures });
   }
   // The approved design has no bench: a substitute is on their starter's card (its back).
   pass("team", `${kind}: no bench of substitutes under the lineup`, f.bench === 0, { bench: f.bench, cardsWithASubstitute: f.faces });
@@ -1048,10 +1058,31 @@ async function matchupIntelFacts(page, kind, wikiRequests) {
   for (const v of matchupIntelVerdicts({ kind, pair: "Riven vs Mordekaiser", enemy: "Mordekaiser", at, wide, wiki: wikiRequests })) check("matchup-intel", v.name, v.status, v.detail);
 }
 
+/**
+ * The profile's tabs keep one place on every section (S2c, 19 Nov 2026; UD.PO1): the desktop's visits
+ * of the teammate's Overview, All Champions and Match History each note where the tabs' row starts
+ * (y, from the page's top) and, at the end, one fact compares them within 1px. Before, the Overview's
+ * taller card put them 66px lower at 1440. No page load of its own; positions in px only.
+ */
+const profileTabsAt = {};
+async function noteProfileTabs(page, kind, section) {
+  if (kind !== "desktop") return;
+  profileTabsAt[section] = await page.evaluate(() => {
+    const row = document.querySelector("[data-testid=profile-tabs]");
+    return row ? Math.round((row.getBoundingClientRect().top + scrollY) * 10) / 10 : null;
+  }).catch(() => null);
+}
+function profileTabsLevel() {
+  const ys = Object.values(profileTabsAt);
+  if (ys.length < 2) return check("frame", "desktop: the profile's tabs keep one place on every section", "PASS", { notApplicable: "fewer than two profile sections loaded", at: profileTabsAt });
+  pass("frame", "desktop: the profile's tabs keep one place on every section (Overview, All Champions, Match History)", ys.every((y) => y !== null) && Math.max(...ys) - Math.min(...ys) <= 1, profileTabsAt);
+}
+
 async function allChampions(page, log, kind, playerId) {
   const path = playerId ? `/players/${playerId}/champions` : "/overview/champions";
   if (!(await visit(page, log, kind, "all-champions", path))) return;
   await page.getByTestId("all-champions").waitFor({ timeout: 20_000 });
+  await noteProfileTabs(page, kind, "champions");
   const facts = await page.evaluate(() => {
     const rows = [...document.querySelectorAll("[data-testid=top-champion]")];
     const headers = [...document.querySelectorAll("[data-testid=all-champions-header] button")];
@@ -1310,15 +1341,18 @@ async function skipToContent(page) {
  * no such row, or no page under it.
  */
 async function tabRowEdges(page, testId) {
-  await page.waitForFunction(() => !document.querySelector("main#content > [role=status]"), null, { timeout: 10_000 }).catch(() => {});
+  await page.waitForFunction(() => !document.querySelector("main#content > [data-testid=page-frame] > [role=status]"), null, { timeout: 10_000 }).catch(() => {});
   return page.evaluate((testId) => {
     const nav = document.querySelector(`[data-testid=${testId}]`);
     const main = document.querySelector("main#content");
     if (!nav || !main || nav.getBoundingClientRect().width === 0) return null;
+    // The page's column: the shared frame's child holding the row (a profile's), or the first one
+    // after a row of main's own (Team's), in the frame (S2c) or, on a build without it, in main.
+    const frame = main.querySelector(":scope > [data-testid=page-frame]") ?? main;
     let column = nav;
-    while (column && column.parentElement !== main) column = column.parentElement;
+    while (column && column.parentElement !== frame && column.parentElement !== main) column = column.parentElement;
     if (column === nav) {
-      column = nav.nextElementSibling;
+      column = frame === main ? nav.nextElementSibling : frame.firstElementChild;
       while (column && column.getBoundingClientRect().width === 0) column = column.nextElementSibling;
     }
     const first = nav.querySelector("li");
@@ -1375,6 +1409,7 @@ async function wideChecks(page, log) {
     ...(playerId ? [["profile", "the profile", `/players/${playerId}`, "profile-tabs", "the profile's tabs start where the page does"]] : []),
   ];
   const teamRow = [];
+  const columns = [];
   let teamPages = 0;
   for (const [name, label, path, row, says] of pages) {
     await guarded("wide", `2560: ${name}`, async () => {
@@ -1385,6 +1420,7 @@ async function wideChecks(page, log) {
       const at = await tabRowEdges(page, row);
       const fact = `2560: on ${label}, ${says}`;
       if (!at) return pass("wide", fact, false, { missing: `no ${row}, or no page under it` });
+      columns.push(at.page);
       pass("wide", fact, Math.abs(at.tab - at.page) <= 1, at);
       if (row === "team-tabs") {
         teamRow.push(at.tab);
@@ -1396,6 +1432,10 @@ async function wideChecks(page, log) {
   if (!playerId) check("wide", "2560: on the profile, the profile's tabs start where the page does", "PASS", { notApplicable: "no teammate on Team to open" });
   // Once a Team page has loaded, every one of them must have shown the row, in one place.
   if (teamPages > 0) pass("wide", "2560: Team's tab row is in the same place on each of its sections", teamRow.length === teamPages && Math.max(...teamRow) - Math.min(...teamRow) <= 1, { starts: teamRow, pagesLoaded: teamPages });
+  // One shared frame (S2c, 19 Nov 2026; UD.X3): every page starts at the left edge of one centred
+  // column, so the titles start at one x whatever the page's own width (before, the 80rem profile
+  // started 206px right of Team's 100rem pages here).
+  if (columns.length > 1) pass("wide", "2560: every page loaded starts at one x (the shared frame)", Math.max(...columns) - Math.min(...columns) <= 1, { starts: columns });
   await page.setViewportSize(VIEWPORTS.desktop.viewport);
 }
 
@@ -1534,6 +1574,7 @@ async function matchHistory(page, log, kind, playerId) {
   const path = playerId ? `/players/${playerId}/matches` : "/overview/matches";
   if (!(await visit(page, log, kind, "match-history", path, { fullPage: false }))) return;
   const card = page.getByTestId("match-card").first();
+  await noteProfileTabs(page, kind, "matches");
   if (!(await card.waitFor({ timeout: 20_000 }).then(() => true, () => false))) return warn("games", `${kind}: Match History lists no games`, path);
   if (kind === "desktop") {
     // A wide card's figures never run under the next column (the build, or the teams where the
@@ -1709,6 +1750,7 @@ for (const [kind, options] of Object.entries(VIEWPORTS)) {
   if (playerId) {
     await guarded(kind, "profile", async () => {
       if (await visit(page, log, kind, "profile", `/players/${playerId}`)) {
+        await noteProfileTabs(page, kind, "overview");
         await axe(page, kind, "profile");
         await guarded("ranked", `${kind}: Ranked progress`, () => rankedProgressEnds(page, kind));
       }
@@ -1770,6 +1812,7 @@ for (const [kind, options] of Object.entries(VIEWPORTS)) {
     });
   }
   // Wide screens in the desktop's own context (signed in already): four pages at 2560 × 1440.
+  if (kind === "desktop") await guarded("frame", "the profile's tabs", async () => profileTabsLevel());
   if (kind === "desktop") await guarded("wide", "2560 × 1440", () => wideChecks(page, log));
   // A phone held sideways, last in the phone's own context (signed in already): two pages at 844 × 390.
   if (kind === "phone") await guarded("frame", "phone held sideways (844 × 390)", () => sidewaysFrame(page, log, playerId));

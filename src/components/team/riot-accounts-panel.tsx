@@ -10,11 +10,11 @@ import type { RiotAccountRecord } from "@/server/accounts/repository";
 import { addPlayerAccountAction, changeRiotIdAction, removePlayerAccountAction, reorderAccountsAction, setMainAccountAction, syncPlayerAccountAction } from "@/server/actions/accounts";
 import { moveAccount, orderAccounts } from "@/domain/account-order";
 import { Menu, MenuItem, MenuSeparator } from "@/components/ui/menu";
-import { InfoTip } from "@/components/ui/info-tip";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonClass } from "@/components/ui/button";
 import { ConfirmDialog, Dialog } from "@/components/ui/dialog";
 import { Input, Label } from "@/components/ui/input";
+import { InfoTip } from "@/components/ui/info-tip";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 import { toast } from "@/components/ui/toast";
 import { RelativeTime } from "@/components/ui/relative-time";
@@ -103,7 +103,13 @@ export function RiotAccountsPanel({ playerId, accounts, riotConfigured, editable
           note repeats them. */}
       <PanelHeader
         title={title}
-        subtitle="The Main account is shown on the profile and used for rank; your alternatives follow in the order you set, wherever accounts are listed. Every linked account adds its games and mastery to the statistics; a game played on two accounts counts once."
+        // One line, the rest behind ⓘ (the phone header budget, docs/MOBILE.md); the same at every width.
+        subtitle={
+          <span data-testid="riot-accounts-lead">
+            Main account first; every linked account adds its games.{" "}
+            <InfoTip label="How linked accounts count" text="The Main account sets the profile's rank; the others follow in the order set. Each adds its games and mastery, counting a shared game once." testId="riot-accounts-info" />
+          </span>
+        }
         actions={status && refresh ? <RefreshButton status={status} refresh={refresh} /> : null}
       />
       <PanelBody className="space-y-3">

@@ -60,13 +60,16 @@ function DataLine({ status }: { status: ShellStatus }) {
   return <p className="truncate text-xs text-fg-subtle">Patch {status.patch ? publicPatchName(status.patch) : "—"}</p>;
 }
 
+/** The shared page column (see the main element); on Team Overview a column its lineup can grow into, as main is. */
+const FRAME = "mx-auto w-full max-w-[var(--content-wide)] *:ml-0 lg:has-[[data-fills-height]]:flex lg:has-[[data-fills-height]]:flex-1 lg:has-[[data-fills-height]]:flex-col";
+
 /** Things only this person can fix about their own account: an action card at the top of the page, not a header error. */
 function AccountNudges({ status }: { status: ShellStatus }) {
   const items: Array<{ href: string; text: string }> = [];
   if (status.needsPassword) items.push({ href: "/settings#password", text: "Your account has no password yet. Set one so you can sign in again." });
   if (items.length === 0) return null;
   return (
-    <div className="mb-4 space-y-2">
+    <div className="mx-auto mb-4 max-w-[var(--content-wide)] space-y-2">
       {items.map((i) => (
         <Link key={i.href} href={i.href} className="flex items-center justify-between gap-3 rounded-lg border border-warn/40 bg-warn/10 px-4 py-3 text-sm text-fg hover:bg-warn/15">
           <span>{i.text}</span>
@@ -165,10 +168,18 @@ export function AppShell({ status, children }: { status: ShellStatus; children: 
             {/* Team Overview's lineup is centred in the height left under the section tabs: on that page
                 only, main is a column its content can grow into (every other page is unchanged). */}
             {/* id and tabIndex: the skip link's target (focused without an outline: it is not a control). */}
-            <main id="content" tabIndex={-1} className="min-w-0 flex-1 px-safe-4 py-5 pb-tabbar outline-none sm:px-safe-6 md:pb-6 lg:px-8 lg:py-7 lg:has-[[data-testid=lineup-frame]]:flex lg:has-[[data-testid=lineup-frame]]:flex-col">
+            <main id="content" tabIndex={-1} className="min-w-0 flex-1 px-safe-4 py-5 pb-tabbar outline-none sm:px-safe-6 md:pb-6 lg:px-8 lg:py-7 lg:has-[[data-fills-height]]:flex lg:has-[[data-fills-height]]:flex-col">
               <AccountNudges status={status} />
               <SectionTabs allowed={allowed} team={{ name: b.teamName, logo: logoSrc(b), logoStill: logoStillSrc(b) }} />
-              {children}
+              {/* THE FRAME (UD.X3): one content column for every page, at most --content-wide and centred
+                  in the room beside the sidebar. A page narrower than it (the 80rem profiles, lists and
+                  documents, Settings, Admin) starts at its left edge, whatever its own centring
+                  (`*:ml-0`), so every title starts at one x and the content never jumps sideways
+                  between destinations; it simply ends earlier. Under 100rem of room the frame is the
+                  whole width and nothing changes (phones, tablets, laptops). */}
+              <div className={FRAME} data-testid="page-frame">
+                {children}
+              </div>
             </main>
           </div>
         </div>

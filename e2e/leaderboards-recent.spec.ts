@@ -690,9 +690,11 @@ test("on a phone: one column, the index of the sections below Recent form jumpin
     await expect.poll(() => page.evaluate(() => history.length), { message: `${name}: an entry of the page's own` }).toBe(entries + 1);
     const section = page.locator(`section#${id}`);
     await expect(section).toBeFocused();
-    const bar = (await page.getByTestId("mobile-topbar").boundingBox())!;
-    await expect.poll(async () => (await section.boundingBox())!.y, { message: `${name}: under the top bar` }).toBeGreaterThanOrEqual(bar.y + bar.height - 1);
-    expect((await section.boundingBox())!.y, `${name}: just under it`).toBeLessThanOrEqual(bar.y + bar.height + 24);
+    // Under the bar as it is once landed (under 700px tall its first row slides away as the page scrolls down, the sections row staying).
+    const under = async () => (await section.boundingBox())!.y - (await page.getByTestId("mobile-topbar").evaluate((b) => b.getBoundingClientRect().bottom));
+    await expect.poll(under, { message: `${name}: under the top bar` }).toBeGreaterThanOrEqual(-1);
+    await page.waitForTimeout(300);
+    expect(await under(), `${name}: just under it`).toBeLessThanOrEqual(24);
     // Back to the index for the next jump.
     await page.evaluate(() => window.scrollTo(0, 0));
   }

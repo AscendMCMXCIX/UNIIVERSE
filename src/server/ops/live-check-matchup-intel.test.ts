@@ -44,6 +44,10 @@ const NOW: MatchupIntelRead = {
   scrollHeight: 923,
   riotTextChips: 0,
   riotTextLabel: false,
+  roles: "Top* Jungle Mid ADC Support",
+  slotCount: "2",
+  tipsLabel: "Riot's tip (may predate later changes)",
+  highElo: "Runes, items and skill order: No high-elo evidence (not collected)",
 };
 /** The same page made 1920 x 1080: no page scroll. */
 const WIDE = { ...NOW, size: "1920x1080", innerHeight: 1080, scrollHeight: 1080 };
@@ -56,6 +60,12 @@ const judge = (at: MatchupIntelRead, wide: MatchupIntelRead = WIDE, wiki: string
 const failed = (verdicts: ReturnType<typeof judge>) => verdicts.filter((v) => v.status === "FAIL").map((v) => v.name);
 
 describe("the Production check's Matchup Intel facts", () => {
+  it("fail when the lane selector, Riot's tips' label or the evidence line is missing or claims more", () => {
+    const lanes = /lane selector/;
+    expect(failed(judge(NOW)).filter((n) => lanes.test(n))).toEqual([]);
+    for (const over of [{ roles: "Top Jungle Mid" }, { roles: "Top Jungle Mid ADC Support" }, { tipsLabel: "" }, { highElo: "Runes: Conqueror" }, { slotCount: null }]) expect(failed(judge({ ...NOW, ...over })).filter((n) => lanes.test(n)), JSON.stringify(over)).toHaveLength(1);
+  });
+
   it("pass on production as it is now (26.23, not re-checked): no page scroll at 1920 x 1080, the tiles and the sources' summary on screen at 1440 x 900, though it scrolls 23px there", () => {
     const v = judge(NOW);
     expect(failed(v)).toEqual([]);

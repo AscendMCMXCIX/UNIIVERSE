@@ -27,6 +27,12 @@ export interface MatchupIntelRead {
   scrollHeight: number;
   riotTextChips: number;
   riotTextLabel: boolean;
+  /** The lane buttons' words, the pressed one marked "*" ("Top* Jungle Mid ADC Support"). */
+  roles: string;
+  /** The slots the lane sets ("2" or "4"); null when the bar is not there. */
+  slotCount: string | null;
+  tipsLabel: string;
+  highElo: string;
 }
 export function readMatchupIntel(): MatchupIntelRead;
 export function briefingState(f: MatchupIntelRead): "expired" | "hidden" | "parts hidden" | "shown";

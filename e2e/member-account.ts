@@ -1,4 +1,4 @@
-import { expect, type Browser, type BrowserContext, type BrowserContextOptions, type Page } from "@playwright/test";
+import { expect, type Browser, type BrowserContext, type BrowserContextOptions, type Locator, type Page } from "@playwright/test";
 
 /*
   A real team member account for e2e checks that need a player profile (the in-memory demo's local
@@ -15,6 +15,11 @@ export async function createMember(admin: Page, base = "Viewer"): Promise<{ user
   if (!admin.url().startsWith("http")) await admin.goto("/");
   await view(admin.context(), admin.url().split("/").slice(0, 3).join("/"), "admin");
   await admin.goto("/admin/people");
+  // Add account is a header button that opens its sheet (pressed until the page has hydrated).
+  await expect(async () => {
+    await admin.getByTestId("add-account-open").click();
+    await expect(admin.getByTestId("add-player-form")).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 30_000 });
   const form = admin.getByTestId("add-player-form");
   const name = form.getByLabel("Username");
   const verify = form.getByRole("button", { name: "Verify" });
@@ -49,12 +54,28 @@ export async function setBaseAccess(admin: Page, username: string, level: string
   if (!admin.url().startsWith("http")) await admin.goto("/");
   await view(admin.context(), admin.url().split("/").slice(0, 3).join("/"), "admin");
   await admin.goto("/admin/people");
-  await admin.getByTestId("people-search").fill(username);
-  const row = admin.getByTestId("admin-player-row").filter({ hasText: username });
-  await row.getByTestId("open-access").click();
+  const person = await openPerson(admin, username);
+  await person.getByTestId("open-access").click();
   await admin.getByTestId("access-dialog").getByTestId("base-access").selectOption({ label: level });
   await admin.getByTestId("save-access").click();
-  await expect(row.getByTestId("access-summary")).toContainText(level);
+  await expect(person.getByTestId("access-summary")).toContainText(level);
+}
+
+/**
+ * Opens a person's view from Users & Permissions → Accounts (the page already open): finds them
+ * and presses their row, until the window shows (the row works once the page has hydrated).
+ * Returns the window.
+ */
+export async function openPerson(admin: Page, text: string, rowTestId = "admin-player-row") {
+  // The search finds names and usernames: "@name" searches for the name, "(you)" searches for nothing.
+  await admin.getByTestId("people-search").fill(text.startsWith("(") ? "" : text.replace(/^@/, ""));
+  const row = admin.getByTestId(rowTestId).filter({ hasText: text }).first();
+  const view = admin.getByTestId("person-view");
+  await expect(async () => {
+    await row.click({ timeout: 2_000 });
+    await expect(view).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 30_000 });
+  return view;
 }
 
 /** Signs in with the temporary password and chooses the permanent one; the setup form opens next. */
@@ -109,4 +130,26 @@ export async function signIn(page: Page, username: string, password: string) {
   await form.getByLabel("Username").fill(username);
   await form.getByLabel("Password").fill(password);
   await form.getByRole("button", { name: "Sign in" }).click();
+}
+
+/** Opens the person view's Danger zone (a closed Disclosure). */
+export async function openDanger(view: Locator) {
+  const zone = view.getByTestId("person-danger");
+  if (!(await zone.evaluate((d) => (d as HTMLDetailsElement).open))) await zone.locator("summary").click();
+}
+
+/**
+ * Grants administrator access in a person's view, as the Owner (Users & Permissions open): the
+ * switch, Save access and the second confirmation the grant asks for.
+ */
+export async function grantAdministrator(owner: Page, username: string) {
+  const person = await openPerson(owner, username);
+  await person.getByTestId("open-access").click();
+  const dialog = owner.getByTestId("access-dialog");
+  await dialog.getByTestId("administrator-access").getByText("Administrator access").click();
+  await owner.getByTestId("save-access").click();
+  await owner.getByRole("button", { name: "Grant administrator access" }).click();
+  await expect(person.getByTestId("person-account")).toContainText("Administrator");
+  await person.getByTestId("person-view-close").click();
+  await expect(person).toBeHidden();
 }

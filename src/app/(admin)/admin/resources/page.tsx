@@ -15,7 +15,7 @@ export default async function AdminResourcesPage() {
   const library = await readResourceLibrary(await getAppDb());
   return (
     <div className="space-y-5">
-      <PageHeader
+      <PageHeader admin sectionNamed
         eyebrow="Platform Settings"
         title="Resources"
         description={

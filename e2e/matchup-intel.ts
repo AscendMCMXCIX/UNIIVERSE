@@ -26,7 +26,7 @@ export async function openMatchupIntel(page: Page, champion?: string, vs?: strin
 }
 
 /** A side's picker window, opened by its slot; clicked again until the page is interactive (a click before hydration does nothing). */
-export async function openPicker(page: Page, slot: "you" | "enemy"): Promise<Locator> {
+export async function openPicker(page: Page, slot: "you" | "enemy" | "ally" | "enemy2"): Promise<Locator> {
   const win = page.getByTestId("matchup-picker");
   await expect(async () => {
     if (!(await win.isVisible())) await page.getByTestId(`matchup-pick-${slot}`).click({ timeout: 2_000 });
@@ -50,13 +50,14 @@ export const choiceIds = (row: Locator) => row.locator("button[data-champion]").
  * page for it arrives and the router writes the address, so a reload straight after the slot
  * changed could still load the address before.
  */
-export async function choose(page: Page, slot: "you" | "enemy", search: string, id: string) {
+export async function choose(page: Page, slot: "you" | "enemy" | "ally" | "enemy2", search: string, id: string) {
   const win = await openPicker(page, slot);
   await win.getByTestId("matchup-picker-search").fill(search);
   await win.getByTestId("matchup-picker-grid").locator(`button[data-champion="${id}"]`).click();
   await expect(win).toHaveCount(0);
   await expect(page.getByTestId(`matchup-pick-${slot}`)).toHaveAttribute("data-champion", id);
-  await expect(page).toHaveURL(new RegExp(`[?&]${slot === "you" ? "champion" : "vs"}=${id}(&|#|$)`));
+  const param = { you: "champion", enemy: "vs", ally: "ally", enemy2: "vs2" }[slot];
+  await expect(page).toHaveURL(new RegExp(`[?&]${param}=${id}(&|#|$)`));
 }
 
 /** How far anything in a picker window reaches past its right edge, in px, once its content (not the loading tiles) is there. */

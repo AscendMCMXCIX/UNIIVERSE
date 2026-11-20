@@ -97,7 +97,7 @@ test("a member's own card shows their whole name, whatever else the card carries
     const sizes: Array<[string, Parameters<typeof browser.newContext>[0]]> = [
       ["five across", { viewport: { width: 1440, height: 900 } }],
       ["five across, short window", { viewport: { width: 1366, height: 768 } }],
-      ["three across", { viewport: { width: 1280, height: 800 } }],
+      ["five across, 1280", { viewport: { width: 1280, height: 800 } }],
       ["phone", { ...devices["iPhone 15"] }],
       ["small phone", { ...devices["iPhone SE"] }],
       ["phone sideways", { ...devices["iPhone 15 landscape"] }],
@@ -106,6 +106,17 @@ test("a member's own card shows their whole name, whatever else the card carries
       const ctx = await browser.newContext({ ...options, storageState: state });
       const p = await ctx.newPage();
       const card = await teamCard(p, "TOP");
+      // Held sideways the five cards are compact (S3a: the name, rank and figures; the picture with
+      // "You", the tagline and the links in the player's window): the name whole on one line, uncovered.
+      if (label === "phone sideways") {
+        const name = await nameOn(card);
+        expect(name.text, label).toBe(username);
+        expect(name.cut, `${label}: the name is not cut`).toBe(false);
+        expect(name.inside, `${label}: the name is inside its card`).toBe(true);
+        expect(name.covered, `${label}: nothing covers the name`).toEqual([]);
+        await ctx.close();
+        continue;
+      }
       // Their own card, with everything on it at once.
       await expect(card.getByTestId("card-you")).toBeVisible();
       await expect(card.getByTestId("customise-card")).toBeVisible();

@@ -1,4 +1,4 @@
-import { desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lt, or, sql, type SQL } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { auditEvents, permissionPresets, players, users } from "@/server/db/schema";
 import type { AuditAction } from "@/domain/audit";
@@ -86,6 +86,7 @@ export async function recordAudit(db: Db, actor: AuditActor, input: AuditInput):
 }
 
 export interface AuditEntry {
+  id: number;
   at: Date;
   actorName: string | null;
   action: string;
@@ -94,12 +95,43 @@ export interface AuditEntry {
   details: Record<string, string | number | boolean | null>;
 }
 
+export interface AuditQuery {
+  /** At most this many (Audit Logs pages by 50). */
+  limit?: number;
+  /** Only these actions (a category of Audit Logs). */
+  actions?: readonly string[];
+  /** Only entries this account made or that were about it (or about its player profile). */
+  person?: { userId: string | null; playerId: string | null } | null;
+  /** Only entries at or after `from` and before `to`. */
+  from?: Date | null;
+  to?: Date | null;
+  /** Keyset: only entries older than this one (the last row of the page before). */
+  before?: { at: Date; id: number } | null;
+}
+
+/** The newest recorded actions first, filtered; `before` continues after the last row of the page before. */
+export async function queryAudit(db: Db, q: AuditQuery = {}): Promise<AuditEntry[]> {
+  const where: SQL[] = [];
+  if (q.actions) where.push(inArray(auditEvents.action, [...q.actions]));
+  if (q.person) {
+    const ids = [q.person.userId, q.person.playerId].filter((v): v is string => !!v);
+    const byActor = q.person.userId ? [eq(auditEvents.actorUserId, q.person.userId)] : [];
+    where.push(ids.length ? or(...byActor, inArray(auditEvents.targetId, ids))! : sql`false`);
+  }
+  if (q.from) where.push(gte(auditEvents.at, q.from));
+  if (q.to) where.push(lt(auditEvents.at, q.to));
+  // Ordered and continued at the millisecond a Date carries, so a cursor never skips a row.
+  const atMs = sql<Date>`date_trunc('milliseconds', ${auditEvents.at})`;
+  if (q.before) where.push(sql`(${atMs}, ${auditEvents.id}) < (${q.before.at.toISOString()}::timestamptz, ${q.before.id})`);
+  return db
+    .select({ id: auditEvents.id, at: auditEvents.at, actorName: auditEvents.actorName, action: auditEvents.action, targetType: auditEvents.targetType, targetName: auditEvents.targetName, details: auditEvents.details })
+    .from(auditEvents)
+    .where(where.length ? and(...where) : undefined)
+    .orderBy(desc(atMs), desc(auditEvents.id))
+    .limit(Math.min(Math.max(1, q.limit ?? 50), 200));
+}
+
 /** The newest recorded actions first, optionally only these actions (a category of Audit Logs). */
 export async function listAudit(db: Db, limit = 100, actions?: readonly string[]): Promise<AuditEntry[]> {
-  return db
-    .select({ at: auditEvents.at, actorName: auditEvents.actorName, action: auditEvents.action, targetType: auditEvents.targetType, targetName: auditEvents.targetName, details: auditEvents.details })
-    .from(auditEvents)
-    .where(actions ? inArray(auditEvents.action, [...actions]) : undefined)
-    .orderBy(desc(auditEvents.at), desc(auditEvents.id))
-    .limit(limit);
+  return queryAudit(db, { limit, actions });
 }

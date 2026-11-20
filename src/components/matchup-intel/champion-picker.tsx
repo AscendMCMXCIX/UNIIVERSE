@@ -183,15 +183,15 @@ function PickerBody({ slot, champions, selected, recent, curated, curatedTitle, 
 }
 
 /** The picker window for one side: your champion, or the enemy. */
-export function ChampionPickerWindow({ slot, champions, selected, recent, curated, yourName, onPick, onClose }: { slot: PickerSlot; champions: readonly ChampionChoice[]; selected: string | null; recent: readonly ChampionChoice[]; curated: readonly ChampionChoice[]; yourName: string | null; onPick: (id: string) => void; onClose: () => void }) {
+export function ChampionPickerWindow({ slot, title, description, champions, selected, recent, curated, yourName, onPick, onClose }: { slot: PickerSlot; title?: string; description?: string; champions: readonly ChampionChoice[]; selected: string | null; recent: readonly ChampionChoice[]; curated: readonly ChampionChoice[]; yourName: string | null; onPick: (id: string) => void; onClose: () => void }) {
   const inputRef = React.useRef<HTMLInputElement>(null);
   return (
     <DetailModal
       open
       onClose={onClose}
       size="standard"
-      title={slot === "you" ? "Your champion" : "The enemy"}
-      description={slot === "you" ? "The champion you play: remembered on this device." : "The champion you face in lane."}
+      title={title ?? (slot === "you" ? "Your champion" : "The enemy")}
+      description={description ?? (slot === "you" ? "The champion you play: remembered on this device." : "The champion you face in lane.")}
       testId="matchup-picker"
       headerTestId="matchup-picker-header"
       closeTestId="matchup-picker-close"

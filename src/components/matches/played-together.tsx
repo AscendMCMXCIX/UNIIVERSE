@@ -333,7 +333,7 @@ function TogetherCard({ g, p, champions, teams }: { g: TogetherListGame; p: (id:
                   <span className="min-w-0 flex-1">
                     {/* The name whole (a long one wraps, never cut), the K/D/A and the largest multikill right after it. */}
                     <span className="flex min-w-0 flex-wrap items-baseline gap-x-1.5">
-                      <Link href={`/players/${m.playerId}`} className="relative min-w-0 break-words py-0.5 text-sm font-semibold text-fg hover:underline pointer-coarse:-my-2 pointer-coarse:py-2.5">
+                      <Link href={`/players/${m.playerId}`} className="relative min-w-0 break-words py-0.5 text-sm font-semibold text-fg hover:underline pointer-coarse:-my-2.5 pointer-coarse:py-3">
                         {pl?.name ?? "Player"}
                       </Link>
                       <span className="whitespace-nowrap text-sm font-semibold tabular-nums text-fg" title={extra} data-testid="together-kda">

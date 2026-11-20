@@ -72,7 +72,9 @@ const NAMES: Array<{ file: string; fragment: string; kind: Kind; what: string }>
   { file: "src/components/ui/data-list.tsx", fragment: "words ??", kind: "name", what: "a tie's \"=4\" mark in words (\"Tied for 4th\")" },
   { file: "src/components/leaderboards/recent-leaderboards.tsx", fragment: "r.note", kind: "name", what: "the gap's short token (\"−1\") in words (\"1 win behind 3rd\")" },
   { file: "src/components/leaderboards/recent-leaderboards.tsx", fragment: "roleTitle", kind: "name", what: "the main role's badge: the role and its games" },
+  { file: "src/components/matchup-intel/matchup-frame.tsx", fragment: "Copy link", kind: "name", what: "Copy link's name when only its icon shows" },
   // Values shown whole where the page may cut them short.
+  { file: "src/components/players/player-card.tsx", fragment: "mastery points", kind: "truncation", what: "the mastery shown short (\"189K\") whole" },
   { file: "src/components/leaderboards/records.tsx", fragment: "said(m)", kind: "truncation", what: "a milestone chip whole (its champion's name is cut, or left out on phones)" },
   { file: "src/components/match-history/match-history-view.tsx", fragment: "With team members:", kind: "truncation", what: "the members line, cut to one line" },
   { file: "src/components/match-history/rank-short.tsx", fragment: "label.title", kind: "truncation", what: "a short rank (\"G2\") whole" },

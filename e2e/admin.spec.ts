@@ -1,6 +1,6 @@
 import { devices, expect, test, type Page } from "./test";
 import { NEUTRAL_NAME } from "../src/domain/branding";
-import { memberContext } from "./member-account";
+import { memberContext, openPerson } from "./member-account";
 
 /*
   Player Mode and Admin Mode. The browser tests run in local open mode, where the automatic local
@@ -23,6 +23,13 @@ const PLAYER_ENTRIES = ["My Profile", "Team", "Matchup Intel", "Resources"];
 
 async function createAccount(page: Page, username: string, access: "team" | "personal", riotId = `${username}#OCE`) {
   const form = page.getByTestId("add-player-form");
+  // Add account opens its sheet (pressed until the page has hydrated); it stays open between accounts.
+  if (!(await form.isVisible())) {
+    await expect(async () => {
+      await page.getByTestId("add-account-open").click({ timeout: 2_000 });
+      await expect(form).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: 30_000 });
+  }
   await form.getByLabel("Username").fill(username);
   await form.getByLabel("Riot ID").fill(riotId);
   await form.getByRole("button", { name: "Verify" }).click();
@@ -31,11 +38,11 @@ async function createAccount(page: Page, username: string, access: "team" | "per
   await page.getByTestId("create-account").click();
 }
 
-/** Opens Manage access for an account in Users & Permissions → Accounts. */
+/** Opens Manage access for an account in Users & Permissions → Accounts (its person view, then Access). */
 async function openAccess(page: Page, username: string) {
   await page.goto("/admin/people");
-  await page.getByTestId("people-search").fill(username);
-  await page.getByTestId("admin-player-row").filter({ hasText: username }).getByTestId("open-access").click();
+  const person = await openPerson(page, username);
+  await person.getByTestId("open-access").click();
   return page.getByTestId("access-dialog");
 }
 
@@ -163,7 +170,9 @@ test("a player never sees Admin Mode; granted administrator access, the same acc
   await expect(access.getByLabel("Administrator access")).toBeChecked();
   await expect(dialog.getByTestId("admin-mode-ability")).toHaveAttribute("data-on", "true");
   await admin.getByTestId("save-access").click();
-  await expect(admin.getByTestId("admin-player-row").filter({ hasText: username })).toContainText("Administrator");
+  // Granting it asks a second time.
+  await admin.getByRole("button", { name: "Grant administrator access" }).click();
+  await expect(admin.getByTestId("person-view").getByTestId("person-account")).toContainText("Administrator");
 
   // The same account, still signed in: its next page offers the switch; its player data is untouched.
   await page.goto("/overview");
@@ -180,14 +189,14 @@ test("a player never sees Admin Mode; granted administrator access, the same acc
   await expect(page).toHaveURL(/\/admin$/);
   // The grant is in the audit log.
   await admin.goto("/admin/audit?category=access");
-  await expect(admin.getByTestId("admin-activity-row").first()).toContainText("Granted administrator access");
+  await expect(admin.getByTestId("admin-activity-row").first()).toContainText(`made ${username} an administrator`);
 
   // Removed: the next request is Player Mode, an /admin address included, and the saved choice is gone.
   const again = await openAccess(admin, username);
   await again.getByTestId("administrator-access").getByText("Administrator access").click();
   await expect(again.getByTestId("administrator-access").getByLabel("Administrator access")).not.toBeChecked();
   await admin.getByTestId("save-access").click();
-  await expect(admin.getByTestId("admin-player-row").filter({ hasText: username })).not.toContainText("Administrator");
+  await expect(admin.getByTestId("person-view").getByTestId("person-account")).not.toContainText("Administrator");
   await page.reload();
   await expect(page).toHaveURL(/\/team$/);
   await expect(aside.getByTestId("mode-switch")).toHaveCount(0);
@@ -233,23 +242,26 @@ test("consecutive account creations always copy the details of the account just 
   await page.getByTestId("copy-details").click();
   expect(await clipboard()).toContain(`Username: ${third}`);
 
-  // Every new account is listed at once, with its state and team membership.
+  // Every new account is listed at once, in its group, with its one state.
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("add-account-sheet")).toBeHidden();
   await page.getByTestId("people-search").fill(first);
   const personal = page.getByTestId("people-group-personal").getByTestId("admin-player-row").filter({ hasText: first });
   await expect(personal).toContainText("Awaiting first login");
-  await expect(personal).toContainText("Personal use");
   await page.getByTestId("people-search").fill(second);
-  await expect(page.getByTestId("people-group-team").getByTestId("admin-player-row").filter({ hasText: second })).toContainText("Team member");
+  await expect(page.getByTestId("people-group-team").getByTestId("admin-player-row").filter({ hasText: second })).toHaveCount(1);
 
   // Promote the personal account to the team through Manage access.
-  await page.getByTestId("people-search").fill(first);
-  await personal.getByTestId("open-access").click();
+  const view = await openPerson(page, first);
+  await view.getByTestId("open-access").click();
   const dialog = page.getByTestId("access-dialog");
   await expect(dialog.getByTestId("team-membership")).toBeVisible();
   await dialog.getByTestId("team-membership").getByText(`Member of the ${NEUTRAL_NAME} team`).click();
   await expect(dialog.getByLabel(`Member of the ${NEUTRAL_NAME} team`)).toBeChecked();
   await page.getByTestId("save-access").click();
-  await expect(page.getByTestId("people-group-team").getByTestId("admin-player-row").filter({ hasText: first })).toContainText("Team member");
+  await view.getByTestId("person-view-close").click();
+  await expect(view).toBeHidden();
+  await expect(page.getByTestId("people-group-team").getByTestId("admin-player-row").filter({ hasText: first })).toHaveCount(1);
 });
 
 test("Audit Logs list admin activity newest first, by category, with no password in it", async ({ page }) => {
@@ -264,14 +276,15 @@ test("Audit Logs list admin activity newest first, by category, with no password
   await page.goto("/admin/audit");
   const activity = page.getByTestId("admin-activity");
   const first = activity.getByTestId("admin-activity-row").first();
-  await expect(first).toContainText("Created an account");
-  await expect(first).toContainText(username);
+  await expect(first).toContainText(`created the account ${username}`);
+  // In sentences: never `key: value`.
+  await expect(activity).not.toContainText(/\w: /);
   await expect(activity).not.toContainText(password);
   // Categories: the account is under Accounts, not under Settings.
-  await page.getByTestId("audit-category-accounts").click();
+  await page.getByTestId("audit-category").selectOption("accounts");
   await expect(page).toHaveURL(/category=accounts/);
   await expect(activity.getByTestId("admin-activity-row").first()).toContainText(username);
-  await page.getByTestId("audit-category-settings").click();
+  await page.getByTestId("audit-category").selectOption("settings");
   await expect(page).toHaveURL(/category=settings/);
   await expect(activity).not.toContainText(username);
 });

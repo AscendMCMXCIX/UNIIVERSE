@@ -112,6 +112,43 @@ html {
   font-size: clamp(100%, calc(100% + (100vw - 1536px) * 0.0045), 137.5%);
 }
 
+/*
+  The 12px floor (UD.X5; docs/DESIGN_SYSTEM.md → Type): on a desktop (lg, 64rem) the smallest text,
+  text-2xs, is 12px, so names, chips, captions and labels never read at 11px where the root is
+  still 16px (1024 to 1536px wide; above that the fluid root lifts them anyway). Phones and tablets
+  keep 11px, where it was measured to fit. One token, so every use follows it;
+  src/app/design-tokens.test.ts checks this rule and the one place that waits for it (type-floor-later).
+*/
+@media (min-width: 64rem) {
+  :root {
+    --text-2xs: 0.75rem;
+    --text-2xs-floor: 0.75rem;
+  }
+}
+
+/*
+  Where the 12px floor does not reach yet: the game cards of Match History and Team Matches keep 11px
+  (Release 5's post-game view, S6, was built before the floor; raising their text alone would widen
+  the cards at 1280 to 1440, so the floor reaches them with their next measured pass). Only on the
+  elements design-tokens.test.ts lists, each with its reason.
+*/
+/* Uppercase labels (column headings, eyebrows, label-caps) keep 11px at every width: the floor is for
+   running text and names, and a label's tracked capitals read at 11px (they set the width of a
+   table's headings, measured at 1024px). */
+.uppercase,
+.label-caps {
+  --text-2xs: 0.6875rem;
+}
+/* What sits inside a label in normal case ("6 champions" beside "TOP POOL") is running text again. */
+:is(.uppercase, .label-caps) :where(:not(.uppercase, .label-caps)) {
+  --text-2xs: var(--text-2xs-floor, 0.6875rem);
+}
+
+@utility type-floor-later {
+  --text-2xs: 0.6875rem;
+  --text-2xs-floor: 0.6875rem;
+}
+
 html, body {
   background: var(--color-bg);
   color: var(--color-fg);
@@ -190,6 +227,18 @@ p a.text-accent {
   scrolls down; detail windows, editors and pickers take the whole screen (see docs/RESPONSIVE.md).
 */
 @custom-variant short (@media (max-height: 480px));
+
+/*
+  The profile's one-band header (docs/DESIGN_SYSTEM.md → Profile header): a short window, as above,
+  or any window from sm (40rem). There the Overview's header is the same band as the other sections',
+  so the section tabs keep one place on a click (UD.PO1). A phone held upright keeps the full card.
+  The block form, for the list (as standalone's below).
+*/
+@custom-variant band {
+  @media (max-height: 480px), (min-width: 40rem) {
+    @slot;
+  }
+}
 
 /* The installed app, in the display modes an install opens in (see install-state.ts): what a browser's own chrome would otherwise provide, such as Back on a tablet.
    The block form: in the one-line form Tailwind read the list's commas as a selector list once the
@@ -830,6 +879,8 @@ p a.text-accent {
   /* And their members' pictures (/api/avatars), each keeping its round place (a card's picture is 3.5rem). */
   [data-art-wait] > [data-art-later] [data-testid=card-identity] [data-avatar-frame] { min-width: 3.5rem; min-height: 3.5rem; }
   [data-art-wait] > [data-art-later] [data-testid=card-identity] [data-avatar-frame] img { display: none; }
+  /* The lineup pager's other pictures (S3a), each keeping its round place (the 2rem disc under it). */
+  [data-art-wait] > [data-art-later] [data-testid=lineup-dot-picture] img { display: none; }
 }
 .flip-card { perspective: 1800px; }
 .flip-card-inner { transform-style: preserve-3d; }
@@ -847,4 +898,45 @@ p a.text-accent {
 @media (prefers-reduced-motion: reduce) {
   .flip-card-inner, .flip-card[data-flipped] .flip-card-inner, .flip-face-back { rotate: none; scale: none; }
   .flip-face { transition: none !important; }
+}
+
+/* The frame slides away on an upright phone it crowds (MobileNav's useHideOnScroll, "row"): the top
+   bar's first row fades as the bar rises by its height, the sections row staying pinned under the
+   status bar. Focus inside the bar keeps it. */
+[data-testid=mobile-topbar-row] { transition: opacity 200ms ease-out; }
+[data-testid=mobile-topbar][data-hidden=row]:not(:focus-within) > [data-testid=mobile-topbar-row] { opacity: 0; }
+
+/* A profile's band in the top bar (ProfileHeader's bar title, an upright phone on the sections
+   other than the Overview): fixed in the bar's first row, after Back (a fixed 5.25rem there,
+   MobileNav's BACK_BESIDE_BAND) or after the team's mark, clear of Filters and the avatar at the
+   row's end; it goes with the row when the row slides away. */
+[data-bar-title] {
+  left: calc(max(0.5rem, env(safe-area-inset-left)) + 3rem);
+  right: calc(max(0.5rem, env(safe-area-inset-right)) + 3.25rem);
+  top: env(safe-area-inset-top);
+  transition: opacity 200ms ease-out, translate 200ms ease-out;
+}
+body:has([data-testid=mobile-back]) [data-bar-title] { left: calc(max(0.5rem, env(safe-area-inset-left)) + 5.25rem); }
+body:has([data-testid=topbar-filters]) [data-bar-title] { right: calc(max(0.5rem, env(safe-area-inset-right)) + 6rem); }
+body:has([data-testid=mobile-topbar][data-hidden=row]:not(:focus-within)) [data-bar-title] { opacity: 0; translate: 0 -100%; }
+@media (prefers-reduced-motion: reduce) {
+  [data-testid=mobile-topbar-row], [data-bar-title] { transition: none; }
+}
+
+/* Team Overview held sideways (team-roster.tsx, SIDEWAYS_ROW): five compact cards in one row. Each
+   keeps the role, the name and rank over the art, and the season's three figures; the picture, the
+   tagline, the role status, the record lines and the pool are in the player's window, one tap away. */
+@media (max-height: 480px) {
+  @container lineup (min-width: 36rem) {
+    [data-sideways-row] [data-testid=card-identity] > :first-child,
+    [data-sideways-row] [data-testid=card-tagline],
+    [data-sideways-row] [data-testid=main-role-badge],
+    [data-sideways-row] [data-testid=off-role-badge],
+    [data-sideways-row] [data-testid=card-season] dl > div > dd:nth-child(3),
+    [data-sideways-row] [data-testid=card-season] > :not(dl),
+    [data-sideways-row] [data-card-pool] { display: none; }
+    [data-sideways-row] [data-testid=card-fit] { margin-top: 0.25rem; }
+    /* The name keeps clear of the card's corner controls (the turn control, Customise), which stand over the art's top right. */
+    [data-sideways-row] article:has(> [data-card-overlay] > *) [data-testid=card-identity] > :nth-child(2) { display: block; padding-right: 2.75rem; }
+  }
 }

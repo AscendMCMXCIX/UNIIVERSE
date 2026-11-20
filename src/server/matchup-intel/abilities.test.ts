@@ -7,7 +7,7 @@ import fixtureFile from "@/server/riot/fixtures/champion-abilities.fixture.json"
 import championsFixture from "@/server/riot/fixtures/champions.fixture.json";
 import { SLOTS, type DdragonChampionAbilities } from "@/domain/matchup-intel/types";
 import { cooldownDisplay } from "@/domain/matchup-intel/cooldown";
-import { ABILITY_FIXTURE_VERSION, ABILITY_RULES_FORMAT, DESCRIPTION_MAX, CHAMPION_ID, cleanDescription, compactChampionAbilities } from "./abilities";
+import { ABILITY_FIXTURE_VERSION, ABILITY_RULES_FORMAT, DESCRIPTION_MAX, CHAMPION_ID, TIP_MAX, cleanDescription, compactChampionAbilities, riotTips } from "./abilities";
 import { abilityFixture } from "./ability-fixture";
 
 /*
@@ -183,6 +183,29 @@ describe("the committed offline copy (champion-abilities.fixture.json)", () => {
     expect(spells).toHaveLength(692);
     expect(spells.filter((a) => a.charges !== null)).toHaveLength(24);
     expect(spells.filter((a) => a.cooldown.every((n) => n === 0))).toHaveLength(20);
+  });
+
+  it("has Riot's tips byte-equal to Data Dragon's for every champion: 147 with enemy tips, 149 with ally tips (the digest, in CI)", () => {
+    const digest = digestFile as unknown as script.AbilityDigest;
+    expect(Object.keys(digest.tips ?? {}).sort()).toEqual(Object.keys(fixture.champions).sort());
+    let ally = 0;
+    let enemy = 0;
+    for (const [id, raw] of Object.entries(digest.tips!)) {
+      const tips = fixture.champions[id]!.tips!;
+      // Every tip is one of Riot's, character for character, in Riot's order; none is left out at 16.22.1.
+      expect(tips.ally, id).toEqual(raw.ally ?? []);
+      expect(tips.enemy, id).toEqual(raw.enemy ?? []);
+      if (tips.ally.length) ally += 1;
+      if (tips.enemy.length) enemy += 1;
+    }
+    expect({ ally, enemy }).toEqual({ ally: 149, enemy: 147 });
+  });
+
+  it("keeps a tip verbatim or leaves it out whole, never cut or changed", () => {
+    expect(riotTips(["  Keep its spaces. ", "", 3, "x".repeat(TIP_MAX + 1), "<b>As given</b>"])).toEqual(["  Keep its spaces. ", "<b>As given</b>"]);
+    expect(riotTips(undefined)).toEqual([]);
+    expect(script.riotTips(["a", 2])).toEqual(riotTips(["a", 2]));
+    expect(script.TIP_MAX).toBe(TIP_MAX);
   });
 
   it("has Data Dragon's own numbers for every champion: spell ids, ranks, cooldowns and charges (the digest, in CI)", () => {

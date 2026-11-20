@@ -11,7 +11,7 @@ import { CardAvatar, CardName, CardTagline } from "./card-look";
 import { RankInline, type CompactRank } from "./rank-emblem";
 import { RoleStatusBadge } from "./role-status-badge";
 import { TierBadge } from "./tier-badge";
-import { formatCompactCount } from "@/lib/format";
+import { formatCompactCount, formatCount } from "@/lib/format";
 
 /*
   The pieces every player card is made of, so the Team card, its detail panel, the Players
@@ -77,10 +77,11 @@ const SIZERS = "invisible hidden max-h-[2lh] overflow-hidden @xl/lineup:grid [&>
  * `showRank={false}` leaves the rank out entirely (not "Unranked"): for viewers who may not see the
  * player's statistics.
  */
-export function CardIdentity({ look, name, avatarUrl, rank, showRank = true, isYou = false, status, role, size = "lg", nameClassName, tag, social, layout = "stack", align }: { look: CardLook | null | undefined; name: string; avatarUrl: string | null; rank: CompactRank | null; showRank?: boolean; isYou?: boolean; status?: "main" | "off" | null; role?: Role | null; size?: "md" | "lg"; nameClassName?: string; /** One more label after the role status (the Team card's substitute side). */ tag?: React.ReactNode; /** The player's social icons (CardSocialIcons), on the picture's row. */ social?: React.ReactNode; layout?: "stack" | "side"; /** Everyone the lineup can show, to keep cards side by side level. */ align?: ReadonlyArray<{ name: string; look: CardLook }> }) {
+export function CardIdentity({ look, name, avatarUrl, rank, showRank = true, isYou = false, status, role, size = "lg", nameClassName, tag, social, layout = "stack", align, phoneSide = false }: { look: CardLook | null | undefined; name: string; avatarUrl: string | null; rank: CompactRank | null; showRank?: boolean; isYou?: boolean; status?: "main" | "off" | null; role?: Role | null; size?: "md" | "lg"; nameClassName?: string; /** One more label after the role status (the Team card's substitute side). */ tag?: React.ReactNode; /** The player's social icons (CardSocialIcons), on the picture's row. */ social?: React.ReactNode; layout?: "stack" | "side"; /** Everyone the lineup can show, to keep cards side by side level. */ align?: ReadonlyArray<{ name: string; look: CardLook }>; /** The members' Team lineup on a phone (its track: under 36rem of lineup): the picture beside the name and labels, a shorter card (PHONE_SIDE); "control": the card has one control in its corner, which the name keeps clear of. */ phoneSide?: boolean | "control" }) {
   const avatar = (
     <span className="relative shrink-0">
-      <CardAvatar look={look} name={name} src={avatarUrl} size={size} />
+      {/* Under 12rem of card (five across from a 56rem lineup; larger text on a phone) the picture is 44px, so three links still share its row; 44px too beside the name on a phone (PHONE_SIDE). */}
+      <CardAvatar look={look} name={name} src={avatarUrl} size={size} className={size === "lg" ? cn("@max-[12rem]/card:[&>*]:size-11", phoneSide && "@max-xl/lineup:@min-[15rem]/card:[&>*]:size-11") : undefined} />
       {isYou ? (
         <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 rounded-full bg-accent px-1.5 text-2xs font-bold uppercase leading-4 tracking-wide text-bg shadow-sm shadow-black/40" data-testid="card-you">
           You
@@ -142,19 +143,40 @@ export function CardIdentity({ look, name, avatarUrl, rank, showRank = true, isY
         </span>
       </span>
     );
+  const side = phoneSide ? PHONE_SIDE : null;
   return (
-    <span className="flex min-w-0 flex-col" data-testid="card-identity" data-layout="stack">
+    <span className={cn("flex min-w-0 flex-col", side?.root)} data-testid="card-identity" data-layout="stack">
       {/* The links wrap under the picture only where the two cannot share the row. */}
-      <span className="mb-2.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-2">
+      <span className={cn("mb-2.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-2", side?.row)}>
         {avatar}
         {links}
       </span>
-      {nameSlot}
-      {labels}
-      {taglineSlot}
+      {side ? <span className={cn(side.name, phoneSide === "control" && side.nameRoom)}>{nameSlot}</span> : nameSlot}
+      {side ? <span className={side.labels}>{labels}</span> : labels}
+      {side ? <span className={side.rest}>{taglineSlot}</span> : taglineSlot}
     </span>
   );
 }
+
+/**
+ * The members' Team card on a phone, while the lineup is a track (under 36rem of lineup, its
+ * `@container/lineup`): the picture (44px) beside the name, the labels and the tagline under the
+ * name, so the card is 60–70px shorter and the whole first card fits 393 × 659 and 375 × 667
+ * (docs/MOBILE.md, "Team Overview on a phone"; UM.T1). The grid's cells: the picture's row gives way
+ * (display: contents) and the picture spans the rows. The social links are in the player's window
+ * there, one tap away: beside the name they left it a few letters on a 375px phone. A card with
+ * two controls (your own, with a substitute) keeps the stack. Wider lineups (a tablet, a desktop, a phone held sideways) keep the stack,
+ * and so does a card under 15rem (larger text: beside the picture the name would have a few letters a line).
+ */
+const PHONE_SIDE = {
+  root: "@max-xl/lineup:@min-[15rem]/card:grid @max-xl/lineup:@min-[15rem]/card:grid-cols-[auto_minmax(0,1fr)] @max-xl/lineup:@min-[15rem]/card:items-center @max-xl/lineup:@min-[15rem]/card:gap-x-3",
+  row: "@max-xl/lineup:@min-[15rem]/card:contents @max-xl/lineup:@min-[15rem]/card:[&>:first-child]:row-span-3 @max-xl/lineup:@min-[15rem]/card:[&>:first-child]:self-center @max-xl/lineup:@min-[15rem]/card:[&>[data-testid=card-identity-social]]:hidden",
+  name: "min-w-0 @max-xl/lineup:@min-[15rem]/card:col-start-2 @max-xl/lineup:@min-[15rem]/card:row-start-1",
+  /** Clear of the card's corner control (the turn control or Customise: 44px on touch) at its right end. */
+  nameRoom: "@max-xl/lineup:@min-[15rem]/card:pr-12",
+  labels: "min-w-0 @max-xl/lineup:@min-[15rem]/card:col-start-2 @max-xl/lineup:@min-[15rem]/card:row-start-2 @max-xl/lineup:@min-[15rem]/card:[&>[data-testid=card-fit]]:mt-1",
+  rest: "min-w-0 @max-xl/lineup:@min-[15rem]/card:col-start-2 @max-xl/lineup:@min-[15rem]/card:row-start-3",
+} as const;
 
 export interface SeasonFigures {
   games: number;
@@ -186,7 +208,7 @@ export interface CardSeason extends SeasonFigures {
  * the other on the right, each its label over its figure. Same figures, same order.
  *
  * Narrower than 9rem, which only larger text makes (a phone's card at 175% on 320px, 200% up to
- * 393px; every card at the usual size is 12.2rem or wider), the right-hand column cannot hold its
+ * 393px; every card at the usual size is 10.4rem or wider: five across a 56rem lineup), the right-hand column cannot hold its
  * labels either: "CS/MIN" ran past the card at 175% on 320px and KDA and the vision figure were cut
  * at 200%. There KDA and CS/min (vision) move under the win rate, side by side where the two fit
  * and one above the other where they do not, all on the left; the wins bar keeps at least 2rem,
@@ -210,7 +232,7 @@ export function CardPerformance({ season, support, roleLabel, placeholder = fals
   const decided = (wins ?? 0) + (losses ?? 0);
   const per = (n: number | null | undefined) => (n == null ? "–" : n.toFixed(1));
   const kdaLine = season && season.kills != null && season.deaths != null && season.assists != null ? `${per(season.kills)} / ${per(season.deaths)} / ${per(season.assists)}` : null;
-  const label = "block whitespace-nowrap text-2xs font-medium uppercase tracking-label text-fg-subtle @max-[15rem]/card:tracking-[0.04em]";
+  const label = "block whitespace-nowrap text-2xs font-medium uppercase tracking-label text-fg-subtle";
   const sub = "block truncate text-2xs tabular-nums text-fg-subtle";
   // KDA and CS/min (vision) on a narrow card: one above the other in the right-hand column, each its
   // label over its figure, right-aligned (a label and figure side by side did not fit "VISION 79.3").
@@ -224,7 +246,7 @@ export function CardPerformance({ season, support, roleLabel, placeholder = fals
           Support). The outer figures take the room they need and KDA the rest, so nothing is cut off.
           A narrow card: the win rate on the left, KDA over CS/min (vision) on the right. Under 9rem:
           a line for the win rate, then KDA and CS/min (vision) wrapping as they fit. */}
-      <dl className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-end gap-x-2.5 @min-[14.5rem]/card:@max-[16.5rem]/card:gap-x-1 @max-[12.5rem]/card:grid-cols-[auto_minmax(0,1fr)] @max-[12.5rem]/card:items-center @max-[12.5rem]/card:gap-x-2 @max-[12.5rem]/card:gap-y-1 @max-[9rem]/card:flex @max-[9rem]/card:flex-wrap @max-[9rem]/card:gap-x-3 @max-[9rem]/card:gap-y-1.5">
+      <dl className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-end gap-x-2.5 @min-[14.5rem]/card:@max-[18rem]/card:gap-x-1 @max-[12.5rem]/card:grid-cols-[auto_minmax(0,1fr)] @max-[12.5rem]/card:items-center @max-[12.5rem]/card:gap-x-2 @max-[12.5rem]/card:gap-y-1 @max-[9rem]/card:flex @max-[9rem]/card:flex-wrap @max-[9rem]/card:gap-x-3 @max-[9rem]/card:gap-y-1.5">
         <div className="min-w-0 @max-[12.5rem]/card:row-span-2 @max-[9rem]/card:basis-full">
           <dt className={label}>Win rate</dt>
           <dd className={cn("text-2xl font-bold leading-tight tabular-nums", wr === null ? "text-fg-muted" : tone)} data-testid="card-winrate">
@@ -238,9 +260,10 @@ export function CardPerformance({ season, support, roleLabel, placeholder = fals
           <dd className={figure}>{placeholder || season?.kda == null ? dash : season.kda.toFixed(2)}</dd>
           {/* Kills / deaths / assists per game need about 4.5rem: on a card too narrow for them (five
               across a laptop screen) they stay in the hover text, for screen readers and in the
-              player's window, instead of showing cut off. On a card from 14.5rem to 16.5rem (five
-              across most desktops) the three figures stand 4px apart instead of 10px, so the line
-              fits whole there rather than ending in "…". */}
+              player's window, instead of showing cut off. On a card from 14.5rem to 18rem (five
+              across most desktops; 18rem since the 12px floor and Team's full column from 1920px)
+              the three figures stand 4px apart instead of 10px, so the line fits whole there rather
+              than ending in "…". */}
           <dd className={cn(sub, narrowHidden)}>
             {placeholder || !kdaLine ? (
               "\u00a0"
@@ -535,7 +558,7 @@ export function PoolChampionTile({ index, champion, row, support, withStats = tr
           // leave the name one letter: there it takes a line of its own under the name instead.
           <span className="min-w-0 text-right max-sm:col-span-2 max-sm:col-start-2 max-sm:row-start-2 max-sm:pt-1 max-sm:text-left sm:col-span-4" data-testid="pool-champion-stats">
             {row.masteryPoints ? (
-              <span className="text-xs tabular-nums text-fg-muted">
+              <span className="text-xs tabular-nums text-fg-muted" title={`${formatCount(row.masteryPoints)} mastery points`}>
                 <span className="font-semibold">{formatCompactCount(row.masteryPoints)}</span> mastery (all-time) · no games this season
               </span>
             ) : (

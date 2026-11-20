@@ -82,8 +82,8 @@ test("the sign-in window on the public page keeps the corner clear", async ({ br
 
 test("a plain dialog keeps 12 px between its title and the close button", async ({ page, baseURL }) => {
   await page.context().addCookies([{ name: "uniiverse_view", value: "admin", url: baseURL! }]);
-  await page.goto("/admin/people");
-  const open = page.locator("[data-testid=open-access]:not([disabled])").first();
+  await page.goto("/admin/people/access");
+  const open = page.getByRole("button", { name: "New level" });
   const dialog = page.locator("dialog[open]");
   await expect(async () => {
     if (!(await dialog.isVisible())) await open.click({ timeout: 2_000 });

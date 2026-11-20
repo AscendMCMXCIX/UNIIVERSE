@@ -132,20 +132,21 @@ Substitute side of the Team cards).
 
 | Lineup | Layout |
 | --- | --- |
-| under 36rem (phones upright) | one swipe track, a card at a time, under the role bar (each tab the role's icon and name) |
-| 36–56rem (iPads, upright and landscape; a 1024px laptop with the sidebar open; most phones held sideways) | 2 + 2 + 1, capped at 54rem |
-| 56–64rem (a 1280px laptop with the sidebar open) | 3 + 2, capped at 80rem |
-| 64rem and up (1366 and 1440 laptops with the sidebar open, and wider) | five across, capped at 84rem |
+| under 36rem (phones upright) | one swipe track, a card at a time, under the lineup pager (members: each tab the player's picture with the role as its badge and the name under it; the public page: the role's icon and name); the card's picture beside the name |
+| 36–56rem (iPads, upright and landscape; a 1024px laptop with the sidebar open) | 3 + 2, capped at 54rem, the second row centred: never a card alone on a row |
+| a phone held sideways (480px tall or less, 36rem or wider) | five across, compact: art at least 88px, the name, rank and the season's three figures (the picture with "You", the role status, tagline, links, record lines and pool in the player's window); under 36rem (larger text) a track of about two cards |
+| 56rem and up (a 1280px laptop with the sidebar open, and wider) | five across, capped at 84rem (S3a, 20 Nov 2026: 3 + 2 from 56 to 64rem before); Team's whole column, 100rem at most, from a 1920px window (S2c) |
 
 - **The header**, from `sm`: the logo (64px, 80px from `lg`) beside the accent "Team Overview"
   eyebrow over the team's name (30px, 36px from `lg`) and "Main lineup · season", the lineup's
   state under them as a pill with its ⓘ inside (green "Lineup complete"; warn "Assign all five
   roles" for a lineup manager, "A lineup manager assigns the five roles" for everyone else), and
-  Edit lineup at the row's end: 113px tall at 1440 × 900. On a phone held upright the logo (48px)
-  and the name share the first line, and the state and Edit lineup the next (102px tall). Held
-  sideways (a short window) it is the wider header, compact: the logo at 44px and the name at 20px
-  (71px tall at 844 × 390). Below `sm` and in a short window the eyebrow is for screen readers
-  only. The name keeps to one line; a longer one ends in an ellipsis.
+  Edit lineup at the row's end: 113px tall at 1440 × 900. On a member's phone, upright or held
+  sideways, the bar already carries the team's mark and name: the logo goes and the name is read
+  out only, leaving one 44px line, "Main lineup · season" over the state, Edit lineup at its end
+  (102px tall upright and 71px sideways before, S2b). The public page keeps the logo (48px) and the
+  name on the first line, the state and Edit lineup the next. Below `sm` and in a short window the
+  eyebrow is for screen readers only. The name keeps to one line; a longer one ends in an ellipsis.
 - **Centred in the window** (from `lg`): on this page `main` and the page are flex columns, so the
   frame (`lineup-frame`) takes the height left under the section tabs and centres the header and
   the cards, with as much room above the header as under the cards. A window too short for that
@@ -156,8 +157,9 @@ Substitute side of the Team cards).
     the header and under the cards (2560 × 1440, sidebar folded: 226px). At 1366 × 768 the
     approved design had 48px: its cards are 14px shorter there, their season figures overflowing
     their columns (Narrow cards, below). The art is 223px tall at 1366 × 768, 261px at 1440 × 900,
-    313px at 1920 × 1080 and 412px at 2560 × 1440. 1280 × 800 is 3 + 2 and scrolls 1.28 screens,
-    an upright iPad (810 × 1080) is 2 + 2 + 1 at 1.36 screens, a landscape one (1080 × 810) 1.75.
+    313px at 1920 × 1080 and 412px at 2560 × 1440. 1280 × 800 is five across on one screen (1.00;
+    3 + 2 at 1.28 screens before S3a), one row at every width from 1280 to 1440; an upright iPad
+    (810 × 1080) is 3 + 2.
   - **In a real browser** the window is shorter than the screen by its toolbars (and the taskbar):
     1440 × 789 and 1920 × 950 still centre the whole lineup (56px and 89px above the header and
     under the cards); a 1366 × 768 laptop's 1366 × 657 starts at the top and scrolls; a 1280 × 800
@@ -342,8 +344,8 @@ the phone project):
 
 - **Team Overview's lineup cards** (`team-roster.tsx`, `player-card.tsx`;
   `e2e/large-text-lineup.spec.ts`). A phone's card is as wide as the phone allows: 9.8, 7.9 and
-  6.5rem at 150%, 175% and 200% on a 320px phone, where no card at the usual size is under 12.2rem
-  (five across a 64rem lineup), so every threshold is under 12.2rem.
+  6.5rem at 150%, 175% and 200% on a 320px phone, where no card at the usual size is under 10.4rem
+  (five across a 56rem lineup since S3a), so every threshold under 9rem applies to larger text only.
   - Under 9rem the season's figures wrap: the win rate on a line, KDA and CS/min (vision) under it,
     side by side where they fit; the wins bar keeps 2rem ("CS/MIN" ran 42px past the card at 200%).
   - Under 9.75rem the pool's heading wraps instead of ending in "…", and the first choice goes under
@@ -555,7 +557,9 @@ the account screen over the dashboard at 200% on a 320px phone as well.
   2b's 44px dense tabs on touch screens from 1024px (below). A profile's
   tabs and a section's views (`SubTabs`) are inside their page's column, so they always lined up. On
   Team Overview the column is Team's 100rem, and its header and lineup keep their 84rem, centred in
-  it (the logo 38px inside at 1920, 165px at 2560 and 176px at 3440 with the sidebar open). With
+  it, under a 1920px window; from 1920px they take the whole column, so the tabs, the logo and the
+  first card share one edge (S2c; before, 38px apart at 1920 and 165px at 2560). Every page starts at
+  the left edge of the shared frame (DESIGN_SYSTEM §7, "One frame, one place for everything"). With
   Players at 100rem the roster takes three columns (its own 84rem rule) from about 1780px with the
   sidebar open and from 1600px with it folded; Team Matches' list stays at `--content-max`,
   left-aligned. The route's loading state takes the width `pageWidthOf` gives its address (a Team
