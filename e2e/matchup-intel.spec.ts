@@ -377,7 +377,28 @@ test("your champion is remembered on this device and offered after a reload, nev
   // button whose words change, so focus stays on it.
   await openMatchupIntel(page, "Ambessa", "Renekton");
   await expect(line).toHaveAttribute("data-state", "other");
-  // A button that looks like one: its own border, on a phone too.
+  if ((page.viewportSize()?.width ?? 0) < 640) {
+    // A phone: once your champion is chosen, "Remember" is the title row's icon toggle (PLAN S7a), 44px.
+    await expect(line).toBeHidden();
+    const toggle = page.getByTestId("matchup-remember-toggle");
+    await expect(toggle).toHaveAttribute("aria-pressed", "false");
+    await expect(toggle).toHaveAccessibleName("Remember Ambessa on this device as your champion");
+    const box = (await toggle.boundingBox())!;
+    expect(Math.min(box.width, box.height)).toBeGreaterThanOrEqual(44);
+    await toggle.click();
+    await expect(line).toHaveAttribute("data-state", "remembered");
+    await expect(toggle).toHaveAttribute("aria-pressed", "true");
+    await expect(toggle).toBeFocused();
+    // Remembered in this browser: after a reload, and offered with no champion chosen.
+    await page.reload();
+    await expect(toggle).toHaveAttribute("aria-pressed", "true");
+    await toggle.click();
+    await expect(toggle).toHaveAttribute("aria-pressed", "false");
+    await expect(toggle).toBeFocused();
+    await expect(line).toHaveAttribute("data-state", "other");
+    return;
+  }
+  // A button that looks like one: its own border.
   expect(await line.getByTestId("matchup-remember").evaluate((b) => getComputedStyle(b).borderTopWidth)).toBe("1px");
   await line.getByTestId("matchup-remember").click();
   await expect(line).toHaveAttribute("data-state", "remembered");
@@ -387,7 +408,7 @@ test("your champion is remembered on this device and offered after a reload, nev
   await expect(line.getByTestId("matchup-remember")).toBeFocused();
 });
 
-test("phone: the remembered line is one row in every state, the height it keeps before the page reads this device", async ({ page }) => {
+test("phone: the remembered line is one row in every state where it shows, the height it keeps before the page reads this device", async ({ page }) => {
   test.skip((page.viewportSize()?.width ?? 1000) >= 768, "a phone's widths");
   const line = page.getByTestId("matchup-remembered");
   for (const width of [320, 375]) {
@@ -405,6 +426,12 @@ test("phone: the remembered line is one row in every state, the height it keeps 
     for (const [state, step] of steps) {
       await step();
       await expect(line).toHaveAttribute("data-state", state);
+      // With your champion chosen the line gives way to the title row's toggle (PLAN S7a).
+      if (state === "remembered" || state === "other") {
+        await expect(line).toBeHidden();
+        await expect(page.getByTestId("matchup-remember-toggle")).toHaveAttribute("aria-pressed", state === "remembered" ? "true" : "false");
+        continue;
+      }
       // The server's copy holds one 44px row while this device's storage is unknown: no state grows
       // past it, so nothing under the line moves once the storage has been read.
       expect(await line.evaluate((e) => e.getBoundingClientRect().height), `${state} at ${width}`).toBeLessThanOrEqual(45);
@@ -627,7 +654,7 @@ test("phone at 200% text: nothing is cut or spills sideways in the bar, the brie
       });
       const at = `${you} vs ${enemy} at ${width}px`;
       expect(await overflow(page), `${at}: the page`).toBeLessThanOrEqual(1);
-      const parts = [curated ? "matchup-briefing" : "matchup-assembled", "matchup-pickers", "matchup-remembered", "matchup-patch-state", "matchup-enemy-abilities", "matchup-your-abilities", "matchup-interactions", "matchup-level-notes", "matchup-footer"];
+      const parts = [curated ? "matchup-briefing" : "matchup-assembled", "matchup-pickers", "matchup-remember-toggle", "matchup-glance", "matchup-patch-state", "matchup-enemy-abilities", "matchup-your-abilities", "matchup-interactions", "matchup-level-notes", "matchup-footer"];
       for (const part of parts) {
         await expect(page.getByTestId(part), `${at}: ${part}`).toBeVisible();
         expect.soft(await cutOrSpilled(page.getByTestId(part)), `${at}: ${part}`).toEqual([]);
@@ -900,7 +927,7 @@ test("phone at 200% and 150% text: the states with one side or none chosen, and 
   for (const r of ["matchup-picker-recent", "matchup-picker-curated"]) expect.soft(await cutOrSpilled(rows.getByTestId(r)), `the picker at 320px, 200%: ${r}`).toEqual([]);
 });
 
-test("phone: the briefing's threat is on the first screen, above the tab bar: whole at 390 by 664, its first line at 320 by 568; an assembled pair's Danger side likewise", async ({ page }) => {
+test("phone: the first screen holds the glance (every enemy tile's cooldown line) and, at 390 by 664, the briefing's whole threat; an assembled pair's Danger side starts there too", async ({ page }) => {
   // Written with the facts from Riot's text on the page: turned on for it while they ship off.
   await riotText(page, "on");
   test.skip((page.viewportSize()?.width ?? 1000) >= 768, "a phone");
@@ -919,18 +946,29 @@ test("phone: the briefing's threat is on the first screen, above the tab bar: wh
         range.selectNodeContents(threat);
         const lines = [...range.getClientRects()];
         const height = (side: string) => document.querySelector(`[data-testid="matchup-pick-${side}"]`)!.getBoundingClientRect().height;
-        return { bar, scrollY: window.scrollY, firstLine: lines[0]!.bottom, last: threat.getBoundingClientRect().bottom, you: height("you"), enemy: height("enemy") };
+        const cooldowns = [...document.querySelectorAll('[data-testid="glance-cooldown"]')].map((e) => e.getBoundingClientRect().bottom);
+        return { bar, scrollY: window.scrollY, firstLine: lines[0]!.bottom, last: threat.getBoundingClientRect().bottom, you: height("you"), enemy: height("enemy"), cooldowns: cooldowns.length, cooldownsEnd: Math.max(...cooldowns), evidence: document.querySelector('[data-testid="glance-evidence"]')!.getBoundingClientRect().bottom };
       });
       const at = `${you} vs ${enemy} at ${width} by ${height}`;
       expect(m.scrollY, at).toBe(0);
-      if (whole) expect(m.last, `${at}: the whole threat`).toBeLessThanOrEqual(m.bar);
-      expect(m.firstLine, `${at}: the threat's first line`).toBeLessThanOrEqual(m.bar);
+      // The glance (PLAN S7a): every enemy tile's cooldown line on the first screen, at both sizes.
+      expect(m.cooldowns, `${at}: five tiles`).toBe(5);
+      expect(m.cooldownsEnd, `${at}: every tile's cooldown line`).toBeLessThanOrEqual(m.bar);
+      // At 390 by 664 the evidence's first row and the whole threat too. At 320 by 568 the glance
+      // takes the first screen and the threat starts on the next (it started there until 20 Nov 2026).
+      if (whole) {
+        expect(m.evidence, `${at}: the evidence's first row`).toBeLessThanOrEqual(m.bar);
+        expect(m.last, `${at}: the whole threat`).toBeLessThanOrEqual(m.bar);
+        expect(m.firstLine, `${at}: the threat's first line`).toBeLessThanOrEqual(m.bar);
+      }
       // The two sides are as tall as each other, whichever name wraps.
       expect(Math.abs(m.you - m.enemy), `${at}: the sides' heights`).toBeLessThanOrEqual(1);
     }
     // Any other pair: the assembled reference's Danger side starts on the first screen, its label and
-    // the line under it (whose kit it is) above the tab bar, and at 390 by 664 the first line of what it
-    // holds too; for an enemy with no facts recorded, the whole side at 390 by 664. At 320 by 568 the
+    // the line under it (whose kit it is) above the tab bar. Since the glance (20 Nov 2026, PLAN S7a)
+    // the enemy's kit itself is on the first screen above it, tile by tile with each cooldown, so the
+    // side's first group (the same kit by kind) is no longer asked for there; for an enemy with no
+    // facts recorded, the whole side at 390 by 664 still. At 320 by 568 the
     // lines under the subtitle that say where the side's facts and numbers come from (the review's
     // fixes of 19 Nov 2026: "From Riot's ability text, reviewed automatically (not by a person)" and
     // "Cooldowns: Riot's data, not reviewed", two lines each there) put its first group just under
@@ -949,9 +987,9 @@ test("phone: the briefing's threat is on the first screen, above the tab bar: wh
     });
     const at = `Riven vs Darius at ${width} by ${height}`;
     expect(d.scrollY, at).toBe(0);
-    expect(d.label, `${at}: the Danger side's label`).toBeLessThanOrEqual(d.bar);
-    expect(d.subtitle, `${at}: whose kit it is`).toBeLessThanOrEqual(d.bar);
-    if (whole) expect(d.firstLine, `${at}: the first line it holds`).toBeLessThanOrEqual(d.bar);
+    // At 320 by 568 the glance takes the first screen, as above, and the side starts on the next.
+    if (whole) expect(d.label, `${at}: the Danger side's label`).toBeLessThanOrEqual(d.bar);
+    if (whole) expect(d.subtitle, `${at}: whose kit it is`).toBeLessThanOrEqual(d.bar);
     if (whole && d.noFacts) expect(d.last, `${at}: the whole Danger side`).toBeLessThanOrEqual(d.bar);
   }
 });

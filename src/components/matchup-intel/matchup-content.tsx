@@ -9,6 +9,7 @@ import { OpenPickerButton, PairLink } from "./matchup-frame";
 import { slotWords } from "./slots";
 import { RiotTipsPanel } from "./riot-tips";
 import { EvidenceBody, EvidenceSummary } from "./evidence-panel";
+import { MatchupGlance } from "./glance";
 import type { MatchupEvidence } from "@/domain/matchup-intel/evidence";
 import { InteractionsPanel, LevelNotesPanel, notesBalance } from "./matchup-notes";
 import { behindOf } from "./matchup-status";
@@ -28,7 +29,8 @@ import { staleDataWords } from "./wording";
             them your own champion, folded into one line.
   The patch and how fresh the page is sit in the bar above (MatchupStatus); the sources and Riot's
   notice at the foot, behind one control whose summary line stays visible.
-  On a phone, the same order in one column: the main panel, the interactions, the level changes,
+  On a phone, first a glance (glance.tsx: the enemies' tiles with their cooldown lines and the
+  evidence's first row), then the same order in one column: the main panel, the interactions, the level changes,
   the enemy's tiles, your champion, the sources. With nothing chosen, or one side only, it says
   what to do next.
 */
@@ -123,6 +125,9 @@ export function MatchupContent({ view, champions, curated, legal, evidence = nul
           </OpenPickerButton>
         </p>
       ) : null}
+
+      {/* A phone's first screen: every enemy tile with its cooldown line, and the evidence's first row (glance.tsx). */}
+      {enemyIntel ? <MatchupGlance enemies={[enemyIntel, enemy2Intel].filter((i): i is ChampionIntelView => !!i)} evidence={evidence} /> : null}
 
       {enemyIntel ? (
         <div className={duo ? COLUMNS.duo : COLUMNS.solo}>
