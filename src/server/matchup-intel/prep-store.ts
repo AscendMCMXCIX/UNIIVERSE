@@ -148,7 +148,10 @@ async function write(db: Db, rows: ReadonlyArray<{ accountId: string; matchId: s
     replace
       ? sql`INSERT INTO account_match_prep (account_id, match_id, format, prep) VALUES ${values}
             ON CONFLICT (account_id, match_id) DO UPDATE SET format = EXCLUDED.format, prep = EXCLUDED.prep, made_at = now() RETURNING 1`
-      : sql`INSERT INTO account_match_prep (account_id, match_id, format, prep) VALUES ${values} ON CONFLICT DO NOTHING RETURNING 1`,
+      : // A missing row is inserted; an existing one is replaced only when it is a stale start (STALE_START) and the new one is not.
+        sql`INSERT INTO account_match_prep (account_id, match_id, format, prep) VALUES ${values}
+            ON CONFLICT (account_id, match_id) DO UPDATE SET format = EXCLUDED.format, prep = EXCLUDED.prep, made_at = now()
+            WHERE account_match_prep.prep->>'tl' = 'true' AND NOT (account_match_prep.prep ? 'sk') AND EXCLUDED.prep ? 'sk' RETURNING 1`,
   );
   return rowsOf(result).length;
 }
@@ -169,6 +172,16 @@ export async function refreshMatchPrep(db: Db, matchIds: readonly string[], log?
   }
 }
 
+/**
+ * A row whose starting set still counts items sold in the first minute: made from a timeline that
+ * keeps the sales (its events hold the plates: completedTimeline's rule, from 20 Nov 2026) before the
+ * starting set took them out (MatchPrep.sk). prep-backfill makes these rows again, as it fills missing
+ * ones; once made again they carry `sk` and are not read again.
+ */
+const STALE_START = sql`EXISTS (SELECT 1 FROM account_match_prep p WHERE p.account_id = am.account_id AND p.match_id = am.match_id
+    AND p.prep->>'tl' = 'true' AND NOT (p.prep ? 'sk')
+    AND EXISTS (SELECT 1 FROM match_timelines tl WHERE tl.match_id = am.match_id AND tl.events ? 'plates'))`;
+
 export interface PrepBackfillResult {
   /** Games read this run (at most the limit). */
   read: number;
@@ -181,21 +194,22 @@ export interface PrepBackfillResult {
   remaining: number;
 }
 
-/** How many members' rift games with a stored record have no evidence row yet (counted first, as every run is). */
+/** How many members' rift games with a stored record have no evidence row yet, or a stale start (STALE_START) (counted first, as every run is). */
 export async function prepPending(db: Db): Promise<number> {
   const [row] = rowsOf<{ n: string | number }>(
     await db.execute(sql`
       SELECT count(*) AS n FROM account_matches am
       WHERE am.champion_id IS NOT NULL AND am.queue_id IN (${queueList})
         AND EXISTS (SELECT 1 FROM match_details d WHERE d.match_id = am.match_id)
-        AND NOT EXISTS (SELECT 1 FROM account_match_prep p WHERE p.account_id = am.account_id AND p.match_id = am.match_id)`),
+        AND (NOT EXISTS (SELECT 1 FROM account_match_prep p WHERE p.account_id = am.account_id AND p.match_id = am.match_id) OR ${STALE_START})`),
   );
   return Number(row?.n ?? 0);
 }
 
 /**
- * The backfill: inserts the missing rows of at most `limit` members' games, newest first. Insert
- * only (ON CONFLICT DO NOTHING): idempotent, and resumable from wherever a run stopped.
+ * The backfill: inserts the missing rows of at most `limit` members' games, newest first, and makes
+ * again the rows with a stale start (STALE_START). Nothing else is replaced: idempotent, and
+ * resumable from wherever a run stopped.
  */
 export async function backfillMatchPrep(db: Db, options: { limit?: number; deadline?: number } = {}): Promise<PrepBackfillResult> {
   const limit = Math.max(0, Math.min(options.limit ?? PREP_BACKFILL_LIMIT, PREP_BACKFILL_LIMIT));
@@ -205,7 +219,7 @@ export async function backfillMatchPrep(db: Db, options: { limit?: number; deadl
       FROM account_matches am JOIN riot_accounts ra ON ra.id = am.account_id
       WHERE am.champion_id IS NOT NULL AND am.queue_id IN (${queueList})
         AND EXISTS (SELECT 1 FROM match_details d WHERE d.match_id = am.match_id)
-        AND NOT EXISTS (SELECT 1 FROM account_match_prep p WHERE p.account_id = am.account_id AND p.match_id = am.match_id)
+        AND (NOT EXISTS (SELECT 1 FROM account_match_prep p WHERE p.account_id = am.account_id AND p.match_id = am.match_id) OR ${STALE_START})
       ORDER BY am.game_creation DESC, am.match_id, am.account_id
       LIMIT ${limit}`),
   );

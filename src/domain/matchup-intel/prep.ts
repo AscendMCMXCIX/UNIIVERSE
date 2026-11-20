@@ -67,6 +67,12 @@ export interface MatchPrep {
   end?: number;
   /** Whether a timeline was read (without one only the record's fields are kept). */
   tl: boolean;
+  /**
+   * The starting set was made with the timeline's sales (PrepTimeline.salesKept): first-minute sales
+   * taken out. A row made from such a timeline before that rule (20 Nov 2026) lacks it, and
+   * prep-backfill makes those rows again (prep-store.ts, STALE_START).
+   */
+  sk?: true;
 }
 
 /** A player in a stored record, as far as preparation needs one. */
@@ -309,6 +315,7 @@ export function matchPrep(parts: readonly PrepParticipant[], meSlot: number, tim
   if (!timeline || !mine) return prep;
   prep.tl = true;
   const purchases = [...mine.purchases].sort((a, b) => a[0] - b[0]);
+  if (timeline.salesKept) prep.sk = true;
   const start = startingSet(purchases, timeline.salesKept ? (mine.sold ?? []) : []);
   if (start.length) prep.start = sortedIds(start);
   const later = purchases.filter(([t]) => t >= START_MS);
