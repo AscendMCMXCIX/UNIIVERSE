@@ -389,13 +389,15 @@ does (not the account screen, a screen of its own with nothing to pull). Closing
 longer puts the focus back itself (it scrolled a row partly under the tab bar into view, 70–109px
 when audited); the focus returns with `preventScroll` (`e2e/overlay-kit.spec.ts`). A plain title
 bar collapses too, its title on one line (Release 10), and the window's own controls stay 44px on
-touch screens at every text size, so after a 100px scroll every whole-screen window's frame is at
-most a quarter of a 320 × 568 or 375 × 667 screen at 100, 150 and 200% text.
+touch screens at every text size, and the 56px bar is 56px at every text size, so once the body has
+scrolled every whole-screen window's frame is at most a quarter of a 320 × 568, 375 × 667 or
+568 × 320 screen at 100, 150 and 200% text.
 
 **At 320px with large text** (Release 10's sweep, `e2e/overlay-kit.spec.ts`): the player Peek on
 Players and Leaderboards keeps every control on the screen at 125–200%, upright and sideways; in its
-pool the narrowest list gives each row three lines (portrait and name, the experience label, the
-figures), and the label wraps where it must. A confirmation's actions wrap rather than run off the
+pool (the Team player window's too) a list under 15.5rem (a 320px phone from 125% text) gives each
+row three lines (portrait and name, the experience label, the figures), and the label wraps where
+it must. A confirmation's actions wrap rather than run off the
 screen; Manage access keeps one column no wider than the sheet; a switch's long word breaks,
 hyphenated; a lineup sheet's names wrap instead of being cut to nothing; the sign-in form's brand
 name wraps. Popover and the desktop `Select` do not open on a phone (the browser's own select is

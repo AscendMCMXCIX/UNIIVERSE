@@ -318,8 +318,8 @@ on 375, 30 and 90px on 393, at 175% and 200%), has no finding left at 125% to 20
 **Windows and sheets at 320px with large text** (Release 10, 20 Nov 2026; `e2e/overlay-kit.spec.ts`):
 a window's own icon controls (‹ ›, ✕) are 44px on touch screens at every text size (in rem they
 were 88px at 200% and pushed "Previous player" off a 320px screen); a plain title bar collapses
-to one line once the body scrolls, so the frame after a 100px scroll is at most a quarter of a
-320 × 568 or 375 × 667 screen at 100–200%; and the Task dialog, the sheets, the sign-in form and the
+to one line once the body scrolls (sideways too), and the 56px bar stays 56px, so the frame once
+scrolled is at most a quarter of a 320 × 568, 375 × 667 or 568 × 320 screen at 100–200%; and the Task dialog, the sheets, the sign-in form and the
 player Peek keep every control on the screen, nothing scrolling sideways and no word cut short, at
 200% (the Peek at 125–200%, upright and sideways). DESIGN_SYSTEM §7, "The phone window shell".
 

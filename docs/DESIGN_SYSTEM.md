@@ -303,10 +303,13 @@ UM.X2, X4; 20 Nov 2026):
   it collapsed, so it never takes away the scroll that collapsed it. A plain title bar (Admin's
   person window, Matchup Intel's picker and details) collapses too (Release 10, 20 Nov 2026): its
   title on one line, cut short with an ellipsis where it would wrap (the whole title stays the
-  window's name), its description for screen readers only, tighter padding. At 320 × 568 and
-  375 × 667, at 100, 150 and 200% text, once the body has scrolled 100px every whole-screen window's
-  frame takes at most a quarter of the screen (PLAN S2b; Admin's person window was 387px of 568 at
-  320 and 200%, now about 120px) (`e2e/overlay-kit.spec.ts`).
+  window's name), its description for screen readers only, tighter padding; held sideways (a short
+  window, which scrolls as one) it collapses on the window's own scroll. The 56px bar is 56px at
+  every text size, its title on one line (in rem, with the title on a line of its own under the
+  controls, it reached 224px of 568 at 320 and 200%). At 320 × 568, 375 × 667 and 568 × 320, at
+  100, 150 and 200% text, 100px down, 400px down and at the end, every whole-screen window's frame
+  takes at most a quarter of the screen (PLAN S2b; Admin's person window was 340px of 568 at 320
+  and 200% after a scroll) (`e2e/overlay-kit.spec.ts`).
 - **Its controls are 44px on touch screens at every text size** (`window-control.ts`,
   `WINDOW_CONTROL_TOUCH`): ‹ ›, ✕ and the actions beside them hold no text, so a larger text size
   gave them nothing to show; in rem they were 88px each at 200%, and the Peek's "Previous player"
