@@ -128,8 +128,9 @@ html {
 
 /*
   Where the 12px floor does not reach yet: the game cards of Match History and Team Matches keep 11px
-  until S6b rebuilds them (raising their text alone would widen the cards at 1280 to 1440). Only on
-  the elements design-tokens.test.ts lists, each with its reason.
+  (Release 5's post-game view, S6, was built before the floor; raising their text alone would widen
+  the cards at 1280 to 1440, so the floor reaches them with their next measured pass). Only on the
+  elements design-tokens.test.ts lists, each with its reason.
 */
 /* Uppercase labels (column headings, eyebrows, label-caps) keep 11px at every width: the floor is for
    running text and names, and a label's tracked capitals read at 11px (they set the width of a

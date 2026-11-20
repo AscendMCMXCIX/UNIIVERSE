@@ -523,7 +523,8 @@ With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shel
       outside it as its band, tabs and section. Leaderboards and Team Matches had theirs.
     - *The 12px floor* (UD.X5): `text-2xs` is 12px on desktops (lg), 11px on phones and tablets,
       one token for every use (globals.css); uppercase labels (and `label-caps`) keep 11px. The game cards of Match History and Team Matches keep
-      11px until S6b rebuilds them (`type-floor-later`, listed in `design-tokens.test.ts`); `text-4xs`
+      11px (`type-floor-later`, listed in `design-tokens.test.ts`: Release 5's post-game cards were built
+      before the floor, which reaches them with their next measured pass); `text-4xs`
       stays for letters inside small tiles (initials, the ⓘ glyph).
   - **One look at every width (S2c).** `e2e/design-parity.spec.ts` renders the shared components
     (stat label, Panel, DataRow, a badge, Button, the current section tab, InfoTip's bubble, Select)

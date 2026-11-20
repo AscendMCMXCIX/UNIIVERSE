@@ -58,10 +58,10 @@ function DataLine({ status }: { status: ShellStatus }) {
   return <p className="truncate text-xs text-fg-subtle">Patch {status.patch ?? "—"}</p>;
 }
 
-/** Things only this person can fix about their own account: an action card at the top of the page, not a header error. */
 /** The shared page column (see the main element); on Team Overview a column its lineup can grow into, as main is. */
 const FRAME = "mx-auto w-full max-w-[var(--content-wide)] *:ml-0 lg:has-[[data-fills-height]]:flex lg:has-[[data-fills-height]]:flex-1 lg:has-[[data-fills-height]]:flex-col";
 
+/** Things only this person can fix about their own account: an action card at the top of the page, not a header error. */
 function AccountNudges({ status }: { status: ShellStatus }) {
   const items: Array<{ href: string; text: string }> = [];
   if (status.needsPassword) items.push({ href: "/settings#password", text: "Your account has no password yet. Set one so you can sign in again." });

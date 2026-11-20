@@ -214,7 +214,7 @@ describe("design tokens", () => {
     removes its entry.
   */
   const FLOOR_LATER: Record<string, string> = {
-    "src/components/match-history/match-card.tsx": "S6b rebuilds the game cards of Match History and Team Matches (matchCardClass); raising their text alone would widen them at 1280 to 1440",
+    "src/components/match-history/match-card.tsx": "the game cards of Match History and Team Matches (matchCardClass), rebuilt in Release 5 (S6) before the floor: raising their text alone would widen them at 1280 to 1440, so the floor waits for their next measured pass",
   };
   it("keeps the 12px floor on desktops, and lists the places it does not reach yet", () => {
     const floor = /@media \(min-width: 64rem\) \{\s*:root \{\s*--text-2xs: 0\.75rem;/.test(CSS);

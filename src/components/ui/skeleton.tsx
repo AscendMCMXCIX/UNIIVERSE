@@ -185,23 +185,25 @@ export function HistorySkeleton() {
 
 /**
  * Team Overview (team-roster.tsx): the team's header (logo, name and the lineup's state) above the
- * five cards, with the lineup's widths and its columns (one card on a phone, two, three, then five
- * across), centred in the height under the tabs as the lineup is (data-fills-height).
+ * five cards, with the lineup's widths and its columns (one card on a phone, 3 + 2 from a 36rem
+ * lineup, five across from 56rem: S3a), centred in the height under the tabs as the lineup is
+ * (data-fills-height). On a phone the header is its one line (S2b: the top bar carries the logo and
+ * the name).
  */
 export function LineupSkeleton() {
   return (
     <div className="mx-auto flex w-full max-w-[var(--content-wide)] flex-col lg:flex-1" role="status" aria-live="polite" aria-label="Loading" data-testid="lineup-skeleton">
       <div className="@container/lineup flex flex-col gap-5 lg:flex-1 lg:justify-center lg:gap-6" data-fills-height>
         <div className="mx-auto flex w-full max-w-[26rem] items-center gap-3 @xl:max-w-[54rem] @4xl:max-w-[80rem] @5xl:max-w-[84rem] min-[120rem]:@5xl:max-w-full sm:gap-4" aria-hidden>
-          <Skeleton className="h-12 w-12 shrink-0 rounded-panel sm:h-16 sm:w-16 lg:h-20 lg:w-20" />
+          <Skeleton className="h-12 w-12 shrink-0 rounded-panel max-sm:hidden max-lg:short:hidden sm:h-16 sm:w-16 lg:h-20 lg:w-20" />
           <div className="min-w-0 flex-1 space-y-2">
-            <Skeleton className="h-7 w-48 max-w-full lg:h-9" />
+            <Skeleton className="h-7 w-48 max-w-full max-sm:hidden max-lg:short:hidden lg:h-9" />
             <Skeleton className="h-4 w-36 max-w-full" />
           </div>
         </div>
-        <div className="mx-auto grid w-full max-w-[26rem] grid-cols-1 gap-3 @xl:max-w-[54rem] @xl:grid-cols-2 @4xl:max-w-[80rem] @4xl:grid-cols-3 @5xl:max-w-[84rem] @5xl:grid-cols-5 @7xl:gap-5 min-[120rem]:@5xl:max-w-full" aria-hidden>
+        <div className="mx-auto grid w-full max-w-[26rem] grid-cols-1 gap-3 @xl:max-w-[54rem] @xl:grid-cols-6 @4xl:max-w-[84rem] @4xl:grid-cols-5 @7xl:gap-5 min-[120rem]:@5xl:max-w-full" aria-hidden>
           {Array.from({ length: 5 }, (_, i) => (
-            <div key={i} className={cn("h-116 rounded-card border border-border bg-surface panel-depth", i > 0 && "hidden @xl:block")} />
+            <div key={i} className={cn("h-116 rounded-card border border-border bg-surface panel-depth @xl:col-span-2 @4xl:col-span-1", i > 0 && "hidden @xl:block", i === 3 && "@xl:col-start-2 @4xl:col-start-auto")} />
           ))}
         </div>
       </div>
@@ -218,8 +220,9 @@ export function LineupSkeleton() {
 export function ProfileSkeleton({ section }: { section: "overview" | "champions" | "matches" | "accounts" }) {
   return (
     <div className="max-w-[var(--content-max)] space-y-4" role="status" aria-live="polite" aria-label="Loading" data-testid="profile-skeleton">
-      <div className="h-36 rounded-card border border-border bg-surface band:h-18" aria-hidden />
-      <Skeleton className="h-11 w-full max-w-lg" />
+      {/* On a phone held upright the band of Champions, History and Accounts is in the top bar (S2b), and the section tabs are always there. */}
+      <div className={cn("h-36 rounded-card border border-border bg-surface band:h-18", section !== "overview" && "max-md:not-short:hidden")} aria-hidden />
+      <Skeleton className="h-11 w-full max-w-lg max-md:hidden max-lg:short:hidden" />
       {section === "overview" ? <OverviewSkeleton /> : section === "champions" ? <ChampionsSkeleton /> : section === "matches" ? <HistorySkeleton /> : <PageSkeleton panels={2} title={false} />}
     </div>
   );
