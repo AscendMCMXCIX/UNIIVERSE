@@ -360,7 +360,6 @@ export function FilterBar({
       aria-haspopup="dialog"
       aria-expanded={open}
       aria-controls={open ? id : undefined}
-      title={hosted ? "Filters" : undefined}
       className={toolbarButtonClass(activeCount > 0, cn(hosted ? "relative w-11 px-0" : at.toggle, !hosted && toggleOnPhones && "max-sm:hidden", compactToggle && "max-[22.5rem]:min-w-11 max-[22.5rem]:px-2.5"))}
       data-testid={toggleTestId}
       data-filter-toggle=""
