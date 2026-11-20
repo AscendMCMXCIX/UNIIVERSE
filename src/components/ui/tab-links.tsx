@@ -26,7 +26,7 @@ export function TabLinks({ items, label, className, testId }: { items: TabLink[]
       <ul className="flex min-w-max gap-1 border-b border-border">
         {items.map(({ href, label: text, icon: Icon, active, count, testId: itemTestId }) => (
           <li key={href}>
-            <Link href={href} aria-current={active ? "page" : undefined} className={cn("relative flex min-h-11 items-center gap-1.5 px-3 text-sm transition-colors md:min-h-10", active ? "text-fg" : "text-fg-muted hover:text-fg")} data-testid={itemTestId}>
+            <Link href={href} aria-current={active ? "page" : undefined} className={cn("relative flex min-h-11 min-w-11 items-center justify-center gap-1.5 px-3 text-sm transition-colors md:min-h-10 md:pointer-coarse:min-h-11", active ? "text-fg" : "text-fg-muted hover:text-fg")} data-testid={itemTestId}>
               {Icon ? <Icon className={cn("h-4 w-4", active ? "text-accent" : "text-fg-subtle")} aria-hidden /> : null}
               {text}
               {count !== undefined ? <span className="rounded bg-surface-3 px-1.5 text-xs tabular-nums text-fg-muted">{count}</span> : null}

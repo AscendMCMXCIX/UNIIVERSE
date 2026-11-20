@@ -121,6 +121,8 @@ test("at 150%, 175% and 200% text on 320px and 375px phones, a profile's header 
     await page.setViewportSize({ width, height: 800 });
     for (const [i, profile] of profiles.entries())
       for (const section of ["", "/champions"]) {
+        // The band shows in the page only in a short window on a phone (upright it rides in the top bar, S2b).
+        await page.setViewportSize({ width, height: section ? 400 : 800 });
         await page.goto(`${profile}${section}`);
         await expect(page.getByTestId("profile-header")).toBeVisible();
         await page.evaluate(() => document.fonts.ready);
@@ -151,6 +153,8 @@ test("with the browser's own text at twice its size on a 320px phone, a profile'
   await page.goto("/team");
   const profile = `/players/${await page.getByTestId("lineup-row-SUPPORT").getAttribute("data-player-id")}`;
   for (const section of ["", "/champions"]) {
+    // The band shows in the page only in a short window on a phone (upright it rides in the top bar, S2b).
+    await page.setViewportSize({ width: 320, height: section ? 400 : 800 });
     await page.goto(`${profile}${section}`);
     await expect(page.getByTestId("profile-header")).toBeVisible();
     await page.evaluate(() => document.fonts.ready);

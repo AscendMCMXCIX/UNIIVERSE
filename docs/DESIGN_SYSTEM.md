@@ -233,7 +233,12 @@ any window on nothing focusable leaves nothing focused, so a click on its text l
 page does and the keys still scroll its body (`letGoWhenPressed`): Chromium and WebKit focus a
 dialog itself at such a press, with or without a tabindex, and the keys then scrolled nothing.
 
-**Targets.** At least 24px everywhere and 44px on touch screens (STANDARDS.md).
+**Targets.** At least 24px everywhere and 44px on touch screens (STANDARDS.md): a segment is 44px
+there (filling its 44px group), an ⓘ's touch area 44px (S2b, 20 Nov 2026: 38px and 40px before).
+
+**Uppercase labels** keep one letter spacing, `tracking-label`, at every width: no width or container
+variant may change it (`design-tokens.test.ts`; the Team card's WIN RATE was 0.44px on a laptop and
+1.32px on a phone before S2b).
 
 ## 6. Motion
 

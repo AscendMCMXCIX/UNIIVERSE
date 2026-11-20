@@ -17,7 +17,7 @@ export function PageSkeleton({ panels = 3, title = true, width = "max" }: { pane
       {title ? (
         <div className="space-y-2">
           <Skeleton className="h-6 w-48" />
-          <Skeleton className="h-4 w-80" />
+          <Skeleton className="h-4 w-80 max-w-full" />
         </div>
       ) : null}
       {Array.from({ length: panels }, (_, i) => (

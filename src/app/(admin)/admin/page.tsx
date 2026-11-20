@@ -39,7 +39,7 @@ export default async function AdminDashboardPage() {
   const attention = status.filter((s) => s.label !== "Healthy");
   return (
     <div className="space-y-5" data-testid="admin-dashboard">
-      <PageHeader eyebrow="Admin Mode" title="Dashboard" description="The state of the platform at a glance." />
+      <PageHeader admin eyebrow="Admin Mode" title="Dashboard" description="The state of the platform at a glance." />
       {/* With a larger text size on a phone (the list under 16rem) the tiles stack, a long word broken inside its line. */}
       <div className="@container">
         <ul className="grid grid-cols-2 gap-3 @max-[16rem]:grid-cols-1 lg:grid-cols-4" data-testid="dashboard-accounts">

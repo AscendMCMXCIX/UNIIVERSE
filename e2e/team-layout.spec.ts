@@ -5,12 +5,12 @@ import { lineupAtRest } from "./lineup";
 /*
   Team Overview layout, as approved (before #275): the header shares the cards' width and centre on
   wider screens (the logo, the "Team Overview" eyebrow over the team's name, the lineup's state
-  under it, Edit lineup at the row's end); upright tablets show the lineup 2 + 2 + 1, a laptop with
-  the sidebar open 3 + 2 and desktops five across, nothing under the cards (no bench: a substitute
-  is on their starter's card); on phones the header keeps the logo beside the name with the state
-  and Edit lineup on a line of their own, and the five cards are one sideways track (real touch
-  swipes, snap points, role tabs of each role's icon and name) that never makes the page itself
-  scroll sideways.
+  under it, Edit lineup at the row's end); upright tablets show the lineup 3 + 2 (never a card alone
+  on a row), and from a 56rem lineup (a 1280px laptop with the sidebar open) five across, nothing
+  under the cards (no bench: a substitute is on their starter's card); on a member's phone the
+  header is one 44px line (the bar carries the team's mark and name), and the five cards are one
+  sideways track (real touch swipes, snap points, a lineup pager of the players' pictures with their
+  roles as badges) that never makes the page itself scroll sideways (S3a, 20 Nov 2026).
 */
 
 test.beforeEach(async ({ context, baseURL }) => {
@@ -79,7 +79,7 @@ test("the header is centred over the cards and sits close to them", async ({ pag
   expect((await page.getByTestId("lineup-status").boundingBox())!.y, "the lineup's state under the name").toBeGreaterThanOrEqual(name.y + name.height - 1);
 });
 
-test("upright tablets show the lineup 2 + 2 + 1 and desktops five across, with nothing under the cards", async ({ page }) => {
+test("upright tablets show the lineup 3 + 2 and desktops five across, with nothing under the cards", async ({ page }) => {
   test.skip(isPhone(page), "the phone layout has its own test");
   await page.goto("/team");
   await expect(page.getByTestId("lineup-cell")).toHaveCount(5);
@@ -87,12 +87,12 @@ test("upright tablets show the lineup 2 + 2 + 1 and desktops five across, with n
   const { cells: boxes, track, overflow } = await lineupAtRest(page);
   const tablet = (page.viewportSize()?.width ?? 1440) < 1024;
   if (tablet) {
-    // 2 + 2 + 1: two rows of two cards, the fifth alone under them, centred.
-    expect(boxes[1]!.top).toBe(boxes[0]!.top);
-    expect(boxes[3]!.top).toBe(boxes[2]!.top);
-    expect(boxes[2]!.top).toBeGreaterThan(boxes[0]!.top);
-    expect(boxes[4]!.top).toBeGreaterThan(boxes[2]!.top);
-    expect(Math.abs(boxes[4]!.x + boxes[4]!.width / 2 - (track.x + track.width / 2))).toBeLessThanOrEqual(2);
+    // 3 + 2: three cards in the first row, the last two under them, centred (no card alone on a row).
+    expect(new Set(boxes.slice(0, 3).map((b) => b.top)).size, "the first three in one row").toBe(1);
+    expect(new Set(boxes.slice(3).map((b) => b.top)).size, "the last two in one row").toBe(1);
+    expect(boxes[3]!.top).toBeGreaterThan(boxes[0]!.top);
+    const pair = (boxes[3]!.x + boxes[4]!.x + boxes[4]!.width) / 2;
+    expect(Math.abs(pair - (track.x + track.width / 2))).toBeLessThanOrEqual(2);
   } else {
     expect(new Set(boxes.map((b) => b.top)).size, "one row").toBe(1);
   }
@@ -108,22 +108,24 @@ test("upright tablets show the lineup 2 + 2 + 1 and desktops five across, with n
   expect(overflow).toBeLessThanOrEqual(1);
 });
 
-test("a 1280 × 800 laptop with the sidebar open shows the lineup 3 + 2, the last two centred under the first three", async ({ page, context, baseURL }, info) => {
+test("a 1280 × 800 laptop with the sidebar open shows the five across on one screen, one row up to 1400; Edit mode has exactly one filled primary, Done", async ({ page, context, baseURL }, info) => {
   test.skip(info.project.name !== "desktop", "laptop widths");
-  // The sidebar open, as it is by default: the lineup is then between 56rem and 64rem wide.
+  // The sidebar open, as it is by default: the lineup is 56rem or wider from 1280 (S3a; 3 + 2 at 1.28 screens before, UD.T1).
   await context.addCookies([{ name: "uniiverse_sidebar", value: "expanded", url: baseURL! }]);
-  await page.setViewportSize({ width: 1280, height: 800 });
-  await page.goto("/team");
-  await expect(page.getByTestId("sidebar")).toHaveAttribute("data-collapsed", "false");
-  await expect(page.getByTestId("lineup-cell")).toHaveCount(5);
-  const { cells: boxes, track, overflow } = await lineupAtRest(page);
-  // 3 + 2: three cards share the first row, the last two the second, centred under them.
-  expect(new Set(boxes.slice(0, 3).map((b) => b.top)).size, "the first three in one row").toBe(1);
-  expect(new Set(boxes.slice(3).map((b) => b.top)).size, "the last two in one row").toBe(1);
-  expect(boxes[3]!.top, "the last two under the first three").toBeGreaterThan(boxes[0]!.top);
-  const pair = (boxes[3]!.x + boxes[4]!.x + boxes[4]!.width) / 2;
-  expect(Math.abs(pair - (track.x + track.width / 2)), "the last two centred under the lineup").toBeLessThanOrEqual(2);
-  expect(overflow).toBeLessThanOrEqual(1);
+  for (const width of [1280, 1365, 1400]) {
+    await page.setViewportSize({ width, height: 800 });
+    await page.goto("/team");
+    await expect(page.getByTestId("sidebar")).toHaveAttribute("data-collapsed", "false");
+    await expect(page.getByTestId("lineup-cell")).toHaveCount(5);
+    const { cells: boxes, overflow } = await lineupAtRest(page);
+    expect(new Set(boxes.map((b) => b.top)).size, `${width}: one row`).toBe(1);
+    if (width === 1280) expect(overflow, "1280 × 800: one screen").toBeLessThanOrEqual(1);
+  }
+  await page.getByTestId("edit-lineup").click();
+  // Change, Substitute and Make starter are outline buttons; Done is the one filled primary.
+  const filled = await page.locator("main button").evaluateAll((buttons) => buttons.filter((b) => b.getBoundingClientRect().width > 0 && /\bbg-accent\b/.test(b.className) && !/\bbg-accent\//.test(b.className)).map((b) => b.getAttribute("data-testid")));
+  expect(filled).toEqual(["edit-lineup"]);
+  await page.getByTestId("edit-lineup").click();
 });
 
 // The season figures and Edit lineup's choices, as approved, on the cards five across: each card's
@@ -197,21 +199,18 @@ test("phones swipe sideways through the five cards, one at a time", async ({ pag
   const subtitle = page.getByTestId("team-subtitle");
   await expect(subtitle.locator(":scope > span", { hasText: /^·$/ })).toHaveCount(0);
   expect((await subtitle.locator(":scope > span").first().boundingBox())!.height).toBeLessThanOrEqual(20);
-  // The header as approved: the logo at the start of its first line, beside the name, and under them
-  // the lineup's state and Edit lineup (its whole label) on a line of their own.
-  const header = page.getByTestId("team-header");
-  const mark = (await header.locator(":scope > span[aria-hidden], :scope > img, :scope > picture > img").first().boundingBox())!;
-  const name = (await page.getByTestId("team-name").boundingBox())!;
+  // A member's phone header: one 44px line under the bar (S2b; the bar carries the team's mark and
+  // name, the h1 is read out only): the scope over the lineup's state, Edit lineup (its whole label) at its end.
+  const header = (await page.getByTestId("team-header").boundingBox())!;
   const edit = (await page.getByTestId("edit-lineup").boundingBox())!;
   const status = (await page.getByTestId("lineup-status").boundingBox())!;
-  expect(Math.round(mark.width), "the logo, 48px").toBe(48);
-  expect(mark.x + mark.width, "the logo before the name").toBeLessThanOrEqual(name.x + 1);
-  expect(edit.y, "Edit lineup on the line under the name").toBeGreaterThanOrEqual(name.y + name.height - 1);
-  expect(status.y, "the lineup's state on the line under the name").toBeGreaterThanOrEqual(name.y + name.height - 1);
+  expect(header.height, "one line under the bar").toBeLessThanOrEqual(56);
+  expect((await page.getByTestId("team-name").boundingBox())!.width, "the h1 read out only").toBeLessThanOrEqual(1);
+  expect(edit.x, "Edit lineup at the line's end").toBeGreaterThan(status.x + status.width);
   await expect(page.getByTestId("edit-lineup")).toHaveText("Edit lineup");
-  // Each role's tab is its icon and name: no pictures.
+  // The lineup pager: each tab the player's picture with the role's icon as its badge.
   for (const tab of await tabs.all()) await expect(tab.locator("[data-role-icon]")).toHaveCount(1);
-  await expect(tabs.locator("[data-avatar-frame], img")).toHaveCount(0);
+  await expect(page.getByTestId("lineup-dot-picture")).toHaveCount(5);
   // Nothing under the track: no bench of substitutes.
   await expect(page.getByTestId("lineup-bench")).toHaveCount(0);
 
@@ -236,15 +235,14 @@ test("phones swipe sideways through the five cards, one at a time", async ({ pag
   // A vertical swipe still scrolls the page, not the track.
   const before = await track.evaluate((el) => el.scrollLeft);
   await swipe(page, cdp, { x: Math.round(box.width / 2), y: 600 }, { x: Math.round(box.width / 2), y: 300 });
-  // Compact cards make the page short: it scrolls as far as it can (up to 50px), the track not at all.
+  // Compact cards make the page short (at 375 × 667 it fits the screen since S3a): it scrolls as far as it can (up to 50px), the track not at all.
   const room = await page.evaluate(() => document.documentElement.scrollHeight - window.innerHeight);
-  expect(room).toBeGreaterThan(0);
-  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThanOrEqual(Math.min(50, room) - 1);
+  if (room > 0) await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThanOrEqual(Math.min(50, room) - 1);
   expect(await track.evaluate((el) => el.scrollLeft)).toBe(before);
   await page.evaluate(() => window.scrollTo(0, 0));
 
-  // The role bar moves too (a tap away from any player), names each role and says where you are.
-  await expect(tabs).toHaveText(["Top", "Jungle", "Mid", "Bottom", "Support"]);
+  // The pager moves too (a tap away from any player), names each player and says where you are.
+  await expect(page.getByTestId("lineup-dot-name").first()).not.toBeEmpty();
   // Named by the role, then the player.
   await expect(tabs.first()).toHaveAccessibleName(/^Top: .+/);
   await tabs.nth(2).click();

@@ -45,7 +45,7 @@ export function CustomiseCardButton(props: CustomiseCardProps & { variant?: "ove
           props.className,
         )}
         aria-label="Customise profile card"
-        title="Player Card Studio: artwork, colours, frame, identity and effects"
+        title="Customise your card"
         data-testid="customise-card"
       >
         <Icon className={cn(icon ? "h-4 w-4" : "h-3.5 w-3.5", !icon && props.iconOnPhones && "max-sm:h-4 max-sm:w-4 short:h-4 short:w-4", pending && "animate-spin")} aria-hidden /> {icon ? null : <span className={cn(props.iconOnPhones && "max-sm:sr-only short:sr-only")}>Customise</span>}

@@ -284,6 +284,10 @@ test("the page behind is put back if anything scrolls it while the account scree
   // 400px (measured on a fresh server at 375 × 667: 861px once the games arrived).
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollHeight - innerHeight)).toBeGreaterThan(400);
   await page.evaluate(() => window.scrollTo(0, 400));
+  // Under 700px tall the top bar's first row slides away as the page scrolls down: a little scroll up
+  // brings it back, the avatar with it, as a finger does before tapping it (docs/MOBILE.md).
+  await page.mouse.wheel(0, -30);
+  await expect(page.getByTestId("mobile-topbar")).toHaveAttribute("data-hidden", "false");
   const scrolled = await page.evaluate(() => scrollY);
   expect(scrolled).toBeGreaterThan(300);
   await openScreen(page);

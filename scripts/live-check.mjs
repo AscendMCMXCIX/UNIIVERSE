@@ -636,11 +636,16 @@ async function sidewaysFrame(page, log, profileId) {
         sections: shown(document.querySelector("[data-testid=profile-chrome-tabs]")),
         teamRow: shown(document.querySelector("[data-testid=team-chrome-tabs]")),
         band: shown(band) ? Math.round(band.getBoundingClientRect().height) : null,
+        lineupRows: new Set([...document.querySelectorAll("[data-testid=lineup-cell]")].map((c) => Math.round(c.getBoundingClientRect().top))).size,
+        lineupCells: document.querySelectorAll("[data-testid=lineup-cell]").length,
       };
     });
   if (await visit(page, log, "phone", "sideways-team", "/team", { fullPage: false })) {
     const { entries, ...f } = await facts();
-    pass("frame", "phone held sideways (844 × 390): one compact bar holds the four destinations, Team's sections under it, with no bottom bar, the bars at most 90px", f.navs === 1 && f.inTopBar && destinationsInOrder(entries) && f.teamRow && !f.bottomBar && f.bars !== null && f.bars <= 90, { ...f, entries: entries.map((e) => e.label) });
+    const { lineupRows, lineupCells, ...frame } = f;
+    pass("frame", "phone held sideways (844 × 390): one compact bar holds the four destinations, Team's sections under it, with no bottom bar, the bars at most 90px", frame.navs === 1 && frame.inTopBar && destinationsInOrder(entries) && frame.teamRow && !frame.bottomBar && frame.bars !== null && frame.bars <= 90, { ...frame, entries: entries.map((e) => e.label) });
+    // S3a: the five cards in one row held sideways, never 2 + 2 + 1 with an orphan.
+    pass("team", "844x390: the lineup's five cards in one row, no orphan", lineupCells === 5 && lineupRows === 1, { lineupCells, lineupRows });
   }
   if (!profileId) return check("frame", "phone held sideways (844 × 390): a profile's sections and band", "PASS", "not applicable: no teammate's profile to open");
   if (await visit(page, log, "phone", "sideways-profile", `/players/${profileId}`, { fullPage: false })) {
@@ -676,7 +681,8 @@ async function accountMenuFirstTap(page, kind, trigger) {
  *   reaching the window's foot), or start at the top when they are taller than the window; and the
  *   header shows the logo at 80px and the "Team Overview" eyebrow over the name, with the cards on
  *   the stage's floor (drawn from just under them, hidden from screen readers);
- * - phone (390 × 844): the first lineup card ends above the tab bar;
+ * - phone (390 × 844): the first lineup card ends above the tab bar, and the lineup pager holds
+ *   the five players' pictures (S3a);
  * - every width: no bench of substitutes under the lineup (the approved design shows a substitute
  *   on their starter's card, turned to by its control).
  */
@@ -716,6 +722,8 @@ async function teamFacts(page, kind) {
       firstCardEnd: cells[0] ? Math.round(cells[0].bottom) : null,
       tabBarTop: nav ? Math.round(nav.getBoundingClientRect().top) : null,
       faces: document.querySelectorAll("[data-testid^=lineup-sub-]").length,
+      // The lineup pager's pictures (members' phones: each player's picture with the role as its badge).
+      pagerPictures: shown(q("[data-testid=lineup-pager]")) ? [...document.querySelectorAll("[data-testid=lineup-dot-picture]")].filter(shown).length : 0,
       bench: document.querySelectorAll("[data-testid=lineup-bench], [data-testid^=bench-]").length,
     };
   });
@@ -749,6 +757,8 @@ async function teamFacts(page, kind) {
     const name = "390x844 (the live check's phone): the first lineup card ends above the tab bar";
     if (f.tabBarTop === null || f.firstCardEnd === null) check("team", name, "PASS", `not applicable: ${f.tabBarTop === null ? "no tab bar shown" : "no lineup card"}`);
     else pass("team", name, f.firstCardEnd + f.scrollY <= f.tabBarTop, { firstCardEnd: f.firstCardEnd + f.scrollY, tabBarTop: f.tabBarTop });
+    // The lineup pager shows the team: one picture per role (S3a; the role names alone before).
+    pass("team", "390x844: the lineup pager holds the five players' pictures", f.pagerPictures === 5, { pagerPictures: f.pagerPictures });
   }
   // The approved design has no bench: a substitute is on their starter's card (its back).
   pass("team", `${kind}: no bench of substitutes under the lineup`, f.bench === 0, { bench: f.bench, cardsWithASubstitute: f.faces });

@@ -71,23 +71,23 @@ const LARGE_TEXT = {
 } as const;
 
 /**
- * "Main lineup · Top": the role the player holds in the current lineup, a status pill in the accent
+ * "In the lineup · Top": the role the player holds in the current lineup (words that need no hover text, TT.P04), a status pill in the accent
  * (one form on both headers). `condense`: on the Overview, "Lineup" where its line is narrow: held
  * sideways (SIDEWAYS_META) and at a larger text size (LARGE_TEXT), the whole still read out.
  */
 function LineupStatus({ role, className, condense = false }: { role: Role; className?: string; condense?: boolean }) {
   return (
-    <span className={cn("inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-accent/40 bg-accent/10 px-2 py-0.5 text-xs font-medium text-fg", className)} data-testid="lineup-status" title="Plays this role in the current team lineup">
+    <span className={cn("inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-accent/40 bg-accent/10 px-2 py-0.5 text-xs font-medium text-fg", className)} data-testid="lineup-status">
       <RoleIcon role={role} className="h-3.5 w-3.5 text-accent" />{" "}
       {condense ? (
         <>
           <span className={cn(SIDEWAYS_META.statusShort, LARGE_TEXT.statusShort)} aria-hidden>
             Lineup
           </span>
-          <span className={cn(SIDEWAYS_META.status, LARGE_TEXT.status)}>Main lineup · {ROLE_LABELS[role]}</span>
+          <span className={cn(SIDEWAYS_META.status, LARGE_TEXT.status)}>In the lineup · {ROLE_LABELS[role]}</span>
         </>
       ) : (
-        <>Main lineup · {ROLE_LABELS[role]}</>
+        <>In the lineup · {ROLE_LABELS[role]}</>
       )}
     </span>
   );
@@ -110,7 +110,7 @@ export function ProfileHeader({ identity: served, self, editable = false, champi
   const accent = accentCss(p.look.style);
   const rank = p.showRank ? p.rank : null;
   const asOf = rank?.asOf ? formatDayMonth(rank.asOf) : null;
-  const rankTitle = rank ? `${rank.queue ? `Ranked ${QUEUE_LABEL[rank.queue]}` : "Ranked"}: last known rank${asOf ? `, read from Riot on ${asOf}` : ""}` : "No ranked placement on record";
+  const rankTitle = rank ? `${rank.queue ? `${QUEUE_LABEL[rank.queue]} rank` : "Rank"}${asOf ? `, last checked ${asOf}` : ""}` : "Unranked: no ranked games recorded";
   const customise = (variant: "overlay" | "icon", iconOnPhones = false) => (
     <CustomiseCardButton
       variant={variant}
@@ -130,7 +130,8 @@ export function ProfileHeader({ identity: served, self, editable = false, champi
   );
   if (basePath && pathname !== basePath && pathname.startsWith(`${basePath}/`))
     return (
-      <header className={cn("relative overflow-hidden rounded-card border border-border bg-surface", LARGE_TEXT.container)} style={cardShellStyle(p.look)} data-testid="profile-header" data-compact data-art-champion={p.art?.championId ?? ""} data-accent={p.accent} data-frame={p.look.style.frame}>
+      <>
+      <header className={cn("relative overflow-hidden rounded-card border border-border bg-surface max-md:not-short:hidden", LARGE_TEXT.container)} style={cardShellStyle(p.look)} data-testid="profile-header" data-compact data-art-champion={p.art?.championId ?? ""} data-accent={p.accent} data-frame={p.look.style.frame}>
         <CardArtLayer art={p.art} accent={accent} kind="splash" position="center 25%" strength="strong" testId="profile-art" look={p.look} />
         <CardFrame look={p.look} />
         {/* One band: the picture, the name (its tagline after it from sm, cut before the name is),
@@ -178,6 +179,19 @@ export function ProfileHeader({ identity: served, self, editable = false, champi
           {editable ? <div className={cn("relative z-10 shrink-0", LARGE_TEXT.bandCustomise)}>{customise("icon")}</div> : null}
         </div>
       </header>
+        {/* An upright phone: the band is in the top bar from the first paint, the name over the rank
+            beside Back ("‹ Players  Demo Mid / Gold II · 40 LP"), so the section starts right under
+            the sections row (globals.css, [data-bar-title]; docs/MOBILE.md, "A profile on a phone").
+            Its h1 is the page's there (the band's, before it, is not displayed), and the bar never repeats it as a title. */}
+        <div className="pointer-events-none fixed z-50 flex h-13 min-w-0 flex-col justify-center md:hidden short:hidden" data-bar-title data-testid="profile-bar-title">
+          <h1 className="truncate text-sm font-semibold leading-tight text-fg">{p.displayName}</h1>
+          {p.showRank ? (
+            <p className="truncate text-xs leading-tight text-fg-muted" data-testid="profile-bar-rank">
+              {rank ? `${rankLabel(rank.tier, rank.division)} · ${rank.leaguePoints} LP` : "Unranked"}
+            </p>
+          ) : null}
+        </div>
+      </>
     );
   return (
     <header className={cn("relative overflow-hidden rounded-card border border-border bg-surface", LARGE_TEXT.container)} style={cardShellStyle(p.look)} data-testid="profile-header" data-art-champion={p.art?.championId ?? ""} data-accent={p.accent} data-frame={p.look.style.frame}>

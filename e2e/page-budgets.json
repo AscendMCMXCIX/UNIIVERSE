@@ -1,0 +1,233 @@
+{
+ "//": "Page budgets (docs/MOBILE.md): ceilings per page@setup-text. A ratchet: started at the measured values plus 2% (20 Nov 2026); a stage lowers the pages it changes to its acceptance figures, never raises one. small = touch targets under 44px on the first screen.",
+ "pages": {
+  "team@i15-100": {
+   "screens": 1.02,
+   "frame": 0.3,
+   "frameScrolled": 0.3,
+   "small": 0
+  },
+  "players@i15-100": {
+   "screens": 1.14,
+   "frame": 0.3,
+   "frameScrolled": 0.3,
+   "small": 0
+  },
+  "leaderboards@i15-100": {
+   "screens": 3.37,
+   "frame": 0.3,
+   "frameScrolled": 0.3,
+   "small": 0
+  },
+  "matches@i15-100": {
+   "screens": 1.82,
+   "frame": 0.3,
+   "frameScrolled": 0.3,
+   "small": 0
+  },
+  "p-overview@i15-100": {
+   "screens": 2.64,
+   "frame": 0.3,
+   "frameScrolled": 0.3,
+   "small": 0
+  },
+  "p-champions@i15-100": {
+   "screens": 1.49,
+   "frame": 0.3,
+   "frameScrolled": 0.3,
+   "small": 0
+  },
+  "p-history@i15-100": {
+   "screens": 2.17,
+   "frame": 0.3,
+   "frameScrolled": 0.3,
+   "small": 4
+  },
+  "p-accounts@i15-100": {
+   "screens": 1.02,
+   "frame": 0.3,
+   "frameScrolled": 0.3,
+   "small": 1
+  },
+  "me@i15-100": {
+   "screens": 1.02,
+   "frame": 0.24,
+   "frameScrolled": 0.24,
+   "small": 0
+  },
+  "intel@i15-100": {
+   "screens": 1.06,
+   "frame": 0.24,
+   "frameScrolled": 0.24,
+   "small": 0
+  },
+  "resources@i15-100": {
+   "screens": 1.58,
+   "frame": 0.24,
+   "frameScrolled": 0.24,
+   "small": 0
+  },
+  "settings@i15-100": {
+   "screens": 1.62,
+   "frame": 0.24,
+   "frameScrolled": 0.24,
+   "small": 0
+  },
+  "a-dash@i15-100": {
+   "screens": 2.27,
+   "frame": 0.24,
+   "frameScrolled": 0.24,
+   "small": 0
+  },
+  "a-people@i15-100": {
+   "screens": 5.48,
+   "frame": 0.3,
+   "frameScrolled": 0.3,
+   "small": 2
+  },
+  "a-branding@i15-100": {
+   "screens": 3.81,
+   "frame": 0.3,
+   "frameScrolled": 0.3,
+   "small": 0
+  },
+  "a-system@i15-100": {
+   "screens": 3.23,
+   "frame": 0.3,
+   "frameScrolled": 0.3,
+   "small": 0
+  },
+  "a-data@i15-100": {
+   "screens": 1.07,
+   "frame": 0.3,
+   "frameScrolled": 0.3,
+   "small": 0
+  },
+  "a-audit@i15-100": {
+   "screens": 1.02,
+   "frame": 0.3,
+   "frameScrolled": 0.3,
+   "small": 0
+  },
+  "a-settings@i15-100": {
+   "screens": 1.62,
+   "frame": 0.24,
+   "frameScrolled": 0.24,
+   "small": 0
+  },
+  "team@se1-150": {
+   "screens": 2.78,
+   "frame": 0.45,
+   "frameScrolled": 0.15,
+   "small": 0
+  },
+  "players@se1-150": {
+   "screens": 3.72,
+   "frame": 0.45,
+   "frameScrolled": 0.15,
+   "small": 0
+  },
+  "leaderboards@se1-150": {
+   "screens": 12.97,
+   "frame": 0.45,
+   "frameScrolled": 0.15,
+   "small": 0
+  },
+  "matches@se1-150": {
+   "screens": 5.94,
+   "frame": 0.45,
+   "frameScrolled": 0.15,
+   "small": 0
+  },
+  "p-overview@se1-150": {
+   "screens": 9.01,
+   "frame": 0.45,
+   "frameScrolled": 0.15,
+   "small": 0
+  },
+  "p-champions@se1-150": {
+   "screens": 5.59,
+   "frame": 0.45,
+   "frameScrolled": 0.15,
+   "small": 0
+  },
+  "p-history@se1-150": {
+   "screens": 8.29,
+   "frame": 0.45,
+   "frameScrolled": 0.15,
+   "small": 0
+  },
+  "p-accounts@se1-150": {
+   "screens": 1.67,
+   "frame": 0.4,
+   "frameScrolled": 0.14,
+   "small": 0
+  },
+  "me@se1-150": {
+   "screens": 1.02,
+   "frame": 0.33,
+   "frameScrolled": 0.33,
+   "small": 0
+  },
+  "intel@se1-150": {
+   "screens": 3.34,
+   "frame": 0.33,
+   "frameScrolled": 0.04,
+   "small": 0
+  },
+  "resources@se1-150": {
+   "screens": 5.44,
+   "frame": 0.33,
+   "frameScrolled": 0.04,
+   "small": 0
+  },
+  "settings@se1-150": {
+   "screens": 4.32,
+   "frame": 0.33,
+   "frameScrolled": 0.04,
+   "small": 0
+  },
+  "a-dash@se1-150": {
+   "screens": 7.18,
+   "frame": 0.33,
+   "frameScrolled": 0.04,
+   "small": 0
+  },
+  "a-people@se1-150": {
+   "screens": 19.2,
+   "frame": 0.45,
+   "frameScrolled": 0.15,
+   "small": 0
+  },
+  "a-branding@se1-150": {
+   "screens": 11.95,
+   "frame": 0.45,
+   "frameScrolled": 0.15,
+   "small": 0
+  },
+  "a-system@se1-150": {
+   "screens": 10.7,
+   "frame": 0.45,
+   "frameScrolled": 0.15,
+   "small": 0
+  },
+  "a-data@se1-150": {
+   "screens": 2.69,
+   "frame": 0.45,
+   "frameScrolled": 0.15,
+   "small": 0
+  },
+  "a-audit@se1-150": {
+   "screens": 1.02,
+   "frame": 0.45,
+   "frameScrolled": 0.45,
+   "small": 0
+  },
+  "a-settings@se1-150": {
+   "screens": 4.32,
+   "frame": 0.33,
+   "frameScrolled": 0.04,
+   "small": 0
+  }
+ }
+}

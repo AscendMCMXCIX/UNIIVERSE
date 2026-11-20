@@ -48,7 +48,7 @@ export default async function AdminSystemPage() {
     <div className="space-y-5">
       {/* Job runs and statuses update without a reload. */}
       <FreshnessWatcher scope={{ kind: "jobs" }} version={version} />
-      <PageHeader eyebrow="Admin Mode" title="System Health" description="Database, background jobs and the evidence behind each status." />
+      <PageHeader admin sectionNamed eyebrow="Admin Mode" title="System Health" description="Database, background jobs and the evidence behind each status." />
       <section className="space-y-3">
         <div>
           <h2 className="text-base font-semibold">System health</h2>

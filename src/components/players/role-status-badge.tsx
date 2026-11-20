@@ -1,10 +1,11 @@
-import { ROLE_LABELS, type Role } from "@/domain/roles";
+import type { Role } from "@/domain/roles";
 import type { AssignmentStatus } from "@/domain/roster";
 import { cn } from "@/lib/cn";
 
 /**
  * Main Role / Off Role: whether the position a player holds is their Primary Role
  * (`assignmentStatus`). One size and style wherever a lineup player is shown: the Team page cards.
+ * The badge says it in words, so it carries no hover text (TT.T15).
  */
 export function RoleStatusBadge({ status, role, className }: { status: AssignmentStatus; role: Role; className?: string }) {
   const main = status === "main";
@@ -17,7 +18,7 @@ export function RoleStatusBadge({ status, role, className }: { status: Assignmen
       )}
       data-testid={main ? "main-role-badge" : "off-role-badge"}
       data-status={status}
-      title={main ? `${ROLE_LABELS[role]} is their Primary Role` : `${ROLE_LABELS[role]} is not their Primary Role`}
+      data-role={role}
     >
       {main ? "Main Role" : "Off Role"}
     </span>

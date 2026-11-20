@@ -24,7 +24,7 @@ export default async function AdminAuditPage({ searchParams }: { searchParams: P
   const entries = await listAudit(db, LIMIT, category ? AUDIT_CATEGORIES[category].actions : undefined);
   return (
     <div className="space-y-5">
-      <PageHeader eyebrow="Admin Mode" title="Audit Logs" description={`Who changed accounts, access, passwords, settings or jobs, newest first (the last ${LIMIT}). Passwords and keys are never recorded.`} />
+      <PageHeader admin sectionNamed eyebrow="Admin Mode" title="Audit Logs" description={`Who changed accounts, access, passwords, settings or jobs, newest first (the last ${LIMIT}). Passwords and keys are never recorded.`} />
       <TabLinks
         label="Audit categories"
         testId="audit-categories"
