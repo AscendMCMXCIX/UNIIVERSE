@@ -46,8 +46,7 @@ import {
   recastWords,
   revisionWords,
   riotTextReviewedWords,
-  riotChangedAfterTierWords,
-  riotChangedWords,
+  riotChangedLead,
   riotTextSourceWords,
   subjectWords,
 } from "./wording";
@@ -533,7 +532,8 @@ export function RiotChangedLabel({ patch, after = false }: { patch: string | nul
   return (
     // Inline words, not a box: they wrap as the line's other words do rather than move to a line of their own.
     <span className="text-2xs font-normal text-fg-subtle" data-testid="riot-changed">
-      {after ? riotChangedAfterTierWords(patch) : riotChangedWords(patch)}
+      {/* "on 26.24" kept together: the patch never alone on a line. */}
+      {riotChangedLead(after)} <span className="whitespace-nowrap">on {patch}</span>
     </span>
   );
 }
@@ -625,13 +625,21 @@ export function YourChampion({ intel, label = "Your champion", testId = "matchup
         bodyClassName="pointer-coarse:pt-1"
         summary={
           <span className="min-w-0">
-            <span className="block text-sm font-semibold text-fg [overflow-wrap:anywhere]">
-              {`${label}: ${intel.champion.name}`}
-              {intel.riotChangedOn ? " " : null}
-              <RiotChangedLabel patch={intel.riotChangedOn} />
-            </span>
+            <span className="block text-sm font-semibold text-fg [overflow-wrap:anywhere]">{`${label}: ${intel.champion.name}`}</span>
             <span className="block text-xs text-fg-muted">
-              Abilities and base cooldowns{from ? ` · ${from}` : ""}
+              {/* As on the enemy's panel: "Riot's data changed on 26.24" in place of the version, which the bar
+                  names too. Beside the title it grew the summary by a line or two on phones (R11b review). */}
+              Abilities and base cooldowns
+              {intel.riotChangedOn && !intel.offlineCopy ? (
+                <>
+                  {" · Riot's data "}
+                  <RiotChangedLabel patch={intel.riotChangedOn} after />
+                </>
+              ) : from ? (
+                ` · ${from}`
+              ) : (
+                ""
+              )}
               {common && !intel.curated ? (
                 <>
                   {" · "}

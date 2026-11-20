@@ -73,4 +73,9 @@ describe("the static refresh's state for /api/health", () => {
     expect(staticDataHealth({ ...base, lastSuccessAt: now - STATIC_SILENT_MS - 60_000, turnedOff: true }).state).toBe("ok");
     expect(staticDataHealth({ ...base, lastSuccessAt: null }).state).toBe("ok");
   });
+  it("a version-check interval longer than a day waits three intervals, never alerting between normal runs (R11b review 3)", () => {
+    const week = 7 * 24 * 60;
+    expect(staticDataHealth({ ...base, intervalMinutes: week, lastSuccessAt: now - 6 * 24 * 3_600_000 }).state).toBe("ok");
+    expect(staticDataHealth({ ...base, intervalMinutes: week, lastSuccessAt: now - 22 * 24 * 3_600_000 })).toMatchObject({ state: "stale", reason: "no-success" });
+  });
 });

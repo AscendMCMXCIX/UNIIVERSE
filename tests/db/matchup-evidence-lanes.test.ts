@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
 import type { Db } from "@/server/db/types";
@@ -78,9 +78,9 @@ async function game(who: string, meSlot: number, champions: Record<number, strin
   await db.insert(accountMatches).values({ accountId: accounts[who]!, matchId, gameCreation: created, queueId: 420, championId: champions[meSlot]!, role: LANES[meSlot]!, win, enemyChampionId: champions[meSlot + 5] ?? null, patch: CURRENT, gameDuration: duration, teamId: 100 });
   await db.insert(matchDetails).values({ matchId, platform: "oc1", queueId: 420, gameCreation: created, gameDuration: duration, gameVersion: `${CURRENT}.1`, teams: [], participants: record(puuid, meSlot, champions, win ?? true) });
   const [blue, red] = options.objectives ?? [0, 0];
-  const kinds = ["dragon", "grubs", "herald"];
-  const objectives = [...Array.from({ length: blue }, (_, i) => ({ t: 300_000 + i * 60_000, team: 100, kind: kinds[i % 3]! })), ...Array.from({ length: red }, (_, i) => ({ t: 320_000 + i * 60_000, team: 200, kind: kinds[i % 3]! })), { t: 1_000_000, team: 100, kind: "dragon" }];
-  await db.insert(matchTimelines).values({ matchId, platform: "oc1", participants: [{ puuid, purchases: [[10_000, 1055]], skills: [1, 3, 2, 1, 1, 4] }], frames: null, events: { objectives } });
+  const kinds = ["dragon", "grubs", "herald"] as const;
+  const objectives = [...Array.from({ length: blue }, (_, i) => ({ t: 300_000 + i * 60_000, team: 100, kind: kinds[i % 3]! })), ...Array.from({ length: red }, (_, i) => ({ t: 320_000 + i * 60_000, team: 200, kind: kinds[i % 3]! })), { t: 1_000_000, team: 100, kind: "dragon" as const }];
+  await db.insert(matchTimelines).values({ matchId, platform: "oc1", participants: [{ puuid, purchases: [[10_000, 1055]] as Array<[number, number]>, skills: [1, 3, 2, 1, 1, 4] }], frames: null, events: { objectives } });
   return matchId;
 }
 
@@ -215,6 +215,7 @@ describe("the bot lane's pairwise lines in a 2v2 (§3.9m)", () => {
 describe("'Riot changed this' reads the two newest patches recorded", () => {
   it("nothing with one patch recorded; a changed champion once two are; a key at one patch only is not a change", async () => {
     try {
+      await db.insert(patches).values({ id: "16.21", ddragonVersion: "16.21.1", isCurrent: false, sortKey: patchSortKey("16.21") }).onConflictDoNothing();
       await db.insert(staticDigests).values([{ patch: "16.22", kind: "champion", key: "Jinx", hash: "a" }]);
       invalidateAllCaches();
       expect(await riotChangesOf(db, [{ kind: "champion", key: "Jinx" }])).toBeNull();
@@ -232,6 +233,33 @@ describe("'Riot changed this' reads the two newest patches recorded", () => {
       expect([...changes.changed]).toEqual(["champion:Jinx"]);
     } finally {
       await db.delete(staticDigests);
+      await db.delete(patches).where(eq(patches.id, "16.21"));
+      invalidateAllCaches();
+    }
+  });
+
+  it("nothing unless the two newest recorded are the page's current patch and the one before it (R11b review 1)", async () => {
+    try {
+      // Digests for 26.21 and 26.20 only, while the game is on 26.22: the label would date a change to the wrong patch.
+      await db.insert(patches).values([{ id: "16.20", ddragonVersion: "16.20.1", isCurrent: false, sortKey: patchSortKey("16.20") }, { id: "16.21", ddragonVersion: "16.21.1", isCurrent: false, sortKey: patchSortKey("16.21") }]).onConflictDoNothing();
+      await db.insert(staticDigests).values([
+        { patch: "16.20", kind: "champion", key: "Jinx", hash: "a" },
+        { patch: "16.21", kind: "champion", key: "Jinx", hash: "b" },
+      ]);
+      invalidateAllCaches();
+      expect(await riotChangesOf(db, [{ kind: "champion", key: "Jinx" }])).toBeNull();
+      // 26.22 and 26.20 recorded, 26.21 missed: not adjacent, so a change cannot be dated to 26.22.
+      await db.delete(staticDigests).where(eq(staticDigests.patch, "16.21"));
+      await db.insert(staticDigests).values({ patch: "16.22", kind: "champion", key: "Jinx", hash: "c" });
+      invalidateAllCaches();
+      expect(await riotChangesOf(db, [{ kind: "champion", key: "Jinx" }])).toBeNull();
+      // With 26.21 recorded too, the change between 26.21 and 26.22 is labelled.
+      await db.insert(staticDigests).values({ patch: "16.21", kind: "champion", key: "Jinx", hash: "b" });
+      invalidateAllCaches();
+      expect([...(await riotChangesOf(db, [{ kind: "champion", key: "Jinx" }]))!.changed]).toEqual(["champion:Jinx"]);
+    } finally {
+      await db.delete(staticDigests);
+      await db.delete(patches).where(inArray(patches.id, ["16.20", "16.21"]));
       invalidateAllCaches();
     }
   });

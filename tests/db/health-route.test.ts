@@ -255,6 +255,9 @@ describe("/api/health notices", () => {
       expect(failed.failingJobs).toContain("static-data");
       expect(failed.staticData).toEqual({ state: "failed", patch: "26.23", stored: "26.22", reason: "validation", problems: { empty: ["rune"], missingIds: 1, unparsedHaste: 1 } });
       expect(text).not.toMatch(/Kindlegem|Flash|9999/);
+      // A download that fails after it never hides the validation's failure (R11b review 4).
+      await expect(syncRiotAssets(db, "16.23.1", (async () => new Response("", { status: 503 })) as unknown as typeof fetch)).rejects.toThrow(/HTTP 503/);
+      expect(((await (await GET()).json()) as Body).staticData).toMatchObject({ state: "failed", reason: "validation", problems: { empty: ["rune"], missingIds: 1, unparsedHaste: 1 } });
       // A good copy of 16.23.1: kept, the attempt cleared, health ok again.
       expect(await syncRiotAssets(db, "16.23.1", fetchOf(false))).toBe(true);
       const ok = (await (await GET()).json()) as Body;

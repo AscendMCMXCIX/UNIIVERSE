@@ -9,7 +9,7 @@ import { changedOf, digestsOf } from "./digests";
 import { riotChangesForTest } from "./notes-age";
 import { namedOnPage, withRiotChanges } from "./riot-changes";
 import { buildMatchupPageView, type MatchupViewDeps } from "./view";
-import { riotChangedWords } from "@/components/matchup-intel/wording";
+import { riotChangedAfterTierWords, riotChangedLead, riotChangedWords } from "@/components/matchup-intel/wording";
 
 /*
   "Riot changed this on 26.24" (riot-changes.ts): the per-version diff per entity, and the labels it
@@ -68,6 +68,9 @@ describe("the labels on the page", () => {
     expect(out.enemyIntel?.riotChangedOn).toBe("26.24");
     expect(out.yourIntel?.riotChangedOn).toBeNull();
     expect(riotChangedWords("26.24")).toBe("Riot changed this on 26.24");
+    // The page's words are the lead and "on 26.24" kept together: the same sentences.
+    expect(`${riotChangedLead(false)} on 26.24`).toBe(riotChangedWords("26.24"));
+    expect(`${riotChangedLead(true)} on 26.24`).toBe(riotChangedAfterTierWords("26.24"));
   });
   it("set nothing without changes (fewer than two patches recorded)", async () => {
     const v = await view("Ahri", "Zed");

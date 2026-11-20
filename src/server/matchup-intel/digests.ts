@@ -6,6 +6,7 @@ import { EVIDENCE_CACHE } from "./evidence-cache";
 import { appSettings, staticDigests } from "@/server/db/schema";
 import { comparePatches, patchFromVersion, publicPatchName } from "@/domain/patch";
 import type { ChampionAbilitiesIndex } from "./abilities";
+import { getCurrentPatch, listPatchesDesc } from "@/server/repositories/champions";
 
 /*
   MATCHUP INTEL's per-version diff (docs/MATCHUP_INTEL.md, "Patches"): one hash per champion, item
@@ -182,8 +183,9 @@ export interface RiotChanges {
  * Of the things named, those whose digest changed between the two newest patches recorded in
  * static_digests ("Riot changed this on 26.24", docs/MATCHUP_INTEL.md, "Patches"): each has a digest
  * at both and they differ. A key recorded at one patch only is not a change (unknown is never
- * "changed"), and with fewer than two patches recorded there is nothing to say (null). Two small
- * queries: the patches recorded, then the named keys at those two.
+ * "changed"), and with fewer than two patches recorded, or when the two newest recorded are not the
+ * game's current patch and the one before it, there is nothing to say (null). The patches recorded
+ * and the app's patches are cached; the named keys are one query.
  */
 export async function riotChangesOf(db: Db, named: ReadonlyArray<{ kind: DigestKind; key: string }>): Promise<RiotChanges | null> {
   const keys = [...new Set(named.map((n) => `${n.kind}:${n.key}`))];
@@ -195,6 +197,13 @@ export async function riotChangesOf(db: Db, named: ReadonlyArray<{ kind: DigestK
   }, db);
   const [current, previous] = patches;
   if (!current || !previous) return null;
+  // Only the pair the page and the evidence read (R11b review 1): the game's current patch and the one
+  // before it among those the app has seen. Digests missed for the current patch, or for the one before
+  // it, would date a change to the wrong patch: then nothing is said.
+  const game = await getCurrentPatch(db);
+  const known = await cachedFor("patch:known", 60_000, () => listPatchesDesc(db), db);
+  const before = game ? known.filter((p) => comparePatches(p, game.patch) < 0).sort((a, b) => comparePatches(b, a))[0] : undefined;
+  if (!game || current !== game.patch || previous !== before) return null;
   const rows = await db
     .select({ patch: staticDigests.patch, kind: staticDigests.kind, key: staticDigests.key, hash: staticDigests.hash })
     .from(staticDigests)

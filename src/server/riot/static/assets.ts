@@ -188,7 +188,11 @@ async function recordAttempt(db: Db, version: string, reason: StaticAttempt["rea
   const prev = row?.value as StaticAttempt | undefined;
   const now = new Date().toISOString();
   // The first failed attempt for this version is kept: how long it has failed is what health reads.
-  const value: StaticAttempt = { version, reason, firstAt: prev?.version === version ? prev.firstAt : now, lastAt: now, problems };
+  const same = prev?.version === version;
+  // A download that fails after the files failed validation never hides that failure (R11b review 4):
+  // the validation's reason and counts stay until a copy is kept.
+  const keep = same && prev.reason === "validation" && reason === "download";
+  const value: StaticAttempt = { version, reason: keep ? "validation" : reason, firstAt: same ? prev.firstAt : now, lastAt: now, problems: keep ? prev.problems : problems };
   await db.insert(appSettings).values({ key: STATIC_ATTEMPT_KEY, value, updatedAt: new Date() }).onConflictDoUpdate({ target: appSettings.key, set: { value, updatedAt: new Date() } });
 }
 

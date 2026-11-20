@@ -237,18 +237,6 @@ test("a patch after the curated notes' check, as production is until they are re
     const notices = page.getByTestId("matchup-intel").getByTestId("matchup-not-rechecked");
     await expect(notices.first(), pair).toHaveText(notRecheckedWords(DEMO_PATCH));
     await expect(page.getByTestId("matchup-curated-checked").first(), pair).toContainText(notRecheckedWords(DEMO_PATCH));
-    // The labels: the enemy's continuing its panel's "Riot's data" tier words, yours on its folded summary's title line, quiet (no larger than text-2xs).
-    const patch = publicPatchName(patchFromVersion(E2E_DDRAGON_VERSION)!);
-    const label = page.getByTestId("matchup-enemy-abilities").getByTestId("riot-changed");
-    await expect(label, pair).toHaveText(`changed on ${patch}`);
-    await expect(page.getByTestId("matchup-your-abilities").getByTestId("riot-changed"), pair).toHaveText(`Riot changed this on ${patch}`);
-    const row = await label.evaluate((el) => {
-      const tier = el.parentElement!.querySelector('[data-testid="evidence-tier"]')!.getBoundingClientRect();
-      const r = el.getClientRects()[0]!;
-      return { sameRow: Math.abs(r.bottom - tier.bottom) < 6, size: parseFloat(getComputedStyle(el).fontSize) };
-    });
-    expect.soft(row.sameRow, `${pair}: the label on the tier's row at 1440×900`).toBe(true);
-    expect.soft(row.size, `${pair}: the label in small type`).toBeLessThanOrEqual(12);
     await frames();
     const at = await page.evaluate(readMatchupIntel);
     await page.setViewportSize({ width: 1920, height: 1080 });
@@ -306,6 +294,19 @@ test("an ability Riot changed after the curated check, on the Production check's
     // The state: the ability flagged where its tile is (the folded champion's, or the enemy's).
     const tiles = page.getByTestId(own ? "matchup-your-abilities" : "matchup-enemy-abilities").getByTestId("ability-row");
     await expect(tiles.and(page.locator(`[data-slot="${ref.split(".")[1]}"]`)), pair).toHaveAttribute("data-freshness", "changed-since");
+    // The labels: the enemy's continuing its panel's "Riot's data" tier words, yours on its folded summary's line, the same words, quiet (no larger than text-2xs).
+    const patch = publicPatchName(patchFromVersion(E2E_DDRAGON_VERSION)!);
+    const label = page.getByTestId("matchup-enemy-abilities").getByTestId("riot-changed");
+    await expect(label, pair).toHaveText(`changed on ${patch}`);
+    await expect(page.getByTestId("matchup-your-abilities").getByTestId("riot-changed"), pair).toHaveText(`changed on ${patch}`);
+    const row = await label.evaluate((el) => {
+      const tier = el.parentElement!.querySelector('[data-testid="evidence-tier"]')!.getBoundingClientRect();
+      // Every fragment of the label on the tier's line: a label that wraps fails.
+      const rects = [...el.getClientRects()];
+      return { sameRow: rects.length > 0 && rects.every((r) => Math.abs(r.bottom - tier.bottom) < 6), size: parseFloat(getComputedStyle(el).fontSize) };
+    });
+    expect.soft(row.sameRow, `${pair}: the label on the tier's row at 1440×900`).toBe(true);
+    expect.soft(row.size, `${pair}: the label in small type`).toBeLessThanOrEqual(12);
     await frames();
     const at = await page.evaluate(readMatchupIntel);
     await page.setViewportSize({ width: 1920, height: 1080 });

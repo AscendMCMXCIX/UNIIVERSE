@@ -34,6 +34,9 @@ const CURATED: Array<[string, string]> = [
   ["Riven", "Mordekaiser"],
 ];
 
+/** Riot's per-version diff labelling every champion of these pairs (the demo's cookie, at most twenty). */
+const labelAll = (page: Page, pairs: ReadonlyArray<readonly [string, string]>) => riotChanged(page, [...new Set(pairs.flat())].slice(0, 20).map((id) => `champion:${id}`));
+
 const row = (page: Page, slot: string) => page.locator(`[data-testid="matchup-enemy-abilities"] [data-testid="ability-row"][data-slot="${slot}"]`);
 
 test("a link to a pair opens it: both champions in their slots, the enemy's five abilities with their base cooldowns", async ({ page }) => {
@@ -630,8 +633,8 @@ test("phone at 200% text: nothing is cut or spills sideways in the bar, the brie
   // Written with the facts from Riot's text on the page: turned on for it while they ship off.
   await riotText(page, "on");
   test.skip((page.viewportSize()?.width ?? 1000) >= 768, "a phone");
-  // With Riot's per-version diff labelling every champion shown ("Riot changed this on 26.22", PLAN S7b): the first screen holds as without.
-  await riotChanged(page, [...new Set([...CURATED.flat(), "Riven", "Darius"])].map((id) => `champion:${id}`));
+  // With Riot's per-version diff labelling every champion of these pairs ("Riot's data changed on 26.22", PLAN S7b): nothing cut or spilled with the labels.
+  await labelAll(page, CURATED);
   // A phone with its text at 200%, as the other large-text tests set it (html's font size: the
   // page's sizes are in rem, so everything but the screen grows). The three validation pairs: the
   // most a page holds, with a briefing, two curated champions and their level notes. Each swapped
@@ -681,8 +684,8 @@ test("phone at 100%, 150% and 200% text, with facts from Riot's text: nothing cu
   // Written with the facts from Riot's text on the page: turned on for it while they ship off.
   await riotText(page, "on");
   test.skip((page.viewportSize()?.width ?? 1000) >= 768, "a phone");
-  // With Riot's per-version diff labelling every champion shown ("Riot changed this on 26.22", PLAN S7b): the first screen holds as without.
-  await riotChanged(page, [...new Set([...CURATED.flat(), "Riven", "Darius"])].map((id) => `champion:${id}`));
+  // With Riot's per-version diff labelling every champion of these pairs (PLAN S7b): nothing cut, spilled or under text-xs with the labels.
+  await labelAll(page, RIOT_TEXT_PAIRS);
   test.setTimeout(300_000);
   await localPictures(page);
   for (const [width, height] of [
@@ -814,8 +817,8 @@ test("phone at 200% text: a cooldown breaks only after a slash or a space, never
   // Written with the facts from Riot's text on the page: turned on for it while they ship off.
   await riotText(page, "on");
   test.skip((page.viewportSize()?.width ?? 1000) >= 768, "a phone");
-  // With Riot's per-version diff labelling every champion shown ("Riot changed this on 26.22", PLAN S7b): the first screen holds as without.
-  await riotChanged(page, [...new Set([...CURATED.flat(), "Riven", "Darius"])].map((id) => `champion:${id}`));
+  // With Riot's per-version diff labelling every champion of these pairs (PLAN S7b): the cooldowns break as without.
+  await labelAll(page, COOLDOWN_PAIRS);
   test.setTimeout(180_000);
   await localPictures(page);
   for (const [you, enemy] of COOLDOWN_PAIRS) {
@@ -937,8 +940,8 @@ test("phone: the first screen holds the glance (every enemy tile's cooldown line
   // Written with the facts from Riot's text on the page: turned on for it while they ship off.
   await riotText(page, "on");
   test.skip((page.viewportSize()?.width ?? 1000) >= 768, "a phone");
-  // With Riot's per-version diff labelling every champion shown ("Riot changed this on 26.22", PLAN S7b): the first screen holds as without.
-  await riotChanged(page, [...new Set([...CURATED.flat(), "Riven", "Darius"])].map((id) => `champion:${id}`));
+  // With Riot's per-version diff labelling every champion shown (PLAN S7b): the first screen holds as without.
+  await labelAll(page, [...CURATED, ["Riven", "Darius"]]);
   for (const [width, height, whole] of [
     [390, 664, true],
     [320, 568, false],
@@ -995,7 +998,7 @@ test("phone: the first screen holds the glance (every enemy tile's cooldown line
     });
     const at = `Riven vs Darius at ${width} by ${height}`;
     expect(d.scrollY, at).toBe(0);
-    await expect(page.getByTestId("matchup-enemy-abilities").getByTestId("riot-changed"), `${at}: the label shown`).toHaveCount(1);
+    await expect(page.getByTestId("matchup-enemy-abilities").getByTestId("riot-changed"), `${at}: the label shown`).toBeVisible();
     // At 320 by 568 the glance takes the first screen, as above, and the side starts on the next.
     if (whole) expect(d.label, `${at}: the Danger side's label`).toBeLessThanOrEqual(d.bar);
     if (whole) expect(d.subtitle, `${at}: whose kit it is`).toBeLessThanOrEqual(d.bar);

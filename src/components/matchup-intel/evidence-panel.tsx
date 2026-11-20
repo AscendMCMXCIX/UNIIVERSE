@@ -1,6 +1,6 @@
 import { Sigma } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { riotChangedWords } from "./wording";
+import { riotChangedLead } from "./wording";
 import type { MatchupEvidence, EvidenceSection } from "@/domain/matchup-intel/evidence";
 
 /*
@@ -57,7 +57,7 @@ function Section({ section }: { section: EvidenceSection }) {
                 <>
                   {" "}
                   <span className="text-2xs text-fg-subtle" data-testid="riot-changed">
-                    · {riotChangedWords(l.changedOn)}
+                    · {riotChangedLead(false)} <span className="whitespace-nowrap">on {l.changedOn}</span>
                   </span>
                 </>
               ) : null}

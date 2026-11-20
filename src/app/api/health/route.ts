@@ -91,6 +91,7 @@ export async function GET() {
       attempt: settings.find((r) => r.key === STATIC_ATTEMPT_KEY)?.attempt ?? null,
       lastSuccessAt: lastStatic > 0 ? lastStatic : null,
       turnedOff: intervals["version-check"] === 0,
+      intervalMinutes: intervals["version-check"] ?? 60,
       now,
     });
     if (staticData.state !== "ok") failing.push("static-data");
