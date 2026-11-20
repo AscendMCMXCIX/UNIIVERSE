@@ -131,6 +131,36 @@ test("one view without subtabs: the loadout names itself, each figure once, the 
   await fitsWidth(page, "post-game view");
 });
 
+test("an iPhone 12 (390 × 844, its insets told): the opened game's header is at most 112px with the inset, and the result, loadout, runes, figures, lane and three answers are on the first screen, the folds closed", async ({ page }, info) => {
+  test.skip(info.project.name !== "phone", "the phone's game window (S6c's acceptance)");
+  await page.setViewportSize({ width: 390, height: 844 });
+  // The status bar and the home indicator of an iPhone 12 in Safari's installed app (CSS px).
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Emulation.setSafeAreaInsetsOverride", { insets: { top: 47, topMax: 47, bottom: 34, bottomMax: 34, left: 0, leftMax: 0, right: 0, rightMax: 0 } });
+  await openHistory(page, "MID");
+  // The three newest games: one with every answer, one with a two-line lane (measured on main: their
+  // answers end 156–224px above the steps' bar; the header 101px with the 47px inset).
+  for (let i = 0; i < 3; i++) {
+    const card = page.getByTestId("match-card").nth(i);
+    const breakdown = await openGame(card);
+    await expect(breakdown.getByTestId("post-game-notes")).toBeVisible({ timeout: 15_000 });
+    for (const fold of ["fold-gold", "fold-build"]) if (await breakdown.getByTestId(fold).count()) expect(await breakdown.getByTestId(fold).evaluate((d) => (d as HTMLDetailsElement).open), `game ${i}: ${fold} closed`).toBe(false);
+    const f = await page.evaluate(() => {
+      const box = (id: string) => document.querySelector(`[data-testid=match-detail] [data-testid=${id}]`)?.getBoundingClientRect() ?? null;
+      const parts = Object.fromEntries(["match-result", "post-game-loadout", "rune-page", "post-game-figures", "post-game-lane", "post-game-notes"].map((id) => [id, box(id)?.bottom ?? null]));
+      // The first screen ends where the window's steps (Previous, Next) begin, or at the screen's foot.
+      return { header: box("match-detail-header")!.bottom, end: box("match-detail-nav")?.top ?? innerHeight, parts };
+    });
+    expect(f.header, `game ${i}: the header with the inset`).toBeLessThanOrEqual(112);
+    for (const [id, bottom] of Object.entries(f.parts)) {
+      expect(bottom, `game ${i}: ${id} shown`).not.toBeNull();
+      // 4px to spare: Chrome 156 (CI) lays text out wider than the container's Chromium.
+      expect(bottom!, `game ${i}: ${id} on the first screen`).toBeLessThanOrEqual(f.end - 4);
+    }
+    await closeGame(card);
+  }
+});
+
 test("a game without a timeline says so once, and its notes skip what the timeline would tell", async ({ page }) => {
   await openHistory(page, "TOP");
   for (let i = 0; i < 8; i++) {
