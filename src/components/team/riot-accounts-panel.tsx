@@ -201,7 +201,7 @@ export function RiotAccountsPanel({ playerId, accounts, riotConfigured, editable
                       label={`Options for ${a.riotId}`}
                       testId="riot-account-menu"
                       trigger={(t) => (
-                        <Button {...t} size="sm" variant="ghost" aria-label={`Options for ${a.riotId}`} disabled={busy !== null}>
+                        <Button {...t} size="sm" variant="ghost" className="max-md:min-w-11 pointer-coarse:min-w-11" aria-label={`Options for ${a.riotId}`} disabled={busy !== null}>
                           <MoreHorizontal className="h-4 w-4" />
                         </Button>
                       )}

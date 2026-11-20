@@ -7,7 +7,7 @@ import { logoSrc, logoStillSrc } from "@/domain/branding";
 import { SiteBackdrop } from "@/components/site-backdrop";
 import { BrandMark } from "@/components/brand-mark";
 import { BrandNamesProvider } from "@/components/brand-names";
-import { buttonClass } from "@/components/ui/button";
+import { PUBLIC_NAV_LINK } from "@/components/public/nav-link";
 import { InstallAppEntry, InstallAppProvider } from "@/components/install/install-app";
 import { SignInLink, SignInProvider } from "@/components/public/sign-in";
 import { publicRiotDataAllowed } from "@/server/public/access";
@@ -58,27 +58,27 @@ export default async function PublicLayout({ children }: { children: React.React
                 reach into but never past) and grows to its own width, so where everything fits on
                 one line it is exactly the line it was. */}
             <header className="relative mx-auto flex w-full max-w-[var(--content-wide)] flex-wrap items-center justify-between gap-x-3 gap-y-1 px-safe-4 pb-3 pt-safe-3 sm:px-safe-6" data-testid="public-header">
-              <Link href="/public" className="flex min-w-6 max-w-max grow basis-0 items-center gap-3 rounded-lg">
+              <Link href="/public" className="flex min-w-6 max-w-max grow basis-0 items-center gap-3 rounded-lg pointer-coarse:min-h-11 pointer-coarse:min-w-11">
                 <BrandMark src={logoSrc(branding)} still={logoStillSrc(branding)} name={branding.shortName} className="h-9 w-9 text-base" />
                 {/* With a second page in the header, phones keep the mark alone: the page's own header names the team. */}
                 <span className={`truncate text-sm font-bold tracking-label text-fg${leaderboards ? " max-sm:sr-only" : ""}`}>{branding.shortName}</span>
               </Link>
               <nav aria-label="Public pages" className="ml-auto flex flex-wrap items-center justify-end gap-1">
-                <Link href="/public" className="inline-flex min-h-9 items-center rounded-md px-3 text-sm font-medium text-fg hover:bg-surface-2/60 pointer-coarse:min-h-11">
+                <Link href="/public" className={`${PUBLIC_NAV_LINK} text-fg`}>
                   Team
                 </Link>
                 {leaderboards ? (
-                  <Link href="/public/leaderboards" className="inline-flex min-h-9 items-center rounded-md px-2.5 text-sm font-medium text-fg hover:bg-surface-2/60 sm:px-3 pointer-coarse:min-h-11" data-testid="public-leaderboards-link">
+                  <Link href="/public/leaderboards" className={`${PUBLIC_NAV_LINK} text-fg max-sm:px-2.5`} data-testid="public-leaderboards-link">
                     Leaderboards
                   </Link>
                 ) : null}
                 <InstallAppEntry variant="public" />
                 {member ? (
-                  <Link href="/" className={buttonClass("ghost", "sm", "text-fg-muted")} data-testid="public-open-app">
+                  <Link href="/" className={`${PUBLIC_NAV_LINK} text-fg-muted hover:text-fg`} data-testid="public-open-app">
                     Open the app
                   </Link>
                 ) : (
-                  <SignInLink className={buttonClass("ghost", "sm", "text-fg-muted")} testId="public-sign-in">
+                  <SignInLink className={`${PUBLIC_NAV_LINK} text-fg-muted hover:text-fg`} testId="public-sign-in">
                     Sign in
                   </SignInLink>
                 )}
@@ -86,7 +86,7 @@ export default async function PublicLayout({ children }: { children: React.React
             </header>
             <main className="relative mx-auto flex w-full max-w-[var(--content-wide)] flex-1 flex-col px-safe-4 pb-8 pt-2 sm:px-safe-6 lg:pt-4">{children}</main>
             <footer className="relative mx-auto w-full max-w-[var(--content-wide)] px-safe-4 pb-safe-6 sm:px-safe-6">
-              <Link href="/privacy" className="inline-flex min-h-8 items-center text-xs text-fg-muted underline-offset-2 hover:text-fg hover:underline pointer-coarse:min-h-11" data-testid="public-privacy-link">
+              <Link href="/privacy" className="inline-flex min-h-8 items-center text-xs text-fg-muted underline-offset-2 hover:text-fg hover:underline pointer-coarse:min-h-11 pointer-coarse:min-w-11" data-testid="public-privacy-link">
                 Privacy
               </Link>
               <p className="text-2xs leading-relaxed text-fg-subtle" data-testid="public-legal">

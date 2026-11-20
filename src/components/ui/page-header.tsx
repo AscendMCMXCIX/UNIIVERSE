@@ -1,6 +1,9 @@
 import * as React from "react";
 import { cn } from "@/lib/cn";
 
+/** The app's h1: every page's title, the sign-in, setup, recovery and public pages' included (UD.PB1). */
+export const PAGE_TITLE = "text-2xl font-semibold tracking-tight text-fg";
+
 /**
  * The title block every page starts with: one h1, a short description, optional actions on the right.
  * `guide`: the description explains how to use the page rather than what it counts; phones leave it
@@ -16,7 +19,7 @@ export function PageHeader({ title, description, actions, className, eyebrow, gu
     <header className={cn("flex flex-wrap items-end justify-between gap-x-4 gap-y-2", className)}>
       <div className="min-w-0">
         {eyebrow ? <div className={cn("mb-1 text-xs font-semibold uppercase tracking-label text-accent", admin && PHONE_HIDDEN)}>{eyebrow}</div> : null}
-        <h1 className={cn("text-2xl font-semibold tracking-tight text-fg", sectionNamed && SECTION_NAMED_TITLE)}>{title}</h1>
+        <h1 className={cn(PAGE_TITLE, sectionNamed && SECTION_NAMED_TITLE)}>{title}</h1>
         {description ? <p className={cn("mt-1 text-sm text-fg-muted", guide && "max-md:hidden", admin && PHONE_HIDDEN)}>{description}</p> : null}
       </div>
       {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}

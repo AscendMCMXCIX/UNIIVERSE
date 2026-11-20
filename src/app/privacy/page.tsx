@@ -1,3 +1,5 @@
+import { PAGE_TITLE } from "@/components/ui/page-header";
+import { cn } from "@/lib/cn";
 import Link from "next/link";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
@@ -143,8 +145,10 @@ export default async function PrivacyPage() {
   // Whether this deployment shows Riot figures on the public pages (a Production key's setting).
   const publicFigures = publicRiotDataAllowed();
   return (
-    <BrandFrame eyebrow={(b) => b.productName.toUpperCase()} width="max-w-2xl">
-      <h1 className="mt-1 text-xl font-bold tracking-wordmark">Privacy</h1>
+    // From lg the card widens beside a sticky table of contents (UD.PB1); the frame clips sideways
+    // without becoming a scroll box, so the table can stick to the window.
+    <BrandFrame eyebrow={(b) => b.productName.toUpperCase()} width="max-w-2xl lg:max-w-5xl" className="overflow-x-clip">
+      <h1 className={cn("mt-1", PAGE_TITLE)}>Privacy</h1>
       <p className="mt-2 text-sm text-fg-muted">
         {name} is a private app for one League of Legends team. Administrators create every account; there is no public sign-up. This notice explains what it stores about members, why, who can see it, how long it stays, and how to reach us about it.
       </p>
@@ -152,11 +156,14 @@ export default async function PrivacyPage() {
         Updated <time dateTime="2026-11-20">{PRIVACY_UPDATED}</time>
       </p>
 
-      <nav aria-label="On this page" className="mt-4" data-testid="privacy-index">
-        <ul className="flex flex-wrap gap-1.5">
+      <div className="lg:mt-6 lg:grid lg:grid-cols-[12rem_minmax(0,1fr)] lg:gap-8">
+      {/* Phones and tablets: chips under the title. From lg: a table of contents that stays in view beside the notice. */}
+      <nav aria-label="On this page" className="mt-4 lg:sticky lg:top-6 lg:mt-0 lg:self-start" data-testid="privacy-index">
+        <p className="mb-2 hidden text-xs font-semibold uppercase tracking-label text-fg-subtle lg:block">On this page</p>
+        <ul className="flex flex-wrap gap-1.5 lg:flex-col lg:gap-0.5 lg:border-l lg:border-border">
           {SECTIONS.map((s) => (
             <li key={s.id}>
-              <a href={`#${s.id}`} className="inline-flex min-h-8 items-center rounded-full border border-border bg-bg/40 px-3 text-xs text-fg-muted transition-colors hover:border-accent hover:text-fg focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:min-h-10">
+              <a href={`#${s.id}`} className="inline-flex min-h-8 items-center rounded-full border border-border bg-bg/40 px-3 text-xs text-fg-muted transition-colors hover:border-accent hover:text-fg focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:min-h-11 lg:-ml-px lg:flex lg:rounded-none lg:border-0 lg:border-l lg:border-transparent lg:bg-transparent lg:text-sm lg:hover:border-accent">
                 {s.label}
               </a>
             </li>
@@ -164,7 +171,8 @@ export default async function PrivacyPage() {
         </ul>
       </nav>
 
-      <Section id="contact" title="Contact us about your privacy" className="mt-6 scroll-mt-4 rounded-panel border border-accent/40 bg-accent/5 p-4">
+      <div className="min-w-0">
+      <Section id="contact" title="Contact us about your privacy" className="mt-6 scroll-mt-4 rounded-panel border border-accent/40 bg-accent/5 p-4 lg:mt-0">
         <div data-testid="privacy-contact">
           <p className="mt-1 text-sm text-fg-muted">You can request access to, correction of, or permanent removal of your personal information stored by {name}.</p>
           <div className="mt-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-md border border-border bg-bg/60 px-3 py-2">
@@ -286,6 +294,8 @@ export default async function PrivacyPage() {
           Team page
         </Link>
       </p>
+      </div>
+      </div>
     </BrandFrame>
   );
 }

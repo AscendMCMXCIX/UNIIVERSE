@@ -178,7 +178,8 @@ export function SetupForm({
                   {nameTouched && nameProblem ? nameProblem : `2–${DISPLAY_NAME_MAX} characters. It doesn't have to match your username or Riot ID, and you can change it any time in Settings.`}
                 </p>
               </div>
-              <dl className="rounded-md border border-border bg-bg-elevated px-3 py-2 text-sm" data-testid="setup-account-facts">
+              <div className="rounded-md border border-border bg-bg-elevated px-3 py-2 text-sm" data-testid="setup-account-facts">
+                <dl>
                 <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                   <dt className="text-fg-subtle">Username (you sign in with it)</dt>
                   <dd className="font-medium text-fg">{username}</dd>
@@ -187,8 +188,9 @@ export function SetupForm({
                   <dt className="text-fg-subtle">Riot ID</dt>
                   <dd className="font-medium text-fg">{riotId ?? "linked by your admin"}</dd>
                 </div>
+                </dl>
                 <p className="mt-1 text-xs text-fg-subtle">Both were entered by your admin and stay as they are. Ask them if either is wrong.</p>
-              </dl>
+              </div>
               <Button type="submit" variant="primary" size="lg" className="w-full" disabled={!!nameProblem} data-testid="setup-continue">
                 Continue
               </Button>

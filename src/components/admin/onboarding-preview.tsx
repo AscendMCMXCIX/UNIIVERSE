@@ -1,5 +1,6 @@
 "use client";
 
+import { PAGE_TITLE } from "@/components/ui/page-header";
 import * as React from "react";
 import { ArrowLeft, Check, RotateCcw } from "lucide-react";
 import type { Branding } from "@/domain/branding";
@@ -86,7 +87,7 @@ export function OnboardingPreview({ branding, champions, initialStep }: { brandi
               type="button"
               onClick={() => setStep(s.key)}
               aria-current={step === s.key ? "step" : undefined}
-              className={cn("inline-flex min-h-8 items-center gap-1 rounded-full px-2.5 py-1", step === s.key ? "bg-accent/15 font-medium text-accent" : "text-fg-muted hover:text-fg")}
+              className={cn("inline-flex min-h-8 items-center gap-1 rounded-full px-2.5 py-1 pointer-coarse:min-h-11", step === s.key ? "bg-accent/15 font-medium text-accent" : "text-fg-muted hover:text-fg")}
               data-testid={`preview-step-${s.key}`}
             >
               {i < index ? <Check className="h-3 w-3" aria-hidden /> : <span aria-hidden>{i + 1}.</span>} {s.label}
@@ -112,7 +113,7 @@ export function OnboardingPreview({ branding, champions, initialStep }: { brandi
               { v: true, label: "Team member" },
               { v: false, label: "Personal use" },
             ].map((o) => (
-              <button key={o.label} type="button" role="radio" aria-checked={teamMember === o.v} onClick={() => setTeamMember(o.v)} className={cn("min-h-7 rounded-full border px-2.5", teamMember === o.v ? "border-accent/60 bg-accent/10 text-fg" : "border-border hover:text-fg")} data-testid={`preview-kind-${o.v ? "team" : "personal"}`}>
+              <button key={o.label} type="button" role="radio" aria-checked={teamMember === o.v} onClick={() => setTeamMember(o.v)} className={cn("min-h-7 rounded-full border px-2.5 pointer-coarse:min-h-11", teamMember === o.v ? "border-accent/60 bg-accent/10 text-fg" : "border-border hover:text-fg")} data-testid={`preview-kind-${o.v ? "team" : "personal"}`}>
                 {o.label}
               </button>
             ))}
@@ -131,7 +132,7 @@ function SetupComplete({ values, displayName, champions, teamMember }: { values:
   const list = (ids: string[]) => (ids.length ? ids.map((id) => names.get(id) ?? id).join(", ") : "none yet");
   return (
     <div data-testid="onboarding-done">
-      <h1 className="mt-1 text-xl font-bold tracking-wordmark">You&apos;re all set</h1>
+      <h1 className={cn("mt-1", PAGE_TITLE)}>You&apos;re all set</h1>
       <p className="mt-2 text-sm text-fg-muted">Setup is complete. Their own password now replaces the temporary one, and their Riot account starts syncing in the background.</p>
       <dl className="mt-4 space-y-1.5 rounded-md border border-border bg-bg-elevated px-3 py-2 text-sm" data-testid="onboarding-summary">
         <div className="flex flex-wrap justify-between gap-x-3">
