@@ -355,7 +355,7 @@ export function BrandingPanel({ branding, canEdit }: { branding: Branding; canEd
                     <div className="text-xs text-fg-muted">{f.hint}</div>
                   </div>
                   <div className="w-28 shrink-0 @max-[14rem]:w-auto @max-[14rem]:min-w-0 @max-[14rem]:flex-1 @max-[14rem]:shrink">
-                    <Input aria-label={`${f.label} hex`} disabled={!canEdit} value={value} onChange={(e) => /^#[0-9a-f]{6}$/i.test(e.target.value) && setColour(f.key, e.target.value.toLowerCase())} maxLength={7} className="font-mono md:h-9" />
+                    <Input aria-label={`${f.label} hex`} disabled={!canEdit} value={value} onChange={(e) => /^#[0-9a-f]{6}$/i.test(e.target.value) && setColour(f.key, e.target.value.toLowerCase())} maxLength={7} className="font-mono md:pointer-fine:h-9" />
                   </div>
                   <button type="button" disabled={!canEdit || !custom} onClick={() => setColour(f.key, null)} className="grid h-9 w-9 place-items-center rounded-md text-fg-subtle hover:bg-surface-2 hover:text-fg disabled:opacity-30 pointer-coarse:h-11 pointer-coarse:w-11" aria-label={`Reset ${f.label} to default`} title="Reset to default">
                     <RotateCcw className="h-4 w-4" />

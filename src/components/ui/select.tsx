@@ -157,6 +157,8 @@ function PopoverSelect({ value, options, onValueChange, id, "aria-label": ariaLa
   const choose = (i: number) => {
     const o = options[i];
     close();
+    // The focus goes back to the button (a tap on an option moved it to the page on a touch screen).
+    buttonRef.current?.focus({ preventScroll: true });
     if (!o || o.disabled) return;
     if (o.value !== value) onValueChange(o.value);
   };

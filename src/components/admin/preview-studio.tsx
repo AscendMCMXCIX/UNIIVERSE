@@ -47,7 +47,7 @@ export function PreviewStudio() {
       <div className="flex flex-wrap items-center gap-2">
         <div role="radiogroup" aria-label="Page" className={segmentedGroupClass("flex-wrap overflow-visible")}>
           {SCREENS.map((s) => (
-            <button key={s.key} type="button" role="radio" aria-checked={screen === s.key} onClick={() => setScreen(s.key)} className={segmentClass(screen === s.key, { size: "md" })} data-testid={`preview-screen-${s.key}`}>
+            <button key={s.key} type="button" role="radio" aria-checked={screen === s.key} onClick={() => setScreen(s.key)} className={segmentClass(screen === s.key, { size: "md", className: "max-sm:max-w-full max-sm:whitespace-normal max-sm:text-center" })} data-testid={`preview-screen-${s.key}`}>
               {s.label}
             </button>
           ))}

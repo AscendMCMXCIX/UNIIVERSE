@@ -157,7 +157,7 @@ export function PoolSection({
   const selected = React.useMemo(() => new Set(ids), [ids]);
   const bodyId = React.useId();
   const closed = !!collapsible && !collapsible.open;
-  const fold = usePhoneFold();
+  const fold = usePhoneFold(`pool-${testId}`);
   const folds = phoneTop !== undefined && !!stats && !editable && !closed && ids.length > phoneTop;
   const addChampion = (compact: boolean) => <AddChampion role={role} champions={champions} exclude={selected} onAdd={(id) => onChange([...ids, id])} testId={testId} compact={compact} />;
   return (
@@ -582,7 +582,7 @@ export function ProfileEditor({
   // On a touch phone the off roles are one Fold under their heading (20 Nov 2026, PLAN S8a's Profile
   // Overview heights): the page ends at the primary pool, and Show brings the off roles' rows back.
   // Only with statistics (the profile) and not while editing; tablets and desktop are unchanged.
-  const offFold = usePhoneFold();
+  const offFold = usePhoneFold("off-roles");
   const offFolds = !!stats && !live && offCount > 0;
   const toggleRole = (r: Role) => setOpenRoles((was) => (was.has(r) ? new Set([...was].filter((x) => x !== r)) : new Set([...was, r])));
 

@@ -376,3 +376,17 @@ test("a member who is not an administrator browses the library but cannot manage
     await context.close();
   }
 });
+
+test("on a touch tablet, Admin Mode's row buttons in Resources and Branding's colour fields are 44px", async ({ page, context, baseURL }, info) => {
+  test.skip(info.project.name !== "tablet", "touch at 768px, where the phone's sizes no longer apply");
+  await blockFavicons(page);
+  await context.addCookies([{ name: "uniiverse_view", value: "admin", url: baseURL! }]);
+  await page.goto("/admin/resources");
+  const sizes = await page.getByTestId("managed-resource").first().locator("button").evaluateAll((els) => els.map((e) => Math.round(Math.min(e.getBoundingClientRect().width, e.getBoundingClientRect().height))));
+  expect(sizes.length).toBeGreaterThan(0);
+  for (const s of sizes) expect(s, "a row button").toBeGreaterThanOrEqual(44);
+  await page.goto("/admin/branding");
+  const hex = await page.locator("input[aria-label$=' hex']").evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().height)));
+  expect(hex.length).toBe(5);
+  for (const h of hex) expect(h, "a colour's hex field").toBeGreaterThanOrEqual(44);
+});

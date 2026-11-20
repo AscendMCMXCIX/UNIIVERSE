@@ -100,7 +100,8 @@ export function PersonaliseStep({ card, champions, customised, social = null, pr
             <SocialLinksEditor initial={social} preview={preview} />
           </section>
 
-          <div className="flex gap-2 border-t border-border pt-4">
+          {/* With larger text Done takes a line of its own under Back rather than run past the card. */}
+          <div className="flex flex-wrap gap-2 border-t border-border pt-4">
             {preview ? (
               <Button type="button" variant="outline" size="lg" onClick={onPreviewBack} data-testid="personalise-back">
                 <ArrowLeft className="h-4 w-4" aria-hidden /> Back
@@ -111,11 +112,11 @@ export function PersonaliseStep({ card, champions, customised, social = null, pr
               </Link>
             )}
             {preview ? (
-              <Button type="button" variant="primary" size="lg" wrap className="min-w-0 flex-1 max-sm:min-h-11" onClick={onPreviewDone} data-testid="personalise-done">
+              <Button type="button" variant="primary" size="lg" wrap className="min-w-0 grow basis-32 max-sm:min-h-11" onClick={onPreviewDone} data-testid="personalise-done">
                 Skip for now
               </Button>
             ) : (
-              <Link href="/" className={buttonClass("primary", "lg", "min-w-0 flex-1 max-sm:h-auto max-sm:min-h-11 max-sm:whitespace-normal max-sm:py-2 max-sm:text-center")} data-testid="personalise-done">
+              <Link href="/" className={buttonClass("primary", "lg", "min-w-0 grow basis-32 max-sm:h-auto max-sm:min-h-11 max-sm:whitespace-normal max-sm:py-2 max-sm:text-center")} data-testid="personalise-done">
                 {customised ? `Done: open ${productName}` : "Skip for now"}
               </Link>
             )}

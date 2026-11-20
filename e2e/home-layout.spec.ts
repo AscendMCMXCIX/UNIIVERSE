@@ -291,6 +291,20 @@ test("profile Overview on a touch phone: the pools' top three, the off roles and
   await expect(allFold).toHaveCount(0);
   await page.getByTestId("pools-edit").click();
   expect(await visibleRows()).toBe(3);
+  // Back to the page reopens what was open (kept on the history entry), so the reader lands where they were.
+  await allFold.click();
+  expect(await visibleRows()).toBe(total);
+  await page.getByTestId("secondary-pool").scrollIntoViewIfNeeded();
+  const y = await page.evaluate(() => Math.round(window.scrollY));
+  // The tab bar has slid away with the scroll: its link is followed as a tap on it would be.
+  await page.getByTestId("phone-tabbar").getByRole("link").first().evaluate((a) => (a as HTMLAnchorElement).click());
+  await expect(page.getByTestId("primary-pool")).toHaveCount(0);
+  await page.goBack();
+  await expect(allFold).toHaveAttribute("aria-expanded", "true");
+  await expect(offFold).toHaveAttribute("aria-expanded", "true");
+  expect(await visibleRows()).toBe(total);
+  await expect(page.getByTestId("secondary-pool")).toBeVisible();
+  await expect.poll(() => page.evaluate(() => Math.round(window.scrollY)), { message: "the place on the page kept" }).toBeGreaterThan(y - 60);
 });
 
 // A pool's figures never shrink below their text (shrunk to a few pixels they read as one wrong

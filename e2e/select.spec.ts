@@ -161,3 +161,20 @@ test("without JavaScript, a form's Select is the browser's own select, so the Ov
   await expect(page.locator("form[method=get] input[type=hidden][name=mode]")).toHaveCount(0);
   await ctx.close();
 });
+
+test("on a touch tablet, a tapped option is chosen and the focus goes back to the Select's button", async ({ page }, info) => {
+  test.skip(info.project.name !== "tablet", "a touch screen where the app's popover shows (768px wide)");
+  const profile = await teammate(page);
+  await page.goto(profile);
+  const mode = page.locator("#overview-mode");
+  await ready(mode);
+  await mode.tap();
+  const list = page.getByRole("listbox", { name: "Game mode" });
+  await expect(list).toBeVisible();
+  const option = list.getByRole("option").nth(1);
+  const label = (await option.textContent())!.trim();
+  await option.tap();
+  await expect(list).toBeHidden();
+  await expect(mode).toContainText(label);
+  await expect(mode).toBeFocused();
+});
