@@ -43,7 +43,8 @@ describe("team page advice", () => {
     const mid = roster.slots.find((s) => s.role === "MID")!;
     expect(mid.player).toBeNull();
     expect(mid.suggestions.map((s) => s.name)).toEqual(["MidMain", "MidFlex"]);
-    expect(mid.suggestions[0]!.reasons[0]).toMatch(/primary role/);
+    // S2b/S3a's wording (TT.T03): "Mid is their main role", the word the rest of the app uses.
+    expect(mid.suggestions[0]!.reasons[0]).toMatch(/main role/);
     // Other Players are retired (migration 0031): nobody is offered as a substitute any more.
     expect(mid.suggestions[0]!.substitute).toBe(false);
     // A profile without a sign-in account is not suggested; nor is the ADC already in the lineup.
