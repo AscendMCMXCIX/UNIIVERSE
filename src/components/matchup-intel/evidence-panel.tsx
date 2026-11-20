@@ -9,11 +9,21 @@ import type { MatchupEvidence, EvidenceSection } from "@/domain/matchup-intel/ev
   ("In your games (n = 9) · In the team's games (n = 23)"); inside, each section's lines, every one
   counted from stored games with its sample ("4 of 9 games · patch 26.22 · Solo/Duo 3, Normal Draft
   6"), never a recommendation. A section with no counted line says why in one line. Then the
-  evidence the page does not have, said as such ("No high-elo evidence (not collected)").
+  evidence the page does not have, said as such ("No high-elo evidence (not collected)", "Power
+  spikes: Not measured yet", "No wave guidance for this matchup").
 */
 
 export const NO_HIGH_ELO = "No high-elo evidence (not collected)";
 export const NO_DUO_NOTES = "No curated notes for this 2v2";
+/**
+ * The briefing's items with nothing measured or written for them yet (the overhaul's PLAN §4), said
+ * as such beside the high-elo line, never left out or guessed: power spikes wait for the high-elo
+ * statistics (OD4; explanations for the owner's curation, OD6); wave guidance has no honest source,
+ * as Riot's match records hold no wave state (docs/MATCHUP_INTEL.md, "Evidence" in the S7a section).
+ */
+export const POWER_SPIKES_LABEL = "Power spikes:";
+export const NOT_MEASURED_YET = "Not measured yet";
+export const NO_WAVE_GUIDANCE = "No wave guidance for this matchup";
 export const UNCERTAIN = "Matchup uncertain: no curated notes and no counted games for this pair, so each champion's own facts follow";
 /** The pair has a curated briefing, hidden above (too old, or resting on a change): never "no curated notes". */
 export const UNCERTAIN_HIDDEN = "Matchup uncertain: this pair's curated briefing is hidden above and no games are counted, so each champion's own facts follow";
@@ -137,6 +147,10 @@ export function EvidenceBody({ evidence, duo, pair }: { evidence: MatchupEvidenc
         <li data-testid="matchup-evidence-high-elo">
           <span className="font-medium text-fg">Runes, items and skill order:</span> {NO_HIGH_ELO}
         </li>
+        <li data-testid="matchup-evidence-power-spikes">
+          <span className="font-medium text-fg">{POWER_SPIKES_LABEL}</span> {NOT_MEASURED_YET}
+        </li>
+        <li data-testid="matchup-evidence-wave">{NO_WAVE_GUIDANCE}</li>
         {duo ? <li data-testid="matchup-evidence-duo">{NO_DUO_NOTES}</li> : null}
       </ul>
     </div>

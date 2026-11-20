@@ -599,11 +599,43 @@ facts from Riot's text, so `RIOT_TEXT_FACTS_ENABLED` (still false) governs none 
 
 ### The bot lane's page
 
-Both enemies' kits side by side (from a dashboard 60rem wide), each with its cooldowns; your duo's
-two kits folded side by side under them; Riot's tips for all four; and "No curated notes for this
-2v2" in the evidence line. Measured on the demo (Jinx and Lulu vs Caitlyn and Lux, the sidebar open):
-no page scroll at 1920 × 950 and 1920 × 1080; 293px under the fold at 1440 × 900, with the bar, both
-kits and the start of the main panel on the screen.
+Both enemies' kits side by side (from a dashboard 60rem wide), each with its cooldowns, in the
+wider column; your duo's two kits folded side by side under the main column; Riot's tips for all
+four under the kits; and "No curated notes for this 2v2" in the evidence line.
+
+**The one-screen fit (Release 11, 20 Nov 2026).** With the facts from Riot's text on (the state the
+tests read, and production's once OD1 switches the layer on) a 2v2 had scrolled 101–129px at 1920 ×
+950, put the sources' summary under the fold at 1440 × 900 and cooldown lines under it at 1280 × 800;
+with the layer off it fitted. Layout only, every word kept, one step away where it moved (DESIGN_SYSTEM §1):
+
+- the assembled reference's two sides (Danger, Opportunity) side by side from 28rem in the bot lane
+  (from 40rem in a solo lane): the main column is about 31rem wide at 1440 × 900 and the longer side
+  sets the height (`SIDES` in `assembled.tsx`);
+- the kit column the wider, `0.85fr : 1.15fr` of the two from 70rem, `0.75fr : 1.25fr` under it
+  (1280 × 800 with the sidebar open), so the first kit's haste row keeps one line (`COLUMNS.duo` in
+  `matchup-content.tsx`);
+- each enemy kit's line of where its abilities, cooldowns and facts come from in a fold beside its
+  tier, "Riot's data · Sources" (the first kit's "Base cooldowns, without ability haste" in it, the
+  second kit's title row saying it in view). Not where the line carries a warning: a champion with
+  checked notes (not re-checked, changed since, too old) or an offline copy keeps it in view
+  (`sourcesFold` in `ability-list.tsx`);
+- your duo's two folds say where their abilities come from inside the fold, over the tiles ("Riot's
+  data changed on 26.24" stays in the summary), and sit under the main column, which is the shorter
+  one in every lineup measured; on a phone they follow the notes, after the glance's enemy cooldowns.
+
+Measured on the demo (Chromium 153 and Chrome Headless Shell 156 gave the same figures; 100% zoom,
+the sidebar open), 10 lineups per role, the facts from Riot's text on, before → after:
+
+| Size | What must hold | Before (worst of 20) | After (worst of 20, its margin) |
+|---|---|---|---|
+| 1920 × 1080 | no page scroll | none | none (the sources' summary ≥ 179px above the fold) |
+| 1920 × 950 | no page scroll | 128px of scroll | none (the sources' summary ≥ 84px above the fold) |
+| 1440 × 900 | both enemies' tiles and the sources' summary on the screen | the summary 184px under the fold | on the screen, 30px to spare |
+| 1280 × 800 | every cooldown line of both enemies on the screen | 67px under the fold | on the screen, 88px to spare |
+
+With the layer off every size holds with at least 93px to spare. The test is "the bot lane fits too"
+in `e2e/matchup-intel-dashboard.spec.ts` (`DUO_FIT`: 10 lineups per role, the first two of each role
+in CI, each with the layer on and off); on the layout before the change it fails at 1920 × 950, 1440 × 900 and 1280 × 800.
 
 ### Cooldowns at a haste
 
@@ -661,9 +693,14 @@ numbers). A tip of more than 600 characters would be left out whole, never cut (
 
 ### Evidence
 
-The tips' fold ends with "Runes, items and skill order: No high-elo evidence (not collected)", and in
-the bot lane "No curated notes for this 2v2". No build, rune page or skill order is suggested
-anywhere: what the page counts from the team's own games follows (S7b).
+The tips' fold ends with what the page does not have, said as such (PLAN §4): "Runes, items and skill
+order: No high-elo evidence (not collected)"; "Power spikes: Not measured yet" (measured spikes wait
+for the high-elo statistics, OD4, and any explanation of one for the owner's curation, OD6); "No wave
+guidance for this matchup" (Riot's match records hold no wave state, so wave guidance has no honest
+source); and in the bot lane "No curated notes for this 2v2". Each line is held to both word lists
+(`evidence-words.test.ts`), and the browser test pins that the power spikes and wave lines show
+there and nowhere else on the page. No build, rune page or skill order is suggested anywhere: what
+the page counts from the team's own games follows (S7b).
 
 ### Static data for the build evidence
 
@@ -834,6 +871,13 @@ the timeline keeps sales. Still not built:
   `teamPosition` players stand at minutes 3–8 as the test requires. Building it needs a lane end that
   does not rest on the same regions, and calibrated regions.
 - **The jungle's lane end** (the first contested epic objective): the stored events cannot tell it.
+- **The first back's timing and CS** (PLAN §6 row 3.9k, "S7b's measured back timing and CS"): not
+  built, because the stored rows do not hold them. `prep.back` keeps the items of the first shop
+  visit after the first minute, not when it happened, and no row keeps a CS count at any time; so
+  there is nothing to count, and no estimate is shown in its place (Release 11 checked, 20 Nov
+  2026). The stored timelines keep each purchase's time and the CS total at each one-minute frame, so
+  building it needs `PREP_FORMAT` 2 with the visit's time and the CS at the frame before it (said as
+  "CS at the minute before", up to 59 s earlier), and a backfill to make the rows again.
 - **Admin for the diff:** `/api/health` lists the digests' counts (`digests`, docs/MONITORING.md),
   and since Release 10 Admin's data health does too (Data & Integrations → Details → Data health,
   the card "Riot's static data between patches", `StaticDiffCard` in
@@ -1182,7 +1226,7 @@ trailing space).
 **Where they show**: as chips on the tiles, one per kind, whose tip quotes the clause and which text
 it is ("Riot's tooltip for Apprehend"); in the assembled reference's groups; in the ability's Details
 window ("Facts from Riot's ability text", with the label, when they were reviewed and each kind's
-clause); in the panel's heading ("From Riot's ability text, reviewed automatically (not by a person)
+clause); in the panel's heading (in the bot lane's two kits side by side, its Sources fold; "From Riot's ability text, reviewed automatically (not by a person)
 · Reviewed against Riot's text of patch 26.22, on 19 Nov 2026"); and in the sources and notices, with
 the process from the review record. What the review recorded with a fact shows with it, in fixed and
 tested words (The ability tiles, above): its qualifier on its chip ("Stun · “Mega Gnar”", "Cooldown

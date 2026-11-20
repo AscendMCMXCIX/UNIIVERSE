@@ -36,6 +36,8 @@ export interface MatchupIntelRead {
   slotCount: string | null;
   tipsLabel: string;
   highElo: string;
+  /** The plan's honest fallbacks beside it (PLAN §4): "Power spikes: Not measured yet · No wave guidance for this matchup". */
+  fallbacks: string;
   /** S7b: the evidence fold's tiers ("In your games (n = 9) · In the team's games (n = 23)"). */
   evidenceTiers: string;
   /** The tier beside the briefing's (or the assembled reference's) title. */

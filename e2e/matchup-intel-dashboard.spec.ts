@@ -730,6 +730,15 @@ test("the five roles: a solo lane sets two slots, the bot lane four; an empty sl
   await expect(evidence.getByTestId("matchup-uncertain")).toHaveText("Matchup uncertain: no curated notes and no counted games for this pair, so each champion's own facts follow");
   await expect(evidence.getByTestId("matchup-evidence-high-elo")).toHaveText("Runes, items and skill order: No high-elo evidence (not collected)");
   await expect(evidence.getByTestId("matchup-evidence-duo")).toHaveText("No curated notes for this 2v2");
+  // The plan's honest fallbacks (PLAN §4), beside the high-elo line and nowhere else on the page:
+  // power spikes not measured yet, and no wave guidance (Riot's records hold no wave state).
+  await expect(evidence.getByTestId("matchup-evidence").locator(":scope > li")).toHaveText([
+    "Runes, items and skill order: No high-elo evidence (not collected)",
+    "Power spikes: Not measured yet",
+    "No wave guidance for this matchup",
+    "No curated notes for this 2v2",
+  ]);
+  await expect(page.getByText(/power spike|wave/i)).toHaveCount(2);
   // Every row states its tier: Riot's data on each kit.
   await expect(page.getByTestId("matchup-enemy-abilities").getByTestId("evidence-tier")).toHaveText("Riot's data");
   // Support: seen from the support's side; the swap trades both duos.
@@ -743,6 +752,9 @@ test("the five roles: a solo lane sets two slots, the bot lane four; an empty sl
   // a checked open question kept at its base (Death's Grasp), and nothing at 0.
   await page.goto("/resources/matchups?role=top&champion=Riven&vs=Darius");
   await hydrated(page);
+  // A solo lane: the same two fallbacks, in the same list, and nowhere else.
+  await expect(page.getByTestId("matchup-evidence").locator(":scope > li")).toHaveText(["Runes, items and skill order: No high-elo evidence (not collected)", "Power spikes: Not measured yet", "No wave guidance for this matchup"]);
+  await expect(page.getByText(/power spike|wave/i)).toHaveCount(2);
   const q = page.getByTestId("matchup-enemy-abilities").locator('[data-testid="ability-row"][data-slot="Q"]');
   await expect(q.getByTestId("ability-haste")).toHaveCount(0);
   await page.getByTestId("matchup-haste").getByRole("button", { name: "20", exact: true }).click();

@@ -48,6 +48,7 @@ const NOW: MatchupIntelRead = {
   slotCount: "2",
   tipsLabel: "Riot's tip (may predate later changes)",
   highElo: "Runes, items and skill order: No high-elo evidence (not collected)",
+  fallbacks: "Power spikes: Not measured yet · No wave guidance for this matchup",
   evidenceTiers: "In your games: no player profile · In the team's games (n = 12)",
   briefingTier: "Checked notes (AI reviewers)",
   kitTier: "Riot's data",
@@ -66,7 +67,7 @@ describe("the Production check's Matchup Intel facts", () => {
   it("fail when the lane selector, Riot's tips' label or the evidence line is missing or claims more", () => {
     const lanes = /lane selector/;
     expect(failed(judge(NOW)).filter((n) => lanes.test(n))).toEqual([]);
-    for (const over of [{ roles: "Top Jungle Mid" }, { roles: "Top Jungle Mid ADC Support" }, { tipsLabel: "" }, { highElo: "Runes: Conqueror" }, { slotCount: null }]) expect(failed(judge({ ...NOW, ...over })).filter((n) => lanes.test(n)), JSON.stringify(over)).toHaveLength(1);
+    for (const over of [{ roles: "Top Jungle Mid" }, { roles: "Top Jungle Mid ADC Support" }, { tipsLabel: "" }, { highElo: "Runes: Conqueror" }, { fallbacks: "Power spikes: level 6 · No wave guidance for this matchup" }, { fallbacks: "" }, { slotCount: null }]) expect(failed(judge({ ...NOW, ...over })).filter((n) => lanes.test(n)), JSON.stringify(over)).toHaveLength(1);
   });
 
   it("fail when a row does not state its tier, or the evidence fold's tiers are missing", () => {
