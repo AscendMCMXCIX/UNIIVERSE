@@ -311,11 +311,13 @@ function AbilityTile({ intel, ability: a, checkedPatch, dataPatch, notRecheckedF
   return (
     // A chip's jump lands here and gives the tile the focus until it moves on (jumpToAnchor,
     // ui/section-index.tsx); the tile is lit while it holds it.
+    // On a desktop the tiles are 4px shorter (lg:py-1): five of them give the 1440 × 900 fit ~20px of
+    // margin, which CI's browser (Chrome 156, which wraps a cooldown's note a line earlier than 153) needs.
     // The icon beside everything from a tile 16rem wide; in a narrower one (a phone at a large text
     // size) a smaller copy starts the key's line instead and the words take the tile's whole width,
     // so a column beside the icon never squeezes them to a few letters a line (the hidden copy is
     // display: none, and a lazy image out of the layout is never fetched).
-    <li id={abilityAnchor(champion.id, a.slot)} className="grid scroll-mt-4 grid-cols-1 items-start gap-x-2.5 px-2 py-1.5 transition-colors focus:bg-accent/5 focus-visible:-outline-offset-2 @min-[16rem]/abilities:grid-cols-[2.5rem_minmax(0,1fr)] @min-[16rem]/abilities:px-3" data-testid="ability-row" data-slot={a.slot} data-freshness={a.freshness ?? undefined}>
+    <li id={abilityAnchor(champion.id, a.slot)} className="grid scroll-mt-4 grid-cols-1 items-start gap-x-2.5 px-2 py-1.5 transition-colors lg:py-1 focus:bg-accent/5 focus-visible:-outline-offset-2 @min-[16rem]/abilities:grid-cols-[2.5rem_minmax(0,1fr)] @min-[16rem]/abilities:px-3" data-testid="ability-row" data-slot={a.slot} data-freshness={a.freshness ?? undefined}>
       <span className="hidden @min-[16rem]/abilities:block">
         <AbilityIcon src={a.icon} slot={a.slot} />
       </span>

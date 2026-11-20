@@ -1203,6 +1203,25 @@ claims more, or less, than was done (For the owner, step 11).
 
 ## Curated notes
 
+**Role coverage, plainly:** checked notes exist for top lane only (the six champions with checked
+notes and the three curated pairs are all top lane). Jungle, Mid, ADC and Support have Riot's data,
+Riot's tips, the facts from Riot's text (off until the owner's registration text) and the members'
+own games, but nothing a person checked.
+
+**What to curate next (Admin only, Release 10).** Admin → Data & Integrations → Details → Data
+health holds a read-only card, "Matchup Intel: what to curate next" (`curationPriorities` in
+`src/server/matchup-intel/curation.ts`, `src/components/admin/curation-priorities.tsx`), for the
+owner's choice of what to curate (PLAN OD6): per role, Jungle, Mid, ADC and Support first and Top
+last, the champions in the team members' pools for that role, ranked by the members' stored games
+on that champion in that role, each marked when it already has checked notes or curated pairs.
+Champion names and counts only, never whose pool a cell came from; team members only (no
+personal-use or archived profile, as the evidence counts). It is shown to whoever may open Admin's
+data pages (`requirePageAccess("manage-data")`, no new permission). With a handful of profiles a
+role's cells can point at one person, so its figures are never written to a log, a job's output,
+`/api/health`, the Production check or these docs; a failing query leaves the card out and logs only
+that it failed. Tests: `tests/db/curation-priorities.test.ts` (the ranking, the exclusions, the
+names-only output, and the page refusing a member without Admin access).
+
 Riot's Data Dragon gives every champion's ability names, icons, ranks and base cooldown arrays. It
 does not say when a cooldown starts, what a recast needs, what crowd control an ability carries or
 what cancels it. The curated notes add that, in two layers. Each file is written from cited
@@ -1543,16 +1562,19 @@ Matchup Intel page added to it would need `DDRAGON_VERSION` passed as well.
   whole at 320px and 200% text); each badge of the curated notes' line follows a space, which a
   wrapped line drops, so a badge starting a line is not indented. The spec checks the last two at
   320 × 568 and 200% text. Not changed: the badge's tap area on a touch screen (21px tall, as
-  before); a 44px area there would cover the chips under it, which the touch spec forbids. Measured on the demo (1440 × 900 summary, 1280 × 800 lowest
-  enemy cooldown line), before → after: nothing changed 873 → 855, 761 → 743; Riven's Q or E changed
-  907 → 887; W or R 891 → 871.
+  before); a 44px area there would cover the chips under it, which the touch spec forbids. On a desktop each ability tile is 4px shorter (`lg:py-1`),
+  which gives the fit the margin CI's browser needs: Chrome Headless Shell 156 (CI and the Production
+  check) lays text out wider than the container's Chromium 153 and wraps a cooldown's note a line
+  earlier (Indestructible's, +16px). Measured on the demo (1440 × 900 summary, 1280 × 800 lowest enemy
+  cooldown line), before → after, Chromium 153 / Chrome 156 after: nothing changed 873 → 848 / 851,
+  761 → 725; Riven's Q or E changed 907 → 868 / 883 (17px to spare in 156); W or R 891 → 861 / 867.
 - **Known gap: an enemy ability changed.** With one of the enemy's abilities changed, its tile carries
   its flagged notes, the panel's heading a warning and the briefing a hidden point, and the pair is
-  taller in both columns than 1440 × 900 leaves: with Mordekaiser's Q changed, the page 1112 → 984px
-  tall (the sources' summary at 945px after) and the lowest enemy cooldown line at 1280 × 800
-  958 → 847px (Release 10's layout; the five tiles stay on the screen, 883 → 773px, and 1920 × 1080
-  keeps one screen). No layout that
-  keeps every word on the first screen makes up the 45px in each column; the owner may choose
+  taller in both columns than 1440 × 900 leaves: with Mordekaiser's Q changed, the page 1112px tall
+  before, the sources' summary at 929px (153) / 941px (156) after, and the lowest enemy cooldown line
+  at 1280 × 800 958 → 829px (Release 10's layout; the five tiles stay on the screen, 883 → 753 /
+  769px, and 1920 × 1080 keeps one screen). No layout that
+  keeps every word on the first screen makes up the 30–40px in each column; the owner may choose
   (PLAN OD20) between the sources' summary under the enemy's tiles on a desktop, or the flagged notes
   in the ability's Details window only (the badge staying on the tile). The spec holds what holds
   there: the tiles at 1440 × 900 and one screen at 1920 × 1080. The Production check does not judge

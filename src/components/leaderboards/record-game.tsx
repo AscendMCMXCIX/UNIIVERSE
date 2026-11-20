@@ -7,7 +7,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { isPlainClick } from "@/lib/back-to-top";
 import { Peek, usePeek } from "@/components/ui/peek";
 import { closeInPlace } from "@/components/ui/address-item";
-import { RowLink } from "@/components/ui/data-list";
+import { ROW_LINK_COVER, RowLink } from "@/components/ui/data-list";
 import type { PortraitChampion } from "@/components/champion-portrait";
 import { MatchDetailCacheContext, createMatchDetailCache } from "@/components/match-history/match-detail-cache";
 import { PostGame } from "@/components/match-history/post-game";
@@ -172,7 +172,7 @@ export function RecordGameLink({ matchId, href, children }: { matchId: string; h
       href={r.href}
       onClick={r.onClick}
       aria-current={r.selected ? "true" : undefined}
-      className="absolute inset-0 z-[1] rounded-[inherit] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
+      className={`${ROW_LINK_COVER} rounded-[inherit]`}
       data-row-link=""
       data-peek-row={matchId}
       data-selected={r.selected || undefined}
