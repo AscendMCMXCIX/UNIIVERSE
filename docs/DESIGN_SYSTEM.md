@@ -395,6 +395,11 @@ const peek = usePeek({ param: "player", ids, initial: searchParams.get("player")
   fold (`visibility: hidden` through `group-data-[folded=true]/card:invisible`, so no width
   changes), Champion, Games and Win rate keep their x, and the panel takes the folded space with the
   card's surface, a hairline `border-border-strong` at its left and the card's right radius. It is
+  joined to its row (CM §4.1, Release 11): the selected row's `surface-3` runs under it to its edge
+  (kept on hover and focus, the focus outline still drawn), and a 2px notch the row's colour
+  interrupts the edge line beside the row (`champion-preview-notch`, placed by `preview-notch.ts`:
+  clipped to the edge the pinned panel draws, gone once the row scrolls out of it, moved to a new
+  row in 150ms, at once with reduced motion). It is
   sticky under the pinned tabs and as tall as its content (`max-w-xl`); it slides 12px outward and
   fades in (`unfold-in`, 200ms, `--ease-emphasized`). With less room the page falls back to `Peek`
   (the docked panel, then the sheet by posture), with the same content and address

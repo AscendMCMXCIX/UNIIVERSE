@@ -29,6 +29,23 @@ async function openRow(page: Page, row: Locator) {
   }).toPass({ timeout: 15_000 });
 }
 
+/** How the selected row meets the docked preview: its surface under the preview's edge, the notch over that edge beside it. */
+async function joint(page: Page, row: Locator) {
+  return row.evaluate((li) => {
+    const aside = document.getElementById("champion-preview")!;
+    const notch = document.querySelector<HTMLElement>("[data-testid=champion-preview-notch]")!;
+    const [r, a, n] = [li.getBoundingClientRect(), aside.getBoundingClientRect(), notch.getBoundingClientRect()];
+    return {
+      rowToEdge: r.right >= a.left + 2,
+      notchAtEdge: Math.abs(n.left - a.left) <= 1,
+      width: Math.round(n.width),
+      sameColour: getComputedStyle(li).backgroundColor === getComputedStyle(notch).backgroundColor,
+      alongRow: Math.abs(n.top - r.top) <= 1 && Math.abs(n.bottom - r.bottom) <= 1,
+      shown: getComputedStyle(notch).visibility !== "hidden",
+    };
+  });
+}
+
 const columns = (page: Page) => page.getByTestId("all-champions-header").evaluate((el) => ["champion", "games", "win"].map((k) => Math.round(el.querySelector(`[data-testid=sort-${k}]`)!.getBoundingClientRect().x)));
 
 test("desktop: the preview unfolds in the list's card; nothing moves; click, ↑/↓ and Back", async ({ page }, info) => {
@@ -56,6 +73,10 @@ test("desktop: the preview unfolds in the list's card; nothing moves; click, ↑
   // The columns after Win rate fold away under it (hidden, their widths kept).
   await expect(page.getByTestId("sort-kda")).toBeHidden();
   await expect(rows.nth(0)).toHaveAttribute("data-selected", "true");
+  // Joined to its row (CM §4.1): the row's surface runs to the preview's edge, and a 2px notch the
+  // row's colour interrupts the edge line beside the row, as tall as the row.
+  await page.mouse.move(2, 2);
+  await expect.poll(() => joint(page, rows.nth(0))).toEqual({ rowToEdge: true, notchAtEdge: true, width: 2, sameColour: true, alongRow: true, shown: true });
   await expect(page.getByTestId("champion-preview-foot")).toContainText("Lane opponent: the enemy Riot placed in");
   expect(await page.evaluate(() => history.length)).toBe(entries + 1);
   // Another row switches it; ↑/↓ move it; the address is replaced, never pushed.
@@ -70,6 +91,17 @@ test("desktop: the preview unfolds in the list's card; nothing moves; click, ↑
   expect(await columns(page)).toEqual(before);
   expect(await page.evaluate(() => scrollY)).toBe(0);
   expect(Math.max(...replies)).toBeLessThanOrEqual(5_000);
+  // The notch moved with the switches to the selected row.
+  await page.mouse.move(2, 2);
+  await expect.poll(() => joint(page, rows.nth(1))).toEqual({ rowToEdge: true, notchAtEdge: true, width: 2, sameColour: true, alongRow: true, shown: true });
+  // (Scrolled out of the pinned preview's edge, the notch goes: preview-notch.test.ts; the demo's lists are too short to scroll a row out.)
+  // The same join at 1280 and 1920 (the preview docks in the card at both).
+  for (const width of [1280, 1920]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expect(preview).toBeVisible();
+    await expect.poll(() => joint(page, rows.nth(1)), `${width}px`).toEqual({ rowToEdge: true, notchAtEdge: true, width: 2, sameColour: true, alongRow: true, shown: true });
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
   // At most 650px tall folded, with no inner scroll.
   const box = await preview.evaluate((el) => ({ h: el.getBoundingClientRect().height, inner: el.scrollHeight > el.clientHeight + 1 }));
   expect(box.h).toBeLessThanOrEqual(650);
