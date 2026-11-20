@@ -24,6 +24,8 @@
 */
 
 /** The evidence fold's tiers (S7b): each scope with its n, or why it is not counted for this account. */
+/** A kit's tier, and the assembled reference's: Riot's data, with the checked notes where its champion has them (R7 review C1). */
+const KIT_TIERS = ["Riot's data", "Riot's data · Checked notes (AI reviewers)"];
 const EVIDENCE_TIERS = /^In your games(: no player profile| \(n = \d+\)) · In the team's games( \(n = \d+\)|: not part of this access)$/;
 
 /** What the page shows, read in the page at its current size (Playwright's evaluate: self-contained). */
@@ -126,7 +128,7 @@ export function matchupIntelVerdicts({ kind, pair, enemy, at, wide, wiki }) {
   fact("the sources' summary: a static reference with no live tracking, Riot's data, not endorsed by Riot Games", at.summary.startsWith("A static reference: no live tracking") && /Riot Data Dragon \d/.test(at.summary) && at.summary.endsWith("Not endorsed by Riot Games"), { summary: at.summary });
   fact("one press away, the Data Dragon version, the wiki's licence and Riot's notice", /^Ability names, icons and base cooldowns: Riot Data Dragon \d/.test(at.ddragon) && at.licence === "https://creativecommons.org/licenses/by-sa/3.0/" && /isn't endorsed by Riot Games/.test(at.notice), { ddragon: at.ddragon, licence: at.licence });
   fact("the lane selector offers Top, Jungle, Mid, ADC and Support, one pressed, and its slots (two for a solo lane); Riot's tips are labelled as Riot's; no high-elo evidence is claimed", /^Top\*? Jungle\*? Mid\*? ADC\*? Support\*?$/.test(at.roles ?? "") && (at.roles ?? "").split("*").length === 2 && (at.slotCount === "2" || at.slotCount === "4") && at.tipsLabel === "Riot's tip (may predate later changes)" && at.highElo === "Runes, items and skill order: No high-elo evidence (not collected)", { roles: at.roles, slots: at.slotCount, tipsLabel: at.tipsLabel, highElo: at.highElo });
-  fact("every row states its evidence tier: the evidence fold's own games and the team's, with their n or why not counted; the briefing's checked notes (or Riot's data where it is assembled); the enemy's kit as Riot's data", EVIDENCE_TIERS.test(at.evidenceTiers ?? "") && (at.briefingTier === "Checked notes (AI reviewers)" || at.briefingTier === "Riot's data") && at.kitTier === "Riot's data", { evidenceTiers: at.evidenceTiers, briefingTier: at.briefingTier, kitTier: at.kitTier });
+  fact("every row states its evidence tier: the evidence fold's own games and the team's, with their n or why not counted; the briefing's checked notes (or Riot's data where it is assembled); the enemy's kit as Riot's data (with the checked notes where the champion has them)", EVIDENCE_TIERS.test(at.evidenceTiers ?? "") && (at.briefingTier === "Checked notes (AI reviewers)" || KIT_TIERS.includes(at.briefingTier)) && KIT_TIERS.includes(at.kitTier), { evidenceTiers: at.evidenceTiers, briefingTier: at.briefingTier, kitTier: at.kitTier });
   fact("nothing requested from the League of Legends Wiki", wiki.length === 0, wiki.slice(0, 3));
   fact("checked notes win over the facts from Riot's text: none of those on a pair whose champions both have checked notes, nor Riot's text in the sources' summary", at.riotTextChips === 0 && !at.riotTextLabel && !at.summary.includes("Riot's text"), { chips: at.riotTextChips, label: at.riotTextLabel });
   return out;

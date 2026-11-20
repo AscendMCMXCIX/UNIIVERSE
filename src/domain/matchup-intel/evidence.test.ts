@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { EVIDENCE_FIELDS, MIN_LANE_ENDS, fewGamesWords, fieldLine, laneEndLine, objectivesLine, queueSplit, recordLine, sampleWords, scopeTier, type EvidenceCounts, type EvidenceNames, type PatchWindow } from "./evidence";
 import { evidenceRefusedWords } from "./refused-words";
-import { UNCERTAIN, NO_DUO_NOTES, NO_HIGH_ELO } from "@/components/matchup-intel/evidence-panel";
+import { UNCERTAIN, UNCERTAIN_HIDDEN, NO_DUO_NOTES, NO_HIGH_ELO, kitTier } from "@/components/matchup-intel/evidence-panel";
 
 const names: EvidenceNames = { champion: (id) => ({ Riven: "Riven", Darius: "Darius", LeeSin: "Lee Sin" })[id] ?? id, item: (id) => ({ "1055": "Doran's Blade", "2003": "Health Potion", "3071": "Black Cleaver" })[id] ?? null, spell: (k) => ({ "4": "Flash", "14": "Ignite", "12": "Teleport" })[k] ?? null, rune: (id) => ({ "8010": "Conqueror" })[id] ?? null };
 const only: PatchWindow = { current: "16.22", previous: "16.21", unchanged: () => false };
@@ -103,6 +103,8 @@ describe("EVIDENCE_REFUSED_WORDS on every evidence template", () => {
       fewGamesWords("own", 0, "Riven", ["16.22"]),
       fewGamesWords("team", 2, "Riven", ["16.22"]),
       UNCERTAIN,
+      UNCERTAIN_HIDDEN,
+      kitTier(true),
       NO_DUO_NOTES,
       NO_HIGH_ELO,
       "These counts ignore the empty slots: the enemy ADC, the allied support, the enemy support.",

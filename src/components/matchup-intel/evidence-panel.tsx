@@ -13,6 +13,13 @@ import type { MatchupEvidence, EvidenceSection } from "@/domain/matchup-intel/ev
 export const NO_HIGH_ELO = "No high-elo evidence (not collected)";
 export const NO_DUO_NOTES = "No curated notes for this 2v2";
 export const UNCERTAIN = "Matchup uncertain: no curated notes and no counted games for this pair, so each champion's own facts follow";
+/** The pair has a curated briefing, hidden above (too old, or resting on a change): never "no curated notes". */
+export const UNCERTAIN_HIDDEN = "Matchup uncertain: this pair's curated briefing is hidden above and no games are counted, so each champion's own facts follow";
+
+/** A kit's or the assembled reference's tier: Riot's data, with the checked notes where its champions have them (their facts are checked notes). */
+export function kitTier(checked: boolean): string {
+  return checked ? "Riot's data · Checked notes (AI reviewers)" : "Riot's data";
+}
 
 /** The tier a row of the page rests on, in small type beside its title ("Riot's data", "Checked notes (AI reviewers)"). */
 export function TierLabel({ children }: { children: string }) {
@@ -77,9 +84,9 @@ export function EvidenceSummary({ evidence }: { evidence: MatchupEvidence | null
 /**
  * The evidence inside the fold it shares with Riot's tips (one line for both, so the one-screen fit
  * holds). `evidence` is null until your champion is chosen; the matchup is "uncertain" when the pair
- * has no curated notes and no counted line.
+ * shows no curated briefing and no counted line (saying so differently when its briefing is hidden).
  */
-export function EvidenceBody({ evidence, duo, pair }: { evidence: MatchupEvidence | null; duo: boolean; pair: { chosen: boolean; curated: boolean } }) {
+export function EvidenceBody({ evidence, duo, pair }: { evidence: MatchupEvidence | null; duo: boolean; pair: { chosen: boolean; curated: boolean; /** A curated briefing exists but is hidden. */ hidden?: boolean } }) {
   const counted = !!evidence?.sections.some((s) => s.lines.length);
   const uncertain = pair.chosen && !pair.curated && !counted;
   return (
@@ -90,7 +97,7 @@ export function EvidenceBody({ evidence, duo, pair }: { evidence: MatchupEvidenc
       </p>
       {uncertain ? (
         <p className="text-xs text-fg" data-testid="matchup-uncertain">
-          {UNCERTAIN}
+          {pair.hidden ? UNCERTAIN_HIDDEN : UNCERTAIN}
         </p>
       ) : null}
       {evidence?.sections.map((s) => <Section key={s.scope} section={s} />)}

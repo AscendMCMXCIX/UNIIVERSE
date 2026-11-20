@@ -1,4 +1,4 @@
-import { TierLabel } from "./evidence-panel";
+import { TierLabel, kitTier } from "./evidence-panel";
 import { ChevronDown, EqualNot, History, Timer, TriangleAlert } from "lucide-react";
 import { ChangedBadge } from "./changed-badge";
 import type { AbilityView, ChampionChoice, ChampionIntelView, CooldownDisplay, FactView, Slot } from "@/domain/matchup-intel/types";
@@ -497,7 +497,7 @@ export function AbilitiesPanel({ intel, title, testId, notice, haste = false }: 
           {/* A long name (Heimerdinger's) breaks rather than reach past the panel at a larger text size. */}
           <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
             <h2 className="min-w-0 text-sm font-semibold text-fg [overflow-wrap:anywhere]">{title}</h2>
-            <TierLabel>Riot&apos;s data</TierLabel>
+            <TierLabel>{kitTier(!!intel.curated)}</TierLabel>
           </div>
           {/* The haste the cooldowns are also shown at, in the heading's row (the first enemy's panel only:
               one choice for the page); the base line's words then start the source line. */}

@@ -1,4 +1,4 @@
-import { TierLabel } from "./evidence-panel";
+import { TierLabel, kitTier } from "./evidence-panel";
 import { Fragment } from "react";
 import { ChangedBadge } from "./changed-badge";
 import { Crosshair, History, Swords, TriangleAlert } from "lucide-react";
@@ -251,7 +251,7 @@ export function AssembledReference({ you, enemy, enemyIntel, yourIntel, curatedF
               {ASSEMBLED_TITLE}
               <span className="sr-only">: {`${you.name} vs ${enemy.name}`}</span>
             </h2>
-            <TierLabel>Riot&apos;s data</TierLabel>
+            <TierLabel>{kitTier(!!enemyIntel.curated || (!mirror && !!yourIntel?.curated))}</TierLabel>
           </div>
           <CuratedLinks you={you} enemies={others} label={`Curated for ${you.name}:`} className="text-xs" />
         </div>

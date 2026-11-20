@@ -393,6 +393,25 @@ describe("each champion's data, and checks a patch or more behind", () => {
     expect(t).not.toContain("the Ambessa vs Renekton briefing");
   });
 
+  it("a hidden briefing is never called 'no curated notes': the uncertain line says the pair's notes are hidden above (R7 review C2)", async () => {
+    const t = text(await render({ champion: "Ambessa", vs: "Renekton" }, { currentPatch: { patch: "16.25", ddragonVersion: "16.25.1" }, loadAbilities: storedAt({ Ambessa: "16.25.1", Renekton: "16.25.1" }) }));
+    expect(t).not.toContain("no curated notes and no counted games");
+    expect(t).toContain("Matchup uncertain: this pair's curated briefing is hidden above and no games are counted, so each champion's own facts follow");
+    // A pair with no curated briefing at all keeps the plain line.
+    expect(text(await render({ champion: "Riven", vs: "Darius" }))).toContain("Matchup uncertain: no curated notes and no counted games for this pair");
+  });
+
+  it("each row's tier names the checked notes where a champion's facts are checked notes, beside Riot's data (R7 review C1)", async () => {
+    const html = await render({ champion: "Riven", vs: "Renekton" });
+    const tiers = (from: string) => [...html.slice(html.indexOf(from)).matchAll(/data-testid="evidence-tier">([^<]*)</g)].map((m) => m[1]!.replace(/&#x27;/g, "'"))[0];
+    // Renekton has checked notes: its panel and the assembled reference rest on both.
+    expect(tiers('data-testid="matchup-assembled"')).toBe("Riot's data · Checked notes (AI reviewers)");
+    expect(tiers('data-champion="Renekton"')).toBe("Riot's data · Checked notes (AI reviewers)");
+    // Darius has none: Riot's data alone.
+    const darius = await render({ champion: "Riven", vs: "Darius" });
+    expect([...darius.slice(darius.indexOf('data-testid="matchup-assembled"')).matchAll(/data-testid="evidence-tier">([^<]*)</g)].map((m) => m[1]!.replace(/&#x27;/g, "'"))[0]).toBe("Riot's data");
+  });
+
   it("the offline copy: said in the panel and the footer, with the game's current patch not known", async () => {
     const t = text(await render({ vs: "Darius" }, { currentPatch: null, loadAbilities: async (ids) => ({ version: "16.22.1", champions: Object.fromEntries(ids.map((id) => [id, kit(id)])), offline: [...ids] }) }));
     expect(t).toContain("Offline copy of Riot Data Dragon 16.22.1 · Cooldowns: Riot's data, not reviewed");
