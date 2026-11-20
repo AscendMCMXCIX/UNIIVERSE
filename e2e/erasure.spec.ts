@@ -1,5 +1,5 @@
 import { expect, test } from "./test";
-import { createMember, memberContext, signIn, view } from "./member-account";
+import { createMember, memberContext, openDanger, openPerson, signIn, view } from "./member-account";
 
 /*
   PERMANENT ERASURE in Admin Mode → Users & Permissions, always on an account made for the test
@@ -20,10 +20,10 @@ test("an administrator erases a member's personal data after seeing what changes
   test.skip(info.project.name !== "desktop", "one pass: it changes the shared demo database");
   const { username, temporary } = await createMember(page, "Erase");
   await page.goto("/admin/people");
-  const row = page.getByTestId("admin-player-row").filter({ hasText: `@${username}` });
-  await expect(row).toHaveCount(1);
-  // Deactivate and Delete keep data; Erase is its own action, and says it is permanent before anything happens.
-  await row.getByTestId("erase-person").click();
+  const person = await openPerson(page, `@${username}`);
+  // Deactivate and Delete keep data; Erase is its own action in the Danger zone, and says it is permanent before anything happens.
+  await openDanger(person);
+  await person.getByTestId("erase-person").click();
   const dialog = page.getByRole("dialog", { name: `Erase ${username}'s personal data?` });
   await expect(dialog).toContainText("cannot be undone");
   const preview = dialog.getByTestId("erasure-preview");
@@ -47,6 +47,7 @@ test("an administrator erases a member's personal data after seeing what changes
   await expect(done).toContainText(/Reference ER-[A-Z2-9]{6}/);
   const reference = (await done.innerText()).match(/ER-[A-Z2-9]{6}/)![0];
   await done.getByRole("button", { name: "Done" }).click();
+  await page.goto("/admin/people");
   await expect(page.getByTestId("admin-player-row").filter({ hasText: `@${username}` })).toHaveCount(0);
 
   // The record names no one.
@@ -56,10 +57,10 @@ test("an administrator erases a member's personal data after seeing what changes
   // The admin log keeps the reference, and the earlier entries name them "Erased member".
   await page.goto("/admin/audit");
   const activity = page.getByTestId("admin-activity");
-  await expect(activity.getByTestId("admin-activity-row").first()).toContainText("Permanently erased a person's personal data");
+  await expect(activity.getByTestId("admin-activity-row").first()).toContainText("permanently erased a person's personal data");
   await expect(activity.getByTestId("admin-activity-row").first()).toContainText(reference);
   await expect(activity).not.toContainText(username);
-  await page.getByTestId("audit-category-privacy").click();
+  await page.getByTestId("audit-category").selectOption("privacy");
   await expect(page).toHaveURL(/category=privacy/);
   await expect(activity.getByTestId("admin-activity-row").first()).toContainText(reference);
 
@@ -79,7 +80,9 @@ test("the Owner and the administrator's own account are never offered for erasur
   const own = page.getByTestId("admin-user-row").filter({ hasText: "(you)" });
   await expect(own).toHaveCount(1);
   await expect(own).toContainText("Owner");
-  await expect(own.getByTestId("erase-person")).toHaveCount(0);
+  const view = await openPerson(page, "(you)", "admin-user-row");
+  await expect(view.getByTestId("person-danger")).toHaveCount(0);
+  await expect(view.getByTestId("erase-person")).toHaveCount(0);
 });
 
 test("a member who is not an administrator cannot open Personal data", async ({ browser, page: admin }, info) => {

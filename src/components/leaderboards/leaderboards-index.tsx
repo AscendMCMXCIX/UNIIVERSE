@@ -32,58 +32,89 @@ function useElementById(id: string): HTMLElement | null {
   );
 }
 
-/** The phone's top bar's bottom edge, in px from the window's top (it is sticky at 0), while it is shown. */
-function useTopBarFoot(): number | null {
-  const [foot, setFoot] = React.useState<number | null>(null);
+/**
+ * The phone's top bar's visible foot, in px from the window's top (it is sticky at 0), and its
+ * element. Its first row slides away while the page scrolls down on a crowded phone (MobileNav's
+ * data-hidden "row"; the whole bar, "true"), never while it holds the focus: the foot follows it,
+ * and the chip row moves with the bar's own 200ms slide.
+ */
+function useTopBarFoot(): { foot: number | null; bar: HTMLElement | null } {
+  const [state, setState] = React.useState<{ foot: number | null; bar: HTMLElement | null }>({ foot: null, bar: null });
   React.useEffect(() => {
     const bar = document.querySelector<HTMLElement>("[data-testid=mobile-topbar]");
     if (!bar) return;
-    const measure = () => setFoot(bar.offsetHeight || null);
-    const observer = new ResizeObserver(measure);
-    observer.observe(bar);
-    return () => observer.disconnect();
+    const measure = () => {
+      const hidden = bar.matches(":focus-within") ? null : bar.dataset.hidden;
+      const row = bar.querySelector<HTMLElement>("[data-testid=mobile-topbar-row]")?.offsetHeight ?? 0;
+      const shift = hidden === "true" ? bar.offsetHeight : hidden === "row" ? row : 0;
+      setState({ foot: bar.offsetHeight ? bar.offsetHeight - shift : null, bar });
+    };
+    measure();
+    const sized = new ResizeObserver(measure);
+    sized.observe(bar);
+    const slid = new MutationObserver(measure);
+    slid.observe(bar, { attributes: true, attributeFilter: ["data-hidden", "data-slides"] });
+    const onFocus = () => requestAnimationFrame(measure);
+    bar.addEventListener("focusin", onFocus);
+    bar.addEventListener("focusout", onFocus);
+    return () => {
+      sized.disconnect();
+      slid.disconnect();
+      bar.removeEventListener("focusin", onFocus);
+      bar.removeEventListener("focusout", onFocus);
+    };
   }, []);
-  return foot;
+  return state;
 }
 
 /** What the row adds to the phone's scroll padding before it has been drawn: a 2.75rem chip, its 0.25rem padding above and below, a 1px line. */
 const ROW_ESTIMATE = "calc(3.25rem + 1px)";
 
 /**
- * On phones the root's scroll padding is the top bar's (MobileNav writes it) plus the chip row's
- * (its height once drawn, else ROW_ESTIMATE): written in a layout effect, before any effect of the
- * page's (the old Records address lands on its section in one), and again whenever the bar or the
- * row changes size (this observer is registered after MobileNav's, so it writes last); MobileNav's
- * own value is put back on leaving.
+ * On phones the root's scroll padding is MobileNav's (the top bar as it stays over the page, which it
+ * also writes on the bar as --bar-pad) plus the chip row's (its height once drawn, else
+ * ROW_ESTIMATE), so a section jumped to, or what the focus moves to, stops clear of both (WCAG
+ * 2.4.11). Written in a layout effect, before any effect of the page's (the old Records address lands
+ * on its section in one), and again whenever MobileNav rewrites its own (the bar's style, size or
+ * slide changes); MobileNav's value is put back on leaving.
  */
-function useRowScrollPadding(row: HTMLElement | null) {
+function useRowScrollPadding(bar: HTMLElement | null, row: HTMLElement | null) {
   React.useLayoutEffect(() => {
-    const bar = document.querySelector<HTMLElement>("[data-testid=mobile-topbar]");
-    const phone = window.matchMedia("(max-width: 47.99rem) and (min-height: 481px)");
     if (!bar) return;
+    const phone = window.matchMedia("(max-width: 47.99rem) and (min-height: 481px)");
     const root = document.documentElement;
     let own = "";
+    let theirs = "";
     const apply = () => {
-      if (!phone.matches || !bar.offsetHeight) return;
-      own = `calc(${bar.offsetHeight + 8}px + ${row ? `${row.offsetHeight}px` : ROW_ESTIMATE})`;
+      const pad = bar.style.getPropertyValue("--bar-pad");
+      if (!phone.matches || !pad) return;
+      const next = `calc(${pad} + ${row ? `${row.offsetHeight}px` : ROW_ESTIMATE})`;
+      if (root.style.scrollPaddingTop === next) return;
+      theirs = pad;
+      own = next;
       root.style.scrollPaddingTop = own;
     };
     apply();
-    const observer = new ResizeObserver(apply);
-    observer.observe(bar);
-    if (row) observer.observe(row);
+    // After MobileNav's own observers (registered earlier, so they run first): its value, then this one.
+    const sized = new ResizeObserver(apply);
+    sized.observe(bar);
+    if (row) sized.observe(row);
+    const restyled = new MutationObserver(apply);
+    restyled.observe(bar, { attributes: true, attributeFilter: ["style", "data-slides", "data-hidden"] });
+    restyled.observe(root, { attributes: true, attributeFilter: ["style"] });
     return () => {
-      observer.disconnect();
-      if (own && root.style.scrollPaddingTop === own) root.style.scrollPaddingTop = `${bar.offsetHeight + 8}px`;
+      sized.disconnect();
+      restyled.disconnect();
+      if (own && root.style.scrollPaddingTop === own) root.style.scrollPaddingTop = theirs;
     };
-  }, [row]);
+  }, [bar, row]);
 }
 
 export function LeaderboardsPinnedIndex({ anchorId, items, phoneItems }: { /** The header's id: once it has gone up, the copies show. */ anchorId: string; items: readonly SectionIndexItem[]; /** The phone's row, in short words, so four chips fit a line at 375 (two lines at most at 320 or large text). */ phoneItems: readonly SectionIndexItem[] }) {
   const header = useElementById(anchorId);
   // PageToolbar watches a ref: this one always holds the header.
   const anchor = React.useMemo(() => ({ current: header }), [header]);
-  const foot = useTopBarFoot();
+  const { foot, bar } = useTopBarFoot();
   const away = useScrolledAway(header, foot);
   const [row, setRow] = React.useState<HTMLDivElement | null>(null);
   // At a large text size the chips can need more than two lines (a third of a 320px phone at 200%): the row is then not
@@ -97,7 +128,7 @@ export function LeaderboardsPinnedIndex({ anchorId, items, phoneItems }: { /** T
     observer.observe(row);
     return () => observer.disconnect();
   }, [row]);
-  useRowScrollPadding(away && fits ? row : null);
+  useRowScrollPadding(bar, away && fits ? row : null);
   return (
     <>
       {header ? (
@@ -107,7 +138,7 @@ export function LeaderboardsPinnedIndex({ anchorId, items, phoneItems }: { /** T
       ) : null}
       {/* Phones: under the top bar (fixed at its foot, so the page never moves), once the header has gone up under it. */}
       {away && foot ? (
-        <div ref={setRow} className={cn("fixed inset-x-0 z-30 border-b border-border bg-bg/95 px-4 py-1 backdrop-blur-md motion-safe:animate-[fade-in_160ms_var(--ease-emphasized)] md:hidden short:hidden", !fits && "invisible")} style={{ top: foot }} aria-hidden={fits ? undefined : true} data-fits={fits ? "" : undefined} data-testid="leaderboards-chip-row">
+        <div ref={setRow} className={cn("fixed inset-x-0 z-30 border-b border-border bg-bg/95 px-4 py-1 backdrop-blur-md transition-[top] duration-200 ease-out motion-safe:animate-[fade-in_160ms_var(--ease-emphasized)] motion-reduce:transition-none md:hidden short:hidden", !fits && "invisible")} style={{ top: foot }} aria-hidden={fits ? undefined : true} data-fits={fits ? "" : undefined} data-testid="leaderboards-chip-row">
           <SectionIndex items={phoneItems} label="Leaderboards sections" testId="phone-section-index" spy listClassName="gap-x-2 gap-y-1" separatorClassName="hidden" linkClassName={(on) => cn(CHIP, "h-11", chipLook(on))} />
         </div>
       ) : null}

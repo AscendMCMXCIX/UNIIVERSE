@@ -82,6 +82,9 @@ const BAR = "[data-testid=mobile-topbar]";
 function sectionTop(variant: "page" | "chrome"): number | null {
   const card = document.querySelector<HTMLElement>(CARD);
   if (!card) return null;
+  // A phone's band on the sections other than the Overview is in the top bar (ProfileHeader's
+  // barTitle), not in the page: the section starts at the page's top.
+  if (variant === "chrome" && !card.getClientRects().length) return 0;
   const tabs = variant === "page" ? document.querySelector<HTMLElement>("[data-testid=profile-tabs]") : null;
   const bar = document.querySelector<HTMLElement>(BAR)?.offsetHeight ?? 0;
   if (tabs) {
@@ -102,6 +105,7 @@ function sectionTop(variant: "page" | "chrome"): number | null {
 function cardScrolledPast(): boolean {
   const card = document.querySelector<HTMLElement>(CARD);
   if (!card) return false;
+  if (!card.getClientRects().length) return window.scrollY > 0;
   const bar = document.querySelector<HTMLElement>(BAR)?.offsetHeight ?? 0;
   return card.getBoundingClientRect().top < bar;
 }
@@ -191,6 +195,7 @@ function ProfileChromeTabs({ items, current }: { items: React.ComponentProps<typ
         pending.current = key && cardScrolledPast() ? key : null;
       }}
       testId="profile-chrome-tabs"
+      fold="profile"
     />
   );
 }

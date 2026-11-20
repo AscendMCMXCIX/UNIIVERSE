@@ -5,7 +5,7 @@ import { listPlayers } from "@/server/repositories/team";
 import { invalidateProficiencyCache } from "@/server/proficiency/service";
 import { ROLES } from "@/domain/roles";
 import { createPlayer, getOrCreateTeam, setLineup, setLineupSubstitute } from "@/server/repositories/team";
-import { createUser, findUserByUsername } from "@/server/repositories/users";
+import { createUser, findUserByUsername, setTemporaryPassword } from "@/server/repositories/users";
 import { ensureLocalOwnerAccount, isProductionDeployment } from "@/server/auth/session";
 import { VERIFY_DISPLAY_NAME, VERIFY_USERNAME } from "@/server/auth/verification-account";
 import { randomToken } from "@/server/auth/password";
@@ -75,8 +75,9 @@ export async function seedDemoRoster(db: Db): Promise<{ created: number }> {
 /**
  * Two demo members who have not finished their first-time setup, so the demo shows members in
  * every state: "Demo Newcomer" has chosen nothing yet (no role, no champions, no Riot account),
- * "Demo Halfway" has a role and two champions. Both accounts have no password (they cannot sign
- * in) and are members of the team like anyone else.
+ * "Demo Halfway" has a role and two champions. Neither can sign in: Demo Halfway has no password,
+ * and Demo Newcomer's temporary password expired unused. Both are members of the team like anyone
+ * else.
  */
 async function seedDemoNewcomers(db: Db, teamId: string, known: ReadonlySet<string>) {
   // Never on a production deployment: demo accounts stay out of real account lists.
@@ -84,7 +85,9 @@ async function seedDemoNewcomers(db: Db, teamId: string, known: ReadonlySet<stri
   // Local development stays open: the automatic local owner exists before any other account.
   await ensureLocalOwnerAccount(db);
   const [newcomer] = await db.insert(players).values({ teamId, displayName: "Demo Newcomer", group: "main", notes: "Demo member who has not finished setup.", sortOrder: 90 }).returning({ id: players.id });
-  await createUser(db, { username: "demo-newcomer", displayName: "Demo Newcomer", password: null, role: "player", playerId: newcomer!.id, setupCompletedAt: null });
+  const newcomerUser = await createUser(db, { username: "demo-newcomer", displayName: "Demo Newcomer", password: null, role: "player", playerId: newcomer!.id, setupCompletedAt: null });
+  // A temporary password issued a month ago and never used: the Dashboard's "Needs you" has an expired one to show.
+  await setTemporaryPassword(db, newcomerUser.id, { now: new Date(Date.now() - 30 * 86_400_000) });
   const halfway = await createPlayer(db, teamId, { displayName: "Demo Halfway", primaryRole: "ADC", group: "main", notes: "Demo member who has not finished setup.", primaryPool: ["Ashe", "Caitlyn"].filter((c) => known.has(c)) });
   await createUser(db, { username: "demo-halfway", displayName: "Demo Halfway", password: null, role: "player", playerId: halfway.id, setupCompletedAt: null });
 }

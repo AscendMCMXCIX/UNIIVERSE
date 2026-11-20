@@ -322,6 +322,8 @@ function modifierProblems(m: AbilityModifiers, ranks: number | null): string[] {
   if (m.lockout && !shown.lockout) out.push("modifiers.lockout cannot be shown: its seconds must be a number above 0");
   if (m.resetsAttack !== undefined && m.resetsAttack !== true) out.push("modifiers.resetsAttack is given but not true");
   if (m.static !== undefined && m.static !== true) out.push("modifiers.static is given but not true");
+  if (m.hasteUnknown !== undefined && m.hasteUnknown !== true) out.push("modifiers.hasteUnknown is given but not true");
+  if (m.hasteUnknown === true && m.static === true) out.push("modifiers.hasteUnknown and modifiers.static say opposite things");
   return out;
 }
 
@@ -1087,5 +1089,36 @@ describe("the corrections of the review of 16 Nov 2026 hold", () => {
     const page = getMatchupNotes("Ambessa", "Renekton")!.sources.find((s) => s.id === "renekton-page");
     expect(page).toMatchObject({ url: "https://wiki.leagueoflegends.com/en-us/Renekton", revision: 4028014 });
     expect(getMatchupNotes("Gwen", "Ornn")!.sources.find((s) => s.id === "renekton-page")).toEqual(page);
+  });
+});
+
+describe("an ability whose notes leave its haste open is flagged (haste.ts)", () => {
+  const dir = join(__dirname);
+  const files = ["champions", "matchups"].flatMap((sub) => readdirSync(join(dir, sub)).filter((f) => f.endsWith(".ts")).map((f) => join(dir, sub, f)));
+  /** "whether ability haste shortens Death's Grasp's cooldown" in any note's comment: the ability's name. */
+  const open = files.flatMap((f) => [...readFileSync(f, "utf8").matchAll(/whether ability haste shortens ([^\n;]+?)(?:'s)? cooldown/gi)].map((m) => m[1]!.trim()));
+  const flagged = new Map<string, string>();
+  for (const f of readdirSync(join(dir, "champions")).filter((x) => x.endsWith(".ts"))) {
+    const notes = getChampionNotes(f.replace(/\.ts$/, ""));
+    for (const slot of SLOTS) {
+      const a = notes?.abilities[slot];
+      if (a?.modifiers?.hasteUnknown) flagged.set(a.ddragonIdentity.name, `${notes!.championId} ${slot}`);
+    }
+  }
+  const names = new Map<string, string>();
+  for (const f of readdirSync(join(dir, "champions")).filter((x) => x.endsWith(".ts"))) {
+    const notes = getChampionNotes(f.replace(/\.ts$/, ""));
+    for (const slot of SLOTS) {
+      const a = notes?.abilities[slot];
+      if (a) names.set(a.ddragonIdentity.name, `${notes!.championId} ${slot}`);
+    }
+  }
+  it("finds the open questions the notes list (Death's Grasp)", () => {
+    expect(open).toContain("Death's Grasp");
+  });
+  it("gives every one of them hasteUnknown, and no other ability", () => {
+    const named = open.filter((n) => names.has(n));
+    expect(named.sort()).toEqual([...flagged.keys()].sort());
+    expect(flagged.get("Death's Grasp")).toBe("Mordekaiser E");
   });
 });

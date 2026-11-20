@@ -32,10 +32,12 @@ async function teammate(page: Page): Promise<string> {
   return `/players/${await page.getByTestId("lineup-row-TOP").getAttribute("data-player-id")}`;
 }
 
-/** Where a profile section starts on a phone: the profile card's bottom edge, less the top bar (docs/MOBILE.md). */
+/** Where a profile section starts on a phone: the profile card's bottom edge, less the top bar; the page's top where the band rides in the bar (the sections other than the Overview, S2b; docs/MOBILE.md). */
 const sectionTop = (page: Page) =>
   page.evaluate(() => {
-    const card = document.querySelector("[data-testid=profile-header]")!.getBoundingClientRect();
+    const el = document.querySelector("[data-testid=profile-header]")!;
+    if (!el.getClientRects().length) return 0;
+    const card = el.getBoundingClientRect();
     return Math.round(card.bottom + window.scrollY - document.querySelector<HTMLElement>("[data-testid=mobile-topbar]")!.offsetHeight);
   });
 
@@ -70,12 +72,13 @@ test("phone: a section chosen far down a profile starts at its top, just under t
   await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
   await settled("Overview → History");
 
-  // From a section sitting exactly at its top (the band just under the bar), the next one starts at
-  // its own top too: the Overview's card is taller than the band, so the place differs.
+  // From a section sitting at its top, which on a phone is the page's top (its band rides in the bar,
+  // S2b), the Overview opens at the page's top too, its card in view.
   await tapInPlace(page, tabs.getByRole("link", { name: "Overview" }));
   await expect(page).toHaveURL(new RegExp(`${profile}$`));
   await expect(page.getByTestId("season-summary")).toBeVisible();
-  await settled("History at its top → Overview");
+  await page.waitForTimeout(600);
+  expect(await page.evaluate(() => window.scrollY), "History at its top → Overview: the page's top").toBe(0);
 
   await tapInPlace(page, tabs.getByRole("link", { name: "History" }));
   await expect(page).toHaveURL(new RegExp(`${profile}/matches$`));
@@ -236,10 +239,13 @@ test("tablet and desktop: Team's sections stay in reach as a long page scrolls, 
 const rowEdges = (nav: Locator) =>
   nav.evaluate((nav) => {
     const main = document.querySelector<HTMLElement>("main#content")!;
+    // The page's column: the child of the shared frame (app-shell.tsx) that holds the bar, or, for a
+    // bar of main's own, the frame's first page element.
+    const frame = main.querySelector<HTMLElement>(":scope > [data-testid=page-frame]")!;
     let column: Element | null = nav;
-    while (column && column.parentElement !== main) column = column.parentElement;
+    while (column && column.parentElement !== frame && column.parentElement !== main) column = column.parentElement;
     if (column === nav) {
-      column = nav.nextElementSibling;
+      column = frame.firstElementChild;
       while (column && column.getBoundingClientRect().width === 0) column = column.nextElementSibling;
     }
     if (!column || column.matches("[role=status]")) throw new Error("measured a loading state, not the page");
@@ -269,10 +275,10 @@ const rowEdges = (nav: Locator) =>
 async function loaded(page: Page, path: string) {
   await page.goto(path);
   await expect(page.locator("main h1, main h2").first()).toBeVisible();
-  await expect(page.locator("main#content > [role=status]")).toHaveCount(0);
+  await expect(page.locator("main#content > [data-testid=page-frame] > [role=status]")).toHaveCount(0);
 }
 
-test("wide windows: every tab row starts at its pages' column, on each of their sections, never moving between them; on Team Overview the header is centred in Team's column", async ({ page, context, baseURL }) => {
+test("wide windows: every tab row starts at its pages' column, on each of their sections, never moving between them; on Team Overview the header is centred in Team's column, from 1920px all of it", async ({ page, context, baseURL }) => {
   test.skip(width(page) < 1024, "desktop windows; phones and tablets fill the width");
   test.setTimeout(240_000);
   const profile = await teammate(page);
@@ -313,10 +319,11 @@ test("wide windows: every tab row starts at its pages' column, on each of their 
           if (at.end !== null) expect(Math.abs(at.end - at.pageRight), `${where}: the team's name ends at ${at.end}, the page at ${at.pageRight}`).toBeLessThanOrEqual(1);
         }
         if (at.header) {
-          // Team Overview's header (and lineup) keep their 84rem, centred in Team's 100rem column: the
-          // tabs start at the column, the logo that inset further in (its approved design, not moved).
+          // Team Overview's header (and lineup) are centred in Team's 100rem column; from a 1920px
+          // window they take all of it, so the tabs and the logo share one edge (S2c, UD.T2).
           const inset = { left: at.header.left - at.pageLeft, right: at.pageRight - at.header.right };
           expect(Math.abs(inset.left - inset.right), `${where}: the header ${Math.round(inset.left)}px inside the column on the left, ${Math.round(inset.right)}px on the right`).toBeLessThanOrEqual(1);
+          if (w.width >= 1920) expect(Math.abs(inset.left), `${where}: the logo starts with the tabs`).toBeLessThanOrEqual(1);
         }
         starts.push(at.tab);
       }

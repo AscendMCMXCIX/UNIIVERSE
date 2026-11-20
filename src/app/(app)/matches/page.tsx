@@ -39,7 +39,7 @@ export default async function MatchesPage({ searchParams }: { searchParams: Prom
   if (!hasPermission(session, "view-teammate-stats")) {
     return (
       <div className="mx-auto max-w-[var(--content-max)] min-[100rem]:max-w-[var(--content-wide)] space-y-5">
-        <PageHeader title="Matches" description="The team's games played together." />
+        <PageHeader title="Matches" description="The team's games played together." sectionNamed />
         <EmptyState title="Team matches show teammates' games" className="max-w-[var(--content-max)]" testId="matches-no-stats">
           They are part of teammates&apos; statistics, which this account does not include. An administrator can change that.
         </EmptyState>
@@ -180,6 +180,7 @@ async function PlayedTogetherPage({ db, teamId, sp, session }: { db: Awaited<Ret
     <div className="mx-auto max-w-[var(--content-max)] min-[100rem]:max-w-[var(--content-wide)] space-y-4">
       <FreshnessWatcher scope={{ kind: "team" }} version={version} />
       <PageHeader
+        sectionNamed
         title="Matches"
         description={
           <Summary

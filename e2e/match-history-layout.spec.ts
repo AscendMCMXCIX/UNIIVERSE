@@ -36,25 +36,40 @@ async function profileOf(page: Page, role: string) {
   return `/players/${(await page.getByTestId(`lineup-row-${role}`).getAttribute("data-player-id"))!}`;
 }
 
-test("the profile card is a compact band on the other sections and in full on the Overview", async ({ page }) => {
+test("the profile card is one band on every section from a tablet up, so the tabs never move; a phone held upright shows it in full on the Overview", async ({ page }) => {
   const profile = await profileOf(page, "MID");
+  const phone = (page.viewportSize()?.width ?? 1440) < 640;
   await page.goto(profile);
   const header = page.getByTestId("profile-header");
   await expect(header).toBeVisible();
   await expect(header).not.toHaveAttribute("data-compact");
-  const full = (await header.boundingBox())!;
+  const overview = (await header.boundingBox())!;
+  const tabsAt = async () => (phone ? null : (await page.getByTestId("profile-tabs").boundingBox())!.y);
+  const overviewTabs = await tabsAt();
+  if (!phone) expect(overview.height, "the Overview's band").toBeLessThanOrEqual(80);
   for (const section of ["matches", "champions", "accounts"]) {
     await page.goto(`${profile}/${section}`);
     await expect(header).toHaveAttribute("data-compact");
-    // The name, the role and the rank stay; the band is far shorter than the card.
+    // An upright phone: the band is in the top bar (the name over the rank), none in the page (S2b).
+    if ((page.viewportSize()?.width ?? 1440) < 768) {
+      await expect(header).toBeHidden();
+      await expect(page.getByTestId("profile-bar-title").getByRole("heading", { level: 1 })).toBeVisible();
+      await expect(page.getByTestId("profile-bar-rank")).toBeVisible();
+      continue;
+    }
+    // The name, the role and the rank stay; the band is far shorter than a phone's full card.
     await expect(header.getByRole("heading", { level: 1 })).toBeVisible();
     await expect(header.getByTestId("profile-rank")).toBeVisible();
     const band = (await header.boundingBox())!;
     expect(band.height, section).toBeLessThanOrEqual(80);
-    expect(band.height).toBeLessThan(full.height * 0.6);
+    if (phone) expect(band.height).toBeLessThan(overview.height * 0.6);
+    else {
+      expect(Math.abs(band.height - overview.height), `${section}: one header height (UD.PO1)`).toBeLessThanOrEqual(1);
+      expect(Math.abs((await tabsAt())! - overviewTabs!), `${section}: the tabs in one place`).toBeLessThanOrEqual(1);
+    }
     expect(await overflow(page)).toBeLessThanOrEqual(1);
   }
-  // Back on the Overview (a tab, no reload): the full card again. (On a phone the sections ride in the top bar.)
+  // Back on the Overview (a tab, no reload). (On a phone the sections ride in the top bar.)
   await page.getByTestId((page.viewportSize()?.width ?? 1440) < 768 ? "profile-chrome-tab-overview" : "profile-tab-overview").click();
   await expect(header).not.toHaveAttribute("data-compact");
 });

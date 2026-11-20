@@ -341,10 +341,7 @@ export function SeasonSummary({ data, basePath, championsById, status, refresh, 
           </p>
         }
         statusAfterText
-        // The toolbar (Filters on a phone) on the title's row wherever it fits there, the scope line
-        // under both: a row less on a phone (UM.PO1); refinements' chips take the next row.
-        toolbarBesideNav
-        toolbarFills={refinementLabel(data, nameOf) ? "below-xl" : false}
+        toolbarBesideScope
         status={status ? <DataStatusNote status={status} refresh={refresh} /> : null}
         refresh={status ? <RefreshButton status={status} refresh={refresh} /> : null}
         controls={<OverviewFilters basePath={basePath} filter={data.filter} seasons={data.seasons} currentSeason={data.currentSeason} champions={champions} accounts={data.accountOptions} modeCounts={data.modes.counts} refineScope={REFINE_SCOPE} />}

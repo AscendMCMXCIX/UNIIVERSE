@@ -5,6 +5,8 @@ export const ABILITY_RULES_FORMAT: number;
 export const DESCRIPTION_MAX: number;
 export function cleanDescription(raw: string): string;
 export function riotTextHash(description: string, tooltip: string | null): string;
+export const TIP_MAX: number;
+export function riotTips(list: unknown): string[];
 export function compactChampionAbilities(detail: unknown, version: string): DdragonChampionAbilities | null;
 export interface AbilityFixture {
   format: number;
@@ -19,6 +21,8 @@ export type DigestSpell = [string | null, number | null, number[] | null, string
 export interface AbilityDigest {
   version: string;
   champions: Record<string, DigestSpell[]>;
+  /** Riot's tips exactly as Data Dragon gives them (null when absent). */
+  tips?: Record<string, { ally: unknown; enemy: unknown }>;
 }
 export function buildDigest(full: unknown): AbilityDigest;
 export function serialiseDigest(digest: AbilityDigest): string;

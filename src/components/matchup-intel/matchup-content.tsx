@@ -1,11 +1,13 @@
 import { History, Swords } from "lucide-react";
-import type { ChampionChoice, MatchupPageView } from "@/domain/matchup-intel/types";
+import { DUO_ROLES, type ChampionChoice, type ChampionIntelView, type MatchupPageView } from "@/domain/matchup-intel/types";
 import { EmptyState } from "@/components/ui/empty-state";
 import { AbilitiesPanel, YourChampion } from "./ability-list";
 import { AssembledReference } from "./assembled";
 import { Briefing, CuratedLinks, PAIR_CHIP, briefingShows } from "./briefing";
 import { MatchupFooter } from "./matchup-footer";
 import { OpenPickerButton, PairLink } from "./matchup-frame";
+import { slotWords } from "./slots";
+import { RiotTipsPanel } from "./riot-tips";
 import { InteractionsPanel, LevelNotesPanel, notesBalance } from "./matchup-notes";
 import { behindOf } from "./matchup-status";
 import { staleDataWords } from "./wording";
@@ -29,6 +31,7 @@ import { staleDataWords } from "./wording";
   what to do next.
 */
 
+const lowerFirst = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
 const toChoices = (ids: readonly string[] | undefined, byId: ReadonlyMap<string, ChampionChoice>) => (ids ?? []).map((id) => byId.get(id)).filter((c): c is ChampionChoice => !!c);
 
 /** Nothing chosen: what the page does, and the curated briefings there are so far. */
@@ -66,7 +69,14 @@ function StaleNote({ words }: { words: string }) {
 }
 
 /** The dashboard's two columns: one on a phone (see the module's comment). */
-const COLUMNS = "grid gap-3 @min-[60rem]/dash:grid-cols-[minmax(0,1fr)_minmax(22rem,0.72fr)] @min-[60rem]/dash:items-start";
+/**
+ * The dashboard's columns: one on a phone; two from a body 60rem wide (see the module's comment). In
+ * the bot lane the kit column is as wide as the main one: it holds the two enemies' kits side by side.
+ */
+const COLUMNS = {
+  solo: "grid gap-3 @min-[60rem]/dash:grid-cols-[minmax(0,1fr)_minmax(22rem,0.72fr)] @min-[60rem]/dash:items-start",
+  duo: "grid gap-3 @min-[60rem]/dash:grid-cols-[minmax(0,0.9fr)_minmax(22rem,1.1fr)] @min-[60rem]/dash:items-start",
+} as const;
 /** The interactions and the level notes side by side where the column has room, the fuller panel the wider (notesBalance). */
 const NOTES_SPLIT = {
   interactions: "@min-[40rem]/dash:grid-cols-[minmax(0,1.75fr)_minmax(0,1fr)]",
@@ -78,24 +88,26 @@ const NOTES_SPLIT = {
 
 export function MatchupContent({ view, champions, curated, legal }: { view: MatchupPageView; champions: readonly ChampionChoice[]; curated: Record<string, string[]>; legal: string }) {
   const byId = new Map(champions.map((c) => [c.id, c]));
-  const { you, enemy, enemyIntel, yourIntel, matchup } = view;
+  const { you, enemy, enemyIntel, yourIntel, matchup, role, allyIntel, enemy2Intel } = view;
+  const duo = DUO_ROLES.has(role);
   const curatedForYou = you ? toChoices(curated[you.id], byId) : [];
   const mirror = !!you && !!enemy && you.id === enemy.id;
   const current = view.patch.current;
-  const shownData = [enemyIntel, mirror ? null : yourIntel].filter((i) => !!i?.abilities);
+  const shownData = [enemyIntel, mirror ? null : yourIntel, enemy2Intel, allyIntel].filter((i) => !!i?.abilities);
   const behind = behindOf(view);
   // The champions whose ability tiles are on the page (yours folded, but there), for the chips.
   const rows = new Set(shownData.map((i) => i!.champion.id));
   const stale = behind.length && current ? <StaleNote words={staleDataWords(behind, current, behind.length === shownData.length)} /> : null;
   const shows = briefingShows(matchup);
   const balance = enemyIntel ? notesBalance(matchup, enemyIntel, yourIntel) : "even";
+  const tips = <RiotTipsPanel enemies={[enemyIntel, enemy2Intel].filter((i): i is ChampionIntelView => !!i)} yours={[mirror ? null : yourIntel, allyIntel].filter((i): i is ChampionIntelView => !!i)} duo={duo} />;
 
   return (
     <div className="@container/dash space-y-3" data-testid="matchup-dashboard" data-layer={you && enemy ? (shows ? "curated" : "assembled") : undefined}>
       {!you && !enemy ? <NothingChosen curated={curated} byId={byId} /> : null}
 
       {you && !enemy ? (
-        <EmptyState icon={Swords} title={`Playing ${you.name}: now choose the enemy`} action={<OpenPickerButton slot="enemy" testId="matchup-choose-enemy">Choose the enemy</OpenPickerButton>} testId="matchup-need-enemy" compact>
+        <EmptyState icon={Swords} title={`Playing ${you.name}: now ${lowerFirst(slotWords(role, "enemy").choose)}`} action={<OpenPickerButton slot="enemy" testId="matchup-choose-enemy">{slotWords(role, "enemy").choose}</OpenPickerButton>} testId="matchup-need-enemy" compact>
           {curatedForYou.length ? <CuratedLinks you={you} enemies={curatedForYou} label={`Curated briefings for ${you.name}:`} centered /> : <p>The enemy&apos;s abilities, base cooldowns and crowd control follow once you choose them.</p>}
         </EmptyState>
       ) : null}
@@ -110,7 +122,7 @@ export function MatchupContent({ view, champions, curated, legal }: { view: Matc
       ) : null}
 
       {enemyIntel ? (
-        <div className={COLUMNS}>
+        <div className={duo ? COLUMNS.duo : COLUMNS.solo}>
           <div className="min-w-0 space-y-3">
             {you && enemy && matchup ? <Briefing matchup={matchup} you={you} enemy={enemy} rows={rows} /> : null}
             {/* A briefing that exists but shows nothing (too old, or every part resting on a change) is hidden above, and said so there. */}
@@ -122,8 +134,20 @@ export function MatchupContent({ view, champions, curated, legal }: { view: Matc
             </div>
           </div>
           <div className="min-w-0 space-y-3">
-            <AbilitiesPanel intel={enemyIntel} title={mirror ? `${enemyIntel.champion.name}'s abilities (both sides)` : `${enemyIntel.champion.name}'s abilities`} testId="matchup-enemy-abilities" notice={stale} />
-            {yourIntel && !mirror ? <YourChampion intel={yourIntel} /> : null}
+            {/* In the bot lane with both enemies chosen, their two kits side by side where the column has room. */}
+            <div className={enemy2Intel ? "grid gap-3 @min-[60rem]/dash:grid-cols-2" : undefined} data-testid="matchup-enemy-kits">
+              <AbilitiesPanel intel={enemyIntel} title={mirror ? `${enemyIntel.champion.name}'s abilities (both sides)` : `${enemyIntel.champion.name}'s abilities`} testId="matchup-enemy-abilities" notice={stale} haste />
+              {enemy2Intel ? <AbilitiesPanel intel={enemy2Intel} title={`${enemy2Intel.champion.name}'s abilities`} testId="matchup-enemy2-abilities" /> : null}
+            </div>
+            {/* Your duo's two kits side by side under the enemies' where the column has room. */}
+            {(yourIntel && !mirror) || allyIntel ? (
+              <div className={duo && allyIntel && yourIntel && !mirror ? "grid gap-3 @min-[60rem]/dash:grid-cols-2 @min-[60rem]/dash:items-start" : undefined}>
+                {yourIntel && !mirror ? <YourChampion intel={yourIntel} label={duo ? slotWords(role, "you").label : undefined} /> : null}
+                {allyIntel ? <YourChampion intel={allyIntel} label={slotWords(role, "ally").label} testId="matchup-ally-abilities" /> : null}
+              </div>
+            ) : null}
+            {/* Riot's tips: one folded line under the kits, so the one-screen fit holds. */}
+            {tips}
           </div>
         </div>
       ) : null}

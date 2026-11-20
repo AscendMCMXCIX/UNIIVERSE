@@ -33,7 +33,8 @@ import { landTarget, publishPageFilters } from "./page-toolbar";
   Pages decide which filters they need; the bar decides how they look and behave.
 */
 
-type Breakpoint = "md" | "lg";
+/** md, lg, or "phone": folded on every phone, upright and held sideways (below md, and in a window 480px tall or less: one filter interface on phones, UM.P1/X3). */
+type Breakpoint = "md" | "lg" | "phone";
 
 // Static class strings per breakpoint (Tailwind only sees whole class names). `searchCompact`: the
 // search starts from 9rem instead of 16rem (a `compact` bar), and grows into what the filters leave.
@@ -56,6 +57,21 @@ const AT: Record<Breakpoint, { row: string; toggle: string; controls: string; se
     label: "lg:sr-only",
     field: "lg:w-auto",
   },
+  phone: {
+    row: "md:not-short:flex-row md:not-short:flex-wrap md:not-short:items-center",
+    toggle: "md:not-short:hidden",
+    controls: "md:not-short:flex md:not-short:flex-row md:not-short:flex-wrap md:not-short:items-center",
+    search: "md:not-short:w-auto md:not-short:max-w-sm md:not-short:flex-[1_1_16rem]",
+    searchCompact: "md:not-short:w-auto md:not-short:max-w-sm md:not-short:flex-[1_1_9rem]",
+    label: "md:not-short:sr-only",
+    field: "md:not-short:w-auto",
+  },
+};
+/** The same breakpoints for the bar's own layout (static class lists, which Tailwind reads whole). */
+const INLINE: Record<Breakpoint, { contents: string; gap: string; end: string; endJustify: string }> = {
+  md: { contents: "md:contents", gap: "md:gap-2", end: "md:ml-auto", endJustify: "md:ml-auto md:justify-end" },
+  lg: { contents: "lg:contents", gap: "lg:gap-2", end: "lg:ml-auto", endJustify: "lg:ml-auto lg:justify-end" },
+  phone: { contents: "md:not-short:contents", gap: "md:not-short:gap-2", end: "md:not-short:ml-auto", endJustify: "md:not-short:ml-auto md:not-short:justify-end" },
 };
 
 const FoldContext = React.createContext<Breakpoint>("md");
@@ -312,7 +328,8 @@ export function FilterBar({
               chips, then the page's own action. From the breakpoint up the wrapper steps aside
               (display: contents) and the search sits in the bar's row as before. */}
           {search ? (
-            <div className={cn("flex min-w-0 items-center gap-2", foldBelow === "md" ? "md:contents" : "lg:contents")}>
+            // Folded and narrower than 21rem (a phone from 125% text), the search takes a line of its own, so its words are never cut ("Searc…"; UM.P1).
+            <div className={cn("@container/fbar flex min-w-0 flex-wrap items-center gap-2 [&>:first-child]:@max-[21rem]/fbar:basis-full", INLINE[foldBelow].contents)}>
               <div className={cn("w-full min-w-0 flex-1", compact ? at.searchCompact : at.search)}>{search}</div>
               {filtersButton}
             </div>
@@ -347,9 +364,9 @@ export function FilterBar({
           {/* Inline from the breakpoint up; while the sheet is open its fields live there instead (one
               copy of each field and its id), and an empty box of the row's size keeps its place. */}
           {open ? (
-            kept ? <div aria-hidden className={cn("hidden min-w-0 flex-none", at.controls, align === "end" && (foldBelow === "md" ? "md:ml-auto" : "lg:ml-auto"))} style={{ width: kept.width, height: kept.height }} data-filter-placeholder="" /> : null
+            kept ? <div aria-hidden className={cn("hidden min-w-0 flex-none", at.controls, align === "end" && INLINE[foldBelow].end)} style={{ width: kept.width, height: kept.height }} data-filter-placeholder="" /> : null
           ) : (
-            <div ref={controlsRef} className={cn("hidden min-w-0 flex-col gap-3", at.controls, foldBelow === "md" ? "md:gap-2" : "lg:gap-2", align === "end" && (foldBelow === "md" ? "md:ml-auto md:justify-end" : "lg:ml-auto lg:justify-end"))} data-testid={testId ? `${testId}-controls` : undefined} data-filter-controls="">
+            <div ref={controlsRef} className={cn("hidden min-w-0 flex-col gap-3", at.controls, INLINE[foldBelow].gap, align === "end" && INLINE[foldBelow].endJustify)} data-testid={testId ? `${testId}-controls` : undefined} data-filter-controls="">
               {children}
               {reset(false)}
             </div>
@@ -400,7 +417,8 @@ function land(target: Element | null) {
   const over = document.elementFromPoint(at.left + Math.min(16, at.width / 2), at.top + 1);
   if (!over || target.contains(over) || over.contains(target)) return;
   const covered = over.getBoundingClientRect().bottom - at.top;
-  if (covered > 0) window.scrollBy({ top: -covered, behavior: "instant" });
+  // Whole pixels, rounded up: a bar at a fractional edge (the status bar's inset) would otherwise keep a hairline over the target.
+  if (covered > 0) window.scrollBy({ top: -Math.ceil(covered + 0.5), behavior: "instant" });
 }
 
 /** Done, at the sheet's foot: closes it the way the close button does, with the sheet's motion. */

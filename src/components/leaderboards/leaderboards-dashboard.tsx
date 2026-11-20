@@ -1,6 +1,8 @@
 import type { PortraitChampion } from "@/components/champion-portrait";
 import { DataStatusNote } from "@/components/ui/data-status";
 import { SectionIndex } from "@/components/ui/section-index";
+import { SECTION_NAMED_TITLE } from "@/components/ui/page-header";
+import { cn } from "@/lib/cn";
 import type { DataStatus } from "@/domain/data-status";
 import { formatDateTime } from "@/lib/format";
 import type { LeaderboardsView } from "@/server/leaderboards/recent-view";
@@ -93,7 +95,8 @@ export function LeaderboardsDashboard({ view, champions, status }: { view: Leade
       {/* The title and who is on the boards, with how current they are (the members' page) or when they were last read (the public one). */}
       <header id="leaderboards-header" className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
         {/* One long word: at 200% text on a 320px phone it is wider than the screen, so there (only) it breaks, hyphenated where the browser can. */}
-        <h1 className="min-w-0 text-2xl font-semibold tracking-tight text-fg hyphens-auto [overflow-wrap:anywhere]">Leaderboards</h1>
+        {/* The members' page: on phones the sections row names it (SECTION_NAMED_TITLE); the public page keeps its title. */}
+        <h1 className={cn("min-w-0 text-2xl font-semibold tracking-tight text-fg hyphens-auto [overflow-wrap:anywhere]", status && SECTION_NAMED_TITLE)}>Leaderboards</h1>
         <p className="text-sm text-fg-muted" data-testid="scope-label">
           {/* The count and the status as one unit: they move to the next line together, so the ⓘ never stands on a line alone. */}
           <span className="inline-flex max-w-full flex-wrap items-baseline gap-x-2">

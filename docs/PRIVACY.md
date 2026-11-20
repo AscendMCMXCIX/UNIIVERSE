@@ -24,7 +24,7 @@ Keep the conversation private, and reply when it is done. For an erasure, give t
 **2. Act on it.**
 - **Access:** tell them what is stored about them. The notice's "What is stored" lists every kind; their profile shows most of it. Don't send exports of other people's data: shared games hold other players.
 - **Correction:** most details they change themselves in Settings (display name, username, password, picture, social links) or on their profile (roles, pools, card). An administrator fixes the rest in Admin Mode.
-- **Permanent removal:** Admin Mode → Users & Permissions → **Erase personal data** on their row (Accounts), or **Personal data → Erase a former member** when their account and profile are already gone. Details below.
+- **Permanent removal:** Admin Mode → Users & Permissions → their person view → Danger zone → **Erase personal data** (Accounts), or **Personal data → Erase a former member** when their account and profile are already gone. Details below.
 
 Deactivating, deleting and archiving are different actions, and none of them is a removal:
 - **Deactivate** stops sign-in and deletes nothing.
@@ -123,3 +123,7 @@ The notice says each of these:
 - `e2e/privacy.spec.ts`: the notice's wording, with nothing left about Clash scouts, and the old Clash Scout browser storage cleaned up on the next visit.
 
 **Riot's error messages name nobody (4 Nov 2026).** A failed Riot request's message, which reaches job log lines, run summaries, the Data health page and the host's logs, is built from the request's route with the identifiers it names elided (`routeLabel` in `src/server/riot/api/client.ts`): `/lol/league/v4/entries/by-puuid/…`, never the PUUID or the Riot ID the request was about. The Personal-data actions log a failed statement's kind, code and text without its parameters, never the raw error.
+
+## Sign-in sessions in Admin (overhaul S9, 19 Nov 2026)
+
+The privacy notice says of sign-in sessions "Who sees it: nobody in the app". So Admin never shows how many sessions an account has or ended: **Sign out everywhere** (an administrator's, on another account; never the Owner's by another administrator) reports "Signed out everywhere", and its audit entry has no count. A member's own **Sign out of other devices** (Settings → Password) is not audited, like the rest of a member's own changes, until the owner decides OD9. Moderation (a picture replaced or removed, a public link hidden or removed) records the link's kind only (YouTube, Twitch, Discord), never its address; a link a member keeps to themselves is never shown in Admin.

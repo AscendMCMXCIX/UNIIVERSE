@@ -711,13 +711,16 @@ test("on a phone: one column, the index of the sections below Recent form jumpin
     await expect.poll(() => page.evaluate(() => history.length), { message: `${name}: an entry of the page's own` }).toBe(entries + 1);
     const section = page.locator(`section#${id}`);
     await expect(section).toBeFocused();
-    const bar = (await page.getByTestId("mobile-topbar").boundingBox())!;
-    await expect.poll(async () => (await section.boundingBox())!.y, { message: `${name}: under the top bar` }).toBeGreaterThanOrEqual(bar.y + bar.height - 1);
-    // The header has gone up, so the 44px chip row is pinned under the top bar, and the section stops clear of it too.
+    // Under the bar as it is once landed (under 700px tall its first row slides away as the page scrolls down, the sections row staying).
+    const barFoot = () => page.getByTestId("mobile-topbar").evaluate((b) => b.getBoundingClientRect().bottom);
+    const under = async () => (await section.boundingBox())!.y - (await barFoot());
+    await expect.poll(under, { message: `${name}: under the top bar` }).toBeGreaterThanOrEqual(-1);
+    await page.waitForTimeout(300);
+    // The header has gone up, so the 44px chip row is pinned at the bar's foot, and the section stops clear of it too.
     const chips = page.getByTestId("leaderboards-chip-row");
     await expect(chips).toBeVisible();
     const row = (await chips.boundingBox())!;
-    expect(Math.abs(row.y - (bar.y + bar.height)), `${name}: the chip row at the top bar's foot`).toBeLessThanOrEqual(1);
+    expect(Math.abs(row.y - (await barFoot())), `${name}: the chip row at the top bar's foot`).toBeLessThanOrEqual(1);
     expect((await section.boundingBox())!.y, `${name}: clear of the chip row`).toBeGreaterThanOrEqual(row.y + row.height - 1);
     expect((await section.boundingBox())!.y, `${name}: just under it`).toBeLessThanOrEqual(row.y + row.height + 24);
     for (const h of await chips.getByRole("link").evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height))) expect(h, "44px chips").toBeGreaterThanOrEqual(44);

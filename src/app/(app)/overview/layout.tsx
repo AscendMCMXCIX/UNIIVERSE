@@ -29,7 +29,7 @@ export default async function MyProfileLayout({ children }: { children: React.Re
             {isOwner(session) ? (
               <>
                 This account has no player profile yet.{" "}
-                <Link href="/me" className="text-accent underline underline-offset-2">
+                <Link href="/me" className="touch-target text-accent underline underline-offset-2">
                   Complete your profile
                 </Link>{" "}
                 and come back here.

@@ -114,7 +114,7 @@ export function suggestForRole(role: Role, candidates: CandidateFacts[], composi
     if (!fit) continue;
     const reasons: string[] = [];
     let score = fit === "primary" ? 3 : 1.5;
-    reasons.push(fit === "primary" ? `${label} is their primary role` : `${label} is one of their off roles`);
+    reasons.push(fit === "primary" ? `${label} is their main role` : `${label} is one of their off roles`);
     if (c.pool.length === 0) {
       score -= 2;
       reasons.push(`no ${label} champions in their pool yet`);
