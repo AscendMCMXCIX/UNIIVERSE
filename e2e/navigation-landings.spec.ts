@@ -220,8 +220,8 @@ test("Skip to content is the first stop on the page and moves focus to the page 
 test("phones: a dialog is the one shared sheet, docked to the bottom edge with its handle", async ({ page, context, baseURL }, info) => {
   test.skip(info.project.name !== "phone", "the phone sheet");
   await context.addCookies([{ name: "uniiverse_view", value: "admin", url: baseURL! }]);
-  await page.goto("/admin/people");
-  const open = page.locator("[data-testid=open-access]:not([disabled])").first();
+  await page.goto("/admin/people/access");
+  const open = page.getByRole("button", { name: "New level" });
   const dialog = page.locator("dialog[open]");
   await expect(async () => {
     if (!(await dialog.isVisible())) await open.click({ timeout: 2_000 });

@@ -273,6 +273,7 @@ One set of containers, chosen by what the content is, never by page. Each is one
 | **Popover** | anchored choices (menus, filter dropdowns) | `menu.tsx` | click, Enter, Space | an outside click, Escape, a choice | none; a choice replaces the query |
 | **Explain** | a short explanation beside a term | `info-tip.tsx`: `InfoTip` | hover, focus, tap | leaving, Escape, any tap | none |
 | **Fold** | secondary content in a page | `disclosure.tsx` (native `details`) | its summary | its summary | none |
+| **Record window** | everything about one record that is managed, not glanced at (Admin's person view) | `DetailModal` with `useAddressItem` (`person-view.tsx`) | a row of the list | ✕, Escape (focus back to the row), Back; ‹ › switch | `?person=`: the one history rule |
 
 ### The one history rule (`address-item.ts`)
 

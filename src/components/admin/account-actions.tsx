@@ -182,7 +182,7 @@ export function DeleteProfileButton({ playerId, name }: { playerId: string; name
  * The Production check's account (keptAutomatically) offers Deactivate / Reactivate and Delete only:
  * its job keeps its password, and the server refuses a reset.
  */
-export function AccountActions({ account, currentUserId, viewerIsOwner = false }: { account: AccountView; currentUserId: string | null; viewerIsOwner?: boolean }) {
+export function AccountActions({ account, currentUserId, viewerIsOwner = false, only }: { account: AccountView; currentUserId: string | null; viewerIsOwner?: boolean; /** The person view's sections: the password's button, or the Danger zone's. */ only?: "password" | "danger" }) {
   const router = useRouter();
   const [busy, setBusy] = React.useState(false);
   const [issued, setIssued] = React.useState<{ temporaryPassword: string; expiresAt: string } | null>(null);
@@ -215,12 +215,12 @@ export function AccountActions({ account, currentUserId, viewerIsOwner = false }
   const withProfile = !!account.playerId;
   return (
     <div className="flex flex-wrap items-center gap-1.5" data-testid="account-actions">
-      {account.isActive && !account.keptAutomatically ? (
+      {account.isActive && !account.keptAutomatically && only !== "danger" ? (
         <Button size="sm" variant="outline" wrap disabled={busy} onClick={() => (account.password.state === "none" ? resetPassword() : setConfirming("reset"))}>
           {account.password.state === "none" ? "Create temporary password" : "Reset password"}
         </Button>
       ) : null}
-      {account.isActive ? (
+      {only === "password" ? null : account.isActive ? (
         <Button size="sm" variant="ghost" wrap disabled={busy} onClick={() => setConfirming("deactivate")}>
           Deactivate
         </Button>
@@ -229,9 +229,11 @@ export function AccountActions({ account, currentUserId, viewerIsOwner = false }
           Reactivate
         </Button>
       )}
-      <Button size="sm" variant="ghost" className="text-bad" wrap disabled={busy} onClick={() => setConfirming("delete")} data-testid="delete-account">
-        Delete
-      </Button>
+      {only === "password" ? null : (
+        <Button size="sm" variant="ghost" className="text-bad" wrap disabled={busy} onClick={() => setConfirming("delete")} data-testid="delete-account">
+          Delete
+        </Button>
+      )}
 
       <ConfirmDialog
         open={confirming === "reset"}

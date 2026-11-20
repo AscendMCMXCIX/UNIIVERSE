@@ -1,5 +1,5 @@
 import { expect, test, type Locator } from "./test";
-import { memberContext } from "./member-account";
+import { grantAdministrator, memberContext } from "./member-account";
 
 /*
   On a 320px phone, the narrowest docs/MOBILE.md supports, what a row is about wraps rather than
@@ -253,17 +253,7 @@ test("at 200% and 150% text on 320, 375 and 393px phones, an administrator who i
   try {
     // The owner grants administrator access in Users & Permissions (again until the page has hydrated).
     await owner.goto("/admin/people");
-    const dialog = owner.getByTestId("access-dialog");
-    await expect(async () => {
-      await owner.getByTestId("people-search").fill(member.username);
-      await owner.getByTestId("admin-player-row").filter({ hasText: member.username }).getByTestId("open-access").click({ timeout: 2_000 });
-      await expect(dialog).toBeVisible({ timeout: 2_000 });
-    }).toPass({ timeout: 30_000 });
-    const access = dialog.getByTestId("administrator-access");
-    await access.getByText("Administrator access").click();
-    await expect(access.getByLabel("Administrator access")).toBeChecked();
-    await owner.getByTestId("save-access").click();
-    await expect(owner.getByTestId("admin-player-row").filter({ hasText: member.username })).toContainText("Administrator");
+    await grantAdministrator(owner, member.username);
     // Their phone, in Admin Mode.
     const phone = await browser.newContext({ storageState: await member.context.storageState(), viewport: { width: 320, height: 700 }, isMobile: true, hasTouch: true });
     try {

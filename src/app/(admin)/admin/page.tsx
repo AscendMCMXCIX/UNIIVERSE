@@ -1,94 +1,80 @@
 import Link from "next/link";
-import { Activity, ArrowRight, ClipboardList, Database, SlidersHorizontal, UserCog, type LucideIcon } from "lucide-react";
+import { AlertTriangle, ArrowRight, CheckCircle2 } from "lucide-react";
 import { getAppDb } from "@/server/bootstrap";
 import { requirePageAccess } from "@/server/auth/page-access";
 import { listAccountViews } from "@/server/auth/account-admin";
 import { listAudit } from "@/server/audit/log";
-import { loadSystemStatus } from "@/server/ops/system-status";
+import { loadNeedsYou } from "@/server/admin/needs-you";
 import { PageHeader } from "@/components/ui/page-header";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
-import { StatusCards } from "@/components/admin/status-cards";
+import { StatLine, StatStrip, StatTile } from "@/components/ui/stat-strip";
 import { AuditList } from "@/components/admin/audit-list";
+import { cn } from "@/lib/cn";
 
 export const dynamic = "force-dynamic";
 
-/** The other five sections of Admin Mode, each with what it is for. */
-const SECTIONS: Array<{ href: string; label: string; description: string; icon: LucideIcon }> = [
-  { href: "/admin/people", label: "Users & Permissions", description: "Create accounts, issue temporary passwords, set access levels and administrators.", icon: UserCog },
-  { href: "/admin/branding", label: "Platform Settings", description: "The team's name, logo, colours and backgrounds, and how each page looks.", icon: SlidersHorizontal },
-  { href: "/admin/data", label: "Data & Integrations", description: "Riot data: linked accounts, syncing and the Riot API connection.", icon: Database },
-  { href: "/admin/system", label: "System Health", description: "Website, database and background jobs, with the evidence behind each.", icon: Activity },
-  { href: "/admin/audit", label: "Audit Logs", description: "Who changed what, and when.", icon: ClipboardList },
-];
-
 /**
- * ADMIN MODE's start page: the state of accounts, the system and recent admin activity at a
- * glance, and the way into each section. Reads a few small tables only (no statistics).
+ * ADMIN MODE's start page (the overhaul's S9c): one "Needs you" card first (expired temporary
+ * passwords, unfinished setups, Riot accounts needing attention, failing jobs, the LP schedule
+ * turned off and jobs set to 0, with who and when), then the account counts as one strip, then
+ * recent activity in sentences. The sidebar already lists the sections, so the page does not.
+ * Reads a few small tables only (no statistics).
  */
 export default async function AdminDashboardPage() {
   await requirePageAccess("manage-users", "manage-branding", "manage-data");
   const db = await getAppDb();
-  const [accounts, { items: status }, activity] = await Promise.all([listAccountViews(db), loadSystemStatus(db), listAudit(db, 6)]);
+  const [accounts, activity] = await Promise.all([listAccountViews(db), listAudit(db, 6)]);
+  const needs = await loadNeedsYou(db, accounts);
   const active = accounts.filter((a) => a.isActive);
-  const tiles = [
-    { key: "accounts", label: "Active accounts", value: active.length, note: `${accounts.length} in all` },
-    { key: "waiting", label: "Awaiting first sign-in", value: active.filter((a) => !a.setupComplete || a.password.state === "temporary" || a.password.state === "expired" || a.password.state === "none").length, note: "temporary password or setup to finish" },
-    { key: "admins", label: "Administrators", value: active.filter((a) => a.role === "owner" || a.isAdmin).length, note: "the Owner included" },
-    { key: "inactive", label: "Deactivated", value: accounts.length - active.length, note: "cannot sign in" },
-  ];
-  const attention = status.filter((s) => s.label !== "Healthy");
+  const waiting = active.filter((a) => !a.setupComplete || a.password.state === "temporary" || a.password.state === "expired" || a.password.state === "none").length;
   return (
     <div className="space-y-5" data-testid="admin-dashboard">
-      <PageHeader admin eyebrow="Admin Mode" title="Dashboard" description="The state of the platform at a glance." />
-      {/* With a larger text size on a phone (the list under 16rem) the tiles stack, a long word broken inside its line. */}
-      <div className="@container">
-        <ul className="grid grid-cols-2 gap-3 @max-[16rem]:grid-cols-1 lg:grid-cols-4" data-testid="dashboard-accounts">
-          {tiles.map((t) => (
-            <li key={t.key} className="min-w-0 rounded-panel border border-border bg-surface p-4 @max-[16rem]:[overflow-wrap:anywhere]" data-tile={t.key}>
-              <div className="text-xs font-semibold uppercase tracking-label text-fg-subtle">{t.label}</div>
-              <div className="mt-1 text-2xl font-semibold tabular-nums text-fg" data-testid={`dashboard-${t.key}`}>
-                {t.value}
-              </div>
-              <div className="mt-0.5 text-xs text-fg-subtle">{t.note}</div>
-            </li>
-          ))}
-        </ul>
-      </div>
-      <section className="space-y-3" aria-labelledby="dashboard-status">
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 id="dashboard-status" className="text-base font-semibold">
-            System status
-          </h2>
-          <span className="text-sm text-fg-muted">{attention.length ? `${attention.length} need${attention.length === 1 ? "s" : ""} a look` : "Everything checked is healthy"}</span>
-        </div>
-        <StatusCards items={status} testId="dashboard-status" />
-      </section>
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-        <Panel data-testid="dashboard-activity">
-          <PanelHeader
-            title="Recent admin activity"
-            actions={
-              <Link href="/admin/audit" className="touch-target inline-flex min-h-6 items-center gap-1 text-sm text-accent hover:underline">
-                Audit Logs <ArrowRight className="h-3.5 w-3.5" aria-hidden />
-              </Link>
-            }
-          />
-          <PanelBody>
-            <AuditList entries={activity} />
-          </PanelBody>
-        </Panel>
-        <nav aria-label="Admin sections" className="grid content-start gap-2">
-          {SECTIONS.map(({ href, label, description, icon: Icon }) => (
-            <Link key={href} href={href} className="group flex items-start gap-3 rounded-panel border border-border bg-surface p-3 transition-colors hover:border-border-strong hover:bg-surface-2" data-testid="dashboard-section">
-              <Icon className="mt-0.5 h-5 w-5 shrink-0 text-accent" aria-hidden />
-              <span className="min-w-0 [overflow-wrap:anywhere]">
-                <span className="block text-sm font-semibold text-fg">{label}</span>
-                <span className="block text-sm text-fg-muted">{description}</span>
-              </span>
+      <PageHeader admin eyebrow="Admin Mode" title="Dashboard" description="What needs you, then the platform at a glance." />
+      <Panel data-testid="needs-you">
+        <PanelHeader title="Needs you" subtitle={needs.length ? `${needs.length} thing${needs.length === 1 ? "" : "s"} to look at` : undefined} />
+        <PanelBody>
+          {needs.length ? (
+            <ul className="divide-y divide-border">
+              {needs.map((n) => (
+                <li key={n.key} data-testid="needs-you-item" data-need={n.key.replace(/-.*$/, "")}>
+                  <Link href={n.href} className="flex min-h-11 items-center gap-3 py-2 text-sm text-fg hover:text-accent">
+                    <AlertTriangle className={cn("h-4 w-4 shrink-0", n.tone === "bad" ? "text-bad" : "text-warn")} aria-hidden />
+                    <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{n.text}</span>
+                    <ArrowRight className="h-4 w-4 shrink-0 text-fg-subtle" aria-hidden />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="flex items-center gap-2 text-sm text-fg-muted" data-testid="needs-you-none">
+              <CheckCircle2 className="h-4 w-4 text-good" aria-hidden /> Nothing needs you right now.
+            </p>
+          )}
+        </PanelBody>
+      </Panel>
+      <StatStrip label="Accounts" testId="dashboard-accounts">
+        <StatLine>
+          <StatTile value={active.length} label="active accounts" testId="dashboard-accounts-active" />
+          <StatTile value={waiting} label="awaiting first sign-in" testId="dashboard-waiting" />
+        </StatLine>
+        <StatLine>
+          <StatTile value={active.filter((a) => a.role === "owner" || a.isAdmin).length} label="administrators" testId="dashboard-admins" />
+          <StatTile value={accounts.length - active.length} label="deactivated" testId="dashboard-inactive" />
+        </StatLine>
+      </StatStrip>
+      <Panel data-testid="dashboard-activity">
+        <PanelHeader
+          title="Recent admin activity"
+          actions={
+            <Link href="/admin/audit" className="touch-target inline-flex min-h-6 items-center gap-1 text-sm text-accent hover:underline">
+              Audit Logs <ArrowRight className="h-3.5 w-3.5" aria-hidden />
             </Link>
-          ))}
-        </nav>
-      </div>
+          }
+        />
+        <PanelBody>
+          <AuditList entries={activity} />
+        </PanelBody>
+      </Panel>
     </div>
   );
 }

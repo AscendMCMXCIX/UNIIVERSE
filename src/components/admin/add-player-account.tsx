@@ -7,7 +7,7 @@ import { createPlayerAccountAction, verifyRiotIdAction, type CreatedAccountView 
 import type { IdentityCheck } from "@/server/riot/verify-identity";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
-import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
+import { DetailModal } from "@/components/ui/detail-modal";
 import { cn } from "@/lib/cn";
 import { TemporaryPasswordBox } from "./account-actions";
 import { useBrandNames } from "@/components/brand-names";
@@ -67,6 +67,7 @@ function VerificationLine({ v, onRetry }: { v: Verification; onRetry: () => void
 export function AddPlayerAccount() {
   const { teamName } = useBrandNames();
   const router = useRouter();
+  const [open, setOpen] = React.useState(false);
   const [username, setUsername] = React.useState("");
   const [riotId, setRiotId] = React.useState("");
   const [access, setAccess] = React.useState<"team" | "personal" | null>(null);
@@ -108,11 +109,14 @@ export function AddPlayerAccount() {
   };
 
   return (
-    <Panel>
-      <PanelHeader title="Add account" subtitle="A username, their Riot ID and whether they join the team. Riot confirms the account; you get a temporary password to give them privately. No email, no invitation link." />
-      <PanelBody className="space-y-3">
+    <>
+      <Button variant="primary" onClick={() => setOpen(true)} className="shrink-0 max-sm:min-w-11 max-sm:px-0" aria-label="Add account" data-testid="add-account-open">
+        <UserPlus className="h-4 w-4" aria-hidden /> <span className="max-sm:sr-only">Add account</span>
+      </Button>
+      <DetailModal open={open} onClose={() => setOpen(false)} size="sheet" title="Add account" description="A username, their Riot ID and whether they join the team. Riot confirms the account; you get a temporary password to give them privately. No email, no invitation link." testId="add-account-sheet">
+      <div className="space-y-3">
         <form onSubmit={submit} className="space-y-3" data-testid="add-player-form">
-          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)_auto] sm:items-start">
+          <div className="grid gap-3">
             <div>
               <Label htmlFor="new-username">Username</Label>
               <Input id="new-username" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="e.g. Ascend" required maxLength={32} autoComplete="off" spellCheck={false} />
@@ -129,7 +133,7 @@ export function AddPlayerAccount() {
           </div>
           <fieldset className="space-y-1.5" data-testid="new-access">
             <legend className="text-sm font-medium text-fg">Access</legend>
-            <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Access">
+            <div className="grid gap-2" role="radiogroup" aria-label="Access">
               {(
                 [
                   ["team", `Member of the ${teamName} team`, "Team Overview, Players, Leaderboards and Matches, plus their own profile."],
@@ -165,7 +169,8 @@ export function AddPlayerAccount() {
             <TemporaryPasswordBox key={created.userId} username={created.username} password={created.temporaryPassword} expiresAt={created.expiresAt} />
           </div>
         ) : null}
-      </PanelBody>
-    </Panel>
+      </div>
+      </DetailModal>
+    </>
   );
 }
