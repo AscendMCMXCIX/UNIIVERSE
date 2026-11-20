@@ -198,7 +198,7 @@ export function RosterRow({ look, art, name, avatarUrl, role, offRoles, offRoleS
           <span className="ml-auto flex min-h-6 max-w-full shrink-0 flex-wrap items-center justify-end gap-1.5 self-start" data-testid="roster-status">
             {lineupRole ? (
               <span className="inline-flex max-w-full" data-testid="directory-lineup">
-                <Badge tone="good" title={`In the current lineup as ${ROLE_LABELS[lineupRole]}`}>
+                <Badge tone="good">
                   {lineupRole === role ? "Lineup" : `Lineup · ${ROLE_LABELS[lineupRole]}`}
                 </Badge>
               </span>

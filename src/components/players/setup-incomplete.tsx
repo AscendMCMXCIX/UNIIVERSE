@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge";
+import { InfoTip } from "@/components/ui/info-tip";
 import { cn } from "@/lib/cn";
 
 /**
@@ -8,15 +9,17 @@ import { cn } from "@/lib/cn";
  */
 export const SETUP_INCOMPLETE_HINT = "They haven't finished setting up, so their roles, champions or Riot accounts may be missing.";
 
-/** `wordClassName`: classes for the word "incomplete", which a narrow list row keeps for screen readers only ("Setup"; the title still explains it). */
+/** `wordClassName`: classes for the word "incomplete", which a narrow list row keeps for screen readers only ("Setup"; its tip still explains it). */
 export function SetupIncompleteBadge({ className, wordClassName }: { className?: string; wordClassName?: string }) {
   return (
-    <span className={cn("inline-flex", className)} data-testid="setup-incomplete">
-      <Badge tone="neutral" title={SETUP_INCOMPLETE_HINT} className="whitespace-nowrap">
-        <span>
-          Setup<span className={wordClassName}> incomplete</span>
-        </span>
-      </Badge>
+    <span className={cn("relative z-[2] inline-flex", className)} data-testid="setup-incomplete">
+      <InfoTip label="About setup incomplete" text={SETUP_INCOMPLETE_HINT}>
+        <Badge tone="neutral" className="whitespace-nowrap">
+          <span>
+            Setup<span className={wordClassName}> incomplete</span>
+          </span>
+        </Badge>
+      </InfoTip>
     </span>
   );
 }

@@ -1,4 +1,4 @@
-import { ROLE_LABELS, type Role } from "@/domain/roles";
+import type { Role } from "@/domain/roles";
 import type { AssignmentStatus } from "@/domain/roster";
 import { cn } from "@/lib/cn";
 
@@ -17,7 +17,7 @@ export function RoleStatusBadge({ status, role, className }: { status: Assignmen
       )}
       data-testid={main ? "main-role-badge" : "off-role-badge"}
       data-status={status}
-      title={main ? `${ROLE_LABELS[role]} is their Primary Role` : `${ROLE_LABELS[role]} is not their Primary Role`}
+      data-role={role}
     >
       {main ? "Main Role" : "Off Role"}
     </span>
