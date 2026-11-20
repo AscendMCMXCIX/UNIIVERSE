@@ -310,7 +310,7 @@ test("a mark under the curve reads the minute that holds it; a touch keeps its r
   } else {
     // A mouse's reading ends when it leaves the chart.
     await page.mouse.move(1, 1);
-    await expect(readout).toHaveText(/^Hover, touch or use the arrow keys/);
+    await expect(readout).toHaveText(/^Point at or tap the chart, or use the arrow keys/);
   }
 });
 
