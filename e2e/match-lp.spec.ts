@@ -26,6 +26,8 @@ test("ranked cards show the LP their readings prove, or a dash that says why", a
   const touch = !!info.project.use.hasTouch;
   const lps = page.locator('[data-testid="match-lp"]:visible');
   await expect(lps.first()).toBeVisible();
+  // On touch, once hydrated, the cards hold no tip (read after that, not before).
+  if (touch) await expect(page.locator('[data-testid="match-card-grid"] [data-testid="match-lp-tip"]')).toHaveCount(0);
   // Each mark's tooltip text is its trigger's description, which the bubble shows.
   const found = await lps.evaluateAll((els) =>
     els.map((e) => {
