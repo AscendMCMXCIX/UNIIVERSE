@@ -236,13 +236,13 @@ export function laneEndLine(counts: EvidenceCounts, window: PatchWindow, champio
   const patches = patchesFor(window, champions, [], counts.ends.filter((e) => e.patch === window.previous).length);
   const kept = counts.ends.filter((e) => patches.includes(e.patch));
   const ends = kept.map((e) => e.end).sort((a, b) => a - b);
-  if (ends.length < MIN_LANE_ENDS) return { key: "end", label, values: `Not measured yet: ${formatCount(ends.length)} of the ${MIN_LANE_ENDS} games needed have positions`, sample: "" };
+  if (ends.length < MIN_LANE_ENDS) return { key: "end", label, values: `Not measured yet: ${formatCount(ends.length)} of the ${MIN_LANE_ENDS} games needed have a measured lane end`, sample: "" };
   return {
     key: "end",
     label,
     values: `the middle half between ${clock(quantile(ends, 0.25))} and ${clock(quantile(ends, 0.75))}, median ${clock(quantile(ends, 0.5))}`,
     sample: `n = ${formatCount(ends.length)} · ${patchWords(patches)} · ${queueSplit(kept.map((e) => ({ queue: e.queue, n: 1 })))}`,
-    note: "The earlier of the lane's outer turret falling and either player leaving the lane for two frames in a row (trips to base excluded).",
+    note: "The earlier of the lane's outer turret falling and either player out of the lane at two one-minute positions in a row, from 2:00 (time in base excluded).",
   };
 }
 

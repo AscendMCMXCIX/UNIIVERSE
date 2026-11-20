@@ -67,7 +67,10 @@ describe("the evidence lines", () => {
     expect(line.values).toBe("the middle half between 11:23 and 14:08, median 12:45");
     expect(line.sample).toBe("n = 12 · patch 26.22 · Solo/Duo 12");
     const few = { ...counts(), ends: counts().ends.slice(0, MIN_LANE_ENDS - 1) };
-    expect(laneEndLine(few, only, ["Riven"], false).values).toBe("Not measured yet: 9 of the 10 games needed have positions");
+    // What is counted is the games with a measured lane end, not every game with positions (R7 review C5).
+    expect(laneEndLine(few, only, ["Riven"], false).values).toBe("Not measured yet: 9 of the 10 games needed have a measured lane end");
+    // The rule in plain words: from 2:00, positions once a minute, never "frames".
+    expect(line.note).toBe("The earlier of the lane's outer turret falling and either player out of the lane at two one-minute positions in a row, from 2:00 (time in base excluded).");
     expect(laneEndLine(counts(), only, ["LeeSin"], true).values).toMatch(/^Not measured/);
   });
 
