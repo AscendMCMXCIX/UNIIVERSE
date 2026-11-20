@@ -39,7 +39,8 @@ function meansOf(intel: ChampionIntelView | null): Partial<Record<AbilityRef, Me
   notice at the foot, behind one control whose summary line stays visible.
   On a phone, first a glance (glance.tsx: the enemies' tiles with their cooldown lines and the
   evidence's first row), then the same order in one column: the main panel, the interactions, the level changes,
-  the enemy's tiles, your champion, the sources. With nothing chosen, or one side only, it says
+  the enemy's tiles, the sources, your champion, Riot's tips (in the bot lane: your duo's two folds
+  after the level changes, the enemies' kits, the sources, Riot's tips). With nothing chosen, or one side only, it says
   what to do next.
 */
 

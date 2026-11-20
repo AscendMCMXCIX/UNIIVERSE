@@ -619,9 +619,11 @@ with the layer off it fitted. Layout only, every word kept, one step away where 
   tier, "Riot's data · Sources" (the first kit's "Base cooldowns, without ability haste" in it, the
   second kit's title row saying it in view). Not where the line carries a warning: a champion with
   checked notes (not re-checked, changed since, too old) or an offline copy keeps it in view
-  (`sourcesFold` in `ability-list.tsx`);
+  (`sourcesFold` in `ability-list.tsx`). Only on a desktop (the dashboard 60rem wide, two columns): in
+  one column (a phone, a tablet) nothing needs the room, and the line stays in view. The fold's name
+  says whose sources they are ("Riot's data · Sources for Kalista's abilities"), the two side by side;
 - your duo's two folds say where their abilities come from inside the fold, over the tiles ("Riot's
-  data changed on 26.24" stays in the summary), and sit under the main column, which is the shorter
+  data changed on 26.24" stays in the summary; on a desktop only, as above), and sit under the main column, which is the shorter
   one in every lineup measured; on a phone they follow the notes, after the glance's enemy cooldowns.
 
 Measured on the demo (Chromium 153 and Chrome Headless Shell 156 gave the same figures; 100% zoom,

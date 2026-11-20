@@ -304,15 +304,19 @@ test("the bot lane fits too: each 2v2 one screen at 1920×1080 and 1920×950, bo
   }
   // What the layout put one step away is there, not cut: each kit's sources in its fold, your duo's
   // inside theirs (the last lineup's page, with Riot's text off).
+  // Each fold's name says whose sources they are, the two side by side (R11g review).
   const kit = page.getByTestId("matchup-enemy-abilities");
-  await expect(kit.getByTestId("abilities-source-lead")).toBeVisible();
+  const lastEnemy = DUO_FIT_RUN.at(-1)![3];
+  await expect(kit.getByTestId("abilities-source")).toBeHidden();
+  await expect(kit.getByTestId("matchup-enemy-abilities-sources").locator(":scope > summary")).toHaveAccessibleName(`Riot's data · Sources for ${lastEnemy}'s abilities`);
+  await expect(page.getByTestId("matchup-enemy2-abilities-sources").locator(":scope > summary")).toHaveAccessibleName(/^Riot's data · Sources for \w+'s abilities$/);
   await kit.getByTestId("matchup-enemy-abilities-sources").locator(":scope > summary").click();
-  await expect(kit.getByTestId("abilities-source")).toBeVisible();
-  await expect(kit.getByTestId("abilities-source")).toContainText("Base cooldowns, without ability haste");
+  await expect(kit.getByTestId("abilities-source-folded")).toBeVisible();
+  await expect(kit.getByTestId("abilities-source-folded")).toContainText("Base cooldowns, without ability haste");
   await expect(page.getByTestId("matchup-enemy2-abilities")).toContainText("Base cooldowns, without ability haste");
   await page.getByTestId("matchup-ally-abilities").locator(":scope > summary").click();
-  await expect(page.getByTestId("matchup-ally-abilities").getByTestId("your-abilities-source")).toBeVisible();
-  await expect(page.getByTestId("matchup-ally-abilities").getByTestId("your-abilities-source")).toContainText("Abilities and base cooldowns");
+  await expect(page.getByTestId("matchup-ally-abilities").getByTestId("your-abilities-source-inside")).toBeVisible();
+  await expect(page.getByTestId("matchup-ally-abilities").getByTestId("your-abilities-source-inside")).toContainText("Abilities and base cooldowns");
 });
 
 /**
@@ -748,7 +752,15 @@ test("the five roles: a solo lane sets two slots, the bot lane four; an empty sl
   ]);
   await expect(page.getByText(/power spike|wave/i)).toHaveCount(2);
   // Every row states its tier: Riot's data on each kit.
-  await expect(page.getByTestId("matchup-enemy-abilities").getByTestId("evidence-tier")).toHaveText("Riot's data");
+  await expect(page.getByTestId("matchup-enemy-abilities").getByTestId("evidence-tier").locator("visible=true")).toHaveText("Riot's data");
+  // Where each kit's abilities come from: on a desktop, the two kits side by side, one step away in a
+  // fold; in one column (a phone, a tablet), where nothing needs the room, in view (R11g review).
+  for (const k of ["matchup-enemy-abilities", "matchup-enemy2-abilities"]) {
+    const desktop = info.project.name === "desktop";
+    await expect(page.getByTestId(k).getByTestId("abilities-source"))[desktop ? "toBeHidden" : "toBeVisible"]();
+    await expect(page.getByTestId(`${k}-sources`))[desktop ? "toBeVisible" : "toBeHidden"]();
+  }
+  await expect(page.getByTestId("matchup-ally-abilities").getByTestId("your-abilities-source"))[info.project.name === "desktop" ? "toBeHidden" : "toBeVisible"]();
   // Support: seen from the support's side; the swap trades both duos.
   await role("Support").click();
   await expect(page).toHaveURL(/\?role=support&champion=Jinx&ally=Lulu&vs=Caitlyn&vs2=Lux$/);

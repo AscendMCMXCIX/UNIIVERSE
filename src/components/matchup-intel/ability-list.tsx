@@ -581,9 +581,11 @@ export function AbilitiesPanel({ intel, title, testId, notice, haste = false, fo
       <FactsSourceLine intel={intel} />
     </>
   );
-  const lead = (
+  // `folded`: the summary of the sources' fold, the base line inside it, the tier kept whole (at 320px
+  // with 200% text "Riot's / data" split over two lines beside "Sources").
+  const lead = (folded: boolean) => (
     <>
-      <TierLabel className={changed ? undefined : "mr-1.5"}>Riot&apos;s data</TierLabel>
+      <TierLabel className={cn(changed ? undefined : "mr-1.5", folded && "whitespace-nowrap")}>Riot&apos;s data</TierLabel>
       {changed ? (
         <>
           {" "}
@@ -591,7 +593,7 @@ export function AbilitiesPanel({ intel, title, testId, notice, haste = false, fo
           {" · "}
         </>
       ) : null}
-      {haste && !fold ? "Base cooldowns, without ability haste · " : null}
+      {haste && !folded ? "Base cooldowns, without ability haste · " : null}
     </>
   );
   return (
@@ -604,40 +606,49 @@ export function AbilitiesPanel({ intel, title, testId, notice, haste = false, fo
               one choice for the page); the base line's words then start the source line. */}
           {haste ? <HasteControl /> : <p className="text-xs text-fg-muted">Base cooldowns, without ability haste</p>}
         </div>
+        <p className={cn("text-xs text-fg-muted", fold && "@min-[60rem]/dash:hidden")} data-testid="abilities-source">
+          {/* Riot's data, the tier of the abilities' names, icons and base cooldowns, first on the line that
+              says where they come from (a curated champion's facts say "Checked notes" at its end and on
+              each fact). Beside the title it put the haste control on a row of its own at 1440 × 900, 26px
+              that, with production's "Not re-checked", the sources' summary could not spare (Production
+              check, 20 Nov 2026). The version, unless Riot changed this champion on the newest patch: then
+              the words after the tier say so ("Riot's data changed on 26.24"), as the bar names the version
+              too. Beside the version, or on the title's row, the label wrapped a line at 1440 × 900
+              (16–20px), which put the sources' summary under the fold with production's "Not re-checked".
+              An offline copy keeps its words. */}
+          {lead(false)}
+          {rest}
+        </p>
         {fold ? (
-          // In the bot lane the two enemies' kits stand side by side, each a third of the page wide: their
-          // sources there took five or six lines each, which put the cooldown lines under the fold at
-          // 1280 × 800 and the sources' summary at 1440 × 900 (20 Nov 2026). The tier and the base line
-          // stay in view; where the abilities and their facts come from is one step away, in this fold.
-          <Fold variant="inline" tone="muted" testId={`${testId}-sources`} summaryClassName="pointer-fine:min-h-6 [&>[data-fold-chevron]]:order-last" bodyClassName="mt-0.5 pointer-coarse:mt-4"
+          // In the bot lane on a desktop the two enemies' kits stand side by side, each a third of the page
+          // wide: their sources there took five or six lines each, which put the cooldown lines under the
+          // fold at 1280 × 800 and the sources' summary at 1440 × 900 (20 Nov 2026). The tier stays in view;
+          // where the abilities and their facts come from is one step away, in this fold. In one column
+          // (a phone, a tablet) nothing needs the room, and the line above stays in view instead.
+          <Fold
+            variant="inline"
+            tone="muted"
+            className="hidden @min-[60rem]/dash:block"
+            testId={`${testId}-sources`}
+            summaryClassName="pointer-fine:min-h-6 [&>[data-fold-chevron]]:order-last"
+            bodyClassName="mt-0.5 pointer-coarse:mt-4"
             summary={
+              // Its name says whose sources these are: the two kits' folds stand side by side.
               <span className="min-w-0" data-testid="abilities-source-lead">
-                {lead}
+                {lead(true)}
+                <span className="sr-only"> · </span>
                 {SOURCES_FOLD_WORDS}
+                <span className="sr-only">{` for ${title}`}</span>
               </span>
             }
           >
-            <p className="text-xs text-fg-muted" data-testid="abilities-source">
+            <p className="text-xs text-fg-muted" data-testid="abilities-source-folded">
               {/* The first kit's base line, its title's row holding the haste: the second kit's title row says it in view. */}
               {haste ? "Base cooldowns, without ability haste · " : null}
               {rest}
             </p>
           </Fold>
-        ) : (
-          <p className="text-xs text-fg-muted" data-testid="abilities-source">
-            {/* Riot's data, the tier of the abilities' names, icons and base cooldowns, first on the line that
-                says where they come from (a curated champion's facts say "Checked notes" at its end and on
-                each fact). Beside the title it put the haste control on a row of its own at 1440 × 900, 26px
-                that, with production's "Not re-checked", the sources' summary could not spare (Production
-                check, 20 Nov 2026). The version, unless Riot changed this champion on the newest patch: then
-                the words after the tier say so ("Riot's data changed on 26.24"), as the bar names the version
-                too. Beside the version, or on the title's row, the label wrapped a line at 1440 × 900
-                (16–20px), which put the sources' summary under the fold with production's "Not re-checked".
-                An offline copy keeps its words. */}
-            {lead}
-            {rest}
-          </p>
-        )}
+        ) : null}
       </header>
       {notice}
       <AbilityList intel={intel} testId={`${testId}-list`} />
@@ -703,25 +714,24 @@ export function YourChampion({ intel, label = "Your champion", testId = "matchup
         summary={
           <span className="min-w-0">
             <span className="block text-sm font-semibold text-fg [overflow-wrap:anywhere]">{`${label}: ${intel.champion.name}`}</span>
-            {inside ? (
-              changed ? (
-                <span className="block text-xs text-fg-muted">
-                  {"Riot's data "}
-                  <RiotChangedLabel patch={intel.riotChangedOn} after />
-                </span>
-              ) : null
-            ) : (
-              <span className="block text-xs text-fg-muted" data-testid="your-abilities-source">
-                {source(true)}
+            {/* In the bot lane on a desktop (inside) the line moves into the fold, over the tiles, and only
+                "Riot's data changed on 26.24" stays here; in one column it stays here, as nothing needs the room. */}
+            <span className={cn("block text-xs text-fg-muted", inside && "@min-[60rem]/dash:hidden")} data-testid="your-abilities-source">
+              {source(true)}
+            </span>
+            {inside && changed ? (
+              <span className="hidden text-xs text-fg-muted @min-[60rem]/dash:block">
+                {"Riot's data "}
+                <RiotChangedLabel patch={intel.riotChangedOn} after />
               </span>
-            )}
+            ) : null}
           </span>
         }
       >
         {/* On a touch screen 4px more under the summary, so the first tile's Details button, whose 44px
             area reaches 10px past it, covers none of the summary. */}
         {inside ? (
-          <p className="border-b border-border px-3 py-1.5 text-xs text-fg-muted" data-testid="your-abilities-source">
+          <p className="hidden border-b border-border px-3 py-1.5 text-xs text-fg-muted @min-[60rem]/dash:block" data-testid="your-abilities-source-inside">
             {source(false)}
           </p>
         ) : null}
