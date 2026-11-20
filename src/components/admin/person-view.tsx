@@ -47,7 +47,9 @@ function Fact({ label, children }: { label: string; children: React.ReactNode })
 }
 
 /** The password's state in words (never the password: a temporary one is shown once, when issued). */
-function passwordWords(state: "set" | "temporary" | "expired" | "none", expiresAt: string | null, active = true): string {
+function passwordWords(state: "set" | "temporary" | "expired" | "none", expiresAt: string | null, active = true, manage = false): string {
+  if (!active && !manage) return "Deactivated: they cannot sign in.";
+  if (!active && state === "none") return "Deactivated, and no password yet: reactivate them with a new temporary password so they can sign in.";
   if (!active) return "Deactivated: they cannot sign in. Reactivate them with the password they had, or, if they were deactivated for security, with a new temporary password.";
   if (state === "set") return "They chose their own password.";
   if (state === "temporary") return `A temporary password waits for their first sign-in${expiresAt ? `, until ${formatDateTime(expiresAt)}` : ""}.`;
@@ -258,7 +260,7 @@ function PersonBody({
 
       {a && !kept ? (
         <Section title="Password" testId="person-password">
-          <p className="text-sm text-fg-muted">{passwordWords(a.password.state, a.password.expiresAt, a.isActive)}</p>
+          <p className="text-sm text-fg-muted">{passwordWords(a.password.state, a.password.expiresAt, a.isActive, manage)}</p>
           {manage ? <AccountActions account={a} currentUserId={currentUserId} viewerIsOwner={viewerIsOwner} only="password" /> : null}
           {self ? <p className="text-xs text-fg-subtle">Change your own password in Settings.</p> : null}
         </Section>

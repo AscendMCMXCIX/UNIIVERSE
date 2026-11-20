@@ -37,7 +37,7 @@ export { PLATFORMS } from "@/domain/platforms";
  * Alternatives are numbered and can be moved up or down (buttons, so keyboard and touch work the
  * same); that one order is used wherever the accounts are listed. Ordering changes no statistic.
  */
-export function RiotAccountsPanel({ playerId, accounts, riotConfigured, editable = true, title = "Linked Riot accounts", status, refresh, theirs = false }: { playerId: string; accounts: RiotAccountRecord[]; riotConfigured: boolean; defaultPlatform?: string; editable?: boolean; title?: string; /** Someone else's accounts (an administrator in Users & Permissions): "their", Unlink, and the last problem on every row. */ theirs?: boolean; /** The accounts' data status, for the profile's Refresh (each row shows its own account's state). */ status?: DataStatus | null; refresh?: DataRefreshTarget | null }) {
+export function RiotAccountsPanel({ playerId, accounts, riotConfigured, editable = true, title = "Linked Riot accounts", status, refresh, theirs = false }: { playerId: string; accounts: RiotAccountRecord[]; riotConfigured: boolean; defaultPlatform?: string; editable?: boolean; title?: string; /** Someone else's accounts (an administrator or player manager editing a teammate's): "their" and Unlink. */ theirs?: boolean; /** The accounts' data status, for the profile's Refresh (each row shows its own account's state). */ status?: DataStatus | null; refresh?: DataRefreshTarget | null }) {
   const router = useRouter();
   const your = theirs ? "their" : "your";
   const removeWord = theirs ? "Unlink" : "Remove";
@@ -244,7 +244,7 @@ export function RiotAccountsPanel({ playerId, accounts, riotConfigured, editable
                     </Button>
                   ) : null}
                 </div>
-                {sync.state !== "synced" ? <p className="text-xs text-fg-muted">{sync.detail}</p> : theirs && a.syncError ? <p className="text-xs text-fg-muted" data-testid="riot-account-last-problem">Last problem: {a.syncError}</p> : null}
+                {sync.state !== "synced" ? <p className="text-xs text-fg-muted">{sync.detail}</p> : null}
               </li>
             );
           })}

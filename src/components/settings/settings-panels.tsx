@@ -109,7 +109,7 @@ function JobRow({ job: j, title, description, children }: { job: JobView; title?
           {intervalOf(j) === 0 ? " · turned off" : ""}
         </p>
         <details className="group text-xs text-fg-subtle" data-testid="job-how">
-          <summary className="inline-flex min-h-11 cursor-pointer items-center underline-offset-2 hover:text-fg hover:underline pointer-fine:min-h-0">How it works</summary>
+          <summary className="cursor-pointer py-3 underline-offset-2 hover:text-fg hover:underline pointer-fine:py-0.5">How it works</summary>
           <p className="mt-1">
             <span className="font-mono text-fg-muted">{j.key}</span> · {scheduleWords(j)}. {j.description}
           </p>
@@ -257,7 +257,7 @@ function ScheduleEditor({ jobs }: { jobs: JobView[] }) {
           {turningOff.map((c) => (
             <div key={c.job.key} className="space-y-1">
               <Label htmlFor={`${id}-off-${c.job.key}`}>
-                Type <span className="font-semibold text-fg">{turnOffPhrase(c.job.key)}</span> to turn it off
+                Type <span className="font-semibold text-fg">{turnOffPhrase(c.job.key)}</span> to turn off {jobName(c.job.key)}
               </Label>
               <Input id={`${id}-off-${c.job.key}`} value={phrases[c.job.key] ?? ""} onChange={(e) => setPhrases((p) => ({ ...p, [c.job.key]: e.target.value }))} autoComplete="off" autoCapitalize="characters" spellCheck={false} data-testid="schedule-turn-off-input" data-job={c.job.key} />
             </div>

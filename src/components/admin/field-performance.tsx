@@ -47,7 +47,7 @@ function verdict(metric: VitalMetric, s: VitalSummary): { word: string; tone: "g
 const TABLE = "w-full max-sm:block";
 const HEAD = "text-left text-fg-subtle max-sm:sr-only";
 const ROW = "max-sm:block max-sm:py-2";
-const CELL = "py-1 pr-3 max-sm:flex max-sm:justify-between max-sm:gap-3 max-sm:py-0.5 max-sm:pr-0 max-sm:before:text-fg-subtle max-sm:before:content-[attr(data-label)]";
+const CELL = "py-1 pr-3 max-sm:flex max-sm:justify-between max-sm:gap-3 max-sm:py-0.5 max-sm:pr-0 max-sm:before:shrink-0 max-sm:before:text-fg-subtle max-sm:before:content-[attr(data-label)]";
 
 export function FieldPerformancePanel({ report }: { report: VitalsReport }) {
   const loads = report.metrics.find((m) => m.metric === "TTFB")?.all?.count ?? 0;
@@ -106,7 +106,7 @@ export function FieldPerformancePanel({ report }: { report: VitalsReport }) {
                         <td className={`${CELL} tabular-nums text-fg-muted`} data-label="Needs work">{all ? pct(all.needsImprovement) : "—"}</td>
                         <td className={`${CELL} tabular-nums text-fg-muted`} data-label="Poor">{all ? pct(all.poor) : "—"}</td>
                         <td className={`${CELL} text-fg-muted`} data-label="By device">
-                          <span>
+                          <span className="min-w-0 text-right sm:text-left">
                             {byDevice.length
                               ? byDevice.map(({ device, summary }) => (
                                   <span key={device} className="ml-2 inline-block whitespace-nowrap first:ml-0">
