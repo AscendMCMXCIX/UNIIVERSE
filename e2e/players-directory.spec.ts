@@ -658,6 +658,27 @@ test("the docked player Peek at 1280: its pool list takes the short figure block
   }
 });
 
+test("on a phone the Players page keeps the height it had when its rows appeared: the closed Peek adds no gap once the page's code runs (R7: CI's account-screen jumps)", async ({ page }, info) => {
+  test.skip(info.project.name !== "phone", "the Peek's window exists only on phones");
+  // The page's height on the first frame after its rows are hydrated, before any later render (the
+  // closed Peek's window, on a phone, is drawn by one).
+  await page.addInitScript(() => {
+    const w = window as unknown as { __firstRowsHeight?: number };
+    const tick = () => {
+      const row = document.querySelector("[data-testid=player-peek-open]");
+      if (row && Object.keys(row).some((k) => k.startsWith("__reactFiber"))) w.__firstRowsHeight = document.documentElement.scrollHeight;
+      else requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  });
+  await page.goto("/players");
+  await expect(page.getByTestId("player-peek-open").first()).toBeVisible();
+  await page.waitForTimeout(1500);
+  const { first, now } = await page.evaluate(() => ({ first: (window as unknown as { __firstRowsHeight?: number }).__firstRowsHeight, now: document.documentElement.scrollHeight }));
+  expect(first, "measured on the rows' first frame").toBeGreaterThan(0);
+  expect(now, "the page's height after it settled").toBe(first);
+});
+
 test("the docked player Peek gives the focus back to the row that opened it, after Escape and after Back, where a member has rows on several boards (R7 review A1, A2)", async ({ page }, info) => {
   test.skip(info.project.name === "phone", "the phone's sheet returns the focus itself");
   await page.goto("/leaderboards");

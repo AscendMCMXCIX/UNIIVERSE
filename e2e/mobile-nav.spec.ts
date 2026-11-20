@@ -364,6 +364,23 @@ test("the account screen fills a small phone in Player Mode and Admin Mode: ever
   }
 });
 
+test("before the page's code runs, focus on the top bar's avatar never scrolls the page: the bar's controls take back the stylesheet's padding (R7, CI's account-screen jumps)", async ({ browser, baseURL }, info) => {
+  test.skip(info.project.name !== "phone", "the phone's top bar");
+  // JavaScript off holds the page as it is drawn before hydration, when a tap's focus lands first.
+  const context = await browser.newContext({ ...info.project.use, baseURL, javaScriptEnabled: false });
+  try {
+    const page = await context.newPage();
+    await page.goto("/players");
+    await page.evaluate(() => window.scrollTo(0, 300));
+    const at = await page.evaluate(() => scrollY);
+    expect(at).toBeGreaterThan(0);
+    await page.getByTestId("account-sheet-button").focus();
+    expect(await page.evaluate(() => scrollY), "the page stays where it was").toBe(at);
+  } finally {
+    await context.close();
+  }
+});
+
 test("touches on the account screen never move the page behind; there is nothing to pull", async ({ page, context }) => {
   await page.goto("/players");
   const scrolled = await scrolledAtRest(page, 300);
