@@ -52,7 +52,7 @@ function passwordWords(state: "set" | "temporary" | "expired" | "none", expiresA
   if (!active && state === "none") return "Deactivated, and no password yet: reactivate them with a new temporary password so they can sign in.";
   if (!active) return "Deactivated: they cannot sign in. Reactivate them with the password they had, or, if they were deactivated for security, with a new temporary password.";
   if (state === "set") return "They chose their own password.";
-  if (state === "temporary") return `A temporary password waits for their first sign-in${expiresAt ? `, until ${formatDateTime(expiresAt)}` : ""}.`;
+  if (state === "temporary") return `A temporary password waits for their first sign-in${expiresAt ? `, until ${formatDateTime(expiresAt)}` : ""}.${manage ? " Withdraw it if it reached the wrong person." : ""}`;
   if (state === "expired") return `Their temporary password expired${expiresAt ? ` on ${formatDateTime(expiresAt)}` : ""}. Issue a new one.`;
   return "No password yet: issue a temporary one so they can sign in.";
 }

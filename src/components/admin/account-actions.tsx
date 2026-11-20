@@ -4,7 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Check, Copy } from "lucide-react";
 import type { AccountView } from "@/server/auth/account-admin";
-import { deleteAccountAction, deleteProfileAction, resetPasswordAction, reactivateWithTemporaryPasswordAction, setAccountActiveAction } from "@/server/actions/users";
+import { deleteAccountAction, deleteProfileAction, resetPasswordAction, reactivateWithTemporaryPasswordAction, setAccountActiveAction, withdrawTemporaryPasswordAction } from "@/server/actions/users";
 import type { BadgeTone } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog, Dialog } from "@/components/ui/dialog";
@@ -149,7 +149,7 @@ export function DeleteProfileButton({ playerId, name, onDeleted }: { playerId: s
 }
 
 /**
- * Reset password · Deactivate / Reactivate · Delete, the same on both admin pages. Sensitive
+ * Reset password · Withdraw a temporary password · Deactivate / Reactivate · Delete, the same on both admin pages. Sensitive
  * actions confirm in a dialog; the server enforces the rules (never yourself, never the last
  * admin). Results arrive as notifications; a new temporary password opens in its own dialog.
  * The Production check's account (keptAutomatically) offers Deactivate / Reactivate and Delete only:
@@ -159,7 +159,7 @@ export function AccountActions({ account, currentUserId, viewerIsOwner = false, 
   const router = useRouter();
   const [busy, setBusy] = React.useState(false);
   const [issued, setIssued] = React.useState<{ temporaryPassword: string; expiresAt: string } | null>(null);
-  const [confirming, setConfirming] = React.useState<"reset" | "deactivate" | "reactivate" | "reactivate-new" | "delete" | null>(null);
+  const [confirming, setConfirming] = React.useState<"reset" | "withdraw" | "deactivate" | "reactivate" | "reactivate-new" | "delete" | null>(null);
   const [typed, setTyped] = React.useState("");
   const self = account.userId === currentUserId;
   const run = async <T,>(fn: () => Promise<{ ok: true; data: T } | { ok: false; error: string }>, done: string | null, deletes = false): Promise<T | null> => {
@@ -194,6 +194,12 @@ export function AccountActions({ account, currentUserId, viewerIsOwner = false, 
           {account.password.state === "none" ? "Create temporary password" : "Reset password"}
         </Button>
       ) : null}
+      {/* A temporary password not yet used (waiting, or expired) can be withdrawn: it never signs in again. */}
+      {(account.password.state === "temporary" || account.password.state === "expired") && !account.keptAutomatically && only !== "danger" ? (
+        <Button size="sm" variant="ghost" wrap disabled={busy} onClick={() => setConfirming("withdraw")} data-testid="withdraw-temporary-password">
+          Withdraw temporary password
+        </Button>
+      ) : null}
       {/* Reactivate belongs with the password (the person view's Password section; the Danger zone for the Production check's account, which has none), Deactivate with the Danger zone. */}
       {account.isActive ? (only === "password" ? null : (
         <Button size="sm" variant="ghost" wrap disabled={busy} onClick={() => setConfirming("deactivate")}>
@@ -226,6 +232,15 @@ export function AccountActions({ account, currentUserId, viewerIsOwner = false, 
         confirmLabel="Reset password"
         onCancel={() => setConfirming(null)}
         onConfirm={resetPassword}
+      />
+      <ConfirmDialog
+        open={confirming === "withdraw"}
+        busy={busy}
+        title={`Withdraw ${account.username}'s temporary password?`}
+        description="The temporary password you issued stops working at once, and any session it opened ends. They then have no password and cannot sign in until you issue a new temporary password. Nothing else about the account changes."
+        confirmLabel="Withdraw password"
+        onCancel={() => setConfirming(null)}
+        onConfirm={() => void run(() => withdrawTemporaryPasswordAction(account.userId), `${account.username}'s temporary password withdrawn; they cannot sign in until you issue a new one.`)}
       />
       <ConfirmDialog
         open={confirming === "deactivate"}

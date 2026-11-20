@@ -267,7 +267,7 @@ test("Back keeps the list's scroll where it was", async ({ page }, info) => {
   await expect.poll(() => page.evaluate(() => scrollY)).toBeGreaterThan(before - 2);
 });
 
-test("Reactivate with a new temporary password: a deactivated member comes back with a one-time password, and the plain Reactivate stays beside it", async ({ page }, info) => {
+test("Reactivate with a new temporary password: a deactivated member comes back with a one-time password, the plain Reactivate stays beside it, and the password can be withdrawn before it is used", async ({ page }, info) => {
   test.skip(info.project.name !== "desktop", "one pass: the person view's actions are the same at every width");
   // A member of this run's own (deactivating a demo account would lock it out for other specs).
   const { username } = await createMember(page, "Reissue");
@@ -289,4 +289,17 @@ test("Reactivate with a new temporary password: a deactivated member comes back 
   // Active again: Reactivate is gone and Deactivate is back.
   await expect(view.getByTestId("reactivate-new-password")).toHaveCount(0);
   await expect(view.getByTestId("person-danger").getByRole("button", { name: "Deactivate" })).toBeVisible();
+
+  // Withdraw the temporary password before it is used (§6 row 7.3f): the dialog says what happens,
+  // and the account is left with no password until a new one is issued.
+  const password = view.getByTestId("person-password");
+  await password.getByTestId("withdraw-temporary-password").click();
+  const withdraw = page.getByRole("dialog", { name: new RegExp(`^Withdraw ${username}'s temporary password\\?$`) });
+  await expect(withdraw).toContainText("stops working at once");
+  await expect(withdraw).toContainText("cannot sign in until you issue a new temporary password");
+  await withdraw.getByTestId("confirm-dialog-confirm").click();
+  await expect(withdraw).toBeHidden();
+  await expect(password).toContainText("No password yet");
+  await expect(password.getByTestId("withdraw-temporary-password")).toHaveCount(0);
+  await expect(password.getByRole("button", { name: "Create temporary password" })).toBeVisible();
 });

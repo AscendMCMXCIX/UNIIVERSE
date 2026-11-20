@@ -10,7 +10,7 @@ import { getUser, setPassword, UserError, type UserRecord } from "@/server/repos
 import { groupsOf, levelOf } from "@/server/auth/member-admin";
 import { sanitiseAccessGroups } from "@/server/auth/permissions";
 import { completeLegacyProfile, defaultPlatform, type RiotIdInput } from "@/server/auth/signup";
-import { createVerifiedPlayerAccount, deleteAccount, deleteProfile, guardProfileAccount, reactivateWithTemporaryPassword, resetPasswordToTemporary, setAccountActive, setAccountRole, setAdministrator } from "@/server/auth/account-admin";
+import { createVerifiedPlayerAccount, deleteAccount, deleteProfile, guardProfileAccount, reactivateWithTemporaryPassword, resetPasswordToTemporary, setAccountActive, setAccountRole, setAdministrator, withdrawTemporaryPassword } from "@/server/auth/account-admin";
 import { revokeOtherSessions } from "@/server/auth/sessions";
 import { cookies } from "next/headers";
 import { createVerificationClient, verifyRiotIdentity, type IdentityCheck } from "@/server/riot/verify-identity";
@@ -133,6 +133,24 @@ export async function resetPasswordAction(userId: string): Promise<Result<{ temp
     await recordAudit(db, session, { action: "account.password-reset", target: { type: "user", id: userId } });
     touchAdmin();
     return { ok: true, data: { temporaryPassword: issued.password, expiresAt: issued.expiresAt.toISOString() } };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/**
+ * Withdraws a temporary password before it is used: it no longer signs in, and the account has no
+ * usable password until a new one is issued. One audit row (labels only), none for a withdrawal
+ * that changes nothing.
+ */
+export async function withdrawTemporaryPasswordAction(userId: string): Promise<Result> {
+  try {
+    const session = await requirePermission("manage-users");
+    const db = await getAppDb();
+    const { changed } = await withdrawTemporaryPassword(db, session.userId, userId);
+    if (changed) await recordAudit(db, session, { action: "account.password-withdrawn", target: { type: "user", id: userId } });
+    touchAdmin();
+    return { ok: true, data: null };
   } catch (err) {
     return fail(err);
   }
