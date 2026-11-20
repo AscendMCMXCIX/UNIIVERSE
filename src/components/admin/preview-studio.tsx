@@ -59,8 +59,8 @@ export function PreviewStudio() {
             </button>
           ))}
         </div>
-        <Button size="sm" variant="ghost" onClick={() => setLandscape((v) => !v)} aria-pressed={landscape} title="Turn the device">
-          <RotateCw className="h-4 w-4" /> {landscape ? "Landscape" : "Portrait"}
+        <Button size="sm" variant="ghost" onClick={() => setLandscape((v) => !v)} aria-pressed={landscape} data-testid="preview-rotate">
+          <RotateCw className="h-4 w-4" /> Rotate
         </Button>
         <Button size="sm" variant="ghost" onClick={() => setReload((n) => n + 1)}>
           Reset

@@ -214,7 +214,8 @@ function PersonBody({
             <Fact label="Display name">{a.displayName || p.name}</Fact>
             <Fact label="Username">@{a.username}</Fact>
             <Fact label="Status">
-              <span title={status!.hint}>{status!.label}</span>
+              {status!.label}
+              <span className="block text-xs text-fg-muted">{status!.hint}</span>
             </Fact>
             <Fact label="Created">{formatDate(a.createdAt)}</Fact>
             <Fact label="Last sign-in">{a.lastLoginAt ? formatDateTime(a.lastLoginAt) : "Never"}</Fact>

@@ -308,7 +308,7 @@ export function PeoplePanel({
         {accountless.length ? (
           <Disclosure
             title={`Profiles without an account · ${accountless.length}`}
-            description="A test entry, an old placeholder, or what a deleted account left behind. Creating a player with the same Riot ID reuses it."
+            description="Nobody can sign in to these profiles (a test, a placeholder or a deleted account). Adding a player with the same Riot ID reuses it."
             testId="people-group-accountless"
             // Open while searching or filtering, so a match inside is never hidden.
             key={q || filter !== "all" ? "found" : "all"}

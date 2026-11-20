@@ -98,10 +98,11 @@ export default async function AdminSystemPage() {
                     <span className="break-all font-mono text-fg">{f.key}</span>
                     <span className="ml-2 text-fg-subtle">{f.label}</span>
                   </span>
-                  <Badge tone={malformed ? "warn" : set ? "good" : f.required ? "warn" : "neutral"} title={malformed}>
+                  <Badge tone={malformed ? "warn" : set ? "good" : f.required ? "warn" : "neutral"}>
                     {malformed ? "set, check value" : set ? "set" : f.required ? "missing" : "optional"}
                     {riotKey ? ` · ends ${riotKeyFingerprint(riotKey)}` : ""}
                   </Badge>
+                  {malformed ? <p className="w-full text-warn">{malformed}</p> : null}
                 </div>
               );
             })}

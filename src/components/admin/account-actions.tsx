@@ -5,13 +5,13 @@ import { useRouter } from "next/navigation";
 import { Check, Copy } from "lucide-react";
 import type { AccountView } from "@/server/auth/account-admin";
 import { deleteAccountAction, deleteProfileAction, resetPasswordAction, reactivateWithTemporaryPasswordAction, setAccountActiveAction } from "@/server/actions/users";
-import { Badge, type BadgeTone } from "@/components/ui/badge";
+import type { BadgeTone } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog, Dialog } from "@/components/ui/dialog";
 import { Input, Label } from "@/components/ui/input";
 import { toast } from "@/components/ui/toast";
 import { useBrandNames } from "@/components/brand-names";
-import { formatDateTime, formatDayMonth } from "@/lib/format";
+import { formatDateTime } from "@/lib/format";
 import { typedMatches } from "@/domain/typed-confirmation";
 
 /** An account's state in one word an admin acts on. */
@@ -31,34 +31,6 @@ export function accountStatus(account: Pick<AccountView, "isActive" | "setupComp
   return "active";
 }
 
-/** Account state in one badge: what an admin needs to know at a glance. */
-export function AccountStatusBadge({ account }: { account: AccountView }) {
-  const s = ACCOUNT_STATUS[accountStatus(account)];
-  return (
-    <Badge tone={s.tone} title={s.hint}>
-      {s.label}
-    </Badge>
-  );
-}
-
-const PASSWORD_TEXT: Record<Exclude<AccountView["password"]["state"], "set">, { label: string; tone: BadgeTone; hint: string }> = {
-  temporary: { label: "Temporary password", tone: "info", hint: "They choose their own password at their next sign-in." },
-  expired: { label: "Temporary password expired", tone: "warn", hint: "Reset the password to give them a new one." },
-  none: { label: "No password yet", tone: "warn", hint: "Create a temporary password so they can sign in." },
-};
-
-/** The password state, only when it needs attention (a permanent password shows nothing). */
-export function PasswordStateBadge({ account }: { account: AccountView }) {
-  if (account.password.state === "set") return null;
-  const c = PASSWORD_TEXT[account.password.state];
-  const until = account.password.state === "temporary" && account.password.expiresAt ? ` · until ${formatDayMonth(account.password.expiresAt)}` : "";
-  return (
-    <Badge tone={c.tone} title={c.hint}>
-      {c.label}
-      {until}
-    </Badge>
-  );
-}
 
 /** The temporary password, shown once, with copy and plain instructions for the player. */
 export function TemporaryPasswordBox({ username, password, expiresAt }: { username: string; password: string; expiresAt: string }) {
