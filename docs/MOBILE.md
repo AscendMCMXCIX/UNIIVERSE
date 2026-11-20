@@ -387,7 +387,19 @@ screen collapses its header to a 56px bar once its body scrolls (the item's name
 stay in reach), opens it again at the top, and closes when its header is pulled down, as a sheet
 does (not the account screen, a screen of its own with nothing to pull). Closing any window moves the page 0px: the browser's own close no
 longer puts the focus back itself (it scrolled a row partly under the tab bar into view, 70–109px
-when audited); the focus returns with `preventScroll` (`e2e/overlay-kit.spec.ts`).
+when audited); the focus returns with `preventScroll` (`e2e/overlay-kit.spec.ts`). A plain title
+bar collapses too, its title on one line (Release 10), and the window's own controls stay 44px on
+touch screens at every text size, so after a 100px scroll every whole-screen window's frame is at
+most a quarter of a 320 × 568 or 375 × 667 screen at 100, 150 and 200% text.
+
+**At 320px with large text** (Release 10's sweep, `e2e/overlay-kit.spec.ts`): the player Peek on
+Players and Leaderboards keeps every control on the screen at 125–200%, upright and sideways; in its
+pool the narrowest list gives each row three lines (portrait and name, the experience label, the
+figures), and the label wraps where it must. A confirmation's actions wrap rather than run off the
+screen; Manage access keeps one column no wider than the sheet; a switch's long word breaks,
+hyphenated; a lineup sheet's names wrap instead of being cut to nothing; the sign-in form's brand
+name wraps. Popover and the desktop `Select` do not open on a phone (the browser's own select is
+used there).
 
 Every sheet and window shares `DetailModal`: native `<dialog>` (focus kept inside, the page behind
 inert), Escape and the backdrop close it, focus returns to what opened it, a sheet slides up in

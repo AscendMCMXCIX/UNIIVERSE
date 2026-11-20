@@ -315,6 +315,14 @@ public page, wider than the phone by 42, 103 and 163px at 150%, 175% and 200% on
 on 375, 30 and 90px on 393, at 175% and 200%), has no finding left at 125% to 200% on 320, 375 and
 393px, in either mode.
 
+**Windows and sheets at 320px with large text** (Release 10, 20 Nov 2026; `e2e/overlay-kit.spec.ts`):
+a window's own icon controls (‹ ›, ✕) are 44px on touch screens at every text size (in rem they
+were 88px at 200% and pushed "Previous player" off a 320px screen); a plain title bar collapses
+to one line once the body scrolls, so the frame after a 100px scroll is at most a quarter of a
+320 × 568 or 375 × 667 screen at 100–200%; and the Task dialog, the sheets, the sign-in form and the
+player Peek keep every control on the screen, nothing scrolling sideways and no word cut short, at
+200% (the Peek at 125–200%, upright and sideways). DESIGN_SYSTEM §7, "The phone window shell".
+
 **Two ways to emulate a larger text size.**
 - The root's font size in CSS (`document.documentElement.style.fontSize = "200%"`), as the specs
   do: every rem grows, but a media query's rem stays the browser's default 16px, so the breakpoints
