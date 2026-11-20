@@ -113,9 +113,11 @@ const portraitOf = (c: ChampionChoice) => ({ id: c.id, name: c.name, portraitUrl
  * so the dashboard under it starts high: on a phone a small portrait above the label and the name in
  * a narrow row (320 and 375px phones), beside them where the row has room (from 22rem), the two
  * sides mirrored around the swap; from sm (where the row is 27rem wide) the portrait beside the
- * words, as the two sides of a lane.
+ * words, as the two sides of a lane. In the bot lane (duo) a phone's two slots of a side stack one
+ * above the other, each a row with the portrait beside the words and the name a size smaller: four
+ * across left a slot 44–62px for its words, and its label broke into a column of letters at 390px.
  */
-function SlotButton({ slot, role, champion, onOpen, buttonRef }: { slot: FrameSlot; role: Role; champion: ChampionChoice | null; onOpen: () => void; buttonRef: React.Ref<HTMLButtonElement> }) {
+function SlotButton({ slot, duo, role, champion, onOpen, buttonRef }: { slot: FrameSlot; duo: boolean; role: Role; champion: ChampionChoice | null; onOpen: () => void; buttonRef: React.Ref<HTMLButtonElement> }) {
   // Your side (you and your duo partner) on the left of the swap, mirrored; the enemies on the right.
   const you = slot === "you" || slot === "ally";
   const words = slotWords(role, slot);
@@ -139,8 +141,15 @@ function SlotButton({ slot, role, champion, onOpen, buttonRef }: { slot: FrameSl
       // size) keeps the portrait above them, where the longest name still fits whole.
       className={cn(
         "group flex h-full w-full min-w-0 flex-col items-center justify-center gap-1 rounded-panel border bg-surface px-1 py-2 text-center transition-colors hover:border-border-strong hover:bg-surface-2/60 sm:@min-[27rem]/pickers:justify-start sm:@min-[27rem]/pickers:gap-2.5 sm:@min-[27rem]/pickers:px-3 sm:@min-[27rem]/pickers:py-1.5",
-        "max-sm:@min-[22rem]/pickers:justify-start max-sm:@min-[22rem]/pickers:gap-1.5 max-sm:@min-[22rem]/pickers:px-1.5",
-        you ? "max-sm:@min-[22rem]/pickers:flex-row-reverse max-sm:@min-[22rem]/pickers:text-right sm:@min-[27rem]/pickers:flex-row-reverse sm:@min-[27rem]/pickers:text-right" : "max-sm:@min-[22rem]/pickers:flex-row max-sm:@min-[22rem]/pickers:text-left sm:@min-[27rem]/pickers:flex-row sm:@min-[27rem]/pickers:text-left",
+        duo ? "max-sm:justify-start max-sm:gap-1 max-sm:px-1 max-sm:py-1.5" : "max-sm:@min-[22rem]/pickers:justify-start max-sm:@min-[22rem]/pickers:gap-1.5 max-sm:@min-[22rem]/pickers:px-1.5",
+        you ? "sm:@min-[27rem]/pickers:flex-row-reverse sm:@min-[27rem]/pickers:text-right" : "sm:@min-[27rem]/pickers:flex-row sm:@min-[27rem]/pickers:text-left",
+        duo
+          ? you
+            ? "max-sm:flex-row-reverse max-sm:text-right"
+            : "max-sm:flex-row max-sm:text-left"
+          : you
+            ? "max-sm:@min-[22rem]/pickers:flex-row-reverse max-sm:@min-[22rem]/pickers:text-right"
+            : "max-sm:@min-[22rem]/pickers:flex-row max-sm:@min-[22rem]/pickers:text-left",
         champion ? "border-border" : "border-dashed border-border-strong",
       )}
       data-testid={`matchup-pick-${slot}`}
@@ -172,7 +181,7 @@ function SlotButton({ slot, role, champion, onOpen, buttonRef }: { slot: FrameSl
             words.label
           )}
         </span>
-        <span className="line-clamp-2 text-md font-semibold leading-snug text-fg [overflow-wrap:anywhere] max-sm:@min-[22rem]/pickers:text-sm max-sm:@min-[22rem]/pickers:tracking-tight sm:@min-[27rem]/pickers:text-base" data-testid={`matchup-pick-${slot}-name`}>
+        <span className={cn("line-clamp-2 font-semibold leading-snug text-fg [overflow-wrap:anywhere] max-sm:@min-[22rem]/pickers:text-sm max-sm:@min-[22rem]/pickers:tracking-tight sm:@min-[27rem]/pickers:text-base", duo ? "text-md max-sm:text-sm max-sm:tracking-tight" : "text-md")} data-testid={`matchup-pick-${slot}-name`}>
           {champion ? champion.name : words.choose}
         </span>
         {champion ? <span className="sr-only">, change</span> : null}
@@ -676,7 +685,7 @@ export function MatchupFrame({
   React.useEffect(() => {
     statusNow.current = status;
   });
-  const slotButton = (slot: FrameSlot) => <SlotButton slot={slot} role={shown.role} champion={choice(shown[slot])} onOpen={() => openPicker(slot)} buttonRef={slotRefs[slot]} />;
+  const slotButton = (slot: FrameSlot) => <SlotButton slot={slot} duo={duo} role={shown.role} champion={choice(shown[slot])} onOpen={() => openPicker(slot)} buttonRef={slotRefs[slot]} />;
   const pickerWords = picking ? slotWords(shown.role, picking) : null;
 
   return (
@@ -708,7 +717,7 @@ export function MatchupFrame({
                   whichever name wraps. In the bot lane each side holds two slots, the role's own first. */}
               <div ref={slotsRef} className="grid grid-cols-1 items-stretch gap-2 @min-[17.5rem]/pickers:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:gap-3" data-testid="matchup-pickers" data-slots={duo ? 4 : 2}>
                 {duo ? (
-                  <div className="grid grid-cols-2 gap-1.5" data-testid="matchup-side-you">
+                  <div className="grid grid-cols-2 gap-1.5 max-sm:grid-cols-1" data-testid="matchup-side-you">
                     {slotButton("ally")}
                     {slotButton("you")}
                   </div>
@@ -727,7 +736,7 @@ export function MatchupFrame({
                   <ArrowLeftRight className="h-5 w-5 @max-[17.5rem]/pickers:rotate-90" aria-hidden />
                 </button>
                 {duo ? (
-                  <div className="grid grid-cols-2 gap-1.5" data-testid="matchup-side-enemy">
+                  <div className="grid grid-cols-2 gap-1.5 max-sm:grid-cols-1" data-testid="matchup-side-enemy">
                     {slotButton("enemy")}
                     {slotButton("enemy2")}
                   </div>

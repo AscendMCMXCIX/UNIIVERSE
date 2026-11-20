@@ -544,7 +544,11 @@ facts from Riot's text, so `RIOT_TEXT_FACTS_ENABLED` (still false) governs none 
   "Your support", "Enemy ADC", "Enemy support"), seen from your role: as ADC, `champion` is your ADC
   and `vs` the enemy ADC; as Support, `champion` is your support and `vs` the enemy support. The pair
   `champion`/`vs` is the lane counterpart, so the curated briefing or the assembled reference is
-  for it, as in a solo lane; the other two (`ally`, `vs2`) add their kits.
+  for it, as in a solo lane; the other two (`ally`, `vs2`) add their kits. On a phone each side's two
+  slots stand one above the other, each a row with the portrait beside the label and the name (Release
+  9, 20 Nov 2026: four across left a slot 44–62px for its words at 320–390px, and "SUPPORT" broke into a
+  column of letters); the four take the height the row of four took, so the first screen at 390 × 844
+  still holds both enemies' tiles and the evidence's first row.
 - **An empty slot** names what it wants ("Choose the enemy support") and keeps its place, so filling
   it moves nothing (the browser spec measures every other slot within 1px).
 - **The address** carries the lineup: `?role=adc&champion=&ally=&vs=&vs2=` (`lineupHref`,

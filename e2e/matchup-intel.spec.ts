@@ -1325,3 +1325,39 @@ test("phone at 200% text: the bot lane's pinned pair bar keeps its five controls
     }
   }
 });
+
+test("phone: the bot lane's four slots keep every word of their labels and names whole (no word split over two lines) at 320 and 390 wide, the two slots of a side one above the other", async ({ page }) => {
+  test.skip((page.viewportSize()?.width ?? 1000) >= 640, "a phone");
+  for (const width of [320, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto("/resources/matchups?role=adc&champion=Jinx&ally=Thresh&vs=Caitlyn&vs2=Leona");
+    await hydrated(page);
+    const slots = await page.getByTestId("matchup-pickers").evaluate((root) =>
+      ["ally", "you", "enemy", "enemy2"].map((slot) => {
+        const box = root.querySelector<HTMLElement>(`[data-testid=matchup-pick-${slot}]`)!;
+        // Each visible word of the label and the name on one line: a word split by the slot's narrow
+        // width (a column of letters, as four slots across at 390px drew) has more than one line box.
+        const split: string[] = [];
+        for (const part of ["label", "name"]) {
+          const el = root.querySelector<HTMLElement>(`[data-testid=matchup-pick-${slot}-${part}]`)!;
+          const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+          for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+            if (!(n.parentElement as HTMLElement).getClientRects().length) continue;
+            for (const m of n.textContent!.matchAll(/\S+/g)) {
+              const r = document.createRange();
+              r.setStart(n, m.index!);
+              r.setEnd(n, m.index! + m[0].length);
+              const tops = new Set([...r.getClientRects()].filter((x) => x.width > 0).map((x) => Math.round(x.top)));
+              if (tops.size > 1) split.push(m[0]);
+            }
+          }
+        }
+        return { slot, top: Math.round(box.getBoundingClientRect().top), split };
+      }),
+    );
+    for (const s of slots) expect(s.split, `${width}px: ${s.slot}`).toEqual([]);
+    // A side's two slots one above the other: the partner over you, the enemy's laner over their support.
+    expect(slots[0].top, `${width}px`).toBeLessThan(slots[1].top);
+    expect(slots[2].top, `${width}px`).toBeLessThan(slots[3].top);
+  }
+});
