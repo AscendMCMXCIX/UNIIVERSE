@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { deviceBase } from "@/components/device-storage";
 
 /*
   Favourite resources, kept in this browser only (localStorage): nothing is sent to the server, so
@@ -9,7 +10,8 @@ import * as React from "react";
   moves once it arrives), then the stored list; other tabs follow through the storage event.
 */
 
-const KEY = "uniiverse.resources.favourites.v1";
+/** The key (components/device-storage.ts lists every key the app keeps, for Settings' "On this device"). */
+const KEY = deviceBase("resource-favourites");
 const MAX = 50;
 const listeners = new Set<() => void>();
 let cache: { raw: string | null; ids: readonly string[] } = { raw: null, ids: [] };

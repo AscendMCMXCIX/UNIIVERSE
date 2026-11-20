@@ -90,7 +90,10 @@ function useRowScrollPadding(row: HTMLElement | null) {
       // MobileNav's value, or before its first write (its effect runs after this one) the whole bar's, as it is on arrival.
       const pad = bar.style.getPropertyValue("--bar-pad") || (bar.offsetHeight ? `${bar.offsetHeight + 8}px` : "");
       if (!phone.matches || !pad) return;
-      const next = `calc(${pad} + ${row ? `${row.offsetHeight}px` : ROW_ESTIMATE})`;
+      const extra = row ? `${row.offsetHeight}px` : ROW_ESTIMATE;
+      const next = `calc(${pad} + ${extra})`;
+      // The bar's own controls take the row back too (globals.css), so pressing them never scrolls the page.
+      if (bar.style.getPropertyValue("--bar-extra") !== extra) bar.style.setProperty("--bar-extra", extra);
       if (root.style.scrollPaddingTop === next) return;
       theirs = pad;
       own = next;
@@ -108,6 +111,7 @@ function useRowScrollPadding(row: HTMLElement | null) {
       sized.disconnect();
       restyled.disconnect();
       if (own && root.style.scrollPaddingTop === own) root.style.scrollPaddingTop = theirs;
+      bar.style.removeProperty("--bar-extra");
     };
   }, [row]);
 }
@@ -141,7 +145,7 @@ export function LeaderboardsPinnedIndex({ anchorId, items, phoneItems }: { /** T
       {/* Phones: under the top bar (fixed at its foot, so the page never moves), once the header has gone up under it. */}
       {away && foot ? (
         <div ref={setRow} className={cn("fixed inset-x-0 z-30 border-b border-border bg-bg/95 px-4 py-1 backdrop-blur-md transition-[top] duration-200 ease-out motion-safe:animate-[fade-in_160ms_var(--ease-emphasized)] motion-reduce:transition-none md:hidden short:hidden", !fits && "invisible")} style={{ top: foot }} aria-hidden={fits ? undefined : true} data-fits={fits ? "" : undefined} data-testid="leaderboards-chip-row">
-          <SectionIndex items={phoneItems} label="Leaderboards sections" testId="phone-section-index" spy listClassName="gap-x-2 gap-y-1" separatorClassName="hidden" linkClassName={(on) => cn(CHIP, "h-11", chipLook(on))} />
+          <SectionIndex items={phoneItems} label="Leaderboards sections" testId="phone-section-index" spy listClassName="gap-x-2 gap-y-1" separatorClassName="hidden" linkClassName={(on) => cn(CHIP, "h-11 [scroll-margin-top:-100vh]", chipLook(on))} />
         </div>
       ) : null}
     </>

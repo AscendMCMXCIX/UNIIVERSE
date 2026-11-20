@@ -78,18 +78,12 @@ test("every member finds the library in the sidebar: grouped by section, rows th
   await expect(row(page, "Patch notes").getByTestId("resource-link")).toHaveAttribute("href", "https://www.leagueoflegends.com/en-us/news/tags/patch-notes/");
   // The host follows the title, then ↗.
   await expect(row(page, "OP.GG").getByTestId("resource-host")).toHaveText("op.gg↗");
-  // Each row tried its site's own icon, lazily and without a referrer, and shows the built-in
-  // icon when that does not load: never a broken image.
-  await expect.poll(() => page.evaluate(() => (window as unknown as { __favicons: { src: string }[] }).__favicons.map((f) => f.src))).toContain("https://op.gg/favicon.ico");
-  const tried = await page.evaluate(() => (window as unknown as { __favicons: { src: string; referrerPolicy: string; loading: string }[] }).__favicons);
-  expect(tried.find((f) => f.src === "https://op.gg/favicon.ico")).toEqual({ src: "https://op.gg/favicon.ico", referrerPolicy: "no-referrer", loading: "lazy" });
-  expect(tried.every((f) => /^https:\/\/[^/]+\/favicon\.ico$/.test(f.src) && f.referrerPolicy === "no-referrer")).toBe(true);
-  // (Rows far below the fold keep a lazy image that has not started; these are near the top.)
-  // The stand-in is the host's initial on its own tinted tile, not one generic mark for every site.
-  for (const [title, initial] of [["League of Legends news", "L"], ["OP.GG", "O"]] as const) {
-    await expect(row(page, title).locator("img")).toHaveCount(0);
-    await expect(row(page, title).getByTestId("resource-icon-standin")).toHaveText(initial);
-  }
+  // Each site's icon is the app's own (public/resource-icons; UD.R1): nothing is loaded from a site,
+  // so no cross-origin error; a site without a shipped icon shows its host's initial on its own tile.
+  await expect(row(page, "OP.GG").getByTestId("resource-icon-asset")).toHaveAttribute("src", "/resource-icons/op.gg.png");
+  expect(await page.locator("main img").evaluateAll((imgs) => imgs.filter((i) => !(i as HTMLImageElement).src.startsWith(location.origin)).length), "no image from another site").toBe(0);
+  await expect(row(page, "League of Legends Wiki").getByTestId("resource-icon-standin")).toHaveText("W");
+  await expect(row(page, "League of Legends Wiki").locator("img")).toHaveCount(0);
 
   // Search: title, description or site; the index's counts follow it.
   await page.getByTestId("resources-search").fill("aram");
@@ -155,12 +149,13 @@ test("the layout: one panel on a phone, a panel per section packed into columns 
   // A title is whole: it wraps rather than being cut.
   const cut = await page.getByTestId("resource-title").evaluateAll((els) => els.filter((el) => el.scrollWidth > el.clientWidth + 1).length);
   expect(cut).toBe(0);
-  // The host is the one cut short ("leagueofleg…"), its ↗ drawn whole inside the row, left of the star.
+  // The host on a line of its own under the title, whole (UD.R1: beside the title it was cut, "leagueofl…"), its ↗ drawn whole inside the row, left of the star.
   const news = row(page, "League of Legends news");
   const host = news.getByTestId("resource-host");
   const hostText = host.locator("span").first();
-  expect(await hostText.evaluate((el) => [getComputedStyle(el).textOverflow, getComputedStyle(el).whiteSpace, getComputedStyle(el).overflowX])).toEqual(["ellipsis", "nowrap", "hidden"]);
-  if (info.project.name === "phone") expect(await hostText.evaluate((el) => el.scrollWidth > el.clientWidth + 1), "the host cut on a phone").toBe(true);
+  await expect(hostText).toHaveText("leagueoflegends.com");
+  expect(await hostText.evaluate((el) => el.scrollWidth > el.clientWidth + 1), "the host whole").toBe(false);
+  expect((await host.boundingBox())!.y, "under the title").toBeGreaterThanOrEqual((await news.getByTestId("resource-title").boundingBox())!.y + (await news.getByTestId("resource-title").boundingBox())!.height - 1);
   for (const r of await rows(page).all()) {
     const arrow = (await r.getByTestId("resource-host").locator("span").last().boundingBox())!;
     const link = (await r.getByTestId("resource-link").boundingBox())!;

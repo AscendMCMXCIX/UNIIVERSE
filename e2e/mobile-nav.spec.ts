@@ -277,6 +277,11 @@ test("the avatar opens the account screen: the account's own items only (Setting
 test("Back closes the account screen and the page stays where it was; Forward does not reopen it; the close button takes its history entry away", async ({ page }) => {
   await page.goto("/players");
   await page.evaluate(() => window.scrollTo(0, 300));
+  // A little back up (past the 8px intent), as a reader does to reach the bar: on a phone under 700px tall its first row slides away while the page
+  // scrolls down (useHideOnScroll), and the account button would otherwise be off the screen (a click then scrolls the page to it).
+  await page.waitForTimeout(100);
+  await page.evaluate(() => window.scrollBy(0, -20));
+  await expect(page.getByTestId("mobile-topbar")).not.toHaveAttribute("data-hidden", "row");
   const scrolled = await page.evaluate(() => scrollY);
   const screen = page.getByTestId("account-sheet");
   await page.getByTestId("account-sheet-button").click();
@@ -348,6 +353,11 @@ test("the account screen fills a small phone in Player Mode and Admin Mode: ever
 test("touches on the account screen never move the page behind; there is nothing to pull", async ({ page, context }) => {
   await page.goto("/players");
   await page.evaluate(() => window.scrollTo(0, 300));
+  // A little back up (past the 8px intent), as a reader does to reach the bar: on a phone under 700px tall its first row slides away while the page
+  // scrolls down (useHideOnScroll), and the account button would otherwise be off the screen (a click then scrolls the page to it).
+  await page.waitForTimeout(100);
+  await page.evaluate(() => window.scrollBy(0, -20));
+  await expect(page.getByTestId("mobile-topbar")).not.toHaveAttribute("data-hidden", "row");
   const scrolled = await page.evaluate(() => scrollY);
   const screen = page.getByTestId("account-sheet");
   const cdp = await context.newCDPSession(page);
@@ -848,10 +858,10 @@ test("a page's views share one track on the narrowest phones, each named in full
 
 test("Players and Leaderboards read as lists on a phone: a row per player, a row per member, each row one tap", async ({ page }) => {
   await page.goto("/players");
-  // One panel, a row per player, one column; the whole row is the link to the profile.
+  // One panel, a row per player, one column; the whole row is one link (the player Peek, PLAN S8a; the name opens the profile).
   const rows = page.getByTestId("players-directory").getByTestId("player-card-item");
   await expect(rows.first()).toBeVisible();
-  const boxes = await rows.evaluateAll((els) => els.map((e) => ({ left: Math.round(e.getBoundingClientRect().left), height: e.getBoundingClientRect().height, link: e.querySelector("a[data-testid=player-card]")!.getBoundingClientRect().height })));
+  const boxes = await rows.evaluateAll((els) => els.map((e) => ({ left: Math.round(e.getBoundingClientRect().left), height: e.getBoundingClientRect().height, link: e.querySelector("a[data-row-link]")!.getBoundingClientRect().height })));
   expect(new Set(boxes.map((b) => b.left)).size, "one column").toBe(1);
   for (const b of boxes) {
     expect(b.height).toBeGreaterThanOrEqual(44);
@@ -859,7 +869,7 @@ test("Players and Leaderboards read as lists on a phone: a row per player, a row
   }
   // Recent form: a row per member, at least 64px (two lines, three when the gap takes its own line):
   // the record, dates and gap under the name, the role on the picture. One link covers the whole
-  // row, so a tap anywhere on it (not only on the name) opens the member's profile.
+  // row, so a tap anywhere on it (not only on the name) opens the member's Peek (PLAN S8a); the name opens the profile.
   await page.goto("/leaderboards");
   await expect(page.getByTestId("leaderboards")).toHaveAttribute("data-ready", "true");
   const row = page.getByTestId("form-row").first();
@@ -872,5 +882,6 @@ test("Players and Leaderboards read as lists on a phone: a row per player, a row
   const id = await row.getAttribute("data-player-id");
   // The win rate at the row's right end: no link drawn there, but the row's link covers it.
   await page.touchscreen.tap(box.x + box.width - 12, box.y + box.height / 2);
-  await expect(page).toHaveURL(new RegExp(`/players/${id}$`));
+  await expect(page).toHaveURL(new RegExp(`/leaderboards\\?player=${id}$`));
+  await expect(page.getByTestId("player-detail-hero")).toBeVisible();
 });

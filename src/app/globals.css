@@ -380,7 +380,8 @@ p a.text-accent {
   }
 }
 [data-testid="mobile-topbar"] :is(a, button) {
-  scroll-margin-top: calc(-1 * var(--bar-pad));
+  /* --bar-extra: what a page pins under the bar adds to the padding (Leaderboards' chip row, set on the bar while it shows). */
+  scroll-margin-top: calc(-1 * (var(--bar-pad) + var(--bar-extra, 0px)));
 }
 @media (min-width: 48rem) and (min-height: 481px) {
   [data-sticky-tabs] :is(a, button, input),

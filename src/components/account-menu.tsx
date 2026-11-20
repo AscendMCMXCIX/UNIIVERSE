@@ -19,6 +19,8 @@ export interface AccountMenuUser {
   /** The sign-in username, shown beside the name when it differs (display names need not be unique). */
   username?: string | null;
   avatarUrl: string | null;
+  /** The account's user id: its picture's colour, the same everywhere (ui/avatar). */
+  seed?: string | null;
   roleLabel: string;
 }
 
@@ -72,7 +74,7 @@ export function AccountMenu({ user, showSignOut, variant = "sidebar", adminMode 
           // A tap before the page's code has run is kept (data-early; suppressHydrationWarning: the
           // script may have marked it aria-busy, which React leaves alone).
           <button {...p} type="button" title="Your account" className="group isolate relative flex w-full min-w-0 items-center gap-2.5 rounded-lg p-2 text-left transition-colors duration-150 aria-expanded:[&>[data-tile]]:bg-fg/7" data-early="account" suppressHydrationWarning data-testid="account-menu-button">
-            <Avatar name={user.name} src={user.avatarUrl} size="sm" />
+            <Avatar name={user.name} seed={user.seed} src={user.avatarUrl} size="sm" />
             <span data-tile className={cn(RAIL_HIGHLIGHT, "bg-fg/[0.035] shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--color-fg)_6%,transparent)] group-hover:bg-fg/6 group-data-[collapsed=true]/sidebar:bg-transparent group-data-[collapsed=true]/sidebar:shadow-none group-data-[collapsed=true]/sidebar:group-hover:bg-fg/5")} aria-hidden />
             <span className={cn("min-w-0 flex-1", RAIL_FADE)}>
               <span className="block truncate text-sm font-medium text-fg" data-testid="account-current-name">
@@ -84,7 +86,7 @@ export function AccountMenu({ user, showSignOut, variant = "sidebar", adminMode 
           </button>
         ) : (
           <button {...p} type="button" aria-label={`Your account: ${user.name}`} title="Your account" className="grid h-11 w-11 place-items-center rounded-full" data-early="account" suppressHydrationWarning data-testid="account-menu-button">
-            <Avatar name={user.name} src={user.avatarUrl} size="sm" />
+            <Avatar name={user.name} seed={user.seed} src={user.avatarUrl} size="sm" />
           </button>
         )
       }

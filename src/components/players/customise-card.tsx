@@ -47,6 +47,7 @@ import { CardFrame, cardShellStyle, EMBLEM_ICONS } from "./card-look";
 import type { CardSeason } from "./player-card";
 import { prepareBanner } from "./banner-image";
 import { CardPreview, type PreviewView, type StudioPreviewData } from "./card-preview";
+import { deviceBase } from "@/components/device-storage";
 
 export interface CustomiseCardProps {
   playerId: string;
@@ -130,7 +131,7 @@ function useMedia(query: string): boolean {
 /** Where the preview stands beside the controls: desktops, and phones held sideways (no height to spare above them). */
 const SIDE_BY_SIDE = "(min-width: 64rem), (max-height: 480px)";
 /** Phones and tablets remember whether the preview was put away. */
-const PREVIEW_KEY = "uniiverse.studio.preview";
+const PREVIEW_KEY = deviceBase("card-preview");
 
 /**
  * While `active` (unsaved changes), going back in the browser (a desktop's Back button, an

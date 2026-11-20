@@ -31,7 +31,7 @@ export interface MobileNavProps {
   shortName: string;
   tagline: string;
   home: string;
-  user: { name: string; username?: string | null; avatarUrl: string | null; roleLabel: string } | null;
+  user: { name: string; username?: string | null; avatarUrl: string | null; /** The account's user id: its picture's colour (ui/avatar). */ seed?: string | null; roleLabel: string } | null;
   /** A quiet data-freshness line at the foot of the account screen and of a tablet's avatar menu. */
   status: React.ReactNode;
   /** Riot's notice at the foot of the account screen and of a tablet's avatar menu: its full text (the line's title) and where its Details link leads. */
@@ -239,7 +239,7 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
                         data-testid={`topbar-tab-${id}`}
                       >
                         <span className={cn("flex h-8 items-center gap-1.5 rounded-full px-2 transition-colors duration-150", active ? "bg-accent/15 text-accent" : "text-fg-muted group-hover:bg-surface-2 group-hover:text-fg")}>
-                          {own ? <Avatar name={user!.name} src={user!.avatarUrl} size="xs" className={cn(active && "ring-2 ring-accent")} /> : <d.icon className="h-5 w-5 shrink-0" aria-hidden />}
+                          {own ? <Avatar name={user!.name} seed={user!.seed} src={user!.avatarUrl} size="xs" className={cn(active && "ring-2 ring-accent")} /> : <d.icon className="h-5 w-5 shrink-0" aria-hidden />}
                           <LadderName label={d.label} short={d.short} rest={sideways.rest} className={cn("whitespace-nowrap text-2xs font-medium leading-none", active ? cn("font-semibold text-fg", sideways.current) : sideways.others)} />
                         </span>
                       </Link>
@@ -322,7 +322,7 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
                   kept (data-early; suppressHydrationWarning: the script may have marked it aria-busy,
                   which React leaves alone). */}
               <button type="button" onClick={() => setSheetAt(pathname)} aria-haspopup="dialog" aria-expanded={sheetOpen} aria-label={`Your account: ${user.name}`} className="-mr-1 grid h-11 w-11 shrink-0 place-items-center rounded-full transition-transform duration-100 active:scale-90 motion-reduce:active:scale-100 md:not-short:hidden" data-early="sheet" suppressHydrationWarning data-testid="account-sheet-button">
-                <Avatar name={user.name} src={user.avatarUrl} size="sm" />
+                <Avatar name={user.name} seed={user.seed} src={user.avatarUrl} size="sm" />
               </button>
             </>
           ) : null}
@@ -352,7 +352,7 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
                 where it differs from the name (it tells apart accounts that share a name). Nothing is
                 cut short: a long name or username wraps (usernames run to 32 characters). */}
             <div className="flex min-w-0 items-center gap-4 pb-5" data-testid="account-identity">
-              <Avatar name={user.name} src={user.avatarUrl} size="lg" />
+              <Avatar name={user.name} seed={user.seed} src={user.avatarUrl} size="lg" />
               <div className="min-w-0">
                 <p className="text-xl font-semibold leading-tight text-fg [overflow-wrap:anywhere]" data-testid="account-name">
                   {user.name}
@@ -469,7 +469,7 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
                     data-testid={`tab-${destinationId(d)}`}
                   >
                     <span className={cn("grid h-7 w-12 place-items-center rounded-full transition-colors duration-150", fit.pill, active ? "bg-accent/15 text-accent" : "group-hover:bg-surface-2")} aria-hidden>
-                      {own ? <Avatar name={user!.name} src={user!.avatarUrl} size="xs" className={cn(active && "ring-2 ring-accent")} /> : <d.icon className="h-5 w-5" />}
+                      {own ? <Avatar name={user!.name} seed={user!.seed} src={user!.avatarUrl} size="xs" className={cn(active && "ring-2 ring-accent")} /> : <d.icon className="h-5 w-5" />}
                     </span>
                     <LadderName label={d.label} short={d.short} rest={fit.rest} className={cn("whitespace-nowrap leading-none", fit.label)} />
                   </Link>

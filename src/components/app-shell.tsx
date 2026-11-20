@@ -41,7 +41,7 @@ export interface ShellStatus {
   allowedAdminLinks: string[];
   playerId: string | null;
   /** The signed-in person, for the account menu. */
-  user: { name: string; username?: string | null; avatarUrl: string | null; roleLabel: string } | null;
+  user: { name: string; username?: string | null; avatarUrl: string | null; /** The account's user id: its picture's colour (ui/avatar). */ seed?: string | null; roleLabel: string } | null;
   /** The active account's fingerprint (see AccountGuard); null when there is no account. */
   identity: string | null;
   /** Account created without a password: can only use this session until one is set. */
