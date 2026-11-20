@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, ChevronRight, ShieldCheck } from "lucide-react";
+import { ShieldCheck } from "lucide-react";
 import type { PermissionPreset } from "@/server/repositories/permissions";
 import type { AuditEntry } from "@/server/audit/log";
 import { archivePlayerAction } from "@/server/actions/players";
@@ -15,6 +15,7 @@ import { Fold } from "@/components/ui/fold";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/dialog";
+import { SiblingSteps } from "@/components/ui/preview-window";
 import { Input, Label } from "@/components/ui/input";
 import { toast } from "@/components/ui/toast";
 import { AuditRow } from "./audit-log";
@@ -130,13 +131,9 @@ export function PersonView({
       closeTestId="person-view-close"
       headerExtra={
         position && position.of > 1 ? (
-          <span className="flex items-center">
-            <Button size="sm" variant="ghost" className="min-w-11 px-0" aria-label="Previous person" disabled={position.at <= 0} onClick={() => onStep(-1)} data-testid="person-prev">
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <Button size="sm" variant="ghost" className="min-w-11 px-0" aria-label="Next person" disabled={position.at >= position.of - 1} onClick={() => onStep(1)} data-testid="person-next">
-              <ChevronRight className="h-4 w-4" />
-            </Button>
+          // The same ‹ › as every other window's (PreviewWindow): 44px on touch screens at every text size.
+          <span className="flex items-center gap-1">
+            <SiblingSteps siblings={{ prev: position.at > 0 ? () => onStep(-1) : null, next: position.at < position.of - 1 ? () => onStep(1) : null, label: "person", prevTestId: "person-prev", nextTestId: "person-next" }} />
           </span>
         ) : null
       }

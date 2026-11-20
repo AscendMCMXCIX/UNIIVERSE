@@ -9,6 +9,7 @@ import type { PortraitChampion } from "@/components/champion-portrait";
 import { RoleIcon } from "@/components/role-icon";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/cn";
+import { ROW_LINK_COVER } from "@/components/ui/data-list";
 import { RowArtStrip } from "./card-art";
 import { CardAvatar, CardName, CardTagline, cardColourVars } from "./card-look";
 import { PoolPreview } from "./player-card";
@@ -187,11 +188,11 @@ export function RosterRow({ look, art, name, avatarUrl, role, offRoles, offRoleS
       {isYou ? <span className="absolute inset-y-0 left-0 w-0.5 bg-accent" aria-hidden /> : null}
       {peek ? (
         // The row's press: the player Peek over the list (its address for a new tab, or before the page's code has run).
-        <a href={peek.href} onClick={peek.onClick} aria-current={peek.selected ? "true" : undefined} data-peek-row={peek.id} className="absolute inset-0 z-[1] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent" data-testid="player-peek-open" data-player-name={name} data-row-link="">
+        <a href={peek.href} onClick={peek.onClick} aria-current={peek.selected ? "true" : undefined} data-peek-row={peek.id} className={ROW_LINK_COVER} data-testid="player-peek-open" data-player-name={name} data-row-link="">
           <span className="sr-only">Quick look: {name}</span>
         </a>
       ) : href ? (
-        <IntentLink href={href} className="absolute inset-0 z-[1] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent" data-testid="player-card" data-player-name={name} data-row-link="">
+        <IntentLink href={href} className={ROW_LINK_COVER} data-testid="player-card" data-player-name={name} data-row-link="">
           <span className="sr-only">{name}</span>
         </IntentLink>
       ) : null}

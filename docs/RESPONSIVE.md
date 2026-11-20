@@ -52,6 +52,7 @@ translucent status bar, so:
   its 16px mark (negative margins keep the line), with an invisible 44px area on touch screens;
   inline text links use `touch-target`.
 - Close buttons of dialogs, windows and pickers are 44px on touch screens.
+- A list row's link (the shared list's `RowLink`, a Peek row's, a roster card's: `ROW_LINK_COVER` in `ui/data-list.tsx`) covers the row's dividing line too on touch screens, so a 44px row's link is 44px, not 43 (Release 10); a mouse's rows keep their heights.
 - A toast's dismiss button is 44px at every width, around its 16px mark: its negative margins reach
   into the toast's own padding, so the toast is no larger for it.
 - Controls on a card (a flip button, social icons) stop their event: using one never opens,
@@ -230,7 +231,7 @@ section could drop the index to a row of its own (about 1284–1314px folded, 14
 it at 1024 folded.
 
 **Settings** (`settings/account-settings.tsx`, the same page in both modes; 18 Nov 2026), 64rem wide
-(`max-w-5xl`):
+(`max-w-5xl`): At 175% and 200% text on a tablet or desktop (Release 10) the account column is at most 40% of the page (`min(15rem,40%)`, `min(16rem,40%)` from lg) and the password panel's Change password and Sign out of other devices wrap at any width (they ran 87–235px past a 1280 or 1440 window before): nothing scrolls sideways from 320 to 2560 at 100–200% (measured on the demo; phone-wraps.spec.ts checks a member's Settings at 320 with 200% and at 768, 1024, 1280 and 1440 with 175% and 200%). At the usual size the columns are as before from 700px; at 640px the 40% cap makes the account column 237px instead of 240.
 
 | Width | Layout |
 | --- | --- |
@@ -314,6 +315,14 @@ a phone"). The
 public page, wider than the phone by 42, 103 and 163px at 150%, 175% and 200% on 320px (48 and 108px
 on 375, 30 and 90px on 393, at 175% and 200%), has no finding left at 125% to 200% on 320, 375 and
 393px, in either mode.
+
+**Windows and sheets at 320px with large text** (Release 10, 20 Nov 2026; `e2e/overlay-kit.spec.ts`):
+a window's own icon controls (‹ ›, ✕) are 44px on touch screens at every text size (in rem they
+were 88px at 200% and pushed "Previous player" off a 320px screen); a plain title bar collapses
+to one line once the body scrolls (sideways too), and the 56px bar stays 56px, so the frame once
+scrolled is at most a quarter of a 320 × 568, 375 × 667 or 568 × 320 screen at 100–200%; and the Task dialog, the sheets, the sign-in form and the
+player Peek keep every control on the screen, nothing scrolling sideways and no word cut short, at
+200% (the Peek at 125–200%, upright and sideways). DESIGN_SYSTEM §7, "The phone window shell".
 
 **Two ways to emulate a larger text size.**
 - The root's font size in CSS (`document.documentElement.style.fontSize = "200%"`), as the specs

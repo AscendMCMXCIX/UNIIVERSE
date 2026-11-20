@@ -32,7 +32,7 @@
    "small": 0
   },
   "p-champions@i15-100": {
-   "screens": 1.49,
+   "screens": 1.02,
    "frame": 0.3,
    "frameScrolled": 0.3,
    "small": 0
@@ -151,7 +151,7 @@
    "small": 0
   },
   "p-champions@se1-150": {
-   "screens": 5.59,
+   "screens": 3.32,
    "frame": 0.45,
    "frameScrolled": 0.15,
    "small": 0
