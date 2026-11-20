@@ -190,11 +190,15 @@ export async function loadMatchupEvidence(db: Db, session: Session | null, input
       if (enemy2) chosen.push({ key: "vs-enemy2", label: `Against ${enemy2.name}`, f: { ...base, vs2: enemy2.id }, c: enemy2.id });
       // With more than one slot chosen the main record is the combination; each pair is added beside it.
       if (chosen.length > 1) {
+        let pairs = 0;
         for (const p of chosen) {
           const line = await pair(p.key, p.label, p.f, [you.id, p.c]);
-          if (line) lines.push(line);
+          if (!line) continue;
+          lines.push(line);
+          pairs += 1;
         }
-        if (ally && enemy && enemy2 && !record) lines.push({ key: "four", label: "This 2v2", values: `too few games: fewer than ${MIN_GAMES} on patch ${publicPatchName(current.patch)}`, sample: "" });
+        // The four together only at n ≥ 3; under it, said beside the pairs that are counted (with none, the section's own line says it).
+        if (ally && enemy && enemy2 && !record && pairs) lines.push({ key: "four", label: "This 2v2", values: `too few games: fewer than ${MIN_GAMES} on patch ${publicPatchName(current.patch)}`, sample: "" });
       }
     }
     lines.push(laneEndLine(counts, window, you.id, role === "jungle"));

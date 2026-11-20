@@ -433,8 +433,18 @@ test("the five roles: a solo lane sets two slots, the bot lane four; an empty sl
   await tips.getByTestId("matchup-riot-tips-summary").click();
   await expect(tips.getByTestId("riot-tips-enemy").first()).toContainText("Against Caitlyn");
   await expect(tips.getByTestId("riot-tip-text").first()).toHaveText("Keep behind allied minions if Caitlyn is harassing you with Piltover Peacemaker (it deals less damage with each subsequent target).");
-  await expect(tips.getByTestId("matchup-evidence-high-elo")).toHaveText("Runes, items and skill order: No high-elo evidence (not collected)");
-  await expect(tips.getByTestId("matchup-evidence-duo")).toHaveText("No curated notes for this 2v2");
+  // The evidence from the team's games (S7b), in the tips' fold: its tiers in the fold's line, each section's honest line
+  // (the demo's games are on earlier patches than the current one, so nothing is counted), the
+  // pairwise slots all chosen, then what the page has not collected.
+  const evidence = tips.getByTestId("matchup-evidence-panel");
+  await expect(tips.getByTestId("matchup-evidence-tiers")).toHaveText(/^In your games(: no player profile| \(n = \d+\)) · In the team's games( \(n = \d+\)|: not part of this access)$/);
+  await expect(evidence.getByTestId("evidence-team").getByTestId("evidence-empty")).toHaveText("In the team's games: none as Jinx with Lulu against Caitlyn and Lux on patch 26.22.");
+  await expect(evidence.getByTestId("evidence-ignored")).toHaveCount(0);
+  await expect(evidence.getByTestId("matchup-uncertain")).toHaveText("Matchup uncertain: no curated notes and no counted games for this pair, so each champion's own facts follow");
+  await expect(evidence.getByTestId("matchup-evidence-high-elo")).toHaveText("Runes, items and skill order: No high-elo evidence (not collected)");
+  await expect(evidence.getByTestId("matchup-evidence-duo")).toHaveText("No curated notes for this 2v2");
+  // Every row states its tier: Riot's data on each kit.
+  await expect(page.getByTestId("matchup-enemy-abilities").getByTestId("evidence-tier")).toHaveText("Riot's data");
   // Support: seen from the support's side; the swap trades both duos.
   await role("Support").click();
   await expect(page).toHaveURL(/\?role=support&champion=Jinx&ally=Lulu&vs=Caitlyn&vs2=Lux$/);

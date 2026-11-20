@@ -33,6 +33,12 @@ export interface MatchupIntelRead {
   slotCount: string | null;
   tipsLabel: string;
   highElo: string;
+  /** S7b: the evidence fold's tiers ("In your games (n = 9) · In the team's games (n = 23)"). */
+  evidenceTiers: string;
+  /** The tier beside the briefing's (or the assembled reference's) title. */
+  briefingTier: string;
+  /** The tier beside the enemy kit's title. */
+  kitTier: string;
 }
 export function readMatchupIntel(): MatchupIntelRead;
 export function briefingState(f: MatchupIntelRead): "expired" | "hidden" | "parts hidden" | "shown";

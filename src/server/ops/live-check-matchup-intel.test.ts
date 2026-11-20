@@ -48,6 +48,9 @@ const NOW: MatchupIntelRead = {
   slotCount: "2",
   tipsLabel: "Riot's tip (may predate later changes)",
   highElo: "Runes, items and skill order: No high-elo evidence (not collected)",
+  evidenceTiers: "In your games: no player profile · In the team's games (n = 12)",
+  briefingTier: "Checked notes (AI reviewers)",
+  kitTier: "Riot's data",
 };
 /** The same page made 1920 x 1080: no page scroll. */
 const WIDE = { ...NOW, size: "1920x1080", innerHeight: 1080, scrollHeight: 1080 };
@@ -64,6 +67,13 @@ describe("the Production check's Matchup Intel facts", () => {
     const lanes = /lane selector/;
     expect(failed(judge(NOW)).filter((n) => lanes.test(n))).toEqual([]);
     for (const over of [{ roles: "Top Jungle Mid" }, { roles: "Top Jungle Mid ADC Support" }, { tipsLabel: "" }, { highElo: "Runes: Conqueror" }, { slotCount: null }]) expect(failed(judge({ ...NOW, ...over })).filter((n) => lanes.test(n)), JSON.stringify(over)).toHaveLength(1);
+  });
+
+  it("fail when a row does not state its tier, or the evidence fold's tiers are missing", () => {
+    const tiers = /evidence tier/;
+    expect(failed(judge(NOW)).filter((n) => tiers.test(n))).toEqual([]);
+    expect(failed(judge({ ...NOW, evidenceTiers: "In your games (n = 4) · In the team's games: not part of this access" })).filter((n) => tiers.test(n))).toEqual([]);
+    for (const over of [{ evidenceTiers: "" }, { evidenceTiers: "Recommended build" }, { briefingTier: "" }, { kitTier: "" }]) expect(failed(judge({ ...NOW, ...over })).filter((n) => tiers.test(n)), JSON.stringify(over)).toHaveLength(1);
   });
 
   it("pass on production as it is now (26.23, not re-checked): no page scroll at 1920 x 1080, the tiles and the sources' summary on screen at 1440 x 900, though it scrolls 23px there", () => {

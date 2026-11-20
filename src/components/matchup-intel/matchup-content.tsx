@@ -8,7 +8,7 @@ import { MatchupFooter } from "./matchup-footer";
 import { OpenPickerButton, PairLink } from "./matchup-frame";
 import { slotWords } from "./slots";
 import { RiotTipsPanel } from "./riot-tips";
-import { EvidencePanel } from "./evidence-panel";
+import { EvidenceBody, EvidenceSummary } from "./evidence-panel";
 import type { MatchupEvidence } from "@/domain/matchup-intel/evidence";
 import { InteractionsPanel, LevelNotesPanel, notesBalance } from "./matchup-notes";
 import { behindOf } from "./matchup-status";
@@ -102,7 +102,8 @@ export function MatchupContent({ view, champions, curated, legal, evidence = nul
   const stale = behind.length && current ? <StaleNote words={staleDataWords(behind, current, behind.length === shownData.length)} /> : null;
   const shows = briefingShows(matchup);
   const balance = enemyIntel ? notesBalance(matchup, enemyIntel, yourIntel) : "even";
-  const tips = <RiotTipsPanel enemies={[enemyIntel, enemy2Intel].filter((i): i is ChampionIntelView => !!i)} yours={[mirror ? null : yourIntel, allyIntel].filter((i): i is ChampionIntelView => !!i)} />;
+  // Riot's tips and the evidence from the team's games share one fold, its line stating both.
+  const tips = <RiotTipsPanel enemies={[enemyIntel, enemy2Intel].filter((i): i is ChampionIntelView => !!i)} yours={[mirror ? null : yourIntel, allyIntel].filter((i): i is ChampionIntelView => !!i)} evidenceSummary={<EvidenceSummary evidence={evidence} />} evidence={<EvidenceBody evidence={evidence} duo={duo} pair={{ chosen: !!you && !!enemy, curated: shows }} />} />;
 
   return (
     <div className="@container/dash space-y-3" data-testid="matchup-dashboard" data-layer={you && enemy ? (shows ? "curated" : "assembled") : undefined}>
@@ -148,9 +149,8 @@ export function MatchupContent({ view, champions, curated, legal, evidence = nul
                 {allyIntel ? <YourChampion intel={allyIntel} label={slotWords(role, "ally").label} testId="matchup-ally-abilities" /> : null}
               </div>
             ) : null}
-            {/* Riot's tips and the evidence from the team's games: one folded line each under the kits, so the one-screen fit holds. */}
+            {/* Riot's tips and the evidence from the team's games: one folded line under the kits, so the one-screen fit holds. */}
             {tips}
-            <EvidencePanel evidence={evidence} duo={duo} pair={{ chosen: !!you && !!enemy, curated: shows }} />
           </div>
         </div>
       ) : null}

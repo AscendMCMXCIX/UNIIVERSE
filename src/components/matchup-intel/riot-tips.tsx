@@ -96,9 +96,14 @@ function TipGroup({
 export function RiotTipsPanel({
   enemies,
   yours,
+  evidenceSummary,
+  evidence,
 }: {
   enemies: readonly ChampionIntelView[];
   yours: readonly ChampionIntelView[];
+  /** The evidence's words for the fold's line, and its body after the tips (evidence-panel.tsx). */
+  evidenceSummary?: React.ReactNode;
+  evidence?: React.ReactNode;
 }) {
   if (!enemies.length && !yours.length) return null;
   const none = [
@@ -124,6 +129,7 @@ export function RiotTipsPanel({
             <span className="text-2xs text-fg-subtle" data-testid="riot-tips-label">
               {TIP_LABEL}
             </span>
+            {evidenceSummary}
           </span>
         }
       >
@@ -175,6 +181,7 @@ export function RiotTipsPanel({
               {w}
             </p>
           ))}
+          {evidence}
         </div>
       </TipsDisclosure>
     </Panel>

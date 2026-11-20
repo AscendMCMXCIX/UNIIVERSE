@@ -253,7 +253,7 @@ export function AssembledReference({ you, enemy, enemyIntel, yourIntel, curatedF
               {ASSEMBLED_TITLE}
               <span className="sr-only">: {`${you.name} vs ${enemy.name}`}</span>
             </h2>
-            <TierLabel>Riot&apos;s data · No curated notes</TierLabel>
+            <TierLabel>Riot&apos;s data</TierLabel>
           </div>
           <CuratedLinks you={you} enemies={others} label={`Curated for ${you.name}:`} className="text-xs" />
         </div>
