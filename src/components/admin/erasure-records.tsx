@@ -30,7 +30,7 @@ function ReapplyDialog({ asking, busy, onCancel, onRun }: { asking: Asking | nul
   const id = React.useId();
   const importing = asking?.kind === "import";
   return (
-    <Dialog
+    <Dialog size="form"
       open={!!asking}
       onClose={() => (busy ? undefined : onCancel())}
       title={importing ? "Import and re-apply the erasure records?" : "Re-apply every erasure?"}
@@ -71,7 +71,7 @@ function ReleaseButton({ reference }: { reference: string }) {
       <Button size="sm" variant="ghost" onClick={() => setOpen(true)} data-testid="erasure-release">
         Release
       </Button>
-      <Dialog
+      <Dialog size="form"
         open={open}
         onClose={() => !busy && setOpen(false)}
         title={`Release ${reference}?`}

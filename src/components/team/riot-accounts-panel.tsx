@@ -319,7 +319,7 @@ function ChangeRiotIdDialog({ playerId, account, onClose }: { playerId: string; 
     router.refresh();
   };
   return (
-    <Dialog
+    <Dialog size="form"
       open
       onClose={onClose}
       title="Change Riot ID"

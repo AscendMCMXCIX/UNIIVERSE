@@ -245,7 +245,7 @@ export function useAvatarUpload() {
   const ui = (
     <>
       <input ref={inputRef} type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" aria-label="Choose a profile picture" tabIndex={-1} onChange={(e) => pick(e.target.files?.[0] ?? null)} data-testid="avatar-file" />
-      <Dialog
+      <Dialog size="form"
         open={!!source}
         onClose={close}
         title="Position your picture"

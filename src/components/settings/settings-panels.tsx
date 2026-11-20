@@ -124,7 +124,7 @@ function SetupJobDialog({ job, busy, onCancel, onRun }: { job: JobView | null; b
   const confirm = job?.confirm ?? null;
   const ready = !!confirm && typedMatches(typed, confirm.phrase);
   return (
-    <Dialog
+    <Dialog size="form"
       open={!!job}
       onClose={() => (busy ? undefined : onCancel())}
       title={confirm ? `${confirm.title}?` : "Run this job?"}
@@ -212,7 +212,7 @@ function ScheduleEditor({ jobs }: { jobs: JobView[] }) {
           Save intervals
         </Button>
       </div>
-      <Dialog
+      <Dialog size="form"
         open={reviewing}
         onClose={() => (busy ? undefined : setReviewing(false))}
         title="Save the schedule?"
