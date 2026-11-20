@@ -21,7 +21,7 @@ export function RecentFormStrip({ form, championsById, historyHref, narrowed = n
   const pct = (v: number | null) => (v === null ? "—" : `${Math.round(v * 100)}%`);
   const champ = (id: string) => championsById[id] ?? { id, name: id, portraitUrl: "" };
   return (
-    <section aria-labelledby="recent-form-title" className="@container flex h-full flex-col gap-3 rounded-card border border-border bg-surface p-4 panel-depth" data-testid="recent-form">
+    <section aria-labelledby="recent-form-title" className="@container flex flex-col gap-3 rounded-card border border-border bg-surface p-4 panel-depth" data-testid="recent-form">
       {/* The verdict on the title's row (it was a footer row of its own, a row more on a phone),
           what the bars show on the line under it. */}
       <div className="space-y-0.5">
@@ -64,14 +64,15 @@ export function RecentFormStrip({ form, championsById, historyHref, narrowed = n
           </span>
         ))}
       </Link>
-      {/* Stretched to the season card's height beside it (from 58rem), the figures sit on the card's
-          bottom line: the spare height falls between the bars and them, not in a blank strip under
-          them (32-60px from 1280 to 3440). Unstretched (phones) nothing moves. */}
-      <dl className="mt-auto grid grid-cols-2 gap-x-4 gap-y-2.5 text-sm @lg:grid-cols-4" data-testid="recent-form-rates">
+      {/* The card ends at its content (UD.PO2): it was stretched to the season card's height beside
+          it, leaving about 90px between the bars and these figures at 1280-1920. */}
+      {/* Four across from 18rem of card (a phone at 100% text), each figure's context under it below
+          32rem; two by two where four would not hold their figures (a 320px phone at large text). */}
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-2.5 text-sm @min-[18rem]:grid-cols-4 @min-[18rem]:gap-x-3" data-testid="recent-form-rates">
         <div>
           <dt className="text-xs text-fg-subtle">Last {form.recent.games}</dt>
           <dd className="text-lg font-semibold tabular-nums text-fg">
-            {pct(form.recent.winRate)} <span className="text-xs font-normal text-fg-muted">{form.recent.wins}W {form.recent.games - form.recent.wins}L</span>
+            {pct(form.recent.winRate)} <span className="text-xs font-normal text-fg-muted @min-[18rem]:@max-lg:block">{form.recent.wins}W {form.recent.games - form.recent.wins}L</span>
           </dd>
         </div>
         <div>
@@ -83,7 +84,7 @@ export function RecentFormStrip({ form, championsById, historyHref, narrowed = n
             <dt className="text-xs text-fg-subtle">{m.label}</dt>
             <dd className="text-lg font-semibold tabular-nums text-fg">
               {fmt(m)}
-              {m.season !== null ? <span className="text-xs font-normal text-fg-muted"> vs {fmt({ ...m, recent: m.season })}</span> : null}
+              {m.season !== null ? <span className="text-xs font-normal text-fg-muted @min-[18rem]:@max-lg:block"> vs {fmt({ ...m, recent: m.season })}</span> : null}
               {m.direction === "up" ? <TrendingUp className="ml-1 inline h-3.5 w-3.5 text-good" aria-label="higher lately" /> : m.direction === "down" ? <TrendingDown className="ml-1 inline h-3.5 w-3.5 text-bad" aria-label="lower lately" /> : null}
             </dd>
           </div>

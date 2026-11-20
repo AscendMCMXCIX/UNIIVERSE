@@ -129,39 +129,16 @@ function RecordBar({ wins, losses }: { wins: number; losses: number }) {
   );
 }
 
-/** How often a multikill came, over the games that have counts: "1 every 8 games". */
-function multikillRate(count: number, counted: number): string {
-  if (count === 0) return "None yet";
-  const every = Math.max(1, Math.round(counted / count));
-  return every === 1 ? `${count >= counted ? "Every game" : "About every game"}` : `1 every ${formatCount(every)} games`;
-}
-
-/** One count in the kills row: its label, the number, how often (or its context). */
-function KillCount({ label, value, sub, muted, testId, className }: { label: string; value: React.ReactNode; sub: string; muted?: boolean; testId: string; className?: string }) {
-  return (
-    <div className={cn("min-w-0 px-2.5 py-2.5 @min-[34rem]/perf:px-3", className)} data-testid={testId}>
-      <div className="text-xs leading-tight text-fg-muted @min-[34rem]/perf:truncate">{label}</div>
-      <div className={cn("mt-0.5 text-lg font-semibold leading-tight tabular-nums", muted ? "text-fg-subtle" : "text-fg")} data-testid={`${testId}-value`}>
-        {value}
-      </div>
-      {/* Three across on a narrow card ("1 every 12 games" in a third of a phone): it wraps, never cut. */}
-      <div className="text-2xs leading-snug text-fg-subtle @min-[34rem]/perf:truncate" title={sub}>
-        {sub}
-      </div>
-    </div>
-  );
-}
-
 /**
- * The kills band: Total kills, then the four multikill kinds, every count in the same colour, size
- * and weight (no kind is highlighted for being rare), with no visible heading of its own since each
- * count names itself (screen readers get one). Total kills adds up each game's own kill count over
- * the same games as the figures above; the multikills add up Riot's counts. Whether every game has
- * its counts is the page's status, beside the scope line under the title, never a mark here. A
- * count no game has yet is a dash, never 0. The champions behind them are one quiet link away, at
- * the row's end. On a card narrower than 34rem (phones): three by two, Total kills first and the link in
- * the sixth cell, where it was a row of its own under Total kills across the top and two by two
- * (245px on an iPhone 15).
+ * The kills band as one line under the season's figures: total kills, then the four multikill kinds
+ * ("Kills 312 · Double 19 · Triple 3 · Quadra 1 · Penta 0"), every count in the same colour and
+ * weight (no kind is highlighted for being rare), and the champions behind them one quiet link away
+ * at the line's end. It was a band of five tiles with how often each came (three by two on a phone,
+ * about 150px); the line is one row (two on the narrowest phones and at large text, where it wraps
+ * between counts, never inside one). Total kills adds up each game's own kill count over the same
+ * games as the figures above; the multikills add up Riot's counts. Whether every game has its counts
+ * is the page's status, never a mark here. A count no game has yet is a dash, never 0. Screen
+ * readers get a heading, with which counts come from only some of the games.
  */
 function KillsBand({ perf, m, byChampionHref }: { perf: PerformanceSummary; m: MultikillSummary; byChampionHref: string }) {
   const unknown = m.counted === 0;
@@ -169,29 +146,48 @@ function KillsBand({ perf, m, byChampionHref }: { perf: PerformanceSummary; m: M
   const killsPartial = perf.totalKills !== null && perf.detailedGames < perf.games;
   // What screen readers hear with the heading: which counts come from only some of the games.
   const notes = [killsPartial ? `kills counted in ${formatCount(perf.detailedGames)} of ${formatCount(perf.games)} games` : null, partial ? `multikills counted in ${formatCount(m.counted)} of ${formatCount(m.games)} games` : null].filter(Boolean);
-  const kinds: Record<keyof MultikillCounts, string> = { double: "Double kills", triple: "Triple kills", quadra: "Quadra kills", penta: "Pentakills" };
+  const kinds: Record<keyof MultikillCounts, string> = { double: "Double", triple: "Triple", quadra: "Quadra", penta: "Penta" };
+  const spoken: Record<keyof MultikillCounts, string> = { double: "Double kills", triple: "Triple kills", quadra: "Quadra kills", penta: "Pentakills" };
   const notYet = (
     <>
       <span aria-hidden>—</span>
       <span className="sr-only">not counted yet</span>
     </>
   );
+  const counts: { key: string; label: string; spoken: string; value: React.ReactNode; muted: boolean; testId: string }[] = [
+    { key: "kills", label: "Kills", spoken: "Total kills", value: perf.totalKills === null ? notYet : formatCount(perf.totalKills), muted: perf.totalKills === null, testId: "stat-total-kills" },
+    ...MULTIKILL_KINDS.map((k) => ({ key: k.key, label: kinds[k.key], spoken: spoken[k.key], value: unknown ? notYet : formatCount(m[k.key]), muted: unknown, testId: `multikill-${k.key}` })),
+  ];
   return (
     <section aria-labelledby="multikills-heading" className="border-t border-border/70" data-testid="multikills" data-coverage={unknown ? "none" : partial ? "partial" : "complete"}>
       <h3 id="multikills-heading" className="sr-only">
         Kills and multikills{notes.length ? ` (${notes.join("; ")})` : ""}
       </h3>
-      <div className={cn("grid grid-cols-3 @min-[34rem]/perf:grid-cols-5 @min-[48rem]/perf:grid-cols-[repeat(5,minmax(0,1fr))_auto]", BAND_COLUMNS)} data-testid="multikill-tiles">
-        <KillCount label="Total kills" value={perf.totalKills === null ? notYet : formatCount(perf.totalKills)} muted={perf.totalKills === null} sub={perf.totalKills === null ? "Not counted yet" : `${fmt.one(perf.kills)} a game`} testId="stat-total-kills" />
-        {MULTIKILL_KINDS.map((k) => (
-          <KillCount key={k.key} label={kinds[k.key]} value={unknown ? notYet : formatCount(m[k.key])} muted={unknown} sub={unknown ? "Not counted yet" : multikillRate(m[k.key], m.counted)} testId={`multikill-${k.key}`} className="@min-[34rem]/perf:border-l @min-[34rem]/perf:border-border/60" />
-        ))}
-        <p className="flex items-center justify-end px-2.5 text-right @min-[34rem]/perf:col-span-5 @min-[34rem]/perf:-mt-1 @min-[34rem]/perf:px-3 @min-[34rem]/perf:pb-2 @min-[48rem]/perf:col-span-1 @min-[48rem]/perf:mt-0 @min-[48rem]/perf:pb-0 @min-[48rem]/perf:pl-1 @min-[48rem]/perf:pr-4">
-          {/* A small link with a finger-sized area on touch screens that takes no room of its own. */}
-          <Link href={byChampionHref} className="relative inline-flex min-h-6 items-center gap-0.5 rounded-md text-xs font-medium @min-[34rem]/perf:whitespace-nowrap text-fg-muted transition-colors hover:text-accent focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:after:absolute pointer-coarse:after:-inset-y-2.5 pointer-coarse:after:-left-3 pointer-coarse:after:right-0 pointer-coarse:after:content-['']" aria-label="Multikills by champion, in All Champions" data-testid="multikills-by-champion">
-            By champion <ChevronRight className="h-3.5 w-3.5" aria-hidden />
-          </Link>
-        </p>
+      <div className="flex items-center gap-x-2 px-3 py-2 @min-[34rem]/perf:px-5" data-testid="multikill-tiles">
+        <dl className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-sm">
+          {counts.map((c, i) => (
+            <div key={c.key} className="flex items-baseline gap-1 whitespace-nowrap" data-testid={c.testId}>
+              <dt className="text-xs text-fg-muted">
+                <span aria-hidden>{c.label}</span>
+                <span className="sr-only">{c.spoken}</span>
+              </dt>
+              <dd className={cn("font-semibold tabular-nums", c.muted ? "text-fg-subtle" : "text-fg")}>
+                <span data-testid={`${c.testId}-value`}>{c.value}</span>
+                {/* The separator ends a line where the line wraps, never starts the next. */}
+                {i < counts.length - 1 ? (
+                  <span aria-hidden className="ms-1.5 font-normal text-fg-subtle">
+                    ·
+                  </span>
+                ) : null}
+              </dd>
+            </div>
+          ))}
+        </dl>
+        {/* A small link with a finger-sized area on touch screens that takes no room of its own. */}
+        <Link href={byChampionHref} className="relative ms-auto inline-flex min-h-6 items-center gap-0.5 whitespace-nowrap rounded-md text-xs font-medium text-fg-muted transition-colors hover:text-accent focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:after:absolute pointer-coarse:after:-inset-y-2.5 pointer-coarse:after:-left-3 pointer-coarse:after:right-0 pointer-coarse:after:content-['']" aria-label="Multikills by champion, in All Champions" data-testid="multikills-by-champion">
+          {/* The words from 34rem of card; on a phone the chevron alone, so the counts keep one line. */}
+          <span className="@max-[34rem]/perf:sr-only">By champion</span> <ChevronRight className="h-3.5 w-3.5" aria-hidden />
+        </Link>
       </div>
     </section>
   );
@@ -267,30 +263,25 @@ function OverviewDashboard({ perf, form, ranked, pools }: { perf: React.ReactNod
   const two = !!ranked;
   return (
     <div className="@container/ov" data-testid="overview-dashboard">
-      {/* Without recent form, ranked progress spans both rows of the rail: the second row takes
-          whatever height it has beyond the season's card, so that card never stretches and the
-          pools stay put. */}
-      <div className={cn("grid grid-cols-[minmax(0,1fr)] items-start gap-3 sm:gap-4", form && "@min-[58rem]/ov:grid-cols-[minmax(0,1fr)_minmax(18rem,21rem)]", two && GRID_2X2, two && !form && "min-[90rem]:@min-[68rem]/ov:grid-rows-[auto_1fr]")}>
-        <div className={cn("min-w-0 self-stretch", two && "min-[90rem]:@min-[68rem]/ov:col-start-1 min-[90rem]:@min-[68rem]/ov:row-start-1")}>{perf}</div>
-        {form ? (
-          <div className={cn("min-w-0 self-stretch", two && "min-[90rem]:@min-[68rem]/ov:col-start-2 min-[90rem]:@min-[68rem]/ov:row-start-1")} data-testid="overview-form">
-            {form}
-          </div>
-        ) : null}
-        {ranked ? (
-          <div
-            className={cn(
-              "min-w-0",
-              wide,
-              form
-                ? "min-[90rem]:@min-[68rem]/ov:col-span-1 min-[90rem]:@min-[68rem]/ov:col-start-2 min-[90rem]:@min-[68rem]/ov:row-start-2 min-[90rem]:@min-[68rem]/ov:self-start"
-                : "min-[90rem]:@min-[68rem]/ov:col-start-2 min-[90rem]:@min-[68rem]/ov:row-span-2 min-[90rem]:@min-[68rem]/ov:row-start-1 min-[90rem]:@min-[68rem]/ov:self-start",
-            )}
-            data-testid="overview-ranked"
-          >
-            {ranked}
-          </div>
-        ) : null}
+      {/* In the 2×2 the rail (recent form, then ranked progress straight under it) spans both rows:
+          recent form ends at its content (UD.PO2) and ranked progress follows it, whatever the
+          season card's height; the second row takes whatever height the rail has beyond that card,
+          so the card never stretches and the pools stay put. Elsewhere the rail's box is
+          display:contents, so its cards are the grid's own items. */}
+      <div className={cn("grid grid-cols-[minmax(0,1fr)] items-start gap-3 sm:gap-4", form && "@min-[58rem]/ov:grid-cols-[minmax(0,1fr)_minmax(18rem,21rem)]", two && GRID_2X2, two && "min-[90rem]:@min-[68rem]/ov:grid-rows-[auto_1fr]")}>
+        <div className={cn("min-w-0 self-stretch", two && "min-[90rem]:@min-[68rem]/ov:col-start-1 min-[90rem]:@min-[68rem]/ov:row-start-1 min-[90rem]:@min-[68rem]/ov:self-start")}>{perf}</div>
+        <div className={cn("contents", two && "min-[90rem]:@min-[68rem]/ov:col-start-2 min-[90rem]:@min-[68rem]/ov:row-span-2 min-[90rem]:@min-[68rem]/ov:row-start-1 min-[90rem]:@min-[68rem]/ov:flex min-[90rem]:@min-[68rem]/ov:min-w-0 min-[90rem]:@min-[68rem]/ov:flex-col min-[90rem]:@min-[68rem]/ov:gap-4 min-[90rem]:@min-[68rem]/ov:self-start")}>
+          {form ? (
+            <div className="min-w-0 self-start min-[90rem]:@min-[68rem]/ov:self-auto" data-testid="overview-form">
+              {form}
+            </div>
+          ) : null}
+          {ranked ? (
+            <div className={cn("min-w-0", wide)} data-testid="overview-ranked">
+              {ranked}
+            </div>
+          ) : null}
+        </div>
         {pools ? <div className={cn("min-w-0", wide, two && "min-[90rem]:@min-[68rem]/ov:col-span-1 min-[90rem]:@min-[68rem]/ov:col-start-1 min-[90rem]:@min-[68rem]/ov:row-start-2 min-[90rem]:@min-[68rem]/ov:self-start")} data-testid="overview-pools">{pools}</div> : null}
       </div>
     </div>
@@ -350,6 +341,10 @@ export function SeasonSummary({ data, basePath, championsById, status, refresh, 
           </p>
         }
         statusAfterText
+        // The toolbar (Filters on a phone) on the title's row wherever it fits there, the scope line
+        // under both: a row less on a phone (UM.PO1); refinements' chips take the next row.
+        toolbarBesideNav
+        toolbarFills={refinementLabel(data, nameOf) ? "below-xl" : false}
         status={status ? <DataStatusNote status={status} refresh={refresh} /> : null}
         refresh={status ? <RefreshButton status={status} refresh={refresh} /> : null}
         controls={<OverviewFilters basePath={basePath} filter={data.filter} seasons={data.seasons} currentSeason={data.currentSeason} champions={champions} accounts={data.accountOptions} modeCounts={data.modes.counts} refineScope={REFINE_SCOPE} />}

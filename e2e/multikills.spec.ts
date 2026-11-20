@@ -54,18 +54,19 @@ test("Overview: the multikill totals as figures of their own, from the same game
   await expect(page.getByTestId("data-status")).toHaveCount(0);
   await expect(page.getByTestId("data-refresh")).toHaveCount(1);
   await expect(page.getByTestId("data-refresh").locator("[data-part=multikills]")).toHaveCount(0);
-  // The season card's kills row: Total kills and its average, then each multikill kind, its total
-  // and how often it came.
-  await expect(strip.getByTestId("stat-total-kills")).toHaveText(/^Total kills\s*[\d,]+\s*\d+(\.\d)? a game$/);
-  for (const [key, label] of KINDS) await expect(strip.getByTestId(`multikill-${key}`)).toHaveText(new RegExp(`^${label}\\s*\\d+\\s*(1 every [\\d,]+ games|About every game|Every game|None yet)$`));
+  // The season card's kills line: Total kills, then each multikill kind with its total
+  // ("Kills 192 · Double 33 · Triple 3 · Quadra 1 · Penta 0"); screen readers hear the full names.
+  await expect(strip.getByTestId("stat-total-kills")).toHaveText(/^KillsTotal kills\s*[\d,]+\s*·$/);
+  const short = { double: "Double", triple: "Triple", quadra: "Quadra", penta: "Penta" } as const;
+  for (const [key, label] of KINDS) await expect(strip.getByTestId(`multikill-${key}`)).toHaveText(new RegExp(`^${short[key]}${label}\\s*\\d+\\s*·?$`));
   // No heading of their own on screen (each count names itself); screen readers keep one.
   const heading = strip.getByRole("heading", { name: /^Kills and multikills/ });
   await expect(heading).toHaveCount(1);
   expect((await heading.boundingBox())!.height).toBeLessThanOrEqual(1);
   // Inside the season's card, under its headline and supporting figures.
   expect(await strip.evaluate((el) => !!el.closest("[data-testid=season-figures]"))).toBe(true);
-  // One group: every count (a zero too) in the same colour, size and weight, none highlighted for
-  // its kind; in the colour and weight of the season's headline figures, smaller (they support them).
+  // One group: every count (a zero too) in the same colour and weight, none highlighted for its
+  // kind; in the colour and weight of the season's headline figures, smaller (they support them).
   const look = (testId: string) =>
     page.getByTestId(`${testId}-value`).evaluate((el) => {
       const s = getComputedStyle(el);
@@ -75,27 +76,24 @@ test("Overview: the multikill totals as figures of their own, from the same game
   expect([kills[0], kills[2]], "the season's colour and weight").toEqual([season[0], season[2]]);
   expect(parseFloat(kills[1]!), "smaller than the season's headline figures").toBeLessThan(parseFloat(season[1]!));
   for (const testId of ["stat-total-kills", ...KINDS.map(([key]) => `multikill-${key}`)]) expect(await look(testId), `${testId}: its count`).toEqual(kills);
-  // Total kills first; one row of five where the card is 34rem wide or more, else three by two
-  // (Total kills, then the four kinds, the link to the champions in the sixth cell).
-  const tiles = strip.getByTestId("multikill-tiles").locator(":scope > div");
-  await expect(tiles.first()).toHaveAttribute("data-testid", "stat-total-kills");
+  // Total kills first; one line where the card has room (two on a narrow phone, wrapping between
+  // counts, never inside one), and the link to the champions at its end.
+  const lineCounts = strip.getByTestId("multikill-tiles").locator("dl > div");
+  await expect(lineCounts.first()).toHaveAttribute("data-testid", "stat-total-kills");
   const rem = await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).fontSize));
   const room = (await page.getByTestId("season-figures").boundingBox())!.width / rem;
-  const tops = await tiles.evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().top)));
-  expect(new Set(tops).size).toBe(room >= 34 ? 1 : 2);
-  // No count cuts its figures short.
-  expect(await tiles.evaluateAll((els) => els.filter((e) => [...e.querySelectorAll("div")].some((d) => d.scrollWidth > d.clientWidth + 1)).map((e) => e.getAttribute("data-testid")))).toEqual([]);
+  const lines = () => lineCounts.evaluateAll((els) => new Set(els.map((e) => Math.round(e.getBoundingClientRect().top))).size);
+  expect(await lines()).toBeLessThanOrEqual(room >= 26 ? 1 : 2);
+  expect(await lineCounts.evaluateAll((els) => els.filter((e) => e.getBoundingClientRect().height > 30).length), "no count breaks inside").toBe(0);
   // A compact row: no per-champion or per-account lists of its own, and no filters of its own.
   await expect(strip.locator("details, ul, select, [role=radiogroup]")).toHaveCount(0);
-  expect((await strip.boundingBox())!.height).toBeLessThan(room >= 34 ? 120 : 200);
-  // The narrowest phone (320px): still three by two, every label, figure and rate whole (they wrap
-  // rather than end cut short), the season's other figures too.
+  expect((await strip.boundingBox())!.height, "one line (two on a narrow phone)").toBeLessThan(room >= 26 ? 44 : 64);
+  // The narrowest phone (320px): every label, figure and count whole, the season's other figures too.
   if (room < 34) {
     await page.setViewportSize({ width: 320, height: 568 });
-    await expect.poll(() => tiles.evaluateAll((els) => new Set(els.map((e) => Math.round(e.getBoundingClientRect().top))).size)).toBe(2);
+    await expect.poll(lines).toBeLessThanOrEqual(2);
     const cut = await page.getByTestId("season-figures").evaluate((card) => [...card.querySelectorAll("div, span")].filter((d) => d.clientWidth > 1 && d.scrollWidth > d.clientWidth + 1 && getComputedStyle(d).overflow !== "visible").map((d) => d.textContent?.trim().slice(0, 24)));
     expect(cut, "320px: nothing in the season card cut short").toEqual([]);
-    expect((await strip.boundingBox())!.height, "320px: the kills band in two rows").toBeLessThan(200);
     // Each figure's label stays in its own box, beside its ⓘ ("Damage/min" breaks after the "/";
     // it ran 17px under the ⓘ at 320). The check above leaves out boxes that let text overflow.
     const labels = () =>
