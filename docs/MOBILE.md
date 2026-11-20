@@ -260,8 +260,10 @@ Team's four sections, your profile's, Matchup Intel and Resources, and every adm
 entry, so no page claims "‹ Team" unless it is under Team (before navigation N1, Matchup Intel,
 Resources and Settings opened directly all said "‹ Team"; Settings still leads home, Team Overview
 for a member, by its name). Back also closes what is open over the page and leaves the page as it
-was: a game, a champion's window, the account screen and the install window (each with a history
-entry of its own: `?match=`, `?champion=`, or `useBackCloses`), so a phone's system Back, the
+was: a game, a champion's window, the account screen, the install window, the Team player Peek and the
+Filters, sheet or popover (each with a history entry of its own: `?match=`, `?champion=`,
+`?player=`, or `useBackCloses`; S4a, 20 Nov 2026, added the Filters: a choice in them replaces the
+query, and the entry with it, so closing them never undoes a filter), so a phone's system Back, the
 installed Android app's included, works as the browser's does (`e2e/journeys.spec.ts`). A page that adds history entries of its own address (Matchup Intel's pairs) is still one
 page for Back: named after the page before, it goes there, past those entries, where the browser's
 Navigation API shows them (`backSteps`); the browser's own Back steps through them. Where the
@@ -373,6 +375,13 @@ text below 12px; 11px (`text-2xs`) only for badges and labels.
 | Account, Settings, Sign out | The account screen, from the avatar. | One menu, not two, every entry a full-width row in reach of the thumb. |
 | A short question or form | `Dialog`: the same sheet as every other (built on `DetailModal`). | One sheet: one look, one motion, one height rule. |
 | Confirm something that cannot be taken back (Admin's setup jobs, a job turned off, a delete with a profile) | The same `Dialog`, docked: the phrase to type above a 16px field (no zoom in Safari), the keyboard capitalising as it likes (any case matches), and the danger button beside Cancel, enabled once the words match. The two deletes of an account stay together on their row and wrap as a pair (S1a, 19 Nov 2026; `e2e/admin-safety.spec.ts` at 375px, `e2e/webkit.spec.ts`). | A deliberate pause that fits a thumb, without a second screen. |
+
+**The phone window shell** (S4a, 20 Nov 2026; DESIGN_SYSTEM §7): a window that takes the whole
+screen collapses its header to a 56px bar once its body scrolls (the item's name and the controls
+stay in reach), opens it again at the top, and closes when its header is pulled down, as a sheet
+does (the account screen too). Closing any window moves the page 0px: the browser's own close no
+longer puts the focus back itself (it scrolled a row partly under the tab bar into view, 70–109px
+when audited); the focus returns with `preventScroll` (`e2e/overlay-kit.spec.ts`).
 
 Every sheet and window shares `DetailModal`: native `<dialog>` (focus kept inside, the page behind
 inert), Escape and the backdrop close it, focus returns to what opened it, a sheet slides up in

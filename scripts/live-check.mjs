@@ -123,9 +123,10 @@
   - ranked (18 Nov 2026): on the teammate's profile at every width, Ranked progress ends with its
     chart: no History and coverage disclosure, year strip, rank changes or readings table (a profile
     without the card passes as not applicable). True or false only.
-  - reach (PR 2b): from the end of Match History, on the desktop and the tablet the pinned row offers
-    Filters and it opens the filter sheet; on the phone the top bar's Filters opens it (Escape closes
-    it again; no filter is touched).
+  - reach (PR 2b; S4a, 20 Nov 2026): from the end of Match History, on the desktop and the tablet the
+    pinned row offers Filters and it opens the Filters popover (anchored, no modal window, "Support"
+    whole and nothing in it scrolling sideways); on the phone the top bar's Filters opens the filter
+    sheet (Escape closes either again; no filter is touched).
   - every page at every width: it loads signed in, no sideways scroll, no page error, no app console
     error, no failed request to the app, no broken image from the app, and a screenshot to review.
 */
@@ -1568,7 +1569,7 @@ async function teamMatches(page, log, kind, context) {
  * bar gone above the window fails: the tabs above it are past their sticky offset there.
  */
 async function reachFacts(page, kind) {
-  const name = kind === "phone" ? "phone: from the end of Match History the top bar's Filters opens the filter sheet" : `${kind}: from the end of Match History the pinned row offers Filters and it opens the filter sheet`;
+  const name = kind === "phone" ? "phone: from the end of Match History the top bar's Filters opens the filter sheet" : `${kind}: from the end of Match History the pinned row offers Filters and it opens the Filters popover, Support whole and nothing scrolling sideways`;
   const at = await page.evaluate(async (phone) => {
     const end = document.documentElement.scrollHeight - innerHeight;
     for (let y = window.scrollY; y < end; y += 240) {
@@ -1590,16 +1591,29 @@ async function reachFacts(page, kind) {
   const control = page.getByTestId(kind === "phone" ? "topbar-filters" : "toolbar-filters");
   const offered = await control.waitFor({ timeout: 5_000 }).then(() => true, () => false);
   let opened = false;
+  let form = null;
   if (offered) {
     if (kind === "phone") await control.tap();
     else await control.click();
     const sheet = page.getByTestId("filter-sheet");
     opened = await sheet.waitFor({ timeout: 10_000 }).then(() => true, () => false);
+    // Where previews open beside the list (the tablet and the desktop) it is a popover: anchored, no
+    // modal window, its Role played segments whole ("Support" inside it), nothing scrolling sideways.
+    if (opened && kind !== "phone") {
+      form = await sheet.evaluate((el) => {
+        const support = [...el.querySelectorAll("label, button, a")].find((n) => n.textContent?.trim() === "Support");
+        const s = support?.getBoundingClientRect();
+        const p = el.getBoundingClientRect();
+        const sideways = [...el.querySelectorAll("*")].filter((n) => n.scrollWidth > n.clientWidth + 1 && !["visible", "hidden", "clip"].includes(getComputedStyle(n).overflowX)).length;
+        return { popover: el.hasAttribute("data-popover"), modal: !!document.querySelector("dialog[open]"), supportWhole: !!s && s.left >= p.left && s.right <= p.right, sideways };
+      });
+      opened = form.popover && !form.modal && form.supportWhole && form.sideways === 0;
+    }
     await shot(page, `${kind}-match-history-filters-from-the-frame`);
     await page.keyboard.press("Escape");
     await sheet.waitFor({ state: "detached", timeout: 5_000 }).catch(() => {});
   }
-  pass("reach", name, offered && opened, { offered, opened, ...at });
+  pass("reach", name, offered && opened, { offered, opened, ...(form ?? {}), ...at });
 }
 
 async function matchHistory(page, log, kind, playerId) {

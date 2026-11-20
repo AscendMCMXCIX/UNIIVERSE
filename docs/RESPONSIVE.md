@@ -894,6 +894,11 @@ Three levels, each saying what it proves:
   - the priority pages load with no page error (hydration included) and no sideways scrolling;
   - Team's card track and role tabs, by tap;
   - a teammate's profile sections and a champion's window;
+  - the phone window shell (S4a, 20 Nov 2026): a pull on a game's header closes it, closing a game
+    opened from a row partly under the tab bar moves the list 0px, and the Team player window's
+    header collapses to its 56px bar, which closes the window when pulled down (touch events
+    dispatched in the page, `e2e/pull.ts`; Chromium's phone project runs the same in
+    `e2e/overlay-kit.spec.ts`);
   - the top bar's Filters on Match History (PR 2b): gone at the top, offered once the page's own has
     scrolled away, 44px, a tap opens the filter sheet, and a choice and Done bring the first game
     under the bars, its count shown;

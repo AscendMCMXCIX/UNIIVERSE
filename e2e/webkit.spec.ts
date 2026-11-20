@@ -5,6 +5,7 @@ import { untilStill } from "./modal-corner";
 import { besideAMark, openMatchWindow } from "./match-history";
 import { bubbleFacts, NOT_A_PICTURE, NOT_A_PICTURE_ERROR, openPictureEditor, placedRight, toastFacts } from "./popups";
 import { riotText } from "./matchup-intel";
+import { pullDown } from "./pull";
 import { pick, ready, SELECT_LOOK, selectLook, valueOf } from "./select";
 import path from "node:path";
 
@@ -339,6 +340,49 @@ test("Match History: a game opens as a whole screen of its own, its ranks are ch
   await expect(page).not.toHaveURL(/match=/);
   await expect(card).toBeVisible();
   await expect(page.getByTestId("match-row").nth(1)).toBeFocused();
+});
+
+test("the phone window shell in Safari's engine: a pull on a game's header closes it, closing a game opened from a row partly under the tab bar moves the list 0px, and the Team player window collapses its header to a 56px bar and is pulled down too", async ({ page }) => {
+  await page.goto("/team");
+  const id = (await page.getByTestId("lineup-row-ADC").getAttribute("data-player-id"))!;
+  await page.goto(`/players/${id}/matches`);
+  await expect(page.locator("[data-testid='match-history'][data-ready]")).toBeVisible();
+  const tabbar = (await page.getByTestId("phone-tabbar").boundingBox())!;
+  const row = page.getByTestId("match-row").nth(3);
+  // The row's top 30px above the tab bar, the rest under it (UM.X4: 70–109px when audited).
+  const top = await row.evaluate((el) => el.getBoundingClientRect().top + window.scrollY);
+  await page.evaluate((y) => window.scrollTo(0, y), top - (tabbar.y - 30));
+  await page.waitForTimeout(300);
+  const before = await page.evaluate(() => window.scrollY);
+  const win = page.getByTestId("match-detail");
+  await expect(async () => {
+    if (!(await win.isVisible())) await row.tap({ position: { x: 24, y: 12 }, timeout: 2_000 });
+    await expect(win).toBeVisible({ timeout: 1_000 });
+  }).toPass({ timeout: 15_000 });
+  await win.getByTestId("match-detail-close").tap();
+  await expect(win).toHaveCount(0);
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => window.scrollY), "the list does not move").toBe(before);
+  await row.tap({ position: { x: 24, y: 12 } });
+  await expect(win).toBeVisible();
+  await pullDown(page.getByTestId("match-detail-header"));
+  await expect(win).toHaveCount(0);
+  await expect(page).not.toHaveURL(/match=/);
+
+  await page.goto("/team");
+  await page.getByTestId("lineup-row-TOP").getByTestId("open-player-detail").tap();
+  const player = page.getByTestId("player-detail");
+  await expect(player).toBeVisible();
+  const bar = player.getByTestId("modal-compact-bar");
+  await player.evaluate((el) => {
+    const body = el.querySelector<HTMLElement>("[data-modal-handle]:not([data-testid=modal-compact-bar]) + div")!;
+    (getComputedStyle(el).overflowY === "auto" ? el : body).scrollTop = 160;
+  });
+  await expect(bar).toHaveCSS("opacity", "1");
+  expect(Math.round((await bar.boundingBox())!.height)).toBe(56);
+  await pullDown(bar);
+  await expect(player).toHaveCount(0);
+  await expect(page).not.toHaveURL(/player=/);
 });
 
 test("Match History's gold fold: a tap on or just beside a mark under the curve reads its minute, the reading stays after the finger lifts, and the tables run with the page", async ({ page }) => {

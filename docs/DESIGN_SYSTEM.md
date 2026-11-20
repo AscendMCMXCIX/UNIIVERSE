@@ -269,12 +269,35 @@ One set of containers, chosen by what the content is, never by page. Each is one
 |---|---|---|---|---|---|
 | **Peek** | a quick look at one item from a list or a board (a team player; a Players row or a Leaderboards member, `player-peek.tsx` since 20 Nov 2026, the row's name still the profile's link; a champion; a game from a board) | `peek.tsx`: `usePeek`, `Peek` | a row (click, tap, Enter); ↑/↓ or J/K and ‹ › switch | ✕, Escape, Back, the selected row again; not an outside click | `?player=` (and so on) on the current page: the one history rule |
 | **Unfold** | an item opened under its card, for items compared down a list (games) | `unfold.tsx`: `useUnfold`, `UnfoldRegion`, `UnfoldHeader` | the card | the card again, Escape, the pinned header's Close, Back | the one history rule |
-| **Task dialog** | work that needs full attention (editors, confirmations, pickers, Card Studio, Install) | `detail-modal.tsx`: `DetailModal`; a filter sheet 34rem wide where it is a centred window (`sheetWidth="filters"`) | its button | Close, Escape, the backdrop | none |
-| **Popover** | anchored choices (menus, filter dropdowns) | `menu.tsx` | click, Enter, Space | an outside click, Escape, a choice | none; a choice replaces the query |
+| **Task dialog** | work that needs full attention (editors, confirmations, pickers, Card Studio, Install) | `dialog.tsx`: `Dialog` with its `size` (every one states it, `TASK_DIALOG_REM`): `form` 30rem for forms and confirmations (`ConfirmDialog`, the account and job confirmations, Change Riot ID, Position your picture), `picker` 42rem for a choice among many or an editor with a table (Access, an access level); Card Studio alone 76rem (`DetailModal size="wide"`); Install and sign-in 30rem (`compact`, `form`); the champion picker 42rem (`standard`). Phones and short windows: docked to the bottom edge, or the whole screen | its button | Close, Escape, the backdrop | none |
+| **Phone window shell** | the window an item opens in on a touch phone or in a short window (a Peek's, a game's) | `preview-window.tsx`: `PreviewWindow` on `DetailModal` | the item | ✕, Escape, Back, a pull down on its header (or its bar) | the item's own (`?player=`, `?match=`) |
+| **Popover** | anchored choices (menus, filter dropdowns, the pinned row's Filters) | `popover.tsx`: `Popover` (a panel of fields: the Filters, 34rem, where previews open beside the list; a touch phone keeps the sheet); `menu.tsx` (a menu) | click, Enter, Space | an outside press, Escape (focus back on its button), the focus leaving it, Done, its button leaving the screen | none of its own; a choice replaces the query. The Filters (popover or sheet) have a history entry while open, so Back closes them |
 | **Select** (a Popover) | one value from a short list in a toolbar or a form (game mode, season, minimum games, sort, a filter's status…) | `select.tsx`: `Select` (options as data) | click, Enter, Space, ↑/↓ | a choice, Escape, Tab, an outside press, a resize, its button leaving the screen | none; a choice calls `onValueChange`, which writes the address as the native select did |
 | **Explain** | a short explanation beside a term | `info-tip.tsx`: `InfoTip` | hover, focus, tap | leaving, Escape, any tap | none |
 | **Fold** | secondary content in a page | `disclosure.tsx` (native `details`) | its summary | its summary | none |
 | **Record window** | everything about one record that is managed, not glanced at (Admin's person view) | `DetailModal` with `useAddressItem` (`person-view.tsx`) | a row of the list | ✕, Escape (focus back to the row), Back; ‹ › switch | `?person=`: the one history rule |
+
+### The phone window shell (`preview-window.tsx`, `detail-modal.tsx`)
+
+The window a Peek or a game opens in on a touch phone or in a short window (PLAN S4a, container 8;
+UM.X2, X4; 20 Nov 2026):
+
+- **A collapsing header.** Once the body scrolls, a whole-screen window's header collapses to a 56px
+  bar (`modal-compact-bar`, the item's name: "Victory · Jax", a player's name) with the controls
+  in place; at the top it opens again. Where the window scrolls as one (a small phone, FLOW_SHARE),
+  the header scrolls away under the bar. It collapses only when the content would still scroll with
+  it collapsed, so it never takes away the scroll that collapsed it. A plain title bar keeps its
+  title and drops its description.
+- **‹ › for the item's siblings** where the opener has siblings (`SiblingSteps`, the same buttons as
+  the docked Peek's): a player's lineup; a game's list keeps its Previous · Game n of m · Next row.
+- **Pull down to close.** A pull on the header (or the bar) closes every whole-screen window on a
+  phone or in a short window, as a sheet closes, the account screen included; a touch anywhere else
+  is the browser's own. Unsaved edits still ask first (`canClose`).
+- **The page never moves.** The browser's own close used to put the focus back on the opener itself
+  and could scroll a row partly under the tab bar into view (70–109px when audited). Now nothing in
+  the window holds the focus as it closes, and the focus returns with `preventScroll`. Nothing is
+  scrolled back afterwards, so a scroll made on purpose as a window closes (a filter's Done bringing
+  the list's start under the bars, a link to a section) stands.
 
 ### Select (`select.tsx`)
 
