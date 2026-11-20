@@ -5,7 +5,10 @@ import type { DbHandle } from "@/server/db/create";
 import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
 import { archivePlayer, createPlayer, deletePlayer, getOrCreateTeam, setTeamMember } from "@/server/repositories/team";
-import { addAccount, removeAccount } from "@/server/accounts/repository";
+import { addAccount, listAccountsForPlayer, removeAccount } from "@/server/accounts/repository";
+import { changeAccountRiotId } from "@/server/accounts/change-riot-id";
+import { RiotApiClient } from "@/server/riot/api/client";
+import { RateLimiter } from "@/server/riot/api/rate-limiter";
 import { deleteAccount, deleteProfile } from "@/server/auth/account-admin";
 import { accountMatchPrep, accountMatches, matchDetails, matchTimelines, patches, players, users, type MatchParticipantDetail } from "@/server/db/schema";
 import { loadMatchupEvidence } from "@/server/matchup-intel/evidence";
@@ -126,6 +129,19 @@ describe("Matchup Intel's evidence rows and the app's other rules", () => {
     const c = await member("noaccount");
     await deleteProfile(db, c.p.id);
     expect(await teamN()).toBe(0);
+    // Replacing a Riot ID with a different account deletes the old one (R7 refuter: the replace flow).
+    const e = await member("replaced");
+    const riot = async (input: string | URL | Request): Promise<Response> => {
+      const url = String(input);
+      const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+      if (url.includes("/by-riot-id/")) return json({ puuid: "fresh-puuid", gameName: "Fresh", tagLine: "OCE" });
+      if (url.includes("/region/by-game/")) return json({ puuid: "fresh-puuid", game: "lol", region: "oc1" });
+      return json([]);
+    };
+    const client = new RiotApiClient({ apiKey: "k", fetchImpl: riot, limiter: new RateLimiter([{ requests: 1000, seconds: 1 }]), sleep: async () => {}, maxRetries: 0 });
+    const old = (await listAccountsForPlayer(db, e.p.id)).find((x) => x.id === e.acc.id)!;
+    expect((await changeAccountRiotId(db, client, old, "Fresh#OCE", { confirmReplace: true })).kind).toBe("replaced");
+    expect(await teamN(), "after a replaced Riot ID").toBe(0);
     for (const eraseProfile of [true, false]) {
       const d = await member(`withuser${eraseProfile}`);
       const [u] = await db.insert(users).values({ username: `u${eraseProfile}`, displayName: "U", role: "player", passwordHash: "x", playerId: d.p.id }).returning();

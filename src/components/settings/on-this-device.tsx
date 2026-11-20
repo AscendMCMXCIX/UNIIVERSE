@@ -32,8 +32,8 @@ export function OnThisDevice() {
           const state = states[n];
           return (
             <li key={item.id} className="flex min-h-14 flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2" data-testid="device-item" data-item={item.id} data-stored={state ? "" : undefined}>
-              {/* At least 12rem for the words (rem: it grows with the text size); with less beside the button, the button takes the next line (R7 review A3). */}
-              <div className="min-w-0 flex-[1_1_12rem]">
+              {/* At least 10rem for the words (rem: it grows with the text size), so at the usual size Clear stays beside them even at 320px; with less, the button takes the next line (R7 review A3). */}
+              <div className="min-w-0 flex-[1_1_10rem]">
                 <p className="text-sm font-medium text-fg">{item.label}</p>
                 <p className="text-xs text-fg-muted">
                   {item.where}
@@ -47,7 +47,7 @@ export function OnThisDevice() {
           );
         })}
       </ul>
-      <Button variant="secondary" size="sm" wrap className="h-auto min-h-7 max-w-full whitespace-normal py-1.5" disabled={!any} onClick={() => clear("all")} data-testid="device-clear-all">
+      <Button variant="secondary" size="sm" wrap className="h-auto min-h-7 max-w-full whitespace-normal py-1.5 text-center" disabled={!any} onClick={() => clear("all")} data-testid="device-clear-all">
         Clear all on this device
       </Button>
     </div>

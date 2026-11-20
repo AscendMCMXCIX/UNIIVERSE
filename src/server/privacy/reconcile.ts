@@ -4,6 +4,8 @@ import { players, riotAccounts, users } from "@/server/db/schema";
 import { eraseSubject, type ErasureSubject } from "./erasure";
 import { usableRecords } from "./ledger";
 import { normaliseRiotId, riotIdToken, tagged } from "./tokens";
+import { invalidateCache } from "@/server/observability/cache";
+import { EVIDENCE_CACHE } from "@/server/matchup-intel/evidence-cache";
 
 /*
   Keeps every recorded erasure applied to the database as it is now. The records hold only keyed
@@ -89,6 +91,7 @@ export async function reconcileErasures(db: Db, options: { mode: "recent" | "ful
   });
   if (remaining.length) {
     await db.delete(riotAccounts).where(inArray(riotAccounts.id, remaining));
+    invalidateCache(EVIDENCE_CACHE); // their evidence rows went by cascade (R7 review B1)
     result.traces += remaining.length;
   }
 
