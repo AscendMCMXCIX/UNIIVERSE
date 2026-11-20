@@ -147,7 +147,7 @@ function meansMark(basis: HasteBasis, haste: number): string | null {
  * A briefing row's "what it means" part for one enemy ability (docs/MATCHUP_INTEL.md, "What it
  * means"): a fact built only from numbers, never a verdict, a timer or a "ready at". Its cooldown
  * per rank at the chosen haste, by the same rule as the cooldown table (cooldownAtHaste), and which
- * case that is: "Renekton's W cooldown 13/12/11/10/9 s at 0 ability haste (base)". Null where the
+ * case that is: "Renekton's W cooldown 16 / 14 / 12 / 10 / 8 s at 0 haste (base)". Null where the
  * numbers do not allow one: no number, charges or a passive's own (how haste applies is not in
  * Riot's data), or more than one line (a champion who transforms).
  */
@@ -157,7 +157,7 @@ export function meansPart(a: MeansAbility, haste: number): string | null {
   const h = clampHaste(haste);
   const [line] = cooldownAtHaste(a.basis, h);
   if (!line?.seconds.length) return null;
-  return `${a.champion}'s ${a.slot} cooldown ${formatPerRank(line.seconds, "s")}, at ${h} ability haste (${mark})`;
+  return `${a.champion}'s ${a.slot} cooldown ${formatPerRank(line.seconds, "s")} at ${h} haste (${mark})`;
 }
 
 /** A briefing row's whole "what it means" line: its enemy abilities' parts, joined; null when none has one. */

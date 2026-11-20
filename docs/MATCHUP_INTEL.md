@@ -643,8 +643,8 @@ Each curated briefing row (the threat, the opportunity, each lane point) whose a
 the enemy's adds one line of numbers only (`meansLine`, `haste.ts`; `MeansLine`, `haste-line.tsx`):
 the cooldown per rank of each enemy ability the row rests on (its `basedOn`), at the haste chosen in
 the bar, by the cooldown table's own rule, and which case that is. "What it means: Renekton's W
-cooldown 16 / 14 / 12 / 10 / 8 s, at 0 ability haste (base)"; at 20 haste "13.33 / 11.67 / 10 / 8.33 /
-6.67 s, at 20 ability haste (Riot's general rule)"; "(static per the checked notes: haste doesn't
+cooldown 16 / 14 / 12 / 10 / 8 s at 0 haste (base)"; at 20 haste "13.33 / 11.67 / 10 / 8.33 / 6.67 s at
+20 haste (Riot's general rule)"; "(static per the checked notes: haste doesn't
 shorten it)" and "(whether haste shortens it isn't known)" give the base; R adds "ability haste
 only". No rank is chosen for the reader (every rank is listed), no start of the cooldown is assumed
 ("after it is used" is not said: the notes state a start for few abilities), and never a timer or

@@ -58,9 +58,10 @@ export function MeansLine({ refs, means }: { refs: readonly AbilityRef[]; means:
   const line = meansLine(refs.flatMap((r) => (means[r] ? [means[r]!] : [])), haste);
   if (!line) return null;
   return (
-    <span className="mt-0.5 block text-2xs leading-snug text-fg-subtle" data-testid="briefing-means">
-      <span className="font-semibold text-fg-muted">What it means: </span>
-      {line}
+    // After the chips on their line, so it takes a line of its own only where the row has no room left
+    // (the one-screen fit at 1440 × 900 keeps the sources' summary on the screen).
+    <span className="ml-1.5 text-2xs leading-snug text-fg-subtle" data-testid="briefing-means">
+      <span className="font-semibold text-fg-muted">What it means:</span> {line}
     </span>
   );
 }
