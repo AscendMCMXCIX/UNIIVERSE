@@ -156,9 +156,17 @@ export function DataRow({ as: Row = "li", lead, link, children, figures, trail, 
  * link's name or description. Never put a title on the link itself (it becomes the link's
  * description, read on Tab) or on the li (it becomes the list item's accessible name).
  */
+/**
+ * The overlay of a row's one link (RowLink, a Peek row's, a roster card's), over the whole row. On a
+ * touch screen it also covers the row's dividing line (DataList's divide-y draws it inside the row's
+ * height, at its foot), so a 44px row's link is 44px, not 43 (Release 7's report). A mouse's rows,
+ * and every row's height, are unchanged.
+ */
+export const ROW_LINK_COVER = "absolute inset-0 z-[1] pointer-coarse:-bottom-px focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent";
+
 export function RowLink({ href, children, prefetch, scroll, className, testId, hint, ...data }: { href: string; children: React.ReactNode; prefetch?: boolean | null; scroll?: boolean; className?: string; testId?: string; /** The row's tooltip, shown on hover, never read out (each cell says its own words). */ hint?: string } & DataAttrs) {
   return (
-    <Link href={href} prefetch={prefetch} scroll={scroll} className={cn("absolute inset-0 z-[1] rounded-[inherit] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent", className)} data-row-link="" data-testid={testId} {...data}>
+    <Link href={href} prefetch={prefetch} scroll={scroll} className={cn(ROW_LINK_COVER, "rounded-[inherit]", className)} data-row-link="" data-testid={testId} {...data}>
       <span className="sr-only">{children}</span>
       {hint ? <span aria-hidden title={hint} className="absolute inset-0 rounded-[inherit]" /> : null}
     </Link>

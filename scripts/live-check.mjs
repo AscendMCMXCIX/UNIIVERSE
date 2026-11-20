@@ -1198,6 +1198,19 @@ async function allChampions(page, log, kind, playerId) {
       pass("all-champions", `${kind}: rows stay compact for every role beside "In pool" (at most 56 px)`, !!roles && Math.max(...Object.values(roles.heights)) <= 56, roles ?? "no row with a role line to measure");
     }
     pass("all-champions", `${kind}: sorted by games by default`, /games/i.test(facts.sortedBy ?? ""), facts.sortedBy);
+    // Release 10 (PLAN S2b): on a phone Filters is in the list's search and sort row, on the search's
+    // line, 44px, and never a row of its own above the scope line.
+    if (kind === "phone" && facts.rows > 0) {
+      await page.locator("[data-testid=all-champions-toolbar] [data-filter-toggle]").waitFor({ timeout: 10_000 }).catch(() => {});
+      const row = await page.evaluate(() => {
+        const toggle = document.querySelector("[data-testid=all-champions-toolbar] [data-filter-toggle]");
+        const search = document.querySelector("[data-testid=all-champions-search]");
+        if (!toggle || !search) return { inRow: false };
+        const [t, s] = [toggle.getBoundingClientRect(), search.getBoundingClientRect()];
+        return { inRow: true, size: [Math.round(t.width), Math.round(t.height)], besideSearch: Math.abs(t.top + t.height / 2 - (s.top + s.height / 2)) <= 2, alone: document.querySelectorAll("[data-filter-toggle]").length };
+      });
+      pass("all-champions", "phone: Filters in the search and sort row, beside the search, 44px, and nowhere else", row.inRow && row.besideSearch && row.size[0] >= 44 && row.size[1] >= 44 && row.alone === 1, row);
+    }
   }
   pass("all-champions", `${kind}: no heading cut short`, facts.cut.length === 0, facts.cut);
   await axe(page, kind, "all-champions");
