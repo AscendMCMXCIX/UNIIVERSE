@@ -426,6 +426,14 @@ function CopyLink({ href }: { href: string }) {
 }
 
 /**
+ * A control of the pinned pair bar: 44px (2.75rem) at the usual text size, and in the bot lane's
+ * five a share of the bar where five of that size no longer fit (a phone at a large text size: 88px
+ * each at 200% would put both enemies off a 320 or 390px screen, R6 review BX3), never under 44px
+ * there (the bar's padding and gaps stop growing with the text). The portrait fills it, 2px in.
+ */
+const BAR_CONTROL = "grid aspect-square w-11 min-w-0 shrink place-items-center p-0.5";
+
+/**
  * On a phone, once the slots have scrolled away: a bar pinned to the top with the champions as
  * 40px portraits and the swap, so a champion is changed in two taps (its portrait, then the pick)
  * with no scroll back up. Hidden wherever the slots are in view, and on wider screens.
@@ -473,16 +481,16 @@ function PinnedPairBar({ lineup, choice, onOpen, onSwap, watch }: { lineup: Line
     const words = slotWords(lineup.role, slot);
     const mine = slot === "you" || slot === "ally";
     return (
-      <button key={slot} type="button" onClick={(e) => onOpen(slot, e.currentTarget)} aria-label={c ? `${words.label}: ${c.name}, change` : words.choose} className="grid h-11 w-11 place-items-center rounded-md" data-testid={`matchup-bar-${slot}`}>
-        {c ? <ChampionPortrait champion={portraitOf(c)} size="sm" className={cn("h-10 w-10 ring-2", mine ? "ring-blue/60" : "ring-red/60")} /> : <span className="grid h-10 w-10 place-items-center rounded-md border border-dashed border-border-strong text-fg-subtle"><Plus className="h-4 w-4" aria-hidden /></span>}
+      <button key={slot} type="button" onClick={(e) => onOpen(slot, e.currentTarget)} aria-label={c ? `${words.label}: ${c.name}, change` : words.choose} className={cn(BAR_CONTROL, "rounded-md")} data-testid={`matchup-bar-${slot}`}>
+        {c ? <ChampionPortrait champion={portraitOf(c)} size="sm" className={cn("h-full w-full ring-2", mine ? "ring-blue/60" : "ring-red/60")} /> : <span className="grid h-full w-full place-items-center rounded-md border border-dashed border-border-strong text-fg-subtle"><Plus className="h-4 w-4" aria-hidden /></span>}
       </button>
     );
   };
   return (
-    <div className={cn("fixed inset-x-0 top-0 z-30 border-b border-border bg-bg/95 px-4 py-1 backdrop-blur sm:hidden", shown ? "flex" : "hidden")} style={{ top }} data-testid="matchup-pair-bar" aria-label="Champions chosen, pinned" role="region">
-      <div className="mx-auto flex items-center gap-2">
+    <div className={cn("fixed inset-x-0 top-0 z-30 border-b border-border bg-bg/95 px-[min(1rem,16px)] py-1 backdrop-blur sm:hidden", shown ? "flex" : "hidden")} style={{ top }} data-testid="matchup-pair-bar" aria-label="Champions chosen, pinned" role="region">
+      <div className="flex w-full min-w-0 items-center justify-center gap-[min(0.5rem,8px)]">
         {slots[0]!.map(tile)}
-        <button type="button" onClick={onSwap} className="grid h-11 w-11 place-items-center rounded-full text-fg-muted" aria-label="Swap your side and the enemy's" data-testid="matchup-bar-swap">
+        <button type="button" onClick={onSwap} className={cn(BAR_CONTROL, "rounded-full text-fg-muted")} aria-label="Swap your side and the enemy's" data-testid="matchup-bar-swap">
           <ArrowLeftRight className="h-5 w-5" aria-hidden />
         </button>
         {slots[1]!.map(tile)}
@@ -634,11 +642,13 @@ export function MatchupFrame({
       <HasteContext.Provider value={hasteValue}>
         <div className="space-y-3">
           <section aria-label="Champions" className="@container/pickers">
-            {/* One row on a desktop (from a bar of 44rem): the title and the lane, the slots with the
-                swap, then the status, the haste and the remembered line at the far end. On a phone,
-                one under the other. */}
-            <div className={cn("grid gap-x-4 gap-y-1.5 @min-[44rem]/pickers:items-center", duo ? "@min-[44rem]/pickers:grid-cols-[minmax(0,44rem)_minmax(0,1fr)] @min-[72rem]/pickers:grid-cols-[auto_minmax(0,44rem)_minmax(0,1fr)]" : "@min-[44rem]/pickers:grid-cols-[minmax(0,34rem)_minmax(0,1fr)] @min-[60rem]/pickers:grid-cols-[auto_minmax(0,34rem)_minmax(0,1fr)]")}>
-              <div className={cn("flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 @min-[44rem]/pickers:col-span-2", duo ? "@min-[72rem]/pickers:col-span-1 @min-[72rem]/pickers:block @min-[72rem]/pickers:space-y-0.5" : "@min-[60rem]/pickers:col-span-1 @min-[60rem]/pickers:block @min-[60rem]/pickers:space-y-0.5")} data-testid="matchup-heading">
+            {/* From a bar of 44rem the title and the lane take a row, the slots and the status (the
+                patch, the remembered line) the row under it; one row from a bar of 68rem (1v1) or 72rem
+                (the bot lane), where the status keeps room for its lines (at 60rem, 1280 with the
+                sidebar open, it was 126px wide and three lines tall, which put the enemy's R off the
+                screen: R6 review BX5). On a phone, one under the other. */}
+            <div className={cn("grid gap-x-4 gap-y-1.5 @min-[44rem]/pickers:items-center", duo ? "@min-[44rem]/pickers:grid-cols-[minmax(0,44rem)_minmax(0,1fr)] @min-[72rem]/pickers:grid-cols-[auto_minmax(0,44rem)_minmax(0,1fr)]" : "@min-[44rem]/pickers:grid-cols-[minmax(0,34rem)_minmax(0,1fr)] @min-[68rem]/pickers:grid-cols-[auto_minmax(0,34rem)_minmax(0,1fr)]")}>
+              <div className={cn("flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 @min-[44rem]/pickers:col-span-2", duo ? "@min-[72rem]/pickers:col-span-1 @min-[72rem]/pickers:block @min-[72rem]/pickers:space-y-0.5" : "@min-[68rem]/pickers:col-span-1 @min-[68rem]/pickers:block @min-[68rem]/pickers:space-y-0.5")} data-testid="matchup-heading">
                 {/* The title with "Copy link" at its row's end; under them the lane, one row (a phone's full width). */}
                 <div className="flex min-w-0 items-center justify-between gap-2 max-sm:w-full">
                   {heading}

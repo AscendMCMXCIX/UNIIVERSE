@@ -95,7 +95,7 @@ Counted from the committed data on 19 Nov 2026 (Data Dragon 16.22.1, 173 champio
 
 On a desktop the page is one screen, read in a glance (`matchup-content.tsx`, `matchup-frame.tsx`):
 
-- **The bar**, one row from a bar 60rem wide: the title; your champion and the enemy as slots, each
+- **The bar**, one row from a bar 68rem wide (the bot lane's from 72rem; under that the title and the lane take a row of their own above the slots, as at 1280 and 1366 with the sidebar open, where a third column would leave the status 126–212px and three lines tall): the title; your champion and the enemy as slots, each
   a 36px portrait, "You" in blue or "Enemy" in red (always with the word) and the name, with the
   swap between them; at the far end the game's patch ("Patch 26.22"), where the abilities come from
   ("Riot Data Dragon 16.22.1"), which layer the pair shows ("Curated briefing · checked on patch

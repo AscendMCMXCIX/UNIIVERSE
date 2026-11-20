@@ -1245,3 +1245,30 @@ test("phone: once the slots scroll away, a pinned pair bar changes a champion in
   await expect(bar).toBeVisible();
   await expect(page.getByTestId("matchup-bar-enemy")).toBeFocused();
 });
+
+test("phone at 200% text: the bot lane's pinned pair bar keeps its five controls on the screen, each 44px or more and each answering a tap at its centre, at 390 and 320 wide", async ({ page }) => {
+  test.skip((page.viewportSize()?.width ?? 1000) >= 640, "a phone");
+  for (const width of [390, 320]) {
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto("/resources/matchups?role=adc&champion=Jinx&ally=Thresh&vs=Caitlyn&vs2=Leona");
+    await hydrated(page);
+    await page.addStyleTag({ content: "html { font-size: 200% !important; }" });
+    const bar = page.getByTestId("matchup-pair-bar");
+    await page.getByTestId("matchup-enemy-abilities").scrollIntoViewIfNeeded();
+    await expect(bar).toBeVisible();
+    const controls = await bar.evaluate((b) =>
+      [...b.querySelectorAll<HTMLElement>("button")].map((e) => {
+        const r = e.getBoundingClientRect();
+        return { id: e.dataset.testid, left: r.left, right: r.right, width: r.width, height: r.height, answers: document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)?.closest("button") === e };
+      }),
+    );
+    expect(controls.map((c) => c.id), `${width}px`).toEqual(["matchup-bar-you", "matchup-bar-ally", "matchup-bar-swap", "matchup-bar-enemy", "matchup-bar-enemy2"]);
+    for (const c of controls) {
+      const at = `${width}px at 200%: ${c.id}`;
+      expect(c.left, at).toBeGreaterThanOrEqual(0);
+      expect(c.right, at).toBeLessThanOrEqual(width);
+      expect(Math.min(c.width, c.height), at).toBeGreaterThanOrEqual(44);
+      expect(c.answers, `${at} answers a tap at its centre`).toBe(true);
+    }
+  }
+});
