@@ -645,7 +645,11 @@ curated note or a recommendation. Nothing is inferred beyond what the games reco
     false) is never counted for anyone else. A viewer without the capability gets no team counts.
 - **The games:** Summoner's Rift queues (Normal Draft, Solo/Duo, Blind, Flex, Swiftplay, Quickplay,
   Clash), your champion in the chosen lane, matching **every chosen slot**; the empty ones are named
-  under the lines ("These counts ignore the empty slot: the enemy").
+  under the lines ("These counts ignore the empty slots: the allied support, the enemy support").
+  A remake (under 5 minutes, as Matchups counts one) or a game without a known result is never
+  counted. Archived profiles are not in the team's games, and making a profile personal-use or
+  archiving it counts the team again at once; a permanent erasure deletes the evidence rows of the
+  games it de-identifies (prep-backfill makes them again from the de-identified records).
 - **"Against X"** uses the confirmed-opponent rule (`confirmedOpponent`, `src/domain/matchup-intel/prep.ts`,
   mi-evidence §2.1): Riot's `teamPosition` names the lane for both players, every team's five team
   positions differ, and `individualPosition` agrees for both. Anything else is "role unclear" and is
@@ -660,7 +664,8 @@ curated note or a recommendation. Nothing is inferred beyond what the games reco
     less than 30 s apart after it), the first three completed items (building into nothing, from
     components, at least 1,000 gold, not boots, consumables or trinkets; left out of a game where any
     item bought is unknown to Data Dragon's facts, never skipped over), the first three skill points
-    and the max order: each with its one or two most counted values, "Flash + Ignite in 6, Flash +
+    and the skills to reach five points, in the order they did (a skill short of five is never
+    called maxed: some champions' skills take six): each with its one or two most counted values, "Flash + Ignite in 6, Flash +
     Teleport in 3", then "of 9 games · patch 26.22 · Normal Draft 6, Solo/Duo 3";
   - **Jungle**, with the enemy jungler chosen: the dragons, voidgrubs and heralds taken before 15:00,
     "7 of 12 to Lee Sin's team", from the stored objectives;
@@ -674,8 +679,9 @@ curated note or a recommendation. Nothing is inferred beyond what the games reco
     15:10, median 13:20"), never one minute; under it, "Not measured yet". Never for the jungle: the
     stored events do not say when an objective was contested.
 - **Patches:** the current patch. The previous patch is added to a line only where the per-version
-  diff shows no change in Riot's data for the champion and everything the line names (its items or
-  runes), and the line says so; never more than two. Data Dragon cannot show a change Riot made
+  diff shows no change in Riot's data for every chosen champion and everything the line names (its
+  items or runes), and only when games on it are counted; the line says so; never more than two. The
+  tier's n is the record's: the games every chosen slot matches, on the patches the record counts. Data Dragon cannot show a change Riot made
   without changing its data.
 - **Queues:** every line names the queues its games come from.
 - **"Matchup uncertain":** a pair with no curated notes and no counted line says so, and each
@@ -725,6 +731,10 @@ and finds none.
   digests' counts; `changedCounts` (`digests.ts`) gives them for a later stage.
 - **The Production check** reads the tiers (below), not that the page's Data Dragon patch equals
   `/api/health`'s.
+- **On a phone** the evidence sits in the tips' fold below the kits, not on the first screen.
+- **Items sold** in the first minute stay in the starting set (`sold` is not read), and whether Riot
+  reports a support item's quest upgrade as a purchase (which would show in the first shop visit) is
+  not verified on a real timeline.
 
 ## Where it is
 

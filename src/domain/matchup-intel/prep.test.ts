@@ -96,9 +96,11 @@ describe("the pieces", () => {
     expect(isCompletedItem(undefined)).toBe(false);
   });
 
-  it("gives the max order only once a skill is maxed", () => {
+  it("names only the skills that reached five points, in the order they did", () => {
     expect(skillOrder([1, 2, 3, 1, 1])).toEqual({ skills: "QWE" });
-    expect(skillOrder([3, 1, 2, 3, 3, 4, 3, 3, 2, 2])).toEqual({ skills: "EQW", max: "EWQ" });
+    expect(skillOrder([3, 1, 2, 3, 3, 4, 3, 3, 2, 2])).toEqual({ skills: "EQW", max: "E" });
+    // A skill with six ranks (Jayce's Q) at five is "five points", never more is claimed.
+    expect(skillOrder([1, 2, 3, 1, 1, 1, 1])).toEqual({ skills: "QWE", max: "Q" });
     expect(skillOrder([1, 2])).toEqual({});
   });
 

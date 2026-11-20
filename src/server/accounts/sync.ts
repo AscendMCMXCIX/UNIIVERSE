@@ -1,4 +1,5 @@
 import { matchesWithoutDetails, storeMatchDetail, storeMatchUnavailable } from "./match-details";
+import { refreshMatchPrep } from "@/server/matchup-intel/prep-store";
 import { errorLabel } from "@/server/errors";
 import { summariseMatches } from "./match-summary";
 import { and, desc, eq, inArray, isNotNull, isNull, like, ne, sql } from "drizzle-orm";
@@ -824,6 +825,8 @@ async function foldGame(db: Db, account: RiotAccountRecord & { puuid: string }, 
   // The record was stored before this game's row existed: copy its figures now, once, for every
   // linked account's row of the game (another account's row may have waited for the record too).
   if (riotMatch || folded) await summariseMatches(db, { matchIds: [matchId], maxBatches: 1 });
+  // Matchup Intel's evidence rows of the new game, from its record (its timeline adds the rest when stored). Never fails the sync.
+  if (folded) await refreshMatchPrep(db, [matchId]);
   return folded ? "folded" : "skipped";
 }
 

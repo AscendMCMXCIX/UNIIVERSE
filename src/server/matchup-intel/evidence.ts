@@ -15,6 +15,7 @@ import {
   fieldLine,
   laneEndLine,
   objectivesLine,
+  recordCount,
   recordLine,
   scopeTier,
   type CountRow,
@@ -28,7 +29,6 @@ import {
   type MatchupEvidence,
 } from "@/domain/matchup-intel/evidence";
 import { PREP_FORMAT, type PrepLane } from "@/domain/matchup-intel/prep";
-import { slotWords } from "@/components/matchup-intel/slots";
 import { EVIDENCE_CACHE, RIFT_QUEUES } from "./prep-store";
 import { unchangedKeys } from "./digests";
 
@@ -46,6 +46,8 @@ import { unchangedKeys } from "./digests";
 
 const ROLE_LANE: Record<Role, PrepLane> = { top: "TOP", jungle: "JUNGLE", mid: "MIDDLE", adc: "BOTTOM", support: "UTILITY" };
 const CACHE_MS = 60 * 60_000;
+/** Shorter games are remakes, as Matchups and the timeline backfill count them (MIN_LANE_GAME_SECONDS). */
+const MIN_GAME_SECONDS = 300;
 const queueList = sql.raw(RIFT_QUEUES.join(", "));
 const rowsOf = <T,>(result: unknown): T[] => ((result as { rows?: T[] }).rows ?? (result as T[])) as T[];
 
@@ -76,6 +78,8 @@ async function countEvidence(db: Db, scope: EvidenceScope, viewer: string | null
         WHERE ${playersOf(scope, viewer)} AND p.format = ${PREP_FORMAT}
           AND am.champion_id = ${f.champion} AND p.prep->>'lane' = ${f.lane}
           AND am.patch IN (${sql.join(patches.map((x) => sql`${x}`), sql`, `)}) AND am.queue_id IN (${queueList})
+          -- A game counts as Matchups counts one: a result known, and not a remake (MIN_LANE_GAME_SECONDS, 5 minutes).
+          AND am.win IS NOT NULL AND am.game_duration >= ${MIN_GAME_SECONDS}
           ${slot("vs")}${slot("ally")}${slot("vs2")}
       )
       SELECT 'games' AS dim, patch, queue, NULL AS value, count(*) AS n, count(*) FILTER (WHERE win) AS won, 0 AS total FROM g GROUP BY patch, queue
@@ -84,17 +88,17 @@ async function countEvidence(db: Db, scope: EvidenceScope, viewer: string | null
         FROM g CROSS JOIN LATERAL (VALUES ('runes', g.prep->>'runes'), ('spells', g.prep->>'spells'), ('start', g.prep->>'start'), ('back', g.prep->>'back'), ('items', g.prep->>'items'), ('skills', g.prep->>'skills'), ('max', g.prep->>'max'), ('rule', g.prep->>'rule')) AS x(dim, value)
         WHERE x.value IS NOT NULL GROUP BY x.dim, g.patch, g.queue, x.value
       UNION ALL
-      SELECT 'obj', patch, 0, NULL, count(*), sum((prep->'obj'->>'taken')::int), sum((prep->'obj'->>'total')::int) FROM g WHERE prep ? 'obj' GROUP BY patch
+      SELECT 'obj', patch, queue, NULL, count(*), sum((prep->'obj'->>'taken')::int), sum((prep->'obj'->>'total')::int) FROM g WHERE prep ? 'obj' GROUP BY patch, queue
       UNION ALL
-      SELECT 'end', patch, 0, prep->>'end', count(*), 0, 0 FROM g WHERE prep ? 'end' GROUP BY patch, prep->>'end'`),
+      SELECT 'end', patch, queue, prep->>'end', count(*), 0, 0 FROM g WHERE prep ? 'end' GROUP BY patch, queue, prep->>'end'`),
   );
   const out: EvidenceCounts & { position: number } = { games: [], fields: {}, objectives: [], ends: [], position: 0 };
   for (const r of rows) {
     const n = Number(r.n);
     const queue = Number(r.queue);
     if (r.dim === "games") out.games.push({ patch: r.patch, queue, n, won: Number(r.won) });
-    else if (r.dim === "obj") out.objectives.push({ patch: r.patch, games: n, taken: Number(r.won), total: Number(r.total) });
-    else if (r.dim === "end") for (let i = 0; i < n; i++) out.ends.push({ patch: r.patch, end: Number(r.value) });
+    else if (r.dim === "obj") out.objectives.push({ patch: r.patch, queue, games: n, taken: Number(r.won), total: Number(r.total) });
+    else if (r.dim === "end") for (let i = 0; i < n; i++) out.ends.push({ patch: r.patch, queue, end: Number(r.value) });
     else if (r.dim === "rule") {
       if (r.value === "position") out.position += n;
     } else if ((EVIDENCE_FIELDS as readonly string[]).includes(r.dim) && r.value !== null) {
@@ -139,7 +143,12 @@ export async function loadMatchupEvidence(db: Db, session: Session | null, input
   const previous = previousOf(current.patch, known);
   const patches = previous ? [current.patch, previous] : [current.patch];
   const filters: Filters = { lane: ROLE_LANE[role], champion: you.id, ...(enemy ? { vs: enemy.id } : {}), ...(duo && ally ? { ally: ally.id } : {}), ...(duo && enemy2 ? { vs2: enemy2.id } : {}) };
-  const ignored = (duo ? (["enemy", "ally", "enemy2"] as const) : (["enemy"] as const)).filter((s) => !input[s]).map((s) => lowerFirst(slotWords(role, s).picker));
+  // The empty slots by what they hold, never "your" (the evidence's words: EVIDENCE_REFUSED_WORDS).
+  const mine = role === "support" ? "support" : "ADC";
+  const partner = role === "support" ? "ADC" : "support";
+  const slotName = { enemy: duo ? `the enemy ${mine}` : "the enemy", ally: `the allied ${partner}`, enemy2: `the enemy ${partner}` } as const;
+  const ignored = (duo ? (["enemy", "ally", "enemy2"] as const) : (["enemy"] as const)).filter((s) => !input[s]).map((s) => slotName[s]);
+  const chosenIds = [you.id, ally?.id, enemy?.id, enemy2?.id].filter((x): x is string => !!x);
 
   // The per-version diff, read once for everything the lines may name.
   const assets = await loadRiotAssets(db).catch(() => null);
@@ -164,17 +173,17 @@ export async function loadMatchupEvidence(db: Db, session: Session | null, input
     }
     const counts = await cachedCounts(db, scope, session.playerId, filters, patches);
     const window: PatchWindow = { current: current.patch, previous, unchanged: () => false };
-    const unchanged = previous ? await unchangedSets(db, current.patch, previous, counts, [you.id, ally?.id, enemy?.id, enemy2?.id].filter((x): x is string => !!x)) : null;
+    const unchanged = previous ? await unchangedSets(db, current.patch, previous, counts, chosenIds) : null;
     if (unchanged) window.unchanged = unchanged;
     const lines: EvidenceLine[] = [];
-    const record = recordLine("record", enemy ? `${you.name} against ${enemy.name}${duo && enemy2 ? ` and ${enemy2.name}` : ""}${duo && ally ? `, with ${ally.name}` : ""}` : `${you.name} as ${roleName(role)}${duo && ally ? `, with ${ally.name}` : ""}`, counts, window, [you.id]);
+    const record = recordLine("record", enemy ? `${you.name} against ${enemy.name}${duo && enemy2 ? ` and ${enemy2.name}` : ""}${duo && ally ? `, with ${ally.name}` : ""}` : `${you.name} as ${roleName(role)}${duo && ally ? `, with ${ally.name}` : ""}`, counts, window, chosenIds);
     if (record) lines.push(record);
     for (const field of EVIDENCE_FIELDS) {
-      const line = fieldLine(field, counts, window, you.id, names);
+      const line = fieldLine(field, counts, window, chosenIds, names);
       if (line) lines.push(line);
     }
     if (role === "jungle" && enemy) {
-      const obj = objectivesLine(counts, window, you.id, names);
+      const obj = objectivesLine(counts, window, chosenIds, names);
       if (obj) lines.push(obj);
     }
     // The bot lane, pairwise: the record with the ally, and against each enemy, each counted on its own.
@@ -202,15 +211,16 @@ export async function loadMatchupEvidence(db: Db, session: Session | null, input
         if (ally && enemy && enemy2 && !record && pairs) lines.push({ key: "four", label: "This 2v2", values: `too few games: fewer than ${MIN_GAMES} on patch ${publicPatchName(current.patch)}`, sample: "" });
       }
     }
-    lines.push(laneEndLine(counts, window, you.id, role === "jungle"));
-    const n = counts.games.filter((g) => g.patch === current.patch).reduce((a, g) => a + g.n, 0);
+    lines.push(laneEndLine(counts, window, chosenIds, role === "jungle"));
+    // The tier's n is the record's: the games every chosen slot matches, on the patches it counts.
+    const { n, patches: countedOn } = recordCount(counts, window, chosenIds);
     const counted = lines.filter((l) => l.key !== "end");
     sections.push({
       scope,
       tier: scopeTier(scope, n),
       n,
       lines: counted.length ? lines : [],
-      empty: counted.length ? null : fewGamesWords(scope, n, what, [current.patch]),
+      empty: counted.length ? null : fewGamesWords(scope, n, what, countedOn),
       positionNote: counts.position ? "Some of these games were stored before Riot's two position readings were kept: their lane opponent is by Riot's position." : null,
     });
   }
@@ -226,4 +236,3 @@ async function unchangedSets(db: Db, current: string, previous: string, counts: 
 }
 
 const roleName = (role: Role) => ({ top: "Top", jungle: "Jungle", mid: "Mid", adc: "ADC", support: "Support" })[role];
-const lowerFirst = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);

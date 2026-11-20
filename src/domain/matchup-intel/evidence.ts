@@ -1,4 +1,5 @@
 import { publicPatchName } from "@/domain/patch";
+import { formatCount } from "@/lib/format";
 import { parseRunePage } from "./prep";
 
 /*
@@ -25,7 +26,7 @@ const FIELD_LABEL: Record<EvidenceField, string> = {
   back: "First shop visit",
   items: "First completed items",
   skills: "First three skill points",
-  max: "Skill max order",
+  max: "First skills to five points",
 };
 
 /** Riot's queue names, as the page writes them. */
@@ -45,10 +46,10 @@ export interface EvidenceCounts {
   games: Array<{ patch: string; queue: number; n: number; won: number }>;
   /** Each field's values, by patch and queue. */
   fields: Partial<Record<EvidenceField, CountRow[]>>;
-  /** A jungler's early objectives, by patch: games with them, taken by the champion's team, taken by both. */
-  objectives: Array<{ patch: string; games: number; taken: number; total: number }>;
-  /** Measured lane ends (ms), by patch. */
-  ends: Array<{ patch: string; end: number }>;
+  /** A jungler's early objectives, by patch and queue: games with them, taken by the champion's team, taken by both. */
+  objectives: Array<{ patch: string; queue: number; games: number; taken: number; total: number }>;
+  /** Measured lane ends (ms), by patch and queue. */
+  ends: Array<{ patch: string; queue: number; end: number }>;
 }
 
 /** Names for what a line shows: champions, items, spells and runes (Data Dragon's), with a fallback for an unknown number. */
@@ -87,7 +88,7 @@ export function queueSplit(rows: ReadonlyArray<{ queue: number; n: number }>): s
   for (const r of rows) by.set(r.queue, (by.get(r.queue) ?? 0) + r.n);
   return [...by.entries()]
     .sort((a, b) => b[1] - a[1] || a[0] - b[0])
-    .map(([q, n]) => `${QUEUE_NAMES[q] ?? `Queue ${q}`} ${n}`)
+    .map(([q, n]) => `${QUEUE_NAMES[q] ?? `Queue ${q}`} ${formatCount(n)}`)
     .join(", ");
 }
 
@@ -99,7 +100,7 @@ export function patchWords(patches: readonly string[]): string {
 
 /** The sample after a line: "of 9 games · patch 26.22 · Solo/Duo 3, Normal Draft 6" (or "9 games …" for a record). */
 export function sampleWords(n: number, patches: readonly string[], queues: ReadonlyArray<{ queue: number; n: number }>, of = true): string {
-  return `${of ? "of " : ""}${n} ${n === 1 ? "game" : "games"} · ${patchWords(patches)} · ${queueSplit(queues)}`;
+  return `${of ? "of " : ""}${formatCount(n)} ${n === 1 ? "game" : "games"} · ${patchWords(patches)} · ${queueSplit(queues)}`;
 }
 
 /** The items, spells or runes a value names, for the per-version diff. */
@@ -140,11 +141,17 @@ export function valueWords(field: EvidenceField, value: string, names: EvidenceN
   }
 }
 
-/** The patches a field's line counts, given its top values: the previous patch only where the champion and everything those values name are unchanged. */
-function patchesFor(window: PatchWindow, champion: string, named: ReadonlyArray<{ kind: "item" | "rune"; key: string }>): string[] {
-  if (!window.previous) return [window.current];
-  return window.unchanged([{ kind: "champion", key: champion }, ...named]) ? [window.current, window.previous] : [window.current];
+/**
+ * The patches a line counts: the previous patch only where every chosen champion and everything the
+ * line names are unchanged in Riot's data, and only when games on it are counted (`onPrevious`), so
+ * a line never names a patch that added nothing.
+ */
+export function patchesFor(window: PatchWindow, champions: readonly string[], named: ReadonlyArray<{ kind: "item" | "rune"; key: string }>, onPrevious: number): string[] {
+  if (!window.previous || onPrevious <= 0) return [window.current];
+  return window.unchanged([...champions.map((c) => ({ kind: "champion" as const, key: c })), ...named]) ? [window.current, window.previous] : [window.current];
 }
+
+const onPatch = (rows: ReadonlyArray<{ patch: string; n?: number; games?: number }>, patch: string | null) => sum(rows.filter((r) => r.patch === patch).map((r) => r.n ?? r.games ?? 1));
 
 /** The most counted values of a field (at most two), over the given patches. */
 function topValues(rows: readonly CountRow[], patches: readonly string[]): { n: number; top: Array<{ value: string; n: number }>; queues: Array<{ queue: number; n: number }> } {
@@ -161,40 +168,45 @@ function topValues(rows: readonly CountRow[], patches: readonly string[]): { n: 
 const PREVIOUS_NOTE = "The previous patch is counted too: Riot's data shows no change between the two patches for the champion or what this line names.";
 
 /** One field's line: its one or two most counted values, "in k" each, of its n; null under MIN_GAMES. */
-export function fieldLine(field: EvidenceField, counts: EvidenceCounts, window: PatchWindow, champion: string, names: EvidenceNames): EvidenceLine | null {
+export function fieldLine(field: EvidenceField, counts: EvidenceCounts, window: PatchWindow, champions: readonly string[], names: EvidenceNames): EvidenceLine | null {
   const rows = counts.fields[field] ?? [];
   // The top values on the current patch decide what the line names, and so whether the previous patch may join.
   const current = topValues(rows, [window.current]);
   const pooled = window.previous ? topValues(rows, [window.current, window.previous]) : current;
   const named = pooled.top.flatMap((t) => namedBy(field, t.value));
-  const patches = patchesFor(window, champion, named);
+  const patches = patchesFor(window, champions, named, onPatch(rows, window.previous));
   const use = patches.length > 1 ? pooled : current;
   if (use.n < MIN_GAMES || !use.top.length) return null;
-  const values = use.top.map((t) => `${valueWords(field, t.value, names)} in ${t.n}`).join(", ");
+  const values = use.top.map((t) => `${valueWords(field, t.value, names)} in ${formatCount(t.n)}`).join(", ");
   return { key: field, label: FIELD_LABEL[field], values, sample: sampleWords(use.n, patches, use.queues), ...(patches.length > 1 ? { note: PREVIOUS_NOTE } : {}) };
 }
 
 /** The record of a set of games: "9 games, 5 won · patch 26.22 · Solo/Duo 3, Normal Draft 6"; null under MIN_GAMES. */
 export function recordLine(key: string, label: string, counts: EvidenceCounts, window: PatchWindow, champions: readonly string[]): EvidenceLine | null {
-  const patches = window.previous && window.unchanged(champions.map((c) => ({ kind: "champion" as const, key: c }))) ? [window.current, window.previous] : [window.current];
-  const games = counts.games.filter((g) => patches.includes(g.patch));
-  const n = sum(games.map((g) => g.n));
+  const { patches, n } = recordCount(counts, window, champions);
   if (n < MIN_GAMES) return null;
+  const games = counts.games.filter((g) => patches.includes(g.patch));
   const won = sum(games.map((g) => g.won));
-  return { key, label, values: `${n} games, ${won} won`, sample: `${patchWords(patches)} · ${queueSplit(games)}`, ...(patches.length > 1 ? { note: PREVIOUS_NOTE } : {}) };
+  return { key, label, values: `${formatCount(n)} ${n === 1 ? "game" : "games"}, ${formatCount(won)} won`, sample: `${patchWords(patches)} · ${queueSplit(games)}`, ...(patches.length > 1 ? { note: PREVIOUS_NOTE } : {}) };
 }
 
-/** A jungler's early objectives: "7 of 12 to Lee Sin's team" over the games; null under MIN_GAMES. */
-export function objectivesLine(counts: EvidenceCounts, window: PatchWindow, champion: string, names: EvidenceNames): EvidenceLine | null {
-  const patches = patchesFor(window, champion, []);
+/** The games a set counts and the patches they are on (the record's, which the section's tier states). */
+export function recordCount(counts: EvidenceCounts, window: PatchWindow, champions: readonly string[]): { patches: string[]; n: number } {
+  const patches = patchesFor(window, champions, [], onPatch(counts.games, window.previous));
+  return { patches, n: sum(counts.games.filter((g) => patches.includes(g.patch)).map((g) => g.n)) };
+}
+
+/** A jungler's early objectives: "7 of 12 to Lee Sin's team" over the games that have them; null under MIN_GAMES. */
+export function objectivesLine(counts: EvidenceCounts, window: PatchWindow, champions: readonly string[], names: EvidenceNames): EvidenceLine | null {
+  const patches = patchesFor(window, champions, [], onPatch(counts.objectives, window.previous));
   const kept = counts.objectives.filter((o) => patches.includes(o.patch));
   const games = sum(kept.map((o) => o.games));
   if (games < MIN_GAMES) return null;
-  const queues = counts.games.filter((g) => patches.includes(g.patch));
+  const queues = kept.map((o) => ({ queue: o.queue, n: o.games }));
   return {
     key: "objectives",
     label: "Dragons, voidgrubs and heralds before 15:00",
-    values: `${sum(kept.map((o) => o.taken))} of ${sum(kept.map((o) => o.total))} to ${names.champion(champion)}'s team`,
+    values: `${formatCount(sum(kept.map((o) => o.taken)))} of ${formatCount(sum(kept.map((o) => o.total)))} to ${names.champion(champions[0]!)}'s team`,
     sample: sampleWords(games, patches, queues, false),
     ...(patches.length > 1 ? { note: PREVIOUS_NOTE } : {}),
   };
@@ -218,33 +230,31 @@ function quantile(sorted: readonly number[], q: number): number {
  * The lane's end as a distribution: the middle half of the measured ends and their median, from
  * MIN_LANE_ENDS on; under it, "Not measured yet" with how many are measured. Never one minute alone.
  */
-export function laneEndLine(counts: EvidenceCounts, window: PatchWindow, champion: string, jungle: boolean): EvidenceLine {
+export function laneEndLine(counts: EvidenceCounts, window: PatchWindow, champions: readonly string[], jungle: boolean): EvidenceLine {
   const label = "Lane end";
   if (jungle) return { key: "end", label, values: "Not measured: the stored events do not say when an objective was contested", sample: "" };
-  const patches = patchesFor(window, champion, []);
-  const ends = counts.ends
-    .filter((e) => patches.includes(e.patch))
-    .map((e) => e.end)
-    .sort((a, b) => a - b);
-  if (ends.length < MIN_LANE_ENDS) return { key: "end", label, values: `Not measured yet: ${ends.length} of the ${MIN_LANE_ENDS} games needed have positions`, sample: "" };
+  const patches = patchesFor(window, champions, [], counts.ends.filter((e) => e.patch === window.previous).length);
+  const kept = counts.ends.filter((e) => patches.includes(e.patch));
+  const ends = kept.map((e) => e.end).sort((a, b) => a - b);
+  if (ends.length < MIN_LANE_ENDS) return { key: "end", label, values: `Not measured yet: ${formatCount(ends.length)} of the ${MIN_LANE_ENDS} games needed have positions`, sample: "" };
   return {
     key: "end",
     label,
     values: `the middle half between ${clock(quantile(ends, 0.25))} and ${clock(quantile(ends, 0.75))}, median ${clock(quantile(ends, 0.5))}`,
-    sample: `n = ${ends.length} · ${patchWords(patches)}`,
+    sample: `n = ${formatCount(ends.length)} · ${patchWords(patches)} · ${queueSplit(kept.map((e) => ({ queue: e.queue, n: 1 })))}`,
     note: "The earlier of the lane's outer turret falling and either player leaving the lane for two frames in a row (trips to base excluded).",
   };
 }
 
 /** The tier a section of evidence states. */
 export function scopeTier(scope: "own" | "team", n: number): string {
-  return scope === "own" ? `In your games (n = ${n})` : `In the team's games (n = ${n})`;
+  return scope === "own" ? `In your games (n = ${formatCount(n)})` : `In the team's games (n = ${formatCount(n)})`;
 }
 
 /** The honest line of a section with no counted line: how few games there are, and where ("In your games: 2 as Riven against Darius on patch 26.22, fewer than the 3 a line needs."). */
 export function fewGamesWords(scope: "own" | "team", n: number, what: string, patches: readonly string[]): string {
   const whose = scope === "own" ? "In your games" : "In the team's games";
-  return n === 0 ? `${whose}: none as ${what} on ${patchWords(patches)}.` : `${whose}: ${n} as ${what} on ${patchWords(patches)}, fewer than the ${MIN_GAMES} a line needs.`;
+  return n === 0 ? `${whose}: none as ${what} on ${patchWords(patches)}.` : `${whose}: ${formatCount(n)} as ${what} on ${patchWords(patches)}, fewer than the ${MIN_GAMES} a line needs.`;
 }
 
 export type EvidenceScope = "own" | "team";

@@ -219,17 +219,33 @@ describe("the evidence's read path", () => {
     await db.insert(staticDigests).values([
       { patch: CURRENT, kind: "champion", key: "Riven", hash: "a" },
       { patch: PREVIOUS, kind: "champion", key: "Riven", hash: "a" },
+      { patch: CURRENT, kind: "champion", key: "Darius", hash: "d" },
+      { patch: PREVIOUS, kind: "champion", key: "Darius", hash: "d" },
     ]);
     expect(await unchangedBetween(db, CURRENT, PREVIOUS, [{ kind: "champion", key: "Riven" }])).toBe(true);
     const own = (await evidence(session("viewer")))!.sections.find((s) => s.scope === "own")!;
     expect(own.lines.find((l) => l.key === "record")).toMatchObject({ values: "6 games, 5 won", sample: "patches 26.22 and 26.21 · Solo/Duo 5, Normal Draft 1" });
+    // The tier states the record's n, the previous patch's games included.
+    expect(own.tier).toBe("In your games (n = 6)");
     // The rune page names runes the diff has no record of: current patch only.
     expect(own.lines.find((l) => l.key === "runes")?.sample).toBe("of 4 games · patch 26.22 · Solo/Duo 3, Normal Draft 1");
-    await db.update(staticDigests).set({ hash: "b" }).where(eq(staticDigests.patch, PREVIOUS));
+    // The enemy changed, the viewer's champion did not: the record names the enemy, so current patch only.
+    await db.update(staticDigests).set({ hash: "b" }).where(sql`${staticDigests.patch} = ${PREVIOUS} AND ${staticDigests.key} = 'Darius'`);
     invalidateAllCaches();
     const changed = (await evidence(session("viewer")))!.sections.find((s) => s.scope === "own")!;
     expect(changed.lines.find((l) => l.key === "record")?.sample).toBe("patch 26.22 · Solo/Duo 3, Normal Draft 1");
     await db.delete(staticDigests);
+  });
+
+  it("never counts a remake or a game without a known result", async () => {
+    const remake = await game("viewer", "Riven", "Darius");
+    await db.update(accountMatches).set({ gameDuration: 200 }).where(eq(accountMatches.matchId, remake));
+    const unknown = await game("viewer", "Riven", "Darius");
+    await db.update(accountMatches).set({ win: null }).where(eq(accountMatches.matchId, unknown));
+    await backfillMatchPrep(db);
+    invalidateAllCaches();
+    const own = (await evidence(session("viewer")))!.sections.find((s) => s.scope === "own")!;
+    expect(own.lines.find((l) => l.key === "record")?.values).toBe("4 games, 3 won");
   });
 
   it("counts the team's games of members the viewer may see, never a personal-use profile's", async () => {

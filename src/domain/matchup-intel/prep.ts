@@ -55,7 +55,7 @@ export interface MatchPrep {
   items?: string;
   /** The first three skill points ("QEW"). */
   skills?: string;
-  /** The order Q, W and E reached five points ("QEW"); a skill not maxed comes after, by points. */
+  /** The skills (Q, W, E) that reached five points, in the order they did ("QE"); absent when none did. */
   max?: string;
   /** A jungler's team: dragons, voidgrubs and heralds it took before 15:00, of all taken by both teams then. */
   obj?: { taken: number; total: number };
@@ -169,7 +169,7 @@ export function isCompletedItem(info: PrepItemInfo | undefined): boolean {
   return !info.tags.some((t) => t === "Boots" || t === "Consumable" || t === "Trinket");
 }
 
-/** The first three skill points and the max order, from the levelled slots in order (1 Q … 4 R). */
+/** The first three skill points and the skills to reach five points in order, from the levelled slots in order (1 Q … 4 R). */
 export function skillOrder(skills: readonly number[]): { skills?: string; max?: string } {
   const basic = skills.filter((s) => s >= 1 && s <= 4);
   if (basic.length < 3) return {};
@@ -180,9 +180,11 @@ export function skillOrder(skills: readonly number[]): { skills?: string; max?: 
     points[s]! += 1;
     if (s <= 3 && points[s] === 5 && maxedAt[s] === undefined) maxedAt[s] = i;
   });
-  const firstAt = (s: number) => basic.indexOf(s);
-  const order = [1, 2, 3].sort((a, b) => (maxedAt[a] ?? Infinity) - (maxedAt[b] ?? Infinity) || points[b]! - points[a]! || (firstAt(a) < 0 ? Infinity : firstAt(a)) - (firstAt(b) < 0 ? Infinity : firstAt(b)));
-  // A max order needs at least one skill maxed: before that, the order is only the first points.
+  // Only the skills that reached five points, in the order they did: a skill short of five is not
+  // called maxed (some champions' skills take six), and the order says no more than the game shows.
+  const order = Object.keys(maxedAt)
+    .map(Number)
+    .sort((a, b) => maxedAt[a]! - maxedAt[b]!);
   return { skills: first, ...(Object.keys(maxedAt).length ? { max: order.map((s) => SKILL[s]).join("") } : {}) };
 }
 

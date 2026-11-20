@@ -31,9 +31,9 @@ function summaryOf(s: EvidenceSection): string {
 
 function Section({ section }: { section: EvidenceSection }) {
   return (
-    <section className="space-y-0.5" data-testid={`evidence-${section.scope}`} aria-label={section.tier ?? (section.scope === "own" ? "In your games" : "In the team's games")}>
+    <div className="space-y-0.5" data-testid={`evidence-${section.scope}`}>
       {/* With nothing counted, the one honest line names the scope itself. */}
-      {section.tier && section.lines.length ? <h3 className="text-xs font-semibold text-fg">{section.tier}</h3> : null}
+      {section.tier && section.lines.length ? <p className="text-xs font-semibold text-fg">{section.tier}</p> : null}
       {section.lines.length ? (
         <ul className="space-y-0.5">
           {section.lines.map((l) => (
@@ -43,7 +43,7 @@ function Section({ section }: { section: EvidenceSection }) {
                 <>
                   {" "}
                   <span className="text-fg-subtle" data-testid="evidence-sample">
-                    {l.key === "record" || l.key.startsWith("with-") || l.key.startsWith("vs-") ? "· " : ""}
+                    {l.sample.startsWith("of ") ? "" : "· "}
                     {l.sample}
                   </span>
                 </>
@@ -59,13 +59,13 @@ function Section({ section }: { section: EvidenceSection }) {
         </p>
       ) : null}
       {section.positionNote ? <p className="text-2xs text-fg-subtle">{section.positionNote}</p> : null}
-    </section>
+    </div>
   );
 }
 
 /** The evidence's words in the fold's line: its tiers with their n, or why a scope is not counted. */
 export function EvidenceSummary({ evidence }: { evidence: MatchupEvidence | null }) {
-  const summary = evidence?.sections.length ? evidence.sections.map(summaryOf).join(" · ") : "Counted once your champion is chosen";
+  const summary = evidence?.sections.length ? evidence.sections.map(summaryOf).join(" · ") : evidence ? "Not counted: no current patch is known yet" : "Counted once the first slot holds a champion";
   return (
     // Its own line in the fold's line, in small type, so the fold stays two lines at 1440 × 900.
     <span className="basis-full text-2xs text-fg-subtle" data-testid="matchup-evidence-summary">
@@ -84,10 +84,10 @@ export function EvidenceBody({ evidence, duo, pair }: { evidence: MatchupEvidenc
   const uncertain = pair.chosen && !pair.curated && !counted;
   return (
     <div className="space-y-2 border-t border-border pt-1.5" data-testid="matchup-evidence-panel">
-      <h3 className="flex items-center gap-1.5 text-xs font-semibold text-fg">
+      <p className="flex items-center gap-1.5 text-xs font-semibold text-fg">
         <Sigma className="h-3.5 w-3.5 text-fg-subtle" aria-hidden />
         Evidence from stored games
-      </h3>
+      </p>
       {uncertain ? (
         <p className="text-xs text-fg" data-testid="matchup-uncertain">
           {UNCERTAIN}
