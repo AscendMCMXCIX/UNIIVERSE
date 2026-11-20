@@ -170,7 +170,8 @@ export function useHeld(el: React.RefObject<HTMLElement | null>, wanted: boolean
   const onBlur = React.useCallback(
     (e: React.FocusEvent) => {
       const next = e.relatedTarget as Element | null;
-      if (el.current?.contains(next) || next?.closest?.("dialog")) return;
+      // Into the window or the popover its Filters opened (popover.tsx): still in use.
+      if (el.current?.contains(next) || next?.closest?.("dialog, [data-popover]")) return;
       setHeld(false);
     },
     [el],
