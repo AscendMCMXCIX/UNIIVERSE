@@ -147,7 +147,7 @@ export default async function PrivacyPage() {
   return (
     // From lg the card widens beside a sticky table of contents (UD.PB1); the frame clips sideways
     // without becoming a scroll box, so the table can stick to the window.
-    <BrandFrame eyebrow={(b) => b.productName.toUpperCase()} width="max-w-2xl lg:max-w-5xl" className="overflow-x-clip">
+    <BrandFrame eyebrow={(b) => b.productName.toUpperCase()} width="max-w-2xl lg:max-w-5xl" stickyInside>
       <h1 className={cn("mt-1", PAGE_TITLE)}>Privacy</h1>
       <p className="mt-2 text-sm text-fg-muted">
         {name} is a private app for one League of Legends team. Administrators create every account; there is no public sign-up. This notice explains what it stores about members, why, who can see it, how long it stays, and how to reach us about it.

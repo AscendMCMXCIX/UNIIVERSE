@@ -5,7 +5,7 @@ export interface Figures { screens: number; overflow: number; small: number; sma
 export type Setup = "se1" | "se3" | "i12" | "i15" | "max" | "land" | "i15s";
 export const SETUPS: Record<Setup, { width: number; height: number; insets: [number, number, number, number] }>;
 export const TEXT_SIZES: number[];
-export const PAGES: Record<string, { path: string; admin?: boolean; data?: boolean }>;
+export const PAGES: Record<string, { path: string; admin?: boolean; data?: boolean; cookies?: Record<string, string>; then?: "studio"; requires?: string }>;
 export function findPlayerId(page: Page, base: string): Promise<string>;
 export function applySetup(page: Page, setup: Setup, text: number): Promise<CDPSession>;
 export function contextOptions(setup: Setup): BrowserContextOptions;
