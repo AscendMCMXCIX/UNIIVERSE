@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "./test";
-import { createMember, openPerson } from "./member-account";
+import { createMember, openDanger, openPerson } from "./member-account";
 
 /*
   Users & Permissions after the overhaul's S9a: one quiet list (52px rows on desktop, 64px on
@@ -152,6 +152,72 @@ test("a window opened inside the person view closes alone: a confirmation's Canc
   await view.getByTestId("person-view-close").click();
   await expect(view).toBeHidden();
   await expect(page).not.toHaveURL(/person=/);
+});
+
+test("deleted or erased from inside their view, the person's view closes by its address: the list shows what is left, and one Back leaves the page", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "one pass: the address and the list are the same at every width");
+  test.setTimeout(240_000);
+  // Accounts of this run's own. A window opened inside the view closes alone (BX1), so nothing closed
+  // the view by its address once the person had gone: it vanished with them, the address still named
+  // them, and Back only took that name out (R6 review NEW-2).
+  const view = page.getByTestId("person-view");
+  const closes = async (what: string) => {
+    await expect(view, what).toBeHidden();
+    await expect(page, what).not.toHaveURL(/[?&]person=/);
+  };
+  const leaves = async (what: string) => {
+    await page.goBack();
+    await expect(page, `${what}: one Back leaves Users & Permissions`).toHaveURL(/\/team$/);
+  };
+  const rows = (username: string) => page.locator(ROWS).filter({ hasText: username });
+  for (const how of ["Delete, keep profile", "Delete with profile", "Erase personal data"] as const) {
+    const { username } = await createMember(page, "Gone");
+    // A page before the list, so one Back has somewhere to leave to.
+    await page.goto("/team");
+    await page.goto("/admin/people");
+    await openPerson(page, username);
+    await openDanger(view);
+    if (how === "Erase personal data") {
+      await view.getByTestId("erase-person").click();
+      const dialog = page.getByRole("dialog", { name: `Erase ${username}'s personal data?` });
+      await expect(dialog.getByTestId("erasure-preview")).toBeVisible();
+      await dialog.getByTestId("erasure-confirm-input").fill(username);
+      await dialog.getByTestId("erasure-understood").check();
+      await dialog.getByTestId("erasure-confirm").click();
+      // The reference stays on screen, from the list, once the view has gone.
+      await expect(page.getByTestId("erasure-done")).toBeVisible();
+      await closes(how);
+      await page.getByTestId("erasure-done").getByRole("button", { name: "Done" }).click();
+    } else {
+      await view.getByTestId("delete-account").click();
+      const dialog = page.getByRole("dialog", { name: `Delete ${username}?` });
+      if (how === "Delete with profile") await dialog.getByTestId("delete-confirm-input").fill(username);
+      await dialog.getByTestId(how === "Delete with profile" ? "delete-with-profile" : "delete-keep-profile").click();
+      await closes(how);
+    }
+    if (how !== "Delete, keep profile") {
+      await expect(rows(username), `${how}: the list without them`).toHaveCount(0);
+      await leaves(how);
+      continue;
+    }
+    // Their profile stays, archived, among the profiles without an account; deleted from its own view, that view closes the same way.
+    const kept = page.getByTestId("people-group-accountless").getByTestId("admin-player-row").filter({ hasText: username });
+    await expect(kept, "the archived profile, listed").toHaveCount(1);
+    await expect(page.getByTestId("people-group-team").getByTestId("admin-player-row").filter({ hasText: username }), "the account's row gone").toHaveCount(0);
+    await expect(async () => {
+      await kept.click({ timeout: 2_000 });
+      await expect(view).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: 30_000 });
+    const name = (await view.locator("h2").first().innerText()).trim();
+    await openDanger(view);
+    await view.getByTestId("delete-profile").click();
+    const dialog = page.getByRole("dialog", { name: `Delete ${name}?` });
+    await dialog.getByTestId("delete-confirm-input").fill(name);
+    await dialog.getByTestId("delete-profile-confirm").click();
+    await closes("Delete profile");
+    await expect(rows(username), "Delete profile: the list without it").toHaveCount(0);
+    await leaves("Delete profile");
+  }
 });
 
 test("phone at 200% text: the person view's ‹ › and close button stay on the screen and off the name, and the name field keeps its width", async ({ page }, info) => {
