@@ -7,6 +7,20 @@ UNIIVERSE runs on the free plans of Supabase (the Postgres database) and Vercel 
 
 This page records what caused that, what was changed, how it was measured, and how to check it again. The second pass, after egress reached 7.14 GB on 20 Oct, is the next section.
 
+## 20 Nov 2026: Matchup Intel's evidence backfill (`prep-backfill`)
+
+- **Measured** (local PostgreSQL 16, the app's own egress counter, `src/server/db/egress.ts`): the
+  demo's 277 members' games, 219 with a timeline, took **1.39 MB in 11 queries: about 5.0 KB a
+  game**. The backfill reads only what preparation needs, trimmed in SQL: the ten players' places,
+  champions, spells and runes from each record, and from each timeline the member's purchases and
+  skill points, the objectives, and the member's and the lane opponent's positions. Timelines with
+  positions (kept from 20 Nov 2026 on) add about 1 KB a game.
+- **A full run** (1,000 games, the most a run reads) is therefore **about 5–6 MB**, against 120 MB a
+  day. Production's 7,500 or so members' games take about 8 runs, one a day by hand, each counted
+  first (`before`); `db-usage` shows the day's egress.
+- **After it:** a page view's counts are a few KB (counts only, cached an hour); forward capture
+  adds four small queries per stored timeline.
+
 ## 19 Nov 2026: the deploy limit raised to about 6 a day
 
 The owner asked on 19 Nov for faster delivery and for the three-a-day limit to be challenged. What a deploy costs is measured above ("What a deploy costs"): about 12.5 CPU-seconds for the signed-in Production check, plus 1–2 seconds of cold starts, so about 15–20 CPU-seconds on Vercel. A day without deploys costs about 100–150 CPU-seconds, against an allowance of about 480. Six deploys a day come to about 90–120 CPU-seconds, for a day of about 190–270: well under half the allowance. **The limit is now about 6 production deploys a day, a batch counting as one** (CLAUDE.md §4). The owner's Usage → Fluid Active CPU readings (STATUS, "Needs the owner") remain the check: a reading above about 300 CPU-seconds a day brings it back down.

@@ -1,6 +1,7 @@
 import { and, asc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { cachedFor, invalidateCache } from "@/server/observability/cache";
+import { EVIDENCE_CACHE } from "@/server/matchup-intel/evidence-cache";
 import { lineupSlots, lineupSubstitutes, lineups, playerChampionPools, playerRolePools, players, teams, users } from "@/server/db/schema";
 import { ROLE_LABELS, ROLES, type Role } from "@/domain/roles";
 import type { PlayerGroup, PlayerProfile, RolePool, RosterPlayer } from "@/domain/roster";
@@ -292,6 +293,8 @@ export async function setCardStyle(db: Db, playerId: string, style: { featuredCh
 
 export async function archivePlayer(db: Db, playerId: string, archived: boolean) {
   await db.update(players).set({ archivedAt: archived ? new Date() : null, updatedAt: new Date() }).where(eq(players.id, playerId));
+  // Matchup Intel's team counts leave out archived profiles: counted again.
+  invalidateCache(EVIDENCE_CACHE);
   if (archived) await db.delete(lineupSlots).where(eq(lineupSlots.playerId, playerId));
 }
 
@@ -356,6 +359,8 @@ export async function setTeamMember(db: Db, teamId: string, playerId: string, me
     if (role) throw new PlayerValidationError(`${row.displayName} holds the lineup's ${role === "ADC" ? "Bottom" : role.charAt(0) + role.slice(1).toLowerCase()} place. Give it to someone else first.`);
   }
   await db.update(players).set({ teamMember: member, updatedAt: new Date() }).where(eq(players.id, playerId));
+  // Matchup Intel's team counts never hold a personal-use profile's games: counted again.
+  invalidateCache(EVIDENCE_CACHE);
 }
 
 /**

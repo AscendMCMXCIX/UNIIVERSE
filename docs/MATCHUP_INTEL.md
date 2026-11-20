@@ -612,9 +612,9 @@ numbers). A tip of more than 600 characters would be left out whole, never cut (
 
 ### Evidence
 
-Until S7b counts the team's own games, the page claims none: the tips' fold ends with "Runes, items
-and skill order: No high-elo evidence (not collected)", and in the bot lane "No curated notes for
-this 2v2". No build, rune page or skill order is suggested anywhere.
+The tips' fold ends with "Runes, items and skill order: No high-elo evidence (not collected)", and in
+the bot lane "No curated notes for this 2v2". No build, rune page or skill order is suggested
+anywhere: what the page counts from the team's own games follows (S7b).
 
 ### Static data for the build evidence
 
@@ -627,6 +627,114 @@ in their stats, 65 of them purchasable** (the plan's estimate was 70); the parse
 (`assets.test.ts`, against Riot's own text in `tests/fixtures/ddragon-16.22.1-item-haste.json`,
 written by `scripts/matchup-intel/build-item-digest.mjs`). The page shows none of it yet: S7b's
 build evidence uses it.
+
+
+## In your games: evidence from the team's own games (S7b, 20 Nov 2026)
+
+Every line is counted from stored games, with its sample, under its tier, and is never presented as a
+curated note or a recommendation. Nothing is inferred beyond what the games record.
+
+### What is counted, and for whom
+
+- **Two scopes,** in the fold Riot's tips share (one line for both, so the one-screen fit holds; its
+  line reads, for example, "Evidence: In your games (n = 9) · In the team's games (n = 23)"):
+  - **In your games:** the viewer's own player's linked accounts. An account with no player profile
+    (the Production check's) is told it has no games of its own.
+  - **In the team's games:** the other team members, only for a viewer with "view teammates'
+    statistics" (#207's levels); counts only, no name. A personal-use profile (`players.team_member`
+    false) is never counted for anyone else. A viewer without the capability gets no team counts.
+- **The games:** Summoner's Rift queues (Normal Draft, Solo/Duo, Blind, Flex, Swiftplay, Quickplay,
+  Clash), your champion in the chosen lane, matching **every chosen slot**; the empty ones are named
+  under the lines ("These counts ignore the empty slots: the allied support, the enemy support").
+  A remake (under 5 minutes, as Matchups counts one) or a game without a known result is never
+  counted. Archived profiles are not in the team's games, and making a profile personal-use or
+  archiving it counts the team again at once; a permanent erasure deletes the evidence rows of the
+  games it de-identifies (prep-backfill makes them again from the de-identified records).
+- **"Against X"** uses the confirmed-opponent rule (`confirmedOpponent`, `src/domain/matchup-intel/prep.ts`,
+  mi-evidence §2.1): Riot's `teamPosition` names the lane for both players, every team's five team
+  positions differ, and `individualPosition` agrees for both. Anything else is "role unclear" and is
+  not counted against anyone (no fallback to the individual position). Records stored before both
+  readings were kept (before 20 Nov 2026) use the one lane opponent rule on their merged position,
+  and the section says "their lane opponent is by Riot's position".
+- **The lines** (each shown from **3 games**; under that the section's one honest line, "In your
+  games: 2 as Riven against Darius on patch 26.22, fewer than the 3 a line needs."):
+  - the record ("4 games, 3 won");
+  - the rune page (keystone and five runes; shards are not named by Data Dragon, so left out), the
+    summoner spells, the starting items (bought in the first minute), the first shop visit (purchases
+    less than 30 s apart after it), the first three completed items (building into nothing, from
+    components, at least 1,000 gold, not boots, consumables or trinkets; left out of a game where any
+    item bought is unknown to Data Dragon's facts, never skipped over), the first three skill points
+    and the skills to reach five points, in the order they did (a skill short of five is never
+    called maxed: some champions' skills take six): each with its one or two most counted values, "Flash + Ignite in 6, Flash +
+    Teleport in 3", then "of 9 games · patch 26.22 · Normal Draft 6, Solo/Duo 3";
+  - **Jungle**, with the enemy jungler chosen: the dragons, voidgrubs and heralds taken before 15:00,
+    "7 of 12 to Lee Sin's team", from the stored objectives;
+  - **the bot lane, pairwise:** with two or more slots chosen, the record with the ally, against the
+    enemy ADC and against the enemy support, each counted on its own; the four-champion combination
+    only from 3 games ("This 2v2: too few games" beside the pairs otherwise);
+  - **the lane's end,** measured per game (`laneEnd`): the earlier of the lane's outer turret falling
+    and either player out of the lane's region two frames in a row from 2:00 (frames in a base count
+    neither way). Only from timelines that keep both players' positions (stored from 20 Nov 2026 on);
+    shown from **10 games** as the middle half and the median ("the middle half between 11:40 and
+    15:10, median 13:20"), never one minute; under it, "Not measured yet". Never for the jungle: the
+    stored events do not say when an objective was contested.
+- **Patches:** the current patch. The previous patch is added to a line only where the per-version
+  diff shows no change in Riot's data for every chosen champion and everything the line names (its
+  items or runes), and only when games on it are counted; the line says so; never more than two. The
+  tier's n is the record's: the games every chosen slot matches, on the patches the record counts. Data Dragon cannot show a change Riot made
+  without changing its data.
+- **Queues:** every line names the queues its games come from.
+- **"Matchup uncertain":** a pair with no curated notes and no counted line says so, and each
+  champion's own facts follow.
+
+### Evidence tiers
+
+Every row says what it rests on, in small type beside its title: the curated briefing "Checked notes
+(AI reviewers)", the kits and the assembled reference "Riot's data", Riot's tips "Riot's tip (may
+predate later changes)", the evidence "In your games (n = …)" and "In the team's games (n = …)", and
+"No high-elo evidence (not collected)". The facts from Riot's text keep their own label ("Riot's
+text (reviewed automatically)") while their switch is off.
+
+### Words
+
+The evidence templates (`src/domain/matchup-intel/evidence.ts`) are held to
+`EVIDENCE_REFUSED_WORDS`: `evidence.test.ts` renders every template, and the panel's fixed sentences,
+and finds none.
+
+### Where it is stored, and how it is filled
+
+- **`account_match_prep`** (migration 0067): one row per member's stored game, what its record and
+  timeline say (`matchPrep`), counted in SQL by `src/server/matchup-intel/evidence.ts` so only counts
+  leave the database (a few KB a view). Cached an hour per (scope, viewer, role, champions, patches)
+  and cleared whenever rows are written. Derived data only: it can be made again from `match_details`
+  and `match_timelines`, and goes with its game.
+- **Forward capture:** storing a timeline (a player opening the game, or `timeline-backfill`) makes
+  its game's rows again (`refreshMatchPrep`), never failing what stored it.
+- **`prep-backfill`**, a setup (repair) job: the Owner's from Admin ("BACKFILL"), or the session's
+  through Data jobs with `CRON_SECRET`. It inserts the rows still missing, at most 1,000 games a run,
+  newest first; insert only, so a second run inserts nothing and a stopped run keeps what it did. No
+  Riot request; counts only (`before`, `read`, `inserted`, `withTimeline`, `unnamed`, `remaining`).
+  About 5 KB of database egress a game, 5 MB a full run (docs/HOSTING_USAGE.md).
+- **`static_digests`** (migration 0067), the per-version diff: version-check records, once a patch,
+  a hash per champion (base stats; each ability's cooldowns, ranks, charges and Riot's text hash),
+  item (its whole entry) and rune (its whole entry), from three Data Dragon files (champion.json,
+  item.json, runesReforged.json; nothing from Riot's API). Validated before keeping (a file naming no
+  champion, item or rune keeps nothing); a failed attempt is retried at most once a day; the first
+  copy of a patch stays. Until two patches are recorded, every line counts the current patch only.
+
+### Not built in S7b
+
+- **Lane occupancy** (mi-evidence §2.1, test 4) is not stored: the confirmed-opponent rule uses the
+  three position tests, and a game whose readings disagree is "role unclear".
+- **The jungle's lane end** (the first contested epic objective): the stored events cannot tell it.
+- **Health and Admin for the diff:** `/api/health` and Admin's data health do not yet list the
+  digests' counts; `changedCounts` (`digests.ts`) gives them for a later stage.
+- **The Production check** reads the tiers (below), not that the page's Data Dragon patch equals
+  `/api/health`'s.
+- **On a phone** the evidence sits in the tips' fold below the kits, not on the first screen.
+- **Items sold** in the first minute stay in the starting set (`sold` is not read), and whether Riot
+  reports a support item's quest upgrade as a purchase (which would show in the first shop visit) is
+  not verified on a real timeline.
 
 ## Where it is
 

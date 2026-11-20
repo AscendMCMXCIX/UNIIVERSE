@@ -1,4 +1,6 @@
 import { eq, inArray, sql, type SQL } from "drizzle-orm";
+import { invalidateCache } from "@/server/observability/cache";
+import { EVIDENCE_CACHE } from "@/server/matchup-intel/evidence-cache";
 import type { Db } from "@/server/db/types";
 import { activationCodes, appSettings, auditEvents, dataRefreshStatus, invites, jobRuns, lastKnownRanks, matchDetails, players, privacyErasures, riotAccounts, users, type MatchParticipantDetail } from "@/server/db/schema";
 import { pruneAuthFailures } from "@/server/auth/throttle";
@@ -561,6 +563,7 @@ export async function eraseSubject(db: Db, actorUserId: string | null, target: {
     return { reference, counts: plan.counts, mentions: plan.mentions };
   });
   forgetErasureCache();
+  invalidateCache(EVIDENCE_CACHE);
   return result;
 }
 
@@ -603,6 +606,10 @@ async function applyPlan(tx: Db, plan: Plan): Promise<void> {
           participants = (SELECT coalesce(jsonb_agg(x ORDER BY ord), '[]'::jsonb) FROM jsonb_array_elements(participants) WITH ORDINALITY t(x, ord) WHERE NOT (x->>'puuid' IN (${textList(gone)}))),
           frames = CASE WHEN frames IS NULL THEN NULL ELSE jsonb_set(frames, '{p}', coalesce(frames->'p', '{}'::jsonb) - ARRAY[${textList(gone)}]::text[]) END
         WHERE match_id IN (${textList(plan.shared)})`);
+    // Matchup Intel's evidence rows of these games named them (a lane opponent or partner, their
+    // positions in the lane's end): deleted, so prep-backfill makes them again from the
+    // de-identified records, where a removed seat leaves the opponent unclear.
+    await tx.execute(sql`DELETE FROM account_match_prep WHERE match_id IN (${textList(plan.shared)})`);
     // The others' stored summaries of these games included their figures (team kills and damage):
     // copied again from the de-identified records.
     await tx.execute(sql`UPDATE account_matches SET summarised_at = NULL WHERE match_id IN (${textList(plan.shared)})`);

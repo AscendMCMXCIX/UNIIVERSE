@@ -693,7 +693,7 @@ describe("hidden, changed and behind, on the assembled reference and the notes",
   it("your champion's summary says once that its cooldowns are Riot's data, not reviewed, as the enemy's panel does; a curated champion's are its notes'", async () => {
     const t = text(await render({ champion: "Garen", vs: "Darius" }));
     expect(t).toContain("Your champion: Garen Abilities and base cooldowns · Riot Data Dragon 16.22.1 · Cooldowns: Riot's data, not reviewed ·");
-    expect(t).toContain("Darius's abilities At haste 0 20 40 60 Base cooldowns, without ability haste · Riot Data Dragon 16.22.1 · Cooldowns: Riot's data, not reviewed");
+    expect(t).toContain("Darius's abilities Riot's data At haste 0 20 40 60 Base cooldowns, without ability haste · Riot Data Dragon 16.22.1 · Cooldowns: Riot's data, not reviewed");
     const curatedYou = await render({ champion: "Renekton", vs: "Darius" });
     expect(text(curatedYou)).toContain("Your champion: Renekton Abilities and base cooldowns · Riot Data Dragon 16.22.1 · Curated notes: checked on patch 26.22");
     expect(curatedYou).not.toContain('data-testid="your-cooldown-source"');

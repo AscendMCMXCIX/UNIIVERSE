@@ -1,3 +1,4 @@
+import { TierLabel } from "./evidence-panel";
 import type * as React from "react";
 import { ChevronDown, Crosshair, History, TriangleAlert, Waypoints } from "lucide-react";
 import type { AbilityRef, BriefingPointView, ChampionChoice, MatchupIntelView, Slot } from "@/domain/matchup-intel/types";
@@ -155,6 +156,9 @@ function LanePoint({ point, names, rows }: { point: Extract<BriefingPointView, {
  * in the slots above it, and a screen reader hears it in the heading. `rows`: the champions whose
  * tiles are on the page, for the chips.
  */
+/** The tier of the curated notes (docs/MATCHUP_INTEL.md, "Evidence tiers"). */
+export const CHECKED_TIER = "Checked notes (AI reviewers)";
+
 export function Briefing({ matchup, you, enemy, rows }: { matchup: MatchupIntelView; you: ChampionChoice; enemy: ChampionChoice; rows?: ReadonlySet<string> }) {
   const names = new Map([
     [you.id, you.name],
@@ -164,9 +168,12 @@ export function Briefing({ matchup, you, enemy, rows }: { matchup: MatchupIntelV
   const recheck = matchup.recheck;
   const header = (
     <header className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 border-b border-border px-3 py-2">
-      <h2 className="text-sm font-semibold text-fg">
-        Curated briefing<span className="sr-only">: {`${you.name} vs ${enemy.name}`}</span>
-      </h2>
+      <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+        <h2 className="text-sm font-semibold text-fg">
+          Curated briefing<span className="sr-only">: {`${you.name} vs ${enemy.name}`}</span>
+        </h2>
+        <TierLabel>{CHECKED_TIER}</TierLabel>
+      </div>
       <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-fg-muted" data-testid="matchup-briefing-checked">
         <span>{f.checked}</span>
         {recheck && !recheck.expired ? (

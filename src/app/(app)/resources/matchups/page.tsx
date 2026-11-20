@@ -3,6 +3,7 @@ import { getAppDb } from "@/server/bootstrap";
 import { requirePageAccess } from "@/server/auth/page-access";
 import { getBranding } from "@/server/repositories/branding";
 import { loadMatchupPage } from "@/server/matchup-intel/view";
+import { loadMatchupEvidence } from "@/server/matchup-intel/evidence";
 import { RIOT_TEXT_TEST_COOKIE, riotTextFactsShown } from "@/server/matchup-intel/riot-text/switch";
 import { riotLegal } from "@/components/app-shell";
 import { MatchupFrame } from "@/components/matchup-intel/matchup-frame";
@@ -31,13 +32,15 @@ const named = (v: string | string[] | undefined) => (one(v) ?? "").trim() !== ""
  * names come from the cache the app's frame has just filled.
  */
 export default async function MatchupIntelPage({ searchParams }: { searchParams: Promise<Search> }) {
-  await requirePageAccess();
+  const session = await requirePageAccess();
   const [sp, db, jar] = await Promise.all([searchParams, getAppDb(), cookies()]);
   const input = { role: one(sp.role), champion: one(sp.champion), vs: one(sp.vs), ally: one(sp.ally), vs2: one(sp.vs2) };
   // The facts from Riot's text only while their switch is on (riot-text/switch.ts; a browser test's cookie on the demo).
   const riotText = riotTextFactsShown(jar.get(RIOT_TEXT_TEST_COOKIE)?.value);
   const [{ view, champions, curated }, branding] = await Promise.all([loadMatchupPage(db, input, riotText), getBranding(db)]);
   const { you, enemy, ally, enemy2, role } = view;
+  // The evidence from the team's own games: counted in SQL for this viewer's own games and the team's they may see.
+  const evidence = await loadMatchupEvidence(db, session, { role, you, ally, enemy, enemy2 }, champions);
   const duo = DUO_ROLES.has(role);
   // A champion named in the address that is not on the roster is left out, never repeated back.
   const dropped = (named(sp.champion) && !you) || (named(sp.vs) && !enemy) || (duo && named(sp.ally) && !ally) || (duo && named(sp.vs2) && !enemy2);
@@ -75,7 +78,7 @@ export default async function MatchupIntelPage({ searchParams }: { searchParams:
         }
         patchState={<MatchupStatus view={view} />}
       >
-        <MatchupContent view={view} champions={champions} curated={curated} legal={riotLegal(branding.productName)} />
+        <MatchupContent view={view} champions={champions} curated={curated} legal={riotLegal(branding.productName)} evidence={evidence} />
       </MatchupFrame>
     </div>
   );
