@@ -556,8 +556,6 @@ Recorded, not changed here, with the reason:
   card design, `overflow-wrap: anywhere` on purpose), a champion's name in own Champions' narrow
   column, and "Leaderboards" in its h1 (`hyphens: auto`, hyphenated on purpose).
 - Team's lineup dots at 200% on 320 (5 under 44px): Team's own layout (S3a), outside this pass.
-- Players at i15 shows two "Setup incomplete" ⓘ under 44px on the first screen (`small 2 > 0` in
-  the page-budget spec): already so on `release/r7` before this pass, measured on a build of it.
 
 ## 5. The phone design system
 
