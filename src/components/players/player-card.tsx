@@ -528,15 +528,19 @@ export function PoolChampionTile({ index, champion, row, support, withStats = tr
           {index + 1}
         </span>
       </span>
-      <span className="min-w-0">
+      {/* In the narrowest list (a 320px phone at 150% text and more) the row is three lines: the portrait
+          and the name, then the experience label, then the figures, each as wide as the row. There the
+          name's column alone was narrower than a word of the label ("Played", 0px wide at 200%), which
+          ran past the screen's edge. */}
+      <span className="min-w-0 @max-[11rem]/pool:contents">
         {/* Where the row is too narrow for both (a docked panel), "First choice" gives way (wrapped onto a
             clipped second line), never the name's letters: the row's 1 and its accent bar still mark it. */}
-        <span className="flex max-h-5 min-w-0 flex-wrap items-baseline gap-x-2 overflow-hidden">
+        <span className="flex max-h-5 min-w-0 flex-wrap items-baseline gap-x-2 overflow-hidden @max-[11rem]/pool:col-span-2 @max-[11rem]/pool:self-center">
           <span className="truncate text-sm font-semibold text-fg" data-testid="pool-champion-name">{champion.name}</span>
           {first ? <span className="shrink-0 text-2xs font-semibold uppercase tracking-label text-[var(--card-accent)]">First choice</span> : null}
         </span>
         {withStats ? (
-          <span className="mt-0.5 block">
+          <span className="mt-0.5 block @max-[11rem]/pool:col-span-3 @max-[11rem]/pool:col-start-1 @max-[11rem]/pool:row-start-2 @max-[11rem]/pool:mt-0 @max-[11rem]/pool:pt-1">
             <TierBadge tier={row.tier as ProficiencyTier} label={row.tierLabel} why={row.tierWhy} evidence={row.evidence} quiet />
           </span>
         ) : null}
@@ -544,8 +548,9 @@ export function PoolChampionTile({ index, champion, row, support, withStats = tr
       {withStats ? (
         row.games ? (
           <>
-            {/* A narrow list: the win rate and games, then KDA and CS (vision for supports), in one short block. */}
-            <span className="text-right leading-tight @min-[28rem]/pool:hidden" data-testid="pool-champion-stats">
+            {/* A narrow list: the win rate and games, then KDA and CS (vision for supports), in one short block.
+                Narrower still, a line of its own, its figures side by side (see the row's lines above). */}
+            <span className="text-right leading-tight @min-[28rem]/pool:hidden @max-[11rem]/pool:col-span-3 @max-[11rem]/pool:col-start-1 @max-[11rem]/pool:row-start-3 @max-[11rem]/pool:flex @max-[11rem]/pool:flex-wrap @max-[11rem]/pool:items-baseline @max-[11rem]/pool:gap-x-2 @max-[11rem]/pool:pt-1 @max-[11rem]/pool:text-left" data-testid="pool-champion-stats">
               <span className={cn("block text-sm font-semibold tabular-nums", tone)}>{rate}</span>
               <span className="block text-2xs tabular-nums text-fg-subtle">
                 {row.games} game{row.games === 1 ? "" : "s"}
@@ -562,7 +567,7 @@ export function PoolChampionTile({ index, champion, row, support, withStats = tr
         ) : (
           // A note too long for a narrow list's figure column ("189K mastery · no games this season")
           // would leave the name one letter: there it takes a line of its own under the name instead.
-          <span className="min-w-0 text-right @max-[28rem]/pool:col-span-2 @max-[28rem]/pool:col-start-2 @max-[28rem]/pool:row-start-2 @max-[28rem]/pool:pt-1 @max-[28rem]/pool:text-left @min-[28rem]/pool:col-span-4" data-testid="pool-champion-stats">
+          <span className="min-w-0 text-right @max-[28rem]/pool:col-span-2 @max-[28rem]/pool:col-start-2 @max-[28rem]/pool:row-start-2 @max-[28rem]/pool:pt-1 @max-[28rem]/pool:text-left @min-[28rem]/pool:col-span-4 @max-[11rem]/pool:col-span-3 @max-[11rem]/pool:col-start-1 @max-[11rem]/pool:row-start-3" data-testid="pool-champion-stats">
             {row.masteryPoints ? (
               <span className="text-xs tabular-nums text-fg-muted" title={`${formatCount(row.masteryPoints)} mastery points`}>
                 <span className="font-semibold">{formatCompactCount(row.masteryPoints)}</span> mastery (all-time) · no games this season
