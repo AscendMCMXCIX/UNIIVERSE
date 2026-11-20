@@ -61,10 +61,10 @@ export function PreviewStudio() {
         </div>
         {/* Rotate and Reset wrap together, in the segments' 14px type (G4-15); at a large text size on a narrow screen they stack rather than run off it. */}
         <span className="flex min-w-0 flex-wrap items-center gap-2" data-testid="preview-actions">
-          <Button variant="ghost" onClick={() => setLandscape((v) => !v)} aria-pressed={landscape} data-testid="preview-rotate">
+          <Button variant="ghost" className="max-sm:px-2.5" onClick={() => setLandscape((v) => !v)} aria-pressed={landscape} data-testid="preview-rotate">
             <RotateCw className="h-4 w-4" /> Rotate
           </Button>
-          <Button variant="ghost" onClick={() => setReload((n) => n + 1)}>
+          <Button variant="ghost" className="max-sm:px-2.5" onClick={() => setReload((n) => n + 1)}>
             Reset
           </Button>
         </span>
