@@ -812,6 +812,25 @@ async function sharedKitFacts(page, kind) {
  * 1440 (the fluid root makes rows taller from 1536px); the verification account has no profile, so
  * there is never a You row.
  */
+/**
+ * Leaderboards' section index in reach (PLAN S8a): at the page's top, the index in the header or under
+ * it; scrolled halfway down, on a phone a 44px chip row pinned at the top bar's foot, from md the
+ * pinned row's compact copy. Scrolls the page and puts it back; reads only.
+ */
+async function leaderboardsIndexFacts(page, kind) {
+  const top = await page.evaluate(() => [...document.querySelectorAll("[data-testid=header-section-index], [data-testid=section-index]")].some((el) => el.getBoundingClientRect().height > 0));
+  await page.evaluate(() => window.scrollTo(0, (document.documentElement.scrollHeight - innerHeight) / 2));
+  await page.waitForTimeout(600);
+  const pinned = await page.evaluate(() => {
+    const row = [...document.querySelectorAll("[data-testid=leaderboards-chip-row], [data-testid=page-toolbar]")].find((el) => el.getBoundingClientRect().height > 0) ?? null;
+    const links = row ? [...row.querySelectorAll("a")] : [];
+    return { shown: !!row && row.getBoundingClientRect().height > 0, links: links.length, small: links.filter((a) => a.getBoundingClientRect().height < (row?.matches("[data-testid=leaderboards-chip-row]") ? 43.5 : 0)).length };
+  });
+  await page.evaluate(() => window.scrollTo(0, 0));
+  const scrolls = await page.evaluate(() => document.documentElement.scrollHeight > innerHeight * 1.3);
+  pass("leaderboards", `${kind}: the section index at the top, and pinned once the header has gone`, top && (!scrolls || (pinned.shown && pinned.links === 4 && pinned.small === 0)), { top, scrolls, ...pinned });
+}
+
 async function leaderboardsFacts(page, kind) {
   const f = await page.evaluate(() => {
     const board = document.querySelector("[data-testid=form-board]");
@@ -980,6 +999,9 @@ async function settingsFacts(page, kind) {
   }));
   pass("settings", `${kind}: Settings never mentions a Public profile switch`, !facts.publicProfile, { mentioned: facts.publicProfile });
   pass("settings", `${kind}: the picture and display-name help name the public team page`, facts.picture && facts.displayName, { picture: facts.picture, displayName: facts.displayName });
+  // On this device (PLAN S8a): what this browser remembers, each with Clear, and Clear all (read only: nothing is cleared here).
+  const device = await page.evaluate(() => ({ items: document.querySelectorAll("[data-testid=on-this-device] [data-testid=device-item]").length, clears: document.querySelectorAll("[data-testid=on-this-device] [data-testid=device-item-clear]").length, all: !!document.querySelector("[data-testid=device-clear-all]") }));
+  pass("settings", `${kind}: "On this device" lists what this browser remembers, each with Clear, and Clear all`, device.items >= 4 && device.clears === device.items && device.all, device);
   if (kind !== "phone") return;
   // The account card leads the page: Sign out is in view as it opens, above the tab bar. The card
   // draws its actions once per layout (the other copy is display: none): the one shown is measured.
@@ -1012,6 +1034,12 @@ async function resourcesFacts(page, kind) {
       favourites: !!document.querySelector("[data-testid=resources-index-favourites]"),
       cutTitles: [...document.querySelectorAll("[data-testid=resource-title]")].filter((el) => el.scrollWidth > el.clientWidth + 1).length,
       brokenIcons: [...document.querySelectorAll("[data-testid=resource] img")].filter((i) => i.complete && i.naturalWidth === 0).length,
+      // Site icons ship with the app (PLAN S8a): none loaded from another site.
+      remoteIcons: [...document.querySelectorAll("[data-testid=resource] img")].filter((i) => !i.src.startsWith(location.origin)).length,
+      // On a phone the index wraps (two lines at 375 and wider) rather than scrolling sideways, each chip a 44px target.
+      indexLines: new Set([...document.querySelectorAll("[data-testid=resources-index] [role=radio]")].map((c) => Math.round(c.getBoundingClientRect().top))).size,
+      indexHidden: [...document.querySelectorAll("[data-testid=resources-index] [role=radio]")].filter((c) => { const r = c.getBoundingClientRect(); return r.right > innerWidth + 0.5 || r.left < -0.5; }).length,
+      smallChips: [...document.querySelectorAll("[data-testid=resources-index] [role=radio]")].filter((c) => c.getBoundingClientRect().height < 43.5).length,
     };
   });
   pass("resources", `${kind}: every section under its heading, every row a link to a new tab without this page's address`, f.rows > 0 && f.headed === f.groups && f.unsafeLinks === 0, { rows: f.rows, sections: f.groups, headed: f.headed, unsafeLinks: f.unsafeLinks });
@@ -1030,7 +1058,8 @@ async function resourcesFacts(page, kind) {
     pass("resources", `${kind}: choosing a section shows it alone, its rows as counted`, chosen.groups === 1 && chosen.rows === chosen.counted, chosen);
     await page.locator("[data-testid=resources-index-all]").click();
   }
-  pass("resources", `${kind}: no title cut short, no broken site icon`, f.cutTitles === 0 && f.brokenIcons === 0, { cutTitles: f.cutTitles, brokenIcons: f.brokenIcons });
+  pass("resources", `${kind}: no title cut short, no broken site icon, none loaded from another site`, f.cutTitles === 0 && f.brokenIcons === 0 && f.remoteIcons === 0, { cutTitles: f.cutTitles, brokenIcons: f.brokenIcons, remoteIcons: f.remoteIcons });
+  if (kind === "phone") pass("resources", "phone: the section chips wrap, every section in view, each chip 44px", f.indexHidden === 0 && f.smallChips === 0 && f.indexLines <= 3, { lines: f.indexLines, hidden: f.indexHidden, small: f.smallChips });
 }
 
 /**
@@ -1249,7 +1278,9 @@ async function playersFacts(page, kind) {
       rows: rows.length,
       counted: counted === undefined ? null : Number(counted.replace(/,/g, "")),
       links: rows.map((row) => row.querySelectorAll("a[href^='/players/']").length),
-      rowLinks: rows.filter((row) => row.querySelector("a[data-row-link][href^='/players/']")).length,
+      // The row's own link: the player Peek (?player=, PLAN S8a), or the profile for a player with no main role yet; the name is the profile's link.
+      rowLinks: rows.filter((row) => row.querySelector("a[data-row-link][href^='/players/'], a[data-row-link][href*='?player=']")).length,
+      peeks: rows.filter((row) => row.querySelector("a[data-row-link][href*='?player=']")).length,
       columns: new Set(rows.map((row) => Math.round(box(row).left))).size,
       counts,
       sidebarOpen: document.querySelector("[data-testid=sidebar]")?.getAttribute("data-collapsed") !== "true",
@@ -1259,6 +1290,7 @@ async function playersFacts(page, kind) {
   const oneLink = facts.links.every((n) => n === 1) && facts.rowLinks === facts.rows;
   if (facts.rows === 0) check("players", `${kind}: one profile link per listed player`, "PASS", "not applicable: no player listed");
   else pass("players", `${kind}: one profile link per listed player`, oneLink && facts.counted === facts.rows, { rows: facts.rows, counted: facts.counted, rowsWithOneLink: facts.links.filter((n) => n === 1).length });
+  if (facts.rows) pass("players", `${kind}: a row opens the player Peek (?player=), its name the profile`, facts.peeks > 0, { rows: facts.rows, peeks: facts.peeks });
   const plusOne = facts.counts.filter((n) => n === 1).length;
   if (facts.counts.length === 0) check("players", `${kind}: no pool shows +1`, "PASS", "not applicable: every pool shows whole");
   else pass("players", `${kind}: no pool shows +1`, plusOne === 0 && facts.counts.every((n) => n >= 2), { counts: facts.counts.length, plusOne });
@@ -1764,6 +1796,7 @@ for (const [kind, options] of Object.entries(VIEWPORTS)) {
       await leaderboardsFacts(page, kind);
       await recordsFacts(page, kind);
       await axe(page, kind, "leaderboards");
+      await leaderboardsIndexFacts(page, kind);
     }
   });
   // Records & achievements' old address: the same page, at its records (the page itself is checked above, so no axe here).
