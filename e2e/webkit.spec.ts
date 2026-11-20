@@ -259,9 +259,15 @@ test("Matchup Intel's facts from Riot's text on an iPhone: a tap on a chip quote
   // Yone's Q: a conditional fact, the owner's marker under the chips, its quote one tap away.
   const q = page.locator('[data-testid="matchup-enemy-abilities"] [data-testid="ability-row"][data-slot="Q"]');
   await expect(q.getByTestId("ability-facts-conditional")).toContainText("Conditional: see Riot's text (");
+  // The tile in the middle of the screen first: a chip under the phone's lower edge made the second
+  // tap scroll it into view, and a scroll closes a tapped bubble (as a finger's would), so that tap
+  // opened it again and the open bubble then kept the Details button's tap (the tap that closes a
+  // bubble does nothing else): the intermittent failure at the details window (Release 10).
+  await q.evaluate((e) => e.scrollIntoView({ block: "center" }));
   await q.getByTestId("fact-chip").first().tap();
   await expect(page.getByTestId("fact-chip-bubble")).toContainText("Conditional: see Riot's text.");
   await q.getByTestId("fact-chip").first().tap();
+  await expect(page.getByTestId("fact-chip-bubble")).toHaveCount(0);
   await fitsWidth(page, "Riven vs Yone");
   // The details window lists both quotes and the other wording, and closes back onto its button.
   const details = r.getByTestId("ability-details");
