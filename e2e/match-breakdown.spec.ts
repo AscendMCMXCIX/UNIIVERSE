@@ -303,7 +303,8 @@ test("Build lists what was bought minute by minute and the skill order; the rune
   // The fold draws its content once it has opened (its toggle event, a moment after the click): wait for it.
   await expect(steps.nth(2)).toBeVisible();
   await expect(steps.first()).toContainText("0 min");
-  await expect(build.getByTestId("skill-order").locator("li").first()).toHaveAttribute("title", /^Level 1: [QWE]$/);
+  // Each skill point shows its key and its level (S8b: no title repeating them).
+  await expect(build.getByTestId("skill-order").locator("li").first()).toHaveText(/^[QWE]\s*1$/);
   await expect(breakdown.getByTestId("rune-page")).toBeVisible();
   await fitsWidth(page, "Build");
 });
