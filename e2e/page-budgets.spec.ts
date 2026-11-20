@@ -78,12 +78,18 @@ test("Team on phones: one 44px header line, five players in the pager, the whole
 test("Team held sideways: five cards in one row, the page within 1.3 screens; at 150% a card on the first screen", async ({ browser }) => {
   const page = await setupPage(browser, "land", 100);
   await page.goto(`${BASE}/team`);
+  // Measured once the lineup is drawn (its first card's identity laid out), as the test above waits:
+  // read straight after the load, a card could still be without its box (1 run in 4 here).
+  await expect(page.getByTestId("lineup-overview")).toHaveAttribute("data-ready", "true");
+  await expect(page.getByTestId("card-identity").first()).toBeVisible();
   const tops = await page.getByTestId("lineup-cell").evaluateAll((cells) => [...new Set(cells.map((c) => Math.round(c.getBoundingClientRect().top)))]);
   expect(tops, "one row").toHaveLength(1);
   expect(await page.evaluate(() => document.documentElement.scrollHeight / innerHeight)).toBeLessThanOrEqual(1.3);
   await page.context().close();
   const large = await setupPage(browser, "land", 150);
   await large.goto(`${BASE}/team`);
+  await expect(large.getByTestId("lineup-overview")).toHaveAttribute("data-ready", "true");
+  await expect(large.getByTestId("card-identity").first()).toBeVisible();
   expect((await boxes(large, ["card-identity"]))["card-identity"]!.top, "a card's name on the first screen").toBeLessThan(393);
   await large.context().close();
 });
