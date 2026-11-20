@@ -104,7 +104,8 @@ function Point({ kind, point, names, rows, means }: { kind: "threat" | "opportun
         {point.kind === "point" ? <MeansLine refs={point.basedOn} means={means} label={threat ? "What the threat means" : "What the opportunity means"} /> : null}
       </h3>
       {point.kind === "point" ? (
-        <div className="mt-1 text-sm leading-snug text-fg">
+        // On a touch screen 12px under the heading, so its ⓘ's 44px area never covers a chip.
+        <div className="mt-1 text-sm leading-snug text-fg pointer-coarse:mt-3">
           <span>{point.text}</span>
           <AbilityChips refs={point.basedOn} names={names} rows={rows} label={threat ? "The threat rests on" : "The opportunity rests on"} inline />
         </div>
@@ -254,7 +255,7 @@ export function Briefing({ matchup, you, enemy, rows, means }: { matchup: Matchu
                 <MeansLine refs={[...new Set(shownLane.flatMap((p) => p.basedOn))]} means={means} label="What the lane points mean" />
               </h3>
               {first.length ? (
-                <ul className="mt-1.5 grid gap-x-5 gap-y-2 @min-[34rem]/brief:grid-cols-2">
+                <ul className="mt-1.5 grid gap-x-5 gap-y-2 pointer-coarse:mt-3 @min-[34rem]/brief:grid-cols-2">
                   {first.map((p, i) => (
                     <LanePoint key={i} point={p} names={names} rows={rows} />
                   ))}

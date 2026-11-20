@@ -62,7 +62,8 @@ export function MeansLine({ refs, means, label }: { refs: readonly AbilityRef[];
   const line = meansLine(refs.flatMap((r) => (means[r] ? [means[r]!] : [])), haste);
   if (!line) return null;
   return (
-    <span className="ml-0.5 inline-flex normal-case tracking-normal" data-means={line}>
+    // No box of its own (contents): the ⓘ's 44px area on a touch screen is its own, never past a wrapper's.
+    <span className="contents normal-case tracking-normal" data-means={line}>
       <InfoTip text={`What it means: ${line}.`} label={label} testId="briefing-means" />
     </span>
   );
