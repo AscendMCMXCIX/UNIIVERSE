@@ -41,7 +41,8 @@ export interface TabBarItem {
  * Marks a pinned bar while it is actually pinned (data-stuck): the stylesheet then gives it the
  * frame's ink and blur, and leaves it plain while it sits in the page. A bar is pinned once its top
  * edge has reached its sticky offset, which an observer with that offset taken off the top of the
- * window reports as the bar no longer wholly inside. Watched again when the window changes size
+ * window reports as the bar no longer wholly inside (its newest report: one call may carry several).
+ * Watched again when the window changes size
  * (the offset differs between a tablet and the sidebar's widths, and a short window pins nothing).
  */
 function useStuck(ref: React.RefObject<HTMLElement | null>, enabled: boolean): boolean {
@@ -62,7 +63,12 @@ function useStuck(ref: React.RefObject<HTMLElement | null>, enabled: boolean): b
       if (style.position !== "sticky") return;
       const top = parseFloat(style.top) || 0;
       observer = new IntersectionObserver(
-        ([entry]) => {
+        (entries) => {
+          // The newest entry: a callback that comes late (a busy machine) carries every change since
+          // the last one, oldest first. Back to the top and straight down to the end gave [at rest,
+          // pinned], and reading the first left a pinned bar marked at rest, with no further change
+          // to correct it (#323).
+          const entry = entries[entries.length - 1];
           if (entry) mark(entry.intersectionRatio < 1 && entry.boundingClientRect.top <= top + 1);
         },
         { threshold: [1], rootMargin: `-${Math.ceil(top) + 1}px 0px 0px 0px` },

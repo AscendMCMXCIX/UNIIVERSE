@@ -42,7 +42,11 @@ function markNear(area: Element, cx: number, cy: number, reach = 8): Element | n
 }
 
 export function TimelinePanel({ result }: { result: MatchTimelineResult | null }) {
-  if (!result) return <div className="h-56 animate-pulse rounded-panel bg-surface-2 motion-reduce:animate-none" aria-busy="true" aria-label="Loading the timeline" data-testid="timeline-loading" />;
+  if (!result) return (
+      <div role="status" className="h-56 animate-pulse rounded-panel bg-surface-2 motion-reduce:animate-none" data-testid="timeline-loading">
+        <span className="sr-only">Loading the timeline</span>
+      </div>
+    );
   if (result.status !== "ok")
     return (
       <p className="rounded-panel border border-dashed border-border p-3 text-sm text-fg-muted" data-testid="timeline-message">

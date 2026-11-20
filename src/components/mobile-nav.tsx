@@ -841,7 +841,9 @@ function usePageHeading(pathname: string, barHeight: number): { text: string | n
       }
       const bar = barHeight || 56;
       io = new IntersectionObserver(
-        ([e]) => {
+        (entries) => {
+          // The newest entry: a late callback carries every change since the last, oldest first.
+          const e = entries[entries.length - 1];
           if (!e) return;
           setState({ text, past: !e.isIntersecting && e.boundingClientRect.top < bar });
         },
