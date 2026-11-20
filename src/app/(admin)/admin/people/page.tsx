@@ -9,7 +9,7 @@ import { listPermissionPresets } from "@/server/repositories/permissions";
 import { accountStatesForPlayers } from "@/server/proficiency/provenance";
 import { AddPlayerAccount } from "@/components/admin/add-player-account";
 import { PeoplePanel, type PlayerAdminRow } from "@/components/admin/people-panel";
-import { listAccountsForPlayers } from "@/server/accounts/repository";
+import { accountForBrowser, listAccountsForPlayers } from "@/server/accounts/repository";
 import { loadSocialLinks } from "@/server/repositories/profile";
 import { visibleSocialLinks } from "@/domain/social-links";
 
@@ -43,7 +43,8 @@ export default async function AdminPeoplePage({ searchParams }: { searchParams: 
     lineupRole: (ROLES.find((r) => lineup.slots[r] === p.id) as Role | undefined) ?? null,
     account: accountByPlayer.get(p.id) ?? null,
     riot: riot[p.id] ?? { state: "none", label: "no account linked" },
-    riotAccounts: riotAccounts.filter((r) => r.playerId === p.id),
+    // Never the PUUID: it stays on the server (docs/RIOT_COMPLIANCE.md); the panel only needs to know one is known.
+    riotAccounts: riotAccounts.filter((r) => r.playerId === p.id).map(accountForBrowser),
     // Only what they show publicly: a link they keep to themselves is theirs alone, even here.
     publicLinks: visibleSocialLinks(links.get(p.id)).map((l) => ({ kind: l.kind, label: l.label, text: l.text })),
   }));
