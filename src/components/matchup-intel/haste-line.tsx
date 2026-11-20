@@ -62,9 +62,15 @@ export function MeansLine({ refs, means, label }: { refs: readonly AbilityRef[];
   const line = meansLine(refs.flatMap((r) => (means[r] ? [means[r]!] : [])), haste);
   if (!line) return null;
   return (
-    // No box of its own (contents): the ⓘ's 44px area on a touch screen is its own, never past a wrapper's.
-    <span className="contents normal-case tracking-normal" data-means={line}>
-      <InfoTip text={`What it means: ${line}.`} label={label} testId="briefing-means" />
+    // The ⓘ as a text trigger (as the haste line's "Riot's general rule" is): its own box is the whole
+    // target, 44px wide on a touch screen and 44px tall by touch-target, so in a flex heading its area
+    // never reaches past a box that holds it.
+    <span className="normal-case tracking-normal" data-means={line}>
+      <InfoTip text={`What it means: ${line}.`} label={label} testId="briefing-means" className="touch-target no-underline pointer-coarse:px-3.5">
+        <span aria-hidden className="grid h-4 w-4 place-items-center rounded-full border border-border-strong text-4xs font-semibold leading-none text-fg-subtle">
+          i
+        </span>
+      </InfoTip>
     </span>
   );
 }
