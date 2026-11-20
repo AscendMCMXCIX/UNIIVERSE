@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import fixtureFile from "@/server/riot/fixtures/champion-abilities.fixture.json";
 import championList from "@/server/riot/fixtures/champions.fixture.json";
-import type { ChampionChoice, DdragonChampionAbilities } from "@/domain/matchup-intel/types";
+import type { ChampionChoice, DdragonChampionAbilities, Slot } from "@/domain/matchup-intel/types";
 import { getChampionNotes, getMatchupNotes } from "./curated";
-import { checkedEarlier, notesAgeForTest } from "./notes-age";
+import { changedAbilitiesForTest, changedSinceCheck, checkedEarlier, demoTestHooksAllowed, notesAgeForTest } from "./notes-age";
 import { buildMatchupPageView, type MatchupViewDeps } from "./view";
 
 /*
@@ -21,14 +21,14 @@ afterEach(() => {
 const fixture = fixtureFile as unknown as { version: string; champions: Record<string, DdragonChampionAbilities> };
 const ROSTER: ChampionChoice[] = championList.champions.map((c) => ({ id: c.id, name: c.name, title: "", portrait: "" }));
 
-/** The page's view of a pair on the demo's data, its curated notes read as checked `age` patches earlier. */
-function view(you: string, enemy: string, age: number) {
+/** The page's view of a pair on the demo's data, its curated notes read as checked `age` patches earlier, and `changed` read as changed by Riot since. */
+function view(you: string, enemy: string, age: number, changed: ReadonlyMap<string, ReadonlySet<Slot>> = new Map()) {
   const deps: MatchupViewDeps = {
     champions: ROSTER,
     currentPatch: { patch: "16.22", ddragonVersion: fixture.version },
     loadAbilities: async (ids) => ({ version: fixture.version, champions: Object.fromEntries(ids.map((id) => [id, fixture.champions[id] ?? null])) }),
     knownPatches: ["16.22"],
-    championNotes: (id) => checkedEarlier(getChampionNotes(id), age),
+    championNotes: (id) => changedSinceCheck(checkedEarlier(getChampionNotes(id), age), changed.get(id)),
     matchupNotes: (a, b) => checkedEarlier(getMatchupNotes(a, b), age),
   };
   return buildMatchupPageView({ champion: you, vs: enemy }, deps);
@@ -38,6 +38,7 @@ describe("the curated notes read as checked earlier, for the browser tests", () 
   it("only on the in-memory demo, never on a deployment or a real database, and only for one to three patches", () => {
     vi.stubEnv("UNIIVERSE_DB_MODE", "memory");
     vi.stubEnv("VERCEL", "");
+    vi.stubEnv("DATABASE_URL", "");
     expect(["1", "2", "3"].map(notesAgeForTest)).toEqual([1, 2, 3]);
     for (const cookie of [undefined, null, "", "0", "4", "-1", "1.5", " 1", "one"]) expect(notesAgeForTest(cookie), String(cookie)).toBe(0);
     vi.stubEnv("VERCEL", "1");
@@ -77,5 +78,50 @@ describe("the curated notes read as checked earlier, for the browser tests", () 
     const v = await view("Riven", "Mordekaiser", 3);
     expect(v.matchup).toMatchObject({ recheck: { patch: "26.22", patches: 3, expired: true }, briefing: null, interactions: [] });
     expect(v.matchup!.expiredInteractions).toBeGreaterThan(0);
+  });
+
+  it("never on a production-like configuration: on Vercel, with any database address, or outside the in-memory mode, neither cookie is read", () => {
+    vi.stubEnv("UNIIVERSE_DB_MODE", "memory");
+    vi.stubEnv("VERCEL", "");
+    vi.stubEnv("DATABASE_URL", "");
+    expect(demoTestHooksAllowed()).toBe(true);
+    expect(changedAbilitiesForTest("Riven.Q").get("Riven")).toEqual(new Set(["Q"]));
+    for (const [name, value] of [["VERCEL", "1"], ["DATABASE_URL", "postgres://u:p@db.example:5432/x"], ["UNIIVERSE_DB_MODE", "postgres"], ["UNIIVERSE_DB_MODE", ""]] as const) {
+      vi.stubEnv("UNIIVERSE_DB_MODE", "memory");
+      vi.stubEnv("VERCEL", "");
+      vi.stubEnv("DATABASE_URL", "");
+      vi.stubEnv(name, value);
+      expect(demoTestHooksAllowed(), `${name}=${value}`).toBe(false);
+      expect(notesAgeForTest("1"), `${name}=${value}`).toBe(0);
+      expect(changedAbilitiesForTest("Riven.Q").size, `${name}=${value}`).toBe(0);
+    }
+  });
+
+  it("the changed abilities: up to ten Champion.Slot, else none", () => {
+    vi.stubEnv("UNIIVERSE_DB_MODE", "memory");
+    vi.stubEnv("VERCEL", "");
+    vi.stubEnv("DATABASE_URL", "");
+    const m = changedAbilitiesForTest("Riven.Q,Mordekaiser.E,Riven.R");
+    expect(m.get("Riven")).toEqual(new Set(["Q", "R"]));
+    expect(m.get("Mordekaiser")).toEqual(new Set(["E"]));
+    for (const bad of [undefined, null, "", "Riven", "Riven.X", "Riven.Q,", "Riven.Q;Ornn.E", " Riven.Q", "../x.Q", Array.from({ length: 11 }, () => "Riven.Q").join(",")]) expect(changedAbilitiesForTest(bad).size, String(bad)).toBe(0);
+  });
+
+  it("an ability changed since the check, one patch on: Riot's line as Riot stores it, the curated cooldown as checked (flagged), nothing else of the notes moved", async () => {
+    const original = getChampionNotes("Mordekaiser")!;
+    const changed = changedSinceCheck(original, new Set<Slot>(["Q"]))!;
+    expect(changed.abilities.Q!.ddragonCooldown).toEqual([]);
+    expect({ ...changed.abilities.Q, ddragonCooldown: original.abilities.Q!.ddragonCooldown }).toEqual(original.abilities.Q);
+    expect({ ...changed, abilities: { ...changed.abilities, Q: original.abilities.Q } }).toEqual(original);
+    const v = await view("Riven", "Mordekaiser", 1, new Map([["Mordekaiser", new Set<Slot>(["Q"])]]));
+    const q = v.enemyIntel!.abilities!.find((a) => a.slot === "Q")!;
+    expect(q.freshness).toBe("changed-since");
+    expect(q.changes).toEqual(["cooldown"]);
+    // The line is Riot's own stored array, nothing made up.
+    expect(q.cooldown).toMatchObject({ kind: "per-rank" });
+    expect(JSON.stringify(q.cooldown)).toContain(JSON.stringify(fixture.champions.Mordekaiser!.abilities.find((a) => a.slot === "Q")!.cooldown));
+    expect(v.enemyIntel!.abilities!.filter((a) => a.freshness === "changed-since").map((a) => a.slot)).toEqual(["Q"]);
+    // The briefing's points on it hidden, the rest shown.
+    expect(JSON.stringify(v.matchup!.briefing)).toContain('"hidden"');
   });
 });

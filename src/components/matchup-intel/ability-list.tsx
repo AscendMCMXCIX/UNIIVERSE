@@ -1,9 +1,11 @@
+import { Fragment } from "react";
 import { TierLabel } from "./evidence-panel";
 import { EqualNot, History, Timer, TriangleAlert } from "lucide-react";
 import { Fold } from "@/components/ui/fold";
 import { ChangedBadge } from "./changed-badge";
 import type { AbilityView, ChampionChoice, ChampionIntelView, CooldownDisplay, FactView, Slot } from "@/domain/matchup-intel/types";
 import { abilityChips, factsFrom } from "@/domain/matchup-intel/kit";
+import { cooldownFrom } from "@/domain/matchup-intel/cooldown";
 import { patchFromVersion, publicPatchName } from "@/domain/patch";
 import { Badge } from "@/components/ui/badge";
 import { HasteLine } from "./haste-line";
@@ -298,6 +300,7 @@ function AbilityTile({ intel, ability: a, checkedPatch, dataPatch, notRecheckedF
   const champion = intel.champion;
   const flagged = a.freshness === "changed-since";
   const source = cooldownSourceWords(a.cooldown, { freshness: a.freshness, checkedPatch, dataPatch, notRecheckedFor });
+  const ownSource = source === commonSource ? null : source;
   const chips = abilityChips(a);
   // The checked notes' modifiers and recast in one short line; once Riot's data moved, they go with the flagged notes in the window.
   const notes = flagged ? [] : [...modifierWords(a.modifiers), ...(a.recast ? [recastWords(a.recast)] : [])];
@@ -306,11 +309,13 @@ function AbilityTile({ intel, ability: a, checkedPatch, dataPatch, notRecheckedF
   return (
     // A chip's jump lands here and gives the tile the focus until it moves on (jumpToAnchor,
     // ui/section-index.tsx); the tile is lit while it holds it.
+    // On a desktop the tiles are 4px shorter (lg:py-1): five of them give the 1440 × 900 fit ~20px of
+    // margin, which CI's browser (Chrome 156, which wraps a cooldown's note a line earlier than 153) needs.
     // The icon beside everything from a tile 16rem wide; in a narrower one (a phone at a large text
     // size) a smaller copy starts the key's line instead and the words take the tile's whole width,
     // so a column beside the icon never squeezes them to a few letters a line (the hidden copy is
     // display: none, and a lazy image out of the layout is never fetched).
-    <li id={abilityAnchor(champion.id, a.slot)} className="grid scroll-mt-4 grid-cols-1 items-start gap-x-2.5 px-2 py-1.5 transition-colors focus:bg-accent/5 focus-visible:-outline-offset-2 @min-[16rem]/abilities:grid-cols-[2.5rem_minmax(0,1fr)] @min-[16rem]/abilities:px-3" data-testid="ability-row" data-slot={a.slot} data-freshness={a.freshness ?? undefined}>
+    <li id={abilityAnchor(champion.id, a.slot)} className="grid scroll-mt-4 grid-cols-1 items-start gap-x-2.5 px-2 py-1.5 transition-colors lg:py-1 focus:bg-accent/5 focus-visible:-outline-offset-2 @min-[16rem]/abilities:grid-cols-[2.5rem_minmax(0,1fr)] @min-[16rem]/abilities:px-3" data-testid="ability-row" data-slot={a.slot} data-freshness={a.freshness ?? undefined}>
       <span className="hidden @min-[16rem]/abilities:block">
         <AbilityIcon src={a.icon} slot={a.slot} />
       </span>
@@ -325,19 +330,35 @@ function AbilityTile({ intel, ability: a, checkedPatch, dataPatch, notRecheckedF
           <h3 className="min-w-0 text-sm font-semibold leading-snug text-fg [overflow-wrap:anywhere]" data-testid="ability-name">
             {a.name}
           </h3>
-          {flagged ? (
-            <ChangedBadge />
-          ) : null}
+
           <span className="flex min-w-0 basis-full items-center justify-between gap-2 @min-[24rem]/abilities:ml-auto @min-[24rem]/abilities:basis-auto @min-[24rem]/abilities:justify-end">
             {/* The notes' static modifier belongs to their line only: once Riot's data moved, it goes with the flagged notes. */}
-            <CooldownLine cooldown={a.cooldown} isStatic={!flagged && a.modifiers?.static === true} testId="ability-cooldown-value" lineTestId="ability-cooldown" source={source === commonSource ? null : source} />
+            <CooldownLine cooldown={a.cooldown} isStatic={!flagged && a.modifiers?.static === true} testId="ability-cooldown-value" lineTestId="ability-cooldown" source={flagged ? null : ownSource} />
             <DetailsDialog label="Details" name={`${a.name}, ${SLOT_NAMES[a.slot]}`} title={a.name} description={`${champion.name} · ${SLOT_NAMES[a.slot]}`} testId="ability-details" bodyTestId="ability-details-body" iconOnly>
               <AbilityDetailsBody champion={champion} ability={a} intel={intel} source={source} checkedPatch={checkedPatch} />
             </DetailsDialog>
           </span>
+          {/* Once Riot changed the ability, where its line now comes from, under the numbers: after them it
+              took the numbers off the name's row onto two of their own. */}
+          {flagged && ownSource ? (
+            <p className="basis-full text-2xs leading-snug text-fg-subtle @min-[24rem]/abilities:text-right" data-testid="ability-cooldown-source">
+              {ownSource}
+            </p>
+          ) : null}
           {/* At the haste chosen in the bar (none at 0): a line of its own, so the base line never moves. */}
           <HasteLine basis={a.haste} />
         </div>
+        {/* The badge on the row of the notes it qualifies, first under the name's row, before the facts it
+            flags (beside the name it pushed the cooldown to a row of its own, which the Production
+            check's pair could not spare at 1440 × 900). */}
+        {flagged ? (
+          <div className="text-xs font-medium text-warn">
+            <span className="mr-1.5 inline-flex align-top">
+              <ChangedBadge />
+            </span>
+            {flaggedNotesWords(checkedPatch, a.changes)}
+          </div>
+        ) : null}
         {chips.length ? (
           // Rows of chips with no gap between them: each chip is its badge's own box (fact-chip.tsx), so
           // they touch and never overlap, a chip that wraps included; on a touch screen far enough
@@ -370,7 +391,7 @@ function AbilityTile({ intel, ability: a, checkedPatch, dataPatch, notRecheckedF
             {notes.join(" · ")}
           </p>
         ) : null}
-        {flagged ? <p className="text-xs font-medium text-warn">{flaggedNotesWords(checkedPatch, a.changes)}</p> : null}
+
       </div>
     </li>
   );
@@ -421,15 +442,24 @@ export function AbilityList({ intel, testId }: { intel: ChampionIntelView; testI
  * Where most of a champion's cooldown lines come from, said once in its panel's heading ("Riot's
  * data, not reviewed", "Checked on patch 26.22"): the words every line with a number shares. A tile
  * whose line comes from elsewhere (Riot's newer data once it moved after the check, a line with no
- * number that nobody reviewed) says its own under its numbers. Null when the lines with a number
- * disagree, or none has one: then each tile says its own.
+ * number that nobody reviewed) says its own under its numbers. A curated champion's heading dates its
+ * checked notes, so their words are common to its lines while most lines with a number have them:
+ * once Riot changed one ability after the check, that tile says its own ("Riot's data for patch …,
+ * not re-checked", beside its badge) and the others keep leaving the heading's words out, rather than
+ * every tile repeating them (each repeat a line, which put the Production check's pair's sources'
+ * summary under the fold at 1440 × 900). Otherwise null when the lines with a number disagree, or
+ * none has one: then each tile says its own.
  */
 export function commonSourceOf(intel: ChampionIntelView): string | null {
   const checkedPatch = intel.curated?.verified.patch ?? null;
   const dataPatch = publicPatchOf(intel.dataVersion);
   const notRecheckedFor = intel.curated?.recheck?.patch ?? null;
-  const words = (intel.abilities ?? []).filter((a) => cooldownLines(a.cooldown).some((l) => l.known)).map((a) => cooldownSourceWords(a.cooldown, { freshness: a.freshness, checkedPatch, dataPatch, notRecheckedFor }));
-  return words.length && words.every((w) => w !== null && w === words[0]) ? words[0]! : null;
+  const lines = (intel.abilities ?? []).filter((a) => cooldownLines(a.cooldown).some((l) => l.known));
+  const words = lines.map((a) => cooldownSourceWords(a.cooldown, { freshness: a.freshness, checkedPatch, dataPatch, notRecheckedFor }));
+  if (words.length && words.every((w) => w !== null && w === words[0])) return words[0]!;
+  if (!intel.curated) return null;
+  const checked = lines.map((a, i) => (cooldownFrom(a.cooldown) === "curated" ? words[i] : null)).filter((w): w is string => w !== null);
+  return checked.length * 2 > words.length && checked.every((w) => w === checked[0]) ? checked[0]! : null;
 }
 
 /**
@@ -444,21 +474,34 @@ export function CuratedLine({ intel }: { intel: ChampionIntelView }) {
   const changed = (intel.abilities ?? []).filter((a) => a.freshness === "changed-since").length;
   const warnings = [...(changed > 0 ? [changedAbilitiesWords(changed)] : f.warning ? [f.warning] : []), ...(recheck?.expired ? [expiredNotesWords(recheck.patches)] : [])];
   return (
-    <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-0.5" data-testid="matchup-curated-checked">
+    // In the flow of the words before it (not a box of its own): the line starts where the source
+    // line's words end and wraps as words do, each badge kept whole after a space (which a wrapped
+    // line drops, so a badge starting one is not indented), so the folded champion's summary
+    // and a panel's heading take a row less (a box wrapped whole to a line of its own, and put its
+    // first badge on another).
+    <span data-testid="matchup-curated-checked">
       <span>Curated notes: {f.checked.charAt(0).toLowerCase() + f.checked.slice(1)}</span>
       {recheck && !recheck.expired ? (
-        <span className="inline-flex max-w-full" data-testid="matchup-not-rechecked">
-          <Badge tone="neutral" size="line">
-            <History className="h-3.5 w-3.5 shrink-0" aria-hidden />
-            {notRecheckedWords(recheck.patch)}
-          </Badge>
-        </span>
+        <>
+          {" "}
+          <span className="inline-flex max-w-full align-top" data-testid="matchup-not-rechecked">
+            <Badge tone="neutral" size="line">
+              <History className="h-3.5 w-3.5 shrink-0" aria-hidden />
+              {notRecheckedWords(recheck.patch)}
+            </Badge>
+          </span>
+        </>
       ) : null}
       {warnings.map((w) => (
-        <Badge key={w} tone="warn" size="line">
-          <TriangleAlert className="h-3.5 w-3.5 shrink-0" aria-hidden />
-          {w}
-        </Badge>
+        <Fragment key={w}>
+          {" "}
+          <span className="inline-flex max-w-full align-top">
+            <Badge tone="warn" size="line">
+              <TriangleAlert className="h-3.5 w-3.5 shrink-0" aria-hidden />
+              {w}
+            </Badge>
+          </span>
+        </Fragment>
       ))}
     </span>
   );

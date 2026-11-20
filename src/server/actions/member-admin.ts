@@ -33,10 +33,10 @@ export async function setMemberDisplayNameAction(userId: string, displayName: st
     const db = await getAppDb();
     const done = await setMemberDisplayName(db, session.userId, userId, displayName);
     invalidatePublicTeam();
-    await recordAudit(db, session, { action: "account.display-name", target: { type: "user", id: userId } });
+    if (done.changed) await recordAudit(db, session, { action: "account.display-name", target: { type: "user", id: userId } });
     touch();
     revalidatePath("/", "layout");
-    return { ok: true, data: done };
+    return { ok: true, data: { displayName: done.displayName } };
   } catch (err) {
     return fail(err);
   }
@@ -69,9 +69,9 @@ export async function moderatePictureAction(userId: string, dataUrl: string | nu
       if (!data) return { ok: false, error: "Use a PNG, JPEG or WebP picture." };
     }
     const db = await getAppDb();
-    await moderateAvatar(db, session.userId, userId, data);
+    const { changed } = await moderateAvatar(db, session.userId, userId, data);
     invalidatePublicTeam();
-    await recordAudit(db, session, { action: data ? "account.picture-replace" : "account.picture-remove", target: { type: "user", id: userId } });
+    if (changed) await recordAudit(db, session, { action: data ? "account.picture-replace" : "account.picture-remove", target: { type: "user", id: userId } });
     touch();
     return { ok: true, data: null };
   } catch (err) {
