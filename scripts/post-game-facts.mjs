@@ -25,6 +25,12 @@ export function noteRules(source = readFileSync(new URL("../src/domain/match-not
 /** Words in a sentence, as the app counts them (match-notes.ts, wordCount). */
 export const wordCount = (text) => text.split(/\s+/).filter(Boolean).length;
 
+/**
+ * Whether a note states a number: a figure, or a count in words (a zero count, "No control wards
+ * bought."; a multikill, "A penta kill.").
+ */
+export const statesNumber = (text) => /\d/.test(text) || /(^|[^a-z])(no|zero|one|two|three|four|five|double|triple|quadra|penta)([^a-z]|$)/i.test(text);
+
 /** The refused words a text contains, as the app finds them (match-notes.ts, refusedWordsIn): whole words, any case. */
 export function refusedIn(text, refused) {
   const lower = text.toLowerCase();
@@ -60,6 +66,7 @@ export function readPostGame() {
     lane: lane?.getAttribute("data-state") ?? null,
     laneWords: lane?.getAttribute("data-state") === "unclear" ? clean(lane) : /^Lane vs/.test(clean(lane?.querySelector("th"))) ? "Lane vs" : "",
     notesShown: !!notes,
+    notesLoading: !!li.querySelector("[data-testid=post-game-notes-loading]"),
     notesFallback: !!li.querySelector("[data-testid=notes-fallback], [data-testid=timeline-missing]"),
     sections: notes ? { well: Number(notes.getAttribute("data-well")), wrong: Number(notes.getAttribute("data-wrong")), focus: Number(notes.getAttribute("data-focus")) } : null,
     notes: notes ? [...notes.querySelectorAll("[data-testid=post-game-note]")].map(clean) : [],
@@ -82,17 +89,20 @@ export function postGameVerdicts({ kind, at, rules }) {
   fact("the opened game says its result (Victory, Defeat or No result)", said, { result: said ? at.result : `other words (${(at.result ?? "").length} characters)` });
   if (at.itemsNotRecorded) out.push({ name: `${kind}: skipped: this game's items were not recorded (the six slots and the trinket)`, status: "WARN", detail: { itemSlots: 0 } });
   else fact("the loadout: six item slots and the trinket (round, beside the first row)", at.itemSlots === 7 && at.trinketRound, { itemSlots: at.itemSlots, trinketRound: at.trinketRound });
-  fact("the loadout: two summoner spells, the keystone and the secondary tree, and the rune page's line", at.spellRuneSlots === 4 && at.runePage, { spellRuneSlots: at.spellRuneSlots, runePage: at.runePage });
+  fact("the loadout: two summoner spells, the keystone and the secondary tree", at.spellRuneSlots === 4, { spellRuneSlots: at.spellRuneSlots });
+  // An older stored game has no rune page (its perks were not kept): the line is left out by design.
+  if (!at.runePage) out.push({ name: `${kind}: skipped: this game's rune page was not stored (the rune line)`, status: "WARN", detail: { runePage: false } });
   fact("each figure once: the KDA, CS per minute and the damage share, in six tiles", at.tiles === 6 && at.kda === 1 && at.csPerMin <= 1 && at.damageShare <= 1, { tiles: at.tiles, kda: at.kda, csPerMin: at.csPerMin, damageShare: at.damageShare });
   fact('the lane section, or its "Lane opponent not clear in this game" line', (at.lane === "clear" && at.laneWords === "Lane vs") || (at.lane === "unclear" && at.laneWords === "Lane opponent not clear in this game"), { lane: at.lane });
   if (!at.notesShown) {
-    if (at.notesFallback) out.push({ name: `${kind}: skipped: this game has no timeline, so no notes were read`, status: "WARN", detail: { notes: 0 } });
+    // The notes wait for the game's timeline, which a first view may still be asking Riot for.
+    if (at.notesLoading) out.push({ name: `${kind}: skipped: the game's timeline had not answered after 30 s, so no notes were read`, status: "WARN", detail: { notesLoading: true } });
     else fact("the notes, or the line saying why there are none", false, { notesShown: false });
   } else {
     const s = at.sections ?? { well: NaN, wrong: NaN, focus: NaN };
     const words = at.notes.map(wordCount);
     const refused = [...new Set(at.notes.flatMap((n) => refusedIn(n, rules.refused)))];
-    const numberless = at.notes.filter((n) => !/\d/.test(n)).length;
+    const numberless = at.notes.filter((n) => !statesNumber(n)).length;
     fact(`the notes: at most 2 went well, 2 went wrong and 1 focus, each with a number, at most ${rules.maxWords} words and no refused word`, s.well <= 2 && s.wrong <= 2 && s.focus <= 1 && at.notes.length === s.well + s.wrong + s.focus && numberless === 0 && words.every((w) => w <= rules.maxWords) && refused.length === 0, { ...s, words, numberless, refused });
   }
   fact("Previous, Next and Close, in the game's header and its footer", at.steps === 6, { steps: at.steps });

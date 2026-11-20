@@ -1858,7 +1858,7 @@ async function matchHistory(page, log, kind, playerId) {
         // The post-game view's content (PLAN §6 rows 5.2–5.8; scripts/post-game-facts.mjs), from the game
         // already open: no interaction of its own, the notes once its timeline has loaded.
         await guarded("games", `${kind}: the open game's post-game view`, async () => {
-          await page.waitForFunction(() => document.querySelector("li[data-expanded] [data-testid=post-game-notes], li[data-expanded] [data-testid=notes-fallback], li[data-expanded] [data-testid=timeline-missing]"), null, { timeout: 15_000 }).catch(() => {});
+          await page.waitForFunction(() => document.querySelector("li[data-expanded] [data-testid=post-game-notes]"), null, { timeout: 30_000 }).catch(() => {});
           const at = await page.evaluate(readPostGame);
           for (const v of postGameVerdicts({ kind, at, rules: noteRules() })) check("games", v.name, v.status, v.detail);
         });

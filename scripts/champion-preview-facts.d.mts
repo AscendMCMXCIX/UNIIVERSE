@@ -11,6 +11,7 @@ export interface ChampionPreviewRead {
   winRate?: string;
   loading?: boolean;
   noOpponents?: boolean;
+  answered?: boolean;
   opponents?: Array<{ games: number; says: boolean }>;
   intel?: number;
   intelChampion?: boolean;

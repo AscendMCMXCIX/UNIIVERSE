@@ -53,10 +53,14 @@ describe("the post-game facts", () => {
   it("pass on the demo's open game", () => {
     expect(postGameVerdicts({ kind: "desktop", at: DEMO, rules }).map((v) => v.status)).toEqual(Array(7).fill("PASS"));
   });
+  it("take a count in words as a number (a zero count, a multikill), as the app's notes give them", () => {
+    for (const n of ["No control wards bought.", "A penta kill.", "A quadra kill."]) expect(failed({ ...DEMO, sections: { well: 1, wrong: 0, focus: 0 }, notes: [n] })).toEqual([]);
+  });
   it("fail the regressions they exist for", () => {
     expect(failed({ ...DEMO, result: "" })).toHaveLength(1);
     expect(failed({ ...DEMO, itemSlots: 6 })).toHaveLength(1);
     expect(failed({ ...DEMO, spellRuneSlots: 2 })).toHaveLength(1);
+    expect(failed({ ...DEMO, notes: ["Solo kills.", "x 1", "y 2"] })).toHaveLength(1);
     expect(failed({ ...DEMO, kda: 2 })).toHaveLength(1);
     expect(failed({ ...DEMO, tiles: 4 })).toHaveLength(1);
     expect(failed({ ...DEMO, lane: null, laneWords: "" })).toHaveLength(1);
@@ -69,9 +73,12 @@ describe("the post-game facts", () => {
     expect(failed({ ...DEMO, sections: { well: 1, wrong: 0, focus: 0 }, notes: ["3 deaths because of the lane."] })).toHaveLength(1);
     expect(failed({ ...DEMO, sections: { well: 2, wrong: 2, focus: 0 }, notes: ["1 a"] })).toHaveLength(1);
   });
-  it("warn, not fail, for a game without its items or its timeline", () => {
-    const v = postGameVerdicts({ kind: "desktop", at: { ...DEMO, itemsNotRecorded: true, itemSlots: 0, notesShown: false, notesFallback: true, sections: null, notes: [] }, rules });
+  it("warn, not fail, for a game without its items or its rune page, or whose timeline is still loading", () => {
+    const v = postGameVerdicts({ kind: "desktop", at: { ...DEMO, itemsNotRecorded: true, itemSlots: 0, runePage: false, notesShown: false, notesLoading: true, sections: null, notes: [] }, rules });
     expect(v.filter((x) => x.status === "FAIL")).toEqual([]);
-    expect(v.filter((x) => x.status === "WARN")).toHaveLength(2);
+    expect(v.filter((x) => x.status === "WARN")).toHaveLength(3);
+  });
+  it("fail notes that neither show nor load", () => {
+    expect(failed({ ...DEMO, notesShown: false, notesLoading: false, sections: null, notes: [] })).toHaveLength(1);
   });
 });

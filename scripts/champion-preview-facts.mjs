@@ -45,6 +45,8 @@ export function readChampionPreview(rowIndex) {
     winRate: clean(figures?.firstElementChild?.firstElementChild),
     loading: !!content.querySelector("[data-testid=champion-preview-loading]"),
     noOpponents: !!content.querySelector("[data-testid=champion-preview-no-opponents]"),
+    // The foot line comes only with an answer: without it (and not loading) the preview could not be loaded.
+    answered: !!content.querySelector("[data-testid=champion-preview-foot]"),
     opponents: opponents.map((o) => {
       const games = Number(o.getAttribute("data-games") ?? "0");
       // The row's own "N games" (its figures are spans side by side, so each is read on its own).
@@ -86,10 +88,10 @@ export function championPreviewVerdicts({ kind, at, step, escaped }) {
   fact('the preview says "N games · NW NL", the row\'s games, the wins and losses adding up', !!m && games === at.rowGames && wins + losses === games, { record: at.record, rowGames: at.rowGames });
   const rate = /^(\d{1,3})%$/.exec(at.winRate ?? "");
   fact("the preview shows the win rate, the wins over the games", !!rate && !!m && games > 0 && Math.abs(Number(rate[1]) - (100 * wins) / games) <= 0.5 + 1e-9, { winRate: at.winRate, record: at.record });
-  if (at.loading) fact("the opponents loaded", false, { loading: true });
-  else if (at.noOpponents || at.opponents.length === 0) out.push({ name: `${kind}: skipped: no lane opponent is known for this champion yet (its rows, the link to Matchup Intel)`, status: "WARN", detail: { opponents: 0 } });
+  if (at.loading || at.answered === false) fact("the opponents loaded", false, { loading: at.loading, answered: at.answered });
+  else if (at.noOpponents) out.push({ name: `${kind}: skipped: no lane opponent is known for this champion yet (its rows, the link to Matchup Intel)`, status: "WARN", detail: { opponents: 0 } });
   else {
-    fact('every opponent row carries its "N games"', at.opponents.every((o) => o.games > 0 && o.says), { rows: at.opponents.length, without: at.opponents.filter((o) => !(o.games > 0 && o.says)).length });
+    fact('every opponent row carries its "N games", and there is at least one', at.opponents.length > 0 && at.opponents.every((o) => o.games > 0 && o.says), { rows: at.opponents.length, without: at.opponents.filter((o) => !(o.games > 0 && o.says)).length });
     fact("an opened opponent shows one link to Matchup Intel, with champion= and vs= the pair", at.intel === 1 && at.intelChampion && at.intelVs, { links: at.intel, champion: at.intelChampion, vs: at.intelVs });
   }
   if (step === null) out.push({ name: `${kind}: skipped: ↓ has no next row (the list has one champion)`, status: "WARN", detail: null });

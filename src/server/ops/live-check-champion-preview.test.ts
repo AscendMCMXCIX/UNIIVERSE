@@ -19,6 +19,7 @@ const DEMO: ChampionPreviewRead = {
   winRate: "29%",
   loading: false,
   noOpponents: false,
+  answered: true,
   opponents: [{ games: 7, says: true }, { games: 4, says: true }],
   intel: 1,
   intelChampion: true,
@@ -62,6 +63,10 @@ describe("All Champions' preview facts", () => {
     const v = run({ ...DEMO, opponents: [], noOpponents: true, intel: 0 }, null);
     expect(v.filter((x) => x.status === "FAIL")).toEqual([]);
     expect(v.filter((x) => x.status === "WARN")).toHaveLength(2);
+  });
+  it("fail, not warn, a preview whose answer could not be loaded", () => {
+    expect(failed({ ...DEMO, opponents: [], intel: 0, answered: false })).toEqual(["desktop: the opponents loaded"]);
+    expect(failed({ ...DEMO, opponents: [], intel: 0 })).toHaveLength(2);
   });
   it("fail a preview that never opened", () => {
     expect(failed({ open: false })).toHaveLength(1);
