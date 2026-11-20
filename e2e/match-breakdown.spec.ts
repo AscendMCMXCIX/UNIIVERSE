@@ -138,13 +138,16 @@ test("an iPhone 12 (390 × 844, its insets told): the opened game's header is at
   const cdp = await page.context().newCDPSession(page);
   await cdp.send("Emulation.setSafeAreaInsetsOverride", { insets: { top: 47, topMax: 47, bottom: 34, bottomMax: 34, left: 0, leftMax: 0, right: 0, rightMax: 0 } });
   await openHistory(page, "MID");
-  // The three newest games: one with every answer, one with a two-line lane (measured on main: their
-  // answers end 156–224px above the steps' bar; the header 101px with the 47px inset).
+  // The three newest games, one with a two-line lane (measured on main on the demo: the header 101px
+  // with the 47px inset, 54px without; the answers end 116–245px above the steps' bar).
+  let folds = 0;
   for (let i = 0; i < 3; i++) {
     const card = page.getByTestId("match-card").nth(i);
     const breakdown = await openGame(card);
     await expect(breakdown.getByTestId("post-game-notes")).toBeVisible({ timeout: 15_000 });
-    for (const fold of ["fold-gold", "fold-build"]) if (await breakdown.getByTestId(fold).count()) expect(await breakdown.getByTestId(fold).evaluate((d) => (d as HTMLDetailsElement).open), `game ${i}: ${fold} closed`).toBe(false);
+    // The answers the game has (Went well, Went wrong, Focus next), or the one honest line.
+    expect((await breakdown.getByTestId("post-game-note").count()) + (await breakdown.getByTestId("notes-fallback").count()), `game ${i}: an answer`).toBeGreaterThan(0);
+    for (const fold of ["fold-gold", "fold-build"]) if (await breakdown.getByTestId(fold).count() && ++folds) expect(await breakdown.getByTestId(fold).evaluate((d) => (d as HTMLDetailsElement).open), `game ${i}: ${fold} closed`).toBe(false);
     const f = await page.evaluate(() => {
       const box = (id: string) => document.querySelector(`[data-testid=match-detail] [data-testid=${id}]`)?.getBoundingClientRect() ?? null;
       const parts = Object.fromEntries(["match-result", "post-game-loadout", "rune-page", "post-game-figures", "post-game-lane", "post-game-notes"].map((id) => [id, box(id)?.bottom ?? null]));
@@ -159,6 +162,8 @@ test("an iPhone 12 (390 × 844, its insets told): the opened game's header is at
     }
     await closeGame(card);
   }
+  // Every sixth demo game has no timeline, and so no folds: at least one of the three had them closed.
+  expect(folds, "folds checked").toBeGreaterThan(0);
 });
 
 test("a game without a timeline says so once, and its notes skip what the timeline would tell", async ({ page }) => {

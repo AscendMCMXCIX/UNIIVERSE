@@ -323,22 +323,38 @@ test("J12 the enemy changed in Matchup Intel after reading, J14 a teammate from 
   const context = await phoneContext(page, baseURL!);
   const p = await context.newPage();
   // J12 (PLAN S7a): read down to the enemy's kit, then the pinned pair bar's enemy and a champion.
+  // A touch screen keeps its keyboard down as the picker opens (champion-picker.tsx), so a champion
+  // on the picker's first screen is 2 taps, and one found by its name 3 (the search field is a tap).
+  const read = async () => {
+    await expect(async () => {
+      await p.getByTestId("matchup-enemy-abilities").scrollIntoViewIfNeeded();
+      await expect(p.getByTestId("matchup-pair-bar")).toBeVisible({ timeout: 1_000 });
+    }).toPass({ timeout: 15_000 });
+  };
+  const picker = p.getByTestId("matchup-picker");
   const j12: Count = { taps: 0, scrolls: 0, scrollBacks: 0 };
   await p.goto("/resources/matchups?role=top&champion=Riven&vs=Mordekaiser");
   await expect(p.getByTestId("matchup-enemy-abilities")).toHaveAttribute("data-champion", "Mordekaiser");
-  const bar = p.getByTestId("matchup-pair-bar");
-  await expect(async () => {
-    await p.getByTestId("matchup-enemy-abilities").scrollIntoViewIfNeeded();
-    await expect(bar).toBeVisible({ timeout: 1_000 });
-  }).toPass({ timeout: 15_000 });
+  await read();
   await tap(j12, p.getByTestId("matchup-bar-enemy"));
-  const picker = p.getByTestId("matchup-picker");
-  // Typing is not a tap: the search narrows the grid to the champion.
+  await expect(picker.locator("button[data-champion]").first()).toBeVisible();
+  // The first champion other than the enemy that is whole on the screen, without scrolling the picker.
+  const inView = await picker.locator("button[data-champion]").evaluateAll((els) => els.map((e) => ({ id: (e as HTMLElement).dataset.champion!, r: e.getBoundingClientRect() })).find((x) => x.id !== "Mordekaiser" && x.r.top >= 0 && x.r.bottom <= innerHeight && x.r.height > 0)?.id ?? null);
+  expect(inView, "J12: a champion on the picker's first screen").not.toBeNull();
+  await tap(j12, picker.locator(`button[data-champion="${inView}"]`).first());
+  await expect(p.getByTestId("matchup-enemy-abilities")).toHaveAttribute("data-champion", inView!);
+  await expect(p.getByTestId("matchup-enemy-abilities")).toBeInViewport();
+  expect(j12, "J12, a champion in view").toEqual({ taps: 2, scrolls: 0, scrollBacks: 0 });
+  // By name: the bar's enemy, the search field, the champion.
+  const j12b: Count = { taps: 0, scrolls: 0, scrollBacks: 0 };
+  await read();
+  await tap(j12b, p.getByTestId("matchup-bar-enemy"));
+  await tap(j12b, picker.getByTestId("matchup-picker-search"));
   await picker.getByTestId("matchup-picker-search").fill("darius");
-  await tap(j12, picker.getByTestId("matchup-picker-grid").locator('button[data-champion="Darius"]'));
+  await tap(j12b, picker.getByTestId("matchup-picker-grid").locator('button[data-champion="Darius"]'));
   await expect(p.getByTestId("matchup-enemy-abilities")).toHaveAttribute("data-champion", "Darius");
   await expect(p.getByTestId("matchup-enemy-abilities")).toBeInViewport();
-  expect(j12, "J12").toEqual({ taps: 2, scrolls: 0, scrollBacks: 0 });
+  expect(j12b, "J12, a champion by name").toEqual({ taps: 3, scrolls: 0, scrollBacks: 0 });
 
   // J14 (PLAN S8a): a row of Players opens the teammate's Peek, its close returns to the list unmoved.
   const j14: Count = { taps: 0, scrolls: 0, scrollBacks: 0 };
@@ -348,6 +364,7 @@ test("J12 the enemy changed in Matchup Intel after reading, J14 a teammate from 
   await rows.nth(3).scrollIntoViewIfNeeded();
   await p.evaluate(() => window.scrollBy(0, 40));
   const y14 = await p.evaluate(() => window.scrollY);
+  expect(y14, "J14: the list is scrolled, so a jump would show").toBeGreaterThan(0);
   const box = (await rows.nth(3).boundingBox())!;
   // Off the name (the profile's link): the row's own press.
   await tap(j14, rows.nth(3), { x: box.width - 24, y: box.height / 2 });
@@ -358,6 +375,10 @@ test("J12 the enemy changed in Matchup Intel after reading, J14 a teammate from 
   await expect(p).toHaveURL(/\/players$/);
   expect(Math.abs((await p.evaluate(() => window.scrollY)) - y14), "J14: the list did not move").toBeLessThanOrEqual(1);
   expect(j14, "J14").toEqual({ taps: 2, scrolls: 0, scrollBacks: 0 });
+  // The close took its history entry back: Back now leaves Players, never reopening the Peek.
+  await p.goBack();
+  await expect(p).toHaveURL(/\/resources\/matchups/);
+  await expect(peek).toHaveCount(0);
 
   // J15 (PLAN S9a): in Admin Mode, a person far down the list and the view's close: the list's scroll kept.
   await context.addCookies([{ name: "uniiverse_view", value: "admin", url: baseURL! }]);
@@ -381,5 +402,8 @@ test("J12 the enemy changed in Matchup Intel after reading, J14 a teammate from 
   await expect(p).not.toHaveURL(/person=/);
   await expect.poll(() => p.evaluate(() => window.scrollY), { message: "J15: the list's scroll kept" }).toBeGreaterThan(y15 - 2);
   expect(j15, "J15").toEqual({ taps: 2, scrolls: 0, scrollBacks: 0 });
+  // The close took its entry back: Back leaves Admin's people for the page before (J14's Back led to Matchup Intel).
+  await p.goBack();
+  await expect(p).toHaveURL(/\/resources\/matchups/);
   await context.close();
 });
