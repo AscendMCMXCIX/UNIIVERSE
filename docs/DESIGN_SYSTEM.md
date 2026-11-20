@@ -470,8 +470,10 @@ are fixed in one place each, and `e2e/design-parity.spec.ts` ("Admin's pages") a
 - **Header rhythm on phones:** an Admin page under a section row with no actions (`PageHeader admin
   sectionNamed`) shows nothing on a phone, so the whole header is read out only there and its stack
   margin goes with it: the content starts right under the bars (y 117 at 390 × 844, 133–137 before).
-- **One column edge:** Settings in Admin Mode (and Player Mode) starts at the page's left edge like
-  every other page (AccountSettings' grid has no `mx-auto`; it keeps its 64rem).
+- **One column edge:** Settings in Admin Mode starts at the page's left edge like every other Admin
+  page: the Admin pages' column starts its children at its left edge (`*:ml-0`, as the frame does),
+  so Settings' 64rem keeps its width and loses its centring (h1 at x 288 at 1440, 319 at 1920, the
+  Dashboard's; 336 and 461 before).
 - **One depth:** every section, card and status list on a panel's surface has `panel-depth` and the
   panel radius (Branding's Name, Background visibility, Colours and image cards; StatusCards' list).
 - **One fold inside a panel:** a fold inside a panel is a `row` Fold, never a box in a box (System
