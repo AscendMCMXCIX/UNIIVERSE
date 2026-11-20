@@ -113,7 +113,7 @@ export function PlayerDataPanel({ report, championsById, admin = false, playerNa
                     <span>{c.games} on record</span>
                     <span>last game {c.lastPlayedAt ? timeAgo(c.lastPlayedAt) : "—"}</span>
                     {c.mastery ? <span>{formatCount(c.mastery.points)} mastery · M{c.mastery.level}</span> : null}
-                    {c.games > 0 ? <span>{percent(c.roleShare, 0)} of its games in {ROLE_LABELS[c.role]}</span> : null}
+                    {c.roleGames > 0 ? <span>{percent(c.roleShare, 0)} of its games with a known role in {ROLE_LABELS[c.role]}</span> : null}
                     <span>{c.confidenceWord} confidence</span>
                   </div>
                 </div>
@@ -159,7 +159,7 @@ export function PlayerDataPanel({ report, championsById, admin = false, playerNa
                       <td className="py-1.5 pr-3">{c.games}</td>
                       <td className="py-1.5 pr-3 text-fg-muted">{c.lastPlayedAt ? timeAgo(c.lastPlayedAt) : "—"}</td>
                       <td className="py-1.5 pr-3 text-fg-muted">{c.mastery ? `${formatCount(c.mastery.points)} pts · M${c.mastery.level}` : "—"}</td>
-                      <td className="py-1.5 pr-3 text-fg-muted">{c.games > 0 ? `${percent(c.roleShare, 0)} in ${ROLE_LABELS[c.role]}` : "—"}</td>
+                      <td className="py-1.5 pr-3 text-fg-muted">{c.roleGames > 0 ? `${percent(c.roleShare, 0)} in ${ROLE_LABELS[c.role]}` : "—"}</td>
                       <td className="py-1.5 pr-3 text-fg-muted">{c.confidenceWord}</td>
                     </tr>
                   ))}
@@ -170,7 +170,7 @@ export function PlayerDataPanel({ report, championsById, admin = false, playerNa
           )}
         </div>
         <p className="text-xs text-fg-subtle">
-          From {report.accounts.length} linked account{report.accounts.length === 1 ? "" : "s"}: match history (about the last four months), mastery and rank. Each game counts once.
+          From {report.accounts.length} linked account{report.accounts.length === 1 ? "" : "s"}: every stored game, mastery and rank. Each game counts once.
           {report.lastSyncAt ? ` Updated ${timeAgo(report.lastSyncAt)}.` : ""}
         </p>
         <p className="text-xs text-fg-subtle">

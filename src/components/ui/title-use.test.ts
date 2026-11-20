@@ -67,7 +67,7 @@ const NAMES: Array<{ file: string; fragment: string; kind: Kind; what: string }>
   { file: "src/components/players/player-card.tsx", fragment: "more on the profile", kind: "name", what: "the \"+3\" mark after a pool's portraits" },
   { file: "src/components/profile/profile-editor.tsx", fragment: "Drag to change your role order", kind: "name", what: "a role's drag handle" },
   { file: "src/components/team/team-roster.tsx", fragment: "bench.start.label", kind: "name", what: "Make starter's full name (who takes the role)" },
-  { file: "src/components/ui/data-status.tsx", fragment: "Check Riot for new games now", kind: "name", what: "Refresh's name where only its icon shows" },
+  { file: "src/components/ui/data-status.tsx", fragment: "Check Riot for new games, rank and mastery now", kind: "name", what: "Refresh's name where only its icon shows" },
   { file: "src/components/ui/data-list.tsx", fragment: "{unplaced}", kind: "name", what: "the dash where a row has no place (\"Provisional\")" },
   { file: "src/components/ui/data-list.tsx", fragment: "words ??", kind: "name", what: "a tie's \"=4\" mark in words (\"Tied for 4th\")" },
   { file: "src/components/leaderboards/recent-leaderboards.tsx", fragment: "r.note", kind: "name", what: "the gap's short token (\"−1\") in words (\"1 win behind 3rd\")" },

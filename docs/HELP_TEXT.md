@@ -88,7 +88,7 @@ The overhaul's stage-0 inventory (`docs/overhaul/tooltips.json` on the `overhaul
 | I05 | improve-label | S0b |
 | I06 | improve-label | S7a (the label is gone) |
 | I07 | rewrite | S8b (this branch) |
-| I12 | rewrite | S8b (this branch): "Only with “…”" (reads right for a form and for a condition) |
+| I12 | rewrite | S8b (this branch): "Riot adds “…”" (one lead that reads right for a form, a condition or a recipient) |
 | S08 | remove | S8b (this branch) |
 | S09 | rewrite | S4b |
 | S10 | rewrite | S8b (this branch) |

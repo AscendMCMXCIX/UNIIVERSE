@@ -103,9 +103,9 @@ export function lpNote(lp: LpRecord): string {
   if (lp.kind === "promoted" || lp.kind === "demoted") return `${lp.kind === "promoted" ? "Promoted" : "Demoted"}: ${reading(lp.before)} before this game, ${reading(lp.after)} after it. A new division has no single LP figure.`;
   switch (lp.reason) {
     case "remake":
-      return "A remake: Riot doesn't count it in wins and losses, so no LP.";
+      return "A remake: Riot doesn't count it in wins and losses, so no LP is recorded for it.";
     case "unknown-length":
-      return "LP unknown: this game's length isn't stored, so it can't be matched to a rank check.";
+      return "LP unknown: this game's length isn't stored, so it can't be matched to Riot's count of games.";
     case "before-tracking":
       return lp.trackingSince ? `LP unknown: this account's rank in this queue has only been checked since ${formatDate(lp.trackingSince)}.` : "LP unknown: this account's rank in this queue hasn't been checked.";
     case "awaiting-reading":

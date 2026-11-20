@@ -143,7 +143,7 @@ export function RiotAccountsPanel({ playerId, accounts, riotConfigured, editable
                     <div className="flex flex-wrap items-center gap-1.5">
                       <span className="truncate font-semibold text-fg">{a.riotId}</span>
                       {main ? (
-                        <InfoTip label="About the main account" text="The main account is shown on the profile and gives the rank.">
+                        <InfoTip label="About the main account" text="The main account is shown on the profile and gives the rank shown (another account's when it has none).">
                           <Badge tone="accent">
                             <Star className="mr-0.5 h-3 w-3" aria-hidden /> Main
                           </Badge>

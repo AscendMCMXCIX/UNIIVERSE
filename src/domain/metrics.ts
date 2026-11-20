@@ -30,17 +30,17 @@ export const METRICS = {
     unit: "games",
   },
   "games-on-record": {
-    tip: "Games stored from all their Riot accounts (about the last four months); each game counts once.",
+    tip: "Every stored game from all their Riot accounts (this season's, and older ones still kept); each game counts once.",
     title: "Games on record",
     unit: "games",
   },
   "mastery-points": {
-    tip: "Riot's mastery points on this champion, from their strongest account: long-term play, not current form.",
+    tip: "Riot's mastery points on this champion, added up over their Riot accounts: long-term play, not current form.",
     title: "Mastery",
     unit: "points",
   },
   "role-usage": {
-    tip: "How many of their games on this champion were in this role.",
+    tip: "How many of their games on this champion were in this role, of those whose role is known.",
     title: "Role usage",
     unit: "percent of games",
   },

@@ -312,7 +312,7 @@ visible on a desktop (`ability-list.tsx`):
     only for them: "Stun · “Mega Gnar”", "Shield · “an ally champion”"; on a cooldown refund it names
     the abilities whose cooldown is cut, "Cooldown refund of “Mantra”" (one without a qualifier
     refunds its own ability's cooldown). In the chip's tip and the Details window its line reads
-    "Only with “Mega Gnar”" or "Cuts the cooldown of “Mantra”", and names the other text where the
+    "Riot adds “Mega Gnar”" or "Cuts the cooldown of “Mantra”", and names the other text where the
     qualifier is quoted from it rather than from the clause's ("(Riot's tooltip for Dragon Strike)");
   - a **conditional** fact: the owner's fixed marker, once under the ability's chips, naming the
     chips it marks ("Conditional: see Riot's text (Stun and Pull)"), and in the chip's tip after its

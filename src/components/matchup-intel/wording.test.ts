@@ -370,8 +370,8 @@ describe("the assembled reference's fixed sentences and labels", () => {
     expect(qualifierChipWords("stun", "Mega Gnar")).toBe(" · “Mega Gnar”");
     expect(qualifierChipWords("cooldownrefund", "his other basic abilities")).toBe(" of “his other basic abilities”");
     // In a tip and the details: the qualifier's line, and which text it is from where that is not the clause's.
-    expect(qualifierWords("stun", "Mega Gnar", undefined, "Hyper / Wallop")).toBe("Only with “Mega Gnar”");
-    expect(qualifierWords("dash", "If the lance connects with Demacian Standard", "tooltip", "Dragon Strike")).toBe("Only with “If the lance connects with Demacian Standard” (Riot's tooltip for Dragon Strike)");
+    expect(qualifierWords("stun", "Mega Gnar", undefined, "Hyper / Wallop")).toBe("Riot adds “Mega Gnar”");
+    expect(qualifierWords("dash", "If the lance connects with Demacian Standard", "tooltip", "Dragon Strike")).toBe("Riot adds “If the lance connects with Demacian Standard” (Riot's tooltip for Dragon Strike)");
     expect(qualifierWords("cooldownrefund", "Mantra", undefined, "Gathering Fire")).toBe("Cuts the cooldown of “Mantra”");
     expect(alsoDescribedWords("leap", "description")).toBe("Riot's description calls it leap");
     expect(alsoDescribedWords("knockup", "description")).toBe("Riot's description calls it knock-up");
