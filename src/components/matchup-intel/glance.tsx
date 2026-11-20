@@ -28,6 +28,19 @@ function GlanceIcon({ src, slot }: { src: string | null; slot: Slot }) {
   return <RemoteImage src={src} fallback={standIn} alt="" width={32} height={32} loading="lazy" decoding="async" className="h-full w-full rounded-md border border-border bg-surface-2 object-cover" />;
 }
 
+/** "120–100 s" breaking only after its dash, never inside a number or between a number and its unit. */
+function GlanceValue({ text }: { text: string }) {
+  const at = text.indexOf("\u2013");
+  if (at < 0) return <span className="[overflow-wrap:normal]">{text}</span>;
+  return (
+    <>
+      <span className="whitespace-nowrap">{text.slice(0, at + 1)}</span>
+      <wbr />
+      <span className="whitespace-nowrap">{text.slice(at + 1)}</span>
+    </>
+  );
+}
+
 function KitRow({ intel, testId }: { intel: ChampionIntelView; testId: string }) {
   const abilities = intel.abilities;
   if (!abilities) return null;
@@ -37,30 +50,33 @@ function KitRow({ intel, testId }: { intel: ChampionIntelView; testId: string })
       <p className="text-xs text-fg-muted">
         <span className="font-semibold text-fg">{name}</span> · base cooldowns, first to last rank or level
       </p>
-      <ol className="grid grid-cols-5 gap-1">
+      {/* Five across; three and two where five would leave a tile too narrow for its words (a phone at
+          a large text size: the row is measured in rem, which grow with the text). */}
+      <ol className="grid grid-cols-3 gap-1 @min-[17rem]/glance:grid-cols-5">
         {SLOTS.map((slot) => {
           const a = abilities.find((x) => x.slot === slot);
-          if (!a) return <li key={slot} aria-hidden className="min-h-16 rounded-md border border-dashed border-border" />;
+          if (!a) return <li key={slot} aria-hidden className="min-h-14 rounded-md border border-dashed border-border" />;
           // The notes' static mark, as the full tile reads it (not once Riot's data moved since the check).
           const cd = glanceCooldown(a.cooldown, { static: a.freshness !== "changed-since" && a.modifiers?.static === true });
           return (
-            <li key={slot} className="min-w-0" data-testid="glance-ability" data-slot={slot}>
+            <li key={slot} className="flex min-w-0" data-testid="glance-ability" data-slot={slot}>
               <AbilityRefLink
                 anchor={abilityAnchor(intel.champion.id, slot)}
                 testId="glance-ability-link"
-                className="flex min-h-14 w-full flex-col items-center justify-center gap-0.5 rounded-md border border-border bg-surface px-0.5 py-1 text-center transition-colors hover:border-accent/60"
+                className="@container/tile flex min-h-14 w-full flex-col items-center justify-center gap-0.5 rounded-md border border-border bg-surface px-0.5 py-1 text-center transition-colors hover:border-accent/60"
               >
                 {/* As wide as the tile allows up to 32px, square: at a large text size it shrinks, never stretches. */}
                 <span className="relative aspect-square w-full max-w-8">
                   <GlanceIcon src={a.icon} slot={slot} />
-                  <span aria-hidden className="absolute bottom-0 right-0 grid h-4 min-w-4 place-items-center rounded-sm border border-border-strong bg-surface-2 px-0.5 text-2xs font-semibold leading-none text-fg-muted">
+                  {/* The key on the icon's corner where the tile has room; on a narrower one the order (P to R) and the name say it. */}
+                  <span aria-hidden className="absolute bottom-0 right-0 grid @max-[3.75rem]/tile:hidden h-4 min-w-4 place-items-center rounded-sm border border-border-strong bg-surface-2 px-0.5 text-2xs font-semibold leading-none text-fg-muted">
                     {slot}
                   </span>
                 </span>
                 {/* Its name is what it shows, then the whole line: "Mordekaiser Q, Obliterate: cooldown 8–4 s; in full, 8 / 7 / 6 / 5 / 4 s". */}
                 <span className="sr-only">{`${name} ${SLOT_NAMES[slot]}, ${a.name}: cooldown `}</span>
                 <span className={`max-w-full text-xs leading-tight tabular-nums ${cd.known ? "font-semibold text-fg" : "text-fg-muted"}`} data-testid="glance-cooldown">
-                  {cd.short}
+                  <GlanceValue text={cd.short} />
                 </span>
                 {cd.full !== cd.short ? <span className="sr-only">{`; in full, ${cd.full}`}</span> : null}
               </AbilityRefLink>
@@ -78,7 +94,7 @@ export function MatchupGlance({ enemies, evidence }: { enemies: readonly Champio
   if (!shown.length) return null;
   const row = firstEvidenceRow(evidence);
   return (
-    <section aria-label="At a glance" className="space-y-1.5 sm:hidden" data-testid="matchup-glance">
+    <section aria-label="At a glance" className="@container/glance space-y-1.5 sm:hidden" data-testid="matchup-glance">
       {shown.map((intel, i) => (
         <KitRow key={intel.champion.id} intel={intel} testId={i === 0 ? "glance-enemy" : "glance-enemy2"} />
       ))}

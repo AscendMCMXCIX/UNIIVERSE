@@ -52,7 +52,12 @@ export function SectionHeader({ id, title, titleOnPhones = "shown", nav, aside, 
    * clear of the Refine panel that opens from the right. From xl it stays beside the views.
    */
   toolbarFills?: boolean | "below-xl";
-  /** Phones (below sm): the folded Filters and Refresh at the scope line's end, never a row of their own (the phone header budget, docs/MOBILE.md). */
+  /**
+   * Phones (below sm): the folded Filters and Refresh at the scope line's end (the phone header budget,
+   * docs/MOBILE.md), while the scope keeps 10rem beside them; at a large text size, or with Refresh too
+   * on a narrow phone, they take the next line instead, so the scope is never squeezed to a few
+   * letters a line (20 Nov 2026: at 150% it was 9px wide under the buttons).
+   */
   toolbarBesideScope?: boolean;
   className?: string;
   testId?: string;
@@ -113,8 +118,8 @@ export function SectionHeader({ id, title, titleOnPhones = "shown", nav, aside, 
       </div>
     );
   return (
-    <div className={cn("grid grid-cols-[minmax(0,1fr)] gap-y-3 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start xl:gap-x-6", toolbarBesideScope && "max-sm:grid-cols-[minmax(0,1fr)_auto] max-sm:items-center max-sm:gap-x-2 max-sm:gap-y-1 max-sm:[&>[data-testid=section-toolbar]]:col-start-2 max-sm:[&>[data-testid=section-toolbar]]:row-start-2", className)} data-testid={testId}>
-      <div className={cn("min-w-0 xl:pt-0.5", toolbarBesideScope && "max-sm:contents max-sm:[&>[data-testid=section-scope]]:mt-0 max-sm:[&>:first-child]:col-span-2")}>
+    <div className={cn("grid grid-cols-[minmax(0,1fr)] gap-y-3 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start xl:gap-x-6", toolbarBesideScope && "max-sm:flex max-sm:flex-wrap max-sm:items-center max-sm:gap-x-2 max-sm:gap-y-1 max-sm:[&>[data-testid=section-toolbar]]:ml-auto max-sm:[&>[data-testid=section-toolbar]]:max-w-full", className)} data-testid={testId}>
+      <div className={cn("min-w-0 xl:pt-0.5", toolbarBesideScope && "max-sm:contents max-sm:[&>[data-testid=section-scope]]:mt-0 max-sm:[&>[data-testid=section-scope]]:flex-[1_1_10rem] max-sm:[&>:first-child]:basis-full")}>
         {heading}
         {scope}
       </div>

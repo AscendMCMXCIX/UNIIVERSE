@@ -195,7 +195,7 @@ test("Recent form ranks every full 20-game window by win rate, shared places and
   expect(ranked.filter((r) => r.tied).every((r) => ranked.some((o) => o !== r && o.place === r.place))).toBe(true);
   // First place has no note; every other place says its gap in wins, or that one win draws level.
   expect(ranked[0]!.note).toBeNull();
-  for (const r of ranked.filter((x) => x.place > 1 && ranked.some((o) => o.rate > x.rate))) expect(r.note).toMatch(/^(\d+ wins? behind|Win your next game to draw level with|Winning their next game draws .+ level with) /);
+  for (const r of ranked.filter((x) => x.place > 1 && ranked.some((o) => o.rate > x.rate))) expect(r.note).toMatch(/^(\d+ wins? behind|Win your next game to draw level with|\S.* draws level with) /);
   // The gap shows short (D5), the sentence stays for screen readers: first place "—"; every other
   // place "k wins behind" (k = the gap in win rate over 5 points a win) or "A win ties Nth", the place
   // one win would share (5 points short of it, and the sentence says the next win draws level).
@@ -209,7 +209,7 @@ test("Recent form ranks every full 20-game window by win rate, shared places and
       expect(Number(level[1])).toBe(ranked.find((o) => o.rate === above)!.place);
       expect(above - r.rate).toBe(5);
       // Worded for the viewer (PLAN §1.12): "your" on their own row only, the player's name on anyone else's.
-      expect(r.note).toMatch(r.you ? /^Win your next game to draw level with / : /^Winning their next game draws .+ level with /);
+      expect(r.note).toMatch(r.you ? /^Win your next game to draw level with / : / draws level with .+ by winning their next game$/);
     } else {
       const k = Number(/^(\d+) wins? behind$/.exec(r.token!)![1]);
       expect(k).toBe((above - r.rate) / 5);

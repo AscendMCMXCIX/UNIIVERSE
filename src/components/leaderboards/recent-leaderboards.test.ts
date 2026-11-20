@@ -21,7 +21,7 @@ const WINDOW: FormView["window"] = { games: 20, provisionalFrom: 10, days: 60 };
 const row = (o: Partial<FormRow> & Pick<FormRow, "playerId">): FormRow => ({ place: null, tied: false, status: "established", games: 20, wins: 10, losses: 10, winRate: 50, dates: "7 Oct – 6 Nov", role: { role: "MID", games: 14 }, note: null, gap: null, you: false, ...o });
 const ROWS: FormRow[] = [
   row({ playerId: "ash", place: 1, wins: 13, losses: 7, winRate: 65, role: { role: "SUPPORT", games: 14 } }),
-  row({ playerId: "bo", place: 2, tied: true, wins: 12, losses: 8, winRate: 60, note: "Winning their next game draws Bo level with Ash", gap: { kind: "level", place: 1 } }),
+  row({ playerId: "bo", place: 2, tied: true, wins: 12, losses: 8, winRate: 60, note: "Bo draws level with Ash by winning their next game", gap: { kind: "level", place: 1 } }),
   row({ playerId: "cy", place: 2, tied: true, wins: 12, losses: 8, winRate: 60, note: "1 win behind Ash", gap: { kind: "behind", wins: 1, place: 1 } }),
   row({ playerId: "di", place: 4, wins: 11, losses: 9, winRate: 55, note: "Win your next game to draw level with Bo and Cy", gap: { kind: "level", place: 2 }, you: true }),
   row({ playerId: "ed", status: "provisional", games: 14, wins: 9, losses: 5, winRate: 64, note: "Provisional · 14 of 20 games", gap: { kind: "provisional", games: 14 }, role: null }),
@@ -77,7 +77,7 @@ describe("Recent form's rows", () => {
     }
     // The row's tooltip names the tie first, then the gap's sentence and the role's games, from the
     // aria-hidden layer inside the row's link (RowLink's hint).
-    expect(rows.bo).toContain('<span aria-hidden="true" title="Tied for 2nd. Winning their next game draws Bo level with Ash. Mid: 14 of 20 games" class="absolute inset-0 rounded-[inherit]"></span></a>');
+    expect(rows.bo).toContain('<span aria-hidden="true" title="Tied for 2nd. Bo draws level with Ash by winning their next game. Mid: 14 of 20 games" class="absolute inset-0 rounded-[inherit]"></span></a>');
     expect(rows.di).not.toMatch(/data-tie=|Tied for/);
   });
 
@@ -87,7 +87,7 @@ describe("Recent form's rows", () => {
     for (const [id, r] of [...Object.entries(rows), ...Object.entries(publicRows)]) expect(r, id).not.toMatch(/<li[^>]* title=/);
     // The public board has no link, so no row tooltip: the gap's sentence is its own cell's title.
     expect(publicRows.bo).not.toContain("absolute inset-0 rounded-[inherit]");
-    expect(publicRows.bo).toMatch(/<span aria-hidden="true" data-testid="form-gap" title="Winning their next game draws Bo level with Ash"/);
+    expect(publicRows.bo).toMatch(/<span aria-hidden="true" data-testid="form-gap" title="Bo draws level with Ash by winning their next game"/);
   });
 
   it("shows the gap short and keeps the sentence for screen readers: A win ties 2nd, 1 win behind", () => {
@@ -238,7 +238,7 @@ describe("the draw-level sentence follows the viewer (PLAN §1.12)", () => {
 
   it("names the player on a teammate's row, never \"you\" or \"your\"", () => {
     const note = noteFor("ash");
-    expect(note).toBe("Winning their next game draws Bo level with Ash");
+    expect(note).toBe("Bo draws level with Ash by winning their next game");
     expect(note).not.toMatch(/\byour?\b/i);
   });
 });

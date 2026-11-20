@@ -249,12 +249,12 @@ const nameList = (list: readonly string[]) => (list.length > 3 ? `${list.length}
 /**
  * The note for a row one win from the place above, worded for who reads it (PLAN §1.12,
  * viewerWords): on the viewer's own row "Win your next game to draw level with Ash"; on anyone
- * else's, "Winning their next game draws Bo level with Ash" (or "them", with no name to give).
+ * else's, "Bo draws level with Ash by winning their next game" ("They draw…" with no name to give).
  */
 export function drawLevelWords(own: boolean, name: string | null, who: string): string {
   if (own) return `Win ${viewerWords(true).possessive} next game to draw level with ${who}`;
   const w = viewerWords(false, name);
-  return `Winning ${w.possessive} next game draws ${name ? w.subject : "them"} level with ${who}`;
+  return `${name ? w.subject : "They"} ${name ? "draws" : "draw"} level with ${who} by winning ${w.possessive} next game`;
 }
 
 /**

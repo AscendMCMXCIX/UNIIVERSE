@@ -191,11 +191,11 @@ describe("ranking", () => {
     const bo = recentEntry("b", run("b", 20, 12), scope()); // one win from Ash
     const noteOf = (viewer: string | null) => rankRecentBoard([ash, bo], "overall", "winRate", names, viewer).rows.find((r) => r.entry.playerId === "b")!.note;
     expect(noteOf("b")).toBe("Win your next game to draw level with Ash");
-    expect(noteOf("a")).toBe("Winning their next game draws Bo level with Ash");
-    expect(noteOf(null)).toBe("Winning their next game draws Bo level with Ash");
+    expect(noteOf("a")).toBe("Bo draws level with Ash by winning their next game");
+    expect(noteOf(null)).toBe("Bo draws level with Ash by winning their next game");
     // Nobody's row but the viewer's ever says "you" or "your".
     expect(noteOf("a")).not.toMatch(/\byour?\b/i);
-    expect(drawLevelWords(false, null, "Ash")).toBe("Winning their next game draws them level with Ash");
+    expect(drawLevelWords(false, null, "Ash")).toBe("They draw level with Ash by winning their next game");
   });
 
   it("the parts say what the sentence says, on a board of every kind of gap", () => {
@@ -213,14 +213,14 @@ describe("ranking", () => {
     for (const r of board.rows) {
       expect(r.note === null, `${r.entry.playerId}: a note exactly when there are parts`).toBe(r.gap === null);
       if (!r.gap || !r.note) continue;
-      expect(r.gap.kind === "level", `${r.entry.playerId}: "level" exactly when one win draws level`).toBe(/^Winning their next game draws \S+ level with /.test(r.note));
+      expect(r.gap.kind === "level", `${r.entry.playerId}: "level" exactly when one win draws level`).toBe(/^\S+ draws level with .+ by winning their next game$/.test(r.note));
       if (r.gap.kind === "behind") expect(r.note.startsWith(`${r.gap.wins} ${r.gap.wins === 1 ? "win" : "wins"} behind `)).toBe(true);
       if (r.gap.kind === "provisional") {
         expect(r.note).toBe(`Provisional · ${r.gap.games} of 20 games`);
         continue;
       }
       // Every member the sentence names holds the place the parts give.
-      const named = r.note.replace(/^(Winning their next game draws \S+ level with |\d+ wins? behind )/, "").split(/, | and /);
+      const named = r.note.replace(/^\S+ draws level with /, "").replace(/ by winning their next game$/, "").replace(/^\d+ wins? behind /, "").split(/, | and /);
       expect(named.length).toBeGreaterThan(0);
       for (const name of named) expect(board.rows.find((o) => o.entry.playerId === byName.get(name))!.rank, `${r.entry.playerId}: ${name}`).toBe(r.gap.place);
     }
