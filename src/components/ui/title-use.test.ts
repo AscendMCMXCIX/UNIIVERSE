@@ -73,6 +73,7 @@ const NAMES: Array<{ file: string; fragment: string; kind: Kind; what: string }>
   { file: "src/components/leaderboards/recent-leaderboards.tsx", fragment: "r.note", kind: "name", what: "the gap's short token (\"−1\") in words (\"1 win behind 3rd\")" },
   { file: "src/components/leaderboards/recent-leaderboards.tsx", fragment: "roleTitle", kind: "name", what: "the main role's badge: the role and its games" },
   { file: "src/components/matchup-intel/matchup-frame.tsx", fragment: "Copy link", kind: "name", what: "Copy link's name when only its icon shows" },
+  { file: "src/components/players/all-champions.tsx", fragment: "in these filters", kind: "name", what: "the games' share bar, its value in words" },
   // Values shown whole where the page may cut them short.
   { file: "src/components/team/team-roster.tsx", fragment: "sg.reasons.join", kind: "truncation", what: "a suggestion's reasons, cut to one line" },
   { file: "src/components/match-history/scoreboard.tsx", fragment: "damage to champions", kind: "truncation", what: "the damage shown short (\"18.2k\") whole" },

@@ -537,8 +537,8 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
                 </span>
               </span>
               {/* Games, with a quiet bar under it: the champion's share of every game in the filters
-                  (QuietBar, neutral and continuous), said in words to screen readers. */}
-              <span className="hidden text-right @min-[44rem]:block" data-testid="champion-games">
+                  (QuietBar, neutral and continuous): its value in words in its title (the bar's name) and to screen readers. */}
+              <span className="hidden text-right @min-[44rem]:block" title={`${formatCount(r.games)} game${r.games === 1 ? "" : "s"} · ${shareWords(share)} of the ${formatCount(total)} game${total === 1 ? "" : "s"} in these filters`} data-testid="champion-games">
                 <span className={cn("block tabular-nums", strong("games") ? "font-semibold text-fg" : "font-medium text-fg")}>{formatCount(r.games)}</span>
                 {/* Clicks pass through to the row (its fill's transform would otherwise paint it above the row's button). */}
                 <QuietBar value={share} className="pointer-events-none mt-1" testId="champion-games-share" />
