@@ -80,7 +80,7 @@ export function FieldPerformancePanel({ report }: { report: VitalsReport }) {
             </ul>
             <Disclosure title="Technical details" description="By device and by page." testId="field-performance-details">
               <div className="space-y-4 text-xs">
-                <p className="text-fg-subtle">Field data from members' own browsers since {report.since}, not a lab test. A figure is the value 75% of loads stayed within.</p>
+                <p className="text-fg-subtle">Field data from members&apos; own browsers since {report.since}, not a lab test. A figure is the value 75% of loads stayed within.</p>
                 <table className={TABLE}>
                   <thead className={HEAD}>
                     <tr>
