@@ -279,7 +279,7 @@ function describe(t: RankTimeline): string {
   if (ranked.length) parts.push(`From ${ranked[0]!.label} ${ranked[0]!.lp} LP to ${ranked.at(-1)!.label} ${ranked.at(-1)!.lp} LP.`);
   if (t.peak) parts.push(`Highest recorded: ${t.peak.label} ${t.peak.lp} LP.`);
   const gaps = t.links.filter((l) => l.kind === "gap").length;
-  if (gaps) parts.push(`${gaps} stretch${gaps === 1 ? "" : "es"} of several games not observed one by one.`);
+  if (gaps) parts.push(`${gaps} stretch${gaps === 1 ? "" : "es"} where several games were played between two checks.`);
   return parts.join(" ");
 }
 
@@ -287,8 +287,8 @@ function readingText(t: RankTimeline, i: number): string {
   const r = t.readings[i];
   if (!r) return "";
   const link = t.links[i];
-  const next = link ? (link.kind === "step" ? (link.games === 1 ? " The next reading came one game later." : " The next reading came with no game between.") : link.kind === "gap" ? ` The next reading came ${link.games} games later: the games between were not observed one by one.` : " A reset follows.") : "";
-  return `${r.label}${r.lp !== null ? ` ${r.lp} LP` : ""}, first read ${formatDateTime(r.from)}${r.to > r.from ? `, last confirmed ${formatDateTime(r.to)}` : ""}.${r.wins !== null && r.losses !== null ? ` ${r.wins} wins, ${r.losses} losses this ranked year (Riot's count).` : ""}${next}`;
+  const next = link ? (link.kind === "step" ? (link.games === 1 ? " The next check came one game later." : " The next check came with no game between.") : link.kind === "gap" ? ` Then ${link.games} games were played before the next check.` : " A reset follows.") : "";
+  return `${r.label}${r.lp !== null ? ` ${r.lp} LP` : ""}, checked ${formatDateTime(r.from)}${r.to > r.from ? `, unchanged at ${formatDateTime(r.to)}` : ""}.${r.wins !== null && r.losses !== null ? ` ${r.wins} wins, ${r.losses} losses this ranked year (Riot's count).` : ""}${next}`;
 }
 
 function ChartTip({ t, hover, width }: { t: RankTimeline; hover: Hover; width: number }) {
@@ -299,19 +299,22 @@ function ChartTip({ t, hover, width }: { t: RankTimeline; hover: Hover; width: n
   const right = hover.x < width / 2;
   const style = right ? { left: Math.min(hover.x + 12, width - 216) } : { right: Math.min(width - hover.x + 12, width - 216) };
   return (
-    <span className="pointer-events-none absolute top-0 z-10 w-[13rem] rounded-card border border-border bg-bg-elevated px-2.5 py-1.5 shadow-lg" style={style} data-testid="ranked-tip">
-      <span className="block text-sm font-semibold text-fg">
+    // In the InfoTip's look (TT.TD14): the same border, corners, type and fade as every other bubble.
+    <span className="pointer-events-none absolute top-0 z-10 w-[13rem] rounded-md border border-border-strong bg-bg-elevated px-2.5 py-1.5 text-xs leading-snug text-fg shadow-lg motion-safe:animate-[fade-in_100ms_ease-out]" style={style} data-testid="ranked-tip">
+      <span className="block font-semibold">
         {r.label}
         {r.lp !== null ? ` · ${r.lp} LP` : ""}
       </span>
-      <span className="block text-2xs text-fg-subtle">Read {formatDateTime(r.from)}</span>
-      {r.to > r.from ? <span className="block text-2xs text-fg-subtle">Still so at {formatDateTime(r.to)}</span> : null}
+      <span className="block text-fg-muted">
+        Checked {formatDateTime(r.from)}
+        {r.to > r.from ? `; unchanged at ${formatDateTime(r.to)}` : ""}
+      </span>
       {r.wins !== null && r.losses !== null ? (
-        <span className="block text-2xs text-fg-muted">
+        <span className="block text-fg-muted">
           {r.wins}W {r.losses}L this ranked year (Riot)
         </span>
       ) : null}
-      {link?.kind === "gap" ? <span className="mt-1 block text-2xs text-fg-muted">Then {link.games} games before the next reading: not observed one by one.</span> : null}
+      {link?.kind === "gap" ? <span className="mt-1 block text-fg-muted">Then {link.games} games were played before the next check.</span> : null}
     </span>
   );
 }

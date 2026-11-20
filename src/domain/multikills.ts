@@ -114,11 +114,11 @@ export function multikillCoverage(m: MultikillSummary): { label: string; note: s
   if (pending > 0)
     notes.push(
       state === "partial"
-        ? `The other ${n(pending)} game${pending === 1 ? "'s" : "s'"} counts are still being fetched from Riot (a batch every hour), so these totals are not complete yet.`
+        ? `${games(pending)} ${pending === 1 ? "is" : "are"} still being counted (a batch every hour), so these totals are not complete yet.`
         : pending === m.games
-          ? "Their counts are still being fetched from Riot, a batch every hour."
-          : `${n(pending)} of them are still being fetched from Riot, a batch every hour.`,
+          ? "They are still being counted, a batch every hour."
+          : `${n(pending)} of them are still being counted, a batch every hour.`,
     );
-  if (m.unavailable > 0) notes.push(`Riot no longer provides the record${m.unavailable === 1 ? "" : "s"} of ${games(m.unavailable)}, so ${m.unavailable === 1 ? "it is" : "they are"} left out.`);
+  if (m.unavailable > 0) notes.push(`${games(m.unavailable)} ${m.unavailable === 1 ? "is" : "are"} no longer available from Riot, so ${m.unavailable === 1 ? "it is" : "they are"} left out.`);
   return { label, note: notes.length ? notes.join(" ") : null, state };
 }

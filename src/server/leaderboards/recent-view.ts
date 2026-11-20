@@ -262,7 +262,7 @@ function recordsView(data: LeaderboardData, requested: string | number | null, c
   });
   const byName = (a: { playerId: string }, b: { playerId: string }) => (names.get(a.playerId) ?? "").localeCompare(names.get(b.playerId) ?? "");
   const multikills = [...result.multikills].sort((a, b) => b.penta - a.penta || b.quadra - a.quadra || b.triple - a.triple || byName(a, b));
-  const multikillNote = result.games === 0 ? null : result.multikillGames === 0 ? "Riot's multikill figures are kept on newly collected games: none of this season's games carry them yet." : result.multikillGames < result.games ? `From the ${formatCount(result.multikillGames)} of ${formatCount(result.games)} games this season that carry Riot's multikill figures; the others are left out, not counted as zero.` : null;
+  const multikillNote = result.games === 0 ? null : result.multikillGames === 0 ? "No multikill counts yet for this season's games; a game without them is never counted as zero." : result.multikillGames < result.games ? `Counted from ${formatCount(result.multikillGames)} of ${formatCount(result.games)} games this season; the rest are left out, never counted as zero.` : null;
   return {
     season,
     seasonLabel: seasonLabel(season),

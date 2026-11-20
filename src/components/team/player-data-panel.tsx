@@ -6,7 +6,8 @@ import { ChampionPortrait, type PortraitChampion } from "@/components/champion-p
 import { RoleIcon } from "@/components/role-icon";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { Panel, PanelBody, PanelHeader, SectionLabel } from "@/components/ui/panel";
-import { Info, Metric, MetricLabel, SourceLine } from "@/components/ui/metric";
+import { Info, Metric, MetricLabel } from "@/components/ui/metric";
+import { InfoTip } from "@/components/ui/info-tip";
 import { metricTooltip } from "@/domain/metrics";
 import { formatCount, percent, timeAgo } from "@/lib/format";
 import { ScrollRegion } from "@/components/ui/scroll-region";
@@ -37,12 +38,16 @@ export function PlayerDataPanel({ report, championsById, admin = false, playerNa
             {report.accounts.map((a) => (
               <div key={a.id} className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-bg-elevated px-3 py-2 text-xs">
                 <span className="font-medium text-fg">{a.riotId}</span>
-                <Badge tone="neutral" title={a.platformSource === "riot" ? "Server confirmed by Riot's account records" : "Server as selected at sign-up; Riot has not confirmed it yet"}>
+                <Badge tone="neutral">
                   {a.platformLabel}
-                  {a.platformSource === "riot" ? " ✓" : ""}
+                  {a.platformSource === "riot" ? (
+                    <span title="Server confirmed by Riot">
+                      {" "}✓<span className="sr-only">, confirmed by Riot</span>
+                    </span>
+                  ) : null}
                 </Badge>
                 {a.rank ? <Badge tone="info">{a.rank}</Badge> : null}
-                <Badge tone={a.sync.tone} title={a.sync.detail}>
+                <Badge tone={a.sync.tone}>
                   {a.sync.label}
                 </Badge>
                 <span className="text-fg-subtle">Last updated {a.sync.lastUpdatedAt ? timeAgo(a.sync.lastUpdatedAt) : "never"}</span>
@@ -92,7 +97,7 @@ export function PlayerDataPanel({ report, championsById, admin = false, playerNa
                     <ChampionPortrait champion={champ(c.championId)} size="xs" />
                     <span className="font-medium text-fg">{champ(c.championId).name}</span>
                     {c.inPool ? (
-                      <span className="flex items-center gap-0.5 text-fg-subtle" title={`${c.inPool === "primary" ? "Primary role" : "Off role"} pool · ${ROLE_LABELS[c.role]}`}>
+                      <span className="flex items-center gap-0.5 text-fg-subtle" title={`${c.inPool === "primary" ? "Main role" : "Off-role"} pool · ${ROLE_LABELS[c.role]}`}>
                         <RoleIcon role={c.role} className="h-3 w-3" />
                         {c.inPool === "secondary" ? <span className="text-xs">2nd</span> : null}
                       </span>
@@ -100,18 +105,16 @@ export function PlayerDataPanel({ report, championsById, admin = false, playerNa
                       <span className="text-xs text-fg-subtle">not in pool</span>
                     )}
                     <span className="flex-1" />
-                    <Badge tone={TIER_TONE[c.tier]} title={`${TIER_DESCRIPTIONS[c.tier]}${c.notes.length ? ` ${c.notes.join(". ")}.` : ""}`}>
-                      {c.tierLabel}
-                    </Badge>
+                    <TierWhy tier={c.tier} label={c.tierLabel} notes={c.notes} />
                   </div>
                   <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-fg-muted">
-                    <span title={metricTooltip("recent-games")}>{c.recentGames} recent</span>
-                    <span title={metricTooltip("patch-games")}>{c.patchGames} this patch</span>
-                    <span title={metricTooltip("games-on-record")}>{c.games} on record</span>
-                    <span title={metricTooltip("last-played")}>last {c.lastPlayedAt ? timeAgo(c.lastPlayedAt) : "—"}</span>
-                    {c.mastery ? <span title={metricTooltip("mastery-points")}>{formatCount(c.mastery.points)} pts · M{c.mastery.level}</span> : null}
-                    {c.games > 0 ? <span title={metricTooltip("role-usage")}>{percent(c.roleShare, 0)} in {ROLE_LABELS[c.role]}</span> : null}
-                    <span title={metricTooltip("proficiency-confidence")}>{c.confidenceWord} confidence</span>
+                    <span>{c.recentGames} in the last 30 days</span>
+                    <span>{c.patchGames} this patch</span>
+                    <span>{c.games} on record</span>
+                    <span>last game {c.lastPlayedAt ? timeAgo(c.lastPlayedAt) : "—"}</span>
+                    {c.mastery ? <span>{formatCount(c.mastery.points)} mastery · M{c.mastery.level}</span> : null}
+                    {c.roleGames > 0 ? <span>{percent(c.roleShare, 0)} of its games with a known role in {ROLE_LABELS[c.role]}</span> : null}
+                    <span>{c.confidenceWord} confidence</span>
                   </div>
                 </div>
               ))}
@@ -139,26 +142,24 @@ export function PlayerDataPanel({ report, championsById, admin = false, playerNa
                           <ChampionPortrait champion={champ(c.championId)} size="xs" />
                           <span className="font-medium text-fg">{champ(c.championId).name}</span>
                           {c.inPool ? (
-                            <span className="flex items-center gap-0.5 text-fg-subtle" title={`${c.inPool === "primary" ? "Primary role" : "Off role"} pool · ${ROLE_LABELS[c.role]}`}>
+                            <span className="flex items-center gap-0.5 text-fg-subtle" title={`${c.inPool === "primary" ? "Main role" : "Off-role"} pool · ${ROLE_LABELS[c.role]}`}>
                               <RoleIcon role={c.role} className="h-3 w-3" />
                               {c.inPool === "secondary" ? <span className="text-xs">2nd</span> : null}
                             </span>
                           ) : (
-                            <span className="text-xs text-fg-subtle" title="Played on linked accounts but not in a configured pool: never recommended until added to a pool.">not in pool</span>
+                            <span className="text-xs text-fg-subtle">not in pool</span>
                           )}
                         </span>
                       </td>
                       <td className="py-1.5 pr-3">
-                        <Badge tone={TIER_TONE[c.tier]} title={`${TIER_DESCRIPTIONS[c.tier]}${c.notes.length ? ` ${c.notes.join(". ")}.` : ""}`}>
-                          {c.tierLabel}
-                        </Badge>
+                        <TierWhy tier={c.tier} label={c.tierLabel} notes={c.notes} />
                       </td>
                       <td className="py-1.5 pr-3">{c.recentGames}</td>
                       <td className="py-1.5 pr-3">{c.patchGames}</td>
                       <td className="py-1.5 pr-3">{c.games}</td>
                       <td className="py-1.5 pr-3 text-fg-muted">{c.lastPlayedAt ? timeAgo(c.lastPlayedAt) : "—"}</td>
                       <td className="py-1.5 pr-3 text-fg-muted">{c.mastery ? `${formatCount(c.mastery.points)} pts · M${c.mastery.level}` : "—"}</td>
-                      <td className="py-1.5 pr-3 text-fg-muted">{c.games > 0 ? `${percent(c.roleShare, 0)} in ${ROLE_LABELS[c.role]}` : "—"}</td>
+                      <td className="py-1.5 pr-3 text-fg-muted">{c.roleGames > 0 ? `${percent(c.roleShare, 0)} in ${ROLE_LABELS[c.role]}` : "—"}</td>
                       <td className="py-1.5 pr-3 text-fg-muted">{c.confidenceWord}</td>
                     </tr>
                   ))}
@@ -168,9 +169,12 @@ export function PlayerDataPanel({ report, championsById, admin = false, playerNa
             </>
           )}
         </div>
-        <SourceLine source="Riot match history (ranked, normal and Clash), champion mastery and ranked tier for each linked account; games are deduplicated per account by match id and accounts are distinct Riot identities, so a game is never counted twice" population={`${report.accounts.length} linked account${report.accounts.length === 1 ? "" : "s"} · roughly the last four months of games${report.currentPatch ? ` · current patch ${report.currentPatch}` : ""}`} updated={report.lastSyncAt ? timeAgo(report.lastSyncAt) : null} />
         <p className="text-xs text-fg-subtle">
-          How this is used: proficiency rates each pool champion on the Team cards and the profile (a main, out of practice, a few games). It never changes the pools.
+          From {report.accounts.length} linked account{report.accounts.length === 1 ? "" : "s"}: every stored game, mastery and rank. Each game counts once.
+          {report.lastSyncAt ? ` Updated ${timeAgo(report.lastSyncAt)}.` : ""}
+        </p>
+        <p className="text-xs text-fg-subtle">
+          How this is used: proficiency rates each pool champion on the Team cards and the profile (a main, out of practice, a few games). It never changes the pools, and a champion not in a pool is never recommended.
           {admin ? (
             <>
               {" "}
@@ -183,5 +187,14 @@ export function PlayerDataPanel({ report, championsById, admin = false, playerNa
         </p>
       </PanelBody>
     </Panel>
+  );
+}
+
+/** The experience label, with why it was given (the tier's rule and the estimate's notes) one tap or hover away. */
+function TierWhy({ tier, label, notes }: { tier: ProficiencyTier; label: string; notes: string[] }) {
+  return (
+    <InfoTip text={`${TIER_DESCRIPTIONS[tier]}${notes.length ? ` ${notes.join(". ")}.` : ""}`}>
+      <Badge tone={TIER_TONE[tier]}>{label}</Badge>
+    </InfoTip>
   );
 }

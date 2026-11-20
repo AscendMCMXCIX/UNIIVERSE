@@ -304,16 +304,16 @@ test("each chip opens what it rests on, and says it to a screen reader; a checke
   await hydrated(page);
   // A checked fact (Renekton's W stun): its own words and its source page.
   const chip = page.locator('[data-testid="matchup-enemy-abilities"] [data-testid="ability-row"][data-slot="W"] [data-testid="fact-chip"]').first();
-  await expect(chip).toHaveAccessibleDescription(/Checked notes \(drafted and audited by AI agents, not by a person\) · Source: League of Legends Wiki: /);
+  await expect(chip).toHaveAccessibleDescription(/Checked notes \(drafted and audited by AI agents, not by a person\) · from League of Legends Wiki: /);
   await chip.hover();
   await expect(page.getByTestId("fact-chip-bubble")).toBeVisible();
-  await expect(page.getByTestId("fact-chip-bubble")).toContainText("Source: League of Legends Wiki:");
+  await expect(page.getByTestId("fact-chip-bubble")).toContainText("from League of Legends Wiki:");
   // Wherever facts from Riot's text are shown, each chip quotes the clause and says how it was reviewed.
   await openMatchupIntel(page, "Riven", "Darius");
   await hydrated(page);
   const riotText = page.locator('[data-testid="ability-facts"][data-from="riot-text"] [data-testid="fact-chip"]');
   expect(await riotText.count()).toBeGreaterThan(0);
-  await expect(riotText.first()).toHaveAccessibleDescription(/^“.+” \(Riot's (tooltip|description) (for|of) [^)]+\)( (Qualified by|Cuts the cooldown of) “[^”]+”( \(Riot's [^)]+\))?)?( Conditional: see Riot's text\.)? From Riot's ability text, reviewed automatically \(not by a person\)\.$/);
+  await expect(riotText.first()).toHaveAccessibleDescription(/^“.+” \(Riot's (tooltip|description) (for|of) [^)]+\)( (Riot adds|Cuts the cooldown of) “[^”]+”( \(Riot's [^)]+\))?)?( Conditional: see Riot's text\.)? From Riot's ability text, reviewed automatically \(not by a person\)\.$/);
   await riotText.first().hover();
   await expect(page.getByTestId("fact-chip-bubble")).toContainText("From Riot's ability text, reviewed automatically (not by a person).");
 });
@@ -329,7 +329,7 @@ test("the facts from Riot's text, as the review recorded them: a qualifier with 
   const gnarW = tileOf(page, "W").getByTestId("fact-chip");
   await expect(gnarW).toHaveCount(1);
   await expect(gnarW).toContainText("Stun · “Mega Gnar”");
-  await expect(gnarW).toHaveAccessibleDescription("“stunning enemies in an area.” (Riot's description of Hyper / Wallop) Qualified by “Mega Gnar” From Riot's ability text, reviewed automatically (not by a person).");
+  await expect(gnarW).toHaveAccessibleDescription("“stunning enemies in an area.” (Riot's description of Hyper / Wallop) Riot adds “Mega Gnar” From Riot's ability text, reviewed automatically (not by a person).");
   // The assembled reference shows the same chip in its group.
   await expect(page.getByTestId("assembled-danger").getByTestId("assembled-chip").filter({ hasText: "Mega Gnar" })).toHaveCount(2);
   // Annie's passive: the stun holds only under a condition Riot's text names with a number, so the

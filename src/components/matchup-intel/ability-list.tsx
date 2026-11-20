@@ -1,4 +1,5 @@
 import { ChevronDown, EqualNot, History, Timer, TriangleAlert } from "lucide-react";
+import { ChangedBadge } from "./changed-badge";
 import type { AbilityView, ChampionChoice, ChampionIntelView, CooldownDisplay, FactView, Slot } from "@/domain/matchup-intel/types";
 import { abilityChips, factsFrom } from "@/domain/matchup-intel/kit";
 import { patchFromVersion, publicPatchName } from "@/domain/patch";
@@ -151,7 +152,7 @@ function FactDetail({ fact: f, championName }: { fact: FactView; championName: s
       {f.source.title ? (
         <span className="text-fg-subtle">
           {" "}
-          · Source: <SourceLink source={f.source} />
+          · from <SourceLink source={f.source} />
           {revision ? `${NO_BREAK}, ${revision}` : null}
         </span>
       ) : null}
@@ -323,9 +324,7 @@ function AbilityTile({ intel, ability: a, checkedPatch, dataPatch, notRecheckedF
             {a.name}
           </h3>
           {flagged ? (
-            <Badge tone="warn" title="Riot's data for this ability changed after the curated notes were checked: they may be out of date">
-              Changed since the check
-            </Badge>
+            <ChangedBadge />
           ) : null}
           <span className="flex min-w-0 basis-full items-center justify-between gap-2 @min-[24rem]/abilities:ml-auto @min-[24rem]/abilities:basis-auto @min-[24rem]/abilities:justify-end">
             {/* The notes' static modifier belongs to their line only: once Riot's data moved, it goes with the flagged notes. */}

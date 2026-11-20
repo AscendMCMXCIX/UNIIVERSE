@@ -157,7 +157,7 @@ export function HistoryRefineFields({ refine, options, set, group, pending }: { 
               );
             })}
           </div>
-          <InfoTip label="About playing sessions" text={`Games less than ${SESSION_GAP_MINUTES} minutes apart (from the end of one to the start of the next) count as one sitting, whatever their game mode. Each session's header counts the games the filters list; the games and their order stay the same.`} />
+          <InfoTip label="About playing sessions" text={`Games less than ${SESSION_GAP_MINUTES} minutes apart (end of one to start of the next) are one session, whatever their mode. Its header counts the games these filters list.`} />
         </div>
       </FilterField>
       </div>

@@ -47,7 +47,7 @@ function view(profiles: boolean, o: Partial<RecordsView> = {}): RecordsView {
       { playerId: "ash", penta: 1, quadra: 1, triple: 1 },
       { playerId: "cy", penta: 0, quadra: 0, triple: 3 },
     ],
-    multikillNote: "From the 31 of 32 games this season that carry Riot's multikill figures; the others are left out, not counted as zero.",
+    multikillNote: "Counted from 31 of 32 games this season; the rest are left out, never counted as zero.",
     championGames: [{ playerId: "ash", items: [{ championId: "Riven", value: "25 games", short: "25", milestone: "25+ games", tier: 1 }], more: 0 }],
     mastery: [
       {
@@ -208,7 +208,7 @@ describe("multikills", () => {
     // The whole row opens the member's profile, named by the member.
     expect(rows[0]![0]).toContain('data-row-link="" href="/players/ash"><span class="sr-only">Ash</span>');
     expect(html).toMatch(/<ol aria-label="Multikills, rarest first" data-testid="multikill-rows"/);
-    expect(shownOf(html, "multikill-note")).toContain("left out, not counted as zero");
+    expect(shownOf(html, "multikill-note")).toContain("left out, never counted as zero");
   });
 
   it("say so when there are none", () => {
@@ -261,9 +261,9 @@ describe("the sections", () => {
     const games = innerOf(html, "milestones-games")!;
     expect(games).toContain('aria-label="What counts: Games on one champion · Season 2026"');
     expect(games).toMatch(/<span id="[^"]+" class="sr-only">Champions with 25, 50 or 100 games this season\.<\/span>/);
-    expect(innerOf(html, "milestones-mastery")).toMatch(/<span id="[^"]+" class="sr-only">Riot&#x27;s champion mastery over each member&#x27;s linked accounts: 100K, 500K and 1M points\./);
+    expect(innerOf(html, "milestones-mastery")).toMatch(/<span id="[^"]+" class="sr-only">100K, 500K or 1M mastery points on one champion, added up over their Riot accounts\./);
     // The multikills' coverage stays in words under their title: it says which games the counts come from.
-    expect(shownOf(html, "multikill-note")).toBe("From the 31 of 32 games this season that carry Riot's multikill figures; the others are left out, not counted as zero.");
+    expect(shownOf(html, "multikill-note")).toBe("Counted from 31 of 32 games this season; the rest are left out, never counted as zero.");
   });
 
   it("links nowhere on the public boards: no link, no profile or game address, the names read and the chips titled", () => {

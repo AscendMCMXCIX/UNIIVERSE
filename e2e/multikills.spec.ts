@@ -157,7 +157,7 @@ test("Total kills: each game's own kills over the same games as the other figure
   // The figure is in the row: its own column, or after the role on phones (the sorted figure).
   const first = rows.first();
   if (page.viewportSize()!.width < 640) await expect(first.getByTestId("champion-sorted-figure")).toContainText(`Kills ${sorted[0]!.toLocaleString("en")}`);
-  else await expect(first.getByTestId("champion-kills")).toHaveText(sorted[0]!.toLocaleString("en"));
+  else await expect(first.getByTestId("champion-kills").locator("[aria-hidden]")).toHaveText(sorted[0]!.toLocaleString("en"));
   expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
 });
 
@@ -188,8 +188,8 @@ test("partial counts are said once, in the page's status (the ⓘ), and in each 
   expect(Number(counted)).toBeGreaterThan(0);
   expect(Number(counted)).toBeLessThan(games);
   // Why: still being fetched, and no longer at Riot.
-  await expect(part).toContainText(/still being fetched from Riot .* not complete yet/);
-  await expect(part).toContainText(/Riot no longer provides the records? of \d+ games?/);
+  await expect(part).toContainText(/still being counted .* not complete yet/);
+  await expect(part).toContainText(/\d+ games? (is|are) no longer available from Riot/);
   await page.keyboard.press("Escape");
   // The totals still show, from the games that have them, and the section fits the screen.
   for (const [key] of KINDS) await expect(strip.getByTestId(`multikill-${key}`)).toBeVisible();

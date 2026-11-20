@@ -32,8 +32,8 @@ describe("dataStatus", () => {
     expect(s.label).toBe("Partial data");
     expect(s.headline).toBe("Multikills counted in 277 of 1,104 games");
     const part = s.parts.find((p) => p.key === "multikills")!;
-    expect(part.detail).toMatch(/still being fetched from Riot/);
-    expect(part.detail).toMatch(/no longer provides/);
+    expect(part.detail).toMatch(/still being counted/);
+    expect(part.detail).toMatch(/no longer available from Riot/);
   });
 
   it("says when no game has multikill counts yet", () => {
@@ -98,7 +98,7 @@ describe("teamDataStatus", () => {
     expect(s.state).toBe("current");
     expect(s.label).toBe("Up to date");
     expect(s.parts.map((p) => p.label)).toEqual(["Every member's games, rank and mastery are up to date", "The boards follow the account syncs"]);
-    expect(s.parts.at(-1)!.detail).toMatch(/after the player's next account sync, not live/);
+    expect(s.parts.at(-1)!.detail).toMatch(/after the next automatic update, not live/);
   });
 
   it("counts the accounts in each state without naming anyone, the one that needs a person first", () => {

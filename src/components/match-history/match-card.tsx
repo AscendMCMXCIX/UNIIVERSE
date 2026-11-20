@@ -3,7 +3,7 @@ import { ArrowDown, ArrowUp } from "lucide-react";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
 import { InfoTip } from "@/components/ui/info-tip";
 import type { LpRecord } from "@/domain/lp-attribution";
-import { formatDate, formatDateTime, formatLpChange } from "@/lib/format";
+import { formatDate, formatDateTime, formatDateTimeAfter, formatLpChange } from "@/lib/format";
 import type { Icon } from "@/server/players/match-history";
 import { cn } from "@/lib/cn";
 import { IconImg } from "./icon-img";
@@ -89,32 +89,39 @@ export function MatchResult({ win, queue, when, duration, lineBelow, extra, clas
 
 const reading = (r: { label: string; leaguePoints: number }) => `${r.label} ${r.leaguePoints} LP`;
 
-/** What a ranked game's LP figure rests on, or why it has none: its hover text and the screen reader's words. */
+/**
+ * What a ranked game's LP figure rests on, or why it has none: its tip and the screen reader's words.
+ * One short state each (tooltip inventory H10), in the page's words: a "rank check" is a stored
+ * reading of the account's rank.
+ */
 export function lpNote(lp: LpRecord): string {
-  if (lp.kind === "lp") return `Recorded: ${reading(lp.before)} before this game (read ${formatDateTime(lp.before.at)}) and ${reading(lp.after)} after it (read ${formatDateTime(lp.after.at)}).`;
-  if (lp.kind === "promoted" || lp.kind === "demoted")
-    return `${lp.kind === "promoted" ? "Promoted" : "Demoted"} to ${lp.after.label}: ${reading(lp.before)} before this game, ${reading(lp.after)} after it. A change of division has no single LP figure.`;
+  if (lp.kind === "lp") {
+    // The two checks' times stay, so the figure can be checked (docs/RANKED_PROGRESS.md); the second without what it shares with the first.
+    const later = formatDateTimeAfter(lp.after.at, lp.before.at);
+    return `${reading(lp.before)} → ${reading(lp.after)}: checked ${formatDateTime(lp.before.at)} and ${later.day ? `${later.day}, ` : ""}${later.time}, just before and after this game.`;
+  }
+  if (lp.kind === "promoted" || lp.kind === "demoted") return `${lp.kind === "promoted" ? "Promoted" : "Demoted"}: ${reading(lp.before)} before this game, ${reading(lp.after)} after it. A new division has no single LP figure.`;
   switch (lp.reason) {
     case "remake":
-      return "A remake: Riot does not count it in wins and losses. No LP recorded.";
+      return "A remake: Riot doesn't count it in wins and losses, so no LP is recorded for it.";
     case "unknown-length":
-      return "LP not recorded: this game's length is not stored, so it cannot be matched to Riot's count of games.";
+      return "LP unknown: this game's length isn't stored, so it can't be matched to Riot's count of games.";
     case "before-tracking":
-      return lp.trackingSince ? `LP not recorded: UNIIVERSE started reading this account's rank in this queue on ${formatDate(lp.trackingSince)}.` : "LP not recorded: UNIIVERSE has not read this account's rank in this queue.";
+      return lp.trackingSince ? `LP unknown: this account's rank in this queue has only been checked since ${formatDate(lp.trackingSince)}.` : "LP unknown: this account's rank in this queue hasn't been checked.";
     case "awaiting-reading":
-      return "LP not recorded yet: the next reading of this account's rank will tell.";
+      return "LP not known yet: it shows after the next rank check.";
     case "several-games":
-      return `LP not recorded for this game: the rank readings around it span ${lp.games} games${lp.before && lp.after ? ` (${reading(lp.before)} to ${reading(lp.after)} across them)` : ""}, so no single game's change is known.`;
+      return `LP unknown: ${lp.games} games came between two rank checks${lp.before && lp.after ? ` (${reading(lp.before)} to ${reading(lp.after)})` : ""}, so no one game's change is known.`;
     case "readings-too-far":
-      return "LP not recorded: no rank reading was close enough before and after this game to rule out another change between them.";
+      return "LP unknown: the rank checks around this game were too far apart to rule out another change.";
     case "series":
       return "A promotion series game: the series moved, not the LP.";
     case "season-reset":
-      return "LP not recorded: a ranked reset falls between the readings around this game.";
+      return "LP unknown: a ranked reset falls between the rank checks around this game.";
     case "unranked":
-      return "LP not recorded: the account was unranked in this queue (placements).";
+      return "LP unknown: the account was unranked in this queue (placements).";
     case "inconsistent":
-      return "LP not recorded: Riot's count of games and the stored games do not agree around this game.";
+      return "LP unknown: Riot's count of games and the stored games don't match around this game.";
   }
 }
 

@@ -39,7 +39,8 @@ export function BookmarkButton({ matchId, bookmarked, canRemove = true, share = 
       onClick={() => void toggle()}
       disabled={busy}
       aria-label={on ? `${label}: remove` : label}
-      title={on ? "Remove from the team's bookmarks" : share ? "Show this game to the team under Matches → Bookmarked" : "Keep this game under Matches → Bookmarked"}
+      // Its name (where it goes is the toast's: "Find it under Matches → Bookmarked").
+      title={on ? "Remove the bookmark" : share ? "Share with the team" : "Bookmark this game"}
       className={cn(
         "inline-flex min-h-8 items-center gap-1.5 rounded-md text-xs font-medium transition-colors pointer-coarse:min-h-11",
         iconOnly ? "w-8 justify-center pointer-coarse:w-11" : "px-2",

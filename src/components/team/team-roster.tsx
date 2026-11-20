@@ -215,8 +215,8 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
             {slot.suggestions.length === 0 ? (
               <p className="mt-1 text-sm text-fg-muted">No registered player lists {slot.roleLabel} as a role.{canManageLineup ? " An administrator can add their account." : ""}</p>
             ) : (
-              // One line per suggestion with its first two reasons (touch has no hover), so an empty
-              // role is no taller than a filled card and never stretches its row.
+              // One line per suggestion (its first two reasons, cut short where they do not fit; all of
+              // them for screen readers), so an empty role is no taller than a filled card.
               <ul className="mt-1.5 divide-y divide-border/60" data-testid="lineup-suggestions">
                 {slot.suggestions.slice(0, 3).map((sg) => (
                   <li key={sg.playerId} className="flex items-center justify-between gap-2 py-1.5">
@@ -224,7 +224,7 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
                       <Link href={`/players/${sg.playerId}`} className="block truncate text-sm font-medium text-fg hover:underline">
                         {sg.name}
                       </Link>
-                      <span className="block truncate text-xs text-fg-muted">
+                      <span className="block truncate text-xs text-fg-muted" title={sg.reasons.join(" · ")}>
                         {sg.reasons.slice(0, 2).join(" · ")}
                         {sg.reasons.length > 2 ? <span className="sr-only"> · {sg.reasons.slice(2).join(" · ")}</span> : null}
                       </span>

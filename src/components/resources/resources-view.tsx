@@ -58,7 +58,7 @@ export function ResourcesView({ entries }: { entries: Resource[] }) {
               // the segment with an empty slot of the count's width, so nothing moves when it fills.
               const shownCount = key === "favourites" && !known ? null : n;
               return (
-                <button key={key} type="button" role="radio" aria-checked={on} onClick={() => setFilter(key)} className={segmentClass(on)} title={key === "favourites" ? "The sites you starred, kept on this device" : undefined} data-testid={`resources-index-${key}`}>
+                <button key={key} type="button" role="radio" aria-checked={on} onClick={() => setFilter(key)} className={segmentClass(on)} data-testid={`resources-index-${key}`}>
                   {key === "favourites" ? <Star className={cn("h-3.5 w-3.5 shrink-0", on || n ? "fill-current text-warn" : "text-fg-subtle")} aria-hidden /> : null}
                   {label}
                   <span className={cn("min-w-6 rounded px-1 text-center text-2xs tabular-nums", shownCount === null ? "bg-transparent" : n ? "bg-surface-3 text-fg-muted" : "text-fg-subtle")} data-testid="resources-index-count">

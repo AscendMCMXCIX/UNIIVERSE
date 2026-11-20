@@ -123,13 +123,13 @@ export function Rate({ wl, className }: { wl: WinLoss; className?: string }) {
   const r = rateOf(wl);
   if (r === null)
     return (
-      <span className={cn("tabular-nums text-fg-subtle", className)} title="No result recorded" data-testid="encounter-rate">
+      <span className={cn("tabular-nums text-fg-subtle", className)} data-testid="encounter-rate">
         —
       </span>
     );
   const small = isSmall(wl);
   return (
-    <span className={cn("tabular-nums", small ? "text-fg-subtle" : WIN_RATE_TONE_CLASS[winRateTone(r, decided(wl), ESTABLISHED_GAMES)], className)} title={small ? `From ${gamesText(decided(wl))} with a result: a small sample` : `From ${gamesText(decided(wl))} with a result`} data-testid="encounter-rate" data-small={small || undefined}>
+    <span className={cn("tabular-nums", small ? "text-fg-subtle" : WIN_RATE_TONE_CLASS[winRateTone(r, decided(wl), ESTABLISHED_GAMES)], className)} data-testid="encounter-rate" data-small={small || undefined}>
       {percent(r, 0)}
       {small ? <span className="sr-only"> (small sample)</span> : null}
     </span>

@@ -349,7 +349,15 @@ const peek = usePeek({ param: "player", ids, initial: searchParams.get("player")
   nothing else; scrolling closes it.
 - **Placement:** above, else below, 8px inside the screen, never over its trigger; where neither side
   has room, a small sheet at the screen's far edge with the same text. Never a bubble that scrolls.
-- **Text:** one plain sentence, at most about 25 words (`tip-length.test.ts`; STANDARDS, "Tooltips").
+- **Text:** one plain sentence, at most about 25 words (`tip-length.test.ts`; STANDARDS, "Tooltips"),
+  in the page's words. A tip on a text trigger (children) can wrap a badge or a chip, as the LP and
+  the Best chip on a match card, Setup incomplete, Riot accounts' Main and Alt, the experience label
+  in the champion data panel and "Changed since the check" do.
+- **Not a `title`:** a native title explains nothing (`title-use.test.ts`). It names an icon-only
+  control or mark, or shows a cut value whole; anything else is an InfoTip, visible text or
+  sr-only words.
+- **Chart readouts** take the bubble's look: the rank chart's readout has the same border, corners,
+  type and fade (`rank-timeline-chart.tsx`), beside the reading it describes.
 
 ### Unfold
 

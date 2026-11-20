@@ -76,7 +76,7 @@ export function RankInline({ rank, className, showQueue = false, wrap = false }:
   const label = rank ? rankLabel(rank.tier, rank.division) : "Unranked";
   const queue = rank?.queue === "flex" ? "Flex" : rank?.queue === "solo" ? "Solo/Duo" : null;
   return (
-    <span className={cn("inline-flex min-w-0 items-center gap-1", wrap && "flex-wrap gap-y-0.5", className)} title={rank ? `${queue ?? "Ranked"}: ${label}, ${rank.leaguePoints} LP (last checked)` : "Unranked: no ranked games recorded"} data-testid="rank-inline">
+    <span className={cn("inline-flex min-w-0 items-center gap-1", wrap && "flex-wrap gap-y-0.5", className)} title={rank ? `${queue ? `${queue} ` : ""}${label} · ${rank.leaguePoints} LP` : undefined} data-testid="rank-inline">
       <RankEmblem tier={rank?.tier} className="h-4 w-4 shrink-0" />
       <span className={wrap ? "min-w-0 [overflow-wrap:anywhere]" : "truncate"}>{label}</span>
       {showQueue && queue ? <span className="shrink-0 text-fg-subtle">· {queue}</span> : null}

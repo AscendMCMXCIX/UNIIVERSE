@@ -218,13 +218,13 @@ function PerformanceCard({ data, basePath }: { data: PlayerOverviewData; basePat
         <Headline label="Win rate" value={rec.winRate === null ? "—" : percent(rec.winRate, 0)} sub={rec.games ? `${rec.wins}W ${rec.losses}L` : "No games yet"} tone={winRateTone(rec.winRate, rec.games, WIN_RATE_MIN_GAMES.season)} testId="stat-winrate" className={BAND_FIRST}>
           <RecordBar wins={rec.wins} losses={rec.losses} />
         </Headline>
-        <Headline label="KDA" value={fmt.kda(perf)} sub={kda} info="(Kills + assists) ÷ deaths, added up over all the games, so one deathless game cannot make it infinite." tone={perf.kdaRatio === null ? "muted" : "plain"} testId="stat-kda" className={BAND_SECOND} />
+        <Headline label="KDA" value={fmt.kda(perf)} sub={kda} info="Kills plus assists for each death, across all these games." tone={perf.kdaRatio === null ? "muted" : "plain"} testId="stat-kda" className={BAND_SECOND} />
         <Headline label="Games" value={<span data-testid="season-record">{rec.games ? fmt.int(rec.games) : "—"}</span>} sub={rec.games ? `${data.topChampions.length} champion${data.topChampions.length === 1 ? "" : "s"}` : "No games yet"} tone={rec.games ? "plain" : "muted"} testId="stat-games" className={BAND_THIRD} />
       </div>
       <div className={cn("grid grid-cols-3 divide-x divide-border/60 border-t border-border/70 bg-bg/25", BAND_COLUMNS)} data-testid="season-supporting">
-        <Supporting label="CS/min" value={fmt.csm(perf)} sub={rec.games ? "minions + monsters" : undefined} info="Lane minions plus jungle monsters: total CS ÷ total minutes played, over the games with both recorded (remakes under five minutes left out)." muted={perf.csPerMinute === null} testId="stat-cs" className={BAND_FIRST} />
-        <Supporting label="Damage/min" value={fmt.int(perf.damagePerMinute)} sub={rec.games ? "to champions" : undefined} info="Damage dealt to enemy champions: total damage ÷ total minutes played, over the games with both recorded (remakes left out)." muted={perf.damagePerMinute === null} testId="stat-damage" className={BAND_SECOND} />
-        <Supporting label="Vision score" value={fmt.int(perf.visionPerGame)} sub={rec.games ? "per game" : undefined} info="Average Riot vision score per game: wards placed and cleared, and time spent revealing enemies." muted={perf.visionPerGame === null} testId="stat-vision" className={BAND_THIRD} />
+        <Supporting label="CS/min" value={fmt.csm(perf)} sub={rec.games ? "minions + monsters" : undefined} muted={perf.csPerMinute === null} testId="stat-cs" className={BAND_FIRST} />
+        <Supporting label="Damage/min" value={fmt.int(perf.damagePerMinute)} sub={rec.games ? "to champions" : undefined} muted={perf.damagePerMinute === null} testId="stat-damage" className={BAND_SECOND} />
+        <Supporting label="Vision score" value={fmt.int(perf.visionPerGame)} sub={rec.games ? "per game" : undefined} info="Riot's vision score per game: points for placing and clearing wards and spotting enemies." muted={perf.visionPerGame === null} testId="stat-vision" className={BAND_THIRD} />
       </div>
       {/* The kills over the same games; per champion in All Champions (same filters, sorted by multikills). */}
       {rec.games > 0 ? <KillsBand perf={perf} m={data.summary.multikills} byChampionHref={`${basePath}/champions?${statsQuery({ season: data.filter.season, mode: data.filter.mode, role: data.filter.role, accountId: data.filter.accountId }, { sort: "multikills" })}`} /> : null}
