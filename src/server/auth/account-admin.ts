@@ -206,6 +206,8 @@ export async function reactivateWithTemporaryPassword(db: Db, actorId: string | 
   await guardOwnerAccount(db, actorId, target, "reactivate");
   if (target.isActive) throw new UserError("This account is already active: use Reset password instead. Nothing was changed.");
   return db.transaction(async (tx) => {
+    // Read again inside: two calls at once, or a Reactivate between, must not issue a second password.
+    if ((await getUser(tx, userId))?.isActive) throw new UserError("This account is already active: use Reset password instead. Nothing was changed.");
     const issued = await setTemporaryPassword(tx, userId);
     await updateUser(tx, userId, { isActive: true });
     return issued;

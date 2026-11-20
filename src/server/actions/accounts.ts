@@ -114,7 +114,8 @@ export async function changeRiotIdAction(playerId: string, accountId: string, ri
     if (!account) return { ok: false, error: "Account not found." };
     const r = await changeAccountRiotId(db, client, account, riotId, options);
     if (r.kind !== "different-account") {
-      await auditOthers(db, session, playerId, "riot.replace", { account: account.label, riotChange: r.kind });
+      // The same Riot ID typed again changes nothing, so nothing is recorded.
+      if (r.kind === "replaced" || r.riotId !== account.riotId) await auditOthers(db, session, playerId, "riot.replace", { account: account.label, riotChange: r.kind });
       invalidateProficiencyCache();
       touch();
     }
@@ -146,8 +147,10 @@ export async function setMainAccountAction(playerId: string, accountId: string):
   try {
     const session = await requireRiotAccountEditor(playerId);
     const db = await getAppDb();
+    // Already the Main (a double click, a stale page): nothing changes, so nothing is recorded.
+    const wasMain = (await listAccountsForPlayer(db, playerId)).find((a) => a.id === accountId)?.label === "main";
     await setMainAccount(db, playerId, accountId);
-    await auditOthers(db, session, playerId, "riot.main", { account: "main" });
+    if (!wasMain) await auditOthers(db, session, playerId, "riot.main", { account: "main" });
     touch();
     return { ok: true, data: null };
   } catch (err) {

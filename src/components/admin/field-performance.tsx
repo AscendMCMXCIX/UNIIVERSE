@@ -21,17 +21,26 @@ function Bound({ metric, s }: { metric: VitalMetric; s: VitalSummary | null }) {
 }
 
 /** What each core measure means, in words. */
-const time = (b: string) => b.replace("≤", "Within").replace(">", "Over");
-const PLAIN: Record<"LCP" | "INP" | "CLS", { name: string; within: (bound: string) => string }> = {
-  LCP: { name: "Main content showed", within: time },
-  INP: { name: "Taps and clicks answered", within: time },
-  CLS: { name: "The page stayed still", within: (b) => b.replace("≤", "Moved at most").replace(">", "Moved more than") },
+/*
+  What each core measure means, in words. A figure is the bound 75% of loads stayed within; past the
+  last bound there is none, which only says more than a quarter of loads were slower (not that 75% were).
+*/
+const PLAIN: Record<"LCP" | "INP" | "CLS", { name: string; within: string; over: string }> = {
+  LCP: { name: "Main content showed", within: "Within", over: "Over" },
+  INP: { name: "Taps and clicks answered", within: "Within", over: "Over" },
+  CLS: { name: "The page stayed still", within: "Moved at most", over: "Moved more than" },
 };
+
+function inWords(metric: "LCP" | "INP" | "CLS", s: VitalSummary): string {
+  const bound = formatVitalBound(metric, s.p75AtMost).replace(/^[≤>]\s*/, "");
+  const loads = `${formatCount(s.count)} ${s.count === 1 ? "load" : "loads"}`;
+  return s.p75AtMost === null ? `${PLAIN[metric].over} ${bound} on more than a quarter of ${loads}` : `${PLAIN[metric].within} ${bound} on 75% of ${loads}`;
+}
 
 function verdict(metric: VitalMetric, s: VitalSummary): { word: string; tone: "good" | "warn" | "bad" } {
   if (s.p75AtMost !== null && s.p75AtMost <= VITALS[metric].good) return { word: "Good", tone: "good" };
   if (s.p75AtMost !== null && s.p75AtMost <= VITALS[metric].poor) return { word: "Needs work", tone: "warn" };
-  return { word: "Slow", tone: "bad" };
+  return { word: "Poor", tone: "bad" };
 }
 
 /* A table from 640px; below it each row is a label-and-figure list (the cells' data-label), so nothing scrolls sideways. */
@@ -62,7 +71,7 @@ export function FieldPerformancePanel({ report }: { report: VitalsReport }) {
                   <li key={metric} className="flex min-w-0 items-start justify-between gap-3 py-2" data-testid={`field-words-${metric}`}>
                     <span className="min-w-0">
                       <span className="block text-sm font-medium text-fg">{plain.name}</span>
-                      <span className="block text-sm text-fg-muted">{all ? `${plain.within(formatVitalBound(metric, all.p75AtMost))} on 75% of ${formatCount(all.count)} ${all.count === 1 ? "load" : "loads"}` : "Not measured yet"}</span>
+                      <span className="block text-sm text-fg-muted">{all ? inWords(metric as "LCP" | "INP" | "CLS", all) : "Not measured yet"}</span>
                     </span>
                     {v ? <Badge tone={v.tone} className="shrink-0">{v.word}</Badge> : <Badge tone="neutral" className="shrink-0">No data</Badge>}
                   </li>

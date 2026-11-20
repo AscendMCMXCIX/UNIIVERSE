@@ -44,7 +44,7 @@ vi.mock("@/server/riot/verify-identity", async (orig) => ({
 }));
 // Change Riot ID: a client exists (it is never called) and the change is a rename.
 vi.mock("@/server/riot/api/client", async (orig) => ({ ...(await orig<object>()), createRiotClient: () => ({}) }));
-vi.mock("@/server/accounts/change-riot-id", async (orig) => ({ ...(await orig<object>()), changeAccountRiotId: async (_db: unknown, _c: unknown, _a: unknown, riotId: string) => ({ kind: "renamed", riotId }) }));
+vi.mock("@/server/accounts/change-riot-id", async (orig) => ({ ...(await orig<object>()), changeAccountRiotId: async (_db: unknown, _c: unknown, a: { id: string }, riotId: string) => (riotId.startsWith("Other") ? { kind: "replaced", riotId, accountId: a.id } : { kind: "renamed", riotId }) }));
 vi.mock("@/server/accounts/sync", async (orig) => ({ ...(await orig<object>()), syncAccount: async () => ({ status: "ok", matchesFolded: 0, masteryRows: 0 }) }));
 
 import { SESSION_COOKIE } from "@/server/auth/session";
@@ -67,6 +67,8 @@ let memberId: string;
 let memberProfileId: string;
 let otherId: string;
 let otherProfileId: string;
+/** A set-up member with the default access and no temporary password: never touched by these tests. */
+let plainId: string;
 
 async function signInAs(userId: string): Promise<string> {
   state.cookies.clear();
@@ -95,6 +97,7 @@ beforeAll(async () => {
   const other = await registerAccount(handle.db, { username: "Benchy", password: "Benchy-pass-12", role: "player", primaryRiot: { riotId: "Benchy#OCE", platform: "oc1" }, primaryRole: "SUPPORT" });
   otherId = other.id;
   otherProfileId = other.playerId!;
+  plainId = (await registerAccount(handle.db, { username: "Plainmember", password: "Plain-pass-123", role: "player", primaryRiot: { riotId: "Plain#OCE", platform: "oc1" }, primaryRole: "ADC" })).id;
   process.env.CRON_SECRET = "admin-riot-cron-secret-0123456789";
   await ensureVerificationAccount(handle.db, { VERCEL_ENV: "production", CRON_SECRET: process.env.CRON_SECRET });
 }, 60_000);
@@ -148,6 +151,21 @@ describe("an administrator's changes to a member's Riot accounts", () => {
     expect(await accountsOf(memberProfileId)).toHaveLength(theirs.length);
   });
 
+  it("records a replacement by a different Riot account, and nothing for a change that changes nothing", async () => {
+    await signInAs(adminId);
+    const main = (await accountsOf(memberProfileId)).find((a) => a.label === "main")!;
+    const before = { main: (await audit("riot.main")).length, replace: (await audit("riot.replace")).length };
+    expect(await accountActions.setMainAccountAction(memberProfileId, main.id)).toEqual({ ok: true, data: null });
+    expect(await accountActions.changeRiotIdAction(memberProfileId, main.id, main.riotId)).toMatchObject({ ok: true, data: { kind: "renamed" } });
+    expect((await audit("riot.main")).length).toBe(before.main);
+    expect((await audit("riot.replace")).length).toBe(before.replace);
+    expect(await accountActions.changeRiotIdAction(memberProfileId, main.id, "Other Account#OCE", { confirmReplace: true })).toMatchObject({ ok: true, data: { kind: "replaced" } });
+    const rows = await audit("riot.replace");
+    expect(rows).toHaveLength(before.replace + 1);
+    expect(rows.at(-1)).toMatchObject({ targetId: memberProfileId, details: { account: "main", riotChange: "replaced" } });
+    expect(JSON.stringify(rows)).not.toContain("Other Account");
+  });
+
   it("refuses an account that is not the profile's", async () => {
     await signInAs(adminId);
     const benchy = (await accountsOf(otherProfileId))[0]!;
@@ -188,8 +206,9 @@ describe("Reactivate with a new temporary password", () => {
     expect(await userActions.reactivateWithTemporaryPasswordAction(verify.id)).toMatchObject({ ok: false, error: expect.stringMatching(/kept automatically/) });
     expect((await getUser(handle.db, verify.id))!.isActive).toBe(false);
     await setAccountActive(handle.db, adminId, otherId, false);
-    await signInAs(memberId);
-    expect(await userActions.reactivateWithTemporaryPasswordAction(otherId)).toMatchObject({ ok: false });
+    // A set-up member without manage-users: refused by the permission check itself.
+    await signInAs(plainId);
+    expect(await userActions.reactivateWithTemporaryPasswordAction(otherId)).toMatchObject({ ok: false, error: expect.not.stringMatching(/first-time setup/) });
     expect((await getUser(handle.db, otherId))!.isActive).toBe(false);
   });
 
@@ -208,7 +227,7 @@ describe("System Health's demo roster", () => {
     await signInAs(adminId);
     expect(await demoDataAction()).toEqual({ ok: true, data: "Players already exist; nothing created." });
     expect(await audit("demo.data")).toHaveLength(0);
-    await signInAs(otherId);
-    expect(await demoDataAction()).toMatchObject({ ok: false });
+    await signInAs(plainId);
+    expect(await demoDataAction()).toMatchObject({ ok: false, error: expect.not.stringMatching(/first-time setup/) });
   });
 });

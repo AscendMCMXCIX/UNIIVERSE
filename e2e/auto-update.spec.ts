@@ -108,9 +108,12 @@ test("an Admin page left open asks for nothing on a timer, only when its tab is 
   // Half an hour open: a member page would have asked several times (1, 2, 4, 8 then every 10 minutes); Admin asks nothing.
   await page.clock.runFor(30 * 60_000);
   expect(asked).toEqual([]);
-  // Shown again: it asks once, and reads the page again only if a job changed something.
+  // Shown again: it asks once, and reads the page again only if a job changed something. (The clock
+  // runs on again first: a paused one holds the page's own request and React's scheduler.)
+  await page.clock.resume();
   await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
   await expect.poll(() => asked.length).toBe(1);
-  await page.clock.runFor(30 * 60_000);
+  await page.clock.fastForward(30 * 60_000);
+  await page.waitForTimeout(500);
   expect(asked).toHaveLength(1);
 });

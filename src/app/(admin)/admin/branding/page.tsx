@@ -18,7 +18,7 @@ export default async function AdminBrandingPage() {
       <BrandingPanel branding={branding} canEdit />
       {/* The public team page has no switch (it is always on); the old /admin/public-access address lands here, inside Admin Mode. */}
       <Panel id="brand-public" data-testid="brand-public">
-        <PanelHeader title="Public team page" subtitle="Always on, for anyone with the link: the team name and look, and the lineup's cards (no usernames, Riot IDs or settings)." />
+        <PanelHeader title="Public team page" subtitle="Always on, for anyone with the link: the team name and look, the lineup's and substitutes' cards and the links each player shows publicly; never usernames, Riot IDs or settings. Ranks and statistics only where the deployment allows Riot data on public pages." />
         <PanelBody>
           <Link href="/public" target="_blank" rel="noopener" className="inline-flex min-h-11 items-center text-sm text-accent underline-offset-2 hover:underline">
             Open the public team page
