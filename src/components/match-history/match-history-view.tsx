@@ -219,7 +219,9 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
                          role, the K/D/A, the figures and the build; both teams under them.
             from 50rem   one row: the result column (Victory with the length, the queue, when with
                          the LP), the champion with its spells and runes from 54rem, the KDA, the
-                         figures, the build from 61rem (narrower, the breakdown has it), the teams.
+                         figures, the build, and the teams from 61rem: narrower (1280 with the
+                         sidebar open), the build keeps the teams' place and the rosters go first
+                         (UD.H1; the breakdown's scoreboard has them). The tiers' density is D8's.
           The wide thresholds follow from the row's real minimum width: the KDA and figure tracks
           are never narrower than their text (minmax(auto, …), each with a floor that the widest
           real value fits, "10 / 10 / 10" and "1,234 dmg/min (45%)", so the columns stay level from
@@ -369,23 +371,23 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
             </span>
           </span>
           {/* The build: a phone's card's last line under 21.375rem (from there to 36rem the copy before
-              the figures is shown instead), a compact block of two rows from 36rem: at the end of a two-row card's first row, and on wide cards from 61rem (left to
-              the breakdown when the list is too narrow for it beside the teams). A build that was not
+              the figures is shown instead), a compact block of two rows from 36rem: at the end of a two-row card's first row, and on wide cards in its own
+              column (from 50 to 61rem in the teams' place, which the breakdown's scoreboard then holds). A build that was not
               recorded draws nothing (screen readers hear it; the page's data status counts these
               games), and a card from 36rem keeps the build's room, so its columns stay level with the
               cards around it. */}
           {unrecorded ? (
             <>
               {build}
-              <span className="hidden @min-[36rem]/mh:block @min-[36rem]/mh:w-[5.875rem] @min-[50rem]/mh:hidden @min-[61rem]/mh:block" aria-hidden />
+              <span className="hidden @min-[36rem]/mh:block @min-[36rem]/mh:w-[5.875rem]" aria-hidden />
             </>
           ) : (
-            <span className={cn("flex items-center overflow-hidden @min-[50rem]/mh:hidden @min-[61rem]/mh:flex", PHONE_BUILD)}>{build}</span>
+            <span className={cn("flex items-center overflow-hidden", PHONE_BUILD)} data-testid="match-card-build">{build}</span>
           )}
           {/* Both teams; without the full record, a quiet note instead of empty slots. A phone's card
               leaves them to the game's own screen (its scoreboard lists all ten), so a screenful
               holds several games instead of two; a two-row card gives them its second row. */}
-          <span className="hidden min-w-0 @min-[36rem]/mh:col-[1/-1] @min-[36rem]/mh:block @min-[50rem]/mh:col-auto">
+          <span className="hidden min-w-0 @min-[36rem]/mh:col-[1/-1] @min-[36rem]/mh:block @min-[50rem]/mh:col-auto @min-[50rem]/mh:@max-[61rem]/mh:hidden" data-testid="match-card-teams">
             {teams ? (
               <TeamComposition teams={teams} champion={champ} queueId={row.queueId} id={teamsId} />
             ) : (

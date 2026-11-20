@@ -4,7 +4,7 @@ import * as React from "react";
 import { useSearchParams } from "next/navigation";
 import type { PortraitChampion } from "@/components/champion-portrait";
 import { MatchDetailCacheContext, createMatchDetailCache, type MatchDetailCache } from "@/components/match-history/match-detail-cache";
-import { MatchExpansion, revealIfAbove, revealOpened } from "@/components/match-history/inline-match";
+import { MatchExpansion, revealIfAbove, revealOpened, type GameNav } from "@/components/match-history/inline-match";
 import { isPhone, usePhone } from "@/components/ui/use-phone";
 import { isTyping, modalOpen } from "@/components/ui/posture";
 import { cn } from "@/lib/cn";
@@ -25,6 +25,8 @@ interface TogetherOpen {
   open: string | null;
   toggle: (entry: string, matchId: string) => void;
   prefetch: (playerId: string, matchId: string) => void;
+  /** The open game's Previous and Next in the list (null at that end), by Match History's rules: a step replaces `?match=`. */
+  navFor: (entry: string) => GameNav | null;
 }
 const TogetherOpenContext = React.createContext<TogetherOpen | null>(null);
 
@@ -52,7 +54,7 @@ function writeMatch(matchId: string | null, push = false) {
  * address (?match=), so a link to it opens it here, and Back and Forward follow it. Details the
  * list has loaded are kept (MatchDetailCache) while it is shown.
  */
-export function TogetherList({ entries, championsById, className, children }: { entries: Array<{ entry: string; matchId: string; playerId: string }>; /** For a phone's whole-screen game. */ championsById: Record<string, PortraitChampion>; className?: string; children: React.ReactNode }) {
+export function TogetherList({ entries, championsById, className, children }: { entries: Array<{ entry: string; matchId: string; playerId: string; /** "Victory on Gwen": said after Previous or Next, as "Game 4 of 10: Victory on Gwen". */ said?: string }>; /** For a phone's whole-screen game. */ championsById: Record<string, PortraitChampion>; className?: string; children: React.ReactNode }) {
   // A link to a game (?match= on arrival): it opens under its card when listed, and is brought into view.
   const params = useSearchParams();
   const [arrival] = React.useState(() => {
@@ -130,6 +132,31 @@ export function TogetherList({ entries, championsById, className, children }: { 
     writeMatch(matchId);
   }, []);
   const prefetch = React.useCallback((playerId: string, matchId: string) => void cache.load(playerId, matchId).catch(() => {}), [cache]);
+  // Previous and Next, as in Match History: another game in the open one's place, the address
+  // replaced (one entry for the whole visit), the new card's header held where the old one's was,
+  // and which game it is said once ("Game 4 of 10: Victory on Gwen").
+  const anchor = React.useRef<{ entry: string; top: number } | null>(null);
+  const [said, setSaid] = React.useState("");
+  const step = React.useCallback((entry: string) => {
+    const list = entriesRef.current;
+    const at = list.findIndex((e) => e.entry === entry);
+    if (at < 0) return;
+    const was = openRef.current ? document.getElementById(domId(openRef.current)) : null;
+    anchor.current = was && !isPhone() ? { entry, top: was.getBoundingClientRect().top } : null;
+    reveal.current = null;
+    setOpen(entry);
+    if (pushed.current) pushed.current = entry;
+    writeMatch(list[at]!.matchId);
+    // The phone's window says it itself (MatchDetailModal), once the game has loaded.
+    if (!isPhone()) setSaid(`Game ${at + 1} of ${list.length}${list[at]!.said ? `: ${list[at]!.said}` : ""}`);
+  }, []);
+  const navFor = React.useCallback(
+    (entry: string): GameNav | null => {
+      const i = entries.findIndex((e) => e.entry === entry);
+      return i < 0 ? null : { prev: entries[i - 1]?.entry ?? null, next: entries[i + 1]?.entry ?? null, go: step };
+    },
+    [entries, step],
+  );
   // A game the new filters no longer list is not open; one they still list stays open, and stays in
   // the address (the filters' links do not carry it).
   const shown = open && entries.some((e) => e.entry === open) ? open : null;
@@ -140,13 +167,63 @@ export function TogetherList({ entries, championsById, className, children }: { 
     const matchId = shown ? entries.find((e) => e.entry === shown)!.matchId : null;
     if (new URLSearchParams(window.location.search).get("match") !== matchId) writeMatch(matchId);
   }, [entries, shown]);
+  // After a step, the new card's top where the old one's was (the old game's breakdown closing above it would move it).
+  React.useLayoutEffect(() => {
+    const a = anchor.current;
+    if (!shown || !a || a.entry !== shown) return;
+    anchor.current = null;
+    const el = document.getElementById(domId(shown));
+    if (!el) return;
+    const hold = () => {
+      const off = el.getBoundingClientRect().top - a.top;
+      if (Math.abs(off) > 0.5) window.scrollBy({ top: off, behavior: "instant" });
+    };
+    hold();
+    let frames = 0;
+    let raf = 0;
+    const stop = () => {
+      cancelAnimationFrame(raf);
+      for (const t of ["wheel", "touchstart", "keydown", "pointerdown"]) window.removeEventListener(t, stop);
+    };
+    const tick = () => {
+      hold();
+      if (++frames < 30) raf = requestAnimationFrame(tick);
+      else stop();
+    };
+    raf = requestAnimationFrame(tick);
+    for (const t of ["wheel", "touchstart", "keydown", "pointerdown"]) window.addEventListener(t, stop, { passive: true, once: true });
+    return stop;
+  }, [shown]);
   React.useLayoutEffect(() => {
     if (!shown || reveal.current !== shown || phone) return;
     reveal.current = null;
     revealOpened(document.getElementById(domId(shown)));
   }, [shown, phone]);
-  const value = React.useMemo<TogetherOpen>(() => ({ open: phone ? null : shown, toggle, prefetch }), [shown, phone, toggle, prefetch]);
+  const value = React.useMemo<TogetherOpen>(() => ({ open: phone ? null : shown, toggle, prefetch, navFor }), [shown, phone, toggle, prefetch, navFor]);
   const windowed = phone && shown ? entries.find((e) => e.entry === shown)! : null;
+  const windowAt = windowed ? entries.indexOf(windowed) : -1;
+  const windowNav = windowed && windowAt >= 0 ? { ...navFor(windowed.entry)!, index: windowAt, total: entries.length } : null;
+  // The window closed (✕, Back): the list on the last game viewed, and the focus on its card.
+  const lastWindowed = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    if (windowed) {
+      lastWindowed.current = windowed.entry;
+      return;
+    }
+    const last = lastWindowed.current;
+    if (!last) return;
+    lastWindowed.current = null;
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        const li = document.getElementById(domId(last));
+        if (!li) return;
+        revealIfAbove(li);
+        const r = li.getBoundingClientRect();
+        if (r.top > window.innerHeight || r.bottom < 0) li.scrollIntoView({ block: "center", behavior: "instant" });
+        li.querySelector<HTMLElement>("[data-testid=together-open]")?.focus({ preventScroll: true });
+      }),
+    );
+  }, [windowed]);
   const closeWindow = () => {
     // Opened from its card: closing is Back (the list follows the address). Opened by a link: no entry of ours to leave.
     if (pushed.current && pushed.current === shown) {
@@ -163,9 +240,12 @@ export function TogetherList({ entries, championsById, className, children }: { 
         <ol className={className} data-testid="together-list">
           {children}
         </ol>
+        <span className="sr-only" aria-live="polite" data-testid="together-said">
+          {said}
+        </span>
         {windowed ? (
           <React.Suspense fallback={null}>
-            <MatchDetailModal playerId={windowed.playerId} matchId={windowed.matchId} championsById={championsById} onClose={closeWindow} />
+            <MatchDetailModal playerId={windowed.playerId} matchId={windowed.matchId} championsById={championsById} onClose={closeWindow} nav={windowNav} />
           </React.Suspense>
         ) : null}
       </TogetherOpenContext.Provider>
@@ -247,7 +327,7 @@ export function TogetherCardFrame({ entry, playerId, matchId, championsById, lab
           playerId={playerId}
           matchId={matchId}
           champ={champ}
-          nav={null}
+          nav={list?.navFor(entry) ?? null}
           onClose={() => {
             closing.current = "close";
             list?.toggle(entry, matchId);
