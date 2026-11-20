@@ -695,8 +695,10 @@ curated note or a recommendation. Nothing is inferred beyond what the games reco
 ### Evidence tiers
 
 Every row says what it rests on, in small type beside its title: the curated briefing "Checked notes
-(AI reviewers)", the kits and the assembled reference "Riot's data" (and "Riot's data · Checked notes
-(AI reviewers)" where a champion shown has checked notes, whose facts they then show), Riot's tips "Riot's tip (may
+(AI reviewers)", the kits "Riot's data" ("Riot's data · Checked notes (AI reviewers)" for a champion
+with checked notes, whose facts the kit then shows), the assembled reference "Riot's data" with
+"Checked notes (AI reviewers)" beside the title of each side whose facts are checked notes (where it
+fits on a 320px phone; the header's row has no room for both), Riot's tips "Riot's tip (may
 predate later changes)", the evidence "In your games (n = …)" and "In the team's games (n = …)", and
 "No high-elo evidence (not collected)". "Matchup uncertain" says "no curated notes" only where the
 pair has no curated briefing; where it has one that is hidden (too old, or resting on a change), it

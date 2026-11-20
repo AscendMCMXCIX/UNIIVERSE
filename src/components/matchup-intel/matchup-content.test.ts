@@ -135,7 +135,7 @@ describe("the page body", () => {
     // An enemy with curated notes and no briefing for this pair: its checked facts, grouped by kind, each group saying what it holds.
     const renekton = text(await render({ champion: "Garen", vs: "Renekton" }));
     // The side names its layer under its subtitle: the checked notes' line, as their tiles' heading does.
-    expect(renekton).toContain("Danger Renekton's kit, by kind Curated notes: checked on patch 26.22 Crowd control");
+    expect(renekton).toContain("Danger Checked notes (AI reviewers) Renekton's kit, by kind Curated notes: checked on patch 26.22 Crowd control");
     expect(renekton).toContain("Burst and power · None in the checked notes");
     expect(renekton).toContain("Crowd control: Stun");
     // No abilities stored: the panel says so, and the side says nothing is stored.
@@ -404,12 +404,14 @@ describe("each champion's data, and checks a patch or more behind", () => {
   it("each row's tier names the checked notes where a champion's facts are checked notes, beside Riot's data (R7 review C1)", async () => {
     const html = await render({ champion: "Riven", vs: "Renekton" });
     const tiers = (from: string) => [...html.slice(html.indexOf(from)).matchAll(/data-testid="evidence-tier">([^<]*)</g)].map((m) => m[1]!.replace(/&#x27;/g, "'"))[0];
-    // Renekton has checked notes: its panel and the assembled reference rest on both.
-    expect(tiers('data-testid="matchup-assembled"')).toBe("Riot's data · Checked notes (AI reviewers)");
-    expect(tiers('data-champion="Renekton"')).toBe("Riot's data · Checked notes (AI reviewers)");
+    // Renekton has checked notes: its panel rests on both, and the assembled reference's Danger side (its facts) says so.
+    expect(tiers('data-testid="matchup-assembled"')).toBe("Riot's data");
+    expect(tiers('data-testid="assembled-danger"')).toBe("Checked notes (AI reviewers)");
+    expect(tiers('data-testid="matchup-enemy-abilities"')).toBe("Riot's data · Checked notes (AI reviewers)");
     // Darius has none: Riot's data alone.
     const darius = await render({ champion: "Riven", vs: "Darius" });
     expect([...darius.slice(darius.indexOf('data-testid="matchup-assembled"')).matchAll(/data-testid="evidence-tier">([^<]*)</g)].map((m) => m[1]!.replace(/&#x27;/g, "'"))[0]).toBe("Riot's data");
+    expect(darius.slice(darius.indexOf('data-testid="assembled-danger"'), darius.indexOf('data-testid="assembled-opportunity"'))).not.toContain("evidence-tier");
   });
 
   it("the offline copy: said in the panel and the footer, with the game's current patch not known", async () => {
@@ -643,7 +645,7 @@ describe("hidden, changed and behind, on the assembled reference and the notes",
     // Ambessa's only curated pair is the one on the page: no link to it.
     expect(html).not.toContain('data-testid="matchup-curated-links"');
     // The checked side says how old its notes are; so do both notes panels' lines.
-    expect(text(part(html, "assembled-danger"))).toContain("Danger Renekton's kit, by kind Curated notes: checked on patch 26.22 Checked three patches ago: may be out of date");
+    expect(text(part(html, "assembled-danger"))).toContain("Danger Checked notes (AI reviewers) Renekton's kit, by kind Curated notes: checked on patch 26.22 Checked three patches ago: may be out of date");
     expect(text(part(html, "matchup-interactions", "</header>"))).toContain("Checked three patches ago: may be out of date");
     expect(text(part(html, "matchup-level-notes", "</header>"))).toContain("Checked three patches ago: may be out of date");
   });

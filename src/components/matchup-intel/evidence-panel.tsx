@@ -1,4 +1,5 @@
 import { Sigma } from "lucide-react";
+import { cn } from "@/lib/cn";
 import type { MatchupEvidence, EvidenceSection } from "@/domain/matchup-intel/evidence";
 
 /*
@@ -22,9 +23,9 @@ export function kitTier(checked: boolean): string {
 }
 
 /** The tier a row of the page rests on, in small type beside its title ("Riot's data", "Checked notes (AI reviewers)"). */
-export function TierLabel({ children }: { children: string }) {
+export function TierLabel({ children, className }: { children: string; className?: string }) {
   return (
-    <span className="text-2xs font-normal leading-none text-fg-subtle" data-testid="evidence-tier">
+    <span className={cn("text-2xs font-normal leading-none text-fg-subtle", className)} data-testid="evidence-tier">
       {children}
     </span>
   );

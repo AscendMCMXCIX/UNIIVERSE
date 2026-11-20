@@ -157,9 +157,11 @@ function KitSide({ side, kit, intel, champion, title, subtitle, rows }: { side: 
     // Under 9rem (a 320px phone at twice the text size) a narrower padding and no icon before the
     // label, so the longest label (Opportunity) and chip words keep whole.
     <section className={cn("min-w-0 px-3 py-2.5 @max-[9rem]/kits:px-2", side === "danger" ? "bg-warn/5" : side === "opportunity" ? "bg-good/5" : "")} aria-label={`${title}: ${subtitle}`} data-testid={`assembled-${side}`} data-from={kit.from}>
-      <h3 className={cn("label-caps flex items-center gap-1.5 [overflow-wrap:anywhere]", side === "danger" ? "text-warn" : side === "opportunity" ? "text-good" : "text-fg-muted")}>
+      <h3 className={cn("label-caps flex flex-wrap items-center gap-x-1.5 gap-y-0.5 [overflow-wrap:anywhere]", side === "danger" ? "text-warn" : side === "opportunity" ? "text-good" : "text-fg-muted")}>
         <Icon className="h-4 w-4 shrink-0 @max-[9rem]/kits:hidden" aria-hidden />
         {title}
+        {/* This side's facts are its champion's checked notes: its tier, beside its title (R7 review C1). */}
+        {kit.from === "checked" ? <TierLabel className="normal-case tracking-normal">Checked notes (AI reviewers)</TierLabel> : null}
       </h3>
       {/* The subtitle, and at the row's end, over the cooldown numbers' column, where they come from
           where the side's notes do not date them ("Cooldowns: Riot's data, not reviewed"), once. */}
@@ -251,7 +253,8 @@ export function AssembledReference({ you, enemy, enemyIntel, yourIntel, curatedF
               {ASSEMBLED_TITLE}
               <span className="sr-only">: {`${you.name} vs ${enemy.name}`}</span>
             </h2>
-            <TierLabel>{kitTier(!!enemyIntel.curated || (!mirror && !!yourIntel?.curated))}</TierLabel>
+            {/* Riot's data: each side whose facts are a champion's checked notes says so beside its own title (R7 review C1). */}
+            <TierLabel>{kitTier(false)}</TierLabel>
           </div>
           <CuratedLinks you={you} enemies={others} label={`Curated for ${you.name}:`} className="text-xs" />
         </div>
