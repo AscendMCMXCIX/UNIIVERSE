@@ -64,13 +64,13 @@ export function PlayerDataPanel({ report, championsById, admin = false, playerNa
           <Metric id="patch-games" value={formatCount(report.currentPatchGames)} />
           <div className="rounded-md border border-border bg-bg-elevated px-2.5 py-1.5">
             <div className="flex items-center gap-1 text-xs font-semibold uppercase tracking-label text-fg-subtle">
-              Champions with data <Info text="Champions on which at least one game or mastery record exists across the linked accounts." />
+              Champions with data <Info text="Champions with at least one game or some mastery." label="About champions with data" />
             </div>
             <div className="text-sm font-semibold text-fg">{report.championsWithData}</div>
           </div>
           <div className="rounded-md border border-border bg-bg-elevated px-2.5 py-1.5">
             <div className="flex items-center gap-1 text-xs font-semibold uppercase tracking-label text-fg-subtle">
-              Last sync <Info text="Most recent successful or attempted refresh of any linked account. Accounts refresh automatically every few hours." />
+              Last sync <Info text={metricTooltip("last-sync")} label="About last sync" />
             </div>
             <div className="text-sm font-semibold text-fg">{report.lastSyncAt ? timeAgo(report.lastSyncAt) : "never"}</div>
           </div>
@@ -79,7 +79,7 @@ export function PlayerDataPanel({ report, championsById, admin = false, playerNa
         <div>
           <div className="mb-1.5 flex items-center gap-2">
             <SectionLabel>Champion proficiency</SectionLabel>
-            <Info text={metricTooltip("proficiency-tier")} />
+            <Info text={metricTooltip("proficiency-tier")} label="About champion proficiency" />
           </div>
           {report.champions.length === 0 ? (
             <p className="text-xs text-fg-muted">{report.accounts.length === 0 ? "Link a Riot account to see per-champion proficiency." : "No champion data yet. It appears after the first sync completes (a few minutes after linking, then every few hours)."}</p>

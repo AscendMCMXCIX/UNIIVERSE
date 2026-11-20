@@ -1,7 +1,7 @@
 import { devices, expect, test, type Locator, type Page } from "./test";
 import { lineupAtRest } from "./lineup";
 import { emulateKeyboard, keyboard } from "./keyboard";
-import { expectClearCorner, untilStill } from "./modal-corner";
+import { untilStill } from "./modal-corner";
 import { besideAMark, openMatchWindow } from "./match-history";
 import { bubbleFacts, NOT_A_PICTURE, NOT_A_PICTURE_ERROR, openPictureEditor, placedRight, toastFacts } from "./popups";
 import { riotText } from "./matchup-intel";
@@ -131,7 +131,7 @@ test("Team Overview: a card turns over with nothing of the side turned away left
   await expect(page.getByTestId("lineup-row-SUPPORT")).toBeVisible();
 });
 
-test("a teammate's profile: its sections switch, and a champion's window opens and closes", async ({ page }) => {
+test("a teammate's profile: its sections switch, and a champion's preview sheet opens and closes by Back and Escape", async ({ page }) => {
   await page.goto("/players");
   const href = (await page.locator("main a[data-testid='player-card'][data-player-name='Demo Top']").getAttribute("href"))!;
   await page.goto(`${href}/champions`);
@@ -141,16 +141,28 @@ test("a teammate's profile: its sections switch, and a champion's window opens a
   await fitsWidth(page, "All Champions");
   const open = page.getByTestId("open-champion").first();
   await expect(async () => {
-    await open.tap();
-    await expect(page.getByTestId("champion-overview")).toBeVisible({ timeout: 1_000 });
+    if (!(await page.locator("dialog[open]").count())) await open.tap();
+    await expect(page.getByTestId("champion-preview-figures")).toBeVisible({ timeout: 1_000 });
   }).toPass({ timeout: 15_000 });
-  // The window fills the phone's width and nothing in it scrolls sideways.
+  // All Champions' preview is a sheet on a phone: Back closes it (one history entry), and it opens again.
+  await page.goBack();
+  await expect(page.getByTestId("champion-preview-content")).toHaveCount(0);
+  await expect(page).not.toHaveURL(/champion=/);
+  await expect(async () => {
+    if (!(await page.locator("dialog[open]").count())) await open.tap();
+    await expect(page.getByTestId("champion-preview-figures")).toBeVisible({ timeout: 1_000 });
+  }).toPass({ timeout: 15_000 });
+  // The sheet fills the phone's width and nothing in it scrolls sideways.
   const box = (await page.locator("dialog[open]").boundingBox())!;
   expect(box.width).toBeLessThanOrEqual(page.viewportSize()!.width + 1);
-  // Its close button keeps the corner to itself, a 44px target (e2e/modal-corner.ts).
-  await expectClearCorner(page);
+  // Its close button (the shared Peek's sheet) is the header's last control, a 44px target, in its
+  // top-right corner: within the header's 16px padding and the sheet's 1px side border.
+  const close = (await page.locator("dialog[open]").getByTestId("champion-preview-close").boundingBox())!;
+  expect(Math.min(close.width, close.height)).toBeGreaterThanOrEqual(44);
+  expect(box.x + box.width - (close.x + close.width)).toBeLessThanOrEqual(17.5);
+  expect(close.y - box.y).toBeLessThanOrEqual(24);
   await page.keyboard.press("Escape");
-  await expect(page.getByTestId("champion-detail")).toBeHidden();
+  await expect(page.getByTestId("champion-preview-content")).toHaveCount(0);
   await tabs.getByRole("link", { name: "History" }).tap();
   await expect(page).toHaveURL(new RegExp(`${href}/matches$`));
   await expect(tabs.getByRole("link", { name: "History" })).toHaveAttribute("aria-current", "page");
@@ -311,14 +323,25 @@ test("Match History: a game opens as a whole screen of its own, its ranks are ch
   const note = breakdown.getByTestId("ranks-note");
   await expect(note).toBeVisible({ timeout: 15_000 });
   await expect(note).not.toHaveAttribute("data-state", "checking", { timeout: 15_000 });
-  // Back (Safari's edge swipe and the browser's button alike) closes it; the list is as it was.
+  // The bottom bar: Previous and Next (44px targets) inside the screen; Next shows the next game in place of the address.
+  const bar = win.getByTestId("match-detail-nav");
+  const barBox = (await bar.boundingBox())!;
+  expect(barBox.y + barBox.height).toBeLessThanOrEqual(page.viewportSize()!.height + 0.5);
+  expect((await win.getByTestId("match-detail-next").boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  await expect(win.getByTestId("match-detail-prev")).toBeDisabled();
+  const first = new URL(page.url()).searchParams.get("match");
+  await win.getByTestId("match-detail-next").tap();
+  await expect.poll(() => new URL(page.url()).searchParams.get("match")).not.toBe(first);
+  await expect(win.getByTestId("match-detail-position")).toHaveText(/^Game 2 of \d+$/);
+  // Back (Safari's edge swipe and the browser's button alike) closes it; the list is as it was, on the last game viewed.
   await page.goBack();
   await expect(win).toHaveCount(0);
   await expect(page).not.toHaveURL(/match=/);
   await expect(card).toBeVisible();
+  await expect(page.getByTestId("match-row").nth(1)).toBeFocused();
 });
 
-test("Match History's Timeline: a tap on or just beside a mark under the curve reads its minute, the reading stays after the finger lifts, and the tables run with the page", async ({ page }) => {
+test("Match History's gold fold: a tap on or just beside a mark under the curve reads its minute, the reading stays after the finger lifts, and the tables run with the page", async ({ page }) => {
   await page.goto("/team");
   const id = (await page.getByTestId("lineup-row-MID").getAttribute("data-player-id"))!;
   await page.goto(`/players/${id}/matches`);
@@ -333,10 +356,13 @@ test("Match History's Timeline: a tap on or just beside a mark under the curve r
       await expect(window_).toBeVisible({ timeout: 1_000 });
     }).toPass({ timeout: 15_000 });
     const breakdown = window_.getByTestId("match-breakdown");
-    await breakdown.getByTestId("match-tab-timeline").tap();
-    const panel = breakdown.getByTestId("match-panel-timeline");
-    await expect(panel.getByTestId("timeline-loading")).toHaveCount(0, { timeout: 15_000 });
-    if (await panel.getByTestId("gold-chart").count()) timeline = panel;
+    await expect(breakdown.getByTestId("post-game-notes")).toBeVisible({ timeout: 15_000 });
+    const fold = breakdown.getByTestId("fold-gold");
+    if (await fold.count()) {
+      await fold.locator("summary").tap();
+      await expect(fold.getByTestId("timeline-loading")).toHaveCount(0, { timeout: 15_000 });
+    }
+    if ((await fold.count()) && (await fold.getByTestId("gold-chart").count())) timeline = fold;
     else {
       await page.goBack();
       await expect(window_).toBeHidden();

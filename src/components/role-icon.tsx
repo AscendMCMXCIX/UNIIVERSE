@@ -53,7 +53,14 @@ const GLYPHS: Record<Role, React.ReactNode> = {
 const loaded = new Map<string, boolean>();
 const waiting = new Map<string, Set<() => void>>();
 
-/** Loads `url` once per page and tells `notify` when it has loaded or failed. Returns the unsubscribe. */
+/**
+ * Loads `url` once per page and tells `notify` when it has loaded or failed. Returns the unsubscribe.
+ * The test load asks for the image the way the mask will: a CSS mask image from another site is
+ * fetched in CORS mode, so an answer without `Access-Control-Allow-Origin` (CommunityDragon's
+ * host sends `*`, but not on every answer) is refused for the mask while a plain image load
+ * still succeeds. Loading it here with `crossOrigin` makes that answer count as a failure, so
+ * the built-in shape stays instead of a mask that draws nothing.
+ */
 function watchIcon(url: string, notify: () => void): () => void {
   if (loaded.has(url)) return () => {};
   let set = waiting.get(url);
@@ -61,6 +68,7 @@ function watchIcon(url: string, notify: () => void): () => void {
     set = new Set();
     waiting.set(url, set);
     const img = new Image();
+    img.crossOrigin = "anonymous";
     const settle = (ok: boolean) => {
       loaded.set(url, ok);
       for (const cb of waiting.get(url) ?? []) cb();

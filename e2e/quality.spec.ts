@@ -194,28 +194,21 @@ test.describe("accessibility", () => {
     await page.goto("/team");
     await page.waitForLoadState("networkidle");
     await page.getByTestId("lineup-card-MID").click({ position: { x: 40, y: 60 } });
-    await expect(page.locator("dialog[open]")).toBeVisible();
+    // The Team player's Peek: the whole-screen window on phones, the docked panel from 640px.
+    await expect(page.getByTestId("player-detail")).toBeVisible();
     await audit(page, "/team player window");
-    // The champion window, whose games are whole-card buttons (named by what they show).
+    // All Champions' preview beside the list, then an opponent unfolded into its games.
     await page.goto(`${teammate}/champions`);
     const open = page.getByTestId("top-champion").first().getByTestId("open-champion");
-    const win = page.getByTestId("champion-detail");
+    const opponent = page.getByTestId("champion-preview-opponent").first();
     await expect(async () => {
-      if (!(await win.isVisible())) await open.click({ timeout: 2_000 });
-      await expect(win).toBeVisible({ timeout: 1_000 });
+      if (!(await page.getByTestId("champion-preview-content").count())) await open.click({ timeout: 2_000 });
+      await expect(opponent).toBeVisible({ timeout: 1_000 });
     }).toPass({ timeout: 15_000 });
-    // Audit the window once it has settled: while it loads or updates, its body is dimmed on purpose
-    // (opacity-70 while pending), and a slow runner would otherwise measure that passing state.
-    const settled = async () => {
-      await expect(win.getByTestId("champion-detail-loading")).toHaveCount(0, { timeout: 15_000 });
-      await expect(page.getByTestId("champion-detail-body")).toHaveCSS("opacity", "1", { timeout: 15_000 });
-    };
-    await settled();
-    await audit(page, "champion window");
-    await page.getByTestId("champion-tab-matchups").click();
-    await expect(win.getByTestId("lane-game").first()).toBeVisible();
-    await settled();
-    await audit(page, "champion window, matchups");
+    await audit(page, "champion preview");
+    await opponent.getByRole("button").first().click();
+    await expect(page.getByTestId("champion-preview-game").first()).toBeVisible();
+    await audit(page, "champion preview, an opponent's games");
     await page.setViewportSize({ width: 375, height: 667 });
     for (const route of [...PLAYER_ROUTES, ...profile, ...ADMIN_ROUTES]) {
       await page.goto(route);

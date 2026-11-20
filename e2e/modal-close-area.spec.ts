@@ -37,7 +37,8 @@ test("the match window: the close button alone in its corner, Escape closes it",
   await expect(win).toBeHidden();
 });
 
-test("Team's player window: previous and next set apart from the close button, the hero clear of them", async ({ page }) => {
+test("Team's player window: previous and next set apart from the close button, the hero clear of them", async ({ page }, info) => {
+  test.skip(info.project.name !== "phone", "from 640px the Team player opens as a docked Peek, its controls in its own header (detail-panel.spec.ts)");
   await page.goto("/team");
   const open = page.getByTestId("lineup-row-TOP").getByTestId("open-player-detail");
   await open.click();
@@ -50,20 +51,9 @@ test("Team's player window: previous and next set apart from the close button, t
   await expect(win).toBeHidden();
 });
 
-test("the champion window and Player Card Studio keep the corner clear", async ({ page }) => {
+test("Player Card Studio keeps the corner clear", async ({ page }) => {
   const id = await topPlayer(page);
   await page.goto(`/players/${id}`);
-  const inspect = page.getByTestId("primary-pool").getByTestId("pool-item").first().getByTestId("pool-inspect");
-  const champion = page.getByTestId("champion-detail");
-  // The pool's buttons work once the page is interactive.
-  await expect(async () => {
-    if (!(await champion.isVisible())) await inspect.click({ timeout: 2_000 });
-    await expect(champion).toBeVisible({ timeout: 1_000 });
-  }).toPass({ timeout: 15_000 });
-  await expect(champion.getByTestId("champion-detail-name")).toBeVisible();
-  await expectClearCorner(page);
-  await expectEscapeReturnsTo(page, champion, inspect);
-
   const customise = page.getByTestId("profile-header").getByTestId("customise-card");
   const studio = page.getByTestId("card-studio-window");
   await customise.click();

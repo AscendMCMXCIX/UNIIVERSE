@@ -26,5 +26,5 @@ export const WIN_RATE_TONE_CLASS: Record<WinRateTone, string> = { good: "text-go
 export function winRateSampleNote(winRate: number | null | undefined, games: number | null | undefined, minGames: number): string | null {
   if (winRate === null || winRate === undefined) return null;
   const n = games ?? 0;
-  return n < minGames ? `Only ${n} game${n === 1 ? "" : "s"}: too few to read much into this win rate (${minGames}+ are needed before it is highlighted).` : null;
+  return n < minGames ? `Only ${n} game${n === 1 ? "" : "s"}, so this win rate isn't reliable yet.` : null;
 }

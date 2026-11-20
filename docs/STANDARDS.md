@@ -40,7 +40,17 @@ from each section; this page does not repeat them.
   is listed under both, never folded into a third "mixed" kind; the All view shows the two records
   side by side, each with its word, not told apart by colour alone (`src/domain/encounters.ts`).
 - Explanations sit next to the figure (`InfoTip`, `Metric` labels from `src/domain/metrics.ts`),
-  in plain language.
+  in plain language. **Tooltips** (one behaviour, DESIGN_SYSTEM §7, "Explain"):
+  - one plain sentence for an ordinary League player, at most about 25 words, never more than 40
+    (`src/components/ui/tip-length.test.ts` counts every literal InfoTip text, `title` and `hint`,
+    the tip constants and the metric tips; its allowlist names the stage that rewrites each entry).
+    Longer is visible text under the heading, or a window of its own, never a bubble that scrolls;
+  - an ⓘ has a specific name (`label`, required: "About KDA"), never "More information";
+  - a `title` only names an icon-only control or shows a truncated value whole: never the only copy
+    of a fact (a phone, a keyboard and a disabled button never show it). A reason goes beside what
+    it explains (a failed save's reason, why a button is locked);
+  - wording reads right on anyone's page: no "you/your" in a text a teammate's page shows too
+    (neutral words, or `lib/tip-words.ts`, tested).
 - How current a page's Riot data is goes in the same two places on every page, in the fixed words
   of `src/domain/data-status.ts`, never a banner: the status in a few quiet words ("Synced 5 min
   ago", or the state when it is short of up to date) with one ⓘ holding the details, beside the
@@ -228,7 +238,7 @@ Use the shared component before writing a new one (`src/components/ui`):
 | Page title, eyebrow, actions | `PageHeader` |
 | A titled section | `Panel`, `PanelHeader`, `PanelBody`, `SectionLabel` |
 | A figure with its label and explanation | `Metric`, `MetricLabel`, `InfoTip` |
-| A game in a list of games (Match History, Team → Matches) | Opens under its card: `MatchExpansion` (`match-history/inline-match.tsx`), one game at a time, `?match=` in the address. The match window is only for where a list cannot open it in place (inside another window, or a link to a game not on the page), and on phones, where the game takes the whole screen as a new history entry, so Back closes it ([MOBILE.md](MOBILE.md)) |
+| A game in a list of games (Match History, Team → Matches) | Opens under its card: `MatchExpansion` (`match-history/inline-match.tsx`), one game at a time, `?match=` in the address by the one history rule (`ui/address-item.ts`): the first open adds one history entry, at every width, so Back closes the game; another game replaces it; closing goes Back when the list added it. The match window is only for where a list cannot open it in place (inside another window, a preview such as All Champions', or a link to a game not on the page), and under 768px and in short windows (`ui/posture.ts`), where the game is a window of its own with the same entry, so Back closes it ([MOBILE.md](MOBILE.md)) |
 | A record opened from a list (a player met in Encounters) | The page that already lists its data, filtered to it, with a way back (Encounters opens a player's games in Match History: `match-history/encounter-games.tsx`), never a second window that repeats that page |
 | Details over the page (a match, a player, a champion) | `DetailModal` (the standard size fits its content up to the screen's height); a custom `header` keeps clear of the close button's corner with `CLEAR_OF_CONTROLS` (content beside it) or `BELOW_CONTROLS` (content that starts under it), never a fixed padding |
 | A question or a short form | `Dialog`, `ConfirmDialog` |
@@ -239,7 +249,7 @@ Use the shared component before writing a new one (`src/components/ui`):
 | One choice out of a few that filters what a page shows (a role, a side, a sort) | `segmentedGroupClass` with `segmentClass` (`size: "md"` for a list's main filter, as Encounters' All, Against and Alongside), `RoleSegmented` (`compactBelow="xl"`: icons only for the roles not chosen on tablets and laptops, in a crowded toolbar). Never to move between views or pages |
 | A page's sections (primary) | `TabBar`: a profile's Overview, All Champions, Match History and Riot Accounts; Team's sections. On tablets and desktops the bar stays pinned at the top of the page once it scrolls (`sticky`; [RESPONSIVE.md](RESPONSIVE.md) → Shell). A bar wider than the pages under it (`SectionTabs`, a child of `main`) gives its row their width from a 1600px window (`inner`, `ROW_WIDTH`), so there its first tab starts at their column. Admin Mode's Users & Permissions, Platform Settings and System use the same bar. On phones every one of these rides in the top bar as its second row (`ChromeTabs`: a destination's tabs from `SECTION_HUBS`, a profile's through `ProfileTabs variant="chrome"`) |
 | Equal views of one section, or related pages (secondary) | `SubTabs` (`ui/sub-tabs.tsx`): links with `aria-current`, directly under the primary tabs, in the section title's place (`SectionHeader`'s `nav`): Match History's Games and Encounters. `size="compact"` for their copy in the pinned row (`PageToolbar`; its test ids prefixed with `toolbar-`). Separate pages are sections, not views: Users & Permissions' pages use `TabBar` (since 19 Nov 2026) |
-| Views inside one panel (a game's Scoreboard, Analysis, Timeline and Build; a champion's views) | `role="tablist"` buttons with `tabIndicatorClass` |
+| Views inside one panel (a champion's views; a game has none since the post-game view of 19 Nov 2026) | `role="tablist"` buttons with `tabIndicatorClass` |
 | Tabs that filter one list | `TabLinks`, only where it is today (Admin's audit categories), until that page is redesigned |
 | Buttons and links that look like buttons | `Button`, `buttonClass` (links never wrap buttons) |
 | Fields | `Input`, `Textarea`, `Select`, `Label`, `Switch` |

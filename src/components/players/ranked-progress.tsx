@@ -55,7 +55,7 @@ export function RankedProgress({ accounts, queue, accountId, href, now }: { acco
             progress{" "}
             <InfoTip
               label="About ranked progress"
-              text={`Riot's API reports only an account's current rank, never past ones. So the chart starts at UNIIVERSE's first reading of this rank and nothing earlier is drawn or estimated. The line continues only across at most one game; a shaded band marks several games played between two readings. Wins and losses are Riot's own count for the ${RANKED_YEAR} ranked year (one ladder since 8 January: Seasons 1, 2 and 3 share it).`}
+              text="Riot only shares the current rank, so the chart starts at the first check here. Shading marks games played between two checks."
             />
           </span>
         </h2>

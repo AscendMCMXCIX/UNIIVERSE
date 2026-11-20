@@ -49,7 +49,7 @@ translucent status bar, so:
 
 - 44px on touch screens (`pointer-coarse:`), 24px minimum everywhere (WCAG 2.5.8).
 - Small marks keep their look and get a bigger target: the ⓘ (`InfoTip`) is a 24px button around
-  its 16px mark (negative margins keep the line), with an invisible 40px area on touch screens;
+  its 16px mark (negative margins keep the line), with an invisible 44px area on touch screens;
   inline text links use `touch-target`.
 - Close buttons of dialogs, windows and pickers are 44px on touch screens.
 - A toast's dismiss button is 44px at every width, around its 16px mark: its negative margins reach
@@ -70,7 +70,7 @@ moving. With a mouse or trackpad (`pointer-fine:`) it may keep a height limit an
 their header sticks only there). Windows and dialogs keep their one scrolling body (above).
 
 A picker's list inside a window keeps that rule too. The member and champion pickers (in the
-Filters sheet on phones) and the champion window's opponent picker open their list in the flow of
+Filters sheet on phones) open their list in the flow of
 the window's body, as tall as its options, at every width inside a window and anywhere on a phone
 (`src/components/ui/picker-flow.ts`): the body is the one thing that scrolls, and it brings the list
 into view as it opens (`scrollIntoView`, block `nearest`; the page behind is put back if a browser
@@ -641,12 +641,19 @@ Tables with more than four columns render as cards on phones and as the table fr
 Data jobs and the player's champion proficiency table. Match history rows wrap into cards by the
 list's own width (owner decision D8): a phone's card under 36rem (about 118px; both teams left to
 the game's own screen), a two-row card from 36 to 50rem (about 120px: the game's figures and build,
-then both teams) and one row from 50rem; on phones a game opens as the match window over the whole
-screen (Back closes it). Encounters' column names pin under the section tabs where those pin (from
+then both teams) and one row from 50rem; under 768px (phones, and a narrow window with a mouse, which
+has the phone's frame) and in short windows a game opens as the match window (the whole screen under
+640px; Back closes it). Encounters' column names pin under the section tabs where those pin (from
 md, in a window taller than 480px), as All Champions' do.
-A game's breakdown (under its Match History card, or in the match window) sizes its scoreboard by
-its own width (container `bd`, not the screen): name, KDA and items on phones, damage from 36rem,
-gold, CS and vision columns from 60rem; its four section tabs share a phone's width.
+A game's post-game view (under its Match History card, or in the match window; 19 Nov 2026) lays
+itself out by its own width (container `pg`): "Your game" and the scoreboard side by side from
+60rem (1440 and 1920; 1280 with the sidebar collapsed), stacked below (tablets, 1280 with the
+sidebar open, phones). The scoreboard (container `sb`) has one 37px row per player from 30rem
+(portrait, name over champion and rank, K/D/A, the build, CS over damage) and two lines of about
+48px below it (the name and K/D/A, then the build, the rank and CS with damage). Measured on the
+demo: at 1440 × 900 the card and the open game take 660–685px with Close on the first screen; at
+390 × 844 the window's pinned chrome is 110px, the scoreboard starts at about 650px and the whole
+game is 1.9–2.0 screens; no tabs anywhere.
 
 All Champions follows its list's own width too (a container query, so the sidebar counts):
 
@@ -676,9 +683,15 @@ touch screen. From `sm` the window is as it was (three figures across, six from 
 44px on a touch screen. `e2e/profile.spec.ts` checks the phone's title (upright and sideways), its
 scope line, toolbar and sorted pair at 393, 375, 360 and 320px, 200% text on a 320px phone, the bar
 and its legend against the filters' games, and the groups with the 76rem grid's headings, arrows and
-figures at 1536 and 1680px; `e2e/matchups.spec.ts` checks the window on a 393px phone (the portrait,
-Refine and its panel's order, the tiles and their labels, the 44px tab and ⓘ, the lane's top) and on
-a 320px one (whole figures, seven-digit mastery too), and from `sm` on the tablet and the desktop.
+figures at 1536 and 1680px. All Champions' preview (S5, 19 Nov 2026; docs/MATCHUPS.md) replaces the
+champion window: at 1280, 1440 and 1920 it unfolds inside the list's card over the columns after Win
+rate (Champion, Games and Win rate keep their x to the pixel, the page does not scroll, rows keep
+their height: 0px moved at all three widths on the demo); with under 26rem beside Win rate, and on
+screens from 768 to 1023px wide, the shared Peek's docked panel; under 768px (the phone's frame, with
+a mouse as with touch) and on short windows its sheet. The wide (76rem) tier drops the Kills column (it sorts like Games; per-game kills are in KDA;
+CM AC-11, reversible: OD20). `e2e/champion-preview.spec.ts` checks the geometry, ↑/↓, Back and
+Escape at 1440, the content and old addresses on all three projects, and the sheet (phone) and docked
+panel (tablet).
 
 ## Tests
 

@@ -6,6 +6,7 @@ import type { PortraitChampion } from "@/components/champion-portrait";
 import { MatchDetailCacheContext, createMatchDetailCache, type MatchDetailCache } from "@/components/match-history/match-detail-cache";
 import { MatchExpansion, revealIfAbove, revealOpened } from "@/components/match-history/inline-match";
 import { isPhone, usePhone } from "@/components/ui/use-phone";
+import { isTyping, modalOpen } from "@/components/ui/posture";
 import { cn } from "@/lib/cn";
 
 /**
@@ -30,8 +31,9 @@ const TogetherOpenContext = React.createContext<TogetherOpen | null>(null);
 const domId = (entry: string) => `together-${entry.replace(/[^\w-]/g, "-")}`;
 
 /**
- * The open game in the address: replacing the current entry under a card (Back leaves the page, not
- * the game), a new entry on a phone, where the game takes the whole screen and Back closes it.
+ * The open game in the address (`?match=`), by the one history rule (ui/address-item.ts), as Match
+ * History's: the first open pushes one entry, under its card as on a phone's whole screen, so Back
+ * closes the game; another game replaces it; closing goes Back when this list pushed the entry.
  */
 function writeMatch(matchId: string | null, push = false) {
   const next = new URLSearchParams(window.location.search);
@@ -82,7 +84,7 @@ export function TogetherList({ entries, championsById, className, children }: { 
     const id = window.setTimeout(load, 2000);
     return () => window.clearTimeout(id);
   }, []);
-  /** The entry this list added to the browser's history when a phone opened it. */
+  /** The game whose history entry this list added (the first open; a switch hands the entry on). */
   const pushed = React.useRef<string | null>(null);
   // Back and Forward follow the address: the game it names opens under its card when listed.
   React.useEffect(() => {
@@ -100,12 +102,32 @@ export function TogetherList({ entries, championsById, className, children }: { 
     openRef.current = open;
   });
   const toggle = React.useCallback((entry: string, matchId: string) => {
-    const next = openRef.current === entry ? null : entry;
-    setOpen(next);
-    reveal.current = next;
-    const push = !!next && isPhone();
-    pushed.current = push ? next : null;
-    writeMatch(next ? matchId : null, push);
+    // The game open, if the list still shows it (one the filters no longer list is not open).
+    const current = openRef.current && entriesRef.current.some((e) => e.entry === openRef.current) ? openRef.current : null;
+    if (current === entry) {
+      // Closed: Back when this list added the entry (the list follows the address), else the address without it.
+      reveal.current = null;
+      if (pushed.current === entry) {
+        pushed.current = null;
+        window.history.back();
+        return;
+      }
+      setOpen(null);
+      writeMatch(null);
+      return;
+    }
+    setOpen(entry);
+    reveal.current = entry;
+    if (current === null) {
+      // Opened: one entry, at every width (before 20 Nov 2026 only a phone's, so Back from a game
+      // under its card left Team Matches).
+      pushed.current = entry;
+      writeMatch(matchId, true);
+      return;
+    }
+    // Another game in its place: the entry is replaced (one entry for the whole visit).
+    if (pushed.current) pushed.current = entry;
+    writeMatch(matchId);
   }, []);
   const prefetch = React.useCallback((playerId: string, matchId: string) => void cache.load(playerId, matchId).catch(() => {}), [cache]);
   // A game the new filters no longer list is not open; one they still list stays open, and stays in
@@ -166,9 +188,32 @@ export function TogetherCardFrame({ entry, playerId, matchId, championsById, lab
   const id = domId(entry);
   const regionId = `${id}-details`;
   const champ = React.useCallback((c: string | null): PortraitChampion => (c ? (championsById[c] ?? { id: c, name: c, portraitUrl: "" }) : { id: "unknown", name: "Unknown champion", portraitUrl: "" }), [championsById]);
+  // Closed from the game (Close, Escape): the focus back on the card, and with Close the card back on
+  // the screen if it went up under what is pinned, once the game is gone. Closing goes Back when the
+  // list added the game's entry, so that is when the address has followed, a moment after the press.
+  const closing = React.useRef<"close" | "escape" | null>(null);
+  React.useLayoutEffect(() => {
+    if (expanded || !closing.current) return;
+    const how = closing.current;
+    closing.current = null;
+    if (how === "close") revealIfAbove(document.getElementById(id));
+    button.current?.focus({ preventScroll: true });
+  }, [expanded, id]);
   return (
     // group/together: the card's chevron turns while its game is open (TogetherCard).
-    <li id={id} className="group/together scroll-mt-0 lg:scroll-mt-3" data-expanded={expanded || undefined} {...data}>
+    <li
+      id={id}
+      className="group/together scroll-mt-0 lg:scroll-mt-3"
+      data-expanded={expanded || undefined}
+      // Escape, with the focus anywhere in the open game, closes it and returns the focus to the card.
+      onKeyDown={(e) => {
+        if (!expanded || e.key !== "Escape" || e.defaultPrevented || modalOpen() || isTyping(e.target)) return;
+        e.preventDefault();
+        closing.current = "escape";
+        list?.toggle(entry, matchId);
+      }}
+      {...data}
+    >
       <div
         className={cn("group cursor-pointer", className, expanded && "rounded-b-none border-b-border/40")}
         onClick={(e) => {
@@ -202,12 +247,10 @@ export function TogetherCardFrame({ entry, playerId, matchId, championsById, lab
           playerId={playerId}
           matchId={matchId}
           champ={champ}
+          nav={null}
           onClose={() => {
+            closing.current = "close";
             list?.toggle(entry, matchId);
-            requestAnimationFrame(() => {
-              revealIfAbove(document.getElementById(id));
-              button.current?.focus({ preventScroll: true });
-            });
           }}
         />
       ) : null}

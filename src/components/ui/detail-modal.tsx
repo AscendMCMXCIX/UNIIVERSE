@@ -397,8 +397,8 @@ export function DetailModal({
   footer?: React.ReactNode;
   /** Called once the opening motion is over (see AfterOpen), e.g. to show content kept back until then. */
   onSettled?: () => void;
-  /** A sheet's width where it is a centred window (taller wider screens): wide for an editor with a table (48rem). */
-  sheetWidth?: "standard" | "wide";
+  /** A sheet's width where it is a centred window (taller wider screens): wide for an editor with a table (48rem), filters for a filter sheet (34rem: the five role segments in view, no sideways scroller). */
+  sheetWidth?: "standard" | "wide" | "filters";
   /**
    * The content scrolls itself (an editor with a fixed preview and toolbar): the body is a
    * fixed-height column that never scrolls, on every screen, short windows and phones included,
@@ -413,6 +413,7 @@ export function DetailModal({
   const descriptionId = description ? `modal-desc-${generated}` : undefined;
   const ref = React.useRef<HTMLDialogElement>(null);
   const opener = React.useRef<HTMLElement | null>(null);
+
   const [closing, setClosing] = React.useState(false);
   const [settled, setSettled] = React.useState(false);
   // A window that closes (or hides behind another) opens with its motion again next time.
@@ -729,7 +730,7 @@ export function DetailModal({
         flow ? "overflow-y-auto overscroll-contain" : "overflow-hidden",
         MODAL_BACKDROP,
         MOTION[size] ?? MODAL_MOTION,
-        size === "sheet" && sheetWidth === "wide" ? SIZE.sheet.replace("sm:w-[min(30rem,calc(100%-2rem))]", "sm:w-[min(48rem,calc(100%-2rem))]") : SIZE[size],
+        size === "sheet" && sheetWidth !== "standard" ? SIZE.sheet.replace("sm:w-[min(30rem,calc(100%-2rem))]", sheetWidth === "wide" ? "sm:w-[min(48rem,calc(100%-2rem))]" : "sm:w-[min(34rem,calc(100%-2rem))]") : SIZE[size],
         className,
       )}
       data-testid={testId}

@@ -127,7 +127,7 @@ function Swings({ swings, events }: { swings: ReturnType<typeof goldSwings>; eve
     <section className="space-y-1.5" aria-labelledby={id} data-testid="gold-swings">
       <h4 id={id} className="flex items-center gap-1.5 text-xs font-semibold text-fg">
         Largest swings
-        <InfoTip label="About the swings" text="The three largest moves of the gold difference over about three minutes (1,500 gold or more), each with the kills and objectives recorded in those minutes. They are listed side by side: the page does not say what caused a swing." />
+        <InfoTip label="About the swings" text="The 3 biggest gold swings (1,500+ gold in about 3 minutes), with the kills and objectives in those minutes. It doesn't say what caused them." />
       </h4>
       <ol className="space-y-1">
         {swings.map((s) => {
@@ -302,7 +302,7 @@ export function GoldChart({ points, events = null, testId = "gold-chart" }: { po
     <figure className="min-w-0" data-testid={testId}>
       <figcaption className="mb-1.5 flex items-start gap-1.5 text-xs text-fg-muted">
         <span id={`${uid}-cap`}>Gold difference between the teams (your team minus theirs){events?.kills ? ", with each team's kills" : ""}</span>
-        <InfoTip label="About this chart" text="From Riot's match timeline: the gold is read once per frame (about every minute), the kills and objectives at the moment Riot recorded them. Above the line your team had more gold. Hover or touch the chart or a mark under it to read that minute; on a keyboard, the arrow keys move a minute at a time." />
+        <InfoTip label="About this chart" text="Above the line, the player's team had more gold. Point at or tap the chart (or use the arrow keys) to read a minute." />
       </figcaption>
       {/* One pointer area: the curve and the marks under it. A vertical swipe still scrolls the page (and drops the reading). */}
       <div className="touch-pan-y select-none" onPointerDown={read} onPointerMove={read} onPointerLeave={(e) => e.pointerType === "mouse" && setAt(null)} onPointerCancel={() => setAt(null)}>

@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "./test";
 import { createMember } from "./member-account";
 import { cardOf, closeGame, expandedOf, openGame, opensFullScreen } from "./match-history";
+import { NARROW_MOUSE_WINDOWS, expectInReach } from "./reach";
 
 /*
   Match History's games open under their card (one at a time, the page free to scroll); a link to
@@ -23,6 +24,18 @@ async function expectCentred(page: Page, testId: string) {
     .toBe(true);
 }
 
+/** A Peek: docked at the right edge, the page beside it (from 640px), or the phone's whole-screen window. */
+async function expectPeek(page: Page, testId: string) {
+  const vp = page.viewportSize()!;
+  if (vp.width < 640) return expectCentred(page, testId);
+  await expect
+    .poll(async () => {
+      const b = (await page.getByTestId(testId).boundingBox())!;
+      return Math.abs(b.x + b.width - vp.width) < 1 && b.width >= 26 * 16 - 1 && b.width < vp.width && b.y + b.height >= vp.height - 1;
+    })
+    .toBe(true);
+}
+
 test.beforeEach(async ({ context, baseURL }) => {
   await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
 });
@@ -41,14 +54,14 @@ test("a game opens under its card and closes from it, one at a time; a link to a
   await expect(breakdown).toHaveAttribute("data-variant", "inline");
   await expect(row).toBeFocused();
   await expect(row).toHaveAttribute("aria-controls", (await expandedOf(card).getAttribute("id"))!);
-  await expect(breakdown.getByTestId("match-tab-scoreboard")).toHaveAttribute("aria-selected", "true");
+  await expect(breakdown.locator("[role=tab]")).toHaveCount(0);
   // No window, and the page still scrolls.
   await expect(page.getByTestId("match-detail")).toHaveCount(0);
   expect(await page.evaluate(() => getComputedStyle(document.documentElement).overflow)).not.toBe("hidden");
-  // The address names the open game (replaced, so Back still leaves the page).
+  // The address names the open game (a new entry, so Back closes it: one history rule).
   await expect(page).toHaveURL(/match=/);
   const matchId = (await row.getAttribute("data-match"))!;
-  // One at a time: opening the next game closes this one; closing it clears the address.
+  // One at a time: opening the next game takes this one's place; closing it clears the address.
   const next = page.getByTestId("match-card").nth(1);
   await openGame(next);
   await expect(expandedOf(card)).toHaveCount(0);
@@ -70,7 +83,7 @@ test("a game opens under its card and closes from it, one at a time; a link to a
   await expect(panel).toHaveAttribute("data-size", "wide");
   await expectCentred(page, "match-detail");
   await expect(page.getByTestId("match-result")).toHaveText(/Victory|Defeat/);
-  await expect(panel.getByTestId("match-detail-figures")).toBeVisible();
+  await expect(panel.getByTestId("post-game-figures")).toBeVisible();
   await expect(panel.getByTestId("match-breakdown")).toHaveAttribute("data-variant", "window");
   // Demo games have no real Riot server, so no OP.GG history link is made for them (domain/opgg).
   await expect(panel.getByTestId("match-opgg-history")).toHaveCount(0);
@@ -132,7 +145,7 @@ test("Team: the chosen card lifts and the others step back; pools are viewed her
   await open.click();
   const panel = page.getByTestId("player-detail");
   await expect(panel).toBeVisible();
-  await expectCentred(page, "player-detail");
+  await expectPeek(page, "player-detail");
   await expect(mid).toHaveAttribute("data-selected", "true");
   await expect(page.locator("[data-testid^=lineup-row-][data-selected]")).toHaveCount(1);
   // The pool is listed, never edited here: the owner gets a link to the profile instead.
@@ -145,6 +158,64 @@ test("Team: the chosen card lifts and the others step back; pools are viewed her
   await expect(page.locator("[data-testid^=lineup-row-][data-selected]")).toHaveCount(1);
   await page.keyboard.press("Escape");
   await expect(page.locator("[data-testid^=lineup-row-][data-selected]")).toHaveCount(0);
+});
+
+test("Team's player Peek: one history entry however many players are seen, Back closes it, ↑/↓ switch, and the page never moves", async ({ page }, info) => {
+  await page.goto("/team");
+  await expect(page.getByTestId("lineup-overview")).toHaveAttribute("data-ready", "true");
+  const panel = page.getByTestId("player-detail");
+  const before = await page.evaluate(() => ({ entries: history.length, y: scrollY }));
+  const top = page.getByTestId("lineup-row-TOP");
+  await top.getByTestId("open-player-detail").click();
+  await expect(panel).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`player=${await top.getAttribute("data-player-id")}`));
+  if (info.project.name === "phone") {
+    // Android's Back (the system key, in the installed app): closes the window and changes nothing else.
+    await page.goBack();
+    await expect(panel).toBeHidden();
+    await expect(page).not.toHaveURL(/player=/);
+    return;
+  }
+  // The list stays live: three switches (↓, ↓, ‹ then ›) replace the entry the open pushed.
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("ArrowDown");
+  await panel.getByTestId("detail-prev").click();
+  await panel.getByTestId("detail-next").click();
+  const third = page.getByTestId("lineup-row-MID");
+  await expect(third).toHaveAttribute("data-selected", "true");
+  await expect(page).toHaveURL(new RegExp(`player=${await third.getAttribute("data-player-id")}`));
+  const open = await page.evaluate(() => ({ entries: history.length, y: scrollY }));
+  expect(open).toEqual({ entries: before.entries + 1, y: before.y });
+  // No scrolling inside at 1440 × 900: the panel holds the whole player.
+  if (info.project.name === "desktop") expect(await panel.getByTestId("player-detail-body").evaluate((b) => b.scrollHeight - b.clientHeight)).toBeLessThanOrEqual(1);
+  await page.goBack();
+  await expect(panel).toBeHidden();
+  await expect(page).not.toHaveURL(/player=/);
+  expect(await page.evaluate(() => scrollY)).toBe(before.y);
+  // A link to the player opens the page with the Peek open.
+  await page.goto(`/team?player=${await third.getAttribute("data-player-id")}`);
+  await expect(panel).toBeVisible();
+});
+
+test("a window 640–767px wide with a mouse (the phone's frame): Team's player opens as a window, its ✕ and ‹ › in reach", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "a mouse in a narrow window: the desktop project, resized");
+  for (const size of NARROW_MOUSE_WINDOWS) {
+    await page.setViewportSize(size);
+    await page.goto("/team");
+    await expect(page.getByTestId("lineup-overview")).toHaveAttribute("data-ready", "true");
+    const win = page.locator("dialog[open][data-testid=player-detail]");
+    const open = page.locator("[data-testid=open-player-detail]:visible").first();
+    await expect(async () => {
+      if (!(await win.count())) await open.click({ timeout: 2_000 });
+      await expect(win).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: 15_000 });
+    // A window above the phone's bars, never the docked panel under them.
+    await expect(page.locator("aside[data-peek-panel]")).toHaveCount(0);
+    await expectInReach(page, [win.getByTestId("player-detail-close"), win.getByTestId("detail-next")]);
+    await win.getByTestId("player-detail-close").click();
+    await expect(win).toHaveCount(0);
+    await expect(page).not.toHaveURL(/player=/);
+  }
 });
 
 test("the Team player panel returns focus to its card when closed", async ({ page }) => {
@@ -172,7 +243,8 @@ test("a game opened again shows what this page already loaded", async ({ page })
   // Everything it asks for has answered (the record, the possible groups, any rank check).
   await expect(breakdown.getByTestId("possible-groups-note")).not.toHaveAttribute("data-state", "loading", { timeout: 15_000 });
   await expect(breakdown.getByTestId("ranks-note")).not.toHaveAttribute("data-state", "checking", { timeout: 15_000 });
-  const [record, groups] = actions;
+  // The record first, then the timeline and the possible groups (each kept by the page).
+  const [record, timeline, groups] = actions;
   expect(record).toBeTruthy();
   const before = actions.length;
   await closeGame(card);
@@ -180,7 +252,7 @@ test("a game opened again shows what this page already loaded", async ({ page })
   await expect(again.getByTestId("possible-groups-note")).not.toHaveAttribute("data-state", "loading");
   // The record and the possible groups come from what the page kept. (A rank check that came back
   // incomplete, skipped or failed, is asked again by design: match-detail-cache.tsx.)
-  expect(actions.slice(before).filter((a) => a === record || a === groups)).toEqual([]);
+  expect(actions.slice(before).filter((a) => a === record || a === timeline || a === groups)).toEqual([]);
   // Under its card the card keeps the focus; a phone's whole-screen game gives it back on closing.
   if (opensFullScreen(page)) await closeGame(card);
   await expect(card.getByTestId("match-row")).toBeFocused();
@@ -192,10 +264,14 @@ test("with reduced motion a window opens and closes without motion and its conte
   const id = (await page.getByTestId("lineup-row-TOP").getAttribute("data-player-id"))!;
   await page.goto(`/players/${id}/champions`);
   const open = page.getByTestId("open-champion").first();
-  await open.click();
-  await expect(page.getByTestId("champion-overview")).toBeVisible();
-  expect(await page.evaluate(() => getComputedStyle(document.querySelector("dialog[open]")!).animationName)).toBe("none");
+  await expect(async () => {
+    if (!(await page.getByTestId("champion-preview-content").count())) await open.click({ timeout: 2_000 });
+    await expect(page.getByTestId("champion-preview-figures")).toBeVisible({ timeout: 1_000 });
+  }).toPass({ timeout: 15_000 });
+  // All Champions' preview: a sheet on phones and tablets, beside the list on a computer.
+  const moving = await page.evaluate(() => [document.querySelector("dialog[open]"), document.querySelector("aside#champion-preview")].filter(Boolean).map((el) => getComputedStyle(el!).animationDuration));
+  for (const d of moving) expect(parseFloat(d)).toBeLessThan(0.01);
   await page.keyboard.press("Escape");
-  await expect(page.getByTestId("champion-detail")).toBeHidden();
+  await expect(page.getByTestId("champion-preview-content")).toHaveCount(0);
   await expect(open).toBeFocused();
 });

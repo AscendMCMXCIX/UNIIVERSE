@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "./test";
-import { closeGame, openGame } from "./match-history";
+import { cardOf, closeGame, openGame } from "./match-history";
 
 /*
   Possible groups in a game's scoreboard (demo data: two rivals who queue together meet each demo
@@ -55,9 +55,9 @@ test("a recurring pair is shown as a possible duo with its evidence, never as a 
   await expect(rows.first()).toContainText(/Ranked (Solo\/Duo|Flex) · (Won|Lost)/);
   // Neutral wording for the side without a group, and what the inference rests on.
   await expect(note).toContainText("Blue side: not enough recorded history to assess possible groups.");
-  await expect(note).toContainText(/earlier recorded games found for them \(the 180 days before this match\)/);
-  await expect(note).toContainText("not confirmed parties");
-  await expect(note).toContainText("members are never labelled");
+  await expect(note).toContainText(/3\+ earlier games \(the 180 days before\)/);
+  await expect(note).toContainText("not a confirmed party");
+  await expect(note).toContainText("members never labelled");
   // The demo member whose history this is is never part of a group.
   await expect(breakdown.locator('[data-testid="participant"][data-player][data-group]')).toHaveCount(0);
   const text = (await breakdown.innerText()).toLowerCase();
@@ -95,7 +95,9 @@ test("a game with the team on one side is never 'an inference from 0 earlier rec
   await page.goto(`/players/${id}/matches`);
   await page.waitForLoadState("networkidle");
   // The demo's Flex game with four members and one other player on blue (the newest card): nobody to assess there.
-  const card = page.getByTestId("match-card").filter({ has: page.locator('[data-testid="match-members"][data-with="3"]') }).first();
+  const withFour = page.getByTestId("match-card").filter({ has: page.locator('[data-testid="match-members"][data-with="3"]') }).first();
+  // Held by its game's id: an open card folds into its header (the post-game view), which has no members line.
+  const card = cardOf(page, (await withFour.getByTestId("match-row").getAttribute("data-match"))!);
   const breakdown = await openGame(card);
   const note = breakdown.getByTestId("possible-groups-note");
   await expect(note).toHaveAttribute("data-state", "ok", { timeout: 15_000 });

@@ -20,6 +20,20 @@ async function profileOf(page: Page, name: string): Promise<string> {
   return (await page.locator(`main a[data-testid='player-card'][data-player-name='${name}']`).first().getAttribute("href"))!;
 }
 
+/**
+ * A phone's Sort by (narrow rows, under 640px). A choice made before the page's code runs is lost
+ * (React puts the control back as it hydrates), so it is made again until the first row shows the
+ * figure it sorts by, under that figure's name.
+ */
+async function sortOnPhone(page: Page, key: string) {
+  const select = page.locator("#all-champions-sort-by");
+  const label = (await select.locator(`option[value="${key}"]`).textContent())!.trim();
+  await expect(async () => {
+    await select.selectOption(key);
+    await expect(page.getByTestId("top-champion").first().getByTestId("champion-sorted-figure")).toContainText(label, { timeout: 1_000 });
+  }).toPass({ timeout: 15_000 });
+}
+
 const seasonGames = async (page: Page) => Number((await page.getByTestId("season-record").textContent())!.replace(/,/g, "").trim());
 
 const KINDS = [
@@ -136,13 +150,13 @@ test("Total kills: each game's own kills over the same games as the other figure
   const kills = async () => rows.evaluateAll((els) => els.map((e) => e.getAttribute("data-kills")).filter((v): v is string => !!v).map(Number));
   expect((await kills()).reduce((a, b) => a + b, 0)).toBe(total);
   // Sorted by them: from the heading, or Sort by on phones.
-  if (page.viewportSize()!.width < 768) await page.locator("#all-champions-sort-by").selectOption("kills");
+  if (page.viewportSize()!.width < 768) await sortOnPhone(page, "kills");
   else await page.getByTestId("sort-kills").click();
   const sorted = await kills();
   expect(sorted).toEqual([...sorted].sort((a, b) => b - a));
-  // The figure is in the row: its own column, or the summary line on phones.
+  // The figure is in the row: its own column, or after the role on phones (the sorted figure).
   const first = rows.first();
-  if (page.viewportSize()!.width < 640) await expect(first.getByTestId("champion-summary")).toContainText(`Kills ${sorted[0]!.toLocaleString("en")}`);
+  if (page.viewportSize()!.width < 640) await expect(first.getByTestId("champion-sorted-figure")).toContainText(`Kills ${sorted[0]!.toLocaleString("en")}`);
   else await expect(first.getByTestId("champion-kills")).toHaveText(sorted[0]!.toLocaleString("en"));
   expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
 });
@@ -196,9 +210,10 @@ test("partial counts are said once, in the page's status (the ⓘ), and in each 
   await expect(none).toHaveAttribute("data-multikills", "");
   const phone = page.viewportSize()!.width < 640;
   if (phone) {
-    // Narrow rows: the rarest kind as a labelled figure, a dash where nothing is counted yet.
-    await expect(none.getByTestId("champion-summary")).toContainText("Multikills —");
-    await expect(partial.getByTestId("champion-summary")).toContainText(/Multikills (\d+ (double|triple|quadra|penta)|none)\*/);
+    // Narrow rows, sorted by multikills: the rarest kind after the role, a dash where nothing is counted yet.
+    await sortOnPhone(page, "multikills");
+    await expect(none.getByTestId("champion-sorted-figure")).toContainText("Multikills —");
+    await expect(partial.getByTestId("champion-sorted-figure")).toContainText(/Multikills (\d+ (double|triple|quadra|penta)|none)\*/);
   } else {
     // Tablets and narrower desktops: one Multikills column, the rarest kind.
     await expect(none.getByTestId("champion-multikills")).toHaveText(/^—/);
@@ -221,7 +236,7 @@ test("All Champions: multikills sort from their headings (or Sort by on phones) 
   const multikills = () => rows.evaluateAll((els) => els.map((e) => e.getAttribute("data-multikills") ?? "").map((v) => (v ? v.split(",").map(Number) : null)));
   const phone = page.viewportSize()!.width < 640;
   const sortBy = async (key: "double" | "penta" | "multikills") => {
-    if (phone) await page.locator("#all-champions-sort-by").selectOption(key);
+    if (phone) await sortOnPhone(page, key);
     else await page.getByTestId(`sort-${key}`).click();
   };
   if (!phone) await page.setViewportSize({ width: 1680, height: 1000 });
@@ -245,18 +260,6 @@ test("All Champions: multikills sort from their headings (or Sort by on phones) 
   for (const role of await rows.locator("[data-open-champion]").evaluateAll((els) => els.map((e) => e.getAttribute("aria-label") ?? ""))) expect(role).toMatch(/, Top:/);
   // Never a sideways scroll.
   expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
-});
-
-test("a champion's window shows its multikills in the same games as its other figures", async ({ page }) => {
-  const href = await profileOf(page, "Demo Top");
-  await page.goto(`${href}/champions`);
-  const row = page.getByTestId("top-champion").first();
-  const counts = (await row.getAttribute("data-multikills"))!.split(",");
-  await row.getByTestId("open-champion").click();
-  const summary = page.getByTestId("champion-detail").getByTestId("champion-multikills-summary");
-  await expect(summary).toBeVisible();
-  for (const [i, [k]] of KINDS.entries()) await expect(summary.getByTestId(`multikill-${k}`).locator("dd")).toHaveText(counts[i]!);
-  await expect(summary.getByTestId("multikill-sample")).toHaveText(`From all ${await row.getAttribute("data-games")} games`);
 });
 
 test("Match History marks a game's largest multikill, and nothing else", async ({ page }) => {

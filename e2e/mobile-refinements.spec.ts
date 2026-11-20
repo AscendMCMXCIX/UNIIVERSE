@@ -21,7 +21,7 @@ test("Matches and a profile's Encounters keep their caveats in an (i), one tap a
   await page.goto(`/players/${await page.getByTestId("lineup-row-MID").getAttribute("data-player-id")}/matches?view=encounters`);
   const encounters = page.getByRole("button", { name: "How encounters are counted" });
   await expect(encounters).toBeVisible();
-  await expect(encounters).toHaveAccessibleDescription(/not parties, friendships/);
+  await expect(encounters).toHaveAccessibleDescription(/not parties or friends/);
 });
 
 test("small text links have a 44px hit area on touch screens", async ({ page }) => {

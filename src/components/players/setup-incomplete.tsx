@@ -6,7 +6,7 @@ import { cn } from "@/lib/cn";
  * setup are separate: such a member is listed, shown and can be opened like anyone else; this only
  * says why some of their information (roles, champions, Riot accounts) may still be missing.
  */
-export const SETUP_INCOMPLETE_HINT = "This member has not finished setting up their profile yet, so some of their information (roles, champions, Riot accounts) may still be missing.";
+export const SETUP_INCOMPLETE_HINT = "They haven't finished setting up, so their roles, champions or Riot accounts may be missing.";
 
 /** `wordClassName`: classes for the word "incomplete", which a narrow list row keeps for screen readers only ("Setup"; the title still explains it). */
 export function SetupIncompleteBadge({ className, wordClassName }: { className?: string; wordClassName?: string }) {

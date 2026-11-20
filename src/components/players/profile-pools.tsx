@@ -1,27 +1,25 @@
 "use client";
 
 import * as React from "react";
-import type { MatchupsData } from "@/server/players/matchups";
+import { useRouter } from "next/navigation";
 import type { PickerChampion } from "@/components/champions/types";
-import type { PortraitChampion } from "@/components/champion-portrait";
-import type { CardLook } from "@/domain/card-style";
+import type { Role } from "@/domain/roles";
 import { ProfileEditor } from "@/components/profile/profile-editor";
-import { ChampionWindow, useChampionWindow, type ChampionWindowScope } from "./champion-window";
 
 /**
- * Roles & champion pools with the profile's champion window: a pool champion opens the same window
- * as All Champions (Overview and Matchups, in this page's season, mode and account, its lane data
- * loaded by the server for the champion in the address), in the role of the pool it sits in. The
- * editor itself is unchanged: dragging reorders, × removes, Add adds; a click on a card opens it.
- * Each card links to the window's address, so a click before the page is interactive still opens it.
- * Without permission to see the player's statistics, the cards stay names only and open nothing.
+ * Roles & champion pools. A pool champion opens All Champions with its preview open, in the role of
+ * the pool it sits in and this page's season, mode and account (one place and one behaviour for a
+ * champion: CM AC-9). Each card is a link to that address, so it works before the page is
+ * interactive and opens in a new tab. The editor itself is unchanged: dragging reorders, × removes,
+ * Add adds. Without permission to see the player's statistics, the cards stay names only.
  */
-export function ProfilePools({ editor, scope, detail, championsById, playerId, look, inspect }: { editor: Omit<React.ComponentProps<typeof ProfileEditor>, "onInspect" | "inspectHref" | "champions"> & { champions: PickerChampion[] }; scope: ChampionWindowScope; detail: MatchupsData | null; championsById: Record<string, PortraitChampion>; playerId: string; /** The player's card look, for the window's colours. */ look?: CardLook | null; inspect: boolean }) {
-  const win = useChampionWindow({ championKey: "champ" });
-  return (
-    <>
-      <ProfileEditor {...editor} onInspect={inspect ? (id, role) => win.open(id, role) : undefined} inspectHref={inspect ? win.hrefFor : undefined} />
-      {inspect ? <ChampionWindow state={win} data={scope} detail={detail} championsById={championsById} playerId={playerId} look={look} /> : null}
-    </>
-  );
+export function ProfilePools({ editor, championsPath, championsScope, inspect }: { editor: Omit<React.ComponentProps<typeof ProfileEditor>, "onInspect" | "inspectHref" | "champions"> & { champions: PickerChampion[] }; /** All Champions, and this page's scope (season, mode, account) as a query. */ championsPath: string; championsScope: string; inspect: boolean }) {
+  const router = useRouter();
+  const championsHref = (championId: string, role: Role) => {
+    const q = new URLSearchParams(championsScope);
+    q.set("champion", championId);
+    q.set("crole", role);
+    return `${championsPath}?${q.toString()}`;
+  };
+  return <ProfileEditor {...editor} onInspect={inspect ? (id, role) => router.push(championsHref(id, role)) : undefined} inspectHref={inspect ? championsHref : undefined} />;
 }
