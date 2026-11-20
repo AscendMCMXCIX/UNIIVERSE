@@ -451,7 +451,7 @@ Never erase a real member to test this: the erasure itself is tested on syntheti
 ## Total kills (22 Oct 2026)
 
 - [ ] Data jobs → `smoke perf-probe`: every step passes, and `deployment.commit` is the merge commit.
-- [ ] Your profile Overview: **Total kills** is the first of the kill cards, before Double, Triple, Quadra and Pentakills, in the same white as the other figures, with the kills per game under it.
+- [ ] Your profile Overview: **Total kills** is the first of the kill cards, before Double, Triple, Quadra and Pentakills, in the same white as the other figures, with the kills per game under it. (Since 20 Nov 2026 total kills is under the KDA, "N kills", and the multikills are one line of their own: docs/UNIIVERSE_TECHNICAL_HANDOVER.md, "Season card".)
   - On a phone (a card under 34rem) the five stand three by two, By champion in the sixth place; from 34rem all five sit in one row (By champion under them until 48rem, then at the row's end). No card's text is cut short: on the narrowest phones labels and rates wrap.
   - It changes with the season, game mode and Refine (role played, champions, account).
 - [ ] All Champions: a **Kills** column after CS/min (on a phone, "N kills" in each champion's line and Kills in Sort by); clicking its heading sorts by it, and together the champions' kills are the Overview's Total kills for the same filters.
