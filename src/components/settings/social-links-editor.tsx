@@ -92,10 +92,9 @@ const SOCIAL_LINKS_HELP = "Optional. A link stays private until you switch on Sh
  * on; values are checked as they type with the server's own rule and saved with one button. The
  * Player Card Studio edits the same links (its Links step). `preview`: Admin → Previews, where
  * nothing may be saved. `titled`: its own title above the help (the welcome step); Settings'
- * section has the title in its header instead. `helpClass`: the help line's look, where the
- * section's own heading sits above it (Personalise: the body size, as its other sections' help).
+ * section has the title in its header instead.
  */
-export function SocialLinksEditor({ initial, preview = false, titled = true, helpClass }: { initial: SocialLinks | null; preview?: boolean; titled?: boolean; helpClass?: string }) {
+export function SocialLinksEditor({ initial, preview = false, titled = true }: { initial: SocialLinks | null; preview?: boolean; titled?: boolean }) {
   const router = useRouter();
   const [saved, setSaved] = React.useState(() => socialDraftOf(initial));
   const [draft, setDraft] = React.useState(saved);
@@ -124,7 +123,7 @@ export function SocialLinksEditor({ initial, preview = false, titled = true, hel
     <form onSubmit={save} className="space-y-3" data-testid="social-links-form">
       <div>
         {titled ? <p className="text-sm font-medium text-fg">Social links</p> : null}
-        <p className={helpClass ?? (titled ? "mt-0.5 text-xs text-fg-subtle" : "text-xs text-fg-subtle")} data-testid="social-links-help">{SOCIAL_LINKS_HELP}</p>
+        <p className={titled ? "mt-0.5 text-xs text-fg-subtle" : "text-xs text-fg-subtle"} data-testid="social-links-help">{SOCIAL_LINKS_HELP}</p>
       </div>
       <SocialLinksFields draft={draft} onChange={set} disabled={preview} />
       {error ? (

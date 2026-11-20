@@ -200,7 +200,7 @@ export default async function PrivacyPage() {
           {STORED.map((row) => (
             <li key={row.what} className="space-y-1 p-3">
               <p className="text-fg">{row.what}</p>
-              <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-0.5 text-xs text-fg-muted [overflow-wrap:anywhere]">
+              <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs text-fg-muted">
                 <dt className="text-fg-subtle">Why</dt>
                 <dd>{row.why}</dd>
                 <dt className="text-fg-subtle">Who sees it</dt>

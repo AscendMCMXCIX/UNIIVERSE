@@ -289,8 +289,9 @@ test("Settings: the account card leads, drawn in the order it is read, with Sign
     // (surface-3 against the hover's surface-2, G3-13).
     await expect(links.first()).toHaveAttribute("aria-current", "location");
     await expect(links.nth(1)).not.toHaveAttribute("aria-current", "location");
-    // and still while its top is in the window (a jump to Name lands it under the bar, a step below the top).
-    await page.evaluate(() => window.scrollTo(0, 40));
+    // A jump to a section marks it while it is at the window's top: Name, though Password's top is above the line there.
+    await page.evaluate(() => window.scrollTo(0, 300));
+    await links.first().click();
     await expect(links.first()).toHaveAttribute("aria-current", "location");
     await page.evaluate(() => window.scrollTo(0, 0));
     const surface3 = await page.evaluate(() => { const p = document.createElement("i"); p.className = "bg-surface-3"; document.body.append(p); const c = getComputedStyle(p).backgroundColor; p.remove(); return c; });

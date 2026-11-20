@@ -19,10 +19,10 @@ export function SetupSteps({ current }: { current: SetupStepKey }) {
       </p>
       <ol className="mt-1.5 grid grid-cols-3 gap-1.5">
         {SETUP_STEPS.map((s, i) => (
-          <li key={s.key} aria-current={i === at ? "step" : undefined} className="min-w-0">
+          <li key={s.key} aria-current={i === at ? "step" : undefined} className="@container/step min-w-0">
             <span className={cn("block h-1 rounded-full", i <= at ? "bg-accent" : "bg-surface-2")} aria-hidden />
-            {/* One flow of text, the tick inline in it: a long name wraps (balanced) in its third of the bar and, at a large text size, breaks inside a word rather than running into the next step. */}
-            <span className={cn("mt-1.5 block min-w-0 text-xs leading-tight text-balance [overflow-wrap:anywhere]", i === at ? "font-medium text-fg" : i < at ? "text-fg-muted" : "text-fg-subtle")} data-testid="setup-step-label">
+            {/* One flow of text, the tick inline in it: a long name wraps (balanced) in its third of the bar ("Roles &" / "champions" on a phone, G3-2). Where the third is under 4.5rem (a large text size on a small phone) a word no longer fits, so the name keeps one line and ends in an ellipsis, as the page's budget allows, rather than running into the next step. */}
+            <span className={cn("mt-1.5 block min-w-0 text-xs leading-tight text-balance @max-[4.5rem]/step:truncate", i === at ? "font-medium text-fg" : i < at ? "text-fg-muted" : "text-fg-subtle")} data-testid="setup-step-label">
               {i < at ? <Check className="mr-1 inline h-3 w-3 align-text-bottom text-accent" aria-hidden /> : null}
               {s.label}
               {"optional" in s && s.optional ? <span className="ml-1 text-fg-subtle max-sm:hidden">(optional)</span> : null}

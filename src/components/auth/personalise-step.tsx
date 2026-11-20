@@ -97,7 +97,7 @@ export function PersonaliseStep({ card, champions, customised, social = null, pr
             <h2 id="personalise-social" className="text-base font-semibold">
               Social links
             </h2>
-            <SocialLinksEditor initial={social} preview={preview} titled={false} helpClass="text-sm text-fg-muted" />
+            <SocialLinksEditor initial={social} preview={preview} titled={false} />
           </section>
 
           {/* Done shares Back's line while it keeps 2.5rem (150% text on a 320px phone); with larger text (200%) it takes a line of its own rather than run past the card. */}

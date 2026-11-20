@@ -630,7 +630,7 @@ onboarding pages, the Library, Settings and the Card Studio; each is checked in 
 - **No access:** its title is balanced ("You don't have access / to that page"), and on the desktop
   the state is centred in the content column (`quality.spec.ts`).
 - **Personalise:** Customise is the kit's outline Button (36px with a mouse, 44px on touch, 14px
-  text), as Add a picture is; Social links is headed as the other two sections (`display-name.spec.ts`).
+  text), as Add a picture is; Social links is headed as the other two sections; its help stays 12px, since at 14px it runs to six lines at 393px and the page would pass its budget (`display-name.spec.ts`).
 - **The Card Studio's preview chooser** marks the chosen view with the segment's ring and weight
   (`card-studio.spec.ts`).
 

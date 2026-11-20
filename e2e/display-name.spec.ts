@@ -75,12 +75,11 @@ test("a new player picks a display name apart from their username, goes back wit
   await expect(personalise.getByTestId("social-links-form")).toBeVisible();
   for (const platform of ["YouTube", "Twitch", "Discord"]) await expect(personalise.getByRole("switch", { name: `Show publicly: ${platform}` })).not.toBeChecked();
   expect(await noSideScroll(page)).toBe(true);
-  // One look for the step's buttons and headings (G3-10, G3-11): Customise is drawn as Add a picture is, and the three sections share one heading and help style.
+  // One look for the step's buttons and headings (G3-10, G3-11): Customise is drawn as Add a picture is, and the three sections share one heading style.
   const look = (el: Element) => { const c = getComputedStyle(el); return [Math.round(el.getBoundingClientRect().height), c.fontSize, c.borderTopLeftRadius, c.borderTopColor, c.backgroundColor]; };
   expect(await personalise.getByTestId("customise-card").evaluate(look)).toEqual(await personalise.getByRole("button", { name: /Add a picture/ }).first().evaluate(look));
   const headings = await personalise.locator("section > h2").evaluateAll((hs) => hs.map((h) => { const c = getComputedStyle(h); return `${h.textContent} ${c.fontSize} ${c.fontWeight}`; }));
   expect(headings).toEqual(["Profile picture 16px 600", "Player card 16px 600", "Social links 16px 600"]);
-  expect(await personalise.getByTestId("social-links-help").evaluate((el) => getComputedStyle(el).fontSize)).toBe("14px");
   // Back opens the roles step with the saved answers, and Finish returns here.
   await personalise.getByTestId("personalise-back").click();
   await expect(page.getByTestId("setup-form")).toHaveAttribute("data-step", "profile");

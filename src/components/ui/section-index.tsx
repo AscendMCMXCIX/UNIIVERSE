@@ -58,6 +58,15 @@ function useSectionInView(ids: string): string | null {
     if (!ids) return;
     const list = ids.split(" ");
     let frame = 0;
+    let jumped: string | null = null;
+    let landed = false;
+    const onJump = (e: MouseEvent) => {
+      const href = (e.target as Element | null)?.closest?.("a[href^='#']")?.getAttribute("href");
+      if (href && list.includes(href.slice(1))) {
+        jumped = href.slice(1);
+        landed = false;
+      }
+    };
     const update = () => {
       frame = 0;
       const line = window.innerHeight / 3;
@@ -66,9 +75,16 @@ function useSectionInView(ids: string): string | null {
         const el = document.getElementById(id);
         if (el && el.getBoundingClientRect().top <= line) at = id;
       }
-      // While the first section's top is still in the window (the page at its top, or a jump to it), it is the one being read, even where a short first panel puts the next one's top above the line (Settings' Password); at the page's end, the last.
-      const first = document.getElementById(list[0]!);
-      if (window.scrollY <= 0 || (first && first.getBoundingClientRect().top >= 0)) at = list[0]!;
+      // A section the reader jumped to stays the one being read while it is at the window's top, even where a short panel puts the next one's top above the line (Settings' Name over Password, G3-5).
+      const target = jumped ? document.getElementById(jumped) : null;
+      const top = target?.getBoundingClientRect().top;
+      // (Until it has landed there, a smooth jump may still be on its way.)
+      if (top !== undefined && top >= -2 && top <= line) {
+        at = jumped!;
+        landed = true;
+      } else if (landed) jumped = null;
+      // At the page's top, the first section; at its end, the last.
+      if (window.scrollY <= 0) at = list[0]!;
       const root = document.documentElement;
       if (window.scrollY > 0 && window.scrollY + window.innerHeight >= root.scrollHeight - 2) at = list[list.length - 1]!;
       setCurrent(at);
@@ -79,7 +95,9 @@ function useSectionInView(ids: string): string | null {
     update();
     window.addEventListener("scroll", schedule, { passive: true });
     window.addEventListener("resize", schedule);
+    document.addEventListener("click", onJump, true);
     return () => {
+      document.removeEventListener("click", onJump, true);
       cancelAnimationFrame(frame);
       window.removeEventListener("scroll", schedule);
       window.removeEventListener("resize", schedule);

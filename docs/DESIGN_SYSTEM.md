@@ -698,8 +698,9 @@ test):
   480px tall or less (the approved plan's look there) and a list from md in a taller window, the
   section being read marked either way: a chosen chip on a phone, `surface-3` and semibold in the
   list, a step above the `surface-2` of a pointed-at entry). At the page's top the first section is
-  the one being read, at its end the last (G3-5: a short first panel put the next one's top above
-  the window's upper third). Each is
+  the one being read, at its end the last, and a section jumped to from the index stays marked while
+  it is at the window's top (G3-5: a short first panel put the next one's top above the window's
+  upper third). Each is
   a plain link to its section's anchor, so it works before the page's code has run; once it runs a
   click jumps through the router's history (`jumpToAnchor`, which Matchup Intel's chips share): the
   section comes under the top bar, takes the focus, and the jump is an entry of the page's own where
