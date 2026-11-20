@@ -26,7 +26,7 @@
    "small": 0
   },
   "p-overview@i15-100": {
-   "screens": 2.45,
+   "screens": 1.96,
    "frame": 0.3,
    "frameScrolled": 0.3,
    "small": 0
@@ -145,7 +145,7 @@
    "small": 0
   },
   "p-overview@se1-150": {
-   "screens": 7.64,
+   "screens": 5.96,
    "frame": 0.45,
    "frameScrolled": 0.15,
    "small": 0
@@ -294,7 +294,7 @@
    "small": 0
   },
   "own-overview@i15-100": {
-   "screens": 2.46,
+   "screens": 1.94,
    "frame": 0.3,
    "frameScrolled": 0.3,
    "small": 0
@@ -367,7 +367,7 @@
    "small": 0
   },
   "own-overview@se1-150": {
-   "screens": 8.08,
+   "screens": 6.04,
    "frame": 0.45,
    "frameScrolled": 0.15,
    "small": 0

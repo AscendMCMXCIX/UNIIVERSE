@@ -287,6 +287,7 @@ One set of containers, chosen by what the content is, never by page. Each is one
 | **Select** (a Popover) | one value from a short list in a toolbar or a form (game mode, season, minimum games, sort, a filter's status…) | `select.tsx`: `Select` (options as data) | click, Enter, Space, ↑/↓ | a choice, Escape, Tab, an outside press, a resize, its button leaving the screen | none; a choice calls `onValueChange`, which writes the address as the native select did |
 | **Explain** | a short explanation beside a term | `info-tip.tsx`: `InfoTip` | hover, focus, tap | leaving, Escape, any tap | none |
 | **Fold** | secondary content in a page | `disclosure.tsx` (native `details`) | its summary | its summary | none |
+| **Phone Fold** | a long section's details on a touch phone only (Profile Overview, since 20 Nov 2026: the primary pool's champions after the top three, the off roles, Ranked progress past its heading and current rank) | `phone-fold.tsx`: `PhoneFoldSection`, `PhoneFoldToggle`, `usePhoneFold`; the classes in `phone-fold-classes.ts` (`posture.ts`'s window posture as CSS, so the server's HTML is already folded) | its Show, All N or chevron (44px) | Hide, Top 3 or the chevron | none; an address with the section's `#id` opens it |
 | **Record window** | everything about one record that is managed, not glanced at (Admin's person view) | `DetailModal` with `useAddressItem` (`person-view.tsx`) | a row of the list | ✕, Escape (focus back to the row), Back; ‹ › switch | `?person=`: the one history rule |
 
 ### Select (`select.tsx`)

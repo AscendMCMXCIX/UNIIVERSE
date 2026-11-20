@@ -8,6 +8,7 @@ import { cn } from "@/lib/cn";
 import { championArtUrl } from "@/domain/player-card";
 import { RemoteImage } from "@/components/ui/remote-image";
 import { screenHeight } from "@/lib/screen";
+import { PHONE_FOLDED } from "@/components/ui/phone-fold-classes";
 
 /** Moves one item to a new index (pure; used by drag, keyboard and tests). */
 export function moveItem<T>(list: readonly T[], from: number, to: number): T[] {
@@ -95,7 +96,13 @@ export function SortablePool({
   inspectLabel = "statistics and matchups",
   controls = "hover",
   variant = "cards",
+  phoneFoldFrom,
 }: {
+  /**
+   * Rows from this position on fold away on a touch phone while the Fold around the list is closed
+   * (phone-fold.tsx: the list sits in its group). Rows only; omitted: every row shows.
+   */
+  phoneFoldFrom?: number;
   /**
    * cards: a grid of cards (the setup forms). rows: one line per champion in a single column, its
    * figures in fixed columns at the line's end under one row of column names (the profile's pools).
@@ -421,6 +428,7 @@ export function SortablePool({
                   editable && "md:cursor-grab",
                   isDragged && "z-20 cursor-grabbing border-accent bg-surface-2 shadow-2xl shadow-black/50 will-change-transform",
                   isLifted && "z-10 border-accent bg-surface-2 ring-2 ring-accent/40",
+                  phoneFoldFrom !== undefined && index >= phoneFoldFrom && PHONE_FOLDED,
                 )}
                 data-testid="pool-item"
                 data-champion={id}

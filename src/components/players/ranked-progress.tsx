@@ -4,6 +4,8 @@ import { rankMovement, rankTimeline, type RankMovement } from "@/domain/rank-tim
 import { RANKED_YEAR, rankedSeasonAt } from "@/domain/ranked-year";
 import type { RankHistoryAccount } from "@/server/accounts/rank-history";
 import { InfoTip } from "@/components/ui/info-tip";
+import { PhoneFoldSection, PhoneFoldToggle } from "@/components/ui/phone-fold";
+import { PHONE_FOLDED } from "@/components/ui/phone-fold-classes";
 import { segmentClass, segmentedGroupClass } from "@/components/ui/segmented";
 import { formatDate, formatDayMonth, formatLpChange } from "@/lib/format";
 import { accountShortNames } from "@/domain/account-names";
@@ -24,6 +26,11 @@ export type RankedProgressHref = (change: { rq?: RankQueue; ra?: string | null }
  * the chart (18 Nov 2026: the History and coverage disclosure under it, with the ranked year's strip,
  * the rank changes and every reading, was removed from the page; the readings, the history and their
  * calculations are unchanged, docs/RANKED_PROGRESS.md).
+ *
+ * On a touch phone (posture.ts) the card is a Fold (20 Nov 2026, PLAN S8a's Profile Overview
+ * heights): its heading and where the account stands now (rank, LP, the year's wins and losses)
+ * stay; the account line, the queue and account switches, the 30-day movement, the highest rank
+ * and the chart are behind its Show. Tablets and desktop show everything, with no button.
  */
 export function RankedProgress({ accounts, queue, accountId, href, now }: { accounts: RankHistoryAccount[]; queue: RankQueue; accountId: string | null; href: RankedProgressHref; now: number }) {
   if (accounts.length === 0) return null;
@@ -37,7 +44,7 @@ export function RankedProgress({ accounts, queue, accountId, href, now }: { acco
   const season = seasonNow ? `${RANKED_YEAR} ${seasonNow.label}` : null;
   const hasLine = timeline.readings.some((r) => r.score !== null);
   return (
-    <section id="ranked-progress" aria-labelledby="ranked-progress-title" className="@container/rank space-y-3 rounded-card border border-border bg-surface p-4 panel-depth" data-testid="ranked-progress">
+    <PhoneFoldSection id="ranked-progress" aria-labelledby="ranked-progress-title" className="@container/rank space-y-3 rounded-card border border-border bg-surface p-4 panel-depth" data-testid="ranked-progress">
       {/* The title, then the line saying what is read, then the controls (the queue switch and,
           with several, the accounts), in that order for screen readers. On a narrow card (under
           32rem) one wrapping row: the switch shares the title's line where the two fit and goes
@@ -46,11 +53,12 @@ export function RankedProgress({ accounts, queue, accountId, href, now }: { acco
           the right, so the header is two lines tall, as before.
           On a touch screen the ⓘ is a 44px button around its 16px mark (InfoTip), reaching 0.875rem
           past the mark at either side and about 0.7rem under the title's line: there, on the narrow
-          card, the gaps around the title are larger than that reach (1rem), so the switch never
+          card, the gap beside the title is that reach (0.875rem) and the gap under it larger (1rem), so the switch never
           sits under the ⓘ's touch area, beside it or under it, and the switch wraps a little
-          sooner rather than crowd it. The tracking line keeps its usual 0.375rem from the line
+          sooner rather than crowd it. (The gap beside it was 1rem until 20 Nov 2026; at 0.875rem the
+          phone's Fold chevron keeps the title's line on a 320px phone at 150% text.) The tracking line keeps its usual 0.375rem from the line
           above (its margin gives back the larger gap): only the switch's place changes. */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 @max-[32rem]/rank:pointer-coarse:gap-x-4 @max-[32rem]/rank:pointer-coarse:gap-y-4 @min-[32rem]/rank:grid @min-[32rem]/rank:grid-cols-[minmax(0,1fr)_auto] @min-[32rem]/rank:items-start @min-[32rem]/rank:gap-y-0.5">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 @max-[32rem]/rank:pointer-coarse:gap-x-3.5 @max-[32rem]/rank:pointer-coarse:gap-y-4 @min-[32rem]/rank:grid @min-[32rem]/rank:grid-cols-[minmax(0,1fr)_auto] @min-[32rem]/rank:items-start @min-[32rem]/rank:gap-y-0.5">
         {/* The title claims only its wrapped width ("progress ⓘ", the ⓘ kept on the last word), so
             the switch stays beside it as long as even the wrapped title fits there; with larger
             text it goes under the title rather than over its ⓘ. No min-w-0: that minimum is the
@@ -65,13 +73,14 @@ export function RankedProgress({ accounts, queue, accountId, href, now }: { acco
             />
           </span>
         </h2>
-        <p className="order-last basis-full text-xs text-fg-subtle wrap-anywhere @max-[32rem]/rank:pointer-coarse:-mt-2.5 @min-[32rem]/rank:order-none @min-[32rem]/rank:col-start-1 @min-[32rem]/rank:row-start-2" data-testid="ranked-tracking">
+        <p id="ranked-tracking" className={cn(PHONE_FOLDED, "order-last basis-full text-xs text-fg-subtle wrap-anywhere @max-[32rem]/rank:pointer-coarse:-mt-2.5 @min-[32rem]/rank:order-none @min-[32rem]/rank:col-start-1 @min-[32rem]/rank:row-start-2")} data-testid="ranked-tracking">
           {account.riotId}
           {season ? ` · ${season}` : ""}
           {timeline.trackingSince ? ` · rank recorded since ${formatDate(timeline.trackingSince)}` : " · no rank recorded yet"}
         </p>
         <div className="ml-auto flex flex-wrap items-center justify-end gap-2 @min-[32rem]/rank:col-start-2 @min-[32rem]/rank:row-span-2 @min-[32rem]/rank:row-start-1">
-          <nav aria-label="Queue" className={segmentedGroupClass()}>
+          <PhoneFoldToggle label="the details of ranked progress" iconOnly controls={["ranked-tracking", "ranked-queues", accounts.length > 1 && "ranked-accounts", cur && "ranked-movement", "ranked-chart-fold"].filter(Boolean).join(" ")} testId="ranked-fold" />
+          <nav id="ranked-queues" aria-label="Queue" className={cn(PHONE_FOLDED, segmentedGroupClass())}>
             {(["solo", "flex"] as const).map((q) => (
               <Link key={q} href={href({ rq: q })} replace scroll={false} aria-current={q === queue ? "page" : undefined} className={segmentClass(q === queue)} data-testid={`ranked-queue-${q}`}>
                 {QUEUE_SHORT[q]}
@@ -81,7 +90,7 @@ export function RankedProgress({ accounts, queue, accountId, href, now }: { acco
           {accounts.length > 1 ? (
             // Every account the same way: its in-game name (with the tagline only where two share a
             // name), the full Riot ID on hover, in the player's own order (the Main account first).
-            <nav aria-label="Account" className={segmentedGroupClass()}>
+            <nav id="ranked-accounts" aria-label="Account" className={cn(PHONE_FOLDED, segmentedGroupClass())}>
               {accounts.map((a) => (
                 <Link key={a.id} href={href({ ra: a.id })} replace scroll={false} aria-current={a.id === account.id ? "page" : undefined} title={a.riotId} className={segmentClass(a.id === account.id, { className: "max-w-[10rem]" })} data-testid="ranked-account">
                   <span className="min-w-0 truncate">{names.get(a.id)}</span>
@@ -117,7 +126,7 @@ export function RankedProgress({ accounts, queue, accountId, href, now }: { acco
             )}
           </div>
           {cur ? (
-            <dl className="grid grid-cols-2 gap-x-4 border-t border-border pt-2.5">
+            <dl id="ranked-movement" className={cn(PHONE_FOLDED, "grid grid-cols-2 gap-x-4 border-t border-border pt-2.5")}>
               <Movement m={movement} unranked={cur.tier === null} />
               <div className="min-w-0" data-testid="ranked-peak-stat">
                 <dt className="text-2xs text-fg-subtle">Highest recorded</dt>
@@ -137,6 +146,7 @@ export function RankedProgress({ accounts, queue, accountId, href, now }: { acco
             </dl>
           ) : null}
         </div>
+        <div id="ranked-chart-fold" className={cn(PHONE_FOLDED, "min-w-0")}>
         {hasLine ? (
           <RankTimelineChart t={timeline} label={`${QUEUE_LABEL[queue]} rank since ${formatDate(timeline.trackingSince!)}`} />
         ) : (
@@ -144,8 +154,9 @@ export function RankedProgress({ accounts, queue, accountId, href, now }: { acco
             {timeline.trackingSince === null ? "The chart starts at the first check of this rank. Riot shares no past ranks, so none can be filled in." : "No rank to draw: this queue was unranked at every check."}
           </p>
         )}
+        </div>
       </div>
-    </section>
+    </PhoneFoldSection>
   );
 }
 

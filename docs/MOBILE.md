@@ -428,6 +428,14 @@ Every phone page spends its first screen on content, not on saying where you are
   there, or after the team's mark on your own profile, and clear of Filters and the avatar). The
   section starts right under the sections row (it gains the band's 86px and its gap, about 170px at
   150% text). The Overview keeps its full card.
+- **Profile Overview within two screens** (20 Nov 2026, PLAN S8a; the owner may veto, OD20): on a
+  touch phone (`posture.ts`) the primary pool shows its top three champions with "All N", the off
+  roles are one Show under their heading, and Ranked progress shows its heading and the current
+  rank, LP and the year's wins and losses, with a 44px chevron for the account line, the queue and
+  account switches, the last 30 days, the highest rank and the chart (`phone-fold.tsx`). Nothing is
+  dropped: each is one tap away, and editing the pools shows every champion. Tablets and desktop are
+  unchanged. Measured: 1.92 screens at i15 (2.40 before) and 5.84 at se1 with 150% text (7.49);
+  a member's own Overview 1.90 and 5.92.
 - **No lone Filters row**: Profile Overview's Filters and Refresh sit at the end of the title's
   line, the scope line under them across the width (`SectionHeader toolbarBesideScope`; until 20 Nov
   2026 at the scope line's end, which squeezed the scope into nine lines at 320px with 150% text).
