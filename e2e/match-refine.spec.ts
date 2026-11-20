@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from "./test";
+import { optionsOf, pick } from "./select";
 import { openFilterBar } from "./filters";
 import { closeGame, openGame, opensFullScreen } from "./match-history";
 
@@ -63,7 +64,7 @@ test("Refine narrows to wins or losses; the choice shows as a chip, rides along 
   expect(new Set(await results(page))).toEqual(new Set(["W"]));
   // A shared filter changed afterwards keeps the choice.
   const filters = page.getByTestId("match-filters");
-  await filters.getByLabel("Game mode").selectOption("solo");
+  await pick(filters.getByLabel("Game mode"), "solo");
   await expect(page).toHaveURL(/mode=solo/);
   await expect(page).toHaveURL(/result=win/);
   expect(new Set(await results(page))).toEqual(new Set(["W"]));
@@ -82,12 +83,12 @@ test("a team member's games, with them or against them, as their stored games pl
   const panel = await openRefine(page);
   const member = panel.getByTestId("refine-member");
   // Every member the player shared a game with is offered, with the count of games each way.
-  const options = await member.locator("option").evaluateAll((els) => els.map((e) => (e as HTMLOptionElement).textContent ?? ""));
+  const offered = await optionsOf(member);
+  const options = offered.map((o) => o.label);
   expect(options.slice(0, 3)).toEqual(["With or without them", "With any team member", "Against any team member"]);
   const against = options.find((o) => /^Against .+ \([1-9]\d*\)$/.test(o));
   expect(against, "the demo has one game with the Top player on the other side").toBeTruthy();
-  const value = await member.locator("option", { hasText: against! }).getAttribute("value");
-  await member.selectOption(value!);
+  await pick(member, offered.find((o) => o.label === against)!.value);
   await expect(page).toHaveURL(/against=/);
   await expect(page.locator("[data-testid='match-history'][data-ready]")).toBeVisible();
   expect(await total(page)).toBe(Number(/\((\d+)\)$/.exec(against!)![1]));
@@ -95,7 +96,7 @@ test("a team member's games, with them or against them, as their stored games pl
   await expect(page.getByTestId("match-card").first()).toContainText("Against");
   // Any member with the player: every card names one with them.
   await openRefine(page);
-  await page.getByTestId("refine-member").selectOption("with:any");
+  await pick(page.getByTestId("refine-member"), "with:any");
   await expect(page).toHaveURL(/with=any/);
   await expect(page.locator("[data-testid='match-history'][data-ready]")).toBeVisible();
   expect(await total(page)).toBeGreaterThan(0);
@@ -108,8 +109,8 @@ test("a patch, the days played and a highlight narrow the list; an address with 
   const all = await total(page);
   let panel = await openRefine(page);
   const patch = panel.getByTestId("refine-patch");
-  const firstPatch = await patch.locator("option").nth(1).getAttribute("value");
-  await patch.selectOption(firstPatch!);
+  const firstPatch = (await optionsOf(patch))[1]?.value;
+  await pick(patch, firstPatch!);
   await expect(page).toHaveURL(new RegExp(`patch=${firstPatch!.replace(".", "\\.")}`));
   await expect(page.locator("[data-testid='match-history'][data-ready]")).toBeVisible();
   const onPatch = await total(page);
@@ -121,7 +122,7 @@ test("a patch, the days played and a highlight narrow the list; an address with 
   // A highlight: games with a multikill of at least the size chosen.
   await page.goto(`/players/${id}/matches`);
   panel = await openRefine(page);
-  await panel.getByTestId("refine-highlight").selectOption("double");
+  await pick(panel.getByTestId("refine-highlight"), "double");
   await expect(page).toHaveURL(/hl=double/);
   await expect(page.locator("[data-testid='match-history'][data-ready]")).toBeVisible();
   expect(await total(page)).toBeLessThanOrEqual(all);

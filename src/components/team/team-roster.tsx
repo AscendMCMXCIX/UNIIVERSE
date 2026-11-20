@@ -750,7 +750,7 @@ export function playerDetail({ slot, championsById, canEdit, canViewProfile, pro
         ) : (
           // One aligned list, in order of preference, under one row of column names (as the
           // profile's pools); the first choice is marked in its row, in the card's own colour.
-          <div className="overflow-hidden rounded-panel border border-border">
+          <div className="@container/pool overflow-hidden rounded-panel border border-border">
             {p.statsVisible ? <PoolColumnNames support={support} /> : null}
             <ol className="divide-y divide-border/60" data-testid="pool-list" aria-label={`${slot.roleLabel} champion pool, in order of preference`}>
               {slot.champions.map((c, i) => (

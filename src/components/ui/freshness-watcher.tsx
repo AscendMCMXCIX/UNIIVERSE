@@ -13,7 +13,12 @@ import { RETURN_CHECK_AFTER_MS, nextCheckMs, scopeKey, type Freshness, type Fres
  * they are. A hidden tab asks nothing. Each render from the server brings the version it was drawn
  * from, so a manual Refresh or an edit never leads to a second read.
  */
-export function FreshnessWatcher({ scope, version }: { scope: FreshnessScope; version: Freshness }) {
+export function FreshnessWatcher({ scope, version, on = "pace" }: { scope: FreshnessScope; version: Freshness; /**
+   * "pace" (member pages): on the timer above and when the page is shown again. "return" (Admin
+   * pages, the overhaul's S9c): only when the tab is shown or focused again, never on a timer, so an
+   * Admin page left open is not read again on every routine job run (docs/HOSTING_USAGE.md); the
+   * administrator's own actions refresh it themselves.
+   */ on?: "pace" | "return" }) {
   const router = useRouter();
   const key = scopeKey(scope);
   const profile = scope.kind === "player";
@@ -33,7 +38,7 @@ export function FreshnessWatcher({ scope, version }: { scope: FreshnessScope; ve
     let stopped = false;
     const schedule = () => {
       window.clearTimeout(timer);
-      if (!stopped) timer = window.setTimeout(ask, nextCheckMs(known.current.pace, quiet));
+      if (!stopped && on === "pace") timer = window.setTimeout(ask, nextCheckMs(known.current.pace, quiet));
     };
     const ask = async () => {
       // A hidden page waits for visibilitychange instead.
@@ -87,6 +92,6 @@ export function FreshnessWatcher({ scope, version }: { scope: FreshnessScope; ve
       window.removeEventListener("focus", onReturn);
       window.removeEventListener("online", onReturn);
     };
-  }, [key, router, profile]);
+  }, [key, router, profile, on]);
   return null;
 }

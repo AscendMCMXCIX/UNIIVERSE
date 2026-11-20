@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Check, ChevronDown, Search, X } from "lucide-react";
-import { Select } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { CardAvatar } from "@/components/players/card-look";
 import { bringIntoView, closeOnPressOutside, opensInFlow } from "@/components/ui/picker-flow";
 import { useInFilterSheet } from "@/components/ui/filter-bar";
@@ -50,21 +50,16 @@ export function LinkSelect({ id, label, value, options, testId, className }: { i
       aria-label={label}
       value={shown}
       disabled={pending}
-      onChange={(e) => {
-        const o = options.find((x) => x.value === e.target.value);
+      onValueChange={(v) => {
+        const o = options.find((x) => x.value === v);
         if (!o) return;
         setShown(o.value);
         go(o.href);
       }}
       className={cn("md:w-auto", className)}
       data-testid={testId}
-    >
-      {options.map((o) => (
-        <option key={o.value} value={o.value}>
-          {o.label}
-        </option>
-      ))}
-    </Select>
+      options={options}
+    />
   );
 }
 

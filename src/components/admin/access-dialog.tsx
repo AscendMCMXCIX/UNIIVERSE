@@ -10,7 +10,8 @@ import { ROLE_LABELS, type Role } from "@/domain/roles";
 import { ACCESS_GROUPS, ALWAYS_AVAILABLE, CAPABILITIES, effectiveCapabilities, type Capability } from "@/server/auth/permissions";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog, Dialog } from "@/components/ui/dialog";
-import { Label, Select } from "@/components/ui/input";
+import { Label } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useBrandNames } from "@/components/brand-names";
 import { toast } from "@/components/ui/toast";
@@ -93,7 +94,7 @@ export function AccessDialog({ account, presets, lineupRole = null, viewerIsOwne
       <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]" data-testid="access-dialog">
         <div className="space-y-4">
           {account.playerId ? (
-            <section aria-labelledby={`team-${account.userId}`} className="space-y-1.5 rounded-panel border border-border bg-bg-elevated p-3" data-testid="team-membership">
+            <section aria-labelledby={`team-${account.userId}`} className="space-y-1.5 rounded-panel border border-border bg-surface-2 p-3" data-testid="team-membership">
               <h3 id={`team-${account.userId}`} className="text-sm font-medium text-fg">
                 Team membership
               </h3>
@@ -104,22 +105,20 @@ export function AccessDialog({ account, presets, lineupRole = null, viewerIsOwne
           ) : null}
           <div>
             <Label htmlFor="base-access">Base access</Label>
-            <Select id="base-access" value={base} onChange={(e) => setBase(e.target.value)} data-testid="base-access">
-              {account.role === "owner" ? <option value={OWNER}>Owner (everything)</option> : null}
-              {presets.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-              <option value={CUSTOM}>Custom (choose each ability)</option>
-            </Select>
+            <Select
+              id="base-access"
+              value={base}
+              onValueChange={setBase}
+              data-testid="base-access"
+              options={[...(account.role === "owner" ? [{ value: OWNER, label: "Owner (everything)" }] : []), ...presets.map((p) => ({ value: p.id, label: p.name })), { value: CUSTOM, label: "Custom (choose each ability)" }]}
+            />
             <p className="mt-1 text-xs text-fg-subtle">
               {owner ? "Owners can manage every account, password and permission." : base === CUSTOM ? "Tick each ability below." : (presets.find((p) => p.id === base)?.description ?? "")}
             </p>
             {ownerChange ? <p className="mt-1.5 rounded-md border border-warn/40 bg-warn/10 px-2.5 py-1.5 text-xs text-fg">There is one Owner: its level cannot be changed here.</p> : null}
           </div>
           {base === CUSTOM ? <CapabilityChecklist value={custom} onChange={setCustom} idPrefix={`custom-${account.userId}`} /> : null}
-          <section aria-labelledby={`admin-${account.userId}`} className="space-y-1.5 rounded-panel border border-border bg-bg-elevated p-3" data-testid="administrator-access">
+          <section aria-labelledby={`admin-${account.userId}`} className="space-y-1.5 rounded-panel border border-border bg-surface-2 p-3" data-testid="administrator-access">
             <h3 id={`admin-${account.userId}`} className="text-sm font-medium text-fg">
               Administrator
             </h3>
@@ -156,7 +155,7 @@ export function AccessDialog({ account, presets, lineupRole = null, viewerIsOwne
             ))}
           </fieldset>
         </div>
-        <section aria-labelledby="effective-access" className="rounded-panel border border-border bg-bg-elevated p-3">
+        <section aria-labelledby="effective-access" className="rounded-panel border border-border bg-surface-2 p-3">
           <h3 id="effective-access" className="flex items-center gap-1.5 text-sm font-semibold text-fg">
             <ShieldCheck className="h-4 w-4 text-accent" aria-hidden /> What they can do
           </h3>

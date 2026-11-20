@@ -12,7 +12,7 @@ import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Disclosure } from "@/components/ui/disclosure";
 import { SearchInput } from "@/components/ui/search-input";
-import { Select } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { useAddressItem } from "@/components/ui/address-item";
 import { cn } from "@/lib/cn";
 import { RelativeTime } from "@/components/ui/relative-time";
@@ -277,13 +277,7 @@ export function PeoplePanel({
         <div className="flex flex-wrap items-center gap-2">
           <SearchInput value={query} onChange={setQuery} placeholder="Find a person, username or Riot ID" label="Find a person" className="min-w-0 flex-1 basis-32 sm:max-w-xs" testId="people-search" />
           {/* The status filter is a select in the search row, so the list starts high in the first screen. */}
-          <Select aria-label="Filter by status" value={filter} onChange={(e) => setFilter(e.target.value as StatusFilter)} className="w-32 min-w-0 shrink sm:w-56" data-testid="status-filter-select">
-            {FILTERS.map((f) => (
-              <option key={f.id} value={f.id}>
-                {f.label} ({counts[f.id]})
-              </option>
-            ))}
-          </Select>
+          <Select aria-label="Filter by status" value={filter} onValueChange={(v) => setFilter(v as StatusFilter)} className="w-32 min-w-0 shrink sm:w-56" data-testid="status-filter-select" options={FILTERS.map((f) => ({ value: f.id, label: `${f.label} (${counts[f.id]})` }))} />
           <span className="flex-1 max-sm:hidden" />
           {addAccount}
         </div>
@@ -308,7 +302,7 @@ export function PeoplePanel({
         {accountless.length ? (
           <Disclosure
             title={`Profiles without an account · ${accountless.length}`}
-            description="A test entry, an old placeholder, or what a deleted account left behind. Creating a player with the same Riot ID reuses it."
+            description="Nobody can sign in to these profiles (a test, a placeholder or a deleted account). Adding a player with the same Riot ID reuses it."
             testId="people-group-accountless"
             // Open while searching or filtering, so a match inside is never hidden.
             key={q || filter !== "all" ? "found" : "all"}

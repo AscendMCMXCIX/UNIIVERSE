@@ -69,9 +69,8 @@ function tipTexts(): Array<{ file: string; text: string }> {
   return out.filter((t) => t.text.trim().length > 0);
 }
 
-/** The code's words, refused in member-facing help (Admin Mode's own pages are the administration stage's). */
+/** The code's words, refused in help everywhere (Admin Mode included since S9c). */
 const JARGON = /PUUID|Riot's API|\b(per|minute|timeline) frames?\b|sync window|Population:|Source:|\bSELECT\b/;
-const MEMBER_FACING = (file: string) => !/^src\/(components\/admin\/|app\/\(admin\)\/|components\/settings\/(settings-panels|branding-panel|diagnostics-panel|riot-health-panel|datasets-list)\.tsx)/.test(file);
 
 /** Every state of the LP tip on a match card (H10), each one counted on its own. */
 const reading = { label: "Platinum IV", leaguePoints: 75, at: 0 } as const;
@@ -105,7 +104,7 @@ describe("tooltips are short", () => {
   });
 
   it("member-facing help uses the page's words, not the code's", () => {
-    const jargon = tips.filter((t) => MEMBER_FACING(t.file) && JARGON.test(t.text)).map((t) => `${t.file}: ${t.text.slice(0, 80)}`);
+    const jargon = tips.filter((t) => JARGON.test(t.text)).map((t) => `${t.file}: ${t.text.slice(0, 80)}`);
     expect(jargon).toEqual([]);
     expect(JARGON.test("Gold is read once per frame")).toBe(true);
     expect(JARGON.test("Wash, border and frame")).toBe(false);

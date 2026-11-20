@@ -39,8 +39,11 @@ export function selectClass(className?: string): string {
   return withDefaults(SELECT, className);
 }
 
-/** A native dropdown: keyboard, screen readers and phone pickers behave as people expect. */
-export function Select({ className, children, ...props }: React.ComponentProps<"select">) {
+/**
+ * The browser's own dropdown. Only `Select` (select.tsx) draws it, in the phone posture, where the
+ * phone's own picker is what its owner expects; everywhere else `Select` is the app's popover.
+ */
+export function NativeSelect({ className, children, ...props }: React.ComponentProps<"select">) {
   return (
     <select className={selectClass(className)} {...props}>
       {children}

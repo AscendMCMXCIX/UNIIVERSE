@@ -15,7 +15,7 @@ import {
 } from "@/domain/season-stats";
 import { seasonLabel } from "@/domain/season";
 import { ROLES, ROLE_LABELS } from "@/domain/roles";
-import { Select } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { ChampionFilter } from "@/components/champions/champion-filter";
 import { accountShortNames } from "@/domain/account-names";
 import { formatCount } from "@/lib/format";
@@ -189,25 +189,27 @@ export function OverviewFilters({
       >
         {seasons.length > 1 ? (
           <FilterField label="Season" htmlFor="overview-season">
-            <Select id="overview-season" name="season" value={String(filter.season)} disabled={pending} onChange={(e) => go({ season: Number(e.target.value) })} className={`${field} md:w-56`}>
-              {seasons.map((s) => (
-                <option key={s} value={s}>
-                  {seasonLabel(s)}
-                  {s === currentSeason ? " (current)" : ""}
-                </option>
-              ))}
-            </Select>
+            <Select
+              id="overview-season"
+              name="season"
+              value={String(filter.season)}
+              disabled={pending}
+              onValueChange={(v) => go({ season: Number(v) })}
+              className={`${field} md:w-56`}
+              options={seasons.map((s) => ({ value: String(s), label: `${seasonLabel(s)}${s === currentSeason ? " (current)" : ""}` }))}
+            />
           </FilterField>
         ) : null}
         <FilterField label="Game mode" htmlFor="overview-mode">
-          <Select id="overview-mode" name="mode" value={filter.mode} disabled={pending} onChange={(e) => go({ mode: e.target.value as StatsFilter["mode"] })} className={`${field} md:w-48`}>
-            {SEASON_MODES.map((m) => (
-              <option key={m.key} value={m.key}>
-                {m.label}
-                {modeCounts && modeCounts[m.key] !== undefined ? ` (${formatCount(modeCounts[m.key]!)})` : ""}
-              </option>
-            ))}
-          </Select>
+          <Select
+            id="overview-mode"
+            name="mode"
+            value={filter.mode}
+            disabled={pending}
+            onValueChange={(v) => go({ mode: v as StatsFilter["mode"] })}
+            className={`${field} md:w-48`}
+            options={SEASON_MODES.map((m) => ({ value: m.key, label: `${m.label}${modeCounts && modeCounts[m.key] !== undefined ? ` (${formatCount(modeCounts[m.key]!)})` : ""}` }))}
+          />
         </FilterField>
         {/* Refine and its panel. In the Filters sheet (phones, and the sheet the pinned row opens at any
             width): no box or button of its own (display: contents), so the fields sit in the sheet.
@@ -254,15 +256,15 @@ export function OverviewFilters({
                       ) : null}
                       {accounts.length > 1 ? (
                         <FilterField label="Linked account" htmlFor="overview-account" alwaysLabel>
-                          <Select id="overview-account" name="account" value={filter.accountId ?? ""} disabled={pending} onChange={(e) => go({ accountId: e.target.value || null })} className="w-full">
-                            <option value="">All accounts</option>
-                            {accounts.map((a) => (
-                              <option key={a.id} value={a.id}>
-                                {accountNames.get(a.id)}
-                                {a.label === "main" ? " · Primary" : ""}
-                              </option>
-                            ))}
-                          </Select>
+                          <Select
+                            id="overview-account"
+                            name="account"
+                            value={filter.accountId ?? ""}
+                            disabled={pending}
+                            onValueChange={(v) => go({ accountId: v || null })}
+                            className="w-full"
+                            options={[{ value: "", label: "All accounts" }, ...accounts.map((a) => ({ value: a.id, label: `${accountNames.get(a.id) ?? ""}${a.label === "main" ? " · Primary" : ""}` }))]}
+                          />
                         </FilterField>
                       ) : null}
                     </div>

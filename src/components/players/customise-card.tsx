@@ -399,7 +399,7 @@ export function CardStudio({ playerId, name, avatarUrl, art, accent, look, champ
           {error}
         </p>
       ) : null}
-      <Button variant="ghost" onClick={() => setConfirm("reset")} disabled={busy} className="mr-auto px-2.5" data-testid="studio-reset-all" title="Reset look">
+      <Button variant="ghost" onClick={() => setConfirm("reset")} disabled={busy} className="mr-auto px-2.5 max-[359px]:min-w-11" data-testid="studio-reset-all" title="Reset look">
         <RotateCcw className="h-4 w-4" aria-hidden /> <span className="max-[359px]:sr-only">Reset look</span>
       </Button>
       <span className="hidden items-center gap-1 lg:flex">
@@ -442,14 +442,15 @@ export function CardStudio({ playerId, name, avatarUrl, art, accent, look, champ
             </PreviewStrip>
           ) : (
             <>
-              <div className="flex items-center gap-2">
+              {/* Wraps where larger text leaves no room on the line: Full card and Hide go under the switch, never off the screen. */}
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                 <span className="text-xs font-medium text-fg-subtle max-lg:sr-only short:sr-only">Preview</span>
                 <ViewSwitch view={view} onView={setView} />
-                <span className="ml-auto flex items-center gap-1">
-                  <button type="button" onClick={() => setFullCard(true)} className="inline-flex min-h-8 items-center gap-1 rounded-md px-2 text-xs text-fg-muted hover:bg-surface-2 hover:text-fg pointer-coarse:min-h-10 lg:hidden" data-testid="studio-full-card-open">
+                <span className="ml-auto flex flex-wrap items-center justify-end gap-1">
+                  <button type="button" onClick={() => setFullCard(true)} className="inline-flex min-h-8 items-center gap-1 rounded-md px-2 text-xs text-fg-muted hover:bg-surface-2 hover:text-fg pointer-coarse:min-h-11 lg:hidden" data-testid="studio-full-card-open">
                     <Expand className="h-3.5 w-3.5" aria-hidden /> Full card
                   </button>
-                  <button type="button" onClick={() => showPreview(false)} aria-expanded="true" aria-controls="studio-preview-card" className="inline-flex min-h-8 items-center gap-1 rounded-md px-2 text-xs text-fg-muted hover:bg-surface-2 hover:text-fg pointer-coarse:min-h-10 lg:hidden short:hidden" data-testid="studio-preview-toggle">
+                  <button type="button" onClick={() => showPreview(false)} aria-expanded="true" aria-controls="studio-preview-card" className="inline-flex min-h-8 items-center gap-1 rounded-md px-2 text-xs text-fg-muted hover:bg-surface-2 hover:text-fg pointer-coarse:min-h-11 lg:hidden short:hidden" data-testid="studio-preview-toggle">
                     <ChevronUp className="h-3.5 w-3.5" aria-hidden /> Hide
                   </button>
                 </span>
@@ -636,7 +637,7 @@ function ViewSwitch({ view, onView, labels = false, testIdPrefix = "preview" }: 
   return (
     <div role="radiogroup" aria-label="Preview" className="flex rounded-lg border border-border bg-bg/40 p-0.5">
       {VIEWS.map(([v, Icon, label]) => (
-        <button key={v} type="button" role="radio" aria-checked={view === v} onClick={() => onView(v)} title={label} className={cn("inline-flex min-h-8 items-center gap-1 rounded-md px-2 text-xs transition-colors pointer-coarse:min-h-10 pointer-coarse:px-2.5", view === v ? "bg-accent/15 text-accent" : "text-fg-muted hover:text-fg")} data-testid={`${testIdPrefix}-${v}`}>
+        <button key={v} type="button" role="radio" aria-checked={view === v} onClick={() => onView(v)} title={label} className={cn("inline-flex min-h-8 items-center justify-center gap-1 rounded-md px-2 text-xs transition-colors pointer-coarse:min-h-11 pointer-coarse:min-w-11 pointer-coarse:px-2.5", view === v ? "bg-accent/15 text-accent" : "text-fg-muted hover:text-fg")} data-testid={`${testIdPrefix}-${v}`}>
           <Icon className="h-3.5 w-3.5" aria-hidden /> <span className={labels ? undefined : "max-sm:sr-only short:sr-only"}>{label}</span>
         </button>
       ))}
@@ -655,11 +656,11 @@ function PreviewStrip({ view, onShow, onFull, keyboard, children }: { view: Prev
         <span className="block font-medium text-fg">Preview</span>
         <span className="block truncate">{VIEWS.find(([v]) => v === view)![2]}{keyboard ? " · while you type" : ""}</span>
       </span>
-      <button type="button" onClick={onFull} className="inline-flex min-h-10 items-center gap-1 rounded-md px-2 text-xs text-fg-muted hover:bg-surface-2 hover:text-fg" data-testid="studio-full-card-open">
+      <button type="button" onClick={onFull} className="inline-flex min-h-10 items-center gap-1 rounded-md px-2 text-xs text-fg-muted hover:bg-surface-2 hover:text-fg pointer-coarse:min-h-11" data-testid="studio-full-card-open">
         <Expand className="h-3.5 w-3.5" aria-hidden /> Full card
       </button>
       {keyboard ? null : (
-        <button type="button" onClick={onShow} aria-expanded="false" className="inline-flex min-h-10 items-center gap-1 rounded-md px-2 text-xs text-fg-muted hover:bg-surface-2 hover:text-fg" data-testid="studio-preview-toggle">
+        <button type="button" onClick={onShow} aria-expanded="false" className="inline-flex min-h-10 items-center gap-1 rounded-md px-2 text-xs text-fg-muted hover:bg-surface-2 hover:text-fg pointer-coarse:min-h-11" data-testid="studio-preview-toggle">
           <ChevronDown className="h-3.5 w-3.5" aria-hidden /> Show
         </button>
       )}

@@ -1,4 +1,5 @@
 import { expect, test } from "./test";
+import { pick } from "./select";
 import { createMember, memberContext, openDanger, openPerson, signIn, view } from "./member-account";
 
 /*
@@ -60,7 +61,7 @@ test("an administrator erases a member's personal data after seeing what changes
   await expect(activity.getByTestId("admin-activity-row").first()).toContainText("permanently erased a person's personal data");
   await expect(activity.getByTestId("admin-activity-row").first()).toContainText(reference);
   await expect(activity).not.toContainText(username);
-  await page.getByTestId("audit-category").selectOption("privacy");
+  await pick(page.getByTestId("audit-category"), "privacy");
   await expect(page).toHaveURL(/category=privacy/);
   await expect(activity.getByTestId("admin-activity-row").first()).toContainText(reference);
 

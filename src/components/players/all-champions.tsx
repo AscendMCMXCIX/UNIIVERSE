@@ -11,7 +11,7 @@ import { ChampionPortrait, type PortraitChampion } from "@/components/champion-p
 import { normalise } from "@/components/champions/types";
 import { ModeElsewhere, OverviewFilters } from "./overview-filters";
 import { SearchInput } from "@/components/ui/search-input";
-import { selectClass } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { percent, formatCount, formatCompactCount } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateSampleNote, winRateTone } from "@/domain/stats/win-rate";
@@ -635,13 +635,7 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
               <div className="flex min-w-0 items-center gap-1.5">
                 <span className="relative flex min-w-0">
                   <ArrowUpDown className="pointer-events-none absolute left-2 top-1/2 hidden h-4 w-4 -translate-y-1/2 text-fg-subtle @min-[20.5rem]:block" aria-hidden data-testid="all-champions-sort-mark" />
-                  <select id="all-champions-sort-by" value={sort.key} onChange={(e) => setSort({ key: e.target.value as SortKey, dir: defaultDir(e.target.value as SortKey) })} className={selectClass("w-auto @min-[20.5rem]:pl-7")}>
-                    {COLUMNS.map((c) => (
-                      <option key={c.key} value={c.key}>
-                        {c.label}
-                      </option>
-                    ))}
-                  </select>
+                  <Select id="all-champions-sort-by" value={sort.key} onValueChange={(v) => setSort({ key: v as SortKey, dir: defaultDir(v as SortKey) })} className="w-auto @min-[20.5rem]:pl-7" options={COLUMNS.map((c) => ({ value: c.key, label: c.label }))} />
                 </span>
                 <button type="button" onClick={() => setSort((cur) => ({ ...cur, dir: cur.dir === "asc" ? "desc" : "asc" }))} className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-border-control bg-bg-elevated text-fg transition-colors hover:border-fg-subtle" aria-label={`${label}, ${sort.dir === "asc" ? "ascending" : "descending"}: reverse`} data-testid="all-champions-sort-dir">
                   {sort.dir === "asc" ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />}

@@ -2,8 +2,15 @@ import { describe, expect, it } from "vitest";
 import "@/server/jobs";
 import { listJobs, type JobKind } from "./registry";
 import { RETIRED_JOB_KEYS } from "@/server/ops/refresh-status";
+import { JOB_NAMES } from "@/domain/job-names";
 
 describe("job registry", () => {
+  it("gives every job a plain name and one sentence for Data & Integrations, and names no retired job", () => {
+    const keys = listJobs().map((j) => j.key);
+    expect(keys.filter((k) => !JOB_NAMES[k])).toEqual([]);
+    expect(Object.keys(JOB_NAMES).filter((k) => !keys.includes(k as never))).toEqual([]);
+  });
+
   it("registers every current job and none of a removed feature (Draft, Meta & Trends, Clash Scout)", () => {
     const keys = listJobs().map((j) => j.key);
     expect(keys).toEqual(expect.arrayContaining(["account-sync", "db-usage", "perf-probe", "erasure-reconcile"]));

@@ -70,7 +70,7 @@ async function ownerJobs(page: Page, size: string) {
   await expect(advanced).not.toHaveAttribute("open", "");
   await expect(advanced.getByTestId("jobs-setup")).toBeHidden();
   await expect(advanced.getByTestId("schedule-editor")).toBeHidden();
-  await expect(page.getByLabel("rank-watch interval in minutes")).toBeHidden();
+  await expect(page.getByLabel("LP tracking interval in minutes")).toBeHidden();
   await axe(page, `${size}: Data & Integrations, Details open`);
 
   await openDetails(advanced);
@@ -100,10 +100,10 @@ async function ownerJobs(page: Page, size: string) {
   await expect(dialog).toBeHidden();
 
   // The schedule: 0 asks once, and Save waits for "TURN OFF rank-watch".
-  const interval = page.getByLabel("rank-watch interval in minutes");
+  const interval = page.getByLabel("LP tracking interval in minutes");
   await interval.fill("0");
   const review = await openDialog(page, advanced.getByTestId("save-schedule"), "Save the schedule?");
-  await expect(review.getByTestId("schedule-confirm")).toContainText("rank-watch: every 5 min → off");
+  await expect(review.getByTestId("schedule-confirm")).toContainText("LP tracking: every 5 min → off");
   const save = review.getByTestId("schedule-confirm-save");
   await expect(save).toBeDisabled();
   await review.locator("[data-testid=schedule-turn-off-input][data-job=rank-watch]").fill("TURN OFF integrity");
@@ -150,7 +150,7 @@ test("an administrator who is not the Owner gets the checks and refreshes only: 
       await expect(panel.getByTestId("jobs-refresh").locator("[data-job=account-sync]")).toBeVisible();
       await expect(panel.getByTestId("jobs-advanced")).toHaveCount(0);
       await expect(panel.getByTestId("jobs-owner-only")).toBeVisible();
-      await expect(deputy.page.getByLabel("rank-watch interval in minutes")).toHaveCount(0);
+      await expect(deputy.page.getByLabel("LP tracking interval in minutes")).toHaveCount(0);
       // The server never sent them: neither the setup jobs nor their phrases are in the page.
       for (const key of SETUP_KEYS) expect(html, `${width}: ${key} sent`).not.toContain(`"${key}"`);
       expect(html).not.toContain("TURN OFF");

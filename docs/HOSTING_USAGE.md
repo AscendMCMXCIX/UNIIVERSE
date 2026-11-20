@@ -126,7 +126,7 @@ This change touches only tests, scripts and docs, so by its own rule it does not
 **Not changed here** (each is a follow-up with its own review):
 - **The rank watch's writes.** It writes two locked transactions per account and queue on every reading, about 130 statements a run, even when nothing changed. Batching them would save about 18 s a day, but it touches the LP readings, which have just had a 22-hour gap, so it gets its own review after the overhaul (PLAN S11).
 - **Account sync** reads the rank again although the rank watch read it within 5 minutes, and rewrites every mastery row. About 1 s a day in all: not worth a change in the sync path now (PLAN S11).
-- **Admin pages left open** re-render on every routine job run (0–3 s a day): built with the admin pages' own stage (S9c).
+- **Admin pages left open** re-rendered on every routine job run (0–3 s a day). **Done in S9c (20 Nov 2026):** System Health and Data & Integrations, the two Admin pages with a freshness watcher (`FreshnessWatcher on="return"`), no longer ask on a timer: they read the page again only when the tab is shown or focused again and a job changed something, and on the administrator's own actions (`e2e/auto-update.spec.ts`: half an hour open asks nothing; shown again asks once).
 
 Lengthening the rank watch's interval is **not** a saving. Its calls every 5 minutes keep the jobs function warm, while 10-minute calls start cold, so 10 minutes would cost about 86 s a day. It would also lose LP figures for about 22% of ranked games at 10 minutes and 48% at 15. The 8 Nov check-in found every one of the 10 ranked games since 7 Nov carrying its figure.
 

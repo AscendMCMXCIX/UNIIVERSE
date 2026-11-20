@@ -106,6 +106,19 @@ decorative chrome.
   - Page heights against the plan's targets are in MOBILE.md, section 3; one is missed: a Pixel 7
     held sideways (863×360), where the wide card and the phone's frame leave D8 nothing to take.
 
+### Page titles and the public header (S8a, 20 Nov 2026)
+
+- **One h1 style** (`PAGE_TITLE`, `components/ui/page-header.tsx`): 24px, semibold, tight. Every
+  page's title uses it, the sign-in, setup, recovery, welcome, Personalise, Privacy and invitation
+  cards included. The wordmark's 0.2em spacing (`tracking-wordmark`) is for the team's name only.
+- **The public header's links** (`components/public/nav-link.ts`): Team, Leaderboards, Install App
+  and Sign in (or Open the app) in one style, the app's nav at 14px, 44px tall on touch screens.
+- **Long public text on a desktop** (Privacy): from lg a table of contents sticks beside the text;
+  below lg it is the row of chips under the title. A frame holding something sticky clips sideways
+  without becoming a scroll box (`BrandFrameView`'s `stickyInside`).
+- **Instructions for the owner on a public page** (recovery's setup key) sit behind a fold, so the
+  page leads with what it is for.
+
 ## 2. Principles
 
 1. **Content leads, the frame recedes.** Navigation is the page's own ink, half a step lighter. In
@@ -135,7 +148,7 @@ Each surface is a step from the ground up. Lighter means closer to the reader.
 | 0 | `bg` + `--ambient-light` | the page ground, with violet light at the top edge and a low horizon |
 | 0.5 | `chrome` (+ `chrome-light` on the sidebar) | the app's frame: sidebar, top bar, tab bar |
 | 1 | `surface` + `panel-depth` | panels and cards; `panel-featured` or `surface-lead` for the one card a page leads with |
-| 2 | `surface-2` | rows and tiles inside panels, hovered rows on panels |
+| 2 | `surface-2` | rows and tiles inside panels, hovered rows on panels (Admin's access levels, datasets, Riot API facts, resources and access dialog since S9c; never `bg-elevated`) |
 | 3 | `surface-3` | selected or pressed rows on panels |
 | float | `bg-elevated` + border + `shadow-2xl` | menus, popovers, pickers, a dragged card |
 
@@ -271,9 +284,37 @@ One set of containers, chosen by what the content is, never by page. Each is one
 | **Unfold** | an item opened under its card, for items compared down a list (games) | `unfold.tsx`: `useUnfold`, `UnfoldRegion`, `UnfoldHeader` | the card | the card again, Escape, the pinned header's Close, Back | the one history rule |
 | **Task dialog** | work that needs full attention (editors, confirmations, pickers, Card Studio, Install) | `detail-modal.tsx`: `DetailModal`; a filter sheet 34rem wide where it is a centred window (`sheetWidth="filters"`) | its button | Close, Escape, the backdrop | none |
 | **Popover** | anchored choices (menus, filter dropdowns) | `menu.tsx` | click, Enter, Space | an outside click, Escape, a choice | none; a choice replaces the query |
+| **Select** (a Popover) | one value from a short list in a toolbar or a form (game mode, season, minimum games, sort, a filter's status…) | `select.tsx`: `Select` (options as data) | click, Enter, Space, ↑/↓ | a choice, Escape, Tab, an outside press, a resize, its button leaving the screen | none; a choice calls `onValueChange`, which writes the address as the native select did |
 | **Explain** | a short explanation beside a term | `info-tip.tsx`: `InfoTip` | hover, focus, tap | leaving, Escape, any tap | none |
 | **Fold** | secondary content in a page | `disclosure.tsx` (native `details`) | its summary | its summary | none |
 | **Record window** | everything about one record that is managed, not glanced at (Admin's person view) | `DetailModal` with `useAddressItem` (`person-view.tsx`) | a row of the list | ✕, Escape (focus back to the row), Back; ‹ › switch | `?person=`: the one history rule |
+
+### Select (`select.tsx`)
+
+One dropdown for every toolbar and form (UD.X7, M1; since 20 Nov 2026). Until then 19 native
+`<select>`s sat beside the app's own popovers, drawn by the system, and drawn differently again in
+Safari.
+
+- **By posture** (`posture.ts`, as every container): where previews open beside the list, the app's
+  popover; in the phone posture (under 768px wide, or 480px tall or less) the browser's own select,
+  whose wheel or sheet is what a phone's owner expects. The closed control looks the same either way
+  (`selectClass`): the server draws the popover's button and a phone swaps it as the page hydrates.
+- **Pattern:** WAI-ARIA's select-only combobox. The button is a `combobox` owning a `listbox`; the
+  focus never leaves the button (the active option is `aria-activedescendant`), so it is on the
+  button whenever the list closes. axe passes with the list open.
+- **Keys:** ↑/↓, Home, End, Page Up/Down, type-ahead (half a second; typed while closed it chooses,
+  as a native select does), Enter or Space to choose, Escape (the list alone: heard first and kept
+  from a Peek, Refine's panel or the Filters window behind it), Tab.
+- **Look:** `bg-elevated`, `border-border-strong`, `shadow-2xl`, `rounded-lg`; options 44px on a
+  touch screen and 36px under a mouse, the chosen one marked with a check; groups under a quiet
+  heading (an `<optgroup>`'s). A 160ms fade with a 2px slide away from the button (`popover-in`,
+  `popover-in-up`); none with reduced motion. At 200% text the options grow and the list scrolls
+  inside, within the screen.
+- **Layer:** fixed to the screen right after its button (inside the window or panel that holds it),
+  correcting for a containing block that moves (a window's opening motion).
+- **Tests:** `e2e/select.ts` chooses an option in either form (`pick`, `optionsOf`, `valueOf`);
+  `e2e/select.spec.ts` checks the component once; `webkit.spec.ts` checks it draws the same figures in
+  WebKit (`SELECT_LOOK`); `select.test.ts` fails on any native select outside `select.tsx`.
 
 ### The one history rule (`address-item.ts`)
 
@@ -541,7 +582,8 @@ With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shel
     at 375 and at 1440 and compares their font family, size in rem, weight, letter spacing in em,
     colours, radius and border. Listed differences, the only ones allowed: the badge's size (the 12px
     floor on desktops), and Select's size (16px on a touch screen, so iOS
-    never zooms into the field; 14px with a mouse). Each later stage adds the components it creates.
+    never zooms into the field; 14px with a mouse). Select compares the popover's button on the
+    desktop with the browser's own select on the phone (§7, Select). Each later stage adds the components it creates.
   - **A page's controls in reach (PR 2b, 18 Nov 2026).** Once the row is pinned and the page's own
     toolbar has gone up under it, the page's compact copy of its controls shows at the row's end
     (`PageToolbar`, `src/components/ui/page-toolbar.tsx`): Match History and Encounters

@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from "./test";
+import { optionLabels, pick } from "./select";
 import { DEFAULT_RESOURCES } from "../src/domain/resources";
 import { memberContext, view } from "./member-account";
 
@@ -309,9 +310,9 @@ test("an administrator keeps the library in Admin Mode; members see each change,
   await form.getByTestId("resource-url").fill(site);
   await form.getByTestId("resource-description").fill("Builds and tier lists.");
   // Only the sections offered: the ones that left the defaults take nothing new.
-  await expect(form.getByTestId("resource-section").locator("option")).toHaveText(["League of Legends", "Summoner's Rift", "ARAM", "Arena", "Esports"]);
-  await form.getByTestId("resource-section").selectOption("sr");
-  await form.getByTestId("resource-icon").selectOption("stats");
+  expect(await optionLabels(form.getByTestId("resource-section"))).toEqual(["League of Legends", "Summoner's Rift", "ARAM", "Arena", "Esports"]);
+  await pick(form.getByTestId("resource-section"), "sr");
+  await pick(form.getByTestId("resource-icon"), "stats");
   await form.getByTestId("resource-save").click();
   await expect(managed("U.GG test")).toBeVisible();
   await expect(managed("U.GG test").locator("a")).toHaveAttribute("href", `https://${site}/`);

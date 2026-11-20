@@ -95,7 +95,7 @@ function SignInWindow({ brand, onClose }: { brand: SignInBrand; onClose: () => v
       {/* The sign-in card of /login (BrandFrameView, LoginCard): the same eyebrow, title and words, then the form. */}
       <div ref={body} className="group/sign-in mx-auto w-full max-w-md" data-keyboard={keyboard || undefined}>
         <p className="text-xs tracking-tagline text-accent short:hidden group-data-[keyboard=true]/sign-in:hidden">PRIVATE</p>
-        <h2 id="sign-in-title" className="mt-1 text-xl font-bold tracking-wordmark short:mt-0 short:text-lg group-data-[keyboard=true]/sign-in:mt-0 group-data-[keyboard=true]/sign-in:text-lg">
+        <h2 id="sign-in-title" className="mt-1 text-xl font-semibold tracking-tight short:mt-0 short:text-lg group-data-[keyboard=true]/sign-in:mt-0 group-data-[keyboard=true]/sign-in:text-lg">
           Sign in
         </h2>
         <p className="mt-2 text-sm text-fg-muted short:hidden group-data-[keyboard=true]/sign-in:hidden">Sign in with your username and password. There is no sign-up: admins create every account.</p>

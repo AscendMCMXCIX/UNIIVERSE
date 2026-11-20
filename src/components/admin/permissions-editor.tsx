@@ -4,11 +4,15 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import type { PermissionPreset } from "@/server/repositories/permissions";
-import { deletePermissionPresetAction, savePermissionPresetAction } from "@/server/actions/users";
+import {
+  deletePermissionPresetAction,
+  savePermissionPresetAction,
+} from "@/server/actions/users";
 import { CAPABILITIES } from "@/server/auth/permissions";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog, Dialog } from "@/components/ui/dialog";
 import { Input, Label } from "@/components/ui/input";
+import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/components/ui/toast";
 import { CapabilityChecklist } from "./capability-checklist";
@@ -19,13 +23,25 @@ const LABEL = Object.fromEntries(CAPABILITIES.map((c) => [c.key, c.label]));
 export function describeCapabilities(caps: readonly string[]): string {
   if (caps.length === 0) return "No access";
   if (caps.length === CAPABILITIES.length) return "Every delegable capability";
-  return `${caps.length} of ${CAPABILITIES.length}: ${caps.slice(0, 3).map((c) => LABEL[c] ?? c).join(", ")}${caps.length > 3 ? "…" : ""}`;
+  return `${caps.length} of ${CAPABILITIES.length}: ${caps
+    .slice(0, 3)
+    .map((c) => LABEL[c] ?? c)
+    .join(", ")}${caps.length > 3 ? "…" : ""}`;
 }
 
 /** Access levels: what each preset level allows, editable; an owner may add their own levels. */
-export function PermissionPresetsPanel({ presets }: { presets: PermissionPreset[] }) {
+export function PermissionPresetsPanel({
+  presets,
+}: {
+  presets: PermissionPreset[];
+}) {
   const router = useRouter();
-  const [editing, setEditing] = React.useState<{ id: string | null; name: string; description: string; capabilities: string[] } | null>(null);
+  const [editing, setEditing] = React.useState<{
+    id: string | null;
+    name: string;
+    description: string;
+    capabilities: string[];
+  } | null>(null);
   const [deleting, setDeleting] = React.useState<PermissionPreset | null>(null);
   const [busy, setBusy] = React.useState(false);
   const save = async () => {
@@ -39,56 +55,111 @@ export function PermissionPresetsPanel({ presets }: { presets: PermissionPreset[
     router.refresh();
   };
   return (
-    <section className="space-y-3" data-testid="permission-presets">
-      <div className="flex flex-wrap items-end justify-between gap-2">
-        <div>
-          <h2 className="text-base font-semibold">Base access levels</h2>
-          <p className="text-sm text-fg-muted">Every account has one base level (Owner always has everything). Editing a level changes it for everyone on it.</p>
-        </div>
-        <Button variant="outline" onClick={() => setEditing({ id: null, name: "", description: "", capabilities: presets.find((p) => p.isDefault)?.capabilities ?? [] })}>
-          <Plus className="h-4 w-4" /> New level
-        </Button>
-      </div>
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-        {presets.map((p) => (
-          <article key={p.id} className="min-w-0 rounded-lg border border-border bg-surface p-4 [overflow-wrap:anywhere]" data-testid="preset-card">
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <h3 className="flex flex-wrap items-center gap-2 font-medium">
-                  {p.name}
-                  {p.isDefault ? <Badge tone="accent">Default</Badge> : null}
-                </h3>
-                {p.description ? <p className="mt-0.5 text-sm text-fg-muted">{p.description}</p> : null}
-              </div>
-              <div className="flex shrink-0 gap-1">
-                <Button variant="ghost" size="sm" aria-label={`Edit ${p.name}`} onClick={() => setEditing({ id: p.id, name: p.name, description: p.description, capabilities: p.capabilities })}>
-                  <Pencil className="h-4 w-4" />
-                </Button>
-                {!p.isDefault && !p.levelKey ? (
-                  <Button variant="ghost" size="sm" aria-label={`Delete ${p.name}`} onClick={() => setDeleting(p)}>
-                    <Trash2 className="h-4 w-4" />
+    <Panel data-testid="permission-presets">
+      <PanelHeader
+        title="Base access levels"
+        subtitle="Every account has one (the Owner always has everything). Editing a level changes it for everyone on it."
+        actions={
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() =>
+              setEditing({
+                id: null,
+                name: "",
+                description: "",
+                capabilities:
+                  presets.find((p) => p.isDefault)?.capabilities ?? [],
+              })
+            }
+          >
+            <Plus className="h-4 w-4" /> New level
+          </Button>
+        }
+      />
+      <PanelBody>
+        <ul className="grid grid-cols-1 gap-2 md:grid-cols-2">
+          {presets.map((p) => (
+            <li
+              key={p.id}
+              className="min-w-0 rounded-md border border-border bg-surface-2 p-3 [overflow-wrap:anywhere]"
+              data-testid="preset-card"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <h3 className="flex flex-wrap items-center gap-2 text-sm font-medium">
+                    {p.name}
+                    {p.isDefault ? <Badge tone="accent">Default</Badge> : null}
+                  </h3>
+                  {p.description ? (
+                    <p className="mt-0.5 text-sm text-fg-muted">
+                      {p.description}
+                    </p>
+                  ) : null}
+                </div>
+                <div className="flex shrink-0 gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="pointer-coarse:min-w-11"
+                    aria-label={`Edit ${p.name}`}
+                    onClick={() =>
+                      setEditing({
+                        id: p.id,
+                        name: p.name,
+                        description: p.description,
+                        capabilities: p.capabilities,
+                      })
+                    }
+                  >
+                    <Pencil className="h-4 w-4" />
                   </Button>
-                ) : null}
+                  {!p.isDefault && !p.levelKey ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="pointer-coarse:min-w-11"
+                      aria-label={`Delete ${p.name}`}
+                      onClick={() => setDeleting(p)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  ) : null}
+                </div>
               </div>
-            </div>
-            <p className="mt-2 text-xs text-fg-subtle">
-              {describeCapabilities(p.capabilities)} · {p.userCount} account{p.userCount === 1 ? "" : "s"}
-            </p>
-          </article>
-        ))}
-      </div>
+              <p className="mt-1.5 text-sm text-fg-subtle">
+                {describeCapabilities(p.capabilities)} · {p.userCount} account
+                {p.userCount === 1 ? "" : "s"}
+              </p>
+            </li>
+          ))}
+        </ul>
+      </PanelBody>
       {editing ? (
         <Dialog
           open
           onClose={() => setEditing(null)}
-          title={editing.id ? `Edit “${editing.name || "level"}”` : "New access level"}
+          title={
+            editing.id
+              ? `Edit “${editing.name || "level"}”`
+              : "New access level"
+          }
           width="wide"
           footer={
             <>
-              <Button variant="ghost" onClick={() => setEditing(null)} disabled={busy}>
+              <Button
+                variant="ghost"
+                onClick={() => setEditing(null)}
+                disabled={busy}
+              >
                 Cancel
               </Button>
-              <Button variant="primary" onClick={save} disabled={busy || editing.name.trim().length < 2} data-testid="save-preset">
+              <Button
+                variant="primary"
+                onClick={save}
+                disabled={busy || editing.name.trim().length < 2}
+                data-testid="save-preset"
+              >
                 {busy ? "Saving…" : "Save level"}
               </Button>
             </>
@@ -98,14 +169,36 @@ export function PermissionPresetsPanel({ presets }: { presets: PermissionPreset[
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
                 <Label htmlFor="preset-name">Name</Label>
-                <Input id="preset-name" value={editing.name} maxLength={40} onChange={(e) => setEditing({ ...editing, name: e.target.value })} />
+                <Input
+                  id="preset-name"
+                  value={editing.name}
+                  maxLength={40}
+                  onChange={(e) =>
+                    setEditing({ ...editing, name: e.target.value })
+                  }
+                />
               </div>
               <div>
-                <Label htmlFor="preset-description">Description (optional)</Label>
-                <Input id="preset-description" value={editing.description} maxLength={200} onChange={(e) => setEditing({ ...editing, description: e.target.value })} />
+                <Label htmlFor="preset-description">
+                  Description (optional)
+                </Label>
+                <Input
+                  id="preset-description"
+                  value={editing.description}
+                  maxLength={200}
+                  onChange={(e) =>
+                    setEditing({ ...editing, description: e.target.value })
+                  }
+                />
               </div>
             </div>
-            <CapabilityChecklist value={editing.capabilities} onChange={(capabilities) => setEditing({ ...editing, capabilities })} idPrefix="preset" />
+            <CapabilityChecklist
+              value={editing.capabilities}
+              onChange={(capabilities) =>
+                setEditing({ ...editing, capabilities })
+              }
+              idPrefix="preset"
+            />
           </div>
         </Dialog>
       ) : null}
@@ -127,6 +220,6 @@ export function PermissionPresetsPanel({ presets }: { presets: PermissionPreset[
           router.refresh();
         }}
       />
-    </section>
+    </Panel>
   );
 }

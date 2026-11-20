@@ -7,7 +7,8 @@ import { loadOlderAuditAction } from "@/server/actions/audit";
 import { AUDIT_CATEGORIES } from "@/domain/audit";
 import { auditDetailsSentence, auditSentence } from "@/domain/audit-sentence";
 import { FilterBar, FilterField } from "@/components/ui/filter-bar";
-import { Input, Select } from "@/components/ui/input";
+import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toast";
 import { RelativeTime } from "@/components/ui/relative-time";
@@ -68,24 +69,10 @@ export function AuditLog({ entries: first, more: firstMore, filters, people }: {
     <div className="space-y-3">
       <FilterBar summary={summary} activeCount={active} resetHref="/admin/audit" pending={pending} testId="audit-filters">
         <FilterField label="Category" htmlFor="audit-category">
-          <Select id="audit-category" value={filters.category ?? ""} onChange={(e) => set("category", e.target.value)} data-testid="audit-category">
-            <option value="">All categories</option>
-            {Object.entries(AUDIT_CATEGORIES).map(([key, c]) => (
-              <option key={key} value={key}>
-                {c.label}
-              </option>
-            ))}
-          </Select>
+          <Select id="audit-category" value={filters.category ?? ""} onValueChange={(v) => set("category", v)} data-testid="audit-category" options={[{ value: "", label: "All categories" }, ...Object.entries(AUDIT_CATEGORIES).map(([key, c]) => ({ value: key, label: c.label }))]} />
         </FilterField>
         <FilterField label="Person" htmlFor="audit-person">
-          <Select id="audit-person" value={filters.person ?? ""} onChange={(e) => set("person", e.target.value)} data-testid="audit-person">
-            <option value="">Everyone</option>
-            {people.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </Select>
+          <Select id="audit-person" value={filters.person ?? ""} onValueChange={(v) => set("person", v)} data-testid="audit-person" options={[{ value: "", label: "Everyone" }, ...people.map((p) => ({ value: p.id, label: p.name }))]} />
         </FilterField>
         <FilterField label="From" htmlFor="audit-from">
           <Input id="audit-from" type="date" value={filters.from ?? ""} onChange={(e) => set("from", e.target.value)} data-testid="audit-from" />

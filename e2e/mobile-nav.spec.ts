@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "./test";
+import { pick } from "./select";
 import { memberContext, setBaseAccess } from "./member-account";
 
 /*
@@ -672,7 +673,7 @@ test("filters open in a sheet; what is narrowed shows as chips beside Filters, a
   await toggle.click();
   const sheet = page.getByTestId("filter-sheet");
   await expect(sheet).toBeVisible();
-  await sheet.getByLabel("Game mode").selectOption("solo");
+  await pick(sheet.getByLabel("Game mode"), "solo");
   await expect(page).toHaveURL(/mode=solo/);
   await sheet.getByTestId("filter-sheet-done").click();
   await expect(sheet).toHaveCount(0);

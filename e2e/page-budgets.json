@@ -26,7 +26,7 @@
    "small": 0
   },
   "p-overview@i15-100": {
-   "screens": 2.48,
+   "screens": 2.45,
    "frame": 0.3,
    "frameScrolled": 0.3,
    "small": 0
@@ -89,13 +89,14 @@
    "small": 2
   },
   "a-branding@i15-100": {
-   "screens": 3.81,
+   "screens": 4.27,
    "frame": 0.3,
    "frameScrolled": 0.3,
-   "small": 0
+   "small": 0,
+   "why": "S9c (20 Nov 2026): Branding's phone section index (one line of links) and the Public team page section, where /admin/public-access now lands inside Admin Mode; measured 4.19 at i15 and 13.08 at se1 150%."
   },
   "a-system@i15-100": {
-   "screens": 3.23,
+   "screens": 1.71,
    "frame": 0.3,
    "frameScrolled": 0.3,
    "small": 0
@@ -144,7 +145,7 @@
    "small": 0
   },
   "p-overview@se1-150": {
-   "screens": 7.85,
+   "screens": 7.64,
    "frame": 0.45,
    "frameScrolled": 0.15,
    "small": 0
@@ -207,13 +208,14 @@
    "small": 0
   },
   "a-branding@se1-150": {
-   "screens": 11.95,
+   "screens": 13.34,
    "frame": 0.45,
    "frameScrolled": 0.15,
-   "small": 0
+   "small": 0,
+   "why": "S9c (20 Nov 2026): Branding's phone section index (one line of links) and the Public team page section, where /admin/public-access now lands inside Admin Mode; measured 4.19 at i15 and 13.08 at se1 150%."
   },
   "a-system@se1-150": {
-   "screens": 10.7,
+   "screens": 6.25,
    "frame": 0.45,
    "frameScrolled": 0.15,
    "small": 0
@@ -236,6 +238,199 @@
    "frameScrolled": 0.04,
    "small": 0,
    "why": "Release 6 (S9b): 'Sign out of other devices', 109px; S8a (20 Nov 2026): 'On this device' (DIRECTIVE §7.2c), what this browser remembers with Clear, about 400px (more at large text, where its lines and button wrap); measured 2.27 at i15 and 7.52 at se1 150%."
+  },
+  "login@i15-100": {
+   "screens": 1.02,
+   "frame": 0,
+   "frameScrolled": 0,
+   "small": 0
+  },
+  "recover@i15-100": {
+   "screens": 1.02,
+   "frame": 0,
+   "frameScrolled": 0,
+   "small": 0
+  },
+  "privacy@i15-100": {
+   "screens": 9.37,
+   "frame": 0,
+   "frameScrolled": 0,
+   "small": 0
+  },
+  "no-access@i15-100": {
+   "screens": 1.02,
+   "frame": 0.24,
+   "frameScrolled": 0.24,
+   "small": 0
+  },
+  "public@i15-100": {
+   "screens": 1.02,
+   "frame": 0,
+   "frameScrolled": 0,
+   "small": 0
+  },
+  "public-lb@i15-100": {
+   "screens": 3.1,
+   "frame": 0,
+   "frameScrolled": 0,
+   "small": 0
+  },
+  "welcome-password@i15-100": {
+   "screens": 1.02,
+   "frame": 0,
+   "frameScrolled": 0,
+   "small": 0
+  },
+  "welcome-setup@i15-100": {
+   "screens": 1.37,
+   "frame": 0,
+   "frameScrolled": 0,
+   "small": 0
+  },
+  "personalise@i15-100": {
+   "screens": 1.95,
+   "frame": 0,
+   "frameScrolled": 0,
+   "small": 0
+  },
+  "own-overview@i15-100": {
+   "screens": 2.46,
+   "frame": 0.3,
+   "frameScrolled": 0.3,
+   "small": 0
+  },
+  "own-history@i15-100": {
+   "screens": 2.09,
+   "frame": 0.3,
+   "frameScrolled": 0.3,
+   "small": 4,
+   "why": "S8a (20 Nov 2026): a member's own Match History shows each game's LP mark, whose tip's trigger is 24px by design (S6: the card is the one stop; WCAG 2.5.8's 24px minimum). Measured 4 on the first screen."
+  },
+  "studio@i15-100": {
+   "screens": 2.48,
+   "frame": 0.3,
+   "frameScrolled": 0.3,
+   "small": 0
+  },
+  "login@se1-150": {
+   "screens": 2.33,
+   "frame": 0,
+   "frameScrolled": 0,
+   "small": 0
+  },
+  "recover@se1-150": {
+   "screens": 2.21,
+   "frame": 0,
+   "frameScrolled": 0,
+   "small": 0
+  },
+  "privacy@se1-150": {
+   "screens": 48,
+   "frame": 0,
+   "frameScrolled": 0,
+   "small": 0
+  },
+  "no-access@se1-150": {
+   "screens": 2.05,
+   "frame": 0.33,
+   "frameScrolled": 0.04,
+   "small": 0
+  },
+  "public@se1-150": {
+   "screens": 2.7,
+   "frame": 0,
+   "frameScrolled": 0,
+   "small": 0
+  },
+  "public-lb@se1-150": {
+   "screens": 12.15,
+   "frame": 0,
+   "frameScrolled": 0,
+   "small": 0
+  },
+  "welcome-password@se1-150": {
+   "screens": 1.98,
+   "frame": 0,
+   "frameScrolled": 0,
+   "small": 0
+  },
+  "welcome-setup@se1-150": {
+   "screens": 3.87,
+   "frame": 0,
+   "frameScrolled": 0,
+   "small": 0
+  },
+  "personalise@se1-150": {
+   "screens": 5.66,
+   "frame": 0,
+   "frameScrolled": 0,
+   "small": 0
+  },
+  "own-overview@se1-150": {
+   "screens": 8.08,
+   "frame": 0.45,
+   "frameScrolled": 0.15,
+   "small": 0
+  },
+  "own-history@se1-150": {
+   "screens": 8.38,
+   "frame": 0.45,
+   "frameScrolled": 0.15,
+   "small": 0
+  },
+  "studio@se1-150": {
+   "screens": 7.92,
+   "frame": 0.45,
+   "frameScrolled": 0.15,
+   "small": 0
+  },
+  "a-access@i15-100": {
+   "screens": 1.85,
+   "frame": 0.3,
+   "frameScrolled": 0.3,
+   "small": 0
+  },
+  "a-privacy@i15-100": {
+   "screens": 1.8,
+   "frame": 0.3,
+   "frameScrolled": 0.3,
+   "small": 0
+  },
+  "a-previews@i15-100": {
+   "screens": 1.53,
+   "frame": 0.3,
+   "frameScrolled": 0.3,
+   "small": 0
+  },
+  "a-resources@i15-100": {
+   "screens": 2.59,
+   "frame": 0.3,
+   "frameScrolled": 0.3,
+   "small": 0
+  },
+  "a-access@se1-150": {
+   "screens": 7.65,
+   "frame": 0.45,
+   "frameScrolled": 0.15,
+   "small": 0
+  },
+  "a-privacy@se1-150": {
+   "screens": 5.98,
+   "frame": 0.45,
+   "frameScrolled": 0.15,
+   "small": 0
+  },
+  "a-previews@se1-150": {
+   "screens": 2.73,
+   "frame": 0.45,
+   "frameScrolled": 0.15,
+   "small": 0
+  },
+  "a-resources@se1-150": {
+   "screens": 8.5,
+   "frame": 0.45,
+   "frameScrolled": 0.15,
+   "small": 0
   }
  }
 }

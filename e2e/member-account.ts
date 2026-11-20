@@ -1,4 +1,5 @@
 import { expect, type Browser, type BrowserContext, type BrowserContextOptions, type Locator, type Page } from "@playwright/test";
+import { pick } from "./select";
 
 /*
   A real team member account for e2e checks that need a player profile (the in-memory demo's local
@@ -56,7 +57,7 @@ export async function setBaseAccess(admin: Page, username: string, level: string
   await admin.goto("/admin/people");
   const person = await openPerson(admin, username);
   await person.getByTestId("open-access").click();
-  await admin.getByTestId("access-dialog").getByTestId("base-access").selectOption({ label: level });
+  await pick(admin.getByTestId("access-dialog").getByTestId("base-access"), { label: level });
   await admin.getByTestId("save-access").click();
   await expect(person.getByTestId("access-summary")).toContainText(level);
 }

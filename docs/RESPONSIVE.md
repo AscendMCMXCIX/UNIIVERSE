@@ -442,6 +442,19 @@ Oct" here). The lineup cards' two new wrappers (the chip's lane and its label) d
 
 ## Admin Mode at a larger text size
 
+**S9c (20 Nov 2026).** System Health is 1.72 screens at 375 × 667 (4.21 in the audit, 3.09 on
+Release 7's base): its five statuses are neutral rows of about 56–76px on phones (the area and its
+state chip on one line, one sentence under it), Page speed is three plain sentences with a verdict
+chip, its tables under Technical details, where below 640px every table row becomes label-and-figure
+lines (`max-sm:` and the cells' `data-label`), so nothing scrolls sideways at any width; Riot
+compliance is a Disclosure. Data & Integrations' 12px text is 20% of its text with every section
+open (85–87% before): jobs read by plain name and one sentence at the body size (`domain/job-names.ts`),
+the key and technical description under each row's How it works, the interval under Advanced →
+Schedule. Branding has a phone section index (the shared `SectionIndex`, 44px on touch) and
+Previews' switches are the shared `Segmented` control (44px on touch). `e2e/page-budgets.spec.ts`
+asserts both figures, and every Admin page (Access levels, Personal data, Previews and Resources
+since S9c) has its ceilings in `e2e/page-budgets.json`.
+
 Every Admin Mode page is as wide as the phone at 150% and 200% text on 320, 375 and 393px phones (18
 Nov 2026; before, the dashboard was 404–440px wide at 200%, Branding 430, Users & Permissions 457,
 Previews 367, Platform Settings → Resources 525 at 200% and 394 already at 150% on 375 and 393px,
@@ -460,8 +473,8 @@ Data & Integrations 357 and System Health 387). Nothing new, only the means #300
 - where one of those would also move something at the usual text size, a container query in rem
   waits until its container is that narrow, which on a phone only a larger text size makes it (the
   usual size gives 18rem and more): the dashboard's account tiles stack, a long word broken, under
-  16rem; the health cards (`StatusCards`, on the dashboard, Data & Integrations and System Health)
-  break a long word under 17rem; Branding's colour rows give the name a line of its own and the hex
+  16rem; the health rows (`StatusCards`, on Data & Integrations and System Health; neutral rows
+  since S9c, the chip beside the name) break a long word anywhere; Branding's colour rows give the name a line of its own and the hex
   field the rest of the next under 14rem; a member's name and role go under the picture under
   14rem; Users & Permissions' pages are the section tabs (since 19 Nov 2026), which scroll
   sideways with the current one in view rather than wrap; Settings' account card puts who you are under the picture under 11rem
@@ -620,6 +633,9 @@ the account screen over the dashboard at 200% on a 320px phone as well.
 - `Button`: desktop heights unchanged; `max-md:min-h-11` and `pointer-coarse:min-h-11`. `wrap`: on a
   phone a label that a larger text size makes too long wraps and the button grows with it (a form's
   Save beside little room); without it a label stays on one line.
+- `Select` (`ui/select.tsx`, since 20 Nov 2026): the browser's own select in the phone posture (its
+  wheel or sheet), the app's popover elsewhere, one look closed (docs/DESIGN_SYSTEM.md §7, Select);
+  its options are 44px on a touch screen and 36px under a mouse.
 - `Input`, `Select`, `Textarea`, `SearchInput` and the champion grid's search: 44px and 16px text
   on phones and on every touch screen, 36px / 14px from `md` with a mouse (`md:pointer-fine:`) (in
   `SearchInput`, a placeholder longer than its field ends in an ellipsis): iOS
@@ -699,6 +715,12 @@ a mouse as with touch) and on short windows its sheet. The wide (76rem) tier dro
 CM AC-11, reversible: OD20). `e2e/champion-preview.spec.ts` checks the geometry, ↑/↓, Back and
 Escape at 1440, the content and old addresses on all three projects, and the sheet (phone) and docked
 panel (tablet).
+
+The player Peek's pool list (Team, Players, Leaderboards; `PoolChampionTile`) takes its columns
+(Win rate, Games, KDA, CS/min or Vision) from its own width, 28rem or more (`@container/pool`), and
+below that each champion's figures in a short block. Until 20 Nov 2026 the columns came from a 640px
+screen, and the docked panel at 1280 (a 25rem list) cut the names to "A.." with the headings running
+together; the 1440 panel (28.6rem) keeps the columns. `e2e/players-directory.spec.ts` checks 1280.
 
 ## Tests
 
@@ -894,6 +916,10 @@ Three levels, each saying what it proves:
   - the top bar's Filters on Match History (PR 2b): gone at the top, offered once the page's own has
     scrolled away, 44px, a tap opens the filter sheet, and a choice and Done bring the first game
     under the bars, its count shown;
+  - the one Select (20 Nov 2026): the iPhone keeps the browser's own select; in a desktop-sized
+    WebKit window the app's popover draws the same figures as Chromium (`SELECT_LOOK`, with the
+    touch sizes where Playwright's WebKit reports no fine pointer), opens and chooses from the
+    keyboard, and Escape gives the focus back;
   - the Card Studio's section list, a palette and Cancel;
   - the account screen: one tap opens it, at rest it fills the screen exactly with nothing in it
     scrolling, every control a row at least 48px tall reached by a tap where it is drawn, the screen
@@ -1012,4 +1038,9 @@ Safari 16.4 or later, so that is the floor. Nothing the app uses needs more:
 - Fallbacks: hidden scrollbars carry the WebKit rule (`[&::-webkit-scrollbar]:hidden`) for a Safari
   without `scrollbar-width` (before 18.2), and the build adds the `-webkit-` prefixes for
   `backdrop-filter` and `mask-image`.
+
+Since S8a (20 Nov 2026) the WebKit spec also opens the public pages and Install App in Safari's
+tab on an iPhone 15 (no sideways scroll on `/public`, `/login`, `/recover` and `/privacy`; the
+header's links 44px and 14px; the install window's iOS guide inside the screen, closed by Escape)
+and as opened from the Home Screen (`navigator.standalone`: no Install App in the header).
 

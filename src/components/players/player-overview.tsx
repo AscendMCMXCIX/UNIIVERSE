@@ -33,7 +33,7 @@ export const fmt = {
   Season performance as one card in three bands, read in order of importance:
     headline    win rate, KDA and games: the largest figures on the page;
     supporting  CS/min, damage/min and vision: the same reading, a size smaller;
-    kills       total kills and the four multikill kinds in one row, all alike.
+    kills       the four multikill kinds in one line, all alike (total kills is under the KDA).
   Each figure reads label, number, context (the quietest grey). Colour only where it says
   something: a season win rate with enough games, and the record bar's wins and losses. The card's
   own width decides the layout (a container query), so the open or folded sidebar is allowed for.
@@ -82,19 +82,29 @@ function breakable(label: string): React.ReactNode {
 }
 
 /**
- * The ⓘ after a figure's label hangs into the cell's padding by its last 8px (`-mr-2`): its 16px
- * mark keeps its place beside the label, and the label gets that room. On a 320px phone "Damage/"
- * needs about 51px and had 50 (it ran 1px into its ⓘ, which newer Chromium builds round to 2px);
- * it now has about 54. Where the label is short, the row ends after the ⓘ and nothing moves.
+ * A figure's label; with an explanation (KDA, Vision score), the label itself opens it: a term with
+ * a dotted underline (the Explain container's text trigger, docs/DESIGN_SYSTEM.md §7), not an ⓘ
+ * after it. The Overview's first screen had six ⓘ (UD.PO3); it keeps two (the page's data status and
+ * Recent form's verdict), every tip's words unchanged. On a touch screen the term is a 44px target
+ * (its negative margins keep the line's height), as an ⓘ is. Named by its label; the tip is its
+ * description, read without opening it.
  */
-const LABEL_TIP = "-mr-2";
+function FigureLabel({ label, info }: { label: string; info?: string }) {
+  const text = <span className="min-w-0 leading-tight">{breakable(label)}</span>;
+  if (!info) return text;
+  return (
+    <InfoTip text={info} testId="figure-tip" className="min-w-0 text-start pointer-coarse:-my-3.5 pointer-coarse:min-h-11 pointer-coarse:min-w-11">
+      {text}
+    </InfoTip>
+  );
+}
 
 /** A headline figure: its label, the number at the size of the page's main figures, its context. */
 function Headline({ label, value, sub, info, tone = "plain", testId, className, children }: { label: string; value: React.ReactNode; sub?: React.ReactNode; info?: string; tone?: WinRateTone; testId: string; className?: string; children?: React.ReactNode }) {
   return (
     <div className={cn("min-w-0 px-3 py-3 @min-[34rem]/perf:px-5 @min-[34rem]/perf:py-4", ROW_CELL, className)} data-testid={testId}>
       <div className="flex items-center gap-1 text-xs font-medium text-fg-muted">
-        <span className="min-w-0 leading-tight">{breakable(label)}</span> {info ? <InfoTip text={info} label={`About ${label}`} className={LABEL_TIP} /> : null}
+        <FigureLabel label={label} info={info} />
       </div>
       <div className={cn("mt-1.5 text-2xl font-semibold leading-none tracking-tight tabular-nums @min-[34rem]/perf:text-figure", ROW_VALUE, TONE_CLASS[tone])} data-testid={`${testId}-value`}>
         {value}
@@ -111,7 +121,7 @@ function Supporting({ label, value, sub, info, muted, testId, className }: { lab
   return (
     <div className={cn("min-w-0 px-3 py-2.5 @min-[34rem]/perf:px-5", ROW_CELL, className)} data-testid={testId}>
       <div className="flex items-center gap-1 text-xs text-fg-muted">
-        <span className="min-w-0 leading-tight">{breakable(label)}</span> {info ? <InfoTip text={info} label={`About ${label}`} className={LABEL_TIP} /> : null}
+        <FigureLabel label={label} info={info} />
       </div>
       <div className={cn("mt-1 flex min-w-0 items-baseline gap-2", ROW_VALUE)}>
         <span className={cn("text-lg font-semibold leading-tight tabular-nums", muted ? "text-fg-subtle" : "text-fg")} data-testid={`${testId}-value`}>
@@ -136,22 +146,21 @@ function RecordBar({ wins, losses }: { wins: number; losses: number }) {
 }
 
 /**
- * The kills band as one line under the season's figures: total kills, then the four multikill kinds
- * ("Kills 312 · Double 19 · Triple 3 · Quadra 1 · Penta 0"), every count in the same colour and
- * weight (no kind is highlighted for being rare), and the champions behind them one quiet link away
- * at the line's end. It was a band of five tiles with how often each came (three by two on a phone,
- * about 150px); the line is one row (two on the narrowest phones and at large text, where it wraps
- * between counts, never inside one). Total kills adds up each game's own kill count over the same
- * games as the figures above; the multikills add up Riot's counts. Whether every game has its counts
- * is the page's status, never a mark here. A count no game has yet is a dash, never 0. Screen
- * readers get a heading, with which counts come from only some of the games.
+ * The multikills as one line under the season's figures: the four kinds ("Double 19 · Triple 3 ·
+ * Quadra 1 · Penta 0", PLAN S8a), every count in the same colour and weight (no kind is highlighted
+ * for being rare), and the champions behind them one quiet link away at the line's end. One line on
+ * a 375-393px phone; it wraps between counts, never inside one, only on the narrowest phones and at
+ * large text. Total kills, which shared the line until 20 Nov 2026 and pushed it onto two lines on
+ * those phones, is under the KDA (KillsTotal). The multikills add up Riot's counts over the same games
+ * as the figures above. Whether every game has its counts is the page's status, never a mark here.
+ * A count no game has yet is a dash, never 0. Screen readers get a heading, with whether the counts
+ * come from only some of the games.
  */
-function KillsBand({ perf, m, byChampionHref }: { perf: PerformanceSummary; m: MultikillSummary; byChampionHref: string }) {
+function KillsBand({ m, byChampionHref }: { m: MultikillSummary; byChampionHref: string }) {
   const unknown = m.counted === 0;
   const partial = !unknown && m.counted < m.games;
-  const killsPartial = perf.totalKills !== null && perf.detailedGames < perf.games;
-  // What screen readers hear with the heading: which counts come from only some of the games.
-  const notes = [killsPartial ? `kills counted in ${formatCount(perf.detailedGames)} of ${formatCount(perf.games)} games` : null, partial ? `multikills counted in ${formatCount(m.counted)} of ${formatCount(m.games)} games` : null].filter(Boolean);
+  // What screen readers hear with the heading: whether the counts come from only some of the games.
+  const notes = [partial ? `counted in ${formatCount(m.counted)} of ${formatCount(m.games)} games` : null].filter(Boolean);
   const kinds: Record<keyof MultikillCounts, string> = { double: "Double", triple: "Triple", quadra: "Quadra", penta: "Penta" };
   const spoken: Record<keyof MultikillCounts, string> = { double: "Double kills", triple: "Triple kills", quadra: "Quadra kills", penta: "Pentakills" };
   const notYet = (
@@ -161,13 +170,12 @@ function KillsBand({ perf, m, byChampionHref }: { perf: PerformanceSummary; m: M
     </>
   );
   const counts: { key: string; label: string; spoken: string; value: React.ReactNode; muted: boolean; testId: string }[] = [
-    { key: "kills", label: "Kills", spoken: "Total kills", value: perf.totalKills === null ? notYet : formatCount(perf.totalKills), muted: perf.totalKills === null, testId: "stat-total-kills" },
     ...MULTIKILL_KINDS.map((k) => ({ key: k.key, label: kinds[k.key], spoken: spoken[k.key], value: unknown ? notYet : formatCount(m[k.key]), muted: unknown, testId: `multikill-${k.key}` })),
   ];
   return (
     <section aria-labelledby="multikills-heading" className="border-t border-border/70" data-testid="multikills" data-coverage={unknown ? "none" : partial ? "partial" : "complete"}>
       <h3 id="multikills-heading" className="sr-only">
-        Kills and multikills{notes.length ? ` (${notes.join("; ")})` : ""}
+        Multikills{notes.length ? ` (${notes.join("; ")})` : ""}
       </h3>
       <div className="flex items-center gap-x-2 px-3 py-2 @min-[34rem]/perf:px-5" data-testid="multikill-tiles">
         <dl className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-sm">
@@ -191,11 +199,30 @@ function KillsBand({ perf, m, byChampionHref }: { perf: PerformanceSummary; m: M
         </dl>
         {/* A small link; on touch screens a 44px target (as wide as a finger, the area above and below the line). */}
         <Link href={byChampionHref} className="touch-target ms-auto inline-flex min-h-6 items-center justify-end gap-0.5 whitespace-nowrap rounded-md text-xs font-medium text-fg-muted transition-colors hover:text-accent focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:min-w-11" aria-label="Multikills by champion, in All Champions" data-testid="multikills-by-champion">
-          {/* The words from 34rem of card; on a phone the chevron alone, leaving the counts most of the line (two lines at 375-393). */}
+          {/* The words from 34rem of card; on a phone the chevron alone, leaving the counts the line. */}
           <span className="@max-[34rem]/perf:sr-only">By champion</span> <ChevronRight className="h-3.5 w-3.5" aria-hidden />
         </Link>
       </div>
     </section>
+  );
+}
+
+/**
+ * Total kills over the same games, under the KDA's kills, deaths and assists per game (the win rate
+ * beside it has its record bar there, so the row is no taller). Each game's own kill count, added
+ * up; from only some of the games when not every game has its details, which screen readers hear.
+ */
+function KillsTotal({ perf }: { perf: PerformanceSummary }) {
+  if (perf.totalKills === null) return null;
+  const partial = perf.detailedGames < perf.games;
+  return (
+    <span className="block" data-testid="stat-total-kills">
+      <span className="font-semibold text-fg-muted tabular-nums" data-testid="stat-total-kills-value">
+        {formatCount(perf.totalKills)}
+      </span>{" "}
+      {perf.totalKills === 1 ? "kill" : "kills"}
+      {partial ? <span className="sr-only">{`, counted in ${formatCount(perf.detailedGames)} of ${formatCount(perf.games)} games`}</span> : null}
+    </span>
   );
 }
 
@@ -208,6 +235,7 @@ function PerformanceCard({ data, basePath }: { data: PlayerOverviewData; basePat
       {fmt.one(perf.kills)} / {fmt.one(perf.deaths)} / {fmt.one(perf.assists)}
       <span className="@max-[34rem]/perf:hidden"> per game</span>
       {perf.perfectKda ? " · no deaths" : ""}
+      <KillsTotal perf={perf} />
     </>
   ) : rec.games ? (
     "details not collected yet"
@@ -229,7 +257,7 @@ function PerformanceCard({ data, basePath }: { data: PlayerOverviewData; basePat
         <Supporting label="Vision score" value={fmt.int(perf.visionPerGame)} sub={rec.games ? "per game" : undefined} info="Riot's vision score per game: points for placing and clearing wards and spotting enemies." muted={perf.visionPerGame === null} testId="stat-vision" className={BAND_THIRD} />
       </div>
       {/* The kills over the same games; per champion in All Champions (same filters, sorted by multikills). */}
-      {rec.games > 0 ? <KillsBand perf={perf} m={data.summary.multikills} byChampionHref={`${basePath}/champions?${statsQuery({ season: data.filter.season, mode: data.filter.mode, role: data.filter.role, accountId: data.filter.accountId }, { sort: "multikills" })}`} /> : null}
+      {rec.games > 0 ? <KillsBand m={data.summary.multikills} byChampionHref={`${basePath}/champions?${statsQuery({ season: data.filter.season, mode: data.filter.mode, role: data.filter.role, accountId: data.filter.accountId }, { sort: "multikills" })}`} /> : null}
       {rec.games === 0 && data.filter.mode !== "all" && data.modes.elsewhere.length ? (
         <div className="border-t border-border/70 px-3 pb-3 @min-[34rem]/perf:px-5">
           <ModeElsewhere basePath={basePath} filter={data.filter} elsewhere={data.modes.elsewhere} />

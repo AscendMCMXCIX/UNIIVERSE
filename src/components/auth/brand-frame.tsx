@@ -16,10 +16,10 @@ async function loadBranding(): Promise<Branding> {
 }
 
 /** The frame with the site's current branding (the real sign-in and setup pages). The eyebrow may name the app (it gets the branding). */
-export async function BrandFrame({ eyebrow, children, width = "max-w-sm", padTop }: { eyebrow: string | ((b: Branding) => string); children: ReactNode; width?: string; padTop?: string }) {
+export async function BrandFrame({ eyebrow, children, width = "max-w-sm", padTop, stickyInside }: { eyebrow: string | ((b: Branding) => string); children: ReactNode; width?: string; padTop?: string; stickyInside?: boolean }) {
   const branding = await loadBranding();
   return (
-    <BrandFrameView branding={branding} eyebrow={typeof eyebrow === "function" ? eyebrow(branding) : eyebrow} width={width} padTop={padTop}>
+    <BrandFrameView branding={branding} eyebrow={typeof eyebrow === "function" ? eyebrow(branding) : eyebrow} width={width} padTop={padTop} stickyInside={stickyInside}>
       {children}
     </BrandFrameView>
   );

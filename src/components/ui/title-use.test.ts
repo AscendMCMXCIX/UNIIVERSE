@@ -13,12 +13,12 @@ import { describe, expect, it } from "vitest";
   Found here in the source: every `title=` on an HTML element, or on a component that hands it to
   one (NATIVE). A short literal name (at most four words, no sentence punctuation) passes as it is;
   every other title is listed in NAMES with what it names or shows whole, so a new one is looked at.
-  Admin Mode is left out: its text is the administration stage's (S9c).
+  Admin Mode is in since S9c (20 Nov 2026).
 */
 
 const ROOT = join(__dirname, "..", "..", "..");
 const NATIVE = new Set(["Badge", "Link", "Button", "ChampionPortrait", "RemoteImage", "RoleIcon", "StatTile", "Stat"]);
-const OUT_OF_SCOPE = [/^src\/components\/admin\//, /^src\/app\/\(admin\)\//, /^src\/components\/settings\/(settings-panels|branding-panel|diagnostics-panel|riot-health-panel|datasets-list)\.tsx$/];
+const OUT_OF_SCOPE: RegExp[] = [];
 
 type Kind = "name" | "truncation" | "passthrough";
 /** Every title that is not a short literal, by file and a fragment of its value. */
@@ -103,6 +103,9 @@ const NAMES: Array<{ file: string; fragment: string; kind: Kind; what: string }>
   { file: "src/components/players/ranked-progress.tsx", fragment: "{path}", kind: "truncation", what: "the climb, whole" },
   { file: "src/components/players/profile-header.tsx", fragment: "tagline", kind: "truncation", what: "the card's tagline" },
   { file: "src/components/profile/profile-editor.tsx", fragment: "c.name", kind: "truncation", what: "a champion's name" },
+  // Admin Mode (S9c).
+  { file: "src/components/admin/preview-studio.tsx", fragment: "preview, ${d.label}", kind: "name", what: "the preview frame's name (its page and screen size)" },
+  { file: "src/components/settings/diagnostics-panel.tsx", fragment: "{e.error}", kind: "truncation", what: "a job's error, cut to one line" },
   { file: "src/components/ui/data-list.tsx", fragment: "{hint}", kind: "name", what: "a row's marks in words (its tie, gap or milestones), anywhere on the row" },
   { file: "src/components/leaderboards/leaderboards-peek.tsx", fragment: "{hint}", kind: "name", what: "a Peek row's marks in words, as RowLink's hint layer (the same row, opening the Peek)" },
 ];

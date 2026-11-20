@@ -168,13 +168,15 @@ export function ErasureRecords({ records, viewerIsOwner = false }: { records: Er
               <span className="font-semibold tabular-nums text-fg">{r.reference}</span>
               <span className="text-fg-muted">erased {formatDate(r.erasedAt)}</span>
               {!r.usable ? (
-                <Badge tone="bad" title="Made under another UNIIVERSE_AUTH_SECRET: it can no longer be applied">
-                  Cannot be applied
-                </Badge>
+                <>
+                  <Badge tone="bad">Cannot be applied</Badge>
+                  <span className="text-xs text-fg-muted">Made with an older security key, so it can no longer be applied.</span>
+                </>
               ) : r.releasedAt ? (
-                <Badge tone="neutral" title="Their Riot accounts may be linked again">
-                  Released {formatDate(r.releasedAt)}
-                </Badge>
+                <>
+                  <Badge tone="neutral">Released {formatDate(r.releasedAt)}</Badge>
+                  <span className="text-xs text-fg-muted">Their Riot accounts may be linked again.</span>
+                </>
               ) : (
                 <Badge tone="good">In force</Badge>
               )}

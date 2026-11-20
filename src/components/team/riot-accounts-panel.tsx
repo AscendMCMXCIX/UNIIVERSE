@@ -37,8 +37,10 @@ export { PLATFORMS } from "@/domain/platforms";
  * Alternatives are numbered and can be moved up or down (buttons, so keyboard and touch work the
  * same); that one order is used wherever the accounts are listed. Ordering changes no statistic.
  */
-export function RiotAccountsPanel({ playerId, accounts, riotConfigured, editable = true, title = "Linked Riot accounts", status, refresh }: { playerId: string; accounts: RiotAccountRecord[]; riotConfigured: boolean; defaultPlatform?: string; editable?: boolean; title?: string; /** The accounts' data status, for the profile's Refresh (each row shows its own account's state). */ status?: DataStatus | null; refresh?: DataRefreshTarget | null }) {
+export function RiotAccountsPanel({ playerId, accounts, riotConfigured, editable = true, title = "Linked Riot accounts", status, refresh, theirs = false }: { playerId: string; accounts: RiotAccountRecord[]; riotConfigured: boolean; defaultPlatform?: string; editable?: boolean; title?: string; /** Someone else's accounts (an administrator or player manager editing a teammate's): "their" and Unlink. */ theirs?: boolean; /** The accounts' data status, for the profile's Refresh (each row shows its own account's state). */ status?: DataStatus | null; refresh?: DataRefreshTarget | null }) {
   const router = useRouter();
+  const your = theirs ? "their" : "your";
+  const removeWord = theirs ? "Unlink" : "Remove";
   const [riotId, setRiotId] = React.useState("");
   const [adding, setAdding] = React.useState(false);
   const [busy, setBusy] = React.useState<string | null>(null);
@@ -116,7 +118,7 @@ export function RiotAccountsPanel({ playerId, accounts, riotConfigured, editable
         <p className="sr-only" aria-live="polite" data-testid="riot-accounts-announce">
           {announce}
         </p>
-        {accounts.length === 0 ? <p className="text-sm text-fg-muted">No Riot account linked yet{editable ? ". Add one so your statistics can be measured." : "."}</p> : null}
+        {accounts.length === 0 ? <p className="text-sm text-fg-muted">No Riot account linked yet{editable ? `. Add one so ${your} statistics can be measured.` : "."}</p> : null}
         <ul className="grid gap-2.5 md:grid-cols-2" data-testid="riot-accounts">
           {ordered.map((a, index) => {
             const sync = describeAccountSync({ syncStatus: a.syncStatus, syncError: a.syncError, lastSyncAt: a.lastSyncAt, puuid: a.puuid, resolveAttempts: a.resolveAttempts, history: a.historyBackfill, riotConfigured });
@@ -201,7 +203,7 @@ export function RiotAccountsPanel({ playerId, accounts, riotConfigured, editable
                       label={`Options for ${a.riotId}`}
                       testId="riot-account-menu"
                       trigger={(t) => (
-                        <Button {...t} size="sm" variant="ghost" aria-label={`Options for ${a.riotId}`} disabled={busy !== null}>
+                        <Button {...t} size="sm" variant="ghost" className="max-md:min-w-11 pointer-coarse:min-w-11" aria-label={`Options for ${a.riotId}`} disabled={busy !== null}>
                           <MoreHorizontal className="h-4 w-4" />
                         </Button>
                       )}
@@ -214,7 +216,7 @@ export function RiotAccountsPanel({ playerId, accounts, riotConfigured, editable
                             const r = await setMainAccountAction(playerId, a.id);
                             setBusy(null);
                             if (!r.ok) return toast.error(r.error);
-                            toast.success(`${a.riotId} is now your Main account.`, { description: "Your other accounts are Alts and still count in every statistic." });
+                            toast.success(`${a.riotId} is now ${your} Main account.`, { description: `${theirs ? "Their" : "Your"} other accounts are Alts and still count in every statistic.` });
                             router.refresh();
                           }}
                         >
@@ -226,7 +228,7 @@ export function RiotAccountsPanel({ playerId, accounts, riotConfigured, editable
                       </MenuItem>
                       <MenuSeparator />
                       <MenuItem tone="danger" icon={<Trash2 className="h-4 w-4" />} onSelect={() => setRemoving(a)}>
-                        Remove
+                        {removeWord}
                       </MenuItem>
                     </Menu>
                   ) : null}
@@ -277,12 +279,12 @@ export function RiotAccountsPanel({ playerId, accounts, riotConfigured, editable
         ) : null}
         {!riotConfigured ? <p className="text-xs text-fg-subtle">Riot data is not available on the server yet, so Riot IDs cannot be checked or linked until it is.</p> : null}
       </PanelBody>
-      {renaming ? <ChangeRiotIdDialog playerId={playerId} account={renaming} onClose={() => setRenaming(null)} /> : null}
+      {renaming ? <ChangeRiotIdDialog playerId={playerId} account={renaming} theirs={theirs} onClose={() => setRenaming(null)} /> : null}
       <ConfirmDialog
         open={!!removing}
-        title={`Remove ${removing?.riotId ?? ""}?`}
-        description={removing?.label === "main" ? "Its games and mastery leave your statistics, and your first alternative account becomes your Main. You can link it again later." : "Its games and mastery leave your statistics. You can link it again later."}
-        confirmLabel="Remove account"
+        title={`${removeWord} ${removing?.riotId ?? ""}?`}
+        description={removing?.label === "main" ? `Its games and mastery leave ${your} statistics, and ${your} first alternative account becomes ${your} Main. ${theirs ? "It can be linked" : "You can link it"} again later.` : `Its games and mastery leave ${your} statistics. ${theirs ? "It can be linked" : "You can link it"} again later.`}
+        confirmLabel={`${removeWord} account`}
         busy={busy !== null}
         onCancel={() => setRemoving(null)}
         onConfirm={async () => {
@@ -292,7 +294,7 @@ export function RiotAccountsPanel({ playerId, accounts, riotConfigured, editable
           setBusy(null);
           setRemoving(null);
           if (!r.ok) return toast.error(r.error);
-          toast.success("Riot account removed.");
+          toast.success(theirs ? "Riot account unlinked." : "Riot account removed.");
           router.refresh();
         }}
       />
@@ -301,7 +303,8 @@ export function RiotAccountsPanel({ playerId, accounts, riotConfigured, editable
 }
 
 /** Change Riot ID: Riot decides whether it is the same account (rename) or a different one (confirm replacement). */
-function ChangeRiotIdDialog({ playerId, account, onClose }: { playerId: string; account: RiotAccountRecord; onClose: () => void }) {
+function ChangeRiotIdDialog({ playerId, account, theirs, onClose }: { playerId: string; account: RiotAccountRecord; theirs: boolean; onClose: () => void }) {
+  const your = theirs ? "their" : "your";
   const router = useRouter();
   const [value, setValue] = React.useState(account.riotId);
   const [error, setError] = React.useState<string | null>(null);
@@ -323,7 +326,7 @@ function ChangeRiotIdDialog({ playerId, account, onClose }: { playerId: string; 
       open
       onClose={onClose}
       title="Change Riot ID"
-      description={confirmReplace ? undefined : "Renamed your account in Riot? Type the new Riot ID; your games and statistics stay. (Renames are also picked up automatically within a day.)"}
+      description={confirmReplace ? undefined : `Renamed ${your} account in Riot? Type the new Riot ID; ${your} games and statistics stay. (Renames are also picked up automatically within a day.)`}
       footer={
         confirmReplace ? (
           <>
@@ -348,7 +351,7 @@ function ChangeRiotIdDialog({ playerId, account, onClose }: { playerId: string; 
     >
       {confirmReplace ? (
         <p className="text-sm text-fg-muted">
-          <strong className="text-fg">{confirmReplace}</strong> is a different Riot account from {account.riotId}. Replacing removes {account.riotId}&apos;s games and mastery from your statistics and starts collecting {confirmReplace}&apos;s. To keep both, cancel and use <em>Add Riot account</em> instead.
+          <strong className="text-fg">{confirmReplace}</strong> is a different Riot account from {account.riotId}. Replacing removes {account.riotId}&apos;s games and mastery from {your} statistics and starts collecting {confirmReplace}&apos;s. To keep both, cancel and use <em>Add Riot account</em> instead.
         </p>
       ) : (
         <div>
