@@ -75,6 +75,8 @@ export function readMatchupIntel() {
     evidenceTiers: text('[data-testid="matchup-evidence-tiers"]'),
     briefingTier: text('[data-testid="matchup-briefing"] [data-testid="evidence-tier"], [data-testid="matchup-no-briefing"] [data-testid="evidence-tier"]'),
     kitTier: text('[data-testid="matchup-enemy-abilities"] [data-testid="evidence-tier"]'),
+    // R11a: each briefing row's "what it means" line (the enemy's cooldowns it rests on, numbers only), behind its heading's ⓘ.
+    means: [...document.querySelectorAll('[data-testid="matchup-briefing"] [data-means]')].map((e) => e.getAttribute("data-means") ?? ""),
   };
 }
 
@@ -100,6 +102,11 @@ export function patchVerdict(at, healthPatch) {
   const onIt = !want || data.length === 0 || data.every((p) => p === want) || older;
   return { ok: bar && onIt, detail: { health: want, page: at.patch, data, older } };
 }
+
+/** A "what it means" line: "Mordekaiser's Q cooldown 8 / 7 / 6 / 5 / 4 s at 0 haste (base)", one part per enemy ability, joined by "; ". */
+const MEANS_PART = String.raw`[^;]+'s [PQWER] cooldown [\d.\/ ]+(?:\u00a0| )s(?: at every rank)? at \d+ haste \((?:base|Riot's general rule)(?:, ability haste only)?|static per the checked notes: haste doesn't shorten it|whether haste shortens it isn't known\)`;
+const MEANS_LINE = new RegExp(`^${MEANS_PART}(?:; ${MEANS_PART})*$`);
+const MEANS_REFUSED = /\b(you|your|ready|timer|win|best|counter|should|must|always|never)\b/i;
 
 /** The state the page is in, from what it shows: "expired", "hidden" (every part, for a change), "parts hidden", or "shown". */
 export function briefingState(f) {
@@ -157,6 +164,10 @@ export function matchupIntelVerdicts({ kind, pair, enemy, at, wide, wiki, health
     const p = patchVerdict(at, healthPatch);
     fact("the page's game patch is /api/health's, and Riot's data in the sources is on it (or the bar says the ability data is older)", p.ok, p.detail);
   }
+  // While the briefing shows, at least one row rests on the enemy's abilities (the check's pair: every row does): each "what it means" line is the enemy's cooldowns in numbers, its case said, never a timer or a verdict.
+  const means = at.means ?? [];
+  const meansOk = means.every((m) => MEANS_LINE.test(m) && !MEANS_REFUSED.test(m)) && (state !== "shown" || means.length > 0);
+  fact(`each curated briefing row resting on ${enemy}'s abilities says what it means in numbers only: the cooldowns at a haste, which rule, never a timer or a verdict`, meansOk, { lines: means.length, first: means[0] ?? null });
   fact("nothing requested from the League of Legends Wiki", wiki.length === 0, wiki.slice(0, 3));
   fact("checked notes win over the facts from Riot's text: none of those on a pair whose champions both have checked notes, nor Riot's text in the sources' summary", at.riotTextChips === 0 && !at.riotTextLabel && !at.summary.includes("Riot's text"), { chips: at.riotTextChips, label: at.riotTextLabel });
   return out;

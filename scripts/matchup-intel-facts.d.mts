@@ -42,6 +42,8 @@ export interface MatchupIntelRead {
   briefingTier: string;
   /** The tier beside the enemy kit's title. */
   kitTier: string;
+  /** Each briefing row's "what it means" line (R11a); absent on reads made before it. */
+  means?: string[];
 }
 export function readMatchupIntel(): MatchupIntelRead;
 export function briefingState(f: MatchupIntelRead): "expired" | "hidden" | "parts hidden" | "shown";
