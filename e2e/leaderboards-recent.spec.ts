@@ -381,7 +381,7 @@ test("the board's layout follows its own width: four, six or eight columns, neve
   }
 });
 
-test("members without enough recent games are the board's last group, each linked to their profile", async ({ page }) => {
+test("members without enough recent games are the board's last group, each opening the player Peek, the name linked to their profile", async ({ page }) => {
   await open(page, BOARDS);
   const members = page.getByTestId("form-board").getByTestId("form-not-enough-member");
   // The demo's two, and any member another spec created before this one ran (no games yet): the
@@ -390,7 +390,8 @@ test("members without enough recent games are the board's last group, each linke
   expect(await members.count()).toBeGreaterThanOrEqual(2);
   for (const m of await members.all()) {
     await expect(m.getByTestId("card-name")).toHaveCount(1);
-    await expect(m.locator("a[data-row-link][href^='/players/']")).toHaveCount(1);
+    await expect(m.locator("a[data-row-link][href*='?player=']")).toHaveCount(1);
+    await expect(m.locator("a[data-testid=board-member-profile][href^='/players/']")).toHaveCount(1);
     // What the eye reads (screen readers hear a comma for the dot); the dot is held to its words by no-break spaces (\s).
     const shown = await m.evaluate((el) => {
       const copy = el.cloneNode(true) as HTMLElement;

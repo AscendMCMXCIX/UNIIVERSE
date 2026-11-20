@@ -99,7 +99,7 @@ describe("Recent form's rows", () => {
     expect(rows.di).toContain('<span aria-hidden="true" class="pointer-events-none absolute inset-y-0 left-0 w-0.5 bg-accent"></span>');
     expect(rows.di).toContain(">You<");
     // On a narrow board "You" drops under a name whose longest word would not fit beside it (MemberCell's youWraps; e2e/large-text-leaderboards.spec.ts).
-    expect(rows.di).toMatch(/<span class="flex min-w-0 items-center gap-1\.5 @max-\[36rem\]\/list:flex-wrap"><span class="min-w-0 text-fg @max-\[36rem\]\/list:w-min @max-\[36rem\]\/list:max-w-max @max-\[36rem\]\/list:grow"[\s\S]*?data-testid="card-you"/);
+    expect(rows.di).toMatch(/<span class="flex min-w-0 items-center gap-1\.5 @max-\[36rem\]\/list:flex-wrap"><a [^>]*class="[^"]*min-w-0[^"]*text-fg[^"]*@max-\[36rem\]\/list:w-min @max-\[36rem\]\/list:max-w-max @max-\[36rem\]\/list:grow"[\s\S]*?data-testid="card-you"/);
     for (const id of ["ash", "bo", "cy", "ed"]) expect(rows[id]).not.toMatch(/bg-accent\/5|data-you|>You</);
   });
 
@@ -120,7 +120,8 @@ describe("Recent form's rows", () => {
     expect(rows.ash).toContain("Support</span><span class=\"sr-only\"> main role (14 of 20 games)</span>");
     // The link says the member's name (its tooltip layer after it is aria-hidden), so the visible one is not read twice.
     expect(rows.ash).toContain('data-row-link="" href="/players/ash"><span class="sr-only">Ash</span><span aria-hidden="true" title=');
-    expect(rows.ash).toMatch(/<span class="min-w-0 text-fg[^"]*" aria-hidden="true">/);
+    // The name itself is the profile's link (over the row's own, which opens the player Peek on the page: PLAN S8a).
+    expect(rows.ash).toMatch(/<a class="relative z-\[2\] min-w-0[^"]*" data-testid="board-member-profile" href="\/players\/ash">/);
   });
 });
 

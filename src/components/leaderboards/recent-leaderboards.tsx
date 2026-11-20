@@ -1,7 +1,8 @@
 import { TrendingUp } from "lucide-react";
 import { CardAvatar } from "@/components/players/card-look";
 import { RoleIcon } from "@/components/role-icon";
-import { DataGroup, DataHead, DataList, DataRow, FigureCell, MemberCell, Place, ROW_STATES, RowLink, tieRuns, type TiePosition } from "@/components/ui/data-list";
+import { DataGroup, DataHead, DataList, DataRow, FigureCell, MemberCell, Place, ROW_STATES, tieRuns, type TiePosition } from "@/components/ui/data-list";
+import { PeekRowLink } from "./leaderboards-peek";
 import { EmptyState } from "@/components/ui/empty-state";
 import { InfoTip } from "@/components/ui/info-tip";
 import { QuietBar } from "@/components/ui/quiet-bar";
@@ -236,9 +237,7 @@ function FormRowItem({ r, p, tie, window }: { r: FormRow; p: BoardPlayer; tie: T
       // The public board has no link, so no row tooltip: its cells keep their own titles.
       link={
         p.profileHref ? (
-          <RowLink href={p.profileHref} hint={[tieWords, r.note, roleTitle].filter(Boolean).join(". ")}>
-            {p.name}
-          </RowLink>
+          <PeekRowLink playerId={p.id} name={p.name} profileHref={p.profileHref} hint={[tieWords, r.note, roleTitle].filter(Boolean).join(". ")} />
         ) : null
       }
       figures={
@@ -311,7 +310,7 @@ function FormRowItem({ r, p, tie, window }: { r: FormRow; p: BoardPlayer; tie: T
         </>
       }
     >
-      <MemberCell look={p.look} name={p.name} avatar={false} you={r.you} youWraps readName={!p.profileHref} nameTestId="board-member-name" nameClassName="text-md leading-snug @min-[36rem]/list:text-sm" className="col-[3/4] row-[1/2] @max-[13.5rem]/list:col-[1/-1] @max-[13.5rem]/list:row-[2/3] @min-[36rem]/list:self-end @min-[58rem]/list:self-center" />
+      <MemberCell look={p.look} name={p.name} avatar={false} you={r.you} youWraps readName={!p.profileHref} nameHref={p.profileHref ?? undefined} nameTestId="board-member-name" nameClassName="text-md leading-snug @min-[36rem]/list:text-sm" className="col-[3/4] row-[1/2] @max-[13.5rem]/list:col-[1/-1] @max-[13.5rem]/list:row-[2/3] @min-[36rem]/list:self-end @min-[58rem]/list:self-center" />
     </DataRow>
   );
 }
@@ -345,12 +344,10 @@ function NotEnoughMember({ n, p, you }: { n: FormView["notEnough"][number]; p: B
       <CardAvatar look={p.look} name={p.name} src={p.avatarUrl} size="sm" className="justify-self-center" />
       {/* Not prefetched: these names linked nowhere before, so they add no server render (Vercel Active CPU). */}
       {p.profileHref ? (
-        <RowLink href={p.profileHref} prefetch={false}>
-          {p.name}
-        </RowLink>
+        <PeekRowLink playerId={p.id} name={p.name} profileHref={p.profileHref} />
       ) : null}
       <span className="flex min-w-0 flex-col @max-[13.5rem]/list:col-[1/-1] @max-[13.5rem]/list:row-[2/3] @max-[13.5rem]/list:mt-0.5 @min-[36rem]/list:flex-row @min-[36rem]/list:flex-wrap @min-[36rem]/list:items-baseline @min-[36rem]/list:gap-x-2">
-        <MemberCell look={p.look} name={p.name} avatar={false} you={you} youWraps readName={!p.profileHref} nameClassName="text-md leading-snug @min-[36rem]/list:text-sm" />
+        <MemberCell look={p.look} name={p.name} avatar={false} you={you} youWraps readName={!p.profileHref} nameHref={p.profileHref ?? undefined} nameClassName="text-md leading-snug @min-[36rem]/list:text-sm" />
         {/* The "·" between the games needed and the last game held to both by no-break spaces (FORM_COLS): with large text it ended or started a line. */}
         <span className="text-xs text-fg-muted">
           Needs {n.needed} more game{n.needed === 1 ? "" : "s"}

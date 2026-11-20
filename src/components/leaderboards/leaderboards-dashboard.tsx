@@ -11,6 +11,7 @@ import { RecentForm } from "./recent-leaderboards";
 import { Milestones, Multikills, SeasonRecords } from "./records";
 import { SECTIONS } from "./sections";
 import { LeaderboardsPinnedIndex } from "./leaderboards-index";
+import { LeaderboardsPeek } from "./leaderboards-peek";
 
 /** The page's sections after Recent form, for its index; the pinned copies add Recent form, to return to it. */
 const INDEX = [
@@ -90,6 +91,11 @@ export function LeaderboardsDashboard({ view, champions, status }: { view: Leade
   const player = (id: string) => view.players[id]!;
   const champ = (id: string | null) => (id ? (champions[id] ?? { id, name: id, portraitUrl: "" }) : null);
   const updated = view.lastUpdated ? formatDateTime(view.lastUpdated) : null;
+  // The player Peek on member rows (members' page only: the public boards link nowhere): Recent form's order, then the rest.
+  const linked = Object.values(view.players).filter((p) => p.profileHref);
+  const formOrder = [...view.form.rows.map((r) => r.playerId), ...view.form.notEnough.map((r) => r.playerId)];
+  const peekIds = [...new Set([...formOrder, ...linked.map((p) => p.id)])].filter((id) => view.players[id]?.profileHref);
+  const peekNames = linked.map((p): [string, string] => [p.id, p.name]);
   return (
     <LeaderboardsRoot className="@container/dash mx-auto flex w-full max-w-[var(--content-wide)] flex-col gap-4">
       {/* The title and who is on the boards, with how current they are (the members' page) or when they were last read (the public one). */}
@@ -131,6 +137,7 @@ export function LeaderboardsDashboard({ view, champions, status }: { view: Leade
             items={INDEX}
           />
           <LeaderboardsPinnedIndex anchorId="leaderboards-header" items={PINNED_INDEX} phoneItems={PHONE_INDEX} />
+          <LeaderboardsPeek ids={peekIds} names={peekNames} viewerPlayerId={view.viewer}>
           <div className={GRID} data-testid="leaderboards-grid">
             <RecentForm form={view.form} player={player} viewer={view.viewer} className={FORM_PLACE} />
             <div className={SIDE} data-testid="leaderboards-side">
@@ -139,6 +146,7 @@ export function LeaderboardsDashboard({ view, champions, status }: { view: Leade
             </div>
             <Milestones records={view.records} player={player} champ={champ} className={MILESTONES_PLACE} />
           </div>
+          </LeaderboardsPeek>
         </>
       )}
       <RetiredViewLanding />

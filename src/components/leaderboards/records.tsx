@@ -12,6 +12,7 @@ import { BoardTitle } from "./board-title";
 import { RECORD_YOURS, RECORD_YOURS_VALUE } from "./record-yours";
 import { SeasonChoice } from "./season-choice";
 import { SECTIONS } from "./sections";
+import { PeekRowLink } from "./leaderboards-peek";
 
 /*
   THE SEASON'S RECORDS AND ACHIEVEMENTS (docs/TEAM_LEADERBOARDS.md), the Leaderboards page's
@@ -299,7 +300,7 @@ export function Multikills({ records, player, className }: { records: RecordsVie
                   data-quadra={m.quadra}
                   data-triple={m.triple}
                   density="dense"
-                  link={p.profileHref ? <RowLink href={p.profileHref}>{p.name}</RowLink> : null}
+                  link={p.profileHref ? <PeekRowLink playerId={p.id} name={p.name} profileHref={p.profileHref} /> : null}
                   figures={
                     // The counts: a line under the member, each with its name, under 21rem; their columns from it (display: contents).
                     <span className="col-[1/-1] row-[2/3] flex min-w-0 flex-wrap items-baseline gap-x-3 text-sm @min-[21rem]/list:contents">
@@ -315,7 +316,7 @@ export function Multikills({ records, player, className }: { records: RecordsVie
                     </span>
                   }
                 >
-                  <MemberCell look={p.look} name={p.name} avatarUrl={p.avatarUrl} avatar="xs" readName={!p.profileHref} nameTestId="board-member-name" className="col-[1/-1] row-[1/2] @min-[21rem]/list:col-[1/2]" />
+                  <MemberCell look={p.look} name={p.name} avatarUrl={p.avatarUrl} avatar="xs" readName={!p.profileHref} nameHref={p.profileHref ?? undefined} nameTestId="board-member-name" className="col-[1/-1] row-[1/2] @min-[21rem]/list:col-[1/2]" />
                 </DataRow>
               );
             })}
@@ -393,8 +394,8 @@ function MilestoneRow({ group, p, champ }: { group: MilestoneGroup; p: BoardPlay
   const more = formatCount(rest);
   const hint = [...items.map(said), group.more ? `${formatCount(group.more)} more on the profile` : null].filter(Boolean).join(". ");
   return (
-    <DataRow testId="milestone-member" data-player-id={group.playerId} density="dense" link={linked ? <RowLink href={p.profileHref!} hint={hint}>{p.name}</RowLink> : null}>
-      <MemberCell look={p.look} name={p.name} avatarUrl={p.avatarUrl} avatar="xs" readName={!linked} className="col-[1/2] row-[1/2]" />
+    <DataRow testId="milestone-member" data-player-id={group.playerId} density="dense" link={linked ? <PeekRowLink playerId={p.id} name={p.name} profileHref={p.profileHref!} hint={hint} /> : null}>
+      <MemberCell look={p.look} name={p.name} avatarUrl={p.avatarUrl} avatar="xs" readName={!linked} nameHref={p.profileHref ?? undefined} className="col-[1/2] row-[1/2]" />
       <ul aria-label={`${p.name}'s milestones`} className="col-[2/3] row-[1/2] flex min-w-0 items-center justify-end gap-1 @max-[18rem]/list:col-[1/-1] @max-[18rem]/list:row-[2/3] @max-[18rem]/list:justify-start">
         {(top ? [top] : []).map((m) => (
           <li key={m.championId} className={cn("flex min-w-0 items-center gap-1.5 rounded-md border py-0.5 pl-0.5 pr-2 text-xs", TIER_CLASS[Math.min(m.tier, 3)])} title={linked ? undefined : said(m)} data-testid="milestone" data-tier={m.tier}>

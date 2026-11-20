@@ -8,7 +8,7 @@ import { PageToolbar } from "@/components/ui/page-toolbar";
 import { LeaderboardsDashboard } from "./leaderboards-dashboard";
 
 // The season's choice (a client component) asks for the router, which a markup test has none of.
-vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: () => {} }) }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: () => {} }), usePathname: () => "/leaderboards", useSearchParams: () => new URLSearchParams() }));
 // The pinned row's copy of a page's controls (PageToolbar) draws nothing on the server, where there is
 // no row to draw into, so markup alone could not show that the page puts nothing there: here it draws
 // a mark of its own wherever a page renders one.

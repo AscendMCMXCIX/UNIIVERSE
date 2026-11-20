@@ -30,7 +30,7 @@ import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateTone } from "@/domain/s
 import { CardSocialIcons, SocialLinks } from "@/components/players/social-links";
 import { formatCount, formatDayMonth } from "@/lib/format";
 
-type ChampionsById = Map<string, { id: string; name: string; portraitUrl: string }>;
+export type ChampionsById = Map<string, { id: string; name: string; portraitUrl: string }>;
 const lookup = (championsById: ChampionsById, id: string) => championsById.get(id) ?? { id, name: id, portraitUrl: "" };
 const noopSubscribe = () => () => {};
 
@@ -635,7 +635,7 @@ function LineupCard({ openSide, onOpenSide, ...props }: Omit<React.ComponentProp
  * A team player's details, for the Team lineup's Peek (a docked panel on wider screens, the whole
  * screen on a phone): the player's card opened up (`hero`) and this season's figures and pool (`body`).
  */
-function playerDetail({ slot, championsById, canEdit, canViewProfile, profileHref, editHref, position }: { slot: RosterSlot; championsById: ChampionsById; canEdit: boolean; canViewProfile: boolean; profileHref: string; /** Where this viewer edits the pool: their own profile, or the player's profile for admins. */ editHref: string; position: string }): { title: string; hero: React.ReactNode; body: React.ReactNode } {
+export function playerDetail({ slot, championsById, canEdit, canViewProfile, profileHref, editHref, position }: { slot: RosterSlot; championsById: ChampionsById; canEdit: boolean; canViewProfile: boolean; profileHref: string; /** Where this viewer edits the pool: their own profile, or the player's profile for admins. */ editHref: string; position: string }): { title: string; hero: React.ReactNode; body: React.ReactNode } {
   const p = slot.player!;
   const support = slot.role === "SUPPORT";
   const season = p.season;
