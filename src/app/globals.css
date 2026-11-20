@@ -374,6 +374,18 @@ p a.text-accent {
 [data-testid="mobile-topbar"] {
   --bar-pad: calc(var(--bar-top) + 0.5rem);
 }
+/*
+  On phones, and below lg in a short window, nothing is pinned from md (--bar-top is 0), so until
+  MobileNav measures the bar the root's padding is the stylesheet's usual height above (3.5rem and
+  the safe area, plus 0.5rem). The bar's controls take back that same value meanwhile: with only
+  0.5rem, a tap's focus on the avatar before the page's code had run left it "under" the padding,
+  and the browser scrolled the page to the top to show it (R7: CI's account-screen jumps).
+*/
+@media (max-width: 47.99rem), (max-width: 63.99rem) and (max-height: 480px) {
+  [data-testid="mobile-topbar"] {
+    --bar-pad: calc(3.5rem + env(safe-area-inset-top) + 0.5rem);
+  }
+}
 @media (min-width: 48rem) and (max-width: 63.99rem) {
   html:has([data-sticky-tabs]) [data-testid="mobile-topbar"] {
     --bar-pad: calc(var(--bar-top) + var(--tabs-top) + 0.5rem);
