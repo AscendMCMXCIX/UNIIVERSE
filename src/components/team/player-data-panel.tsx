@@ -193,7 +193,7 @@ export function PlayerDataPanel({ report, championsById, admin = false, playerNa
 /** The experience label, with why it was given (the tier's rule and the estimate's notes) one tap or hover away. */
 function TierWhy({ tier, label, notes }: { tier: ProficiencyTier; label: string; notes: string[] }) {
   return (
-    <InfoTip label={`Why ${label}`} text={`${TIER_DESCRIPTIONS[tier]}${notes.length ? ` ${notes.join(". ")}.` : ""}`}>
+    <InfoTip text={`${TIER_DESCRIPTIONS[tier]}${notes.length ? ` ${notes.join(". ")}.` : ""}`}>
       <Badge tone={TIER_TONE[tier]}>{label}</Badge>
     </InfoTip>
   );

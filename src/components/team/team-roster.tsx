@@ -224,7 +224,7 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
                       <Link href={`/players/${sg.playerId}`} className="block truncate text-sm font-medium text-fg hover:underline">
                         {sg.name}
                       </Link>
-                      <span className="block truncate text-xs text-fg-muted">
+                      <span className="block truncate text-xs text-fg-muted" title={sg.reasons.join(" · ")}>
                         {sg.reasons.slice(0, 2).join(" · ")}
                         {sg.reasons.length > 2 ? <span className="sr-only"> · {sg.reasons.slice(2).join(" · ")}</span> : null}
                       </span>

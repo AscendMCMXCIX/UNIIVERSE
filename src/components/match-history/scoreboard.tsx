@@ -461,12 +461,11 @@ function ParticipantRow({ x, champ, maxDamage, group, lane, rank, queueId, check
       {/* Damage, then (one-line layout) gold, CS and vision in their own columns; grouped under the
           bar below it. On a phone the items lead the damage's line, so a row is three lines. */}
       <span className="leading-tight @max-[36rem]/bd:col-span-2">
-        {x.damage !== null ? <span className="sr-only">{`${formatCount(x.damage)} damage to champions${share ? `, ${share} of the team's` : ""}`}</span> : null}
         <span className="flex items-center gap-1.5 text-xs tabular-nums text-fg-muted">
           <span className="shrink-0 @min-[36rem]/bd:hidden" data-testid="participant-items-phone">
             <ItemRow items={x.items} size={18} />
           </span>
-          <span className="whitespace-nowrap">
+          <span className="whitespace-nowrap" title={x.damage === null ? undefined : `${formatCount(x.damage)} damage to champions`}>
             <span className="font-medium text-fg">{x.damage === null ? "—" : formatKilo(x.damage)}</span> dmg{share ? ` · ${share}` : ""}
           </span>
           {/* Everyone's bar in a quiet grey, the player's own in the accent: who did the most stands out by length, the player by colour and their bold name. */}

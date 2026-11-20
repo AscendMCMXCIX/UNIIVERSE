@@ -7,7 +7,7 @@ import { InfoTip } from "@/components/ui/info-tip";
  */
 export function ChangedBadge({ note = false, testId }: { /** On a note resting on an ability, rather than on the ability itself. */ note?: boolean; testId?: string }) {
   return (
-    <InfoTip label="About changed since the check" text={note ? "Riot's data for an ability this note rests on changed after the notes were checked, so it may be out of date." : "Riot's data for this ability changed after the notes were checked, so they may be out of date."}>
+    <InfoTip text={note ? "Riot's data for an ability this note rests on changed after the notes were checked, so it may be out of date." : "Riot's data for this ability changed after the notes were checked, so they may be out of date."} className="my-0! min-h-0!">
       <Badge tone="warn">{testId ? <span data-testid={testId}>Changed since the check</span> : "Changed since the check"}</Badge>
     </InfoTip>
   );

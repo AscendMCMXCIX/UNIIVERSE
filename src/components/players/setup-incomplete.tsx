@@ -13,7 +13,7 @@ export const SETUP_INCOMPLETE_HINT = "They haven't finished setting up, so their
 export function SetupIncompleteBadge({ className, wordClassName }: { className?: string; wordClassName?: string }) {
   return (
     <span className={cn("relative z-[2] inline-flex", className)} data-testid="setup-incomplete">
-      <InfoTip label="About setup incomplete" text={SETUP_INCOMPLETE_HINT}>
+      <InfoTip text={SETUP_INCOMPLETE_HINT}>
         <Badge tone="neutral" className="whitespace-nowrap">
           <span>
             Setup<span className={wordClassName}> incomplete</span>

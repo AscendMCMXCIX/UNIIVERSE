@@ -149,7 +149,6 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
       <InfoTip text={standoutTitle} testId="match-standout-tip" tabIndex={-1} className={cn("relative z-[2]", className)}>
         <span className="whitespace-nowrap rounded border border-accent/40 px-1 text-2xs font-semibold leading-4 text-accent @max-[16rem]/mh:whitespace-normal" data-testid="match-standout" data-key={standout.key}>
           Best {STANDOUT_SHORT[standout.key]} in {standout.games}
-          <span className="sr-only">: {standoutTitle}</span>
         </span>
       </InfoTip>
     ) : null;
@@ -364,8 +363,8 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
           <span className={cn("flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-fg-subtle @min-[36rem]/mh:flex-col @min-[36rem]/mh:gap-y-px", PHONE_FIGURES)} data-testid="match-figures">
             <Stat label="KP" value={kp} className={PHONE_KP} testId="match-kp" />
             <span className={PHONE_FIGURES_REST}>
-              <Stat label="CS/min" value={fmtNum(row.csPerMin)} extra={row.cs === null ? null : formatCount(row.cs)} detail={row.cs === null ? undefined : `, ${formatCount(row.cs)} CS in the game`} testId="match-cs" />
-              <Stat label="dmg/min" value={fmtInt(row.damagePerMin)} extra={row.damageShare === null ? null : `${Math.round(row.damageShare * 100)}%`} detail={row.damage === null ? undefined : `, ${formatCount(row.damage)} damage to champions${row.damageShare === null ? "" : `, ${Math.round(row.damageShare * 100)}% of the team's`}`} testId="match-damage" />
+              <Stat label="CS/min" value={fmtNum(row.csPerMin)} extra={row.cs === null ? null : formatCount(row.cs)} detail={row.cs === null ? undefined : ", the game's total"} testId="match-cs" />
+              <Stat label="dmg/min" value={fmtInt(row.damagePerMin)} extra={row.damageShare === null ? null : `${Math.round(row.damageShare * 100)}%`} detail={row.damage === null ? undefined : `${row.damageShare === null ? "" : " of the team's damage"}, ${formatCount(row.damage)} to champions in all`} testId="match-damage" />
               {standoutChip("self-center @min-[36rem]/mh:mt-px @min-[36rem]/mh:self-start")}
             </span>
           </span>

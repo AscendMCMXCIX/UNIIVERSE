@@ -74,6 +74,8 @@ const NAMES: Array<{ file: string; fragment: string; kind: Kind; what: string }>
   { file: "src/components/leaderboards/recent-leaderboards.tsx", fragment: "roleTitle", kind: "name", what: "the main role's badge: the role and its games" },
   { file: "src/components/matchup-intel/matchup-frame.tsx", fragment: "Copy link", kind: "name", what: "Copy link's name when only its icon shows" },
   // Values shown whole where the page may cut them short.
+  { file: "src/components/team/team-roster.tsx", fragment: "sg.reasons.join", kind: "truncation", what: "a suggestion's reasons, cut to one line" },
+  { file: "src/components/match-history/scoreboard.tsx", fragment: "damage to champions", kind: "truncation", what: "the damage shown short (\"18.2k\") whole" },
   { file: "src/components/players/player-card.tsx", fragment: "mastery points", kind: "truncation", what: "the mastery shown short (\"189K\") whole" },
   { file: "src/components/leaderboards/records.tsx", fragment: "said(m)", kind: "truncation", what: "a milestone chip whole (its champion's name is cut, or left out on phones)" },
   { file: "src/components/match-history/match-history-view.tsx", fragment: "With team members:", kind: "truncation", what: "the members line, cut to one line" },

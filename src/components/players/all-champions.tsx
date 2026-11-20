@@ -196,7 +196,10 @@ function KindCount({ c, kind, strong }: { c: OverviewCard; kind: KindKey; strong
       {m ? (
         formatCount(m[kind])
       ) : (
-        <span aria-label="Not counted yet">—</span>
+        <>
+          <span aria-hidden>—</span>
+          <span className="sr-only">Not counted yet</span>
+        </>
       )}
       {m && m.counted < m.games ? <PartialMark /> : null}
     </span>
