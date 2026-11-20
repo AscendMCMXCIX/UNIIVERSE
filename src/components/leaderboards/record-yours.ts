@@ -6,7 +6,7 @@
  * and a member's page is measured with it.
  */
 export const RECORD_YOURS =
-  "col-[2/-1] row-[4/5] min-w-0 text-xs text-fg-muted @max-[16rem]/list:col-[1/-1] @max-[16rem]/list:row-[6/7] @min-[36rem]/list:col-[3/4] @min-[36rem]/list:row-[2/3] @min-[36rem]/list:self-start @min-[36rem]/list:justify-self-end @min-[36rem]/list:text-right";
+  "col-[2/4] row-[4/5] min-w-0 text-xs text-fg-muted @max-[16rem]/list:col-[1/-1] @max-[16rem]/list:row-[6/7] @min-[36rem]/list:col-[3/4] @min-[36rem]/list:row-[2/3] @min-[36rem]/list:self-start @min-[36rem]/list:justify-self-end @min-[36rem]/list:text-right";
 
 /** The figure inside it ("Your best: 9"). */
 export const RECORD_YOURS_VALUE = "font-semibold tabular-nums text-fg";

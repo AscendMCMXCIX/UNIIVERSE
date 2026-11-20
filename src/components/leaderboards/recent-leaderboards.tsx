@@ -184,14 +184,20 @@ export function RecentForm({ form, player, viewer, className }: { form: FormView
 }
 
 /**
- * The gap to the place above, short (D5): "1 win behind", "Next win: 3=" (the place one win would
- * share), "14 of 20 games" for a provisional window, "—" for first place. The sentence (FormRow.note)
- * stays: it is read out, and it is the row's tooltip. A change of wording ("A win ties 3rd") is a
- * change here only.
+ * The gap to the place above, short (D5): "1 win behind", "A win ties 3rd" (the place one win would
+ * share; it was "Next win: 3=", a token to decode, UD.L5), "14 of 20 games" for a provisional
+ * window, "—" for first place. The sentence (FormRow.note) stays: it is read out.
  */
+/** 1st, 2nd, 3rd, 4th … 11th, 12th, 13th, 21st (English ordinals; places are small whole numbers). */
+function ordinal(n: number): string {
+  const tens = n % 100;
+  const suffix = tens >= 11 && tens <= 13 ? "th" : (["th", "st", "nd", "rd"][n % 10] ?? "th");
+  return `${n}${suffix}`;
+}
+
 export function gapToken(gap: FormRow["gap"], window: FormView["window"]): string {
   if (!gap) return "—";
-  if (gap.kind === "level") return `Next win: ${gap.place}=`;
+  if (gap.kind === "level") return `A win ties ${ordinal(gap.place)}`;
   if (gap.kind === "behind") return `${gap.wins} ${gap.wins === 1 ? "win" : "wins"} behind`;
   return `${gap.games} of ${window.games} games`;
 }

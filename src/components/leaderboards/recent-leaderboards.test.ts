@@ -85,10 +85,10 @@ describe("Recent form's rows", () => {
     expect(publicRows.bo).toMatch(/<span aria-hidden="true" data-testid="form-gap" title="Win your next game to draw level with Ash"/);
   });
 
-  it("shows the gap short and keeps the sentence for screen readers: Next win: 2=, 1 win behind", () => {
-    expect(textOf(rows.bo!, "form-gap")).toBe("Next win: 1=");
+  it("shows the gap short and keeps the sentence for screen readers: A win ties 2nd, 1 win behind", () => {
+    expect(textOf(rows.bo!, "form-gap")).toBe("A win ties 1st");
     expect(textOf(rows.cy!, "form-gap")).toBe("1 win behind");
-    expect(textOf(rows.di!, "form-gap")).toBe("Next win: 2=");
+    expect(textOf(rows.di!, "form-gap")).toBe("A win ties 2nd");
     expect(textOf(rows.di!, "form-note")).toBe("Win your next game to draw level with Bo and Cy");
     expect(rows.di).toMatch(/<span aria-hidden="true" data-testid="form-gap"/);
     expect(rows.di).toMatch(/<span class="sr-only" data-testid="form-note">/);
@@ -198,7 +198,8 @@ describe("the board's markup", () => {
 describe("gapToken (D5)", () => {
   it("is the gap short, in one place", () => {
     expect(gapToken(null, WINDOW)).toBe("—");
-    expect(gapToken({ kind: "level", place: 3 }, WINDOW)).toBe("Next win: 3=");
+    expect(gapToken({ kind: "level", place: 3 }, WINDOW)).toBe("A win ties 3rd");
+    expect([1, 2, 3, 4, 11, 12, 13, 21, 22].map((place) => gapToken({ kind: "level", place }, WINDOW))).toEqual(["A win ties 1st", "A win ties 2nd", "A win ties 3rd", "A win ties 4th", "A win ties 11th", "A win ties 12th", "A win ties 13th", "A win ties 21st", "A win ties 22nd"]);
     expect(gapToken({ kind: "behind", wins: 1, place: 2 }, WINDOW)).toBe("1 win behind");
     expect(gapToken({ kind: "behind", wins: 3, place: 2 }, WINDOW)).toBe("3 wins behind");
     expect(gapToken({ kind: "provisional", games: 14 }, WINDOW)).toBe("14 of 20 games");

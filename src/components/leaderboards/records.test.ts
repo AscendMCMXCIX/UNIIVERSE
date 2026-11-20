@@ -48,6 +48,7 @@ function view(profiles: boolean, o: Partial<RecordsView> = {}): RecordsView {
       { playerId: "cy", penta: 0, quadra: 0, triple: 3 },
     ],
     multikillNote: "From the 31 of 32 games this season that carry Riot's multikill figures; the others are left out, not counted as zero.",
+    multikillShort: "From 31 of 32 games",
     championGames: [{ playerId: "ash", items: [{ championId: "Riven", value: "25 games", short: "25", milestone: "25+ games", tier: 1 }], more: 0 }],
     mastery: [
       {
@@ -120,7 +121,7 @@ describe("the season records", () => {
       expect(cell).toContain("@container/list");
       expect(cell).toContain("@min-[40rem]/list:@max-[86rem]/dash:[&:last-child:nth-child(odd)]:col-span-2");
       // Each cell holds its own column template, so its row reads the cell's width.
-      expect(cols).toContain("[--dl-cols:3rem_minmax(5rem,1fr)_auto]");
+      expect(cols).toContain("[--dl-cols:3rem_minmax(5rem,1fr)_auto_1rem]");
       expect(cols).toContain("@min-[36rem]/list:[--dl-cols:3rem_minmax(0,1fr)_auto_1rem]");
     }
   });
@@ -208,7 +209,10 @@ describe("multikills", () => {
     // The whole row opens the member's profile, named by the member.
     expect(rows[0]![0]).toContain('data-row-link="" href="/players/ash"><span class="sr-only">Ash</span>');
     expect(html).toMatch(/<ol aria-label="Multikills, rarest first" data-testid="multikill-rows"/);
-    expect(shownOf(html, "multikill-note")).toContain("left out, not counted as zero");
+    // Which games the counts come from: a few words on the board's line, the sentence behind its ⓘ.
+    expect(shownOf(html, "multikill-short")).toBe("From 31 of 32 games");
+    expect(html).toContain('aria-label="About the multikill counts"');
+    expect(html).toContain("left out, not counted as zero");
   });
 
   it("say so when there are none", () => {
@@ -222,17 +226,18 @@ describe("multikills", () => {
 describe("milestones", () => {
   const html = render();
 
-  it("are member rows: the name, then the chips, the figure short (486K), the rest counted", () => {
+  it("are member rows: the name, then the top milestone, its figure short (1.2M), the rest counted (+4)", () => {
     const mastery = html.slice(html.indexOf('data-testid="milestones-mastery"'));
     expect(mastery).toContain('data-testid="milestones-mastery-list"');
     const member = /<li [^>]*data-testid="milestone-member" data-player-id="ash"[\s\S]*?<\/ul><\/li>/.exec(mastery)![0];
-    expect(count(member, /data-testid="milestone"/g)).toBe(3);
-    expect([...member.matchAll(/data-testid="milestone-figure">([^<]*)</g)].map((m) => m[1])).toEqual(["1.2M", "486K", "333K"]);
-    // Screen readers hear each in words, the champion's name included (hidden on a phone, D6).
-    expect(member).toContain('data-testid="milestone-champion">Zed</span><span aria-hidden="true" class="shrink-0 tabular-nums text-fg-muted" data-testid="milestone-figure">486K</span><span class="sr-only"> 486K points, 100K+ milestone</span>');
+    expect(count(member, /data-testid="milestone"/g)).toBe(1);
+    expect([...member.matchAll(/data-testid="milestone-figure">([^<]*)</g)].map((m) => m[1])).toEqual(["1.2M"]);
+    // Screen readers hear it in words, the champion's name included (hidden on a phone, D6).
+    expect(member).toContain('data-testid="milestone-champion">Riven</span><span aria-hidden="true" class="shrink-0 tabular-nums text-fg-muted" data-testid="milestone-figure">1.2M</span><span class="sr-only"> 1.2M points, 1M+ milestone</span>');
     expect(member).toMatch(/@max-\[32rem\]\/list:sr-only" data-testid="milestone-champion"/);
-    expect(shownOf(member, "milestone-more")).toBe("+2 more");
-    expect(member).toContain('<span class="sr-only">and 2 more on their profile</span>');
+    // The two other shown before and the two more on the profile: "+4".
+    expect(shownOf(member, "milestone-more")).toBe("+4");
+    expect(member).toContain('<span class="sr-only">and 4 more on their profile</span>');
     // Rarities: violet and gold marks, never a state colour.
     expect(member).toMatch(/border-gold\/60 bg-gold\/10[^"]*" data-testid="milestone" data-tier="3"/);
     // The row opens the profile; its tooltip names each milestone (no chip's own title shows under the link).
@@ -262,8 +267,8 @@ describe("the sections", () => {
     expect(games).toContain('aria-label="What counts: Games on one champion · Season 2026"');
     expect(games).toMatch(/<span id="[^"]+" class="sr-only">Champions with 25, 50 or 100 games this season\.<\/span>/);
     expect(innerOf(html, "milestones-mastery")).toMatch(/<span id="[^"]+" class="sr-only">Riot&#x27;s champion mastery over each member&#x27;s linked accounts: 100K, 500K and 1M points\./);
-    // The multikills' coverage stays in words under their title: it says which games the counts come from.
-    expect(shownOf(html, "multikill-note")).toBe("From the 31 of 32 games this season that carry Riot's multikill figures; the others are left out, not counted as zero.");
+    // The multikills' coverage stays in words under their title (which games the counts come from), the sentence behind its ⓘ.
+    expect(shownOf(html, "multikill-short")).toBe("From 31 of 32 games");
   });
 
   it("links nowhere on the public boards: no link, no profile or game address, the names read and the chips titled", () => {
@@ -272,7 +277,7 @@ describe("the sections", () => {
     expect(html).not.toContain("/players/");
     expect(html).not.toContain("lucide-chevron-right");
     expect(html).not.toContain("hover:bg-surface-2");
-    expect(html).toContain('title="Zed: 486K points (100K+ milestone)"');
+    expect(html).toContain('title="Riven: 1.2M points (1M+ milestone)"');
     // Every label and name is read where no link says it.
     expect(html).not.toMatch(/aria-hidden="true"[^>]*data-testid="record-label"/);
     expect(html).not.toContain('<span class="min-w-0 text-fg" aria-hidden="true">');
