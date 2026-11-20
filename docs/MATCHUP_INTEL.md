@@ -789,11 +789,18 @@ and finds none.
   its panel's "Riot's data" line, "Riot's data changed on 26.24", in place of the Data Dragon version
   (the bar names it too; beside the version, or on the title's row with the haste control, the words
   wrapped a line at 1440 × 900, 16–20px, which put the sources' summary under the fold with
-  production's "Not re-checked"), and on the folded champion's title, "Riot changed this on 26.24";
+  production's "Not re-checked"), and the same on the folded champion's line ("Abilities and base
+  cooldowns · Riot's data changed on 26.24", in place of its version: beside its title it grew the
+  summary by one or two lines on phones, the patch alone on one at 390 wide and 200% text); "on 26.24"
+  is kept on one line;
   an evidence line whose values name a changed item or rune ends with "· Riot changed this on 26.24".
   The digest is the champion's, not an ability's, so the label is on the champion, never on one
-  tile. Nothing with fewer than two patches recorded, and a key recorded at one patch only is never
-  a change. The patch list is cached with the evidence (cleared when a patch's digests are
+  tile. Nothing with fewer than two patches recorded, nor unless the two newest recorded are the
+  game's current patch and the one before it (digests missed for either would date a change to the
+  wrong patch), and a key recorded at one patch only is never a change. An item's or rune's digest is
+  its whole Data Dragon entry, so a change Riot made to its data that is not to its stats, gold or
+  text (an item another one now builds into) also reads as changed: "Riot changed this" is true of
+  Riot's data, and the label does not say it changed in play. The patch list is cached with the evidence (cleared when a patch's digests are
   recorded); the named keys are one query. The evidence lines' item and rune keys are read on the
   server and removed before the page. Browser tests: the cookie `uniiverse-test-riot-changed`
   ("champion:Riven,item:1055", at most twenty; `riotChangesForTest` in `notes-age.ts`, the in-memory
@@ -819,7 +826,13 @@ screen (the glance, "On a phone"); the starting set leaves out an item sold in t
 the timeline keeps sales. Still not built:
 
 - **Lane occupancy** (mi-evidence §2.1, test 4) is not stored: the confirmed-opponent rule uses the
-  three position tests, and a game whose readings disagree is "role unclear".
+  three position tests, and a game whose readings disagree is "role unclear". Looked at again in
+  Release 11 and still not built, because it cannot be measured honestly from what is stored: the
+  test reads the frames from 2:00 to the lane end, and the lane end (`laneEnd`) is itself the first
+  time either player is out of the lane's region for two frames, so occupancy up to it is close to
+  100% by construction; and the regions (`regionOf`) are fixed bands, not calibrated from where
+  `teamPosition` players stand at minutes 3–8 as the test requires. Building it needs a lane end that
+  does not rest on the same regions, and calibrated regions.
 - **The jungle's lane end** (the first contested epic objective): the stored events cannot tell it.
 - **Admin for the diff:** `/api/health` lists the digests' counts (`digests`, docs/MONITORING.md),
   and since Release 10 Admin's data health does too (Data & Integrations → Details → Data health,
