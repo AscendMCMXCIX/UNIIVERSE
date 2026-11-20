@@ -564,7 +564,7 @@ Recorded, not changed here, with the reason:
 - Team's lineup dots at 200% on 320 (5 under 44px): Team's own layout (S3a), outside this pass.
 - The public header for a signed-in member at 375px and 150% text: three rows where it was two,
   since "Open the app" is 14px as the decision asks (a visitor's header keeps its rows at every
-  size; the mark's 44px target is padding cancelled by margins, so it adds no width or height).
+  size; the mark's 44px target is the touch-target utility's invisible box, so it adds no width or height).
 
 ## 5. The phone design system
 
