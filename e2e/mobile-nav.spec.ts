@@ -866,6 +866,102 @@ test("under 700px tall, what the page brings back up lands clear of the top bar'
   expect(await clearOfBar(), "the next page's first game under the whole bar").toBeGreaterThanOrEqual(0);
 });
 
+test("under 700px tall, Done in the sheet the top bar's Filters opened lands the first game just under the bar as it will be: its row kept with the focus back in it, or gone where the focus was never there (a tap in Safari), just past the page's own filters too, with motion and without, at 100%, 150% and 200% text", async ({ page }) => {
+  // The sheet hands the focus back to what had it as it opened, and the bar keeps its first row while
+  // it has the focus. Just past the page's own filters the list's first game is below where the page
+  // is, so landing it moves the page down, the way the row goes: the row then came back with the focus
+  // over the game (R6 review BX2: 44px at 100% text, 70px at 150%, 88px at 200%). Opened with the focus
+  // elsewhere (Safari focuses no button it taps; here a click with no focus), the row goes, and the
+  // game must not stop a row lower than the bar.
+  test.setTimeout(240_000);
+  const path = `/players/${await idOf(page, "TOP")}/matches`;
+  const cdp = await page.context().newCDPSession(page);
+  const bar = page.getByTestId("mobile-topbar");
+  const filters = page.getByTestId("topbar-filters");
+  const sheet = page.getByTestId("filter-sheet");
+  const cases = [
+    ...(["no-preference", "reduce"] as const).flatMap((motion) => [100, 150, 200].map((text) => ({ motion, text, focused: true }))),
+    ...(["no-preference", "reduce"] as const).flatMap((motion) => [100, 200].map((text) => ({ motion, text, focused: false }))),
+  ];
+  for (const { motion, text, focused } of cases) {
+    const at = `${text}% text, ${motion === "reduce" ? "reduced motion" : "motion"}, ${focused ? "tapped" : "opened with the focus elsewhere"}`;
+    await page.emulateMedia({ reducedMotion: motion });
+    // The browser's own text size, which the media queries' rem follow too.
+    await cdp.send("Page.setFontSizes", { fontSizes: { standard: (16 * text) / 100 } });
+    await page.goto(path);
+    await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
+    await expect(bar, at).toHaveAttribute("data-slides", "row");
+    // Down by steps to just past the page's own filters (the row goes), then a short way up, as a
+    // reader does to reach the bar: the row comes back, and the bar offers Filters.
+    await page.evaluate(async () => {
+      const frame = () => new Promise((r) => requestAnimationFrame(() => r(null)));
+      const own = document.querySelector("[data-testid=match-history] [data-filter-bar]")!;
+      const to = own.getBoundingClientRect().bottom + window.scrollY + 40;
+      for (let y = window.scrollY; y <= to; y += 20) {
+        window.scrollTo(0, y);
+        await frame();
+      }
+      window.scrollTo(0, to);
+      await new Promise((r) => setTimeout(r, 300));
+      for (let i = 0; i < 4; i++) {
+        window.scrollBy(0, -6);
+        await frame();
+      }
+    });
+    await expect(bar, at).toHaveAttribute("data-hidden", "false");
+    await expect(filters, at).toBeVisible();
+    if (focused) await filters.tap();
+    else await filters.dispatchEvent("click");
+    await expect(sheet, at).toBeVisible();
+    await sheet.getByTestId("refine-result").getByRole("radio", { name: "Wins" }).tap();
+    await expect(page).toHaveURL(/result=win/);
+    await sheet.getByTestId("filter-sheet-done").tap();
+    await expect(sheet, at).toHaveCount(0);
+    if (focused) await expect(filters, at).toBeFocused();
+    else expect(await bar.evaluate((b) => b.matches(":focus-within")), `${at}: the focus not in the bar`).toBe(false);
+    // Once the bar's motion is over and the page is still: the first game just under the bar (or as
+    // near as the page's end allows).
+    let last = "";
+    await expect
+      .poll(
+        async () => {
+          const now = await page.evaluate(() => {
+            const b = document.querySelector<HTMLElement>("[data-testid=mobile-topbar]")!;
+            const first = document.querySelector("[data-testid=match-card]")!.getBoundingClientRect();
+            const end = document.documentElement.scrollHeight - window.innerHeight;
+            return JSON.stringify({ y: Math.round(window.scrollY), gap: Math.round(first.top - b.getBoundingClientRect().bottom), atEnd: window.scrollY >= end - 1, moving: b.getAnimations({ subtree: true }).length > 0 });
+          });
+          const still = now === last && !JSON.parse(now).moving;
+          last = now;
+          return still;
+        },
+        { message: `${at}: the page at rest`, intervals: [150] },
+      )
+      .toBe(true);
+    const landed = JSON.parse(last) as { gap: number; atEnd: boolean };
+    expect(landed.gap, `${at}: the first game clear of the bar`).toBeGreaterThanOrEqual(0);
+    expect(landed.gap <= 12 || landed.atEnd, `${at}: the first game just under it (${landed.gap}px)`).toBe(true);
+  }
+  await cdp.send("Page.setFontSizes", { fontSizes: { standard: 16 } });
+});
+
+test("under 700px tall, the page's scroll padding counts the top bar's first row from the moment the focus comes into the bar, which keeps that row while it has the focus", async ({ page }) => {
+  // So what lands in the frame the focus comes back in (a filter sheet's list, its Filters handed the
+  // focus back) stops under the whole bar, not under the row that stays with the focus (R6 review BX2).
+  await page.goto(`/players/${await idOf(page, "TOP")}/matches`);
+  await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
+  await expect(page.getByTestId("mobile-topbar")).toHaveAttribute("data-slides", "row");
+  // Measured in one go: no frame passes between the focus coming in and the reading.
+  const m = await page.evaluate(() => {
+    const pad = () => parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop);
+    const before = pad();
+    document.querySelector<HTMLElement>("[data-testid=account-sheet-button]")!.focus({ preventScroll: true });
+    return { before, after: pad(), row: document.querySelector<HTMLElement>("[data-testid=mobile-topbar-row]")!.offsetHeight };
+  });
+  expect(m.row).toBeGreaterThan(0);
+  expect(m.after - m.before, "the row, counted as the focus comes in").toBe(m.row);
+});
+
 test("Team → Matches opens a game as a whole screen too, and its cards keep to the members who played", async ({ page }) => {
   await page.goto("/matches");
   const game = page.getByTestId("together-game").first();

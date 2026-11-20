@@ -140,7 +140,7 @@ export function PersonView({
         ) : null
       }
     >
-      {p ? <PersonBody key={p.key} p={p} presets={presets} currentUserId={currentUserId} viewerIsOwner={viewerIsOwner} canManageAccounts={canManageAccounts} canManageRoster={canManageRoster} riotConfigured={riotConfigured} /> : null}
+      {p ? <PersonBody key={p.key} p={p} presets={presets} currentUserId={currentUserId} viewerIsOwner={viewerIsOwner} canManageAccounts={canManageAccounts} canManageRoster={canManageRoster} riotConfigured={riotConfigured} onGone={onClose} /> : null}
     </DetailModal>
   );
 }
@@ -153,6 +153,7 @@ function PersonBody({
   canManageAccounts,
   canManageRoster,
   riotConfigured,
+  onGone,
 }: {
   p: PersonEntry;
   presets: PermissionPreset[];
@@ -161,6 +162,13 @@ function PersonBody({
   canManageAccounts: boolean;
   canManageRoster: boolean;
   riotConfigured: boolean;
+  /**
+   * The person is gone (deleted or erased from the Danger zone): the view closes by its address, as
+   * the close button does, so the address no longer names them and one Back leaves the page. A
+   * window opened in the view closes alone (DetailModal), so its closing no longer closes the view
+   * (R6 review NEW-2).
+   */
+  onGone: () => void;
 }) {
   const router = useRouter();
   const a = p.account;
@@ -359,9 +367,9 @@ function PersonBody({
       {(canManageAccounts && (manage || !a)) || (canManageRoster && player && !a) ? (
         <Disclosure title="Danger zone" description="Deactivate, delete or erase. Anything permanent asks for the name typed first." testId="person-danger">
           <div className="flex flex-wrap items-center gap-2">
-            {a && manage ? <AccountActions account={a} currentUserId={currentUserId} viewerIsOwner={viewerIsOwner} only="danger" /> : null}
-            {canManageAccounts && player && !a ? <DeleteProfileButton playerId={player.id} name={player.displayName} /> : null}
-            {canManageAccounts && (mayErase || (player && !a)) ? <ErasePersonButton target={a ? { userId: a.userId } : { playerId: player!.id }} name={a?.username ?? player!.displayName} /> : null}
+            {a && manage ? <AccountActions account={a} currentUserId={currentUserId} viewerIsOwner={viewerIsOwner} only="danger" onDeleted={onGone} /> : null}
+            {canManageAccounts && player && !a ? <DeleteProfileButton playerId={player.id} name={player.displayName} onDeleted={onGone} /> : null}
+            {canManageAccounts && (mayErase || (player && !a)) ? <ErasePersonButton target={a ? { userId: a.userId } : { playerId: player!.id }} name={a?.username ?? player!.displayName} onErased={onGone} /> : null}
             {canManageRoster && player && !a ? (
               <Button size="sm" variant="ghost" disabled={busy} onClick={() => void run(() => archivePlayerAction(player.id, !player.archived), player.archived ? "Profile restored." : "Profile archived.")}>
                 {player.archived ? "Restore profile" : "Archive profile"}
