@@ -13,6 +13,7 @@ import { ConfirmDialog } from "@/components/ui/dialog";
 import { toast } from "@/components/ui/toast";
 import { backdropCss } from "@/lib/backdrop";
 import { cn } from "@/lib/cn";
+import { SectionIndex } from "@/components/ui/section-index";
 
 const COLOUR_FIELDS: Array<{ key: keyof BrandColours; label: string; hint: string }> = [
   { key: "accent", label: "Primary accent", hint: "Buttons, links, the active page" },
@@ -113,7 +114,7 @@ function ImageCard({ kind, title, hint, branding, onChange }: { kind: BrandAsset
   };
 
   return (
-    <div className="flex min-w-0 flex-col gap-3 rounded-panel border border-border bg-bg-elevated p-4" data-testid={`brand-${kind}`} data-ready={interactive ? "true" : undefined}>
+    <div className="flex min-w-0 flex-col gap-3 rounded-panel border border-border bg-surface p-4" data-testid={`brand-${kind}`} data-ready={interactive ? "true" : undefined}>
       <div>
         <div className="text-sm font-semibold text-fg">{title}</div>
         <p className="text-sm text-fg-muted">{hint}</p>
@@ -201,7 +202,7 @@ function BackdropSetting({ level, saved, hasArtwork, disabled, onChange }: { lev
                 {levelName(level)}
                 {level !== saved ? <span data-testid="backdrop-saved"> · saved: {saved}%</span> : null}
               </span>
-              <button type="button" onClick={() => onChange(DEFAULT_BACKDROP_LEVEL)} disabled={disabled || level === DEFAULT_BACKDROP_LEVEL} className="inline-flex items-center gap-1 rounded px-1 py-0.5 text-fg-muted hover:text-fg disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-accent" data-testid="backdrop-reset">
+              <button type="button" onClick={() => onChange(DEFAULT_BACKDROP_LEVEL)} disabled={disabled || level === DEFAULT_BACKDROP_LEVEL} className="inline-flex items-center gap-1 rounded px-1 py-0.5 text-fg-muted hover:text-fg disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:min-h-11" data-testid="backdrop-reset">
                 <RotateCcw className="h-3 w-3" aria-hidden /> Reset to default ({DEFAULT_BACKDROP_LEVEL}%)
               </button>
             </div>
@@ -251,6 +252,14 @@ function Preview({ form }: { form: Branding }) {
 }
 
 /** Admin → Branding: names, images and colours, with a live preview. */
+const BRANDING_SECTIONS = [
+  { id: "brand-name", label: "Name" },
+  { id: "brand-images", label: "Images" },
+  { id: "brand-backdrop", label: "Background" },
+  { id: "brand-colours", label: "Colours" },
+  { id: "brand-public", label: "Public page" },
+];
+
 export function BrandingPanel({ branding, canEdit }: { branding: Branding; canEdit: boolean }) {
   const router = useRouter();
   const [form, setForm] = React.useState<Branding>(branding);
@@ -279,7 +288,9 @@ export function BrandingPanel({ branding, canEdit }: { branding: Branding; canEd
 
   return (
     <div className="space-y-6" data-testid="branding-panel">
-      <section className="space-y-3 rounded-card border border-border bg-surface p-4 sm:p-5">
+      {/* Phones: the form is several screens long, so its sections are one tap away (the overhaul's S9c). */}
+      <SectionIndex label="Branding sections" items={BRANDING_SECTIONS} className="md:hidden" testId="branding-index" />
+      <section id="brand-name" className="space-y-3 rounded-card border border-border bg-surface p-4 sm:p-5">
         <h2 className="text-base font-semibold">Name</h2>
         <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <div>
@@ -305,7 +316,7 @@ export function BrandingPanel({ branding, canEdit }: { branding: Branding; canEd
         </div>
       </section>
 
-      <section className="space-y-3">
+      <section id="brand-images" className="space-y-3">
         <h2 className="text-base font-semibold">Images</h2>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           <ImageCard kind="logo" title="Logo" hint="Sidebar, sign-in page and the browser tab." branding={form} onChange={onAssets} />
@@ -314,9 +325,11 @@ export function BrandingPanel({ branding, canEdit }: { branding: Branding; canEd
         </div>
       </section>
 
+      <div id="brand-backdrop">
       <BackdropSetting level={form.backdropLevel} saved={saved.backdropLevel} hasArtwork={!!form.assets.appBackground} disabled={!canEdit} onChange={(backdropLevel) => setForm((f) => ({ ...f, backdropLevel }))} />
+      </div>
 
-      <section className="space-y-4 rounded-card border border-border bg-surface p-4 sm:p-5">
+      <section id="brand-colours" className="space-y-4 rounded-card border border-border bg-surface p-4 sm:p-5">
         <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
           <div className="min-w-0">
             <h2 className="text-base font-semibold">Colours</h2>
@@ -336,7 +349,7 @@ export function BrandingPanel({ branding, canEdit }: { branding: Branding; canEd
               const check = checks.find((c) => c.key === f.key);
               return (
                 <li key={f.key} className="flex flex-wrap items-center gap-3" data-testid={`colour-${f.key}`}>
-                  <input type="color" aria-label={f.label} disabled={!canEdit} value={value} onChange={(e) => setColour(f.key, e.target.value)} className="h-10 w-12 shrink-0 cursor-pointer rounded-md border border-border bg-bg-elevated" />
+                  <input type="color" aria-label={f.label} disabled={!canEdit} value={value} onChange={(e) => setColour(f.key, e.target.value)} className="h-11 w-12 shrink-0 cursor-pointer rounded-md border border-border bg-surface-2" />
                   <div className="min-w-0 flex-1 @max-[14rem]:basis-full">
                     <div className="text-sm font-medium text-fg">{f.label}</div>
                     <div className="text-xs text-fg-muted">{f.hint}</div>
@@ -344,7 +357,7 @@ export function BrandingPanel({ branding, canEdit }: { branding: Branding; canEd
                   <div className="w-28 shrink-0 @max-[14rem]:w-auto @max-[14rem]:min-w-0 @max-[14rem]:flex-1 @max-[14rem]:shrink">
                     <Input aria-label={`${f.label} hex`} disabled={!canEdit} value={value} onChange={(e) => /^#[0-9a-f]{6}$/i.test(e.target.value) && setColour(f.key, e.target.value.toLowerCase())} maxLength={7} className="font-mono md:h-9" />
                   </div>
-                  <button type="button" disabled={!canEdit || !custom} onClick={() => setColour(f.key, null)} className="grid h-9 w-9 place-items-center rounded-md text-fg-subtle hover:bg-surface-2 hover:text-fg disabled:opacity-30" aria-label={`Reset ${f.label} to default`} title="Default">
+                  <button type="button" disabled={!canEdit || !custom} onClick={() => setColour(f.key, null)} className="grid h-9 w-9 place-items-center rounded-md text-fg-subtle hover:bg-surface-2 hover:text-fg disabled:opacity-30 pointer-coarse:h-11 pointer-coarse:w-11" aria-label={`Reset ${f.label} to default`} title="Default">
                     <RotateCcw className="h-4 w-4" />
                   </button>
                   {check && !check.ok ? <p className="w-full text-xs text-bad">{check.message}</p> : null}

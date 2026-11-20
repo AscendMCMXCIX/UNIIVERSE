@@ -239,7 +239,7 @@ function healthAndSecurity(playerId) {
   if (local) return warn("security", "security checks skipped", "LIVE_LOCAL=1: the demo build has no sign-in");
   const forged = `uniiverse_session=s1.${"x".repeat(40)}`;
   // Every Admin Mode page (#258; the rest since 19 Nov 2026) and the sign-in previews Admin Mode
-  // opens. /admin/users and /admin/players redirect to /admin/people; /admin/public-access to /public.
+  // opens. /admin/users and /admin/players redirect to /admin/people; /admin/public-access to /admin/branding#brand-public.
   // (Written out, not spread: src/server/ops/live-check-boundary.test.ts reads this list against docs/LIVE_VALIDATION.md.)
   const paths = ["/team", "/players", "/matches", "/leaderboards", "/overview", "/overview/accounts", "/me", "/settings", "/resources/matchups", "/admin", "/admin/players", "/admin/people", "/admin/audit", "/admin/system", "/admin/data", "/admin/people/access", "/admin/people/privacy", "/admin/branding", "/admin/previews", "/admin/resources", "/admin/settings", "/preview/login", "/preview/setup"];
   playerId ??= publicPlayerId();

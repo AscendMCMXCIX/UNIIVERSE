@@ -93,7 +93,7 @@ export function AccessDialog({ account, presets, lineupRole = null, viewerIsOwne
       <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]" data-testid="access-dialog">
         <div className="space-y-4">
           {account.playerId ? (
-            <section aria-labelledby={`team-${account.userId}`} className="space-y-1.5 rounded-panel border border-border bg-bg-elevated p-3" data-testid="team-membership">
+            <section aria-labelledby={`team-${account.userId}`} className="space-y-1.5 rounded-panel border border-border bg-surface-2 p-3" data-testid="team-membership">
               <h3 id={`team-${account.userId}`} className="text-sm font-medium text-fg">
                 Team membership
               </h3>
@@ -119,7 +119,7 @@ export function AccessDialog({ account, presets, lineupRole = null, viewerIsOwne
             {ownerChange ? <p className="mt-1.5 rounded-md border border-warn/40 bg-warn/10 px-2.5 py-1.5 text-xs text-fg">There is one Owner: its level cannot be changed here.</p> : null}
           </div>
           {base === CUSTOM ? <CapabilityChecklist value={custom} onChange={setCustom} idPrefix={`custom-${account.userId}`} /> : null}
-          <section aria-labelledby={`admin-${account.userId}`} className="space-y-1.5 rounded-panel border border-border bg-bg-elevated p-3" data-testid="administrator-access">
+          <section aria-labelledby={`admin-${account.userId}`} className="space-y-1.5 rounded-panel border border-border bg-surface-2 p-3" data-testid="administrator-access">
             <h3 id={`admin-${account.userId}`} className="text-sm font-medium text-fg">
               Administrator
             </h3>
@@ -156,7 +156,7 @@ export function AccessDialog({ account, presets, lineupRole = null, viewerIsOwne
             ))}
           </fieldset>
         </div>
-        <section aria-labelledby="effective-access" className="rounded-panel border border-border bg-bg-elevated p-3">
+        <section aria-labelledby="effective-access" className="rounded-panel border border-border bg-surface-2 p-3">
           <h3 id="effective-access" className="flex items-center gap-1.5 text-sm font-semibold text-fg">
             <ShieldCheck className="h-4 w-4 text-accent" aria-hidden /> What they can do
           </h3>
