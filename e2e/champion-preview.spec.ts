@@ -220,18 +220,14 @@ test("from a scrolled list: a row below the first screen opens its preview, Esca
   // 21 champions (FIRST in all-champions.tsx), which no demo profile has, so it is not exercised here.
   const size = page.viewportSize()!;
   await page.setViewportSize({ width: size.width, height: 480 });
+  // The demo's Mid: the longest list (8 champions).
   await page.goto("/players");
-  const hrefs = await page.locator("main a[data-testid='player-card']").evaluateAll((els) => [...new Set(els.map((e) => new URL((e as HTMLAnchorElement).href).pathname))]);
-  let profile = "";
-  let most = 0;
-  for (const h of hrefs) {
-    await page.goto(`${h}/champions`);
-    await expect(page.getByTestId("all-champions-table")).toBeVisible();
-    const n = await page.getByTestId("top-champion").count();
-    if (n > most) [most, profile] = [n, h];
-  }
-  expect(most, "a demo profile with a list that can scroll").toBeGreaterThanOrEqual(6);
+  const href = await page.locator("main a[data-testid='player-card']", { hasText: "Demo Mid" }).first().getAttribute("href");
+  const profile = new URL(href!, "http://x").pathname;
   await page.goto(`${profile}/champions`);
+  await expect(page.getByTestId("top-champion").first()).toBeVisible();
+  const most = await page.getByTestId("top-champion").count();
+  expect(most, "a list that can scroll").toBeGreaterThanOrEqual(6);
   const rows = page.getByTestId("top-champion");
   await expect(rows.nth(most - 1)).toBeAttached();
   // A sort other than the default (games): by win rate, by its column or the phone's select.
@@ -257,8 +253,8 @@ test("from a scrolled list: a row below the first screen opens its preview, Esca
   expect(before.scroll, "the list is scrolled").toBeGreaterThan(0);
   await openRow(page, last);
   await close();
-  const after = await at();
-  expect(Math.abs(after.y - before.y), `the row where it was (${before.y} → ${after.y})`).toBeLessThanOrEqual(3);
+  // Back restores the scroll as the history entry settles: the row back where it was within 3px.
+  await expect.poll(async () => Math.abs((await at()).y - before.y), { message: "the row where it was" }).toBeLessThanOrEqual(3);
   expect(await order(), "the sort kept").toEqual(sorted);
   // With a search: the same, and the search's words and its rows kept.
   const search = page.locator("input[data-testid=all-champions-search]");
@@ -269,5 +265,5 @@ test("from a scrolled list: a row below the first screen opens its preview, Esca
   await openRow(page, rows.first());
   await close();
   await expect(search).toHaveValue(word);
-  expect(await order(), "the search's rows kept").toEqual(found);
+  await expect.poll(order, { message: "the search's rows kept" }).toEqual(found);
 });

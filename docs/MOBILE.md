@@ -597,6 +597,13 @@ Next) with the folds closed, in 156 and 153. The whole game is 1.50–1.82 scree
 scoreboard and the folds are below the first screen, as designed. `e2e/match-breakdown.spec.ts`
 ("an iPhone 12 …") holds it on the phone project.
 
+All Champions keeps the browsing place (requirement 4.5d, Release 11): in a 480px-tall window on each
+project, the last row of the demo's longest list (8 champions, sorted by win rate) is below the first
+screen; opened and closed (Escape on a desktop, Back on a tablet and a phone) it is back within 3px,
+in the same order, and a search keeps its words and its rows (`e2e/champion-preview.spec.ts`, "from a
+scrolled list"). "Show all" appears from 21 champions, which no demo profile has, so no test opens a
+preview from the longer list yet.
+
 ### The demo viewer (S8a, 20 Nov 2026)
 
 Every audit before S8a used the demo's automatic viewer, the Owner without a player profile. The
