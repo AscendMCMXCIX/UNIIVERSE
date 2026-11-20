@@ -665,7 +665,10 @@ curated note or a recommendation. Nothing is inferred beyond what the games reco
   games: 2 as Riven against Darius on patch 26.22, fewer than the 3 a line needs."):
   - the record ("4 games, 3 won");
   - the rune page (keystone and five runes; shards are not named by Data Dragon, so left out), the
-    summoner spells, the starting items (bought in the first minute), the first shop visit (purchases
+    summoner spells, the starting items (bought in the first minute and still held at its end: an undone purchase is
+    never stored, and an item sold in the first minute is left out where the timeline keeps sales,
+    which timelines kept from 20 Nov 2026 on do; on an older timeline a sale in the first minute is
+    not known, so such an item can still count as starting), the first shop visit (purchases
     less than 30 s apart after it), the first three completed items (building into nothing, from
     components, at least 1,000 gold, not boots, consumables or trinkets; left out of a game where any
     item bought is unknown to Data Dragon's facts, never skipped over), the first three skill points
@@ -743,8 +746,9 @@ and finds none.
 - **The Production check** reads the tiers (below), not that the page's Data Dragon patch equals
   `/api/health`'s.
 - **On a phone** the evidence sits in the tips' fold below the kits, not on the first screen.
-- **Items sold** in the first minute stay in the starting set (`sold` is not read), and whether Riot
-  reports a support item's quest upgrade as a purchase (which would show in the first shop visit) is
+- **Items sold in the first minute** on a timeline kept before 20 Nov 2026 stay in the starting set:
+  those timelines keep no sales, so the sale is not known (newer ones keep them, and the item is left
+  out; `startingSet` in `prep.ts`). Whether Riot reports a support item's quest upgrade as a purchase (which would show in the first shop visit) is
   not verified on a real timeline.
 
 ## Where it is
