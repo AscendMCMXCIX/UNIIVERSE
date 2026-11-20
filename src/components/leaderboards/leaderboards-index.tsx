@@ -78,13 +78,14 @@ const ROW_ESTIMATE = "calc(3.25rem + 1px)";
  * on its section in one), and again whenever MobileNav rewrites its own (the bar's style, size or
  * slide changes); MobileNav's value is put back on leaving.
  */
-function useRowScrollPadding(row: HTMLElement | null) {
+function useRowScrollPadding(row: HTMLElement | null | "none") {
   React.useLayoutEffect(() => {
     const bar = document.querySelector<HTMLElement>("[data-testid=mobile-topbar]");
-    if (!bar) return;
+    if (!bar || row === "none") return;
     const phone = window.matchMedia("(max-width: 47.99rem) and (min-height: 481px)");
     const root = document.documentElement;
     let own = "";
+    let written = "";
     let theirs = "";
     const apply = () => {
       // MobileNav's value, or before its first write (its effect runs after this one) the whole bar's, as it is on arrival.
@@ -94,10 +95,12 @@ function useRowScrollPadding(row: HTMLElement | null) {
       const next = `calc(${pad} + ${extra})`;
       // The bar's own controls take the row back too (globals.css), so pressing them never scrolls the page.
       if (bar.style.getPropertyValue("--bar-extra") !== extra) bar.style.setProperty("--bar-extra", extra);
-      if (root.style.scrollPaddingTop === next) return;
+      if (written === next && root.style.scrollPaddingTop === own) return;
       theirs = pad;
-      own = next;
-      root.style.scrollPaddingTop = own;
+      written = next;
+      root.style.scrollPaddingTop = next;
+      // As the browser stores it (it simplifies a calc: "calc(53px + 53px)" reads back "calc(106px)"), for the checks above and below.
+      own = root.style.scrollPaddingTop;
     };
     apply();
     // After MobileNav's own observers (registered earlier, so they run first): its value, then this one.
@@ -134,7 +137,8 @@ export function LeaderboardsPinnedIndex({ anchorId, items, phoneItems }: { /** T
     observer.observe(row);
     return () => observer.disconnect();
   }, [row]);
-  useRowScrollPadding(away && fits ? row : null);
+    // Nothing added where the chips would not fit (large text): the row is not drawn there.
+  useRowScrollPadding(!fits ? "none" : away ? row : null);
   return (
     <>
       {header ? (

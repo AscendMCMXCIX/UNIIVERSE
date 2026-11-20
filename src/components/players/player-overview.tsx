@@ -191,7 +191,7 @@ function KillsBand({ perf, m, byChampionHref }: { perf: PerformanceSummary; m: M
         </dl>
         {/* A small link; on touch screens a 44px target (as wide as a finger, the area above and below the line). */}
         <Link href={byChampionHref} className="touch-target ms-auto inline-flex min-h-6 items-center justify-end gap-0.5 whitespace-nowrap rounded-md text-xs font-medium text-fg-muted transition-colors hover:text-accent focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:min-w-11" aria-label="Multikills by champion, in All Champions" data-testid="multikills-by-champion">
-          {/* The words from 34rem of card; on a phone the chevron alone, so the counts keep one line. */}
+          {/* The words from 34rem of card; on a phone the chevron alone, leaving the counts most of the line (two lines at 375-393). */}
           <span className="@max-[34rem]/perf:sr-only">By champion</span> <ChevronRight className="h-3.5 w-3.5" aria-hidden />
         </Link>
       </div>

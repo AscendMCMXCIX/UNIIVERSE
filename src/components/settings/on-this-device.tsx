@@ -46,7 +46,7 @@ export function OnThisDevice() {
           );
         })}
       </ul>
-      <Button variant="secondary" size="sm" disabled={!any} onClick={() => clear("all")} data-testid="device-clear-all">
+      <Button variant="secondary" size="sm" wrap disabled={!any} onClick={() => clear("all")} data-testid="device-clear-all">
         Clear all on this device
       </Button>
     </div>

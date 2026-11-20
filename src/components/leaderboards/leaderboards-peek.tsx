@@ -11,13 +11,14 @@ import { RowLink } from "@/components/ui/data-list";
   profile (MemberCell's `nameHref`). On the public boards, which link nowhere, nothing of this is used.
 */
 
-const PeekContext = React.createContext<((id: string) => PlayerPeekRow) | null>(null);
+const PeekContext = React.createContext<{ row: (id: string) => PlayerPeekRow; ids: ReadonlySet<string> } | null>(null);
 
 export function LeaderboardsPeek({ ids, names, viewerPlayerId, children }: { ids: string[]; names: Array<[string, string]>; viewerPlayerId: string | null; children: React.ReactNode }) {
   const nameMap = React.useMemo(() => new Map(names), [names]);
   const { row, panel } = usePlayerPeek({ ids, names: nameMap, viewerPlayerId });
+  const value = React.useMemo(() => ({ row, ids: new Set(ids) }), [row, ids]);
   return (
-    <PeekContext.Provider value={row}>
+    <PeekContext.Provider value={value}>
       {children}
       {panel}
     </PeekContext.Provider>
@@ -26,16 +27,17 @@ export function LeaderboardsPeek({ ids, names, viewerPlayerId, children }: { ids
 
 /** A member row's press: the player Peek (a link to the row's address with `?player=`), laid over the row as RowLink is. */
 export function PeekRowLink({ playerId, name, profileHref, hint, testId }: { playerId: string; name: string; /** Where the row goes without a Peek on the page (a board drawn on its own): the profile. */ profileHref: string; /** The row's tooltip, shown on hover, never read out. */ hint?: string; testId?: string }) {
-  const rowOf = React.useContext(PeekContext);
-  if (!rowOf)
+  const peek = React.useContext(PeekContext);
+  // No Peek on the page (a board drawn on its own), or none for this member (no main role yet): the row opens the profile.
+  if (!peek || !peek.ids.has(playerId))
     return (
       <RowLink href={profileHref} prefetch={false} hint={hint}>
         {name}
       </RowLink>
     );
-  const r = rowOf(playerId);
+  const r = peek.row(playerId);
   return (
-    <a href={r.href} onClick={r.onClick} aria-current={r.selected ? "true" : undefined} className="absolute inset-0 z-[1] rounded-[inherit] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent" data-row-link="" data-peek-open="" data-player-id={playerId} data-selected={r.selected || undefined} data-testid={testId ?? "board-peek-open"}>
+    <a href={r.href} onClick={r.onClick} aria-current={r.selected ? "true" : undefined} className="absolute inset-0 z-[1] rounded-[inherit] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent" data-row-link="" data-peek-open="" data-peek-row={playerId} data-player-id={playerId} data-selected={r.selected || undefined} data-testid={testId ?? "board-peek-open"}>
       <span className="sr-only">Quick look: {name}</span>
       {hint ? <span aria-hidden title={hint} className="absolute inset-0 rounded-[inherit]" /> : null}
     </a>

@@ -74,7 +74,7 @@
    "frame": 0.24,
    "frameScrolled": 0.24,
    "small": 0,
-   "why": "Release 6 (S9b): 'Sign out of other devices', 109px; S8a (20 Nov 2026): 'On this device' (DIRECTIVE §7.2c), what this browser remembers with Clear, about 400px; measured 2.27 at i15 and 7.10 at se1 150%."
+   "why": "Release 6 (S9b): 'Sign out of other devices', 109px; S8a (20 Nov 2026): 'On this device' (DIRECTIVE §7.2c), what this browser remembers with Clear, about 400px (more at large text, where its lines and button wrap); measured 2.27 at i15 and 7.52 at se1 150%."
   },
   "a-dash@i15-100": {
    "screens": 2.27,
@@ -117,7 +117,7 @@
    "frame": 0.24,
    "frameScrolled": 0.24,
    "small": 0,
-   "why": "Release 6 (S9b): 'Sign out of other devices', 109px; S8a (20 Nov 2026): 'On this device' (DIRECTIVE §7.2c), what this browser remembers with Clear, about 400px; measured 2.27 at i15 and 7.10 at se1 150%."
+   "why": "Release 6 (S9b): 'Sign out of other devices', 109px; S8a (20 Nov 2026): 'On this device' (DIRECTIVE §7.2c), what this browser remembers with Clear, about 400px (more at large text, where its lines and button wrap); measured 2.27 at i15 and 7.52 at se1 150%."
   },
   "team@se1-150": {
    "screens": 2.78,
@@ -188,11 +188,11 @@
    "why": "S8a (20 Nov 2026): each site's host on a line of its own (UD.R1: beside the title it was cut), a line more on every row; measured 1.81 at i15 and 5.94 at se1 150%."
   },
   "settings@se1-150": {
-   "screens": 7.25,
+   "screens": 7.68,
    "frame": 0.33,
    "frameScrolled": 0.04,
    "small": 0,
-   "why": "Release 6 (S9b): 'Sign out of other devices', 109px; S8a (20 Nov 2026): 'On this device' (DIRECTIVE §7.2c), what this browser remembers with Clear, about 400px; measured 2.27 at i15 and 7.10 at se1 150%."
+   "why": "Release 6 (S9b): 'Sign out of other devices', 109px; S8a (20 Nov 2026): 'On this device' (DIRECTIVE §7.2c), what this browser remembers with Clear, about 400px (more at large text, where its lines and button wrap); measured 2.27 at i15 and 7.52 at se1 150%."
   },
   "a-dash@se1-150": {
    "screens": 7.18,
@@ -231,11 +231,11 @@
    "small": 0
   },
   "a-settings@se1-150": {
-   "screens": 7.25,
+   "screens": 7.68,
    "frame": 0.33,
    "frameScrolled": 0.04,
    "small": 0,
-   "why": "Release 6 (S9b): 'Sign out of other devices', 109px; S8a (20 Nov 2026): 'On this device' (DIRECTIVE §7.2c), what this browser remembers with Clear, about 400px; measured 2.27 at i15 and 7.10 at se1 150%."
+   "why": "Release 6 (S9b): 'Sign out of other devices', 109px; S8a (20 Nov 2026): 'On this device' (DIRECTIVE §7.2c), what this browser remembers with Clear, about 400px (more at large text, where its lines and button wrap); measured 2.27 at i15 and 7.52 at se1 150%."
   }
  }
 }

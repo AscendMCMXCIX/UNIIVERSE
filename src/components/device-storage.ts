@@ -63,9 +63,11 @@ export function deviceBase(id: DeviceItem["id"]): string {
   return DEVICE_ITEMS.find((i) => i.id === id)!.base;
 }
 
+/** (Storage is read inside each try: a browser that blocks site data throws on `window.localStorage` itself.) */
 /** What an item holds in this browser now: its summary, or null (nothing stored, or storage unavailable). */
-export function readDeviceItem(item: DeviceItem, storage: Pick<Storage, "getItem"> = window.localStorage): string | null {
+export function readDeviceItem(item: DeviceItem, storage?: Pick<Storage, "getItem">): string | null {
   try {
+    storage ??= window.localStorage;
     const raw = storage.getItem(deviceKey(item));
     return raw === null ? null : item.describe(raw);
   } catch {
@@ -77,8 +79,9 @@ export function readDeviceItem(item: DeviceItem, storage: Pick<Storage, "getItem
  * "Clear all on this device": every item, for every account that used this browser (each
  * per-account key, "<base>:<marker>", and the base itself), not only the signed-in account's.
  */
-export function clearAllOnDevice(storage: Pick<Storage, "removeItem" | "key" | "length"> = window.localStorage): void {
+export function clearAllOnDevice(storage?: Pick<Storage, "removeItem" | "key" | "length">): void {
   try {
+    storage ??= window.localStorage;
     const keys: string[] = [];
     for (let i = 0; i < storage.length; i++) {
       const k = storage.key(i);
@@ -91,8 +94,9 @@ export function clearAllOnDevice(storage: Pick<Storage, "removeItem" | "key" | "
 }
 
 /** Forgets an item in this browser (this account's, for a per-account item). Other tabs hear it through the storage event. */
-export function clearDeviceItem(item: DeviceItem, storage: Pick<Storage, "removeItem"> = window.localStorage): void {
+export function clearDeviceItem(item: DeviceItem, storage?: Pick<Storage, "removeItem">): void {
   try {
+    storage ??= window.localStorage;
     storage.removeItem(deviceKey(item));
   } catch {
     // Storage unavailable: nothing is kept to forget.

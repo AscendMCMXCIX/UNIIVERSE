@@ -99,6 +99,13 @@ for (const phone of PHONES) {
       for (const at of [0, 0.5, 1]) {
         const where = `${path}, scrolled ${at * 100}%`;
         await page.evaluate((f) => window.scrollTo(0, (document.documentElement.scrollHeight - innerHeight) * f), at);
+        // Under 700px tall the bar's first row slides away as the page scrolls down (MobileNav): a little back up brings it
+        // back, as a reader reaches it, so the avatar is on the screen (a tap on it off the screen would scroll the page).
+        if (at > 0) {
+          await page.waitForTimeout(100);
+          await page.evaluate(() => window.scrollBy(0, -20));
+          await expect(page.getByTestId("mobile-topbar")).not.toHaveAttribute("data-hidden", "row");
+        }
         const scrolled = await page.evaluate(() => scrollY);
         await openScreen(page);
         const l = await layout(page);

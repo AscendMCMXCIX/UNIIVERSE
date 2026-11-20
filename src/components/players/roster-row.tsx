@@ -58,7 +58,7 @@ export interface RosterRowProps {
    * `?player=`), its press handled by the page's Peek, and the name stays a link to the profile
    * (`href` above). `selected`: this row's player is the one open.
    */
-  peek?: { href: string; onClick: (e: React.MouseEvent<HTMLAnchorElement>) => void; selected: boolean };
+  peek?: { id: string; href: string; onClick: (e: React.MouseEvent<HTMLAnchorElement>) => void; selected: boolean };
   /**
    * Which screen the row is drawn for: "any" follows the screen (the art strip and the links from
    * tablets up, as on Players); a preview shows one look whatever the screen: "wide" (tablets and
@@ -187,7 +187,7 @@ export function RosterRow({ look, art, name, avatarUrl, role, offRoles, offRoleS
       {isYou ? <span className="absolute inset-y-0 left-0 w-0.5 bg-accent" aria-hidden /> : null}
       {peek ? (
         // The row's press: the player Peek over the list (its address for a new tab, or before the page's code has run).
-        <a href={peek.href} onClick={peek.onClick} aria-current={peek.selected ? "true" : undefined} className="absolute inset-0 z-[1] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent" data-testid="player-peek-open" data-player-name={name} data-row-link="">
+        <a href={peek.href} onClick={peek.onClick} aria-current={peek.selected ? "true" : undefined} data-peek-row={peek.id} className="absolute inset-0 z-[1] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent" data-testid="player-peek-open" data-player-name={name} data-row-link="">
           <span className="sr-only">Quick look: {name}</span>
         </a>
       ) : href ? (

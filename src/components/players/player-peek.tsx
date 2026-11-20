@@ -22,6 +22,8 @@ import type { PlayerPeekData } from "@/server/team/player-peek";
 type Loaded = { status: "ok"; data: PlayerPeekData } | { status: "not-found"; message: string };
 
 export interface PlayerPeekRow {
+  /** The player (the row's data-peek-row: where the keyboard's focus goes back to, and where up and down move it). */
+  id: string;
   /** The row's Peek props (RosterRow's `peek`, or the Leaderboards row's own link). */
   href: string;
   onClick: (e: React.MouseEvent<HTMLAnchorElement>) => void;
@@ -62,6 +64,7 @@ export function usePlayerPeek({ ids, names, viewerPlayerId, canEditPlayer }: { i
   );
   const row = React.useCallback(
     (rowId: string): PlayerPeekRow => ({
+      id: rowId,
       href: hrefOf(rowId),
       onClick: (e) => {
         // A click that asks for another tab or window is the browser's.

@@ -87,14 +87,14 @@ const MULTIKILLS_PLACE = "@min-[59rem]/dash:@max-[86rem]/dash:col-[2/3] @min-[59
 /** The milestones: under the multikills from 59rem; from 86rem under Recent form, in its column. */
 const MILESTONES_PLACE = "@min-[59rem]/dash:col-[2/3] @min-[59rem]/dash:row-[3/4] @min-[86rem]/dash:col-[1/2] @min-[86rem]/dash:row-[2/3]";
 
-export function LeaderboardsDashboard({ view, champions, status }: { view: LeaderboardsView; champions: Record<string, PortraitChampion>; /** The members' page: the team's data status. */ status?: DataStatus | null }) {
+export function LeaderboardsDashboard({ view, champions, status, peekable }: { view: LeaderboardsView; /** The members' page: who has a player Peek (a main role chosen); the other rows open the profile. */ peekable?: readonly string[]; champions: Record<string, PortraitChampion>; /** The members' page: the team's data status. */ status?: DataStatus | null }) {
   const player = (id: string) => view.players[id]!;
   const champ = (id: string | null) => (id ? (champions[id] ?? { id, name: id, portraitUrl: "" }) : null);
   const updated = view.lastUpdated ? formatDateTime(view.lastUpdated) : null;
   // The player Peek on member rows (members' page only: the public boards link nowhere): Recent form's order, then the rest.
   const linked = Object.values(view.players).filter((p) => p.profileHref);
   const formOrder = [...view.form.rows.map((r) => r.playerId), ...view.form.notEnough.map((r) => r.playerId)];
-  const peekIds = [...new Set([...formOrder, ...linked.map((p) => p.id)])].filter((id) => view.players[id]?.profileHref);
+  const peekIds = [...new Set([...formOrder, ...linked.map((p) => p.id)])].filter((id) => view.players[id]?.profileHref && (peekable ?? []).includes(id));
   const peekNames = linked.map((p): [string, string] => [p.id, p.name]);
   return (
     <LeaderboardsRoot className="@container/dash mx-auto flex w-full max-w-[var(--content-wide)] flex-col gap-4">
