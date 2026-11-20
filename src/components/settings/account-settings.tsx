@@ -106,8 +106,10 @@ export async function AccountSettings({ mode }: { mode: "player" | "admin" }) {
     // before), and the account column at most 40% of it: at 175–200% text on a tablet or desktop the
     // 15–16rem column left the panels too little room (a sideways scroll, Release 7's report), and
     // beside a 16rem sidebar the page is about 12rem at 1024 × 200%. With less, one column, as a phone's.
-    <div className="@container/settings">
-      <div className="mx-auto grid max-w-5xl gap-3 sm:@min-[36rem]/settings:grid-cols-[min(15rem,40%)_minmax(0,1fr)] sm:@min-[36rem]/settings:grid-rows-[auto_1fr] sm:gap-x-5 sm:gap-y-4 md:gap-x-6 md:gap-y-5 lg:@min-[36rem]/settings:grid-cols-[min(16rem,40%)_minmax(0,1fr)]">
+    // The width and the centring on the outer box: it is the frame's child, which the frame starts at
+    // its left edge (app-shell's `*:ml-0`, UD.X3), as every other page.
+    <div className="@container/settings mx-auto max-w-5xl">
+      <div className="grid gap-3 sm:@min-[36rem]/settings:grid-cols-[min(15rem,40%)_minmax(0,1fr)] sm:@min-[36rem]/settings:grid-rows-[auto_1fr] sm:gap-x-5 sm:gap-y-4 md:gap-x-6 md:gap-y-5 lg:@min-[36rem]/settings:grid-cols-[min(16rem,40%)_minmax(0,1fr)]">
       <PageHeader className="sm:@min-[36rem]/settings:col-start-2 sm:@min-[36rem]/settings:row-start-1 lg:@min-[36rem]/settings:col-span-2 lg:@min-[36rem]/settings:col-start-1" title="Settings" description="Your picture, display name, username and password." guide />
 
       <section aria-label="Your account" className="surface-lead @container grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-3 rounded-panel border border-border bg-surface p-3 sm:@min-[36rem]/settings:col-start-1 sm:@min-[36rem]/settings:row-span-2 sm:@min-[36rem]/settings:row-start-1 sm:@min-[36rem]/settings:self-start lg:@min-[36rem]/settings:row-span-1 lg:@min-[36rem]/settings:row-start-2 sm:p-4 md:not-short:@min-[36rem]/settings:sticky md:not-short:@min-[36rem]/settings:top-[calc(var(--bar-top)+1rem)]" data-testid="settings-account">
