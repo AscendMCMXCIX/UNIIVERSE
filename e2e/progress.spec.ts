@@ -262,16 +262,23 @@ test("on a phone Ranked progress's header never lets the queue switch cover the 
   await page.goto(await profileOf(page, "Demo Top"));
   const ranked = page.getByTestId("ranked-progress");
   await expect(ranked).toBeVisible();
-  // The narrowest phone, default text and larger: the switch beside the title while even the
-  // wrapped title ("Ranked", "progress ⓘ") fits there, under it otherwise, never over the ⓘ or a word.
-  await page.setViewportSize({ width: 320, height: 640 });
-  for (const size of ["100%", "125%", "150%"]) {
-    await page.evaluate((s) => { document.documentElement.style.fontSize = s; }, size);
-    const clash = await headerClash(ranked);
-    expect(clash.lines, `${size} text: the title's words measured`).toBeGreaterThan(0);
-    expect(clash.tip, `${size} text: the ⓘ clear of the queue switch`).toBe(0);
-    expect(clash.words, `${size} text: the title's words clear of the queue switch`).toBe(0);
-    if (size === "100%") expect(clash.oneRow, "320, default text: the switch on the title's row").toBe(true);
+  // The narrowest phone and a wide one, default text and larger: the switch beside the title while
+  // even the wrapped title ("Ranked", "progress ⓘ") fits there, under it otherwise, never over the ⓘ
+  // or a word. The ⓘ measured is its touch area, 44px on a touch screen: it reaches about 0.7rem
+  // under the title's line, and 0.875rem past the mark beside the switch (430 wide at 150%, where the
+  // title ends in its ⓘ; on Release 6 before the header's touch gaps the switch sat 6.5px into it at
+  // 320 with 125% text, 7.5px at 150%, and 0.7px beside it at 430 with 150%).
+  for (const width of [320, 430]) {
+    await page.setViewportSize({ width, height: 640 });
+    for (const size of ["100%", "125%", "150%", "200%"]) {
+      await page.evaluate((s) => { document.documentElement.style.fontSize = s; }, size);
+      const clash = await headerClash(ranked);
+      const at = `${width}, ${size} text`;
+      expect(clash.lines, `${at}: the title's words measured`).toBeGreaterThan(0);
+      expect(clash.tip, `${at}: the ⓘ clear of the queue switch`).toBe(0);
+      expect(clash.words, `${at}: the title's words clear of the queue switch`).toBe(0);
+      if (size === "100%") expect(clash.oneRow, `${width}, default text: the switch on the title's row`).toBe(true);
+    }
   }
   await page.evaluate(() => { document.documentElement.style.fontSize = ""; });
 });
