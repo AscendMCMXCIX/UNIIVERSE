@@ -32,10 +32,12 @@ async function teammate(page: Page): Promise<string> {
   return `/players/${await page.getByTestId("lineup-row-TOP").getAttribute("data-player-id")}`;
 }
 
-/** Where a profile section starts on a phone: the profile card's bottom edge, less the top bar (docs/MOBILE.md). */
+/** Where a profile section starts on a phone: the profile card's bottom edge, less the top bar; the page's top where the band rides in the bar (the sections other than the Overview, S2b; docs/MOBILE.md). */
 const sectionTop = (page: Page) =>
   page.evaluate(() => {
-    const card = document.querySelector("[data-testid=profile-header]")!.getBoundingClientRect();
+    const el = document.querySelector("[data-testid=profile-header]")!;
+    if (!el.getClientRects().length) return 0;
+    const card = el.getBoundingClientRect();
     return Math.round(card.bottom + window.scrollY - document.querySelector<HTMLElement>("[data-testid=mobile-topbar]")!.offsetHeight);
   });
 
@@ -70,12 +72,13 @@ test("phone: a section chosen far down a profile starts at its top, just under t
   await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
   await settled("Overview → History");
 
-  // From a section sitting exactly at its top (the band just under the bar), the next one starts at
-  // its own top too: the Overview's card is taller than the band, so the place differs.
+  // From a section sitting at its top, which on a phone is the page's top (its band rides in the bar,
+  // S2b), the Overview opens at the page's top too, its card in view.
   await tapInPlace(page, tabs.getByRole("link", { name: "Overview" }));
   await expect(page).toHaveURL(new RegExp(`${profile}$`));
   await expect(page.getByTestId("season-summary")).toBeVisible();
-  await settled("History at its top → Overview");
+  await page.waitForTimeout(600);
+  expect(await page.evaluate(() => window.scrollY), "History at its top → Overview: the page's top").toBe(0);
 
   await tapInPlace(page, tabs.getByRole("link", { name: "History" }));
   await expect(page).toHaveURL(new RegExp(`${profile}/matches$`));

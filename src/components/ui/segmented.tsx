@@ -14,13 +14,14 @@ import { cn } from "@/lib/cn";
 
 /** The group around the segments. Give it role="radiogroup" (or a nav) and a label. */
 export function segmentedGroupClass(className?: string): string {
-  return cn("inline-flex max-w-full items-center gap-0.5 overflow-x-auto rounded-lg border border-border-control bg-bg-elevated p-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden", className);
+  // On touch screens the 44px segments fill the group (its hairline drawn inside), so the group stays 44px, the height of the fields and chips beside it.
+  return cn("inline-flex max-w-full items-center gap-0.5 overflow-x-auto rounded-lg border border-border-control bg-bg-elevated p-0.5 [scrollbar-width:none] pointer-coarse:border-0 pointer-coarse:p-0 pointer-coarse:ring-1 pointer-coarse:ring-inset pointer-coarse:ring-border-control [&::-webkit-scrollbar]:hidden", className);
 }
 
 /**
  * One segment: 30px tall with a mouse, so the group around it is 36px, the height of a field or a
- * chip beside it; 44px on touch screens, a finger's target (the group 48px there: the 38px segments
- * before were under the 44px rule, docs/overhaul UM.TT1). `md`: the main filter of a list's toolbar (Encounters'
+ * chip beside it; 44px on touch screens, a finger's target, filling the group there (44px too: the
+ * 38px segments before were under the 44px rule, UM.TT1). `md`: the main filter of a list's toolbar (Encounters'
  * All, Against and Alongside), in the body text size, at the same height.
  */
 export function segmentClass(active: boolean, opts: { disabled?: boolean; className?: string; size?: "sm" | "md" } = {}): string {

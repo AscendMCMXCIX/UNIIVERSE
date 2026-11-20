@@ -400,7 +400,8 @@ test("the boards' ⓘ bubbles at 200% text on 375 and 320px phones: never taller
       }
       // A tap closes it: on the bubble where it takes the pointer, as anywhere else.
       if (f.scrolls) await bubble.tap({ position: { x: 20, y: 20 } });
-      else await page.getByRole("heading", { level: 1 }).tap();
+      // Anywhere else on the page: the scope line (the h1 is read out only on phones, the sections row naming the page).
+      else await page.getByTestId("scope-count").tap();
       await expect(bubble, `${at}: ${id} closed by a tap`).toHaveCount(0);
     }
   }

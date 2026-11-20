@@ -157,7 +157,7 @@ export function UsernameEditor({ username }: { username: string }) {
 const PICTURE_HELP = (
   <>
     Optional. PNG, JPEG or WebP, cropped to a square.{" "}
-    <InfoTip label="Who sees the picture" text={`Teammates see it, and it shows ${ON_THE_PUBLIC_PAGE}. Change it from My Profile too.`} testId="avatar-help-info" />
+    <InfoTip label="Who sees the picture" text={`Shown to teammates, and ${ON_THE_PUBLIC_PAGE}. Change it from My Profile too.`} testId="avatar-help-info" />
   </>
 );
 

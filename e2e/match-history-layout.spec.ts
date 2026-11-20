@@ -46,6 +46,13 @@ test("the profile card is a compact band on the other sections and in full on th
   for (const section of ["matches", "champions", "accounts"]) {
     await page.goto(`${profile}/${section}`);
     await expect(header).toHaveAttribute("data-compact");
+    // An upright phone: the band is in the top bar (the name over the rank), none in the page (S2b).
+    if ((page.viewportSize()?.width ?? 1440) < 768) {
+      await expect(header).toBeHidden();
+      await expect(page.getByTestId("profile-bar-title").getByRole("heading", { level: 1 })).toBeVisible();
+      await expect(page.getByTestId("profile-bar-rank")).toBeVisible();
+      continue;
+    }
     // The name, the role and the rank stay; the band is far shorter than the card.
     await expect(header.getByRole("heading", { level: 1 })).toBeVisible();
     await expect(header.getByTestId("profile-rank")).toBeVisible();

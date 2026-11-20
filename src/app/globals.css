@@ -781,6 +781,8 @@ p a.text-accent {
   /* And their members' pictures (/api/avatars), each keeping its round place (a card's picture is 3.5rem). */
   [data-art-wait] > [data-art-later] [data-testid=card-identity] [data-avatar-frame] { min-width: 3.5rem; min-height: 3.5rem; }
   [data-art-wait] > [data-art-later] [data-testid=card-identity] [data-avatar-frame] img { display: none; }
+  /* The lineup pager's other pictures (S3a), each keeping its round place (the 2rem disc under it). */
+  [data-art-wait] > [data-art-later] [data-testid=lineup-dot-picture] img { display: none; }
 }
 .flip-card { perspective: 1800px; }
 .flip-card-inner { transform-style: preserve-3d; }
@@ -836,5 +838,7 @@ body:has([data-testid=mobile-topbar][data-hidden=row]:not(:focus-within)) [data-
     [data-sideways-row] [data-testid=card-season] > :not(dl),
     [data-sideways-row] [data-card-pool] { display: none; }
     [data-sideways-row] [data-testid=card-fit] { margin-top: 0.25rem; }
+    /* The name keeps clear of the card's corner controls (the turn control, Customise), which stand over the art's top right. */
+    [data-sideways-row] article:has(> [data-card-overlay] > *) [data-testid=card-identity] > :nth-child(2) { display: block; padding-right: 2.75rem; }
   }
 }

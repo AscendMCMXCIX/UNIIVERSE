@@ -43,7 +43,7 @@ for (const [setup, text] of [["i15", 100], ["se1", 150]] as const) {
       for (const key of Object.keys(PAGES).filter((k) => !!PAGES[k]!.admin === admin)) {
         const id = `${key}@${setup}-${text}`;
         const figures = await openAndMeasure(page, BASE, key, playerId);
-        for (const problem of overBudget(figures, CEILINGS[id])) over.push(`${id}: ${problem}`);
+        for (const problem of overBudget(figures, CEILINGS[id], { height: !PAGES[key]!.data })) over.push(`${id}: ${problem}`);
       }
       await page.context().close();
     }

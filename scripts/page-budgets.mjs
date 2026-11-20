@@ -34,12 +34,15 @@ export const TEXT_SIZES = [100, 125, 150, 200];
 /**
  * The pages, by key: Player Mode's, a teammate's profile (its id found on Players), and Admin
  * Mode's (the `uniiverse_view=admin` cookie). `{player}` is replaced by a demo player's id.
+ * `data`: the page's height grows with what the demo holds (members, games together, the audit
+ * log), which other specs add to in the same run: CI holds its frame, overflow and targets, and
+ * its height only in the full matrix, on a fresh demo.
  */
 export const PAGES = {
   team: { path: "/team" },
-  players: { path: "/players" },
-  leaderboards: { path: "/leaderboards" },
-  matches: { path: "/matches" },
+  players: { data: true, path: "/players" },
+  leaderboards: { data: true, path: "/leaderboards" },
+  matches: { data: true, path: "/matches" },
   "p-overview": { path: "/players/{player}" },
   "p-champions": { path: "/players/{player}/champions" },
   "p-history": { path: "/players/{player}/matches" },
@@ -48,12 +51,12 @@ export const PAGES = {
   intel: { path: "/resources/matchups" },
   resources: { path: "/resources" },
   settings: { path: "/settings" },
-  "a-dash": { path: "/admin", admin: true },
-  "a-people": { path: "/admin/people", admin: true },
+  "a-dash": { data: true, path: "/admin", admin: true },
+  "a-people": { data: true, path: "/admin/people", admin: true },
   "a-branding": { path: "/admin/branding", admin: true },
-  "a-system": { path: "/admin/system", admin: true },
-  "a-data": { path: "/admin/data", admin: true },
-  "a-audit": { path: "/admin/audit", admin: true },
+  "a-system": { data: true, path: "/admin/system", admin: true },
+  "a-data": { data: true, path: "/admin/data", admin: true },
+  "a-audit": { data: true, path: "/admin/audit", admin: true },
   "a-settings": { path: "/admin/settings", admin: true },
 };
 
@@ -144,10 +147,10 @@ export async function openAndMeasure(page, base, key, playerId) {
 }
 
 /** A figure over its ceiling (ceilings: e2e/page-budgets.json). Sideways overflow has no ceiling but 0. */
-export function overBudget(figures, ceiling) {
+export function overBudget(figures, ceiling, { height = true } = {}) {
   const out = [];
   if (figures.overflow > 0) out.push(`overflow ${figures.overflow}px`);
   if (!ceiling) return out;
-  for (const k of ["screens", "frame", "frameScrolled", "small"]) if (ceiling[k] !== undefined && figures[k] > ceiling[k]) out.push(`${k} ${figures[k]} > ${ceiling[k]}`);
+  for (const k of height ? ["screens", "frame", "frameScrolled", "small"] : ["frame", "frameScrolled", "small"]) if (ceiling[k] !== undefined && figures[k] > ceiling[k]) out.push(`${k} ${figures[k]} > ${ceiling[k]}`);
   return out;
 }

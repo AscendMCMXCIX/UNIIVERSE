@@ -416,7 +416,8 @@ function land(target: Element | null) {
   const over = document.elementFromPoint(at.left + Math.min(16, at.width / 2), at.top + 1);
   if (!over || target.contains(over) || over.contains(target)) return;
   const covered = over.getBoundingClientRect().bottom - at.top;
-  if (covered > 0) window.scrollBy({ top: -covered, behavior: "instant" });
+  // Whole pixels, rounded up: a bar at a fractional edge (the status bar's inset) would otherwise keep a hairline over the target.
+  if (covered > 0) window.scrollBy({ top: -Math.ceil(covered + 0.5), behavior: "instant" });
 }
 
 /** Done, at the sheet's foot: closes it the way the close button does, with the sheet's motion. */

@@ -76,10 +76,11 @@ const SIZERS = "invisible hidden max-h-[2lh] overflow-hidden @xl/lineup:grid [&>
  * `showRank={false}` leaves the rank out entirely (not "Unranked"): for viewers who may not see the
  * player's statistics.
  */
-export function CardIdentity({ look, name, avatarUrl, rank, showRank = true, isYou = false, status, role, size = "lg", nameClassName, tag, social, layout = "stack", align, phoneSide = false }: { look: CardLook | null | undefined; name: string; avatarUrl: string | null; rank: CompactRank | null; showRank?: boolean; isYou?: boolean; status?: "main" | "off" | null; role?: Role | null; size?: "md" | "lg"; nameClassName?: string; /** One more label after the role status (the Team card's substitute side). */ tag?: React.ReactNode; /** The player's social icons (CardSocialIcons), on the picture's row. */ social?: React.ReactNode; layout?: "stack" | "side"; /** Everyone the lineup can show, to keep cards side by side level. */ align?: ReadonlyArray<{ name: string; look: CardLook }>; /** The members' Team lineup on a phone (its track: under 36rem of lineup): the picture beside the name and labels, a shorter card (PHONE_SIDE). */ phoneSide?: boolean }) {
+export function CardIdentity({ look, name, avatarUrl, rank, showRank = true, isYou = false, status, role, size = "lg", nameClassName, tag, social, layout = "stack", align, phoneSide = false }: { look: CardLook | null | undefined; name: string; avatarUrl: string | null; rank: CompactRank | null; showRank?: boolean; isYou?: boolean; status?: "main" | "off" | null; role?: Role | null; size?: "md" | "lg"; nameClassName?: string; /** One more label after the role status (the Team card's substitute side). */ tag?: React.ReactNode; /** The player's social icons (CardSocialIcons), on the picture's row. */ social?: React.ReactNode; layout?: "stack" | "side"; /** Everyone the lineup can show, to keep cards side by side level. */ align?: ReadonlyArray<{ name: string; look: CardLook }>; /** The members' Team lineup on a phone (its track: under 36rem of lineup): the picture beside the name and labels, a shorter card (PHONE_SIDE); "control": the card has one control in its corner, which the name keeps clear of. */ phoneSide?: boolean | "control" }) {
   const avatar = (
     <span className="relative shrink-0">
-      <CardAvatar look={look} name={name} src={avatarUrl} size={size} />
+      {/* Under 12rem of card (five across from a 56rem lineup; larger text on a phone) the picture is 44px, so three links still share its row; 44px too beside the name on a phone (PHONE_SIDE). */}
+      <CardAvatar look={look} name={name} src={avatarUrl} size={size} className={size === "lg" ? cn("@max-[12rem]/card:[&>*]:size-11", phoneSide && "@max-xl/lineup:@min-[15rem]/card:[&>*]:size-11") : undefined} />
       {isYou ? (
         <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 rounded-full bg-accent px-1.5 text-2xs font-bold uppercase leading-4 tracking-wide text-bg shadow-sm shadow-black/40" data-testid="card-you">
           You
@@ -149,8 +150,8 @@ export function CardIdentity({ look, name, avatarUrl, rank, showRank = true, isY
         {avatar}
         {links}
       </span>
-      {side ? <span className={side.name}>{nameSlot}</span> : nameSlot}
-      {side ? <span className={side.rest}>{labels}</span> : labels}
+      {side ? <span className={cn(side.name, phoneSide === "control" && side.nameRoom)}>{nameSlot}</span> : nameSlot}
+      {side ? <span className={side.labels}>{labels}</span> : labels}
       {side ? <span className={side.rest}>{taglineSlot}</span> : taglineSlot}
     </span>
   );
@@ -158,17 +159,22 @@ export function CardIdentity({ look, name, avatarUrl, rank, showRank = true, isY
 
 /**
  * The members' Team card on a phone, while the lineup is a track (under 36rem of lineup, its
- * `@container/lineup`): the picture beside the name, the labels and the tagline under the name, and
- * the social links at the name's end, so the card is 60–70px shorter and the whole first card fits
- * a 393 × 659 screen (docs/MOBILE.md, "Team Overview on a phone"; UM.T1). The grid's cells: the
- * picture's row gives way (display: contents), the picture spans the rows, the links take the third
- * column of the first. Wider lineups (a tablet, a desktop, a phone held sideways) keep the stack.
+ * `@container/lineup`): the picture (44px) beside the name, the labels and the tagline under the
+ * name, so the card is 60–70px shorter and the whole first card fits 393 × 659 and 375 × 667
+ * (docs/MOBILE.md, "Team Overview on a phone"; UM.T1). The grid's cells: the picture's row gives way
+ * (display: contents) and the picture spans the rows. The social links are in the player's window
+ * there, one tap away: beside the name they left it a few letters on a 375px phone. A card with
+ * two controls (your own, with a substitute) keeps the stack. Wider lineups (a tablet, a desktop, a phone held sideways) keep the stack,
+ * and so does a card under 15rem (larger text: beside the picture the name would have a few letters a line).
  */
 const PHONE_SIDE = {
-  root: "@max-xl/lineup:grid @max-xl/lineup:grid-cols-[auto_minmax(0,1fr)_auto] @max-xl/lineup:items-center @max-xl/lineup:gap-x-3",
-  row: "@max-xl/lineup:contents @max-xl/lineup:[&>:first-child]:row-span-3 @max-xl/lineup:[&>:first-child]:self-center @max-xl/lineup:[&>[data-testid=card-identity-social]]:col-start-3 @max-xl/lineup:[&>[data-testid=card-identity-social]]:row-start-1",
-  name: "min-w-0 @max-xl/lineup:col-start-2 @max-xl/lineup:row-start-1",
-  rest: "min-w-0 @max-xl/lineup:col-start-2 @max-xl/lineup:col-end-4 @max-xl/lineup:[&>[data-testid=card-fit]]:mt-1",
+  root: "@max-xl/lineup:@min-[15rem]/card:grid @max-xl/lineup:@min-[15rem]/card:grid-cols-[auto_minmax(0,1fr)] @max-xl/lineup:@min-[15rem]/card:items-center @max-xl/lineup:@min-[15rem]/card:gap-x-3",
+  row: "@max-xl/lineup:@min-[15rem]/card:contents @max-xl/lineup:@min-[15rem]/card:[&>:first-child]:row-span-3 @max-xl/lineup:@min-[15rem]/card:[&>:first-child]:self-center @max-xl/lineup:@min-[15rem]/card:[&>[data-testid=card-identity-social]]:hidden",
+  name: "min-w-0 @max-xl/lineup:@min-[15rem]/card:col-start-2 @max-xl/lineup:@min-[15rem]/card:row-start-1",
+  /** Clear of the card's corner control (the turn control or Customise: 44px on touch) at its right end. */
+  nameRoom: "@max-xl/lineup:@min-[15rem]/card:pr-12",
+  labels: "min-w-0 @max-xl/lineup:@min-[15rem]/card:col-start-2 @max-xl/lineup:@min-[15rem]/card:row-start-2 @max-xl/lineup:@min-[15rem]/card:[&>[data-testid=card-fit]]:mt-1",
+  rest: "min-w-0 @max-xl/lineup:@min-[15rem]/card:col-start-2 @max-xl/lineup:@min-[15rem]/card:row-start-3",
 } as const;
 
 export interface SeasonFigures {

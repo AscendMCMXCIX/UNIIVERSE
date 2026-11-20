@@ -249,13 +249,14 @@ export function InfoTip({ text, className, label, children, testId = "info-tip",
         }}
         onBlur={() => setOpen(false)}
         // The ⓘ is a 24px target (WCAG 2.5.8) around its 16px mark, with negative margins so the line
-        // around it keeps its size; on touch screens an invisible area makes it 44px. Wrapped text is
+        // around it keeps its size; on touch screens the button itself is 44px, its larger negative margins
+        // keeping the same 16px in the line (an invisible ::after before, which counted as overflow). Wrapped text is
         // 24px tall the same way, and gets no larger area: it often sits on a card that is itself a
         // link, which must keep its taps.
         className={cn(
           children
             ? "-my-1 inline-flex min-h-6 cursor-help items-center rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
-            : "group/tip relative -m-1 inline-flex h-6 w-6 shrink-0 cursor-help items-center justify-center rounded-full text-fg-subtle hover:text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:after:absolute pointer-coarse:after:-inset-2.5 pointer-coarse:after:content-['']",
+            : "group/tip relative -m-1 inline-flex h-6 w-6 shrink-0 cursor-help items-center justify-center rounded-full text-fg-subtle hover:text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:-m-3.5 pointer-coarse:h-11 pointer-coarse:w-11",
           className,
         )}
       >

@@ -419,7 +419,7 @@ Every phone page spends its first screen on content, not on saying where you are
   (`SectionHeader toolbarBesideScope`).
 - **No paragraphs**: Riot Accounts leads with "Main account first; every linked account adds its
   games", Settings' fields with one line each; the rest is behind an ⓘ, each tip 25 words or fewer.
-- **44px targets** on touch for every segment (`segmentClass`: the group is 48px there), ⓘ, tab link,
+- **44px targets** on touch for every segment (`segmentClass`, filling its 44px group), ⓘ, tab link,
   Team Matches' member names and the profile nudge.
 
 ### The frame slides away (S2b)

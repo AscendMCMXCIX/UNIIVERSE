@@ -134,7 +134,7 @@ Substitute side of the Team cards).
 | --- | --- |
 | under 36rem (phones upright) | one swipe track, a card at a time, under the lineup pager (members: each tab the player's picture with the role as its badge and the name under it; the public page: the role's icon and name); the card's picture beside the name |
 | 36–56rem (iPads, upright and landscape; a 1024px laptop with the sidebar open) | 3 + 2, capped at 54rem, the second row centred: never a card alone on a row |
-| a phone held sideways (480px tall or less, 36rem or wider) | five across, compact: art 96px, the name, rank and the season's three figures (the picture, tagline, record lines and pool in the player's window); under 36rem (larger text) a track of about two cards |
+| a phone held sideways (480px tall or less, 36rem or wider) | five across, compact: art at least 88px, the name, rank and the season's three figures (the picture with "You", the role status, tagline, links, record lines and pool in the player's window); under 36rem (larger text) a track of about two cards |
 | 56rem and up (a 1280px laptop with the sidebar open, and wider) | five across, capped at 84rem (S3a, 20 Nov 2026: 3 + 2 from 56 to 64rem before) |
 
 - **The header**, from `sm`: the logo (64px, 80px from `lg`) beside the accent "Team Overview"

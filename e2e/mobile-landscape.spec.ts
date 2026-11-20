@@ -353,38 +353,40 @@ test("held sideways, the avatar opens the account screen at every width, and Tea
   }
 });
 
-test("held upright: the tab bar stays and the top bar stays put", async ({ browser, baseURL }) => {
-  const page = await phone(browser, baseURL!, IPHONE);
-  await page.goto("/players");
-  await expect(playerEntry(page).first()).toBeVisible();
-  await expect(page.getByRole("navigation", { name: "Primary" })).toBeVisible();
-  await page.mouse.wheel(0, 700);
-  await page.waitForTimeout(300);
-  await expect(page.getByTestId("mobile-topbar")).toHaveAttribute("data-hidden", "false");
-  await done(page);
+test("held upright: a tall phone at the usual text size keeps both bars; under 700px tall the top bar's first row and the tab bar slide away and come back, the sections row pinned", async ({ browser, baseURL }) => {
+  for (const [viewport, slides] of [[{ width: 393, height: 852 }, false], [{ width: 375, height: 667 }, true]] as const) {
+    const page = await phone(browser, baseURL!, { ...IPHONE, viewport, screen: viewport });
+    await page.goto("/players");
+    await expect(playerEntry(page).first()).toBeVisible();
+    await expect(page.getByRole("navigation", { name: "Primary" })).toBeVisible();
+    await page.mouse.wheel(0, 700);
+    await page.waitForTimeout(400);
+    await expect(page.getByTestId("mobile-topbar")).toHaveAttribute("data-hidden", slides ? "row" : "false");
+    if (slides) {
+      // The sections row stays in view under the status bar; the tab bar has gone below the screen.
+      expect((await page.getByTestId("hub-sections-bar").boundingBox())!.y).toBeGreaterThanOrEqual(-1);
+      expect((await page.getByTestId("phone-tabbar").boundingBox())!.y).toBeGreaterThanOrEqual(viewport.height - 1);
+      await page.mouse.wheel(0, -200);
+      await expect(page.getByTestId("mobile-topbar")).toHaveAttribute("data-hidden", "false");
+    }
+    await done(page);
+  }
 });
 
-test("held sideways, Team Overview shows the lineup 2 + 2 + 1 as approved: no sideways track, no role bar, the 44px logo", async ({ browser, baseURL }) => {
-  // An iPhone 15 and an iPhone SE (3rd gen) held sideways. The first SE's 568px is too narrow for
-  // two cards side by side: there the lineup is the phone's track, as approved.
+test("held sideways, Team Overview shows the five cards in one compact row: no orphan, no sideways track, no pager, no logo (the bar carries it)", async ({ browser, baseURL }) => {
+  // An iPhone 15 and an iPhone SE (3rd gen) held sideways (S3a, 20 Nov 2026: 2 + 2 + 1 with the
+  // fifth alone before, UM.T3). The first SE's 568px is under 36rem of lineup: the phone's track.
   for (const device of [IPHONE_LANDSCAPE, devices["iPhone SE (3rd gen) landscape"]]) {
     const page = await phone(browser, baseURL!, device);
     await page.goto("/team");
     await expect(page.getByTestId("lineup-overview")).toHaveAttribute("data-ready", "true");
-    const { cells, track } = await lineupAtRest(page);
+    const { cells } = await lineupAtRest(page);
     const name = `${device.viewport.width} × ${device.viewport.height}`;
-    // Two rows of two cards and the fifth alone under them, centred: never one row of five.
-    expect(cells[1]!.top, `${name}: the first two side by side`).toBe(cells[0]!.top);
-    expect(cells[3]!.top, `${name}: the next two side by side`).toBe(cells[2]!.top);
-    expect(cells[2]!.top, `${name}: the second row under the first`).toBeGreaterThan(cells[0]!.top);
-    expect(cells[4]!.top, `${name}: the fifth under them`).toBeGreaterThan(cells[2]!.top);
-    expect(Math.abs(cells[4]!.x + cells[4]!.width / 2 - (track.x + track.width / 2)), `${name}: the fifth centred`).toBeLessThanOrEqual(2);
-    // The track does not scroll sideways, and there is no role bar to move along it.
+    expect(new Set(cells.map((c) => Math.round(c.top))).size, `${name}: one row of five`).toBe(1);
     expect(await page.getByTestId("lineup-overview").evaluate((el) => el.scrollWidth <= el.clientWidth + 1), `${name}: no sideways track`).toBe(true);
     await expect(page.getByTestId("lineup-pager")).toBeHidden();
-    // The header keeps its logo, 44px in a short window.
-    const mark = (await page.getByTestId("team-header").locator(":scope > span[aria-hidden], :scope > img, :scope > picture > img").first().boundingBox())!;
-    expect(Math.round(mark.width), `${name}: the logo`).toBe(44);
+    // The header's logo and name are the bar's (the h1 read out only): one compact line.
+    expect((await page.getByTestId("team-header").boundingBox())!.height, `${name}: the header`).toBeLessThanOrEqual(56);
     expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
     await done(page);
   }

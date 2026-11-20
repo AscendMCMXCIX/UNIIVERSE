@@ -684,7 +684,7 @@ const TOPBAR_COUNT = "absolute right-0.5 top-1 min-w-4 rounded-full bg-accent px
  * is full, down to the chevron (a 44px target), so the destinations keep their room.
  */
 /** Back beside a profile's band in the bar (an upright phone): a fixed 5.25rem ("‹ Players" whole at any text size), where the band starts (globals.css, [data-bar-title]). */
-const BACK_BESIDE_BAND = "max-md:not-short:w-[5.25rem] max-md:not-short:max-w-none max-md:not-short:shrink-0";
+const BACK_BESIDE_BAND = "max-md:not-short:w-[5.25rem] max-md:not-short:max-w-none";
 const BACK_CLASS = "-ml-1 flex min-h-11 min-w-0 max-w-[45%] shrink items-center gap-0.5 rounded-md pr-2 text-sm font-medium text-accent hover:bg-surface-2 short:min-w-11";
 /**
  * Tablets: hidden in a browser, shown in the installed app's display mode from the first paint (the
@@ -772,7 +772,11 @@ function useTopBarHeight(ref: React.RefObject<HTMLElement | null>): number {
     const root = document.documentElement;
     const phone = window.matchMedia(MEASURED_BAR);
     const apply = () => {
-      const h = el.offsetHeight;
+      // Where the first row slides away (useHideOnScroll's "row"), what scrolls into view does so
+      // with the page scrolling down, the row going: the sections row is what stays over it.
+      // While the bar holds the focus its row stays (Filters' sheet handing the focus back): the whole bar then.
+      const rowGoes = el.dataset.slides === "row" && !el.matches(":focus-within");
+      const h = el.offsetHeight - (rowGoes ? (el.querySelector<HTMLElement>("[data-testid=mobile-topbar-row]")?.offsetHeight ?? 0) : 0);
       setHeight(h);
       // The bar's own controls keep clear of that padding (globals.css: their scroll margin takes it
       // back), so focus moving onto them never scrolls the page; the value sits on the bar, which
@@ -787,8 +791,16 @@ function useTopBarHeight(ref: React.RefObject<HTMLElement | null>): number {
     };
     const observer = new ResizeObserver(apply);
     observer.observe(el);
+    const slides = new MutationObserver(apply);
+    slides.observe(el, { attributes: true, attributeFilter: ["data-slides"] });
+    const onFocus = () => requestAnimationFrame(apply);
+    el.addEventListener("focusin", onFocus);
+    el.addEventListener("focusout", onFocus);
     phone.addEventListener("change", apply);
     return () => {
+      el.removeEventListener("focusin", onFocus);
+      el.removeEventListener("focusout", onFocus);
+      slides.disconnect();
       observer.disconnect();
       phone.removeEventListener("change", apply);
       root.style.removeProperty("scroll-padding-top");
@@ -811,7 +823,8 @@ function usePageHeading(pathname: string, barHeight: number): { text: string | n
     let h1: HTMLElement | null = null;
     let io: IntersectionObserver | null = null;
     const watch = () => {
-      const next = main.querySelector<HTMLElement>("h1");
+      // The first heading drawn (a profile's band in the bar on a phone follows the band it stands for, which is not displayed there).
+      const next = [...main.querySelectorAll<HTMLElement>("h1")].find((h) => h.getClientRects().length) ?? main.querySelector<HTMLElement>("h1");
       if (next === h1) return;
       io?.disconnect();
       h1 = next;
@@ -945,6 +958,11 @@ function useHideOnScroll(header: React.RefObject<HTMLElement | null>, row: React
       return upright.matches || parseFloat(getComputedStyle(document.documentElement).fontSize) >= 20 ? "row" : false;
     };
     let slides = mode();
+    const mark = () => {
+      if (slides) header.current?.setAttribute("data-slides", slides);
+      else header.current?.removeAttribute("data-slides");
+    };
+    mark();
     let last = window.scrollY;
     let turn = last;
     let down = true;
@@ -973,6 +991,7 @@ function useHideOnScroll(header: React.RefObject<HTMLElement | null>, row: React
     };
     const onChange = () => {
       slides = mode();
+      mark();
       last = turn = window.scrollY;
       update();
     };
