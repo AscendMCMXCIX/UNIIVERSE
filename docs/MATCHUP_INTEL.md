@@ -695,8 +695,9 @@ curated note or a recommendation. Nothing is inferred beyond what the games reco
 ### Evidence tiers
 
 Every row says what it rests on, in small type beside its title: the curated briefing "Checked notes
-(AI reviewers)", the kits "Riot's data" ("Riot's data · Checked notes (AI reviewers)" for a champion
-with checked notes, whose facts the kit then shows), the assembled reference "Riot's data" with
+(AI reviewers)", the kits "Riot's data" (their abilities; a curated champion's facts say "Checked
+notes" on the kit's source line and on each fact, the heading's row having no room for a second tier
+beside the haste control at 1920 × 950), the assembled reference "Riot's data" with
 "Checked notes (AI reviewers)" beside the title of each side whose facts are checked notes (where it
 fits on a 320px phone; the header's row has no room for both), Riot's tips "Riot's tip (may
 predate later changes)", the evidence "In your games (n = …)" and "In the team's games (n = …)", and

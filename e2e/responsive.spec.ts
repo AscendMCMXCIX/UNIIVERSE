@@ -319,7 +319,7 @@ test("Settings for a member with Social links: the index marks the section being
   try {
     await page.goto("/settings");
     const index = page.getByTestId("settings-index");
-    await expect(index.getByRole("link")).toHaveText(["Name", "Links", "Password"]);
+    await expect(index.getByRole("link")).toHaveText(["Name", "Links", "Password", "This device"]);
     await expect(index.getByRole("link", { name: "Name" })).toHaveAttribute("aria-current", "location");
     // Links' top just past the upper third of the window, the page far from its end: Links is current.
     await page.evaluate(() => {
@@ -329,9 +329,9 @@ test("Settings for a member with Social links: the index marks the section being
     await expect(index.getByRole("link", { name: "Links" })).toHaveAttribute("aria-current", "location");
     expect(await page.evaluate(() => scrollY + innerHeight < document.documentElement.scrollHeight - 40)).toBe(true);
     await expect(index.getByRole("link", { name: "Name" })).not.toHaveAttribute("aria-current", "location");
-    // At the page's end, the last section.
+    // At the page's end, the last section (S8a's This device).
     await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
-    await expect(index.getByRole("link", { name: "Password" })).toHaveAttribute("aria-current", "location");
+    await expect(index.getByRole("link", { name: "This device" })).toHaveAttribute("aria-current", "location");
     // On a 320px touch screen the quiet links wrap, Sign out under My Profile, the lines 12px apart:
     // Sign out's 44px touch area stops short of My Profile, so a tap on My Profile's lower edge, or
     // just under it, opens My Profile. (With the lines 4px apart, as before, Sign out's area lay over
