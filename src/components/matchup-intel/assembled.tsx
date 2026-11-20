@@ -1,4 +1,4 @@
-import { TierLabel, kitTier } from "./evidence-panel";
+import { TierLabel } from "./evidence-panel";
 import { Fragment } from "react";
 import { ChangedBadge } from "./changed-badge";
 import { Crosshair, History, Swords, TriangleAlert } from "lucide-react";
@@ -254,7 +254,7 @@ export function AssembledReference({ you, enemy, enemyIntel, yourIntel, curatedF
               <span className="sr-only">: {`${you.name} vs ${enemy.name}`}</span>
             </h2>
             {/* Riot's data: each side whose facts are a champion's checked notes says so beside its own title (R7 review C1). */}
-            <TierLabel>{kitTier(false)}</TierLabel>
+            <TierLabel>Riot&apos;s data</TierLabel>
           </div>
           <CuratedLinks you={you} enemies={others} label={`Curated for ${you.name}:`} className="text-xs" />
         </div>
