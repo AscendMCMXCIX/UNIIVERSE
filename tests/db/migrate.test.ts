@@ -365,7 +365,8 @@ describe("database migrations", () => {
       expect(before).toEqual(expect.arrayContaining(["clash_scouts", "clash_scout_accounts"]));
 
       expect((await runMigrations(db, { useAdvisoryLock: false })).applied).toEqual([drop.tag, "0065_rank_confirmations", "0067_match_prep"]);
-      expect(await tables()).toEqual(before.filter((t) => t !== "clash_scouts" && t !== "clash_scout_accounts"));
+      // (0067, applied with it, adds Matchup Intel's two evidence tables.)
+      expect(await tables()).toEqual([...before.filter((t) => t !== "clash_scouts" && t !== "clash_scout_accounts"), "account_match_prep", "static_digests"].sort());
       // Their indexes went with them; the team and the account that saved the scout stay.
       expect(rows(await db.execute(sql`SELECT indexname FROM pg_indexes WHERE schemaname = 'public' AND indexname LIKE 'clash_scout%'`))).toEqual([]);
       expect(await count("teams")).toBe(1);
