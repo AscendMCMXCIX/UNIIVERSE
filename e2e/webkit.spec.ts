@@ -155,15 +155,19 @@ test("a teammate's profile: its sections switch, and a champion's preview sheet 
     if (!(await page.locator("dialog[open]").count())) await open.tap();
     await expect(page.getByTestId("champion-preview-figures")).toBeVisible({ timeout: 1_000 });
   }).toPass({ timeout: 15_000 });
-  // The sheet fills the phone's width and nothing in it scrolls sideways.
+  // The sheet fills the phone's width and nothing in it scrolls sideways. Measured once it is at
+  // rest: while it opens, Safari's engine can measure its 44px close button at 43.99998px.
+  await expect.poll(() => page.locator("dialog[open]").evaluate((d) => d.getAnimations({ subtree: true }).length)).toBe(0);
   const box = (await page.locator("dialog[open]").boundingBox())!;
   expect(box.width).toBeLessThanOrEqual(page.viewportSize()!.width + 1);
   // Its close button (the shared Peek's sheet) is the header's last control, a 44px target, in its
-  // top-right corner: within the header's 16px padding and the sheet's 1px side border.
+  // top-right corner: within the header's 16px side padding and the sheet's 1px side border, and
+  // under the sheet's 1px top border, its grabber (12px) and the header's 12px top padding (25px;
+  // the same in Chromium). Before 20 Nov 2026 this read 24, met only while the sheet still slid in.
   const close = (await page.locator("dialog[open]").getByTestId("champion-preview-close").boundingBox())!;
   expect(Math.min(close.width, close.height)).toBeGreaterThanOrEqual(44);
   expect(box.x + box.width - (close.x + close.width)).toBeLessThanOrEqual(17.5);
-  expect(close.y - box.y).toBeLessThanOrEqual(24);
+  expect(close.y - box.y).toBeLessThanOrEqual(25);
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("champion-preview-content")).toHaveCount(0);
   await tabs.getByRole("link", { name: "History" }).tap();
@@ -348,7 +352,10 @@ test("the phone window shell in Safari's engine: a pull on a game's header close
   await page.goto(`/players/${id}/matches`);
   await expect(page.locator("[data-testid='match-history'][data-ready]")).toBeVisible();
   const tabbar = (await page.getByTestId("phone-tabbar").boundingBox())!;
-  const row = page.getByTestId("match-row").nth(3);
+  // A finger lands on the card: its content sits over the card's one button (the card for the
+  // keyboard and screen readers), so a tap aimed at that button is taken by the content, and the
+  // card's own click opens the game.
+  const row = page.getByTestId("match-card").nth(3);
   // The row's top 30px above the tab bar, the rest under it (UM.X4: 70–109px when audited).
   const top = await row.evaluate((el) => el.getBoundingClientRect().top + window.scrollY);
   await page.evaluate((y) => window.scrollTo(0, y), top - (tabbar.y - 30));
@@ -381,7 +388,8 @@ test("the phone window shell in Safari's engine: a pull on a game's header close
   await expect(bar).toHaveCSS("opacity", "1");
   expect(Math.round((await bar.boundingBox())!.height)).toBe(56);
   await pullDown(bar);
-  await expect(player).toHaveCount(0);
+  // Closed, as in e2e/overlay-kit.spec.ts: the player window stays in the page, hidden.
+  await expect(player).toBeHidden();
   await expect(page).not.toHaveURL(/player=/);
 });
 

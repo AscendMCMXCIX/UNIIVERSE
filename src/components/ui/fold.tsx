@@ -38,6 +38,13 @@ const SUMMARY: Record<FoldVariant, string> = {
   row: "flex min-h-11 items-center justify-between gap-2 rounded-sm pointer-fine:min-h-7",
   inline: "inline-flex min-h-11 items-center gap-1 rounded-sm text-xs pointer-fine:min-h-7",
 };
+/**
+ * A panel whose summary is a line of small text on a page measured to the pixel (`dense`: Matchup
+ * Intel's sources, under its one-screen fit and the phone's page budget): 12px at the sides and 8px
+ * before the chevron, not 16 and 12. At 320px with 150% text the room it gives back is one line of
+ * that summary (24px); it is how that summary was spaced before the Fold (Release 8).
+ */
+const SUMMARY_DENSE_PANEL = "flex min-h-11 items-center justify-between gap-2 rounded-panel px-3 py-1.5 hover:bg-surface-2/50 pointer-fine:min-h-9";
 
 /** The summary's colour (inline and row folds): a quiet line, an accent "more" link, or the text's own colour. */
 const TONE = { muted: "text-fg-muted hover:text-fg", accent: "font-medium text-accent hover:text-accent-strong", fg: "font-medium text-fg hover:text-accent-strong", none: "" } as const;
@@ -64,6 +71,7 @@ export function Fold({
   defaultOpen = false,
   lazy = false,
   flush = false,
+  dense = false,
   onToggle,
   id,
   className,
@@ -85,6 +93,8 @@ export function Fold({
   lazy?: boolean;
   /** A panel's body without its padding: the content brings its own. */
   flush?: boolean;
+  /** A panel's summary spaced for a line of small text (SUMMARY_DENSE_PANEL); panels only. */
+  dense?: boolean;
   onToggle?: (open: boolean) => void;
   id?: string;
   /** On the details element: its place in a grid or a row (`open:col-span-2`, `basis-full`). */
@@ -121,7 +131,7 @@ export function Fold({
         onToggle?.(open);
       }}
     >
-      <summary className={cn("cursor-pointer list-none focus-visible:outline-2 focus-visible:outline-accent [&::-webkit-details-marker]:hidden", SUMMARY[variant], TONE[tone], summaryClassName)} data-testid={summaryTestId}>
+      <summary className={cn("cursor-pointer list-none focus-visible:outline-2 focus-visible:outline-accent [&::-webkit-details-marker]:hidden", variant === "panel" && dense ? SUMMARY_DENSE_PANEL : SUMMARY[variant], TONE[tone], summaryClassName)} data-testid={summaryTestId}>
         {chevron}
         {head}
       </summary>
