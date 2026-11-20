@@ -27,9 +27,11 @@ import { isSyncableAccount } from "@/server/accounts/refresh";
   Owner's admin account has no player profile, so it never appears.
 
   The games and mastery are cached per team and reused until something that changes them moves:
-  the number of stored games or newly summarised match details, the newest game, the last
-  account sync, or the set of accounts itself (a link added or removed, a member joining or
-  leaving). A short time limit backs that up.
+  the number of stored games or newly summarised match details, the newest game, the mastery
+  stored, or the set of accounts itself (a link added or removed, a member joining or leaving).
+  A sync that stored nothing (most of them: every account is read every 15 minutes) changes none of
+  these, so it leaves the cache alone; it moved the last sync's time, which emptied the cache on
+  every run (HOSTING_USAGE, "Not changed here"). A short time limit backs that up.
 */
 
 export interface LeaderboardPlayer {
@@ -116,7 +118,7 @@ export async function loadLeaderboardData(db: Db, teamId: string): Promise<Leade
   };
 }
 
-/** What changes when the stored history of these accounts changes (the set of accounts, games, summaries, syncs). */
+/** What changes when the stored history of these accounts changes (the set of accounts, games, summaries, mastery); never a sync that stored nothing. */
 export async function historyFingerprint(db: Db, accountIds: string[]): Promise<string> {
   if (accountIds.length === 0) return "none";
   const ids = sql.join(accountIds.map((id) => sql`${id}::uuid`), sql`, `);
@@ -124,10 +126,10 @@ export async function historyFingerprint(db: Db, accountIds: string[]): Promise<
     SELECT
       (SELECT count(*)::int FROM account_matches WHERE account_id IN (${ids})) AS games,
       (SELECT max(game_creation) FROM account_matches WHERE account_id IN (${ids})) AS newest,
-      (SELECT max(summarised_at)::text FROM account_matches WHERE account_id IN (${ids})) AS summarised,
-      (SELECT max(last_sync_at)::text FROM riot_accounts WHERE id IN (${ids})) AS synced`);
-  const [r] = rowsOf<{ games: number; newest: number | string | null; summarised: string | null; synced: string | null }>(result);
-  return [accountIds.join(","), r?.games, r?.newest, r?.summarised, r?.synced].join("|");
+      (SELECT concat_ws(':', max(summarised_at)::text, count(*) FILTER (WHERE kills IS NOT NULL), count(*) FILTER (WHERE extra_stats IS NOT NULL)) FROM account_matches WHERE account_id IN (${ids})) AS summarised,
+      (SELECT concat_ws(':', count(*), sum(points), max(last_played_at)) FROM account_mastery WHERE account_id IN (${ids})) AS mastery`);
+  const [r] = rowsOf<{ games: number; newest: number | string | null; summarised: string | null; mastery: string | null }>(result);
+  return [accountIds.join(","), r?.games, r?.newest, r?.summarised, r?.mastery].join("|");
 }
 
 interface GameRow {

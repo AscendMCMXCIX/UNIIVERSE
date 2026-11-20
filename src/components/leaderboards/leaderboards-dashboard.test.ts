@@ -8,7 +8,7 @@ import { PageToolbar } from "@/components/ui/page-toolbar";
 import { LeaderboardsDashboard } from "./leaderboards-dashboard";
 
 // The season's choice (a client component) asks for the router, which a markup test has none of.
-vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: () => {} }) }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: () => {} }), usePathname: () => "/leaderboards", useSearchParams: () => new URLSearchParams() }));
 // The pinned row's copy of a page's controls (PageToolbar) draws nothing on the server, where there is
 // no row to draw into, so markup alone could not show that the page puts nothing there: here it draws
 // a mark of its own wherever a page renders one.
@@ -45,6 +45,7 @@ function view(o: Partial<LeaderboardsView> = {}): LeaderboardsView {
       records: [{ id: "kills", label: "Most kills in a game", definition: "", qualifier: null, holder: { playerId: "ash", value: "18", unit: "kills", championId: "Zed", role: "MID", kda: "18/2/7", when: "2 Sep 2026", href: "/players/ash/matches?match=OC1_001" }, yours: null }],
       multikills: [{ playerId: "ash", penta: 0, quadra: 1, triple: 2 }],
       multikillNote: null,
+      multikillShort: null,
       championGames: [],
       mastery: [{ playerId: "bo", items: [{ championId: "Thresh", value: "512K points", short: "512K", milestone: "500K+", tier: 2 }], more: 0 }],
     },
@@ -108,14 +109,19 @@ describe("Leaderboards, one page", () => {
     expect(grid).toContain("@min-[86rem]/dash:grid-rows-[auto_1fr]");
     // Recent form across the page from 59rem; from 86rem the first column's first row, the milestones under it.
     expect(html).toMatch(/<section id="recent-form" aria-labelledby="form-board-title" class="[^"]*@min-\[59rem\]\/dash:col-span-2 @min-\[86rem\]\/dash:col-\[1\/2\] @min-\[86rem\]\/dash:row-\[1\/2\]" data-testid="form">/);
-    expect(html).toMatch(/<section id="milestones" aria-labelledby="milestones-title" class="min-w-0 @min-\[59rem\]\/dash:col-span-2 @min-\[86rem\]\/dash:col-\[1\/2\] @min-\[86rem\]\/dash:row-\[2\/3\]">/);
+    // From 59rem to 86rem the records in the first column across the rows after Recent form's, the multikills then the
+    // milestones in the second (the last row flexible, so the records' extra height never opens a gap between those two).
+    expect(grid).toContain("@min-[59rem]/dash:grid-rows-[auto_auto_auto_1fr]");
+    expect(html).toMatch(/<section id="season-records" aria-labelledby="season-records-title" class="min-w-0 @min-\[59rem\]\/dash:@max-\[86rem\]\/dash:col-\[1\/2\] @min-\[59rem\]\/dash:@max-\[86rem\]\/dash:row-\[2\/5\]"/);
+    expect(html).toMatch(/<section id="multikills" aria-labelledby="multikills-title" class="min-w-0 @min-\[59rem\]\/dash:@max-\[86rem\]\/dash:col-\[2\/3\] @min-\[59rem\]\/dash:@max-\[86rem\]\/dash:row-\[2\/3\]"/);
+    expect(html).toMatch(/<section id="milestones" aria-labelledby="milestones-title" class="min-w-0 @min-\[59rem\]\/dash:col-\[2\/3\] @min-\[59rem\]\/dash:row-\[3\/4\] @min-\[86rem\]\/dash:col-\[1\/2\] @min-\[86rem\]\/dash:row-\[2\/3\]">/);
     // The season records and the multikills: two of the grid's boards under 86rem (the wrapper draws no box), from 86rem
     // one column beside the other across both rows, the records first.
     const side = /<div class="([^"]*)" data-testid="leaderboards-side">([\s\S]*?)<section id="milestones"/.exec(html)!;
     expect(side[1]!.split(" ")).toEqual(["contents", "@min-[86rem]/dash:col-[2/3]", "@min-[86rem]/dash:row-[1/span_2]", "@min-[86rem]/dash:flex", "@min-[86rem]/dash:min-w-0", "@min-[86rem]/dash:flex-col", "@min-[86rem]/dash:gap-6"]);
     expect(side[2]!.indexOf('<section id="season-records"')).toBeGreaterThanOrEqual(0);
     expect(side[2]!.indexOf('<section id="season-records"')).toBeLessThan(side[2]!.indexOf('<section id="multikills"'));
-    expect(html).toMatch(/<section id="season-records" aria-labelledby="season-records-title" class="min-w-0" data-testid="records">/);
+    expect(html).toMatch(/<section id="season-records" aria-labelledby="season-records-title" class="min-w-0 [^"]*" data-testid="records">/);
   });
 
   it("indexes the sections below Recent form for a one-column page, each link to a section on the page", () => {

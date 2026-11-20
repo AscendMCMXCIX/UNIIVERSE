@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { OnThisDevice } from "@/components/settings/on-this-device";
 import { CircleUserRound, Gamepad2, Link2, LogOut, ShieldCheck } from "lucide-react";
 import { getAppDb } from "@/server/bootstrap";
 import { describeAccess, getSession } from "@/server/auth/session";
@@ -99,14 +100,14 @@ export async function AccountSettings({ mode }: { mode: "player" | "admin" }) {
   const social = user?.playerId ? ((await loadSocialLinks(db, [user.playerId])).get(user.playerId) ?? null) : undefined;
   const profileLinks = !!session?.playerId && mode === "player";
   const modeSwitch = isAdmin(session) ? mode : null;
-  const sections = [...(user ? [{ id: "name", label: "Name" }] : []), ...(social !== undefined ? [{ id: "links", label: "Links" }] : []), ...(session?.userId ? [{ id: "password", label: "Password" }] : [])];
+  const sections = [...(user ? [{ id: "name", label: "Name" }] : []), ...(social !== undefined ? [{ id: "links", label: "Links" }] : []), ...(session?.userId ? [{ id: "password", label: "Password" }] : []), { id: "device", label: "This device" }];
   return (
     <div className="mx-auto grid max-w-5xl gap-3 sm:grid-cols-[15rem_minmax(0,1fr)] sm:grid-rows-[auto_1fr] sm:gap-x-5 sm:gap-y-4 md:gap-x-6 md:gap-y-5 lg:grid-cols-[16rem_minmax(0,1fr)]">
       <PageHeader className="sm:col-start-2 sm:row-start-1 lg:col-span-2 lg:col-start-1" title="Settings" description="Your picture, display name, username and password." guide />
 
       <section aria-label="Your account" className="surface-lead @container grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-3 rounded-panel border border-border bg-surface p-3 sm:col-start-1 sm:row-span-2 sm:row-start-1 sm:self-start lg:row-span-1 lg:row-start-2 sm:p-4 md:not-short:sticky md:not-short:top-[calc(var(--bar-top)+1rem)]" data-testid="settings-account">
         {user ? (
-          <AccountPicture name={displayName} src={avatarUrl(user.id, user.avatarVersion)} afterIdentity={<AccountActions variant="quiet" profileLinks={profileLinks} modeSwitch={modeSwitch} />}>
+          <AccountPicture name={displayName} seed={user.id} src={avatarUrl(user.id, user.avatarVersion)} afterIdentity={<AccountActions variant="quiet" profileLinks={profileLinks} modeSwitch={modeSwitch} />}>
             <p className="text-lg font-semibold leading-tight text-fg [overflow-wrap:anywhere]" data-testid="settings-name">
               {displayName}
             </p>
@@ -149,6 +150,13 @@ export async function AccountSettings({ mode }: { mode: "player" | "admin" }) {
           </Panel>
         ) : null}
         {session?.userId ? <ChangePasswordPanel hasPassword={session.hasPassword} className="lg:scroll-mt-6" /> : null}
+        {/* What this browser remembers, each with Clear (nothing here reaches the server). */}
+        <Panel id="device" className="lg:scroll-mt-6">
+          <PanelHeader title="On this device" />
+          <PanelBody>
+            <OnThisDevice />
+          </PanelBody>
+        </Panel>
         <p id="compliance" className="text-xs leading-snug text-fg-subtle sm:leading-relaxed lg:scroll-mt-6">
           {riotLegal(branding.productName)}{" "}
           <Link href="/privacy" className="text-accent underline-offset-2 hover:underline" data-testid="settings-privacy-link">

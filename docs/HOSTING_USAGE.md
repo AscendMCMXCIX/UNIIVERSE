@@ -100,16 +100,16 @@ This change touches only tests, scripts and docs, so by its own rule it does not
 
 **Expected after these:** about 100–150 CPU-seconds a day, roughly 50–75 minutes in 30 days, a quarter to a third of the allowance, with about 3 deploys on a busy day. Most of the saving comes from fewer and cheaper deploys and checks. The follow-ups below would save about 25 CPU-seconds a day more.
 
+**Changed on 20 Nov 2026 (PLAN S8a), each with its own test:**
+- **Prefetches no longer start Riot syncs.** A profile's visit refresh starts from the mounted page's first freshness request (`/api/freshness`, which already checks the page's access; `FreshnessWatcher` asks at once on a profile), never from rendering the profile's layout, which a prefetch does. The history slices that continue while a profile stays open start from the same requests, whenever the next slice can start. About 55 Riot requests and about 3 CPU-seconds a day (`src/app/api/freshness/route.test.ts`).
+- **Leaderboards' games cache** (and Team Matches', on the same fingerprint) is emptied only by a change to what it holds: a game stored, details summarised, mastery changed, an account linked or removed. A sync that stored nothing no longer empties it: the fingerprint read the last sync's time, which every run moves (`tests/db/leaderboards-cache.test.ts`).
+- **Members' links prefetch on intent** (`IntentLink`: a pointer resting on the link, a touch or the keyboard's focus) instead of on sight: Players' names, Leaderboards' names, the Team Peek's "Full profile" and suggestions, Team Matches' names. About 30% of a member's visit; a link nobody pointed at opens a little slower (`e2e/players-directory.spec.ts`, "intent only").
+- **Ranked progress's weekly games query is gone:** one query fewer per Overview with statistics (docs/RANKED_PROGRESS.md; `tests/db/rank-history.test.ts`).
+
 **Not changed here** (each is a follow-up with its own review):
-- **Prefetches start Riot syncs.** A prefetch of a profile renders the profile's layout, and the layout starts the background account refresh. So seeing a teammate's name on Players syncs their accounts if they are 15 minutes old or more: about 55 Riot requests and about 3 CPU-seconds a day.
-  - The layout cannot tell a prefetch from a visit. Next 16 removes its router headers (`next-router-prefetch`, `next-router-segment-prefetch`) before the proxy runs (`server/web/adapter.js`), and hides them from `headers()` too. A proxy-set mark was tried and measured to make no difference.
-  - The fix is to start the refresh from the mounted page's first freshness request instead (`/api/freshness`, which already checks access). The history slices that continue while a profile stays open start from the same render, so they move with it. That needs its own review.
-  - **Done meanwhile (navigation N1, 19 Nov 2026):** no link of the frame fetches a profile ahead of a tap (`prefetchOf` in `src/lib/nav.ts`): My Profile in every bar (before, a member's own profile was prefetched on every page view, so their own accounts were synced every 15 minutes of browsing), and a profile's sections, in the phone's top bar and the tablet's and desktop's tabs. Links to profiles inside pages (Players' rows, the lineup, a record's holder) still prefetch until the refresh moves (`e2e/journeys.spec.ts` checks the bar).
-- **The rank watch's writes.** It writes two locked transactions per account and queue on every reading, about 130 statements a run, even when nothing changed. Batching them would save about 18 s a day, but it touches the LP readings, so it needs a careful review first.
-- **Account sync** reads the rank again although the rank watch read it within 5 minutes, and rewrites every mastery row. About 1 s a day in all.
-- **Admin pages left open** re-render on every routine job run (0–3 s a day).
-- **Members' links** could prefetch on intent instead of on viewport. That is about 30% of a member's visit, but a link nobody pointed at would then open a little slower.
-- **Leaderboards' games cache** is invalidated by syncs that found nothing new.
+- **The rank watch's writes.** It writes two locked transactions per account and queue on every reading, about 130 statements a run, even when nothing changed. Batching them would save about 18 s a day, but it touches the LP readings, which have just had a 22-hour gap, so it gets its own review after the overhaul (PLAN S11).
+- **Account sync** reads the rank again although the rank watch read it within 5 minutes, and rewrites every mastery row. About 1 s a day in all: not worth a change in the sync path now (PLAN S11).
+- **Admin pages left open** re-render on every routine job run (0–3 s a day): built with the admin pages' own stage (S9c).
 
 Lengthening the rank watch's interval is **not** a saving. Its calls every 5 minutes keep the jobs function warm, while 10-minute calls start cold, so 10 minutes would cost about 86 s a day. It would also lose LP figures for about 22% of ranked games at 10 minutes and 48% at 15. The 8 Nov check-in found every one of the 10 ranked games since 7 Nov carrying its figure.
 

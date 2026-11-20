@@ -90,6 +90,8 @@ export interface RecordsView {
   multikills: Array<{ playerId: string; penta: number; quadra: number; triple: number }>;
   /** Which games the multikills come from, when not every game carries them. */
   multikillNote: string | null;
+  /** The same in a few words, shown on the board's line (the sentence is behind its ⓘ): "255 of 277 games". */
+  multikillShort: string | null;
   /** Members with a champion milestone, the best first: games on one champion this season, and all-time mastery. */
   championGames: MilestoneGroup[];
   mastery: MilestoneGroup[];
@@ -263,6 +265,7 @@ function recordsView(data: LeaderboardData, requested: string | number | null, c
   const byName = (a: { playerId: string }, b: { playerId: string }) => (names.get(a.playerId) ?? "").localeCompare(names.get(b.playerId) ?? "");
   const multikills = [...result.multikills].sort((a, b) => b.penta - a.penta || b.quadra - a.quadra || b.triple - a.triple || byName(a, b));
   const multikillNote = result.games === 0 ? null : result.multikillGames === 0 ? "No multikill counts yet for this season's games; a game without them is never counted as zero." : result.multikillGames < result.games ? `Counted from ${formatCount(result.multikillGames)} of ${formatCount(result.games)} games this season; the rest are left out, never counted as zero.` : null;
+  const multikillShort = !multikillNote ? null : result.multikillGames === 0 ? "None of this season's games yet" : `From ${formatCount(result.multikillGames)} of ${formatCount(result.games)} games`;
   return {
     season,
     seasonLabel: seasonLabel(season),
@@ -271,6 +274,7 @@ function recordsView(data: LeaderboardData, requested: string | number | null, c
     records,
     multikills,
     multikillNote,
+    multikillShort,
     championGames: groupMilestones(result.championGames, CHAMPION_GAME_MILESTONES, (c) => ({ value: `${formatCount(c.value)} games`, short: formatCount(c.value), milestone: `${c.milestone}+ games` })),
     mastery: groupMilestones(result.mastery, MASTERY_MILESTONES, (c) => ({ value: `${formatCompactCount(c.value)} points`, short: formatCompactCount(c.value), milestone: c.milestone >= 1_000_000 ? "1M+" : `${formatCount(c.milestone / 1000)}K+` })),
   };

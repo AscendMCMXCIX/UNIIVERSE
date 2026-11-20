@@ -1,5 +1,5 @@
 import * as React from "react";
-import Link from "next/link";
+import { IntentLink } from "@/components/ui/intent-link";
 import { ChevronRight } from "lucide-react";
 import type { CardArt } from "@/domain/player-card";
 import type { CardLook } from "@/domain/card-style";
@@ -53,6 +53,12 @@ export interface RosterRowProps {
   social?: readonly SocialLinkView[];
   /** The profile the row opens. None in a preview, which also draws the social icons without actions. */
   href?: string;
+  /**
+   * The player Peek (PLAN S8a): the row opens a quick look at `href` (the page's own address with
+   * `?player=`), its press handled by the page's Peek, and the name stays a link to the profile
+   * (`href` above). `selected`: this row's player is the one open.
+   */
+  peek?: { id: string; href: string; onClick: (e: React.MouseEvent<HTMLAnchorElement>) => void; selected: boolean };
   /**
    * Which screen the row is drawn for: "any" follows the screen (the art strip and the links from
    * tablets up, as on Players); a preview shows one look whatever the screen: "wide" (tablets and
@@ -136,7 +142,7 @@ const STACKED_TEXT = "@max-[11.125rem]/roster:basis-full";
  * The whole row opens the profile through one link laid over it, named after the player, so the
  * social icons drawn above it stay links of their own.
  */
-export function RosterRow({ look, art, name, avatarUrl, role, offRoles, offRoleShown = null, rank, showRank, riot, pool, poolLabel, lineupRole = null, setupPending = false, archived = false, isYou = false, social = [], href, screen = "any" }: RosterRowProps) {
+export function RosterRow({ look, art, name, avatarUrl, role, offRoles, offRoleShown = null, rank, showRank, riot, pool, poolLabel, lineupRole = null, setupPending = false, archived = false, isYou = false, social = [], href, peek, screen = "any" }: RosterRowProps) {
   const tagline = look?.style.identity.tagline;
   const status = !!lineupRole || setupPending || archived;
   const links = social.length > 0 && LINKS[screen] !== null;
@@ -146,7 +152,14 @@ export function RosterRow({ look, art, name, avatarUrl, role, offRoles, offRoleS
   // The name's first line 2px down its 1.5rem line (where one line of it sits centred), so a name of two lines starts level with its neighbour's.
   const nameLine = (
     <span className={cn("flex min-h-6 items-start gap-1.5 pt-0.5", tagline ? "min-w-0 @max-[24rem]/row:min-w-[min(100%,6rem)] @max-[24rem]/row:basis-0 @max-[24rem]/row:grow" : "min-w-[min(100%,6rem)] basis-0 grow")}>
-      <CardName look={look} name={name} className="text-md leading-snug text-fg" />
+      {peek && href ? (
+        // Over the row's own link (the Peek): the name opens the full profile, one tap as before (J3).
+        <IntentLink href={href} className="touch-target relative z-[2] rounded-sm underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-accent" data-testid="player-card" data-player-name={name}>
+          <CardName look={look} name={name} className="text-md leading-snug text-fg" />
+        </IntentLink>
+      ) : (
+        <CardName look={look} name={name} className="text-md leading-snug text-fg" />
+      )}
       {isYou ? (
         <span className="inline-flex shrink-0" data-testid="card-you">
           <Badge tone="accent">You</Badge>
@@ -162,6 +175,7 @@ export function RosterRow({ look, art, name, avatarUrl, role, offRoles, offRoleS
         // Pressed: surface-3 as on every list row; on phones (no hover) surface-2, the pressed shade of the phone row checked on 5 Nov 2026.
         href && "hover:bg-surface-2 has-[[data-row-link]:active]:bg-surface-3 max-md:has-[[data-row-link]:active]:bg-surface-2",
         isYou && "bg-accent/5",
+        peek?.selected && "bg-surface-3 before:absolute before:inset-y-0 before:left-0 before:z-[2] before:w-0.5 before:bg-accent",
       )}
       style={cardColourVars(look)}
       data-testid={href ? "player-card-item" : "roster-row-preview"}
@@ -171,10 +185,15 @@ export function RosterRow({ look, art, name, avatarUrl, role, offRoles, offRoleS
       {ART[screen] !== null ? <RowArtStrip art={art} look={look} className={ART[screen] || undefined} /> : null}
       {/* Yours (an administrator sees their own row): marked as on Recent form. */}
       {isYou ? <span className="absolute inset-y-0 left-0 w-0.5 bg-accent" aria-hidden /> : null}
-      {href ? (
-        <Link href={href} className="absolute inset-0 z-[1] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent" data-testid="player-card" data-player-name={name} data-row-link="">
+      {peek ? (
+        // The row's press: the player Peek over the list (its address for a new tab, or before the page's code has run).
+        <a href={peek.href} onClick={peek.onClick} aria-current={peek.selected ? "true" : undefined} data-peek-row={peek.id} className="absolute inset-0 z-[1] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent" data-testid="player-peek-open" data-player-name={name} data-row-link="">
+          <span className="sr-only">Quick look: {name}</span>
+        </a>
+      ) : href ? (
+        <IntentLink href={href} className="absolute inset-0 z-[1] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent" data-testid="player-card" data-player-name={name} data-row-link="">
           <span className="sr-only">{name}</span>
-        </Link>
+        </IntentLink>
       ) : null}
       {/* Centred on the first two lines (the name's 1.5rem, the gap, the second line's 1.75rem), wherever the row grows; alone on the first line where the row is stacked. */}
       <span className={cn("flex h-[3.375rem] shrink-0 items-center", STACKED_PICTURE)}>

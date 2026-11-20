@@ -1,5 +1,6 @@
 import * as React from "react";
 import Link from "next/link";
+import { IntentLink } from "@/components/ui/intent-link";
 import { Crown } from "lucide-react";
 import { CardAvatar, CardName, cardColourVars } from "@/components/players/card-look";
 import { Badge } from "@/components/ui/badge";
@@ -275,15 +276,21 @@ const YOU_WRAPS = {
  * `readName={false}` when the row's link already says the name: the visible one is then hidden
  * from screen readers, so it is not read twice. `youWraps`: see YOU_WRAPS.
  */
-export function MemberCell({ look, name, avatarUrl = null, avatar = "md", avatarClassName, you = false, youWraps = false, readName = true, nameClassName, nameTestId, className }: { look: CardLook | null | undefined; name: string; avatarUrl?: string | null; avatar?: "xs" | "sm" | "md" | false; /** The picture's own classes: Leaderboards' season records hide it in a cell under 36rem, where the row's picture is the champion's. */ avatarClassName?: string; you?: boolean; youWraps?: boolean; readName?: boolean; nameClassName?: string; nameTestId?: string; className?: string }) {
+export function MemberCell({ look, name, avatarUrl = null, avatar = "md", avatarClassName, you = false, youWraps = false, readName = true, nameHref, nameClassName, nameTestId, className }: { look: CardLook | null | undefined; name: string; /** The name as a link to the profile, over the row's own link (a row that opens the player Peek): read and pressed on its own. */ nameHref?: string; avatarUrl?: string | null; avatar?: "xs" | "sm" | "md" | false; /** The picture's own classes: Leaderboards' season records hide it in a cell under 36rem, where the row's picture is the champion's. */ avatarClassName?: string; you?: boolean; youWraps?: boolean; readName?: boolean; nameClassName?: string; nameTestId?: string; className?: string }) {
   return (
     <span className={cn("flex min-w-0 items-center gap-2.5 text-sm", className)} style={cardColourVars(look)}>
       {avatar ? <CardAvatar look={look} name={name} src={avatarUrl} size={avatar} className={avatarClassName} /> : null}
       <span className="flex min-w-0 flex-1 flex-col" data-testid={nameTestId}>
         <span className={cn("flex min-w-0 items-center gap-1.5", youWraps && YOU_WRAPS.line)}>
-          <span className={cn("min-w-0 text-fg", youWraps && YOU_WRAPS.name)} aria-hidden={readName ? undefined : true}>
-            <CardName look={look} name={name} className={cn(nameClassName, youWraps && YOU_WRAPS.words)} />
-          </span>
+          {nameHref ? (
+            <IntentLink href={nameHref} className={cn("touch-target relative z-[2] min-w-0 rounded-sm text-fg underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-accent", youWraps && YOU_WRAPS.name)} data-testid="board-member-profile">
+              <CardName look={look} name={name} className={cn(nameClassName, youWraps && YOU_WRAPS.words)} />
+            </IntentLink>
+          ) : (
+            <span className={cn("min-w-0 text-fg", youWraps && YOU_WRAPS.name)} aria-hidden={readName ? undefined : true}>
+              <CardName look={look} name={name} className={cn(nameClassName, youWraps && YOU_WRAPS.words)} />
+            </span>
+          )}
           {you ? (
             <span className="inline-flex shrink-0" data-testid="card-you">
               <Badge tone="accent">You</Badge>

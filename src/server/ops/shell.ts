@@ -58,7 +58,7 @@ export async function getShellStatus(db: Db, auth: AuthState, mode: "player" | "
     allowedPlayerLinks: NAV_LINKS.filter((l) => canOpen(session, l)).map((l) => l.href),
     allowedAdminLinks: ADMIN_LINKS.filter((l) => canOpen(session, l)).map((l) => l.href),
     identity: session?.userId ? identityMarker(session.userId) : null,
-    user: session ? { name: (session.localDev ? session.username : session.label) || session.username || session.label, username: session.username ?? null, avatarUrl: session.userId ? avatarUrl(session.userId, session.avatarVersion ?? null) : null, roleLabel: describeAccess({ role: session.role, isAdmin: session.admin }) } : null,
+    user: session ? { name: (session.localDev ? session.username : session.label) || session.username || session.label, username: session.username ?? null, avatarUrl: session.userId ? avatarUrl(session.userId, session.avatarVersion ?? null) : null, seed: session.userId ?? null, roleLabel: describeAccess({ role: session.role, isAdmin: session.admin }) } : null,
     adminMode: mode === "admin" && canUseAdminArea(session),
     patch: facts.patch?.id ?? null,
     isFixture: facts.patch?.isFixture ?? false,

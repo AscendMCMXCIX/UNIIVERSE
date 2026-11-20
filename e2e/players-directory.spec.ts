@@ -169,7 +169,8 @@ async function measure(page: Page) {
           if (Math.min(a.right, b.right) - Math.max(a.left, b.left) > 1 && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 1) overlaps.push(`${n1} × ${n2}`);
         }
       const outside = placed.filter(([, b]) => b.left < inner.left - 0.5 || b.right > inner.right + 0.5 || b.top < inner.top - 0.5 || b.bottom > inner.bottom + 0.5).map(([n]) => n);
-      const link = row.querySelector<HTMLElement>("a[data-testid=player-card]")!;
+      // The row's own link (the player Peek, PLAN S8a; the profile's where a player has no main role yet).
+      const link = row.querySelector<HTMLElement>("a[data-row-link]")!;
       return {
         player: row.dataset.playerName ?? "",
         frame: row.dataset.frame,
@@ -247,7 +248,7 @@ test("Players: every row whole and level with its neighbours, its pool whole, at
       // Two lines (the name's, then the role, rank and pool): 4rem, whoever the row is, unless a row beside it needs more.
       const side = m.rows.filter((o) => Math.abs(o.top - r.top) <= 1);
       if (side.every((o) => o.lines <= 2)) expect(Math.abs(r.height - 4 * m.rem), `${label}: a row of two lines is 4rem tall`).toBeLessThanOrEqual(1);
-      expect(r.linkCovers, `${label}: the whole row is the link to the profile`).toBe(true);
+      expect(r.linkCovers, `${label}: the whole row is one link (the Peek, or the profile)`).toBe(true);
       expect(r.overlaps, `${label}: nothing covers anything else`).toEqual([]);
       expect(r.outside, `${label}: every part inside the row`).toEqual([]);
       expect(r.nameCut, `${label}: the name is whole`).toBe(false);
@@ -585,4 +586,64 @@ test("Players at 200% text: every row wraps rather than cuts, on a phone and a d
     expect(facts.outside, `${label}: nothing on the page past the window's edge`).toEqual([]);
     await ctx.close();
   }
+});
+
+test("the player Peek: a Players row and a Leaderboards row open it with ?player=, the name still opens the profile, Back closes it and the list does not move", async ({ page }, info) => {
+  const phone = info.project.name === "phone";
+  for (const [path, rowSel] of [
+    ["/players", "[data-testid=player-peek-open]"],
+    ["/leaderboards", "[data-testid=board-peek-open]"],
+  ] as const) {
+    await page.goto(path);
+    const rows = page.locator(rowSel);
+    await expect(rows.nth(3)).toBeVisible();
+    await rows.nth(3).scrollIntoViewIfNeeded();
+    await page.evaluate(() => window.scrollBy(0, 40));
+    const before = await page.evaluate(() => ({ y: window.scrollY, entries: history.length }));
+    // Off the name (which is the profile's link): the row's own press.
+    const box = (await rows.nth(3).boundingBox())!;
+    const at = { x: box.width - 24, y: box.height / 2 };
+    if (phone) await rows.nth(3).tap({ position: at });
+    else await rows.nth(3).click({ position: at });
+    await expect(page).toHaveURL(new RegExp(`${path}\\?player=[0-9a-f-]{36}$`));
+    const peek = page.getByTestId("player-detail-hero");
+    await expect(peek, `${path}: the player's card opened up`).toBeVisible();
+    await expect(page.getByTestId("detail-profile-link")).toBeVisible();
+    expect(await page.evaluate(() => history.length), `${path}: one entry pushed`).toBe(before.entries + 1);
+    // Back closes it, and the list is where it was.
+    await page.goBack();
+    await expect(page).toHaveURL(new RegExp(`${path}$`));
+    await expect(peek).toHaveCount(0);
+    expect(Math.abs((await page.evaluate(() => window.scrollY)) - before.y), `${path}: the list did not move`).toBeLessThanOrEqual(1);
+  }
+  // The name stays a link to the full profile, one press away.
+  await page.goto("/players");
+  const name = page.locator("main a[data-testid=player-card]").first();
+  if (phone) await name.tap();
+  else await name.click();
+  await expect(page).toHaveURL(/\/players\/[0-9a-f-]{36}$/);
+});
+
+test("members' links fetch a profile ahead on intent only: none as Players and Leaderboards are seen, one once a pointer rests on a name", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "a pointer's intent; touch starts the same fetch (IntentLink)");
+  const ahead: string[] = [];
+  page.on("request", (r) => {
+    const h = r.headers();
+    if (h["next-router-prefetch"] || h["next-router-segment-prefetch"]) ahead.push(new URL(r.url()).pathname);
+  });
+  for (const path of ["/players", "/leaderboards"]) {
+    ahead.length = 0;
+    await page.goto(path);
+    await page.waitForLoadState("networkidle");
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    await page.waitForTimeout(600);
+    expect(ahead.filter((p) => /^\/players\/[0-9a-f-]{36}/.test(p)), `${path}: no profile fetched ahead on sight`).toEqual([]);
+  }
+  await page.goto("/players");
+  await page.waitForLoadState("networkidle");
+  ahead.length = 0;
+  const name = page.locator("main a[data-testid=player-card][data-prefetch=intent]").first();
+  const href = (await name.getAttribute("href"))!;
+  await name.hover();
+  await expect.poll(() => ahead.some((p) => p.startsWith(href)), { message: "fetched ahead once pointed at" }).toBe(true);
 });

@@ -90,8 +90,8 @@ const BEFORE = {
   championGames: [{"playerId": "ash", "items": [{"championId": "Riven", "value": "25 games", "milestone": "25+ games", "tier": 1}], "more": 0}],
   mastery: [{"playerId": "ash", "items": [{"championId": "Riven", "value": "1.2M points", "milestone": "1M+", "tier": 3}, {"championId": "Zed", "value": "486K points", "milestone": "100K+", "tier": 1}, {"championId": "Yasuo", "value": "333K points", "milestone": "100K+", "tier": 1}], "more": 2}, {"playerId": "bo", "items": [{"championId": "Thresh", "value": "512K points", "milestone": "500K+", "tier": 2}], "more": 0}, {"playerId": "cy", "items": [{"championId": "Jinx", "value": "510K points", "milestone": "500K+", "tier": 2}], "more": 0}],
 };
-/** The view without what this change adds: each record's qualifier and each milestone's short figure. */
-const withoutAdditions = (r: RecordsView) => ({
+/** The view without what later changes add: each record's qualifier, each milestone's short figure, the multikills' short note. */
+const withoutAdditions = ({ multikillShort: _m, ...r }: RecordsView) => ({
   ...r,
   records: r.records.map(({ qualifier: _q, ...rest }) => rest),
   championGames: r.championGames.map((g) => ({ ...g, items: g.items.map(({ short: _s, ...rest }) => rest) })),

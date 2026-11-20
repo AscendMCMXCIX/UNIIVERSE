@@ -9,7 +9,7 @@ const NOW = Date.UTC(2026, 10, 4, 12);
 const D = (m: number, d: number, h = 12) => Date.UTC(2026, m - 1, d, h);
 const snap = (at: number, tier: string | null, division: string | null, lp: number | null, wins: number | null, losses: number | null, confirmedAt: number | null = null): RankSnapshot => ({ queue: "solo", tier, division, leaguePoints: lp, wins, losses, capturedAt: at, confirmedAt });
 const render = (snapshots: RankSnapshot[]) => {
-  const account: RankHistoryAccount = { id: "a1", label: "main", riotId: "Name#TAG", snapshots, weeks: { solo: [], flex: [] } };
+  const account: RankHistoryAccount = { id: "a1", label: "main", riotId: "Name#TAG", snapshots };
   return renderToStaticMarkup(createElement(RankedProgress, { accounts: [account], queue: "solo", accountId: null, href: () => "#", now: NOW }));
 };
 const text = (html: string, testId: string) => {

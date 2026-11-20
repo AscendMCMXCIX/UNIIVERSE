@@ -3,6 +3,7 @@
 import * as React from "react";
 
 import { perAccountKey } from "@/components/account-storage";
+import { deviceBase } from "@/components/device-storage";
 import { ROLES, type Role } from "@/domain/matchup-intel/types";
 import { clampHaste } from "@/domain/matchup-intel/haste";
 
@@ -18,7 +19,7 @@ import { clampHaste } from "@/domain/matchup-intel/haste";
 */
 
 /** The key's base; the key itself adds the account's marker where there is one (storageKey). */
-export const PREFERENCES_KEY = "uniiverse.matchup-intel.v1";
+export const PREFERENCES_KEY = deviceBase("matchup-intel");
 /** This account's key, read afresh each time: another account may have signed in since. */
 export const storageKey = () => perAccountKey(PREFERENCES_KEY);
 /** The most champions a Recent row keeps, per side. */

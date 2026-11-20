@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { IntentLink } from "@/components/ui/intent-link";
 import { useRouter } from "next/navigation";
 import { ArrowLeftRight, ArrowUpFromLine, Check, ChevronRight, Pencil, Repeat2, Undo2, UserPlus, Users, X } from "lucide-react";
 import type { Role } from "@/domain/roles";
@@ -30,7 +31,7 @@ import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateTone } from "@/domain/s
 import { CardSocialIcons, SocialLinks } from "@/components/players/social-links";
 import { formatCount, formatDayMonth } from "@/lib/format";
 
-type ChampionsById = Map<string, { id: string; name: string; portraitUrl: string }>;
+export type ChampionsById = Map<string, { id: string; name: string; portraitUrl: string }>;
 const lookup = (championsById: ChampionsById, id: string) => championsById.get(id) ?? { id, name: id, portraitUrl: "" };
 const noopSubscribe = () => () => {};
 
@@ -221,9 +222,9 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
                 {slot.suggestions.slice(0, 3).map((sg) => (
                   <li key={sg.playerId} className="flex items-center justify-between gap-2 py-1.5">
                     <span className="min-w-0">
-                      <Link href={`/players/${sg.playerId}`} className="block truncate text-sm font-medium text-fg hover:underline">
+                      <IntentLink href={`/players/${sg.playerId}`} className="block truncate text-sm font-medium text-fg hover:underline">
                         {sg.name}
-                      </Link>
+                      </IntentLink>
                       <span className="block truncate text-xs text-fg-muted" title={sg.reasons.join(" · ")}>
                         {sg.reasons.slice(0, 2).join(" · ")}
                         {sg.reasons.length > 2 ? <span className="sr-only"> · {sg.reasons.slice(2).join(" · ")}</span> : null}
@@ -635,7 +636,7 @@ function LineupCard({ openSide, onOpenSide, ...props }: Omit<React.ComponentProp
  * A team player's details, for the Team lineup's Peek (a docked panel on wider screens, the whole
  * screen on a phone): the player's card opened up (`hero`) and this season's figures and pool (`body`).
  */
-function playerDetail({ slot, championsById, canEdit, canViewProfile, profileHref, editHref, position }: { slot: RosterSlot; championsById: ChampionsById; canEdit: boolean; canViewProfile: boolean; profileHref: string; /** Where this viewer edits the pool: their own profile, or the player's profile for admins. */ editHref: string; position: string }): { title: string; hero: React.ReactNode; body: React.ReactNode } {
+export function playerDetail({ slot, championsById, canEdit, canViewProfile, profileHref, editHref, position }: { slot: RosterSlot; championsById: ChampionsById; canEdit: boolean; canViewProfile: boolean; profileHref: string; /** Where this viewer edits the pool: their own profile, or the player's profile for admins. */ editHref: string; position: string }): { title: string; hero: React.ReactNode; body: React.ReactNode } {
   const p = slot.player!;
   const support = slot.role === "SUPPORT";
   const season = p.season;
@@ -664,9 +665,9 @@ function playerDetail({ slot, championsById, canEdit, canViewProfile, profileHre
         <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3 [text-shadow:0_1px_10px_rgb(0_0_0/0.6)]">
           <CardIdentity look={p.look} name={p.name} avatarUrl={p.avatarUrl} rank={p.rank} showRank={p.statsVisible} status={status} role={slot.role} layout="side" nameClassName="text-2xl sm:text-3xl" />
           {canViewProfile ? (
-            <Link href={profileHref} className={buttonClass("primary", "sm", "shrink-0 [text-shadow:none]")} data-testid="detail-profile-link">
+            <IntentLink href={profileHref} className={buttonClass("primary", "sm", "shrink-0 [text-shadow:none]")} data-testid="detail-profile-link">
               Full profile <ChevronRight className="h-3.5 w-3.5" aria-hidden />
-            </Link>
+            </IntentLink>
           ) : null}
         </div>
         <SocialLinks links={p.social} owner={p.name} className="[text-shadow:none]" />

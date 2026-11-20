@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 import { ChevronRight, Flame, Sparkles, TrendingUp, Trophy } from "lucide-react";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
 import { BOARD_PANEL, DataGroup, DataHead, DataList, DataRow, FigureCell, MemberCell, ROW_PAD_X, RowLink } from "@/components/ui/data-list";
@@ -12,6 +12,7 @@ import { BoardTitle } from "./board-title";
 import { RECORD_YOURS, RECORD_YOURS_VALUE } from "./record-yours";
 import { SeasonChoice } from "./season-choice";
 import { SECTIONS } from "./sections";
+import { PeekRowLink } from "./leaderboards-peek";
 
 /*
   THE SEASON'S RECORDS AND ACHIEVEMENTS (docs/TEAM_LEADERBOARDS.md), the Leaderboards page's
@@ -52,9 +53,13 @@ const RECORD_CELL =
 
 /*
   A cell's columns, by its own width (DataList's tiers):
-    narrow  picture · text · figure, three lines beside the 48px picture: the record and its
-            qualifier; the holder, with the value and its unit at the line's end; the champion, role,
-            K/D/A and date; your best under them (a fourth line). The holder keeps at least 5rem: on
+    narrow  picture · text · figure · chevron, three lines beside the 48px picture: the record and
+            its qualifier; the holder; the champion, role, K/D/A and date; your best under them (a
+            fourth line); the chevron where the row opens its game. The value and its unit: from a
+            20rem cell (1440's two columns, a phone at 393) at the record's line's top right, one
+            value position in every cell whatever the qualifier's length, as from 36rem (UD.L2: at
+            1440 it sat on the holder's line or the third, as the qualifier wrapped); in a narrower
+            cell (large text) at the holder's line's end, so the record's words keep the width. The holder keeps at least 5rem: on
             a 320px phone a long figure's unit wraps under its value (the figure is flex-wrap) rather
             than squeeze the name. Under 16rem (a phone at a large text size) one
             column: the picture, then the record, the holder, the game, the value with its unit (which
@@ -66,7 +71,7 @@ const RECORD_CELL =
   A qualifier that does not fit beside its record takes the next line whole, and its "·" stays
   behind (the title's clipped edge), so no line starts or ends with one.
 */
-const BOOK_COLS = "[--dl-cols:3rem_minmax(5rem,1fr)_auto] @max-[16rem]/list:[--dl-cols:minmax(0,1fr)] @min-[36rem]/list:[--dl-cols:3rem_minmax(0,1fr)_auto_1rem]";
+const BOOK_COLS = "[--dl-cols:3rem_minmax(5rem,1fr)_auto_1rem] @max-[16rem]/list:[--dl-cols:minmax(0,1fr)] @min-[36rem]/list:[--dl-cols:3rem_minmax(0,1fr)_auto_1rem]";
 
 /**
  * Season records: the season's seven records in one panel, its title with the one ⓘ holding every
@@ -154,14 +159,16 @@ export function RecordRow({ record, player, champ, viewer }: { record: RecordVie
         figures={
           holder ? (
             <>
-              {/* The value with its unit: at the holder's line's end in a narrow cell, beside the record from 36rem, a line of its own (wrapping) under 16rem. */}
-              <span data-testid="record-figure" className="col-[3/4] row-[2/3] flex min-w-0 flex-wrap items-baseline justify-end gap-x-1 @max-[16rem]/list:col-[1/-1] @max-[16rem]/list:row-[5/6] @max-[16rem]/list:justify-start @min-[36rem]/list:row-[1/2] @min-[36rem]/list:gap-x-1.5 @min-[36rem]/list:self-end">
+              {/* The value with its unit: top right over each other from a 20rem cell (the record's words keep the width), beside the
+                record from 36rem, at the holder's line's end in a narrower cell, a line of its own (wrapping) under 16rem. */}
+              <span data-testid="record-figure" className="col-[3/4] row-[2/3] flex min-w-0 flex-wrap items-baseline justify-end gap-x-1 @min-[20rem]/list:row-[1/span_2] @min-[20rem]/list:@max-[36rem]/list:flex-col @min-[20rem]/list:@max-[36rem]/list:items-end @min-[20rem]/list:@max-[36rem]/list:gap-0 @min-[20rem]/list:self-start @max-[16rem]/list:col-[1/-1] @max-[16rem]/list:row-[5/6] @max-[16rem]/list:justify-start @min-[36rem]/list:row-[1/2] @min-[36rem]/list:gap-x-1.5 @min-[36rem]/list:self-end">
                 {/* 18px on a 20px line, so beside the record's 20px line it adds no height to the row. */}
                 <FigureCell testId="record-value" size={null} emphasis="strong" className="text-lg leading-5">
                   {holder.value}
                 </FigureCell>
-                <span data-testid="record-unit" className="min-w-0 text-xs text-fg-muted [overflow-wrap:anywhere]">
-                  {holder.unit}
+                <span data-testid="record-unit" className="min-w-0 text-xs text-fg-muted @min-[20rem]/list:@max-[36rem]/list:whitespace-nowrap">
+                  {/* A narrow cell breaks the unit after its "/" ("damage/" "min"), never inside a word. */}
+                  {holder.unit.split("/").map((part, i, all) => (i < all.length - 1 ? <Fragment key={i}>{part}/<wbr /></Fragment> : part))}
                 </span>
               </span>
               {yours ? (
@@ -172,12 +179,13 @@ export function RecordRow({ record, player, champ, viewer }: { record: RecordVie
             </>
           ) : null
         }
-        trail={href ? <ChevronRight aria-hidden className="hidden size-4 text-fg-subtle transition-transform duration-150 group-hover/row:translate-x-0.5 group-hover/row:text-fg-muted @min-[36rem]/list:col-[4/5] @min-[36rem]/list:row-[1/span_2] @min-[36rem]/list:block @min-[36rem]/list:self-center" /> : null}
+        // The chevron on every row that opens a game (UD.L4: it showed only from 36rem, and hover was the only cue), never under 16rem.
+        trail={href ? <ChevronRight aria-hidden className="col-[4/5] row-[1/span_3] size-4 self-center text-fg-subtle transition-transform duration-150 group-hover/row:translate-x-0.5 group-hover/row:text-fg-muted @max-[16rem]/list:hidden @min-[36rem]/list:row-[1/span_2]" /> : null}
       >
         {/* The record and its qualifier: across the text and the figure in a narrow cell, the first line beside the figure from 36rem. The
             two are shifted left by a separator's room inside a clipped edge: the qualifier's "·" shows beside the record, and is cut
             off with that room when the qualifier starts a line of its own. */}
-        <span className="col-[2/-1] row-[1/2] min-w-0 overflow-hidden text-sm @max-[16rem]/list:col-[1/-1] @max-[16rem]/list:row-[2/3] @min-[36rem]/list:col-[2/3] @min-[36rem]/list:self-end" data-testid="record-title">
+        <span className="col-[2/4] row-[1/2] min-w-0 overflow-hidden text-sm @min-[20rem]/list:col-[2/3] @max-[16rem]/list:col-[1/-1] @max-[16rem]/list:row-[2/3] @min-[36rem]/list:self-end" data-testid="record-title">
           <span className="-ml-3 flex min-w-0 flex-wrap items-baseline">
             <span aria-hidden={href ? true : undefined} className="min-w-0 pl-3 font-semibold text-fg [overflow-wrap:anywhere]" data-testid="record-label">
               {record.label}
@@ -200,12 +208,12 @@ export function RecordRow({ record, player, champ, viewer }: { record: RecordVie
             <span aria-hidden className="hidden text-xs text-fg-subtle @min-[36rem]/list:inline">
               ·
             </span>
-            <span data-testid="record-context" className="col-[2/-1] row-[3/4] min-w-0 text-xs text-fg-muted @max-[16rem]/list:col-[1/-1] @max-[16rem]/list:row-[4/5]">
+            <span data-testid="record-context" className="col-[2/4] row-[3/4] min-w-0 text-xs text-fg-muted @max-[16rem]/list:col-[1/-1] @max-[16rem]/list:row-[4/5]">
               {[c?.name, holder.role ? ROLE_LABELS[holder.role] : null, holder.kda, holder.when].filter(Boolean).join(" · ")}
             </span>
           </span>
         ) : (
-          <span className="col-[2/-1] row-[2/3] text-sm text-fg-subtle @max-[16rem]/list:col-[1/-1] @max-[16rem]/list:row-[3/4] @min-[36rem]/list:col-[2/3] @min-[36rem]/list:self-start" data-testid="record-none">
+          <span className="col-[2/4] row-[2/3] text-sm text-fg-subtle @max-[16rem]/list:col-[1/-1] @max-[16rem]/list:row-[3/4] @min-[36rem]/list:col-[2/3] @min-[36rem]/list:self-start" data-testid="record-none">
             No game sets this record yet this season.
           </span>
         )}
@@ -254,7 +262,14 @@ export function Multikills({ records, player, className }: { records: RecordsVie
         columns={MULTI_COLS}
         testId="records-multikills"
         title={
-          <BoardTitle id="multikills-title" icon={<Flame className="h-4 w-4 shrink-0 text-fg-subtle" aria-hidden />} note={records.multikillNote} noteTestId="multikill-note">
+          <BoardTitle
+            id="multikills-title"
+            icon={<Flame className="h-4 w-4 shrink-0 text-fg-subtle" aria-hidden />}
+            // Which games the counts come from, in a few words on the board's line; the sentence behind its ⓘ (UM.L1: it ran to three lines on a phone).
+            aside={records.multikillNote ? <InfoTip label="About the multikill counts" text={records.multikillNote} testId="multikill-note" /> : null}
+            note={records.multikillShort}
+            noteTestId="multikill-short"
+          >
             Multikills · {records.seasonLabel}
           </BoardTitle>
         }
@@ -285,7 +300,7 @@ export function Multikills({ records, player, className }: { records: RecordsVie
                   data-quadra={m.quadra}
                   data-triple={m.triple}
                   density="dense"
-                  link={p.profileHref ? <RowLink href={p.profileHref}>{p.name}</RowLink> : null}
+                  link={p.profileHref ? <PeekRowLink playerId={p.id} name={p.name} profileHref={p.profileHref} /> : null}
                   figures={
                     // The counts: a line under the member, each with its name, under 21rem; their columns from it (display: contents).
                     <span className="col-[1/-1] row-[2/3] flex min-w-0 flex-wrap items-baseline gap-x-3 text-sm @min-[21rem]/list:contents">
@@ -301,7 +316,7 @@ export function Multikills({ records, player, className }: { records: RecordsVie
                     </span>
                   }
                 >
-                  <MemberCell look={p.look} name={p.name} avatarUrl={p.avatarUrl} avatar="xs" readName={!p.profileHref} nameTestId="board-member-name" className="col-[1/-1] row-[1/2] @min-[21rem]/list:col-[1/2]" />
+                  <MemberCell look={p.look} name={p.name} avatarUrl={p.avatarUrl} avatar="xs" readName={!p.profileHref} nameHref={p.profileHref ?? undefined} nameTestId="board-member-name" className="col-[1/-1] row-[1/2] @min-[21rem]/list:col-[1/2]" />
                 </DataRow>
               );
             })}
@@ -318,8 +333,8 @@ export function Multikills({ records, player, className }: { records: RecordsVie
 
 /** A milestone's tier, as the system marks rarities: plain, raised, violet, gold (never a state colour). */
 const TIER_CLASS = ["border-border bg-surface-2/60", "border-border-strong bg-surface-2", "border-violet/50 bg-violet/10", "border-gold/60 bg-gold/10"] as const;
-/** The member, then their chips: one line from 40rem; a line each under it. */
-const MILESTONE_COLS = "[--dl-cols:minmax(0,1fr)] @min-[40rem]/list:[--dl-cols:minmax(8rem,11rem)_minmax(0,1fr)]";
+/** The member, then their top milestone and "+N", on one line; under the name in a list under 18rem (a phone at large text), so no name is squeezed. */
+const MILESTONE_COLS = "[--dl-cols:minmax(0,1fr)_auto] @max-[18rem]/list:[--dl-cols:minmax(0,1fr)]";
 
 /** The milestones: games on one champion this season, then all-time mastery; `className` places it on the page. */
 export function Milestones({ records, player, champ, className }: { records: RecordsView; player: (id: string) => BoardPlayer; champ: (id: string | null) => PortraitChampion | null; className?: string }) {
@@ -363,9 +378,10 @@ function MilestoneKind({ title, hint, empty, groups, player, champ, testId }: { 
 }
 
 /**
- * A member's milestones: their picture and name, then one line of chips (the champion's portrait,
- * its name from 32rem, and the figure, "486K"), the rest counted, "+3 more", on their profile. On a
- * phone the chips show no champion's name (D6): the portrait says which, and screen readers hear it.
+ * A member's milestones: their picture and name, then their top milestone as a chip (the champion's
+ * portrait, its name from 32rem, and the figure, "486K") and the rest counted, "+3", on their profile
+ * (UM.L1: a row of three chips took a second line on a phone, and the board ran 1.3 screens). On a
+ * phone the chip shows no champion's name (D6): the portrait says which, and screen readers hear it.
  * The whole row opens the member's profile; its tooltip names each chip's milestone, as the chips'
  * own titles do on the public boards, which link nowhere.
  */
@@ -373,13 +389,15 @@ function MilestoneRow({ group, p, champ }: { group: MilestoneGroup; p: BoardPlay
   const linked = !!p.profileHref;
   const items = group.items.map((m) => ({ ...m, name: champ(m.championId)?.name ?? m.championId }));
   const said = (m: (typeof items)[number]) => `${m.name}: ${m.value} (${m.milestone} milestone)`;
-  const more = formatCount(group.more);
-  const hint = [...items.map(said), group.more ? `${more} more on the profile` : null].filter(Boolean).join(". ");
+  const [top] = items;
+  const rest = items.length - 1 + group.more;
+  const more = formatCount(rest);
+  const hint = [...items.map(said), group.more ? `${formatCount(group.more)} more on the profile` : null].filter(Boolean).join(". ");
   return (
-    <DataRow testId="milestone-member" data-player-id={group.playerId} density="dense" className="@max-[40rem]/list:py-1.5" link={linked ? <RowLink href={p.profileHref!} hint={hint}>{p.name}</RowLink> : null}>
-      <MemberCell look={p.look} name={p.name} avatarUrl={p.avatarUrl} avatar="xs" readName={!linked} className="col-[1/-1] row-[1/2] @min-[40rem]/list:col-[1/2]" />
-      <ul aria-label={`${p.name}'s milestones`} className="col-[1/-1] row-[2/3] flex min-w-0 flex-wrap items-center gap-1 @min-[40rem]/list:col-[2/3] @min-[40rem]/list:row-[1/2]">
-        {items.map((m) => (
+    <DataRow testId="milestone-member" data-player-id={group.playerId} density="dense" link={linked ? <PeekRowLink playerId={p.id} name={p.name} profileHref={p.profileHref!} hint={hint} /> : null}>
+      <MemberCell look={p.look} name={p.name} avatarUrl={p.avatarUrl} avatar="xs" readName={!linked} nameHref={p.profileHref ?? undefined} className="col-[1/2] row-[1/2]" />
+      <ul aria-label={`${p.name}'s milestones`} className="col-[2/3] row-[1/2] flex min-w-0 items-center justify-end gap-1 @max-[18rem]/list:col-[1/-1] @max-[18rem]/list:row-[2/3] @max-[18rem]/list:justify-start">
+        {(top ? [top] : []).map((m) => (
           <li key={m.championId} className={cn("flex min-w-0 items-center gap-1.5 rounded-md border py-0.5 pl-0.5 pr-2 text-xs", TIER_CLASS[Math.min(m.tier, 3)])} title={linked ? undefined : said(m)} data-testid="milestone" data-tier={m.tier}>
             <span aria-hidden className="flex shrink-0">
               <ChampionPortrait champion={champ(m.championId)} size="xs" className="size-6!" />
@@ -396,9 +414,9 @@ function MilestoneRow({ group, p, champ }: { group: MilestoneGroup; p: BoardPlay
             </span>
           </li>
         ))}
-        {group.more ? (
-          <li className="px-1 text-xs text-fg-muted" data-testid="milestone-more">
-            <span aria-hidden>+{more} more</span>
+        {rest ? (
+          <li className="px-1 text-xs tabular-nums text-fg-muted" data-testid="milestone-more">
+            <span aria-hidden>+{more}</span>
             <span className="sr-only">and {more} more on their profile</span>
           </li>
         ) : null}

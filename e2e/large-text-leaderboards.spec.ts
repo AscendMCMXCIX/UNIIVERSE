@@ -363,7 +363,8 @@ test("Recent form's ⓘ at 200% text on 375 and 320px phones: inside the screen,
     await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
     const at = `${width} × ${height} at 200%`;
     const tip = page.getByTestId("form-footnote");
-    await tip.scrollIntoViewIfNeeded();
+    // Into the window's middle: clear of the bars and of the section chips pinned under the top bar once the header has gone.
+    await tip.evaluate((el) => el.scrollIntoView({ block: "center" }));
     await tip.tap();
     const bubble = page.getByTestId("form-footnote-bubble");
     await expect(bubble, at).toBeVisible();
