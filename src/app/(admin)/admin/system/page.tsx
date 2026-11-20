@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { sql } from "drizzle-orm";
+import { players } from "@/server/db/schema";
 import { getAppDb } from "@/server/bootstrap";
 import { PageHeader } from "@/components/ui/page-header";
 import { requirePageAccess } from "@/server/auth/page-access";
@@ -43,21 +45,23 @@ export default async function AdminSystemPage() {
   const [auth, { items: status, health }, handle, branding, version] = await Promise.all([getAuthState(db), loadSystemStatus(db), getDbHandle(), getBranding(db), jobsFreshness(db)]);
   const diagnostics = await getDiagnostics(db, handle.description).catch(() => null);
   const vitals = await vitalsReport(db).catch(() => null);
+  // The demo roster is only ever created on an empty team, so its panel shows only then (S9c).
+  const [{ n: playerCount } = { n: 0 }] = await db.select({ n: sql<number>`count(*)::int` }).from(players);
   const deployment = deploymentInfo();
   return (
     <div className="space-y-5">
-      {/* Job runs and statuses update without a reload. */}
-      <FreshnessWatcher scope={{ kind: "jobs" }} version={version} />
+      {/* Job runs and statuses update when the tab is shown again (never on a timer), and on the administrator's own actions. */}
+      <FreshnessWatcher scope={{ kind: "jobs" }} version={version} on="return" />
       <PageHeader admin sectionNamed eyebrow="Admin Mode" title="System Health" description="Database, background jobs and the evidence behind each status." />
-      <section className="space-y-3">
+      <section className="space-y-2">
         <div>
           <h2 className="text-base font-semibold">System health</h2>
-          <p className="text-sm text-fg-muted">Checked when this page loaded. A status is only Healthy when there is evidence for it.</p>
+          <p className="text-sm text-fg-muted">Checked when this page loaded; Healthy only with evidence.</p>
         </div>
         <StatusCards items={status} testId="system-status" />
       </section>
       {vitals ? <FieldPerformancePanel report={vitals} /> : null}
-      <Disclosure title="Technical details" description="Build, database, recent job runs and errors, configured secrets (never their values) and demo data." testId="system-details">
+      <Disclosure title="Technical details" description={Number(playerCount) === 0 ? "Build, database, job runs, secrets (never their values) and demo data." : "Build, database, job runs and secrets (never their values)."} testId="system-details">
         <Panel>
           <PanelHeader title="Build & database" subtitle="What is running and where." />
           <PanelBody className="flex flex-wrap items-center gap-2 text-sm">
@@ -103,7 +107,7 @@ export default async function AdminSystemPage() {
             })}
           </PanelBody>
         </Panel>
-        <DemoPanel canSeed />
+        {Number(playerCount) === 0 ? <DemoPanel canSeed /> : null}
       </Disclosure>
       <p className="text-sm text-fg-muted">
         Who changed accounts, access, passwords, settings or jobs is recorded under{" "}
@@ -112,15 +116,14 @@ export default async function AdminSystemPage() {
         </Link>
         .
       </p>
-      <Panel id="compliance">
-        <PanelHeader title="Riot Games compliance" subtitle={`How ${branding.productName} uses Riot data, and the notice Riot requires.`} />
-        <PanelBody className="space-y-2 text-xs text-fg-muted [overflow-wrap:anywhere]">
+      <Disclosure id="compliance" title="Riot Games compliance" description={`How ${branding.productName} uses Riot data, and the notice Riot requires.`} testId="system-compliance">
+        <div className="space-y-2 text-sm text-fg-muted [overflow-wrap:anywhere]">
           <p>{riotLegal(branding.productName)}</p>
           <p>Riot API keys stay on the server and are never sent to browsers. Game data (matches and their timelines, champion mastery and ranks) is read only for accounts a player linked on purpose, plus the current rank of the other players in those accounts&apos; games, and it is used solely for this team&apos;s own preparation and improvement. {branding.productName} never attempts to de-anonymise players or discover hidden real identities, and removes a linked account&apos;s data when the account is unlinked.</p>
           <p>Matchup Intel is a static reference for two champions chosen by hand: abilities and base cooldowns from Riot&apos;s Data Dragon, and notes written in our own words from the League of Legends Wiki, credited on the page. It makes no Riot API request, has no timers or tracking, and reads nothing from a game or champion select.</p>
-          <p>The full checklist is in docs/RIOT_COMPLIANCE.md in the repository.</p>
-        </PanelBody>
-      </Panel>
+          <p>The full checklist is in the repository&apos;s Riot compliance notes.</p>
+        </div>
+      </Disclosure>
     </div>
   );
 }

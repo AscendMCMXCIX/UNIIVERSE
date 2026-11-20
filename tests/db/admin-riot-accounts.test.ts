@@ -201,3 +201,14 @@ describe("Reactivate with a new temporary password", () => {
     expect(await findSession(handle.db, token)).toBeNull();
   });
 });
+
+describe("System Health's demo roster", () => {
+  it("records nothing when players already exist (the check comes before the record)", async () => {
+    const { demoDataAction } = await import("@/server/actions/settings");
+    await signInAs(adminId);
+    expect(await demoDataAction()).toEqual({ ok: true, data: "Players already exist; nothing created." });
+    expect(await audit("demo.data")).toHaveLength(0);
+    await signInAs(otherId);
+    expect(await demoDataAction()).toMatchObject({ ok: false });
+  });
+});
