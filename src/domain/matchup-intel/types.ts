@@ -1,3 +1,5 @@
+import type { HasteBasis } from "./haste";
+
 /*
   MATCHUP INTEL: the types every part of the feature shares (docs/MATCHUP_INTEL.md).
 
@@ -26,6 +28,13 @@
 
   Only plain data crosses into the browser: these types, never the server modules behind them.
 */
+
+/** The lanes Matchup Intel is set for, in the selector's order. */
+export const ROLES = ["top", "jungle", "mid", "adc", "support"] as const;
+export type Role = (typeof ROLES)[number];
+/** The roles whose page sets two against two (the bot lane). */
+export const DUO_ROLES: ReadonlySet<Role> = new Set<Role>(["adc", "support"]);
+export const ROLE_NAMES: Record<Role, string> = { top: "Top", jungle: "Jungle", mid: "Mid", adc: "ADC", support: "Support" };
 
 /** The five ability slots, in the order the page shows them. */
 export const SLOTS = ["P", "Q", "W", "E", "R"] as const;
@@ -72,6 +81,13 @@ export interface DdragonChampionAbilities {
   /** The Data Dragon version these were read from (e.g. "16.22.1"). */
   version: string;
   abilities: DdragonAbility[];
+  /**
+   * Riot's own tips for the champion (Data Dragon `allytips`, for playing it, and `enemytips`, for
+   * playing against it), verbatim: [] where Riot publishes none. Absent on a record stored before
+   * the rules read them (ABILITY_RULES_FORMAT 2), until the next sync re-reads it: then the page
+   * says they are not stored yet, never that Riot publishes none.
+   */
+  tips?: { ally: string[]; enemy: string[] };
 }
 
 /** What kind of page a source is. */
@@ -212,6 +228,13 @@ export interface AbilityModifiers {
   resetsAttack?: true;
   /** The cooldown itself is static: ability haste does not shorten it (for charges, the recharge). */
   static?: true;
+  /**
+   * The checked notes leave open whether ability haste shortens it (a page they rest on does not
+   * say): the page then shows its base only at any haste, "Whether haste shortens it isn't known"
+   * (src/domain/matchup-intel/haste.ts). Set for each ability a note lists among what no saved page
+   * states ("whether ability haste shortens …"); curated.test.ts checks every such line has its flag.
+   */
+  hasteUnknown?: true;
   /**
    * A cooldown between two casts (of a recast, or of another charge), in seconds, where the source
    * states one (Riven's Q: 0.3125 s); `static` when ability haste does not shorten it. A delay
@@ -716,6 +739,8 @@ export interface AbilityView {
    * otherwise only what Riot's data supports (src/domain/matchup-intel/cooldown.ts).
    */
   cooldown: CooldownDisplay;
+  /** How the cooldown line behaves at a chosen ability haste (src/domain/matchup-intel/haste.ts). */
+  haste: HasteBasis;
   /**
    * The checked notes' cooldown as it was checked, once Riot's data changed after the check: shown
    * with those notes, flagged, never as the current line. Null otherwise.
@@ -807,6 +832,11 @@ export interface ChampionIntelView {
    * none are committed for it, or it has checked notes (which the page shows instead).
    */
   riotText: { version: string; patch: string | null; reviewedOn: string; review: RiotTextReview } | null;
+  /**
+   * Riot's own tips from Data Dragon, verbatim (`ally` for playing it, `enemy` for playing against
+   * it; [] where Riot publishes none). Null when the stored record predates them (not read yet).
+   */
+  tips: { ally: string[]; enemy: string[] } | null;
 }
 
 /**
@@ -839,10 +869,20 @@ export interface MatchupIntelView {
 
 /** Everything the page shows for one choice of champions. */
 export interface MatchupPageView {
+  /** The lane the page is set for (the address's `role`), which decides its slots (ROLE_SLOTS). */
+  role: Role;
+  /** Yours: in the bot lane your own role's champion (the ADC as ADC, the support as Support). */
   you: ChampionChoice | null;
+  /** The lane opponent: in the bot lane the enemy in your own role. */
   enemy: ChampionChoice | null;
+  /** The bot lane only: your duo partner (the support as ADC, the ADC as Support); null otherwise. */
+  ally: ChampionChoice | null;
+  /** The bot lane only: the other enemy (their support as ADC, their ADC as Support); null otherwise. */
+  enemy2: ChampionChoice | null;
   enemyIntel: ChampionIntelView | null;
   yourIntel: ChampionIntelView | null;
+  allyIntel: ChampionIntelView | null;
+  enemy2Intel: ChampionIntelView | null;
   /** Null when no curated matchup exists for this direction. */
   matchup: MatchupIntelView | null;
   /**

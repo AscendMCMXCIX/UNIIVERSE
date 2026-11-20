@@ -145,6 +145,7 @@ describe("kitOf: one champion's facts, grouped by kind, never judged", () => {
     levelNotes: [],
     sources: [],
     riotText: { version: "16.22.1", patch: "26.22", reviewedOn: "2026-11-19", review: { automatedReviewers: 2, adjudicated: true, consistencyCheckers: 2, checkedByPerson: false } },
+    tips: null,
     ...over,
   });
   type Kind = (typeof RIOT_TEXT_KINDS)[number];
@@ -154,6 +155,7 @@ describe("kitOf: one champion's facts, grouped by kind, never judged", () => {
     icon: null,
     maxRank: 5,
     cooldown: { kind: "per-rank" as const, seconds: [10, 9, 8, 7, 6], starts: null, from: "ddragon" as const },
+    haste: { mark: "general" as const, lines: [{ form: null, seconds: [10, 9, 8, 7, 6] }], ultimate: slot === "R" },
     checkedCooldown: null,
     changes: [],
     cooldownNote: null,

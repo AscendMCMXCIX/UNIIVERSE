@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { NO_PREFERENCES, PREFERENCES_KEY, RECENT_MAX, parsePreferences, preferenceStore, storageKey, withChoice, withRemembered } from "./preferences";
+import { NO_PREFERENCES, PREFERENCES_KEY, RECENT_MAX, parsePreferences, preferenceStore, storageKey, withChoice, withRemembered, withSetting } from "./preferences";
 
 /** A browser window with a localStorage and its storage event, in Node. */
 function fakeWindow({ failGet = false, failSet = false }: { failGet?: boolean; failSet?: boolean } = {}) {
@@ -26,7 +26,7 @@ afterEach(() => vi.unstubAllGlobals());
 
 describe("what is stored on this device", () => {
   it("is champion ids only, read back from this version's shape, and nothing else", () => {
-    expect(parsePreferences(JSON.stringify({ you: "Riven", recent: { you: ["Riven", "Garen"], enemy: ["Mordekaiser"] } }))).toEqual({ you: "Riven", recent: { you: ["Riven", "Garen"], enemy: ["Mordekaiser"] } });
+    expect(parsePreferences(JSON.stringify({ you: "Riven", recent: { you: ["Riven", "Garen"], enemy: ["Mordekaiser"] } }))).toEqual({ you: "Riven", recent: { you: ["Riven", "Garen"], enemy: ["Mordekaiser"] }, role: null, haste: 0 });
     for (const raw of [null, "", "not json", "[]", "3", "null", JSON.stringify({ you: 3 })]) expect(parsePreferences(raw), String(raw)).toMatchObject({ you: null, recent: { you: [], enemy: [] } });
     // Anything that is not an id is left out, duplicates once, at most RECENT_MAX.
     const messy = parsePreferences(JSON.stringify({ you: "<img src=x>", recent: { you: ["Riven", "Riven", 7, "../x", "a b"], enemy: Array.from({ length: 20 }, (_, i) => `Champ${i}`) } }));
@@ -37,11 +37,11 @@ describe("what is stored on this device", () => {
 
   it("puts a choice first in its side's Recent row, and remembers your own champion", () => {
     let p = withChoice(NO_PREFERENCES, "enemy", "Mordekaiser");
-    expect(p).toEqual({ you: null, recent: { you: [], enemy: ["Mordekaiser"] } });
+    expect(p).toEqual({ you: null, recent: { you: [], enemy: ["Mordekaiser"] }, role: null, haste: 0 });
     p = withChoice(p, "you", "Riven");
     p = withChoice(p, "enemy", "Renekton");
     p = withChoice(p, "enemy", "Mordekaiser");
-    expect(p).toEqual({ you: "Riven", recent: { you: ["Riven"], enemy: ["Mordekaiser", "Renekton"] } });
+    expect(p).toEqual({ you: "Riven", recent: { you: ["Riven"], enemy: ["Mordekaiser", "Renekton"] }, role: null, haste: 0 });
     for (let i = 0; i < 12; i++) p = withChoice(p, "enemy", `Champ${i}`);
     expect(p.recent.enemy).toHaveLength(RECENT_MAX);
     expect(p.recent.enemy[0]).toBe("Champ11");
@@ -52,8 +52,15 @@ describe("what is stored on this device", () => {
   it("remembers a champion as yours, or forgets it", () => {
     const p = withChoice(NO_PREFERENCES, "you", "Riven");
     expect(withRemembered(p, "Garen").you).toBe("Garen");
-    expect(withRemembered(p, null)).toEqual({ you: null, recent: { you: ["Riven"], enemy: [] } });
+    expect(withRemembered(p, null)).toEqual({ you: null, recent: { you: ["Riven"], enemy: [] }, role: null, haste: 0 });
     expect(withRemembered(p, "not an id")).toBe(p);
+  });
+
+  it("keeps the lane and the haste last chosen, and nothing else in their place", () => {
+    expect(parsePreferences(JSON.stringify({ role: "adc", haste: 40 }))).toMatchObject({ role: "adc", haste: 40 });
+    expect(parsePreferences(JSON.stringify({ role: "carry", haste: "9999" }))).toMatchObject({ role: null, haste: 300 });
+    expect(withSetting(NO_PREFERENCES, { role: "support" })).toMatchObject({ role: "support", haste: 0 });
+    expect(withSetting(NO_PREFERENCES, { haste: -3 })).toMatchObject({ role: null, haste: 0 });
   });
 });
 
@@ -64,7 +71,7 @@ describe("the store", () => {
     const stop = preferenceStore.subscribe(seen);
     expect(preferenceStore.read()).toBe(preferenceStore.read());
     preferenceStore.write(withChoice(NO_PREFERENCES, "you", "Riven"));
-    expect(JSON.parse(w.data.get(PREFERENCES_KEY)!)).toEqual({ you: "Riven", recent: { you: ["Riven"], enemy: [] } });
+    expect(JSON.parse(w.data.get(PREFERENCES_KEY)!)).toEqual({ you: "Riven", recent: { you: ["Riven"], enemy: [] }, role: null, haste: 0 });
     expect(preferenceStore.read().you).toBe("Riven");
     expect(seen).toHaveBeenCalledTimes(1);
     // Another tab: a change to this key, or the storage cleared; never another key.

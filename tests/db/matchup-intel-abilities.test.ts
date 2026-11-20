@@ -166,7 +166,7 @@ describe("champion abilities: sync and read", () => {
     const ahri = loaded.champions.Ahri!;
     expect(ahri).toMatchObject({ championId: "Ahri", version: "16.21.1" });
     // The contract's fields only: the rules' revision stays in the store.
-    expect(Object.keys(ahri)).toEqual(["championId", "version", "abilities"]);
+    expect(Object.keys(ahri)).toEqual(["championId", "version", "abilities", "tips"]);
     expect(index!.champions.Ahri).toMatchObject({ version: "16.21.1", format: ABILITY_RULES_FORMAT });
     expect(ahri.abilities.map((a) => a.slot)).toEqual(["P", "Q", "W", "E", "R"]);
     // The text's pin is of Riot's own words, markup and all (so a change of either hides the facts read from it).

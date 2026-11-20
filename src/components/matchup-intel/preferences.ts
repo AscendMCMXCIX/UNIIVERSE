@@ -3,6 +3,8 @@
 import * as React from "react";
 
 import { perAccountKey } from "@/components/account-storage";
+import { ROLES, type Role } from "@/domain/matchup-intel/types";
+import { clampHaste } from "@/domain/matchup-intel/haste";
 
 /*
   Matchup Intel's memory on this device (localStorage), champion ids only, never sent to the
@@ -29,9 +31,13 @@ export interface MatchupPreferences {
   you: string | null;
   /** The champions chosen lately on each side, newest first. */
   recent: Readonly<Record<PickerSlot, readonly string[]>>;
+  /** The lane last chosen (an old ?champion=&vs= link opens in it); null when none was. */
+  role: Role | null;
+  /** The ability haste last chosen for the cooldowns (0: base cooldowns only). */
+  haste: number;
 }
 
-export const NO_PREFERENCES: MatchupPreferences = Object.freeze({ you: null, recent: Object.freeze({ you: Object.freeze([]), enemy: Object.freeze([]) }) });
+export const NO_PREFERENCES: MatchupPreferences = Object.freeze({ you: null, recent: Object.freeze({ you: Object.freeze([]), enemy: Object.freeze([]) }), role: null, haste: 0 });
 
 /** A champion id as Data Dragon writes them ("MonkeyKing", "KSante"): nothing else is kept. */
 const ID = /^[A-Za-z0-9]{1,40}$/;
@@ -48,15 +54,21 @@ export function parsePreferences(raw: string | null): MatchupPreferences {
     return NO_PREFERENCES;
   }
   if (!v || typeof v !== "object" || Array.isArray(v)) return NO_PREFERENCES;
-  const o = v as { you?: unknown; recent?: unknown };
+  const o = v as { you?: unknown; recent?: unknown; role?: unknown; haste?: unknown };
   const recent = o.recent && typeof o.recent === "object" ? (o.recent as { you?: unknown; enemy?: unknown }) : {};
-  return { you: isId(o.you) ? o.you : null, recent: { you: idList(recent.you), enemy: idList(recent.enemy) } };
+  const role = typeof o.role === "string" && (ROLES as readonly string[]).includes(o.role) ? (o.role as Role) : null;
+  return { you: isId(o.you) ? o.you : null, recent: { you: idList(recent.you), enemy: idList(recent.enemy) }, role, haste: clampHaste(o.haste) };
 }
 
 /** After a champion is chosen on one side: first in that side's Recent row; chosen as yours, it is also the one remembered. */
 export function withChoice(prefs: MatchupPreferences, slot: PickerSlot, id: string): MatchupPreferences {
   if (!isId(id)) return prefs;
-  return { you: slot === "you" ? id : prefs.you, recent: { ...prefs.recent, [slot]: [id, ...prefs.recent[slot].filter((x) => x !== id)].slice(0, RECENT_MAX) } };
+  return { ...prefs, you: slot === "you" ? id : prefs.you, recent: { ...prefs.recent, [slot]: [id, ...prefs.recent[slot].filter((x) => x !== id)].slice(0, RECENT_MAX) } };
+}
+
+/** After a lane or a haste is chosen: kept for the next visit. */
+export function withSetting(prefs: MatchupPreferences, setting: { role?: Role; haste?: number }): MatchupPreferences {
+  return { ...prefs, ...(setting.role && (ROLES as readonly string[]).includes(setting.role) ? { role: setting.role } : {}), ...(setting.haste !== undefined ? { haste: clampHaste(setting.haste) } : {}) };
 }
 
 /** Remembers this champion as yours on this device, or forgets the one remembered (null). */
@@ -109,9 +121,10 @@ function subscribe(onChange: () => void): () => void {
 export const preferenceStore = { read, write, subscribe };
 
 /** This device's Matchup Intel memory, and the ways to change it. */
-export function useMatchupPreferences(): { prefs: MatchupPreferences; choose: (slot: PickerSlot, id: string) => void; remember: (id: string | null) => void } {
+export function useMatchupPreferences(): { prefs: MatchupPreferences; choose: (slot: PickerSlot, id: string) => void; remember: (id: string | null) => void; set: (setting: { role?: Role; haste?: number }) => void } {
   const prefs = React.useSyncExternalStore(subscribe, read, () => NO_PREFERENCES);
   const choose = React.useCallback((slot: PickerSlot, id: string) => write(withChoice(read(), slot, id)), []);
   const remember = React.useCallback((id: string | null) => write(withRemembered(read(), id)), []);
-  return { prefs, choose, remember };
+  const set = React.useCallback((setting: { role?: Role; haste?: number }) => write(withSetting(read(), setting)), []);
+  return { prefs, choose, remember, set };
 }

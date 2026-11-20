@@ -1,10 +1,11 @@
 import type { Db } from "@/server/db/types";
-import { FACT_TAGS, SLOTS, type AbilityRef, type AbilityView, type BriefingPoint, type BriefingPointView, type ChampionChoice, type ChampionIntelView, type ChampionNotes, type DdragonAbility, type DdragonChampionAbilities, type Fact, type FactSubject, type FactTag, type FactView, type Freshness, type InteractionView, type MatchupIntelView, type MatchupNotes, type MatchupPageView, type Recheck, type RiotTextAbilityView, type RiotTextChampion, type Slot, type Source, type SourceLinkView } from "@/domain/matchup-intel/types";
+import { DUO_ROLES, FACT_TAGS, ROLES, SLOTS, type Role, type AbilityRef, type AbilityView, type BriefingPoint, type BriefingPointView, type ChampionChoice, type ChampionIntelView, type ChampionNotes, type DdragonAbility, type DdragonChampionAbilities, type Fact, type FactSubject, type FactTag, type FactView, type Freshness, type InteractionView, type MatchupIntelView, type MatchupNotes, type MatchupPageView, type Recheck, type RiotTextAbilityView, type RiotTextChampion, type Slot, type Source, type SourceLinkView } from "@/domain/matchup-intel/types";
 import { abilityChanges, abilityFreshness, compareDdragonVersions, cooldownDisplay, curatedCooldownDisplay, modifiersView, weakestFreshness } from "@/domain/matchup-intel/cooldown";
 import { patchFromVersion, patchesAfter, publicPatchName } from "@/domain/patch";
 import { keepUnitsWithNumbers } from "@/lib/format";
 import { cachedFor } from "@/server/observability/cache";
 import { getCurrentPatch, listChampions, listPatchesDesc, type ChampionSummary } from "@/server/repositories/champions";
+import { hasteBasisOf } from "@/domain/matchup-intel/haste";
 import { loadChampionAbilities } from "./abilities";
 import { curatedEnemiesFor, getChampionNotes, getMatchupNotes } from "./curated";
 import { loadRiotText } from "./riot-text";
@@ -202,6 +203,8 @@ function abilityViews(data: DdragonChampionAbilities | null, notes: ChampionNote
         icon: abilityIconUrl(data.version, slot, a.icon),
         maxRank: a.maxRank,
         cooldown: cooldownDisplay(a, n, freshness),
+        // The checked notes' static mark only while they still describe Riot's record, as the tile's line does.
+        haste: hasteBasisOf(slot, cooldownDisplay(a, n, freshness), modifiersView(n?.modifiers, a.maxRank), { static: freshness !== "changed-since" && n?.modifiers?.static === true, ignoreStatic: freshness === "changed-since" }),
         checkedCooldown: freshness === "changed-since" && n?.cooldown ? curatedCooldownDisplay(n.cooldown, checkedRanks) : null,
         changes: changed,
         cooldownNote: drawn(n?.cooldownNote ?? null),
@@ -299,6 +302,8 @@ function championIntel(champion: ChampionChoice, data: DdragonChampionAbilities 
       : [],
     sources: notes ? safeSources(notes.sources) : [],
     riotText: !notes && riotText ? { version: riotText.version, patch: publicPatchOf(riotText.version), reviewedOn: riotText.reviewedOn, review: { ...riotText.review } } : null,
+    // Riot's words exactly as stored (verbatim): never drawn, so they stay byte-equal to Data Dragon.
+    tips: data?.tips ? { ally: [...data.tips.ally], enemy: [...data.tips.enemy] } : null,
   };
 }
 
@@ -389,12 +394,31 @@ function matchupIntel(notes: MatchupNotes, ids: ReadonlySet<string>, data: Recor
   return { verified: { ...notes.verified }, freshness: freshnessOf(values, verified, dataVersion), recheck, briefing, interactions, expiredInteractions: 0, sources: safeSources(notes.sources) };
 }
 
+/** What the address may name: the role and up to four champions (docs/MATCHUP_INTEL.md, "Roles"). */
+export interface MatchupInput {
+  role?: string;
+  champion?: string;
+  vs?: string;
+  ally?: string;
+  vs2?: string;
+}
+
+/** The role an address names, else Top (an old ?champion=&vs= link opens as a 1v1). */
+export function roleOf(raw: unknown): Role {
+  return typeof raw === "string" && (ROLES as readonly string[]).includes(raw) ? (raw as Role) : "top";
+}
+
 /** Everything the page shows for one choice of champions (docs/MATCHUP_INTEL.md). */
-export async function buildMatchupPageView(input: { champion?: string; vs?: string }, deps: MatchupViewDeps): Promise<MatchupPageView> {
+export async function buildMatchupPageView(input: MatchupInput, deps: MatchupViewDeps): Promise<MatchupPageView> {
   const resolve = championResolver(deps.champions);
+  const role = roleOf(input.role);
+  const duo = DUO_ROLES.has(role);
   const you = resolve(input.champion);
   const enemy = resolve(input.vs);
-  const ids = [...new Set([you?.id, enemy?.id].filter((id): id is string => !!id))];
+  // The bot lane's other two slots; a solo lane takes none (an address naming them is left out).
+  const ally = duo ? resolve(input.ally) : null;
+  const enemy2 = duo ? resolve(input.vs2) : null;
+  const ids = [...new Set([you?.id, enemy?.id, ally?.id, enemy2?.id].filter((id): id is string => !!id))];
   const notes: Record<string, ChampionNotes | null> = Object.fromEntries(
     ids.map((id) => {
       const n = deps.championNotes(id);
@@ -421,10 +445,15 @@ export async function buildMatchupPageView(input: { champion?: string; vs?: stri
   const matchup = curatedMatchup && you && enemy && curatedMatchup.championId === you.id && curatedMatchup.vsId === enemy.id ? matchupIntel(curatedMatchup, new Set(ids), data, notes, { currentVersion, knownPatches }) : null;
   const dataVersion = (enemy ? data[enemy.id]?.version : null) ?? (you ? data[you.id]?.version : null) ?? loaded.version;
   return {
+    role,
     you,
     enemy,
+    ally,
+    enemy2,
     enemyIntel: intel(enemy),
     yourIntel: intel(you),
+    allyIntel: intel(ally),
+    enemy2Intel: intel(enemy2),
     matchup,
     patch: { current: deps.currentPatch ? publicPatchName(deps.currentPatch.patch) : null, data: publicPatchOf(dataVersion ?? null) },
   };
@@ -465,7 +494,7 @@ export function riotTextReader(shown: boolean): MatchupViewDeps["riotText"] {
 }
 
 /** What the page needs, from the real modules. `riotText`: whether it shows the facts from Riot's text (the switch, by default). */
-export async function loadMatchupPage(db: Db, input: { champion?: string; vs?: string }, riotText: boolean = RIOT_TEXT_FACTS_ENABLED): Promise<{ view: MatchupPageView; champions: ChampionChoice[]; curated: Record<string, string[]> }> {
+export async function loadMatchupPage(db: Db, input: MatchupInput, riotText: boolean = RIOT_TEXT_FACTS_ENABLED): Promise<{ view: MatchupPageView; champions: ChampionChoice[]; curated: Record<string, string[]> }> {
   const [list, current, knownPatches] = await Promise.all([listChampions(db), getCurrentPatch(db), knownPatchesOf(db)]);
   const champions = championChoices(list);
   const view = await buildMatchupPageView(input, {

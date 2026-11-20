@@ -509,6 +509,123 @@ the rule under which AI agents then audited and corrected every note; the correc
 of those briefings afterwards, and no person has checked each fact against its page (For the owner,
 step 2).
 
+## Roles, the bot lane, haste and Riot's tips (S7a, 20 Nov 2026)
+
+The overhaul's S7a (docs/overhaul PLAN.md, S7) sets the page for all five roles, adds the cooldowns
+at a chosen ability haste and Riot's own tips, and reads more of the static data the version-check
+job already downloads. No new Riot request, no new job, no migration; nothing of it comes from the
+facts from Riot's text, so `RIOT_TEXT_FACTS_ENABLED` (still false) governs none of it.
+
+### Roles and their slots
+
+- **A lane selector** in the bar: Top · Jungle · Mid · ADC · Support (`matchup-frame.tsx`,
+  `RoleSelector`). The lane last chosen is remembered on this device, under the account's key, with
+  the champions (`preferences.ts`).
+- **Top, Jungle and Mid** set you against one enemy: two slots, "Your champion" and "Enemy" (at a
+  320px phone "You", the screen reader still hearing the whole label). Nothing else is asked for: no
+  full team, no jungle input.
+- **ADC and Support** set your duo against theirs: four slots, your own role's first ("Your ADC",
+  "Your support", "Enemy ADC", "Enemy support"), seen from your role: as ADC, `champion` is your ADC
+  and `vs` the enemy ADC; as Support, `champion` is your support and `vs` the enemy support. The pair
+  `champion`/`vs` is the lane counterpart, so the curated briefing or the assembled reference is
+  for it, as in a solo lane; the other two (`ally`, `vs2`) add their kits.
+- **An empty slot** names what it wants ("Choose the enemy support") and keeps its place, so filling
+  it moves nothing (the browser spec measures every other slot within 1px).
+- **The address** carries the lineup: `?role=adc&champion=&ally=&vs=&vs2=` (`lineupHref`,
+  `address.ts`). A solo lane drops `ally` and `vs2`. A reload and a shared link open the same lineup
+  (for signed-in members only). An old `?champion=&vs=` link opens as a 1v1 in the lane this device
+  used last, else Top.
+- **History:** every change (a champion, the swap, the lane) replaces the entry: the lineup is the
+  page's state, like a filter, so Back leaves Matchup Intel in one step however many changes were
+  made; "Recent" in the picker returns to an earlier champion. (Before S7a each pair was an entry
+  where the browser had the Navigation API.) A chip's jump to an ability is still an entry of its own.
+- **The swap** trades the sides, in the bot lane both duos.
+- **"Copy link"**, an icon button at the title's row end: the page's address with the lineup, to the
+  clipboard, or the share sheet on a touch screen that has one (the installed app has no address bar).
+- **On a phone**, once the slots have scrolled away, a **pinned pair bar** under the phone's top bar
+  (at the very top while that bar hides): the champions as 40px portraits and the swap. A champion is
+  changed in two taps, its portrait and the pick, with no scroll back up (the browser keeps the new
+  enemy's kit where the reader was); the focus stays on the bar's portrait.
+- **The title** is the same size as the other destinations' (`text-2xl`).
+
+### The bot lane's page
+
+Both enemies' kits side by side (from a dashboard 60rem wide), each with its cooldowns; your duo's
+two kits folded side by side under them; Riot's tips for all four; and "No curated notes for this
+2v2" in the evidence line. Measured on the demo (Jinx and Lulu vs Caitlyn and Lux, the sidebar open):
+no page scroll at 1920 × 950 and 1920 × 1080; 293px under the fold at 1440 × 900, with the bar, both
+kits and the start of the main panel on the screen.
+
+### Cooldowns at a haste
+
+The enemy's kit header holds the haste choice: 0 (base cooldowns only, the default), 20, 40, 60, or
+a whole number typed up to 300, remembered on this device. At a haste above 0 each tile adds one
+line under its base line ("At 20 haste: 7.5 / 6.46 / … s · Riot's general rule"); the base line never
+changes. Every case says which it is (`src/domain/matchup-intel/haste.ts`):
+
+| Case | What is shown | Mark |
+| --- | --- | --- |
+| The checked notes mark the cooldown static (`static`) | the base at every haste | "Static: haste doesn't shorten it" |
+| The checked notes leave it open (`hasteUnknown`: Death's Grasp, from Riven vs Mordekaiser's list of what no saved page states) | the base only | "Whether haste shortens it isn't known" |
+| Every other per-rank number (Riot's, or checked) | base × 100 / (100 + haste), to two decimals | "Riot's general rule"; on R "Riot's general rule · ability haste only" (ultimate haste from some runes and items is not counted) |
+| Charges' recharge, a passive's own cooldown | the base only | "How haste applies is not in Riot's data" |
+| No number | nothing | — |
+
+The rule is Riot's published one (patch 10.23); its tip says Riot's data does not list the abilities
+it does not apply to and that checked notes cover 6 champions. **Of the 24 checked cooldowns**, the
+notes mark none as static (their two static marks are lockouts between casts, said in words), leave
+one open (Death's Grasp, base only), and the rule is applied to the other 23: the notes record
+nothing that contradicts it, which is not the same as having checked each hasted value. Summoner
+spells are never shortened by ability haste ("Summoner spell haste is a separate stat";
+`summonerSpellCooldown`). **Never a timer, a countdown or "ready at"**: only the cooldown's length
+(game integrity; the browser spec checks the words are absent). `curated.test.ts` checks that every
+"whether ability haste shortens …" line in a note has its ability's `hasteUnknown` flag, and no other
+ability has one. `haste.test.ts` holds every ability of the 173 to the rule at four haste values.
+
+### Riot's tips
+
+Each enemy's Data Dragon `enemytips` and your side's `allytips`, **verbatim**, in quotation marks,
+attributed "Riot's tip (may predate later changes)" (`riot-tips.tsx`). They are read by the ability
+sync from the champion files it already downloads (rules format 3, `abilities.ts`: a record stored
+under format 2 is read again on the next version-check run; until then the page says the tips "are
+not stored yet", never that Riot publishes none). Under the kits, one folded line, "Riot's tips (n)",
+so the one-screen fit holds; opened, the first tip per enemy, the rest of the enemies' in one fold and
+your side's in another; a champion Riot gives none says "Riot publishes no tip for playing against
+X". At 16.22.1, **147 champions have enemy tips and 149 ally tips** (814 tips); `abilities.test.ts`
+holds every stored tip byte-equal to Data Dragon's own (the digest,
+`tests/fixtures/ddragon-16.22.1-ability-digest.json`, now carries Riot's raw tips beside its
+numbers). A tip of more than 600 characters would be left out whole, never cut (none is).
+
+### Words
+
+- `REFUSED_WORDS` (unchanged) holds curated text, kit facts, the assembled reference's fixed
+  sentences and S7a's fixed lines (the haste marks, the tips' label, the evidence line).
+- **Riot's tips are exempt** as attributed quotes: they are Riot's words ("Try to stay away from
+  walls. Ornn is much less strong if he cannot stun you."), and the byte-equal test makes sure nothing
+  of the app's own hides in the exemption. 100+ of them use a refused word.
+- **`EVIDENCE_REFUSED_WORDS`** (`refused-words.ts`, `evidence-words.test.ts`), for the sentences
+  built from the team's games (S7b): "you/your" only as the possessive of the viewer's own games ("In
+  your games", "4 of your 9 games"), "won/lost" only as counted results; instructions, verdicts (win
+  as a verdict, best, counter, recommended, core build) and absolutes stay refused.
+
+### Evidence
+
+Until S7b counts the team's own games, the page claims none: the tips' fold ends with "Runes, items
+and skill order: No high-elo evidence (not collected)", and in the bot lane "No curated notes for
+this 2v2". No build, rune page or skill order is suggested anywhere.
+
+### Static data for the build evidence
+
+`compactAssets` (`src/server/riot/static/assets.ts`, rules format 2: stored maps of format 1 are read
+again on the next run) now keeps, from the `item.json`, `summoner.json` and `runesReforged.json`
+version-check already downloads: each Summoner's Rift item's gold, tags, `from`/`into`, depth and the
+ability haste its `<stats>` name; each summoner spell's base cooldown; each rune tree's slots.
+**Measured at 16.22.1: 72 Summoner's Rift items (map 11, ids of up to four digits) name ability haste
+in their stats, 65 of them purchasable** (the plan's estimate was 70); the parser reads all 72
+(`assets.test.ts`, against Riot's own text in `tests/fixtures/ddragon-16.22.1-item-haste.json`,
+written by `scripts/matchup-intel/build-item-digest.mjs`). The page shows none of it yet: S7b's
+build evidence uses it.
+
 ## Where it is
 
 - **Its own sidebar entry**, **Matchup Intel** with the swords, between Team and Resources (the
@@ -1411,7 +1528,9 @@ pages were read on 16 Nov 2026: the League of Legends documentation
   description or tooltip, each placeholder as "[…]", always labelled as Riot's and as reviewed
   automatically (Facts from Riot's text); they were made offline from Data Dragon's
   `championFull.json` (most drafted by fixed rules, 61 of the 1,112 added by a reviewer or with the
-  consistency pass) and are committed, so no page asks Riot for them.
+  consistency pass) and are committed, so no page asks Riot for them. Riot's tips (`allytips`,
+  `enemytips`) are shown verbatim, in quotation marks, attributed "Riot's tip (may predate later
+  changes)", read from the same champion files by the version-check job (Riot's tips, above).
 
 ### The League of Legends Wiki
 
@@ -1520,9 +1639,13 @@ from it, with their reasons. Each replaced a default this page followed until th
 ## Not built
 
 For later, each its own decision:
-- your own notes on a matchup (the notebook, below);
-- favourite matchups;
-- sharing a briefing.
+- your own notes on a matchup (the notebook, below): it needs the owner's go-ahead and a change to
+  the privacy notice (OD9).
+
+Decided on 20 Nov 2026 (S7a): **sharing a briefing** is delivered by the address and "Copy link"
+(Roles, above). **Favourite matchups** are not built: Recent and the remembered champion already
+return to a pair in one tap, and a third list would be a control for the same need (the directive,
+"no unnecessary controls").
 
 Nothing here reads a player's games either: those are Matchups', in the champion window.
 

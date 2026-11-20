@@ -207,6 +207,7 @@ export function modifiersView(m: AbilityModifiers | undefined, ranks: number | n
   }
   if (m.resetsAttack === true) out.resetsAttack = true;
   if (m.static === true) out.static = true;
+  if (m.hasteUnknown === true && m.static !== true) out.hasteUnknown = true;
   if (m.lockout && isSeconds(m.lockout.seconds) && m.lockout.seconds > 0) out.lockout = m.lockout.static === true ? { seconds: m.lockout.seconds, static: true } : { seconds: m.lockout.seconds };
   return Object.keys(out).length ? out : null;
 }

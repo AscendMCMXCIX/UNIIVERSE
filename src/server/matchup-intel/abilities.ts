@@ -42,7 +42,7 @@ const KEY = "champion_abilities";
  * under another is read again from Data Dragon on the next run (the fixture must be rebuilt too:
  * abilities.test.ts fails until it is).
  */
-export const ABILITY_RULES_FORMAT = 2;
+export const ABILITY_RULES_FORMAT = 3;
 /** The Data Dragon version the committed fixture was built from. */
 export const ABILITY_FIXTURE_VERSION = "16.22.1";
 /** Data Dragon champion ids ("Riven", "MonkeyKing"): checked before any id reaches a query or a URL. */
@@ -158,7 +158,16 @@ const spellSchema = z.object({
   tooltip: z.string().max(40_000).optional(),
   image: z.object({ full: icon }),
 });
-const detailSchema = z.object({ id: z.string().regex(CHAMPION_ID), passive: passiveSchema, spells: z.array(spellSchema).min(4) });
+const tipList = z.array(z.unknown()).max(40).optional();
+const detailSchema = z.object({ id: z.string().regex(CHAMPION_ID), passive: passiveSchema, spells: z.array(spellSchema).min(4), allytips: tipList, enemytips: tipList });
+
+/** The longest tip kept, in characters: a longer one is left out whole, never cut (a tip is shown verbatim). */
+export const TIP_MAX = 600;
+
+/** Riot's tips as Data Dragon gives them, verbatim: each a non-empty string of at most TIP_MAX characters, in Riot's order; anything else left out. */
+export function riotTips(list: unknown): string[] {
+  return Array.isArray(list) ? list.filter((t): t is string => typeof t === "string" && t.trim() !== "" && t.length <= TIP_MAX) : [];
+}
 
 const SPELL_SLOTS = ["Q", "W", "E", "R"] as const;
 
@@ -177,7 +186,7 @@ export function compactChampionAbilities(detail: unknown, version: string): Ddra
     if (typeof version !== "string" || !VERSION.test(version)) return null;
     const parsed = detailSchema.safeParse(detail);
     if (!parsed.success) return null;
-    const { id, passive, spells } = parsed.data;
+    const { id, passive, spells, allytips, enemytips } = parsed.data;
     const abilities: DdragonAbility[] = [
       { slot: "P", id: null, name: passive.name, icon: passive.image.full, maxRank: 1, cooldown: [], charges: null, description: cleanDescription(passive.description ?? ""), textHash: riotTextHash(passive.description ?? "", null) },
       ...SPELL_SLOTS.map((slot, i): DdragonAbility => {
@@ -185,7 +194,7 @@ export function compactChampionAbilities(detail: unknown, version: string): Ddra
         return { slot, id: s.id, name: s.name, icon: s.image.full, maxRank: s.maxrank, cooldown: [...s.cooldown], charges: chargesOf(s.maxammo), description: cleanDescription(s.description ?? ""), textHash: riotTextHash(s.description ?? "", s.tooltip ?? "") };
       }),
     ];
-    return { championId: id, version, abilities };
+    return { championId: id, version, abilities, tips: { ally: riotTips(allytips), enemy: riotTips(enemytips) } };
   } catch {
     return null;
   }
@@ -428,7 +437,9 @@ const storedAbility = z.object({
   // Absent on a record stored under the first rules (ABILITY_RULES_FORMAT 1), until the next sync re-reads it.
   textHash: z.string().regex(/^[0-9a-f]{16}$/).nullable().optional(),
 });
-const storedChampion = z.object({ championId: z.string(), version: z.string(), abilities: z.array(storedAbility).length(SLOTS.length) });
+// Tips are absent on a record stored under rules format 2, until the next sync re-reads it.
+const storedTips = z.object({ ally: z.array(z.string()), enemy: z.array(z.string()) }).optional();
+const storedChampion = z.object({ championId: z.string(), version: z.string(), abilities: z.array(storedAbility).length(SLOTS.length), tips: storedTips });
 
 /** A stored record as the contract types it (the rules' `format` left out), or null when it is not one (or not this champion's). */
 function storedRecord(value: unknown, id: string): DdragonChampionAbilities | null {
