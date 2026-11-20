@@ -363,8 +363,8 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
           <span className={cn("flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-fg-subtle @min-[36rem]/mh:flex-col @min-[36rem]/mh:gap-y-px", PHONE_FIGURES)} data-testid="match-figures">
             <Stat label="KP" value={kp} className={PHONE_KP} testId="match-kp" />
             <span className={PHONE_FIGURES_REST}>
-              <Stat label="CS/min" value={fmtNum(row.csPerMin)} extra={row.cs === null ? null : formatCount(row.cs)} detail={row.cs === null ? undefined : ", the game's total"} testId="match-cs" />
-              <Stat label="dmg/min" value={fmtInt(row.damagePerMin)} extra={row.damageShare === null ? null : `${Math.round(row.damageShare * 100)}%`} detail={row.damage === null ? undefined : `${row.damageShare === null ? "" : " of the team's damage"}, ${formatCount(row.damage)} to champions in all`} testId="match-damage" />
+              <Stat label="CS/min" value={fmtNum(row.csPerMin)} extra={row.cs === null ? null : formatCount(row.cs)} testId="match-cs" />
+              <Stat label="dmg/min" value={fmtInt(row.damagePerMin)} extra={row.damageShare === null ? null : `${Math.round(row.damageShare * 100)}%`} testId="match-damage" />
               {standoutChip("self-center @min-[36rem]/mh:mt-px @min-[36rem]/mh:self-start")}
             </span>
           </span>
@@ -432,13 +432,12 @@ function MemberNames({ names }: { names: string[] }) {
  * card to card) and as wide as the text whenever that is wider: never narrower than the text, so it
  * cannot run under the build or the teams.
  */
-function Stat({ label, value, extra = null, detail, className, testId }: { label: string; value: string; /** A quieter figure after it: the total or the share. */ extra?: string | null; /** What the quieter figure is, for screen readers. */ detail?: string; className?: string; testId?: string }) {
+function Stat({ label, value, extra = null, className, testId }: { label: string; value: string; /** A quieter figure after it: the total or the share. */ extra?: string | null; className?: string; testId?: string }) {
   return (
     <span className={cn("flex min-w-0 flex-wrap items-baseline gap-x-1 leading-snug @min-[36rem]/mh:min-w-[8.125rem]", className)} data-testid={testId}>
       <span className="font-semibold tabular-nums text-fg">{value}</span>
       <span className="whitespace-nowrap">{label}</span>
       {extra ? <span className="whitespace-nowrap tabular-nums text-fg-subtle">({extra})</span> : null}
-      {detail ? <span className="sr-only">{detail}</span> : null}
     </span>
   );
 }
