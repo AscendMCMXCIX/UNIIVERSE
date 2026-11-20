@@ -24,7 +24,9 @@ export function BuildPanel({ result }: { result: MatchTimelineResult | null }) {
           Build order
         </h3>
         {!result ? (
-          <div className="h-16 animate-pulse rounded-lg bg-surface-2 motion-reduce:animate-none" aria-busy="true" aria-label="Loading the build order" />
+          <div role="status" className="h-16 animate-pulse rounded-lg bg-surface-2 motion-reduce:animate-none">
+            <span className="sr-only">Loading the build order</span>
+          </div>
         ) : message || !build ? (
           <p className="rounded-panel border border-dashed border-border p-3 text-sm text-fg-muted" data-testid="build-message">
             {message}

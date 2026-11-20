@@ -248,9 +248,23 @@ test("Settings: the account card leads, drawn in the order it is read, with Sign
     await page.addStyleTag({ content: "main { padding-bottom: 100vh !important; }" });
     await index.getByRole("link", { name: "Password" }).tap();
     await expect(page).toHaveURL(/\/settings#password$/);
-    const bar = (await page.getByTestId("mobile-topbar").boundingBox())!;
-    await expect.poll(async () => Math.round((await page.locator("#password").boundingBox())!.y - (bar.y + bar.height))).toBeGreaterThanOrEqual(6);
-    expect(Math.round((await page.locator("#password").boundingBox())!.y - (bar.y + bar.height))).toBeLessThanOrEqual(10);
+    // Under the top bar as it is once the page and the bar are at rest. This project's phone is under
+    // 700px tall, where the bar's first row slides away as the page goes down (docs/MOBILE.md, "The
+    // frame slides away"; on Settings that row is the whole bar): the jump lands the section under
+    // the bar as it will be, so a box read as the address changes is the bar it is leaving, and the
+    // section sat 44px "above" that (a reading two moments apart, 250ms, the bar's slide being 200ms).
+    const topBar = page.getByTestId("mobile-topbar");
+    const underBar = () => page.evaluate(() => Math.round(document.getElementById("password")!.getBoundingClientRect().top - document.querySelector("[data-testid=mobile-topbar]")!.getBoundingClientRect().bottom));
+    const atRest = async () => {
+      const before = await underBar();
+      await page.waitForTimeout(250);
+      const moving = await topBar.evaluate((b) => b.getAnimations({ subtree: true }).length > 0);
+      return !moving && before === (await underBar()) ? before : null;
+    };
+    await expect.poll(atRest).not.toBeNull();
+    const landed = await underBar();
+    expect(landed, "the section 6–10px under the top bar at rest").toBeGreaterThanOrEqual(6);
+    expect(landed, "the section 6–10px under the top bar at rest").toBeLessThanOrEqual(10);
     await expect(page.locator("#password")).toBeFocused();
     await page.getByTestId("settings-privacy-link").click();
     await expect(page).toHaveURL(/\/privacy$/);

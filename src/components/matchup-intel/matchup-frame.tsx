@@ -445,7 +445,11 @@ function PinnedPairBar({ lineup, choice, onOpen, onSwap, watch }: { lineup: Line
   React.useEffect(() => {
     const el = watch.current;
     if (!el || typeof IntersectionObserver === "undefined") return;
-    const io = new IntersectionObserver(([entry]) => setShown(!!entry && !entry.isIntersecting && entry.boundingClientRect.top < 0));
+    // The newest entry: a late callback carries every change since the last, oldest first (#323).
+    const io = new IntersectionObserver((entries) => {
+      const entry = entries[entries.length - 1];
+      setShown(!!entry && !entry.isIntersecting && entry.boundingClientRect.top < 0);
+    });
     io.observe(el);
     return () => io.disconnect();
   }, [watch]);

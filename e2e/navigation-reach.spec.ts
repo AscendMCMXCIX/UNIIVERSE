@@ -536,6 +536,66 @@ test("tablet and desktop: from the end of Match History the pinned row's Filters
   expect(await page.evaluate(() => window.scrollY)).toBe(scrolled);
 });
 
+test("tablet and desktop: the pinned state follows the row when the browser reports late: back to the top, then straight to the end of Match History, the row is pinned and offers Filters", async ({ page }) => {
+  test.skip(isPhone(page), "phones offer Filters in the top bar (mobile-nav.spec.ts)");
+  // A busy machine (#323: Production check on Release 5): an observer's callback comes late,
+  // carrying every change since the last, oldest first. Here the observers' entries are held while
+  // the page moves, then handed over in one call, as the browser may.
+  await page.addInitScript(() => {
+    const w = window as unknown as { __holdIO: boolean; __releaseIO: () => void };
+    const flushes = new Set<() => void>();
+    w.__holdIO = false;
+    w.__releaseIO = () => {
+      w.__holdIO = false;
+      for (const flush of flushes) flush();
+    };
+    const Native = window.IntersectionObserver;
+    window.IntersectionObserver = class extends Native {
+      constructor(callback: IntersectionObserverCallback, options?: IntersectionObserverInit) {
+        let held: IntersectionObserverEntry[] = [];
+        let self: IntersectionObserver | null = null;
+        const flush = () => {
+          const all = held;
+          held = [];
+          if (all.length && self) callback(all, self);
+        };
+        super((entries, observer) => {
+          self = observer;
+          if (!w.__holdIO) return callback(entries, observer);
+          held.push(...entries);
+          flushes.add(flush);
+        }, options);
+      }
+    };
+  });
+  const profile = await teammate(page);
+  await page.goto(`${profile}/matches`);
+  await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
+  const tabs = page.getByTestId("profile-tabs");
+  await scrollTo(page, "end");
+  await expect(tabs).toHaveAttribute("data-stuck", "");
+  await expect(page.getByTestId("toolbar-filters")).toBeVisible();
+  // Back at the top (as Back closing a game leaves it), then at the end, within one late report.
+  await page.evaluate(async () => {
+    const w = window as unknown as { __holdIO: boolean; __releaseIO: () => void };
+    // Two frames: each move is drawn, and its intersection worked out.
+    const frame = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 50))));
+    w.__holdIO = true;
+    window.scrollTo(0, 0);
+    await frame();
+    window.scrollTo(0, document.documentElement.scrollHeight);
+    await frame();
+    w.__releaseIO();
+  });
+  const pinnedAt = await tabs.evaluate((el) => parseFloat(getComputedStyle(el).top) || 0);
+  expect(Math.round((await rect(tabs)).top)).toBe(Math.round(pinnedAt));
+  await expect(tabs).toHaveAttribute("data-stuck", "");
+  const filters = page.getByTestId("toolbar-filters");
+  await expect(filters).toBeVisible();
+  await filters.click();
+  await expect(page.getByTestId("filter-sheet")).toBeVisible();
+});
+
 test("tablet and desktop: closed with Escape or Done, the sheet hands the focus back to the pinned row's Filters, still drawn, even when its change emptied the list", async ({ page }) => {
   test.skip(isPhone(page), "phones: mobile-nav.spec.ts");
   await page.emulateMedia({ reducedMotion: "reduce" });

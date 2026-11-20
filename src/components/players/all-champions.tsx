@@ -173,7 +173,10 @@ function RarestMultikill({ c, strong }: { c: OverviewCard; strong: boolean }) {
     <span className={cn("hidden min-w-0 whitespace-nowrap text-right text-sm @min-[44rem]:block", LAYOUT_CLASS.medium, FOLD)} data-testid="champion-multikills">
       <span aria-hidden>
       {!m ? (
-        <span className="text-fg-subtle">—</span>
+        <span className="text-fg-subtle">
+          <span aria-hidden>—</span>
+          <span className="sr-only">Not counted yet</span>
+        </span>
       ) : top ? (
         <>
           <span className={cn("tabular-nums", strong ? "font-semibold text-fg" : "font-medium text-fg-muted")}>{formatCount(top.count)}</span> <span className="text-xs text-fg-subtle">{MULTIKILL_SHORT[top.key].toLowerCase()}</span>

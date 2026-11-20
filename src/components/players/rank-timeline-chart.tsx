@@ -27,14 +27,18 @@ const MS_DAY = 86_400_000;
  * The drawing's frame in user units, which are CSS pixels (the viewBox is as wide as the box). Its
  * height is the box's (`h-30`, 7.5rem) and its gutters hold rem-sized labels, so all of them follow
  * the root size, which grows above 1536px (globals.css): a frame fixed in px clipped the division
- * names on the left above about 1700px and left the drawing short of its box. The server draws with
- * 16px (120 tall, a 64px gutter), as before; the box's height is CSS, so nothing moves on hydrating.
+ * names on the left above about 1700px and left the drawing short of its box. A wide chart's left
+ * gutter holds the widest name it writes ("Diamond IV", 4.1rem at the desktop's 12px floor, where
+ * text-2xs is 0.75rem: docs/DESIGN_SYSTEM.md, Type) and the 6px between the name and the plot: 4.75rem.
+ * At 4rem, from Release 6's floor, "Platinum IV" started 6px left of the drawing at 1440, 1920 and
+ * 2560, its first letter cut. The server draws with 16px (120 tall, a 76px gutter); the box's
+ * height is CSS, so nothing moves on hydrating.
  */
 function chartFrame(rem: number, narrow: boolean) {
   const H = Math.round(7.5 * rem);
   const PAD_T = Math.round(0.625 * rem);
   const AXIS_H = Math.round(1.125 * rem);
-  return { H, PAD_T, AXIS_H, PLOT_H: H - PAD_T - AXIS_H, pad: { l: Math.round((narrow ? 3 : 4) * rem), r: Math.round(0.5 * rem) } };
+  return { H, PAD_T, AXIS_H, PLOT_H: H - PAD_T - AXIS_H, pad: { l: Math.round((narrow ? 3 : 4.75) * rem), r: Math.round(0.5 * rem) } };
 }
 
 interface Hover {

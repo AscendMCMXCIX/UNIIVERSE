@@ -43,8 +43,14 @@ export function RankedProgress({ accounts, queue, accountId, href, now }: { acco
           32rem) one wrapping row: the switch shares the title's line where the two fit and goes
           under it where they do not (larger text), never over it; the tracking line comes last, on
           a line of its own. From 32rem the title and the tracking line on the left, the controls at
-          the right, so the header is two lines tall, as before. */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 @min-[32rem]/rank:grid @min-[32rem]/rank:grid-cols-[minmax(0,1fr)_auto] @min-[32rem]/rank:items-start @min-[32rem]/rank:gap-y-0.5">
+          the right, so the header is two lines tall, as before.
+          On a touch screen the ⓘ is a 44px button around its 16px mark (InfoTip), reaching 0.875rem
+          past the mark at either side and about 0.7rem under the title's line: there, on the narrow
+          card, the gaps around the title are larger than that reach (1rem), so the switch never
+          sits under the ⓘ's touch area, beside it or under it, and the switch wraps a little
+          sooner rather than crowd it. The tracking line keeps its usual 0.375rem from the line
+          above (its margin gives back the larger gap): only the switch's place changes. */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 @max-[32rem]/rank:pointer-coarse:gap-x-4 @max-[32rem]/rank:pointer-coarse:gap-y-4 @min-[32rem]/rank:grid @min-[32rem]/rank:grid-cols-[minmax(0,1fr)_auto] @min-[32rem]/rank:items-start @min-[32rem]/rank:gap-y-0.5">
         {/* The title claims only its wrapped width ("progress ⓘ", the ⓘ kept on the last word), so
             the switch stays beside it as long as even the wrapped title fits there; with larger
             text it goes under the title rather than over its ⓘ. No min-w-0: that minimum is the
@@ -59,7 +65,7 @@ export function RankedProgress({ accounts, queue, accountId, href, now }: { acco
             />
           </span>
         </h2>
-        <p className="order-last basis-full text-xs text-fg-subtle wrap-anywhere @min-[32rem]/rank:order-none @min-[32rem]/rank:col-start-1 @min-[32rem]/rank:row-start-2" data-testid="ranked-tracking">
+        <p className="order-last basis-full text-xs text-fg-subtle wrap-anywhere @max-[32rem]/rank:pointer-coarse:-mt-2.5 @min-[32rem]/rank:order-none @min-[32rem]/rank:col-start-1 @min-[32rem]/rank:row-start-2" data-testid="ranked-tracking">
           {account.riotId}
           {season ? ` · ${season}` : ""}
           {timeline.trackingSince ? ` · rank recorded since ${formatDate(timeline.trackingSince)}` : " · no rank recorded yet"}

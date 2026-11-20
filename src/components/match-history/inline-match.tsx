@@ -140,9 +140,10 @@ export function InlineMatch({ playerId, matchId, champ }: { playerId: string; ma
   }, [cache, playerId, matchId]);
   if (!result)
     return (
-      <div className="space-y-2" aria-busy="true" aria-label="Loading the match" data-testid="match-expanded-loading">
-        <div className="h-9 w-72 max-w-full animate-pulse rounded-lg bg-surface-2 motion-reduce:animate-none" />
-        <div className="h-48 animate-pulse rounded-panel bg-surface-2 motion-reduce:animate-none" />
+      <div className="space-y-2" role="status" data-testid="match-expanded-loading">
+        <span className="sr-only">Loading the match</span>
+        <div className="h-9 w-72 max-w-full animate-pulse rounded-lg bg-surface-2 motion-reduce:animate-none" aria-hidden />
+        <div className="h-48 animate-pulse rounded-panel bg-surface-2 motion-reduce:animate-none" aria-hidden />
       </div>
     );
   if (result.status !== "ok")

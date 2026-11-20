@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from "./test";
 import { besideAMark, closeGame, opensFullScreen, openGame } from "./match-history";
 import { NARROW_MOUSE_WINDOWS, expectInReach } from "./reach";
+import { AxeBuilder } from "@axe-core/playwright";
 
 /*
   A game's post-game view under its Match History card (demo data, in memory; on phones the window):
@@ -56,6 +57,41 @@ async function gameWithTimeline(page: Page): Promise<{ card: Locator; breakdown:
 async function fitsWidth(page: Page, label: string) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth), `${label}: no sideways scrolling`).toBeLessThanOrEqual(1);
 }
+
+test("while the notes load, the view passes axe and says what loads as one polite status", async ({ page }) => {
+  await openHistory(page, "TOP");
+  // The game's own requests in order: the record, then the timeline (which the notes read).
+  const actions: string[] = [];
+  page.on("request", (r) => {
+    const id = r.headers()["next-action"];
+    if (r.method() === "POST" && id) actions.push(id);
+  });
+  const first = page.getByTestId("match-card").nth(0);
+  await expect(await openGame(first)).toBeVisible();
+  await expect(page.getByTestId("post-game-notes")).toBeVisible({ timeout: 15_000 });
+  const timelineAction = actions[1];
+  expect(timelineAction).toBeTruthy();
+  await closeGame(first);
+  // The next game's timeline held back, so its notes stay loading while axe reads the view (#323:
+  // a named div there was aria-prohibited-attr, which a scan after the notes arrived never saw).
+  let release!: () => void;
+  const held = new Promise<void>((r) => (release = r));
+  await page.route("**/*", async (route) => {
+    if (route.request().method() === "POST" && route.request().headers()["next-action"] === timelineAction) await held;
+    await route.fallback();
+  });
+  const breakdown = await openGame(page.getByTestId("match-card").nth(1));
+  const loading = breakdown.getByTestId("post-game-notes-loading");
+  await expect(loading).toBeVisible();
+  const scan = await new AxeBuilder({ page }).include("[data-testid=match-breakdown]").withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
+  expect(scan.violations.filter((v) => v.impact === "critical" || v.impact === "serious").map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(" | ")}`)).toEqual([]);
+  // One polite status, its text what loads (the pulse itself says nothing).
+  await expect(loading).toHaveAttribute("role", "status");
+  await expect(loading).toHaveText("Loading the notes");
+  release();
+  await expect(breakdown.getByTestId("post-game-notes")).toBeVisible({ timeout: 15_000 });
+  await expect(loading).toHaveCount(0);
+});
 
 test("one view without subtabs: the loadout names itself, each figure once, the lane, the notes and the scoreboard", async ({ page }) => {
   await openHistory(page, "TOP");
