@@ -183,8 +183,8 @@ function KillsBand({ perf, m, byChampionHref }: { perf: PerformanceSummary; m: M
             </div>
           ))}
         </dl>
-        {/* A small link with a finger-sized area on touch screens that takes no room of its own. */}
-        <Link href={byChampionHref} className="relative ms-auto inline-flex min-h-6 items-center gap-0.5 whitespace-nowrap rounded-md text-xs font-medium text-fg-muted transition-colors hover:text-accent focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:after:absolute pointer-coarse:after:-inset-y-2.5 pointer-coarse:after:-left-3 pointer-coarse:after:right-0 pointer-coarse:after:content-['']" aria-label="Multikills by champion, in All Champions" data-testid="multikills-by-champion">
+        {/* A small link; on touch screens a 44px target (as wide as a finger, the area above and below the line). */}
+        <Link href={byChampionHref} className="touch-target ms-auto inline-flex min-h-6 items-center justify-end gap-0.5 whitespace-nowrap rounded-md text-xs font-medium text-fg-muted transition-colors hover:text-accent focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:min-w-11" aria-label="Multikills by champion, in All Champions" data-testid="multikills-by-champion">
           {/* The words from 34rem of card; on a phone the chevron alone, so the counts keep one line. */}
           <span className="@max-[34rem]/perf:sr-only">By champion</span> <ChevronRight className="h-3.5 w-3.5" aria-hidden />
         </Link>

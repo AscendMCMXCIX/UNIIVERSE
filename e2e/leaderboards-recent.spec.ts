@@ -722,7 +722,9 @@ test("on a phone: one column, the index of the sections below Recent form jumpin
     const row = (await chips.boundingBox())!;
     expect(Math.abs(row.y - (await barFoot())), `${name}: the chip row at the top bar's foot`).toBeLessThanOrEqual(1);
     expect((await section.boundingBox())!.y, `${name}: clear of the chip row`).toBeGreaterThanOrEqual(row.y + row.height - 1);
-    expect((await section.boundingBox())!.y, `${name}: just under it`).toBeLessThanOrEqual(row.y + row.height + 24);
+    // Just under it, unless the page ends before it can bring the section there (the milestones, last).
+    const atEnd = await page.evaluate(() => window.scrollY + innerHeight >= document.documentElement.scrollHeight - 2);
+    if (!atEnd) expect((await section.boundingBox())!.y, `${name}: just under it`).toBeLessThanOrEqual(row.y + row.height + 24);
     for (const h of await chips.getByRole("link").evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height))) expect(h, "44px chips").toBeGreaterThanOrEqual(44);
     await expect(chips.locator("[aria-current=location]")).toHaveText(name === "Season records" ? "Records" : name);
     // Back to the index for the next jump: the chip row goes with the header back in view.

@@ -78,15 +78,17 @@ const ROW_ESTIMATE = "calc(3.25rem + 1px)";
  * on its section in one), and again whenever MobileNav rewrites its own (the bar's style, size or
  * slide changes); MobileNav's value is put back on leaving.
  */
-function useRowScrollPadding(bar: HTMLElement | null, row: HTMLElement | null) {
+function useRowScrollPadding(row: HTMLElement | null) {
   React.useLayoutEffect(() => {
+    const bar = document.querySelector<HTMLElement>("[data-testid=mobile-topbar]");
     if (!bar) return;
     const phone = window.matchMedia("(max-width: 47.99rem) and (min-height: 481px)");
     const root = document.documentElement;
     let own = "";
     let theirs = "";
     const apply = () => {
-      const pad = bar.style.getPropertyValue("--bar-pad");
+      // MobileNav's value, or before its first write (its effect runs after this one) the whole bar's, as it is on arrival.
+      const pad = bar.style.getPropertyValue("--bar-pad") || (bar.offsetHeight ? `${bar.offsetHeight + 8}px` : "");
       if (!phone.matches || !pad) return;
       const next = `calc(${pad} + ${row ? `${row.offsetHeight}px` : ROW_ESTIMATE})`;
       if (root.style.scrollPaddingTop === next) return;
@@ -107,14 +109,14 @@ function useRowScrollPadding(bar: HTMLElement | null, row: HTMLElement | null) {
       restyled.disconnect();
       if (own && root.style.scrollPaddingTop === own) root.style.scrollPaddingTop = theirs;
     };
-  }, [bar, row]);
+  }, [row]);
 }
 
 export function LeaderboardsPinnedIndex({ anchorId, items, phoneItems }: { /** The header's id: once it has gone up, the copies show. */ anchorId: string; items: readonly SectionIndexItem[]; /** The phone's row, in short words, so four chips fit a line at 375 (two lines at most at 320 or large text). */ phoneItems: readonly SectionIndexItem[] }) {
   const header = useElementById(anchorId);
   // PageToolbar watches a ref: this one always holds the header.
   const anchor = React.useMemo(() => ({ current: header }), [header]);
-  const { foot, bar } = useTopBarFoot();
+  const { foot } = useTopBarFoot();
   const away = useScrolledAway(header, foot);
   const [row, setRow] = React.useState<HTMLDivElement | null>(null);
   // At a large text size the chips can need more than two lines (a third of a 320px phone at 200%): the row is then not
@@ -128,7 +130,7 @@ export function LeaderboardsPinnedIndex({ anchorId, items, phoneItems }: { /** T
     observer.observe(row);
     return () => observer.disconnect();
   }, [row]);
-  useRowScrollPadding(bar, away && fits ? row : null);
+  useRowScrollPadding(away && fits ? row : null);
   return (
     <>
       {header ? (
