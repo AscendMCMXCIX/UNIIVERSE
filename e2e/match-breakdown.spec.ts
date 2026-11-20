@@ -83,10 +83,11 @@ test("while the notes load, the view passes axe and says what loads as one polit
   const breakdown = await openGame(page.getByTestId("match-card").nth(1));
   const loading = breakdown.getByTestId("post-game-notes-loading");
   await expect(loading).toBeVisible();
-  await expect(loading).toHaveAttribute("role", "status");
-  await expect(loading).toHaveText("Loading the notes");
   const scan = await new AxeBuilder({ page }).include("[data-testid=match-breakdown]").withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
   expect(scan.violations.filter((v) => v.impact === "critical" || v.impact === "serious").map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(" | ")}`)).toEqual([]);
+  // One polite status, its text what loads (the pulse itself says nothing).
+  await expect(loading).toHaveAttribute("role", "status");
+  await expect(loading).toHaveText("Loading the notes");
   release();
   await expect(breakdown.getByTestId("post-game-notes")).toBeVisible({ timeout: 15_000 });
   await expect(loading).toHaveCount(0);

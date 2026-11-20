@@ -323,6 +323,19 @@ below-the-fold ones lazily, and keep uploaded brand images small ([HOSTING_USAGE
     by its content, plus hidden words where needed (`<span className="sr-only">`), not by
     `aria-label`.
   - A lettered stand-in for a picture is named like the picture (`ChampionPortrait`).
+- A name (`aria-label`, `aria-labelledby`) only on an element whose role may be named: never on a
+  `div`, `span` or `p` with no role (axe's aria-prohibited-attr; screen readers drop the name).
+  `src/app/aria-naming.test.ts` refuses it.
+  - A loading placeholder is a polite status (`role="status"`) whose sr-only text says what loads
+    ("Loading the notes"), its pulsing shapes hidden; `e2e/match-breakdown.spec.ts` runs axe with a
+    game's notes held back (#323: the notes' placeholder failed the Production check's axe).
+  - A row of things with a name is `role="group"`; a mark that means something ("—" for not counted
+    yet) is hidden, with its meaning in sr-only text beside it.
+- A state that follows an element through an IntersectionObserver (a pinned bar, a header gone
+  under the frame) reads the callback's newest entry: a late callback carries every change since
+  the last, oldest first (#323: the pinned row stayed marked at rest).
+  `src/components/ui/observer-entries.test.ts` refuses `([entry]) =>`, `entries[0]` and
+  `const [entry] = entries`.
 - Axe runs on every player and admin page at desktop and phone width, on a teammate's profile, and
   in the Team player and champion windows (`e2e/quality.spec.ts`).
 - Valid nesting: no block inside a paragraph, no link inside a link or button. The browser

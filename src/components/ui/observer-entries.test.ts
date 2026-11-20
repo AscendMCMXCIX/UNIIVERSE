@@ -22,17 +22,22 @@ function files(dir: string): string[] {
 }
 
 const FIRST_ONLY = /new IntersectionObserver\(\s*(?:async\s*)?\(\s*\[\s*\w+\s*\]/;
+/** In a module with an observer: the first of the entries, by index or destructured. */
+const FIRST_BY_NAME = /\bentries\[0\]|const\s*\[\s*\w+\s*\]\s*=\s*entries\b/;
+const firstOnly = (src: string) => FIRST_ONLY.test(src) || (src.includes("IntersectionObserver") && FIRST_BY_NAME.test(src));
 
 describe("an IntersectionObserver's callback reads the newest entry", () => {
   it("the check fires", () => {
     expect(FIRST_ONLY.test("new IntersectionObserver(([entry]) => mark(entry))")).toBe(true);
     expect(FIRST_ONLY.test("new IntersectionObserver(\n  ([ e ]) => {")).toBe(true);
-    expect(FIRST_ONLY.test("new IntersectionObserver((entries) => { const e = entries[entries.length - 1]; })")).toBe(false);
+    expect(firstOnly("new IntersectionObserver((entries) => { const e = entries[entries.length - 1]; })")).toBe(false);
+    expect(firstOnly("new IntersectionObserver((entries) => { const [e] = entries; })")).toBe(true);
+    expect(firstOnly("new IntersectionObserver((entries) => mark(entries[0]))")).toBe(true);
   });
 
   it("no callback takes only the first entry", () => {
     const found = files(SRC)
-      .filter((f) => FIRST_ONLY.test(readFileSync(f, "utf8")))
+      .filter((f) => firstOnly(readFileSync(f, "utf8")))
       .map((f) => path.relative(path.join(SRC, ".."), f));
     expect(found).toEqual([]);
   });
