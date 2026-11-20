@@ -55,13 +55,14 @@ test("Overview: the multikill totals as figures of their own, from the same game
   await expect(page.getByTestId("data-status")).toHaveCount(0);
   await expect(page.getByTestId("data-refresh")).toHaveCount(1);
   await expect(page.getByTestId("data-refresh").locator("[data-part=multikills]")).toHaveCount(0);
-  // The season card's kills line: Total kills, then each multikill kind with its total
-  // ("Kills 192 · Double 33 · Triple 3 · Quadra 1 · Penta 0"); screen readers hear the full names.
-  await expect(strip.getByTestId("stat-total-kills")).toHaveText(/^KillsTotal kills\s*[\d,]+\s*·$/);
+  // The season card's multikills line: each kind with its total ("Double 33 · Triple 3 · Quadra 1 ·
+  // Penta 0", PLAN S8a); screen readers hear the full names. Total kills is under the KDA.
+  await expect(strip.getByTestId("stat-total-kills")).toHaveCount(0);
+  await expect(page.getByTestId("stat-kda").getByTestId("stat-total-kills")).toHaveText(/^[\d,]+ kills$/);
   const short = { double: "Double", triple: "Triple", quadra: "Quadra", penta: "Penta" } as const;
   for (const [key, label] of KINDS) await expect(strip.getByTestId(`multikill-${key}`)).toHaveText(new RegExp(`^${short[key]}${label}\\s*\\d+\\s*·?$`));
   // No heading of their own on screen (each count names itself); screen readers keep one.
-  const heading = strip.getByRole("heading", { name: /^Kills and multikills/ });
+  const heading = strip.getByRole("heading", { name: /^Multikills/ });
   await expect(heading).toHaveCount(1);
   expect((await heading.boundingBox())!.height).toBeLessThanOrEqual(1);
   // Inside the season's card, under its headline and supporting figures.
@@ -73,22 +74,34 @@ test("Overview: the multikill totals as figures of their own, from the same game
       const s = getComputedStyle(el);
       return [s.color, s.fontSize, s.fontWeight];
     });
-  const [season, kills] = [await look("stat-games"), await look("stat-total-kills")];
+  const [season, kills] = [await look("stat-games"), await look("multikill-double")];
   expect([kills[0], kills[2]], "the season's colour and weight").toEqual([season[0], season[2]]);
   expect(parseFloat(kills[1]!), "smaller than the season's headline figures").toBeLessThan(parseFloat(season[1]!));
-  for (const testId of ["stat-total-kills", ...KINDS.map(([key]) => `multikill-${key}`)]) expect(await look(testId), `${testId}: its count`).toEqual(kills);
-  // Total kills first; one line where the card has room (two on a narrow phone, wrapping between
-  // counts, never inside one), and the link to the champions at its end.
+  for (const testId of KINDS.map(([key]) => `multikill-${key}`)) expect(await look(testId), `${testId}: its count`).toEqual(kills);
+  // Doubles first; one line from a 375px phone's card (21rem) up (two on the narrowest phones,
+  // wrapping between counts, never inside one), and the link to the champions at its end.
   const lineCounts = strip.getByTestId("multikill-tiles").locator("dl > div");
-  await expect(lineCounts.first()).toHaveAttribute("data-testid", "stat-total-kills");
+  await expect(lineCounts.first()).toHaveAttribute("data-testid", "multikill-double");
   const rem = await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).fontSize));
   const room = (await page.getByTestId("season-figures").boundingBox())!.width / rem;
   const lines = () => lineCounts.evaluateAll((els) => new Set(els.map((e) => Math.round(e.getBoundingClientRect().top))).size);
-  expect(await lines()).toBeLessThanOrEqual(room >= 26 ? 1 : 2);
+  expect(await lines()).toBeLessThanOrEqual(room >= 21 ? 1 : 2);
   expect(await lineCounts.evaluateAll((els) => els.filter((e) => e.getBoundingClientRect().height > 30).length), "no count breaks inside").toBe(0);
   // A compact row: no per-champion or per-account lists of its own, and no filters of its own.
   await expect(strip.locator("details, ul, select, [role=radiogroup]")).toHaveCount(0);
-  expect((await strip.boundingBox())!.height, "one line (two on a narrow phone)").toBeLessThan(room >= 26 ? 44 : 64);
+  expect((await strip.boundingBox())!.height, "one line (two on the narrowest phones)").toBeLessThan(room >= 21 ? 44 : 64);
+  // On the phones of 375 to 393px: one line, and at most three ⓘ on the first screen (UD.PO3: KDA and
+  // Vision score explain themselves from their dotted-underlined labels, their tips unchanged).
+  if (room < 34) {
+    for (const [width, height] of [[375, 667], [393, 852]] as const) {
+      await page.setViewportSize({ width, height });
+      await expect.poll(lines, `${width}px: the multikills on one line`).toBe(1);
+      const marks = await page.locator("main").evaluate((m) => [...m.querySelectorAll("button")].filter((b) => b.querySelector(":scope > span[aria-hidden]")?.textContent?.trim() === "i" && b.getBoundingClientRect().width > 0 && b.getBoundingClientRect().top < innerHeight).length);
+      expect(marks, `${width}px: ⓘ on the first screen`).toBeLessThanOrEqual(3);
+    }
+    await expect(page.getByTestId("stat-kda").getByRole("button", { name: "KDA" })).toHaveAccessibleDescription("Kills plus assists for each death, across all these games.");
+    await expect(page.getByTestId("stat-vision").getByRole("button", { name: "Vision score" })).toHaveAccessibleDescription(/^Riot's vision score per game/);
+  }
   // The narrowest phone (320px): every label, figure and count whole, the season's other figures too.
   if (room < 34) {
     await page.setViewportSize({ width: 320, height: 568 });
@@ -174,7 +187,7 @@ test("partial counts are said once, in the page's status (the ⓘ), and in each 
   const info = page.getByTestId("data-refresh-info");
   await expect(info).toHaveAccessibleName("Data status: Partial data");
   const games = await seasonGames(page);
-  await expect(strip.getByRole("heading", { name: /^Kills and multikills/ })).toHaveText(new RegExp(`^Kills and multikills \\((kills counted in \\d+ of ${games} games; )?multikills counted in \\d+ of ${games} games\\)$`));
+  await expect(strip.getByRole("heading", { name: /^Multikills/ })).toHaveText(new RegExp(`^Multikills \\(counted in \\d+ of ${games} games\\)$`));
   if (page.viewportSize()!.width < 768) await info.tap();
   else await info.hover();
   const bubble = page.getByTestId("data-refresh-info-bubble");

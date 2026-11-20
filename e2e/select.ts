@@ -46,7 +46,7 @@ export async function valueOf(field: Locator): Promise<string> {
 
 /** The label of the option a Select shows. */
 export async function shownLabel(field: Locator): Promise<string> {
-  return only(field).evaluate((el) => (el instanceof HTMLSelectElement ? (el.selectedOptions[0]?.textContent ?? "") : (el.textContent ?? "")).trim());
+  return only(field).evaluate((el) => (el instanceof HTMLSelectElement ? (el.selectedOptions[0]?.textContent ?? "") : (el.querySelector("[data-select-label]")?.textContent ?? "")).trim());
 }
 
 /** Every option's value and label, in order (opens and closes the popover to read them). */

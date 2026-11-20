@@ -28,6 +28,8 @@ import { useWindowPosture } from "./posture";
     (a scroll otherwise moves the list with it).
   - **A choice** calls `onValueChange` with the option's value, exactly as the native select's change
     did: each caller writes it into the address as before.
+  - **Width.** The closed button is as wide as its widest option, as a native select is, so a
+    choice never moves the toolbar (and where it may be narrower, its label ends in an ellipsis).
   - **Look.** `bg-elevated`, a border and a shadow; a 160ms fade with a 2px slide from the button
     (none with reduced motion, globals.css). No dimming and no address of its own. Options are 44px on
     a touch screen and 36px under a mouse; at 200% text they grow with it and the list scrolls.
@@ -349,7 +351,19 @@ function PopoverSelect({ value, options, onValueChange, id, "aria-label": ariaLa
         data-select=""
         data-ready={ready || undefined}
       >
-        <span className="min-w-0 flex-1 truncate">{current?.label ?? ""}</span>
+        {/* As wide as the widest option, as a native select is: a choice never changes the toolbar's
+            layout, and the phone's swap to its own select at hydration moves nothing. Every label
+            takes the same cell; only the current one is shown (and read). */}
+        <span className="grid min-w-0 flex-1">
+          <span className="truncate [grid-area:1/1]" data-select-label="">
+            {current?.label ?? ""}
+          </span>
+          {options.map((o) => (
+            <span key={o.value} className="invisible truncate [grid-area:1/1]" aria-hidden>
+              {o.label}
+            </span>
+          ))}
+        </span>
         <ChevronDown className={cn("h-4 w-4 shrink-0 text-fg-subtle transition-transform motion-reduce:transition-none", open && "rotate-180")} aria-hidden />
       </button>
       {name ? <input type="hidden" name={name} value={value} /> : null}

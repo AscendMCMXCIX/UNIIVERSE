@@ -428,8 +428,9 @@ Every phone page spends its first screen on content, not on saying where you are
   there, or after the team's mark on your own profile, and clear of Filters and the avatar). The
   section starts right under the sections row (it gains the band's 86px and its gap, about 170px at
   150% text). The Overview keeps its full card.
-- **No lone Filters row**: Profile Overview's Filters and Refresh sit at the scope line's end
-  (`SectionHeader toolbarBesideScope`).
+- **No lone Filters row**: Profile Overview's Filters and Refresh sit at the end of the title's
+  line, the scope line under them across the width (`SectionHeader toolbarBesideScope`; until 20 Nov
+  2026 at the scope line's end, which squeezed the scope into nine lines at 320px with 150% text).
 - **No paragraphs**: Riot Accounts leads with "Main account first; every linked account adds its
   games", Settings' fields with one line each; the rest is behind an ⓘ, each tip 25 words or fewer.
 - **44px targets** on touch for every segment (`segmentClass`, filling its 44px group), ⓘ, tab link,
