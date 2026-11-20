@@ -678,7 +678,9 @@ sidebar open, phones). The scoreboard (container `sb`) has one 37px row per play
 48px below it (the name and K/D/A, then the build, the rank and CS with damage). Measured on the
 demo: at 1440 × 900 the card and the open game take 660–685px with Close on the first screen; at
 390 × 844 the window's pinned chrome is 110px, the scoreboard starts at about 650px and the whole
-game is 1.9–2.0 screens; no tabs anywhere.
+game is 1.50–1.82 screens with its folds closed (the demo's first three games, Release 9, 20 Nov 2026;
+about 2.9 with the gold and build folds open; `e2e/overlay-kit.spec.ts` holds it at 2.0 or less); no
+tabs anywhere.
 
 A Match History card from 50 to 61rem of list (1280 with the sidebar open: a 60rem list) shows the
 build (the six items and the trinket, 22px) in the teams' place, and the rosters go first (UD.H1;

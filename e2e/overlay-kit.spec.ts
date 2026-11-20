@@ -141,6 +141,38 @@ test("phone 320 × 568: after stepping through games in the window, closing it (
   }
 });
 
+test("phone 390 × 844 (i12): a game's window, header, body and the Previous/Next bar with its folds closed, is at most 2.0 screens (PLAN S6)", async ({ page }) => {
+  test.skip(!isPhone(page), "the phone's window over Match History");
+  await page.setViewportSize({ width: 390, height: 844 });
+  const profile = await teammate(page);
+  await page.goto(`${profile}/matches`);
+  await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
+  const row = await page.getByTestId("match-row").first().boundingBox();
+  await page.touchscreen.tap(row!.x + 30, row!.y + 20);
+  const win = page.getByTestId("match-detail");
+  // The demo's first three games (1.50–1.82 screens on 20 Nov 2026; 2.9 with the gold and build folds open).
+  for (let i = 0; i < 3; i++) {
+    await expect(win.getByTestId("match-detail-body")).toBeVisible();
+    await page.waitForLoadState("networkidle");
+    const m = await win.evaluate((w) => {
+      const panel = (w.closest("dialog") ?? w) as HTMLElement;
+      // The whole game: the window as drawn plus what its scrolling part holds below the fold.
+      let hidden = 0;
+      for (const el of [panel, ...panel.querySelectorAll<HTMLElement>("*")]) {
+        if (/(auto|scroll)/.test(getComputedStyle(el).overflowY)) hidden = Math.max(hidden, el.scrollHeight - el.clientHeight);
+      }
+      return { screens: (panel.getBoundingClientRect().height + hidden) / innerHeight, open: panel.querySelectorAll("details[open]").length };
+    });
+    expect(m.open, `game ${i + 1}: its folds closed`).toBe(0);
+    expect(Math.round(m.screens * 100) / 100, `game ${i + 1}: ${m.screens.toFixed(2)} screens`).toBeLessThanOrEqual(2.0);
+    if (i < 2) {
+      const at = page.url();
+      await win.getByTestId("match-detail-next").tap();
+      await expect.poll(() => page.url()).not.toBe(at);
+    }
+  }
+});
+
 test("desktop: the pinned row's Filters is a 34rem popover with Support whole and nothing scrolling sideways at 1440, 1920 and 2560; Escape gives the focus back", async ({ page }) => {
   test.skip(page.viewportSize()?.width !== 1440, "the desktop project sets its sizes itself");
   await page.emulateMedia({ reducedMotion: "reduce" });
