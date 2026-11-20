@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { briefingState, matchupIntelVerdicts, type MatchupIntelRead } from "../../../scripts/matchup-intel-facts.mjs";
+import { briefingState, matchupIntelVerdicts, publicPatch, type MatchupIntelRead } from "../../../scripts/matchup-intel-facts.mjs";
 
 /*
   The Production check's Matchup Intel facts (scripts/matchup-intel-facts.mjs, run by
@@ -129,5 +129,30 @@ describe("the Production check's Matchup Intel facts", () => {
     expect(judge(missing).filter((x) => x.status === "WARN").map((x) => x.name)).toEqual(["desktop: Mordekaiser's abilities are not on the page (not stored yet, or not readable): the page says so"]);
     expect(failed(judge(missing))).toEqual([]);
     expect(failed(judge({ ...missing, summaryShown: false, summaryBottom: 912 }))).toEqual(["desktop: 1440 × 900: with no ability tiles (the warning above), the sources' summary is on the screen"]);
+  });
+});
+
+describe("the Production check's patch fact: the page's patch is /api/health's", () => {
+  const patchFact = (at: MatchupIntelRead, healthPatch: string | null) => matchupIntelVerdicts({ kind: "desktop", pair: "Riven vs Mordekaiser", enemy: "Mordekaiser", at, wide: WIDE, wiki: [], healthPatch }).find((v) => /\/api\/health's/.test(v.name))!;
+  const ON = { ...NOW, patch: "Patch 26.23", patchState: "Patch 26.23 · Riot's data · Curated briefing" };
+
+  it("passes when the bar and the sources name health's patch (stored as the client version)", () => {
+    expect(patchFact(ON, "16.23").status).toBe("PASS");
+    expect(publicPatch("16.23")).toBe("26.23");
+  });
+
+  it("fails when the bar names another patch, or Riot's data is older without the bar saying so", () => {
+    expect(patchFact({ ...ON, patch: "Patch 26.22" }, "16.23").status).toBe("FAIL");
+    expect(patchFact({ ...ON, ddragon: "Ability names, icons and base cooldowns: Riot Data Dragon 16.22.1 (patch 26.22)." }, "16.23").status).toBe("FAIL");
+    expect(patchFact({ ...ON, ddragon: "Ability names, icons and base cooldowns: Riot Data Dragon 16.22.1 (patch 26.22).", patchState: `${ON.patchState} Ability data from patch 26.22` }, "16.23").status).toBe("PASS");
+  });
+
+  it("expects 'Game patch not known' when health names no patch", () => {
+    expect(patchFact({ ...ON, patch: "Game patch not known" }, null).status).toBe("PASS");
+    expect(patchFact(ON, null).status).toBe("FAIL");
+  });
+
+  it("is not asserted by a caller that gives no health patch", () => {
+    expect(judge(ON).some((v) => /\/api\/health's/.test(v.name))).toBe(false);
   });
 });
