@@ -114,10 +114,10 @@ function ImageCard({ kind, title, hint, branding, onChange }: { kind: BrandAsset
   };
 
   return (
-    <div className="flex min-w-0 flex-col gap-3 rounded-panel border border-border bg-surface p-4" data-testid={`brand-${kind}`} data-ready={interactive ? "true" : undefined}>
+    <div className="panel-depth flex min-w-0 flex-col gap-3 rounded-panel border border-border bg-surface p-4" data-testid={`brand-${kind}`} data-ready={interactive ? "true" : undefined}>
       <div>
         <div className="text-sm font-semibold text-fg">{title}</div>
-        <p className="text-sm text-fg-muted">{hint}</p>
+        <p className="text-sm text-fg-muted md:min-h-10" data-brand-hint="">{hint}</p>
       </div>
       <div className={cn("grid place-items-center overflow-hidden rounded-lg border border-dashed border-border bg-surface", kind === "logo" ? "h-28" : "h-36")}>
         {src ? (
@@ -166,7 +166,7 @@ const levelName = (level: number) => [...LEVEL_NAMES].reverse().find(([min]) => 
 function BackdropSetting({ level, saved, hasArtwork, disabled, onChange }: { level: number; saved: number; hasArtwork: boolean; disabled: boolean; onChange: (level: number) => void }) {
   const id = React.useId();
   return (
-    <section className="space-y-3 rounded-card border border-border bg-surface p-4 sm:p-5" data-testid="brand-backdrop-setting">
+    <section className="space-y-3 panel-depth rounded-panel border border-border bg-surface p-4 sm:p-5" data-testid="brand-backdrop-setting">
       <div>
         <h2 className="text-base font-semibold">Background visibility</h2>
         <p className="text-sm text-fg-muted">How much of the app background shows behind every page, for every member: from a hint of it at 0% to clearly visible at 100%. Cards and panels keep their own backgrounds, so text stays readable; player-card art is not affected.</p>
@@ -289,8 +289,8 @@ export function BrandingPanel({ branding, canEdit }: { branding: Branding; canEd
   return (
     <div className="space-y-6" data-testid="branding-panel">
       {/* Phones: the form is several screens long, so its sections are one tap away (the overhaul's S9c). */}
-      <SectionIndex label="Branding sections" items={BRANDING_SECTIONS} className="md:hidden" testId="branding-index" />
-      <section id="brand-name" className="space-y-3 rounded-card border border-border bg-surface p-4 sm:p-5">
+      <SectionIndex label="Branding sections" items={BRANDING_SECTIONS} className="md:hidden" testId="branding-index" clipLineDots />
+      <section id="brand-name" className="space-y-3 panel-depth rounded-panel border border-border bg-surface p-4 sm:p-5">
         <h2 className="text-base font-semibold">Name</h2>
         <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <div>
@@ -329,7 +329,7 @@ export function BrandingPanel({ branding, canEdit }: { branding: Branding; canEd
       <BackdropSetting level={form.backdropLevel} saved={saved.backdropLevel} hasArtwork={!!form.assets.appBackground} disabled={!canEdit} onChange={(backdropLevel) => setForm((f) => ({ ...f, backdropLevel }))} />
       </div>
 
-      <section id="brand-colours" className="space-y-4 rounded-card border border-border bg-surface p-4 sm:p-5">
+      <section id="brand-colours" className="space-y-4 panel-depth rounded-panel border border-border bg-surface p-4 sm:p-5">
         <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
           <div className="min-w-0">
             <h2 className="text-base font-semibold">Colours</h2>

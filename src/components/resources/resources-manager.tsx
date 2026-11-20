@@ -58,7 +58,7 @@ export function ResourcesManager({ initial }: { initial: ManagedResources }) {
           {data.entries.length} resource{data.entries.length === 1 ? "" : "s"}
           {hidden ? ` · ${hidden} hidden from members` : ""}
         </p>
-        <Button variant="primary" size="sm" onClick={() => setEditing("new")} disabled={editing === "new"} data-testid="resource-add">
+        <Button variant="primary" onClick={() => setEditing("new")} disabled={editing === "new"} data-testid="resource-add">
           <Plus className="h-4 w-4" aria-hidden /> Add resource
         </Button>
       </div>

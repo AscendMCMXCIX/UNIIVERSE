@@ -32,7 +32,7 @@ export default async function AdminPrivacyPage() {
             </Link>{" "}
             lists it). Correction: they change most details in Settings, or you fix them. Permanent removal: <span className="text-fg">Erase personal data</span> in their person view under Accounts, or below for someone whose account is already gone. Deactivate, Delete and Archive keep data; only Erase removes the person.
           </p>
-          <Fold title="How to check who is asking" description="A Discord username alone does not prove who someone is." testId="privacy-procedure">
+          <Fold variant="row" title="How to check who is asking" description="A Discord username alone does not prove who someone is." testId="privacy-procedure">
             <ol className="list-decimal space-y-1 pl-5 text-sm text-fg-muted marker:text-fg-subtle">
               <li>Prefer the Discord account the member linked on their own profile, or one the team already knows as theirs.</li>
               <li>Otherwise ask for details only the account holder would know (their username, linked Riot accounts, roles and champion pools), or ask them to change their League profile icon to one you name and check it on their Riot profile.</li>
@@ -53,7 +53,7 @@ export default async function AdminPrivacyPage() {
       <Panel>
         <PanelHeader title="Erasure records" subtitle="Each erasure leaves a reference and keyed codes, never a name, Riot ID or account id. They keep the person out of games synced later and stop their Riot accounts being linked again by accident." />
         <PanelBody className="space-y-3">
-          <Fold title="Backups and the server secret" description="What to do after an erasure, and before restoring a backup." testId="privacy-backups">
+          <Fold variant="row" title="Backups and the server secret" description="What to do after an erasure, and before restoring a backup." testId="privacy-backups">
             <div className="space-y-2 text-sm text-fg-muted [overflow-wrap:anywhere]">
               <p>The records depend on the server&apos;s session secret: replacing it makes them unusable.</p>
               <p>

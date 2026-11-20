@@ -59,12 +59,15 @@ export function PreviewStudio() {
             </button>
           ))}
         </div>
-        <Button size="sm" variant="ghost" onClick={() => setLandscape((v) => !v)} aria-pressed={landscape} data-testid="preview-rotate">
-          <RotateCw className="h-4 w-4" /> Rotate
-        </Button>
-        <Button size="sm" variant="ghost" onClick={() => setReload((n) => n + 1)}>
-          Reset
-        </Button>
+        {/* Rotate and Reset wrap together, in the segments' 14px type (G4-15). */}
+        <span className="flex shrink-0 items-center gap-2" data-testid="preview-actions">
+          <Button variant="ghost" onClick={() => setLandscape((v) => !v)} aria-pressed={landscape} data-testid="preview-rotate">
+            <RotateCw className="h-4 w-4" /> Rotate
+          </Button>
+          <Button variant="ghost" onClick={() => setReload((n) => n + 1)}>
+            Reset
+          </Button>
+        </span>
         <a href={src} target="_blank" rel="noreferrer" className="ml-auto inline-flex min-h-9 items-center gap-1.5 text-sm text-accent hover:underline pointer-coarse:min-h-11">
           Open full size <ExternalLink className="h-3.5 w-3.5" aria-hidden />
         </a>

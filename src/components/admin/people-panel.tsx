@@ -301,8 +301,17 @@ export function PeoplePanel({
 
         {accountless.length ? (
           <Fold
-            title={`Profiles without an account · ${accountless.length}`}
-            description="Nobody can sign in to these profiles (a test, a placeholder or a deleted account). Adding a player with the same Riot ID reuses it."
+            // Drawn like its sibling groups' headings (G4-4): unboxed, the count quiet, the note small.
+            variant="row"
+            summaryClassName="px-2"
+            summary={
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold text-fg">
+                  Profiles without an account <span className="font-normal text-fg-subtle">· {accountless.length}</span>
+                </span>
+                <span className="block text-xs text-fg-subtle">Nobody can sign in to these profiles (a test, a placeholder or a deleted account). Adding a player with the same Riot ID reuses it.</span>
+              </span>
+            }
             testId="people-group-accountless"
             // Open while searching or filtering, so a match inside is never hidden.
             key={q || filter !== "all" ? "found" : "all"}

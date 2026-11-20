@@ -42,7 +42,7 @@ function Fact({ label, children }: { label: string; children: React.ReactNode })
   return (
     <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 py-1">
       <dt className="text-sm text-fg-muted">{label}</dt>
-      <dd className="min-w-0 text-right text-sm text-fg [overflow-wrap:anywhere]">{children}</dd>
+      <dd className="min-w-0 flex-1 basis-40 text-right text-sm text-fg [overflow-wrap:anywhere]">{children}</dd>
     </div>
   );
 }
@@ -240,7 +240,7 @@ function PersonBody({
                 <Label htmlFor={`name-${a.userId}`}>Change their display name</Label>
                 <Input id={`name-${a.userId}`} value={name} onChange={(e) => setName(e.target.value)} autoComplete="off" maxLength={40} />
               </div>
-              <Button type="submit" size="sm" variant="outline" disabled={busy || name.trim() === (a.displayName || p.name)}>
+              <Button type="submit" variant="outline" disabled={busy || name.trim() === (a.displayName || p.name)}>
                 Save name
               </Button>
             </form>
@@ -290,12 +290,14 @@ function PersonBody({
       {player ? (
         <Section title="Riot accounts" testId="person-riot">
           <p className="text-sm text-fg-muted">
-            {riotStatus(player.riot.state).label}: {player.riot.label}.{player.primaryRole ? ` Plays ${ROLE_LABELS[player.primaryRole]}${player.secondaryRole ? ` and ${ROLE_LABELS[player.secondaryRole]}` : ""}.` : " Role not chosen yet."}
+            {/* With no account linked the line says so once ("No Riot account linked."), without the status's prefix or an empty state under it (G4-18). */}
+            {player.riot.state === "none" ? null : `${riotStatus(player.riot.state).label}: `}
+            {player.riot.label}.{player.primaryRole ? ` Plays ${ROLE_LABELS[player.primaryRole]}${player.secondaryRole ? ` and ${ROLE_LABELS[player.secondaryRole]}` : ""}.` : " Role not chosen yet."}
             {player.lineupRole ? ` In the lineup at ${ROLE_LABELS[player.lineupRole]}.` : ""}
           </p>
           {player.riotAccounts.length ? (
             <RiotAccountsPanel playerId={player.id} accounts={player.riotAccounts} riotConfigured={riotConfigured} editable={canManageAccounts && !ownerByOther} title="Linked Riot accounts" theirs={!self} />
-          ) : (
+          ) : player.riot.state === "none" ? null : (
             <p className="text-sm text-fg-muted">No Riot account linked.</p>
           )}
           {player.primaryRole && player.teamMember ? (
