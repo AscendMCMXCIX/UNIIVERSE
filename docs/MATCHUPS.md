@@ -10,8 +10,10 @@ notes) is Matchup Intel's (docs/MATCHUP_INTEL.md), reached by one link per oppon
 (`visibility: hidden`, so their widths hold), and Champion, Games and Win rate keep their exact x.
 The selected row takes `surface-3` and a 2px accent bar. The preview is pinned under the section
 tabs and is as tall as its content; it scrolls inside only past the screen's height. With less
-room, on tablets and on phones, it is a **sheet** (`DetailModal size="sheet"`) with ‹ › to the
-next or previous champion in the list's order; pull down, ✕ or Back close it.
+room it is the shared **Peek** (`ui/peek.tsx`) with ‹ › to the next or previous champion in the
+list's order: the panel docked at the right from 768px (tablets, narrower windows), a **sheet**
+under 768px, touch or mouse, and in short windows (`ui/posture.ts`); ✕ or Back close it, and the
+sheet also by a pull down.
 
 **Content, in this order and nothing else:**
 
@@ -45,7 +47,11 @@ lane-by-minute views are missed, they come back as a fold under an opponent, nev
 history entry; switching champion or opponent replaces it; closing goes Back when this page pushed
 it. So Back always closes and never walks through champions. The address changes through the
 History API, never a navigation, so the page does not re-render. A deep link renders the preview's
-data in the first HTML. Old links keep working: `tab=matchups&vs=X` opens the preview with X
+data in the first HTML. A game opened from an opponent's games (the match window over the preview)
+adds `&match=` by the same rule, so it has an entry of its own: Back closes the game and leaves the
+preview as it was (on a phone the sheet steps aside while the game is open and comes back), and Back
+from a page a link in the game opened returns to the game. Before 20 Nov 2026 the game had no entry,
+and Back closed the preview behind it and left the game open. Old links keep working: `tab=matchups&vs=X` opens the preview with X
 unfolded; `/overview/matchups` and `/players/[id]/matchups` redirect into it (the most played
 champion when none is named); the Overview's old `?champ=` key redirects to All Champions. A pool
 card on the Overview links to All Champions with that champion's preview open, in the pool's role.

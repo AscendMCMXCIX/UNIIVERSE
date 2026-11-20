@@ -205,6 +205,30 @@ test("a Team Matches card opens its game under it, as Match History does; names 
   await expect(page).toHaveURL(/\/players\/[0-9a-f-]+$/);
 });
 
+test("Team Matches follows the one history rule: a game opened under its card adds one entry, another game replaces it, and Back closes it", async ({ page }) => {
+  test.skip((page.viewportSize()?.width ?? 1440) < 768, "phones open a game as a whole screen, with its own entry: e2e/mobile-nav.spec.ts");
+  await page.goto("/team");
+  await page.goto("/matches");
+  const games = page.getByTestId("together-game");
+  await expect(games.first()).toBeVisible();
+  const entries = await page.evaluate(() => history.length);
+  await openTogether(games.first());
+  await expect(page).toHaveURL(/\/matches\?match=/);
+  expect(await page.evaluate(() => history.length)).toBe(entries + 1);
+  if ((await games.count()) > 1) {
+    await openTogether(games.nth(1));
+    await expect(games.first().getByTestId("match-expanded")).toHaveCount(0);
+    expect(await page.evaluate(() => history.length)).toBe(entries + 1);
+  }
+  // Back closes the game and stays on Team Matches, as Match History's games do.
+  await page.goBack();
+  await expect(page.getByTestId("match-expanded")).toHaveCount(0);
+  await expect(page).toHaveURL(/\/matches$/);
+  // The next Back leaves Team Matches for the page before it.
+  await page.goBack();
+  await expect(page).toHaveURL(/\/team$/);
+});
+
 test("wide cards follow their list's width, not the window's: four columns exactly from a 58rem list, every name keeps its room and no member runs into the teams", async ({ page, context, baseURL }, info) => {
   test.skip(info.project.name !== "desktop", "desktop windows, with the sidebar open and folded");
   // Four columns (the result, the members, both teams, the bookmark) once the list is 58rem wide,

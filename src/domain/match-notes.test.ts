@@ -16,6 +16,7 @@ const base = (over: Partial<NotesInput> = {}): NotesInput => ({
     { deaths: 6, damageShare: 0.25, vision: 15 },
     { deaths: 2, damageShare: 0.15, vision: 50 },
   ],
+  alliesRemoved: 0,
   enemies: [{ vision: 20 }, { vision: 22 }, { vision: 16 }, { vision: 30 }, { vision: 45 }],
   teamTowers: 6,
   opponent: "Garen",
@@ -60,6 +61,17 @@ describe("match notes", () => {
     expect(fell.wrong.find((n) => n.id === "L4")!.text).toBe("You went from 500 gold ahead of Garen to 200 behind between 10 and 15 minutes.");
   });
 
+  it("follows a lead that fell between 10 and 15 minutes (L4) with those minutes in Focus next, never the first 10 it lists as gone well", () => {
+    // +700 gold at 10:00 (85 CS to 80), −600 at 15:00: Went well has the lead at 10, Went wrong its fall.
+    const x = base({ opponent: "Darius", lane: lane([85, 80], [4200, 3500], [5600, 6200]) });
+    const notes = notesOf(x);
+    expect(notes.well.find((n) => n.id === "L1")!.text).toBe("You had 700 more gold than Darius at 10 minutes.");
+    expect(notes.wrong.find((n) => n.id === "L4")!.text).toBe("You went from 700 gold ahead of Darius to 600 behind between 10 and 15 minutes.");
+    expect(notes.focus).toEqual({ kind: "lane", text: "Between 10 and 15 minutes against Darius: from +700 to −600 gold." });
+    // A lane behind at 10 minutes (L2) still points at the first 10.
+    expect(matchNotes(base({ lane: lane([50, 62], [3000, 3800]) })).focus?.text).toBe("The first 10 minutes against Garen: 50 CS and −800 gold at 10:00.");
+  });
+
   it("gives a support no CS rule, and the bot lane two against two (L5)", () => {
     const sup = notesOf(base({ role: "SUPPORT", lane: lane([5, 30], [2500, 2550]), pair: { ally: "Jinx", opponents: ["Caitlyn", "Lux"], gold: -1200 } }));
     expect(firingNotes(base({ role: "SUPPORT", lane: lane([5, 30], [2500, 2550]) })).some((n) => n.id === "L2")).toBe(false);
@@ -78,6 +90,11 @@ describe("match notes", () => {
     expect(firingNotes(base({ deathTimes: null })).some((n) => n.id === "D1")).toBe(false);
     const many = notesOf(base({ me: { ...base().me, deaths: 9 } }));
     expect(many.wrong.map((n) => n.text)).toContain("9 deaths, the most on your team.");
+    // A teammate's data erased: their deaths are not stored, so neither the note nor its Focus line claims the most.
+    const erased = base({ me: { ...base().me, deaths: 8 }, allies: [{ deaths: 3, damageShare: null, vision: 20 }, { deaths: 2, damageShare: null, vision: 25 }, { deaths: 4, damageShare: null, vision: 15 }], alliesRemoved: 1 });
+    expect(firingNotes(erased).some((n) => n.id === "D2")).toBe(false);
+    expect(notesOf(erased).focus?.text ?? "").not.toMatch(/most on your team/);
+    expect(firingNotes({ ...erased, alliesRemoved: 0 }).some((n) => n.id === "D2")).toBe(true);
     expect(notesOf(base({ me: { ...base().me, deaths: 1 } })).well.map((n) => n.text)).toContain("Only 1 death in 28 minutes.");
   });
 

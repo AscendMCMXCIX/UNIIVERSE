@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "./test";
 import { createMember } from "./member-account";
 import { cardOf, closeGame, expandedOf, openGame, opensFullScreen } from "./match-history";
+import { NARROW_MOUSE_WINDOWS, expectInReach } from "./reach";
 
 /*
   Match History's games open under their card (one at a time, the page free to scroll); a link to
@@ -194,6 +195,27 @@ test("Team's player Peek: one history entry however many players are seen, Back 
   // A link to the player opens the page with the Peek open.
   await page.goto(`/team?player=${await third.getAttribute("data-player-id")}`);
   await expect(panel).toBeVisible();
+});
+
+test("a window 640–767px wide with a mouse (the phone's frame): Team's player opens as a window, its ✕ and ‹ › in reach", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "a mouse in a narrow window: the desktop project, resized");
+  for (const size of NARROW_MOUSE_WINDOWS) {
+    await page.setViewportSize(size);
+    await page.goto("/team");
+    await expect(page.getByTestId("lineup-overview")).toHaveAttribute("data-ready", "true");
+    const win = page.locator("dialog[open][data-testid=player-detail]");
+    const open = page.locator("[data-testid=open-player-detail]:visible").first();
+    await expect(async () => {
+      if (!(await win.count())) await open.click({ timeout: 2_000 });
+      await expect(win).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: 15_000 });
+    // A window above the phone's bars, never the docked panel under them.
+    await expect(page.locator("aside[data-peek-panel]")).toHaveCount(0);
+    await expectInReach(page, [win.getByTestId("player-detail-close"), win.getByTestId("detail-next")]);
+    await win.getByTestId("player-detail-close").click();
+    await expect(win).toHaveCount(0);
+    await expect(page).not.toHaveURL(/player=/);
+  }
 });
 
 test("the Team player panel returns focus to its card when closed", async ({ page }) => {

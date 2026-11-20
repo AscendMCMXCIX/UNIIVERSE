@@ -109,6 +109,11 @@ export interface NotesInput {
   };
   /** The player's teammates (not the player), and every player of the other team. */
   allies: Array<{ deaths: number; damageShare: number | null; vision: number | null }>;
+  /**
+   * Teammates whose data was erased (stored without their figures, so not in `allies`): a claim
+   * about the whole team ("the most on your team") needs every seat, so it says nothing then.
+   */
+  alliesRemoved: number;
   enemies: Array<{ vision: number | null }>;
   /** The player's team's towers; null when not recorded. */
   teamTowers: number | null;
@@ -214,7 +219,7 @@ export function firingNotes(x: NotesInput): Note[] {
     const early = x.deathTimes.filter((t) => t < EARLY_MINUTE).length;
     if (early >= EARLY_DEATHS_MIN) out.push({ id: "D1", section: "wrong", topic: "deaths", strength: past(early, EARLY_DEATHS_MIN - 1), text: `${early} of ${w.possessive} ${d} deaths came before 10 minutes.`, focus: "early-deaths" });
   }
-  if (d >= MANY_DEATHS_MIN && x.allies.length && x.allies.every((a) => a.deaths < d)) out.push({ id: "D2", section: "wrong", topic: "deaths", strength: past(d, MANY_DEATHS_MIN), text: `${d} deaths, the most on ${w.possessive} team.`, focus: "deaths" });
+  if (d >= MANY_DEATHS_MIN && x.alliesRemoved === 0 && x.allies.length && x.allies.every((a) => a.deaths < d)) out.push({ id: "D2", section: "wrong", topic: "deaths", strength: past(d, MANY_DEATHS_MIN), text: `${d} deaths, the most on ${w.possessive} team.`, focus: "deaths" });
   if (d <= FEW_DEATHS_MAX && minutes >= FEW_DEATHS_GAME_MIN) out.push({ id: "D3", section: "well", topic: "deaths", strength: clamp((FEW_DEATHS_MAX + 1 - d) / (FEW_DEATHS_MAX + 1)), text: d === 0 ? `No deaths in ${Math.floor(minutes)} minutes.` : `Only ${d} ${d === 1 ? "death" : "deaths"} in ${Math.floor(minutes)} minutes.` });
 
   // Against the player's usual (P1–P3, K1).
@@ -300,6 +305,15 @@ function focusText(kind: FocusKind, x: NotesInput, cue: { note?: Note }): string
     case "lane":
       // From the bot lane's two against two (L5): the pair's figure, never the solo lane's.
       if (cue.note?.id === "L5" && x.pair) return `The first 10 minutes in the bot lane: ${x.pair.gold >= 0 ? "+" : "−"}${n(x.pair.gold)} gold for the pair at 10:00.`;
+      // From a lead that fell between 10 and 15 minutes (L4): those five minutes and their gold, never
+      // the first 10, which the same view may list under Went well.
+      if (cue.note?.id === "L4" && x.opponent) {
+        const fifteen = x.lane?.find((l) => l.minute === 15);
+        if (ten?.you && ten.opponent && fifteen?.you && fifteen.opponent) {
+          const signed = (g: number) => `${g >= 0 ? "+" : "−"}${n(g)}`;
+          return `Between 10 and 15 minutes against ${x.opponent}: from ${signed(ten.you.gold - ten.opponent.gold)} to ${signed(fifteen.you.gold - fifteen.opponent.gold)} gold.`;
+        }
+      }
       if (x.opponent && ten?.you && ten.opponent) {
         const g = ten.you.gold - ten.opponent.gold;
         return `The first 10 minutes against ${x.opponent}: ${ten.you.cs} CS and ${g >= 0 ? "+" : "−"}${n(g)} gold at 10:00.`;

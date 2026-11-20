@@ -47,7 +47,7 @@ in the code together.
 | L4 | Wrong | same | gold(10) ≥ +300 and gold(15) − gold(10) ≤ −500 | "Your gold lead over Garen fell from 900 to 200 between 10 and 15 minutes." | lane-swing |
 | L5 | Well / Wrong | Timeline, all four bot-lane seats clear; ADC or Support | the pair's gold at 10:00 ≥ +800 / ≤ −800 | "You and Jinx had 1,200 less gold than Caitlyn and Lux at 10 minutes." | lane |
 | D1 | Wrong | Timeline death times | deaths before 10:00 ≥ 2 | "2 of your 5 deaths came before 10 minutes." | deaths |
-| D2 | Wrong | Record | deaths ≥ 7 and the most on the team | "9 deaths, the most on your team." | deaths |
+| D2 | Wrong | Record | deaths ≥ 7 and the most on the team, with every teammate's record stored (none erased: an erased seat's deaths are not kept, so "the most" could not be backed) | "9 deaths, the most on your team." | deaths |
 | D3 | Well | Record | deaths ≤ 2 in a game of 25 minutes or more | "Only 1 death in 28 minutes." | deaths |
 | P1 | Well | Baseline of 20 or more | higher than every earlier game | "Your highest Damage/min in your last 24 ranked Top games (900)." | the figure's |
 | P2 | Well | Baseline of 10 or more | percentile ≥ 0.8 | "KDA higher than in 21 of your last 24 ranked Top games (4.50; usually 3.10)." | the figure's |
@@ -75,7 +75,8 @@ in the code together.
 
 | From | Wording |
 |---|---|
-| L2, L4, L5 | "The first 10 minutes against Garen: 59 CS and −640 gold at 10:00." |
+| L2, L5 | "The first 10 minutes against Garen: 59 CS and −640 gold at 10:00." (L5: "The first 10 minutes in the bot lane: −1,200 gold for the pair at 10:00.") |
+| L4 | "Between 10 and 15 minutes against Darius: from +700 to −600 gold." (the five minutes the lead fell in, never the first 10, which the same view may list under Went well) |
 | D1 | "Staying alive before 10 minutes: 3 deaths before 10:00 this game." |
 | D2, P3 on KDA | "Deaths: 9 this game, the most on your team." / "Deaths: 7 this game; KDA 1.00 against a usual 3.00." |
 | P3 on vision, V1 | "Vision: your usual is 0.89 per minute; a control ward on each recall is the simplest start." |

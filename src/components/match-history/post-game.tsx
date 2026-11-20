@@ -261,6 +261,7 @@ export function notesInputOf(view: MatchDetailView, champ: (id: string | null) =
     remake: view.durationS < REMAKE_S,
     me: { kills: me.kills, deaths: me.deaths, assists: me.assists, damageShare: me.damageShare, vision: me.vision, killParticipation: me.killParticipation, controlWardsBought: me.stats?.controlWardsBought, soloKills: me.stats?.soloKills, largestMultiKill: me.stats?.largestMultiKill, turretTakedowns: me.stats?.turretTakedowns },
     allies: own.map((x) => ({ deaths: x.deaths, damageShare: x.damageShare, vision: x.vision })),
+    alliesRemoved: view.teams[0]?.participants.filter((x) => !x.isPlayer && x.removed).length ?? 0,
     enemies: enemies.map((x) => ({ vision: x.vision })),
     teamTowers: typeof view.teams[0]?.objectives.tower === "number" ? view.teams[0].objectives.tower : null,
     opponent: view.comparison.opponent ? champ(view.comparison.opponent.championId).name : null,

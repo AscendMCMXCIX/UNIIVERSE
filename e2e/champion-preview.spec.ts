@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from "./test";
+import { NARROW_MOUSE_WINDOWS, expectInReach } from "./reach";
 
 /*
   All Champions' preview on the demo roster (synthetic demo games with lane opponents and timeline
@@ -162,4 +163,54 @@ test("phones: a sheet; tablets: the docked panel; ‹ › switch, Back closes it
   await openRow(page, rows.nth(0));
   await preview.getByTestId("champion-preview-close").click();
   await expect(preview).toHaveCount(0);
+});
+
+test("a game opened from the preview has a history entry of its own: Back closes the game and the preview stays, Back again closes the preview", async ({ page }) => {
+  const profile = await demoTop(page);
+  await page.goto(`${profile}/champions`);
+  const row = page.getByTestId("top-champion").first();
+  await openRow(page, row);
+  const champion = (await row.getAttribute("data-champion"))!;
+  const content = page.getByTestId("champion-preview-content");
+  const win = page.locator("dialog[open][data-testid=match-detail]");
+  const openAGame = async () => {
+    const opponent = content.getByTestId("champion-preview-opponent").first();
+    if (!(await content.getByTestId("champion-preview-game").count())) await opponent.getByRole("button").first().click();
+    await content.getByTestId("champion-preview-game").first().click();
+    await expect(win).toBeVisible();
+    await expect(page).toHaveURL(/[?&]match=/);
+  };
+  await openAGame();
+  // Back (the browser's, a phone's system Back): the game closes, the preview is still there, the same champion.
+  await page.goBack();
+  await expect(win).toHaveCount(0);
+  await expect(page).not.toHaveURL(/[?&]match=/);
+  await expect(page).toHaveURL(new RegExp(`champion=${champion}`));
+  await expect(content).toBeVisible();
+  await expect(content).toHaveAttribute("data-champion", champion);
+  // ✕ closes the game alone too, and takes its entry away: the next Back closes the preview.
+  await openAGame();
+  await win.getByTestId("match-detail-close").click();
+  await expect(win).toHaveCount(0);
+  await expect(page).not.toHaveURL(/[?&]match=/);
+  await expect(content).toBeVisible();
+  await page.goBack();
+  await expect(content).toHaveCount(0);
+  await expect(page).not.toHaveURL(/champion=/);
+});
+
+test("a window 640–767px wide with a mouse (the phone's frame): the preview opens as a window, its ✕ and ‹ › in reach", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "a mouse in a narrow window: the desktop project, resized");
+  const profile = await demoTop(page);
+  for (const size of NARROW_MOUSE_WINDOWS) {
+    await page.setViewportSize(size);
+    await page.goto(`${profile}/champions`);
+    await openRow(page, page.getByTestId("top-champion").first());
+    const preview = page.locator("dialog[open][data-testid=champion-preview]");
+    await expect(preview, `${size.width}×${size.height}`).toBeVisible();
+    await expect(page.locator("aside[data-peek-panel]")).toHaveCount(0);
+    await expectInReach(page, [preview.getByTestId("champion-preview-close"), preview.getByTestId("champion-preview-next")]);
+    await preview.getByTestId("champion-preview-close").click();
+    await expect(preview).toHaveCount(0);
+  }
 });

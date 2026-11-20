@@ -103,40 +103,65 @@ export function usePreviewAddress() {
 
 type Loader<T> = (key: string, run: () => Promise<PreviewResult<T>>) => Promise<PreviewResult<T>>;
 
-/** One answer per key for the page's life: switching back to a champion asks nothing again. */
-function useCache<T>(seed: Array<[string, T]>): Loader<T> {
-  // Made once, seeded with the server's answers; it lives as long as the page.
-  const [store] = React.useState(() => new Map<string, Promise<PreviewResult<T>>>(seed.map(([k, data]) => [k, Promise.resolve({ status: "ok", data } as PreviewResult<T>)])));
-  return React.useCallback(
-    (key, run) => {
-      const hit = store.get(key);
-      if (hit) return hit;
-      const p = run().catch(() => ({ status: "not-found", message: "This champion's games could not be loaded." }) as PreviewResult<T>);
-      store.set(key, p);
-      // Only answers are kept: a refusal or a failed load is asked again next time.
-      void p.then((r) => {
-        if (r.status !== "ok" && store.get(key) === p) store.delete(key);
-      });
-      return p;
-    },
-    [store],
-  );
+/** The answers kept for one generation of the list's data, seeded with the server's. */
+export interface AnswerCache<T> {
+  generation: unknown;
+  store: Map<string, Promise<PreviewResult<T>>>;
+}
+
+/**
+ * The cache for `generation` (the list's data as the server last rendered it): the one in hand while
+ * the data is the same, so switching back to a champion asks nothing again; a new one, seeded with
+ * the new render's answers, once a server render brings new data (a refresh after new games: the
+ * page's FreshnessWatcher). Kept across refreshes, an answer would disagree with the refreshed figures
+ * above it (the opponents and "Known in X of Y games" against "N games · W L").
+ */
+export function cacheFor<T>(current: AnswerCache<T> | null, generation: unknown, seed: Array<[string, T]>): AnswerCache<T> {
+  if (current && current.generation === generation) return current;
+  return { generation, store: new Map(seed.map(([k, data]) => [k, Promise.resolve({ status: "ok", data } as PreviewResult<T>)])) };
+}
+
+/** The answer for `key`: the one kept, or `run`'s, kept only when it is an answer (a refusal or a failed load is asked again next time). */
+export function answerFrom<T>(cache: AnswerCache<T>, key: string, run: () => Promise<PreviewResult<T>>): Promise<PreviewResult<T>> {
+  const { store } = cache;
+  const hit = store.get(key);
+  if (hit) return hit;
+  const p = run().catch(() => ({ status: "not-found", message: "This champion's games could not be loaded." }) as PreviewResult<T>);
+  store.set(key, p);
+  void p.then((r) => {
+    if (r.status !== "ok" && store.get(key) === p) store.delete(key);
+  });
+  return p;
+}
+
+/** One answer per key while the list's data stays the same (cacheFor). */
+function useCache<T>(seed: Array<[string, T]>, generation: unknown): Loader<T> {
+  const [held, setHeld] = React.useState(() => cacheFor<T>(null, generation, seed));
+  const cache = cacheFor(held, generation, seed);
+  if (cache !== held) setHeld(cache);
+  return React.useCallback((key, run) => answerFrom(cache, key, run), [cache]);
 }
 
 export type ListScope = Omit<PreviewScope, "champion" | "role">;
 const keyOf = (scope: ListScope, champion: string, role: Role, vs?: string) => JSON.stringify([scope.season, scope.mode, scope.account, champion, role, vs ?? null]);
 
-/** The preview's data: loaded through the actions, kept per page, seeded by the server's render. */
-export function usePreviewData(playerId: string, scope: ListScope, initial: { preview: ChampionPreviewData | null; pairing: PairingGamesData | null }) {
-  const previews = useCache<ChampionPreviewData>(initial.preview ? [[keyOf(scope, initial.preview.champion, initial.preview.role), initial.preview]] : []);
-  const pairings = useCache<PairingGamesData>(initial.pairing ? [[keyOf(scope, initial.pairing.champion, initial.pairing.role, initial.pairing.vs), initial.pairing]] : []);
+/**
+ * The preview's data: loaded through the actions, kept while the list's data stays the same, seeded
+ * by the server's render. `generation` is that data as rendered (a refresh brings a new one).
+ */
+export function usePreviewData(playerId: string, scope: ListScope, initial: { preview: ChampionPreviewData | null; pairing: PairingGamesData | null }, generation: unknown) {
+  const previews = useCache<ChampionPreviewData>(initial.preview ? [[keyOf(scope, initial.preview.champion, initial.preview.role), initial.preview]] : [], generation);
+  const pairings = useCache<PairingGamesData>(initial.pairing ? [[keyOf(scope, initial.pairing.champion, initial.pairing.role, initial.pairing.vs), initial.pairing]] : [], generation);
   const preview = React.useCallback((champion: string, role: Role) => previews(keyOf(scope, champion, role), () => getChampionPreviewAction(playerId, { ...scope, champion, role })), [previews, playerId, scope]);
   const pairing = React.useCallback((champion: string, role: Role, vs: string) => pairings(keyOf(scope, champion, role, vs), () => getPairingGamesAction(playerId, { ...scope, champion, role }, vs)), [pairings, playerId, scope]);
-  return React.useMemo(() => ({ preview, pairing, initial, scopeKey: JSON.stringify([scope.season, scope.mode, scope.account]) }), [preview, pairing, initial, scope]);
+  return React.useMemo(() => ({ preview, pairing, initial, generation, scopeKey: JSON.stringify([scope.season, scope.mode, scope.account]) }), [preview, pairing, initial, generation, scope]);
 }
 
-/** An answer for exactly this key, or null while it loads. */
-function useAnswer<T>(key: string | null, load: (() => Promise<PreviewResult<T>>) | null, seed: T | null): PreviewResult<T> | null {
+/**
+ * An answer for exactly this key, or null while it loads. A new generation of the list's data asks
+ * again (the refreshed render's answer, or the action), showing the answer it has until then.
+ */
+function useAnswer<T>(key: string | null, generation: unknown, load: (() => Promise<PreviewResult<T>>) | null, seed: T | null): PreviewResult<T> | null {
   const [got, setGot] = React.useState<{ key: string; result: PreviewResult<T> } | null>(() => (key && seed ? { key, result: { status: "ok", data: seed } } : null));
   React.useEffect(() => {
     if (!key || !load) return;
@@ -147,9 +172,9 @@ function useAnswer<T>(key: string | null, load: (() => Promise<PreviewResult<T>>
     return () => {
       live = false;
     };
-    // The key names the request; `load` is rebuilt with it.
+    // The key and the generation name the request; `load` is rebuilt with them.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key]);
+  }, [key, generation]);
   return got && got.key === key ? got.result : null;
 }
 
@@ -183,7 +208,7 @@ export function PreviewContent({ playerId, isOwn, card, otherRoles, vs, champ, d
   const p = card.performance;
   const key = `${data.scopeKey}|${card.championId}|${card.role}`;
   const seed = data.initial.preview && data.initial.preview.champion === card.championId && data.initial.preview.role === card.role ? data.initial.preview : null;
-  const answer = useAnswer(key, () => data.preview(card.championId, card.role), seed);
+  const answer = useAnswer(key, data.generation, () => data.preview(card.championId, card.role), seed);
   const preview = answer?.status === "ok" ? answer.data : null;
   const [sort, setSort] = React.useState<OpponentSort>("games");
   const [more, setMore] = React.useState(false);
@@ -327,7 +352,7 @@ function PairingGames({ id, me, them, card, isOwn, data, onMatch }: { id: string
   const key = `${data.scopeKey}|${card.championId}|${card.role}|${them.id}`;
   const init = data.initial.pairing;
   const seed = init && init.champion === card.championId && init.role === card.role && init.vs === them.id ? init : null;
-  const answer = useAnswer(key, () => data.pairing(card.championId, card.role, them.id), seed);
+  const answer = useAnswer(key, data.generation, () => data.pairing(card.championId, card.role, them.id), seed);
   const pairing = answer?.status === "ok" ? answer.data : null;
   const [all, setAll] = React.useState(false);
   const sentence = pairing ? opponentSentence(pairing.ten, { isOwn, champion: me.name, opponent: them.name }) : null;

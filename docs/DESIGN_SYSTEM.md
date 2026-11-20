@@ -279,10 +279,13 @@ is the rule as a pure function (`peek.test.ts`).
 
 ### Pointer and posture (`posture.ts`)
 
-A touch phone (a coarse pointer and a side under 768px), a window under 640px wide or a short window
-(480px tall or less) opens a preview as a sheet or a window of its own (`prefersWindow`,
-`useWindowPosture`); every other screen gets the docked panel or the inline unfold. Width alone does
-not decide.
+Any window under 768px wide, where the page has the phone's frame (its top bar and tab bar), a touch
+phone and a narrow window with a mouse alike, and any short window (480px tall or less, a phone held
+sideways) open a preview as a sheet or a window of its own (`prefersWindow`, `useWindowPosture`);
+every other screen gets the docked panel or the inline unfold. A window is above the phone's bars; a
+docked panel or an inline game's pinned header and footer would sit under them. Until 20 Nov 2026 a
+mouse got the docked and inline forms from 640px, and from 640 to 767px their ✕, ‹ › and Close were
+under the bars (the Release 5 review; `e2e/reach.ts` checks 700 × 900 and 760 × 1000 with a mouse).
 
 ### Peek
 

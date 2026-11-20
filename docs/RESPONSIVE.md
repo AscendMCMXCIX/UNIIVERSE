@@ -641,8 +641,9 @@ Tables with more than four columns render as cards on phones and as the table fr
 Data jobs and the player's champion proficiency table. Match history rows wrap into cards by the
 list's own width (owner decision D8): a phone's card under 36rem (about 118px; both teams left to
 the game's own screen), a two-row card from 36 to 50rem (about 120px: the game's figures and build,
-then both teams) and one row from 50rem; on phones a game opens as the match window over the whole
-screen (Back closes it). Encounters' column names pin under the section tabs where those pin (from
+then both teams) and one row from 50rem; under 768px (phones, and a narrow window with a mouse, which
+has the phone's frame) and in short windows a game opens as the match window (the whole screen under
+640px; Back closes it). Encounters' column names pin under the section tabs where those pin (from
 md, in a window taller than 480px), as All Champions' do.
 A game's post-game view (under its Match History card, or in the match window; 19 Nov 2026) lays
 itself out by its own width (container `pg`): "Your game" and the scoreboard side by side from
@@ -686,8 +687,8 @@ figures at 1536 and 1680px. All Champions' preview (S5, 19 Nov 2026; docs/MATCHU
 champion window: at 1280, 1440 and 1920 it unfolds inside the list's card over the columns after Win
 rate (Champion, Games and Win rate keep their x to the pixel, the page does not scroll, rows keep
 their height: 0px moved at all three widths on the demo); with under 26rem beside Win rate, and on
-every screen under 1024px wide, the shared Peek's docked panel; on touch phones and short windows its
-sheet. The wide (76rem) tier drops the Kills column (it sorts like Games; per-game kills are in KDA;
+screens from 768 to 1023px wide, the shared Peek's docked panel; under 768px (the phone's frame, with
+a mouse as with touch) and on short windows its sheet. The wide (76rem) tier drops the Kills column (it sorts like Games; per-game kills are in KDA;
 CM AC-11, reversible: OD20). `e2e/champion-preview.spec.ts` checks the geometry, ↑/↓, Back and
 Escape at 1440, the content and old addresses on all three projects, and the sheet (phone) and docked
 panel (tablet).

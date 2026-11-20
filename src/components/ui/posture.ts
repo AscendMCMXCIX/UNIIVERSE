@@ -3,12 +3,15 @@
 import * as React from "react";
 
 /*
-  Pointer and posture decide how a preview opens, not the width alone (PLAN S4a, decision 9): a
-  touch phone (a coarse pointer and a side under 768px), any window under 640px wide, and any short
-  window (480px tall or less, a phone held sideways) get a sheet or a window of their own; every
-  other screen gets the docked Peek panel or the inline Unfold, beside or inside the list.
+  The frame and the posture decide how a preview opens (PLAN S4a, decision 9): any window under
+  768px wide, a touch phone or a narrow window with a mouse alike, and any short window (480px tall
+  or less, a phone held sideways) get a sheet or a window of their own; every other screen gets the
+  docked Peek panel or the inline Unfold, beside or inside the list. Under 768px the page has the
+  phone's frame (its top bar and tab bar, mobile-nav.tsx), which a docked panel or an inline game's
+  pinned controls would sit under; a window is above it. (Until 20 Nov 2026 a mouse got the docked
+  and inline forms from 640px, and between 640 and 767px their ✕, ‹ › and Close were under the bars.)
 */
-export const WINDOW_POSTURE_QUERY = "(max-width: 39.99rem), (pointer: coarse) and (max-width: 47.99rem), (max-height: 30rem)";
+export const WINDOW_POSTURE_QUERY = "(max-width: 47.99rem), (max-height: 30rem)";
 
 function subscribe(onChange: () => void) {
   const query = window.matchMedia(WINDOW_POSTURE_QUERY);

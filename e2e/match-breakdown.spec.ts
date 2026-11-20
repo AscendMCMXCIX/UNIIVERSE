@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from "./test";
 import { besideAMark, closeGame, opensFullScreen, openGame } from "./match-history";
+import { NARROW_MOUSE_WINDOWS, expectInReach } from "./reach";
 
 /*
   A game's post-game view under its Match History card (demo data, in memory; on phones the window):
@@ -141,6 +142,22 @@ test("Previous and Next keep the open game's header in place; Escape closes and 
   await page.keyboard.press("Escape");
   await expect(page.locator("li[data-expanded]")).toHaveCount(0);
   await expect(cards.nth(2).getByTestId("match-row")).toBeFocused();
+});
+
+test("a window 640–767px wide with a mouse (the phone's frame): a game opens as the window, its Close and Next in reach, nothing under the bars", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "a mouse in a narrow window: the desktop project, resized");
+  for (const size of NARROW_MOUSE_WINDOWS) {
+    await page.setViewportSize(size);
+    await openHistory(page, "TOP");
+    await openGame(page.getByTestId("match-card").nth(1));
+    const win = page.locator("dialog[open][data-testid=match-detail]");
+    await expect(win, `${size.width}×${size.height}`).toBeVisible();
+    // Not under its card, where the pinned header and footer sat under the top bar and the tab bar.
+    await expect(page.locator("li[data-expanded]")).toHaveCount(0);
+    await expectInReach(page, [win.getByTestId("match-detail-close"), win.getByTestId("match-detail-next")]);
+    await win.getByTestId("match-detail-close").click();
+    await expect(win).toHaveCount(0);
+  }
 });
 
 test("Timeline draws the gold difference, reads a minute by keyboard and as a table, and asks for the timeline once", async ({ page }) => {

@@ -67,8 +67,8 @@ describe("Unfold's anchored switching", () => {
 });
 
 describe("posture", () => {
-  it("gives touch phones, narrow windows and short windows a sheet, by pointer and posture", () => {
-    expect(WINDOW_POSTURE_QUERY).toContain("(pointer: coarse) and (max-width: 47.99rem)");
-    expect(WINDOW_POSTURE_QUERY).toContain("(max-height: 30rem)");
+  it("gives every window under 768px (the phone's frame), whatever the pointer, and short windows a sheet", () => {
+    // A mouse between 640 and 767px too: a docked panel or an inline game there sits under the phone's bars.
+    expect(WINDOW_POSTURE_QUERY.split(", ")).toEqual(["(max-width: 47.99rem)", "(max-height: 30rem)"]);
   });
 });

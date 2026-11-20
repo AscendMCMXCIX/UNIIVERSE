@@ -17,6 +17,7 @@ import { cn } from "@/lib/cn";
 import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateSampleNote, winRateTone } from "@/domain/stats/win-rate";
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import { Peek, type PeekControl } from "@/components/ui/peek";
+import { useAddressItem } from "@/components/ui/address-item";
 import { isTyping, modalOpen, useWindowPosture } from "@/components/ui/posture";
 import { PREVIEW_KEYS, PreviewContent, cardFor, usePreviewAddress, usePreviewData, type ListScope } from "./champion-preview";
 import { MatchDetailModal } from "@/components/match-history/match-detail";
@@ -335,12 +336,20 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
   // The preview: its state lives in the URL; its data comes from two light actions, kept per page.
   const address = usePreviewAddress();
   const scope = React.useMemo<ListScope>(() => ({ season: data.season, mode: data.mode, account: f.accountId ?? "all" }), [data.season, data.mode, f.accountId]);
-  const previewData = usePreviewData(playerId, scope, React.useMemo(() => ({ preview: initialPreview ?? null, pairing: initialPairing ?? null }), [initialPreview, initialPairing]));
+  // The list's data as the server rendered it names the answers' generation: a refresh with new
+  // games brings new data, and the preview asks again rather than keep answers the figures outgrew.
+  const previewData = usePreviewData(playerId, scope, React.useMemo(() => ({ preview: initialPreview ?? null, pairing: initialPairing ?? null }), [initialPreview, initialPairing]), data);
   const selected = address.sel ? cardFor(data.topChampions, address.sel) : null;
   const selectedKey = selected ? `${selected.championId}-${selected.role}` : null;
   const cardRef = React.useRef<HTMLDivElement>(null);
   const asideRef = React.useRef<HTMLElement>(null);
-  const [match, setMatch] = React.useState<string | null>(null);
+  // A game opened from the preview (an opponent's games): the match window, with the game in the
+  // address (`?match=`) by the one history rule, so it has a history entry of its own: Back closes
+  // the game and leaves the preview as it was, and Back from a page a link in it opened comes back
+  // to the game (docs/MOBILE.md, "Back"). Before, Back closed the preview behind it and left the
+  // game open.
+  const game = useAddressItem("match");
+  const match = game.id;
   // Room beside the list: the preview unfolds in the card over the columns after Win rate when that
   // room is 26rem or more, on a pointer (not touch) screen of 1024px or more; otherwise a sheet.
   // Undefined until measured after hydration: nothing is drawn before then, so a linked preview
@@ -663,7 +672,7 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
               <span className="sr-only" aria-live="polite">
                 {`${champ(selected.championId).name}, ${ROLE_LABELS[selected.role]}. ${formatCount(selected.selected.games)} games${selected.selected.winRate === null ? "" : `, ${percent(selected.selected.winRate, 0)} win rate`}.`}
               </span>
-              <PreviewContent key={selectedKey} playerId={playerId} isOwn={isOwn} card={selected} otherRoles={data.topChampions.filter((o) => o.championId === selected.championId && o.role !== selected.role)} vs={address.sel?.vs ?? null} champ={champ} data={previewData} onVs={address.setVs} onSwitch={(o) => address.show(o.championId, o.role)} onClose={close} titleId="champion-preview-title" onMatch={setMatch} />
+              <PreviewContent key={selectedKey} playerId={playerId} isOwn={isOwn} card={selected} otherRoles={data.topChampions.filter((o) => o.championId === selected.championId && o.role !== selected.role)} vs={address.sel?.vs ?? null} champ={champ} data={previewData} onVs={address.setVs} onSwitch={(o) => address.show(o.championId, o.role)} onClose={close} titleId="champion-preview-title" onMatch={game.open} />
             </aside>
           </div>
         ) : null}
@@ -680,9 +689,9 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
           or a sheet (touch phones, short windows). While a game's window is open over a sheet, the
           sheet steps aside (never two windows) and comes back when the game closes. */}
       <Peek peek={peekControl} title={selected ? champ(selected.championId).name : ""} itemKey={selected && measured && !inCard && !(windowed && match) ? selectedKey : null} label="Champion" testId="champion-preview">
-        {selected && !inCard ? <PreviewContent key={selectedKey} compact playerId={playerId} isOwn={isOwn} card={selected} otherRoles={data.topChampions.filter((o) => o.championId === selected.championId && o.role !== selected.role)} vs={address.sel?.vs ?? null} champ={champ} data={previewData} onVs={address.setVs} onSwitch={(o) => address.show(o.championId, o.role)} onClose={close} titleId="champion-preview-title" onMatch={setMatch} /> : null}
+        {selected && !inCard ? <PreviewContent key={selectedKey} compact playerId={playerId} isOwn={isOwn} card={selected} otherRoles={data.topChampions.filter((o) => o.championId === selected.championId && o.role !== selected.role)} vs={address.sel?.vs ?? null} champ={champ} data={previewData} onVs={address.setVs} onSwitch={(o) => address.show(o.championId, o.role)} onClose={close} titleId="champion-preview-title" onMatch={game.open} /> : null}
       </Peek>
-      {match ? <MatchDetailModal playerId={playerId} matchId={match} championsById={championsById} onClose={() => setMatch(null)} /> : null}
+      {match ? <MatchDetailModal playerId={playerId} matchId={match} championsById={championsById} onClose={game.close} /> : null}
     </section>
   );
 }
