@@ -220,7 +220,7 @@ by its figures in the main text weight; no gradient, glow or bar behind a figure
 the figure itself: Recent form's record as 20 neutral segments, wins first (`QuietBar`), in the
 text's own grey, never a state colour, and All Champions' share of the games, one continuous
 `QuietBar` under each champion's games (its games over every game in the filters, said by a key
-in the table's toolbar, and in words to screen readers; a share is never
+in the table's toolbar, and in words in the cell's title (the bar's name) and to screen readers; a share is never
 written "0%" or "100%" when it is neither). Win rates take their colour only from `winRateTone`
 (`src/domain/stats/win-rate.ts`), except on Recent form, which stays neutral; below the minimum
 games they stay grey and say "small sample", and a sort by win rate ranks established records
