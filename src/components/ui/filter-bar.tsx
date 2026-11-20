@@ -9,7 +9,6 @@ import { Button } from "./button";
 import { DetailModal, useModalClose } from "./detail-modal";
 import { Popover } from "./popover";
 import { useWindowPosture } from "./posture";
-import { useBackCloses } from "./use-back-closes";
 import { ScrollRow } from "./scroll-row";
 import { landTarget, publishPageFilters } from "./page-toolbar";
 
@@ -241,12 +240,11 @@ export function FilterBar({
   const choose = React.useCallback(() => {
     chose.current = true;
   }, []);
-  // The Filters, popover or sheet, have a history entry of their own while open (the one history
-  // rule): Back (the installed Android app's included) closes them and changes nothing else; closed
-  // any other way they take the entry away again. A choice in them replaces the page's query, and
-  // on closing that entry and the one under it become one (`collapse`), so a changed filter is
-  // never undone by closing, and Back afterwards leaves the page as every filter's change does.
-  useBackCloses(open, closeSheet, { collapse: true });
+  // No history entry of their own: a choice in them replaces the page's query (router.replace), and
+  // an entry pushed under it would make Back, a close during a pending choice, or a link pressed
+  // with them open restore the old address and cancel the change (review of 20 Nov 2026). Android's
+  // Back closes the sheet as any open dialog's close request; the popover closes on Escape, a press
+  // outside and Done.
   const closePopover = React.useCallback(
     (restoreFocus: boolean) => {
       const back = anchor();

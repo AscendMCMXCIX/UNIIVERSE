@@ -27,7 +27,7 @@ let handedOver = false;
  * unasked. The entry stays a forward step of the same page, which the top bar's Back passes over
  * (backSteps).
  */
-export function useBackCloses(open: boolean, onBack: () => void, { collapse = false }: { collapse?: boolean } = {}): { replace: boolean; leaving: () => void; handOver: () => void } {
+export function useBackCloses(open: boolean, onBack: () => void): { replace: boolean; leaving: () => void; handOver: () => void } {
   const id = React.useId();
   const latest = React.useRef(onBack);
   React.useLayoutEffect(() => {
@@ -42,9 +42,6 @@ export function useBackCloses(open: boolean, onBack: () => void, { collapse = fa
     if (handedOver && state[KEY]) window.history.replaceState({ ...state, [KEY]: id }, "");
     else window.history.pushState({ ...state, [KEY]: id }, "");
     handedOver = false;
-    // Where the entry was pushed: the page, and how many entries the tab then had (collapse, below).
-    const path = window.location.pathname;
-    const length = window.history.length;
     let gone = false;
     const onPop = () => {
       if (gone || markOf() === id) return;
@@ -59,30 +56,10 @@ export function useBackCloses(open: boolean, onBack: () => void, { collapse = fa
         handedOver = true;
         return;
       }
-      if (ending.current === "leave") return;
-      if (markOf() !== id) {
-        // `collapse`: what is open replaced this page's query (a filter chosen in the Filters), so
-        // the entry now holds the new address and the one under it the old. Two entries for one
-        // change would make Back undo the filter instead of leaving the page (every filter replaces
-        // the entry), so they become one: Back to the entry under it, unheard by the router (its
-        // state is the new address's already), which then takes the new address and its state.
-        if (collapse && window.location.pathname === path && window.history.length === length) {
-          const kept = window.history.state;
-          const href = window.location.href;
-          const swallow = (e: PopStateEvent) => {
-            window.removeEventListener("popstate", swallow, true);
-            // Heard first (a capture listener on the window runs before the router's), and kept from it.
-            e.stopImmediatePropagation();
-            window.history.replaceState(kept, "", href);
-          };
-          window.addEventListener("popstate", swallow, true);
-          window.history.back();
-        }
-        return;
-      }
+      if (ending.current === "leave" || markOf() !== id) return;
       window.history.back();
     };
-  }, [open, id, collapse]);
+  }, [open, id]);
   const leaving = React.useCallback(() => {
     ending.current = "leave";
   }, []);

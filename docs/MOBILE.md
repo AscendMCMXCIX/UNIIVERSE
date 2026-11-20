@@ -262,11 +262,11 @@ Team's four sections, your profile's, Matchup Intel and Resources, and every adm
 entry, so no page claims "‹ Team" unless it is under Team (before navigation N1, Matchup Intel,
 Resources and Settings opened directly all said "‹ Team"; Settings still leads home, Team Overview
 for a member, by its name). Back also closes what is open over the page and leaves the page as it
-was: a game, a champion's window, the account screen, the install window, the Team player Peek and the
-Filters, sheet or popover (each with a history entry of its own: `?match=`, `?champion=`,
-`?player=`, or `useBackCloses`; S4a, 20 Nov 2026, added the Filters: a choice in them replaces the
-query, and on closing their entry and the one under it become one, so a filter is never undone by
-closing them and Back after a change still leaves the page, as every filter's does), so a phone's system Back, the
+was: a game, a champion's window, the account screen, the install window and the Team player Peek
+(each with a history entry of its own: `?match=`, `?champion=`, `?player=`, or `useBackCloses`).
+The Filters have none: a choice in them replaces the query, and an entry under it would make Back,
+or a close while the choice loads, restore the old address (tried and taken out in S4a, 20 Nov
+2026). Android's Back closes the Filters sheet as it closes any open dialog (its close request), so a phone's system Back, the
 installed Android app's included, works as the browser's does (`e2e/journeys.spec.ts`). A page that adds history entries of its own address (Matchup Intel's pairs) is still one
 page for Back: named after the page before, it goes there, past those entries, where the browser's
 Navigation API shows them (`backSteps`); the browser's own Back steps through them. Where the

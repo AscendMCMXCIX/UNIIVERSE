@@ -698,12 +698,12 @@ test("desktop: from the pinned row of every page that offers Filters, a change b
     if (c.under) await expect(page.locator(c.under), `${c.what}: the column headings show`).toBeVisible();
     await scrollTo(page, "end");
     await page.getByTestId("toolbar-filters").click();
-    const sheet = page.locator("dialog[open]");
+    const sheet = page.locator("dialog[open], [data-popover]");
     await expect(sheet).toBeVisible();
     await c.change(sheet);
     if (c.url) await expect(page).toHaveURL(c.url);
     await sheet.getByRole("button", { name: "Done" }).click();
-    await expect(page.locator("dialog[open]")).toHaveCount(0);
+    await expect(page.locator("dialog[open], [data-popover]")).toHaveCount(0);
     // Its first item just under what is pinned: at the page's scroll padding under the tabs, or right
     // under All Champions' pinned column headings, which would cover it there; or as near as the
     // page's end allows.

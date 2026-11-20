@@ -10,8 +10,9 @@ import { pullDown } from "./pull";
     when audited), and a filter's Done still brings the list's start under the bars;
   - the pinned row's Filters is a 34rem Popover: "Support" whole, nothing scrolling sideways, at
     1440, 1920 and 2560; Escape gives the focus back to the button;
-  - Android's Back in the emulated installed app closes the Team player Peek and the Filters (the
-    sheet on a phone, the popover on a larger screen) and changes nothing else.
+  - Android's Back in the emulated installed app closes the Team player Peek and changes nothing
+    else; the Filters have no history entry (a choice in them replaces the query), so a choice made
+    in the popover stays however it closes, and Back afterwards leaves the page.
   Phone parts run on the phone project, the desktop sizes on the desktop project (each sets its own
   sizes), so the file costs one project's time for each.
 */
@@ -138,7 +139,7 @@ test("desktop: the pinned row's Filters is a 34rem popover with Support whole an
   }
 });
 
-test("Android's installed app: Back closes the Team player Peek and the Filters (the sheet on a phone, the popover on a larger screen) and changes nothing else", async ({ page }) => {
+test("Android's installed app: Back closes the Team player Peek, however many players were switched to, and changes nothing else", async ({ page }) => {
   test.skip(!isPhone(page), "the phone project, emulating the installed app");
   await page.addInitScript(() => {
     const real = window.matchMedia.bind(window);
@@ -153,26 +154,29 @@ test("Android's installed app: Back closes the Team player Peek and the Filters 
   await expect(page.getByTestId("player-detail")).toBeHidden();
   await expect(page).toHaveURL(/\/team$/);
 
+});
+
+test("desktop: a choice in the Filters popover stays when it closes (Done, Escape, a press outside), and Back afterwards leaves the page as every filter's change does", async ({ page }) => {
+  test.skip(page.viewportSize()?.width !== 1440, "the popover's own behaviour; one project");
+  await page.emulateMedia({ reducedMotion: "reduce" });
   const profile = await teammate(page);
-  for (const size of [null, { width: 1024, height: 768 }] as const) {
-    if (size) await page.setViewportSize(size);
-    await page.goto(`${profile}/matches?result=win`);
-    await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
-    const url = page.url();
-    const y = await page.evaluate(() => window.scrollY);
-    const own = page.getByTestId("match-history").getByTestId("filter-toggle");
-    if (size) {
-      await scrollToEnd(page);
-      await page.getByTestId("toolbar-filters").click();
-    } else await own.tap();
-    const filters = page.getByTestId("filter-sheet");
-    await expect(filters).toBeVisible();
-    expect(await filters.evaluate((el) => el.hasAttribute("data-popover")), size ? "a popover" : "a sheet").toBe(!!size);
-    const at = await page.evaluate(() => window.scrollY);
-    await page.goBack();
-    await expect(filters).toHaveCount(0);
-    expect(page.url(), "the address keeps every filter").toBe(url);
-    expect(await page.evaluate(() => window.scrollY), "the page stays").toBe(size ? at : y);
-    await expect(page.getByTestId("match-history")).toBeVisible();
+  await page.goto("/team");
+  await page.goto(`${profile}/matches`);
+  await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
+  for (const close of ["Done", "Escape", "outside"] as const) {
+    await scrollToEnd(page);
+    await page.getByTestId("toolbar-filters").click();
+    const pop = page.getByTestId("filter-sheet");
+    await expect(pop).toBeVisible();
+    const before = page.url();
+    await pop.getByTestId(/role=support/i.test(before) ? "role-filter-TOP" : "role-filter-SUPPORT").click();
+    // Closed at once, before the change has necessarily landed: the change still lands.
+    if (close === "Done") await pop.getByTestId("filter-sheet-done").click();
+    else if (close === "Escape") await page.keyboard.press("Escape");
+    else await page.mouse.click(5, 450);
+    await expect(pop).toHaveCount(0);
+    await expect.poll(() => page.url(), `${close}: the choice stays`).not.toBe(before);
   }
+  await page.goBack();
+  await expect(page).toHaveURL(/\/team$/);
 });
