@@ -15,6 +15,8 @@ import { jobsFreshness } from "@/server/ops/freshness";
 import { FreshnessWatcher } from "@/components/ui/freshness-watcher";
 import { staticDiffHealth } from "@/server/matchup-intel/digests";
 import { StaticDiffCard } from "@/components/admin/static-diff";
+import { curationPriorities } from "@/server/matchup-intel/curation";
+import { CurationPriorities } from "@/components/admin/curation-priorities";
 import { log } from "@/server/observability/log";
 
 export const dynamic = "force-dynamic";
@@ -29,13 +31,18 @@ export default async function AdminDataPage() {
   const owner = isOwner(session);
   const db = await getAppDb();
   // Matchup Intel's per-version diff (counts and patch names only); one query failing never fails the page.
-  const [health, handle, overrides, version, diff] = await Promise.all([
+  const [health, handle, overrides, version, diff, curation] = await Promise.all([
     getDataHealth(db),
     getDbHandle(),
     getScheduleOverrides(db),
     jobsFreshness(db),
     staticDiffHealth(db).catch((error: unknown) => {
       log("warn", "admin.static_diff_failed", { error });
+      return null;
+    }),
+    // Admin only, never logged: with a handful of profiles a role's cells can point at one person (curation.ts).
+    curationPriorities(db).catch(() => {
+      log("warn", "admin.curation_priorities_failed", {});
       return null;
     }),
   ]);
@@ -79,6 +86,7 @@ export default async function AdminDataPage() {
         <PanelBody className="space-y-3 text-sm">
           <DatasetsList datasets={health.datasets} />
           {diff ? <StaticDiffCard diff={diff} /> : null}
+          {curation ? <CurationPriorities roles={curation} /> : null}
           {health.warnings.length === 0 ? <p className="text-good">No job failures.</p> : null}
           {health.warnings.map((w) => (
             <p key={w} className="text-warn [overflow-wrap:anywhere]">
