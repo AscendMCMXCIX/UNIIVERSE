@@ -173,12 +173,13 @@ describe("/api/health notices", () => {
         { patch: "16.22", kind: "champion", key: "Darius", hash: "b" },
         { patch: "16.22", kind: "champion", key: "Garen", hash: "a" },
         { patch: "16.22", kind: "item", key: "3071", hash: "a" },
+        // New in 16.22: recorded, not "changed".
         { patch: "16.22", kind: "rune", key: "8010", hash: "a" },
         // A failed attempt's mark is not a digest, and a newer patch with only that mark is not listed.
         { patch: "16.23", kind: "patch", key: "failed", hash: "" },
       ]);
       const body = (await (await GET()).json()) as Digests;
-      expect(body.digests).toEqual({ patch: "16.22", recorded: { champion: 2, item: 1, rune: 1 }, previous: "16.21", changed: { champion: 1, item: 0, rune: 1 } });
+      expect(body.digests).toEqual({ patch: "16.22", recorded: { champion: 2, item: 1, rune: 1 }, previous: "16.21", changed: { champion: 1, item: 0, rune: 0 } });
       // Nothing but counts and patch names: no champion, item or rune is named.
       expect(JSON.stringify(body.digests)).not.toMatch(/Darius|Garen|3071|8010/);
       await db.delete(staticDigests).where(inArray(staticDigests.patch, ["16.21"]));

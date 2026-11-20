@@ -124,10 +124,14 @@ export async function unchangedBetween(db: Db, current: string, previous: string
   return named.every((n) => same.has(`${n.kind}:${n.key}`));
 }
 
-/** The champions, items and runes whose Data Dragon entries changed between two patches, counted (Admin's data health; the job's log). */
+/**
+ * The champions, items and runes whose Data Dragon entries changed between two patches, counted
+ * (`/api/health`, Admin's data health): only what both patches recorded and whose digests differ; a
+ * key new in the current patch, or missing from it, is not a change.
+ */
 export async function changedCounts(db: Db, current: string, previous: string): Promise<Record<DigestKind, number> | null> {
   const rows = (await db.execute(sql`
-    SELECT c.kind, count(*) FILTER (WHERE p.hash IS DISTINCT FROM c.hash) AS changed, count(p.hash) AS compared
+    SELECT c.kind, count(*) FILTER (WHERE p.hash IS NOT NULL AND p.hash <> c.hash) AS changed, count(p.hash) AS compared
     FROM static_digests c LEFT JOIN static_digests p ON p.patch = ${previous} AND p.kind = c.kind AND p.key = c.key
     WHERE c.patch = ${current} GROUP BY c.kind`)) as unknown as { rows?: Array<{ kind: string; changed: string | number; compared: string | number }> };
   const list = rows.rows ?? (rows as unknown as Array<{ kind: string; changed: string | number; compared: string | number }>);

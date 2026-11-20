@@ -86,7 +86,11 @@ export async function GET() {
       .where(and(eq(riotAccounts.ownerType, "player"), ne(riotAccounts.label, "demo"), ne(riotAccounts.syncStatus, "demo")));
     // Matchup Intel's per-version diff (static_digests): the newest patch recorded, its counts, and
     // how many champions, items and runes changed since the one before. Counts and patches only.
-    const digests = await digestHealth(handle.db);
+    // One Matchup Intel query must never fail the whole check: on an error, no digests are listed.
+    const digests = await digestHealth(handle.db).catch((error: unknown) => {
+      log("warn", "health.digests_failed", { error });
+      return null;
+    });
     const accountsReadAt = read?.cursor ? new Date(Number(read.cursor) * 1000) : null;
     return NextResponse.json({
       ...base,

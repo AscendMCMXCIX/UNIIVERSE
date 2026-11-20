@@ -150,6 +150,8 @@ describe("the Production check's patch fact: the page's patch is /api/health's",
   it("expects 'Game patch not known' when health names no patch", () => {
     expect(patchFact({ ...ON, patch: "Game patch not known" }, null).status).toBe("PASS");
     expect(patchFact(ON, null).status).toBe("FAIL");
+    // The offline fixture's patch ("0.0"), which the page never names: as none.
+    expect(patchFact({ ...ON, patch: "Game patch not known" }, "0.0").status).toBe("PASS");
   });
 
   it("is not asserted by a caller that gives no health patch", () => {

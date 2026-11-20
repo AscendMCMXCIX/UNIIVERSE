@@ -94,7 +94,8 @@ export function publicPatch(patch) {
  * sources is on it, every "(patch …)" there, unless the bar says the ability data is older.
  */
 export function patchVerdict(at, healthPatch) {
-  const want = healthPatch ? publicPatch(healthPatch) : null;
+  // "0.0" is the offline fixture's patch (Data Dragon 0.0.0-fixture), which the page never names.
+  const want = healthPatch && healthPatch !== "0.0" ? publicPatch(healthPatch) : null;
   const data = [...(at.ddragon ?? "").matchAll(/\(patch (\d+\.\d+)\)/g)].map((m) => m[1]);
   const older = /Ability data from patch \d+\.\d+/.test(at.patchState ?? "");
   const bar = want ? at.patch === `Patch ${want}` : at.patch === "Game patch not known";
