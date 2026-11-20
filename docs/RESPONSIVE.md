@@ -662,6 +662,16 @@ demo: at 1440 × 900 the card and the open game take 660–685px with Close on t
 390 × 844 the window's pinned chrome is 110px, the scoreboard starts at about 650px and the whole
 game is 1.9–2.0 screens; no tabs anywhere.
 
+A Match History card from 50 to 61rem of list (1280 with the sidebar open: a 60rem list) shows the
+build (the six items and the trinket, 22px) in the teams' place, and the rosters go first (UD.H1;
+S6c, 20 Nov 2026: the card showed no build there); the open game's scoreboard has the rosters. The
+card stays 90px (D8's density is unchanged), and from 61rem it shows both again. Team Matches'
+open game has Previous and Next (the footer's, by Match History's rules: they replace `?match=`, the
+new card's header keeps its y within 1px, they are disabled at the ends and say "Game 5 of 6:
+Defeat on Ornn"); Back or Close lands on the last game viewed, with the focus on its card. A
+record's game opens over Leaderboards as a docked Peek from md and the window on phones and short
+windows (`/leaderboards?match=`, TEAM_LEADERBOARDS.md).
+
 All Champions follows its list's own width too (a container query, so the sidebar counts):
 
 | List | Layout |

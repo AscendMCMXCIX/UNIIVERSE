@@ -73,7 +73,7 @@ export function RecordGamePeek({ games, championsById, children }: { games: Reco
     <RecordGameContext.Provider value={value}>
       {children}
       <MatchDetailCacheContext.Provider value={cache}>
-        <Peek peek={peek} label="Record game" title={game?.title ?? "Game"} itemKey={game ? game.matchId : null} windowSize="wide" testId="record-game">
+        <Peek peek={peek} label="Record game" title={game?.title ?? "Game"} itemKey={game ? game.matchId : null} windowSize="wide" testId="record-game-peek">
           {game ? <RecordGameBody key={game.matchId} game={game} championsById={championsById} /> : null}
         </Peek>
       </MatchDetailCacheContext.Provider>

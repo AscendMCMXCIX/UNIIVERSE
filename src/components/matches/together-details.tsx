@@ -93,7 +93,17 @@ export function TogetherList({ entries, championsById, className, children }: { 
     const onPop = () => {
       const entry = fromAddress();
       if (pushed.current !== entry) pushed.current = null;
+      const was = openRef.current;
       setOpen(entry);
+      // Back closed a game under its card: the focus on that card (the last game viewed), as Close leaves it.
+      if (!entry && was && !isPhone())
+        requestAnimationFrame(() =>
+          requestAnimationFrame(() => {
+            const li = document.getElementById(domId(was));
+            revealIfAbove(li);
+            li?.querySelector<HTMLElement>("[data-testid=together-open]")?.focus({ preventScroll: true });
+          }),
+        );
     };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);

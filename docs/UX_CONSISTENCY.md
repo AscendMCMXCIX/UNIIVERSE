@@ -27,6 +27,13 @@ sizes, row heights and where the columns fall.
   on the page shown. Consolidating further, so that Matchups and Encounters open games under their
   rows too, would mean a window inside a window or leaving the window; neither is better, so they
   keep the window.
+- **Encounters is a view, not a window** (UD.E1, S6c, 20 Nov 2026): a player met opens their games in
+  Match History itself at `?met=` (S4a's table: a view of the same list, with its address), one
+  history entry; Back or "‹ All encounters" returns to the list at its exact scroll position (0px
+  drift, measured at 390 × 844 and 1440 × 900) with the focus on the row that was opened. Why a view:
+  the player's games are Match History's own list, so each game looks, opens and switches exactly as
+  it does there (under its card, or the phone's window with Previous and Next), which a window over
+  the list could only copy, and a game opened inside it would be a window in a window.
 - **The frame recedes:** a near-neutral charcoal (`chrome`) for the sidebar, the top bar and the
   tab bar (the tablet's drawer, painted the same, went in November 2026). Colour in it marks only the current page: a neutral lift, the brand
   gradient (blue to violet) as a thin bar, and the icon in the brand blue. A team with its own page

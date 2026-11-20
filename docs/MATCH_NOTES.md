@@ -77,6 +77,12 @@ in the code together.
 |---|---|
 | L2, L5 | "The first 10 minutes against Garen: 59 CS and −640 gold at 10:00." (L5: "The first 10 minutes in the bot lane: −1,200 gold for the pair at 10:00.") |
 | L4 | "Between 10 and 15 minutes against Darius: from +700 to −600 gold." (the five minutes the lead fell in, never the first 10, which the same view may list under Went well) |
+
+A lane Focus (L2, L4, L5) carries one link under it, "Prepare Gwen vs Garen in Matchup Intel →" (the
+bot lane's four after L5: "Prepare Jinx and Thresh vs Caitlyn and Lux"), which opens Matchup Intel
+with that lane's role and champions (S7a's address: `?role=&champion=&vs=`, with `ally` and `vs2`
+in the bot lane). It is a way to the pre-game tool and adds no claim: the note's sentence is the
+same, and without a unique lane opponent (or the pair's four) there is no link.
 | D1 | "Staying alive before 10 minutes: 3 deaths before 10:00 this game." |
 | D2, P3 on KDA | "Deaths: 9 this game, the most on your team." / "Deaths: 7 this game; KDA 1.00 against a usual 3.00." |
 | P3 on vision, V1 | "Vision: your usual is 0.89 per minute; a control ward on each recall is the simplest start." |

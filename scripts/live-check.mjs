@@ -951,10 +951,10 @@ async function recordGameFacts(page, kind) {
   const before = await page.evaluate(() => history.length);
   await opener.scrollIntoViewIfNeeded();
   await opener.click();
-  const opened = await page.waitForSelector("[data-testid=record-game] [data-testid=record-game-history]", { timeout: 15_000 }).then(() => true, () => false);
+  const opened = await page.waitForSelector("[data-testid=record-game-peek] [data-testid=record-game-history]", { timeout: 15_000 }).then(() => true, () => false);
   const open = await page.evaluate((n) => ({ path: location.pathname, match: new URLSearchParams(location.search).has("match"), pushed: history.length - n }), before);
   await page.goBack();
-  const closed = await page.waitForFunction(() => !new URLSearchParams(location.search).has("match") && !document.querySelector("[data-testid=record-game]"), null, { timeout: 10_000 }).then(() => true, () => false);
+  const closed = await page.waitForFunction(() => !new URLSearchParams(location.search).has("match") && !document.querySelector("aside[data-testid=record-game-peek], dialog[open][data-testid=record-game-peek]"), null, { timeout: 10_000 }).then(() => true, () => false);
   const after = await page.evaluate(() => ({ path: location.pathname, match: new URLSearchParams(location.search).has("match") }));
   pass("leaderboards", `${kind}: a record's game keeps /leaderboards`, opened && open.path === "/leaderboards" && open.match && open.pushed === 1 && closed && after.path === "/leaderboards" && !after.match, { opened, open, closed, after });
 }

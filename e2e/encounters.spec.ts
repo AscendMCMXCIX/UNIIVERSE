@@ -140,6 +140,11 @@ test("Encounters: Against, Alongside and All, each side with its own record, in 
   for (const row of await rows.all()) expect((await sideGames(row, "against")) + (await sideGames(row, "alongside"))).toBeGreaterThanOrEqual(3);
 
   // A search that matches nobody: an honest empty state, the choices kept.
+  // A phone keeps the search behind the toolbar's icon (S6c, MH-9): one tap opens it, focused.
+  if (!(await page.getByTestId("encounter-search").isVisible())) {
+    await page.getByTestId("encounter-search-open").click();
+    await expect(page.getByTestId("encounter-search")).toBeFocused();
+  }
   await page.getByTestId("encounter-search").fill("Nobody Like This#NONE");
   await expect(page).toHaveURL(/q=Nobody/);
   await expect(page.getByTestId("encounters-none")).toBeVisible();
@@ -262,12 +267,38 @@ test("one player's games: Match History's own list, both records, each side, a g
   await expect(page).toHaveURL(/rel=against/);
   await expect(page).toHaveURL(/min=1/);
   await expect(page).not.toHaveURL(/met=/);
-  // Back and Forward follow the same addresses.
-  await page.goBack();
+  // The way back was Back (S6c: an encounter is a view, one history entry): Forward reopens the player, and Back
+  // returns to the list again, at its exact place with the focus on that row (UD.E1).
+  const y = await page.evaluate(() => window.scrollY);
+  await page.goForward();
   await expect(page.getByTestId("encounter-games")).toBeVisible();
   await page.goBack();
   await expect(page.locator("[data-testid='encounters'][data-ready]")).toBeVisible();
   await expect(page.getByTestId("encounter-relation-against")).toHaveAttribute("aria-current", "page");
+  expect(Math.abs((await page.evaluate(() => window.scrollY)) - y)).toBeLessThanOrEqual(1);
+});
+
+test("an encounter keeps the list's place: opened from a scrolled list, Back and \"‹ All encounters\" return to it with 0px drift and the focus on its row", async ({ page }) => {
+  await page.goto("/team");
+  const support = `/players/${await page.getByTestId("lineup-row-SUPPORT").getAttribute("data-player-id")}`;
+  await openEncounters(page, `${support}/matches?view=encounters&min=1&limit=500`);
+  const rows = page.getByTestId("encounter-row");
+  const row = rows.nth(Math.min(5, (await rows.count()) - 1));
+  await row.scrollIntoViewIfNeeded();
+  await page.evaluate(() => window.scrollBy(0, 40));
+  const y = await page.evaluate(() => window.scrollY);
+  const key = await row.getByTestId("open-encounter").getAttribute("data-encounter-row");
+  const length = await page.evaluate(() => history.length);
+  for (const way of ["back", "link"] as const) {
+    await row.getByTestId("open-encounter").click();
+    await expect(page.getByTestId("encounter-games")).toBeVisible();
+    expect(await page.evaluate(() => history.length), "one entry").toBe(length + 1);
+    if (way === "back") await page.goBack();
+    else await page.getByTestId("encounter-back").click();
+    await expect(page.locator("[data-testid='encounters'][data-ready]")).toBeVisible();
+    await expect.poll(() => page.evaluate(() => window.scrollY), way).toBe(y);
+    await expect(page.locator(`[data-encounter-row="${key}"]`)).toBeFocused();
+  }
 });
 
 test("a game's scoreboard marks the players met in other games, and a mark opens their games with the same count", async ({ page }) => {
