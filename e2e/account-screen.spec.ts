@@ -287,7 +287,13 @@ test("the page behind is put back if anything scrolls it while the account scree
   // Under 700px tall the top bar's first row slides away as the page scrolls down: a little scroll up
   // brings it back, the avatar with it, as a finger does before tapping it (docs/MOBILE.md).
   await page.mouse.wheel(0, -30);
-  await expect(page.getByTestId("mobile-topbar")).toHaveAttribute("data-hidden", "false");
+  const bar = page.getByTestId("mobile-topbar");
+  await expect(bar).toHaveAttribute("data-hidden", "false");
+  // The bar slides back in 200ms: the avatar is tapped once it is at rest (tapped mid-slide, the test
+  // runner first scrolled the page to reveal it, to 95px or the top, before the screen opened), and
+  // the page's place is noted once the wheel's own scroll has ended.
+  await expect.poll(() => bar.evaluate((b) => b.getAnimations().length === 0 && Math.round(b.getBoundingClientRect().top) === 0)).toBe(true);
+  await expect.poll(async () => { const y = await page.evaluate(() => scrollY); await page.waitForTimeout(100); return y === (await page.evaluate(() => scrollY)); }).toBe(true);
   const scrolled = await page.evaluate(() => scrollY);
   expect(scrolled).toBeGreaterThan(300);
   await openScreen(page);
