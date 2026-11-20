@@ -335,8 +335,13 @@ function useSheetDrag(ref: React.RefObject<HTMLDialogElement | null>, enabled: b
 
 /** What a whole-screen window is pulled down by: its header, and the bar it collapses to. */
 const HANDLE = "[data-modal-handle]";
-/** The bar a whole-screen phone window's header collapses to once its body scrolls (3.5rem: 56px). */
-const COMPACT_BAR = "min-h-14";
+/**
+ * The bar a whole-screen phone window's header collapses to once its body scrolls: 56px at every
+ * text size, its one line of title cut short where it must (in rem it was 112px at 200%, over a
+ * quarter of a phone held sideways).
+ */
+const COMPACT_BAR = "min-h-[56px]";
+const COMPACT_BAR_PX = 56;
 /** How far the body scrolls before the header collapses, in px (back at its top it opens again). */
 const COMPACT_AFTER_PX = 8;
 
@@ -637,11 +642,16 @@ export function DetailModal({
     const body = bodyRef.current;
     if (!open || !whole || innerScroll || !d || !h || !body) return;
     const phone = window.matchMedia(PHONE_QUERY);
-    const scroller = flow ? d : body;
+    // A short window (a phone held sideways) takes the whole screen too, and scrolls the window as one
+    // (short:overflow-y-auto; the body's own overflow is then visible): a plain title bar, sticky at its
+    // top, collapses there as well, on the window's scroll (at 568 x 320 and 200% text it kept 44% of
+    // the screen). A custom header scrolls away there instead, under its floating controls.
+    const short = window.matchMedia("(max-height: 480px)");
     let frame = 0;
     const check = () => {
       frame = 0;
-      if (!phone.matches) return setCompact(false);
+      if (!phone.matches && (custom || !short.matches)) return setCompact(false);
+      const scroller = flow || (!custom && getComputedStyle(body).overflowY === "visible") ? d : body;
       const top = scroller.scrollTop;
       if (top <= 0) return setCompact(false);
       const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
@@ -649,24 +659,28 @@ export function DetailModal({
       const full = h.scrollHeight;
       if (flow) {
         // Scrolling as one, nothing collapses: the bar comes once the header has gone up under it.
-        if (top > Math.max(COMPACT_AFTER_PX, full - 3.5 * rem)) setCompact(true);
+        if (top > Math.max(COMPACT_AFTER_PX, full - COMPACT_BAR_PX)) setCompact(true);
         else setCompact(false);
         return;
       }
       // A header no taller than the bar has nothing to give back: no bar over it.
-      if (custom && full <= 3.5 * rem + 1) return setCompact(false);
+      if (custom && full <= COMPACT_BAR_PX + 1) return setCompact(false);
       const saved = Math.max(0, full - 2.5 * rem);
       if (top > COMPACT_AFTER_PX && scroller.scrollHeight - scroller.clientHeight > saved + 3 * COMPACT_AFTER_PX) setCompact(true);
     };
     const onScroll = () => {
       if (!frame) frame = requestAnimationFrame(check);
     };
-    scroller.addEventListener("scroll", onScroll, { passive: true });
+    d.addEventListener("scroll", onScroll, { passive: true });
+    body.addEventListener("scroll", onScroll, { passive: true });
     phone.addEventListener("change", check);
+    short.addEventListener("change", check);
     return () => {
       cancelAnimationFrame(frame);
-      scroller.removeEventListener("scroll", onScroll);
+      d.removeEventListener("scroll", onScroll);
+      body.removeEventListener("scroll", onScroll);
       phone.removeEventListener("change", check);
+      short.removeEventListener("change", check);
     };
   }, [open, whole, innerScroll, flow, custom]);
 
@@ -881,19 +895,19 @@ export function DetailModal({
               data-testid="modal-compact-bar"
               data-compact={compact || undefined}
               className={cn(
-                // The name beside the controls' room (a spacer as wide as they are), or, where that
-                // leaves it under 6rem (a large text size), on a line of its own under them.
-                "pointer-events-none fixed inset-x-0 top-[env(safe-area-inset-top)] z-10 flex touch-none flex-wrap-reverse items-center border-b border-border bg-bg-elevated px-4 invisible opacity-0 transition-[opacity,visibility] duration-150 data-[compact=true]:pointer-events-auto data-[compact=true]:visible data-[compact=true]:opacity-100 sm:hidden",
+                // The name beside the controls' room (a spacer as wide as they are), on one line, cut
+                // short with an ellipsis where it would wrap: on its own line under the controls at a
+                // large text size, the bar reached 224px of 568 (39%) at 320 and 200%.
+                "pointer-events-none fixed inset-x-0 top-[env(safe-area-inset-top)] z-10 flex touch-none items-center border-b border-border bg-bg-elevated px-4 invisible opacity-0 transition-[opacity,visibility] duration-150 data-[compact=true]:pointer-events-auto data-[compact=true]:visible data-[compact=true]:opacity-100 sm:hidden",
                 COMPACT_BAR,
               )}
             >
-              {/* Two lines at most: at a large text size the controls leave the name little room. */}
-              <span className="line-clamp-2 min-w-24 grow py-2 text-base font-semibold leading-tight">{compactTitle ?? title}</span>
-              <span aria-hidden className="ml-auto h-[calc(3.5rem-1px)] w-[calc(var(--modal-clear-right,4.5rem)-1rem)] shrink-0" />
+              <span className="min-w-0 grow truncate py-1 text-base font-semibold leading-tight">{compactTitle ?? title}</span>
+              <span aria-hidden className="ml-auto h-px w-[calc(var(--modal-clear-right,4.5rem)-1rem)] shrink-0" />
             </div>
           ) : null}
           {header ? (
-            <div ref={headerRef} className={cn("relative shrink-0 border-b border-border", compact && !flow && "max-h-14 overflow-hidden", headerClassName)} data-testid={headerTestId} data-modal-handle={whole ? "" : undefined} data-compact={compact || undefined}>
+            <div ref={headerRef} className={cn("relative shrink-0 border-b border-border", compact && !flow && "max-h-[56px] overflow-hidden", headerClassName)} data-testid={headerTestId} data-modal-handle={whole ? "" : undefined} data-compact={compact || undefined}>
               {header}
               <span
                 ref={controlsRef}

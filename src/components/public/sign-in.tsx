@@ -90,7 +90,7 @@ function SignInWindow({ brand, onClose }: { brand: SignInBrand; onClose: () => v
           <BrandMark src={brand.logo} still={brand.logoStill} name={brand.shortName} className="h-9 w-9 text-base" />
           {/* Its words wrap beside the close button where the row is short of room (320px at 200% text),
               rather than end in an ellipsis. */}
-          <span className="min-w-0 text-sm font-bold tracking-label text-fg [overflow-wrap:anywhere]">{brand.shortName}</span>
+          <span className="min-w-0 text-sm font-bold tracking-label text-fg [overflow-wrap:break-word]">{brand.shortName}</span>
         </div>
       }
     >

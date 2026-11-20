@@ -356,10 +356,10 @@ function LineupSheet({ slot, kind, pick, startsElsewhere, onClose }: { slot: Ros
                   to nothing: truncated, "Demo Top" was 0px wide beside "Now". */}
               <span className="min-w-0 grow">
                 <span className="flex flex-wrap items-center gap-x-1.5">
-                  <span className="min-w-0 text-sm font-medium text-fg [overflow-wrap:anywhere]">{o.name}</span>
+                  <span className="min-w-0 text-sm font-medium text-fg [overflow-wrap:break-word]">{o.name}</span>
                   {o.id === current ? <Badge tone="accent">Now</Badge> : null}
                 </span>
-                <span className="block text-xs text-fg-muted [overflow-wrap:anywhere]">{o.hint}</span>
+                <span className="block text-xs text-fg-muted [overflow-wrap:break-word]">{o.hint}</span>
                 {o.moves ? <span className="block text-xs text-warn">Starts at {o.moves} now: saving moves them and leaves {o.moves} empty</span> : null}
               </span>
             </>,
@@ -367,7 +367,7 @@ function LineupSheet({ slot, kind, pick, startsElsewhere, onClose }: { slot: Ros
             { name: o.name },
           ),
         )}
-        {none ? option(null, <span className="flex min-w-0 items-center gap-3 text-sm text-fg-muted"><span className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-dashed border-border-strong"><X className="h-4 w-4" aria-hidden /></span><span className="min-w-0 [overflow-wrap:anywhere]">{none}</span></span>, starter ? "clear-role" : "remove-substitute") : null}
+        {none ? option(null, <span className="flex min-w-0 items-center gap-3 text-sm text-fg-muted"><span className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-dashed border-border-strong"><X className="h-4 w-4" aria-hidden /></span><span className="min-w-0 [overflow-wrap:break-word]">{none}</span></span>, starter ? "clear-role" : "remove-substitute") : null}
         {starter && slot.waiting.length ? (
           <>
             <p className="pt-2.5 text-xs font-medium text-fg-subtle">Roles not chosen yet</p>
@@ -375,7 +375,7 @@ function LineupSheet({ slot, kind, pick, startsElsewhere, onClose }: { slot: Ros
               option(
                 w.id,
                 <span className="min-w-0">
-                  <span className="block text-sm font-medium text-fg [overflow-wrap:anywhere]">{w.name}</span>
+                  <span className="block text-sm font-medium text-fg [overflow-wrap:break-word]">{w.name}</span>
                   <span className="block text-xs text-fg-subtle">setup incomplete: no role chosen yet</span>
                 </span>,
                 "lineup-waiting",
@@ -736,8 +736,9 @@ export function playerDetail({ slot, championsById, canEdit, canViewProfile, pro
         )
       ) : null}
       <section aria-labelledby="detail-pool" className="space-y-2.5" style={cardColourVars(p.look)}>
-        <div className="flex items-center justify-between gap-2">
-          <h3 id="detail-pool" className="text-sm font-semibold text-fg">
+        {/* Wraps where the row is short of room (320px at 200% text): "Edit on profile" ran off the screen. */}
+        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+          <h3 id="detail-pool" className="min-w-0 text-sm font-semibold text-fg">
             {slot.roleLabel} champion pool{slot.champions.length ? <span className="font-normal text-fg-subtle"> · {slot.champions.length}, in order of preference</span> : null}
           </h3>
           {/* Pools are edited on the profile (one place, with every role); Team only shows them. */}

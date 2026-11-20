@@ -273,7 +273,8 @@ test("desktop: a choice in the Filters popover stays when it closes (Done, Escap
 
 /*
   The phone window shell at large text (Release 10, PLAN S2b's frame rule): at 320 × 568 and
-  375 × 667, at 100, 150 and 200% text, once the body has scrolled 100px every whole-screen window's
+  375 × 667 (and held sideways, 568 × 320), at 100, 150 and 200% text, once the body has scrolled
+  100px, 400px and to its end, every whole-screen window's
   frame (what stays at the top while the content goes under it: the header, its 56px bar, or the
   floating controls of a window that scrolls as one) takes at most a quarter of the screen. A plain
   title bar collapses too, its title kept on one line (cut short with an ellipsis, the whole title
@@ -291,11 +292,11 @@ const WINDOWS: { name: string; view: "player" | "admin"; path: (page: Page) => P
   { name: "Admin person", view: "admin", path: async () => "/admin/people", opener: "[data-person] >> nth=1", win: "person-view", address: /person=/ },
 ];
 
-test("phone 320 × 568 and 375 × 667 at 100, 150 and 200% text: after a 100px scroll every whole-screen window's frame is at most 25% of the screen, its controls on it; ✕ and Back close it", async ({ page, context, baseURL }) => {
+test("phone 320 × 568, 375 × 667 and sideways 568 × 320 at 100, 150 and 200% text: 100px down and further, every whole-screen window's frame is at most 25% of the screen, its controls on it; ✕ and Back close it", async ({ page, context, baseURL }) => {
   test.skip(!isPhone(page), "the phone window shell");
-  test.setTimeout(240_000);
+  test.setTimeout(360_000);
   for (const w of WINDOWS) {
-    for (const [width, height] of [[320, 568], [375, 667]] as const) {
+    for (const [width, height] of [[320, 568], [375, 667], [568, 320]] as const) {
       await context.addCookies([{ name: "uniiverse_view", value: w.view, url: baseURL! }]);
       await page.setViewportSize({ width, height });
       await page.goto(await w.path(page));
@@ -306,36 +307,53 @@ test("phone 320 × 568 and 375 × 667 at 100, 150 and 200% text: after a 100px s
       const win = page.locator("dialog[open]");
       await expect(win).toHaveCount(1);
       if (w.win) await expect(win).toHaveAttribute("data-testid", w.win);
+      let plain = false;
       for (const size of [100, 150, 200]) {
         await page.evaluate((s) => { document.documentElement.style.fontSize = `${s}%`; }, size);
         const m = await win.evaluate(async (d) => {
           const frames = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
           await frames();
           const header = d.querySelector<HTMLElement>("[data-modal-handle]:not([data-testid=modal-compact-bar])") ?? (d.firstElementChild as HTMLElement);
-          const flow = getComputedStyle(d).overflowY === "auto";
-          const scroller = flow ? d : (header.nextElementSibling as HTMLElement);
+          const body = header.nextElementSibling as HTMLElement;
+          // What scrolls: the window where it scrolls as one (a small phone, a short window), else its body.
+          const scroller = getComputedStyle(body).overflowY === "visible" || getComputedStyle(d).overflowY === "auto" && d.scrollHeight > d.clientHeight + 1 ? d : body;
           scroller.scrollTop = 0;
           await frames();
-          scroller.scrollTop = 100;
-          await new Promise((r) => setTimeout(r, 350));
-          const bar = d.querySelector<HTMLElement>("[data-testid=modal-compact-bar]");
-          const barBottom = bar && getComputedStyle(bar).opacity === "1" ? bar.getBoundingClientRect().bottom : 0;
-          const controls = d.querySelector<HTMLElement>("[data-testid=modal-controls]")!;
-          const fixed = getComputedStyle(controls).position === "fixed" ? controls.getBoundingClientRect().bottom : 0;
-          const frame = flow ? Math.max(barBottom, fixed) : Math.max(barBottom, header.getBoundingClientRect().bottom);
           const vw = document.documentElement.clientWidth;
-          const off = [...controls.querySelectorAll<HTMLElement>("button, a[href]")].filter((b) => { const r = b.getBoundingClientRect(); return r.left < -0.5 || r.right > vw + 0.5; }).map((b) => b.getAttribute("aria-label") ?? b.textContent);
-          return { frame: Math.round(frame), scrolled: Math.round(scroller.scrollTop), off };
+          const depths: { depth: number; scrolled: number; frame: number; off: string[] }[] = [];
+          for (const depth of [100, 400, 1e6]) {
+            // Set again once settled: a window's own effects (its content arriving) may move it back.
+            for (let i = 0; i < 3 && Math.round(scroller.scrollTop) < Math.min(depth, scroller.scrollHeight - scroller.clientHeight) - 1; i++) {
+              scroller.scrollTop = depth;
+              await new Promise((r) => setTimeout(r, 350));
+            }
+            const bar = d.querySelector<HTMLElement>("[data-testid=modal-compact-bar]");
+            const barBottom = bar && getComputedStyle(bar).opacity === "1" ? bar.getBoundingClientRect().bottom : 0;
+            const controls = d.querySelector<HTMLElement>("[data-testid=modal-controls]")!;
+            const fixed = getComputedStyle(controls).position === "fixed" ? controls.getBoundingClientRect().bottom : 0;
+            // A header that scrolls away with the content is no frame; a pinned or sticky one is.
+            const pinned = scroller === body || getComputedStyle(header).position === "sticky";
+            const frame = Math.max(barBottom, fixed, pinned ? header.getBoundingClientRect().bottom : 0);
+            const off = [...controls.querySelectorAll<HTMLElement>("button, a[href]")].filter((b) => { const r = b.getBoundingClientRect(); return r.left < -0.5 || r.right > vw + 0.5; }).map((b) => b.getAttribute("aria-label") ?? b.textContent ?? "");
+            depths.push({ depth, scrolled: Math.round(scroller.scrollTop), frame: Math.round(frame), off });
+          }
+          return { depths, range: scroller.scrollHeight - scroller.clientHeight, plain: !d.querySelector("[data-testid=modal-compact-bar]") };
         });
         const at = `${w.name} at ${width} × ${height}, ${size}%`;
-        expect(m.off, `${at}: controls on the screen`).toEqual([]);
-        // A body too short to scroll 100px leaves its header as it is: nothing to give back.
-        if (m.scrolled >= 100) expect(m.frame, `${at}: the frame after a 100px scroll`).toBeLessThanOrEqual(height * 0.25);
+        // A body with room to scroll is scrolled: the frame rule is never skipped for want of a scroll.
+        if (m.range > 300) expect(m.depths[0]!.scrolled, `${at}: the body scrolled 100px`).toBeGreaterThanOrEqual(100);
+        for (const d of m.depths) {
+          expect(d.off, `${at}, ${d.scrolled}px down: controls on the screen`).toEqual([]);
+          // A body too short to scroll 100px leaves its header as it is: nothing to give back.
+          if (d.scrolled >= 100) expect(d.frame, `${at}, ${d.scrolled}px down: the frame`).toBeLessThanOrEqual(height * 0.25);
+        }
+        plain = m.plain;
       }
       // The whole title stays the window's name, whatever the collapsed bar draws (still scrolled, at 200%).
       const name = await win.evaluate((d) => document.getElementById(d.getAttribute("aria-labelledby")!)?.textContent?.trim() ?? "");
       expect(name.length, `${w.name}: the window is named`).toBeGreaterThan(0);
-      await expect(page.getByRole("dialog", { name, exact: true }), `${w.name}: named by its whole title`).toHaveCount(1);
+      // (A plain title bar's title, cut short with an ellipsis once collapsed.)
+      if (plain) await expect(page.getByRole("dialog", { name, exact: true }), `${w.name}: named by its whole title`).toHaveCount(1);
       if (width === 320) {
         if (w.address) {
           await expect(page).toHaveURL(w.address);
@@ -358,21 +376,22 @@ test("phone 320 × 568 and 375 × 667 at 100, 150 and 200% text: after a 100px s
 
 /*
   The player Peek at 320px with large text (Release 9's report: "Previous player" 9px past the left
-  edge at 200%): on Players' and Leaderboards' rows, upright (320 × 568) and sideways (568 × 320), at
+  edge at 200%): on Players' and Leaderboards' rows and Team's lineup, upright (320 × 568, 375 × 667)
+  and sideways (568 × 320), at
   125, 150, 175 and 200% text, every control of the Peek, its ‹ › and ✕ and everything in its body,
   is on the screen, the frame's controls 44px on touch, nothing scrolls sideways, and the pool's
   experience labels are whole (the name's column was 0px wide at 200%, the label 23px past the edge).
 */
-test("phone: the player Peek on Players and Leaderboards keeps every control on a 320px screen at 125–200% text, upright and sideways", async ({ page }) => {
+test("phone: the player Peek on Players and Leaderboards, and the Team player window, keep every control on a 320px screen at 125–200% text, upright and sideways, with every pool row whole", async ({ page }) => {
   test.skip(!isPhone(page), "the Peek's phone window");
-  test.setTimeout(120_000);
-  for (const [path, opener] of [["/players", "player-peek-open"], ["/leaderboards", "board-peek-open"]] as const) {
-    for (const [width, height] of [[320, 568], [568, 320]] as const) {
+  test.setTimeout(240_000);
+  for (const [path, opener, id] of [["/players", "[data-testid=player-peek-open] >> nth=1", "player-peek"], ["/leaderboards", "[data-testid=board-peek-open] >> nth=1", "player-peek"], ["/team", "[data-testid=lineup-row-TOP] [data-testid=open-player-detail]", "player-detail"]] as const) {
+    for (const [width, height] of [[320, 568], [375, 667], [568, 320]] as const) {
       await page.setViewportSize({ width, height });
       await page.goto(path);
       await page.waitForLoadState("networkidle");
-      await page.getByTestId(opener).nth(1).evaluate((e) => (e as HTMLElement).click());
-      const win = page.getByTestId("player-peek");
+      await page.locator(opener).evaluate((e) => (e as HTMLElement).click());
+      const win = page.getByTestId(id);
       await expect(win).toBeVisible();
       await expect(win.getByTestId("pool-list").first()).toBeVisible();
       for (const size of [125, 150, 175, 200]) {
@@ -384,12 +403,23 @@ test("phone: the player Peek on Players and Leaderboards keeps every control on 
           const off = [...d.querySelectorAll<HTMLElement>("button, a[href]")].filter((e) => { const r = e.getBoundingClientRect(); return r.width > 0 && (r.left < -0.5 || r.right > vw + 0.5); }).map(name);
           const small = [...d.querySelectorAll<HTMLElement>("[data-testid=modal-controls] button")].filter((e) => { const r = e.getBoundingClientRect(); return r.width < 43.5 || r.height < 43.5; }).map(name);
           const cut = [...d.querySelectorAll<HTMLElement>("[data-testid=tier-quiet]")].filter((e) => { const r = e.getBoundingClientRect(); const cell = e.closest("li")!.getBoundingClientRect(); return r.right > cell.right + 0.5; }).map(name);
-          return { off, small, cut, sideways: document.documentElement.scrollWidth - vw, inside: d.scrollWidth - d.clientWidth };
+          // Each pool row: the name has room (it was 0px wide at 150% beside the figures), and the
+          // experience label is not drawn over the figures (it was, from 125% on a 320px phone).
+          const rows = [...d.querySelectorAll<HTMLElement>("[data-testid=pool-champion]")].filter((li) => li.getClientRects().length);
+          const crowded = rows.filter((li) => {
+            const nameBox = li.querySelector("[data-testid=pool-champion-name]")?.getBoundingClientRect();
+            const label = li.querySelector("[data-testid=tier-quiet] [data-tier]")?.getBoundingClientRect();
+            const stats = [...li.querySelectorAll<HTMLElement>("[data-testid=pool-champion-stats]")].find((e) => e.getClientRects().length)?.getBoundingClientRect();
+            const overlaps = !!label && !!stats && label.right > stats.left + 0.5 && label.left < stats.right - 0.5 && label.bottom > stats.top + 0.5 && label.top < stats.bottom - 0.5;
+            return (nameBox && nameBox.width < 8) || overlaps;
+          }).map((li) => li.dataset.champion);
+          return { off, small, cut, crowded, sideways: document.documentElement.scrollWidth - vw, inside: d.scrollWidth - d.clientWidth };
         });
         const at = `${path} at ${width} × ${height}, ${size}%`;
         expect(m.off, `${at}: controls off the screen`).toEqual([]);
         expect(m.small, `${at}: the frame's controls under 44px`).toEqual([]);
         expect(m.cut, `${at}: experience labels past their row`).toEqual([]);
+        expect(m.crowded, `${at}: pool rows with no room for the name, or the label over the figures`).toEqual([]);
         expect(m.sideways, `${at}: the page scrolls sideways`).toBeLessThanOrEqual(0);
         expect(m.inside, `${at}: the window scrolls sideways`).toBeLessThanOrEqual(0);
       }
