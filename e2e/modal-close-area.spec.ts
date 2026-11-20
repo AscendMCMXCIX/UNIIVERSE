@@ -131,6 +131,8 @@ test("a plain dialog keeps 12 px between its title and the close button; the tas
   await expectTaskWidth(page, confirm, 30, 2, "Deactivate's confirmation (form)");
   await page.keyboard.press("Escape");
   await expect(confirm).toBeHidden();
+  // Cancelled: still active (Reactivate would show in Deactivate's place).
+  await expect(view.getByTestId("person-danger").getByRole("button", { name: "Deactivate" })).toBeVisible();
 });
 
 async function sideways(browser: Browser, baseURL: string): Promise<Page> {

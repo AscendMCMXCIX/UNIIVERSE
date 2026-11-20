@@ -72,6 +72,8 @@ test("Refresh ends the toolbar in the same place on every tab of a profile, neve
     // both in the list's search and sort row instead (PLAN §S2b), Refresh right after Filters.
     // (A profile with no champion in the filters has no such row: they keep the header's.)
     const inRow = isPhone(page) && tab === "/champions" && (await page.getByTestId("all-champions-toolbar").count()) > 0;
+    // In the row once the page knows it is a phone (the header's copy is hidden there until then).
+    if (inRow) await expect(page.getByTestId("all-champions-toolbar").getByTestId("data-refresh-button"), tab).toBeVisible();
     expect(await button.evaluate((el, sel) => !!el.closest(sel), inRow ? "[data-testid=all-champions-toolbar]" : "[data-testid=section-toolbar]"), tab).toBe(true);
     expect(await button.evaluate((el) => !el.closest("form, [data-testid$=filters]")), tab).toBe(true);
     const [title, at, note] = await Promise.all([page.locator(heading).boundingBox(), button.boundingBox(), page.getByTestId("data-refresh").boundingBox()]);

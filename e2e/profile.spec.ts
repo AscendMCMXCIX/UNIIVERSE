@@ -137,8 +137,8 @@ test("All Champions on a phone: the tab names it, the scope's one line right und
   }
   await page.setViewportSize({ width: 393, height: 852 });
   // The sheet as before: opened from the row, closed by Escape with the focus back on Filters; a
-  // choice there keeps every filter in the address, counts on the button and shows as a chip above
-  // the scope, which removes itself.
+  // choice there is set in the address, counts on the button and shows as a chip above the scope,
+  // which removes itself.
   await expect(page.getByTestId("all-champions-toolbar").getByTestId("filter-toggle")).toBeVisible();
   await toggle.click();
   const sheet = page.getByTestId("filter-sheet");

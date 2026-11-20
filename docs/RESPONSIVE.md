@@ -231,7 +231,7 @@ section could drop the index to a row of its own (about 1284–1314px folded, 14
 it at 1024 folded.
 
 **Settings** (`settings/account-settings.tsx`, the same page in both modes; 18 Nov 2026), 64rem wide
-(`max-w-5xl`): At 175% and 200% text on a tablet or desktop (Release 10) the account column is at most 40% of the page (`min(15rem,40%)`, `min(16rem,40%)` from lg) and the password panel's Change password and Sign out of other devices wrap at any width (they ran 87–235px past a 1280 or 1440 window before): nothing scrolls sideways from 320 to 2560 at 100–200% (phone-wraps.spec.ts).
+(`max-w-5xl`): At 175% and 200% text on a tablet or desktop (Release 10) the account column is at most 40% of the page (`min(15rem,40%)`, `min(16rem,40%)` from lg) and the password panel's Change password and Sign out of other devices wrap at any width (they ran 87–235px past a 1280 or 1440 window before): nothing scrolls sideways from 320 to 2560 at 100–200% (measured on the demo; phone-wraps.spec.ts checks a member's Settings at 320 with 200% and at 768, 1024, 1280 and 1440 with 175% and 200%). At the usual size the columns are as before from 700px; at 640px the 40% cap makes the account column 237px instead of 240.
 
 | Width | Layout |
 | --- | --- |
