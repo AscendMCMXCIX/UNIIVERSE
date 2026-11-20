@@ -2,12 +2,12 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
-import { championSkins, champions, patches } from "@/server/db/schema";
+import { appSettings, championSkins, champions, patches } from "@/server/db/schema";
 import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import type { DdragonChampion, DdragonChampionDetail, StaticDataProvider } from "@/server/riot/static/provider";
 import { syncStaticData } from "@/server/riot/static/sync";
 import { listChampions } from "@/server/repositories/champions";
-import { loadRiotAssets, syncRiotAssets } from "@/server/riot/static/assets";
+import { loadRiotAssets, loadRiotBuildData, syncRiotAssets } from "@/server/riot/static/assets";
 import { invalidateCache } from "@/server/observability/cache";
 
 function champ(id: string, key: number, extra: Partial<DdragonChampion> = {}): DdragonChampion {
@@ -178,4 +178,34 @@ describe("Data Dragon timeouts", () => {
     invalidateCache("riot_assets");
     expect((await loadRiotAssets(handle.db))?.version).not.toBe("16.21.1");
   }, 10_000);
+});
+
+/*
+  Matchup Intel's build data (items' shop facts and haste, spells' cooldowns, rune slots) is kept
+  under its own key: the names and icons every match history and timeline read loads stay as small
+  as they were (R6 review SR6-SEC-5: about 33 KB, not 90 KB, at 16.22.1).
+*/
+describe("Matchup Intel's build data", () => {
+  it("is stored beside the names, not in them, from the same three downloads", async () => {
+    const item = { name: "Kindlegem", description: "<mainText><stats><attention>10</attention> Ability Haste</stats></mainText>", gold: { base: 400, total: 800, sell: 560, purchasable: true }, tags: ["Health"], from: ["1028"], into: ["3067x"], depth: 2, maps: { "11": true } };
+    const files: Record<string, unknown> = {
+      "item.json": { data: { "3067": item } },
+      "summoner.json": { data: { SummonerFlash: { id: "SummonerFlash", key: "4", name: "Flash", cooldown: [300] } } },
+      "runesReforged.json": [{ id: 8000, name: "Precision", icon: "p.png", slots: [{ runes: [{ id: 8005, name: "Press the Attack", icon: "a.png" }] }] }],
+    };
+    const ddragon = (async (input: string | URL | Request) => {
+      const name = String(input).split("/").pop()!;
+      return new Response(JSON.stringify(files[name]), { status: files[name] ? 200 : 404, headers: { "content-type": "application/json" } });
+    }) as typeof fetch;
+    expect(await syncRiotAssets(handle.db, "16.22.1", ddragon)).toBe(true);
+    const [stored] = await handle.db.select({ value: appSettings.value }).from(appSettings).where(eq(appSettings.key, "riot_assets"));
+    expect(Object.keys(stored!.value as object).sort()).toEqual(["format", "items", "runes", "spells", "version"]);
+    invalidateCache("riot_assets");
+    expect((await loadRiotAssets(handle.db))?.items).toEqual({ "3067": "Kindlegem" });
+    const build = await loadRiotBuildData(handle.db);
+    expect(build).toMatchObject({ version: "16.22.1", spellCooldowns: { "4": [300] }, runeSlots: { "8000": [[8005]] } });
+    expect(build?.itemInfo["3067"]).toMatchObject({ haste: 10, depth: 2 });
+    // Read once per version: the next check of the same version downloads nothing.
+    expect(await syncRiotAssets(handle.db, "16.22.1", ddragon)).toBe(false);
+  });
 });

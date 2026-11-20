@@ -12,24 +12,35 @@ import { cachedFor, invalidateCache } from "@/server/observability/cache";
 
 const BASE = (process.env.DDRAGON_BASE_URL ?? "https://ddragon.leagueoflegends.com").replace(/\/$/, "");
 const KEY = "riot_assets";
+/**
+ * Matchup Intel's build data, kept beside the names under a key of its own: every match history
+ * and timeline read loads the names (about 33 KB), and none of them needs the build data (about 57
+ * KB more), which only S7b's build evidence will read (R6 review SR6-SEC-5; docs/HOSTING_USAGE.md).
+ */
+const BUILD_KEY = "riot_build_data";
 
 export interface RiotAssets {
   version: string;
-  /** The rules' revision that made these maps; absent on maps stored before ASSET_RULES_FORMAT 2 (re-read on the next run). */
+  /** The rules' revision that made these maps; absent on maps stored before ASSET_RULES_FORMAT 2 (re-read on the next run, which also stores the build data). */
   format?: number;
   items: Record<string, string>;
   spells: Record<string, { id: string; name: string }>;
   runes: Record<string, { name: string; icon: string }>;
+}
+
+/** What Matchup Intel's build evidence rests on (docs/MATCHUP_INTEL.md, "Static data"), for one game version. */
+export interface RiotBuildData {
+  version: string;
+  format: number;
   /**
    * Summoner's Rift's items (map 11, ids of up to four digits) beyond their names: gold, tags, what
-   * they build from and into, their depth, and the ability haste their stats name (null when none),
-   * for Matchup Intel's build evidence (docs/MATCHUP_INTEL.md, "Static data"). Absent before format 2.
+   * they build from and into, their depth, and the ability haste their stats name (null when none).
    */
-  itemInfo?: Record<string, ItemInfo>;
-  /** Each summoner spell's base cooldown per rank, in seconds, by its key ("4" Flash); absent before format 2. */
-  spellCooldowns?: Record<string, number[]>;
-  /** Each rune tree's slots as rune ids, keystones first, by the tree's id; absent before format 2. */
-  runeSlots?: Record<string, number[][]>;
+  itemInfo: Record<string, ItemInfo>;
+  /** Each summoner spell's base cooldown per rank, in seconds, by its key ("4" Flash). */
+  spellCooldowns: Record<string, number[]>;
+  /** Each rune tree's slots as rune ids, keystones first, by the tree's id. */
+  runeSlots: Record<string, number[][]>;
 }
 
 /** One Summoner's Rift item's shop facts, as Data Dragon gives them. */
@@ -68,7 +79,7 @@ const num = (v: unknown): number => (typeof v === "number" && Number.isFinite(v)
 
 type Json = Record<string, unknown>;
 
-/** Builds the compact maps from Data Dragon's item.json, summoner.json and runesReforged.json. */
+/** Builds the compact maps of names and icons from Data Dragon's item.json, summoner.json and runesReforged.json. */
 export function compactAssets(version: string, items: Json, summoner: Json, runes: unknown): RiotAssets {
   const itemMap: Record<string, string> = {};
   for (const [id, v] of Object.entries((items.data ?? {}) as Record<string, { name?: string }>)) if (v?.name) itemMap[id] = v.name;
@@ -79,6 +90,11 @@ export function compactAssets(version: string, items: Json, summoner: Json, rune
     runeMap[String(style.id)] = { name: style.name, icon: style.icon };
     for (const slot of style.slots ?? []) for (const r of slot.runes ?? []) runeMap[String(r.id)] = { name: r.name, icon: r.icon };
   }
+  return { version, format: ASSET_RULES_FORMAT, items: itemMap, spells: spellMap, runes: runeMap };
+}
+
+/** Builds Matchup Intel's build data from the same three files: items' shop facts and haste, summoner spells' cooldowns, the rune trees' slots. */
+export function compactBuildData(version: string, items: Json, summoner: Json, runes: unknown): RiotBuildData {
   const itemInfo: Record<string, ItemInfo> = {};
   for (const [id, v] of Object.entries((items.data ?? {}) as Record<string, Json>)) {
     if (!isRiftItem(id, v as { maps?: Record<string, boolean> })) continue;
@@ -101,7 +117,7 @@ export function compactAssets(version: string, items: Json, summoner: Json, rune
   for (const style of (Array.isArray(runes) ? runes : []) as Array<{ id: number; slots?: Array<{ runes?: Array<{ id: number }> }> }>) {
     runeSlots[String(style.id)] = (style.slots ?? []).map((slot) => (slot.runes ?? []).map((r) => r.id).filter((x) => typeof x === "number"));
   }
-  return { version, format: ASSET_RULES_FORMAT, items: itemMap, spells: spellMap, runes: runeMap, itemInfo, spellCooldowns, runeSlots };
+  return { version, format: ASSET_RULES_FORMAT, itemInfo, spellCooldowns, runeSlots };
 }
 
 /**
@@ -119,8 +135,12 @@ export async function syncRiotAssets(db: Db, version: string, fetchImpl: typeof 
   };
   const [items, summoner, runes] = await Promise.all([get("item.json"), get("summoner.json"), get("runesReforged.json")]);
   const value = compactAssets(version, items as Json, summoner as Json, runes);
+  const build = compactBuildData(version, items as Json, summoner as Json, runes);
+  // The build data first: the names' version is what says this version has been read.
+  await db.insert(appSettings).values({ key: BUILD_KEY, value: build, updatedAt: new Date() }).onConflictDoUpdate({ target: appSettings.key, set: { value: build, updatedAt: new Date() } });
   await db.insert(appSettings).values({ key: KEY, value, updatedAt: new Date() }).onConflictDoUpdate({ target: appSettings.key, set: { value, updatedAt: new Date() } });
   invalidateCache(KEY);
+  invalidateCache(BUILD_KEY);
   return true;
 }
 
@@ -128,6 +148,14 @@ export async function loadRiotAssets(db: Db): Promise<RiotAssets | null> {
   return cachedFor(KEY, 10 * 60_000, async () => {
     const [row] = await db.select({ value: appSettings.value }).from(appSettings).where(eq(appSettings.key, KEY));
     return (row?.value as RiotAssets | undefined) ?? null;
+  }, db);
+}
+
+/** Matchup Intel's build data (S7b's build evidence reads it; nothing else does). */
+export async function loadRiotBuildData(db: Db): Promise<RiotBuildData | null> {
+  return cachedFor(BUILD_KEY, 10 * 60_000, async () => {
+    const [row] = await db.select({ value: appSettings.value }).from(appSettings).where(eq(appSettings.key, BUILD_KEY));
+    return (row?.value as RiotBuildData | undefined) ?? null;
   }, db);
 }
 
