@@ -743,10 +743,11 @@ export function DetailModal({
       latest.current.onClose();
     }, EXIT_MS);
   }, []);
-  // Sheets are pulled down from anywhere on them; whole-screen windows and the account screen from
-  // their header (the shell's bar included), on phones and in short windows, where they take the
-  // whole screen (PLAN S4a: pull-down closes every full-screen phone window, not only sheets).
-  useSheetDrag(ref, open && (docked || screen), requestClose, docked, screen ? HANDLE : undefined);
+  // Sheets are pulled down from anywhere on them; whole-screen windows from their header (the
+  // shell's bar included), on phones and in short windows, where they take the whole screen (PLAN
+  // S4a: pull-down closes every full-screen phone window, not only sheets). The account screen is a
+  // screen, not a window over an item: nothing on it pulls, and a touch moves nothing behind it.
+  useSheetDrag(ref, open && (docked || screen), requestClose, docked);
   useSheetDrag(ref, open && whole, requestClose, false, HANDLE, true);
 
   // The close button alone in the top-right corner: the window's own navigation sits left of it,
@@ -870,7 +871,7 @@ export function DetailModal({
             </div>
           ) : null}
           {header ? (
-            <div ref={headerRef} className={cn("relative shrink-0 border-b border-border", compact && !flow && "max-h-14 overflow-hidden", headerClassName)} data-testid={headerTestId} data-modal-handle={whole || screen ? "" : undefined} data-compact={compact || undefined}>
+            <div ref={headerRef} className={cn("relative shrink-0 border-b border-border", compact && !flow && "max-h-14 overflow-hidden", headerClassName)} data-testid={headerTestId} data-modal-handle={whole ? "" : undefined} data-compact={compact || undefined}>
               {header}
               <span
                 ref={controlsRef}
@@ -896,7 +897,7 @@ export function DetailModal({
             // take a row of their own above it (wrap-reverse; items-end is then the top), the close
             // button first on its right, rather than be drawn over the title or past the screen's edge
             // (R6 review BX4). Without one the title and the close button always share the row.
-            <div ref={headerRef} className={cn("flex shrink-0 justify-between border-b border-border bg-bg-elevated px-4 py-3 sm:px-5 sm:py-4", headerExtra ? "flex-wrap-reverse items-end gap-x-3 gap-y-2" : "items-start gap-3", !(docked && flow) && "short:sticky short:top-0 short:z-10", headerClassName)} data-testid={headerTestId} data-modal-handle={whole || screen ? "" : undefined} data-compact={compact || undefined}>
+            <div ref={headerRef} className={cn("flex shrink-0 justify-between border-b border-border bg-bg-elevated px-4 py-3 sm:px-5 sm:py-4", headerExtra ? "flex-wrap-reverse items-end gap-x-3 gap-y-2" : "items-start gap-3", !(docked && flow) && "short:sticky short:top-0 short:z-10", headerClassName)} data-testid={headerTestId} data-modal-handle={whole ? "" : undefined} data-compact={compact || undefined}>
               <div className={cn("min-w-0", headerExtra && "grow basis-28")}>
                 <h2 id={titleId} className="text-lg font-semibold leading-tight">
                   {title}

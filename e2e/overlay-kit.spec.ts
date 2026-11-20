@@ -5,7 +5,7 @@ import { pullDown } from "./pull";
   The overlay kit's acceptance (PLAN S4a; docs/DESIGN_SYSTEM.md §7, "Containers"):
   - the phone window shell (PreviewWindow on DetailModal): a whole-screen window's header collapses
     to a 56px bar once its body scrolls, and a pull on the header closes every whole-screen window,
-    not only sheets (the account screen too);
+    not only sheets;
   - closing a window opened from a row partly under the tab bar moves the list 0px (UM.X4: 70–109px
     when audited), and a filter's Done still brings the list's start under the bars;
   - the pinned row's Filters is a 34rem Popover: "Support" whole, nothing scrolling sideways, at
@@ -65,7 +65,8 @@ test("phone: a whole-screen window's header collapses to a 56px bar as its body 
   await expect(win).toBeHidden();
   await expect(page).not.toHaveURL(/player=/);
 
-  // A game's window (Match History) and the account screen are pulled down the same way.
+  // A game's window (Match History) is pulled down the same way. (The account screen is a screen of
+  // its own, not a window over an item: nothing on it pulls, e2e/mobile-nav.spec.ts.)
   const profile = await teammate(page);
   await page.goto(`${profile}/matches`);
   await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
@@ -76,11 +77,6 @@ test("phone: a whole-screen window's header collapses to a 56px bar as its body 
   await pullDown(page.getByTestId("match-detail-header"));
   await expect(game).toBeHidden();
   await expect(page).not.toHaveURL(/match=/);
-  await page.getByTestId("account-sheet-button").tap();
-  const account = page.getByTestId("account-sheet");
-  await expect(account).toBeVisible();
-  await pullDown(account.locator("[data-modal-handle]").first());
-  await expect(account).toBeHidden();
 });
 
 test("phone: closing a window opened from a row partly under the tab bar moves the list 0px (UM.X4), on Match History and Team Matches", async ({ page }) => {

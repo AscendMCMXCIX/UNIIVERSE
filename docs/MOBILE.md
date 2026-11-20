@@ -265,7 +265,8 @@ for a member, by its name). Back also closes what is open over the page and leav
 was: a game, a champion's window, the account screen, the install window, the Team player Peek and the
 Filters, sheet or popover (each with a history entry of its own: `?match=`, `?champion=`,
 `?player=`, or `useBackCloses`; S4a, 20 Nov 2026, added the Filters: a choice in them replaces the
-query, and the entry with it, so closing them never undoes a filter), so a phone's system Back, the
+query, and on closing their entry and the one under it become one, so a filter is never undone by
+closing them and Back after a change still leaves the page, as every filter's does), so a phone's system Back, the
 installed Android app's included, works as the browser's does (`e2e/journeys.spec.ts`). A page that adds history entries of its own address (Matchup Intel's pairs) is still one
 page for Back: named after the page before, it goes there, past those entries, where the browser's
 Navigation API shows them (`backSteps`); the browser's own Back steps through them. Where the
@@ -381,7 +382,7 @@ text below 12px; 11px (`text-2xs`) only for badges and labels.
 **The phone window shell** (S4a, 20 Nov 2026; DESIGN_SYSTEM §7): a window that takes the whole
 screen collapses its header to a 56px bar once its body scrolls (the item's name and the controls
 stay in reach), opens it again at the top, and closes when its header is pulled down, as a sheet
-does (the account screen too). Closing any window moves the page 0px: the browser's own close no
+does (not the account screen, a screen of its own with nothing to pull). Closing any window moves the page 0px: the browser's own close no
 longer puts the focus back itself (it scrolled a row partly under the tab bar into view, 70–109px
 when audited); the focus returns with `preventScroll` (`e2e/overlay-kit.spec.ts`).
 

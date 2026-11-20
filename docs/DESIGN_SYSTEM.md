@@ -291,8 +291,8 @@ UM.X2, X4; 20 Nov 2026):
 - **‹ › for the item's siblings** where the opener has siblings (`SiblingSteps`, the same buttons as
   the docked Peek's): a player's lineup; a game's list keeps its Previous · Game n of m · Next row.
 - **Pull down to close.** A pull on the header (or the bar) closes every whole-screen window on a
-  phone or in a short window, as a sheet closes, the account screen included; a touch anywhere else
-  is the browser's own. Unsaved edits still ask first (`canClose`).
+  phone or in a short window, as a sheet closes; a touch anywhere else is the browser's own. The
+  account screen is a screen, not a window over an item: nothing on it pulls. Unsaved edits still ask first (`canClose`).
 - **The page never moves.** The browser's own close used to put the focus back on the opener itself
   and could scroll a row partly under the tab bar into view (70–109px when audited). Now nothing in
   the window holds the focus as it closes, and the focus returns with `preventScroll`. Nothing is
