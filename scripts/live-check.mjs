@@ -1666,6 +1666,11 @@ async function teamMatches(page, log, kind, context) {
   const back = await page.waitForFunction(() => /[?&]match=/.test(location.search) && document.querySelector("[data-testid=together-open][aria-expanded=true]"), null, { timeout: 15_000 }).then(() => true, () => false);
   pass("games", `${kind}: Back returns to the open game`, back, page.url().replace(base, ""));
 
+  // Previous and Next (PLAN §6 row 5.12; S6b), on the desktop: the open game's footer steps to the next
+  // game in place, replacing the address (no history entry), and Previous returns to the first. One
+  // server request (the next game; Previous's is kept by the list). True or false and counts only.
+  if (kind === "desktop") await guarded("games", `${kind}: Team Matches' Previous and Next`, () => togetherSteps(page, kind));
+
   // "Close this game" closes it, clears the address and keeps the focus on the card.
   const close = page.getByTestId("match-close").first();
   if (await close.count()) {
@@ -1688,6 +1693,26 @@ async function teamMatches(page, log, kind, context) {
     const closed = (await second.getAttribute("aria-expanded")) === "false";
     pass("games", "desktop: Enter on a card opens its game and Enter again closes it", opened && closed, { opened, closed });
   }
+}
+
+async function togetherSteps(page, kind) {
+  const name = `${kind}: Team Matches' open game steps with Next to the next game and back with Previous, replacing the address`;
+  const next = page.locator("[data-testid=match-expanded] [data-testid=game-next]").first();
+  if (!(await next.count())) return pass("games", name, false, { next: false });
+  if (!(await next.isEnabled())) return warn("games", `${kind}: skipped: Team Matches lists one game, so Next has nowhere to go`, { next: "disabled" });
+  const at = () => page.evaluate(() => ({ url: location.href, match: new URLSearchParams(location.search).has("match"), length: history.length, open: document.querySelectorAll("[data-testid=together-open][aria-expanded=true]").length }));
+  const before = await at();
+  await next.click();
+  const moved = await page.waitForFunction((b) => location.href !== b && new URLSearchParams(location.search).has("match"), before.url, { timeout: 10_000 }).then(() => true, () => false);
+  await page.locator("[data-testid=match-expanded] [data-testid=match-breakdown]").first().waitFor({ timeout: 30_000 }).catch(() => {});
+  const stepped = await at();
+  const prev = page.locator("[data-testid=match-expanded] [data-testid=game-prev]").first();
+  const prevEnabled = (await prev.count()) > 0 && (await prev.isEnabled());
+  if (prevEnabled) await prev.click();
+  const back = prevEnabled && (await page.waitForFunction((b) => location.href === b, before.url, { timeout: 10_000 }).then(() => true, () => false));
+  await page.locator("[data-testid=match-expanded] [data-testid=match-breakdown]").first().waitFor({ timeout: 30_000 }).catch(() => {});
+  const after = await at();
+  pass("games", name, moved && stepped.open === 1 && stepped.length === before.length && back && after.open === 1 && after.length === before.length, { moved, openAfterNext: stepped.open, previous: prevEnabled, back, historyKept: stepped.length === before.length && after.length === before.length });
 }
 
 /**

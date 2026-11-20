@@ -22,14 +22,19 @@ describe("Matchup Intel's role facts", () => {
     }
   });
   it("pass on the demo's reading", () => {
-    expect(matchupRolesVerdicts({ kind: "desktop", start, reads: demo() }).map((v) => v.status)).toEqual(Array(6).fill("PASS"));
+    expect(matchupRolesVerdicts({ kind: "desktop", start, reads: demo() }).map((v) => v.status)).toEqual(Array(3).fill("PASS"));
   });
   it("fail a duo role with two slots, a solo role with four, and a role missing from the address", () => {
     const reads = demo();
     reads[3] = { role: "adc", at: { ...bar("adc"), slots: "2", labels: ["Enemy", "Your champion"] } };
     reads[1] = { role: "jungle", at: { ...bar("jungle"), slots: "4", labels: [...ROLE_SLOTS.adc] } };
     reads[2] = { role: "mid", at: bar("mid", null) };
-    expect(failed(reads)).toHaveLength(3);
+    expect(failed(reads)).toHaveLength(2);
+  });
+  it("fail each group on one role alone", () => {
+    const reads = demo();
+    reads[2] = { role: "mid", at: bar("mid", null) };
+    expect(failed(reads)).toEqual([expect.stringContaining("Top, Jungle and Mid")]);
   });
   it("fail a role that did not press, and roles that push history entries", () => {
     const reads = demo();

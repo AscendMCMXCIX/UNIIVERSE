@@ -48,12 +48,16 @@ export function readRoleBar() {
 export function matchupRolesVerdicts({ kind, start, reads }) {
   const out = [];
   const fact = (name, ok, detail) => out.push({ name: `${kind}: ${name}`, status: ok ? "PASS" : "FAIL", detail });
-  for (const role of ["top", "jungle", "mid", "adc", "support"]) {
+  const verdict = (role) => {
     const r = reads.find((x) => x.role === role)?.at ?? null;
     const want = ROLE_SLOTS[role];
     const ok = !!r && r.pressed === role && r.slots === String(want.length) && r.labels.length === want.length && r.labels.every((l, i) => l === want[i]) && (r.addressRole === role || (r === start && r.addressRole === null));
-    fact(`Matchup Intel's lane selector: ${role === "adc" ? "ADC" : role[0].toUpperCase() + role.slice(1)} sets ${want.length} slots (${want.join(", ")}) and role=${role} in the address`, ok, r ? { pressed: r.pressed, slots: r.slots, labels: r.labels, addressRole: r.addressRole } : { read: false });
-  }
+    return { role, ok, ...(r ? { slots: r.slots, labels: r.labels.join(", "), addressRole: r.addressRole } : { read: false }) };
+  };
+  const solo = ["top", "jungle", "mid"].map(verdict);
+  const duo = ["adc", "support"].map(verdict);
+  fact('Matchup Intel\'s lane selector: Top, Jungle and Mid each set 2 slots ("Your champion", "Enemy") and their role= in the address', solo.every((v) => v.ok), solo);
+  fact('Matchup Intel\'s lane selector: ADC and Support each set 4 slots ("Your ADC", "Your support", "Enemy ADC", "Enemy support") and their role= in the address', duo.every((v) => v.ok), duo);
   const last = reads.at(-1)?.at ?? null;
   fact("switching the role replaces the address, so Back leaves Matchup Intel rather than walking through roles", !!last && last.path === start.path && last.length === start.length, { switches: reads.filter((x) => x.role !== start.pressed).length, before: start.length, after: last?.length ?? null });
   return out;
