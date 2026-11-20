@@ -67,14 +67,9 @@ function Section({ section }: { section: EvidenceSection }) {
 export function EvidenceSummary({ evidence }: { evidence: MatchupEvidence | null }) {
   const summary = evidence?.sections.length ? evidence.sections.map(summaryOf).join(" · ") : "Counted once your champion is chosen";
   return (
-    <span className="flex min-w-0 flex-wrap items-baseline gap-x-2" data-testid="matchup-evidence-summary">
-      <span className="flex items-center gap-1.5 text-sm font-semibold text-fg">
-        <Sigma className="h-3.5 w-3.5 text-fg-subtle" aria-hidden />
-        Evidence
-      </span>
-      <span className="text-2xs text-fg-subtle" data-testid="matchup-evidence-tiers">
-        {summary}
-      </span>
+    // Its own line in the fold's line, in small type, so the fold stays two lines at 1440 × 900.
+    <span className="basis-full text-2xs text-fg-subtle" data-testid="matchup-evidence-summary">
+      <span className="font-semibold text-fg-muted">Evidence:</span> <span data-testid="matchup-evidence-tiers">{summary}</span>
     </span>
   );
 }
