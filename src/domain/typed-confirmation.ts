@@ -14,6 +14,12 @@ export function typedMatches(typed: unknown, expected: string): boolean {
   return typeof typed === "string" && words(expected) !== "" && words(typed) === words(expected);
 }
 
+/**
+ * The phrase that re-applies every erasure record: the erasure-reconcile job's, and Personal data's
+ * Import and Re-apply, which do the same (the Owner only, server/actions/privacy.ts).
+ */
+export const REAPPLY_PHRASE = "REAPPLY";
+
 /** The phrase that turns a scheduled job off (its interval set to 0). */
 export function turnOffPhrase(job: string): string {
   return `TURN OFF ${job}`;

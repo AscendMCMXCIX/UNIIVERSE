@@ -299,10 +299,12 @@ function scrubDetails(details: Record<string, string | number | boolean | null>,
 }
 
 /**
- * Every text of an activity entry's details, whatever it says: for the entries that are the
- * person's by id (they did it, or it was done to their account, profile or Riot account). Matching
- * by their names alone would miss a detail that names them as they were called before a rename,
- * or anything else a detail says about them. Numbers and yes/no values stay (counts, never a name).
+ * Every text of an activity entry's details, whatever it says: for the entries about the person by
+ * id (done to their account, profile or Riot account, by anyone, themselves included). Matching by
+ * their names alone would miss a detail that names them as they were called before a rename, or
+ * anything else a detail says about them. Numbers and yes/no values stay (counts, never a name).
+ * An entry they only made, about someone or something else, keeps its details apart from values
+ * that name them (scrubDetails): what access another member was given is that member's record.
  */
 function clearDetails(details: Record<string, string | number | boolean | null>): Record<string, string | number | boolean | null> {
   return Object.fromEntries(Object.entries(details).map(([k, v]) => [k, typeof v === "string" ? REMOVED_TEXT : v]));
@@ -401,10 +403,12 @@ async function planErasure(db: Db, s: ErasureSubject): Promise<Plan> {
       const targetById = !!r.targetId && ids.includes(r.targetId);
       const targetIsThem = targetById || (person && (m.name(r.targetName) || m.typed(r.targetName)) && (!r.targetId || (!currentUserIds.has(r.targetId) && !currentPlayerIds.has(r.targetId))));
       if (targetIsThem) Object.assign(set, { targetId: null, targetName: ERASED_MEMBER });
-      // Entries that are theirs by id lose every text in their details (since 19 Nov 2026: forward
-      // only). Entries of erasures made before keep what those left: their ids are gone, so no
-      // later erasure or re-application finds them by id (docs/PRIVACY.md).
-      const details = actorById || targetById ? clearDetails(r.details) : scrubDetails(r.details, m);
+      // Entries about them by id lose every text in their details (since 19 Nov 2026: forward
+      // only). Entries they only made keep theirs, apart from values that name them: those details
+      // say what was done to someone else or to a setting. Entries of erasures made before keep what
+      // those left: their ids are gone, so no later erasure or re-application finds them by id
+      // (docs/PRIVACY.md).
+      const details = targetById ? clearDetails(r.details) : scrubDetails(r.details, m);
       if (JSON.stringify(details) !== JSON.stringify(r.details)) set.details = details;
       if (Object.keys(set).length) audit.push({ id: r.id, set });
     }
