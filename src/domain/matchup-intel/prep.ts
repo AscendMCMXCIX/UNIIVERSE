@@ -13,7 +13,11 @@ import { laneOf, laneOpponentOf, type LaneSeat } from "@/domain/match-analysis";
   A field is left out when the record or the timeline cannot give it, never guessed.
 */
 
-/** The rules' revision each stored row carries: rows made under another are made again by the backfill. */
+/**
+ * The rules' revision each stored row carries. The page counts only rows of this revision, so a
+ * change of rules shows nothing of the old rows; making them again then needs a job of its own
+ * (prep-backfill only inserts missing rows).
+ */
 export const PREP_FORMAT = 1;
 
 export type PrepLane = "TOP" | "JUNGLE" | "MIDDLE" | "BOTTOM" | "UTILITY";

@@ -23,8 +23,8 @@ export const RIFT_QUEUES = [400, 420, 430, 440, 480, 490, 700] as const;
 export const PREP_BACKFILL_LIMIT = 1_000;
 /** Games read from the database at once. */
 const CHUNK = 100;
-/** The evidence cache's prefix (server/matchup-intel/evidence.ts), cleared whenever rows change. */
-export const EVIDENCE_CACHE = "mi-evidence";
+import { EVIDENCE_CACHE } from "./evidence-cache";
+export { EVIDENCE_CACHE };
 
 const rowsOf = <T,>(result: unknown): T[] => ((result as { rows?: T[] }).rows ?? (result as T[])) as T[];
 const parse = <T,>(v: unknown): T => (typeof v === "string" ? (JSON.parse(v) as T) : (v as T));

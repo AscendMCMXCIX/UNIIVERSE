@@ -27,7 +27,7 @@ import {
   type EvidenceSection,
   type MatchupEvidence,
 } from "@/domain/matchup-intel/evidence";
-import type { PrepLane } from "@/domain/matchup-intel/prep";
+import { PREP_FORMAT, type PrepLane } from "@/domain/matchup-intel/prep";
 import { slotWords } from "@/components/matchup-intel/slots";
 import { EVIDENCE_CACHE, RIFT_QUEUES } from "./prep-store";
 import { unchangedKeys } from "./digests";
@@ -59,7 +59,8 @@ interface Filters {
 
 /** Who a scope counts: the viewer's own player, or the other team members (never a personal-use profile). */
 function playersOf(scope: EvidenceScope, viewer: string | null): SQL {
-  return scope === "own" ? sql`ra.player_id = ${viewer}::uuid` : viewer ? sql`ra.player_id IN (SELECT id FROM players WHERE team_member AND id <> ${viewer}::uuid)` : sql`ra.player_id IN (SELECT id FROM players WHERE team_member)`;
+  // The team: members now (not archived, not personal use), the viewer apart.
+  return scope === "own" ? sql`ra.player_id = ${viewer}::uuid` : viewer ? sql`ra.player_id IN (SELECT id FROM players WHERE team_member AND archived_at IS NULL AND id <> ${viewer}::uuid)` : sql`ra.player_id IN (SELECT id FROM players WHERE team_member AND archived_at IS NULL)`;
 }
 
 /** One count set: games, each field's values, objectives and lane ends, by patch and queue (rows of counts only). */
@@ -72,7 +73,7 @@ async function countEvidence(db: Db, scope: EvidenceScope, viewer: string | null
         FROM account_match_prep p
         JOIN account_matches am ON am.account_id = p.account_id AND am.match_id = p.match_id
         JOIN riot_accounts ra ON ra.id = am.account_id AND ra.owner_type = 'player'
-        WHERE ${playersOf(scope, viewer)}
+        WHERE ${playersOf(scope, viewer)} AND p.format = ${PREP_FORMAT}
           AND am.champion_id = ${f.champion} AND p.prep->>'lane' = ${f.lane}
           AND am.patch IN (${sql.join(patches.map((x) => sql`${x}`), sql`, `)}) AND am.queue_id IN (${queueList})
           ${slot("vs")}${slot("ally")}${slot("vs2")}
