@@ -42,10 +42,16 @@ export const fmt = {
   games' "champions" ran 21px past the card at 150% on a 320px phone (63px at 200%), the win rate
   ran over the line beside it and "Damage/" under its ⓘ. So under 17.5rem each band goes two across
   (a third of the card holds "By champion" with its arrow, and "Damage/" with its ⓘ, from 17.34rem),
-  its third figure across both columns (games, vision; the kills in three rows of two, the link in
-  the sixth cell); and under 11.75rem one across (half of the card holds them, and "100%", from
-  11.66rem). Nothing changes at 100% text.
+  its third figure across both columns (games, vision); and under 11.75rem one across, each figure
+  a row from 9rem: its label (and context) at the left, the number at the right, so six figures
+  take three quarters of the height they took stacked (913px on a 320px phone at 150%: UM.PO1);
+  stacked under 9rem (200% text), where a number beside the label would push it under its ⓘ.
+  Nothing changes at 100% text.
 */
+
+/** One across (9 to 11.75rem of card): a figure's cell as a row, the number at its right across its lines. */
+const ROW_CELL = "@min-[9rem]/perf:@max-[11.75rem]/perf:grid @min-[9rem]/perf:@max-[11.75rem]/perf:grid-cols-[minmax(0,1fr)_auto] @min-[9rem]/perf:@max-[11.75rem]/perf:items-center @min-[9rem]/perf:@max-[11.75rem]/perf:gap-x-3";
+const ROW_VALUE = "@min-[9rem]/perf:@max-[11.75rem]/perf:col-start-2 @min-[9rem]/perf:@max-[11.75rem]/perf:row-span-3 @min-[9rem]/perf:@max-[11.75rem]/perf:row-start-1 @min-[9rem]/perf:@max-[11.75rem]/perf:mt-0";
 
 /** A band's columns (see above): three, two under 17.5rem of card, one under 11.75rem. */
 const BAND_COLUMNS = "@max-[17.5rem]/perf:grid-cols-2 @max-[11.75rem]/perf:grid-cols-1";
@@ -86,11 +92,11 @@ const LABEL_TIP = "-mr-2";
 /** A headline figure: its label, the number at the size of the page's main figures, its context. */
 function Headline({ label, value, sub, info, tone = "plain", testId, className, children }: { label: string; value: React.ReactNode; sub?: React.ReactNode; info?: string; tone?: WinRateTone; testId: string; className?: string; children?: React.ReactNode }) {
   return (
-    <div className={cn("min-w-0 px-3 py-3 @min-[34rem]/perf:px-5 @min-[34rem]/perf:py-4", className)} data-testid={testId}>
+    <div className={cn("min-w-0 px-3 py-3 @min-[34rem]/perf:px-5 @min-[34rem]/perf:py-4", ROW_CELL, className)} data-testid={testId}>
       <div className="flex items-center gap-1 text-xs font-medium text-fg-muted">
         <span className="min-w-0 leading-tight">{breakable(label)}</span> {info ? <InfoTip text={info} label={`About ${label}`} className={LABEL_TIP} /> : null}
       </div>
-      <div className={cn("mt-1.5 text-2xl font-semibold leading-none tracking-tight tabular-nums @min-[34rem]/perf:text-figure", TONE_CLASS[tone])} data-testid={`${testId}-value`}>
+      <div className={cn("mt-1.5 text-2xl font-semibold leading-none tracking-tight tabular-nums @min-[34rem]/perf:text-figure", ROW_VALUE, TONE_CLASS[tone])} data-testid={`${testId}-value`}>
         {value}
       </div>
       {children}
@@ -103,11 +109,11 @@ function Headline({ label, value, sub, info, tone = "plain", testId, className, 
 /** A supporting figure: the same reading as a headline one, a size smaller, its context beside it where there is room. */
 function Supporting({ label, value, sub, info, muted, testId, className }: { label: string; value: React.ReactNode; sub?: string; info?: string; muted?: boolean; testId: string; className?: string }) {
   return (
-    <div className={cn("min-w-0 px-3 py-2.5 @min-[34rem]/perf:px-5", className)} data-testid={testId}>
+    <div className={cn("min-w-0 px-3 py-2.5 @min-[34rem]/perf:px-5", ROW_CELL, className)} data-testid={testId}>
       <div className="flex items-center gap-1 text-xs text-fg-muted">
         <span className="min-w-0 leading-tight">{breakable(label)}</span> {info ? <InfoTip text={info} label={`About ${label}`} className={LABEL_TIP} /> : null}
       </div>
-      <div className="mt-1 flex min-w-0 items-baseline gap-2">
+      <div className={cn("mt-1 flex min-w-0 items-baseline gap-2", ROW_VALUE)}>
         <span className={cn("text-lg font-semibold leading-tight tabular-nums", muted ? "text-fg-subtle" : "text-fg")} data-testid={`${testId}-value`}>
           {value}
         </span>
@@ -166,7 +172,7 @@ function KillsBand({ perf, m, byChampionHref }: { perf: PerformanceSummary; m: M
       <div className="flex items-center gap-x-2 px-3 py-2 @min-[34rem]/perf:px-5" data-testid="multikill-tiles">
         <dl className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-sm">
           {counts.map((c, i) => (
-            <div key={c.key} className="flex items-baseline gap-1 whitespace-nowrap" data-testid={c.testId}>
+            <div key={c.key} className="flex min-w-0 flex-wrap items-baseline gap-x-1" data-testid={c.testId}>
               <dt className="text-xs text-fg-muted">
                 <span aria-hidden>{c.label}</span>
                 <span className="sr-only">{c.spoken}</span>
