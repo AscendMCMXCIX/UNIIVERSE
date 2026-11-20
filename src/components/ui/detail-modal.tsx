@@ -5,6 +5,7 @@ import { X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { focusWindow, lastInput, letGoWhenPressed, opensFocusingItself } from "./input-kind";
 import { noteModalAtRest, noteModalClosed, noteModalOpened } from "./top-layer";
+import { WINDOW_CONTROL_TOUCH } from "./window-control";
 
 /**
  * How much room a detail needs: compact for a short note, standard for a player or a champion,
@@ -784,7 +785,7 @@ export function DetailModal({
         aria-keyshortcuts="Escape"
         className={cn(
           "grid shrink-0 place-items-center transition-colors hover:text-fg focus-visible:outline-2 focus-visible:outline-accent",
-          screen ? "touch-target h-9 w-9 rounded-full bg-surface-2/70 text-fg-muted hover:bg-surface-2" : "h-9 w-9 rounded-md text-fg-subtle hover:bg-surface-2 pointer-coarse:h-11 pointer-coarse:w-11",
+          screen ? "touch-target h-9 w-9 rounded-full bg-surface-2/70 text-fg-muted hover:bg-surface-2" : `h-9 w-9 rounded-md text-fg-subtle hover:bg-surface-2 ${WINDOW_CONTROL_TOUCH}`,
         )}
         aria-label="Close"
         data-testid={closeTestId}
@@ -898,7 +899,9 @@ export function DetailModal({
                 ref={controlsRef}
                 data-testid="modal-controls"
                 className={cn(
-                  "flex items-center gap-1",
+                  // Never past the screen's edge: where the controls are wider than the room (many
+                  // actions, a large text size), they wrap, the close button last on the top row's right.
+                  "flex max-w-[calc(100%-1rem)] flex-wrap-reverse items-center justify-end gap-1",
                   flow && !docked
                     ? "fixed right-[max(0.5rem,env(safe-area-inset-right))] top-[calc(env(safe-area-inset-top)+0.5rem)] z-20 rounded-lg bg-bg-elevated/85 shadow-lg backdrop-blur"
                     : screen
@@ -918,9 +921,13 @@ export function DetailModal({
             // take a row of their own above it (wrap-reverse; items-end is then the top), the close
             // button first on its right, rather than be drawn over the title or past the screen's edge
             // (R6 review BX4). Without one the title and the close button always share the row.
-            <div ref={headerRef} className={cn("flex shrink-0 justify-between border-b border-border bg-bg-elevated px-4 py-3 sm:px-5 sm:py-4", headerExtra ? "flex-wrap-reverse items-end gap-x-3 gap-y-2" : "items-start gap-3", !(docked && flow) && "short:sticky short:top-0 short:z-10", headerClassName)} data-testid={headerTestId} data-modal-handle={whole ? "" : undefined} data-compact={compact || undefined}>
+            // Collapsed (the phone window shell, see compact), the title bar keeps its title on one line,
+            // cut short with an ellipsis where it would wrap (the whole title stays the window's name:
+            // aria-labelledby reads the text, not what is drawn), and the description goes to screen
+            // readers only: at 320px with 200% text the bar takes under a quarter of the screen.
+            <div ref={headerRef} className={cn("flex shrink-0 justify-between border-b border-border bg-bg-elevated px-4 sm:px-5 sm:py-4", compact ? "py-1.5" : "py-3", headerExtra ? cn("flex-wrap-reverse items-end gap-x-3", compact ? "gap-y-1" : "gap-y-2") : compact ? "items-center gap-3" : "items-start gap-3", !(docked && flow) && "short:sticky short:top-0 short:z-10", headerClassName)} data-testid={headerTestId} data-modal-handle={whole ? "" : undefined} data-compact={compact || undefined}>
               <div className={cn("min-w-0", headerExtra && "grow basis-28")}>
-                <h2 id={titleId} className="text-lg font-semibold leading-tight">
+                <h2 id={titleId} className={cn("text-lg font-semibold leading-tight", compact && "truncate")} data-testid="modal-title">
                   {title}
                 </h2>
                 {description ? (
