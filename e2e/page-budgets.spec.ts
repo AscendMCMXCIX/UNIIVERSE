@@ -146,7 +146,7 @@ test("first paint within a 320px phone: the page is never wider than the screen 
   await ctx.close();
 });
 
-test("Admin's S9c figures at 375 × 667: System Health in at most 2.0 screens with nothing sideways; Data & Integrations' 12px text at most 30% with everything open", async ({ browser }) => {
+test("Admin's S9c figures at 375 × 667: System Health in at most 2.0 screens with nothing sideways; Data & Integrations' 12px text at most 30% with its sections open (each job's How it works closed, as it loads)", async ({ browser }) => {
   const ctx = await browser.newContext({ viewport: { width: 375, height: 667 }, hasTouch: true, isMobile: true });
   await ctx.addCookies([{ name: "uniiverse_view", value: "admin", url: BASE }]);
   const page = await ctx.newPage();

@@ -88,6 +88,32 @@ test.describe("accessibility", () => {
     expect(blocking.map((v) => `${v.id}: ${v.help} (${v.nodes.slice(0, 3).map((n) => n.target.join(" ")).join(" | ")})`), label).toEqual([]);
   }
 
+  // The pages S8a's audit added (20 Nov 2026): signed out, a member in their first sign-in, and a
+  // member with a player profile (the in-memory demo's viewer cookie), at 375 and at 1440.
+  test("the newly audited pages have no critical or serious violations at 375 and 1440", async ({ page, context, baseURL }) => {
+    test.setTimeout(120_000);
+    const visits: Array<[string, Record<string, string>]> = [
+      ["/login", { uniiverse_guest: "1" }],
+      ["/recover", { uniiverse_guest: "1" }],
+      ["/no-access", {}],
+      ["/welcome", { uniiverse_demo_viewer: "newcomer" }],
+      ["/welcome/personalise", { uniiverse_demo_viewer: "halfway" }],
+      ["/preview/setup", {}],
+      ["/overview", { uniiverse_demo_viewer: "member" }],
+      ["/overview/matches", { uniiverse_demo_viewer: "member" }],
+    ];
+    for (const [width, height] of [[375, 667], [1440, 900]] as const) {
+      await page.setViewportSize({ width, height });
+      for (const [route, cookies] of visits) {
+        for (const name of ["uniiverse_guest", "uniiverse_demo_viewer"]) await context.clearCookies({ name });
+        await context.addCookies(Object.entries(cookies).map(([name, value]) => ({ name, value, url: baseURL! })));
+        await page.goto(route);
+        await page.waitForLoadState("networkidle");
+        await audit(page, `${route} at ${width}`);
+      }
+    }
+  });
+
   test("player pages have no critical or serious violations", async ({ page }) => {
     test.setTimeout(120_000);
     for (const route of PLAYER_ROUTES) {
@@ -306,6 +332,18 @@ test.describe("shell, motion and notifications", () => {
     });
     expect(durations.length).toBe(2);
     for (const d of durations) expect(parseFloat(d)).toBeLessThanOrEqual(0.01);
+  });
+
+  test("Branding's section index: on a phone one row of links to its five sections, each of which exists; none from md", async ({ page }) => {
+    await page.goto("/admin/branding");
+    const index = page.getByTestId("branding-index");
+    await expect(index).toBeHidden();
+    await page.setViewportSize({ width: 375, height: 667 });
+    const links = index.getByRole("link");
+    await expect(links).toHaveText(["Name", "Images", "Background", "Colours", "Public page"]);
+    for (const href of await links.evaluateAll((els) => els.map((e) => e.getAttribute("href")!))) await expect(page.locator(href.slice(href.indexOf("#"))), href).toHaveCount(1);
+    await links.last().click();
+    await expect.poll(() => page.locator("#brand-public").evaluate((el) => Math.round(el.getBoundingClientRect().top))).toBeLessThan(400);
   });
 
   test("saving shows a notification; an empty tagline shows nothing", async ({ page }) => {

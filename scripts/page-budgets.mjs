@@ -141,7 +141,20 @@ export async function measure(page) {
       }
       if (Math.min(height, width) < 43.5) small.push(el.getAttribute("data-testid") ?? el.getAttribute("aria-label") ?? el.tagName.toLowerCase());
     }
-    return { screens: Math.round((doc.scrollHeight / h) * 100) / 100, overflow: Math.max(0, doc.scrollWidth - innerWidth), small: small.length, smallNames: small.slice(0, 12) };
+    // A window open over the page (Card Studio) is what is measured: its own height plus what its
+    // scrolling area holds below its fold, not the page under it (until 20 Nov 2026 the studio's
+    // figures were the profile's).
+    let content = doc.scrollHeight;
+    const dialog = [...document.querySelectorAll("dialog[open]")].pop();
+    if (dialog) {
+      let extra = 0;
+      for (const el of dialog.querySelectorAll("*")) {
+        const oy = getComputedStyle(el).overflowY;
+        if ((oy === "auto" || oy === "scroll") && el.scrollHeight > el.clientHeight + 1) extra = Math.max(extra, el.scrollHeight - el.clientHeight);
+      }
+      content = dialog.getBoundingClientRect().height + extra;
+    }
+    return { screens: Math.round((content / h) * 100) / 100, overflow: Math.max(0, doc.scrollWidth - innerWidth), small: small.length, smallNames: small.slice(0, 12) };
   });
   return { ...rest, frame: atRest, frameScrolled: scrolled };
 
