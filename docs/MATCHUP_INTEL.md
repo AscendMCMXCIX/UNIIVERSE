@@ -642,6 +642,23 @@ With the layer off every size holds with at least 215px to spare (with Release 1
 in `e2e/matchup-intel-dashboard.spec.ts` (`DUO_FIT`: 10 lineups per role, the first two of each role
 in CI, each with the layer on and off); on the layout before the change it fails at 1920 × 950, 1440 × 900 and 1280 × 800.
 
+### The header's details (design review of 20 Nov 2026, G2)
+
+Six fixes from the design review's side-by-side screenshots, every word kept, held by the dashboard
+spec's "the header's details hold" on all three projects:
+
+- the haste field 64px wide on a touch screen (56px with a mouse), so its 16px "Other" placeholder is
+  whole (G2-1: "Othe");
+- an empty slot 18px narrower in gap and padding from sm, so "Choose your champion" keeps one line at
+  1440 × 900 and its label sits level with the enemy's (G2-4);
+- the slots' words at the slot's foot on a phone, where "Your champion" wraps, so the two names share
+  a line and "champion" sits level with "Enemy"; from sm at its top, where a name may wrap (a
+  tablet's empty slot), so the labels stay level (G2-5);
+- the chosen lane and haste marked as the shared segment marks a choice (`ui/segmented.tsx`): fill,
+  an inset accent ring and semibold, the others medium, not colour alone (G2-10);
+- a cooldown's source ("Not reviewed") kept whole, never split over two lines (G2-12);
+- the remembered line in small type on a phone too, as the patch line above it (G2-13).
+
 ### Cooldowns at a haste
 
 The enemy's kit header holds the haste choice: 0 (base cooldowns only, the default), 20, 40, 60, or

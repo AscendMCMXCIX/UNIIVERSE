@@ -319,6 +319,57 @@ test("the bot lane fits too: each 2v2 one screen at 1920×1080 and 1920×950, bo
   await expect(page.getByTestId("matchup-ally-abilities").getByTestId("your-abilities-source-inside")).toContainText("Abilities and base cooldowns");
 });
 
+test("the header's details hold (design review of 20 Nov 2026, G2): the slots' words level, an empty slot's words on one line, the chosen lane and haste marked by more than colour, the haste field's placeholder whole, the remembered line in small type, a cooldown's source kept whole", async ({ page }, info) => {
+  const slots = () =>
+    page.evaluate(() => {
+      const box = (id: string) => document.querySelector(`[data-testid="${id}"]`)!.getBoundingClientRect();
+      const root = parseFloat(getComputedStyle(document.documentElement).fontSize);
+      const remembered = document.querySelector('[data-testid="matchup-remembered"]');
+      return { you: box("matchup-pick-you-name"), enemy: box("matchup-pick-enemy-name"), youLabel: box("matchup-pick-you-label"), enemyLabel: box("matchup-pick-enemy-label"), remembered: remembered ? parseFloat(getComputedStyle(remembered).fontSize) / root : null };
+    });
+  // Nothing chosen, then a pair: the two names share a line, and the labels end level (G2-4, G2-5).
+  for (const url of ["/resources/matchups?role=top", "/resources/matchups?role=top&champion=Riven&vs=Mordekaiser"]) {
+    await page.goto(url);
+    await hydrated(page);
+    const m = await slots();
+    // On a phone a label wraps: the words sit at the slot's foot, names and labels ending level. From a
+    // tablet a name may wrap: the words sit at its top, labels and names starting level.
+    const edge = info.project.name === "phone" ? "bottom" : "top";
+    expect.soft(Math.abs(m.you[edge] - m.enemy[edge]), `${url}: the names level (${edge})`).toBeLessThanOrEqual(1);
+    expect.soft(Math.abs(m.youLabel[edge] - m.enemyLabel[edge]), `${url}: the labels level (${edge})`).toBeLessThanOrEqual(1);
+    if (info.project.name === "desktop") expect.soft(Math.abs(m.you.height - m.enemy.height), `${url}: "Choose your champion" on one line, as the enemy's`).toBeLessThanOrEqual(1);
+    // The remembered line in the patch line's small type (G2-13).
+    if (m.remembered !== null) expect.soft(m.remembered, `${url}: the remembered line at text-xs`).toBeLessThanOrEqual(0.75 + 0.001);
+  }
+  // The chosen lane and haste: fill, ring and weight, not colour alone (G2-10).
+  const marks = await page.evaluate(() =>
+    ['[data-testid="matchup-role"] button', '[data-testid="matchup-haste"] [role="group"] button'].map((sel) =>
+      [...document.querySelectorAll<HTMLElement>(sel)].map((b) => ({ on: b.getAttribute("aria-pressed") === "true", ring: getComputedStyle(b).boxShadow.includes("inset"), weight: getComputedStyle(b).fontWeight })),
+    ),
+  );
+  for (const group of marks) {
+    expect.soft(group.filter((b) => b.on).map((b) => [b.ring, b.weight])).toEqual([[true, "600"]]);
+    expect.soft(group.filter((b) => !b.on).every((b) => !b.ring && b.weight === "500"), "the idle segments: no ring, medium weight").toBe(true);
+  }
+  // The haste field's placeholder whole, at 16px on a touch screen (G2-1).
+  const field = await page.getByTestId("matchup-haste").locator("input").evaluate((i: HTMLInputElement) => {
+    const cs = getComputedStyle(i);
+    const probe = document.createElement("span");
+    Object.assign(probe.style, { position: "absolute", whiteSpace: "pre", fontFamily: cs.fontFamily, fontSize: cs.fontSize, fontWeight: cs.fontWeight, letterSpacing: cs.letterSpacing });
+    probe.textContent = i.placeholder;
+    document.body.append(probe);
+    const text = probe.getBoundingClientRect().width;
+    probe.remove();
+    return { text, room: i.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) };
+  });
+  expect.soft(field.text, "the haste field's placeholder fits").toBeLessThanOrEqual(field.room);
+  // A cooldown's source never split over two lines (G2-12): Darius's tiles.
+  await page.goto("/resources/matchups?role=top&champion=Garen&vs=Darius");
+  await hydrated(page);
+  const split = await page.evaluate(() => [...document.querySelectorAll('[data-testid="ability-cooldown-source"]')].filter((e) => e.getClientRects().length > 1).map((e) => e.textContent));
+  expect.soft(split, "each cooldown's source on one line").toEqual([]);
+});
+
 /**
  * The pages a later patch adds most to: the three curated pairs, whose bar, briefing, kits' lines and
  * notes panels each say "Not re-checked for …" then, and the other way round (two checked kits, put

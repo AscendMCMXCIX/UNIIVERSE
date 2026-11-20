@@ -137,7 +137,8 @@ function CooldownLine({ cooldown, isStatic, testId, label, lineTestId, source }:
       {source ? (
         <>
           <span aria-hidden className="text-2xs text-fg-subtle">{" · "}</span>
-          <span className="text-2xs text-fg-subtle" data-testid="ability-cooldown-source">
+          {/* Kept whole ("Not reviewed" never split over two lines): it wraps as one piece after the value. */}
+          <span className="inline-block text-2xs text-fg-subtle" data-testid="ability-cooldown-source">
             {source}
           </span>
         </>
