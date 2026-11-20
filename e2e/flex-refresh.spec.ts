@@ -1,4 +1,5 @@
 import { expect, test } from "./test";
+import { optionsOf, pick, valueOf } from "./select";
 
 /*
   Ranked Flex (Riot queue 440) where players look for it, and Match History's data status.
@@ -19,21 +20,21 @@ test("Match History: the game-mode filter counts Ranked Flex games and lists onl
   // once that has settled, or the re-render can land between the choice and its change event.
   await page.waitForLoadState("networkidle");
   const mode = page.getByTestId("match-filters").getByLabel("Game mode");
-  const flex = mode.locator("option[value='flex']");
+  const label = async (value: string) => (await optionsOf(mode)).find((o) => o.value === value)?.label ?? "";
   // Each mode names its games this season, so an empty choice is visible before choosing it.
-  await expect(flex).toHaveText(/^Ranked Flex \(\d+\)$/);
-  const flexCount = Number((await flex.innerText()).match(/\((\d+)\)/)![1]);
+  expect(await label("flex")).toMatch(/^Ranked Flex \(\d+\)$/);
+  const flexCount = Number((await label("flex")).match(/\((\d+)\)/)![1]);
   expect(flexCount).toBeGreaterThan(0);
-  await mode.selectOption("flex");
+  await pick(mode, "flex");
   await expect(page).toHaveURL(/mode=flex/);
   // The header names no totals; the mode is read in the filter itself.
-  await expect(mode).toHaveValue("flex");
+  await expect.poll(() => valueOf(mode)).toBe("flex");
   const rows = page.getByTestId("match-row");
   await expect(rows.first()).toBeVisible();
   for (const label of await rows.evaluateAll((els) => els.map((e) => e.getAttribute("aria-label") ?? ""))) expect(label).toContain("Ranked Flex");
   // All supported games includes them.
-  const all = Number((await mode.locator("option[value='all']").innerText()).match(/\((\d+)\)/)![1]);
-  const solo = Number((await mode.locator("option[value='solo']").innerText()).match(/\((\d+)\)/)![1]);
+  const all = Number((await label("all")).match(/\((\d+)\)/)![1]);
+  const solo = Number((await label("solo")).match(/\((\d+)\)/)![1]);
   expect(all).toBeGreaterThanOrEqual(flexCount + solo);
 });
 

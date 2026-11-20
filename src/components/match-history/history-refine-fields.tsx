@@ -4,7 +4,8 @@ import * as React from "react";
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { FilterField, useInFilterSheet } from "@/components/ui/filter-bar";
-import { Input, Select } from "@/components/ui/input";
+import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { segmentClass, segmentedGroupClass } from "@/components/ui/segmented";
 import { InfoTip } from "@/components/ui/info-tip";
 import { HIGHLIGHTS, SESSION_GAP_MINUTES, type HistoryRefine, type ResultChoice } from "@/domain/history-refine";
@@ -105,43 +106,38 @@ export function HistoryRefineFields({ refine, options, set, group, pending }: { 
       </button>
       <div id={`${id}-more`} className={cn("contents", !more && (inSheet ? "hidden" : "max-md:hidden"))} data-testid="refine-more-fields">
       <FilterField label="Highlights" htmlFor={`${id}-hl`} alwaysLabel>
-        <Select id={`${id}-hl`} value={refine.highlight ?? ""} disabled={pending} onChange={(e) => set({ hl: e.target.value || null })} className="w-full" data-testid="refine-highlight">
-          <option value="">Every game</option>
-          {HIGHLIGHTS.map((h) => (
-            <option key={h.key} value={h.key}>
-              {h.label}
-            </option>
-          ))}
-        </Select>
+        <Select id={`${id}-hl`} value={refine.highlight ?? ""} disabled={pending} onValueChange={(v) => set({ hl: v || null })} className="w-full" data-testid="refine-highlight" options={[{ value: "", label: "Every game" }, ...HIGHLIGHTS.map((h) => ({ value: h.key, label: h.label }))]} />
       </FilterField>
       <FilterField label="Patch" htmlFor={`${id}-patch`} alwaysLabel>
-        <Select id={`${id}-patch`} value={refine.patch ?? ""} disabled={pending} onChange={(e) => set({ patch: e.target.value || null })} className="w-full" data-testid="refine-patch">
-          <option value="">Every patch</option>
-          {!patchKnown ? <option value={refine.patch!}>Patch {refine.patch} (0)</option> : null}
-          {options.patchOptions.map((p) => (
-            <option key={p.patch} value={p.patch}>
-              Patch {p.label} ({formatCount(p.games)})
-            </option>
-          ))}
-        </Select>
+        <Select
+          id={`${id}-patch`}
+          value={refine.patch ?? ""}
+          disabled={pending}
+          onValueChange={(v) => set({ patch: v || null })}
+          className="w-full"
+          data-testid="refine-patch"
+          options={[{ value: "", label: "Every patch" }, ...(!patchKnown ? [{ value: refine.patch!, label: `Patch ${refine.patch} (0)` }] : []), ...options.patchOptions.map((p) => ({ value: p.patch, label: `Patch ${p.label} (${formatCount(p.games)})` }))]}
+        />
       </FilterField>
       {members.length || refine.member ? (
         <FilterField label="Team members" htmlFor={`${id}-member`} alwaysLabel>
-          <Select id={`${id}-member`} value={memberValue} disabled={pending} onChange={(e) => set(e.target.value ? memberPatch(e.target.value) : { with: null, against: null })} className="w-full" data-testid="refine-member">
-            <option value="">With or without them</option>
-            <option value="with:any">With any team member</option>
-            <option value="against:any">Against any team member</option>
-            {members.map((m) => (
-              <optgroup key={m.id} label={m.name}>
-                <option value={`with:${m.id}`}>
-                  With {m.name} ({formatCount(m.with)})
-                </option>
-                <option value={`against:${m.id}`}>
-                  Against {m.name} ({formatCount(m.against)})
-                </option>
-              </optgroup>
-            ))}
-          </Select>
+          <Select
+            id={`${id}-member`}
+            value={memberValue}
+            disabled={pending}
+            onValueChange={(v) => set(v ? memberPatch(v) : { with: null, against: null })}
+            className="w-full"
+            data-testid="refine-member"
+            options={[
+              { value: "", label: "With or without them" },
+              { value: "with:any", label: "With any team member" },
+              { value: "against:any", label: "Against any team member" },
+              ...members.flatMap((m) => [
+                { value: `with:${m.id}`, label: `With ${m.name} (${formatCount(m.with)})`, group: m.name },
+                { value: `against:${m.id}`, label: `Against ${m.name} (${formatCount(m.against)})`, group: m.name },
+              ]),
+            ]}
+          />
         </FilterField>
       ) : null}
       <DaysField from={refine.from} to={refine.to} set={set} pending={pending} />

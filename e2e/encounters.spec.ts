@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from "./test";
+import { optionLabels, pick, shownLabel } from "./select";
 import { closeFilterSheet, openFilterBar } from "./filters";
 import { memberContext } from "./member-account";
 import { closeGame, openGame, opensFullScreen } from "./match-history";
@@ -42,13 +43,14 @@ const wide = async (page: Page) => (await page.getByTestId("encounter-heads").co
 const inSheet = (page: Page) => (page.viewportSize()?.width ?? 1440) < 768;
 /** Chooses the list's minimum or order: in the phone's Filters sheet (then closes it), else in the list's toolbar. */
 async function chooseListOption(page: Page, which: "min" | "sort", value: string) {
-  if (!inSheet(page)) return page.getByTestId(`encounter-${which}`).selectOption(value);
+  if (!inSheet(page)) return pick(page.getByTestId(`encounter-${which}`), value);
   await openFilterBar(page.getByTestId("encounter-filters"));
   await page.getByTestId(`encounter-${which}-choices`).locator(`[data-value="${value}"]`).click();
   await expect(page.getByTestId(`encounter-${which}-choices`).locator(`[data-value="${value}"]`)).toHaveAttribute("aria-checked", "true");
   await closeFilterSheet(page);
 }
-const countOf = async (option: ReturnType<Page["locator"]>) => Number(/\((\d+)\)/.exec((await option.textContent()) ?? "")![1]);
+/** The count in brackets after the game mode a Select shows ("Ranked Solo/Duo (12)"). */
+const countOf = async (control: ReturnType<Page["locator"]>) => Number(/\((\d+)\)/.exec(await shownLabel(control))![1]);
 const relationCount = async (page: Page, r: "against" | "alongside" | "all") => Number(await page.getByTestId(`encounter-relation-${r}`).getByTestId("encounter-relation-count").innerText());
 
 test("Encounters: Against, Alongside and All, each side with its own record, in honest words", async ({ page }) => {
@@ -91,7 +93,7 @@ test("Encounters: Against, Alongside and All, each side with its own record, in 
     await expect(page.getByTestId("encounter-sort-choices").getByRole("radio")).toHaveText(["Most games", "Most recent"]);
     await expect(page.getByTestId("encounter-min-choices").getByRole("radio", { checked: true })).toHaveText("2+ games");
     await closeFilterSheet(page);
-  } else await expect(page.getByTestId("encounter-sort").locator("option")).toHaveText(["Most games", "Most recent"]);
+  } else expect(await optionLabels(page.getByTestId("encounter-sort"))).toEqual(["Most games", "Most recent"]);
 
   // Against: the player's own record against each, in figures.
   await page.getByTestId("encounter-relation-against").click();
@@ -357,12 +359,12 @@ test("the season, game mode and account choice is the games list's, and every co
   const mode = page.locator("#overview-mode");
   // Games in the view: the same number the game mode shows beside its name.
   const coverage = page.getByTestId("encounters-scope");
-  const all = await countOf(mode.locator("option:checked"));
+  const all = await countOf(mode);
   await expect(coverage).toContainText(new RegExp(`Players met in ${all} games?|of ${all} games`));
-  await mode.selectOption("solo");
+  await pick(mode, "solo");
   await expect(page).toHaveURL(/mode=solo/);
   await expect(page).toHaveURL(/view=encounters/);
-  const solo = await countOf(page.locator("#overview-mode option:checked"));
+  const solo = await countOf(page.locator("#overview-mode"));
   expect(solo).toBeLessThanOrEqual(all);
   if (solo) await expect(coverage).toContainText(new RegExp(`Players met in ${solo} games?|of ${solo} games`));
   else await expect(page.getByTestId("encounters-empty")).toBeVisible();
@@ -373,7 +375,7 @@ test("the season, game mode and account choice is the games list's, and every co
   await expect(page).toHaveURL(/mode=solo/);
   await expect(page).not.toHaveURL(/view=encounters/);
   await expect(page.getByTestId("match-history")).toBeVisible();
-  expect(await countOf(page.locator("#overview-mode option:checked"))).toBe(solo);
+  expect(await countOf(page.locator("#overview-mode"))).toBe(solo);
 });
 
 test("your own Encounters: the old Team Matches address opens them with its game mode and list", async ({ page, browser }, info) => {
@@ -449,7 +451,7 @@ test("tablet and desktop: the list's minimum and order are the list's own: they 
   await expect(page).toHaveURL(/min=1/);
   await expect(filters.getByTestId("reset-filters")).toHaveCount(0);
   // A filter narrowed: Reset appears, and puts the filters back with the list's choices kept.
-  await filters.getByLabel("Game mode").selectOption("solo");
+  await pick(filters.getByLabel("Game mode"), "solo");
   await expect(page).toHaveURL(/mode=solo/);
   const reset = filters.getByTestId("reset-filters");
   await expect(reset).toBeVisible();

@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from "./test";
+import { pick, valueOf } from "./select";
 import { openFilterBar } from "./filters";
 
 /*
@@ -159,16 +160,16 @@ test("Reset appears only when something is narrowed and puts every filter back",
   const toggle = "together-filters-toggle";
   await openFilterBar(bar, toggle);
   await expect(bar.getByTestId("reset-filters")).toHaveCount(0);
-  await bar.getByTestId("together-queue").selectOption("solo");
+  await pick(bar.getByTestId("together-queue"), "solo");
   await expect(page).toHaveURL(/queue=solo/);
   await openFilterBar(bar, toggle);
-  await bar.getByTestId("together-min").selectOption("3");
+  await pick(bar.getByTestId("together-min"), "3");
   await expect(page).toHaveURL(/min=3/);
   // The folded button counts the narrowed filters.
   if (await bar.getByTestId(toggle).isVisible()) await expect(bar.getByTestId(toggle)).toContainText("2");
   await openFilterBar(bar, toggle);
   await bar.getByTestId("reset-filters").click();
   await expect(page).not.toHaveURL(/queue=|min=/);
-  await expect(bar.getByTestId("together-queue")).toHaveValue("all");
-  await expect(bar.getByTestId("together-min")).toHaveValue("2");
+  await expect.poll(() => valueOf(bar.getByTestId("together-queue"))).toBe("all");
+  await expect.poll(() => valueOf(bar.getByTestId("together-min"))).toBe("2");
 });

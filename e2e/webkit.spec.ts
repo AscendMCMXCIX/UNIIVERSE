@@ -5,6 +5,7 @@ import { untilStill } from "./modal-corner";
 import { besideAMark, openMatchWindow } from "./match-history";
 import { bubbleFacts, NOT_A_PICTURE, NOT_A_PICTURE_ERROR, openPictureEditor, placedRight, toastFacts } from "./popups";
 import { riotText } from "./matchup-intel";
+import { pick, ready, SELECT_LOOK, selectLook, valueOf } from "./select";
 import path from "node:path";
 
 /*
@@ -589,6 +590,44 @@ test("Admin Mode: the account screen's switch moves between Admin Mode and Playe
   await page.goBack();
   await expect(sheet).toHaveCount(0);
   await expect(page).toHaveURL(/\/team$/);
+});
+
+test("the one Select in Safari's engine: the iPhone keeps its own picker; with a mouse on a larger screen, the app's popover draws as in Chromium, opens and chooses from the keyboard, and Escape gives the focus back", async ({ browser, page, baseURL }) => {
+  await page.goto("/team");
+  const profile = `/players/${(await page.getByTestId("lineup-row-MID").getAttribute("data-player-id"))!}`;
+  // The iPhone: the browser's own select (its wheel), as before.
+  await page.goto(`${profile}/champions`);
+  const sort = page.locator("#all-champions-sort-by");
+  await ready(sort);
+  expect(await sort.evaluate((el) => el.tagName)).toBe("SELECT");
+  await pick(sort, "games");
+  await expect.poll(() => valueOf(sort)).toBe("games");
+  // A desktop-sized window with a mouse: the popover.
+  const desk = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  await desk.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
+  const dp = await desk.newPage();
+  await dp.goto(profile);
+  const mode = dp.locator("#overview-mode");
+  // The same figures as Chromium's. Playwright's WebKit on Linux reports no fine pointer, so it gets
+  // the touch sizes every field and menu row has there (44px, 16px text): the same rule, not a difference.
+  const fine = await dp.evaluate(() => matchMedia("(pointer: fine)").matches);
+  const touch = { button: { ...SELECT_LOOK.button, font: "16px", height: 44 }, option: { ...SELECT_LOOK.option, height: 44 } };
+  expect(await selectLook(mode)).toEqual(fine ? SELECT_LOOK : { ...SELECT_LOOK, ...touch });
+  await mode.focus();
+  await dp.keyboard.press("Enter");
+  const list = dp.getByRole("listbox", { name: "Game mode" });
+  await expect(list).toBeVisible();
+  await dp.keyboard.press("Escape");
+  await expect(list).toHaveCount(0);
+  await expect(mode).toBeFocused();
+  await dp.keyboard.press("ArrowDown");
+  await expect(list).toBeVisible();
+  await dp.keyboard.press("End");
+  await dp.keyboard.press("Enter");
+  await expect(list).toHaveCount(0);
+  await expect(dp).toHaveURL(/mode=/);
+  await expect(mode).toBeFocused();
+  await desk.close();
 });
 
 test("forms: text fields are at least 16px (Safari zooms into smaller ones) and sign-in offers saved passwords", async ({ browser, page, baseURL }) => {

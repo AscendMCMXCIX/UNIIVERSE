@@ -2,14 +2,13 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { selectClass } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { cn } from "@/lib/cn";
 
 /**
  * The season of the records, multikills and champion games (the current one by default), at the end
  * of the season records' title row; Recent form, which counts the last 60 days, and all-time mastery
- * take none. A native select, so keyboards, screen readers and phone pickers behave as expected; the
- * choice is kept in the address (`?season=`) and the page shows it at once while the season loads.
+ * take none. The app's Select (a phone keeps its own picker); the choice is kept in the address (`?season=`) and the page shows it at once while the season loads.
  */
 export function SeasonChoice({ seasons, current }: { seasons: ReadonlyArray<{ value: number; label: string; href: string }>; current: number }) {
   const router = useRouter();
@@ -17,13 +16,13 @@ export function SeasonChoice({ seasons, current }: { seasons: ReadonlyArray<{ va
   const [shown, show] = React.useOptimistic(current, (_: number, next: number) => next);
   if (seasons.length < 2) return null;
   return (
-    <label className="flex min-w-0 items-center gap-2 text-sm text-fg-muted" data-testid="records-season">
-      <span className="sr-only">Season</span>
-      <select
-        className={cn(selectClass("w-full sm:w-auto"), pending && "opacity-70")}
-        value={shown}
-        onChange={(e) => {
-          const next = seasons.find((s) => s.value === Number(e.target.value));
+    <div className="flex min-w-0 items-center gap-2 text-sm text-fg-muted" data-testid="records-season">
+      <Select
+        aria-label="Season"
+        className={cn("w-full sm:w-auto", pending && "opacity-70")}
+        value={String(shown)}
+        onValueChange={(v) => {
+          const next = seasons.find((s) => s.value === Number(v));
           if (!next) return;
           start(() => {
             show(next.value);
@@ -33,13 +32,8 @@ export function SeasonChoice({ seasons, current }: { seasons: ReadonlyArray<{ va
         }}
         data-testid="records-season-select"
         aria-busy={pending || undefined}
-      >
-        {seasons.map((s) => (
-          <option key={s.value} value={s.value}>
-            {s.label}
-          </option>
-        ))}
-      </select>
-    </label>
+        options={seasons.map((s) => ({ value: String(s.value), label: s.label }))}
+      />
+    </div>
   );
 }

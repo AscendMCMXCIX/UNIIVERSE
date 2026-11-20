@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "./test";
+import { optionsOf, pick } from "./select";
 import { AxeBuilder } from "@axe-core/playwright";
 
 /*
@@ -27,9 +28,9 @@ async function profileOf(page: Page, name: string): Promise<string> {
  */
 async function sortOnPhone(page: Page, key: string) {
   const select = page.locator("#all-champions-sort-by");
-  const label = (await select.locator(`option[value="${key}"]`).textContent())!.trim();
+  const label = (await optionsOf(select)).find((o) => o.value === key)!.label;
   await expect(async () => {
-    await select.selectOption(key);
+    await pick(select, key);
     await expect(page.getByTestId("top-champion").first().getByTestId("champion-sorted-figure")).toContainText(label, { timeout: 1_000 });
   }).toPass({ timeout: 15_000 });
 }
