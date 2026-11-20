@@ -1,5 +1,6 @@
 import { LEADERBOARD_QUEUES, LEADERBOARD_ROLES, type LeaderboardGame } from "./leaderboards";
 import type { GameRole } from "./season-stats";
+import { viewerWords } from "./viewer-words";
 
 /*
   Recent performance: the first section of Team Leaderboards (docs/LEADERBOARDS_MODEL.md).
@@ -207,7 +208,7 @@ export function shownValue(figure: RecentFigure, value: number): number {
 }
 
 /** Ranks a board by one of its figures. Ties share a place; provisional players follow established ones. */
-export function rankRecentBoard(entries: readonly RecentEntry[], board: RecentBoard, figure: RecentFigure = BOARD_FIGURES[board][0]!, names: ReadonlyMap<string, string> = new Map()): RecentBoardResult {
+export function rankRecentBoard(entries: readonly RecentEntry[], board: RecentBoard, figure: RecentFigure = BOARD_FIGURES[board][0]!, names: ReadonlyMap<string, string> = new Map(), /** The viewer's player id: their own row's note says "your" (viewerWords), every other row the player's name. */ viewer: string | null = null): RecentBoardResult {
   const shown = (e: RecentEntry) => {
     const v = e.figures[figure]?.value;
     return v === null || v === undefined ? null : shownValue(figure, v);
@@ -224,7 +225,7 @@ export function rankRecentBoard(entries: readonly RecentEntry[], board: RecentBo
     if (tiedWithPrev) prev!.tied = true;
     rows.push({ entry: e, rank, tied: tiedWithPrev, note: null, gap: null });
   });
-  for (const r of rows) Object.assign(r, noteFor(r, rows, figure, names));
+  for (const r of rows) Object.assign(r, noteFor(r, rows, figure, names, viewer));
   for (const e of provisional) {
     const games = e.figures[figure]?.games ?? e.games;
     rows.push({ entry: e, rank: null, tied: false, note: `Provisional · ${games} of ${RECENT_WINDOW_GAMES} games`, gap: { kind: "provisional", games } });
@@ -246,6 +247,17 @@ export function winRateAfterNextGame(e: RecentEntry, won: boolean): number {
 const nameList = (list: readonly string[]) => (list.length > 3 ? `${list.length} players` : list.length <= 2 ? list.join(" and ") : `${list.slice(0, -1).join(", ")} and ${list.at(-1)}`);
 
 /**
+ * The note for a row one win from the place above, worded for who reads it (PLAN §1.12,
+ * viewerWords): on the viewer's own row "Win your next game to draw level with Ash"; on anyone
+ * else's, "Bo draws level with Ash by winning their next game" ("They draw…" with no name to give).
+ */
+export function drawLevelWords(own: boolean, name: string | null, who: string): string {
+  if (own) return `Win ${viewerWords(true).possessive} next game to draw level with ${who}`;
+  const w = viewerWords(false, name);
+  return `${name ? w.subject : "They"} ${name ? "draws" : "draw"} level with ${who} by winning ${w.possessive} next game`;
+}
+
+/**
  * The note on an established row below first place: what the next game can do, or the gap to the
  * place directly above (every player sharing that place is named). Win rate is exact about the
  * next game, because the next game replaces the window's oldest: with every established window at
@@ -254,7 +266,7 @@ const nameList = (list: readonly string[]) => (list.length > 3 ? `${list.length}
  * page says once, under the board. It also gives the note in parts (RecentGap), from the same
  * arithmetic, for a board that shows the gap short: the sentence stays as it is.
  */
-function noteFor(row: RankedRecent, rows: readonly RankedRecent[], figure: RecentFigure, names: ReadonlyMap<string, string>): Pick<RankedRecent, "note" | "gap"> {
+function noteFor(row: RankedRecent, rows: readonly RankedRecent[], figure: RecentFigure, names: ReadonlyMap<string, string>, viewer: string | null): Pick<RankedRecent, "note" | "gap"> {
   const none = { note: null, gap: null };
   if (row.rank === null || row.rank === 1) return none;
   const shown = (e: RecentEntry) => shownValue(figure, e.figures[figure]?.value ?? 0);
@@ -268,7 +280,7 @@ function noteFor(row: RankedRecent, rows: readonly RankedRecent[], figure: Recen
   const who = nameList(above.map((r) => names.get(r.entry.playerId) ?? "the player above"));
   if (figure === "winRate") {
     const afterWin = shownValue(figure, winRateAfterNextGame(row.entry, true));
-    if (afterWin === theirs) return { note: `Win your next game to draw level with ${who}`, gap: { kind: "level", place } };
+    if (afterWin === theirs) return { note: drawLevelWords(row.entry.playerId === viewer, names.get(row.entry.playerId) ?? null, who), gap: { kind: "level", place } };
     const winsBehind = Math.round(((theirs - mine) / 100) * row.entry.games);
     return { note: `${winsBehind} ${winsBehind === 1 ? "win" : "wins"} behind ${who}`, gap: { kind: "behind", wins: winsBehind, place } };
   }

@@ -77,8 +77,13 @@ export interface RecordHolder {
   kda: string | null;
   /** The game's date, or the streak's last win. */
   when: string | null;
-  /** Opens the game in the holder's Match History; null on the public boards and for the streak. */
+  /**
+   * Opens the game over the board (`/leaderboards?match=…`, the season kept): a docked Peek on wider
+   * screens, the window on phones (PLAN S6c, UD.L3); null on the public boards and for the streak.
+   */
   href: string | null;
+  /** That game: the holder's, read through Match History's own actions (the profile's checks), and the way to it in their Match History. */
+  game: { matchId: string; historyHref: string } | null;
 }
 
 export interface RecordsView {
@@ -216,7 +221,7 @@ function formView(data: LeaderboardData, ctx: BoardContext): FormView {
   const { names, ids, byPlayer, viewer, now } = ctx;
   const scope = { board: "overall" as const, mode: "all" as const, now };
   const entries = ids.map((id) => recentEntry(id, byPlayer.get(id)!, scope));
-  const board = rankRecentBoard(entries, "overall", "winRate", names);
+  const board = rankRecentBoard(entries, "overall", "winRate", names, viewer);
   const primary = new Map(data.players.map((p) => [p.id, p.primaryRole as GameRole | null]));
   const rows: FormRow[] = board.rows.map((r) => ({
     playerId: r.entry.playerId,
@@ -246,7 +251,11 @@ function recordsView(data: LeaderboardData, requested: string | number | null, c
   const { names, ids, viewer, basePath, profiles } = ctx;
   const season = chooseSeason(requested, data.seasons, data.currentSeason);
   const result = buildRecords({ games: data.games, mastery: data.mastery, playerIds: ids, season });
-  const gameHref = (m: RecordMark) => (profiles && m.game ? `/players/${m.playerId}/matches?match=${encodeURIComponent(m.game.matchId)}` : null);
+  // (The holder's own Match History redirects to My Profile's, keeping the game.)
+  // The board's own address with the game (`?match=`), so a link to it opens the board with the game over it.
+  const board = leaderboardsHref(season === data.currentSeason ? null : season, { basePath });
+  const gameHref = (m: RecordMark) => (profiles && m.game ? `${board}${board.includes("?") ? "&" : "?"}match=${encodeURIComponent(m.game.matchId)}` : null);
+  const gameOf = (m: RecordMark) => (profiles && m.game ? { matchId: m.game.matchId, historyHref: `/players/${m.playerId}/matches?match=${encodeURIComponent(m.game.matchId)}` } : null);
   const holderOf = (m: RecordMark, def: (typeof result.records)[number]["def"]): RecordHolder => ({
     playerId: m.playerId,
     value: formatNumber(shownRecordValue(def, m.value), def.decimals),
@@ -256,6 +265,7 @@ function recordsView(data: LeaderboardData, requested: string | number | null, c
     kda: kdaText(m),
     when: m.game ? formatDate(m.game.gameCreation) : m.endedAt !== null ? formatDate(m.endedAt) : null,
     href: gameHref(m),
+    game: gameOf(m),
   });
   const records: RecordView[] = result.records.map((r) => {
     const mine = viewer ? r.bests[viewer] : undefined;

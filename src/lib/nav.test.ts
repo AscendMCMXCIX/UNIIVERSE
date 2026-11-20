@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ADMIN_ENTRIES, ADMIN_HOME, ADMIN_LINKS, MANIFEST_SHORTCUTS, MATCHUP_INTEL, NAV_ENTRIES, NAV_LINKS, PAGE_WIDTH, ROW_WIDTH, RESOURCES, SECTION_HUBS, TEAM_SECTIONS, activeHref, backSteps, canOpen, currentDestination, destinations, encountersRedirect, entryLinks, isActivePath, isNavHub, pageName, pageWidthOf, phoneParent, prefetchOf, profileBase, sectionHubOf, withSectionMemory } from "./nav";
+import { ADMIN_ENTRIES, ADMIN_HOME, ADMIN_LINKS, MANIFEST_SHORTCUTS, MATCHUP_INTEL, NAV_ENTRIES, NAV_LINKS, PAGE_WIDTH, ROW_WIDTH, RESOURCES, SECTION_HUBS, TEAM_SECTIONS, activeHref, backSteps, canOpen, currentDestination, destinations, encountersRedirect, entryLinks, isActivePath, isNavHub, pageName, pageWidthOf, phoneParent, prefetchOf, profileBase, sectionHubOf, shortcutIcon, withSectionMemory } from "./nav";
 import { MATCHUP_INTEL_PATH } from "@/components/matchup-intel/address";
 import { BookMarked, Swords } from "lucide-react";
 import type { Session } from "@/server/auth/permissions";
@@ -225,7 +225,8 @@ describe("the destinations every bar shows", () => {
   });
 
   it("the installed app's shortcuts are Player Mode's destinations, in their order and by their names", () => {
-    expect(MANIFEST_SHORTCUTS).toEqual(destinations(all, false).map((d) => ({ name: d.label, url: d.href })));
+    expect(MANIFEST_SHORTCUTS).toEqual(destinations(all, false).map((d) => ({ name: d.label, url: d.href, icon: shortcutIcon(d.icon) })));
+    expect(MANIFEST_SHORTCUTS.map((s) => s.icon)).toEqual(["/icons/shortcuts/circle-user-round.png", "/icons/shortcuts/users.png", "/icons/shortcuts/swords.png", "/icons/shortcuts/book-bookmark.png"]);
   });
 
   it("no frame link fetches a profile ahead of a tap (its layout starts the player's Riot refresh); the rest keep Next's default", () => {

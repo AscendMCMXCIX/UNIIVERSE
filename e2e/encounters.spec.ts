@@ -142,6 +142,11 @@ test("Encounters: Against, Alongside and All, each side with its own record, in 
   for (const row of await rows.all()) expect((await sideGames(row, "against")) + (await sideGames(row, "alongside"))).toBeGreaterThanOrEqual(3);
 
   // A search that matches nobody: an honest empty state, the choices kept.
+  // A phone keeps the search behind the toolbar's icon (S6c, MH-9): one tap opens it, focused.
+  if (!(await page.getByTestId("encounter-search").isVisible())) {
+    await page.getByTestId("encounter-search-open").click();
+    await expect(page.getByTestId("encounter-search")).toBeFocused();
+  }
   await page.getByTestId("encounter-search").fill("Nobody Like This#NONE");
   await expect(page).toHaveURL(/q=Nobody/);
   await expect(page.getByTestId("encounters-none")).toBeVisible();
@@ -264,12 +269,76 @@ test("one player's games: Match History's own list, both records, each side, a g
   await expect(page).toHaveURL(/rel=against/);
   await expect(page).toHaveURL(/min=1/);
   await expect(page).not.toHaveURL(/met=/);
-  // Back and Forward follow the same addresses.
-  await page.goBack();
+  // The way back was Back (S6c: an encounter is a view, one history entry): Forward reopens the player, and Back
+  // returns to the list again, at its exact place with the focus on that row (UD.E1).
+  const y = await page.evaluate(() => window.scrollY);
+  await page.goForward();
   await expect(page.getByTestId("encounter-games")).toBeVisible();
   await page.goBack();
   await expect(page.locator("[data-testid='encounters'][data-ready]")).toBeVisible();
   await expect(page.getByTestId("encounter-relation-against")).toHaveAttribute("aria-current", "page");
+  expect(Math.abs((await page.evaluate(() => window.scrollY)) - y)).toBeLessThanOrEqual(1);
+});
+
+test("an encounter keeps the list's place: opened from a scrolled list, Back and \"‹ All encounters\" return to it with 0px drift and the focus on its row", async ({ page }) => {
+  test.skip(test.info().project.name !== "phone", "the list's place is kept the same way at every width: one project's time (PLAN S6c names the phone)");
+  await page.goto("/team");
+  const support = `/players/${await page.getByTestId("lineup-row-SUPPORT").getAttribute("data-player-id")}`;
+  await openEncounters(page, `${support}/matches?view=encounters&min=1&limit=500`);
+  const rows = page.getByTestId("encounter-row");
+  const row = rows.nth(Math.min(5, (await rows.count()) - 1));
+  await row.scrollIntoViewIfNeeded();
+  await page.evaluate(() => window.scrollBy(0, 40));
+  const y = await page.evaluate(() => window.scrollY);
+  const key = await row.getByTestId("open-encounter").getAttribute("data-encounter-row");
+  const length = await page.evaluate(() => history.length);
+  for (const way of ["back", "link"] as const) {
+    await row.getByTestId("open-encounter").click();
+    await expect(page.getByTestId("encounter-games")).toBeVisible();
+    expect(await page.evaluate(() => history.length), "one entry").toBe(length + 1);
+    if (way === "back") await page.goBack();
+    else await page.getByTestId("encounter-back").click();
+    await expect(page.locator("[data-testid='encounters'][data-ready]")).toBeVisible();
+    await expect.poll(() => page.evaluate(() => window.scrollY), way).toBe(y);
+    await expect(page.locator(`[data-encounter-row="${key}"]`)).toBeFocused();
+  }
+});
+
+test("desktop: Encounters shows Refine off, with its reason reachable (focusable, described, and in its ⓘ), and pressing it opens nothing", async ({ page }) => {
+  test.skip(test.info().project.name !== "desktop", "from lg (a tablet keeps the views beside its toolbar)");
+  await openEncounters(page, `${await teammate(page)}/matches?view=encounters`);
+  const refine = page.getByTestId("refine-unavailable").getByTestId("refine-filters");
+  await expect(refine).toBeVisible();
+  await expect(refine).toHaveAttribute("aria-disabled", "true");
+  await expect(refine).toHaveAccessibleDescription(/^Refine narrows the games list/);
+  await refine.focus();
+  await expect(refine).toBeFocused();
+  // aria-disabled: Playwright waits for an enabled control, so the press is forced, as a reader's would land.
+  await refine.click({ force: true });
+  await expect(refine).not.toHaveAttribute("aria-expanded", "true");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.getByTestId("refine-unavailable-tip")).toBeVisible();
+});
+
+test("phone 320 and 360 wide: Against, Alongside and All keep their whole width (nothing scrolls sideways in the choice), the search's icon taking the next line where they need the row", async ({ page }) => {
+  test.skip(test.info().project.name !== "phone", "a narrow phone");
+  const profile = await teammate(page);
+  for (const width of [320, 360]) {
+    await page.setViewportSize({ width, height: 700 });
+    await openEncounters(page, `${profile}/matches?view=encounters`);
+    const nav = page.getByTestId("encounter-relations");
+    const m = await nav.evaluate((n) => ({ spill: n.scrollWidth - n.clientWidth }));
+    expect(m.spill, `${width}px: the choice scrolls sideways by`).toBeLessThanOrEqual(1);
+    await expect(page.getByTestId("encounter-search-open")).toBeInViewport();
+  }
+  // The highlights' row, shown on a phone with any number of games: a highlight scrolled out of it
+  // (its screen-reader words included) never widens the page (430px at 375 before Release 9's fix).
+  await page.setViewportSize({ width: 375, height: 667 });
+  await page.goto("/team");
+  const top = `/players/${await page.getByTestId("lineup-row-TOP").getAttribute("data-player-id")}`;
+  await openEncounters(page, `${top}/matches?view=encounters&rel=against&min=1&limit=500&sort=recent&mode=solo`);
+  await expect(page.getByTestId("encounter-insights")).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), "375px: the page scrolls sideways by").toBeLessThanOrEqual(0);
 });
 
 test("a game's scoreboard marks the players met in other games, and a mark opens their games with the same count", async ({ page }) => {

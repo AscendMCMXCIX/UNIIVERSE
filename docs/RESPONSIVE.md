@@ -646,9 +646,11 @@ the account screen over the dashboard at 200% on a 320px phone as well.
   field also keep 16px on every touch screen and turn 14px only with a mouse (`pointer-fine:`):
   iOS zoomed the page into the opponent search at 14px.
 - `ToggleChip` (`ui/toggle.tsx`): every selectable chip (roles, modes, filters).
-- A section that folds on phones: `Disclosure` (`ui/disclosure.tsx`, a native `<details>`) or a CSS
-  breakpoint. The former `MobileSection` was removed. A Disclosure inside another (Data &
-  Integrations' Advanced, inside Details) turns its chevron only for its own `<details>`.
+- A section that folds on phones: `Fold` (`ui/fold.tsx`, a native `<details>`; it replaced
+  `Disclosure` and every page's own fold in S4a) or a CSS breakpoint. The former `MobileSection`
+  was removed. A Fold inside another (Data & Integrations' Advanced, inside Details) turns its
+  chevron only for its own `<details>`. Every fold's summary is 44px tall on touch screens and the body of
+  a row or an inline fold starts 16px under it (a panel's past its border and padding), so the touch areas of the links in it reach nothing of the summary.
 - A typed confirmation (Admin's setup jobs, a job turned off, Delete with profile, a profile
   without an account; 19 Nov 2026): the same `Dialog`, its phrase above an `Input` (16px on touch,
   so Safari does not zoom), any letter case accepted since a phone's keyboard capitalises; the danger
@@ -676,7 +678,24 @@ sidebar open, phones). The scoreboard (container `sb`) has one 37px row per play
 48px below it (the name and K/D/A, then the build, the rank and CS with damage). Measured on the
 demo: at 1440 × 900 the card and the open game take 660–685px with Close on the first screen; at
 390 × 844 the window's pinned chrome is 110px, the scoreboard starts at about 650px and the whole
-game is 1.9–2.0 screens; no tabs anywhere.
+game is 1.50–1.82 screens with its folds closed (the demo's first three games, Release 9, 20 Nov 2026;
+about 2.9 with the gold and build folds open; `e2e/overlay-kit.spec.ts` holds it at 2.0 or less); no
+tabs anywhere.
+
+A Match History card from 50 to 61rem of list (1280 with the sidebar open: a 60rem list) shows the
+build (the six items and the trinket, 22px) in the teams' place, and the rosters go first (UD.H1;
+S6c, 20 Nov 2026: the card showed no build there); the open game's scoreboard has the rosters. The
+card stays 90px (D8's density is unchanged), and from 61rem it shows both again. Team Matches'
+open game has Previous and Next (the footer's, by Match History's rules: they replace `?match=`, the
+new card's header keeps its y within 1px, they are disabled at the ends and say "Game 5 of 6:
+Defeat on Ornn"); Back or Close lands on the last game viewed, with the focus on its card. A
+record's game opens over Leaderboards as a docked Peek from md and the window on phones and short
+windows (`/leaderboards?match=`, TEAM_LEADERBOARDS.md). One Peek at a time: opening the record's
+game with a player's Peek open (or the other way round) takes over the entry the first one pushed,
+so after closing it Back leaves the board in one step (Release 9 review: it took two). In the game
+window's footer, at a large text size (a row narrower than 17.5rem), "Game n of m" takes a line
+under Previous and Next, so neither runs off the screen. Encounters' Against, Alongside and All
+keep their whole width on a 320–360px phone, the search's icon taking the next line.
 
 All Champions follows its list's own width too (a container query, so the sidebar counts):
 
@@ -913,6 +932,11 @@ Three levels, each saying what it proves:
   - the priority pages load with no page error (hydration included) and no sideways scrolling;
   - Team's card track and role tabs, by tap;
   - a teammate's profile sections and a champion's window;
+  - the phone window shell (S4a, 20 Nov 2026): a pull on a game's header closes it, closing a game
+    opened from a row partly under the tab bar moves the list 0px, and the Team player window's
+    header collapses to its 56px bar, which closes the window when pulled down (touch events
+    dispatched in the page, `e2e/pull.ts`; Chromium's phone project runs the same in
+    `e2e/overlay-kit.spec.ts`);
   - the top bar's Filters on Match History (PR 2b): gone at the top, offered once the page's own has
     scrolled away, 44px, a tap opens the filter sheet, and a choice and Done bring the first game
     under the bars, its count shown;

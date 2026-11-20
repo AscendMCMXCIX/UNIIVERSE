@@ -47,7 +47,11 @@ export interface MatchPrep {
   runes?: string;
   /** The two summoner spells, ascending ("4,14"). */
   spells?: string;
-  /** Items bought in the first minute, ascending, repeats kept ("1055,2003"). */
+  /**
+   * Items bought in the first minute and still held at its end, ascending, repeats kept ("1055,2003"):
+   * an undone purchase is never stored, and an item sold in the first minute is taken out where the
+   * timeline keeps sales (PrepTimeline.salesKept).
+   */
   start?: string;
   /** The first shop visit after the first minute: purchases less than 30 s apart, ascending. */
   back?: string;
@@ -63,6 +67,12 @@ export interface MatchPrep {
   end?: number;
   /** Whether a timeline was read (without one only the record's fields are kept). */
   tl: boolean;
+  /**
+   * The starting set was made with the timeline's sales (PrepTimeline.salesKept): first-minute sales
+   * taken out. A row made from such a timeline before that rule (20 Nov 2026) lacks it, and
+   * prep-backfill makes those rows again (prep-store.ts, STALE_START).
+   */
+  sk?: true;
 }
 
 /** A player in a stored record, as far as preparation needs one. */
@@ -74,7 +84,13 @@ export interface PrepParticipant extends LaneSeat {
 }
 
 export interface PrepTimeline {
-  participants: ReadonlyArray<{ puuid: string; purchases: ReadonlyArray<readonly [number, number]>; skills: readonly number[] }>;
+  participants: ReadonlyArray<{ puuid: string; purchases: ReadonlyArray<readonly [number, number]>; skills: readonly number[]; sold?: ReadonlyArray<readonly [number, number]> | null }>;
+  /**
+   * Whether the timeline keeps each player's sales (`sold`, kept from 20 Nov 2026 on; a timeline that
+   * keeps them also keeps the turret plates). On one that does not, a sale in the first minute is not
+   * known, so the starting set can still hold an item sold then (docs/MATCHUP_INTEL.md).
+   */
+  salesKept?: boolean;
   frames?: { t: readonly number[]; p: Record<string, { px?: readonly number[]; py?: readonly number[] }> } | null;
   events?: { objectives: ReadonlyArray<{ t: number; team: number; kind: string; detail?: string }> } | null;
 }
@@ -87,7 +103,7 @@ export interface PrepItemInfo {
   depth: number;
 }
 
-/** The first minute: what is bought in it is the starting set. */
+/** The first minute: what is bought in it, and not undone or sold in it, is the starting set. */
 export const START_MS = 60_000;
 /** Purchases closer than this belong to one shop visit. */
 export const VISIT_GAP_MS = 30_000;
@@ -251,6 +267,21 @@ export function earlyObjectives(team: number, timeline: PrepTimeline): { taken: 
 }
 
 /**
+ * The starting set: the items bought before START_MS, less one of the same item for each sale before
+ * START_MS (the latest bought before that sale). Undone purchases are already gone from the stored
+ * purchases (timelineParticipants). `purchases` is sorted by time.
+ */
+export function startingSet(purchases: ReadonlyArray<readonly [number, number]>, sold: ReadonlyArray<readonly [number, number]>): number[] {
+  const held = purchases.filter(([t]) => t < START_MS).map(([t, id]) => ({ t, id, gone: false }));
+  for (const [at, id] of [...sold].sort((a, b) => a[0] - b[0])) {
+    if (at >= START_MS) continue;
+    const bought = held.filter((h) => !h.gone && h.id === id && h.t <= at).pop();
+    if (bought) bought.gone = true;
+  }
+  return held.filter((h) => !h.gone).map((h) => h.id);
+}
+
+/**
  * One member's preparation in a stored game: from its record's participants (the member's at
  * `meSlot`) and, when one is stored with players in it, its timeline. `items` is Data Dragon's
  * shop facts; an item the facts do not know leaves the completed items out (an older patch's item
@@ -284,7 +315,8 @@ export function matchPrep(parts: readonly PrepParticipant[], meSlot: number, tim
   if (!timeline || !mine) return prep;
   prep.tl = true;
   const purchases = [...mine.purchases].sort((a, b) => a[0] - b[0]);
-  const start = purchases.filter(([t]) => t < START_MS).map(([, id]) => id);
+  if (timeline.salesKept) prep.sk = true;
+  const start = startingSet(purchases, timeline.salesKept ? (mine.sold ?? []) : []);
   if (start.length) prep.start = sortedIds(start);
   const later = purchases.filter(([t]) => t >= START_MS);
   if (later.length) {

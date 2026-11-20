@@ -244,7 +244,17 @@ export const ACCOUNT_LINKS: NavLink[] = [{ href: "/settings", label: "Settings",
  * same four, in the same order, under the same names, each to the entry's first page (Team to Team
  * Overview). Each page still checks who may open it.
  */
-export const MANIFEST_SHORTCUTS: ReadonlyArray<{ name: string; url: string }> = NAV_ENTRIES.map((e) => ({ name: e.label, url: entryLinks(e)[0]!.href }));
+export const MANIFEST_SHORTCUTS: ReadonlyArray<{ name: string; url: string; icon: string }> = NAV_ENTRIES.map((e) => ({ name: e.label, url: entryLinks(e)[0]!.href, icon: shortcutIcon(e.icon) }));
+
+/**
+ * A shortcut's icon: the destination's own icon from the bars, as a 96×96 PNG named after the lucide
+ * icon (public/icons/shortcuts, drawn by scripts/shortcut-icons.mjs; nav-parity.test.ts fails while
+ * one is missing). "CircleUserRound" is circle-user-round.png.
+ */
+export function shortcutIcon(icon: { displayName?: string }): string {
+  const name = (icon.displayName ?? "").replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase();
+  return `/icons/shortcuts/${name}.png`;
+}
 
 /** Admin Mode's start page (its dashboard). It is current only on itself, not on the pages beneath it. */
 export const ADMIN_HOME = "/admin";

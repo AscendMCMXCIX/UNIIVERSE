@@ -73,8 +73,10 @@ test("Match History's next page starts with its first game under the bars, not a
 test("phones: the current tab on its own page, the current section in the top bar's row, and the page's title in the top bar, go back to the top", async ({ page }, info) => {
   test.skip(info.project.name !== "phone", "the phone tab bar");
   await page.emulateMedia({ reducedMotion: "reduce" });
-  // A tall phone, whose bars stay put while the page scrolls (under 700px tall they slide away: docs/MOBILE.md, "The frame slides away").
-  await page.setViewportSize({ width: 393, height: 852 });
+  // A phone tall enough for its bars to stay put while the page scrolls (under 700px tall they slide away:
+  // docs/MOBILE.md, "The frame slides away"), and short enough for the demo's Players to scroll its heading
+  // under the bar: since Release 7 the page is 862px tall, which a 393 × 852 window scrolled only 10px.
+  await page.setViewportSize({ width: 393, height: 720 });
   // Matchup Intel's tab on its own page.
   await page.goto("/resources");
   await page.evaluate(() => window.scrollTo(0, 400));
@@ -240,8 +242,10 @@ test("phones: a dialog is the one shared sheet, docked to the bottom edge with i
 test("phones: Matchup Intel's tab, on its own page, keeps the pair and goes back to the top, fetching nothing", async ({ page }, info) => {
   test.skip(info.project.name !== "phone", "the phone's tab bar (the test above has tablets and desktops)");
   await page.emulateMedia({ reducedMotion: "reduce" });
-  // A tall phone, whose bars stay put while the page scrolls (under 700px tall they slide away: docs/MOBILE.md, "The frame slides away").
-  await page.setViewportSize({ width: 393, height: 852 });
+  // A phone tall enough for its bars to stay put while the page scrolls (under 700px tall they slide away:
+  // docs/MOBILE.md, "The frame slides away"), and short enough for the demo's Players to scroll its heading
+  // under the bar: since Release 7 the page is 862px tall, which a 393 × 852 window scrolled only 10px.
+  await page.setViewportSize({ width: 393, height: 720 });
   await page.goto("/resources/matchups?champion=Riven&vs=Mordekaiser");
   await expect(page.getByTestId("matchup-enemy-abilities")).toHaveAttribute("data-champion", "Mordekaiser");
   await expect(page.getByTestId("matchup-remembered")).not.toHaveAttribute("data-state", "loading");

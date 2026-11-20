@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { JOB_NAMES, jobName } from "@/domain/job-names";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { ConfirmDialog, Dialog } from "@/components/ui/dialog";
-import { Disclosure } from "@/components/ui/disclosure";
+import { Fold } from "@/components/ui/fold";
 import { Input, Label } from "@/components/ui/input";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 import { toast } from "@/components/ui/toast";
@@ -108,12 +108,11 @@ function JobRow({ job: j, title, description, children }: { job: JobView; title?
           {j.lastDurationMs !== null ? `, in ${formatNumber(j.lastDurationMs / 1000, 1)} s` : ""}
           {intervalOf(j) === 0 ? " · turned off" : ""}
         </p>
-        <details className="group text-xs text-fg-subtle" data-testid="job-how">
-          <summary className="cursor-pointer py-3 underline-offset-2 hover:text-fg hover:underline pointer-fine:py-0.5">How it works</summary>
-          <p className="mt-1">
+        <Fold variant="inline" tone="muted" testId="job-how" summary="How it works" bodyClassName="text-xs text-fg-subtle">
+          <p>
             <span className="font-mono text-fg-muted">{j.key}</span> · {scheduleWords(j)}. {j.description}
           </p>
-        </details>
+        </Fold>
       </div>
       <div className="flex flex-wrap items-center md:justify-end">{children}</div>
     </li>
@@ -140,7 +139,7 @@ function SetupJobDialog({ job, busy, onCancel, onRun }: { job: JobView | null; b
   const confirm = job?.confirm ?? null;
   const ready = !!confirm && typedMatches(typed, confirm.phrase);
   return (
-    <Dialog
+    <Dialog size="form"
       open={!!job}
       onClose={() => (busy ? undefined : onCancel())}
       title={confirm ? `${confirm.title}?` : "Run this job?"}
@@ -230,7 +229,7 @@ function ScheduleEditor({ jobs }: { jobs: JobView[] }) {
           Save intervals
         </Button>
       </div>
-      <Dialog
+      <Dialog size="form"
         open={reviewing}
         onClose={() => (busy ? undefined : setReviewing(false))}
         title="Save the schedule?"
@@ -303,7 +302,7 @@ export function JobsPanel({ jobs, ownerTools }: { jobs: JobView[]; ownerTools: b
           ))}
         </JobGroup>
         {ownerTools ? (
-          <Disclosure title="Advanced" description="Setup and repair jobs, and the schedule. Only the Owner sees these." testId="jobs-advanced">
+          <Fold title="Advanced" description="Setup and repair jobs, and the schedule. Only the Owner sees these." testId="jobs-advanced">
             <JobGroup title="Setup and repair" subtitle="Each changes the site's setup or repairs data once. Type its phrase to run it." testId="jobs-setup">
               {setup.map((j) => (
                 <JobRow
@@ -320,7 +319,7 @@ export function JobsPanel({ jobs, ownerTools }: { jobs: JobView[]; ownerTools: b
               ))}
             </JobGroup>
             <ScheduleEditor jobs={jobs} />
-          </Disclosure>
+          </Fold>
         ) : (
           <p className="text-sm text-fg-muted" data-testid="jobs-owner-only">
             The schedule and the setup and repair jobs are the Owner&apos;s.

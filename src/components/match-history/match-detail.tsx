@@ -9,7 +9,8 @@ import type { LpRecord } from "@/domain/lp-attribution";
 import type { PortraitChampion } from "@/components/champion-portrait";
 import { formatDate } from "@/lib/format";
 import { cn } from "@/lib/cn";
-import { BELOW_CONTROLS_ON_PHONES, CLEAR_OF_CONTROLS, DetailModal } from "@/components/ui/detail-modal";
+import { BELOW_CONTROLS_ON_PHONES, CLEAR_OF_CONTROLS } from "@/components/ui/detail-modal";
+import { PreviewWindow } from "@/components/ui/preview-window";
 import { MatchDetailCacheContext } from "./match-detail-cache";
 import { fmtDuration } from "./match-format";
 import { LpChange } from "./match-card";
@@ -74,11 +75,14 @@ export function MatchDetailModal({ playerId, matchId, championsById, onClose, ba
           "Match details"
         )}
       </h2>
-      {view && lp ? <LpChange lp={lp} /> : null}
+      {view && lp ? <LpChange lp={lp} focusable /> : null}
     </div>
   );
   const footer = nav ? (
-    <div className="flex items-center justify-between gap-2" data-testid="match-detail-nav">
+    // At a large text size (a row narrower than 17.5rem) "Game n of m" takes a line under the two
+    // steps, so neither runs off the screen (at 150% on a 320px phone Previous started 45px off it).
+    <div className="@container/mdnav w-full min-w-0">
+    <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1" data-testid="match-detail-nav">
       <button type="button" className={NAV_BUTTON} disabled={!nav.prev} onClick={() => {
           if (!nav.prev) return;
           nav.go(nav.prev);
@@ -87,7 +91,7 @@ export function MatchDetailModal({ playerId, matchId, championsById, onClose, ba
         <ChevronLeft className="h-4 w-4" aria-hidden />
         Previous
       </button>
-      <span className="text-xs tabular-nums text-fg-muted" data-testid="match-detail-position">
+      <span className="text-center text-xs tabular-nums text-fg-muted @max-[17.5rem]/mdnav:order-last @max-[17.5rem]/mdnav:basis-full" data-testid="match-detail-position">
         Game {nav.index + 1} of {nav.total}
       </span>
       <button type="button" className={NAV_BUTTON} disabled={!nav.next} onClick={() => {
@@ -102,13 +106,15 @@ export function MatchDetailModal({ playerId, matchId, championsById, onClose, ba
         {said}
       </span>
     </div>
+    </div>
   ) : undefined;
   return (
-    <DetailModal
+    <PreviewWindow
       open
       onClose={onClose}
       size="wide"
       title="Match details"
+      compactTitle={view ? `${view.win ? "Victory" : "Defeat"} · ${champ(view.championId).name}` : undefined}
       titleId="match-detail-title"
       header={header}
       headerClassName={view ? (view.win ? "bg-gradient-to-r from-blue/15 via-blue/5 to-transparent" : "bg-gradient-to-r from-red/15 via-red/5 to-transparent") : "bg-surface"}
@@ -148,7 +154,7 @@ export function MatchDetailModal({ playerId, matchId, championsById, onClose, ba
           )}
         </div>
       )}
-    </DetailModal>
+    </PreviewWindow>
   );
 }
 

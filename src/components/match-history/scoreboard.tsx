@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronRight, Clock3, UserX } from "lucide-react";
+import { Clock3, UserX } from "lucide-react";
 import type { MatchGroupsResult, MatchGroupsTeam, MatchGroupView } from "@/server/matches/possible-groups";
 import { groupEvidenceText, groupsNoteState } from "@/domain/possible-groups";
 import type { DetailParticipant, DetailTeam, MatchRanksResult } from "@/server/players/match-history";
@@ -10,6 +10,7 @@ import { metSides } from "@/lib/tip-words";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
 import { formatCount, formatDate, formatKilo } from "@/lib/format";
 import { cn } from "@/lib/cn";
+import { Fold } from "@/components/ui/fold";
 import { matchRankQueue, rankBadgeLabel, rankTimingCounts, type ParticipantRank } from "@/domain/known-rank";
 import { InfoTip } from "@/components/ui/info-tip";
 import { RankEmblem } from "@/components/players/rank-emblem";
@@ -237,18 +238,24 @@ export function RanksNote({ ranks, queueId, checking, result }: { ranks: Readonl
 function GroupLine({ group: g, mark, names }: { group: MatchGroupView; mark: string; names: string[] }) {
   const more = g.games - g.evidence.length;
   return (
-    <details className="group/ev text-xs" data-testid="possible-group" data-size={g.slots.length}>
-      <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-1.5 gap-y-0.5 rounded focus-visible:outline-2 focus-visible:outline-accent [&::-webkit-details-marker]:hidden">
-        <span className={cn("h-3 w-[3px] shrink-0 rounded-full", mark)} aria-hidden />
-        <span className="font-semibold text-fg">{g.label}</span>
-        <span className="text-fg-muted">{names.join(", ")}</span>
-        <span className="basis-full pl-[9px] text-fg-subtle sm:basis-auto sm:pl-0" data-testid="possible-group-games">
-          {groupEvidenceText(g.slots.length, g.games, g.opposed)}
+    <Fold
+      variant="inline"
+      className="text-xs"
+      testId="possible-group"
+      data-size={g.slots.length}
+      summary={
+        <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5">
+          <span className={cn("h-3 w-[3px] shrink-0 rounded-full", mark)} aria-hidden />
+          <span className="font-semibold text-fg">{g.label}</span>
+          <span className="text-fg-muted">{names.join(", ")}</span>
+          <span className="basis-full pl-[9px] text-fg-subtle sm:basis-auto sm:pl-0" data-testid="possible-group-games">
+            {groupEvidenceText(g.slots.length, g.games, g.opposed)}
+          </span>
+          <span className="sr-only">Show the games</span>
         </span>
-        <ChevronRight className="h-3 w-3 shrink-0 text-fg-subtle transition-transform group-open/ev:rotate-90" aria-hidden />
-        <span className="sr-only">Show the games</span>
-      </summary>
-      <ul className="mt-1 space-y-0.5 pb-0.5 pl-3 text-2xs tabular-nums text-fg-muted" data-testid="possible-group-evidence">
+      }
+    >
+      <ul className="space-y-0.5 pb-0.5 pl-3 text-2xs tabular-nums text-fg-muted" data-testid="possible-group-evidence">
         {g.evidence.map((e, i) => (
           <li key={i}>
             {formatDate(new Date(e.playedAt))} · {e.queue} · <span className={e.win ? "text-blue" : "text-red"}>{e.win ? "Won" : "Lost"}</span>
@@ -256,7 +263,7 @@ function GroupLine({ group: g, mark, names }: { group: MatchGroupView; mark: str
         ))}
         {more > 0 ? <li className="text-fg-subtle">and {more} earlier</li> : null}
       </ul>
-    </details>
+    </Fold>
   );
 }
 

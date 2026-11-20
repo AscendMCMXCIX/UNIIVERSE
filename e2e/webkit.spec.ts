@@ -5,6 +5,7 @@ import { untilStill } from "./modal-corner";
 import { besideAMark, openMatchWindow } from "./match-history";
 import { bubbleFacts, NOT_A_PICTURE, NOT_A_PICTURE_ERROR, openPictureEditor, placedRight, toastFacts } from "./popups";
 import { riotText } from "./matchup-intel";
+import { pullDown } from "./pull";
 import { pick, ready, SELECT_LOOK, selectLook, valueOf } from "./select";
 import path from "node:path";
 
@@ -154,15 +155,19 @@ test("a teammate's profile: its sections switch, and a champion's preview sheet 
     if (!(await page.locator("dialog[open]").count())) await open.tap();
     await expect(page.getByTestId("champion-preview-figures")).toBeVisible({ timeout: 1_000 });
   }).toPass({ timeout: 15_000 });
-  // The sheet fills the phone's width and nothing in it scrolls sideways.
+  // The sheet fills the phone's width and nothing in it scrolls sideways. Measured once it is at
+  // rest: while it opens, Safari's engine can measure its 44px close button at 43.99998px.
+  await expect.poll(() => page.locator("dialog[open]").evaluate((d) => d.getAnimations({ subtree: true }).length)).toBe(0);
   const box = (await page.locator("dialog[open]").boundingBox())!;
   expect(box.width).toBeLessThanOrEqual(page.viewportSize()!.width + 1);
   // Its close button (the shared Peek's sheet) is the header's last control, a 44px target, in its
-  // top-right corner: within the header's 16px padding and the sheet's 1px side border.
+  // top-right corner: within the header's 16px side padding and the sheet's 1px side border, and
+  // under the sheet's 1px top border, its grabber (12px) and the header's 12px top padding (25px;
+  // the same in Chromium). Before 20 Nov 2026 this read 24, met only while the sheet still slid in.
   const close = (await page.locator("dialog[open]").getByTestId("champion-preview-close").boundingBox())!;
   expect(Math.min(close.width, close.height)).toBeGreaterThanOrEqual(44);
   expect(box.x + box.width - (close.x + close.width)).toBeLessThanOrEqual(17.5);
-  expect(close.y - box.y).toBeLessThanOrEqual(24);
+  expect(close.y - box.y).toBeLessThanOrEqual(25);
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("champion-preview-content")).toHaveCount(0);
   await tabs.getByRole("link", { name: "History" }).tap();
@@ -339,6 +344,53 @@ test("Match History: a game opens as a whole screen of its own, its ranks are ch
   await expect(page).not.toHaveURL(/match=/);
   await expect(card).toBeVisible();
   await expect(page.getByTestId("match-row").nth(1)).toBeFocused();
+});
+
+test("the phone window shell in Safari's engine: a pull on a game's header closes it, closing a game opened from a row partly under the tab bar moves the list 0px, and the Team player window collapses its header to a 56px bar and is pulled down too", async ({ page }) => {
+  await page.goto("/team");
+  const id = (await page.getByTestId("lineup-row-ADC").getAttribute("data-player-id"))!;
+  await page.goto(`/players/${id}/matches`);
+  await expect(page.locator("[data-testid='match-history'][data-ready]")).toBeVisible();
+  const tabbar = (await page.getByTestId("phone-tabbar").boundingBox())!;
+  // A finger lands on the card: its content sits over the card's one button (the card for the
+  // keyboard and screen readers), so a tap aimed at that button is taken by the content, and the
+  // card's own click opens the game.
+  const row = page.getByTestId("match-card").nth(3);
+  // The row's top 30px above the tab bar, the rest under it (UM.X4: 70–109px when audited).
+  const top = await row.evaluate((el) => el.getBoundingClientRect().top + window.scrollY);
+  await page.evaluate((y) => window.scrollTo(0, y), top - (tabbar.y - 30));
+  await page.waitForTimeout(300);
+  const before = await page.evaluate(() => window.scrollY);
+  const win = page.getByTestId("match-detail");
+  await expect(async () => {
+    if (!(await win.isVisible())) await row.tap({ position: { x: 24, y: 12 }, timeout: 2_000 });
+    await expect(win).toBeVisible({ timeout: 1_000 });
+  }).toPass({ timeout: 15_000 });
+  await win.getByTestId("match-detail-close").tap();
+  await expect(win).toHaveCount(0);
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => window.scrollY), "the list does not move").toBe(before);
+  await row.tap({ position: { x: 24, y: 12 } });
+  await expect(win).toBeVisible();
+  await pullDown(page.getByTestId("match-detail-header"));
+  await expect(win).toHaveCount(0);
+  await expect(page).not.toHaveURL(/match=/);
+
+  await page.goto("/team");
+  await page.getByTestId("lineup-row-TOP").getByTestId("open-player-detail").tap();
+  const player = page.getByTestId("player-detail");
+  await expect(player).toBeVisible();
+  const bar = player.getByTestId("modal-compact-bar");
+  await player.evaluate((el) => {
+    const body = el.querySelector<HTMLElement>("[data-modal-handle]:not([data-testid=modal-compact-bar]) + div")!;
+    (getComputedStyle(el).overflowY === "auto" ? el : body).scrollTop = 160;
+  });
+  await expect(bar).toHaveCSS("opacity", "1");
+  expect(Math.round((await bar.boundingBox())!.height)).toBe(56);
+  await pullDown(bar);
+  // Closed, as in e2e/overlay-kit.spec.ts: the player window stays in the page, hidden.
+  await expect(player).toBeHidden();
+  await expect(page).not.toHaveURL(/player=/);
 });
 
 test("Match History's gold fold: a tap on or just beside a mark under the curve reads its minute, the reading stays after the finger lifts, and the tables run with the page", async ({ page }) => {

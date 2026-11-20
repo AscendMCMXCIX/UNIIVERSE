@@ -126,7 +126,7 @@ export function DeleteProfileButton({ playerId, name, onDeleted }: { playerId: s
       <Button size="sm" variant="ghost" className="text-bad" wrap onClick={() => setOpen(true)} data-testid="delete-profile">
         Delete profile
       </Button>
-      <Dialog
+      <Dialog size="form"
         open={open}
         onClose={close}
         title={`Delete ${name}?`}
@@ -255,7 +255,7 @@ export function AccountActions({ account, currentUserId, viewerIsOwner = false, 
         onConfirm={() => void run(() => reactivateWithTemporaryPasswordAction(account.userId), `${account.username} reactivated with a new temporary password.`).then((d) => d && setIssued(d))}
       />
       {withProfile ? (
-        <Dialog
+        <Dialog size="form"
           open={confirming === "delete"}
           onClose={closeDelete}
           title={`Delete ${account.username}?`}
@@ -290,7 +290,7 @@ export function AccountActions({ account, currentUserId, viewerIsOwner = false, 
           onConfirm={() => void run(() => deleteAccountAction(account.userId), `${account.username} deleted.`, true)}
         />
       )}
-      <Dialog open={issued !== null} onClose={() => setIssued(null)} title="Temporary password" description="Shown only once." footer={<Button variant="primary" onClick={() => setIssued(null)}>Done</Button>}>
+      <Dialog size="form" open={issued !== null} onClose={() => setIssued(null)} title="Temporary password" description="Shown only once." footer={<Button variant="primary" onClick={() => setIssued(null)}>Done</Button>}>
         {issued ? <TemporaryPasswordBox username={account.username} password={issued.temporaryPassword} expiresAt={issued.expiresAt} /> : null}
       </Dialog>
     </div>

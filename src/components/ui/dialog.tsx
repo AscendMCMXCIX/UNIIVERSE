@@ -14,7 +14,16 @@ import { DetailModal } from "./detail-modal";
  * what opened it. It once had its own bottom sheet, with another radius, motion and height rule, no
  * scroll lock, and actions on the bottom edge in a browser.
  */
-export function Dialog({ open, onClose, title, description, children, footer, width = "standard" }: { open: boolean; onClose: () => void; title: string; description?: React.ReactNode; children?: React.ReactNode; footer?: React.ReactNode; /** wide: an editor with a table (48rem where it is a centred window). */ width?: "standard" | "wide" }) {
+/**
+ * The Task dialog's sizes where it is a centred window (PLAN S4a, DESIGN_SYSTEM §7): a form or a
+ * confirmation 30rem, a picker (a choice among many, an editor with a table) 42rem, and Card Studio
+ * alone 76rem (DetailModal size="wide", customise-card.tsx). Phones and short windows dock it to the
+ * bottom edge at the screen's width whatever its size. Nothing inside scrolls sideways at these widths.
+ */
+export const TASK_DIALOG_REM = { form: 30, picker: 42, studio: 76 } as const;
+export type DialogSize = "form" | "picker";
+
+export function Dialog({ open, onClose, title, description, children, footer, size }: { open: boolean; onClose: () => void; title: string; description?: React.ReactNode; children?: React.ReactNode; footer?: React.ReactNode; /** Every dialog states its size (TASK_DIALOG_REM). */ size: DialogSize }) {
   // Each dialog its own title id, which names it (aria-labelledby): a confirmation can open over
   // another dialog (the administrator grant over Manage access), and with one shared id both were
   // named after the first one's title (R6 review NEW-1). Tests find a dialog's title by its prefix.
@@ -24,7 +33,7 @@ export function Dialog({ open, onClose, title, description, children, footer, wi
       open={open}
       onClose={onClose}
       size="sheet"
-      sheetWidth={width}
+      sheetWidth={size === "picker" ? "picker" : "standard"}
       title={title}
       titleId={titleId}
       description={description}
@@ -44,6 +53,7 @@ export function ConfirmDialog({ open, onCancel, onConfirm, title, description, c
     <Dialog
       open={open}
       onClose={onCancel}
+      size="form"
       title={title}
       description={description}
       footer={

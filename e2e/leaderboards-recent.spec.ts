@@ -173,6 +173,7 @@ test("Recent form ranks every full 20-game window by win rate, shared places and
         games: Number(e.getAttribute("data-games")),
         wins: Number(e.getAttribute("data-wins")),
         tied: e.hasAttribute("data-tied"),
+        you: e.hasAttribute("data-you"),
         note: e.querySelector('[data-testid="form-note"]')?.textContent ?? null,
         token: gap?.textContent ?? null,
         tokenHidden: gap?.getAttribute("aria-hidden") === "true",
@@ -194,7 +195,7 @@ test("Recent form ranks every full 20-game window by win rate, shared places and
   expect(ranked.filter((r) => r.tied).every((r) => ranked.some((o) => o !== r && o.place === r.place))).toBe(true);
   // First place has no note; every other place says its gap in wins, or that one win draws level.
   expect(ranked[0]!.note).toBeNull();
-  for (const r of ranked.filter((x) => x.place > 1 && ranked.some((o) => o.rate > x.rate))) expect(r.note).toMatch(/^(\d+ wins? behind|Win your next game to draw level with) /);
+  for (const r of ranked.filter((x) => x.place > 1 && ranked.some((o) => o.rate > x.rate))) expect(r.note).toMatch(/^(\d+ wins? behind|Win your next game to draw level with|\S.* draws level with) /);
   // The gap shows short (D5), the sentence stays for screen readers: first place "—"; every other
   // place "k wins behind" (k = the gap in win rate over 5 points a win) or "A win ties Nth", the place
   // one win would share (5 points short of it, and the sentence says the next win draws level).
@@ -207,7 +208,8 @@ test("Recent form ranks every full 20-game window by win rate, shared places and
     if (level) {
       expect(Number(level[1])).toBe(ranked.find((o) => o.rate === above)!.place);
       expect(above - r.rate).toBe(5);
-      expect(r.note).toMatch(/^Win your next game to draw level with /);
+      // Worded for the viewer (PLAN §1.12): "your" on their own row only, the player's name on anyone else's.
+      expect(r.note).toMatch(r.you ? /^Win your next game to draw level with / : / draws level with .+ by winning their next game$/);
     } else {
       const k = Number(/^(\d+) wins? behind$/.exec(r.token!)![1]);
       expect(k).toBe((above - r.rate) / 5);
@@ -553,15 +555,35 @@ test("the season records: seven cells in one panel, each opening its game; multi
   for (const cell of await page.getByTestId("season-record").all()) await cell.scrollIntoViewIfNeeded();
   await page.waitForLoadState("networkidle");
   expect(prefetched, "the record cells' games prefetched").toEqual([]);
-  // The whole row opens its game in the holder's Match History (under its card, or in the match window).
+  // The whole row opens its game over the board (PLAN S6c, UD.L3): a docked Peek from md, the window on phones, at
+  // /leaderboards?match= (one history entry), with "Open in Match History" inside; ‹ › step through the records' games,
+  // and Escape or Back close it on /leaderboards with the focus back on the row.
   const kills = page.locator('[data-testid=season-record][data-record="kills"]');
-  await expect(kills.locator("[data-row-link]")).toHaveAttribute("href", /^\/players\/[^/]+\/matches\?match=/);
+  await expect(kills.locator("[data-row-link]")).toHaveAttribute("href", /^\/leaderboards\?match=/);
   // A click on the row's figure, not on its words: the link covers the whole row (no link is drawn there).
   await kills.scrollIntoViewIfNeeded();
+  const before = await page.evaluate(() => history.length);
   const value = (await kills.getByTestId("record-value").boundingBox())!;
   await page.mouse.click(value.x + value.width / 2, value.y + value.height / 2);
-  await expect(page).toHaveURL(/\/players\/[^/]+\/matches\?match=/);
-  await expect(page.locator("[data-testid=match-detail], [data-testid=match-breakdown]").first()).toBeVisible();
+  await expect(page).toHaveURL(/\/leaderboards\?match=/);
+  const peek = page.getByTestId("record-game-peek");
+  await expect(peek.getByTestId("record-game-history")).toHaveAttribute("href", /^\/players\/[^/]+\/matches\?match=/);
+  await expect(peek.getByTestId("match-breakdown")).toBeVisible();
+  expect(await page.evaluate(() => history.length)).toBe(before + 1);
+  const first = new URL(page.url()).searchParams.get("match");
+  await peek.getByTestId("record-game-peek-next").click();
+  await expect.poll(() => new URL(page.url()).searchParams.get("match")).not.toBe(first);
+  expect(await page.evaluate(() => history.length), "‹ › replace the entry").toBe(before + 1);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/leaderboards$/);
+  await expect(peek).toBeHidden();
+  // Opened again and closed with Escape (✕ on a phone's window): the board, unmoved, and the focus on the row.
+  await page.mouse.click(value.x + value.width / 2, value.y + value.height / 2);
+  await expect(peek.getByTestId("record-game-history")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page).toHaveURL(/\/leaderboards$/);
+  await expect(peek).toBeHidden();
+  await expect(kills.locator("[data-row-link]")).toBeFocused();
 });
 
 /** Where each board is on the page (document px), the grid's gap, Recent form's tier (its rows' columns: 4, 6 or 8), and the window. */
@@ -775,4 +797,24 @@ test("tablet: one column, the season records two to a row, the streak across bot
   expect(f.multikills.top).toBeGreaterThanOrEqual(f.records.bottom);
   expect(f.milestones.top).toBeGreaterThanOrEqual(f.multikills.bottom);
   await noOverflow(page);
+});
+
+test("tablet and desktop: one Peek giving way to the other (a player, then a record's game, and back again) keeps one entry, so Back after closing leaves the board for the page before", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "the docked Peeks: one project's time (the history rule is the same on a tablet)");
+  await page.goto("/matches");
+  await page.goto("/leaderboards");
+  await expect(page.getByTestId("leaderboards")).toHaveAttribute("data-ready", "true");
+  const before = await page.evaluate(() => history.length);
+  for (const order of [["player", "record"], ["record", "player"]] as const) {
+    for (const what of order) {
+      if (what === "player") await page.getByTestId("board-peek-open").first().click();
+      else await page.locator('[data-testid=season-record][data-record="kills"] [data-row-link]').click();
+      await expect(page).toHaveURL(what === "player" ? /\/leaderboards\?player=/ : /\/leaderboards\?match=/);
+    }
+    expect(await page.evaluate(() => history.length), `${order.join(" then ")}: one entry for the Peek`).toBe(before + 1);
+    await page.keyboard.press("Escape");
+    await expect(page).toHaveURL(/\/leaderboards$/);
+  }
+  await page.goBack();
+  await expect(page).toHaveURL(/\/matches$/);
 });

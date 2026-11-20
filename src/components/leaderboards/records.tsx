@@ -13,6 +13,7 @@ import { RECORD_YOURS, RECORD_YOURS_VALUE } from "./record-yours";
 import { SeasonChoice } from "./season-choice";
 import { SECTIONS } from "./sections";
 import { PeekRowLink } from "./leaderboards-peek";
+import { RecordGameLink } from "./record-game";
 
 /*
   THE SEASON'S RECORDS AND ACHIEVEMENTS (docs/TEAM_LEADERBOARDS.md), the Leaderboards page's
@@ -126,7 +127,7 @@ function yoursText(record: RecordView, viewer: string | null): ReactNode {
  * record with its qualifier, who holds it (their picture and name as their card shows them; in a
  * narrow cell the name alone, so it keeps a line's room beside the figure), the champion, role,
  * K/D/A and date, the value with its unit, and the viewer's own best. The whole cell opens the game
- * in the holder's Match History (`?match=`); the streak, set over several games, and the public
+ * over the board (`/leaderboards?match=`, RecordGamePeek), with the way to the holder's Match History inside; the streak, set over several games, and the public
  * boards open none. Inside its own li (the cell, which measures itself), so it is a div. Exported
  * for its markup test (the states the demo never shows).
  */
@@ -151,9 +152,15 @@ export function RecordRow({ record, player, champ, viewer }: { record: RecordVie
         // would be a server render of its own (Vercel Active CPU); the game loads in full on the click anyway.
         link={
           href ? (
-            <RowLink href={href} prefetch={false} testId="record-open">
-              {record.label}: open the game
-            </RowLink>
+            holder?.game ? (
+              <RecordGameLink matchId={holder.game.matchId} href={href}>
+                {record.label}: open the game
+              </RecordGameLink>
+            ) : (
+              <RowLink href={href} prefetch={false} testId="record-open">
+                {record.label}: open the game
+              </RowLink>
+            )
           ) : null
         }
         figures={

@@ -1,7 +1,7 @@
 import { PAGE_TITLE } from "@/components/ui/page-header";
 import { cn } from "@/lib/cn";
 import Link from "next/link";
-import { ChevronDown } from "lucide-react";
+import { Fold } from "@/components/ui/fold";
 import { redirect } from "next/navigation";
 import { getAuthState } from "@/server/auth/session";
 import { setupKeyConfigured } from "@/server/auth/recovery";
@@ -31,17 +31,13 @@ export default async function RecoverPage() {
         <div className="mt-4 text-sm text-fg-muted" data-testid="recover-not-configured">
           <p>The setup key is not configured, so recovery cannot run yet.</p>
           {/* The deployment's instructions are the owner's: folded, so the page leads with what it is for (UD.PB2). */}
-          <details className="group mt-2 rounded-md border border-border bg-bg-elevated/60" data-testid="recover-instructions">
-            <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-2 px-3 text-sm font-medium text-fg marker:hidden pointer-coarse:min-h-11 [&::-webkit-details-marker]:hidden">
-              How to set the setup key
-              <ChevronDown className="h-4 w-4 shrink-0 text-fg-subtle transition-transform group-open:rotate-180" aria-hidden />
-            </summary>
+          <Fold variant="row" className="mt-2 rounded-md border border-border bg-bg-elevated/60" summaryClassName="px-3" summary={<span className="text-sm font-medium text-fg">How to set the setup key</span>} testId="recover-instructions">
             <div className="space-y-2 px-3 pb-3">
               <p>Add it in your hosting environment and redeploy, then return here:</p>
               <pre className="whitespace-pre-wrap rounded-md border border-border bg-bg p-3 text-xs [overflow-wrap:anywhere]">UNIIVERSE_ACCESS_PASSWORD=a-long-random-string-only-you-know</pre>
               <p className="text-xs text-fg-subtle">On Vercel: Project → Settings → Environment Variables (Production), then Deployments → ⋯ → Redeploy.</p>
             </div>
-          </details>
+          </Fold>
         </div>
       )}
       <p className="mt-4 text-xs text-fg-subtle">

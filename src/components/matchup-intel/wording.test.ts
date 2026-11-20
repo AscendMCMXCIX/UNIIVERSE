@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { KIND_GROUPS, RIOT_TEXT_KINDS, type UnknownCooldownReason } from "@/domain/matchup-intel/types";
 import { estimateWord, refusedWords } from "@/domain/matchup-intel/refused-words";
 import {
+  glanceCooldown,
   UNKNOWN_WORDS,
   abilityAnchor,
   abilityName,
@@ -430,5 +431,25 @@ describe("the assembled reference's fixed sentences and labels", () => {
     expect(tightCooldownWords({ kind: "per-rank", seconds: [13, 13, 13, 13, 13], starts: null, from: "ddragon" })).toBe("13\u00a0s at every rank");
     expect(tightCooldownWords({ kind: "unknown", reason: "passive-not-in-ddragon" })).toBeNull();
     expect(tightCooldownWords({ kind: "charges", charges: [3], recharge: [30] })).toBeNull();
+  });
+});
+
+describe("glanceCooldown: a phone's glance tile (glance.tsx)", () => {
+  it("gives the first and the last rank's base cooldown, one value once, and a word where there is no single number", () => {
+    expect(glanceCooldown({ kind: "per-rank", seconds: [16, 14, 12, 10, 8], starts: null, from: "ddragon" }).short).toBe("16–8 s");
+    expect(glanceCooldown({ kind: "per-rank", seconds: [120, 120, 120], starts: null, from: "ddragon" }).short).toBe("120 s");
+    expect(glanceCooldown({ kind: "none" }).short).toBe("None");
+    expect(glanceCooldown({ kind: "unknown", reason: "no-data" })).toMatchObject({ short: "No data", known: false });
+    expect(glanceCooldown({ kind: "forms", forms: [{ name: "Human", cooldown: { kind: "none" } }, { name: "Cougar", cooldown: { kind: "none" } }] }).short).toBe("Forms");
+  });
+
+  it("never shows a charge's recharge as a cooldown, and keeps the whole line for its name", () => {
+    const c = glanceCooldown({ kind: "charges", charges: [3, 4, 5], recharge: [35, 30, 25] });
+    expect(c.short).toBe("Charges");
+    expect(c.full).toContain("one back every");
+  });
+
+  it("says in the whole line that haste does not shorten a static cooldown, as the full tile does", () => {
+    expect(glanceCooldown({ kind: "per-rank", seconds: [10], starts: null, from: "curated" }, { static: true }).full).toMatch(/haste/);
   });
 });

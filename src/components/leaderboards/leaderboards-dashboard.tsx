@@ -12,6 +12,7 @@ import { Milestones, Multikills, SeasonRecords } from "./records";
 import { SECTIONS } from "./sections";
 import { LeaderboardsPinnedIndex } from "./leaderboards-index";
 import { LeaderboardsPeek } from "./leaderboards-peek";
+import { RecordGamePeek, type RecordGame } from "./record-game";
 
 /** The page's sections after Recent form, for its index; the pinned copies add Recent form, to return to it. */
 const INDEX = [
@@ -96,6 +97,8 @@ export function LeaderboardsDashboard({ view, champions, status, peekable }: { v
   const formOrder = [...view.form.rows.map((r) => r.playerId), ...view.form.notEnough.map((r) => r.playerId)];
   const peekIds = [...new Set([...formOrder, ...linked.map((p) => p.id)])].filter((id) => view.players[id]?.profileHref && (peekable ?? []).includes(id));
   const peekNames = linked.map((p): [string, string] => [p.id, p.name]);
+  // A record's game over the board (members' page only: the public boards carry no game), in the records' order.
+  const recordGames: RecordGame[] = view.records.records.flatMap((r) => (r.holder?.game ? [{ matchId: r.holder.game.matchId, playerId: r.holder.playerId, historyHref: r.holder.game.historyHref, title: `${r.label} · ${view.players[r.holder.playerId]?.name ?? "Member"}` }] : []));
   return (
     <LeaderboardsRoot className="@container/dash mx-auto flex w-full max-w-[var(--content-wide)] flex-col gap-4">
       {/* The title and who is on the boards, with how current they are (the members' page) or when they were last read (the public one). */}
@@ -138,6 +141,7 @@ export function LeaderboardsDashboard({ view, champions, status, peekable }: { v
           />
           <LeaderboardsPinnedIndex anchorId="leaderboards-header" items={PINNED_INDEX} phoneItems={PHONE_INDEX} />
           <LeaderboardsPeek ids={peekIds} names={peekNames} viewerPlayerId={view.viewer}>
+          <RecordGamePeek games={recordGames} championsById={champions}>
           <div className={GRID} data-testid="leaderboards-grid">
             <RecentForm form={view.form} player={player} viewer={view.viewer} className={FORM_PLACE} />
             <div className={SIDE} data-testid="leaderboards-side">
@@ -146,6 +150,7 @@ export function LeaderboardsDashboard({ view, champions, status, peekable }: { v
             </div>
             <Milestones records={view.records} player={player} champ={champ} className={MILESTONES_PLACE} />
           </div>
+          </RecordGamePeek>
           </LeaderboardsPeek>
         </>
       )}

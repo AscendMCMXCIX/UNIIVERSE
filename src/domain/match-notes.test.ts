@@ -67,7 +67,7 @@ describe("match notes", () => {
     const notes = notesOf(x);
     expect(notes.well.find((n) => n.id === "L1")!.text).toBe("You had 700 more gold than Darius at 10 minutes.");
     expect(notes.wrong.find((n) => n.id === "L4")!.text).toBe("You went from 700 gold ahead of Darius to 600 behind between 10 and 15 minutes.");
-    expect(notes.focus).toEqual({ kind: "lane", text: "Between 10 and 15 minutes against Darius: from +700 to −600 gold." });
+    expect(notes.focus).toEqual({ kind: "lane", text: "Between 10 and 15 minutes against Darius: from +700 to −600 gold.", cue: "L4" });
     // A lane behind at 10 minutes (L2) still points at the first 10.
     expect(matchNotes(base({ lane: lane([50, 62], [3000, 3800]) })).focus?.text).toBe("The first 10 minutes against Garen: 50 CS and −800 gold at 10:00.");
   });

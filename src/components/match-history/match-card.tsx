@@ -137,7 +137,7 @@ export function lpSpoken(lp: LpRecord): string {
  * is none: on hover, or a tap on a touch screen (which leaves the card closed). Nothing is ever
  * estimated.
  */
-export function LpChange({ lp, className, dense = false }: { lp: LpRecord | null; className?: string; /** Inside a line of text: no taller than the line. */ dense?: boolean }) {
+export function LpChange({ lp, className, dense = false, focusable = false }: { lp: LpRecord | null; className?: string; /** Inside a line of text: no taller than the line. */ dense?: boolean; /** A tab stop of its own (the game window's header, where no card's label says it): the reason within a keyboard's reach (TT.TD12). */ focusable?: boolean }) {
   if (!lp) return null;
   const leading = dense ? "leading-4" : "leading-5";
   const pill = cn("inline-flex items-center gap-0.5 whitespace-nowrap rounded px-1.5 text-xs font-semibold", leading);
@@ -167,11 +167,12 @@ export function LpChange({ lp, className, dense = false }: { lp: LpRecord | null
     );
   // The tooltip's trigger is 24px tall (its target size), with margins that keep it to a 16px line;
   // a 20px pill gets 2px of padding around that, so the card keeps its layout. The dash's trigger
-  // is widened the same way (padding, cancelled by margins). It is no tab stop: the card is the one
-  // stop, and the card's label already says the LP.
+  // is widened the same way (padding, cancelled by margins). On a card it is no tab stop: the card is
+  // the one stop, and the card's label already says the LP; in the game window's header it is one
+  // (`focusable`), so a keyboard reaches what the figure rests on, or why there is none.
   return (
     <span className={cn("inline-flex", !dense && "py-0.5", className)}>
-      <InfoTip text={lpNote(lp)} testId="match-lp-tip" tabIndex={-1} className={lp.kind === "none" ? "-mx-1.5 px-1.5" : undefined}>
+      <InfoTip text={lpNote(lp)} testId="match-lp-tip" tabIndex={focusable ? undefined : -1} className={lp.kind === "none" ? "-mx-1.5 px-1.5" : undefined}>
         {mark}
       </InfoTip>
     </span>

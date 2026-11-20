@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { CircleDot, TrendingDown, TrendingUp } from "lucide-react";
+import { CircleDot, Swords, TrendingDown, TrendingUp } from "lucide-react";
+import Link from "next/link";
 import { getMatchGroupsAction, getMatchMeetingsAction, getMatchRanksAction, getMatchTimelineAction, type MatchMeetingsResult } from "@/server/actions/match-history";
 import type { MatchGroupsResult } from "@/server/matches/possible-groups";
 import type { MatchTimelineResult, MatchTimelineView } from "@/server/accounts/match-timeline";
@@ -12,12 +13,15 @@ import { matchNotes, type MatchNotes, type NotesInput } from "@/domain/match-not
 import { isGameRole } from "@/domain/season-stats";
 import { formatCount, formatDateTime, formatKilo } from "@/lib/format";
 import { cn } from "@/lib/cn";
+import { Fold } from "@/components/ui/fold";
 import { MatchDetailCacheContext, type MeetingScope } from "./match-detail-cache";
 import { OpggHistoryLink } from "./opgg-history-link";
 import { GroupsNote, RanksNote, TeamTable } from "./scoreboard";
 import { TimelinePanel } from "./match-timeline-panel";
 import { BuildPanel } from "./build-panel";
 import { IconImg } from "./icon-img";
+import { lineupHref } from "@/components/matchup-intel/address";
+import type { Role } from "@/domain/matchup-intel/types";
 
 /*
   One game after it was played, in one view, the same wherever a game opens: under its card in
@@ -294,7 +298,31 @@ function NoteList({ title, tone, Icon, items, testId }: { title: string; tone: s
   );
 }
 
-function Notes({ notes }: { notes: MatchNotes | null }) {
+/**
+ * The lane's Focus next, a link to Matchup Intel with that lane's pair (S7a's address: the role, your
+ * champion and the lane opponent; the bot lane's four when the Focus follows its two against two,
+ * L5). Only a way to the pre-game tool: it adds no claim to the note's. Null for any other Focus, or
+ * without the champions the lane needs (no unique opponent, an unknown role).
+ */
+export function laneIntelLink(view: MatchDetailView, notes: MatchNotes | null, champ: (id: string | null) => PortraitChampion, timeline: MatchTimelineView | null): { href: string; label: string } | null {
+  if (notes?.focus?.kind !== "lane" || !isGameRole(view.role)) return null;
+  const role = view.role.toLowerCase() as Role;
+  const you = view.championId;
+  if (notes.focus.cue === "L5") {
+    const pair = timeline?.pair;
+    const everyone = view.teams.flatMap((t) => t.participants);
+    const at = (slot: number | undefined) => everyone.find((x) => x.slot === slot)?.championId ?? null;
+    const ally = at(pair?.allySlot);
+    const [enemy, enemy2] = [at(pair?.opponentSlots[0]), at(pair?.opponentSlots[1])];
+    if (!pair || !ally || !enemy || !enemy2 || (role !== "adc" && role !== "support")) return null;
+    return { href: lineupHref({ role, you, ally, enemy, enemy2 }), label: `Prepare ${champ(you).name} and ${champ(ally).name} vs ${champ(enemy).name} and ${champ(enemy2).name} in Matchup Intel` };
+  }
+  const enemy = view.comparison.opponent?.championId ?? null;
+  if (!enemy) return null;
+  return { href: lineupHref({ role, you, enemy, ally: null, enemy2: null }), label: `Prepare ${champ(you).name} vs ${champ(enemy).name} in Matchup Intel` };
+}
+
+function Notes({ notes, intel }: { notes: MatchNotes | null; intel: { href: string; label: string } | null }) {
   if (!notes) return (
       // A polite status that says what loads; the pulse itself is hidden (a div may not be named: aria-naming.test.ts).
       <div role="status" className="h-16 animate-pulse rounded-lg bg-surface-2 motion-reduce:animate-none" data-testid="post-game-notes-loading">
@@ -306,6 +334,13 @@ function Notes({ notes }: { notes: MatchNotes | null }) {
       <NoteList title="Went well" tone="text-good" Icon={TrendingUp} items={notes.well.map((n) => n.text)} testId="notes-well" />
       <NoteList title="Went wrong" tone="text-warn" Icon={TrendingDown} items={notes.wrong.map((n) => n.text)} testId="notes-wrong" />
       <NoteList title="Focus next" tone="text-accent" Icon={CircleDot} items={notes.focus ? [notes.focus.text] : []} testId="notes-focus" />
+      {notes.focus && intel ? (
+        <Link href={intel.href} prefetch={false} className="inline-flex min-h-6 items-center gap-1.5 text-xs font-medium text-accent hover:underline focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:min-h-11" data-testid="notes-focus-intel">
+          <Swords className="h-3.5 w-3.5 shrink-0" aria-hidden />
+          {intel.label}
+          <span aria-hidden>→</span>
+        </Link>
+      ) : null}
       {notes.fallback ? (
         <p className="text-xs text-fg-muted" data-testid="notes-fallback">
           {notes.fallback}
@@ -341,7 +376,7 @@ export function PostGame({ playerId, view, champ, variant, encounterLinks = fals
           <Loadout p={p} champ={champ(view.championId)} small={variant === "window"} />
           <Figures p={p} teamKills={ownTeam?.kills ?? 0} />
           <Lane view={view} champ={champ} timeline={tl} />
-          <Notes notes={notes} />
+          <Notes notes={notes} intel={laneIntelLink(view, notes, champ, tl)} />
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-fg-subtle empty:hidden">
             <span className={cn("tabular-nums", variant === "window" && "hidden")} data-testid="match-breakdown-when">
               {formatDateTime(new Date(view.playedAt))}
@@ -367,30 +402,23 @@ export function PostGame({ playerId, view, champ, variant, encounterLinks = fals
         </p>
       ) : (
         <div className="grid grid-cols-2 items-start gap-2" data-testid="post-game-folds">
-          <Fold title="Gold over the game" testId="fold-gold">
+          <PostGameFold title="Gold over the game" testId="fold-gold">
             <TimelinePanel result={timeline} />
-          </Fold>
-          <Fold title="Build and skill order" testId="fold-build">
+          </PostGameFold>
+          <PostGameFold title="Build and skill order" testId="fold-build">
             <BuildPanel result={timeline} />
-          </Fold>
+          </PostGameFold>
         </div>
       )}
     </div>
   );
 }
 
-/** A fold (native details): closed by default, one chevron. */
-function Fold({ title, children, testId }: { title: string; children: React.ReactNode; testId: string }) {
-  const [opened, setOpened] = React.useState(false);
+/** A fold of the view (the shared Fold): closed by default, its chart drawn once it is first opened. */
+function PostGameFold({ title, children, testId }: { title: string; children: React.ReactNode; testId: string }) {
   return (
-    <details className="group rounded-lg border border-border bg-surface open:col-span-2" data-testid={testId} onToggle={(e) => setOpened((e.currentTarget as HTMLDetailsElement).open)}>
-      <summary className="flex min-h-10 cursor-pointer list-none items-center gap-2 rounded-lg px-3 text-sm font-medium text-fg hover:bg-surface-2/60 focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:min-h-11 [&::-webkit-details-marker]:hidden">
-        <span className="text-fg-subtle transition-transform group-open:rotate-90" aria-hidden>
-          ›
-        </span>
-        {title}
-      </summary>
-      {opened ? <div className="border-t border-border p-3">{children}</div> : null}
-    </details>
+    <Fold variant="panel" title={title} lazy className="open:col-span-2" testId={testId}>
+      {children}
+    </Fold>
   );
 }

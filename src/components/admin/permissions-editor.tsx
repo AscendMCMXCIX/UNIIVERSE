@@ -139,12 +139,8 @@ export function PermissionPresetsPanel({
         <Dialog
           open
           onClose={() => setEditing(null)}
-          title={
-            editing.id
-              ? `Edit “${editing.name || "level"}”`
-              : "New access level"
-          }
-          width="wide"
+          title={editing.id ? `Edit “${editing.name || "level"}”` : "New access level"}
+          size="picker"
           footer={
             <>
               <Button

@@ -149,4 +149,29 @@ describe("Matchup Intel's evidence rows and the app's other rules", () => {
       expect(await teamN(), `eraseProfile ${eraseProfile}`).toBe(0);
     }
   });
+
+  it("prep-backfill makes again a row whose starting set was made, before the sales rule, from a timeline that keeps the sales; a row from a timeline without them is left as it is", async () => {
+    const db = handle.db;
+    const team = await getOrCreateTeam(db);
+    const p = await createPlayer(db, team.id, { displayName: "starter", primaryRole: "TOP", primaryPool: ["Riven"] });
+    const acc = await addAccount(db, { ownerType: "player", playerId: p.id, riotId: "starter#OCE", platform: "oc1", puuid: "starter-puuid" });
+    const purchases: Array<[number, number]> = [[5_000, 1055], [6_000, 2003], [7_000, 2003]];
+    for (const [matchId, keepsSales] of [["S1", true], ["S2", false]] as const) {
+      await db.insert(accountMatches).values({ accountId: acc.id, matchId, gameCreation: 9, queueId: 420, championId: "Riven", role: "TOP", win: true, enemyChampionId: "Darius", patch: "16.22", gameDuration: 1800, teamId: 100 });
+      await db.insert(matchDetails).values({ matchId, platform: "oc1", queueId: 420, gameCreation: 9, gameDuration: 1800, gameVersion: "16.22.1", teams: [], participants: rec().map((x, i) => (i === 0 ? { ...x, puuid: "starter-puuid" } : x)) });
+      // A potion sold at 40 s: kept by a timeline stored from 20 Nov 2026 on (its events hold the plates).
+      await db.insert(matchTimelines).values({ matchId, platform: "oc1", participants: [{ puuid: "starter-puuid", purchases, skills: [], ...(keepsSales ? { sold: [[40_000, 2003]] as Array<[number, number]> } : {}) }], frames: { t: [0, 60000], p: {} }, events: keepsSales ? { objectives: [], plates: [] } : { objectives: [] } });
+      // The row as the rule before the sales made it: every first-minute purchase.
+      await db.insert(accountMatchPrep).values({ accountId: acc.id, matchId, format: 1, prep: { f: 1, lane: "TOP", rule: null, tl: true, start: "1055,2003,2003" } });
+    }
+    const run = await backfillMatchPrep(db);
+    expect(run).toMatchObject({ read: 1, inserted: 1, remaining: 0 });
+    const rows = await db.select().from(accountMatchPrep).where(eq(accountMatchPrep.accountId, acc.id));
+    const of = (m: string) => rows.find((r) => r.matchId === m)!.prep;
+    expect(of("S1")).toMatchObject({ start: "1055,2003", sk: true, tl: true });
+    expect(of("S2")).toMatchObject({ start: "1055,2003,2003" });
+    expect(of("S2").sk).toBeUndefined();
+    // Made again once: the next run reads nothing.
+    expect(await backfillMatchPrep(db)).toMatchObject({ read: 0, inserted: 0 });
+  });
 });

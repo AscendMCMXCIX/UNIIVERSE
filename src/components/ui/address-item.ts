@@ -41,6 +41,33 @@ export function itemIn(search: string, param: string): string | null {
   return new URLSearchParams(search).get(param) || null;
 }
 
+/** Whether each open address item's entry was pushed by its page (by param), for takeOver. */
+const pushedByParam = new Map<string, boolean>();
+let takingOver = false;
+
+/**
+ * Closes the item under `param` in place (its entry replaced without it, and its hook told, as Back
+ * would tell it), for another item to open instead: where that entry was one its page pushed, the
+ * next item opened, in this same task, takes the entry over (replaced, and Back closes it) rather
+ * than pushing a second one, so Back still leaves the page in one step (Leaderboards' two Peeks:
+ * Release 9 review). Returns whether there was an item to close.
+ */
+export function closeInPlace(param: string): boolean {
+  const url = new URL(window.location.href);
+  if (!url.searchParams.has(param)) return false;
+  const pushed = pushedByParam.get(param) === true;
+  url.searchParams.delete(param);
+  window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+  window.dispatchEvent(new PopStateEvent("popstate", { state: window.history.state }));
+  if (pushed) {
+    takingOver = true;
+    setTimeout(() => {
+      takingOver = false;
+    }, 0);
+  }
+  return true;
+}
+
 export interface AddressItem {
   /** The open item, or null. */
   id: string | null;
@@ -65,6 +92,14 @@ export function useAddressItem(param: string, { initial = null, valid }: { initi
   const id = raw !== null && valid && !valid(raw) ? null : raw;
   // Whether the entry holding the open item is one this page pushed (Back then closes it).
   const pushed = React.useRef(false);
+  // Every change of `pushed` is published for closeInPlace.
+  const setPushed = React.useCallback(
+    (v: boolean) => {
+      pushed.current = v;
+      pushedByParam.set(param, v);
+    },
+    [param],
+  );
   const current = React.useRef(id);
   React.useLayoutEffect(() => {
     current.current = id;
@@ -77,7 +112,7 @@ export function useAddressItem(param: string, { initial = null, valid }: { initi
       const step = historyStep(from, to, pushed.current);
       current.current = to;
       if (step === "back") {
-        pushed.current = false;
+        setPushed(false);
         setRaw(null);
         window.history.back();
         return;
@@ -85,16 +120,21 @@ export function useAddressItem(param: string, { initial = null, valid }: { initi
       const href = itemHref(`${window.location.pathname}${window.location.search}${window.location.hash}`, param, to);
       // No state of our own: Next.js copies its own onto the entry and, given a state without its
       // marker, takes the new address into its router (useSearchParams, refreshes keep the item).
-      if (step === "push") {
+      if (step === "push" && takingOver) {
+        // The entry another item was closed in place from, which its page had pushed: taken over.
+        takingOver = false;
+        window.history.replaceState(null, "", href);
+        setPushed(true);
+      } else if (step === "push") {
         window.history.pushState(null, "", href);
-        pushed.current = true;
+        setPushed(true);
       } else {
         window.history.replaceState(null, "", href);
-        if (to === null) pushed.current = false;
+        if (to === null) setPushed(false);
       }
       setRaw(to);
     },
-    [param],
+    [param, setPushed],
   );
 
   // The address as the page mounts: a page restored by Back (its cached render) may hold an item the
@@ -102,24 +142,24 @@ export function useAddressItem(param: string, { initial = null, valid }: { initi
   React.useLayoutEffect(() => {
     const at = itemIn(window.location.search, param);
     if (at !== current.current) {
-      pushed.current = false;
+      setPushed(false);
       current.current = at;
       setRaw(at);
     }
-  }, [param]);
+  }, [param, setPushed]);
 
   React.useEffect(() => {
     const onPop = () => {
       const next = itemIn(window.location.search, param);
       // Back from the pushed entry lands on the one before it (nothing open); Forward lands on an
       // entry this page pushed earlier, so Back closes it again.
-      pushed.current = next !== null;
+      setPushed(next !== null);
       current.current = next;
       setRaw(next);
     };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
-  }, [param]);
+  }, [param, setPushed]);
 
   const open = React.useCallback((to: string) => go(to), [go]);
   const close = React.useCallback(() => go(null), [go]);

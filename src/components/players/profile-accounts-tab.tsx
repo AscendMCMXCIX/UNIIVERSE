@@ -8,6 +8,7 @@ import { getMatchSyncStatus } from "@/server/accounts/refresh";
 import { dataStatus } from "@/domain/data-status";
 import { describeAccountSync } from "@/domain/account-status";
 import { getPlayerDataReport } from "@/server/proficiency/provenance";
+import { Fold } from "@/components/ui/fold";
 import { RiotAccountsPanel } from "@/components/team/riot-accounts-panel";
 import { PlayerDataPanel } from "@/components/team/player-data-panel";
 import { ErrorBoundary } from "@/components/error-boundary";
@@ -58,17 +59,11 @@ async function ProfileAccountsTabBody({ db, header, session }: { db: Db; header:
         refresh={refreshFor(session, player.id, sync)}
       />
       {report ? (
-        <details className="group rounded-card border border-border bg-surface" data-testid="data-diagnostics">
-          <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-2 px-4 text-sm font-medium text-fg-muted hover:text-fg">
-            Data diagnostics
-            <span className="text-xs font-normal text-fg-subtle">Admins: every champion&apos;s collected history and rating inputs</span>
-          </summary>
-          <div className="border-t border-border p-3">
-            <ErrorBoundary label="Riot data">
-              <PlayerDataPanel report={report} championsById={championsById} admin playerName={player.displayName} selfView={session?.playerId === player.id} showAccounts={false} />
-            </ErrorBoundary>
-          </div>
-        </details>
+        <Fold title="Data diagnostics" description="Admins: every champion's collected history and rating inputs" testId="data-diagnostics">
+          <ErrorBoundary label="Riot data">
+            <PlayerDataPanel report={report} championsById={championsById} admin playerName={player.displayName} selfView={session?.playerId === player.id} showAccounts={false} />
+          </ErrorBoundary>
+        </Fold>
       ) : null}
     </div>
   );

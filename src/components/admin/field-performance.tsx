@@ -2,7 +2,7 @@ import { VITALS, formatVitalBound, type VitalMetric, type VitalSummary } from "@
 import type { VitalsReport } from "@/server/observability/web-vitals";
 import { Panel, PanelBody, PanelHeader, SectionLabel } from "@/components/ui/panel";
 import { Badge } from "@/components/ui/badge";
-import { Disclosure } from "@/components/ui/disclosure";
+import { Fold } from "@/components/ui/fold";
 import { formatCount } from "@/lib/format";
 
 /*
@@ -78,7 +78,7 @@ export function FieldPerformancePanel({ report }: { report: VitalsReport }) {
                 );
               })}
             </ul>
-            <Disclosure title="Technical details" description="By device and by page." testId="field-performance-details">
+            <Fold title="Technical details" description="By device and by page." testId="field-performance-details">
               <div className="space-y-4 text-xs">
                 <p className="text-fg-subtle">Field data from members&apos; own browsers since {report.since}, not a lab test. A figure is the value 75% of loads stayed within.</p>
                 <table className={TABLE}>
@@ -156,7 +156,7 @@ export function FieldPerformancePanel({ report }: { report: VitalsReport }) {
                   Good, needs work and poor follow Google&apos;s Core Web Vitals thresholds (LCP 2.5 s and 4 s, INP 200 ms and 500 ms, CLS 0.1 and 0.25). Only the page group and device class are recorded with each count: nothing identifies a member or what they opened. Browsers that do not support a measure send none for it.
                 </p>
               </div>
-            </Disclosure>
+            </Fold>
           </>
         )}
       </PanelBody>

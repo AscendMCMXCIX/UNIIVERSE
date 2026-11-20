@@ -137,7 +137,7 @@ export interface MatchNotes {
   well: Note[];
   wrong: Note[];
   /** One suggestion, on the viewer's own game only. */
-  focus: { kind: FocusKind; text: string } | null;
+  focus: { kind: FocusKind; text: string; /** The Went wrong note it follows (L2, L4, L5…), or null when it follows a low figure. */ cue: string | null } | null;
   /** One honest line when there is nothing to say, or no baseline yet. */
   fallback: string | null;
 }
@@ -359,7 +359,7 @@ export function matchNotes(x: NotesInput): MatchNotes {
     const low = x.personal?.figures.filter((f) => FIGURE_FOCUS[f.key] && f.percentile <= FOCUS_PERCENTILE).sort((a, b) => a.percentile - b.percentile)[0];
     const kind = cue?.focus ?? (low ? FIGURE_FOCUS[low.key]! : null);
     const text = kind ? focusText(kind, x, { note: cue }) : null;
-    if (kind && text) focus = { kind, text };
+    if (kind && text) focus = { kind, text, cue: cue?.id ?? null };
   }
   const role = x.role ? ROLE_LABELS[x.role] : null;
   const queue = QUEUE_GROUP_WORDS[groupOf(x.queueId)];

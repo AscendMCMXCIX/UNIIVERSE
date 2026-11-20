@@ -10,7 +10,7 @@ import type { SocialKind } from "@/domain/social-links";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Disclosure } from "@/components/ui/disclosure";
+import { Fold } from "@/components/ui/fold";
 import { SearchInput } from "@/components/ui/search-input";
 import { Select } from "@/components/ui/select";
 import { useAddressItem } from "@/components/ui/address-item";
@@ -300,7 +300,7 @@ export function PeoplePanel({
         )}
 
         {accountless.length ? (
-          <Disclosure
+          <Fold
             title={`Profiles without an account · ${accountless.length}`}
             description="Nobody can sign in to these profiles (a test, a placeholder or a deleted account). Adding a player with the same Riot ID reuses it."
             testId="people-group-accountless"
@@ -313,7 +313,7 @@ export function PeoplePanel({
                 <PersonRow key={p.key} p={p} onOpen={person.open} testId="admin-player-row" />
               ))}
             </ul>
-          </Disclosure>
+          </Fold>
         ) : null}
 
         {canManageAccounts && kept.length ? (

@@ -213,6 +213,39 @@ export function LineupSkeleton() {
 }
 
 /**
+ * Riot Accounts (profile-accounts-tab.tsx, RiotAccountsPanel), under the profile's header and tabs:
+ * the panel with its title and one-line lead, then the account cards (two columns from md, as the
+ * list is) and the Add button's row, each as tall as it is drawn (a card about 96px; the button 44px
+ * on touch, 36px with a mouse), so the page lands in the skeleton's place. The title is the panel's
+ * own fixed word. Data diagnostics (administrators only) is left out: most viewers never have it.
+ */
+export function AccountsSkeleton() {
+  return (
+    <div className="space-y-5" role="status" aria-live="polite" aria-label="Loading" data-testid="accounts-skeleton">
+      <section className="panel-depth min-w-0 rounded-panel border border-border bg-surface" aria-hidden>
+        <div className="space-y-0.5 border-b border-border px-3 py-3 sm:px-4">
+          <p className="text-base font-semibold text-fg">Riot accounts</p>
+          <Skeleton className="h-5 w-[min(24rem,100%)]" />
+          {/* On a phone the lead takes two lines. */}
+          <Skeleton className="h-5 w-24 sm:hidden" />
+        </div>
+        <div className="space-y-3 px-3 py-3 sm:px-4">
+          <div className="grid gap-2.5 md:grid-cols-2">
+            <div className="flex flex-col gap-2 rounded-panel border border-border bg-bg-elevated p-3">
+              <Skeleton className="h-6 w-40" />
+              <Skeleton className="h-4 w-28" />
+              <Skeleton className="h-5 w-44" />
+            </div>
+          </div>
+          <Skeleton className="h-11 w-44 pointer-fine:h-9" />
+        </div>
+      </section>
+      <p className="sr-only">Loading…</p>
+    </div>
+  );
+}
+
+/**
  * A profile opened from outside it (players/[id]: the boundary above the profile's layout): the
  * header as tall as it is drawn (the band from sm; the full card on a phone held upright), the
  * section tabs, then the section's own skeleton.
@@ -223,7 +256,7 @@ export function ProfileSkeleton({ section }: { section: "overview" | "champions"
       {/* On a phone held upright the band of Champions, History and Accounts is in the top bar (S2b), and the section tabs are always there. */}
       <div className={cn("h-36 rounded-card border border-border bg-surface band:h-18", section !== "overview" && "max-md:not-short:hidden")} aria-hidden />
       <Skeleton className="h-11 w-full max-w-lg max-md:hidden max-lg:short:hidden" />
-      {section === "overview" ? <OverviewSkeleton /> : section === "champions" ? <ChampionsSkeleton /> : section === "matches" ? <HistorySkeleton /> : <PageSkeleton panels={2} title={false} />}
+      {section === "overview" ? <OverviewSkeleton /> : section === "champions" ? <ChampionsSkeleton /> : section === "matches" ? <HistorySkeleton /> : <AccountsSkeleton />}
     </div>
   );
 }

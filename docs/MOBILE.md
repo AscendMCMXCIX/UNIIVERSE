@@ -32,7 +32,9 @@ text sizes, target sizes) and its interactions were walked through.
 desktop sidebar's four destinations, in its order, with its names and icons: **My Profile, Team,
 Matchup Intel and Resources** in Player Mode, **Dashboard, Users & Permissions, Platform Settings
 and System** in Admin Mode. A tablet's top bar and a phone held sideways show the same four, and so
-does the installed app's icon menu (its shortcuts). `destinations()` in `src/lib/nav.ts` is the one
+does the installed app's icon menu (its shortcuts, each with its destination's own icon: a 96×96 PNG
+in `public/icons/shortcuts` named after the bars' lucide icon, drawn by `scripts/shortcut-icons.mjs`
+with sharp, in the accent on the app's background). `destinations()` in `src/lib/nav.ts` is the one
 list every bar draws, and `src/components/nav-parity.test.ts` renders the sidebar, the tablet's bar,
 the phone's bar and its sideways bar and holds them, and the manifest's shortcuts, to the same
 entries, names, icons and order in both modes. Before, the phone's bar was Team's four sections and
@@ -191,6 +193,8 @@ same; each item is where the desktop has it.
 | My Profile on a phone | the fifth tab, "Profile" | the first tab, "My Profile" (its short name "Profile" at large text) |
 | Matchup Intel and Resources on a phone | rows of the account screen behind the avatar (two taps; "‹ Team" when opened directly) | tabs of the bar, one tap, with no Back on their pages |
 | Matchup Intel's champions once scrolled away (S7a, 20 Nov 2026) | scroll back up to the slots | a pinned pair bar under the top bar (40px portraits and the swap): a champion changed in two taps; the lane a full-width row of five 44px buttons, "Copy link" at the title's row end; the data source in the sources' line at the foot, so the bar's meta keeps to one line (docs/MATCHUP_INTEL.md, "Roles") |
+| Matchup Intel's first screen (20 Nov 2026) | the curated briefing first; the enemy's kit at about 1,450px and the evidence at about 2,640px on a 390 × 844 phone, below the remembered line (44px) | the glance under the pair: every enemy tile with its cooldown line (five tiles of about 68 by 56px; two rows in the bot lane) and the evidence's first row, on the first screen for 1v1 and 2v2 (401 and 650px of 787 at 390 × 844); "Remember" an icon toggle beside "Copy link" (docs/MATCHUP_INTEL.md, "On a phone") |
+| All Champions' Filters (20 Nov 2026) | a row of its own under the scope line | at the end of the title's line (the title itself read out only on phones), the scope's one line under it, as Season performance's (SectionHeader's `toolbarBesideScope` as Release 8 has it): the list starts 14px higher at 393 × 852 |
 | Admin Mode's pages | Dashboard, Users, Settings and Health in the bar; Data & Integrations and Audit Logs on the account screen (a tablet's avatar menu) | Dashboard, Users & Permissions, Platform Settings and System everywhere, System holding Health, Data & Integrations and Audit Logs as its tabs; Users & Permissions' pages on the section tabs, not pills |
 | The account screen | the pages the bar did not hold, Settings, Install App, the mode switch, Sign out, the notes | the account's own items only, with the team's mark at its foot; Back closes it |
 | The installed app's icon menu | Team Overview, My Profile, Matches, Leaderboards | My Profile, Team, Matchup Intel, Resources, read from the navigation |
@@ -260,8 +264,11 @@ Team's four sections, your profile's, Matchup Intel and Resources, and every adm
 entry, so no page claims "‹ Team" unless it is under Team (before navigation N1, Matchup Intel,
 Resources and Settings opened directly all said "‹ Team"; Settings still leads home, Team Overview
 for a member, by its name). Back also closes what is open over the page and leaves the page as it
-was: a game, a champion's window, the account screen and the install window (each with a history
-entry of its own: `?match=`, `?champion=`, or `useBackCloses`), so a phone's system Back, the
+was: a game, a champion's window, the account screen, the install window and the Team player Peek
+(each with a history entry of its own: `?match=`, `?champion=`, `?player=`, or `useBackCloses`).
+The Filters have none: a choice in them replaces the query, and an entry under it would make Back,
+or a close while the choice loads, restore the old address (tried and taken out in S4a, 20 Nov
+2026). Android's Back closes the Filters sheet as it closes any open dialog (its close request), so a phone's system Back, the
 installed Android app's included, works as the browser's does (`e2e/journeys.spec.ts`). A page that adds history entries of its own address (Matchup Intel's pairs) is still one
 page for Back: named after the page before, it goes there, past those entries, where the browser's
 Navigation API shows them (`backSteps`); the browser's own Back steps through them. Where the
@@ -369,10 +376,18 @@ text below 12px; 11px (`text-2xs`) only for badges and labels.
 |---|---|---|
 | Narrow a list | **Filters** opens a sheet from the bottom edge with every filter, each with its label, and Reset and Done at its foot (`FilterBar`). Beside the button, what is narrowed shows as chips that remove themselves with a tap. A search box shares the row with Filters. Choices apply at once, as on desktop. Far down the list, the top bar offers the same Filters (PR 2b), so narrowing never needs scrolling back up; Done after a change lands the list's first item under the bar. A picker in the sheet (Played with, Champions) opens its list in the sheet's body, as tall as its options, and the body scrolls it into view; a tap below the open list closes it and reaches what was tapped. | The scope stays visible without opening anything; the sheet is within reach of the thumb and never pushes the page around. One scroller: a list scrolling inside the sheet's scrolling body was cut off at its edge. Closed as a tap started, the list moved the fields below it up before the tap landed. |
 | Open a game | The game takes the whole screen (the match window), as a new entry in the browser's history, so Back (the button, the edge swipe, Android's key) closes it. A 52px header (the result and champion, a ranked game's LP, ✕), one scrolling body (the meta line, the loadout, the rune line, six figures in 3×2, the lane, the notes, then the scoreboard in two-line rows of about 48px and two folds) and a 60px bar: ‹ Previous · "Game 3 of 10" · Next ›, 44px targets. Previous and Next replace the address (no new entry), show the next game from its top and announce it ("Game 4 of 10: Defeat on Jax"); there is no swipe (it would fight iOS's edge swipe). Closing leaves the list on the last game viewed, with the focus on its card. At 390×844 the whole game is under two screens and the scoreboard starts at about 650px. Its scoreboard keeps the marks for players met in other games; following one closes the game, and Back returns to it. | A scoreboard inside a list is a detour on a narrow screen; reading the next game should not mean closing this one. Desktop keeps the game under its card. |
+| A record's game, a player met | A record's game opens over Leaderboards in the same window (`/leaderboards?match=`, "Open in Match History" inside; Back closes it on the board). Team Matches' window has the same ‹ Previous · "Game 3 of 10" · Next › bar. Encounters (S6c, 20 Nov 2026): the highlights share one line, a highlight about the list's first player is left out (it repeated the row under it), the search waits behind the toolbar's icon (open while it holds a search) and the counting ⓘ sits on the scope line, so at 390 × 844 the list starts at 291px (411 before, about 540 when audited). A player met opens their games as a view (`?met=`, one entry); Back or "‹ All encounters" returns to the list at its exact place, the focus on that row. From lg, where Games shows Refine beside the same filters, Encounters keeps it in view, off, with its reason (UD.H4); a tablet's toolbar keeps its place beside the views. | The list is the page: chrome above it costs players on the first screen, and a way back that loses the place costs a scroll each time. |
 | A champion, a player from Team | The existing detail windows, which already take the whole screen on phones. A Team player is a Peek (`ui/peek.tsx`): on phones and short windows the whole-screen window, with the player in the address (`?player=`) and one history entry pushed, so Back (Android's key too) closes it however many players were seen; from 640px wide (a fine pointer) it is the docked panel beside the lineup. | One container per kind of content (DESIGN_SYSTEM §7). |
 | Account, Settings, Sign out | The account screen, from the avatar. | One menu, not two, every entry a full-width row in reach of the thumb. |
 | A short question or form | `Dialog`: the same sheet as every other (built on `DetailModal`). | One sheet: one look, one motion, one height rule. |
 | Confirm something that cannot be taken back (Admin's setup jobs, a job turned off, a delete with a profile) | The same `Dialog`, docked: the phrase to type above a 16px field (no zoom in Safari), the keyboard capitalising as it likes (any case matches), and the danger button beside Cancel, enabled once the words match. The two deletes of an account stay together on their row and wrap as a pair (S1a, 19 Nov 2026; `e2e/admin-safety.spec.ts` at 375px, `e2e/webkit.spec.ts`). | A deliberate pause that fits a thumb, without a second screen. |
+
+**The phone window shell** (S4a, 20 Nov 2026; DESIGN_SYSTEM §7): a window that takes the whole
+screen collapses its header to a 56px bar once its body scrolls (the item's name and the controls
+stay in reach), opens it again at the top, and closes when its header is pulled down, as a sheet
+does (not the account screen, a screen of its own with nothing to pull). Closing any window moves the page 0px: the browser's own close no
+longer puts the focus back itself (it scrolled a row partly under the tab bar into view, 70–109px
+when audited); the focus returns with `preventScroll` (`e2e/overlay-kit.spec.ts`).
 
 Every sheet and window shares `DetailModal`: native `<dialog>` (focus kept inside, the page behind
 inert), Escape and the backdrop close it, focus returns to what opened it, a sheet slides up in
@@ -620,7 +635,11 @@ Recorded, not changed here, with the reason:
   tab's memory, `profileBase`, `phoneParent`, `pageName` and `prefetchOf` in `src/lib/nav.test.ts`,
   and `src/components/nav-parity.test.ts`, which renders the sidebar, a tablet's bar, a phone's bar
   and its sideways bar and holds them and the manifest's shortcuts to the same entries, names, icons
-  and order in Player and Admin Mode).
+  and order in Player and Admin Mode; each shortcut's PNG is the icon the bars draw, 96×96, and
+  exists).
+- axe (WCAG 2.1 A and AA, serious and critical: 0) on the open account screen upright and sideways
+  (`e2e/account-screen.spec.ts`, `e2e/mobile-landscape.spec.ts`), on the sideways compact bar at
+  568 × 320, 734 × 343 and 852 × 393, and on Team's pinned row upright and sideways (`e2e/axe.ts`).
 - `pnpm build && pnpm test:e2e`: `e2e/journeys.spec.ts` counts the ten most common journeys at an
   iPhone 15's size (20 taps from the landing, 19 from My Profile with the Team tab's memory, Matchup
   Intel in 1 and a Resources site in 2, no scroll-backs), checks the four destinations by name and
@@ -686,4 +705,4 @@ Recorded, not changed here, with the reason:
 ## Users & Permissions on phones (overhaul S9a, 19 Nov 2026)
 
 - **The list:** 64px rows (52px from `sm`), a picture, the name and `@username`, at most one state chip; last sign-in from `md`. No buttons on the rows. The status filter is a select in the search row on phones (the chips from `sm`), and Add account is an icon button at its end that opens a sheet, so the first row starts within the first screen (at or above 300px at 375, 220px at 1440: `e2e/admin-people.spec.ts`).
-- **The person view:** the whole screen on phones (`DetailModal` standard), a window from `sm`. Its address is `?person=` under the shared history rule (`useAddressItem`, docs/DESIGN_SYSTEM.md): the system Back closes it with the list's scroll kept, ‹ › replace the entry. Its Danger zone is a closed `Disclosure`.
+- **The person view:** the whole screen on phones (`DetailModal` standard), a window from `sm`. Its address is `?person=` under the shared history rule (`useAddressItem`, docs/DESIGN_SYSTEM.md): the system Back closes it with the list's scroll kept, ‹ › replace the entry. Its Danger zone is a closed `Fold`.

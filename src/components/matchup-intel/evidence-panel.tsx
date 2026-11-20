@@ -67,9 +67,30 @@ function Section({ section }: { section: EvidenceSection }) {
   );
 }
 
+/** The evidence's tiers with their n, or why a scope is not counted, in one line of words. */
+export function evidenceSummaryWords(evidence: MatchupEvidence | null): string {
+  return evidence?.sections.length ? evidence.sections.map(summaryOf).join(" · ") : evidence ? "Not counted: no current patch is known yet" : "Counted once the first slot holds a champion";
+}
+
+/**
+ * The evidence's first row, for a phone's first screen (glance.tsx): the first counted line with its
+ * tier and sample; else the first section's one honest line (too few games, and how many); else the
+ * tiers' words. The same words the fold holds, never more.
+ */
+export function firstEvidenceRow(evidence: MatchupEvidence | null): { tier: string | null; label: string | null; text: string } {
+  const counted = evidence?.sections.find((s) => s.lines.length);
+  if (counted) {
+    const l = counted.lines[0]!;
+    return { tier: counted.tier, label: l.label, text: `${l.values}${l.sample ? `${l.sample.startsWith("of ") ? " " : " · "}${l.sample}` : ""}` };
+  }
+  const empty = evidence?.sections.find((s) => s.empty);
+  if (empty?.empty) return { tier: null, label: null, text: empty.empty };
+  return { tier: null, label: null, text: evidenceSummaryWords(evidence) };
+}
+
 /** The evidence's words in the fold's line: its tiers with their n, or why a scope is not counted. */
 export function EvidenceSummary({ evidence }: { evidence: MatchupEvidence | null }) {
-  const summary = evidence?.sections.length ? evidence.sections.map(summaryOf).join(" · ") : evidence ? "Not counted: no current patch is known yet" : "Counted once the first slot holds a champion";
+  const summary = evidenceSummaryWords(evidence);
   return (
     // Its own line in the fold's line, in small type, so the fold stays two lines at 1440 × 900.
     <span className="basis-full text-2xs text-fg-subtle" data-testid="matchup-evidence-summary">

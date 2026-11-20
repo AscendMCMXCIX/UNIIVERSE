@@ -1,9 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { X } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { DetailModal, type ModalSize } from "./detail-modal";
+import { PREVIEW_NAV, PreviewWindow, SiblingSteps, type PreviewSiblings } from "./preview-window";
 import { lastInput } from "./input-kind";
 import { useAddressItem } from "./address-item";
 import { isTyping, modalOpen, useWindowPosture } from "./posture";
@@ -206,7 +206,7 @@ export function Peek({ peek, title, itemKey, children, actions, hero, windowSize
   /** The item's picture and identity, edge to edge at the top of the panel's body. */
   hero?: React.ReactNode;
   /** The window's size where it opens as one (touch phones, short windows): a sheet, or the whole screen for a long item. */
-  windowSize?: ModalSize;
+  windowSize?: "standard" | "wide" | "full" | "sheet";
   /** The window's own header there (DetailModal's `header`, with an element of id `windowTitleId`), in place of its title bar and the hero. */
   windowHeader?: React.ReactNode;
   windowTitleId?: string;
@@ -243,28 +243,24 @@ export function Peek({ peek, title, itemKey, children, actions, hero, windowSize
     if (opened && fromKeyboard && !windowed) headingRef.current?.focus({ preventScroll: true });
   }, [opened, fromKeyboard, windowed, itemKey]);
 
+  const siblings: PreviewSiblings = { prev: peek.prev, next: peek.next, label, prevTestId: navTestIds?.prev ?? `${testId}-prev`, nextTestId: navTestIds?.next ?? `${testId}-next` };
   const nav = (
     <div className="flex items-center gap-1">
       {actions}
-      <button type="button" onClick={peek.prev ?? undefined} disabled={!peek.prev} aria-label={`Previous ${label.toLowerCase()}`} className={NAV} data-testid={navTestIds?.prev ?? `${testId}-prev`}>
-        <ChevronLeft className="h-4 w-4" aria-hidden />
-      </button>
-      <button type="button" onClick={peek.next ?? undefined} disabled={!peek.next} aria-label={`Next ${label.toLowerCase()}`} className={NAV} data-testid={navTestIds?.next ?? `${testId}-next`}>
-        <ChevronRight className="h-4 w-4" aria-hidden />
-      </button>
+      <SiblingSteps siblings={siblings} />
     </div>
   );
 
   if (windowed) {
     return (
-      <DetailModal open={open} onClose={peek.close} title={shown?.title ?? title} size={windowSize} headerExtra={nav} header={windowHeader} headerClassName={windowHeader ? "overflow-hidden" : undefined} titleId={windowTitleId} testId={testId} closeTestId={navTestIds?.close ?? `${testId}-close`}>
+      <PreviewWindow open={open} onClose={peek.close} title={shown?.title ?? title} size={windowSize} siblings={siblings} headerExtra={actions} header={windowHeader} headerClassName={windowHeader ? "overflow-hidden" : undefined} titleId={windowTitleId} testId={testId} closeTestId={navTestIds?.close ?? `${testId}-close`}>
         {shown ? (
           <div key={shown.key}>
             {windowHeader ? null : hero}
             {body}
           </div>
         ) : null}
-      </DetailModal>
+      </PreviewWindow>
     );
   }
   if (!shown) return null;
@@ -286,7 +282,7 @@ export function Peek({ peek, title, itemKey, children, actions, hero, windowSize
         </h2>
         {nav}
         <span className={cn("mx-1 h-5 w-px bg-border", hero && "hidden")} aria-hidden />
-        <button type="button" onClick={peek.close} aria-label={`Close ${label.toLowerCase()}`} className={NAV} data-testid={navTestIds?.close ?? `${testId}-close`}>
+        <button type="button" onClick={peek.close} aria-label={`Close ${label.toLowerCase()}`} className={PREVIEW_NAV} data-testid={navTestIds?.close ?? `${testId}-close`}>
           <X className="h-4 w-4" aria-hidden />
         </button>
       </header>
@@ -304,4 +300,3 @@ export function Peek({ peek, title, itemKey, children, actions, hero, windowSize
   );
 }
 
-const NAV = "inline-flex h-9 w-9 items-center justify-center rounded-lg bg-bg/60 text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg disabled:opacity-40 disabled:hover:bg-transparent focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:h-11 pointer-coarse:w-11";

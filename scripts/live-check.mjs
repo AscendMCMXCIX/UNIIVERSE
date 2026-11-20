@@ -123,9 +123,10 @@
   - ranked (18 Nov 2026): on the teammate's profile at every width, Ranked progress ends with its
     chart: no History and coverage disclosure, year strip, rank changes or readings table (a profile
     without the card passes as not applicable). True or false only.
-  - reach (PR 2b): from the end of Match History, on the desktop and the tablet the pinned row offers
-    Filters and it opens the filter sheet; on the phone the top bar's Filters opens it (Escape closes
-    it again; no filter is touched).
+  - reach (PR 2b; S4a, 20 Nov 2026): from the end of Match History, on the desktop and the tablet the
+    pinned row offers Filters and it opens the Filters popover (anchored, no modal window, "Support"
+    whole and nothing in it scrolling sideways); on the phone the top bar's Filters opens the filter
+    sheet (Escape closes either again; no filter is touched).
   - every page at every width: it loads signed in, no sideways scroll, no page error, no app console
     error, no failed request to the app, no broken image from the app, and a screenshot to review.
 */
@@ -204,7 +205,7 @@ async function deployment() {
       body = null;
     }
     report.deployment = body?.deployment ?? null;
-    report.health = body ? { ok: body.ok === true, db: body.db?.ok ?? null, notices: Array.isArray(body.notices) ? body.notices.length : null } : null;
+    report.health = body ? { ok: body.ok === true, db: body.db?.ok ?? null, notices: Array.isArray(body.notices) ? body.notices.length : null, patch: typeof body.patch === "string" ? body.patch : null } : null;
     report.healthNotices = Array.isArray(body?.notices) ? body.notices : [];
     if (!expected || report.deployment?.commit === expected || Date.now() > deadline) break;
     await new Promise((r) => setTimeout(r, 15_000));
@@ -961,6 +962,27 @@ async function recordsFacts(page, kind) {
 }
 
 /**
+ * A record's game keeps /leaderboards (PLAN S6c, UD.L3, 20 Nov 2026): the first record that opens a game
+ * opens it over the board (a docked Peek on the desktop, the window on the phone) with "Open in Match
+ * History" inside, the address /leaderboards?match= (one history entry), and Back closes it on
+ * /leaderboards. No page load of its own: the game is read through Match History's actions (the
+ * profile's checks). True or false and the address's shape only.
+ */
+async function recordGameFacts(page, kind) {
+  const opener = page.locator("[data-testid=record-open]").first();
+  if (!(await opener.count())) return check("leaderboards", `${kind}: a record's game keeps /leaderboards`, "PASS", "not applicable: no record opens a game yet");
+  const before = await page.evaluate(() => history.length);
+  await opener.scrollIntoViewIfNeeded();
+  await opener.click();
+  const opened = await page.waitForSelector("[data-testid=record-game-peek] [data-testid=record-game-history]", { timeout: 15_000 }).then(() => true, () => false);
+  const open = await page.evaluate((n) => ({ path: location.pathname, match: new URLSearchParams(location.search).has("match"), pushed: history.length - n }), before);
+  await page.goBack();
+  const closed = await page.waitForFunction(() => !new URLSearchParams(location.search).has("match") && !document.querySelector("aside[data-testid=record-game-peek], dialog[open][data-testid=record-game-peek]"), null, { timeout: 10_000 }).then(() => true, () => false);
+  const after = await page.evaluate(() => ({ path: location.pathname, match: new URLSearchParams(location.search).has("match") }));
+  pass("leaderboards", `${kind}: a record's game keeps /leaderboards`, opened && open.path === "/leaderboards" && open.match && open.pushed === 1 && closed && after.path === "/leaderboards" && !after.match, { opened, open, closed, after });
+}
+
+/**
  * Records & achievements' old address (19 Nov 2026): /leaderboards?view=records opens the one page, the view
  * gone from its address (the page's own in the same history entry), at the season records: the
  * section in view and focused. True or false and the address's shape only.
@@ -1096,9 +1118,20 @@ async function resourcesFacts(page, kind) {
  * saying what they found while any part of the briefing is hidden, the sources and Riot's notice one
  * press away with their summary, nothing requested from the League of Legends Wiki, that checked notes
  * win over the facts from Riot's text (none of those shows for this pair, whose champions both have
- * checked notes), and axe. It reads nothing beyond what the page itself reads (the session, the
+ * checked notes), that the page's game patch is /api/health's and Riot's data in the sources is on it
+ * (or the bar says the ability data is older), and axe. It reads nothing beyond what the page itself reads (the session, the
  * cached roster and patches, two champions' stored abilities and their committed facts from Riot's text).
  */
+/** /api/health's current patch (null when it names none or does not answer): no page load. */
+function healthPatchNow() {
+  try {
+    const body = JSON.parse(http("/api/health").text);
+    return typeof body?.patch === "string" ? body.patch : null;
+  } catch {
+    return null;
+  }
+}
+
 async function matchupIntelFacts(page, kind, wikiRequests) {
   await page.getByTestId("matchup-dashboard").waitFor({ timeout: 20_000 });
   const at = await page.evaluate(readMatchupIntel);
@@ -1106,7 +1139,9 @@ async function matchupIntelFacts(page, kind, wikiRequests) {
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   const wide = await page.evaluate(readMatchupIntel);
   await page.setViewportSize(VIEWPORTS.desktop.viewport);
-  for (const v of matchupIntelVerdicts({ kind, pair: "Riven vs Mordekaiser", enemy: "Mordekaiser", at, wide, wiki: wikiRequests })) check("matchup-intel", v.name, v.status, v.detail);
+  // The patch /api/health names (read at the start against production; a local run asks once here).
+  const healthPatch = report.health ? report.health.patch : healthPatchNow();
+  for (const v of matchupIntelVerdicts({ kind, pair: "Riven vs Mordekaiser", enemy: "Mordekaiser", at, wide, wiki: wikiRequests, healthPatch })) check("matchup-intel", v.name, v.status, v.detail);
 }
 
 /**
@@ -1590,7 +1625,7 @@ async function teamMatches(page, log, kind, context) {
  * bar gone above the window fails: the tabs above it are past their sticky offset there.
  */
 async function reachFacts(page, kind) {
-  const name = kind === "phone" ? "phone: from the end of Match History the top bar's Filters opens the filter sheet" : `${kind}: from the end of Match History the pinned row offers Filters and it opens the filter sheet`;
+  const name = kind === "phone" ? "phone: from the end of Match History the top bar's Filters opens the filter sheet" : `${kind}: from the end of Match History the pinned row offers Filters and it opens the Filters popover, Support whole and nothing scrolling sideways`;
   const at = await page.evaluate(async (phone) => {
     const end = document.documentElement.scrollHeight - innerHeight;
     for (let y = window.scrollY; y < end; y += 240) {
@@ -1612,16 +1647,29 @@ async function reachFacts(page, kind) {
   const control = page.getByTestId(kind === "phone" ? "topbar-filters" : "toolbar-filters");
   const offered = await control.waitFor({ timeout: 5_000 }).then(() => true, () => false);
   let opened = false;
+  let form = null;
   if (offered) {
     if (kind === "phone") await control.tap();
     else await control.click();
     const sheet = page.getByTestId("filter-sheet");
     opened = await sheet.waitFor({ timeout: 10_000 }).then(() => true, () => false);
+    // Where previews open beside the list (the tablet and the desktop) it is a popover: anchored, no
+    // modal window, its Role played segments whole ("Support" inside it), nothing scrolling sideways.
+    if (opened && kind !== "phone") {
+      form = await sheet.evaluate((el) => {
+        const support = [...el.querySelectorAll("label, button, a")].find((n) => n.textContent?.trim() === "Support");
+        const s = support?.getBoundingClientRect();
+        const p = el.getBoundingClientRect();
+        const sideways = [...el.querySelectorAll("*")].filter((n) => n.scrollWidth > n.clientWidth + 1 && !["visible", "hidden", "clip"].includes(getComputedStyle(n).overflowX)).length;
+        return { popover: el.hasAttribute("data-popover"), modal: !!document.querySelector("dialog[open]"), supportWhole: !!s && s.left >= p.left && s.right <= p.right, sideways };
+      });
+      opened = form.popover && !form.modal && form.supportWhole && form.sideways === 0;
+    }
     await shot(page, `${kind}-match-history-filters-from-the-frame`);
     await page.keyboard.press("Escape");
     await sheet.waitFor({ state: "detached", timeout: 5_000 }).catch(() => {});
   }
-  pass("reach", name, offered && opened, { offered, opened, ...at });
+  pass("reach", name, offered && opened, { offered, opened, ...(form ?? {}), ...at });
 }
 
 async function matchHistory(page, log, kind, playerId) {
@@ -1822,6 +1870,7 @@ for (const [kind, options] of Object.entries(VIEWPORTS)) {
       await recordsFacts(page, kind);
       await axe(page, kind, "leaderboards");
       await leaderboardsIndexFacts(page, kind);
+      if (kind === "desktop" || kind === "phone") await recordGameFacts(page, kind);
     }
   });
   // Records & achievements' old address: the same page, at its records (the page itself is checked above, so no axe here).

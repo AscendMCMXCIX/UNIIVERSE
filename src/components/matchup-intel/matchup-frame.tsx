@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeftRight, BookmarkPlus, Check, Link2, LoaderCircle, Plus } from "lucide-react";
+import { ArrowLeftRight, BookmarkCheck, BookmarkPlus, Check, Link2, LoaderCircle, Plus } from "lucide-react";
 import { DUO_ROLES, ROLES, ROLE_NAMES, type ChampionChoice, type Role } from "@/domain/matchup-intel/types";
 import { HASTE_CHOICES, HASTE_MAX, clampHaste } from "@/domain/matchup-intel/haste";
 import { ChampionPortrait } from "@/components/champion-portrait";
@@ -113,9 +113,11 @@ const portraitOf = (c: ChampionChoice) => ({ id: c.id, name: c.name, portraitUrl
  * so the dashboard under it starts high: on a phone a small portrait above the label and the name in
  * a narrow row (320 and 375px phones), beside them where the row has room (from 22rem), the two
  * sides mirrored around the swap; from sm (where the row is 27rem wide) the portrait beside the
- * words, as the two sides of a lane.
+ * words, as the two sides of a lane. In the bot lane (duo) a phone's two slots of a side stack one
+ * above the other, each a row with the portrait beside the words and the name a size smaller: four
+ * across left a slot 44–62px for its words, and its label broke into a column of letters at 390px.
  */
-function SlotButton({ slot, role, champion, onOpen, buttonRef }: { slot: FrameSlot; role: Role; champion: ChampionChoice | null; onOpen: () => void; buttonRef: React.Ref<HTMLButtonElement> }) {
+function SlotButton({ slot, duo, role, champion, onOpen, buttonRef }: { slot: FrameSlot; duo: boolean; role: Role; champion: ChampionChoice | null; onOpen: () => void; buttonRef: React.Ref<HTMLButtonElement> }) {
   // Your side (you and your duo partner) on the left of the swap, mirrored; the enemies on the right.
   const you = slot === "you" || slot === "ally";
   const words = slotWords(role, slot);
@@ -139,8 +141,15 @@ function SlotButton({ slot, role, champion, onOpen, buttonRef }: { slot: FrameSl
       // size) keeps the portrait above them, where the longest name still fits whole.
       className={cn(
         "group flex h-full w-full min-w-0 flex-col items-center justify-center gap-1 rounded-panel border bg-surface px-1 py-2 text-center transition-colors hover:border-border-strong hover:bg-surface-2/60 sm:@min-[27rem]/pickers:justify-start sm:@min-[27rem]/pickers:gap-2.5 sm:@min-[27rem]/pickers:px-3 sm:@min-[27rem]/pickers:py-1.5",
-        "max-sm:@min-[22rem]/pickers:justify-start max-sm:@min-[22rem]/pickers:gap-1.5 max-sm:@min-[22rem]/pickers:px-1.5",
-        you ? "max-sm:@min-[22rem]/pickers:flex-row-reverse max-sm:@min-[22rem]/pickers:text-right sm:@min-[27rem]/pickers:flex-row-reverse sm:@min-[27rem]/pickers:text-right" : "max-sm:@min-[22rem]/pickers:flex-row max-sm:@min-[22rem]/pickers:text-left sm:@min-[27rem]/pickers:flex-row sm:@min-[27rem]/pickers:text-left",
+        duo ? "max-sm:justify-start max-sm:gap-1 max-sm:px-1 max-sm:py-1.5" : "max-sm:@min-[22rem]/pickers:justify-start max-sm:@min-[22rem]/pickers:gap-1.5 max-sm:@min-[22rem]/pickers:px-1.5",
+        you ? "sm:@min-[27rem]/pickers:flex-row-reverse sm:@min-[27rem]/pickers:text-right" : "sm:@min-[27rem]/pickers:flex-row sm:@min-[27rem]/pickers:text-left",
+        duo
+          ? you
+            ? "max-sm:flex-row-reverse max-sm:text-right"
+            : "max-sm:flex-row max-sm:text-left"
+          : you
+            ? "max-sm:@min-[22rem]/pickers:flex-row-reverse max-sm:@min-[22rem]/pickers:text-right"
+            : "max-sm:@min-[22rem]/pickers:flex-row max-sm:@min-[22rem]/pickers:text-left",
         champion ? "border-border" : "border-dashed border-border-strong",
       )}
       data-testid={`matchup-pick-${slot}`}
@@ -172,7 +181,7 @@ function SlotButton({ slot, role, champion, onOpen, buttonRef }: { slot: FrameSl
             words.label
           )}
         </span>
-        <span className="line-clamp-2 text-md font-semibold leading-snug text-fg [overflow-wrap:anywhere] max-sm:@min-[22rem]/pickers:text-sm max-sm:@min-[22rem]/pickers:tracking-tight sm:@min-[27rem]/pickers:text-base" data-testid={`matchup-pick-${slot}-name`}>
+        <span className={cn("line-clamp-2 font-semibold leading-snug text-fg [overflow-wrap:anywhere] max-sm:@min-[22rem]/pickers:text-sm max-sm:@min-[22rem]/pickers:tracking-tight sm:@min-[27rem]/pickers:text-base", duo ? "text-md max-sm:text-sm max-sm:tracking-tight" : "text-md")} data-testid={`matchup-pick-${slot}-name`}>
           {champion ? champion.name : words.choose}
         </span>
         {champion ? <span className="sr-only">, change</span> : null}
@@ -296,11 +305,34 @@ function RememberedLine({ you, remembered, onUse, onRemember, focusYourSlot }: {
     );
   }
   return (
-    // On a desktop it sits under the status at the bar's right end, its buttons 28px with a mouse.
-    <div className="flex min-h-11 flex-wrap items-center gap-x-3 gap-y-1 text-sm text-fg-muted @min-[44rem]/pickers:min-h-7 @min-[44rem]/pickers:justify-end @min-[44rem]/pickers:text-xs" data-testid="matchup-remembered" data-state={state}>
+    // On a desktop it sits under the status at the bar's right end, its buttons 28px with a mouse. On a
+    // phone, once your champion is chosen, the title row's icon toggle stands in for it (RememberToggle),
+    // so the enemy's tiles reach the first screen; with none chosen the line stays, offering the
+    // remembered one. `you` is in the address, so the server already knows which: nothing moves.
+    <div className={cn("flex min-h-11 flex-wrap items-center gap-x-3 gap-y-1 text-sm text-fg-muted @min-[44rem]/pickers:min-h-7 @min-[44rem]/pickers:justify-end @min-[44rem]/pickers:text-xs", you && "max-sm:hidden")} data-testid="matchup-remembered" data-state={state}>
       {info ? <span className="flex min-w-0 grow basis-24 items-center gap-2 sm:grow-0 sm:basis-auto">{info}</span> : null}
       {actions ? <span className="flex min-w-0 max-w-full flex-wrap items-center gap-2">{actions}</span> : null}
     </div>
+  );
+}
+
+/**
+ * On a phone, with your champion chosen: "Remember" as an icon toggle at the title row's end, beside
+ * "Copy link" (PLAN S7a), in place of the remembered line. Pressed while the champion in your slot is
+ * the one this device remembers; pressing it remembers that champion, or forgets it. In this browser
+ * only, under the account's key, as the line does (preferences.ts). Until this device's storage is
+ * read it keeps its place and claims nothing.
+ */
+function RememberToggle({ you, remembered, onRemember }: { you: ChampionChoice; remembered: ChampionChoice | null; onRemember: (id: string | null) => void }) {
+  const onClient = useOnClient();
+  const box = "-my-1.5 min-h-11 min-w-11 px-0 sm:hidden";
+  if (!onClient) return <span aria-hidden className={cn("inline-block", box)} data-testid="matchup-remember-toggle" data-state="loading" />;
+  const on = remembered?.id === you.id;
+  const label = on ? `Forget ${you.name}: remembered on this device as your champion` : remembered ? `Remember ${you.name} on this device instead of ${remembered.name}` : `Remember ${you.name} on this device as your champion`;
+  return (
+    <Button size="sm" variant="ghost" aria-pressed={on} aria-label={label} onClick={() => onRemember(on ? null : you.id)} className={box} data-testid="matchup-remember-toggle" data-state={on ? "remembered" : "other"}>
+      {on ? <BookmarkCheck className="h-4 w-4 text-good" aria-hidden /> : <BookmarkPlus className="h-4 w-4" aria-hidden />}
+    </Button>
   );
 }
 
@@ -452,7 +484,22 @@ function PinnedPairBar({ lineup, choice, onOpen, onSwap, watch }: { lineup: Line
       setShown(!!entry && !entry.isIntersecting && entry.boundingClientRect.top < 0);
     });
     io.observe(el);
-    return () => io.disconnect();
+    // Slots that start below the first screen (a phone at a large text size) and are scrolled past in
+    // one go never cross the screen, so the observer has nothing to report: the scroll says it too.
+    let frame = 0;
+    const check = () => {
+      frame = 0;
+      setShown(el.getBoundingClientRect().bottom <= 0);
+    };
+    const onScroll = () => {
+      if (!frame) frame = window.requestAnimationFrame(check);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      io.disconnect();
+      window.removeEventListener("scroll", onScroll);
+      window.cancelAnimationFrame(frame);
+    };
   }, [watch]);
   React.useEffect(() => {
     if (!shown) return;
@@ -639,7 +686,7 @@ export function MatchupFrame({
   React.useEffect(() => {
     statusNow.current = status;
   });
-  const slotButton = (slot: FrameSlot) => <SlotButton slot={slot} role={shown.role} champion={choice(shown[slot])} onOpen={() => openPicker(slot)} buttonRef={slotRefs[slot]} />;
+  const slotButton = (slot: FrameSlot) => <SlotButton slot={slot} duo={duo} role={shown.role} champion={choice(shown[slot])} onOpen={() => openPicker(slot)} buttonRef={slotRefs[slot]} />;
   const pickerWords = picking ? slotWords(shown.role, picking) : null;
 
   return (
@@ -660,9 +707,14 @@ export function MatchupFrame({
             <div className={cn("grid gap-x-4 gap-y-1.5 @min-[44rem]/pickers:items-center", duo ? "@min-[44rem]/pickers:grid-cols-[minmax(0,44rem)_minmax(0,1fr)] @min-[72rem]/pickers:grid-cols-[auto_minmax(0,44rem)_minmax(0,1fr)]" : "@min-[44rem]/pickers:grid-cols-[minmax(0,30rem)_minmax(0,1fr)] @min-[68rem]/pickers:grid-cols-[auto_minmax(0,34rem)_minmax(0,1fr)]")}>
               <div className={cn("flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 @min-[44rem]/pickers:col-span-2", duo ? "@min-[72rem]/pickers:col-span-1 @min-[72rem]/pickers:block @min-[72rem]/pickers:space-y-0.5" : "@min-[68rem]/pickers:col-span-1 @min-[68rem]/pickers:block @min-[68rem]/pickers:space-y-0.5")} data-testid="matchup-heading">
                 {/* The title with "Copy link" at its row's end; under them the lane, one row (a phone's full width). */}
-                <div className="flex min-w-0 items-center justify-between gap-2 max-sm:w-full">
+                {/* It wraps rather than squeeze the title: at 200% text on a 320px phone the Remember toggle and
+                    Copy link (88px each) left "Matchup Intel" a column of letters (Release 9 review). */}
+                <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 max-sm:w-full">
                   {heading}
-                  <CopyLink href={lineupHref(shown)} />
+                  <span className="ml-auto flex items-center gap-1">
+                    {yourChoice ? <RememberToggle you={yourChoice} remembered={choice(prefs.you)} onRemember={remember} /> : null}
+                    <CopyLink href={lineupHref(shown)} />
+                  </span>
                 </div>
                 <RoleSelector role={shown.role} onChange={changeRole} />
               </div>
@@ -673,7 +725,7 @@ export function MatchupFrame({
                   whichever name wraps. In the bot lane each side holds two slots, the role's own first. */}
               <div ref={slotsRef} className="grid grid-cols-1 items-stretch gap-2 @min-[17.5rem]/pickers:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:gap-3" data-testid="matchup-pickers" data-slots={duo ? 4 : 2}>
                 {duo ? (
-                  <div className="grid grid-cols-2 gap-1.5" data-testid="matchup-side-you">
+                  <div className="grid grid-cols-2 gap-1.5 max-sm:grid-cols-1" data-testid="matchup-side-you">
                     {slotButton("ally")}
                     {slotButton("you")}
                   </div>
@@ -692,7 +744,7 @@ export function MatchupFrame({
                   <ArrowLeftRight className="h-5 w-5 @max-[17.5rem]/pickers:rotate-90" aria-hidden />
                 </button>
                 {duo ? (
-                  <div className="grid grid-cols-2 gap-1.5" data-testid="matchup-side-enemy">
+                  <div className="grid grid-cols-2 gap-1.5 max-sm:grid-cols-1" data-testid="matchup-side-enemy">
                     {slotButton("enemy")}
                     {slotButton("enemy2")}
                   </div>
@@ -704,7 +756,7 @@ export function MatchupFrame({
                 {patchState ? <div className="@min-[44rem]/pickers:flex @min-[44rem]/pickers:justify-end">{patchState}</div> : null}
                 {/* While a choice loads, what is loading takes the remembered line's place, at its height. */}
                 {loading ? (
-                  <p className="flex min-h-11 items-center gap-2 text-sm text-fg-muted @min-[44rem]/pickers:min-h-7 @min-[44rem]/pickers:justify-end @min-[44rem]/pickers:text-xs" aria-hidden data-testid="matchup-loading">
+                  <p className={cn("flex min-h-11 items-center gap-2 text-sm text-fg-muted @min-[44rem]/pickers:min-h-7 @min-[44rem]/pickers:justify-end @min-[44rem]/pickers:text-xs", yourChoice && "max-sm:hidden")} aria-hidden data-testid="matchup-loading">
                     <LoaderCircle className="h-4 w-4 shrink-0 animate-spin text-accent motion-reduce:animate-none" />
                     <span className="min-w-0">{loading}</span>
                   </p>
