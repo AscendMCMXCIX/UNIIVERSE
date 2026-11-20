@@ -405,13 +405,29 @@ The dashboard keeps each part to its essentials and puts the rest one step away,
 
 ### On a phone
 
-One column, the essentials first: the bar (the title, the two slots and the swap, the patch line,
-the remembered line), then the main panel, the interactions, the level changes, the enemy's tiles,
+One column, the essentials first: the bar (the title with "Remember" and "Copy link" as icon buttons
+at its row's end, the two slots and the swap, the patch line), then **the glance** (since 20 Nov
+2026, PLAN S7a's first screen; `glance.tsx`): every enemy ability as a tile in one row of five,
+P to R (about 68 by 56px each), its icon, its key and its cooldown line (the base cooldown at the first and the last rank or
+level, "16–8 s", "120 s"; "No data", "None" or "Forms" where there is no single number; never a hasted
+value), the bot lane's second enemy as a second row; each tile a link to its full tile below, its name
+saying the whole line ("Mordekaiser Q, Obliterate: cooldown 8–4 s; in full, 8 / 7 / 6 / 5 / 4 s"); then the evidence's
+first row (the first counted line with its tier and sample, else the first section's one honest line,
+else the tiers' words, the fold's own words). Measured at 390 by 844 on the demo: Riven vs Mordekaiser's
+five cooldown lines end at 338px and the evidence row at 401px, Jinx and Lulu vs Caitlyn and Lux's ten
+at 587px and 650px, the tab bar's top at 787px. Phones only (under `sm`): a wider screen shows the
+panels themselves. **"Remember" on a phone** is an icon toggle beside "Copy link" once your champion
+is chosen (pressed while it is the one this device remembers; in this browser only, under the
+account's key, as on a desktop: `preferences.ts`), in place of the remembered line, which a phone now
+shows only with no champion of yours chosen, to offer the remembered one; the lane chosen last is
+remembered on every device the same way. Then the main panel, the interactions, the level changes, the enemy's tiles,
 your champion and the sources. The slots are compact (a small portrait above the label and the name
 on a 320 or 375px phone, beside them from a row of 22rem, a 384px phone), so the briefing's threat
-starts on the first screen: whole at 390 by 664, its first line at 320 by 568, above the tab bar
+starts on the first screen after the glance: whole at 390 by 664 (at 320 by 568 the glance takes the first screen and the threat starts on the next; its first line was on it until 20 Nov 2026), above the tab bar
 (`e2e/matchup-intel.spec.ts`), and the assembled reference's Danger side starts there too: its label
-and whose kit it is, and at 390 by 664 (375 by 667 and 360 by 640 alike) its first group. At 320 by
+and whose kit it is (its first group, the same kit by kind, was asked for at 390 by 664 until the
+glance put the kit itself on the first screen, 20 Nov 2026; it now starts about 30px under the tab bar
+there for Riven vs Darius). At 320 by
 568 the side's lines that say where its facts and its numbers come from (since the review of 19 Nov
 2026, two lines each there) put its first group 38px under the tab bar when your champion has
 curated pairs, whose link takes a row of the header (Riven vs Darius). A tile puts its
@@ -665,7 +681,10 @@ curated note or a recommendation. Nothing is inferred beyond what the games reco
   games: 2 as Riven against Darius on patch 26.22, fewer than the 3 a line needs."):
   - the record ("4 games, 3 won");
   - the rune page (keystone and five runes; shards are not named by Data Dragon, so left out), the
-    summoner spells, the starting items (bought in the first minute), the first shop visit (purchases
+    summoner spells, the starting items (bought in the first minute and still held at its end: an undone purchase is
+    never stored, and an item sold in the first minute is left out where the timeline keeps sales,
+    which timelines kept from 20 Nov 2026 on do; on an older timeline a sale in the first minute is
+    not known, so such an item can still count as starting), the first shop visit (purchases
     less than 30 s apart after it), the first three completed items (building into nothing, from
     components, at least 1,000 gold, not boots, consumables or trinkets; left out of a game where any
     item bought is unknown to Data Dragon's facts, never skipped over), the first three skill points
@@ -735,16 +754,22 @@ and finds none.
 
 ### Not built in S7b
 
+Built since (20 Nov 2026, the S7b leftovers): `/api/health` lists the digests' counts; the Production
+check asserts the page's patch is `/api/health`'s; on a phone the evidence's first row is on the first
+screen (the glance, "On a phone"); the starting set leaves out an item sold in the first minute where
+the timeline keeps sales. Still not built:
+
 - **Lane occupancy** (mi-evidence §2.1, test 4) is not stored: the confirmed-opponent rule uses the
   three position tests, and a game whose readings disagree is "role unclear".
 - **The jungle's lane end** (the first contested epic objective): the stored events cannot tell it.
-- **Health and Admin for the diff:** `/api/health` and Admin's data health do not yet list the
-  digests' counts; `changedCounts` (`digests.ts`) gives them for a later stage.
-- **The Production check** reads the tiers (below), not that the page's Data Dragon patch equals
-  `/api/health`'s.
-- **On a phone** the evidence sits in the tips' fold below the kits, not on the first screen.
-- **Items sold** in the first minute stay in the starting set (`sold` is not read), and whether Riot
-  reports a support item's quest upgrade as a purchase (which would show in the first shop visit) is
+- **Admin for the diff:** `/api/health` lists the digests' counts (`digests`, docs/MONITORING.md);
+  Admin's data health does not yet. It should show the same figures from `digestHealth`
+  (`digests.ts`): the newest patch recorded with its champion, item and rune counts, the patch it was
+  compared with, and how many of each changed ("26.23 against 26.22: 4 champions, 11 items, 0 runes
+  changed"), plus a failed attempt's mark when the newest patch has no digests (Admin stage R8c).
+- **Items sold in the first minute** on a timeline kept before 20 Nov 2026 stay in the starting set:
+  those timelines keep no sales, so the sale is not known (newer ones keep them, and the item is left
+  out; `startingSet` in `prep.ts`). Whether Riot reports a support item's quest upgrade as a purchase (which would show in the first shop visit) is
   not verified on a real timeline.
 
 ## Where it is

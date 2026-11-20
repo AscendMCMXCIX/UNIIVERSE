@@ -153,3 +153,20 @@ test("a dash's reason opens on a tap (touch) or on hover, without opening the ga
   else await card.click({ position: { x: 24, y: c.height / 2 } });
   await expect(page).toHaveURL(/[?&]match=/);
 });
+
+test("in an opened game, the LP's reason is within a keyboard's reach: its tip is a tab stop and opens on focus (TT.TD12)", async ({ page }, info) => {
+  // A phone's game window, or a wider screen's game opened in place (its header).
+  test.skip(info.project.name === "tablet", "the phone's window and the desktop's open card cover both forms");
+  await matchesOf(page, "TOP");
+  const card = page.getByTestId("match-card").filter({ has: page.locator('[data-testid="match-lp"]:visible') }).first();
+  // The card's own control (its figures lie over it), opened as a keyboard does.
+  await card.getByTestId("match-row").focus();
+  await page.keyboard.press("Enter");
+  const opened = info.project.name === "phone" ? page.getByRole("dialog") : page.getByTestId("match-card-header");
+  const tip = opened.locator('[data-testid="match-lp-tip"]').first();
+  await expect(tip).toBeVisible();
+  expect(await tip.getAttribute("tabindex"), "a tab stop of its own in the window").toBeNull();
+  const note = await tip.evaluate((el) => document.getElementById(el.getAttribute("aria-describedby") ?? "")?.textContent ?? "");
+  await tip.focus();
+  await expect(page.getByTestId("match-lp-tip-bubble")).toHaveText(note);
+});

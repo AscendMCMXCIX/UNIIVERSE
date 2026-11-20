@@ -71,14 +71,15 @@ async function recordsOf(db: Db, matchIds: readonly string[]): Promise<Map<strin
 async function timelinesOf(db: Db, wanted: ReadonlyMap<string, readonly string[]>): Promise<Map<string, PrepTimeline>> {
   if (!wanted.size) return new Map();
   const ask = JSON.stringify(Object.fromEntries(wanted));
-  const rows = rowsOf<{ match_id: string; parts: unknown; objectives: unknown; t: unknown; pos: unknown }>(
+  const rows = rowsOf<{ match_id: string; parts: unknown; objectives: unknown; sales_kept: unknown; t: unknown; pos: unknown }>(
     await db.execute(sql`
       WITH ask AS (SELECT ${ask}::jsonb AS m)
       SELECT tl.match_id,
-        (SELECT jsonb_agg(jsonb_build_object('puuid', p->'puuid', 'purchases', p->'purchases', 'skills', p->'skills'))
+        (SELECT jsonb_agg(jsonb_build_object('puuid', p->'puuid', 'purchases', p->'purchases', 'skills', p->'skills', 'sold', p->'sold'))
            FROM jsonb_array_elements(tl.participants) p
            WHERE (ask.m -> tl.match_id) ? (p->>'puuid')) AS parts,
         tl.events->'objectives' AS objectives,
+        COALESCE(tl.events ? 'plates', false) AS sales_kept,
         tl.frames->'t' AS t,
         (SELECT jsonb_object_agg(k, jsonb_build_object('px', v->'px', 'py', v->'py'))
            FROM jsonb_each(COALESCE(tl.frames->'p', '{}'::jsonb)) AS e(k, v)
@@ -93,7 +94,8 @@ async function timelinesOf(db: Db, wanted: ReadonlyMap<string, readonly string[]
     const t = parse<number[] | null>(r.t);
     const pos = parse<Record<string, { px?: number[] | null; py?: number[] | null }> | null>(r.pos) ?? {};
     const p = Object.fromEntries(Object.entries(pos).map(([k, v]) => [k, { ...(v.px ? { px: v.px } : {}), ...(v.py ? { py: v.py } : {}) }]));
-    out.set(r.match_id, { participants: parts, events: objectives ? { objectives } : null, frames: t ? { t, p } : null });
+    // A timeline kept from 20 Nov 2026 on keeps the plates and the sales (completedTimeline's rule).
+    out.set(r.match_id, { participants: parts, salesKept: r.sales_kept === true, events: objectives ? { objectives } : null, frames: t ? { t, p } : null });
   }
   return out;
 }

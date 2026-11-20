@@ -14,7 +14,7 @@ const SIZES = {
  * plain link to the row's anchor, so it works before the page's code has run and opens in a new tab
  * like any link; once the code runs, a plain click makes the jump itself (jumpToAnchor).
  */
-export function AbilityRefLink({ anchor, children, size = "md" }: { anchor: string; children: React.ReactNode; /** sm: a chip in a line of text or a dense list (24px; 44px of target on touch screens). chip: the key that starts a line of fact chips, as tall as they are (21px, its target reaching 25px with a pseudo-element that takes no room; 44px on touch screens). */ size?: "sm" | "md" | "chip" }) {
+export function AbilityRefLink({ anchor, children, size = "md", className, testId = "briefing-ability", label }: { anchor: string; children: React.ReactNode; /** In place of a size's look (the phone's glance tiles). */ className?: string; testId?: string; /** The link's accessible name, where its words are short forms. */ label?: string; /** sm: a chip in a line of text or a dense list (24px; 44px of target on touch screens). chip: the key that starts a line of fact chips, as tall as they are (21px, its target reaching 25px with a pseudo-element that takes no room; 44px on touch screens). */ size?: "sm" | "md" | "chip" }) {
   return (
     <a
       href={`#${anchor}`}
@@ -24,8 +24,9 @@ export function AbilityRefLink({ anchor, children, size = "md" }: { anchor: stri
         e.preventDefault();
         jumpToAnchor(anchor);
       }}
-      className={SIZES[size]}
-      data-testid="briefing-ability"
+      className={className ?? SIZES[size]}
+      aria-label={label}
+      data-testid={testId}
       data-anchor={anchor}
     >
       {children}

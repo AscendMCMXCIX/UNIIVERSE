@@ -5,7 +5,9 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ prefetch: () => {} }), u
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { cardLookFor } from "@/domain/card-style";
-import type { BoardPlayer, FormRow, FormView } from "@/server/leaderboards/recent-view";
+import { buildFormView, type BoardPlayer, type FormRow, type FormView } from "@/server/leaderboards/recent-view";
+import type { LeaderboardGame } from "@/domain/leaderboards";
+import type { LeaderboardData } from "@/server/leaderboards/service";
 import { RecentForm, gapToken } from "./recent-leaderboards";
 
 /*
@@ -19,7 +21,7 @@ const WINDOW: FormView["window"] = { games: 20, provisionalFrom: 10, days: 60 };
 const row = (o: Partial<FormRow> & Pick<FormRow, "playerId">): FormRow => ({ place: null, tied: false, status: "established", games: 20, wins: 10, losses: 10, winRate: 50, dates: "7 Oct – 6 Nov", role: { role: "MID", games: 14 }, note: null, gap: null, you: false, ...o });
 const ROWS: FormRow[] = [
   row({ playerId: "ash", place: 1, wins: 13, losses: 7, winRate: 65, role: { role: "SUPPORT", games: 14 } }),
-  row({ playerId: "bo", place: 2, tied: true, wins: 12, losses: 8, winRate: 60, note: "Win your next game to draw level with Ash", gap: { kind: "level", place: 1 } }),
+  row({ playerId: "bo", place: 2, tied: true, wins: 12, losses: 8, winRate: 60, note: "Bo draws level with Ash by winning their next game", gap: { kind: "level", place: 1 } }),
   row({ playerId: "cy", place: 2, tied: true, wins: 12, losses: 8, winRate: 60, note: "1 win behind Ash", gap: { kind: "behind", wins: 1, place: 1 } }),
   row({ playerId: "di", place: 4, wins: 11, losses: 9, winRate: 55, note: "Win your next game to draw level with Bo and Cy", gap: { kind: "level", place: 2 }, you: true }),
   row({ playerId: "ed", status: "provisional", games: 14, wins: 9, losses: 5, winRate: 64, note: "Provisional · 14 of 20 games", gap: { kind: "provisional", games: 14 }, role: null }),
@@ -75,7 +77,7 @@ describe("Recent form's rows", () => {
     }
     // The row's tooltip names the tie first, then the gap's sentence and the role's games, from the
     // aria-hidden layer inside the row's link (RowLink's hint).
-    expect(rows.bo).toContain('<span aria-hidden="true" title="Tied for 2nd. Win your next game to draw level with Ash. Mid: 14 of 20 games" class="absolute inset-0 rounded-[inherit]"></span></a>');
+    expect(rows.bo).toContain('<span aria-hidden="true" title="Tied for 2nd. Bo draws level with Ash by winning their next game. Mid: 14 of 20 games" class="absolute inset-0 rounded-[inherit]"></span></a>');
     expect(rows.di).not.toMatch(/data-tie=|Tied for/);
   });
 
@@ -85,7 +87,7 @@ describe("Recent form's rows", () => {
     for (const [id, r] of [...Object.entries(rows), ...Object.entries(publicRows)]) expect(r, id).not.toMatch(/<li[^>]* title=/);
     // The public board has no link, so no row tooltip: the gap's sentence is its own cell's title.
     expect(publicRows.bo).not.toContain("absolute inset-0 rounded-[inherit]");
-    expect(publicRows.bo).toMatch(/<span aria-hidden="true" data-testid="form-gap" title="Win your next game to draw level with Ash"/);
+    expect(publicRows.bo).toMatch(/<span aria-hidden="true" data-testid="form-gap" title="Bo draws level with Ash by winning their next game"/);
   });
 
   it("shows the gap short and keeps the sentence for screen readers: A win ties 2nd, 1 win behind", () => {
@@ -209,5 +211,34 @@ describe("gapToken (D5)", () => {
     expect(gapToken({ kind: "behind", wins: 1, place: 2 }, WINDOW)).toBe("1 win behind");
     expect(gapToken({ kind: "behind", wins: 3, place: 2 }, WINDOW)).toBe("3 wins behind");
     expect(gapToken({ kind: "provisional", games: 14 }, WINDOW)).toBe("14 of 20 games");
+  });
+});
+
+describe("the draw-level sentence follows the viewer (PLAN §1.12)", () => {
+  // Built by the page's own view: Ash 13 of 20, Bo 12 of 20 with the oldest a loss, so one win draws Bo level with Ash.
+  const T0 = Date.UTC(2026, 9, 1, 10);
+  const DAY = 86_400_000;
+  let seq = 0;
+  const game = (playerId: string, day: number, win: boolean): LeaderboardGame => {
+    seq += 1;
+    return { matchId: `OC1_${seq}`, playerId, championId: "Ahri", role: "MID", queueId: 420, patch: "16.20", win, gameCreation: T0 + day * DAY, durationS: 1800, kills: 4, deaths: 4, assists: 6, cs: 200, damage: 20_000, vision: 30, gold: 11_000, wardsPlaced: 10, teamKills: 20, teamDamage: 80_000, extra: null };
+  };
+  const games = [...Array.from({ length: 20 }, (_, i) => game("ash", 1 + i, i >= 7)), ...Array.from({ length: 20 }, (_, i) => game("bo", 1 + i, i >= 8))];
+  const person = (id: string, name: string) => ({ id, name, avatarUrl: null, look: cardLookFor({ id }), art: null, rank: null, primaryRole: null });
+  const data: LeaderboardData = { players: [person("ash", "Ash"), person("bo", "Bo")], games, mastery: [], lineupIds: ["ash", "bo"], currentSeason: 16, seasons: [16], lastUpdated: null, extraSince: null, rawGames: 0 };
+  const noteFor = (viewer: string) => {
+    const form = buildFormView(data, viewer, { now: new Date(T0 + 30 * DAY) });
+    const html = renderToStaticMarkup(createElement(RecentForm, { form, player: players(true), viewer }));
+    return textOf(rowsOf(html).bo!, "form-note");
+  };
+
+  it("says \"your\" on the viewer's own row", () => {
+    expect(noteFor("bo")).toBe("Win your next game to draw level with Ash");
+  });
+
+  it("names the player on a teammate's row, never \"you\" or \"your\"", () => {
+    const note = noteFor("ash");
+    expect(note).toBe("Bo draws level with Ash by winning their next game");
+    expect(note).not.toMatch(/\byour?\b/i);
   });
 });

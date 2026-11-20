@@ -205,7 +205,7 @@ async function deployment() {
       body = null;
     }
     report.deployment = body?.deployment ?? null;
-    report.health = body ? { ok: body.ok === true, db: body.db?.ok ?? null, notices: Array.isArray(body.notices) ? body.notices.length : null } : null;
+    report.health = body ? { ok: body.ok === true, db: body.db?.ok ?? null, notices: Array.isArray(body.notices) ? body.notices.length : null, patch: typeof body.patch === "string" ? body.patch : null } : null;
     report.healthNotices = Array.isArray(body?.notices) ? body.notices : [];
     if (!expected || report.deployment?.commit === expected || Date.now() > deadline) break;
     await new Promise((r) => setTimeout(r, 15_000));
@@ -1118,9 +1118,20 @@ async function resourcesFacts(page, kind) {
  * saying what they found while any part of the briefing is hidden, the sources and Riot's notice one
  * press away with their summary, nothing requested from the League of Legends Wiki, that checked notes
  * win over the facts from Riot's text (none of those shows for this pair, whose champions both have
- * checked notes), and axe. It reads nothing beyond what the page itself reads (the session, the
+ * checked notes), that the page's game patch is /api/health's and Riot's data in the sources is on it
+ * (or the bar says the ability data is older), and axe. It reads nothing beyond what the page itself reads (the session, the
  * cached roster and patches, two champions' stored abilities and their committed facts from Riot's text).
  */
+/** /api/health's current patch (null when it names none or does not answer): no page load. */
+function healthPatchNow() {
+  try {
+    const body = JSON.parse(http("/api/health").text);
+    return typeof body?.patch === "string" ? body.patch : null;
+  } catch {
+    return null;
+  }
+}
+
 async function matchupIntelFacts(page, kind, wikiRequests) {
   await page.getByTestId("matchup-dashboard").waitFor({ timeout: 20_000 });
   const at = await page.evaluate(readMatchupIntel);
@@ -1128,7 +1139,9 @@ async function matchupIntelFacts(page, kind, wikiRequests) {
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   const wide = await page.evaluate(readMatchupIntel);
   await page.setViewportSize(VIEWPORTS.desktop.viewport);
-  for (const v of matchupIntelVerdicts({ kind, pair: "Riven vs Mordekaiser", enemy: "Mordekaiser", at, wide, wiki: wikiRequests })) check("matchup-intel", v.name, v.status, v.detail);
+  // The patch /api/health names (read at the start against production; a local run asks once here).
+  const healthPatch = report.health ? report.health.patch : healthPatchNow();
+  for (const v of matchupIntelVerdicts({ kind, pair: "Riven vs Mordekaiser", enemy: "Mordekaiser", at, wide, wiki: wikiRequests, healthPatch })) check("matchup-intel", v.name, v.status, v.detail);
 }
 
 /**

@@ -97,7 +97,10 @@ describe("Recent form on stored games", () => {
     const view = buildLeaderboardsView(data, {}, null, { now: NOW });
     const note = (name: string) => view.form.rows.find((r) => r.playerId === id[name])!.note;
     expect(note("Ash")).toBeNull();
-    expect(note("Bo")).toBe("Win your next game to draw level with Ash");
+    // Seen by nobody in particular (viewer null): the player's name, never "your" (PLAN §1.12).
+    expect(note("Bo")).toBe("Bo draws level with Ash by winning their next game");
+    // Seen by Bo: "your".
+    expect(buildLeaderboardsView(data, {}, id.Bo!, { now: NOW }).form.rows.find((r) => r.playerId === id.Bo)!.note).toBe("Win your next game to draw level with Ash");
     expect(note("Cy")).toBe("2 wins behind Bo");
     expect(note("Ed")).toBe("Provisional · 14 of 20 games");
     // The same notes in parts, for the board's short gap ("Next win: 1=", "2 wins behind", "14 of 20 games").

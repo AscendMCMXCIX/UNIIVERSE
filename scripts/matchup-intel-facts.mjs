@@ -56,6 +56,9 @@ export function readMatchupIntel() {
     summaryBottom: summary ? Math.round(summary.bottom) : null,
     summaryShown: !!summary && summary.height > 0 && summary.bottom <= innerHeight,
     ddragon: text('[data-testid="matchup-footer-ddragon"]'),
+    // The game patch the page names in its bar ("Patch 26.23"), and whether it says its ability data is older.
+    patch: text('[data-testid="matchup-patch"]'),
+    patchState: text('[data-testid="matchup-patch-state"]'),
     notice: text('[data-testid="matchup-footer-riot"]'),
     licence: document.querySelector('[data-testid="matchup-licence-link"]')?.getAttribute("href") ?? null,
     innerHeight,
@@ -75,6 +78,29 @@ export function readMatchupIntel() {
   };
 }
 
+/** The public, year-based name of a stored patch ("16.23" → "26.23"), as src/domain/patch.ts's publicPatchName. */
+export function publicPatch(patch) {
+  const m = /^(\d+)\.(\d+)$/.exec(String(patch ?? "").trim());
+  if (!m) return patch ?? null;
+  const major = Number(m[1]);
+  return major >= 15 && major < 25 ? `${major + 10}.${Number(m[2])}` : String(patch).trim();
+}
+
+/**
+ * The page's patch against /api/health's (`healthPatch`, the stored current patch, or null): the bar
+ * names the same game patch ("Game patch not known" when health has none), and Riot's data in the
+ * sources is on it, every "(patch …)" there, unless the bar says the ability data is older.
+ */
+export function patchVerdict(at, healthPatch) {
+  // "0.0" is the offline fixture's patch (Data Dragon 0.0.0-fixture), which the page never names.
+  const want = healthPatch && healthPatch !== "0.0" ? publicPatch(healthPatch) : null;
+  const data = [...(at.ddragon ?? "").matchAll(/\(patch (\d+\.\d+)\)/g)].map((m) => m[1]);
+  const older = /Ability data from patch \d+\.\d+/.test(at.patchState ?? "");
+  const bar = want ? at.patch === `Patch ${want}` : at.patch === "Game patch not known";
+  const onIt = !want || data.length === 0 || data.every((p) => p === want) || older;
+  return { ok: bar && onIt, detail: { health: want, page: at.patch, data, older } };
+}
+
 /** The state the page is in, from what it shows: "expired", "hidden" (every part, for a change), "parts hidden", or "shown". */
 export function briefingState(f) {
   if (f.expired) return "expired";
@@ -92,7 +118,7 @@ const saysHiddenAbove = (f) => /^The curated briefing for .+ vs .+ is hidden, ab
  * League of Legends Wiki requests the page made (`wiki`). Each fact: its name, PASS, FAIL or WARN, and
  * what was found (counts, px, the page's fixed words).
  */
-export function matchupIntelVerdicts({ kind, pair, enemy, at, wide, wiki }) {
+export function matchupIntelVerdicts({ kind, pair, enemy, at, wide, wiki, healthPatch }) {
   const out = [];
   const fact = (name, ok, detail) => out.push({ name: `${kind}: ${name}`, status: ok ? "PASS" : "FAIL", detail });
   const state = briefingState(at);
@@ -127,6 +153,10 @@ export function matchupIntelVerdicts({ kind, pair, enemy, at, wide, wiki }) {
   fact("one press away, the Data Dragon version, the wiki's licence and Riot's notice", /^Ability names, icons and base cooldowns: Riot Data Dragon \d/.test(at.ddragon) && at.licence === "https://creativecommons.org/licenses/by-sa/3.0/" && /isn't endorsed by Riot Games/.test(at.notice), { ddragon: at.ddragon, licence: at.licence });
   fact("the lane selector offers Top, Jungle, Mid, ADC and Support, one pressed, and its slots (two for a solo lane); Riot's tips are labelled as Riot's; no high-elo evidence is claimed", /^Top\*? Jungle\*? Mid\*? ADC\*? Support\*?$/.test(at.roles ?? "") && (at.roles ?? "").split("*").length === 2 && (at.slotCount === "2" || at.slotCount === "4") && at.tipsLabel === "Riot's tip (may predate later changes)" && at.highElo === "Runes, items and skill order: No high-elo evidence (not collected)", { roles: at.roles, slots: at.slotCount, tipsLabel: at.tipsLabel, highElo: at.highElo });
   fact("every row states its evidence tier: the evidence fold's own games and the team's, with their n or why not counted; the briefing's checked notes (or Riot's data where it is assembled); the enemy's kit as Riot's data", EVIDENCE_TIERS.test(at.evidenceTiers ?? "") && (at.briefingTier === "Checked notes (AI reviewers)" || at.briefingTier === "Riot's data") && at.kitTier === "Riot's data", { evidenceTiers: at.evidenceTiers, briefingTier: at.briefingTier, kitTier: at.kitTier });
+  if (healthPatch !== undefined) {
+    const p = patchVerdict(at, healthPatch);
+    fact("the page's game patch is /api/health's, and Riot's data in the sources is on it (or the bar says the ability data is older)", p.ok, p.detail);
+  }
   fact("nothing requested from the League of Legends Wiki", wiki.length === 0, wiki.slice(0, 3));
   fact("checked notes win over the facts from Riot's text: none of those on a pair whose champions both have checked notes, nor Riot's text in the sources' summary", at.riotTextChips === 0 && !at.riotTextLabel && !at.summary.includes("Riot's text"), { chips: at.riotTextChips, label: at.riotTextLabel });
   return out;

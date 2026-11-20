@@ -118,6 +118,40 @@ export function cooldownLines(d: CooldownDisplay, options: { static?: boolean } 
   return [{ form: null, ...lineWords(d, isStatic) }];
 }
 
+/** Rank 1's and the last rank's values ("16–8\u00a0s"), one value once ("120\u00a0s"); null without a number. */
+function glanceRange(values: readonly number[]): string | null {
+  const ok = values.filter((v) => Number.isFinite(v));
+  if (!ok.length || ok.length !== values.length) return null;
+  const first = ok[0]!, last = ok[ok.length - 1]!;
+  return `${first === last ? formatSeconds(first) : `${formatSeconds(first)}\u2013${formatSeconds(last)}`}\u00a0s`;
+}
+
+/**
+ * A cooldown in a phone's glance tile (64px): the base cooldown at rank 1 and at the last rank, or a
+ * word for what has no single number ("Forms", "None", "No data"); `full` is the whole line, which
+ * the tile's name gives a screen reader and the full tile below shows. Never a hasted value.
+ */
+export function glanceCooldown(d: CooldownDisplay, options: { static?: boolean } = {}): { short: string; full: string; known: boolean } {
+  const w = cooldownWords(d, options);
+  const full = [w.value, ...w.notes].join(" · ");
+  switch (d.kind) {
+    case "per-rank":
+    case "passive": {
+      const r = glanceRange(d.seconds);
+      return r ? { short: r, full, known: true } : { short: "No data", full, known: false };
+    }
+    // A recharge is not a cooldown: the word, and the whole line in the tile's name.
+    case "charges":
+      return { short: "Charges", full, known: w.known };
+    case "forms":
+      return { short: "Forms", full, known: w.known };
+    case "none":
+      return { short: "None", full, known: true };
+    case "unknown":
+      return { short: "No data", full, known: false };
+  }
+}
+
 /** The cooldown in one line of words (the forms one after another): what cooldownLines says, joined. */
 export function cooldownWords(d: CooldownDisplay, options: { static?: boolean } = {}): CooldownWords {
   const lines = cooldownLines(d, options);

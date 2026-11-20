@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeftRight, BookmarkPlus, Check, Link2, LoaderCircle, Plus } from "lucide-react";
+import { ArrowLeftRight, BookmarkCheck, BookmarkPlus, Check, Link2, LoaderCircle, Plus } from "lucide-react";
 import { DUO_ROLES, ROLES, ROLE_NAMES, type ChampionChoice, type Role } from "@/domain/matchup-intel/types";
 import { HASTE_CHOICES, HASTE_MAX, clampHaste } from "@/domain/matchup-intel/haste";
 import { ChampionPortrait } from "@/components/champion-portrait";
@@ -296,11 +296,34 @@ function RememberedLine({ you, remembered, onUse, onRemember, focusYourSlot }: {
     );
   }
   return (
-    // On a desktop it sits under the status at the bar's right end, its buttons 28px with a mouse.
-    <div className="flex min-h-11 flex-wrap items-center gap-x-3 gap-y-1 text-sm text-fg-muted @min-[44rem]/pickers:min-h-7 @min-[44rem]/pickers:justify-end @min-[44rem]/pickers:text-xs" data-testid="matchup-remembered" data-state={state}>
+    // On a desktop it sits under the status at the bar's right end, its buttons 28px with a mouse. On a
+    // phone, once your champion is chosen, the title row's icon toggle stands in for it (RememberToggle),
+    // so the enemy's tiles reach the first screen; with none chosen the line stays, offering the
+    // remembered one. `you` is in the address, so the server already knows which: nothing moves.
+    <div className={cn("flex min-h-11 flex-wrap items-center gap-x-3 gap-y-1 text-sm text-fg-muted @min-[44rem]/pickers:min-h-7 @min-[44rem]/pickers:justify-end @min-[44rem]/pickers:text-xs", you && "max-sm:hidden")} data-testid="matchup-remembered" data-state={state}>
       {info ? <span className="flex min-w-0 grow basis-24 items-center gap-2 sm:grow-0 sm:basis-auto">{info}</span> : null}
       {actions ? <span className="flex min-w-0 max-w-full flex-wrap items-center gap-2">{actions}</span> : null}
     </div>
+  );
+}
+
+/**
+ * On a phone, with your champion chosen: "Remember" as an icon toggle at the title row's end, beside
+ * "Copy link" (PLAN S7a), in place of the remembered line. Pressed while the champion in your slot is
+ * the one this device remembers; pressing it remembers that champion, or forgets it. In this browser
+ * only, under the account's key, as the line does (preferences.ts). Until this device's storage is
+ * read it keeps its place and claims nothing.
+ */
+function RememberToggle({ you, remembered, onRemember }: { you: ChampionChoice; remembered: ChampionChoice | null; onRemember: (id: string | null) => void }) {
+  const onClient = useOnClient();
+  const box = "-my-1.5 min-h-11 min-w-11 px-0 sm:hidden";
+  if (!onClient) return <span aria-hidden className={cn("inline-block", box)} data-testid="matchup-remember-toggle" data-state="loading" />;
+  const on = remembered?.id === you.id;
+  const label = on ? `Forget ${you.name}: remembered on this device as your champion` : remembered ? `Remember ${you.name} on this device instead of ${remembered.name}` : `Remember ${you.name} on this device as your champion`;
+  return (
+    <Button size="sm" variant="ghost" aria-pressed={on} aria-label={label} onClick={() => onRemember(on ? null : you.id)} className={box} data-testid="matchup-remember-toggle" data-state={on ? "remembered" : "other"}>
+      {on ? <BookmarkCheck className="h-4 w-4 text-good" aria-hidden /> : <BookmarkPlus className="h-4 w-4" aria-hidden />}
+    </Button>
   );
 }
 
@@ -451,7 +474,22 @@ function PinnedPairBar({ lineup, choice, onOpen, onSwap, watch }: { lineup: Line
       setShown(!!entry && !entry.isIntersecting && entry.boundingClientRect.top < 0);
     });
     io.observe(el);
-    return () => io.disconnect();
+    // Slots that start below the first screen (a phone at a large text size) and are scrolled past in
+    // one go never cross the screen, so the observer has nothing to report: the scroll says it too.
+    let frame = 0;
+    const check = () => {
+      frame = 0;
+      setShown(el.getBoundingClientRect().bottom <= 0);
+    };
+    const onScroll = () => {
+      if (!frame) frame = window.requestAnimationFrame(check);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      io.disconnect();
+      window.removeEventListener("scroll", onScroll);
+      window.cancelAnimationFrame(frame);
+    };
   }, [watch]);
   React.useEffect(() => {
     if (!shown) return;
@@ -656,7 +694,10 @@ export function MatchupFrame({
                 {/* The title with "Copy link" at its row's end; under them the lane, one row (a phone's full width). */}
                 <div className="flex min-w-0 items-center justify-between gap-2 max-sm:w-full">
                   {heading}
-                  <CopyLink href={lineupHref(shown)} />
+                  <span className="flex items-center gap-1">
+                    {yourChoice ? <RememberToggle you={yourChoice} remembered={choice(prefs.you)} onRemember={remember} /> : null}
+                    <CopyLink href={lineupHref(shown)} />
+                  </span>
                 </div>
                 <RoleSelector role={shown.role} onChange={changeRole} />
               </div>
@@ -698,7 +739,7 @@ export function MatchupFrame({
                 {patchState ? <div className="@min-[44rem]/pickers:flex @min-[44rem]/pickers:justify-end">{patchState}</div> : null}
                 {/* While a choice loads, what is loading takes the remembered line's place, at its height. */}
                 {loading ? (
-                  <p className="flex min-h-11 items-center gap-2 text-sm text-fg-muted @min-[44rem]/pickers:min-h-7 @min-[44rem]/pickers:justify-end @min-[44rem]/pickers:text-xs" aria-hidden data-testid="matchup-loading">
+                  <p className={cn("flex min-h-11 items-center gap-2 text-sm text-fg-muted @min-[44rem]/pickers:min-h-7 @min-[44rem]/pickers:justify-end @min-[44rem]/pickers:text-xs", yourChoice && "max-sm:hidden")} aria-hidden data-testid="matchup-loading">
                     <LoaderCircle className="h-4 w-4 shrink-0 animate-spin text-accent motion-reduce:animate-none" />
                     <span className="min-w-0">{loading}</span>
                   </p>

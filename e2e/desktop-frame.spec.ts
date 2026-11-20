@@ -59,9 +59,10 @@ test("every destination starts at one x: the shared frame (UD.X3, S2)", async ({
   }
 });
 
-test("opening Players and All Champions from the app shifts the layout by less than 0.02 (UD.P3, X4)", async ({ page }) => {
+test("opening Players, All Champions and Riot Accounts from the app shifts the layout by less than 0.02 (UD.P3, X4)", async ({ page }) => {
   const profile = await teammate(page);
-  for (const [from, link, to] of [["/team", "a[href='/players']", /\/players$/], [profile, `a[href='${profile}/champions']`, /\/champions$/]] as const) {
+  // Riot Accounts from Match History: its skeleton is in its own shape (AccountsSkeleton) since 20 Nov 2026.
+  for (const [from, link, to] of [["/team", "a[href='/players']", /\/players$/], [profile, `a[href='${profile}/champions']`, /\/champions$/], [`${profile}/matches`, `a[href='${profile}/accounts']`, /\/accounts$/]] as const) {
     await page.goto(from);
     await settled(page);
     await page.evaluate(() => {

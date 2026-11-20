@@ -276,7 +276,8 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
               <span className="whitespace-nowrap text-xs tabular-nums text-fg-subtle" suppressHydrationWarning>
                 {fmtDuration(row.durationS)} · {row.queue} · {when}
               </span>
-              {row.lp ? <LpChange lp={row.lp} dense /> : null}
+              {/* The open game's header: a tab stop of its own, so a keyboard reaches what the LP rests on (TT.TD12). */}
+              {row.lp ? <LpChange lp={row.lp} dense focusable /> : null}
             </span>
             <GameSteps nav={nav} onClose={() => onToggle(row.matchId)} where="header" />
           </span>

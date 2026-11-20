@@ -4,7 +4,7 @@ import type { Db } from "@/server/db/types";
 import { invalidateCache } from "@/server/observability/cache";
 import { EVIDENCE_CACHE } from "./evidence-cache";
 import { appSettings, staticDigests } from "@/server/db/schema";
-import { patchFromVersion } from "@/domain/patch";
+import { comparePatches, patchFromVersion } from "@/domain/patch";
 import type { ChampionAbilitiesIndex } from "./abilities";
 
 /*
@@ -124,10 +124,14 @@ export async function unchangedBetween(db: Db, current: string, previous: string
   return named.every((n) => same.has(`${n.kind}:${n.key}`));
 }
 
-/** The champions, items and runes whose Data Dragon entries changed between two patches, counted (Admin's data health; the job's log). */
+/**
+ * The champions, items and runes whose Data Dragon entries changed between two patches, counted
+ * (`/api/health`, Admin's data health): only what both patches recorded and whose digests differ; a
+ * key new in the current patch, or missing from it, is not a change.
+ */
 export async function changedCounts(db: Db, current: string, previous: string): Promise<Record<DigestKind, number> | null> {
   const rows = (await db.execute(sql`
-    SELECT c.kind, count(*) FILTER (WHERE p.hash IS DISTINCT FROM c.hash) AS changed, count(p.hash) AS compared
+    SELECT c.kind, count(*) FILTER (WHERE p.hash IS NOT NULL AND p.hash <> c.hash) AS changed, count(p.hash) AS compared
     FROM static_digests c LEFT JOIN static_digests p ON p.patch = ${previous} AND p.kind = c.kind AND p.key = c.key
     WHERE c.patch = ${current} GROUP BY c.kind`)) as unknown as { rows?: Array<{ kind: string; changed: string | number; compared: string | number }> };
   const list = rows.rows ?? (rows as unknown as Array<{ kind: string; changed: string | number; compared: string | number }>);
@@ -135,4 +139,21 @@ export async function changedCounts(db: Db, current: string, previous: string): 
   const out: Record<DigestKind, number> = { champion: 0, item: 0, rune: 0 };
   for (const r of list) if (r.kind in out) out[r.kind as DigestKind] = Number(r.changed);
   return out;
+}
+
+/**
+ * The per-version diff for `/api/health` (public: counts and patches only). The newest patch with
+ * digests, how many champions, items and runes it recorded, and how many of each changed since the
+ * patch before it that has digests (null when there is none to compare with). Two small queries
+ * over `static_digests`; a failed attempt's "patch" mark is not a digest.
+ */
+export async function digestHealth(db: Db): Promise<{ patch: string; recorded: Record<DigestKind, number>; previous: string | null; changed: Record<DigestKind, number> | null } | null> {
+  const res = (await db.execute(sql`SELECT patch, kind, count(*) AS n FROM static_digests WHERE kind <> 'patch' GROUP BY patch, kind`)) as unknown as { rows?: Array<{ patch: string; kind: string; n: string | number }> };
+  const list = res.rows ?? (res as unknown as Array<{ patch: string; kind: string; n: string | number }>);
+  const patches = [...new Set(list.map((r) => r.patch))].sort((a, b) => comparePatches(b, a));
+  const [patch, previous = null] = patches;
+  if (!patch) return null;
+  const recorded: Record<DigestKind, number> = { champion: 0, item: 0, rune: 0 };
+  for (const r of list) if (r.patch === patch && r.kind in recorded) recorded[r.kind as DigestKind] = Number(r.n);
+  return { patch, recorded, previous, changed: previous ? await changedCounts(db, patch, previous) : null };
 }

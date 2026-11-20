@@ -593,7 +593,8 @@ With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shel
       86px at 2560 before). A phone held upright keeps the full card.
     - *Skeletons in the page's shape* (`ui/skeleton.tsx`; UD.X4, P3): Players' rows (one, two or three
       across by the roster's width), All Champions' table, Match History's cards, Team's lineup
-      (centred in the height as the lineup is: `data-fills-height`), and a profile opened from
+      (centred in the height as the lineup is: `data-fills-height`), Riot Accounts' panel (its title, lead, an
+      account card and the Add button's row: `AccountsSkeleton`, 20 Nov 2026), and a profile opened from
       outside it as its band, tabs and section. Leaderboards and Team Matches had theirs.
     - *The 12px floor* (UD.X5): `text-2xs` is 12px on desktops (lg), 11px on phones and tablets,
       one token for every use (globals.css); uppercase labels (and `label-caps`) keep 11px. The game cards of Match History and Team Matches keep

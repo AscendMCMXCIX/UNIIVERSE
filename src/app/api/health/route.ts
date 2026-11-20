@@ -11,6 +11,7 @@ import { lastTickScheduleCalls, tickScheduleSilentMs } from "@/server/ops/tick-s
 import { getScheduleOverrides, TICK_JOB_ORDER } from "@/server/jobs/scheduler";
 import { healthNotices } from "@/server/ops/health-notices";
 import { log } from "@/server/observability/log";
+import { digestHealth } from "@/server/matchup-intel/digests";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +27,8 @@ const RANK_SCHEDULE_SILENT_MS = 20 * 60_000;
  * what is failing and whether Riot accepts the configured key. Reads only the tiny status tables
  * (the key's state is the outcome the jobs recorded, cached for 30 s); never touches statistics or
  * external providers, so it stays fast and never reports a provider outage as an app outage. No
- * secrets (of the key, only the state word), no personal data. `notices` says what is off by choice
+ * secrets (of the key, only the state word), no personal data. `digests` is Matchup Intel's
+ * per-version diff of Data Dragon, counted (champions, items and runes recorded and changed). `notices` says what is off by choice
  * (server/ops/health-notices.ts): the five-minute schedule turned off after it was on, and jobs set
  * to 0 in Admin; they warn in the Production check and never fail a scheduled run.
  */
@@ -82,6 +84,13 @@ export async function GET() {
       .select({ cursor: sql<number | null>`max(${riotAccounts.syncCursor})` })
       .from(riotAccounts)
       .where(and(eq(riotAccounts.ownerType, "player"), ne(riotAccounts.label, "demo"), ne(riotAccounts.syncStatus, "demo")));
+    // Matchup Intel's per-version diff (static_digests): the newest patch recorded, its counts, and
+    // how many champions, items and runes changed since the one before. Counts and patches only.
+    // One Matchup Intel query must never fail the whole check: on an error, no digests are listed.
+    const digests = await digestHealth(handle.db).catch((error: unknown) => {
+      log("warn", "health.digests_failed", { error });
+      return null;
+    });
     const accountsReadAt = read?.cursor ? new Date(Number(read.cursor) * 1000) : null;
     return NextResponse.json({
       ...base,
@@ -91,6 +100,7 @@ export async function GET() {
       jobs: jobs.map((j) => ({ key: j.key, status: j.status, lastSuccessAt: j.lastSuccessAt })),
       failingJobs: failing,
       notices,
+      digests,
       riot: { credential: credential.state },
       ms: Math.round((performance.now() - started) * 10) / 10,
     });

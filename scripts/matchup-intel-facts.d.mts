@@ -21,6 +21,9 @@ export interface MatchupIntelRead {
   summaryBottom: number | null;
   summaryShown: boolean;
   ddragon: string;
+  /** The bar's game patch ("Patch 26.23", or "Game patch not known"), and the bar's whole line. */
+  patch?: string;
+  patchState?: string;
   notice: string;
   licence: string | null;
   innerHeight: number;
@@ -42,4 +45,6 @@ export interface MatchupIntelRead {
 }
 export function readMatchupIntel(): MatchupIntelRead;
 export function briefingState(f: MatchupIntelRead): "expired" | "hidden" | "parts hidden" | "shown";
-export function matchupIntelVerdicts(input: { kind: string; pair: string; enemy: string; at: MatchupIntelRead; wide: MatchupIntelRead; wiki: string[] }): Array<{ name: string; status: "PASS" | "FAIL" | "WARN"; detail: unknown }>;
+export function matchupIntelVerdicts(input: { kind: string; pair: string; enemy: string; at: MatchupIntelRead; wide: MatchupIntelRead; wiki: string[]; healthPatch?: string | null }): Array<{ name: string; status: "PASS" | "FAIL" | "WARN"; detail: unknown }>;
+export function publicPatch(patch: string | null | undefined): string | null;
+export function patchVerdict(at: MatchupIntelRead, healthPatch: string | null): { ok: boolean; detail: { health: string | null; page: string | undefined; data: string[]; older: boolean } };
