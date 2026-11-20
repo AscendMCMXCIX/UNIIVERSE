@@ -1224,3 +1224,27 @@ test("as it ships, with the facts from Riot's text switched off: none of them an
   await expect(row(page, "W").getByTestId("fact-chip-markers").first()).toContainText("Mega Gnar");
   await expect(page.getByTestId("assembled-danger")).toHaveAttribute("data-from", "riot-text");
 });
+
+test("phone: once the slots scroll away, a pinned pair bar changes a champion in two taps with no scroll back up", async ({ page }) => {
+  test.skip((page.viewportSize()?.width ?? 1000) >= 640, "a phone");
+  await page.goto("/resources/matchups?role=top&champion=Riven&vs=Mordekaiser");
+  await hydrated(page);
+  const bar = page.getByTestId("matchup-pair-bar");
+  await expect(bar).toBeHidden();
+  await page.getByTestId("matchup-enemy-abilities").scrollIntoViewIfNeeded();
+  await expect(bar).toBeVisible();
+  // Under the phone's own top bar, never over it.
+  const top = (await page.getByTestId("mobile-topbar").boundingBox())!;
+  expect((await bar.boundingBox())!.y).toBeGreaterThanOrEqual(top.y + top.height - 1);
+  await page.getByTestId("matchup-bar-enemy").click();
+  const win = page.getByTestId("matchup-picker");
+  await win.getByTestId("matchup-picker-search").fill("darius");
+  await win.getByTestId("matchup-picker-grid").locator('button[data-champion="Darius"]').click();
+  await expect(page).toHaveURL(/\?role=top&champion=Riven&vs=Darius$/);
+  await expect(page.getByTestId("matchup-enemy-abilities")).toHaveAttribute("data-champion", "Darius");
+  // No scroll back up: the new enemy's kit is where the reader was (the browser keeps it in place
+  // as the page above it changes height), and the pair bar is still there for the next change.
+  await expect(page.getByTestId("matchup-enemy-abilities")).toBeInViewport();
+  await expect(bar).toBeVisible();
+  await expect(page.getByTestId("matchup-bar-enemy")).toBeFocused();
+});

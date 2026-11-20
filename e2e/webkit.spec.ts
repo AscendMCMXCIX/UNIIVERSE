@@ -178,7 +178,7 @@ test("Matchup Intel: a slot's picker fills the screen, a search and a tap choose
   await expect(win.getByTestId("matchup-picker-count")).toHaveText("1 champion found");
   await win.getByTestId("matchup-picker-grid").locator('button[data-champion="Mordekaiser"]').tap();
   await expect(win).toHaveCount(0);
-  await expect(page).toHaveURL(/\?champion=Riven&vs=Mordekaiser$/);
+  await expect(page).toHaveURL(/\?role=top&champion=Riven&vs=Mordekaiser$/);
   await expect(page.getByTestId("matchup-briefing")).toBeVisible();
   // The window gave the focus back to the slot it opened from, which stays on the page.
   await expect(slot).toBeFocused();
@@ -208,6 +208,16 @@ test("Matchup Intel: a slot's picker fills the screen, a search and a tap choose
   const top = (await row.boundingBox())!.y;
   const bar = (await page.getByTestId("mobile-topbar").boundingBox())!;
   expect(top, "the row's top, under the top bar").toBeGreaterThanOrEqual(bar.y + bar.height - 1);
+  // Once the slots have scrolled away, the pinned pair bar: a tap on the enemy's portrait opens the
+  // picker with no scroll back up, and "Copy link" is a named button in the bar.
+  await expect(page.getByTestId("matchup-pair-bar")).toBeVisible();
+  const y = await page.evaluate(() => window.scrollY);
+  await page.getByTestId("matchup-bar-enemy").tap();
+  await expect(win).toBeVisible();
+  await win.getByTestId("matchup-picker-close").tap();
+  await expect(win).toHaveCount(0);
+  expect(await page.evaluate(() => window.scrollY)).toBe(y);
+  await expect(page.getByTestId("matchup-copy-link")).toHaveAccessibleName("Copy link to this matchup");
 });
 
 test("Matchup Intel's facts from Riot's text on an iPhone: a tap on a chip quotes it, on \"Riot's texts differ\" gives both quotes, and the details window says the same; nothing is wider than the phone", async ({ page }) => {

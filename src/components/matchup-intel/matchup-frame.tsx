@@ -430,8 +430,10 @@ function CopyLink({ href }: { href: string }) {
  * 40px portraits and the swap, so a champion is changed in two taps (its portrait, then the pick)
  * with no scroll back up. Hidden wherever the slots are in view, and on wider screens.
  */
-function PinnedPairBar({ lineup, choice, onOpen, onSwap, watch }: { lineup: Lineup; choice: (id: string | null) => ChampionChoice | null; onOpen: (slot: FrameSlot) => void; onSwap: () => void; watch: React.RefObject<HTMLElement | null> }) {
+function PinnedPairBar({ lineup, choice, onOpen, onSwap, watch }: { lineup: Lineup; choice: (id: string | null) => ChampionChoice | null; onOpen: (slot: FrameSlot, opener: HTMLElement) => void; onSwap: () => void; watch: React.RefObject<HTMLElement | null> }) {
   const [shown, setShown] = React.useState(false);
+  // Just under the phone's top bar while it shows, at the very top while it hides on the way down.
+  const [top, setTop] = React.useState(0);
   React.useEffect(() => {
     const el = watch.current;
     if (!el || typeof IntersectionObserver === "undefined") return;
@@ -439,6 +441,31 @@ function PinnedPairBar({ lineup, choice, onOpen, onSwap, watch }: { lineup: Line
     io.observe(el);
     return () => io.disconnect();
   }, [watch]);
+  React.useEffect(() => {
+    if (!shown) return;
+    const bar = document.querySelector<HTMLElement>("[data-testid='mobile-topbar']");
+    let frame = 0;
+    const place = () => {
+      frame = 0;
+      setTop(bar ? Math.max(0, Math.round(bar.getBoundingClientRect().bottom)) : 0);
+    };
+    const later = () => {
+      if (!frame) frame = window.requestAnimationFrame(place);
+    };
+    place();
+    window.addEventListener("scroll", later, { passive: true });
+    // The top bar slides away and back (a transition): follow it to its end.
+    bar?.addEventListener("transitionend", later);
+    bar?.addEventListener("transitionrun", later);
+    const timer = window.setInterval(later, 250);
+    return () => {
+      window.removeEventListener("scroll", later);
+      bar?.removeEventListener("transitionend", later);
+      bar?.removeEventListener("transitionrun", later);
+      window.clearInterval(timer);
+      window.cancelAnimationFrame(frame);
+    };
+  }, [shown]);
   const duo = DUO_ROLES.has(lineup.role);
   const slots: FrameSlot[][] = [duo ? ["you", "ally"] : ["you"], duo ? ["enemy", "enemy2"] : ["enemy"]];
   const tile = (slot: FrameSlot) => {
@@ -446,13 +473,13 @@ function PinnedPairBar({ lineup, choice, onOpen, onSwap, watch }: { lineup: Line
     const words = slotWords(lineup.role, slot);
     const mine = slot === "you" || slot === "ally";
     return (
-      <button key={slot} type="button" onClick={() => onOpen(slot)} aria-label={c ? `${words.label}: ${c.name}, change` : words.choose} className="grid h-11 w-11 place-items-center rounded-md" data-testid={`matchup-bar-${slot}`}>
+      <button key={slot} type="button" onClick={(e) => onOpen(slot, e.currentTarget)} aria-label={c ? `${words.label}: ${c.name}, change` : words.choose} className="grid h-11 w-11 place-items-center rounded-md" data-testid={`matchup-bar-${slot}`}>
         {c ? <ChampionPortrait champion={portraitOf(c)} size="sm" className={cn("h-10 w-10 ring-2", mine ? "ring-blue/60" : "ring-red/60")} /> : <span className="grid h-10 w-10 place-items-center rounded-md border border-dashed border-border-strong text-fg-subtle"><Plus className="h-4 w-4" aria-hidden /></span>}
       </button>
     );
   };
   return (
-    <div className={cn("fixed inset-x-0 top-0 z-30 border-b border-border bg-bg/95 px-4 py-1 backdrop-blur sm:hidden", shown ? "flex" : "hidden")} data-testid="matchup-pair-bar" aria-label="Champions" role="region">
+    <div className={cn("fixed inset-x-0 top-0 z-30 border-b border-border bg-bg/95 px-4 py-1 backdrop-blur sm:hidden", shown ? "flex" : "hidden")} style={{ top }} data-testid="matchup-pair-bar" aria-label="Champions chosen, pinned" role="region">
       <div className="mx-auto flex items-center gap-2">
         {slots[0]!.map(tile)}
         <button type="button" onClick={onSwap} className="grid h-11 w-11 place-items-center rounded-full text-fg-muted" aria-label="Swap your side and the enemy's" data-testid="matchup-bar-swap">
@@ -524,8 +551,9 @@ export function MatchupFrame({
    * focus back to what had it when it opened) returns it to the slot, which stays on the page. A
    * prompt that asked for the picker is gone by then, and Safari never focuses a clicked button.
    */
-  const openPicker = React.useCallback((slot: FrameSlot) => {
-    slotRefs[slot].current?.focus({ preventScroll: true });
+  const openPicker = React.useCallback((slot: FrameSlot, opener?: HTMLElement) => {
+    // From the pinned pair bar, its own button keeps the focus (it is on the screen; the slot is scrolled away).
+    (opener ?? slotRefs[slot].current)?.focus({ preventScroll: true });
     window.clearTimeout(releaseTimer.current);
     setHeldStatus((held) => held ?? statusNow.current);
     setPicking(slot);
