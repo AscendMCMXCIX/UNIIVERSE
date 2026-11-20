@@ -221,10 +221,11 @@
    "small": 0
   },
   "a-data@se1-150": {
-   "screens": 2.69,
+   "screens": 2.75,
    "frame": 0.45,
    "frameScrolled": 0.15,
-   "small": 0
+   "small": 0,
+   "why": "S9c (20 Nov 2026): the jobs as three lists of plain names (PLAN S9c, Data & Integrations), a control added on purpose; measured 2.70 at se1 150% on a freshly started demo of Release 8 (2.64 on Release 7). A data page: CI checks its frame and targets, not its height, which grows with the job runs shown."
   },
   "a-audit@se1-150": {
    "screens": 1.02,
