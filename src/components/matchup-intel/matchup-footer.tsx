@@ -1,4 +1,5 @@
-import { ChevronDown, ExternalLink, ScrollText } from "lucide-react";
+import { ExternalLink, ScrollText } from "lucide-react";
+import { Fold } from "@/components/ui/fold";
 import type { RiotTextReview, Source, Verification } from "@/domain/matchup-intel/types";
 import { patchFromVersion, publicPatchName } from "@/domain/patch";
 import { formatCount, formatIsoDay } from "@/lib/format";
@@ -174,20 +175,15 @@ function WikiCredit({ pages }: { pages: readonly WikiPage[] }) {
         </a>
         . <span data-testid="matchup-footer-endorsement">The wiki and its contributors do not endorse this page.</span>
       </p>
-      <details className="group/pages" data-testid="matchup-footer-wiki-pages">
-        <summary className="inline-flex min-h-9 cursor-pointer list-none items-center gap-1 rounded text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:min-h-11 [&::-webkit-details-marker]:hidden">
-          <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open/pages:rotate-180 motion-reduce:transition-none" aria-hidden />
-          {pages.length === 1 ? "The wiki page" : `The ${formatCount(pages.length)} wiki pages`}
-        </summary>
-        {/* On a touch screen the links' 44px areas stop short of the summary above them. */}
-        <ul className="mt-1 flex flex-wrap gap-x-3 gap-y-1.5 pointer-coarse:mt-4 pointer-coarse:gap-y-3" data-testid="matchup-footer-wiki-list">
+      <Fold variant="inline" tone="muted" testId="matchup-footer-wiki-pages" summary={pages.length === 1 ? "The wiki page" : `The ${formatCount(pages.length)} wiki pages`}>
+        <ul className="flex flex-wrap gap-x-3 gap-y-1.5 pointer-coarse:gap-y-3" data-testid="matchup-footer-wiki-list">
           {pages.map((p) => (
             <li key={p.key} data-testid="matchup-footer-wiki-page">
               <SourceLink source={p} />
             </li>
           ))}
         </ul>
-      </details>
+      </Fold>
     </div>
   );
 }
@@ -232,28 +228,31 @@ export function MatchupFooter({ view, legal }: { view: FooterView; legal: string
     <footer className="text-xs text-fg-subtle" data-testid="matchup-footer">
       <h2 className="sr-only">Sources and notices</h2>
       {/* One press away and always there; the native details element works before the page's code has run. */}
-      <details className="group/sources rounded-panel border border-border bg-surface/60" data-testid="matchup-sources">
-        <summary className="flex min-h-9 cursor-pointer list-none flex-wrap items-center gap-x-2 gap-y-0.5 rounded-panel px-3 py-1.5 hover:bg-surface-2/50 pointer-coarse:min-h-11 [&::-webkit-details-marker]:hidden">
-          <span className="inline-flex items-center gap-1.5 font-medium text-fg">
-            <ScrollText className="h-3.5 w-3.5 shrink-0" aria-hidden />
-            Sources and notices
-            <ChevronDown className="h-3.5 w-3.5 shrink-0 text-fg-subtle transition-transform group-open/sources:rotate-180 motion-reduce:transition-none" aria-hidden />
+      <Fold
+        testId="matchup-sources"
+        flush
+        bodyClassName="space-y-1.5 p-3 leading-relaxed sm:p-4"
+        summary={
+          <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
+            <span className="inline-flex items-center gap-1.5 font-medium text-fg">
+              <ScrollText className="h-3.5 w-3.5 shrink-0" aria-hidden />
+              Sources and notices
+            </span>
+            <span className="min-w-0" data-testid="matchup-sources-summary">
+              {STATIC_SHORT} · {summaryData}
+              {pages.length ? " · League of Legends Wiki, CC BY-SA 3.0" : ""}
+              {riotText ? " · Riot's text, reviewed automatically" : ""} · Not endorsed by Riot Games
+            </span>
           </span>
-          <span className="min-w-0" data-testid="matchup-sources-summary">
-            {STATIC_SHORT} · {summaryData}
-            {pages.length ? " · League of Legends Wiki, CC BY-SA 3.0" : ""}
-            {riotText ? " · Riot's text, reviewed automatically" : ""} · Not endorsed by Riot Games
-          </span>
-        </summary>
-        <div className="space-y-1.5 border-t border-border px-3 py-2.5 leading-relaxed">
-          <DataDragonLine sides={sides} currentKnown={view.patch?.current != null} />
-          {riotText ? <p data-testid="matchup-footer-riot-text">{riotText}</p> : null}
-          {checked ? <p data-testid="matchup-footer-checked">{checked}</p> : null}
-          {pages.length ? <WikiCredit pages={pages} /> : null}
-          <p data-testid="matchup-footer-static">{STATIC_WORDS}</p>
-          <p data-testid="matchup-footer-riot">{legal}</p>
-        </div>
-      </details>
+        }
+      >
+        <DataDragonLine sides={sides} currentKnown={view.patch?.current != null} />
+        {riotText ? <p data-testid="matchup-footer-riot-text">{riotText}</p> : null}
+        {checked ? <p data-testid="matchup-footer-checked">{checked}</p> : null}
+        {pages.length ? <WikiCredit pages={pages} /> : null}
+        <p data-testid="matchup-footer-static">{STATIC_WORDS}</p>
+        <p data-testid="matchup-footer-riot">{legal}</p>
+      </Fold>
     </footer>
   );
 }

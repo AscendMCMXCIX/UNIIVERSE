@@ -1,4 +1,5 @@
-import { ChevronDown, Quote } from "lucide-react";
+import { Quote } from "lucide-react";
+import { Fold } from "@/components/ui/fold";
 import type { ChampionIntelView } from "@/domain/matchup-intel/types";
 import { Panel } from "@/components/ui/panel";
 import { formatCount } from "@/lib/format";
@@ -29,26 +30,11 @@ function TipQuote({ text }: { text: string }) {
   );
 }
 
-function Fold({
-  summary,
-  children,
-  testId,
-}: {
-  summary: string;
-  children: React.ReactNode;
-  testId: string;
-}) {
+function TipsFold({ summary, children, testId }: { summary: string; children: React.ReactNode; testId: string }) {
   return (
-    <details className="group/tips" data-testid={testId}>
-      <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 text-xs font-medium text-fg-muted hover:text-fg pointer-fine:min-h-7 [&::-webkit-details-marker]:hidden">
-        <span>{summary}</span>
-        <ChevronDown
-          className="h-3.5 w-3.5 shrink-0 transition-transform group-open/tips:rotate-180 motion-reduce:transition-none"
-          aria-hidden
-        />
-      </summary>
-      <div className="space-y-1.5 pb-1">{children}</div>
-    </details>
+    <Fold variant="row" tone="muted" summaryClassName="text-xs font-medium" bodyClassName="space-y-1.5" testId={testId} summary={<span>{summary}</span>}>
+      {children}
+    </Fold>
   );
 }
 
@@ -133,7 +119,7 @@ export function RiotTipsPanel({
           </span>
         }
       >
-        <div className="space-y-1.5 pb-1">
+        <div className="space-y-1.5">
           {withEnemyTips.map((i) => (
             <TipGroup
               key={`e-${i.champion.id}`}
@@ -143,7 +129,7 @@ export function RiotTipsPanel({
             />
           ))}
           {moreCount ? (
-            <Fold
+            <TipsFold
               summary={`More of Riot's tips against ${moreEnemy.map((i) => i.champion.name).join(" and ")} (${formatCount(moreCount)})`}
               testId="riot-tips-enemy-more"
             >
@@ -155,10 +141,10 @@ export function RiotTipsPanel({
                   tips={i.tips!.enemy.slice(1)}
                 />
               ))}
-            </Fold>
+            </TipsFold>
           ) : null}
           {allyCount ? (
-            <Fold
+            <TipsFold
               summary={`Riot's tips for playing ${withAllyTips.map((i) => i.champion.name).join(" and ")} (${formatCount(allyCount)})`}
               testId="riot-tips-ally-more"
             >
@@ -170,7 +156,7 @@ export function RiotTipsPanel({
                   tips={i.tips!.ally}
                 />
               ))}
-            </Fold>
+            </TipsFold>
           ) : null}
           {none.map((w) => (
             <p

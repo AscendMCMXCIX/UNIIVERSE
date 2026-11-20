@@ -631,6 +631,8 @@ test("the docked player Peek at 1280: its pool list takes the short figure block
   for (const n of [0, 1, 2]) {
     // Off the name (the profile's link): the row's own press.
     const row = page.locator("[data-testid=player-peek-open]").nth(n);
+    await expect(row).toBeVisible();
+    await row.scrollIntoViewIfNeeded();
     const box = (await row.boundingBox())!;
     await row.click({ position: { x: box.width - 24, y: box.height / 2 } });
     const list = page.getByTestId("player-peek").getByTestId("pool-list");

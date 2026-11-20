@@ -1,6 +1,7 @@
 import { TierLabel } from "./evidence-panel";
 import type * as React from "react";
-import { ChevronDown, Crosshair, History, TriangleAlert, Waypoints } from "lucide-react";
+import { Crosshair, History, TriangleAlert, Waypoints } from "lucide-react";
+import { Fold } from "@/components/ui/fold";
 import type { AbilityRef, BriefingPointView, ChampionChoice, MatchupIntelView, Slot } from "@/domain/matchup-intel/types";
 import { Badge } from "@/components/ui/badge";
 import { Panel } from "@/components/ui/panel";
@@ -237,7 +238,7 @@ export function Briefing({ matchup, you, enemy, rows }: { matchup: MatchupIntelV
                 In lane
               </h3>
               {first.length ? (
-                <ul className="mt-1.5 grid gap-x-5 gap-y-2 @min-[34rem]/brief:grid-cols-2">
+                <ul className="grid gap-x-5 gap-y-2 @min-[34rem]/brief:grid-cols-2">
                   {first.map((p, i) => (
                     <LanePoint key={i} point={p} names={names} rows={rows} />
                   ))}
@@ -246,18 +247,13 @@ export function Briefing({ matchup, you, enemy, rows }: { matchup: MatchupIntelV
               {rest.length ? (
                 // The rest, word for word, one press away: never cut to fit.
                 // On a touch screen 12px under the chips above, so neither's 44px area covers the other.
-                <details className="group/more mt-1.5 pointer-coarse:mt-3" data-testid="briefing-lane-more">
-                  <summary className="touch-target inline-flex min-h-7 cursor-pointer list-none items-center gap-1 rounded-sm text-xs font-medium text-accent hover:text-accent-strong [&::-webkit-details-marker]:hidden">
-                    <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open/more:rotate-180 motion-reduce:transition-none" aria-hidden />
-                    {moreWords(rest.length)}
-                    <span className="sr-only"> in lane</span>
-                  </summary>
+                <Fold variant="inline" tone="accent" className="mt-1.5 pointer-coarse:mt-3" testId="briefing-lane-more" summary={<>{moreWords(rest.length)}<span className="sr-only"> in lane</span></>}>
                   <ul className="mt-1.5 grid gap-x-5 gap-y-2 @min-[34rem]/brief:grid-cols-2">
                     {rest.map((p, i) => (
                       <LanePoint key={i} point={p} names={names} rows={rows} />
                     ))}
                   </ul>
-                </details>
+                </Fold>
               ) : null}
               {hiddenLane.length ? (
                 <div className={shownLane.length ? "mt-2" : "mt-1.5"}>

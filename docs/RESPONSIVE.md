@@ -633,9 +633,11 @@ the account screen over the dashboard at 200% on a 320px phone as well.
   field also keep 16px on every touch screen and turn 14px only with a mouse (`pointer-fine:`):
   iOS zoomed the page into the opponent search at 14px.
 - `ToggleChip` (`ui/toggle.tsx`): every selectable chip (roles, modes, filters).
-- A section that folds on phones: `Disclosure` (`ui/disclosure.tsx`, a native `<details>`) or a CSS
-  breakpoint. The former `MobileSection` was removed. A Disclosure inside another (Data &
-  Integrations' Advanced, inside Details) turns its chevron only for its own `<details>`.
+- A section that folds on phones: `Fold` (`ui/fold.tsx`, a native `<details>`; it replaced
+  `Disclosure` and every page's own fold in S4a) or a CSS breakpoint. The former `MobileSection`
+  was removed. A Fold inside another (Data & Integrations' Advanced, inside Details) turns its
+  chevron only for its own `<details>`. Every fold's summary is 44px tall on touch screens and its body
+  starts 16px under it, so the touch areas of the links in it reach nothing of the summary.
 - A typed confirmation (Admin's setup jobs, a job turned off, Delete with profile, a profile
   without an account; 19 Nov 2026): the same `Dialog`, its phrase above an `Input` (16px on touch,
   so Safari does not zoom), any letter case accepted since a phone's keyboard capitalises; the danger
