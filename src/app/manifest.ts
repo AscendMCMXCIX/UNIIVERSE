@@ -17,7 +17,8 @@ export const dynamic = "force-dynamic";
  * Installed on a computer (Chrome and Edge on Windows, macOS, Linux, ChromeOS):
  * - `shortcuts`: the destinations every bar shows, My Profile, Team, Matchup Intel and Resources, in
  *   the icon's menu (right-click on the Windows taskbar or Start, long-press on Android), read from
- *   the navigation itself (nav.ts, MANIFEST_SHORTCUTS) so they never drift from it;
+ *   the navigation itself (nav.ts, MANIFEST_SHORTCUTS) so they never drift from it, each with its
+ *   destination's own icon from the bars (public/icons/shortcuts);
  * - `launch_handler`: opening the app again, or one of those shortcuts, uses the window already
  *   open and goes to that page, instead of opening another window.
  */
@@ -42,7 +43,7 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
       { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
       { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
     ],
-    shortcuts: MANIFEST_SHORTCUTS.map(({ name, url }) => ({ name, short_name: name, url, icons: [{ src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }] })),
+    shortcuts: MANIFEST_SHORTCUTS.map(({ name, url, icon }) => ({ name, short_name: name, url, icons: [{ src: icon, sizes: "96x96", type: "image/png" }] })),
     launch_handler: { client_mode: ["navigate-existing", "auto"] },
   };
 }

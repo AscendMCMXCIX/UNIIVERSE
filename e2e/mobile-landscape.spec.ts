@@ -1,4 +1,5 @@
 import { devices, expect, test, type Browser, type BrowserContextOptions, type Page } from "./test";
+import { expectNoSeriousAxe } from "./axe";
 import { lineupAtRest } from "./lineup";
 import { openMatchWindow } from "./match-history";
 import { memberContext } from "./member-account";
@@ -55,6 +56,8 @@ test("held sideways: one compact bar holds the destinations, with no bottom bar,
   // The roster is one column of rows on a small phone held sideways: far more than the bar needs to slide away.
   expect(await page.evaluate(() => document.documentElement.scrollHeight - innerHeight), "Players scrolls on a small phone held sideways").toBeGreaterThan(200);
   const bar = page.getByTestId("mobile-topbar");
+  // The compact bar on the smallest phone held sideways (568 × 320): axe, no serious or critical finding (S2a).
+  await expectNoSeriousAxe(page, "compact bar, 568 × 320", ["[data-testid=mobile-topbar]"]);
   // The places to go stay one tap away sideways: in the top bar, the one primary navigation shown.
   const nav = page.getByRole("navigation", { name: "Primary" });
   await expect(nav).toHaveCount(1);
@@ -339,9 +342,12 @@ test("held sideways, the avatar opens the account screen at every width, and Tea
     await expect(page.getByTestId("team-tabs"), where).toBeHidden();
     await expect(page.getByTestId("mobile-topbar").getByTestId("team-chrome-tabs").getByRole("link"), where).toHaveText(["Overview", "Players", "Leaderboards", "Matches"]);
     await expect(page.getByTestId("mobile-topbar").getByTestId("account-menu-button"), where).toBeHidden();
+    // The compact bar with Team's pinned row under it: axe, no serious or critical finding (S2a).
+    await expectNoSeriousAxe(page, `compact bar, ${where}`, ["[data-testid=mobile-topbar]"]);
     await page.getByTestId("account-sheet-button").click();
     const screen = page.getByTestId("account-sheet");
     await expect(screen, where).toHaveAttribute("data-entered", "true");
+    await expectNoSeriousAxe(page, `account screen, ${where}`, ["[data-testid=account-sheet]"]);
     expect(await screen.boundingBox(), where).toEqual({ x: 0, y: 0, width: viewport.width, height: viewport.height });
     // The account's own items only: Matchup Intel and Resources are destinations of the bar.
     await expect(screen.getByRole("navigation", { name: "Your account" }).getByRole("link"), where).toHaveText(["Settings"]);
