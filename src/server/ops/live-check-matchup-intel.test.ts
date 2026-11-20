@@ -114,6 +114,19 @@ describe("the Production check's Matchup Intel facts", () => {
     expect(failed(judge(NOW, { ...WIDE, size: "1440x900" }))).toContain("desktop: 1920 × 1080: the whole overview fits the screen, no page scroll");
   });
 
+  it("fail Release 6's page on production's 26.23 as its Production check read it, and pass the page that fixed it, read on the demo given Riot's 16.23.1", () => {
+    // Production check 44758125888 (20 Nov 2026): the lane selector, the haste choice and Riot's tips
+    // had made the page taller, and "Not re-checked for 26.23" put the sources' summary 8px under the fold.
+    const release6 = { ...NOW, tilesBottom: 727, summaryBottom: 908, summaryShown: false, scrollHeight: 947 };
+    expect(failed(judge(release6))).toEqual(["desktop: 1440 × 900: the essentials are on the screen: the enemy's five ability tiles and the sources' summary"]);
+    // The fix (fix/mi-fit-recheck, over Release 7's tiers and evidence line), on the demo with Riot's
+    // real 16.23.1 records: no page scroll at 1440 x 900 either; production draws Mordekaiser's W
+    // cooldown line a line taller (16px), which the summary's room under the fold still holds.
+    const fixed = { ...NOW, tilesBottom: 683, summaryBottom: 859, scrollHeight: 900 };
+    expect(failed(judge(fixed))).toEqual([]);
+    expect(failed(judge({ ...fixed, tilesBottom: fixed.tilesBottom + 16, summaryBottom: fixed.summaryBottom + 16, scrollHeight: 916 }))).toEqual([]);
+  });
+
   it("fail a hidden briefing said as missing, a hidden state the bar does not warn of, and everything that holds in every state; warn of abilities not on the page", () => {
     expect(failed(judge({ ...EXPIRED, assembledWhy: "No curated briefing for Riven vs Mordekaiser yet." }))).toEqual(["desktop: the curated briefing is hidden as too old to show, and says so, above the assembled reference too"]);
     expect(failed(judge({ ...WHOLE_HIDDEN, barWarning: "" }, { ...WIDE, scrollHeight: 1270 }))).toHaveLength(1);

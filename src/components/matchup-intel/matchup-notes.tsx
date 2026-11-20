@@ -148,17 +148,17 @@ function FreshnessBadges({ rechecks, expired, testId }: { rechecks: readonly str
     // row at 1920 x 950 and up), else on a line of its own under them; never inside the words, which
     // keep their own line. So a panel is no taller for it where there is room (19 Nov 2026: 27px less
     // for Level changes on production's patch, which is what kept Briar vs Mordekaiser from fitting).
-    <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs" data-testid={`${testId}-freshness`}>
+    <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs" data-testid={`${testId}-freshness`}>
       {patch && !expired ? (
         <span className="inline-flex max-w-full" data-testid={`${testId}-not-rechecked`}>
-          <Badge tone="neutral">
+          <Badge tone="neutral" size="line">
             <History className="h-3.5 w-3.5 shrink-0" aria-hidden />
             {notRecheckedWords(patch)}
           </Badge>
         </span>
       ) : null}
       {expired ? (
-        <Badge tone="warn">
+        <Badge tone="warn" size="line">
           <TriangleAlert className="h-3.5 w-3.5 shrink-0" aria-hidden />
           {expiredNotesWords(expired)}
         </Badge>
@@ -219,7 +219,7 @@ export function InteractionsPanel({ matchup, enemyIntel, yourIntel, you, rows }:
   const rechecks = [...new Set([...(shown.length && matchup?.recheck && !matchup.recheck.expired ? [matchup.recheck.patch] : []), ...facts.rechecks])];
   return (
     <Panel className="overflow-hidden" data-testid="matchup-interactions">
-      <header className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border px-3 py-1.5">
+      <header className="flex flex-wrap items-center gap-x-3 gap-y-0.5 border-b border-border px-3 py-1.5">
         <div className="flex min-w-0 flex-auto flex-wrap items-baseline justify-between gap-x-3">
           <h2 className="text-sm font-semibold text-fg">Interactions</h2>
           <p className="text-xs text-fg-muted">
@@ -322,7 +322,7 @@ export function LevelNotesPanel({ intels }: { intels: ReadonlyArray<ChampionInte
   const oneSource = texts.length > 0 && texts.every((t) => t !== null && t === texts[0]) ? texts[0]! : null;
   return (
     <Panel className="overflow-hidden" data-testid="matchup-level-notes">
-      <header className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border px-3 py-1.5">
+      <header className="flex flex-wrap items-center gap-x-3 gap-y-0.5 border-b border-border px-3 py-1.5">
         <div className="flex min-w-0 flex-auto flex-wrap items-baseline justify-between gap-x-3">
           <h2 className="text-sm font-semibold text-fg">Level changes</h2>
           <p className="text-xs text-fg-muted">

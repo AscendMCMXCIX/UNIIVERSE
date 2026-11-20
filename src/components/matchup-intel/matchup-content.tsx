@@ -108,7 +108,10 @@ export function MatchupContent({ view, champions, curated, legal, evidence = nul
   const tips = <RiotTipsPanel enemies={[enemyIntel, enemy2Intel].filter((i): i is ChampionIntelView => !!i)} yours={[mirror ? null : yourIntel, allyIntel].filter((i): i is ChampionIntelView => !!i)} evidenceSummary={<EvidenceSummary evidence={evidence} />} evidence={<EvidenceBody evidence={evidence} duo={duo} pair={{ chosen: !!you && !!enemy, curated: shows, hidden: !shows && !!matchup }} />} />;
 
   return (
-    <div className="@container/dash space-y-3" data-testid="matchup-dashboard" data-layer={you && enemy ? (shows ? "curated" : "assembled") : undefined}>
+    // On a desktop (two columns) the panels 8px apart, 12px on a phone: the one screen keeps room for
+    // the notices a later patch adds ("Not re-checked for 26.23"), which production shows from each new
+    // patch until the curated notes are re-checked (e2e/matchup-intel-dashboard.spec.ts reads that state).
+    <div className="@container/dash space-y-3 @min-[60rem]/dash:space-y-2" data-testid="matchup-dashboard" data-layer={you && enemy ? (shows ? "curated" : "assembled") : undefined}>
       {!you && !enemy ? <NothingChosen curated={curated} byId={byId} /> : null}
 
       {you && !enemy ? (
@@ -131,7 +134,7 @@ export function MatchupContent({ view, champions, curated, legal, evidence = nul
 
       {enemyIntel ? (
         <div className={duo ? COLUMNS.duo : COLUMNS.solo}>
-          <div className="min-w-0 space-y-3">
+          <div className="min-w-0 space-y-3 @min-[60rem]/dash:space-y-2">
             {you && enemy && matchup ? <Briefing matchup={matchup} you={you} enemy={enemy} rows={rows} /> : null}
             {/* A briefing that exists but shows nothing (too old, or every part resting on a change) is hidden above, and said so there. */}
             {you && enemy && !shows ? <AssembledReference you={you} enemy={enemy} enemyIntel={enemyIntel} yourIntel={yourIntel} curatedForYou={curatedForYou} rows={rows} briefingHidden={!!matchup} /> : null}
@@ -141,7 +144,7 @@ export function MatchupContent({ view, champions, curated, legal, evidence = nul
               <LevelNotesPanel intels={[enemyIntel, yourIntel]} />
             </div>
           </div>
-          <div className="min-w-0 space-y-3">
+          <div className="min-w-0 space-y-3 @min-[60rem]/dash:space-y-2">
             {/* In the bot lane with both enemies chosen, their two kits side by side where the column has room. */}
             <div className={enemy2Intel ? "grid gap-3 @min-[60rem]/dash:grid-cols-2" : undefined} data-testid="matchup-enemy-kits">
               <AbilitiesPanel intel={enemyIntel} title={mirror ? `${enemyIntel.champion.name}'s abilities (both sides)` : `${enemyIntel.champion.name}'s abilities`} testId="matchup-enemy-abilities" notice={stale} haste />

@@ -95,7 +95,7 @@ Counted from the committed data on 19 Nov 2026 (Data Dragon 16.22.1, 173 champio
 
 On a desktop the page is one screen, read in a glance (`matchup-content.tsx`, `matchup-frame.tsx`):
 
-- **The bar**, one row from a bar 68rem wide (the bot lane's from 72rem; under that the title and the lane take a row of their own above the slots, as at 1280 and 1366 with the sidebar open, where a third column would leave the status 126–212px and three lines tall): the title; your champion and the enemy as slots, each
+- **The bar**, one row from a bar 68rem wide (the bot lane's from 72rem; under that the title and the lane take a row of their own above the slots, as at 1280 and 1366 with the sidebar open, where a third column would leave the status 126–212px and three lines tall, and the 1v1 slots take at most 30rem there, so the status keeps "Curated briefing · checked on patch 26.22" and "Not re-checked for 26.23" on one line): the title; your champion and the enemy as slots, each
   a 36px portrait, "You" in blue or "Enemy" in red (always with the word) and the name, with the
   swap between them; at the far end the game's patch ("Patch 26.22"), where the abilities come from
   ("Riot Data Dragon 16.22.1"), which layer the pair shows ("Curated briefing · checked on patch
@@ -162,6 +162,35 @@ on 541, the tallest scrolling by 83px (K'Sante vs Mordekaiser), and Riven vs Mor
 Production check's pair, by 23px. Before the notes panels' badge moved onto their title row (Interactions
 and level changes, above), Briar vs Mordekaiser and K'Sante vs Mordekaiser scrolled at 1920 × 950 by
 15 and 13px there.
+
+**A patch after the check (Production check of 20 Nov 2026).** Production is in the state the
+browser tests' pinned demo never showed from each new patch until the curated notes are re-checked:
+"Not re-checked for 26.23" beside every check, in the bar, the briefing, each checked kit's line and
+the notes panels. Release 6 (the lane selector, the haste choice in the kit's header, Riot's tips
+under the kits) and Release 7 (each row's evidence tier, the evidence line in the tips' fold) had
+made the page taller, and with those notices the Production check found Riven vs Mordekaiser's
+sources' summary under the fold at 1440 × 900: 908px on Release 6 (Production check 44758125888),
+and Release 7's own check failed the same fact. Measured on the demo given Riot's 16.23.1 records,
+Release 7 put the summary at 924px for that pair, 929px for Ambessa vs Renekton, and under the fold
+on 14 of the 30 pairs of the six champions with checked notes; the enemy's cooldown lines ended at
+795px at 1280 × 800. What changed: those badges are as tall as the words they sit beside (Badge size
+`line`, 16px) and their rows sit 2px apart, not 4; the bar's status has no row gap; the haste choice
+is drawn as the lane's, without inner padding; the briefing's, the kit's and the assembled
+reference's headers are padded as the notes panels' are (6px); the kit's tier ("Riot's data") leads
+its source line, so the haste choice keeps the title's row; the briefing's title, tier and check
+keep one row; on a desktop the panels are 8px apart (12px on a phone); and under the title's row the
+1v1 slots take at most 30rem (1280 and 1366 with the sidebar open). Measured the same way after:
+Riven vs Mordekaiser's tiles end at 683px and its summary at 859px, with no page scroll at 1440 ×
+900 (production draws Mordekaiser's W cooldown line, which fits its tile with 0.3px to spare on the
+demo, a line taller: 16px more there); Ambessa vs Renekton 872px, Gwen vs Ornn 813px; the 30 pairs'
+summaries at most 884px (Ornn vs Ambessa), all on the screen; no page scroll at 1920 × 1080 (the
+least room under the summary 200px), 1920 × 950 and 2560 × 1440 on any of them; the cooldown lines at
+most 762px at 1280 × 800. On the pinned demo's own state (the notes checked on its patch) the same
+30 at most 877px (Riven vs Gwen). The briefing hidden as too old (three patches on) is still a state
+that runs past 1440 × 900 (Riven vs Mordekaiser's summary at 943px, Gwen vs Ornn's at 1045px; its
+tiles on the screen, no page scroll at 1920 × 1080); the Production check passes it and says what it
+found (Production check, below). `e2e/matchup-intel-dashboard.spec.ts` now reads the not re-checked
+state on the curated pairs and their reverse (What the browser tests pin).
 
 **What changed to fit.** Before these fixes ten pairs scrolled at 1920 × 950: Mordekaiser vs Ornn and
 the reverse by 95px, Ambessa vs Mordekaiser by 55px, Mordekaiser vs Ambessa by 46px, Ambessa vs Ornn
@@ -1449,11 +1478,20 @@ Matchup Intel page added to it would need `DDRAGON_VERSION` passed as well.
   checked against, or one without its `ddragon-<version>.cooldowns.json` and identity file, so a
   re-check on a newer version moves the pin in the same pull request (When a patch changes them,
   step 5), and the specs read the data the newest notes were checked on.
-- **Not covered by them.** The page on later patches (the "Not re-checked for 26.23" labels, a
+- **A later patch, on the pinned demo.** A test that sets the cookie `uniiverse-test-notes-age`
+  (`notesAge`, `e2e/matchup-intel.ts`; read only on the in-memory demo, never on a deployment:
+  `src/server/matchup-intel/notes-age.ts`) sees the curated notes as checked one, two or three
+  patches before they were, with Riot's records unchanged: one patch on, the words production shows
+  until the notes are re-checked, in the same places and at the same length ("Checked on patch 26.21 ·
+  Not re-checked for 26.22" for production's "26.22 · … 26.23"); measured on the demo it gives the
+  same page, to the pixel, as the demo given Riot's 16.23.1 records. The dashboard spec holds the
+  curated pairs and their reverse to the Production check's own fit facts in that state at 1440 ×
+  900, and to the essentials at 1280 × 800 and no page scroll at 1920 × 1080 and 1920 × 950.
+- **Not covered by them.** The page on later patches beyond that (a
   briefing hidden for its age or for a change and said so above the assembled reference, a point
   hidden because Riot changed an ability, the bar's warning for it, an assembled side's flagged line
   and its notes' line, an empty group beside hidden facts from Riot's text, the notes panels'
-  freshness, Riot's data newer than the notes) is the unit
+  warning once their check is too old, Riot's data newer than the notes) is the unit
   tests' (`view.test.ts`, `matchup-content.test.ts`, `src/domain/patch.test.ts`), with the patches and
   records injected; the Production check's own facts in those states are
   `src/server/ops/live-check-matchup-intel.test.ts`'s, from the page read in each. A server started by hand for
