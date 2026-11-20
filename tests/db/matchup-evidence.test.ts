@@ -14,6 +14,7 @@ import { backfillMatchPrep, prepPending, refreshMatchPrep } from "@/server/match
 import { loadMatchupEvidence } from "@/server/matchup-intel/evidence";
 import { unchangedBetween } from "@/server/matchup-intel/digests";
 import { invalidateAllCaches } from "@/server/observability/cache";
+import { processEgress } from "@/server/db/egress";
 import { runJob } from "@/server/jobs";
 import { patchSortKey } from "@/domain/patch";
 import type { Session } from "@/server/auth/permissions";
@@ -249,6 +250,20 @@ describe("the evidence's read path", () => {
     const changed = (await evidence(session("viewer")))!.sections.find((s) => s.scope === "own")!;
     expect(changed.lines.find((l) => l.key === "record")?.sample).toBe("patch 26.22 · Solo/Duo 3, Normal Draft 1");
     await db.delete(staticDigests);
+  });
+
+  it("a repeat view reads nothing from the database: the per-version diff is cached with the counts (R7 review B3)", async () => {
+    invalidateAllCaches();
+    await db.insert(staticDigests).values([
+      { patch: CURRENT, kind: "champion", key: "Riven", hash: "a" },
+      { patch: PREVIOUS, kind: "champion", key: "Riven", hash: "a" },
+    ]);
+    await evidence(session("viewer"));
+    const before = processEgress().calls;
+    await evidence(session("viewer"));
+    expect(processEgress().calls - before).toBe(0);
+    await db.delete(staticDigests);
+    invalidateAllCaches();
   });
 
   it("never counts a remake or a game without a known result", async () => {

@@ -231,7 +231,9 @@ export async function loadMatchupEvidence(db: Db, session: Session | null, input
 async function unchangedSets(db: Db, current: string, previous: string, counts: EvidenceCounts, champions: readonly string[]): Promise<PatchWindow["unchanged"]> {
   const named: Array<{ kind: "champion" | "item" | "rune"; key: string }> = champions.map((c) => ({ kind: "champion" as const, key: c }));
   for (const [field, rows] of Object.entries(counts.fields)) for (const r of rows ?? []) named.push(...namedBy(field as EvidenceField, r.value));
-  const same = await unchangedKeys(db, current, previous, named);
+  // Cached with the counts (cleared with them, and when a patch's digests are recorded): a repeat view reads nothing (R7 review B3).
+  const keys = [...new Set(named.map((n) => `${n.kind}:${n.key}`))].sort();
+  const same = new Set(await cachedFor(`${EVIDENCE_CACHE}:diff:${keyOf([current, previous, keys])}`, CACHE_MS, async () => [...(await unchangedKeys(db, current, previous, named))], db));
   return (list) => list.length > 0 && list.every((n) => same.has(`${n.kind}:${n.key}`));
 }
 

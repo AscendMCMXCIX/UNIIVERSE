@@ -1,6 +1,8 @@
 import { createHash } from "node:crypto";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
+import { invalidateCache } from "@/server/observability/cache";
+import { EVIDENCE_CACHE } from "./evidence-cache";
 import { appSettings, staticDigests } from "@/server/db/schema";
 import { patchFromVersion } from "@/domain/patch";
 import type { ChampionAbilitiesIndex } from "./abilities";
@@ -91,6 +93,8 @@ export async function ensureStaticDigests(db: Db, version: string, options: { fe
     throw err;
   }
   for (let i = 0; i < rows.length; i += 500) await db.insert(staticDigests).values(rows.slice(i, i + 500).map((r) => ({ patch, ...r }))).onConflictDoNothing();
+  // The evidence caches the diff with its counts: a patch's new digests can change what is pooled.
+  invalidateCache(EVIDENCE_CACHE);
   return { recorded: rows.length };
 }
 

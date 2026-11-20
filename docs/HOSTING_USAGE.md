@@ -18,8 +18,11 @@ This page records what caused that, what was changed, how it was measured, and h
 - **A full run** (1,000 games, the most a run reads) is therefore **about 5–6 MB**, against 120 MB a
   day. Production's 7,500 or so members' games take about 8 runs, one a day by hand, each counted
   first (`before`); `db-usage` shows the day's egress.
-- **After it:** a page view's counts are a few KB (counts only, cached an hour); forward capture
-  adds four small queries per stored timeline.
+- **After it:** a page view's counts are a few KB (counts only, cached an hour, with the
+  per-version diff they rest on, so a repeat view makes no query; R7 review B3); forward capture
+  adds about five small queries per stored timeline, and a sync or the housekeeping fold makes the
+  rows of the games it folded in one call a run (about five queries for up to 100 games, one cache
+  clear; R7 review B4), not one a game.
 
 ## 19 Nov 2026: the deploy limit raised to about 6 a day
 
