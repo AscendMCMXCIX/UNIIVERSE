@@ -117,7 +117,7 @@ html {
   text-2xs, is 12px, so names, chips, captions and labels never read at 11px where the root is
   still 16px (1024 to 1536px wide; above that the fluid root lifts them anyway). Phones and tablets
   keep 11px, where it was measured to fit. One token, so every use follows it;
-  src/app/design-tokens.test.ts checks this rule and the one place that waits for it (type-floor-later).
+  src/app/design-tokens.test.ts checks this rule and lists any place that waits for it (type-floor-later).
 */
 @media (min-width: 64rem) {
   :root {
@@ -127,10 +127,9 @@ html {
 }
 
 /*
-  Where the 12px floor does not reach yet: the game cards of Match History and Team Matches keep 11px
-  (Release 5's post-game view, S6, was built before the floor; raising their text alone would widen
-  the cards at 1280 to 1440, so the floor reaches them with their next measured pass). Only on the
-  elements design-tokens.test.ts lists, each with its reason.
+  Where the 12px floor does not reach yet (type-floor-later): no place since Release 11, when the game
+  cards of Match History and Team Matches took it after a measured pass. The utility stays for a
+  place a later stage must defer, listed in design-tokens.test.ts with its reason.
 */
 /* Uppercase labels (column headings, eyebrows, label-caps) keep 11px at every width: the floor is for
    running text and names, and a label's tracked capitals read at 11px (they set the width of a

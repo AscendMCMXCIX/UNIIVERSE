@@ -80,7 +80,7 @@ test("opening Players, All Champions and Riot Accounts from the app shifts the l
   }
 });
 
-test("no running text or name under 12px on a desktop, outside the game cards S6b rebuilds (UD.X5)", async ({ page }) => {
+test("no running text or name under 12px on a desktop, the game cards included (UD.X5)", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   const profile = await teammate(page);
   for (const path of ["/team", `${profile}/champions`, `${profile}/matches`, "/matches", profile]) {
@@ -94,8 +94,8 @@ test("no running text or name under 12px on a desktop, outside the game cards S6
         if (!walk.currentNode.textContent!.trim() || !el.getBoundingClientRect().width) continue;
         const s = getComputedStyle(el);
         // Uppercase labels may stay small; letters in a decorative tile (the ⓘ glyph, initials) are
-        // hidden from screen readers; the game cards keep 11px until S6b (type-floor-later).
-        if (parseFloat(s.fontSize) >= 11.95 || s.textTransform === "uppercase" || el.closest("[aria-hidden=true], .sr-only, .type-floor-later")) continue;
+        // hidden from screen readers. The game cards took the floor in Release 11.
+        if (parseFloat(s.fontSize) >= 11.95 || s.textTransform === "uppercase" || el.closest("[aria-hidden=true], .sr-only")) continue;
         found.push(`${el.closest("[data-testid]")?.getAttribute("data-testid") ?? el.tagName} ${s.fontSize}: ${walk.currentNode.textContent!.trim().slice(0, 20)}`);
       }
       return found;
