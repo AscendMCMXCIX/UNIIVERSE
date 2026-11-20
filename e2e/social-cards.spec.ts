@@ -86,7 +86,8 @@ test("Players: the icons sit on the player's row, and using one never opens the 
   await expect(icons.getByTestId("card-social-youtube")).toHaveAttribute("href", "https://www.youtube.com/@DemoMidChannel");
   await expect(icons.getByTestId("card-social-twitch")).toHaveCount(0);
   // On the row, inside the edges of the link laid over it.
-  const card = (await page.locator("main a[data-testid='player-card'][data-player-name='Demo Mid']").boundingBox())!;
+  // The row's own press (S8a: the Peek's link, or the profile's for a member without a main role); the name is a link of its own.
+  const card = (await page.locator("main a[data-row-link][data-player-name='Demo Mid']").boundingBox())!;
   const box = (await icons.boundingBox())!;
   expect(box.x).toBeGreaterThan(card.x);
   expect(box.x + box.width).toBeLessThan(card.x + card.width);
