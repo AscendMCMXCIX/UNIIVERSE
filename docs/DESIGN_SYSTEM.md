@@ -376,7 +376,7 @@ The review compared desktop and phone against the benchmark pages; these held wh
   (an empty block after it takes the room back), so it stops at the game's last pixel.
 - **Sorted figures are strong where they are drawn:** a phone row of All Champions sorted by games
   sets its "15 games" semibold, as the desktop's Games column.
-- **The profile band from xl** writes the off role ("Top (off)") and the rank's queue; under xl
+- **The Overview's profile band from xl** writes the off role ("Top (off)") and the rank's queue; under xl
   they are read out only, so the band stays one line.
 
 ### The one history rule (`address-item.ts`)
