@@ -99,7 +99,8 @@ From the same match and timeline requests as before (no new request, no new endp
 - **`account_match_prep`:** one row per member's stored rift game, what its record and timeline say
   about the member's preparation (docs/MATCHUP_INTEL.md, "In your games"). Storing a timeline makes
   its game's rows again; the by-hand `prep-backfill` (a setup job, "BACKFILL") inserts the missing
-  ones, at most 1,000 games a run, insert only, no Riot request, counts only.
+  ones and makes again those whose starting items still count first-minute sales, at most 1,000
+  games a run, nothing else replaced, no Riot request, counts only.
 - **`static_digests`:** version-check records a hash per champion, item and rune once a patch, from
   three Data Dragon files, for the evidence's two-patch rule; a failed attempt is retried at most
   once a day.

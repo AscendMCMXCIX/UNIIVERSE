@@ -870,7 +870,9 @@ and finds none.
   its game's rows again (`refreshMatchPrep`), never failing what stored it.
 - **`prep-backfill`**, a setup (repair) job: the Owner's from Admin ("BACKFILL"), or the session's
   through Data jobs with `CRON_SECRET`. It inserts the rows still missing, at most 1,000 games a run,
-  newest first; insert only, so a second run inserts nothing and a stopped run keeps what it did. No
+  newest first, and makes again the rows whose starting items still count items sold in the first
+  minute (`STALE_START` in prep-store.ts); nothing else is replaced, so a second run writes nothing
+  and a stopped run keeps what it did. No
   Riot request; counts only (`before`, `read`, `inserted`, `withTimeline`, `unnamed`, `remaining`).
   About 5 KB of database egress a game, 5 MB a full run (docs/HOSTING_USAGE.md).
 - **`static_digests`** (migration 0067), the per-version diff: version-check records, once a patch,
