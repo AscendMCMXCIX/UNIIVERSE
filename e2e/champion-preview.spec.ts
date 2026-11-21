@@ -252,7 +252,7 @@ test("a window 640–767px wide with a mouse (the phone's frame): the preview op
 
 test("from a scrolled list: a row below the first screen opens its preview, Escape (desktop) or Back (phone, tablet) closes it, and the row, the sort and the search are where they were", async ({ page }, info) => {
   // The demo's longest list is 8 champions; a short window makes it scroll. "Show all" appears from
-  // 21 champions (FIRST in all-champions.tsx), which no demo profile has, so it is not exercised here.
+  // 21 champions (FIRST in all-champions.tsx), which no demo profile has: the next test reaches it with a test cookie.
   const size = page.viewportSize()!;
   await page.setViewportSize({ width: size.width, height: 480 });
   // The demo's Mid: the longest list (8 champions).
@@ -301,4 +301,37 @@ test("from a scrolled list: a row below the first screen opens its preview, Esca
   await close();
   await expect(search).toHaveValue(word);
   await expect.poll(order, { message: "the search's rows kept" }).toEqual(found);
+});
+
+test("after Show all: a row reached through it opens its preview, closes, and comes back to its place with the whole list still shown", async ({ page, baseURL }, info) => {
+  // No demo profile plays the 21 champions "Show all" needs (FIRST in all-champions.tsx): the
+  // in-memory demo's test cookie folds the list after 3 rows instead (server/demo/test-hooks.ts).
+  await page.context().addCookies([{ name: "uniiverse-test-champions-first", value: "3", url: baseURL! }]);
+  const size = page.viewportSize()!;
+  await page.setViewportSize({ width: size.width, height: 480 });
+  await page.goto("/players");
+  const href = await page.locator("main a[data-testid='player-card']", { hasText: "Demo Mid" }).first().getAttribute("href");
+  await page.goto(`${new URL(href!, "http://x").pathname}/champions`);
+  const rows = page.getByTestId("top-champion");
+  await expect(rows.first()).toBeVisible();
+  await expect(rows).toHaveCount(3);
+  const more = page.getByTestId("all-champions-more");
+  await expect(more).toHaveText(/Show all \d+ champions/);
+  const total = Number((await more.textContent())!.match(/\d+/)![0]);
+  expect(total, "more rows than the fold").toBeGreaterThan(3);
+  await more.click();
+  await expect(rows).toHaveCount(total);
+  await expect(more).toHaveCount(0);
+  const last = rows.nth(total - 1);
+  await last.scrollIntoViewIfNeeded();
+  const at = async () => ({ y: Math.round((await last.boundingBox())!.y), scroll: await page.evaluate(() => Math.round(window.scrollY)) });
+  const before = await at();
+  expect(before.scroll, "the list is scrolled").toBeGreaterThan(0);
+  await openRow(page, last);
+  if (info.project.name === "desktop") await page.keyboard.press("Escape");
+  else await page.goBack();
+  await expect(page.getByTestId("champion-preview-content")).toHaveCount(0);
+  await expect(page).not.toHaveURL(/champion=/);
+  await expect(rows, "the whole list still shown").toHaveCount(total);
+  await expect.poll(async () => Math.abs((await at()).y - before.y), { message: "the row where it was" }).toBeLessThanOrEqual(3);
 });

@@ -322,7 +322,7 @@ const masteryText = (n: number | null | undefined) => (n == null ? "—" : forma
  * exploring. A champion opens its preview (champion-preview.tsx) in the same scope: inside the list's
  * card on a wide list, a sheet elsewhere; it lives in the URL, so it can be linked, and Back closes it.
  */
-export function AllChampions({ data, basePath, championsById, playerId, isOwn, initialPreview, initialPairing, status, refresh }: { data: PlayerOverviewData; basePath: string; championsById: Record<string, PortraitChampion>; playerId: string; /** The viewer's own profile: the preview says "you". */ isOwn: boolean; /** The server's render of a linked preview (?champion=), so it opens without a request. */ initialPreview?: ChampionPreviewData | null; initialPairing?: PairingGamesData | null; /** The page's data status (domain/data-status). */ status?: DataStatus | null; /** Offered to the player and to those who manage Riot accounts, where Riot can be asked. */ refresh?: DataRefreshTarget | null }) {
+export function AllChampions({ data, basePath, championsById, playerId, isOwn, initialPreview, initialPairing, status, refresh, firstRows = FIRST }: { data: PlayerOverviewData; basePath: string; championsById: Record<string, PortraitChampion>; playerId: string; /** The viewer's own profile: the preview says "you". */ isOwn: boolean; /** The server's render of a linked preview (?champion=), so it opens without a request. */ initialPreview?: ChampionPreviewData | null; initialPairing?: PairingGamesData | null; /** The page's data status (domain/data-status). */ status?: DataStatus | null; /** Offered to the player and to those who manage Riot accounts, where Riot can be asked. */ refresh?: DataRefreshTarget | null; /** The rows shown before Show all (FIRST; smaller only for a browser test on the demo, server/demo/test-hooks.ts). */ firstRows?: number }) {
   const [query, setQuery] = React.useState("");
   // The table's own search: once it has gone up under the pinned tabs, the row offers a copy (PageToolbar).
   const searchRef = React.useRef<HTMLInputElement>(null);
@@ -378,7 +378,7 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
   );
   const sortBy = (key: SortKey) => setSort((cur) => (cur.key === key ? { key, dir: cur.dir === "asc" ? "desc" : "asc" } : { key, dir: defaultDir(key) }));
   const label = COLUMNS.find((c) => c.key === sort.key)!.label;
-  const shown = React.useMemo(() => (all || q ? rows : rows.slice(0, FIRST)), [all, q, rows]);
+  const shown = React.useMemo(() => (all || q ? rows : rows.slice(0, firstRows)), [all, q, rows, firstRows]);
   // Some champions' multikills come from only some of their games (or none yet): the list says how to read them.
   const multikillsIncomplete = rows.some((c) => !!c.multikills && c.multikills.counted < c.multikills.games);
   // Kills come from each game's full record: a champion with games still without it is marked the same way.
@@ -797,7 +797,7 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
               })}
             </div>
             {list}
-            {!all && !q && rows.length > FIRST ? (
+            {!all && !q && rows.length > firstRows ? (
               <button type="button" onClick={() => setAll(true)} className="flex min-h-11 w-full items-center justify-center rounded-b-card border-t border-border/70 text-sm font-medium text-accent transition-colors hover:bg-accent/5" data-testid="all-champions-more">
                 Show all {rows.length} champions
               </button>
