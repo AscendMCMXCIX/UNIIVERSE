@@ -52,7 +52,7 @@ export function BrandFrameView({ branding: b, eyebrow, children, width = "max-w-
           </p>
         )}
         {/* Lit in violet, as the page's ambient light is: the brand blue is never a glow (DESIGN_SYSTEM.md §4). */}
-        <div className="rounded-lg border border-border/80 bg-surface/95 p-4 shadow-[0_0_60px_-20px_var(--color-accent-2)] backdrop-blur-sm sm:p-6">
+        <div className="rounded-card border border-border/80 bg-surface/95 p-4 shadow-[0_0_60px_-20px_var(--color-accent-2)] backdrop-blur-sm sm:p-6">
           <div className="text-xs tracking-tagline text-accent">{eyebrow}</div>
           <BrandNamesProvider names={b}>{children}</BrandNamesProvider>
         </div>

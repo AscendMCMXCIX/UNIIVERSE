@@ -110,6 +110,12 @@ test.describe("accessibility", () => {
         await page.goto(route);
         await page.waitForLoadState("networkidle");
         await audit(page, `${route} at ${width}`);
+        if (route === "/no-access") {
+          // Centred in the content column, not in a 28rem box at its left edge (G3-1), its title balanced so no word stands alone (G3-16).
+          const off = await page.getByTestId("no-access").evaluate((el) => { const r = el.getBoundingClientRect(); const c = el.parentElement!.parentElement!.getBoundingClientRect(); return Math.abs(r.left + r.width / 2 - (c.left + c.width / 2)); });
+          expect(off, `/no-access at ${width}: centred in the column`).toBeLessThanOrEqual(2);
+          expect(await page.locator("main h1").evaluate((el) => getComputedStyle(el).textWrapStyle ?? getComputedStyle(el).textWrap)).toContain("balance");
+        }
       }
     }
   });

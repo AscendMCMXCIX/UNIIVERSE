@@ -699,6 +699,25 @@ Recorded, not changed here, with the reason:
   since "Open the app" is 14px as the decision asks (a visitor's header keeps its rows at every
   size; the mark's 44px target is the touch-target utility's invisible box, so it adds no width or height).
 
+### The design review's phone fixes (G3, 20 Nov 2026)
+
+Release 9's design review (desktop against phone, `PLAN` §1.2) found these on the signed-out and
+onboarding pages, the Library, Settings and the Card Studio; each is checked in the spec named.
+
+- **The setup stepper** (`setup-steps.tsx`): a step's name wraps (balanced, the tick on its first
+  line) rather than being cut: "Roles & champions" needs 108px and its third of the bar is 104px at
+  390 (88px beside the tick), so it takes two lines there (`onboarding-preview.spec.ts`).
+- **The account facts** under the display name: both values end at the box's right edge, also when
+  one wraps under its long label (`onboarding-preview.spec.ts`).
+- **The Library's index** wraps as one inset group: each row starts at the left, and the segments
+  keep the group's 2px inset on touch, so the chosen one's ring is off the border (`resources.spec.ts`).
+- **No access:** its title is balanced ("You don't have access / to that page"), and on the desktop
+  the state is centred in the content column (`quality.spec.ts`).
+- **Personalise:** Customise is the kit's outline Button (36px with a mouse, 44px on touch, 14px
+  text), as Add a picture is; Social links is headed as the other two sections; its help stays 12px, since at 14px it runs to six lines at 393px and the page would pass its budget (`display-name.spec.ts`).
+- **The Card Studio's preview chooser** marks the chosen view with the segment's ring and weight
+  (`card-studio.spec.ts`).
+
 ## 5. The phone design system
 
 **Type on a phone** (rem sizes from the tokens in globals.css, so the reader's text size is followed):

@@ -41,14 +41,17 @@ export function ChangePasswordPanel({ hasPassword, className }: { hasPassword: b
           }}
         >
           {hasPassword ? (
-            <div className="max-w-sm">
-              <Label htmlFor="current">Current password</Label>
-              <Input id="current" type="password" value={current} onChange={(e) => setCurrent(e.target.value)} autoComplete="current-password" aria-invalid={fieldError?.field === "current"} aria-describedby={fieldError?.field === "current" ? "current-error" : undefined} />
-              {fieldError?.field === "current" ? (
-                <p id="current-error" className="mt-1.5 text-xs text-bad">
-                  {fieldError.text}
-                </p>
-              ) : null}
+            // The first column of New and Confirm's grid, so the three fields line up (as `max-w-sm` it overhung New by about 35px).
+            <div className="grid gap-3 sm:grid-cols-2" data-testid="current-password-row">
+              <div className="min-w-0">
+                <Label htmlFor="current">Current password</Label>
+                <Input id="current" type="password" value={current} onChange={(e) => setCurrent(e.target.value)} autoComplete="current-password" aria-invalid={fieldError?.field === "current"} aria-describedby={fieldError?.field === "current" ? "current-error" : undefined} />
+                {fieldError?.field === "current" ? (
+                  <p id="current-error" className="mt-1.5 text-xs text-bad">
+                    {fieldError.text}
+                  </p>
+                ) : null}
+              </div>
             </div>
           ) : null}
           <NewPasswordFields next={next} confirm={confirmValue} onNext={setNext} onConfirm={setConfirmValue} idPrefix="change" />
