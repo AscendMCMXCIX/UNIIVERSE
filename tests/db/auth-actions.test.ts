@@ -301,7 +301,8 @@ describe("admin activity record", () => {
     const reset = await accounts.resetPasswordAction(userId);
     expect(reset.ok).toBe(true);
     expect((await accounts.setAccountActiveAction(userId, false)).ok).toBe(true);
-    expect((await accounts.setAccessGroupsAction(userId, ["view-teammate-stats"])).ok).toBe(true);
+    // A real group (a capability's name is not one, and would change nothing, so record nothing: tests/db/no-op-audit.test.ts).
+    expect((await accounts.setAccessGroupsAction(userId, ["player-manager"])).ok).toBe(true);
     // A player trying the same is refused, and leaves no trace.
     await signInAs(playerId);
     expect((await accounts.resetPasswordAction(userId)).ok).toBe(false);
@@ -313,7 +314,7 @@ describe("admin activity record", () => {
     expect(rows.every((r) => r.actorName === "Ascend")).toBe(true);
     // The deleted account is still named: the name is kept as it was.
     expect(rows.every((r) => r.targetName === "Audited")).toBe(true);
-    expect(rows.find((r) => r.action === "account.groups")?.details).toEqual({ groups: "view-teammate-stats" });
+    expect(rows.find((r) => r.action === "account.groups")?.details).toEqual({ groups: "player-manager" });
     const temp = created.ok ? created.data.temporaryPassword : "missing";
     const issued = reset.ok ? reset.data.temporaryPassword : "missing";
     expect(JSON.stringify(rows)).not.toContain(temp);

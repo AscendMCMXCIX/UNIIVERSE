@@ -5,7 +5,7 @@ import { getBranding } from "@/server/repositories/branding";
 import { loadMatchupPage } from "@/server/matchup-intel/view";
 import { loadMatchupEvidence } from "@/server/matchup-intel/evidence";
 import { RIOT_TEXT_TEST_COOKIE, riotTextFactsShown } from "@/server/matchup-intel/riot-text/switch";
-import { NOTES_AGE_TEST_COOKIE, notesAgeForTest } from "@/server/matchup-intel/notes-age";
+import { CHANGED_ABILITIES_TEST_COOKIE, NOTES_AGE_TEST_COOKIE, changedAbilitiesForTest, notesAgeForTest } from "@/server/matchup-intel/notes-age";
 import { riotLegal } from "@/components/app-shell";
 import { MatchupFrame } from "@/components/matchup-intel/matchup-frame";
 import { MatchupContent } from "@/components/matchup-intel/matchup-content";
@@ -40,7 +40,9 @@ export default async function MatchupIntelPage({ searchParams }: { searchParams:
   const riotText = riotTextFactsShown(jar.get(RIOT_TEXT_TEST_COOKIE)?.value);
   // Browser tests only: the curated notes as production shows them once later patches are out (notes-age.ts; 0 anywhere but the demo).
   const notesAge = notesAgeForTest(jar.get(NOTES_AGE_TEST_COOKIE)?.value);
-  const [{ view, champions, curated }, branding] = await Promise.all([loadMatchupPage(db, input, riotText, notesAge), getBranding(db)]);
+  // And, with it, the abilities Riot changed since the check (the same bounds; none anywhere but the demo).
+  const changed = changedAbilitiesForTest(jar.get(CHANGED_ABILITIES_TEST_COOKIE)?.value);
+  const [{ view, champions, curated }, branding] = await Promise.all([loadMatchupPage(db, input, riotText, notesAge, changed), getBranding(db)]);
   const { you, enemy, ally, enemy2, role } = view;
   // The evidence from the team's own games: counted in SQL for this viewer's own games and the team's they may see.
   const evidence = await loadMatchupEvidence(db, session, { role, you, ally, enemy, enemy2 }, champions);

@@ -136,6 +136,12 @@ test("Overview: the multikill totals as figures of their own, from the same game
   expect(counts.map(key)).toEqual([...counts.map(key)].sort((a, b) => b - a));
   // Together the champions are the Overview's totals: every game once.
   const total = counts.reduce((t, m) => t.map((v, i) => v + m[i]!), [0, 0, 0, 0]);
+  // A filter changed keeps the sort the address held, with every other choice (it dropped ?sort= before Release 10).
+  if (test.info().project.name === "desktop") {
+    await pick(page.locator("#overview-mode"), "all");
+    await expect(page).toHaveURL(/[?&]mode=all\b/);
+    await expect(page).toHaveURL(/[?&]sort=multikills\b/);
+  }
   await page.goto(`${href}?mode=solo`);
   for (const [i, [k]] of KINDS.entries()) await expect(page.getByTestId(`multikill-${k}-value`)).toHaveText(String(total[i]));
 });

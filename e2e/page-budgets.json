@@ -32,7 +32,7 @@
    "small": 0
   },
   "p-champions@i15-100": {
-   "screens": 1.49,
+   "screens": 1.02,
    "frame": 0.3,
    "frameScrolled": 0.3,
    "small": 0
@@ -151,7 +151,7 @@
    "small": 0
   },
   "p-champions@se1-150": {
-   "screens": 5.59,
+   "screens": 3.32,
    "frame": 0.45,
    "frameScrolled": 0.15,
    "small": 0
@@ -362,11 +362,11 @@
    "small": 0
   },
   "personalise@se1-150": {
-   "screens": 5.8,
+   "screens": 5.74,
    "frame": 0,
    "frameScrolled": 0,
    "small": 0,
-   "why": "S8a (20 Nov 2026), new in this release: the demo's member viewer is on the local owner's account row, which other specs change before this one runs (its picture and links), so the page measures 5.63 on a fresh demo and 5.68 after a spec run; the ceiling is the latter plus 2%."
+   "why": "S8a (20 Nov 2026), new in that release at 5.8. Release 10: the demo's member viewer is on the local owner's account row, whose picture avatar-editor.spec.ts saved and left (1.99 and 5.87 in Chrome 156 after it); that spec now removes it, so the page measures 5.63 on a fresh demo and after a spec run, in Chrome 153 and 156: the fresh figure plus 2%."
   },
   "own-overview@se1-150": {
    "screens": 6.04,

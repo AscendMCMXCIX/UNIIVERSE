@@ -112,8 +112,9 @@ On a desktop the page is one screen, read in a glance (`matchup-content.tsx`, `m
 - **Right**, the enemy's five ability tiles, P, Q, W, E and R, always in that order (The ability
   tiles), then your champion, folded into one line ("Your champion: Riven", where its abilities and
   facts come from under it); opened, its own five tiles.
-- **At the foot**, across both columns, "Sources and notices": one line that is always on the
-  screen, its summary visible, the rest one press away (Compliance).
+- **"Sources and notices"**: directly under the enemy's kits (since Release 10; before, at the foot
+  across both columns), in one column as in two, so the order read and tabbed through is the order
+  seen; one line that is always on the screen, its summary visible, the rest one press away (Compliance).
 
 The two columns start where the page's body is 60rem wide (a container query on the dashboard; the
 right one at least 22rem and 0.72 of the left), each as tall as its content: nothing is stretched to
@@ -795,11 +796,18 @@ the timeline keeps sales. Still not built:
 - **Lane occupancy** (mi-evidence §2.1, test 4) is not stored: the confirmed-opponent rule uses the
   three position tests, and a game whose readings disagree is "role unclear".
 - **The jungle's lane end** (the first contested epic objective): the stored events cannot tell it.
-- **Admin for the diff:** `/api/health` lists the digests' counts (`digests`, docs/MONITORING.md);
-  Admin's data health does not yet. It should show the same figures from `digestHealth`
-  (`digests.ts`): the newest patch recorded with its champion, item and rune counts, the patch it was
-  compared with, and how many of each changed ("26.23 against 26.22: 4 champions, 11 items, 0 runes
-  changed"), plus a failed attempt's mark when the newest patch has no digests (Admin stage R8c).
+- **Admin for the diff:** `/api/health` lists the digests' counts (`digests`, docs/MONITORING.md),
+  and since Release 10 Admin's data health does too (Data & Integrations → Details → Data health,
+  the card "Riot's static data between patches", `StaticDiffCard` in
+  `src/components/admin/static-diff.tsx`, from `staticDiffHealth` in `digests.ts`): the newest patch
+  recorded with its champion, item and rune counts ("26.22 recorded: 172 champions, 1,204 items,
+  63 runes."), what changed against the patch before it ("26.23 against 26.22: 4 champions,
+  11 items, 0 runes changed."), or "No earlier patch recorded to compare with.", or "No patch
+  recorded yet."; and a newer patch whose attempt failed and has no digests yet ("⚠ The attempt to
+  record 26.24 failed; it is tried again after a day."). Counts and patch names only, every number
+  through `formatCount`. Tests: `static-diff.test.ts` (each state's words) and
+  `tests/db/health-route.test.ts` (the figures from the table in each state). A failing query leaves
+  the card out, never the page.
 - **Items sold in the first minute** on a timeline kept before 20 Nov 2026 stay in the starting set:
   those timelines keep no sales, so the sale is not known (newer ones keep them, and the item is left
   out; `startingSet` in `prep.ts`). Whether Riot reports a support item's quest upgrade as a purchase (which would show in the first shop visit) is
@@ -946,7 +954,8 @@ the timeline keeps sales. Still not built:
   - the data held is older than the check: a difference is the data's age, not Riot's change, so
     this too is said only as "Checked on patch N", and the notes stay the line;
   - something compared changed after the check: "changed since". The ability's line is then only
-    what Riot's data supports (Cooldowns, below), and its notes follow under "Notes from patch
+    what Riot's data supports (Cooldowns, below), the tile carries the badge "Changed since the
+    check", and its notes follow in the ability's Details window (since Release 10) under "Notes from patch
     26.22 · may be out of date: Riot changed its cooldown since", their cooldown as checked
     included ("As checked: 16 / 14 / 12 / 10 / 8 s · starts when the effect ends"). The champion's
     line says how many changed ("Riot changed one ability after the check: its notes are
@@ -1169,6 +1178,25 @@ a record that says a person checked it, and the page's reader leaves such a file
 claims more, or less, than was done (For the owner, step 11).
 
 ## Curated notes
+
+**Role coverage, plainly:** checked notes exist for top lane only (the six champions with checked
+notes and the three curated pairs are all top lane). Jungle, Mid, ADC and Support have Riot's data,
+Riot's tips, the facts from Riot's text (off until the owner's registration text) and the members'
+own games, but nothing a person checked.
+
+**What to curate next (Admin only, Release 10).** Admin → Data & Integrations → Details → Data
+health holds a read-only card, "Matchup Intel: what to curate next" (`curationPriorities` in
+`src/server/matchup-intel/curation.ts`, `src/components/admin/curation-priorities.tsx`), for the
+owner's choice of what to curate (PLAN OD6): per role, Jungle, Mid, ADC and Support first and Top
+last, the champions in the team members' pools for that role, ranked by the members' stored games
+on that champion in that role, each marked when it already has checked notes or curated pairs.
+Champion names and counts only, never whose pool a cell came from; team members only (no
+personal-use or archived profile, as the evidence counts). It is shown to whoever may open Admin's
+data pages (`requirePageAccess("manage-data")`, no new permission). With a handful of profiles a
+role's cells can point at one person, so its figures are never written to a log, a job's output,
+`/api/health`, the Production check or these docs; a failing query leaves the card out and logs only
+that it failed. Tests: `tests/db/curation-priorities.test.ts` (the ranking, the exclusions, the
+names-only output, and the page refusing a member without Admin access).
 
 Riot's Data Dragon gives every champion's ability names, icons, ranks and base cooldown arrays. It
 does not say when a cooldown starts, what a recast needs, what crowd control an ability carries or
@@ -1487,6 +1515,60 @@ Matchup Intel page added to it would need `DDRAGON_VERSION` passed as well.
   same page, to the pixel, as the demo given Riot's 16.23.1 records. The dashboard spec holds the
   curated pairs and their reverse to the Production check's own fit facts in that state at 1440 ×
   900, and to the essentials at 1280 × 800 and no page scroll at 1920 × 1080 and 1920 × 950.
+- **An ability changed since the check, on the pinned demo.** With the notes' age, a test that sets
+  the cookie `uniiverse-test-changed-abilities` to up to ten abilities ("Riven.Q,Mordekaiser.E";
+  `changedAbilities`, `e2e/matchup-intel.ts`) sees those abilities as changed by Riot after the
+  curated check: the notes' record of Riot's cooldown array for each reads as one Riot no longer has,
+  so the page shows Riot's own stored line for the ability and the curated cooldown as checked,
+  flagged, both as they are (nothing made up), and the briefing's points on it hidden and said. Read
+  only on the in-memory demo, with no `DATABASE_URL` and not on Vercel (`demoTestHooksAllowed`,
+  `notes-age.ts`, which bounds the age's cookie the same way since Release 10; a unit test refuses
+  each production-like setting). The dashboard spec holds the Production check's pair (Riven vs
+  Mordekaiser) with each of Riven's abilities changed to the check's two fit facts at 1440 × 900
+  (judged as when nothing is hidden: the check itself does not judge the fit in that state), every
+  enemy cooldown line on the screen at 1280 × 800 and no page scroll at 1920 × 1080; it failed before
+  Release 10's layout (the sources' summary at 907px with Riven's Q or E changed). Release 10 made
+  room without changing a word: a curated champion's tiles leave out the heading's "Checked on patch
+  …" while most of its lines have it (every tile repeated it once one line differed); the curated
+  notes' line flows on from the words before it, each badge whole (the folded champion's summary a
+  row shorter in every state); a changed ability keeps its cooldown on the name's row, its source
+  under it, and its "Changed since the check" badge on the row of the notes it qualifies, first
+  under the name's row, before the facts they flag (seen and read before them); a hidden point's
+  chips follow its sentence, its icon stepping aside under 9rem as a point's does (so the chip keeps
+  whole at 320px and 200% text); each badge of the curated notes' line follows a space, which a
+  wrapped line drops, so a badge starting a line is not indented. The spec checks the last two at
+  320 × 568 and 200% text. Not changed: the badge's tap area on a touch screen (21px tall, as
+  before); a 44px area there would cover the chips under it, which the touch spec forbids. On a desktop each ability tile is 4px shorter (`lg:py-1`),
+  which gives the fit the margin CI's browser needs: Chrome Headless Shell 156 (CI and the Production
+  check) lays text out wider than the container's Chromium 153 and wraps a cooldown's note a line
+  earlier (Indestructible's, +16px). Measured on the demo (1440 × 900 summary, 1280 × 800 lowest enemy
+  cooldown line), before → after, Chromium 153 / Chrome 156 after: nothing changed 873 → 848 / 851,
+  761 → 725; Riven's Q or E changed 907 → 868 / 883 (17px to spare in 156); W or R 891 → 861 / 867.
+- **An enemy ability changed (Release 10's integration).** With one of the enemy's abilities changed,
+  its tile carries its "Changed since the check" badge, the panel's heading a warning and the briefing
+  a hidden point. Two layout changes (no word, notice or attribution removed) make the Production
+  check's fit facts hold in that state too:
+  - the flagged notes ("Notes from patch 26.21 · may be out of date: Riot changed its cooldown since",
+    the cooldown as checked and its parts) are in the ability's Details window only, one step away
+    (DESIGN_SYSTEM §1); the badge stays on the tile, leading the row of the facts it flags (a row of
+    its own where there are none), and the cooldown's source stays under its numbers. Same for the
+    player's own tiles;
+  - the sources and notices sit directly under the enemy's kits, so a desktop's first screen keeps
+    them whatever the left column holds (the briefing's hidden point and the interactions' "changed"
+    badge put them under the fold at 1440 × 900 before: no layout of the tile alone could make that
+    up); in one column in the same place, before your champion and Riot's tips (a visual reorder to
+    the page's foot took the keyboard's focus there and back up, which the review found).
+  Measured in Chrome Headless Shell 156 (CI's browser) on the demo, Riven vs Mordekaiser, before →
+  after: Mordekaiser's Q changed, the sources' summary at 1440 × 900 941 → 796px and the lowest enemy
+  cooldown line at 1280 × 800 829 → 790px; W 764 / 756; R 796 / 771; nothing changed 851 → 745px,
+  725px; Riven's Q 883 → 761px, 741px. `matchup-intel-dashboard.spec.ts` judges the 1440 × 900 and
+  1920 × 1080 facts and the 1280 × 800 cooldown lines for the enemy's ability as for the player's, and
+  opens the flagged ability's Details window for its notes; it failed before (941px, no badge on the tile).
+- **Too old (three patches).** The notes' age of three hides the briefing on purpose ("This briefing
+  is hidden: it was checked on patch 26.19, three patches ago, and not since"), and the assembled
+  reference stands in its place; the Production check does not judge the fit then. Measured at
+  1440 × 900: the tiles on the screen (683px), the sources' summary under the fold (941px Riven vs
+  Mordekaiser, 971 Ambessa vs Renekton, 1043 Gwen vs Ornn).
 - **Not covered by them.** The page on later patches beyond that (a
   briefing hidden for its age or for a change and said so above the assembled reference, a point
   hidden because Riot changed an ability, the bar's warning for it, an assembled side's flagged line

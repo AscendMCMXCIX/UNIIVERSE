@@ -37,7 +37,9 @@ export function Switch({ checked, onChange, label, description, disabled, id, in
         {input}
         <Track />
       </span>
-      <span className="min-w-0">
+      {/* A word longer than the row's room (a 320px phone at 200% text, in a sheet's panel: "Administrator")
+          breaks, hyphenated, rather than push the sheet 29px sideways. */}
+      <span className="min-w-0 hyphens-auto [overflow-wrap:break-word]">
         <span className="block text-sm text-fg">{label}</span>
         {description ? <span className="block text-xs text-fg-muted">{description}</span> : null}
       </span>
