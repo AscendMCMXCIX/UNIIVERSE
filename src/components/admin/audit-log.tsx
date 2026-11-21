@@ -92,10 +92,10 @@ export function AuditLog({ entries: first, more: firstMore, filters, people }: {
         <FilterField label="Person" htmlFor="audit-person">
           <Select id="audit-person" value={filters.person ?? ""} onValueChange={(v) => set("person", v)} data-testid="audit-person" options={[{ value: "", label: "Everyone" }, ...people.map((p) => ({ value: p.id, label: p.name }))]} />
         </FilterField>
-        <FilterField label="From" htmlFor="audit-from">
+        <FilterField label="From" htmlFor="audit-from" labelBeside>
           <Input id="audit-from" type="date" value={filters.from ?? ""} onChange={(e) => set("from", e.target.value)} data-testid="audit-from" />
         </FilterField>
-        <FilterField label="To" htmlFor="audit-to">
+        <FilterField label="To" htmlFor="audit-to" labelBeside>
           <Input id="audit-to" type="date" value={filters.to ?? ""} onChange={(e) => set("to", e.target.value)} data-testid="audit-to" />
         </FilterField>
       </FilterBar>

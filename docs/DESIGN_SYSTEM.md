@@ -503,6 +503,38 @@ const unfold = useUnfold({ param: "match", initial, valid: (id) => ids.includes(
 - **Touch phones and short windows** open the item as a window instead (`prefersWindow`), never
   inline.
 
+### Admin's pages, drawn as the benchmarks (the design review, 20 Nov 2026)
+
+Release 9's design review (G4) measured Admin Mode against the benchmark pages; the confirmed findings
+are fixed in one place each, and `e2e/design-parity.spec.ts` ("Admin's pages") and
+`e2e/admin-people.spec.ts` measure them:
+
+- **Header rhythm on phones:** an Admin page under a section row with no actions (`PageHeader admin
+  sectionNamed`) shows nothing on a phone, so the whole header is read out only there and its stack
+  margin goes with it: the content starts right under the bars (y 117 at 390 × 844, 133–137 before).
+- **One column edge:** Settings in Admin Mode starts at the page's left edge like every other Admin
+  page: the Admin pages' column starts its children at its left edge (`*:ml-0`, as the frame does),
+  so Settings' 64rem keeps its width and loses its centring (h1 at x 288 at 1440, 319 at 1920, the
+  Dashboard's; 336 and 461 before).
+- **One depth:** every section, card and status list on a panel's surface has `panel-depth` and the
+  panel radius (Branding's Name, Background visibility, Colours and image cards; StatusCards' list).
+- **One fold inside a panel:** a fold inside a panel is a `row` Fold, never a box in a box (System
+  Health's Technical details; Personal data's two). Accounts' "Profiles without an account" is a
+  `row` fold drawn as its sibling groups' heading: the title on their line, the count quiet, the note small.
+- **One state, one chip:** a verdict chip carries the status chips' icon (CheckCircle2 good, Clock
+  needs work, AlertTriangle poor, CircleDashed no data).
+- **Toolbar sizes:** a page-level action and a toolbar's buttons beside 14px segments are `md`
+  Buttons (Add resource, Previews' Rotate and Reset, the person view's Save name); Rotate and Reset
+  wrap together, and stack where one line cannot hold the two (320px at 200%).
+- **Date fields:** the browser's own field and picker, its glyph drawn as a calendar in fg-subtle
+  (`globals.css`); in an inline FilterBar the From and To labels show beside them from xl (`FilterField
+  labelBeside`, in rem, so not at 150–200% text or on a phone held sideways, where they would push a
+  field onto a row of its own), as the phone's sheet shows them above.
+- **Grids that line up:** Access levels' base levels and its groups share one grid from xl, as many
+  20rem columns as fit (three at 1440 × 900; fewer at a large text size, never a 181px tile); the
+  image cards' hints keep two lines from md (`md:min-h-10`), so the three drop zones start on one line.
+- **A wrapped index:** `SectionIndex clipLineDots` (Branding's phone index) never starts a line with a dot.
+
 ## 8. The app's frame: navigation
 
 ### Desktop sidebar (lg and up)

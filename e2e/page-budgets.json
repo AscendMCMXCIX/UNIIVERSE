@@ -89,7 +89,7 @@
    "small": 0
   },
   "a-branding@i15-100": {
-   "screens": 4.27,
+   "screens": 4.24,
    "frame": 0.3,
    "frameScrolled": 0.3,
    "small": 0,
@@ -208,7 +208,7 @@
    "small": 0
   },
   "a-branding@se1-150": {
-   "screens": 13.34,
+   "screens": 13.29,
    "frame": 0.45,
    "frameScrolled": 0.15,
    "small": 0,
@@ -386,50 +386,50 @@
    "small": 0
   },
   "a-access@i15-100": {
-   "screens": 1.85,
+   "screens": 1.83,
    "frame": 0.3,
    "frameScrolled": 0.3,
    "small": 0
   },
   "a-privacy@i15-100": {
-   "screens": 1.8,
+   "screens": 1.71,
    "frame": 0.3,
    "frameScrolled": 0.3,
    "small": 0
   },
   "a-previews@i15-100": {
-   "screens": 1.53,
+   "screens": 1.51,
    "frame": 0.3,
    "frameScrolled": 0.3,
    "small": 0
   },
   "a-resources@i15-100": {
-   "screens": 2.86,
+   "screens": 2.84,
    "frame": 0.3,
    "frameScrolled": 0.3,
    "small": 0,
    "why": "S9c (20 Nov 2026), new in this release: each entry's link is a 44px target on touch (S9c's 44px targets), 20px more on every row; measured on Release 8's combined tree, 2.80 at i15 and 8.91 at se1 150%."
   },
   "a-access@se1-150": {
-   "screens": 7.65,
+   "screens": 7.6,
    "frame": 0.45,
    "frameScrolled": 0.15,
    "small": 0
   },
   "a-privacy@se1-150": {
-   "screens": 5.98,
+   "screens": 5.48,
    "frame": 0.45,
    "frameScrolled": 0.15,
    "small": 0
   },
   "a-previews@se1-150": {
-   "screens": 2.73,
+   "screens": 2.68,
    "frame": 0.45,
    "frameScrolled": 0.15,
    "small": 0
   },
   "a-resources@se1-150": {
-   "screens": 9.09,
+   "screens": 9.04,
    "frame": 0.45,
    "frameScrolled": 0.15,
    "small": 0,

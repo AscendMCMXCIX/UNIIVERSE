@@ -101,6 +101,22 @@
 }
 
 /*
+  A date field's picker glyph in the app's look (G4-6): the browser's own control and its picker,
+  with the glyph drawn as a calendar in fg-subtle, as thin as the Select's chevron beside it, instead
+  of the system's white one. Chromium and Safari's indicator only; Firefox draws none.
+*/
+input[type="date"]::-webkit-calendar-picker-indicator {
+  width: 1rem;
+  height: 1rem;
+  cursor: pointer;
+  background: var(--color-fg-subtle);
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M8 2v4M16 2v4M3 10h18M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01'/%3E%3Crect width='18' height='18' x='3' y='4' rx='2'/%3E%3C/svg%3E") center / 1rem 1rem no-repeat;
+}
+input[type="date"]:hover::-webkit-calendar-picker-indicator {
+  background: var(--color-fg-muted);
+}
+
+/*
   Fluid scale for large screens. Below 1536px wide nothing changes (100% of the reader's own
   browser text size). Above it, the root size grows gently with the window, about 17.7px at
   1920, 20.6px at 2560, up to a cap of 137.5% (22px) for 4K, so everything sized in rem (text,

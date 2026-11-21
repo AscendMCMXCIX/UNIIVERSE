@@ -27,6 +27,7 @@ export default async function AdminDashboardPage() {
   const needs = await loadNeedsYou(db, accounts);
   const active = accounts.filter((a) => a.isActive);
   const waiting = active.filter((a) => !a.setupComplete || a.password.state === "temporary" || a.password.state === "expired" || a.password.state === "none").length;
+  const admins = active.filter((a) => a.role === "owner" || a.isAdmin).length;
   return (
     <div className="space-y-5" data-testid="admin-dashboard">
       <PageHeader admin eyebrow="Admin Mode" title="Dashboard" description="What needs you, then the platform at a glance." />
@@ -54,11 +55,11 @@ export default async function AdminDashboardPage() {
       </Panel>
       <StatStrip label="Accounts" testId="dashboard-accounts">
         <StatLine>
-          <StatTile value={active.length} label="active accounts" testId="dashboard-accounts-active" />
+          <StatTile lead value={active.length} label="active accounts" testId="dashboard-accounts-active" />
           <StatTile value={waiting} label="awaiting first sign-in" testId="dashboard-waiting" />
         </StatLine>
         <StatLine>
-          <StatTile value={active.filter((a) => a.role === "owner" || a.isAdmin).length} label="administrators" testId="dashboard-admins" />
+          <StatTile value={admins} label={admins === 1 ? "administrator" : "administrators"} testId="dashboard-admins" />
           <StatTile value={accounts.length - active.length} label="deactivated" testId="dashboard-inactive" />
         </StatLine>
       </StatStrip>

@@ -576,18 +576,22 @@ export function RefineButton({ open, count = 0, controls, onClick, haspopup, but
   );
 }
 
+const BESIDE = "xl:ml-1 xl:flex-row xl:items-center xl:gap-1.5";
+
 /**
  * One filter inside a FilterBar: its label shows above it when the bar is unfolded on a phone and is
  * read by screen readers on wide screens, where the control's own text says what it holds.
  */
-export function FilterField({ label, htmlFor, labelId, children, className, alwaysLabel = false }: { label: string; htmlFor?: string; labelId?: string; children: React.ReactNode; className?: string; /** Keep the label visible on wide screens too (fields in a panel, such as Refine). */ alwaysLabel?: boolean }) {
+export function FilterField({ label, htmlFor, labelId, children, className, alwaysLabel = false, labelBeside = false }: { label: string; htmlFor?: string; labelId?: string; children: React.ReactNode; className?: string; /** Keep the label visible on wide screens too (fields in a panel, such as Refine). */ alwaysLabel?: boolean; /** In the inline row, the label shown beside the field rather than read out only: for a control whose own text does not say what it holds (a date field's "mm/dd/yyyy"). */ labelBeside?: boolean }) {
   const at = AT[React.useContext(FoldContext)];
   // In the sheet the label shows at every width, and the field takes the sheet's width.
   const inSheet = React.useContext(SheetContext);
   const inline = !alwaysLabel && !inSheet;
-  const cls = cn("text-xs font-medium text-fg-muted", inline && at.label);
+  // Beside the field only where the row has room for it (xl, in rem: 1280px at the usual text size,
+  // so not at 150–200% text or on a phone held sideways, where it would push a field onto a row of its own).
+  const cls = cn("text-xs font-medium text-fg-muted", inline && at.label, inline && labelBeside && "xl:not-sr-only");
   return (
-    <div className={cn("flex min-w-0 flex-col gap-1", inline && at.field, className)}>
+    <div className={cn("flex min-w-0 flex-col gap-1", inline && at.field, inline && labelBeside && BESIDE, className)}>
       {htmlFor ? (
         <label htmlFor={htmlFor} className={cls} data-filter-label="">
           {label}

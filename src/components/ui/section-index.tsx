@@ -119,7 +119,9 @@ function useSectionInView(ids: string): string | null {
  * Optional, for a page that keeps its index in view (Settings' account card): `spy` marks the section
  * being read (aria-current="location"); `listClassName`, `linkClassName` (told whether its link is
  * the one being read) and `separatorClassName` restyle the list, its links and the dots between
- * them. Without them the index is exactly the line above.
+ * them. Without them the index is exactly the line above. `clipLineDots`: where the line wraps (a
+ * phone's Branding index), no line starts with a dot: each dot sits in the gap before its link, and
+ * the dot of a line's first link falls outside the list's left edge, which clips it (G4-13).
  */
 export function SectionIndex({
   items,
@@ -130,6 +132,7 @@ export function SectionIndex({
   listClassName,
   linkClassName,
   separatorClassName,
+  clipLineDots = false,
 }: {
   items: readonly SectionIndexItem[];
   /** The navigation's name for screen readers. */
@@ -140,17 +143,23 @@ export function SectionIndex({
   listClassName?: string;
   linkClassName?: (current: boolean) => string;
   separatorClassName?: string;
+  /** Hide the dot that would start a wrapped line. */
+  clipLineDots?: boolean;
 }) {
   const current = useSectionInView(spy ? items.map((i) => i.id).join(" ") : "");
   return (
     <nav aria-label={label} className={cn("min-w-0", className)} data-testid={testId}>
-      <ul className={cn("flex min-w-0 flex-wrap items-center gap-x-1.5 text-sm", listClassName)}>
+      {/* clipLineDots: a 6px gap, the 8px dot, a 6px gap (gap-x-5), each dot pulled back over the gap
+          before it (-ml-3.5); at a line's start that puts the dot left of the list, past its 4px of
+          room for a focus ring (-ml-1 pl-1), where the horizontal clip hides it. Vertical overflow
+          stays visible, so the links' 44px touch areas are whole. */}
+      <ul className={cn("flex min-w-0 flex-wrap items-center gap-x-1.5 text-sm", clipLineDots && "-ml-1 gap-x-5 overflow-x-clip pl-1", listClassName)}>
         {items.map((item, i) => {
           const on = current === item.id;
           return (
-            <li key={item.id} className="flex min-w-0 items-center gap-x-1.5">
+            <li key={item.id} className={cn("flex min-w-0 items-center gap-x-1.5", clipLineDots && i > 0 && "-ml-3.5")}>
               {i ? (
-                <span aria-hidden className={cn("text-fg-subtle", separatorClassName)}>
+                <span aria-hidden className={cn("text-fg-subtle", clipLineDots && "w-2 shrink-0 text-center", separatorClassName)} data-section-dot="">
                   ·
                 </span>
               ) : null}
