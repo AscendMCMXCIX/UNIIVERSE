@@ -129,6 +129,8 @@ export function PersonView({
       description={p?.account ? `@${p.account.username}` : p?.player ? "A profile without an account" : undefined}
       testId="person-view"
       closeTestId="person-view-close"
+      // Restored by Back (after "See all in Audit Logs") or opened by a link, no row opened it: the focus goes back to the person's row.
+      returnFocus={() => (p ? document.querySelector<HTMLElement>(`button[data-person="${CSS.escape(p.key)}"]`) : null)}
       headerExtra={
         position && position.of > 1 ? (
           // The same ‹ › as every other window's (PreviewWindow): 44px on touch screens at every text size.

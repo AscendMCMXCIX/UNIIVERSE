@@ -79,14 +79,15 @@ function useSectionInView(ids: string): string | null {
       const target = jumped ? document.getElementById(jumped) : null;
       const top = target?.getBoundingClientRect().top;
       // (Until it has landed there, a smooth jump may still be on its way.)
-      if (top !== undefined && top >= -2 && top <= line) {
+      const held = top !== undefined && top >= -2 && top <= line;
+      if (held) {
         at = jumped!;
         landed = true;
       } else if (landed) jumped = null;
-      // At the page's top, the first section; at its end, the last.
-      if (window.scrollY <= 0) at = list[0]!;
+      // At the page's top, the first section; at its end, the last (unless the reader jumped to a section that is at the window's top: a tall window can end the page right under it).
+      if (!held && window.scrollY <= 0) at = list[0]!;
       const root = document.documentElement;
-      if (window.scrollY > 0 && window.scrollY + window.innerHeight >= root.scrollHeight - 2) at = list[list.length - 1]!;
+      if (!held && window.scrollY > 0 && window.scrollY + window.innerHeight >= root.scrollHeight - 2) at = list[list.length - 1]!;
       setCurrent(at);
     };
     const schedule = () => {

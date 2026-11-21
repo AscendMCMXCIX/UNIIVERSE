@@ -293,6 +293,15 @@ test("Settings: the account card leads, drawn in the order it is read, with Sign
     await page.evaluate(() => window.scrollTo(0, 300));
     await links.first().click();
     await expect(links.first()).toHaveAttribute("aria-current", "location");
+    if (info.project.name === "desktop") {
+      // A tall window ends the page right under a section jumped to: it stays marked, not the last one (the end-of-page rule gives way).
+      const size = page.viewportSize()!;
+      await page.setViewportSize({ width: 1920, height: 1200 });
+      const password = index.locator("a[href='#password']");
+      await password.click();
+      await expect(password).toHaveAttribute("aria-current", "location");
+      await page.setViewportSize(size);
+    }
     await page.evaluate(() => window.scrollTo(0, 0));
     const surface3 = await page.evaluate(() => { const p = document.createElement("i"); p.className = "bg-surface-3"; document.body.append(p); const c = getComputedStyle(p).backgroundColor; p.remove(); return c; });
     await expect.poll(() => links.first().evaluate((el) => getComputedStyle(el).backgroundColor), "the section being read on surface-3").toBe(surface3);

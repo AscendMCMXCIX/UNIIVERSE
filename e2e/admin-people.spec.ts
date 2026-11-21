@@ -362,4 +362,7 @@ test("Reactivate with a new temporary password: a deactivated member comes back 
   await expect(page.getByTestId("person-view")).toBeHidden();
   await expect(page).not.toHaveURL(/person=/);
   expect(await at(), "closing went Back, not a replace").toBe(opened - 1);
+  // No row opened the view restored by Back: the focus still goes back to the person's row.
+  const key = new URL(personUrl).searchParams.get("person")!;
+  await expect.poll(() => page.evaluate(() => document.activeElement?.getAttribute("data-person") ?? document.activeElement?.tagName), "the focus on the person's row").toBe(key);
 });

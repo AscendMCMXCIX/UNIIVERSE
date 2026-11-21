@@ -414,6 +414,7 @@ export function DetailModal({
   innerScroll = false,
   sheetWidth = "standard",
   compactTitle,
+  returnFocus,
 }: {
   open: boolean;
   onClose: () => void;
@@ -456,12 +457,18 @@ export function DetailModal({
   innerScroll?: boolean;
   /** What the 56px bar a phone window's header collapses to shows (default: the title). */
   compactTitle?: React.ReactNode;
+  /** Where the focus goes back to when nothing on the page opened the window (a window restored by Back, or opened by a deep link): its row in the list, say. */
+  returnFocus?: () => HTMLElement | null;
 }) {
   const generated = React.useId();
   const titleId = titleIdProp ?? `modal-title-${generated}`;
   const descriptionId = description ? `modal-desc-${generated}` : undefined;
   const ref = React.useRef<HTMLDialogElement>(null);
   const opener = React.useRef<HTMLElement | null>(null);
+  const returnFocusRef = React.useRef(returnFocus);
+  React.useLayoutEffect(() => {
+    returnFocusRef.current = returnFocus;
+  });
 
   const [closing, setClosing] = React.useState(false);
   const [settled, setSettled] = React.useState(false);
@@ -739,7 +746,7 @@ export function DetailModal({
       letGo();
       // Back to what opened the window, whether it was closed or removed from the page (or to the
       // window replacing it, see handedOver).
-      const back = opener.current;
+      const back = opener.current ?? returnFocusRef.current?.() ?? null;
       handedOver = back;
       requestAnimationFrame(() => {
         if (handedOver === back) handedOver = null;
