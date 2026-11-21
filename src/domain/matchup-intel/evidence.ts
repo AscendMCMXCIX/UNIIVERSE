@@ -1,6 +1,7 @@
 import { publicPatchName } from "@/domain/patch";
 import { formatCount } from "@/lib/format";
 import { parseRunePage } from "./prep";
+import { summonerSpellCooldown } from "./haste";
 
 /*
   MATCHUP INTEL's evidence lines (docs/MATCHUP_INTEL.md, "In your games"): every line counted from
@@ -58,6 +59,10 @@ export interface EvidenceNames {
   item: (id: string) => string | null;
   spell: (key: string) => string | null;
   rune: (id: string) => string | null;
+  /** A summoner spell's base cooldown per rank in seconds, from Riot's data (Data Dragon's summoner.json); null when it gives none. */
+  spellCooldown?: (key: string) => readonly number[] | null;
+  /** A summoner spell's charges where Riot's data gives it some (Smite: 2), whose array is then not its cooldown; null otherwise. */
+  spellCharges?: (key: string) => number | null;
 }
 
 export interface EvidenceLine {
@@ -70,6 +75,16 @@ export interface EvidenceLine {
   sample: string;
   /** Where the line's patches or positions need saying (the previous patch pooled, the older records' rule). */
   note?: string;
+  /** The items and runes its values name (the per-version diff's keys), read on the server for the label below and never sent to the page. */
+  named?: Array<{ kind: "item" | "rune"; key: string }>;
+  /** The newest recorded patch's public name when Riot changed an item or rune its values name ("Riot changed this on 26.24"). */
+  changedOn?: string;
+  /**
+   * The summoner spells line only: each named spell's base cooldown from Riot's data ("Base
+   * cooldowns in Riot's data: Flash 300 s, Ignite 180 s"), or that it has none. Never shortened by
+   * ability haste: the page says once that summoner spell haste is a separate stat.
+   */
+  cooldowns?: string;
 }
 
 /** The patches a line counts: the current one, and the previous one only where Riot's data shows no change for what the line names. */
@@ -178,7 +193,47 @@ export function fieldLine(field: EvidenceField, counts: EvidenceCounts, window: 
   const use = patches.length > 1 ? pooled : current;
   if (use.n < MIN_GAMES || !use.top.length) return null;
   const values = use.top.map((t) => `${valueWords(field, t.value, names)} in ${formatCount(t.n)}`).join(", ");
-  return { key: field, label: FIELD_LABEL[field], values, sample: sampleWords(use.n, patches, use.queues), ...(patches.length > 1 ? { note: PREVIOUS_NOTE } : {}) };
+  const shown = use.top.flatMap((t) => namedBy(field, t.value));
+  const cooldowns = field === "spells" ? spellCooldownWords(use.top.map((t) => t.value), names) : null;
+  return { key: field, label: FIELD_LABEL[field], values, sample: sampleWords(use.n, patches, use.queues), ...(patches.length > 1 ? { note: PREVIOUS_NOTE } : {}), ...(cooldowns ? { cooldowns } : {}), ...(shown.length ? { named: shown } : {}) };
+}
+
+/** Seconds per rank in words: "300 s", or "15/12 s" where the ranks differ. */
+const secondsWords = (seconds: readonly number[]) => `${[...new Set(seconds)].map((v) => formatCount(v)).join("/")} s`;
+
+/**
+ * The summoner spells a line names (its values, "4,14"), each with its base cooldown from Riot's
+ * data, in the order they first appear: "Base cooldowns in Riot's data: Flash 300 s, Ignite 180 s".
+ * A spell with charges says so, never its array (Smite's [15] is the wait between casts: "Smite: 2
+ * charges, its recharge not in Riot's data"); one the stored data has no number for says that. The base
+ * only, at any ability haste (summonerSpellCooldown); null when the line names no spell, or when no
+ * cooldowns are stored (`names.spellCooldown` absent).
+ */
+export function spellCooldownWords(values: readonly string[], names: EvidenceNames): string | null {
+  const keys = [...new Set(values.flatMap((v) => v.split(",")).filter(Boolean))];
+  // No cooldowns stored at all (the static sync has not read them yet): nothing said, rather than "none".
+  if (!keys.length || !names.spellCooldown) return null;
+  const known: string[] = [];
+  const charged: string[] = [];
+  const missing: string[] = [];
+  for (const key of keys) {
+    const name = names.spell(key) ?? `spell ${key}`;
+    const charges = names.spellCharges?.(key) ?? null;
+    if (charges) {
+      charged.push(`${name}: ${formatCount(charges)} charges, its recharge not in Riot's data`);
+      continue;
+    }
+    const base = names.spellCooldown(key);
+    const seconds = base ? summonerSpellCooldown(base, 0).filter((v) => Number.isFinite(v) && v > 0) : [];
+    if (seconds.length) known.push(`${name} ${secondsWords(seconds)}`);
+    else missing.push(name);
+  }
+  const parts: string[] = [];
+  if (known.length) parts.push(`Base cooldowns in Riot's data: ${known.join(", ")}`);
+  parts.push(...charged);
+  // Not in the stored copy of Riot's data: said as such, not as a fact about the spell.
+  if (missing.length) parts.push(`${missing.join(", ")}: no cooldown in the stored Riot data`);
+  return parts.join(". ");
 }
 
 /** The record of a set of games: "9 games, 5 won · patch 26.22 · Solo/Duo 3, Normal Draft 6"; null under MIN_GAMES. */

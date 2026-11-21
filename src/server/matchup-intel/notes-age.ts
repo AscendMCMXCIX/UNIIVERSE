@@ -84,3 +84,23 @@ export function checkedEarlier<T extends { verified: Verification }>(notes: T | 
   const minor = Number(m[2]) - patches;
   return { ...notes, verified: { ...notes.verified, ddragonVersion: `${m[1]}.${minor}.${m[3]}`, patch: publicPatchName(`${m[1]}.${minor}`) } };
 }
+
+/*
+  BROWSER TESTS ONLY, like the two hooks above: Matchup Intel as production shows it once Riot has
+  changed a champion, an item or a rune on the newest patch ("Riot changed this on 26.24", from the
+  per-version diff in static_digests). The demo records no digests, so on its own it never shows the
+  label. A test names what reads as changed ("champion:Mordekaiser,item:1055", at most twenty), on
+  the game's current patch; nothing else on the page moves. Read only on the in-memory demo.
+*/
+
+export const RIOT_CHANGED_TEST_COOKIE = "uniiverse-test-riot-changed";
+
+const CHANGED_KEY = /^(champion:[A-Za-z0-9]{1,40}|item:\d{1,4}|rune:\d{1,5})$/;
+
+/** The keys a browser test's cookie names as changed by Riot on the current patch; null anywhere but the in-memory demo, or for a value that is not a list of up to twenty keys. */
+export function riotChangesForTest(cookie: string | null | undefined, currentPatch: string | null): { patch: string; changed: ReadonlySet<string> } | null {
+  if (!demoTestHooksAllowed() || !currentPatch || typeof cookie !== "string" || cookie.length > 600) return null;
+  const keys = cookie.split(",");
+  if (!keys.length || keys.length > 20 || !keys.every((k) => CHANGED_KEY.test(k))) return null;
+  return { patch: currentPatch, changed: new Set(keys) };
+}

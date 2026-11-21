@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeftRight, BookmarkCheck, BookmarkPlus, Check, Link2, LoaderCircle, Plus } from "lucide-react";
+import type { Role as GameRole } from "@/domain/roles";
 import { DUO_ROLES, ROLES, ROLE_NAMES, type ChampionChoice, type Role } from "@/domain/matchup-intel/types";
 import { HASTE_CHOICES, HASTE_MAX, clampHaste } from "@/domain/matchup-intel/haste";
 import { ChampionPortrait } from "@/components/champion-portrait";
@@ -140,7 +141,7 @@ function SlotButton({ slot, duo, role, champion, onOpen, buttonRef }: { slot: Fr
       // words where the row is 27rem wide; a narrower one (a phone held sideways at twice the text
       // size) keeps the portrait above them, where the longest name still fits whole.
       className={cn(
-        "group flex h-full w-full min-w-0 flex-col items-center justify-center gap-1 rounded-panel border bg-surface px-1 py-2 text-center transition-colors hover:border-border-strong hover:bg-surface-2/60 sm:@min-[27rem]/pickers:justify-start sm:@min-[27rem]/pickers:gap-2.5 sm:@min-[27rem]/pickers:px-3 sm:@min-[27rem]/pickers:py-1.5",
+        "group flex h-full w-full min-w-0 flex-col items-center justify-center gap-1 rounded-panel border bg-surface px-1 py-2 text-center transition-colors hover:border-border-strong hover:bg-surface-2/60 sm:@min-[27rem]/pickers:justify-start sm:@min-[27rem]/pickers:py-1.5",
         duo ? "max-sm:justify-start max-sm:gap-1 max-sm:px-1 max-sm:py-1.5" : "max-sm:@min-[22rem]/pickers:justify-start max-sm:@min-[22rem]/pickers:gap-1.5 max-sm:@min-[22rem]/pickers:px-1.5",
         you ? "sm:@min-[27rem]/pickers:flex-row-reverse sm:@min-[27rem]/pickers:text-right" : "sm:@min-[27rem]/pickers:flex-row sm:@min-[27rem]/pickers:text-left",
         duo
@@ -150,7 +151,9 @@ function SlotButton({ slot, duo, role, champion, onOpen, buttonRef }: { slot: Fr
           : you
             ? "max-sm:@min-[22rem]/pickers:flex-row-reverse max-sm:@min-[22rem]/pickers:text-right"
             : "max-sm:@min-[22rem]/pickers:flex-row max-sm:@min-[22rem]/pickers:text-left",
-        champion ? "border-border" : "border-dashed border-border-strong",
+        // An empty slot: 18px less gap and padding beside the words from sm, so "Choose your champion"
+        // keeps one line in the 242px slot and its label sits level with the enemy's (design review G2-4).
+        champion ? "border-border sm:@min-[27rem]/pickers:gap-2.5 sm:@min-[27rem]/pickers:px-3" : "border-dashed border-border-strong sm:@min-[27rem]/pickers:gap-1 sm:@min-[27rem]/pickers:px-1.5",
       )}
       data-testid={`matchup-pick-${slot}`}
       data-champion={champion?.id}
@@ -166,7 +169,10 @@ function SlotButton({ slot, duo, role, champion, onOpen, buttonRef }: { slot: Fr
           </span>
         )}
       </span>
-      <span className="min-w-0 max-w-full">
+      {/* On a phone the words sit at the slot's foot: where "Your champion" wraps, the two names still
+          share a line, and its second line sits level with "Enemy" (design review G2-5). From sm, at the
+          slot's top: where a name wraps ("Choose your champion" in a tablet's slot), the labels stay level (G2-4). */}
+      <span className="flex min-w-0 max-w-full flex-col justify-end self-stretch sm:justify-start">
         {/* A label a size smaller on a phone; in the narrowest row (a 320px phone) "Your champion" shows as
             "You", as the enemy's is one word, and a screen reader still hears the whole label. */}
         <span className={cn("block text-xs font-semibold uppercase leading-tight tracking-label max-sm:text-2xs", you ? "text-blue" : "text-red")} data-testid={`matchup-pick-${slot}-label`}>
@@ -309,7 +315,7 @@ function RememberedLine({ you, remembered, onUse, onRemember, focusYourSlot }: {
     // phone, once your champion is chosen, the title row's icon toggle stands in for it (RememberToggle),
     // so the enemy's tiles reach the first screen; with none chosen the line stays, offering the
     // remembered one. `you` is in the address, so the server already knows which: nothing moves.
-    <div className={cn("flex min-h-11 flex-wrap items-center gap-x-3 gap-y-1 text-sm text-fg-muted @min-[44rem]/pickers:min-h-7 @min-[44rem]/pickers:justify-end @min-[44rem]/pickers:text-xs", you && "max-sm:hidden")} data-testid="matchup-remembered" data-state={state}>
+    <div className={cn("flex min-h-11 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-fg-muted @min-[44rem]/pickers:min-h-7 @min-[44rem]/pickers:justify-end", you && "max-sm:hidden")} data-testid="matchup-remembered" data-state={state}>
       {info ? <span className="flex min-w-0 grow basis-24 items-center gap-2 sm:grow-0 sm:basis-auto">{info}</span> : null}
       {actions ? <span className="flex min-w-0 max-w-full flex-wrap items-center gap-2">{actions}</span> : null}
     </div>
@@ -359,8 +365,9 @@ function RoleSelector({ role, onChange }: { role: Role; onChange: (role: Role) =
           aria-pressed={r === role}
           onClick={() => onChange(r)}
           className={cn(
-            "min-h-11 grow rounded px-2 text-xs font-semibold transition-colors pointer-fine:min-h-6 sm:grow-0 sm:px-2.5",
-            r === role ? "bg-accent/15 text-fg" : "text-fg-muted hover:bg-surface-2 hover:text-fg",
+            "min-h-11 grow rounded px-2 text-xs font-medium transition-colors pointer-fine:min-h-6 sm:grow-0 sm:px-2.5",
+            // The chosen lane marked as the shared segment marks it (ui/segmented.tsx): fill, ring and weight, not colour alone.
+            r === role ? "bg-accent/15 font-semibold text-fg ring-1 ring-inset ring-accent/60" : "text-fg-muted hover:bg-surface-2 hover:text-fg",
           )}
           data-role={r}
         >
@@ -396,7 +403,7 @@ function HasteChoice({ haste, onChange }: { haste: number; onChange: (haste: num
               setTyped("");
               onChange(h);
             }}
-            className={cn("min-h-11 min-w-8 rounded px-1.5 font-semibold tabular-nums transition-colors pointer-fine:min-h-6", h === haste ? "bg-accent/15 text-fg" : "hover:bg-surface-2 hover:text-fg")}
+            className={cn("min-h-11 min-w-8 rounded px-1.5 font-medium tabular-nums transition-colors pointer-fine:min-h-6", h === haste ? "bg-accent/15 font-semibold text-fg ring-1 ring-inset ring-accent/60" : "hover:bg-surface-2 hover:text-fg")}
             data-haste={h}
           >
             {h}
@@ -417,7 +424,7 @@ function HasteChoice({ haste, onChange }: { haste: number; onChange: (haste: num
           onChange(clampHaste(v));
         }}
         // 16px on a phone, so it never zooms in.
-        className="h-11 w-14 rounded-md border border-border-control bg-bg-elevated px-2 text-base text-fg tabular-nums placeholder:text-fg-subtle pointer-fine:h-6 sm:pointer-fine:text-xs"
+        className="h-11 w-16 rounded-md border border-border-control bg-bg-elevated px-2 text-base pointer-fine:w-14 text-fg tabular-nums placeholder:text-fg-subtle pointer-fine:h-6 sm:pointer-fine:text-xs"
         data-testid="matchup-haste-input"
       />
     </div>
@@ -560,6 +567,8 @@ export function MatchupFrame({
   enemy2 = null,
   champions,
   curated,
+  pool = [],
+  recordedRoles = null,
   announcement = "",
   heading,
   patchState,
@@ -575,6 +584,10 @@ export function MatchupFrame({
   enemy2?: ChampionChoice | null;
   champions: ChampionChoice[];
   curated: Record<string, string[]>;
+  /** The viewer's own champion pool for the lane (their player profile's; [] without one): offered in the picker of their own slot only. */
+  pool?: readonly string[];
+  /** The champions Riot recorded in each position in the team's stored games, for the picker's role filter; null when not offered. */
+  recordedRoles?: Partial<Record<GameRole, string[]>> | null;
   /** What a screen reader is told once the page for a choice made here has arrived ("Riven vs Mordekaiser: curated briefing, checked on patch 26.22."). */
   announcement?: string;
   /** The page's title (its h1), at the bar's start on a desktop, above it on a phone. */
@@ -756,7 +769,7 @@ export function MatchupFrame({
                 {patchState ? <div className="@min-[44rem]/pickers:flex @min-[44rem]/pickers:justify-end">{patchState}</div> : null}
                 {/* While a choice loads, what is loading takes the remembered line's place, at its height. */}
                 {loading ? (
-                  <p className={cn("flex min-h-11 items-center gap-2 text-sm text-fg-muted @min-[44rem]/pickers:min-h-7 @min-[44rem]/pickers:justify-end @min-[44rem]/pickers:text-xs", yourChoice && "max-sm:hidden")} aria-hidden data-testid="matchup-loading">
+                  <p className={cn("flex min-h-11 items-center gap-2 text-xs text-fg-muted @min-[44rem]/pickers:min-h-7 @min-[44rem]/pickers:justify-end", yourChoice && "max-sm:hidden")} aria-hidden data-testid="matchup-loading">
                     <LoaderCircle className="h-4 w-4 shrink-0 animate-spin text-accent motion-reduce:animate-none" />
                     <span className="min-w-0">{loading}</span>
                   </p>
@@ -785,6 +798,9 @@ export function MatchupFrame({
             recent={recent(picking)}
             curated={picking === "enemy" && shown.you && !duo ? (curated[shown.you] ?? []).map(choice).filter((c): c is ChampionChoice => !!c) : []}
             yourName={yourChoice?.name ?? null}
+            // Whose pool: your own slot's only (never your duo partner's, never the enemy's).
+            pool={picking === "you" ? pool.map(choice).filter((c): c is ChampionChoice => !!c) : []}
+            recordedRoles={recordedRoles}
             onPick={(id) => pick(picking, id)}
             onClose={closePicker}
           />

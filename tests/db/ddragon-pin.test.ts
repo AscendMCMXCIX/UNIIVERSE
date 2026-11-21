@@ -53,8 +53,10 @@ const ddragon = vi.fn<typeof fetch>(async (input, init) => {
   if (file === "champion.json") return answer({ version, data: Object.fromEntries(ROSTER.map((id, i) => [id, champ(id, 100 + i)])) });
   const detail = /^champion\/([A-Za-z0-9]+)\.json$/.exec(file);
   if (detail) return answer({ version, data: { [detail[1]!]: detailFile(detail[1]!, version) } });
-  if (file === "runesReforged.json") return answer([]);
-  if (file === "item.json" || file === "summoner.json") return answer({ data: {} });
+  // The smallest files that pass validation before keeping (assets.ts, staticProblems): empty ones are refused.
+  if (file === "runesReforged.json") return answer([{ id: 8000, name: "Precision", icon: "p.png", slots: [{ runes: [{ id: 8005, name: "Press the Attack", icon: "a.png" }] }] }]);
+  if (file === "item.json") return answer({ data: { "1001": { name: "Boots", maps: { "11": true } } } });
+  if (file === "summoner.json") return answer({ data: { SummonerFlash: { id: "SummonerFlash", key: "4", name: "Flash", cooldown: [300] } } });
   return new Response("not found", { status: 404 });
 });
 

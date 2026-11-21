@@ -448,6 +448,12 @@ export const KIND_GROUP_WORDS: Record<KindGroup, string> = {
   cooldown: "Cooldown",
 };
 
+/**
+ * The bot lane's kits side by side (AbilitiesPanel, YourChampion with `foldSources`): the word that
+ * opens where a kit's abilities, cooldowns and facts come from, one step away.
+ */
+export const SOURCES_FOLD_WORDS = "Sources";
+
 /** The label every fact from Riot's text carries, in the owner's words (18 Nov 2026). */
 export const RIOT_TEXT_LABEL = "From Riot's ability text, reviewed automatically (not by a person)";
 
@@ -647,3 +653,10 @@ export function tightCooldownWords(d: CooldownDisplay): string | null {
   const value = formatCooldownsTight(d.seconds);
   return value === "—" ? null : value;
 }
+
+/** The per-version diff's label, on the row of what Riot changed on the newest recorded patch (docs/MATCHUP_INTEL.md, "Patches"). */
+export const riotChangedWords = (patch: string) => `Riot changed this on ${patch}`;
+/** The same, continuing the words "Riot's data" ("Riot's data changed on 26.24"), where the line has no room for more. */
+export const riotChangedAfterTierWords = (patch: string) => `changed on ${patch}`;
+/** The words before "on 26.24", so the page keeps "on 26.24" together on one line. */
+export const riotChangedLead = (after: boolean) => (after ? "changed" : "Riot changed this");

@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { GENERAL_RULE_TIP, cooldownAtHaste, hasteMarkWords, type HasteBasis } from "@/domain/matchup-intel/haste";
+import { GENERAL_RULE_TIP, cooldownAtHaste, hasteMarkWords, meansLine, type HasteBasis, type MeansAbility } from "@/domain/matchup-intel/haste";
+import type { AbilityRef } from "@/domain/matchup-intel/types";
 import { InfoTip } from "@/components/ui/info-tip";
 import { formatPerRank } from "@/lib/format";
 import { HasteContext } from "./matchup-frame";
@@ -42,5 +43,34 @@ export function HasteLine({ basis }: { basis: HasteBasis }) {
         </span>
       )}
     </p>
+  );
+}
+
+/**
+ * A briefing row's "what it means" line (docs/MATCHUP_INTEL.md, "What it means"): the cooldowns of
+ * the enemy's abilities the row rests on, at the haste chosen in the bar, by the cooldown table's own
+ * rule, and which case each is. Numbers only, never a verdict, a timer or a "ready at"; nothing for a
+ * row that names no enemy ability, or whose numbers do not allow one (meansPart). An ⓘ in the row's
+ * heading opens it (the threat's, the opportunity's; the lane points' together beside "In lane",
+ * each ability once): the shared InfoTip, a tap on a touch screen, hover or focus elsewhere, and a
+ * screen reader reads it as the ⓘ's description. It takes no height: under the chips, or after them,
+ * it made the overview up to 147px taller, which the one-screen fit cannot spare.
+ */
+export function MeansLine({ refs, means, label }: { refs: readonly AbilityRef[]; means: Readonly<Partial<Record<AbilityRef, MeansAbility>>> | undefined; /** The name of the button, after its row ("What the threat means"). */ label: string }) {
+  const { haste } = React.useContext(HasteContext);
+  if (!means) return null;
+  const line = meansLine(refs.flatMap((r) => (means[r] ? [means[r]!] : [])), haste);
+  if (!line) return null;
+  return (
+    // The ⓘ as a text trigger (as the haste line's "Riot's general rule" is): its own box is the whole
+    // target, 44px wide on a touch screen and 44px tall by touch-target, so in a flex heading its area
+    // never reaches past a box that holds it.
+    <span className="normal-case tracking-normal" data-means={line}>
+      <InfoTip text={`What it means: ${line}.`} label={label} testId="briefing-means" className="touch-target no-underline pointer-coarse:px-3.5">
+        <span aria-hidden className="grid h-4 w-4 place-items-center rounded-full border border-border-strong text-4xs font-semibold leading-none text-fg-subtle">
+          i
+        </span>
+      </InfoTip>
+    </span>
   );
 }

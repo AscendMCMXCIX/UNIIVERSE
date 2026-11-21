@@ -236,6 +236,29 @@ test("Matchup Intel: a slot's picker fills the screen, a search and a tap choose
   await expect(win).toHaveCount(0);
   expect(await page.evaluate(() => window.scrollY)).toBe(y);
   await expect(page.getByTestId("matchup-copy-link")).toHaveAccessibleName("Copy link to this matchup");
+  // A briefing row's "what it means" opens with a tap on its heading's ⓘ: numbers only.
+  await page.evaluate(() => window.scrollTo(0, 0));
+  const means = page.getByTestId("briefing-threat").getByTestId("briefing-means");
+  await means.tap();
+  await expect(page.getByTestId("briefing-means-bubble")).toContainText(/^What it means: Mordekaiser's [PQWER] cooldown [\d ./]+\u00a0s at 0 haste \(/);
+  await page.mouse.click(5, 5);
+  // The picker of a member's own slot offers their pool, a tap away; the role filter narrows the roster.
+  await page.context().addCookies([{ name: "uniiverse_demo_viewer", value: "member", url: new URL(page.url()).origin }]);
+  await page.goto("/resources/matchups?role=adc&vs=Caitlyn");
+  const you = page.getByTestId("matchup-pick-you");
+  await expect(async () => {
+    if (!(await win.isVisible())) await you.tap({ timeout: 2_000 });
+    await expect(win).toBeVisible({ timeout: 1_000 });
+  }).toPass({ timeout: 15_000 });
+  await win.getByRole("group", { name: "Filter by role" }).getByRole("button", { name: "Bottom" }).tap();
+  await expect(win.getByTestId("matchup-picker-role-note")).toBeVisible();
+  await fitsWidth(page, "the picker window with its role filter");
+  const first = win.getByTestId("matchup-picker-pool").locator("button[data-champion]").first();
+  const id = (await first.getAttribute("data-champion"))!;
+  await first.tap();
+  await expect(win).toHaveCount(0);
+  await expect(you).toHaveAttribute("data-champion", id);
+  await expect(you).toBeFocused();
 });
 
 test("Matchup Intel's facts from Riot's text on an iPhone: a tap on a chip quotes it, on \"Riot's texts differ\" gives both quotes, and the details window says the same; nothing is wider than the phone", async ({ page }) => {
