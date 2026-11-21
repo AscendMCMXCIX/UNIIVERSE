@@ -106,7 +106,7 @@ export function patchVerdict(at, healthPatch) {
 }
 
 /** A "what it means" line: "Mordekaiser's Q cooldown 8 / 7 / 6 / 5 / 4 s at 0 haste (base)", one part per enemy ability, joined by "; ". */
-const MEANS_PART = String.raw`[^;]+'s [PQWER] cooldown [\d.\/ ]+(?:\u00a0| )s(?: at every rank)? at \d+ haste \((?:base|Riot's general rule)(?:, ability haste only)?|static per the checked notes: haste doesn't shorten it|whether haste shortens it isn't known\)`;
+const MEANS_PART = String.raw`[^;]+'s [PQWER] cooldown [\d.\/ ]+(?:\u00a0| )s(?: at every rank)? at \d+ haste \((?:(?:base|Riot's general rule)(?:, ability haste only)?|static per the checked notes: haste doesn't shorten it|whether haste shortens it isn't known)\)`;
 const MEANS_LINE = new RegExp(`^${MEANS_PART}(?:; ${MEANS_PART})*$`);
 const MEANS_REFUSED = /\b(you|your|ready|timer|win|best|counter|should|must|always|never)\b/i;
 

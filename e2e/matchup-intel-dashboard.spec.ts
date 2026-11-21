@@ -267,13 +267,16 @@ function measureDuo(page: Page) {
   });
 }
 
-test("the bot lane fits too: each 2v2 one screen at 1920×1080 and 1920×950, both enemies' tiles and the sources' summary on the first screen at 1440×900, every cooldown line of both at 1280×800, with the facts from Riot's text on and off", async ({ page }, info) => {
+test("the bot lane fits too: each 2v2 one screen at 1920×1080 and 1920×950, both enemies' tiles and the sources' summary on the first screen at 1440×900, every cooldown line of both at 1280×800, with the facts from Riot's text on (and Riot's change labels) and off", async ({ page }, info) => {
   test.skip(info.project.name !== "desktop", "desktop sizes");
   test.setTimeout(600_000);
   await localPictures(page);
   for (const layer of ["on", "off"] as const) {
     await riotText(page, layer);
     for (const [role, you, ally, enemy, enemy2] of DUO_FIT_RUN) {
+      // With the facts from Riot's text on, every champion of the lineup also reads as changed by Riot
+      // on this patch ("Riot changed this on 26.xx", R11b), as production can show it: the heaviest page.
+      await riotChanged(page, layer === "on" ? [you, ally, enemy, enemy2].map((c) => `champion:${c}`) : []);
       await page.setViewportSize({ width: 1920, height: 1080 });
       await page.goto(`/resources/matchups?role=${role}&champion=${you}&ally=${ally}&vs=${enemy}&vs2=${enemy2}`);
       await hydrated(page);

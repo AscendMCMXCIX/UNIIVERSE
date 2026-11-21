@@ -69,7 +69,8 @@ describe("the Production check's Matchup Intel facts", () => {
     const means = /says what it means/;
     expect(failed(judge(NOW)).filter((n) => means.test(n))).toEqual([]);
     expect(failed(judge({ ...NOW, means: ["Mordekaiser's Q cooldown 6.67 / 5.83\u00a0s at 20 haste (Riot's general rule)"] })).filter((n) => means.test(n))).toEqual([]);
-    for (const over of [{ means: [] }, { means: ["Mordekaiser's Q is ready at 3:20"] }, { means: ["Mordekaiser's Q cooldown 8\u00a0s at 0 haste (base); you win"] }, { means: ["Mordekaiser's Q cooldown 8\u00a0s at 0 haste (estimated)"] }]) expect(failed(judge({ ...NOW, ...over })).filter((n) => means.test(n)), JSON.stringify(over)).toHaveLength(1);
+    expect(failed(judge({ ...NOW, means: ["Mordekaiser's E cooldown 16\u00a0s at 0 haste (static per the checked notes: haste doesn't shorten it)"] })).filter((n) => means.test(n))).toEqual([]);
+    for (const over of [{ means: [] }, { means: ["Mordekaiser's Q is ready at 3:20"] }, { means: ["Mordekaiser's Q cooldown 8\u00a0s at 0 haste (base); you win"] }, { means: ["Mordekaiser's Q cooldown 8\u00a0s at 0 haste (estimated)"] }, { means: ["Mordekaiser's Q cooldown 8\u00a0s at 0 haste (base) then 1:30 later 99%"] }, { means: ["Garbage text, static per the checked notes: haste doesn't shorten it, 50% winrate"] }]) expect(failed(judge({ ...NOW, ...over })).filter((n) => means.test(n)), JSON.stringify(over)).toHaveLength(1);
     // While the briefing is hidden, no line is asked for.
     expect(failed(judge({ ...EXPIRED, means: [] })).filter((n) => means.test(n))).toEqual([]);
   });

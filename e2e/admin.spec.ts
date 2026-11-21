@@ -292,6 +292,11 @@ test("Audit Logs list admin activity newest first, by category, with no password
 
 test("Audit Logs rows say their date and time in words, and at 375, 1440 and 320 with 200% text no word is cut", async ({ page }, info) => {
   test.skip(info.project.name !== "desktop", "one pass: the widths are set here");
+  // Its own entry first: the demo seeds no audit rows, so the test never relies on what earlier specs wrote.
+  await page.goto("/admin/people");
+  const mine = unique("Echo");
+  await createAccount(page, mine, "team");
+  await expect(page.getByTestId("created-account")).toContainText(mine);
   for (const [width, text] of [[1440, 1], [375, 1], [320, 2]] as const) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto("/admin/audit");

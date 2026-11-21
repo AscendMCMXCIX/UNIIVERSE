@@ -268,13 +268,13 @@ test("Admin's pages: one header rhythm, one panel depth, one fold, aligned toolb
   // G4-5, G4-10, G4-12: System Health's fold is a row in its panel; the status list has the panels' depth; each verdict has its icon.
   await dp.goto("/admin/system");
   const sys = await dp.evaluate(() => ({
-    fold: document.querySelector("[data-testid=field-performance-details]")?.getAttribute("data-fold") ?? "row",
+    fold: document.querySelector("[data-testid=field-performance-details]")?.getAttribute("data-fold") ?? "missing",
     depth: getComputedStyle(document.querySelector("[data-testid=system-status]")!).boxShadow,
     verdicts: [...document.querySelectorAll("[data-testid^=field-words-]")].map((li) => !!li.querySelector("svg")),
   }));
   check(sys.fold === "row", `Technical details is a ${sys.fold} fold inside its panel`);
   check(sys.depth !== "none", "the status list has no panel depth");
-  check(sys.verdicts.every(Boolean), "a page-speed verdict without its icon");
+  check(sys.verdicts.length > 0 && sys.verdicts.every(Boolean), `page-speed verdicts: ${sys.verdicts.length} shown, each needs its icon`);
   await dp.goto("/admin/people/privacy");
   for (const id of ["privacy-procedure", "privacy-backups"]) check((await dp.getByTestId(id).getAttribute("data-fold")) === "row", `${id} is a box inside its panel`);
 
@@ -323,7 +323,7 @@ test("Admin's pages: one header rhythm, one panel depth, one fold, aligned toolb
   // G4-20: the base access levels' tiles in the groups' three columns.
   await dp.goto("/admin/people/access");
   const levels = await dp.getByTestId("preset-card").evaluateAll((cards) => cards.slice(0, 3).map((c) => Math.round(c.getBoundingClientRect().top)));
-  check(levels.length < 3 || new Set(levels).size === 1, `the first three access levels on ${new Set(levels).size} rows`);
+  check(levels.length === 3 && new Set(levels).size === 1, `the first three access levels on ${new Set(levels).size} rows`);
 
   await desk.close();
   await phone.close();

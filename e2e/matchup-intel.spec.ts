@@ -995,7 +995,7 @@ test("the picker: your own pool for the lane in your own slot only, one tap away
   expect(bottom.length).toBeLessThan(all);
   await expect(win.getByTestId("matchup-picker-all-title")).toHaveText(`Bottom · ${bottom.length}`);
   // Said to a screen reader in the picker's live region, and the section named for the filter.
-  await expect(win.getByTestId("matchup-picker-count")).toHaveText(`Bottom: ${bottom.length} champions recorded in the team's games`);
+  await expect(win.getByTestId("matchup-picker-count")).toHaveText(`Bottom: ${bottom.length} ${bottom.length === 1 ? "champion" : "champions"} recorded in the team's games`);
   await expect(win.getByRole("region", { name: "Bottom champions" })).toBeVisible();
   // The search still finds every champion.
   await win.getByTestId("matchup-picker-search").fill("Garen");
