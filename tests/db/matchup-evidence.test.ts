@@ -229,6 +229,27 @@ describe("the evidence's read path", () => {
     expect(own.lines.find((l) => l.key === "spells")).toMatchObject({ sample: "of 4 games · patch 26.22 · Solo/Duo 3, Normal Draft 1" });
   });
 
+  it("works on a stored format-2 copy, without the spells' cooldowns, and names them once format 3 is kept (R11a × R11b)", async () => {
+    const spellsLine = async () => (await evidence(session("viewer")))!.sections.find((s) => s.scope === "own")!.lines.find((l) => l.key === "spells")!;
+    const store = async (format: number) => {
+      const assets = { version: `${CURRENT}.1`, format, items: {}, spells: { "4": { name: "Flash", icon: "f.png" }, "14": { name: "Ignite", icon: "i.png" } }, runes: {} };
+      const build = { version: `${CURRENT}.1`, format, itemInfo: {}, spellCooldowns: { "4": [300], "14": [180] }, spellCharges: {}, runeSlots: {} };
+      for (const [key, value] of [["riot_assets", assets], ["riot_build_data", build]] as const) await db.insert(appSettings).values({ key, value, updatedAt: new Date() }).onConflictDoUpdate({ target: appSettings.key, set: { value } });
+      invalidateAllCaches();
+    };
+    try {
+      await store(2);
+      const before = await spellsLine();
+      expect(before.values).toContain("Flash");
+      expect(JSON.stringify(before)).not.toContain("Base cooldowns");
+      await store(3);
+      expect(JSON.stringify(await spellsLine())).toContain("Base cooldowns in Riot's data: Flash 300 s, Ignite 180 s");
+    } finally {
+      await db.delete(appSettings).where(sql`${appSettings.key} IN ('riot_assets', 'riot_build_data')`);
+      invalidateAllCaches();
+    }
+  });
+
   it("adds the previous patch only where the per-version diff shows no change", async () => {
     invalidateAllCaches();
     await db.insert(staticDigests).values([

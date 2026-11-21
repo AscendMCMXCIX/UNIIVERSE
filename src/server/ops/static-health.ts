@@ -1,5 +1,5 @@
 import { patchFromVersion, publicPatchName } from "@/domain/patch";
-import type { StaticAttempt, StaticProblems } from "@/server/riot/static/assets";
+import { ASSET_RULES_FORMAT, type StaticAttempt, type StaticProblems } from "@/server/riot/static/assets";
 
 /*
   `/api/health` → `staticData` and the `static-data` key in `failingJobs` (docs/MONITORING.md): the
@@ -41,11 +41,12 @@ const name = (version: string | null) => {
 };
 
 /** The static refresh's state for health, from the current Data Dragon version, the stored names' version, the last attempt that kept nothing, and when version-check last succeeded. */
-export function staticDataHealth(input: { currentVersion: string | null; storedVersion: string | null; attempt: StaticAttempt | null; lastSuccessAt: number | null; turnedOff: boolean; now: number; /** version-check's interval in minutes as Admin sets it (60 by default). */ intervalMinutes?: number }): StaticDataHealth {
+export function staticDataHealth(input: { currentVersion: string | null; storedVersion: string | null; /** The stored copy's format (absent before format 2); a copy of the current version in an older format is still behind (R11a's format 3: Smite's charges). */ storedFormat?: number | null; attempt: StaticAttempt | null; lastSuccessAt: number | null; turnedOff: boolean; now: number; /** version-check's interval in minutes as Admin sets it (60 by default). */ intervalMinutes?: number }): StaticDataHealth {
   const { currentVersion, storedVersion, attempt, lastSuccessAt, turnedOff, now } = input;
   const silentMs = Math.max(STATIC_SILENT_MS, 3 * (input.intervalMinutes ?? 60) * 60_000);
   const base = { patch: name(currentVersion), stored: name(storedVersion) };
-  const behind = !!currentVersion && storedVersion !== currentVersion && attempt?.version === currentVersion;
+  const older = storedVersion === currentVersion && input.storedFormat !== undefined && (input.storedFormat ?? 0) < ASSET_RULES_FORMAT;
+  const behind = !!currentVersion && (storedVersion !== currentVersion || older) && attempt?.version === currentVersion;
   if (behind && attempt!.reason === "validation") return { ...base, state: "failed", reason: "validation", problems: attempt!.problems };
   const firstAt = attempt ? Date.parse(attempt.firstAt) : NaN;
   if (behind && attempt!.reason === "download" && Number.isFinite(firstAt) && now - firstAt > STATIC_DOWNLOAD_STALE_MS) return { ...base, state: "stale", reason: "download", problems: null };

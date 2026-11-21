@@ -81,13 +81,14 @@ export async function GET() {
     // the 33 KB maps never leave it) and the last attempt that kept nothing. Listed as "static-data"
     // when the newest files failed validation, or it has gone stale by the documented rule.
     const settings = await handle.db
-      .select({ key: appSettings.key, version: sql<string | null>`${appSettings.value}->>'version'`, attempt: sql<StaticAttempt | null>`CASE WHEN ${appSettings.key} = ${STATIC_ATTEMPT_KEY} THEN ${appSettings.value} END` })
+      .select({ key: appSettings.key, version: sql<string | null>`${appSettings.value}->>'version'`, format: sql<number | null>`(${appSettings.value}->>'format')::int`, attempt: sql<StaticAttempt | null>`CASE WHEN ${appSettings.key} = ${STATIC_ATTEMPT_KEY} THEN ${appSettings.value} END` })
       .from(appSettings)
       .where(inArray(appSettings.key, ["riot_assets", STATIC_ATTEMPT_KEY]));
     const lastStatic = Math.max(successAt("version-check"), successAt("static-sync"));
     const staticData = staticDataHealth({
       currentVersion: patch?.ddragonVersion ?? null,
       storedVersion: settings.find((r) => r.key === "riot_assets")?.version ?? null,
+      storedFormat: settings.find((r) => r.key === "riot_assets")?.format ?? null,
       attempt: settings.find((r) => r.key === STATIC_ATTEMPT_KEY)?.attempt ?? null,
       lastSuccessAt: lastStatic > 0 ? lastStatic : null,
       turnedOff: intervals["version-check"] === 0,

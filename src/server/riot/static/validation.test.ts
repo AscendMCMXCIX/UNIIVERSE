@@ -67,6 +67,13 @@ describe("the static refresh's state for /api/health", () => {
     expect(staticDataHealth({ ...base, attempt: attempt("validation", 60_000) }).state).toBe("ok");
     expect(staticDataHealth({ ...base, currentVersion: "16.24.1", storedVersion: "16.23.1", attempt: attempt("validation", 60_000) }).state).toBe("ok");
   });
+  it("a copy of the current version in an older format (R11a's format 3) counts as behind: its failed download is listed by the same rule", () => {
+    expect(staticDataHealth({ ...base, storedFormat: 2, attempt: attempt("download", STATIC_DOWNLOAD_STALE_MS - 60_000) }).state).toBe("ok");
+    expect(staticDataHealth({ ...base, storedFormat: 2, attempt: attempt("download", STATIC_DOWNLOAD_STALE_MS + 60_000) })).toMatchObject({ state: "stale", reason: "download", stored: "26.23" });
+    expect(staticDataHealth({ ...base, storedFormat: null, attempt: attempt("validation", 60_000) })).toMatchObject({ state: "failed", reason: "validation" });
+    expect(staticDataHealth({ ...base, storedFormat: 3, attempt: attempt("validation", 60_000) }).state).toBe("ok");
+    expect(staticDataHealth({ ...base, storedFormat: 2 }).state).toBe("ok");
+  });
   it("no version-check success for 72 hours: stale, unless version-check is off by choice (a notice) or has never run", () => {
     expect(staticDataHealth({ ...base, lastSuccessAt: now - STATIC_SILENT_MS + 3_600_000 }).state).toBe("ok");
     expect(staticDataHealth({ ...base, lastSuccessAt: now - STATIC_SILENT_MS - 60_000 })).toMatchObject({ state: "stale", reason: "no-success" });
