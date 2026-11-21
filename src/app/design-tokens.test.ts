@@ -213,9 +213,9 @@ describe("design tokens", () => {
     carry type-floor-later, each listed here with its reason; a stage that brings the floor to one
     removes its entry.
   */
-  const FLOOR_LATER: Record<string, string> = {
-    "src/components/match-history/match-card.tsx": "the game cards of Match History and Team Matches (matchCardClass), rebuilt in Release 5 (S6) before the floor: raising their text alone would widen them at 1280 to 1440, so the floor waits for their next measured pass",
-  };
+  // Empty since Release 11: the game cards of Match History and Team Matches (matchCardClass) took the
+  // floor after their measured pass at 1280, 1440, 1920 and 2560.
+  const FLOOR_LATER: Record<string, string> = {};
   it("keeps the 12px floor on desktops, and lists the places it does not reach yet", () => {
     const floor = /@media \(min-width: 64rem\) \{\s*:root \{\s*--text-2xs: 0\.75rem;/.test(CSS);
     expect(floor, "globals.css sets --text-2xs to 0.75rem from lg").toBe(true);

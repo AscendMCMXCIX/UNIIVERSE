@@ -1255,6 +1255,18 @@ async function allChampions(page, log, kind, playerId) {
         await page.getByTestId("champion-preview-foot").waitFor({ timeout: 15_000 }).catch(() => {});
         await shot(page, `${kind}-champion-preview`);
         await axe(page, kind, "champion-preview", "[data-testid=champion-preview]");
+        // Joined to its row (CM §4.1): the row's surface runs to the preview's edge, a 2px notch the row's colour beside it.
+        await page.mouse.move(2, 2);
+        await page.waitForTimeout(300);
+        const join = await page.evaluate(() => {
+          const li = document.querySelector("[data-testid=top-champion][data-selected=true]");
+          const aside = document.getElementById("champion-preview");
+          const notch = document.querySelector("[data-testid=champion-preview-notch]");
+          if (!li || !aside || !notch) return { found: false };
+          const [r, a, n] = [li.getBoundingClientRect(), aside.getBoundingClientRect(), notch.getBoundingClientRect()];
+          return { found: true, rowToEdge: r.right >= a.left + 2, atEdge: Math.abs(n.left - a.left) <= 1, width: Math.round(n.width), colour: getComputedStyle(li).backgroundColor === getComputedStyle(notch).backgroundColor, along: Math.abs(n.top - r.top) <= 1 && Math.abs(n.bottom - r.bottom) <= 1 };
+        });
+        pass("all-champions", "desktop: the preview is joined to its row (the row's surface to its edge, a 2px notch the row's colour beside it)", join.found && join.rowToEdge && join.atEdge && join.width === 2 && join.colour && join.along, join);
         await page.keyboard.press("Escape");
       }
       const escaped = await content.waitFor({ state: "detached", timeout: 5_000 }).then(() => true, () => false);
@@ -1798,6 +1810,28 @@ async function matchHistory(page, log, kind, playerId) {
   const card = page.getByTestId("match-card").first();
   await noteProfileTabs(page, kind, "matches");
   if (!(await card.waitFor({ timeout: 20_000 }).then(() => true, () => false))) return warn("games", `${kind}: Match History lists no games`, path);
+  if (kind === "desktop") {
+    // The 12px floor reaches the game cards (Release 11): no running text under 12px on the first cards.
+    const small = await page.evaluate(() => {
+      const found = [];
+      for (const c of [...document.querySelectorAll("[data-testid=match-card]")].slice(0, 5)) {
+        const walk = document.createTreeWalker(c, NodeFilter.SHOW_TEXT);
+        while (walk.nextNode()) {
+          const el = walk.currentNode.parentElement;
+          if (!walk.currentNode.textContent.trim() || el.getBoundingClientRect().width < 2 || el.closest("[aria-hidden=true], .sr-only")) continue;
+          const st = getComputedStyle(el);
+          if (parseFloat(st.fontSize) < 11.95 && st.textTransform !== "uppercase") found.push(st.fontSize);
+        }
+      }
+      return found;
+    });
+    pass("games", "1440: the game cards' running text is 12px or more (the 12px floor)", small.length === 0, { under12: small.length });
+  } else {
+    // Touch screens: a card's LP mark is no button (no target under 44px on a card); the opened game has its tip.
+    await page.waitForTimeout(800);
+    const lp = await page.evaluate(() => ({ marks: document.querySelectorAll("[data-testid=match-card] [data-testid=match-lp]").length, tips: document.querySelectorAll("[data-testid=match-card-grid] [data-testid=match-lp-tip]").length }));
+    pass("games", `${kind}: a game card's LP mark is no button on a touch screen (the opened game holds its tip)`, lp.tips === 0, lp);
+  }
   if (kind === "desktop") {
     // A wide card's figures never run under the next column (the build, or the teams where the
     // list has no room for the build): how far each total or share ends before it, in px (negative is clear).

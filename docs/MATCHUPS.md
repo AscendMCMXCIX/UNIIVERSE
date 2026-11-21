@@ -8,7 +8,9 @@ notes) is Matchup Intel's (docs/MATCHUP_INTEL.md), reached by one link per oppon
 **Where it opens.** On a list wide enough (26rem or more beside Win rate, a pointer screen of
 1024px or more), the preview unfolds **inside the list's card**: the columns after Win rate fold
 (`visibility: hidden`, so their widths hold), and Champion, Games and Win rate keep their exact x.
-The selected row takes `surface-3` and a 2px accent bar. The preview is pinned under the section
+The selected row takes `surface-3` and a 2px accent bar, its surface running under the preview to
+the preview's edge, where a 2px notch the row's colour breaks the edge line beside it: the row opens
+into the preview. The preview is pinned under the section
 tabs and is as tall as its content; it scrolls inside only past the screen's height. With less
 room it is the shared **Peek** (`ui/peek.tsx`) with ‹ › to the next or previous champion in the
 list's order: the panel docked at the right from 768px (tablets, narrower windows), a **sheet**

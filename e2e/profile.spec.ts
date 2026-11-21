@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from "./test";
 import { pick } from "./select";
 import { playerEntry } from "./players";
+import { SETUPS, applySetup } from "../scripts/page-budgets.mjs";
 
 /* My Profile pieces: All Champions sorting (both ways, filters kept) and the profile header controls. */
 
@@ -195,6 +196,27 @@ test("All Champions on a phone: the tab names it, the scope's one line right und
   for (const f of await figures()) expect(f).toMatch(/^· Double kills /);
   await pick(page.locator("#all-champions-sort-by"), "games");
   for (const f of await figures()) expect(f).toBeNull();
+});
+
+test("All Champions' first screen on phones (S5's acceptance): at least 7 whole rows above the tab bar at i12 (390 × 844, its safe areas), at least 2 at se1 (320 × 568)", async ({ page }) => {
+  test.skip(test.info().project.name !== "phone", "phone only");
+  await page.goto("/players");
+  // Demo Mid has the most champions (8): enough to fill the first screen.
+  const href = await playerEntry(page, "Demo Mid").first().getAttribute("href");
+  for (const [setup, least] of [["i12", 7], ["se1", 2]] as const) {
+    await page.setViewportSize({ width: SETUPS[setup].width, height: SETUPS[setup].height });
+    const cdp = await applySetup(page, setup, 100);
+    await page.goto(`${href}/champions`);
+    await expect(page.getByTestId("top-champion").first()).toBeVisible();
+    const seen = await page.evaluate(() => {
+      const bar = document.querySelector("[data-testid=phone-tabbar]")!.getBoundingClientRect().top;
+      const rows = [...document.querySelectorAll("[data-testid=top-champion]")].map((e) => e.getBoundingClientRect());
+      return { whole: rows.filter((r) => r.top >= 0 && r.bottom <= bar + 0.5).length, total: rows.length };
+    });
+    expect(seen.total, "the demo has enough rows to measure").toBeGreaterThan(least);
+    expect(seen.whole, `${setup}: whole rows above the tab bar`).toBeGreaterThanOrEqual(least);
+    await cdp.detach();
+  }
 });
 
 test("at 200% text on a 320px phone, All Champions is no wider than the phone: each row stacks under the name, every name whole, and the profile header's rank inside the phone", async ({ page }) => {

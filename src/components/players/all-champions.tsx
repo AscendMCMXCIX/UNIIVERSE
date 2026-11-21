@@ -31,6 +31,7 @@ import { COMPACT_SEARCH, FiltersControl, PageToolbar } from "@/components/ui/pag
 import { QuietBar } from "@/components/ui/quiet-bar";
 import type { DataStatus } from "@/domain/data-status";
 import { RoleTag } from "@/components/role-icon";
+import { notchPlacement } from "./preview-notch";
 
 type KindKey = keyof MultikillCounts;
 type SortKey = "champion" | "games" | "win" | "kda" | "cs" | "kills" | "multikills" | KindKey | "mastery";
@@ -446,6 +447,60 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
     ro.observe(aside);
     return () => ro.disconnect();
   }, [inCard]);
+  // Joined to its row (CM §4.1): the selected row's surface runs under the preview to its edge, and
+  // the edge line is interrupted beside the row by a 2px notch the row's colour, so the row reads as
+  // opening into the page. The notch sits in the preview's column (not sticky), at the row's place,
+  // clipped to the part of the edge the pinned preview draws: when the row scrolls out of it, the
+  // notch simply goes. Switching moves it to the new row (150ms, none with reduced motion).
+  const notchRef = React.useRef<HTMLSpanElement>(null);
+  const notchKey = React.useRef<string | null>(null);
+  React.useLayoutEffect(() => {
+    const notch = notchRef.current;
+    const aside = asideRef.current;
+    const card = cardRef.current;
+    if (!inCard || !notch || !aside || !card) {
+      notchKey.current = null;
+      return;
+    }
+    let frame = 0;
+    const place = () => {
+      frame = 0;
+      const row = card.querySelector<HTMLElement>("[data-testid=top-champion][data-selected=true]");
+      const column = notch.parentElement;
+      if (!row || !column) {
+        notch.style.visibility = "hidden";
+        return;
+      }
+      const at = notchPlacement(row.getBoundingClientRect(), column.getBoundingClientRect(), aside.getBoundingClientRect());
+      notch.style.height = `${at.height}px`;
+      notch.style.transform = `translateY(${at.y}px)`;
+      notch.style.clipPath = `inset(${at.clipTop}px 0 ${at.clipBottom}px 0)`;
+      notch.style.visibility = at.hidden ? "hidden" : "";
+    };
+    // The first placement lands at once; later ones (another row) move.
+    const first = notchKey.current === null;
+    notchKey.current = selectedKey;
+    if (first) notch.style.transition = "none";
+    place();
+    if (first) {
+      void notch.offsetHeight;
+      notch.style.transition = "";
+    }
+    const later = () => {
+      if (!frame) frame = requestAnimationFrame(place);
+    };
+    window.addEventListener("scroll", later, { capture: true, passive: true });
+    window.addEventListener("resize", later);
+    const ro = new ResizeObserver(later);
+    ro.observe(aside);
+    ro.observe(card);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", later, { capture: true });
+      window.removeEventListener("resize", later);
+      ro.disconnect();
+    };
+  }, [inCard, selectedKey, shown]);
   const rowButton = (c: { championId: string; role: string }) => cardRef.current?.querySelector<HTMLButtonElement>(`[data-testid=top-champion][data-champion="${c.championId}"][data-role="${c.role}"] [data-open-champion]`);
   const focusTitle = React.useRef(false);
   const [viaKeys, setViaKeys] = React.useState(false);
@@ -540,7 +595,7 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
           const narrowFigure = sorted === "champion" || sorted === "games" || sorted === "win" ? null : (summaryPairs(c, sorted).find((pair) => pair.sorted) ?? null);
           return (
             // A row lights up while pointed at or focused (a quiet tint; the whole row opens the champion's window).
-            <li key={`${c.championId}-${c.role}`} data-role={c.role} className={cn("group/row relative grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 px-3 py-2 @max-[17rem]:grid-cols-[minmax(0,1fr)] transition-colors duration-150 hover:bg-surface-2/50 has-[[data-open-champion]:focus-visible]:bg-surface-2/50 has-[[data-open-champion]:focus-visible]:outline has-[[data-open-champion]:focus-visible]:outline-2 has-[[data-open-champion]:focus-visible]:-outline-offset-2 has-[[data-open-champion]:focus-visible]:outline-accent @min-[44rem]:py-1.5 data-[selected=true]:bg-surface-3 data-[selected=true]:before:absolute data-[selected=true]:before:inset-y-0 data-[selected=true]:before:left-0 data-[selected=true]:before:w-0.5 data-[selected=true]:before:bg-accent", GRID)} data-selected={selectedKey === `${c.championId}-${c.role}` || undefined} data-testid="top-champion" data-champion={c.championId} data-games={r.games} data-kills={p.totalKills ?? ""} data-mastery={c.mastery?.points ?? ""} data-multikills={c.multikills?.counted ? MULTIKILL_KINDS.map((k) => c.multikills![k.key]).join(",") : ""} data-multikill-coverage={c.multikills ? multikillCoverage(c.multikills).state : ""}>
+            <li key={`${c.championId}-${c.role}`} data-role={c.role} className={cn("group/row relative grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 px-3 py-2 @max-[17rem]:grid-cols-[minmax(0,1fr)] transition-colors duration-150 hover:bg-surface-2/50 has-[[data-open-champion]:focus-visible]:bg-surface-2/50 has-[[data-open-champion]:focus-visible]:outline has-[[data-open-champion]:focus-visible]:outline-2 has-[[data-open-champion]:focus-visible]:-outline-offset-2 has-[[data-open-champion]:focus-visible]:outline-accent @min-[44rem]:py-1.5 data-[selected=true]:bg-surface-3 data-[selected=true]:hover:bg-surface-3 data-[selected=true]:has-[[data-open-champion]:focus-visible]:bg-surface-3 data-[selected=true]:before:absolute data-[selected=true]:before:inset-y-0 data-[selected=true]:before:left-0 data-[selected=true]:before:w-0.5 data-[selected=true]:before:bg-accent", GRID)} data-selected={selectedKey === `${c.championId}-${c.role}` || undefined} data-testid="top-champion" data-champion={c.championId} data-games={r.games} data-kills={p.totalKills ?? ""} data-mastery={c.mastery?.points ?? ""} data-multikills={c.multikills?.counted ? MULTIKILL_KINDS.map((k) => c.multikills![k.key]).join(",") : ""} data-multikill-coverage={c.multikills ? multikillCoverage(c.multikills).state : ""}>
               <span className="flex min-w-0 items-center gap-3">
                 <span className="hidden w-5 shrink-0 text-right text-xs tabular-nums text-fg-subtle @4xl:block" aria-hidden>
                   {i + 1}
@@ -756,6 +811,8 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
               </span>
               <PreviewContent key={selectedKey} playerId={playerId} isOwn={isOwn} card={selected} otherRoles={data.topChampions.filter((o) => o.championId === selected.championId && o.role !== selected.role)} vs={address.sel?.vs ?? null} champ={champ} data={previewData} onVs={address.setVs} onSwitch={(o) => address.show(o.championId, o.role)} onClose={close} titleId="champion-preview-title" onMatch={game.open} />
             </aside>
+            {/* The notch: over the edge line beside the selected row, the row's colour (placed above). */}
+            <span ref={notchRef} aria-hidden className="absolute left-0 top-0 w-0.5 bg-surface-3 transition-transform duration-150 ease-emphasized motion-reduce:transition-none" data-testid="champion-preview-notch" />
           </div>
         ) : null}
       </div>

@@ -219,6 +219,23 @@ test("a wide card's figures end before the next column, the teams keep their nam
     await page.evaluate(() => document.fonts.ready);
     const cards = await page.getByTestId("match-card").evaluateAll(cardGeometry);
     expect(cards.length).toBeGreaterThan(1);
+    if (size.width === 1366) {
+      // With the build and the teams both on the card (a 61–70rem list), the columns keep 10px apart
+      // so the teams have the room the 12px floor needs (Release 11): with 16px gaps 8 of the
+      // first card's 10 names were cut here, at 12px.
+      // Demo Mid's first game has the longer names.
+      await page.goto(`${await profileOf(page, "MID")}/matches`, { waitUntil: "networkidle" });
+      await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
+      const roster = await page.getByTestId("match-card").first().evaluate((c) => {
+        const names = [...c.querySelectorAll("[data-testid=team-slot-name]")];
+        return { gap: getComputedStyle(c.querySelector("[data-testid=match-card-grid]")!).columnGap, names: names.length, cut: names.filter((n) => n.scrollWidth > n.clientWidth + 0.5).length };
+      });
+      expect(roster.gap, "1366: 10px between the columns").toBe("10px");
+      expect(roster.names).toBe(10);
+      expect(roster.cut, "1366: the first card's roster names mostly whole").toBeLessThanOrEqual(3);
+      await page.goto(`${profile}/matches`, { waitUntil: "networkidle" });
+      await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
+    }
     for (const [i, c] of cards.entries()) {
       const at = `${size.width}px, card ${i}`;
       expect(c.next, at).not.toBeNull();

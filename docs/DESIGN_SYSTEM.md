@@ -408,6 +408,11 @@ const peek = usePeek({ param: "player", ids, initial: searchParams.get("player")
   fold (`visibility: hidden` through `group-data-[folded=true]/card:invisible`, so no width
   changes), Champion, Games and Win rate keep their x, and the panel takes the folded space with the
   card's surface, a hairline `border-border-strong` at its left and the card's right radius. It is
+  joined to its row (CM §4.1, Release 11): the selected row's `surface-3` runs under it to its edge
+  (kept on hover and focus, the focus outline still drawn), and a 2px notch the row's colour
+  interrupts the edge line beside the row (`champion-preview-notch`, placed by `preview-notch.ts`:
+  clipped to the edge the pinned panel draws, gone once the row scrolls out of it, moved to a new
+  row in 150ms, at once with reduced motion). It is
   sticky under the pinned tabs and as tall as its content (`max-w-xl`); it slides 12px outward and
   fades in (`unfold-in`, 200ms, `--ease-emphasized`). With less room the page falls back to `Peek`
   (the docked panel, then the sheet by posture), with the same content and address
@@ -610,9 +615,14 @@ With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shel
       account card and the Add button's row: `AccountsSkeleton`, 20 Nov 2026), and a profile opened from
       outside it as its band, tabs and section. Leaderboards and Team Matches had theirs.
     - *The 12px floor* (UD.X5): `text-2xs` is 12px on desktops (lg), 11px on phones and tablets,
-      one token for every use (globals.css); uppercase labels (and `label-caps`) keep 11px. The game cards of Match History and Team Matches keep
-      11px (`type-floor-later`, listed in `design-tokens.test.ts`: Release 5's post-game cards were built
-      before the floor, which reaches them with their next measured pass); `text-4xs`
+      one token for every use (globals.css); uppercase labels (and `label-caps`) keep 11px. The game cards of Match History and Team Matches
+      took it in Release 11 after a measured pass at 1024, 1280, 1366, 1440, 1536, 1920 and 2560: no new wrap,
+      the build whole, heights +1px at most. Where the card holds the build and the teams (a 61–70rem list,
+      1366 and 1440 with the sidebar open) its columns stay 10px apart (16px from 70rem), which gives the
+      teams the room 12px needs: cut roster names on the demo went from 146 to 26 at 1366 and 38 to 12 at
+      1440 against the 11px cards. The one-line "With …" list of team members, already cut short with
+      its full text as hover text, cuts one or two more at 1024 to 1366. `type-floor-later` has no place
+      left in `design-tokens.test.ts`; `text-4xs`
       stays for letters inside small tiles (initials, the ⓘ glyph).
   - **One look at every width (S2c).** `e2e/design-parity.spec.ts` renders the shared components
     (stat label, Panel, DataRow, a badge, Button, the current section tab, InfoTip's bubble, Select)
