@@ -100,14 +100,22 @@ test("Refresh ends the toolbar in the same place on every tab of a profile, neve
   // the same width but for a phone's Match History.
   expect(new Set([...seen].map((x) => x.replace(/:(\d+|icon)×/, "×")))).toHaveProperty("size", 1);
   expect([...seen].filter((x) => !x.includes(":icon×"))).toHaveLength(1);
-  // Riot accounts: the same Refresh in the panel header's toolbar, at the right of its title, without a status (each account says its own state there).
+  // Riot accounts: the tab's heading as its siblings' (SectionHeader's 20px h2 above the panel, the
+  // design review's G2-9; on a phone the tab names it), the same Refresh ending the title's line,
+  // over the lead line, without a status (each account says its own state there).
   await page.goto(`${href}/accounts`, { waitUntil: "networkidle" });
   const button = page.getByTestId("data-refresh-button");
   await expect(button).toHaveText("Refresh");
   await expect(page.getByTestId("data-refresh-info")).toHaveCount(0);
-  const [panelTitle, at] = await Promise.all([page.getByRole("heading", { name: "Riot accounts", exact: true }).boundingBox(), button.boundingBox()]);
-  expect(at!.x, "Refresh at the title's right").toBeGreaterThan(panelTitle!.x + panelTitle!.width);
-  expect(at!.y, "on the title's row").toBeLessThan(panelTitle!.y + panelTitle!.height);
+  const heading = page.getByRole("heading", { name: "Riot accounts", exact: true });
+  expect(await heading.evaluate((h) => [h.tagName, getComputedStyle(h).fontSize, !!h.closest("[data-testid=riot-accounts-section]") && !h.closest("[data-testid=riot-accounts]")])).toEqual(["H2", "20px", true]);
+  const [panelTitle, at, lead] = await Promise.all([heading.boundingBox(), button.boundingBox(), page.getByTestId("riot-accounts-lead").boundingBox()]);
+  if (!isPhone(page)) {
+    expect(at!.x, "Refresh at the title's right").toBeGreaterThan(panelTitle!.x + panelTitle!.width);
+    expect(at!.y, "on the title's row").toBeLessThan(panelTitle!.y + panelTitle!.height);
+  } else expect(panelTitle!.width, "the title read out only on a phone").toBeLessThanOrEqual(1);
+  expect(at!.y + at!.height, "Refresh over the lead line").toBeLessThanOrEqual(lead!.y + 1);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
 });
 
 test("Refresh reads Riot, shows its progress, re-reads the page, and a second press is answered without asking again", async ({ page }, info) => {

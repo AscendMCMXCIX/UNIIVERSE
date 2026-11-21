@@ -316,7 +316,8 @@ export function FiltersControl() {
       )}
       data-testid="toolbar-filters"
     >
-      <SlidersHorizontal className="h-4 w-4 shrink-0 text-accent" aria-hidden />
+      {/* Neutral at rest, as the desktop's Refine; accent once narrowed. */}
+      <SlidersHorizontal className={cn("h-4 w-4 shrink-0", filters.wideCount > 0 && "text-accent")} aria-hidden />
       <span className={COMPACT_LABEL}>Filters</span>
       <span className="sr-only">: {filters.wideSummary}</span>
       {filters.wideCount ? <span className="rounded-full bg-accent px-1.5 text-xs font-semibold tabular-nums text-bg">{filters.wideCount}</span> : null}

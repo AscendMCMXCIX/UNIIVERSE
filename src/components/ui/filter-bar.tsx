@@ -374,7 +374,8 @@ export function FilterBar({
       data-testid={toggleTestId}
       data-filter-toggle=""
     >
-      <SlidersHorizontal className="h-4 w-4 shrink-0 text-accent" aria-hidden />
+      {/* Neutral at rest (the button's own colour, stepping up on hover), as the desktop's Refine; accent once narrowed. */}
+      <SlidersHorizontal className={cn("h-4 w-4 shrink-0", activeCount > 0 && "text-accent")} aria-hidden />
       {hosted ? (
         <span className="sr-only">Filters: {summary}</span>
       ) : (

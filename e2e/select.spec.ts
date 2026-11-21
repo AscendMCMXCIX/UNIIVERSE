@@ -143,6 +143,8 @@ test("on a phone, the Select is the browser's own select, with the phone's own p
   const sort = page.locator("#all-champions-sort-by");
   await ready(sort);
   expect(await sort.evaluate((el) => el.tagName)).toBe("SELECT");
+  // Drawn with the app's own chevron, not the system arrow (the design review's G2-6), its text clear of it.
+  expect(await sort.evaluate((el) => { const s = getComputedStyle(el); return [s.appearance, s.backgroundImage.startsWith("url("), parseFloat(s.paddingRight) >= 26]; })).toEqual(["none", true, true]);
   await sort.selectOption("games");
   await expect(sort).toHaveValue("games");
 });

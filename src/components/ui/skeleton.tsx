@@ -214,7 +214,8 @@ export function LineupSkeleton() {
 
 /**
  * Riot Accounts (profile-accounts-tab.tsx, RiotAccountsPanel), under the profile's header and tabs:
- * the panel with its title and one-line lead, then the account cards (two columns from md, as the
+ * the tab's heading (SectionHeader's 20px title, left to the tab on a phone) and its one-line lead
+ * above the panel, then in the panel the account cards (two columns from md, as the
  * list is) and the Add button's row, each as tall as it is drawn (a card about 96px; the button 44px
  * on touch, 36px with a mouse), so the page lands in the skeleton's place. The title is the panel's
  * own fixed word. Data diagnostics (administrators only) is left out: most viewers never have it.
@@ -222,13 +223,14 @@ export function LineupSkeleton() {
 export function AccountsSkeleton() {
   return (
     <div className="space-y-5" role="status" aria-live="polite" aria-label="Loading" data-testid="accounts-skeleton">
-      <section className="panel-depth min-w-0 rounded-panel border border-border bg-surface" aria-hidden>
-        <div className="space-y-0.5 border-b border-border px-3 py-3 sm:px-4">
-          <p className="text-base font-semibold text-fg">Riot accounts</p>
+      <div className="space-y-3" aria-hidden>
+        <div className="space-y-1">
+          <p className="text-xl font-semibold tracking-tight text-fg max-sm:sr-only short:sr-only">Riot accounts</p>
           <Skeleton className="h-5 w-[min(24rem,100%)]" />
           {/* On a phone the lead takes two lines. */}
           <Skeleton className="h-5 w-24 sm:hidden" />
         </div>
+      <section className="panel-depth min-w-0 rounded-panel border border-border bg-surface">
         <div className="space-y-3 px-3 py-3 sm:px-4">
           <div className="grid gap-2.5 md:grid-cols-2">
             <div className="flex flex-col gap-2 rounded-panel border border-border bg-bg-elevated p-3">
@@ -240,6 +242,7 @@ export function AccountsSkeleton() {
           <Skeleton className="h-11 w-44 pointer-fine:h-9" />
         </div>
       </section>
+      </div>
       <p className="sr-only">Loading…</p>
     </div>
   );

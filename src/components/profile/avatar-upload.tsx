@@ -280,7 +280,8 @@ export function ProfileAvatarEditable({ name, src, avatarClassName }: { name: st
       <span className={cn("absolute inset-0 grid place-items-center rounded-full bg-black/45 text-white opacity-0 transition-opacity group-hover/avatar:opacity-100 group-focus-visible/avatar:opacity-100")} aria-hidden>
         <Camera className="h-6 w-6" />
       </span>
-      <span className="absolute -bottom-0.5 -right-0.5 grid h-8 w-8 place-items-center rounded-full border-2 border-surface bg-accent text-bg shadow-md" aria-hidden>
+      {/* The camera badge: neutral at rest (it stays on touch screens), accent while the picture is pointed at or focused. */}
+      <span className="absolute -bottom-1 -right-1 grid h-8 w-8 place-items-center rounded-full border border-border-strong bg-bg-elevated text-fg transition-colors group-hover/avatar:border-accent group-hover/avatar:bg-accent group-hover/avatar:text-bg group-focus-visible/avatar:border-accent group-focus-visible/avatar:bg-accent group-focus-visible/avatar:text-bg motion-reduce:transition-none" aria-hidden data-testid="avatar-camera-badge">
         <Camera className="h-4 w-4" />
       </span>
     </>

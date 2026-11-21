@@ -118,6 +118,8 @@ test("one view without subtabs: the loadout names itself, each figure once, the 
   if (kda) expect(count(`${kda} KDA`), "KDA once").toBe(1);
   expect(count(`${share} of team`), "damage share once").toBe(1);
   expect(await breakdown.getByTestId("participant-kda").filter({ hasText: /KDA|%/ }).count(), "scoreboard rows carry no ratio or share").toBe(0);
+  // Every tile's caption whole ("18% of team" was cut six across in the 33rem column: the design review's G2-2).
+  expect(await tiles.locator(".truncate").evaluateAll((els) => els.filter((e) => e.scrollWidth > e.clientWidth + 0.5).map((e) => e.textContent)), "the figures' captions whole").toEqual([]);
   // The notes: at most two Went well, two Went wrong and one Focus next, or one honest line.
   const notes = breakdown.getByTestId("post-game-notes");
   expect(Number(await notes.getAttribute("data-well"))).toBeLessThanOrEqual(2);
@@ -202,6 +204,13 @@ test("Previous and Next keep the open game's header in place; Escape closes and 
   }
   // Switching replaced the one entry the opening added.
   expect(await page.evaluate(() => history.length)).toBe(length);
+  // Scrolled to the open game's end, its pinned strip leaves with it, never lying over the next card (G2-3).
+  const region = page.locator("li[data-expanded] [data-testid=match-expanded]");
+  await page.waitForTimeout(400);
+  await page.evaluate((y) => window.scrollTo(0, y), await region.evaluate((e) => e.getBoundingClientRect().bottom + window.scrollY - 60));
+  await expect(page.locator("li[data-expanded] [data-testid=match-unfold-header]")).toHaveAttribute("data-stuck", "true");
+  const [strip, end] = await Promise.all([page.locator("li[data-expanded] [data-testid=match-unfold-header]").boundingBox(), region.boundingBox()]);
+  expect(strip!.y + strip!.height, "the strip ends with its game").toBeLessThanOrEqual(end!.y + end!.height + 1);
   const last = new URL(page.url()).searchParams.get("match")!;
   await page.goBack();
   await expect(page.locator("li[data-expanded]")).toHaveCount(0);

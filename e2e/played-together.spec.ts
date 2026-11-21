@@ -116,6 +116,10 @@ test("teammate combinations: choose members in the searchable picker, see only t
     await picker.getByTestId("together-with-search").fill(names[i]!.slice(0, 4));
     await picker.locator(`[data-testid=together-with-option][data-player-id="${ids[i]}"]`).click();
   };
+  // At rest Played with carries the control edge of the dropdowns beside it (the design review's G1-5).
+  if (!(await page.getByTestId("together-with-button").isVisible())) await showFilters(page);
+  const edge = (id: string) => page.getByTestId(id).evaluate((el) => getComputedStyle(el).borderTopColor);
+  expect(await edge("together-with-button")).toBe(await edge("together-queue"));
   await pick(0);
   await expect(page).toHaveURL(new RegExp(`with=${ids[0]}`));
   await pick(1);

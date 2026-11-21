@@ -54,6 +54,7 @@ async function ProfileAccountsTabBody({ db, header, session }: { db: Db; header:
         defaultPlatform={defaultPlatform()}
         editable={canManageRiotAccounts(session, player.id)}
         title="Riot accounts"
+        heading="section"
         theirs={session?.playerId !== player.id}
         status={dataStatus({ accounts: accounts.map((a) => describeAccountSync({ syncStatus: a.syncStatus, syncError: a.syncError, lastSyncAt: a.lastSyncAt, puuid: a.puuid, resolveAttempts: a.resolveAttempts, history: a.historyBackfill, riotConfigured })), checkedAt: sync.checkedAt, attemptedAt: sync.attemptedAt, newestGameAt: sync.newestGameAt })}
         refresh={refreshFor(session, player.id, sync)}

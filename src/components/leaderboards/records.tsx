@@ -145,6 +145,8 @@ export function RecordRow({ record, player, champ, viewer }: { record: RecordVie
         testId="season-record"
         data-record={record.id}
         density={{ narrow: "two-line", medium: "two-line" }}
+        // Top-aligned: a grid row is as tall as its taller cell, and each cell starts at its top padding.
+        align="start"
         className="h-full"
         lead={<RecordPicture record={record} holder={holder} champion={c} />}
         // Named by the record, so speech control finds it by the words on the row; the visible words are then not read twice.
@@ -257,8 +259,8 @@ const KIND_HEAD = { penta: "Penta", quadra: "Quadra", triple: "Triple" } as cons
 const KIND_SPOKEN = { penta: "pentakills", quadra: "quadra kills", triple: "triple kills" } as const;
 /** Each count's column from 21rem (literal classes, so Tailwind sees them). */
 const KIND_COL = { penta: "@min-[21rem]/list:col-[2/3]", quadra: "@min-[21rem]/list:col-[3/4]", triple: "@min-[21rem]/list:col-[4/5]" } as const;
-/** Member · penta · quadra · triple on one line from 21rem; under it the member's line, then the three counts, each with its name. */
-const MULTI_COLS = "[--dl-cols:minmax(0,1fr)] @min-[21rem]/list:[--dl-cols:minmax(0,1fr)_repeat(3,3.5rem)]";
+/** Member · penta · quadra · triple on one line from 21rem, each count as wide as its heading; under it the member's line, then the three counts, each with its name. */
+const MULTI_COLS = "[--dl-cols:minmax(0,1fr)] @min-[21rem]/list:[--dl-cols:minmax(0,1fr)_2.75rem_3.5rem_3rem]";
 
 /** Multikills this season, rarest first, a row per member; `className` places it on the page. */
 export function Multikills({ records, player, className }: { records: RecordsView; player: (id: string) => BoardPlayer; className?: string }) {
