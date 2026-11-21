@@ -347,6 +347,38 @@ export async function resetPasswordToTemporary(db: Db, actorId: string | null, u
 }
 
 /**
+ * Withdraws a temporary password an administrator issued (Reset password, or Reactivate with a new
+ * temporary password) before it is used: it no longer signs in, and the account keeps no usable
+ * password until a new one is issued. The same guards as Reset password (never your own account,
+ * never the Production check's account, the Owner's only by the Owner), and never the last active
+ * administrator, who would be left unable to sign in. Sessions end as after a reset. Only a
+ * temporary password (waiting, or expired) is withdrawn: a password the member chose is refused,
+ * and an account with no password changes nothing (`changed: false`, so nothing is recorded). Unlike
+ * Reset password, a deactivated account is accepted: withdrawing only takes a way in away, so a
+ * later plain Reactivate does not reopen a temporary password that may have reached the wrong person.
+ */
+export async function withdrawTemporaryPassword(db: Db, actorId: string | null, userId: string): Promise<{ changed: boolean }> {
+  const target = await getUser(db, userId);
+  if (!target) throw new UserError("Account not found.");
+  if (actorId && actorId === userId) throw new UserError("Change your own password under Settings instead.");
+  guardVerificationAccount(actorId, target, "withdraw the password of");
+  await guardOwnerAccount(db, actorId, target, "withdraw the password of");
+  if (target.hasPassword && !target.mustChangePassword) throw new UserError("They chose their own password, so there is no temporary password to withdraw. Nothing was changed.");
+  if (target.hasPassword) await guardLastAdmin(db, target, "withdraw the password of");
+  return db.transaction(async (tx) => {
+    // Only a temporary password still in place: a second call, or a password chosen in between, changes nothing.
+    const withdrawn = await tx
+      .update(users)
+      .set({ passwordHash: null, mustChangePassword: false, temporaryPasswordExpiresAt: null, updatedAt: new Date() })
+      .where(and(eq(users.id, userId), eq(users.mustChangePassword, true), isNotNull(users.passwordHash)))
+      .returning({ id: users.id });
+    if (withdrawn.length === 0) return { changed: false };
+    await revokeAllSessions(tx, userId);
+    return { changed: true };
+  });
+}
+
+/**
  * Grants or removes administrator access: Admin Mode on top of the account's own player access,
  * which stays exactly as it was (level, groups, profile, Riot accounts, statistics). Any
  * administrator may do it for another account; nobody changes their own; the Owner is always one;

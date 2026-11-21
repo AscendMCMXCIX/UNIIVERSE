@@ -9,7 +9,6 @@ import type { AuditEntry } from "@/server/audit/log";
 import { archivePlayerAction } from "@/server/actions/players";
 import { moderatePictureAction, moderateSocialLinkAction, setMemberDisplayNameAction, signOutEverywhereAction } from "@/server/actions/member-admin";
 import { personActivityAction } from "@/server/actions/audit";
-import { auditDetailsSentence, auditSentence } from "@/domain/audit-sentence";
 import { ROLE_LABELS } from "@/domain/roles";
 import { DetailModal } from "@/components/ui/detail-modal";
 import { Fold } from "@/components/ui/fold";
@@ -19,9 +18,9 @@ import { ConfirmDialog } from "@/components/ui/dialog";
 import { SiblingSteps } from "@/components/ui/preview-window";
 import { Input, Label } from "@/components/ui/input";
 import { toast } from "@/components/ui/toast";
+import { AuditRow } from "./audit-log";
 import { RiotAccountsPanel } from "@/components/team/riot-accounts-panel";
 import { formatDate, formatDateTime } from "@/lib/format";
-import { RelativeTime } from "@/components/ui/relative-time";
 import { ACCOUNT_STATUS, AccountActions, DeleteProfileButton, accountStatus } from "./account-actions";
 import { AccessDialog, accessSummary } from "./access-dialog";
 import { ErasePersonButton } from "./erase-person";
@@ -53,12 +52,13 @@ function passwordWords(state: "set" | "temporary" | "expired" | "none", expiresA
   if (!active && state === "none") return "Deactivated, and no password yet: reactivate them with a new temporary password so they can sign in.";
   if (!active) return "Deactivated: they cannot sign in. Reactivate them with the password they had, or, if they were deactivated for security, with a new temporary password.";
   if (state === "set") return "They chose their own password.";
-  if (state === "temporary") return `A temporary password waits for their first sign-in${expiresAt ? `, until ${formatDateTime(expiresAt)}` : ""}.`;
+  if (state === "temporary") return `A temporary password waits for their first sign-in${expiresAt ? `, until ${formatDateTime(expiresAt)}` : ""}.${manage ? " Withdraw it if it reached the wrong person." : ""}`;
   if (state === "expired") return `Their temporary password expired${expiresAt ? ` on ${formatDateTime(expiresAt)}` : ""}. Issue a new one.`;
   return "No password yet: issue a temporary one so they can sign in.";
 }
 
-function Activity({ userId, playerId }: { userId: string | null; playerId: string | null }) {
+/** `since` changes with each refresh of the page's data (after a change made here), so the list reads again. */
+function Activity({ userId, playerId, since }: { userId: string | null; playerId: string | null; since: unknown }) {
   const [entries, setEntries] = React.useState<AuditEntry[] | null>(null);
   React.useEffect(() => {
     let live = true;
@@ -66,25 +66,23 @@ function Activity({ userId, playerId }: { userId: string | null; playerId: strin
     return () => {
       live = false;
     };
-  }, [userId, playerId]);
+  }, [userId, playerId, since]);
   if (!entries) return <p className="text-sm text-fg-subtle">Loading…</p>;
   if (!entries.length) return <p className="text-sm text-fg-muted">Nothing recorded about them yet.</p>;
   return (
-    <ul className="divide-y divide-border" data-testid="person-activity-list">
-      {entries.map((e) => {
-        const at = new Date(e.at);
-        const details = auditDetailsSentence(e.details);
-        return (
-          <li key={e.id} className="py-1.5 text-sm">
-            <p className="text-fg">{auditSentence(e)}</p>
-            <p className="text-xs text-fg-subtle">
-              <RelativeTime date={at} />
-              {details ? ` · ${details}` : ""}
-            </p>
-          </li>
-        );
-      })}
-    </ul>
+    <>
+      <ul className="divide-y divide-border" data-testid="person-activity-list">
+        {entries.map((e) => (
+          <AuditRow key={e.id} entry={e} />
+        ))}
+      </ul>
+      {/* The full log, filtered to them: it filters by account (their profile's entries included), so a profile without an account has no link. */}
+      {userId ? (
+        <Link href={`/admin/audit?person=${encodeURIComponent(userId)}`} className="inline-flex min-h-11 items-center text-sm text-accent hover:underline" data-testid="person-activity-all">
+          See all in Audit Logs
+        </Link>
+      ) : null}
+    </>
   );
 }
 
@@ -361,7 +359,7 @@ function PersonBody({
 
       {canManageAccounts ? (
         <Section title="Activity" testId="person-activity">
-          <Activity userId={a?.userId ?? null} playerId={player?.id ?? null} />
+          <Activity userId={a?.userId ?? null} playerId={player?.id ?? null} since={a ?? player} />
         </Section>
       ) : null}
 
