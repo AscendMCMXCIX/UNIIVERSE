@@ -548,10 +548,13 @@ heights), and its worst figures across the matrix. Figures in screens; the ceili
   CI does not catch it: the page is marked `data` (its height grows with the games the demo's members
   played together, which other specs add to), so CI holds its frame, overflow and targets only. Its
   list of games is 1,138px of the page's 1,491 at 393 × 852 in the browser's tab. The ceiling is not
-  raised (the ratchet's exception is for a control added on purpose); the cause is not yet
-  established. Since the ceilings were set (19 Nov) the page changed in Release 9 (the Fold in place
-  of Disclosure for its comparisons, the list's count for the game window's steps). Listed for the
-  next stage that touches Team Matches.
+  raised then. **Cause found in Release 11** (21 Nov 2026): S9c's Team insights link (the
+  administrators' preview, `TEAM_INSIGHTS_AUDIENCE`), a 44px row in the page's header shown only
+  to those who can open it, which the demo's viewer (the Owner) is. Side by side with the audit's
+  build (a6a091b2) at 393 × 852 the list of games is the same 1,138px and starts at 328px instead
+  of 276px. That is a control a later stage added on purpose, so both ceilings take the file's
+  exception (1.90 at i15 100% and 6.17 at se1 150%, Release 11's figures plus 2%, the reason in
+  `why`); a member without the link stays within the old ceilings.
 - Re-run on the merge of `release/r10` (4a3b7727, Release 10): the same two overs and nothing else
   over, no overflow; 38 of the 952 figures moved by 0.03 screens or more, All Champions down at both
   CI setups (i15 100% 1.05 → 1.00, se1 150% 3.37 → 3.25; R10a's Filters row). The table below is `main`'s.
