@@ -84,8 +84,8 @@ function useSectionInView(ids: string): string | null {
         at = jumped!;
         landed = true;
       } else if (landed) jumped = null;
-      // At the page's top, the first section; at its end, the last (unless the reader jumped to a section that is at the window's top: a tall window can end the page right under it).
-      if (!held && window.scrollY <= 0) at = list[0]!;
+      // At the page's top, the first section; at its end, the last (at its end unless the reader jumped to a section now at the window's top: a tall window can end the page right under it).
+      if (window.scrollY <= 0) at = list[0]!;
       const root = document.documentElement;
       if (!held && window.scrollY > 0 && window.scrollY + window.innerHeight >= root.scrollHeight - 2) at = list[list.length - 1]!;
       setCurrent(at);

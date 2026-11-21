@@ -287,7 +287,7 @@ test("after a link away and Back, closing Team's player or a record's game goes 
   const index = () => page.evaluate(() => (window as unknown as { navigation: { currentEntry: { index: number } } }).navigation.currentEntry.index);
   for (const c of [
     { path: "/team", open: page.getByTestId("lineup-row-TOP").getByTestId("open-player-detail"), close: page.getByTestId("player-detail").getByTestId("player-detail-close"), param: /player=/ },
-    { path: "/leaderboards", open: page.getByTestId("record-open").first(), close: page.locator("dialog[open][data-testid=record-game-peek]").getByTestId("record-game-peek-close"), param: /match=/ },
+    { path: "/leaderboards", open: page.getByTestId("record-open").first(), close: page.getByTestId("record-game-peek").getByTestId("record-game-peek-close"), param: /match=/ },
   ]) {
     await page.goto("/resources");
     await page.goto(c.path);
