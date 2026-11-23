@@ -17,6 +17,8 @@ export interface MatchupIntelRead {
   named: number;
   missing: boolean;
   tilesBottom: number;
+  /** The lane plan's card's bottom edge (the curated briefing's, else the lane reference's), or null without one. */
+  planBottom: number | null;
   summary: string;
   summaryBottom: number | null;
   summaryShown: boolean;
