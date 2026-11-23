@@ -702,7 +702,7 @@ With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shel
     desktop with the browser's own select on the phone (§7, Select). Each later stage adds the components it creates.
     Since Release 11 (20 Nov 2026) a second test compares the components S5–S9 created, each opened
     as a member opens it: All Champions' preview (its panel, figures, an opponent, the foot line), the
-    post-game view (an item and the loadout's name, an answer and its label, a scoreboard K/D/A
+    post-game view (an item and the loadout's name, a scoreboard K/D/A
     and name), Matchup Intel (your slot, the enemy's slot label, an ability tile's name and its Q's cooldown,
     the phone's glance cooldown against the full tile's) and Admin's person view (the window, a section
     heading, the Riot accounts panel and a row). Its listed differences, each with its reason in the
