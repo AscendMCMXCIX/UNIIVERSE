@@ -3,14 +3,16 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { ChevronDown, Swords, X } from "lucide-react";
+import { ChevronDown, Swords } from "lucide-react";
 import type { OverviewCard } from "@/server/players/overview";
 import type { ChampionPreviewData, PairingGamesData, PreviewScope } from "@/server/players/champion-preview";
 import type { PreviewResult } from "@/server/actions/champion-preview";
 import { getChampionPreviewAction, getPairingGamesAction } from "@/server/actions/champion-preview";
 import { ROLE_LABELS, type Role } from "@/domain/roles";
 import { isGameRole } from "@/domain/season-stats";
-import { OPPONENT_MIN_GAMES, OPPONENT_SORTS, OPPONENT_TONED_GAMES, arrangeOpponents, opponentFootLine, opponentSentence, type OpponentSort, type OpponentTally } from "@/domain/champion-preview";
+import { OPPONENTS_SHOWN, OPPONENT_MIN_GAMES, OPPONENT_SORTS, OPPONENT_TONED_GAMES, arrangeOpponents, opponentFootLine, opponentSentence, pairingKda, type OpponentSort, type OpponentTally } from "@/domain/champion-preview";
+import { MULTIKILL_KINDS, multikillCoverage } from "@/domain/multikills";
+import { MULTIKILL_SHORT } from "./multikill-summary";
 import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateTone } from "@/domain/stats/win-rate";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
 import { matchupHref } from "@/components/matchup-intel/address";
@@ -20,10 +22,10 @@ import { cn } from "@/lib/cn";
 
 /*
   All Champions' preview (PLAN S5, CM §4): one champion in one role, and the player's record against
-  each lane opponent. It unfolds under its row, across the whole list (the overlay kit's Unfold:
-  docs/DESIGN_SYSTEM.md §7), its record beside the opponents where the list is wide enough and one
-  under the other where it is not, in the page's own flow: nothing lies over the list and nothing
-  scrolls inside it. Touch phones and short windows get it as a sheet (posture.ts).
+  each lane opponent. A compact panel docked at the window's right edge beside the list (the overlay
+  kit's Peek: docs/DESIGN_SYSTEM.md §7, since Release 16), so the list never moves; its opponents a
+  dense table, an opened opponent's games under its row in the same panel. Touch phones and short
+  windows get the same content as a sheet (posture.ts).
 
   The address holds it (?champion=&crole=[&vs=]): the first open pushes one history entry,
   switching champion or opponent replaces it, and closing goes Back when this page pushed it, so
@@ -181,8 +183,8 @@ function useAnswer<T>(key: string | null, generation: unknown, load: (() => Prom
   return got && got.key === key ? got.result : null;
 }
 
-/** A pairing's games shown before "Show all": the preview stays about one screen tall. */
-const GAMES_SHOWN = 5;
+/** A pairing's games shown before "Show all": the opened opponent stays a few lines tall, so the panel keeps within the screen. */
+const GAMES_SHOWN = 3;
 const plural = (n: number, word: string) => `${formatCount(n)} ${word}${n === 1 ? "" : "s"}`;
 const record = (wins: number, games: number) => `${formatCount(wins)}W ${formatCount(games - wins)}L`;
 
@@ -197,20 +199,17 @@ export interface PreviewProps {
   data: ReturnType<typeof usePreviewData>;
   onVs: (vs: string | null) => void;
   onSwitch: (card: OverviewCard) => void;
-  onClose: () => void;
-  /** In a phone's sheet (the shared Peek), whose header has the name, ‹ › and ✕: the content leads with the portrait and role only. */
-  compact?: boolean;
   titleId: string;
   onMatch: (matchId: string) => void;
 }
 
-/** One figure of the detail's record: its label, the figure, and what it is per (or "—" where no game carries it). */
+/** One figure of the champion's record: its label, the figure, and what it is per (or "—" where no game carries it). */
 function StatTile({ label, value, sub, testId }: { label: string; value: string; sub: string | null; testId: string }) {
   return (
-    <div className="min-w-0 rounded-lg border border-border/70 bg-surface px-3 py-2" data-testid={testId}>
+    <div className="min-w-0 rounded-lg border border-border/70 bg-surface px-2.5 py-1.5" data-testid={testId}>
       <dt className="label-caps truncate">{label}</dt>
-      <dd className="mt-0.5 text-lg font-semibold leading-tight tabular-nums text-fg">{value}</dd>
-      <dd className="truncate text-xs tabular-nums text-fg-subtle">{sub ?? " "}</dd>
+      <dd className="text-base font-semibold leading-tight tabular-nums text-fg">{value}</dd>
+      <dd className="truncate text-2xs tabular-nums text-fg-subtle">{sub ?? " "}</dd>
     </div>
   );
 }
@@ -221,7 +220,7 @@ function StatTiles({ card }: { card: OverviewCard }) {
   const one = (v: number | null) => (v === null ? null : v.toFixed(1));
   const kda = [one(p.kills), one(p.deaths), one(p.assists)];
   return (
-    <dl className="grid grid-cols-2 gap-2 @min-[36rem]/detail:grid-cols-4 @min-[50rem]/detail:grid-cols-2" data-testid="champion-preview-stats">
+    <dl className="grid grid-cols-2 gap-1.5 @min-[26rem]/detail:grid-cols-4" data-testid="champion-preview-stats">
       <StatTile label="KDA" value={p.perfectKda ? "Perfect" : p.kdaRatio === null ? "—" : p.kdaRatio.toFixed(2)} sub={kda.every((x) => x !== null) ? kda.join(" / ") : null} testId="champion-stat-kda" />
       <StatTile label="CS/min" value={p.csPerMinute === null ? "—" : p.csPerMinute.toFixed(1)} sub={p.csPerGame === null ? null : `${formatCount(Math.round(p.csPerGame))} a game`} testId="champion-stat-cs" />
       <StatTile label="Damage/min" value={p.damagePerMinute === null ? "—" : formatCount(Math.round(p.damagePerMinute))} sub={p.damagePerGame === null ? null : `${formatKilo(Math.round(p.damagePerGame))} a game`} testId="champion-stat-damage" />
@@ -230,8 +229,46 @@ function StatTiles({ card }: { card: OverviewCard }) {
   );
 }
 
-/** The preview's content: in the list, under its row (`compact` false), and in a phone's sheet (`compact`: the Peek's header names it). */
-export function PreviewContent({ playerId, isOwn, card, otherRoles, vs, champ, data, onVs, onSwitch, onClose, compact, titleId, onMatch }: PreviewProps) {
+/**
+ * The row's kill figures, which the docked panel lies over on a wide table (Kills, or Double,
+ * Triple, Quadra and Penta): one line, each count with its word, "*" where only some of the games
+ * are counted so far and "—" where none is (never a zero for unknown).
+ */
+function KillsLine({ card }: { card: OverviewCard }) {
+  const p = card.performance;
+  const m = card.multikills;
+  const partial = (done: number, of: number) => (done < of ? "*" : "");
+  const kills = p.totalKills === null ? "—" : `${formatCount(p.totalKills)}${partial(p.detailedGames, card.selected.games)}`;
+  const multi = !m || !m.games ? null : !m.counted ? "not counted yet" : `${MULTIKILL_KINDS.map((k) => `${formatCount(m[k.key])} ${MULTIKILL_SHORT[k.key].toLowerCase()}`).join(" · ")}${partial(m.counted, m.games)}`;
+  const some = (p.totalKills !== null && p.detailedGames < card.selected.games) || (!!m && m.counted > 0 && m.counted < m.games);
+  return (
+    <p className="text-xs tabular-nums text-fg-muted" data-testid="champion-preview-kills">
+      <span className="text-fg-subtle">Kills</span> <span className="font-semibold text-fg">{kills}</span>
+      {multi ? (
+        <>
+          {" · "}
+          <span className="text-fg-subtle">Multikills</span> <span className="text-fg">{multi}</span>
+        </>
+      ) : null}
+      {some ? <span className="sr-only"> (* from some of the games only: {m ? multikillCoverage(m).label.toLowerCase() : "the rest still loading"})</span> : null}
+    </p>
+  );
+}
+
+/*
+  The opponents as one compact table: the opponent, its games, the record and the win rate (from 3
+  games), a chevron; a heading row over them (hidden from screen readers: each cell says what it is
+  to them). An opened opponent unfolds its games under its row, inside the same panel.
+*/
+const OPPONENT_GRID = "grid grid-cols-[minmax(0,1fr)_2.5rem_3.75rem_2.75rem_1rem] items-center gap-x-2";
+
+/**
+ * The preview's content, the same in the docked panel beside the list and in a phone's sheet (the
+ * shared Peek, whose header names the champion and holds ‹ › and ✕): the portrait and role with the
+ * record at the right, four tiles of averages, then the lane opponents as a compact table, an opened
+ * opponent's games under its row, and the foot line.
+ */
+export function PreviewContent({ playerId, isOwn, card, otherRoles, vs, champ, data, onVs, onSwitch, titleId, onMatch }: PreviewProps) {
   const me = champ(card.championId);
   const r = card.selected;
   const p = card.performance;
@@ -241,168 +278,147 @@ export function PreviewContent({ playerId, isOwn, card, otherRoles, vs, champ, d
   const preview = answer?.status === "ok" ? answer.data : null;
   const [sort, setSort] = React.useState<OpponentSort>("games");
   const [more, setMore] = React.useState(false);
+  // The first OPPONENTS_SHOWN opponents with 3+ games in the chosen order; the rest one click away, so a champion with thirty opponents keeps the panel within the screen.
+  const [allListed, setAllListed] = React.useState(false);
   const arranged = React.useMemo(() => arrangeOpponents(preview?.opponents ?? [], sort), [preview, sort]);
-  const figures = [
-    p.perfectKda ? "Perfect KDA" : p.kdaRatio === null ? null : `KDA ${p.kdaRatio.toFixed(2)}`,
-    p.csPerMinute === null ? null : `${p.csPerMinute.toFixed(1)} CS/min`,
-    card.mastery?.points ? `${formatCompactCount(card.mastery.points)} mastery` : null,
-  ].filter(Boolean);
   const tone = WIN_RATE_TONE_CLASS[winRateTone(r.winRate, r.games, WIN_RATE_MIN_GAMES.champion)];
   const rows = (list: OpponentTally[], withRate: boolean) =>
-    list.map((o) => <OpponentRow key={o.championId} grid={!compact} o={o} withRate={withRate} open={vs === o.championId} me={me} champ={champ} card={card} isOwn={isOwn} data={data} onToggle={() => onVs(vs === o.championId ? null : o.championId)} onMatch={onMatch} playerId={playerId} />);
+    list.map((o) => <OpponentRow key={o.championId} o={o} withRate={withRate} open={vs === o.championId} me={me} champ={champ} card={card} isOwn={isOwn} data={data} onToggle={() => onVs(vs === o.championId ? null : o.championId)} onMatch={onMatch} playerId={playerId} />);
   const roleLine = `${ROLE_LABELS[card.role]}${card.inPool ? " · In pool" : ""}`;
-  // The opponents: a column in the sheet; under its row, two columns where they have 50rem or more
-  // (a wide screen), so the list uses the width beside the record without long rows.
-  const opponentList = compact ? "flex flex-col divide-y divide-border/60" : "grid items-start @min-[50rem]/opp:grid-cols-2 @min-[50rem]/opp:gap-x-8";
-  const alsoAs = otherRoles.length ? (
-    <p className={cn("flex flex-wrap gap-x-3 text-xs text-fg-subtle", compact && "-mt-2")}>
-      {otherRoles.map((o) => (
-        <button key={o.role} type="button" onClick={() => onSwitch(o)} className="underline decoration-fg-subtle/50 underline-offset-2 hover:text-fg" data-testid="champion-preview-role">
-          Also as {ROLE_LABELS[o.role]}: {plural(o.selected.games, "game")} · {record(o.selected.wins, o.selected.games)}
-        </button>
-      ))}
-    </p>
-  ) : null;
-  const headline = (
-    <div className="flex items-end justify-between gap-3" data-testid="champion-preview-figures">
-      <p className="flex items-baseline gap-1.5">
-        <span className={cn("text-4xl font-bold tabular-nums leading-none", tone)}>{r.winRate === null ? "—" : percent(r.winRate, 0)}</span>
-        <span className="text-sm text-fg-muted">win rate</span>
-      </p>
-      <p className="text-right text-sm text-fg-muted">
-        <span className="font-semibold tabular-nums text-fg">{formatCount(r.games)}</span> game{r.games === 1 ? "" : "s"} · {record(r.wins, r.games)}
-      </p>
-    </div>
-  );
-  const opponents = (
-    <section aria-labelledby={`${titleId}-opponents`} className="flex flex-col gap-2" data-testid="champion-preview-opponents">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 id={`${titleId}-opponents`} className="text-sm font-semibold text-fg">
-          Against each lane opponent
-        </h3>
-        {arranged.listed.length > 1 && !arranged.noneEstablished ? (
-          <div role="group" aria-label="Sort the opponents" className={segmentedGroupClass("flex-wrap overflow-visible")}>
-            {OPPONENT_SORTS.map((s) => (
-              <button key={s.key} type="button" aria-pressed={sort === s.key} onClick={() => setSort(s.key)} className={segmentClass(sort === s.key, { size: "sm", className: "pointer-coarse:min-w-11" })} data-testid={`opponent-sort-${s.key}`}>
-                {s.label}
-              </button>
-            ))}
-          </div>
-        ) : null}
-      </div>
-      {!preview ? (
-        answer?.status === "not-found" ? (
-          <p className="text-sm text-fg-muted">{answer.message}</p>
-        ) : (
-          <div className="flex flex-col gap-1.5" aria-hidden data-testid="champion-preview-loading">
-            {[0, 1, 2].map((i) => (
-              <div key={i} className="h-10 animate-pulse rounded-md bg-surface-2/70" />
-            ))}
-          </div>
-        )
-      ) : !preview.opponents.length ? (
-        <p className="text-sm text-fg-muted" data-testid="champion-preview-no-opponents">
-          No lane opponent is known in these games yet.
-        </p>
-      ) : (
-        <>
-          {arranged.noneEstablished ? <p className="text-xs text-fg-subtle" data-testid="champion-preview-none-established">No opponent met {OPPONENT_MIN_GAMES} times yet.</p> : null}
-          <ul className={opponentList} data-testid="champion-preview-opponent-list">
-            {rows(arranged.listed, !arranged.noneEstablished)}
-          </ul>
-          {arranged.folded.length ? (
-            <div>
-              <button type="button" aria-expanded={more} onClick={() => setMore((m) => !m)} className="flex min-h-9 w-full items-center gap-1.5 text-left text-xs text-fg-muted hover:text-fg" data-testid="champion-preview-more">
-                <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 transition-transform", more && "rotate-180")} aria-hidden />
-                {formatCount(arranged.folded.length)} more opponent{arranged.folded.length === 1 ? "" : "s"} with 1–2 games
-              </button>
-              {more ? <ul className={opponentList}>{rows(arranged.folded, false)}</ul> : null}
-            </div>
-          ) : null}
-        </>
-      )}
-    </section>
-  );
-  const foot = preview ? (
-    <p className="border-t border-border/60 pt-3 text-xs text-fg-subtle" data-testid="champion-preview-foot">
-      {opponentFootLine({ isOwn, known: preview.known, games: preview.games })}
-    </p>
-  ) : null;
-  if (compact) {
-    return (
-      <div className="flex flex-col gap-4" data-testid="champion-preview-content" data-champion={card.championId} data-role={card.role}>
-        <div className="flex items-center gap-3">
-          <ChampionPortrait champion={me} size="lg" className="h-12 w-12 shrink-0 rounded-lg ring-1 ring-border-strong/60" />
-          <p className="text-sm text-fg-subtle">{roleLine}</p>
-        </div>
-        {alsoAs}
-        {headline}
-        {figures.length ? <p className="-mt-2 text-xs text-fg-subtle">{figures.join(" · ")}</p> : null}
-        {opponents}
-        {foot}
-      </div>
-    );
-  }
-  // Under its row in the list: the row above already shows the champion's portrait and name, so the
-  // preview names it for screen readers only (its heading, where the keyboard's open lands) and leads
-  // with its role, the other roles and Close on one line; then its record beside the lane opponents
-  // (side by side from a 50rem list, one under the other below it), the opponents taking the rest of
-  // the width, in the page's own flow: nothing over the list, nothing scrolling inside.
   const partial = p.detailedGames < r.games;
   return (
-    <div className="@container/detail flex flex-col gap-4" data-testid="champion-preview-content" data-champion={card.championId} data-role={card.role}>
-      <header className="flex flex-wrap items-center gap-x-4 gap-y-1">
-        <h2 id={titleId} tabIndex={-1} className="sr-only" data-testid="champion-preview-title">
-          {me.name}
-        </h2>
-        <p className="text-sm font-medium text-fg-muted" data-testid="champion-preview-role-line">
-          {roleLine}
-        </p>
-        {alsoAs}
-        <button type="button" onClick={onClose} className="ml-auto inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium text-fg-muted transition-colors hover:bg-surface-3 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:min-h-11" data-testid="champion-preview-close">
-          <X className="h-3.5 w-3.5" aria-hidden />
-          Close<span className="sr-only"> the preview</span>
-        </button>
-      </header>
-      <div className="grid items-start gap-x-10 gap-y-5 @min-[50rem]/detail:grid-cols-[minmax(16rem,19rem)_minmax(0,1fr)]">
-        <section aria-label={`${me.name}'s record`} className="flex flex-col gap-3" data-testid="champion-preview-record">
-          {headline}
-          <StatTiles card={card} />
-          <p className="text-xs text-fg-subtle" data-testid="champion-preview-coverage">
-            {partial ? `Averages from the ${plural(p.detailedGames, "game")} with a full record, of ${formatCount(r.games)}.` : `Averages over ${r.games === 1 ? "the one game" : `all ${formatCount(r.games)} games`} in these filters.`}
-            {card.mastery?.points ? ` ${formatCompactCount(card.mastery.points)} mastery points.` : ""}
+    <div id="champion-preview" className="@container/detail flex flex-col gap-3" data-testid="champion-preview-content" data-champion={card.championId} data-role={card.role}>
+      {/* Who and how it went: the portrait and the role (the panel's heading names the champion), the record at the right. */}
+      <header className="flex items-start gap-3">
+        <ChampionPortrait champion={me} size="md" className="shrink-0 rounded-lg ring-1 ring-border-strong/60" />
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium leading-tight text-fg" data-testid="champion-preview-role-line">
+            {roleLine}
           </p>
-        </section>
-        {/* One column of opponents at most 46rem wide; two from 50rem (opponentList), each at least 24rem. */}
-        <div className="@container/opp min-w-0">
-          <div className="flex max-w-[46rem] flex-col gap-3 @min-[50rem]/opp:max-w-none">
-            {opponents}
-            {foot}
-          </div>
+          {otherRoles.length ? (
+            <p className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-fg-subtle">
+              {otherRoles.map((o) => (
+                <button key={o.role} type="button" onClick={() => onSwitch(o)} className="text-left underline decoration-fg-subtle/50 underline-offset-2 hover:text-fg pointer-coarse:min-h-11" data-testid="champion-preview-role">
+                  Also as {ROLE_LABELS[o.role]}: {plural(o.selected.games, "game")} · {record(o.selected.wins, o.selected.games)}
+                </button>
+              ))}
+            </p>
+          ) : null}
         </div>
-      </div>
+        <div className="shrink-0 text-right" data-testid="champion-preview-figures">
+          <p className="flex items-baseline justify-end gap-1.5">
+            <span className={cn("text-2xl font-bold tabular-nums leading-none", tone)} data-testid="champion-preview-winrate">
+              {r.winRate === null ? "—" : percent(r.winRate, 0)}
+            </span>
+            <span className="text-xs text-fg-muted">win rate</span>
+          </p>
+          <p className="mt-1 text-xs text-fg-muted" data-testid="champion-preview-record-line">
+            <span className="font-semibold tabular-nums text-fg">{formatCount(r.games)}</span> game{r.games === 1 ? "" : "s"} · {record(r.wins, r.games)}
+          </p>
+        </div>
+      </header>
+      <section aria-label={`${me.name}'s record`} className="flex flex-col gap-1.5" data-testid="champion-preview-record">
+        <StatTiles card={card} />
+        <KillsLine card={card} />
+        <p className="text-xs text-fg-subtle" data-testid="champion-preview-coverage">
+          {partial ? `Averages from the ${plural(p.detailedGames, "game")} with a full record, of ${formatCount(r.games)}.` : `Averages over ${r.games === 1 ? "the one game" : `all ${formatCount(r.games)} games`} in these filters.`}
+          {card.mastery?.points ? ` ${formatCompactCount(card.mastery.points)} mastery points.` : ""}
+        </p>
+      </section>
+      <section aria-labelledby={`${titleId}-opponents`} className="flex flex-col gap-1.5" data-testid="champion-preview-opponents">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 id={`${titleId}-opponents`} className="text-sm font-semibold text-fg">
+            Against each lane opponent
+          </h3>
+          {arranged.listed.length > 1 && !arranged.noneEstablished ? (
+            <div role="group" aria-label="Sort the opponents" className={segmentedGroupClass("flex-wrap overflow-visible")}>
+              {OPPONENT_SORTS.map((s) => (
+                <button key={s.key} type="button" aria-pressed={sort === s.key} onClick={() => setSort(s.key)} className={segmentClass(sort === s.key, { size: "sm", className: "pointer-coarse:min-w-11" })} data-testid={`opponent-sort-${s.key}`}>
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
+        {!preview ? (
+          answer?.status === "not-found" ? (
+            <p className="text-sm text-fg-muted">{answer.message}</p>
+          ) : (
+            <div className="flex flex-col gap-1" aria-hidden data-testid="champion-preview-loading">
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="h-8 animate-pulse rounded-md bg-surface-2/70" />
+              ))}
+            </div>
+          )
+        ) : !preview.opponents.length ? (
+          <p className="text-sm text-fg-muted" data-testid="champion-preview-no-opponents">
+            No lane opponent is known in these games yet.
+          </p>
+        ) : (
+          <div>
+            {arranged.noneEstablished ? <p className="mb-1 text-xs text-fg-subtle" data-testid="champion-preview-none-established">No opponent met {OPPONENT_MIN_GAMES} times yet.</p> : null}
+            <div className={cn(OPPONENT_GRID, "label-caps border-b border-border/60 pb-1 pl-0.5")} aria-hidden data-testid="champion-preview-opponent-head">
+              <span>Opponent</span>
+              <span className="text-right">Games</span>
+              <span className="text-right">Record</span>
+              <span className="text-right">Win</span>
+              <span />
+            </div>
+            <ul className="flex flex-col divide-y divide-border/50" data-testid="champion-preview-opponent-list">
+              {rows(allListed ? arranged.listed : arranged.listed.slice(0, OPPONENTS_SHOWN), !arranged.noneEstablished)}
+            </ul>
+            {arranged.listed.length > OPPONENTS_SHOWN ? (
+              <button type="button" aria-expanded={allListed} onClick={() => setAllListed((a) => !a)} className="flex min-h-9 w-full items-center gap-1.5 border-t border-border/50 text-left text-xs text-fg-muted hover:text-fg pointer-coarse:min-h-11" data-testid="champion-preview-more-listed">
+                <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 transition-transform", allListed && "rotate-180")} aria-hidden />
+                {allListed ? `The first ${formatCount(OPPONENTS_SHOWN)} only` : `${formatCount(arranged.listed.length - OPPONENTS_SHOWN)} more opponent${arranged.listed.length - OPPONENTS_SHOWN === 1 ? "" : "s"} with ${OPPONENT_MIN_GAMES}+ games`}
+              </button>
+            ) : null}
+            {arranged.folded.length ? (
+              <>
+                <button type="button" aria-expanded={more} onClick={() => setMore((m) => !m)} className="flex min-h-9 w-full items-center gap-1.5 border-t border-border/50 text-left text-xs text-fg-muted hover:text-fg pointer-coarse:min-h-11" data-testid="champion-preview-more">
+                  <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 transition-transform", more && "rotate-180")} aria-hidden />
+                  {formatCount(arranged.folded.length)} more opponent{arranged.folded.length === 1 ? "" : "s"} with 1–2 games
+                </button>
+                {more ? <ul className="flex flex-col divide-y divide-border/50 border-t border-border/50">{rows(arranged.folded, false)}</ul> : null}
+              </>
+            ) : null}
+          </div>
+        )}
+      </section>
+      {preview ? (
+        <p className="border-t border-border/60 pt-2.5 text-xs text-fg-subtle" data-testid="champion-preview-foot">
+          {opponentFootLine({ isOwn, known: preview.known, games: preview.games })}
+        </p>
+      ) : null}
     </div>
   );
 }
 
-function OpponentRow({ grid, o, withRate, open, me, champ, card, isOwn, data, onToggle, onMatch, playerId }: { /** In the list's grid of opponents (under its row): each row draws its own rule above it, but the first row (one or two opponents). */ grid: boolean; o: OpponentTally; withRate: boolean; open: boolean; me: PortraitChampion; champ: (id: string) => PortraitChampion; card: OverviewCard; isOwn: boolean; data: ReturnType<typeof usePreviewData>; onToggle: () => void; onMatch: (matchId: string) => void; playerId: string }) {
+function OpponentRow({ o, withRate, open, me, champ, card, isOwn, data, onToggle, onMatch, playerId }: { o: OpponentTally; withRate: boolean; open: boolean; me: PortraitChampion; champ: (id: string) => PortraitChampion; card: OverviewCard; isOwn: boolean; data: ReturnType<typeof usePreviewData>; onToggle: () => void; onMatch: (matchId: string) => void; playerId: string }) {
   const them = champ(o.championId);
   const rate = o.wins / o.games;
   const toned = o.games >= OPPONENT_TONED_GAMES;
   const panelId = `opponent-${playerId.slice(0, 8)}-${o.championId}`;
   return (
-    <li className={grid ? "border-t border-border/60 first:border-t-0 @min-[50rem]/opp:nth-2:border-t-0" : undefined} data-testid="champion-preview-opponent" data-champion={o.championId} data-games={o.games}>
-      <button type="button" aria-expanded={open} aria-controls={open ? panelId : undefined} onClick={onToggle} className="flex min-h-[2.875rem] w-full items-center gap-2.5 py-1.5 text-left transition-colors hover:bg-surface-2/50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent">
-        <ChampionPortrait champion={them} size="sm" className="h-7 w-7 shrink-0 rounded-md" />
-        <span className="min-w-0 flex-1 truncate text-sm font-medium text-fg">{them.name}</span>
-        <span className="text-xs tabular-nums text-fg-subtle">{record(o.wins, o.games)}</span>
-        {withRate ? (
-          <span className={cn("w-11 text-right text-sm font-semibold tabular-nums", toned ? WIN_RATE_TONE_CLASS[winRateTone(rate, o.games, OPPONENT_TONED_GAMES)] : "text-fg-muted")}>
-            {percent(rate, 0)}
-            {toned ? null : <span className="sr-only"> (small sample)</span>}
-          </span>
-        ) : null}
-        <span className="w-16 text-right text-xs tabular-nums text-fg-muted">{plural(o.games, "game")}</span>
+    <li data-testid="champion-preview-opponent" data-champion={o.championId} data-games={o.games}>
+      <button type="button" aria-expanded={open} aria-controls={open ? panelId : undefined} onClick={onToggle} className={cn(OPPONENT_GRID, "min-h-9 w-full rounded-sm py-1 pl-0.5 text-left transition-colors hover:bg-surface-2/60 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent pointer-coarse:min-h-11", open && "bg-surface-2/60")}>
+        <span className="flex min-w-0 items-center gap-2">
+          <ChampionPortrait champion={them} size="xs" className="shrink-0 rounded" />
+          <span className="min-w-0 truncate text-sm font-medium text-fg">{them.name}</span>
+        </span>
+        <span className="text-right text-sm tabular-nums text-fg" data-testid="opponent-games">
+          {formatCount(o.games)}
+          <span className="sr-only"> game{o.games === 1 ? "" : "s"}</span>
+        </span>
+        <span className="text-right text-xs tabular-nums text-fg-subtle">{record(o.wins, o.games)}</span>
+        <span className={cn("text-right text-sm font-semibold tabular-nums", toned ? WIN_RATE_TONE_CLASS[winRateTone(rate, o.games, OPPONENT_TONED_GAMES)] : "text-fg-muted")}>
+          {withRate ? (
+            <>
+              {percent(rate, 0)}
+              {toned ? null : <span className="sr-only"> (small sample)</span>}
+            </>
+          ) : null}
+        </span>
         <ChevronDown className={cn("h-4 w-4 shrink-0 text-fg-subtle transition-transform", open && "rotate-180")} aria-hidden />
       </button>
       {open ? <PairingGames id={panelId} me={me} them={them} card={card} isOwn={isOwn} data={data} onMatch={onMatch} /> : null}
@@ -418,8 +434,14 @@ function PairingGames({ id, me, them, card, isOwn, data, onMatch }: { id: string
   const pairing = answer?.status === "ok" ? answer.data : null;
   const [all, setAll] = React.useState(false);
   const sentence = pairing ? opponentSentence(pairing.ten, { isOwn, champion: me.name, opponent: them.name }) : null;
+  const kda = pairing ? pairingKda(pairing.games) : null;
   return (
-    <div id={id} className="mb-2 flex flex-col gap-2 rounded-md bg-surface-2/40 px-2.5 py-2" data-testid="champion-preview-pairing">
+    <div id={id} className="mb-1.5 flex flex-col gap-1.5 rounded-md bg-surface-2/40 px-2 py-1.5" data-testid="champion-preview-pairing">
+      {kda && pairing ? (
+        <p className="text-xs tabular-nums text-fg-muted" data-testid="champion-preview-pairing-kda">
+          <span className="font-semibold text-fg">{kda.perfect ? "Perfect KDA" : `KDA ${kda.ratio.toFixed(2)}`}</span> · {kda.kills.toFixed(1)} / {kda.deaths.toFixed(1)} / {kda.assists.toFixed(1)} {kda.games === pairing.games.length ? (kda.games === 1 ? "in this game" : `over these ${formatCount(kda.games)} games`) : `over the ${plural(kda.games, "game")} with a full record`}
+        </p>
+      ) : null}
       {sentence ? <p className="text-xs text-fg-muted" data-testid="champion-preview-sentence">{sentence}</p> : null}
       {!pairing ? (
         <div className="h-8 animate-pulse rounded bg-surface-2/70" aria-hidden />
@@ -427,7 +449,7 @@ function PairingGames({ id, me, them, card, isOwn, data, onMatch }: { id: string
         <ul className="flex flex-col" data-testid="champion-preview-games">
           {(all ? pairing.games : pairing.games.slice(0, GAMES_SHOWN)).map((g) => (
             <li key={g.matchId}>
-              <button type="button" onClick={() => onMatch(g.matchId)} className="grid min-h-8 w-full grid-cols-[1.5rem_minmax(0,1fr)_auto_auto] items-center gap-2 rounded px-1 text-left text-xs tabular-nums hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-accent" data-testid="champion-preview-game">
+              <button type="button" onClick={() => onMatch(g.matchId)} className="grid min-h-7 w-full grid-cols-[1.25rem_minmax(0,1fr)_auto_auto] items-center gap-2 rounded px-1 text-left pointer-coarse:min-h-11 text-xs tabular-nums hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-accent" data-testid="champion-preview-game">
                 <span className={cn("font-semibold", g.win ? "text-good" : "text-bad")}>{g.win ? "W" : "L"}</span>
                 <span className="truncate text-fg">
                   {g.kills === null ? "—" : `${g.kills}/${g.deaths ?? 0}/${g.assists ?? 0}`}

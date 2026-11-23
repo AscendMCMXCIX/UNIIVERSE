@@ -4,7 +4,7 @@ import { championPreviewVerdicts, firstWithGames, targetRow, type ChampionPrevie
 /*
   The Production check's All Champions preview facts (scripts/champion-preview-facts.mjs): the
   reading below is the demo's first champion with 3+ games as the live check's own reader saw it
-  (20 Nov 2026). The facts pass on it, fail the regressions they exist for, and only warn when a
+  (20 Nov 2026; where it is, the docked panel, since Release 16). The facts pass on it, fail the regressions they exist for, and only warn when a
   member's data has no such item.
 */
 
@@ -17,6 +17,7 @@ const DEMO: ChampionPreviewRead = {
   role: "Top · In pool",
   record: "14 games · 4W 10L",
   winRate: "29%",
+  docked: { panel: true, window: false, within: true, fits: true },
   loading: false,
   noOpponents: false,
   answered: true,
@@ -34,7 +35,7 @@ const failed = (at: ChampionPreviewRead, step: typeof STEP | null = STEP, escape
 
 describe("All Champions' preview facts", () => {
   it("pass on the demo's preview", () => {
-    expect(run(DEMO).map((v) => v.status)).toEqual(Array(8).fill("PASS"));
+    expect(run(DEMO).map((v) => v.status)).toEqual(Array(9).fill("PASS"));
   });
   it("choose the first row with 3 or more games, or none", () => {
     expect(firstWithGames([{ games: 2, open: false }, { games: 3, open: false }])).toBe(1);
@@ -55,6 +56,13 @@ describe("All Champions' preview facts", () => {
     expect(failed({ ...DEMO, opponents: [{ games: 7, says: false }] })).toHaveLength(1);
     expect(failed({ ...DEMO, intel: 2 })).toHaveLength(1);
     expect(failed({ ...DEMO, intelVs: false })).toHaveLength(1);
+  });
+  it("fail a preview that is not the compact docked panel: a window, past the screen's edge, or scrolling inside", () => {
+    const where = "desktop: the preview is the compact panel docked beside the list (no window), within the screen, its content fitting it without scrolling";
+    expect(failed({ ...DEMO, docked: { panel: false, window: false, within: false, fits: false } })).toEqual([where]);
+    expect(failed({ ...DEMO, docked: { panel: true, window: true, within: true, fits: true } })).toEqual([where]);
+    expect(failed({ ...DEMO, docked: { panel: true, window: false, within: false, fits: true } })).toEqual([where]);
+    expect(failed({ ...DEMO, docked: { panel: true, window: false, within: true, fits: false } })).toEqual([where]);
   });
   it("fail ↓ pushing a history entry, and Escape leaving it open", () => {
     expect(failed(DEMO, { ...STEP, replaced: false })).toHaveLength(1);

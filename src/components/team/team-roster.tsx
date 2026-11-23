@@ -143,7 +143,7 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
           (larger text on a phone; at 200% on 320px the turn control covered the picture's edge).
           There the top keeps clear of their row. Five across on wide screens it is tall, a
           portrait card. */}
-      <div className={cn("pointer-events-none relative flex min-h-[10.5rem] shrink-0 flex-col justify-end px-3 pb-2.5 pt-12 @4xl/lineup:min-h-[clamp(13rem,29vh,20rem)] [&_.card-art-img]:group-hover/card:scale-[1.03] motion-reduce:[&_.card-art-img]:group-hover/card:scale-100", !guest && cn("@max-xl/lineup:min-h-[7.5rem]", SIDEWAYS_ROW.art), controls === 1 && "@max-[7.75rem]/card:pointer-coarse:pt-[3.625rem]", twoControls && "@4xl/lineup:pt-[5.25rem] @4xl/lineup:pointer-coarse:pt-[6.75rem] @max-[10.875rem]/card:pointer-coarse:pt-[3.625rem] @max-[9.25rem]/card:pt-[5.25rem] @max-[9.25rem]/card:pointer-coarse:pt-[6.75rem]")} data-testid="card-art">
+      <div className={cn("pointer-events-none relative flex min-h-[10.5rem] shrink-0 flex-col justify-end px-3 pb-2.5 pt-12 @max-xl/lineup:flex-[3_1_auto] @4xl/lineup:min-h-[clamp(13rem,29vh,20rem)] ", TIGHT.art, "[&_.card-art-img]:group-hover/card:scale-[1.03] motion-reduce:[&_.card-art-img]:group-hover/card:scale-100", !guest && cn("@max-xl/lineup:min-h-[7.5rem]", SIDEWAYS_ROW.art), controls === 1 && "@max-[7.75rem]/card:pointer-coarse:pt-[3.625rem]", twoControls && "@4xl/lineup:pt-[5.25rem] @4xl/lineup:pointer-coarse:pt-[6.75rem] @max-[10.875rem]/card:pointer-coarse:pt-[3.625rem] @max-[9.25rem]/card:pt-[5.25rem] @max-[9.25rem]/card:pointer-coarse:pt-[6.75rem]")} data-testid="card-art">
         {/* Splash of the player's chosen champion and skin, darkened towards the text, tinted with their accent. */}
         <CardArtLayer art={deferImages ? null : (p?.art ?? null)} accent={accent} kind="splash" position="center 22%" look={p?.look} motion="hover" foot={!!p} priority={priority} />
         {/* The role chip in its lane, clear of the card's controls: the icon alone where the lane is too narrow for the role's name (CHIP_LANE). */}
@@ -174,9 +174,9 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
         // The body continues the artwork (the card's accent fades down from it), so identity, season
         // and pool read as one card, not three strips. Every filled card has the same parts in the
         // same order, so a row of cards lines up whatever each player has recorded.
-        <div className="pointer-events-none relative flex flex-1 flex-col gap-2.5 px-3 pb-3 pt-2.5" style={{ backgroundImage: "linear-gradient(to bottom, color-mix(in srgb, var(--card-accent) 7%, transparent), transparent 70%)" }}>
+        <div className={cn("pointer-events-none relative flex flex-1 flex-col gap-2.5 px-3 pb-3 pt-2.5 @max-xl/lineup:flex-[1_1_auto] @max-xl/lineup:justify-evenly", TIGHT.body)} style={{ backgroundImage: "linear-gradient(to bottom, color-mix(in srgb, var(--card-accent) 7%, transparent), transparent 70%)" }}>
           {p.statsVisible ? <CardPerformance season={p.season} support={support} roleLabel={slot.roleLabel} /> : null}
-          <div className="flex flex-col gap-1.5" data-card-pool>
+          <div className={cn("flex flex-col gap-1.5", TIGHT.pool)} data-card-pool>
             {/* Under 9.75rem, which only larger text makes, the pool's name wraps instead of ending in
                 "…" ("SUPPO…" at 200% on a 320px phone): the count stays beside it while its longest
                 word fits there, otherwise it takes a line of its own, still on the right. */}
@@ -875,6 +875,43 @@ const SIDEWAYS_ROW = {
 } as const;
 
 /**
+ * Members' phones, upright (below sm): the carousel's cards take the height the screen has left.
+ * main, the page's column, this frame, the stage and the track each grow into the room between the
+ * top bar and the tab bar (app-shell.tsx: main is a column on this page, from the window's height,
+ * min-h-dvh, less the top bar, its own padding and the room it keeps for the tab bar and the home
+ * indicator), so the track is as tall as that room less the header line and the dots under it. The
+ * five cards share the track's height (the slides stretch to it), so a longer pool or name never
+ * changes a card's height; inside a card the art band takes three parts of the spare height and the
+ * body one, spread evenly around its season figures and its pool (RosterCard). Pure CSS, so the
+ * server's page is already the final layout. The track only grows: where its cards need more (a
+ * larger text size, a short screen) it is their height and the page scrolls (docs/MOBILE.md, "The
+ * active card uses the screen").
+ */
+const FILL = {
+  frame: "max-sm:flex-1",
+  stage: "max-sm:flex-1",
+  inner: "max-sm:flex max-sm:flex-1 max-sm:flex-col",
+  track: "max-sm:grow max-sm:shrink-0",
+} as const;
+
+/**
+ * A short upright phone (under 40rem wide and 43.75rem tall, the phones under 700px where the frame
+ * slides away: an iPhone SE at 320 × 568 or 375 × 667, an iPhone in Safari's tab at 393 × 659; in rem,
+ * so a larger text size counts): the card's own spacing a step tighter, its least height lower, so a
+ * card with a tagline and "You" still fits above the tab bar with its dots from 375 × 667. Where there
+ * is room the spare height still goes to the art and the body's even gaps (FILL), so only the least
+ * spacing changes. On 320 × 568 the whole card without a tagline ends above the tab bar, its dots a
+ * short scroll away (which slides the frame away too); with a tagline the page scrolls about 100px.
+ * Every figure and the pool stay.
+ */
+const TIGHT = {
+  frame: "[@media(max-width:39.99rem)_and_(max-height:43.75rem)]:gap-2.5",
+  art: "[@media(max-width:39.99rem)_and_(max-height:43.75rem)]:pb-1.5",
+  body: "[@media(max-width:39.99rem)_and_(max-height:43.75rem)]:gap-1.5 [@media(max-width:39.99rem)_and_(max-height:43.75rem)]:pt-1.5 [@media(max-width:39.99rem)_and_(max-height:43.75rem)]:pb-2 [@media(max-width:39.99rem)_and_(max-height:43.75rem)]:[&_[data-testid=card-season]]:py-1.5",
+  pool: "[@media(max-width:39.99rem)_and_(max-height:43.75rem)]:gap-1",
+} as const;
+
+/**
  * Team Overview's header on members' phones (below sm, and held sideways; the public page keeps its own): the top bar
  * already carries the team's mark and name, so the header's logo goes and its h1 is read out only
  * (docs/MOBILE.md, "The phone header budget"). What is left is one 44px line: the scope ("Main
@@ -966,7 +1003,7 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
     // the header as below the cards and the header stays right above them. On a short window the content is taller than that minimum,
     // so it simply starts at the top and scrolls. The floor's light is clipped at the frame, so it
     // never adds a scroll.
-    <div className={cn("@container/lineup flex flex-col gap-5 lg:flex-1 lg:justify-center lg:gap-6 lg:overflow-y-clip @7xl/lineup:gap-7", !guest && "max-sm:gap-4 max-lg:short:gap-3")} data-testid="lineup-frame" data-fills-height>
+    <div className={cn("@container/lineup flex flex-col gap-5 lg:flex-1 lg:justify-center lg:gap-6 lg:overflow-y-clip @7xl/lineup:gap-7", !guest && cn("max-sm:gap-4 max-lg:short:gap-3", FILL.frame, TIGHT.frame))} data-testid="lineup-frame" data-fills-height>
       {/* The team's identity: logo, name and the lineup's state, with Edit lineup. Wider screens: one
           row, the logo and Edit lineup either side of the name, its line and the state. Phones: the
           logo and the name on the first line, then the state and Edit lineup on a line of their own,
@@ -1021,8 +1058,8 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
       {/* The stage: five across on wide screens, the cards stand on a floor lit from just under them
           in the team's colour and carrying the team's name. Decoration only: it never moves or sizes
           a card, and is hidden from screen readers. */}
-      <div className="relative isolate flex flex-col" data-testid="lineup-stage">
-        <div className="relative">
+      <div className={cn("relative isolate flex flex-col", !guest && FILL.stage)} data-testid="lineup-stage">
+        <div className={cn("relative", !guest && FILL.inner)}>
           {/* The track's vertical padding (taken back by its margins) leaves room for a card's edges
               while it turns over: a scrolling track clips anything outside its box. No smooth
               scrolling in CSS: the loop moves the track by a whole card in one step where nothing
@@ -1040,6 +1077,8 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
               LINEUP_FULL,
               // Held sideways (a short window): the desktop's five across, compact (SIDEWAYS_ROW), never 2 + 2 + 1 with an orphan.
               !guest && SIDEWAYS_ROW.track,
+              // Upright phones: the track takes the height left above the dots (FILL), never less than its cards need.
+              !guest && FILL.track,
             )}
             role="region"
             aria-roledescription="carousel"

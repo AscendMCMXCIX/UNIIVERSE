@@ -54,6 +54,19 @@ test("Team Overview: the cards are one sideways carousel, a dot brings its card 
   // No pager over the cards since the carousel (23 Nov 2026): five position dots under them.
   await expect(page.getByTestId("lineup-pager")).toHaveCount(0);
   const dots = page.getByTestId("lineup-indicator");
+  // The active card takes the height Safari's tab leaves (Release 16, docs/MOBILE.md "The active card
+  // uses the screen"): the dots end above the tab bar and within 24px of it, the five cards one height,
+  // and the page does not scroll.
+  const used = await page.evaluate(() => ({
+    dots: document.querySelector("[data-testid=lineup-indicator]")!.getBoundingClientRect().bottom,
+    tab: document.querySelector("[data-testid=phone-tabbar]")!.getBoundingClientRect().top,
+    heights: new Set([...document.querySelectorAll("[data-testid=lineup-cell]")].map((c) => Math.round(c.getBoundingClientRect().height))).size,
+    scroll: document.documentElement.scrollHeight - innerHeight,
+  }));
+  expect(used.dots, "the dots above the tab bar").toBeLessThanOrEqual(used.tab + 0.5);
+  expect(used.tab - used.dots, "the card uses the height: at most 24px left").toBeLessThanOrEqual(24);
+  expect(used.heights, "the five cards one height").toBe(1);
+  expect(used.scroll, "no page scroll").toBeLessThanOrEqual(1);
   // A tap before the page is interactive does nothing: tap until the track has moved. The dot's job
   // is to bring its card across into view, whole from side to side; how much of its height fits
   // depends on what is above the track (the page scrolls for the rest).
@@ -178,6 +191,11 @@ test("a teammate's profile: its sections switch, and a champion's preview sheet 
   await expect.poll(() => page.locator("dialog[open]").evaluate((d) => d.getAnimations({ subtree: true }).length)).toBe(0);
   const box = (await page.locator("dialog[open]").boundingBox())!;
   expect(box.width).toBeLessThanOrEqual(page.viewportSize()!.width + 1);
+  // The opponents' compact table (Release 16) fits the sheet: every row within it, none wider than it.
+  await page.locator("dialog[open] [data-testid=champion-preview-opponent]").first().waitFor();
+  const rows = await page.locator("dialog[open] [data-testid=champion-preview-opponent] > button").evaluateAll((els, right) => els.map((e) => e.getBoundingClientRect().right <= right + 0.5 && e.scrollWidth <= e.clientWidth + 1), box.x + box.width);
+  expect(rows.length, "an opponent row in the sheet").toBeGreaterThan(0);
+  expect(rows.every(Boolean), "the opponents' rows within the sheet").toBe(true);
   // Its close button (the shared Peek's sheet) is the header's last control, a 44px target, in its
   // top-right corner: within the header's 16px side padding and the sheet's 1px side border, and
   // under the sheet's 1px top border, its grabber (12px) and the header's 12px top padding (25px;

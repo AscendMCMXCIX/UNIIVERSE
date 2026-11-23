@@ -31,7 +31,6 @@ import { COMPACT_SEARCH, FiltersControl, PageToolbar } from "@/components/ui/pag
 import { QuietBar } from "@/components/ui/quiet-bar";
 import type { DataStatus } from "@/domain/data-status";
 import { RoleTag } from "@/components/role-icon";
-import { UnfoldHeader, UnfoldRegion, anchorCorrection } from "@/components/ui/unfold";
 
 type KindKey = keyof MultikillCounts;
 type SortKey = "champion" | "games" | "win" | "kda" | "cs" | "kills" | "multikills" | KindKey | "mastery";
@@ -318,8 +317,9 @@ const masteryText = (n: number | null | undefined) => (n == null ? "—" : forma
  * My Profile → All Champions: every champion in the filtered games (season, mode, role played,
  * account), configured or not. Search by name; click any column heading to sort (again to reverse);
  * phones get a Sort by control. The first twenty, then the rest one click away. The pools on Overview stay the main view; this is for
- * exploring. A champion opens its preview (champion-preview.tsx) in the same scope: unfolded under its
- * row, across the list (a sheet on a touch phone); it lives in the URL, so it can be linked, and Back closes it.
+ * exploring. A champion opens its preview (champion-preview.tsx) in the same scope: a compact panel
+ * docked beside the list (the shared Peek; a sheet on a touch phone), so the list never moves; it
+ * lives in the URL, so it can be linked, and Back closes it.
  */
 export function AllChampions({ data, basePath, championsById, playerId, isOwn, initialPreview, initialPairing, status, refresh, firstRows = FIRST }: { data: PlayerOverviewData; basePath: string; championsById: Record<string, PortraitChampion>; playerId: string; /** The viewer's own profile: the preview says "you". */ isOwn: boolean; /** The server's render of a linked preview (?champion=), so it opens without a request. */ initialPreview?: ChampionPreviewData | null; initialPairing?: PairingGamesData | null; /** The page's data status (domain/data-status). */ status?: DataStatus | null; /** Offered to the player and to those who manage Riot accounts, where Riot can be asked. */ refresh?: DataRefreshTarget | null; /** The rows shown before Show all (FIRST; smaller only for a browser test on the demo, server/demo/test-hooks.ts). */ firstRows?: number }) {
   const [query, setQuery] = React.useState("");
@@ -402,42 +402,27 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
   // game open.
   const game = useAddressItem("match");
   const match = game.id;
-  // Where it opens is decided after hydration: under its row (the Unfold) on every screen but a
-  // touch phone or a short window, which get the sheet (posture.ts). Nothing is drawn before then,
-  // so a linked preview never appears in one place and moves to another.
+  // Where it opens is decided after hydration: docked beside the list (the Peek's panel) on every
+  // screen but a touch phone or a short window, which get the sheet (posture.ts). Nothing is drawn
+  // before then, so a linked preview never appears in one place and moves to another.
   const hydrated = React.useSyncExternalStore(subscribeNothing, isClient, notClient);
   const windowed = useWindowPosture();
-  const inline = !!selected && hydrated && !windowed;
+  const open = !!selected && hydrated;
+  const docked = open && !windowed;
   const rowOf = (c: { championId: string; role: string }) => cardRef.current?.querySelector<HTMLElement>(`[data-testid=top-champion][data-champion="${c.championId}"][data-role="${c.role}"]`) ?? null;
   const rowButton = (c: { championId: string; role: string }) => rowOf(c)?.querySelector<HTMLButtonElement>("[data-open-champion]") ?? null;
-  // Switching to another row keeps that row where it was on screen (the Unfold's anchor): the open
-  // detail above it closing would otherwise pull it up. Its top is noted before the change, and the
-  // page scrolls by the difference before the next paint.
-  const anchor = React.useRef<{ el: HTMLElement; top: number } | null>(null);
-  const hold = (c: OverviewCard) => {
-    const el = rowOf(c);
-    anchor.current = el ? { el, top: el.getBoundingClientRect().top } : null;
-  };
-  React.useLayoutEffect(() => {
-    const a = anchor.current;
-    anchor.current = null;
-    if (!a || !a.el.isConnected) return;
-    const by = anchorCorrection(a.top, a.el.getBoundingClientRect().top);
-    if (Math.abs(by) >= 1) window.scrollBy({ top: by, behavior: "instant" });
-  }, [selectedKey]);
-  const focusTitle = React.useRef(false);
   const [viaKeys, setViaKeys] = React.useState(false);
   const choose = (c: OverviewCard, keys: boolean) => {
     if (selected && selected.championId === c.championId && selected.role === c.role) return close();
-    focusTitle.current = keys;
     setViaKeys(keys);
-    hold(c);
     address.show(c.championId, c.role);
   };
   const close = () => {
     const back = selected;
     address.close();
-    if (back) rowButton(back)?.focus({ preventScroll: true });
+    // The focus goes back to its row where it was in the panel or on the row (an outside click keeps its own).
+    const at = document.activeElement;
+    if (back && (!at || at === document.body || !!at.closest("[data-peek-panel]") || !!at.closest("[data-testid=top-champion]"))) rowButton(back)?.focus({ preventScroll: true });
   };
   const closeRef = React.useRef(close);
   const chooseRef = React.useRef(choose);
@@ -445,17 +430,10 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
     closeRef.current = close;
     chooseRef.current = choose;
   });
-  // Opened with the keyboard: focus moves to the detail's heading; by a click it stays on the row.
+  // Escape closes the docked panel (a window opened over it closes first, by itself; the sheet is a
+  // window and closes itself).
   React.useEffect(() => {
-    if (!focusTitle.current) return;
-    focusTitle.current = false;
-    if (!inline) return;
-    document.getElementById("champion-preview-title")?.focus({ preventScroll: true });
-  }, [inline, selectedKey]);
-  // Escape closes the detail under its row (a window opened over it closes first, by itself; the
-  // sheet is a window and closes itself).
-  React.useEffect(() => {
-    if (!inline) return;
+    if (!docked) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape" || e.defaultPrevented || modalOpen() || isTyping(e.target)) return;
       e.preventDefault();
@@ -463,14 +441,15 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [inline]);
+  }, [docked]);
   /** ↑/↓ (or K/J) on the list move the preview to the row above or below. */
   const step = (from: OverviewCard, d: -1 | 1, focus: boolean) => {
     const i = shown.findIndex((c) => c.championId === from.championId && c.role === from.role);
     if (i < 0) return;
     const next = shown[(i + d + shown.length) % shown.length];
     if (!next || next === from) return;
-    hold(next);
+    // A step keeps the focus where it is (the list, or ‹ › in the panel): the panel's heading takes it only on a keyboard's open.
+    setViaKeys(false);
     address.show(next.championId, next.role);
     if (focus) {
       const b = rowButton(next);
@@ -479,10 +458,11 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
     }
   };
   const at = selected ? shown.findIndex((c) => c.championId === selected.championId && c.role === selected.role) : -1;
-  // Touch phones and short windows: the shared Peek, as a sheet, with ‹ › for the rows around it.
-  const sheet = !!selected && hydrated && windowed;
+  // The shared Peek: the docked panel beside the list, or a sheet on touch phones and short windows,
+  // with ‹ › for the rows around it.
+  const sheet = open && windowed;
   const peekControl: PeekControl = {
-    id: sheet ? selectedKey : null,
+    id: open ? selectedKey : null,
     open: () => undefined,
     toggle: () => undefined,
     close,
@@ -493,8 +473,8 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
     param: PREVIEW_KEYS,
   };
   const onListKey = (e: React.KeyboardEvent) => {
-    // Keys inside the open detail are its own (its opponents, its games, its links).
-    if (!selected || e.altKey || e.ctrlKey || e.metaKey || (e.target as Element).closest?.("#champion-preview")) return;
+    // Keys inside the open preview are its own (its opponents, its games, its links).
+    if (!selected || e.altKey || e.ctrlKey || e.metaKey || (e.target as Element).closest?.("#champion-preview, [data-peek-panel]")) return;
     const d = e.key === "ArrowDown" || e.key === "j" ? 1 : e.key === "ArrowUp" || e.key === "k" ? -1 : 0;
     if (!d) return;
     e.preventDefault();
@@ -505,7 +485,7 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
     listKeyRef.current = onListKey;
   });
   const sorted = sort.key;
-  // The rows, kept while nothing they show changes (the open detail is placed between them below).
+  // The rows, kept while nothing they show changes.
   const rowItems = React.useMemo(
     () =>
       shown.map((c, i) => {
@@ -522,7 +502,7 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
           const narrowFigure = sorted === "champion" || sorted === "games" || sorted === "win" ? null : (summaryPairs(c, sorted).find((pair) => pair.sorted) ?? null);
           return (
             // A row lights up while pointed at or focused (a quiet tint; the whole row opens the champion's window).
-            <li key={`${c.championId}-${c.role}`} data-role={c.role} className={cn("group/row relative grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 px-3 py-2 @max-[17rem]:grid-cols-[minmax(0,1fr)] transition-colors duration-150 hover:bg-surface-2/50 has-[[data-open-champion]:focus-visible]:bg-surface-2/50 has-[[data-open-champion]:focus-visible]:outline has-[[data-open-champion]:focus-visible]:outline-2 has-[[data-open-champion]:focus-visible]:-outline-offset-2 has-[[data-open-champion]:focus-visible]:outline-accent @min-[44rem]:py-1.5 data-[selected=true]:bg-surface-3 data-[selected=true]:hover:bg-surface-3 data-[selected=true]:has-[[data-open-champion]:focus-visible]:bg-surface-3 data-[selected=true]:before:absolute data-[selected=true]:before:inset-y-0 data-[selected=true]:before:left-0 data-[selected=true]:before:w-0.5 data-[selected=true]:before:bg-accent", GRID)} data-selected={selectedKey === `${c.championId}-${c.role}` || undefined} data-testid="top-champion" data-champion={c.championId} data-games={r.games} data-kills={p.totalKills ?? ""} data-mastery={c.mastery?.points ?? ""} data-multikills={c.multikills?.counted ? MULTIKILL_KINDS.map((k) => c.multikills![k.key]).join(",") : ""} data-multikill-coverage={c.multikills ? multikillCoverage(c.multikills).state : ""}>
+            <li key={`${c.championId}-${c.role}`} data-role={c.role} className={cn("group/row relative grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 px-3 py-2 @max-[17rem]:grid-cols-[minmax(0,1fr)] transition-colors duration-150 hover:bg-surface-2/50 has-[[data-open-champion]:focus-visible]:bg-surface-2/50 has-[[data-open-champion]:focus-visible]:outline has-[[data-open-champion]:focus-visible]:outline-2 has-[[data-open-champion]:focus-visible]:-outline-offset-2 has-[[data-open-champion]:focus-visible]:outline-accent @min-[44rem]:py-1.5 data-[selected=true]:bg-surface-3 data-[selected=true]:hover:bg-surface-3 data-[selected=true]:has-[[data-open-champion]:focus-visible]:bg-surface-3 data-[selected=true]:before:absolute data-[selected=true]:before:inset-y-0 data-[selected=true]:before:left-0 data-[selected=true]:before:w-0.5 data-[selected=true]:before:bg-accent", GRID)} data-selected={selectedKey === `${c.championId}-${c.role}` || undefined} data-peek-row={`${c.championId}-${c.role}`} data-testid="top-champion" data-champion={c.championId} data-games={r.games} data-kills={p.totalKills ?? ""} data-mastery={c.mastery?.points ?? ""} data-multikills={c.multikills?.counted ? MULTIKILL_KINDS.map((k) => c.multikills![k.key]).join(",") : ""} data-multikill-coverage={c.multikills ? multikillCoverage(c.multikills).state : ""}>
               <span className="flex min-w-0 items-center gap-3">
                 <span className="hidden w-5 shrink-0 text-right text-xs tabular-nums text-fg-subtle @4xl:block" aria-hidden>
                   {i + 1}
@@ -531,7 +511,7 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
                 <span className="min-w-0">
                   {/* The whole row opens the champion's window (the button covers it). */}
                   {/* The row opens a window: the pointer says so, and the name underlines while pointed at, as the pools' cards do. */}
-                  <button type="button" onClick={(e) => chooseRef.current(c, e.detail === 0)} onPointerDown={(e) => e.pointerType === "mouse" && void previewData.preview(c.championId, c.role)} aria-controls="champion-preview" aria-expanded={selectedKey === `${c.championId}-${c.role}`} aria-current={selectedKey === `${c.championId}-${c.role}` || undefined} className="block max-w-full cursor-pointer truncate text-left text-md font-semibold leading-tight text-fg outline-none @max-[17rem]:whitespace-normal @max-[17rem]:break-words after:absolute after:inset-0 after:content-[''] focus-visible:underline group-hover/row:underline group-hover/row:decoration-fg-subtle group-hover/row:underline-offset-2 @min-[44rem]:text-sm" aria-label={`${ch.name}, ${ROLE_LABELS[c.role]}: preview its games and lane opponents`} data-open-champion data-testid="open-champion">
+                  <button type="button" onClick={(e) => chooseRef.current(c, e.detail === 0)} onPointerDown={(e) => e.pointerType === "mouse" && void previewData.preview(c.championId, c.role)} aria-controls={selectedKey === `${c.championId}-${c.role}` ? "champion-preview" : undefined} aria-expanded={selectedKey === `${c.championId}-${c.role}`} aria-current={selectedKey === `${c.championId}-${c.role}` || undefined} className="block max-w-full cursor-pointer truncate text-left text-md font-semibold leading-tight text-fg outline-none @max-[17rem]:whitespace-normal @max-[17rem]:break-words after:absolute after:inset-0 after:content-[''] focus-visible:underline group-hover/row:underline group-hover/row:decoration-fg-subtle group-hover/row:underline-offset-2 @min-[44rem]:text-sm" aria-label={`${ch.name}, ${ROLE_LABELS[c.role]}: preview its games and lane opponents`} data-open-champion data-testid="open-champion">
                     {ch.name}
                   </button>
                   {/* Narrow rows let "In pool" go under the role; table rows keep both on one line (the role
@@ -601,24 +581,7 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
         }),
     [shown, champ, sorted, total, selectedKey, previewData],
   );
-  const contentProps = (c: OverviewCard) => ({ playerId, isOwn, card: c, otherRoles: data.topChampions.filter((o) => o.championId === c.championId && o.role !== c.role), vs: address.sel?.vs ?? null, champ, data: previewData, onVs: address.setVs, onSwitch: (o: OverviewCard) => address.show(o.championId, o.role), onClose: close, titleId: "champion-preview-title", onMatch: game.open });
-  // The open champion, unfolded under its row across the whole list (the overlay kit's Unfold,
-  // docs/DESIGN_SYSTEM.md §7): the list keeps its columns, its order and its place, the row stays
-  // selected above it, and the compact header (its name and Close) stays pinned while it is long.
-  const detailName = selected ? `${champ(selected.championId).name} · ${ROLE_LABELS[selected.role]}` : "";
-  const detail =
-    inline && selected ? (
-      <li key={`detail-${selectedKey}`} className="relative bg-bg/40 before:absolute before:inset-y-0 before:left-0 before:w-0.5 before:bg-accent/60 last:rounded-b-card" data-testid="champion-detail-row">
-        <UnfoldRegion id="champion-preview" label={`${detailName}: record and lane opponents`} testId="champion-preview" header={<UnfoldHeader title={detailName} onClose={close} testId="champion-preview-header" />}>
-          <div className="px-4 pb-5 pt-4 @min-[76rem]:px-6 @min-[76rem]:pb-6 @min-[76rem]:pt-5">
-            <span className="sr-only" aria-live="polite">
-              {`${champ(selected.championId).name}, ${ROLE_LABELS[selected.role]}. ${formatCount(selected.selected.games)} games${selected.selected.winRate === null ? "" : `, ${percent(selected.selected.winRate, 0)} win rate`}.`}
-            </span>
-            <PreviewContent key={selectedKey} {...contentProps(selected)} />
-          </div>
-        </UnfoldRegion>
-      </li>
-    ) : null;
+  const contentProps = (c: OverviewCard) => ({ playerId, isOwn, card: c, otherRoles: data.topChampions.filter((o) => o.championId === c.championId && o.role !== c.role), vs: address.sel?.vs ?? null, champ, data: previewData, onVs: address.setVs, onSwitch: (o: OverviewCard) => address.show(o.championId, o.role), titleId: "champion-preview-title", onMatch: game.open });
   // Phones: Filters (the bar's button is drawn in the host: OverviewFilters' toggleOnPhones; the host keeps its room until then) and Refresh.
   const phoneTools = (
     <div className="flex shrink-0 items-center gap-2 sm:hidden" data-testid="all-champions-phone-tools">
@@ -740,7 +703,7 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
               })}
             </div>
             <ul className="divide-y divide-border/60" onKeyDown={(e) => listKeyRef.current(e)}>
-              {rowItems.flatMap((row, i) => (i === at && detail ? [row, detail] : [row]))}
+              {rowItems}
             </ul>
             {!all && !q && rows.length > firstRows ? (
               <button type="button" onClick={() => setAll(true)} className="flex min-h-11 w-full items-center justify-center rounded-b-card border-t border-border/70 text-sm font-medium text-accent transition-colors hover:bg-accent/5" data-testid="all-champions-more">
@@ -758,10 +721,19 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
           {multikillsIncomplete ? <InfoTip text={MULTIKILL_HELP} label="About multikills" /> : null}
         </p>
       ) : null}
-      {/* Touch phones and short windows: the shared Peek as a sheet. While a game's window is open
-          over it, the sheet steps aside (never two windows) and comes back when the game closes. */}
-      <Peek peek={peekControl} title={selected ? champ(selected.championId).name : ""} itemKey={sheet && !match ? selectedKey : null} label="Champion" testId="champion-preview">
-        {selected && sheet ? <PreviewContent key={selectedKey} compact {...contentProps(selected)} /> : null}
+      {/* The shared Peek: docked beside the list (the list stays where it is; Close, Escape, Back, the
+          row again or a click outside close it), a sheet on touch phones and short windows. While a
+          game's window is open over it, the sheet steps aside (never two windows) and comes back when
+          the game closes; the docked panel stays under the game's window. */}
+      <Peek peek={peekControl} title={selected ? champ(selected.championId).name : ""} itemKey={docked || (sheet && !match) ? selectedKey : null} label="Champion" testId="champion-preview" closeOnOutsidePress>
+        {selected && open ? (
+          <>
+            <span className="sr-only" aria-live="polite">
+              {`${ROLE_LABELS[selected.role]}. ${formatCount(selected.selected.games)} games${selected.selected.winRate === null ? "" : `, ${percent(selected.selected.winRate, 0)} win rate`}.`}
+            </span>
+            <PreviewContent key={selectedKey} {...contentProps(selected)} />
+          </>
+        ) : null}
       </Peek>
       {match ? <MatchDetailModal playerId={playerId} matchId={match} championsById={championsById} onClose={game.close} /> : null}
     </section>

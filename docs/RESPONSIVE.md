@@ -772,16 +772,17 @@ touch screen. From `sm` the window is as it was (three figures across, six from 
 scope line, toolbar and sorted pair at 393, 375, 360 and 320px, 200% text on a 320px phone, the bar
 and its legend against the filters' games, and the groups with the 76rem grid's headings, arrows and
 figures at 1536 and 1680px. All Champions' preview (S5, 19 Nov 2026; docs/MATCHUPS.md) replaces the
-champion window. Since 23 Nov 2026 it unfolds under its row from 768px wide (the overlay kit's
-Unfold, docs/DESIGN_SYSTEM.md §7): the next item of the list, across the whole list, its record
-beside the lane opponents from a 50rem list and above them below; Champion, Games and Win rate keep
-their x, the rows above it keep their place and height, the page does not scroll on opening, and
-nothing scrolls inside it; under 768px (the phone's frame, with a mouse as with touch) and on short
-windows it is the shared Peek's sheet. (Until then a wide list showed it over the columns after Win
-rate, inside the card, and tablets in the docked Peek panel.) The wide (76rem) tier drops the Kills column (it sorts like Games; per-game kills are in KDA;
+champion window. Since Release 16 it is the compact panel docked at the window's right edge from
+768px wide (the overlay kit's Peek, docs/DESIGN_SYSTEM.md §7): the list never moves (Champion, Games
+and Win rate keep their x, every row its place and height, the page does not scroll), the panel is
+within the screen, its content fits it with an opponent open and stays clear of the selected row's
+name; under 768px (the phone's frame, with a mouse as with touch) and on short windows it is the same
+Peek's sheet. (Until 22 Nov 2026 a wide list showed it over the columns after Win rate; from 23 Nov
+2026 until Release 16 it unfolded under its row and pushed the list down.) The wide (76rem) tier drops the Kills column (it sorts like Games; per-game kills are in KDA;
 CM AC-11, reversible: OD20). `e2e/champion-preview.spec.ts` checks the geometry at 1280, 1440, 1920
-and 2560 (the sidebar open and collapsed), ↑/↓, Back and Escape, the content and old addresses on
-all three projects, the unfold on the tablet and the sheet on the phone.
+and 2560 (the sidebar open and collapsed), ↑/↓, ‹ ›, Back, Escape, Close and a click outside, the
+content and old addresses on all three projects, the docked panel on the tablet and the sheet on the
+phone.
 
 The player Peek's pool list (Team, Players, Leaderboards; `PoolChampionTile`) takes its columns
 (Win rate, Games, KDA, CS/min or Vision) from its own width, 28rem or more (`@container/pool`), and
