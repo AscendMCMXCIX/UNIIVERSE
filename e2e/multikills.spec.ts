@@ -152,9 +152,12 @@ test("Total kills: each game's own kills over the same games as the other figure
   const number = async (testId: string) => Number((await page.getByTestId(testId).innerText()).replace(/,/g, ""));
   const total = await number("stat-total-kills-value");
   expect(total).toBeGreaterThan(0);
-  // The kills of every game, not the multikills added up: more than all the kills inside them.
+  // The kills of every game, not the multikills added up: more than all the kills inside them. The cards show Riot's own counters,
+  // nested in the demo as Riot's appear to be (a pentakill also counts a double, a triple and a quadra), so each multikill once is
+  // doubles − triples, triples − quadras, quadras − pentas, and the pentakills.
   const [double, triple, quadra, penta] = await Promise.all(KINDS.map(([k]) => number(`multikill-${k}-value`)));
-  expect(total).toBeGreaterThan(2 * double! + 3 * triple! + 4 * quadra! + 5 * penta!);
+  expect(total).toBeGreaterThan(2 * (double! - triple!) + 3 * (triple! - quadra!) + 4 * (quadra! - penta!) + 5 * penta!);
+  expect(double! >= triple! && triple! >= quadra! && quadra! >= penta!, "nested counters").toBe(true);
   // Narrower filters, fewer kills; the role filter is one of them.
   await page.goto(`${href}?mode=solo&role=TOP`);
   expect(await number("stat-total-kills-value")).toBeLessThanOrEqual(total);

@@ -138,20 +138,22 @@ describe("multikills and milestones", () => {
         ["new", "not-enough", null],
       ]);
       const of = (id: string) => b.rows.find((r) => r.playerId === id)!;
-      // The counts shown are Riot's own; the score counts the mid's pentakill once, not four times.
+      // Riot's counters (nested) and each multikill once: the mid's pentakill is one event, not four, on the board and in the score.
       expect(of("mid").counts).toEqual({ double: 7, triple: 1, quadra: 1, penta: 1 });
       expect(of("mid").events).toEqual({ double: 6, triple: 0, quadra: 0, penta: 1 });
       expect(of("older")).toMatchObject({ games: 36, counted: 18 });
       expect(of("support").score!).toBeGreaterThan(of("mid").score!);
       expect(b.most.penta).toEqual({ count: 1, holders: ["mid"] });
-      expect(b.most.double).toEqual({ count: 50, holders: ["support"] });
+      // The most of each kind counts each multikill once: the support's 50 double counters hold 44 doubles that stopped there.
+      expect(b.most.double).toEqual({ count: 44, holders: ["support"] });
     });
 
     it("without 1,000 comparison games, compares with the team's own games, every position together", () => {
       const b = board(played("a", 30, "MID", () => counts({ doubleKills: 1 })));
       expect(b.baseline.source).toBe("team");
       expect(b.baseline.all.games).toBe(30);
-      expect(b.rows[0]!.score).toBeCloseTo(100 * ((30 + 2) / 32 + 1 + 1 + 1) / 4, 10);
+      // 30 doubles, exactly the team's own rate: 100 × (60 + 20) ÷ (60 + 20).
+      expect(b.rows[0]!.score).toBeCloseTo(100, 10);
     });
 
     it("leaves out anyone not on the board and other seasons' games", () => {

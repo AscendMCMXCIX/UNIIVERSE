@@ -175,53 +175,77 @@ describe("the multikill board on the fixed team", () => {
     No comparison players stored (no baseline given), so the members are compared with the team's
     own 31 games with counts, every position together, and the board says so. The team's events,
     each multikill once at its largest (fewer than 20 games with a triple: nested assumed): 30
-    doubles, 4 triples, 1 quadra, 1 penta. Ash's 26 games expect 25.2, 3.4, 0.8, 0.8; Ash made 27,
-    0, 0, 1 → indexes 29/27.2, 2/5.4, 2/2.8, 3/2.8 → 80.
+    doubles, 4 triples, 1 quadra, 1 penta. Ash's 26 games expect 25.2, 3.4, 0.8, 0.8 (67.9 kill
+    points); Ash made 27 doubles and the pentakill (59 points: Riot's counters, nested, also hold
+    that pentakill's double, triple and quadra) → 100 × (59 + 20) ÷ (67.9 + 20) = 90, ±15 by chance.
   */
-  it("ranks Ash (26 games: score 80, Riot's counts in words); Bo and Cy, under 10 games with counts, have no score", () => {
+  it("ranks Ash (26 games: score 90, each multikill once in words); Bo and Cy, under 10 games with counts, have no score", () => {
     const m = records("bo").multikills;
     expect(m.source).toBe("team");
     expect(m.rows.map((r) => [r.playerId, r.status, r.place, r.score, r.gamesText])).toEqual([
-      ["ash", "ranked", 1, "80", "26 games"],
+      ["ash", "ranked", 1, "90", "26 games"],
       ["bo", "not-enough", null, null, "3 games"],
-      ["cy", "not-enough", null, null, "2 of 3 games"],
+      ["cy", "not-enough", null, null, "2/3 games"],
     ]);
+    expect(m.rows[2]!.gamesSpoken).toBe("2 of 3 games with multikill counts");
     const ash = m.rows[0]!;
-    expect(ash.counts).toEqual({ double: 28, triple: 1, quadra: 1, penta: 1 });
-    expect(ash.kinds.map((k) => k.text)).toEqual(["1 penta", "1 quadra", "1 triple", "28 doubles"]);
-    expect(ash.breakdown).toBe("Score 80 from 26 games. Each multikill once, at its largest, with the number expected at the team's rate in brackets: 27 double kills (25.2), no triple kill (3.4), no quadra kill (0.8), 1 pentakill (0.8).");
+    // Shown: each multikill once (the pentakill is not also a double, a triple and a quadra); Riot's counters kept for the record.
+    expect(ash.counts).toEqual({ double: 27, triple: 0, quadra: 0, penta: 1 });
+    expect(ash.riot).toEqual({ double: 28, triple: 1, quadra: 1, penta: 1 });
+    expect(ash.kinds.map((k) => k.text)).toEqual(["1 penta", "27 doubles"]);
+    expect(ash.breakdown).toBe("Score 90 from 26 games, give or take about 15 by chance. Each multikill once, at its largest, with the number usual at the team's rate in brackets: 27 doubles (25), no triples (3.4), no quadras (0.8), 1 penta (0.8).");
+    expect(ash.detail).toEqual({
+      score: "90",
+      status: "ranked",
+      gamesText: "26 games",
+      chance: "±15",
+      kinds: [
+        { key: "double", label: "Doubles", made: "27", usual: "25" },
+        { key: "triple", label: "Triples", made: "0", usual: "3.4" },
+        { key: "quadra", label: "Quadras", made: "0", usual: "0.8" },
+        { key: "penta", label: "Pentas", made: "1", usual: "0.8" },
+      ],
+      note: null,
+      usualIs: "usual at the team's rate",
+    });
     expect(m.rows.find((r) => r.playerId === "bo")!.you).toBe(true);
-    expect(m.rows.find((r) => r.playerId === "cy")!.breakdown).toBe("2 games with multikill counts: a score needs 10.");
+    const cy = m.rows.find((r) => r.playerId === "cy")!;
+    expect(cy.breakdown).toBe("2 games with multikill counts: a score needs 10.");
+    expect(cy.detail).toMatchObject({ score: null, chance: null, note: "2 games with multikill counts: a score needs 10.", gamesText: "2 of 3 games with counts" });
+    // Cy's nested reading of {2, 3, 0, 0} and {1, 0, 0, 0}: 3 triples and 1 double, never below zero.
+    expect(cy.counts).toEqual({ double: 1, triple: 3, quadra: 0, penta: 0 });
   });
 
-  it("names the most of each kind, Riot's own counts, every holder of a shared one", () => {
+  it("names the most of each kind, each multikill once, every holder of a shared one", () => {
     expect(records(null).multikills.most).toEqual([
-      { key: "double", label: "Most doubles", count: "28", holders: ["ash"] },
+      { key: "double", label: "Most doubles", count: "27", holders: ["ash"] },
       { key: "triple", label: "Most triples", count: "3", holders: ["cy"] },
-      { key: "quadra", label: "Most quadras", count: "1", holders: ["ash", "bo"] },
+      // Ash's quadra counter was the pentakill's own: one quadra on the board, Bo's.
+      { key: "quadra", label: "Most quadras", count: "1", holders: ["bo"] },
       { key: "penta", label: "Most pentas", count: "1", holders: ["ash"] },
     ]);
   });
 
-  it("says what the score is in a few words, and how it works in plain sentences (the team's games: not by role)", () => {
+  it("says what the score is in a few words, and how it works in three short plain points (the team's games: not by role)", () => {
     const m = records(null).multikills;
     expect(m.basis).toBe("Per game, against the team's own games · 100 is the team's usual");
-    expect(m.explain).toContain("not adjusted for role or champion");
-    expect(m.explain).toContain("one pentakill moves a score far more than one double kill");
-    expect(m.explain).toContain("the score assumes they do, so no multikill counts twice");
-    expect(m.explain).toContain("a place needs 20 games with multikill counts, and 10–19 give a provisional score");
+    expect(m.explain).toHaveLength(3);
+    expect(m.explain[0]).toContain("not adjusted for role or champion");
+    expect(m.explain[1]).toBe("How it counts: each multikill once, at its largest, worth its kills (a double kill 2, a pentakill 5), so rarer kinds count for more. Riot's own counters may also count a big multikill's smaller ones; this board assumes they do, so none counts twice.");
+    expect(m.explain[2]).toMatch(/^How sure it is: with few games a score stays near 100\. By chance alone it moves about ±\d+ over 50 games and ±\d+ over 300 \(more for roles that make fewer multikills, like support\), so closer scores are close\. A place needs 20 games with multikill counts; 10–19 are provisional\.$/);
   });
 
-  it("compares with the other players in the same games once they hold 1,000 games, saying how many", () => {
+  it("compares with the other players in the same games once they hold 1,000 games, saying how many of their games", () => {
     const row = (position: string, games: number, d: number) => ({ position, championId: "Other", games, nested: { double: d, triple: d / 10, quadra: d / 50, penta: d / 250 }, separate: { double: d, triple: d / 10, quadra: d / 50, penta: d / 250 } });
     const multikillBaseline = buildMultikillBaseline([row("TOP", 3000, 1200), row("MIDDLE", 3000, 1650), row("UTILITY", 3000, 450), row("BOTTOM", 3000, 1800)], { withTriple: 900, outOfOrder: 0 });
     const m = buildLeaderboardsView(fixture(), {}, null, { now: NOW, multikillBaseline }).records.multikills;
     expect(m.source).toBe("same-games");
     expect(m.basis).toBe("Per game, against the same roles and champions · 100 is usual");
-    expect(m.explain).toContain("what the other players in the same games made on the same roles and champions (allies and opponents, never a team member: 12,000 in all). 100 is usual; 130 is 30% more.");
-    expect(m.explain).toContain("Riot also counts a pentakill's double, triple and quadra kill");
+    expect(m.explain[0]).toBe("What it is: each member's multikills per game against what the other players in the same games made on the same roles and champions (allies and opponents, never a team member: 12,000 of their games). 100 is usual; 130 is 30% more.");
+    expect(m.explain[1]).toContain("Riot's own counters also count a pentakill's double, triple and quadra; this board counts and shows each multikill once.");
     // Ash's 25 Riven games are top games, the Zed game a mid game: every game compared within its role.
-    expect(m.rows[0]!.breakdown).toMatch(/^Score \d+ from 26 games. Each multikill once, at its largest, with the number expected for their roles and champions in brackets: /);
+    expect(m.rows[0]!.breakdown).toMatch(/^Score \d+ from 26 games, give or take about \d+ by chance\. Each multikill once, at its largest, with the number usual for their roles and champions in brackets: /);
     expect(m.rows[0]!.breakdown).not.toContain("Compared by role in");
+    expect(m.rows[0]!.detail.usualIs).toBe("usual for their roles and champions");
   });
 });

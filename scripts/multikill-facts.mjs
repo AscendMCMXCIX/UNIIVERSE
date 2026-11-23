@@ -19,6 +19,8 @@ export function readMultikillBoard() {
     score: num(r.getAttribute("data-score")),
     shown: r.querySelector("[data-testid=multikill-score]")?.firstChild?.textContent?.trim() ?? null,
     counts: ["data-penta", "data-quadra", "data-triple", "data-double"].map((k) => Number(r.getAttribute(k) ?? "0")),
+    // Riot's own counters, double to penta (the board shows each multikill once, read from these).
+    riot: (r.getAttribute("data-riot") ?? "").split(",").filter(Boolean).map(Number),
     kinds: [...r.querySelectorAll("[data-testid=multikill-kinds] [data-kind]")].map((k) => k.textContent?.trim() ?? ""),
     crown: !!r.querySelector("[aria-label='First place']"),
     height: Math.round(r.getBoundingClientRect().height),
@@ -30,6 +32,8 @@ export function readMultikillBoard() {
     tiles,
     basis: board.querySelector("[data-testid=multikill-basis]")?.textContent?.trim() ?? "",
     explained: !!board.querySelector("[data-testid=multikill-explain]"),
+    // How the board says Riot's counters are read: nested ("also count a pentakill's …" or "assumes they do") or separate.
+    rule: /also count a pentakill|assumes they do/.test(board.textContent ?? "") ? "nested" : /count them the same way/.test(board.textContent ?? "") ? "separate" : null,
     empty: !!board.querySelector("[data-testid=multikills-empty]"),
   };
 }
@@ -43,6 +47,13 @@ export const MULTIKILL_BASES = {
 const KIND_WORDS = [["penta", "pentas"], ["quadra", "quadras"], ["triple", "triples"], ["double", "doubles"]];
 /** A row's counts (penta, quadra, triple, double) in the words the board must show, rarest first. */
 export const kindsInWords = (counts) => counts.flatMap((n, i) => (n > 0 ? [`${n} ${KIND_WORDS[i][n === 1 ? 0 : 1]}`] : []));
+
+/** Riot's counters (double, triple, quadra, penta) as each multikill once, at its largest, rarest first like the rows' counts. */
+export function eventsOf(riot, rule) {
+  const [d = 0, t = 0, q = 0, p = 0] = riot;
+  const e = rule === "separate" ? [d, t, q, p] : [Math.max(0, d - t), Math.max(0, t - q), Math.max(0, q - p), p];
+  return [e[3], e[2], e[1], e[0]];
+}
 
 /**
  * What the check asserts about the board read by readMultikillBoard. Each verdict: its name, PASS,
@@ -70,6 +81,8 @@ export function multikillVerdicts({ kind, read }) {
   fact("the multikill ranking: ranked members by score, a place shared exactly on equal scores, the crown on first; provisional, then too few games, after them", grouped && byScore && placesOk, { ranked: ranked.length, provisional: read.rows.filter((r) => r.status === "provisional").length, tooFew: read.rows.filter((r) => r.status === "not-enough").length, grouped, byScore, placesOk });
   const scored = read.rows.filter((r) => r.status !== "not-enough");
   fact("every ranked or provisional row shows its score; a row with too few games shows none", scored.every((r) => r.shown === String(r.score)) && read.rows.filter((r) => r.status === "not-enough").every((r) => r.shown === null), { scored: scored.length, withoutScore: scored.filter((r) => r.shown !== String(r.score)).length });
+  const once = read.rows.filter((r) => r.riot?.length === 4 && read.rule && JSON.stringify(eventsOf(r.riot, read.rule)) !== JSON.stringify(r.counts)).length;
+  fact("each row shows each multikill once, at its largest: Riot's counters read by the rule the board states", !!read.rule && read.rows.every((r) => r.riot?.length === 4) && once === 0, { rule: read.rule, rows: read.rows.length, different: once });
   const words = read.rows.filter((r) => JSON.stringify(r.kinds) !== JSON.stringify(kindsInWords(r.counts))).length;
   fact("each row's kinds in words are its own counts, rarest first", words === 0, { rows: read.rows.length, different: words });
   const best = (i) => Math.max(0, ...read.rows.map((r) => r.counts[i]));

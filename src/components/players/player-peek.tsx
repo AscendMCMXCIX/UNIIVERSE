@@ -35,7 +35,7 @@ export interface PlayerPeekRow {
  * `row(id)` gives a row its link's props, `panel` is the Peek to render once on the page.
  * `names`: each player's name, the panel's title while their content loads.
  */
-export function usePlayerPeek({ ids, names, viewerPlayerId, canEditPlayer }: { ids: readonly string[]; names: ReadonlyMap<string, string>; viewerPlayerId: string | null; /** Whose pools this viewer may edit (the profile's own rule): the Peek offers "Edit on profile". */ canEditPlayer?: (id: string) => boolean }) {
+export function usePlayerPeek({ ids, names, viewerPlayerId, canEditPlayer, lead }: { ids: readonly string[]; names: ReadonlyMap<string, string>; viewerPlayerId: string | null; /** Whose pools this viewer may edit (the profile's own rule): the Peek offers "Edit on profile". */ canEditPlayer?: (id: string) => boolean; /** What the page that opened the Peek adds at the top of its body for this player (Leaderboards: the member's multikills), from the page's own data. */ lead?: (id: string) => React.ReactNode }) {
   const peek = usePeek({ param: "player", ids });
   const [loaded, setLoaded] = React.useState<ReadonlyMap<string, Loaded>>(new Map());
   const id = peek.id;
@@ -95,6 +95,7 @@ export function usePlayerPeek({ ids, names, viewerPlayerId, canEditPlayer }: { i
   const name = id ? (names.get(id) ?? "Player") : "";
   const panel = (
     <Peek peek={peek} label="Player" title={detail?.title ?? name} itemKey={id} hero={detail?.hero} windowSize="standard" windowHeader={detail?.hero} windowTitleId={detail ? "player-detail-title" : undefined} testId="player-peek" navTestIds={{ prev: "player-peek-prev", next: "player-peek-next" }}>
+      {id && lead ? lead(id) : null}
       {detail ? (
         detail.body
       ) : result?.status === "not-found" ? (

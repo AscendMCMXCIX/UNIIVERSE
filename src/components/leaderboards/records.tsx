@@ -259,8 +259,10 @@ function RecordPicture({ record, holder, champion }: { record: RecordView; holde
   The multikill board (docs/TEAM_LEADERBOARDS.md, "The multikill score"): one panel, by its own
   width, the same at every width but for the tiles' columns:
     the ranking   a row per member: the place (the crown on first), the picture, the name over the
-                  kinds they made in words, rarest first ("1 quadra 6 triples 21 doubles", Riot's own
-                  counts), the score at the row's end over the games behind it. Two short lines
+                  kinds they made in words, rarest first ("1 quadra 6 triples 21 doubles", each
+                  multikill once, at its largest: the score's own events), the score at the row's end
+                  over the games behind it. The player Peek the row opens shows each kind made
+                  against the usual (MultikillPeekDetail), on every device. Two short lines
                   (44–48px; a member with all four kinds wraps a third on a phone), no column
                   headings, nothing to decode; the score's sentence (each kind against what was
                   expected) is the row's tooltip and is read out.
@@ -298,8 +300,8 @@ export function Multikills({ records, player, className }: { records: RecordsVie
   const provisional = board.rows.filter((r) => r.status === "provisional");
   const few = board.rows.filter((r) => r.status === "not-enough");
   const ties = tieRuns(ranked.map((r) => r.place));
-  // One ⓘ: how the score works, then which games the counts come from when not all carry them.
-  const explain = records.multikillNote ? `${board.explain} ${records.multikillNote}` : board.explain;
+  // One ⓘ: how the score works in three short points, then which games the counts come from when not all carry them.
+  const explain = <ExplainPoints points={records.multikillNote ? [...board.explain, records.multikillNote] : board.explain} />;
   return (
     <section id={SECTIONS.multikills} aria-labelledby="multikills-title" className={cn("min-w-0", className)}>
       <DataList
@@ -377,7 +379,7 @@ export function Multikills({ records, player, className }: { records: RecordsVie
 }
 
 /**
- * One member's row: the place, picture, name over the kinds made (Riot's counts in words), and the
+ * One member's row: the place, picture, name over the kinds made (each multikill once, at its largest), and the
  * score over the games behind it. The whole row opens the member's player Peek, its tooltip the
  * score's sentence; screen readers hear the place, name, score, kinds and the sentence.
  */
@@ -394,6 +396,7 @@ function MultikillRowItem({ r, p, tie }: { r: MultikillRow; p: BoardPlayer; tie:
       data-triple={r.counts.triple}
       data-quadra={r.counts.quadra}
       data-penta={r.counts.penta}
+      data-riot={`${r.riot.double},${r.riot.triple},${r.riot.quadra},${r.riot.penta}`}
       data-counted={r.counted}
       data-you={r.you || undefined}
       own={r.you}
@@ -412,9 +415,10 @@ function MultikillRowItem({ r, p, tie }: { r: MultikillRow; p: BoardPlayer; tie:
               {r.score}
             </FigureCell>
           ) : null}
-          {/* At most 4rem wide: "21 of 43 games" (older games without counts) wraps under its numbers rather than widen every row's score column. */}
-          <span className="max-w-16 text-xs tabular-nums text-fg-muted @max-[20rem]/list:max-w-none" data-testid="multikill-games">
-            {r.gamesText}
+          {/* One line: "46 games", or "21/43 games" when older games have no counts (said in words to screen readers). */}
+          <span className="whitespace-nowrap text-xs tabular-nums text-fg-muted" data-testid="multikill-games">
+            <span aria-hidden>{r.gamesText}</span>
+            <span className="sr-only">{r.gamesSpoken}</span>
           </span>
         </span>
       }
@@ -427,6 +431,20 @@ function MultikillRowItem({ r, p, tie }: { r: MultikillRow; p: BoardPlayer; tie:
       {/* The score in a sentence, for screen readers (the row's tooltip shows it on hover). */}
       <span className="sr-only">{r.breakdown}</span>
     </DataRow>
+  );
+}
+
+/** The board's ⓘ as short points, each a line of its own (spans: the bubble and its screen-reader copy are phrasing content). */
+function ExplainPoints({ points }: { points: readonly string[] }) {
+  return (
+    <>
+      {points.map((point, i) => (
+        <span key={i} className="block pl-3 -indent-3 [&:not(:first-child)]:mt-1.5" data-testid="multikill-explain-point">
+          <span aria-hidden>• </span>
+          {point}{" "}
+        </span>
+      ))}
+    </>
   );
 }
 

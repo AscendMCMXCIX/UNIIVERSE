@@ -140,7 +140,7 @@ export function LeaderboardsDashboard({ view, champions, status, peekable }: { v
             items={INDEX}
           />
           <LeaderboardsPinnedIndex anchorId="leaderboards-header" items={PINNED_INDEX} phoneItems={PHONE_INDEX} />
-          <LeaderboardsPeek ids={peekIds} names={peekNames} viewerPlayerId={view.viewer}>
+          <LeaderboardsPeek ids={peekIds} names={peekNames} viewerPlayerId={view.viewer} multikills={Object.fromEntries(view.records.multikills.rows.map((r) => [r.playerId, r.detail]))} seasonLabel={view.records.seasonLabel}>
           <RecordGamePeek games={recordGames} championsById={champions}>
           <div className={GRID} data-testid="leaderboards-grid">
             <RecentForm form={view.form} player={player} viewer={view.viewer} className={FORM_PLACE} />

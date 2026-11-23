@@ -529,10 +529,15 @@ test("the season records: seven cells in one panel, each opening its game; the m
       place: Number(e.getAttribute("data-place") ?? 0),
       score: Number(e.getAttribute("data-score") ?? -1),
       counts: ["data-penta", "data-quadra", "data-triple", "data-double"].map((k) => Number(e.getAttribute(k))),
+      riot: (e.getAttribute("data-riot") ?? "").split(",").map(Number),
+      counted: Number(e.getAttribute("data-counted")),
       kinds: [...e.querySelectorAll<HTMLElement>("[data-testid=multikill-kinds] [data-kind]")].map((k) => k.textContent),
       crown: !!e.querySelector("[aria-label='First place']"),
+      scoreShown: e.querySelector("[data-testid=multikill-score]") !== null,
     })),
   );
+  // The demo keeps Riot's counters nested (a pentakill also counts a double, a triple and a quadra), and the board says it reads them so.
+  await expect(page.getByTestId("multikill-explain")).toHaveAccessibleDescription(/Riot's own counters also count a pentakill's double, triple and quadra; this board counts and shows each multikill once\./);
   const ranked = multis.filter((m) => m.status === "ranked");
   expect(ranked.length).toBeGreaterThan(2);
   for (let i = 1; i < ranked.length; i++) {
@@ -541,12 +546,28 @@ test("the season records: seven cells in one panel, each opening its game; the m
   }
   expect(ranked[0]!.crown && ranked[0]!.place === 1).toBe(true);
   for (const m of multis) {
+    // Shown: each multikill once, at its largest (doubles − triples …), never Riot's nested counters as they are.
+    const [d, t, q, p] = m.riot as [number, number, number, number];
+    expect(m.counts, "each multikill once, from Riot's nested counters").toEqual([p, Math.max(0, q - p), Math.max(0, t - q), Math.max(0, d - t)]);
     const words = ["penta", "quadra", "triple", "double"].flatMap((w, i) => (m.counts[i]! > 0 ? [`${m.counts[i]} ${w}${m.counts[i] === 1 ? "" : "s"}`] : []));
-    expect(m.kinds, "Riot's counts in words, rarest first").toEqual(words);
+    expect(m.kinds, "the counts in words, rarest first").toEqual(words);
   }
+  // Every group on the demo: ranked (20+ games with counts), provisional (10–19, place "–", a score), too few (under 10, no score).
+  const provisional = multis.filter((m) => m.status === "provisional");
+  const few = multis.filter((m) => m.status === "not-enough");
+  expect(provisional.length).toBeGreaterThan(0);
+  expect(few.length).toBeGreaterThan(0);
+  for (const m of ranked) expect(m.counted).toBeGreaterThanOrEqual(20);
+  for (const m of provisional) expect(m.counted >= 10 && m.counted < 20 && m.scoreShown && m.place === 0).toBe(true);
+  for (const m of few) expect(m.counted < 10 && !m.scoreShown).toBe(true);
+  await expect(page.getByTestId("multikill-provisional-head")).toHaveText(/^Provisional\s·\s10 to 19 games with multikill counts$/);
+  await expect(page.getByTestId("multikill-few-head")).toHaveText(/^Too few games for a score\s·\s10 needed$/);
+  expect(multis.map((m) => m.status), "ranked, then provisional, then too few").toEqual([...ranked, ...provisional, ...few].map((m) => m.status));
   await expect(page.getByTestId("multikill-basis")).toHaveText("Per game, against the same roles and champions · 100 is usual");
-  await expect(page.getByTestId("multikill-explain")).toHaveAccessibleDescription(/compares each member's multikills per game with what the other players in the same games made on the same roles and champions \(allies and opponents, never a team member: [\d,]+ in all\)/);
-  // The most of each kind, double to penta: each with its count and holder(s), Riot's own counts.
+  await expect(page.getByTestId("multikill-explain")).toHaveAccessibleDescription(/each member's multikills per game against what the other players in the same games made on the same roles and champions \(allies and opponents, never a team member: [\d,]+ of their games\)/);
+  // Three short points behind the ⓘ (each a line of its own), and the coverage after them.
+  expect(await page.getByTestId("records-multikills").getByTestId("multikill-explain-point").count()).toBeGreaterThanOrEqual(3);
+  // The most of each kind, double to penta: each with its count and holder(s), each multikill once.
   const most = page.getByTestId("multikill-most-kind");
   await expect(most).toHaveCount(4);
   const best = (i: number) => Math.max(...multis.map((m) => m.counts[i]!));
@@ -819,10 +840,11 @@ test("on a phone: one column, the index of the sections below Recent form jumpin
   // score at the row's end, beside the name, over its games; the most of each kind two by two under the ranking.
   const multikills = page.getByTestId("records-multikills");
   await expect(multikills.locator(".label-caps")).toHaveCount(0);
-  for (const row of (await page.getByTestId("multikill-row").all()).slice(0, 3)) {
+  for (const row of await page.locator("[data-testid=multikill-row]:has([data-testid=multikill-score])").all()) {
     type Box = { x: number; y: number; width: number; height: number };
     const [name, kinds, score, games, avatar] = (await Promise.all([row.getByTestId("board-member-name"), row.getByTestId("multikill-kinds"), row.getByTestId("multikill-score"), row.getByTestId("multikill-games"), row.locator("[data-avatar-frame]")].map(async (l) => (await l.boundingBox())!))) as [Box, Box, Box, Box, Box];
     expect(kinds.y, "the kinds under the name").toBeGreaterThanOrEqual(name.y + name.height - 1);
+    expect(kinds.y - (name.y + name.height), "right under it, no gap between them").toBeLessThanOrEqual(4);
     expect(score.x, "the score at the row's end").toBeGreaterThan(name.x + name.width - 1);
     // The score and its games centred on the row, as the place and the picture are (a row whose kinds wrap is a line taller).
     const rowBox = (await row.boundingBox())!;
@@ -873,4 +895,30 @@ test("tablet and desktop: one Peek giving way to the other (a player, then a rec
   }
   await page.goBack();
   await expect(page).toHaveURL(/\/matches$/);
+});
+
+test("a multikill row opens the player Peek led by the member's multikills: the score and its chance spread, each kind made over its usual (tap or click, the same on every device)", async ({ page }) => {
+  await openRecords(page);
+  const row = page.locator("[data-testid=multikill-row][data-status=ranked]").first();
+  const score = await row.getAttribute("data-score");
+  const counts = await row.evaluate((e) => ["data-double", "data-triple", "data-quadra", "data-penta"].map((k) => e.getAttribute(k)));
+  await row.scrollIntoViewIfNeeded();
+  const opener = row.getByTestId("board-peek-open");
+  if (test.info().project.name === "phone") await opener.tap();
+  else await opener.click();
+  await expect(page).toHaveURL(/\/leaderboards\?player=/);
+  const detail = page.getByTestId("peek-multikills");
+  await expect(detail).toBeVisible();
+  await expect(detail.getByTestId("peek-multikills-score")).toContainText(new RegExp(`^${score}\\s*multikill score.*±\\d+`));
+  // Each kind made (each multikill once, the row's own counts) over its usual for their roles and champions.
+  expect(await detail.getByTestId("peek-multikills-made").allTextContents()).toEqual(counts);
+  await expect(detail.getByTestId("peek-multikills-usual")).toHaveCount(4);
+  await expect(detail.getByTestId("peek-multikills-note")).toContainText("each multikill once, at its largest · usual for their roles and champions");
+  // Within the screen, and the page no wider than it.
+  const box = (await detail.boundingBox())!;
+  expect(box.x).toBeGreaterThanOrEqual(0);
+  expect(box.x + box.width).toBeLessThanOrEqual(page.viewportSize()!.width + 1);
+  await noOverflow(page);
+  await page.keyboard.press("Escape");
+  await expect(page).toHaveURL(/\/leaderboards$/);
 });

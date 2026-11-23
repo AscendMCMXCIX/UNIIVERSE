@@ -6,6 +6,8 @@ export interface MultikillRowRead {
   shown: string | null;
   /** Penta, quadra, triple, double. */
   counts: number[];
+  /** Riot's counters: double, triple, quadra, penta. */
+  riot?: number[];
   kinds: string[];
   crown: boolean;
   height: number;
@@ -16,6 +18,7 @@ export interface MultikillBoardRead {
   tiles?: Array<{ kind: string | null; count: number | null }>;
   basis?: string;
   explained?: boolean;
+  rule?: "nested" | "separate" | null;
   empty?: boolean;
 }
 export interface Verdict {
@@ -26,4 +29,5 @@ export interface Verdict {
 export function readMultikillBoard(): MultikillBoardRead;
 export const MULTIKILL_BASES: { "same-games": string; team: string };
 export function kindsInWords(counts: number[]): string[];
+export function eventsOf(riot: number[], rule: "nested" | "separate"): number[];
 export function multikillVerdicts(input: { kind: string; read: MultikillBoardRead }): Verdict[];

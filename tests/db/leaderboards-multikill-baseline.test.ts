@@ -99,11 +99,13 @@ describe("the multikill comparison on stored records", () => {
     expect(view.source).toBe("same-games");
     const ash = view.rows.find((r) => r.playerId === id.Ash)!;
     expect(ash.status).toBe("ranked");
-    // Riot's counts as shown, the pentakill game's double, triple and quadra included; the score counts that pentakill once.
-    expect(ash.counts).toEqual({ double: 48, triple: 1, quadra: 1, penta: 1 });
-    expect(ash.breakdown).toContain("1 pentakill");
-    expect(ash.breakdown).toContain("47 double kills");
-    expect(ash.breakdown).not.toContain("1 triple kill (");
+    // Shown each multikill once, as the score counts them: Riot's nested counters (the pentakill game's double, triple and quadra included) kept apart.
+    expect(ash.counts).toEqual({ double: 47, triple: 0, quadra: 0, penta: 1 });
+    expect(ash.riot).toEqual({ double: 48, triple: 1, quadra: 1, penta: 1 });
+    expect(ash.kinds.map((k) => k.text)).toEqual(["1 penta", "47 doubles"]);
+    expect(ash.breakdown).toContain("1 penta (");
+    expect(ash.breakdown).toContain("47 doubles (");
+    expect(ash.breakdown).toContain("no triples (");
     // Nothing of any other player reaches the page: no PUUID, no name.
     expect(JSON.stringify(view)).not.toMatch(/other-|puuid/);
   });

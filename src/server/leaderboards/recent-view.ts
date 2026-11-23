@@ -3,7 +3,7 @@ import { LEADERBOARD_QUEUES } from "@/domain/leaderboards";
 import { mainRoleOf, rankRecentBoard, recentEntry, RECENT_PROVISIONAL_GAMES, RECENT_WINDOW_DAYS, RECENT_WINDOW_GAMES, shownValue, type RecentGap } from "@/domain/leaderboard-recent";
 import { buildMultikillBoard, buildRecords, CHAMPION_GAME_MILESTONES, KDA_RECORD_MIN_TAKEDOWNS, MASTERY_MILESTONES, RECORD_MIN_GAME_S, shownRecordValue, type ChampionMilestone, type RecordMark, type SeasonRecordId } from "@/domain/leaderboard-records";
 import type { GameRole } from "@/domain/season-stats";
-import { MULTIKILL_KEYS, MULTIKILL_PROVISIONAL_GAMES, MULTIKILL_RANKED_GAMES, shownScore, type MultikillBaseline, type MultikillKey } from "@/domain/multikill-score";
+import { MULTIKILL_KEYS, MULTIKILL_PROVISIONAL_GAMES, MULTIKILL_RANKED_GAMES, shownScore, typicalChance, type MultikillBaseline, type MultikillKey } from "@/domain/multikill-score";
 import { formatCompactCount, formatCount, formatDate, formatDayMonth, formatNumber } from "@/lib/format";
 import type { LeaderboardData, LeaderboardPlayer } from "./service";
 
@@ -106,12 +106,12 @@ export interface RecordsView {
 /** The multikill board (domain/multikill-score): the score's ranking, and the most of each kind. */
 export interface MultikillsView {
   rows: MultikillRow[];
-  /** Most of each kind, double to penta (Riot's own counts). */
+  /** Most of each kind, double to penta, each multikill once at its largest. */
   most: Array<{ key: MultikillKey; label: string; count: string | null; holders: string[] }>;
   /** What the score is, in a few words, on the board's line ("Per game, against the same roles and champions · 100 is usual"). */
   basis: string;
-  /** How the score works, a few plain sentences (the board's ⓘ). */
-  explain: string;
+  /** How the score works: three short plain points, no formula (the board's ⓘ). */
+  explain: string[];
   /** "same-games": compared with the other players in the same games; "team": with the team's own games, not by role. */
   source: "same-games" | "team";
   rankedFrom: number;
@@ -126,18 +126,38 @@ export interface MultikillRow {
   status: "ranked" | "provisional" | "not-enough";
   /** The score in whole points ("124"); null with too few games. */
   score: string | null;
-  /** Riot's own counts, added up. */
+  /** Each multikill once, at its largest (what the board shows and the score counts). */
   counts: { double: number; triple: number; quadra: number; penta: number };
-  /** The kinds made, rarest first, in words ("1 penta", "21 doubles"); empty with none. */
+  /** Riot's own counters added up, for the record (the profiles show these; nested counters count a pentakill's smaller kills too). */
+  riot: { double: number; triple: number; quadra: number; penta: number };
+  /** The kinds made, rarest first, in words ("1 penta", "21 doubles"), each multikill once; empty with none. */
   kinds: Array<{ key: MultikillKey; text: string }>;
-  /** "40 games", or "18 of 36 games" when older games have no counts. */
+  /** "40 games", or "18/36 games" when older games have no counts; `gamesSpoken` says the latter in words. */
   gamesText: string;
+  gamesSpoken: string;
   /** Games with counts / this season. */
   counted: number;
   games: number;
   /** The score in a sentence: each kind made against what was expected (the row's tooltip, read out). */
   breakdown: string;
+  /** The same for the player Peek, in parts: each kind made and usual, and the score's chance spread ("±9"). */
+  detail: MultikillDetail;
   you: boolean;
+}
+
+/** A member's multikills as the player Peek shows them on Leaderboards (one interaction model: tap or click the row). */
+export interface MultikillDetail {
+  score: string | null;
+  status: "ranked" | "provisional" | "not-enough";
+  gamesText: string;
+  /** "±9": the score's spread by chance alone at these games; null without a score. */
+  chance: string | null;
+  /** Each kind, double to penta: made (each once, at its largest) and usual for their roles and champions; usual null without a comparison. */
+  kinds: Array<{ key: MultikillKey; label: string; made: string; usual: string | null }>;
+  /** Without a score, why ("3 games with multikill counts: a score needs 10."). */
+  note: string | null;
+  /** What "usual" means here: the same roles and champions, or the team's own games. */
+  usualIs: string;
 }
 
 /** One member's champion milestones: the best few, and how many more there are (the rest are on their profile). */
@@ -336,43 +356,61 @@ function recordsView(data: LeaderboardData, requested: string | number | null, c
 }
 
 const KIND_WORDS: Record<MultikillKey, [string, string]> = { double: ["double", "doubles"], triple: ["triple", "triples"], quadra: ["quadra", "quadras"], penta: ["penta", "pentas"] };
-const KIND_NAMES: Record<MultikillKey, [string, string]> = { double: ["double kill", "double kills"], triple: ["triple kill", "triple kills"], quadra: ["quadra kill", "quadra kills"], penta: ["pentakill", "pentakills"] };
+const KIND_LABELS: Record<MultikillKey, string> = { double: "Doubles", triple: "Triples", quadra: "Quadras", penta: "Pentas" };
 const MOST_LABELS: Record<MultikillKey, string> = { double: "Most doubles", triple: "Most triples", quadra: "Most quadras", penta: "Most pentas" };
 const plural = (n: number, [one, many]: [string, string]) => `${formatCount(n)} ${n === 1 ? one : many}`;
 const gamesWord = (n: number) => `${formatCount(n)} game${n === 1 ? "" : "s"}`;
+/** An expected number as the page shows it: whole from 10, one decimal under ("18", "2.4", "0.1"). */
+const usualText = (x: number) => formatNumber(x, x >= 10 ? 0 : 1);
 
 /**
  * The multikill board as the page shows it (docs/TEAM_LEADERBOARDS.md, "The multikill score"):
- * each member's score in whole points, Riot's own counts in words, the games behind it, the
- * sentence that says what made it, and the board's one ⓘ in plain words.
+ * each member's score in whole points, each multikill once at its largest in words (the score's own
+ * events; Riot's raw counters stay on the profiles), the games behind it, the sentence and the
+ * Peek's parts that say what made it, and the board's ⓘ in three short plain points.
  */
 function multikillsView(data: LeaderboardData, season: number, ctx: BoardContext): MultikillsView {
   const { names, ids, viewer } = ctx;
   const board = buildMultikillBoard({ games: data.games, playerIds: ids, season, baseline: ctx.multikillBaseline, nameOf: (id) => names.get(id) ?? "" });
   const { baseline } = board;
   const source = baseline.source;
-  const against = source === "same-games" ? "expected for their roles and champions" : "expected at the team's rate";
+  const usualIs = source === "same-games" ? "usual for their roles and champions" : "usual at the team's rate";
   const rows: MultikillRow[] = board.rows.map((r) => {
-    // Rarest first: the kinds that count most for the score lead the line.
-    const kinds = [...MULTIKILL_KEYS].reverse().filter((k) => r.counts[k] > 0).map((k) => ({ key: k, text: plural(r.counts[k], KIND_WORDS[k]) }));
-    const made = MULTIKILL_KEYS.map((k) => `${r.kinds[k].made ? plural(r.kinds[k].made, KIND_NAMES[k]) : `no ${KIND_NAMES[k][0]}`} (${formatNumber(r.kinds[k].expected, 1)})`);
+    // Rarest first: the kinds that count most lead the line.
+    const kinds = [...MULTIKILL_KEYS].reverse().filter((k) => r.events[k] > 0).map((k) => ({ key: k, text: plural(r.events[k], KIND_WORDS[k]) }));
+    const withScore = r.score !== null && r.status !== "not-enough";
+    const made = MULTIKILL_KEYS.map((k) => `${r.events[k] ? plural(r.events[k], KIND_WORDS[k]) : `no ${KIND_WORDS[k][1]}`} (${usualText(r.kinds[k].expected)})`);
     const byRole = source === "same-games" && r.roleGames < r.counted ? ` Compared by role in ${formatCount(r.roleGames)} of ${gamesWord(r.counted)}; the rest with every position together.` : "";
-    const breakdown =
-      r.score === null || r.status === "not-enough"
-        ? `${gamesWord(r.counted)} with multikill counts: a score needs ${formatCount(MULTIKILL_PROVISIONAL_GAMES)}.`
-        : `Score ${formatCount(shownScore(r.score))} from ${gamesWord(r.counted)}. Each multikill once, at its largest, with the number ${against} in brackets: ${made.join(", ")}.${byRole}`;
+    const chance = withScore && r.chance !== null ? `±${formatCount(Math.max(1, Math.round(r.chance)))}` : null;
+    const note = withScore ? null : `${gamesWord(r.counted)} with multikill counts: a score needs ${formatCount(MULTIKILL_PROVISIONAL_GAMES)}.`;
+    const breakdown = !withScore
+      ? note!
+      : `Score ${formatCount(shownScore(r.score!))} from ${gamesWord(r.counted)}, give or take about ${formatCount(Math.max(1, Math.round(r.chance ?? 0)))} by chance. Each multikill once, at its largest, with the number ${usualIs} in brackets: ${made.join(", ")}.${byRole}`;
+    const partial = r.counted !== r.games;
+    const gamesText = partial ? `${formatCount(r.counted)}/${gamesWord(r.games)}` : gamesWord(r.games);
     return {
       playerId: r.playerId,
       place: r.place,
       tied: r.tied,
       status: r.status,
-      score: r.score === null || r.status === "not-enough" ? null : formatCount(shownScore(r.score)),
-      counts: { ...r.counts },
+      score: withScore ? formatCount(shownScore(r.score!)) : null,
+      counts: { ...r.events },
+      riot: { ...r.counts },
       kinds,
-      gamesText: r.counted === r.games ? gamesWord(r.games) : `${formatCount(r.counted)} of ${gamesWord(r.games)}`,
+      gamesText,
+      gamesSpoken: partial ? `${formatCount(r.counted)} of ${gamesWord(r.games)} with multikill counts` : `${gamesWord(r.games)}`,
       counted: r.counted,
       games: r.games,
       breakdown,
+      detail: {
+        score: withScore ? formatCount(shownScore(r.score!)) : null,
+        status: r.status,
+        gamesText: partial ? `${formatCount(r.counted)} of ${gamesWord(r.games)} with counts` : gamesWord(r.games),
+        chance,
+        kinds: MULTIKILL_KEYS.map((k) => ({ key: k, label: KIND_LABELS[k], made: formatCount(r.events[k]), usual: r.score === null ? null : usualText(r.kinds[k].expected) })),
+        note,
+        usualIs,
+      },
       you: r.playerId === viewer,
     };
   });
@@ -381,20 +419,20 @@ function multikillsView(data: LeaderboardData, season: number, ctx: BoardContext
     return { key: k, label: MOST_LABELS[k], count: m ? formatCount(m.count) : null, holders: m ? m.holders : [] };
   });
   const counting = !baseline.reading.shown
-    ? "Riot's counts may include a big multikill's smaller ones; the score assumes they do, so no multikill counts twice."
+    ? "Riot's own counters may also count a big multikill's smaller ones; this board assumes they do, so none counts twice."
     : baseline.reading.rule === "nested"
-      ? "Riot also counts a pentakill's double, triple and quadra kill; the score counts each multikill once, at its largest."
-      : "Riot counts each multikill once, at its largest, and so does the score.";
+      ? "Riot's own counters also count a pentakill's double, triple and quadra; this board counts and shows each multikill once."
+      : "Riot's own counters count them the same way.";
   const compared =
     source === "same-games"
-      ? `The score compares each member's multikills per game with what the other players in the same games made on the same roles and champions (allies and opponents, never a team member: ${formatCount(baseline.all.games)} in all). 100 is usual; 130 is 30% more.`
-      : "Too few other players' games are stored for a fair comparison yet, so each member's multikills per game are compared with the whole team's, every role together (not adjusted for role or champion). 100 is the team's usual.";
+      ? `What it is: each member's multikills per game against what the other players in the same games made on the same roles and champions (allies and opponents, never a team member: ${formatCount(baseline.all.games)} of their games). 100 is usual; 130 is 30% more.`
+      : "What it is: too few other players' games are stored for a fair comparison yet, so each member's multikills per game are compared with the whole team's, every role together (not adjusted for role or champion). 100 is the team's usual.";
+  const at = (n: number) => formatCount(Math.max(1, Math.round(typicalChance(baseline, n) ?? 0)));
   const explain = [
     compared,
-    "Each kind is compared on its own and the four count equally, so one pentakill moves a score far more than one double kill.",
-    counting,
-    `With few games a score stays near 100, so one lucky game can't decide it: a place needs ${formatCount(MULTIKILL_RANKED_GAMES)} games with multikill counts, and ${formatCount(MULTIKILL_PROVISIONAL_GAMES)}–${formatCount(MULTIKILL_RANKED_GAMES - 1)} give a provisional score. Scores a few points apart are close.`,
-  ].join(" ");
+    `How it counts: each multikill once, at its largest, worth its kills (a double kill 2, a pentakill 5), so rarer kinds count for more. ${counting}`,
+    `How sure it is: with few games a score stays near 100. By chance alone it moves about ±${at(50)} over 50 games and ±${at(300)} over 300 (more for roles that make fewer multikills, like support), so closer scores are close. A place needs ${formatCount(MULTIKILL_RANKED_GAMES)} games with multikill counts; ${formatCount(MULTIKILL_PROVISIONAL_GAMES)}–${formatCount(MULTIKILL_RANKED_GAMES - 1)} are provisional.`,
+  ];
   return {
     rows,
     most,

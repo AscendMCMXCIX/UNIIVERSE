@@ -7,9 +7,9 @@ import type { MultikillCounts } from "./multikills";
   champions make in the same stored games. Pure functions; the page's data (server/leaderboards)
   reads the comparison players' counts in one aggregate query.
 
-  In plain words: 100 is the usual for a member's roles and champions; 130 is 30% more multikills
-  than usual. Each kind (double, triple, quadra, penta) is compared on its own and the four count
-  equally, so a rarer kind counts for more per kill; with few games a score stays near 100.
+  In plain words: 100 is the usual for a member's roles and champions; 130 is 30% more than usual.
+  Every multikill counts once, at its largest, worth its kills (a double kill 2, a pentakill 5), so
+  a rarer kind counts for more; with few games a score stays near 100.
 
   1. Each multikill once, at its largest (`multikillEvents`). Riot keeps four counters per player
      and game. Whether a pentakill also adds to the double, triple and quadra counters ("nested") or
@@ -31,25 +31,39 @@ import type { MultikillCounts } from "./multikills";
      pseudo-games, so a champion seen in a few games barely moves them (its tendency is the same for every kind: a
      champion with twice the role's multikills is expected to make twice its pentakills too).
 
-  3. The score (`scoreMember`): for each kind k, the member's events O_k and the events expected
-     for their games X_k (each game's rate for its role and champion, added up):
-        index_k = (O_k + PRIOR) / (X_k + PRIOR)        score = 100 × mean of the four indexes
-     PRIOR = 2 multikills: as if every member had already made two of each kind at exactly the
-     usual rate. Doubles, expected dozens of times, are soon the member's own; a pentakill, expected
-     a fraction of a time, moves its index by a half at most (3 ÷ 2), the score by 12.5 points, so one lucky game cannot decide the
-     board, and over hundreds of games a kind's weight approaches how rare it is (one more pentakill
-     is worth about 85 more double kills over 500 games of a mid, about 4 over 12).
+  3. The score (`scoreMember`): the member's multikill kills against the kills expected, pooled:
+        points   = Σ_k w_k · O_k        expected = Σ_k w_k · X_k        w = 2, 3, 4, 5 (the kills in it)
+        score    = 100 × (points + CUSHION) ÷ (expected + CUSHION)
+     O_k: the member's multikills of kind k, each once at its largest; X_k: the number expected for
+     their games (each game's rate for its role and champion, added up). CUSHION = 20 kill points,
+     as if every member had already made ten double kills at exactly the usual rate.
+     Why pooled (Release 15 round 2, the review's simulation): averaging four per-kind indexes with
+     equal weight left the score's chance spread at about 12 points whatever the games, since the
+     quadra and penta indexes stay mostly luck at any sample size. Pooled, the score's chance spread
+     falls with games (about 17 points at 20 games, 15 at 50, 12 at 100, 7 at 300 for a mid: the
+     seeded simulation in the tests), and a truly 30%-better member averages 116, 122, 126 and 129.
+     Why kills as weights: a rarer kind counts for more by what it is (a pentakill is five kills in
+     one fight, 2.5 doubles), not by a constant chosen for it, and the common kinds, which carry
+     most of the information, keep most of the weight. Why 20: on a board of members who differ by
+     about 20% (simulated), members with 20 games top it 26% of the time against 25% by their true
+     rates (10 favoured them, 33%; 30 held them back, 22%); a single pentakill at 20 games moves a
+     mid's score by about 11 points, at 500 by under 1.
+     `chance` is the score's spread by chance alone at the member's games (one standard deviation,
+     at exactly the usual rates): 100 × √(Σ_k w_k² · X_k) ÷ (expected + CUSHION).
 
   4. Places (`rankMultikillScores`): 20 or more games with counts are ranked; 10–19 are provisional,
      listed after every ranked member; fewer, the board's last group with no score. Equal scores as
-     shown share a place. The counts shown beside a score are always Riot's own.
+     shown share a place. The board shows each multikill once, at its largest (the score's own events);
+     Riot's raw counters stay on the profiles.
 */
 
 export const MULTIKILL_KEYS = ["double", "triple", "quadra", "penta"] as const;
 export type MultikillKey = (typeof MULTIKILL_KEYS)[number];
 
-/** How strongly a score leans toward 100: as if two multikills of each kind had been made at exactly the usual rate. */
-export const MULTIKILL_PRIOR = 2;
+/** Each kind's worth in the score: the kills in it. */
+export const MULTIKILL_WEIGHTS: Readonly<Record<"double" | "triple" | "quadra" | "penta", number>> = { double: 2, triple: 3, quadra: 4, penta: 5 };
+/** How strongly a score leans toward 100, in kill points: as if ten double kills had been made at exactly the usual rate. */
+export const MULTIKILL_CUSHION = 20;
 /** The comparison players' games needed, all positions together, before a score is compared with them (see BASELINE_REASON). */
 export const BASELINE_MIN_GAMES = 1000;
 /** A role's rates lean toward every position's as if it had this many more games at their rates. */
@@ -67,8 +81,8 @@ export const COUNTING_EVIDENCE_GAMES = 20;
  * Why BASELINE_MIN_GAMES is 1,000 (docs/TEAM_LEADERBOARDS.md): at the rates usually seen (about one
  * double kill every two games, a triple every 15, a quadra every 100), 1,000 games hold about 500
  * double kills and 65 triple kills, so those rates are known within about 5% and 12% (1/√n), and about
- * 10 quadra kills, within about a third. With PRIOR's cushion, a rare kind's rate a third off moves a
- * 100-game member's score by under 4 points (the tests show it), against gaps of tens of points.
+ * 10 quadra kills, within about a third. Pooled by kills, a quadra or penta rate a third off moves a
+ * 100-game member's score by about a point, the triple rate 12% off by about 2 (the tests show it).
  */
 export const BASELINE_REASON = "About 500 double and 65 triple kills at the usual rates: those rates are known within 5–12%.";
 
@@ -230,8 +244,6 @@ export interface KindScore {
   made: number;
   /** What the same roles and champions would make in these games. */
   expected: number;
-  /** (made + PRIOR) ÷ (expected + PRIOR). */
-  index: number;
 }
 
 export interface MemberScore {
@@ -240,23 +252,26 @@ export interface MemberScore {
   games: number;
   /** Games whose record has Riot's counts: the score comes from these only. */
   counted: number;
-  /** Riot's own counters added up (what the page shows). */
+  /** Riot's own counters added up (the profiles show these; nested counters count a pentakill's smaller kills too). */
   counts: MultikillCounts;
-  /** Each multikill once at its largest (what the score counts). */
+  /** Each multikill once at its largest: what the score counts and the board shows. */
   events: MultikillCounts;
   kinds: Record<MultikillKey, KindScore>;
   /** Counted games compared within their role (the rest with every position's players, or the team's games). */
   roleGames: number;
-  /** 100 × the mean of the four indexes, unrounded; null with no counted game or no comparison. */
+  /** 100 × (points + CUSHION) ÷ (expected points + CUSHION), unrounded; null with no counted game or no comparison. */
   score: number | null;
+  /** The score's spread by chance alone at these games (one standard deviation at exactly the usual rates); null without a score. */
+  chance: number | null;
   status: "ranked" | "provisional" | "not-enough";
 }
 
 /**
  * A member's multikill score over their games. Games without counts are left out (never zero).
  * Worked example: 40 games, role rates double 0.5, triple 0.06, quadra 0.01, penta 0.002 (no champion
- * data); made 26, 4, 1, 0 → expected 20, 2.4, 0.4, 0.08 → indexes 28/22 = 1.27, 6/4.4 = 1.36,
- * 3/2.4 = 1.25, 2/2.08 = 0.96 → score 100 × 4.85 ÷ 4 = 121.
+ * data); made 26, 4, 1, 0 → points 2·26 + 3·4 + 4·1 = 68; expected 20, 2.4, 0.4, 0.08 → expected
+ * points 40 + 7.2 + 1.6 + 0.4 = 49.2 → score 100 × (68 + 20) ÷ (49.2 + 20) = 127; by chance ±15
+ * (100 × √(4·20 + 9·2.4 + 16·0.4 + 25·0.08) ÷ 69.2).
  */
 export function scoreMember(playerId: string, games: readonly ScoreGame[], baseline: MultikillBaseline): MemberScore {
   const counts = ZERO();
@@ -276,11 +291,34 @@ export function scoreMember(playerId: string, games: readonly ScoreGame[], basel
     if (level === "role") roleGames += 1;
     add(expected, rates);
   }
-  const kinds = Object.fromEntries(MULTIKILL_KEYS.map((k) => [k, { made: events[k], expected: expected[k], index: (events[k] + MULTIKILL_PRIOR) / (expected[k] + MULTIKILL_PRIOR) }])) as Record<MultikillKey, KindScore>;
+  const kinds = Object.fromEntries(MULTIKILL_KEYS.map((k) => [k, { made: events[k], expected: expected[k] }])) as Record<MultikillKey, KindScore>;
+  const points = MULTIKILL_KEYS.reduce((s, k) => s + MULTIKILL_WEIGHTS[k] * events[k], 0);
+  const expectedPoints = MULTIKILL_KEYS.reduce((s, k) => s + MULTIKILL_WEIGHTS[k] * expected[k], 0);
   // Every counted game needs a comparison: a score from part of them would not say what it counts.
-  const score = counted > 0 && compared === counted ? (100 * MULTIKILL_KEYS.reduce((s, k) => s + kinds[k].index, 0)) / MULTIKILL_KEYS.length : null;
+  const scored = counted > 0 && compared === counted;
+  const score = scored ? (100 * (points + MULTIKILL_CUSHION)) / (expectedPoints + MULTIKILL_CUSHION) : null;
+  const chance = scored ? scoreChance(expected) : null;
   const status = score === null || counted < MULTIKILL_PROVISIONAL_GAMES ? "not-enough" : counted < MULTIKILL_RANKED_GAMES ? "provisional" : "ranked";
-  return { playerId, games: games.length, counted, counts, events, kinds, roleGames, score, status };
+  return { playerId, games: games.length, counted, counts, events, kinds, roleGames, score, chance, status };
+}
+
+/**
+ * A score's spread by chance alone (one standard deviation) for these expected multikills: each
+ * kind's count varies about its expected number like a Poisson count, weighted by its kills.
+ * 100 × √(Σ w² · X) ÷ (Σ w · X + CUSHION).
+ */
+export function scoreChance(expected: MultikillCounts): number {
+  const variance = MULTIKILL_KEYS.reduce((s, k) => s + MULTIKILL_WEIGHTS[k] ** 2 * expected[k], 0);
+  const points = MULTIKILL_KEYS.reduce((s, k) => s + MULTIKILL_WEIGHTS[k] * expected[k], 0);
+  return (100 * Math.sqrt(variance)) / (points + MULTIKILL_CUSHION);
+}
+
+/** The chance spread of a score over `games` games at a baseline's all-position rates (what the board's ⓘ quotes). */
+export function typicalChance(baseline: MultikillBaseline, games: number): number | null {
+  if (baseline.all.games <= 0) return null;
+  const expected = ZERO();
+  for (const k of MULTIKILL_KEYS) expected[k] = (baseline.all.events[k] / baseline.all.games) * games;
+  return scoreChance(expected);
 }
 
 /** The score as the page shows it (whole points): places and ties use this. */
@@ -332,11 +370,12 @@ export function teamBaseline(games: ReadonlyArray<{ counts: MultikillCounts | nu
 }
 
 /**
- * Most of one kind (Riot's own counts): the highest count and every member who has it (a shared
- * record is shared, not decided by a rule nobody can see); none while nobody has one.
+ * Most of one kind, each multikill once at its largest (a pentakill is not also a double here): the
+ * highest count and every member who has it (a shared record is shared, not decided by a rule nobody
+ * can see); none while nobody has one.
  */
-export function mostOfKind(scores: readonly Pick<MemberScore, "playerId" | "counts">[], kind: MultikillKey): { count: number; holders: string[] } | null {
-  const best = scores.reduce((m, s) => Math.max(m, s.counts[kind]), 0);
+export function mostOfKind(scores: readonly Pick<MemberScore, "playerId" | "events">[], kind: MultikillKey): { count: number; holders: string[] } | null {
+  const best = scores.reduce((m, s) => Math.max(m, s.events[kind]), 0);
   if (best <= 0) return null;
-  return { count: best, holders: scores.filter((s) => s.counts[kind] === best).map((s) => s.playerId) };
+  return { count: best, holders: scores.filter((s) => s.events[kind] === best).map((s) => s.playerId) };
 }

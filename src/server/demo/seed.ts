@@ -456,8 +456,8 @@ function balanceDemoGame(me: MatchParticipantDetail, allies: MatchParticipantDet
 /**
  * A demo game's other player (never a member): their position, and Riot's multikill counts drawn
  * within their kills from a sequence of their own (seeded by the game and the player, so no other
- * demo figure moves), each multikill counted once at its largest, as the demo members' own counts
- * are (seedDemoGames), at about the members' rates for the role: so the multikill score compares
+ * demo figure moves), drawn once at their largest and kept as nested counters, as the demo members'
+ * own are (seedDemoGames), at about the members' rates for the role: so the multikill score compares
  * the demo members with players like them (demo only; never real data).
  */
 function giveDemoOtherFigures(x: MatchParticipantDetail, role: Role, matchId: string) {
@@ -480,6 +480,7 @@ function giveDemoOtherFigures(x: MatchParticipantDetail, role: Role, matchId: st
   const largest = made[5] ? 5 : made[4] ? 4 : made[3] ? 3 : made[2] ? 2 : x.kills > 0 ? 1 : 0;
   x.position = role;
   x.stats = { ...(x.stats ?? {}), doubleKills: made[2], tripleKills: made[3], quadraKills: made[4], pentaKills: made[5], largestMultiKill: largest };
+  nestDemoCounters(x.stats);
 }
 
 const DEMO_STARTS: Record<Role, number[]> = { TOP: [1054, 2003], JUNGLE: [1102, 2003], MID: [1056, 2003, 2003], ADC: [1055, 2003], SUPPORT: [3865, 2003] };
@@ -632,6 +633,18 @@ const DEMO_ROLES_FOR = (role: Role): Role[] => (["TOP", "JUNGLE", "MID", "ADC", 
  */
 const DEMO_OLDER_RECORDS = "Demo Support";
 
+/** Demo members whose newest N games alone carry multikill counts (the board's provisional and too-few groups). */
+const DEMO_FEW_COUNTS: Readonly<Record<string, number>> = { "Demo Sub (Support)": 12, "Demo Sub (Top)": 5 };
+
+/** Each multikill once, at its largest (the demo's draws), as nested counters: every larger multikill also counts each smaller one. */
+function nestDemoCounters(stats: NonNullable<MatchParticipantDetail["stats"]>) {
+  const e = [stats.doubleKills ?? 0, stats.tripleKills ?? 0, stats.quadraKills ?? 0, stats.pentaKills ?? 0];
+  stats.doubleKills = e[0]! + e[1]! + e[2]! + e[3]!;
+  stats.tripleKills = e[1]! + e[2]! + e[3]!;
+  stats.quadraKills = e[2]! + e[3]!;
+  stats.pentaKills = e[3]!;
+}
+
 /** A demo player's games; returns those whose record "Riot no longer provides" (see DEMO_OLDER_RECORDS). */
 async function seedDemoGames(db: Db, accountId: string, puuid: string, name: string, pools: Array<{ role: Role; pool: string[] }>): Promise<string[]> {
   const gone: string[] = [];
@@ -716,10 +729,19 @@ async function seedDemoGames(db: Db, accountId: string, puuid: string, name: str
         soloKills: role === "TOP" || role === "MID" ? int(0, 3) : int(0, 1),
       },
     };
+    // Riot's counters as nested ones (a triple also counts a double, a pentakill a double, a triple
+    // and a quadra), as the public match records suggest Riot keeps them: the draws above are each
+    // multikill once, at its largest, turned into counters here (no draw added or moved, so no other
+    // demo figure changes). The multikill board reads them back as one event each.
+    nestDemoCounters(me.stats!);
     if (name === DEMO_OLDER_RECORDS && i < count / 2) {
       delete me.stats;
       if (i % 4 === 0) gone.push(matchId);
     }
+    // Two members with few games carrying counts (their older records still to be fetched again),
+    // so the multikill board shows a provisional score and a member with too few games for one.
+    const few = DEMO_FEW_COUNTS[name];
+    if (few !== undefined && i < count - few) delete me.stats;
     const allies = [1, 2, 3, 4].map((n) => filler(n, ownTeam, true));
     const enemies = [5, 6, 7, 8, 9].map((n) => filler(n, otherTeam, false));
     // The lane opponent: the enemy in the same position.
