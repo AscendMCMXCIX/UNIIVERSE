@@ -28,17 +28,19 @@ recorded, your own champion folded into one line, and the sources and Riot's not
 The pages, sizes and words below are what the code does; the reasons are the owner's decisions of
 18 Nov 2026 (below).
 
-**As it ships (release 4, 19 Nov 2026): the facts from Riot's text (L3) are in the code, switched
-off** until the owner has pasted the new registration text in Riot's Developer Portal
-([RIOT_COMPLIANCE.md](RIOT_COMPLIANCE.md), "Proposed description for the registration"; For the
-owner, step 10). Off, the page reads none of their files and shows nothing of them: no chip, marker,
-label or sentence. A champion without checked notes then reads as one with no reviewed facts, its
+**The facts from Riot's text (L3) are on since 23 Nov 2026** (OD1; For the owner, step 10). They
+shipped in the code switched off in release 4 (19 Nov 2026), because the registration in Riot's
+Developer Portal had to describe them first ([RIOT_COMPLIANCE.md](RIOT_COMPLIANCE.md), "Proposed
+description for the registration"). On 23 Nov 2026 the owner reported the product's description
+updated to include the expanded Matchup Intel, with the application still Approved, and the switch
+was turned on, to ship with the next production release. Off, the page reads none of their files and
+shows nothing of them: no chip, marker, label or sentence. A champion without checked notes then reads as one with no reviewed facts, its
 side of the assembled reference and its tiles' panel each saying so in one line ("No reviewed facts
 for Gnar yet: crowd control, mobility, defence and sustain are not recorded."); the curated briefings
-and the six champions' checked notes show as before. Switching the layer on is a one-line change:
-`RIOT_TEXT_FACTS_ENABLED = true` in `src/server/matchup-intel/riot-text/switch.ts`. The importer, the
-173 files and their tests stay as they are, and what this document says of the layer (its chips,
-labels, coverage, fit and phones) is what the page does once it is on. The browser tests keep
+and the six champions' checked notes show as before. The switch is one line,
+`RIOT_TEXT_FACTS_ENABLED` in `src/server/matchup-intel/riot-text/switch.ts` (`true` since 23 Nov
+2026). The importer, the 173 files and their tests stay as they are, and what this document says of
+the layer (its chips, labels, coverage, fit and phones) is what the page does with it on. The browser tests keep
 testing it on, through a cookie that only the in-memory demo reads, never a deployment, and test the
 off state too: `e2e/matchup-intel.spec.ts` (Gnar, Yone and Twisted Fate show none of it, a details
 window included) and `src/components/matchup-intel/riot-text-switch.test.ts` (no file read).
@@ -63,8 +65,8 @@ The page never uses the word "verified": no person has checked any of it against
 
 Counted from the committed data on 19 Nov 2026 (Data Dragon 16.22.1, 173 champions):
 
-- **Facts from Riot's text** (imported 19 Nov 2026; switched off as the page ships, until the
-  registration describes them: What it is, above, and the counts below are for the layer on): a
+- **Facts from Riot's text** (imported 19 Nov 2026; on since 23 Nov 2026, after shipping off until
+  the registration described them: What it is, above): a
   reviewed file for every one of the 173 champions, 1,112 facts, 7 places where Riot's two texts
   differ. They show for the 167 champions
   without checked notes (1,067 facts, 6 disagreements: Riven's Q is the seventh, and her checked notes
@@ -560,7 +562,7 @@ step 2).
 The overhaul's S7a (docs/overhaul PLAN.md, S7) sets the page for all five roles, adds the cooldowns
 at a chosen ability haste and Riot's own tips, and reads more of the static data the version-check
 job already downloads. No new Riot request, no new job, no migration; nothing of it comes from the
-facts from Riot's text, so `RIOT_TEXT_FACTS_ENABLED` (still false) governs none of it.
+facts from Riot's text, so `RIOT_TEXT_FACTS_ENABLED` (false then, true since 23 Nov 2026) governs none of it.
 
 ### Roles and their slots
 
@@ -1193,10 +1195,10 @@ For a champion without checked notes, the kinds of mechanic Riot's own ability t
 dash, a shield, a heal, a recast. Each is shown with the clause of Riot's text it quotes, and only
 once it has passed the review below (the owner's decisions 4 and 5, 18 Nov 2026). They are the L3
 layer (What it is). **Imported on 19 Nov 2026**: a reviewed file for each of the 173 champions of Data
-Dragon 16.22.1, 1,112 facts and 7 places where Riot's two texts differ (Coverage, above). **Switched
-off as it ships** (`RIOT_TEXT_FACTS_ENABLED = false`, `src/server/matchup-intel/riot-text/switch.ts`),
-until the owner has pasted the proposed registration text (For the owner, step 10); then a one-line
-change turns it on. Off, `loadMatchupPage` gives the view no reader of these files
+Dragon 16.22.1, 1,112 facts and 7 places where Riot's two texts differ (Coverage, above). **On since
+23 Nov 2026** (`RIOT_TEXT_FACTS_ENABLED = true`, `src/server/matchup-intel/riot-text/switch.ts`), once
+the owner reported the registration updated (For the owner, step 10); it shipped off from release 4
+until then. Off, `loadMatchupPage` gives the view no reader of these files
 (`riotTextReader`), so none is read and the page shows nothing of them; the browser tests pin either
 state with a cookie that only the in-memory demo reads (the bounds of
 `src/server/riot/browser-test.ts`), so the layer's tests run with it on, and the off state's with it
@@ -2182,8 +2184,8 @@ or generates from it, and building it needs no model, key or outside service.
 
 The steps only the owner can take. Steps 1 to 4 were for the first version (16 Nov 2026), and the
 first three came before its merge, because a merge deploys; steps 5 to 8 were decided on 18 Nov
-2026 (The owner's decisions of 18 Nov 2026); step 9 is done on this branch (19 Nov 2026), and steps 10
-to 12 are open.
+2026 (The owner's decisions of 18 Nov 2026); step 9 is done on this branch (19 Nov 2026), step 10 on 23 Nov 2026, and steps 11
+and 12 are open.
 
 1. **Update the product's description in Riot's Developer Portal.** Done by the owner on 17 Nov
    2026 (Sydney): the description is now the one in RIOT_COMPLIANCE.md ("Description for the
@@ -2262,13 +2264,16 @@ to 12 are open.
    the K'Sante-shaped markers and the others), is
    [MATCHUP_INTEL_RIOT_TEXT_REVIEW.md](MATCHUP_INTEL_RIOT_TEXT_REVIEW.md), "For the owner": each
    decision there changes rows of the table, and a new import then changes the committed files.
-10. **Paste the proposed description** (step 1) in the Developer Portal, **then switch the facts from
-    Riot's text on.** The layer ships in the code, switched off (release 4, 19 Nov 2026: What it is),
-    so the merge did not wait for the registration. Once the new text is pasted, the one-line change
-    is `RIOT_TEXT_FACTS_ENABLED = true` in `src/server/matchup-intel/riot-text/switch.ts`, through a
-    pull request like any other (its CI runs the layer's tests on as before); after its deploy, the
+10. **Update the description, then switch the facts from Riot's text on. Done on 23 Nov 2026
+    (OD1).** The owner reported the product's description in the Developer Portal updated to include
+    the expanded Matchup Intel functionality, with the existing application still Approved; no key
+    and no application changed (a separate higher-limit application is still in Riot's review, and
+    this change does not depend on it). The one-line change, `RIOT_TEXT_FACTS_ENABLED = true` in
+    `src/server/matchup-intel/riot-text/switch.ts`, went through a pull request stacked on Release 11,
+    to deploy with it; its CI runs the layer's tests on and off as before. After its deploy, the
     Production check's Matchup Intel facts hold either way (Riven vs Mordekaiser has checked notes on
-    both sides, so it shows no fact from Riot's text, on or off).
+    both sides, so it shows no fact from Riot's text, on or off), so on production the layer is
+    deployed, not production-verified: the browser tests check it on demo data.
 11. **Decide who may review the facts from Riot's text, and the words for a person's check.** Today
     two automated reviewers, an adjudicator and two consistency checkers did, and the label says "not
     by a person" (decision 5). A person's review of a champion would be recorded in its row of the

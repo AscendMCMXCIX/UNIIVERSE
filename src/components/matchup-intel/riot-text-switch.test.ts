@@ -15,8 +15,8 @@ import { MatchupStatus } from "./matchup-status";
 import { CONDITIONAL_WORDS, DIFFER_WORDS, NO_ABILITY_FACTS_WORDS, RIOT_TEXT_LABEL, RIOT_TEXT_NO_NUMBERS_WORDS, noFactsWords, noneRecordedWords } from "./wording";
 
 /*
-  The switch for the facts from Riot's text (src/server/matchup-intel/riot-text/switch.ts): the
-  layer ships off until the owner has pasted the new registration text in Riot's Developer Portal.
+  The switch for the facts from Riot's text (src/server/matchup-intel/riot-text/switch.ts): on
+  since 23 Nov 2026 (OD1), and it shipped off before the registration described the layer.
   Off, no file of it is read and the page shows nothing of it: a champion without checked notes
   reads as one with no reviewed facts, one line per side. Rendered over the real data (Data Dragon
   16.22.1's committed copy, the curated notes, the committed reviewed files), whatever the switch
