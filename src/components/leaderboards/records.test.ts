@@ -26,15 +26,15 @@ const record = (o: Partial<RecordView> & Pick<RecordView, "id" | "label">): Reco
 /** The multikill board as the view sends it: Ash ranked, Cy provisional, Bo (the viewer) with too few games. */
 const MULTIKILLS: MultikillsView = {
   rows: [
-    { playerId: "ash", place: 1, tied: false, status: "ranked", score: "124", counts: { double: 28, triple: 3, quadra: 1, penta: 1 }, kinds: [{ key: "double", text: "28 doubles" }, { key: "triple", text: "3 triples" }, { key: "quadra", text: "1 quadra" }, { key: "penta", text: "1 penta" }], gamesText: "40 games", counted: 40, games: 40, breakdown: "Score 124 from 40 games. Each multikill once, at its largest, with the number expected for their roles and champions in brackets: 25 double kills (19.2), 2 triple kills (2.1), no quadra kill (0.4), 1 pentakill (0.1).", you: false },
+    { playerId: "ash", place: 1, tied: false, status: "ranked", score: "124", counts: { double: 28, triple: 3, quadra: 1, penta: 1 }, kinds: [{ key: "penta", text: "1 penta" }, { key: "quadra", text: "1 quadra" }, { key: "triple", text: "3 triples" }, { key: "double", text: "28 doubles" }], gamesText: "40 games", counted: 40, games: 40, breakdown: "Score 124 from 40 games. Each multikill once, at its largest, with the number expected for their roles and champions in brackets: 25 double kills (19.2), 2 triple kills (2.1), no quadra kill (0.4), 1 pentakill (0.1).", you: false },
     { playerId: "cy", place: null, tied: false, status: "provisional", score: "97", counts: { double: 4, triple: 0, quadra: 0, penta: 0 }, kinds: [{ key: "double", text: "4 doubles" }], gamesText: "14 of 15 games", counted: 14, games: 15, breakdown: "Score 97 from 14 games.", you: false },
     { playerId: "bo", place: null, tied: false, status: "not-enough", score: null, counts: { double: 1, triple: 0, quadra: 0, penta: 0 }, kinds: [{ key: "double", text: "1 double" }], gamesText: "3 games", counted: 3, games: 3, breakdown: "3 games with multikill counts: a score needs 10.", you: true },
   ],
   most: [
-    { key: "double", label: "Most double kills", count: "28", holders: ["ash"] },
-    { key: "triple", label: "Most triple kills", count: "3", holders: ["ash", "cy"] },
-    { key: "quadra", label: "Most quadra kills", count: "1", holders: ["ash"] },
-    { key: "penta", label: "Most pentakills", count: null, holders: [] },
+    { key: "double", label: "Most doubles", count: "28", holders: ["ash"] },
+    { key: "triple", label: "Most triples", count: "3", holders: ["ash", "cy"] },
+    { key: "quadra", label: "Most quadras", count: "1", holders: ["ash"] },
+    { key: "penta", label: "Most pentas", count: null, holders: [] },
   ],
   basis: "Per game, against the same roles and champions · 100 is usual",
   explain: "The score compares each member's multikills per game with what players on the same roles and champions made in the same games.",
@@ -218,7 +218,7 @@ describe("multikills", () => {
   const html = render({ viewer: "bo" });
   const rowOf = (h: string, id: string) => new RegExp(`<li [^>]*data-testid="multikill-row" data-player-id="${id}"[\\s\\S]*?</li>`).exec(h)![0];
 
-  it("rank by the score: the place (a crown on first), the picture, the name over the kinds made in words, the score over its games; no column headings to decode", () => {
+  it("rank by the score: the place (a crown on first), the picture, the name over the kinds made in words (rarest first), the score over its games; no column headings to decode", () => {
     const rows = [...html.matchAll(/<li [^>]*data-testid="multikill-row" data-player-id="(\w+)"/g)].map((m) => m[1]);
     expect(rows).toEqual(["ash", "cy", "bo"]);
     const ash = rowOf(html, "ash");
@@ -227,7 +227,7 @@ describe("multikills", () => {
     expect(shownOf(ash, "multikill-score")).toBe("124");
     expect(ash).toContain('<span class="sr-only"> multikill score</span>');
     expect(shownOf(ash, "multikill-games")).toBe("40 games");
-    expect([...ash.matchAll(/<span data-kind="(\w+)" class="whitespace-nowrap">([^<]*)<\/span>/g)].map((m) => [m[1], m[2]])).toEqual([["double", "28 doubles"], ["triple", "3 triples"], ["quadra", "1 quadra"], ["penta", "1 penta"]]);
+    expect([...ash.matchAll(/<span data-kind="(\w+)" class="whitespace-nowrap">([^<]*)<\/span>/g)].map((m) => [m[1], m[2]])).toEqual([["penta", "1 penta"], ["quadra", "1 quadra"], ["triple", "3 triples"], ["double", "28 doubles"]]);
     // No headings row: every figure says its own name.
     expect(innerOf(html, "records-multikills")).not.toContain("label-caps");
   });
@@ -266,8 +266,7 @@ describe("multikills", () => {
     expect(kinds).toEqual(["double", "triple", "quadra", "penta"]);
     const triple = /data-kind="triple"[\s\S]*?<\/li>/.exec(most)![0];
     expect(shownOf(triple, "multikill-most-count")).toBe("3");
-    expect(triple).toContain(">Ash<");
-    expect(triple).toContain(">Cy<");
+    expect(shownOf(triple, "multikill-most-holders")).toBe("Ash, Cy");
     expect(/data-kind="penta"[\s\S]*?<\/li>/.exec(most)![0]).toContain("None yet");
   });
 

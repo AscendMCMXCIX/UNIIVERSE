@@ -128,7 +128,7 @@ export interface MultikillRow {
   score: string | null;
   /** Riot's own counts, added up. */
   counts: { double: number; triple: number; quadra: number; penta: number };
-  /** The kinds made, double to penta, in words ("21 doubles"); empty with none. */
+  /** The kinds made, rarest first, in words ("1 penta", "21 doubles"); empty with none. */
   kinds: Array<{ key: MultikillKey; text: string }>;
   /** "40 games", or "18 of 36 games" when older games have no counts. */
   gamesText: string;
@@ -294,7 +294,7 @@ export function recordsSeason(data: Pick<LeaderboardData, "seasons" | "currentSe
 }
 
 function recordsView(data: LeaderboardData, requested: string | number | null, ctx: BoardContext): RecordsView {
-  const { names, ids, viewer, basePath, profiles } = ctx;
+  const { ids, viewer, basePath, profiles } = ctx;
   const season = recordsSeason(data, { season: requested });
   const result = buildRecords({ games: data.games, mastery: data.mastery, playerIds: ids, season });
   // (The holder's own Match History redirects to My Profile's, keeping the game.)
@@ -337,7 +337,7 @@ function recordsView(data: LeaderboardData, requested: string | number | null, c
 
 const KIND_WORDS: Record<MultikillKey, [string, string]> = { double: ["double", "doubles"], triple: ["triple", "triples"], quadra: ["quadra", "quadras"], penta: ["penta", "pentas"] };
 const KIND_NAMES: Record<MultikillKey, [string, string]> = { double: ["double kill", "double kills"], triple: ["triple kill", "triple kills"], quadra: ["quadra kill", "quadra kills"], penta: ["pentakill", "pentakills"] };
-const MOST_LABELS: Record<MultikillKey, string> = { double: "Most double kills", triple: "Most triple kills", quadra: "Most quadra kills", penta: "Most pentakills" };
+const MOST_LABELS: Record<MultikillKey, string> = { double: "Most doubles", triple: "Most triples", quadra: "Most quadras", penta: "Most pentas" };
 const plural = (n: number, [one, many]: [string, string]) => `${formatCount(n)} ${n === 1 ? one : many}`;
 const gamesWord = (n: number) => `${formatCount(n)} game${n === 1 ? "" : "s"}`;
 
@@ -353,7 +353,8 @@ function multikillsView(data: LeaderboardData, season: number, ctx: BoardContext
   const source = baseline.source;
   const against = source === "same-games" ? "expected for their roles and champions" : "expected at the team's rate";
   const rows: MultikillRow[] = board.rows.map((r) => {
-    const kinds = MULTIKILL_KEYS.filter((k) => r.counts[k] > 0).map((k) => ({ key: k, text: plural(r.counts[k], KIND_WORDS[k]) }));
+    // Rarest first: the kinds that count most for the score lead the line.
+    const kinds = [...MULTIKILL_KEYS].reverse().filter((k) => r.counts[k] > 0).map((k) => ({ key: k, text: plural(r.counts[k], KIND_WORDS[k]) }));
     const made = MULTIKILL_KEYS.map((k) => `${r.kinds[k].made ? plural(r.kinds[k].made, KIND_NAMES[k]) : `no ${KIND_NAMES[k][0]}`} (${formatNumber(r.kinds[k].expected, 1)})`);
     const byRole = source === "same-games" && r.roleGames < r.counted ? ` Compared by role in ${formatCount(r.roleGames)} of ${gamesWord(r.counted)}; the rest with every position together.` : "";
     const breakdown =

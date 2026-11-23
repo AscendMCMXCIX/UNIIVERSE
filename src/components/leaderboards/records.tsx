@@ -259,23 +259,35 @@ function RecordPicture({ record, holder, champion }: { record: RecordView; holde
   The multikill board (docs/TEAM_LEADERBOARDS.md, "The multikill score"): one panel, by its own
   width, the same at every width but for the tiles' columns:
     the ranking   a row per member: the place (the crown on first), the picture, the name over the
-                  kinds they made in words ("21 doubles 6 triples 1 quadra", Riot's own counts), the
-                  score at the row's end over the games behind it. Two short lines on a phone, no
-                  column headings, nothing to decode; the score's sentence (each kind against what
-                  was expected) is the row's tooltip and is read out.
+                  kinds they made in words, rarest first ("1 quadra 6 triples 21 doubles", Riot's own
+                  counts), the score at the row's end over the games behind it. Two short lines
+                  (44–48px; a member with all four kinds wraps a third on a phone), no column
+                  headings, nothing to decode; the score's sentence (each kind against what was
+                  expected) is the row's tooltip and is read out.
     provisional   10–19 games with counts: listed after every ranked member, place "–";
     too few       under 10: the board's last group, the games they have, no score;
-    most of each  four tiles (two by two under 34rem, one row of four from it): the most double,
-                  triple, quadra and pentakills, each with its holder (every holder of a shared one),
-                  so the kinds stay records of their own.
+    most of each  four compact tiles (two by two under 30rem, one row of four from it): the most
+                  double, triple, quadra and pentakills, each count with its holder (every holder of a
+                  shared one, by name), so the kinds stay records of their own.
   The board's one ⓘ says how the score works in a few plain sentences; its line, what it is.
 */
 
-/** Place · picture · name over kinds · score over games. */
-const MULTI_COLS = "[--dl-cols:1.75rem_2rem_minmax(0,1fr)_auto]";
-/** The tiles: two by two, a row of four from a 34rem panel. */
-const MOST_GRID = "grid grid-cols-2 @min-[34rem]/list:grid-cols-4";
-const MOST_CELL = "min-w-0 border-border/60 px-3 py-2 [&:nth-child(odd)]:border-r [&:nth-child(n+3)]:border-t @min-[34rem]/list:border-r @min-[34rem]/list:[&:nth-child(n+3)]:border-t-0 @min-[34rem]/list:last:border-r-0";
+/**
+ * Place · picture · name over kinds · score over games. Under 20rem (a phone at a large text size)
+ * the place, the picture and the score with its games take the first line, and the name and the
+ * kinds each the row's whole width under them, so no name is squeezed to a letter a line.
+ */
+const MULTI_COLS = "[--dl-cols:1.75rem_2rem_minmax(0,1fr)_auto] @max-[20rem]/list:[--dl-cols:1.75rem_2rem_minmax(0,1fr)]";
+const NARROW = {
+  lead: "row-[1/span_2] @max-[20rem]/list:row-[1/2]",
+  score: "col-[4/5] row-[1/span_2] flex-col items-end text-right @max-[20rem]/list:col-[3/4] @max-[20rem]/list:row-[1/2] @max-[20rem]/list:flex-row @max-[20rem]/list:flex-wrap @max-[20rem]/list:items-baseline @max-[20rem]/list:gap-x-1.5 @max-[20rem]/list:text-left",
+  name: "col-[3/4] @max-[20rem]/list:col-[1/-1] @max-[20rem]/list:row-[2/3]",
+  kinds: "col-[3/4] row-[2/3] @max-[20rem]/list:col-[1/-1] @max-[20rem]/list:row-[3/4]",
+};
+/** The tiles: two by two, a row of four from a 30rem panel, one column under 14rem (large text); a hairline between neighbours. */
+const MOST_GRID = "grid grid-cols-2 @max-[14rem]/list:grid-cols-1 @min-[30rem]/list:grid-cols-4";
+const MOST_CELL =
+  "min-w-0 border-border/60 px-3 py-1 [&:nth-child(odd)]:border-r [&:nth-child(n+3)]:border-t @max-[14rem]/list:border-r-0 @max-[14rem]/list:[&:not(:first-child)]:border-t @min-[30rem]/list:border-r @min-[30rem]/list:[&:nth-child(n+3)]:border-t-0 @min-[30rem]/list:last:border-r-0";
 
 /** The season's multikill board: the score's ranking, then the most of each kind; `className` places it on the page. */
 export function Multikills({ records, player, className }: { records: RecordsView; player: (id: string) => BoardPlayer; className?: string }) {
@@ -383,30 +395,31 @@ function MultikillRowItem({ r, p, tie }: { r: MultikillRow; p: BoardPlayer; tie:
       data-counted={r.counted}
       data-you={r.you || undefined}
       own={r.you}
-      density={r.status === "not-enough" ? "dense" : "regular"}
+      density="dense"
       lead={
         <>
-          {r.status === "not-enough" ? <span aria-hidden className="col-[1/2] row-[1/span_2]" /> : <Place place={r.place} tie={tie} crown={r.place === 1} testId="multikill-place" className="col-[1/2] row-[1/span_2] self-center" />}
-          <CardAvatar look={p.look} name={p.name} src={p.avatarUrl} size="sm" className="col-[2/3] row-[1/span_2] self-center justify-self-start" />
+          {r.status === "not-enough" ? <span aria-hidden className={cn("col-[1/2]", NARROW.lead)} /> : <Place place={r.place} tie={tie} crown={r.place === 1} testId="multikill-place" className={cn("col-[1/2] self-center", NARROW.lead)} bracketClassName="@max-[20rem]/list:hidden" />}
+          <CardAvatar look={p.look} name={p.name} src={p.avatarUrl} size="sm" className={cn("col-[2/3] self-center justify-self-start", NARROW.lead)} />
         </>
       }
       link={linked ? <PeekRowLink playerId={p.id} name={p.name} profileHref={p.profileHref!} hint={r.breakdown} /> : null}
       figures={
-        <span className="col-[4/5] row-[1/span_2] flex flex-col items-end self-center text-right" data-testid="multikill-score-cell">
+        <span className={cn("flex self-center", NARROW.score)} data-testid="multikill-score-cell">
           {r.score !== null ? (
-            <FigureCell testId="multikill-score" size="lg" emphasis={r.status === "ranked" ? "strong" : "muted"} label=" multikill score">
+            <FigureCell testId="multikill-score" size={null} emphasis={r.status === "ranked" ? "strong" : "muted"} label=" multikill score" className="text-lg leading-5">
               {r.score}
             </FigureCell>
           ) : null}
-          <span className="whitespace-nowrap text-xs tabular-nums text-fg-muted" data-testid="multikill-games">
+          {/* At most 4rem wide: "21 of 43 games" (older games without counts) wraps under its numbers rather than widen every row's score column. */}
+          <span className="max-w-16 text-xs tabular-nums text-fg-muted @max-[20rem]/list:max-w-none" data-testid="multikill-games">
             {r.gamesText}
           </span>
         </span>
       }
     >
-      <MemberCell look={p.look} name={p.name} avatar={false} you={r.you} readName={!linked} nameHref={p.profileHref ?? undefined} nameTestId="board-member-name" className={cn("col-[3/4] min-w-0", r.status === "not-enough" ? "row-[1/span_2]" : "row-[1/2]")} />
+      <MemberCell look={p.look} name={p.name} avatar={false} you={r.you} readName={!linked} nameHref={p.profileHref ?? undefined} nameTestId="board-member-name" className={cn("min-w-0", NARROW.name, r.status === "not-enough" ? "row-[1/span_2]" : "row-[1/2]")} />
       {r.status !== "not-enough" ? (
-        <span className="col-[3/4] row-[2/3] flex min-w-0 flex-wrap gap-x-2 text-xs tabular-nums text-fg-muted" data-testid="multikill-kinds">
+        <span className={cn("flex min-w-0 flex-wrap gap-x-1.5 text-xs tabular-nums text-fg-muted", NARROW.kinds)} data-testid="multikill-kinds">
           {r.kinds.length ? r.kinds.map((k) => <span key={k.key} data-kind={k.key} className="whitespace-nowrap">{k.text}</span>) : <span>No multikills yet</span>}
         </span>
       ) : null}
@@ -416,39 +429,36 @@ function MultikillRowItem({ r, p, tie }: { r: MultikillRow; p: BoardPlayer; tie:
   );
 }
 
-/** The most of each kind, double to penta: each with its count and holder (every holder of a shared one; "Shared by 3" past two). */
+/**
+ * The most of each kind, double to penta: each tile its label ("Most pentas"), the count, and who
+ * holds it, by name (every holder of a shared one, each named), or "None yet". Not links: each
+ * holder's row above opens their Peek.
+ */
 function MostOfEach({ most, player }: { most: MultikillsView["most"]; player: (id: string) => BoardPlayer }) {
   return (
     <div data-testid="multikill-most">
-      <h3 className={cn("bg-surface-2/40 py-2 text-xs font-semibold text-fg", ROW_PAD_X)}>Most of each kind</h3>
-      <ul aria-label="Most of each kind" className={cn(MOST_GRID, "border-t border-border/70")}>
-        {most.map((m) => (
-          <li key={m.key} className={MOST_CELL} data-testid="multikill-most-kind" data-kind={m.key} data-count={m.count ?? undefined}>
-            <p className="text-xs text-fg-muted">{m.label}</p>
-            {m.count ? (
-              <div className="mt-0.5 flex min-w-0 items-start gap-2">
-                <span className="text-lg font-semibold leading-tight tabular-nums text-fg" data-testid="multikill-most-count">
-                  {m.count}
-                </span>
-                <span className="flex min-w-0 flex-col gap-0.5 pt-0.5" data-testid="multikill-most-holders">
-                  {m.holders.length <= 2 ? (
-                    m.holders.map((id) => {
-                      const p = player(id);
-                      return <MemberCell key={id} look={p.look} name={p.name} avatar="xs" className="text-xs" />;
-                    })
-                  ) : (
-                    <span className="text-xs text-fg" title={m.holders.map((id) => player(id).name).join(", ")}>
-                      Shared by {m.holders.length}
-                      <span className="sr-only">: {m.holders.map((id) => player(id).name).join(", ")}</span>
-                    </span>
-                  )}
-                </span>
-              </div>
-            ) : (
-              <p className="mt-0.5 text-sm text-fg-subtle">None yet</p>
-            )}
-          </li>
-        ))}
+      <h3 className="sr-only">Most of each kind</h3>
+      <ul aria-label="Most of each kind" className={MOST_GRID}>
+        {most.map((m) => {
+          const names = m.holders.map((id) => player(id).name);
+          return (
+            <li key={m.key} className={MOST_CELL} data-testid="multikill-most-kind" data-kind={m.key} data-count={m.count ?? undefined}>
+              <p className="text-xs text-fg-muted">{m.label}</p>
+              {m.count ? (
+                <p className="flex min-w-0 items-baseline gap-x-1.5">
+                  <span className="text-base leading-5 font-semibold tabular-nums text-fg" data-testid="multikill-most-count">
+                    {m.count}
+                  </span>
+                  <span className="min-w-0 text-xs font-medium text-fg [overflow-wrap:anywhere]" data-testid="multikill-most-holders">
+                    {names.join(", ")}
+                  </span>
+                </p>
+              ) : (
+                <p className="text-sm leading-5 text-fg-subtle">None yet</p>
+              )}
+            </li>
+          );
+        })}
       </ul>
     </div>
   );

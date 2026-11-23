@@ -188,7 +188,7 @@ describe("the multikill board on the fixed team", () => {
     ]);
     const ash = m.rows[0]!;
     expect(ash.counts).toEqual({ double: 28, triple: 1, quadra: 1, penta: 1 });
-    expect(ash.kinds.map((k) => k.text)).toEqual(["28 doubles", "1 triple", "1 quadra", "1 penta"]);
+    expect(ash.kinds.map((k) => k.text)).toEqual(["1 penta", "1 quadra", "1 triple", "28 doubles"]);
     expect(ash.breakdown).toBe("Score 80 from 26 games. Each multikill once, at its largest, with the number expected at the team's rate in brackets: 27 double kills (25.2), no triple kill (3.4), no quadra kill (0.8), 1 pentakill (0.8).");
     expect(m.rows.find((r) => r.playerId === "bo")!.you).toBe(true);
     expect(m.rows.find((r) => r.playerId === "cy")!.breakdown).toBe("2 games with multikill counts: a score needs 10.");
@@ -196,10 +196,10 @@ describe("the multikill board on the fixed team", () => {
 
   it("names the most of each kind, Riot's own counts, every holder of a shared one", () => {
     expect(records(null).multikills.most).toEqual([
-      { key: "double", label: "Most double kills", count: "28", holders: ["ash"] },
-      { key: "triple", label: "Most triple kills", count: "3", holders: ["cy"] },
-      { key: "quadra", label: "Most quadra kills", count: "1", holders: ["ash", "bo"] },
-      { key: "penta", label: "Most pentakills", count: "1", holders: ["ash"] },
+      { key: "double", label: "Most doubles", count: "28", holders: ["ash"] },
+      { key: "triple", label: "Most triples", count: "3", holders: ["cy"] },
+      { key: "quadra", label: "Most quadras", count: "1", holders: ["ash", "bo"] },
+      { key: "penta", label: "Most pentas", count: "1", holders: ["ash"] },
     ]);
   });
 
