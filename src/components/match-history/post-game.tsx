@@ -223,8 +223,9 @@ function Lane({ view, champ, me, entry, state }: { view: MatchDetailView; champ:
   const pair = entry?.pair ?? null;
   const name = (slot: number) => champ(view.teams.flatMap((t) => t.participants).find((x) => x.slot === slot)?.championId ?? null).name;
   return (
-    <section aria-label="Lane" className="space-y-1.5 rounded-lg bg-surface px-3 py-2" data-testid="post-game-lane" data-state="clear" data-timed={timed || undefined}>
-      <table className="w-full text-sm leading-6 tabular-nums">
+    <section aria-label="Lane" className="@container/lane space-y-1.5 rounded-lg bg-surface px-3 py-2" data-testid="post-game-lane" data-state="clear" data-timed={timed || undefined}>
+      {/* Under 20rem (a phone at large text) each row's name stands on a line of its own, its three figures under it, so nothing runs past the screen. */}
+      <table className={cn("w-full text-sm leading-6 tabular-nums", timed && "@max-[20rem]/lane:block @max-[20rem]/lane:[&_tbody]:block @max-[20rem]/lane:[&_td]:block @max-[20rem]/lane:[&_th]:block @max-[20rem]/lane:[&_th]:w-auto @max-[20rem]/lane:[&_thead]:block @max-[20rem]/lane:[&_tr]:grid @max-[20rem]/lane:[&_tr]:grid-cols-3 @max-[20rem]/lane:[&_tr>th:first-child]:col-span-3")}>
         <thead>
           <tr className="text-2xs text-fg-subtle">
             <th className="pb-1 text-left font-semibold">
@@ -334,7 +335,8 @@ export function PostGame({ playerId, view, champ, variant, encounterLinks = fals
         <section ref={yours} aria-label={own && view.own ? "Your game" : `${nameOf(subject)}'s game`} className="min-w-0 scroll-mt-24 space-y-2.5" data-testid="post-game-yours" data-own={own || undefined}>
           {/* Who is inspected, their score, and the way back to the profile's player. */}
           <div className="flex min-h-7 flex-wrap items-center gap-x-2 gap-y-1 pointer-coarse:min-h-11" data-testid="inspected">
-            <p className="min-w-0 flex-1 truncate text-sm leading-tight" aria-live="polite">
+            {/* Truncated on one line where it fits a phone at 100%; wrapped under 20rem (large text), so the score is never cut off. */}
+            <p className="min-w-0 flex-1 truncate text-sm leading-tight @max-[20rem]/pg:whitespace-normal" aria-live="polite">
               <span className="font-semibold text-fg" data-testid="inspected-name">
                 {nameOf(subject)}
               </span>

@@ -186,7 +186,7 @@ export function ParticipantPanels({ panel, onPanel, result, entry, page }: { pan
   return (
     // Named by the heading shown, without a heading element: the post-game view has no headings of its own above it (axe's heading order).
     <section aria-label={PANELS.find((p) => p.key === panel)!.label} className="space-y-2 rounded-lg bg-surface px-3 py-2" data-testid="participant-panels" data-panel={panel}>
-      <div role="radiogroup" aria-label="Show the build path, the skill order or the runes" className={segmentedGroupClass()} data-testid="panel-tabs">
+      <div role="radiogroup" aria-label="Show the build path, the skill order or the runes" className={segmentedGroupClass("flex-wrap")} data-testid="panel-tabs">
         {PANELS.map((p) => (
           <button key={p.key} type="button" role="radio" aria-checked={panel === p.key} onClick={() => onPanel(p.key)} className={segmentClass(panel === p.key)} data-testid={`panel-${p.key}`}>
             {p.label}

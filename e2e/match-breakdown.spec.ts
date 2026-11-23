@@ -306,7 +306,9 @@ test("every player has a performance score 0–10 beside their row, one MVP on t
   expect(Number(await chart.getAttribute("data-points"))).toBeGreaterThanOrEqual(3);
   await expect(chart.getByTestId("score-chart-table").locator("tbody tr").last().locator("th")).toHaveText(/^End \(\d+:\d\d\)$/);
   // Each team's mean on one bar, the winners first, and the ten scores as tiles: a tile inspects its player.
-  await expect(panel.getByTestId("performance-teams")).toContainText(/^Victory \d+\.\d.*\d+\.\d Defeat/);
+  // In the scoreboard's order, each with its side and result in words (never a result told by the side's colour).
+  const sides = await breakdown.locator("section[data-testid^=team-]").evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")!.replace(/ team, /, " · ").replace(/victory|defeat/, (w) => w[0]!.toUpperCase() + w.slice(1))));
+  await expect(panel.getByTestId("performance-teams")).toContainText(new RegExp(`^${sides[0]} \\d+\\.\\d.*\\d+\\.\\d ${sides[1]}`));
   const tiles = panel.getByTestId("performance-tile");
   await expect(tiles).toHaveCount(10);
   const tile = panel.locator('[data-testid=performance-tile]:not([aria-current="true"])').first();
@@ -433,4 +435,40 @@ test("compare: a second player's line on the same chart and their key figures si
   const cspm = (await breakdown.getByTestId("figure-cs").innerText()).match(/(\d+\.\d) \/ min/)![1]!;
   expect(text.split(`${cspm} / min`).length - 1).toBe(1);
   await fitsWidth(page, "the comparison");
+});
+
+test("a 320px phone at 200% text: the open game, its three headings, the scoreboard and the comparison never scroll sideways or cut anything off, and every rank stays whole", async ({ page }, info) => {
+  test.skip(info.project.name !== "phone", "a phone's large text (CDP's font sizes)");
+  await page.setViewportSize({ width: 320, height: 568 });
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Page.setFontSizes", { fontSizes: { standard: 32, fixed: 26 } });
+  await openHistory(page, "MID");
+  const { breakdown } = await openGameWithTimeline(page, true);
+  /** Sideways scroll anywhere, an element cut off by a box that clips it (text ending in its own ellipsis and a segmented group's own scroll aside), and ranks shortened. */
+  const faults = () =>
+    page.evaluate(() => {
+      const out: string[] = [];
+      if (document.documentElement.scrollWidth > innerWidth + 1) out.push(`page ${document.documentElement.scrollWidth - innerWidth}px wider`);
+      for (const el of document.querySelectorAll("[data-testid=match-breakdown] *")) {
+        const b = el.getBoundingClientRect();
+        if (!b.width || el.closest(".sr-only") || el.closest("[role=radiogroup]")) continue;
+        if (b.right > innerWidth + 1 && !el.parentElement?.closest(".truncate")) out.push(`${el.tagName.toLowerCase()}[${el.getAttribute("data-testid") ?? ""}] past the screen`);
+        let p = el.parentElement;
+        while (p && !/(hidden|clip|auto|scroll)/.test(getComputedStyle(p).overflowX)) p = p.parentElement;
+        if (p && !p.classList.contains("truncate") && p.closest("[data-testid=match-breakdown]") && b.right > p.getBoundingClientRect().right + 1) out.push(`${el.tagName.toLowerCase()}[${el.getAttribute("data-testid") ?? ""}] cut off`);
+      }
+      const ranks = [...document.querySelectorAll("[data-testid=match-breakdown] [data-testid=participant-rank-text]")].filter((e) => e.scrollWidth > e.clientWidth + 1).length;
+      if (ranks) out.push(`${ranks} ranks shortened`);
+      return [...new Set(out)];
+    });
+  expect(await faults(), "the open game").toEqual([]);
+  for (const k of ["skills", "runes"]) {
+    await breakdown.getByTestId(`panel-${k}`).click();
+    expect(await faults(), k).toEqual([]);
+  }
+  await breakdown.getByTestId("participant-select").nth(6).click();
+  const compare = breakdown.getByTestId("performance-compare");
+  await pick(compare, { label: (await optionsOf(compare))[1]!.label });
+  await expect(breakdown.getByTestId("performance-compare-table")).toBeVisible();
+  expect(await faults(), "another player inspected, compared").toEqual([]);
 });

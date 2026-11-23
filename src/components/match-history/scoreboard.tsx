@@ -175,7 +175,8 @@ function RankBadge({ rank, queueId, checking }: { rank: ParticipantRank; queueId
   // It may shrink (its text then ends in an ellipsis; the whole rank is in its title and for screen
   // readers), so on a narrow phone a long rank, or the pulsing stand-in while ranks are checked, never
   // reaches into the KDA column beside it.
-  const base = "inline-flex h-4 min-w-0 items-center gap-1 rounded border px-1 text-2xs font-medium leading-4";
+  // Under 16rem (a phone at 200% text) it wraps onto a second line rather than shorten the rank.
+  const base = "inline-flex h-4 min-w-0 items-center gap-1 rounded border px-1 text-2xs font-medium leading-4 @max-[16rem]/sb:h-auto";
   if (checking && rank.state === "unknown")
     return (
       <span className={cn(base, "w-10 shrink animate-pulse border-dashed border-border motion-reduce:animate-none")} data-testid="participant-rank" data-state="checking">
@@ -188,7 +189,7 @@ function RankBadge({ rank, queueId, checking }: { rank: ParticipantRank; queueId
   return (
     <span className={cn(base, rank.state === "ranked" ? cn("border-border-strong/70", tierColour ?? "text-fg-muted") : rank.state === "unranked" ? "border-border text-fg-subtle" : "border-dashed border-border text-fg-subtle")} title={title} data-testid="participant-rank" data-state={rank.state} data-queue={rank.queue ?? undefined} data-timing={rank.timing ?? undefined}>
       {rank.state === "ranked" ? <RankEmblem tier={rank.tier} className="-ml-px h-3 w-3 shrink-0" /> : null}
-      <span aria-hidden className="min-w-0 truncate" data-testid="participant-rank-text">
+      <span aria-hidden className="min-w-0 truncate @max-[16rem]/sb:whitespace-normal" data-testid="participant-rank-text">
         {queueMark ? <span className="text-fg-subtle">{queueMark} </span> : null}
         {text}
       </span>
@@ -403,13 +404,17 @@ function CompactRow({ x, champ, group, lane, rank, queueId, checking, met, meetH
   const selected = !!selection && selection.selected === x.slot;
   const who = x.teamMember && !x.isPlayer ? x.teamMember : x.name ? x.name.split("#")[0] : c.name;
   // One grid, placed by the scoreboard's width: from 30rem one row (the portrait, the name over the
-  // champion and rank, the K/D/A, the build, CS over damage); under it two lines (the name and the
-  // K/D/A, then the build, the rank and CS with damage), the champion left to its portrait.
+  // champion and rank, the K/D/A, the build, CS over damage, the score). Under it, with the score
+  // (Release 16), three lines: the name, the K/D/A and the score; the build and CS with damage; the
+  // lane mark and the rank across the row, so the rank is never squeezed to a letter. Under 16rem (a
+  // phone at 200% text) everything stacks: the name; the K/D/A and the score; the build; the rank;
+  // CS with damage. The champion is left to its portrait under 30rem.
+  const p = (wide: string, phone: string, narrow: string) => (selection ? cn(phone, narrow, wide) : null);
   return (
     <li
       className={cn(
-        "relative grid items-center gap-x-2 gap-y-0.5 px-2.5 py-1 @min-[30rem]/sb:gap-x-3 @min-[30rem]/sb:gap-y-0 @min-[30rem]/sb:py-px",
-        selection ? "grid-cols-[auto_auto_minmax(0,1fr)_auto_auto] @min-[30rem]/sb:grid-cols-[auto_minmax(0,1fr)_auto_auto_auto_auto]" : "grid-cols-[auto_auto_minmax(0,1fr)_auto] @min-[30rem]/sb:grid-cols-[auto_minmax(0,1fr)_auto_auto_auto]",
+        "relative grid items-center gap-x-2 gap-y-0.5 px-2.5 py-1 @max-[16rem]/sb:px-1.5 @min-[30rem]/sb:gap-x-3 @min-[30rem]/sb:gap-y-0 @min-[30rem]/sb:py-px",
+        selection ? "grid-cols-[auto_minmax(0,1fr)_auto_auto] @max-[16rem]/sb:grid-cols-[auto_minmax(0,1fr)] @min-[30rem]/sb:grid-cols-[auto_minmax(0,1fr)_auto_auto_auto_auto]" : "grid-cols-[auto_auto_minmax(0,1fr)_auto] @min-[30rem]/sb:grid-cols-[auto_minmax(0,1fr)_auto_auto_auto]",
         // The links, the "Met" chip and the rank stay their own targets above the row's one button.
         selection && "transition-colors [&_[data-testid=participant-met]]:z-20 [&_[data-testid=participant-rank]]:relative [&_[data-testid=participant-rank]]:z-20 [&_a]:relative [&_a]:z-20",
         selected ? "bg-surface-3 ring-1 ring-inset ring-accent/70" : x.isPlayer ? "bg-accent/10" : selection && "hover:bg-surface-2/70",
@@ -435,11 +440,11 @@ function CompactRow({ x, champ, group, lane, rank, queueId, checking, met, meetH
         />
       ) : null}
       {group ? <span className={cn("absolute inset-y-1 left-0 w-[3px] rounded-r-full", GROUP_MARK[group.index] ?? GROUP_MARK[0])} aria-hidden /> : null}
-      <span className="relative row-span-2 shrink-0 self-center">
+      <span className={p("", "relative row-span-2 shrink-0 self-center col-start-1 row-start-1", "@max-[16rem]/sb:row-span-1") ?? "relative row-span-2 shrink-0 self-center"}>
         <ChampionPortrait champion={c} size="xs" className={cn(member && "ring-2 ring-fg-muted/70")} />
         {x.champLevel !== null ? <span className="absolute -bottom-1 -right-1 rounded bg-bg px-0.5 text-4xs font-semibold tabular-nums leading-3 text-fg-muted">{x.champLevel}</span> : null}
       </span>
-      <span className="col-span-2 flex min-w-0 items-center gap-1.5 leading-tight @min-[30rem]/sb:col-span-1 @min-[30rem]/sb:self-end">
+      <span className={p("@min-[30rem]/sb:self-end", "flex min-w-0 items-center gap-1.5 leading-tight col-start-2 row-start-1", "") ?? "col-span-2 flex min-w-0 items-center gap-1.5 leading-tight @min-[30rem]/sb:col-span-1 @min-[30rem]/sb:self-end"}>
         <span className={cn("min-w-0 truncate text-xs leading-tight @min-[30rem]/sb:text-sm @min-[30rem]/sb:leading-tight", x.isPlayer || member ? "font-semibold text-fg" : "text-fg")} title={x.name ?? undefined} data-testid="participant-name">
           <PlayerLink memberId={x.memberId} opgg={x.opgg} label={x.teamMember ?? x.name?.split("#")[0] ?? c.name}>
             {x.teamMember && !x.isPlayer ? x.teamMember : x.name ? x.name.split("#")[0] : c.name}
@@ -448,13 +453,13 @@ function CompactRow({ x, champ, group, lane, rank, queueId, checking, met, meetH
         </span>
         {met && meetHref ? <MetChip met={met} href={meetHref(met.key)} /> : null}
       </span>
-      <span className="col-start-4 row-start-1 text-right text-sm font-semibold tabular-nums text-fg @min-[30rem]/sb:col-start-3 @min-[30rem]/sb:row-span-2" data-testid="participant-kda">
+      <span className={p("@min-[30rem]/sb:col-start-3 @min-[30rem]/sb:row-span-2", "text-right text-sm font-semibold tabular-nums text-fg col-start-3 row-start-1", "@max-[16rem]/sb:col-start-1 @max-[16rem]/sb:col-span-2 @max-[16rem]/sb:row-start-2 @max-[16rem]/sb:justify-self-start") ?? "col-start-4 row-start-1 text-right text-sm font-semibold tabular-nums text-fg @min-[30rem]/sb:col-start-3 @min-[30rem]/sb:row-span-2"} data-testid="participant-kda">
         {x.kills}/{x.deaths}/{x.assists}
       </span>
-      <span className="col-start-2 row-start-2 [--icon-size:1rem] @min-[30rem]/sb:col-start-4 @min-[30rem]/sb:row-span-2 @min-[30rem]/sb:row-start-1 @min-[30rem]/sb:[--icon-size:1.25rem]" data-testid="participant-items">
+      <span className={p("@min-[30rem]/sb:col-start-4 @min-[30rem]/sb:row-span-2 @min-[30rem]/sb:row-start-1 @min-[30rem]/sb:[--icon-size:1.25rem]", "min-w-0 col-start-2 row-start-2 [--icon-size:1rem]", "@max-[16rem]/sb:col-start-1 @max-[16rem]/sb:col-span-2 @max-[16rem]/sb:row-start-3 @max-[16rem]/sb:[&>[role=img]]:flex-wrap") ?? "col-start-2 row-start-2 [--icon-size:1rem] @min-[30rem]/sb:col-start-4 @min-[30rem]/sb:row-span-2 @min-[30rem]/sb:row-start-1 @min-[30rem]/sb:[--icon-size:1.25rem]"} data-testid="participant-items">
         <ItemRow items={x.items} size={20} />
       </span>
-      <span className="col-start-3 row-start-2 flex min-w-0 items-center gap-1 text-2xs leading-tight text-fg-muted @min-[30rem]/sb:col-start-2 @min-[30rem]/sb:self-start">
+      <span className={p("@min-[30rem]/sb:col-span-1 @min-[30rem]/sb:col-start-2 @min-[30rem]/sb:row-start-2 @min-[30rem]/sb:self-start", "flex min-w-0 items-center gap-1 text-2xs leading-tight text-fg-muted col-start-2 col-span-3 row-start-3 empty:hidden", "@max-[16rem]/sb:col-start-1 @max-[16rem]/sb:col-span-2 @max-[16rem]/sb:row-start-4 @max-[16rem]/sb:flex-wrap") ?? "col-start-3 row-start-2 flex min-w-0 items-center gap-1 text-2xs leading-tight text-fg-muted @min-[30rem]/sb:col-start-2 @min-[30rem]/sb:self-start"}>
         <span className="hidden truncate @min-[30rem]/sb:inline">{c.name}</span>
         {lane ? (
           <span className="shrink-0 rounded border border-border px-1 leading-4 text-fg-muted" data-testid="lane-opponent-mark">
@@ -463,7 +468,7 @@ function CompactRow({ x, champ, group, lane, rank, queueId, checking, met, meetH
         ) : null}
         {rank ? <RankBadge rank={rank} queueId={queueId} checking={checking && rank.stale} /> : null}
       </span>
-      <span className={cn("col-start-4 row-start-2 whitespace-nowrap text-right text-2xs leading-tight tabular-nums text-fg-muted @min-[30rem]/sb:col-start-5 @min-[30rem]/sb:row-span-2 @min-[30rem]/sb:row-start-1 @min-[30rem]/sb:w-16", selection && "col-span-2 @min-[30rem]/sb:col-span-1")} data-testid="participant-cs">
+      <span className={p("@min-[30rem]/sb:col-span-1 @min-[30rem]/sb:col-start-5 @min-[30rem]/sb:row-span-2 @min-[30rem]/sb:row-start-1 @min-[30rem]/sb:w-16", "whitespace-nowrap text-right text-2xs leading-tight tabular-nums text-fg-muted col-start-3 col-span-2 row-start-2", "@max-[16rem]/sb:col-start-1 @max-[16rem]/sb:col-span-2 @max-[16rem]/sb:row-start-5 @max-[16rem]/sb:text-left") ?? "col-start-4 row-start-2 whitespace-nowrap text-right text-2xs leading-tight tabular-nums text-fg-muted @min-[30rem]/sb:col-start-5 @min-[30rem]/sb:row-span-2 @min-[30rem]/sb:row-start-1 @min-[30rem]/sb:w-16"} data-testid="participant-cs">
         <span className="font-medium text-fg">{intText(x.cs)}</span> CS
         <span className="@max-[30rem]/sb:hidden">
           <br />
@@ -472,9 +477,9 @@ function CompactRow({ x, champ, group, lane, rank, queueId, checking, met, meetH
         <span className="font-medium text-fg">{x.damage === null ? "—" : formatKilo(x.damage)}</span>
         <span className="@max-[30rem]/sb:hidden"> dmg</span>
       </span>
-      {/* On a phone the score sits on the first line beside the K/D/A (CS and damage take the line under both); from 30rem its own column over both lines. */}
+      {/* On a phone the score sits on the first line beside the K/D/A (CS and damage under both); from 30rem its own column over both lines. */}
       {selection ? (
-        <span className="col-start-5 row-start-1 self-center justify-self-end @min-[30rem]/sb:col-start-6 @min-[30rem]/sb:row-span-2">
+        <span className="col-start-4 row-start-1 self-center justify-self-end @max-[16rem]/sb:col-start-1 @max-[16rem]/sb:col-span-2 @max-[16rem]/sb:row-start-2 @min-[30rem]/sb:col-start-6 @min-[30rem]/sb:row-span-2">
           <RowScore score={selection.score(x.slot)} scoring={selection.scoring} scored={selection.scored} />
         </span>
       ) : null}

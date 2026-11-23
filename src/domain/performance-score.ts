@@ -10,8 +10,10 @@
     lane against the lane opponent at 10:00 and 15:00 where the timeline confirms it).
   - Within the match: a figure becomes a z-score against the game's other players (its mean and
     spread), clamped to ±2.5 so one extreme figure cannot carry a game alone. Where the player's
-    lane opponent is known, 60% of it is the comparison with that opponent instead (role-relative):
-    a support's CS is measured mostly against the other support, not against the carries.
+    lane opponent is known, 40% of it is the comparison with that opponent instead (role-relative),
+    that part bounded to ±0.5 (COUNTERPART_CLAMP): a support's CS is measured partly against the
+    other support, not only against the carries, and an opponent's outstanding game cannot alone
+    sink an ordinary one (v2, 23 Nov 2026; v1 had 60% bounded to ±2.5).
   - Per role: each role weighs the components differently (ROLE_WEIGHTS: supports on vision, wards,
     kill participation, crowd control and protecting their team; carries on damage and farm;
     junglers on objectives and kill participation). ARAM has weights of its own (no lanes, no farm,
@@ -30,7 +32,7 @@
   game. A removed player (personal data erased) is not scored and is not part of the comparison.
 */
 
-export const SCORE_VERSION = "v1";
+export const SCORE_VERSION = "v2";
 
 export type ScoreMode = "rift" | "aram";
 /** Riot's positions as the score reads them (domain/match-analysis LANE_ORDER), or no recorded position. */
@@ -66,7 +68,7 @@ export const COMPONENTS: Record<ComponentKey, { label: string; high: string; low
  */
 export const ROLE_WEIGHTS: Record<WeightSet, Record<ComponentKey, number>> = {
   //        kp   kda  deaths damage tanking farm gold vision wards objectives turrets cc   protect lane
-  TOP: { kp: 0.7, kda: 0.9, deaths: 0.8, damage: 1.2, tanking: 1.0, farm: 1.1, gold: 0.8, vision: 0.4, wards: 0.2, objectives: 0.6, turrets: 0.8, cc: 0.4, protect: 0.1, lane: 1.1 },
+  TOP: { kp: 0.5, kda: 0.8, deaths: 0.8, damage: 1.2, tanking: 1.3, farm: 1.2, gold: 0.8, vision: 0.3, wards: 0.2, objectives: 0.6, turrets: 0.8, cc: 0.5, protect: 0.1, lane: 1.1 },
   JUNGLE: { kp: 1.4, kda: 1.0, deaths: 0.8, damage: 0.8, tanking: 0.6, farm: 0.7, gold: 0.6, vision: 0.8, wards: 0.5, objectives: 1.5, turrets: 0.4, cc: 0.5, protect: 0.1, lane: 0.6 },
   MIDDLE: { kp: 1.1, kda: 1.0, deaths: 0.8, damage: 1.4, tanking: 0.3, farm: 1.1, gold: 0.8, vision: 0.5, wards: 0.3, objectives: 0.4, turrets: 0.5, cc: 0.4, protect: 0.1, lane: 1.0 },
   BOTTOM: { kp: 1.0, kda: 1.0, deaths: 0.9, damage: 1.5, tanking: 0.2, farm: 1.2, gold: 0.9, vision: 0.4, wards: 0.2, objectives: 0.5, turrets: 0.7, cc: 0.2, protect: 0.1, lane: 1.0 },
@@ -78,7 +80,9 @@ export const ROLE_WEIGHTS: Record<WeightSet, Record<ComponentKey, number>> = {
 /** A z-score's bound: one figure far from the rest moves a score, but cannot decide it alone. */
 export const Z_CLAMP = 2.5;
 /** The share of a role-relative component that is the comparison with the lane opponent (the rest is the match). */
-export const COUNTERPART_SHARE = 0.6;
+export const COUNTERPART_SHARE = 0.4;
+/** How far the comparison with the lane opponent alone can pull a component, in z units (the match part keeps ±Z_CLAMP). */
+export const COUNTERPART_CLAMP = 0.5;
 /** The result's step, in the weighted mean's units (z-scores): a win adds it, a loss takes it away. */
 export const OUTCOME_STEP = 0.1;
 /** The logistic curve's slope: a weighted mean of +1 (a game a standard deviation above the match on everything weighed) is 8.3. */
@@ -288,7 +292,7 @@ export function scoreMatch(inputs: readonly ScoreInput[], ctx: ScoreContext, tea
     const c = p.counterpart !== null && !MATCH_ONLY.has(key) ? row.get(p.counterpart) : undefined;
     if (c === undefined) return zMatch;
     // The difference of two players' figures has √2 times the spread of one.
-    const zLane = clamp((v - c) / (sd * Math.SQRT2), -Z_CLAMP, Z_CLAMP);
+    const zLane = clamp((v - c) / (sd * Math.SQRT2), -COUNTERPART_CLAMP, COUNTERPART_CLAMP);
     return (1 - COUNTERPART_SHARE) * zMatch + COUNTERPART_SHARE * zLane;
   };
   const decided = inputs.some((p) => p.win) && inputs.some((p) => !p.win);
@@ -363,6 +367,32 @@ export interface TimelinePoint {
   final: boolean;
 }
 
+/**
+ * The damping minutes (v2): a moment's weighted mean is multiplied by minutes ÷ (minutes + this)
+ * before the curve, so early points, read from a handful of kills and a few minutes of farm, sit
+ * near 5 and come into their own as the game goes on: on the Rift 0.38 at 5:00, 0.56 at 10:00, 0.65
+ * at 15:00, 0.76 at 25:00; on ARAM (five minutes) 0.38 at 3:00, 0.55 at 6:00. Only the moment's own
+ * minutes are read, never the game's length or its final figures. The final point is never damped.
+ */
+export const DAMPING_MINUTES: Record<ScoreMode, number> = { rift: 8, aram: 5 };
+
+/**
+ * The share of a player's final weighting a moment reads (v2): the weights of the components it
+ * could use over those of the final score's. A moment before the end reads only kills, deaths,
+ * assists, farm, gold and the lane, so a support's point (judged mostly on vision, wards, crowd
+ * control and protecting the team at the end) is shrunk further toward 5 than a carry's.
+ */
+export function coverageOf(at: Pick<PlayerScore, "used" | "weights">, final: Pick<PlayerScore, "used" | "weights"> | undefined): number {
+  if (!final) return 0;
+  const w = ROLE_WEIGHTS[final.weights];
+  const sum = (keys: readonly ComponentKey[]) => keys.reduce((n, k) => n + w[k], 0);
+  const whole = sum(final.used);
+  return whole > 0 ? Math.min(1, sum(at.used) / whole) : 0;
+}
+
+/** How much a moment's evidence counts, from 0 to 1 (DAMPING_MINUTES). */
+export const evidenceAt = (mode: ScoreMode, minutes: number) => (minutes > 0 ? minutes / (minutes + DAMPING_MINUTES[mode]) : 0);
+
 /** Minutes between a timeline's points: five on Summoner's Rift, three on ARAM's shorter games. */
 export const timelineStep = (mode: ScoreMode) => (mode === "aram" ? 3 : 5);
 
@@ -407,6 +437,7 @@ export function timelineScores(inputs: readonly ScoreInput[], timeline: { t: rea
   const { t } = timeline;
   if (!final || !t.length) return null;
   const by = new Map(timeline.players.map((p) => [p.slot, p]));
+  const finalBy = new Map(final.players.map((p) => [p.slot, p]));
   const end = t[t.length - 1]!;
   const step = timelineStep(ctx.mode) * 60_000;
   // Every scored player's kills on the timeline, or no kill figure at any moment (a team's kills would be short).
@@ -439,9 +470,12 @@ export function timelineScores(inputs: readonly ScoreInput[], timeline: { t: rea
         laneDiff: ctx.mode === "rift" && f && them ? laneValue(t, f, them, ms) : null,
       };
     });
-    const scores = scoreMatch(at, { mode: ctx.mode, minutes: ms / 60_000, outcome: false });
+    const minutes = ms / 60_000;
+    const scores = scoreMatch(at, { mode: ctx.mode, minutes, outcome: false });
     if (!scores || !scores.components.length) continue;
-    points.push({ minute: ms / 60_000, scores: Object.fromEntries(scores.players.map((p) => [p.slot, p.score])), components: scores.components, final: false });
+    // Damped toward the game's average by how much of the game had been played (evidenceAt).
+    const e = evidenceAt(ctx.mode, minutes);
+    points.push({ minute: minutes, scores: Object.fromEntries(scores.players.map((p) => [p.slot, toTen(p.raw * e * coverageOf(p, finalBy.get(p.slot)))])), components: scores.components, final: false });
   }
   points.push({ minute: ctx.durationMinutes, scores: Object.fromEntries(final.players.map((p) => [p.slot, p.score])), components: final.components, final: true });
   return points;
