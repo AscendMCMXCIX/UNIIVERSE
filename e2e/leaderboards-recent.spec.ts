@@ -824,7 +824,9 @@ test("on a phone: one column, the index of the sections below Recent form jumpin
     const [name, kinds, score, games, avatar] = (await Promise.all([row.getByTestId("board-member-name"), row.getByTestId("multikill-kinds"), row.getByTestId("multikill-score"), row.getByTestId("multikill-games"), row.locator("[data-avatar-frame]")].map(async (l) => (await l.boundingBox())!))) as [Box, Box, Box, Box, Box];
     expect(kinds.y, "the kinds under the name").toBeGreaterThanOrEqual(name.y + name.height - 1);
     expect(score.x, "the score at the row's end").toBeGreaterThan(name.x + name.width - 1);
-    expect(Math.abs(score.y - name.y), "the score level with the name").toBeLessThanOrEqual(4);
+    // The score and its games centred on the row, as the place and the picture are (a row whose kinds wrap is a line taller).
+    const rowBox = (await row.boundingBox())!;
+    expect(Math.abs((score.y + games.y + games.height) / 2 - (rowBox.y + rowBox.height / 2)), "the score and its games centred on the row").toBeLessThanOrEqual(3);
     expect(games.y, "its games under the score").toBeGreaterThanOrEqual(score.y + score.height - 1);
     expect(avatar.x + avatar.width, "the picture before the name").toBeLessThanOrEqual(name.x + 1);
   }

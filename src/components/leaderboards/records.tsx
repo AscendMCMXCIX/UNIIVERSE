@@ -275,14 +275,16 @@ function RecordPicture({ record, holder, champion }: { record: RecordView; holde
 /**
  * Place · picture · name over kinds · score over games. Under 20rem (a phone at a large text size)
  * the place, the picture and the score with its games take the first line, and the name and the
- * kinds each the row's whole width under them, so no name is squeezed to a letter a line.
+ * kinds each the row's whole width under them, so no name is squeezed to a letter a line; under
+ * 14rem (a 320px phone at 175–200% text) the score and its games take a line of their own under the
+ * name, the place and the picture alone on the first.
  */
 const MULTI_COLS = "[--dl-cols:1.75rem_2rem_minmax(0,1fr)_auto] @max-[20rem]/list:[--dl-cols:1.75rem_2rem_minmax(0,1fr)]";
 const NARROW = {
   lead: "row-[1/span_2] @max-[20rem]/list:row-[1/2]",
-  score: "col-[4/5] row-[1/span_2] flex-col items-end text-right @max-[20rem]/list:col-[3/4] @max-[20rem]/list:row-[1/2] @max-[20rem]/list:flex-row @max-[20rem]/list:flex-wrap @max-[20rem]/list:items-baseline @max-[20rem]/list:gap-x-1.5 @max-[20rem]/list:text-left",
+  score: "col-[4/5] row-[1/span_2] flex-col items-end text-right @max-[20rem]/list:col-[3/4] @max-[20rem]/list:row-[1/2] @max-[20rem]/list:flex-row @max-[20rem]/list:flex-wrap @max-[20rem]/list:items-baseline @max-[20rem]/list:gap-x-1.5 @max-[20rem]/list:text-left @max-[14rem]/list:col-[1/-1] @max-[14rem]/list:row-[3/4]",
   name: "col-[3/4] @max-[20rem]/list:col-[1/-1] @max-[20rem]/list:row-[2/3]",
-  kinds: "col-[3/4] row-[2/3] @max-[20rem]/list:col-[1/-1] @max-[20rem]/list:row-[3/4]",
+  kinds: "col-[3/4] row-[2/3] @max-[20rem]/list:col-[1/-1] @max-[20rem]/list:row-[3/4] @max-[14rem]/list:row-[4/5]",
 };
 /** The tiles: two by two, a row of four from a 30rem panel, one column under 14rem (large text); a hairline between neighbours. */
 const MOST_GRID = "grid grid-cols-2 @max-[14rem]/list:grid-cols-1 @min-[30rem]/list:grid-cols-4";
@@ -314,7 +316,7 @@ export function Multikills({ records, player, className }: { records: RecordsVie
                 {records.multikillShort ? (
                   <>
                     &nbsp;·{" "}
-                    <span className="whitespace-nowrap" data-testid="multikill-short">
+                    <span className="@min-[20rem]/list:whitespace-nowrap" data-testid="multikill-short">
                       {records.multikillShort}
                     </span>
                   </>
