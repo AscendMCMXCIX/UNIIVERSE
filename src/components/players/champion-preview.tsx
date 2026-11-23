@@ -324,7 +324,7 @@ export function PreviewContent({ playerId, isOwn, card, otherRoles, vs, champ, d
     </section>
   );
   const foot = preview ? (
-    <p className={cn("text-xs text-fg-subtle", compact && "border-t border-border/60 pt-3")} data-testid="champion-preview-foot">
+    <p className="border-t border-border/60 pt-3 text-xs text-fg-subtle" data-testid="champion-preview-foot">
       {opponentFootLine({ isOwn, known: preview.known, games: preview.games })}
     </p>
   ) : null;
@@ -385,13 +385,13 @@ export function PreviewContent({ playerId, isOwn, card, otherRoles, vs, champ, d
   );
 }
 
-function OpponentRow({ grid, o, withRate, open, me, champ, card, isOwn, data, onToggle, onMatch, playerId }: { /** In the list's grid of opponents (under its row): each row draws its own rule. */ grid: boolean; o: OpponentTally; withRate: boolean; open: boolean; me: PortraitChampion; champ: (id: string) => PortraitChampion; card: OverviewCard; isOwn: boolean; data: ReturnType<typeof usePreviewData>; onToggle: () => void; onMatch: (matchId: string) => void; playerId: string }) {
+function OpponentRow({ grid, o, withRate, open, me, champ, card, isOwn, data, onToggle, onMatch, playerId }: { /** In the list's grid of opponents (under its row): each row draws its own rule above it, but the first row (one or two opponents). */ grid: boolean; o: OpponentTally; withRate: boolean; open: boolean; me: PortraitChampion; champ: (id: string) => PortraitChampion; card: OverviewCard; isOwn: boolean; data: ReturnType<typeof usePreviewData>; onToggle: () => void; onMatch: (matchId: string) => void; playerId: string }) {
   const them = champ(o.championId);
   const rate = o.wins / o.games;
   const toned = o.games >= OPPONENT_TONED_GAMES;
   const panelId = `opponent-${playerId.slice(0, 8)}-${o.championId}`;
   return (
-    <li className={grid ? "border-b border-border/60" : undefined} data-testid="champion-preview-opponent" data-champion={o.championId} data-games={o.games}>
+    <li className={grid ? "border-t border-border/60 first:border-t-0 @min-[50rem]/opp:nth-2:border-t-0" : undefined} data-testid="champion-preview-opponent" data-champion={o.championId} data-games={o.games}>
       <button type="button" aria-expanded={open} aria-controls={open ? panelId : undefined} onClick={onToggle} className="flex min-h-[2.875rem] w-full items-center gap-2.5 py-1.5 text-left transition-colors hover:bg-surface-2/50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent">
         <ChampionPortrait champion={them} size="sm" className="h-7 w-7 shrink-0 rounded-md" />
         <span className="min-w-0 flex-1 truncate text-sm font-medium text-fg">{them.name}</span>
