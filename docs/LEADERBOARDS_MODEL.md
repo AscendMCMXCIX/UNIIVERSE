@@ -178,13 +178,17 @@ expected of a record.
     that never counts one twice) while they cannot tell; the board shows each multikill once.
   - **Reliability:** a comparison of at least 1,000 games, else the team's own games (said so); a
     role's rates lean toward every position's by 200 games, a champion's toward its role's by 50; a
-    cushion of 20 kill points (ten usual double kills) keeps a score with few games near 100, chosen
-    by a seeded simulation so members with few games neither top the board out of proportion nor are
-    held back. The ⓘ says how far chance alone moves a score over 50 and 300 games.
+    cushion of 40 kill points (twenty usual double kills) pulls a score with few games toward 100,
+    chosen by simulation (round 3: against 20, 30 and 60) so members with few games neither top the
+    board out of proportion nor are held back on realistic boards. The ⓘ says how far luck alone
+    moves a score over 50 and 300 games, and within how many points two scores could swap by luck.
+  - **The trade-off:** a pentakill counts as 2.5 doubles (its kills), so over many games a score is
+    mostly doubles and triples; "Most pentas" keeps pentakills recognised.
   - **Places:** 20 games with counts for a place, 10–19 provisional (listed after), fewer no score;
     the same statuses Recent form uses.
   - **Records of their own:** the most of each kind (each multikill once, every holder of a shared
     one), so a member can chase pentakills whatever the score says.
+  - **One count everywhere:** the profiles show the same once-each counts as the board (round 3).
   - **The reason behind a score:** the player Peek a row opens shows each kind made against its
     usual and the score's spread by chance, on every device.
 - **Champion milestones**, under their own "Milestones" heading ("Lifetime and milestones" until 19 Nov 2026):

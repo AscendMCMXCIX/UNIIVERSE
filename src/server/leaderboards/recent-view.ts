@@ -425,13 +425,16 @@ function multikillsView(data: LeaderboardData, season: number, ctx: BoardContext
       : "Riot's own counters count them the same way.";
   const compared =
     source === "same-games"
-      ? `What it is: each member's multikills per game against what the other players in the same games made on the same roles and champions (allies and opponents, never a team member: ${formatCount(baseline.all.games)} of their games). 100 is usual; 130 is 30% more.`
+      ? `What it is: each member's multikills per game against what the other players in the same games made on the same roles and champions (allies and opponents, never a team member: ${formatCount(baseline.all.games)} of their games). 100 is usual; 130 is about 30% more.`
       : "What it is: too few other players' games are stored for a fair comparison yet, so each member's multikills per game are compared with the whole team's, every role together (not adjusted for role or champion). 100 is the team's usual.";
-  const at = (n: number) => formatCount(Math.max(1, Math.round(typicalChance(baseline, n) ?? 0)));
+  const chanceAt = (n: number) => typicalChance(baseline, n) ?? 0;
+  const at = (n: number) => formatCount(Math.max(1, Math.round(chanceAt(n))));
+  // Two members' scores can swap by luck within about √2 × one score's spread (the spread of their difference), over 50 games each.
+  const swap = formatCount(Math.max(1, Math.round(Math.SQRT2 * chanceAt(50))));
   const explain = [
     compared,
     `How it counts: each multikill once, at its largest, worth its kills (a double kill 2, a pentakill 5), so rarer kinds count for more. ${counting}`,
-    `How sure it is: with few games a score stays near 100. By chance alone it moves about ±${at(50)} over 50 games and ±${at(300)} over 300 (more for roles that make fewer multikills, like support), so closer scores are close. A place needs ${formatCount(MULTIKILL_RANKED_GAMES)} games with multikill counts; ${formatCount(MULTIKILL_PROVISIONAL_GAMES)}–${formatCount(MULTIKILL_RANKED_GAMES - 1)} are provisional.`,
+    `How sure it is: luck alone moves a score by about ±${at(50)} over 50 games and ±${at(300)} over 300 (more for roles that make fewer multikills, like support), so two scores within about ${swap} of each other could swap by luck. With few games a score leans toward 100, so a short record can't top the board on one lucky run. A place needs ${formatCount(MULTIKILL_RANKED_GAMES)} games with multikill counts; ${formatCount(MULTIKILL_PROVISIONAL_GAMES)}–${formatCount(MULTIKILL_RANKED_GAMES - 1)} are provisional.`,
   ];
   return {
     rows,

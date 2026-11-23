@@ -177,13 +177,13 @@ describe("the multikill board on the fixed team", () => {
     each multikill once at its largest (fewer than 20 games with a triple: nested assumed): 30
     doubles, 4 triples, 1 quadra, 1 penta. Ash's 26 games expect 25.2, 3.4, 0.8, 0.8 (67.9 kill
     points); Ash made 27 doubles and the pentakill (59 points: Riot's counters, nested, also hold
-    that pentakill's double, triple and quadra) → 100 × (59 + 20) ÷ (67.9 + 20) = 90, ±15 by chance.
+    that pentakill's double, triple and quadra) → 100 × (59 + 40) ÷ (67.9 + 40) = 92, ±12 by chance.
   */
-  it("ranks Ash (26 games: score 90, each multikill once in words); Bo and Cy, under 10 games with counts, have no score", () => {
+  it("ranks Ash (26 games: score 92, each multikill once in words); Bo and Cy, under 10 games with counts, have no score", () => {
     const m = records("bo").multikills;
     expect(m.source).toBe("team");
     expect(m.rows.map((r) => [r.playerId, r.status, r.place, r.score, r.gamesText])).toEqual([
-      ["ash", "ranked", 1, "90", "26 games"],
+      ["ash", "ranked", 1, "92", "26 games"],
       ["bo", "not-enough", null, null, "3 games"],
       ["cy", "not-enough", null, null, "2/3 games"],
     ]);
@@ -193,12 +193,12 @@ describe("the multikill board on the fixed team", () => {
     expect(ash.counts).toEqual({ double: 27, triple: 0, quadra: 0, penta: 1 });
     expect(ash.riot).toEqual({ double: 28, triple: 1, quadra: 1, penta: 1 });
     expect(ash.kinds.map((k) => k.text)).toEqual(["1 penta", "27 doubles"]);
-    expect(ash.breakdown).toBe("Score 90 from 26 games, give or take about 15 by chance. Each multikill once, at its largest, with the number usual at the team's rate in brackets: 27 doubles (25), no triples (3.4), no quadras (0.8), 1 penta (0.8).");
+    expect(ash.breakdown).toBe("Score 92 from 26 games, give or take about 12 by chance. Each multikill once, at its largest, with the number usual at the team's rate in brackets: 27 doubles (25), no triples (3.4), no quadras (0.8), 1 penta (0.8).");
     expect(ash.detail).toEqual({
-      score: "90",
+      score: "92",
       status: "ranked",
       gamesText: "26 games",
-      chance: "±15",
+      chance: "±12",
       kinds: [
         { key: "double", label: "Doubles", made: "27", usual: "25" },
         { key: "triple", label: "Triples", made: "0", usual: "3.4" },
@@ -232,7 +232,10 @@ describe("the multikill board on the fixed team", () => {
     expect(m.explain).toHaveLength(3);
     expect(m.explain[0]).toContain("not adjusted for role or champion");
     expect(m.explain[1]).toBe("How it counts: each multikill once, at its largest, worth its kills (a double kill 2, a pentakill 5), so rarer kinds count for more. Riot's own counters may also count a big multikill's smaller ones; this board assumes they do, so none counts twice.");
-    expect(m.explain[2]).toMatch(/^How sure it is: with few games a score stays near 100\. By chance alone it moves about ±\d+ over 50 games and ±\d+ over 300 \(more for roles that make fewer multikills, like support\), so closer scores are close\. A place needs 20 games with multikill counts; 10–19 are provisional\.$/);
+    expect(m.explain[2]).toMatch(/^How sure it is: luck alone moves a score by about ±(\d+) over 50 games and ±\d+ over 300 \(more for roles that make fewer multikills, like support\), so two scores within about (\d+) of each other could swap by luck\. With few games a score leans toward 100, so a short record can't top the board on one lucky run\. A place needs 20 games with multikill counts; 10–19 are provisional\.$/);
+    // The swap range is the spread of two scores' difference: about √2 × one score's.
+    const [, one, two] = /about ±(\d+) over 50.*within about (\d+) of each other/.exec(m.explain[2]!)!;
+    expect(Math.abs(Number(two) - Math.SQRT2 * Number(one))).toBeLessThanOrEqual(1.5);
   });
 
   it("compares with the other players in the same games once they hold 1,000 games, saying how many of their games", () => {
@@ -241,7 +244,7 @@ describe("the multikill board on the fixed team", () => {
     const m = buildLeaderboardsView(fixture(), {}, null, { now: NOW, multikillBaseline }).records.multikills;
     expect(m.source).toBe("same-games");
     expect(m.basis).toBe("Per game, against the same roles and champions · 100 is usual");
-    expect(m.explain[0]).toBe("What it is: each member's multikills per game against what the other players in the same games made on the same roles and champions (allies and opponents, never a team member: 12,000 of their games). 100 is usual; 130 is 30% more.");
+    expect(m.explain[0]).toBe("What it is: each member's multikills per game against what the other players in the same games made on the same roles and champions (allies and opponents, never a team member: 12,000 of their games). 100 is usual; 130 is about 30% more.");
     expect(m.explain[1]).toContain("Riot's own counters also count a pentakill's double, triple and quadra; this board counts and shows each multikill once.");
     // Ash's 25 Riven games are top games, the Zed game a mid game: every game compared within its role.
     expect(m.rows[0]!.breakdown).toMatch(/^Score \d+ from 26 games, give or take about \d+ by chance\. Each multikill once, at its largest, with the number usual for their roles and champions in brackets: /);

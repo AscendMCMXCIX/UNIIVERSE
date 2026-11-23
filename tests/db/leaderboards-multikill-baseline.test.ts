@@ -6,6 +6,9 @@ import { currentSeason } from "@/server/accounts/sync";
 import { createPlayer, getOrCreateTeam } from "@/server/repositories/team";
 import { invalidateLeaderboardCache, loadLeaderboardData } from "@/server/leaderboards/service";
 import { invalidateMultikillBaselineCache, loadMultikillBaseline } from "@/server/leaderboards/multikill-baseline";
+import { invalidateMultikillCountingCache, loadCountingReading } from "@/server/accounts/multikill-counting";
+import { getPlayerOverview } from "@/server/players/overview";
+import { getPlayer } from "@/server/repositories/team";
 import { buildLeaderboardsView, recordsSeason } from "@/server/leaderboards/recent-view";
 import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
@@ -67,6 +70,7 @@ beforeAll(async () => {
   await db.insert(matchDetails).values(details);
   invalidateLeaderboardCache();
   invalidateMultikillBaselineCache();
+  invalidateMultikillCountingCache();
 }, 60_000);
 afterAll(async () => {
   await handle.close();
@@ -108,5 +112,19 @@ describe("the multikill comparison on stored records", () => {
     expect(ash.breakdown).toContain("no triples (");
     // Nothing of any other player reaches the page: no PUUID, no name.
     expect(JSON.stringify(view)).not.toMatch(/other-|puuid/);
+  });
+
+  it("reads Riot's counting once for every page, from the linked players' own games (two counts), so the profile shows the board's counts", async () => {
+    invalidateMultikillCountingCache();
+    // Bo's 35 games with nested counters {9, 9, 9, 9} and Ash's pentakill game: 36 games with a triple, none out of the nested order.
+    expect(await loadCountingReading(handle.db)).toEqual({ rule: "nested", shown: true, evidence: { withTriple: 36, outOfOrder: 0 } });
+    const data = await loadLeaderboardData(handle.db, teamId);
+    const board = buildLeaderboardsView(data, {}, null, { multikillBaseline: await loadMultikillBaseline(handle.db, teamId, data, season) }).records.multikills;
+    const ash = board.rows.find((r) => r.playerId === id.Ash)!;
+    const player = (await getPlayer(handle.db, id.Ash!))!;
+    const overview = await getPlayerOverview(handle.db, player, { mode: "all", now: new Date(NOW), riotConfigured: false });
+    const { double, triple, quadra, penta } = overview.summary.multikills;
+    expect({ double, triple, quadra, penta }).toEqual(ash.counts);
+    expect(ash.counts).toEqual({ double: 47, triple: 0, quadra: 0, penta: 1 });
   });
 });

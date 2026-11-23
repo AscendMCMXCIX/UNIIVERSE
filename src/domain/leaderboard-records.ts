@@ -240,7 +240,7 @@ export function buildMultikillBoard(input: { games: readonly LeaderboardGame[]; 
   const members = new Set(input.playerIds);
   const games = seasonGames(input.games, input.season).filter((g) => members.has(g.playerId));
   const scored = games.map((g) => ({ g, counts: multikillCountsOf(g) }));
-  const baseline = input.baseline && input.baseline.all.games >= BASELINE_MIN_GAMES ? input.baseline : teamBaseline(scored.map(({ g, counts }) => ({ counts, largest: typeof g.extra?.largestMultiKill === "number" ? g.extra.largestMultiKill : null })));
+  const baseline = input.baseline && input.baseline.all.games >= BASELINE_MIN_GAMES ? input.baseline : teamBaseline(scored.map(({ g, counts }) => ({ counts, largest: typeof g.extra?.largestMultiKill === "number" ? g.extra.largestMultiKill : null })), input.baseline?.reading);
   const byPlayer = new Map<string, typeof scored>();
   for (const x of scored) {
     const list = byPlayer.get(x.g.playerId);

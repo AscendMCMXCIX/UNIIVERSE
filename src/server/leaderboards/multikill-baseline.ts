@@ -3,6 +3,7 @@ import type { Db } from "@/server/db/types";
 import { registerLocalCache } from "@/server/observability/cache";
 import { seasonGames } from "@/domain/leaderboard-records";
 import { buildMultikillBaseline, type BaselineRow, type MultikillBaseline } from "@/domain/multikill-score";
+import { loadCountingReading } from "@/server/accounts/multikill-counting";
 import type { LeaderboardData } from "./service";
 
 /*
@@ -11,8 +12,9 @@ import type { LeaderboardData } from "./service";
   a team member, never a removed player), as aggregates only. One statement over the season's stored
   match records, the very games the season records count (seasonGames), answered as about one row
   per position and champion (each a short array: position, champion, games, and the multikills under
-  both readings of Riot's counters) plus two counts that tell how Riot counts. No PUUID, name or game
-  leaves the database; nothing about any one player is kept.
+  both readings of Riot's counters). How Riot counts is read once for every page that shows
+  multikills (server/accounts/multikill-counting), so the board and the profiles agree. No PUUID,
+  name or game leaves the database; nothing about any one player is kept.
 
   Cost: the records' participants are unpacked once per computation (a few hundred ms of database
   time for a season of a few thousand records, measured in docs/TEAM_LEADERBOARDS.md), and the answer
@@ -54,12 +56,13 @@ export async function loadMultikillBaseline(db: Db, teamId: string, data: Pick<L
   const id = `${teamId}|${season}`;
   const hit = cache.get(id);
   if (hit && now - hit.at < MAX_AGE_MS && (hit.key === key || now - hit.at < REFRESH_AFTER_MS)) return hit.baseline;
-  const baseline = matchIds.length ? await readBaseline(db, matchIds, data.memberPuuids ?? []) : buildMultikillBaseline([], { withTriple: 0, outOfOrder: 0 });
+  const reading = await loadCountingReading(db);
+  const baseline = buildMultikillBaseline(matchIds.length ? await readBaseline(db, matchIds, data.memberPuuids ?? []) : [], reading.evidence);
   cache.set(id, { key, at: now, baseline });
   return baseline;
 }
 
-async function readBaseline(db: Db, matchIds: readonly string[], memberPuuids: readonly string[]): Promise<MultikillBaseline> {
+async function readBaseline(db: Db, matchIds: readonly string[], memberPuuids: readonly string[]): Promise<BaselineRow[]> {
   const ids = JSON.stringify(matchIds);
   const members = JSON.stringify(memberPuuids);
   const counter = (k: string) => sql.raw(`(x->'stats'->>'${k}')::int`);
@@ -71,8 +74,7 @@ async function readBaseline(db: Db, matchIds: readonly string[], memberPuuids: r
       WITH p AS (
         SELECT x->>'position' AS position, x->>'championId' AS champion,
           coalesce(x->>'puuid', '') IN (SELECT jsonb_array_elements_text(${members}::jsonb)) AS member,
-          ${counter("doubleKills")} AS d, ${counter("tripleKills")} AS t, ${counter("quadraKills")} AS q, ${counter("pentaKills")} AS pk,
-          CASE WHEN jsonb_typeof(x->'stats'->'largestMultiKill') = 'number' THEN ${counter("largestMultiKill")} END AS l
+          ${counter("doubleKills")} AS d, ${counter("tripleKills")} AS t, ${counter("quadraKills")} AS q, ${counter("pentaKills")} AS pk
         FROM (SELECT DISTINCT value AS match_id FROM jsonb_array_elements_text(${ids}::jsonb)) g
         JOIN match_details md ON md.match_id = g.match_id
         CROSS JOIN LATERAL jsonb_array_elements(md.participants) x
@@ -85,11 +87,9 @@ async function readBaseline(db: Db, matchIds: readonly string[], memberPuuids: r
           SELECT position, champion, count(*)::int AS games,
             sum(greatest(d - t, 0))::int AS n2, sum(greatest(t - q, 0))::int AS n3, sum(greatest(q - pk, 0))::int AS n4, sum(pk)::int AS n5,
             sum(d)::int AS s2, sum(t)::int AS s3, sum(q)::int AS s4, sum(pk)::int AS s5
-          FROM p WHERE NOT member GROUP BY position, champion) groups) AS rows,
-        (SELECT count(*)::int FROM p WHERE t > 0) AS with_triple,
-        (SELECT count(*)::int FROM p WHERE t > d OR q > t OR pk > q OR (l >= 3 AND d = 0) OR (l >= 4 AND t = 0) OR (l >= 5 AND q = 0)) AS out_of_order`);
+          FROM p WHERE NOT member GROUP BY position, champion) groups) AS rows`);
   });
-  const [answer] = rowsOf<{ rows: unknown; with_triple: number; out_of_order: number }>(result);
+  const [answer] = rowsOf<{ rows: unknown }>(result);
   const rows: BaselineRow[] = parse<Row[]>(answer?.rows ?? []).map(([position, championId, games, n2, n3, n4, n5, s2, s3, s4, s5]) => ({
     position,
     championId,
@@ -97,5 +97,5 @@ async function readBaseline(db: Db, matchIds: readonly string[], memberPuuids: r
     nested: { double: Number(n2), triple: Number(n3), quadra: Number(n4), penta: Number(n5) },
     separate: { double: Number(s2), triple: Number(s3), quadra: Number(s4), penta: Number(s5) },
   }));
-  return buildMultikillBaseline(rows, { withTriple: Number(answer?.with_triple ?? 0), outOfOrder: Number(answer?.out_of_order ?? 0) });
+  return rows;
 }

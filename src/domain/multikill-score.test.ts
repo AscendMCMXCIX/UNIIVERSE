@@ -188,7 +188,7 @@ describe("the comparison: the other players in the same games", () => {
 });
 
 describe("the score", () => {
-  it("worked example: 40 games, made 26 doubles, 4 triples, 1 quadra (68 kill points); expected 20, 2.4, 0.4, 0.08 (49.2) → 100 × (68 + 20) ÷ (49.2 + 20) = 127, ±15 by chance", () => {
+  it("worked example: 40 games, made 26 doubles, 4 triples, 1 quadra (68 kill points); expected 20, 2.4, 0.4, 0.08 (49.2) → 100 × (68 + 40) ÷ (49.2 + 40) = 121, ±12 by chance", () => {
     const s = scoreMember("a", games(40, "MID", (i) => mk(i < 26 ? 1 : 0, i < 4 ? 1 : 0, i < 1 ? 1 : 0)), baselineOf({ MID: mk(0.5, 0.06, 0.01, 0.002) }, 2000, SEPARATE_EVIDENCE));
     expect(s.kinds.double).toMatchObject({ made: 26 });
     expect(s.kinds.double.expected).toBeCloseTo(20, 10);
@@ -196,26 +196,26 @@ describe("the score", () => {
     expect(s.kinds.quadra.expected).toBeCloseTo(0.4, 10);
     expect(s.kinds.penta.expected).toBeCloseTo(0.08, 10);
     expect(s.score).toBeCloseTo((100 * (68 + MULTIKILL_CUSHION)) / (49.2 + MULTIKILL_CUSHION), 10);
-    expect(shownScore(s.score!)).toBe(127);
-    expect(s.chance).toBeCloseTo((100 * Math.sqrt(4 * 20 + 9 * 2.4 + 16 * 0.4 + 25 * 0.08)) / 69.2, 10);
-    expect(Math.round(s.chance!)).toBe(15);
+    expect(shownScore(s.score!)).toBe(121);
+    expect(s.chance).toBeCloseTo((100 * Math.sqrt(4 * 20 + 9 * 2.4 + 16 * 0.4 + 25 * 0.08)) / 89.2, 10);
+    expect(Math.round(s.chance!)).toBe(12);
     expect(s.status).toBe("ranked");
     expect(MULTIKILL_WEIGHTS).toEqual({ double: 2, triple: 3, quadra: 4, penta: 5 });
   });
 
-  it("exactly the usual multikills score about 100: 50 doubles, 5 triples, 1 quadra in 100 games against 50, 5, 1 expected, no pentakill against 0.2 (139 ÷ 140 = 99)", () => {
+  it("exactly the usual multikills score about 100: 50 doubles, 5 triples, 1 quadra in 100 games against 50, 5, 1 expected, no pentakill against 0.2 (159 ÷ 160 = 99)", () => {
     const s = scoreMember("a", games(100, "JUNGLE", (i) => mk(i < 50 ? 1 : 0, i < 5 ? 1 : 0, i < 1 ? 1 : 0)), baselineOf({ JUNGLE: mk(0.5, 0.05, 0.01, 0.002) }, 2000, SEPARATE_EVIDENCE));
     expect(shownScore(s.score!)).toBe(99);
   });
 
-  it("a support with 200 games, no pentakill and more multikills than supports usually make (123: 40 doubles against 32.2 expected) is placed above a mid with 12 games and one pentakill (110), who is provisional", () => {
+  it("a support with 200 games, no pentakill and more multikills than supports usually make (119: 40 doubles against 32.2 expected) is placed above a mid with 12 games and one pentakill (107), who is provisional", () => {
     const b = baselineOf(RATES);
     const support = scoreMember("support", nestedGames(200, "SUPPORT", mk(40, 4, 1, 0)), b);
     const mid = scoreMember("mid", nestedGames(12, "MID", mk(6, 1, 0, 1)), b);
     expect(support.kinds.double.expected).toBeCloseTo(((0.15 * 5000 + 200 * 0.43) / 5200) * 200, 6);
-    expect(shownScore(support.score!)).toBe(123);
+    expect(shownScore(support.score!)).toBe(119);
     expect(support.status).toBe("ranked");
-    expect(shownScore(mid.score!)).toBe(110);
+    expect(shownScore(mid.score!)).toBe(107);
     expect(mid.status).toBe("provisional");
     const board = rankMultikillScores([mid, support], (id) => id);
     expect(board.map((r) => [r.playerId, r.place])).toEqual([["support", 1], ["mid", null]]);
@@ -224,10 +224,10 @@ describe("the score", () => {
     expect(support.events).toEqual(mk(40, 4, 1, 0));
   });
 
-  it("a support's usual (the support role's rates) is not a mid's: the same 30 double kills in 200 games score 91 as a support and 29 as a mid", () => {
+  it("a support's usual (the support role's rates) is not a mid's: the same 30 double kills in 200 games score 93 as a support and 34 as a mid", () => {
     const b = baselineOf(RATES);
-    expect(shownScore(scoreMember("s", nestedGames(200, "SUPPORT", mk(30, 2, 0, 0)), b).score!)).toBe(91);
-    expect(shownScore(scoreMember("m", nestedGames(200, "MID", mk(30, 2, 0, 0)), b).score!)).toBe(29);
+    expect(shownScore(scoreMember("s", nestedGames(200, "SUPPORT", mk(30, 2, 0, 0)), b).score!)).toBe(93);
+    expect(shownScore(scoreMember("m", nestedGames(200, "MID", mk(30, 2, 0, 0)), b).score!)).toBe(34);
   });
 
   it("a jungler at the jungle's usual rates over 120 games scores about 100", () => {
@@ -247,11 +247,11 @@ describe("the score", () => {
     }
   });
 
-  it("one pentakill moves a ranked 20-game mid's score by about 11 points, a 500-game one's by under 1: one lucky game cannot decide the board", () => {
+  it("one pentakill moves a ranked 20-game mid's score by about 7 points, a 500-game one's by under 1: one lucky game cannot decide the board", () => {
     const b = baselineOf(RATES);
     const swing = (n: number) => scoreMember("a", nestedGames(n, "MID", mk(Math.round(n / 2), 0, 0, 1)), b).score! - scoreMember("a", nestedGames(n, "MID", mk(Math.round(n / 2))), b).score!;
-    expect(swing(20)).toBeGreaterThan(9);
-    expect(swing(20)).toBeLessThan(12);
+    expect(swing(20)).toBeGreaterThan(6);
+    expect(swing(20)).toBeLessThan(9);
     expect(swing(500)).toBeLessThan(1);
   });
 
@@ -352,18 +352,20 @@ describe("the score's reliability, simulated (seeded)", () => {
   const usual = N.map((n) => spread(Array.from({ length: 500 }, () => member(n, 1))));
   const better = N.map((n) => spread(Array.from({ length: 300 }, () => member(n, 1.3))).mean);
 
-  it("centres usual members on 100 and narrows their chance spread as games rise (about 17, 15, 12 and 7 points at 20, 50, 100 and 300 games)", () => {
+  it("centres usual members on 100 and narrows their chance spread as games rise (about 12, 11, 10 and 7 points at 20, 50, 100 and 300 games)", () => {
     for (const u of usual) expect(Math.abs(u.mean - 100)).toBeLessThan(3);
-    for (let i = 1; i < N.length; i++) expect(usual[i]!.sd, `${N[i]} games`).toBeLessThan(usual[i - 1]!.sd);
-    expect(usual[0]!.sd).toBeLessThan(20);
+    // From 50 games on it falls with every step (at 20 the cushion holds it near 50 games' spread: a short record leans on it most).
+    for (let i = 2; i < N.length; i++) expect(usual[i]!.sd, `${N[i]} games`).toBeLessThan(usual[i - 1]!.sd);
+    expect(usual[0]!.sd).toBeLessThan(usual[1]!.sd + 1.5);
+    expect(usual[0]!.sd).toBeLessThan(14);
     expect(usual[3]!.sd).toBeLessThan(9);
     // The spread the page quotes (scoreChance) is the simulated one, within a point or so.
     for (const [i, n] of N.entries()) expect(Math.abs(typicalChance(b, n)! - usual[i]!.sd), `${n} games`).toBeLessThan(1.5);
   });
 
-  it("brings a truly 30%-better member's expected score toward 130 as games rise (about 116, 122, 126, 129)", () => {
+  it("brings a truly 30%-better member's expected score toward 130 as games rise (about 111, 118, 124, 127)", () => {
     for (let i = 1; i < N.length; i++) expect(better[i], `${N[i]} games`).toBeGreaterThan(better[i - 1]! - 1);
-    expect(better[0]).toBeGreaterThan(110);
+    expect(better[0]).toBeGreaterThan(107);
     expect(better[3]).toBeGreaterThan(125);
     expect(better[3]).toBeLessThan(132);
   });
@@ -381,6 +383,31 @@ describe("the score's reliability, simulated (seeded)", () => {
     }
     expect(short / boards).toBeLessThanOrEqual(0.32);
     expect(Math.abs(short - byTruth) / boards).toBeLessThan(0.1);
+  });
+
+  it("with equal skill, four 20-game and four 300-game members: a 20-game member takes first place at most 70% of the time (no bias: 50%; a shorter record is noisier, so some excess stays)", () => {
+    const GAMES = [20, 20, 20, 20, 300, 300, 300, 300];
+    let short = 0;
+    const boards = 500;
+    for (let i = 0; i < boards; i++) {
+      const scores = GAMES.map((n) => member(n, 1));
+      if (GAMES[scores.indexOf(Math.max(...scores))] === 20) short += 1;
+    }
+    expect(short / boards).toBeLessThanOrEqual(0.7);
+  });
+
+  it("on 9-member boards about 10% apart (20 to 300 games), members with 30 games or fewer top it about as often as their true rates say (within 6 points)", () => {
+    const GAMES = [20, 20, 30, 50, 80, 120, 200, 250, 300];
+    let short = 0;
+    let byTruth = 0;
+    const boards = 500;
+    for (let i = 0; i < boards; i++) {
+      const truth = GAMES.map(() => Math.max(0.3, 1 + 0.1 * gauss()));
+      const scores = GAMES.map((n, k) => member(n, truth[k]!));
+      if (GAMES[scores.indexOf(Math.max(...scores))]! <= 30) short += 1;
+      if (GAMES[truth.indexOf(Math.max(...truth))]! <= 30) byTruth += 1;
+    }
+    expect(Math.abs(short - byTruth) / boards).toBeLessThan(0.06);
   });
 });
 

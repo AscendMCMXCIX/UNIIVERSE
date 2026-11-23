@@ -30,6 +30,13 @@ describe("multikillsOfGames", () => {
     expect(s).toEqual({ games: 4, counted: 1, unavailable: 2, double: 1, triple: 0, quadra: 0, penta: 0 });
   });
 
+  it("counts each multikill once, at its largest, under nested counters (a pentakill game {2, 1, 1, 1} is a double and a pentakill), as Team Leaderboards does", () => {
+    const games = [{ multikills: "2,1,1,1" }, { multikills: "3,1,0,0" }, { multikills: null }];
+    expect(multikillsOfGames(games, "nested")).toEqual({ games: 3, counted: 2, unavailable: 0, double: 3, triple: 1, quadra: 0, penta: 1 });
+    // Separate counters are already one each (the default reading of a single game's text).
+    expect(multikillsOfGames(games, "separate")).toEqual({ games: 3, counted: 2, unavailable: 0, double: 5, triple: 2, quadra: 1, penta: 1 });
+  });
+
   it("is empty, not zero-filled, without games", () => {
     expect(multikillsOfGames([])).toEqual({ games: 0, counted: 0, unavailable: 0, double: 0, triple: 0, quadra: 0, penta: 0 });
   });

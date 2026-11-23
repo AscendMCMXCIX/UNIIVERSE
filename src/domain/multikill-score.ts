@@ -35,19 +35,24 @@ import type { MultikillCounts } from "./multikills";
         points   = Σ_k w_k · O_k        expected = Σ_k w_k · X_k        w = 2, 3, 4, 5 (the kills in it)
         score    = 100 × (points + CUSHION) ÷ (expected + CUSHION)
      O_k: the member's multikills of kind k, each once at its largest; X_k: the number expected for
-     their games (each game's rate for its role and champion, added up). CUSHION = 20 kill points,
-     as if every member had already made ten double kills at exactly the usual rate.
+     their games (each game's rate for its role and champion, added up). CUSHION = 40 kill points,
+     as if every member had already made twenty double kills at exactly the usual rate.
      Why pooled (Release 15 round 2, the review's simulation): averaging four per-kind indexes with
      equal weight left the score's chance spread at about 12 points whatever the games, since the
      quadra and penta indexes stay mostly luck at any sample size. Pooled, the score's chance spread
-     falls with games (about 17 points at 20 games, 15 at 50, 12 at 100, 7 at 300 for a mid: the
-     seeded simulation in the tests), and a truly 30%-better member averages 116, 122, 126 and 129.
+     falls with games (about 12 points at 20 and 50 games, 10 at 100, 7 at 300 for a mid: the seeded
+     simulation in the tests), and a truly 30%-better member averages about 111, 118, 124 and 127.
      Why kills as weights: a rarer kind counts for more by what it is (a pentakill is five kills in
      one fight, 2.5 doubles), not by a constant chosen for it, and the common kinds, which carry
-     most of the information, keep most of the weight. Why 20: on a board of members who differ by
-     about 20% (simulated), members with 20 games top it 26% of the time against 25% by their true
-     rates (10 favoured them, 33%; 30 held them back, 22%); a single pentakill at 20 games moves a
-     mid's score by about 11 points, at 500 by under 1.
+     most of the information, keep most of the weight; so over many games a score is mostly doubles
+     and triples, and "Most pentas" keeps pentakills recognised on their own.
+     Why 40 (round 3, chosen by simulation against 20, 30 and 60): with equal skill, four 20-game and
+     four 300-game members, a 20-game member takes first place 66% of the time (20: 77%, 30: 71%;
+     no bias would be 50%: a short record is noisier, so some excess stays); on 9-member boards about
+     10% apart, members with 30 games or fewer top it 34% of the time against 35% by their true rates
+     (20: 42%, 30: 38%); the cost: on boards 20% apart they top it 20% against 25%, and a truly
+     better member's score converges a little more slowly (118 at 50 games against 122). A single
+     pentakill at 20 games moves a mid's score by about 7 points, at 500 by under 1.
      `chance` is the score's spread by chance alone at the member's games (one standard deviation,
      at exactly the usual rates): 100 × √(Σ_k w_k² · X_k) ÷ (expected + CUSHION).
 
@@ -62,8 +67,8 @@ export type MultikillKey = (typeof MULTIKILL_KEYS)[number];
 
 /** Each kind's worth in the score: the kills in it. */
 export const MULTIKILL_WEIGHTS: Readonly<Record<"double" | "triple" | "quadra" | "penta", number>> = { double: 2, triple: 3, quadra: 4, penta: 5 };
-/** How strongly a score leans toward 100, in kill points: as if ten double kills had been made at exactly the usual rate. */
-export const MULTIKILL_CUSHION = 20;
+/** How strongly a score leans toward 100, in kill points: as if twenty double kills had been made at exactly the usual rate. */
+export const MULTIKILL_CUSHION = 40;
 /** The comparison players' games needed, all positions together, before a score is compared with them (see BASELINE_REASON). */
 export const BASELINE_MIN_GAMES = 1000;
 /** A role's rates lean toward every position's as if it had this many more games at their rates. */
@@ -270,8 +275,8 @@ export interface MemberScore {
  * A member's multikill score over their games. Games without counts are left out (never zero).
  * Worked example: 40 games, role rates double 0.5, triple 0.06, quadra 0.01, penta 0.002 (no champion
  * data); made 26, 4, 1, 0 → points 2·26 + 3·4 + 4·1 = 68; expected 20, 2.4, 0.4, 0.08 → expected
- * points 40 + 7.2 + 1.6 + 0.4 = 49.2 → score 100 × (68 + 20) ÷ (49.2 + 20) = 127; by chance ±15
- * (100 × √(4·20 + 9·2.4 + 16·0.4 + 25·0.08) ÷ 69.2).
+ * points 40 + 7.2 + 1.6 + 0.4 = 49.2 → score 100 × (68 + 40) ÷ (49.2 + 40) = 121; by chance ±12
+ * (100 × √(4·20 + 9·2.4 + 16·0.4 + 25·0.08) ÷ 89.2).
  */
 export function scoreMember(playerId: string, games: readonly ScoreGame[], baseline: MultikillBaseline): MemberScore {
   const counts = ZERO();
@@ -354,7 +359,7 @@ export function rankMultikillScores(scores: readonly MemberScore[], nameOf: (id:
  * players' counts: every member's games together, every position at once (said so on the page:
  * it is not adjusted for role or champion).
  */
-export function teamBaseline(games: ReadonlyArray<{ counts: MultikillCounts | null; largest?: number | null }>): MultikillBaseline {
+export function teamBaseline(games: ReadonlyArray<{ counts: MultikillCounts | null; largest?: number | null }>, reading?: CountingReading): MultikillBaseline {
   let withTriple = 0;
   let outOfOrder = 0;
   const row: BaselineRow = { position: null, championId: null, games: 0, nested: ZERO(), separate: ZERO() };
@@ -366,7 +371,8 @@ export function teamBaseline(games: ReadonlyArray<{ counts: MultikillCounts | nu
     add(row.nested, multikillEvents(g.counts, "nested"));
     add(row.separate, g.counts);
   }
-  return buildMultikillBaseline([row], { withTriple, outOfOrder }, "team");
+  // The counting rule every page shares when given (server/accounts/multikill-counting), else these games' own.
+  return buildMultikillBaseline([row], reading?.evidence ?? { withTriple, outOfOrder }, "team");
 }
 
 /**
