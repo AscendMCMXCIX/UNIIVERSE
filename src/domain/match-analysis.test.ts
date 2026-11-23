@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SeasonGame } from "./season-stats";
-import { BASELINE_GAMES, BASELINE_MIN, BEST_MIN, CONTRADICTION_MIN, LEAD_MIN, figureOf, goldContradictsRecord, goldStory, laneMoments, laneOf, laneOpponentOf, laneReadingOf, personalComparison, placeOf, queueGroup, standingText, standoutOf, teamGoldDifference, type LaneSeat } from "./match-analysis";
+import { BASELINE_GAMES, BASELINE_MIN, BEST_MIN, CONTRADICTION_MIN, figureOf, goldContradictsRecord, laneMoments, laneOf, laneOpponentOf, laneReadingOf, personalComparison, placeOf, queueGroup, standingText, standoutOf, teamGoldDifference, type LaneSeat } from "./match-analysis";
 
 let n = 0;
 /** A 30-minute game; `at` orders the games (minutes since an arbitrary start). */
@@ -173,26 +173,6 @@ describe("place in a group", () => {
     expect(placeOf(xs, xs[2]!, (x) => x.v)).toBe(1);
     expect(placeOf(xs, xs[0]!, (x) => x.v)).toBe(3);
     expect(placeOf(xs, xs[3]!, (x) => x.v)).toBeNull();
-  });
-});
-
-describe("gold story", () => {
-  const pts = (diffs: number[]) => diffs.map((diff, minute) => ({ minute, diff }));
-  it("names the largest lead and deficit, the end, and each time the other team took over a clear lead", () => {
-    const s = goldStory(pts([0, 400, 1500, 900, -200, -1200, -2500, -800, 300, 1800, 4200]))!;
-    expect(s.lead).toEqual({ minute: 10, diff: 4200 });
-    expect(s.deficit).toEqual({ minute: 6, diff: -2500 });
-    expect(s.final).toEqual({ minute: 10, diff: 4200 });
-    expect(s.changes).toEqual([
-      { minute: 5, to: "behind" },
-      { minute: 9, to: "ahead" },
-    ]);
-  });
-  it("never counts the first lead, or a gap that stays under LEAD_MIN, as a change", () => {
-    expect(goldStory(pts([0, LEAD_MIN - 1, -(LEAD_MIN - 1), 2000]))!.changes).toEqual([]);
-    const ahead = goldStory(pts([0, 300, 600]))!;
-    expect(ahead.deficit).toBeNull();
-    expect(goldStory([])).toBeNull();
   });
 });
 

@@ -98,9 +98,10 @@
     first three cards' CS totals and damage shares end before the next column (the build or the
     teams), and a copy of a card with the widest K/D/A and the longest champion names stays level
     with it and keeps the names whole; on the phone (390x844) the first game card is complete above
-    the tab bar; its Encounters view still opens. All Champions' preview: at 1440 beside the list in
-    its card (Champion, Games and Win rate in place, the page not scrolled), Escape and Back close it;
-    on the phone a sheet and on the tablet the docked panel, which Back closes; phone rows at most 64px.
+    the tab bar; its Encounters view still opens. All Champions' preview: on the desktop and the
+    tablet unfolded under its row (Champion, Games and Win rate in place, the page not scrolled,
+    nothing scrolling inside), Escape and Back close it; on the phone a sheet, which Back closes;
+    phone rows at most 64px. The open game's post-game view has no notes and no folds.
   - accessibility (#173): axe (WCAG 2.1 A and AA, plus label-content-name-mismatch) on the main pages
     at every width, with a game open, and in All Champions' preview: no serious or critical violation.
   - players (the roster board, Nov 2026), at every width: one profile link per listed player, and no
@@ -137,7 +138,7 @@ import { riotKeysOnPage } from "./riot-keys.mjs";
 import { rosterRowLines } from "./roster-lines.mjs";
 import { matchupIntelVerdicts, readMatchupIntel } from "./matchup-intel-facts.mjs";
 import { matchupRolesVerdicts, readRoleBar } from "./matchup-roles-facts.mjs";
-import { noteRules, postGameVerdicts, readPostGame } from "./post-game-facts.mjs";
+import { postGameVerdicts, readPostGame } from "./post-game-facts.mjs";
 import { championPreviewVerdicts, readChampionPreview, readChampionRows, targetRow } from "./champion-preview-facts.mjs";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -1239,9 +1240,10 @@ async function allChampions(page, log, kind, playerId) {
   }
   pass("all-champions", `${kind}: no heading cut short`, facts.cut.length === 0, facts.cut);
   await axe(page, kind, "all-champions");
-  // All Champions' preview: at 1440 it unfolds beside the list, inside its card, with Champion,
-  // Games and Win rate in place (±1px) and the page not scrolled; Escape and Back close it. On the
-  // phone it is a sheet, on the tablet the docked panel, and Back closes it.
+  // All Champions' preview: on the desktop and the tablet it unfolds under its row, across the list
+  // (the overlay kit's Unfold, since 23 Nov 2026), with Champion, Games and Win rate in place (±1px),
+  // the page not scrolled, nothing over the rows and nothing scrolling inside; Escape and Back close
+  // it. On the phone it is a sheet, and Back closes it.
   const open = page.getByTestId("open-champion").first();
   if (await open.count()) {
     const columns = () => page.evaluate(() => ["champion", "games", "win"].map((k) => Math.round(document.querySelector(`[data-testid=sort-${k}]`)?.getBoundingClientRect().x ?? -1)));
@@ -1249,24 +1251,27 @@ async function allChampions(page, log, kind, playerId) {
     await open.click();
     const content = page.getByTestId("champion-preview-content");
     const opened = await content.waitFor({ timeout: 15_000 }).then(() => true, () => false);
-    if (kind === "desktop") {
-      const after = { x: await columns(), y: await page.evaluate(() => scrollY), aside: await page.evaluate(() => document.querySelector("[data-testid=champion-preview]")?.tagName === "ASIDE" && !document.querySelector("dialog[open]")) };
+    // Under its row: the detail is the list item right after the selected row, as wide as the rows, in the page's flow (no window, no inner scroll).
+    const underRow = () =>
+      page.evaluate(() => {
+        const li = document.querySelector("[data-testid=top-champion][data-selected=true]");
+        const region = document.querySelector("[data-testid=champion-preview]");
+        if (!li || !region) return { found: false };
+        const next = li.nextElementSibling;
+        const [r, d] = [li.getBoundingClientRect(), (next ?? region).getBoundingClientRect()];
+        const scrollers = [...region.querySelectorAll("*"), region].filter((e) => /auto|scroll/.test(getComputedStyle(e).overflowY) && e.scrollHeight > e.clientHeight + 1).length;
+        return { found: true, next: !!next && next.contains(region), region: region.getAttribute("role") === "region", window: !!document.querySelector("dialog[open]"), below: Math.abs(d.top - r.bottom) <= 2, width: Math.abs(d.left - r.left) <= 1 && Math.abs(d.right - r.right) <= 1, scrollers };
+      });
+    if (kind !== "phone") {
+      const after = { x: await columns(), y: await page.evaluate(() => scrollY) };
+      let under = { found: false };
       if (opened) {
         await page.getByTestId("champion-preview-foot").waitFor({ timeout: 15_000 }).catch(() => {});
+        await page.waitForTimeout(300);
+        under = await underRow();
         await shot(page, `${kind}-champion-preview`);
         await axe(page, kind, "champion-preview", "[data-testid=champion-preview]");
-        // Joined to its row (CM §4.1): the row's surface runs to the preview's edge, a 2px notch the row's colour beside it.
-        await page.mouse.move(2, 2);
-        await page.waitForTimeout(300);
-        const join = await page.evaluate(() => {
-          const li = document.querySelector("[data-testid=top-champion][data-selected=true]");
-          const aside = document.getElementById("champion-preview");
-          const notch = document.querySelector("[data-testid=champion-preview-notch]");
-          if (!li || !aside || !notch) return { found: false };
-          const [r, a, n] = [li.getBoundingClientRect(), aside.getBoundingClientRect(), notch.getBoundingClientRect()];
-          return { found: true, rowToEdge: r.right >= a.left + 2, atEdge: Math.abs(n.left - a.left) <= 1, width: Math.round(n.width), colour: getComputedStyle(li).backgroundColor === getComputedStyle(notch).backgroundColor, along: Math.abs(n.top - r.top) <= 1 && Math.abs(n.bottom - r.bottom) <= 1 };
-        });
-        pass("all-champions", "desktop: the preview is joined to its row (the row's surface to its edge, a 2px notch the row's colour beside it)", join.found && join.rowToEdge && join.atEdge && join.width === 2 && join.colour && join.along, join);
+        pass("all-champions", `${kind}: the preview unfolds under its row (the next item of the list, as wide as the rows, no window, nothing scrolling inside)`, under.found && under.next && under.region && !under.window && under.below && under.width && under.scrollers === 0, under);
         await page.keyboard.press("Escape");
       }
       const escaped = await content.waitFor({ state: "detached", timeout: 5_000 }).then(() => true, () => false);
@@ -1275,11 +1280,11 @@ async function allChampions(page, log, kind, playerId) {
       await page.goBack();
       const backed = await content.waitFor({ state: "detached", timeout: 5_000 }).then(() => true, () => false);
       const still = after.x.every((x, i) => Math.abs(x - before.x[i]) <= 1) && after.y === before.y;
-      pass("games", `${kind}: the champion preview opens beside the list (Champion, Games and Win rate in place, the page not scrolled); Escape and Back close it`, opened && after.aside && still && escaped && again && backed, { opened, aside: after.aside, before, after: { x: after.x, y: after.y }, escaped, backed });
-      await guarded("all-champions", `${kind}: the preview's content`, () => championPreviewFacts(page, kind));
+      pass("games", `${kind}: the champion preview opens under its row (Champion, Games and Win rate in place, the page not scrolled); Escape and Back close it`, opened && still && escaped && again && backed, { opened, before, after, escaped, backed });
+      if (kind === "desktop") await guarded("all-champions", `${kind}: the preview's content`, () => championPreviewFacts(page, kind));
     } else {
-      // The shared Peek: a sheet on the phone, the panel docked at the right on the tablet.
-      const sheet = await page.locator(kind === "phone" ? "dialog[open][data-testid=champion-preview]" : "aside[data-peek-panel][data-testid=champion-preview]").count();
+      // The shared Peek's sheet.
+      const sheet = await page.locator("dialog[open][data-testid=champion-preview]").count();
       if (opened) {
         await page.waitForTimeout(500);
         await shot(page, `${kind}-champion-preview`);
@@ -1287,7 +1292,7 @@ async function allChampions(page, log, kind, playerId) {
         await page.goBack();
       }
       const closed = await content.waitFor({ state: "detached", timeout: 5_000 }).then(() => true, () => false);
-      pass("games", `${kind}: the champion preview opens (${kind === "phone" ? "a sheet" : "the docked panel"}) and Back closes it`, opened && sheet === 1 && closed, { opened, sheet, closed });
+      pass("games", `${kind}: the champion preview opens (a sheet) and Back closes it`, opened && sheet === 1 && closed, { opened, sheet, closed });
     }
   }
 }
@@ -1921,11 +1926,11 @@ async function matchHistory(page, log, kind, playerId) {
         });
         pass("games", `${kind}: the card and its open game fit one screen (${fit}px of ${page.viewportSize().height})`, fit <= page.viewportSize().height, fit);
         // The post-game view's content (PLAN §6 rows 5.2–5.8; scripts/post-game-facts.mjs), from the game
-        // already open: no interaction of its own, the notes once its timeline has loaded.
+        // already open: no interaction of its own, read once its timeline has answered (the lane reads it).
         await guarded("games", `${kind}: the open game's post-game view`, async () => {
-          await page.waitForFunction(() => document.querySelector("li[data-expanded] [data-testid=post-game-notes]"), null, { timeout: 30_000 }).catch(() => {});
+          await page.waitForFunction(() => { const b = document.querySelector("li[data-expanded] [data-testid=match-breakdown]"); return !!b && b.getAttribute("data-timeline") !== "loading"; }, null, { timeout: 30_000 }).catch(() => {});
           const at = await page.evaluate(readPostGame);
-          for (const v of postGameVerdicts({ kind, at, rules: noteRules() })) check("games", v.name, v.status, v.detail);
+          for (const v of postGameVerdicts({ kind, at })) check("games", v.name, v.status, v.detail);
         });
       }
       const next = open.getByTestId("game-header-next");
