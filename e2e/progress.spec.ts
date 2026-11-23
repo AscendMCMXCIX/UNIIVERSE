@@ -104,7 +104,12 @@ test("a profile shows recent form and ranked progress per queue", async ({ page 
   // rank behind the ⓘ beside the rank (read out with it), not on the card.
   const [cur, change, chartBox] = [await page.getByTestId("ranked-current").boundingBox(), await page.getByTestId("ranked-change").boundingBox(), await ranked.getByTestId("ranked-chart-box").boundingBox()];
   expect(change!.y + change!.height, "the 30-day change above the chart").toBeLessThanOrEqual(chartBox!.y);
-  if (info.project.name !== "phone") expect(Math.abs(change!.y + change!.height / 2 - (cur!.y + cur!.height / 2)), "beside the rank").toBeLessThanOrEqual(16);
+  if (info.project.name !== "phone") {
+    // Beside the rank: to its right, level with it (the change's caption starts above the rank's line ends).
+    const block = (await ranked.locator("#ranked-movement").boundingBox())!;
+    expect(block.x, "right of the rank").toBeGreaterThanOrEqual(cur!.x + cur!.width);
+    expect(block.y, "level with the rank").toBeLessThan(cur!.y + cur!.height);
+  }
   await expect(page.getByRole("button", { name: "About this rank" })).toBeVisible();
   // The header shows the same current rank as Ranked progress.
   const current = (await page.getByTestId("ranked-current").innerText()).split("·")[0]!.trim();

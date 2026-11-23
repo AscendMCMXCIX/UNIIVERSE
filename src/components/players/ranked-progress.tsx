@@ -97,8 +97,10 @@ export function RankedProgress({ accounts, queue, accountId, href, now }: { acco
         </div>
       </div>
 
-      {/* Where the account stands, and beside it how it moved in 30 days: the card's two figures, on
-          one row, the change going under the rank where the card is too narrow for both. */}
+      {/* One body (so the card's last part is drawn on a phone too, its chart folded): where the
+          account stands, and beside it how it moved in 30 days, the card's two figures, on one row (the
+          change going under the rank where the card is too narrow for both); then the chart. */}
+      <div className="flex min-w-0 flex-col gap-3">
       <div className="flex min-w-0 flex-wrap items-center gap-x-5 gap-y-2">
         <div className="flex min-w-0 flex-[1_1_13rem] items-center gap-3">
           <RankEmblem tier={cur?.tier ?? null} className="h-11 w-11 shrink-0" />
@@ -143,6 +145,7 @@ export function RankedProgress({ accounts, queue, accountId, href, now }: { acco
             {fewReadings(timeline, ranked)}
           </p>
         )}
+      </div>
       </div>
     </PhoneFoldSection>
   );
