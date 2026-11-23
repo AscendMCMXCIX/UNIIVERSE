@@ -60,7 +60,7 @@ const LISTED: Record<string, Partial<Record<string, string>>> = {
   },
   "post-game: a scoreboard name": { sizeRem: "the compact scoreboard's names are text-xs where the scoreboard is under 30rem wide (a phone's window), so each of the ten names keeps one line; text-sm from 30rem (scoreboard.tsx)" },
   "Matchup Intel: the enemy's slot label": { sizeRem: "the slot's label is a size smaller on a phone (text-2xs, 11px under the 12px floor's phone rule, as the badge), so the longest one-word name fits the slot whole" },
-  "Matchup Intel: glance cooldown": { sizeRem: "the glance's tile is a fifth of a phone's row (about 64px at 390), where the cooldown line is text-xs so \"140–100 s\" keeps one line (glance.tsx); the full tile's known cooldown is its big figure, text-md (ability-list.tsx: CooldownValue big)" },
+  "Matchup Intel: an ability tile's cooldown": { sizeRem: "a tile lays its figures out by its own width (ability-list.tsx: CooldownValue big): text-lg from a tile 15rem wide (a phone's list of tiles, a wide desktop's strip), text-md in the five-across strip at 1440 × 900, where each tile is 14rem and \"26 / 23.5 / 21 / 18.5 / 16 s\" would take two lines" },
   "Admin: person view": { radius: "the person view is DetailModal: a phone's window fills the screen and has no corners; a desktop's is a centred window with the panel's radius" },
   Popover: { radius: "a touch phone keeps the sheet, docked to the bottom edge with the sheet's 1.25rem top corners; the popover has a menu's rounded-lg" },
 };
@@ -120,7 +120,7 @@ test("the shared components look the same on a phone and on a desktop", async ({
   The components S5–S9 created, each opened as a member opens it, and its parts compared the same way:
   All Champions' preview (S5: an aside in the list's card on a desktop, a window on a phone), the
   post-game view's loadout, its three answers and its scoreboard (S6: under the card on a desktop, in
-  the game's window on a phone), Matchup Intel's slots, ability tiles and the phone's glance strip
+  the game's window on a phone), Matchup Intel's slots, ability tiles
   (S7a), and Admin's person view with its Riot accounts (S9). One page visit per component and size.
 */
 type Part = { name: string; selector: string; phoneSelector?: string };
@@ -175,10 +175,6 @@ const GROUPS: Group[] = [
       { name: "Matchup Intel: an ability tile's name", selector: "[data-testid=matchup-enemy-abilities-list] [data-testid=ability-name]" },
       // The Q's: a cooldown Riot's data gives (a passive's "not in Riot's data" line is drawn otherwise).
       { name: "Matchup Intel: an ability tile's cooldown", selector: "[data-testid=matchup-enemy-abilities-list] [data-testid=ability-row][data-slot=Q] [data-testid=ability-cooldown-value]" },
-      // The glance strip is the phone's alone (sm:hidden): a desktop has the full tiles on its first
-      // screen, so the glance's words are compared with the full tile's they repeat (its frame, a
-      // phone's tile of about 62px at 375, has no desktop counterpart).
-      { name: "Matchup Intel: glance cooldown", selector: "[data-testid=matchup-enemy-abilities-list] [data-testid=ability-row][data-slot=Q] [data-testid=ability-cooldown-value]", phoneSelector: "[data-testid=glance-ability][data-slot=Q] [data-testid=glance-cooldown]" },
     ],
   },
   {

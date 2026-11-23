@@ -77,7 +77,7 @@ import {
 function KeyChip({ slot, corner = false }: { slot: Slot; /** On the icon's corner, its letter only ("P" for the passive): the name is read with the key before it. */ corner?: boolean }) {
   if (corner)
     return (
-      <span aria-hidden className="absolute -bottom-1 -right-1 grid h-4 min-w-4 place-items-center rounded-sm border border-border-strong bg-surface-2 px-0.5 text-2xs font-semibold leading-none text-fg-muted" data-testid="ability-key">
+      <span aria-hidden className="absolute bottom-0 right-0 grid h-4 min-w-4 place-items-center rounded-sm border border-border-strong bg-surface-2 px-0.5 text-2xs font-semibold leading-none text-fg-muted" data-testid="ability-key">
         {slot}
       </span>
     );

@@ -6,8 +6,9 @@ second monitor while they play, so the lane opponent must be understood within s
 scrolling a long page, and every pair of champions must give a meaningful reference, with notes a
 person curated kept clearly apart from what the page assembles. Matchup Intel answers both as a
 static reference with its own place in the sidebar (since 18 Nov 2026), for every signed-in
-account: on a desktop a dashboard that fits one screen, on a phone a compact column, the essentials
-first.
+account. Since the owner's redesign request of 23 Nov 2026 it leads with a **lane plan** read in
+seconds, the enemy's cooldowns as a strip under it, and the rest of the reference one step away, at
+every width (The lane plan, below).
 
 It is not **Matchups**, a player's own games against a lane opponent, which lives in a champion's
 window under All Champions ([MATCHUPS.md](MATCHUPS.md)). The two keep their names apart, and this
@@ -93,7 +94,111 @@ Counted from the committed data on 19 Nov 2026 (Data Dragon 16.22.1, 173 champio
   interaction between the two kits. Those come only from a curated file (the owner's decisions 2
   and 3, below).
 
-### The dashboard
+### The lane plan (the redesign of 23 Nov 2026)
+
+The owner's request of 23 Nov 2026: the single-screen dashboard below had "too much small text, too
+much visual noise, and no clear information hierarchy"; important matchup advice was buried beneath
+labels, cooldowns and source explanations. A player should pick the matchup and understand what
+matters within 5 to 10 seconds, with the technical details, sources and lesser mechanics one step
+away, the data, its sourcing and the layers' labels kept as they are, and no advice the data does
+not state. The page body is now one column at every width, read in this order (`matchup-content.tsx`):
+
+1. **The lane plan**, the page's first card, full width under the picker bar:
+   - **a curated pair** (`briefing.tsx`): the title "Lane plan", and where it comes from in one quiet
+     line, "Curated briefing · Checked notes (AI reviewers) · Checked on patch 26.22" (with "Not
+     re-checked for 26.23" once a later patch is out). Then the curated words themselves in `text-md`
+     (15px at 1440, 17px at 1920): the **Threat** and the **Opportunity** side by side, each with a
+     tint and a bar in its colour, its icon and its word (never colour alone), the ability chips after
+     the words; **In lane**, the first two lane points side by side, the rest folded ("2 more");
+     beside them the **Level changes** (the checked notes' level notes: the first two, the rest
+     folded) and the matchup's own **Interactions**. On a desktop (the card 60rem wide) three columns:
+     the threat, the opportunity and the level changes in the first row, the lane points under the
+     first two beside the interactions, so each row is as tall as its fullest part. On a phone one
+     column, the threat first; the level changes and the interactions fold behind one "Show" (the
+     phone Fold, folded in the server's HTML: DESIGN_SYSTEM §7). The "what it means" ⓘ beside each
+     heading, the hidden-part notes and the expired state are as before. The level notes are not
+     called "power spikes": measured power spikes wait for high-elo statistics, and the evidence line
+     still says "Power spikes: Not measured yet".
+   - **any other pair** (`assembled.tsx`): the title "Lane reference", its quiet line "Assembled
+     reference · Riot's data", the curated pairs of your champion where there are any, then the two
+     fixed sentences in readable type ("No curated briefing for Garen vs Darius yet." in the text's
+     colour, then "Put together from each champion's own facts. No person has checked Garen vs Darius
+     as a pair."). The **Danger** side (the enemy's kit, by kind) and the **Opportunity** side (yours),
+     side by side from 36rem: each names its layer in one quiet line under its title ("From Riot's
+     ability text, reviewed automatically (not by a person)", or "Checked notes (AI reviewers) ·
+     Curated notes: checked on patch 26.22" and their badges); each group that holds facts lists its
+     abilities by key **and name** with their chips; the groups with nothing in them are named once
+     ("No reviewed facts of these kinds: Mobility and Defence.", "None in the checked notes: …", or
+     "… outside R: …" beside hidden facts), never one line each. The cooldowns are no longer on these
+     lines: the strip right under the card gives every one, larger. Under the sides, **Riot's own
+     first tip against the enemy**, verbatim, in quotation marks, attributed "Riot's tip (may predate
+     later changes)" (Riot's words, exempt from the refused words as before; all of them stay in the
+     full reference). Nothing is chosen, ranked or joined by code: the plan's headings name what the
+     data holds, and every fixed sentence is held to `REFUSED_WORDS`, the estimate words and no
+     "verified" (`wording.test.ts`).
+   - **the bot lane**: the same card for the lane, leading with **both enemies' kits** as two Danger
+     sides; your duo's two Opportunity sides are one press away under them ("Opportunity: Jinx's and
+     Lulu's tools, by kind"), and Riot's first tip against each enemy follows.
+2. **The enemy's abilities as a strip** (`ability-list.tsx`, `AbilitiesPanel` with `strip`): P to R
+   side by side where the panel is 50rem wide (every desktop), one under another on a phone. Each
+   tile: the icon with its key on its corner, the name, and the button that opens its **Peek**; the
+   base cooldown on a line of its own in the tile's largest type (`text-md`, `text-lg` from a tile
+   15rem wide: a phone's list, a wide desktop); then its chips. In the strip a champion's checked
+   *interactions and exceptions* ("Blocked abilities still stack", "Stack display hidden from other
+   champions") are counted ("3 more") rather than drawn: the whole fact is in the ability's Peek and
+   as a chip in the full reference's interactions; every other chip (crowd control, mobility, defence,
+   sustain, power, how the cooldown behaves, every fact from Riot's text with its qualifier and
+   marker) stays on the tile. The haste choice is at the strip header's end; where the abilities and
+   their facts come from is one step away in a fold beside the "Riot's data" tier ("Riot's data ·
+   Sources ▾") at every width, except where the line carries a warning (checked notes, an offline
+   copy), which stays in view. In the bot lane both enemies' strips, one under the other.
+3. **The sources and notices**, directly under the strips (as under the kits since Release 10): their
+   summary line always on the page, the rest one press away, word for word as before.
+4. **The full reference**, one fold (`matchup-full-reference`): beside a lane plan each champion's own
+   interactions and exceptions; for a pair with no plan the Interactions and Level changes panels;
+   then your side's kits (folded each, as before; in the bot lane your duo's two) and Riot's tips with
+   the evidence from the team's games. Its line says what it holds ("Interactions, level changes,
+   Garen's abilities and Riot's tips and the team's games").
+
+**Every ability's Peek** (`ability-peek.tsx`, the overlay kit's `Peek`, DESIGN_SYSTEM §7): the enemies'
+tiles and your side's open the ability's whole reference, which the Details window held until now
+(the cooldown in full and where it comes from, every checked fact with its source page and revision,
+every fact from Riot's text with its clause, qualifier and marker, the flagged notes once Riot changed
+the ability, the notes' longer words and Riot's description): a panel docked at the right edge on a
+wider screen, the page live beside it, or a window on a touch phone or in a short window. The ability
+is in the address (`?ability=Mordekaiser.Q`) under the one history rule: the first open pushes one
+entry, ↑/↓ (J/K) and ‹ › step through the page's abilities (the address replaced), Escape, ✕ and Back
+close it, and a deep link opens it. The lineup's own parameters (`role`, `champion`, `vs`, `ally`,
+`vs2`) are unchanged, and a new lineup drops `ability`.
+
+**What each size holds** (measured on the demo, Chromium, 100% zoom, the sidebar open, the facts from
+Riot's text on; the 40 pairs of the dashboard spec's `FIT_PAIRS` and its 20 bot-lane lineups; 23 Nov
+2026):
+
+| Window | The lane plan whole | Every enemy cooldown line | The sources' summary |
+| --- | --- | --- | --- |
+| 1440 × 900 | 40 of 40 (lowest edge 789px) | 31 of 40: K'Sante's nine pages 31–39px under the fold | 11 of 40 |
+| 1920 × 1080 | 40 of 40 (812px) | 40 of 40 (984px) | 31 of 40 |
+| 1920 × 950 | 40 of 40 | 31 of 40 | 13 of 40 |
+| 2560 × 1440 and 3440 × 1440 | 40 of 40 | 40 of 40 | 40 of 40 |
+| bot lane, 1440 × 900 to 2560 × 1440 | 20 of 20 (707px at 1440, 720px at 1920) | the first enemy's on all 20; both at 2560 × 1440 | — |
+
+The Production check's pair (Riven vs Mordekaiser) at 1440 × 900: the plan ends at 598px, the tiles at
+830px, the sources' summary at 869px. "No page scroll" is no longer promised at any size: the full
+reference is one fold under the strip, and a page may scroll by its line. The Production check's two
+fit facts changed with it (`scripts/matchup-intel-facts.mjs`): at 1440 × 900 the essentials are the
+lane plan whole, the five tiles and the sources' summary; at 1920 × 1080 the same three on the first
+screen, in place of "no page scroll". **Phones** (390 × 844, the demo): Riven vs Mordekaiser 2,156px
+tall (2,964px before), Garen vs Darius 2,204px (2,509px), the ADC lineup 3,041px (3,219px); the
+threat and the opportunity whole on the first screen at 390 × 844, the threat at 390 × 664. The
+phone's glance (the enemy's five cooldowns in a row above the briefing, 20 Nov 2026) is retired: the
+plan comes first, the strip right under it.
+
+The dashboard's sections below describe the layout of 18–22 Nov 2026 and stay as its record; where
+they disagree with this section (the two columns, the one-screen fit, the glance, the tiles' layout,
+the Details window), this section is what the code does.
+
+### The dashboard (18–22 Nov 2026; superseded by The lane plan)
 
 On a desktop the page is one screen, read in a glance (`matchup-content.tsx`, `matchup-frame.tsx`):
 
