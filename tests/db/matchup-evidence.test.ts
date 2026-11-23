@@ -39,8 +39,7 @@ describe("migration 0067_match_prep", () => {
       const accountId = String(rowsOf<{ id: string }>(await db.execute(sql`INSERT INTO riot_accounts (owner_type, player_id, game_name, tag_line, platform) VALUES ('player', ${playerId}, 'a', 'b', 'oc1') RETURNING id`))[0]!.id);
       await db.execute(sql`INSERT INTO account_matches (account_id, match_id, game_creation, champion_id) VALUES (${accountId}, 'M1', 1, 'Riven')`);
       const before = rowsOf<{ tablename: string }>(await db.execute(sql`SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY 1`)).map((r) => r.tablename);
-      // Up to 0067 only: what this migration itself adds (later ones are tested on their own).
-      expect((await runMigrations(db, { useAdvisoryLock: false }, EMBEDDED_MIGRATIONS.filter((m) => m.tag <= TAG))).applied).toEqual([TAG]);
+      expect((await runMigrations(db, { useAdvisoryLock: false })).applied).toEqual([TAG]);
       const after = rowsOf<{ tablename: string }>(await db.execute(sql`SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY 1`)).map((r) => r.tablename);
       expect(after.filter((t) => !before.includes(t)).sort()).toEqual(["account_match_prep", "static_digests"]);
       expect(rowsOf<{ n: number }>(await db.execute(sql`SELECT count(*)::int AS n FROM account_matches`))[0]!.n).toBe(1);

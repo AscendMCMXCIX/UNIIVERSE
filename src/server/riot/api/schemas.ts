@@ -211,14 +211,6 @@ export const championMasterySchema = z.array(
   }),
 );
 
-/**
- * A whole Solo/Duo apex league (league-v4 challengerleagues, grandmasterleagues, masterleagues): only
- * each entry's PUUID is read, for Matchup Intel's high-elo sampling, and only in memory during one
- * slice (docs/HIGH_ELO_EVIDENCE.md); everything else in the answer is dropped.
- */
-export const leagueListSchema = z.object({ entries: z.array(z.object({ puuid: z.string().min(1) })).default([]) });
-export type LeagueList = z.infer<typeof leagueListSchema>;
-
 export const leagueEntriesSchema = z.array(
   z.object({
     queueType: z.string(),

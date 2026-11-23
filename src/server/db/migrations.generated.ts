@@ -952,19 +952,5 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
       "ALTER TABLE \"static_digests\" ENABLE ROW LEVEL SECURITY;",
       "-- Closed to Supabase's Data API whatever the project's default privileges, and readable by the\n-- backup role where it exists (docs/DATABASE_PERMISSIONS.md).\nDO $$ BEGIN\n  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN\n    REVOKE ALL ON TABLE public.account_match_prep FROM anon;\n    REVOKE ALL ON TABLE public.static_digests FROM anon;\n  END IF;\n  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN\n    REVOKE ALL ON TABLE public.account_match_prep FROM authenticated;\n    REVOKE ALL ON TABLE public.static_digests FROM authenticated;\n  END IF;\n  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'uniiverse_backup') THEN\n    GRANT SELECT ON TABLE public.account_match_prep TO uniiverse_backup;\n    GRANT SELECT ON TABLE public.static_digests TO uniiverse_backup;\n  END IF;\nEND $$;"
     ]
-  },
-  {
-    "idx": 68,
-    "tag": "0068_high_elo",
-    "hash": "9dd8e555543f46cf8a9321a874b74bd1302e1d8c2197e18e43beeb2a2f77af54",
-    "statements": [
-      "CREATE TABLE \"mi_high_counts\" (\n\t\"patch\" text NOT NULL,\n\t\"region\" text NOT NULL,\n\t\"role\" text NOT NULL,\n\t\"champion\" text NOT NULL,\n\t\"opponent\" text DEFAULT '' NOT NULL,\n\t\"kind\" text NOT NULL,\n\t\"value\" text DEFAULT '' NOT NULL,\n\t\"n\" integer NOT NULL,\n\t\"w\" double precision NOT NULL,\n\t\"w2\" double precision NOT NULL,\n\t\"ww\" double precision NOT NULL,\n\tCONSTRAINT \"mi_high_counts_patch_region_role_champion_opponent_kind_value_pk\" PRIMARY KEY(\"patch\",\"region\",\"role\",\"champion\",\"opponent\",\"kind\",\"value\")\n);",
-      "CREATE TABLE \"mi_high_cursors\" (\n\t\"platform\" text PRIMARY KEY NOT NULL,\n\t\"window_end\" timestamp with time zone NOT NULL,\n\t\"visits\" integer DEFAULT 0 NOT NULL,\n\t\"games\" integer DEFAULT 0 NOT NULL\n);",
-      "CREATE TABLE \"mi_high_population\" (\n\t\"platform\" text PRIMARY KEY NOT NULL,\n\t\"challenger\" integer NOT NULL,\n\t\"grandmaster\" integer NOT NULL,\n\t\"master\" integer NOT NULL,\n\t\"read_at\" timestamp with time zone NOT NULL\n);",
-      "ALTER TABLE \"mi_high_counts\" ENABLE ROW LEVEL SECURITY;",
-      "ALTER TABLE \"mi_high_cursors\" ENABLE ROW LEVEL SECURITY;",
-      "ALTER TABLE \"mi_high_population\" ENABLE ROW LEVEL SECURITY;",
-      "-- Closed to Supabase's Data API whatever the project's default privileges, and readable by the\n-- backup role where it exists (docs/DATABASE_PERMISSIONS.md).\nDO $$ BEGIN\n  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN\n    REVOKE ALL ON TABLE public.mi_high_counts FROM anon;\n    REVOKE ALL ON TABLE public.mi_high_cursors FROM anon;\n    REVOKE ALL ON TABLE public.mi_high_population FROM anon;\n  END IF;\n  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN\n    REVOKE ALL ON TABLE public.mi_high_counts FROM authenticated;\n    REVOKE ALL ON TABLE public.mi_high_cursors FROM authenticated;\n    REVOKE ALL ON TABLE public.mi_high_population FROM authenticated;\n  END IF;\n  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'uniiverse_backup') THEN\n    GRANT SELECT ON TABLE public.mi_high_counts TO uniiverse_backup;\n    GRANT SELECT ON TABLE public.mi_high_cursors TO uniiverse_backup;\n    GRANT SELECT ON TABLE public.mi_high_population TO uniiverse_backup;\n  END IF;\nEND $$;"
-    ]
   }
 ];

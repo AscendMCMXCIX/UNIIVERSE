@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { doublePrecision, foreignKey, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { foreignKey, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import type { MatchPrep } from "@/domain/matchup-intel/prep";
 import { accountMatches } from "./accounts";
 
@@ -49,53 +49,3 @@ export const staticDigests = pgTable(
   },
   (t) => [primaryKey({ columns: [t.patch, t.kind, t.key] })],
 );
-
-/**
- * Matchup Intel's high-elo counts (docs/HIGH_ELO_EVIDENCE.md, "What is stored"): what the observed
- * Master+ players' ranked Solo/Duo games add up to, per patch, region, role, champion, lane opponent
- * ("" for every opponent), kind and value. n is the games observed; w, w2 and ww the weighted sums
- * (Σw, Σw², Σw over the games won) that remove the sampling's regional bias
- * (domain/matchup-intel/high-elo). Aggregates only: no player, game or Riot ID is stored, and a
- * schema test refuses such a column in any `mi_high_*` table. Counts older than the previous patch
- * are deleted by the sampler.
- */
-export const miHighCounts = pgTable(
-  "mi_high_counts",
-  {
-    patch: text("patch").notNull(),
-    /** Riot's regional routing value: americas, europe, asia or sea. */
-    region: text("region").notNull(),
-    /** prep's lane: TOP, JUNGLE, MIDDLE, BOTTOM or UTILITY. */
-    role: text("role").notNull(),
-    champion: text("champion").notNull(),
-    /** The confirmed lane opponent's champion; "" for every opponent. */
-    opponent: text("opponent").notNull().default(""),
-    /** games, ks, spells, start, item1, skills, max or end (domain/matchup-intel/high-elo/counts.ts). */
-    kind: text("kind").notNull(),
-    /** The choice, or the lane end's 30-second bucket in ms; "" for the games. */
-    value: text("value").notNull().default(""),
-    n: integer("n").notNull(),
-    w: doublePrecision("w").notNull(),
-    w2: doublePrecision("w2").notNull(),
-    ww: doublePrecision("ww").notNull(),
-  },
-  (t) => [primaryKey({ columns: [t.patch, t.region, t.role, t.champion, t.opponent, t.kind, t.value] })],
-);
-
-/** Each server's Master+ population at its last ladder read: counts only (the lists are never stored). */
-export const miHighPopulation = pgTable("mi_high_population", {
-  /** Riot's platform routing value ("euw1"). */
-  platform: text("platform").primaryKey(),
-  challenger: integer("challenger").notNull(),
-  grandmaster: integer("grandmaster").notNull(),
-  master: integer("master").notNull(),
-  readAt: timestamp("read_at", { withTimezone: true }).notNull(),
-});
-
-/** Each server's sampling cursor: the end of the last window read, so every window is read once. */
-export const miHighCursors = pgTable("mi_high_cursors", {
-  platform: text("platform").primaryKey(),
-  windowEnd: timestamp("window_end", { withTimezone: true }).notNull(),
-  visits: integer("visits").notNull().default(0),
-  games: integer("games").notNull().default(0),
-});

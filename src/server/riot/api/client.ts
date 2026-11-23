@@ -1,6 +1,6 @@
 import type { z } from "zod";
 import { DEFAULT_RATE_LIMITS, parseRateLimits, processRiotLimiters, RateLimiterPool, sameLimits, type Limiter } from "./rate-limiter";
-import { accountSchema, activeRegionSchema, championMasterySchema, leagueEntriesSchema, leagueListSchema, matchIdsSchema, matchSchema, matchTimelineSchema, platformStatusSchema, type ChampionMastery, type LeagueEntry, type LeagueList, type RiotAccount, type RiotMatch, type RiotMatchTimeline } from "./schemas";
+import { accountSchema, activeRegionSchema, championMasterySchema, leagueEntriesSchema, matchIdsSchema, matchSchema, matchTimelineSchema, platformStatusSchema, type ChampionMastery, type LeagueEntry, type RiotAccount, type RiotMatch, type RiotMatchTimeline } from "./schemas";
 import { accountRegionFor, DEFAULT_RIOT_PLATFORM, parsePlatforms as parsePlatformList, regionFor as regionForPlatform, type RiotRegion } from "@/domain/riot-platforms";
 
 export type Region = RiotRegion;
@@ -299,17 +299,6 @@ export class RiotApiClient {
 
   championMasteries(platform: string, puuid: string): Promise<ChampionMastery[]> {
     return this.get(platform, `/lol/champion-mastery/v4/champion-masteries/by-puuid/${encodeURIComponent(puuid)}`, championMasterySchema);
-  }
-
-  /**
-   * One server's whole Challenger, Grandmaster or Master Solo/Duo league, for Matchup Intel's
-   * high-elo sampling (docs/HIGH_ELO_EVIDENCE.md): only the entries' PUUIDs are read, and they are
-   * kept in memory for one slice, never stored.
-   */
-  apexLeague(platform: string, tier: "challenger" | "grandmaster" | "master"): Promise<LeagueList> {
-    if (tier === "challenger") return this.get(platform, `/lol/league/v4/challengerleagues/by-queue/RANKED_SOLO_5x5`, leagueListSchema);
-    if (tier === "grandmaster") return this.get(platform, `/lol/league/v4/grandmasterleagues/by-queue/RANKED_SOLO_5x5`, leagueListSchema);
-    return this.get(platform, `/lol/league/v4/masterleagues/by-queue/RANKED_SOLO_5x5`, leagueListSchema);
   }
 
   leagueEntriesByPuuid(platform: string, puuid: string): Promise<LeagueEntry[]> {

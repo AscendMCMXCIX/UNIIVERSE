@@ -31,8 +31,6 @@ import {
 import { PREP_FORMAT, type PrepLane } from "@/domain/matchup-intel/prep";
 import { EVIDENCE_CACHE, RIFT_QUEUES } from "./prep-store";
 import { unchangedKeys } from "./digests";
-import { highEloRows } from "./high-elo/store";
-import { HIGH_ELO_REGIONS, highEloSection, type HighEloSection } from "@/domain/matchup-intel/high-elo/lines";
 
 /*
   MATCHUP INTEL's evidence from the team's own games (docs/MATCHUP_INTEL.md, "In your games"),
@@ -135,7 +133,7 @@ export interface EvidenceInput {
  * The evidence for the page's slots: null until your champion is chosen (every line is about it).
  * Lines count only games matching every chosen slot; `ignored` names the empty ones.
  */
-export async function loadMatchupEvidence(db: Db, session: Session | null, input: EvidenceInput, champions: readonly ChampionChoice[], options: { highElo?: boolean } = {}): Promise<MatchupEvidence | null> {
+export async function loadMatchupEvidence(db: Db, session: Session | null, input: EvidenceInput, champions: readonly ChampionChoice[]): Promise<MatchupEvidence | null> {
   const { role, you, ally, enemy, enemy2 } = input;
   if (!you || !session) return null;
   const duo = DUO_ROLES.has(role);
@@ -229,32 +227,7 @@ export async function loadMatchupEvidence(db: Db, session: Session | null, input
       positionNote: counts.position ? "Some of these games were stored before Riot's two position readings were kept: their lane opponent is by Riot's position." : null,
     });
   }
-  const highElo = options.highElo ? await loadHighElo(db, { role, you, enemy, current: current.patch, previous, names }) : null;
-  return { patch: publicPatchName(current.patch), ignored, sections, ...(options.highElo ? { highElo } : {}) };
-}
-
-/**
- * The observed Master+ games for your champion in the role, against the enemy where one is chosen
- * (docs/HIGH_ELO_EVIDENCE.md): one section per region, all regions first. For the bot lane the
- * enemy in your own lane is the opponent, as in the team's games. Counts only leave the database.
- */
-async function loadHighElo(db: Db, input: { role: Role; you: ChampionChoice; enemy: ChampionChoice | null; current: string; previous: string | null; names: EvidenceNames }): Promise<{ sections: HighEloSection[] }> {
-  const patches = input.previous ? [input.current, input.previous] : [input.current];
-  const query = { role: ROLE_LANE[input.role], champion: input.you.id, opponent: input.enemy?.id ?? null, patches };
-  const rows = await cachedFor(`${EVIDENCE_CACHE}:high:${keyOf(query)}`, CACHE_MS, () => highEloRows(db, query), db);
-  const window: PatchWindow = { current: input.current, previous: input.previous, unchanged: () => false };
-  if (input.previous) {
-    // The per-version diff for the champions and every rune and item the rows name, read once.
-    const named: Array<{ kind: "champion" | "item" | "rune"; key: string }> = [{ kind: "champion", key: input.you.id }, ...(input.enemy ? [{ kind: "champion" as const, key: input.enemy.id }] : [])];
-    for (const r of rows) {
-      if (r.kind === "ks") named.push({ kind: "rune", key: r.value });
-      if (r.kind === "item1" || r.kind === "start") for (const id of r.value.split(",").filter(Boolean)) named.push({ kind: "item", key: id });
-    }
-    const keys = [...new Set(named.map((n) => `${n.kind}:${n.key}`))].sort();
-    const same = new Set(await cachedFor(`${EVIDENCE_CACHE}:diff:${keyOf([input.current, input.previous, keys])}`, CACHE_MS, async () => [...(await unchangedKeys(db, input.current, input.previous!, named))], db));
-    window.unchanged = (list) => list.length > 0 && list.every((n) => same.has(`${n.kind}:${n.key}`));
-  }
-  return { sections: HIGH_ELO_REGIONS.map((region) => highEloSection({ rows, region, window, champion: input.you.id, opponent: input.enemy?.id ?? null, roleName: roleName(input.role), names: input.names })) };
+  return { patch: publicPatchName(current.patch), ignored, sections };
 }
 
 /** The per-version diff for everything a count set may name, read in one query; a function the templates ask. */

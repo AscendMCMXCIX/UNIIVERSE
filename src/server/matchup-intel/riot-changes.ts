@@ -24,12 +24,12 @@ export function namedOnPage(view: MatchupPageView, evidence: MatchupEvidence | n
 export function withRiotChanges(view: MatchupPageView, evidence: MatchupEvidence | null, changes: RiotChanges | null): { view: MatchupPageView; evidence: MatchupEvidence | null } {
   const label = (intel: ChampionIntelView | null): ChampionIntelView | null => (intel ? { ...intel, riotChangedOn: changes?.changed.has(`champion:${intel.champion.id}`) ? changes.patch : null } : null);
   const out: MatchupPageView = { ...view, enemyIntel: label(view.enemyIntel), yourIntel: label(view.yourIntel), allyIntel: label(view.allyIntel), enemy2Intel: label(view.enemy2Intel) };
-  // A line's `named` stays on the server: it decides the label, and is never sent to the page.
-  const relabel = <L extends { named?: Array<{ kind: DigestKind; key: string }> }>({ named, ...l }: L) => (changes && named?.some((n) => changes.changed.has(`${n.kind}:${n.key}`)) ? { ...l, changedOn: changes.patch } : l);
   const ev = evidence && {
     ...evidence,
-    sections: evidence.sections.map((s) => ({ ...s, lines: s.lines.map(relabel) })),
-    ...(evidence.highElo ? { highElo: { sections: evidence.highElo.sections.map((s) => ({ ...s, lines: s.lines.map(relabel) })) } } : {}),
+    sections: evidence.sections.map((s) => ({
+      ...s,
+      lines: s.lines.map(({ named, ...l }) => (changes && named?.some((n) => changes.changed.has(`${n.kind}:${n.key}`)) ? { ...l, changedOn: changes.patch } : l)),
+    })),
   };
   return { view: out, evidence: ev };
 }

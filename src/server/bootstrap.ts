@@ -3,7 +3,6 @@ import { getDbHandle, type DbHandle } from "@/server/db/client";
 import { getCurrentPatch } from "@/server/repositories/champions";
 import { runJob } from "@/server/jobs";
 import { applyScreenshotFixture, seedDemoAccounts, seedDemoRoster, seedDemoVerificationAccount } from "@/server/demo/seed";
-import { seedDemoHighElo } from "@/server/demo/high-elo";
 import { applyDemoEncounters } from "@/server/demo/encounters-fixture";
 import { seedChampionAbilitiesFromFixture } from "@/server/matchup-intel/abilities";
 
@@ -47,8 +46,6 @@ async function bootstrap(handle: DbHandle): Promise<void> {
     if (handle.mode !== "postgres") await applyDemoEncounters(db);
     // Production's verification account, as Admin's People page shows it (no password; local only).
     if (handle.mode !== "postgres") await seedDemoVerificationAccount(db);
-    // Matchup Intel's high-elo counts, made as the sampler makes them (test data; shown only with a browser test's cookie while collection is off).
-    if (handle.mode !== "postgres") await seedDemoHighElo(db).catch((err) => console.error("[bootstrap] demo high-elo counts not stored:", err));
     // Screenshots and layout checks: real-length names, the local owner as a player (in-memory demo only).
     if (process.env.UNIIVERSE_DEMO_SCREENSHOT === "1" && handle.mode === "pglite-memory") await applyScreenshotFixture(db);
   }

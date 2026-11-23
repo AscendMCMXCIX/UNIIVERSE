@@ -18,9 +18,6 @@ const REGISTERED: Record<string, string> = {
   "/lol/match/v5/matches/{}": "match-v5: a match",
   "/lol/match/v5/matches/{}/timeline": "match-v5: a match's timeline",
   "/lol/league/v4/entries/by-puuid/{}": "league-v4: ranked entries (linked accounts, and the players of members' completed games)",
-  "/lol/league/v4/challengerleagues/by-queue/RANKED_SOLO_5x5": "league-v4: a server's Challenger league (Matchup Intel's high-elo sampling: PUUIDs in memory for one slice, never stored)",
-  "/lol/league/v4/grandmasterleagues/by-queue/RANKED_SOLO_5x5": "league-v4: a server's Grandmaster league (the same)",
-  "/lol/league/v4/masterleagues/by-queue/RANKED_SOLO_5x5": "league-v4: a server's Master league (the same)",
   "/lol/champion-mastery/v4/champion-masteries/by-puuid/{}": "champion-mastery-v4: a linked account's masteries",
   "/lol/status/v4/platform-data": "lol-status-v4: the key check",
 };

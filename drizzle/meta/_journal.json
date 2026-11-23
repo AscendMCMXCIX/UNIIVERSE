@@ -470,13 +470,6 @@
       "when": 1795146233866,
       "tag": "0067_match_prep",
       "breakpoints": true
-    },
-    {
-      "idx": 68,
-      "version": "7",
-      "when": 1795403309324,
-      "tag": "0068_high_elo",
-      "breakpoints": true
     }
   ]
 }

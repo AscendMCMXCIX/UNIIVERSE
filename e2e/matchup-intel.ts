@@ -1,7 +1,6 @@
 import { expect, test, type Locator, type Page } from "./test";
 import { CHANGED_ABILITIES_TEST_COOKIE, NOTES_AGE_TEST_COOKIE, RIOT_CHANGED_TEST_COOKIE } from "../src/server/matchup-intel/notes-age";
 import { RIOT_TEXT_TEST_COOKIE } from "../src/server/matchup-intel/riot-text/switch";
-import { HIGH_ELO_TEST_COOKIE } from "../src/server/matchup-intel/high-elo/switch";
 
 /*
   Matchup Intel (a sidebar entry of its own, docs/MATCHUP_INTEL.md): its address, its two pickers
@@ -45,15 +44,6 @@ export async function changedAbilities(page: Page, refs: readonly string[]) {
  */
 export async function riotChanged(page: Page, keys: readonly string[]) {
   await page.context().addCookies([{ name: RIOT_CHANGED_TEST_COOKIE, value: keys.join(","), url: test.info().project.use.baseURL! }]);
-}
-
-/**
- * The observed Master+ games (docs/HIGH_ELO_EVIDENCE.md) shown or not, whatever the collection's
- * switch says (src/server/matchup-intel/high-elo/switch.ts): "on" shows the demo's own counts. A
- * cookie only the in-memory demo reads.
- */
-export async function highElo(page: Page, state: "on" | "off") {
-  await page.context().addCookies([{ name: HIGH_ELO_TEST_COOKIE, value: state, url: test.info().project.use.baseURL! }]);
 }
 
 /** The page for a choice of champions (either may be left out), once its heading is drawn. */

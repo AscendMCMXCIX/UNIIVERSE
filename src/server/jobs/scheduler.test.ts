@@ -3,7 +3,7 @@ import { TICK_JOB_ORDER, tickJobBudget } from "./scheduler";
 
 describe("scheduler tick budget", () => {
   it("runs static data first, then the team's account sync and the ranks of the games it collected, with the two backfills last", () => {
-    expect([...TICK_JOB_ORDER]).toEqual(["version-check", "rank-watch", "account-sync", "rank-checks", "integrity", "timeline-backfill", "figures-backfill", "high-elo-sample"]);
+    expect([...TICK_JOB_ORDER]).toEqual(["version-check", "rank-watch", "account-sync", "rank-checks", "integrity", "timeline-backfill", "figures-backfill"]);
   });
 
   it("caps each job so one job cannot take the whole tick", () => {
@@ -16,8 +16,6 @@ describe("scheduler tick budget", () => {
     // Matchups' timeline backfill shares Riot's limits: a small slice.
     expect(tickJobBudget("timeline-backfill", 120_000)).toBe(25_000);
     expect(tickJobBudget("figures-backfill", 120_000)).toBe(25_000);
-    // Matchup Intel's high-elo sampling: one minute a slice at most (docs/HIGH_ELO_EVIDENCE.md, "Budgets").
-    expect(tickJobBudget("high-elo-sample", 200_000)).toBe(60_000);
     // Uncapped jobs still stop short of the tick's end.
     expect(tickJobBudget("version-check", 30_000)).toBe(28_000);
   });
