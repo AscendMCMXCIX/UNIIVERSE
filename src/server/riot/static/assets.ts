@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { appSettings } from "@/server/db/schema";
 import { cachedFor, invalidateCache } from "@/server/observability/cache";
+import { itemKindsOf, type ItemKinds } from "@/domain/build-path";
 
 /*
   Names and icons for what a match record refers to by number: items, summoner spells, runes.
@@ -26,6 +27,11 @@ export interface RiotAssets {
   items: Record<string, string>;
   spells: Record<string, { id: string; name: string }>;
   runes: Record<string, { name: string; icon: string }>;
+  /**
+   * Which items a build path marks (domain/build-path itemKinds: finished items, and consumables,
+   * trinkets and wards), about 1 KB; absent on maps stored before format 4 (re-read on the next run).
+   */
+  itemKinds?: ItemKinds;
 }
 
 /** What Matchup Intel's build evidence rests on (docs/MATCHUP_INTEL.md, "Static data"), for one game version. */
@@ -60,8 +66,8 @@ export interface ItemInfo {
   haste: number | null;
 }
 
-/** The rules' revision: maps stored under another are read again on the next run (3: a summoner spell with charges keeps no cooldown, R11a). */
-export const ASSET_RULES_FORMAT = 3;
+/** The rules' revision: maps stored under another are read again on the next run (3: a summoner spell with charges keeps no cooldown, R11a; 4: the build path's item kinds, Release 16). */
+export const ASSET_RULES_FORMAT = 4;
 
 /**
  * The ability haste an item's stats give, from the `<stats>` block of its Data Dragon description
@@ -96,7 +102,7 @@ export function compactAssets(version: string, items: Json, summoner: Json, rune
     runeMap[String(style.id)] = { name: style.name, icon: style.icon };
     for (const slot of style.slots ?? []) for (const r of slot.runes ?? []) runeMap[String(r.id)] = { name: r.name, icon: r.icon };
   }
-  return { version, format: ASSET_RULES_FORMAT, items: itemMap, spells: spellMap, runes: runeMap };
+  return { version, format: ASSET_RULES_FORMAT, items: itemMap, spells: spellMap, runes: runeMap, itemKinds: itemKindsOf((items.data ?? {}) as Record<string, unknown>) };
 }
 
 /** Builds Matchup Intel's build data from the same three files: items' shop facts and haste, summoner spells' cooldowns, the rune trees' slots. */

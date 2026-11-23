@@ -100,7 +100,7 @@ test("an open game ends with a control that closes it and brings its card into v
   }).toPass({ timeout: 5_000 });
 });
 
-test("a phone's scoreboard row is two lines of about 48px: the name and K/D/A, then the build, the rank and CS; at 320px too", async ({ page }) => {
+test("a phone's scoreboard row is two lines of about 48px: the name, K/D/A and score, then the build, the rank and CS; at 320px too", async ({ page }) => {
   test.skip(!isPhone(page), "the phone layout");
   const profile = await profileOf(page, "SUPPORT");
   for (const size of [page.viewportSize()!, { width: 320, height: 568 }]) {
@@ -114,9 +114,11 @@ test("a phone's scoreboard row is two lines of about 48px: the name and K/D/A, t
       const box = (await row.boundingBox())!;
       expect(box.height, `${size.width}px, row ${i}`).toBeLessThanOrEqual(54);
       // The build, the K/D/A and CS inside the row, none over another.
-      const parts = await Promise.all(["participant-name", "participant-kda", "participant-items", "participant-cs"].map(async (t) => (await row.getByTestId(t).boundingBox())!));
+      // The performance score (Release 16) on the first line after the K/D/A, inside the row too.
+      const parts = await Promise.all(["participant-name", "participant-kda", "participant-items", "participant-cs", "participant-score"].map(async (t) => (await row.getByTestId(t).boundingBox())!));
       for (const p of parts) expect(p.x + p.width, `${size.width}px, row ${i}`).toBeLessThanOrEqual(box.x + box.width + 0.5);
-      const [name, kda, items, cs] = parts;
+      const [name, kda, items, cs, score] = parts;
+      expect(kda!.x + kda!.width, `${size.width}px, row ${i}: the K/D/A before the score`).toBeLessThanOrEqual(score!.x + 0.5);
       expect(name!.x + name!.width, `${size.width}px, row ${i}: the name before the K/D/A`).toBeLessThanOrEqual(kda!.x + 0.5);
       expect(items!.x + items!.width, `${size.width}px, row ${i}: the build before CS`).toBeLessThanOrEqual(cs!.x + 0.5);
     }

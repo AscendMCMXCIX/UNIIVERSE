@@ -485,11 +485,17 @@ export interface DetailParticipant {
   visionPerMin: number | null;
   wardsPlaced: number | null;
   /** The extra figures Riot sent for this player (absent on records stored before they were kept). */
-  stats: Pick<ParticipantExtraStats, "wardsKilled" | "controlWardsBought" | "turretTakedowns" | "objectiveDamage" | "buildingDamage" | "ccSeconds" | "soloKills" | "firstBloodKill" | "firstBloodAssist" | "largestKillingSpree" | "largestMultiKill"> | null;
+  stats: Pick<ParticipantExtraStats, "wardsKilled" | "controlWardsBought" | "turretTakedowns" | "objectiveDamage" | "buildingDamage" | "ccSeconds" | "soloKills" | "firstBloodKill" | "firstBloodAssist" | "largestKillingSpree" | "largestMultiKill" | "teamHealing" | "teamShielding" | "damageMitigated" | "deadSeconds" | "platesTaken"> | null;
   items: Array<Icon | null> | null;
   spells: Icon[] | null;
   keystone: Icon | null;
   secondary: Icon | null;
+  /** Every rune chosen (null on records stored before the full page was kept), for inspecting any player of the game. */
+  runePage: RunePage | null;
+  /** The player's lane opponent by place in the record (domain/match-analysis laneOpponentOf, the one rule); null when unclear. */
+  laneOpponentSlot: number | null;
+  /** The player's team won. */
+  win: boolean;
 }
 
 /** Every rune chosen, primary path then secondary (records stored before Phase 9 have only the keystone). */
@@ -537,7 +543,7 @@ export interface MatchDetailView {
   win: boolean;
   championId: string | null;
   role: string | null;
-  player: DetailParticipant & { runePage: RunePage | null };
+  player: DetailParticipant;
   teams: DetailTeam[];
   /** Some players' ranks are missing or stale and Riot can be asked: the window checks them once open (getMatchRanks). */
   rankCheck: boolean;
@@ -751,8 +757,8 @@ export async function getMatchDetail(db: Db, playerId: string, matchId: string, 
   }
   const extras = (st: ParticipantExtraStats | undefined): DetailParticipant["stats"] => {
     if (!st) return null;
-    const { wardsKilled, controlWardsBought, turretTakedowns, objectiveDamage, buildingDamage, ccSeconds, soloKills, firstBloodKill, firstBloodAssist, largestKillingSpree, largestMultiKill } = st;
-    return { wardsKilled, controlWardsBought, turretTakedowns, objectiveDamage, buildingDamage, ccSeconds, soloKills, firstBloodKill, firstBloodAssist, largestKillingSpree, largestMultiKill };
+    const { wardsKilled, controlWardsBought, turretTakedowns, objectiveDamage, buildingDamage, ccSeconds, soloKills, firstBloodKill, firstBloodAssist, largestKillingSpree, largestMultiKill, teamHealing, teamShielding, damageMitigated, deadSeconds, platesTaken } = st;
+    return { wardsKilled, controlWardsBought, turretTakedowns, objectiveDamage, buildingDamage, ccSeconds, soloKills, firstBloodKill, firstBloodAssist, largestKillingSpree, largestMultiKill, teamHealing, teamShielding, damageMitigated, deadSeconds, platesTaken };
   };
   const view = (p: MatchParticipantDetail): DetailParticipant => ({
     slot: d!.participants.indexOf(p),
@@ -784,6 +790,9 @@ export async function getMatchDetail(db: Db, playerId: string, matchId: string, 
     wardsPlaced: p.wardsPlaced,
     stats: extras(p.stats),
     ...icons(p, assets, version),
+    runePage: isRemoved(p) ? null : runePageOf(p, assets),
+    laneOpponentSlot: laneOpponentOf(d!.participants, d!.participants.indexOf(p)),
+    win: p.win,
   });
   // The player's team first, each in lane order.
   const teamIds = [...new Set(d.participants.map((p) => p.teamId))].sort((a, b) => (a === meRaw?.teamId ? -1 : b === meRaw?.teamId ? 1 : a - b));
@@ -818,7 +827,7 @@ export async function getMatchDetail(db: Db, playerId: string, matchId: string, 
       win: meRaw!.win,
       championId: me.championId,
       role: mine.role,
-      player: { ...me, runePage: runePageOf(meRaw!, assets) },
+      player: me,
       teams,
       rankCheck: rankChecksAvailable({ matchId, platform: d.platform }) && teams.some((t) => t.participants.some((p) => !p.removed && !!p.rank?.stale)),
       maxDamage: Math.max(1, ...d.participants.map((p) => p.damage ?? 0)),

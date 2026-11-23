@@ -107,7 +107,9 @@
     the tab bar; its Encounters view still opens. All Champions' preview: on the desktop and the
     tablet unfolded under its row (Champion, Games and Win rate in place, the page not scrolled,
     nothing scrolling inside), Escape and Back close it; on the phone a sheet, which Back closes;
-    phone rows at most 64px. The open game's post-game view has no notes and no folds.
+    phone rows at most 64px. The open game's post-game view has no notes and no gold curve; Build
+    Path, Skill Order and Runes stand above its lane, each of its ten players has a performance score
+    (one MVP, one ACE), and a press on another player's row shows that player ("Back to …" returns).
   - accessibility (#173): axe (WCAG 2.1 A and AA, plus label-content-name-mismatch) on the main pages
     at every width, with a game open, and in All Champions' preview: no serious or critical violation.
   - players (the roster board, Nov 2026), at every width: one profile link per listed player, and no
@@ -144,7 +146,7 @@ import { riotKeysOnPage } from "./riot-keys.mjs";
 import { rosterRowLines } from "./roster-lines.mjs";
 import { matchupIntelVerdicts, readMatchupIntel } from "./matchup-intel-facts.mjs";
 import { matchupRolesVerdicts, readRoleBar } from "./matchup-roles-facts.mjs";
-import { postGameVerdicts, readPostGame } from "./post-game-facts.mjs";
+import { postGameVerdicts, readInspection, readPostGame, switchVerdicts } from "./post-game-facts.mjs";
 import { championPreviewVerdicts, readChampionPreview, readChampionRows, targetRow } from "./champion-preview-facts.mjs";
 import { multikillVerdicts, readMultikillBoard } from "./multikill-facts.mjs";
 import { execFileSync } from "node:child_process";
@@ -1992,6 +1994,19 @@ async function matchHistory(page, log, kind, playerId) {
           await page.waitForFunction(() => { const b = document.querySelector("li[data-expanded] [data-testid=match-breakdown]"); return !!b && b.getAttribute("data-timeline") !== "loading"; }, null, { timeout: 30_000 }).catch(() => {});
           const at = await page.evaluate(readPostGame);
           for (const v of postGameVerdicts({ kind, at })) check("games", v.name, v.status, v.detail);
+        });
+        // Inspecting another player (Release 16): a press on another row shows that player from the
+        // game already loaded (no request of its own), and "Back to …" returns. Places and true or false only.
+        await guarded("games", `${kind}: inspecting another player of the open game`, async () => {
+          const before = await page.evaluate(readInspection);
+          const other = open.locator("[data-testid=participant-select]:not([aria-current=true])").nth(4);
+          await other.click();
+          await page.waitForFunction((s) => document.querySelector("li[data-expanded] [data-testid=match-breakdown]")?.getAttribute("data-selected") !== String(s), before.selected, { timeout: 5_000 }).catch(() => {});
+          const after = await page.evaluate(readInspection);
+          await open.getByTestId("inspect-back").click().catch(() => {});
+          await page.waitForTimeout(200);
+          const back = await page.evaluate(readInspection);
+          for (const v of switchVerdicts({ kind, before, after, back })) check("games", v.name, v.status, v.detail);
         });
       }
       const next = open.getByTestId("game-header-next");

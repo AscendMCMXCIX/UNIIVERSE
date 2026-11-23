@@ -20,6 +20,12 @@ vision and wards, kill participation), the lane against the lane opponent at 10:
 end, and the scoreboard with every player, their ranks and the possible groups
 (docs/DESIGN_SYSTEM.md §1, "The post-game view").
 
+**Release 16 (23 Nov 2026):** at the owner's request the build and the skill order came back, not as
+the fold, but as two of three segmented headings above the lane (**Build Path | Skill Order |
+Runes**, `src/components/match-history/participant-panels.tsx`), for whichever player is inspected,
+with sales and completed items marked where the timeline and Data Dragon support them. The notes and
+the gold curve stay removed.
+
 The Production check asserts the removed sections stay gone (`scripts/post-game-facts.mjs`,
 `REMOVED_WORDS`; docs/LIVE_VALIDATION.md). The rules as they last stood are in the repository's
 history, in this file before 23 Nov 2026, should the owner ask for any of them again.

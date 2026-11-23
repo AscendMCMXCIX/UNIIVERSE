@@ -200,7 +200,8 @@ describe("Matchup Intel's build data", () => {
     }) as typeof fetch;
     expect(await syncRiotAssets(handle.db, "16.22.1", ddragon)).toBe(true);
     const [stored] = await handle.db.select({ value: appSettings.value }).from(appSettings).where(eq(appSettings.key, "riot_assets"));
-    expect(Object.keys(stored!.value as object).sort()).toEqual(["format", "items", "runes", "spells", "version"]);
+    // The names, and since Release 16 the build path's item kinds (about 1 KB: ids only), never the build data.
+    expect(Object.keys(stored!.value as object).sort()).toEqual(["format", "itemKinds", "items", "runes", "spells", "version"]);
     invalidateCache("riot_assets");
     expect((await loadRiotAssets(handle.db))?.items).toEqual({ "3067": "Kindlegem", "1028": "Ruby Crystal", "3067x": "Kindlegem (another mode)" });
     const build = await loadRiotBuildData(handle.db);

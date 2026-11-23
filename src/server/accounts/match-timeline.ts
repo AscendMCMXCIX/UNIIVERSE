@@ -11,6 +11,7 @@ import { redactTimeline } from "@/server/privacy/redact";
 import { loadCompositionParticipants } from "@/server/matches/compositions";
 import { LANE_MINUTES, goldContradictsRecord, laneMoments, botPairOf, laneOpponentOf, pairMoments, teamGoldDifference, type GoldPoint, type LaneMoment } from "@/domain/match-analysis";
 import type { TimelineEventsView } from "@/domain/match-events";
+import { buildPath, type BuildEvent } from "@/domain/build-path";
 import { refreshMatchPrep } from "@/server/matchup-intel/prep-store";
 
 /*
@@ -363,10 +364,19 @@ async function timelineFor(db: Db, playerId: string, matchId: string, options: {
   return { row, puuids: new Set(accounts.map((a) => a.puuid).filter((x): x is string => !!x)), eventsNote };
 }
 
-async function buildOf(db: Db, matchId: string, me: MatchTimelineParticipant): Promise<MatchBuildView> {
+/** An item's name, icon and kind for one game (its Data Dragon version), from the stored asset maps: one small read for the game's version (the maps are cached). */
+async function itemDescriber(db: Db, matchId: string) {
   const [[detail], assets, patch] = await Promise.all([db.select({ gameVersion: matchDetails.gameVersion }).from(matchDetails).where(eq(matchDetails.matchId, matchId)), loadRiotAssets(db), getCurrentPatch(db)]);
   const version = ddragonVersionOf(detail?.gameVersion ?? null, patch?.ddragonVersion ?? null);
-  const describe = (id: number) => ({ name: assets?.items[String(id)] ?? `Item ${id}`, url: version ? assetUrl.item(version, id) : null });
+  const done = new Set(assets?.itemKinds?.done ?? []);
+  const minor = new Set(assets?.itemKinds?.minor ?? []);
+  return {
+    kinds: !!assets?.itemKinds,
+    describe: (id: number) => ({ name: assets?.items[String(id)] ?? `Item ${id}`, url: version ? assetUrl.item(version, id) : null, done: done.has(id), minor: minor.has(id) }),
+  };
+}
+
+function buildOf(me: MatchTimelineParticipant, describe: (id: number) => { name: string; url: string | null }): MatchBuildView {
   return {
     steps: buildSteps(me.purchases, describe),
     skills: me.skills.map((s) => SLOT[s - 1]!),
@@ -374,9 +384,39 @@ async function buildOf(db: Db, matchId: string, me: MatchTimelineParticipant): P
   };
 }
 
+/** One player's timeline in a game, for the post-game view's inspection of any of its players (by their place in the record). */
+export interface TimelinePlayerView {
+  /** The player's place in the game's record (DetailParticipant.slot). */
+  slot: number;
+  /** Purchases and sales in the order they happened (domain/build-path buildPath; undone purchases are not kept), each with its item's name, icon and kind. */
+  path: Array<BuildEvent & { done: boolean; minor: boolean }>;
+  /** Skill slots in the order taken (1 = Q … 4 = R), Riot's evolve level-ups left out. */
+  skills: number[];
+  /** Champion kills made, died in and assisted, in ms; null on a timeline kept before they were. */
+  kills: number[] | null;
+  deaths: number[] | null;
+  assists: number[] | null;
+  /** Gold, experience and CS at every frame (aligned with the view's `t`); null when the player's frames have a gap, or the timeline contradicts the record. */
+  frames: { g: number[]; x: number[]; c: number[] } | null;
+  /** Against the lane opponent at 10:00 and 15:00 (the one lane opponent rule), as `lane` is for the profile's player. */
+  lane: { opponentSlot: number; moments: LaneMoment[] } | null;
+  /** The bot lane at 10:00, two against two, as `pair` is for the profile's player. */
+  pair: { allySlot: number; opponentSlots: [number, number]; gold: number } | null;
+}
+
 export interface MatchTimelineView {
   /** Build and skill order; null when the timeline has no entry for the player. */
   build: MatchBuildView | null;
+  /** Every player the stored timeline keeps (a removed player's entry is not kept), by place in the record: what inspecting another player reads, with nothing more fetched. */
+  players: TimelinePlayerView[];
+  /** The frames' own times in ms (the players' `frames` are aligned with them); null without frames or when the timeline contradicts the record. */
+  t: number[] | null;
+  /** Whether the timeline keeps sales (timelines kept from 20 Nov 2026 on): without, a build path shows purchases only. */
+  sales: boolean;
+  /** Whether items can be marked completed or minor (the asset maps' item kinds, format 4 on). */
+  itemKinds: boolean;
+  /** Each item the players' paths name, once: its name and icon (the paths carry ids, so a name is not sent ten times). */
+  items: Record<string, { name: string; url: string | null }>;
   /**
    * The player and the enemy in the same recorded position at 10:00 and 15:00; null without such
    * an enemy (exactly one) or without both players' frames. `opponentSlot` is their place in the record.
@@ -476,10 +516,49 @@ export async function getMatchTimeline(db: Db, playerId: string, matchId: string
     lane = null;
     pair = null;
   }
+  // Every player's own: the same rules as the profile's player's above, from the row already read.
+  const { describe, kinds } = await itemDescriber(db, matchId);
+  const entry = new Map(row.participants.map((p) => [p.puuid, p]));
+  const items: MatchTimelineView["items"] = {};
+  const usable = frames && !contradicts ? frames : null;
+  const players: TimelinePlayerView[] = parts.flatMap((p, slot) => {
+    const e = !p.removed && p.puuid ? entry.get(p.puuid) : undefined;
+    if (!e) return [];
+    const f = usable?.p[p.puuid];
+    const opp = laneOpponentOf(parts, slot);
+    const theirs = opp !== null && usable ? usable.p[parts[opp]!.puuid] : undefined;
+    const seats = usable ? botPairOf(parts, slot) : null;
+    const seat = (s: number) => usable?.p[parts[s]!.puuid];
+    const [ally, o1, o2] = seats ? [seat(seats.ally), seat(seats.opponents[0]), seat(seats.opponents[1])] : [];
+    const pairGold = seats && f && ally && o1 && o2 ? pairMoments(usable!.t, [f, ally], [o1, o2], 10) : null;
+    return [
+      {
+        slot,
+        path: buildPath(e.purchases, e.sold ?? []).map((x) => {
+          const d = describe(x.id);
+          items[String(x.id)] ??= { name: d.name, url: d.url };
+          return { ...x, done: d.done, minor: d.minor };
+        }),
+        skills: e.skills,
+        kills: e.kills ?? null,
+        deaths: e.kills ? (e.deaths ?? []) : null,
+        assists: e.kills ? (e.assists ?? []) : null,
+        frames: f ? { g: f.g, x: f.x, c: f.c } : null,
+        lane: f && theirs && opp !== null ? { opponentSlot: opp, moments: laneMoments(usable!.t, f, theirs, LANE_MINUTES) } : null,
+        pair: seats && pairGold !== null ? { allySlot: seats.ally, opponentSlots: seats.opponents, gold: pairGold } : null,
+      },
+    ];
+  });
   return {
     status: "ok",
     timeline: {
-      build: meTimeline ? await buildOf(db, matchId, meTimeline) : null,
+      build: meTimeline ? buildOf(meTimeline, describe) : null,
+      players,
+      t: usable ? usable.t : null,
+      // Sales are kept with the turret plates (20 Nov 2026 on): an older timeline never had them.
+      sales: !!row.events?.plates,
+      itemKinds: kinds,
+      items,
       lane,
       pair,
       gold,

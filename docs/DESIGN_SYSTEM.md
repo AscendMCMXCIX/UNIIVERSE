@@ -67,7 +67,22 @@ decorative chrome.
     finding 10; Team → Matches' cards have no steps of their own, so their footer always shows). The card's D8
     density is unchanged. The written notes (Went well, Went wrong, Focus next) and the two folds
     (Gold over the game, Build and skill order) were removed from the view on 23 Nov 2026, at the
-    owner's request (docs/MATCH_NOTES.md); the Production check asserts they stay gone.
+    owner's request (docs/MATCH_NOTES.md); the Production check asserts the notes and the gold curve
+    stay gone. **Release 16 (the owner's request of 23 Nov 2026):** any of the ten players is
+    inspected from the scoreboard (the row is its one button, its name still the player's link; the
+    row inspected is `surface-3` with an inset accent ring and `aria-current`; ↑ ↓ move between the
+    rows; never in the address, so Back still closes the game); above the lane, three segmented
+    headings, **Build Path | Skill Order | Runes** (`segmentedGroupClass`, radios: the view still
+    has no tabs), one shown at a time; each row ends with the player's performance score, its place
+    as a chip (1st … 10th), the winning team's best as MVP (blue) and the losing team's as ACE (red),
+    in words (docs/PERFORMANCE_SCORE.md); under the scoreboard the performance panel: the score, its
+    place, "Excellent" from 8.0, the timeline's one trend word with its sentence and why in a
+    sentence, each team's mean on one split bar, the ten scores as a strip of small tiles (the
+    winners first; a tile inspects its player), the score through the game (a line in the
+    brand gradient, a second player dashed in `fg-muted` with a legend, 0–10 with 5 dashed, the end
+    joined by a dotted segment, a table for screen readers) and a "Compare with" select. Stacked
+    (under 60rem) a "Show …'s game" link under the scoreboard takes the reader up to the player
+    inspected; nothing scrolls by itself.
   - **Density (owner decision D8, approved 8 Nov 2026, built 18 Nov):** denser cards that keep the
     statistics, champions, ranks, LP and every interaction readable. The card follows the list's
     own width (`@container/mh`), in three tiers:

@@ -16,7 +16,7 @@ import { matchViewConsistency } from "@/server/players/match-consistency";
 import { seedDemoAccounts, seedDemoRoster } from "@/server/demo/seed";
 import { applyDemoEncounters } from "@/server/demo/encounters-fixture";
 import { matchDetails, matchTimelines, type MatchFrames } from "@/server/db/schema";
-import { eq, like } from "drizzle-orm";
+import { eq, getTableName, like, type Table } from "drizzle-orm";
 
 /*
   One game, every view. A realistic ranked game (tests/fixtures/riot-game: Riot's match and
@@ -207,6 +207,77 @@ describe("one game, every view, from both sides", () => {
       expect(b.minute).toBe(r.minute);
       expect(b.you?.gold).toBe(r.opponent?.gold);
       expect(b.you?.cs).toBe(r.opponent?.cs);
+    }
+  });
+});
+
+describe("inspecting any of the ten players (Release 16): one read of each per opened game, nothing more", () => {
+  /** The tables a call reads, query by query: drizzle's select builders by their table, raw SQL by the tables it names. */
+  function recording(db: DbHandle["db"]) {
+    const reads: string[] = [];
+    const dialect = (db as unknown as { dialect: { sqlToQuery(q: unknown): { sql: string } } }).dialect;
+    const proxy = new Proxy(db, {
+      get(target, key, receiver) {
+        const value = Reflect.get(target, key, receiver);
+        if (key === "select")
+          return (...args: unknown[]) => {
+            const builder = (value as (...a: unknown[]) => { from: (t: Table, ...r: unknown[]) => unknown }).apply(target, args);
+            const from = builder.from.bind(builder);
+            builder.from = (table: Table, ...rest: unknown[]) => {
+              reads.push(getTableName(table));
+              return from(table, ...rest);
+            };
+            return builder;
+          };
+        if (key === "execute")
+          return (query: unknown) => {
+            const text = dialect.sqlToQuery(query).sql;
+            for (const t of ["match_details", "match_timelines"]) if (text.includes(t)) reads.push(t);
+            return (value as (q: unknown) => unknown).call(target, query);
+          };
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+    return { db: proxy as DbHandle["db"], reads, count: (t: string) => reads.filter((r) => r === t).length };
+  }
+  /** A Riot client that fails the test if it is asked anything: a stored game is never fetched again. */
+  const noRiot = new RiotApiClient({ apiKey: "k", fetchImpl: (async () => { throw new Error("Riot was asked"); }) as typeof fetch, limiter: new RateLimiter([{ requests: 1000, seconds: 1 }]), sleep: async () => {} });
+
+  it("the timeline answer holds every player's build path, skills, kills, frames and lane, read once from storage without Riot", async () => {
+    const r = recording(handle.db);
+    const detail = await getMatchDetail(r.db, members.blue, MATCH, { viewerIsOwner: true });
+    // The record once, and the players' newest recorded Riot IDs for their OP.GG links (players/riot-names): as before Release 16.
+    expect(r.count("match_details")).toBe(2);
+    const before = r.reads.length;
+    const result = await getMatchTimeline(r.db, members.blue, MATCH, { fetch: true, client: noRiot });
+    if (result.status !== "ok" || detail.status !== "ok") throw new Error("not stored");
+    const reads = r.reads.slice(before);
+    // The timeline row once; the record's players (lanes), its gold check and its game version: the same three as before Release 16.
+    expect(reads.filter((t) => t === "match_timelines")).toHaveLength(1);
+    expect(reads.filter((t) => t === "match_details")).toHaveLength(3);
+    const tl = result.timeline;
+    expect(tl.players.map((p) => p.slot).sort((a, b) => a - b)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    expect(tl.t).toEqual(game.truth.frames);
+    for (const p of tl.players) {
+      const truth = game.truth.players.find((x) => x.puuid === players[p.slot]!.puuid)!;
+      expect(p.kills!.length, `slot ${p.slot} kills`).toBe(truth.kills);
+      expect(p.deaths!.length).toBe(truth.deaths);
+      expect(p.assists!.length).toBe(truth.assists);
+      expect(p.frames!.g.at(-1)).toBe(truth.gold);
+      expect(p.path.length).toBeGreaterThan(0);
+      expect(p.path.every((e) => e.kind === "buy" && typeof tl.items[String(e.id)]?.name === "string")).toBe(true);
+      expect(p.skills.length).toBeGreaterThan(0);
+      // Everyone's lane opponent is the other side's player in the same position, the scoreboard's own rule.
+      const row = detail.view.teams.flatMap((t) => t.participants).find((x) => x.slot === p.slot)!;
+      expect(p.lane?.opponentSlot).toBe(row.laneOpponentSlot);
+      expect(p.lane?.moments.map((m) => m.minute)).toEqual([10, 15]);
+    }
+    // The profile's player's own lane, as before, is one of them.
+    expect(tl.players.find((p) => p.slot === detail.view.player.slot)!.lane).toEqual(tl.lane);
+    // Every player of the record carries what inspecting them shows.
+    for (const p of detail.view.teams.flatMap((t) => t.participants)) {
+      expect(p.laneOpponentSlot).not.toBeNull();
+      expect(typeof p.win).toBe("boolean");
     }
   });
 });
