@@ -72,8 +72,8 @@ const STORED: Array<{ what: string; why: string; who: string; kept: string }> = 
     kept: "Until a planned database clean-up deletes all of them, once a recent backup has been checked. Deleting your profile or permanently removing your personal information already deletes yours; your Riot match history is never part of them",
   },
   {
-    what: "Account activity log: which account or setting an administrator changed, and when; when a member changes their own username, display name or profile picture, or their password (that it changed, never the new value); and when a team manager changes another member's roles, champion pools, team membership or Riot accounts. It names the account and the kind of change, with names as they were then, never what was typed",
-    why: "A record of administration and of changes to how members appear and sign in, so a problem can be traced",
+    what: "Account activity log: changes administrators make to accounts and settings; members' own changes to their username, display name, picture or password (never the new value); team managers' changes to other members' profiles. Names as they were then",
+    why: "A record of administration and account changes",
     who: "Administrators",
     kept: "Not deleted automatically. Permanent removal replaces the person's name in it with “Erased member”",
   },
