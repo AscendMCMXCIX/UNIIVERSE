@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from "./test";
 import { playerEntry } from "./players";
+import { optionsOf, pick, valueOf } from "./select";
 import { RANKED_YEAR } from "../src/domain/ranked-year";
 
 /*
@@ -99,7 +100,10 @@ test("a profile shows recent form and ranked progress per queue", async ({ page 
   const height = (await ranked.boundingBox())!.height;
   expect(height, "Ranked progress's height").toBeLessThan(info.project.name === "phone" ? 520 : info.project.name === "tablet" ? 320 : 400);
   const rem = await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).fontSize));
-  expect(Math.abs((await ranked.getByTestId("ranked-chart-box").boundingBox())!.height - 7.5 * rem), "the chart's height: 7.5rem").toBeLessThanOrEqual(1);
+  // 7.5rem, or 6rem in a narrow card (a phone's: under 25.5rem, where the chart names divisions by code).
+  const chartBox0 = (await ranked.getByTestId("ranked-chart-box").boundingBox())!;
+  const chartRem = chartBox0.width < 25.5 * rem ? 6 : 7.5;
+  expect(Math.abs(chartBox0.height - chartRem * rem), `the chart's height: ${chartRem}rem`).toBeLessThanOrEqual(1);
   // The rank and the 30-day change on one row, before the chart; the account line and the highest
   // rank behind the ⓘ beside the rank (read out with it), not on the card.
   const [cur, change, chartBox] = [await page.getByTestId("ranked-current").boundingBox(), await page.getByTestId("ranked-change").boundingBox(), await ranked.getByTestId("ranked-chart-box").boundingBox()];
@@ -140,17 +144,8 @@ test("a profile shows recent form and ranked progress per queue", async ({ page 
   // year strip, rank changes or readings table (the readings themselves are unchanged).
   await expectEndsWithChart(ranked, "Demo Top");
 
-  // Accounts are tabbed by their Riot names alone, every one the same way: never "Main", and no
-  // "Primary" badge beside the main one (it simply comes first).
-  const tabs = page.getByTestId("ranked-account");
-  if ((await tabs.count()) > 1) {
-    for (const text of await tabs.allInnerTexts()) {
-      expect(text.trim()).not.toBe("Main");
-      expect(text).not.toMatch(/Primary|·/);
-    }
-    const heights = await tabs.evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().height)));
-    expect(new Set(heights).size).toBe(1);
-  }
+  // One account here: no account select (several accounts: the test below).
+  await expect(ranked.getByTestId("ranked-account-select")).toHaveCount(0);
 
   // An old link to a season view still opens Ranked progress, which shows what was read.
   await page.goto(`/players/${id}?rv=s1#ranked-progress`);
@@ -250,25 +245,21 @@ async function profileOf(page: Page, name: string): Promise<string> {
 }
 
 /**
- * Where the queue switch meets the title: how much of the ⓘ's button and of the title's own words
- * (each line's box, from a Range; not the tip's text, which is read out only) lies under the
- * switch, in px², and whether the switch starts above the title's last line (one row).
+ * Ranked progress's header and controls, as drawn: whether the ⓘ's touch area reaches the phone's
+ * chevron (px² of overlap), whether the queue switch is under the rank (never in the header), and
+ * where the controls' row starts against the rank's row.
  */
-function headerClash(ranked: Locator) {
+function headerParts(ranked: Locator) {
   return ranked.evaluate((el) => {
-    const h2 = el.querySelector<HTMLElement>("#ranked-progress-title")!;
-    const nav = el.querySelector("nav[aria-label=Queue]")!.getBoundingClientRect();
-    const under = (r: DOMRect) => Math.max(0, Math.min(r.right, nav.right) - Math.max(r.left, nav.left)) * Math.max(0, Math.min(r.bottom, nav.bottom) - Math.max(r.top, nav.top));
-    const words: DOMRect[] = [];
-    const walk = document.createTreeWalker(h2, NodeFilter.SHOW_TEXT);
-    for (let n = walk.nextNode(); n; n = walk.nextNode()) {
-      if (!n.textContent?.trim() || n.parentElement?.closest(".sr-only, button")) continue;
-      const range = document.createRange();
-      range.selectNodeContents(n);
-      words.push(...range.getClientRects());
-    }
-    const tip = h2.querySelector("button")!.getBoundingClientRect();
-    return { tip: under(tip), words: words.reduce((sum, r) => sum + under(r), 0), lines: words.length, oneRow: nav.top < h2.getBoundingClientRect().bottom };
+    const box = (q: string) => el.querySelector(q)?.getBoundingClientRect() ?? null;
+    const tip = box("#ranked-progress-title button")!;
+    const fold = box("[data-testid=ranked-fold]");
+    const nav = box("nav[aria-label=Queue]")!;
+    const rank = box("[data-testid=ranked-current]")!;
+    const row = box("[data-testid=ranked-controls]")!;
+    const card = el.getBoundingClientRect();
+    const overlap = (a: DOMRect, b: DOMRect | null) => (b && b.width ? Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left)) * Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top)) : 0);
+    return { tipOnChevron: overlap(tip, fold), switchUnderRank: nav.top >= rank.bottom - 1, switchUnderTitle: nav.top >= box("#ranked-progress-title")!.bottom - 1, rowStart: Math.round(row.left - card.left), rankStart: Math.round((el.querySelector("[data-testid=ranked-current]")!.closest("div.flex") as HTMLElement).getBoundingClientRect().left - card.left), rowInside: row.right <= card.right + 0.5 };
   });
 }
 
@@ -307,30 +298,70 @@ async function expectEndsWithChart(ranked: Locator, where: string) {
   expect(box.radius, `${where}: rounded corners at its foot`).toBe(true);
 }
 
-test("on a phone Ranked progress's header never lets the queue switch cover the title or its ⓘ", async ({ page }, info) => {
+test("on a phone Ranked progress opens as one card: the title alone on its row, the queue switch and accounts in one row under the rank, at its start, nothing over the ⓘ", async ({ page }, info) => {
   test.skip(info.project.name !== "phone", "phone widths, set below");
   await page.goto(await profileOf(page, "Demo Top"));
   const ranked = page.getByTestId("ranked-progress");
   await expect(ranked).toBeVisible();
-  // The narrowest phone and a wide one, default text and larger: the switch beside the title while
-  // even the wrapped title ("Ranked", "progress ⓘ") fits there, under it otherwise, never over the ⓘ
-  // or a word. The ⓘ measured is its touch area, 44px on a touch screen: it reaches about 0.7rem
-  // under the title's line, and 0.875rem past the mark beside the switch (430 wide at 150%, where the
-  // title ends in its ⓘ; on Release 6 before the header's touch gaps the switch sat 6.5px into it at
-  // 320 with 125% text, 7.5px at 150%, and 0.7px beside it at 430 with 150%).
+  // The owner's review of the opened card (Release 13): the switch had sat beside the title, pushed
+  // to the right, on a row of its own at 320, the account choice on another. The narrowest phone and
+  // a wide one, default text and larger: the switch under the rank, its row at the card's start as
+  // the rank's is, inside the card; the ⓘ's touch area (44px on a touch screen) never over the
+  // chevron, which takes a line of its own at 200% on a 320px phone rather than sit under it.
+  const fold = page.getByTestId("ranked-fold");
+  await fold.click();
+  await expect(fold).toHaveAttribute("aria-expanded", "true");
   for (const width of [320, 430]) {
     await page.setViewportSize({ width, height: 640 });
     for (const size of ["100%", "125%", "150%", "200%"]) {
       await page.evaluate((s) => { document.documentElement.style.fontSize = s; }, size);
-      const clash = await headerClash(ranked);
       const at = `${width}, ${size} text`;
-      expect(clash.lines, `${at}: the title's words measured`).toBeGreaterThan(0);
-      expect(clash.tip, `${at}: the ⓘ clear of the queue switch`).toBe(0);
-      expect(clash.words, `${at}: the title's words clear of the queue switch`).toBe(0);
-      if (size === "100%") expect(clash.oneRow, `${width}, default text: the switch on the title's row`).toBe(true);
+      const parts = await headerParts(ranked);
+      expect(parts.tipOnChevron, `${at}: the ⓘ's touch area clear of the chevron`).toBe(0);
+      expect(parts.switchUnderTitle && parts.switchUnderRank, `${at}: the queue switch under the rank, not in the header`).toBe(true);
+      expect(Math.abs(parts.rowStart - parts.rankStart), `${at}: the controls' row starts where the rank's does`).toBeLessThanOrEqual(1);
+      expect(parts.rowInside, `${at}: the controls inside the card`).toBe(true);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), `${at}: nothing sideways`).toBeLessThanOrEqual(0);
     }
   }
   await page.evaluate(() => { document.documentElement.style.fontSize = ""; });
+});
+
+test("with two Riot accounts, Ranked progress offers one account select beside the queue switch, and choosing one keeps the page and its address's account", async ({ page }, info) => {
+  // A second account linked at runtime on the in-memory demo (the browser tests' Riot stand-in
+  // confirms it: UNIIVERSE_FAKE_RIOT_IDS), to a demo member no other ranked test reads.
+  const profile = await profileOf(page, "Demo Sub (Support)");
+  await page.goto(`${profile}/accounts`);
+  const panel = page.getByTestId("riot-accounts");
+  await expect(panel).toBeVisible();
+  if ((await panel.getByTestId("riot-account-row").count()) < 2) {
+    await page.getByRole("button", { name: "Add Riot account" }).click();
+    await page.getByPlaceholder("GameName#TAG").fill(`Second${info.project.name}#EUW`);
+    await page.getByRole("button", { name: "Link account" }).click();
+    await expect(panel.getByTestId("riot-account-row")).toHaveCount(2, { timeout: 30_000 });
+  }
+  await page.goto(profile);
+  const ranked = page.getByTestId("ranked-progress");
+  await expect(ranked).toBeVisible();
+  if (info.project.name === "phone") await page.getByTestId("ranked-fold").click();
+  const select = ranked.getByTestId("ranked-account-select");
+  await expect(select).toBeVisible();
+  // One row: the switch and the select on one line, the select right after the switch.
+  const [nav, sel] = [await ranked.locator("nav[aria-label=Queue]").boundingBox(), await select.boundingBox()];
+  expect(Math.abs(nav!.y + nav!.height / 2 - (sel!.y + sel!.height / 2)), "the select level with the switch").toBeLessThanOrEqual(2);
+  expect(sel!.x, "after the switch").toBeGreaterThan(nav!.x + nav!.width - 1);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), "nothing sideways").toBeLessThanOrEqual(0);
+  // Choosing the other account replaces the address with it (ra=), and the card says its rank or that there is none.
+  const before = page.url();
+  const options = await optionsOf(select);
+  expect(options.length, "both accounts offered").toBe(2);
+  expect(options.map((o) => o.label).join(" "), "by name, never Main or Primary").not.toMatch(/Main|Primary/);
+  // The account shown is the select's value (the first with readings, which a newly linked account is not).
+  const current = await valueOf(select);
+  await pick(select, options.find((o) => o.value !== current)!.value);
+  await expect(page).toHaveURL(/[?&]ra=/);
+  expect(page.url()).not.toBe(before);
+  await expect(ranked.getByTestId("ranked-current").or(ranked.getByTestId("ranked-empty"))).toBeVisible();
 });
 
 test("Ranked progress ends with its chart at every width: no History and coverage, its corners and padding whole", async ({ page }, info) => {
