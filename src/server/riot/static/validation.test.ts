@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { StaticValidationError, staticProblems } from "./assets";
+import { ASSET_RULES_FORMAT, StaticValidationError, staticProblems } from "./assets";
 import { STATIC_DOWNLOAD_STALE_MS, STATIC_SILENT_MS, staticDataHealth } from "@/server/ops/static-health";
 
 /*
@@ -71,7 +71,7 @@ describe("the static refresh's state for /api/health", () => {
     expect(staticDataHealth({ ...base, storedFormat: 2, attempt: attempt("download", STATIC_DOWNLOAD_STALE_MS - 60_000) }).state).toBe("ok");
     expect(staticDataHealth({ ...base, storedFormat: 2, attempt: attempt("download", STATIC_DOWNLOAD_STALE_MS + 60_000) })).toMatchObject({ state: "stale", reason: "download", stored: "26.23" });
     expect(staticDataHealth({ ...base, storedFormat: null, attempt: attempt("validation", 60_000) })).toMatchObject({ state: "failed", reason: "validation" });
-    expect(staticDataHealth({ ...base, storedFormat: 3, attempt: attempt("validation", 60_000) }).state).toBe("ok");
+    expect(staticDataHealth({ ...base, storedFormat: ASSET_RULES_FORMAT, attempt: attempt("validation", 60_000) }).state).toBe("ok");
     expect(staticDataHealth({ ...base, storedFormat: 2 }).state).toBe("ok");
   });
   it("no version-check success for 72 hours: stale, unless version-check is off by choice (a notice) or has never run", () => {

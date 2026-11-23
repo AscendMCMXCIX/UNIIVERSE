@@ -515,10 +515,13 @@ const DEMO_RUNES: Record<Role, NonNullable<MatchParticipantDetail["runes"]>> = {
  * into the next finished item bought after it, potions drunk, one Control Ward kept, and the
  * support item upgraded to its last form after 15 minutes, as the game does. Never real data.
  */
-function demoFinalItems(purchases: ReadonlyArray<readonly [number, number]>, role: Role, durationSeconds: number): number[] {
+function demoFinalItems(purchases: ReadonlyArray<readonly [number, number]>, role: Role, durationSeconds: number, sold: ReadonlyArray<readonly [number, number]> = []): number[] {
   const finished: number[] = [];
   const parts: number[] = [];
+  // An item sold (a starting item sold for the last slot, demoSales) is not held at the end.
+  const gone = new Set(sold.map(([, id]) => id));
   for (const [, bought] of purchases) {
+    if (gone.has(bought)) continue;
     const id = bought === 3865 && durationSeconds >= 900 ? 3869 : bought;
     if (id === 2003) continue;
     if (DEMO_COMPONENTS.has(id)) parts.push(id);
@@ -532,8 +535,8 @@ function demoFinalItems(purchases: ReadonlyArray<readonly [number, number]>, rol
 }
 
 /** A demo player's build, summoner spells and runes for the stored record (demo mode only), from their purchases. */
-function giveDemoLoadout(x: MatchParticipantDetail, role: Role, purchases: ReadonlyArray<readonly [number, number]>, durationSeconds: number) {
-  x.items = demoFinalItems(purchases, role, durationSeconds);
+function giveDemoLoadout(x: MatchParticipantDetail, role: Role, purchases: ReadonlyArray<readonly [number, number]>, durationSeconds: number, sold: ReadonlyArray<readonly [number, number]> = []) {
+  x.items = demoFinalItems(purchases, role, durationSeconds, sold);
   x.spells = [...DEMO_SPELLS[role]];
   x.runes = { ...DEMO_RUNES[role], primaryPerks: [...DEMO_RUNES[role].primaryPerks!], secondaryPerks: [...DEMO_RUNES[role].secondaryPerks!] };
 }
@@ -562,6 +565,46 @@ function demoBuild(rnd: () => number, durationSeconds: number, role: Role): { pu
   const order = [first, second, third, first, first, 4, first, second, first, second, 4, second, second, third, third, 4, third, third];
   const level = Math.min(18, Math.max(6, Math.round(durationSeconds / 120)));
   return { purchases, skills: order.slice(0, level) };
+}
+
+/**
+ * A demo laner's sale (demo mode only): in every third game with a timeline, the Doran's item they
+ * started with sold a moment before their last purchase, as players free a slot late in a game, so
+ * the build path shows a sale. None for junglers and supports, whose starting items upgrade.
+ */
+function demoSales(purchases: ReadonlyArray<readonly [number, number]>, role: Role, game: number): Array<[number, number]> {
+  if (game % 3 !== 1 || role === "JUNGLE" || role === "SUPPORT" || purchases.length < 8) return [];
+  const doran = purchases.find(([, id]) => id === 1054 || id === 1055 || id === 1056);
+  const last = purchases.at(-1)!;
+  return doran ? [[last[0] - 4_000, doran[1]]] : [];
+}
+
+/**
+ * The figures that serve supports, tanks and junglers for every demo player whose record carries
+ * extra figures (demo mode only; never real data): crowd control, healing and shielding of
+ * teammates, damage mitigated, wards cleared, control wards, objective damage and turrets, by role,
+ * from a sequence of their own (seeded by the game and the player, so no other demo figure moves),
+ * each only where the record does not already have it. The performance score reads them.
+ */
+function giveDemoUtilityFigures(x: MatchParticipantDetail, role: Role, matchId: string) {
+  if (!x.stats) return;
+  let seed = [...`${matchId}#utility|${x.puuid}`].reduce((n, c) => (n * 31 + c.charCodeAt(0)) % 233280, 29);
+  const rnd = () => ((seed = (seed * 9301 + 49297) % 233280), seed / 233280);
+  const int = (lo: number, hi: number) => Math.round(lo + rnd() * (hi - lo));
+  const support = role === "SUPPORT";
+  const jungle = role === "JUNGLE";
+  const tank = role === "TOP" || support;
+  const add: NonNullable<MatchParticipantDetail["stats"]> = {
+    ccSeconds: support ? int(25, 70) : jungle ? int(12, 40) : int(5, 30),
+    teamHealing: support ? int(800, 6000) : int(0, 600),
+    teamShielding: support ? int(500, 5000) : int(0, 400),
+    damageMitigated: tank || jungle ? int(12_000, 40_000) : int(3_000, 14_000),
+    wardsKilled: support || jungle ? int(2, 9) : int(0, 4),
+    controlWardsBought: support ? int(3, 7) : int(0, 3),
+    objectiveDamage: jungle ? int(18_000, 42_000) : int(2_000, 14_000),
+    turretTakedowns: int(0, 4),
+  };
+  x.stats = { ...add, ...x.stats };
 }
 
 const DEMO_DRAGONS = ["FIRE", "EARTH", "WATER", "AIR", "HEXTECH", "CHEMTECH"];
@@ -765,7 +808,12 @@ async function seedDemoGames(db: Db, accountId: string, puuid: string, name: str
       const frames = fitFramesToRecord(demoFrames(laneRnd, duration, puuid, lane, role, win, (opponentIndex - 1) * 25, { rnd: gameRnd, players: others }), sides);
       const drawn = players.map((x) => ({ puuid: x.puuid, ...demoBuild(gameRnd, duration, x.role) }));
       const { kda, events, counts } = demoEvents(gameRnd, duration, win ? ownTeam : otherTeam, sides);
-      timelines.push({ matchId, platform: "euw1", participants: drawn.map((b) => ({ ...b, ...kda.get(b.puuid)! })), frames, events });
+      // A sale or two in some games (demoSales); the events carry the plates' list (none here), as a timeline kept since 20 Nov 2026 does, so its sales are read as kept.
+      const withSales = drawn.map((b) => {
+        const sold = demoSales(b.purchases, players.find((x) => x.puuid === b.puuid)!.role, i);
+        return { ...b, ...kda.get(b.puuid)!, ...(sold.length ? { sold } : {}) };
+      });
+      timelines.push({ matchId, platform: "euw1", participants: withSales, frames, events: { ...events, plates: [] } });
       objectiveCounts = counts;
       builds = drawn;
     }
@@ -776,10 +824,11 @@ async function seedDemoGames(db: Db, accountId: string, puuid: string, name: str
     for (const x of players) {
       const purchases = builds?.find((b) => b.puuid === x.puuid)?.purchases ?? demoBuild(ownRnd!, duration, x.role).purchases;
       const part = sides.find((p) => p.puuid === x.puuid)!;
-      giveDemoLoadout(part, x.role, purchases, duration);
+      giveDemoLoadout(part, x.role, purchases, duration, builds ? demoSales(purchases, x.role, i) : []);
       // Everyone else's position and multikill counts, as a real record carries them (the multikill
       // score compares the members with them), from a sequence of their own: nothing else moves.
       if (part !== me) giveDemoOtherFigures(part, x.role, matchId);
+      giveDemoUtilityFigures(part, x.role, matchId);
     }
     details.push({ matchId, platform: "euw1", queueId, gameCreation, gameDuration: duration, gameVersion: `${season}.20.1`, teams: [100, 200].map((teamId) => ({ teamId, win: teamId === ownTeam ? win : !win, bans: [], objectives: objectiveCounts?.[teamId] ?? {} })), participants: sides });
   }

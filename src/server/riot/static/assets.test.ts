@@ -59,6 +59,8 @@ describe("compactAssets and compactBuildData", () => {
   });
 
   it("keeps the names that every match read loads free of the build data (R6 review SR6-SEC-5)", () => {
-    expect(Object.keys(assets).sort()).toEqual(["format", "items", "runes", "spells", "version"]);
+    expect(Object.keys(assets).sort()).toEqual(["format", "itemKinds", "items", "runes", "spells", "version"]);
+    // The build path's kinds (Release 16): Rift items only, by id; Kindlegem builds into more, so it is not finished.
+    expect(assets.itemKinds).toEqual({ done: [], minor: [] });
   });
 });
