@@ -7,7 +7,8 @@ import { memberContext } from "./member-account";
   closes or leads on), at an iPhone 15's size (393 × 852) on the phone project. The table grows with
   each redesign: a later stage adds its own journeys with their targets (S5 a champion's matchups in
   3 taps, S6 the next game and back in 0 scroll-backs, S7 the enemy changed in 2 taps, S8 and S9 a
-  list's place kept). Also here, once: the same four destinations in every posture, in both modes;
+  list's place kept; all fifteen are here since Release 11: J11 and J13, then J12, J14 and J15 in one
+  test). Also here, once: the same four destinations in every posture, in both modes;
   the installed app's Back (Android's system Back is the browser's history Back) closing what is
   open; and the bar never fetching a profile ahead of a tap.
 
@@ -315,5 +316,94 @@ test("J11 a game, Next and close, and J13 a record's game and back: 0 scroll-bac
   await expect.poll(() => p.evaluate(() => document.activeElement?.closest("li")?.id ?? null)).toBe(`match-${second}`);
   expect(j11.scrollBacks).toBe(0);
   expect(j11.taps).toBe(3);
+  await context.close();
+});
+
+test("J12 the enemy changed in Matchup Intel after reading, J14 a teammate from Players and back, J15 a person in Admin and back: 2 taps each, 0 scroll-backs, the list where it was", async ({ page, baseURL }) => {
+  const context = await phoneContext(page, baseURL!);
+  const p = await context.newPage();
+  // J12 (PLAN S7a): read down to the enemy's kit, then the pinned pair bar's enemy and a champion.
+  // A touch screen keeps its keyboard down as the picker opens (champion-picker.tsx), so a champion
+  // on the picker's first screen is 2 taps, and one found by its name 3 (the search field is a tap).
+  const read = async () => {
+    await expect(async () => {
+      await p.getByTestId("matchup-enemy-abilities").scrollIntoViewIfNeeded();
+      await expect(p.getByTestId("matchup-pair-bar")).toBeVisible({ timeout: 1_000 });
+    }).toPass({ timeout: 15_000 });
+  };
+  const picker = p.getByTestId("matchup-picker");
+  const j12: Count = { taps: 0, scrolls: 0, scrollBacks: 0 };
+  await p.goto("/resources/matchups?role=top&champion=Riven&vs=Mordekaiser");
+  await expect(p.getByTestId("matchup-enemy-abilities")).toHaveAttribute("data-champion", "Mordekaiser");
+  await read();
+  await tap(j12, p.getByTestId("matchup-bar-enemy"));
+  await expect(picker.locator("button[data-champion]").first()).toBeVisible();
+  // The first champion other than the enemy that is whole on the screen, without scrolling the picker.
+  const inView = await picker.locator("button[data-champion]").evaluateAll((els) => els.map((e) => ({ id: (e as HTMLElement).dataset.champion!, r: e.getBoundingClientRect() })).find((x) => x.id !== "Mordekaiser" && x.r.top >= 0 && x.r.bottom <= innerHeight && x.r.height > 0)?.id ?? null);
+  expect(inView, "J12: a champion on the picker's first screen").not.toBeNull();
+  await tap(j12, picker.locator(`button[data-champion="${inView}"]`).first());
+  await expect(p.getByTestId("matchup-enemy-abilities")).toHaveAttribute("data-champion", inView!);
+  await expect(p.getByTestId("matchup-enemy-abilities")).toBeInViewport();
+  expect(j12, "J12, a champion in view").toEqual({ taps: 2, scrolls: 0, scrollBacks: 0 });
+  // By name: the bar's enemy, the search field, the champion.
+  const j12b: Count = { taps: 0, scrolls: 0, scrollBacks: 0 };
+  await read();
+  await tap(j12b, p.getByTestId("matchup-bar-enemy"));
+  await tap(j12b, picker.getByTestId("matchup-picker-search"));
+  await picker.getByTestId("matchup-picker-search").fill("darius");
+  await tap(j12b, picker.getByTestId("matchup-picker-grid").locator('button[data-champion="Darius"]'));
+  await expect(p.getByTestId("matchup-enemy-abilities")).toHaveAttribute("data-champion", "Darius");
+  await expect(p.getByTestId("matchup-enemy-abilities")).toBeInViewport();
+  expect(j12b, "J12, a champion by name").toEqual({ taps: 3, scrolls: 0, scrollBacks: 0 });
+
+  // J14 (PLAN S8a): a row of Players opens the teammate's Peek, its close returns to the list unmoved.
+  const j14: Count = { taps: 0, scrolls: 0, scrollBacks: 0 };
+  await p.goto("/players");
+  const rows = p.locator("[data-testid=player-peek-open]");
+  await expect(rows.nth(3)).toBeVisible();
+  await rows.nth(3).scrollIntoViewIfNeeded();
+  await p.evaluate(() => window.scrollBy(0, 40));
+  const y14 = await p.evaluate(() => window.scrollY);
+  expect(y14, "J14: the list is scrolled, so a jump would show").toBeGreaterThan(0);
+  const box = (await rows.nth(3).boundingBox())!;
+  // Off the name (the profile's link): the row's own press.
+  await tap(j14, rows.nth(3), { x: box.width - 24, y: box.height / 2 });
+  const peek = p.locator("dialog[open][data-testid=player-peek]");
+  await expect(peek.getByTestId("player-detail-hero")).toBeVisible();
+  await tap(j14, peek.getByTestId("player-peek-close"));
+  await expect(peek).toHaveCount(0);
+  await expect(p).toHaveURL(/\/players$/);
+  expect(Math.abs((await p.evaluate(() => window.scrollY)) - y14), "J14: the list did not move").toBeLessThanOrEqual(1);
+  expect(j14, "J14").toEqual({ taps: 2, scrolls: 0, scrollBacks: 0 });
+  // The close took its history entry back: Back now leaves Players, never reopening the Peek.
+  await p.goBack();
+  await expect(p).toHaveURL(/\/resources\/matchups/);
+  await expect(peek).toHaveCount(0);
+
+  // J15 (PLAN S9a): in Admin Mode, a person far down the list and the view's close: the list's scroll kept.
+  await context.addCookies([{ name: "uniiverse_view", value: "admin", url: baseURL! }]);
+  const j15: Count = { taps: 0, scrolls: 0, scrollBacks: 0 };
+  await p.goto("/admin/people");
+  const people = p.locator("[data-testid=admin-player-row],[data-testid=admin-user-row],[data-testid=admin-kept-row]");
+  await expect(people.last()).toBeVisible();
+  await people.last().scrollIntoViewIfNeeded();
+  const y15 = await p.evaluate(() => window.scrollY);
+  expect(y15, "J15: the list is taller than the screen").toBeGreaterThan(0);
+  const view = p.getByTestId("person-view");
+  // A tap before the page's code has run does nothing: tapped again until the view opens, counted once.
+  await expect(async () => {
+    if (!(await view.isVisible())) await people.last().tap({ timeout: 2_000 });
+    await expect(view).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 30_000 });
+  j15.taps++;
+  await expect(p).toHaveURL(/[?&]person=/);
+  await tap(j15, view.getByTestId("person-view-close"));
+  await expect(view).toBeHidden();
+  await expect(p).not.toHaveURL(/person=/);
+  await expect.poll(() => p.evaluate(() => window.scrollY), { message: "J15: the list's scroll kept" }).toBeGreaterThan(y15 - 2);
+  expect(j15, "J15").toEqual({ taps: 2, scrolls: 0, scrollBacks: 0 });
+  // The close took its entry back: Back leaves Admin's people for the page before (J14's Back led to Matchup Intel).
+  await p.goBack();
+  await expect(p).toHaveURL(/\/resources\/matchups/);
   await context.close();
 });

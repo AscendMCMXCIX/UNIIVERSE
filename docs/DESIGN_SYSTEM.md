@@ -24,6 +24,10 @@ The personality comes from:
 - **Light:** the violet ambient glow, the team's art and the player's banner colours. Light sits at
   the edges, never behind the figures.
 - **Precision:** one rhythm, one centre line and one radius family.
+  The radii nest outward-in: a card (`rounded-card`, 16px; the sign-in and setup frames' card
+  since 20 Nov 2026) holds panels and lists (`rounded-panel`, 12px), which hold controls
+  (`rounded-md`, 6px; chips `rounded-lg`). A box is never rounder than the box around it (the
+  design review's G3-14: Privacy's 12px contact panel sat in a 10px card).
 - **Restrained motion:** short entrances that land softly. Nothing loops, bounces or demands
   attention.
 
@@ -54,11 +58,16 @@ decorative chrome.
     client draws it (a 72px portrait with its level, spells and runes two by two, the six items two
     rows of three with the trinket beside the first, in inset slots), the rune page on one line with
     the stat shards where stored (icons only, neutral names, until OD7), six figure tiles with each of
-    the player's figures once, the lane by role, the notes (docs/MATCH_NOTES.md: Went well, Went
-    wrong, Focus next) and a compact scoreboard of 37px rows; the gold over the game and the build
-    and skill order are folds. The open card folds into a 50px header with Previous, Next and Close,
-    and a sticky footer repeats them. Notes use `good` for Went well and `warn` for Went wrong (never
-    `red`, which means Defeat), `accent` for Focus next. The card's D8 density is unchanged.
+    the player's figures once, the lane by role in a tile like the figures (against the lane opponent
+    at 10:00, 15:00 and the end; a game whose timeline gives no 10:00 or 15:00 shows the end alone
+    and one quiet line saying why, never columns of dashes) and a compact scoreboard of 37px rows;
+    its patch by the public name (`publicPatchName`: "Patch 26.20"). The open card folds into a 50px
+    header with Previous, Next and Close, and a sticky footer repeats them, one set at a time: while
+    the card's own are on screen the footer keeps its place and shows nothing (Release 13's review,
+    finding 10; Team → Matches' cards have no steps of their own, so their footer always shows). The card's D8
+    density is unchanged. The written notes (Went well, Went wrong, Focus next) and the two folds
+    (Gold over the game, Build and skill order) were removed from the view on 23 Nov 2026, at the
+    owner's request (docs/MATCH_NOTES.md); the Production check asserts they stay gone.
   - **Density (owner decision D8, approved 8 Nov 2026, built 18 Nov):** denser cards that keep the
     statistics, champions, ranks, LP and every interaction readable. The card follows the list's
     own width (`@container/mh`), in three tiers:
@@ -114,7 +123,9 @@ decorative chrome.
 - **The public header's links** (`components/public/nav-link.ts`): Team, Leaderboards, Install App
   and Sign in (or Open the app) in one style, the app's nav at 14px, 44px tall on touch screens.
 - **Long public text on a desktop** (Privacy): from lg a table of contents sticks beside the text;
-  below lg it is the row of chips under the title. A frame holding something sticky clips sideways
+  below lg it is the row of chips under the title. The table's column (13rem) keeps every entry on
+  one line (in 12rem "Cookies and your browser" wrapped, G3-15). Its contact panel leads as a
+  neutral `surface-lead` panel, not a brand-blue box (G3-7). A frame holding something sticky clips sideways
   without becoming a scroll box (`BrandFrameView`'s `stickyInside`).
 - **Instructions for the owner on a public page** (recovery's setup key) sit behind a fold, so the
   page leads with what it is for.
@@ -202,8 +213,9 @@ It should not appear:
   sizing anything. Its light is an inline gradient, which the rule below does not read. Team
   Overview's selected card lifts with a neutral `shadow-black/40` (it had `shadow-accent/15`). The
   sign-in and setup frame's card (`BrandFrame`) glowed in the brand blue too; it is lit in violet
-  now, like the page's ambient light, and the role bar's selected tab draws its blue edge as a
-  ring, not a shadow. `design-tokens.test.ts` refuses `shadow-accent` (any opacity or variant), an
+  now, like the page's ambient light, and the role bar's selected tab drew its blue edge as a
+  ring, not a shadow (the role bar went with the phone's carousel on 23 Nov 2026: its dots mark the
+  card in view by a longer pill in the brand blue, never by colour alone). `design-tokens.test.ts` refuses `shadow-accent` (any opacity or variant), an
   arbitrary shadow made of `var(--color-accent)` and the shorthand `shadow-(color:--color-accent)`;
   `shadow-accent-2`, violet, stays allowed.
 - as the **colour of the logo's stand-in** (`BrandMark` without an upload). That is now a neutral
@@ -280,8 +292,8 @@ One set of containers, chosen by what the content is, never by page. Each is one
 
 | Container | For | Component | Opens | Closes | Address and history |
 |---|---|---|---|---|---|
-| **Peek** | a quick look at one item from a list or a board (a team player; a Players row or a Leaderboards member, `player-peek.tsx` since 20 Nov 2026, the row's name still the profile's link; a champion; a game from a board) | `peek.tsx`: `usePeek`, `Peek` | a row (click, tap, Enter); ↑/↓ or J/K and ‹ › switch | ✕, Escape, Back, the selected row again; not an outside click | `?player=` (and so on) on the current page: the one history rule |
-| **Unfold** | an item opened under its card, for items compared down a list (games) | `unfold.tsx`: `useUnfold`, `UnfoldRegion`, `UnfoldHeader` | the card | the card again, Escape, the pinned header's Close, Back | the one history rule |
+| **Peek** | a quick look at one item from a list or a board (a team player; a Players row or a Leaderboards member, `player-peek.tsx` since 20 Nov 2026, the row's name still the profile's link; a game from a board; a champion on a phone, as a sheet) | `peek.tsx`: `usePeek`, `Peek` | a row (click, tap, Enter); ↑/↓ or J/K and ‹ › switch | ✕, Escape, Back, the selected row again; not an outside click | `?player=` (and so on) on the current page: the one history rule |
+| **Unfold** | an item opened under its card, for items compared down a list (games; a champion of All Champions, under its row) | `unfold.tsx`: `useUnfold`, `UnfoldRegion`, `UnfoldHeader` | the card | the card again, Escape, the pinned header's Close, Back | the one history rule |
 | **Task dialog** | work that needs full attention (editors, confirmations, pickers, Card Studio, Install) | `dialog.tsx`: `Dialog` with its `size` (every one states it, `TASK_DIALOG_REM`): `form` 30rem for forms and confirmations (`ConfirmDialog`, the account and job confirmations, Change Riot ID, Position your picture), `picker` 42rem for a choice among many or an editor with a table (Access, an access level); Card Studio alone 76rem (`DetailModal size="wide"`); Install and sign-in 30rem (`compact`, `form`); the champion picker 42rem (`standard`). Phones and short windows: docked to the bottom edge, or the whole screen | its button | Close, Escape, the backdrop | none |
 | **Phone window shell** | the window an item opens in on a touch phone or in a short window (a Peek's, a game's) | `preview-window.tsx`: `PreviewWindow` on `DetailModal` | the item | ✕, Escape, Back, a pull down on its header (or its bar) | the item's own (`?player=`, `?match=`) |
 | **Popover** | anchored choices (menus, filter dropdowns, the pinned row's Filters) | `popover.tsx`: `Popover` (a panel of fields: the Filters, 34rem, where previews open beside the list; a touch phone keeps the sheet); `menu.tsx` (a menu) | click, Enter, Space | an outside press, Escape (focus back on its button), the focus leaving it, Done, its button leaving the screen | none of its own; a choice replaces the query. The Filters (popover or sheet) have no history entry: one under a replaced query made Back, or a close while a choice loaded, restore the old address |
@@ -300,8 +312,21 @@ UM.X2, X4; 20 Nov 2026):
   bar (`modal-compact-bar`, the item's name: "Victory · Jax", a player's name) with the controls
   in place; at the top it opens again. Where the window scrolls as one (a small phone, FLOW_SHARE),
   the header scrolls away under the bar. It collapses only when the content would still scroll with
-  it collapsed, so it never takes away the scroll that collapsed it. A plain title bar keeps its
-  title and drops its description.
+  it collapsed, so it never takes away the scroll that collapsed it. A plain title bar (Admin's
+  person window, Matchup Intel's picker and details) collapses too (Release 10, 20 Nov 2026): its
+  title on one line, cut short with an ellipsis where it would wrap (the whole title stays the
+  window's name), its description for screen readers only, tighter padding; held sideways (a short
+  window, which scrolls as one) it collapses on the window's own scroll. The 56px bar is 56px at
+  every text size, its title on one line (in rem, with the title on a line of its own under the
+  controls, it reached 224px of 568 at 320 and 200%). At 320 × 568, 375 × 667 and 568 × 320, at
+  100, 150 and 200% text, 100px down, 400px down and at the end, every whole-screen window's frame
+  takes at most a quarter of the screen (PLAN S2b; Admin's person window was 340px of 568 at 320
+  and 200% after a scroll) (`e2e/overlay-kit.spec.ts`).
+- **Its controls are 44px on touch screens at every text size** (`window-control.ts`,
+  `WINDOW_CONTROL_TOUCH`): ‹ ›, ✕ and the actions beside them hold no text, so a larger text size
+  gave them nothing to show; in rem they were 88px each at 200%, and the Peek's "Previous player"
+  sat 9px off a 320px screen. Their icons still grow with the text. A custom header's cluster
+  wraps rather than run past the screen's edge.
 - **‹ › for the item's siblings** where the opener has siblings (`SiblingSteps`, the same buttons as
   the docked Peek's): a player's lineup; a game's list keeps its Previous · Game n of m · Next row.
 - **Pull down to close.** A pull on the header (or the bar) closes every whole-screen window on a
@@ -323,6 +348,9 @@ Safari.
   popover; in the phone posture (under 768px wide, or 480px tall or less) the browser's own select,
   whose wheel or sheet is what a phone's owner expects. The closed control looks the same either way
   (`selectClass`): the server draws the popover's button and a phone swaps it as the page hydrates.
+  The native select draws the popover's chevron too (`select-chevron` in globals.css: lucide's
+  ChevronDown, 16px, `fg-subtle`, 8px in, fixed in px at every text size, `appearance: none`), not the system's bold arrow (the
+  design review's G2-6, 20 Nov 2026); the phone keeps its own picker.
 - **Pattern:** WAI-ARIA's select-only combobox. The button is a `combobox` owning a `listbox`; the
   focus never leaves the button (the active option is `aria-activedescendant`), so it is on the
   button whenever the list closes. axe passes with the list open.
@@ -340,10 +368,38 @@ Safari.
   `e2e/select.spec.ts` checks the component once; `webkit.spec.ts` checks it draws the same figures in
   WebKit (`SELECT_LOOK`); `select.test.ts` fails on any native select outside `select.tsx`.
 
+### Conventions the design review settled (20 Nov 2026, Release 11)
+
+The review compared desktop and phone against the benchmark pages; these held where the pages had drifted:
+
+- **A control at rest is neutral.** Filters' sliders take the button's own colour (`fg-muted`,
+  stepping up on hover), as the desktop's Refine; accent marks a narrowed list only, with its count
+  (the folded toggle, the page toolbar's Filters, the top bar's). The camera badge on one's own
+  picture is `bg-elevated` with a `border-strong` edge, accent only while the picture is pointed at
+  or focused. A dropdown at rest carries `border-control` (Team Matches' "Played with" included).
+- **One look per kind of control:** a choice of a few (Most games | Best | Worst in a champion's
+  preview) is `segmentedGroupClass` and `segmentClass`, the chosen one ringed and semibold.
+- **One heading per profile tab:** Riot Accounts' title and lead line are its `SectionHeader`
+  (20px, left to the tab on a phone), as All Champions and Season performance; the admin's person
+  view keeps the panel's own header (`RiotAccountsPanel heading`).
+- **Cells side by side start level** (`DataRow align="start"` where a grid row stretches them, as
+  Season records); a table's figure columns are as wide as their headings (Multikills).
+- **A pinned strip leaves with its item:** `UnfoldHeader`'s sticky wrapper is the strip's height
+  (an empty block after it takes the room back), so it stops at the game's last pixel.
+- **Sorted figures are strong where they are drawn:** a phone row of All Champions sorted by games
+  sets its "15 games" semibold, as the desktop's Games column.
+- **The Overview's profile band from xl** writes the off role ("Top (off)") and the rank's queue; under xl
+  they are read out only, so the band stays one line.
+
 ### The one history rule (`address-item.ts`)
 
 Opening pushes one entry, switching to another item replaces it, and closing goes Back when this
-page pushed that entry (otherwise it replaces the address without the item: a deep link). So Back
+page pushed that entry, or when the entry before is the same address without the item (otherwise
+it replaces the address without the item: a deep link). The second case is a page returned to by
+Back after a link inside the open item left it (a person view's "See all in Audit Logs"): the
+remounted page reads the entry before through the Navigation API (`entryBeforeIsWithout`), so
+closing still goes Back and one more Back leaves the page; a browser without the API replaces, as
+for a deep link (20 Nov 2026; `e2e/admin-people.spec.ts`). So Back
 always closes what is open and never walks through the items seen, and Forward reopens the last
 one. `useAddressItem(param, { initial, valid })` returns `{ id, open, close, toggle }`; `historyStep`
 is the rule as a pure function (`peek.test.ts`).
@@ -389,18 +445,9 @@ const peek = usePeek({ param: "player", ids, initial: searchParams.get("player")
   scrolling inside. `windowSize` and `windowHeader` give the phone's window its size and header.
 - **First consumer:** the Team player (`?player=`), its ↑/↓ moving along the starters; a turned
   card opens its substitute.
-- **The in-card variant (All Champions, S5: `all-champions.tsx`, `champion-preview.tsx`):** where
-  the list has 26rem or more beside its Win rate column on a pointer screen of 1024px or more, the
-  preview unfolds inside the list's card instead of the docked panel. The columns after Win rate
-  fold (`visibility: hidden` through `group-data-[folded=true]/card:invisible`, so no width
-  changes), Champion, Games and Win rate keep their x, and the panel takes the folded space with the
-  card's surface, a hairline `border-border-strong` at its left and the card's right radius. It is
-  sticky under the pinned tabs and as tall as its content (`max-w-xl`); it slides 12px outward and
-  fades in (`unfold-in`, 200ms, `--ease-emphasized`). With less room the page falls back to `Peek`
-  (the docked panel, then the sheet by posture), with the same content and address
-  (`?champion=&crole=[&vs=]`, two keys, so the page keeps its own address hook with the same
-  history rule). Nothing is drawn until the room is measured after hydration, so a linked preview
-  never appears in one place and moves to another.
+- **Matchup Intel's abilities** (`?ability=Mordekaiser.Q`, `ability-peek.tsx`, 23 Nov 2026): each tile
+  of the enemy's cooldown strip and of your side's kits opens the ability's whole reference (in place
+  of the Details window it had); ↑/↓ step through the page's abilities, the enemy's P to R first.
 
 ### Explain (`InfoTip`)
 
@@ -447,6 +494,57 @@ const unfold = useUnfold({ param: "match", initial, valid: (id) => ids.includes(
   motion.
 - **Touch phones and short windows** open the item as a window instead (`prefersWindow`), never
   inline.
+- **A table's row (All Champions, since 23 Nov 2026: `all-champions.tsx`, `champion-preview.tsx`).**
+  A champion's detail unfolds under its row as the next item of the list, across the whole list
+  (`UnfoldRegion` and `UnfoldHeader`, region `#champion-preview`), on every screen but a touch phone
+  or a short window, which keep the Peek's sheet. It replaced the in-card panel of S5 and Release 11
+  (a panel laid over the columns after Win rate, joined to its row by a 2px notch), which the owner
+  found floating awkwardly over the table. The columns never fold or move; the selected row keeps
+  `surface-3` and its 2px accent bar, and the detail continues the bar (accent at 60%) on a well a
+  step darker than the card (`bg-bg/40`). Inside: one line with the role ("Top · In pool"), the
+  other roles and Close (the row right above shows the portrait and name, so the detail names the
+  champion for screen readers only, in the heading the keyboard's open lands on: Release 13's
+  review, finding 12), then its record (win rate, games and W–L, four tiles: KDA with its average
+  K/D/A, CS/min, damage/min, vision, and what the averages cover) beside the lane opponents from a
+  50rem list (`@container/detail`), one under the other below. The opponents take the rest of the
+  width: one column of at most 46rem, and two columns where they have 50rem or more (each at least 24rem)
+  (`@container/opp`: 1920 and 2560), so a wide screen has no dead gutter and no long rows; nothing
+  scrolls inside it and nothing lies over the rows. Switching to another row (a click, ↑/↓ or J/K from the list) keeps that row where it was
+  on screen (`anchorCorrection`); keys inside the detail are its own. The address stays the page's
+  own hook (`?champion=&crole=[&vs=]`, two keys) with the one history rule, so Back closes it and
+  restores the list's place, filters and sort. Nothing is drawn until hydration has decided between
+  the unfold and the sheet, so a linked detail never appears in one place and moves to another.
+
+### Admin's pages, drawn as the benchmarks (the design review, 20 Nov 2026)
+
+Release 9's design review (G4) measured Admin Mode against the benchmark pages; the confirmed findings
+are fixed in one place each, and `e2e/design-parity.spec.ts` ("Admin's pages") and
+`e2e/admin-people.spec.ts` measure them:
+
+- **Header rhythm on phones:** an Admin page under a section row with no actions (`PageHeader admin
+  sectionNamed`) shows nothing on a phone, so the whole header is read out only there and its stack
+  margin goes with it: the content starts right under the bars (y 117 at 390 × 844, 133–137 before).
+- **One column edge** (G4-2, superseded 23 Nov 2026): Settings in Admin Mode started at the Admin
+  column's left edge (`*:ml-0`); it is now centred in it, as every narrower page is centred in the
+  frame (above, *The shared frame*).
+- **One depth:** every section, card and status list on a panel's surface has `panel-depth` and the
+  panel radius (Branding's Name, Background visibility, Colours and image cards; StatusCards' list).
+- **One fold inside a panel:** a fold inside a panel is a `row` Fold, never a box in a box (System
+  Health's Technical details; Personal data's two). Accounts' "Profiles without an account" is a
+  `row` fold drawn as its sibling groups' heading: the title on their line, the count quiet, the note small.
+- **One state, one chip:** a verdict chip carries the status chips' icon (CheckCircle2 good, Clock
+  needs work, AlertTriangle poor, CircleDashed no data).
+- **Toolbar sizes:** a page-level action and a toolbar's buttons beside 14px segments are `md`
+  Buttons (Add resource, Previews' Rotate and Reset, the person view's Save name); Rotate and Reset
+  wrap together, and stack where one line cannot hold the two (320px at 200%).
+- **Date fields:** the browser's own field and picker, its glyph drawn as a calendar in fg-subtle
+  (`globals.css`); in an inline FilterBar the From and To labels show beside them from xl (`FilterField
+  labelBeside`, in rem, so not at 150–200% text or on a phone held sideways, where they would push a
+  field onto a row of its own), as the phone's sheet shows them above.
+- **Grids that line up:** Access levels' base levels and its groups share one grid from xl, as many
+  20rem columns as fit (three at 1440 × 900; fewer at a large text size, never a 181px tile); the
+  image cards' hints keep two lines from md (`md:min-h-10`), so the three drop zones start on one line.
+- **A wrapped index:** `SectionIndex clipLineDots` (Branding's phone index) never starts a line with a dot.
 
 ## 8. The app's frame: navigation
 
@@ -554,7 +652,9 @@ With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shel
     "no blur on content" (§3) holds.
   - Anything pinned under it (All Champions' column headings) offsets by `--tabs-top`.
   - Nothing is pinned in a window under 481px tall.
-  - **One composition at every width (PR 10, 18 Nov 2026).** In a window from 1600px wide the pages
+  - **One composition at every width (PR 10, 18 Nov 2026; since 23 Nov 2026 at every window size,
+    Team's four sections at `--content-wide` and every row centred with its pages: *The shared frame*
+    below, which supersedes the 1600px threshold described here).** In a window from 1600px wide the pages
     of a tab set share one width (`SECTION_HUBS`' `width`): Team's four sections `--content-wide`
     (Players and Matches join Team Overview and Leaderboards there), Platform Settings'
     `--content-max`. From 1600px the bar's row of tabs takes it (`TabBar`'s `inner`,
@@ -580,26 +680,38 @@ With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shel
     page does, its list at `--content-max`.
   - **One frame, one place for everything (S2c, 19 Nov 2026).**
     - *The shared frame* (`app-shell.tsx`, `FRAME`): one content column, at most `--content-wide`
-      and centred in the room beside the sidebar. A page narrower than it (80rem profiles, lists,
-      documents, Settings, Admin) starts at its left edge and simply ends earlier, so every title
-      starts at one x and nothing jumps sideways between destinations (UD.X3: up to 536px apart at
-      2560 before). A narrower set's tab row starts there too (`ROW_WIDTH.max`). Under 100rem of room
-      the frame is the whole width, so phones, tablets and laptops are unchanged.
+      and centred in the room beside the sidebar, open or folded. A page narrower than it (80rem
+      profiles, lists, documents, Settings, Admin) centres itself in it too, so it has the same margin
+      on either side (the owner's review of 23 Nov 2026; until then it started at the frame's left
+      edge, UD.X3, which with the sidebar folded left 351px spare on a profile's right at 1920 × 1080
+      and none on its left). Pages of one width share one x; a set's tab row is its pages' width,
+      centred as they are (`ROW_WIDTH`), and Team's four sections share `--content-wide` at every
+      window size. Where the room is narrower than a page's width the page fills it (phones, tablets,
+      laptops). `e2e/desktop-frame.spec.ts` measures the margins at 1440, 1920 and 2560, both ways.
     - *Settings* (UD.S2): from lg the title spans the frame, the account card is its first column.
     - *The profile's header is one band on every section* from `sm` (the `band` variant: a short
       window or 40rem and up): the Overview's card takes the band's layout (the picture, the name with
       its tagline, then the roles, rank, lineup status and links on one line, Customise at the end),
       74px like the other sections', so the section tabs never move on a click (UD.PO1: 66px at 1280,
-      86px at 2560 before). A phone held upright keeps the full card.
+      86px at 2560 before). A phone held upright keeps the full card. Since the UX review of
+      Release 13 the other sections draw that same band (`ProfileHeader`'s one `header`): the same
+      labelled Customise, off roles, queue and social links, so nothing in the header changes on a
+      click; only the picture's editor stays on the Overview, and an upright phone carries the other
+      sections' header in its top bar.
     - *Skeletons in the page's shape* (`ui/skeleton.tsx`; UD.X4, P3): Players' rows (one, two or three
       across by the roster's width), All Champions' table, Match History's cards, Team's lineup
       (centred in the height as the lineup is: `data-fills-height`), Riot Accounts' panel (its title, lead, an
       account card and the Add button's row: `AccountsSkeleton`, 20 Nov 2026), and a profile opened from
       outside it as its band, tabs and section. Leaderboards and Team Matches had theirs.
     - *The 12px floor* (UD.X5): `text-2xs` is 12px on desktops (lg), 11px on phones and tablets,
-      one token for every use (globals.css); uppercase labels (and `label-caps`) keep 11px. The game cards of Match History and Team Matches keep
-      11px (`type-floor-later`, listed in `design-tokens.test.ts`: Release 5's post-game cards were built
-      before the floor, which reaches them with their next measured pass); `text-4xs`
+      one token for every use (globals.css); uppercase labels (and `label-caps`) keep 11px. The game cards of Match History and Team Matches
+      took it in Release 11 after a measured pass at 1024, 1280, 1366, 1440, 1536, 1920 and 2560: no new wrap,
+      the build whole, heights +1px at most. Where the card holds the build and the teams (a 61–70rem list,
+      1366 and 1440 with the sidebar open) its columns stay 10px apart (16px from 70rem), which gives the
+      teams the room 12px needs: cut roster names on the demo went from 146 to 26 at 1366 and 38 to 12 at
+      1440 against the 11px cards. The one-line "With …" list of team members, already cut short with
+      its full text as hover text, cuts one or two more at 1024 to 1366. `type-floor-later` has no place
+      left in `design-tokens.test.ts`; `text-4xs`
       stays for letters inside small tiles (initials, the ⓘ glyph).
   - **One look at every width (S2c).** `e2e/design-parity.spec.ts` renders the shared components
     (stat label, Panel, DataRow, a badge, Button, the current section tab, InfoTip's bubble, Select)
@@ -608,6 +720,17 @@ With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shel
     floor on desktops), and Select's size (16px on a touch screen, so iOS
     never zooms into the field; 14px with a mouse). Select compares the popover's button on the
     desktop with the browser's own select on the phone (§7, Select). Each later stage adds the components it creates.
+    Since Release 11 (20 Nov 2026) a second test compares the components S5–S9 created, each opened
+    as a member opens it: All Champions' preview (its panel, figures, an opponent, the foot line), the
+    post-game view (an item and the loadout's name, a scoreboard K/D/A
+    and name), Matchup Intel (your slot, the enemy's slot label, an ability tile's name and its Q's cooldown,
+    the phone's glance cooldown against the full tile's) and Admin's person view (the window, a section
+    heading, the Riot accounts panel and a row). Its listed differences, each with its reason in the
+    spec: the preview's surface, corners and edge (unfolded under its row on a desktop, a well in
+    the list's card; a sheet on a phone); the compact scoreboard's names (text-xs under a 30rem scoreboard); Matchup Intel's
+    slot label (text-2xs on a phone) and the glance's cooldown (text-xs in a tile of about 64px, against the full tile's text-md); the person
+    view's corners (DetailModal fills a phone's screen). Everything else is equal at 375 and 1440, in
+    Chromium 153 and Chrome Headless Shell 156.
   - **A page's controls in reach (PR 2b, 18 Nov 2026).** Once the row is pinned and the page's own
     toolbar has gone up under it, the page's compact copy of its controls shows at the row's end
     (`PageToolbar`, `src/components/ui/page-toolbar.tsx`): Match History and Encounters
@@ -677,7 +800,11 @@ test):
   under 59rem: phones held either way and tablets; Settings
   keeps its index in its account card: Name, Links and Password as chips on a phone and in a window
   480px tall or less (the approved plan's look there) and a list from md in a taller window, the
-  section being read marked either way). Each is
+  section being read marked either way: a chosen chip on a phone, `surface-3` and semibold in the
+  list, a step above the `surface-2` of a pointed-at entry). At the page's top the first section is
+  the one being read, at its end the last, and a section jumped to from the index stays marked while
+  it is at the window's top (G3-5: a short first panel put the next one's top above the window's
+  upper third). Each is
   a plain link to its section's anchor, so it works before the page's code has run; once it runs a
   click jumps through the router's history (`jumpToAnchor`, which Matchup Intel's chips share): the
   section comes under the top bar, takes the focus, and the jump is an entry of the page's own where
@@ -787,7 +914,12 @@ deliberately. Each needs its own small PR. Check STATUS.md for the Actions-minut
     and the centring was restored at the owner's request on 17 Nov 2026). The lineup's layout is
     described in RESPONSIVE.md → Team Overview's lineup, and its own rules in `globals.css` where
     they matter: the art-wait rules in PERFORMANCE.md → Team Overview's first card, the cards' turn
-    (`.flip-card`) in ARCHITECTURE.md → Substitute side of the Team cards.
+    (`.flip-card`) in ARCHITECTURE.md → Substitute side of the Team cards. On a phone held upright
+    the lineup is a carousel that loops (23 Nov 2026; ARCHITECTURE.md → The phone lineup carousel):
+    the cards themselves are how the lineup is browsed, one across the width inside the page's
+    gutter, with no row of the players over them; its one control of its own is the five position
+    dots under the card (neutral `border-control` dots, the card in view a longer `accent` pill:
+    shape and colour, never colour alone).
 - **Validation:** `pnpm verify`, then `pnpm build && pnpm test:e2e`. The sidebar's geometry and
   motion are in `e2e/sidebar-motion.spec.ts` and `e2e/quality.spec.ts`; axe runs at three widths
   in `e2e/quality.spec.ts`.

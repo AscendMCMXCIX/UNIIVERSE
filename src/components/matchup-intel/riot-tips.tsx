@@ -30,6 +30,17 @@ function TipQuote({ text }: { text: string }) {
   );
 }
 
+/** The tips' own fold, or (open) their line as a heading over them. */
+function Disclosure({ open, summary, children }: { open: boolean; summary: React.ReactNode; children: React.ReactNode }) {
+  if (!open) return <TipsDisclosure summary={summary}>{children}</TipsDisclosure>;
+  return (
+    <div className="space-y-1.5" data-testid="matchup-riot-tips-fold">
+      <div data-testid="matchup-riot-tips-summary">{summary}</div>
+      {children}
+    </div>
+  );
+}
+
 function TipsFold({ summary, children, testId }: { summary: string; children: React.ReactNode; testId: string }) {
   return (
     <Fold variant="row" tone="muted" summaryClassName="text-xs font-medium" bodyClassName="space-y-1.5" testId={testId} summary={<span>{summary}</span>}>
@@ -84,12 +95,15 @@ export function RiotTipsPanel({
   yours,
   evidenceSummary,
   evidence,
+  open = false,
 }: {
   enemies: readonly ChampionIntelView[];
   yours: readonly ChampionIntelView[];
   /** The evidence's words for the fold's line, and its body after the tips (evidence-panel.tsx). */
   evidenceSummary?: React.ReactNode;
   evidence?: React.ReactNode;
+  /** Open, without a fold of its own (inside the full reference, itself a fold: two levels at most). */
+  open?: boolean;
 }) {
   if (!enemies.length && !yours.length) return null;
   const none = [
@@ -105,7 +119,8 @@ export function RiotTipsPanel({
     enemies.reduce((n, i) => n + (i.tips?.enemy.length ?? 0), 0) + allyCount;
   return (
     <Panel className="px-3 py-1.5" data-testid="matchup-riot-tips">
-      <TipsDisclosure
+      <Disclosure
+        open={open}
         summary={
           <span className="flex min-w-0 flex-wrap items-baseline gap-x-2">
             <span className="flex items-center gap-1.5 text-sm font-semibold text-fg">
@@ -169,7 +184,7 @@ export function RiotTipsPanel({
           ))}
           {evidence}
         </div>
-      </TipsDisclosure>
+      </Disclosure>
     </Panel>
   );
 }

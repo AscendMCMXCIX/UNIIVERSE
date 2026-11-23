@@ -305,7 +305,8 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
               the bar; its sheet, as from the page's own button. 44px, with the count of narrowed filters. */}
           {filters && (filtersAway || filtersHold.held || filtersSheet) ? (
             <button ref={filtersButton} type="button" onClick={() => filters.open("topbar")} onFocus={filtersHold.grab} onPointerDown={filtersHold.grab} onBlur={filtersHold.onBlur} aria-haspopup="dialog" className="relative grid h-11 w-11 shrink-0 place-items-center rounded-md text-fg-muted hover:bg-surface-2 hover:text-fg md:not-short:hidden" data-testid="topbar-filters">
-              <SlidersHorizontal className="h-5 w-5 text-accent" aria-hidden />
+              {/* Neutral at rest (the button's colour, stepping up on hover); accent once a filter narrows (the count shown, at each width). */}
+              <SlidersHorizontal className={cn("h-5 w-5", filters.count > 0 && "max-md:text-accent", filters.wideCount > 0 && "md:text-accent")} aria-hidden />
               {/* At tablet widths (a phone held sideways) a list's own choices are its toolbar's, not the sheet's: the bar's own name and count there. */}
               <span className={cn("sr-only", filters.wideSummary !== filters.summary && "md:hidden")}>Filters: {filters.summary}</span>
               {filters.wideSummary !== filters.summary ? <span className="sr-only max-md:hidden">Filters: {filters.wideSummary}</span> : null}

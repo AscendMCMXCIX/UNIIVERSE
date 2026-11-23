@@ -1,6 +1,11 @@
 import type { ChampionNotes } from "@/domain/matchup-intel/types";
 
 /*
+  Re-checked against Riot's own sources on 23 Nov 2026 (OD6; riotRecheck): Data Dragon 16.23.1 against
+  16.22.1 (every ability's cooldown, cost, ranks, range, description and tooltip, the passive and the
+  base stats) and Riot's patch notes for 26.23 (the champions, and the items and runes the notes
+  name): no change on Summoner's Rift. The wiki's pages were not read again (its Terms of Use forbid
+  automated use without consent), so what rests on them is as checked on 17 Nov.
   Mordekaiser: curated champion notes (Layer 1), checked on 17 Nov 2026 against patch 26.22 and Data
   Dragon 16.22.1.
 
@@ -52,7 +57,7 @@ import type { ChampionNotes } from "@/domain/matchup-intel/types";
 
 const notes: ChampionNotes = {
   championId: "Mordekaiser",
-  verified: { patch: "26.22", ddragonVersion: "16.22.1", checkedOn: "2026-11-17" },
+  verified: { patch: "26.22", ddragonVersion: "16.22.1", checkedOn: "2026-11-17", riotRecheck: { patch: "26.23", ddragonVersion: "16.23.1", on: "2026-11-23" } },
   sources: [
     { id: "mordekaiser-p", title: "League of Legends Wiki: Darkness Rise (Mordekaiser)", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Mordekaiser/Darkness_Rise", kind: "wiki-ability", revision: 4070051, revisionTime: "2026-09-29T15:58:08Z", licence: "CC BY-SA 3.0" },
     { id: "mordekaiser-q", title: "League of Legends Wiki: Obliterate (Mordekaiser)", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Mordekaiser/Obliterate", kind: "wiki-ability", revision: 4078264, revisionTime: "2026-10-06T20:47:39Z", licence: "CC BY-SA 3.0" },

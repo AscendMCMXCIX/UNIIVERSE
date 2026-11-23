@@ -189,7 +189,8 @@ describe("Matchup Intel's build data", () => {
   it("is stored beside the names, not in them, from the same three downloads", async () => {
     const item = { name: "Kindlegem", description: "<mainText><stats><attention>10</attention> Ability Haste</stats></mainText>", gold: { base: 400, total: 800, sell: 560, purchasable: true }, tags: ["Health"], from: ["1028"], into: ["3067x"], depth: 2, maps: { "11": true } };
     const files: Record<string, unknown> = {
-      "item.json": { data: { "3067": item } },
+      // Every id an item builds from or into is in the file (validation before keeping, assets.ts).
+      "item.json": { data: { "3067": item, "1028": { name: "Ruby Crystal", into: ["3067"], maps: { "11": true } }, "3067x": { name: "Kindlegem (another mode)", from: ["3067"], maps: { "11": false } } } },
       "summoner.json": { data: { SummonerFlash: { id: "SummonerFlash", key: "4", name: "Flash", cooldown: [300] } } },
       "runesReforged.json": [{ id: 8000, name: "Precision", icon: "p.png", slots: [{ runes: [{ id: 8005, name: "Press the Attack", icon: "a.png" }] }] }],
     };
@@ -201,7 +202,7 @@ describe("Matchup Intel's build data", () => {
     const [stored] = await handle.db.select({ value: appSettings.value }).from(appSettings).where(eq(appSettings.key, "riot_assets"));
     expect(Object.keys(stored!.value as object).sort()).toEqual(["format", "items", "runes", "spells", "version"]);
     invalidateCache("riot_assets");
-    expect((await loadRiotAssets(handle.db))?.items).toEqual({ "3067": "Kindlegem" });
+    expect((await loadRiotAssets(handle.db))?.items).toEqual({ "3067": "Kindlegem", "1028": "Ruby Crystal", "3067x": "Kindlegem (another mode)" });
     const build = await loadRiotBuildData(handle.db);
     expect(build).toMatchObject({ version: "16.22.1", spellCooldowns: { "4": [300] }, runeSlots: { "8000": [[8005]] } });
     expect(build?.itemInfo["3067"]).toMatchObject({ haste: 10, depth: 2 });

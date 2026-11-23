@@ -176,6 +176,17 @@ test("profile Overview: a 2×2 dashboard at 1440 (the season beside recent form,
     expect(Math.abs(pools.x - figures.x), "the pools under the season's card").toBeLessThanOrEqual(1);
     expect(pools.y - (figures.y + figures.height), "straight under it").toBeLessThanOrEqual(24);
     for (const [name, b] of [["ranked progress", ranked], ["the pools", pools]] as const) expect(b.y + scrollY, `${name} starts on the first screen`).toBeLessThan(900);
+    // The chart's dates never run together, the last one included: it is drawn end-anchored, so its
+    // whole label runs left of its tick (the design review's G1-1: "12 Nov19 Nov" at 1440 and 1920).
+    const axisGap = () => page.getByTestId("ranked-tick").evaluateAll((els) => Math.min(...els.map((e) => e.getBoundingClientRect()).sort((a, b) => a.left - b.left).map((r, i, all) => (i ? r.left - all[i - 1]!.right : Infinity))));
+    expect(await axisGap(), "the chart's date labels apart").toBeGreaterThanOrEqual(4);
+    // The band's meta line from xl: the off role in words and the rank's queue, still one line (G1-6).
+    const meta = page.getByTestId("profile-rank").locator("..");
+    // Drawn, not only read out (an sr-only word is a 1px box).
+    const drawn = (testId: string) => page.getByTestId(testId).first().evaluate((el) => [...el.querySelectorAll("span")].filter((s) => s.getBoundingClientRect().width > 2).map((s) => s.textContent).join(" "));
+    expect(await drawn("additional-role"), "the off role's name and (off)").toMatch(/\w+.*\(off/);
+    expect(await drawn("profile-rank"), "the rank's queue").toMatch(/Solo\/Duo|Flex/);
+    expect((await box(meta)).height, "the meta line one line").toBeLessThanOrEqual(30);
     // A smaller window (1280 × 800, the sidebar open) keeps the earlier arrangement: ranked progress
     // across the whole width under the first row, then the pools across the width.
     await page.setViewportSize({ width: 1280, height: 800 });
@@ -186,6 +197,8 @@ test("profile Overview: a 2×2 dashboard at 1440 (the season beside recent form,
     expect(Math.abs(ranked.x + ranked.width - (form.x + form.width)), "to the right edge of recent form").toBeLessThanOrEqual(1);
     expect(pools.y - (ranked.y + ranked.height), "the pools follow straight after ranked progress").toBeLessThanOrEqual(24);
     expect(Math.abs(pools.x - figures.x), "across the width").toBeLessThanOrEqual(1);
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    await expect.poll(axisGap, { message: "the date labels apart at 1920" }).toBeGreaterThanOrEqual(4);
     await page.setViewportSize({ width: 1440, height: 900 });
   }
   // The pools: one row per champion under one row of column names; no Experience labels.
@@ -258,7 +271,7 @@ test("profile Overview on a touch phone: the pools' top three, the off roles and
     expect(await visibleRows()).toBe(total);
     await expect(page.getByTestId("secondary-pool")).toBeVisible();
     await expect(page.getByTestId("ranked-chart")).toBeVisible();
-    await expect(page.getByTestId("ranked-tracking")).toBeVisible();
+    await expect(page.getByTestId("ranked-change")).toBeVisible();
     return;
   }
   // The pool: the top three, then All N brings the rest in order, and Top 3 folds them again.
@@ -275,15 +288,18 @@ test("profile Overview on a touch phone: the pools' top three, the off roles and
   await offFold.click();
   await expect(offFold).toHaveAttribute("aria-expanded", "true");
   await expect(page.getByTestId("secondary-pool")).toBeVisible();
-  // Ranked progress: the heading and the current rank stay; the rest is behind the chevron.
+  // Ranked progress: the heading, the current rank and the 30-day change stay (the UX review of
+  // Release 13: the two figures the card is for); the switches and the chart are behind the chevron,
+  // the account line and the highest rank behind the ⓘ beside the rank at every width.
   await expect(page.getByRole("heading", { name: /Ranked progress/ })).toBeVisible();
   await expect(page.getByTestId("ranked-current")).toBeVisible();
-  for (const id of ["ranked-chart", "ranked-tracking", "ranked-queue-solo", "ranked-peak-stat"]) await expect(page.getByTestId(id), `${id} folded`).toBeHidden();
+  await expect(page.getByTestId("ranked-change")).toBeVisible();
+  for (const id of ["ranked-chart", "ranked-queue-solo"]) await expect(page.getByTestId(id), `${id} folded`).toBeHidden();
   await expect(rankedFold).toHaveAccessibleName(/^Show the details of ranked progress$/);
   const box44 = (await rankedFold.boundingBox())!;
   expect(Math.min(box44.width, box44.height), "a 44px target").toBeGreaterThanOrEqual(44);
   await rankedFold.click();
-  for (const id of ["ranked-chart", "ranked-tracking", "ranked-queue-solo", "ranked-peak-stat"]) await expect(page.getByTestId(id), `${id} shown`).toBeVisible();
+  for (const id of ["ranked-chart", "ranked-queue-solo"]) await expect(page.getByTestId(id), `${id} shown`).toBeVisible();
   await expect(rankedFold).toHaveAccessibleName(/^Hide the details of ranked progress$/);
   // Editing shows every champion, as before.
   await page.getByTestId("pools-edit").click();

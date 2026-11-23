@@ -1,6 +1,11 @@
 import type { ChampionNotes } from "@/domain/matchup-intel/types";
 
 /*
+  Re-checked against Riot's own sources on 23 Nov 2026 (OD6; riotRecheck): Data Dragon 16.23.1 against
+  16.22.1 (every ability's cooldown, cost, ranks, range, description and tooltip, the passive and the
+  base stats) and Riot's patch notes for 26.23 (the champions, and the items and runes the notes
+  name): no change on Summoner's Rift. The wiki's pages were not read again (its Terms of Use forbid
+  automated use without consent), so what rests on them is as checked on 17 Nov.
   Renekton: curated champion notes (Layer 1), checked on 17 Nov 2026 against patch 26.22 and Data
   Dragon 16.22.1.
 
@@ -37,7 +42,7 @@ import type { ChampionNotes } from "@/domain/matchup-intel/types";
 
 const notes: ChampionNotes = {
   championId: "Renekton",
-  verified: { patch: "26.22", ddragonVersion: "16.22.1", checkedOn: "2026-11-17" },
+  verified: { patch: "26.22", ddragonVersion: "16.22.1", checkedOn: "2026-11-17", riotRecheck: { patch: "26.23", ddragonVersion: "16.23.1", on: "2026-11-23" } },
   sources: [
     { id: "renekton-p", title: "League of Legends Wiki: Reign of Anger (Renekton)", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Renekton/Reign_of_Anger", kind: "wiki-ability", revision: 3961774, revisionTime: "2025-10-29T04:36:45Z", licence: "CC BY-SA 3.0" },
     { id: "renekton-q", title: "League of Legends Wiki: Cull the Meek (Renekton)", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Renekton/Cull_the_Meek", kind: "wiki-ability", revision: 4008014, revisionTime: "2026-04-13T03:35:33Z", licence: "CC BY-SA 3.0" },

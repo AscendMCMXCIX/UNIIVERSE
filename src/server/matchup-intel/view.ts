@@ -1,5 +1,5 @@
 import type { Db } from "@/server/db/types";
-import { DUO_ROLES, FACT_TAGS, ROLES, SLOTS, type Role, type AbilityRef, type AbilityView, type BriefingPoint, type BriefingPointView, type ChampionChoice, type ChampionIntelView, type ChampionNotes, type DdragonAbility, type DdragonChampionAbilities, type Fact, type FactSubject, type FactTag, type FactView, type Freshness, type InteractionView, type MatchupIntelView, type MatchupNotes, type MatchupPageView, type Recheck, type RiotTextAbilityView, type RiotTextChampion, type Slot, type Source, type SourceLinkView } from "@/domain/matchup-intel/types";
+import { DUO_ROLES, FACT_TAGS, ROLES, SLOTS, type Role, type AbilityRef, type AbilityView, type BriefingPoint, type BriefingPointView, type ChampionChoice, type ChampionIntelView, type ChampionNotes, type DdragonAbility, type DdragonChampionAbilities, type Fact, type FactSubject, type FactTag, type FactView, type Freshness, type InteractionView, type MatchupIntelView, type MatchupNotes, type MatchupPageView, type Recheck, type RiotTextAbilityView, type RiotTextChampion, type Slot, type Source, type SourceLinkView, type Verification } from "@/domain/matchup-intel/types";
 import { abilityChanges, abilityFreshness, compareDdragonVersions, cooldownDisplay, curatedCooldownDisplay, modifiersView, weakestFreshness } from "@/domain/matchup-intel/cooldown";
 import { patchFromVersion, patchesAfter, publicPatchName } from "@/domain/patch";
 import { keepUnitsWithNumbers } from "@/lib/format";
@@ -8,7 +8,7 @@ import { getCurrentPatch, listChampions, listPatchesDesc, type ChampionSummary }
 import { hasteBasisOf } from "@/domain/matchup-intel/haste";
 import { loadChampionAbilities } from "./abilities";
 import { curatedEnemiesFor, getChampionNotes, getMatchupNotes } from "./curated";
-import { checkedEarlier } from "./notes-age";
+import { changedSinceCheck, checkedEarlier } from "./notes-age";
 import { loadRiotText } from "./riot-text";
 import { RIOT_TEXT_FACTS_ENABLED } from "./riot-text/switch";
 
@@ -34,6 +34,18 @@ import { RIOT_TEXT_FACTS_ENABLED } from "./riot-text/switch";
  * behind its tooltips' placeholders), so a check's age is the only sign of them.
  */
 export const MAX_PATCHES_UNCHECKED = 2;
+
+/**
+ * The version a check's age counts from: the Riot re-check (Verification.riotRecheck) once the game
+ * has reached it, else the check itself. And the verification as shown: the re-check only once the
+ * game's current version has reached it (never a patch the game has not reached yet).
+ */
+export function checkBaseline(verified: Verification, currentVersion: string | null): { baseline: string; shown: Verification } {
+  const r = verified.riotRecheck;
+  const reached = !!r && typeof currentVersion === "string" && (compareDdragonVersions(currentVersion, r.ddragonVersion) ?? -1) >= 0 && (compareDdragonVersions(r.ddragonVersion, verified.ddragonVersion) ?? -1) > 0;
+  const { riotRecheck: _drop, ...rest } = verified;
+  return reached ? { baseline: r!.ddragonVersion, shown: { ...rest, riotRecheck: { ...r! } } } : { baseline: verified.ddragonVersion, shown: rest };
+}
 
 /** What the view is built from, injected so it is tested without a database. */
 export interface MatchupViewDeps {
@@ -279,11 +291,12 @@ function championIntel(champion: ChampionChoice, data: DdragonChampionAbilities 
       if (n) freshnessBySlot.set(slot, abilityFreshness(bySlot.get(slot) ?? null, n, notes.verified.ddragonVersion, dataVersion));
     }
   }
+  const checked = notes ? checkBaseline(notes.verified, context.currentVersion) : null;
   const curated = notes
     ? {
-        verified: { ...notes.verified },
+        verified: checked!.shown,
         freshness: freshnessOf([...freshnessBySlot.values()], notes.verified.ddragonVersion, dataVersion),
-        recheck: recheckOf(notes.verified.ddragonVersion, [dataVersion, context.currentVersion], context.knownPatches),
+        recheck: recheckOf(checked!.baseline, [dataVersion, context.currentVersion], context.knownPatches),
       }
     : null;
   // A level note rests on abilities of its own champion; once Riot changed one of them after the
@@ -360,9 +373,10 @@ function matchupAbilityFreshness(checked: string, data: DdragonChampionAbilities
  */
 function matchupIntel(notes: MatchupNotes, ids: ReadonlySet<string>, data: Record<string, DdragonChampionAbilities | null>, championNotes: Record<string, ChampionNotes | null>, context: { currentVersion: string | null; knownPatches: readonly string[] }): MatchupIntelView {
   const verified = notes.verified.ddragonVersion;
-  const recheck = recheckOf(verified, [...[...ids].map((id) => data[id]?.version ?? null), context.currentVersion], context.knownPatches);
+  const checked = checkBaseline(notes.verified, context.currentVersion);
+  const recheck = recheckOf(checked.baseline, [...[...ids].map((id) => data[id]?.version ?? null), context.currentVersion], context.knownPatches);
   if (recheck?.expired) {
-    return { verified: { ...notes.verified }, freshness: "unchanged-since", recheck, briefing: null, interactions: [], expiredInteractions: notes.interactions.length, sources: safeSources(notes.sources) };
+    return { verified: checked.shown, freshness: "unchanged-since", recheck, briefing: null, interactions: [], expiredInteractions: notes.interactions.length, sources: safeSources(notes.sources) };
   }
   const keep = (refs: readonly AbilityRef[]) => refs.filter((r) => refOf(r, ids) !== null);
   const freshness = new Map<AbilityRef, Freshness>();
@@ -392,7 +406,7 @@ function matchupIntel(notes: MatchupNotes, ids: ReadonlySet<string>, data: Recor
   const values = [...shown, ...interactions.flatMap((i) => (i.kind === "interaction" ? i.abilities : []))].map(freshnessOfRef);
   const dataVersions = [...ids].map((id) => data[id]?.version ?? null);
   const dataVersion = dataVersions.every((v) => v !== null && v === dataVersions[0]) ? dataVersions[0]! : null;
-  return { verified: { ...notes.verified }, freshness: freshnessOf(values, verified, dataVersion), recheck, briefing, interactions, expiredInteractions: 0, sources: safeSources(notes.sources) };
+  return { verified: checked.shown, freshness: freshnessOf(values, verified, dataVersion), recheck, briefing, interactions, expiredInteractions: 0, sources: safeSources(notes.sources) };
 }
 
 /** What the address may name: the role and up to four champions (docs/MATCHUP_INTEL.md, "Roles"). */
@@ -497,9 +511,10 @@ export function riotTextReader(shown: boolean): MatchupViewDeps["riotText"] {
 /**
  * What the page needs, from the real modules. `riotText`: whether it shows the facts from Riot's text
  * (the switch, by default). `notesAge`: browser tests only, the patches earlier the curated notes read
- * as checked (notes-age.ts; 0, as they are, everywhere else).
+ * as checked (notes-age.ts; 0, as they are, everywhere else), and `changed`, the abilities that read
+ * as changed by Riot since the check (only with an age of one or more; none everywhere else).
  */
-export async function loadMatchupPage(db: Db, input: MatchupInput, riotText: boolean = RIOT_TEXT_FACTS_ENABLED, notesAge = 0): Promise<{ view: MatchupPageView; champions: ChampionChoice[]; curated: Record<string, string[]> }> {
+export async function loadMatchupPage(db: Db, input: MatchupInput, riotText: boolean = RIOT_TEXT_FACTS_ENABLED, notesAge = 0, changed: ReadonlyMap<string, ReadonlySet<Slot>> = new Map()): Promise<{ view: MatchupPageView; champions: ChampionChoice[]; curated: Record<string, string[]> }> {
   const [list, current, knownPatches] = await Promise.all([listChampions(db), getCurrentPatch(db), knownPatchesOf(db)]);
   const champions = championChoices(list);
   const view = await buildMatchupPageView(input, {
@@ -507,7 +522,7 @@ export async function loadMatchupPage(db: Db, input: MatchupInput, riotText: boo
     currentPatch: current && !current.isFixture ? { patch: current.patch, ddragonVersion: current.ddragonVersion } : null,
     loadAbilities: (ids) => loadChampionAbilities(db, ids),
     knownPatches,
-    championNotes: notesAge ? (id) => checkedEarlier(getChampionNotes(id), notesAge) : getChampionNotes,
+    championNotes: notesAge ? (id) => changedSinceCheck(checkedEarlier(getChampionNotes(id), notesAge), changed.get(id)) : getChampionNotes,
     matchupNotes: notesAge ? (you, enemy) => checkedEarlier(getMatchupNotes(you, enemy), notesAge) : getMatchupNotes,
     riotText: riotTextReader(riotText),
   });

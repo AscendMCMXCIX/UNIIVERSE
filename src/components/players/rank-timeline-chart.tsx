@@ -22,6 +22,8 @@ import { cn } from "@/lib/cn";
 */
 
 const MS_DAY = 86_400_000;
+/** The narrowest run of the line that gets a wash under it (px): a single reading's run is 1.5px. */
+const WASH_MIN_PX = 4;
 
 /**
  * The drawing's frame in user units, which are CSS pixels (the viewBox is as wide as the box). Its
@@ -35,7 +37,8 @@ const MS_DAY = 86_400_000;
  * height is CSS, so nothing moves on hydrating.
  */
 function chartFrame(rem: number, narrow: boolean) {
-  const H = Math.round(7.5 * rem);
+  // 6rem in a narrow chart (a phone's card, the box's own container query: h-24), 7.5rem elsewhere (h-30).
+  const H = Math.round((narrow ? 6 : 7.5) * rem);
   const PAD_T = Math.round(0.625 * rem);
   const AXIS_H = Math.round(1.125 * rem);
   return { H, PAD_T, AXIS_H, PLOT_H: H - PAD_T - AXIS_H, pad: { l: Math.round((narrow ? 3 : 4.75) * rem), r: Math.round(0.5 * rem) } };
@@ -109,14 +112,19 @@ export function RankTimelineChart({ t, label }: { t: RankTimeline; label: string
   const gaps = t.links.map((l, i) => (l.kind === "gap" ? { from: reads[i]!.to, to: reads[i + 1]!.from, games: l.games ?? 0, i } : null)).filter((g): g is NonNullable<typeof g> => g !== null);
   const resets = t.links.map((l, i) => (l.kind === "reset" ? { at: reads[i + 1]!.from } : null)).filter((g): g is NonNullable<typeof g> => g !== null);
 
-  // Date labels where they fit, at least 56 px apart: the installation's days over a short stretch,
+  // Date labels where they fit, at least 56 px apart (70 before an end-anchored last one): the installation's days over a short stretch,
   // its months over a long one, each tick on the local midnight its label names.
   const ticks: Array<{ at: number; label: string; end?: boolean }> = [];
   {
     const long = span > 75 * MS_DAY;
     for (const at of localPeriodStarts(t.from, t.to, long ? "month" : "day")) {
       const mx = x(at);
-      if (ticks.every((tk) => Math.abs(x(tk.at) - mx) >= 56) && mx - pad.l >= 18) ticks.push({ at, label: long ? formatMonth(at) : formatDayMonth(at), end: mx + 40 > width - pad.r });
+      // A tick near the right edge is drawn end-anchored, so its whole label runs left of it: it
+      // needs half the previous label, its own width and 8 px (about 70 px at 16 px text). Both grow with
+      // the text size, as the labels do.
+      const end = mx + 40 > width - pad.r;
+      const room = end ? Math.max(70, 4.4 * rem) : Math.max(56, 3.9 * rem);
+      if (ticks.every((tk) => Math.abs(x(tk.at) - mx) >= room) && mx - pad.l >= 18) ticks.push({ at, label: long ? formatMonth(at) : formatDayMonth(at), end });
     }
   }
 
@@ -162,11 +170,11 @@ export function RankTimelineChart({ t, label }: { t: RankTimeline; label: string
 
   const grid = range ? ladderGrid(range, { maxDivisions: 4, short: narrow }) : [];
   return (
-    <div ref={box} className="relative min-w-0" data-testid="ranked-chart-box">
+    <div ref={box} className="@container/rankchart relative min-w-0" data-testid="ranked-chart-box">
       <svg
         viewBox={`0 0 ${width} ${H}`}
         width="100%"
-        className="block h-30 touch-pan-y select-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+        className="block h-30 touch-pan-y select-none @max-[25.5rem]/rankchart:h-24 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         role="img"
         aria-label={`${label}. ${describe(t)}`}
         tabIndex={0}
@@ -212,10 +220,12 @@ export function RankTimelineChart({ t, label }: { t: RankTimeline; label: string
           <line key={`reset-${i}`} x1={x(r.at)} x2={x(r.at)} y1={PAD_T} y2={PAD_T + PLOT_H} className="stroke-fg-subtle" strokeWidth={1} strokeDasharray="2 3" data-testid="ranked-reset" />
         ))}
 
-        {/* The rank, over a faint wash under its line. */}
-        {paths.map((p, i) => (
-          <path key={`wash-${i}`} d={`${p.d} L${p.x1.toFixed(1)},${PAD_T + PLOT_H} L${p.x0.toFixed(1)},${PAD_T + PLOT_H} Z`} fill={`url(#fill-${uid})`} aria-hidden />
-        ))}
+        {/* The rank, over a faint wash under its line. A reading seen alone (a gap on either side: the
+            newest check after several unseen games, say) is its dot, with no wash: the wash of a
+            run under WASH_MIN_PX wide was a stray sliver down to the axis (the UX review of Release 13). */}
+        {paths.map((p, i) =>
+          p.x1 - p.x0 >= WASH_MIN_PX ? <path key={`wash-${i}`} d={`${p.d} L${p.x1.toFixed(1)},${PAD_T + PLOT_H} L${p.x0.toFixed(1)},${PAD_T + PLOT_H} Z`} fill={`url(#fill-${uid})`} aria-hidden data-testid="ranked-wash" /> : null,
+        )}
         {paths.map((p, i) => (
           <path key={i} d={p.d} fill="none" stroke={`url(#line-${uid})`} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" data-testid="ranked-line" />
         ))}
@@ -242,7 +252,7 @@ export function RankTimelineChart({ t, label }: { t: RankTimeline; label: string
         {ticks.map((m) => (
           <g key={m.at}>
             <line x1={x(m.at)} x2={x(m.at)} y1={PAD_T + PLOT_H} y2={PAD_T + PLOT_H + 3} className="stroke-border" strokeWidth={1} />
-            <text x={x(m.at)} y={H - 3} textAnchor={m.end ? "end" : "middle"} className="fill-fg-subtle text-2xs">
+            <text x={x(m.at)} y={H - 3} textAnchor={m.end ? "end" : "middle"} className="fill-fg-subtle text-2xs" data-testid="ranked-tick">
               {m.label}
             </text>
           </g>

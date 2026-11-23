@@ -9,11 +9,14 @@
   rests on, the parts resting on it are hidden and said; three patches after the check the briefing is
   hidden whole. The check holds the page to what the owner asked of it (18 Nov 2026), whatever state
   it is in:
-  - the essential overview fits one screen with no page scroll at 1920 × 1080 (the desktop context
-    resized, as the wide checks do);
-  - at the check's own desktop size, 1440 × 900, the essentials are on the screen: the enemy's five
-    ability tiles and the sources' summary (the page may scroll a little there: 1440 × 900 is not a
-    size the overview is promised to fit, docs/MATCHUP_INTEL.md, "The dashboard");
+  - at 1920 × 1080 the overview is on the first screen (the desktop context resized, as the wide checks
+    do): the lane plan whole, the enemy's five ability tiles and the sources' summary. Since the
+    redesign of 23 Nov 2026 the rest of the reference is one fold under them, so the page may scroll
+    by that fold's line; until then the fact was "no page scroll";
+  - at the check's own desktop size, 1440 × 900, the essentials are on the screen: the lane plan whole
+    (the page's first card since the redesign of 23 Nov 2026, docs/MATCHUP_INTEL.md, "The lane plan"),
+    the enemy's five ability tiles and the sources' summary (the page may scroll a little there: the
+    full reference follows, folded);
   - a briefing hidden as too old, or every part of it hidden for a change, is a state the page is
     built to show, not a failure: those facts pass and say what they found (the layer, the words, the
     overrun), and so do the two fit facts while any part of the briefing is hidden, since a hidden
@@ -30,6 +33,8 @@ const EVIDENCE_TIERS = /^In your games(: no player profile| \(n = \d+\)) · In t
 export function readMatchupIntel() {
   const text = (sel) => document.querySelector(sel)?.textContent?.replace(/\s+/g, " ").trim() ?? "";
   const tiles = [...document.querySelectorAll('[data-testid="matchup-enemy-abilities"] [data-testid="ability-row"]')];
+  // The lane plan: the curated briefing's card, else the lane reference's (the assembled reference).
+  const plan = document.querySelector('[data-testid="matchup-briefing"]:not([data-expired]), [data-testid="matchup-assembled"]')?.getBoundingClientRect();
   const summary = document.querySelector('[data-testid="matchup-sources-summary"]')?.getBoundingClientRect();
   const hiddenParts = document.querySelectorAll('[data-testid="briefing-threat-hidden"], [data-testid="briefing-opportunity-hidden"], [data-testid="briefing-lane-hidden"], [data-testid="matchup-interactions-hidden"]').length;
   return {
@@ -52,6 +57,7 @@ export function readMatchupIntel() {
     named: tiles.filter((t) => t.querySelector('[data-testid="ability-name"]')?.textContent?.trim() && t.querySelector('[data-testid="ability-cooldown-value"]')?.textContent?.trim()).length,
     missing: !!document.querySelector('[data-testid="matchup-abilities-missing"]'),
     tilesBottom: Math.round(Math.max(0, ...tiles.map((t) => t.getBoundingClientRect().bottom))),
+    planBottom: plan ? Math.round(plan.bottom) : null,
     summary: text('[data-testid="matchup-sources-summary"]'),
     summaryBottom: summary ? Math.round(summary.bottom) : null,
     summaryShown: !!summary && summary.height > 0 && summary.bottom <= innerHeight,
@@ -71,10 +77,14 @@ export function readMatchupIntel() {
     slotCount: document.querySelector('[data-testid="matchup-pickers"]')?.getAttribute("data-slots") ?? null,
     tipsLabel: text('[data-testid="riot-tips-label"]'),
     highElo: document.querySelector('[data-testid="matchup-evidence-high-elo"]')?.textContent?.replace(/\s+/g, " ").trim() ?? "",
+    // The plan's honest fallbacks beside it (PLAN §4): power spikes not measured, no wave guidance.
+    fallbacks: ["power-spikes", "wave"].map((k) => document.querySelector(`[data-testid="matchup-evidence-${k}"]`)?.textContent?.replace(/\s+/g, " ").trim() ?? "").join(" · "),
     // S7b: the evidence fold's tiers, the briefing's (or the assembled reference's) tier and the enemy kit's.
     evidenceTiers: text('[data-testid="matchup-evidence-tiers"]'),
     briefingTier: text('[data-testid="matchup-briefing"] [data-testid="evidence-tier"], [data-testid="matchup-no-briefing"] [data-testid="evidence-tier"]'),
     kitTier: text('[data-testid="matchup-enemy-abilities"] [data-testid="evidence-tier"]'),
+    // R11a: each briefing row's "what it means" line (the enemy's cooldowns it rests on, numbers only), behind its heading's ⓘ.
+    means: [...document.querySelectorAll('[data-testid="matchup-briefing"] [data-means]')].map((e) => e.getAttribute("data-means") ?? ""),
   };
 }
 
@@ -100,6 +110,11 @@ export function patchVerdict(at, healthPatch) {
   const onIt = !want || data.length === 0 || data.every((p) => p === want) || older;
   return { ok: bar && onIt, detail: { health: want, page: at.patch, data, older } };
 }
+
+/** A "what it means" line: "Mordekaiser's Q cooldown 8 / 7 / 6 / 5 / 4 s at 0 haste (base)", one part per enemy ability, joined by "; ". */
+const MEANS_PART = String.raw`[^;]+'s [PQWER] cooldown [\d.\/ ]+(?:\u00a0| )s(?: at every rank)? at \d+ haste \((?:(?:base|Riot's general rule)(?:, ability haste only)?|static per the checked notes: haste doesn't shorten it|whether haste shortens it isn't known)\)`;
+const MEANS_LINE = new RegExp(`^${MEANS_PART}(?:; ${MEANS_PART})*$`);
+const MEANS_REFUSED = /\b(you|your|ready|timer|win|best|counter|should|must|always|never)\b/i;
 
 /** The state the page is in, from what it shows: "expired", "hidden" (every part, for a change), "parts hidden", or "shown". */
 export function briefingState(f) {
@@ -137,26 +152,33 @@ export function matchupIntelVerdicts({ kind, pair, enemy, at, wide, wiki, health
   else fact(`${enemy}'s five ability tiles, P to R, each with its name and cooldown line`, at.slots === "PQWER" && at.named === 5, { slots: at.slots, named: at.named });
   // The fit, as the owner asked it: one screen at 1920 × 1080, the essentials on screen at 1440 × 900.
   const overBy = wide.scrollHeight - wide.innerHeight;
-  const essentials = !at.missing && at.slots === "PQWER" && at.tilesBottom <= at.innerHeight && at.summaryShown;
+  // The overview at 1920 × 1080: the lane plan whole, the five tiles and the sources' summary on the first screen.
+  const wideOverview = wide.size === "1920x1080" && wide.planBottom != null && wide.planBottom <= wide.innerHeight && wide.tilesBottom <= wide.innerHeight && !!wide.summaryShown;
+  const planShown = at.planBottom != null && at.planBottom <= at.innerHeight;
+  const essentials = !at.missing && at.slots === "PQWER" && at.tilesBottom <= at.innerHeight && at.summaryShown && planShown;
   const found = { state, notRechecked: at.notRechecked };
   if (hiddenState) {
-    out.push({ name: `${kind}: 1920 × 1080: with the briefing ${state}, the overview ${overBy > 0 ? `runs ${overBy}px past the screen` : "fits the screen, no page scroll"} (not judged in this state)`, status: "PASS", detail: { ...found, overBy, size: wide.size } });
-    out.push({ name: `${kind}: 1440 × 900: with the briefing ${state}, the five tiles and the sources' summary are ${essentials ? "on the screen" : "not all on the screen"} (not judged in this state)`, status: "PASS", detail: { ...found, tilesBottom: at.tilesBottom, summaryBottom: at.summaryBottom, innerHeight: at.innerHeight } });
+    out.push({ name: `${kind}: 1920 × 1080: with the briefing ${state}, the overview ${wideOverview ? "is on the first screen" : "is not all on the first screen"}${overBy > 0 ? `, the page ${overBy}px taller than the screen` : ""} (not judged in this state)`, status: "PASS", detail: { ...found, overBy, planBottom: wide.planBottom, tilesBottom: wide.tilesBottom, size: wide.size } });
+    out.push({ name: `${kind}: 1440 × 900: with the briefing ${state}, the lane plan, the five tiles and the sources' summary are ${essentials ? "on the screen" : "not all on the screen"} (not judged in this state)`, status: "PASS", detail: { ...found, planBottom: at.planBottom, tilesBottom: at.tilesBottom, summaryBottom: at.summaryBottom, innerHeight: at.innerHeight } });
   } else {
-    fact("1920 × 1080: the whole overview fits the screen, no page scroll", wide.size === "1920x1080" && overBy <= 0, { ...found, overBy, size: wide.size });
+    fact("1920 × 1080: the overview is on the first screen: the lane plan whole, the enemy's five ability tiles and the sources' summary", wideOverview, { ...found, planBottom: wide.planBottom, tilesBottom: wide.tilesBottom, summaryBottom: wide.summaryBottom, overBy, size: wide.size });
     // With no tiles (the warning above) only the sources' summary can be asked for: the state is the
     // warning's, not a second failure of its own.
-    if (at.missing) fact("1440 × 900: with no ability tiles (the warning above), the sources' summary is on the screen", at.summaryShown, { ...found, summaryBottom: at.summaryBottom, innerHeight: at.innerHeight });
-    else fact("1440 × 900: the essentials are on the screen: the enemy's five ability tiles and the sources' summary", essentials, { ...found, tilesBottom: at.tilesBottom, summaryBottom: at.summaryBottom, innerHeight: at.innerHeight, overBy: at.scrollHeight - at.innerHeight });
+    if (at.missing) fact("1440 × 900: with no ability tiles (the warning above), the lane plan and the sources' summary are on the screen", at.summaryShown && planShown, { ...found, planBottom: at.planBottom, summaryBottom: at.summaryBottom, innerHeight: at.innerHeight });
+    else fact("1440 × 900: the essentials are on the screen: the lane plan whole, the enemy's five ability tiles and the sources' summary", essentials, { ...found, planBottom: at.planBottom, tilesBottom: at.tilesBottom, summaryBottom: at.summaryBottom, innerHeight: at.innerHeight, overBy: at.scrollHeight - at.innerHeight });
   }
   fact("the sources' summary: a static reference with no live tracking, Riot's data, not endorsed by Riot Games", at.summary.startsWith("A static reference: no live tracking") && /Riot Data Dragon \d/.test(at.summary) && at.summary.endsWith("Not endorsed by Riot Games"), { summary: at.summary });
   fact("one press away, the Data Dragon version, the wiki's licence and Riot's notice", /^Ability names, icons and base cooldowns: Riot Data Dragon \d/.test(at.ddragon) && at.licence === "https://creativecommons.org/licenses/by-sa/3.0/" && /isn't endorsed by Riot Games/.test(at.notice), { ddragon: at.ddragon, licence: at.licence });
-  fact("the lane selector offers Top, Jungle, Mid, ADC and Support, one pressed, and its slots (two for a solo lane); Riot's tips are labelled as Riot's; no high-elo evidence is claimed", /^Top\*? Jungle\*? Mid\*? ADC\*? Support\*?$/.test(at.roles ?? "") && (at.roles ?? "").split("*").length === 2 && (at.slotCount === "2" || at.slotCount === "4") && at.tipsLabel === "Riot's tip (may predate later changes)" && at.highElo === "Runes, items and skill order: No high-elo evidence (not collected)", { roles: at.roles, slots: at.slotCount, tipsLabel: at.tipsLabel, highElo: at.highElo });
+  fact("the lane selector offers Top, Jungle, Mid, ADC and Support, one pressed, and its slots (two for a solo lane); Riot's tips are labelled as Riot's; no high-elo evidence is claimed, power spikes are not measured yet and no wave guidance is given", /^Top\*? Jungle\*? Mid\*? ADC\*? Support\*?$/.test(at.roles ?? "") && (at.roles ?? "").split("*").length === 2 && (at.slotCount === "2" || at.slotCount === "4") && at.tipsLabel === "Riot's tip (may predate later changes)" && at.highElo === "Runes, items and skill order: No high-elo evidence (not collected)" && at.fallbacks === "Power spikes: Not measured yet · No wave guidance for this matchup", { roles: at.roles, slots: at.slotCount, tipsLabel: at.tipsLabel, highElo: at.highElo, fallbacks: at.fallbacks });
   fact("every row states its evidence tier: the evidence fold's own games and the team's, with their n or why not counted; the briefing's checked notes (or Riot's data where it is assembled); the enemy's kit as Riot's data", EVIDENCE_TIERS.test(at.evidenceTiers ?? "") && (at.briefingTier === "Checked notes (AI reviewers)" || at.briefingTier === "Riot's data") && at.kitTier === "Riot's data", { evidenceTiers: at.evidenceTiers, briefingTier: at.briefingTier, kitTier: at.kitTier });
   if (healthPatch !== undefined) {
     const p = patchVerdict(at, healthPatch);
     fact("the page's game patch is /api/health's, and Riot's data in the sources is on it (or the bar says the ability data is older)", p.ok, p.detail);
   }
+  // While the briefing shows, at least one row rests on the enemy's abilities (the check's pair: every row does): each "what it means" line is the enemy's cooldowns in numbers, its case said, never a timer or a verdict.
+  const means = at.means ?? [];
+  const meansOk = means.every((m) => MEANS_LINE.test(m) && !MEANS_REFUSED.test(m)) && (state !== "shown" || means.length > 0);
+  fact(`each curated briefing row resting on ${enemy}'s abilities says what it means in numbers only: the cooldowns at a haste, which rule, never a timer or a verdict`, meansOk, { lines: means.length, first: means[0] ?? null });
   fact("nothing requested from the League of Legends Wiki", wiki.length === 0, wiki.slice(0, 3));
   fact("checked notes win over the facts from Riot's text: none of those on a pair whose champions both have checked notes, nor Riot's text in the sources' summary", at.riotTextChips === 0 && !at.riotTextLabel && !at.summary.includes("Riot's text"), { chips: at.riotTextChips, label: at.riotTextLabel });
   return out;

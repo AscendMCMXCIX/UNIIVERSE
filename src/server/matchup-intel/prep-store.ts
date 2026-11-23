@@ -8,8 +8,9 @@ import { invalidateCache } from "@/server/observability/cache";
   MATCHUP INTEL's evidence rows (account_match_prep, docs/MATCHUP_INTEL.md, "In your games"): made
   from each member's stored game, its record and its timeline, by domain/matchup-intel/prep.ts.
   - prep-backfill (a setup job, by hand) inserts the rows still missing, at most `limit` games a
-    run, newest first: insert only, so a second run inserts nothing, and a run that stops leaves
-    what it inserted.
+    run, newest first, and makes again the rows whose starting set still counts first-minute
+    sales (STALE_START). Nothing else is replaced, so a second run writes nothing, and a run that
+    stops leaves what it wrote.
   - Storing a timeline (match-timeline.ts, timeline-backfill.ts) makes its game's rows again
     (refreshMatchPrep), so a game stored before its timeline gains the timeline's fields.
   Only what preparation needs is read: the ten players' places, champions, spells and runes; the

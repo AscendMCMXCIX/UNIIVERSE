@@ -8,15 +8,15 @@ import { Skeleton } from "@/components/ui/skeleton";
  * md; from a 58rem list the result, the members, both teams and the bookmark side by side. The
  * members go two to a row from a 34rem column, as the cards do, so the list lands where its
  * skeleton was. The lists are hidden from screen readers (the status and its "Loading…" say it);
- * Team Insights, below this folder, has its own loading.tsx. At the page's width (PAGE_WIDTH's
- * wideFrom1600: 80rem, Team's 100rem from a 1600px window), the filter row and the list under the
- * title at the ordinary width, left-aligned, as the page draws them (played-together.tsx).
+ * Team Insights, below this folder, has its own loading.tsx. At the page's width (Team's 100rem,
+ * centred), the filter row and the list under the title at the ordinary width, left-aligned, as the
+ * page draws them (played-together.tsx).
  */
 const MEMBERS = [4, 3, 2, 2];
 
 export default function Loading() {
   return (
-    <div className="mx-auto max-w-[var(--content-max)] min-[100rem]:max-w-[var(--content-wide)] space-y-4" role="status" aria-live="polite" aria-label="Loading" data-testid="matches-skeleton">
+    <div className="mx-auto max-w-[var(--content-wide)] space-y-4" role="status" aria-live="polite" aria-label="Loading" data-testid="matches-skeleton">
       <div>
         <Skeleton className="h-8 w-32" />
         <Skeleton className="mt-1 h-5 w-[min(22rem,100%)]" />

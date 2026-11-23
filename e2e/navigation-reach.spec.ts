@@ -333,19 +333,22 @@ test("wide windows: every tab row starts at its pages' column, on each of their 
   }
 });
 
-test("under a 1600px window the pages and the section tabs are as they always were, the sidebar open or folded", async ({ page, context, baseURL }) => {
+test("under a 1600px window Team's sections and their tabs fill the room together, the sidebar folded", async ({ page, context, baseURL }) => {
   test.skip(width(page) < 1024, "desktop windows");
   // A 1920 laptop at 125% (1536 × 864) with the sidebar folded, where the room (1400px) is wider than
-  // 80rem: Players and Matches stay 80rem, centred, the row of tabs spans the bar (it did not follow
-  // them before 1600px either), and Team Overview's 100rem column fills the room.
+  // 80rem. Players and Matches stayed 80rem there until 23 Nov 2026, pinned to the left under a row of
+  // tabs that spanned the bar; centred, as every page now is, they would have left their tabs 60px to
+  // their left. So Team's four sections share its 100rem at every window size: here each fills the
+  // room, and the row of tabs with them.
   await context.addCookies([{ name: "uniiverse_sidebar", value: "collapsed", url: baseURL! }]);
   await page.setViewportSize({ width: 1536, height: 864 });
-  for (const [path, wide] of [["/players", false], ["/matches", false], ["/team", true]] as const) {
+  for (const path of ["/players", "/matches", "/team"]) {
     await loaded(page, path);
     const at = await rowEdges(page.getByTestId("team-tabs"));
     const room = at.roomRight - at.roomLeft;
     expect(Math.abs(at.rowLeft - at.roomLeft) + Math.abs(at.rowRight - at.roomRight), `${path}: the row spans the bar`).toBeLessThanOrEqual(1);
-    expect(Math.round(at.pageRight - at.pageLeft), `${path}: the page's width`).toBe(wide ? Math.round(room) : 1280);
+    expect(Math.round(at.pageRight - at.pageLeft), `${path}: the page's width`).toBe(Math.round(room));
+    expect(Math.abs(at.tab - at.pageLeft), `${path}: the first tab at the page's column`).toBeLessThanOrEqual(1);
   }
 });
 

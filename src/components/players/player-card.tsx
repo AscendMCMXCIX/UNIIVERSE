@@ -236,18 +236,21 @@ export function CardPerformance({ season, support, roleLabel, placeholder = fals
   const sub = "block truncate text-2xs tabular-nums text-fg-subtle";
   // KDA and CS/min (vision) on a narrow card: one above the other in the right-hand column, each its
   // label over its figure, right-aligned (a label and figure side by side did not fit "VISION 79.3").
-  // Under 9rem they flow under the win rate, aligned on the left like it.
-  const pair = "min-w-0 @max-[12.5rem]/card:col-start-2 @max-[12.5rem]/card:text-right @max-[9rem]/card:text-left";
+  // Under 9.75rem they flow under the win rate, aligned on the left like it: the right-hand column
+  // holds "CS/MIN" (the widest label, nowrap) beside the win rate from 9.71rem of card, so between 9
+  // and 9.75rem, where the flow began at 9rem, it ran up to 18px past the box (a 9.43rem card at 175%
+  // on a 320px phone, 9.36rem at 175% on 360px before the carousel; e2e/large-text-lineup.spec.ts).
+  const pair = "min-w-0 @max-[12.5rem]/card:col-start-2 @max-[12.5rem]/card:text-right @max-[9.75rem]/card:text-left";
   const figure = "text-lg font-semibold leading-tight tabular-nums text-fg @max-[12.5rem]/card:text-base";
   const narrowHidden = "@max-[12.5rem]/card:hidden";
   return (
     <div className="rounded-lg bg-bg/55 px-3 pb-2.5 pt-2 ring-1 ring-inset ring-white/[0.06] @max-[12.5rem]/card:px-2.5" data-testid="card-season">
       {/* One row, read left to right: how often they win, how they fight, how they farm (vision for
           Support). The outer figures take the room they need and KDA the rest, so nothing is cut off.
-          A narrow card: the win rate on the left, KDA over CS/min (vision) on the right. Under 9rem:
+          A narrow card: the win rate on the left, KDA over CS/min (vision) on the right. Under 9.75rem:
           a line for the win rate, then KDA and CS/min (vision) wrapping as they fit. */}
-      <dl className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-end gap-x-2.5 @min-[14.5rem]/card:@max-[18rem]/card:gap-x-1 @max-[12.5rem]/card:grid-cols-[auto_minmax(0,1fr)] @max-[12.5rem]/card:items-center @max-[12.5rem]/card:gap-x-2 @max-[12.5rem]/card:gap-y-1 @max-[9rem]/card:flex @max-[9rem]/card:flex-wrap @max-[9rem]/card:gap-x-3 @max-[9rem]/card:gap-y-1.5">
-        <div className="min-w-0 @max-[12.5rem]/card:row-span-2 @max-[9rem]/card:basis-full">
+      <dl className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-end gap-x-2.5 @min-[14.5rem]/card:@max-[17.5rem]/card:gap-x-1 @max-[12.5rem]/card:grid-cols-[auto_minmax(0,1fr)] @max-[12.5rem]/card:items-center @max-[12.5rem]/card:gap-x-2 @max-[12.5rem]/card:gap-y-1 @max-[9.75rem]/card:flex @max-[9.75rem]/card:flex-wrap @max-[9.75rem]/card:gap-x-3 @max-[9.75rem]/card:gap-y-1.5">
+        <div className="min-w-0 @max-[12.5rem]/card:row-span-2 @max-[9.75rem]/card:basis-full">
           <dt className={label}>Win rate</dt>
           <dd className={cn("text-2xl font-bold leading-tight tabular-nums", wr === null ? "text-fg-muted" : tone)} data-testid="card-winrate">
             {wr === null ? dash : `${Math.round(wr * 100)}%`}
@@ -528,15 +531,19 @@ export function PoolChampionTile({ index, champion, row, support, withStats = tr
           {index + 1}
         </span>
       </span>
-      <span className="min-w-0">
+      {/* In the narrowest list (under 15.5rem: a 320px phone from 125% text, wider phones from 150 to 175%) the row is three lines: the portrait
+          and the name, then the experience label, then the figures, each as wide as the row. There the
+          name's column alone was narrower than a word of the label ("Played", 0px wide at 200%), which
+          ran past the screen's edge. */}
+      <span className="min-w-0 @max-[15.5rem]/pool:contents">
         {/* Where the row is too narrow for both (a docked panel), "First choice" gives way (wrapped onto a
             clipped second line), never the name's letters: the row's 1 and its accent bar still mark it. */}
-        <span className="flex max-h-5 min-w-0 flex-wrap items-baseline gap-x-2 overflow-hidden">
+        <span className="flex max-h-5 min-w-0 flex-wrap items-baseline gap-x-2 overflow-hidden @max-[15.5rem]/pool:col-span-2 @max-[15.5rem]/pool:self-center">
           <span className="truncate text-sm font-semibold text-fg" data-testid="pool-champion-name">{champion.name}</span>
           {first ? <span className="shrink-0 text-2xs font-semibold uppercase tracking-label text-[var(--card-accent)]">First choice</span> : null}
         </span>
         {withStats ? (
-          <span className="mt-0.5 block">
+          <span className="mt-0.5 block @max-[15.5rem]/pool:col-span-3 @max-[15.5rem]/pool:col-start-1 @max-[15.5rem]/pool:row-start-2 @max-[15.5rem]/pool:mt-0 @max-[15.5rem]/pool:py-1">
             <TierBadge tier={row.tier as ProficiencyTier} label={row.tierLabel} why={row.tierWhy} evidence={row.evidence} quiet />
           </span>
         ) : null}
@@ -544,8 +551,9 @@ export function PoolChampionTile({ index, champion, row, support, withStats = tr
       {withStats ? (
         row.games ? (
           <>
-            {/* A narrow list: the win rate and games, then KDA and CS (vision for supports), in one short block. */}
-            <span className="text-right leading-tight @min-[28rem]/pool:hidden" data-testid="pool-champion-stats">
+            {/* A narrow list: the win rate and games, then KDA and CS (vision for supports), in one short block.
+                Narrower still, a line of its own, its figures side by side (see the row's lines above). */}
+            <span className="text-right leading-tight @min-[28rem]/pool:hidden @max-[15.5rem]/pool:col-span-3 @max-[15.5rem]/pool:col-start-1 @max-[15.5rem]/pool:row-start-3 @max-[15.5rem]/pool:flex @max-[15.5rem]/pool:flex-wrap @max-[15.5rem]/pool:items-baseline @max-[15.5rem]/pool:gap-x-2 @max-[15.5rem]/pool:pt-1 @max-[15.5rem]/pool:text-left" data-testid="pool-champion-stats">
               <span className={cn("block text-sm font-semibold tabular-nums", tone)}>{rate}</span>
               <span className="block text-2xs tabular-nums text-fg-subtle">
                 {row.games} game{row.games === 1 ? "" : "s"}
@@ -562,7 +570,7 @@ export function PoolChampionTile({ index, champion, row, support, withStats = tr
         ) : (
           // A note too long for a narrow list's figure column ("189K mastery · no games this season")
           // would leave the name one letter: there it takes a line of its own under the name instead.
-          <span className="min-w-0 text-right @max-[28rem]/pool:col-span-2 @max-[28rem]/pool:col-start-2 @max-[28rem]/pool:row-start-2 @max-[28rem]/pool:pt-1 @max-[28rem]/pool:text-left @min-[28rem]/pool:col-span-4" data-testid="pool-champion-stats">
+          <span className="min-w-0 text-right @max-[28rem]/pool:col-span-2 @max-[28rem]/pool:col-start-2 @max-[28rem]/pool:row-start-2 @max-[28rem]/pool:pt-1 @max-[28rem]/pool:text-left @min-[28rem]/pool:col-span-4 @max-[15.5rem]/pool:col-span-3 @max-[15.5rem]/pool:col-start-1 @max-[15.5rem]/pool:row-start-3" data-testid="pool-champion-stats">
             {row.masteryPoints ? (
               <span className="text-xs tabular-nums text-fg-muted" title={`${formatCount(row.masteryPoints)} mastery points`}>
                 <span className="font-semibold">{formatCompactCount(row.masteryPoints)}</span> mastery (all-time) · no games this season

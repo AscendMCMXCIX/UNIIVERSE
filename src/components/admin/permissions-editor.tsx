@@ -78,7 +78,7 @@ export function PermissionPresetsPanel({
         }
       />
       <PanelBody>
-        <ul className="grid grid-cols-1 gap-2 md:grid-cols-2">
+        <ul className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-[repeat(auto-fill,minmax(min(100%,20rem),1fr))]">
           {presets.map((p) => (
             <li
               key={p.id}

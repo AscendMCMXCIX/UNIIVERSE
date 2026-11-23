@@ -69,7 +69,8 @@ test("Refine narrows to wins or losses; the choice shows as a chip, rides along 
   await expect(page).toHaveURL(/result=win/);
   expect(new Set(await results(page))).toEqual(new Set(["W"]));
   // The chip (wide screens) or the reset removes it.
-  const chip = filters.getByRole("button", { name: "Remove filter Wins" });
+  // The inline chips (from md); a phone's chip has the same words, beside its Filters button.
+  const chip = filters.getByTestId("match-filters-active").getByRole("button", { name: "Wins: remove this filter" });
   if (await chip.isVisible()) {
     await chip.click();
     await expect(page).not.toHaveURL(/result=win/);

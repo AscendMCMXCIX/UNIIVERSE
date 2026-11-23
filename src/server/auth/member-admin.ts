@@ -1,13 +1,13 @@
 import { eq } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { players, users } from "@/server/db/schema";
-import { getUser, UserError, type UserRecord } from "@/server/repositories/users";
-import { loadSocialLinks, removeAvatar, setAvatar, setDisplayName, setSocialLinks } from "@/server/repositories/profile";
+import { getUser, normaliseUsername, UserError, type UserRecord } from "@/server/repositories/users";
+import { changeUsername, currentDisplayName, loadSocialLinks, removeAvatar, setAvatar, setDisplayName, setSocialLinks } from "@/server/repositories/profile";
 import { setAccessGroups, setAccessLevel, type AccessLevelChoice } from "@/server/repositories/permissions";
 import type { SocialKind, SocialLinks } from "@/domain/social-links";
 import { SOCIAL_KINDS, visibleSocialLinks } from "@/domain/social-links";
 import { getOrCreateTeam, setTeamMember } from "@/server/repositories/team";
-import { guardOwnerAccount, guardProfileAccount, guardSelf, guardVerificationAccount, setAdministrator } from "./account-admin";
+import { guardHierarchy, guardProfileAccount, guardSelf, guardVerificationAccount, setAdministrator } from "./account-admin";
 import { revokeAllSessions } from "./sessions";
 
 /*
@@ -24,14 +24,36 @@ async function target(db: Db, userId: string): Promise<UserRecord> {
 }
 
 /** The Owner gives a member a new display name: the members' own rules, account and profile in step. */
-export async function setMemberDisplayName(db: Db, actorId: string, userId: string, next: string): Promise<{ displayName: string }> {
+export async function setMemberDisplayName(db: Db, actorId: string, userId: string, next: string): Promise<{ displayName: string; changed: boolean }> {
   const actor = await getUser(db, actorId);
   if (actor?.role !== "owner") throw new UserError("Only the Owner changes another member's display name.");
   const user = await target(db, userId);
   guardSelf(actorId, userId, "rename here");
   guardVerificationAccount(actorId, user, "rename");
   if (typeof next !== "string") throw new UserError("Enter a display name.");
-  return setDisplayName(db, userId, next);
+  // The name it already had (after the members' own spacing rules), on the account and its profile, is no change.
+  const shown = await currentDisplayName(db, user);
+  const done = await setDisplayName(db, userId, next);
+  return { ...done, changed: done.displayName !== user.displayName || done.displayName !== shown };
+}
+
+/**
+ * The Owner gives another member a new username (OD8a, 23 Nov 2026): the Owner only, never the
+ * Owner's own here (Settings) nor the Production check's account; the same rules as a member's own
+ * change (allowed characters, length, not taken). The username is how they sign in, so the screen
+ * asks for a typed confirmation and the action records it (account.username).
+ */
+export async function setMemberUsername(db: Db, actorId: string, userId: string, next: string): Promise<{ username: string; changed: boolean }> {
+  const actor = await getUser(db, actorId);
+  if (actor?.role !== "owner") throw new UserError("Only the Owner changes another member's username.");
+  const user = await target(db, userId);
+  guardSelf(actorId, userId, "rename here");
+  guardVerificationAccount(actorId, user, "rename");
+  if (typeof next !== "string") throw new UserError("Enter a username.");
+  const username = normaliseUsername(next);
+  if (username === user.username) return { username, changed: false };
+  const done = await changeUsername(db, userId, username);
+  return { username: done.username, changed: done.username !== user.username };
 }
 
 /**
@@ -43,21 +65,21 @@ export async function signOutEverywhere(db: Db, actorId: string, userId: string)
   const user = await target(db, userId);
   if (actorId === userId) throw new UserError("Use Settings → Sign out of other devices for your own account.");
   guardVerificationAccount(actorId, user, "sign out");
-  await guardOwnerAccount(db, actorId, user, "sign out");
+  await guardHierarchy(db, actorId, user, "sign out");
   return revokeAllSessions(db, userId);
 }
 
 /** Replaces or removes another member's picture (moderation). `data` is the checked image; null removes it. */
-export async function moderateAvatar(db: Db, actorId: string, userId: string, data: Buffer | null): Promise<number | null> {
+export async function moderateAvatar(db: Db, actorId: string, userId: string, data: Buffer | null): Promise<{ version: number | null; changed: boolean }> {
   const user = await target(db, userId);
   guardSelf(actorId, userId, "moderate the picture of");
   guardVerificationAccount(actorId, user, "change the picture of");
-  await guardOwnerAccount(db, actorId, user, "change the picture of");
+  await guardHierarchy(db, actorId, user, "change the picture of");
   if (data === null) {
-    await removeAvatar(db, userId);
-    return null;
+    // Removing a picture that is not there changes nothing (what was removed, from the delete itself).
+    return { version: null, changed: await removeAvatar(db, userId) };
   }
-  return setAvatar(db, userId, data);
+  return { version: await setAvatar(db, userId, data), changed: true };
 }
 
 /**
@@ -105,13 +127,13 @@ export interface AccessSaved {
 }
 
 /** An account's base level, comparable before and after a save: its preset (null is the default), or its own abilities. */
-const levelOf = (u: UserRecord) => (u.hasCustomCapabilities ? `custom:${[...u.baseCapabilities].sort().join()}` : `preset:${u.permissionPresetId ?? "default"}`);
-const groupsOf = (u: UserRecord) => [...u.accessGroups].sort().join();
+export const levelOf = (u: UserRecord) => (u.hasCustomCapabilities ? `custom:${[...u.baseCapabilities].sort().join()}` : `preset:${u.permissionPresetId ?? "default"}`);
+export const groupsOf = (u: UserRecord) => [...u.accessGroups].sort().join();
 
 /**
  * Team membership, access level, extra groups and administrator access in one transaction (D6): either all of it
  * is saved or none of it. Each step keeps its own rules (setAccessLevel, setAccessGroups,
- * setAdministrator); granting administrator access needs `confirmAdministrator`.
+ * setAdministrator); granting administrator access needs `confirmAdministrator` and the Owner.
  */
 export async function saveAccess(db: Db, actorId: string, userId: string, input: AccessSave): Promise<AccessSaved> {
   if (!input || typeof input !== "object" || !input.level || !Array.isArray(input.groups) || typeof input.administrator !== "boolean") throw new UserError("Choose the access to save.");

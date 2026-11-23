@@ -4,8 +4,11 @@ import { requirePageAccess } from "@/server/auth/page-access";
 import { getBranding } from "@/server/repositories/branding";
 import { loadMatchupPage } from "@/server/matchup-intel/view";
 import { loadMatchupEvidence } from "@/server/matchup-intel/evidence";
+import { recordedRoles, viewerPool } from "@/server/matchup-intel/picker";
 import { RIOT_TEXT_TEST_COOKIE, riotTextFactsShown } from "@/server/matchup-intel/riot-text/switch";
-import { NOTES_AGE_TEST_COOKIE, notesAgeForTest } from "@/server/matchup-intel/notes-age";
+import { CHANGED_ABILITIES_TEST_COOKIE, NOTES_AGE_TEST_COOKIE, RIOT_CHANGED_TEST_COOKIE, changedAbilitiesForTest, notesAgeForTest, riotChangesForTest } from "@/server/matchup-intel/notes-age";
+import { riotChangesOf } from "@/server/matchup-intel/digests";
+import { namedOnPage, withRiotChanges } from "@/server/matchup-intel/riot-changes";
 import { riotLegal } from "@/components/app-shell";
 import { MatchupFrame } from "@/components/matchup-intel/matchup-frame";
 import { MatchupContent } from "@/components/matchup-intel/matchup-content";
@@ -40,10 +43,18 @@ export default async function MatchupIntelPage({ searchParams }: { searchParams:
   const riotText = riotTextFactsShown(jar.get(RIOT_TEXT_TEST_COOKIE)?.value);
   // Browser tests only: the curated notes as production shows them once later patches are out (notes-age.ts; 0 anywhere but the demo).
   const notesAge = notesAgeForTest(jar.get(NOTES_AGE_TEST_COOKIE)?.value);
-  const [{ view, champions, curated }, branding] = await Promise.all([loadMatchupPage(db, input, riotText, notesAge), getBranding(db)]);
-  const { you, enemy, ally, enemy2, role } = view;
+  // And, with it, the abilities Riot changed since the check (the same bounds; none anywhere but the demo).
+  const changed = changedAbilitiesForTest(jar.get(CHANGED_ABILITIES_TEST_COOKIE)?.value);
+  const [{ view: loaded, champions, curated }, branding] = await Promise.all([loadMatchupPage(db, input, riotText, notesAge, changed), getBranding(db)]);
+  const { you, enemy, ally, enemy2, role } = loaded;
   // The evidence from the team's own games: counted in SQL for this viewer's own games and the team's they may see.
-  const evidence = await loadMatchupEvidence(db, session, { role, you, ally, enemy, enemy2 }, champions);
+  // And the picker's two lists beyond the roster: the viewer's own pool for the lane, and the positions Riot recorded (picker.ts).
+  const roster = new Set(champions.map((c) => c.id));
+  const [counted, pool, recorded] = await Promise.all([loadMatchupEvidence(db, session, { role, you, ally, enemy, enemy2 }, champions), viewerPool(db, session, role, roster), recordedRoles(db, session)]);
+  // "Riot changed this on 26.24": the per-version diff for what the page shows (a browser test's cookie on the demo; nothing with fewer than two patches recorded).
+  const shown = namedOnPage(loaded, counted);
+  const riotChanges = riotChangesForTest(jar.get(RIOT_CHANGED_TEST_COOKIE)?.value, loaded.patch.current) ?? (await riotChangesOf(db, shown).catch(() => null));
+  const { view, evidence } = withRiotChanges(loaded, counted, riotChanges);
   const duo = DUO_ROLES.has(role);
   // A champion named in the address that is not on the roster is left out, never repeated back.
   const dropped = (named(sp.champion) && !you) || (named(sp.vs) && !enemy) || (duo && named(sp.ally) && !ally) || (duo && named(sp.vs2) && !enemy2);
@@ -70,6 +81,8 @@ export default async function MatchupIntelPage({ searchParams }: { searchParams:
         enemy2={enemy2}
         champions={champions}
         curated={curated}
+        pool={pool}
+        recordedRoles={recorded}
         announcement={announcementWords(view, shows)}
         heading={
           <header>
@@ -81,7 +94,7 @@ export default async function MatchupIntelPage({ searchParams }: { searchParams:
         }
         patchState={<MatchupStatus view={view} />}
       >
-        <MatchupContent view={view} champions={champions} curated={curated} legal={riotLegal(branding.productName)} evidence={evidence} />
+        <MatchupContent view={view} champions={champions} curated={curated} legal={riotLegal(branding.productName)} evidence={evidence} peekInitial={one(sp.ability) ?? null} />
       </MatchupFrame>
     </div>
   );

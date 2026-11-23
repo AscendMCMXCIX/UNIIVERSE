@@ -2,7 +2,7 @@ import { devices, expect, test, type Locator, type Page } from "./test";
 import { lineupAtRest } from "./lineup";
 import { emulateKeyboard, keyboard } from "./keyboard";
 import { untilStill } from "./modal-corner";
-import { besideAMark, openMatchWindow } from "./match-history";
+import { openMatchWindow } from "./match-history";
 import { bubbleFacts, NOT_A_PICTURE, NOT_A_PICTURE_ERROR, openPictureEditor, placedRight, toastFacts } from "./popups";
 import { riotText } from "./matchup-intel";
 import { pullDown } from "./pull";
@@ -45,27 +45,45 @@ test("the priority pages load without an error and without sideways scrolling", 
   }
 });
 
-test("Team Overview: the cards are one sideways track, a role tab brings its card into view, and names are whole", async ({ page }) => {
+test("Team Overview: the cards are one sideways carousel, a dot brings its card into view, and names are whole", async ({ page }) => {
   await page.goto("/team");
   await expect(page.getByTestId("lineup-cell")).toHaveCount(5);
   // Measured once the lineup is laid out and at rest (it streams in: e2e/lineup.ts).
   await lineupAtRest(page);
   await fitsWidth(page, "/team");
-  const pager = page.getByTestId("lineup-pager");
-  // A tap before the page is interactive does nothing: tap until the track has moved. The tab's job
+  // No pager over the cards since the carousel (23 Nov 2026): five position dots under them.
+  await expect(page.getByTestId("lineup-pager")).toHaveCount(0);
+  const dots = page.getByTestId("lineup-indicator");
+  // A tap before the page is interactive does nothing: tap until the track has moved. The dot's job
   // is to bring its card across into view, whole from side to side; how much of its height fits
   // depends on what is above the track (the page scrolls for the rest).
   await expect(async () => {
-    await pager.getByRole("tab", { name: /^Mid/ }).tap();
+    await dots.getByRole("tab", { name: /^Mid:/ }).tap();
     const box = (await page.getByTestId("lineup-row-MID").boundingBox())!;
     expect(box.x, "the card's left edge on screen").toBeGreaterThanOrEqual(-1);
     expect(box.x + box.width, "the card's right edge on screen").toBeLessThanOrEqual(page.viewportSize()!.width + 1);
     await expect(page.getByTestId("lineup-row-MID")).toBeInViewport({ ratio: 0.75, timeout: 1_000 });
   }).toPass({ timeout: 15_000 });
-  await expect(pager.getByRole("tab", { name: /^Mid/ })).toHaveAttribute("aria-selected", "true");
+  await expect(dots.getByRole("tab", { name: /^Mid:/ })).toHaveAttribute("aria-selected", "true");
+  // One card on screen (no neighbour beside it).
+  const shown = () => page.getByTestId("lineup-cell").evaluateAll((els) => els.filter((c) => { const r = c.getBoundingClientRect(); return r.right > 0.5 && r.left < document.documentElement.clientWidth - 0.5; }).map((c) => c.querySelector<HTMLElement>("[data-testid^=lineup-row-]")!.dataset.testid));
+  await expect.poll(shown).toEqual(["lineup-row-MID"]);
   const name = page.getByTestId("lineup-row-MID").getByTestId("card-name");
   await expect(name).toBeVisible();
   expect(await name.evaluate((el) => el.scrollWidth <= el.clientWidth + 1 && el.scrollHeight <= el.clientHeight + 1)).toBe(true);
+  await expect(async () => {
+    await dots.getByRole("tab", { name: /^Support:/ }).tap();
+    await expect.poll(shown, { timeout: 2_000 }).toEqual(["lineup-row-SUPPORT"]);
+  }).toPass({ timeout: 15_000 });
+  // The track moved one card on by script (Playwright's WebKit has no touch drag; a card is the
+  // track's width apart): the loop wraps from Support to Top once Safari has the scroll at rest
+  // (scrollend, or no scroll for 140ms where it is not sent), Top in the middle of the loop again.
+  await page.getByTestId("lineup-overview").evaluate((el) => el.scrollBy({ left: el.clientWidth, behavior: "smooth" }));
+  await expect(dots.getByRole("tab", { name: /^Top:/ })).toHaveAttribute("aria-selected", "true");
+  await expect.poll(shown).toEqual(["lineup-row-TOP"]);
+  await expect.poll(() => page.getByTestId("lineup-cell").first().evaluate((c) => getComputedStyle(c).order)).toBe("2");
+  // Moved round where nothing shows it: Top is still the one card on screen.
+  await expect.poll(shown).toEqual(["lineup-row-TOP"]);
 });
 
 test("Team Overview: a card turns over with nothing of the side turned away left drawn, its links and controls included", async ({ page }) => {
@@ -73,7 +91,7 @@ test("Team Overview: a card turns over with nothing of the side turned away left
   await expect(page.getByTestId("lineup-overview")).toHaveAttribute("data-ready", "true");
   // The demo's Support card has a substitute, and the substitute's side has a link.
   await expect(async () => {
-    await page.getByTestId("lineup-pager").getByRole("tab", { name: /^Support/ }).tap();
+    await page.getByTestId("lineup-indicator").getByRole("tab", { name: /^Support:/ }).tap();
     await expect(page.getByTestId("lineup-row-SUPPORT")).toBeInViewport({ ratio: 0.5, timeout: 1_000 });
   }).toPass({ timeout: 15_000 });
   const card = page.getByTestId("lineup-card-SUPPORT");
@@ -218,7 +236,8 @@ test("Matchup Intel: a slot's picker fills the screen, a search and a tap choose
   await expect(sources).toHaveAttribute("open", "");
   await expect(page.getByTestId("matchup-footer-riot")).toBeVisible();
   // A briefing chip brings its row into view below the top bar, and gives it the focus.
-  const chip = page.getByTestId("matchup-briefing").locator('[data-testid="briefing-ability"][data-anchor^="ability-Mordekaiser-"]').first();
+  // The first one in view: a card's lead is its first sentence, and chips in the rest of its text wait behind its "More".
+  const chip = page.getByTestId("matchup-briefing").locator('[data-testid="briefing-ability"][data-anchor^="ability-Mordekaiser-"]').filter({ visible: true }).first();
   const anchor = (await chip.getAttribute("data-anchor"))!;
   await chip.tap();
   const row = page.locator(`#${anchor}`);
@@ -236,6 +255,29 @@ test("Matchup Intel: a slot's picker fills the screen, a search and a tap choose
   await expect(win).toHaveCount(0);
   expect(await page.evaluate(() => window.scrollY)).toBe(y);
   await expect(page.getByTestId("matchup-copy-link")).toHaveAccessibleName("Copy link to this matchup");
+  // A briefing row's "what it means" opens with a tap on its heading's ⓘ: numbers only.
+  await page.evaluate(() => window.scrollTo(0, 0));
+  const means = page.getByTestId("briefing-threat").getByTestId("briefing-means");
+  await means.tap();
+  await expect(page.getByTestId("briefing-means-bubble")).toContainText(/^What it means: Mordekaiser's [PQWER] cooldown [\d ./]+\u00a0s at 0 haste \(/);
+  await page.mouse.click(5, 5);
+  // The picker of a member's own slot offers their pool, a tap away; the role filter narrows the roster.
+  await page.context().addCookies([{ name: "uniiverse_demo_viewer", value: "member", url: new URL(page.url()).origin }]);
+  await page.goto("/resources/matchups?role=adc&vs=Caitlyn");
+  const you = page.getByTestId("matchup-pick-you");
+  await expect(async () => {
+    if (!(await win.isVisible())) await you.tap({ timeout: 2_000 });
+    await expect(win).toBeVisible({ timeout: 1_000 });
+  }).toPass({ timeout: 15_000 });
+  await win.getByRole("group", { name: "Filter by role" }).getByRole("button", { name: "Bottom" }).tap();
+  await expect(win.getByTestId("matchup-picker-role-note")).toBeVisible();
+  await fitsWidth(page, "the picker window with its role filter");
+  const first = win.getByTestId("matchup-picker-pool").locator("button[data-champion]").first();
+  const id = (await first.getAttribute("data-champion"))!;
+  await first.tap();
+  await expect(win).toHaveCount(0);
+  await expect(you).toHaveAttribute("data-champion", id);
+  await expect(you).toBeFocused();
 });
 
 test("Matchup Intel's facts from Riot's text on an iPhone: a tap on a chip quotes it, on \"Riot's texts differ\" gives both quotes, and the details window says the same; nothing is wider than the phone", async ({ page }) => {
@@ -259,9 +301,15 @@ test("Matchup Intel's facts from Riot's text on an iPhone: a tap on a chip quote
   // Yone's Q: a conditional fact, the owner's marker under the chips, its quote one tap away.
   const q = page.locator('[data-testid="matchup-enemy-abilities"] [data-testid="ability-row"][data-slot="Q"]');
   await expect(q.getByTestId("ability-facts-conditional")).toContainText("Conditional: see Riot's text (");
+  // The tile in the middle of the screen first: a chip under the phone's lower edge made the second
+  // tap scroll it into view, and a scroll closes a tapped bubble (as a finger's would), so that tap
+  // opened it again and the open bubble then kept the Details button's tap (the tap that closes a
+  // bubble does nothing else): the intermittent failure at the details window (Release 10).
+  await q.evaluate((e) => e.scrollIntoView({ block: "center" }));
   await q.getByTestId("fact-chip").first().tap();
   await expect(page.getByTestId("fact-chip-bubble")).toContainText("Conditional: see Riot's text.");
   await q.getByTestId("fact-chip").first().tap();
+  await expect(page.getByTestId("fact-chip-bubble")).toHaveCount(0);
   await fitsWidth(page, "Riven vs Yone");
   // The details window lists both quotes and the other wording, and closes back onto its button.
   const details = r.getByTestId("ability-details");
@@ -393,80 +441,33 @@ test("the phone window shell in Safari's engine: a pull on a game's header close
   await expect(page).not.toHaveURL(/player=/);
 });
 
-test("Match History's gold fold: a tap on or just beside a mark under the curve reads its minute, the reading stays after the finger lifts, and the tables run with the page", async ({ page }) => {
-  await page.goto("/team");
-  const id = (await page.getByTestId("lineup-row-MID").getAttribute("data-player-id"))!;
-  await page.goto(`/players/${id}/matches`);
-  // The first of the newest games whose stored timeline draws (every sixth demo game has none). On a
-  // phone a game opens as a whole screen of its own (the match window); Back closes it.
-  let timeline: Locator | null = null;
-  const window_ = page.getByTestId("match-detail");
-  for (let i = 0; i < 6 && !timeline; i++) {
-    const card = page.getByTestId("match-card").nth(i);
-    await expect(async () => {
-      if (!(await window_.isVisible())) await card.tap({ position: { x: 24, y: 16 }, timeout: 2_000 });
-      await expect(window_).toBeVisible({ timeout: 1_000 });
-    }).toPass({ timeout: 15_000 });
-    const breakdown = window_.getByTestId("match-breakdown");
-    await expect(breakdown.getByTestId("post-game-notes")).toBeVisible({ timeout: 15_000 });
-    const fold = breakdown.getByTestId("fold-gold");
-    if (await fold.count()) {
-      await fold.locator("summary").tap();
-      await expect(fold.getByTestId("timeline-loading")).toHaveCount(0, { timeout: 15_000 });
-    }
-    if ((await fold.count()) && (await fold.getByTestId("gold-chart").count())) timeline = fold;
-    else {
-      await page.goBack();
-      await expect(window_).toBeHidden();
-    }
-  }
-  expect(timeline, "a demo game with a timeline among the newest six").not.toBeNull();
-  const chart = timeline!.getByTestId("gold-chart");
-  const readout = chart.getByTestId("gold-chart-readout");
-  // Just beside an objective: its reading (the first frame at or after it), not the minute under the finger.
-  const spot = await besideAMark(chart);
-  expect(spot, "an objective with room beside it").not.toBeNull();
-  await page.touchscreen.tap(spot!.x, spot!.y);
-  await expect(readout).toContainText(/since the minute before: .*for (your team|the other team)/);
-  const [m, s] = (await readout.innerText()).split(" · ")[0]!.split(":").map(Number);
-  expect(m! + s! / 60).toBeGreaterThanOrEqual(spot!.minute - 1 / 60);
-  const mark = chart.getByTestId("timeline-objective").first();
-  await mark.scrollIntoViewIfNeeded();
-  await mark.tap();
-  await expect(readout).toContainText(/since the minute before: .*for (your team|the other team)/);
-  await page.waitForTimeout(300);
-  await expect(readout).toContainText("since the minute before: ");
-  // Opened, the minute table runs with the page instead of scrolling inside it.
-  await timeline!.getByText("Every minute as a table").tap();
-  expect(await timeline!.getByTestId("gold-chart-table").locator("xpath=..").evaluate((el) => getComputedStyle(el).overflowY)).toBe("visible");
-  await fitsWidth(page, "the Timeline");
-});
-
-test("Match History: a tap on a game's LP dash says why it has no figure, on screen, and leaves the card closed; another tap closes it", async ({ page }) => {
+test("Match History: a game's LP dash is no button on its card; a tap opens the game, whose tip (44px) says why it has no figure, and another tap closes it", async ({ page }) => {
   await page.goto("/team");
   const id = (await page.getByTestId("lineup-row-TOP").getAttribute("data-player-id"))!;
   await page.goto(`/players/${id}/matches`);
   const card = page.getByTestId("match-card").filter({ has: page.locator('[data-testid="match-lp"][data-lp="none"]:visible') }).first();
-  const tip = card.locator('[data-testid="match-lp-tip"]:visible');
+  const mark = card.getByTestId("match-lp-mark").filter({ visible: true });
   const bubble = page.getByTestId("match-lp-tip-bubble");
-  await tip.scrollIntoViewIfNeeded();
-  // Until the page is interactive a tap does nothing, so tap until the bubble answers.
-  await expect(async () => {
-    if ((await bubble.count()) === 0) await tip.tap({ timeout: 2_000 });
-    await expect(bubble).toBeVisible({ timeout: 1_000 });
-  }).toPass({ timeout: 15_000 });
+  // Until the page is interactive the card's tip is still drawn; once hydrated on touch it is the mark alone.
+  await expect(mark).toBeVisible({ timeout: 15_000 });
+  await expect(card.locator('[data-testid="match-lp-tip"]')).toHaveCount(0);
+  await mark.scrollIntoViewIfNeeded();
+  await mark.tap();
+  await expect(page).toHaveURL(/[?&]match=/);
+  const tip = page.getByRole("dialog").locator('[data-testid="match-lp-tip"]').first();
+  await expect(tip).toBeVisible();
+  const t = (await tip.boundingBox())!;
+  expect(Math.min(t.width, t.height)).toBeGreaterThanOrEqual(43.5);
   const note = await tip.evaluate((el) => document.getElementById(el.getAttribute("aria-describedby") ?? "")?.textContent ?? "");
   expect(note.length).toBeGreaterThan(20);
+  await tip.tap();
   await expect(bubble).toHaveText(note);
   const b = (await bubble.boundingBox())!;
   expect(b.x).toBeGreaterThanOrEqual(0);
   expect(b.x + b.width).toBeLessThanOrEqual(page.viewportSize()!.width);
   await tip.tap();
   await expect(bubble).toHaveCount(0);
-  // Neither tap opened the game, which would be kept in the address (?match=) and draw its breakdown.
-  await page.waitForTimeout(400);
-  await expect(page).not.toHaveURL(/[?&]match=/);
-  await expect(page.getByTestId("match-breakdown")).toHaveCount(0);
+  await expect(page).toHaveURL(/[?&]match=/);
 });
 
 test("Match History: once the page's own Filters has scrolled away, the top bar's Filters (44px) opens the filter sheet with a tap; a choice and Done bring the first game under the bars", async ({ page }) => {

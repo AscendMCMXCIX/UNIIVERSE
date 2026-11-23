@@ -6,7 +6,10 @@ name: CI
 #   (Actions → CI → Run workflow). Before this, every commit on a PR branch ran CI twice (push
 #   and pull_request events, in different concurrency groups).
 # - changes that cannot affect the build (documentation, the production-only workflows, the
-#   by-hand WebKit workflow and the workflow lint) do not start CI.
+#   by-hand WebKit workflow and the workflow lint) run no suite: on a push to main they do not
+#   start CI, and on a pull request the `changes` job sees them and the "CI gate" passes at once.
+# - "CI gate" is the one job a branch ruleset requires: it always runs, and passes only when the
+#   pull request is documentation only or every suite it needed passed (or was reused).
 # - a newer push to the same PR or branch cancels the run it supersedes.
 # - the browser and database suites wait for typecheck, lint and unit tests, so a broken commit
 #   stops after about two minutes instead of also running the 10-minute browser suite.
@@ -29,18 +32,11 @@ on:
       - ".github/workflows/webkit.yml"
       - ".github/workflows/production-check.yml"
       - ".github/workflows/workflow-lint.yml"
+  # Every pull request runs this workflow, so the required "CI gate" job always reports (a ruleset
+  # waits forever for a check a skipped workflow never sends). The `changes` job decides whether the
+  # suites run: a pull request touching only the files below is passed by the gate in seconds.
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-    paths-ignore:
-      - "docs/**"
-      - "**/*.md"
-      - ".env.example"
-      - ".github/workflows/data-jobs.yml"
-      - ".github/workflows/probe.yml"
-      - ".github/workflows/smoke.yml"
-      - ".github/workflows/webkit.yml"
-      - ".github/workflows/production-check.yml"
-      - ".github/workflows/workflow-lint.yml"
   workflow_dispatch:
 
 concurrency:
@@ -51,9 +47,41 @@ permissions:
   contents: read
 
 jobs:
+  changes:
+    # Documentation only? The same files the push to main ignores. A pull request whose every changed
+    # file is one of them runs no suite; anything else, or any doubt (a failed diff), runs them all.
+    name: Changed files
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      code: ${{ steps.diff.outputs.code }}
+    steps:
+      - if: github.event_name == 'pull_request'
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: diff
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [ "$EVENT" != "pull_request" ]; then echo "code=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          if ! files="$(git diff --name-only "$BASE...$HEAD")"; then
+            echo "The diff could not be read; running every suite."
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          code="$(printf '%s\n' "$files" | grep -Ev '^(docs/.*|.*\.md|\.env\.example|\.github/workflows/(data-jobs|probe|smoke|webkit|production-check|workflow-lint)\.yml)$' | grep -c . || true)"
+          echo "$(printf '%s\n' "$files" | grep -c .) files changed, $code of them can affect the build."
+          if [ "$code" -gt 0 ]; then echo "code=true" >> "$GITHUB_OUTPUT"; else echo "code=false" >> "$GITHUB_OUTPUT"; fi
+
   check:
     name: Typecheck, lint, unit tests
-    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -215,7 +243,8 @@ jobs:
     # and the browser tests).
     name: Build and browser tests (Playwright)
     needs: [check, e2e]
-    if: always() && needs.check.outputs.tested != 'true'
+    # Only once the first job passed: with no suite needed (documentation only) there is nothing to sum up.
+    if: always() && needs.check.result == 'success' && needs.check.outputs.tested != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -294,3 +323,34 @@ jobs:
           name: webkit-traces
           path: test-results
           retention-days: 7
+
+  gate:
+    # The one check a branch ruleset requires ("CI gate"). It always runs and reads the other jobs:
+    # a documentation-only pull request passes at once; otherwise typecheck, lint and unit tests,
+    # the database suite and the browser suite must each have passed (or, on the push to main, been
+    # reused from the pull request's run of the same tree), and WebKit too on a pull request.
+    name: CI gate
+    needs: [changes, check, postgres, e2e-result, webkit]
+    if: always() && (github.event_name != 'pull_request' || !github.event.pull_request.draft)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - env:
+          EVENT: ${{ github.event_name }}
+          CHANGES: ${{ needs.changes.result }}
+          CODE: ${{ needs.changes.outputs.code }}
+          CHECK: ${{ needs.check.result }}
+          TESTED: ${{ needs.check.outputs.tested }}
+          POSTGRES: ${{ needs.postgres.result }}
+          E2E: ${{ needs.e2e-result.result }}
+          WEBKIT: ${{ needs.webkit.result }}
+        run: |
+          fail() { echo "::error::$1"; exit 1; }
+          [ "$CHANGES" = "success" ] || fail "The changed files could not be read (result: $CHANGES)."
+          if [ "$CODE" = "false" ]; then echo "Documentation only: no suite needed."; exit 0; fi
+          [ "$CHECK" = "success" ] || fail "Typecheck, lint, unit tests: $CHECK."
+          if [ "$TESTED" = "true" ]; then echo "This tree already passed every suite in its pull request; reused."; exit 0; fi
+          [ "$POSTGRES" = "success" ] || fail "Database tests: $POSTGRES."
+          [ "$E2E" = "success" ] || fail "Browser tests: $E2E."
+          if [ "$EVENT" = "pull_request" ]; then [ "$WEBKIT" = "success" ] || fail "WebKit: $WEBKIT."; fi
+          echo "Every suite passed."

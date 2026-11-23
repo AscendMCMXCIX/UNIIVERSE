@@ -110,6 +110,12 @@ test.describe("accessibility", () => {
         await page.goto(route);
         await page.waitForLoadState("networkidle");
         await audit(page, `${route} at ${width}`);
+        if (route === "/no-access") {
+          // Centred in the content column, not in a 28rem box at its left edge (G3-1), its title balanced so no word stands alone (G3-16).
+          const off = await page.getByTestId("no-access").evaluate((el) => { const r = el.getBoundingClientRect(); const c = el.parentElement!.parentElement!.getBoundingClientRect(); return Math.abs(r.left + r.width / 2 - (c.left + c.width / 2)); });
+          expect(off, `/no-access at ${width}: centred in the column`).toBeLessThanOrEqual(2);
+          expect(await page.locator("main h1").evaluate((el) => getComputedStyle(el).textWrapStyle ?? getComputedStyle(el).textWrap)).toContain("balance");
+        }
       }
     }
   });
@@ -400,6 +406,72 @@ test.describe("tooltips", () => {
     await tip.focus();
     await expect(bubble).toBeVisible();
     await page.keyboard.press("Escape");
+    await expect(bubble).toHaveCount(0);
+  });
+
+  test("with a mouse: the hover delay measures 140–200ms, a shorter pass opens nothing, and the pointer crossing the gap into the bubble keeps it open", async ({ page }, info) => {
+    test.skip(info.project.name !== "desktop", "a mouse (the desktop project): HOVER_OPEN_MS 150, HOVER_CLOSE_MS 100 in info-tip.tsx");
+    await openTeammateProfile(page);
+    const tip = page.locator("[data-testid=info-tip]:visible").first();
+    await tip.scrollIntoViewIfNeeded();
+    const bubble = page.getByTestId("info-tip-bubble");
+    const box = (await tip.boundingBox())!;
+    const centre = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    await page.mouse.move(5, 5);
+    // The time from the pointer's arrival on the trigger to the bubble's insertion, in the page's clock.
+    const watch = () =>
+      page.evaluate(() => {
+        const w = window as unknown as { __tip: { enter: number | null; shown: number | null } };
+        w.__tip = { enter: null, shown: null };
+        const trigger = document.querySelectorAll<HTMLElement>("[data-testid=info-tip]");
+        const visible = [...trigger].find((t) => t.getBoundingClientRect().width > 0)!;
+        visible.addEventListener("pointerenter", (e) => (w.__tip.enter ??= e.timeStamp), { once: true });
+        new MutationObserver((_, o) => {
+          if (document.querySelector("[data-testid=info-tip-bubble]")) {
+            w.__tip.shown = performance.now();
+            o.disconnect();
+          }
+        }).observe(document.body, { childList: true, subtree: true });
+      });
+    // A pass shorter than the delay (in and out within 60ms) opens nothing.
+    await watch();
+    await page.mouse.move(centre.x, centre.y);
+    await page.waitForTimeout(60);
+    await page.mouse.move(5, 5);
+    await page.waitForTimeout(300);
+    await expect(bubble).toHaveCount(0);
+    // A rest on it opens it 140–200ms after the pointer arrived: the shortest of three rests (a busy
+    // runner only adds to a timer, so the shortest is the one nearest the delay set).
+    const delays: number[] = [];
+    for (let i = 0; i < 3; i++) {
+      await watch();
+      await page.mouse.move(centre.x, centre.y);
+      await expect(bubble).toBeVisible();
+      const t = await page.evaluate(() => (window as unknown as { __tip: { enter: number; shown: number } }).__tip);
+      delays.push(t.shown - t.enter);
+      if (i < 2) {
+        await page.mouse.move(5, 5);
+        await expect(bubble).toHaveCount(0);
+      }
+    }
+    expect(Math.min(...delays), `the hover delay (${delays.map(Math.round).join(", ")} ms)`).toBeGreaterThanOrEqual(140);
+    expect(Math.min(...delays), `the hover delay (${delays.map(Math.round).join(", ")} ms)`).toBeLessThanOrEqual(200);
+    // Into the gap between the ⓘ and its bubble, resting there longer than the close delay (100ms),
+    // then on into the bubble: the bridged gap keeps it open all the way.
+    const b = (await bubble.boundingBox())!;
+    const x = Math.min(Math.max(centre.x, b.x + 8), b.x + b.width - 8);
+    const below = b.y > centre.y;
+    const edge = below ? box.y + box.height : box.y;
+    const gap = below ? b.y - edge : edge - (b.y + b.height);
+    expect(gap, "a gap between the ⓘ and its bubble").toBeGreaterThan(2);
+    await page.mouse.move(x, below ? edge + gap / 2 : edge - gap / 2, { steps: 4 });
+    await page.waitForTimeout(250);
+    await expect(bubble, "open with the pointer in the gap").toBeVisible();
+    await page.mouse.move(x, below ? b.y + 8 : b.y + b.height - 8, { steps: 4 });
+    await page.waitForTimeout(250);
+    await expect(bubble, "open with the pointer in the bubble").toBeVisible();
+    // Off both: it closes.
+    await page.mouse.move(5, 5);
     await expect(bubble).toHaveCount(0);
   });
 

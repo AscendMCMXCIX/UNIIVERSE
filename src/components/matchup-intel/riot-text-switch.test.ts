@@ -15,8 +15,8 @@ import { MatchupStatus } from "./matchup-status";
 import { CONDITIONAL_WORDS, DIFFER_WORDS, NO_ABILITY_FACTS_WORDS, RIOT_TEXT_LABEL, RIOT_TEXT_NO_NUMBERS_WORDS, noFactsWords, noneRecordedWords } from "./wording";
 
 /*
-  The switch for the facts from Riot's text (src/server/matchup-intel/riot-text/switch.ts): the
-  layer ships off until the owner has pasted the new registration text in Riot's Developer Portal.
+  The switch for the facts from Riot's text (src/server/matchup-intel/riot-text/switch.ts): on
+  since 23 Nov 2026 (OD1), and it shipped off before the registration described the layer.
   Off, no file of it is read and the page shows nothing of it: a champion without checked notes
   reads as one with no reviewed facts, one line per side. Rendered over the real data (Data Dragon
   16.22.1's committed copy, the curated notes, the committed reviewed files), whatever the switch
@@ -60,18 +60,18 @@ async function page(you: string, enemy: string, shown: boolean) {
 }
 
 /** Gnar (W's "Mega Gnar"), Yone (R, where Riot's texts differ) and Twisted Fate (placeholders): the layer's most telling facts when it is on. */
-const PAIRS: Array<{ you: string; enemy: string; none: Array<["danger" | "opportunity", string]> }> = [
+const PAIRS: Array<{ you: string; enemy: string; none: Array<["danger" | "yours", string]> }> = [
   { you: "Riven", enemy: "Gnar", none: [["danger", "Gnar"]] },
-  { you: "Yone", enemy: "TwistedFate", none: [["danger", "Twisted Fate"], ["opportunity", "Yone"]] },
-  { you: "TwistedFate", enemy: "Yone", none: [["danger", "Yone"], ["opportunity", "Twisted Fate"]] },
-  { you: "Gnar", enemy: "Yone", none: [["danger", "Yone"], ["opportunity", "Gnar"]] },
+  { you: "Yone", enemy: "TwistedFate", none: [["danger", "Twisted Fate"], ["yours", "Yone"]] },
+  { you: "TwistedFate", enemy: "Yone", none: [["danger", "Yone"], ["yours", "Twisted Fate"]] },
+  { you: "Gnar", enemy: "Yone", none: [["danger", "Yone"], ["yours", "Gnar"]] },
 ];
 
 /** One side of the assembled reference, as rendered: from its section's attributes to its end. */
-const sideOf = (html: string, side: "danger" | "opportunity") => html.split(`data-testid="assembled-${side}"`)[1]!.split("</section>")[0]!;
+const sideOf = (html: string, side: "danger" | "yours") => html.split(`data-testid="assembled-${side}"`)[1]!.split("</section>")[0]!;
 
 /** What only the layer draws or says. */
-const LAYER_MARKUP = ["riot-text", 'data-testid="fact-chip-differ"', 'data-testid="fact-chip-markers"', 'data-testid="ability-facts-conditional"', 'data-testid="assembled-conditional"', 'data-testid="ability-facts-hidden"', 'data-testid="assembled-hidden"'];
+const LAYER_MARKUP = ["riot-text", 'data-testid="fact-chip-differ"', 'data-testid="fact-qualifier"', 'data-testid="ability-facts-conditional"', 'data-testid="assembled-conditional"', 'data-testid="ability-facts-hidden"', 'data-testid="assembled-hidden"'];
 const LAYER_WORDS = [RIOT_TEXT_LABEL, CONDITIONAL_WORDS, DIFFER_WORDS, NO_ABILITY_FACTS_WORDS, noneRecordedWords("riot-text"), RIOT_TEXT_NO_NUMBERS_WORDS, "Riot's text", "Riot's ability text", "reviewed automatically", "“Mega Gnar”"];
 
 afterEach(() => {

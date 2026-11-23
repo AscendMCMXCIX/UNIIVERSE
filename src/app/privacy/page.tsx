@@ -72,8 +72,8 @@ const STORED: Array<{ what: string; why: string; who: string; kept: string }> = 
     kept: "Until a planned database clean-up deletes all of them, once a recent backup has been checked. Deleting your profile or permanently removing your personal information already deletes yours; your Riot match history is never part of them",
   },
   {
-    what: "Admin activity: which account or setting an administrator changed, and when, with names as they were then",
-    why: "A record of administration",
+    what: "Account activity log: changes administrators make to accounts and settings; members' own changes to their username, display name, picture or password (never the new value); team managers' changes to other members' profiles. Names as they were then",
+    why: "A record of administration and account changes",
     who: "Administrators",
     kept: "Not deleted automatically. Permanent removal replaces the person's name in it with “Erased member”",
   },
@@ -156,7 +156,7 @@ export default async function PrivacyPage() {
         Updated <time dateTime="2026-11-20">{PRIVACY_UPDATED}</time>
       </p>
 
-      <div className="lg:mt-6 lg:grid lg:grid-cols-[12rem_minmax(0,1fr)] lg:gap-8">
+      <div className="lg:mt-6 lg:grid lg:grid-cols-[13rem_minmax(0,1fr)] lg:gap-8">
       {/* Phones and tablets: chips under the title. From lg: a table of contents that stays in view beside the notice. */}
       <nav aria-label="On this page" className="mt-4 lg:sticky lg:top-6 lg:mt-0 lg:self-start" data-testid="privacy-index">
         <p className="mb-2 hidden text-xs font-semibold uppercase tracking-label text-fg-subtle lg:block">On this page</p>
@@ -172,7 +172,7 @@ export default async function PrivacyPage() {
       </nav>
 
       <div className="min-w-0">
-      <Section id="contact" title="Contact us about your privacy" className="mt-6 scroll-mt-4 rounded-panel border border-accent/40 bg-accent/5 p-4 lg:mt-0">
+      <Section id="contact" title="Contact us about your privacy" className="mt-6 scroll-mt-4 overflow-clip rounded-panel border border-border bg-surface surface-lead p-4 lg:mt-0">
         <div data-testid="privacy-contact">
           <p className="mt-1 text-sm text-fg-muted">You can request access to, correction of, or permanent removal of your personal information stored by {name}.</p>
           <div className="mt-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-md border border-border bg-bg/60 px-3 py-2">
@@ -196,7 +196,7 @@ export default async function PrivacyPage() {
       </Section>
 
       <Section id="stored">
-        <ul className="mt-2 divide-y divide-border/70 rounded-md border border-border text-sm" data-testid="privacy-stored">
+        <ul className="mt-2 divide-y divide-border/70 rounded-panel border border-border text-sm" data-testid="privacy-stored">
           {STORED.map((row) => (
             <li key={row.what} className="space-y-1 p-3">
               <p className="text-fg">{row.what}</p>
@@ -232,7 +232,7 @@ export default async function PrivacyPage() {
             <li>The account and its sign-in sessions; the profile with its roles, champion pools, card design, picture and social links; the records kept from the retired Ranked Development (objectives, plans, sessions and reviews); and every linked Riot account with its Riot IDs, PUUIDs, ranks, champion mastery and statistics.</li>
             <li>Games: a stored game that no other member&apos;s history or bookmark uses is deleted. In any other, the person&apos;s place becomes &ldquo;Removed player&rdquo;: only the side they played on and the result stay, never their name, Riot ID, champion, items or figures, and their part of the game&apos;s timeline is deleted.</li>
             <li>Notes: their name is replaced by &ldquo;[removed]&rdquo; in other people&apos;s notes.</li>
-            <li>Logs: their name becomes &ldquo;Erased member&rdquo; in the admin activity log, and their Riot IDs are taken out of the background job records.</li>
+            <li>Logs: their name becomes &ldquo;Erased member&rdquo; in the account activity log, and their Riot IDs are taken out of the background job records.</li>
             <li>A removal record (see What is stored) keeps games stored later from including them and stops their Riot accounts being linked again by mistake. It holds no name or Riot ID.</li>
           </ul>
           <p className="mt-3 text-sm text-fg-muted">

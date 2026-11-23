@@ -52,6 +52,7 @@ translucent status bar, so:
   its 16px mark (negative margins keep the line), with an invisible 44px area on touch screens;
   inline text links use `touch-target`.
 - Close buttons of dialogs, windows and pickers are 44px on touch screens.
+- A list row's link (the shared list's `RowLink`, a Peek row's, a roster card's: `ROW_LINK_COVER` in `ui/data-list.tsx`) covers the row's dividing line too on touch screens, so a 44px row's link is 44px, not 43 (Release 10); a mouse's rows keep their heights.
 - A toast's dismiss button is 44px at every width, around its 16px mark: its negative margins reach
   into the toast's own padding, so the toast is no larger for it.
 - Controls on a card (a flip button, social icons) stop their event: using one never opens,
@@ -132,7 +133,7 @@ Substitute side of the Team cards).
 
 | Lineup | Layout |
 | --- | --- |
-| under 36rem (phones upright) | one swipe track, a card at a time, under the lineup pager (members: each tab the player's picture with the role as its badge and the name under it; the public page: the role's icon and name); the card's picture beside the name |
+| under 36rem (phones upright) | a carousel that loops (23 Nov 2026; `useLoopTrack`): one card at a time across the page's width inside its gutter (the track reaches the screen's edges, the gutter its padding; the cards a gap apart that keeps the next card out of view at rest), native swipes with a snap point a card, past the last card the first and before the first the last; five position dots under it (44px tabs, sized in px), members' and public page alike; the card's picture beside the name. No lineup pager over it (it showed the players' pictures until then) |
 | 36–56rem (iPads, upright and landscape; a 1024px laptop with the sidebar open) | 3 + 2, capped at 54rem, the second row centred: never a card alone on a row |
 | a phone held sideways (480px tall or less, 36rem or wider) | five across, compact: art at least 88px, the name, rank and the season's three figures (the picture with "You", the role status, tagline, links, record lines and pool in the player's window); under 36rem (larger text) a track of about two cards |
 | 56rem and up (a 1280px laptop with the sidebar open, and wider) | five across, capped at 84rem (S3a, 20 Nov 2026: 3 + 2 from 56 to 64rem before); Team's whole column, 100rem at most, from a 1920px window (S2c) |
@@ -230,7 +231,7 @@ section could drop the index to a row of its own (about 1284–1314px folded, 14
 it at 1024 folded.
 
 **Settings** (`settings/account-settings.tsx`, the same page in both modes; 18 Nov 2026), 64rem wide
-(`max-w-5xl`):
+(`max-w-5xl`): At 175% and 200% text on a tablet or desktop (Release 10) the account column is at most 40% of the page (`min(15rem,40%)`, `min(16rem,40%)` from lg) and the password panel's Change password and Sign out of other devices wrap at any width (they ran 87–235px past a 1280 or 1440 window before): nothing scrolls sideways from 320 to 2560 at 100–200% (measured on the demo; phone-wraps.spec.ts checks a member's Settings at 320 with 200% and at 768, 1024, 1280 and 1440 with 175% and 200%). At the usual size the columns are as before from 700px; at 640px the 40% cap makes the account column 237px instead of 240.
 
 | Width | Layout |
 | --- | --- |
@@ -315,6 +316,14 @@ public page, wider than the phone by 42, 103 and 163px at 150%, 175% and 200% on
 on 375, 30 and 90px on 393, at 175% and 200%), has no finding left at 125% to 200% on 320, 375 and
 393px, in either mode.
 
+**Windows and sheets at 320px with large text** (Release 10, 20 Nov 2026; `e2e/overlay-kit.spec.ts`):
+a window's own icon controls (‹ ›, ✕) are 44px on touch screens at every text size (in rem they
+were 88px at 200% and pushed "Previous player" off a 320px screen); a plain title bar collapses
+to one line once the body scrolls (sideways too), and the 56px bar stays 56px, so the frame once
+scrolled is at most a quarter of a 320 × 568, 375 × 667 or 568 × 320 screen at 100–200%; and the Task dialog, the sheets, the sign-in form and the
+player Peek keep every control on the screen, nothing scrolling sideways and no word cut short, at
+200% (the Peek at 125–200%, upright and sideways). DESIGN_SYSTEM §7, "The phone window shell".
+
 **Two ways to emulate a larger text size.**
 - The root's font size in CSS (`document.documentElement.style.fontSize = "200%"`), as the specs
   do: every rem grows, but a media query's rem stays the browser's default 16px, so the breakpoints
@@ -346,11 +355,16 @@ Library's rows at 1024px and wider likewise.
 the phone project):
 
 - **Team Overview's lineup cards** (`team-roster.tsx`, `player-card.tsx`;
-  `e2e/large-text-lineup.spec.ts`). A phone's card is as wide as the phone allows: 9.8, 7.9 and
-  6.5rem at 150%, 175% and 200% on a 320px phone, where no card at the usual size is under 10.4rem
-  (five across a 56rem lineup since S3a), so every threshold under 9rem applies to larger text only.
-  - Under 9rem the season's figures wrap: the win rate on a line, KDA and CS/min (vision) under it,
-    side by side where they fit; the wins bar keeps 2rem ("CS/MIN" ran 42px past the card at 200%).
+  `e2e/large-text-lineup.spec.ts`). A phone's card is the phone's width less the page's gutter (the
+  carousel, 23 Nov 2026): 11.3, 9.4 and 8rem at 150%, 175% and 200% on a 320px phone (9.8, 7.9 and
+  6.5rem with the glimpse of its neighbours before), where no card at the usual size is under 10.4rem
+  (five across a 56rem lineup since S3a), so every threshold under 9.75rem applies to larger text only
+  (a phone held sideways at the usual size gives its five compact cards about 8.75rem).
+  - Under 9.75rem the season's figures wrap: the win rate on a line, KDA and CS/min (vision) under it,
+    side by side where they fit ("CS/MIN" ran 42px past the card at 200%). Until the carousel the
+    wrap began at 9rem, and from 9 to 9.7rem "CS/MIN" beside the win rate ran up to 18px past the box
+    (the carousel's 9.43rem card at 175% on 320px; the track's 9.36rem at 175% on 360px). Under 9rem
+    the wins bar keeps 2rem.
   - Under 9.75rem the pool's heading wraps instead of ending in "…", and the first choice goes under
     its portrait and wraps at its spaces ("Nauti", "12 gam" were cut); its "·" is held to its words by
     no-break spaces, so "14 games · 29%" never leaves the dot at a line's end.
@@ -439,6 +453,30 @@ Team Overview, a profile's Overview, the Library and the public page are identic
 Players and Leaderboards in every row of the demo's members (the base's server held four members
 other tests had added, and the demo dates its games from each server's start: "17 Oct" there, "18
 Oct" here). The lineup cards' two new wrappers (the chip's lane and its label) draw nothing there.
+
+## The first-run page (`/setup`)
+
+The demo always has an owner, so the real form (Create the owner account, with the setup key a
+production deployment asks for) never shows there, and no browser spec reaches it: CI's server is
+the demo. Its audit is `scripts/setup-audit.mjs`, against a server started as a fresh production
+deployment is (required accounts, no owner, a setup key; nothing changed in the app):
+
+```
+createdb uniiverse_setup        # empty: the app applies its migrations on start
+UNIIVERSE_REQUIRE_AUTH=true UNIIVERSE_SEED_DEMO=false UNIIVERSE_AUTH_SECRET=<any> \
+  UNIIVERSE_ACCESS_PASSWORD=<any> DATABASE_URL=postgres://…/uniiverse_setup pnpm start -p 3951
+node scripts/setup-audit.mjs http://127.0.0.1:3951
+```
+
+At i15, se3 and se1 (touch) and 1280 × 800, 1440 × 900 and 1920 × 1080, at 100, 150 and 200% text, it
+checks axe (WCAG 2.1 A/AA and 2.2 AA) at 0, every target 44px on a touch screen, no sideways scroll,
+no word broken across lines, and one h1 in `PAGE_TITLE`'s style like the other signed-out pages.
+Release 10's run (20 Nov 2026) found one thing: "Add an off role" was 36px tall on phones at 100%
+(now 44px on a touch screen, `pointer-coarse:min-h-11`, also on the invite form and Welcome, which
+share it). The setup key's label now reads as the other fields' ("SETUP KEY *", with the variable
+it names on the line under the field, breakable only at its underscores). After: all 18 clean;
+heights 1.35 / 1.71 / 2.22 screens at i15 / se3 / se1 at 100% (7.3 at se1 200%), 1.30 / 1.16 /
+1.07 on the desktops.
 
 ## Admin Mode at a larger text size
 
@@ -559,6 +597,14 @@ the account screen over the dashboard at 200% on a 320px phone as well.
   moving onto a pinned tab, the sidebar's logo or the top bar's buttons never scrolls the page.
   A sticky bar must be a child of what the page scrolls through, never of a wrapper that ends with
   it.
+- **Every page centred beside the sidebar** (the owner's review, 23 Nov 2026): every page's column is
+  centred in the room the window leaves beside the sidebar, open or folded, whatever its width (80rem
+  profiles, Settings' 64rem, Team's 100rem), so its margins are equal: no page sits against the sidebar
+  with the spare room on its right. Team's four sections share `--content-wide` at every window size
+  and a set's row of tabs is its pages' width, centred as they are (`ROW_WIDTH`), so the first tab
+  starts at the page's column below 1600px too. This supersedes the 1600px threshold and the
+  frame's left edge in the paragraph below (`e2e/desktop-frame.spec.ts`,
+  `e2e/navigation-reach.spec.ts`).
 - **One composition at every width** (PR 10, 18 Nov 2026): in a window from 1600px (100rem) wide
   the pages of a tab set share one width (`SECTION_HUBS`' `width` in `src/lib/nav.ts`: Team's four
   sections `--content-wide`, Players and Matches joining Team Overview and Leaderboards there;
@@ -726,14 +772,16 @@ touch screen. From `sm` the window is as it was (three figures across, six from 
 scope line, toolbar and sorted pair at 393, 375, 360 and 320px, 200% text on a 320px phone, the bar
 and its legend against the filters' games, and the groups with the 76rem grid's headings, arrows and
 figures at 1536 and 1680px. All Champions' preview (S5, 19 Nov 2026; docs/MATCHUPS.md) replaces the
-champion window: at 1280, 1440 and 1920 it unfolds inside the list's card over the columns after Win
-rate (Champion, Games and Win rate keep their x to the pixel, the page does not scroll, rows keep
-their height: 0px moved at all three widths on the demo); with under 26rem beside Win rate, and on
-screens from 768 to 1023px wide, the shared Peek's docked panel; under 768px (the phone's frame, with
-a mouse as with touch) and on short windows its sheet. The wide (76rem) tier drops the Kills column (it sorts like Games; per-game kills are in KDA;
-CM AC-11, reversible: OD20). `e2e/champion-preview.spec.ts` checks the geometry, ↑/↓, Back and
-Escape at 1440, the content and old addresses on all three projects, and the sheet (phone) and docked
-panel (tablet).
+champion window. Since 23 Nov 2026 it unfolds under its row from 768px wide (the overlay kit's
+Unfold, docs/DESIGN_SYSTEM.md §7): the next item of the list, across the whole list, its record
+beside the lane opponents from a 50rem list and above them below; Champion, Games and Win rate keep
+their x, the rows above it keep their place and height, the page does not scroll on opening, and
+nothing scrolls inside it; under 768px (the phone's frame, with a mouse as with touch) and on short
+windows it is the shared Peek's sheet. (Until then a wide list showed it over the columns after Win
+rate, inside the card, and tablets in the docked Peek panel.) The wide (76rem) tier drops the Kills column (it sorts like Games; per-game kills are in KDA;
+CM AC-11, reversible: OD20). `e2e/champion-preview.spec.ts` checks the geometry at 1280, 1440, 1920
+and 2560 (the sidebar open and collapsed), ↑/↓, Back and Escape, the content and old addresses on
+all three projects, the unfold on the tablet and the sheet on the phone.
 
 The player Peek's pool list (Team, Players, Leaderboards; `PoolChampionTile`) takes its columns
 (Win rate, Games, KDA, CS/min or Vision) from its own width, 28rem or more (`@container/pool`), and
@@ -779,7 +827,7 @@ folded the bars of `main`'s own (Team's, Platform Settings'), measured once the 
 itself has replaced its loading state: the row in the same place on all of a set's sections, Team's
 name ending at the column's right edge, the bar's line spanning the room, and on Team Overview the
 header centred in Team's column; under a 1600px window (1536 × 864, the sidebar folded) Players and
-Matches stay 80rem and the row spans the bar, as before; at a tablet's width held sideways
+Matches fill the room with Team's other sections, under a row that spans the bar (since 23 Nov 2026); at a tablet's width held sideways
 (768 × 420) the frame is the compact bar, the sections in it and not in the page, sliding away as the
 page scrolls down; a tablet's destinations in its top bar, one tap each, and its avatar menu taking
 the focus to its first item, the arrow keys going round its items (Down and Up wrapping, Home and
@@ -854,7 +902,7 @@ size and the state under it; 2 + 2 + 1 on a tablet and five across on a desktop,
 stage ending with the cards, no bench; 3 + 2 on a 1280 × 800 laptop; at 1366, 1440 and 1920 the
 kills / deaths / assists line shown and whole on cards from 14.5rem, and Edit lineup's two labels
 whole side by side; on a phone the logo beside the name with the state and Edit lineup on the line
-under them, the track and its role bar of icons and names, no bench, and no later card's member's
+under them, the carousel and its position dots (the track and its role bar until 23 Nov 2026), no bench, and no later card's member's
 picture asked for while the first card's art loads), `e2e/mobile-landscape.spec.ts` (held sideways
 on an iPhone 15 and an iPhone SE (3rd gen): 2 + 2 + 1, no sideways track, no role bar, the 44px
 logo), `e2e/team-flip.spec.ts` (turning, choosing, replacing and removing a substitute, Make
@@ -1025,7 +1073,9 @@ Three levels, each saying what it proves:
      comes back on a scroll up, and nothing sits under the notch or the home indicator.
   4. Type in a field (display name, a Riot ID when linking an account): no zoom, and the keyboard covers
      neither the field nor its Save button.
-  5. Swipe Team's cards: one card at a time, and an upward swipe still scrolls the page.
+  5. Swipe Team's cards: one card at a time with no other card beside it, past Support comes Top and
+     before Top Support with nothing jumping (Safari's momentum included), the dots under the card follow,
+     and an upward swipe still scrolls the page.
   6. Open and close a detail window and the Card Studio: the page behind does not move.
   7. Open the app with no connection: the offline notice shows.
   8. On an iPad, add to Home Screen and open it: Players shows the whole roster on one screen, two

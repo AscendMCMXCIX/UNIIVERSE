@@ -61,7 +61,7 @@ function DataLine({ status }: { status: ShellStatus }) {
 }
 
 /** The shared page column (see the main element); on Team Overview a column its lineup can grow into, as main is. */
-const FRAME = "mx-auto w-full max-w-[var(--content-wide)] *:ml-0 lg:has-[[data-fills-height]]:flex lg:has-[[data-fills-height]]:flex-1 lg:has-[[data-fills-height]]:flex-col";
+const FRAME = "mx-auto w-full max-w-[var(--content-wide)] lg:has-[[data-fills-height]]:flex lg:has-[[data-fills-height]]:flex-1 lg:has-[[data-fills-height]]:flex-col";
 
 /** Things only this person can fix about their own account: an action card at the top of the page, not a header error. */
 function AccountNudges({ status }: { status: ShellStatus }) {
@@ -171,12 +171,15 @@ export function AppShell({ status, children }: { status: ShellStatus; children: 
             <main id="content" tabIndex={-1} className="min-w-0 flex-1 px-safe-4 py-5 pb-tabbar outline-none sm:px-safe-6 md:pb-6 lg:px-8 lg:py-7 lg:has-[[data-fills-height]]:flex lg:has-[[data-fills-height]]:flex-col">
               <AccountNudges status={status} />
               <SectionTabs allowed={allowed} team={{ name: b.teamName, logo: logoSrc(b), logoStill: logoStillSrc(b) }} />
-              {/* THE FRAME (UD.X3): one content column for every page, at most --content-wide and centred
-                  in the room beside the sidebar. A page narrower than it (the 80rem profiles, lists and
-                  documents, Settings, Admin) starts at its left edge, whatever its own centring
-                  (`*:ml-0`), so every title starts at one x and the content never jumps sideways
-                  between destinations; it simply ends earlier. Under 100rem of room the frame is the
-                  whole width and nothing changes (phones, tablets, laptops). */}
+              {/* THE FRAME: one content column for every page, at most --content-wide and centred in
+                  the room beside the sidebar, whether it is open or folded. A page narrower than it (the
+                  80rem profiles, lists and documents, Settings, Admin) centres itself in it too (its own
+                  `mx-auto`), so its content sits in the middle of the room the window leaves, with the
+                  same margin on either side, never against the sidebar with the spare room all on the
+                  right (the owner's review of 23 Nov 2026; from S2c until then a narrower page started at
+                  the frame's left edge, `*:ml-0`). Pages of one width share one x; the few widths are
+                  PAGE_WIDTH's (src/lib/nav.ts). Where the room is narrower than a page's width the page
+                  is the room's width (phones, tablets, laptops). */}
               <div className={FRAME} data-testid="page-frame">
                 {children}
               </div>

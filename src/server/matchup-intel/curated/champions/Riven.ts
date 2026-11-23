@@ -1,6 +1,11 @@
 import type { ChampionNotes } from "@/domain/matchup-intel/types";
 
 /*
+  Re-checked against Riot's own sources on 23 Nov 2026 (OD6; riotRecheck): Data Dragon 16.23.1 against
+  16.22.1 (every ability's cooldown, cost, ranks, range, description and tooltip, the passive and the
+  base stats) and Riot's patch notes for 26.23 (the champions, and the items and runes the notes
+  name): no change on Summoner's Rift. The wiki's pages were not read again (its Terms of Use forbid
+  automated use without consent), so what rests on them is as checked on 17 Nov.
   Riven: curated champion notes (Layer 1), checked on 17 Nov 2026 against patch 26.22 and Data
   Dragon 16.22.1.
 
@@ -49,7 +54,7 @@ import type { ChampionNotes } from "@/domain/matchup-intel/types";
 
 const notes: ChampionNotes = {
   championId: "Riven",
-  verified: { patch: "26.22", ddragonVersion: "16.22.1", checkedOn: "2026-11-17" },
+  verified: { patch: "26.22", ddragonVersion: "16.22.1", checkedOn: "2026-11-17", riotRecheck: { patch: "26.23", ddragonVersion: "16.23.1", on: "2026-11-23" } },
   sources: [
     { id: "riven-p", title: "League of Legends Wiki: Runic Blade (Riven)", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Riven/Runic_Blade", kind: "wiki-ability", revision: 4091406, revisionTime: "2026-10-30T14:54:09Z", licence: "CC BY-SA 3.0" },
     { id: "riven-q", title: "League of Legends Wiki: Broken Wings (Riven)", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Riven/Broken_Wings", kind: "wiki-ability", revision: 4025373, revisionTime: "2026-06-05T15:05:11Z", licence: "CC BY-SA 3.0" },

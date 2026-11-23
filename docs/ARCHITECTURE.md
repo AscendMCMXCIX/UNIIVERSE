@@ -329,7 +329,7 @@ without being reloaded: scroll position, filters and open windows stay as they a
 
 Two related changes in the same release:
 - **Profile tabs load their own code:** `src/components/players/profile-sections.tsx` holds only the frame every profile page shares (header, search, identity sync); each tab's body is its own module (`profile-overview-tab.tsx`, `profile-champions-tab.tsx`, `profile-matches-tab.tsx`, `profile-accounts-tab.tsx`), so a profile page no longer ships the client code of the other three tabs.
-- **The phone lineup track** (`src/components/ui/use-snap-track.ts`): which card is in view lives in a small store outside React state; only the role bar above the track (`LineupPager`) follows it, so swiping no longer redraws the five cards on every card change.
+- **The phone lineup carousel** (`src/components/ui/use-loop-track.ts`, 23 Nov 2026; `use-snap-track.ts` and the role bar `LineupPager` before): native horizontal scrolling with one snap point a card, so swipes, flicks and the page's vertical scrolling stay the browser's own. It loops without copies of any card: each card is in the document once, in lineup order (keyboard, screen readers and the test ids see one of each), and only its flex `order` (`--loop-order`, `loopSlot`) places it round the card in view, two cards ready on either side. Once the track is at rest on another card (`scrollend`, or 140ms without a scroll where it is not sent; never under a finger), the order is moved round and the scroll position by exactly as far as the card moved, in the same task, so nothing on screen changes. `go` moves the shortest way round (`loopDelta`; the dots, ← →, the player window's ‹ ›), placing the cards round the card in view first where a quick move has outrun the order, with snapping paused while it places them mid-way (`data-loop-free`). Which card is in view, and where it came to rest, live in small stores outside React state; only the position dots (`LineupIndicator`) and the screen readers' announcement (`LineupAnnouncer`) follow them, so swiping never redraws the five cards. Wider layouts are a grid, where none of this does anything (`@xl:order-none`).
 
 ## Match History 2.0 (October 2026)
 
@@ -363,23 +363,24 @@ request is a game's match timeline, once per game, when a section that needs it 
 - **The post-game view** (`post-game.tsx`, since 19 Nov 2026, replacing the four tabs and the
   Analysis): one view, no subtabs; the loadout, the rune page (shards from the forward capture of
   20 Nov 2026), six figure tiles (each figure once), the lane by role (the strict
-  `laneOpponentOf`; the bot lane two against two from `botPairOf` and `pairMoments`), the notes and
-  the compact scoreboard (`TeamTable compact`), with the gold curve and the build and skill order
-  as folds. The notes are written rules (`src/domain/match-notes.ts`, `docs/MATCH_NOTES.md`): facts
-  with their numbers and comparison base, never a cause; worded for the viewer
-  (`MatchDetailView.own`), Focus next on one's own game only. Their baseline is
-  `personalComparison` with `NOTE_FIGURES` (the four figures plus kill participation, from the
-  ledger's team kills: `SeasonGame` carries `gold`, `teamKills` and `teamDamage`). The timeline is
-  asked for as the game opens. The open card folds into a header with Previous and Next; opening
+  `laneOpponentOf`; the bot lane two against two from `botPairOf` and `pairMoments`) and the
+  compact scoreboard (`TeamTable compact`). The timeline is asked for as the game opens (the lane's
+  10:00 and 15:00 read it; `data-timeline` on the breakdown says whether it answered). On 23 Nov
+  2026, at the owner's request, the written notes (Went well, Went wrong, Focus next:
+  `src/domain/match-notes.ts`, docs/MATCH_NOTES.md) and the two folds (the gold curve,
+  `match-timeline-panel.tsx`, and the build and skill order, `build-panel.tsx`) were removed from
+  the view with their code and tests; so was the notes' baseline (`MatchDetailView.personal`, which
+  loaded the player's stored games on every open). The card's standout still uses
+  `personalComparison`. The open card folds into a header with Previous and Next; opening
   pushes one history entry, switching replaces it, closing goes Back; switching is anchored (the
   new header lands where the old one was, scrolled before paint).
-- **Timeline** (`match-timeline-panel.tsx`, `getMatchTimeline` in
-  `src/server/accounts/match-timeline.ts`, `getMatchTimelineAction`): the two teams' gold
-  difference per frame, only when the stored timeline holds all ten players
-  (`teamGoldDifference`; a removed player or a gap leaves it out, with a note), drawn as one line
-  around zero with a crosshair readout (pointer, touch, arrow keys) and every minute as a table.
-  The figures beside it are descriptive only (`goldStory`: the largest lead and deficit, the end,
-  when a lead of 1,000 or more changed sides); no cause is read into them. The timeline is fetched
+- **Timeline** (`getMatchTimeline` in `src/server/accounts/match-timeline.ts`,
+  `getMatchTimelineAction`): the two teams' gold difference per frame, only when the stored
+  timeline holds all ten players (`teamGoldDifference`; a removed player or a gap leaves it out,
+  with a note). Its chart (`match-timeline-panel.tsx`, with `goldStory`) was removed from the
+  post-game view on 23 Nov 2026; the server still works the difference out, as the check that
+  keeps a contradicting timeline's lane figures off the page (below) needs it, and its view still
+  carries the build, the gold and the events, which no page reads since then. The timeline is fetched
   once per game (stored in `match_timelines` as before; a game Riot no longer serves is recorded as
   unavailable and not asked for again), the browser keeps the answer for the list
   (`MatchDetailCache.timeline`), and Riot's 429 is shown as "Riot is limiting requests just now".
@@ -395,14 +396,9 @@ request is a game's match timeline, once per game, when a section that needs it 
   and says why, and a 404 is recorded so it is not asked again (`events.missing`). A timeline
   fetched again (here or by the Matchups backfill) completes the stored one and never replaces it
   (`completedTimeline`): stored purchases, skills and frames stay, the answer adds what was missing.
-  The chart marks
-  each team's kills (the player's team along the top, the other along the bottom; only when all ten
-  players' kills are kept), the objectives under the curve (one letter each, voidgrubs of one camp
-  together) and the player's own kills and deaths; the readout adds what happened since the minute
-  before. "Largest swings" (`goldSwings`: the three largest moves over about three minutes, 1,500
-  gold or more, not overlapping) lists the kills and objectives of the same minutes side by side,
-  and says it does not name a cause. Every objective and the player's kills, assists and deaths are
-  also a table. The demo seeds kill times and objectives for every demo game with a timeline, and
+  The gold chart that marked them, with its "Largest swings", was removed on 23 Nov 2026 (its
+  helpers in `match-events.ts` with it; the stored events stay, and Matchup Intel's evidence reads
+  them). The demo seeds kill times and objectives for every demo game with a timeline, and
   the record's team counts follow them.
 - **One game, one set of figures** (29 Oct 2026): the card, the scoreboard and Analysis read the
   game's record (`match_details`: each player's side is their `teamId`, players are matched by
@@ -424,8 +420,9 @@ request is a game's match timeline, once per game, when a section that needs it 
   a 3,390 deficit in Timeline): they are now fitted to each record (`fitFramesToRecord` in
   `src/server/demo/seed.ts`), every demo game's deaths are the other side's kills, and a third of a
   member's demo games are played from the red side.
-- **Build** (`build-panel.tsx`): the build and skill order from the same timeline request (which
-  replaced `getMatchBuild`), and the rune page.
+- **Build** (`build-panel.tsx`, removed from the post-game view on 23 Nov 2026): the build and skill
+  order from the same timeline request (which replaced `getMatchBuild`). The rune page stays in the
+  loadout.
 - **Cards** (`MatchRow`): the champion's level, each player's stored rank for everyone but the
   player (teammates too, from storage only; `compositionOf`'s `rankOf`), the damage share, and one
   standout at most (`standoutOf`): a figure higher than every one of at least 20 earlier comparable

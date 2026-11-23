@@ -379,7 +379,7 @@ test("held upright: a tall phone at the usual text size keeps both bars; under 7
   }
 });
 
-test("held sideways, Team Overview shows the five cards in one compact row: no orphan, no sideways track, no pager, no logo (the bar carries it)", async ({ browser, baseURL }) => {
+test("held sideways, Team Overview shows the five cards in one compact row: no orphan, no sideways track, no position dots, no logo (the bar carries it)", async ({ browser, baseURL }) => {
   // An iPhone 15 and an iPhone SE (3rd gen) held sideways (S3a, 20 Nov 2026: 2 + 2 + 1 with the
   // fifth alone before, UM.T3). The first SE's 568px is under 36rem of lineup: the phone's track.
   for (const device of [IPHONE_LANDSCAPE, devices["iPhone SE (3rd gen) landscape"]]) {
@@ -390,7 +390,8 @@ test("held sideways, Team Overview shows the five cards in one compact row: no o
     const name = `${device.viewport.width} × ${device.viewport.height}`;
     expect(new Set(cells.map((c) => Math.round(c.top))).size, `${name}: one row of five`).toBe(1);
     expect(await page.getByTestId("lineup-overview").evaluate((el) => el.scrollWidth <= el.clientWidth + 1), `${name}: no sideways track`).toBe(true);
-    await expect(page.getByTestId("lineup-pager")).toBeHidden();
+    await expect(page.getByTestId("lineup-indicator")).toBeHidden();
+    await expect(page.getByTestId("lineup-pager")).toHaveCount(0);
     // The header's logo and name are the bar's (the h1 read out only): one compact line.
     expect((await page.getByTestId("team-header").boundingBox())!.height, `${name}: the header`).toBeLessThanOrEqual(56);
     expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);

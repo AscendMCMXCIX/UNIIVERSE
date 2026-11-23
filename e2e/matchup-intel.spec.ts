@@ -1,7 +1,7 @@
 import { AxeBuilder } from "@axe-core/playwright";
 import sharp from "sharp";
 import { expect, test, type Page } from "./test";
-import { choiceIds, choose, cutOrSpilled, enemyAbilities, hydrated, localPictures, openMatchupIntel, openPicker, overflow, pickerCuts, pickerSpill, riotText, rosterIds } from "./matchup-intel";
+import { choiceIds, choose, cutOrSpilled, enemyAbilities, hydrated, localPictures, openMatchupIntel, openPicker, overflow, pickerCuts, pickerSpill, riotChanged, riotText, rosterIds } from "./matchup-intel";
 import { untilStill } from "./modal-corner";
 import { E2E_DDRAGON_VERSION } from "./ddragon-version";
 import { patchFromVersion, publicPatchName } from "../src/domain/patch";
@@ -34,6 +34,9 @@ const CURATED: Array<[string, string]> = [
   ["Riven", "Mordekaiser"],
 ];
 
+/** Riot's per-version diff labelling every champion of these pairs (the demo's cookie, at most twenty). */
+const labelAll = (page: Page, pairs: ReadonlyArray<readonly [string, string]>) => riotChanged(page, [...new Set(pairs.flat())].slice(0, 20).map((id) => `champion:${id}`));
+
 const row = (page: Page, slot: string) => page.locator(`[data-testid="matchup-enemy-abilities"] [data-testid="ability-row"][data-slot="${slot}"]`);
 
 test("a link to a pair opens it: both champions in their slots, the enemy's five abilities with their base cooldowns", async ({ page }) => {
@@ -53,10 +56,13 @@ test("a link to a pair opens it: both champions in their slots, the enemy's five
     // one in sight (a narrow tile shows a smaller copy on its key's line instead).
     await expect(r.locator('img[src^="https://ddragon.leagueoflegends.com/cdn/"], [data-testid="ability-icon-standin"]').filter({ visible: true })).toHaveCount(1);
   }
-  // Your own champion's abilities are there too, folded away until asked for.
+  // Your own champion's abilities are there too, folded away in the full reference until asked for.
   const yours = page.getByTestId("matchup-your-abilities");
+  await expect(page.getByTestId("matchup-full-reference")).not.toHaveAttribute("open", "");
   await expect(yours).not.toHaveAttribute("open", "");
   await expect(yours.getByTestId("ability-row").first()).toBeHidden();
+  await hydrated(page);
+  await page.getByTestId("matchup-full-reference-summary").click();
   await yours.locator(":scope > summary").click();
   await expect(yours).toHaveAttribute("open", "");
   await expect(yours.getByTestId("ability-row")).toHaveCount(5);
@@ -82,8 +88,23 @@ test("Ambessa vs Renekton: the curated briefing, its chips jumping to the abilit
   await expect(briefing.getByTestId("briefing-opportunity")).not.toBeEmpty();
   await expect(briefing.getByTestId("matchup-briefing-checked")).toContainText(/Checked on patch \d+\.\d+/);
   await expect(page.getByTestId("matchup-no-briefing")).toHaveCount(0);
+  // "What it means": the enemy's cooldowns a row rests on, numbers only, by the cooldown table's own rule (Renekton's W: 16 s at rank 1 in Riot's data).
+  const means = briefing.getByTestId("briefing-threat").getByTestId("briefing-means");
+  await expect(means).toHaveAccessibleName("What the threat means");
+  await expect(means).toHaveAccessibleDescription("What it means: Renekton's W cooldown 16 / 14 / 12 / 10 / 8\u00a0s at 0 haste (base).");
+  await hydrated(page);
+  await page.getByTestId("matchup-haste").getByRole("button", { name: "20", exact: true }).click();
+  await expect(means).toHaveAccessibleDescription("What it means: Renekton's W cooldown 13.33 / 11.67 / 10 / 8.33 / 6.67\u00a0s at 20 haste (Riot's general rule).");
+  // Opened, the bubble says the same; no row's line uses "you", a timer or "ready".
+  await means.hover();
+  await expect(page.getByTestId("briefing-means-bubble")).toContainText("13.33 / 11.67 / 10 / 8.33 / 6.67");
+  for (const m of await briefing.getByTestId("briefing-means").all()) expect(await m.getAttribute("aria-describedby")).toBeTruthy();
+  for (const t of await briefing.locator("[data-means]").evaluateAll((els) => els.map((e) => e.getAttribute("data-means") ?? ""))) expect(t).not.toMatch(/\byou(r)?\b|ready|timer/i);
+  await page.getByTestId("matchup-haste").getByRole("button", { name: "0", exact: true }).click();
+  await expect(means).toHaveAccessibleDescription(/at 0 haste \(base\)\.$/);
   // A chip names the ability ("Renekton W") and jumps to its row.
-  const chip = briefing.locator('[data-testid="briefing-ability"][data-anchor^="ability-Renekton-"]').first();
+  // The first one in view (chips in a card's text after its lead wait behind its "More").
+  const chip = briefing.locator('[data-testid="briefing-ability"][data-anchor^="ability-Renekton-"]').filter({ visible: true }).first();
   await expect(chip).toHaveText(/^Renekton (passive|[QWER])$/);
   const anchor = (await chip.getAttribute("data-anchor"))!;
   await chip.click();
@@ -143,38 +164,54 @@ test("a pair without a curated briefing (Garen vs Darius) says so, then the asse
   await expect(page.getByTestId("matchup-description")).toHaveText("Garen vs Darius: the enemy's abilities and base cooldowns; no curated briefing yet, so each champion's own facts follow.");
   await expect(page.getByTestId("matchup-briefing")).toHaveCount(0);
   // The danger side is Darius's kit, the opportunity side Garen's: each lists its groups by kind, or
-  // says that it has no reviewed facts at all, never an empty box.
-  for (const [side, name] of [
-    ["danger", "Darius"],
-    ["opportunity", "Garen"],
+  // says that it has no reviewed facts at all, never an empty box. Darius's danger (his crowd control
+  // and damage) is in view; his other tools and Garen's own, one press away (the UX review of Release 13).
+  await expect(page.getByTestId("assembled-danger")).toBeVisible();
+  await expect(page.getByTestId("assembled-yours")).toBeHidden();
+  await hydrated(page);
+  await page.getByTestId("assembled-other-tools").locator(":scope > summary").click();
+  for (const [side, name, kinds] of [
+    ["danger", "Darius", ["Crowd control"]],
+    ["tools", "Darius", ["Mobility", "Defence", "Sustain", "Empowerments"]],
+    ["yours", "Garen", ["Crowd control", "Burst and power", "Mobility", "Defence", "Sustain"]],
   ] as const) {
     const part = page.getByTestId(`assembled-${side}`);
     await expect(part).toBeVisible();
     if ((await part.getAttribute("data-from")) === "none") await expect(part.getByTestId("assembled-no-facts")).toHaveText(`No reviewed facts for ${name} yet: crowd control, mobility, defence and sustain are not recorded.`);
-    else await expect(part.getByTestId("assembled-group")).toHaveCount(5);
+    else {
+      // Each kind said: a group where it holds facts, the rest named once in fixed words.
+      for (const kind of kinds) await expect(part).toContainText(kind);
+      const empty = part.getByTestId("assembled-none");
+      if (await empty.count()) await expect(empty).toHaveText(/^No reviewed facts of (this kind|these kinds): .+\.$/);
+    }
   }
   await expect(page.getByTestId("matchup-enemy-abilities")).toHaveAttribute("data-champion", "Darius");
   await expect(enemyAbilities(page)).toHaveCount(5);
-  // Nobody has checked Darius's numbers: Riot's data, not reviewed, said once for his tiles; a line
-  // with no number says its own.
-  await expect(page.getByTestId("abilities-cooldown-source")).toHaveText("Cooldowns: Riot's data, not reviewed");
+  // Nobody has checked Darius's numbers: Riot's data, not reviewed, said once for his strip (one step
+  // away, in its sources' fold); a line with no number says its own.
+  await expect(page.getByTestId("matchup-enemy-abilities").getByTestId("abilities-cooldown-source")).toHaveText("Cooldowns: Riot's data, not reviewed");
   for (const r of await enemyAbilities(page).all()) {
     const own = r.getByTestId("ability-cooldown-source");
     if (await own.count()) await expect(own).toHaveText("Not reviewed");
   }
-  // Each side names its layer under its subtitle, and says once that its numbers are Riot's; your
-  // champion's summary says it too, as the enemy's panel does.
-  for (const side of ["danger", "opportunity"]) {
+  // Each side names its layer under its title (its numbers are the strip's, under the card); your
+  // champion's summary says where its cooldowns come from, as the enemy's strip does.
+  for (const side of ["danger", "yours"]) {
     const part = page.getByTestId(`assembled-${side}`);
     await expect(part.getByTestId("assembled-riot-text-label")).toHaveText("From Riot's ability text, reviewed automatically (not by a person)");
-    await expect(part.getByTestId("assembled-cooldowns-source")).toHaveText("Cooldowns: Riot's data, not reviewed");
+    await expect(part.getByTestId("assembled-cooldown")).toHaveCount(0);
   }
+  // Riot's own first tip against the enemy, quoted and attributed, in the lane reference.
+  const tip = page.getByTestId("assembled-riot-tip");
+  await expect(tip).toHaveCount(1);
+  await expect(tip.getByTestId("riot-tips-label")).toHaveText("Riot's tip (may predate later changes)");
+  await expect(tip.getByTestId("riot-tip-text")).not.toBeEmpty();
   await expect(page.getByTestId("your-cooldown-source")).toHaveText("Cooldowns: Riot's data, not reviewed");
   // For a champion with curated matchups, the assembled reference links to them; your checked notes'
   // side names them and when they were checked.
   await openMatchupIntel(page, "Riven", "Garen");
   await expect(page.getByTestId("matchup-no-briefing").getByTestId("matchup-curated-link")).toHaveText(["Riven vs Mordekaiser"]);
-  await expect(page.getByTestId("assembled-opportunity").getByTestId("assembled-source")).toHaveText(`Curated notes: checked on patch ${PINNED_PATCH}`);
+  await expect(page.getByTestId("assembled-yours").getByTestId("assembled-source")).toHaveText(`Checked notes (AI reviewers) · Curated notes: checked on patch ${PINNED_PATCH}`);
   await expect(page.getByTestId("your-cooldown-source")).toHaveCount(0);
 });
 
@@ -543,7 +580,7 @@ test("sources are links that open in a new tab, cut off from the page; details e
   const cdp = await page.context().newCDPSession(page);
   cdp.on("Network.requestWillBeSent", (e: { request: { url: string } }) => started.add(new URL(e.request.url).hostname));
   await cdp.send("Network.enable");
-  // A curated champion's ability: its details window holds each fact with its source, linked.
+  // A curated champion's ability: its Peek (a docked panel on a desktop, a window on a phone) holds each fact with its source, linked.
   await openMatchupIntel(page, "Ambessa", "Renekton");
   await hydrated(page);
   const button = row(page, "W").getByTestId("ability-details");
@@ -553,6 +590,8 @@ test("sources are links that open in a new tab, cut off from the page; details e
   await expect(body).toBeVisible();
   await expect(body.getByTestId("matchup-source-link").first()).toBeVisible();
   await expect(body).toContainText("Riot's description");
+  // Opened, the ability is in the address (the overlay kit's one history rule).
+  await expect(page).toHaveURL(/[?&]ability=Renekton\.W(&|$)/);
   const links = page.locator('[data-testid="matchup-intel"] a[href^="http"], dialog[open] a[href^="http"]');
   expect(await links.count()).toBeGreaterThan(0);
   for (const a of await links.all()) {
@@ -562,10 +601,17 @@ test("sources are links that open in a new tab, cut off from the page; details e
     await expect(a).toHaveAttribute("rel", /noreferrer/);
     await expect(a).toContainText("(opens in a new tab)");
   }
-  // Escape closes the window, and the focus goes back to the button that opened it.
+  // Escape closes it, the focus goes back to the button that opened it, and the ability leaves the address.
   await page.keyboard.press("Escape");
   await expect(body).toBeHidden();
   await expect(button).toBeFocused();
+  await expect(page).not.toHaveURL(/[?&]ability=/);
+  // Back closes it too, and one more Back leaves the page: opening pushed one entry, closing took it back.
+  await button.click();
+  await expect(body).toBeVisible();
+  await page.goBack();
+  await expect(body).toBeHidden();
+  await expect(page).toHaveURL(/\?champion=Ambessa&vs=Renekton$/);
   await page.waitForLoadState("networkidle");
   const isWiki = (h: string) => h === "wiki.leagueoflegends.com" || h.endsWith(".wiki.leagueoflegends.com");
   expect([...hosts].filter(isWiki)).toEqual([]);
@@ -630,6 +676,8 @@ test("phone at 200% text: nothing is cut or spills sideways in the bar, the brie
   // Written with the facts from Riot's text on the page: turned on for it while they ship off.
   await riotText(page, "on");
   test.skip((page.viewportSize()?.width ?? 1000) >= 768, "a phone");
+  // With Riot's per-version diff labelling every champion of these pairs ("Riot's data changed on 26.22", PLAN S7b): nothing cut or spilled with the labels.
+  await labelAll(page, CURATED);
   // A phone with its text at 200%, as the other large-text tests set it (html's font size: the
   // page's sizes are in rem, so everything but the screen grows). The three validation pairs: the
   // most a page holds, with a briefing, two curated champions and their level notes. Each swapped
@@ -648,13 +696,15 @@ test("phone at 200% text: nothing is cut or spills sideways in the bar, the brie
       // measured at rest: a chevron turns as its details opens, and a turning square is wider.
       await page.getByTestId("matchup-intel").evaluate(async (m) => {
         for (const d of m.querySelectorAll("details")) d.open = true;
+        // The lane plan's phone Fold (folded in CSS while its section says closed).
+        for (const f of m.querySelectorAll('[data-fold="closed"]')) f.setAttribute("data-fold", "open");
         await document.fonts.ready;
         const finite = document.getAnimations().filter((a) => a.effect?.getComputedTiming().endTime !== Infinity);
         await Promise.all(finite.map((a) => a.finished.catch(() => undefined)));
       });
       const at = `${you} vs ${enemy} at ${width}px`;
       expect(await overflow(page), `${at}: the page`).toBeLessThanOrEqual(1);
-      const parts = [curated ? "matchup-briefing" : "matchup-assembled", "matchup-pickers", "matchup-remember-toggle", "matchup-glance", "matchup-patch-state", "matchup-enemy-abilities", "matchup-your-abilities", "matchup-interactions", "matchup-level-notes", "matchup-footer"];
+      const parts = [curated ? "matchup-briefing" : "matchup-assembled", "matchup-pickers", "matchup-remember-toggle", "matchup-patch-state", "matchup-enemy-abilities", "matchup-your-abilities", "matchup-interactions", "matchup-level-notes", "matchup-footer"];
       for (const part of parts) {
         await expect(page.getByTestId(part), `${at}: ${part}`).toBeVisible();
         expect.soft(await cutOrSpilled(page.getByTestId(part)), `${at}: ${part}`).toEqual([]);
@@ -679,6 +729,8 @@ test("phone at 100%, 150% and 200% text, with facts from Riot's text: nothing cu
   // Written with the facts from Riot's text on the page: turned on for it while they ship off.
   await riotText(page, "on");
   test.skip((page.viewportSize()?.width ?? 1000) >= 768, "a phone");
+  // With Riot's per-version diff labelling every champion of these pairs (PLAN S7b): nothing cut, spilled or under text-xs with the labels.
+  await labelAll(page, RIOT_TEXT_PAIRS);
   test.setTimeout(300_000);
   await localPictures(page);
   for (const [width, height] of [
@@ -696,6 +748,8 @@ test("phone at 100%, 150% and 200% text, with facts from Riot's text: nothing cu
         // Every details part open (your champion's abilities, the folds), measured at rest.
         await page.getByTestId("matchup-intel").evaluate(async (m) => {
           for (const d of m.querySelectorAll("details")) d.open = true;
+        // The lane plan's phone Fold (folded in CSS while its section says closed).
+        for (const f of m.querySelectorAll('[data-fold="closed"]')) f.setAttribute("data-fold", "open");
           await document.fonts.ready;
           const finite = document.getAnimations().filter((a) => a.effect?.getComputedTiming().endTime !== Infinity);
           await Promise.all(finite.map((a) => a.finished.catch(() => undefined)));
@@ -745,6 +799,8 @@ test("touch screens: every chip, key, fold and source tip reaches 44px, no one's
     const at = `${you} vs ${enemy} at ${info.project.name}`;
     await page.getByTestId("matchup-intel").evaluate(async (m) => {
       for (const d of m.querySelectorAll("details")) d.open = true;
+        // The lane plan's phone Fold (folded in CSS while its section says closed).
+        for (const f of m.querySelectorAll('[data-fold="closed"]')) f.setAttribute("data-fold", "open");
       await document.fonts.ready;
       const finite = document.getAnimations().filter((a) => a.effect?.getComputedTiming().endTime !== Infinity);
       await Promise.all(finite.map((a) => a.finished.catch(() => undefined)));
@@ -810,6 +866,8 @@ test("phone at 200% text: a cooldown breaks only after a slash or a space, never
   // Written with the facts from Riot's text on the page: turned on for it while they ship off.
   await riotText(page, "on");
   test.skip((page.viewportSize()?.width ?? 1000) >= 768, "a phone");
+  // With Riot's per-version diff labelling every champion of these pairs (PLAN S7b): the cooldowns break as without.
+  await labelAll(page, COOLDOWN_PAIRS);
   test.setTimeout(180_000);
   await localPictures(page);
   for (const [you, enemy] of COOLDOWN_PAIRS) {
@@ -927,13 +985,96 @@ test("phone at 200% and 150% text: the states with one side or none chosen, and 
   for (const r of ["matchup-picker-recent", "matchup-picker-curated"]) expect.soft(await cutOrSpilled(rows.getByTestId(r)), `the picker at 320px, 200%: ${r}`).toEqual([]);
 });
 
-test("phone: the first screen holds the glance (every enemy tile's cooldown line) and, at 390 by 664, the briefing's whole threat; an assembled pair's Danger side starts there too", async ({ page }) => {
+test("the picker: your own pool for the lane in your own slot only, one tap away; a role filter from the positions Riot recorded; Escape gives the focus back to the slot; 44px on touch, axe clean, nothing cut at 320px and 200%", async ({ page, context, baseURL }, info) => {
+  // An account with no player profile (the demo's local owner, as production's verification account): no "Your pool", and nothing said about anyone's.
+  await page.goto("/resources/matchups?role=adc");
+  let win = await openPicker(page, "you");
+  await expect(win.getByTestId("matchup-picker-grid")).toBeVisible();
+  await expect(win.getByTestId("matchup-picker-pool")).toHaveCount(0);
+  await expect(win).not.toContainText(/pool/i);
+  await page.keyboard.press("Escape");
+  await expect(win).toHaveCount(0);
+  // The demo's member: their profile's ADC pool, in their own order, on your champion's side only.
+  await context.addCookies([{ name: "uniiverse_demo_viewer", value: "member", url: baseURL! }]);
+  await page.goto("/resources/matchups?role=adc&vs=Caitlyn");
+  win = await openPicker(page, "you");
+  const pool = win.getByTestId("matchup-picker-pool");
+  await expect(pool.getByRole("heading", { name: "Your pool" })).toBeVisible();
+  const ids = await choiceIds(pool);
+  expect(ids.length).toBeGreaterThan(0);
+  // One tap from the open picker to a champion of the pool; the role and the enemy stay in the address.
+  await pool.locator(`button[data-champion="${ids[0]}"]`).click();
+  await expect(win).toHaveCount(0);
+  await expect(page.getByTestId("matchup-pick-you")).toHaveAttribute("data-champion", ids[0]!);
+  await expect(page).toHaveURL(new RegExp(`role=adc.*champion=${ids[0]}|champion=${ids[0]}.*role=adc`));
+  await expect(page).toHaveURL(/vs=Caitlyn/);
+  // The enemy's picker and the allied support's show no pool.
+  for (const slot of ["enemy", "ally"] as const) {
+    win = await openPicker(page, slot);
+    await expect(win.getByTestId("matchup-picker-grid")).toBeVisible();
+    await expect(win.getByTestId("matchup-picker-pool")).toHaveCount(0);
+    await page.keyboard.press("Escape");
+    await expect(win).toHaveCount(0);
+    await expect(page.getByTestId(`matchup-pick-${slot}`)).toBeFocused();
+  }
+  // The role filter narrows the roster to the champions Riot recorded in that position, and says so; All shows the whole roster again.
+  win = await openPicker(page, "you");
+  await expect(win.getByTestId("matchup-picker-grid")).toBeVisible();
+  const all = (await rosterIds(win)).length;
+  expect(all).toBeGreaterThan(100);
+  const filter = win.getByRole("group", { name: "Filter by role" });
+  await filter.getByRole("button", { name: "Bottom" }).click();
+  await expect(win.getByTestId("matchup-picker-role-note")).toHaveText("The champions Riot recorded as Bottom in the team's stored games. The search finds every champion.");
+  const bottom = await rosterIds(win);
+  expect(bottom.length).toBeGreaterThan(0);
+  expect(bottom.length).toBeLessThan(all);
+  await expect(win.getByTestId("matchup-picker-all-title")).toHaveText(`Bottom · ${bottom.length}`);
+  // Said to a screen reader in the picker's live region, and the section named for the filter.
+  await expect(win.getByTestId("matchup-picker-count")).toHaveText(`Bottom: ${bottom.length} ${bottom.length === 1 ? "champion" : "champions"} recorded in the team's games`);
+  await expect(win.getByRole("region", { name: "Bottom champions" })).toBeVisible();
+  // The search still finds every champion.
+  await win.getByTestId("matchup-picker-search").fill("Garen");
+  await expect(win.getByTestId("matchup-picker-grid").locator('button[data-champion="Garen"]')).toBeVisible();
+  await win.getByTestId("matchup-picker-search").fill("");
+  await filter.getByRole("button", { name: "All roles" }).click();
+  expect((await rosterIds(win)).length).toBe(all);
+  await untilStill(page);
+  // axe with the picker open.
+  const axe = await new AxeBuilder({ page }).include('[data-testid="matchup-picker"]').withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"]).analyze();
+  expect(axe.violations.map((v) => `${v.id}: ${v.help}`)).toEqual([]);
+  // Touch screens: the pool's champions and the role filter's buttons reach 44px.
+  if (info.project.name !== "desktop") {
+    for (const b of await win.locator('[data-testid="matchup-picker-pool"] button, [role="group"][aria-label="Filter by role"] button').all()) {
+      const box = (await b.boundingBox())!;
+      expect.soft(Math.min(box.width, box.height), `a picker target: ${await b.textContent()}`).toBeGreaterThanOrEqual(44);
+    }
+  }
+  await page.keyboard.press("Escape");
+  await expect(win).toHaveCount(0);
+  await expect(page.getByTestId("matchup-pick-you")).toBeFocused();
+  // Nothing cut or spilling at 320px and 200% text, the pool and the filter shown.
+  if ((page.viewportSize()?.width ?? 1000) < 768) {
+    await page.setViewportSize({ width: 320, height: 844 });
+    await page.addStyleTag({ content: "html { font-size: 200% !important; }" });
+    win = await openPicker(page, "you");
+    await untilStill(page);
+    await expect(win.getByTestId("matchup-picker-pool")).toBeVisible();
+    expect(await pickerSpill(win), "the picker at 320px, 200%: past the window's edge").toBeLessThanOrEqual(1);
+    for (const part of ["matchup-picker-pool", "matchup-picker-all-title"]) expect.soft(await cutOrSpilled(win.getByTestId(part)), `the picker at 320px, 200%: ${part}`).toEqual([]);
+    expect.soft(await cutOrSpilled(win.getByRole("group", { name: "Filter by role" })), "the picker at 320px, 200%: the role filter").toEqual([]);
+  }
+});
+
+test("phone: the lane plan first, under the bar: at 390 by 844 the whole threat and key fact on the first screen, at 390 by 664 the whole threat, at 320 by 568 its start; an assembled pair's level changes and Danger side start there too", async ({ page }) => {
   // Written with the facts from Riot's text on the page: turned on for it while they ship off.
   await riotText(page, "on");
   test.skip((page.viewportSize()?.width ?? 1000) >= 768, "a phone");
-  for (const [width, height, whole] of [
-    [390, 664, true],
-    [320, 568, false],
+  // With Riot's per-version diff labelling every champion shown (PLAN S7b): the first screen holds as without.
+  await labelAll(page, [...CURATED, ["Riven", "Darius"]]);
+  for (const [width, height, holds] of [
+    [390, 844, "both"],
+    [390, 664, "threat"],
+    [320, 568, "start"],
   ] as const) {
     await page.setViewportSize({ width, height });
     for (const [you, enemy] of CURATED) {
@@ -941,72 +1082,65 @@ test("phone: the first screen holds the glance (every enemy tile's cooldown line
       await hydrated(page);
       const m = await page.evaluate(() => {
         const bar = document.querySelector('[data-testid="phone-tabbar"]')!.getBoundingClientRect().top;
-        const threat = document.querySelector('[data-testid="briefing-threat"] > div > span')!;
-        const range = document.createRange();
-        range.selectNodeContents(threat);
-        const lines = [...range.getClientRects()];
+        const threat = document.querySelector('[data-testid="briefing-threat"]')!.getBoundingClientRect();
+        const opportunity = document.querySelector('[data-testid="briefing-opportunity"]')!.getBoundingClientRect();
         const height = (side: string) => document.querySelector(`[data-testid="matchup-pick-${side}"]`)!.getBoundingClientRect().height;
-        const cooldowns = [...document.querySelectorAll('[data-testid="glance-cooldown"]')].map((e) => e.getBoundingClientRect().bottom);
-        return { bar, scrollY: window.scrollY, firstLine: lines[0]!.bottom, last: threat.getBoundingClientRect().bottom, you: height("you"), enemy: height("enemy"), cooldowns: cooldowns.length, cooldownsEnd: Math.max(...cooldowns), evidence: document.querySelector('[data-testid="glance-evidence"]')!.getBoundingClientRect().bottom };
+        // Nothing of the reference stands between the bar and the plan.
+        const plan = document.querySelector('[data-testid="matchup-briefing"]')!;
+        const before = [...document.querySelectorAll('[data-testid="matchup-enemy-abilities"], [data-testid="matchup-full-reference"], [data-testid="matchup-footer"]')].filter((e) => e.compareDocumentPosition(plan) & Node.DOCUMENT_POSITION_FOLLOWING).length;
+        return { bar, scrollY: window.scrollY, threatTop: threat.top, threat: threat.bottom, opportunity: opportunity.bottom, you: height("you"), enemy: height("enemy"), before };
       });
       const at = `${you} vs ${enemy} at ${width} by ${height}`;
       expect(m.scrollY, at).toBe(0);
-      // The glance (PLAN S7a): every enemy tile's cooldown line on the first screen, at both sizes.
-      expect(m.cooldowns, `${at}: five tiles`).toBe(5);
-      expect(m.cooldownsEnd, `${at}: every tile's cooldown line`).toBeLessThanOrEqual(m.bar);
-      // At 390 by 664 the evidence's first row and the whole threat too. At 320 by 568 the glance
-      // takes the first screen and the threat starts on the next (it started there until 20 Nov 2026).
-      if (whole) {
-        expect(m.evidence, `${at}: the evidence's first row`).toBeLessThanOrEqual(m.bar);
-        expect(m.last, `${at}: the whole threat`).toBeLessThanOrEqual(m.bar);
-        expect(m.firstLine, `${at}: the threat's first line`).toBeLessThanOrEqual(m.bar);
-      }
+      expect(m.before, `${at}: the lane plan before the strip, the sources and the full reference`).toBe(0);
+      expect(m.threatTop, `${at}: the threat starts on the first screen`).toBeLessThanOrEqual(m.bar - 24);
+      if (holds !== "start") expect(m.threat, `${at}: the whole threat`).toBeLessThanOrEqual(m.bar);
+      if (holds === "both") expect(m.opportunity, `${at}: the whole opportunity`).toBeLessThanOrEqual(m.bar);
       // The two sides are as tall as each other, whichever name wraps.
       expect(Math.abs(m.you - m.enemy), `${at}: the sides' heights`).toBeLessThanOrEqual(1);
     }
-    // Any other pair: the assembled reference's Danger side starts on the first screen, its label and
-    // the line under it (whose kit it is) above the tab bar. Since the glance (20 Nov 2026, PLAN S7a)
-    // the enemy's kit itself is on the first screen above it, tile by tile with each cooldown, so the
-    // side's first group (the same kit by kind) is no longer asked for there; for an enemy with no
-    // facts recorded, the whole side at 390 by 664 still. At 320 by 568 the
-    // lines under the subtitle that say where the side's facts and numbers come from (the review's
-    // fixes of 19 Nov 2026: "From Riot's ability text, reviewed automatically (not by a person)" and
-    // "Cooldowns: Riot's data, not reviewed", two lines each there) put its first group just under
-    // the tab bar, 38px, behind Riven's curated pair's link (docs/MATCHUP_INTEL.md, "On a phone").
+    // Any other pair: the lane reference's level changes (first, the UX review of Release 13) and its
+    // Danger side on the first screen, the side's label and whose kit it is above the tab bar (at 320 by
+    // 568 the level changes' line, the Danger side right under it).
     await openMatchupIntel(page, "Riven", "Darius");
     await hydrated(page);
     const d = await page.evaluate(() => {
       const bar = document.querySelector('[data-testid="phone-tabbar"]')!.getBoundingClientRect().top;
       const side = document.querySelector('[data-testid="assembled-danger"]')!;
-      const first = side.querySelector('[data-testid="assembled-no-facts"], [data-testid="assembled-group"]')!;
-      const range = document.createRange();
-      range.selectNodeContents(first);
-      const subtitle = document.createRange();
-      subtitle.selectNodeContents(side.querySelector("h3 + p > span")!);
-      return { bar, scrollY: window.scrollY, noFacts: side.getAttribute("data-from") === "none", label: side.querySelector("h3")!.getBoundingClientRect().bottom, subtitle: subtitle.getClientRects()[0]!.bottom, firstLine: range.getClientRects()[0]!.bottom, last: side.getBoundingClientRect().bottom };
+      const levels = document.querySelector('[data-testid="matchup-assembled"] [data-testid="matchup-level-notes"]')!.getBoundingClientRect();
+      return { bar, scrollY: window.scrollY, label: side.querySelector("h3")!.getBoundingClientRect().bottom, top: side.getBoundingClientRect().top, levels: levels.bottom, levelsTop: levels.top };
     });
     const at = `Riven vs Darius at ${width} by ${height}`;
     expect(d.scrollY, at).toBe(0);
-    // At 320 by 568 the glance takes the first screen, as above, and the side starts on the next.
-    if (whole) expect(d.label, `${at}: the Danger side's label`).toBeLessThanOrEqual(d.bar);
-    if (whole) expect(d.subtitle, `${at}: whose kit it is`).toBeLessThanOrEqual(d.bar);
-    if (whole && d.noFacts) expect(d.last, `${at}: the whole Danger side`).toBeLessThanOrEqual(d.bar);
+    await expect(page.getByTestId("matchup-enemy-abilities").getByTestId("riot-changed"), `${at}: the label shown`).toBeAttached();
+    if (holds !== "start") expect(d.label, `${at}: the Danger side's label and whose kit it is`).toBeLessThanOrEqual(d.bar);
+    else expect(d.levels, `${at}: the level changes' line on the first screen`).toBeLessThanOrEqual(d.bar);
+    expect(d.levelsTop, `${at}: the level changes before the Danger side`).toBeLessThan(d.top);
   }
 });
 
-test("phone: in the bot lane at 390 by 844 the first screen holds both enemies' tiles (two rows of five, each with its cooldown line) and the evidence's first row (PLAN S7)", async ({ page }) => {
+test("phone: in the bot lane at 390 by 844 the lane reference names all four and comes first, the first enemy's danger starting on the first screen; the first enemy's strip follows it, the second's folded", async ({ page }) => {
   test.skip((page.viewportSize()?.width ?? 1000) >= 640, "a phone");
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/resources/matchups?role=adc&champion=Jinx&ally=Lulu&vs=Caitlyn&vs2=Lux");
   await hydrated(page);
   const m = await page.evaluate(() => ({
     bar: document.querySelector('[data-testid="phone-tabbar"]')!.getBoundingClientRect().top,
-    rows: ["glance-enemy", "glance-enemy2"].map((id) => [...document.querySelectorAll(`[data-testid="${id}"] [data-testid="glance-cooldown"]`)].map((e) => e.getBoundingClientRect().bottom)),
-    evidence: document.querySelector('[data-testid="glance-evidence"]')!.getBoundingClientRect().bottom,
+    danger: [...document.querySelectorAll('[data-testid="matchup-assembled"] [data-testid="assembled-danger"]')].map((e) => e.getBoundingClientRect().top),
+    plan: document.querySelector('[data-testid="matchup-assembled"]')!.getBoundingClientRect().bottom,
+    strips: ["matchup-enemy-abilities", "matchup-enemy2-abilities"].map((id) => [...document.querySelectorAll(`[data-testid="${id}"] [data-testid="ability-cooldown"]`)].filter((e) => e.checkVisibility()).map((e) => e.getBoundingClientRect().top)),
+    why: document.querySelector('[data-testid="matchup-assembled-why"]')!.textContent,
   }));
-  expect(m.rows.map((r) => r.length)).toEqual([5, 5]);
-  expect(Math.max(...m.rows.flat()), "every tile's cooldown line").toBeLessThanOrEqual(m.bar);
-  expect(m.evidence, "the evidence's first row").toBeLessThanOrEqual(m.bar);
+  expect(m.why, "the lane reference names all four").toBe("No curated briefing for Jinx + Lulu vs Caitlyn + Lux yet.");
+  expect(m.danger, "both enemies' dangers in the lane reference").toHaveLength(2);
+  expect(m.danger[0]!, "the first enemy's danger starts on the first screen").toBeLessThanOrEqual(m.bar - 24);
+  expect(m.strips.map((r) => r.length), "the first strip's five cooldown lines in view, the second strip folded").toEqual([5, 0]);
+  expect(Math.min(...m.strips[0]!), "the strip after the lane reference").toBeGreaterThanOrEqual(m.plan);
+  await expect(page.getByTestId("matchup-enemy2-abilities-fold")).not.toHaveAttribute("open", "");
+  // The ADC's slot first on each side, each label on one line.
+  const slots = await page.getByTestId("matchup-pickers").locator('[data-testid^="matchup-pick-"][data-testid$="-label"]').evaluateAll((els) => els.map((e) => ({ id: e.getAttribute("data-testid"), lines: Math.round(e.getBoundingClientRect().height / parseFloat(getComputedStyle(e).lineHeight)) })));
+  expect(slots.map((x) => x.id)).toEqual(["matchup-pick-you-label", "matchup-pick-ally-label", "matchup-pick-enemy-label", "matchup-pick-enemy2-label"]);
+  for (const x of slots) expect(x.lines, `${x.id} on one line`).toBe(1);
 });
 
 test("phone: a cooldown's dot and a source's comma never start a line, and a link's icon stays with its last word", async ({ page }) => {
@@ -1017,6 +1151,7 @@ test("phone: a cooldown's dot and a source's comma never start a line, and a lin
       await openMatchupIntel(page, you, enemy);
       const problems = await page.getByTestId("matchup-intel").evaluate((root) => {
         for (const d of root.querySelectorAll("details")) d.open = true;
+        for (const f of root.querySelectorAll('[data-fold="closed"]')) f.setAttribute("data-fold", "open");
         const out: string[] = [];
         const charRect = (node: Node, i: number) => {
           const r = document.createRange();
@@ -1148,7 +1283,7 @@ test("a tap on a side's slot before the page's code has run opens its picker onc
   await expect(page.getByTestId("matchup-picker")).toBeVisible();
 });
 
-test("phone: an ability tile's icon stands beside its key, name and cooldown, its chips under them; its details open in a window", async ({ page }) => {
+test("phone: an ability tile's icon stands beside its name and cooldown, its chips under them; its Peek opens in a window that Back closes", async ({ page }) => {
   test.skip((page.viewportSize()?.width ?? 1000) >= 768, "a phone");
   for (const width of [375, 320]) {
     await page.setViewportSize({ width, height: 740 });
@@ -1158,57 +1293,111 @@ test("phone: an ability tile's icon stands beside its key, name and cooldown, it
       const r = row(page, slot);
       const m = await r.evaluate((li) => {
         const box = (id: string) => li.querySelector(`[data-testid="${id}"]`)?.getBoundingClientRect() ?? null;
-        const icon = (li.firstElementChild as HTMLElement).getBoundingClientRect();
+        const icon = [...li.querySelectorAll('img, [data-testid="ability-icon-standin"]')].find((e) => e.getClientRects().length)!.getBoundingClientRect();
         return { iconRight: icon.right, name: box("ability-name")!, cooldown: box("ability-cooldown")!, facts: box("ability-facts"), right: li.getBoundingClientRect().right };
       });
       const at = `Renekton ${slot} at ${width}`;
       expect(m.name.left, `${at}: the name beside the icon`).toBeGreaterThan(m.iconRight);
       expect(m.cooldown.left, `${at}: the cooldown beside the icon`).toBeGreaterThan(m.iconRight);
-      expect(m.cooldown.top, `${at}: the cooldown under the name or beside it`).toBeGreaterThanOrEqual(m.name.top - 1);
+      expect(m.cooldown.top, `${at}: the cooldown under the name`).toBeGreaterThanOrEqual(m.name.bottom - 1);
       if (m.facts) expect(m.facts.top, `${at}: the chips under the cooldown`).toBeGreaterThanOrEqual(m.cooldown.bottom - 1);
       expect(m.cooldown.right, `${at}: inside the tile`).toBeLessThanOrEqual(m.right + 1);
     }
-    // The details window takes the phone's whole screen, and its sources are links.
+    // The Peek takes the phone's whole screen (a window, its sources links), and Back closes it.
     await row(page, "W").getByTestId("ability-details").click();
     const body = page.getByTestId("ability-details-body");
     await expect(body).toBeVisible();
+    await expect(page.getByRole("dialog")).toBeVisible();
     await expect(body.getByTestId("ability-description")).toBeVisible();
+    await page.goBack();
+    await expect(body).toBeHidden();
+    await expect(page).not.toHaveURL(/[?&]ability=/);
+    await row(page, "W").getByTestId("ability-details").click();
+    await expect(body).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(body).toBeHidden();
   }
 });
 
-test("on a wide screen, two columns: the main panel with the notes under it on the left; the enemy's tiles, P to R one under another, and your champion on the right", async ({ page }) => {
+test("on a wide screen, one column read in order: the lane plan (the threat, the opportunity and the level changes in a row, the lane points under them beside the interactions), then the enemy's strip, P to R side by side; a tile's Peek docked at the right, ↓ stepping to the next ability, Escape and Back closing it", async ({ page }) => {
   test.skip((page.viewportSize()?.width ?? 0) < 1280, "a wide screen");
   await openMatchupIntel(page, "Ambessa", "Renekton");
+  await hydrated(page);
   const box = async (id: string) => (await page.getByTestId(id).boundingBox())!;
-  const main = await box("matchup-briefing");
-  const interactions = await box("matchup-interactions");
+  const plan = await box("matchup-briefing");
+  const threat = await box("briefing-threat");
+  const opportunity = await box("briefing-opportunity");
   const levels = await box("matchup-level-notes");
+  const lane = await box("briefing-lane");
+  const interactions = await box("matchup-interactions");
   const tiles = await box("matchup-enemy-abilities");
-  const yours = await box("matchup-your-abilities");
-  expect(interactions.y).toBeGreaterThanOrEqual(main.y + main.height);
-  expect(Math.abs(levels.y - interactions.y)).toBeLessThanOrEqual(1);
-  expect(tiles.x).toBeGreaterThanOrEqual(main.x + main.width);
-  expect(Math.abs(tiles.y - main.y)).toBeLessThanOrEqual(1);
-  expect(yours.y).toBeGreaterThanOrEqual(tiles.y + tiles.height);
-  const slots = await enemyAbilities(page).evaluateAll((els) => els.map((e) => ({ slot: e.getAttribute("data-slot"), top: e.getBoundingClientRect().top })));
+  // The plan's first row: threat, opportunity, level changes, left to right, their tops level.
+  expect(opportunity.x).toBeGreaterThanOrEqual(threat.x + threat.width);
+  expect(levels.x).toBeGreaterThanOrEqual(opportunity.x + opportunity.width);
+  expect(Math.abs(opportunity.y - threat.y)).toBeLessThanOrEqual(1);
+  expect(Math.abs(levels.y - threat.y)).toBeLessThanOrEqual(24);
+  // Its second row: the lane points under the threat, the interactions under the level changes.
+  expect(lane.y).toBeGreaterThanOrEqual(Math.max(threat.y + threat.height, opportunity.y + opportunity.height));
+  expect(interactions.y).toBeGreaterThanOrEqual(levels.y + levels.height);
+  expect(interactions.x).toBeGreaterThanOrEqual(lane.x + lane.width);
+  // The strip under the plan, as wide; its five tiles side by side, P to R.
+  expect(tiles.y).toBeGreaterThanOrEqual(plan.y + plan.height);
+  expect(Math.abs(tiles.width - plan.width)).toBeLessThanOrEqual(1);
+  const slots = await enemyAbilities(page).evaluateAll((els) => els.map((e) => ({ slot: e.getAttribute("data-slot"), left: e.getBoundingClientRect().left, top: e.getBoundingClientRect().top })));
   expect(slots.map((s) => s.slot)).toEqual(["P", "Q", "W", "E", "R"]);
-  for (let i = 1; i < slots.length; i++) expect(slots[i]!.top).toBeGreaterThan(slots[i - 1]!.top);
+  for (let i = 1; i < slots.length; i++) {
+    expect(slots[i]!.left).toBeGreaterThan(slots[i - 1]!.left);
+    expect(Math.abs(slots[i]!.top - slots[0]!.top)).toBeLessThanOrEqual(1);
+  }
+  // A tile's Peek: docked at the right (not a window), the page live beside it; ↓ steps to the next
+  // ability (the address replaced, not pushed); Escape closes it and gives the focus back.
+  const opener = row(page, "Q").getByTestId("ability-details");
+  await opener.click();
+  const peek = page.getByTestId("ability-peek");
+  await expect(peek).toBeVisible();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(peek.getByTestId("ability-peek-description")).toHaveText("Renekton · Q");
+  const panel = (await peek.boundingBox())!;
+  expect(panel.x + panel.width).toBeGreaterThanOrEqual((page.viewportSize()?.width ?? 0) - 1);
+  await expect(page).toHaveURL(/[?&]ability=Renekton\.Q(&|$)/);
+  const length = await page.evaluate(() => history.length);
+  await page.keyboard.press("ArrowDown");
+  await expect(peek.getByTestId("ability-peek-description")).toHaveText("Renekton · W");
+  await expect(page).toHaveURL(/[?&]ability=Renekton\.W(&|$)/);
+  expect(await page.evaluate(() => history.length)).toBe(length);
+  await page.keyboard.press("Escape");
+  await expect(peek).toHaveCount(0);
+  await expect(page).not.toHaveURL(/[?&]ability=/);
+  // Back closes it as well, and a deep link opens it.
+  await opener.click();
+  await expect(peek).toBeVisible();
+  await page.goBack();
+  await expect(peek).toHaveCount(0);
+  await page.goto("/resources/matchups?champion=Ambessa&vs=Renekton&ability=Renekton.E");
+  await expect(page.getByTestId("ability-peek").getByTestId("ability-peek-description")).toHaveText("Renekton · E");
 });
 
-test("Interactions: the matchup's own in full; the enemy's, already chips on its tiles, folded and counted, one tap away", async ({ page }) => {
+test("Interactions: the matchup's own in the lane plan; each champion's own listed open in the full reference (two fold levels at most), counted, each counted on its strip tile", async ({ page }) => {
   await openMatchupIntel(page, "Ambessa", "Renekton");
-  const panel = page.getByTestId("matchup-interactions");
-  await expect(panel.getByTestId("matchup-interaction").first()).toBeVisible();
+  await hydrated(page);
+  const plan = page.getByTestId("matchup-briefing").getByTestId("matchup-interactions");
+  await expect(plan.getByTestId("matchup-interaction").first()).toBeAttached();
+  await expect(plan.getByTestId("enemy-interactions")).toHaveCount(0);
+  await page.getByTestId("matchup-full-reference-summary").click();
+  const panel = page.getByTestId("matchup-champion-interactions");
   const fold = panel.getByTestId("enemy-interactions");
-  expect(await fold.evaluate((d) => (d as HTMLDetailsElement).open)).toBe(false);
-  const count = Number(/^Renekton's interactions and exceptions · (\d+)/.exec((await fold.locator("summary").innerText()).replace(/\s+/g, " ").trim())?.[1]);
+  // No fold of its own inside the full reference.
+  expect(await fold.evaluate((d) => d.tagName)).not.toBe("DETAILS");
+  const count = Number(/^Renekton's interactions and exceptions · (\d+)/.exec((await fold.getByTestId("enemy-interactions-line").innerText()).replace(/\s+/g, " ").trim())?.[1]);
   expect(count).toBeGreaterThan(0);
   await expect(fold.getByTestId("fact-chip")).toHaveCount(count);
-  await expect(fold.getByTestId("enemy-interaction").first()).toBeHidden();
-  await fold.locator("summary").click();
+  // The strip keeps them out of its tiles, each tile counting its own ("3 more"), its Peek holding them.
+  const counted = await page.getByTestId("matchup-enemy-abilities").getByTestId("ability-more").evaluateAll((els) => els.reduce((n, e) => n + Number(/^(\d+) more/.exec(e.textContent ?? "")?.[1] ?? 0), 0));
+  expect(counted).toBe(count);
   await expect(fold.getByTestId("enemy-interaction").first()).toBeVisible();
+  // At most two fold levels anywhere on the page.
+  const deepest = await page.getByTestId("matchup-dashboard").evaluate((d) => Math.max(0, ...[...d.querySelectorAll("details")].map((x) => { let n = 0; for (let a: Element | null = x; a && a !== d; a = a.parentElement) if (a.tagName === "DETAILS") n++; return n; })));
+  expect(deepest).toBeLessThanOrEqual(2);
 });
 
 /*
@@ -1223,13 +1412,13 @@ test("Interactions: the matchup's own in full; the enemy's, already chips on its
 */
 test("as it ships, with the facts from Riot's text switched off: none of them anywhere for Gnar, Yone and Twisted Fate, and a side without checked notes says so in one line", async ({ page }) => {
   await riotText(page, "off");
-  const pairs: Array<{ you: string; enemy: string; none: Array<["danger" | "opportunity", string]> }> = [
+  const pairs: Array<{ you: string; enemy: string; none: Array<["danger" | "yours", string]> }> = [
     { you: "Riven", enemy: "Gnar", none: [["danger", "Gnar"]] },
-    { you: "Yone", enemy: "TwistedFate", none: [["danger", "Twisted Fate"], ["opportunity", "Yone"]] },
-    { you: "TwistedFate", enemy: "Yone", none: [["danger", "Yone"], ["opportunity", "Twisted Fate"]] },
+    { you: "Yone", enemy: "TwistedFate", none: [["danger", "Twisted Fate"], ["yours", "Yone"]] },
+    { you: "TwistedFate", enemy: "Yone", none: [["danger", "Yone"], ["yours", "Twisted Fate"]] },
   ];
   // What only the layer draws: its labels, its chips for disagreements and qualifiers, its markers, its hidden-facts lines.
-  const LAYER = '[data-testid*="riot-text"], [data-from="riot-text"], [data-testid="fact-chip-differ"], [data-testid="fact-chip-markers"], [data-testid$="-conditional"], [data-testid="ability-facts-hidden"], [data-testid="assembled-hidden"]';
+  const LAYER = '[data-testid*="riot-text"], [data-from="riot-text"], [data-testid="fact-chip-differ"], [data-testid="fact-qualifier"], [data-testid$="-conditional"], [data-testid="ability-facts-hidden"], [data-testid="assembled-hidden"]';
   const WORDS = ["Riot's text", "Riot's ability text", "Riot's texts differ", "reviewed automatically", "No reviewed facts for this ability", "No reviewed facts of this kind"];
   for (const { you, enemy, none } of pairs) {
     const where = `${you} vs ${enemy}`;
@@ -1271,7 +1460,7 @@ test("as it ships, with the facts from Riot's text switched off: none of them an
   // The same pair with the layer on shows it: the switch is what hides it.
   await riotText(page, "on");
   await openMatchupIntel(page, "Riven", "Gnar");
-  await expect(row(page, "W").getByTestId("fact-chip-markers").first()).toContainText("Mega Gnar");
+  await expect(row(page, "W").getByTestId("fact-qualifier").first()).toContainText("Mega Gnar");
   await expect(page.getByTestId("assembled-danger")).toHaveAttribute("data-from", "riot-text");
 });
 
@@ -1333,7 +1522,7 @@ test("phone: the bot lane's four slots keep every word of their labels and names
     await page.goto("/resources/matchups?role=adc&champion=Jinx&ally=Thresh&vs=Caitlyn&vs2=Leona");
     await hydrated(page);
     const slots = await page.getByTestId("matchup-pickers").evaluate((root) =>
-      ["ally", "you", "enemy", "enemy2"].map((slot) => {
+      ["you", "ally", "enemy", "enemy2"].map((slot) => {
         const box = root.querySelector<HTMLElement>(`[data-testid=matchup-pick-${slot}]`)!;
         // Each visible word of the label and the name on one line: a word split by the slot's narrow
         // width (a column of letters, as four slots across at 390px drew) has more than one line box.
@@ -1356,7 +1545,8 @@ test("phone: the bot lane's four slots keep every word of their labels and names
       }),
     );
     for (const s of slots) expect(s.split, `${width}px: ${s.slot}`).toEqual([]);
-    // A side's two slots one above the other: the partner over you, the enemy's laner over their support.
+    // A side's two slots one above the other, the ADC's first (the UX review of Release 13): your ADC
+    // over your support, the enemy's ADC over theirs.
     expect(slots[0]!.top, `${width}px`).toBeLessThan(slots[1]!.top);
     expect(slots[2]!.top, `${width}px`).toBeLessThan(slots[3]!.top);
   }

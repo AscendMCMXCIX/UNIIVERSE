@@ -36,7 +36,7 @@ describe("compactAssets and compactBuildData", () => {
   const item = { name: "Kindlegem", description: "<mainText><stats><attention>200</attention> Health<br><attention>10</attention> Ability Haste</stats></mainText>", gold: { base: 400, total: 800, sell: 560, purchasable: true }, tags: ["Health", "CooldownReduction"], from: ["1028"], into: ["3067x"], depth: 2, maps: { "11": true, "12": true } };
   const files = [
     { data: { "3067": item, "223067": { ...item, name: "Arena copy" }, "3001": { ...item, maps: { "11": false } } } },
-    { data: { SummonerFlash: { id: "SummonerFlash", key: "4", name: "Flash", cooldown: [300] }, SummonerDot: { id: "SummonerDot", key: "14", name: "Ignite", cooldown: [180] } } },
+    { data: { SummonerFlash: { id: "SummonerFlash", key: "4", name: "Flash", cooldown: [300] }, SummonerDot: { id: "SummonerDot", key: "14", name: "Ignite", cooldown: [180], maxammo: "-1" }, SummonerSmite: { id: "SummonerSmite", key: "11", name: "Smite", cooldown: [15], maxammo: "2" } } },
     [{ id: 8000, name: "Precision", icon: "p.png", slots: [{ runes: [{ id: 8005, name: "Press the Attack", icon: "a.png" }, { id: 8008, name: "Lethal Tempo", icon: "b.png" }] }, { runes: [{ id: 9101, name: "Absorb Life", icon: "c.png" }] }] }],
   ] as const;
   const assets = compactAssets("16.22.1", files[0], files[1], files[2]);
@@ -52,6 +52,8 @@ describe("compactAssets and compactBuildData", () => {
 
   it("keeps summoner spells' base cooldowns and the rune trees' slots", () => {
     expect(build.spellCooldowns).toEqual({ "4": [300], "14": [180] });
+    // Smite has charges (maxammo 2): its [15] is the wait between casts, never kept as its cooldown.
+    expect(build.spellCharges).toEqual({ "11": 2 });
     expect(build.runeSlots).toEqual({ "8000": [[8005, 8008], [9101]] });
     expect([assets.format, build.format]).toEqual([ASSET_RULES_FORMAT, ASSET_RULES_FORMAT]);
   });

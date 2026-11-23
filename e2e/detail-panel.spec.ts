@@ -268,10 +268,42 @@ test("with reduced motion a window opens and closes without motion and its conte
     if (!(await page.getByTestId("champion-preview-content").count())) await open.click({ timeout: 2_000 });
     await expect(page.getByTestId("champion-preview-figures")).toBeVisible({ timeout: 1_000 });
   }).toPass({ timeout: 15_000 });
-  // All Champions' preview: a sheet on phones and tablets, beside the list on a computer.
-  const moving = await page.evaluate(() => [document.querySelector("dialog[open]"), document.querySelector("aside#champion-preview")].filter(Boolean).map((el) => getComputedStyle(el!).animationDuration));
+  // All Champions' preview: a sheet on phones, unfolded under its row on tablets and computers (its growth a transition).
+  const moving = await page.evaluate(() => [document.querySelector("dialog[open]"), document.querySelector("#champion-preview")].filter(Boolean).flatMap((el) => [getComputedStyle(el!).animationDuration, getComputedStyle(el!).transitionDuration.split(",")[0]!]));
   for (const d of moving) expect(parseFloat(d)).toBeLessThan(0.01);
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("champion-preview-content")).toHaveCount(0);
   await expect(open).toBeFocused();
+});
+
+/*
+  The one history rule after a link away (R11e, ui/address-item.ts): a window opened from a page,
+  left by a link, then Back, closes by going Back, so one more Back leaves the page; on Release 10
+  closing replaced the address and left a copy of the page behind it. Team's player Peek and a
+  record's game over Leaderboards (Admin's person view: admin-people.spec.ts).
+*/
+test("after a link away and Back, closing Team's player or a record's game goes Back: one more Back leaves the page", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "the history rule is the same in every posture; the Navigation API is read here");
+  const index = () => page.evaluate(() => (window as unknown as { navigation: { currentEntry: { index: number } } }).navigation.currentEntry.index);
+  for (const c of [
+    { path: "/team", open: page.getByTestId("lineup-row-TOP").getByTestId("open-player-detail"), close: page.getByTestId("player-detail").getByTestId("player-detail-close"), param: /player=/ },
+    { path: "/leaderboards", open: page.getByTestId("record-open").first(), close: page.getByTestId("record-game-peek").getByTestId("record-game-peek-close"), param: /match=/ },
+  ]) {
+    await page.goto("/resources");
+    await page.goto(c.path);
+    await expect(async () => {
+      await c.open.click({ timeout: 2_000 });
+      await expect(page).toHaveURL(c.param, { timeout: 1_000 });
+    }).toPass({ timeout: 15_000 });
+    await page.goto("/resources/matchups");
+    await page.goBack();
+    await expect(page).toHaveURL(c.param);
+    const opened = await index();
+    await expect(c.close).toBeVisible();
+    await c.close.click();
+    await expect(page).not.toHaveURL(c.param);
+    expect(await index(), `${c.path}: closing went Back, not a replace`).toBe(opened - 1);
+    await page.goBack();
+    await expect(page, `${c.path}: one Back leaves the page`).toHaveURL(/\/resources$/);
+  }
 });

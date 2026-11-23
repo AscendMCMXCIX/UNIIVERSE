@@ -1,6 +1,29 @@
 import { describe, expect, it } from "vitest";
 import { recentForm, type FormGame } from "@/domain/recent-form";
-import { RECENT_FORM_HELP } from "./recent-form";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { RECENT_CHAMPIONS_SHOWN, RECENT_FORM_HELP, RecentFormStrip } from "./recent-form";
+
+describe("Recent form's champions (the Overview's 2×2)", () => {
+  // 20 recent games: Ahri 9 (5 won), Orianna 6, Azir 2, then one game each of Syndra, Galio and Jax.
+  const plan = [...Array<string>(9).fill("Ahri"), ...Array<string>(6).fill("Orianna"), "Azir", "Azir", "Syndra", "Galio", "Jax"];
+  const form = recentForm(plan.map((championId, i) => ({ matchId: `m${i}`, win: championId === "Ahri" ? i < 5 : i % 2 === 0, gameCreation: 1_000_000 - i, championId, kills: 5, deaths: 3, assists: 6, cs: 180, visionScore: 20, gameDuration: 1800 })));
+  const render = (champions: boolean) => renderToStaticMarkup(createElement(RecentFormStrip, { form, championsById: {}, historyHref: "/h", champions }));
+
+  it("lists the champions of the same games, most played first, each with its record, five and then the rest as a count", () => {
+    const html = render(true);
+    const rows = [...html.matchAll(/data-champion="([^"]+)"/g)].map((m) => m[1]);
+    expect(rows).toEqual(["Ahri", "Orianna", "Azir", "Syndra", "Galio", "Jax"].slice(0, RECENT_CHAMPIONS_SHOWN));
+    expect(html).toContain("9 games · 5W 4L");
+    expect(html).toContain("and 1 more");
+    // Only where the 2×2 applies (a 1440px window, a 68rem dashboard), by CSS: no other layout grows.
+    expect(html).toMatch(/class="hidden min-\[90rem\]:@min-\[68rem\]\/ov:block" data-testid="recent-form-champions"/);
+  });
+
+  it("is left out where the Overview has no Ranked progress beside Recent form", () => {
+    expect(render(false)).not.toContain("recent-form-champions");
+  });
+});
 
 /** n games, newest first: the newest `recentWins` of the first 20 won, every older game lost. */
 function games(n: number, recentWins: number): FormGame[] {

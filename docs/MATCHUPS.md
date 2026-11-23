@@ -5,23 +5,34 @@ mode, account) and in the role of the row (PLAN S5, overhaul audit CM §4). It s
 results, the same for every viewer who may see the profile; preparation (abilities, cooldowns,
 notes) is Matchup Intel's (docs/MATCHUP_INTEL.md), reached by one link per opponent.
 
-**Where it opens.** On a list wide enough (26rem or more beside Win rate, a pointer screen of
-1024px or more), the preview unfolds **inside the list's card**: the columns after Win rate fold
-(`visibility: hidden`, so their widths hold), and Champion, Games and Win rate keep their exact x.
-The selected row takes `surface-3` and a 2px accent bar. The preview is pinned under the section
-tabs and is as tall as its content; it scrolls inside only past the screen's height. With less
-room it is the shared **Peek** (`ui/peek.tsx`) with ‹ › to the next or previous champion in the
-list's order: the panel docked at the right from 768px (tablets, narrower windows), a **sheet**
-under 768px, touch or mouse, and in short windows (`ui/posture.ts`); ✕ or Back close it, and the
-sheet also by a pull down.
+**Where it opens** (since 23 Nov 2026, the owner's request; docs/DESIGN_SYSTEM.md §7, "Unfold").
+From 768px wide (tablets and computers, at any list width, the sidebar open or not) the preview
+**unfolds under its row**, as the overlay kit's Unfold opens a game under its card: the next item
+of the list, across the whole list, in the page's own flow. Nothing lies over the table, nothing
+scrolls inside the preview, and the columns never fold or move. The selected row takes `surface-3`
+and a 2px accent bar, which the preview continues down its left edge. Its record sits beside the
+lane opponents from a 50rem list and above them below that. Opening another row keeps that row
+where it was on screen; ↑/↓ (J/K) from the list move the preview; Escape, Close (in its header,
+and in the compact header pinned under the tabs while the preview is long), the row again and Back
+close it, and Back puts the list back where it was, with its search, sort and filters. Under 768px,
+touch or mouse, and in short windows (`ui/posture.ts`), it is the shared **Peek**'s **sheet**
+(`ui/peek.tsx`) with ‹ › to the next or previous champion in the list's order; ✕, Back or a pull
+down close it. (From S5 to 22 Nov 2026 the wide list showed it as a panel laid over the columns
+after Win rate, joined to its row by a 2px notch, and tablets as the docked Peek panel.)
 
 **Content, in this order and nothing else:**
 
-1. **Header:** the portrait, the name, the role and "In pool"; ✕. With several roles, "Also as Mid:
-   3 games · 1W 2L" switches to that row.
-2. **Figures:** the win rate large (coloured by `winRateTone` from 5 games), "14 games · 4W 10L",
-   and one quiet "KDA · CS/min · mastery" line.
-3. **Against each lane opponent**, sorted by Most games, Best or Worst
+1. **Header:** under its row, one line: the role and "In pool", "Also as Mid: 3 games · 1W 2L"
+   (switches to that row) and Close; the row above shows the portrait and name, which the preview
+   gives screen readers in its heading (since Release 13's review). In the sheet: the portrait, the
+   role and "In pool", the name and ✕ in the sheet's header.
+2. **Figures:** the win rate large (coloured by `winRateTone` from 5 games), "14 games · 4W 10L";
+   under its row, four tiles of averages (KDA with the average K/D/A, CS/min with CS a game,
+   damage/min with damage a game, vision a game; "—" where no game carries one) and a line saying
+   what they cover ("Averages over all 8 games in these filters", or "from the N games with a full
+   record, of M") with the mastery points; in the phone's sheet one quiet "KDA · CS/min · mastery"
+   line instead.
+3. **Against each lane opponent** (under its row: one column of at most 46rem, two where the opponents have 50rem or more), sorted by Most games, Best or Worst
    (`src/domain/champion-preview.ts`):
    - an opponent shows a win rate from **3 games**, coloured from **5**, always with its games
      beside it;

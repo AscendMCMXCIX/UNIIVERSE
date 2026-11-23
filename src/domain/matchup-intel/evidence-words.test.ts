@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import abilityFixture from "@/server/riot/fixtures/champion-abilities.fixture.json";
 import { TIP_LABEL } from "@/components/matchup-intel/riot-tips";
-import { NO_HIGH_ELO } from "@/components/matchup-intel/evidence-panel";
+import { NO_HIGH_ELO, NO_WAVE_GUIDANCE, NOT_MEASURED_YET, POWER_SPIKES_LABEL } from "@/components/matchup-intel/evidence-panel";
 import { slotWords } from "@/components/matchup-intel/slots";
 import { ROLES } from "./types";
 import { EVIDENCE_REFUSED_WORDS, evidenceRefusedWords, refusedWords } from "./refused-words";
@@ -14,7 +14,7 @@ import { EVIDENCE_REFUSED_WORDS, evidenceRefusedWords, refusedWords } from "./re
 */
 
 /** The evidence lines S7a shows in place of the counts S7b builds: each held to the evidence list. */
-const EVIDENCE_LINES = [NO_HIGH_ELO, "No curated notes for this 2v2", "Runes, items and skill order:"];
+const EVIDENCE_LINES = [NO_HIGH_ELO, "No curated notes for this 2v2", "Runes, items and skill order:", `${POWER_SPIKES_LABEL} ${NOT_MEASURED_YET}`, NO_WAVE_GUIDANCE];
 
 describe("EVIDENCE_REFUSED_WORDS", () => {
   it("allows 'your' only as the possessive of the viewer's own games, and 'won/lost' as counted results", () => {
@@ -36,6 +36,11 @@ describe("EVIDENCE_REFUSED_WORDS", () => {
 
   it("passes on every evidence line the page shows now", () => {
     for (const line of EVIDENCE_LINES) expect(evidenceRefusedWords(line), line).toEqual([]);
+  });
+
+  it("holds the plan's fallbacks to its exact words (PLAN §4: power spikes, wave management)", () => {
+    expect(`${POWER_SPIKES_LABEL} ${NOT_MEASURED_YET}`).toBe("Power spikes: Not measured yet");
+    expect(NO_WAVE_GUIDANCE).toBe("No wave guidance for this matchup");
   });
 });
 

@@ -48,7 +48,7 @@ const games = {
   gameDuration: accountMatches.gameDuration,
   /** 100 or 200, copied from the stored record (match-summary); null until then. */
   teamId: accountMatches.teamId,
-  /** Kill participation, gold per minute and damage share against the player's usual (the post-game notes). */
+  /** Gold, team kills and team damage: kill participation and the shares (the history summary, personalComparison's figures; the post-game notes read them until 23 Nov 2026). */
   gold: accountMatches.gold,
   teamKills: accountMatches.teamKills,
   teamDamage: accountMatches.teamDamage,

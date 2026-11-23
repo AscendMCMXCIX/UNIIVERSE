@@ -58,6 +58,15 @@ function useSectionInView(ids: string): string | null {
     if (!ids) return;
     const list = ids.split(" ");
     let frame = 0;
+    let jumped: string | null = null;
+    let landed = false;
+    const onJump = (e: MouseEvent) => {
+      const href = (e.target as Element | null)?.closest?.("a[href^='#']")?.getAttribute("href");
+      if (href && list.includes(href.slice(1))) {
+        jumped = href.slice(1);
+        landed = false;
+      }
+    };
     const update = () => {
       frame = 0;
       const line = window.innerHeight / 3;
@@ -66,8 +75,19 @@ function useSectionInView(ids: string): string | null {
         const el = document.getElementById(id);
         if (el && el.getBoundingClientRect().top <= line) at = id;
       }
+      // A section the reader jumped to stays the one being read while it is at the window's top, even where a short panel puts the next one's top above the line (Settings' Name over Password, G3-5).
+      const target = jumped ? document.getElementById(jumped) : null;
+      const top = target?.getBoundingClientRect().top;
+      // (Until it has landed there, a smooth jump may still be on its way.)
+      const held = top !== undefined && top >= -2 && top <= line;
+      if (held) {
+        at = jumped!;
+        landed = true;
+      } else if (landed) jumped = null;
+      // At the page's top, the first section; at its end, the last (at its end unless the reader jumped to a section now at the window's top: a tall window can end the page right under it).
+      if (window.scrollY <= 0) at = list[0]!;
       const root = document.documentElement;
-      if (window.scrollY > 0 && window.scrollY + window.innerHeight >= root.scrollHeight - 2) at = list[list.length - 1]!;
+      if (!held && window.scrollY > 0 && window.scrollY + window.innerHeight >= root.scrollHeight - 2) at = list[list.length - 1]!;
       setCurrent(at);
     };
     const schedule = () => {
@@ -76,7 +96,9 @@ function useSectionInView(ids: string): string | null {
     update();
     window.addEventListener("scroll", schedule, { passive: true });
     window.addEventListener("resize", schedule);
+    document.addEventListener("click", onJump, true);
     return () => {
+      document.removeEventListener("click", onJump, true);
       cancelAnimationFrame(frame);
       window.removeEventListener("scroll", schedule);
       window.removeEventListener("resize", schedule);
@@ -98,7 +120,9 @@ function useSectionInView(ids: string): string | null {
  * Optional, for a page that keeps its index in view (Settings' account card): `spy` marks the section
  * being read (aria-current="location"); `listClassName`, `linkClassName` (told whether its link is
  * the one being read) and `separatorClassName` restyle the list, its links and the dots between
- * them. Without them the index is exactly the line above.
+ * them. Without them the index is exactly the line above. `clipLineDots`: where the line wraps (a
+ * phone's Branding index), no line starts with a dot: each dot sits in the gap before its link, and
+ * the dot of a line's first link falls outside the list's left edge, which clips it (G4-13).
  */
 export function SectionIndex({
   items,
@@ -109,6 +133,7 @@ export function SectionIndex({
   listClassName,
   linkClassName,
   separatorClassName,
+  clipLineDots = false,
 }: {
   items: readonly SectionIndexItem[];
   /** The navigation's name for screen readers. */
@@ -119,17 +144,23 @@ export function SectionIndex({
   listClassName?: string;
   linkClassName?: (current: boolean) => string;
   separatorClassName?: string;
+  /** Hide the dot that would start a wrapped line. */
+  clipLineDots?: boolean;
 }) {
   const current = useSectionInView(spy ? items.map((i) => i.id).join(" ") : "");
   return (
     <nav aria-label={label} className={cn("min-w-0", className)} data-testid={testId}>
-      <ul className={cn("flex min-w-0 flex-wrap items-center gap-x-1.5 text-sm", listClassName)}>
+      {/* clipLineDots: a 6px gap, the 8px dot, a 6px gap (gap-x-5), each dot pulled back over the gap
+          before it (-ml-3.5); at a line's start that puts the dot left of the list, past its 4px of
+          room for a focus ring (-ml-1 pl-1), where the horizontal clip hides it. Vertical overflow
+          stays visible, so the links' 44px touch areas are whole. */}
+      <ul className={cn("flex min-w-0 flex-wrap items-center gap-x-1.5 text-sm", clipLineDots && "-ml-1 gap-x-5 overflow-x-clip pl-1", listClassName)}>
         {items.map((item, i) => {
           const on = current === item.id;
           return (
-            <li key={item.id} className="flex min-w-0 items-center gap-x-1.5">
+            <li key={item.id} className={cn("flex min-w-0 items-center gap-x-1.5", clipLineDots && i > 0 && "-ml-3.5")}>
               {i ? (
-                <span aria-hidden className={cn("text-fg-subtle", separatorClassName)}>
+                <span aria-hidden className={cn("text-fg-subtle", clipLineDots && "w-2 shrink-0 text-center", separatorClassName)} data-section-dot="">
                   ·
                 </span>
               ) : null}

@@ -19,7 +19,7 @@ export default async function AdminAccessPage() {
       <Panel data-testid="access-groups">
         <PanelHeader title="Additional access groups" subtitle="Given on top of a base level, so a player can take on one responsibility without becoming an Administrator. Groups never include accounts, passwords or permissions." />
         <PanelBody>
-          <ul className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+          <ul className="grid gap-2 md:grid-cols-2 xl:grid-cols-[repeat(auto-fill,minmax(min(100%,20rem),1fr))]">
             {ACCESS_GROUPS.map((g) => (
               <li key={g.key} className="rounded-md border border-border bg-surface-2 p-3">
                 <h3 className="text-sm font-medium text-fg">{g.label}</h3>

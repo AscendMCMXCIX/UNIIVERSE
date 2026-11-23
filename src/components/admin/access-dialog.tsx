@@ -37,7 +37,7 @@ export function accessSummary(account: Pick<AccountView, "role" | "isAdmin" | "p
  * administrators open this, nobody edits their own access, nobody is made an Owner, only the
  * Owner changes the Owner account, and no level or group reaches Admin Mode, accounts or settings.
  */
-export function AccessDialog({ account, presets, lineupRole = null, onClose }: { account: AccountView; presets: PermissionPreset[]; lineupRole?: Role | null; onClose: () => void }) {
+export function AccessDialog({ account, presets, lineupRole = null, viewerIsOwner = false, onClose }: { account: AccountView; presets: PermissionPreset[]; lineupRole?: Role | null; viewerIsOwner?: boolean; onClose: () => void }) {
   const router = useRouter();
   const { teamName } = useBrandNames();
   const defaultPreset = presets.find((p) => p.isDefault);
@@ -57,7 +57,7 @@ export function AccessDialog({ account, presets, lineupRole = null, onClose }: {
   const ownerChange = (base === OWNER) !== (account.role === "owner");
 
   const [confirmAdmin, setConfirmAdmin] = React.useState(false);
-  // Granting administrator access asks a second time (the server checks it too).
+  // Granting administrator access is the Owner's, after a second confirmation (the server checks both: OD8c).
   const granting = account.role !== "owner" && admin && !account.isAdmin;
   // Team membership, level, groups and administrator access in one atomic save (saveAccessAction).
   const save = async (confirmed = false) => {
@@ -91,7 +91,9 @@ export function AccessDialog({ account, presets, lineupRole = null, onClose }: {
         </>
       }
     >
-      <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]" data-testid="access-dialog">
+      {/* One column on a phone that never grows past the sheet: a 1fr track grows to the base-access
+          select's widest option, which ran the sheet 70px sideways at 320px with 200% text. */}
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-5 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]" data-testid="access-dialog">
         <div className="space-y-4">
           {account.playerId ? (
             <section aria-labelledby={`team-${account.userId}`} className="space-y-1.5 rounded-panel border border-border bg-surface-2 p-3" data-testid="team-membership">
@@ -132,7 +134,9 @@ export function AccessDialog({ account, presets, lineupRole = null, onClose }: {
                   description={admin ? "Can open Admin Mode: accounts and permissions, platform settings, data, system health and audit logs. Everything a player can do too. Not the Owner account." : "Plays as a normal player and never sees Admin Mode."}
                   checked={admin}
                   onChange={setAdmin}
+                  disabled={!viewerIsOwner}
                 />
+                {!viewerIsOwner ? <p className="text-xs text-fg-subtle">Only the Owner grants or removes administrator access.</p> : null}
                 <p className="text-xs text-fg-subtle">Their profile, Riot accounts and statistics stay theirs. Turning it off returns them to the access set here, at their next page.</p>
               </>
             )}

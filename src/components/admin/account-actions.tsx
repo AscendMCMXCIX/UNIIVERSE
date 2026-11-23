@@ -4,7 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Check, Copy } from "lucide-react";
 import type { AccountView } from "@/server/auth/account-admin";
-import { deleteAccountAction, deleteProfileAction, resetPasswordAction, reactivateWithTemporaryPasswordAction, setAccountActiveAction } from "@/server/actions/users";
+import { deleteAccountAction, deleteProfileAction, resetPasswordAction, reactivateWithTemporaryPasswordAction, setAccountActiveAction, withdrawTemporaryPasswordAction } from "@/server/actions/users";
 import type { BadgeTone } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog, Dialog } from "@/components/ui/dialog";
@@ -12,7 +12,8 @@ import { Input, Label } from "@/components/ui/input";
 import { toast } from "@/components/ui/toast";
 import { useBrandNames } from "@/components/brand-names";
 import { formatDateTime } from "@/lib/format";
-import { typedMatches } from "@/domain/typed-confirmation";
+import { RENAME_PHRASE, typedMatches } from "@/domain/typed-confirmation";
+import { setMemberUsernameAction } from "@/server/actions/member-admin";
 
 /** An account's state in one word an admin acts on. */
 export type AccountStatus = "active" | "awaiting-login" | "setup" | "deactivated";
@@ -99,6 +100,75 @@ function TypedName({ expected, action, value, onChange, testId }: { expected: st
   );
 }
 
+/**
+ * The Owner changes another member's username (OD8a): the new name in the person view's form, then
+ * RENAME typed in a dialog, because it is the name they sign in with. The server checks the
+ * Owner, the phrase and the username's rules again, and records the change without either name.
+ */
+export function UsernameChange({ account }: { account: Pick<AccountView, "userId" | "username"> }) {
+  const router = useRouter();
+  const [next, setNext] = React.useState(account.username);
+  const [open, setOpen] = React.useState(false);
+  const [typed, setTyped] = React.useState("");
+  const [busy, setBusy] = React.useState(false);
+  const id = React.useId();
+  const close = () => {
+    if (busy) return;
+    setOpen(false);
+    setTyped("");
+  };
+  const save = async () => {
+    setBusy(true);
+    const r = await setMemberUsernameAction(account.userId, next, typed);
+    setBusy(false);
+    if (r.ok) {
+      toast.success("Username changed.", { description: `They now sign in as ${r.data.username}.` });
+      setOpen(false);
+      setTyped("");
+      router.refresh();
+    } else toast.error("That did not work", { description: r.error });
+  };
+  return (
+    <>
+      <form
+        className="flex flex-wrap items-end gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          setOpen(true);
+        }}
+        data-testid="member-username"
+      >
+        <div className="min-w-0 grow basis-48 space-y-1">
+          <Label htmlFor={id}>Change their username</Label>
+          <Input id={id} value={next} onChange={(e) => setNext(e.target.value)} autoComplete="off" autoCapitalize="none" spellCheck={false} maxLength={32} />
+        </div>
+        <Button type="submit" variant="outline" disabled={busy || next.trim() === account.username || next.trim() === ""}>
+          Change username
+        </Button>
+      </form>
+      <Dialog
+        size="form"
+        open={open}
+        onClose={close}
+        title={`Change ${account.username}'s username?`}
+        description={`They will sign in as ${next.trim()} from now on. Their password, profile and history stay the same.`}
+        footer={
+          <>
+            <Button variant="ghost" onClick={close} disabled={busy}>
+              Cancel
+            </Button>
+            <Button variant="primary" onClick={() => void save()} disabled={busy || !typedMatches(typed, RENAME_PHRASE)} data-testid="username-confirm">
+              {busy ? "Changing…" : "Change username"}
+            </Button>
+          </>
+        }
+      >
+        <TypedName expected={RENAME_PHRASE} action="to change it" value={typed} onChange={setTyped} testId="username-confirm-input" />
+      </Dialog>
+    </>
+  );
+}
+
 /** Delete for a player profile that has no account (test entries, old placeholders, leftovers of deleted accounts): its name typed first. */
 export function DeleteProfileButton({ playerId, name, onDeleted }: { playerId: string; name: string; /** Once it is deleted (the person view closes by its address). */ onDeleted?: () => void }) {
   const router = useRouter();
@@ -149,7 +219,7 @@ export function DeleteProfileButton({ playerId, name, onDeleted }: { playerId: s
 }
 
 /**
- * Reset password · Deactivate / Reactivate · Delete, the same on both admin pages. Sensitive
+ * Reset password · Withdraw a temporary password · Deactivate / Reactivate · Delete, the same on both admin pages. Sensitive
  * actions confirm in a dialog; the server enforces the rules (never yourself, never the last
  * admin). Results arrive as notifications; a new temporary password opens in its own dialog.
  * The Production check's account (keptAutomatically) offers Deactivate / Reactivate and Delete only:
@@ -159,7 +229,7 @@ export function AccountActions({ account, currentUserId, viewerIsOwner = false, 
   const router = useRouter();
   const [busy, setBusy] = React.useState(false);
   const [issued, setIssued] = React.useState<{ temporaryPassword: string; expiresAt: string } | null>(null);
-  const [confirming, setConfirming] = React.useState<"reset" | "deactivate" | "reactivate" | "reactivate-new" | "delete" | null>(null);
+  const [confirming, setConfirming] = React.useState<"reset" | "withdraw" | "deactivate" | "reactivate" | "reactivate-new" | "delete" | null>(null);
   const [typed, setTyped] = React.useState("");
   const self = account.userId === currentUserId;
   const run = async <T,>(fn: () => Promise<{ ok: true; data: T } | { ok: false; error: string }>, done: string | null, deletes = false): Promise<T | null> => {
@@ -185,13 +255,20 @@ export function AccountActions({ account, currentUserId, viewerIsOwner = false, 
   const resetPassword = () => void run(() => resetPasswordAction(account.userId), null).then((d) => d && setIssued(d));
   if (self) return null;
   // Only the Owner changes the Owner account; the server refuses anyone else too.
-  if (account.role === "owner" && !viewerIsOwner) return <span className="text-xs text-fg-subtle">Managed by the Owner</span>;
+  // The Owner's account and another administrator's are the Owner's alone to manage (OD8; the server checks it).
+  if ((account.role === "owner" || (account.isAdmin && !self)) && !viewerIsOwner) return <span className="text-xs text-fg-subtle">Managed by the Owner</span>;
   const withProfile = !!account.playerId;
   return (
     <div className="flex flex-wrap items-center gap-1.5" data-testid="account-actions">
       {account.isActive && !account.keptAutomatically && only !== "danger" ? (
         <Button size="sm" variant="outline" wrap disabled={busy} onClick={() => (account.password.state === "none" ? resetPassword() : setConfirming("reset"))}>
           {account.password.state === "none" ? "Create temporary password" : "Reset password"}
+        </Button>
+      ) : null}
+      {/* A temporary password not yet used (waiting, or expired) can be withdrawn: it never signs in again. */}
+      {(account.password.state === "temporary" || account.password.state === "expired") && !account.keptAutomatically && only !== "danger" ? (
+        <Button size="sm" variant="ghost" wrap disabled={busy} onClick={() => setConfirming("withdraw")} data-testid="withdraw-temporary-password">
+          Withdraw temporary password
         </Button>
       ) : null}
       {/* Reactivate belongs with the password (the person view's Password section; the Danger zone for the Production check's account, which has none), Deactivate with the Danger zone. */}
@@ -226,6 +303,19 @@ export function AccountActions({ account, currentUserId, viewerIsOwner = false, 
         confirmLabel="Reset password"
         onCancel={() => setConfirming(null)}
         onConfirm={resetPassword}
+      />
+      <ConfirmDialog
+        open={confirming === "withdraw"}
+        busy={busy}
+        title={`Withdraw ${account.username}'s temporary password?`}
+        description="The temporary password you issued stops working at once, and any session it opened ends. They then have no password and cannot sign in until you issue a new temporary password. Nothing else about the account changes."
+        confirmLabel="Withdraw password"
+        onCancel={() => setConfirming(null)}
+        onConfirm={() =>
+          void run(() => withdrawTemporaryPasswordAction(account.userId), null).then((d) => {
+            if (d) toast.success(d.changed ? `${account.username}'s temporary password withdrawn; they cannot sign in until you issue a new one.` : `${account.username} had no temporary password waiting any more. Nothing was changed.`);
+          })
+        }
       />
       <ConfirmDialog
         open={confirming === "deactivate"}

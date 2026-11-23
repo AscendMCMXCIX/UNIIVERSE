@@ -41,11 +41,12 @@ export function selectClass(className?: string): string {
 
 /**
  * The browser's own dropdown. Only `Select` (select.tsx) draws it, in the phone posture, where the
- * phone's own picker is what its owner expects; everywhere else `Select` is the app's popover.
+ * phone's own picker is what its owner expects; everywhere else `Select` is the app's popover. Its
+ * arrow is the popover's chevron (globals.css, select-chevron), not the system's.
  */
 export function NativeSelect({ className, children, ...props }: React.ComponentProps<"select">) {
   return (
-    <select className={selectClass(className)} {...props}>
+    <select className={cn(selectClass(className), "select-chevron pr-[28px]")} {...props}>
       {children}
     </select>
   );

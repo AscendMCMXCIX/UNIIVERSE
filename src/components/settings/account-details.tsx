@@ -255,8 +255,9 @@ export function SettingsIndex({ items }: { items: readonly SectionIndexItem[] })
       linkClassName={(on) =>
         cn(
           chipClass(on),
-          "md:not-short:flex md:not-short:w-full md:not-short:rounded-md md:not-short:border-0 md:not-short:px-2 md:not-short:text-sm md:not-short:hover:bg-surface-2",
-          on && "md:not-short:bg-surface-2 md:not-short:font-semibold",
+          "md:not-short:flex md:not-short:w-full md:not-short:rounded-md md:not-short:border-0 md:not-short:px-2 md:not-short:text-sm",
+          // The section being read: surface-3, a step above the surface-2 of a pointed-at entry, so the two marks differ by more than the weight.
+          on ? "md:not-short:bg-surface-3 md:not-short:font-semibold" : "md:not-short:hover:bg-surface-2",
         )
       }
       testId="settings-index"

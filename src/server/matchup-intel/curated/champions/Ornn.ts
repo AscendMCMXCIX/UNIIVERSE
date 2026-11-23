@@ -1,6 +1,11 @@
 import type { ChampionNotes } from "@/domain/matchup-intel/types";
 
 /*
+  Re-checked against Riot's own sources on 23 Nov 2026 (OD6; riotRecheck): Data Dragon 16.23.1 against
+  16.22.1 (every ability's cooldown, cost, ranks, range, description and tooltip, the passive and the
+  base stats) and Riot's patch notes for 26.23 (the champions, and the items and runes the notes
+  name): no change on Summoner's Rift. The wiki's pages were not read again (its Terms of Use forbid
+  automated use without consent), so what rests on them is as checked on 17 Nov.
   Ornn: curated champion notes (Layer 1), checked on 17 Nov 2026 against patch 26.22 and Data
   Dragon 16.22.1.
 
@@ -44,7 +49,7 @@ import type { ChampionNotes } from "@/domain/matchup-intel/types";
 
 const notes: ChampionNotes = {
   championId: "Ornn",
-  verified: { patch: "26.22", ddragonVersion: "16.22.1", checkedOn: "2026-11-17" },
+  verified: { patch: "26.22", ddragonVersion: "16.22.1", checkedOn: "2026-11-17", riotRecheck: { patch: "26.23", ddragonVersion: "16.23.1", on: "2026-11-23" } },
   sources: [
     { id: "ornn-p", title: "League of Legends Wiki: Living Forge (Ornn)", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Ornn/Living_Forge", kind: "wiki-ability", revision: 4089066, revisionTime: "2026-10-22T20:31:26Z", licence: "CC BY-SA 3.0" },
     { id: "ornn-q", title: "League of Legends Wiki: Volcanic Rupture (Ornn)", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Ornn/Volcanic_Rupture", kind: "wiki-ability", revision: 3998234, revisionTime: "2026-03-10T20:08:53Z", licence: "CC BY-SA 3.0" },

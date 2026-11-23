@@ -33,6 +33,7 @@ const NOW: MatchupIntelRead = {
   slots: "PQWER",
   named: 5,
   missing: false,
+  planBottom: 560,
   tilesBottom: 701,
   summary: "A static reference: no live tracking · Riot Data Dragon 16.23.1 · League of Legends Wiki, CC BY-SA 3.0 · Not endorsed by Riot Games",
   summaryBottom: 884,
@@ -48,9 +49,11 @@ const NOW: MatchupIntelRead = {
   slotCount: "2",
   tipsLabel: "Riot's tip (may predate later changes)",
   highElo: "Runes, items and skill order: No high-elo evidence (not collected)",
+  fallbacks: "Power spikes: Not measured yet · No wave guidance for this matchup",
   evidenceTiers: "In your games: no player profile · In the team's games (n = 12)",
   briefingTier: "Checked notes (AI reviewers)",
   kitTier: "Riot's data",
+  means: ["Mordekaiser's R cooldown 120 / 110 / 100\u00a0s at 0 haste (base, ability haste only)", "Mordekaiser's E cooldown 16 / 14 / 12 / 10 / 8\u00a0s at 0 haste (whether haste shortens it isn't known)", "Mordekaiser's Q cooldown 8 / 7 / 6 / 5 / 4\u00a0s at 0 haste (base); Mordekaiser's W cooldown 12 / 11 / 10 / 9 / 8\u00a0s at 0 haste (base)"],
 };
 /** The same page made 1920 x 1080: no page scroll. */
 const WIDE = { ...NOW, size: "1920x1080", innerHeight: 1080, scrollHeight: 1080 };
@@ -63,10 +66,20 @@ const judge = (at: MatchupIntelRead, wide: MatchupIntelRead = WIDE, wiki: string
 const failed = (verdicts: ReturnType<typeof judge>) => verdicts.filter((v) => v.status === "FAIL").map((v) => v.name);
 
 describe("the Production check's Matchup Intel facts", () => {
+  it("fail when a briefing row's 'what it means' line is missing, claims a timer or a verdict, or is not numbers", () => {
+    const means = /says what it means/;
+    expect(failed(judge(NOW)).filter((n) => means.test(n))).toEqual([]);
+    expect(failed(judge({ ...NOW, means: ["Mordekaiser's Q cooldown 6.67 / 5.83\u00a0s at 20 haste (Riot's general rule)"] })).filter((n) => means.test(n))).toEqual([]);
+    expect(failed(judge({ ...NOW, means: ["Mordekaiser's E cooldown 16\u00a0s at 0 haste (static per the checked notes: haste doesn't shorten it)"] })).filter((n) => means.test(n))).toEqual([]);
+    for (const over of [{ means: [] }, { means: ["Mordekaiser's Q is ready at 3:20"] }, { means: ["Mordekaiser's Q cooldown 8\u00a0s at 0 haste (base); you win"] }, { means: ["Mordekaiser's Q cooldown 8\u00a0s at 0 haste (estimated)"] }, { means: ["Mordekaiser's Q cooldown 8\u00a0s at 0 haste (base) then 1:30 later 99%"] }, { means: ["Garbage text, static per the checked notes: haste doesn't shorten it, 50% winrate"] }]) expect(failed(judge({ ...NOW, ...over })).filter((n) => means.test(n)), JSON.stringify(over)).toHaveLength(1);
+    // While the briefing is hidden, no line is asked for.
+    expect(failed(judge({ ...EXPIRED, means: [] })).filter((n) => means.test(n))).toEqual([]);
+  });
+
   it("fail when the lane selector, Riot's tips' label or the evidence line is missing or claims more", () => {
     const lanes = /lane selector/;
     expect(failed(judge(NOW)).filter((n) => lanes.test(n))).toEqual([]);
-    for (const over of [{ roles: "Top Jungle Mid" }, { roles: "Top Jungle Mid ADC Support" }, { tipsLabel: "" }, { highElo: "Runes: Conqueror" }, { slotCount: null }]) expect(failed(judge({ ...NOW, ...over })).filter((n) => lanes.test(n)), JSON.stringify(over)).toHaveLength(1);
+    for (const over of [{ roles: "Top Jungle Mid" }, { roles: "Top Jungle Mid ADC Support" }, { tipsLabel: "" }, { highElo: "Runes: Conqueror" }, { fallbacks: "Power spikes: level 6 · No wave guidance for this matchup" }, { fallbacks: "" }, { slotCount: null }]) expect(failed(judge({ ...NOW, ...over })).filter((n) => lanes.test(n)), JSON.stringify(over)).toHaveLength(1);
   });
 
   it("fail when a row does not state its tier, or the evidence fold's tiers are missing", () => {
@@ -79,8 +92,8 @@ describe("the Production check's Matchup Intel facts", () => {
   it("pass on production as it is now (26.23, not re-checked): no page scroll at 1920 x 1080, the tiles and the sources' summary on screen at 1440 x 900, though it scrolls 23px there", () => {
     const v = judge(NOW);
     expect(failed(v)).toEqual([]);
-    expect(v.map((x) => x.name)).toContain("desktop: 1920 × 1080: the whole overview fits the screen, no page scroll");
-    expect(v.map((x) => x.name)).toContain("desktop: 1440 × 900: the essentials are on the screen: the enemy's five ability tiles and the sources' summary");
+    expect(v.map((x) => x.name)).toContain("desktop: 1920 × 1080: the overview is on the first screen: the lane plan whole, the enemy's five ability tiles and the sources' summary");
+    expect(v.map((x) => x.name)).toContain("desktop: 1440 × 900: the essentials are on the screen: the lane plan whole, the enemy's five ability tiles and the sources' summary");
     // No fact asks for no page scroll at 1440 x 900, a size the overview is not promised to fit.
     expect(v.map((x) => x.name).join(" ")).not.toMatch(/1440.*no page scroll/);
   });
@@ -101,24 +114,32 @@ describe("the Production check's Matchup Intel facts", () => {
       expect(fit.every((x) => x.status === "PASS" && x.name.includes("not judged in this state")), briefingState(at)).toBe(true);
     }
     // What they found, in the fact's own words.
-    expect(judge(WHOLE_HIDDEN, { ...WIDE, scrollHeight: 1270 }).map((x) => x.name)).toContain("desktop: 1920 × 1080: with the briefing hidden, the overview runs 190px past the screen (not judged in this state)");
+    expect(judge(WHOLE_HIDDEN, { ...WIDE, scrollHeight: 1270 }).map((x) => x.name)).toContain("desktop: 1920 × 1080: with the briefing hidden, the overview is on the first screen, the page 190px taller than the screen (not judged in this state)");
     expect(judge(EXPIRED).map((x) => x.name)).toContain("desktop: the curated briefing is hidden as too old to show, and says so, above the assembled reference too");
     expect(judge(PARTS_HIDDEN).map((x) => x.name)).toContain("desktop: the curated briefing shows, labelled with when it was checked, its parts resting on an ability Riot changed hidden and said (1), and the bar warns");
   });
 
   it("still fail what the owner asked for: a page scroll at 1920 x 1080, or the summary or a tile off the screen at 1440 x 900, with the briefing shown", () => {
-    expect(failed(judge(NOW, { ...WIDE, scrollHeight: 1095 }))).toEqual(["desktop: 1920 × 1080: the whole overview fits the screen, no page scroll"]);
-    expect(failed(judge({ ...NOW, summaryShown: false, summaryBottom: 912 }))).toEqual(["desktop: 1440 × 900: the essentials are on the screen: the enemy's five ability tiles and the sources' summary"]);
-    expect(failed(judge({ ...NOW, tilesBottom: 905 }))).toEqual(["desktop: 1440 × 900: the essentials are on the screen: the enemy's five ability tiles and the sources' summary"]);
+    // Since the redesign of 23 Nov 2026 the full reference is a fold under the overview: a page taller by
+    // its line passes; the lane plan, a tile or the sources' summary under the fold does not.
+    expect(failed(judge(NOW, { ...WIDE, scrollHeight: 1140 }))).toEqual([]);
+    expect(failed(judge(NOW, { ...WIDE, planBottom: 1100 }))).toEqual(["desktop: 1920 × 1080: the overview is on the first screen: the lane plan whole, the enemy's five ability tiles and the sources' summary"]);
+    expect(failed(judge(NOW, { ...WIDE, tilesBottom: 1090 }))).toEqual(["desktop: 1920 × 1080: the overview is on the first screen: the lane plan whole, the enemy's five ability tiles and the sources' summary"]);
+    expect(failed(judge(NOW, { ...WIDE, summaryShown: false, summaryBottom: 1100 }))).toEqual(["desktop: 1920 × 1080: the overview is on the first screen: the lane plan whole, the enemy's five ability tiles and the sources' summary"]);
+    expect(failed(judge({ ...NOW, summaryShown: false, summaryBottom: 912 }))).toEqual(["desktop: 1440 × 900: the essentials are on the screen: the lane plan whole, the enemy's five ability tiles and the sources' summary"]);
+    expect(failed(judge({ ...NOW, tilesBottom: 905 }))).toEqual(["desktop: 1440 × 900: the essentials are on the screen: the lane plan whole, the enemy's five ability tiles and the sources' summary"]);
+    // The lane plan (the redesign of 23 Nov 2026) runs under the fold, or is not on the page.
+    expect(failed(judge({ ...NOW, planBottom: 930 }))).toEqual(["desktop: 1440 × 900: the essentials are on the screen: the lane plan whole, the enemy's five ability tiles and the sources' summary"]);
+    expect(failed(judge({ ...NOW, planBottom: null }))).toEqual(["desktop: 1440 × 900: the essentials are on the screen: the lane plan whole, the enemy's five ability tiles and the sources' summary"]);
     // The window not made 1920 x 1080 is no proof of the fit.
-    expect(failed(judge(NOW, { ...WIDE, size: "1440x900" }))).toContain("desktop: 1920 × 1080: the whole overview fits the screen, no page scroll");
+    expect(failed(judge(NOW, { ...WIDE, size: "1440x900" }))).toContain("desktop: 1920 × 1080: the overview is on the first screen: the lane plan whole, the enemy's five ability tiles and the sources' summary");
   });
 
   it("fail Release 6's page on production's 26.23 as its Production check read it, and pass the page that fixed it, read on the demo given Riot's 16.23.1", () => {
     // Production check 44758125888 (20 Nov 2026): the lane selector, the haste choice and Riot's tips
     // had made the page taller, and "Not re-checked for 26.23" put the sources' summary 8px under the fold.
     const release6 = { ...NOW, tilesBottom: 727, summaryBottom: 908, summaryShown: false, scrollHeight: 947 };
-    expect(failed(judge(release6))).toEqual(["desktop: 1440 × 900: the essentials are on the screen: the enemy's five ability tiles and the sources' summary"]);
+    expect(failed(judge(release6))).toEqual(["desktop: 1440 × 900: the essentials are on the screen: the lane plan whole, the enemy's five ability tiles and the sources' summary"]);
     // The fix (fix/mi-fit-recheck, over Release 7's tiers and evidence line), on the demo with Riot's
     // real 16.23.1 records: no page scroll at 1440 x 900 either; production draws Mordekaiser's W
     // cooldown line a line taller (16px), which the summary's room under the fold still holds.
@@ -141,7 +162,7 @@ describe("the Production check's Matchup Intel facts", () => {
     const missing = { ...NOW, missing: true, slots: "", named: 0, tilesBottom: 0, summaryBottom: 807 };
     expect(judge(missing).filter((x) => x.status === "WARN").map((x) => x.name)).toEqual(["desktop: Mordekaiser's abilities are not on the page (not stored yet, or not readable): the page says so"]);
     expect(failed(judge(missing))).toEqual([]);
-    expect(failed(judge({ ...missing, summaryShown: false, summaryBottom: 912 }))).toEqual(["desktop: 1440 × 900: with no ability tiles (the warning above), the sources' summary is on the screen"]);
+    expect(failed(judge({ ...missing, summaryShown: false, summaryBottom: 912 }))).toEqual(["desktop: 1440 × 900: with no ability tiles (the warning above), the lane plan and the sources' summary are on the screen"]);
   });
 });
 

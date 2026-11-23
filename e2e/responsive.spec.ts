@@ -284,6 +284,30 @@ test("Settings: the account card leads, drawn in the order it is read, with Sign
     // Its actions are rows at its end, after the index.
     const rows = card.getByTestId("settings-actions").filter({ visible: true });
     expect((await rows.boundingBox())!.y).toBeGreaterThan((await index.boundingBox())!.y);
+    // At the page's top the first section is the one marked (G3-5: Password, whose top was above the
+    // window's upper third, was marked at 1440×900), and it is drawn apart from a pointed-at entry
+    // (surface-3 against the hover's surface-2, G3-13).
+    await expect(links.first()).toHaveAttribute("aria-current", "location");
+    await expect(links.nth(1)).not.toHaveAttribute("aria-current", "location");
+    // A jump to a section marks it while it is at the window's top: Name, though Password's top is above the line there.
+    await page.evaluate(() => window.scrollTo(0, 300));
+    await links.first().click();
+    await expect(links.first()).toHaveAttribute("aria-current", "location");
+    if (info.project.name === "desktop") {
+      // A tall window ends the page right under a section jumped to: it stays marked, not the last one (the end-of-page rule gives way).
+      const size = page.viewportSize()!;
+      await page.setViewportSize({ width: 1920, height: 1200 });
+      const password = index.locator("a[href='#password']");
+      await password.click();
+      await expect(password).toHaveAttribute("aria-current", "location");
+      await page.setViewportSize(size);
+    }
+    await page.evaluate(() => window.scrollTo(0, 0));
+    const surface3 = await page.evaluate(() => { const p = document.createElement("i"); p.className = "bg-surface-3"; document.body.append(p); const c = getComputedStyle(p).backgroundColor; p.remove(); return c; });
+    await expect.poll(() => links.first().evaluate((el) => getComputedStyle(el).backgroundColor), "the section being read on surface-3").toBe(surface3);
+    // Current, New and Confirm password share one grid: Current ends where New does (G3-6: it overhung New by 35px).
+    const [cur, next] = [(await page.locator("#current").boundingBox())!, (await page.locator("input[type=password]").nth(1).boundingBox())!];
+    expect(Math.abs(cur.x + cur.width - (next.x + next.width)), "Current password ends with New").toBeLessThanOrEqual(1);
     if (info.project.name === "desktop") {
       // From xl the display name and the username stand side by side.
       expect(Math.abs((await page.getByTestId("username-form").boundingBox())!.y - (await page.getByTestId("display-name-form").boundingBox())!.y)).toBeLessThanOrEqual(1);

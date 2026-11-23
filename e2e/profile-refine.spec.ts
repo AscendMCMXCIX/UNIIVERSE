@@ -86,8 +86,8 @@ test("a choice made in Refine applies, is kept when the panel closes and reopens
   await refine.click();
   await expect(page.getByTestId("refine-panel").getByTestId("role-filter-TOP")).toHaveAttribute("aria-checked", "true");
   await page.keyboard.press("Escape");
-  // The active refinement shows as a chip under the bar, which removes it.
-  await page.getByRole("button", { name: "Remove filter Top" }).click();
+  // The active refinement shows as a chip in the toolbar's row, which removes it.
+  await page.getByRole("button", { name: "Top: remove this filter" }).click();
   await expect(page).not.toHaveURL(/role=TOP/);
   expect((await layout(page)).overflow).toBeLessThanOrEqual(1);
 });
@@ -97,7 +97,10 @@ test("phones: the same fields sit in the full-width filter panel, without a hori
   await openProfile(page);
   const bar = page.getByTestId("overview-filters");
   await expect(bar.getByTestId("refine-filters")).toBeHidden();
-  await bar.getByTestId("filter-toggle").click();
+  // The folded Filters draws its sliders in the button's own colour while nothing is narrowed; accent marks a narrowed list only (the design review's G1-7).
+  const toggle = bar.getByTestId("filter-toggle");
+  expect(await toggle.evaluate((b) => getComputedStyle(b.querySelector("svg")!).color === getComputedStyle(b).color)).toBe(true);
+  await toggle.click();
   await expect(bar.getByTestId("refine-panel")).toBeVisible();
   await expect(bar.getByRole("radio", { name: "All roles" })).toBeVisible();
   const heading = await page.locator("#season-stats").boundingBox();

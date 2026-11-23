@@ -36,8 +36,12 @@ export function SignupForm({ action, kind, token, needsKey = false, defaultPlatf
       </div>
       {needsKey ? (
         <div>
-          <Label htmlFor="setupKey">Setup key (the UNIIVERSE_ACCESS_PASSWORD value you configured)</Label>
-          <Input id="setupKey" name="setupKey" type="password" required />
+          {/* As the other fields: the label, then what it is under the field (the variable's name breaks only at its underscores). */}
+          <Label htmlFor="setupKey">SETUP KEY *</Label>
+          <Input id="setupKey" name="setupKey" type="password" required aria-describedby="setupKey-hint" />
+          <p id="setupKey-hint" className="mt-1 text-xs text-fg-subtle">
+            The UNIIVERSE_<wbr />ACCESS_<wbr />PASSWORD value you configured.
+          </p>
         </div>
       ) : null}
       {state?.error ? <p className="text-sm text-bad">{state.error}</p> : null}
