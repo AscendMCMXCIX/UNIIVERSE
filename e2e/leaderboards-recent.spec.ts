@@ -483,7 +483,7 @@ const recordCells = (page: Page) =>
     return cells;
   });
 
-test("the season records: seven cells in one panel, each opening its game; multikills rarest first; milestones", async ({ page }) => {
+test("the season records: seven cells in one panel, each opening its game; the multikill score's ranking and the most of each kind; milestones", async ({ page }) => {
   // The cells' games are not prefetched (each would be a server render of its own, on every visit): only a click asks for one.
   const prefetched: string[] = [];
   page.on("request", (r) => {
@@ -521,10 +521,62 @@ test("the season records: seven cells in one panel, each opening its game; multi
     // second line beside it: the damage record, with its qualifier on lines of its own, at most 8rem.
     else if (c.rem < 36) expect(c.rowRem, `${c.id}: a record in a ${c.rem.toFixed(1)}rem cell, three lines`).toBeLessThanOrEqual(c.ownLine ? (c.rem >= 20 ? 8 : 7) : 6);
   }
-  const multis = await page.getByTestId("multikill-row").evaluateAll((els) => els.map((e) => ["data-penta", "data-quadra", "data-triple"].map((k) => Number(e.getAttribute(k)))));
-  expect(multis.length).toBeGreaterThan(0);
-  const key = (m: number[]) => m[0]! * 1e6 + m[1]! * 1e3 + m[2]!;
-  for (let i = 1; i < multis.length; i++) expect(key(multis[i]!)).toBeLessThanOrEqual(key(multis[i - 1]!));
+  // The multikill board: ranked by the score (as shown), places shared on equal scores, the crown on first; each row's kinds
+  // in words are Riot's own counts, rarest first (the demo's comparison players make the score role-adjusted).
+  const multis = await page.getByTestId("multikill-row").evaluateAll((els) =>
+    els.map((e) => ({
+      status: e.getAttribute("data-status"),
+      place: Number(e.getAttribute("data-place") ?? 0),
+      score: Number(e.getAttribute("data-score") ?? -1),
+      counts: ["data-penta", "data-quadra", "data-triple", "data-double"].map((k) => Number(e.getAttribute(k))),
+      riot: (e.getAttribute("data-riot") ?? "").split(",").map(Number),
+      counted: Number(e.getAttribute("data-counted")),
+      kinds: [...e.querySelectorAll<HTMLElement>("[data-testid=multikill-kinds] [data-kind]")].map((k) => k.textContent),
+      crown: !!e.querySelector("[aria-label='First place']"),
+      scoreShown: e.querySelector("[data-testid=multikill-score]") !== null,
+    })),
+  );
+  // The demo keeps Riot's counters nested (a pentakill also counts a double, a triple and a quadra), and the board says it reads them so.
+  await expect(page.getByTestId("multikill-explain")).toHaveAccessibleDescription(/Riot's own counters also count a pentakill's double, triple and quadra; this board counts and shows each multikill once\./);
+  const ranked = multis.filter((m) => m.status === "ranked");
+  expect(ranked.length).toBeGreaterThan(2);
+  for (let i = 1; i < ranked.length; i++) {
+    expect(ranked[i]!.score, "ranked by the score").toBeLessThanOrEqual(ranked[i - 1]!.score);
+    expect(ranked[i]!.place === ranked[i - 1]!.place, "a place is shared exactly when the scores read the same").toBe(ranked[i]!.score === ranked[i - 1]!.score);
+  }
+  expect(ranked[0]!.crown && ranked[0]!.place === 1).toBe(true);
+  for (const m of multis) {
+    // Shown: each multikill once, at its largest (doubles − triples …), never Riot's nested counters as they are.
+    const [d, t, q, p] = m.riot as [number, number, number, number];
+    expect(m.counts, "each multikill once, from Riot's nested counters").toEqual([p, Math.max(0, q - p), Math.max(0, t - q), Math.max(0, d - t)]);
+    const words = ["penta", "quadra", "triple", "double"].flatMap((w, i) => (m.counts[i]! > 0 ? [`${m.counts[i]} ${w}${m.counts[i] === 1 ? "" : "s"}`] : []));
+    expect(m.kinds, "the counts in words, rarest first").toEqual(words);
+  }
+  // Every group on the demo: ranked (20+ games with counts), provisional (10–19, place "–", a score), too few (under 10, no score).
+  const provisional = multis.filter((m) => m.status === "provisional");
+  const few = multis.filter((m) => m.status === "not-enough");
+  expect(provisional.length).toBeGreaterThan(0);
+  expect(few.length).toBeGreaterThan(0);
+  for (const m of ranked) expect(m.counted).toBeGreaterThanOrEqual(20);
+  for (const m of provisional) expect(m.counted >= 10 && m.counted < 20 && m.scoreShown && m.place === 0).toBe(true);
+  for (const m of few) expect(m.counted < 10 && !m.scoreShown).toBe(true);
+  await expect(page.getByTestId("multikill-unplaced-head")).toHaveText(/^Not placed yet\s·\sunder 20 games with multikill counts$/);
+  await expect(page.getByTestId("multikill-unplaced").getByTestId("multikill-row")).toHaveCount(provisional.length + few.length);
+  await expect(page.locator("[data-testid=multikill-row][data-status=not-enough] [data-testid=multikill-no-score]").first()).toHaveText("No score yet");
+  expect(multis.map((m) => m.status), "ranked, then provisional, then too few").toEqual([...ranked, ...provisional, ...few].map((m) => m.status));
+  await expect(page.getByTestId("multikill-basis")).toHaveText("Per game, against the same roles and champions · 100 is usual");
+  await expect(page.getByTestId("multikill-explain")).toHaveAccessibleDescription(/each member's multikills per game against what the other players in the same games made on the same roles and champions \(allies and opponents, never a team member: [\d,]+ of their games\)/);
+  // Three short points behind the ⓘ (each a line of its own), and the coverage after them.
+  expect(await page.getByTestId("records-multikills").getByTestId("multikill-explain-point").count()).toBeGreaterThanOrEqual(3);
+  // The most of each kind, double to penta: each with its count and holder(s), each multikill once.
+  const most = page.getByTestId("multikill-most-kind");
+  await expect(most).toHaveCount(4);
+  const best = (i: number) => Math.max(...multis.map((m) => m.counts[i]!));
+  for (const [kind, i] of [["double", 3], ["triple", 2], ["quadra", 1], ["penta", 0]] as const) {
+    const tile = page.locator(`[data-testid=multikill-most-kind][data-kind=${kind}]`);
+    if (best(i) > 0) await expect(tile.getByTestId("multikill-most-count")).toHaveText(String(best(i)));
+    else await expect(tile).toContainText("None yet");
+  }
   await expect(page.getByTestId("milestones-mastery").getByTestId("milestone-member").first()).toBeVisible();
   // A member's name on the multikills keeps a line's room at every width: whole words, at most two
   // lines, never a letter a line.
@@ -548,8 +600,8 @@ test("the season records: seven cells in one panel, each opening its game; multi
   // taller's row (the design review's G1-4: 18px lower).
   const tops = await page.getByTestId("season-record").evaluateAll((rows) => rows.map((r) => [Math.round(r.closest("li")!.getBoundingClientRect().top), r.querySelector("[data-testid=record-label]")!.getBoundingClientRect().top - r.getBoundingClientRect().top]));
   for (const [row, offset] of tops) for (const [other, o] of tops) if (row === other) expect(Math.abs(offset! - o!), "level with the cell beside it").toBeLessThanOrEqual(1);
-  // At 1440 each count column is as wide as its heading, so every member's name keeps one line (G1-10: one ran to two).
-  if (test.info().project.name === "desktop") expect(new Set(await page.getByTestId("multikill-row").evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().height)))).size, "the multikill rows one height").toBe(1);
+  // Compact rows: two lines (about 46px), a member with all four kinds a third where they wrap; never taller (G1-10's names on one line at 1440).
+  for (const h of await page.getByTestId("multikill-row").evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height))) expect(h, "a multikill row").toBeLessThanOrEqual(test.info().project.name === "desktop" ? 64 : 66);
   // The milestones' figures as format.ts shortens them (486K), the rest of a member's counted, what
   // counts behind each kind's ⓘ.
   await expect(page.getByTestId("milestones-mastery").getByTestId("milestone-figure").first()).toHaveText(/^\d+(\.\d)?[KM]$/);
@@ -720,7 +772,7 @@ test("the page's own width places its boards: Recent form across with the record
   }
 });
 
-test("on a phone: one column, the index of the sections below Recent form jumping to each under the top bar, three-line records, chips without names, one line per member's multikills", async ({ page }, info) => {
+test("on a phone: one column, the index of the sections below Recent form jumping to each under the top bar, three-line records, chips without names, compact multikill rows", async ({ page }, info) => {
   test.skip(info.project.name !== "phone", "the phone's column");
   await page.emulateMedia({ reducedMotion: "reduce" });
   await openRecords(page);
@@ -785,18 +837,24 @@ test("on a phone: one column, the index of the sections below Recent form jumpin
   expect(Math.max(...chipTops) - Math.min(...chipTops), "one line of chips").toBeLessThanOrEqual(4);
   const memberName = (await page.getByTestId("milestones-mastery").getByTestId("milestone-member").first().locator("[data-testid=member-name], a").first().boundingBox())!;
   expect(Math.abs(chipTops[0]! - (memberName.y + memberName.height / 2)), "beside the name").toBeLessThanOrEqual(6);
-  // From a 21rem list each member's multikills are one line: the counts beside the name, under their headings.
-  const listRem = await page.getByTestId("records-multikills").evaluate((b) => b.clientWidth / parseFloat(getComputedStyle(document.documentElement).fontSize));
-  expect(listRem).toBeGreaterThanOrEqual(21);
-  await expect(page.getByTestId("records-multikills").locator("div[aria-hidden=true].grid")).toBeVisible();
-  for (const row of (await page.getByTestId("multikill-row").all()).slice(0, 3)) {
-    const name = (await row.getByTestId("board-member-name").boundingBox())!;
-    for (const count of await row.getByTestId("multikill-count").all()) {
-      const c = (await count.boundingBox())!;
-      expect(c.y + c.height / 2, "a count beside the name").toBeGreaterThanOrEqual(name.y - 1);
-      expect(c.y + c.height / 2).toBeLessThanOrEqual(name.y + name.height + 1);
-    }
+  // The multikill board on a phone: no column headings; each row the place, picture, name over its kinds in words, and the
+  // score at the row's end, beside the name, over its games; the most of each kind two by two under the ranking.
+  const multikills = page.getByTestId("records-multikills");
+  await expect(multikills.locator(".label-caps")).toHaveCount(0);
+  for (const row of await page.locator("[data-testid=multikill-row]:has([data-testid=multikill-score])").all()) {
+    type Box = { x: number; y: number; width: number; height: number };
+    const [name, kinds, score, games, avatar] = (await Promise.all([row.getByTestId("board-member-name"), row.getByTestId("multikill-kinds"), row.getByTestId("multikill-score"), row.getByTestId("multikill-games"), row.locator("[data-avatar-frame]")].map(async (l) => (await l.boundingBox())!))) as [Box, Box, Box, Box, Box];
+    expect(kinds.y, "the kinds under the name").toBeGreaterThanOrEqual(name.y + name.height - 1);
+    expect(kinds.y - (name.y + name.height), "right under it, no gap between them").toBeLessThanOrEqual(4);
+    expect(score.x, "the score at the row's end").toBeGreaterThan(name.x + name.width - 1);
+    // The score and its games centred on the row, as the place and the picture are (a row whose kinds wrap is a line taller).
+    const rowBox = (await row.boundingBox())!;
+    expect(Math.abs((score.y + games.y + games.height) / 2 - (rowBox.y + rowBox.height / 2)), "the score and its games centred on the row").toBeLessThanOrEqual(3);
+    expect(games.y, "its games under the score").toBeGreaterThanOrEqual(score.y + score.height - 1);
+    expect(avatar.x + avatar.width, "the picture before the name").toBeLessThanOrEqual(name.x + 1);
   }
+  const tiles = await page.getByTestId("multikill-most-kind").evaluateAll((els) => els.map((e) => e.getBoundingClientRect()).map((r) => [Math.round(r.top), Math.round(r.left)]));
+  expect(new Set(tiles.map((t) => t[0])).size, "two rows of tiles").toBe(2);
   await noOverflow(page);
 });
 
@@ -838,4 +896,33 @@ test("tablet and desktop: one Peek giving way to the other (a player, then a rec
   }
   await page.goBack();
   await expect(page).toHaveURL(/\/matches$/);
+});
+
+test("a multikill row opens the player Peek led by the member's multikills: the score and its chance spread, each kind made over its usual (tap or click, the same on every device)", async ({ page }) => {
+  await openRecords(page);
+  const row = page.locator("[data-testid=multikill-row][data-status=ranked]").first();
+  const score = await row.getAttribute("data-score");
+  const counts = await row.evaluate((e) => ["data-double", "data-triple", "data-quadra", "data-penta"].map((k) => e.getAttribute(k)));
+  // In the middle of the screen, clear of the pinned chip row and the tab bar.
+  await row.evaluate((e) => e.scrollIntoView({ block: "center" }));
+  await page.waitForTimeout(300);
+  const opener = row.getByTestId("board-peek-open");
+  // On the place, clear of the name (a link of its own to the profile, above the row's press).
+  if (test.info().project.name === "phone") await opener.tap({ position: { x: 12, y: 12 } });
+  else await opener.click({ position: { x: 12, y: 12 } });
+  await expect(page).toHaveURL(/\/leaderboards\?player=/);
+  const detail = page.getByTestId("peek-multikills");
+  await expect(detail).toBeVisible();
+  await expect(detail.getByTestId("peek-multikills-score")).toContainText(new RegExp(`^${score}\\s*multikill score.*±\\d+`));
+  // Each kind made (each multikill once, the row's own counts) over its usual for their roles and champions.
+  expect(await detail.getByTestId("peek-multikills-made").allTextContents()).toEqual(counts);
+  await expect(detail.getByTestId("peek-multikills-usual")).toHaveCount(4);
+  await expect(detail.getByTestId("peek-multikills-note")).toContainText("each multikill once, at its largest · usual for their roles and champions");
+  // Within the screen, and the page no wider than it.
+  const box = (await detail.boundingBox())!;
+  expect(box.x).toBeGreaterThanOrEqual(0);
+  expect(box.x + box.width).toBeLessThanOrEqual(page.viewportSize()!.width + 1);
+  await noOverflow(page);
+  await page.keyboard.press("Escape");
+  await expect(page).toHaveURL(/\/leaderboards$/);
 });

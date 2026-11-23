@@ -946,6 +946,12 @@ test("under 700px tall, Done in the sheet the top bar's Filters opened lands the
     });
     await expect(bar, at).toHaveAttribute("data-hidden", "false");
     await expect(filters, at).toBeVisible();
+    // Tapped once the row's slide back in is over and Filters is whole on the screen, as a finger finds
+    // it. Tapped mid-slide, the tap's hit test can miss the moving button, and Playwright's retry then
+    // scrolls the page to reach it, which brings the page's own filters back into view, and with them
+    // the bar's name in place of Filters (PR #334's CI at 200% text: the button gone for good).
+    await expect.poll(() => bar.evaluate((b) => b.getAnimations({ subtree: true }).length), { message: `${at}: the bar at rest`, intervals: [50] }).toBe(0);
+    await expect(filters, at).toBeInViewport({ ratio: 1 });
     if (focused) await filters.tap();
     else await filters.dispatchEvent("click");
     await expect(sheet, at).toBeVisible();

@@ -6,6 +6,7 @@ import type { GameRecord } from "@/domain/player-stats";
 import { championsByGames, combineMastery, modeBreakdown, dedupeGames, filterGames, gameRole, gamesFor, isGameRole, otherSeasonChampions, performanceOfGames, recordOf, seasonChampionStats, seasonsInGames, type CombinedMastery, type GameRole, type MasteryEntry, type PerformanceSummary, type SeasonChampionStats, type SeasonMode, type StatsFilter, type StatsScope } from "@/domain/season-stats";
 import { chooseSeason, offeredSeasons, seasonLabel } from "@/domain/season";
 import { multikillsOfGames, type MultikillSummary } from "@/domain/multikills";
+import { loadCountingReading } from "@/server/accounts/multikill-counting";
 import { TIER_DESCRIPTIONS, TIER_LABELS, confidenceWord, type ProficiencyTier } from "@/domain/proficiency";
 import { describeAccountSync, summariseAccounts, type AccountSyncView } from "@/domain/account-status";
 import { platformLabel } from "@/domain/riot-platforms";
@@ -196,7 +197,9 @@ export async function getPlayerOverview(db: Db, player: PlayerRecord, options: P
   const now = options.now ?? new Date();
   const [accounts, current, lookup, currentSeasonNumber] = await Promise.all([listAccountsForPlayer(db, player.id), getCurrentPatch(db), getProficiencyLookup(db, [player.id]), currentSeason(db, now)]);
   const ids = accounts.map((a) => a.id);
-  const [rawGames, masteryRows] = await Promise.all([loadSeasonGames(db, ids, { dedupe: false }), loadMasteryForAccounts(db, ids)]);
+  // How Riot's multikill counters count (cached, shared with Team Leaderboards): the multikill figures show each multikill once, at its largest.
+  const [rawGames, masteryRows, counting] = await Promise.all([loadSeasonGames(db, ids, { dedupe: false }), loadMasteryForAccounts(db, ids), loadCountingReading(db)]);
+  const rule = counting.rule;
   const games = dedupeGames(rawGames);
   // The offered seasons (domain/season): Season 2026 on, the current one always.
   const seasons = offeredSeasons(currentSeasonNumber, seasonsInGames(games));
@@ -255,7 +258,7 @@ export async function getPlayerOverview(db: Db, player: PlayerRecord, options: P
     const role = filter.role ?? [...roleCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? player.primaryRole;
     if (!role) return [];
     const [stats] = seasonChampionStats(mine, [championId], { season, mode: options.mode });
-    return [{ ...card(stats!, role, poolFor(player, role).includes(championId) ? fitOf(role) : null), multikills: multikillsOfGames(mine) }];
+    return [{ ...card(stats!, role, poolFor(player, role).includes(championId) ? fitOf(role) : null), multikills: multikillsOfGames(mine, rule) }];
   });
   const selectedGames = gamesFor(games, { season, mode: options.mode });
   const poolGames = filterGames(rawGames, { season, mode: options.mode, role: null, scope: "pool", championId: null, accountId: null }, poolOf).games;
@@ -268,7 +271,7 @@ export async function getPlayerOverview(db: Db, player: PlayerRecord, options: P
   return {
     playerId: player.id,
     filter,
-    summary: { record: recordOf(filtered.games), performance: performanceOfGames(filtered.games), unknownRole: filtered.unknownRole, multikills: multikillsOfGames(filtered.games) },
+    summary: { record: recordOf(filtered.games), performance: performanceOfGames(filtered.games), unknownRole: filtered.unknownRole, multikills: multikillsOfGames(filtered.games, rule) },
     roleSummaries: Object.fromEntries(
       (options.roleSummaries ?? []).map((role) => {
         const inRole = filterGames(rawGames, { ...filter, role }, poolOf).games;

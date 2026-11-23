@@ -7,7 +7,9 @@ import { elapsed } from "./log";
 import { processEgress } from "@/server/db/egress";
 import { getTeamRoster } from "@/server/team/roster";
 import { invalidateLeaderboardCache, loadLeaderboardData, type LeaderboardData } from "@/server/leaderboards/service";
-import { buildFormView, buildRecordsView, type FormView, type RecordsView } from "@/server/leaderboards/recent-view";
+import { buildFormView, buildRecordsView, recordsSeason, type FormView, type RecordsView } from "@/server/leaderboards/recent-view";
+import { invalidateMultikillBaselineCache, loadMultikillBaseline } from "@/server/leaderboards/multikill-baseline";
+import type { MultikillBaseline } from "@/domain/multikill-score";
 import { invalidatePlayedTogetherCache, loadPlayedTogether, type PlayedTogether } from "@/server/matches/played-together";
 import { getMatchGroups, type MatchGroupsResult } from "@/server/matches/possible-groups";
 import { loadEncounterPage, loadGamesBySeason, loadMatchMeetings, type EncounterPage, type MatchMeeting } from "@/server/players/encounters";
@@ -311,12 +313,24 @@ export async function runPerfProbe(
           },
         }),
       );
+      // The multikill score's comparison: the other players in the season's stored records, as
+      // aggregates (cold computes it, warm reuses its cache). Counts only.
+      invalidateMultikillBaselineCache();
+      const comparison = await step("leaderboards.multikill-baseline", () => loadMultikillBaseline(db, team.id, data, recordsSeason(data, {})), {
+        warm: true,
+        note: (r) => {
+          const b = r as MultikillBaseline;
+          return `${b.all.games} comparison games · ${Object.keys(b.roles).length} roles · ${Object.keys(b.champions).length} role and champion groups · counting ${b.reading.shown ? b.reading.rule : "assumed nested"}`;
+        },
+      });
+      push(comparison);
+      const multikillBaseline = await loadMultikillBaseline(db, team.id, data, recordsSeason(data, {}));
       push(
-        await step("leaderboards.records", async () => buildRecordsView(data, {}, null), {
+        await step("leaderboards.records", async () => buildRecordsView(data, {}, null, { multikillBaseline }), {
           warm: true,
           note: (r) => {
             const v = r as RecordsView;
-            return `${v.games} games this season · ${v.records.filter((x) => x.holder).length} of ${v.records.length} records held · ${v.multikills.length} members with multikills · ${v.championGames.length + v.mastery.length} milestone groups`;
+            return `${v.games} games this season · ${v.records.filter((x) => x.holder).length} of ${v.records.length} records held · ${v.multikills.rows.length} members on the multikill board · ${v.championGames.length + v.mastery.length} milestone groups`;
           },
         }),
       );

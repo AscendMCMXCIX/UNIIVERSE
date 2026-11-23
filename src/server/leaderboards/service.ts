@@ -61,6 +61,10 @@ export interface LeaderboardData {
   rawGames: number;
   /** Each member account as the sync left it, for the members' page status (never on the public boards). */
   accountSync?: Array<AccountSyncFacts & { cursor: number | null; label: string }>;
+  /** The members' accounts' PUUIDs, server-side only: the multikill comparison leaves them out (multikill-baseline.ts). Never sent to a page. */
+  memberPuuids?: string[];
+  /** The stored history's fingerprint the games were read at (the multikill comparison's cache follows it). */
+  historyKey?: string;
 }
 
 interface Cached {
@@ -92,7 +96,7 @@ export async function loadLeaderboardData(db: Db, teamId: string): Promise<Leade
         .where(and(inArray(riotAccounts.playerId, ids), eq(riotAccounts.ownerType, "player")))
     : [];
   const accountIds = accounts.map((a) => a.id).sort();
-  const { games, mastery, rawGames } = await gamesFor(db, teamId, accountIds, new Map(accounts.map((a) => [a.id, a.playerId!])));
+  const { games, mastery, rawGames, key: historyKey } = await gamesFor(db, teamId, accountIds, new Map(accounts.map((a) => [a.id, a.playerId!])));
 
   const rankOf = (playerId: string): CompactRank | null => {
     const mine = accounts.filter((a) => a.playerId === playerId && a.tier);
@@ -114,6 +118,8 @@ export async function loadLeaderboardData(db: Db, teamId: string): Promise<Leade
     lastUpdated: lastSync ? new Date(lastSync).toISOString() : null,
     extraSince,
     rawGames,
+    memberPuuids: accounts.flatMap((a) => (a.puuid ? [a.puuid] : [])),
+    historyKey,
     accountSync: accounts.map((a) => ({ syncStatus: a.syncStatus, syncError: a.syncError, lastSyncAt: a.lastSyncAt, puuid: a.puuid, resolveAttempts: a.resolveAttempts, history: a.historyBackfill, cursor: a.syncCursor, label: a.label })),
   };
 }
@@ -259,8 +265,8 @@ function onePerMatch(rows: readonly GameRow[], playerOf: ReadonlyMap<string, str
   return games;
 }
 
-async function gamesFor(db: Db, teamId: string, accountIds: string[], playerOf: Map<string, string>): Promise<Pick<Cached, "games" | "mastery" | "rawGames">> {
-  if (accountIds.length === 0) return { games: [], mastery: [], rawGames: 0 };
+async function gamesFor(db: Db, teamId: string, accountIds: string[], playerOf: Map<string, string>): Promise<Pick<Cached, "games" | "mastery" | "rawGames" | "key">> {
+  if (accountIds.length === 0) return { games: [], mastery: [], rawGames: 0, key: "none" };
   // Games whose details arrived without their figures being copied yet (normally none; once,
   // after this feature first deploys): copy them now, so nothing reads as missing.
   await summariseMatches(db, { accountIds });

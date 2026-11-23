@@ -71,6 +71,12 @@
     not failed); a shared place is titled "Tied for Nth" and no other place claims it; every row's bar
     has 20 segments, as many filled as the row's wins and as many missing as its window lacks. Counts,
     heights and true/false only: the rows carry names.
+  - multikills (Release 15, scripts/multikill-facts.mjs): at every width, the multikill board says what
+    its score is compared with and explains it behind its ⓘ; ranked members in score order, a place
+    shared exactly on equal scores, the crown on first, provisional and too-few-games members after;
+    each row's shown counts each multikill once (its Riot counters read by the rule the ⓘ states);
+    each row's kinds in words its own counts, rarest first; the most of each kind the board's highest
+    counts; no row taller than 66px. Counts, scores and fixed words only.
   - records (19 Nov 2026: Recent form and the season's records and achievements on one page): on
     /leaderboards, at 1440, the season records stand beside the multikills (their tops within 1px), and
     every record cell, at its own height (not the taller neighbour's its grid row stretches it to), is
@@ -140,6 +146,7 @@ import { matchupIntelVerdicts, readMatchupIntel } from "./matchup-intel-facts.mj
 import { matchupRolesVerdicts, readRoleBar } from "./matchup-roles-facts.mjs";
 import { postGameVerdicts, readPostGame } from "./post-game-facts.mjs";
 import { championPreviewVerdicts, readChampionPreview, readChampionRows, targetRow } from "./champion-preview-facts.mjs";
+import { multikillVerdicts, readMultikillBoard } from "./multikill-facts.mjs";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 
@@ -978,6 +985,18 @@ async function recordsFacts(page, kind) {
   const name = "1440: every record cell of two lines is at most 72px, of three lines at most 96px";
   if (!f.twoLine.length && !f.threeLine.length) check("leaderboards", name, "PASS", `not applicable: ${f.longer} cells of more lines`);
   else pass("leaderboards", name, Math.max(0, ...f.twoLine) <= 72 && Math.max(0, ...f.threeLine) <= 96, { cells: f.cells, twoLine: f.twoLine.length, tallestTwo: f.twoLine.length ? Math.max(...f.twoLine) : null, threeLine: f.threeLine.length, tallestThree: f.threeLine.length ? Math.max(...f.threeLine) : null, longerByDesign: f.longer });
+}
+
+/**
+ * The multikill board (Release 15; scripts/multikill-facts.mjs), at every width, counts, scores and
+ * the board's fixed words only (no name leaves the page): what the score is compared with, the
+ * ranking by score with its places and crown, each row's kinds in words its own counts, the most of
+ * each kind the board's highest counts, and compact rows. A team with no counts this season is a
+ * warning, and so is a score compared with the team's own games (too few other players' games).
+ */
+async function multikillFacts(page, kind) {
+  const read = await page.evaluate(readMultikillBoard);
+  for (const v of multikillVerdicts({ kind, read })) check("leaderboards", v.name, v.status, v.detail);
 }
 
 /**
@@ -2065,6 +2084,7 @@ for (const [kind, options] of Object.entries(VIEWPORTS)) {
     if (await visit(page, log, kind, "leaderboards", "/leaderboards")) {
       await leaderboardsFacts(page, kind);
       await recordsFacts(page, kind);
+      await multikillFacts(page, kind);
       await axe(page, kind, "leaderboards");
       await leaderboardsIndexFacts(page, kind);
       if (kind === "desktop" || kind === "phone") await recordGameFacts(page, kind);

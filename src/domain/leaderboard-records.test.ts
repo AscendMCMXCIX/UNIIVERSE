@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { LeaderboardGame, LeaderboardMastery } from "./leaderboards";
-import { buildRecords, SEASON_RECORDS, seasonGames } from "./leaderboard-records";
+import { buildMultikillBoard, buildRecords, multikillCountsOf, SEASON_RECORDS, seasonGames } from "./leaderboard-records";
+import { buildMultikillBaseline } from "./multikill-score";
 
 const NOW = Date.UTC(2026, 10, 2, 12);
 const DAY = 86_400_000;
@@ -90,11 +91,12 @@ describe("season records", () => {
   });
 });
 
+const counts = (o: Partial<Record<"doubleKills" | "tripleKills" | "quadraKills" | "pentaKills", number>>) => ({ doubleKills: 0, tripleKills: 0, quadraKills: 0, pentaKills: 0, ...o });
+
 describe("multikills and milestones", () => {
-  it("adds up Riot's multikills from the games that carry them, rarest first", () => {
+  it("counts the games that carry Riot's multikill counts; a record with extra figures but none of them carries none", () => {
     // Riot sends the four counts together; a record with extra figures but none of them (as the
     // profiles' multikill coverage reads it) carries no counts and is left out, never read as zero.
-    const counts = (o: Partial<Record<"doubleKills" | "tripleKills" | "quadraKills" | "pentaKills", number>>) => ({ doubleKills: 0, tripleKills: 0, quadraKills: 0, pentaKills: 0, ...o });
     const r = records([
       game("a", 1, { extra: counts({ tripleKills: 3 }) }),
       game("b", 1, { extra: counts({ quadraKills: 1, tripleKills: 1 }) }),
@@ -103,9 +105,62 @@ describe("multikills and milestones", () => {
       game("e", 1),
       game("f", 1, { extra: { firstBloodKill: true, wardsKilled: 3 } }),
     ]);
-    expect(r.multikills.map((m) => m.playerId)).toEqual(["c", "b", "a"]);
-    expect(r.multikills[1]).toEqual({ playerId: "b", penta: 0, quadra: 1, triple: 1 });
     expect(r.multikillGames).toBe(4);
+    expect(multikillCountsOf({ extra: { firstBloodKill: true } })).toBeNull();
+    expect(multikillCountsOf({ extra: null })).toBeNull();
+    expect(multikillCountsOf({ extra: counts({ doubleKills: 2, pentaKills: 1 }) })).toEqual({ double: 2, triple: 0, quadra: 0, penta: 1 });
+  });
+
+  describe("the multikill board (domain/multikill-score)", () => {
+    /** A member's games with these counts per game (Riot's, nested: a triple also counts a double). */
+    const played = (playerId: string, n: number, role: LeaderboardGame["role"], perGame: (i: number) => ReturnType<typeof counts> | null, championId = "Ahri") =>
+      Array.from({ length: n }, (_, i) => game(playerId, 1 + i * 0.1, { role, championId, extra: perGame(i) }));
+    const board = (games: LeaderboardGame[], baseline: Parameters<typeof buildMultikillBoard>[0]["baseline"] = null) => buildMultikillBoard({ games, playerIds: [...new Set(games.map((g) => g.playerId))], season: SEASON, baseline, nameOf: (id) => id });
+
+    it("scores every member with a game this season: a support with 200 games and no pentakill, a mid with 12 games and one, a member with 3 games, a jungler, and one whose older games have no counts", () => {
+      const games = [
+        ...played("support", 200, "SUPPORT", (i) => counts({ doubleKills: i < 50 ? 1 : 0, tripleKills: i < 6 ? 1 : 0, quadraKills: i < 1 ? 1 : 0 }), "Leona"),
+        ...played("mid", 12, "MID", (i) => counts({ doubleKills: i < 7 ? 1 : 0, tripleKills: i < 1 ? 1 : 0, quadraKills: i < 1 ? 1 : 0, pentaKills: i < 1 ? 1 : 0 })),
+        ...played("new", 3, "TOP", () => counts({ doubleKills: 1 })),
+        ...played("jungle", 60, "JUNGLE", (i) => counts({ doubleKills: i % 3 === 0 ? 1 : 0, tripleKills: i % 15 === 0 ? 1 : 0 }), "Vi"),
+        ...played("older", 36, "ADC", (i) => (i < 18 ? null : counts({ doubleKills: i % 3 ? 0 : 1 })), "Jinx"),
+      ];
+      // A comparison of the other players in the same games, 1,000 games or more in each role.
+      const row = (position: string, d: number, t: number, q: number, p: number) => ({ position, championId: "Other", games: 2000, nested: { double: d, triple: t, quadra: q, penta: p }, separate: { double: d, triple: t, quadra: q, penta: p } });
+      const baseline = buildMultikillBaseline([row("UTILITY", 300, 24, 3, 0), row("MIDDLE", 1100, 140, 24, 5), row("TOP", 800, 90, 14, 2), row("JUNGLE", 900, 100, 16, 3), row("BOTTOM", 1200, 160, 30, 6)], { withTriple: 500, outOfOrder: 0 });
+      const b = board(games, baseline);
+      expect(b.baseline).toBe(baseline);
+      expect(b.rows.map((r) => [r.playerId, r.status, r.place])).toEqual([
+        ["support", "ranked", 1],
+        ["jungle", "ranked", 2],
+        ["mid", "provisional", null],
+        ["older", "provisional", null],
+        ["new", "not-enough", null],
+      ]);
+      const of = (id: string) => b.rows.find((r) => r.playerId === id)!;
+      // Riot's counters (nested) and each multikill once: the mid's pentakill is one event, not four, on the board and in the score.
+      expect(of("mid").counts).toEqual({ double: 7, triple: 1, quadra: 1, penta: 1 });
+      expect(of("mid").events).toEqual({ double: 6, triple: 0, quadra: 0, penta: 1 });
+      expect(of("older")).toMatchObject({ games: 36, counted: 18 });
+      expect(of("support").score!).toBeGreaterThan(of("mid").score!);
+      expect(b.most.penta).toEqual({ count: 1, holders: ["mid"] });
+      // The most of each kind counts each multikill once: the support's 50 double counters hold 44 doubles that stopped there.
+      expect(b.most.double).toEqual({ count: 44, holders: ["support"] });
+    });
+
+    it("without 1,000 comparison games, compares with the team's own games, every position together", () => {
+      const b = board(played("a", 30, "MID", () => counts({ doubleKills: 1 })));
+      expect(b.baseline.source).toBe("team");
+      expect(b.baseline.all.games).toBe(30);
+      // 30 doubles, exactly the team's own rate: 100 × (60 + 20) ÷ (60 + 20).
+      expect(b.rows[0]!.score).toBeCloseTo(100, 10);
+    });
+
+    it("leaves out anyone not on the board and other seasons' games", () => {
+      const b = board([...played("a", 25, "MID", () => counts({ doubleKills: 1 })), game("a", 2, { patch: "15.20", extra: counts({ pentaKills: 3 }) })]);
+      expect(b.rows[0]!.counts.penta).toBe(0);
+      expect(buildMultikillBoard({ games: played("outsider", 30, "MID", () => counts({ doubleKills: 1 })), playerIds: ["a"], season: SEASON, baseline: null, nameOf: (id) => id }).rows).toEqual([]);
+    });
   });
 
   it("marks the highest milestone reached: games on one champion this season, and all-time mastery on one champion over every linked account", () => {

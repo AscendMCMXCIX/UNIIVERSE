@@ -1,3 +1,4 @@
+import { readCountingRule } from "@/domain/multikill-score";
 import { sql } from "drizzle-orm";
 import { defineJob } from "./registry";
 import { getCurrentPatch } from "@/server/repositories/champions";
@@ -168,11 +169,16 @@ defineJob({
           count(*) FILTER (WHERE (am.extra_stats->>'tripleKills')::int > (am.extra_stats->>'doubleKills')::int) AS triples_over_doubles,
           count(*) FILTER (WHERE (am.extra_stats->>'quadraKills')::int > (am.extra_stats->>'tripleKills')::int) AS quadras_over_triples,
           count(*) FILTER (WHERE (am.extra_stats->>'pentaKills')::int > (am.extra_stats->>'quadraKills')::int) AS pentas_over_quadras,
-          count(*) FILTER (WHERE (am.extra_stats->>'largestMultiKill')::int >= 3 AND (am.extra_stats->>'doubleKills')::int = 0) AS large_without_double
+          count(*) FILTER (WHERE (am.extra_stats->>'largestMultiKill')::int >= 3 AND (am.extra_stats->>'doubleKills')::int = 0) AS large_without_double,
+          count(*) FILTER (WHERE (am.extra_stats->>'tripleKills')::int > (am.extra_stats->>'doubleKills')::int
+            OR (am.extra_stats->>'quadraKills')::int > (am.extra_stats->>'tripleKills')::int
+            OR (am.extra_stats->>'pentaKills')::int > (am.extra_stats->>'quadraKills')::int
+            OR ((am.extra_stats->>'largestMultiKill')::int >= 3 AND (am.extra_stats->>'doubleKills')::int = 0)) AS out_of_order
         FROM account_matches am JOIN riot_accounts a ON a.id = am.account_id AND a.owner_type = 'player'
         WHERE am.champion_id IS NOT NULL`),
     );
-    const outOfOrder = num(mk?.triples_over_doubles) + num(mk?.quadras_over_triples) + num(mk?.pentas_over_quadras) + num(mk?.large_without_double);
+    // The same reading as the multikill score's (domain/multikill-score, readCountingRule), on the members' own games.
+    const reading = readCountingRule({ withTriple: num(mk?.with_triple), outOfOrder: num(mk?.out_of_order) });
     const multikills = {
       games: num(mk?.games),
       withCounts: num(mk?.with_counts),
@@ -180,7 +186,7 @@ defineJob({
       withQuadra: num(mk?.with_quadra),
       withPenta: num(mk?.with_penta),
       outOfOrder: { triplesOverDoubles: num(mk?.triples_over_doubles), quadrasOverTriples: num(mk?.quadras_over_triples), pentasOverQuadras: num(mk?.pentas_over_quadras), largestWithoutDouble: num(mk?.large_without_double) },
-      riotCounting: num(mk?.with_triple) < 20 ? "unclear: fewer than 20 games with a triple kill" : outOfOrder === 0 ? "nested: a larger multikill also counts as each smaller one" : "separate: each multikill counts once, at its largest",
+      riotCounting: !reading.shown ? (num(mk?.with_triple) < 20 ? "unclear: fewer than 20 games with a triple kill" : "unclear: 1-10% of the games with a triple kill break the nested order") : reading.rule === "nested" ? "nested: a larger multikill also counts as each smaller one" : "separate: each multikill counts once, at its largest",
     };
     // Leaderboards (docs/LEADERBOARDS_MODEL.md §6): what the proposed Recent performance boards
     // would show with the team's own games: established, provisional and not-enough members per

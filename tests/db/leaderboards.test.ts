@@ -174,8 +174,12 @@ describe("team leaderboards data", () => {
     expect(form.note).toMatch(/^\d+ full windows on \d+ places · \d+ provisional · \d+ with too few recent games$/);
     const records = steps.find((s) => s.name === "leaderboards.records")!;
     expect(records.error).toBeUndefined();
-    expect(records.note).toMatch(/^\d+ games this season · \d+ of 7 records held · \d+ members with multikills · \d+ milestone groups$/);
-    expect(`${form.note} ${records.note}`).not.toMatch(/Ace|Bea/);
+    expect(records.note).toMatch(/^\d+ games this season · \d+ of 7 records held · \d+ members on the multikill board · \d+ milestone groups$/);
+    // The multikill score's comparison (the other players in the same stored records): counts only.
+    const comparison = steps.find((s) => s.name === "leaderboards.multikill-baseline")!;
+    expect(comparison.error).toBeUndefined();
+    expect(comparison.note).toMatch(/^\d+ comparison games · \d+ roles · \d+ role and champion groups · counting (nested|separate|assumed nested)$/);
+    expect(`${form.note} ${records.note} ${comparison.note}`).not.toMatch(/Ace|Bea/);
     // Match History's member counts for the busiest player: counts only, never a name.
     const members = steps.find((s) => s.name === "profile.historyMembers")!;
     expect(members.error).toBeUndefined();
