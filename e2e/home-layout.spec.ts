@@ -156,26 +156,24 @@ async function openTeammate(page: Page) {
   await expect(page.getByTestId("pool-editor")).toBeVisible();
 }
 
-test("profile Overview: a 2×2 dashboard at 1440 (the season beside recent form, then the pools beside ranked progress), the earlier arrangement on smaller screens; off roles open in place", async ({ page }, info) => {
+test("profile Overview: a 2×2 dashboard at 1440 (the season beside ranked progress, then the pools beside recent form), the earlier arrangement on smaller screens; off roles open in place", async ({ page }, info) => {
   await openTeammate(page);
   if (info.project.name === "desktop") {
-    // 1440 × 900 (the owner's choice of 8 Nov 2026, from 1440 wide): the season's card (with its
-    // multikills) and recent form side by side, level, both ending on the first screen; under the
-    // season's card the pools, under recent form ranked progress, in the rail; all four starting on
-    // the first screen.
+    // 1440 × 900 (the owner's choice of 8 Nov 2026, from 1440 wide; Ranked progress above Recent form
+    // since Release 16, at the owner's request): the season's card (with its multikills) and ranked
+    // progress side by side, level; under the season's card the pools, under ranked progress recent
+    // form, in the rail; all four ending on the first screen (the one-screen Overview).
     const four = () => Promise.all([box(page.getByTestId("season-figures")), box(page.getByTestId("recent-form")), box(page.getByTestId("ranked-progress")), box(page.getByTestId("champion-pools"))]);
     let scrollY = await page.evaluate(() => window.scrollY);
     let [figures, form, ranked, pools] = await four();
-    expect(figures.y + figures.height + scrollY, "the season's card ends on the first screen").toBeLessThanOrEqual(900);
-    expect(form.y + form.height + scrollY, "recent form ends on the first screen").toBeLessThanOrEqual(900);
-    expect(form.x, "recent form in the rail beside the season's card").toBeGreaterThan(figures.x + figures.width);
-    expect(Math.abs(form.y - figures.y), "level with it").toBeLessThanOrEqual(1);
-    expect(Math.abs(ranked.x - form.x), "ranked progress in the rail").toBeLessThanOrEqual(1);
-    expect(ranked.y - (form.y + form.height), "under recent form").toBeGreaterThanOrEqual(0);
-    expect(ranked.y - (form.y + form.height), "straight under it").toBeLessThanOrEqual(24);
+    expect(ranked.x, "ranked progress in the rail beside the season's card").toBeGreaterThan(figures.x + figures.width);
+    expect(Math.abs(ranked.y - figures.y), "level with it: the rail's top on the season's card's").toBeLessThanOrEqual(1);
+    expect(Math.abs(ranked.x - form.x), "recent form in the rail").toBeLessThanOrEqual(1);
+    expect(form.y - (ranked.y + ranked.height), "under ranked progress").toBeGreaterThanOrEqual(0);
+    expect(form.y - (ranked.y + ranked.height), "straight under it").toBeLessThanOrEqual(24);
     expect(Math.abs(pools.x - figures.x), "the pools under the season's card").toBeLessThanOrEqual(1);
     expect(pools.y - (figures.y + figures.height), "straight under it").toBeLessThanOrEqual(24);
-    for (const [name, b] of [["ranked progress", ranked], ["the pools", pools]] as const) expect(b.y + scrollY, `${name} starts on the first screen`).toBeLessThan(900);
+    for (const [name, b] of [["the season's card", figures], ["ranked progress", ranked], ["recent form", form], ["the pools", pools]] as const) expect(b.y + b.height + scrollY, `${name} ends on the first screen`).toBeLessThanOrEqual(900);
     // The chart's dates never run together, the last one included: it is drawn end-anchored, so its
     // whole label runs left of its tick (the design review's G1-1: "12 Nov19 Nov" at 1440 and 1920).
     const axisGap = () => page.getByTestId("ranked-tick").evaluateAll((els) => Math.min(...els.map((e) => e.getBoundingClientRect()).sort((a, b) => a.left - b.left).map((r, i, all) => (i ? r.left - all[i - 1]!.right : Infinity))));
@@ -187,18 +185,26 @@ test("profile Overview: a 2×2 dashboard at 1440 (the season beside recent form,
     expect(await drawn("additional-role"), "the off role's name and (off)").toMatch(/\w+.*\(off/);
     expect(await drawn("profile-rank"), "the rank's queue").toMatch(/Solo\/Duo|Flex/);
     expect((await box(meta)).height, "the meta line one line").toBeLessThanOrEqual(30);
-    // A smaller window (1280 × 800, the sidebar open) keeps the earlier arrangement: ranked progress
-    // across the whole width under the first row, then the pools across the width.
+    // A smaller window (1280 × 800, the sidebar open) keeps the earlier arrangement with the two cards' places swapped: ranked
+    // progress beside the season's card, recent form across the whole width under the first row, then the pools across the width.
     await page.setViewportSize({ width: 1280, height: 800 });
-    await expect.poll(async () => Math.round((await box(page.getByTestId("ranked-progress"))).x - (await box(page.getByTestId("season-figures"))).x)).toBe(0);
+    await expect.poll(async () => Math.round((await box(page.getByTestId("recent-form"))).x - (await box(page.getByTestId("season-figures"))).x)).toBe(0);
     scrollY = await page.evaluate(() => window.scrollY);
     [figures, form, ranked, pools] = await four();
-    expect(ranked.y, "ranked progress under both").toBeGreaterThanOrEqual(Math.max(figures.y + figures.height, form.y + form.height));
-    expect(Math.abs(ranked.x + ranked.width - (form.x + form.width)), "to the right edge of recent form").toBeLessThanOrEqual(1);
-    expect(pools.y - (ranked.y + ranked.height), "the pools follow straight after ranked progress").toBeLessThanOrEqual(24);
+    expect(ranked.x, "ranked progress beside the season's card").toBeGreaterThan(figures.x + figures.width);
+    expect(form.y, "recent form under both").toBeGreaterThanOrEqual(Math.max(figures.y + figures.height, ranked.y + ranked.height));
+    expect(Math.abs(form.x + form.width - (ranked.x + ranked.width)), "to the right edge of ranked progress").toBeLessThanOrEqual(1);
+    expect(pools.y - (form.y + form.height), "the pools follow straight after recent form").toBeLessThanOrEqual(24);
     expect(Math.abs(pools.x - figures.x), "across the width").toBeLessThanOrEqual(1);
     await page.setViewportSize({ width: 1920, height: 1080 });
     await expect.poll(axisGap, { message: "the date labels apart at 1920" }).toBeGreaterThanOrEqual(4);
+    // One screen (Release 16) at 1920 × 1080 and at 1920 × 950 (the owner's browser on a 1920 × 1080 screen): every card ends in the window.
+    for (const height of [1080, 950]) {
+      await page.setViewportSize({ width: 1920, height });
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await expect.poll(() => page.evaluate(() => document.documentElement.scrollHeight), { message: `1920 × ${height}: the page does not scroll` }).toBeLessThanOrEqual(height);
+      for (const id of ["season-figures", "ranked-progress", "recent-form", "champion-pools"]) expect((await box(page.getByTestId(id))).y + (await box(page.getByTestId(id))).height, `1920 × ${height}: ${id} in the window`).toBeLessThanOrEqual(height);
+    }
     await page.setViewportSize({ width: 1440, height: 900 });
   }
   // The pools: one row per champion under one row of column names; no Experience labels.

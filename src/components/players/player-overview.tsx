@@ -102,18 +102,18 @@ function FigureLabel({ label, info }: { label: string; info?: string }) {
 /** A headline figure: its label, the number at the size of the page's main figures, its context. */
 function Headline({ label, value, sub, info, tone = "plain", testId, className, children }: { label: string; value: React.ReactNode; sub?: React.ReactNode; info?: string; tone?: WinRateTone; testId: string; className?: string; children?: React.ReactNode }) {
   return (
-    <div className={cn("min-w-0 px-3 py-3 @min-[34rem]/perf:px-5 @min-[34rem]/perf:py-4", ROW_CELL, className)} data-testid={testId}>
+    <div className={cn("min-w-0 px-3 py-3 @min-[34rem]/perf:px-5", ROW_CELL, className)} data-testid={testId}>
       {/* From a 34rem card (tablets, desktops) the headline labels are a step larger than the
           supporting ones, so the band reads first as a tier, not only by its numbers (23 Nov 2026). */}
       <div className="flex items-center gap-1 text-xs font-medium text-fg-muted @min-[34rem]/perf:text-sm">
         <FigureLabel label={label} info={info} />
       </div>
-      <div className={cn("mt-1.5 text-2xl font-semibold leading-none tracking-tight tabular-nums @min-[34rem]/perf:text-figure", ROW_VALUE, TONE_CLASS[tone])} data-testid={`${testId}-value`}>
+      <div className={cn("mt-1 text-2xl font-semibold leading-none tracking-tight tabular-nums @min-[34rem]/perf:text-figure", ROW_VALUE, TONE_CLASS[tone])} data-testid={`${testId}-value`}>
         {value}
       </div>
       {children}
       {/* Its context wraps rather than ends cut short ("4.0 / 4.0 / 4.0" on a 320px phone's third of the card). */}
-      {sub ? <div className="mt-1.5 text-xs leading-snug text-fg-subtle">{sub}</div> : null}
+      {sub ? <div className="mt-1 text-xs leading-snug text-fg-subtle">{sub}</div> : null}
     </div>
   );
 }
@@ -121,7 +121,7 @@ function Headline({ label, value, sub, info, tone = "plain", testId, className, 
 /** A supporting figure: the same reading as a headline one, a size smaller, its context beside it where there is room. */
 function Supporting({ label, value, sub, info, muted, testId, className }: { label: string; value: React.ReactNode; sub?: string; info?: string; muted?: boolean; testId: string; className?: string }) {
   return (
-    <div className={cn("min-w-0 px-3 py-2.5 @min-[34rem]/perf:px-5", ROW_CELL, className)} data-testid={testId}>
+    <div className={cn("min-w-0 px-3 py-2 @min-[34rem]/perf:px-5", ROW_CELL, className)} data-testid={testId}>
       <div className="flex items-center gap-1 text-xs text-fg-muted">
         <FigureLabel label={label} info={info} />
       </div>
@@ -140,7 +140,7 @@ function RecordBar({ wins, losses }: { wins: number; losses: number }) {
   const games = wins + losses;
   if (!games) return null;
   return (
-    <span className="mt-2.5 flex h-1.5 w-full max-w-[10rem] gap-px overflow-hidden rounded-full bg-surface-3" aria-hidden data-testid="season-record-bar">
+    <span className="mt-2 flex h-1.5 w-full max-w-[10rem] gap-px overflow-hidden rounded-full bg-surface-3" aria-hidden data-testid="season-record-bar">
       {wins ? <span className="h-full bg-blue" style={{ width: `${(wins / games) * 100}%` }} /> : null}
       {losses ? <span className="h-full flex-1 bg-red/85" /> : null}
     </span>
@@ -179,7 +179,7 @@ function KillsBand({ m, byChampionHref }: { m: MultikillSummary; byChampionHref:
       <h3 id="multikills-heading" className="sr-only">
         Multikills{notes.length ? ` (${notes.join("; ")})` : ""}
       </h3>
-      <div className="flex items-center gap-x-2 px-3 py-2 @min-[34rem]/perf:px-5" data-testid="multikill-tiles">
+      <div className="flex items-center gap-x-2 px-3 py-1.5 @min-[34rem]/perf:px-5" data-testid="multikill-tiles">
         <dl className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-sm">
           {counts.map((c, i) => (
             <div key={c.key} className="flex min-w-0 flex-wrap items-baseline gap-x-1" data-testid={c.testId}>
@@ -275,50 +275,53 @@ function PerformanceCard({ data, basePath }: { data: PlayerOverviewData; basePat
   the arrangement (a container query, so the sidebar is allowed for):
     2×2 (a window 1440px or wider, and a dashboard of 68rem or more: 1440 with the sidebar open and
                    wider; the owner's choice of 8 Nov 2026, never forced onto smaller screens)
-                   the season's card and recent form side by side, level; under them the champion
-                   pools beside ranked progress, each at the top of its cell, in a rail of 40% of
-                   the dashboard within 20–30rem: 28rem at 1440 with the sidebar open, 30rem wider
-                   (the floor never applies, the 2×2 needing 68rem), where ranked progress draws
-                   its chart in full. Without recent form, ranked progress takes the whole rail
-                   beside the season's card and the pools; without ranked progress, the pools span
-                   the width as below;
-    wide (58rem+)  the season's card and recent form side by side, level; under them ranked
-                   progress across the whole width (a year on one time axis needs it), then the
-                   champion pools across the whole width;
+                   the season's card beside a rail of 40% of the dashboard within 20–30rem (28rem at
+                   1440 with the sidebar open, 30rem wider): Ranked progress, then Recent form under
+                   it (the owner's order of 23 Nov 2026, Release 16: Ranked progress above Recent
+                   form), the rail's top level with the season's card; under the card the champion
+                   pools. Without Ranked progress, the 58rem arrangement below stays;
+    wide (58rem+)  the season's card and, beside it, Ranked progress (or Recent form where there is no
+                   Ranked progress), each at its own height; under them Recent form across the whole
+                   width, then the champion pools across the whole width;
     narrower       one column in that same order.
-  The markup's order (a phone's, and a screen reader's) is always season, form, ranked, pools.
+  The markup's order (a phone's, and a screen reader's) is always season, ranked, form, pools: Ranked
+  progress takes the place Recent form had, and Recent form the place Ranked progress had.
   A card without data is left out (fewer than five games: no recent form; no linked account: no
   ranked progress), and the others close up: nothing is padded out to keep a shape.
 */
 const GRID_2X2 = "min-[90rem]:@min-[68rem]/ov:grid-cols-[minmax(0,1fr)_clamp(20rem,40%,30rem)]";
 function OverviewDashboard({ perf, form, ranked, pools }: { perf: React.ReactNode; form?: React.ReactNode; ranked?: React.ReactNode; pools?: React.ReactNode }) {
-  const wide = form ? "@min-[58rem]/ov:col-span-2" : undefined;
+  // The card beside the season's (Ranked progress, else Recent form), and the one across the width under them (Recent form, with Ranked progress beside the card).
+  const side = !!(ranked ?? form);
+  const wide = side ? "@min-[58rem]/ov:col-span-2" : undefined;
   // 2×2: only with ranked progress (else the 58rem arrangement stays); the pools go under the
-  // season's card, ranked progress into the rail (under recent form, or its whole height without it).
-  // The classes are written out whole, for Tailwind to find them.
+  // season's card, ranked progress and recent form into the rail. The classes are written out whole,
+  // for Tailwind to find them.
   const two = !!ranked;
   return (
     <div className="@container/ov" data-testid="overview-dashboard">
-      {/* In the 2×2 the rail (recent form, then ranked progress straight under it) spans both rows:
-          recent form ends at its content (UD.PO2) and ranked progress follows it, whatever the
-          season card's height; the second row takes whatever height the rail has beyond that card,
-          so the card never stretches. No card is stretched to even the columns (a Ranked progress
-          filled to the pools' end, 23 Nov 2026, made a few LP look like a swing: the UX review of
-          Release 13); the rail is balanced by its own data instead: in the 2×2 Recent form lists the
-          champions of its games (RecentChampions), and a primary pool of more than eight shows its first six champions
-          (PRIMARY_POOL_TOP). Elsewhere the rail's box is display:contents, so its cards are the
+      {/* In the 2×2 the rail (ranked progress, then recent form straight under it) spans both rows:
+          ranked progress ends at its content and recent form follows it, whatever the season card's
+          height; the second row takes whatever height the rail has beyond that card, so the card never
+          stretches. No card is stretched to even the columns (a Ranked progress filled to the pools'
+          end, 23 Nov 2026, made a few LP look like a swing: the UX review of Release 13); the rail is
+          balanced by its own data instead: in the 2×2 Recent form, the rail's last card, lists the
+          champions of its games (RecentChampions: as many as the window's height holds, two to four,
+          "and N more" for the rest), and a primary pool of more than six shows its first five
+          (PRIMARY_POOL_TOP), so at 1440 × 900, 1920 × 950 and 1920 × 1080 the whole Overview is on the
+          first screen (Release 16). Elsewhere the rail's box is display:contents, so its cards are the
           grid's own items. */}
-      <div className={cn("grid grid-cols-[minmax(0,1fr)] items-start gap-3 sm:gap-4", form && "@min-[58rem]/ov:grid-cols-[minmax(0,1fr)_minmax(18rem,21rem)]", two && GRID_2X2, two && "min-[90rem]:@min-[68rem]/ov:grid-rows-[auto_1fr]")}>
+      <div className={cn("grid grid-cols-[minmax(0,1fr)] items-start gap-3 sm:gap-4", side && "@min-[58rem]/ov:grid-cols-[minmax(0,1fr)_minmax(18rem,21rem)]", two && GRID_2X2, two && "min-[90rem]:@min-[68rem]/ov:grid-rows-[auto_1fr]")}>
         <div className={cn("min-w-0 self-stretch", two && "min-[90rem]:@min-[68rem]/ov:col-start-1 min-[90rem]:@min-[68rem]/ov:row-start-1 min-[90rem]:@min-[68rem]/ov:self-start")}>{perf}</div>
         <div className={cn("contents", two && "min-[90rem]:@min-[68rem]/ov:col-start-2 min-[90rem]:@min-[68rem]/ov:row-span-2 min-[90rem]:@min-[68rem]/ov:row-start-1 min-[90rem]:@min-[68rem]/ov:flex min-[90rem]:@min-[68rem]/ov:min-w-0 min-[90rem]:@min-[68rem]/ov:flex-col min-[90rem]:@min-[68rem]/ov:gap-4 min-[90rem]:@min-[68rem]/ov:self-start")}>
-          {form ? (
-            <div className="min-w-0 self-start min-[90rem]:@min-[68rem]/ov:self-auto" data-testid="overview-form">
-              {form}
+          {ranked ? (
+            <div className="min-w-0 self-start min-[90rem]:@min-[68rem]/ov:self-auto" data-testid="overview-ranked">
+              {ranked}
             </div>
           ) : null}
-          {ranked ? (
-            <div className={cn("min-w-0", wide)} data-testid="overview-ranked">
-              {ranked}
+          {form ? (
+            <div className={cn("min-w-0", ranked ? wide : "self-start")} data-testid="overview-form">
+              {form}
             </div>
           ) : null}
         </div>
@@ -382,6 +385,7 @@ export function SeasonSummary({ data, basePath, championsById, status, refresh, 
         }
         statusAfterText
         toolbarBesideScope
+        scopeBesideTitle
         status={status ? <DataStatusNote status={status} refresh={refresh} /> : null}
         refresh={status ? <RefreshButton status={status} refresh={refresh} /> : null}
         controls={<OverviewFilters basePath={basePath} filter={data.filter} seasons={data.seasons} currentSeason={data.currentSeason} champions={champions} accounts={data.accountOptions} modeCounts={data.modes.counts} refineScope={REFINE_SCOPE} />}

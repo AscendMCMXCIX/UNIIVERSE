@@ -26,8 +26,11 @@ import { SECTIONS } from "./sections";
 
 /*
   The board's columns, by its own width (DataList's tiers). Each template fits where its tier
-  starts: the tracks' minimums, the gaps and the padding come to 35.25rem against 36, 56.75rem
-  against 58.
+  starts: the tracks' minimums, the gaps and the padding come to 34.75rem against 36, 56.25rem
+  against 58. From 36rem the picture is 32px (a 2rem track) and each row 40px (DataRow's compact:
+  the one-screen board of Release 16; 52px and 48px before), on phones 40px and 64px as ever. On a
+  medium board the name takes a quarter more of the room than the bar ("Demo Sub (Support)" wrapped in
+  1280's 38rem board, a 61px row).
     narrow  place · picture · name · win rate, then the second line under the name and rate:
             record · dates, and the gap at the line's right end, under the win rate (on a line of
             its own, still at the right, when it does not fit); the bar is the 2px line along the
@@ -59,13 +62,15 @@ import { SECTIONS } from "./sections";
 */
 const FORM_COLS =
   "[--dl-cols:2rem_2.5rem_minmax(0,1fr)_auto] @max-[16.5rem]/list:[--dl-cols:2rem_2.5rem_minmax(0,1fr)] " +
-  "@min-[36rem]/list:[--dl-cols:2.5rem_2.5rem_minmax(6.5rem,1fr)_minmax(8rem,1fr)_4rem_6.5rem] " +
-  "@min-[58rem]/list:[--dl-cols:3rem_2.5rem_minmax(9rem,18rem)_minmax(9rem,1fr)_4rem_9.5rem_5.5rem_7rem]";
+  "@min-[36rem]/list:[--dl-cols:2.5rem_2rem_minmax(6.5rem,1.25fr)_minmax(8rem,1fr)_4rem_6.5rem] " +
+  "@min-[58rem]/list:[--dl-cols:3rem_2rem_minmax(9rem,18rem)_minmax(9rem,1fr)_4rem_9.5rem_5.5rem_7rem]";
 /**
  * A cell beside all of a row's lines below 58rem (two, three under 16.5rem), on its one line from
  * 58rem; on the first line, over the rest, under 13.5rem (FORM_COLS).
  */
 const BESIDE_LINES = "row-[1/span_2] self-center @max-[16.5rem]/list:row-[1/span_3] @max-[13.5rem]/list:row-[1/2] @min-[58rem]/list:row-[1/2]";
+/** The row's picture: 40px on a narrow board, 32px from 36rem (the compact rows; CardAvatar's own size would win over a class on its frame, so the picture inside takes it). */
+const AVATAR_32 = "@min-[36rem]/list:[&>*]:size-8!";
 /** A cell across the text column, the row's whole width under 13.5rem (FORM_COLS). */
 const ACROSS_TEXT = "col-[3/-1] @max-[13.5rem]/list:col-[1/-1]";
 
@@ -167,7 +172,7 @@ export function RecentForm({ form, player, viewer, className }: { form: FormView
             label="Not enough recent games"
             testId="form-not-enough"
             captionTestId="form-not-enough-head"
-            className="[--dl-cols:2rem_2.5rem_minmax(0,1fr)] @min-[36rem]/list:flex @min-[36rem]/list:flex-wrap @min-[36rem]/list:gap-2 @min-[36rem]/list:divide-y-0 @min-[36rem]/list:px-3 @min-[36rem]/list:py-3 @min-[58rem]/list:px-4"
+            className="[--dl-cols:2rem_2.5rem_minmax(0,1fr)] @min-[36rem]/list:flex @min-[36rem]/list:flex-wrap @min-[36rem]/list:gap-2 @min-[36rem]/list:divide-y-0 @min-[36rem]/list:px-3 @min-[36rem]/list:py-2 @min-[58rem]/list:px-4"
             caption={
               <>
                 <span className="font-semibold text-fg">Not enough recent games</span>&nbsp;·&nbsp;{form.window.provisionalFrom} needed in the last {form.window.days} days
@@ -226,11 +231,11 @@ function FormRowItem({ r, p, tie, window }: { r: FormRow; p: BoardPlayer; tie: T
       data-you={r.you || undefined}
       data-tied={r.tied || undefined}
       own={r.you}
-      density={{ narrow: "two-line", medium: "regular", wide: "dense" }}
+      density={{ narrow: "two-line", medium: "compact", wide: "compact" }}
       lead={
         <>
           <Place place={r.place} tie={tie} crown={leader} testId="form-place" className={cn("col-[1/2]", BESIDE_LINES)} bracketClassName="@max-[13.5rem]/list:hidden" />
-          <CardAvatar look={p.look} name={p.name} src={p.avatarUrl} size="md" className={cn("col-[2/3] justify-self-start", BESIDE_LINES)} />
+          <CardAvatar look={p.look} name={p.name} src={p.avatarUrl} size="md" className={cn("col-[2/3] justify-self-start", AVATAR_32, BESIDE_LINES)} />
         </>
       }
       // The row's tooltip, shown anywhere on it (under the link no cell's own title shows): the tie, the gap's sentence, the role's games.
@@ -285,7 +290,7 @@ function FormRowItem({ r, p, tie, window }: { r: FormRow; p: BoardPlayer; tie: T
             data-testid="form-role"
             title={roleTitle}
             className={cn(
-              r.role ? "absolute col-[2/3] -right-1 bottom-[calc(50%-1.5rem)] @max-[13.5rem]/list:row-[1/2] grid size-4.5 place-items-center rounded-full bg-surface-3 text-fg-muted ring-2 ring-surface [&>[data-role-icon]]:size-2.5 @min-[58rem]/list:[&>[data-role-icon]]:size-3.5" : "sr-only @min-[58rem]/list:not-sr-only",
+              r.role ? "absolute col-[2/3] -right-1 bottom-[calc(50%-1.5rem)] @min-[36rem]/list:bottom-[calc(50%-1.25rem)] @max-[13.5rem]/list:row-[1/2] grid size-4.5 place-items-center rounded-full bg-surface-3 text-fg-muted ring-2 ring-surface [&>[data-role-icon]]:size-2.5 @min-[58rem]/list:[&>[data-role-icon]]:size-3.5" : "sr-only @min-[58rem]/list:not-sr-only",
               "@min-[58rem]/list:static @min-[58rem]/list:col-[7/8] @min-[58rem]/list:row-[1/2] @min-[58rem]/list:flex @min-[58rem]/list:size-auto @min-[58rem]/list:min-w-0 @min-[58rem]/list:items-center @min-[58rem]/list:gap-1.5 @min-[58rem]/list:rounded-none @min-[58rem]/list:bg-transparent @min-[58rem]/list:text-sm @min-[58rem]/list:ring-0",
             )}
           >
@@ -331,7 +336,7 @@ function NotEnoughMember({ n, p, you }: { n: FormView["notEnough"][number]; p: B
       className={cn(
         "relative isolate grid grid-cols-(--dl-cols) items-center gap-x-2.5 min-h-16 px-3 py-2",
         // The chip's edge is an inset ring, not a border, so the overlay link covers the whole chip: 40px, 44px on touch screens.
-        "@min-[36rem]/list:flex @min-[36rem]/list:min-h-10 @min-[36rem]/list:gap-x-2 @min-[36rem]/list:overflow-clip @min-[36rem]/list:rounded-lg @min-[36rem]/list:ring-1 @min-[36rem]/list:ring-inset @min-[36rem]/list:ring-border @min-[36rem]/list:py-1 @min-[36rem]/list:pl-1 @min-[36rem]/list:pr-3 pointer-coarse:@min-[36rem]/list:min-h-11",
+        "@min-[36rem]/list:flex @min-[36rem]/list:min-h-8 @min-[36rem]/list:gap-x-2 @min-[36rem]/list:overflow-clip @min-[36rem]/list:rounded-lg @min-[36rem]/list:ring-1 @min-[36rem]/list:ring-inset @min-[36rem]/list:ring-border @min-[36rem]/list:py-0.5 @min-[36rem]/list:pl-1 @min-[36rem]/list:pr-3 pointer-coarse:@min-[36rem]/list:min-h-11",
         you && "bg-accent/5",
         p.profileHref ? ROW_STATES : null,
       )}
@@ -341,19 +346,23 @@ function NotEnoughMember({ n, p, you }: { n: FormView["notEnough"][number]; p: B
         –
       </span>
       {/* In the ranked rows' picture column, so the names make one edge down the board. */}
-      <CardAvatar look={p.look} name={p.name} src={p.avatarUrl} size="sm" className="justify-self-center" />
+      <CardAvatar look={p.look} name={p.name} src={p.avatarUrl} size="sm" className="justify-self-center @min-[36rem]/list:[&>*]:size-6!" />
       {/* Not prefetched: these names linked nowhere before, so they add no server render (Vercel Active CPU). */}
       {p.profileHref ? (
         <PeekRowLink playerId={p.id} name={p.name} profileHref={p.profileHref} />
       ) : null}
       <span className="flex min-w-0 flex-col @max-[13.5rem]/list:col-[1/-1] @max-[13.5rem]/list:row-[2/3] @max-[13.5rem]/list:mt-0.5 @min-[36rem]/list:flex-row @min-[36rem]/list:flex-wrap @min-[36rem]/list:items-baseline @min-[36rem]/list:gap-x-2">
         <MemberCell look={p.look} name={p.name} avatar={false} you={you} youWraps readName={!p.profileHref} nameHref={p.profileHref ?? undefined} nameClassName="text-md leading-snug @min-[36rem]/list:text-sm" />
-        {/* The "·" between the games needed and the last game held to both by no-break spaces (FORM_COLS): with large text it ended or started a line. */}
+        {/* The "·" between the games needed and the last game held to both by no-break spaces (FORM_COLS): with large text it ended or started a line.
+            On a 36–58rem board (the desktop's column beside the records at 1280 and 1440) the last game is read out, not drawn, so two
+            chips share a line (each took one there, 40px of the one-screen board); the member's Peek shows their games. */}
         <span className="text-xs text-fg-muted">
           Needs {n.needed} more game{n.needed === 1 ? "" : "s"}
-          <span aria-hidden>&nbsp;·&nbsp;</span>
-          <span className="sr-only">, </span>
-          {n.lastGame ? `last game ${n.lastGame}` : "no games yet"}
+          <span className="@min-[36rem]/list:@max-[58rem]/list:sr-only" data-testid="form-not-enough-last">
+            <span aria-hidden>&nbsp;·&nbsp;</span>
+            <span className="sr-only">, </span>
+            {n.lastGame ? `last game ${n.lastGame}` : "no games yet"}
+          </span>
         </span>
       </span>
     </li>

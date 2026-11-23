@@ -99,29 +99,28 @@ describe("Leaderboards, one page", () => {
     expect(html).not.toContain("records-volume-note");
   });
 
-  it("places the four boards on one grid by the page's own width: across the page, then in two columns, each board under the one before it in its own", () => {
+  it("places the four boards on one grid by the page's own width: one column, then from 59rem two columns, each board under the one before it in its own", () => {
     expect(html).toContain("@container/dash");
     const grid = /<div class="([^"]*)" data-testid="leaderboards-grid">/.exec(html)![1]!;
-    expect(grid).toContain("@min-[59rem]/dash:grid-cols-[minmax(36rem,1fr)_minmax(21rem,24rem)]");
+    // From 59rem (Release 16, the one-screen board): Recent form's column from 36.25rem (its board's medium tier inside its 1px border), the records' 21–27rem.
+    expect(grid).toContain("@min-[59rem]/dash:grid-cols-[minmax(36.25rem,1fr)_minmax(21rem,27rem)]");
+    expect(grid).toContain("@min-[59rem]/dash:grid-rows-[auto_1fr]");
     // From 86rem: Recent form's column at least 58rem of board inside its 1px border (its one-line rows) with room to spare, the
-    // records' column from 26.25rem, so the two and the gap come to 86rem exactly; the second row takes what the records' column has beyond Recent form.
+    // records' column from 26.25rem; the second row takes what the records' column has beyond Recent form.
     expect(grid).toContain("@min-[86rem]/dash:grid-cols-[minmax(58.25rem,1fr)_minmax(26.25rem,38.5rem)]");
-    expect(grid).toContain("@min-[86rem]/dash:grid-rows-[auto_1fr]");
-    // Recent form across the page from 59rem; from 86rem the first column's first row, the milestones under it.
-    expect(html).toMatch(/<section id="recent-form" aria-labelledby="form-board-title" class="[^"]*@min-\[59rem\]\/dash:col-span-2 @min-\[86rem\]\/dash:col-\[1\/2\] @min-\[86rem\]\/dash:row-\[1\/2\]" data-testid="form">/);
-    // From 59rem to 86rem the records in the first column across the rows after Recent form's, the multikills then the
-    // milestones in the second (the last row flexible, so the records' extra height never opens a gap between those two).
-    expect(grid).toContain("@min-[59rem]/dash:grid-rows-[auto_auto_auto_1fr]");
-    expect(html).toMatch(/<section id="season-records" aria-labelledby="season-records-title" class="min-w-0 @min-\[59rem\]\/dash:@max-\[86rem\]\/dash:col-\[1\/2\] @min-\[59rem\]\/dash:@max-\[86rem\]\/dash:row-\[2\/5\]"/);
-    expect(html).toMatch(/<section id="multikills" aria-labelledby="multikills-title" class="min-w-0 @min-\[59rem\]\/dash:@max-\[86rem\]\/dash:col-\[2\/3\] @min-\[59rem\]\/dash:@max-\[86rem\]\/dash:row-\[2\/3\]"/);
-    expect(html).toMatch(/<section id="milestones" aria-labelledby="milestones-title" class="min-w-0 @min-\[59rem\]\/dash:col-\[2\/3\] @min-\[59rem\]\/dash:row-\[3\/4\] @min-\[86rem\]\/dash:col-\[1\/2\] @min-\[86rem\]\/dash:row-\[2\/3\]">/);
-    // The season records and the multikills: two of the grid's boards under 86rem (the wrapper draws no box), from 86rem
-    // one column beside the other across both rows, the records first.
+    expect(grid).not.toContain("col-span-2");
+    // Recent form the first column's first row, the milestones under it, from 59rem.
+    expect(html).toMatch(/<section id="recent-form" aria-labelledby="form-board-title" class="[^"]*@min-\[59rem\]\/dash:col-\[1\/2\] @min-\[59rem\]\/dash:row-\[1\/2\]" data-testid="form">/);
+    expect(html).toMatch(/<section id="milestones" aria-labelledby="milestones-title" data-fold="closed" class="group\/fold min-w-0 @min-\[59rem\]\/dash:col-\[1\/2\] @min-\[59rem\]\/dash:row-\[2\/3\]">/);
+    // The season records and the multikills: two of the grid's boards under 59rem (the wrapper draws no box), from 59rem one
+    // column beside the other across both rows, the records first.
     const side = /<div class="([^"]*)" data-testid="leaderboards-side">([\s\S]*?)<section id="milestones"/.exec(html)!;
-    expect(side[1]!.split(" ")).toEqual(["contents", "@min-[86rem]/dash:col-[2/3]", "@min-[86rem]/dash:row-[1/span_2]", "@min-[86rem]/dash:flex", "@min-[86rem]/dash:min-w-0", "@min-[86rem]/dash:flex-col", "@min-[86rem]/dash:gap-6"]);
+    expect(side[1]!.split(" ")).toEqual(["contents", "@min-[59rem]/dash:col-[2/3]", "@min-[59rem]/dash:row-[1/span_2]", "@min-[59rem]/dash:flex", "@min-[59rem]/dash:min-w-0", "@min-[59rem]/dash:flex-col", "@min-[59rem]/dash:gap-4"]);
     expect(side[2]!.indexOf('<section id="season-records"')).toBeGreaterThanOrEqual(0);
     expect(side[2]!.indexOf('<section id="season-records"')).toBeLessThan(side[2]!.indexOf('<section id="multikills"'));
-    expect(html).toMatch(/<section id="season-records" aria-labelledby="season-records-title" class="min-w-0 [^"]*" data-testid="records">/);
+    expect(html).toMatch(/<section id="season-records" aria-labelledby="season-records-title" class="min-w-0" data-testid="records">/);
+    // No index at the header's end: every board is on the first screen from 59rem.
+    expect(html).not.toContain("header-section-index");
   });
 
   it("indexes the sections below Recent form for a one-column page, each link to a section on the page", () => {

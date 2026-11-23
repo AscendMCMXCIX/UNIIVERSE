@@ -50,7 +50,7 @@ placed by patch; a reading by date.
 
 ## What Ranked progress shows
 
-Compact, in Profile Overview (`ranked-progress.tsx`): under Recent form, in the right-hand rail, from a 1440px window; under the season card and Recent form, across the width, on smaller screens:
+Compact, in Profile Overview (`ranked-progress.tsx`): at the top of the right-hand rail, level with the season card and above Recent form (the owner's order of 23 Nov 2026, Release 16), from a 1440px window; beside the season card from a 58rem dashboard, Recent form across the width under them; on a phone after the season card and before Recent form, the same order:
 
 - **Now:** the crest, the current rank and LP (with how far into the division), and Riot's wins and
   losses for the ranked year with the win rate.
@@ -77,7 +77,11 @@ Compact, in Profile Overview (`ranked-progress.tsx`): under Recent form, in the 
   linked accounts, one compact account select (`RankedAccountSelect`, each account by its in-game name
   in the player's order) together on one row at the card's start, wrapping only at a large text size;
   then the chart or its line. On a touch phone the controls and the chart are one part behind the
-  Fold, which fades in under the rank (instant with reduced motion), nothing above it moving.
+  Fold, which fades in under the rank (instant with reduced motion), nothing above it moving. From md,
+  in a card of 24rem or more (the Overview's rail, a tablet's card across the width), the queue switch
+  and the account select stand at the end of the title's row instead (Release 16: a row of their own
+  cost the one-screen Overview 48px at 1440 × 900; the card is a grid of two columns whose body and
+  details are display: contents there); a phone keeps them under the rank, as the owner's review asked.
 - **The chart** (`rank-timeline-chart.tsx`, 7.5rem tall, 6rem in a narrow card such as a phone's:
   from 23 Nov 2026 it was stretched to the pools' end in the Overview's 2×2, which the review found
   made a few LP look like a swing, so it is compact) is drawn from two changes of rank or LP

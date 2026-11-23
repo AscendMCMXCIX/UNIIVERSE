@@ -28,7 +28,7 @@ export function RecentFormStrip({ form, championsById, historyHref, narrowed = n
   const pct = (v: number | null) => (v === null ? "—" : `${Math.round(v * 100)}%`);
   const champ = (id: string) => championsById[id] ?? { id, name: id, portraitUrl: "" };
   return (
-    <section aria-labelledby="recent-form-title" className="@container flex flex-col gap-3 rounded-card border border-border bg-surface p-4 panel-depth" data-testid="recent-form">
+    <section aria-labelledby="recent-form-title" className="@container flex flex-col gap-2.5 rounded-card border border-border bg-surface p-4 panel-depth" data-testid="recent-form">
       {/* The verdict on the title's row (it was a footer row of its own, a row more on a phone),
           what the bars show on the line under it. */}
       <div className="space-y-0.5">
@@ -106,8 +106,16 @@ export function RecentFormStrip({ form, championsById, historyHref, narrowed = n
   );
 }
 
-/** How many of the recent games' champions the 2×2's Recent form lists before "and N more". */
-export const RECENT_CHAMPIONS_SHOWN = 5;
+/**
+ * How many of the recent games' champions the 2×2's Recent form lists before "and N more": four at
+ * most (Release 16; five and a line of their own ran the rail 57px past the first screen at 1440 ×
+ * 900), and, Recent form being the rail's last card since Ranked progress went above it, as many as the
+ * window's height holds (the one-screen heights of globals.css, board-at-*): two under board-at-mid
+ * (1440 × 780), three from it (1920 × 950), four from board-at-short (1440 × 900).
+ */
+export const RECENT_CHAMPIONS_SHOWN = 4;
+/** The third and fourth champions' rows: shown only in a window of their height (literal classes, for Tailwind). */
+const CHAMPION_ROW_FOLD = ["", "", "board-below-mid:hidden", "board-below-short:hidden"] as const;
 
 /**
  * The champions of the same recent games, most played first (the newest game breaking a tie), each
@@ -115,6 +123,8 @@ export const RECENT_CHAMPIONS_SHOWN = 5;
  * window, a 68rem dashboard), where the rail beside the season's card and the pools has the room: it
  * balances the two columns with the card's own data (the UX review of Release 13), where a stretched
  * Ranked progress made small LP moves look large. Neutral, as the rest of Recent form: no win-rate colour.
+ * The rest are never hidden without saying so: "and N more" on the heading's line, its count the one
+ * for the window's height, and Match History (the strip's link) lists every game.
  */
 function RecentChampions({ last, champ }: { last: RecentForm["last"]; champ: (id: string) => PortraitChampion }) {
   const by = new Map<string, { id: string; games: number; wins: number; at: number }>();
@@ -127,12 +137,26 @@ function RecentChampions({ last, champ }: { last: RecentForm["last"]; champ: (id
   }
   const rows = [...by.values()].sort((a, b) => b.games - a.games || b.at - a.at);
   const shown = rows.slice(0, RECENT_CHAMPIONS_SHOWN);
+  // "and N more" in each height: two, three or four rows shown.
+  const more = (n: number) => Math.max(0, rows.length - n);
+  const counts: Array<[number, string]> = [
+    [more(2), "board-at-mid:hidden"],
+    [more(3), "hidden board-at-mid:board-below-short:inline"],
+    [more(4), "hidden board-at-short:inline"],
+  ];
   return (
     <div className="hidden min-[90rem]:@min-[68rem]/ov:block" data-testid="recent-form-champions">
-      <h3 className="label-caps">Champions in these games</h3>
+      <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-3">
+        <h3 className="label-caps">Champions in these games</h3>
+        {more(2) ? (
+          <p className="text-xs text-fg-subtle" data-testid="recent-form-champions-more">
+            {counts.map(([n, cls], i) => (n ? <span key={i} className={cls}>and {n} more</span> : null))}
+          </p>
+        ) : null}
+      </div>
       <ul className="mt-1.5 divide-y divide-border/60">
-        {shown.map((c) => (
-          <li key={c.id} className="flex min-w-0 items-center gap-2.5 py-1.5" data-champion={c.id}>
+        {shown.map((c, i) => (
+          <li key={c.id} className={cn("flex min-w-0 items-center gap-2.5 py-1", CHAMPION_ROW_FOLD[i])} data-champion={c.id}>
             <span aria-hidden className="inline-flex">
               <ChampionPortrait champion={champ(c.id)} size="xs" />
             </span>
@@ -143,7 +167,6 @@ function RecentChampions({ last, champ }: { last: RecentForm["last"]; champ: (id
           </li>
         ))}
       </ul>
-      {rows.length > shown.length ? <p className="mt-1 text-xs text-fg-subtle">and {rows.length - shown.length} more</p> : null}
     </div>
   );
 }
