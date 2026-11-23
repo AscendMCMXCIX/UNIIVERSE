@@ -1,5 +1,6 @@
 import { devices, expect, test, type Browser, type BrowserContext, type Locator, type Page } from "./test";
 import { choosePassword, createMember } from "./member-account";
+import { showLineupCard } from "./lineup";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
@@ -200,15 +201,13 @@ async function levelRows(page: Page) {
   });
 }
 
-/** The Team page at one size, its Top card in view (phones: through the role bar). */
+/** The Team page at one size, its Top card in view (phones: through the carousel's dots). */
 async function openTop(browser: Browser, state: Awaited<ReturnType<BrowserContext["storageState"]>>, options: Parameters<Browser["newContext"]>[0]) {
   const ctx = await browser.newContext({ ...options, storageState: state });
   const page = await ctx.newPage();
   await page.goto("/team");
   await expect(page.getByTestId("lineup-overview")).toHaveAttribute("data-ready", "true");
-  const pager = page.getByTestId("lineup-pager");
-  if (await pager.isVisible()) await pager.getByRole("tab", { name: /^Top/ }).click();
-  const front = page.getByTestId("lineup-row-TOP");
+  const front = await showLineupCard(page, "TOP");
   await expect(front).toBeInViewport();
   return { ctx, page, front, card: page.getByTestId("lineup-card-TOP"), back: page.getByTestId("lineup-sub-TOP") };
 }
@@ -240,8 +239,8 @@ test("a Top card with everything on both sides: whole and uncovered at every siz
       expectWhole(await measure(front), topStarter, `${size}, front`);
       // Held sideways the compact card says the rank alone (the role status is in the player's window).
       await expect(front.getByTestId("main-role-badge")).toBeVisible({ visible: size !== "landscape-844" });
-      // Side by side (not the phone track), every row's parts are level.
-      if (!(await page.getByTestId("lineup-pager").isVisible()))
+      // Side by side (not the phone's carousel), every row's parts are level.
+      if (!(await page.getByTestId("lineup-indicator").isVisible()))
         for (const row of await levelRows(page)) {
           expect({ labels: row.labels <= 1, avatars: row.avatars <= 1, names: row.names <= 1 }, `${size}: level along ${row.cards}`).toEqual({ labels: true, avatars: true, names: true });
           for (const long of row.longer) expect(long.moved, `${size}: ${long.role} moves by its extra lines (${long.extra}px) only`).toBeLessThanOrEqual(long.extra + 1);

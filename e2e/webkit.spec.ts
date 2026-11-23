@@ -45,27 +45,45 @@ test("the priority pages load without an error and without sideways scrolling", 
   }
 });
 
-test("Team Overview: the cards are one sideways track, a role tab brings its card into view, and names are whole", async ({ page }) => {
+test("Team Overview: the cards are one sideways carousel, a dot brings its card into view, and names are whole", async ({ page }) => {
   await page.goto("/team");
   await expect(page.getByTestId("lineup-cell")).toHaveCount(5);
   // Measured once the lineup is laid out and at rest (it streams in: e2e/lineup.ts).
   await lineupAtRest(page);
   await fitsWidth(page, "/team");
-  const pager = page.getByTestId("lineup-pager");
-  // A tap before the page is interactive does nothing: tap until the track has moved. The tab's job
+  // No pager over the cards since the carousel (23 Nov 2026): five position dots under them.
+  await expect(page.getByTestId("lineup-pager")).toHaveCount(0);
+  const dots = page.getByTestId("lineup-indicator");
+  // A tap before the page is interactive does nothing: tap until the track has moved. The dot's job
   // is to bring its card across into view, whole from side to side; how much of its height fits
   // depends on what is above the track (the page scrolls for the rest).
   await expect(async () => {
-    await pager.getByRole("tab", { name: /^Mid/ }).tap();
+    await dots.getByRole("tab", { name: /^Mid:/ }).tap();
     const box = (await page.getByTestId("lineup-row-MID").boundingBox())!;
     expect(box.x, "the card's left edge on screen").toBeGreaterThanOrEqual(-1);
     expect(box.x + box.width, "the card's right edge on screen").toBeLessThanOrEqual(page.viewportSize()!.width + 1);
     await expect(page.getByTestId("lineup-row-MID")).toBeInViewport({ ratio: 0.75, timeout: 1_000 });
   }).toPass({ timeout: 15_000 });
-  await expect(pager.getByRole("tab", { name: /^Mid/ })).toHaveAttribute("aria-selected", "true");
+  await expect(dots.getByRole("tab", { name: /^Mid:/ })).toHaveAttribute("aria-selected", "true");
+  // One card on screen (no neighbour beside it).
+  const shown = () => page.getByTestId("lineup-cell").evaluateAll((els) => els.filter((c) => { const r = c.getBoundingClientRect(); return r.right > 0.5 && r.left < document.documentElement.clientWidth - 0.5; }).map((c) => c.querySelector<HTMLElement>("[data-testid^=lineup-row-]")!.dataset.testid));
+  await expect.poll(shown).toEqual(["lineup-row-MID"]);
   const name = page.getByTestId("lineup-row-MID").getByTestId("card-name");
   await expect(name).toBeVisible();
   expect(await name.evaluate((el) => el.scrollWidth <= el.clientWidth + 1 && el.scrollHeight <= el.clientHeight + 1)).toBe(true);
+  await expect(async () => {
+    await dots.getByRole("tab", { name: /^Support:/ }).tap();
+    await expect.poll(shown, { timeout: 2_000 }).toEqual(["lineup-row-SUPPORT"]);
+  }).toPass({ timeout: 15_000 });
+  // The track moved one card on by script (Playwright's WebKit has no touch drag; a card is the
+  // track's width apart): the loop wraps from Support to Top once Safari has the scroll at rest
+  // (scrollend, or no scroll for 140ms where it is not sent), Top in the middle of the loop again.
+  await page.getByTestId("lineup-overview").evaluate((el) => el.scrollBy({ left: el.clientWidth, behavior: "smooth" }));
+  await expect(dots.getByRole("tab", { name: /^Top:/ })).toHaveAttribute("aria-selected", "true");
+  await expect.poll(shown).toEqual(["lineup-row-TOP"]);
+  await expect.poll(() => page.getByTestId("lineup-cell").first().evaluate((c) => getComputedStyle(c).order)).toBe("2");
+  // Moved round where nothing shows it: Top is still the one card on screen.
+  await expect.poll(shown).toEqual(["lineup-row-TOP"]);
 });
 
 test("Team Overview: a card turns over with nothing of the side turned away left drawn, its links and controls included", async ({ page }) => {
@@ -73,7 +91,7 @@ test("Team Overview: a card turns over with nothing of the side turned away left
   await expect(page.getByTestId("lineup-overview")).toHaveAttribute("data-ready", "true");
   // The demo's Support card has a substitute, and the substitute's side has a link.
   await expect(async () => {
-    await page.getByTestId("lineup-pager").getByRole("tab", { name: /^Support/ }).tap();
+    await page.getByTestId("lineup-indicator").getByRole("tab", { name: /^Support:/ }).tap();
     await expect(page.getByTestId("lineup-row-SUPPORT")).toBeInViewport({ ratio: 0.5, timeout: 1_000 });
   }).toPass({ timeout: 15_000 });
   const card = page.getByTestId("lineup-card-SUPPORT");
@@ -218,7 +236,8 @@ test("Matchup Intel: a slot's picker fills the screen, a search and a tap choose
   await expect(sources).toHaveAttribute("open", "");
   await expect(page.getByTestId("matchup-footer-riot")).toBeVisible();
   // A briefing chip brings its row into view below the top bar, and gives it the focus.
-  const chip = page.getByTestId("matchup-briefing").locator('[data-testid="briefing-ability"][data-anchor^="ability-Mordekaiser-"]').first();
+  // The first one in view: a card's lead is its first sentence, and chips in the rest of its text wait behind its "More".
+  const chip = page.getByTestId("matchup-briefing").locator('[data-testid="briefing-ability"][data-anchor^="ability-Mordekaiser-"]').filter({ visible: true }).first();
   const anchor = (await chip.getAttribute("data-anchor"))!;
   await chip.tap();
   const row = page.locator(`#${anchor}`);

@@ -24,7 +24,7 @@ import { Peek, usePeek } from "@/components/ui/peek";
 import { InfoTip } from "@/components/ui/info-tip";
 import { BrandMark } from "@/components/brand-mark";
 import { toast } from "@/components/ui/toast";
-import { useSnapIndex, useSnapTrack, type SnapIndex } from "@/components/ui/use-snap-track";
+import { useLoopTrack, useSnapIndex, type SnapIndex } from "@/components/ui/use-loop-track";
 import { cn } from "@/lib/cn";
 import { assignmentStatus } from "@/domain/roster";
 import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateTone } from "@/domain/stats/win-rate";
@@ -51,8 +51,9 @@ const ART_BUTTON = "grid h-8 w-8 place-items-center rounded-full bg-bg/80 text-f
 
 /*
   The role chip and the card's own controls share the artwork's top row. With larger text a phone's
-  card is narrow for what that row holds (6.5rem wide at 200% on a 320px phone, where "SUPPORT" ran
-  past the card under the turn control and read "SUPPO"), so the chip has a lane of its own: from the
+  card is narrow for what that row holds (8rem wide at 200% on a 320px phone, 6.5rem before the
+  carousel of 23 Nov 2026, where "SUPPORT" ran past the card under the turn control and read
+  "SUPPO"), so the chip has a lane of its own: from the
   role's corner to the controls (0, 1 or 2 of them, by count), or to the card's own edge where there
   are none (its clip: what a chip fitted inside before it had a lane, so a chip that fitted there
   keeps its name). A control is a 2.75rem touch target 0.625rem from the edge (2rem with a mouse;
@@ -779,53 +780,81 @@ export function playerDetail({ slot, championsById, canEdit, canViewProfile, pro
 const LINEUP_FULL = "min-[120rem]:@5xl:max-w-full";
 const LINEUP_WIDTH = `mx-auto w-full max-w-[26rem] @xl:max-w-[54rem] @4xl:max-w-[80rem] @5xl:max-w-[84rem] ${LINEUP_FULL}`;
 
+/** Who holds a role, as the lineup's slides and dots name it. */
+const holder = (s: RosterSlot) => s.player?.name ?? (s.privateMember ? "team member" : "no player");
+
 /**
- * The five roles as one bar (phones only): where you are in the track, and a tap away from any
- * player. The one part of the lineup that follows the track as it scrolls (useSnapIndex), so a
- * swipe never draws the cards again.
+ * Where the phone's lineup carousel is (phones only, under the card): five quiet dots, the card in
+ * view a longer pill in the brand blue (its shape marks it as well as its colour). Each dot is a tab
+ * that brings its card into view the shortest way round, a 44px target sized in px so larger text
+ * never spreads the five past a 320px phone (220px at every size); ← → move along them and wrap as the
+ * carousel does, Home and End go to the first and the last. Named by the role, then the player, and
+ * read with its place ("1 of 5") as tabs are. The one part of the lineup that follows the track as it
+ * scrolls (useSnapIndex), so a swipe never draws the cards again.
  */
-/*
-  The pager's gap and padding are 4px at every text size (gap-1 and p-1 at the usual size): in rem
-  they doubled at 200% on a 320px phone and left each of the five targets 41px wide. In px each is
-  46px there, and at 100% nothing moves (§6 row 1.2h; e2e/large-text-lineup.spec.ts).
-*/
-function LineupPager({ slots, index, go, people = false, artWait = false }: { slots: RosterSlot[]; index: SnapIndex; go: (i: number) => void; /** Members' phones: the lineup pager (each player's picture, the role as its badge, the name under it); the public page keeps the roles. */ people?: boolean; /** The first card's art has not arrived: the other players' pictures wait for it (globals.css, data-art-wait). */ artWait?: boolean }) {
+function LineupIndicator({ slots, index, go, step, slideIds }: { slots: RosterSlot[]; index: SnapIndex; go: (i: number) => void; step: (delta: number) => number; /** Each card's slide, which its dot controls. */ slideIds: string[] }) {
   const current = useSnapIndex(index);
+  const dots = React.useRef<Array<HTMLButtonElement | null>>([]);
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    let to: number;
+    if (e.key === "ArrowRight" || e.key === "ArrowLeft") to = step(e.key === "ArrowRight" ? 1 : -1);
+    else if (e.key === "Home" || e.key === "End") go((to = e.key === "Home" ? 0 : slots.length - 1));
+    else return;
+    e.preventDefault();
+    dots.current[to]?.focus();
+  };
   return (
-    <div className={cn("relative z-[1] mx-auto mb-3 grid max-w-[26rem] grid-cols-5 gap-[4px] rounded-card border border-border bg-surface/85 p-[4px] shadow-sm shadow-black/20 @xl:hidden", people && "@container/pager mb-2 max-w-[30rem] max-lg:short:hidden")} role="tablist" aria-label="Lineup position" data-testid="lineup-pager" data-people={people || undefined} data-art-wait={(people && artWait) || undefined}>
+    <div className="relative z-[1] mx-auto flex w-max justify-center @xl:hidden" role="tablist" aria-label="Lineup position" onKeyDown={onKeyDown} data-testid="lineup-indicator">
       {slots.map((s, i) => (
-        <button key={s.role} type="button" role="tab" aria-selected={current === i} aria-label={people ? undefined : `${s.roleLabel}${s.player ? `: ${s.player.name}` : ""}`} onClick={() => go(i)} className={cn("flex min-h-12 min-w-0 flex-col items-center justify-center rounded-panel px-1 text-2xs font-semibold leading-none transition-[background-color,color,box-shadow] duration-150 motion-reduce:transition-none", people ? "gap-0" : "gap-1", current === i ? "bg-accent/15 text-accent ring-1 ring-inset ring-accent/40" : "text-fg-muted hover:bg-surface-2/60 hover:text-fg")} data-testid="lineup-dot" data-art-later={i > 0 || undefined}>
-          {people ? (
-            <>
-              {/* The player's picture with the role's icon as its badge (an empty role: the icon alone). No ring of its own when
-                  chosen (the tile's ring, its fill and the accent name mark it): in the 48px tile a ring rose above its edge. */}
-              <span className="relative grid h-8 w-8 shrink-0 place-items-center" data-testid="lineup-dot-picture">
-                {s.player ? <Avatar name={s.player.name} src={s.player.avatarUrl} size="sm" /> : <span className="grid h-8 w-8 place-items-center rounded-full border border-dashed border-border-strong" />}
-                <span className="absolute -bottom-0.5 -right-1.5 grid h-4 w-4 place-items-center rounded-full border border-border bg-bg-elevated text-fg">
-                  <RoleIcon role={s.role} className="h-2.5 w-2.5" decorative />
-                </span>
-              </span>
-              {/* The name, cut where it must (the picture carries who it is); under 18rem of pager the pictures alone, the names read out. */}
-              {/* Named by its content (the role read out first), so what shows is what is read (axe's label-content-name-mismatch). */}
-              <span className="max-w-full truncate leading-tight @max-[18rem]/pager:sr-only" data-testid="lineup-dot-name">
-                <span className="sr-only">{s.roleLabel}: </span>
-                {s.player?.name ?? (
-                  <>
-                    <span className="sr-only">no player</span>
-                    <span aria-hidden>{s.roleLabel}</span>
-                  </>
-                )}
-              </span>
-            </>
-          ) : (
-            <>
-              <RoleIcon role={s.role} className="h-4 w-4" decorative />
-              <span className="max-w-full truncate">{s.roleLabel}</span>
-            </>
-          )}
+        <button
+          key={s.role}
+          ref={(b) => {
+            dots.current[i] = b;
+          }}
+          type="button"
+          role="tab"
+          aria-selected={current === i}
+          aria-controls={slideIds[i]}
+          aria-label={`${s.roleLabel}: ${holder(s)}`}
+          tabIndex={current === i ? 0 : -1}
+          onClick={() => go(i)}
+          className="group/dot grid h-[44px] w-[44px] place-items-center rounded-full"
+          data-testid="lineup-indicator-dot"
+        >
+          <span aria-hidden className={cn("block h-1.5 rounded-full transition-[width,background-color] duration-200 ease-emphasized motion-reduce:transition-none", current === i ? "w-5 bg-accent" : "w-1.5 bg-border-control group-hover/dot:bg-fg-subtle")} data-testid="lineup-indicator-mark" />
         </button>
       ))}
     </div>
+  );
+}
+
+/**
+ * The carousel's position, said once it comes to rest on another card ("Mid, 3 of 5: Demo Mid"), for
+ * screen readers: a swipe or a key moves the cards without moving keyboard focus to the dots. Not
+ * while focus is on a dot, which says the same itself, nor in a window (the player window's ‹ › move
+ * the carousel behind it, and the window says who it shows), and nothing as the page arrives.
+ */
+function LineupAnnouncer({ rest, slots }: { rest: SnapIndex; slots: RosterSlot[] }) {
+  const [said, setSaid] = React.useState("");
+  const latest = React.useRef(slots);
+  React.useEffect(() => {
+    latest.current = slots;
+  });
+  React.useEffect(
+    () =>
+      rest.subscribe(() => {
+        // A window open over the page (its content re-keyed by ‹ › can leave focus on the body for a moment).
+        if (document.activeElement?.closest("[data-testid=lineup-indicator]") || document.querySelector("dialog[open]")) return;
+        const i = rest.get();
+        const s = latest.current[i];
+        if (s) setSaid(`${s.roleLabel}, ${i + 1} of ${latest.current.length}: ${holder(s)}`);
+      }),
+    [rest],
+  );
+  return (
+    <p className="sr-only" aria-live="polite" aria-atomic="true" data-testid="lineup-announcer">
+      {said}
+    </p>
   );
 }
 
@@ -841,7 +870,7 @@ function LineupPager({ slots, index, go, people = false, artWait = false }: { sl
 const SIDEWAYS_ROW = {
   track: "short:@xl:max-w-none short:@xl:grid-cols-5 short:@xl:gap-2 short:@xl:[&>*]:col-span-1 short:@xl:[&>*:nth-child(4)]:col-start-auto short:@xl:[&>*:nth-child(5)]:col-start-auto",
   art: "short:@xl/lineup:min-h-[5.5rem] short:@xl/lineup:pt-11",
-  /** At a larger text size (under 36rem of lineup) the track: about two cards in view, no pager. */
+  /** At a larger text size (under 36rem of lineup) the phone's carousel: about two cards in view, the position dots under them. */
   cell: "max-lg:short:@max-xl/lineup:w-[min(18rem,78%)]",
 } as const;
 
@@ -859,8 +888,9 @@ const PHONE_HEADER = "max-sm:gap-y-0.5 max-lg:short:gap-x-3 max-lg:short:gap-y-0
  * switches every card into a mode with a Change/Assign control; your own card's brush personalises
  * its look. A card opens its player in the shared detail window: that card lifts, the others step back.
  * Champion pools are shown here and edited on the profile. On phones the five cards are a
- * swipeable track (native scrolling with snap points, each card centred with a glimpse of its neighbours) under a
- * bar of the five roles that says where you are and moves to any of them.
+ * carousel that loops (useLoopTrack: native scrolling with a snap point a card), one card at a time
+ * across the page's width inside its gutter, with five dots under it that say where you are and move
+ * to any card; the public page's phone layout is the same.
  */
 export function TeamRoster({ team, slots, complete, champions, canManageLineup, canViewPlayers, editablePlayerIds, viewerPlayerId, guest = null, initialPlayer = null }: { team: { name: string; shortName: string; logo: string | null; logoStill: string | null }; slots: RosterSlot[]; complete: boolean; champions: PickerChampion[]; canManageLineup: boolean; /** Without the Players directory the detail panel does not offer a profile it cannot open. */ canViewPlayers: boolean; editablePlayerIds: string[]; viewerPlayerId: string | null; /** The public Team Overview: profiles open under this path, and nothing about managing the lineup is shown. */ guest?: { profileBase: string | null } | null; /** The player the address names (`?player=`), open as the page arrives. */ initialPlayer?: string | null }) {
   const [editingLineup, setEditingLineup] = React.useState(false);
@@ -890,8 +920,11 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
   const detailSlot = detailBase && detailSub ? { ...detailBase, player: detailSub.player, champions: detailSub.champions } : detailBase;
   const championsById = React.useMemo(() => new Map(champions.map((c) => [c.id, c])), [champions]);
   const editable = new Set(editablePlayerIds);
-  const { ref: trackRef, index: inView, onScroll: onTrackScroll, go } = useSnapTrack(slots.length);
-  // A phone shows the lineup as a track, one card at a time: the other cards' art waits (globals.css,
+  const { ref: trackRef, index: inView, rest: atRest, go, step, onKeyDown: onTrackKeyDown } = useLoopTrack(slots.length);
+  // Each card's slide, named by its dot (aria-controls).
+  const slideBase = React.useId();
+  const slideIds = slots.map((s) => `${slideBase}-${s.role}`);
+  // A phone shows the lineup as a carousel, one card at a time: the other cards' art waits (globals.css,
   // data-art-wait) until the first card's art has arrived or failed, so the first has the connection
   // to itself (docs/PERFORMANCE.md, "Team Overview's first card"). Touching the track, or moving to
   // another card, lets them load at once. Wider screens show all five together and never wait.
@@ -977,8 +1010,11 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
           </Button>
         ) : null}
       </header>
-      {/* Phones (a narrow content area): one track of five cards that scrolls sideways on its own,
-          one card centred with an equal glimpse of the cards either side. Wider: three and two, the
+      {/* Phones (a narrow content area): one carousel of the five cards that scrolls sideways on its
+          own and loops (after the last card comes the first again), one card in view, centred inside
+          the page's gutter: the track reaches the screen's edges (-mx-4) and keeps the gutter as its
+          padding, and the cards are a gap apart that keeps the next card out of view at rest (two
+          gutters, more where a card stops at 26rem on a wider window). Wider: three and two, the
           second row centred (cards in a row share its height), never a card alone on a row; five
           across from a 56rem content area (a 1280px window with the sidebar open; UD.T1) and held
           sideways (SIDEWAYS_ROW). Cards never shrink below a readable width. */}
@@ -987,17 +1023,19 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
           a card, and is hidden from screen readers. */}
       <div className="relative isolate flex flex-col" data-testid="lineup-stage">
         <div className="relative">
-          <LineupPager slots={slots} index={inView} go={go} people={!guest} artWait={artWait} />
           {/* The track's vertical padding (taken back by its margins) leaves room for a card's edges
-              while it turns over: a scrolling track clips anything outside its box. */}
+              while it turns over: a scrolling track clips anything outside its box. No smooth
+              scrolling in CSS: the loop moves the track by a whole card in one step where nothing
+              shows it (useLoopTrack), and `go` asks for smoothness itself. Snapping pauses only while
+              the loop places the cards mid-way (data-loop-free). */}
           <div
             ref={trackRef}
-            onScroll={onTrackScroll}
+            onKeyDown={onTrackKeyDown}
             onPointerDown={artWait ? () => setArtWait(false) : undefined}
             className={cn(
-              "flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain scroll-smooth px-7 pt-3 pb-4 -my-3 [scrollbar-width:none] motion-reduce:scroll-auto [&::-webkit-scrollbar]:hidden",
+              "flex snap-x snap-mandatory gap-[max(2rem,calc(50%_-_11rem))] overflow-x-auto overscroll-x-contain px-4 pt-3 pb-4 -my-3 [scrollbar-width:none] data-[loop-free]:snap-none [&::-webkit-scrollbar]:hidden",
               "-mx-4",
-              "@xl:mx-auto @xl:my-0 @xl:grid @xl:w-full @xl:max-w-[54rem] @xl:grid-cols-6 @xl:overflow-visible @xl:px-0 @xl:py-0 @xl:[&>*]:col-span-2 @xl:[&>*:nth-child(4)]:col-start-2",
+              "@xl:mx-auto @xl:my-0 @xl:grid @xl:w-full @xl:max-w-[54rem] @xl:grid-cols-6 @xl:gap-3 @xl:overflow-visible @xl:px-0 @xl:py-0 @xl:[&>*]:col-span-2 @xl:[&>*:nth-child(4)]:col-start-2",
               "@4xl:max-w-[84rem] @4xl:grid-cols-5 @4xl:[&>*]:col-span-1 @4xl:[&>*:nth-child(4)]:col-start-auto @7xl:gap-5",
               LINEUP_FULL,
               // Held sideways (a short window): the desktop's five across, compact (SIDEWAYS_ROW), never 2 + 2 + 1 with an orphan.
@@ -1012,11 +1050,14 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
             data-sideways-row={!guest || undefined}
           >
             {slots.map((s, i) => (
-              <div key={s.role} className={cn("flex w-full max-w-[26rem] shrink-0 snap-center snap-always @xl:w-auto @xl:max-w-none @xl:min-w-0", !guest && SIDEWAYS_ROW.cell)} role="group" aria-roledescription="slide" aria-label={`${s.roleLabel}: ${s.player?.name ?? (s.privateMember ? "team member" : "no player")} (${i + 1} of ${slots.length})`} data-testid="lineup-cell" data-art-later={i > 0 || undefined}>
+              // Each card once, in lineup order; on a phone its place in the loop is its flex order (--loop-order, useLoopTrack).
+              <div key={s.role} id={slideIds[i]} tabIndex={-1} className={cn("flex w-full max-w-[26rem] shrink-0 snap-center snap-always order-[var(--loop-order,0)] @xl:order-none @xl:w-auto @xl:max-w-none @xl:min-w-0", !guest && SIDEWAYS_ROW.cell)} role="group" aria-roledescription="slide" aria-label={`${s.roleLabel}: ${holder(s)} (${i + 1} of ${slots.length})`} data-testid="lineup-cell" data-art-later={i > 0 || undefined}>
                 <LineupCard slot={s} champions={champions} championsById={championsById} canManageLineup={canManageLineup} editingLineup={editingLineup} canEdit={!!s.player && editable.has(s.player.id)} viewerPlayerId={viewerPlayerId} onOpenSide={(side) => peek.toggle(side === "substitute" ? s.substitute!.player.id : s.player!.id)} openSide={detail?.role === s.role ? detail.side : null} guest={!!guest} startsElsewhere={startsElsewhere} align={align} priority={i === 0} />
               </div>
             ))}
           </div>
+          <LineupIndicator slots={slots} index={inView} go={go} step={step} slideIds={slideIds} />
+          <LineupAnnouncer rest={atRest} slots={slots} />
           <div aria-hidden className="pointer-events-none absolute inset-x-0 top-full -z-10 -mt-10 hidden h-[clamp(10rem,30vh,18rem)] overflow-hidden @4xl:block" data-testid="lineup-stage-floor">
             <div className="absolute inset-x-0 top-0 h-[85%]" style={{ background: "radial-gradient(50% 75% at 50% 0%, color-mix(in srgb, var(--color-accent) 16%, transparent), transparent 75%)" }} />
             <div className="absolute inset-x-[6%] top-10 h-px" style={{ background: "linear-gradient(90deg, transparent, color-mix(in srgb, var(--color-accent) 50%, transparent), transparent)" }} />

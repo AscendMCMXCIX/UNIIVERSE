@@ -103,7 +103,8 @@ test("Ambessa vs Renekton: the curated briefing, its chips jumping to the abilit
   await page.getByTestId("matchup-haste").getByRole("button", { name: "0", exact: true }).click();
   await expect(means).toHaveAccessibleDescription(/at 0 haste \(base\)\.$/);
   // A chip names the ability ("Renekton W") and jumps to its row.
-  const chip = briefing.locator('[data-testid="briefing-ability"][data-anchor^="ability-Renekton-"]').first();
+  // The first one in view (chips in a card's text after its lead wait behind its "More").
+  const chip = briefing.locator('[data-testid="briefing-ability"][data-anchor^="ability-Renekton-"]').filter({ visible: true }).first();
   await expect(chip).toHaveText(/^Renekton (passive|[QWER])$/);
   const anchor = (await chip.getAttribute("data-anchor"))!;
   await chip.click();

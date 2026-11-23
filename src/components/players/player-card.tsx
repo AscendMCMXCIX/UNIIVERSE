@@ -236,18 +236,21 @@ export function CardPerformance({ season, support, roleLabel, placeholder = fals
   const sub = "block truncate text-2xs tabular-nums text-fg-subtle";
   // KDA and CS/min (vision) on a narrow card: one above the other in the right-hand column, each its
   // label over its figure, right-aligned (a label and figure side by side did not fit "VISION 79.3").
-  // Under 9rem they flow under the win rate, aligned on the left like it.
-  const pair = "min-w-0 @max-[12.5rem]/card:col-start-2 @max-[12.5rem]/card:text-right @max-[9rem]/card:text-left";
+  // Under 9.75rem they flow under the win rate, aligned on the left like it: the right-hand column
+  // holds "CS/MIN" (the widest label, nowrap) beside the win rate from 9.71rem of card, so between 9
+  // and 9.75rem, where the flow began at 9rem, it ran up to 18px past the box (a 9.43rem card at 175%
+  // on a 320px phone, 9.36rem at 175% on 360px before the carousel; e2e/large-text-lineup.spec.ts).
+  const pair = "min-w-0 @max-[12.5rem]/card:col-start-2 @max-[12.5rem]/card:text-right @max-[9.75rem]/card:text-left";
   const figure = "text-lg font-semibold leading-tight tabular-nums text-fg @max-[12.5rem]/card:text-base";
   const narrowHidden = "@max-[12.5rem]/card:hidden";
   return (
     <div className="rounded-lg bg-bg/55 px-3 pb-2.5 pt-2 ring-1 ring-inset ring-white/[0.06] @max-[12.5rem]/card:px-2.5" data-testid="card-season">
       {/* One row, read left to right: how often they win, how they fight, how they farm (vision for
           Support). The outer figures take the room they need and KDA the rest, so nothing is cut off.
-          A narrow card: the win rate on the left, KDA over CS/min (vision) on the right. Under 9rem:
+          A narrow card: the win rate on the left, KDA over CS/min (vision) on the right. Under 9.75rem:
           a line for the win rate, then KDA and CS/min (vision) wrapping as they fit. */}
-      <dl className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-end gap-x-2.5 @min-[14.5rem]/card:@max-[17.5rem]/card:gap-x-1 @max-[12.5rem]/card:grid-cols-[auto_minmax(0,1fr)] @max-[12.5rem]/card:items-center @max-[12.5rem]/card:gap-x-2 @max-[12.5rem]/card:gap-y-1 @max-[9rem]/card:flex @max-[9rem]/card:flex-wrap @max-[9rem]/card:gap-x-3 @max-[9rem]/card:gap-y-1.5">
-        <div className="min-w-0 @max-[12.5rem]/card:row-span-2 @max-[9rem]/card:basis-full">
+      <dl className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-end gap-x-2.5 @min-[14.5rem]/card:@max-[17.5rem]/card:gap-x-1 @max-[12.5rem]/card:grid-cols-[auto_minmax(0,1fr)] @max-[12.5rem]/card:items-center @max-[12.5rem]/card:gap-x-2 @max-[12.5rem]/card:gap-y-1 @max-[9.75rem]/card:flex @max-[9.75rem]/card:flex-wrap @max-[9.75rem]/card:gap-x-3 @max-[9.75rem]/card:gap-y-1.5">
+        <div className="min-w-0 @max-[12.5rem]/card:row-span-2 @max-[9.75rem]/card:basis-full">
           <dt className={label}>Win rate</dt>
           <dd className={cn("text-2xl font-bold leading-tight tabular-nums", wr === null ? "text-fg-muted" : tone)} data-testid="card-winrate">
             {wr === null ? dash : `${Math.round(wr * 100)}%`}
