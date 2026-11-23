@@ -198,6 +198,56 @@ threat and the opportunity whole on the first screen at 390 × 844, the threat a
 phone's glance (the enemy's five cooldowns in a row above the briefing, 20 Nov 2026) is retired: the
 plan comes first, the strip right under it.
 
+**The UX review of Release 13 (23 Nov 2026, round 2)** found the plan still read as five blocks of
+prose. What changed, every word still the curated notes', Riot's data and text, or a fixed template:
+
+- **Headlines.** Each curated card (the threat, the second part, each lane point, each level note in
+  the plan) shows its own first sentence in bold, or, where that runs past 90 characters, its words up
+  to its first clause boundary (", ", "; ", ": ") from the 30th character on (`headlineOf`,
+  `wording.ts`); the rest follows behind "More", word for word (a level note's own source tip, where
+  it has one, goes with its rest: a tip over the More line crowded it on a touch screen). Nothing is
+  rewritten. The curated
+  "opportunity" is labelled **Key fact**: the three files' texts are facts set beside the threat (a
+  cooldown gap, a pull's delay, a targeting rule), not openings, so the label says what they are.
+- **Spikes first.** The level changes come before the lane points on a desktop (the right-hand column,
+  beside the threat) and on a phone (after the key fact, no longer behind "Show"), and first in the
+  lane reference for every pair ("Level changes · No level changes recorded for Darius or Garen." where
+  none is). **"Ultimate available from level N" is not shown**: nothing in the repository records the
+  level each champion's ultimate unlocks at. Data Dragon gives ranks, not unlock levels; the checked
+  notes say so in as many words (Riven's and Gwen's: "no saved page states when her abilities
+  unlock"); only a few of Riot's own tips name a level ("Once Shen reaches level 6, …"), and those show
+  verbatim as Riot's tips.
+- **Danger is danger.** The lane reference leads with the enemy's **Danger**: its crowd control, and the
+  damage its checked notes record. Its own shields, heals, mobility and empowerments (what it does for
+  itself or its allies: Lux's Prismatic Barrier, Caitlyn's empowered Headshot) are its **Other tools**,
+  one press away with your side's (**Garen's tools**, by kind: your champion's own kit, named as that,
+  not as an opportunity). In the bot lane both enemies' dangers stand side by side and the other tools
+  of all four are behind the same fold.
+- **A chip's quote carries its claim.** A fact from Riot's text with a qualifier no longer shows the
+  qualifier on its chip as though it were the chip's evidence ("Empowered · “a trap that, when sprung,
+  …”"): the chip names its kind, its tip quotes the clause that carries it ("granting Caitlyn an
+  empowered Headshot."), and the qualifier is said under the ability's chips as Riot's addition
+  ("Empowered: Riot adds “a trap that, when sprung, reveals and immobilizes the enemy champion”").
+  The abilities of a strip with no reviewed fact are named once under it ("No reviewed facts for
+  Passive and R"), not on every tile.
+- **The bot lane names all four** ("No curated briefing for Jinx + Lulu vs Caitlyn + Lux yet. …
+  No person has checked Jinx + Lulu vs Caitlyn + Lux as a lineup."), puts the ADC's slot first on
+  each side with each label on one line (the four slots keep the portrait above the words), and
+  folds the second enemy's strip, closed. The haste chosen in the first strip applies to both, and
+  the second strip says so ("Base cooldowns; the haste chosen above applies here too").
+- **Provenance once.** The bar names no layer; the plan's own line says it, every part at one weight
+  and with no check mark: "Curated briefing · Checked notes (AI reviewers), not by a person · Checked
+  on patch 26.22" (`matchup-layer` moved there, which the Production check reads). The strips fold
+  their sources' line for checked notes too, unless it carries a warning (changed, too old, offline).
+- **Two fold levels at most.** In the full reference each champion's interactions and Riot's tips are
+  listed open (their "more" folds the second level).
+- **The haste field** is 80px on a touch screen (64px with a mouse), so "Other" keeps whole at 320–390px.
+
+Measured after it (the same 40 pairs): the lane plan whole and **every enemy cooldown line on the
+first screen at 1440 × 900 for all 40** (the lowest line 830px), at 1920 × 950 (919px) and wider; the
+sources' summary on the first screen from 1920 × 1080 for all 40 (the lowest 1027px). The Production
+check's pair in production's state at 1440 × 900: plan 541px, tiles 742px, summary 782px.
+
 The dashboard's sections below describe the layout of 18–22 Nov 2026 and stay as its record; where
 they disagree with this section (the two columns, the one-screen fit, the glance, the tiles' layout,
 the Details window), this section is what the code does.

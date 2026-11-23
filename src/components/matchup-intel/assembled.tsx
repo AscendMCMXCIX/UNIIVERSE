@@ -1,7 +1,8 @@
 import { TierLabel } from "./evidence-panel";
 import { ChangedBadge } from "./changed-badge";
-import { Crosshair, History, Layers, Quote, Swords, TriangleAlert } from "lucide-react";
-import type { ChampionChoice, ChampionIntelView } from "@/domain/matchup-intel/types";
+import type * as React from "react";
+import { History, Layers, Quote, Swords, TriangleAlert, Wrench } from "lucide-react";
+import type { ChampionChoice, ChampionIntelView, KindGroup } from "@/domain/matchup-intel/types";
 import { SIDE_GROUPS, kitOf, type Kit, type KitItem } from "@/domain/matchup-intel/kit";
 import { Fold } from "@/components/ui/fold";
 import { Panel } from "@/components/ui/panel";
@@ -9,9 +10,9 @@ import { cn } from "@/lib/cn";
 import { CuratedLine } from "./ability-list";
 import { AbilityRefLink } from "./ability-ref-link";
 import { CuratedLinks } from "./briefing";
-import { CHIP_ROWS, ConditionalNote, FactChipView, GROUP_LOOK } from "./fact-chip";
+import { CHIP_ROWS, ConditionalNote, FactChipView, GROUP_LOOK, QualifierNote } from "./fact-chip";
 import { TIP_LABEL } from "./riot-tips";
-import { ASSEMBLED_IN_PLACE_WORDS, ASSEMBLED_TITLE, KIND_GROUP_WORDS, LANE_REFERENCE_TITLE, RIOT_TEXT_LABEL, SLOT_NAMES, abilityAnchor, assembledWords, briefingHiddenAboveWords, dangerSideWords, duoToolsWords, emptyGroupsWords, hiddenRiotTextWords, missingAbilitiesWords, noBriefingWords, noFactsWords, riotTipHeadingWords, toolsSideWords } from "./wording";
+import { ASSEMBLED_IN_PLACE_WORDS, ASSEMBLED_TITLE, DAMAGE_GROUP_WORDS, DANGER_TITLE, EMPOWER_GROUP_WORDS, KIND_GROUP_WORDS, LANE_REFERENCE_TITLE, OTHER_TOOLS_TITLE, RIOT_TEXT_LABEL, SLOT_NAMES, abilityAnchor, assembledWords, briefingHiddenAboveWords, dangerLineWords, dangerSideWords, duoToolsWords, emptyGroupsWords, hiddenRiotTextWords, lineupWords, missingAbilitiesWords, noBriefingWords, noFactsWords, otherToolsWords, riotTipHeadingWords, yourToolsTitleWords } from "./wording";
 
 /*
   The lane reference (L5, the assembled reference; docs/MATCHUP_INTEL.md, "The lane plan" and "The
@@ -69,7 +70,8 @@ function KitLine({ item, champion, rows }: { item: KitItem; champion: ChampionCh
           <FactChipView key={i} chip={c} champion={champion.name} ability={item.ability} testId="assembled-chip" />
         ))}
         {item.flagged ? <ChangedBadge testId="assembled-flagged" /> : null}
-        {/* Where any of these facts is conditional: the owner's marker, once, on a row of its own, naming the chips it marks. */}
+        {/* What a fact holds only with, in Riot's words, and where any is conditional the owner's marker: each once, on a row of its own. */}
+        <QualifierNote chips={item.chips} testId="assembled-qualifiers" className="basis-full" />
         <ConditionalNote chips={item.chips} testId="assembled-conditional" className="basis-full" />
       </span>
     </li>
@@ -98,32 +100,72 @@ function SideSource({ intel, kit }: { intel: ChampionIntelView; kit: Kit }) {
   );
 }
 
-type Side = "danger" | "opportunity" | "both";
+type Side = "danger" | "tools" | "yours" | "both";
 
 const SIDE_LOOK: Record<Side, { icon: typeof TriangleAlert; text: string; box: string }> = {
   danger: { icon: TriangleAlert, text: "text-warn", box: "border-warn/70 bg-warn/5" },
-  opportunity: { icon: Crosshair, text: "text-good", box: "border-good/70 bg-good/5" },
+  tools: { icon: Wrench, text: "text-fg-muted", box: "border-border-strong" },
+  yours: { icon: Wrench, text: "text-blue", box: "border-blue/60 bg-blue/5" },
   both: { icon: Swords, text: "text-fg-muted", box: "border-border-strong" },
 };
 
-/** One side: its kit by kind, or what is missing in words. */
-function KitSide({ side, kit, intel, champion, title, subtitle, rows }: { side: Side; kit: Kit; intel: ChampionIntelView; champion: ChampionChoice; title: string; subtitle: string; rows: ReadonlySet<string> }) {
+/** One group of a side as it is listed: its group (for its icon), its label and its abilities' lines. */
+interface SideGroup {
+  group: KindGroup;
+  label: string;
+  items: KitItem[];
+}
+
+/** An item with only the chips that pass `keep`, or null when none do. */
+const only = (item: KitItem, keep: (c: KitItem["chips"][number]) => boolean): KitItem | null => {
+  const chips = item.chips.filter(keep);
+  return chips.length ? { ...item, chips } : null;
+};
+const isDamage = (c: KitItem["chips"][number]) => c.layer === "checked" && c.kind === "damage";
+
+/**
+ * A kit's groups, sorted for the side they are listed on (the UX review of Release 13: a self or ally
+ * shield, heal or buff is never a "danger"):
+ * - `danger`: the enemy's crowd control, and the damage its checked notes record;
+ * - `tools`: the enemy's mobility, defence, sustain and empowerments (what it does for itself or its allies);
+ * - `all`: every group, in SIDE_GROUPS' order (your champion, a mirror).
+ * Facts from Riot's text record no damage kind, so a side from them lists no damage group.
+ */
+function sideGroups(kit: Kit, part: "danger" | "tools" | "all"): SideGroup[] {
+  const items = (g: KindGroup) => kit.groups.find((x) => x.group === g)?.items ?? [];
+  const checked = kit.from === "checked";
+  if (part === "all") return SIDE_GROUPS.map((g) => ({ group: g, label: KIND_GROUP_WORDS[g], items: items(g) }));
+  if (part === "danger")
+    return [
+      { group: "crowd-control" as const, label: KIND_GROUP_WORDS["crowd-control"], items: items("crowd-control") },
+      ...(checked ? [{ group: "power" as const, label: DAMAGE_GROUP_WORDS, items: items("power").map((i) => only(i, isDamage)).filter((i): i is KitItem => !!i) }] : []),
+    ];
+  return [
+    { group: "mobility", label: KIND_GROUP_WORDS.mobility, items: items("mobility") },
+    { group: "defence", label: KIND_GROUP_WORDS.defence, items: items("defence") },
+    { group: "sustain", label: KIND_GROUP_WORDS.sustain, items: items("sustain") },
+    { group: "power", label: EMPOWER_GROUP_WORDS, items: items("power").map((i) => only(i, (c) => !isDamage(c))).filter((i): i is KitItem => !!i) },
+  ];
+}
+
+/** One side: its groups by kind, or what is missing in words. `source`: whether its layer's line is said under its title (once per champion). */
+function KitSide({ side, part, kit, intel, champion, title, subtitle, rows, source = true }: { side: Side; part: "danger" | "tools" | "all"; kit: Kit; intel: ChampionIntelView; champion: ChampionChoice; title: string; subtitle: string; rows: ReadonlySet<string>; source?: boolean }) {
   const look = SIDE_LOOK[side];
   const Icon = look.icon;
   const missing = kit.noAbilities ? missingAbilitiesWords(kit.name, kit.unreadable).title : null;
-  const groups = SIDE_GROUPS.map((g) => kit.groups.find((x) => x.group === g)!).filter((g) => !!g);
+  const groups = sideGroups(kit, part);
   const filled = groups.filter((g) => g.items.length);
-  const empty = groups.filter((g) => !g.items.length).map((g) => g.group);
+  const empty = groups.filter((g) => !g.items.length).map((g) => g.label);
   return (
     // A tint and a bar at its start in the side's colour; under 9rem (a 320px phone at twice the text
     // size) a narrower padding and no icon before the label, so the label and the chips keep whole.
-    <section className={cn("min-w-0 border-l-2 px-3 py-2 @max-[9rem]/kits:px-2", look.box)} aria-label={`${title}: ${subtitle}`} data-testid={`assembled-${side}`} data-from={kit.from}>
+    <section className={cn("min-w-0 border-l-2 px-3 py-2 @max-[9rem]/kits:px-2", look.box)} aria-label={`${title}: ${subtitle}`} data-testid={`assembled-${side}`} data-from={kit.from} data-champion={champion.id}>
       <h3 className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-sm [overflow-wrap:anywhere]">
         <Icon className={cn("h-4 w-4 shrink-0 @max-[9rem]/kits:hidden", look.text)} aria-hidden />
         <span className={cn("font-semibold", look.text)}>{title}</span>
         <span className="font-normal text-fg-muted">{subtitle}</span>
       </h3>
-      {missing ? null : <SideSource intel={intel} kit={kit} />}
+      {missing || !source ? null : <SideSource intel={intel} kit={kit} />}
       {missing ? (
         <p className="mt-1.5 text-sm text-fg-muted" data-testid="assembled-missing">
           {missing}
@@ -139,10 +181,10 @@ function KitSide({ side, kit, intel, champion, title, subtitle, rows }: { side: 
               {filled.map((group) => {
                 const GroupIcon = GROUP_LOOK[group.group].icon;
                 return (
-                  <li key={group.group} data-testid="assembled-group" data-group={group.group}>
+                  <li key={group.label} data-testid="assembled-group" data-group={group.group}>
                     <p className="flex items-center gap-1.5 text-xs font-semibold text-fg-muted">
                       <GroupIcon className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                      {KIND_GROUP_WORDS[group.group]}
+                      {group.label}
                     </p>
                     <ul className="mt-1 space-y-1 pointer-coarse:mt-1.5 pointer-coarse:space-y-3">
                       {group.items.map((item) => (
@@ -157,7 +199,7 @@ function KitSide({ side, kit, intel, champion, title, subtitle, rows }: { side: 
           {/* The groups with nothing in them, named once: beside abilities whose facts are hidden, only
               what holds outside them (a hidden fact may be of these kinds). */}
           {empty.length ? (
-            <p className="mt-2 text-xs text-fg-subtle" data-testid="assembled-none">
+            <p className="mt-1.5 text-xs text-fg-subtle" data-testid="assembled-none">
               {emptyGroupsWords(
                 empty,
                 kit.from,
@@ -167,7 +209,7 @@ function KitSide({ side, kit, intel, champion, title, subtitle, rows }: { side: 
           ) : null}
         </>
       )}
-      {kit.hidden.length ? (
+      {kit.hidden.length && source ? (
         <ul className="mt-1.5 space-y-0.5" data-testid="assembled-hidden">
           {kit.hidden.map((h) => (
             <li key={h.slot} className="flex items-start gap-1.5 text-xs text-fg-muted">
@@ -205,38 +247,31 @@ function RiotTip({ intel }: { intel: ChampionIntelView }) {
   );
 }
 
-/** One side of the card: whose kit, and how it is named. */
-export interface AssembledSide {
-  side: Side;
-  intel: ChampionIntelView;
-}
-
 /**
  * The lane reference for your champion against the enemy, when no curated briefing shows.
  * `rows`: the champions whose tiles are on the page, for the keys' links. `curatedForYou`: the
  * curated matchups that do exist for your champion, linked (the pair on the page left out).
  * `briefingHidden`: the pair has a curated briefing, hidden above (too old, or every part resting on
- * an ability Riot changed): said as that, never as "no curated briefing". In the bot lane
- * (`enemy2Intel`, `allyIntel`) both enemies' kits are danger sides and both of your duo's opportunity
- * sides: the enemies' first, two to four side by side as the card has room.
+ * an ability Riot changed): said as that, never as "no curated briefing". `levels`: the level
+ * changes recorded for the champions on the page, first in the card. In the bot lane
+ * (`enemy2Intel`, `allyIntel`) the card names all four, leads with both enemies' dangers, and keeps
+ * every champion's other tools one press away.
  */
-export function AssembledReference({ you, enemy, enemyIntel, yourIntel, enemy2Intel = null, allyIntel = null, curatedForYou, rows, briefingHidden = false }: { you: ChampionChoice; enemy: ChampionChoice; enemyIntel: ChampionIntelView; yourIntel: ChampionIntelView | null; enemy2Intel?: ChampionIntelView | null; allyIntel?: ChampionIntelView | null; curatedForYou: readonly ChampionChoice[]; rows: ReadonlySet<string>; briefingHidden?: boolean; /** Kept for callers of the bot lane's earlier layout: the card lays its sides out by its own width. */ duo?: boolean }) {
+export function AssembledReference({ you, enemy, enemyIntel, yourIntel, enemy2Intel = null, allyIntel = null, curatedForYou, rows, briefingHidden = false, levels }: { you: ChampionChoice; enemy: ChampionChoice; enemyIntel: ChampionIntelView; yourIntel: ChampionIntelView | null; enemy2Intel?: ChampionIntelView | null; allyIntel?: ChampionIntelView | null; curatedForYou: readonly ChampionChoice[]; rows: ReadonlySet<string>; briefingHidden?: boolean; levels?: React.ReactNode }) {
   const mirror = you.id === enemy.id;
   // The other curated pairs for your champion: a link to the pair already on the page leads nowhere.
   const others = curatedForYou.filter((c) => c.id !== enemy.id);
-  const sides: Array<{ side: Side; intel: ChampionIntelView; title: string; subtitle: string }> = [
-    { side: mirror ? "both" : "danger", intel: enemyIntel, title: mirror ? "Both sides" : "Danger", subtitle: dangerSideWords(enemy.name) },
-    ...(enemy2Intel ? [{ side: "danger" as const, intel: enemy2Intel, title: "Danger", subtitle: dangerSideWords(enemy2Intel.champion.name) }] : []),
-    ...(yourIntel && !mirror ? [{ side: "opportunity" as const, intel: yourIntel, title: "Opportunity", subtitle: toolsSideWords(you.name) }] : []),
-    ...(allyIntel ? [{ side: "opportunity" as const, intel: allyIntel, title: "Opportunity", subtitle: toolsSideWords(allyIntel.champion.name) }] : []),
-  ];
-  const tips = [enemyIntel, ...(enemy2Intel ? [enemy2Intel] : [])].filter((i) => i.tips?.enemy.length);
-  // In the bot lane the card leads with both enemies' kits; your duo's tools are one press away under
-  // them (the owner's "your duo folded"), side by side as the enemies' are.
   const duo = !!enemy2Intel || !!allyIntel;
-  const shown = duo ? sides.filter((s) => s.side !== "opportunity") : sides;
-  const folded = duo ? sides.filter((s) => s.side === "opportunity") : [];
-  const side = (s: (typeof sides)[number]) => <KitSide key={`${s.side}-${s.intel.champion.id}`} side={s.side} kit={kitOf(s.intel)} intel={s.intel} champion={s.intel.champion} title={s.title} subtitle={s.subtitle} rows={rows} />;
+  const yours = lineupWords([you.name, ...(allyIntel ? [allyIntel.champion.name] : [])]);
+  const theirs = lineupWords([enemy.name, ...(enemy2Intel ? [enemy2Intel.champion.name] : [])]);
+  const enemies = [enemyIntel, ...(enemy2Intel ? [enemy2Intel] : [])];
+  const allies = [...(yourIntel && !mirror ? [yourIntel] : []), ...(allyIntel ? [allyIntel] : [])];
+  const tips = enemies.filter((i) => i.tips?.enemy.length);
+  const danger = (i: ChampionIntelView) => <KitSide key={`danger-${i.champion.id}`} side="danger" part="danger" kit={kitOf(i)} intel={i} champion={i.champion} title={DANGER_TITLE} subtitle={dangerLineWords(i.champion.name)} rows={rows} />;
+  // A champion with no facts, or no abilities stored, says so once, on its danger or tools side: no second side repeats it.
+  const listed = (i: ChampionIntelView) => kitOf(i).from !== "none" && !kitOf(i).noAbilities;
+  const tools = (i: ChampionIntelView) => <KitSide key={`tools-${i.champion.id}`} side="tools" part="tools" kit={kitOf(i)} intel={i} champion={i.champion} title={OTHER_TOOLS_TITLE} subtitle={otherToolsWords(i.champion.name)} rows={rows} source={false} />;
+  const mine = (i: ChampionIntelView) => <KitSide key={`yours-${i.champion.id}`} side="yours" part="all" kit={kitOf(i)} intel={i} champion={i.champion} title={yourToolsTitleWords(i.champion.name)} subtitle="by kind" rows={rows} />;
   return (
     <Panel className="panel-featured overflow-hidden" data-testid="matchup-assembled" data-briefing-hidden={briefingHidden ? "" : undefined}>
       {/* The title, where the card comes from in one quiet line (the layer and its tier, the curated
@@ -245,36 +280,47 @@ export function AssembledReference({ you, enemy, enemyIntel, yourIntel, enemy2In
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
           <h2 className="text-lg font-semibold leading-tight text-fg">
             {LANE_REFERENCE_TITLE}
-            <span className="sr-only">: {`${you.name} vs ${enemy.name}`}</span>
+            <span className="sr-only">: {`${yours} vs ${theirs}`}</span>
           </h2>
           <p className="flex flex-wrap items-center gap-x-1.5 text-xs text-fg-muted">
-            <span className="inline-flex items-center gap-1">
+            <span className="inline-flex items-center gap-1" data-testid="matchup-layer" data-layer="assembled">
               <Layers className="h-3.5 w-3.5 shrink-0 text-fg-subtle" aria-hidden />
               {ASSEMBLED_TITLE}
             </span>
             <span aria-hidden>·</span>
             {/* Riot's data: each side whose facts are a champion's checked notes says so under its own title. */}
-            <TierLabel className="text-xs">Riot&apos;s data</TierLabel>
+            <TierLabel className="text-xs text-fg-muted">Riot&apos;s data</TierLabel>
           </p>
           <CuratedLinks you={you} enemies={others} label={`Curated for ${you.name}:`} className="text-xs" />
         </div>
         <p className="text-sm text-fg-muted">
           <span className="font-medium text-fg" data-testid="matchup-assembled-why">
-            {briefingHidden ? briefingHiddenAboveWords(you.name, enemy.name) : noBriefingWords(you.name, enemy.name)}
+            {briefingHidden ? briefingHiddenAboveWords(you.name, enemy.name) : noBriefingWords(yours, theirs)}
           </span>{" "}
-          <span data-testid="matchup-assembled-label">{briefingHidden ? ASSEMBLED_IN_PLACE_WORDS : assembledWords(you.name, enemy.name)}</span>
+          <span data-testid="matchup-assembled-label">{briefingHidden ? ASSEMBLED_IN_PLACE_WORDS : assembledWords(yours, theirs, duo)}</span>
         </p>
       </header>
       <div className="@container/kits space-y-2.5 px-3 py-2.5 sm:px-4">
-        {/* Two sides side by side from 36rem. */}
-        <div className={cn("grid gap-3", shown.length > 1 && "@min-[36rem]/kits:grid-cols-2")} data-sides={shown.length}>
-          {shown.map(side)}
-        </div>
-        {folded.length ? (
-          <Fold variant="inline" tone="fg" testId="assembled-duo-tools" summary={<span>{duoToolsWords(folded.map((s) => s.intel.champion.name))}</span>}>
-            <div className={cn("grid gap-3", folded.length > 1 && "@min-[36rem]/kits:grid-cols-2")}>{folded.map(side)}</div>
-          </Fold>
-        ) : null}
+        {levels}
+        {mirror ? (
+          <KitSide side="both" part="all" kit={kitOf(enemyIntel)} intel={enemyIntel} champion={enemy} title="Both sides" subtitle={dangerSideWords(enemy.name)} rows={rows} />
+        ) : (
+          <>
+            {/* The enemies' dangers first (in the bot lane both, side by side); every champion's other tools,
+                the enemies' own shields, heals, mobility and buffs and your side's kit, one press away. */}
+            <div className={cn("grid gap-3", enemies.length > 1 && "@min-[36rem]/kits:grid-cols-2")} data-sides={enemies.length}>
+              {enemies.map(danger)}
+            </div>
+            {[...enemies.filter(listed), ...allies].length ? (
+              <Fold variant="inline" tone="fg" testId="assembled-other-tools" summary={<span>{duoToolsWords([...enemies.filter(listed), ...allies].map((i) => i.champion.name))}</span>}>
+                <div className="grid gap-3 @min-[36rem]/kits:grid-cols-2">
+                  {enemies.filter(listed).map(tools)}
+                  {allies.map(mine)}
+                </div>
+              </Fold>
+            ) : null}
+          </>
+        )}
         {tips.length ? (
           <div className={cn("grid gap-3 border-t border-border pt-2.5", tips.length > 1 && "@min-[36rem]/kits:grid-cols-2")} data-testid="assembled-riot-tips">
             {tips.map((i) => (

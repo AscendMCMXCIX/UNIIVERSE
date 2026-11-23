@@ -141,19 +141,15 @@ function SlotButton({ slot, duo, role, champion, onOpen, buttonRef }: { slot: Fr
       // words where the row is 27rem wide; a narrower one (a phone held sideways at twice the text
       // size) keeps the portrait above them, where the longest name still fits whole.
       className={cn(
-        "group flex h-full w-full min-w-0 flex-col items-center justify-center gap-1 rounded-panel border bg-surface px-1 py-2 text-center transition-colors hover:border-border-strong hover:bg-surface-2/60 sm:@min-[27rem]/pickers:justify-start sm:@min-[27rem]/pickers:py-1.5",
-        duo ? "max-sm:justify-start max-sm:gap-1 max-sm:px-1 max-sm:py-1.5" : "max-sm:@min-[22rem]/pickers:justify-start max-sm:@min-[22rem]/pickers:gap-1.5 max-sm:@min-[22rem]/pickers:px-1.5",
-        you ? "sm:@min-[27rem]/pickers:flex-row-reverse sm:@min-[27rem]/pickers:text-right" : "sm:@min-[27rem]/pickers:flex-row sm:@min-[27rem]/pickers:text-left",
-        duo
-          ? you
-            ? "max-sm:flex-row-reverse max-sm:text-right"
-            : "max-sm:flex-row max-sm:text-left"
-          : you
-            ? "max-sm:@min-[22rem]/pickers:flex-row-reverse max-sm:@min-[22rem]/pickers:text-right"
-            : "max-sm:@min-[22rem]/pickers:flex-row max-sm:@min-[22rem]/pickers:text-left",
+        "group flex h-full w-full min-w-0 flex-col items-center justify-center gap-1 rounded-panel border bg-surface px-1 py-2 text-center transition-colors hover:border-border-strong hover:bg-surface-2/60",
+        // The bot lane's four slots keep the portrait above the words at every width, so a role's label
+        // ("Enemy support") keeps one line (the UX review of Release 13 found "Your / support" wrapped).
+        duo ? "py-1.5" : "max-sm:@min-[22rem]/pickers:justify-start max-sm:@min-[22rem]/pickers:gap-1.5 max-sm:@min-[22rem]/pickers:px-1.5 sm:@min-[27rem]/pickers:justify-start sm:@min-[27rem]/pickers:py-1.5",
+        duo ? null : you ? "sm:@min-[27rem]/pickers:flex-row-reverse sm:@min-[27rem]/pickers:text-right" : "sm:@min-[27rem]/pickers:flex-row sm:@min-[27rem]/pickers:text-left",
+        duo ? null : you ? "max-sm:@min-[22rem]/pickers:flex-row-reverse max-sm:@min-[22rem]/pickers:text-right" : "max-sm:@min-[22rem]/pickers:flex-row max-sm:@min-[22rem]/pickers:text-left",
         // An empty slot: 18px less gap and padding beside the words from sm, so "Choose your champion"
         // keeps one line in the 242px slot and its label sits level with the enemy's (design review G2-4).
-        champion ? "border-border sm:@min-[27rem]/pickers:gap-2.5 sm:@min-[27rem]/pickers:px-3" : "border-dashed border-border-strong sm:@min-[27rem]/pickers:gap-1 sm:@min-[27rem]/pickers:px-1.5",
+        champion ? cn("border-border", !duo && "sm:@min-[27rem]/pickers:gap-2.5 sm:@min-[27rem]/pickers:px-3") : cn("border-dashed border-border-strong", !duo && "sm:@min-[27rem]/pickers:gap-1 sm:@min-[27rem]/pickers:px-1.5"),
       )}
       data-testid={`matchup-pick-${slot}`}
       data-champion={champion?.id}
@@ -175,7 +171,7 @@ function SlotButton({ slot, duo, role, champion, onOpen, buttonRef }: { slot: Fr
       <span className="flex min-w-0 max-w-full flex-col justify-end self-stretch sm:justify-start">
         {/* A label a size smaller on a phone; in the narrowest row (a 320px phone) "Your champion" shows as
             "You", as the enemy's is one word, and a screen reader still hears the whole label. */}
-        <span className={cn("block text-xs font-semibold uppercase leading-tight tracking-label max-sm:text-2xs", you ? "text-blue" : "text-red")} data-testid={`matchup-pick-${slot}-label`}>
+        <span className={cn("block text-xs font-semibold uppercase leading-tight tracking-label max-sm:text-2xs", duo && "@min-[20rem]/pickers:whitespace-nowrap", you ? "text-blue" : "text-red")} data-testid={`matchup-pick-${slot}-label`}>
           {words.label === "Your champion" ? (
             <>
               <span aria-hidden className="hidden @max-[20rem]/pickers:inline">
@@ -187,7 +183,9 @@ function SlotButton({ slot, duo, role, champion, onOpen, buttonRef }: { slot: Fr
             words.label
           )}
         </span>
-        <span className={cn("line-clamp-2 font-semibold leading-snug text-fg [overflow-wrap:anywhere] max-sm:@min-[22rem]/pickers:text-sm max-sm:@min-[22rem]/pickers:tracking-tight sm:@min-[27rem]/pickers:text-base", duo ? "text-md max-sm:text-sm max-sm:tracking-tight" : "text-md")} data-testid={`matchup-pick-${slot}-name`}>
+        {/* In the bot lane on a phone the name keeps its two lines' height ("Choose the enemy ADC" takes
+            two, "Lux" one), so filling a slot moves no other. */}
+        <span className={cn("line-clamp-2 font-semibold leading-snug text-fg [overflow-wrap:anywhere] max-sm:@min-[22rem]/pickers:text-sm max-sm:@min-[22rem]/pickers:tracking-tight sm:@min-[27rem]/pickers:text-base", duo ? "text-md max-sm:min-h-[2lh] max-sm:text-sm max-sm:tracking-tight" : "text-md")} data-testid={`matchup-pick-${slot}-name`}>
           {champion ? champion.name : words.choose}
         </span>
         {champion ? <span className="sr-only">, change</span> : null}
@@ -424,7 +422,7 @@ function HasteChoice({ haste, onChange }: { haste: number; onChange: (haste: num
           onChange(clampHaste(v));
         }}
         // 16px on a phone, so it never zooms in.
-        className="h-11 w-16 rounded-md border border-border-control bg-bg-elevated px-2 text-base pointer-fine:w-14 text-fg tabular-nums placeholder:text-fg-subtle pointer-fine:h-6 sm:pointer-fine:text-xs"
+        className="h-11 w-20 rounded-md border border-border-control bg-bg-elevated px-2 text-base pointer-fine:w-16 text-fg tabular-nums placeholder:text-fg-subtle pointer-fine:h-6 sm:pointer-fine:text-xs"
         data-testid="matchup-haste-input"
       />
     </div>
@@ -534,7 +532,9 @@ function PinnedPairBar({ lineup, choice, onOpen, onSwap, watch }: { lineup: Line
     };
   }, [shown]);
   const duo = DUO_ROLES.has(lineup.role);
-  const slots: FrameSlot[][] = [duo ? ["you", "ally"] : ["you"], duo ? ["enemy", "enemy2"] : ["enemy"]];
+  // The ADC first on each side, as in the slots above.
+  const support = lineup.role === "support";
+  const slots: FrameSlot[][] = [duo ? (support ? ["ally", "you"] : ["you", "ally"]) : ["you"], duo ? (support ? ["enemy2", "enemy"] : ["enemy", "enemy2"]) : ["enemy"]];
   const tile = (slot: FrameSlot) => {
     const c = choice(lineup[slot]);
     const words = slotWords(lineup.role, slot);
@@ -738,9 +738,10 @@ export function MatchupFrame({
                   whichever name wraps. In the bot lane each side holds two slots, the role's own first. */}
               <div ref={slotsRef} className="grid grid-cols-1 items-stretch gap-2 @min-[17.5rem]/pickers:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:gap-3" data-testid="matchup-pickers" data-slots={duo ? 4 : 2}>
                 {duo ? (
-                  <div className="grid grid-cols-2 gap-1.5 max-sm:grid-cols-1" data-testid="matchup-side-you">
-                    {slotButton("ally")}
-                    {slotButton("you")}
+                  // The ADC's slot first on each side, whichever role is yours (the UX review of Release 13).
+                  <div className="grid grid-cols-2 content-start gap-1.5 max-sm:grid-cols-1" data-testid="matchup-side-you">
+                    {shown.role === "support" ? slotButton("ally") : slotButton("you")}
+                    {shown.role === "support" ? slotButton("you") : slotButton("ally")}
                   </div>
                 ) : (
                   slotButton("you")
@@ -757,9 +758,9 @@ export function MatchupFrame({
                   <ArrowLeftRight className="h-5 w-5 @max-[17.5rem]/pickers:rotate-90" aria-hidden />
                 </button>
                 {duo ? (
-                  <div className="grid grid-cols-2 gap-1.5 max-sm:grid-cols-1" data-testid="matchup-side-enemy">
-                    {slotButton("enemy")}
-                    {slotButton("enemy2")}
+                  <div className="grid grid-cols-2 content-start gap-1.5 max-sm:grid-cols-1" data-testid="matchup-side-enemy">
+                    {shown.role === "support" ? slotButton("enemy2") : slotButton("enemy")}
+                    {shown.role === "support" ? slotButton("enemy") : slotButton("enemy2")}
                   </div>
                 ) : (
                   slotButton("enemy")

@@ -1,10 +1,10 @@
-import { History, Layers, ShieldCheck, TriangleAlert } from "lucide-react";
+import { History, TriangleAlert } from "lucide-react";
 import type { ChampionIntelView, MatchupPageView } from "@/domain/matchup-intel/types";
 import { comparePatches } from "@/domain/patch";
 import { Badge } from "@/components/ui/badge";
 import { dataSourceOf, publicPatchOf } from "./ability-list";
-import { briefingShows, hiddenPartsOf } from "./briefing";
-import { ASSEMBLED_TITLE, freshnessWords, hiddenPartsBarWords, notRecheckedWords } from "./wording";
+import { hiddenPartsOf } from "./briefing";
+import { hiddenPartsBarWords } from "./wording";
 
 /*
   The patch and how fresh the page is, in the picker bar (docs/MATCHUP_INTEL.md, "The dashboard"):
@@ -38,7 +38,7 @@ export function behindOf(view: MatchupPageView): Array<{ name: string; patch: st
  */
 function Dot() {
   return (
-    <span aria-hidden className="ml-2">
+    <span aria-hidden className="ml-2 max-sm:hidden">
       ·
     </span>
   );
@@ -49,9 +49,6 @@ export function MatchupStatus({ view }: { view: MatchupPageView }) {
   const intel = enemyIntel ?? yourIntel;
   const source = intel ? dataSourceOf(intel) : null;
   const behind = behindOf(view);
-  const shows = briefingShows(matchup);
-  const f = matchup ? freshnessWords(matchup.freshness, matchup.verified.patch, matchup.verified.riotRecheck) : null;
-  const recheck = matchup?.recheck ?? null;
   const hidden = hiddenPartsOf(matchup);
   return (
     <p className="flex flex-wrap items-center gap-x-2 text-xs text-fg-muted @min-[44rem]/pickers:justify-end" data-testid="matchup-patch-state">
@@ -59,35 +56,18 @@ export function MatchupStatus({ view }: { view: MatchupPageView }) {
         <span className="font-medium text-fg" data-testid="matchup-patch">
           {patch.current ? `Patch ${patch.current}` : "Game patch not known"}
         </span>
-        {source || (you && enemy) ? <Dot /> : null}
+        {source ? <Dot /> : null}
       </span>
       {/* Where the abilities come from: on a phone said in the sources' line at the foot instead, so the bar keeps to one line. */}
       {source ? (
         <span className="max-sm:sr-only">
           {source}
-          {you && enemy ? <Dot /> : null}
         </span>
       ) : null}
       {you && enemy ? (
         <>
-          {matchup && shows && f ? (
-            <span className="inline-flex items-center gap-1" data-testid="matchup-layer" data-layer="curated">
-              <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-good" aria-hidden />
-              {/* The dot held to the words before it (a no-break space), so a wrapped line never starts with it. */}
-              {`Curated briefing\u00a0· ${f.checked.charAt(0).toLowerCase()}${f.checked.slice(1)}`}
-            </span>
-          ) : (
-            <span className="inline-flex items-center gap-1" data-testid="matchup-layer" data-layer="assembled">
-              <Layers className="h-3.5 w-3.5 shrink-0 text-fg-subtle" aria-hidden />
-              {ASSEMBLED_TITLE}
-            </span>
-          )}
-          {matchup && shows && recheck && !recheck.expired ? (
-            <Badge tone="neutral" size="line">
-              <History className="h-3.5 w-3.5 shrink-0" aria-hidden />
-              {notRecheckedWords(recheck.patch)}
-            </Badge>
-          ) : null}
+          {/* Which layer the pair shows, and when it was checked, is said once, in the lane plan's own
+              line (the UX review of Release 13): the bar keeps the patch, the data's version and its warnings. */}
           {hidden.count ? (
             <span className="inline-flex max-w-full" data-testid="matchup-hidden-parts">
               <Badge tone="warn" size="line">

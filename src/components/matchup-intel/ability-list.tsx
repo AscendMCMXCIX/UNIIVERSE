@@ -15,14 +15,13 @@ import { Panel } from "@/components/ui/panel";
 import { RemoteImage } from "@/components/ui/remote-image";
 import { cn } from "@/lib/cn";
 import { AbilityPeekButton, type AbilityPeekItem } from "./ability-peek";
-import { CHIP_ROWS, ConditionalNote, DifferQuotes, FactChipView } from "./fact-chip";
+import { CHIP_ROWS, ConditionalNote, DifferQuotes, FactChipView, QualifierNote } from "./fact-chip";
 import { NO_BREAK, SourceLink } from "./source-link";
 import {
   CHECKED_NOTES_LABEL,
   CONDITIONAL_WORDS,
   DIFFER_NEITHER_WORDS,
   DIFFER_WORDS,
-  NO_ABILITY_FACTS_WORDS,
   RIOT_TEXT_KIND_WORDS,
   RIOT_TEXT_LABEL,
   SLOT_NAMES,
@@ -39,11 +38,13 @@ import {
   freshnessWords,
   hiddenRiotTextWords,
   interactionsMoreWords,
+  noFactsForWords,
+  HASTE_SHARED_WORDS,
+  STRIP_FOLDED_WORDS,
   moreWords,
   missingAbilitiesWords,
   modifierWords,
   noFactsWords,
-  noneRecordedWords,
   notRecheckedWords,
   qualifierWords,
   recastWords,
@@ -415,7 +416,8 @@ function AbilityTile({ intel, ability: a, checkedPatch, notRecheckedFor, dataPat
         ) : more ? (
           moreButton
         ) : null}
-        {/* Where any fact is conditional: the owner's marker, once, naming the chips it marks. */}
+        {/* What a fact holds only with, in Riot's words; then, where any fact is conditional, the owner's marker, once. */}
+        <QualifierNote chips={chips} testId="ability-facts-qualifiers" />
         <ConditionalNote chips={chips} testId="ability-facts-conditional" />
         {hidden ? (
           <p className="flex items-start gap-1.5 text-xs text-fg-muted" data-testid="ability-facts-hidden">
@@ -423,12 +425,7 @@ function AbilityTile({ intel, ability: a, checkedPatch, notRecheckedFor, dataPat
             <span>{hidden}</span>
           </p>
         ) : null}
-        {/* An ability with no reviewed fact says so, never "none": no fact of it passed the review, which says nothing of what it does. */}
-        {!all.length && !hidden && from !== "none" ? (
-          <p className="text-xs text-fg-subtle" data-testid="ability-facts-none">
-            {from === "riot-text" ? NO_ABILITY_FACTS_WORDS : noneRecordedWords(from)}
-          </p>
-        ) : null}
+        {/* An ability with no reviewed fact is said once for the list (AbilityList), never as "none". */}
         {notes.length && !(strip && chips.length) ? (
           <p className="text-xs text-fg-muted" data-testid="ability-modifiers">
             {notes.join(" · ")}
@@ -480,6 +477,10 @@ export function AbilityList({ intel, testId, strip = false }: { intel: ChampionI
   const dataPatch = publicPatchOf(intel.dataVersion);
   const notRecheckedFor = intel.curated?.recheck?.patch ?? null;
   const commonSource = commonSourceOf(intel);
+  // The abilities with no reviewed fact, said once under the list, quietly ("No reviewed facts for
+  // Passive and R"): no fact of them passed the review, which says nothing of what they do.
+  const from = factsFrom(intel);
+  const none = from === "none" ? [] : intel.abilities.filter((a) => !abilityChips(a).length && !hiddenWordsOf(a)).map((a) => SLOT_NAMES[a.slot]);
   return (
     // Laid out by its own width (container queries, in rem, so they follow the text size): the strip's
     // five tiles side by side from 50rem (a desktop: each 14rem or more), one under another below that
@@ -491,6 +492,11 @@ export function AbilityList({ intel, testId, strip = false }: { intel: ChampionI
           <AbilityTile key={`${intel.champion.id}-${a.slot}`} intel={intel} ability={a} checkedPatch={checkedPatch} dataPatch={dataPatch} notRecheckedFor={notRecheckedFor} commonSource={commonSource} strip={strip} />
         ))}
       </ol>
+      {none.length ? (
+        <p className="border-t border-border px-3 py-1.5 text-xs text-fg-subtle" data-testid="ability-facts-none">
+          {noFactsForWords(none, from === "checked" ? "checked" : "riot-text")}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -605,7 +611,12 @@ export function dataSourceOf(intel: Pick<ChampionIntelView, "dataVersion" | "off
  * re-checked, changed since, too old) or an offline copy's words.
  */
 export function sourcesFold(intel: ChampionIntelView): boolean {
-  return factsFrom(intel) !== "checked" && !intel.offlineCopy;
+  if (intel.offlineCopy) return false;
+  if (factsFrom(intel) !== "checked") return true;
+  // Checked notes fold too (their provenance is said once, in the lane plan, since the review of
+  // Release 13), unless Riot changed one of their abilities or their check is too old: those warnings stay in view.
+  const changed = (intel.abilities ?? []).some((a) => a.freshness === "changed-since");
+  return !changed && intel.curated?.freshness !== "changed-since" && !intel.curated?.recheck?.expired;
 }
 
 /**
@@ -613,7 +624,7 @@ export function sourcesFold(intel: ChampionIntelView): boolean {
  * without ability haste, where they come from, and where the facts come from. `notice`: a line
  * above the tiles (the ability data being older than the game's patch).
  */
-export function AbilitiesPanel({ intel, title, testId, notice, haste = false, foldSources = false }: { intel: ChampionIntelView; title: string; testId: string; notice?: React.ReactNode; haste?: boolean; /** The bot lane's two kits side by side: where the facts come from one step away (sourcesFold). */ foldSources?: boolean }) {
+export function AbilitiesPanel({ intel, title, testId, notice, haste = false, foldSources = false, folded = false }: { intel: ChampionIntelView; title: string; testId: string; notice?: React.ReactNode; haste?: boolean; /** Where the abilities and their facts come from, one step away (sourcesFold). */ foldSources?: boolean; /** The bot lane's second enemy: the strip inside a fold of its own, closed until asked for; its summary names it. */ folded?: boolean }) {
   const from = dataSourceOf(intel);
   const common = commonSourceOf(intel);
   const changed = !!intel.riotChangedOn && !intel.offlineCopy;
@@ -647,13 +658,14 @@ export function AbilitiesPanel({ intel, title, testId, notice, haste = false, fo
       {haste && !folded ? "Base cooldowns, without ability haste · " : null}
     </>
   );
-  return (
-    <Panel className="overflow-hidden" data-testid={testId} data-champion={intel.champion.id}>
+  const Box = folded ? "div" : Panel;
+  const body = (
+    <Box className="overflow-hidden" data-testid={testId} data-champion={intel.champion.id}>
       {/* One row where it fits: the title, where the abilities and their facts come from (a quiet line, or
           on a desktop one step away in a fold where it carries no warning), and the haste at its end. */}
       <header className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border px-3 py-1.5">
         {/* A long name (Heimerdinger's) breaks rather than reach past the panel at a larger text size. */}
-        <h2 className="min-w-0 text-base font-semibold text-fg [overflow-wrap:anywhere]">{title}</h2>
+        <h2 className={cn("min-w-0 text-base font-semibold text-fg [overflow-wrap:anywhere]", folded && "sr-only")}>{title}</h2>
         <div className="min-w-0 flex-[1_1_14rem]">
           {fold ? null : (
             <p className="text-xs text-fg-muted" data-testid="abilities-source">
@@ -692,11 +704,19 @@ export function AbilitiesPanel({ intel, title, testId, notice, haste = false, fo
           ) : null}
         </div>
         {/* The haste the cooldowns are also shown at (the first enemy's strip only: one choice for the page). */}
-        <div className="ml-auto">{haste ? <HasteControl /> : <p className="text-xs text-fg-muted">Base cooldowns, without ability haste</p>}</div>
+        <div className="ml-auto">{haste ? <HasteControl /> : <p className="text-xs text-fg-muted">{HASTE_SHARED_WORDS}</p>}</div>
       </header>
       {notice}
       <AbilityList intel={intel} testId={`${testId}-list`} strip />
-    </Panel>
+    </Box>
+  );
+  if (!folded) return body;
+  return (
+    // Closed until asked for (the bot lane's second enemy: the UX review of Release 13 found both
+    // strips' ten tiles open at once); a native details, so it works before the page's code has run.
+    <Fold className="panel-depth" flush testId={`${testId}-fold`} summaryTestId={`${testId}-summary`} title={title} description={STRIP_FOLDED_WORDS}>
+      {body}
+    </Fold>
   );
 }
 

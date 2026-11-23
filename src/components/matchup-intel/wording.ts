@@ -562,8 +562,8 @@ export function riotTextReviewedWords(patch: string | null, reviewedOn: string):
 export const ASSEMBLED_TITLE = "Assembled reference";
 
 /** What the assembled reference is, said on it every time: "Put together from each champion's own facts. No person has checked Riven vs Darius as a pair." */
-export function assembledWords(you: string, enemy: string): string {
-  return `Put together from each champion's own facts. No person has checked ${you} vs ${enemy} as a pair.`;
+export function assembledWords(you: string, enemy: string, lineup = false): string {
+  return `Put together from each champion's own facts. No person has checked ${you} vs ${enemy} as a ${lineup ? "lineup" : "pair"}.`;
 }
 
 /** Above the assembled reference where the pair has no curated briefing: "No curated briefing for Riven vs Darius yet." */
@@ -672,8 +672,76 @@ export const riotChangedLead = (after: boolean) => (after ? "changed" : "Riot ch
 /** The overview card's title where a curated briefing shows. */
 export const LANE_PLAN_TITLE = "Lane plan";
 
-/** On a phone, what the lane plan folds behind one Show: its level changes and interactions. */
-export const PLAN_MORE_WORDS = "Level changes and interactions";
+/**
+ * A curated or checked text's headline: its own first sentence, verbatim, or, where that runs past
+ * about two lines of a card (90 characters), its words up to its first clause boundary (", ", "; " or
+ * ": ") from the 30th character on; the rest of the text follows behind "More" (the UX review of
+ * Release 13: each card a headline, at most about two lines in view). No word is changed, added or
+ * left out: `head` and `rest` together are the text.
+ */
+export function headlineOf(text: string, max = 90): { head: string; rest: string } {
+  const sentence = /^(.+?[.!?])(?=\s|$)/.exec(text);
+  let head = sentence ? sentence[1]! : text;
+  if (head.length > max) {
+    const cuts = [", ", "; ", ": "].map((sep) => head.indexOf(sep, 30)).filter((i) => i >= 0);
+    if (cuts.length) head = head.slice(0, Math.min(...cuts) + 1);
+  }
+  return { head, rest: text.slice(head.length).trim() };
+}
+
+/** A side of a lineup as the page names it: "Jinx + Lulu" (one champion: its name). */
+export function lineupWords(names: readonly string[]): string {
+  return names.join(" + ");
+}
+
+/** The curated briefing's second part, named for what it holds: a fact the curator set beside the threat. */
+export const KEY_FACT_TITLE = "Key fact";
+
+/** After the curated notes' tier, at its weight: who did not check them. */
+export const NOT_A_PERSON_WORDS = "not by a person";
+
+/** The danger side's title and its line: the enemy's crowd control and damage only ("Darius's crowd control and damage"). */
+export const DANGER_TITLE = "Danger";
+export function dangerLineWords(enemy: string): string {
+  return `${enemy}'s crowd control and damage`;
+}
+
+/** The enemy's other tools (its mobility, defences, sustain and empowerments: what it does for itself or its allies), never called a danger. */
+export const OTHER_TOOLS_TITLE = "Other tools";
+export function otherToolsWords(enemy: string): string {
+  return `${enemy}'s mobility, defence, sustain and empowerments`;
+}
+
+/** Your side of the lane reference: your champion's own kit, by kind, named as that (not as advice). */
+export function yourToolsTitleWords(you: string): string {
+  return `${you}'s tools`;
+}
+
+/** The empowerment kinds as the lane reference names their group beside a danger side that holds the damage. */
+export const EMPOWER_GROUP_WORDS = "Empowerments";
+
+/** The checked damage facts as the danger side names their group. */
+export const DAMAGE_GROUP_WORDS = "Damage";
+
+/**
+ * A fact from Riot's text that holds only with what the review recorded beside it, said under the
+ * ability's chips (never as the chip's own quote): "Stun: Riot adds “Mega Gnar”", "Cooldown refund:
+ * cuts the cooldown of “Mantra”".
+ */
+export function qualifierNoteWords(kind: RiotTextKind, qualifier: string): string {
+  return `${RIOT_TEXT_KIND_WORDS[kind]}: ${kind === "cooldownrefund" ? "cuts the cooldown of" : "Riot adds"} “${qualifier}”`;
+}
+
+/** The abilities of a list with no reviewed fact, said once under it: "No reviewed facts for Passive and R" (checked notes: "None in the checked notes for W"). */
+export function noFactsForWords(keys: readonly string[], from: "checked" | "riot-text"): string {
+  return from === "checked" ? `None in the checked notes for ${listWords(keys)}` : `No reviewed facts for ${listWords(keys)}`;
+}
+
+/** The bot lane's second enemy strip, folded: what opening it shows. */
+export const STRIP_FOLDED_WORDS = "Base cooldowns and key facts, P to R";
+
+/** The bot lane's second enemy strip: the haste chosen in the first strip's header applies to its lines too. */
+export const HASTE_SHARED_WORDS = "Base cooldowns; the haste chosen above applies here too";
 
 /** The overview card's title for a pair with no curated briefing showing: what it is, a reference. */
 export const LANE_REFERENCE_TITLE = "Lane reference";
@@ -689,16 +757,16 @@ export function interactionsMoreWords(count: number): string {
  * Mobility." With some abilities' facts from Riot's text hidden, only what holds outside them (a
  * hidden fact may be of those kinds): "No reviewed facts of this kind outside R: Mobility."
  */
-export function emptyGroupsWords(groups: readonly KindGroup[], from: "checked" | "riot-text", hiddenKeys: readonly string[] = []): string {
-  const names = listWords(groups.map((g) => KIND_GROUP_WORDS[g]));
+export function emptyGroupsWords(groups: readonly string[], from: "checked" | "riot-text", hiddenKeys: readonly string[] = []): string {
+  const names = listWords(groups);
   const kinds = groups.length === 1 ? "this kind" : "these kinds";
   if (hiddenKeys.length) return `No reviewed facts of ${kinds} outside ${listWords(hiddenKeys)}: ${names}.`;
   return from === "checked" ? `None in the checked notes: ${names}.` : `No reviewed facts of ${kinds}: ${names}.`;
 }
 
-/** The bot lane's lane reference: your duo's tools, one press away under the enemies' kits ("Opportunity: Jinx's and Lulu's tools, by kind"). */
+/** The bot lane's lane reference: the other tools of all four, one press away under the enemies' dangers ("Other tools, by kind: Caitlyn, Lux, Jinx and Lulu"). */
 export function duoToolsWords(names: readonly string[]): string {
-  return `Opportunity: ${listWords(names.map((n) => `${n}'s`))} tools, by kind`;
+  return `${OTHER_TOOLS_TITLE}, by kind: ${listWords(names)}`;
 }
 
 /** The overview's quote of Riot's own tips against the enemy: "Riot's tip for playing against Darius". */

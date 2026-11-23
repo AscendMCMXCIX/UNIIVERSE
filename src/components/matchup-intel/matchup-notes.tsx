@@ -11,7 +11,7 @@ import { cn } from "@/lib/cn";
 import { AbilityRefLink } from "./ability-ref-link";
 import { AbilityChips, HiddenNote, abilityNames } from "./briefing";
 import { FactChipView } from "./fact-chip";
-import { CHECKED_NOTES_LABEL, NO_INTERACTIONS_WORDS, SLOT_NAMES, abilityAnchor, expiredInteractionsWords, expiredNotesWords, hiddenInteractionsWords, moreWords, noLevelNotesWords, notRecheckedWords, revisionWords } from "./wording";
+import { CHECKED_NOTES_LABEL, NO_INTERACTIONS_WORDS, headlineOf, SLOT_NAMES, abilityAnchor, expiredInteractionsWords, expiredNotesWords, hiddenInteractionsWords, moreWords, noLevelNotesWords, notRecheckedWords, revisionWords } from "./wording";
 
 /*
   The notes around the abilities (docs/MATCHUP_INTEL.md, "The dashboard"), each a compact panel that
@@ -36,7 +36,7 @@ import { CHECKED_NOTES_LABEL, NO_INTERACTIONS_WORDS, SLOT_NAMES, abilityAnchor, 
 
 const NO_SOURCE = { title: "", url: "" };
 
-/** One champion's checked interaction and exception facts, folded under one line (each is also a chip on its tile); null when it has none. */
+/** One champion's checked interaction and exception facts under one line (each counted on its strip tile); null when it has none. */
 function ChampionInteractions({ intel, testId, rows }: { intel: ChampionIntelView; testId: string; rows: ReadonlySet<string> }) {
   const kit = kitOf(intel);
   const items = kit.interactions;
@@ -45,13 +45,9 @@ function ChampionInteractions({ intel, testId, rows }: { intel: ChampionIntelVie
   const flagged = items.filter((i) => i.flagged).reduce((n, item) => n + item.chips.length, 0);
   const champion = intel.champion;
   return (
-    <Fold
-      variant="inline"
-      tone="fg"
-      className="min-w-0 basis-full open:order-last"
-      testId={testId}
-      // The chevron stays beside the words; in a narrow panel they wrap beside it, never under it.
-      summary={
+    // Listed open (in the full reference, itself one fold: two levels at most, the UX review of Release 13).
+    <div className="min-w-0 basis-full space-y-1" data-testid={testId}>
+      <p className="text-xs font-medium text-fg" data-testid={`${testId}-line`}>
         <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
           <span>
             {champion.name}&apos;s interactions and exceptions <span className="font-normal text-fg-muted">· {count}</span>
@@ -63,8 +59,7 @@ function ChampionInteractions({ intel, testId, rows }: { intel: ChampionIntelVie
             </Badge>
           ) : null}
         </span>
-      }
-    >
+      </p>
       <ul className="space-y-1 pointer-coarse:space-y-3">
         {items.map((item) => (
           <li key={item.slot} className="flex flex-wrap items-center gap-1 pointer-coarse:gap-x-1.5 pointer-coarse:gap-y-3" data-testid="enemy-interaction">
@@ -84,7 +79,7 @@ function ChampionInteractions({ intel, testId, rows }: { intel: ChampionIntelVie
           </li>
         ))}
       </ul>
-    </Fold>
+    </div>
   );
 }
 
@@ -291,17 +286,19 @@ export function InteractionsPanel({ matchup, enemyIntel, yourIntel, you, rows, v
 
 /** One level note: its level beside its words (above them under 16rem), its source where the panel's line does not give it, and its flag once Riot changed an ability it rests on. */
 function LevelNote({ note: n, source, section = false }: { note: ChampionIntelView["levelNotes"][number] & { champion: ChampionIntelView["champion"] }; source: string | null; section?: boolean }) {
+  const rest = section ? headlineOf(n.text).rest : "";
+  const tip = source ? (
+    <>
+      {" "}
+      <SourceTip text={source} testId="level-note-source" />
+    </>
+  ) : null;
   return (
     <li className={cn("grid grid-cols-1 gap-x-2 gap-y-0.5 py-1.5 @min-[16rem]/levels:grid-cols-[3.75rem_minmax(0,1fr)]", section ? "" : "px-3")} data-testid="matchup-level-note" data-changed={n.changed ? "" : undefined}>
       <span className={cn("font-semibold tabular-nums leading-snug text-fg", section ? "text-sm" : "text-xs")}>Level {n.level}</span>
       <p className={cn("min-w-0 leading-snug text-fg", section ? "text-sm" : "text-xs")}>
-        <span className="font-medium">{n.champion.name}:</span> {n.text}
-        {source ? (
-          <>
-            {" "}
-            <SourceTip text={source} testId="level-note-source" />
-          </>
-        ) : null}
+        <span className="font-medium">{n.champion.name}:</span> {section ? headlineOf(n.text).head : n.text}
+        {rest ? <span className="text-fg-muted"> …</span> : tip}
         {n.changed ? (
           <>
             {" "}
@@ -309,6 +306,16 @@ function LevelNote({ note: n, source, section = false }: { note: ChampionIntelVi
           </>
         ) : null}
       </p>
+      {/* In the lane plan a long note shows its headline; the rest, word for word, and the note's source
+          one press away (a source tip over the More line would crowd it on a touch screen). */}
+      {rest ? (
+        <Fold variant="inline" tone="accent" className="@min-[16rem]/levels:col-start-2" testId="level-note-more" summary={<>More<span className="sr-only">: the rest of this level change</span></>}>
+          <p className="text-sm leading-snug text-fg">
+            {rest}
+            {tip}
+          </p>
+        </Fold>
+      ) : null}
     </li>
   );
 }
@@ -331,6 +338,17 @@ export function LevelNotesPanel({ intels, variant = "panel" }: { intels: Readonl
   const section = variant === "section";
   const Box = section ? "section" : Panel;
   const Title = section ? "h3" : "h2";
+  if (section && !notes.length)
+    // None recorded, in the lane plan: one quiet line, its title leading it.
+    return (
+      <section className="min-w-0" data-testid="matchup-level-notes">
+        <p className="text-xs text-fg-subtle">
+          <span className="font-semibold text-fg-muted">Level changes</span>
+          {" · "}
+          <span data-testid="matchup-no-level-notes">{noLevelNotesWords(present.map((p) => p.champion.name))}</span>
+        </p>
+      </section>
+    );
   return (
     <Box className={section ? "min-w-0" : "overflow-hidden"} data-testid="matchup-level-notes">
       <header className={section ? "flex flex-wrap items-baseline gap-x-3 gap-y-0.5" : "flex flex-wrap items-center gap-x-3 gap-y-0.5 border-b border-border px-3 py-1.5"}>

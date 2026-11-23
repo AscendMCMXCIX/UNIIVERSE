@@ -1,9 +1,7 @@
 import { TierLabel } from "./evidence-panel";
 import type * as React from "react";
-import { Crosshair, History, ShieldCheck, TriangleAlert, Waypoints } from "lucide-react";
+import { Crosshair, History, TriangleAlert, Waypoints } from "lucide-react";
 import { Fold } from "@/components/ui/fold";
-import { PhoneFoldSection, PhoneFoldToggle } from "@/components/ui/phone-fold";
-import { PHONE_FOLDED, PHONE_FOLD_ONLY } from "@/components/ui/phone-fold-classes";
 import type { AbilityRef, BriefingPointView, ChampionChoice, MatchupIntelView, Slot } from "@/domain/matchup-intel/types";
 import { Badge } from "@/components/ui/badge";
 import { Panel } from "@/components/ui/panel";
@@ -12,7 +10,7 @@ import { AbilityRefLink } from "./ability-ref-link";
 import { MeansLine } from "./haste-line";
 import type { MeansAbility } from "@/domain/matchup-intel/haste";
 import { PairLink } from "./matchup-frame";
-import { LANE_PLAN_TITLE, PLAN_MORE_WORDS, abilityAnchor, abilityName, expiredBriefingWords, freshnessWords, hiddenBriefingWords, hiddenPartWords, hiddenPointsWords, moreWords, notRecheckedWords } from "./wording";
+import { KEY_FACT_TITLE, LANE_PLAN_TITLE, NOT_A_PERSON_WORDS, headlineOf, abilityAnchor, abilityName, expiredBriefingWords, freshnessWords, hiddenBriefingWords, hiddenPartWords, hiddenPointsWords, moreWords, notRecheckedWords } from "./wording";
 
 /*
   The matchup's curated layer (L1; docs/MATCHUP_INTEL.md): the briefing for your champion against
@@ -93,6 +91,28 @@ export function AbilityChips({ refs, names, rows, label, inline = false }: { ref
 
 type Means = Readonly<Partial<Record<AbilityRef, MeansAbility>>>;
 
+
+/** A curated text as a card shows it: its headline in bold, the rest one press away ("More"), the chips of what it rests on after the last words shown. */
+function CuratedText({ text, chips, testId }: { text: string; chips: React.ReactNode; testId: string }) {
+  const { head, rest } = headlineOf(text);
+  return (
+    <div className="min-w-0" data-testid={testId}>
+      <div className="text-md font-semibold leading-snug text-fg" data-testid="briefing-headline">
+        {head}
+        {rest ? <span className="font-normal text-fg-muted"> …</span> : chips}
+      </div>
+      {rest ? (
+        <Fold variant="inline" tone="accent" className="mt-0.5" testId="briefing-more" summary={<>More<span className="sr-only">: the rest of this point</span></>}>
+          <div className="text-md leading-snug text-fg" data-testid="briefing-rest">
+            {rest}
+            {chips}
+          </div>
+        </Fold>
+      ) : null}
+    </div>
+  );
+}
+
 /** A part's heading in the lane plan: its icon and its word, coloured and named (never colour alone), in readable type. */
 const PART_HEADING = "flex items-center gap-1.5 text-sm font-semibold [overflow-wrap:anywhere]";
 
@@ -105,14 +125,13 @@ function Point({ kind, point, names, rows, means }: { kind: "threat" | "opportun
     <div className={cn("min-w-0 border-l-2 px-3 py-2 @max-[9rem]/brief:px-2", threat ? "border-warn/70 bg-warn/5" : "border-good/70 bg-good/5")} data-testid={`briefing-${kind}`} data-hidden={point.kind === "hidden" ? "" : undefined}>
       <h3 className={cn(PART_HEADING, threat ? "text-warn" : "text-good")}>
         <Icon className="h-4 w-4 shrink-0 @max-[9rem]/brief:hidden" aria-hidden />
-        {threat ? "Threat" : "Opportunity"}
-        {point.kind === "point" ? <MeansLine refs={point.basedOn} means={means} label={threat ? "What the threat means" : "What the opportunity means"} /> : null}
+        {threat ? "Threat" : KEY_FACT_TITLE}
+        {point.kind === "point" ? <MeansLine refs={point.basedOn} means={means} label={threat ? "What the threat means" : "What the key fact means"} /> : null}
       </h3>
       {point.kind === "point" ? (
         // On a touch screen 12px under the heading, so its ⓘ's 44px area never covers a chip.
-        <div className="mt-1 text-md leading-snug text-fg pointer-coarse:mt-3">
-          <span>{point.text}</span>
-          <AbilityChips refs={point.basedOn} names={names} rows={rows} label={threat ? "The threat rests on" : "The opportunity rests on"} inline />
+        <div className="mt-1 pointer-coarse:mt-3">
+          <CuratedText text={point.text} testId={`briefing-${kind}-text`} chips={<AbilityChips refs={point.basedOn} names={names} rows={rows} label={threat ? "The threat rests on" : "The key fact rests on"} inline />} />
         </div>
       ) : (
         <div className="mt-1">
@@ -159,9 +178,8 @@ export function hiddenPartsOf(matchup: MatchupIntelView | null): { count: number
 /** A lane point: its words and the chips of what it rests on. */
 function LanePoint({ point, names, rows }: { point: Extract<BriefingPointView, { kind: "point" }>; names: ReadonlyMap<string, string>; rows?: ReadonlySet<string> }) {
   return (
-    <li className="min-w-0 border-l-2 border-border-strong pl-3 text-md leading-snug text-fg @max-[9rem]/brief:pl-1.5" data-testid="briefing-lane-point">
-      <span>{point.text}</span>
-      <AbilityChips refs={point.basedOn} names={names} rows={rows} label="This point rests on" inline />
+    <li className="min-w-0 border-l-2 border-border-strong pl-3 @max-[9rem]/brief:pl-1.5" data-testid="briefing-lane-point">
+      <CuratedText text={point.text} testId="briefing-lane-text" chips={<AbilityChips refs={point.basedOn} names={names} rows={rows} label="This point rests on" inline />} />
     </li>
   );
 }
@@ -188,6 +206,7 @@ export function Briefing({ matchup, you, enemy, rows, means, levels, interaction
   ]);
   const f = freshnessWords(matchup.freshness, matchup.verified.patch, matchup.verified.riotRecheck);
   const recheck = matchup.recheck;
+  const shows = briefingShows(matchup);
   const header = (
     // The title, and where the plan comes from in one quiet line: the layer, its tier and its check.
     <header className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 border-b border-border px-3 py-1.5 sm:px-4">
@@ -195,13 +214,21 @@ export function Briefing({ matchup, you, enemy, rows, means, levels, interaction
         {LANE_PLAN_TITLE}
         <span className="sr-only">: {`${you.name} vs ${enemy.name}`}</span>
       </h2>
+      {/* Said once on the page (the bar and the strip no longer repeat it), every part at the same weight,
+          with no check mark: the notes were checked by AI reviewers, not by a person. */}
       <p className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-fg-muted" data-testid="matchup-briefing-checked">
-        <span className="inline-flex items-center gap-1">
-          <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-good" aria-hidden />
-          Curated briefing
-        </span>
+        {shows ? (
+          <span data-testid="matchup-layer" data-layer="curated">
+            Curated briefing
+          </span>
+        ) : (
+          <span>Curated briefing</span>
+        )}
         <span aria-hidden>·</span>
-        <TierLabel className="text-xs leading-snug">{CHECKED_TIER}</TierLabel>
+        <span>
+          <TierLabel className="text-xs leading-snug text-fg-muted">{CHECKED_TIER}</TierLabel>
+          {`, ${NOT_A_PERSON_WORDS}`}
+        </span>
         <span aria-hidden>·</span>
         <span>{f.checked}</span>
         {recheck && !recheck.expired ? (
@@ -251,27 +278,27 @@ export function Briefing({ matchup, you, enemy, rows, means, levels, interaction
           <HiddenNote words={hiddenBriefingWords(abilityNames(changedOf(all), names))} changed={changedOf(all)} names={names} rows={rows} testId="briefing-hidden" />
         </div>
       ) : (
-        // One grid, its parts placed by the card's width (grid areas, container queries in rem): on a
-        // phone one under another, the threat first; from 34rem the threat and the opportunity side by
-        // side, each as wide as its words need against the other's (between 40% and 62% of the row), the
-        // lane points under them, then the level changes beside the interactions; from 60rem (a desktop)
-        // three columns, the threat, the opportunity and the level changes, then the lane points under
-        // the first two beside the interactions, so each row is as tall as its fullest part.
-        // On a touch phone the level changes and the interactions fold behind one Show (the phone Fold:
-        // folded in the server's HTML, so nothing moves as the page hydrates); a tablet and a desktop show them.
-        <PhoneFoldSection id="lane-plan-more" aria-label="The lane plan" className="@container/brief">
+        // One grid, its parts placed by the card's width (grid areas, container queries in rem), in the
+        // order they are read: the threat, the key fact, the level changes, the lane points, the
+        // interactions. On a phone one under another; from 34rem the threat and the key fact side by
+        // side (each as wide as its words need against the other's), the level changes and the
+        // interactions under them, the lane points last; from 60rem (a desktop) three columns, the
+        // threat, the key fact and the level changes, then the lane points under the first two beside
+        // the interactions. Each card shows its headline; the rest is one press away.
+        <div className="@container/brief">
           <div
-            className="grid gap-x-4 gap-y-2.5 px-3 py-2.5 [grid-template-areas:'threat'_'opp'_'lane'_'toggle'] sm:px-4 @min-[34rem]/brief:grid-cols-[minmax(0,var(--threat-share))_minmax(0,1fr)] @min-[34rem]/brief:[grid-template-areas:'threat_opp'_'lane_lane'_'levels_inter'] @min-[60rem]/brief:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)_minmax(0,1fr)] @min-[60rem]/brief:[grid-template-areas:'threat_opp_levels'_'lane_lane_inter']"
+            className="grid gap-x-4 gap-y-2.5 px-3 py-2.5 sm:px-4 @min-[34rem]/brief:grid-cols-[minmax(0,var(--threat-share))_minmax(0,1fr)] @min-[34rem]/brief:[grid-template-areas:'threat_opp'_'levels_inter'_'lane_lane'] @min-[60rem]/brief:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)_minmax(0,1fr)] @min-[60rem]/brief:[grid-template-areas:'threat_opp_levels'_'lane_lane_levels'_'lane_lane_inter'] @min-[60rem]/brief:items-start"
             style={{ "--threat-share": `${threatShare(threat, opportunity)}%` } as React.CSSProperties}
           >
-            <div className="min-w-0 [grid-area:threat]">
+            <div className="min-w-0 @min-[34rem]/brief:[grid-area:threat]">
               <Point kind="threat" point={threat} names={names} rows={rows} means={means} />
             </div>
-            <div className="min-w-0 [grid-area:opp]">
+            <div className="min-w-0 @min-[34rem]/brief:[grid-area:opp]">
               <Point kind="opportunity" point={opportunity} names={names} rows={rows} means={means} />
             </div>
+            {levels ? <div className="min-w-0 @min-[34rem]/brief:[grid-area:levels]">{levels}</div> : null}
             {lane.length ? (
-              <section className="min-w-0 [grid-area:lane]" aria-labelledby="briefing-lane-title" data-testid="briefing-lane">
+              <section className="min-w-0 @min-[34rem]/brief:[grid-area:lane]" aria-labelledby="briefing-lane-title" data-testid="briefing-lane">
                 <h3 id="briefing-lane-title" className={cn(PART_HEADING, "text-fg")}>
                   <Waypoints className="h-4 w-4 shrink-0 text-fg-muted @max-[9rem]/brief:hidden" aria-hidden />
                   In lane
@@ -303,16 +330,9 @@ export function Briefing({ matchup, you, enemy, rows, means, levels, interaction
                 ) : null}
               </section>
             ) : null}
-            {levels || interactions ? (
-              <div className={cn(PHONE_FOLD_ONLY, "min-w-0 items-center justify-between gap-2 border-t border-border pt-1 [grid-area:toggle] @min-[34rem]/brief:col-span-full @min-[34rem]/brief:[grid-area:auto]")}>
-                <span className="text-sm font-semibold text-fg">{PLAN_MORE_WORDS}</span>
-                <PhoneFoldToggle label={PLAN_MORE_WORDS.toLowerCase()} testId="lane-plan-more-toggle" />
-              </div>
-            ) : null}
-            {levels ? <div className={cn("min-w-0 @min-[34rem]/brief:[grid-area:levels]", PHONE_FOLDED)}>{levels}</div> : null}
-            {interactions ? <div className={cn("min-w-0 @min-[34rem]/brief:[grid-area:inter]", PHONE_FOLDED)}>{interactions}</div> : null}
+            {interactions ? <div className="min-w-0 @min-[34rem]/brief:[grid-area:inter]">{interactions}</div> : null}
           </div>
-        </PhoneFoldSection>
+        </div>
       )}
     </Panel>
   );
