@@ -55,7 +55,8 @@ const PHONE_INDEX = [
 
 /*
   The page's grid at each tier (literal classes, so Tailwind sees them). From 59rem two columns:
-  Recent form's at least 36rem (its board's medium tier: the name over the role and dates), the
+  Recent form's at least 36.25rem (its board's medium tier, the name over the role and dates, inside its
+  1px border: a 36rem column left 1280 with the sidebar open in its phone tier, 64px rows), the
   records' 21–27rem (27rem at 1440 with the sidebar open, leaving Recent form 42rem). From 86rem
   Recent form's column is at least 58.25rem: its board's tiers measure inside its 1px border, so its
   one-line rows (from 58rem of board) need the border's 2px more, and as much again so the fluid
@@ -70,7 +71,7 @@ const PHONE_INDEX = [
 */
 const GRID =
   "grid min-w-0 grid-cols-[minmax(0,1fr)] items-start gap-4 " +
-  "@min-[59rem]/dash:grid-cols-[minmax(36rem,1fr)_minmax(21rem,27rem)] @min-[59rem]/dash:grid-rows-[auto_1fr] " +
+  "@min-[59rem]/dash:grid-cols-[minmax(36.25rem,1fr)_minmax(21rem,27rem)] @min-[59rem]/dash:grid-rows-[auto_1fr] " +
   "@min-[86rem]/dash:grid-cols-[minmax(58.25rem,1fr)_minmax(26.25rem,38.5rem)]";
 /** Recent form: from 59rem the first column's first row. */
 const FORM_PLACE = "@min-[59rem]/dash:col-[1/2] @min-[59rem]/dash:row-[1/2]";

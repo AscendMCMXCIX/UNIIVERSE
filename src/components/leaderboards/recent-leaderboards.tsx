@@ -28,7 +28,9 @@ import { SECTIONS } from "./sections";
   The board's columns, by its own width (DataList's tiers). Each template fits where its tier
   starts: the tracks' minimums, the gaps and the padding come to 34.75rem against 36, 56.25rem
   against 58. From 36rem the picture is 32px (a 2rem track) and each row 40px (DataRow's compact:
-  the one-screen board of Release 16; 52px and 48px before), on phones 40px and 64px as ever.
+  the one-screen board of Release 16; 52px and 48px before), on phones 40px and 64px as ever. On a
+  medium board the name takes a quarter more of the room than the bar ("Demo Sub (Support)" wrapped in
+  1280's 38rem board, a 61px row).
     narrow  place · picture · name · win rate, then the second line under the name and rate:
             record · dates, and the gap at the line's right end, under the win rate (on a line of
             its own, still at the right, when it does not fit); the bar is the 2px line along the
@@ -60,7 +62,7 @@ import { SECTIONS } from "./sections";
 */
 const FORM_COLS =
   "[--dl-cols:2rem_2.5rem_minmax(0,1fr)_auto] @max-[16.5rem]/list:[--dl-cols:2rem_2.5rem_minmax(0,1fr)] " +
-  "@min-[36rem]/list:[--dl-cols:2.5rem_2rem_minmax(6.5rem,1fr)_minmax(8rem,1fr)_4rem_6.5rem] " +
+  "@min-[36rem]/list:[--dl-cols:2.5rem_2rem_minmax(6.5rem,1.25fr)_minmax(8rem,1fr)_4rem_6.5rem] " +
   "@min-[58rem]/list:[--dl-cols:3rem_2rem_minmax(9rem,18rem)_minmax(9rem,1fr)_4rem_9.5rem_5.5rem_7rem]";
 /**
  * A cell beside all of a row's lines below 58rem (two, three under 16.5rem), on its one line from

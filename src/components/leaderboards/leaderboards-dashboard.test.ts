@@ -102,8 +102,8 @@ describe("Leaderboards, one page", () => {
   it("places the four boards on one grid by the page's own width: one column, then from 59rem two columns, each board under the one before it in its own", () => {
     expect(html).toContain("@container/dash");
     const grid = /<div class="([^"]*)" data-testid="leaderboards-grid">/.exec(html)![1]!;
-    // From 59rem (Release 16, the one-screen board): Recent form's column from 36rem (its board's medium tier), the records' 21–27rem.
-    expect(grid).toContain("@min-[59rem]/dash:grid-cols-[minmax(36rem,1fr)_minmax(21rem,27rem)]");
+    // From 59rem (Release 16, the one-screen board): Recent form's column from 36.25rem (its board's medium tier inside its 1px border), the records' 21–27rem.
+    expect(grid).toContain("@min-[59rem]/dash:grid-cols-[minmax(36.25rem,1fr)_minmax(21rem,27rem)]");
     expect(grid).toContain("@min-[59rem]/dash:grid-rows-[auto_1fr]");
     // From 86rem: Recent form's column at least 58rem of board inside its 1px border (its one-line rows) with room to spare, the
     // records' column from 26.25rem; the second row takes what the records' column has beyond Recent form.

@@ -78,11 +78,18 @@
     each row's kinds in words its own counts, rarest first; the most of each kind the board's highest
     counts; no row taller than 66px. Counts, scores and fixed words only.
   - records (19 Nov 2026: Recent form and the season's records and achievements on one page): on
-    /leaderboards, at 1440, the season records stand beside the multikills (their tops within 1px), and
-    every record cell, at its own height (not the taller neighbour's its grid row stretches it to), is
-    no taller than its layout allows: two lines (from a 36rem cell) at most 72px, three lines (under it)
-    at most 96px (cells of more lines, a long name or champion, are counted, not failed; the
-    verification account has no profile, so no cell carries "Your best"). At every width,
+    /leaderboards, at 1440, the season records head the column beside Recent form (their tops within
+    1px) with the multikills under them (Release 16), and every record cell, at its own height (not the
+    taller neighbour's its grid row stretches it to), is no taller than its layout allows: two lines
+    (the desktop's two-line cells) at most 52px (cells of more lines, a qualifier on a line of its own,
+    a long name, are counted, not failed; the verification account has no profile, so no cell carries
+    "Your best").
+  - one screen (Release 16, scripts/one-screen-facts.mjs): on the desktop, at 1440 × 900, 1920 × 950
+    and 1920 × 1080 (the sidebar open), Leaderboards' four boards (Recent form, Season records, Multikills,
+    Milestones) and a profile's Overview (Season performance and the pools, with Ranked progress and
+    Recent form where drawn) end within the window; a board or pool showing fewer rows than it
+    has says so in its Show all, with the true numbers ("Show all 9 · 6 more"), and one showing every
+    row has none. Positions, counts and the Show all's words only. At every width,
     Records & achievements' old address (/leaderboards?view=records) opens the same page, the view gone
     from its address, at the season records (in view, focused). Counts, heights and true/false only.
   - settings: the picture and display-name help name the public team page, and Settings never
@@ -147,6 +154,7 @@ import { matchupRolesVerdicts, readRoleBar } from "./matchup-roles-facts.mjs";
 import { postGameVerdicts, readPostGame } from "./post-game-facts.mjs";
 import { championPreviewVerdicts, readChampionPreview, readChampionRows, targetRow } from "./champion-preview-facts.mjs";
 import { multikillVerdicts, readMultikillBoard } from "./multikill-facts.mjs";
+import { oneScreenInput, oneScreenVerdicts, readOneScreen } from "./one-screen-facts.mjs";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 
@@ -867,7 +875,8 @@ async function sharedKitFacts(page, kind) {
  * pinned row's compact copy. Scrolls the page and puts it back; reads only.
  */
 async function leaderboardsIndexFacts(page, kind) {
-  const top = await page.evaluate(() => [...document.querySelectorAll("[data-testid=header-section-index], [data-testid=section-index]")].some((el) => el.getBoundingClientRect().height > 0));
+  // From a 59rem page (the desktop) every board is on the first screen and no index stands at the top (Release 16): not required there.
+  const top = await page.evaluate(() => [...document.querySelectorAll("[data-testid=header-section-index], [data-testid=section-index]")].some((el) => el.getBoundingClientRect().height > 0) || document.querySelector("[data-testid=leaderboards]").clientWidth / parseFloat(getComputedStyle(document.documentElement).fontSize) >= 59);
   await page.evaluate(() => window.scrollTo(0, (document.documentElement.scrollHeight - innerHeight) / 2));
   await page.waitForTimeout(600);
   const pinned = await page.evaluate(() => {
@@ -931,11 +940,11 @@ async function leaderboardsFacts(page, kind) {
 
 /**
  * The season records (19 Nov 2026: on Leaderboards' one page, after Recent form), at 1440, as true/false,
- * counts and heights only (the cells carry names, which redact() keeps): the records beside the
- * multikills, their tops level within 1px, and every record cell no taller than its layout allows.
- * A cell from 36rem is two lines beside its picture (its record on one line over its holder and game
- * on one), at most 72px; a narrower cell three lines (the record, the holder with the value, the
- * game), at most 96px. A cell of more lines (a long name or champion wrapping, a qualifier on a line
+ * counts and heights only (the cells carry names, which redact() keeps): the records level with Recent
+ * form beside it, the multikills under them (Release 16), and every record cell no taller than its
+ * layout allows. On the desktop's board every cell is two lines beside its 36px picture (its record
+ * over its holder and champion), at most 52px; elsewhere a narrower cell is three lines (the record,
+ * the holder with the value, the game), at most 96px. A cell of more lines (a long name or champion wrapping, a qualifier on a line
  * of its own) is counted, not failed, as Recent form's rows are. Each cell is measured at its own
  * height: two cells side by side share a grid row, which each stretches to (its hairline runs the
  * row's height), so a cell's box is the taller one's; the stretch is lifted for the measure and put
@@ -961,7 +970,8 @@ async function recordsFacts(page, kind) {
       else el.style.height = "auto";
     }
     const cells = rows.map((r) => {
-      const two = r.closest("li").clientWidth / rem >= 36;
+      // Two lines from a 36rem cell, and in every cell on the desktop's board (a 59rem page: the record-two layout, Release 16).
+      const two = r.closest("li").clientWidth / rem >= 36 || document.querySelector("[data-testid=leaderboards]").clientWidth / rem >= 59;
       const title = oneLine(r.querySelector("[data-testid=record-title]"));
       const game = r.querySelector("[data-testid=record-game]");
       // Two lines: the holder and the game's parts level with each other; three: the holder's line and the game's line each one line.
@@ -976,15 +986,16 @@ async function recordsFacts(page, kind) {
       twoLine: cells.filter((c) => c.two && c.fits).map((c) => c.h),
       threeLine: cells.filter((c) => !c.two && c.fits).map((c) => c.h),
       longer: cells.filter((c) => !c.fits).length,
-      topsApart: multikills ? Math.round(Math.abs(box(book).top - box(multikills).top) * 10) / 10 : null,
-      multikillsBeside: multikills ? box(multikills).left >= box(book).right : false,
+      // The records head the column beside Recent form, the multikills under them (Release 16).
+      topsApart: Math.round(Math.abs(box(book).top - box(document.querySelector("[data-testid=form-board]")).top) * 10) / 10,
+      multikillsUnder: multikills ? box(multikills).top >= box(book).bottom - 1 && Math.abs(box(multikills).left - box(book).left) <= 1 : false,
     };
   });
   if (!f) return pass("leaderboards", "1440: the season records are on the page", false, "no records-book");
-  pass("leaderboards", "1440: the season records beside the multikills, their tops within 1px", f.multikillsBeside && f.topsApart !== null && f.topsApart <= 1, { beside: f.multikillsBeside, topsApart: f.topsApart });
-  const name = "1440: every record cell of two lines is at most 72px, of three lines at most 96px";
+  pass("leaderboards", "1440: the season records beside Recent form (their tops within 1px), the multikills under them", f.multikillsUnder && f.topsApart <= 1, { under: f.multikillsUnder, topsApart: f.topsApart });
+  const name = "1440: every record cell of two lines is at most 52px, of three lines at most 96px";
   if (!f.twoLine.length && !f.threeLine.length) check("leaderboards", name, "PASS", `not applicable: ${f.longer} cells of more lines`);
-  else pass("leaderboards", name, Math.max(0, ...f.twoLine) <= 72 && Math.max(0, ...f.threeLine) <= 96, { cells: f.cells, twoLine: f.twoLine.length, tallestTwo: f.twoLine.length ? Math.max(...f.twoLine) : null, threeLine: f.threeLine.length, tallestThree: f.threeLine.length ? Math.max(...f.threeLine) : null, longerByDesign: f.longer });
+  else pass("leaderboards", name, Math.max(0, ...f.twoLine) <= 52 && Math.max(0, ...f.threeLine) <= 96, { cells: f.cells, twoLine: f.twoLine.length, tallestTwo: f.twoLine.length ? Math.max(...f.twoLine) : null, threeLine: f.threeLine.length, tallestThree: f.threeLine.length ? Math.max(...f.threeLine) : null, longerByDesign: f.longer });
 }
 
 /**
@@ -997,6 +1008,25 @@ async function recordsFacts(page, kind) {
 async function multikillFacts(page, kind) {
   const read = await page.evaluate(readMultikillBoard);
   for (const v of multikillVerdicts({ kind, read })) check("leaderboards", v.name, v.status, v.detail);
+}
+
+/**
+ * One screen (Release 16, scripts/one-screen-facts.mjs): the page as it is, read at 1440 × 900, 1920 ×
+ * 950 (the owner's browser on a 1920 × 1080 screen) and 1920 × 1080 in the desktop's context (the sidebar open; the window resized, no reload: the layout follows
+ * the window and the root's size), then put back. Positions, counts and the Show all's words only.
+ */
+async function oneScreenFacts(page, area, which) {
+  try {
+    for (const [width, height] of [[1440, 900], [1920, 950], [1920, 1080]]) {
+      await page.setViewportSize({ width, height });
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await page.waitForTimeout(400);
+      const read = await page.evaluate(readOneScreen, oneScreenInput(which));
+      for (const v of oneScreenVerdicts({ page: which, size: `${width} × ${height}`, read })) check(area, v.name, v.status, v.detail);
+    }
+  } finally {
+    await page.setViewportSize(VIEWPORTS.desktop.viewport);
+  }
 }
 
 /**
@@ -2074,6 +2104,7 @@ for (const [kind, options] of Object.entries(VIEWPORTS)) {
         await noteProfileTabs(page, kind, "overview");
         await axe(page, kind, "profile");
         await guarded("ranked", `${kind}: Ranked progress`, () => rankedProgressEnds(page, kind));
+        if (kind === "desktop") await guarded("profile", "desktop: the Overview on one screen", () => oneScreenFacts(page, "profile", "profile"));
       }
     });
   }
@@ -2085,6 +2116,7 @@ for (const [kind, options] of Object.entries(VIEWPORTS)) {
       await leaderboardsFacts(page, kind);
       await recordsFacts(page, kind);
       await multikillFacts(page, kind);
+      if (kind === "desktop") await guarded("leaderboards", "desktop: the four boards on one screen", () => oneScreenFacts(page, "leaderboards", "leaderboards"));
       await axe(page, kind, "leaderboards");
       await leaderboardsIndexFacts(page, kind);
       if (kind === "desktop" || kind === "phone") await recordGameFacts(page, kind);

@@ -24,7 +24,7 @@ export function BoardTitle({ id, icon, aside, end, note, noteTestId, children }:
   children: ReactNode;
 }) {
   return (
-    <div className={cn("flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5 py-2", ROW_PAD_X)}>
+    <div className={cn("flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5 py-1.5", ROW_PAD_X)}>
       <h2 id={id} className="flex min-w-0 items-start gap-1.5 self-center text-base font-semibold text-fg [&>svg]:mt-[calc((1lh_-_1rem)/2)]">
         {icon}
         <span className="min-w-0">{children}</span>

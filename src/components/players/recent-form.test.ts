@@ -15,7 +15,10 @@ describe("Recent form's champions (the Overview's 2×2)", () => {
     const rows = [...html.matchAll(/data-champion="([^"]+)"/g)].map((m) => m[1]);
     expect(rows).toEqual(["Ahri", "Orianna", "Azir", "Syndra", "Galio", "Jax"].slice(0, RECENT_CHAMPIONS_SHOWN));
     expect(html).toContain("9 games · 5W 4L");
-    expect(html).toContain("and 2 more");
+    // "and N more" for the window's height: two rows shown under board-at-mid, three from it, four from board-at-short.
+    expect(html).toContain('<span class="board-at-mid:hidden">and 4 more</span><span class="hidden board-at-mid:board-below-short:inline">and 3 more</span><span class="hidden board-at-short:inline">and 2 more</span>');
+    expect(html).toMatch(/class="flex min-w-0 items-center gap-2.5 py-1 board-below-mid:hidden" data-champion="Azir"/);
+    expect(html).toMatch(/class="flex min-w-0 items-center gap-2.5 py-1 board-below-short:hidden" data-champion="Syndra"/);
     // Only where the 2×2 applies (a 1440px window, a 68rem dashboard), by CSS: no other layout grows.
     expect(html).toMatch(/class="hidden min-\[90rem\]:@min-\[68rem\]\/ov:block" data-testid="recent-form-champions"/);
   });

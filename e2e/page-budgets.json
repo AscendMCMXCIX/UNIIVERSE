@@ -27,7 +27,7 @@
    "why": "S9c (20 Nov 2026): Team insights, the administrators' preview link (TEAM_INSIGHTS_AUDIENCE), a 44px row in Team Matches' header shown only to those who can open it, which the demo's viewer (the Owner) is: 52px the page did not have when the ceilings were set (Release 11 found it, comparing the audit's build with the combined tree: the list of games the same 1,138px, the list starting at 328px instead of 276px). Measured on Release 11 in Chromium 153 and Chrome Headless Shell 156: 1.86 at i15 and 5.99 / 6.05 at se1 150%; a member without the link stays within the old ceilings."
   },
   "p-overview@i15-100": {
-   "screens": 1.96,
+   "screens": 1.93,
    "frame": 0.3,
    "frameScrolled": 0.3,
    "small": 0
@@ -147,11 +147,10 @@
    "why": "S9c (20 Nov 2026): Team insights, the administrators' preview link (TEAM_INSIGHTS_AUDIENCE), a 44px row in Team Matches' header shown only to those who can open it, which the demo's viewer (the Owner) is: 52px the page did not have when the ceilings were set (Release 11 found it, comparing the audit's build with the combined tree: the list of games the same 1,138px, the list starting at 328px instead of 276px). Measured on Release 11 in Chromium 153 and Chrome Headless Shell 156: 1.86 at i15 and 5.99 / 6.05 at se1 150%; a member without the link stays within the old ceilings."
   },
   "p-overview@se1-150": {
-   "screens": 6.09,
+   "screens": 5.87,
    "frame": 0.45,
    "frameScrolled": 0.15,
-   "small": 0,
-   "why": "Release 13 (23 Nov 2026), at the owner's request (the phone's Ranked progress: rank, LP, record and win rate prominent, the queue and account controls in one row) and the UX review's (the 30-day change kept in view on phones, its details behind an ⓘ): the 30-day change's line on a phone, which the card folded away before. Lane B won back what it could in the card (a 2rem emblem and the rank a step smaller under a 15rem card, the record's scope note read out instead of shown); measured on Release 13 at 5.96 in Chromium (local) and 5.97 in CI's Chrome Headless Shell, so the ceiling is 5.97 plus 2%."
+   "small": 0
   },
   "p-champions@se1-150": {
    "screens": 3.32,
@@ -298,7 +297,7 @@
    "small": 0
   },
   "own-overview@i15-100": {
-   "screens": 1.94,
+   "screens": 1.88,
    "frame": 0.3,
    "frameScrolled": 0.3,
    "small": 0
@@ -371,7 +370,7 @@
    "why": "S8a (20 Nov 2026), new in that release at 5.8. Release 10: the demo's member viewer is on the local owner's account row, whose picture avatar-editor.spec.ts saved and left (1.99 and 5.87 in Chrome 156 after it); that spec now removes it, so the page measures 5.63 on a fresh demo and after a spec run, in Chrome 153 and 156: the fresh figure plus 2%."
   },
   "own-overview@se1-150": {
-   "screens": 6.04,
+   "screens": 5.91,
    "frame": 0.45,
    "frameScrolled": 0.15,
    "small": 0

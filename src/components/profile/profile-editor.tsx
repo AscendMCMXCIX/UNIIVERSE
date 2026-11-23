@@ -668,12 +668,16 @@ export function ProfileEditor({
   );
 
   return (
-    <div className="space-y-2.5" data-testid="profile-editor" data-editing={live || undefined}>
+    <div className="space-y-2" data-testid="profile-editor" data-editing={live || undefined}>
       {heading || intro || editable ? (
         <div className="space-y-1">
-          {/* The heading and Edit share a line on every width; the rest of the context goes under it. */}
+          {/* The heading and Edit share a line on every width; what the figures count follows the heading on its line where both
+              fit (1920 wide: Release 16, 20px of the one-screen Overview), else under it. */}
           <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">{heading}</div>
+            <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1 pt-1">
+              {heading}
+              {intro}
+            </div>
             {editable ? (
               <Button size="sm" variant={live ? "primary" : "outline"} className="shrink-0" onClick={() => setEditing((v) => !v)} aria-label={live ? "Done editing roles and champion pools" : "Edit roles and champion pools"} data-testid="pools-edit">
                 {live ? <Check className="h-4 w-4" aria-hidden /> : <Pencil className="h-4 w-4" aria-hidden />}
@@ -681,7 +685,6 @@ export function ProfileEditor({
               </Button>
             ) : null}
           </div>
-          {intro}
           {live || status !== "idle" ? (
             // While editing: that changes save by themselves, how editing works, and the save state
             // (which stays after Done until the last change is saved).
@@ -714,7 +717,7 @@ export function ProfileEditor({
               </li>
             ) : null}
             {/* The primary pool is the section's body; each off role is a row of its own. */}
-            <li ref={drag.ref(i)} id={i > 0 ? `role-section-${o.role.toLowerCase()}` : undefined} className={cn("relative", i > 0 && live && "rounded-panel border border-border/70 bg-surface-2/40 px-3 py-2", i === 1 && offFolds && "md:border-t md:border-border/70 md:pt-2 short:border-t-0 short:pt-0", i > 0 && offFolds && !offFold.open && PHONE_HIDDEN, drag.dragging === i && "z-20 rounded-card bg-bg-elevated/95 shadow-2xl ring-1 ring-accent/50")} style={drag.style(i)} data-testid="role-section" data-role={o.role} data-dragging={drag.dragging === i || undefined}>
+            <li ref={drag.ref(i)} id={i > 0 ? `role-section-${o.role.toLowerCase()}` : undefined} className={cn("relative", i > 0 && live && "rounded-panel border border-border/70 bg-surface-2/40 px-3 py-2", i === 1 && offFolds && "md:border-t md:border-border/70 md:pt-1.5 short:border-t-0 short:pt-0", i > 0 && offFolds && !offFold.open && PHONE_HIDDEN, drag.dragging === i && "z-20 rounded-card bg-bg-elevated/95 shadow-2xl ring-1 ring-accent/50")} style={drag.style(i)} data-testid="role-section" data-role={o.role} data-dragging={drag.dragging === i || undefined}>
               {renderSection(o, i)}
             </li>
           </React.Fragment>

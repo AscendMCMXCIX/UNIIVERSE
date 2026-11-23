@@ -64,7 +64,7 @@ export function RankedProgress({ accounts, queue, accountId, href, now }: { acco
     // A grid of two columns, so from md in a card of 24rem or more (the Overview's rail) the queue and account choice share the
     // title's row (Release 16: a row of their own cost the one-screen Overview 48px); elsewhere every part spans both, one under
     // the other, as before. The body and the details are display: contents there, their parts the card's own.
-    <PhoneFoldSection id="ranked-progress" aria-labelledby="ranked-progress-title" className="@container/rank grid grid-cols-[minmax(0,1fr)_auto] gap-3 rounded-card border border-border bg-surface p-4 panel-depth" data-testid="ranked-progress">
+    <PhoneFoldSection id="ranked-progress" aria-labelledby="ranked-progress-title" className="@container/rank grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-2.5 rounded-card border border-border bg-surface p-4 panel-depth" data-testid="ranked-progress">
       {/* The title alone on its row, a phone's chevron at its end. The ⓘ stays on the title's last
           word; on a touch screen its 44px button reaches 0.875rem past the mark, so the chevron keeps
           that gap. The title never shrinks below "progress ⓘ" (no min-w-0: that minimum is the point):

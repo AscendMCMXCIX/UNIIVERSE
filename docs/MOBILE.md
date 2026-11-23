@@ -462,7 +462,8 @@ Every phone page spends its first screen on content, not on saying where you are
   150% text). The Overview keeps its full card.
 - **Profile Overview within two screens** (20 Nov 2026, PLAN S8a; the owner may veto, OD20): on a
   touch phone (`posture.ts`) the primary pool shows its top three champions with "All N", the off
-  roles are one Show under their heading, and Ranked progress shows its heading and the current
+  roles are one Show under their heading, and Ranked progress (after the season's card and before
+  Recent form since Release 16, the desktop's order) shows its heading and the current
   rank, LP and the year's wins and losses, with a 44px chevron for the account line, the queue and
   account switches, the last 30 days, the highest rank and the chart (`phone-fold.tsx`). Nothing is
   dropped: each is one tap away, and editing the pools shows every champion. Tablets and desktop are

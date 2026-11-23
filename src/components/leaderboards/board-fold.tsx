@@ -4,7 +4,7 @@ import * as React from "react";
 import { ChevronDown } from "lucide-react";
 import { usePhoneFold } from "@/components/ui/phone-fold";
 import { cn } from "@/lib/cn";
-import { showAllClass, type OverviewMore } from "./overview";
+import { IN_TIER_TEXT, TIERS, showAllClass, type OverviewMore } from "./overview";
 
 /*
   A Leaderboards board's overview (Release 16, docs/TEAM_LEADERBOARDS.md → Layout): on the desktop's
@@ -57,13 +57,12 @@ export function BoardShowAll({ total, more, label, controls, testId }: { total: 
             Show all {total}
             <span aria-hidden>&nbsp;·&nbsp;</span>
             <span className="sr-only">, </span>
-            {/* The count folded at this window's height (overview.ts): one of the two shows. */}
-            <span className="board-tall:hidden" data-testid={testId ? `${testId}-more-short` : undefined}>
-              {more.short} more
-            </span>
-            <span className="board-short:hidden" data-testid={testId ? `${testId}-more-tall` : undefined}>
-              {more.tall} more
-            </span>
+            {/* The count folded at this window's height (overview.ts): one of the four shows. */}
+            {TIERS.map((t) => (
+              <span key={t} className={IN_TIER_TEXT[t]} data-testid={testId ? `${testId}-more-${t}` : undefined}>
+                {more[t]} more
+              </span>
+            ))}
           </>
         )}
         <span className="sr-only"> of {label}</span>

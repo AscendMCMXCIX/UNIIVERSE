@@ -212,7 +212,7 @@ export function RecordRow({ record, player, champ, viewer }: { record: RecordVie
           // Who holds it, then the game and your best: a line each in a narrow cell (the holder beside the figure, the game and your
           // best across the row), one line in a two-line cell (the game's role, K/D/A and date read out there, not drawn).
           <span data-testid="record-game" className="contents record-two:col-[2/3] record-two:row-[2/3] record-two:flex record-two:min-w-0 record-two:flex-wrap record-two:items-baseline record-two:gap-x-1.5 record-two:self-start">
-            <MemberCell look={p.look} name={p.name} avatar={false} nameTestId="record-holder" nameClassName="record-two:text-xs record-two:font-semibold" className="col-[2/3] row-[2/3] @max-[16rem]/list:col-[1/-1] @max-[16rem]/list:row-[3/4] record-two:inline-flex" />
+            <MemberCell look={p.look} name={p.name} avatar={false} nameTestId="record-holder" nameClassName="record-two:text-xs record-two:font-semibold" className="col-[2/3] row-[2/3] @max-[16rem]/list:col-[1/-1] @max-[16rem]/list:row-[3/4] record-two:text-xs" />
             {/* In a two-line cell the champion follows the holder (the streak, set over several games, has none: no "·" then). */}
             {c?.name ? (
               <span aria-hidden className="hidden text-xs text-fg-subtle record-two:inline">

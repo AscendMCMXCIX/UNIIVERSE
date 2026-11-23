@@ -49,7 +49,7 @@ function SkeletonCard({ className, testId }: { className?: string; testId?: stri
 
 /**
  * Profile Overview's loading state in the page's own shape (player-overview.tsx, OverviewDashboard):
- * the heading, then the season's card beside recent form, ranked progress and the pools, with the
+ * the heading, then the season's card beside ranked progress, recent form and the pools, with the
  * same container rules (two columns from a 58rem dashboard, the 2×2 from a 1440px window), so the
  * page does not jump from four full-width panels into a dashboard as it arrives.
  */

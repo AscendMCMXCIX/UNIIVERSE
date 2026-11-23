@@ -283,10 +283,12 @@ describe("multikills", () => {
   });
 
   it("are the one-screen board's overview: a fold group whose Show all, at the title's end, is drawn only where a row folds", () => {
-    // Three members, fewer than either window's count: no row folds and the Show all is never drawn.
+    // Three members: the third folds only in the lowest window (two rows there), where alone the Show all is drawn, "1 more".
     expect(html).toMatch(/<section id="multikills" aria-labelledby="multikills-title" data-fold="closed" class="group\/fold min-w-0">/);
-    expect(html).toMatch(/<span class="hidden items-center" data-testid="multikill-show-all">/);
-    expect(innerOf(html, "records-multikills")).not.toContain("group-data-[fold=closed]/fold:hidden");
+    expect(html).toMatch(/<span class="hidden @min-\[59rem\]\/dash:board-below-mid:flex items-center" data-testid="multikill-show-all">/);
+    expect(count(innerOf(html, "records-multikills")!, /board-below-mid:group-data-\[fold=closed\]\/fold:hidden/g)).toBe(1);
+    expect(innerOf(html, "records-multikills")).not.toContain("@min-[59rem]/dash:group-data-[fold=closed]/fold:hidden");
+    expect(shownOf(html, "multikill-show-all-more-low")).toBe("1 more");
     // The Show all is in the board's title row, before the line saying what the score is.
     expect(html.indexOf('data-testid="multikill-show-all"')).toBeLessThan(html.indexOf('data-testid="multikill-note-line"'));
     expect(html.indexOf('data-testid="multikill-show-all"')).toBeGreaterThan(html.indexOf('id="multikills-title"'));

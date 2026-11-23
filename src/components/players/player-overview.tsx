@@ -275,50 +275,53 @@ function PerformanceCard({ data, basePath }: { data: PlayerOverviewData; basePat
   the arrangement (a container query, so the sidebar is allowed for):
     2×2 (a window 1440px or wider, and a dashboard of 68rem or more: 1440 with the sidebar open and
                    wider; the owner's choice of 8 Nov 2026, never forced onto smaller screens)
-                   the season's card and recent form side by side, level; under them the champion
-                   pools beside ranked progress, each at the top of its cell, in a rail of 40% of
-                   the dashboard within 20–30rem: 28rem at 1440 with the sidebar open, 30rem wider
-                   (the floor never applies, the 2×2 needing 68rem), where ranked progress draws
-                   its chart in full. Without recent form, ranked progress takes the whole rail
-                   beside the season's card and the pools; without ranked progress, the pools span
-                   the width as below;
-    wide (58rem+)  the season's card and recent form side by side, level; under them ranked
-                   progress across the whole width (a year on one time axis needs it), then the
-                   champion pools across the whole width;
+                   the season's card beside a rail of 40% of the dashboard within 20–30rem (28rem at
+                   1440 with the sidebar open, 30rem wider): Ranked progress, then Recent form under
+                   it (the owner's order of 23 Nov 2026, Release 16: Ranked progress above Recent
+                   form), the rail's top level with the season's card; under the card the champion
+                   pools. Without Ranked progress, the 58rem arrangement below stays;
+    wide (58rem+)  the season's card and, beside it, Ranked progress (or Recent form where there is no
+                   Ranked progress), each at its own height; under them Recent form across the whole
+                   width, then the champion pools across the whole width;
     narrower       one column in that same order.
-  The markup's order (a phone's, and a screen reader's) is always season, form, ranked, pools.
+  The markup's order (a phone's, and a screen reader's) is always season, ranked, form, pools: Ranked
+  progress takes the place Recent form had, and Recent form the place Ranked progress had.
   A card without data is left out (fewer than five games: no recent form; no linked account: no
   ranked progress), and the others close up: nothing is padded out to keep a shape.
 */
 const GRID_2X2 = "min-[90rem]:@min-[68rem]/ov:grid-cols-[minmax(0,1fr)_clamp(20rem,40%,30rem)]";
 function OverviewDashboard({ perf, form, ranked, pools }: { perf: React.ReactNode; form?: React.ReactNode; ranked?: React.ReactNode; pools?: React.ReactNode }) {
-  const wide = form ? "@min-[58rem]/ov:col-span-2" : undefined;
+  // The card beside the season's (Ranked progress, else Recent form), and the one across the width under them (Recent form, with Ranked progress beside the card).
+  const side = !!(ranked ?? form);
+  const wide = side ? "@min-[58rem]/ov:col-span-2" : undefined;
   // 2×2: only with ranked progress (else the 58rem arrangement stays); the pools go under the
-  // season's card, ranked progress into the rail (under recent form, or its whole height without it).
-  // The classes are written out whole, for Tailwind to find them.
+  // season's card, ranked progress and recent form into the rail. The classes are written out whole,
+  // for Tailwind to find them.
   const two = !!ranked;
   return (
     <div className="@container/ov" data-testid="overview-dashboard">
-      {/* In the 2×2 the rail (recent form, then ranked progress straight under it) spans both rows:
-          recent form ends at its content (UD.PO2) and ranked progress follows it, whatever the
-          season card's height; the second row takes whatever height the rail has beyond that card,
-          so the card never stretches. No card is stretched to even the columns (a Ranked progress
-          filled to the pools' end, 23 Nov 2026, made a few LP look like a swing: the UX review of
-          Release 13); the rail is balanced by its own data instead: in the 2×2 Recent form lists the
-          champions of its games (RecentChampions), and a primary pool of more than eight shows its first six champions
-          (PRIMARY_POOL_TOP). Elsewhere the rail's box is display:contents, so its cards are the
+      {/* In the 2×2 the rail (ranked progress, then recent form straight under it) spans both rows:
+          ranked progress ends at its content and recent form follows it, whatever the season card's
+          height; the second row takes whatever height the rail has beyond that card, so the card never
+          stretches. No card is stretched to even the columns (a Ranked progress filled to the pools'
+          end, 23 Nov 2026, made a few LP look like a swing: the UX review of Release 13); the rail is
+          balanced by its own data instead: in the 2×2 Recent form, the rail's last card, lists the
+          champions of its games (RecentChampions: as many as the window's height holds, two to four,
+          "and N more" for the rest), and a primary pool of more than six shows its first five
+          (PRIMARY_POOL_TOP), so at 1440 × 900, 1920 × 950 and 1920 × 1080 the whole Overview is on the
+          first screen (Release 16). Elsewhere the rail's box is display:contents, so its cards are the
           grid's own items. */}
-      <div className={cn("grid grid-cols-[minmax(0,1fr)] items-start gap-3 sm:gap-4", form && "@min-[58rem]/ov:grid-cols-[minmax(0,1fr)_minmax(18rem,21rem)]", two && GRID_2X2, two && "min-[90rem]:@min-[68rem]/ov:grid-rows-[auto_1fr]")}>
+      <div className={cn("grid grid-cols-[minmax(0,1fr)] items-start gap-3 sm:gap-4", side && "@min-[58rem]/ov:grid-cols-[minmax(0,1fr)_minmax(18rem,21rem)]", two && GRID_2X2, two && "min-[90rem]:@min-[68rem]/ov:grid-rows-[auto_1fr]")}>
         <div className={cn("min-w-0 self-stretch", two && "min-[90rem]:@min-[68rem]/ov:col-start-1 min-[90rem]:@min-[68rem]/ov:row-start-1 min-[90rem]:@min-[68rem]/ov:self-start")}>{perf}</div>
         <div className={cn("contents", two && "min-[90rem]:@min-[68rem]/ov:col-start-2 min-[90rem]:@min-[68rem]/ov:row-span-2 min-[90rem]:@min-[68rem]/ov:row-start-1 min-[90rem]:@min-[68rem]/ov:flex min-[90rem]:@min-[68rem]/ov:min-w-0 min-[90rem]:@min-[68rem]/ov:flex-col min-[90rem]:@min-[68rem]/ov:gap-4 min-[90rem]:@min-[68rem]/ov:self-start")}>
-          {form ? (
-            <div className="min-w-0 self-start min-[90rem]:@min-[68rem]/ov:self-auto" data-testid="overview-form">
-              {form}
+          {ranked ? (
+            <div className="min-w-0 self-start min-[90rem]:@min-[68rem]/ov:self-auto" data-testid="overview-ranked">
+              {ranked}
             </div>
           ) : null}
-          {ranked ? (
-            <div className={cn("min-w-0", wide)} data-testid="overview-ranked">
-              {ranked}
+          {form ? (
+            <div className={cn("min-w-0", ranked ? wide : "self-start")} data-testid="overview-form">
+              {form}
             </div>
           ) : null}
         </div>
