@@ -8,7 +8,7 @@ import ceilings from "./page-budgets.json";
   100% text and at se1 (320 × 568) at 150%, against the ceilings in e2e/page-budgets.json: height in
   screens, the frame's share at rest and after a 100px scroll, no sideways overflow, and touch
   targets under 44px on the first screen. Then the facts S2b and S3 hold on phones (the header
-  budget, the profile band in the bar, the sliding frame, the sections sheet, Team's lineup pager,
+  budget, the profile band in the bar, the sliding frame, the sections sheet, Team's carousel dots,
   the whole first card, five across sideways). Chromium on the phone project: the setups need CDP.
 */
 
@@ -61,7 +61,7 @@ function boxes(page: Page, ids: string[]) {
   })), ids);
 }
 
-test("Team on phones: one 44px header line, five players in the pager, the whole first card at 393 × 659 and 375 × 667", async ({ browser }) => {
+test("Team on phones: one 44px header line, no pager, five position dots under the card, the whole first card at 393 × 659 and 375 × 667", async ({ browser }) => {
   for (const setup of ["i15", "i15s", "se3"] as const) {
     const page = await setupPage(browser, setup, 100);
     await page.goto(`${BASE}/team`);
@@ -69,7 +69,8 @@ test("Team on phones: one 44px header line, five players in the pager, the whole
     const b = await boxes(page, ["team-header", "lineup-cell", "phone-tabbar"]);
     expect(b["team-header"]!.height, `${setup}: the header under the bar`).toBeLessThanOrEqual(56);
     expect(b["lineup-cell"]!.bottom, `${setup}: the first card ends above the tab bar`).toBeLessThanOrEqual(setup === "i15s" ? 659 : b["phone-tabbar"]!.top);
-    await expect(page.getByTestId("lineup-dot-picture")).toHaveCount(5);
+    await expect(page.getByTestId("lineup-pager")).toHaveCount(0);
+    await expect(page.getByTestId("lineup-indicator-dot")).toHaveCount(5);
     await expect(page.getByTestId("team-name")).toHaveCount(1);
     expect(await page.getByTestId("team-name").evaluate((h) => h.getBoundingClientRect().width <= 1), `${setup}: the h1 read out only`).toBe(true);
     await page.context().close();

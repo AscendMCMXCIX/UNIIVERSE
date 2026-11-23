@@ -1,6 +1,6 @@
 import { expect, test, type CDPSession, type Page } from "./test";
 import { memberContext } from "./member-account";
-import { lineupAtRest } from "./lineup";
+import { lineupAtRest, offCentre } from "./lineup";
 
 /*
   Team Overview layout, as approved (before #275): the header shares the cards' width and centre on
@@ -9,8 +9,9 @@ import { lineupAtRest } from "./lineup";
   on a row), and from a 56rem lineup (a 1280px laptop with the sidebar open) five across, nothing
   under the cards (no bench: a substitute is on their starter's card); on a member's phone the
   header is one 44px line (the bar carries the team's mark and name), and the five cards are one
-  sideways track (real touch swipes, snap points, a lineup pager of the players' pictures with their
-  roles as badges) that never makes the page itself scroll sideways (S3a, 20 Nov 2026).
+  sideways carousel (real touch swipes, snap points, one card across the width with five position
+  dots under it, no row of the players over it since 23 Nov 2026) that never makes the page itself
+  scroll sideways (S3a, 20 Nov 2026; the loop itself: e2e/team-carousel.spec.ts).
 */
 
 test.beforeEach(async ({ context, baseURL }) => {
@@ -64,7 +65,7 @@ test("the header is centred over the cards and sits close to them", async ({ pag
   expect(header.width).toBeLessThanOrEqual(cards.width + 1);
   expect(cards.y - (header.y + header.height)).toBeLessThanOrEqual(24);
   await expect(page.getByTestId("edit-lineup")).toBeVisible();
-  await expect(page.getByTestId("lineup-pager")).toBeHidden();
+  await expect(page.getByTestId("lineup-indicator")).toBeHidden();
   const name = (await page.getByTestId("team-name").boundingBox())!;
   const edit = (await page.getByTestId("edit-lineup").boundingBox())!;
   for (const part of [name, edit]) expect(part.y >= header.y - 1 && part.y + part.height <= header.y + header.height + 1).toBe(true);
@@ -179,7 +180,7 @@ test("five across, the K/D/A line shows whole from 14.5rem, and Edit lineup's tw
 // taglines is checked in card-layout.spec.ts, with real long names and taglines at every size
 // where cards stand side by side (the cards size those rows from the lineup's own players).
 
-test("phones swipe sideways through the five cards, one at a time", async ({ page, context }) => {
+test("phones swipe sideways through the five cards, one at a time, with no row of players over them", async ({ page, context }) => {
   test.skip(!isPhone(page), "phones only");
   await page.goto("/team");
   const track = page.getByTestId("lineup-overview");
@@ -189,24 +190,17 @@ test("phones swipe sideways through the five cards, one at a time", async ({ pag
   // Only the track scrolls sideways; the page stays within the window.
   expect(await track.evaluate((el) => el.scrollWidth > el.clientWidth + 100)).toBe(true);
   expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
-  // Cards keep one height and a readable width.
+  // Cards keep one height and the page's width inside its gutter (343px on a 375px phone; 319px with
+  // the glimpse of the neighbours before the carousel of 23 Nov 2026).
   const sizes = await cells.evaluateAll((els) => els.map((e) => ({ w: Math.round(e.getBoundingClientRect().width), h: Math.round(e.getBoundingClientRect().height) })));
   expect(new Set(sizes.map((s) => s.h)).size).toBe(1);
-  expect(Math.min(...sizes.map((s) => s.w))).toBeGreaterThanOrEqual(280);
-  const tabs = page.getByTestId("lineup-dot");
-  await expect(tabs.first()).toHaveAttribute("aria-selected", "true");
-  // The chosen tile holds its picture and its name whole, inside its own inset ring, and draws no ring past its edge (the design review's G1-2).
-  if (await page.getByTestId("lineup-pager").getAttribute("data-people")) {
-    const fit = await tabs.first().evaluate((el) => {
-      const t = el.getBoundingClientRect();
-      const pic = el.querySelector("[data-testid=lineup-dot-picture]")!.getBoundingClientRect();
-      const name = el.querySelector("[data-testid=lineup-dot-name]")!.getBoundingClientRect();
-      const ring = parseFloat(getComputedStyle(el.querySelector("[data-testid=lineup-dot-picture] > *")!).boxShadow.match(/(\d+(?:\.\d+)?)px\)?$/)?.[1] ?? "0");
-      return { ring: pic.top - ring - t.top, name: t.bottom - 1 - name.bottom };
-    });
-    expect(fit.ring, "the picture's ring inside the tile").toBeGreaterThanOrEqual(-0.5);
-    expect(fit.name, "the name above the tile's inset ring").toBeGreaterThanOrEqual(0);
-  }
+  expect(Math.min(...sizes.map((s) => s.w))).toBe((page.viewportSize()?.width ?? 375) - 32);
+  // No lineup pager over the cards (the owner's request of 23 Nov 2026: the cards are how the lineup
+  // is browsed); five position dots under them instead, the first marked.
+  await expect(page.getByTestId("lineup-pager")).toHaveCount(0);
+  const dots = page.getByTestId("lineup-indicator-dot");
+  await expect(dots).toHaveCount(5);
+  await expect(dots.first()).toHaveAttribute("aria-selected", "true");
   // The line under the team's name wraps between whole items, never leaving a separator at a line's end.
   const subtitle = page.getByTestId("team-subtitle");
   await expect(subtitle.locator(":scope > span", { hasText: /^·$/ })).toHaveCount(0);
@@ -220,10 +214,9 @@ test("phones swipe sideways through the five cards, one at a time", async ({ pag
   expect((await page.getByTestId("team-name").boundingBox())!.width, "the h1 read out only").toBeLessThanOrEqual(1);
   expect(edit.x, "Edit lineup at the line's end").toBeGreaterThan(status.x + status.width);
   await expect(page.getByTestId("edit-lineup")).toHaveText("Edit lineup");
-  // The lineup pager: each tab the player's picture with the role's icon as its badge.
-  for (const tab of await tabs.all()) await expect(tab.locator("[data-role-icon]")).toHaveCount(1);
-  await expect(page.getByTestId("lineup-dot-picture")).toHaveCount(5);
-  // Nothing under the track: no bench of substitutes.
+  // The first card follows the header, as the pager stood there before.
+  expect((await cells.first().boundingBox())!.y - (header.y + header.height), "the card under the header").toBeLessThanOrEqual(32);
+  // Nothing under the track but its dots: no bench of substitutes.
   await expect(page.getByTestId("lineup-bench")).toHaveCount(0);
 
   // A real touch swipe to the left lands on the next card, centred (snap).
@@ -233,37 +226,28 @@ test("phones swipe sideways through the five cards, one at a time", async ({ pag
   const box = (await track.boundingBox())!;
   const y = Math.round(box.y + 160);
   await swipe(page, cdp, { x: Math.round(box.width * 0.85), y }, { x: Math.round(box.width * 0.2), y });
-  await expect(tabs.nth(1)).toHaveAttribute("aria-selected", "true");
-  await expect
-    .poll(() => cells.nth(1).evaluate((c) => { const t = c.parentElement!.getBoundingClientRect(); const r = c.getBoundingClientRect(); return Math.round(Math.abs(r.left + r.width / 2 - (t.left + t.width / 2))); }))
-    .toBeLessThanOrEqual(3);
-  // An equal glimpse of the cards either side, so the track reads as a carousel.
-  const glimpse = await cells.nth(1).evaluate((c) => {
-    const t = c.parentElement!.getBoundingClientRect();
-    return { left: Math.round(c.previousElementSibling!.getBoundingClientRect().right - t.left), right: Math.round(t.right - c.nextElementSibling!.getBoundingClientRect().left) };
-  });
-  expect(glimpse.left).toBeGreaterThan(4);
-  expect(Math.abs(glimpse.left - glimpse.right)).toBeLessThanOrEqual(3);
+  await expect(dots.nth(1)).toHaveAttribute("aria-selected", "true");
+  await expect.poll(() => offCentre(page.getByTestId("lineup-row-JUNGLE"))).toBeLessThanOrEqual(0.5);
+  // One card in view: no neighbour shows beside it (the glimpse of either side went with the carousel).
+  const shown = await cells.evaluateAll((els) => els.filter((c) => { const r = c.getBoundingClientRect(); return r.right > 0.5 && r.left < document.documentElement.clientWidth - 0.5; }).length);
+  expect(shown, "one card on screen").toBe(1);
   // A vertical swipe still scrolls the page, not the track.
-  const before = await track.evaluate((el) => el.scrollLeft);
   await swipe(page, cdp, { x: Math.round(box.width / 2), y: 600 }, { x: Math.round(box.width / 2), y: 300 });
   // Compact cards make the page short (at 375 × 667 it fits the screen since S3a): it scrolls as far as it can (up to 50px), the track not at all.
   const room = await page.evaluate(() => document.documentElement.scrollHeight - window.innerHeight);
   if (room > 0) await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThanOrEqual(Math.min(50, room) - 1);
-  expect(await track.evaluate((el) => el.scrollLeft)).toBe(before);
+  await page.waitForTimeout(300);
+  await expect(dots.nth(1)).toHaveAttribute("aria-selected", "true");
+  expect(await offCentre(page.getByTestId("lineup-row-JUNGLE"))).toBeLessThanOrEqual(0.5);
   await page.evaluate(() => window.scrollTo(0, 0));
 
-  // The pager moves too (a tap away from any player), names each player and says where you are.
-  await expect(page.getByTestId("lineup-dot-name").first()).not.toBeEmpty();
-  // Named by the role, then the player.
-  await expect(tabs.first()).toHaveAccessibleName(/^Top: .+/);
-  await tabs.nth(2).click();
-  await expect(tabs.nth(2)).toHaveAttribute("aria-selected", "true");
-  await tabs.nth(4).click();
-  await expect(tabs.nth(4)).toHaveAttribute("aria-selected", "true");
-  await tabs.nth(3).click();
-  await expect(tabs.nth(3)).toHaveAttribute("aria-selected", "true");
-  for (const tab of await tabs.all()) expect((await tab.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  // The dots move too (a tap away from any player), each named by the role, then the player.
+  await expect(dots.first()).toHaveAccessibleName(/^Top: .+/);
+  for (const i of [2, 4, 3]) {
+    await dots.nth(i).click();
+    await expect(dots.nth(i)).toHaveAttribute("aria-selected", "true");
+  }
+  for (const dot of await dots.all()) expect(Math.min((await dot.boundingBox())!.height, (await dot.boundingBox())!.width)).toBeGreaterThanOrEqual(44);
   // Every card is labelled with its role, player and position.
   await expect(cells.first()).toHaveAttribute("aria-label", /^Top: .+ \(1 of 5\)$/);
 });

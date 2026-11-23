@@ -1,5 +1,6 @@
 import { devices, expect, test, type Locator, type Page } from "./test";
 import { memberContext } from "./member-account";
+import { showLineupCard } from "./lineup";
 
 /*
   A PLAYER'S NAME IS NEVER CUT OR COVERED ON THEIR CARD. Reported on production: a member's own Top
@@ -45,10 +46,8 @@ async function nameOn(card: Locator) {
 
 async function teamCard(page: Page, role: string): Promise<Locator> {
   await page.goto("/team");
-  // On a phone the cards are a track: bring this one into view first.
-  const tab = page.getByTestId("lineup-pager").getByRole("tab", { name: new RegExp(`^${role === "TOP" ? "Top" : role}`) });
-  if (await tab.isVisible()) await tab.click();
-  const card = page.getByTestId(`lineup-row-${role}`);
+  // On a phone the cards are a carousel: bring this one into view first.
+  const card = await showLineupCard(page, role);
   await expect(card).toBeInViewport();
   return card;
 }
