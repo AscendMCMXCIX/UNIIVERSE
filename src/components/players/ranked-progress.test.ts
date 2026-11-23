@@ -74,7 +74,7 @@ describe("RankedProgress", () => {
     // The rank and the change share the row before the chart's part (never folded on a phone).
     const row = html.slice(0, html.indexOf('id="ranked-chart-fold"'));
     expect(row).toContain('data-testid="ranked-current"');
-    expect(row).toMatch(/<dl id="ranked-movement" class="shrink-0">/);
+    expect(row).toMatch(/<dl id="ranked-movement" class="max-w-full shrink-0">/);
     // The account line, the highest rank and the change's path: only in the tip beside the rank.
     expect(html).toMatch(/aria-label="About this rank"/);
     for (const id of ["ranked-tracking", "ranked-peak-stat", "ranked-change-path"]) expect(html.match(new RegExp(`data-testid="${id}"`, "g")), id).toHaveLength(1);
@@ -124,7 +124,9 @@ describe("RankedProgress", () => {
     expect(text(master, "ranked-current")).toBe("Master · 251 LP");
     expect(master).not.toContain('data-testid="ranked-lp-bar"');
     expect(master).toContain('data-testid="ranked-chart"');
-    expect(text(master, "ranked-record")).toBe("212W 154L · 58% · 2026 (Riot)");
+    // The record and win rate always shown; its scope ("2026 (Riot)") from a 21rem card, read out on a phone's.
+    expect(text(master, "ranked-record")).toBe("212W 154L · 58%");
+    expect(master).toMatch(/data-testid="ranked-record">212W 154L · 58%[\s\S]*?<span class="@max-\[21rem\]\/rank:sr-only"> · 2026 \(Riot\)<\/span>/);
   });
 
   it("ends with the chart: no History and coverage disclosure, no year strip, rank changes or readings table", () => {
@@ -136,7 +138,7 @@ describe("RankedProgress", () => {
     // the change and the highest recorded rank, and the chart, which ends the card.
     expect(text(html, "ranked-tracking")).toBe("Name#TAG · 2026 Season 3 · rank recorded since 15 Oct 2026");
     expect(text(html, "ranked-current")).toBe("Gold II · 75\u00a0LP");
-    expect(html).toContain("104W 92L · 53% · 2026 (Riot)");
+    expect(html).toContain("104W 92L · 53%<span class=\"@max-[21rem]/rank:sr-only\"> · 2026 (Riot)</span>");
     expect(html).toContain('data-testid="ranked-peak-stat"');
     expect(html).toMatch(/data-testid="ranked-chart"[\s\S]*<\/section>$/);
   });

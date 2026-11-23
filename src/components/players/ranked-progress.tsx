@@ -66,8 +66,9 @@ export function RankedProgress({ accounts, queue, accountId, href, now }: { acco
           word; on a touch screen its 44px button reaches 0.875rem past the mark, so the chevron keeps
           that gap. The title never shrinks below "progress ⓘ" (no min-w-0: that minimum is the point):
           where the two do not fit (200% text on a 320px phone) the chevron takes the next line, at its
-          end, rather than sit under the ⓘ's touch area. */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pointer-coarse:gap-x-3.5">
+          end, 1rem under it on a touch screen (the ⓘ reaches 0.875rem below its line), never under
+          the ⓘ's touch area. */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pointer-coarse:gap-x-3.5 pointer-coarse:gap-y-4">
         <h2 id="ranked-progress-title" className="flex-1 text-base font-semibold text-fg">
           Ranked{" "}
           <span className="whitespace-nowrap">
@@ -109,7 +110,9 @@ export function RankedProgress({ accounts, queue, accountId, href, now }: { acco
                 <LpBar tier={cur.tier} lp={cur.leaguePoints} />
                 {cur.wins !== null && cur.losses !== null ? (
                   <p className="text-xs tabular-nums text-fg-muted" data-testid="ranked-record">
-                    {cur.wins}W {cur.losses}L{cur.wins + cur.losses > 0 ? ` · ${Math.round((cur.wins / (cur.wins + cur.losses)) * 100)}%` : ""} · {RANKED_YEAR} (Riot)
+                    {cur.wins}W {cur.losses}L{cur.wins + cur.losses > 0 ? ` · ${Math.round((cur.wins / (cur.wins + cur.losses)) * 100)}%` : ""}
+                    {/* Its scope, shown from a 21rem card; read out on a narrower one (a phone), and in the ⓘ. */}
+                    <span className="@max-[21rem]/rank:sr-only"> · {RANKED_YEAR} (Riot)</span>
                   </p>
                 ) : null}
               </div>
@@ -121,7 +124,7 @@ export function RankedProgress({ accounts, queue, accountId, href, now }: { acco
             )}
           </div>
           {cur ? (
-            <dl id="ranked-movement" className="shrink-0">
+            <dl id="ranked-movement" className="max-w-full shrink-0">
               <Movement m={movement} unranked={cur.tier === null} />
             </dl>
           ) : null}
@@ -165,7 +168,7 @@ const OPENS = "max-md:group-data-[fold=open]/fold:fade-in short:group-data-[fold
 function RankDetails({ tracking, peak, movement }: { tracking: string; peak: RankTimeline["peak"]; movement: RankMovement | null }) {
   return (
     <>
-      <span data-testid="ranked-tracking">{tracking}</span>.{" "}
+      <span data-testid="ranked-tracking">{tracking}</span>. The record is Riot's count for the ranked year.{" "}
       <span data-testid="ranked-peak-stat">{peak ? `Highest recorded: ${peak.label} · ${peak.lp} LP, first checked ${formatDayMonth(peak.at)}.` : "Highest recorded: not recorded."}</span>
       {movement ? <span data-testid="ranked-change-path">{` ${movementPath(movement)}`}</span> : null}
     </>
@@ -214,10 +217,16 @@ function LpBar({ tier, lp }: { tier: string | null; lp: number | null }) {
   );
 }
 
+/**
+ * The 30-day change: its label over its value beside the rank, on one line ("Last 30 days −1
+ * division") in a card under 21rem (a phone's), where it goes under the rank: a line less there.
+ */
+const MOVEMENT_LINE = "min-w-0 @max-[21rem]/rank:flex @max-[21rem]/rank:flex-wrap @max-[21rem]/rank:items-baseline @max-[21rem]/rank:gap-x-2";
+
 function Movement({ m, unranked }: { m: RankMovement | null; unranked: boolean }) {
   if (!m)
     return (
-      <div className="min-w-0">
+      <div className={MOVEMENT_LINE}>
         <dt className="text-2xs text-fg-subtle">Last 30 days</dt>
         <dd className="text-sm text-fg-muted" data-testid="ranked-change-none">
           {unranked ? "Unranked now: nothing to compare" : "Not enough readings in 30 days"}
@@ -227,7 +236,7 @@ function Movement({ m, unranked }: { m: RankMovement | null; unranked: boolean }
   const value = m.kind === "lp" ? (m.amount === 0 ? "No change" : formatLpChange(m.amount)) : m.kind === "divisions" ? `${m.amount > 0 ? "+" : "−"}${Math.abs(m.amount)} division${Math.abs(m.amount) === 1 ? "" : "s"}` : `${m.from.label} → ${m.to.label}`;
   const dir = m.kind === "tiers" ? (m.to.score! > m.from.score! ? 1 : -1) : Math.sign(m.amount);
   return (
-    <div className="min-w-0">
+    <div className={MOVEMENT_LINE}>
       <dt className="text-2xs text-fg-subtle">{m.windowed ? "Last 30 days" : `Since ${formatDayMonth(m.from.from)}`}</dt>
       <dd className={cn("text-lg font-bold leading-tight tabular-nums", dir > 0 ? "text-good" : dir < 0 ? "text-bad" : "text-fg-muted")} data-testid="ranked-change" data-kind={m.kind}>
         {value}

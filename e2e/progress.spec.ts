@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from "./test";
 import { playerEntry } from "./players";
-import { optionsOf, pick } from "./select";
+import { optionsOf, pick, valueOf } from "./select";
 import { RANKED_YEAR } from "../src/domain/ranked-year";
 
 /*
@@ -356,7 +356,9 @@ test("with two Riot accounts, Ranked progress offers one account select beside t
   const options = await optionsOf(select);
   expect(options.length, "both accounts offered").toBe(2);
   expect(options.map((o) => o.label).join(" "), "by name, never Main or Primary").not.toMatch(/Main|Primary/);
-  await pick(select, options.find((o) => o.value !== (before.match(/ra=([^&#]+)/)?.[1] ?? options[0]!.value))!.value);
+  // The account shown is the select's value (the first with readings, which a newly linked account is not).
+  const current = await valueOf(select);
+  await pick(select, options.find((o) => o.value !== current)!.value);
   await expect(page).toHaveURL(/[?&]ra=/);
   expect(page.url()).not.toBe(before);
   await expect(ranked.getByTestId("ranked-current").or(ranked.getByTestId("ranked-empty"))).toBeVisible();
