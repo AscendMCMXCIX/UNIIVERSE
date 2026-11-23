@@ -345,10 +345,11 @@ function AbilityTile({ intel, ability: a, checkedPatch, notRecheckedFor, dataPat
     // hidden copy is display: none, and a lazy image out of the layout is never fetched).
     <li id={abilityAnchor(champion.id, a.slot)} className="@container/tile min-w-0 scroll-mt-4 px-2 py-2 transition-colors focus:bg-accent/5 focus-visible:-outline-offset-2 sm:px-3" data-testid="ability-row" data-slot={a.slot} data-freshness={a.freshness ?? undefined}>
       {/* The icon (its key on its corner) beside the name and the Peek's button; the cooldown under them:
-          across the whole tile in a narrow one (the strip's five side by side, each 14 to 18rem), in the
-          name's column from 17rem of content (a phone's list, a wide strip), and with no icon column under 11rem (a
-          phone at a large text size), where a smaller icon starts the name's line. */}
-      <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-x-2.5 [grid-template-areas:'name'_'cd'] @min-[11rem]/tile:grid-cols-[2.5rem_minmax(0,1fr)] @min-[11rem]/tile:[grid-template-areas:'icon_name'_'cd_cd'] @min-[17rem]/tile:[grid-template-areas:'icon_name'_'icon_cd']">
+          in the name's column in a list (a phone, a tablet, your kit's fold under 50rem), across the whole
+          tile where the five stand side by side (each 14 to 20rem, the figures need the width), and with
+          no icon column under 11rem (a phone at a large text size), where a smaller icon starts the
+          name's line. */}
+      <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-x-2.5 [grid-template-areas:'name'_'cd'] @min-[11rem]/tile:grid-cols-[2.5rem_minmax(0,1fr)] @min-[11rem]/tile:@max-[50rem]/abilities:[grid-template-areas:'icon_name'_'icon_cd'] @min-[11rem]/tile:@min-[50rem]/abilities:[grid-template-areas:'icon_name'_'cd_cd']">
         <span className="relative hidden [grid-area:icon] @min-[11rem]/tile:block">
           <AbilityIcon src={a.icon} slot={a.slot} />
           <KeyChip slot={a.slot} corner />
@@ -367,7 +368,7 @@ function AbilityTile({ intel, ability: a, checkedPatch, notRecheckedFor, dataPat
         </div>
         <div className="min-w-0 [grid-area:cd]">
           {/* The base cooldown, large, on a line of its own: the figures read first. */}
-          <div className="mt-1 @min-[17rem]/tile:mt-0.5">
+          <div className="mt-1">
             <CooldownLine cooldown={a.cooldown} isStatic={!flagged && a.modifiers?.static === true} testId="ability-cooldown-value" lineTestId="ability-cooldown" source={flagged ? null : ownSource} bare />
           </div>
           {/* Once Riot changed the ability, where its line now comes from, under the numbers. */}

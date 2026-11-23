@@ -261,7 +261,7 @@ export function Briefing({ matchup, you, enemy, rows, means, levels, interaction
         // folded in the server's HTML, so nothing moves as the page hydrates); a tablet and a desktop show them.
         <PhoneFoldSection id="lane-plan-more" aria-label="The lane plan" className="@container/brief">
           <div
-            className="grid gap-x-4 gap-y-3 p-3 [grid-template-areas:'threat'_'opp'_'lane'_'toggle'_'levels'_'inter'] sm:px-4 @min-[34rem]/brief:grid-cols-[minmax(0,var(--threat-share))_minmax(0,1fr)] @min-[34rem]/brief:[grid-template-areas:'threat_opp'_'lane_lane'_'levels_inter'] @min-[60rem]/brief:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)_minmax(0,1fr)] @min-[60rem]/brief:[grid-template-areas:'threat_opp_levels'_'lane_lane_inter']"
+            className="grid gap-x-4 gap-y-3 p-3 [grid-template-areas:'threat'_'opp'_'lane'_'toggle'] sm:px-4 @min-[34rem]/brief:grid-cols-[minmax(0,var(--threat-share))_minmax(0,1fr)] @min-[34rem]/brief:[grid-template-areas:'threat_opp'_'lane_lane'_'levels_inter'] @min-[60rem]/brief:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)_minmax(0,1fr)] @min-[60rem]/brief:[grid-template-areas:'threat_opp_levels'_'lane_lane_inter']"
             style={{ "--threat-share": `${threatShare(threat, opportunity)}%` } as React.CSSProperties}
           >
             <div className="min-w-0 [grid-area:threat]">
@@ -309,8 +309,8 @@ export function Briefing({ matchup, you, enemy, rows, means, levels, interaction
                 <PhoneFoldToggle label={PLAN_MORE_WORDS.toLowerCase()} testId="lane-plan-more-toggle" />
               </div>
             ) : null}
-            {levels ? <div className={cn("min-w-0 [grid-area:levels]", PHONE_FOLDED)}>{levels}</div> : null}
-            {interactions ? <div className={cn("min-w-0 [grid-area:inter]", PHONE_FOLDED)}>{interactions}</div> : null}
+            {levels ? <div className={cn("min-w-0 @min-[34rem]/brief:[grid-area:levels]", PHONE_FOLDED)}>{levels}</div> : null}
+            {interactions ? <div className={cn("min-w-0 @min-[34rem]/brief:[grid-area:inter]", PHONE_FOLDED)}>{interactions}</div> : null}
           </div>
         </PhoneFoldSection>
       )}
