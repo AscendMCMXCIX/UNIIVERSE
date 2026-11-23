@@ -389,7 +389,7 @@ export interface TimelinePlayerView {
   /** The player's place in the game's record (DetailParticipant.slot). */
   slot: number;
   /** Purchases and sales in the order they happened (domain/build-path buildPath; undone purchases are not kept), each with its item's name, icon and kind. */
-  path: Array<BuildEvent & { name: string; url: string | null; done: boolean; minor: boolean }>;
+  path: Array<BuildEvent & { done: boolean; minor: boolean }>;
   /** Skill slots in the order taken (1 = Q … 4 = R), Riot's evolve level-ups left out. */
   skills: number[];
   /** Champion kills made, died in and assisted, in ms; null on a timeline kept before they were. */
@@ -415,6 +415,8 @@ export interface MatchTimelineView {
   sales: boolean;
   /** Whether items can be marked completed or minor (the asset maps' item kinds, format 4 on). */
   itemKinds: boolean;
+  /** Each item the players' paths name, once: its name and icon (the paths carry ids, so a name is not sent ten times). */
+  items: Record<string, { name: string; url: string | null }>;
   /**
    * The player and the enemy in the same recorded position at 10:00 and 15:00; null without such
    * an enemy (exactly one) or without both players' frames. `opponentSlot` is their place in the record.
@@ -517,6 +519,7 @@ export async function getMatchTimeline(db: Db, playerId: string, matchId: string
   // Every player's own: the same rules as the profile's player's above, from the row already read.
   const { describe, kinds } = await itemDescriber(db, matchId);
   const entry = new Map(row.participants.map((p) => [p.puuid, p]));
+  const items: MatchTimelineView["items"] = {};
   const usable = frames && !contradicts ? frames : null;
   const players: TimelinePlayerView[] = parts.flatMap((p, slot) => {
     const e = !p.removed && p.puuid ? entry.get(p.puuid) : undefined;
@@ -531,7 +534,11 @@ export async function getMatchTimeline(db: Db, playerId: string, matchId: string
     return [
       {
         slot,
-        path: buildPath(e.purchases, e.sold ?? []).map((x) => ({ ...x, ...describe(x.id) })),
+        path: buildPath(e.purchases, e.sold ?? []).map((x) => {
+          const d = describe(x.id);
+          items[String(x.id)] ??= { name: d.name, url: d.url };
+          return { ...x, done: d.done, minor: d.minor };
+        }),
         skills: e.skills,
         kills: e.kills ?? null,
         deaths: e.kills ? (e.deaths ?? []) : null,
@@ -551,6 +558,7 @@ export async function getMatchTimeline(db: Db, playerId: string, matchId: string
       // Sales are kept with the turret plates (20 Nov 2026 on): an older timeline never had them.
       sales: !!row.events?.plates,
       itemKinds: kinds,
+      items,
       lane,
       pair,
       gold,

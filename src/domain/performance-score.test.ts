@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { COMPONENT_ORDER, OUTCOME_STEP, ROLE_WEIGHTS, SCORE_VERSION, laneValue, reasonText, scoreMatch, scoreModeOf, seriesAt, timelineScores, toTen, trendWords, type ScoreInput, type ScoreLane, type TimelineInput } from "./performance-score";
+import { COMPONENT_ORDER, OUTCOME_STEP, ROLE_WEIGHTS, SCORE_VERSION, laneValue, reasonText, scoreMatch, scoreModeOf, seriesAt, timelineScores, toTen, trendOf, teamAverages, TREND_SENTENCES, EXCELLENT_AT, type ScoreInput, type ScoreLane, type TimelineInput } from "./performance-score";
 
 /*
   The performance score's worked examples and fairness tests (docs/PERFORMANCE_SCORE.md). A game is
@@ -235,11 +235,24 @@ describe("the timeline score", () => {
 });
 
 describe("trend words", () => {
-  it("follow their written rules", () => {
-    expect(trendWords([7, 7.2, 6.8, 6.9])).toEqual(["Strong early", "Steady"]);
-    expect(trendWords([3, 4, 5, 6, 6.5])).toEqual(["Slow start", "Late improvement"]);
-    expect(trendWords([7, 6, 4, 3.5])).toEqual(["Strong early", "Faded late"]);
-    expect(trendWords([5.5, 2.5, 7, 6.5, 2.4])).toEqual(["Inconsistent"]);
-    expect(trendWords([5, 6])).toEqual([]);
+  it("follow their written rules, the first that holds naming the trend", () => {
+    expect(trendOf([7, 7.2, 6.8, 6.9])?.word).toBe("Dominant");
+    expect(trendOf([3, 2.8, 3.4])?.word).toBe("Struggling");
+    // A weak start, then an above-average finish (the final score read for this one rule).
+    expect(trendOf([3, 4, 5, 5.5], 6.2)?.word).toBe("Resilient");
+    expect(trendOf([3, 4, 5, 5.5], 5)?.word).toBe("Rising");
+    expect(trendOf([7, 6, 4, 3.5])?.word).toBe("Fading");
+    expect(trendOf([7, 6.5, 6.2, 6.0, 5.9, 6.1])?.word).toBe("Fast start");
+    expect(trendOf([5.5, 2.5, 7, 6.5, 2.4])?.word).toBe("Erratic");
+    expect(trendOf([5, 5.5, 5.2, 4.9])?.word).toBe("Steady");
+    expect(trendOf([5, 6.4, 4.2, 5.8])).toBeNull();
+    expect(trendOf([5, 6])).toBeNull();
+    expect(trendOf([7, 7.2, 6.8])?.sentence).toBe(TREND_SENTENCES.Dominant);
+  });
+  it("names each team's mean score, and Excellent from 8.0", () => {
+    const s = scoreMatch(game(), RIFT)!;
+    const avg = teamAverages(s);
+    expect(avg[100]).toBeGreaterThan(avg[200]!);
+    expect(EXCELLENT_AT).toBe(8);
   });
 });

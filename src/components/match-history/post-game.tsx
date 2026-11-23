@@ -11,7 +11,7 @@ import { ArrowUp, Undo2 } from "lucide-react";
 import { formatCount, formatDateTime, formatKilo, formatNumber, formatOrdinal } from "@/lib/format";
 import { laneOf } from "@/domain/match-analysis";
 import { ParticipantPanels, type PanelKey } from "./participant-panels";
-import { PerformancePanel } from "./performance-panel";
+import { PerformancePanel, ScoreWhy } from "./performance-panel";
 import { gameScoresOf } from "./performance-inputs";
 import { cn } from "@/lib/cn";
 import { MatchDetailCacheContext, type MeetingScope } from "./match-detail-cache";
@@ -359,6 +359,7 @@ export function PostGame({ playerId, view, champ, variant, encounterLinks = fals
               </button>
             ) : null}
           </div>
+          <ScoreWhy score={mine} points={points} slot={subject.slot} />
           <Loadout key={subject.slot} p={subject} champ={champ(subject.championId)} small={variant === "window"} />
           <Figures p={subject} teamKills={subjectTeam?.kills ?? 0} />
           <MoreFigures p={subject} />
@@ -388,7 +389,7 @@ export function PostGame({ playerId, view, champ, variant, encounterLinks = fals
               Show {nameOf(subject)}&apos;s game
             </button>
           ) : null}
-          <PerformancePanel scores={scores} points={points} timeline={state} subject={subject} compare={compare} onCompare={setCompare} others={others} nameOf={nameOf} />
+          <PerformancePanel scores={scores} points={points} timeline={state} subject={subject} compare={compare} onCompare={setCompare} others={others} nameOf={nameOf} teams={view.teams} champ={champ} onSelect={select} />
         </section>
       </div>
     </div>

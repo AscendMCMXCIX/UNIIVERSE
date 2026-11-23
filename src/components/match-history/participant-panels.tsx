@@ -42,9 +42,9 @@ function timelineWords(result: MatchTimelineResult | null, entry: TimelinePlayer
   return null;
 }
 
-function BuildPath({ entry, sales, kinds }: { entry: TimelinePlayerView; sales: boolean; kinds: boolean }) {
+function BuildPath({ entry, sales, kinds, items }: { entry: TimelinePlayerView; sales: boolean; kinds: boolean; items: Record<string, { name: string; url: string | null }> }) {
   if (!entry.path.length) return <Unavailable>No purchases recorded for this player.</Unavailable>;
-  const visits = shopVisits(entry.path);
+  const visits = shopVisits(entry.path.map((x) => ({ ...x, name: items[String(x.id)]?.name ?? `Item ${x.id}`, url: items[String(x.id)]?.url ?? null })));
   return (
     <div className="space-y-1.5">
       <ol className="flex flex-wrap items-start gap-x-0.5 gap-y-1.5" aria-label="Purchases and sales, in order" data-testid="build-path">
@@ -181,14 +181,11 @@ function Runes({ page }: { page: RunePage | null }) {
 
 /** The three headings and the one chosen, for the player inspected (`entry`: their timeline; `page`: their rune page). */
 export function ParticipantPanels({ panel, onPanel, result, entry, page }: { panel: PanelKey; onPanel: (p: PanelKey) => void; result: MatchTimelineResult | null; entry: TimelinePlayerView | null; page: RunePage | null }) {
-  const uid = React.useId();
   const tl = result?.status === "ok" ? result.timeline : null;
   const missing = panel !== "runes" ? timelineWords(result, entry) : null;
   return (
-    <section aria-labelledby={`${uid}-h`} className="space-y-2 rounded-lg bg-surface px-3 py-2" data-testid="participant-panels" data-panel={panel}>
-      <h3 id={`${uid}-h`} className="sr-only">
-        {PANELS.find((p) => p.key === panel)!.label}
-      </h3>
+    // Named by the heading shown, without a heading element: the post-game view has no headings of its own above it (axe's heading order).
+    <section aria-label={PANELS.find((p) => p.key === panel)!.label} className="space-y-2 rounded-lg bg-surface px-3 py-2" data-testid="participant-panels" data-panel={panel}>
       <div role="radiogroup" aria-label="Show the build path, the skill order or the runes" className={segmentedGroupClass()} data-testid="panel-tabs">
         {PANELS.map((p) => (
           <button key={p.key} type="button" role="radio" aria-checked={panel === p.key} onClick={() => onPanel(p.key)} className={segmentClass(panel === p.key)} data-testid={`panel-${p.key}`}>
@@ -207,7 +204,7 @@ export function ParticipantPanels({ panel, onPanel, result, entry, page }: { pan
         ) : missing ? (
           <Unavailable testId="panel-timeline-missing">{missing}</Unavailable>
         ) : panel === "build" ? (
-          <BuildPath entry={entry!} sales={!!tl?.sales} kinds={!!tl?.itemKinds} />
+          <BuildPath entry={entry!} sales={!!tl?.sales} kinds={!!tl?.itemKinds} items={tl?.items ?? {}} />
         ) : (
           <SkillOrder entry={entry!} />
         )}

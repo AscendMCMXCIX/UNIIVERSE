@@ -157,12 +157,25 @@ dotted line for that reason. A game without a stored timeline, or whose timeline
 record (`goldContradictsRecord`), or whose frames have a gap, shows its final scores and says the
 score through the game is not available.
 
-**Trend words** (`trendWords`, `TREND_RULES`), from the points before the end only (the final point
-reads more figures) and only with three or more, the first and last thirds being the first and last
-ceil(n ÷ 3) points: "Strong early" (the first third's mean 6.5 or more) or "Slow start" (3.5 or
-less); "Late improvement" (the last third's mean 1.5 or more above the first's) or "Faded late" (1.5
-or more below); otherwise "Inconsistent" (the highest and lowest points 4 or more apart) or
-"Steady" (1.5 or less apart).
+**The trend word** (`trendOf`, `TREND_RULES`, `TREND_SENTENCES`): one word and its sentence, from
+the points before the end only (the final point reads more figures) and only with three or more,
+the first and last thirds being the first and last ceil(n ÷ 3) points. The first rule that holds,
+in this order, names it; none may hold, and then nothing is shown.
+
+| Word | Rule | Sentence |
+| --- | --- | --- |
+| Dominant | every point 6.5 or more | Ahead of the game's average at every point of the timeline. |
+| Struggling | every point 3.5 or less | Behind the game's average at every point of the timeline. |
+| Resilient | the first third's mean 4 or less, and the final score 5.5 or more | Recovered from a weak start to finish above the game's average. |
+| Rising | the last third's mean 1.5 or more above the first third's | Grew stronger as the game went on. |
+| Fading | the last third's mean 1.5 or more below the first third's | Started stronger than they finished. |
+| Fast start | the first third's mean 6.5 or more | Started the game ahead of the others. |
+| Erratic | the highest and lowest points 4 or more apart | Swung between strong and weak stretches. |
+| Steady | the highest and lowest points 1.5 or less apart | Held much the same level throughout. |
+
+**Excellent** (`EXCELLENT_AT`): a score of 8.0 or more is called "Excellent" beside it; no other band
+is named. **Each team's mean** (`teamAverages`): the mean of its scored players' scores, shown on one
+split bar, the winning team first.
 
 ## Limitations
 

@@ -447,37 +447,78 @@ export function timelineScores(inputs: readonly ScoreInput[], timeline: { t: rea
   return points;
 }
 
-/** The trend words a player's timeline earns (TREND_RULES), from the points before the end. */
-export type TrendWord = "Strong early" | "Slow start" | "Late improvement" | "Faded late" | "Inconsistent" | "Steady";
+/** The one-word trend a player's timeline earns (TREND_RULES), with its sentence. */
+export type TrendWord = "Dominant" | "Struggling" | "Resilient" | "Rising" | "Fading" | "Fast start" | "Erratic" | "Steady";
 
 /**
  * The rules, on the points before the end (the final point reads more of the record, so it is not
- * compared with them), and only with three or more of them. The first and last thirds are the first
- * and last ceil(n/3) points.
+ * compared with them) and only with three or more of them; "Resilient" also reads the final score.
+ * The first and last thirds are the first and last ceil(n/3) points. The first rule that holds, in
+ * this order, names the trend; none may hold.
  */
 export const TREND_RULES = {
-  /** "Strong early": the first third's mean at least this. "Slow start": at most 10 minus it. */
-  early: 6.5,
-  /** "Late improvement" / "Faded late": the last third's mean this much above / below the first third's. */
+  /** "Dominant": every point at least this. "Struggling": every point at most 10 minus it. */
+  every: 6.5,
+  /** "Resilient": the first third's mean at most this, and the final score at least `resilientEnd`. */
+  resilientStart: 4,
+  resilientEnd: 5.5,
+  /** "Rising" / "Fading": the last third's mean this much above / below the first third's. */
   change: 1.5,
-  /** "Inconsistent": the highest and lowest point this far apart, without a clear rise or fall. */
+  /** "Fast start": the first third's mean at least this. */
+  early: 6.5,
+  /** "Erratic": the highest and lowest point this far apart. */
   swing: 4,
   /** "Steady": the highest and lowest point at most this far apart. */
   steady: 1.5,
 } as const;
 
-export function trendWords(points: readonly number[]): TrendWord[] {
-  if (points.length < 3) return [];
+/** Each trend's sentence: what the rule found, in plain words. */
+export const TREND_SENTENCES: Record<TrendWord, string> = {
+  Dominant: "Ahead of the game's average at every point of the timeline.",
+  Struggling: "Behind the game's average at every point of the timeline.",
+  Resilient: "Recovered from a weak start to finish above the game's average.",
+  Rising: "Grew stronger as the game went on.",
+  Fading: "Started stronger than they finished.",
+  "Fast start": "Started the game ahead of the others.",
+  Erratic: "Swung between strong and weak stretches.",
+  Steady: "Held much the same level throughout.",
+};
+
+/** The trend of a player's points before the end (and their final score, for "Resilient"), or null. */
+export function trendOf(points: readonly number[], finalScore: number | null = null): { word: TrendWord; sentence: string } | null {
+  if (points.length < 3) return null;
   const third = Math.ceil(points.length / 3);
   const first = mean(points.slice(0, third));
   const last = mean(points.slice(-third));
-  const range = Math.max(...points) - Math.min(...points);
-  const out: TrendWord[] = [];
-  if (first >= TREND_RULES.early) out.push("Strong early");
-  else if (first <= 10 - TREND_RULES.early) out.push("Slow start");
-  if (last - first >= TREND_RULES.change) out.push("Late improvement");
-  else if (first - last >= TREND_RULES.change) out.push("Faded late");
-  else if (range >= TREND_RULES.swing) out.push("Inconsistent");
-  else if (range <= TREND_RULES.steady) out.push("Steady");
-  return out;
+  const lo = Math.min(...points);
+  const hi = Math.max(...points);
+  const word: TrendWord | null =
+    lo >= TREND_RULES.every
+      ? "Dominant"
+      : hi <= 10 - TREND_RULES.every
+        ? "Struggling"
+        : first <= TREND_RULES.resilientStart && finalScore !== null && finalScore >= TREND_RULES.resilientEnd
+          ? "Resilient"
+          : last - first >= TREND_RULES.change
+            ? "Rising"
+            : first - last >= TREND_RULES.change
+              ? "Fading"
+              : first >= TREND_RULES.early
+                ? "Fast start"
+                : hi - lo >= TREND_RULES.swing
+                  ? "Erratic"
+                  : hi - lo <= TREND_RULES.steady
+                    ? "Steady"
+                    : null;
+  return word ? { word, sentence: TREND_SENTENCES[word] } : null;
+}
+
+/** A score this high or higher is called "Excellent" beside it (a band of its own; nothing else is named). */
+export const EXCELLENT_AT = 8;
+
+/** Each team's mean score (its scored players), by team id. */
+export function teamAverages(scores: Pick<MatchScores, "players">): Record<number, number> {
+  const by = new Map<number, number[]>();
+  for (const p of scores.players) by.set(p.teamId, [...(by.get(p.teamId) ?? []), p.score]);
+  return Object.fromEntries([...by].map(([team, xs]) => [team, Math.round(mean(xs) * 10) / 10]));
 }

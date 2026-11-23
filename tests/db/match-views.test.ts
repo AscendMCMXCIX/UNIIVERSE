@@ -265,7 +265,7 @@ describe("inspecting any of the ten players (Release 16): one read of each per o
       expect(p.assists!.length).toBe(truth.assists);
       expect(p.frames!.g.at(-1)).toBe(truth.gold);
       expect(p.path.length).toBeGreaterThan(0);
-      expect(p.path.every((e) => e.kind === "buy" && typeof e.name === "string")).toBe(true);
+      expect(p.path.every((e) => e.kind === "buy" && typeof tl.items[String(e.id)]?.name === "string")).toBe(true);
       expect(p.skills.length).toBeGreaterThan(0);
       // Everyone's lane opponent is the other side's player in the same position, the scoreboard's own rule.
       const row = detail.view.teams.flatMap((t) => t.participants).find((x) => x.slot === p.slot)!;

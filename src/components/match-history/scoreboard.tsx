@@ -10,6 +10,7 @@ import { metSides } from "@/lib/tip-words";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
 import { formatCount, formatDate, formatKilo, formatNumber, formatOrdinal } from "@/lib/format";
 import type { PlayerScore } from "@/domain/performance-score";
+import { RankChip } from "./performance-panel";
 import { cn } from "@/lib/cn";
 import { Fold } from "@/components/ui/fold";
 import { matchRankQueue, rankBadgeLabel, rankTimingCounts, type ParticipantRank } from "@/domain/known-rank";
@@ -384,15 +385,9 @@ function RowScore({ score, scoring, scored }: { score: PlayerScore | null; scori
     );
   if (!score) return <span className="block w-9" data-testid="participant-score" data-state="none" aria-hidden />;
   return (
-    <span className="flex items-baseline gap-1 leading-tight @min-[30rem]/sb:w-9 @min-[30rem]/sb:flex-col @min-[30rem]/sb:items-center @min-[30rem]/sb:gap-0" data-testid="participant-score" data-score={score.score} data-rank={score.rank} data-mvp={score.mvp || undefined} data-ace={score.ace || undefined}>
-      <span className="text-sm font-semibold tabular-nums text-fg">{formatNumber(score.score, 1)}</span>
-      {score.mvp || score.ace ? (
-        <span className={cn("rounded-sm px-1 text-4xs font-bold leading-3", score.mvp ? "bg-blue/20 text-blue" : "bg-red/20 text-[color-mix(in_srgb,var(--color-red)_75%,white)]")} data-testid={score.mvp ? "participant-mvp" : "participant-ace"}>
-          {score.mvp ? "MVP" : "ACE"}
-        </span>
-      ) : (
-        <span className="text-2xs tabular-nums text-fg-subtle">{formatOrdinal(score.rank)}</span>
-      )}
+    <span className="flex items-center gap-1 leading-tight @min-[30rem]/sb:w-10 @min-[30rem]/sb:flex-col @min-[30rem]/sb:gap-0.5" data-testid="participant-score" data-score={score.score} data-rank={score.rank} data-mvp={score.mvp || undefined} data-ace={score.ace || undefined}>
+      <span className="text-sm font-semibold leading-none tabular-nums text-fg">{formatNumber(score.score, 1)}</span>
+      <RankChip score={score} marks />
       <span className="sr-only">
         {`: performance score ${formatNumber(score.score, 1)}, ${formatOrdinal(score.rank)} of ${scored}`}
         {score.mvp ? ", MVP (the winning team's highest)" : score.ace ? ", ACE (the losing team's highest)" : ""}

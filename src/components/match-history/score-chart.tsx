@@ -23,7 +23,7 @@ export interface ChartSeries {
   label: string;
 }
 
-const H = 84;
+const H = 76;
 const PAD = 8;
 
 export function ScoreChart({ points, series }: { points: readonly TimelinePoint[]; series: readonly ChartSeries[] }) {
@@ -74,9 +74,10 @@ export function ScoreChart({ points, series }: { points: readonly TimelinePoint[
   const when = (p: TimelinePoint) => (p.final ? `End (${gameClock(p.minute * 60_000)})` : gameClock(p.minute * 60_000));
   const value = (p: TimelinePoint, slot: number) => (typeof p.scores[slot] === "number" ? formatNumber(p.scores[slot]!, 1) : "—");
   return (
-    <div className="space-y-1" data-testid="score-chart" data-points={points.length} data-series={series.length}>
+    <div className="relative" data-testid="score-chart" data-points={points.length} data-series={series.length}>
       {/* The readout: the point under the pointer (or the arrow keys), else the legend. */}
-      <p className="flex min-h-4 flex-wrap items-center gap-x-3 text-2xs leading-4 text-fg-muted" aria-live="polite" data-testid="score-chart-readout">
+      {/* Over the drawing's top right, so it takes no height of its own: the point read, else the legend of two players. */}
+      <p className="pointer-events-none absolute right-0 top-0 z-10 flex max-w-[85%] flex-wrap items-center justify-end gap-x-3 rounded-sm bg-surface/90 px-1 text-2xs leading-4 text-fg-muted empty:hidden" aria-live="polite" data-testid="score-chart-readout">
         {shown ? (
           <>
             <span className="font-semibold tabular-nums text-fg">{when(shown)}</span>
@@ -94,9 +95,7 @@ export function ScoreChart({ points, series }: { points: readonly TimelinePoint[
               {s.label}
             </span>
           ))
-        ) : (
-          <span>Each point from what had happened by then; the end is the final score.</span>
-        )}
+        ) : null}
       </p>
       <div className="grid grid-cols-[1.25rem_minmax(0,1fr)] gap-x-1">
         <div className="relative text-2xs tabular-nums leading-none text-fg-subtle" style={{ height: H }} aria-hidden>
@@ -164,7 +163,7 @@ export function ScoreChart({ points, series }: { points: readonly TimelinePoint[
         </div>
       </div>
       <table className="sr-only" data-testid="score-chart-table">
-        <caption>Performance score through the game</caption>
+        <caption>Performance score through the game: each point from what had happened by then; the end is the final score</caption>
         <thead>
           <tr>
             <th scope="col">Time</th>

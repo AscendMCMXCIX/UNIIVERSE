@@ -305,6 +305,15 @@ test("every player has a performance score 0–10 beside their row, one MVP on t
   await expect(chart).toBeVisible();
   expect(Number(await chart.getAttribute("data-points"))).toBeGreaterThanOrEqual(3);
   await expect(chart.getByTestId("score-chart-table").locator("tbody tr").last().locator("th")).toHaveText(/^End \(\d+:\d\d\)$/);
+  // Each team's mean on one bar, the winners first, and the ten scores as tiles: a tile inspects its player.
+  await expect(panel.getByTestId("performance-teams")).toContainText(/^Victory \d+\.\d.*\d+\.\d Defeat/);
+  const tiles = panel.getByTestId("performance-tile");
+  await expect(tiles).toHaveCount(10);
+  const tile = panel.locator('[data-testid=performance-tile]:not([aria-current="true"])').first();
+  const slot = (await tile.getAttribute("data-slot"))!;
+  await tile.click();
+  await expect(breakdown).toHaveAttribute("data-selected", slot);
+  await expect(panel.locator(`[data-testid=performance-tile][data-slot="${slot}"]`)).toHaveAttribute("aria-current", "true");
   // Never the other site's name for its score.
   expect(await breakdown.innerText()).not.toMatch(/OP Score/i);
 });

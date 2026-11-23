@@ -7,6 +7,24 @@ UNIIVERSE runs on the free plans of Supabase (the Postgres database) and Vercel 
 
 This page records what caused that, what was changed, how it was measured, and how to check it again. The second pass, after egress reached 7.14 GB on 20 Oct, is the next section.
 
+## 23 Nov 2026: inspecting any player of an opened game (Release 16)
+
+- **Database egress: nothing more per opened game.** The post-game view's inspection of any of the
+  ten players, their Build Path, Skill Order and Runes, the performance scores and the score through
+  the game all come from the two answers an opened game already loads: its record (one read of
+  `match_details`, plus the players' newest recorded Riot IDs, as before) and its timeline (one read
+  of `match_timelines` and the same three small reads of `match_details` as before: the players'
+  lanes, the gold check and the game version). The timeline answer now carries every player of the
+  stored row instead of the profile's player alone, which is bytes from Vercel to the browser (about
+  6–9 KB more for a 30-minute game), not from the database. Switching players and comparing two
+  read nothing at all. `tests/db/match-views.test.ts` counts the reads.
+- **Riot: no new request.** A stored game's timeline is read from storage; Riot is asked only for a
+  game whose timeline was never stored, once per game ever, as before. Inspecting a player asks
+  nothing.
+- **Static data:** the item kinds the build path marks (finished items; consumables, trinkets and
+  wards) are about 810 bytes added to the 33 KB of names every match read loads (cached ten
+  minutes), stored by the next version check (format 4).
+
 ## 20 Nov 2026: Matchup Intel's evidence backfill (`prep-backfill`)
 
 - **Measured** (local PostgreSQL 16, the app's own egress counter, `src/server/db/egress.ts`): the
