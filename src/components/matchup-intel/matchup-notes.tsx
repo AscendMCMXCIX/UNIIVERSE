@@ -286,18 +286,19 @@ export function InteractionsPanel({ matchup, enemyIntel, yourIntel, you, rows, v
 
 /** One level note: its level beside its words (above them under 16rem), its source where the panel's line does not give it, and its flag once Riot changed an ability it rests on. */
 function LevelNote({ note: n, source, section = false }: { note: ChampionIntelView["levelNotes"][number] & { champion: ChampionIntelView["champion"] }; source: string | null; section?: boolean }) {
+  const rest = section ? headlineOf(n.text).rest : "";
+  const tip = source ? (
+    <>
+      {" "}
+      <SourceTip text={source} testId="level-note-source" />
+    </>
+  ) : null;
   return (
     <li className={cn("grid grid-cols-1 gap-x-2 gap-y-0.5 py-1.5 @min-[16rem]/levels:grid-cols-[3.75rem_minmax(0,1fr)]", section ? "" : "px-3")} data-testid="matchup-level-note" data-changed={n.changed ? "" : undefined}>
       <span className={cn("font-semibold tabular-nums leading-snug text-fg", section ? "text-sm" : "text-xs")}>Level {n.level}</span>
       <p className={cn("min-w-0 leading-snug text-fg", section ? "text-sm" : "text-xs")}>
         <span className="font-medium">{n.champion.name}:</span> {section ? headlineOf(n.text).head : n.text}
-        {section && headlineOf(n.text).rest ? <span className="text-fg-muted"> …</span> : null}
-        {source ? (
-          <>
-            {" "}
-            <SourceTip text={source} testId="level-note-source" />
-          </>
-        ) : null}
+        {rest ? <span className="text-fg-muted"> …</span> : tip}
         {n.changed ? (
           <>
             {" "}
@@ -305,10 +306,14 @@ function LevelNote({ note: n, source, section = false }: { note: ChampionIntelVi
           </>
         ) : null}
       </p>
-      {/* In the lane plan a long note shows its headline; the rest, word for word, one press away. */}
-      {section && headlineOf(n.text).rest ? (
+      {/* In the lane plan a long note shows its headline; the rest, word for word, and the note's source
+          one press away (a source tip over the More line would crowd it on a touch screen). */}
+      {rest ? (
         <Fold variant="inline" tone="accent" className="@min-[16rem]/levels:col-start-2" testId="level-note-more" summary={<>More<span className="sr-only">: the rest of this level change</span></>}>
-          <p className="text-sm leading-snug text-fg">{headlineOf(n.text).rest}</p>
+          <p className="text-sm leading-snug text-fg">
+            {rest}
+            {tip}
+          </p>
         </Fold>
       ) : null}
     </li>

@@ -183,7 +183,9 @@ function SlotButton({ slot, duo, role, champion, onOpen, buttonRef }: { slot: Fr
             words.label
           )}
         </span>
-        <span className={cn("line-clamp-2 font-semibold leading-snug text-fg [overflow-wrap:anywhere] max-sm:@min-[22rem]/pickers:text-sm max-sm:@min-[22rem]/pickers:tracking-tight sm:@min-[27rem]/pickers:text-base", duo ? "text-md max-sm:text-sm max-sm:tracking-tight" : "text-md")} data-testid={`matchup-pick-${slot}-name`}>
+        {/* In the bot lane on a phone the name keeps its two lines' height ("Choose the enemy ADC" takes
+            two, "Lux" one), so filling a slot moves no other. */}
+        <span className={cn("line-clamp-2 font-semibold leading-snug text-fg [overflow-wrap:anywhere] max-sm:@min-[22rem]/pickers:text-sm max-sm:@min-[22rem]/pickers:tracking-tight sm:@min-[27rem]/pickers:text-base", duo ? "text-md max-sm:min-h-[2lh] max-sm:text-sm max-sm:tracking-tight" : "text-md")} data-testid={`matchup-pick-${slot}-name`}>
           {champion ? champion.name : words.choose}
         </span>
         {champion ? <span className="sr-only">, change</span> : null}
@@ -737,7 +739,7 @@ export function MatchupFrame({
               <div ref={slotsRef} className="grid grid-cols-1 items-stretch gap-2 @min-[17.5rem]/pickers:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:gap-3" data-testid="matchup-pickers" data-slots={duo ? 4 : 2}>
                 {duo ? (
                   // The ADC's slot first on each side, whichever role is yours (the UX review of Release 13).
-                  <div className="grid grid-cols-2 gap-1.5 max-sm:grid-cols-1" data-testid="matchup-side-you">
+                  <div className="grid grid-cols-2 content-start gap-1.5 max-sm:grid-cols-1" data-testid="matchup-side-you">
                     {shown.role === "support" ? slotButton("ally") : slotButton("you")}
                     {shown.role === "support" ? slotButton("you") : slotButton("ally")}
                   </div>
@@ -756,7 +758,7 @@ export function MatchupFrame({
                   <ArrowLeftRight className="h-5 w-5 @max-[17.5rem]/pickers:rotate-90" aria-hidden />
                 </button>
                 {duo ? (
-                  <div className="grid grid-cols-2 gap-1.5 max-sm:grid-cols-1" data-testid="matchup-side-enemy">
+                  <div className="grid grid-cols-2 content-start gap-1.5 max-sm:grid-cols-1" data-testid="matchup-side-enemy">
                     {shown.role === "support" ? slotButton("enemy2") : slotButton("enemy")}
                     {shown.role === "support" ? slotButton("enemy") : slotButton("enemy2")}
                   </div>

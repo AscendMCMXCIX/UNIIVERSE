@@ -97,16 +97,16 @@ function CuratedText({ text, chips, testId }: { text: string; chips: React.React
   const { head, rest } = headlineOf(text);
   return (
     <div className="min-w-0" data-testid={testId}>
-      <p className="text-md font-semibold leading-snug text-fg" data-testid="briefing-headline">
+      <div className="text-md font-semibold leading-snug text-fg" data-testid="briefing-headline">
         {head}
         {rest ? <span className="font-normal text-fg-muted"> …</span> : chips}
-      </p>
+      </div>
       {rest ? (
         <Fold variant="inline" tone="accent" className="mt-0.5" testId="briefing-more" summary={<>More<span className="sr-only">: the rest of this point</span></>}>
-          <p className="text-md leading-snug text-fg" data-testid="briefing-rest">
+          <div className="text-md leading-snug text-fg" data-testid="briefing-rest">
             {rest}
             {chips}
-          </p>
+          </div>
         </Fold>
       ) : null}
     </div>
