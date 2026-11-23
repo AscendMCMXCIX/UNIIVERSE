@@ -39,7 +39,7 @@ import { createSession, findSession } from "@/server/auth/sessions";
 import { registerAccount } from "@/server/auth/signup";
 import { authenticate, createUser, getUser } from "@/server/repositories/users";
 import { auditEvents, users } from "@/server/db/schema";
-import { setAdministrator } from "@/server/auth/account-admin";
+import { setAdministrator, withdrawTemporaryPassword } from "@/server/auth/account-admin";
 import * as userActions from "@/server/actions/users";
 
 let handle: DbHandle;
@@ -132,7 +132,7 @@ describe("withdraw a temporary password", () => {
     expect((await rows()).length).toBe(before);
   });
 
-  it("each guard refuses: your own account, the Owner's by anyone but the Owner, the Production check's account, the last administrator", async () => {
+  it("each guard refuses: your own account, the Owner's or an administrator's by anyone but the Owner, the Production check's account, the last administrator", async () => {
     const before = (await rows()).length;
     // Your own account.
     await signInAs(adminId);
@@ -153,8 +153,11 @@ describe("withdraw a temporary password", () => {
     // A member (manage-users through Administrator is needed to ask at all): grant, then take the Deputy's own password away so only the Captain remains.
     await setAdministrator(handle.db, null, other.id, true);
     await handle.db.update(users).set({ passwordHash: null }).where(eq(users.id, other.id));
+    // Another administrator is refused before anything else (OD8: only the Owner manages administrators)…
     await signInAs(other.id);
-    expect(await userActions.withdrawTemporaryPasswordAction(adminId)).toMatchObject({ ok: false, error: expect.stringMatching(/last active administrator/) });
+    expect(await userActions.withdrawTemporaryPasswordAction(adminId)).toMatchObject({ ok: false, error: expect.stringMatching(/Only the Owner can withdraw the password of an administrator/) });
+    // …and the last-administrator guard still holds for the system itself (no actor).
+    await expect(withdrawTemporaryPassword(handle.db, null, adminId)).rejects.toThrow(/last active administrator/);
     expect((await getUser(handle.db, adminId))!.hasPassword).toBe(true);
     await handle.db.update(users).set({ isActive: true }).where(eq(users.id, ownerId));
     await handle.db.update(users).set({ mustChangePassword: false, temporaryPasswordExpiresAt: null }).where(eq(users.id, adminId));

@@ -156,8 +156,8 @@ describe("a change that does nothing writes no audit row", () => {
     expect(last!.details).toEqual({ groups: "player-manager" });
   });
 
-  it("administrator access (any administrator grants and removes it, OD8c), each once", async () => {
-    await signInAs(adminId);
+  it("administrator access (the Owner grants and removes it, OD8c), each once", async () => {
+    await signInAs(ownerId);
     await onceThenNothing("account.admin-grant", () => userActions.setAdministratorAction(memberId, true));
     await onceThenNothing("account.admin-revoke", () => userActions.setAdministratorAction(memberId, false));
   });
