@@ -117,9 +117,9 @@ function useToolbarSlot(nav: React.RefObject<HTMLElement | null>, slot: React.Re
  * the element the page scrolls through, never of a wrapper that ends with it. `end`: content at the
  * bar's right end (Team names the team there). `inner`: classes for the row's width, for a bar that
  * spans more than the pages under it (Team's and Platform Settings' sections, a child of `main` above
- * pages centred in their own width). SectionTabs passes ROW_WIDTH: the bar's width in a
- * window under 1600px, the set's width from there. From 1600px the first tab starts at the pages'
- * column and `end` ends where it ends; the bar's line and its pinned background still span the bar.
+ * pages centred in their own width). SectionTabs passes ROW_WIDTH: the set's width, centred as its
+ * pages are, so the first tab starts at the pages' column and `end` ends where it ends; the bar's
+ * line and its pinned background still span the bar.
  * The current tab, pressed again, keeps the page as it is (its view and filters, which its own link
  * leaves out) and goes back to the top, as the phone's tab bar does. `onChoose`: told which other tab
  * was pressed with a plain click, before the page changes.

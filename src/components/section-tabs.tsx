@@ -23,15 +23,14 @@ import { TabBar } from "@/components/ui/tab-bar";
  * shared TabBar (ui/tab-bar.tsx), as on a profile: on phones the tabs share the width when they
  * fit, and otherwise scroll sideways with the current one in view; on tablets and desktops it stays
  * pinned at the top of the page once it has scrolled past (TabBar's sticky), so a long section
- * (Players, Matches) never needs scrolling back up to leave it. In a window from 1600px wide the
- * pages of a set share one width (SECTION_HUBS' `width`: Team's four sections --content-wide, the
- * others --content-max), which the bar's row takes (TabBar's `inner`, ROW_WIDTH): where the pages
- * stop growing and centre in the room beside the sidebar, the first tab still starts at the page's
- * column and the team's name ends where it ends, and the row never moves between the sections; the
- * bar's line and its pinned background span the room. On Team Overview that column is 100rem and the
- * team's header and lineup keep their own 84rem, centred in it. Under 1600px every page and the row
- * are as they always were (PR 10), but for the 44px tabs on touch screens from 1024px (PR 2b). Pages
- * inside a section (a profile, a match) have their own headers and no Team bar.
+ * (Players, Matches) never needs scrolling back up to leave it. The pages of a set share one width
+ * (SECTION_HUBS' `width`: Team's four sections --content-wide, the others --content-max), which the
+ * bar's row takes (TabBar's `inner`, ROW_WIDTH), centred as the pages are in the room beside the
+ * sidebar: the first tab starts at the page's column and the team's name ends where it ends, and the
+ * row never moves between the sections; the bar's line and its pinned background span the room. On
+ * Team Overview that column is 100rem and the team's header and lineup keep their own 84rem, centred
+ * in it. The tabs are 44px on touch screens from 1024px (PR 2b). Pages inside a section (a profile, a
+ * match) have their own headers and no Team bar.
  */
 export function SectionTabs({ allowed, team }: { allowed: string[]; team: { name: string; logo: string | null; logoStill: string | null } }) {
   const pathname = usePathname();

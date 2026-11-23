@@ -32,10 +32,12 @@ const MS_DAY = 86_400_000;
  * text-2xs is 0.75rem: docs/DESIGN_SYSTEM.md, Type) and the 6px between the name and the plot: 4.75rem.
  * At 4rem, from Release 6's floor, "Platinum IV" started 6px left of the drawing at 1440, 1920 and
  * 2560, its first letter cut. The server draws with 16px (120 tall, a 76px gutter); the box's
- * height is CSS, so nothing moves on hydrating.
+ * height is CSS, so nothing moves on hydrating. With `fill` the box takes the height its card gives
+ * it (7.5 to 15rem: Ranked progress level with the pools beside it, 23 Nov 2026), and the drawing
+ * follows it once measured, so the ladder spreads over the room rather than sitting in a strip.
  */
-function chartFrame(rem: number, narrow: boolean) {
-  const H = Math.round(7.5 * rem);
+function chartFrame(rem: number, narrow: boolean, height: number | null) {
+  const H = Math.max(Math.round(7.5 * rem), Math.round(height ?? 0));
   const PAD_T = Math.round(0.625 * rem);
   const AXIS_H = Math.round(1.125 * rem);
   return { H, PAD_T, AXIS_H, PLOT_H: H - PAD_T - AXIS_H, pad: { l: Math.round((narrow ? 3 : 4.75) * rem), r: Math.round(0.5 * rem) } };
@@ -46,10 +48,11 @@ interface Hover {
   x: number;
 }
 
-export function RankTimelineChart({ t, label }: { t: RankTimeline; label: string }) {
+export function RankTimelineChart({ t, label, fill = false }: { t: RankTimeline; label: string; /** Take the height the parent flex column gives it (7.5 to 15rem) instead of a fixed 7.5rem. */ fill?: boolean }) {
   const box = React.useRef<HTMLDivElement>(null);
   const uid = React.useId().replace(/[^a-zA-Z0-9]/g, "");
   const [width, setWidth] = React.useState(480);
+  const [height, setHeight] = React.useState<number | null>(null);
   const [rem, setRem] = React.useState(16);
   const [hover, setHover] = React.useState<Hover | null>(null);
   const [focusIndex, setFocusIndex] = React.useState<number | null>(null);
@@ -58,18 +61,20 @@ export function RankTimelineChart({ t, label }: { t: RankTimeline; label: string
     const el = box.current;
     if (!el) return;
     const measure = () => {
-      setWidth(Math.max(240, Math.round(el.getBoundingClientRect().width)));
+      const r = el.getBoundingClientRect();
+      setWidth(Math.max(240, Math.round(r.width)));
+      if (fill) setHeight(Math.round(r.height));
       setRem(parseFloat(getComputedStyle(document.documentElement).fontSize) || 16);
     };
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+  }, [fill]);
 
   // Narrow (a phone, a tablet's third, under 25.5rem): the divisions' short codes ("E2"), in a narrower gutter.
   const narrow = width < 25.5 * rem;
-  const { H, PAD_T, PLOT_H, pad } = chartFrame(rem, narrow);
+  const { H, PAD_T, PLOT_H, pad } = chartFrame(rem, narrow, height);
   const span = Math.max(1, t.to - t.from);
   const plotW = width - pad.l - pad.r;
   const x = (at: number) => pad.l + ((Math.min(Math.max(at, t.from), t.to) - t.from) / span) * plotW;
@@ -167,11 +172,11 @@ export function RankTimelineChart({ t, label }: { t: RankTimeline; label: string
 
   const grid = range ? ladderGrid(range, { maxDivisions: 4, short: narrow }) : [];
   return (
-    <div ref={box} className="relative min-w-0" data-testid="ranked-chart-box">
+    <div ref={box} className={cn("relative min-w-0", fill && "flex max-h-60 min-h-30 flex-1 flex-col")} data-testid="ranked-chart-box">
       <svg
         viewBox={`0 0 ${width} ${H}`}
         width="100%"
-        className="block h-30 touch-pan-y select-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+        className={cn("block touch-pan-y select-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent", fill ? "min-h-30 flex-1" : "h-30")}
         role="img"
         aria-label={`${label}. ${describe(t)}`}
         tabIndex={0}

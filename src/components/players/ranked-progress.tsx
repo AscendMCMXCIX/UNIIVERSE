@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { rankProgress, type RankQueue } from "@/domain/rank-progress";
-import { rankMovement, rankTimeline, type RankMovement } from "@/domain/rank-timeline";
+import { rankMovement, rankTimeline, type RankMovement, type RankTimeline, type TimelineReading } from "@/domain/rank-timeline";
 import { RANKED_YEAR, rankedSeasonAt } from "@/domain/ranked-year";
 import type { RankHistoryAccount } from "@/server/accounts/rank-history";
 import { InfoTip } from "@/components/ui/info-tip";
@@ -27,12 +27,18 @@ export type RankedProgressHref = (change: { rq?: RankQueue; ra?: string | null }
  * the rank changes and every reading, was removed from the page; the readings, the history and their
  * calculations are unchanged, docs/RANKED_PROGRESS.md).
  *
+ * One surface (23 Nov 2026): no rule or dashed box inside the card, only spacing. The chart needs
+ * three different readings (two changes, CHART_MIN_READINGS); with fewer, one line says what was
+ * recorded (fewReadings) instead of a large frame holding a flat line or a single step. The chart
+ * takes the height the card gives it (7.5 to 15rem), so beside the pools in the Overview's 2×2,
+ * where the card stands level with them, the ladder uses the room.
+ *
  * On a touch phone (posture.ts) the card is a Fold (20 Nov 2026, PLAN S8a's Profile Overview
  * heights): its heading and where the account stands now (rank, LP, the year's wins and losses)
  * stay; the account line, the queue and account switches, the 30-day movement, the highest rank
  * and the chart are behind its Show. Tablets and desktop show everything, with no button.
  */
-export function RankedProgress({ accounts, queue, accountId, href, now }: { accounts: RankHistoryAccount[]; queue: RankQueue; accountId: string | null; href: RankedProgressHref; now: number }) {
+export function RankedProgress({ accounts, queue, accountId, href, now, className }: { accounts: RankHistoryAccount[]; queue: RankQueue; accountId: string | null; href: RankedProgressHref; now: number; /** The card's place (the Overview's 2×2 stretches it level with the pools). */ className?: string }) {
   if (accounts.length === 0) return null;
   const account = accounts.find((a) => a.id === accountId) ?? accounts.find((a) => a.snapshots.length > 0) ?? accounts[0]!;
   const snapshots = account.snapshots.filter((s) => s.queue === queue);
@@ -42,9 +48,12 @@ export function RankedProgress({ accounts, queue, accountId, href, now }: { acco
   const names = accountShortNames(accounts);
   const seasonNow = rankedSeasonAt(now);
   const season = seasonNow ? `${RANKED_YEAR} ${seasonNow.label}` : null;
-  const hasLine = timeline.readings.some((r) => r.score !== null);
+  // The ranked readings (consecutive identical ones are already one): a chart from three of them, so
+  // it always shows at least two changes; fewer are said in a line (fewReadings).
+  const ranked = timeline.readings.filter((r) => r.score !== null);
+  const chartable = ranked.length >= CHART_MIN_READINGS;
   return (
-    <PhoneFoldSection id="ranked-progress" aria-labelledby="ranked-progress-title" className="@container/rank space-y-3 rounded-card border border-border bg-surface p-4 panel-depth" data-testid="ranked-progress">
+    <PhoneFoldSection id="ranked-progress" aria-labelledby="ranked-progress-title" className={cn("@container/rank flex flex-col gap-3 rounded-card border border-border bg-surface p-4 panel-depth", className)} data-testid="ranked-progress">
       {/* The title, then the line saying what is read, then the controls (the queue switch and,
           with several, the accounts), in that order for screen readers. On a narrow card (under
           32rem) one wrapping row: the switch shares the title's line where the two fit and goes
@@ -101,9 +110,12 @@ export function RankedProgress({ accounts, queue, accountId, href, now }: { acco
         </div>
       </div>
 
-      {/* Where the account stands and how it moved, beside the chart of what was read (stacked when narrow). */}
-      <div className="grid gap-x-6 gap-y-3 @min-[40rem]/rank:grid-cols-[minmax(15rem,18rem)_minmax(0,1fr)] @min-[40rem]/rank:items-center">
-        <div className="min-w-0 space-y-3">
+      {/* Where the account stands and how it moved, beside the chart of what was read (stacked when
+          narrow: the chart then takes whatever height the card has beyond the rest, up to 15rem, as
+          the card stands level with the pools beside it in the Overview's 2×2). One surface: no
+          rules or boxes inside the card, only spacing (23 Nov 2026). */}
+      <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)] gap-x-6 gap-y-4 @min-[40rem]/rank:grid-cols-[minmax(15rem,18rem)_minmax(0,1fr)] @min-[40rem]/rank:grid-rows-1 @min-[40rem]/rank:items-center">
+        <div className="min-w-0 space-y-3.5">
           <div className="flex min-w-0 items-center gap-3">
             <RankEmblem tier={cur?.tier ?? null} className="h-11 w-11 shrink-0" />
             {cur ? (
@@ -126,7 +138,7 @@ export function RankedProgress({ accounts, queue, accountId, href, now }: { acco
             )}
           </div>
           {cur ? (
-            <dl id="ranked-movement" className={cn(PHONE_FOLDED, "grid grid-cols-2 gap-x-4 border-t border-border pt-2.5")}>
+            <dl id="ranked-movement" className={cn(PHONE_FOLDED, "grid grid-cols-2 gap-x-4")}>
               <Movement m={movement} unranked={cur.tier === null} />
               <div className="min-w-0" data-testid="ranked-peak-stat">
                 <dt className="text-2xs text-fg-subtle">Highest recorded</dt>
@@ -146,18 +158,37 @@ export function RankedProgress({ accounts, queue, accountId, href, now }: { acco
             </dl>
           ) : null}
         </div>
-        <div id="ranked-chart-fold" className={cn(PHONE_FOLDED, "min-w-0")}>
-        {hasLine ? (
-          <RankTimelineChart t={timeline} label={`${QUEUE_LABEL[queue]} rank since ${formatDate(timeline.trackingSince!)}`} />
-        ) : (
-          <p className="rounded-card border border-dashed border-border px-3 py-4 text-center text-xs text-fg-muted" data-testid="ranked-no-chart">
-            {timeline.trackingSince === null ? "The chart starts at the first check of this rank. Riot shares no past ranks, so none can be filled in." : "No rank to draw: this queue was unranked at every check."}
-          </p>
-        )}
+        <div id="ranked-chart-fold" className={cn(PHONE_FOLDED, "flex min-h-0 min-w-0 flex-col justify-end")}>
+          {chartable ? (
+            <RankTimelineChart t={timeline} label={`${QUEUE_LABEL[queue]} rank since ${formatDate(timeline.trackingSince!)}`} fill />
+          ) : (
+            // Too little to draw (no rank, one, or two different readings): a line saying so in place of
+            // a chart that would be a flat strip or a single step in a large empty frame.
+            <p className="text-xs leading-relaxed text-fg-muted" data-testid="ranked-no-chart" data-readings={ranked.length}>
+              {fewReadings(timeline, ranked)}
+            </p>
+          )}
         </div>
       </div>
     </PhoneFoldSection>
   );
+}
+
+/** The fewest ranked readings drawn as a chart: two changes. One change is a single step, none a flat line. */
+export const CHART_MIN_READINGS = 3;
+
+const rankAt = (r: TimelineReading) => `${r.label}${r.lp !== null ? ` ${r.lp} LP` : ""}`;
+
+/**
+ * Ranked progress's line in place of a chart with too little to draw: what was recorded, in words,
+ * with the same readings the chart would join (consecutive identical readings are one).
+ */
+export function fewReadings(t: RankTimeline, ranked: TimelineReading[]): string {
+  // The tracking line above already says since when the rank is recorded.
+  if (t.trackingSince === null) return "No rank recorded yet. Riot shares no past ranks, so the record starts at the first check.";
+  if (ranked.length === 0) return "Unranked at every check so far.";
+  if (ranked.length === 1) return "No change recorded yet. A chart appears once the rank has moved twice.";
+  return `One change so far: ${rankAt(ranked[0]!)} to ${rankAt(ranked[1]!)}. A chart appears after the next.`;
 }
 
 /** How far into the division the LP is (below Master, where a division is 100 LP); Master and above have no bar. */
