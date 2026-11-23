@@ -157,8 +157,9 @@ function measure(page: Page) {
 
 /**
  * The pairs whose strip, at 1440 × 900, ends under the fold (the lane plan whole above it): K'Sante's
- * 18 facts from Riot's text make the tallest lane reference and strip, the cooldown lines 33–39px
- * under the fold (measured 23 Nov 2026). Every other pair has every enemy cooldown line there.
+ * 18 facts from Riot's text make the tallest lane reference and strip, the cooldown lines up to 7px
+ * under the fold (measured 23 Nov 2026; K'Sante vs Ornn ends 1px above it, listed for CI's browser,
+ * which lays text out a little wider). Every other pair has every enemy cooldown line there.
  */
 const STRIP_UNDER_FOLD_AT_1440 = new Set(["Briar vs KSante", "Riven vs KSante", "Shyvana vs KSante", "KSante vs Shyvana", "Hwei vs KSante", "KSante vs Mordekaiser", "Mordekaiser vs KSante", "KSante vs Ornn", "Ambessa vs KSante"]);
 

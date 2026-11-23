@@ -177,19 +177,23 @@ Riot's text on; the 40 pairs of the dashboard spec's `FIT_PAIRS` and its 20 bot-
 
 | Window | The lane plan whole | Every enemy cooldown line | The sources' summary |
 | --- | --- | --- | --- |
-| 1440 × 900 | 40 of 40 (lowest edge 789px) | 31 of 40: K'Sante's nine pages 31–39px under the fold | 11 of 40 |
-| 1920 × 1080 | 40 of 40 (812px) | 40 of 40 (984px) | 31 of 40 |
-| 1920 × 950 | 40 of 40 | 31 of 40 | 13 of 40 |
+| 1440 × 900 | 40 of 40 (lowest edge 763px) | 32 of 40: eight of K'Sante's pages 1–7px under the fold | 18 of 40 |
+| 1920 × 1080 | 40 of 40 (790px) | 40 of 40 (948px) | 34 of 40 |
+| 1920 × 950 | 40 of 40 | 40 of 40 (948px) | 18 of 40 |
 | 2560 × 1440 and 3440 × 1440 | 40 of 40 | 40 of 40 | 40 of 40 |
-| bot lane, 1440 × 900 to 2560 × 1440 | 20 of 20 (707px at 1440, 720px at 1920) | the first enemy's on all 20; both at 2560 × 1440 | — |
+| bot lane, 1440 × 900 to 2560 × 1440 | 20 of 20 (681px at 1440, 691px at 1920) | the first enemy's on all 20 (840px at 1440); both at 2560 × 1440 | — |
 
-The Production check's pair (Riven vs Mordekaiser) at 1440 × 900: the plan ends at 598px, the tiles at
-830px, the sources' summary at 869px. "No page scroll" is no longer promised at any size: the full
+The Production check's pair (Riven vs Mordekaiser) at 1440 × 900: the plan ends at 588px, the tiles at
+794px, the sources' summary at 833px; in production's state, a patch after the check ("Not re-checked
+for 26.23" on every check), 604, 809 and 849px (Ambessa vs Renekton 874px, Gwen vs Ornn 804px). Their
+reverse pairs, a lane reference of two checked kits over a checked kit's strip, are the tallest pages
+measured in that state (the summary at 904px for Renekton vs Ambessa, 907px for Mordekaiser vs Riven,
+971px for Ornn vs Gwen): the plan whole and the strip starting on the first screen there. "No page scroll" is no longer promised at any size: the full
 reference is one fold under the strip, and a page may scroll by its line. The Production check's two
 fit facts changed with it (`scripts/matchup-intel-facts.mjs`): at 1440 × 900 the essentials are the
 lane plan whole, the five tiles and the sources' summary; at 1920 × 1080 the same three on the first
-screen, in place of "no page scroll". **Phones** (390 × 844, the demo): Riven vs Mordekaiser 2,156px
-tall (2,964px before), Garen vs Darius 2,204px (2,509px), the ADC lineup 3,041px (3,219px); the
+screen, in place of "no page scroll". **Phones** (390 × 844, the demo): Riven vs Mordekaiser 2,126px
+tall (2,964px before), Garen vs Darius 2,150px (2,509px), the ADC lineup 2,971px (3,219px); the
 threat and the opportunity whole on the first screen at 390 × 844, the threat at 390 × 664. The
 phone's glance (the enemy's five cooldowns in a row above the briefing, 20 Nov 2026) is retired: the
 plan comes first, the strip right under it.
