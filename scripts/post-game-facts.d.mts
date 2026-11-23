@@ -13,17 +13,10 @@ export interface PostGameRead {
   damageShare?: number;
   lane?: string | null;
   laneWords?: string;
-  notesShown?: boolean;
-  notesLoading?: boolean;
-  notesFallback?: boolean;
-  sections?: { well: number; wrong: number; focus: number } | null;
-  notes?: string[];
+  timeline?: string | null;
+  removed?: { parts: number; words: number };
   steps?: number;
 }
-export interface NoteRules { refused: string[]; maxWords: number }
-export function noteRules(source?: string): NoteRules;
-export function wordCount(text: string): number;
-export function statesNumber(text: string): boolean;
-export function refusedIn(text: string, refused: readonly string[]): string[];
+export const REMOVED_WORDS: string[];
 export function readPostGame(): PostGameRead;
-export function postGameVerdicts(input: { kind: string; at: PostGameRead; rules: NoteRules }): Array<{ name: string; status: "PASS" | "FAIL" | "WARN"; detail: unknown }>;
+export function postGameVerdicts(input: { kind: string; at: PostGameRead }): Array<{ name: string; status: "PASS" | "FAIL" | "WARN"; detail: unknown }>;

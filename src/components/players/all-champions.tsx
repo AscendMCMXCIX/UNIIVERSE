@@ -31,7 +31,7 @@ import { COMPACT_SEARCH, FiltersControl, PageToolbar } from "@/components/ui/pag
 import { QuietBar } from "@/components/ui/quiet-bar";
 import type { DataStatus } from "@/domain/data-status";
 import { RoleTag } from "@/components/role-icon";
-import { notchPlacement } from "./preview-notch";
+import { UnfoldHeader, UnfoldRegion, anchorCorrection } from "@/components/ui/unfold";
 
 type KindKey = keyof MultikillCounts;
 type SortKey = "champion" | "games" | "win" | "kda" | "cs" | "kills" | "multikills" | KindKey | "mastery";
@@ -57,11 +57,6 @@ const isSortKey = (v: string | null): v is SortKey => !!v && COLUMNS.some((c) =>
 /** Which layout a column belongs to: shown only in that one (phones show neither as a column). */
 const LAYOUT_CLASS = { medium: "@min-[76rem]:hidden", wide: "hidden @min-[76rem]:block" } as const;
 const FIRST = 20;
-/**
- * The columns after Win rate, while the preview unfolds over them: hidden, not removed, so the grid
- * keeps every width and Champion, Games and Win rate never move (CM §4.1).
- */
-const FOLD = "group-data-[folded=true]/card:invisible";
 /*
   The list's columns follow its own width (a container query), so the open or collapsed sidebar is
   taken into account. Below 44rem: phones and narrow windows, one compact row per champion (its win
@@ -149,7 +144,7 @@ function killsText(c: OverviewCard): string {
 function TotalKills({ c, strong }: { c: OverviewCard; strong: boolean }) {
   const p = c.performance;
   return (
-    <span className={cn("hidden text-right text-sm tabular-nums @min-[44rem]:block", LAYOUT_CLASS.medium, FOLD, p.totalKills === null ? "text-fg-subtle" : strong ? "font-semibold text-fg" : "text-fg-muted")} data-testid="champion-kills">
+    <span className={cn("hidden text-right text-sm tabular-nums @min-[44rem]:block", LAYOUT_CLASS.medium, p.totalKills === null ? "text-fg-subtle" : strong ? "font-semibold text-fg" : "text-fg-muted")} data-testid="champion-kills">
       <span aria-hidden>
         {p.totalKills === null ? "—" : formatCount(p.totalKills)}
         {p.totalKills !== null && p.detailedGames < c.selected.games ? <span className="ml-0.5 align-super text-2xs font-semibold text-warn">*</span> : null}
@@ -171,7 +166,7 @@ function RarestMultikill({ c, strong }: { c: OverviewCard; strong: boolean }) {
   const m = countedMultikills(c);
   const top = m ? rarestMultikill(m) : null;
   return (
-    <span className={cn("hidden min-w-0 whitespace-nowrap text-right text-sm @min-[44rem]:block", LAYOUT_CLASS.medium, FOLD)} data-testid="champion-multikills">
+    <span className={cn("hidden min-w-0 whitespace-nowrap text-right text-sm @min-[44rem]:block", LAYOUT_CLASS.medium)} data-testid="champion-multikills">
       <span aria-hidden>
       {!m ? (
         <span className="text-fg-subtle">
@@ -196,7 +191,7 @@ function RarestMultikill({ c, strong }: { c: OverviewCard; strong: boolean }) {
 function KindCount({ c, kind, strong }: { c: OverviewCard; kind: KindKey; strong: boolean }) {
   const m = countedMultikills(c);
   return (
-    <span className={cn("text-right text-sm tabular-nums", LAYOUT_CLASS.wide, FOLD, m && m[kind] ? (strong ? "font-semibold text-fg" : "text-fg-muted") : "text-fg-subtle")} data-testid={`champion-${kind}`}>
+    <span className={cn("text-right text-sm tabular-nums", LAYOUT_CLASS.wide, m && m[kind] ? (strong ? "font-semibold text-fg" : "text-fg-muted") : "text-fg-subtle")} data-testid={`champion-${kind}`}>
       {m ? (
         formatCount(m[kind])
       ) : (
@@ -311,6 +306,10 @@ function subscribePhone(change: () => void) {
 }
 const isPhone = () => window.matchMedia(PHONE_QUERY).matches;
 const notPhone = () => false;
+/** Hydrated or not, for useSyncExternalStore: false on the server and while hydrating, true after. */
+const subscribeNothing = () => () => undefined;
+const isClient = () => true;
+const notClient = () => false;
 
 const defaultDir = (key: SortKey): Dir => (key === "champion" ? "asc" : "desc");
 const masteryText = (n: number | null | undefined) => (n == null ? "—" : formatCompactCount(n));
@@ -319,8 +318,8 @@ const masteryText = (n: number | null | undefined) => (n == null ? "—" : forma
  * My Profile → All Champions: every champion in the filtered games (season, mode, role played,
  * account), configured or not. Search by name; click any column heading to sort (again to reverse);
  * phones get a Sort by control. The first twenty, then the rest one click away. The pools on Overview stay the main view; this is for
- * exploring. A champion opens its preview (champion-preview.tsx) in the same scope: inside the list's
- * card on a wide list, a sheet elsewhere; it lives in the URL, so it can be linked, and Back closes it.
+ * exploring. A champion opens its preview (champion-preview.tsx) in the same scope: unfolded under its
+ * row, across the list (a sheet on a touch phone); it lives in the URL, so it can be linked, and Back closes it.
  */
 export function AllChampions({ data, basePath, championsById, playerId, isOwn, initialPreview, initialPairing, status, refresh, firstRows = FIRST }: { data: PlayerOverviewData; basePath: string; championsById: Record<string, PortraitChampion>; playerId: string; /** The viewer's own profile: the preview says "you". */ isOwn: boolean; /** The server's render of a linked preview (?champion=), so it opens without a request. */ initialPreview?: ChampionPreviewData | null; initialPairing?: PairingGamesData | null; /** The page's data status (domain/data-status). */ status?: DataStatus | null; /** Offered to the player and to those who manage Riot accounts, where Riot can be asked. */ refresh?: DataRefreshTarget | null; /** The rows shown before Show all (FIRST; smaller only for a browser test on the demo, server/demo/test-hooks.ts). */ firstRows?: number }) {
   const [query, setQuery] = React.useState("");
@@ -396,7 +395,6 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
   const selected = address.sel ? cardFor(data.topChampions, address.sel) : null;
   const selectedKey = selected ? `${selected.championId}-${selected.role}` : null;
   const cardRef = React.useRef<HTMLDivElement>(null);
-  const asideRef = React.useRef<HTMLElement>(null);
   // A game opened from the preview (an opponent's games): the match window, with the game in the
   // address (`?match=`) by the one history rule, so it has a history entry of its own: Back closes
   // the game and leaves the preview as it was, and Back from a page a link in it opened comes back
@@ -404,110 +402,36 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
   // game open.
   const game = useAddressItem("match");
   const match = game.id;
-  // Room beside the list: the preview unfolds in the card over the columns after Win rate when that
-  // room is 26rem or more, on a pointer (not touch) screen of 1024px or more; otherwise a sheet.
-  // Undefined until measured after hydration: nothing is drawn before then, so a linked preview
-  // never shows in one place and then moves to another.
-  const [room, setRoom] = React.useState<number | null | undefined>(undefined);
-  const hasRows = rows.length > 0;
-  React.useLayoutEffect(() => {
-    const card = cardRef.current;
-    if (!card) return;
-    const measure = () => {
-      const win = card.querySelector<HTMLElement>("[data-testid=sort-win]")?.parentElement;
-      const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
-      // Tablets and narrower windows get the docked Peek (a drawer) instead.
-      if (!win || !win.getClientRects().length || window.innerWidth < 1024) return setRoom(null);
-      const left = Math.round(win.getBoundingClientRect().right - card.getBoundingClientRect().left + rem * 0.25);
-      setRoom(card.clientWidth - left >= rem * 26 ? left : null);
-    };
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(card);
-    return () => ro.disconnect();
-  }, [hasRows]);
-  // Touch phones and short windows get the sheet (posture.ts), whatever the room.
+  // Where it opens is decided after hydration: under its row (the Unfold) on every screen but a
+  // touch phone or a short window, which get the sheet (posture.ts). Nothing is drawn before then,
+  // so a linked preview never appears in one place and moves to another.
+  const hydrated = React.useSyncExternalStore(subscribeNothing, isClient, notClient);
   const windowed = useWindowPosture();
-  const measured = room !== undefined;
-  const inCard = !!selected && typeof room === "number" && !windowed;
-  // The card is at least as tall as the preview beside its rows.
+  const inline = !!selected && hydrated && !windowed;
+  const rowOf = (c: { championId: string; role: string }) => cardRef.current?.querySelector<HTMLElement>(`[data-testid=top-champion][data-champion="${c.championId}"][data-role="${c.role}"]`) ?? null;
+  const rowButton = (c: { championId: string; role: string }) => rowOf(c)?.querySelector<HTMLButtonElement>("[data-open-champion]") ?? null;
+  // Switching to another row keeps that row where it was on screen (the Unfold's anchor): the open
+  // detail above it closing would otherwise pull it up. Its top is noted before the change, and the
+  // page scrolls by the difference before the next paint.
+  const anchor = React.useRef<{ el: HTMLElement; top: number } | null>(null);
+  const hold = (c: OverviewCard) => {
+    const el = rowOf(c);
+    anchor.current = el ? { el, top: el.getBoundingClientRect().top } : null;
+  };
   React.useLayoutEffect(() => {
-    const card = cardRef.current;
-    const aside = asideRef.current;
-    if (!card) return;
-    if (!inCard || !aside) {
-      card.style.minHeight = "";
-      return;
-    }
-    const fit = () => {
-      card.style.minHeight = `${aside.offsetHeight}px`;
-    };
-    fit();
-    const ro = new ResizeObserver(fit);
-    ro.observe(aside);
-    return () => ro.disconnect();
-  }, [inCard]);
-  // Joined to its row (CM §4.1): the selected row's surface runs under the preview to its edge, and
-  // the edge line is interrupted beside the row by a 2px notch the row's colour, so the row reads as
-  // opening into the page. The notch sits in the preview's column (not sticky), at the row's place,
-  // clipped to the part of the edge the pinned preview draws: when the row scrolls out of it, the
-  // notch simply goes. Switching moves it to the new row (150ms, none with reduced motion).
-  const notchRef = React.useRef<HTMLSpanElement>(null);
-  const notchKey = React.useRef<string | null>(null);
-  React.useLayoutEffect(() => {
-    const notch = notchRef.current;
-    const aside = asideRef.current;
-    const card = cardRef.current;
-    if (!inCard || !notch || !aside || !card) {
-      notchKey.current = null;
-      return;
-    }
-    let frame = 0;
-    const place = () => {
-      frame = 0;
-      const row = card.querySelector<HTMLElement>("[data-testid=top-champion][data-selected=true]");
-      const column = notch.parentElement;
-      if (!row || !column) {
-        notch.style.visibility = "hidden";
-        return;
-      }
-      const at = notchPlacement(row.getBoundingClientRect(), column.getBoundingClientRect(), aside.getBoundingClientRect());
-      notch.style.height = `${at.height}px`;
-      notch.style.transform = `translateY(${at.y}px)`;
-      notch.style.clipPath = `inset(${at.clipTop}px 0 ${at.clipBottom}px 0)`;
-      notch.style.visibility = at.hidden ? "hidden" : "";
-    };
-    // The first placement lands at once; later ones (another row) move.
-    const first = notchKey.current === null;
-    notchKey.current = selectedKey;
-    if (first) notch.style.transition = "none";
-    place();
-    if (first) {
-      void notch.offsetHeight;
-      notch.style.transition = "";
-    }
-    const later = () => {
-      if (!frame) frame = requestAnimationFrame(place);
-    };
-    window.addEventListener("scroll", later, { capture: true, passive: true });
-    window.addEventListener("resize", later);
-    const ro = new ResizeObserver(later);
-    ro.observe(aside);
-    ro.observe(card);
-    return () => {
-      cancelAnimationFrame(frame);
-      window.removeEventListener("scroll", later, { capture: true });
-      window.removeEventListener("resize", later);
-      ro.disconnect();
-    };
-  }, [inCard, selectedKey, shown]);
-  const rowButton = (c: { championId: string; role: string }) => cardRef.current?.querySelector<HTMLButtonElement>(`[data-testid=top-champion][data-champion="${c.championId}"][data-role="${c.role}"] [data-open-champion]`);
+    const a = anchor.current;
+    anchor.current = null;
+    if (!a || !a.el.isConnected) return;
+    const by = anchorCorrection(a.top, a.el.getBoundingClientRect().top);
+    if (Math.abs(by) >= 1) window.scrollBy({ top: by, behavior: "instant" });
+  }, [selectedKey]);
   const focusTitle = React.useRef(false);
   const [viaKeys, setViaKeys] = React.useState(false);
   const choose = (c: OverviewCard, keys: boolean) => {
     if (selected && selected.championId === c.championId && selected.role === c.role) return close();
     focusTitle.current = keys;
     setViaKeys(keys);
+    hold(c);
     address.show(c.championId, c.role);
   };
   const close = () => {
@@ -521,18 +445,17 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
     closeRef.current = close;
     chooseRef.current = choose;
   });
-  // Opened with the keyboard: focus moves to the preview's heading; by a click it stays on the row.
+  // Opened with the keyboard: focus moves to the detail's heading; by a click it stays on the row.
   React.useEffect(() => {
     if (!focusTitle.current) return;
     focusTitle.current = false;
-    if (!inCard) return;
+    if (!inline) return;
     document.getElementById("champion-preview-title")?.focus({ preventScroll: true });
-  }, [inCard, selectedKey]);
-  // Escape closes the preview beside the list or in the docked panel (a window opened over it
-  // closes first, by itself; the sheet is a window).
-  const besideList = !!selected && !windowed;
+  }, [inline, selectedKey]);
+  // Escape closes the detail under its row (a window opened over it closes first, by itself; the
+  // sheet is a window and closes itself).
   React.useEffect(() => {
-    if (!besideList) return;
+    if (!inline) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape" || e.defaultPrevented || modalOpen() || isTyping(e.target)) return;
       e.preventDefault();
@@ -540,13 +463,14 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [besideList]);
+  }, [inline]);
   /** ↑/↓ (or K/J) on the list move the preview to the row above or below. */
   const step = (from: OverviewCard, d: -1 | 1, focus: boolean) => {
     const i = shown.findIndex((c) => c.championId === from.championId && c.role === from.role);
     if (i < 0) return;
     const next = shown[(i + d + shown.length) % shown.length];
     if (!next || next === from) return;
+    hold(next);
     address.show(next.championId, next.role);
     if (focus) {
       const b = rowButton(next);
@@ -555,8 +479,10 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
     }
   };
   const at = selected ? shown.findIndex((c) => c.championId === selected.championId && c.role === selected.role) : -1;
+  // Touch phones and short windows: the shared Peek, as a sheet, with ‹ › for the rows around it.
+  const sheet = !!selected && hydrated && windowed;
   const peekControl: PeekControl = {
-    id: selected && measured && !inCard ? selectedKey : null,
+    id: sheet ? selectedKey : null,
     open: () => undefined,
     toggle: () => undefined,
     close,
@@ -567,7 +493,8 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
     param: PREVIEW_KEYS,
   };
   const onListKey = (e: React.KeyboardEvent) => {
-    if (!selected || e.altKey || e.ctrlKey || e.metaKey) return;
+    // Keys inside the open detail are its own (its opponents, its games, its links).
+    if (!selected || e.altKey || e.ctrlKey || e.metaKey || (e.target as Element).closest?.("#champion-preview")) return;
     const d = e.key === "ArrowDown" || e.key === "j" ? 1 : e.key === "ArrowUp" || e.key === "k" ? -1 : 0;
     if (!d) return;
     e.preventDefault();
@@ -578,10 +505,10 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
     listKeyRef.current = onListKey;
   });
   const sorted = sort.key;
-  const list = React.useMemo(
-    () => (
-      <ul className="divide-y divide-border/60" onKeyDown={(e) => listKeyRef.current(e)}>
-        {shown.map((c, i) => {
+  // The rows, kept while nothing they show changes (the open detail is placed between them below).
+  const rowItems = React.useMemo(
+    () =>
+      shown.map((c, i) => {
           const ch = champ(c.championId);
           const r = c.selected;
           const p = c.performance;
@@ -659,23 +586,39 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
                   </span>
                 ) : null}
               </span>
-              <span className={cn(figure("kda"), FOLD)}>{kda}</span>
-              <span className={cn(figure("cs"), FOLD)}>{cs}</span>
+              <span className={figure("kda")}>{kda}</span>
+              <span className={figure("cs")}>{cs}</span>
               <TotalKills c={c} strong={strong("kills")} />
               <RarestMultikill c={c} strong={strong("multikills")} />
               {MULTIKILL_KINDS.map((k) => (
                 <KindCount key={k.key} c={c} kind={k.key} strong={strong(k.key)} />
               ))}
-              <span className={cn(figure("mastery"), FOLD)} title={c.mastery?.points ? `${formatCount(c.mastery.points)} mastery points` : undefined} data-testid="mastery-points">
+              <span className={figure("mastery")} title={c.mastery?.points ? `${formatCount(c.mastery.points)} mastery points` : undefined} data-testid="mastery-points">
                 {masteryText(c.mastery?.points)}
               </span>
             </li>
           );
-        })}
-      </ul>
-    ),
+        }),
     [shown, champ, sorted, total, selectedKey, previewData],
   );
+  const contentProps = (c: OverviewCard) => ({ playerId, isOwn, card: c, otherRoles: data.topChampions.filter((o) => o.championId === c.championId && o.role !== c.role), vs: address.sel?.vs ?? null, champ, data: previewData, onVs: address.setVs, onSwitch: (o: OverviewCard) => address.show(o.championId, o.role), onClose: close, titleId: "champion-preview-title", onMatch: game.open });
+  // The open champion, unfolded under its row across the whole list (the overlay kit's Unfold,
+  // docs/DESIGN_SYSTEM.md §7): the list keeps its columns, its order and its place, the row stays
+  // selected above it, and the compact header (its name and Close) stays pinned while it is long.
+  const detailName = selected ? `${champ(selected.championId).name} · ${ROLE_LABELS[selected.role]}` : "";
+  const detail =
+    inline && selected ? (
+      <li key={`detail-${selectedKey}`} className="relative bg-bg/40 before:absolute before:inset-y-0 before:left-0 before:w-0.5 before:bg-accent/60 last:rounded-b-card" data-testid="champion-detail-row">
+        <UnfoldRegion id="champion-preview" label={`${detailName}: record and lane opponents`} testId="champion-preview" header={<UnfoldHeader title={detailName} onClose={close} testId="champion-preview-header" />}>
+          <div className="px-4 pb-5 pt-4 @min-[76rem]:px-6 @min-[76rem]:pb-6 @min-[76rem]:pt-5">
+            <span className="sr-only" aria-live="polite">
+              {`${champ(selected.championId).name}, ${ROLE_LABELS[selected.role]}. ${formatCount(selected.selected.games)} games${selected.selected.winRate === null ? "" : `, ${percent(selected.selected.winRate, 0)} win rate`}.`}
+            </span>
+            <PreviewContent key={selectedKey} {...contentProps(selected)} />
+          </div>
+        </UnfoldRegion>
+      </li>
+    ) : null;
   // Phones: Filters (the bar's button is drawn in the host: OverviewFilters' toggleOnPhones; the host keeps its room until then) and Refresh.
   const phoneTools = (
     <div className="flex shrink-0 items-center gap-2 sm:hidden" data-testid="all-champions-phone-tools">
@@ -711,7 +654,7 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
       </PageToolbar>
       {/* One card: its toolbar (the search, how many champions, Sort by on phones), the column
           names (each sorts, again to reverse), the rows, then the rest one click away. */}
-      <div ref={cardRef} className="group/card relative rounded-card border border-border bg-surface panel-depth" data-folded={inCard || undefined} data-testid="all-champions-table">
+      <div ref={cardRef} className="relative rounded-card border border-border bg-surface panel-depth" data-testid="all-champions-table">
         {data.topChampions.length ? (
           // Below 76rem the toolbar has the rows' padding, so the search lines up with the champions.
           // From a 20.5rem card (a 360px phone) the search and Sort by share one row; on a narrower
@@ -785,7 +728,7 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
                 const right = c.key !== "champion";
                 const Arrow = active ? (sort.dir === "asc" ? ArrowUp : ArrowDown) : ArrowUpDown;
                 return (
-                  <span key={c.key} className={cn("min-w-0", right && "text-right", c.layout && LAYOUT_CLASS[c.layout], c.key !== "champion" && c.key !== "games" && c.key !== "win" && FOLD)} data-sort={active ? sort.dir : undefined}>
+                  <span key={c.key} className={cn("min-w-0", right && "text-right", c.layout && LAYOUT_CLASS[c.layout])} data-sort={active ? sort.dir : undefined}>
                     <button type="button" onClick={() => sortBy(c.key)} className={cn("group/sort relative inline-flex items-center whitespace-nowrap rounded py-2.5 text-2xs font-semibold uppercase tracking-label transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-accent", active ? "text-fg" : "text-fg-subtle hover:text-fg-muted")} data-testid={`sort-${c.key}`}>
                       {/* The arrow sits beside the name without taking its width: the name always fits its column. */}
                       <Arrow className={cn("absolute top-1/2 h-3 w-3 -translate-y-1/2", right ? "right-full mr-0.5" : "left-full ml-0.5", active ? "opacity-100" : "opacity-0 transition-opacity duration-150 group-hover/sort:opacity-60 group-focus-visible/sort:opacity-60")} aria-hidden />
@@ -796,7 +739,9 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
                 );
               })}
             </div>
-            {list}
+            <ul className="divide-y divide-border/60" onKeyDown={(e) => listKeyRef.current(e)}>
+              {rowItems.flatMap((row, i) => (i === at && detail ? [row, detail] : [row]))}
+            </ul>
             {!all && !q && rows.length > firstRows ? (
               <button type="button" onClick={() => setAll(true)} className="flex min-h-11 w-full items-center justify-center rounded-b-card border-t border-border/70 text-sm font-medium text-accent transition-colors hover:bg-accent/5" data-testid="all-champions-more">
                 Show all {rows.length} champions
@@ -804,20 +749,6 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
             ) : null}
           </>
         )}
-        {inCard && selected ? (
-          // The preview, unfolded over the folded columns: pinned under the section tabs while the
-          // list scrolls, as tall as its content (it scrolls inside only past the screen's height).
-          <div className="pointer-events-none absolute inset-y-0 right-0 z-[2]" style={{ left: room ?? 0 }}>
-            <aside ref={asideRef} id="champion-preview" aria-labelledby="champion-preview-title" className="pointer-events-auto sticky top-[calc(var(--bar-top)+var(--tabs-top)+0.5rem)] max-h-[calc(100dvh-var(--bar-top)-var(--tabs-top)-1rem)] max-w-xl overflow-y-auto overscroll-contain rounded-r-card border-l border-border-strong bg-surface p-4 shadow-lg motion-safe:unfold-in" data-testid="champion-preview">
-              <span className="sr-only" aria-live="polite">
-                {`${champ(selected.championId).name}, ${ROLE_LABELS[selected.role]}. ${formatCount(selected.selected.games)} games${selected.selected.winRate === null ? "" : `, ${percent(selected.selected.winRate, 0)} win rate`}.`}
-              </span>
-              <PreviewContent key={selectedKey} playerId={playerId} isOwn={isOwn} card={selected} otherRoles={data.topChampions.filter((o) => o.championId === selected.championId && o.role !== selected.role)} vs={address.sel?.vs ?? null} champ={champ} data={previewData} onVs={address.setVs} onSwitch={(o) => address.show(o.championId, o.role)} onClose={close} titleId="champion-preview-title" onMatch={game.open} />
-            </aside>
-            {/* The notch: over the edge line beside the selected row, the row's colour (placed above). */}
-            <span ref={notchRef} aria-hidden className="absolute left-0 top-0 w-0.5 bg-surface-3 transition-transform duration-150 ease-emphasized motion-reduce:transition-none" data-testid="champion-preview-notch" />
-          </div>
-        ) : null}
       </div>
       {rows.length && (multikillsIncomplete || killsIncomplete) ? (
         <p className="flex flex-wrap items-center gap-x-1.5 px-1 text-xs text-fg-muted" data-testid="multikill-legend">
@@ -827,11 +758,10 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
           {multikillsIncomplete ? <InfoTip text={MULTIKILL_HELP} label="About multikills" /> : null}
         </p>
       ) : null}
-      {/* Without room in the card: the shared Peek, docked at the right (tablets, narrower windows)
-          or a sheet (touch phones, short windows). While a game's window is open over a sheet, the
-          sheet steps aside (never two windows) and comes back when the game closes. */}
-      <Peek peek={peekControl} title={selected ? champ(selected.championId).name : ""} itemKey={selected && measured && !inCard && !(windowed && match) ? selectedKey : null} label="Champion" testId="champion-preview">
-        {selected && !inCard ? <PreviewContent key={selectedKey} compact playerId={playerId} isOwn={isOwn} card={selected} otherRoles={data.topChampions.filter((o) => o.championId === selected.championId && o.role !== selected.role)} vs={address.sel?.vs ?? null} champ={champ} data={previewData} onVs={address.setVs} onSwitch={(o) => address.show(o.championId, o.role)} onClose={close} titleId="champion-preview-title" onMatch={game.open} /> : null}
+      {/* Touch phones and short windows: the shared Peek as a sheet. While a game's window is open
+          over it, the sheet steps aside (never two windows) and comes back when the game closes. */}
+      <Peek peek={peekControl} title={selected ? champ(selected.championId).name : ""} itemKey={sheet && !match ? selectedKey : null} label="Champion" testId="champion-preview">
+        {selected && sheet ? <PreviewContent key={selectedKey} compact {...contentProps(selected)} /> : null}
       </Peek>
       {match ? <MatchDetailModal playerId={playerId} matchId={match} championsById={championsById} onClose={game.close} /> : null}
     </section>

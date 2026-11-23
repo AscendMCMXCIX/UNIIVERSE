@@ -13,8 +13,8 @@ import { pinnedTop, screenHeight, scrollToStart } from "@/lib/screen";
 /*
   A game opened under its card: the one way a list of games opens a game (a player's Match History
   and Team → Matches). The card is a box with one button behind its content (aria-expanded, Enter
-  or Space toggles it); this region follows the card with the match's breakdown (MatchBreakdown:
-  Scoreboard, Analysis, Timeline, Build), loaded when the game opens and kept by the list's cache,
+  or Space toggles it); this region follows the card with the match's breakdown (the post-game view,
+  post-game.tsx: the loadout, figures, lane and scoreboard), loaded when the game opens and kept by the list's cache,
   then "Close this game" at its end. The page scrolls as one: no window and no inner scrolling, and
   the list, its filters and its place stay as they were. The shared match window (MatchDetailModal)
   is for where a list cannot open a game in place: from inside another window (Matchups,

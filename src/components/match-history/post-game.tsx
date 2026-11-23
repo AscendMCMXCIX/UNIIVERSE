@@ -1,46 +1,35 @@
 "use client";
 
 import * as React from "react";
-import { CircleDot, Swords, TrendingDown, TrendingUp } from "lucide-react";
-import Link from "next/link";
 import { getMatchGroupsAction, getMatchMeetingsAction, getMatchRanksAction, getMatchTimelineAction, type MatchMeetingsResult } from "@/server/actions/match-history";
 import type { MatchGroupsResult } from "@/server/matches/possible-groups";
 import type { MatchTimelineResult, MatchTimelineView } from "@/server/accounts/match-timeline";
 import type { DetailParticipant, Icon, MatchDetailView, MatchRanksResult } from "@/server/players/match-history";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
 import { BookmarkButton } from "@/components/matches/bookmark-button";
-import { matchNotes, type MatchNotes, type NotesInput } from "@/domain/match-notes";
-import { isGameRole } from "@/domain/season-stats";
 import { formatCount, formatDateTime, formatKilo } from "@/lib/format";
 import { cn } from "@/lib/cn";
-import { Fold } from "@/components/ui/fold";
 import { MatchDetailCacheContext, type MeetingScope } from "./match-detail-cache";
 import { OpggHistoryLink } from "./opgg-history-link";
 import { GroupsNote, RanksNote, TeamTable } from "./scoreboard";
-import { TimelinePanel } from "./match-timeline-panel";
-import { BuildPanel } from "./build-panel";
 import { IconImg } from "./icon-img";
-import { lineupHref } from "@/components/matchup-intel/address";
-import type { Role } from "@/domain/matchup-intel/types";
 
 /*
   One game after it was played, in one view, the same wherever a game opens: under its card in
   Match History and Team → Matches, and in the match window (a phone's whole screen, Matchups,
-  Encounters, a link to a game not on the page). No subtabs, read top down:
+  Encounters, a link to a game not on the page). No subtabs, no folds, read top down:
   - "Your game": the loadout as the client draws it (the portrait and level; spells and runes two
     by two; the six items two rows of three with the trinket beside the first row), the rune page
     on one line (shards where stored), six figure tiles (each of the player's figures once in the
-    whole view), the lane by role, and the notes (domain/match-notes: Went well, Went wrong, and
-    Focus next on the viewer's own game only).
+    whole view), and the lane by role (against the lane opponent at 10:00, 15:00 and the end).
   - "Scoreboard": both teams, the player's first, in compact rows (TeamTable compact), with the
     ranks note and the possible groups on a line under them.
-  - Two folds, closed: "Gold over the game" and "Build order and skill order". A game whose timeline
-    is not available says so once, quietly, in their place.
   The two columns sit side by side from a 60rem view (desktop) and stack below it (tablets, the
-  sidebar open at 1280, phones). The timeline is asked for as the game opens: the lane and the
-  notes read it (stored, about 10–20 KB; Riot is asked at most once per game, ever).
+  sidebar open at 1280, phones). The timeline is asked for as the game opens: the lane's 10:00 and
+  15:00 read it (stored, about 10–20 KB; Riot is asked at most once per game, ever). The written
+  notes (Went well, Went wrong, Focus next) and the folds with the gold curve and the build and
+  skill order were removed at the owner's request (23 Nov 2026).
 */
-
 /** Match History's way from a game's scoreboard to Encounters: the list's scope, and the address of a player's games. */
 export interface EncounterLink {
   scope: MeetingScope;
@@ -52,9 +41,6 @@ export const EncounterLinkContext = React.createContext<EncounterLink | null>(nu
 
 const pct = (v: number | null) => (v === null ? "—" : `${Math.round(v * 100)}%`);
 const signed = (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : "±"}${formatCount(Math.abs(Math.round(v)))}`;
-
-/** Games shorter than this are remakes: never analysed. */
-const REMAKE_S = 300;
 
 function useResult<T>(run: (() => Promise<T>) | null, fallback: T, deps: React.DependencyList): T | null {
   const [value, setValue] = React.useState<T | null>(null);
@@ -188,11 +174,20 @@ function Figures({ p, teamKills }: { p: DetailParticipant; teamKills: number }) 
   );
 }
 
-/** The lane by role: the player against the lane opponent at 10:00, 15:00 and the end (signed, plain), and the bot lane's two against two. */
-function Lane({ view, champ, timeline }: { view: MatchDetailView; champ: (id: string | null) => PortraitChampion; timeline: MatchTimelineView | null }) {
+/**
+ * The lane by role: the player against the lane opponent at 10:00, 15:00 and the end (signed, plain),
+ * and the bot lane's two against two. A tile like the figures above it; `missing` says once, under
+ * the table, that the game has no timeline (its 10:00 and 15:00 stay "—").
+ */
+function Lane({ view, champ, timeline, missing }: { view: MatchDetailView; champ: (id: string | null) => PortraitChampion; timeline: MatchTimelineView | null; missing: boolean }) {
   const opp = view.comparison.opponent;
   const me = view.player;
-  if (!opp) return <p className="text-xs text-fg-muted" data-testid="post-game-lane" data-state="unclear">Lane opponent not clear in this game</p>;
+  if (!opp)
+    return (
+      <p className="rounded-lg bg-surface px-3 py-2 text-xs text-fg-muted" data-testid="post-game-lane" data-state="unclear">
+        Lane opponent not clear in this game
+      </p>
+    );
   const them = view.teams.flatMap((t) => t.participants).find((x) => x.slot === opp.slot) ?? null;
   const c = champ(opp.championId);
   const support = view.role === "SUPPORT";
@@ -210,32 +205,32 @@ function Lane({ view, champ, timeline }: { view: MatchDetailView; champ: (id: st
   const pair = timeline?.pair ?? null;
   const name = (slot: number) => champ(view.teams.flatMap((t) => t.participants).find((x) => x.slot === slot)?.championId ?? null).name;
   return (
-    <section aria-label="Lane" className="space-y-1.5" data-testid="post-game-lane" data-state="clear">
-      <table className="w-full max-w-md text-xs leading-4 tabular-nums">
+    <section aria-label="Lane" className="space-y-1.5 rounded-lg bg-surface px-3 py-2" data-testid="post-game-lane" data-state="clear">
+      <table className="w-full text-sm leading-6 tabular-nums">
         <thead>
           <tr className="text-2xs text-fg-subtle">
-            <th className="text-left font-semibold">
+            <th className="pb-1 text-left font-semibold">
               <span className="flex items-center gap-1.5 uppercase tracking-label">
                 Lane vs
-                <ChampionPortrait champion={c} size="xs" className="h-5 w-5" />
+                <ChampionPortrait champion={c} size="xs" className="h-5 w-5 rounded" />
                 <span className="text-xs font-semibold normal-case tracking-normal text-fg">{c.name}</span>
                 <span className="sr-only">: you minus them</span>
               </span>
             </th>
-            <th className="text-right font-medium">10:00</th>
-            <th className="text-right font-medium">15:00</th>
-            <th className="text-right font-medium">End</th>
+            <th className="w-16 pb-1 text-right font-medium">10:00</th>
+            <th className="w-16 pb-1 text-right font-medium">15:00</th>
+            <th className="w-16 pb-1 text-right font-medium">End</th>
           </tr>
         </thead>
         <tbody>
           {rows.map(([label, a, b, e]) => (
             <tr key={label}>
-              <th scope="row" className="text-left font-normal text-fg-muted">
+              <th scope="row" className="text-left text-xs font-normal text-fg-muted">
                 {label}
               </th>
               <td className="text-right text-fg">{a}</td>
               <td className="text-right text-fg">{b}</td>
-              <td className="text-right text-fg">{e}</td>
+              <td className="text-right font-medium text-fg">{e}</td>
             </tr>
           ))}
         </tbody>
@@ -245,107 +240,9 @@ function Lane({ view, champ, timeline }: { view: MatchDetailView; champ: (id: st
           Bot lane at 10:00, with {name(pair.allySlot)} against {name(pair.opponentSlots[0])} and {name(pair.opponentSlots[1])}: <span className="font-semibold tabular-nums text-fg">{signed(pair.gold)}</span> gold
         </p>
       ) : null}
-    </section>
-  );
-}
-
-/** The notes' input from the view and (when it answered) the timeline. */
-export function notesInputOf(view: MatchDetailView, champ: (id: string | null) => PortraitChampion, timeline: MatchTimelineView | null): NotesInput {
-  const me = view.player;
-  const everyone = view.teams.flatMap((t) => t.participants);
-  const own = view.teams[0]?.participants.filter((x) => !x.isPlayer && !x.removed) ?? [];
-  const enemies = view.teams.slice(1).flatMap((t) => t.participants.filter((x) => !x.removed));
-  const nameOf = (slot: number) => champ(everyone.find((x) => x.slot === slot)?.championId ?? null).name;
-  const pair = timeline?.pair ? { ally: nameOf(timeline.pair.allySlot), opponents: [nameOf(timeline.pair.opponentSlots[0]), nameOf(timeline.pair.opponentSlots[1])] as [string, string], gold: timeline.pair.gold } : null;
-  return {
-    own: view.own,
-    champion: champ(view.championId).name,
-    role: isGameRole(view.role) ? view.role : null,
-    queueId: view.queueId,
-    durationS: view.durationS,
-    win: view.win,
-    remake: view.durationS < REMAKE_S,
-    me: { kills: me.kills, deaths: me.deaths, assists: me.assists, damageShare: me.damageShare, vision: me.vision, killParticipation: me.killParticipation, controlWardsBought: me.stats?.controlWardsBought, soloKills: me.stats?.soloKills, largestMultiKill: me.stats?.largestMultiKill, turretTakedowns: me.stats?.turretTakedowns },
-    allies: own.map((x) => ({ deaths: x.deaths, damageShare: x.damageShare, vision: x.vision })),
-    alliesRemoved: view.teams[0]?.participants.filter((x) => !x.isPlayer && x.removed).length ?? 0,
-    enemies: enemies.map((x) => ({ vision: x.vision })),
-    teamTowers: typeof view.teams[0]?.objectives.tower === "number" ? view.teams[0].objectives.tower : null,
-    opponent: view.comparison.opponent ? champ(view.comparison.opponent.championId).name : null,
-    lane: timeline?.lane?.moments ?? null,
-    pair,
-    personal: view.personal,
-    deathTimes: timeline?.events?.you?.deaths ?? null,
-    gold: timeline?.gold ?? null,
-    objectives: timeline?.events?.objectives ?? null,
-  };
-}
-
-function NoteList({ title, tone, Icon, items, testId }: { title: string; tone: string; Icon: typeof TrendingUp; items: string[]; testId: string }) {
-  if (!items.length) return null;
-  return (
-    <div data-testid={testId}>
-      {/* A label, not a heading: the view sits under headings of different levels (a profile's page, Team Matches, the window). */}
-      <p className="flex items-center gap-1.5 text-2xs font-semibold uppercase tracking-label text-fg-subtle" aria-hidden>
-        <Icon className={cn("h-3.5 w-3.5", tone)} aria-hidden />
-        {title}
-      </p>
-      <ul className="mt-0.5 space-y-0.5 text-sm text-fg" aria-label={title}>
-        {items.map((t) => (
-          <li key={t} data-testid="post-game-note">
-            {t}
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-/**
- * The lane's Focus next, a link to Matchup Intel with that lane's pair (S7a's address: the role, your
- * champion and the lane opponent; the bot lane's four when the Focus follows its two against two,
- * L5). Only a way to the pre-game tool: it adds no claim to the note's. Null for any other Focus, or
- * without the champions the lane needs (no unique opponent, an unknown role).
- */
-export function laneIntelLink(view: MatchDetailView, notes: MatchNotes | null, champ: (id: string | null) => PortraitChampion, timeline: MatchTimelineView | null): { href: string; label: string } | null {
-  if (notes?.focus?.kind !== "lane" || !isGameRole(view.role)) return null;
-  const role = view.role.toLowerCase() as Role;
-  const you = view.championId;
-  if (notes.focus.cue === "L5") {
-    const pair = timeline?.pair;
-    const everyone = view.teams.flatMap((t) => t.participants);
-    const at = (slot: number | undefined) => everyone.find((x) => x.slot === slot)?.championId ?? null;
-    const ally = at(pair?.allySlot);
-    const [enemy, enemy2] = [at(pair?.opponentSlots[0]), at(pair?.opponentSlots[1])];
-    if (!pair || !ally || !enemy || !enemy2 || (role !== "adc" && role !== "support")) return null;
-    return { href: lineupHref({ role, you, ally, enemy, enemy2 }), label: `Prepare ${champ(you).name} and ${champ(ally).name} vs ${champ(enemy).name} and ${champ(enemy2).name} in Matchup Intel` };
-  }
-  const enemy = view.comparison.opponent?.championId ?? null;
-  if (!enemy) return null;
-  return { href: lineupHref({ role, you, enemy, ally: null, enemy2: null }), label: `Prepare ${champ(you).name} vs ${champ(enemy).name} in Matchup Intel` };
-}
-
-function Notes({ notes, intel }: { notes: MatchNotes | null; intel: { href: string; label: string } | null }) {
-  if (!notes) return (
-      // A polite status that says what loads; the pulse itself is hidden (a div may not be named: aria-naming.test.ts).
-      <div role="status" className="h-16 animate-pulse rounded-lg bg-surface-2 motion-reduce:animate-none" data-testid="post-game-notes-loading">
-        <span className="sr-only">Loading the notes</span>
-      </div>
-    );
-  return (
-    <section aria-label="Notes" className="space-y-2" data-testid="post-game-notes" data-well={notes.well.length} data-wrong={notes.wrong.length} data-focus={notes.focus ? 1 : 0}>
-      <NoteList title="Went well" tone="text-good" Icon={TrendingUp} items={notes.well.map((n) => n.text)} testId="notes-well" />
-      <NoteList title="Went wrong" tone="text-warn" Icon={TrendingDown} items={notes.wrong.map((n) => n.text)} testId="notes-wrong" />
-      <NoteList title="Focus next" tone="text-accent" Icon={CircleDot} items={notes.focus ? [notes.focus.text] : []} testId="notes-focus" />
-      {notes.focus && intel ? (
-        <Link href={intel.href} prefetch={false} className="inline-flex min-h-6 items-center gap-1.5 text-xs font-medium text-accent hover:underline focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:min-h-11" data-testid="notes-focus-intel">
-          <Swords className="h-3.5 w-3.5 shrink-0" aria-hidden />
-          {intel.label}
-          <span aria-hidden>→</span>
-        </Link>
-      ) : null}
-      {notes.fallback ? (
-        <p className="text-xs text-fg-muted" data-testid="notes-fallback">
-          {notes.fallback}
+      {missing ? (
+        <p className="text-xs text-fg-subtle" data-testid="timeline-missing">
+          Timeline not available for this game
         </p>
       ) : null}
     </section>
@@ -356,7 +253,7 @@ export function PostGame({ playerId, view, champ, variant, encounterLinks = fals
   const cache = React.useContext(MatchDetailCacheContext);
   const p = view.player;
   const id = view.matchId;
-  // The timeline first (the lane and the notes read it), then the possible groups, the rank check and the players met, each after the view is on screen.
+  // The timeline first (the lane reads it), then the possible groups, the rank check and the players met, each after the view is on screen.
   const timeline = useResult<MatchTimelineResult>(() => (cache ? cache.timeline(playerId, id) : getMatchTimelineAction(playerId, id)), { status: "error", message: "" }, [cache, playerId, id]);
   const groups = useResult<MatchGroupsResult>(() => (cache ? cache.groups(playerId, id) : getMatchGroupsAction(playerId, id)), { status: "unavailable", message: "" }, [cache, playerId, id]);
   const ranks = useResult<MatchRanksResult>(view.rankCheck ? () => (cache ? cache.ranks(playerId, id) : getMatchRanksAction(playerId, id)) : null, { status: "not-found", message: "" }, [cache, playerId, id, view.rankCheck]);
@@ -369,16 +266,14 @@ export function PostGame({ playerId, view, champ, variant, encounterLinks = fals
   const rankOf = React.useCallback((x: DetailParticipant) => checked.get(x.slot) ?? x.rank, [checked]);
   const checking = view.rankCheck && !ranks;
   const tl = timeline?.status === "ok" ? timeline.timeline : null;
-  const notes = React.useMemo(() => (timeline ? matchNotes(notesInputOf(view, champ, tl)) : null), [timeline, view, champ, tl]);
   const ownTeam = view.teams[0];
   return (
-    <div className="@container/pg space-y-2.5" data-testid="match-breakdown" data-variant={variant} data-met={meetings ? (meetings.status === "ok" ? meetings.players.length : 0) : undefined}>
-      <div className="grid gap-x-5 gap-y-4 @min-[60rem]/pg:grid-cols-[minmax(0,33rem)_minmax(0,1fr)]">
-        <section aria-label={view.own ? "Your game" : `${champ(view.championId).name}'s game`} className="min-w-0 space-y-2.5" data-testid="post-game-yours">
+    <div className="@container/pg" data-testid="match-breakdown" data-variant={variant} data-met={meetings ? (meetings.status === "ok" ? meetings.players.length : 0) : undefined} data-timeline={timeline ? timeline.status : "loading"}>
+      <div className="grid gap-x-6 gap-y-4 @min-[60rem]/pg:grid-cols-[minmax(0,33rem)_minmax(0,1fr)]">
+        <section aria-label={view.own ? "Your game" : `${champ(view.championId).name}'s game`} className="min-w-0 space-y-3" data-testid="post-game-yours">
           <Loadout p={p} champ={champ(view.championId)} small={variant === "window"} />
           <Figures p={p} teamKills={ownTeam?.kills ?? 0} />
-          <Lane view={view} champ={champ} timeline={tl} />
-          <Notes notes={notes} intel={laneIntelLink(view, notes, champ, tl)} />
+          <Lane view={view} champ={champ} timeline={tl} missing={!!timeline && timeline.status !== "ok"} />
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-fg-subtle empty:hidden">
             <span className={cn("tabular-nums", variant === "window" && "hidden")} data-testid="match-breakdown-when">
               {formatDateTime(new Date(view.playedAt))}
@@ -398,29 +293,6 @@ export function PostGame({ playerId, view, champ, variant, encounterLinks = fals
           </div>
         </section>
       </div>
-      {timeline && timeline.status !== "ok" ? (
-        <p className="text-xs text-fg-subtle" data-testid="timeline-missing">
-          Timeline not available for this game
-        </p>
-      ) : (
-        <div className="grid grid-cols-2 items-start gap-2" data-testid="post-game-folds">
-          <PostGameFold title="Gold over the game" testId="fold-gold">
-            <TimelinePanel result={timeline} />
-          </PostGameFold>
-          <PostGameFold title="Build and skill order" testId="fold-build">
-            <BuildPanel result={timeline} />
-          </PostGameFold>
-        </div>
-      )}
     </div>
-  );
-}
-
-/** A fold of the view (the shared Fold): closed by default, its chart drawn once it is first opened. */
-function PostGameFold({ title, children, testId }: { title: string; children: React.ReactNode; testId: string }) {
-  return (
-    <Fold variant="panel" title={title} lazy className="open:col-span-2" testId={testId}>
-      {children}
-    </Fold>
   );
 }

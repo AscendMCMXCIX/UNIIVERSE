@@ -726,14 +726,12 @@ describe("comparisons, the summary and the ladder (Match History 2.0)", () => {
     await db.update(rankSnapshots).set({ confirmedAt: null }).where(eq(rankSnapshots.id, forty.id));
   });
 
-  it("opens the game beside the player's usual, with each player's shares and rates", async () => {
+  it("opens the game with each player's shares and rates", async () => {
     const res = await getMatchDetail(handle.db, playerId, "OC1_910000025", { viewerIsOwner: true });
     if (res.status !== "ok") throw new Error(res.message);
     const v = res.view;
-    expect(v.personal).toMatchObject({ role: "MID", group: "ranked" });
-    const dmg = v.personal!.figures.find((f) => f.key === "damagePerMin")!;
-    expect(dmg).toMatchObject({ games: 25, percentile: 1, best: true });
-    expect(v.personal!.figures.find((f) => f.key === "kda")).toMatchObject({ best: false, percentile: 0.5 });
+    // The baseline of the player's usual games served only the post-game notes (removed 23 Nov 2026): an opened game no longer loads it.
+    expect(v).not.toHaveProperty("personal");
     // Per player: kill participation, shares and per-minute rates from the stored record.
     expect(v.player.killParticipation).toBeCloseTo(10 / (5 + 4 * 2), 6);
     expect(v.player.damageShare).toBeCloseTo(31_500 / 91_500, 6);

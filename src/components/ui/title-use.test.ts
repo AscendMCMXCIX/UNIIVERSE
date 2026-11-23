@@ -44,7 +44,6 @@ const NAMES: Array<{ file: string; fragment: string; kind: Kind; what: string }>
   { file: "src/components/match-history/scoreboard.tsx", fragment: "Banned:", kind: "name", what: "a ban's champion, on its portrait" },
   { file: "src/components/match-history/scoreboard.tsx", fragment: "x.champLevel", kind: "name", what: "the level badge on a portrait" },
   { file: "src/components/match-history/match-card.tsx", fragment: "Level ${level}", kind: "name", what: "the level badge on a portrait" },
-  { file: "src/components/match-history/match-timeline-panel.tsx", fragment: "gameClock(", kind: "name", what: "a mark under the gold chart (its minute and what happened)" },
   { file: "src/components/match-history/player-link.tsx", fragment: "${label}", kind: "name", what: "where a player's name or OP.GG mark leads" },
   { file: "src/components/players/social-links.tsx", fragment: "link.label", kind: "name", what: "a social link's site and handle, on its icon" },
   { file: "src/components/players/social-links.tsx", fragment: "Discord:", kind: "name", what: "the Discord button's handle and action, on its icon" },

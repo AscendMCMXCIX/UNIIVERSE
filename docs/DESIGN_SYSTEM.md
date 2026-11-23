@@ -58,11 +58,12 @@ decorative chrome.
     client draws it (a 72px portrait with its level, spells and runes two by two, the six items two
     rows of three with the trinket beside the first, in inset slots), the rune page on one line with
     the stat shards where stored (icons only, neutral names, until OD7), six figure tiles with each of
-    the player's figures once, the lane by role, the notes (docs/MATCH_NOTES.md: Went well, Went
-    wrong, Focus next) and a compact scoreboard of 37px rows; the gold over the game and the build
-    and skill order are folds. The open card folds into a 50px header with Previous, Next and Close,
-    and a sticky footer repeats them. Notes use `good` for Went well and `warn` for Went wrong (never
-    `red`, which means Defeat), `accent` for Focus next. The card's D8 density is unchanged.
+    the player's figures once, the lane by role in a tile like the figures (against the lane opponent
+    at 10:00, 15:00 and the end) and a compact scoreboard of 37px rows. The open card folds into a
+    50px header with Previous, Next and Close, and a sticky footer repeats them. The card's D8
+    density is unchanged. The written notes (Went well, Went wrong, Focus next) and the two folds
+    (Gold over the game, Build and skill order) were removed from the view on 23 Nov 2026, at the
+    owner's request (docs/MATCH_NOTES.md); the Production check asserts they stay gone.
   - **Density (owner decision D8, approved 8 Nov 2026, built 18 Nov):** denser cards that keep the
     statistics, champions, ranks, LP and every interaction readable. The card follows the list's
     own width (`@container/mh`), in three tiers:
@@ -286,8 +287,8 @@ One set of containers, chosen by what the content is, never by page. Each is one
 
 | Container | For | Component | Opens | Closes | Address and history |
 |---|---|---|---|---|---|
-| **Peek** | a quick look at one item from a list or a board (a team player; a Players row or a Leaderboards member, `player-peek.tsx` since 20 Nov 2026, the row's name still the profile's link; a champion; a game from a board) | `peek.tsx`: `usePeek`, `Peek` | a row (click, tap, Enter); ↑/↓ or J/K and ‹ › switch | ✕, Escape, Back, the selected row again; not an outside click | `?player=` (and so on) on the current page: the one history rule |
-| **Unfold** | an item opened under its card, for items compared down a list (games) | `unfold.tsx`: `useUnfold`, `UnfoldRegion`, `UnfoldHeader` | the card | the card again, Escape, the pinned header's Close, Back | the one history rule |
+| **Peek** | a quick look at one item from a list or a board (a team player; a Players row or a Leaderboards member, `player-peek.tsx` since 20 Nov 2026, the row's name still the profile's link; a game from a board; a champion on a phone, as a sheet) | `peek.tsx`: `usePeek`, `Peek` | a row (click, tap, Enter); ↑/↓ or J/K and ‹ › switch | ✕, Escape, Back, the selected row again; not an outside click | `?player=` (and so on) on the current page: the one history rule |
+| **Unfold** | an item opened under its card, for items compared down a list (games; a champion of All Champions, under its row) | `unfold.tsx`: `useUnfold`, `UnfoldRegion`, `UnfoldHeader` | the card | the card again, Escape, the pinned header's Close, Back | the one history rule |
 | **Task dialog** | work that needs full attention (editors, confirmations, pickers, Card Studio, Install) | `dialog.tsx`: `Dialog` with its `size` (every one states it, `TASK_DIALOG_REM`): `form` 30rem for forms and confirmations (`ConfirmDialog`, the account and job confirmations, Change Riot ID, Position your picture), `picker` 42rem for a choice among many or an editor with a table (Access, an access level); Card Studio alone 76rem (`DetailModal size="wide"`); Install and sign-in 30rem (`compact`, `form`); the champion picker 42rem (`standard`). Phones and short windows: docked to the bottom edge, or the whole screen | its button | Close, Escape, the backdrop | none |
 | **Phone window shell** | the window an item opens in on a touch phone or in a short window (a Peek's, a game's) | `preview-window.tsx`: `PreviewWindow` on `DetailModal` | the item | ✕, Escape, Back, a pull down on its header (or its bar) | the item's own (`?player=`, `?match=`) |
 | **Popover** | anchored choices (menus, filter dropdowns, the pinned row's Filters) | `popover.tsx`: `Popover` (a panel of fields: the Filters, 34rem, where previews open beside the list; a touch phone keeps the sheet); `menu.tsx` (a menu) | click, Enter, Space | an outside press, Escape (focus back on its button), the focus leaving it, Done, its button leaving the screen | none of its own; a choice replaces the query. The Filters (popover or sheet) have no history entry: one under a replaced query made Back, or a close while a choice loaded, restore the old address |
@@ -439,23 +440,6 @@ const peek = usePeek({ param: "player", ids, initial: searchParams.get("player")
   scrolling inside. `windowSize` and `windowHeader` give the phone's window its size and header.
 - **First consumer:** the Team player (`?player=`), its ↑/↓ moving along the starters; a turned
   card opens its substitute.
-- **The in-card variant (All Champions, S5: `all-champions.tsx`, `champion-preview.tsx`):** where
-  the list has 26rem or more beside its Win rate column on a pointer screen of 1024px or more, the
-  preview unfolds inside the list's card instead of the docked panel. The columns after Win rate
-  fold (`visibility: hidden` through `group-data-[folded=true]/card:invisible`, so no width
-  changes), Champion, Games and Win rate keep their x, and the panel takes the folded space with the
-  card's surface, a hairline `border-border-strong` at its left and the card's right radius. It is
-  joined to its row (CM §4.1, Release 11): the selected row's `surface-3` runs under it to its edge
-  (kept on hover and focus, the focus outline still drawn), and a 2px notch the row's colour
-  interrupts the edge line beside the row (`champion-preview-notch`, placed by `preview-notch.ts`:
-  clipped to the edge the pinned panel draws, gone once the row scrolls out of it, moved to a new
-  row in 150ms, at once with reduced motion). It is
-  sticky under the pinned tabs and as tall as its content (`max-w-xl`); it slides 12px outward and
-  fades in (`unfold-in`, 200ms, `--ease-emphasized`). With less room the page falls back to `Peek`
-  (the docked panel, then the sheet by posture), with the same content and address
-  (`?champion=&crole=[&vs=]`, two keys, so the page keeps its own address hook with the same
-  history rule). Nothing is drawn until the room is measured after hydration, so a linked preview
-  never appears in one place and moves to another.
 
 ### Explain (`InfoTip`)
 
@@ -502,6 +486,22 @@ const unfold = useUnfold({ param: "match", initial, valid: (id) => ids.includes(
   motion.
 - **Touch phones and short windows** open the item as a window instead (`prefersWindow`), never
   inline.
+- **A table's row (All Champions, since 23 Nov 2026: `all-champions.tsx`, `champion-preview.tsx`).**
+  A champion's detail unfolds under its row as the next item of the list, across the whole list
+  (`UnfoldRegion` and `UnfoldHeader`, region `#champion-preview`), on every screen but a touch phone
+  or a short window, which keep the Peek's sheet. It replaced the in-card panel of S5 and Release 11
+  (a panel laid over the columns after Win rate, joined to its row by a 2px notch), which the owner
+  found floating awkwardly over the table. The columns never fold or move; the selected row keeps
+  `surface-3` and its 2px accent bar, and the detail continues the bar (accent at 60%) on a well a
+  step darker than the card (`bg-bg/40`). Inside: the champion and Close, then its record (win rate,
+  games and W–L, four tiles: KDA with its average K/D/A, CS/min, damage/min, vision, and what the
+  averages cover) beside the lane opponents from a 50rem list (`@container/detail`; the opponents'
+  column at most 46rem), one under the other below; nothing scrolls inside it and nothing lies over
+  the rows. Switching to another row (a click, ↑/↓ or J/K from the list) keeps that row where it was
+  on screen (`anchorCorrection`); keys inside the detail are its own. The address stays the page's
+  own hook (`?champion=&crole=[&vs=]`, two keys) with the one history rule, so Back closes it and
+  restores the list's place, filters and sort. Nothing is drawn until hydration has decided between
+  the unfold and the sheet, so a linked detail never appears in one place and moves to another.
 
 ### Admin's pages, drawn as the benchmarks (the design review, 20 Nov 2026)
 
@@ -706,12 +706,12 @@ With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shel
     desktop with the browser's own select on the phone (§7, Select). Each later stage adds the components it creates.
     Since Release 11 (20 Nov 2026) a second test compares the components S5–S9 created, each opened
     as a member opens it: All Champions' preview (its panel, figures, an opponent, the foot line), the
-    post-game view (an item and the loadout's name, an answer and its label, a scoreboard K/D/A
+    post-game view (an item and the loadout's name, a scoreboard K/D/A
     and name), Matchup Intel (your slot, the enemy's slot label, an ability tile's name and its Q's cooldown,
     the phone's glance cooldown against the full tile's) and Admin's person view (the window, a section
     heading, the Riot accounts panel and a row). Its listed differences, each with its reason in the
-    spec: the preview's surface, corners and edge (docked inside the list's card on a desktop, with
-    the card's right radius and a left hairline; a sheet on a phone); the compact scoreboard's names (text-xs under a 30rem scoreboard); Matchup Intel's
+    spec: the preview's surface, corners and edge (unfolded under its row on a desktop, a well in
+    the list's card; a sheet on a phone); the compact scoreboard's names (text-xs under a 30rem scoreboard); Matchup Intel's
     slot label (text-2xs on a phone) and the glance's cooldown (text-xs in a tile of about 64px, against the full tile's text-md); the person
     view's corners (DetailModal fills a phone's screen). Everything else is equal at 375 and 1440, in
     Chromium 153 and Chrome Headless Shell 156.
