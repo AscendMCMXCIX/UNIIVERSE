@@ -130,17 +130,18 @@ describe("the season records", () => {
     expect(html).not.toContain("records-season");
   });
 
-  it("place their cells on a grid by the panel's width (two columns under Recent form, never beside it), each cell measuring itself, the seventh across both columns", () => {
-    expect(html).toMatch(/<ul aria-label="Season records" class="grid grid-cols-\[minmax\(0,1fr\)\] [^"]*@min-\[40rem\]\/list:@max-\[86rem\]\/dash:grid-cols-2" data-testid="season-records">/);
+  it("place their cells on a grid by the panel's width (two columns on a one-column page, never beside Recent form), each cell measuring itself, the seventh across both columns", () => {
+    expect(html).toMatch(/<ul aria-label="Season records" class="grid grid-cols-\[minmax\(0,1fr\)\] [^"]*@min-\[40rem\]\/list:@max-\[59rem\]\/dash:grid-cols-2" data-testid="season-records">/);
     const cells = [...html.matchAll(/<li class="([^"]*)"><div class="([^"]*)"><div [^>]*data-testid="season-record"/g)];
     expect(cells).toHaveLength(7);
     for (const [, cellClass, colsClass] of cells) {
       const [cell, cols] = [decode(cellClass!), decode(colsClass!)];
       expect(cell).toContain("@container/list");
-      expect(cell).toContain("@min-[40rem]/list:@max-[86rem]/dash:[&:last-child:nth-child(odd)]:col-span-2");
-      // Each cell holds its own column template, so its row reads the cell's width.
+      expect(cell).toContain("@min-[40rem]/list:@max-[59rem]/dash:[&:last-child:nth-child(odd)]:col-span-2");
+      // Each cell holds its own column template, so its row reads the cell's width; a two-line cell (36rem, or any cell on a
+      // 59rem page: the record-two variant) has a 36px picture.
       expect(cols).toContain("[--dl-cols:3rem_minmax(5rem,1fr)_auto_1rem]");
-      expect(cols).toContain("@min-[36rem]/list:[--dl-cols:3rem_minmax(0,1fr)_auto_1rem]");
+      expect(cols).toContain("record-two:[--dl-cols:2.25rem_minmax(0,1fr)_auto_1rem]");
     }
   });
 
@@ -279,6 +280,16 @@ describe("multikills", () => {
     expect(shownOf(triple, "multikill-most-count")).toBe("2");
     expect(shownOf(triple, "multikill-most-holders")).toBe("Ash, Cy");
     expect(/data-kind="quadra"[\s\S]*?<\/li>/.exec(most)![0]).toContain("None yet");
+  });
+
+  it("are the one-screen board's overview: a fold group whose Show all, at the title's end, is drawn only where a row folds", () => {
+    // Three members, fewer than either window's count: no row folds and the Show all is never drawn.
+    expect(html).toMatch(/<section id="multikills" aria-labelledby="multikills-title" data-fold="closed" class="group\/fold min-w-0">/);
+    expect(html).toMatch(/<span class="hidden items-center" data-testid="multikill-show-all">/);
+    expect(innerOf(html, "records-multikills")).not.toContain("group-data-[fold=closed]/fold:hidden");
+    // The Show all is in the board's title row, before the line saying what the score is.
+    expect(html.indexOf('data-testid="multikill-show-all"')).toBeLessThan(html.indexOf('data-testid="multikill-note-line"'));
+    expect(html.indexOf('data-testid="multikill-show-all"')).toBeGreaterThan(html.indexOf('id="multikills-title"'));
   });
 
   it("say so when nobody has a game with counts", () => {

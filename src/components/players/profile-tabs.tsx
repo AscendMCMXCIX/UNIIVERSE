@@ -59,6 +59,8 @@ export function ProfileTabs({ basePath, variant = "page" }: { basePath: string; 
       current={current.key}
       keepScroll
       sticky
+      // 40px tabs on a desktop with a mouse, as Team's (Release 16: the Overview's first screen).
+      dense
       testId="profile-tabs"
       className="max-md:hidden max-lg:short:hidden md:-mt-2.5"
       onChoose={(key) => {

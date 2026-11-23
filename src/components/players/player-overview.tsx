@@ -102,18 +102,18 @@ function FigureLabel({ label, info }: { label: string; info?: string }) {
 /** A headline figure: its label, the number at the size of the page's main figures, its context. */
 function Headline({ label, value, sub, info, tone = "plain", testId, className, children }: { label: string; value: React.ReactNode; sub?: React.ReactNode; info?: string; tone?: WinRateTone; testId: string; className?: string; children?: React.ReactNode }) {
   return (
-    <div className={cn("min-w-0 px-3 py-3 @min-[34rem]/perf:px-5 @min-[34rem]/perf:py-4", ROW_CELL, className)} data-testid={testId}>
+    <div className={cn("min-w-0 px-3 py-3 @min-[34rem]/perf:px-5", ROW_CELL, className)} data-testid={testId}>
       {/* From a 34rem card (tablets, desktops) the headline labels are a step larger than the
           supporting ones, so the band reads first as a tier, not only by its numbers (23 Nov 2026). */}
       <div className="flex items-center gap-1 text-xs font-medium text-fg-muted @min-[34rem]/perf:text-sm">
         <FigureLabel label={label} info={info} />
       </div>
-      <div className={cn("mt-1.5 text-2xl font-semibold leading-none tracking-tight tabular-nums @min-[34rem]/perf:text-figure", ROW_VALUE, TONE_CLASS[tone])} data-testid={`${testId}-value`}>
+      <div className={cn("mt-1 text-2xl font-semibold leading-none tracking-tight tabular-nums @min-[34rem]/perf:text-figure", ROW_VALUE, TONE_CLASS[tone])} data-testid={`${testId}-value`}>
         {value}
       </div>
       {children}
       {/* Its context wraps rather than ends cut short ("4.0 / 4.0 / 4.0" on a 320px phone's third of the card). */}
-      {sub ? <div className="mt-1.5 text-xs leading-snug text-fg-subtle">{sub}</div> : null}
+      {sub ? <div className="mt-1 text-xs leading-snug text-fg-subtle">{sub}</div> : null}
     </div>
   );
 }
@@ -121,7 +121,7 @@ function Headline({ label, value, sub, info, tone = "plain", testId, className, 
 /** A supporting figure: the same reading as a headline one, a size smaller, its context beside it where there is room. */
 function Supporting({ label, value, sub, info, muted, testId, className }: { label: string; value: React.ReactNode; sub?: string; info?: string; muted?: boolean; testId: string; className?: string }) {
   return (
-    <div className={cn("min-w-0 px-3 py-2.5 @min-[34rem]/perf:px-5", ROW_CELL, className)} data-testid={testId}>
+    <div className={cn("min-w-0 px-3 py-2 @min-[34rem]/perf:px-5", ROW_CELL, className)} data-testid={testId}>
       <div className="flex items-center gap-1 text-xs text-fg-muted">
         <FigureLabel label={label} info={info} />
       </div>
@@ -140,7 +140,7 @@ function RecordBar({ wins, losses }: { wins: number; losses: number }) {
   const games = wins + losses;
   if (!games) return null;
   return (
-    <span className="mt-2.5 flex h-1.5 w-full max-w-[10rem] gap-px overflow-hidden rounded-full bg-surface-3" aria-hidden data-testid="season-record-bar">
+    <span className="mt-2 flex h-1.5 w-full max-w-[10rem] gap-px overflow-hidden rounded-full bg-surface-3" aria-hidden data-testid="season-record-bar">
       {wins ? <span className="h-full bg-blue" style={{ width: `${(wins / games) * 100}%` }} /> : null}
       {losses ? <span className="h-full flex-1 bg-red/85" /> : null}
     </span>
@@ -179,7 +179,7 @@ function KillsBand({ m, byChampionHref }: { m: MultikillSummary; byChampionHref:
       <h3 id="multikills-heading" className="sr-only">
         Multikills{notes.length ? ` (${notes.join("; ")})` : ""}
       </h3>
-      <div className="flex items-center gap-x-2 px-3 py-2 @min-[34rem]/perf:px-5" data-testid="multikill-tiles">
+      <div className="flex items-center gap-x-2 px-3 py-1.5 @min-[34rem]/perf:px-5" data-testid="multikill-tiles">
         <dl className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-sm">
           {counts.map((c, i) => (
             <div key={c.key} className="flex min-w-0 flex-wrap items-baseline gap-x-1" data-testid={c.testId}>
@@ -382,6 +382,7 @@ export function SeasonSummary({ data, basePath, championsById, status, refresh, 
         }
         statusAfterText
         toolbarBesideScope
+        scopeBesideTitle
         status={status ? <DataStatusNote status={status} refresh={refresh} /> : null}
         refresh={status ? <RefreshButton status={status} refresh={refresh} /> : null}
         controls={<OverviewFilters basePath={basePath} filter={data.filter} seasons={data.seasons} currentSeason={data.currentSeason} champions={champions} accounts={data.accountOptions} modeCounts={data.modes.counts} refineScope={REFINE_SCOPE} />}

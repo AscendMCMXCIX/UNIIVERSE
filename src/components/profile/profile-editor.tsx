@@ -101,17 +101,20 @@ export const PRIMARY_POOL_PHONE_TOP = 3;
 /**
  * How many of the primary pool's champions show on tablets and desktops before its Show all (23 Nov
  * 2026): a pool of 26 made the Overview three screens tall and left the cards beside it far short of
- * it. Six rows end the pools about level with the rail beside them in the 2×2 (Recent form, then
- * Ranked progress); a pool folds only past PRIMARY_POOL_FOLD_OVER champions, so a Show all never
- * hides just one or two rows, and most pools show whole, with no button.
+ * it. A pool of up to six shows whole; a longer one its first five and "Show all N" in the sixth row's
+ * place (Release 16, the owner's request of 23 Nov 2026: whatever its size, the pool never takes the
+ * Overview past one screen at 1440 × 900 and 1920 × 1080; a pool of seven or eight shown whole, as
+ * from Release 13, ran 40–80px past it). So the pools are never taller than six rows, and a Show all
+ * hides at least two.
  */
-export const PRIMARY_POOL_TOP = 6;
+export const PRIMARY_POOL_TOP = 5;
 /** The longest primary pool shown whole on tablets and desktops (PRIMARY_POOL_TOP). */
-export const PRIMARY_POOL_FOLD_OVER = 8;
+export const PRIMARY_POOL_FOLD_OVER = 6;
 
 export function PoolSection({
   title,
   eyebrow,
+  eyebrowClassName,
   role,
   ids,
   champions,
@@ -158,6 +161,8 @@ export function PoolSection({
   title: string;
   /** A small label above the role (the profile's "Primary role"). */
   eyebrow?: string;
+  /** The eyebrow's own look (an off role's: quieter, and on tablets and desktops only, where no "Off roles" heading stands over it). */
+  eyebrowClassName?: string;
   role: Role;
   ids: string[];
   champions: PickerChampion[];
@@ -185,8 +190,8 @@ export function PoolSection({
   const grouped = folds || foldsWide;
   const addChampion = (compact: boolean) => <AddChampion role={role} champions={champions} exclude={selected} onAdd={(id) => onChange([...ids, id])} testId={testId} compact={compact} />;
   return (
-    <section className={cn("space-y-3", closed && "space-y-0", grouped && fold.groupProps.className)} data-testid={testId} data-open={collapsible ? collapsible.open : undefined} data-fold={grouped ? fold.groupProps["data-fold"] : undefined}>
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+    <section className={cn("space-y-2", closed && "space-y-0", grouped && fold.groupProps.className)} data-testid={testId} data-open={collapsible ? collapsible.open : undefined} data-fold={grouped ? fold.groupProps["data-fold"] : undefined}>
+      <div className="flex min-h-6 flex-wrap items-center gap-x-3 gap-y-2">
         {/* One line: the role (its menu while editing), how many champions, and what the role is to the player. */}
         <h3 className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1 text-sm font-semibold">
           {roleControl ?? <RoleIcon role={role} className="h-4 w-4 text-accent" />}
@@ -194,7 +199,7 @@ export function PoolSection({
           <span className="whitespace-nowrap font-normal text-fg-subtle" data-testid={`${testId}-count`}>
             {ids.length} champion{ids.length === 1 ? "" : "s"}
           </span>
-          {eyebrow ? <span className="whitespace-nowrap rounded-full border border-accent-2/40 bg-accent-2/10 px-2 py-px text-2xs font-semibold uppercase tracking-label text-accent-2">{eyebrow}</span> : null}
+          {eyebrow ? <span className={cn("whitespace-nowrap rounded-full border px-2 py-px text-2xs font-semibold uppercase tracking-label", eyebrowClassName ?? "border-accent-2/40 bg-accent-2/10 text-accent-2")}>{eyebrow}</span> : null}
         </h3>
         {closed && ids.length ? <PoolPreview ids={ids} championsById={championsById} onInspect={onInspect} inspectHref={inspectHref} testId={`${testId}-preview`} /> : null}
         {actions || (editable && stats && !closed) || collapsible || folds ? (
@@ -211,12 +216,12 @@ export function PoolSection({
           </div>
         ) : null}
       </div>
-      <div id={bodyId} hidden={closed} className="@container space-y-3">
+      <div id={bodyId} hidden={closed} className="@container space-y-2">
       {ids.length === 0 && (!editable || stats) ? (
         <p className="rounded-panel border border-dashed border-border px-3 py-4 text-sm text-fg-subtle">{editable ? "No champions in this role yet. Add the ones you play here." : "No champions yet."}</p>
       ) : (
         <>
-        {stats ? <PoolColumns role={role} editable={editable} testId={testId} /> : null}
+        {stats ? <PoolColumns role={role} editable={editable} testId={testId} besideHeading={!editable && !collapsible} /> : null}
         <SortablePool
           ids={ids}
           championsById={championsById}
@@ -259,7 +264,8 @@ function PoolPreview({ ids, championsById, onInspect, inspectHref, testId }: { i
     <ol className="order-last flex min-w-0 basis-full flex-wrap items-center gap-1.5 sm:order-none sm:basis-auto sm:flex-1" aria-label="Champions in this role, in order" data-testid={testId}>
       {shown.map((id) => {
         const c = championsById.get(id) ?? { id, name: id, portraitUrl: "" };
-        const portrait = <ChampionPortrait champion={c} size="sm" className="rounded-md" />;
+        // 28px with a mouse (a folded off role's line is no taller than its Show), 36px on a touch screen.
+        const portrait = <ChampionPortrait champion={c} size="sm" className="size-7! rounded-md pointer-coarse:size-9!" />;
         return (
           <li key={id} data-champion={id}>
             {onInspect && inspectHref ? (
@@ -319,12 +325,12 @@ const STATS_HIDDEN_WHILE_EDITING = "@max-sm:hidden";
  * phone, and from 175% the names ran past the list); under 8.5rem, where the rows name their
  * figures in words (STATS_COLUMNS), they step aside.
  */
-function PoolColumns({ role, editable, testId }: { role: Role; editable: boolean; testId: string }) {
+function PoolColumns({ role, editable, testId, besideHeading = false }: { role: Role; editable: boolean; testId: string; /** On the pool's heading line from a 38rem list (BESIDE_HEADING). */ besideHeading?: boolean }) {
   return (
     // A row's frame (its 1px transparent border too), so the columns sit over the row's figures.
-    <div aria-hidden className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 whitespace-nowrap border-x border-transparent pb-0.5 pl-2 pr-1.5 text-2xs font-semibold text-fg-subtle @2xs:gap-x-2 @sm:gap-x-2.5 @sm:uppercase @sm:tracking-label @lg:gap-x-3 @lg:pl-2.5 @max-[8.5rem]:hidden" data-testid={`${testId}-columns`}>
+    <div aria-hidden className={cn("flex flex-wrap items-center gap-x-1.5 gap-y-0.5 whitespace-nowrap border-x border-transparent pb-0.5 pl-2 pr-1.5 text-2xs font-semibold text-fg-subtle @2xs:gap-x-2 @sm:gap-x-2.5 @sm:uppercase @sm:tracking-label @lg:gap-x-3 @lg:pl-2.5 @max-[8.5rem]:hidden", besideHeading && BESIDE_HEADING)} data-testid={`${testId}-columns`}>
       <span className="w-3 shrink-0 @sm:w-4" />
-      <span className="flex-1">Champion</span>
+      <span className={cn("flex-1", besideHeading && "@min-[38rem]:invisible")}>Champion</span>
       <span className={cn(STATS_COLUMNS, "text-center", editable && STATS_HIDDEN_WHILE_EDITING)}>
         <span>Games</span>
         <span>
@@ -338,6 +344,17 @@ function PoolColumns({ role, editable, testId }: { role: Role; editable: boolean
     </div>
   );
 }
+
+/**
+ * A display pool's column names on its heading's line, from a 38rem list (Release 16: a line of their
+ * own cost the one-screen Overview 28px): drawn up over the heading's 24px line and the 8px under it,
+ * at the line's right end, over the figures as ever; "Champion" keeps its room but is not drawn (the
+ * heading names the pool). From 38rem the heading ("Support 12 champions PRIMARY ROLE", about 19rem)
+ * and the four columns (17rem) fit the line side by side; with large text the list is narrower in rem
+ * and the names keep a line of their own. Never while editing or on an off role, whose heading's line
+ * holds its buttons at that end.
+ */
+const BESIDE_HEADING = "pointer-events-none @min-[38rem]:-mt-8 @min-[38rem]:h-6 @min-[38rem]:pb-0";
 
 /**
  * A champion's season in this role, at its row's end under the column names: games, win rate
@@ -620,7 +637,8 @@ export function ProfileEditor({
   const renderSection = (o: { role: Role; pool: string[] }, i: number) => (
     <PoolSection
       title=""
-      eyebrow={i === 0 ? "Primary role" : undefined}
+      eyebrow={i === 0 ? "Primary role" : stats && !live ? "Off role" : undefined}
+      eyebrowClassName={i === 0 ? undefined : "hidden border-border bg-surface-2 text-fg-subtle md:inline short:hidden"}
       role={o.role}
       ids={o.pool}
       champions={champions}
@@ -650,7 +668,7 @@ export function ProfileEditor({
   );
 
   return (
-    <div className="space-y-3" data-testid="profile-editor" data-editing={live || undefined}>
+    <div className="space-y-2.5" data-testid="profile-editor" data-editing={live || undefined}>
       {heading || intro || editable ? (
         <div className="space-y-1">
           {/* The heading and Edit share a line on every width; the rest of the context goes under it. */}
@@ -682,12 +700,12 @@ export function ProfileEditor({
       <p className="sr-only" aria-live="assertive" data-testid="role-announce">
         {drag.announce}
       </p>
-      <ol className="space-y-2.5" data-testid="role-sections" aria-label="Roles in order of preference">
+      <ol className="space-y-2" data-testid="role-sections" aria-label="Roles in order of preference">
         {sections.map((o, i) => (
           <React.Fragment key={o.role}>
             {drag.lineBefore(i) ? <li aria-hidden className="h-1 rounded-full bg-accent" data-testid="role-drop-line" /> : null}
             {i === 1 ? (
-              <li aria-hidden={offFolds ? undefined : true} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-border/70 pt-3" data-testid="off-roles-heading">
+              <li aria-hidden={offFolds ? undefined : true} className={cn("flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-border/70 pt-2.5", offFolds && "md:hidden short:flex")} data-testid="off-roles-heading">
                 {/* The words wrap beside the phone's Show while they keep 6rem; with larger text Show goes under them. */}
                 <p aria-hidden className="min-w-0 shrink grow basis-24 text-2xs font-semibold uppercase tracking-label text-fg-subtle">
                   Off roles <span className="font-normal normal-case tracking-normal">· in order of preference</span>
@@ -696,7 +714,7 @@ export function ProfileEditor({
               </li>
             ) : null}
             {/* The primary pool is the section's body; each off role is a row of its own. */}
-            <li ref={drag.ref(i)} id={i > 0 ? `role-section-${o.role.toLowerCase()}` : undefined} className={cn("relative", i > 0 && "rounded-panel border border-border/70 bg-surface-2/40 px-3 py-2", i > 0 && offFolds && !offFold.open && PHONE_HIDDEN, drag.dragging === i && "z-20 rounded-card bg-bg-elevated/95 shadow-2xl ring-1 ring-accent/50")} style={drag.style(i)} data-testid="role-section" data-role={o.role} data-dragging={drag.dragging === i || undefined}>
+            <li ref={drag.ref(i)} id={i > 0 ? `role-section-${o.role.toLowerCase()}` : undefined} className={cn("relative", i > 0 && live && "rounded-panel border border-border/70 bg-surface-2/40 px-3 py-2", i === 1 && offFolds && "md:border-t md:border-border/70 md:pt-2 short:border-t-0 short:pt-0", i > 0 && offFolds && !offFold.open && PHONE_HIDDEN, drag.dragging === i && "z-20 rounded-card bg-bg-elevated/95 shadow-2xl ring-1 ring-accent/50")} style={drag.style(i)} data-testid="role-section" data-role={o.role} data-dragging={drag.dragging === i || undefined}>
               {renderSection(o, i)}
             </li>
           </React.Fragment>
@@ -843,9 +861,10 @@ function RoleGrip({ index, role, drag }: { index: number; role: Role; drag: Role
   );
 }
 
+/** A role's name on a pool's heading line while not editing: the line's own 24px (36px, the role menu's height, until Release 16 cost the one-screen Overview 12px a pool; Edit opens the menu in its place). */
 function ReadOnlyRole({ role }: { role: Role }) {
   return (
-    <span className="inline-flex min-h-9 items-center gap-2 text-base font-semibold text-fg">
+    <span className="inline-flex min-h-6 items-center gap-2 text-base font-semibold text-fg">
       <RoleIcon role={role} className="h-[1.125rem] w-[1.125rem] text-accent" />{" "}
       {ROLE_LABELS[role]}
     </span>

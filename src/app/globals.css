@@ -255,6 +255,48 @@ p a.text-accent {
   }
 }
 
+/*
+  Leaderboards' one-screen desktop board (docs/TEAM_LEADERBOARDS.md, Layout): a window tall enough,
+  in the root's own rem, for the taller overview of the multikills and the milestones. The root grows
+  with the window's width above 1536px (the clamp above: 16px plus 0.0045px a pixel, at most 22px),
+  and a media query measures in the browser's 16px, so the height it needs (60.9rem of the root) is
+  written out per band of widths at each band's largest root: 1440 × 900 is short, 1920 × 1080 tall.
+  `board-short` is its complement (every band's query negated, nested), so a row is hidden in one or
+  the other and never depends on the order Tailwind writes two classes in.
+*/
+@custom-variant board-tall {
+  @media (max-width: 1535px) and (min-height: 975px), (min-width: 1536px) and (max-width: 1800px) and (min-height: 1047px), (min-width: 1801px) and (max-width: 1920px) and (min-height: 1080px), (min-width: 1921px) and (max-width: 2560px) and (min-height: 1255px), (min-width: 2561px) and (min-height: 1340px) {
+    @slot;
+  }
+}
+@custom-variant board-short {
+  @media not all and (max-width: 1535px) and (min-height: 975px) {
+    @media not all and (min-width: 1536px) and (max-width: 1800px) and (min-height: 1047px) {
+      @media not all and (min-width: 1801px) and (max-width: 1920px) and (min-height: 1080px) {
+        @media not all and (min-width: 1921px) and (max-width: 2560px) and (min-height: 1255px) {
+          @media not all and (min-width: 2561px) and (min-height: 1340px) {
+            @slot;
+          }
+        }
+      }
+    }
+  }
+}
+/*
+  A season record's two-line cell (leaderboards/records.tsx, BOOK_COLS): a cell of 36rem or more, or
+  any cell on a Leaderboards page of 59rem or more (the desktop's one-screen board, whose records'
+  column is 21–38.5rem). Either container query alone; the narrow cell's layout is the classes
+  without it.
+*/
+@custom-variant record-two {
+  @container list (min-width: 36rem) {
+    @slot;
+  }
+  @container dash (min-width: 59rem) {
+    @slot;
+  }
+}
+
 /* The installed app, in the display modes an install opens in (see install-state.ts): what a browser's own chrome would otherwise provide, such as Back on a tablet.
    The block form: in the one-line form Tailwind read the list's commas as a selector list once the
    variant was stacked (md:standalone:…), and the build dropped every display mode but the first. */

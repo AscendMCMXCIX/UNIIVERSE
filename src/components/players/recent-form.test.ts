@@ -10,12 +10,12 @@ describe("Recent form's champions (the Overview's 2×2)", () => {
   const form = recentForm(plan.map((championId, i) => ({ matchId: `m${i}`, win: championId === "Ahri" ? i < 5 : i % 2 === 0, gameCreation: 1_000_000 - i, championId, kills: 5, deaths: 3, assists: 6, cs: 180, visionScore: 20, gameDuration: 1800 })));
   const render = (champions: boolean) => renderToStaticMarkup(createElement(RecentFormStrip, { form, championsById: {}, historyHref: "/h", champions }));
 
-  it("lists the champions of the same games, most played first, each with its record, five and then the rest as a count", () => {
+  it("lists the champions of the same games, most played first, each with its record, four and then the rest as a count on the heading's line", () => {
     const html = render(true);
     const rows = [...html.matchAll(/data-champion="([^"]+)"/g)].map((m) => m[1]);
     expect(rows).toEqual(["Ahri", "Orianna", "Azir", "Syndra", "Galio", "Jax"].slice(0, RECENT_CHAMPIONS_SHOWN));
     expect(html).toContain("9 games · 5W 4L");
-    expect(html).toContain("and 1 more");
+    expect(html).toContain("and 2 more");
     // Only where the 2×2 applies (a 1440px window, a 68rem dashboard), by CSS: no other layout grows.
     expect(html).toMatch(/class="hidden min-\[90rem\]:@min-\[68rem\]\/ov:block" data-testid="recent-form-champions"/);
   });

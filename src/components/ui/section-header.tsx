@@ -21,7 +21,7 @@ import { cn } from "@/lib/cn";
   the scope line under both; a toolbar too wide for the row (a tablet's several selects) takes the
   next row, and so do filters whose chips need the room (`toolbarFills`).
 */
-export function SectionHeader({ id, title, titleOnPhones = "shown", nav, aside, description, status, statusAfterText = false, controls, refresh, toolbarBesideNav = false, toolbarFills, toolbarBesideScope = false, className, testId }: {
+export function SectionHeader({ id, title, titleOnPhones = "shown", nav, aside, description, status, statusAfterText = false, controls, refresh, toolbarBesideNav = false, toolbarFills, toolbarBesideScope = false, scopeBesideTitle = false, className, testId }: {
   /** The heading's id, for the section's aria-labelledby. */
   id: string;
   title: React.ReactNode;
@@ -59,6 +59,12 @@ export function SectionHeader({ id, title, titleOnPhones = "shown", nav, aside, 
    * beside them: nine lines at 150% text on a 320px phone.)
    */
   toolbarBesideScope?: boolean;
+  /**
+   * From xl the scope line follows the title on its line, where both fit (else under it, as below
+   * xl): a profile's Overview, whose first screen holds its whole dashboard at 1440 × 900 (Release
+   * 16: the line under the title cost it 24px).
+   */
+  scopeBesideTitle?: boolean;
   className?: string;
   testId?: string;
 }) {
@@ -72,7 +78,7 @@ export function SectionHeader({ id, title, titleOnPhones = "shown", nav, aside, 
     </div>
   );
   // The scope line: under the title; beside the views, a line of its own after the toolbar.
-  const scopeAt = toolbarBesideNav ? "basis-full" : "mt-1";
+  const scopeAt = toolbarBesideNav ? "basis-full" : scopeBesideTitle ? "mt-1 xl:mt-0" : "mt-1";
   const scope =
     description || status ? (
       statusAfterText ? (
@@ -124,7 +130,7 @@ export function SectionHeader({ id, title, titleOnPhones = "shown", nav, aside, 
         toolbarBesideScope && (titleOnPhones === "tab" && !aside ? "max-sm:[&>[data-testid=section-toolbar]]:col-[1/-1]" : "max-sm:[&>[data-testid=section-toolbar]]:col-start-2"),
         className,
       )} data-testid={testId}>
-      <div className={cn("min-w-0 xl:pt-0.5", toolbarBesideScope && "max-sm:contents max-sm:[&>[data-testid=section-scope]]:col-span-2 max-sm:[&>[data-testid=section-scope]]:mt-0 max-sm:[&>:first-child]:col-start-1 max-sm:[&>:first-child]:row-start-1")}>
+      <div className={cn("min-w-0 xl:pt-0.5", scopeBesideTitle && "xl:flex xl:flex-wrap xl:items-baseline xl:gap-x-3", toolbarBesideScope && "max-sm:contents max-sm:[&>[data-testid=section-scope]]:col-span-2 max-sm:[&>[data-testid=section-scope]]:mt-0 max-sm:[&>:first-child]:col-start-1 max-sm:[&>:first-child]:row-start-1")}>
         {heading}
         {scope}
       </div>

@@ -106,8 +106,12 @@ export function RecentFormStrip({ form, championsById, historyHref, narrowed = n
   );
 }
 
-/** How many of the recent games' champions the 2×2's Recent form lists before "and N more". */
-export const RECENT_CHAMPIONS_SHOWN = 5;
+/**
+ * How many of the recent games' champions the 2×2's Recent form lists before "and N more" (four since
+ * Release 16, with the count on the heading's line: five and a line of their own ran the rail 57px past
+ * the first screen at 1440 × 900).
+ */
+export const RECENT_CHAMPIONS_SHOWN = 4;
 
 /**
  * The champions of the same recent games, most played first (the newest game breaking a tie), each
@@ -129,10 +133,13 @@ function RecentChampions({ last, champ }: { last: RecentForm["last"]; champ: (id
   const shown = rows.slice(0, RECENT_CHAMPIONS_SHOWN);
   return (
     <div className="hidden min-[90rem]:@min-[68rem]/ov:block" data-testid="recent-form-champions">
-      <h3 className="label-caps">Champions in these games</h3>
+      <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-3">
+        <h3 className="label-caps">Champions in these games</h3>
+        {rows.length > shown.length ? <p className="text-xs text-fg-subtle">and {rows.length - shown.length} more</p> : null}
+      </div>
       <ul className="mt-1.5 divide-y divide-border/60">
         {shown.map((c) => (
-          <li key={c.id} className="flex min-w-0 items-center gap-2.5 py-1.5" data-champion={c.id}>
+          <li key={c.id} className="flex min-w-0 items-center gap-2.5 py-1" data-champion={c.id}>
             <span aria-hidden className="inline-flex">
               <ChampionPortrait champion={champ(c.id)} size="xs" />
             </span>
@@ -143,7 +150,6 @@ function RecentChampions({ last, champ }: { last: RecentForm["last"]; champ: (id
           </li>
         ))}
       </ul>
-      {rows.length > shown.length ? <p className="mt-1 text-xs text-fg-subtle">and {rows.length - shown.length} more</p> : null}
     </div>
   );
 }

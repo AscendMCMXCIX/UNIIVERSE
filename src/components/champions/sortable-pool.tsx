@@ -340,7 +340,7 @@ export function SortablePool({
 
   return (
     <div className="relative">
-      <ol ref={listRef} className={cn("relative grid", variant === "rows" ? "grid-cols-1 gap-0.5" : cn("gap-2", gridClassName ?? "grid-cols-1 @sm:grid-cols-2 @2xl:grid-cols-3"))} data-testid={testId} aria-label="Champion pool in order of preference" aria-describedby={editable ? `${testId ?? "pool"}-help` : undefined}>
+      <ol ref={listRef} className={cn("relative grid", variant === "rows" ? "grid-cols-1" : cn("gap-2", gridClassName ?? "grid-cols-1 @sm:grid-cols-2 @2xl:grid-cols-3"))} data-testid={testId} aria-label="Champion pool in order of preference" aria-describedby={editable ? `${testId ?? "pool"}-help` : undefined}>
         {drag ? <li ref={placeholderRef} role="presentation" aria-hidden className="pointer-events-none absolute left-0 top-0 rounded-panel border-2 border-dashed border-accent/50 bg-accent/5" data-testid="pool-placeholder" /> : null}
         {order.map((id, index) => {
           const c = championsById.get(id);
@@ -427,7 +427,7 @@ export function SortablePool({
                   else refs.current.delete(id);
                 }}
                 className={cn(
-                  "group relative isolate flex min-h-11 min-w-0 items-center gap-2 overflow-hidden rounded-panel border border-transparent py-0.5 pl-2 pr-1.5 transition-[background-color,border-color,box-shadow] duration-150 hover:border-border hover:bg-surface-2/70 @sm:gap-2.5 @lg:gap-3 @lg:pl-2.5",
+                  "group relative isolate flex min-h-10 min-w-0 items-center gap-2 overflow-hidden rounded-panel pointer-coarse:min-h-11 border border-transparent pl-2 pr-1.5 transition-[background-color,border-color,box-shadow] duration-150 hover:border-border hover:bg-surface-2/70 @sm:gap-2.5 @lg:gap-3 @lg:pl-2.5",
                   editable && "md:cursor-grab",
                   isDragged && "z-20 cursor-grabbing border-accent bg-surface-2 shadow-2xl shadow-black/50 will-change-transform",
                   isLifted && "z-10 border-accent bg-surface-2 ring-2 ring-accent/40",

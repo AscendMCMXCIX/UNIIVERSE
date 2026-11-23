@@ -37,7 +37,7 @@ import { formatOrdinal } from "@/lib/format";
   src/server: the pieces render in server components (Leaderboards) and client trees alike.
 */
 
-export type Density = "dense" | "regular" | "two-line";
+export type Density = "slim" | "compact" | "dense" | "regular" | "two-line";
 /** One density at every width, or one per tier of the board: narrow (under 36rem), medium (from 36rem), wide (from 58rem). */
 export type DensityByWidth = Density | { narrow: Density; medium?: Density; wide?: Density };
 export type TiePosition = "start" | "mid" | "end";
@@ -78,7 +78,7 @@ export function DataList({ columns, title, heads, headsTestId, headsClassName, s
       <div className={cn("divide-y divide-border/70", columns)}>
         {title}
         {heads ? (
-          <div aria-hidden data-testid={headsTestId} className={cn("grid grid-cols-(--dl-cols) items-end py-2 label-caps", ROW_GAP_X, ROW_PAD_X, headsClassName)}>
+          <div aria-hidden data-testid={headsTestId} className={cn("grid grid-cols-(--dl-cols) items-end py-1.5 label-caps", ROW_GAP_X, ROW_PAD_X, headsClassName)}>
             {heads}
           </div>
         ) : null}
@@ -97,11 +97,11 @@ export function DataHead({ children, align = "start", className }: { children?: 
  * A group of rows: its caption (phrasing content only: it is a <p>), then the list. `rule="row"`
  * draws a hairline under every row but the last (Tailwind 4's divide-y is each row's bottom border).
  */
-export function DataGroup({ as: List = "ol", label, caption, captionTestId, rule = "row", className, testId, children }: { as?: "ol" | "ul"; /** The list's name for screen readers ("Ranking"). */ label?: string; caption?: React.ReactNode; captionTestId?: string; rule?: "row" | "none"; className?: string; testId?: string; children: React.ReactNode }) {
+export function DataGroup({ as: List = "ol", label, caption, captionTestId, captionClassName, rule = "row", className, testId, children }: { as?: "ol" | "ul"; /** The list's name for screen readers ("Ranking"). */ label?: string; caption?: React.ReactNode; captionTestId?: string; /** The caption's own classes (a caption folded with its group's first row: Leaderboards' overview). */ captionClassName?: string; rule?: "row" | "none"; className?: string; testId?: string; children: React.ReactNode }) {
   return (
     <>
       {caption ? (
-        <p className={cn("bg-surface-2/40 py-2 text-xs text-fg-muted", ROW_PAD_X)} data-testid={captionTestId}>
+        <p className={cn("bg-surface-2/40 py-1.5 text-xs text-fg-muted", ROW_PAD_X, captionClassName)} data-testid={captionTestId}>
           {caption}
         </p>
       ) : null}
@@ -112,11 +112,16 @@ export function DataGroup({ as: List = "ol", label, caption, captionTestId, rule
   );
 }
 
-/** Row heights with a 40px picture: dense 48px, regular 52px, two lines 64px (the minimums; a row that needs more grows). */
+/**
+ * Row heights (the minimums; a row that needs more grows): with a 40px picture dense 48px, regular
+ * 52px, two lines 64px; with a 32px picture (Release 16, the one-screen Leaderboards) compact 40px (a
+ * name over a line of small text, or one line) and slim 36px (one line beside a 28px chip). On a
+ * touch screen compact and slim rows are 44px, the target's size.
+ */
 const DENSITY = {
-  narrow: { dense: "min-h-11 py-1", regular: "min-h-13 py-1.5", "two-line": "min-h-16 py-2" },
-  medium: { dense: "@min-[36rem]/list:min-h-11 @min-[36rem]/list:py-1", regular: "@min-[36rem]/list:min-h-13 @min-[36rem]/list:py-1.5", "two-line": "@min-[36rem]/list:min-h-16 @min-[36rem]/list:py-2" },
-  wide: { dense: "@min-[58rem]/list:min-h-11 @min-[58rem]/list:py-1", regular: "@min-[58rem]/list:min-h-13 @min-[58rem]/list:py-1.5", "two-line": "@min-[58rem]/list:min-h-16 @min-[58rem]/list:py-2" },
+  narrow: { slim: "min-h-9 py-0.5 pointer-coarse:min-h-11", compact: "min-h-10 py-0.5 pointer-coarse:min-h-11", dense: "min-h-11 py-1", regular: "min-h-13 py-1.5", "two-line": "min-h-16 py-2" },
+  medium: { slim: "@min-[36rem]/list:min-h-9 @min-[36rem]/list:py-0.5 pointer-coarse:@min-[36rem]/list:min-h-11", compact: "@min-[36rem]/list:min-h-10 @min-[36rem]/list:py-0.5 pointer-coarse:@min-[36rem]/list:min-h-11", dense: "@min-[36rem]/list:min-h-11 @min-[36rem]/list:py-1", regular: "@min-[36rem]/list:min-h-13 @min-[36rem]/list:py-1.5", "two-line": "@min-[36rem]/list:min-h-16 @min-[36rem]/list:py-2" },
+  wide: { slim: "@min-[58rem]/list:min-h-9 @min-[58rem]/list:py-0.5 pointer-coarse:@min-[58rem]/list:min-h-11", compact: "@min-[58rem]/list:min-h-10 @min-[58rem]/list:py-0.5 pointer-coarse:@min-[58rem]/list:min-h-11", dense: "@min-[58rem]/list:min-h-11 @min-[58rem]/list:py-1", regular: "@min-[58rem]/list:min-h-13 @min-[58rem]/list:py-1.5", "two-line": "@min-[58rem]/list:min-h-16 @min-[58rem]/list:py-2" },
 } as const;
 
 export function densityClasses(density: DensityByWidth): string {
