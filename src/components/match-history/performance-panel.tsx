@@ -25,10 +25,14 @@ export type TimelineState = "loading" | "ok" | "missing";
 
 const pct = (v: number | null) => (v === null ? "—" : `${Math.round(v * 100)}%`);
 
-/** A place among the players, as a chip: "3rd"; MVP and ACE in their result's colour, with the word. */
+/**
+ * A place among the players, as a chip: "3rd"; MVP (violet, the emphasis colour) and ACE (ringed),
+ * each by its word, never in a side's blue or red, which the scoreboard and the score panel give the
+ * teams' sides (a red side can win).
+ */
 export function RankChip({ score, className, marks = false }: { score: Pick<PlayerScore, "rank" | "mvp" | "ace">; className?: string; /** The scoreboard's own chip: the one the page's MVP and ACE are counted by. */ marks?: boolean }) {
   return (
-    <span className={cn("inline-flex h-4 items-center rounded-full px-1.5 text-2xs font-semibold leading-none tabular-nums", score.mvp ? "bg-blue/20 text-blue" : score.ace ? "bg-red/20 text-[color-mix(in_srgb,var(--color-red)_75%,white)]" : "bg-surface-3 text-fg-muted", className)} data-testid={marks ? (score.mvp ? "participant-mvp" : score.ace ? "participant-ace" : "rank-chip") : "performance-mark"}>
+    <span className={cn("inline-flex h-4 items-center rounded-full px-1.5 text-2xs font-semibold leading-none tabular-nums", score.mvp ? "bg-accent-2/25 font-bold text-fg ring-1 ring-inset ring-accent-2/60" : score.ace ? "bg-fg/10 font-bold text-fg ring-1 ring-inset ring-fg/35" : "bg-surface-3 text-fg-muted", className)} data-testid={marks ? (score.mvp ? "participant-mvp" : score.ace ? "participant-ace" : "rank-chip") : "performance-mark"}>
       {score.mvp ? "MVP" : score.ace ? "ACE" : formatOrdinal(score.rank)}
     </span>
   );
@@ -152,7 +156,7 @@ export function PerformancePanel({ scores, points, timeline, subject, compare, o
                           data-slot={p.slot}
                         >
                           <ChampionPortrait champion={champ(p.championId)} size="xs" className="h-6 w-6 rounded" />
-                          <span className={cn("text-xs font-semibold leading-none tabular-nums", s.mvp ? "text-blue" : s.ace ? "text-[color-mix(in_srgb,var(--color-red)_75%,white)]" : "text-fg")}>{formatNumber(s.score, 1)}</span>
+                          <span className={cn("text-xs font-semibold leading-none tabular-nums", "text-fg")}>{formatNumber(s.score, 1)}</span>
                         </button>
                       )}
                     </li>

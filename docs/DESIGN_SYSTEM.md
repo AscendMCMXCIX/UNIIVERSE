@@ -74,7 +74,7 @@ decorative chrome.
     rows; never in the address, so Back still closes the game); above the lane, three segmented
     headings, **Build Path | Skill Order | Runes** (`segmentedGroupClass`, radios: the view still
     has no tabs), one shown at a time; each row ends with the player's performance score, its place
-    as a chip (1st … 10th), the winning team's best as MVP (blue) and the losing team's as ACE (red),
+    as a chip (1st … 10th), the winning team's best as MVP (a violet chip) and the losing team's as ACE (a ringed one), never in the sides' blue and red,
     in words (docs/PERFORMANCE_SCORE.md); under the scoreboard the performance panel: the score, its
     place, "Excellent" from 8.0, the timeline's one trend word with its sentence and why in a
     sentence, each team's mean on one split bar and the ten scores as a strip of small tiles (a tile
