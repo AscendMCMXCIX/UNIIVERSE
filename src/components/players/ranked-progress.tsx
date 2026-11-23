@@ -114,8 +114,10 @@ export function RankedProgress({ accounts, queue, accountId, href, now, classNam
           narrow: the chart then takes whatever height the card has beyond the rest, up to 24rem, as
           the card stands level with the pools beside it in the Overview's 2×2). One surface: no
           rules or boxes inside the card, only spacing (23 Nov 2026). */}
-      <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)] gap-x-6 gap-y-4 @min-[40rem]/rank:grid-cols-[minmax(15rem,18rem)_minmax(0,1fr)] @min-[40rem]/rank:grid-rows-1 @min-[40rem]/rank:items-center">
-        <div className="min-w-0 space-y-3.5">
+      {/* The chart's row takes the rest of the card only in the Overview's 2×2 rail (a 1440px window,
+          a card under 40rem): elsewhere the rows are implicit, so a phone's folded chart leaves no gap. */}
+      <div className="grid min-h-0 flex-1 gap-x-6 gap-y-3 min-[90rem]:@max-[40rem]/rank:grid-rows-[auto_minmax(0,1fr)] @min-[40rem]/rank:grid-cols-[minmax(15rem,18rem)_minmax(0,1fr)] @min-[40rem]/rank:items-center">
+        <div className="min-w-0 space-y-3">
           <div className="flex min-w-0 items-center gap-3">
             <RankEmblem tier={cur?.tier ?? null} className="h-11 w-11 shrink-0" />
             {cur ? (
