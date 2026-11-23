@@ -120,7 +120,7 @@ export function MatchupContent({ view, champions, curated, legal, evidence = nul
   ) : null;
   // Riot's tips and the evidence from the team's games share one fold, its line stating both.
   const tipsShown = [enemyIntel, enemy2Intel, mirror ? null : yourIntel, allyIntel].some((i) => !!i);
-  const tips = <RiotTipsPanel enemies={[enemyIntel, enemy2Intel].filter((i): i is ChampionIntelView => !!i)} yours={[mirror ? null : yourIntel, allyIntel].filter((i): i is ChampionIntelView => !!i)} evidenceSummary={<EvidenceSummary evidence={evidence} />} evidence={<EvidenceBody evidence={evidence} duo={duo} pair={{ chosen: !!you && !!enemy, curated: shows, hidden: !shows && !!matchup }} />} />;
+  const tips = <RiotTipsPanel enemies={[enemyIntel, enemy2Intel].filter((i): i is ChampionIntelView => !!i)} yours={[mirror ? null : yourIntel, allyIntel].filter((i): i is ChampionIntelView => !!i)} evidenceSummary={<EvidenceSummary evidence={evidence} />} evidence={<EvidenceBody evidence={evidence} duo={duo} pair={{ chosen: !!you && !!enemy, curated: shows, hidden: !shows && !!matchup }} />} open />;
   const plan = !!you && !!enemy;
   // Beside a lane plan the plan holds the level changes and the matchup's own interactions; the full
   // reference then holds each champion's own interactions and exceptions, where any are recorded.
@@ -130,6 +130,9 @@ export function MatchupContent({ view, champions, curated, legal, evidence = nul
       championInteractions ? (
         <InteractionsPanel matchup={matchup} enemyIntel={enemyIntel} yourIntel={yourIntel} you={you} rows={rows} parts="champions" />
       ) : null
+    ) : plan ? (
+      // The lane reference holds the level changes, first: the full reference the interactions.
+      <InteractionsPanel matchup={matchup} enemyIntel={enemyIntel} yourIntel={yourIntel} you={you} rows={rows} />
     ) : (
       // Side by side where the column has room, the fuller of the two the wider.
       <div className={`grid gap-3 @min-[40rem]/dash:items-start ${NOTES_SPLIT[balance]}`} data-testid="matchup-notes" data-balance={balance}>
@@ -140,7 +143,7 @@ export function MatchupContent({ view, champions, curated, legal, evidence = nul
   ) : null;
   const referenceWords = fullReferenceWords({
     interactions: shows ? championInteractions : true,
-    levels: !shows,
+    levels: !plan,
     yours: yourKits.map((k) => k.intel.champion.name),
     tips: tipsShown,
   });
@@ -182,13 +185,14 @@ export function MatchupContent({ view, champions, curated, legal, evidence = nul
                 interactions={shows ? <InteractionsPanel matchup={matchup} enemyIntel={enemyIntel} yourIntel={yourIntel} you={you} rows={rows} variant="section" parts="matchup" /> : null}
               />
             ) : null}
-            {you && enemy && !shows ? <AssembledReference you={you} enemy={enemy} enemyIntel={enemyIntel} yourIntel={yourIntel} enemy2Intel={duo ? enemy2Intel : null} allyIntel={duo ? allyIntel : null} curatedForYou={curatedForYou} rows={rows} briefingHidden={!!matchup} /> : null}
+            {you && enemy && !shows ? <AssembledReference you={you} enemy={enemy} enemyIntel={enemyIntel} yourIntel={yourIntel} enemy2Intel={duo ? enemy2Intel : null} allyIntel={duo ? allyIntel : null} curatedForYou={curatedForYou} rows={rows} briefingHidden={!!matchup} levels={<LevelNotesPanel intels={[enemyIntel, duo ? enemy2Intel : null, yourIntel, duo ? allyIntel : null]} variant="section" />} /> : null}
 
             {/* 2. The enemy's abilities as a strip: P to R side by side, each cooldown large, each tile
                 opening its Peek; in the bot lane both enemies' strips, one under the other. */}
             <div className="space-y-3" data-testid="matchup-enemy-kits">
               <AbilitiesPanel intel={enemyIntel} title={mirror ? `${enemyIntel.champion.name}'s abilities (both sides)` : `${enemyIntel.champion.name}'s abilities`} testId="matchup-enemy-abilities" notice={stale} haste foldSources />
-              {enemy2Intel ? <AbilitiesPanel intel={enemy2Intel} title={`${enemy2Intel.champion.name}'s abilities`} testId="matchup-enemy2-abilities" foldSources /> : null}
+              {/* The second enemy's strip one press away (the UX review of Release 13: both strips' ten tiles open at once). */}
+              {enemy2Intel ? <AbilitiesPanel intel={enemy2Intel} title={`${enemy2Intel.champion.name}'s abilities`} testId="matchup-enemy2-abilities" foldSources folded /> : null}
             </div>
 
             {/* 3. The sources and notices, directly under the strips (as under the kits since Release 10): their

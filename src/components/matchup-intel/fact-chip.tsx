@@ -4,7 +4,7 @@ import type { DifferChip, FactChip, RiotTextChip } from "@/domain/matchup-intel/
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { InfoTip } from "@/components/ui/info-tip";
 import { cn } from "@/lib/cn";
-import { CHECKED_NOTES_LABEL, CONDITIONAL_WORDS, DIFFER_NEITHER_WORDS, DIFFER_WORDS, FACT_KINDS, KIND_GROUP_WORDS, RIOT_TEXT_KIND_WORDS, RIOT_TEXT_LABEL, conditionalNoteWords, differSideWords, qualifierChipWords, qualifierWords, revisionWords, riotTextSourceWords, subjectWords } from "./wording";
+import { CHECKED_NOTES_LABEL, CONDITIONAL_WORDS, DIFFER_NEITHER_WORDS, DIFFER_WORDS, FACT_KINDS, KIND_GROUP_WORDS, RIOT_TEXT_KIND_WORDS, RIOT_TEXT_LABEL, conditionalNoteWords, differSideWords, qualifierNoteWords, qualifierWords, revisionWords, riotTextSourceWords, subjectWords } from "./wording";
 
 /*
   A fact as a chip (docs/MATCHUP_INTEL.md, "The ability tiles"): its kind's icon, the kind for screen
@@ -107,9 +107,24 @@ export function chipWord(chip: FactChip): string {
   return chip.layer === "riot-text" ? RIOT_TEXT_KIND_WORDS[chip.kind] : chip.layer === "riot-text-differ" ? DIFFER_WORDS : chip.word;
 }
 
-/** What a fact from Riot's text holds only with, on its chip after the kind's word: its qualifier, in Riot's words. */
-export function chipMarkers(chip: RiotTextChip): string {
-  return chip.fact.qualifier ? qualifierChipWords(chip.kind, chip.fact.qualifier) : "";
+/**
+ * What facts from Riot's text hold only with, under the ability's chips: each qualifier in Riot's
+ * words, labelled as Riot's addition to its kind ("Stun: Riot adds “Mega Gnar”"). Never the chip's own
+ * quote: a chip's quote (in its tip) is the clause that carries its claim (the UX review of Release 13:
+ * "Empowered · “a trap that, when sprung, …”" read as the trap's text supporting the claim).
+ */
+export function QualifierNote({ chips, testId, className }: { chips: readonly FactChip[]; testId: string; className?: string }) {
+  const qualified = chips.filter((c): c is RiotTextChip => c.layer === "riot-text" && !!c.fact.qualifier);
+  if (!qualified.length) return null;
+  return (
+    <span className={cn("block text-xs text-fg-muted", className)} data-testid={testId}>
+      {qualified.map((c) => (
+        <span key={c.kind} className="block" data-testid="fact-qualifier">
+          {qualifierNoteWords(c.kind, c.fact.qualifier!)}
+        </span>
+      ))}
+    </span>
+  );
 }
 
 /** The kinds among some chips whose facts are conditional, in the chips' order. */
@@ -162,7 +177,6 @@ export function FactChipView({ chip, champion, ability, testId = "fact-chip" }: 
   if (chip.layer === "riot-text-differ") return <DifferChipView chip={chip} champion={champion} ability={ability} testId={testId} />;
   const look = chip.layer === "checked" ? KIND_LOOK[chip.kind] : GROUP_LOOK[chip.group];
   const kindWord = chip.layer === "checked" ? FACT_KINDS[chip.kind] : KIND_GROUP_WORDS[chip.group];
-  const markers = chip.layer === "riot-text" ? chipMarkers(chip) : "";
   const Icon = look.icon;
   return (
     <InfoTip text={<ChipTip chip={chip} champion={champion} ability={ability} />} testId={testId} className={CHIP_TRIGGER}>
@@ -170,14 +184,7 @@ export function FactChipView({ chip, champion, ability, testId = "fact-chip" }: 
       <Badge tone={look.tone} className={CHIP_BADGE}>
         <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden />
         <span className="sr-only">{kindWord}: </span>
-        <span>
-          {chipWord(chip)}
-          {markers ? (
-            <span className="font-normal" data-testid="fact-chip-markers">
-              {markers}
-            </span>
-          ) : null}
-        </span>
+        <span>{chipWord(chip)}</span>
       </Badge>
     </InfoTip>
   );

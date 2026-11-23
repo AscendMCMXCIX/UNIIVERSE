@@ -86,20 +86,26 @@ function checkPair(you: string, enemy: string, p: Awaited<ReturnType<typeof page
   for (const fixed of ["Assembled reference", "Danger", "Opportunity", noneRecordedWords("riot-text"), noneRecordedWords("checked"), noneOutsideHiddenWords([SLOT_NAMES.R]), NO_ABILITY_FACTS_WORDS, CONDITIONAL_WORDS, DIFFER_WORDS]) if (words.includes(fixed)) expect(refusedWords(fixed)).toEqual([]);
   // An ability with no reviewed fact never reads as having none.
   expect(words, where).not.toContain("None recorded in Riot's text");
-  // The enemy's tiles: every fact from Riot's text a chip of its own (its qualifier and marker on it), every
-  // disagreement a chip, and an ability with neither saying so in words.
+  // The enemy's tiles: every fact from Riot's text a chip of its own (its qualifier said under the chips,
+  // its marker too), every disagreement a chip, and the abilities with neither named once under the strip.
+  const after = html.split('data-testid="matchup-enemy-abilities-list"')[1]!.split("</ol>")[1]!.split("</div>")[0]!;
+  const noneLine = text(/data-testid="ability-facts-none">([\s\S]*?)<\/p>/.exec(after)?.[1] ?? "");
   if (view.enemyIntel?.riotText) {
     for (const a of view.enemyIntel.abilities ?? []) {
       const tile = panel.split(`data-slot="${a.slot}"`)[1]!.split('data-testid="ability-row"')[0]!;
       const r = a.riotText!;
       expect(tile.split('data-testid="fact-chip"').length - 1, `${where}: ${a.slot}'s chips`).toBe(r.facts.length);
       expect(tile.split('data-testid="fact-chip-differ"').length - 1, `${where}: ${a.slot}'s disagreements`).toBe(r.disagreements.length);
-      expect(tile.split('data-testid="fact-chip-markers"').length - 1, `${where}: ${a.slot}'s qualifiers`).toBe(r.facts.filter((f) => f.qualifier !== undefined).length);
+      expect(tile.split('data-testid="fact-qualifier"').length - 1, `${where}: ${a.slot}'s qualifiers`).toBe(r.facts.filter((f) => f.qualifier !== undefined).length);
       // The conditional ones named once, under the chips, in the owner's words.
       const conditional = r.facts.filter((f) => f.conditional).map((f) => RIOT_TEXT_KIND_WORDS[f.kind]);
       if (conditional.length) expect(text(tile), `${where}: ${a.slot}'s marker`).toContain(`${CONDITIONAL_WORDS} (`);
       else expect(tile, `${where}: ${a.slot} has no marker`).not.toContain('data-testid="ability-facts-conditional"');
-      if (!r.facts.length && !r.disagreements.length && !r.hidden) expect(text(tile), `${where}: ${a.slot} with no facts`).toContain(NO_ABILITY_FACTS_WORDS);
+      if (!r.facts.length && !r.disagreements.length && !r.hidden) {
+        expect(noneLine, `${where}: ${a.slot} with no facts`).toMatch(/^ ?No reviewed facts for /);
+        expect(noneLine, `${where}: ${a.slot} with no facts`).toContain(SLOT_NAMES[a.slot]);
+        expect(tile, `${where}: ${a.slot} says it once, under the strip`).not.toContain(NO_ABILITY_FACTS_WORDS);
+      }
     }
   }
   // The sources and Riot's notice, one press away, their summary on the page.
