@@ -168,7 +168,7 @@ const OPENS = "max-md:group-data-[fold=open]/fold:fade-in short:group-data-[fold
 function RankDetails({ tracking, peak, movement }: { tracking: string; peak: RankTimeline["peak"]; movement: RankMovement | null }) {
   return (
     <>
-      <span data-testid="ranked-tracking">{tracking}</span>. The record is Riot's count for the ranked year.{" "}
+      <span data-testid="ranked-tracking">{tracking}</span>. The record is Riot&apos;s count for the ranked year.{" "}
       <span data-testid="ranked-peak-stat">{peak ? `Highest recorded: ${peak.label} · ${peak.lp} LP, first checked ${formatDayMonth(peak.at)}.` : "Highest recorded: not recorded."}</span>
       {movement ? <span data-testid="ranked-change-path">{` ${movementPath(movement)}`}</span> : null}
     </>
