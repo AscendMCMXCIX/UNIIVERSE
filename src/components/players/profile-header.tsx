@@ -60,6 +60,19 @@ const LARGE_TEXT = {
   pictureRows: "min-[23.4375rem]:max-sm:@min-[15.5rem]/phead:row-span-2 min-[23.4375rem]:max-sm:@min-[15.5rem]/phead:self-start",
   metaBeside: "min-[23.4375rem]:max-sm:@min-[15.5rem]/phead:col-span-1 min-[23.4375rem]:max-sm:@min-[15.5rem]/phead:col-start-2",
   customiseRoom: "max-sm:not-short:@min-[15.5rem]/phead:pr-10",
+  /*
+   * The band (a short window, or from sm) narrower than 17.5rem: a phone held sideways, or the other
+   * sections' header in a short window, at 150% text and more (a 320px phone's header is 18rem at
+   * 100%, so nothing changes there). The picture and Customise share the first row, at its top; the
+   * name, its tagline and the roles, rank and links take the whole width under them, wrapping
+   * between words. Beside the picture and Customise's room the name had 51px at 150% and none at
+   * 200%, broken a letter or two a line (Release 13's full browser run, phone-wraps.spec.ts).
+   */
+  bandRow: "band:@max-[17.5rem]/phead:flex-wrap band:@max-[17.5rem]/phead:pr-3.5 band:not-short:@max-[17.5rem]/phead:pr-3.5",
+  bandText: "band:@max-[17.5rem]/phead:basis-full",
+  bandWrap: "band:@max-[17.5rem]/phead:flex-wrap",
+  bandName: "band:@max-[17.5rem]/phead:whitespace-normal",
+  bandCustomise: "band:@max-[17.5rem]/phead:top-2.5 band:@max-[17.5rem]/phead:translate-y-0",
   title: "@max-[8.5rem]/phead:text-xl",
   status: "@max-[12.25rem]/phead:sr-only",
   statusShort: "@max-[12.25rem]/phead:inline",
@@ -135,7 +148,7 @@ export function ProfileHeader({ identity: served, self, editable = false, champi
         <CardFrame look={p.look} />
         {/* Customise: a labelled overlay from sm, a round icon chip on phones (its word read out); held
             sideways the chip too, centred on the band's height. */}
-        {editable ? <div className="absolute right-2.5 top-2.5 z-10 sm:right-3 sm:top-3 band:top-1/2 band:-translate-y-1/2">{customise("overlay", true)}</div> : null}
+        {editable ? <div className={cn("absolute right-2.5 top-2.5 z-10 sm:right-3 sm:top-3 band:top-1/2 band:-translate-y-1/2", LARGE_TEXT.bandCustomise)}>{customise("overlay", true)}</div> : null}
         {/* Phones under 375px: the picture beside the name, then roles, rank and links across the full
             width (a narrow column beside the picture would break the rank over three lines). From
             375px to sm the picture spans two rows, the name and then the roles, rank and links beside
@@ -155,21 +168,21 @@ export function ProfileHeader({ identity: served, self, editable = false, champi
             round chip at the band's end: 8 + 28 + 32 + 8px and its border, 78px at most. On a phone held
             upright the art shows behind the header with no band of its own above the name (204px tall,
             it left the first screen no figure on an SE). */}
-        <div className={cn("relative grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-2 p-4 min-[23.4375rem]:max-sm:gap-y-1.5 min-[23.4375rem]:max-sm:p-3.5 sm:flex sm:min-h-40 sm:items-end sm:gap-4 sm:p-5 sm:pt-12 lg:min-h-32 lg:pt-9 band:flex band:min-h-0 band:items-center band:gap-3 band:px-3.5 band:py-2 band:not-short:min-h-18 band:not-short:py-1", editable && "band:pr-16 band:not-short:pr-36")}>
+        <div className={cn("relative grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-2 p-4 min-[23.4375rem]:max-sm:gap-y-1.5 min-[23.4375rem]:max-sm:p-3.5 sm:flex sm:min-h-40 sm:items-end sm:gap-4 sm:p-5 sm:pt-12 lg:min-h-32 lg:pt-9 band:flex band:min-h-0 band:items-center band:gap-3 band:px-3.5 band:py-2 band:not-short:min-h-18 band:not-short:py-1", editable && "band:pr-16 band:not-short:pr-36", LARGE_TEXT.bandRow)}>
           <CardAvatar look={p.look} name={p.displayName} src={p.avatarUrl} className={cn(LARGE_TEXT.pictureRows, "band:self-center")}>
             {self && !compact ? <ProfileAvatarEditable name={p.displayName} src={p.avatarUrl} avatarClassName={SHORT_PICTURE} /> : <Avatar name={p.displayName} src={p.avatarUrl} size="hero" className={SHORT_PICTURE} />}
           </CardAvatar>
-          <div className="contents sm:block sm:min-w-0 sm:flex-1 sm:pb-0.5 band:block band:min-w-0 band:flex-1 band:pb-0">
+          <div className={cn("contents sm:block sm:min-w-0 sm:flex-1 sm:pb-0.5 band:block band:min-w-0 band:flex-1 band:pb-0", LARGE_TEXT.bandText)}>
             {/* On a phone the Customise chip sits at the name's row end: the name keeps clear of it
                 (under the picture, at a larger text size, the chip is on the picture's row and the name
                 has its own). Held sideways the band keeps the chip's room at its end instead. */}
-            <div className={cn("min-w-0 band:flex band:items-baseline band:gap-2", LARGE_TEXT.stackName, editable && LARGE_TEXT.customiseRoom)}>
+            <div className={cn("min-w-0 band:flex band:items-baseline band:gap-2", LARGE_TEXT.stackName, LARGE_TEXT.bandWrap, editable && LARGE_TEXT.customiseRoom)}>
               {/* Upright and from sm the tagline sits above the name; held sideways after it, on the
                   name's line: a second copy there, so the reading order is the order drawn (one copy
                   is displayed at a time, so one is read). */}
               <CardTagline look={p.look} className="text-sm drop-shadow band:hidden" />
-              <div className="flex flex-wrap items-center gap-2 band:min-w-0 band:flex-nowrap">
-                <h1 className={cn("min-w-0 max-w-full text-2xl tracking-tight text-fg drop-shadow sm:text-3xl band:truncate band:text-xl", LARGE_TEXT.title)}>
+              <div className={cn("flex flex-wrap items-center gap-2 band:min-w-0 band:flex-nowrap", LARGE_TEXT.bandWrap)}>
+                <h1 className={cn("min-w-0 max-w-full text-2xl tracking-tight text-fg drop-shadow sm:text-3xl band:truncate band:text-xl", LARGE_TEXT.title, LARGE_TEXT.bandName)}>
                   <CardName look={p.look} name={p.displayName} />
                 </h1>
                 {self ? <Badge tone="accent">You</Badge> : null}
@@ -182,7 +195,7 @@ export function ProfileHeader({ identity: served, self, editable = false, champi
                 </span>
               ) : null}
             </div>
-            <div className={cn("col-span-2 min-w-0 band:flex band:items-center band:gap-3", LARGE_TEXT.metaBeside)}>
+            <div className={cn("col-span-2 min-w-0 band:flex band:items-center band:gap-3", LARGE_TEXT.metaBeside, LARGE_TEXT.bandWrap)}>
               <div className={cn("flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-fg-muted sm:mt-1.5 band:mt-0 band:min-w-0 band:flex-1 band:gap-x-2.5 band:gap-y-0.5 band:text-xs", SIDEWAYS_META.container)} data-testid="profile-meta">
                 {p.primaryRole ? (
                   <span className="inline-flex items-center gap-1.5 text-fg band:gap-1">
