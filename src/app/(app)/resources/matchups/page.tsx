@@ -94,7 +94,7 @@ export default async function MatchupIntelPage({ searchParams }: { searchParams:
         }
         patchState={<MatchupStatus view={view} />}
       >
-        <MatchupContent view={view} champions={champions} curated={curated} legal={riotLegal(branding.productName)} evidence={evidence} />
+        <MatchupContent view={view} champions={champions} curated={curated} legal={riotLegal(branding.productName)} evidence={evidence} peekInitial={one(sp.ability) ?? null} />
       </MatchupFrame>
     </div>
   );
