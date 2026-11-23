@@ -134,13 +134,20 @@ export function guardSelf(actorId: string | null, targetId: string, what: string
 }
 
 /**
- * Only the Owner changes the Owner account: an administrator manages everyone else. A call with
- * no actor (a script on the server, never a request) is not refused here.
+ * The permission hierarchy (the owner's decisions OD8a–c, 23 Nov 2026): the Owner manages every
+ * account; an administrator manages regular members and routine administration, never the Owner
+ * and never another administrator; a member manages only their own permitted settings (the
+ * self-service actions, which never come here). Enforced on the server for every Admin action that
+ * changes another account; the screens only follow it. A call with no actor (a script on the
+ * server, a job, never a request) is not refused here; an actor's own account is left to each
+ * action's own rule (guardSelf, or Settings for one's own changes).
  */
-export async function guardOwnerAccount(db: Db, actorId: string | null, target: Pick<UserRecord, "role">, what: string): Promise<void> {
-  if (target.role !== "owner" || !actorId) return;
+export async function guardHierarchy(db: Db, actorId: string | null, target: Pick<UserRecord, "role" | "isAdmin"> & { id?: string }, what: string): Promise<void> {
+  if (!actorId || (target.id && target.id === actorId)) return;
+  if (target.role !== "owner" && !target.isAdmin) return;
   const actor = await getUser(db, actorId);
-  if (actor?.role !== "owner") throw new UserError(`Only the Owner can ${what} the Owner account.`);
+  if (actor?.role === "owner") return;
+  throw new UserError(target.role === "owner" ? `Only the Owner can ${what} the Owner account.` : `Only the Owner can ${what} an administrator.`);
 }
 
 /**
@@ -157,12 +164,13 @@ export function guardVerificationAccount(actorId: string | null, target: Pick<Us
 }
 
 /**
- * Only the Owner changes the Owner's profile's team membership (taking it off the team would drop
+ * A profile's changes by someone else follow its account's place in the hierarchy (guardHierarchy):
+ * the Owner's and an administrator's only by the Owner (taking the Owner's off the team would drop
  * the Owner from Players and the lineup). The profile's account, if it has one, decides.
  */
 export async function guardProfileAccount(db: Db, actorId: string | null, playerId: string, what: string): Promise<void> {
-  const [account] = await db.select({ role: users.role }).from(users).where(eq(users.playerId, playerId));
-  if (account) await guardOwnerAccount(db, actorId, account, what);
+  const [account] = await db.select({ id: users.id, role: users.role, isAdmin: users.isAdmin }).from(users).where(eq(users.playerId, playerId));
+  if (account) await guardHierarchy(db, actorId, account, what);
 }
 
 /**
@@ -185,7 +193,7 @@ export async function setAccountActive(db: Db, actorId: string | null, userId: s
     guardSelf(actorId, userId, "deactivate");
     await guardLastAdmin(db, target, "deactivate");
   }
-  await guardOwnerAccount(db, actorId, target, active ? "reactivate" : "deactivate");
+  await guardHierarchy(db, actorId, target, active ? "reactivate" : "deactivate");
   // Only a real change is written (and so audited by the caller): one already in that state, or a
   // second call at the same moment, changes nothing. The guards above apply either way.
   const changedRows = await db.update(users).set({ isActive: active, updatedAt: new Date() }).where(and(eq(users.id, userId), eq(users.isActive, !active))).returning({ id: users.id });
@@ -205,7 +213,7 @@ export async function reactivateWithTemporaryPassword(db: Db, actorId: string | 
   if (!target) throw new UserError("Account not found.");
   if (actorId && actorId === userId) throw new UserError("Change your own password under Settings instead.");
   guardVerificationAccount(actorId, target, "reset the password of");
-  await guardOwnerAccount(db, actorId, target, "reactivate");
+  await guardHierarchy(db, actorId, target, "reactivate");
   if (target.isActive) throw new UserError("This account is already active: use Reset password instead. Nothing was changed.");
   return db.transaction(async (tx) => {
     // Read again inside: two calls at once, or a Reactivate between, must not issue a second password.
@@ -227,7 +235,7 @@ export async function deleteAccount(db: Db, actorId: string | null, userId: stri
   if (!target) throw new UserError("Account not found.");
   guardSelf(actorId, userId, "delete");
   await guardLastAdmin(db, target, "delete");
-  await guardOwnerAccount(db, actorId, target, "delete");
+  await guardHierarchy(db, actorId, target, "delete");
   await db.transaction(async (tx) => {
     await revokeAllSessions(tx, userId);
     await tx.delete(users).where(eq(users.id, userId)); // sessions, codes and invites cascade
@@ -267,7 +275,7 @@ export async function setAccountRole(db: Db, actorId: string | null, userId: str
   if (role !== "owner") {
     guardSelf(actorId, userId, "remove Owner access from");
     await guardLastAdmin(db, target, "remove Owner access from");
-    await guardOwnerAccount(db, actorId, target, "demote");
+    await guardHierarchy(db, actorId, target, "demote");
   }
   await updateUser(db, userId, { role });
   return (await getUser(db, userId))!;
@@ -341,7 +349,7 @@ export async function resetPasswordToTemporary(db: Db, actorId: string | null, u
   if (!target) throw new UserError("Account not found.");
   if (actorId && actorId === userId) throw new UserError("Change your own password under Settings instead.");
   guardVerificationAccount(actorId, target, "reset the password of");
-  await guardOwnerAccount(db, actorId, target, "reset the password of");
+  await guardHierarchy(db, actorId, target, "reset the password of");
   if (!target.isActive) throw new UserError("This account is deactivated. Reactivate it first.");
   return setTemporaryPassword(db, userId);
 }
@@ -362,7 +370,7 @@ export async function withdrawTemporaryPassword(db: Db, actorId: string | null, 
   if (!target) throw new UserError("Account not found.");
   if (actorId && actorId === userId) throw new UserError("Change your own password under Settings instead.");
   guardVerificationAccount(actorId, target, "withdraw the password of");
-  await guardOwnerAccount(db, actorId, target, "withdraw the password of");
+  await guardHierarchy(db, actorId, target, "withdraw the password of");
   if (target.hasPassword && !target.mustChangePassword) throw new UserError("They chose their own password, so there is no temporary password to withdraw. Nothing was changed.");
   if (target.hasPassword) await guardLastAdmin(db, target, "withdraw the password of");
   return db.transaction(async (tx) => {
@@ -380,8 +388,8 @@ export async function withdrawTemporaryPassword(db: Db, actorId: string | null, 
 
 /**
  * Grants or removes administrator access: Admin Mode on top of the account's own player access,
- * which stays exactly as it was (level, groups, profile, Riot accounts, statistics). Any
- * administrator may do it for another account; nobody changes their own; the Owner is always one;
+ * which stays exactly as it was (level, groups, profile, Riot accounts, statistics). Only the Owner
+ * grants or removes it (OD8b, OD8c); nobody changes their own; the Owner is always one;
  * the last active administrator keeps it. It applies from the account's next request: every
  * request reads it again, so a removal also closes Admin Mode where it is open.
  */
@@ -392,6 +400,8 @@ export async function setAdministrator(db: Db, actorId: string | null, userId: s
   guardVerificationAccount(actorId, target, "change the administrator access of");
   if (target.role === "owner") throw new UserError("The Owner is always an administrator.");
   if (target.isAdmin === on) return { user: target, changed: false };
+  // Only the Owner grants or removes it (OD8b, OD8c): an administrator makes no administrators, and changes none.
+  if (actorId && (await getUser(db, actorId))?.role !== "owner") throw new UserError(on ? "Only the Owner grants administrator access." : "Only the Owner removes administrator access.");
   if (on && !target.isActive) throw new UserError("This account is deactivated. Reactivate it first.");
   if (!on) await guardLastAdmin(db, target, "remove administrator access from");
   await updateUser(db, userId, { isAdmin: on });

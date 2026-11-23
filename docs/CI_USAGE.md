@@ -189,11 +189,15 @@ The same rules are applied without cost:
    - It is turned on by `pnpm install` (the `prepare` script) and, in Claude Code sessions, by the SessionStart hook in `.claude/settings.json`.
    - Merging a PR on GitHub is not affected.
    - A deliberate exception: `ALLOW_MAIN_PUSH=1 git push …`.
-2. **PRs are merged only when CI is green.** This is a documented rule for people and coding agents (`CLAUDE.md`), because GitHub cannot enforce it here.
-   - **Docs-only PRs:** CI doesn't run, so there is nothing to wait for and they can be merged directly.
-3. **If branch protection is turned on (possible now with GitHub Pro):**
-   - Add a ruleset on `main` requiring a pull request and the checks "Typecheck, lint, unit tests", "Database tests on PostgreSQL 16" and "Build and browser tests (Playwright)".
-   - Docs-only PRs would then wait for checks that never start. Before requiring checks, replace the workflow-level `paths-ignore` with a job-level skip, because skipped jobs count as passing.
+2. **PRs are merged only when CI is green.** A documented rule for people and coding agents (`CLAUDE.md`), and, once the owner's ruleset requires it, GitHub's too (point 3).
+   - **Docs-only PRs:** CI runs only its `Changed files` job and the `CI gate`, which passes in seconds, so they never wait for suites that do not apply.
+3. **The required check: `CI gate` (23 Nov 2026).** The owner is configuring an active ruleset "Protect main". The check to require is **`CI gate`** (a GitHub Actions check, the CI workflow's last job):
+   - Every pull request now runs the CI workflow: the `pull_request` trigger has no `paths-ignore`, because a ruleset waits forever for a check a skipped workflow never sends.
+   - The first job, `Changed files`, compares the pull request with its base. A pull request whose every file is documentation (`docs/**`, `**/*.md`, `.env.example`) or one of the production-only workflows (`data-jobs`, `probe`, `smoke`, `webkit`, `production-check`, `workflow-lint`) runs no suite. Anything else, or a diff that cannot be read, runs them all.
+   - `CI gate` always runs and passes only when the pull request is documentation only, or typecheck, lint and unit tests, the database suite, the browser suite and WebKit all passed. On the push to `main` it also passes when the pull request's run of the same tree is reused (WebKit does not run on that push).
+   - Draft pull requests run nothing, as before; marking one ready runs CI.
+   - The existing job names ("Typecheck, lint, unit tests", "Database tests on PostgreSQL 16", "Build and browser tests (Playwright)", "Safari's engine (WebKit) on the priority pages") are unchanged, so the automated merges read them as before. Requiring `CI gate` alone is enough: it fails whenever one of them did.
+   - The push to `main` keeps its `paths-ignore`: a ruleset reads checks on pull requests, and a docs-only merge needs no run.
 
 ## Vercel deployments
 

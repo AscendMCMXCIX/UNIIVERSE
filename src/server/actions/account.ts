@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { getAppDb } from "@/server/bootstrap";
 import { requireSession } from "@/server/auth/session";
-import { UserError } from "@/server/repositories/users";
+import { getUser, UserError } from "@/server/repositories/users";
+import { recordAudit } from "@/server/audit/log";
 import { changeUsername, loadSocialLinks, removeAvatar, setAvatar, setDisplayName, setSocialLinks } from "@/server/repositories/profile";
 import { invalidatePublicTeam } from "@/server/public/team";
 import { normaliseSocialLinks, SOCIAL_LABELS, type SocialKind, type SocialLinks } from "@/domain/social-links";
@@ -37,7 +38,10 @@ export async function changeUsernameAction(username: string): Promise<Result<{ u
     const session = await requireSession();
     if (!session.userId) return { ok: false, error: "No account session." };
     if (isVerificationAccount(session)) return { ok: false, error: KEPT_BY_JOB };
-    const r = await changeUsername(await getAppDb(), session.userId, username);
+    const db = await getAppDb();
+    const r = await changeUsername(db, session.userId, username);
+    // Members' own changes are in the activity log since OD9 (23 Nov 2026), without the names themselves.
+    if (r.username !== session.username) await recordAudit(db, session, { action: "self.username", target: { type: "user", id: session.userId } });
     touch();
     return { ok: true, data: r };
   } catch (err) {
@@ -52,7 +56,10 @@ export async function changeDisplayNameAction(displayName: string): Promise<Resu
     if (!session.userId) return { ok: false, error: "No account session." };
     if (isVerificationAccount(session)) return { ok: false, error: KEPT_BY_JOB };
     if (typeof displayName !== "string") return { ok: false, error: "Enter a display name." };
-    const r = await setDisplayName(await getAppDb(), session.userId, displayName);
+    const db = await getAppDb();
+    const before = await getUser(db, session.userId);
+    const r = await setDisplayName(db, session.userId, displayName);
+    if (r.displayName !== before?.displayName) await recordAudit(db, session, { action: "self.display-name", target: { type: "user", id: session.userId } });
     touch();
     return { ok: true, data: r };
   } catch (err) {
@@ -103,7 +110,9 @@ export async function uploadAvatarAction(dataUrl: string): Promise<Result<{ url:
     if (typeof dataUrl !== "string" || dataUrl.length > 600_000) return { ok: false, error: "That picture is too large (400 KB at most)." };
     const data = decodeDataUrl(dataUrl);
     if (!data) return { ok: false, error: "Use a PNG, JPEG or WebP picture." };
-    const version = await setAvatar(await getAppDb(), session.userId, data);
+    const db = await getAppDb();
+    const version = await setAvatar(db, session.userId, data);
+    await recordAudit(db, session, { action: "self.picture", target: { type: "user", id: session.userId } });
     touch();
     return { ok: true, data: { url: `/api/avatars/${session.userId}?v=${version}` } };
   } catch (err) {
@@ -115,7 +124,9 @@ export async function removeAvatarAction(): Promise<Result> {
   try {
     const session = await requireSession();
     if (!session.userId) return { ok: false, error: "No account session." };
-    await removeAvatar(await getAppDb(), session.userId);
+    const db = await getAppDb();
+    const removed = await removeAvatar(db, session.userId);
+    if (removed) await recordAudit(db, session, { action: "self.picture-remove", target: { type: "user", id: session.userId } });
     touch();
     return { ok: true, data: null };
   } catch (err) {
@@ -125,7 +136,8 @@ export async function removeAvatarAction(): Promise<Result> {
 
 /**
  * Settings → Sign out of other devices: ends every session of the account except this one. Not
- * audited (members' own changes wait for the owner's decision OD9), and no count is returned.
+ * audited (OD9 records members' own username, display name and picture changes, not their
+ * sign-ins), and no count is returned.
  */
 export async function signOutOtherDevicesAction(): Promise<Result> {
   try {

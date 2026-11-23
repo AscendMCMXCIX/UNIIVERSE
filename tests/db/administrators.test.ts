@@ -179,8 +179,11 @@ describe("administrator access", () => {
     expect(await usersActions.setAccessLevelAction(otherId, { level: "owner" })).toMatchObject({ ok: false, error: expect.stringMatching(/one Owner/) });
   });
 
-  it("supports several administrators: one administrator can grant and remove it for another", async () => {
+  it("supports several administrators, granted and removed by the Owner only (OD8b, OD8c)", async () => {
     await signInAs(adminId);
+    expect(await usersActions.setAdministratorAction(otherId, true)).toMatchObject({ ok: false, error: expect.stringMatching(/Only the Owner grants administrator access/) });
+    expect((await getUser(handle.db, otherId))!.isAdmin).toBe(false);
+    await signInAs(ownerId);
     expect((await usersActions.setAdministratorAction(otherId, true)).ok).toBe(true);
     expect((await getUser(handle.db, otherId))!.isAdmin).toBe(true);
     // The read-only account audit counts them, and names none.
@@ -190,6 +193,10 @@ describe("administrator access", () => {
     // Owners too: the summary goes to public Actions logs, so an owner is a label, never a username.
     expect((audit.summary as { owners: unknown }).owners).toEqual([expect.objectContaining({ owner: "owner 1", hasPassword: true, isActive: true })]);
     expect(JSON.stringify(audit.summary).toLowerCase()).not.toContain("founder");
+    // An administrator cannot remove another's either.
+    await signInAs(adminId);
+    expect(await usersActions.setAdministratorAction(otherId, false)).toMatchObject({ ok: false, error: expect.stringMatching(/Only the Owner removes administrator access/) });
+    await signInAs(ownerId);
     expect((await usersActions.setAdministratorAction(otherId, false)).ok).toBe(true);
     expect((await getUser(handle.db, otherId))!.isAdmin).toBe(false);
     const actions = (await listAudit(handle.db, 10)).filter((e) => e.targetName === "Teammate").map((e) => e.action);

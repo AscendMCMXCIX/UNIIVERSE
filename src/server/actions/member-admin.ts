@@ -6,9 +6,10 @@ import { requireOwner, requirePermission } from "@/server/auth/session";
 import { UserError } from "@/server/repositories/users";
 import { invalidatePublicTeam } from "@/server/public/team";
 import { decodeDataUrl } from "@/server/images";
-import { moderateAvatar, moderateSocialLink, saveAccess, setMemberDisplayName, signOutEverywhere, type AccessSave } from "@/server/auth/member-admin";
+import { moderateAvatar, moderateSocialLink, saveAccess, setMemberDisplayName, setMemberUsername, signOutEverywhere, type AccessSave } from "@/server/auth/member-admin";
 import { auditPlayerName, auditPresetName, recordAudit } from "@/server/audit/log";
 import { SOCIAL_LABELS, type SocialKind } from "@/domain/social-links";
+import { RENAME_PHRASE, typedMatches } from "@/domain/typed-confirmation";
 
 /*
   The Owner's and administrators' tools on a member (Admin Mode → Users & Permissions, the
@@ -37,6 +38,22 @@ export async function setMemberDisplayNameAction(userId: string, displayName: st
     touch();
     revalidatePath("/", "layout");
     return { ok: true, data: { displayName: done.displayName } };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/** The Owner changes another member's username (OD8a), after typing RENAME; recorded without the old or new name. */
+export async function setMemberUsernameAction(userId: string, username: string, confirmation: string): Promise<Result<{ username: string }>> {
+  try {
+    const session = await requireOwner();
+    if (!session.userId) return { ok: false, error: "No account session." };
+    if (!typedMatches(confirmation, RENAME_PHRASE)) return { ok: false, error: `Type ${RENAME_PHRASE} to change their username.` };
+    const db = await getAppDb();
+    const done = await setMemberUsername(db, session.userId, userId, username);
+    if (done.changed) await recordAudit(db, session, { action: "account.username", target: { type: "user", id: userId } });
+    touch();
+    return { ok: true, data: { username: done.username } };
   } catch (err) {
     return fail(err);
   }

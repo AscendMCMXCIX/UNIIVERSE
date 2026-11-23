@@ -32,11 +32,11 @@ Most of the testing happens here, not on GitHub. Run what the change touches:
   - Open it when the work is complete and validated. Alternatively, open it as a draft early and mark it "Ready for review" when done; that runs CI.
   - Describe what changed and what was validated locally.
   - Keep unrelated changes out of the PR.
-- **Docs-only changes** (`docs/`, `*.md`) still go through a branch and a PR. CI is skipped for them automatically.
+- **Docs-only changes** (`docs/`, `*.md`) still go through a branch and a PR. CI runs no suite for them: its `CI gate` (the check the "Protect main" ruleset requires) passes in seconds.
 
 ## 4. Merge
 
-- **When:** only when every CI job on the PR's latest commit has passed. Never merge with CI red, pending or cancelled. Docs-only PRs have no CI to wait for.
+- **When:** only when every CI job on the PR's latest commit has passed, `CI gate` included. Never merge with CI red, pending or cancelled. For docs-only PRs only `CI gate` runs, in seconds.
 - **Up to date first:** the PR should be up to date with `main`. If `main` moved, merge `origin/main` into the branch, re-validate locally, then push once.
   - An up-to-date PR lets the push to `main` reuse the PR's CI result (about 1 minute instead of 16).
 - **How:** merge with the "merge" method and `expectedHeadSha`, and only when the user has asked or approved merging.

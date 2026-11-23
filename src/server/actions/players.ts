@@ -10,7 +10,7 @@ import { CARD_ACCENTS } from "@/domain/player-card";
 import { getAppDb } from "@/server/bootstrap";
 import { getSession, requireOpenableProfile, requirePermission, requirePlayerEditor } from "@/server/auth/session";
 import { archivePlayer, getOrCreateTeam, PlayerValidationError, setLineupSlot, setLineupSubstitute } from "@/server/repositories/team";
-import { canViewPlayerStats, isAdmin } from "@/server/auth/permissions";
+import { canViewPlayerStats } from "@/server/auth/permissions";
 import { auditPlayerName, recordAudit } from "@/server/audit/log";
 import { guardArchiveProfile } from "@/server/auth/account-admin";
 
@@ -62,9 +62,8 @@ export async function archivePlayerAction(playerId: string, archived: boolean): 
     const db = await getAppDb();
     if (archived) await guardArchiveProfile(db, playerId);
     await archivePlayer(db, playerId, archived);
-    // The activity log records what administrators change (the privacy notice's words); a team
-    // manager who is not one stays out of it until the notice says otherwise.
-    if (isAdmin(session)) await recordAudit(db, session, { action: archived ? "profile.archive" : "profile.restore", target: { type: "player", id: playerId, name: await auditPlayerName(db, playerId) } });
+    // The activity log records what administrators and team managers change on others' profiles (OD9, 23 Nov 2026).
+    await recordAudit(db, session, { action: archived ? "profile.archive" : "profile.restore", target: { type: "player", id: playerId, name: await auditPlayerName(db, playerId) } });
     touch();
     return { ok: true };
   } catch (err) {
@@ -126,11 +125,13 @@ export type ProfileSaveResult =
  */
 export async function saveProfilePatchAction(playerId: string, patch: z.infer<typeof patchSchema>, version: string | null): Promise<ProfileSaveResult> {
   try {
-    await requirePlayerEditor(playerId);
+    const session = await requirePlayerEditor(playerId);
     const parsed = patchSchema.parse(patch);
     const db = await getAppDb();
     const { patchPlayerProfile } = await import("@/server/repositories/team");
     const r = await patchPlayerProfile(db, playerId, parsed, version);
+    // Someone else's roles or pools (a team manager's or an administrator's edit) are recorded since OD9: what changed by field name, never the champions.
+    if (r.ok && session.playerId !== playerId) await recordAudit(db, session, { action: "profile.edit", target: { type: "player", id: playerId, name: await auditPlayerName(db, playerId) }, details: { fields: Object.keys(parsed).sort().join(", ") } });
     if (!r.ok) {
       const p = r.player;
       if (!p.primaryRole) return { ok: false, error: "This profile was changed somewhere else; reload to see the latest version." };

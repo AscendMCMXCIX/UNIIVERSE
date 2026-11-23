@@ -12,7 +12,8 @@ import { Input, Label } from "@/components/ui/input";
 import { toast } from "@/components/ui/toast";
 import { useBrandNames } from "@/components/brand-names";
 import { formatDateTime } from "@/lib/format";
-import { typedMatches } from "@/domain/typed-confirmation";
+import { RENAME_PHRASE, typedMatches } from "@/domain/typed-confirmation";
+import { setMemberUsernameAction } from "@/server/actions/member-admin";
 
 /** An account's state in one word an admin acts on. */
 export type AccountStatus = "active" | "awaiting-login" | "setup" | "deactivated";
@@ -96,6 +97,75 @@ function TypedName({ expected, action, value, onChange, testId }: { expected: st
       </Label>
       <Input id={id} value={value} onChange={(e) => onChange(e.target.value)} autoComplete="off" autoCapitalize="none" spellCheck={false} data-testid={testId} />
     </div>
+  );
+}
+
+/**
+ * The Owner changes another member's username (OD8a): the new name in the person view's form, then
+ * RENAME typed in a dialog, because it is the name they sign in with. The server checks the
+ * Owner, the phrase and the username's rules again, and records the change without either name.
+ */
+export function UsernameChange({ account }: { account: Pick<AccountView, "userId" | "username"> }) {
+  const router = useRouter();
+  const [next, setNext] = React.useState(account.username);
+  const [open, setOpen] = React.useState(false);
+  const [typed, setTyped] = React.useState("");
+  const [busy, setBusy] = React.useState(false);
+  const id = React.useId();
+  const close = () => {
+    if (busy) return;
+    setOpen(false);
+    setTyped("");
+  };
+  const save = async () => {
+    setBusy(true);
+    const r = await setMemberUsernameAction(account.userId, next, typed);
+    setBusy(false);
+    if (r.ok) {
+      toast.success("Username changed.", { description: `They now sign in as ${r.data.username}.` });
+      setOpen(false);
+      setTyped("");
+      router.refresh();
+    } else toast.error("That did not work", { description: r.error });
+  };
+  return (
+    <>
+      <form
+        className="flex flex-wrap items-end gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          setOpen(true);
+        }}
+        data-testid="member-username"
+      >
+        <div className="min-w-0 grow basis-48 space-y-1">
+          <Label htmlFor={id}>Change their username</Label>
+          <Input id={id} value={next} onChange={(e) => setNext(e.target.value)} autoComplete="off" autoCapitalize="none" spellCheck={false} maxLength={32} />
+        </div>
+        <Button type="submit" variant="outline" disabled={busy || next.trim() === account.username || next.trim() === ""}>
+          Change username
+        </Button>
+      </form>
+      <Dialog
+        size="form"
+        open={open}
+        onClose={close}
+        title={`Change ${account.username}'s username?`}
+        description={`They will sign in as ${next.trim()} from now on. Their password, profile and history stay the same.`}
+        footer={
+          <>
+            <Button variant="ghost" onClick={close} disabled={busy}>
+              Cancel
+            </Button>
+            <Button variant="primary" onClick={() => void save()} disabled={busy || !typedMatches(typed, RENAME_PHRASE)} data-testid="username-confirm">
+              {busy ? "Changing…" : "Change username"}
+            </Button>
+          </>
+        }
+      >
+        <TypedName expected={RENAME_PHRASE} action="to change it" value={typed} onChange={setTyped} testId="username-confirm-input" />
+      </Dialog>
+    </>
   );
 }
 
@@ -185,7 +255,8 @@ export function AccountActions({ account, currentUserId, viewerIsOwner = false, 
   const resetPassword = () => void run(() => resetPasswordAction(account.userId), null).then((d) => d && setIssued(d));
   if (self) return null;
   // Only the Owner changes the Owner account; the server refuses anyone else too.
-  if (account.role === "owner" && !viewerIsOwner) return <span className="text-xs text-fg-subtle">Managed by the Owner</span>;
+  // The Owner's account and another administrator's are the Owner's alone to manage (OD8; the server checks it).
+  if ((account.role === "owner" || (account.isAdmin && !self)) && !viewerIsOwner) return <span className="text-xs text-fg-subtle">Managed by the Owner</span>;
   const withProfile = !!account.playerId;
   return (
     <div className="flex flex-wrap items-center gap-1.5" data-testid="account-actions">

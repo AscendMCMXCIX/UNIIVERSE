@@ -72,8 +72,8 @@ const STORED: Array<{ what: string; why: string; who: string; kept: string }> = 
     kept: "Until a planned database clean-up deletes all of them, once a recent backup has been checked. Deleting your profile or permanently removing your personal information already deletes yours; your Riot match history is never part of them",
   },
   {
-    what: "Admin activity: which account or setting an administrator changed, and when, with names as they were then",
-    why: "A record of administration",
+    what: "Account activity log: which account or setting an administrator changed, and when; when a member changes their own username, display name or profile picture, or their password (that it changed, never the new value); and when a team manager changes another member's roles, champion pools, team membership or Riot accounts. It names the account and the kind of change, with names as they were then, never what was typed",
+    why: "A record of administration and of changes to how members appear and sign in, so a problem can be traced",
     who: "Administrators",
     kept: "Not deleted automatically. Permanent removal replaces the person's name in it with “Erased member”",
   },
@@ -232,7 +232,7 @@ export default async function PrivacyPage() {
             <li>The account and its sign-in sessions; the profile with its roles, champion pools, card design, picture and social links; the records kept from the retired Ranked Development (objectives, plans, sessions and reviews); and every linked Riot account with its Riot IDs, PUUIDs, ranks, champion mastery and statistics.</li>
             <li>Games: a stored game that no other member&apos;s history or bookmark uses is deleted. In any other, the person&apos;s place becomes &ldquo;Removed player&rdquo;: only the side they played on and the result stay, never their name, Riot ID, champion, items or figures, and their part of the game&apos;s timeline is deleted.</li>
             <li>Notes: their name is replaced by &ldquo;[removed]&rdquo; in other people&apos;s notes.</li>
-            <li>Logs: their name becomes &ldquo;Erased member&rdquo; in the admin activity log, and their Riot IDs are taken out of the background job records.</li>
+            <li>Logs: their name becomes &ldquo;Erased member&rdquo; in the account activity log, and their Riot IDs are taken out of the background job records.</li>
             <li>A removal record (see What is stored) keeps games stored later from including them and stops their Riot accounts being linked again by mistake. It holds no name or Riot ID.</li>
           </ul>
           <p className="mt-3 text-sm text-fg-muted">

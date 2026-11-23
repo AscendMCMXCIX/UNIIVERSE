@@ -249,6 +249,11 @@ export async function requireRiotAccountEditor(playerId: string): Promise<Sessio
   const { canManageRiotAccounts } = await import("./permissions");
   if (!canManageRiotAccounts(session, playerId)) throw new NotAuthorizedError();
   await requireOpenableProfile(session, playerId);
+  // Someone else's profile follows its account's place in the hierarchy (OD8): the Owner's and an administrator's, only the Owner's to change.
+  if (session.playerId !== playerId) {
+    const [{ getAppDb }, { guardProfileAccount }] = await Promise.all([import("@/server/bootstrap"), import("./account-admin")]);
+    await guardProfileAccount(await getAppDb(), session.userId, playerId, "change the Riot accounts of");
+  }
   return session;
 }
 

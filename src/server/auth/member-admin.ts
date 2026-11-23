@@ -1,13 +1,13 @@
 import { eq } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { players, users } from "@/server/db/schema";
-import { getUser, UserError, type UserRecord } from "@/server/repositories/users";
-import { currentDisplayName, loadSocialLinks, removeAvatar, setAvatar, setDisplayName, setSocialLinks } from "@/server/repositories/profile";
+import { getUser, normaliseUsername, UserError, type UserRecord } from "@/server/repositories/users";
+import { changeUsername, currentDisplayName, loadSocialLinks, removeAvatar, setAvatar, setDisplayName, setSocialLinks } from "@/server/repositories/profile";
 import { setAccessGroups, setAccessLevel, type AccessLevelChoice } from "@/server/repositories/permissions";
 import type { SocialKind, SocialLinks } from "@/domain/social-links";
 import { SOCIAL_KINDS, visibleSocialLinks } from "@/domain/social-links";
 import { getOrCreateTeam, setTeamMember } from "@/server/repositories/team";
-import { guardOwnerAccount, guardProfileAccount, guardSelf, guardVerificationAccount, setAdministrator } from "./account-admin";
+import { guardHierarchy, guardProfileAccount, guardSelf, guardVerificationAccount, setAdministrator } from "./account-admin";
 import { revokeAllSessions } from "./sessions";
 
 /*
@@ -38,6 +38,25 @@ export async function setMemberDisplayName(db: Db, actorId: string, userId: stri
 }
 
 /**
+ * The Owner gives another member a new username (OD8a, 23 Nov 2026): the Owner only, never the
+ * Owner's own here (Settings) nor the Production check's account; the same rules as a member's own
+ * change (allowed characters, length, not taken). The username is how they sign in, so the screen
+ * asks for a typed confirmation and the action records it (account.username).
+ */
+export async function setMemberUsername(db: Db, actorId: string, userId: string, next: string): Promise<{ username: string; changed: boolean }> {
+  const actor = await getUser(db, actorId);
+  if (actor?.role !== "owner") throw new UserError("Only the Owner changes another member's username.");
+  const user = await target(db, userId);
+  guardSelf(actorId, userId, "rename here");
+  guardVerificationAccount(actorId, user, "rename");
+  if (typeof next !== "string") throw new UserError("Enter a username.");
+  const username = normaliseUsername(next);
+  if (username === user.username) return { username, changed: false };
+  const done = await changeUsername(db, userId, username);
+  return { username: done.username, changed: done.username !== user.username };
+}
+
+/**
  * Ends every session of another account. Returns how many ended, for the server and its tests
  * only: the screen and the audit row say "Signed out everywhere" (the privacy notice says nobody
  * in the app sees sign-in sessions).
@@ -46,7 +65,7 @@ export async function signOutEverywhere(db: Db, actorId: string, userId: string)
   const user = await target(db, userId);
   if (actorId === userId) throw new UserError("Use Settings → Sign out of other devices for your own account.");
   guardVerificationAccount(actorId, user, "sign out");
-  await guardOwnerAccount(db, actorId, user, "sign out");
+  await guardHierarchy(db, actorId, user, "sign out");
   return revokeAllSessions(db, userId);
 }
 
@@ -55,7 +74,7 @@ export async function moderateAvatar(db: Db, actorId: string, userId: string, da
   const user = await target(db, userId);
   guardSelf(actorId, userId, "moderate the picture of");
   guardVerificationAccount(actorId, user, "change the picture of");
-  await guardOwnerAccount(db, actorId, user, "change the picture of");
+  await guardHierarchy(db, actorId, user, "change the picture of");
   if (data === null) {
     // Removing a picture that is not there changes nothing (what was removed, from the delete itself).
     return { version: null, changed: await removeAvatar(db, userId) };
@@ -114,7 +133,7 @@ export const groupsOf = (u: UserRecord) => [...u.accessGroups].sort().join();
 /**
  * Team membership, access level, extra groups and administrator access in one transaction (D6): either all of it
  * is saved or none of it. Each step keeps its own rules (setAccessLevel, setAccessGroups,
- * setAdministrator); granting administrator access needs `confirmAdministrator`.
+ * setAdministrator); granting administrator access needs `confirmAdministrator` and the Owner.
  */
 export async function saveAccess(db: Db, actorId: string, userId: string, input: AccessSave): Promise<AccessSaved> {
   if (!input || typeof input !== "object" || !input.level || !Array.isArray(input.groups) || typeof input.administrator !== "boolean") throw new UserError("Choose the access to save.");
