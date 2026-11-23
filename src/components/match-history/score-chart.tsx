@@ -23,7 +23,7 @@ export interface ChartSeries {
   label: string;
 }
 
-const H = 96;
+const H = 84;
 const PAD = 8;
 
 export function ScoreChart({ points, series }: { points: readonly TimelinePoint[]; series: readonly ChartSeries[] }) {
@@ -125,7 +125,7 @@ export function ScoreChart({ points, series }: { points: readonly TimelinePoint[
         >
           <svg width={width} height={H} viewBox={`0 0 ${width} ${H}`} className="block overflow-visible" aria-hidden>
             <defs>
-              <linearGradient id={`${uid}-a`} x1="0" x2="1" y1="0" y2="0">
+              <linearGradient id={`${uid}-a`} gradientUnits="userSpaceOnUse" x1={PAD} x2={width - PAD} y1="0" y2="0">
                 <stop offset="0" stopColor="var(--color-accent)" />
                 <stop offset="1" stopColor="var(--color-accent-2)" />
               </linearGradient>

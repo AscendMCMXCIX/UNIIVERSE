@@ -44,19 +44,19 @@ export const COMPONENT_ORDER: readonly ComponentKey[] = ["kp", "kda", "deaths", 
 /** Each component's words: what it is, and how a player stands out on it (above or below the match). */
 export const COMPONENTS: Record<ComponentKey, { label: string; high: string; low: string }> = {
   kp: { label: "Kill participation", high: "high kill participation", low: "low kill participation" },
-  kda: { label: "KDA", high: "strong KDA", low: "weak KDA" },
+  kda: { label: "KDA", high: "a strong KDA", low: "a weak KDA" },
   deaths: { label: "Deaths", high: "few deaths", low: "many deaths" },
-  damage: { label: "Damage share", high: "high damage share", low: "low damage share" },
-  tanking: { label: "Damage taken and mitigated", high: "took the fights' damage", low: "took little of the fights' damage" },
+  damage: { label: "Damage share", high: "a high damage share", low: "a low damage share" },
+  tanking: { label: "Damage taken and mitigated", high: "much damage taken for the team", low: "little damage taken for the team" },
   farm: { label: "CS per minute", high: "strong farm", low: "low farm" },
-  gold: { label: "Gold share", high: "high gold share", low: "low gold share" },
+  gold: { label: "Gold share", high: "a high gold share", low: "a low gold share" },
   vision: { label: "Vision per minute", high: "strong vision", low: "low vision" },
   wards: { label: "Wards placed and cleared", high: "many wards placed and cleared", low: "few wards" },
   objectives: { label: "Objective damage", high: "high objective damage", low: "low objective damage" },
   turrets: { label: "Turret takedowns", high: "many turret takedowns", low: "few turret takedowns" },
   cc: { label: "Crowd control", high: "much crowd control", low: "little crowd control" },
   protect: { label: "Healing and shielding", high: "much healing and shielding of teammates", low: "little healing or shielding" },
-  lane: { label: "Lane at 10:00 and 15:00", high: "won the lane", low: "behind in lane" },
+  lane: { label: "Lane at 10:00 and 15:00", high: "a lead in lane", low: "a deficit in lane" },
 };
 
 /**

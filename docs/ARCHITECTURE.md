@@ -374,13 +374,27 @@ request is a game's match timeline, once per game, when a section that needs it 
   `personalComparison`. The open card folds into a header with Previous and Next; opening
   pushes one history entry, switching replaces it, closing goes Back; switching is anchored (the
   new header lands where the old one was, scrolled before paint).
+  **Release 16 (23 Nov 2026):** any of the ten players can be inspected from the scoreboard (a row's
+  one button; ↑ ↓ between the rows; client state only, never in the address); the left column
+  follows them (their loadout, tiles, a line of supports' and tanks' figures, Build Path | Skill
+  Order | Runes in `participant-panels.tsx`, and the lane against *their* lane opponent). Each row
+  carries the performance score (`src/domain/performance-score.ts`, docs/PERFORMANCE_SCORE.md),
+  computed in the browser from the record and the timeline already loaded
+  (`performance-inputs.ts`), with the score through the game (`score-chart.tsx`) and a comparison
+  with a second player (`performance-panel.tsx`). `DetailParticipant` gained each player's
+  `runePage`, `laneOpponentSlot` and `win` and the healing, shielding, mitigation, time dead and
+  plates figures, from the row the view already read.
 - **Timeline** (`getMatchTimeline` in `src/server/accounts/match-timeline.ts`,
   `getMatchTimelineAction`): the two teams' gold difference per frame, only when the stored
   timeline holds all ten players (`teamGoldDifference`; a removed player or a gap leaves it out,
   with a note). Its chart (`match-timeline-panel.tsx`, with `goldStory`) was removed from the
   post-game view on 23 Nov 2026; the server still works the difference out, as the check that
   keeps a contradicting timeline's lane figures off the page (below) needs it, and its view still
-  carries the build, the gold and the events, which no page reads since then. The timeline is fetched
+  carries the build, the gold and the events. Since Release 16 it also carries every player of the
+  stored timeline by place in the record (`players`: the build path with sales, skill points, kill
+  times, frames, lane and bot-lane pair; `t`, `sales`, `itemKinds`), from the same row and the same
+  reads as before (tests/db/match-views.test.ts counts them: `match_timelines` once,
+  `match_details` three times, as before), so inspecting another player fetches nothing. The timeline is fetched
   once per game (stored in `match_timelines` as before; a game Riot no longer serves is recorded as
   unavailable and not asked for again), the browser keeps the answer for the list
   (`MatchDetailCache.timeline`), and Riot's 429 is shown as "Riot is limiting requests just now".

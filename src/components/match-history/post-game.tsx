@@ -173,8 +173,8 @@ function MoreFigures({ p }: { p: DetailParticipant }) {
   if (typeof st?.teamHealing === "number" || typeof st?.teamShielding === "number") parts.push(["protect", `${formatKilo(protect)} healed and shielded`]);
   if (typeof st?.objectiveDamage === "number") parts.push(["objectives", `${formatKilo(st.objectiveDamage)} objective damage`]);
   if (typeof st?.turretTakedowns === "number") parts.push(["turrets", `${formatCount(st.turretTakedowns)} ${st.turretTakedowns === 1 ? "turret" : "turrets"}`]);
-  if (typeof st?.wardsKilled === "number") parts.push(["wardsKilled", `${formatCount(st.wardsKilled)} wards cleared`]);
-  if (typeof st?.controlWardsBought === "number") parts.push(["control", `${formatCount(st.controlWardsBought)} control wards`]);
+  if (typeof st?.wardsKilled === "number") parts.push(["wardsKilled", `${formatCount(st.wardsKilled)} ${st.wardsKilled === 1 ? "ward" : "wards"} cleared`]);
+  if (typeof st?.controlWardsBought === "number") parts.push(["control", `${formatCount(st.controlWardsBought)} control ${st.controlWardsBought === 1 ? "ward" : "wards"}`]);
   if (!parts.length) return null;
   return (
     <p className="text-xs leading-5 text-fg-muted" data-testid="post-game-more">

@@ -34,6 +34,16 @@ export function PerformancePanel({ scores, points, timeline, subject, compare, o
         <span className="flex items-center gap-1.5">
           <span className="label-caps">Performance score</span>
           <InfoTip label="About the performance score" testId="performance-info" text="Compared within this game only: each player's figures against the other players and their lane opponent, weighted by role. 5 is the game's average." />
+          {mine && timeline !== "loading" ? (
+            <span className="ml-1 flex flex-wrap items-baseline gap-x-2" data-testid="performance-summary">
+              <span className="text-2xl font-semibold leading-none tabular-nums text-fg" data-testid="performance-value">
+                {formatNumber(mine.score, 1)}
+              </span>
+              <span className="text-xs text-fg-muted" data-testid="performance-rank">
+                {formatOrdinal(mine.rank)} of {scores!.scored}
+              </span>
+            </span>
+          ) : null}
         </span>
         {others.length ? <Select value={compare ? String(compare.slot) : ""} options={options} onValueChange={(v) => onCompare(v === "" ? null : Number(v))} aria-label="Compare with another player" className="max-w-[14rem]" data-testid="performance-compare" /> : null}
       </div>
@@ -47,13 +57,7 @@ export function PerformancePanel({ scores, points, timeline, subject, compare, o
         </p>
       ) : (
         <>
-          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1" data-testid="performance-summary">
-            <span className="text-2xl font-semibold tabular-nums text-fg" data-testid="performance-value">
-              {formatNumber(mine.score, 1)}
-            </span>
-            <span className="text-xs text-fg-muted" data-testid="performance-rank">
-              {formatOrdinal(mine.rank)} of {scores.scored}
-            </span>
+          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 empty:hidden">
             {mine.mvp ? (
               <Badge tone="blue" size="line">
                 MVP

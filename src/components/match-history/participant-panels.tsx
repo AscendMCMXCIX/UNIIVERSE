@@ -57,7 +57,7 @@ function BuildPath({ entry, sales, kinds }: { entry: TimelinePlayerView; sales: 
                     <IconImg
                       icon={x.url ? { url: x.url, name: x.name } : null}
                       size={x.minor ? 18 : 24}
-                      className={cn(x.kind === "sell" && "opacity-45 grayscale", x.done && x.kind === "buy" && "ring-1 ring-fg/70", x.minor && "opacity-75")}
+                      className={cn(x.kind === "sell" && "opacity-45 grayscale", x.done && x.kind === "buy" && "ring-2 ring-fg/80", x.minor && "opacity-75")}
                     />
                     {x.kind === "sell" ? (
                       <span className="absolute -right-0.5 -top-1 rounded-sm bg-bg px-0.5 text-4xs font-semibold leading-3 text-fg-muted" aria-hidden>
@@ -196,7 +196,8 @@ export function ParticipantPanels({ panel, onPanel, result, entry, page }: { pan
           </button>
         ))}
       </div>
-      <div data-testid="panel-body">
+      {/* As tall as the tallest of the three on most games, so the lane under it stays put as they switch. */}
+      <div className="min-h-28" data-testid="panel-body">
         {panel === "runes" ? (
           <Runes page={page} />
         ) : !result ? (

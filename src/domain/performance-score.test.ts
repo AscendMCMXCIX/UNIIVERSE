@@ -116,7 +116,7 @@ describe("fairness", () => {
     const s = scoreMatch(game({ 2: { kills: 8, deaths: 13, assists: 3, cs: 170, damage: 21_000, gold: 11_000 } }), RIFT)!;
     expect(scoreOf(s, 2).score).toBeLessThan(4);
     expect(scoreOf(s, 2).rank).toBeGreaterThanOrEqual(8);
-    expect(reasonText(scoreOf(s, 2).reasons)).toMatch(/Held back by (many deaths|weak KDA)/);
+    expect(reasonText(scoreOf(s, 2).reasons)).toMatch(/Held back by (many deaths|a weak KDA)/);
   });
 
   it("a win does not lift a weak game above a strong losing game", () => {

@@ -378,13 +378,13 @@ function MetChip({ met, href }: { met: MatchMeeting; href: string }) {
 function RowScore({ score, scoring, scored }: { score: PlayerScore | null; scoring: boolean; scored: number }) {
   if (scoring)
     return (
-      <span className="block h-7 w-9 animate-pulse rounded bg-surface-3/60 motion-reduce:animate-none" data-testid="participant-score" data-state="loading">
+      <span className="block h-4 w-9 animate-pulse rounded bg-surface-3/60 motion-reduce:animate-none @min-[30rem]/sb:h-7" data-testid="participant-score" data-state="loading">
         <span className="sr-only">Scoring</span>
       </span>
     );
   if (!score) return <span className="block w-9" data-testid="participant-score" data-state="none" aria-hidden />;
   return (
-    <span className="flex w-9 flex-col items-center leading-tight" data-testid="participant-score" data-score={score.score} data-rank={score.rank} data-mvp={score.mvp || undefined} data-ace={score.ace || undefined}>
+    <span className="flex items-baseline gap-1 leading-tight @min-[30rem]/sb:w-9 @min-[30rem]/sb:flex-col @min-[30rem]/sb:items-center @min-[30rem]/sb:gap-0" data-testid="participant-score" data-score={score.score} data-rank={score.rank} data-mvp={score.mvp || undefined} data-ace={score.ace || undefined}>
       <span className="text-sm font-semibold tabular-nums text-fg">{formatNumber(score.score, 1)}</span>
       {score.mvp || score.ace ? (
         <span className={cn("rounded-sm px-1 text-4xs font-bold leading-3", score.mvp ? "bg-blue/20 text-blue" : "bg-red/20 text-[color-mix(in_srgb,var(--color-red)_75%,white)]")} data-testid={score.mvp ? "participant-mvp" : "participant-ace"}>
@@ -468,7 +468,7 @@ function CompactRow({ x, champ, group, lane, rank, queueId, checking, met, meetH
         ) : null}
         {rank ? <RankBadge rank={rank} queueId={queueId} checking={checking && rank.stale} /> : null}
       </span>
-      <span className="col-start-4 row-start-2 whitespace-nowrap text-right text-2xs leading-tight tabular-nums text-fg-muted @min-[30rem]/sb:col-start-5 @min-[30rem]/sb:row-span-2 @min-[30rem]/sb:row-start-1 @min-[30rem]/sb:w-16" data-testid="participant-cs">
+      <span className={cn("col-start-4 row-start-2 whitespace-nowrap text-right text-2xs leading-tight tabular-nums text-fg-muted @min-[30rem]/sb:col-start-5 @min-[30rem]/sb:row-span-2 @min-[30rem]/sb:row-start-1 @min-[30rem]/sb:w-16", selection && "col-span-2 @min-[30rem]/sb:col-span-1")} data-testid="participant-cs">
         <span className="font-medium text-fg">{intText(x.cs)}</span> CS
         <span className="@max-[30rem]/sb:hidden">
           <br />
@@ -477,8 +477,9 @@ function CompactRow({ x, champ, group, lane, rank, queueId, checking, met, meetH
         <span className="font-medium text-fg">{x.damage === null ? "—" : formatKilo(x.damage)}</span>
         <span className="@max-[30rem]/sb:hidden"> dmg</span>
       </span>
+      {/* On a phone the score sits on the first line beside the K/D/A (CS and damage take the line under both); from 30rem its own column over both lines. */}
       {selection ? (
-        <span className="col-start-5 row-span-2 row-start-1 self-center @min-[30rem]/sb:col-start-6">
+        <span className="col-start-5 row-start-1 self-center justify-self-end @min-[30rem]/sb:col-start-6 @min-[30rem]/sb:row-span-2">
           <RowScore score={selection.score(x.slot)} scoring={selection.scoring} scored={selection.scored} />
         </span>
       ) : null}

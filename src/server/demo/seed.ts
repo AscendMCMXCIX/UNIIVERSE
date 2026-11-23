@@ -509,6 +509,9 @@ const DEMO_RUNES: Record<Role, NonNullable<MatchParticipantDetail["runes"]>> = {
   SUPPORT: { keystone: 8439, primary: 8400, secondary: 8300, primaryPerks: [8439, 8463, 8473, 8242], secondaryPerks: [8304, 8347] },
 };
 
+/** Each role's stat shards (Riot's ids: offense, flex, defense), as records stored from 20 Nov 2026 on carry them. */
+const DEMO_SHARDS: Record<Role, [number, number, number]> = { TOP: [5005, 5008, 5001], JUNGLE: [5008, 5008, 5001], MID: [5008, 5008, 5011], ADC: [5005, 5008, 5011], SUPPORT: [5007, 5008, 5001] };
+
 /**
  * What a demo player ends the game holding (demo mode only), as Riot's record lists it (item0 to
  * item5, 0 for an empty slot, then the trinket): their purchases (demoBuild), each component built
@@ -538,7 +541,7 @@ function demoFinalItems(purchases: ReadonlyArray<readonly [number, number]>, rol
 function giveDemoLoadout(x: MatchParticipantDetail, role: Role, purchases: ReadonlyArray<readonly [number, number]>, durationSeconds: number, sold: ReadonlyArray<readonly [number, number]> = []) {
   x.items = demoFinalItems(purchases, role, durationSeconds, sold);
   x.spells = [...DEMO_SPELLS[role]];
-  x.runes = { ...DEMO_RUNES[role], primaryPerks: [...DEMO_RUNES[role].primaryPerks!], secondaryPerks: [...DEMO_RUNES[role].secondaryPerks!] };
+  x.runes = { ...DEMO_RUNES[role], primaryPerks: [...DEMO_RUNES[role].primaryPerks!], secondaryPerks: [...DEMO_RUNES[role].secondaryPerks!], shards: [...DEMO_SHARDS[role]] };
 }
 
 /** A sequence of its own for a demo game's builds where no timeline drew them (the other sequences stay as they were). */
