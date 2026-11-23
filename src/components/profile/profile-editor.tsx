@@ -671,15 +671,16 @@ export function ProfileEditor({
     <div className="space-y-2" data-testid="profile-editor" data-editing={live || undefined}>
       {heading || intro || editable ? (
         <div className="space-y-1">
-          {/* The heading and Edit share a line on every width; what the figures count follows the heading on its line where both
-              fit (1920 wide: Release 16, 20px of the one-screen Overview), else under it. */}
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1 pt-1">
-              {heading}
-              {intro}
+          {/* The heading and Edit share a line on every width; what the figures count goes under both across the width (a phone,
+              where beside Edit it took more lines), and from md follows the heading on its line where both fit (1920 wide: Release
+              16, 20px of the one-screen Overview), else under the heading. */}
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-1">
+            <div className="contents md:col-start-1 md:row-start-1 md:flex md:min-w-0 md:flex-wrap md:items-baseline md:gap-x-3 md:gap-y-1 md:pt-1">
+              <div className="col-start-1 row-start-1 min-w-0 self-center md:contents">{heading}</div>
+              {intro ? <div className="col-span-2 row-start-2 min-w-0 md:contents">{intro}</div> : null}
             </div>
             {editable ? (
-              <Button size="sm" variant={live ? "primary" : "outline"} className="shrink-0" onClick={() => setEditing((v) => !v)} aria-label={live ? "Done editing roles and champion pools" : "Edit roles and champion pools"} data-testid="pools-edit">
+              <Button size="sm" variant={live ? "primary" : "outline"} className="col-start-2 row-start-1 shrink-0" onClick={() => setEditing((v) => !v)} aria-label={live ? "Done editing roles and champion pools" : "Edit roles and champion pools"} data-testid="pools-edit">
                 {live ? <Check className="h-4 w-4" aria-hidden /> : <Pencil className="h-4 w-4" aria-hidden />}
                 {live ? "Done" : "Edit"}
               </Button>

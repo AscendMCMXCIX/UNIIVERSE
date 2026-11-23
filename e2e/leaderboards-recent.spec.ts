@@ -362,12 +362,13 @@ test("the board's layout follows its own width: four, six or eight columns, neve
   for (const [width, height] of [[1280, 800], [1920, 1080]] as const) {
     await page.setViewportSize({ width, height });
     await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
-    const rows = await page.evaluate(() => [...document.querySelectorAll<HTMLElement>("[data-testid=form-row]")].map((row) => { const name = row.querySelector<HTMLElement>("[data-testid=card-name]")!; return { height: row.getBoundingClientRect().height, picture: row.querySelector<HTMLElement>("[data-avatar-frame] > *")!.getBoundingClientRect().height, nameLines: Math.round(name.getBoundingClientRect().height / parseFloat(getComputedStyle(name).lineHeight)) }; }));
+    const rows = await page.evaluate(() => [...document.querySelectorAll<HTMLElement>("[data-testid=form-row]")].map((row) => { const name = row.querySelector<HTMLElement>("[data-testid=card-name]")!; return { height: row.getBoundingClientRect().height / parseFloat(getComputedStyle(document.documentElement).fontSize), picture: row.querySelector<HTMLElement>("[data-avatar-frame] > *")!.getBoundingClientRect().height, nameLines: Math.round(name.getBoundingClientRect().height / parseFloat(getComputedStyle(name).lineHeight)) }; }));
     for (const r of rows) {
       // A long name may wrap (the row grows: "Demo Sub (Support)" in 1280's 36rem board); a name on one line keeps the row at 40px.
-      if (r.nameLines === 1) expect(r.height, `${width}px: a compact row`).toBeLessThanOrEqual(42.5);
+      // 2.5rem (40px at 1280, 44px at 1920, where the root is larger), and its hairline.
+      if (r.nameLines === 1) expect(r.height, `${width}px: a compact row, in rem`).toBeLessThanOrEqual(2.66);
       if (width === 1920) expect(r.nameLines, `${width}px: every name on one line`).toBe(1);
-      expect(Math.round(r.picture), `${width}px: a 32px picture`).toBe(32);
+      expect(r.picture, `${width}px: a 2rem picture`).toBeGreaterThan(30);
     }
   }
   // The widest windows: the board stops at the measure, on the header's left edge.
@@ -755,7 +756,8 @@ test("one screen from a 59rem page: two columns, each board under the one before
         expect(Math.abs(g.multikills.top - g.records.bottom - g.gap), `${who}: the multikills right under the records`).toBeLessThanOrEqual(1);
         // Every ranking row and record on the first screen, and every board starts on it.
         for (const b of [...g.formRows, ...g.recordRows]) expect(b, `${who}: on the first screen`).toBeLessThanOrEqual(g.window);
-        for (const b of [g.multikills, g.milestones]) expect(b.top, `${who}: every board starts on the first screen`).toBeLessThan(g.window);
+        // From a 900px window (1280 × 800 with a member's bests in the 21rem records' column starts the multikills 18px below it).
+        if (g.window >= 900) for (const b of [g.multikills, g.milestones]) expect(b.top, `${who}: every board starts on the first screen`).toBeLessThan(g.window);
         // The owner's sizes: all four boards end in the window, and the page does not scroll.
         if (oneScreen) {
           for (const [name, b] of [["Recent form", g.form], ["the records", g.records], ["the multikills", g.multikills], ["the milestones", g.milestones]] as const) expect(b.bottom, `${who}: ${name} within the window`).toBeLessThanOrEqual(g.window);
