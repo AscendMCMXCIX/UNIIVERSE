@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "./test";
-import { closeGame, opensFullScreen, openGame } from "./match-history";
+import { closeGame, opensFullScreen, openGame, pastGameHeader } from "./match-history";
 import { NARROW_MOUSE_WINDOWS, expectInReach } from "./reach";
 import { AxeBuilder } from "@axe-core/playwright";
 
@@ -97,7 +97,30 @@ test("one view without subtabs or folds: the loadout names itself, each figure o
   // The lane names the opponent or says it is not clear; both teams in the scoreboard.
   await expect(breakdown.getByTestId("post-game-lane")).toBeVisible();
   await expect(breakdown.getByTestId("participant")).toHaveCount(10);
+  // The game's patch by its public, year-based name, as everywhere else ("Patch 26.20", never the client's "16.20"; the review of Release 13, finding 10).
+  const when = breakdown.getByTestId("match-breakdown-when");
+  if (await when.isVisible()) {
+    await expect(when).toContainText(/Patch \d+\.\d+/);
+    await expect(when).not.toContainText(/Patch 1\d\./);
+  } else await expect(page.getByTestId("match-detail")).not.toContainText(/Patch 1\d\./);
   await fitsWidth(page, "post-game view");
+});
+
+test("one set of Previous, Next and Close at a time: the footer shows its own only once the card's have gone up", async ({ page }) => {
+  test.skip(opensFullScreen(page), "phones open the game as a window, with one bar of steps");
+  await openHistory(page, "TOP");
+  await openGame(page.getByTestId("match-card").nth(1));
+  const header = page.locator("li[data-expanded] [data-game-step][data-where=header]");
+  const footer = page.locator("li[data-expanded] [data-testid=match-footer]");
+  // The card's own on screen: the footer keeps its place and shows nothing (nor can the keyboard reach it).
+  await expect(header).toBeInViewport();
+  await expect(footer).toHaveAttribute("data-hidden", "true");
+  await expect(footer.getByTestId("match-close")).toBeHidden();
+  // Scrolled until the card's have gone up under the pinned bars: the footer's show.
+  await pastGameHeader(page);
+  await expect(footer).not.toHaveAttribute("data-hidden", "true");
+  await expect(footer.getByTestId("match-close")).toBeVisible();
+  await expect(footer.getByTestId("game-next")).toBeVisible();
 });
 
 test("an iPhone 12 (390 × 844, its insets told): the opened game's header is at most 112px with the inset, and the result, loadout, runes, figures and lane are on the first screen", async ({ page }, info) => {
@@ -130,7 +153,7 @@ test("an iPhone 12 (390 × 844, its insets told): the opened game's header is at
   }
 });
 
-test("a game without a timeline says so once, under its lane, whose 10:00 and 15:00 stay empty", async ({ page }) => {
+test("a game without a timeline says so once, under its lane, which shows the end alone (no columns of dashes at 10:00 and 15:00)", async ({ page }) => {
   await openHistory(page, "TOP");
   for (let i = 0; i < 8; i++) {
     const card = page.getByTestId("match-card").nth(i);
@@ -140,11 +163,14 @@ test("a game without a timeline says so once, under its lane, whose 10:00 and 15
     if ((await breakdown.getAttribute("data-timeline")) !== "ok" && (await lane.getAttribute("data-state")) === "clear") {
       await expect(breakdown.getByTestId("timeline-missing")).toHaveCount(1);
       await expect(lane.getByTestId("timeline-missing")).toHaveText("Timeline not available for this game");
-      // Its 10:00 and 15:00 columns say nothing they cannot back; the end (from the record) stays.
+      // No 10:00 and 15:00 columns of dashes (the review of Release 13, finding 10): the end alone, from the record.
+      await expect(lane.locator("thead th")).toHaveCount(2);
+      await expect(lane.locator("thead th").last()).toHaveText("End");
+      await expect(lane).not.toContainText("10:00");
       const cells = await lane.locator("tbody tr").evaluateAll((rows) => rows.map((r) => [...r.querySelectorAll("td")].map((td) => td.textContent?.trim())));
-      for (const [ten, fifteen, end] of cells) {
-        expect([ten, fifteen]).toEqual(["—", "—"]);
-        expect(end).toMatch(/^([+−±][\d,]+|—)$/);
+      for (const row of cells) {
+        expect(row).toHaveLength(1);
+        expect(row[0]).toMatch(/^([+−±][\d,]+|—)$/);
       }
       return;
     }

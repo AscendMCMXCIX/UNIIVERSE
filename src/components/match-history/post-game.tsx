@@ -13,6 +13,7 @@ import { MatchDetailCacheContext, type MeetingScope } from "./match-detail-cache
 import { OpggHistoryLink } from "./opgg-history-link";
 import { GroupsNote, RanksNote, TeamTable } from "./scoreboard";
 import { IconImg } from "./icon-img";
+import { publicPatchName } from "@/domain/patch";
 
 /*
   One game after it was played, in one view, the same wherever a game opens: under its card in
@@ -176,10 +177,11 @@ function Figures({ p, teamKills }: { p: DetailParticipant; teamKills: number }) 
 
 /**
  * The lane by role: the player against the lane opponent at 10:00, 15:00 and the end (signed, plain),
- * and the bot lane's two against two. A tile like the figures above it; `missing` says once, under
- * the table, that the game has no timeline (its 10:00 and 15:00 stay "—").
+ * and the bot lane's two against two. A tile like the figures above it. The 10:00 and 15:00 columns
+ * show while the timeline loads and once it gives a figure; a game without them shows the end
+ * alone, and one quiet line says why (`state`: the timeline's answer, "loading" until it comes).
  */
-function Lane({ view, champ, timeline, missing }: { view: MatchDetailView; champ: (id: string | null) => PortraitChampion; timeline: MatchTimelineView | null; missing: boolean }) {
+function Lane({ view, champ, timeline, state }: { view: MatchDetailView; champ: (id: string | null) => PortraitChampion; timeline: MatchTimelineView | null; state: "loading" | "ok" | "missing" }) {
   const opp = view.comparison.opponent;
   const me = view.player;
   if (!opp)
@@ -202,10 +204,12 @@ function Lane({ view, champ, timeline, missing }: { view: MatchDetailView; champ
     ["Gold", cell(10, "gold"), cell(15, "gold"), end(me.gold, them?.gold)],
     support ? ["XP · vision", cell(10, "xp"), cell(15, "xp"), end(me.vision, them?.vision)] : ["XP · level", cell(10, "xp"), cell(15, "xp"), end(me.champLevel, them?.champLevel)],
   ];
+  // Columns of dashes say nothing: 10:00 and 15:00 only while they may still fill, or once one has a figure.
+  const timed = state === "loading" || rows.some(([, a, b]) => a !== "—" || b !== "—");
   const pair = timeline?.pair ?? null;
   const name = (slot: number) => champ(view.teams.flatMap((t) => t.participants).find((x) => x.slot === slot)?.championId ?? null).name;
   return (
-    <section aria-label="Lane" className="space-y-1.5 rounded-lg bg-surface px-3 py-2" data-testid="post-game-lane" data-state="clear">
+    <section aria-label="Lane" className="space-y-1.5 rounded-lg bg-surface px-3 py-2" data-testid="post-game-lane" data-state="clear" data-timed={timed || undefined}>
       <table className="w-full text-sm leading-6 tabular-nums">
         <thead>
           <tr className="text-2xs text-fg-subtle">
@@ -217,8 +221,12 @@ function Lane({ view, champ, timeline, missing }: { view: MatchDetailView; champ
                 <span className="sr-only">: you minus them</span>
               </span>
             </th>
-            <th className="w-16 pb-1 text-right font-medium">10:00</th>
-            <th className="w-16 pb-1 text-right font-medium">15:00</th>
+            {timed ? (
+              <>
+                <th className="w-16 pb-1 text-right font-medium">10:00</th>
+                <th className="w-16 pb-1 text-right font-medium">15:00</th>
+              </>
+            ) : null}
             <th className="w-16 pb-1 text-right font-medium">End</th>
           </tr>
         </thead>
@@ -228,8 +236,12 @@ function Lane({ view, champ, timeline, missing }: { view: MatchDetailView; champ
               <th scope="row" className="text-left text-xs font-normal text-fg-muted">
                 {label}
               </th>
-              <td className="text-right text-fg">{a}</td>
-              <td className="text-right text-fg">{b}</td>
+              {timed ? (
+                <>
+                  <td className="text-right text-fg">{a}</td>
+                  <td className="text-right text-fg">{b}</td>
+                </>
+              ) : null}
               <td className="text-right font-medium text-fg">{e}</td>
             </tr>
           ))}
@@ -240,9 +252,13 @@ function Lane({ view, champ, timeline, missing }: { view: MatchDetailView; champ
           Bot lane at 10:00, with {name(pair.allySlot)} against {name(pair.opponentSlots[0])} and {name(pair.opponentSlots[1])}: <span className="font-semibold tabular-nums text-fg">{signed(pair.gold)}</span> gold
         </p>
       ) : null}
-      {missing ? (
+      {state === "missing" ? (
         <p className="text-xs text-fg-subtle" data-testid="timeline-missing">
           Timeline not available for this game
+        </p>
+      ) : !timed ? (
+        <p className="text-xs text-fg-subtle" data-testid="timeline-missing">
+          No lane figures at 10:00 and 15:00 in this game&apos;s timeline
         </p>
       ) : null}
     </section>
@@ -273,11 +289,11 @@ export function PostGame({ playerId, view, champ, variant, encounterLinks = fals
         <section aria-label={view.own ? "Your game" : `${champ(view.championId).name}'s game`} className="min-w-0 space-y-3" data-testid="post-game-yours">
           <Loadout p={p} champ={champ(view.championId)} small={variant === "window"} />
           <Figures p={p} teamKills={ownTeam?.kills ?? 0} />
-          <Lane view={view} champ={champ} timeline={tl} missing={!!timeline && timeline.status !== "ok"} />
+          <Lane view={view} champ={champ} timeline={tl} state={!timeline ? "loading" : timeline.status === "ok" ? "ok" : "missing"} />
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-fg-subtle empty:hidden">
             <span className={cn("tabular-nums", variant === "window" && "hidden")} data-testid="match-breakdown-when">
               {formatDateTime(new Date(view.playedAt))}
-              {view.patch ? ` · Patch ${view.patch}` : ""}
+              {view.patch ? ` · Patch ${publicPatchName(view.patch)}` : ""}
             </span>
             {view.share.eligible ? <BookmarkButton matchId={view.matchId} bookmarked={view.share.shared} share /> : null}
             {p.opgg ? <OpggHistoryLink href={p.opgg} account={p.name?.split("#")[0]?.trim() || null} /> : null}

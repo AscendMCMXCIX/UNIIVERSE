@@ -3,6 +3,7 @@
 import * as React from "react";
 import { ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react";
 import { ROLE_LABELS, type Role } from "@/domain/roles";
+import { publicPatchName } from "@/domain/patch";
 import { getMatchDetailAction } from "@/server/actions/match-history";
 import type { MatchDetailResult } from "@/server/players/match-history";
 import type { LpRecord } from "@/domain/lp-attribution";
@@ -142,7 +143,7 @@ export function MatchDetailModal({ playerId, matchId, championsById, onClose, ba
         <div className="space-y-3 motion-safe:fade-in" key={matchId}>
           {view ? (
             <p className="text-xs tabular-nums text-fg-muted" data-testid="match-detail-meta">
-              {[view.queue, fmtDuration(view.durationS), view.role && view.role !== "UNKNOWN" ? (ROLE_LABELS[view.role as Role] ?? view.role) : null, formatDate(new Date(view.playedAt)), view.patch ? `Patch ${view.patch}` : null].filter(Boolean).join(" · ")}
+              {[view.queue, fmtDuration(view.durationS), view.role && view.role !== "UNKNOWN" ? (ROLE_LABELS[view.role as Role] ?? view.role) : null, formatDate(new Date(view.playedAt)), view.patch ? `Patch ${publicPatchName(view.patch)}` : null].filter(Boolean).join(" · ")}
             </p>
           ) : null}
           {result.status !== "ok" ? (

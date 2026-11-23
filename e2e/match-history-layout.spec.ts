@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "./test";
-import { cardOf, expandedOf, openGame, opensFullScreen } from "./match-history";
+import { cardOf, expandedOf, openGame, opensFullScreen, pastGameHeader } from "./match-history";
 import { createMember } from "./member-account";
 import { pagerFold, pagerItems, pagerRem } from "../src/components/match-history/pager";
 
@@ -82,6 +82,8 @@ test("an open game ends with a control that closes it and brings its card into v
   const matchId = (await card.getByTestId("match-row").getAttribute("data-match"))!;
   await openGame(card);
   const close = expandedOf(cardOf(page, matchId)).getByTestId("match-close");
+  // The footer's steps show once the card's own have gone up (one set at a time: Release 13's review, finding 10).
+  await pastGameHeader(page);
   await close.scrollIntoViewIfNeeded();
   await expect(close).toBeVisible();
   // A finger-sized target on touch screens.

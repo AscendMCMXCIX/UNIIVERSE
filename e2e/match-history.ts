@@ -91,3 +91,16 @@ export async function closeGame(card: Locator) {
   await expect(expandedOf(card)).toHaveCount(0);
 }
 
+
+/**
+ * Scrolls an open Match History game until its card's own Previous, Next and Close have gone up under
+ * what is pinned above the page: from then its footer shows the same three (one set at a time).
+ */
+export async function pastGameHeader(page: Page) {
+  await page.evaluate(() => {
+    const steps = document.querySelector("li[data-expanded] [data-game-step][data-where=header]");
+    if (!steps) return;
+    const pinned = parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop) || 0;
+    window.scrollBy({ top: steps.getBoundingClientRect().bottom - pinned + 4, behavior: "instant" });
+  });
+}
