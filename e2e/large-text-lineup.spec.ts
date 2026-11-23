@@ -5,7 +5,8 @@ import { memberContext, unique } from "./member-account";
 /*
   Team Overview's lineup cards with larger text on a phone (in-memory demo roster, synthetic data).
   A phone shows one card at a time, as wide as the phone allows, and every size inside a card is in
-  rem, so with larger text a card holds fewer letters: 6.5rem wide at 200% on a 320px phone, where
+  rem, so with larger text a card holds fewer letters: 8rem wide at 200% on a 320px phone (6.5rem
+  until the carousel of 23 Nov 2026 gave the card the page's width inside its gutter), where
   the usual size never makes one narrower than 12.2rem. The card's clip cut what no longer fitted:
   "CS/MIN" by 7px at 175% and 42px at 200%, KDA and the vision figure beside the win rate ("KDA 3.7",
   "VISI 79."), the role's name in the corner ("SUPPO", and under the turn control already at 150%),
@@ -218,29 +219,26 @@ test("at 150% to 200% text on 320, 375 and 393px phones, every lineup card holds
     }
   }
   // The icon stands alone exactly where the lane is narrower than the role's threshold (its chip and
-  // the margin), and nowhere else: Top and Support beside their turn control (Support from 150% on
-  // 320 and 375px and 175% on 393px, Top from 175% on 320px and 200% on 375 and 393px); Jungle and
-  // Bottom, without a control, only where the card is too narrow for them (Bottom from 175% on 320px,
-  // Jungle at 200% there). Support at 150% on 375px has 7.79rem of lane: its chip fits there in
-  // Chromium and WebKit (7.773rem) but not as GitHub's headless Chromium draws it (7.818rem), and the
-  // lane is under its 7.81rem threshold. Jungle at 175% on 320px and Bottom at 200% on 375px keep
-  // their names, with 3px and 2.3px of room (7.11 and 7.41rem of lane, thresholds 7.04 and 7.38rem);
-  // Mid's short name always fits.
+  // the margin), and nowhere else. Since the carousel (23 Nov 2026) a card is the phone's width less
+  // the gutter (2rem), 1.5rem wider than with the glimpse of its neighbours, so fewer chips narrow:
+  // Support beside its turn control (lane: the card less 4.25rem) from 150% on 320px, 175% on 375 and
+  // 393px; Top beside its control only at 200% on 320px (3.75rem of lane; at 175% there 5.18rem holds
+  // its 5.02rem threshold, as 5.47 and 6.03rem do at 200% on 375 and 393px); Bottom, without a control
+  // (lane: the card less about 0.8rem), only at 200% on 320px (7.2rem, threshold 7.38rem), where Jungle
+  // keeps its name (threshold 7.04rem). Support at 175% on 393px has 7.79rem of lane: its chip fits
+  // there in Chromium and WebKit (7.773rem) but not as GitHub's headless Chromium draws it (7.818rem),
+  // and the lane is under its 7.81rem threshold. Mid's short name always fits. (Before the carousel:
+  // also Top and Bottom at 175% on 320px, Jungle at 200% there, Support at 150% on 375px and Top at
+  // 200% on 375 and 393px.)
   expect(narrowed, "the chips shown as their icon alone").toEqual([
     "320px at 150% SUPPORT",
-    "320px at 175% TOP",
-    "320px at 175% ADC",
     "320px at 175% SUPPORT",
     "320px at 200% TOP",
-    "320px at 200% JUNGLE",
     "320px at 200% ADC",
     "320px at 200% SUPPORT",
-    "375px at 150% SUPPORT",
     "375px at 175% SUPPORT",
-    "375px at 200% TOP",
     "375px at 200% SUPPORT",
     "393px at 175% SUPPORT",
-    "393px at 200% TOP",
     "393px at 200% SUPPORT",
   ]);
 
@@ -362,9 +360,10 @@ test("a member's own card, with Customise beside the turn control, at 150% to 20
         if (card.labelShown) named.push(at);
       }
     }
-    // Beside two controls the role's name shows only at the usual size and at 150% on a 393px phone
-    // (5.42rem of lane, over Top's 5.02rem threshold); everywhere else the icon stands alone.
-    expect(named, "your own card's chip with the role's name").toEqual(["320px at 100%", "375px at 100%", "393px at 100%", "393px at 150%"]);
+    // Beside two controls (lane: the card less 7.375rem) the role's name shows at the usual size and at
+    // 150% on 375 and 393px phones (6.25 and 7rem of lane, over Top's 5.02rem threshold; 375px joined
+    // with the carousel's wider card, 23 Nov 2026); everywhere else the icon stands alone.
+    expect(named, "your own card's chip with the role's name").toEqual(["320px at 100%", "375px at 100%", "375px at 150%", "393px at 100%", "393px at 150%"]);
   } finally {
     await setTopStarter(adminPage, before);
     topToRestore = null;
@@ -374,26 +373,25 @@ test("a member's own card, with Customise beside the turn control, at 150% to 20
   }
 });
 
-test("the lineup pager on a 320 × 568 phone: every target 44px or more at 100% to 200% text, and the usual size's layout unchanged (§6 row 1.2h)", async ({ page }, info) => {
+test("the carousel's position dots on a 320 × 568 phone: every target 44px or more at 100% to 200% text, the five on screen, the same 220px at every size (§6 row 1.2h)", async ({ page }, info) => {
   test.skip(info.project.name !== "phone", "a 320px phone, set below");
   await page.setViewportSize({ width: 320, height: 568 });
-  // The members' pager (pictures and names) and the public page's (the roles).
+  // The members' page and the public page (the same carousel since 23 Nov 2026; the lineup pager over
+  // the cards, whose targets this test held to 44px from 20 Nov 2026, went with it).
   for (const path of ["/team", "/public"]) {
     await page.goto(path);
-    const pager = page.getByTestId("lineup-pager");
-    await expect(pager).toBeVisible();
+    const indicator = page.getByTestId("lineup-indicator");
+    await expect(indicator).toBeVisible();
+    await expect(page.getByTestId("lineup-pager")).toHaveCount(0);
     for (const root of [100, 125, 150, 175, 200]) {
       await page.evaluate((r) => { document.documentElement.style.fontSize = `${r}%`; }, root);
       await settled(page);
-      const m = await pager.evaluate((p) => ({ pager: p.getBoundingClientRect().width, dots: Array.from(p.querySelectorAll("[data-testid=lineup-dot]")).map((d) => { const r = d.getBoundingClientRect(); return { width: r.width, height: r.height }; }) }));
+      const m = await indicator.evaluate((p) => ({ width: p.getBoundingClientRect().width, left: p.getBoundingClientRect().left, right: p.getBoundingClientRect().right, dots: Array.from(p.querySelectorAll("[data-testid=lineup-indicator-dot]")).map((d) => { const r = d.getBoundingClientRect(); return { width: r.width, height: r.height }; }) }));
       expect(m.dots, `${path} at ${root}%: five targets`).toHaveLength(5);
-      // 46px wide at 200% (41px when the gap and padding were in rem).
-      for (const [i, d] of m.dots.entries()) expect(Math.min(d.width, d.height), `${path} at ${root}%: target ${i + 1}`).toBeGreaterThanOrEqual(45);
-      // The usual size keeps its layout: the pager 288px wide, each target 52px.
-      if (root === 100) {
-        expect(m.pager, `${path} at 100%: the pager's width`).toBeCloseTo(288, 0);
-        for (const d of m.dots) expect(d.width, `${path} at 100%: a target's width`).toBeCloseTo(52, 0);
-      }
+      for (const [i, d] of m.dots.entries()) expect(Math.min(d.width, d.height), `${path} at ${root}%: target ${i + 1}`).toBeGreaterThanOrEqual(44);
+      // In px, so larger text never spreads them past the phone: 220px wide, on screen.
+      expect(m.width, `${path} at ${root}%: the dots' width`).toBeCloseTo(220, 0);
+      expect(m.left >= 0 && m.right <= 320, `${path} at ${root}%: on screen`).toBe(true);
     }
     await page.evaluate(() => { document.documentElement.style.fontSize = ""; });
   }

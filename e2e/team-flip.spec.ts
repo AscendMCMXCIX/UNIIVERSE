@@ -1,5 +1,6 @@
 import { expect, test, type CDPSession, type Locator, type Page } from "./test";
 import { memberContext } from "./member-account";
+import { showLineupCard } from "./lineup";
 
 /*
   Team Overview: a starter's card turns over (a 3D turn) to the role's one designated substitute,
@@ -8,7 +9,7 @@ import { memberContext } from "./member-account";
   nothing is saved, nothing is fetched, a reload shows the saved lineup, and it works for anyone
   who can see the page. In Edit lineup a manager chooses, replaces or removes each role's
   substitute (Sub), and Start on the back swaps them; turning back is the cancel.
-  Phones: a tap turns a card, a sideways swipe only scrolls the track. Reduced motion: no rotation.
+  Phones: a tap turns a card, a sideways swipe only moves the carousel. Reduced motion: no rotation.
   The demo roster is shared by the whole run, so the tests read who is where from the page.
 */
 
@@ -220,7 +221,7 @@ test("the face turned away is never drawn: the faces swap when the card is edge-
 test("what is drawn over the art (links, controls) leaves with its side: gone early in the turn, back only once the other side has settled", async ({ page }) => {
   await openTeam(page);
   const role = await withSubstitute(page);
-  if (isPhone(page)) await page.getByTestId("lineup-pager").getByRole("tab", { name: new RegExp(`^${role === "TOP" ? "Top" : "Support"}`) }).click();
+  if (isPhone(page)) await showLineupCard(page, role);
   // One whole turn to the substitute, its clock stepped by hand (so every moment is seen, however
   // fast the browser draws): how far through the turn, and what each side shows.
   const frames = await card(page, role).evaluate(async (el) => {
@@ -425,7 +426,7 @@ async function swipe(page: Page, cdp: CDPSession, from: { x: number; y: number }
   await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
 }
 
-test("phones: a sideways swipe only scrolls the track, a tap on the control turns the card, and nothing is clipped", async ({ page, context }) => {
+test("phones: a sideways swipe only moves the carousel, a tap on the control turns the card, and nothing is clipped", async ({ page, context }) => {
   test.skip(!isPhone(page), "phones only");
   await openTeam(page);
   const track = page.getByTestId("lineup-overview");
@@ -435,9 +436,9 @@ test("phones: a sideways swipe only scrolls the track, a tap on the control turn
   const y = Math.round(area.y + 160);
   // Swipes that start on a card (its art and its turn control area) scroll; no card turns.
   await swipe(page, cdp, { x: Math.round(area.width * 0.85), y }, { x: Math.round(area.width * 0.2), y });
-  await expect(page.getByTestId("lineup-dot").nth(1)).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByTestId("lineup-indicator-dot").nth(1)).toHaveAttribute("aria-selected", "true");
   await swipe(page, cdp, { x: Math.round(area.width * 0.2), y }, { x: Math.round(area.width * 0.85), y });
-  await expect(page.getByTestId("lineup-dot").nth(0)).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByTestId("lineup-indicator-dot").nth(0)).toHaveAttribute("aria-selected", "true");
   expect(await page.locator("[data-flipped]").count()).toBe(0);
 
   // The turn control is a comfortable touch target; a tap turns the card in view.

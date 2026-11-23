@@ -133,7 +133,7 @@ Substitute side of the Team cards).
 
 | Lineup | Layout |
 | --- | --- |
-| under 36rem (phones upright) | one swipe track, a card at a time, under the lineup pager (members: each tab the player's picture with the role as its badge and the name under it; the public page: the role's icon and name); the card's picture beside the name |
+| under 36rem (phones upright) | a carousel that loops (23 Nov 2026; `useLoopTrack`): one card at a time across the page's width inside its gutter (the track reaches the screen's edges, the gutter its padding; the cards a gap apart that keeps the next card out of view at rest), native swipes with a snap point a card, past the last card the first and before the first the last; five position dots under it (44px tabs, sized in px), members' and public page alike; the card's picture beside the name. No lineup pager over it (it showed the players' pictures until then) |
 | 36–56rem (iPads, upright and landscape; a 1024px laptop with the sidebar open) | 3 + 2, capped at 54rem, the second row centred: never a card alone on a row |
 | a phone held sideways (480px tall or less, 36rem or wider) | five across, compact: art at least 88px, the name, rank and the season's three figures (the picture with "You", the role status, tagline, links, record lines and pool in the player's window); under 36rem (larger text) a track of about two cards |
 | 56rem and up (a 1280px laptop with the sidebar open, and wider) | five across, capped at 84rem (S3a, 20 Nov 2026: 3 + 2 from 56 to 64rem before); Team's whole column, 100rem at most, from a 1920px window (S2c) |
@@ -355,11 +355,16 @@ Library's rows at 1024px and wider likewise.
 the phone project):
 
 - **Team Overview's lineup cards** (`team-roster.tsx`, `player-card.tsx`;
-  `e2e/large-text-lineup.spec.ts`). A phone's card is as wide as the phone allows: 9.8, 7.9 and
-  6.5rem at 150%, 175% and 200% on a 320px phone, where no card at the usual size is under 10.4rem
-  (five across a 56rem lineup since S3a), so every threshold under 9rem applies to larger text only.
-  - Under 9rem the season's figures wrap: the win rate on a line, KDA and CS/min (vision) under it,
-    side by side where they fit; the wins bar keeps 2rem ("CS/MIN" ran 42px past the card at 200%).
+  `e2e/large-text-lineup.spec.ts`). A phone's card is the phone's width less the page's gutter (the
+  carousel, 23 Nov 2026): 11.3, 9.4 and 8rem at 150%, 175% and 200% on a 320px phone (9.8, 7.9 and
+  6.5rem with the glimpse of its neighbours before), where no card at the usual size is under 10.4rem
+  (five across a 56rem lineup since S3a), so every threshold under 9.75rem applies to larger text only
+  (a phone held sideways at the usual size gives its five compact cards about 8.75rem).
+  - Under 9.75rem the season's figures wrap: the win rate on a line, KDA and CS/min (vision) under it,
+    side by side where they fit ("CS/MIN" ran 42px past the card at 200%). Until the carousel the
+    wrap began at 9rem, and from 9 to 9.7rem "CS/MIN" beside the win rate ran up to 18px past the box
+    (the carousel's 9.43rem card at 175% on 320px; the track's 9.36rem at 175% on 360px). Under 9rem
+    the wins bar keeps 2rem.
   - Under 9.75rem the pool's heading wraps instead of ending in "…", and the first choice goes under
     its portrait and wraps at its spaces ("Nauti", "12 gam" were cut); its "·" is held to its words by
     no-break spaces, so "14 games · 29%" never leaves the dot at a line's end.
@@ -897,7 +902,7 @@ size and the state under it; 2 + 2 + 1 on a tablet and five across on a desktop,
 stage ending with the cards, no bench; 3 + 2 on a 1280 × 800 laptop; at 1366, 1440 and 1920 the
 kills / deaths / assists line shown and whole on cards from 14.5rem, and Edit lineup's two labels
 whole side by side; on a phone the logo beside the name with the state and Edit lineup on the line
-under them, the track and its role bar of icons and names, no bench, and no later card's member's
+under them, the carousel and its position dots (the track and its role bar until 23 Nov 2026), no bench, and no later card's member's
 picture asked for while the first card's art loads), `e2e/mobile-landscape.spec.ts` (held sideways
 on an iPhone 15 and an iPhone SE (3rd gen): 2 + 2 + 1, no sideways track, no role bar, the 44px
 logo), `e2e/team-flip.spec.ts` (turning, choosing, replacing and removing a substitute, Make
@@ -1068,7 +1073,9 @@ Three levels, each saying what it proves:
      comes back on a scroll up, and nothing sits under the notch or the home indicator.
   4. Type in a field (display name, a Riot ID when linking an account): no zoom, and the keyboard covers
      neither the field nor its Save button.
-  5. Swipe Team's cards: one card at a time, and an upward swipe still scrolls the page.
+  5. Swipe Team's cards: one card at a time with no other card beside it, past Support comes Top and
+     before Top Support with nothing jumping (Safari's momentum included), the dots under the card follow,
+     and an upward swipe still scrolls the page.
   6. Open and close a detail window and the Card Studio: the page behind does not move.
   7. Open the app with no connection: the offline notice shows.
   8. On an iPad, add to Home Screen and open it: Players shows the whole roster on one screen, two

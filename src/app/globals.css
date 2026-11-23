@@ -937,7 +937,7 @@ p a.text-accent {
   will-change exists only then. No CSS transition on rotate or scale: it would override the turn.
   Reduced motion: no turn, the faces simply swap.
 */
-/* Team Overview on a phone, where the lineup is a track showing one card at a time: until the first
+/* Team Overview on a phone, where the lineup is a carousel showing one card at a time: until the first
    card's art has arrived, the other cards' art, champions and members' pictures are not displayed,
    and a lazy image that is not displayed is not fetched, so the first card's art has the connection
    to itself (team-roster.tsx, docs/PERFORMANCE.md "Team Overview's first card"). From @xl the
@@ -949,8 +949,6 @@ p a.text-accent {
   /* And their members' pictures (/api/avatars), each keeping its round place (a card's picture is 3.5rem). */
   [data-art-wait] > [data-art-later] [data-testid=card-identity] [data-avatar-frame] { min-width: 3.5rem; min-height: 3.5rem; }
   [data-art-wait] > [data-art-later] [data-testid=card-identity] [data-avatar-frame] img { display: none; }
-  /* The lineup pager's other pictures (S3a), each keeping its round place (the 2rem disc under it). */
-  [data-art-wait] > [data-art-later] [data-testid=lineup-dot-picture] img { display: none; }
 }
 .flip-card { perspective: 1800px; }
 .flip-card-inner { transform-style: preserve-3d; }
