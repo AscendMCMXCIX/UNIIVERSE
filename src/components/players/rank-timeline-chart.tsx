@@ -22,6 +22,8 @@ import { cn } from "@/lib/cn";
 */
 
 const MS_DAY = 86_400_000;
+/** The narrowest run of the line that gets a wash under it (px): a single reading's run is 1.5px. */
+const WASH_MIN_PX = 4;
 
 /**
  * The drawing's frame in user units, which are CSS pixels (the viewBox is as wide as the box). Its
@@ -32,12 +34,10 @@ const MS_DAY = 86_400_000;
  * text-2xs is 0.75rem: docs/DESIGN_SYSTEM.md, Type) and the 6px between the name and the plot: 4.75rem.
  * At 4rem, from Release 6's floor, "Platinum IV" started 6px left of the drawing at 1440, 1920 and
  * 2560, its first letter cut. The server draws with 16px (120 tall, a 76px gutter); the box's
- * height is CSS, so nothing moves on hydrating. With `fill` the box takes the height its card gives
- * it (7.5 to 24rem: Ranked progress level with the pools beside it, 23 Nov 2026), and the drawing
- * follows it once measured, so the ladder spreads over the room rather than sitting in a strip.
+ * height is CSS, so nothing moves on hydrating.
  */
-function chartFrame(rem: number, narrow: boolean, height: number | null) {
-  const H = Math.max(Math.round(7.5 * rem), Math.round(height ?? 0));
+function chartFrame(rem: number, narrow: boolean) {
+  const H = Math.round(7.5 * rem);
   const PAD_T = Math.round(0.625 * rem);
   const AXIS_H = Math.round(1.125 * rem);
   return { H, PAD_T, AXIS_H, PLOT_H: H - PAD_T - AXIS_H, pad: { l: Math.round((narrow ? 3 : 4.75) * rem), r: Math.round(0.5 * rem) } };
@@ -48,11 +48,10 @@ interface Hover {
   x: number;
 }
 
-export function RankTimelineChart({ t, label, fill = false }: { t: RankTimeline; label: string; /** Take the height the parent flex column gives it (7.5 to 24rem) instead of a fixed 7.5rem. */ fill?: boolean }) {
+export function RankTimelineChart({ t, label }: { t: RankTimeline; label: string }) {
   const box = React.useRef<HTMLDivElement>(null);
   const uid = React.useId().replace(/[^a-zA-Z0-9]/g, "");
   const [width, setWidth] = React.useState(480);
-  const [height, setHeight] = React.useState<number | null>(null);
   const [rem, setRem] = React.useState(16);
   const [hover, setHover] = React.useState<Hover | null>(null);
   const [focusIndex, setFocusIndex] = React.useState<number | null>(null);
@@ -61,20 +60,18 @@ export function RankTimelineChart({ t, label, fill = false }: { t: RankTimeline;
     const el = box.current;
     if (!el) return;
     const measure = () => {
-      const r = el.getBoundingClientRect();
-      setWidth(Math.max(240, Math.round(r.width)));
-      if (fill) setHeight(Math.round(r.height));
+      setWidth(Math.max(240, Math.round(el.getBoundingClientRect().width)));
       setRem(parseFloat(getComputedStyle(document.documentElement).fontSize) || 16);
     };
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [fill]);
+  }, []);
 
   // Narrow (a phone, a tablet's third, under 25.5rem): the divisions' short codes ("E2"), in a narrower gutter.
   const narrow = width < 25.5 * rem;
-  const { H, PAD_T, PLOT_H, pad } = chartFrame(rem, narrow, height);
+  const { H, PAD_T, PLOT_H, pad } = chartFrame(rem, narrow);
   const span = Math.max(1, t.to - t.from);
   const plotW = width - pad.l - pad.r;
   const x = (at: number) => pad.l + ((Math.min(Math.max(at, t.from), t.to) - t.from) / span) * plotW;
@@ -172,11 +169,11 @@ export function RankTimelineChart({ t, label, fill = false }: { t: RankTimeline;
 
   const grid = range ? ladderGrid(range, { maxDivisions: 4, short: narrow }) : [];
   return (
-    <div ref={box} className={cn("relative min-w-0", fill && "flex max-h-96 min-h-30 flex-1 flex-col")} data-testid="ranked-chart-box">
+    <div ref={box} className="relative min-w-0" data-testid="ranked-chart-box">
       <svg
         viewBox={`0 0 ${width} ${H}`}
         width="100%"
-        className={cn("block touch-pan-y select-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent", fill ? "min-h-30 flex-1" : "h-30")}
+        className="block h-30 touch-pan-y select-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         role="img"
         aria-label={`${label}. ${describe(t)}`}
         tabIndex={0}
@@ -222,10 +219,12 @@ export function RankTimelineChart({ t, label, fill = false }: { t: RankTimeline;
           <line key={`reset-${i}`} x1={x(r.at)} x2={x(r.at)} y1={PAD_T} y2={PAD_T + PLOT_H} className="stroke-fg-subtle" strokeWidth={1} strokeDasharray="2 3" data-testid="ranked-reset" />
         ))}
 
-        {/* The rank, over a faint wash under its line. */}
-        {paths.map((p, i) => (
-          <path key={`wash-${i}`} d={`${p.d} L${p.x1.toFixed(1)},${PAD_T + PLOT_H} L${p.x0.toFixed(1)},${PAD_T + PLOT_H} Z`} fill={`url(#fill-${uid})`} aria-hidden />
-        ))}
+        {/* The rank, over a faint wash under its line. A reading seen alone (a gap on either side: the
+            newest check after several unseen games, say) is its dot, with no wash: the wash of a
+            run under WASH_MIN_PX wide was a stray sliver down to the axis (the UX review of Release 13). */}
+        {paths.map((p, i) =>
+          p.x1 - p.x0 >= WASH_MIN_PX ? <path key={`wash-${i}`} d={`${p.d} L${p.x1.toFixed(1)},${PAD_T + PLOT_H} L${p.x0.toFixed(1)},${PAD_T + PLOT_H} Z`} fill={`url(#fill-${uid})`} aria-hidden data-testid="ranked-wash" /> : null,
+        )}
         {paths.map((p, i) => (
           <path key={i} d={p.d} fill="none" stroke={`url(#line-${uid})`} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" data-testid="ranked-line" />
         ))}

@@ -271,7 +271,7 @@ test("profile Overview on a touch phone: the pools' top three, the off roles and
     expect(await visibleRows()).toBe(total);
     await expect(page.getByTestId("secondary-pool")).toBeVisible();
     await expect(page.getByTestId("ranked-chart")).toBeVisible();
-    await expect(page.getByTestId("ranked-tracking")).toBeVisible();
+    await expect(page.getByTestId("ranked-change")).toBeVisible();
     return;
   }
   // The pool: the top three, then All N brings the rest in order, and Top 3 folds them again.
@@ -288,15 +288,18 @@ test("profile Overview on a touch phone: the pools' top three, the off roles and
   await offFold.click();
   await expect(offFold).toHaveAttribute("aria-expanded", "true");
   await expect(page.getByTestId("secondary-pool")).toBeVisible();
-  // Ranked progress: the heading and the current rank stay; the rest is behind the chevron.
+  // Ranked progress: the heading, the current rank and the 30-day change stay (the UX review of
+  // Release 13: the two figures the card is for); the switches and the chart are behind the chevron,
+  // the account line and the highest rank behind the ⓘ beside the rank at every width.
   await expect(page.getByRole("heading", { name: /Ranked progress/ })).toBeVisible();
   await expect(page.getByTestId("ranked-current")).toBeVisible();
-  for (const id of ["ranked-chart", "ranked-tracking", "ranked-queue-solo", "ranked-peak-stat"]) await expect(page.getByTestId(id), `${id} folded`).toBeHidden();
+  await expect(page.getByTestId("ranked-change")).toBeVisible();
+  for (const id of ["ranked-chart", "ranked-queue-solo"]) await expect(page.getByTestId(id), `${id} folded`).toBeHidden();
   await expect(rankedFold).toHaveAccessibleName(/^Show the details of ranked progress$/);
   const box44 = (await rankedFold.boundingBox())!;
   expect(Math.min(box44.width, box44.height), "a 44px target").toBeGreaterThanOrEqual(44);
   await rankedFold.click();
-  for (const id of ["ranked-chart", "ranked-tracking", "ranked-queue-solo", "ranked-peak-stat"]) await expect(page.getByTestId(id), `${id} shown`).toBeVisible();
+  for (const id of ["ranked-chart", "ranked-queue-solo"]) await expect(page.getByTestId(id), `${id} shown`).toBeVisible();
   await expect(rankedFold).toHaveAccessibleName(/^Hide the details of ranked progress$/);
   // Editing shows every champion, as before.
   await page.getByTestId("pools-edit").click();

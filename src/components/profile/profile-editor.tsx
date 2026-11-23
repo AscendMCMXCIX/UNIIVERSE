@@ -101,10 +101,13 @@ export const PRIMARY_POOL_PHONE_TOP = 3;
 /**
  * How many of the primary pool's champions show on tablets and desktops before its Show all (23 Nov
  * 2026): a pool of 26 made the Overview three screens tall and left the cards beside it far short of
- * it. Eight rows end the pools about level with Ranked progress in the 2×2; most pools are shorter
- * and show whole, with no button.
+ * it. Six rows end the pools about level with the rail beside them in the 2×2 (Recent form, then
+ * Ranked progress); a pool folds only past PRIMARY_POOL_FOLD_OVER champions, so a Show all never
+ * hides just one or two rows, and most pools show whole, with no button.
  */
-export const PRIMARY_POOL_TOP = 8;
+export const PRIMARY_POOL_TOP = 6;
+/** The longest primary pool shown whole on tablets and desktops (PRIMARY_POOL_TOP). */
+export const PRIMARY_POOL_FOLD_OVER = 8;
 
 export function PoolSection({
   title,
@@ -125,6 +128,7 @@ export function PoolSection({
   collapsible,
   phoneTop,
   top,
+  foldOver,
   children,
 }: {
   /**
@@ -139,6 +143,8 @@ export function PoolSection({
    * only with statistics.
    */
   top?: number;
+  /** Fold only a pool longer than this (at least `top`), so a Show all never hides one or two rows. */
+  foldOver?: number;
   /**
    * Shown as a one-line summary (the role, its champions as small portraits) until opened: off
    * roles on the profile, so the page leads with the primary pool. Opening shows the full,
@@ -174,7 +180,7 @@ export function PoolSection({
   const fold = usePhoneFold(`pool-${testId}`);
   // A long pool folds at every width past `top` (its Show all at the list's end, for phones too);
   // else a pool longer than `phoneTop` folds on phones only (its Show all by the heading).
-  const foldsWide = top !== undefined && !!stats && !editable && !closed && ids.length > top;
+  const foldsWide = top !== undefined && !!stats && !editable && !closed && ids.length > Math.max(top, foldOver ?? top);
   const folds = !foldsWide && phoneTop !== undefined && !!stats && !editable && !closed && ids.length > phoneTop;
   const grouped = folds || foldsWide;
   const addChampion = (compact: boolean) => <AddChampion role={role} champions={champions} exclude={selected} onAdd={(id) => onChange([...ids, id])} testId={testId} compact={compact} />;
@@ -639,6 +645,7 @@ export function ProfileEditor({
       collapsible={i > 0 && stats && !live ? { open: openRoles.has(o.role), onToggle: () => toggleRole(o.role) } : undefined}
       phoneTop={i === 0 ? PRIMARY_POOL_PHONE_TOP : undefined}
       top={i === 0 ? PRIMARY_POOL_TOP : undefined}
+      foldOver={i === 0 ? PRIMARY_POOL_FOLD_OVER : undefined}
     />
   );
 

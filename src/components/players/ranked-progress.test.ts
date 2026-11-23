@@ -21,7 +21,9 @@ describe("RankedProgress", () => {
   it("writes the highest recorded rank whole, LP never cut off, with no title repeating it", () => {
     const html = render([snap(D(10, 15), "GRANDMASTER", null, 999, 300, 200), snap(D(11, 1), "GRANDMASTER", null, 950, 310, 205)]);
     expect(html).toContain("Grandmaster · 999 LP");
-    expect(html).toMatch(/<span class="block text-sm font-semibold text-fg">Grandmaster · /);
+    // Behind the ⓘ beside the rank since the UX review of Release 13, whole, as one sentence.
+    expect(text(html, "ranked-peak-stat")).toMatch(/^Highest recorded: Grandmaster · 999\u00a0LP, first checked 15 Oct\.$/);
+    expect(html).not.toMatch(/title="[^"]*Grandmaster/);
   });
 
   it("never credits the 30 days with unseen games that straddle their start", () => {
@@ -62,6 +64,21 @@ describe("RankedProgress", () => {
     expect(three).toMatch(/data-testid="ranked-chart-box"/);
     // No rule between the rank and its movement: one surface.
     expect(three).not.toMatch(/id="ranked-movement" class="[^"]*border-t/);
+  });
+
+  it("leads with the rank and the 30-day change on one row, keeps the rest behind the ⓘ beside the rank, and draws a compact chart", () => {
+    const html = render([snap(D(10, 15), "GOLD", "II", 46, 100, 90), snap(D(10, 20), "GOLD", "I", 12, 104, 91), snap(D(10, 25), "GOLD", "I", 40, 106, 92)]);
+    // The rank and the change share the row before the chart's part (never folded on a phone).
+    const row = html.slice(0, html.indexOf('id="ranked-chart-fold"'));
+    expect(row).toContain('data-testid="ranked-current"');
+    expect(row).toMatch(/<dl id="ranked-movement" class="shrink-0">/);
+    // The account line, the highest rank and the change's path: only in the tip beside the rank.
+    expect(html).toMatch(/aria-label="About this rank"/);
+    for (const id of ["ranked-tracking", "ranked-peak-stat", "ranked-change-path"]) expect(html.match(new RegExp(`data-testid="${id}"`, "g")), id).toHaveLength(1);
+    expect(html).not.toMatch(/<p[^>]*id="ranked-tracking"/);
+    // A compact chart, 7.5rem tall, never stretched to the card (the review: small moves looked large).
+    expect(html).toMatch(/data-testid="ranked-chart-box"/);
+    expect(html).toMatch(/class="block h-30 /);
   });
 
   it("ends with the chart: no History and coverage disclosure, no year strip, rank changes or readings table", () => {

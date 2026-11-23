@@ -692,7 +692,11 @@ With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shel
       window or 40rem and up): the Overview's card takes the band's layout (the picture, the name with
       its tagline, then the roles, rank, lineup status and links on one line, Customise at the end),
       74px like the other sections', so the section tabs never move on a click (UD.PO1: 66px at 1280,
-      86px at 2560 before). A phone held upright keeps the full card.
+      86px at 2560 before). A phone held upright keeps the full card. Since the UX review of
+      Release 13 the other sections draw that same band (`ProfileHeader`'s one `header`): the same
+      labelled Customise, off roles, queue and social links, so nothing in the header changes on a
+      click; only the picture's editor stays on the Overview, and an upright phone carries the other
+      sections' header in its top bar.
     - *Skeletons in the page's shape* (`ui/skeleton.tsx`; UD.X4, P3): Players' rows (one, two or three
       across by the roster's width), All Champions' table, Match History's cards, Team's lineup
       (centred in the height as the lineup is: `data-fills-height`), Riot Accounts' panel (its title, lead, an

@@ -21,24 +21,24 @@ export type RankedProgressHref = (change: { rq?: RankQueue; ra?: string | null }
 /**
  * Ranked progress of one linked account (the Main account unless another is chosen), one queue at
  * a time, in the 2026 ranked year. Compact: where the account stands now (Riot's current rank, LP
- * and the year's wins and losses), how it moved, and a small chart of the stretch UNIIVERSE has
- * read. Riot reports no past ranks, so nothing before the first reading is drawn. The card ends with
- * the chart (18 Nov 2026: the History and coverage disclosure under it, with the ranked year's strip,
- * the rank changes and every reading, was removed from the page; the readings, the history and their
- * calculations are unchanged, docs/RANKED_PROGRESS.md).
+ * and the year's wins and losses) beside how it moved in the last 30 days, then a small chart of the
+ * stretch UNIIVERSE has read. Riot reports no past ranks, so nothing before the first reading is
+ * drawn. The card ends with the chart (18 Nov 2026: the History and coverage disclosure under it was
+ * removed; the readings, the history and their calculations are unchanged, docs/RANKED_PROGRESS.md).
  *
- * One surface (23 Nov 2026): no rule or dashed box inside the card, only spacing. The chart needs
- * three different readings (two changes, CHART_MIN_READINGS); with fewer, one line says what was
- * recorded (fewReadings) instead of a large frame holding a flat line or a single step. The chart
- * takes the height the card gives it (7.5 to 24rem), so beside the pools in the Overview's 2×2,
- * where the card stands level with them, the ladder uses the room.
+ * Simpler, after the UX review of Release 13 (owner item B3): the two things a reader looks for, the
+ * rank and the 30-day change, lead on one row; the account, season and first check, the highest
+ * recorded rank and the change's path ("From Gold III 47 LP to Gold IV 97 LP") are behind the ⓘ
+ * beside the rank (RankDetails). The chart is 7.5rem tall wherever it stands: one stretched to the
+ * card's height made a move of a few LP look like a swing (the review). It needs three different
+ * readings (two changes, CHART_MIN_READINGS); with fewer, one line says what was recorded
+ * (fewReadings). No rule or box inside the card, only spacing.
  *
  * On a touch phone (posture.ts) the card is a Fold (20 Nov 2026, PLAN S8a's Profile Overview
- * heights): its heading and where the account stands now (rank, LP, the year's wins and losses)
- * stay; the account line, the queue and account switches, the 30-day movement, the highest rank
- * and the chart are behind its Show. Tablets and desktop show everything, with no button.
+ * heights): its heading, the rank and the 30-day change stay; the queue and account switches and the
+ * chart are behind its Show. Tablets and desktop show everything, with no button.
  */
-export function RankedProgress({ accounts, queue, accountId, href, now, className }: { accounts: RankHistoryAccount[]; queue: RankQueue; accountId: string | null; href: RankedProgressHref; now: number; /** The card's place (the Overview's 2×2 stretches it level with the pools). */ className?: string }) {
+export function RankedProgress({ accounts, queue, accountId, href, now }: { accounts: RankHistoryAccount[]; queue: RankQueue; accountId: string | null; href: RankedProgressHref; now: number }) {
   if (accounts.length === 0) return null;
   const account = accounts.find((a) => a.id === accountId) ?? accounts.find((a) => a.snapshots.length > 0) ?? accounts[0]!;
   const snapshots = account.snapshots.filter((s) => s.queue === queue);
@@ -52,27 +52,19 @@ export function RankedProgress({ accounts, queue, accountId, href, now, classNam
   // it always shows at least two changes; fewer are said in a line (fewReadings).
   const ranked = timeline.readings.filter((r) => r.score !== null);
   const chartable = ranked.length >= CHART_MIN_READINGS;
+  const tracking = `${account.riotId}${season ? ` · ${season}` : ""}${timeline.trackingSince ? ` · rank recorded since ${formatDate(timeline.trackingSince)}` : " · no rank recorded yet"}`;
   return (
-    <PhoneFoldSection id="ranked-progress" aria-labelledby="ranked-progress-title" className={cn("@container/rank flex flex-col gap-3 rounded-card border border-border bg-surface p-4 panel-depth", className)} data-testid="ranked-progress">
-      {/* The title, then the line saying what is read, then the controls (the queue switch and,
-          with several, the accounts), in that order for screen readers. On a narrow card (under
-          32rem) one wrapping row: the switch shares the title's line where the two fit and goes
-          under it where they do not (larger text), never over it; the tracking line comes last, on
-          a line of its own. From 32rem the title and the tracking line on the left, the controls at
-          the right, so the header is two lines tall, as before.
-          On a touch screen the ⓘ is a 44px button around its 16px mark (InfoTip), reaching 0.875rem
-          past the mark at either side and about 0.7rem under the title's line: there, on the narrow
-          card, the gap beside the title is that reach (0.875rem) and the gap under it larger (1rem), so the switch never
-          sits under the ⓘ's touch area, beside it or under it, and the switch wraps a little
-          sooner rather than crowd it. (The gap beside it was 1rem until 20 Nov 2026; at 0.875rem the
-          phone's Fold chevron keeps the title's line on a 320px phone at 150% text.) The tracking line keeps its usual 0.375rem from the line
-          above (its margin gives back the larger gap): only the switch's place changes. */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 @max-[32rem]/rank:pointer-coarse:gap-x-3.5 @max-[32rem]/rank:pointer-coarse:gap-y-4 @min-[32rem]/rank:grid @min-[32rem]/rank:grid-cols-[minmax(0,1fr)_auto] @min-[32rem]/rank:items-start @min-[32rem]/rank:gap-y-0.5">
-        {/* The title claims only its wrapped width ("progress ⓘ", the ⓘ kept on the last word), so
-            the switch stays beside it as long as even the wrapped title fits there; with larger
-            text it goes under the title rather than over its ⓘ. No min-w-0: that minimum is the
-            point. The tip's bubble is drawn in <body>, so the nowrap does not reach it. */}
-        <h2 id="ranked-progress-title" className="flex-1 text-base font-semibold text-fg @min-[32rem]/rank:col-start-1 @min-[32rem]/rank:row-start-1">
+    <PhoneFoldSection id="ranked-progress" aria-labelledby="ranked-progress-title" className="@container/rank flex flex-col gap-3 rounded-card border border-border bg-surface p-4 panel-depth" data-testid="ranked-progress">
+      {/* The title, then the controls (the queue switch and, with several, the accounts), in that
+          order for screen readers: one wrapping row, the switch on the title's line where the two fit
+          and under it where they do not (larger text), never over it. On a touch screen the ⓘ is a
+          44px button around its 16px mark (InfoTip), reaching 0.875rem past the mark at either side
+          and about 0.7rem under the title's line: on a narrow card the gap beside the title is that
+          reach and the gap under it larger (1rem), so the switch never sits under the ⓘ's touch area. */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 @max-[32rem]/rank:pointer-coarse:gap-x-3.5 @max-[32rem]/rank:pointer-coarse:gap-y-4">
+        {/* The title claims only its wrapped width ("progress ⓘ", the ⓘ kept on the last word). No
+            min-w-0: that minimum is the point. The tip's bubble is drawn in <body>. */}
+        <h2 id="ranked-progress-title" className="flex-1 text-base font-semibold text-fg">
           Ranked{" "}
           <span className="whitespace-nowrap">
             progress{" "}
@@ -82,13 +74,8 @@ export function RankedProgress({ accounts, queue, accountId, href, now, classNam
             />
           </span>
         </h2>
-        <p id="ranked-tracking" className={cn(PHONE_FOLDED, "order-last basis-full text-xs text-fg-subtle wrap-anywhere @max-[32rem]/rank:pointer-coarse:-mt-2.5 @min-[32rem]/rank:order-none @min-[32rem]/rank:col-start-1 @min-[32rem]/rank:row-start-2")} data-testid="ranked-tracking">
-          {account.riotId}
-          {season ? ` · ${season}` : ""}
-          {timeline.trackingSince ? ` · rank recorded since ${formatDate(timeline.trackingSince)}` : " · no rank recorded yet"}
-        </p>
-        <div className="ml-auto flex flex-wrap items-center justify-end gap-2 @min-[32rem]/rank:col-start-2 @min-[32rem]/rank:row-span-2 @min-[32rem]/rank:row-start-1">
-          <PhoneFoldToggle label="the details of ranked progress" iconOnly controls={["ranked-tracking", "ranked-queues", accounts.length > 1 && "ranked-accounts", cur && "ranked-movement", "ranked-chart-fold"].filter(Boolean).join(" ")} testId="ranked-fold" />
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+          <PhoneFoldToggle label="the details of ranked progress" iconOnly controls={["ranked-queues", accounts.length > 1 && "ranked-accounts", "ranked-chart-fold"].filter(Boolean).join(" ")} testId="ranked-fold" />
           <nav id="ranked-queues" aria-label="Queue" className={cn(PHONE_FOLDED, segmentedGroupClass())}>
             {(["solo", "flex"] as const).map((q) => (
               <Link key={q} href={href({ rq: q })} replace scroll={false} aria-current={q === queue ? "page" : undefined} className={segmentClass(q === queue)} data-testid={`ranked-queue-${q}`}>
@@ -110,70 +97,78 @@ export function RankedProgress({ accounts, queue, accountId, href, now, classNam
         </div>
       </div>
 
-      {/* Where the account stands and how it moved, beside the chart of what was read (stacked when
-          narrow: the chart then takes whatever height the card has beyond the rest, up to 24rem, as
-          the card stands level with the pools beside it in the Overview's 2×2). One surface: no
-          rules or boxes inside the card, only spacing (23 Nov 2026). */}
-      {/* The chart's row takes the rest of the card only in the Overview's 2×2 rail (a 1440px window,
-          a card under 40rem): elsewhere the rows are implicit, so a phone's folded chart leaves no gap. */}
-      <div className="grid min-h-0 flex-1 gap-x-6 gap-y-3 min-[90rem]:@max-[40rem]/rank:grid-rows-[auto_minmax(0,1fr)] @min-[40rem]/rank:grid-cols-[minmax(15rem,18rem)_minmax(0,1fr)] @min-[40rem]/rank:items-center">
-        <div className="min-w-0 space-y-3">
-          <div className="flex min-w-0 items-center gap-3">
-            <RankEmblem tier={cur?.tier ?? null} className="h-11 w-11 shrink-0" />
-            {cur ? (
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-lg font-bold leading-tight text-fg" data-testid="ranked-current">
+      {/* One body (so the card's last part is drawn on a phone too, its chart folded): where the
+          account stands, and beside it how it moved in 30 days, the card's two figures, on one row (the
+          change going under the rank where the card is too narrow for both); then the chart. */}
+      <div className="flex min-w-0 flex-col gap-3">
+      <div className="flex min-w-0 flex-wrap items-center gap-x-5 gap-y-2">
+        <div className="flex min-w-0 flex-[1_1_13rem] items-center gap-3">
+          <RankEmblem tier={cur?.tier ?? null} className="h-11 w-11 shrink-0" />
+          {cur ? (
+            <div className="min-w-0 flex-1">
+              <p className="flex min-w-0 items-center gap-1.5 text-lg font-bold leading-tight text-fg">
+                <span className="truncate" data-testid="ranked-current">
                   {cur.label}
                   {cur.leaguePoints !== null ? ` · ${cur.leaguePoints} LP` : ""}
-                </p>
-                <LpBar tier={cur.tier} lp={cur.leaguePoints} />
-                {cur.wins !== null && cur.losses !== null ? (
-                  <p className="text-2xs tabular-nums text-fg-muted">
-                    {cur.wins}W {cur.losses}L{cur.wins + cur.losses > 0 ? ` · ${Math.round((cur.wins / (cur.wins + cur.losses)) * 100)}%` : ""} · {RANKED_YEAR} (Riot)
-                  </p>
-                ) : null}
-              </div>
-            ) : (
-              <p className="min-w-0 flex-1 text-sm text-fg-muted" data-testid="ranked-empty">
-                No {QUEUE_LABEL[queue]} rank recorded for this account yet.
+                </span>
+                <span className="text-sm font-normal">
+                  <InfoTip label="About this rank" text={<RankDetails tracking={tracking} peak={timeline.peak} movement={movement} />} testId="ranked-rank-tip" />
+                </span>
               </p>
-            )}
-          </div>
-          {cur ? (
-            <dl id="ranked-movement" className={cn(PHONE_FOLDED, "grid grid-cols-2 gap-x-4")}>
-              <Movement m={movement} unranked={cur.tier === null} />
-              <div className="min-w-0" data-testid="ranked-peak-stat">
-                <dt className="text-2xs text-fg-subtle">Highest recorded</dt>
-                <dd>
-                  {timeline.peak ? (
-                    <>
-                      <span className="block text-sm font-semibold text-fg">
-                        {timeline.peak.label} · {`${timeline.peak.lp}\u00a0LP`}
-                      </span>
-                      <span className="block text-2xs text-fg-subtle">first checked {formatDayMonth(timeline.peak.at)}</span>
-                    </>
-                  ) : (
-                    <span className="block text-sm text-fg-muted">Not recorded</span>
-                  )}
-                </dd>
-              </div>
-            </dl>
-          ) : null}
-        </div>
-        <div id="ranked-chart-fold" className={cn(PHONE_FOLDED, "flex min-h-0 min-w-0 flex-col justify-end")}>
-          {chartable ? (
-            <RankTimelineChart t={timeline} label={`${QUEUE_LABEL[queue]} rank since ${formatDate(timeline.trackingSince!)}`} fill />
+              <LpBar tier={cur.tier} lp={cur.leaguePoints} />
+              {cur.wins !== null && cur.losses !== null ? (
+                <p className="text-2xs tabular-nums text-fg-muted">
+                  {cur.wins}W {cur.losses}L{cur.wins + cur.losses > 0 ? ` · ${Math.round((cur.wins / (cur.wins + cur.losses)) * 100)}%` : ""} · {RANKED_YEAR} (Riot)
+                </p>
+              ) : null}
+            </div>
           ) : (
-            // Too little to draw (no rank, one, or two different readings): a line saying so in place of
-            // a chart that would be a flat strip or a single step in a large empty frame.
-            <p className="text-xs leading-relaxed text-fg-muted" data-testid="ranked-no-chart" data-readings={ranked.length}>
-              {fewReadings(timeline, ranked)}
+            <p className="min-w-0 flex-1 text-sm text-fg-muted" data-testid="ranked-empty">
+              No {QUEUE_LABEL[queue]} rank recorded for this account yet.{" "}
+              <InfoTip label="About this account's ranks" text={<RankDetails tracking={tracking} peak={timeline.peak} movement={null} />} testId="ranked-rank-tip" />
             </p>
           )}
         </div>
+        {cur ? (
+          <dl id="ranked-movement" className="shrink-0">
+            <Movement m={movement} unranked={cur.tier === null} />
+          </dl>
+        ) : null}
+      </div>
+      <div id="ranked-chart-fold" className={cn(PHONE_FOLDED, "min-w-0")}>
+        {chartable ? (
+          <RankTimelineChart t={timeline} label={`${QUEUE_LABEL[queue]} rank since ${formatDate(timeline.trackingSince!)}`} />
+        ) : (
+          // Too little to draw (no rank, one, or two different readings): a line saying so in place of
+          // a chart that would be a flat strip or a single step.
+          <p className="text-xs leading-relaxed text-fg-muted" data-testid="ranked-no-chart" data-readings={ranked.length}>
+            {fewReadings(timeline, ranked)}
+          </p>
+        )}
+      </div>
       </div>
     </PhoneFoldSection>
   );
+}
+
+/**
+ * What the ⓘ beside the rank holds (about 20 words): which account, season and first check the card
+ * reads, the highest rank recorded, and the 30-day change's path. Facts a reader may want, never
+ * what the card is for at a glance.
+ */
+function RankDetails({ tracking, peak, movement }: { tracking: string; peak: RankTimeline["peak"]; movement: RankMovement | null }) {
+  return (
+    <>
+      <span data-testid="ranked-tracking">{tracking}</span>.{" "}
+      <span data-testid="ranked-peak-stat">{peak ? `Highest recorded: ${peak.label} · ${peak.lp} LP, first checked ${formatDayMonth(peak.at)}.` : "Highest recorded: not recorded."}</span>
+      {movement ? <span data-testid="ranked-change-path">{` ${movementPath(movement)}`}</span> : null}
+    </>
+  );
+}
+
+/** The 30-day change's path in words: "From Gold III 47 LP to Gold IV 97 LP." or "Gold II 40 LP since 1 Oct." */
+function movementPath(m: RankMovement): string {
+  return m.from === m.to ? `${m.to.label} ${m.to.lp ?? 0} LP since ${formatDayMonth(m.to.from)}.` : `From ${m.from.label} ${m.from.lp ?? 0} LP to ${m.to.label} ${m.to.lp ?? 0} LP.`;
 }
 
 /** The fewest ranked readings drawn as a chart: two changes. One change is a single step, none a flat line. */
@@ -216,17 +211,11 @@ function Movement({ m, unranked }: { m: RankMovement | null; unranked: boolean }
     );
   const value = m.kind === "lp" ? (m.amount === 0 ? "No change" : formatLpChange(m.amount)) : m.kind === "divisions" ? `${m.amount > 0 ? "+" : "−"}${Math.abs(m.amount)} division${Math.abs(m.amount) === 1 ? "" : "s"}` : `${m.from.label} → ${m.to.label}`;
   const dir = m.kind === "tiers" ? (m.to.score! > m.from.score! ? 1 : -1) : Math.sign(m.amount);
-  const path = `${m.from.label} ${m.from.lp ?? 0} LP → ${m.to.label} ${m.to.lp ?? 0} LP`;
   return (
     <div className="min-w-0">
       <dt className="text-2xs text-fg-subtle">{m.windowed ? "Last 30 days" : `Since ${formatDayMonth(m.from.from)}`}</dt>
-      <dd>
-        <span className={cn("block truncate text-sm font-semibold tabular-nums", dir > 0 ? "text-good" : dir < 0 ? "text-bad" : "text-fg-muted")} title={path} data-testid="ranked-change" data-kind={m.kind}>
-          {value}
-        </span>
-        <span className="block truncate text-2xs text-fg-subtle" title={path}>
-          {m.from === m.to ? `${m.to.label} ${m.to.lp ?? 0} LP since ${formatDayMonth(m.to.from)}` : `from ${m.from.label} ${m.from.lp ?? 0} LP`}
-        </span>
+      <dd className={cn("text-lg font-bold leading-tight tabular-nums", dir > 0 ? "text-good" : dir < 0 ? "text-bad" : "text-fg-muted")} data-testid="ranked-change" data-kind={m.kind}>
+        {value}
       </dd>
     </div>
   );

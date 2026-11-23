@@ -1585,8 +1585,17 @@ async function tabRowEdges(page, testId) {
     if (!column || column.matches("[role=status]") || !first) return null;
     const px = (n) => Math.round(n * 10) / 10;
     const box = column.getBoundingClientRect();
+    // The page's own column (the frame's child, whatever row it holds) and the room beside the
+    // sidebar (main inside its padding): every page is centred in that room (23 Nov 2026).
+    let own = frame === main ? column : frame.firstElementChild;
+    while (own && own.getBoundingClientRect().width === 0) own = own.nextElementSibling;
+    const ownBox = (own ?? column).getBoundingClientRect();
+    const style = getComputedStyle(main);
+    const room = main.getBoundingClientRect();
+    const roomLeft = room.left + parseFloat(style.paddingLeft);
+    const roomRight = room.right - parseFloat(style.paddingRight);
     const header = column.querySelector("[data-testid=team-header]")?.getBoundingClientRect();
-    return { tab: px(first.getBoundingClientRect().left), page: px(box.left), ...(header ? { headerInset: [px(header.left - box.left), px(box.right - header.right)] } : {}) };
+    return { tab: px(first.getBoundingClientRect().left), page: px(box.left), column: { left: px(ownBox.left), width: px(ownBox.width), margins: [px(ownBox.left - roomLeft), px(roomRight - ownBox.right)] }, ...(header ? { headerInset: [px(header.left - box.left), px(box.right - header.right)] } : {}) };
   }, testId);
 }
 
@@ -1619,7 +1628,8 @@ function tabRowScrolls(page) {
 
 /**
  * Wide screens (PR 10, 18 Nov 2026), in the desktop context made 2560 × 1440 (the sidebar open), where
- * the pages have stopped growing and are centred in the room beside the sidebar: Team, Players,
+ * the pages have stopped growing and are centred in the room beside the sidebar (each page's column
+ * with equal margins, pages of one width at one x: 23 Nov 2026): Team, Players,
  * Leaderboards (with its dashboard's facts, 19 Nov 2026) and the teammate's profile load as every page does (visit) with axe, and each
  * one's tab row starts where its page's column does, within 1px (Team's tabs on Team's three, the
  * profile's on the profile; on Team Overview the column is Team's 100rem, its header and lineup
@@ -1646,7 +1656,7 @@ async function wideChecks(page, log) {
       const at = await tabRowEdges(page, row);
       const fact = `2560: on ${label}, ${says}`;
       if (!at) return pass("wide", fact, false, { missing: `no ${row}, or no page under it` });
-      columns.push(at.page);
+      columns.push({ name, ...at.column });
       pass("wide", fact, Math.abs(at.tab - at.page) <= 1, at);
       if (row === "team-tabs") {
         teamRow.push(at.tab);
@@ -1658,10 +1668,16 @@ async function wideChecks(page, log) {
   if (!playerId) check("wide", "2560: on the profile, the profile's tabs start where the page does", "PASS", { notApplicable: "no teammate on Team to open" });
   // Once a Team page has loaded, every one of them must have shown the row, in one place.
   if (teamPages > 0) pass("wide", "2560: Team's tab row is in the same place on each of its sections", teamRow.length === teamPages && Math.max(...teamRow) - Math.min(...teamRow) <= 1, { starts: teamRow, pagesLoaded: teamPages });
-  // One shared frame (S2c, 19 Nov 2026; UD.X3): every page starts at the left edge of one centred
-  // column, so the titles start at one x whatever the page's own width (before, the 80rem profile
-  // started 206px right of Team's 100rem pages here).
-  if (columns.length > 1) pass("wide", "2560: every page loaded starts at one x (the shared frame)", Math.max(...columns) - Math.min(...columns) <= 1, { starts: columns });
+  // The shared frame (23 Nov 2026, the owner's review): every page's column is centred in the room
+  // beside the sidebar, the same margin on either side within 1px, and pages of one width share one x
+  // (Team's three 100rem sections; the 80rem profile is centred on its own, never pinned to the left
+  // with the spare room on its right, as from S2c until then). e2e/desktop-frame.spec.ts holds the
+  // same rule at 1440, 1920 and 2560, the sidebar open and folded.
+  if (columns.length > 0) pass("wide", "2560: every page loaded is centred in the room beside the sidebar (the shared frame)", columns.every((c) => Math.abs(c.margins[0] - c.margins[1]) <= 1 && c.margins[0] >= -1), { columns });
+  const widths = new Map();
+  for (const c of columns) widths.set(Math.round(c.width), [...(widths.get(Math.round(c.width)) ?? []), c.left]);
+  const groups = [...widths.values()].filter((xs) => xs.length > 1);
+  if (groups.length) pass("wide", "2560: pages of one width start at one x", groups.every((xs) => Math.max(...xs) - Math.min(...xs) <= 1), { byWidth: Object.fromEntries(widths) });
   await page.setViewportSize(VIEWPORTS.desktop.viewport);
 }
 

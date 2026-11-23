@@ -166,10 +166,12 @@ kept at a size its content does not fill); All Champions is a dense analytical t
 History is detailed and scannable, its cards dense by the owner's decision D8 (about 118px on a
 phone, two rows on a tablet, one row from a 50rem list: DESIGN_SYSTEM.md §1); banners are
 expressive; Settings and forms are plain and roomy. Empty or thin data shrinks a card rather than
-leaving a frame to fill. One exception, the owner's (23 Nov 2026): in the Overview's 2×2 the two
-columns end level, Ranked progress's chart growing into the room beside the pools (7.5 to 24rem), and
-a long primary pool shows its first eight champions with a Show all at its end (`PRIMARY_POOL_TOP`),
-so no player's pool makes the page disproportionately tall.
+leaving a frame to fill, and no card is stretched to even out a dashboard's columns (a Ranked
+progress filled to the pools' end made a few LP look like a swing: the UX review of Release 13). The
+Overview's 2×2 balances its columns with its own data instead: there Recent form lists the champions
+of its games (`RecentChampions`), and a primary pool of more than eight shows its first six champions
+with a Show all at its end (`PRIMARY_POOL_TOP`, `PRIMARY_POOL_FOLD_OVER`), so no player's pool makes
+the page disproportionately tall.
 
 **Page layout.** One frame for every page, so pages differ by their content, not their scaffolding:
 - **The shared frame** (S2c, `app-shell.tsx`): every page sits in one column, at most `--content-wide`
