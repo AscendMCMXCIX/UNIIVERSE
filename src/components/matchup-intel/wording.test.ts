@@ -420,14 +420,15 @@ describe("the assembled reference's fixed sentences and labels", () => {
     expect(LANE_REFERENCE_TITLE).not.toMatch(/plan|briefing/i);
   });
 
-  it("a curated text's headline is its own words: its first sentence, or up to its first clause boundary once that runs long; head and rest together are the text", () => {
+  it("a curated text's headline is its own words: its first sentence whole, never cut at a comma or colon; head and rest together are the text", () => {
     const threat = "Realm of Death slows Riven by 75% during its 0.5-second cast, then takes only her and Mordekaiser into the Death Realm for 7 seconds, moving 10% of her AD, attack speed, maximum health, armour and magic resistance to him. The health it takes ignores Valor's shield.";
-    expect(headlineOf(threat).head).toBe("Realm of Death slows Riven by 75% during its 0.5-second cast,");
-    expect(headlineOf("Darkness Rise turns on at 3 stacks: he gains one each time his attack damages Riven or a basic ability hits her, and each new stack refreshes their 4 seconds.").head).toBe("Darkness Rise turns on at 3 stacks:");
+    expect(headlineOf(threat).head).toBe("Realm of Death slows Riven by 75% during its 0.5-second cast, then takes only her and Mordekaiser into the Death Realm for 7 seconds, moving 10% of her AD, attack speed, maximum health, armour and magic resistance to him.");
+    const stacks = "Darkness Rise turns on at 3 stacks: he gains one each time his attack damages Riven or a basic ability hits her, and each new stack refreshes their 4 seconds.";
+    expect(headlineOf(stacks)).toEqual({ head: stacks, rest: "" });
     // A short first sentence is the headline whole; a short text has no rest.
     expect(headlineOf("While Gwen is inside Hallowed Mist, Ornn cannot target her from outside it. The mist lasts 4 s.")).toEqual({ head: "While Gwen is inside Hallowed Mist, Ornn cannot target her from outside it.", rest: "The mist lasts 4 s." });
     expect(headlineOf("Low Fury.")).toEqual({ head: "Low Fury.", rest: "" });
-    // A number's decimal point is no sentence's end; a long sentence with no clause boundary stays whole.
+    // A number's decimal point is no sentence's end.
     const long = "With 50 Fury, Renekton's Ruthless Predator strikes three times and stuns Ambessa for 1.5 seconds instead of 0.75.";
     expect(headlineOf(long).head).toBe(long);
     for (const t of [threat, long, "A. B, c."]) {

@@ -673,19 +673,15 @@ export const riotChangedLead = (after: boolean) => (after ? "changed" : "Riot ch
 export const LANE_PLAN_TITLE = "Lane plan";
 
 /**
- * A curated or checked text's headline: its own first sentence, verbatim, or, where that runs past
- * about two lines of a card (90 characters), its words up to its first clause boundary (", ", "; " or
- * ": ") from the 30th character on; the rest of the text follows behind "More" (the UX review of
- * Release 13: each card a headline, at most about two lines in view). No word is changed, added or
- * left out: `head` and `rest` together are the text.
+ * A curated or checked text's headline: its own first sentence, verbatim and whole, however long
+ * (the UX review of Release 13, round 2: a cut at the first comma or colon left the lead mid-thought,
+ * "Death's Grasp pulls 0.5 seconds after Mordekaiser summons the claw," with the cooldown behind
+ * "More"); the rest of the text follows behind "More". A number's decimal point is no sentence's end.
+ * No word is changed, added or left out: `head` and `rest` together are the text.
  */
-export function headlineOf(text: string, max = 90): { head: string; rest: string } {
+export function headlineOf(text: string): { head: string; rest: string } {
   const sentence = /^(.+?[.!?])(?=\s|$)/.exec(text);
-  let head = sentence ? sentence[1]! : text;
-  if (head.length > max) {
-    const cuts = [", ", "; ", ": "].map((sep) => head.indexOf(sep, 30)).filter((i) => i >= 0);
-    if (cuts.length) head = head.slice(0, Math.min(...cuts) + 1);
-  }
+  const head = sentence ? sentence[1]! : text;
   return { head, rest: text.slice(head.length).trim() };
 }
 
