@@ -56,6 +56,8 @@ export interface LeaderboardExtra {
   tripleKills?: number;
   quadraKills?: number;
   pentaKills?: number;
+  /** Riot's largest multikill in the game (2 = double … 5 = penta). */
+  largestMultiKill?: number;
   firstBloodKill?: boolean;
   wardsKilled?: number;
   controlWardsBought?: number;

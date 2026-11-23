@@ -1,13 +1,14 @@
 import { Fragment, type ReactNode } from "react";
 import { ChevronRight, Flame, Sparkles, TrendingUp, Trophy } from "lucide-react";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
-import { BOARD_PANEL, DataGroup, DataHead, DataList, DataRow, FigureCell, MemberCell, ROW_PAD_X, RowLink } from "@/components/ui/data-list";
+import { CardAvatar } from "@/components/players/card-look";
+import { BOARD_PANEL, DataGroup, DataList, DataRow, FigureCell, MemberCell, Place, ROW_PAD_X, RowLink, tieRuns, type TiePosition } from "@/components/ui/data-list";
 import { EmptyState } from "@/components/ui/empty-state";
 import { InfoTip } from "@/components/ui/info-tip";
 import { ROLE_LABELS } from "@/domain/roles";
 import { cn } from "@/lib/cn";
 import { formatCount } from "@/lib/format";
-import type { BoardPlayer, MilestoneGroup, RecordHolder, RecordsView, RecordView } from "@/server/leaderboards/recent-view";
+import type { BoardPlayer, MilestoneGroup, MultikillRow, MultikillsView, RecordHolder, RecordsView, RecordView } from "@/server/leaderboards/recent-view";
 import { BoardTitle } from "./board-title";
 import { RECORD_YOURS, RECORD_YOURS_VALUE } from "./record-yours";
 import { SeasonChoice } from "./season-choice";
@@ -24,7 +25,7 @@ import { RecordGameLink } from "./record-game";
                      Recent form, never in the column beside it from 86rem (the last, the
                      streak, across both); each cell measures itself (@container/list), so a
                      record reads the same wherever it is placed (RecordRow);
-    Multikills       a row per member, rarest first;
+    Multikills       the multikill score's ranking, a row per member, then the most of each kind;
     Milestones       games on one champion this season, and all-time mastery: a row per member,
                      the champions as chips.
   Neutral, as Recent form: no colour marks a figure; the milestones' chips carry their rarities
@@ -254,17 +255,37 @@ function RecordPicture({ record, holder, champion }: { record: RecordView; holde
 
 // ── Multikills ─────────────────────────────────────────────────────────────────────────────────
 
-const KINDS = ["penta", "quadra", "triple"] as const;
-const KIND_HEAD = { penta: "Penta", quadra: "Quadra", triple: "Triple" } as const;
-const KIND_SPOKEN = { penta: "pentakills", quadra: "quadra kills", triple: "triple kills" } as const;
-/** Each count's column from 21rem (literal classes, so Tailwind sees them). */
-const KIND_COL = { penta: "@min-[21rem]/list:col-[2/3]", quadra: "@min-[21rem]/list:col-[3/4]", triple: "@min-[21rem]/list:col-[4/5]" } as const;
-/** Member · penta · quadra · triple on one line from 21rem, each count as wide as its heading; under it the member's line, then the three counts, each with its name. */
-const MULTI_COLS = "[--dl-cols:minmax(0,1fr)] @min-[21rem]/list:[--dl-cols:minmax(0,1fr)_2.75rem_3.5rem_3rem]";
+/*
+  The multikill board (docs/TEAM_LEADERBOARDS.md, "The multikill score"): one panel, by its own
+  width, the same at every width but for the tiles' columns:
+    the ranking   a row per member: the place (the crown on first), the picture, the name over the
+                  kinds they made in words ("21 doubles 6 triples 1 quadra", Riot's own counts), the
+                  score at the row's end over the games behind it. Two short lines on a phone, no
+                  column headings, nothing to decode; the score's sentence (each kind against what
+                  was expected) is the row's tooltip and is read out.
+    provisional   10–19 games with counts: listed after every ranked member, place "–";
+    too few       under 10: the board's last group, the games they have, no score;
+    most of each  four tiles (two by two under 34rem, one row of four from it): the most double,
+                  triple, quadra and pentakills, each with its holder (every holder of a shared one),
+                  so the kinds stay records of their own.
+  The board's one ⓘ says how the score works in a few plain sentences; its line, what it is.
+*/
 
-/** Multikills this season, rarest first, a row per member; `className` places it on the page. */
+/** Place · picture · name over kinds · score over games. */
+const MULTI_COLS = "[--dl-cols:1.75rem_2rem_minmax(0,1fr)_auto]";
+/** The tiles: two by two, a row of four from a 34rem panel. */
+const MOST_GRID = "grid grid-cols-2 @min-[34rem]/list:grid-cols-4";
+const MOST_CELL = "min-w-0 border-border/60 px-3 py-2 [&:nth-child(odd)]:border-r [&:nth-child(n+3)]:border-t @min-[34rem]/list:border-r @min-[34rem]/list:[&:nth-child(n+3)]:border-t-0 @min-[34rem]/list:last:border-r-0";
+
+/** The season's multikill board: the score's ranking, then the most of each kind; `className` places it on the page. */
 export function Multikills({ records, player, className }: { records: RecordsView; player: (id: string) => BoardPlayer; className?: string }) {
-  const rows = records.multikills;
+  const board = records.multikills;
+  const ranked = board.rows.filter((r) => r.status === "ranked");
+  const provisional = board.rows.filter((r) => r.status === "provisional");
+  const few = board.rows.filter((r) => r.status === "not-enough");
+  const ties = tieRuns(ranked.map((r) => r.place));
+  // One ⓘ: how the score works, then which games the counts come from when not all carry them.
+  const explain = records.multikillNote ? `${board.explain} ${records.multikillNote}` : board.explain;
   return (
     <section id={SECTIONS.multikills} aria-labelledby="multikills-title" className={cn("min-w-0", className)}>
       <DataList
@@ -274,67 +295,162 @@ export function Multikills({ records, player, className }: { records: RecordsVie
           <BoardTitle
             id="multikills-title"
             icon={<Flame className="h-4 w-4 shrink-0 text-fg-subtle" aria-hidden />}
-            // Which games the counts come from, in a few words on the board's line; the sentence behind its ⓘ (UM.L1: it ran to three lines on a phone).
-            aside={records.multikillNote ? <InfoTip label="About the multikill counts" text={records.multikillNote} testId="multikill-note" /> : null}
-            note={records.multikillShort}
-            noteTestId="multikill-short"
+            aside={<InfoTip label="How the multikill score works" text={explain} testId="multikill-explain" />}
+            note={
+              <>
+                <span data-testid="multikill-basis">{board.basis}</span>
+                {records.multikillShort ? (
+                  <>
+                    &nbsp;·{" "}
+                    <span className="whitespace-nowrap" data-testid="multikill-short">
+                      {records.multikillShort}
+                    </span>
+                  </>
+                ) : null}
+              </>
+            }
+            noteTestId="multikill-note-line"
           >
             Multikills · {records.seasonLabel}
           </BoardTitle>
         }
-        headsClassName="hidden @min-[21rem]/list:grid"
-        heads={
-          rows.length ? (
-            <>
-              <DataHead>Member</DataHead>
-              {KINDS.map((k) => (
-                <DataHead key={k} align="end">
-                  {KIND_HEAD[k]}
-                </DataHead>
-              ))}
-            </>
-          ) : undefined
-        }
       >
-        {rows.length ? (
-          <DataGroup label="Multikills, rarest first" testId="multikill-rows">
-            {rows.map((m) => {
-              const p = player(m.playerId);
-              return (
-                <DataRow
-                  key={m.playerId}
-                  testId="multikill-row"
-                  data-player-id={m.playerId}
-                  data-penta={m.penta}
-                  data-quadra={m.quadra}
-                  data-triple={m.triple}
-                  density="dense"
-                  link={p.profileHref ? <PeekRowLink playerId={p.id} name={p.name} profileHref={p.profileHref} /> : null}
-                  figures={
-                    // The counts: a line under the member, each with its name, under 21rem; their columns from it (display: contents).
-                    <span className="col-[1/-1] row-[2/3] flex min-w-0 flex-wrap items-baseline gap-x-3 text-sm @min-[21rem]/list:contents">
-                      {KINDS.map((k) => (
-                        <span key={k} data-testid="multikill-count" data-kind={k} className={cn("flex items-baseline gap-1 tabular-nums @min-[21rem]/list:row-[1/2] @min-[21rem]/list:justify-end", KIND_COL[k])}>
-                          <span aria-hidden className="text-xs text-fg-muted @min-[21rem]/list:hidden">
-                            {KIND_HEAD[k]}
-                          </span>
-                          <span className={m[k] ? "font-semibold text-fg" : "text-fg-subtle"}>{m[k] ? formatCount(m[k]) : "—"}</span>
-                          <span className="sr-only"> {KIND_SPOKEN[k]}</span>
-                        </span>
-                      ))}
-                    </span>
-                  }
-                >
-                  <MemberCell look={p.look} name={p.name} avatarUrl={p.avatarUrl} avatar="xs" readName={!p.profileHref} nameHref={p.profileHref ?? undefined} nameTestId="board-member-name" className="col-[1/-1] row-[1/2] @min-[21rem]/list:col-[1/2]" />
-                </DataRow>
-              );
-            })}
+        {board.rows.length === 0 ? <EmptyState variant="row" testId="multikills-empty" title="No games with multikill counts this season yet." /> : null}
+        {ranked.length ? (
+          <DataGroup label="Multikill score ranking" testId="multikill-rows">
+            {ranked.map((r, i) => (
+              <MultikillRowItem key={r.playerId} r={r} p={player(r.playerId)} tie={ties[i] ?? null} />
+            ))}
           </DataGroup>
-        ) : (
-          <EmptyState variant="row" testId="multikills-empty" title="No triple kills or better this season yet." />
-        )}
+        ) : null}
+        {provisional.length ? (
+          <DataGroup
+            label="Provisional"
+            testId="multikill-provisional"
+            captionTestId="multikill-provisional-head"
+            caption={
+              <>
+                <span className="font-semibold text-fg">Provisional</span>&nbsp;·&nbsp;{board.provisionalFrom} to {board.rankedFrom - 1} games with multikill counts
+              </>
+            }
+          >
+            {provisional.map((r) => (
+              <MultikillRowItem key={r.playerId} r={r} p={player(r.playerId)} tie={null} />
+            ))}
+          </DataGroup>
+        ) : null}
+        {few.length ? (
+          <DataGroup
+            as="ul"
+            label="Too few games for a score"
+            testId="multikill-few"
+            captionTestId="multikill-few-head"
+            caption={
+              <>
+                <span className="font-semibold text-fg">Too few games for a score</span>&nbsp;·&nbsp;{board.provisionalFrom} needed
+              </>
+            }
+          >
+            {few.map((r) => (
+              <MultikillRowItem key={r.playerId} r={r} p={player(r.playerId)} tie={null} />
+            ))}
+          </DataGroup>
+        ) : null}
+        {board.rows.length ? <MostOfEach most={board.most} player={player} /> : null}
       </DataList>
     </section>
+  );
+}
+
+/**
+ * One member's row: the place, picture, name over the kinds made (Riot's counts in words), and the
+ * score over the games behind it. The whole row opens the member's player Peek, its tooltip the
+ * score's sentence; screen readers hear the place, name, score, kinds and the sentence.
+ */
+function MultikillRowItem({ r, p, tie }: { r: MultikillRow; p: BoardPlayer; tie: TiePosition | null }) {
+  const linked = !!p.profileHref;
+  return (
+    <DataRow
+      testId="multikill-row"
+      data-player-id={r.playerId}
+      data-place={r.place ?? undefined}
+      data-status={r.status}
+      data-score={r.score ?? undefined}
+      data-double={r.counts.double}
+      data-triple={r.counts.triple}
+      data-quadra={r.counts.quadra}
+      data-penta={r.counts.penta}
+      data-counted={r.counted}
+      data-you={r.you || undefined}
+      own={r.you}
+      density={r.status === "not-enough" ? "dense" : "regular"}
+      lead={
+        <>
+          {r.status === "not-enough" ? <span aria-hidden className="col-[1/2] row-[1/span_2]" /> : <Place place={r.place} tie={tie} crown={r.place === 1} testId="multikill-place" className="col-[1/2] row-[1/span_2] self-center" />}
+          <CardAvatar look={p.look} name={p.name} src={p.avatarUrl} size="sm" className="col-[2/3] row-[1/span_2] self-center justify-self-start" />
+        </>
+      }
+      link={linked ? <PeekRowLink playerId={p.id} name={p.name} profileHref={p.profileHref!} hint={r.breakdown} /> : null}
+      figures={
+        <span className="col-[4/5] row-[1/span_2] flex flex-col items-end self-center text-right" data-testid="multikill-score-cell">
+          {r.score !== null ? (
+            <FigureCell testId="multikill-score" size="lg" emphasis={r.status === "ranked" ? "strong" : "muted"} label=" multikill score">
+              {r.score}
+            </FigureCell>
+          ) : null}
+          <span className="whitespace-nowrap text-xs tabular-nums text-fg-muted" data-testid="multikill-games">
+            {r.gamesText}
+          </span>
+        </span>
+      }
+    >
+      <MemberCell look={p.look} name={p.name} avatar={false} you={r.you} readName={!linked} nameHref={p.profileHref ?? undefined} nameTestId="board-member-name" className={cn("col-[3/4] min-w-0", r.status === "not-enough" ? "row-[1/span_2]" : "row-[1/2]")} />
+      {r.status !== "not-enough" ? (
+        <span className="col-[3/4] row-[2/3] flex min-w-0 flex-wrap gap-x-2 text-xs tabular-nums text-fg-muted" data-testid="multikill-kinds">
+          {r.kinds.length ? r.kinds.map((k) => <span key={k.key} data-kind={k.key} className="whitespace-nowrap">{k.text}</span>) : <span>No multikills yet</span>}
+        </span>
+      ) : null}
+      {/* The score in a sentence, for screen readers (the row's tooltip shows it on hover). */}
+      <span className="sr-only">{r.breakdown}</span>
+    </DataRow>
+  );
+}
+
+/** The most of each kind, double to penta: each with its count and holder (every holder of a shared one; "Shared by 3" past two). */
+function MostOfEach({ most, player }: { most: MultikillsView["most"]; player: (id: string) => BoardPlayer }) {
+  return (
+    <div data-testid="multikill-most">
+      <h3 className={cn("bg-surface-2/40 py-2 text-xs font-semibold text-fg", ROW_PAD_X)}>Most of each kind</h3>
+      <ul aria-label="Most of each kind" className={cn(MOST_GRID, "border-t border-border/70")}>
+        {most.map((m) => (
+          <li key={m.key} className={MOST_CELL} data-testid="multikill-most-kind" data-kind={m.key} data-count={m.count ?? undefined}>
+            <p className="text-xs text-fg-muted">{m.label}</p>
+            {m.count ? (
+              <div className="mt-0.5 flex min-w-0 items-start gap-2">
+                <span className="text-lg font-semibold leading-tight tabular-nums text-fg" data-testid="multikill-most-count">
+                  {m.count}
+                </span>
+                <span className="flex min-w-0 flex-col gap-0.5 pt-0.5" data-testid="multikill-most-holders">
+                  {m.holders.length <= 2 ? (
+                    m.holders.map((id) => {
+                      const p = player(id);
+                      return <MemberCell key={id} look={p.look} name={p.name} avatar="xs" className="text-xs" />;
+                    })
+                  ) : (
+                    <span className="text-xs text-fg" title={m.holders.map((id) => player(id).name).join(", ")}>
+                      Shared by {m.holders.length}
+                      <span className="sr-only">: {m.holders.map((id) => player(id).name).join(", ")}</span>
+                    </span>
+                  )}
+                </span>
+              </div>
+            ) : (
+              <p className="mt-0.5 text-sm text-fg-subtle">None yet</p>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 

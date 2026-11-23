@@ -295,8 +295,10 @@ async function seedDemoTogether(db: Db, teamId: string) {
       const side = parts.filter((x) => x.teamId === team);
       const open = (["TOP", "JUNGLE", "MID", "ADC", "SUPPORT"] as Role[]).filter((r) => !side.some((x) => x.position === r));
       for (const x of side) {
+        const own = x.position !== null;
         const role = (x.position as Role | null) ?? open.shift() ?? "MID";
         giveDemoLoadout(x, role, demoBuild(ownRnd, duration, role).purchases, duration);
+        if (!own) giveDemoOtherFigures(x, role, matchId);
       }
     }
     details.push({ matchId, platform: "euw1", queueId: g.queueId, gameCreation, gameDuration: duration, gameVersion: `${season}.20.1`, teams: [{ teamId: 100, win: g.win, bans: [], objectives: {} }, { teamId: 200, win: !g.win, bans: [], objectives: {} }], participants: parts });
@@ -449,6 +451,35 @@ function balanceDemoGame(me: MatchParticipantDetail, allies: MatchParticipantDet
   }
   // Gold from the game's length, kills, assists and the result, the drawn figure keeping a little of its spread.
   for (const x of [...allies, ...enemies]) x.gold = Math.round(minutes * 285 + x.kills * 300 + x.assists * 110 + (x.win ? 1100 : 0) + ((x.gold ?? 10_500) - 10_500) * 0.3);
+}
+
+/**
+ * A demo game's other player (never a member): their position, and Riot's multikill counts drawn
+ * within their kills from a sequence of their own (seeded by the game and the player, so no other
+ * demo figure moves), each multikill counted once at its largest, as the demo members' own counts
+ * are (seedDemoGames), at about the members' rates for the role: so the multikill score compares
+ * the demo members with players like them (demo only; never real data).
+ */
+function giveDemoOtherFigures(x: MatchParticipantDetail, role: Role, matchId: string) {
+  let seed = [...`${matchId}|${x.puuid}`].reduce((n, c) => (n * 31 + c.charCodeAt(0)) % 233280, 17);
+  const rnd = () => ((seed = (seed * 9301 + 49297) % 233280), seed / 233280);
+  const support = role === "SUPPORT";
+  let budget = x.kills;
+  const made = { 5: 0, 4: 0, 3: 0, 2: 0 } as Record<2 | 3 | 4 | 5, number>;
+  const chance: Record<2 | 3 | 4 | 5, number> = support ? { 5: 0.004, 4: 0.012, 3: 0.05, 2: 0.3 } : { 5: 0.03, 4: 0.07, 3: 0.2, 2: 0.45 };
+  for (const size of [5, 4, 3] as const) {
+    if (budget >= size && rnd() < chance[size]) {
+      made[size] += 1;
+      budget -= size;
+    }
+  }
+  while (budget >= 2 && rnd() < chance[2]) {
+    made[2] += 1;
+    budget -= 2;
+  }
+  const largest = made[5] ? 5 : made[4] ? 4 : made[3] ? 3 : made[2] ? 2 : x.kills > 0 ? 1 : 0;
+  x.position = role;
+  x.stats = { ...(x.stats ?? {}), doubleKills: made[2], tripleKills: made[3], quadraKills: made[4], pentaKills: made[5], largestMultiKill: largest };
 }
 
 const DEMO_STARTS: Record<Role, number[]> = { TOP: [1054, 2003], JUNGLE: [1102, 2003], MID: [1056, 2003, 2003], ADC: [1055, 2003], SUPPORT: [3865, 2003] };
@@ -722,7 +753,11 @@ async function seedDemoGames(db: Db, accountId: string, puuid: string, name: str
     const ownRnd = builds ? null : demoGameRnd(matchId);
     for (const x of players) {
       const purchases = builds?.find((b) => b.puuid === x.puuid)?.purchases ?? demoBuild(ownRnd!, duration, x.role).purchases;
-      giveDemoLoadout(sides.find((p) => p.puuid === x.puuid)!, x.role, purchases, duration);
+      const part = sides.find((p) => p.puuid === x.puuid)!;
+      giveDemoLoadout(part, x.role, purchases, duration);
+      // Everyone else's position and multikill counts, as a real record carries them (the multikill
+      // score compares the members with them), from a sequence of their own: nothing else moves.
+      if (part !== me) giveDemoOtherFigures(part, x.role, matchId);
     }
     details.push({ matchId, platform: "euw1", queueId, gameCreation, gameDuration: duration, gameVersion: `${season}.20.1`, teams: [100, 200].map((teamId) => ({ teamId, win: teamId === ownTeam ? win : !win, bans: [], objectives: objectiveCounts?.[teamId] ?? {} })), participants: sides });
   }

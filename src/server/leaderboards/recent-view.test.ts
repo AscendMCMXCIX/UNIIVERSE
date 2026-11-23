@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { cardLookFor } from "@/domain/card-style";
 import type { LeaderboardGame, LeaderboardMastery } from "@/domain/leaderboards";
 import { formatCompactCount, formatCount } from "@/lib/format";
+import { buildMultikillBaseline } from "@/domain/multikill-score";
 import { buildFormView, buildLeaderboardsView, buildRecordsView, leaderboardsHref, parseLeaderboardsQuery, RECORD_QUALIFIERS, type RecordsView } from "./recent-view";
 import type { LeaderboardData } from "./service";
 
@@ -85,13 +86,16 @@ const BEFORE = {
     {"id": "kda", "label": "Best KDA in a game", "definition": "(Kills + assists) ÷ deaths, in a game with 10 or more takedowns; no deaths counts as one.", "holder": {"playerId": "cy", "value": "13.0", "unit": "KDA", "championId": "Jinx", "role": "ADC", "kda": "9/1/4", "when": "7 Sep 2026", "href": "/leaderboards?match=OC1_030", "game": {"matchId": "OC1_030", "historyHref": "/players/cy/matches?match=OC1_030"}}, "yours": {"playerId": "bo", "value": "12.0", "unit": "KDA", "championId": "Thresh", "role": "SUPPORT", "kda": "2/0/10", "when": "5 Sep 2026", "href": "/leaderboards?match=OC1_028", "game": {"matchId": "OC1_028", "historyHref": "/players/bo/matches?match=OC1_028"}}},
     {"id": "win-streak", "label": "Longest win streak", "definition": "In the order the games were played.", "holder": {"playerId": "ash", "value": "5", "unit": "wins in a row", "championId": null, "role": null, "kda": null, "when": "5 Sep 2026", "href": null, "game": null}, "yours": {"playerId": "bo", "value": "2", "unit": "wins in a row", "championId": null, "role": null, "kda": null, "when": "5 Sep 2026", "href": null, "game": null}},
   ],
-  multikills: [{"playerId": "ash", "penta": 1, "quadra": 1, "triple": 1}, {"playerId": "bo", "penta": 0, "quadra": 1, "triple": 2}, {"playerId": "cy", "penta": 0, "quadra": 0, "triple": 3}],
   multikillNote: "Counted from 31 of 32 games this season; the rest are left out, never counted as zero.",
   championGames: [{"playerId": "ash", "items": [{"championId": "Riven", "value": "25 games", "milestone": "25+ games", "tier": 1}], "more": 0}],
   mastery: [{"playerId": "ash", "items": [{"championId": "Riven", "value": "1.2M points", "milestone": "1M+", "tier": 3}, {"championId": "Zed", "value": "486K points", "milestone": "100K+", "tier": 1}, {"championId": "Yasuo", "value": "333K points", "milestone": "100K+", "tier": 1}], "more": 2}, {"playerId": "bo", "items": [{"championId": "Thresh", "value": "512K points", "milestone": "500K+", "tier": 2}], "more": 0}, {"playerId": "cy", "items": [{"championId": "Jinx", "value": "510K points", "milestone": "500K+", "tier": 2}], "more": 0}],
 };
-/** The view without what later changes add: each record's qualifier, each milestone's short figure, the multikills' short note. */
-const withoutAdditions = ({ multikillShort: _m, ...r }: RecordsView) => ({
+/**
+ * The view without what later changes add: each record's qualifier, each milestone's short figure, the multikills' short note,
+ * and the multikill board, which the multikill score replaced (Release 15: its own tests below; it was a tally of triple,
+ * quadra and pentakills, rarest first).
+ */
+const withoutAdditions = ({ multikillShort: _m, multikills: _b, ...r }: RecordsView) => ({
   ...r,
   records: r.records.map(({ qualifier: _q, ...rest }) => rest),
   championGames: r.championGames.map((g) => ({ ...g, items: g.items.map(({ short: _s, ...rest }) => rest) })),
@@ -121,8 +125,8 @@ describe("one page from one load", () => {
     expect(earlier.form).toEqual(current.form);
     // The multikills and the games on one champion follow the season the records name (the new season has no games yet);
     // mastery is all-time, the same in either. The season's choice stands in the records' title row only, and changes all three.
-    expect(current.records.multikills).toEqual([]);
-    expect(earlier.records.multikills.length).toBeGreaterThan(0);
+    expect(current.records.multikills.rows).toEqual([]);
+    expect(earlier.records.multikills.rows.length).toBeGreaterThan(0);
     expect(current.records.championGames).toEqual([]);
     expect(earlier.records.championGames.map((g) => g.playerId)).toEqual(["ash"]);
     expect(earlier.records.mastery).toEqual(current.records.mastery);
@@ -133,7 +137,7 @@ describe("one page from one load", () => {
 });
 
 describe("Records & achievements' display fields", () => {
-  it("leave every figure, holder, game, date, link, multikill and milestone exactly as before", () => {
+  it("leave every figure, holder, game, date, link and milestone exactly as before", () => {
     expect(withoutAdditions(records("bo"))).toEqual(BEFORE);
     // The same team for a viewer off the board: no best of their own, nothing else changes.
     const off = withoutAdditions(records(null));
@@ -163,5 +167,61 @@ describe("Records & achievements' display fields", () => {
     expect(r.championGames.flatMap((g) => g.items).map((i) => [i.short, i.value])).toEqual([["25", "25 games"]]);
     // The same functions the words come from.
     expect([formatCompactCount(486_400), formatCompactCount(1_204_500), formatCount(25)]).toEqual(["486K", "1.2M", "25"]);
+  });
+});
+
+describe("the multikill board on the fixed team", () => {
+  /*
+    No comparison players stored (no baseline given), so the members are compared with the team's
+    own 31 games with counts, every position together, and the board says so. The team's events,
+    each multikill once at its largest (fewer than 20 games with a triple: nested assumed): 30
+    doubles, 4 triples, 1 quadra, 1 penta. Ash's 26 games expect 25.2, 3.4, 0.8, 0.8; Ash made 27,
+    0, 0, 1 → indexes 29/27.2, 2/5.4, 2/2.8, 3/2.8 → 80.
+  */
+  it("ranks Ash (26 games: score 80, Riot's counts in words); Bo and Cy, under 10 games with counts, have no score", () => {
+    const m = records("bo").multikills;
+    expect(m.source).toBe("team");
+    expect(m.rows.map((r) => [r.playerId, r.status, r.place, r.score, r.gamesText])).toEqual([
+      ["ash", "ranked", 1, "80", "26 games"],
+      ["bo", "not-enough", null, null, "3 games"],
+      ["cy", "not-enough", null, null, "2 of 3 games"],
+    ]);
+    const ash = m.rows[0]!;
+    expect(ash.counts).toEqual({ double: 28, triple: 1, quadra: 1, penta: 1 });
+    expect(ash.kinds.map((k) => k.text)).toEqual(["28 doubles", "1 triple", "1 quadra", "1 penta"]);
+    expect(ash.breakdown).toBe("Score 80 from 26 games. Each multikill once, at its largest, with the number expected at the team's rate in brackets: 27 double kills (25.2), no triple kill (3.4), no quadra kill (0.8), 1 pentakill (0.8).");
+    expect(m.rows.find((r) => r.playerId === "bo")!.you).toBe(true);
+    expect(m.rows.find((r) => r.playerId === "cy")!.breakdown).toBe("2 games with multikill counts: a score needs 10.");
+  });
+
+  it("names the most of each kind, Riot's own counts, every holder of a shared one", () => {
+    expect(records(null).multikills.most).toEqual([
+      { key: "double", label: "Most double kills", count: "28", holders: ["ash"] },
+      { key: "triple", label: "Most triple kills", count: "3", holders: ["cy"] },
+      { key: "quadra", label: "Most quadra kills", count: "1", holders: ["ash", "bo"] },
+      { key: "penta", label: "Most pentakills", count: "1", holders: ["ash"] },
+    ]);
+  });
+
+  it("says what the score is in a few words, and how it works in plain sentences (the team's games: not by role)", () => {
+    const m = records(null).multikills;
+    expect(m.basis).toBe("Per game, against the team's own games · 100 is the team's usual");
+    expect(m.explain).toContain("not adjusted for role or champion");
+    expect(m.explain).toContain("one pentakill moves a score far more than one double kill");
+    expect(m.explain).toContain("the score assumes they do, so no multikill counts twice");
+    expect(m.explain).toContain("a place needs 20 games with multikill counts, and 10–19 give a provisional score");
+  });
+
+  it("compares with the other players in the same games once they hold 1,000 games, saying how many", () => {
+    const row = (position: string, games: number, d: number) => ({ position, championId: "Other", games, nested: { double: d, triple: d / 10, quadra: d / 50, penta: d / 250 }, separate: { double: d, triple: d / 10, quadra: d / 50, penta: d / 250 } });
+    const multikillBaseline = buildMultikillBaseline([row("TOP", 3000, 1200), row("MIDDLE", 3000, 1650), row("UTILITY", 3000, 450), row("BOTTOM", 3000, 1800)], { withTriple: 900, outOfOrder: 0 });
+    const m = buildLeaderboardsView(fixture(), {}, null, { now: NOW, multikillBaseline }).records.multikills;
+    expect(m.source).toBe("same-games");
+    expect(m.basis).toBe("Per game, against the same roles and champions · 100 is usual");
+    expect(m.explain).toContain("in the same games (12,000 games of allies and opponents, never a team member)");
+    expect(m.explain).toContain("Riot also counts a pentakill's double, triple and quadra kill");
+    // Ash's 25 Riven games are top games, the Zed game a mid game: every game compared within its role.
+    expect(m.rows[0]!.breakdown).toMatch(/^Score \d+ from 26 games. Each multikill once, at its largest, with the number expected for their roles and champions in brackets: /);
+    expect(m.rows[0]!.breakdown).not.toContain("Compared by role in");
   });
 });

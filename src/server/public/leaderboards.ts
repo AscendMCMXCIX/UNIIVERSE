@@ -47,6 +47,9 @@ export function loadPublicLeaderboardData(db: Db, teamId: string): Promise<Leade
         lastUpdated: data.lastUpdated,
         extraSince: games.reduce<number | null>((m, g) => (g.extra && (m === null || g.gameCreation < m) ? g.gameCreation : m), null),
         rawGames: games.length,
+        // Server-side only, for the multikill comparison, which leaves every team member out (never sent to the page).
+        memberPuuids: data.memberPuuids,
+        historyKey: data.historyKey,
       };
     },
     db,

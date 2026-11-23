@@ -43,7 +43,7 @@ function view(o: Partial<LeaderboardsView> = {}): LeaderboardsView {
       seasons: [{ value: 16, label: "Season 2026", href: "/leaderboards" }],
       games: 41,
       records: [{ id: "kills", label: "Most kills in a game", definition: "", qualifier: null, holder: { playerId: "ash", value: "18", unit: "kills", championId: "Zed", role: "MID", kda: "18/2/7", when: "2 Sep 2026", href: "/leaderboards?match=OC1_001", game: { matchId: "OC1_001", historyHref: "/players/ash/matches?match=OC1_001" } }, yours: null }],
-      multikills: [{ playerId: "ash", penta: 0, quadra: 1, triple: 2 }],
+      multikills: { rows: [{ playerId: "ash", place: 1, tied: false, status: "ranked", score: "112", counts: { double: 9, triple: 2, quadra: 1, penta: 0 }, kinds: [{ key: "double", text: "9 doubles" }, { key: "triple", text: "2 triples" }, { key: "quadra", text: "1 quadra" }], gamesText: "41 games", counted: 41, games: 41, breakdown: "Score 112 from 41 games.", you: false }], most: [{ key: "double", label: "Most double kills", count: "9", holders: ["ash"] }, { key: "triple", label: "Most triple kills", count: "2", holders: ["ash"] }, { key: "quadra", label: "Most quadra kills", count: "1", holders: ["ash"] }, { key: "penta", label: "Most pentakills", count: null, holders: [] }], basis: "Per game, against the same roles and champions · 100 is usual", explain: "How the score works.", source: "same-games", rankedFrom: 20, provisionalFrom: 10 },
       multikillNote: null,
       multikillShort: null,
       championGames: [],

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createElement, Fragment } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { cardLookFor } from "@/domain/card-style";
-import type { BoardPlayer, RecordHolder, RecordsView, RecordView } from "@/server/leaderboards/recent-view";
+import type { BoardPlayer, MultikillsView, RecordHolder, RecordsView, RecordView } from "@/server/leaderboards/recent-view";
 import { Milestones, Multikills, SeasonRecords } from "./records";
 
 // The season's choice (a client component) asks for the router, which a markup test has none of.
@@ -22,6 +22,26 @@ const champ = (id: string | null) => (id ? { id, name: id === "MissFortune" ? "M
 
 const holder = (o: Partial<RecordHolder> & Pick<RecordHolder, "playerId" | "value" | "unit">, profiles = true): RecordHolder => ({ championId: "Zed", role: "MID", kda: "18/2/7", when: "2 Sep 2026", href: profiles ? "/leaderboards?match=OC1_001" : null, game: profiles ? { matchId: "OC1_001", historyHref: `/players/${o.playerId}/matches?match=OC1_001` } : null, ...o });
 const record = (o: Partial<RecordView> & Pick<RecordView, "id" | "label">): RecordView => ({ definition: "", qualifier: null, holder: null, yours: null, ...o });
+
+/** The multikill board as the view sends it: Ash ranked, Cy provisional, Bo (the viewer) with too few games. */
+const MULTIKILLS: MultikillsView = {
+  rows: [
+    { playerId: "ash", place: 1, tied: false, status: "ranked", score: "124", counts: { double: 28, triple: 3, quadra: 1, penta: 1 }, kinds: [{ key: "double", text: "28 doubles" }, { key: "triple", text: "3 triples" }, { key: "quadra", text: "1 quadra" }, { key: "penta", text: "1 penta" }], gamesText: "40 games", counted: 40, games: 40, breakdown: "Score 124 from 40 games. Each multikill once, at its largest, with the number expected for their roles and champions in brackets: 25 double kills (19.2), 2 triple kills (2.1), no quadra kill (0.4), 1 pentakill (0.1).", you: false },
+    { playerId: "cy", place: null, tied: false, status: "provisional", score: "97", counts: { double: 4, triple: 0, quadra: 0, penta: 0 }, kinds: [{ key: "double", text: "4 doubles" }], gamesText: "14 of 15 games", counted: 14, games: 15, breakdown: "Score 97 from 14 games.", you: false },
+    { playerId: "bo", place: null, tied: false, status: "not-enough", score: null, counts: { double: 1, triple: 0, quadra: 0, penta: 0 }, kinds: [{ key: "double", text: "1 double" }], gamesText: "3 games", counted: 3, games: 3, breakdown: "3 games with multikill counts: a score needs 10.", you: true },
+  ],
+  most: [
+    { key: "double", label: "Most double kills", count: "28", holders: ["ash"] },
+    { key: "triple", label: "Most triple kills", count: "3", holders: ["ash", "cy"] },
+    { key: "quadra", label: "Most quadra kills", count: "1", holders: ["ash"] },
+    { key: "penta", label: "Most pentakills", count: null, holders: [] },
+  ],
+  basis: "Per game, against the same roles and champions · 100 is usual",
+  explain: "The score compares each member's multikills per game with what players on the same roles and champions made in the same games.",
+  source: "same-games",
+  rankedFrom: 20,
+  provisionalFrom: 10,
+};
 
 function view(profiles: boolean, o: Partial<RecordsView> = {}): RecordsView {
   const h = (x: Partial<RecordHolder> & Pick<RecordHolder, "playerId" | "value" | "unit">) => holder(x, profiles);
@@ -43,10 +63,7 @@ function view(profiles: boolean, o: Partial<RecordsView> = {}): RecordsView {
       // A streak opens no single game.
       record({ id: "win-streak", label: "Longest win streak", definition: "In the order the games were played.", qualifier: "in game order", holder: { playerId: "ash", value: "5", unit: "wins in a row", championId: null, role: null, kda: null, when: "5 Sep 2026", href: null, game: null }, yours: { playerId: "bo", value: "2", unit: "wins in a row", championId: null, role: null, kda: null, when: "5 Sep 2026", href: null, game: null } }),
     ],
-    multikills: [
-      { playerId: "ash", penta: 1, quadra: 1, triple: 1 },
-      { playerId: "cy", penta: 0, quadra: 0, triple: 3 },
-    ],
+    multikills: MULTIKILLS,
     multikillNote: "Counted from 31 of 32 games this season; the rest are left out, never counted as zero.",
     multikillShort: "From 31 of 32 games",
     championGames: [{ playerId: "ash", items: [{ championId: "Riven", value: "25 games", short: "25", milestone: "25+ games", tier: 1 }], more: 0 }],
@@ -198,28 +215,67 @@ describe("the season records", () => {
 });
 
 describe("multikills", () => {
-  const html = render();
+  const html = render({ viewer: "bo" });
+  const rowOf = (h: string, id: string) => new RegExp(`<li [^>]*data-testid="multikill-row" data-player-id="${id}"[\\s\\S]*?</li>`).exec(h)![0];
 
-  it("are rows, rarest first as given, each count named for screen readers, — for none", () => {
-    const rows = [...html.matchAll(/<li [^>]*data-testid="multikill-row"[^>]*data-player-id="(\w+)"[\s\S]*?<\/li>/g)];
-    expect(rows.map((m) => m[1])).toEqual(["ash", "cy"]);
-    expect(rows[0]![0]).toContain('data-penta="1" data-quadra="1" data-triple="1"');
-    expect(rows[1]![0]).toMatch(/<span class="text-fg-subtle">—<\/span><span class="sr-only"> pentakills<\/span>/);
-    expect(rows[1]![0]).toMatch(/<span class="font-semibold text-fg">3<\/span><span class="sr-only"> triple kills<\/span>/);
-    // The whole row opens the member's profile, named by the member.
-    expect(rows[0]![0]).toContain('data-row-link="" href="/players/ash"><span class="sr-only">Ash</span>');
-    expect(html).toMatch(/<ol aria-label="Multikills, rarest first" data-testid="multikill-rows"/);
-    // Which games the counts come from: a few words on the board's line, the sentence behind its ⓘ.
-    expect(shownOf(html, "multikill-short")).toBe("From 31 of 32 games");
-    expect(html).toContain('aria-label="About the multikill counts"');
-    expect(html).toContain("left out, never counted as zero");
+  it("rank by the score: the place (a crown on first), the picture, the name over the kinds made in words, the score over its games; no column headings to decode", () => {
+    const rows = [...html.matchAll(/<li [^>]*data-testid="multikill-row" data-player-id="(\w+)"/g)].map((m) => m[1]);
+    expect(rows).toEqual(["ash", "cy", "bo"]);
+    const ash = rowOf(html, "ash");
+    expect(ash).toContain('data-place="1" data-status="ranked" data-score="124" data-double="28" data-triple="3" data-quadra="1" data-penta="1" data-counted="40"');
+    expect(ash).toContain('aria-label="First place"');
+    expect(shownOf(ash, "multikill-score")).toBe("124");
+    expect(ash).toContain('<span class="sr-only"> multikill score</span>');
+    expect(shownOf(ash, "multikill-games")).toBe("40 games");
+    expect([...ash.matchAll(/<span data-kind="(\w+)" class="whitespace-nowrap">([^<]*)<\/span>/g)].map((m) => [m[1], m[2]])).toEqual([["double", "28 doubles"], ["triple", "3 triples"], ["quadra", "1 quadra"], ["penta", "1 penta"]]);
+    // No headings row: every figure says its own name.
+    expect(innerOf(html, "records-multikills")).not.toContain("label-caps");
   });
 
-  it("say so when there are none", () => {
-    const empty = render({ records: { multikills: [], multikillNote: null } });
-    expect(shownOf(empty, "multikills-empty")).toBe("No triple kills or better this season yet.");
-    expect(empty).not.toContain("multikill-note");
+  it("open the member's profile from the whole row, its tooltip and its words for screen readers the score's sentence", () => {
+    const ash = rowOf(html, "ash");
+    expect(ash).toContain('data-row-link="" href="/players/ash"><span class="sr-only">Ash</span><span aria-hidden="true" title="Score 124 from 40 games.');
+    expect(ash).toContain('<span class="sr-only">Score 124 from 40 games. Each multikill once, at its largest, with the number expected for their roles and champions in brackets: 25 double kills (19.2)');
+  });
+
+  it("list a provisional member after the ranked ones, place –, the score muted; a member with too few games last, with no score; your own row marked", () => {
+    const cy = rowOf(html, "cy");
+    expect(cy).toContain('data-status="provisional"');
+    expect(cy).toContain('<span class="sr-only">Provisional</span>');
+    expect(cy).toMatch(/text-fg-muted" data-figure="" data-testid="multikill-score"|data-testid="multikill-score" class="[^"]*text-fg-muted/);
+    expect(shownOf(cy, "multikill-games")).toBe("14 of 15 games");
+    expect(shownOf(html, "multikill-provisional-head")).toBe("Provisional\u00a0·\u00a010 to 19 games with multikill counts");
+    const bo = rowOf(html, "bo");
+    expect(bo).not.toContain("multikill-score\"");
+    expect(bo).not.toContain("multikill-kinds");
+    expect(bo).toContain('data-you="true"');
+    expect(bo).toContain("bg-accent/5");
+    expect(shownOf(html, "multikill-few-head")).toBe("Too few games for a score\u00a0·\u00a010 needed");
+  });
+
+  it("explain the score behind one ⓘ (with which games the counts come from), and say what it is on the board's line", () => {
+    expect(html).toContain('aria-label="How the multikill score works"');
+    expect(html).toContain("The score compares each member&#x27;s multikills per game with what players on the same roles and champions made in the same games. Counted from 31 of 32 games this season; the rest are left out, never counted as zero.");
+    expect(shownOf(html, "multikill-basis")).toBe("Per game, against the same roles and champions · 100 is usual");
+    expect(shownOf(html, "multikill-short")).toBe("From 31 of 32 games");
+  });
+
+  it("keep the most of each kind as records of their own: the count and its holder, every holder of a shared one, \"None yet\" for none", () => {
+    const most = innerOf(html, "multikill-most")!;
+    const kinds = [...most.matchAll(/data-testid="multikill-most-kind" data-kind="(\w+)"/g)].map((m) => m[1]);
+    expect(kinds).toEqual(["double", "triple", "quadra", "penta"]);
+    const triple = /data-kind="triple"[\s\S]*?<\/li>/.exec(most)![0];
+    expect(shownOf(triple, "multikill-most-count")).toBe("3");
+    expect(triple).toContain(">Ash<");
+    expect(triple).toContain(">Cy<");
+    expect(/data-kind="penta"[\s\S]*?<\/li>/.exec(most)![0]).toContain("None yet");
+  });
+
+  it("say so when nobody has a game with counts", () => {
+    const empty = render({ records: { multikills: { ...MULTIKILLS, rows: [] }, multikillNote: null, multikillShort: null } });
+    expect(shownOf(empty, "multikills-empty")).toBe("No games with multikill counts this season yet.");
     expect(empty).not.toContain("multikill-row");
+    expect(empty).not.toContain("multikill-most");
   });
 });
 

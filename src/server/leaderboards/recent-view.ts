@@ -1,8 +1,9 @@
 import { chooseSeason, seasonLabel } from "@/domain/season";
 import { LEADERBOARD_QUEUES } from "@/domain/leaderboards";
 import { mainRoleOf, rankRecentBoard, recentEntry, RECENT_PROVISIONAL_GAMES, RECENT_WINDOW_DAYS, RECENT_WINDOW_GAMES, shownValue, type RecentGap } from "@/domain/leaderboard-recent";
-import { buildRecords, CHAMPION_GAME_MILESTONES, KDA_RECORD_MIN_TAKEDOWNS, MASTERY_MILESTONES, RECORD_MIN_GAME_S, shownRecordValue, type ChampionMilestone, type RecordMark, type SeasonRecordId } from "@/domain/leaderboard-records";
+import { buildMultikillBoard, buildRecords, CHAMPION_GAME_MILESTONES, KDA_RECORD_MIN_TAKEDOWNS, MASTERY_MILESTONES, RECORD_MIN_GAME_S, shownRecordValue, type ChampionMilestone, type RecordMark, type SeasonRecordId } from "@/domain/leaderboard-records";
 import type { GameRole } from "@/domain/season-stats";
+import { MULTIKILL_KEYS, MULTIKILL_PROVISIONAL_GAMES, MULTIKILL_RANKED_GAMES, shownScore, type MultikillBaseline, type MultikillKey } from "@/domain/multikill-score";
 import { formatCompactCount, formatCount, formatDate, formatDayMonth, formatNumber } from "@/lib/format";
 import type { LeaderboardData, LeaderboardPlayer } from "./service";
 
@@ -92,7 +93,7 @@ export interface RecordsView {
   seasons: Array<{ value: number; label: string; href: string }>;
   games: number;
   records: RecordView[];
-  multikills: Array<{ playerId: string; penta: number; quadra: number; triple: number }>;
+  multikills: MultikillsView;
   /** Which games the multikills come from, when not every game carries them. */
   multikillNote: string | null;
   /** The same in a few words, shown on the board's line (the sentence is behind its ⓘ): "255 of 277 games". */
@@ -100,6 +101,43 @@ export interface RecordsView {
   /** Members with a champion milestone, the best first: games on one champion this season, and all-time mastery. */
   championGames: MilestoneGroup[];
   mastery: MilestoneGroup[];
+}
+
+/** The multikill board (domain/multikill-score): the score's ranking, and the most of each kind. */
+export interface MultikillsView {
+  rows: MultikillRow[];
+  /** Most of each kind, double to penta (Riot's own counts). */
+  most: Array<{ key: MultikillKey; label: string; count: string | null; holders: string[] }>;
+  /** What the score is, in a few words, on the board's line ("Per game, against the same roles and champions · 100 is usual"). */
+  basis: string;
+  /** How the score works, a few plain sentences (the board's ⓘ). */
+  explain: string;
+  /** "same-games": compared with the other players in the same games; "team": with the team's own games, not by role. */
+  source: "same-games" | "team";
+  rankedFrom: number;
+  provisionalFrom: number;
+}
+
+export interface MultikillRow {
+  playerId: string;
+  /** Shared places repeat; null for provisional members and those with too few games. */
+  place: number | null;
+  tied: boolean;
+  status: "ranked" | "provisional" | "not-enough";
+  /** The score in whole points ("124"); null with too few games. */
+  score: string | null;
+  /** Riot's own counts, added up. */
+  counts: { double: number; triple: number; quadra: number; penta: number };
+  /** The kinds made, double to penta, in words ("21 doubles"); empty with none. */
+  kinds: Array<{ key: MultikillKey; text: string }>;
+  /** "40 games", or "18 of 36 games" when older games have no counts. */
+  gamesText: string;
+  /** Games with counts / this season. */
+  counted: number;
+  games: number;
+  /** The score in a sentence: each kind made against what was expected (the row's tooltip, read out). */
+  breakdown: string;
+  you: boolean;
 }
 
 /** One member's champion milestones: the best few, and how many more there are (the rest are on their profile). */
@@ -123,6 +161,8 @@ export interface LeaderboardsView {
 export interface RecentViewOptions {
   /** The members' boards or the public ones; every link keeps to it. */
   basePath?: string;
+  /** The multikill score's comparison for the records' season (multikill-baseline.ts); without it (or under 1,000 games) the team's own games. */
+  multikillBaseline?: MultikillBaseline | null;
   /** Links to profiles and games (members only). */
   profiles?: boolean;
   now?: Date;
@@ -178,6 +218,7 @@ const kdaText = (m: RecordMark) => (m.game && m.game.kills !== null && m.game.de
 
 /** What every part of the page shares: the members as the boards show them, each one's games, the viewer. */
 interface BoardContext {
+  multikillBaseline: MultikillBaseline | null;
   names: Map<string, string>;
   ids: string[];
   byPlayer: Map<string, LeaderboardData["games"]>;
@@ -195,7 +236,7 @@ function boardContext(data: LeaderboardData, viewerPlayerId: string | null, opti
   const byPlayer = new Map<string, LeaderboardData["games"]>(ids.map((id) => [id, []]));
   for (const g of data.games) byPlayer.get(g.playerId)?.push(g);
   const players = Object.fromEntries(data.players.map((p) => [p.id, { id: p.id, name: p.name, profileHref: profiles ? `/players/${p.id}` : null, avatarUrl: p.avatarUrl, look: p.look }]));
-  return { names, ids, byPlayer, players, viewer: viewerPlayerId && names.has(viewerPlayerId) ? viewerPlayerId : null, basePath, profiles, now };
+  return { multikillBaseline: options.multikillBaseline ?? null, names, ids, byPlayer, players, viewer: viewerPlayerId && names.has(viewerPlayerId) ? viewerPlayerId : null, basePath, profiles, now };
 }
 
 /**
@@ -247,9 +288,14 @@ function formView(data: LeaderboardData, ctx: BoardContext): FormView {
   return { rows, notEnough, window: { games: RECENT_WINDOW_GAMES, provisionalFrom: RECENT_PROVISIONAL_GAMES, days: RECENT_WINDOW_DAYS } };
 }
 
+/** The season the records, the multikills and the champion games show for this address (the current one unless it names another offered season). */
+export function recordsSeason(data: Pick<LeaderboardData, "seasons" | "currentSeason">, request: { season?: string | number | null }): number {
+  return chooseSeason(request.season ?? null, data.seasons, data.currentSeason);
+}
+
 function recordsView(data: LeaderboardData, requested: string | number | null, ctx: BoardContext): RecordsView {
   const { names, ids, viewer, basePath, profiles } = ctx;
-  const season = chooseSeason(requested, data.seasons, data.currentSeason);
+  const season = recordsSeason(data, { season: requested });
   const result = buildRecords({ games: data.games, mastery: data.mastery, playerIds: ids, season });
   // (The holder's own Match History redirects to My Profile's, keeping the game.)
   // The board's own address with the game (`?match=`), so a link to it opens the board with the game over it.
@@ -272,8 +318,7 @@ function recordsView(data: LeaderboardData, requested: string | number | null, c
     const holdsIt = !!r.holder && r.holder.playerId === viewer;
     return { id: r.def.id, label: r.def.label, definition: r.def.definition, qualifier: RECORD_QUALIFIERS[r.def.id], holder: r.holder ? holderOf(r.holder, r.def) : null, yours: mine && !holdsIt ? holderOf(mine, r.def) : null };
   });
-  const byName = (a: { playerId: string }, b: { playerId: string }) => (names.get(a.playerId) ?? "").localeCompare(names.get(b.playerId) ?? "");
-  const multikills = [...result.multikills].sort((a, b) => b.penta - a.penta || b.quadra - a.quadra || b.triple - a.triple || byName(a, b));
+  const multikills = multikillsView(data, season, ctx);
   const multikillNote = result.games === 0 ? null : result.multikillGames === 0 ? "No multikill counts yet for this season's games; a game without them is never counted as zero." : result.multikillGames < result.games ? `Counted from ${formatCount(result.multikillGames)} of ${formatCount(result.games)} games this season; the rest are left out, never counted as zero.` : null;
   const multikillShort = !multikillNote ? null : result.multikillGames === 0 ? "None of this season's games yet" : `From ${formatCount(result.multikillGames)} of ${formatCount(result.games)} games`;
   return {
@@ -287,5 +332,75 @@ function recordsView(data: LeaderboardData, requested: string | number | null, c
     multikillShort,
     championGames: groupMilestones(result.championGames, CHAMPION_GAME_MILESTONES, (c) => ({ value: `${formatCount(c.value)} games`, short: formatCount(c.value), milestone: `${c.milestone}+ games` })),
     mastery: groupMilestones(result.mastery, MASTERY_MILESTONES, (c) => ({ value: `${formatCompactCount(c.value)} points`, short: formatCompactCount(c.value), milestone: c.milestone >= 1_000_000 ? "1M+" : `${formatCount(c.milestone / 1000)}K+` })),
+  };
+}
+
+const KIND_WORDS: Record<MultikillKey, [string, string]> = { double: ["double", "doubles"], triple: ["triple", "triples"], quadra: ["quadra", "quadras"], penta: ["penta", "pentas"] };
+const KIND_NAMES: Record<MultikillKey, [string, string]> = { double: ["double kill", "double kills"], triple: ["triple kill", "triple kills"], quadra: ["quadra kill", "quadra kills"], penta: ["pentakill", "pentakills"] };
+const MOST_LABELS: Record<MultikillKey, string> = { double: "Most double kills", triple: "Most triple kills", quadra: "Most quadra kills", penta: "Most pentakills" };
+const plural = (n: number, [one, many]: [string, string]) => `${formatCount(n)} ${n === 1 ? one : many}`;
+const gamesWord = (n: number) => `${formatCount(n)} game${n === 1 ? "" : "s"}`;
+
+/**
+ * The multikill board as the page shows it (docs/TEAM_LEADERBOARDS.md, "The multikill score"):
+ * each member's score in whole points, Riot's own counts in words, the games behind it, the
+ * sentence that says what made it, and the board's one ⓘ in plain words.
+ */
+function multikillsView(data: LeaderboardData, season: number, ctx: BoardContext): MultikillsView {
+  const { names, ids, viewer } = ctx;
+  const board = buildMultikillBoard({ games: data.games, playerIds: ids, season, baseline: ctx.multikillBaseline, nameOf: (id) => names.get(id) ?? "" });
+  const { baseline } = board;
+  const source = baseline.source;
+  const against = source === "same-games" ? "expected for their roles and champions" : "expected at the team's rate";
+  const rows: MultikillRow[] = board.rows.map((r) => {
+    const kinds = MULTIKILL_KEYS.filter((k) => r.counts[k] > 0).map((k) => ({ key: k, text: plural(r.counts[k], KIND_WORDS[k]) }));
+    const made = MULTIKILL_KEYS.map((k) => `${r.kinds[k].made ? plural(r.kinds[k].made, KIND_NAMES[k]) : `no ${KIND_NAMES[k][0]}`} (${formatNumber(r.kinds[k].expected, 1)})`);
+    const byRole = source === "same-games" && r.roleGames < r.counted ? ` Compared by role in ${formatCount(r.roleGames)} of ${gamesWord(r.counted)}; the rest with every position together.` : "";
+    const breakdown =
+      r.score === null || r.status === "not-enough"
+        ? `${gamesWord(r.counted)} with multikill counts: a score needs ${formatCount(MULTIKILL_PROVISIONAL_GAMES)}.`
+        : `Score ${formatCount(shownScore(r.score))} from ${gamesWord(r.counted)}. Each multikill once, at its largest, with the number ${against} in brackets: ${made.join(", ")}.${byRole}`;
+    return {
+      playerId: r.playerId,
+      place: r.place,
+      tied: r.tied,
+      status: r.status,
+      score: r.score === null || r.status === "not-enough" ? null : formatCount(shownScore(r.score)),
+      counts: { ...r.counts },
+      kinds,
+      gamesText: r.counted === r.games ? gamesWord(r.games) : `${formatCount(r.counted)} of ${gamesWord(r.games)}`,
+      counted: r.counted,
+      games: r.games,
+      breakdown,
+      you: r.playerId === viewer,
+    };
+  });
+  const most = MULTIKILL_KEYS.map((k) => {
+    const m = board.most[k];
+    return { key: k, label: MOST_LABELS[k], count: m ? formatCount(m.count) : null, holders: m ? m.holders : [] };
+  });
+  const counting = !baseline.reading.shown
+    ? "Riot's counts may include a big multikill's smaller ones; the score assumes they do, so no multikill counts twice."
+    : baseline.reading.rule === "nested"
+      ? "Riot also counts a pentakill's double, triple and quadra kill; the score counts each multikill once, at its largest."
+      : "Riot counts each multikill once, at its largest, and so does the score.";
+  const compared =
+    source === "same-games"
+      ? `The score compares each member's multikills per game with what players on the same roles and champions made in the same games (${gamesWord(baseline.all.games)} of allies and opponents, never a team member): 100 is usual, 130 is 30% more.`
+      : "Too few other players' games are stored for a fair comparison yet, so each member's multikills per game are compared with the whole team's, every role together (not adjusted for role or champion): 100 is the team's usual.";
+  const explain = [
+    compared,
+    "Each kind is compared on its own and the four count equally, so one pentakill moves a score far more than one double kill.",
+    counting,
+    `With few games a score stays near 100, so one lucky game can't decide it: a place needs ${formatCount(MULTIKILL_RANKED_GAMES)} games with multikill counts, and ${formatCount(MULTIKILL_PROVISIONAL_GAMES)}–${formatCount(MULTIKILL_RANKED_GAMES - 1)} give a provisional score. Scores a few points apart are close.`,
+  ].join(" ");
+  return {
+    rows,
+    most,
+    basis: source === "same-games" ? "Per game, against the same roles and champions · 100 is usual" : "Per game, against the team's own games · 100 is the team's usual",
+    explain,
+    source,
+    rankedFrom: MULTIKILL_RANKED_GAMES,
+    provisionalFrom: MULTIKILL_PROVISIONAL_GAMES,
   };
 }

@@ -1,6 +1,8 @@
 import { LEADERBOARD_QUEUES, longestWinStreak, type LeaderboardGame, type LeaderboardMastery } from "./leaderboards";
 import { seasonOfPatch } from "./season";
 import type { GameRole } from "./season-stats";
+import type { MultikillCounts } from "./multikills";
+import { BASELINE_MIN_GAMES, MULTIKILL_KEYS, mostOfKind, rankMultikillScores, scoreMember, teamBaseline, type MultikillBaseline, type MultikillKey, type RankedScore } from "./multikill-score";
 
 /*
   Records & achievements (docs/LEADERBOARDS_MODEL.md §4): single games and milestones, kept apart
@@ -99,13 +101,6 @@ export interface SeasonRecordResult {
   bests: Record<string, RecordMark>;
 }
 
-export interface MultikillRow {
-  playerId: string;
-  penta: number;
-  quadra: number;
-  triple: number;
-}
-
 export interface ChampionMilestone {
   playerId: string;
   championId: string;
@@ -120,8 +115,6 @@ export interface RecordsResult {
   /** The season's supported games behind the records (one per match per player). */
   games: number;
   records: SeasonRecordResult[];
-  /** Players with a multikill this season, rarest first (pentakills, then quadra, then triple kills). */
-  multikills: MultikillRow[];
   /** How many of the season's games carry Riot's multikill figures (kept from Phase 14 on). */
   multikillGames: number;
   championGames: ChampionMilestone[];
@@ -185,23 +178,8 @@ export function buildRecords(input: { games: readonly LeaderboardGame[]; mastery
   }
   records.push({ def: STREAK, holder: streakHolder, bests: streakBests });
 
-  // Multikills: Riot's own counts, from the games that carry them.
-  const multi = new Map<string, MultikillRow>();
-  let multikillGames = 0;
-  for (const g of games) {
-    // A game carries the counts when its record carries them (the rule of the profiles' multikill
-    // coverage: extra figures without the counts, as a record Riot sent without them, are none).
-    if (!g.extra || typeof g.extra.doubleKills !== "number") continue;
-    multikillGames += 1;
-    const { pentaKills = 0, quadraKills = 0, tripleKills = 0 } = g.extra;
-    if (pentaKills + quadraKills + tripleKills === 0) continue;
-    const row = multi.get(g.playerId) ?? { playerId: g.playerId, penta: 0, quadra: 0, triple: 0 };
-    row.penta += pentaKills;
-    row.quadra += quadraKills;
-    row.triple += tripleKills;
-    multi.set(g.playerId, row);
-  }
-  const multikills = [...multi.values()].sort((a, b) => b.penta - a.penta || b.quadra - a.quadra || b.triple - a.triple || a.playerId.localeCompare(b.playerId));
+  // How many games carry Riot's multikill counts (the multikill board, buildMultikillBoard, scores them).
+  const multikillGames = games.filter((g) => multikillCountsOf(g) !== null).length;
 
   // Champion milestones: games on one champion this season, and Riot's all-time mastery on one champion.
   const championGames: ChampionMilestone[] = [];
@@ -228,5 +206,48 @@ export function buildRecords(input: { games: readonly LeaderboardGame[]; mastery
   }
   const byMilestone = (a: ChampionMilestone, b: ChampionMilestone) => b.milestone - a.milestone || b.value - a.value || a.playerId.localeCompare(b.playerId) || a.championId.localeCompare(b.championId);
 
-  return { season: input.season, games: games.length, records, multikills, multikillGames, championGames: championGames.sort(byMilestone), mastery: mastery.sort(byMilestone) };
+  return { season: input.season, games: games.length, records, multikillGames, championGames: championGames.sort(byMilestone), mastery: mastery.sort(byMilestone) };
+}
+
+/**
+ * A game's multikill counts, when its record carries them: Riot sends the four together, so a record
+ * with extra figures but no doubleKills (as the profiles' multikill coverage reads it) has none, and
+ * is left out, never read as zero.
+ */
+export function multikillCountsOf(g: Pick<LeaderboardGame, "extra">): MultikillCounts | null {
+  if (!g.extra || typeof g.extra.doubleKills !== "number") return null;
+  const n = (v: number | undefined) => (typeof v === "number" && Number.isFinite(v) && v > 0 ? v : 0);
+  return { double: n(g.extra.doubleKills), triple: n(g.extra.tripleKills), quadra: n(g.extra.quadraKills), penta: n(g.extra.pentaKills) };
+}
+
+export interface MultikillBoard {
+  /** Every member with a game this season: ranked, then provisional, then too few games (domain/multikill-score). */
+  rows: RankedScore[];
+  /** Most of each kind (Riot's own counts), double to penta; null while nobody has one. */
+  most: Record<MultikillKey, { count: number; holders: string[] } | null>;
+  /** What the scores were compared with: the other players in the same games, or the team's own games. */
+  baseline: MultikillBaseline;
+}
+
+/**
+ * The season's multikill board: each member's score against the comparison (domain/multikill-score),
+ * over the season's games that carry Riot's counts, and the most of each kind. `baseline` is the
+ * other players in the same games (server/leaderboards/multikill-baseline); while it holds fewer
+ * than BASELINE_MIN_GAMES games (or there is none), the members are compared with the team's own
+ * games, every position together, and the page says so.
+ */
+export function buildMultikillBoard(input: { games: readonly LeaderboardGame[]; playerIds: readonly string[]; season: number; baseline: MultikillBaseline | null; nameOf: (id: string) => string }): MultikillBoard {
+  const members = new Set(input.playerIds);
+  const games = seasonGames(input.games, input.season).filter((g) => members.has(g.playerId));
+  const scored = games.map((g) => ({ g, counts: multikillCountsOf(g) }));
+  const baseline = input.baseline && input.baseline.all.games >= BASELINE_MIN_GAMES ? input.baseline : teamBaseline(scored.map(({ g, counts }) => ({ counts, largest: typeof g.extra?.largestMultiKill === "number" ? g.extra.largestMultiKill : null })));
+  const byPlayer = new Map<string, typeof scored>();
+  for (const x of scored) {
+    const list = byPlayer.get(x.g.playerId);
+    if (list) list.push(x);
+    else byPlayer.set(x.g.playerId, [x]);
+  }
+  const scores = [...byPlayer].map(([playerId, list]) => scoreMember(playerId, list.map(({ g, counts }) => ({ role: g.role, championId: g.championId, counts })), baseline));
+  const most = Object.fromEntries(MULTIKILL_KEYS.map((k) => [k, mostOfKind(scores, k)])) as MultikillBoard["most"];
+  return { rows: rankMultikillScores(scores, input.nameOf), most, baseline };
 }
