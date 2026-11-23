@@ -94,3 +94,36 @@ export function opponentFootLine(o: { isOwn: boolean; known: number; games: numb
   const known = o.known < o.games ? ` Known in ${o.known.toLocaleString("en")} of ${o.games.toLocaleString("en")} games.` : "";
   return `Lane opponent: the enemy Riot placed in ${position} position.${known}`;
 }
+
+/** An opponent's games' KDA, from the games that carry kills, deaths and assists (season-stats' rule). */
+export interface PairingKda {
+  /** Games with K/D/A. */
+  games: number;
+  kills: number;
+  deaths: number;
+  assists: number;
+  /** (kills + assists) / deaths; without a death, the kills and assists a game (then `perfect`). */
+  ratio: number;
+  perfect: boolean;
+}
+
+/**
+ * The KDA over one opponent's games as the preview opens them (each game's own K/D/A added up, as
+ * the champion's KDA is: domain/season-stats), averages a game beside it; null when none of the
+ * games has its figures (never a zero for unknown).
+ */
+export function pairingKda(games: ReadonlyArray<{ kills: number | null; deaths: number | null; assists: number | null }>): PairingKda | null {
+  let n = 0;
+  let k = 0;
+  let d = 0;
+  let a = 0;
+  for (const g of games) {
+    if (g.kills === null || g.deaths === null || g.assists === null) continue;
+    n += 1;
+    k += g.kills;
+    d += g.deaths;
+    a += g.assists;
+  }
+  if (!n) return null;
+  return { games: n, kills: k / n, deaths: d / n, assists: a / n, ratio: d > 0 ? (k + a) / d : (k + a) / n, perfect: d === 0 };
+}
