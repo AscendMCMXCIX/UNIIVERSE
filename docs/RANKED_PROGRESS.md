@@ -65,7 +65,12 @@ Compact, in Profile Overview (`ranked-progress.tsx`): under Recent form, in the 
   Same division (or Master and above): the LP difference. Across divisions: divisions gained or
   lost, no LP figure (LP restarts after a promotion). Never across a reset.
 - **Highest recorded** rank and LP, with the day it was first read (the first time, if read again later).
-- **The chart** (`rank-timeline-chart.tsx`, 120 px tall): only the stretch with readings, from the
+- **The chart** (`rank-timeline-chart.tsx`, 7.5rem tall; in the Overview's 2×2, where the card
+  stands level with the pools, it takes the room the card has, up to 24rem: 23 Nov 2026) is drawn
+  from three different readings (two changes, `CHART_MIN_READINGS`); with fewer, one quiet line says
+  what was recorded instead ("No change recorded yet…", "One change so far: Gold II 46 LP to Gold I
+  12 LP…", `fewReadings`), never a large frame around a flat line or a single step. The card has no
+  rule or box inside it, only spacing. The chart shows only the stretch with readings, from the
   first reading to now (at least three days; the days before a newer first reading are hatched).
   No empty band for the months before it. Day and month ticks sit on the installation's midnights.
   Its division lines are named in full ("Platinum II"; a tier's line "Emerald" where the range is

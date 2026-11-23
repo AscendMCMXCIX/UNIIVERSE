@@ -261,9 +261,21 @@ test("Admin's pages: one header rhythm, one panel depth, one fold, aligned toolb
   const strip = await dp.evaluate(() => ({ border: getComputedStyle(document.querySelector("[data-testid=dashboard-accounts-active]")!).borderLeftWidth, admins: document.querySelector("[data-testid=dashboard-admins]")!.textContent ?? "" }));
   check(strip.border === "0px", `the strip's first tile draws a ${strip.border} hairline`);
   check(!/^\D*1\D*administrators/.test(strip.admins), `"${strip.admins}": a wrong plural`);
+  // G4-2 kept Settings' 64rem at the Admin column's left edge, under the Dashboard's title; since 23
+  // Nov 2026 every page narrower than its column is centred in it (the owner's review: no page against
+  // the sidebar with the spare room on its right), so Settings is centred in the Admin column, which
+  // is itself centred beside the sidebar, and its title is never left of the Dashboard's.
   await dp.goto("/admin/settings");
-  const settingsX = (await dp.locator("main h1").first().boundingBox())!.x;
-  check(Math.abs(settingsX - dashX) <= 1, `Settings' title at x=${settingsX}, the Dashboard's at ${dashX}`);
+  const settings = await dp.evaluate(() => {
+    const column = document.querySelector("main#content > [data-testid=page-frame]")!.firstElementChild!;
+    let page = column.firstElementChild;
+    while (page && page.getBoundingClientRect().width === 0) page = page.nextElementSibling;
+    const c = column.getBoundingClientRect();
+    const p = page!.getBoundingClientRect();
+    return { left: p.left - c.left, right: c.right - p.right, title: document.querySelector("main h1")!.getBoundingClientRect().x };
+  });
+  check(Math.abs(settings.left - settings.right) <= 1, `Settings ${Math.round(settings.left)}px inside the Admin column on the left, ${Math.round(settings.right)}px on the right`);
+  check(settings.title >= dashX - 1, `Settings' title at x=${settings.title}, left of the Dashboard's at ${dashX}`);
 
   // G4-5, G4-10, G4-12: System Health's fold is a row in its panel; the status list has the panels' depth; each verdict has its icon.
   await dp.goto("/admin/system");

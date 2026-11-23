@@ -592,6 +592,14 @@ the account screen over the dashboard at 200% on a 320px phone as well.
   moving onto a pinned tab, the sidebar's logo or the top bar's buttons never scrolls the page.
   A sticky bar must be a child of what the page scrolls through, never of a wrapper that ends with
   it.
+- **Every page centred beside the sidebar** (the owner's review, 23 Nov 2026): every page's column is
+  centred in the room the window leaves beside the sidebar, open or folded, whatever its width (80rem
+  profiles, Settings' 64rem, Team's 100rem), so its margins are equal: no page sits against the sidebar
+  with the spare room on its right. Team's four sections share `--content-wide` at every window size
+  and a set's row of tabs is its pages' width, centred as they are (`ROW_WIDTH`), so the first tab
+  starts at the page's column below 1600px too. This supersedes the 1600px threshold and the
+  frame's left edge in the paragraph below (`e2e/desktop-frame.spec.ts`,
+  `e2e/navigation-reach.spec.ts`).
 - **One composition at every width** (PR 10, 18 Nov 2026): in a window from 1600px (100rem) wide
   the pages of a tab set share one width (`SECTION_HUBS`' `width` in `src/lib/nav.ts`: Team's four
   sections `--content-wide`, Players and Matches joining Team Overview and Leaderboards there;
@@ -812,7 +820,7 @@ folded the bars of `main`'s own (Team's, Platform Settings'), measured once the 
 itself has replaced its loading state: the row in the same place on all of a set's sections, Team's
 name ending at the column's right edge, the bar's line spanning the room, and on Team Overview the
 header centred in Team's column; under a 1600px window (1536 × 864, the sidebar folded) Players and
-Matches stay 80rem and the row spans the bar, as before; at a tablet's width held sideways
+Matches fill the room with Team's other sections, under a row that spans the bar (since 23 Nov 2026); at a tablet's width held sideways
 (768 × 420) the frame is the compact bar, the sections in it and not in the page, sliding away as the
 page scrolls down; a tablet's destinations in its top bar, one tap each, and its avatar menu taking
 the focus to its first item, the arrow keys going round its items (Down and Up wrapping, Home and

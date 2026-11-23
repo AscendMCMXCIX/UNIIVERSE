@@ -512,10 +512,9 @@ are fixed in one place each, and `e2e/design-parity.spec.ts` ("Admin's pages") a
 - **Header rhythm on phones:** an Admin page under a section row with no actions (`PageHeader admin
   sectionNamed`) shows nothing on a phone, so the whole header is read out only there and its stack
   margin goes with it: the content starts right under the bars (y 117 at 390 × 844, 133–137 before).
-- **One column edge:** Settings in Admin Mode starts at the page's left edge like every other Admin
-  page: the Admin pages' column starts its children at its left edge (`*:ml-0`, as the frame does),
-  so Settings' 64rem keeps its width and loses its centring (h1 at x 288 at 1440, 319 at 1920, the
-  Dashboard's; 336 and 461 before).
+- **One column edge** (G4-2, superseded 23 Nov 2026): Settings in Admin Mode started at the Admin
+  column's left edge (`*:ml-0`); it is now centred in it, as every narrower page is centred in the
+  frame (above, *The shared frame*).
 - **One depth:** every section, card and status list on a panel's surface has `panel-depth` and the
   panel radius (Branding's Name, Background visibility, Colours and image cards; StatusCards' list).
 - **One fold inside a panel:** a fold inside a panel is a `row` Fold, never a box in a box (System
@@ -641,7 +640,9 @@ With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shel
     "no blur on content" (§3) holds.
   - Anything pinned under it (All Champions' column headings) offsets by `--tabs-top`.
   - Nothing is pinned in a window under 481px tall.
-  - **One composition at every width (PR 10, 18 Nov 2026).** In a window from 1600px wide the pages
+  - **One composition at every width (PR 10, 18 Nov 2026; since 23 Nov 2026 at every window size,
+    Team's four sections at `--content-wide` and every row centred with its pages: *The shared frame*
+    below, which supersedes the 1600px threshold described here).** In a window from 1600px wide the pages
     of a tab set share one width (`SECTION_HUBS`' `width`): Team's four sections `--content-wide`
     (Players and Matches join Team Overview and Leaderboards there), Platform Settings'
     `--content-max`. From 1600px the bar's row of tabs takes it (`TabBar`'s `inner`,
@@ -667,11 +668,14 @@ With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shel
     page does, its list at `--content-max`.
   - **One frame, one place for everything (S2c, 19 Nov 2026).**
     - *The shared frame* (`app-shell.tsx`, `FRAME`): one content column, at most `--content-wide`
-      and centred in the room beside the sidebar. A page narrower than it (80rem profiles, lists,
-      documents, Settings, Admin) starts at its left edge and simply ends earlier, so every title
-      starts at one x and nothing jumps sideways between destinations (UD.X3: up to 536px apart at
-      2560 before). A narrower set's tab row starts there too (`ROW_WIDTH.max`). Under 100rem of room
-      the frame is the whole width, so phones, tablets and laptops are unchanged.
+      and centred in the room beside the sidebar, open or folded. A page narrower than it (80rem
+      profiles, lists, documents, Settings, Admin) centres itself in it too, so it has the same margin
+      on either side (the owner's review of 23 Nov 2026; until then it started at the frame's left
+      edge, UD.X3, which with the sidebar folded left 351px spare on a profile's right at 1920 × 1080
+      and none on its left). Pages of one width share one x; a set's tab row is its pages' width,
+      centred as they are (`ROW_WIDTH`), and Team's four sections share `--content-wide` at every
+      window size. Where the room is narrower than a page's width the page fills it (phones, tablets,
+      laptops). `e2e/desktop-frame.spec.ts` measures the margins at 1440, 1920 and 2560, both ways.
     - *Settings* (UD.S2): from lg the title spans the frame, the account card is its first column.
     - *The profile's header is one band on every section* from `sm` (the `band` variant: a short
       window or 40rem and up): the Overview's card takes the band's layout (the picture, the name with

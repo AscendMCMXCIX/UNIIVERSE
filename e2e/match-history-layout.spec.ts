@@ -796,10 +796,17 @@ test("the views, Filters and Refresh share one row, read and tabbed in the order
   const toolbar = (await history.getByTestId("section-toolbar").boundingBox())!;
   expect(toolbar.y, "the toolbar under the views").toBeGreaterThanOrEqual(views.y + views.height - 1);
   expect(toolbar.x, "from the row's start").toBeLessThanOrEqual(views.x + 1);
-  const chip = history.getByRole("button", { name: phone ? "Ranked Solo/Duo: remove this filter" : "Remove filter Wins" });
+  const chip = history.getByRole("button", { name: phone ? "Ranked Solo/Duo: remove this filter" : "Wins: remove this filter" });
   await expect(chip).toBeVisible();
   const c = (await chip.boundingBox())!;
-  if (!phone) expect(c.x, "the refinement's chip at the row's start").toBeLessThanOrEqual(views.x + 1);
+  if (!phone) {
+    // A tablet's active refinements sit in the toolbar's own row since 23 Nov 2026 (one row: what is
+    // narrowed, the controls, Reset), before the game mode, never a row of their own under the bar;
+    // the Refine panel opens under the row, so they stay clear of it.
+    const mode = (await history.locator("#overview-mode").boundingBox())!;
+    expect(Math.abs(c.y + c.height / 2 - (mode.y + mode.height / 2)), "the refinement's chip on the controls' line").toBeLessThanOrEqual(4);
+    expect(c.x + c.width, "before the game mode").toBeLessThanOrEqual(mode.x);
+  }
   expect(c.x + c.width).toBeLessThanOrEqual(page.viewportSize()!.width);
   expect(await overflow(page)).toBeLessThanOrEqual(1);
   if (phone) return;

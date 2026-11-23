@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { RoleSegmented } from "@/components/ui/segmented";
-import { FilterBar, FilterField, InFilterSheet, RefineButton, type FilterChip } from "@/components/ui/filter-bar";
+import { FILTER_CHIP, FilterBar, FilterField, InFilterSheet, RefineButton, type FilterChip } from "@/components/ui/filter-bar";
 import { InfoTip } from "@/components/ui/info-tip";
 import { FiltersControl, PageToolbar } from "@/components/ui/page-toolbar";
 import {
@@ -21,6 +21,20 @@ import { ChampionFilter } from "@/components/champions/champion-filter";
 import { accountShortNames } from "@/domain/account-names";
 import { formatCount } from "@/lib/format";
 
+
+/**
+ * The inline toolbar's joined group (from md): season, game mode and Refine share their edges, each
+ * after the first drawn over the gap (the bar's 0.5rem, and 1px so the two borders are one); the one
+ * pointed at or focused is lifted, so its whole edge shows. `field` goes on the control's wrapper,
+ * `before` and `after` on the control itself.
+ */
+const JOIN = {
+  field: "md:-ml-2.25",
+  before: "md:rounded-r-none md:relative md:hover:z-10 md:focus-visible:z-10",
+  after: "md:rounded-l-none md:relative md:hover:z-10 md:focus-visible:z-10",
+  /** Before a Refine that only shows from lg (refineUnavailable). */
+  beforeFromLg: "lg:rounded-r-none md:relative md:hover:z-10 md:focus-visible:z-10",
+} as const;
 
 /**
  * The profile's statistics filters. Up front: season (when there is more than one) and game mode.
@@ -146,6 +160,7 @@ export function OverviewFilters({
       document.removeEventListener("keydown", onKey);
     };
   }, [open]);
+  const hasRefine = showRole || showChampions || accounts.length > 1 || !!extraFields;
   const narrowed = refinements.length + (filter.mode !== "all" ? 1 : 0) + (filter.season !== currentSeason ? 1 : 0) + sheetChips.length;
   const field = "md:w-auto";
   // What the bar chooses; below md a list's own choices too (they join the sheet there).
@@ -181,53 +196,71 @@ export function OverviewFilters({
         toggleOnPhones={toggleOnPhones}
         align="end"
         pending={pending}
-        after={
-          refinements.length ? (
-            <ul className="flex flex-wrap gap-1.5 max-md:hidden xl:justify-end" aria-label="Active filters">
-              {refinements.map((r) => (
-                <li key={r.key}>
-                  <button type="button" onClick={r.clear} className="inline-flex h-8 items-center gap-1 rounded-full border border-border bg-surface px-2.5 text-xs text-fg hover:border-border-strong" aria-label={`Remove filter ${r.text}`}>
-                    {r.text} <X className="h-3 w-3 text-fg-subtle" aria-hidden />
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : null
-        }
       >
-        {seasons.length > 1 ? (
-          <FilterField label="Season" htmlFor="overview-season">
-            <Select
-              id="overview-season"
-              name="season"
-              value={String(filter.season)}
-              disabled={pending}
-              onValueChange={(v) => go({ season: Number(v) })}
-              className={`${field} md:w-56`}
-              options={seasons.map((s) => ({ value: String(s), label: `${seasonLabel(s)}${s === currentSeason ? " (current)" : ""}` }))}
-            />
-          </FilterField>
-        ) : null}
-        <FilterField label="Game mode" htmlFor="overview-mode">
-          <Select
-            id="overview-mode"
-            name="mode"
-            value={filter.mode}
-            disabled={pending}
-            onValueChange={(v) => go({ mode: v as StatsFilter["mode"] })}
-            className={`${field} md:w-48`}
-            options={SEASON_MODES.map((m) => ({ value: m.key, label: `${m.label}${modeCounts && modeCounts[m.key] !== undefined ? ` (${formatCount(modeCounts[m.key]!)})` : ""}` }))}
-          />
-        </FilterField>
-        {/* Refine and its panel. In the Filters sheet (phones, and the sheet the pinned row opens at any
-            width): no box or button of its own (display: contents), so the fields sit in the sheet.
-            From md in the page: the anchor of the floating panel. Without a field to offer, none. */}
-        {!(showRole || showChampions || accounts.length > 1 || extraFields) && refineUnavailable ? (
+        {/* The refinements in effect, in the toolbar's own row from md (one row: what is narrowed, the
+            controls, Reset), as the phone's chips beside its Filters button: the same pill, the same
+            words. Until 23 Nov 2026 they took a row of their own under the bar, in another look. */}
+        {refinements.length ? (
           <InFilterSheet>
             {(inSheet) =>
               inSheet ? null : (
-                <span className="inline-flex items-center gap-1 max-lg:hidden" data-testid="refine-unavailable">
-                  <RefineButton open={false} onClick={() => {}} unavailable={{ describedBy: "refine-unavailable-reason" }} testId="refine-filters" />
+                <ul className="flex min-w-0 flex-wrap items-center gap-1.5" aria-label="Active filters" data-testid={`${testId}-active`}>
+                  {refinements.map((r) => (
+                    <li key={r.key}>
+                      <button type="button" onClick={r.clear} className={FILTER_CHIP} aria-label={`${r.text}: remove this filter`}>
+                        {r.text} <X className="h-3 w-3 text-fg-subtle" aria-hidden />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )
+            }
+          </InFilterSheet>
+        ) : null}
+        {/* Season, game mode and Refine as one joined group from md (JOIN: shared edges, no gaps), so
+            the toolbar reads as one control rather than a row of separate boxes; in the sheet each
+            field stands on its own, labelled. */}
+        {seasons.length > 1 ? (
+          <InFilterSheet>
+            {(inSheet) => (
+              <FilterField label="Season" htmlFor="overview-season">
+                <Select
+                  id="overview-season"
+                  name="season"
+                  value={String(filter.season)}
+                  disabled={pending}
+                  onValueChange={(v) => go({ season: Number(v) })}
+                  className={cn(`${field} md:w-56`, !inSheet && JOIN.before)}
+                  options={seasons.map((s) => ({ value: String(s), label: `${seasonLabel(s)}${s === currentSeason ? " (current)" : ""}` }))}
+                />
+              </FilterField>
+            )}
+          </InFilterSheet>
+        ) : null}
+        <InFilterSheet>
+          {(inSheet) => (
+            <FilterField label="Game mode" htmlFor="overview-mode" className={cn(!inSheet && seasons.length > 1 && JOIN.field)}>
+              <Select
+                id="overview-mode"
+                name="mode"
+                value={filter.mode}
+                disabled={pending}
+                onValueChange={(v) => go({ mode: v as StatsFilter["mode"] })}
+                className={cn(`${field} md:w-48`, !inSheet && seasons.length > 1 && JOIN.after, !inSheet && (hasRefine ? JOIN.before : refineUnavailable ? JOIN.beforeFromLg : null))}
+                options={SEASON_MODES.map((m) => ({ value: m.key, label: `${m.label}${modeCounts && modeCounts[m.key] !== undefined ? ` (${formatCount(modeCounts[m.key]!)})` : ""}` }))}
+              />
+            </FilterField>
+          )}
+        </InFilterSheet>
+        {/* Refine and its panel. In the Filters sheet (phones, and the sheet the pinned row opens at any
+            width): no box or button of its own (display: contents), so the fields sit in the sheet.
+            From md in the page: the anchor of the floating panel. Without a field to offer, none. */}
+        {!hasRefine && refineUnavailable ? (
+          <InFilterSheet>
+            {(inSheet) =>
+              inSheet ? null : (
+                <span className={cn("inline-flex items-center gap-1 max-lg:hidden", JOIN.field)} data-testid="refine-unavailable">
+                  <RefineButton open={false} onClick={() => {}} unavailable={{ describedBy: "refine-unavailable-reason" }} className={JOIN.after} testId="refine-filters" />
                   <span id="refine-unavailable-reason" className="sr-only">
                     {refineUnavailable}
                   </span>
@@ -237,11 +270,11 @@ export function OverviewFilters({
             }
           </InFilterSheet>
         ) : null}
-        {showRole || showChampions || accounts.length > 1 || extraFields ? (
+        {hasRefine ? (
           <InFilterSheet>
             {(inSheet) => (
-              <div ref={refineRef} className={inSheet ? "contents" : "max-md:contents md:relative"}>
-                {inSheet ? null : <RefineButton buttonRef={refineButton} open={open} count={refinements.length} controls="overview-refine" haspopup="dialog" onClick={() => setOpen((o) => !o)} className="max-md:hidden" testId="refine-filters" />}
+              <div ref={refineRef} className={inSheet ? "contents" : cn("max-md:contents md:relative", JOIN.field)}>
+                {inSheet ? null : <RefineButton buttonRef={refineButton} open={open} count={refinements.length} controls="overview-refine" haspopup="dialog" onClick={() => setOpen((o) => !o)} className={cn("max-md:hidden", JOIN.after)} testId="refine-filters" />}
                 <div
                   id="overview-refine"
                   role="group"

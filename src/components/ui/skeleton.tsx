@@ -111,11 +111,11 @@ function RowSkeleton({ className, picture = "h-10 w-10 rounded-full" }: { classN
 /**
  * Players (players-directory.tsx): the title and its count, the toolbar, then one panel of 64px rows,
  * one, two or three across by the roster's own width (two from 38rem, three from 84rem), at the
- * page's width (80rem, Team's 100rem from a 1600px window).
+ * page's width (Team's 100rem), centred as the page is.
  */
 export function PlayersSkeleton() {
   return (
-    <div className={cn("space-y-4", PAGE_WIDTH.wideFrom1600)} role="status" aria-live="polite" aria-label="Loading" data-testid="players-skeleton">
+    <div className={cn("mx-auto space-y-4", PAGE_WIDTH.wide)} role="status" aria-live="polite" aria-label="Loading" data-testid="players-skeleton">
       <div className="space-y-4">
         <div className="space-y-1">
           <Skeleton className="h-8 w-24" />

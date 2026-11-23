@@ -103,7 +103,9 @@ function FigureLabel({ label, info }: { label: string; info?: string }) {
 function Headline({ label, value, sub, info, tone = "plain", testId, className, children }: { label: string; value: React.ReactNode; sub?: React.ReactNode; info?: string; tone?: WinRateTone; testId: string; className?: string; children?: React.ReactNode }) {
   return (
     <div className={cn("min-w-0 px-3 py-3 @min-[34rem]/perf:px-5 @min-[34rem]/perf:py-4", ROW_CELL, className)} data-testid={testId}>
-      <div className="flex items-center gap-1 text-xs font-medium text-fg-muted">
+      {/* From a 34rem card (tablets, desktops) the headline labels are a step larger than the
+          supporting ones, so the band reads first as a tier, not only by its numbers (23 Nov 2026). */}
+      <div className="flex items-center gap-1 text-xs font-medium text-fg-muted @min-[34rem]/perf:text-sm">
         <FigureLabel label={label} info={info} />
       </div>
       <div className={cn("mt-1.5 text-2xl font-semibold leading-none tracking-tight tabular-nums @min-[34rem]/perf:text-figure", ROW_VALUE, TONE_CLASS[tone])} data-testid={`${testId}-value`}>
@@ -300,23 +302,27 @@ function OverviewDashboard({ perf, form, ranked, pools }: { perf: React.ReactNod
       {/* In the 2×2 the rail (recent form, then ranked progress straight under it) spans both rows:
           recent form ends at its content (UD.PO2) and ranked progress follows it, whatever the
           season card's height; the second row takes whatever height the rail has beyond that card,
-          so the card never stretches and the pools stay put. Elsewhere the rail's box is
-          display:contents, so its cards are the grid's own items. */}
+          so the card never stretches. The two columns end level (23 Nov 2026, the owner's review:
+          no mismatched card heights): ranked progress fills the rail to the pools' end, its chart
+          growing into the room (up to 24rem; RankTimelineChart's `fill`), and the pools fill the
+          second row where the rail is the taller. A long pool shows its first eight champions
+          (PRIMARY_POOL_TOP), so the pools stay close to the rail's height. Elsewhere the rail's box
+          is display:contents, so its cards are the grid's own items. */}
       <div className={cn("grid grid-cols-[minmax(0,1fr)] items-start gap-3 sm:gap-4", form && "@min-[58rem]/ov:grid-cols-[minmax(0,1fr)_minmax(18rem,21rem)]", two && GRID_2X2, two && "min-[90rem]:@min-[68rem]/ov:grid-rows-[auto_1fr]")}>
         <div className={cn("min-w-0 self-stretch", two && "min-[90rem]:@min-[68rem]/ov:col-start-1 min-[90rem]:@min-[68rem]/ov:row-start-1 min-[90rem]:@min-[68rem]/ov:self-start")}>{perf}</div>
-        <div className={cn("contents", two && "min-[90rem]:@min-[68rem]/ov:col-start-2 min-[90rem]:@min-[68rem]/ov:row-span-2 min-[90rem]:@min-[68rem]/ov:row-start-1 min-[90rem]:@min-[68rem]/ov:flex min-[90rem]:@min-[68rem]/ov:min-w-0 min-[90rem]:@min-[68rem]/ov:flex-col min-[90rem]:@min-[68rem]/ov:gap-4 min-[90rem]:@min-[68rem]/ov:self-start")}>
+        <div className={cn("contents", two && "min-[90rem]:@min-[68rem]/ov:col-start-2 min-[90rem]:@min-[68rem]/ov:row-span-2 min-[90rem]:@min-[68rem]/ov:row-start-1 min-[90rem]:@min-[68rem]/ov:flex min-[90rem]:@min-[68rem]/ov:min-w-0 min-[90rem]:@min-[68rem]/ov:flex-col min-[90rem]:@min-[68rem]/ov:gap-4 min-[90rem]:@min-[68rem]/ov:self-stretch")}>
           {form ? (
             <div className="min-w-0 self-start min-[90rem]:@min-[68rem]/ov:self-auto" data-testid="overview-form">
               {form}
             </div>
           ) : null}
           {ranked ? (
-            <div className={cn("min-w-0", wide)} data-testid="overview-ranked">
+            <div className={cn("flex min-w-0 flex-col", wide, two && "min-[90rem]:@min-[68rem]/ov:flex-1")} data-testid="overview-ranked">
               {ranked}
             </div>
           ) : null}
         </div>
-        {pools ? <div className={cn("min-w-0", wide, two && "min-[90rem]:@min-[68rem]/ov:col-span-1 min-[90rem]:@min-[68rem]/ov:col-start-1 min-[90rem]:@min-[68rem]/ov:row-start-2 min-[90rem]:@min-[68rem]/ov:self-start")} data-testid="overview-pools">{pools}</div> : null}
+        {pools ? <div className={cn("flex min-w-0 flex-col", wide, two && "min-[90rem]:@min-[68rem]/ov:col-span-1 min-[90rem]:@min-[68rem]/ov:col-start-1 min-[90rem]:@min-[68rem]/ov:row-start-2 min-[90rem]:@min-[68rem]/ov:self-stretch")} data-testid="overview-pools">{pools}</div> : null}
       </div>
     </div>
   );

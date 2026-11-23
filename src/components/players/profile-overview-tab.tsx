@@ -115,7 +115,7 @@ async function ProfileOverviewTabBody({ db, header, session, basePath, search }:
   // figures in that role over the page's games; the owner and admins edit them in place.
   const pools = (
     // The section's border turns to the accent while its pools are being edited.
-    <section aria-labelledby="champion-pools" className="space-y-3 rounded-card border border-border bg-surface p-3 panel-depth transition-colors duration-150 has-[[data-editing]]:border-accent/50 sm:p-4" data-testid="champion-pools">
+    <section aria-labelledby="champion-pools" className="flex-1 space-y-3 rounded-card border border-border bg-surface p-3 panel-depth transition-colors duration-150 has-[[data-editing]]:border-accent/50 sm:p-4" data-testid="champion-pools">
       {player.primaryRole ? (
         <div data-testid={editable ? "pool-editor" : "pool-cards"}>
           <ProfilePools
@@ -161,7 +161,7 @@ async function ProfileOverviewTabBody({ db, header, session, basePath, search }:
       status={status}
       refresh={refreshFor(session, player.id, sync, m.games - m.counted - m.unavailable > 0)}
       form={overview.form.season.games >= FORM_MIN_GAMES ? <RecentFormStrip form={overview.form} championsById={championsById} historyHref={`${basePath}/matches`} narrowed={refinementLabel(overview, (id) => championsById[id]?.name ?? id)} /> : null}
-      ranked={rankHistory.accounts.length ? <RankedProgress accounts={rankHistory.accounts} queue={rankQueue} accountId={search.ra ?? null} href={rankHref} now={rankHistory.readAt} /> : null}
+      ranked={rankHistory.accounts.length ? <RankedProgress accounts={rankHistory.accounts} queue={rankQueue} accountId={search.ra ?? null} href={rankHref} now={rankHistory.readAt} className="flex-1" /> : null}
       pools={pools}
     />
   );

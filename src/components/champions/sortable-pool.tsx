@@ -8,7 +8,7 @@ import { cn } from "@/lib/cn";
 import { championArtUrl } from "@/domain/player-card";
 import { RemoteImage } from "@/components/ui/remote-image";
 import { screenHeight } from "@/lib/screen";
-import { PHONE_FOLDED } from "@/components/ui/phone-fold-classes";
+import { FOLDED, PHONE_FOLDED } from "@/components/ui/phone-fold-classes";
 
 /** Moves one item to a new index (pure; used by drag, keyboard and tests). */
 export function moveItem<T>(list: readonly T[], from: number, to: number): T[] {
@@ -97,12 +97,15 @@ export function SortablePool({
   controls = "hover",
   variant = "cards",
   phoneFoldFrom,
+  foldFrom,
 }: {
   /**
    * Rows from this position on fold away on a touch phone while the Fold around the list is closed
    * (phone-fold.tsx: the list sits in its group). Rows only; omitted: every row shows.
    */
   phoneFoldFrom?: number;
+  /** Rows from this position on fold away at every width while that Fold is closed (FOLDED): a long pool's Show all. */
+  foldFrom?: number;
   /**
    * cards: a grid of cards (the setup forms). rows: one line per champion in a single column, its
    * figures in fixed columns at the line's end under one row of column names (the profile's pools).
@@ -429,6 +432,7 @@ export function SortablePool({
                   isDragged && "z-20 cursor-grabbing border-accent bg-surface-2 shadow-2xl shadow-black/50 will-change-transform",
                   isLifted && "z-10 border-accent bg-surface-2 ring-2 ring-accent/40",
                   phoneFoldFrom !== undefined && index >= phoneFoldFrom && PHONE_FOLDED,
+                  foldFrom !== undefined && index >= foldFrom && FOLDED,
                 )}
                 data-testid="pool-item"
                 data-champion={id}

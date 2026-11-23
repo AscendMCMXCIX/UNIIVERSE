@@ -64,13 +64,13 @@ export function usePhoneFold(key?: string) {
 const FoldContext = React.createContext<{ open: boolean; toggle: () => void } | null>(null);
 
 /** The phone-only Show and Hide button of a section's Fold: its state from the props, or from the PhoneFoldSection around it. */
-export function PhoneFoldToggle({ open: openProp, onToggle, controls, label, showText = "Show", hideText = "Hide", iconOnly = false, className, testId }: { open?: boolean; /** The chevron alone (a 44px square on touch), where the words would push it onto a line of its own. */ iconOnly?: boolean; onToggle?: () => void; /** The id of the part it shows. */ controls?: string; /** What it shows, for screen readers ("details of ranked progress"). */ label: string; showText?: string; hideText?: string; className?: string; testId?: string }) {
+export function PhoneFoldToggle({ open: openProp, onToggle, controls, label, showText = "Show", hideText = "Hide", iconOnly = false, everywhere = false, className, testId }: { open?: boolean; /** The chevron alone (a 44px square on touch), where the words would push it onto a line of its own. */ iconOnly?: boolean; /** Shown at every width, for a part that folds at every width (FOLDED), not on phones only. */ everywhere?: boolean; onToggle?: () => void; /** The id of the part it shows. */ controls?: string; /** What it shows, for screen readers ("details of ranked progress"). */ label: string; showText?: string; hideText?: string; className?: string; testId?: string }) {
   const ctx = React.useContext(FoldContext);
   const open = openProp ?? ctx?.open ?? false;
   const toggle = onToggle ?? ctx?.toggle;
   return (
     // The wrapper holds the posture (the button's own inline-flex would outrank a hidden on it).
-    <span className={cn(PHONE_FOLD_ONLY, "shrink-0", className)}>
+    <span className={cn(everywhere ? "inline-flex" : PHONE_FOLD_ONLY, "shrink-0", className)}>
       <Button size="sm" variant="ghost" className={cn(iconOnly && "max-md:min-w-11 max-md:px-0 pointer-coarse:min-w-11")} onClick={toggle} aria-expanded={open} aria-controls={controls} aria-label={`${open ? hideText : showText} ${label}`} data-testid={testId}>
         {iconOnly ? null : open ? hideText : showText}
         <ChevronDown className={cn("h-4 w-4 transition-transform duration-150 motion-reduce:transition-none", open && "rotate-180")} aria-hidden />

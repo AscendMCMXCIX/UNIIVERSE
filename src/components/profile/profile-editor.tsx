@@ -98,6 +98,13 @@ export function RolePicker({
  */
 /** How many of the primary pool's champions a touch phone shows before its Show all (the player's top choices). */
 export const PRIMARY_POOL_PHONE_TOP = 3;
+/**
+ * How many of the primary pool's champions show on tablets and desktops before its Show all (23 Nov
+ * 2026): a pool of 26 made the Overview three screens tall and left the cards beside it far short of
+ * it. Eight rows end the pools about level with Ranked progress in the 2×2; most pools are shorter
+ * and show whole, with no button.
+ */
+export const PRIMARY_POOL_TOP = 8;
 
 export function PoolSection({
   title,
@@ -117,14 +124,21 @@ export function PoolSection({
   inspectHref,
   collapsible,
   phoneTop,
+  top,
   children,
 }: {
   /**
    * On a touch phone, only the first this many champions show until the pool's Show all (a Fold,
    * phone-fold.tsx: the profile's primary pool, 20 Nov 2026). Never while editing, and only with
-   * statistics (the profile's rows). Tablets and desktop show the whole pool.
+   * statistics (the profile's rows). Tablets and desktop show the whole pool, up to `top`.
    */
   phoneTop?: number;
+  /**
+   * At every width, only the first this many champions show until the pool's Show all, drawn at the
+   * list's end where the rows stop (the same Fold and state as the phone's). Never while editing, and
+   * only with statistics.
+   */
+  top?: number;
   /**
    * Shown as a one-line summary (the role, its champions as small portraits) until opened: off
    * roles on the profile, so the page leads with the primary pool. Opening shows the full,
@@ -158,10 +172,14 @@ export function PoolSection({
   const bodyId = React.useId();
   const closed = !!collapsible && !collapsible.open;
   const fold = usePhoneFold(`pool-${testId}`);
-  const folds = phoneTop !== undefined && !!stats && !editable && !closed && ids.length > phoneTop;
+  // A long pool folds at every width past `top` (its Show all at the list's end, for phones too);
+  // else a pool longer than `phoneTop` folds on phones only (its Show all by the heading).
+  const foldsWide = top !== undefined && !!stats && !editable && !closed && ids.length > top;
+  const folds = !foldsWide && phoneTop !== undefined && !!stats && !editable && !closed && ids.length > phoneTop;
+  const grouped = folds || foldsWide;
   const addChampion = (compact: boolean) => <AddChampion role={role} champions={champions} exclude={selected} onAdd={(id) => onChange([...ids, id])} testId={testId} compact={compact} />;
   return (
-    <section className={cn("space-y-3", closed && "space-y-0", folds && fold.groupProps.className)} data-testid={testId} data-open={collapsible ? collapsible.open : undefined} data-fold={folds ? fold.groupProps["data-fold"] : undefined}>
+    <section className={cn("space-y-3", closed && "space-y-0", grouped && fold.groupProps.className)} data-testid={testId} data-open={collapsible ? collapsible.open : undefined} data-fold={grouped ? fold.groupProps["data-fold"] : undefined}>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         {/* One line: the role (its menu while editing), how many champions, and what the role is to the player. */}
         <h3 className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1 text-sm font-semibold">
@@ -202,7 +220,8 @@ export function PoolSection({
           controls={controls}
           testId={`${testId}-list`}
           variant={stats ? "rows" : "cards"}
-          phoneFoldFrom={folds ? phoneTop : undefined}
+          phoneFoldFrom={grouped ? phoneTop : undefined}
+          foldFrom={foldsWide ? top : undefined}
           renderStats={stats ? (id) => <PoolRowStats s={stats[id]} role={role} editing={editable} /> : undefined}
           onInspect={onInspect}
           inspectHref={inspectHref}
@@ -210,6 +229,12 @@ export function PoolSection({
           // never ends in a card-sized blank; the setup form keeps the cell at the end of the list.
           addSlot={editable && !stats ? addChampion(false) : undefined}
         />
+        {foldsWide ? (
+          // Where the rows stop: the rest of the pool, the same Fold as the phone's (its state kept on the history entry).
+          <div className="flex justify-center border-t border-border/50 pt-1.5">
+            <PhoneFoldToggle everywhere open={fold.open} onToggle={fold.toggle} controls={bodyId} label={`${ROLE_LABELS[role]} champions`} showText={`Show all ${ids.length}`} hideText="Show fewer" testId={`${testId}-fold`} />
+          </div>
+        ) : null}
         </>
       )}
       {children}
@@ -613,6 +638,7 @@ export function ProfileEditor({
       actions={i > 0 ? removeButton(o.role, () => onRemove(i)) : undefined}
       collapsible={i > 0 && stats && !live ? { open: openRoles.has(o.role), onToggle: () => toggleRole(o.role) } : undefined}
       phoneTop={i === 0 ? PRIMARY_POOL_PHONE_TOP : undefined}
+      top={i === 0 ? PRIMARY_POOL_TOP : undefined}
     />
   );
 
