@@ -11,7 +11,7 @@ export default async function NoAccessPage() {
   const session = await getSession();
   const open = NAV_LINKS.filter((l) => canOpen(session, l));
   return (
-    // The frame's `*:ml-0` pins a page's root to the column's left edge: the root spans the column, and the inner wrapper centres the state in it.
+    // The root spans the frame's column, and the inner wrapper centres the state in it.
     <div className="mt-10 w-full">
       <div className="mx-auto max-w-md space-y-4 text-center" data-testid="no-access">
         <ShieldOff className="mx-auto h-10 w-10 text-fg-subtle" aria-hidden />

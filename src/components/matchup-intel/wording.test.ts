@@ -65,6 +65,29 @@ import {
   cooldownsFromWords,
   hiddenPartsBarWords,
   noBriefingWords,
+  KEY_FACT_TITLE,
+  NOT_A_PERSON_WORDS,
+  DANGER_TITLE,
+  dangerLineWords,
+  OTHER_TOOLS_TITLE,
+  otherToolsWords,
+  yourToolsTitleWords,
+  EMPOWER_GROUP_WORDS,
+  DAMAGE_GROUP_WORDS,
+  qualifierNoteWords,
+  noFactsForWords,
+  HASTE_SHARED_WORDS,
+  STRIP_FOLDED_WORDS,
+  lineupWords,
+  headlineOf,
+  LANE_PLAN_TITLE,
+  LANE_REFERENCE_TITLE,
+  FULL_REFERENCE_TITLE,
+  interactionsMoreWords,
+  emptyGroupsWords,
+  duoToolsWords,
+  riotTipHeadingWords,
+  fullReferenceWords,
 } from "./wording";
 
 describe("the cooldown line", () => {
@@ -326,6 +349,38 @@ describe("the assembled reference's fixed sentences and labels", () => {
     hiddenRiotTextWords(2, "changed", "R", 1),
     hiddenRiotTextWords(0, "renamed", "R", 1),
     moreWords(2),
+    // The lane plan's fixed words (23 Nov 2026).
+    LANE_PLAN_TITLE,
+    LANE_REFERENCE_TITLE,
+    FULL_REFERENCE_TITLE,
+    interactionsMoreWords(1),
+    interactionsMoreWords(4),
+    emptyGroupsWords(["Mobility"], "riot-text"),
+    emptyGroupsWords(["Burst and power", "Mobility", "Defence", "Sustain"], "checked"),
+    emptyGroupsWords(["Empowerments", "Sustain"], "riot-text", ["R"]),
+    duoToolsWords(["Caitlyn", "Lux", "Jinx", "Lulu"]),
+    // The review of Release 13's fixed words.
+    KEY_FACT_TITLE,
+    NOT_A_PERSON_WORDS,
+    DANGER_TITLE,
+    dangerLineWords("Darius"),
+    OTHER_TOOLS_TITLE,
+    otherToolsWords("Darius"),
+    yourToolsTitleWords("Garen"),
+    EMPOWER_GROUP_WORDS,
+    DAMAGE_GROUP_WORDS,
+    qualifierNoteWords("stun", "Mega Gnar"),
+    qualifierNoteWords("cooldownrefund", "Mantra"),
+    noFactsForWords(["Passive", "R"], "riot-text"),
+    noFactsForWords(["W"], "checked"),
+    HASTE_SHARED_WORDS,
+    STRIP_FOLDED_WORDS,
+    lineupWords(["Jinx", "Lulu"]),
+    assembledWords("Jinx + Lulu", "Caitlyn + Lux", true),
+    riotTipHeadingWords("Darius", 1),
+    riotTipHeadingWords("Darius", 3),
+    fullReferenceWords({ interactions: true, levels: true, yours: ["Riven"], tips: true }),
+    fullReferenceWords({ interactions: false, levels: false, yours: ["Jinx", "Lulu"], tips: true }),
     ...Object.values(KIND_GROUP_WORDS),
     ...Object.values(RIOT_TEXT_KIND_WORDS),
     announcementWords({ you: { id: "Riven", name: "Riven", title: "", portrait: "" }, enemy: { id: "Darius", name: "Darius", title: "", portrait: "" }, matchup: null }, false),
@@ -342,6 +397,44 @@ describe("the assembled reference's fixed sentences and labels", () => {
   it("says every time that the reference was put together from each champion's facts and that no person checked the pair", () => {
     expect(assembledWords("Riven", "Darius")).toBe("Put together from each champion's own facts. No person has checked Riven vs Darius as a pair.");
     expect(ASSEMBLED_TITLE).not.toMatch(/briefing/i);
+  });
+
+  it("the lane plan names what the data holds, in fixed words: the empty groups once, never a bare none; what the full reference holds", () => {
+    expect(emptyGroupsWords(["Mobility"], "riot-text")).toBe("No reviewed facts of this kind: Mobility.");
+    expect(emptyGroupsWords(["Burst and power", "Mobility", "Defence", "Sustain"], "checked")).toBe("None in the checked notes: Burst and power, Mobility, Defence and Sustain.");
+    expect(emptyGroupsWords(["Empowerments", "Sustain"], "riot-text", ["Q", "R"])).toBe("No reviewed facts of these kinds outside Q and R: Empowerments and Sustain.");
+    expect(interactionsMoreWords(1)).toBe("1 interaction or exception");
+    expect(interactionsMoreWords(3)).toBe("3 interactions and exceptions");
+    expect(duoToolsWords(["Caitlyn", "Lux", "Jinx", "Lulu"])).toBe("Other tools, by kind: Caitlyn, Lux, Jinx and Lulu");
+    // The review of Release 13: the enemy's own tools are never a danger, yours are named as yours (not advice).
+    expect(dangerLineWords("Darius")).toBe("Darius's crowd control and damage");
+    expect(otherToolsWords("Darius")).toBe("Darius's mobility, defence, sustain and empowerments");
+    expect(yourToolsTitleWords("Garen")).toBe("Garen's tools");
+    expect(qualifierNoteWords("empower", "a trap that, when sprung, reveals and immobilizes the enemy champion")).toBe("Empowered: Riot adds “a trap that, when sprung, reveals and immobilizes the enemy champion”");
+    expect(qualifierNoteWords("cooldownrefund", "Mantra")).toBe("Cooldown refund: cuts the cooldown of “Mantra”");
+    expect(noFactsForWords(["Passive", "Q", "R"], "riot-text")).toBe("No reviewed facts for Passive, Q and R");
+    expect(lineupWords(["Jinx", "Lulu"])).toBe("Jinx + Lulu");
+    expect(assembledWords("Jinx + Lulu", "Caitlyn + Lux", true)).toBe("Put together from each champion's own facts. No person has checked Jinx + Lulu vs Caitlyn + Lux as a lineup.");
+    expect(riotTipHeadingWords("Darius", 1)).toBe("Riot's tip for playing against Darius");
+    expect(fullReferenceWords({ interactions: true, levels: true, yours: ["Riven"], tips: true })).toBe("Interactions, level changes, Riven's abilities and Riot's tips and the team's games");
+    expect(LANE_REFERENCE_TITLE).not.toMatch(/plan|briefing/i);
+  });
+
+  it("a curated text's headline is its own words: its first sentence whole, never cut at a comma or colon; head and rest together are the text", () => {
+    const threat = "Realm of Death slows Riven by 75% during its 0.5-second cast, then takes only her and Mordekaiser into the Death Realm for 7 seconds, moving 10% of her AD, attack speed, maximum health, armour and magic resistance to him. The health it takes ignores Valor's shield.";
+    expect(headlineOf(threat).head).toBe("Realm of Death slows Riven by 75% during its 0.5-second cast, then takes only her and Mordekaiser into the Death Realm for 7 seconds, moving 10% of her AD, attack speed, maximum health, armour and magic resistance to him.");
+    const stacks = "Darkness Rise turns on at 3 stacks: he gains one each time his attack damages Riven or a basic ability hits her, and each new stack refreshes their 4 seconds.";
+    expect(headlineOf(stacks)).toEqual({ head: stacks, rest: "" });
+    // A short first sentence is the headline whole; a short text has no rest.
+    expect(headlineOf("While Gwen is inside Hallowed Mist, Ornn cannot target her from outside it. The mist lasts 4 s.")).toEqual({ head: "While Gwen is inside Hallowed Mist, Ornn cannot target her from outside it.", rest: "The mist lasts 4 s." });
+    expect(headlineOf("Low Fury.")).toEqual({ head: "Low Fury.", rest: "" });
+    // A number's decimal point is no sentence's end.
+    const long = "With 50 Fury, Renekton's Ruthless Predator strikes three times and stuns Ambessa for 1.5 seconds instead of 0.75.";
+    expect(headlineOf(long).head).toBe(long);
+    for (const t of [threat, long, "A. B, c."]) {
+      const { head, rest } = headlineOf(t);
+      expect(`${head}${rest ? ` ${rest}` : ""}`).toBe(t);
+    }
   });
 
   it("labels facts from Riot's text in the owner's words", () => {

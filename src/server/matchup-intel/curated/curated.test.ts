@@ -183,9 +183,20 @@ function isIsoDay(value: string): boolean {
 export function verificationProblems(verified: Verification | undefined): string[] {
   if (!verified || typeof verified !== "object") return ["has no verified field"];
   const out: string[] = [];
-  const fields = Object.keys(verified).sort().join(", ");
+  const fields = Object.keys(verified).filter((k) => k !== "riotRecheck").sort().join(", ");
   if (fields !== "checkedOn, ddragonVersion, patch") out.push(`verified has ${fields || "no fields"}, not checkedOn, ddragonVersion and patch`);
-  const { patch, ddragonVersion, checkedOn } = verified;
+  const { patch, ddragonVersion, checkedOn, riotRecheck } = verified;
+  // A Riot re-check (OD6): a later patch and Data Dragon version, in step, on a day no earlier than the check.
+  if (riotRecheck !== undefined) {
+    const r = riotRecheck as { patch?: unknown; ddragonVersion?: unknown; on?: unknown };
+    const ok = typeof r.patch === "string" && typeof r.ddragonVersion === "string" && /^\d+\.\d+\.\d+$/.test(r.ddragonVersion) && publicPatchName(patchFromVersion(r.ddragonVersion)!) === r.patch && typeof r.on === "string" && isIsoDay(r.on);
+    if (!ok || Object.keys(r).sort().join() !== "ddragonVersion,on,patch") out.push(`verified.riotRecheck ${JSON.stringify(riotRecheck)} is not a patch, its Data Dragon version and a day`);
+    else if (typeof ddragonVersion === "string") {
+      const [a, b] = [(r.ddragonVersion as string).split(".").map(Number), ddragonVersion.split(".").map(Number)];
+      if (!(a[0]! > b[0]! || (a[0] === b[0] && a[1]! > b[1]!))) out.push(`verified.riotRecheck ${r.ddragonVersion} is not later than the check's ${ddragonVersion}`);
+    }
+    if (typeof r.on === "string" && typeof checkedOn === "string" && r.on < checkedOn) out.push(`verified.riotRecheck.on ${r.on} is before the check (${checkedOn})`);
+  }
   const patchShaped = typeof patch === "string" && /^\d+\.\d+$/.test(patch);
   const versionShaped = typeof ddragonVersion === "string" && /^\d+\.\d+\.\d+$/.test(ddragonVersion);
   if (!patchShaped) out.push(`verified.patch ${JSON.stringify(patch)} is not a patch such as "26.22"`);

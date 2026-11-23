@@ -13,8 +13,8 @@ import { pinnedTop, screenHeight, scrollToStart } from "@/lib/screen";
 /*
   A game opened under its card: the one way a list of games opens a game (a player's Match History
   and Team → Matches). The card is a box with one button behind its content (aria-expanded, Enter
-  or Space toggles it); this region follows the card with the match's breakdown (MatchBreakdown:
-  Scoreboard, Analysis, Timeline, Build), loaded when the game opens and kept by the list's cache,
+  or Space toggles it); this region follows the card with the match's breakdown (the post-game view,
+  post-game.tsx: the loadout, figures, lane and scoreboard), loaded when the game opens and kept by the list's cache,
   then "Close this game" at its end. The page scrolls as one: no window and no inner scrolling, and
   the list, its filters and its place stay as they were. The shared match window (MatchDetailModal)
   is for where a list cannot open a game in place: from inside another window (Matchups,
@@ -79,7 +79,7 @@ export function keepStepFocus(testId: string, close: string) {
 export function GameSteps({ nav, onClose, where }: { nav: GameNav | null; onClose: () => void; where: "header" | "footer" }) {
   const id = where === "header" ? "game-header" : "game";
   return (
-    <span className="relative z-10 flex shrink-0 items-center gap-0.5" data-game-step="">
+    <span className="relative z-10 flex shrink-0 items-center gap-0.5" data-game-step="" data-where={where}>
       <button type="button" className={STEP} disabled={!nav?.prev} onClick={() => {
           if (!nav?.prev) return;
           nav.go(nav.prev);
@@ -115,11 +115,47 @@ export function MatchExpansion({ id, label, playerId, matchId, champ, nav, onClo
     <UnfoldRegion id={id} label={label} header={<UnfoldHeader title={label} onClose={onClose} testId="match-unfold-header" />} className="rounded-b-panel border border-t-0 border-border bg-bg-elevated" testId="match-expanded">
       <div className="px-3 pt-3 sm:px-4 sm:pt-4">
         <InlineMatch playerId={playerId} matchId={matchId} champ={champ} />
-        <div className="sticky bottom-0 z-10 -mx-3 mt-2 flex justify-end rounded-b-panel border-t border-border/60 bg-bg-elevated/95 px-2 py-1 backdrop-blur sm:-mx-4" data-testid="match-footer">
-          <GameSteps nav={nav} onClose={onClose} where="footer" />
-        </div>
+        <GameFooter id={id} nav={nav} onClose={onClose} />
       </div>
     </UnfoldRegion>
+  );
+}
+
+/**
+ * The game's footer: Previous, Next and Close at the bottom of the screen while the game's end is
+ * below it. One set at a time: where the open card's own header carries the same three (Match
+ * History) and that header is on screen, the footer keeps its place but shows nothing, so the two
+ * sets are never seen together (the review of Release 13, finding 10). Team → Matches' cards have no
+ * steps of their own, so their footer always shows.
+ */
+function GameFooter({ id, nav, onClose }: { id: string; nav: GameNav | null; onClose: () => void }) {
+  const ref = React.useRef<HTMLDivElement>(null);
+  const [headerShown, setHeaderShown] = React.useState(false);
+  React.useEffect(() => {
+    const footer = ref.current;
+    const steps = footer?.closest("li")?.querySelector<HTMLElement>("[data-game-step][data-where=header]");
+    if (!steps) return;
+    // What is pinned above the page (the bars, the pinned tabs) covers the top of the screen.
+    const pinned = parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop) || 0;
+    const io = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[entries.length - 1];
+        setHeaderShown(!!entry?.isIntersecting);
+      },
+      { rootMargin: `-${Math.round(pinned)}px 0px 0px 0px` },
+    );
+    io.observe(steps);
+    return () => io.disconnect();
+  }, [id]);
+  return (
+    <div
+      ref={ref}
+      className={cn("sticky bottom-0 z-10 -mx-3 mt-2 flex justify-end rounded-b-panel border-t px-2 py-1 sm:-mx-4", headerShown ? "invisible border-transparent" : "border-border/60 bg-bg-elevated/95 backdrop-blur")}
+      data-testid="match-footer"
+      data-hidden={headerShown || undefined}
+    >
+      <GameSteps nav={nav} onClose={onClose} where="footer" />
+    </div>
   );
 }
 

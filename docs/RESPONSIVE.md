@@ -592,6 +592,14 @@ the account screen over the dashboard at 200% on a 320px phone as well.
   moving onto a pinned tab, the sidebar's logo or the top bar's buttons never scrolls the page.
   A sticky bar must be a child of what the page scrolls through, never of a wrapper that ends with
   it.
+- **Every page centred beside the sidebar** (the owner's review, 23 Nov 2026): every page's column is
+  centred in the room the window leaves beside the sidebar, open or folded, whatever its width (80rem
+  profiles, Settings' 64rem, Team's 100rem), so its margins are equal: no page sits against the sidebar
+  with the spare room on its right. Team's four sections share `--content-wide` at every window size
+  and a set's row of tabs is its pages' width, centred as they are (`ROW_WIDTH`), so the first tab
+  starts at the page's column below 1600px too. This supersedes the 1600px threshold and the
+  frame's left edge in the paragraph below (`e2e/desktop-frame.spec.ts`,
+  `e2e/navigation-reach.spec.ts`).
 - **One composition at every width** (PR 10, 18 Nov 2026): in a window from 1600px (100rem) wide
   the pages of a tab set share one width (`SECTION_HUBS`' `width` in `src/lib/nav.ts`: Team's four
   sections `--content-wide`, Players and Matches joining Team Overview and Leaderboards there;
@@ -759,14 +767,16 @@ touch screen. From `sm` the window is as it was (three figures across, six from 
 scope line, toolbar and sorted pair at 393, 375, 360 and 320px, 200% text on a 320px phone, the bar
 and its legend against the filters' games, and the groups with the 76rem grid's headings, arrows and
 figures at 1536 and 1680px. All Champions' preview (S5, 19 Nov 2026; docs/MATCHUPS.md) replaces the
-champion window: at 1280, 1440 and 1920 it unfolds inside the list's card over the columns after Win
-rate (Champion, Games and Win rate keep their x to the pixel, the page does not scroll, rows keep
-their height: 0px moved at all three widths on the demo); with under 26rem beside Win rate, and on
-screens from 768 to 1023px wide, the shared Peek's docked panel; under 768px (the phone's frame, with
-a mouse as with touch) and on short windows its sheet. The wide (76rem) tier drops the Kills column (it sorts like Games; per-game kills are in KDA;
-CM AC-11, reversible: OD20). `e2e/champion-preview.spec.ts` checks the geometry, ↑/↓, Back and
-Escape at 1440, the content and old addresses on all three projects, and the sheet (phone) and docked
-panel (tablet).
+champion window. Since 23 Nov 2026 it unfolds under its row from 768px wide (the overlay kit's
+Unfold, docs/DESIGN_SYSTEM.md §7): the next item of the list, across the whole list, its record
+beside the lane opponents from a 50rem list and above them below; Champion, Games and Win rate keep
+their x, the rows above it keep their place and height, the page does not scroll on opening, and
+nothing scrolls inside it; under 768px (the phone's frame, with a mouse as with touch) and on short
+windows it is the shared Peek's sheet. (Until then a wide list showed it over the columns after Win
+rate, inside the card, and tablets in the docked Peek panel.) The wide (76rem) tier drops the Kills column (it sorts like Games; per-game kills are in KDA;
+CM AC-11, reversible: OD20). `e2e/champion-preview.spec.ts` checks the geometry at 1280, 1440, 1920
+and 2560 (the sidebar open and collapsed), ↑/↓, Back and Escape, the content and old addresses on
+all three projects, the unfold on the tablet and the sheet on the phone.
 
 The player Peek's pool list (Team, Players, Leaderboards; `PoolChampionTile`) takes its columns
 (Win rate, Games, KDA, CS/min or Vision) from its own width, 28rem or more (`@container/pool`), and
@@ -812,7 +822,7 @@ folded the bars of `main`'s own (Team's, Platform Settings'), measured once the 
 itself has replaced its loading state: the row in the same place on all of a set's sections, Team's
 name ending at the column's right edge, the bar's line spanning the room, and on Team Overview the
 header centred in Team's column; under a 1600px window (1536 × 864, the sidebar folded) Players and
-Matches stay 80rem and the row spans the bar, as before; at a tablet's width held sideways
+Matches fill the room with Team's other sections, under a row that spans the bar (since 23 Nov 2026); at a tablet's width held sideways
 (768 × 420) the frame is the compact bar, the sections in it and not in the page, sliding away as the
 page scrolls down; a tablet's destinations in its top bar, one tap each, and its avatar menu taking
 the focus to its first item, the arrow keys going round its items (Down and Up wrapping, Home and

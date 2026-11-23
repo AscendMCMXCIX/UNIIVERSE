@@ -21,6 +21,14 @@ describe("RankTimelineChart", () => {
     expect(html).not.toContain('data-testid="ranked-untracked"');
     expect(html).toContain("Rank recorded from 15 Oct 2026; Riot reports no earlier ranks.");
   });
+
+  it("draws a reading seen alone as its dot, with no wash down to the axis (the stray sliver at the chart's end)", () => {
+    // 15 and 16 Oct one game apart (one run), then the newest check twenty games later, alone.
+    const html = render([snap(Date.UTC(2026, 9, 15), 40, 10), snap(Date.UTC(2026, 9, 16), 60, 11), snap(NOW, 20, 31)]);
+    expect(html.match(/data-testid="ranked-line"/g)).toHaveLength(2);
+    expect(html.match(/data-testid="ranked-wash"/g)).toHaveLength(1);
+    expect(html.match(/data-testid="ranked-reading"/g)).toHaveLength(3);
+  });
 });
 
 describe("RankTimelineChart's time axis", () => {

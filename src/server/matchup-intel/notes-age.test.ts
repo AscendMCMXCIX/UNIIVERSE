@@ -48,11 +48,12 @@ describe("the curated notes read as checked earlier, for the browser tests", () 
     expect(notesAgeForTest("1")).toBe(0);
   });
 
-  it("move the notes' version and patch back, and nothing else", () => {
+  it("move the notes' version and patch back, drop the Riot re-check, and nothing else", () => {
     const notes = getMatchupNotes("Riven", "Mordekaiser")!;
     expect(notes.verified).toMatchObject({ patch: "26.22", ddragonVersion: "16.22.1" });
     const earlier = checkedEarlier(notes, 1)!;
-    expect(earlier.verified).toEqual({ ...notes.verified, patch: "26.21", ddragonVersion: "16.21.1" });
+    const { riotRecheck: _r, ...checked } = notes.verified;
+    expect(earlier.verified).toEqual({ ...checked, patch: "26.21", ddragonVersion: "16.21.1" });
     expect({ ...earlier, verified: notes.verified }).toEqual(notes);
     expect(checkedEarlier(notes, 3)!.verified).toMatchObject({ patch: "26.19", ddragonVersion: "16.19.1" });
     // As they are: none, no age, or further back than the version's year.

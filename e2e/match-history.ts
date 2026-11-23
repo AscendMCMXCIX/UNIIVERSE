@@ -1,9 +1,9 @@
 import { expect, type Locator, type Page } from "./test";
 
 /*
-  Match History's games open under their card (components/match-history/match-breakdown.tsx): the
-  card is a toggle (its button's aria-expanded), and the breakdown (Scoreboard, Analysis, Timeline,
-  Build) loads into the region below it. Team → Matches opens its games the same way. The match
+  Match History's games open under their card (components/match-history/inline-match.tsx): the
+  card is a toggle (its button's aria-expanded), and the post-game view (the loadout, figures, lane
+  and scoreboard) loads into the region below it. Team → Matches opens its games the same way. The match
   window is for Matchups, Encounters and links to a game that is not on the page shown, and on
   phones for every game: there a game takes the whole screen (docs/MOBILE.md), so these helpers
   open and close that window instead, and return the same breakdown from it.
@@ -91,25 +91,16 @@ export async function closeGame(card: Locator) {
   await expect(expandedOf(card)).toHaveCount(0);
 }
 
+
 /**
- * A point 4px left of an objective under a Timeline chart (`gold-chart`), on no mark and with no
- * other mark within 6px, so that objective is the nearest; with the objective's minute. Null when no
- * objective has that room. Left of a mark, the minute under the finger is an earlier frame.
+ * Scrolls an open Match History game until its card's own Previous, Next and Close have gone up under
+ * what is pinned above the page: from then its footer shows the same three (one set at a time).
  */
-export async function besideAMark(chart: Locator): Promise<{ x: number; y: number; minute: number } | null> {
-  await chart.getByTestId("gold-chart-objectives").evaluate((el) => el.scrollIntoView({ block: "center" }));
-  return chart.getByTestId("gold-chart-events").evaluate((strip) => {
-    const marks = [...strip.querySelectorAll("[data-minute]")];
-    const gap = (el: Element, x: number, y: number) => {
-      const r = el.getBoundingClientRect();
-      return Math.hypot(Math.max(r.left - x, 0, x - r.right), Math.max(r.top - y, 0, y - r.bottom));
-    };
-    for (const mark of strip.querySelectorAll("[data-testid='timeline-objective']")) {
-      const r = mark.getBoundingClientRect();
-      const [x, y] = [r.left - 4, r.top + r.height / 2];
-      const room = Math.min(...marks.filter((m) => m !== mark).map((m) => gap(m, x, y)));
-      if (room > 6 && strip.contains(document.elementFromPoint(x, y))) return { x, y, minute: Number(mark.getAttribute("data-minute")) };
-    }
-    return null;
+export async function pastGameHeader(page: Page) {
+  await page.evaluate(() => {
+    const steps = document.querySelector("li[data-expanded] [data-game-step][data-where=header]");
+    if (!steps) return;
+    const pinned = parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop) || 0;
+    window.scrollBy({ top: steps.getBoundingClientRect().bottom - pinned + 4, behavior: "instant" });
   });
 }

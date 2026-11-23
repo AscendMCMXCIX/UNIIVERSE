@@ -96,9 +96,9 @@ export function isNavHub(entry: NavEntry): entry is NavHub {
  */
 export const TEAM_SECTIONS: NavLink[] = [
   { href: "/team", label: "Overview", icon: LayoutGrid, permission: "view-team" },
-  { href: "/players", label: "Players", icon: UserCog, permission: "view-players", width: "wideFrom1600" },
+  { href: "/players", label: "Players", icon: UserCog, permission: "view-players" },
   { href: "/leaderboards", label: "Leaderboards", icon: Medal, permission: "view-teammate-stats" },
-  { href: "/matches", label: "Matches", icon: History, permission: "view-matches", width: "wideFrom1600" },
+  { href: "/matches", label: "Matches", icon: History, permission: "view-matches" },
 ];
 
 /**
@@ -148,26 +148,25 @@ export const ADMIN_SYSTEM_SECTIONS: NavLink[] = [
 /**
  * The page widths (globals.css; docs/STANDARDS.md → Page layout), as the class a page's column takes:
  * `max` (--content-max, 80rem) for profiles, lists of cards, documents and forms; `wide`
- * (--content-wide, 100rem) for Team Overview and Leaderboards; `wideFrom1600` for Players and
- * Matches: 80rem in a window under 1600px (100rem) wide, as they always were, and Team's 100rem from
- * there, where Team's four sections share one width.
+ * (--content-wide, 100rem) for Team's four sections (Overview, Players, Leaderboards, Matches), which
+ * share it so their tabs line up with each of them. Every page's column is centred in the room
+ * beside the sidebar (app-shell.tsx, FRAME; 23 Nov 2026), so a width is all a page chooses.
  */
 export const PAGE_WIDTH = {
   max: "max-w-[var(--content-max)]",
   wide: "max-w-[var(--content-wide)]",
-  wideFrom1600: "max-w-[var(--content-max)] min-[100rem]:max-w-[var(--content-wide)]",
 } as const;
 export type PageWidth = keyof typeof PAGE_WIDTH;
 
 /**
- * A set's row of tabs (TabBar's `inner`): as wide as the bar in a window under 1600px wide, as it
- * always was, and from there the set's one width, starting where its pages start: at the left edge
- * of the shared frame (app-shell.tsx, FRAME: --content-wide, centred), so a narrower set's row is
- * not centred on its own.
+ * A set's row of tabs (TabBar's `inner`): the set's one width, centred in the bar as its pages are
+ * centred in the room beside the sidebar (app-shell.tsx, FRAME), so the first tab starts where every
+ * page of the set starts, at any window size. Where the room is narrower than the width, the row is
+ * the bar's width, as the pages are the room's.
  */
 export const ROW_WIDTH: Record<"max" | "wide", string> = {
-  max: "min-[100rem]:max-w-[var(--content-max)] min-[100rem]:ml-[max(0px,calc((100%-var(--content-wide))/2))]",
-  wide: "min-[100rem]:max-w-[var(--content-wide)]",
+  max: "max-w-[var(--content-max)]",
+  wide: "max-w-[var(--content-wide)]",
 };
 
 /**
@@ -175,9 +174,9 @@ export const ROW_WIDTH: Record<"max" | "wide", string> = {
  * several pages (every NavHub of both modes, in their order): on tablets and desktops a row of tabs
  * in the page (SectionTabs), on phones the top bar's second row (MobileNav), so they stay in reach
  * however far the page scrolls. `label` names the row for screen readers. `width`: the one width
- * every page of the set takes in a window from 1600px wide, so there the tabs start and end where
- * each page does and never move between them (the bar's row: ROW_WIDTH). Under 1600px every page
- * and the row keep the widths they always had (a section's own `width`).
+ * every page of the set takes, so the tabs start and end where each page does and never move between
+ * them (the bar's row: ROW_WIDTH), at every window size (23 Nov 2026; until then only from a 1600px
+ * window, Players and Matches staying 80rem under it).
  */
 export const SECTION_HUBS: Array<{ key: string; label: string; width: "max" | "wide"; sections: NavLink[] }> = [
   { key: "team", label: "Team sections", width: "wide", sections: TEAM_SECTIONS },

@@ -54,13 +54,13 @@ const LISTED: Record<string, Partial<Record<string, string>>> = {
   Peek: { border: "the docked panel's edge is its left border alone (border-l), over the page; the phone's window has the window's border all round" },
   // S5–S9's components (the second test below).
   "champion preview": {
-    background: "on a desktop it unfolds inside the list's card, over the columns after Win rate, on the card's own surface; a phone's sheet is a window, on the window's raised surface (DESIGN_SYSTEM: All Champions' preview)",
-    radius: "the docked preview takes the card's right radius (rounded-r-card: its top-left corner is square, against the list); the phone's sheet has the sheet's 1.25rem top corners",
-    border: "the docked preview's edge is a left hairline (border-l border-border-strong), none at its top; the phone's sheet has the window's border all round",
+    background: "on a desktop it unfolds under its row, inside the list, its well (bg-bg/40) drawn by its list item and the region itself clear; a phone's sheet is a window, on the window's raised surface (DESIGN_SYSTEM §7: Unfold, a table's row)",
+    radius: "under its row the preview is part of the list, square like the rows; the phone's sheet has the sheet's 1.25rem top corners",
+    border: "under its row the list's hairline between rows separates it and its left edge continues the row's accent bar; the phone's sheet has the window's border all round",
   },
   "post-game: a scoreboard name": { sizeRem: "the compact scoreboard's names are text-xs where the scoreboard is under 30rem wide (a phone's window), so each of the ten names keeps one line; text-sm from 30rem (scoreboard.tsx)" },
   "Matchup Intel: the enemy's slot label": { sizeRem: "the slot's label is a size smaller on a phone (text-2xs, 11px under the 12px floor's phone rule, as the badge), so the longest one-word name fits the slot whole" },
-  "Matchup Intel: glance cooldown": { sizeRem: "the glance's tile is a fifth of a phone's row (about 64px at 390), where the cooldown line is text-xs so \"140–100 s\" keeps one line (glance.tsx); the full tile's known cooldown is its big figure, text-md (ability-list.tsx: CooldownValue big)" },
+  "Matchup Intel: an ability tile's cooldown": { sizeRem: "a tile lays its figures out by its own width (ability-list.tsx: CooldownValue big): text-lg from a tile 15rem wide (a phone's list of tiles, a wide desktop's strip), text-md in the five-across strip at 1440 × 900, where each tile is 14rem and \"26 / 23.5 / 21 / 18.5 / 16 s\" would take two lines" },
   "Admin: person view": { radius: "the person view is DetailModal: a phone's window fills the screen and has no corners; a desktop's is a centred window with the panel's radius" },
   Popover: { radius: "a touch phone keeps the sheet, docked to the bottom edge with the sheet's 1.25rem top corners; the popover has a menu's rounded-lg" },
 };
@@ -118,9 +118,9 @@ test("the shared components look the same on a phone and on a desktop", async ({
 
 /*
   The components S5–S9 created, each opened as a member opens it, and its parts compared the same way:
-  All Champions' preview (S5: an aside in the list's card on a desktop, a window on a phone), the
-  post-game view's loadout, its three answers and its scoreboard (S6: under the card on a desktop, in
-  the game's window on a phone), Matchup Intel's slots, ability tiles and the phone's glance strip
+  All Champions' preview (S5: unfolded under its row on a desktop since 23 Nov 2026, a window on a phone), the
+  post-game view's loadout and its scoreboard (S6: under the card on a desktop, in
+  the game's window on a phone), Matchup Intel's slots, ability tiles
   (S7a), and Admin's person view with its Riot accounts (S9). One page visit per component and size.
 */
 type Part = { name: string; selector: string; phoneSelector?: string };
@@ -152,13 +152,11 @@ const GROUPS: Group[] = [
     open: async (page) => {
       await expect(page.locator("[data-testid='match-history'][data-ready]")).toBeVisible();
       await openGame(page.getByTestId("match-card").first());
-      await expect(page.getByTestId("post-game-notes")).toBeVisible({ timeout: 15_000 });
+      await expect(page.locator("[data-testid=match-breakdown]").filter({ visible: true }).first()).not.toHaveAttribute("data-timeline", "loading", { timeout: 15_000 });
     },
     parts: [
       { name: "post-game: an item", selector: "[data-testid=post-game-items] [data-testid=loadout-icon]" },
       { name: "post-game: loadout name", selector: "[data-testid=loadout-name]" },
-      { name: "post-game: an answer's label", selector: "[data-testid=post-game-notes] p[aria-hidden]" },
-      { name: "post-game: an answer", selector: "[data-testid=post-game-note]" },
       { name: "post-game: a scoreboard K/D/A", selector: "[data-testid=post-game-scoreboard] [data-testid=participant-kda]" },
       { name: "post-game: a scoreboard name", selector: "[data-testid=post-game-scoreboard] [data-testid=participant-name]" },
     ],
@@ -175,10 +173,6 @@ const GROUPS: Group[] = [
       { name: "Matchup Intel: an ability tile's name", selector: "[data-testid=matchup-enemy-abilities-list] [data-testid=ability-name]" },
       // The Q's: a cooldown Riot's data gives (a passive's "not in Riot's data" line is drawn otherwise).
       { name: "Matchup Intel: an ability tile's cooldown", selector: "[data-testid=matchup-enemy-abilities-list] [data-testid=ability-row][data-slot=Q] [data-testid=ability-cooldown-value]" },
-      // The glance strip is the phone's alone (sm:hidden): a desktop has the full tiles on its first
-      // screen, so the glance's words are compared with the full tile's they repeat (its frame, a
-      // phone's tile of about 62px at 375, has no desktop counterpart).
-      { name: "Matchup Intel: glance cooldown", selector: "[data-testid=matchup-enemy-abilities-list] [data-testid=ability-row][data-slot=Q] [data-testid=ability-cooldown-value]", phoneSelector: "[data-testid=glance-ability][data-slot=Q] [data-testid=glance-cooldown]" },
     ],
   },
   {
@@ -261,9 +255,21 @@ test("Admin's pages: one header rhythm, one panel depth, one fold, aligned toolb
   const strip = await dp.evaluate(() => ({ border: getComputedStyle(document.querySelector("[data-testid=dashboard-accounts-active]")!).borderLeftWidth, admins: document.querySelector("[data-testid=dashboard-admins]")!.textContent ?? "" }));
   check(strip.border === "0px", `the strip's first tile draws a ${strip.border} hairline`);
   check(!/^\D*1\D*administrators/.test(strip.admins), `"${strip.admins}": a wrong plural`);
+  // G4-2 kept Settings' 64rem at the Admin column's left edge, under the Dashboard's title; since 23
+  // Nov 2026 every page narrower than its column is centred in it (the owner's review: no page against
+  // the sidebar with the spare room on its right), so Settings is centred in the Admin column, which
+  // is itself centred beside the sidebar, and its title is never left of the Dashboard's.
   await dp.goto("/admin/settings");
-  const settingsX = (await dp.locator("main h1").first().boundingBox())!.x;
-  check(Math.abs(settingsX - dashX) <= 1, `Settings' title at x=${settingsX}, the Dashboard's at ${dashX}`);
+  const settings = await dp.evaluate(() => {
+    const column = document.querySelector("main#content > [data-testid=page-frame]")!.firstElementChild!;
+    let page = column.firstElementChild;
+    while (page && page.getBoundingClientRect().width === 0) page = page.nextElementSibling;
+    const c = column.getBoundingClientRect();
+    const p = page!.getBoundingClientRect();
+    return { left: p.left - c.left, right: c.right - p.right, title: document.querySelector("main h1")!.getBoundingClientRect().x };
+  });
+  check(Math.abs(settings.left - settings.right) <= 1, `Settings ${Math.round(settings.left)}px inside the Admin column on the left, ${Math.round(settings.right)}px on the right`);
+  check(settings.title >= dashX - 1, `Settings' title at x=${settings.title}, left of the Dashboard's at ${dashX}`);
 
   // G4-5, G4-10, G4-12: System Health's fold is a row in its panel; the status list has the panels' depth; each verdict has its icon.
   await dp.goto("/admin/system");

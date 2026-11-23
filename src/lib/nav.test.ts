@@ -118,21 +118,21 @@ describe("navigation entries", () => {
     expect(new Set(hrefs).size).toBe(hrefs.length);
   });
 
-  it("from a 1600px window the pages of a tab bar share one width (Team's the wide one), and under it every page keeps the width it always had", () => {
+  it("the pages of a tab bar share one width (Team's the wide one) at every window size, and the row of tabs takes it, centred as the pages are", () => {
     expect(SECTION_HUBS.map((h) => [h.key, h.width])).toEqual([
       ["team", "wide"],
       ["admin-users", "max"],
       ["admin-settings", "max"],
       ["admin-system", "max"],
     ]);
-    // Team Overview and Leaderboards were always 100rem; Players and Matches join them from 1600px.
-    expect(TEAM_SECTIONS.map((s) => pageWidthOf(s.href))).toEqual(["wide", "wideFrom1600", "wide", "wideFrom1600"]);
+    // Team's four sections are 100rem (Players and Matches were 80rem under a 1600px window until 23 Nov 2026).
+    expect(TEAM_SECTIONS.map((s) => pageWidthOf(s.href))).toEqual(["wide", "wide", "wide", "wide"]);
     // A teammate's profile sits under Players' address, in the profile's own (ordinary) width.
     for (const path of ["/players/p1", "/players/p1/matches", "/resources", "/resources/matchups", "/admin/branding", "/settings", "/overview"]) expect(pageWidthOf(path), path).toBe("max");
-    expect(PAGE_WIDTH).toEqual({ max: "max-w-[var(--content-max)]", wide: "max-w-[var(--content-wide)]", wideFrom1600: "max-w-[var(--content-max)] min-[100rem]:max-w-[var(--content-wide)]" });
-    // The row of tabs is the bar's width under 1600px, as it always was, and the set's width from
-    // there, starting at the shared frame's left edge (a narrower set's row is not centred: S2c).
-    expect(ROW_WIDTH).toEqual({ max: "min-[100rem]:max-w-[var(--content-max)] min-[100rem]:ml-[max(0px,calc((100%-var(--content-wide))/2))]", wide: "min-[100rem]:max-w-[var(--content-wide)]" });
+    expect(PAGE_WIDTH).toEqual({ max: "max-w-[var(--content-max)]", wide: "max-w-[var(--content-wide)]" });
+    // The row of tabs is the set's width, centred in the bar (TabBar's mx-auto) as every page is
+    // centred in the room beside the sidebar (app-shell's FRAME), so its first tab starts at the pages' column.
+    expect(ROW_WIDTH).toEqual({ max: "max-w-[var(--content-max)]", wide: "max-w-[var(--content-wide)]" });
   });
 });
 

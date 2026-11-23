@@ -1,15 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { MAX_WORDS, REFUSED_WORDS, refusedWordsIn, wordCount as appWordCount } from "@/domain/match-notes";
-import { noteRules, postGameVerdicts, refusedIn, wordCount, type PostGameRead } from "../../../scripts/post-game-facts.mjs";
+import { REMOVED_WORDS, postGameVerdicts, readPostGame, type PostGameRead } from "../../../scripts/post-game-facts.mjs";
 
 /*
-  The Production check's post-game facts (scripts/post-game-facts.mjs): the note rules it reads from
-  src/domain/match-notes.ts are the module's own exports, and it finds refused words and counts words
-  as the app does. The reading below is a demo game as the live check's own reader saw it (20 Nov
-  2026), its notes replaced by made-up sentences of the same shape.
+  The Production check's post-game facts (scripts/post-game-facts.mjs). The reading below is a demo
+  game as the live check's own reader sees it: since 23 Nov 2026 the view has no notes and no folds,
+  and the check asserts they stay gone.
 */
 
-const rules = noteRules();
 const DEMO: PostGameRead = {
   open: true,
   result: "Defeat",
@@ -24,61 +21,38 @@ const DEMO: PostGameRead = {
   damageShare: 1,
   lane: "clear",
   laneWords: "Lane vs",
-  notesShown: true,
-  notesFallback: false,
-  sections: { well: 1, wrong: 2, focus: 0 },
-  notes: ["3 solo kills.", "KDA lower than in 23 of their last 26 ranked Top games (1.38; usually 3.30).", "8 deaths, the most on the team."],
+  timeline: "ok",
+  removed: { parts: 0, words: 0 },
   steps: 6,
 };
-const failed = (at: PostGameRead) => postGameVerdicts({ kind: "desktop", at, rules }).filter((v) => v.status === "FAIL").map((v) => v.name);
-
-describe("the post-game facts' note rules", () => {
-  it("are the app's own list and word limit", () => {
-    expect(rules.refused).toEqual([...REFUSED_WORDS]);
-    expect(rules.maxWords).toBe(MAX_WORDS);
-  });
-  it("find refused words and count words as the app does", () => {
-    const samples = [...REFUSED_WORDS.map((w) => `It was ${w} here at 10 minutes.`), "Goodness, 3 kills.", "Intent: 5 wards placed", "Due  to 2 deaths", "A note with 12 CS more than the lane at 10:00."];
-    for (const s of samples) {
-      expect(refusedIn(s, rules.refused)).toEqual(refusedWordsIn(s));
-      expect(wordCount(s)).toBe(appWordCount(s));
-    }
-  });
-  it("refuse to run on a source without the list", () => {
-    expect(() => noteRules("export const OTHER = 1;")).toThrow();
-  });
-});
+const failed = (at: PostGameRead) => postGameVerdicts({ kind: "desktop", at }).filter((v) => v.status === "FAIL").map((v) => v.name);
 
 describe("the post-game facts", () => {
   it("pass on the demo's open game", () => {
-    expect(postGameVerdicts({ kind: "desktop", at: DEMO, rules }).map((v) => v.status)).toEqual(Array(7).fill("PASS"));
-  });
-  it("take a count in words as a number (a zero count, a multikill), as the app's notes give them", () => {
-    for (const n of ["No control wards bought.", "A penta kill.", "A quadra kill."]) expect(failed({ ...DEMO, sections: { well: 1, wrong: 0, focus: 0 }, notes: [n] })).toEqual([]);
+    expect(postGameVerdicts({ kind: "desktop", at: DEMO }).map((v) => v.status)).toEqual(Array(7).fill("PASS"));
   });
   it("fail the regressions they exist for", () => {
     expect(failed({ ...DEMO, result: "" })).toHaveLength(1);
     expect(failed({ ...DEMO, itemSlots: 6 })).toHaveLength(1);
     expect(failed({ ...DEMO, spellRuneSlots: 2 })).toHaveLength(1);
-    expect(failed({ ...DEMO, notes: ["Solo kills.", "x 1", "y 2"] })).toHaveLength(1);
     expect(failed({ ...DEMO, kda: 2 })).toHaveLength(1);
     expect(failed({ ...DEMO, tiles: 4 })).toHaveLength(1);
     expect(failed({ ...DEMO, lane: null, laneWords: "" })).toHaveLength(1);
     expect(failed({ ...DEMO, steps: 3 })).toHaveLength(1);
   });
-  it("fail notes over the limits, without a number, too long or with a refused word", () => {
-    expect(failed({ ...DEMO, sections: { well: 3, wrong: 0, focus: 0 }, notes: ["1 a", "2 b", "3 c"] })).toHaveLength(1);
-    expect(failed({ ...DEMO, sections: { well: 1, wrong: 0, focus: 0 }, notes: ["Solo kills."] })).toHaveLength(1);
-    expect(failed({ ...DEMO, sections: { well: 1, wrong: 0, focus: 0 }, notes: [`${"word ".repeat(20)}1`] })).toHaveLength(1);
-    expect(failed({ ...DEMO, sections: { well: 1, wrong: 0, focus: 0 }, notes: ["3 deaths because of the lane."] })).toHaveLength(1);
-    expect(failed({ ...DEMO, sections: { well: 2, wrong: 2, focus: 0 }, notes: ["1 a"] })).toHaveLength(1);
+  it("fail when a removed section is back: the notes or the folds, by their parts or their names", () => {
+    expect(failed({ ...DEMO, removed: { parts: 1, words: 0 } })).toHaveLength(1);
+    expect(failed({ ...DEMO, removed: { parts: 0, words: 2 } })).toHaveLength(1);
+    expect(failed({ ...DEMO, removed: undefined })).toHaveLength(1);
+  });
+  it("look for every removed section's name in the page (the reader's own list is the exported one)", () => {
+    const source = readPostGame.toString();
+    for (const w of REMOVED_WORDS) expect(source).toContain(JSON.stringify(w));
+    expect(REMOVED_WORDS).toEqual(["Went well", "Went wrong", "Focus next", "Gold over the game", "Build and skill order"]);
   });
   it("warn, not fail, for a game without its items or its rune page, or whose timeline is still loading", () => {
-    const v = postGameVerdicts({ kind: "desktop", at: { ...DEMO, itemsNotRecorded: true, itemSlots: 0, runePage: false, notesShown: false, notesLoading: true, sections: null, notes: [] }, rules });
+    const v = postGameVerdicts({ kind: "desktop", at: { ...DEMO, itemsNotRecorded: true, itemSlots: 0, runePage: false, timeline: "loading" } });
     expect(v.filter((x) => x.status === "FAIL")).toEqual([]);
     expect(v.filter((x) => x.status === "WARN")).toHaveLength(3);
-  });
-  it("fail notes that neither show nor load", () => {
-    expect(failed({ ...DEMO, notesShown: false, notesLoading: false, sections: null, notes: [] })).toHaveLength(1);
   });
 });

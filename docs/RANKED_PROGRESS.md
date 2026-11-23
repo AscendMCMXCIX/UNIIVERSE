@@ -64,8 +64,31 @@ Compact, in Profile Overview (`ranked-progress.tsx`): under Recent form, in the 
   the window and confirmed inside it is "No change"; an account unranked now has nothing to compare.
   Same division (or Master and above): the LP difference. Across divisions: divisions gained or
   lost, no LP figure (LP restarts after a promotion). Never across a reset.
-- **Highest recorded** rank and LP, with the day it was first read (the first time, if read again later).
-- **The chart** (`rank-timeline-chart.tsx`, 120 px tall): only the stretch with readings, from the
+- **Highest recorded** rank and LP, with the day it was first read (the first time, if read again
+  later): behind the ⓘ beside the current rank, with the account, the season and the first check
+  ("Name#TAG · 2026 Season 3 · rank recorded since 14 Oct 2026") and the 30-day change's path ("From
+  Gold III 47 LP to Gold IV 97 LP"). The card itself leads with the two figures it is for, the current
+  rank and the 30-day change, on one row (the UX review of Release 13, owner item B3: the card had
+  kept every figure in view and read as busy); on a touch phone both stay above its Fold, with the
+  win-loss record and win rate under the rank.
+- **One card, the same on every screen** (the owner's review of the phone's opened card, Release
+  13): the title alone on its row, a phone's chevron at its end (on its own line only at 200% text on
+  a 320px phone, never under the ⓘ's touch area); under the rank the queue switch and, with two or more
+  linked accounts, one compact account select (`RankedAccountSelect`, each account by its in-game name
+  in the player's order) together on one row at the card's start, wrapping only at a large text size;
+  then the chart or its line. On a touch phone the controls and the chart are one part behind the
+  Fold, which fades in under the rank (instant with reduced motion), nothing above it moving.
+- **The chart** (`rank-timeline-chart.tsx`, 7.5rem tall, 6rem in a narrow card such as a phone's:
+  from 23 Nov 2026 it was stretched to the pools' end in the Overview's 2×2, which the review found
+  made a few LP look like a swing, so it is compact) is drawn from two changes of rank or LP
+  (`CHART_MIN_CHANGES`, `rankChanges`); with fewer, one quiet line says what was recorded instead,
+  never a frame around a flat line or a single step, and never a movement it did not see: "Gold II
+  46 LP since 3 Oct: no change recorded." for a rank and LP that never moved, however many checks
+  confirmed them; "One change so far: Gold II 46 LP to Gold I 12 LP. A chart appears after the
+  next."; "Unranked at every check so far." (`fewReadings`). The card has no
+  rule or box inside it, only spacing. A reading seen alone (several unseen games on either side,
+  such as the newest check) is its dot, with no wash under it: the wash of a run that narrow was a
+  stray sliver down to the axis. The chart shows only the stretch with readings, from the
   first reading to now (at least three days; the days before a newer first reading are hatched).
   No empty band for the months before it. Day and month ticks sit on the installation's midnights.
   Its division lines are named in full ("Platinum II"; a tier's line "Emerald" where the range is

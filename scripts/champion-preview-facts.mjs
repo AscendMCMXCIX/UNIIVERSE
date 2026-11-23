@@ -23,9 +23,15 @@ export function readChampionPreview(rowIndex) {
   const row = rows[rowIndex] ?? null;
   if (!content) return { open: false };
   const header = content.querySelector("header");
-  const portrait = header?.firstElementChild ?? null;
+  // Under its row (since 23 Nov 2026, Release 13's review) the preview shows no portrait of its own:
+  // the row right above it shows the champion's, at least 28px; a sheet's or a header's own portrait
+  // is at least 40px. Its name is its heading (read out; on screen in the row and the sheet's header).
+  const underRow = !!row && !!row.nextElementSibling?.contains(content);
+  const own = header?.firstElementChild?.tagName === "IMG" ? header.firstElementChild : null;
+  const portrait = underRow && !own ? row.querySelector("img") : own;
   const box = portrait?.getBoundingClientRect();
   const img = portrait?.tagName === "IMG" ? portrait : null;
+  const least = underRow && !own ? 28 : 40;
   const title = clean(content.querySelector("[data-testid=champion-preview-title]"));
   const rowName = clean(row?.querySelector("[data-open-champion]"));
   const figures = content.querySelector("[data-testid=champion-preview-figures]");
@@ -38,7 +44,7 @@ export function readChampionPreview(rowIndex) {
     // The champion and role the preview shows against the row it was opened from (compared here, not returned).
     sameChampion: !!row && content.getAttribute("data-champion") === row.getAttribute("data-champion") && content.getAttribute("data-role") === row.getAttribute("data-role"),
     rowGames: Number(row?.getAttribute("data-games") ?? "0"),
-    portrait: !!box && box.width >= 40 && box.height >= 40 && (!img || (img.getAttribute("alt") ?? "") === title),
+    portrait: !!box && box.width >= least && box.height >= least && (!img || (img.getAttribute("alt") ?? "") === title),
     named: title.length > 0 && title === rowName,
     role: clean(header?.querySelector("h2 + p")),
     record: clean(figures?.lastElementChild),

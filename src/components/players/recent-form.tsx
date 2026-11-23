@@ -4,6 +4,7 @@ import type { FormMetric, RecentForm } from "@/domain/recent-form";
 import { FORM_GAP, FORM_METRIC_GAP, FORM_MIN_GAMES, FORM_MIN_RECENT, FORM_RECENT } from "@/domain/recent-form";
 import type { PortraitChampion } from "@/components/champion-portrait";
 import { InfoTip } from "@/components/ui/info-tip";
+import { ChampionPortrait } from "@/components/champion-portrait";
 import { cn } from "@/lib/cn";
 
 /**
@@ -20,7 +21,7 @@ const fmt = (m: Pick<FormMetric, "key" | "recent">) => (m.recent === null ? "—
  * sample, and the same comparison for KDA and CS/min (vision for supports). "Better lately" /
  * "worse lately" only appear with enough games on both sides. Hidden below five games.
  */
-export function RecentFormStrip({ form, championsById, historyHref, narrowed = null }: { form: RecentForm; championsById: Record<string, PortraitChampion>; historyHref: string; /** The Refine filters narrowing it, in words (it counts the same games as Season performance). */ narrowed?: string | null }) {
+export function RecentFormStrip({ form, championsById, historyHref, narrowed = null, champions = false }: { form: RecentForm; championsById: Record<string, PortraitChampion>; historyHref: string; /** The Refine filters narrowing it, in words (it counts the same games as Season performance). */ narrowed?: string | null; /** List the champions of these games (RecentChampions): only where the Overview has Ranked progress beside it, so its 2×2 applies. */ champions?: boolean }) {
   if (form.season.games < FORM_MIN_GAMES) return null;
   const strip = [...form.last].reverse();
   const wins = strip.filter((g) => g.win).length;
@@ -100,6 +101,49 @@ export function RecentFormStrip({ form, championsById, historyHref, narrowed = n
           </div>
         ))}
       </dl>
+      {champions ? <RecentChampions last={form.last} champ={champ} /> : null}
     </section>
+  );
+}
+
+/** How many of the recent games' champions the 2×2's Recent form lists before "and N more". */
+export const RECENT_CHAMPIONS_SHOWN = 5;
+
+/**
+ * The champions of the same recent games, most played first (the newest game breaking a tie), each
+ * with its record in them: what the player has been on lately. Only in the Overview's 2×2 (a 1440px
+ * window, a 68rem dashboard), where the rail beside the season's card and the pools has the room: it
+ * balances the two columns with the card's own data (the UX review of Release 13), where a stretched
+ * Ranked progress made small LP moves look large. Neutral, as the rest of Recent form: no win-rate colour.
+ */
+function RecentChampions({ last, champ }: { last: RecentForm["last"]; champ: (id: string) => PortraitChampion }) {
+  const by = new Map<string, { id: string; games: number; wins: number; at: number }>();
+  for (const g of last) {
+    const c = by.get(g.championId) ?? { id: g.championId, games: 0, wins: 0, at: 0 };
+    c.games += 1;
+    if (g.win) c.wins += 1;
+    c.at = Math.max(c.at, g.at);
+    by.set(g.championId, c);
+  }
+  const rows = [...by.values()].sort((a, b) => b.games - a.games || b.at - a.at);
+  const shown = rows.slice(0, RECENT_CHAMPIONS_SHOWN);
+  return (
+    <div className="hidden min-[90rem]:@min-[68rem]/ov:block" data-testid="recent-form-champions">
+      <h3 className="label-caps">Champions in these games</h3>
+      <ul className="mt-1.5 divide-y divide-border/60">
+        {shown.map((c) => (
+          <li key={c.id} className="flex min-w-0 items-center gap-2.5 py-1.5" data-champion={c.id}>
+            <span aria-hidden className="inline-flex">
+              <ChampionPortrait champion={champ(c.id)} size="xs" />
+            </span>
+            <span className="min-w-0 flex-1 truncate text-sm text-fg">{champ(c.id).name}</span>
+            <span className="shrink-0 text-xs tabular-nums text-fg-muted">
+              {c.games} {c.games === 1 ? "game" : "games"} · {c.wins}W {c.games - c.wins}L
+            </span>
+          </li>
+        ))}
+      </ul>
+      {rows.length > shown.length ? <p className="mt-1 text-xs text-fg-subtle">and {rows.length - shown.length} more</p> : null}
+    </div>
   );
 }

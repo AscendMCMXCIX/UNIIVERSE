@@ -7,7 +7,7 @@ import { largestMultikill } from "@/domain/multikills";
 import { knownRiotIds } from "@/server/players/riot-names";
 import { accountMatches, matchDetails, players, teamBookmarks, type MatchParticipantDetail, type ParticipantExtraStats } from "@/server/db/schema";
 import { dedupeGames, filterGames, gameRole, modeBreakdown, isGameRole, isSeasonMode, seasonsInGames, MIN_VALID_DURATION_S, type GameRole, type SeasonGame, type SeasonMode, type StatsFilter } from "@/domain/season-stats";
-import { LANE_ORDER, NOTE_FIGURES, laneOf, laneOpponentOf, personalComparison, standoutOf, type FigureKey, type PersonalComparison } from "@/domain/match-analysis";
+import { LANE_ORDER, laneOf, laneOpponentOf, personalComparison, standoutOf, type FigureKey } from "@/domain/match-analysis";
 import { historySummary, type HistorySummary } from "@/domain/history-summary";
 import { FORM_RECENT } from "@/domain/recent-form";
 import { currentSeason } from "@/server/accounts/sync";
@@ -544,14 +544,9 @@ export interface MatchDetailView {
   /** Highest damage in the game (for the damage bars). */
   maxDamage: number;
   comparison: MatchComparison;
-  /**
-   * The game beside the player's previous games of the same role and queue group (at most 50:
-   * domain/match-analysis); null with fewer than 10 of them or without a recorded role.
-   */
-  personal: PersonalComparison | null;
   /** Sharing this game with the team (Matches → Bookmarked): only the player's own games, by them. */
   share: { eligible: boolean; shared: boolean };
-  /** The viewer's own game: the notes say "you" (and Focus next shows); on a teammate's they name the champion. */
+  /** The viewer's own game: its section is "Your game"; on a teammate's it is named for the champion. */
   own: boolean;
 }
 
@@ -809,9 +804,6 @@ export async function getMatchDetail(db: Db, playerId: string, matchId: string, 
   });
   const me = meRaw ? view(meRaw) : null;
   if (!me) return { status: "unavailable", message: "This player is not in the stored record of this game." };
-  // The player's own stored games (every account, one row per game; cached per instance).
-  const history = await loadSeasonGames(db, accounts.map((a) => a.id));
-  const target = history.find((g) => g.matchId === matchId);
   const canShare = !!options.canShare && options.viewerIsOwner;
   const shared = canShare ? (await db.select({ id: teamBookmarks.id }).from(teamBookmarks).where(eq(teamBookmarks.riotMatchId, matchId)).limit(1)).length > 0 : false;
   return {
@@ -831,7 +823,6 @@ export async function getMatchDetail(db: Db, playerId: string, matchId: string, 
       rankCheck: rankChecksAvailable({ matchId, platform: d.platform }) && teams.some((t) => t.participants.some((p) => !p.removed && !!p.rank?.stale)),
       maxDamage: Math.max(1, ...d.participants.map((p) => p.damage ?? 0)),
       comparison: compareInMatch(d.participants, d.teams, meRaw!, d.gameDuration),
-      personal: target ? personalComparison(target, history, NOTE_FIGURES) : null,
       share: { eligible: canShare, shared },
       own: options.viewerIsOwner,
     },

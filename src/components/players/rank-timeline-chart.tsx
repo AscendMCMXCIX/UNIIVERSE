@@ -22,6 +22,8 @@ import { cn } from "@/lib/cn";
 */
 
 const MS_DAY = 86_400_000;
+/** The narrowest run of the line that gets a wash under it (px): a single reading's run is 1.5px. */
+const WASH_MIN_PX = 4;
 
 /**
  * The drawing's frame in user units, which are CSS pixels (the viewBox is as wide as the box). Its
@@ -35,7 +37,8 @@ const MS_DAY = 86_400_000;
  * height is CSS, so nothing moves on hydrating.
  */
 function chartFrame(rem: number, narrow: boolean) {
-  const H = Math.round(7.5 * rem);
+  // 6rem in a narrow chart (a phone's card, the box's own container query: h-24), 7.5rem elsewhere (h-30).
+  const H = Math.round((narrow ? 6 : 7.5) * rem);
   const PAD_T = Math.round(0.625 * rem);
   const AXIS_H = Math.round(1.125 * rem);
   return { H, PAD_T, AXIS_H, PLOT_H: H - PAD_T - AXIS_H, pad: { l: Math.round((narrow ? 3 : 4.75) * rem), r: Math.round(0.5 * rem) } };
@@ -167,11 +170,11 @@ export function RankTimelineChart({ t, label }: { t: RankTimeline; label: string
 
   const grid = range ? ladderGrid(range, { maxDivisions: 4, short: narrow }) : [];
   return (
-    <div ref={box} className="relative min-w-0" data-testid="ranked-chart-box">
+    <div ref={box} className="@container/rankchart relative min-w-0" data-testid="ranked-chart-box">
       <svg
         viewBox={`0 0 ${width} ${H}`}
         width="100%"
-        className="block h-30 touch-pan-y select-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+        className="block h-30 touch-pan-y select-none @max-[25.5rem]/rankchart:h-24 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         role="img"
         aria-label={`${label}. ${describe(t)}`}
         tabIndex={0}
@@ -217,10 +220,12 @@ export function RankTimelineChart({ t, label }: { t: RankTimeline; label: string
           <line key={`reset-${i}`} x1={x(r.at)} x2={x(r.at)} y1={PAD_T} y2={PAD_T + PLOT_H} className="stroke-fg-subtle" strokeWidth={1} strokeDasharray="2 3" data-testid="ranked-reset" />
         ))}
 
-        {/* The rank, over a faint wash under its line. */}
-        {paths.map((p, i) => (
-          <path key={`wash-${i}`} d={`${p.d} L${p.x1.toFixed(1)},${PAD_T + PLOT_H} L${p.x0.toFixed(1)},${PAD_T + PLOT_H} Z`} fill={`url(#fill-${uid})`} aria-hidden />
-        ))}
+        {/* The rank, over a faint wash under its line. A reading seen alone (a gap on either side: the
+            newest check after several unseen games, say) is its dot, with no wash: the wash of a
+            run under WASH_MIN_PX wide was a stray sliver down to the axis (the UX review of Release 13). */}
+        {paths.map((p, i) =>
+          p.x1 - p.x0 >= WASH_MIN_PX ? <path key={`wash-${i}`} d={`${p.d} L${p.x1.toFixed(1)},${PAD_T + PLOT_H} L${p.x0.toFixed(1)},${PAD_T + PLOT_H} Z`} fill={`url(#fill-${uid})`} aria-hidden data-testid="ranked-wash" /> : null,
+        )}
         {paths.map((p, i) => (
           <path key={i} d={p.d} fill="none" stroke={`url(#line-${uid})`} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" data-testid="ranked-line" />
         ))}

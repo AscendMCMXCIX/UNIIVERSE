@@ -62,8 +62,6 @@ export const FIGURES: Record<FigureKey, FigureInfo> = {
 };
 
 export const FIGURE_ORDER: FigureKey[] = ["kda", "damagePerMin", "csPerMin", "visionPerMin"];
-/** The post-game notes compare these as well (D-3: from the ledger's team kills, gold and team damage); the card's standout keeps FIGURE_ORDER. */
-export const NOTE_FIGURES: FigureKey[] = [...FIGURE_ORDER, "killParticipation"];
 
 /** A figure as the pages write it: damage as a count, the others with their decimals. */
 export function figureText(key: FigureKey, value: number): string {
@@ -326,41 +324,6 @@ export function goldContradictsRecord(points: readonly GoldPoint[], recordedDiff
   const last = points.at(-1);
   if (!last || recordedDiff === null) return false;
   return Math.sign(last.diff) !== Math.sign(recordedDiff) && Math.min(Math.abs(last.diff), Math.abs(recordedDiff)) >= CONTRADICTION_MIN;
-}
-
-/** A gap smaller than this is not called a lead when lead changes are counted (about a kill and an assist's worth). */
-export const LEAD_MIN = 1000;
-
-export interface GoldStory {
-  /** The player's team's largest lead, and when; null when it never had more gold. */
-  lead: GoldPoint | null;
-  /** The largest deficit, and when; null when it never had less. */
-  deficit: GoldPoint | null;
-  /** The difference at the last frame. */
-  final: GoldPoint;
-  /**
-   * When the other team took over a lead of at least LEAD_MIN (either way). The first lead of the
-   * game is not a change; a gap that narrows without the other team reaching LEAD_MIN is not one.
-   */
-  changes: Array<{ minute: number; to: "ahead" | "behind" }>;
-}
-
-/** What the gold curve shows, in figures only: the extremes, the end and the lead changes. No cause is read into it. */
-export function goldStory(points: readonly GoldPoint[]): GoldStory | null {
-  if (!points.length) return null;
-  let lead: GoldPoint | null = null;
-  let deficit: GoldPoint | null = null;
-  const changes: GoldStory["changes"] = [];
-  let side: "ahead" | "behind" | null = null;
-  for (const p of points) {
-    if (p.diff > 0 && (!lead || p.diff > lead.diff)) lead = p;
-    if (p.diff < 0 && (!deficit || p.diff < deficit.diff)) deficit = p;
-    if (Math.abs(p.diff) < LEAD_MIN) continue;
-    const now = p.diff > 0 ? "ahead" : "behind";
-    if (side && now !== side) changes.push({ minute: p.minute, to: now });
-    side = now;
-  }
-  return { lead, deficit, final: points[points.length - 1]!, changes };
 }
 
 /** A player's place among a group by a figure (1 = highest), or null without the figure; ties share the place. */

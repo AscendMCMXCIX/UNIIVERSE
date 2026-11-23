@@ -86,8 +86,8 @@ test("a choice made in Refine applies, is kept when the panel closes and reopens
   await refine.click();
   await expect(page.getByTestId("refine-panel").getByTestId("role-filter-TOP")).toHaveAttribute("aria-checked", "true");
   await page.keyboard.press("Escape");
-  // The active refinement shows as a chip under the bar, which removes it.
-  await page.getByRole("button", { name: "Remove filter Top" }).click();
+  // The active refinement shows as a chip in the toolbar's row, which removes it.
+  await page.getByRole("button", { name: "Top: remove this filter" }).click();
   await expect(page).not.toHaveURL(/role=TOP/);
   expect((await layout(page)).overflow).toBeLessThanOrEqual(1);
 });

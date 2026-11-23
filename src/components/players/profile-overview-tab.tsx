@@ -160,7 +160,7 @@ async function ProfileOverviewTabBody({ db, header, session, basePath, search }:
       championsById={championsById}
       status={status}
       refresh={refreshFor(session, player.id, sync, m.games - m.counted - m.unavailable > 0)}
-      form={overview.form.season.games >= FORM_MIN_GAMES ? <RecentFormStrip form={overview.form} championsById={championsById} historyHref={`${basePath}/matches`} narrowed={refinementLabel(overview, (id) => championsById[id]?.name ?? id)} /> : null}
+      form={overview.form.season.games >= FORM_MIN_GAMES ? <RecentFormStrip form={overview.form} championsById={championsById} historyHref={`${basePath}/matches`} narrowed={refinementLabel(overview, (id) => championsById[id]?.name ?? id)} champions={rankHistory.accounts.length > 0} /> : null}
       ranked={rankHistory.accounts.length ? <RankedProgress accounts={rankHistory.accounts} queue={rankQueue} accountId={search.ra ?? null} href={rankHref} now={rankHistory.readAt} /> : null}
       pools={pools}
     />
