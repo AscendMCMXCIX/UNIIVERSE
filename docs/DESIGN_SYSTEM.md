@@ -42,15 +42,14 @@ decorative chrome.
   - a compact first screen of opaque panels in a clear order of importance;
   - a single `panel-featured` lead card;
   - quiet labels and strong figures.
-- **Matchup Intel** (the owner's request of 18 Nov 2026) is the single-screen reference, read in a
-  glance on a second monitor: on a desktop its whole overview fits one viewport from 1920 × 1080 (a
-  maximised 1920 × 950 window included: every page of the sweep of 19 Nov 2026), in two columns each as tall as its content, at
-  `--content-wide`. Nothing in it is clipped or scrolls inside it, so a larger text size reflows and
-  scrolls the page instead. Its danger and opportunity sides (a curated briefing's threat and
-  opportunity, the assembled reference's Danger and Opportunity) take `warn` and `good`, as a 5%
-  tint and in their label, always with an icon (a warning sign, a crosshair) and the word; facts are
-  chips with their kind's icon and a word; what the dashboard leaves out is one step away (a chip's
-  tip, a Details window, a fold), never cut (docs/MATCHUP_INTEL.md, "The dashboard").
+- **Champion Lookup** (the owner's request of 23 Nov 2026, in Matchup Intel's place) is the
+  single-screen reference, read in a glance on a second monitor: one panel at `--content-max` with
+  the champion, the haste choice and its five abilities, the ranks as columns where a row has room
+  for them. Any champion at any haste fits one viewport at 1440 × 900 and 1920 × 1080; nothing in it
+  is clipped or scrolls inside it, so a larger text size reflows and scrolls the page instead. Colour
+  is kept for meaning: the cooldown at the chosen haste in the main weight with its label in
+  `accent`, the base beside it quieter, the special cases in `fg-muted` words, never a state colour;
+  Riot's descriptions one press away (Descriptions), never cut (docs/CHAMPION_LOOKUP.md).
 - **Match History** is a finished, successful experience. Do not restyle it for novelty. Change it
   only for a bug, an accessibility fix or a product decision.
   - **The post-game view (the owner's directive of 19 Nov 2026, §5: the product decision this rule
@@ -299,7 +298,7 @@ One set of containers, chosen by what the content is, never by page. Each is one
 | **Popover** | anchored choices (menus, filter dropdowns, the pinned row's Filters) | `popover.tsx`: `Popover` (a panel of fields: the Filters, 34rem, where previews open beside the list; a touch phone keeps the sheet); `menu.tsx` (a menu) | click, Enter, Space | an outside press, Escape (focus back on its button), the focus leaving it, Done, its button leaving the screen | none of its own; a choice replaces the query. The Filters (popover or sheet) have no history entry: one under a replaced query made Back, or a close while a choice loaded, restore the old address |
 | **Select** (a Popover) | one value from a short list in a toolbar or a form (game mode, season, minimum games, sort, a filter's status…) | `select.tsx`: `Select` (options as data) | click, Enter, Space, ↑/↓ | a choice, Escape, Tab, an outside press, a resize, its button leaving the screen | none; a choice calls `onValueChange`, which writes the address as the native select did |
 | **Explain** | a short explanation beside a term | `info-tip.tsx`: `InfoTip` | hover, focus, tap | leaving, Escape, any tap | none |
-| **Fold** | secondary content in a page: a section, the rest of a list ("3 more"), a table behind a chart | `fold.tsx`: `Fold` (native `details`), three looks with one chevron (ChevronDown, a half turn for its own fold only) and one spacing each: `panel` (boxed: a title and a line, the chevron at the end, the body under a rule with a panel's padding), `row` (the same line unboxed, inside a panel: Riot's tips) and `inline` (a line of small text, the chevron first, the body 6px under it); a `dense` panel spaces its summary 12px at the sides and 8px before the chevron (one use: Matchup Intel's sources, a line of small text under the page's one-screen fit, spaced so before the Fold); every summary a 44px row on touch screens (its own height, not an invisible area over its words), a row's or an inline fold's body 16px under it there (a panel's past its border and padding); `lazy` draws the body on first open | its summary (click, tap, Enter, Space) | its summary | none; SectionIndex opens a closed fold it links into |
+| **Fold** | secondary content in a page: a section, the rest of a list ("3 more"), a table behind a chart | `fold.tsx`: `Fold` (native `details`), three looks with one chevron (ChevronDown, a half turn for its own fold only) and one spacing each: `panel` (boxed: a title and a line, the chevron at the end, the body under a rule with a panel's padding), `row` (the same line unboxed, inside a panel: Riot's tips) and `inline` (a line of small text, the chevron first, the body 6px under it); a `dense` panel spaces its summary 12px at the sides and 8px before the chevron (Matchup Intel's sources were its one use until 23 Nov 2026; none now); every summary a 44px row on touch screens (its own height, not an invisible area over its words), a row's or an inline fold's body 16px under it there (a panel's past its border and padding); `lazy` draws the body on first open | its summary (click, tap, Enter, Space) | its summary | none; SectionIndex opens a closed fold it links into |
 | **Phone Fold** | a long section's details on a touch phone only (Profile Overview, since 20 Nov 2026: the primary pool's champions after the top three, the off roles, Ranked progress past its heading and current rank) | `phone-fold.tsx`: `PhoneFoldSection`, `PhoneFoldToggle`, `usePhoneFold`; the classes in `phone-fold-classes.ts` (`posture.ts`'s window posture as CSS, so the server's HTML is already folded) | its Show, All N or chevron (44px) | Hide, Top 3 or the chevron | none; an address with the section's `#id` opens it |
 | **Record window** | everything about one record that is managed, not glanced at (Admin's person view) | `DetailModal` with `useAddressItem` (`person-view.tsx`) | a row of the list | ✕, Escape (focus back to the row), Back; ‹ › switch | `?person=`: the one history rule |
 
@@ -313,7 +312,8 @@ UM.X2, X4; 20 Nov 2026):
   in place; at the top it opens again. Where the window scrolls as one (a small phone, FLOW_SHARE),
   the header scrolls away under the bar. It collapses only when the content would still scroll with
   it collapsed, so it never takes away the scroll that collapsed it. A plain title bar (Admin's
-  person window, Matchup Intel's picker and details) collapses too (Release 10, 20 Nov 2026): its
+  person window, Champion Lookup's All champions; Matchup Intel's picker and details until 23 Nov
+  2026) collapses too (Release 10, 20 Nov 2026): its
   title on one line, cut short with an ellipsis where it would wrap (the whole title stays the
   window's name), its description for screen readers only, tighter padding; held sideways (a short
   window, which scrolls as one) it collapses on the window's own scroll. The 56px bar is 56px at
@@ -445,9 +445,8 @@ const peek = usePeek({ param: "player", ids, initial: searchParams.get("player")
   scrolling inside. `windowSize` and `windowHeader` give the phone's window its size and header.
 - **First consumer:** the Team player (`?player=`), its ↑/↓ moving along the starters; a turned
   card opens its substitute.
-- **Matchup Intel's abilities** (`?ability=Mordekaiser.Q`, `ability-peek.tsx`, 23 Nov 2026): each tile
-  of the enemy's cooldown strip and of your side's kits opens the ability's whole reference (in place
-  of the Details window it had); ↑/↓ step through the page's abilities, the enemy's P to R first.
+- **Matchup Intel's abilities** (`?ability=Mordekaiser.Q`, `ability-peek.tsx`, 23 Nov 2026) were a
+  consumer until Matchup Intel was retired the same day (Release 16).
 
 ### Explain (`InfoTip`)
 
@@ -563,9 +562,9 @@ navigation contract").
      beside it;
    - the collapse control under it. It is quieter than the pages: `fg-subtle`, normal weight, and
      its Ctrl \ hint appears over the row's end only while the row is pointed at or focused.
-2. **Pages:** My Profile, Team, Matchup Intel and Resources in Player Mode (Team stands for its
-   sections, the tabs at the top of its pages; Matchup Intel, with the swords, and Resources, the
-   Library, are one page each, with no tabs, since 18 Nov 2026); Admin Mode's six sections. Folded
+2. **Pages:** My Profile, Team, Champion Lookup and Resources in Player Mode (Team stands for its
+   sections, the tabs at the top of its pages; Champion Lookup, with the magnifier (Matchup Intel's
+   place since 23 Nov 2026), and Resources, the Library, are one page each, with no tabs); Admin Mode's six sections. Folded
    to the rail, the four icons sit one 2.625rem step apart on its centre line, each named by its
    tooltip.
 3. **Footer:**
@@ -616,7 +615,7 @@ Below `lg` the frame follows how the screen is held (MOBILE.md, "Frames by postu
 decision of 8 Nov 2026, PR 2d), and exactly one `nav[aria-label=Primary]` is shown at a time. Every
 posture shows the same destinations as the sidebar, in its order, with its names and icons
 (navigation N1, 19 Nov 2026: `destinations()` in `src/lib/nav.ts`; `nav-parity.test.ts` holds the
-bars to it): My Profile, Team, Matchup Intel and Resources; in Admin Mode Dashboard, Users &
+bars to it): My Profile, Team, Champion Lookup and Resources; in Admin Mode Dashboard, Users &
 Permissions, Platform Settings and System. Each bar names them by one label ladder, by its own width
 in rem: the whole names, then the short ones ("Profile", "Intel"; "Users", "Platform"; the rest of
 each name read out only, `data-name="rest"`), then the icons alone with the names read out.
@@ -723,12 +722,11 @@ With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shel
     Since Release 11 (20 Nov 2026) a second test compares the components S5–S9 created, each opened
     as a member opens it: All Champions' preview (its panel, figures, an opponent, the foot line), the
     post-game view (an item and the loadout's name, a scoreboard K/D/A
-    and name), Matchup Intel (your slot, the enemy's slot label, an ability tile's name and its Q's cooldown,
-    the phone's glance cooldown against the full tile's) and Admin's person view (the window, a section
+    and name), Champion Lookup (the champion's name, an ability's name, its Q's base cooldown and its
+    cooldown at the haste; Matchup Intel's slots and tiles until 23 Nov 2026) and Admin's person view (the window, a section
     heading, the Riot accounts panel and a row). Its listed differences, each with its reason in the
     spec: the preview's surface, corners and edge (unfolded under its row on a desktop, a well in
-    the list's card; a sheet on a phone); the compact scoreboard's names (text-xs under a 30rem scoreboard); Matchup Intel's
-    slot label (text-2xs on a phone) and the glance's cooldown (text-xs in a tile of about 64px, against the full tile's text-md); the person
+    the list's card; a sheet on a phone); the compact scoreboard's names (text-xs under a 30rem scoreboard); the person
     view's corners (DetailModal fills a phone's screen). Everything else is equal at 375 and 1440, in
     Chromium 153 and Chrome Headless Shell 156.
   - **A page's controls in reach (PR 2b, 18 Nov 2026).** Once the row is pinned and the page's own
@@ -806,7 +804,7 @@ test):
   it is at the window's top (G3-5: a short first panel put the next one's top above the window's
   upper third). Each is
   a plain link to its section's anchor, so it works before the page's code has run; once it runs a
-  click jumps through the router's history (`jumpToAnchor`, which Matchup Intel's chips share): the
+  click jumps through the router's history (`jumpToAnchor`): the
   section comes under the top bar, takes the focus, and the jump is an entry of the page's own where
   the browser has the Navigation API (the phone's Back steps past it, `backSteps`), else it replaces
   the entry. (`e2e/leaderboards-recent.spec.ts`; Safari's engine in `e2e/webkit.spec.ts`)
@@ -818,7 +816,7 @@ test):
   the tab's page. The current section tab (Team's on tablets and desktops,
   Platform Settings' and a profile's everywhere, the phone's in the top bar included)
   and the frame's entry for the page shown (the sidebar's, a tablet's top bar's, the phone's account
-  screen's row: Matchup Intel's keeps its pair) do the same, and keep the page as it is: its view and
+  screen's row: Champion Lookup's keeps its champion and haste) do the same, and keep the page as it is: its view and
   filters stay (the link's own address leaves the query out, and following it used to bring back
   the defaults, Leaderboards' season back to the current one). A click with a modifier key or another button still opens a new tab or window, and leaves
   this page alone (`src/lib/back-to-top.ts`; `e2e/navigation-landings.spec.ts`).
@@ -828,12 +826,10 @@ test):
   does every filter (Team Matches', Leaderboards' season, Players' Archived, Ranked progress's queue
   and account, and a mode's other seasons included), so Back leaves the page instead of stepping back
   through each choice. A page's views (`SubTabs`: Match History's Games and Encounters) stay
-  entries of their own, as each is a link with its own address, and so do Matchup Intel's pairs
-  (each pair chosen, and a chip's jump to an ability) where the browser has the Navigation API: the
-  browser's Back steps through them, and the top bar's Back, named after the page before Matchup
-  Intel, goes past them (`backSteps`). Without it (Safari before 26.2, Firefox before 147) each
-  pair replaces the entry, as a filter does, so both Backs leave the page in one step
-  (`historyShowsEntries`; docs/MATCHUP_INTEL.md). An
+  entries of their own, as each is a link with its own address. Champion Lookup's champion and
+  haste are the page's state, like a filter: a change replaces the entry, so Back leaves the page in
+  one step (docs/CHAMPION_LOOKUP.md, "Address"; Matchup Intel's pairs were entries of their own where
+  the browser has the Navigation API, which the top bar's Back went past: `backSteps`). An
   account without a player profile never starts at, or goes Back to, an empty Profile: its home is
   its first other page.
 - **Overlays.** One sheet for every choice and editor (`DetailModal` `size="sheet"`, `Dialog` built

@@ -147,10 +147,10 @@ test("the label ladder: whole names where the bar has room, then Profile and Loo
   const steps = { full: ["My Profile", "Team", "Champion Lookup", "Resources"], short: ["Profile", "Team", "Lookup", "Resources"] } as const;
   const expected: Record<number, Record<number, keyof typeof steps | "icons">> = {
     320: { 100: "full", 125: "short", 150: "icons", 200: "icons" },
-    375: { 100: "full", 125: "full", 150: "short", 200: "icons" },
+    375: { 100: "full", 125: "full", 150: "icons", 200: "icons" },
     390: { 100: "full", 125: "full", 150: "short", 200: "icons" },
     393: { 100: "full", 125: "full", 150: "short", 200: "icons" },
-    430: { 100: "full", 125: "full", 150: "full", 200: "icons" },
+    430: { 100: "full", 125: "full", 150: "short", 200: "icons" },
   };
   for (const [width, sizes] of Object.entries(expected)) {
     await page.setViewportSize({ width: Number(width), height: 800 });
@@ -546,19 +546,20 @@ test("a tablet's destinations are in its top bar, one tap each; its avatar menu 
 
 test("a tablet's top bar gives way at a larger text size: the team's name, the whole names, the short ones, then the icons, by its own width, and never wider than the window", { tag: "@tablet" }, async ({ page, context, baseURL }) => {
   // BAR_FIT in mobile-nav.tsx, in rem of the bar's row less its gutters: Player Mode's name below
-  // 42.5rem, its whole names below 36.25rem and its short names below 30.75rem; Admin Mode's name,
+  // 44.4rem, its whole names below 38.25rem and its short names below 32.1rem (Champion Lookup's names,
+  // 23 Nov 2026); Admin Mode's name,
   // which says the mode, stays with the short names down to 39.75rem, its whole names from 49.75rem,
   // its short names down to 33.25rem. The gutters are 1rem a side, so they grow with the text: a
   // 768px tablet's row is 768px over the root's size less 2rem, 46rem at 100% text, 36.4rem at 125%,
   // 30rem at 150% and 22rem at 200%.
-  const FIT = { player: { brand: 42.5, rest: 36.25, label: 30.75 }, admin: { brand: 39.75, rest: 49.75, label: 33.25 } } as const;
+  const FIT = { player: { brand: 44.4, rest: 38.25, label: 32.1 }, admin: { brand: 39.75, rest: 49.75, label: 33.25 } } as const;
   const ROW = { 100: 46, 125: 36.4, 150: 30, 200: 22 } as const;
   // What the 768px tablet shows, written out, so a threshold above what fits fails here as well as one
-  // below it: Player Mode keeps its whole names at 125% (the name gone); Admin Mode its name with the
+  // below it: Player Mode shows its short names at 125% (the name gone); Admin Mode its name with the
   // short names at 100%, the short names alone at 125%.
   type Shows = { name: boolean; names: "full" | "short" | "icons" };
   const AT_768: Record<"player" | "admin", Record<100 | 125 | 150 | 200, Shows>> = {
-    player: { 100: { name: true, names: "full" }, 125: { name: false, names: "full" }, 150: { name: false, names: "icons" }, 200: { name: false, names: "icons" } },
+    player: { 100: { name: true, names: "full" }, 125: { name: false, names: "short" }, 150: { name: false, names: "icons" }, 200: { name: false, names: "icons" } },
     admin: { 100: { name: true, names: "short" }, 125: { name: false, names: "short" }, 150: { name: false, names: "icons" }, 200: { name: false, names: "icons" } },
   };
   const read = () =>
@@ -607,11 +608,12 @@ test("a tablet's top bar gives way at a larger text size: the team's name, the w
     }
   }
   // The installed app adds Back on a page reached from another (Settings opened directly: Back to
-  // Team). Beside it each step comes sooner (BAR_FIT's besideBack: the whole names below 41rem, the
-  // short ones below 35.5rem), so at 125% the four show their short names rather than scrolling.
+  // Team). Beside it each step comes sooner (BAR_FIT's besideBack: the whole names below 42.9rem, the
+  // short ones below 36.8rem), so at 110% (41.6rem) the four show their short names and at 125%
+  // (36.4rem) their icons, rather than scrolling.
   await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
   await page.addInitScript(() => Object.defineProperty(Navigator.prototype, "standalone", { get: () => true }));
-  for (const [root, names] of [[100, "full"], [125, "short"]] as const) {
+  for (const [root, names] of [[100, "full"], [110, "short"], [125, "icons"]] as const) {
     await page.goto("/settings");
     await page.evaluate((r) => {
       document.documentElement.style.fontSize = `${r}%`;

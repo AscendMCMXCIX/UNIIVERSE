@@ -98,6 +98,8 @@ function PickerBody({ champions, selected, recent, inputRef, onPick }: { champio
             <input
               ref={inputRef}
               type="search"
+              // No width of its own (an input is 20 characters wide by default, which at 200% text made the window wider than a phone held sideways): its box sets it.
+              size={1}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => {
@@ -176,7 +178,7 @@ export function ChampionPickerWindow({ champions, selected, recent, onPick, onCl
       onClose={onClose}
       size="standard"
       title="All champions"
-      description="Choose a champion to see its abilities and cooldowns."
+      description="Choose a champion."
       testId="lookup-picker"
       headerTestId="lookup-picker-header"
       closeTestId="lookup-picker-close"

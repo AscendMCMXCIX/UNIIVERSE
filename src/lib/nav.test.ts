@@ -185,7 +185,7 @@ describe("the destinations every bar shows", () => {
     const at = (path: string) => currentDestination(path, list)?.key ?? null;
     expect(at("/team")).toBe("team");
     expect(at("/matches")).toBe("team");
-    expect(at("/matches/insights")).toBe("team");
+    expect(at("/matches/bookmarked")).toBe("team");
     expect(at("/players/abc/matches")).toBe("team");
     expect(at("/overview/champions")).toBe("/overview");
     expect(at("/me")).toBe("/overview");

@@ -10,8 +10,8 @@ export default function Loading() {
         <div className={`${block} h-8 w-52 max-w-full rounded-md`} />
         <div className={`${block} h-4 w-56 max-w-full rounded-md`} />
       </div>
-      <div aria-hidden className="flex flex-wrap items-center gap-2">
-        <div className={`${block} h-11 w-full rounded-md min-[30rem]:w-72 md:pointer-fine:h-9`} />
+      <div aria-hidden className="@container/toolbar flex flex-wrap items-center gap-2">
+        <div className={`${block} h-11 w-full rounded-md @min-[34rem]/toolbar:w-72 md:pointer-fine:h-9`} />
         <div className={`${block} h-11 w-36 rounded-md md:pointer-fine:h-9`} />
       </div>
       <div aria-hidden className="panel-depth overflow-hidden rounded-panel border border-border bg-surface">

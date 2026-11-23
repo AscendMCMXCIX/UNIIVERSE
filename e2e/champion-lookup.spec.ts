@@ -190,11 +190,11 @@ test("the search with the keyboard: \"/\" puts the focus in it, matches as typed
   await expect(input).toBeFocused();
   await expect(input).toHaveValue("");
   // Escape: the list first, then what was typed.
-  await page.keyboard.type("zz");
-  await expect(page.getByTestId("lookup-search-note")).toHaveText("No champion matches “zz”.");
+  await page.keyboard.type("qqq");
+  await expect(page.getByTestId("lookup-search-note")).toHaveText("No champion matches “qqq”.");
   await page.keyboard.press("Escape");
   await expect(input).toHaveAttribute("aria-expanded", "false");
-  await expect(input).toHaveValue("zz");
+  await expect(input).toHaveValue("qqq");
   await page.keyboard.press("Escape");
   await expect(input).toHaveValue("");
   // A press on a match takes it.
@@ -279,16 +279,30 @@ test("Matchup Intel's old links land on Champion Lookup, carrying one champion: 
   await expect(page.getByTestId("lookup-panel")).toHaveAttribute("data-champion", "Mordekaiser");
 });
 
-test("one screen at 1440 × 900 and 1920 × 1080 for any champion at any haste, the sidebar open", async ({ page }, info) => {
+test("one screen for any champion at any haste: 1440 × 900, 1920 × 1080, and the owner's own windows, 1920 × 950 with the sidebar folded and 1440 × 780", async ({ page, context, baseURL }, info) => {
   test.skip(!isDesktop(info.project.name), "the desktop");
-  for (const size of [{ width: 1440, height: 900 }, { width: 1920, height: 1080 }]) {
-    await page.setViewportSize(size);
-    for (const path of ["/lookup?champion=Ahri&haste=100", "/lookup?champion=LeeSin&haste=40", "/lookup?champion=Aphelios&haste=300", "/lookup?champion=Udyr&haste=20"]) {
+  // The owner's second monitor (23 Nov 2026): a 1920 × 1080 screen less the browser's bars and the
+  // taskbar, the sidebar folded; and what a 1440 × 900 screen leaves the page.
+  const sizes = [
+    { width: 1440, height: 900, folded: false },
+    { width: 1920, height: 1080, folded: false },
+    { width: 1920, height: 950, folded: true },
+    { width: 1920, height: 950, folded: false },
+    { width: 1440, height: 780, folded: false },
+    { width: 1440, height: 780, folded: true },
+  ];
+  for (const size of sizes) {
+    await context.clearCookies({ name: "uniiverse_sidebar" });
+    if (size.folded) await context.addCookies([{ name: "uniiverse_sidebar", value: "collapsed", url: baseURL! }]);
+    await page.setViewportSize({ width: size.width, height: size.height });
+    for (const path of ["/lookup?champion=Ahri&haste=100", "/lookup?champion=LeeSin&haste=40", "/lookup?champion=Aphelios&haste=300", "/lookup?champion=Udyr&haste=20", "/lookup?champion=Teemo&haste=55"]) {
       await page.goto(path);
       await expect(page.getByTestId("lookup-ability")).toHaveCount(5);
-      const fit = await page.evaluate(() => ({ over: document.documentElement.scrollHeight - innerHeight, rule: document.querySelector('[data-testid="lookup-rule"]')!.getBoundingClientRect().bottom }));
-      expect(fit.over, `${path} at ${size.width}`).toBeLessThanOrEqual(1);
-      expect(fit.rule, `${path} at ${size.width}: the rule's line on the screen`).toBeLessThanOrEqual(size.height);
+      const where = `${path} at ${size.width} × ${size.height}${size.folded ? ", the sidebar folded" : ""}`;
+      const fit = await page.evaluate(() => ({ over: document.documentElement.scrollHeight - innerHeight, rule: document.querySelector('[data-testid="lookup-rule"]')!.getBoundingClientRect().bottom, haste: document.querySelector('[data-testid="lookup-haste"]')!.getBoundingClientRect().bottom }));
+      expect(fit.over, where).toBeLessThanOrEqual(1);
+      expect(fit.haste, `${where}: the haste choice on the screen`).toBeLessThanOrEqual(size.height);
+      expect(fit.rule, `${where}: the five abilities and the rule's line on the screen`).toBeLessThanOrEqual(size.height);
     }
   }
 });

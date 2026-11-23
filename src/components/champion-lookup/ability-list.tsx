@@ -65,18 +65,18 @@ function AbilityRow({ ability, haste, descriptions }: { ability: LookupAbility; 
   const hasted = haste > 0 && at !== null;
   return (
     <li className="@container/ab border-b border-border px-3 py-2 last:border-b-0 sm:px-4" data-testid="lookup-ability" data-slot={ability.slot} data-cooldown={ability.cooldown.kind === "per-rank" ? "per-rank" : ability.cooldown.reason}>
-      <div className="grid grid-cols-[2.5rem_minmax(0,1fr)] items-center gap-x-3 gap-y-1.5 @min-[36rem]/ab:grid-cols-[2.5rem_minmax(9rem,15rem)_minmax(0,1fr)]">
-        <span className="relative row-span-1">
+      <div className="grid grid-cols-1 items-center gap-x-3 gap-y-1.5 @min-[16rem]/ab:grid-cols-[2.5rem_minmax(0,1fr)] @min-[36rem]/ab:grid-cols-[2.5rem_minmax(9rem,15rem)_minmax(0,1fr)]">
+        <span className="relative w-10">
           <AbilityIcon ability={ability} />
           <span aria-hidden className="absolute -bottom-1 -right-1 grid h-4 min-w-4 place-items-center rounded-sm border border-border-strong bg-bg-elevated px-0.5 text-4xs font-bold leading-none text-fg">
             {ability.slot}
           </span>
         </span>
         <h3 className="min-w-0 text-sm font-semibold leading-snug text-fg @min-[36rem]/ab:text-md">
-          <span className="label-caps mr-1.5 text-fg-muted">{SLOT_NAMES[ability.slot]}</span>
+          <span className="label-caps mr-0.5 text-fg-muted">{SLOT_NAMES[ability.slot]}</span>{" "}
           <span data-testid="lookup-ability-name">{ability.name}</span>
         </h3>
-        <div className="col-span-2 min-w-0 text-sm @min-[36rem]/ab:col-span-1" data-testid="lookup-cooldown">
+        <div className="col-span-full min-w-0 text-sm @min-[36rem]/ab:col-span-1" data-testid="lookup-cooldown">
           {at !== null && ability.cooldown.kind === "per-rank" ? (
             <dl className="space-y-0.5">
               <div className="flex flex-wrap items-baseline gap-x-2 @min-[36rem]/ab:flex-nowrap">

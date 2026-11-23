@@ -34,8 +34,11 @@ which live in a champion's window under All Champions ([MATCHUPS.md](MATCHUPS.md
   the "Cooldown, s · Rank 1 2 3 4 5" heading; narrower (a phone, and 200% text), the cooldown goes
   under the name as one line per kind, "7 / 7 / 7 / 7 / 7 s", wrapping between ranks only. Nothing
   scrolls inside the page and nothing is wider than the screen from 320px up. The whole page fits
-  one screen at 1440 × 900 and 1920 × 1080 with any champion and any haste
-  (`e2e/champion-lookup.spec.ts`); with the descriptions shown it may scroll.
+  one screen with any champion and any haste at 1440 × 900 and 1920 × 1080, and at the owner's own
+  windows (23 Nov 2026): 1920 × 950 (a 1920 × 1080 screen less the browser's bars and the taskbar)
+  with the sidebar folded or open, and 1440 × 780 (what a 1440 × 900 screen leaves the page), the
+  haste choice and the five abilities on the first screen (`e2e/champion-lookup.spec.ts`); with the
+  descriptions shown it may scroll.
 - **Loading.** A champion chosen on the page is built on the server: until it arrives the panel
   shows the new champion's name and portrait with a spinner, is dimmed and out of reach (`inert`),
   and a status line says "Loading Ahri…". The route's `loading.tsx` takes the page's own shape.

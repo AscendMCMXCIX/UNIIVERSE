@@ -50,8 +50,8 @@ function HasteChoice({ haste, onChange }: { haste: number; onChange: (haste: num
           {haste > 0 ? `Cooldowns ${formatSeconds(hasteReduction(haste))}% shorter` : "Base cooldowns"}
         </span>
       </div>
-      <div className="flex items-center gap-1.5">
-        <div role="group" aria-labelledby={`${id}-label`} className="grid min-w-0 flex-1 grid-cols-5 gap-0.5 rounded-lg border border-border-control bg-bg-elevated p-0.5 @min-[34rem]/panel:flex-none @min-[34rem]/panel:grid-cols-9">
+      <div className="flex flex-wrap items-center gap-1.5 @min-[20rem]/panel:flex-nowrap">
+        <div role="group" aria-labelledby={`${id}-label`} className="grid w-full min-w-0 grid-cols-3 gap-0.5 rounded-lg border border-border-control bg-bg-elevated p-0.5 @min-[16rem]/panel:grid-cols-5 @min-[20rem]/panel:w-auto @min-[20rem]/panel:flex-1 @min-[34rem]/panel:flex-none @min-[34rem]/panel:grid-cols-9">
           {HASTE_CHOICES.map((h) => (
             <button
               key={h}
@@ -62,7 +62,7 @@ function HasteChoice({ haste, onChange }: { haste: number; onChange: (haste: num
                 setHeld(false);
                 onChange(h);
               }}
-              className={cn("min-h-11 min-w-0 rounded-md px-1 text-sm font-medium tabular-nums @min-[34rem]/panel:min-w-10 transition-colors md:pointer-fine:min-h-8 md:pointer-fine:min-w-9 md:pointer-fine:text-xs", h === haste ? "bg-accent/15 font-semibold text-fg ring-1 ring-inset ring-accent/60" : "text-fg-muted hover:bg-surface-2 hover:text-fg")}
+              className={cn("min-h-11 min-w-0 whitespace-nowrap rounded-md px-1 text-sm font-medium tabular-nums [overflow-wrap:normal] @min-[34rem]/panel:min-w-10 transition-colors md:pointer-fine:min-h-8 md:pointer-fine:min-w-9 md:pointer-fine:text-xs", h === haste ? "bg-accent/15 font-semibold text-fg ring-1 ring-inset ring-accent/60" : "text-fg-muted hover:bg-surface-2 hover:text-fg")}
               data-haste={h}
             >
               {h}
@@ -152,8 +152,10 @@ export function LookupView({ champions, lookup, initialHaste }: { champions: Cha
 
   return (
     <div className="space-y-3">
+      {/* The search's width by the toolbar's own width in rem (a container, not the window), so a larger text size never makes it wider than the page. */}
+      <div className="@container/toolbar">
       <div className="flex flex-wrap items-center gap-2" data-testid="lookup-toolbar" data-ready={ready ? "true" : undefined}>
-        <ChampionSearch champions={champions} onPick={go} className="w-full min-[30rem]:w-72 min-[30rem]:flex-none" />
+        <ChampionSearch champions={champions} onPick={go} className="w-full @min-[34rem]/toolbar:w-72 @min-[34rem]/toolbar:flex-none" />
         <button ref={browseRef} type="button" onClick={() => setBrowsing(true)} aria-haspopup="dialog" className={toolbarButtonClass(false)} data-testid="lookup-browse">
           <LayoutGrid className="h-4 w-4" aria-hidden />
           All champions
@@ -165,13 +167,14 @@ export function LookupView({ champions, lookup, initialHaste }: { champions: Cha
           </button>
         ) : null}
       </div>
+      </div>
       <p className="sr-only" role="status" aria-live="polite" data-testid="lookup-status">
         {loading}
       </p>
       {shown ? (
         <section aria-labelledby="lookup-champion" aria-busy={pending || undefined} className={cn("@container/panel panel-depth overflow-hidden rounded-panel border border-border bg-surface transition-opacity", pending && "pointer-events-none opacity-60")} inert={pending || undefined} data-testid="lookup-panel" data-champion={shown.id}>
           <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3 border-b border-border px-3 py-3 sm:px-4">
-            <div className="flex min-w-0 items-center gap-3">
+            <div className="flex min-w-0 flex-col items-start gap-3 @min-[16rem]/panel:flex-row @min-[16rem]/panel:items-center">
               <span aria-hidden className="shrink-0">
                 <ChampionPortrait champion={{ id: shown.id, name: shown.name, portraitUrl: shown.portrait }} size="lg" className="max-sm:h-12 max-sm:w-12" />
               </span>

@@ -220,7 +220,7 @@ test("the same four destinations in every posture, in both modes: the phone upri
       for (const [i, name] of names.entries()) await expect(links.nth(i), where).toHaveAccessibleName(name);
       // The same icons, in the same order, as the sidebar draws them.
       const icons = await links.evaluateAll((as) => as.map((a) => /lucide-([a-z0-9-]+)/.exec(a.querySelector("svg")?.getAttribute("class") ?? "")?.[1] ?? "avatar"));
-      expect(icons, where).toEqual(mode === "player" ? ["circle-user-round", "users", "swords", "book-bookmark"] : ["layout-dashboard", "user-cog", "sliders-horizontal", "server-cog"]);
+      expect(icons, where).toEqual(mode === "player" ? ["circle-user-round", "users", "scan-search", "book-bookmark"] : ["layout-dashboard", "user-cog", "sliders-horizontal", "server-cog"]);
     }
   }
 });

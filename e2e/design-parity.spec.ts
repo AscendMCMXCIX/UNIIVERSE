@@ -59,6 +59,7 @@ const LISTED: Record<string, Partial<Record<string, string>>> = {
     border: "under its row the list's hairline between rows separates it and its left edge continues the row's accent bar; the phone's sheet has the window's border all round",
   },
   "post-game: a scoreboard name": { sizeRem: "the compact scoreboard's names are text-xs where the scoreboard is under 30rem wide (a phone's window), so each of the ten names keeps one line; text-sm from 30rem (scoreboard.tsx)" },
+  "Champion Lookup: an ability's name": { sizeRem: "an ability row lays itself out by its own width (ability-list.tsx, @container/ab): from 36rem, a desktop's columns, the name and the ranks step up to text-md for a second monitor; a phone's narrower row keeps text-sm, its cooldown one line under the name" },
   "Admin: person view": { radius: "the person view is DetailModal: a phone's window fills the screen and has no corners; a desktop's is a centred window with the panel's radius" },
   Popover: { radius: "a touch phone keeps the sheet, docked to the bottom edge with the sheet's 1.25rem top corners; the popover has a menu's rounded-lg" },
 };

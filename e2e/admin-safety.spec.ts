@@ -79,7 +79,7 @@ async function ownerJobs(page: Page, size: string) {
 
   await openDetails(advanced);
   const setup = advanced.getByTestId("jobs-setup");
-  await expect(setup.getByTestId("job-row")).toHaveCount(7);
+  await expect(setup.getByTestId("job-row")).toHaveCount(6);
   for (const key of SETUP_KEYS) await expect(setup.locator(`[data-job=${key}]`), `${size}: ${key} under Advanced`).toBeVisible();
   await expect(advanced.getByTestId("schedule-editor").getByTestId("schedule-row")).toHaveCount(7);
   await axe(page, `${size}: Advanced open`);

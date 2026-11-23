@@ -67,6 +67,8 @@ export function ChampionSearch({ champions, onPick, inputRef, className }: { cha
           ref={ref}
           type="text"
           role="combobox"
+          // No width of its own (an input is 20 characters wide by default, which at 200% text made the window wider than a phone held sideways): its box sets it.
+          size={1}
           aria-expanded={expanded}
           aria-controls={listId}
           aria-autocomplete="list"
