@@ -447,10 +447,11 @@ describe("each champion's data, and checks a patch or more behind", () => {
     const one = await render({ champion: "Ambessa", vs: "Renekton" });
     const interactions = panel(one, "matchup-interactions");
     expect(interactions.match(/data-testid="interaction-source"/g)).toHaveLength(1);
-    expect(text(interactions)).toMatch(/^[^<]*Interactions How abilities meet in this lane · source From Renekton\. Curated matchup notes\. Unstoppable answers it\./);
+    // In the lane plan a part's heading says what it is; its one source sits beside it.
+    expect(text(interactions)).toMatch(/^[^<]*Interactions source From Renekton\. Curated matchup notes\. Unstoppable answers it\./);
     const levels = panel(one, "matchup-level-notes");
     expect(levels.match(/data-testid="level-note-source"/g)).toHaveLength(1);
-    expect(text(levels)).toMatch(/^[^<]*Level changes When something becomes possible · source From Renekton\. Checked notes \(drafted and audited by AI agents, not by a person\)\. Level 6 Renekton: Dominus\./);
+    expect(text(levels)).toMatch(/^[^<]*Level changes source From Renekton\. Checked notes \(drafted and audited by AI agents, not by a person\)\. Level 6 Renekton: Dominus\./);
     // Two pages: each interaction and each note says its own, and the headings name none.
     const two: MatchupNotes = {
       ...ambessaVsRenekton,
@@ -460,9 +461,9 @@ describe("each champion's data, and checks a patch or more behind", () => {
     const ambessa: ChampionNotes = { ...renekton, championId: "Ambessa", sources: [{ id: "wiki", title: "Ambessa", url: "https://wiki.leagueoflegends.com/en-us/Ambessa", kind: "wiki-champion", licence: "CC BY-SA 3.0" }], abilities: {}, levelNotes: [{ level: 9, text: "Drakehound.", source: "wiki", basedOn: [] }] };
     const html = await render({ champion: "Ambessa", vs: "Renekton" }, { matchupNotes: (a, b) => (a === "Ambessa" && b === "Renekton" ? two : null), championNotes: (id) => (id === "Renekton" ? renekton : id === "Ambessa" ? ambessa : null) });
     const each = text(panel(html, "matchup-interactions"));
-    expect(each).toMatch(/^[^<]*Interactions How abilities meet in this lane Unstoppable answers it\. .*source From Renekton\. Curated matchup notes\. It goes the other way\. .*source From Ambessa\. Curated matchup notes\./);
+    expect(each).toMatch(/^[^<]*Interactions Unstoppable answers it\. .*source From Renekton\. Curated matchup notes\. It goes the other way\. .*source From Ambessa\. Curated matchup notes\./);
     const notes = text(panel(html, "matchup-level-notes"));
-    expect(notes).toMatch(/^[^<]*Level changes When something becomes possible Level 6 Renekton: Dominus\. source From Renekton\. Checked notes \(drafted and audited by AI agents, not by a person\)\. Level 9 Ambessa: Drakehound\. source From Ambessa\. Checked notes \(drafted and audited by AI agents, not by a person\)\./);
+    expect(notes).toMatch(/^[^<]*Level changes Level 6 Renekton: Dominus\. source From Renekton\. Checked notes \(drafted and audited by AI agents, not by a person\)\. Level 9 Ambessa: Drakehound\. source From Ambessa\. Checked notes \(drafted and audited by AI agents, not by a person\)\./);
   });
 
   it("the two notes panels share their row by their words: the fuller one the wider", async () => {

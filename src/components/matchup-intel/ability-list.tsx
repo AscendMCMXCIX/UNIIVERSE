@@ -343,7 +343,7 @@ function AbilityTile({ intel, ability: a, checkedPatch, notRecheckedFor, dataPat
     // the icon beside the key, the name and the cooldown from 11rem; in a narrower tile (a phone at a
     // large text size) a smaller copy starts the key's line and the words take the whole width (the
     // hidden copy is display: none, and a lazy image out of the layout is never fetched).
-    <li id={abilityAnchor(champion.id, a.slot)} className="@container/tile min-w-0 scroll-mt-4 px-2 py-2 transition-colors focus:bg-accent/5 focus-visible:-outline-offset-2 sm:px-3" data-testid="ability-row" data-slot={a.slot} data-freshness={a.freshness ?? undefined}>
+    <li id={abilityAnchor(champion.id, a.slot)} className="@container/tile min-w-0 scroll-mt-4 px-2 py-2 transition-colors lg:py-1.5 focus:bg-accent/5 focus-visible:-outline-offset-2 sm:px-3" data-testid="ability-row" data-slot={a.slot} data-freshness={a.freshness ?? undefined}>
       {/* The icon (its key on its corner) beside the name and the Peek's button; the cooldown under them:
           in the name's column in a list (a phone, a tablet, your kit's fold under 50rem), across the whole
           tile where the five stand side by side (each 14 to 20rem, the figures need the width), and with
@@ -405,6 +405,12 @@ function AbilityTile({ intel, ability: a, checkedPatch, notRecheckedFor, dataPat
               </li>
             ))}
             {more ? <li className="flex items-center pl-0.5">{moreButton}</li> : null}
+            {/* In the strip, the checked notes' wait between casts, refunds and recasts follow the chips on their row where it has room. */}
+            {strip && notes.length ? (
+              <li className="flex items-center pl-1 text-xs text-fg-muted" data-testid="ability-modifiers">
+                {notes.join(" · ")}
+              </li>
+            ) : null}
           </ul>
         ) : more ? (
           moreButton
@@ -423,7 +429,7 @@ function AbilityTile({ intel, ability: a, checkedPatch, notRecheckedFor, dataPat
             {from === "riot-text" ? NO_ABILITY_FACTS_WORDS : noneRecordedWords(from)}
           </p>
         ) : null}
-        {notes.length ? (
+        {notes.length && !(strip && chips.length) ? (
           <p className="text-xs text-fg-muted" data-testid="ability-modifiers">
             {notes.join(" · ")}
           </p>
@@ -645,7 +651,7 @@ export function AbilitiesPanel({ intel, title, testId, notice, haste = false, fo
     <Panel className="overflow-hidden" data-testid={testId} data-champion={intel.champion.id}>
       {/* One row where it fits: the title, where the abilities and their facts come from (a quiet line, or
           on a desktop one step away in a fold where it carries no warning), and the haste at its end. */}
-      <header className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border px-3 py-2">
+      <header className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border px-3 py-1.5">
         {/* A long name (Heimerdinger's) breaks rather than reach past the panel at a larger text size. */}
         <h2 className="min-w-0 text-base font-semibold text-fg [overflow-wrap:anywhere]">{title}</h2>
         <div className="min-w-0 flex-[1_1_14rem]">

@@ -117,7 +117,7 @@ function KitSide({ side, kit, intel, champion, title, subtitle, rows }: { side: 
   return (
     // A tint and a bar at its start in the side's colour; under 9rem (a 320px phone at twice the text
     // size) a narrower padding and no icon before the label, so the label and the chips keep whole.
-    <section className={cn("min-w-0 border-l-2 px-3 py-2.5 @max-[9rem]/kits:px-2", look.box)} aria-label={`${title}: ${subtitle}`} data-testid={`assembled-${side}`} data-from={kit.from}>
+    <section className={cn("min-w-0 border-l-2 px-3 py-2 @max-[9rem]/kits:px-2", look.box)} aria-label={`${title}: ${subtitle}`} data-testid={`assembled-${side}`} data-from={kit.from}>
       <h3 className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-sm [overflow-wrap:anywhere]">
         <Icon className={cn("h-4 w-4 shrink-0 @max-[9rem]/kits:hidden", look.text)} aria-hidden />
         <span className={cn("font-semibold", look.text)}>{title}</span>
@@ -135,7 +135,7 @@ function KitSide({ side, kit, intel, champion, title, subtitle, rows }: { side: 
       ) : (
         <>
           {filled.length ? (
-            <ul className="mt-2 space-y-2 pointer-coarse:space-y-3">
+            <ul className="mt-1.5 space-y-1.5 pointer-coarse:space-y-3">
               {filled.map((group) => {
                 const GroupIcon = GROUP_LOOK[group.group].icon;
                 return (
@@ -241,7 +241,7 @@ export function AssembledReference({ you, enemy, enemyIntel, yourIntel, enemy2In
     <Panel className="panel-featured overflow-hidden" data-testid="matchup-assembled" data-briefing-hidden={briefingHidden ? "" : undefined}>
       {/* The title, where the card comes from in one quiet line (the layer and its tier, the curated
           pairs of your champion where there are any), then the sentences that say what it is. */}
-      <header className="space-y-1 border-b border-border px-3 py-2 sm:px-4" data-testid="matchup-no-briefing">
+      <header className="space-y-1 border-b border-border px-3 py-1.5 sm:px-4" data-testid="matchup-no-briefing">
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
           <h2 className="text-lg font-semibold leading-tight text-fg">
             {LANE_REFERENCE_TITLE}
@@ -265,7 +265,7 @@ export function AssembledReference({ you, enemy, enemyIntel, yourIntel, enemy2In
           <span data-testid="matchup-assembled-label">{briefingHidden ? ASSEMBLED_IN_PLACE_WORDS : assembledWords(you.name, enemy.name)}</span>
         </p>
       </header>
-      <div className="@container/kits space-y-3 p-3 sm:px-4">
+      <div className="@container/kits space-y-2.5 px-3 py-2.5 sm:px-4">
         {/* Two sides side by side from 36rem. */}
         <div className={cn("grid gap-3", shown.length > 1 && "@min-[36rem]/kits:grid-cols-2")} data-sides={shown.length}>
           {shown.map(side)}
@@ -276,7 +276,7 @@ export function AssembledReference({ you, enemy, enemyIntel, yourIntel, enemy2In
           </Fold>
         ) : null}
         {tips.length ? (
-          <div className={cn("grid gap-3 border-t border-border pt-3", tips.length > 1 && "@min-[36rem]/kits:grid-cols-2")} data-testid="assembled-riot-tips">
+          <div className={cn("grid gap-3 border-t border-border pt-2.5", tips.length > 1 && "@min-[36rem]/kits:grid-cols-2")} data-testid="assembled-riot-tips">
             {tips.map((i) => (
               <RiotTip key={i.champion.id} intel={i} />
             ))}

@@ -102,7 +102,7 @@ function Point({ kind, point, names, rows, means }: { kind: "threat" | "opportun
   return (
     // A tint and a bar at its start in the part's colour; under 9rem (a 320px phone at twice the text
     // size) a narrower padding and no icon before the word, so the words keep whole.
-    <div className={cn("min-w-0 border-l-2 px-3 py-2.5 @max-[9rem]/brief:px-2", threat ? "border-warn/70 bg-warn/5" : "border-good/70 bg-good/5")} data-testid={`briefing-${kind}`} data-hidden={point.kind === "hidden" ? "" : undefined}>
+    <div className={cn("min-w-0 border-l-2 px-3 py-2 @max-[9rem]/brief:px-2", threat ? "border-warn/70 bg-warn/5" : "border-good/70 bg-good/5")} data-testid={`briefing-${kind}`} data-hidden={point.kind === "hidden" ? "" : undefined}>
       <h3 className={cn(PART_HEADING, threat ? "text-warn" : "text-good")}>
         <Icon className="h-4 w-4 shrink-0 @max-[9rem]/brief:hidden" aria-hidden />
         {threat ? "Threat" : "Opportunity"}
@@ -190,7 +190,7 @@ export function Briefing({ matchup, you, enemy, rows, means, levels, interaction
   const recheck = matchup.recheck;
   const header = (
     // The title, and where the plan comes from in one quiet line: the layer, its tier and its check.
-    <header className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 border-b border-border px-3 py-2 sm:px-4">
+    <header className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 border-b border-border px-3 py-1.5 sm:px-4">
       <h2 className="text-lg font-semibold leading-tight text-fg">
         {LANE_PLAN_TITLE}
         <span className="sr-only">: {`${you.name} vs ${enemy.name}`}</span>
@@ -261,7 +261,7 @@ export function Briefing({ matchup, you, enemy, rows, means, levels, interaction
         // folded in the server's HTML, so nothing moves as the page hydrates); a tablet and a desktop show them.
         <PhoneFoldSection id="lane-plan-more" aria-label="The lane plan" className="@container/brief">
           <div
-            className="grid gap-x-4 gap-y-3 p-3 [grid-template-areas:'threat'_'opp'_'lane'_'toggle'] sm:px-4 @min-[34rem]/brief:grid-cols-[minmax(0,var(--threat-share))_minmax(0,1fr)] @min-[34rem]/brief:[grid-template-areas:'threat_opp'_'lane_lane'_'levels_inter'] @min-[60rem]/brief:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)_minmax(0,1fr)] @min-[60rem]/brief:[grid-template-areas:'threat_opp_levels'_'lane_lane_inter']"
+            className="grid gap-x-4 gap-y-2.5 px-3 py-2.5 [grid-template-areas:'threat'_'opp'_'lane'_'toggle'] sm:px-4 @min-[34rem]/brief:grid-cols-[minmax(0,var(--threat-share))_minmax(0,1fr)] @min-[34rem]/brief:[grid-template-areas:'threat_opp'_'lane_lane'_'levels_inter'] @min-[60rem]/brief:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)_minmax(0,1fr)] @min-[60rem]/brief:[grid-template-areas:'threat_opp_levels'_'lane_lane_inter']"
             style={{ "--threat-share": `${threatShare(threat, opportunity)}%` } as React.CSSProperties}
           >
             <div className="min-w-0 [grid-area:threat]">

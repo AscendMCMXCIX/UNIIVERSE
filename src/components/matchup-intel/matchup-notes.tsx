@@ -229,11 +229,12 @@ export function InteractionsPanel({ matchup, enemyIntel, yourIntel, you, rows, v
       <header className={section ? "flex flex-wrap items-baseline gap-x-3 gap-y-0.5" : "flex flex-wrap items-center gap-x-3 gap-y-0.5 border-b border-border px-3 py-1.5"}>
         <div className="flex min-w-0 flex-auto flex-wrap items-baseline justify-between gap-x-3">
           <Title className={section ? "flex items-center gap-1.5 text-sm font-semibold text-fg" : "text-sm font-semibold text-fg"}>{parts === "champions" ? "Each champion's interactions and exceptions" : "Interactions"}</Title>
+          {/* In the lane plan only the source beside the title: its heading says what the part is. */}
           <p className="text-xs text-fg-muted">
-            How abilities meet{you && matchup && parts !== "champions" ? " in this lane" : ""}
+            {section ? null : `How abilities meet${you && matchup && parts !== "champions" ? " in this lane" : ""}`}
             {oneSource ? (
               <>
-                {" · "}
+                {section ? null : " · "}
                 <SourceTip text={`From ${oneSource}. Curated matchup notes.`} testId="interaction-source" />
               </>
             ) : null}
@@ -336,10 +337,10 @@ export function LevelNotesPanel({ intels, variant = "panel" }: { intels: Readonl
         <div className="flex min-w-0 flex-auto flex-wrap items-baseline justify-between gap-x-3">
           <Title className="text-sm font-semibold text-fg">Level changes</Title>
           <p className="text-xs text-fg-muted">
-            When something becomes possible
+            {section ? null : "When something becomes possible"}
             {oneSource ? (
               <>
-                {" · "}
+                {section ? null : " · "}
                 <SourceTip text={oneSource} testId="level-note-source" />
               </>
             ) : null}

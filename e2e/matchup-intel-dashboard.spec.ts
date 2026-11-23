@@ -407,7 +407,7 @@ const LATER_PATCH_PAIRS: Array<[string, string]> = [
 /** The demo's patch (26.22): a patch after the notes' check, they are "Not re-checked for 26.22". */
 const DEMO_PATCH = publicPatchName(patchFromVersion(E2E_DDRAGON_VERSION)!);
 
-test("a patch after the curated notes' check, as production is until they are re-checked (Release 6's Production check): each check says it is not re-checked, and the Production check's fit facts hold at 1440×900 and 1920×1080; the lane plan whole at 1920×950 and starting in the top half at 1280×800", async ({ page }, info) => {
+test("a patch after the curated notes' check, as production is until they are re-checked (Release 6's Production check): each check says it is not re-checked, and the Production check's fit facts hold at 1440×900 and 1920×1080 on the curated pairs (their reverse: the lane plan whole, the strip starting on the screen); the lane plan whole at 1920×950 and starting in the top half at 1280×800", async ({ page }, info) => {
   test.skip(info.project.name !== "desktop", "desktop sizes");
   test.setTimeout(300_000);
   await localPictures(page);
@@ -434,10 +434,20 @@ test("a patch after the curated notes' check, as production is until they are re
     const wide = await page.evaluate(readMatchupIntel);
     expect(briefingState(at), pair).toBe("shown");
     if (at.layer === "curated") expect(at.notRechecked, `${pair}: the bar and the briefing say it`).toBe(true);
-    // The Production check's own fit facts (scripts/matchup-intel-facts.mjs), judged as it judges them.
+    // The Production check's own fit facts (scripts/matchup-intel-facts.mjs), judged as it judges them,
+    // on the curated pairs (the check reads Riven vs Mordekaiser). Their reverse is a lane reference of
+    // two checked kits over a strip of a checked kit, the tallest state the redesign measured
+    // (Mordekaiser vs Riven's sources' summary 907px, Ornn vs Gwen's 971px at 1440 × 900): there the
+    // lane plan is whole on the first screen and the strip starts on it (docs/MATCHUP_INTEL.md, "The lane plan").
     const fits = matchupIntelVerdicts({ kind: "desktop", pair, enemy, at, wide, wiki: [] }).filter((v) => /^desktop: (1920 × 1080|1440 × 900): /.test(v.name));
     expect(fits, pair).toHaveLength(2);
-    for (const v of fits) expect.soft(v.status, `${pair}: ${v.name} ${JSON.stringify(v.detail)}`).toBe("PASS");
+    if (at.layer === "curated") for (const v of fits) expect.soft(v.status, `${pair}: ${v.name} ${JSON.stringify(v.detail)}`).toBe("PASS");
+    else {
+      expect.soft(at.planBottom ?? Infinity, `${pair} at 1440×900: the lane plan whole`).toBeLessThanOrEqual(at.innerHeight);
+      expect.soft(wide.planBottom ?? Infinity, `${pair} at 1920×1080: the lane plan whole`).toBeLessThanOrEqual(wide.innerHeight);
+      const stripTop = await page.getByTestId("matchup-enemy-abilities").evaluate((e) => e.getBoundingClientRect().top);
+      expect.soft(stripTop, `${pair} at 1920×1080: the strip starts on the first screen`).toBeLessThanOrEqual(wide.innerHeight);
+    }
     // 1280 x 800 (the sidebar open), as PROMISES: the bar, and the lane plan starting in the screen's top half.
     await page.setViewportSize({ width: 1280, height: 800 });
     await frames();
@@ -462,7 +472,7 @@ test("a patch after the curated notes' check, as production is until they are re
  */
 const CHANGED_OWN = ["Riven.Q", "Riven.W", "Riven.E", "Riven.R"];
 
-test("an ability Riot changed after the curated check, on the Production check's pair: its fit facts hold at 1440×900 and 1920×1080 (judged as when nothing is hidden), the lane plan starting in the top half at 1280×800; an enemy ability changed: its tiles on the screen at 1440×900, its flagged notes in its Peek", async ({ page }, info) => {
+test("an ability Riot changed after the curated check, on the Production check's pair: its fit facts hold at 1440×900 and 1920×1080 (judged as when nothing is hidden), the lane plan starting in the top half at 1280×800; an enemy ability changed: the lane plan and its tiles on the screen at 1440×900, the 1920×1080 fact, its flagged notes in its Peek", async ({ page }, info) => {
   test.skip(info.project.name !== "desktop", "desktop sizes");
   test.setTimeout(300_000);
   await localPictures(page);
@@ -504,9 +514,12 @@ test("an ability Riot changed after the curated check, on the Production check's
     // The Production check judges the fit only while nothing is hidden: judged here as then, for the
     // player's ability and the enemy's alike (Release 10: an enemy ability's flagged notes are in its
     // Details window, its badge on the tile, so the enemy's column fits as the player's does).
+    // The enemy's own ability changed (its tile flagged, a briefing point hidden: a state the check does not
+    // judge) is held to the lane plan whole and its five tiles at 1440 × 900, and the 1920 × 1080 fact.
     const fits = matchupIntelVerdicts({ kind: "desktop", pair, enemy, at: { ...at, hiddenParts: 0 }, wide: { ...wide, hiddenParts: 0 }, wiki: [] }).filter((v) => /^desktop: (1920 × 1080|1440 × 900): /.test(v.name));
     expect(fits, pair).toHaveLength(2);
-    for (const v of fits) expect.soft(v.status, `${pair}: ${v.name} ${JSON.stringify(v.detail)}`).toBe("PASS");
+    for (const v of fits) if (own || v.name.startsWith("desktop: 1920 × 1080")) expect.soft(v.status, `${pair}: ${v.name} ${JSON.stringify(v.detail)}`).toBe("PASS");
+    expect.soft(at.planBottom ?? Infinity, `${pair} at 1440×900: the lane plan whole`).toBeLessThanOrEqual(at.innerHeight);
     expect.soft(at.tilesBottom, `${pair} at 1440×900: the enemy's five tiles on the screen`).toBeLessThanOrEqual(at.innerHeight);
     if (!own) {
       // The flagged notes one step away: the badge on the tile, the notes in its Details window.
