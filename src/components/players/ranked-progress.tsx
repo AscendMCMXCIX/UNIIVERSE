@@ -89,12 +89,14 @@ export function RankedProgress({ accounts, queue, accountId, href, now }: { acco
             between its words at a large text size, never cut short ("Platin…" at 150% before). */}
         <div className="flex min-w-0 flex-wrap items-center gap-x-5 gap-y-2">
           {/* The rank's words go under the emblem where they would not keep 5rem beside it (200% text
-              on a 320px phone, where "Platinum" ran 12px past the screen), never cut short. */}
+              on a 320px phone, where "Platinum" ran 12px past the screen), never cut short. Under a
+              15rem card (150% text and more on a phone, never at 100%) the emblem is 2rem and the rank
+              a step smaller, so the rank takes two lines there, not three. */}
           <div className="flex min-w-0 flex-[1_1_13rem] flex-wrap items-center gap-x-3 gap-y-1.5">
-            <RankEmblem tier={cur?.tier ?? null} className="h-11 w-11 shrink-0" />
+            <RankEmblem tier={cur?.tier ?? null} className="h-11 w-11 shrink-0 @max-[15rem]/rank:h-8 @max-[15rem]/rank:w-8" />
             {cur ? (
               <div className="min-w-0 flex-[1_1_5rem]">
-                <p className="text-lg font-bold leading-tight text-fg">
+                <p className="text-lg font-bold leading-tight text-fg @max-[15rem]/rank:text-base">
                   {/* The ⓘ stays with the rank's last word ("57 LP ⓘ"), never on a line of its own. */}
                   <span data-testid="ranked-current">
                     {cur.label}
