@@ -131,6 +131,15 @@ export interface Verification {
   ddragonVersion: string;
   /** The day it was checked, ISO (e.g. "2026-11-16"). */
   checkedOn: string;
+  /**
+   * A later re-check against Riot's own sources only (OD6, from 23 Nov 2026): Data Dragon at
+   * `ddragonVersion` compared with the version checked (cooldowns, costs, ranks, ranges, ability
+   * texts, base stats), and Riot's patch notes for every patch between, with no change found for
+   * the champions concerned. It is not a new check of the wiki or by a person: the label says "no
+   * Riot change by 26.23", and the age that hides a briefing counts from it. A later patch with a
+   * change flags each changed ability on its own, from the original check (changed-since).
+   */
+  riotRecheck?: { patch: string; ddragonVersion: string; on: string };
 }
 
 /**

@@ -1104,6 +1104,27 @@ the timeline keeps sales. Still not built:
   beside the other's current one): data older than the current patch is said once above the
   abilities, naming whose it is when only one champion's is, and the sources give each champion's
   version when they differ. Records from the committed offline copy are said to be that.
+- **The per-patch re-check against Riot's sources (OD6, 23 Nov 2026).** The owner approved OD6's
+  accuracy review. The three briefings and six champions' notes were re-checked on 23 Nov 2026 against
+  Riot's own sources only: Data Dragon 16.23.1 compared with 16.22.1 (every ability's cooldown, cost,
+  ranks, range, description and tooltip, the passive, base stats and Riot's tips) and Riot's patch
+  notes for 26.23 (the champions, and Spirit Visage, the one item the notes name). No change on
+  Summoner's Rift; Gwen's one mention is a game mode's balance line. Nothing needed correcting, so
+  each file records `verified.riotRecheck` (26.23, 16.23.1, 23 Nov). The wiki's pages were **not**
+  read again: its Terms of Use forbid automated use without consent, so the review made no request to
+  it, and what rests on the wiki stays as checked on 17 Nov by AI reviewers, never claimed as a
+  person's check.
+  - **What the page says:** "Checked on patch 26.22 · no Riot change by 26.23", in place of "Not
+    re-checked for 26.23", shown once the game has reached the re-checked patch.
+  - **What it changes:** a check's age (MAX_PATCHES_UNCHECKED: a briefing hidden, notes flagged after
+    two patches) counts from the re-check, so notes that are still accurate are not hidden for age
+    alone. An ability Riot changes later is still flagged on its own, from the original check
+    (`changed-since`, below), and its briefing points hidden; the rest stays.
+  - **After each patch:** `node scripts/matchup-intel/recheck-curated.mjs` compares each curated file
+    from its last check or re-check with Riot's newest Data Dragon version and reads that range's patch
+    notes, then prints each file with "no change" or what to read. Files with no change get a new
+    `riotRecheck` through a pull request; a file with a change needs its sources read again (by a
+    person, or with the wiki's consent for scripted reads), and until then the page flags it.
 - **Freshness** of curated notes, against Riot's record of each ability they cover (`abilityChanges`,
   `abilityFreshness` and `weakestFreshness`, `src/domain/matchup-intel/cooldown.ts`). What is
   compared is the cooldown array (`ddragonCooldown`) and, where the notes record them, the spell

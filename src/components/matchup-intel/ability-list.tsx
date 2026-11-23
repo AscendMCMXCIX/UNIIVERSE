@@ -476,7 +476,7 @@ export function commonSourceOf(intel: ChampionIntelView): string | null {
  */
 export function CuratedLine({ intel }: { intel: ChampionIntelView }) {
   if (!intel.curated) return null;
-  const f = freshnessWords(intel.curated.freshness, intel.curated.verified.patch);
+  const f = freshnessWords(intel.curated.freshness, intel.curated.verified.patch, intel.curated.verified.riotRecheck);
   const recheck = intel.curated.recheck;
   const changed = (intel.abilities ?? []).filter((a) => a.freshness === "changed-since").length;
   const warnings = [...(changed > 0 ? [changedAbilitiesWords(changed)] : f.warning ? [f.warning] : []), ...(recheck?.expired ? [expiredNotesWords(recheck.patches)] : [])];

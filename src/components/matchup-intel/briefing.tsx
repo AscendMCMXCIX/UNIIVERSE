@@ -178,7 +178,7 @@ export function Briefing({ matchup, you, enemy, rows, means }: { matchup: Matchu
     [you.id, you.name],
     [enemy.id, enemy.name],
   ]);
-  const f = freshnessWords(matchup.freshness, matchup.verified.patch);
+  const f = freshnessWords(matchup.freshness, matchup.verified.patch, matchup.verified.riotRecheck);
   const recheck = matchup.recheck;
   const header = (
     // One row where it fits (at 1440 × 900 too, with production's "Not re-checked"): the title and its

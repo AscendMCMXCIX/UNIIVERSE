@@ -50,7 +50,7 @@ export function MatchupStatus({ view }: { view: MatchupPageView }) {
   const source = intel ? dataSourceOf(intel) : null;
   const behind = behindOf(view);
   const shows = briefingShows(matchup);
-  const f = matchup ? freshnessWords(matchup.freshness, matchup.verified.patch) : null;
+  const f = matchup ? freshnessWords(matchup.freshness, matchup.verified.patch, matchup.verified.riotRecheck) : null;
   const recheck = matchup?.recheck ?? null;
   const hidden = hiddenPartsOf(matchup);
   return (

@@ -1,6 +1,11 @@
 import type { ChampionNotes } from "@/domain/matchup-intel/types";
 
 /*
+  Re-checked against Riot's own sources on 23 Nov 2026 (OD6; riotRecheck): Data Dragon 16.23.1 against
+  16.22.1 (every ability's cooldown, cost, ranks, range, description and tooltip, the passive and the
+  base stats) and Riot's patch notes for 26.23 (the champions, and the items and runes the notes
+  name): no change on Summoner's Rift. The wiki's pages were not read again (its Terms of Use forbid
+  automated use without consent), so what rests on them is as checked on 17 Nov.
   Ambessa: curated champion notes (Layer 1), checked on 17 Nov 2026 against patch 26.22 and Data
   Dragon 16.22.1.
 
@@ -39,7 +44,7 @@ import type { ChampionNotes } from "@/domain/matchup-intel/types";
 
 const notes: ChampionNotes = {
   championId: "Ambessa",
-  verified: { patch: "26.22", ddragonVersion: "16.22.1", checkedOn: "2026-11-17" },
+  verified: { patch: "26.22", ddragonVersion: "16.22.1", checkedOn: "2026-11-17", riotRecheck: { patch: "26.23", ddragonVersion: "16.23.1", on: "2026-11-23" } },
   sources: [
     { id: "ambessa-p", title: "League of Legends Wiki: Drakehound's Step (Ambessa)", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Ambessa/Drakehound's_Step", kind: "wiki-ability", revision: 4078254, revisionTime: "2026-10-06T20:43:13Z", licence: "CC BY-SA 3.0" },
     { id: "ambessa-q1", title: "League of Legends Wiki: Cunning Sweep (Ambessa)", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Ambessa/Cunning_Sweep", kind: "wiki-ability", revision: 4077875, revisionTime: "2026-10-06T14:46:36Z", licence: "CC BY-SA 3.0" },

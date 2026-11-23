@@ -262,8 +262,10 @@ export function revisionWords(revisionTime: string | null | undefined): string |
  * patch is all that is claimed otherwise: other changes (a duration, a range) never show in what is
  * compared.
  */
-export function freshnessWords(f: Freshness, patch: string): { checked: string; warning: string | null } {
-  return { checked: `Checked on patch ${patch}`, warning: f === "changed-since" ? "Riot changed abilities this rests on after the check: may be out of date" : null };
+export function freshnessWords(f: Freshness, patch: string, riotRecheck?: { patch: string } | null): { checked: string; warning: string | null } {
+  // A re-check against Riot's own data and patch notes (OD6): said as that, never as a new check of the notes' sources.
+  const again = riotRecheck && riotRecheck.patch !== patch ? ` · no Riot change by ${riotRecheck.patch}` : "";
+  return { checked: `Checked on patch ${patch}${again}`, warning: f === "changed-since" ? "Riot changed abilities this rests on after the check: may be out of date" : null };
 }
 
 /** Notes checked on an earlier patch than the newest the page knows, which nobody has checked again: "Not re-checked for 26.23". */

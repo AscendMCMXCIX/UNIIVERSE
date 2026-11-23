@@ -82,7 +82,9 @@ export function checkedEarlier<T extends { verified: Verification }>(notes: T | 
   const m = /^(\d+)\.(\d+)\.(\d+)$/.exec(notes.verified.ddragonVersion);
   if (!m || Number(m[2]) <= patches) return notes;
   const minor = Number(m[2]) - patches;
-  return { ...notes, verified: { ...notes.verified, ddragonVersion: `${m[1]}.${minor}.${m[3]}`, patch: publicPatchName(`${m[1]}.${minor}`) } };
+  // Notes read as checked earlier carry no Riot re-check either (OD6's riotRecheck), so the state they simulate is production's before one.
+  const { riotRecheck: _none, ...verified } = notes.verified;
+  return { ...notes, verified: { ...verified, ddragonVersion: `${m[1]}.${minor}.${m[3]}`, patch: publicPatchName(`${m[1]}.${minor}`) } };
 }
 
 /*
