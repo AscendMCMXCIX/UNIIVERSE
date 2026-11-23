@@ -895,16 +895,20 @@ const FILL = {
 } as const;
 
 /**
- * A short upright phone (under 40rem wide and 37.5rem tall: a 320 × 568 iPhone SE, in rem so a larger
- * text size counts): the card's own spacing a step tighter, so the whole active card is on its first
- * screen above the tab bar (its dots a short scroll away, which slides the frame away too). Every
- * figure and the pool stay; only the room between them shrinks. Taller phones never see it.
+ * A short upright phone (under 40rem wide and 43.75rem tall, the phones under 700px where the frame
+ * slides away: an iPhone SE at 320 × 568 or 375 × 667, an iPhone in Safari's tab at 393 × 659; in rem,
+ * so a larger text size counts): the card's own spacing a step tighter, its least height lower, so a
+ * card with a tagline and "You" still fits above the tab bar with its dots from 375 × 667. Where there
+ * is room the spare height still goes to the art and the body's even gaps (FILL), so only the least
+ * spacing changes. On 320 × 568 the whole card without a tagline ends above the tab bar, its dots a
+ * short scroll away (which slides the frame away too); with a tagline the page scrolls about 100px.
+ * Every figure and the pool stay.
  */
 const TIGHT = {
-  frame: "[@media(max-width:39.99rem)_and_(max-height:37.5rem)]:gap-2.5",
-  art: "[@media(max-width:39.99rem)_and_(max-height:37.5rem)]:pb-1.5",
-  body: "[@media(max-width:39.99rem)_and_(max-height:37.5rem)]:gap-1.5 [@media(max-width:39.99rem)_and_(max-height:37.5rem)]:pt-1.5 [@media(max-width:39.99rem)_and_(max-height:37.5rem)]:pb-2 [@media(max-width:39.99rem)_and_(max-height:37.5rem)]:[&_[data-testid=card-season]]:py-1.5",
-  pool: "[@media(max-width:39.99rem)_and_(max-height:37.5rem)]:gap-1",
+  frame: "[@media(max-width:39.99rem)_and_(max-height:43.75rem)]:gap-2.5",
+  art: "[@media(max-width:39.99rem)_and_(max-height:43.75rem)]:pb-1.5",
+  body: "[@media(max-width:39.99rem)_and_(max-height:43.75rem)]:gap-1.5 [@media(max-width:39.99rem)_and_(max-height:43.75rem)]:pt-1.5 [@media(max-width:39.99rem)_and_(max-height:43.75rem)]:pb-2 [@media(max-width:39.99rem)_and_(max-height:43.75rem)]:[&_[data-testid=card-season]]:py-1.5",
+  pool: "[@media(max-width:39.99rem)_and_(max-height:43.75rem)]:gap-1",
 } as const;
 
 /**

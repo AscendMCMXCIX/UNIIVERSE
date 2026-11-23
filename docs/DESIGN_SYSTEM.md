@@ -449,9 +449,14 @@ const peek = usePeek({ param: "player", ids, initial: searchParams.get("player")
   Release 16, the owner's request of 23 Nov 2026): a champion's detail is a compact panel docked
   beside its table, so the table never moves (until then it unfolded under its row and pushed the
   list down, with a tall list of opponents). Its content, the same in the panel and the phone's sheet:
-  the portrait, role and record, four tiles of averages, and the lane opponents as a dense table
-  (Opponent, Games, Record, Win; Most games, Best, Worst) whose opened opponent shows its games under
-  its row in the same panel, never a second panel. The panel's content fits it at 1280 × 800 and up.
+  the portrait, role and record, four tiles of averages, a line of kills and the four multikills
+  (the columns the panel lies over on a wide table), and the lane opponents as a dense table
+  (Opponent, Games, Record, Win; Most games, Best, Worst; the first five with 3+ games, the rest one
+  click away) whose opened opponent shows its games under its row in the same panel, never a second
+  panel. Its tallest content (five opponents with 3+ games, both "more" toggles, an opponent open
+  with its three newest games) fits without scrolling at 1440 × 900 and at 1920 × 950 (the owner's
+  window, the sidebar folded); in a shorter window, such as 1280 × 800, its body is the panel's one
+  scroll region, its header with ✕ and ‹ › staying in place.
   It also closes on a click outside it (`closeOnOutsidePress`: not on a row, which switches it, a
   link, a window or a popover; a click, so a touch that scrolls never closes it). ↑/↓ and J/K move it
   from the list (its own keys inside the panel stay its own); its address keeps the page's two-key

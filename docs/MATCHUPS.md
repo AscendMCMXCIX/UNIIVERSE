@@ -10,8 +10,11 @@ notes) is Matchup Intel's (docs/MATCHUP_INTEL.md), reached by one link per oppon
 preview is a **compact panel docked at the window's right edge**, the shared Peek's
 (`ui/peek.tsx`, `clamp(26rem, 34vw, 36rem)` wide, from under the tablet's bar to the bottom): the
 table stays exactly where it is (its columns, every row's place and height, the page's scroll), the
-selected row takes `surface-3` and a 2px accent bar, and the panel's content fits it at 1280 × 800
-and up with an opponent open (only its body would scroll, in a shorter window). ‹ › in its header
+selected row takes `surface-3` and a 2px accent bar, and the panel's tallest content (five
+opponents with 3+ games, both "more" toggles, an opponent open with its three newest games) fits
+without scrolling at 1440 × 900 and at 1920 × 950 (the owner's window, the sidebar folded); in a
+shorter window, such as 1280 × 800, its body is the panel's one scroll region, its header with ✕
+and ‹ › staying in place. ‹ › in its header
 and ↑/↓ (J/K) from the list move it along the rows; ✕, Escape, the row again, Back and a click
 outside it (not on a row, a link, a window or a popover) close it, and Back puts the list back as it
 was, with its search, sort and filters. Under 768px, touch or mouse, and in short windows
@@ -30,9 +33,13 @@ two columns from 50rem.)
    damage/min with damage a game, vision a game; "—" where no game carries one; one row from a
    26rem panel, two by two in a phone's sheet) and a line saying what they cover ("Averages over all
    8 games in these filters", or "from the N games with a full record, of M") with the mastery
-   points. The same in the panel and the sheet.
+   points; and one line of the kill figures the panel lies over on a wide table: "Kills 1,234 ·
+   Multikills 107 double · 18 triple · 2 quadra · 0 penta" ("*" where only some games are counted
+   so far, "not counted yet" where none is). The same in the panel and the sheet.
 3. **Against each lane opponent**, a compact table (Opponent, Games, Record, Win; rows of 36px,
-   44px on touch, under one heading row), sorted by Most games, Best or Worst
+   44px on touch, under one heading row; the first five with 3+ games, then "N more opponents with
+   3+ games", `OPPONENTS_SHOWN`, so a champion with thirty opponents keeps the panel within the
+   screen), sorted by Most games, Best or Worst
    (`src/domain/champion-preview.ts`):
    - an opponent shows a win rate from **3 games**, coloured from **5**, always with its games
      beside it;
@@ -46,7 +53,7 @@ two columns from 50rem.)
    with a timeline ("At 10:00 you had more gold than Nasus in 5 of 6 games with a timeline (+623 on
    average)", "Gwen had" on a teammate's profile: wording follows the viewer,
    `src/domain/viewer-words.ts`), its games as compact rows (W/L, K/D/A, CS, the gold difference at
-   10:00 or "no timeline", the date; the first five, then "Show all"), each opening the match
+   10:00 or "no timeline", the date; the three newest, then "Show all"), each opening the match
    window; and "Prepare Gwen vs Nasus in Matchup Intel →".
 5. **Foot line:** "Lane opponent: the enemy Riot placed in your position" ("their position" on a
    teammate's), with "Known in N of M games" when some games name none.

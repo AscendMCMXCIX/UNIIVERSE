@@ -10,7 +10,9 @@ import type { PreviewResult } from "@/server/actions/champion-preview";
 import { getChampionPreviewAction, getPairingGamesAction } from "@/server/actions/champion-preview";
 import { ROLE_LABELS, type Role } from "@/domain/roles";
 import { isGameRole } from "@/domain/season-stats";
-import { OPPONENT_MIN_GAMES, OPPONENT_SORTS, OPPONENT_TONED_GAMES, arrangeOpponents, opponentFootLine, opponentSentence, pairingKda, type OpponentSort, type OpponentTally } from "@/domain/champion-preview";
+import { OPPONENTS_SHOWN, OPPONENT_MIN_GAMES, OPPONENT_SORTS, OPPONENT_TONED_GAMES, arrangeOpponents, opponentFootLine, opponentSentence, pairingKda, type OpponentSort, type OpponentTally } from "@/domain/champion-preview";
+import { MULTIKILL_KINDS, multikillCoverage } from "@/domain/multikills";
+import { MULTIKILL_SHORT } from "./multikill-summary";
 import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateTone } from "@/domain/stats/win-rate";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
 import { matchupHref } from "@/components/matchup-intel/address";
@@ -181,8 +183,8 @@ function useAnswer<T>(key: string | null, generation: unknown, load: (() => Prom
   return got && got.key === key ? got.result : null;
 }
 
-/** A pairing's games shown before "Show all": the opened opponent stays a few lines tall. */
-const GAMES_SHOWN = 5;
+/** A pairing's games shown before "Show all": the opened opponent stays a few lines tall, so the panel keeps within the screen. */
+const GAMES_SHOWN = 3;
 const plural = (n: number, word: string) => `${formatCount(n)} ${word}${n === 1 ? "" : "s"}`;
 const record = (wins: number, games: number) => `${formatCount(wins)}W ${formatCount(games - wins)}L`;
 
@@ -227,6 +229,32 @@ function StatTiles({ card }: { card: OverviewCard }) {
   );
 }
 
+/**
+ * The row's kill figures, which the docked panel lies over on a wide table (Kills, or Double,
+ * Triple, Quadra and Penta): one line, each count with its word, "*" where only some of the games
+ * are counted so far and "—" where none is (never a zero for unknown).
+ */
+function KillsLine({ card }: { card: OverviewCard }) {
+  const p = card.performance;
+  const m = card.multikills;
+  const partial = (done: number, of: number) => (done < of ? "*" : "");
+  const kills = p.totalKills === null ? "—" : `${formatCount(p.totalKills)}${partial(p.detailedGames, card.selected.games)}`;
+  const multi = !m || !m.games ? null : !m.counted ? "not counted yet" : `${MULTIKILL_KINDS.map((k) => `${formatCount(m[k.key])} ${MULTIKILL_SHORT[k.key].toLowerCase()}`).join(" · ")}${partial(m.counted, m.games)}`;
+  const some = (p.totalKills !== null && p.detailedGames < card.selected.games) || (!!m && m.counted > 0 && m.counted < m.games);
+  return (
+    <p className="text-xs tabular-nums text-fg-muted" data-testid="champion-preview-kills">
+      <span className="text-fg-subtle">Kills</span> <span className="font-semibold text-fg">{kills}</span>
+      {multi ? (
+        <>
+          {" · "}
+          <span className="text-fg-subtle">Multikills</span> <span className="text-fg">{multi}</span>
+        </>
+      ) : null}
+      {some ? <span className="sr-only"> (* from some of the games only: {m ? multikillCoverage(m).label.toLowerCase() : "the rest still loading"})</span> : null}
+    </p>
+  );
+}
+
 /*
   The opponents as one compact table: the opponent, its games, the record and the win rate (from 3
   games), a chevron; a heading row over them (hidden from screen readers: each cell says what it is
@@ -250,6 +278,8 @@ export function PreviewContent({ playerId, isOwn, card, otherRoles, vs, champ, d
   const preview = answer?.status === "ok" ? answer.data : null;
   const [sort, setSort] = React.useState<OpponentSort>("games");
   const [more, setMore] = React.useState(false);
+  // The first OPPONENTS_SHOWN opponents with 3+ games in the chosen order; the rest one click away, so a champion with thirty opponents keeps the panel within the screen.
+  const [allListed, setAllListed] = React.useState(false);
   const arranged = React.useMemo(() => arrangeOpponents(preview?.opponents ?? [], sort), [preview, sort]);
   const tone = WIN_RATE_TONE_CLASS[winRateTone(r.winRate, r.games, WIN_RATE_MIN_GAMES.champion)];
   const rows = (list: OpponentTally[], withRate: boolean) =>
@@ -257,7 +287,7 @@ export function PreviewContent({ playerId, isOwn, card, otherRoles, vs, champ, d
   const roleLine = `${ROLE_LABELS[card.role]}${card.inPool ? " · In pool" : ""}`;
   const partial = p.detailedGames < r.games;
   return (
-    <div id="champion-preview" className="@container/detail flex flex-col gap-3.5" data-testid="champion-preview-content" data-champion={card.championId} data-role={card.role}>
+    <div id="champion-preview" className="@container/detail flex flex-col gap-3" data-testid="champion-preview-content" data-champion={card.championId} data-role={card.role}>
       {/* Who and how it went: the portrait and the role (the panel's heading names the champion), the record at the right. */}
       <header className="flex items-start gap-3">
         <ChampionPortrait champion={me} size="md" className="shrink-0 rounded-lg ring-1 ring-border-strong/60" />
@@ -289,6 +319,7 @@ export function PreviewContent({ playerId, isOwn, card, otherRoles, vs, champ, d
       </header>
       <section aria-label={`${me.name}'s record`} className="flex flex-col gap-1.5" data-testid="champion-preview-record">
         <StatTiles card={card} />
+        <KillsLine card={card} />
         <p className="text-xs text-fg-subtle" data-testid="champion-preview-coverage">
           {partial ? `Averages from the ${plural(p.detailedGames, "game")} with a full record, of ${formatCount(r.games)}.` : `Averages over ${r.games === 1 ? "the one game" : `all ${formatCount(r.games)} games`} in these filters.`}
           {card.mastery?.points ? ` ${formatCompactCount(card.mastery.points)} mastery points.` : ""}
@@ -334,8 +365,14 @@ export function PreviewContent({ playerId, isOwn, card, otherRoles, vs, champ, d
               <span />
             </div>
             <ul className="flex flex-col divide-y divide-border/50" data-testid="champion-preview-opponent-list">
-              {rows(arranged.listed, !arranged.noneEstablished)}
+              {rows(allListed ? arranged.listed : arranged.listed.slice(0, OPPONENTS_SHOWN), !arranged.noneEstablished)}
             </ul>
+            {arranged.listed.length > OPPONENTS_SHOWN ? (
+              <button type="button" aria-expanded={allListed} onClick={() => setAllListed((a) => !a)} className="flex min-h-9 w-full items-center gap-1.5 border-t border-border/50 text-left text-xs text-fg-muted hover:text-fg pointer-coarse:min-h-11" data-testid="champion-preview-more-listed">
+                <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 transition-transform", allListed && "rotate-180")} aria-hidden />
+                {allListed ? `The first ${formatCount(OPPONENTS_SHOWN)} only` : `${formatCount(arranged.listed.length - OPPONENTS_SHOWN)} more opponent${arranged.listed.length - OPPONENTS_SHOWN === 1 ? "" : "s"} with ${OPPONENT_MIN_GAMES}+ games`}
+              </button>
+            ) : null}
             {arranged.folded.length ? (
               <>
                 <button type="button" aria-expanded={more} onClick={() => setMore((m) => !m)} className="flex min-h-9 w-full items-center gap-1.5 border-t border-border/50 text-left text-xs text-fg-muted hover:text-fg pointer-coarse:min-h-11" data-testid="champion-preview-more">
@@ -412,7 +449,7 @@ function PairingGames({ id, me, them, card, isOwn, data, onMatch }: { id: string
         <ul className="flex flex-col" data-testid="champion-preview-games">
           {(all ? pairing.games : pairing.games.slice(0, GAMES_SHOWN)).map((g) => (
             <li key={g.matchId}>
-              <button type="button" onClick={() => onMatch(g.matchId)} className="grid min-h-8 w-full grid-cols-[1.25rem_minmax(0,1fr)_auto_auto] items-center gap-2 rounded px-1 text-left pointer-coarse:min-h-11 text-xs tabular-nums hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-accent" data-testid="champion-preview-game">
+              <button type="button" onClick={() => onMatch(g.matchId)} className="grid min-h-7 w-full grid-cols-[1.25rem_minmax(0,1fr)_auto_auto] items-center gap-2 rounded px-1 text-left pointer-coarse:min-h-11 text-xs tabular-nums hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-accent" data-testid="champion-preview-game">
                 <span className={cn("font-semibold", g.win ? "text-good" : "text-bad")}>{g.win ? "W" : "L"}</span>
                 <span className="truncate text-fg">
                   {g.kills === null ? "—" : `${g.kills}/${g.deaths ?? 0}/${g.assists ?? 0}`}

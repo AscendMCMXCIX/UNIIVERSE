@@ -85,6 +85,9 @@ test("desktop: the preview is a compact panel docked beside the list; the list n
   await expect(rows.nth(0)).toHaveAttribute("data-selected", "true");
   // The record and the opponents: four tiles of averages, a compact table under its heading row.
   await expect(page.getByTestId("champion-preview-stats").locator("dt")).toHaveText(["KDA", "CS/min", "Damage/min", "Vision"]);
+  // The figures the panel lies over on a wide table (Kills, Double … Penta) are in it, one line.
+  await expect(page.getByTestId("champion-preview-kills")).toHaveText(/^Kills [\d,*—]+ · Multikills (\d+ double · \d+ triple · \d+ quadra · \d+ penta\*?|not counted yet)/);
+  expect((await page.getByTestId("champion-preview-kills").boundingBox())!.height, "one line").toBeLessThanOrEqual(24);
   await expect(page.getByTestId("champion-preview-opponent-head")).toBeVisible();
   for (const h of await page.getByTestId("champion-preview-opponent").evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height))) expect(h, "a dense opponent row").toBeLessThanOrEqual(40);
   await expect(page.getByTestId("champion-preview-foot")).toContainText("Lane opponent: the enemy Riot placed in");

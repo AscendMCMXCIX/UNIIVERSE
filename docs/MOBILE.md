@@ -494,15 +494,28 @@ On an iPhone the carousel's card filled only part of the screen: 328px whatever 
   the parts breathe rather than gain padding at one end.
 - **Measured** (Chromium with the iPhone's safe areas, `scripts/page-budgets.mjs` setups; card height
   against the height between the top bar and the tab bar, which also holds the header line and the
-  dots): 375 × 667 354px of 493 (328 before; 11px left under the dots), 390 × 844 470 of 609,
-  393 × 852 466 of 605 (11px left; 149 before), Safari's 393 × 659 366 of 505, 430 × 932 546 of 685
+  dots): 375 × 667 360px of 493 (328 before; 11px left under the dots), 390 × 844 470 of 609,
+  393 × 852 466 of 605 (11px left; 149 before), Safari's 393 × 659 372 of 505, 430 × 932 546 of 685
   (11px left; 229 before). The card is the screen's height less the frame, the header line and the
   dots.
-- **320 × 568** (an iPhone SE, and any upright phone under 37.5rem tall: `TIGHT`): the card's own
-  content needs more than the room (340px against 266), so its spacing is a step tighter (the gap
-  under the header line, the art band's foot, the body's padding and gaps, the season block's padding)
-  and the whole card, 316px, ends 4px above the tab bar; its dots are a short scroll away, which also
-  slides the frame away ("The frame slides away"). Nothing is dropped.
+- **Short phones** (under 43.75rem tall: 320 × 568, 375 × 667 and Safari's 393 × 659; `TIGHT`): the
+  card's least spacing is a step tighter (the gap under the header line, the art band's foot, the
+  body's padding and gaps, the season block's padding); where there is room the spare height still
+  goes to the art and the body's even gaps, so only the least spacing changes. At 320 × 568 the card's
+  content needs more than the room (340px against 266), so the whole card without a tagline, 316px,
+  ends 4px above the tab bar and its dots are a short scroll away, which also slides the frame away
+  ("The frame slides away"). Nothing is dropped.
+- **The owner's kind of card** (a tagline, "You" under the picture, a long name; the screenshot demo,
+  `UNIIVERSE_DEMO_SCREENSHOT=1`, where the local owner plays Mid with "Calm in the chaos, loud in the
+  comms"): the five cards share the tallest one's height, nothing is cut inside any (scrollHeight
+  equals the card's height), and the body's spare height is spread evenly above, between and under
+  the figures and the pool (19, 19 and 21px at 393 × 852; 23, 23 and 25 on a card without a tagline),
+  never left as a hollow at one end; the pool's row is the first champion's height whatever the pool's
+  size, so a one- or two-champion pool is the same height as six. 375 × 667 and 393 × 659: the whole
+  card and its dots above the tab bar, no page scroll (360px). 393 × 852 installed: 466px, 11px left
+  under the dots, as the owner's iPhone screenshot had about 160px. 430 × 932: 546px. 320 × 568: the
+  tagline makes the card 361px, so the page scrolls about 100px (with the frame sliding away). 200%
+  text: the card grows (839px at 393 × 852, 1233px at 320 × 568) and the page scrolls, nothing cut.
 - **A larger text size:** the track only grows, never shrinks below its cards, so at 200% the card is
   as tall as its content (1077px on 320 × 568) and the page scrolls; nothing scrolls or is cut inside
   a card.

@@ -16,6 +16,8 @@ import { viewerWords } from "@/domain/viewer-words";
 
 /** Games before an opponent's win rate is shown. */
 export const OPPONENT_MIN_GAMES = 3;
+/** Opponents with 3+ games the preview's table shows before "N more" (the rest one click away), so the panel stays within the screen. */
+export const OPPONENTS_SHOWN = 5;
 /** Games before an opponent's win rate is coloured (the app's champion rule). */
 export const OPPONENT_TONED_GAMES = WIN_RATE_MIN_GAMES.champion;
 
