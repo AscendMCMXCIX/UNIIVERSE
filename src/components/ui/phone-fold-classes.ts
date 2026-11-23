@@ -15,7 +15,7 @@ export const PHONE_FOLD_ONLY = "hidden max-md:inline-flex short:inline-flex";
 export const PHONE_HIDDEN = "max-md:hidden short:hidden";
 /**
  * What folds away at every width while the section is closed: the rest of a long list behind its
- * own Show all (a profile's primary pool past its first eight champions, 23 Nov 2026), on tablets and
+ * own Show all (a profile's primary pool of more than eight champions past its first six, 23 Nov 2026), on tablets and
  * desktops as on phones. Its button is PhoneFoldToggle with `everywhere`.
  */
 export const FOLDED = "group-data-[fold=closed]/fold:hidden";

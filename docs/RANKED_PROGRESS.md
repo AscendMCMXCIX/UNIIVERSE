@@ -64,13 +64,20 @@ Compact, in Profile Overview (`ranked-progress.tsx`): under Recent form, in the 
   the window and confirmed inside it is "No change"; an account unranked now has nothing to compare.
   Same division (or Master and above): the LP difference. Across divisions: divisions gained or
   lost, no LP figure (LP restarts after a promotion). Never across a reset.
-- **Highest recorded** rank and LP, with the day it was first read (the first time, if read again later).
-- **The chart** (`rank-timeline-chart.tsx`, 7.5rem tall; in the Overview's 2×2, where the card
-  stands level with the pools, it takes the room the card has, up to 24rem: 23 Nov 2026) is drawn
-  from three different readings (two changes, `CHART_MIN_READINGS`); with fewer, one quiet line says
+- **Highest recorded** rank and LP, with the day it was first read (the first time, if read again
+  later): behind the ⓘ beside the current rank, with the account, the season and the first check
+  ("Name#TAG · 2026 Season 3 · rank recorded since 14 Oct 2026") and the 30-day change's path ("From
+  Gold III 47 LP to Gold IV 97 LP"). The card itself leads with the two figures it is for, the current
+  rank and the 30-day change, on one row (the UX review of Release 13, owner item B3: the card had
+  kept every figure in view and read as busy); on a touch phone both stay above its Fold.
+- **The chart** (`rank-timeline-chart.tsx`, 7.5rem tall at every width; from 23 Nov 2026 it was
+  stretched to the pools' end in the Overview's 2×2, which the review found made a few LP look like a
+  swing, so it is compact again) is drawn from three different readings (two changes, `CHART_MIN_READINGS`); with fewer, one quiet line says
   what was recorded instead ("No change recorded yet…", "One change so far: Gold II 46 LP to Gold I
   12 LP…", `fewReadings`), never a large frame around a flat line or a single step. The card has no
-  rule or box inside it, only spacing. The chart shows only the stretch with readings, from the
+  rule or box inside it, only spacing. A reading seen alone (several unseen games on either side,
+  such as the newest check) is its dot, with no wash under it: the wash of a run that narrow was a
+  stray sliver down to the axis. The chart shows only the stretch with readings, from the
   first reading to now (at least three days; the days before a newer first reading are hatched).
   No empty band for the months before it. Day and month ticks sit on the installation's midnights.
   Its division lines are named in full ("Platinum II"; a tier's line "Emerald" where the range is

@@ -98,7 +98,6 @@ const NAMES: Array<{ file: string; fragment: string; kind: Kind; what: string }>
   { file: "src/components/match-history/match-history-view.tsx", fragment: "champion.name", kind: "truncation", what: "the champion's name" },
   { file: "src/components/match-history/match-history-view.tsx", fragment: "row.riotId", kind: "truncation", what: "the Riot ID a game was played on" },
   { file: "src/components/players/ranked-progress.tsx", fragment: "a.riotId", kind: "truncation", what: "the account's Riot ID" },
-  { file: "src/components/players/ranked-progress.tsx", fragment: "{path}", kind: "truncation", what: "the climb, whole" },
   { file: "src/components/players/profile-header.tsx", fragment: "tagline", kind: "truncation", what: "the card's tagline" },
   { file: "src/components/profile/profile-editor.tsx", fragment: "c.name", kind: "truncation", what: "a champion's name" },
   // Admin Mode (S9c).
