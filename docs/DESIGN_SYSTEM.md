@@ -59,8 +59,12 @@ decorative chrome.
     rows of three with the trinket beside the first, in inset slots), the rune page on one line with
     the stat shards where stored (icons only, neutral names, until OD7), six figure tiles with each of
     the player's figures once, the lane by role in a tile like the figures (against the lane opponent
-    at 10:00, 15:00 and the end) and a compact scoreboard of 37px rows. The open card folds into a
-    50px header with Previous, Next and Close, and a sticky footer repeats them. The card's D8
+    at 10:00, 15:00 and the end; a game whose timeline gives no 10:00 or 15:00 shows the end alone
+    and one quiet line saying why, never columns of dashes) and a compact scoreboard of 37px rows;
+    its patch by the public name (`publicPatchName`: "Patch 26.20"). The open card folds into a 50px
+    header with Previous, Next and Close, and a sticky footer repeats them, one set at a time: while
+    the card's own are on screen the footer keeps its place and shows nothing (Release 13's review,
+    finding 10; Team → Matches' cards have no steps of their own, so their footer always shows). The card's D8
     density is unchanged. The written notes (Went well, Went wrong, Focus next) and the two folds
     (Gold over the game, Build and skill order) were removed from the view on 23 Nov 2026, at the
     owner's request (docs/MATCH_NOTES.md); the Production check asserts they stay gone.
@@ -496,11 +500,15 @@ const unfold = useUnfold({ param: "match", initial, valid: (id) => ids.includes(
   (a panel laid over the columns after Win rate, joined to its row by a 2px notch), which the owner
   found floating awkwardly over the table. The columns never fold or move; the selected row keeps
   `surface-3` and its 2px accent bar, and the detail continues the bar (accent at 60%) on a well a
-  step darker than the card (`bg-bg/40`). Inside: the champion and Close, then its record (win rate,
-  games and W–L, four tiles: KDA with its average K/D/A, CS/min, damage/min, vision, and what the
-  averages cover) beside the lane opponents from a 50rem list (`@container/detail`; the opponents'
-  column at most 46rem), one under the other below; nothing scrolls inside it and nothing lies over
-  the rows. Switching to another row (a click, ↑/↓ or J/K from the list) keeps that row where it was
+  step darker than the card (`bg-bg/40`). Inside: one line with the role ("Top · In pool"), the
+  other roles and Close (the row right above shows the portrait and name, so the detail names the
+  champion for screen readers only, in the heading the keyboard's open lands on: Release 13's
+  review, finding 12), then its record (win rate, games and W–L, four tiles: KDA with its average
+  K/D/A, CS/min, damage/min, vision, and what the averages cover) beside the lane opponents from a
+  50rem list (`@container/detail`), one under the other below. The opponents take the rest of the
+  width: one column of at most 46rem, and two columns where they have 50rem or more (each at least 24rem)
+  (`@container/opp`: 1920 and 2560), so a wide screen has no dead gutter and no long rows; nothing
+  scrolls inside it and nothing lies over the rows. Switching to another row (a click, ↑/↓ or J/K from the list) keeps that row where it was
   on screen (`anchorCorrection`); keys inside the detail are its own. The address stays the page's
   own hook (`?champion=&crole=[&vs=]`, two keys) with the one history rule, so Back closes it and
   restores the list's place, filters and sort. Nothing is drawn until hydration has decided between

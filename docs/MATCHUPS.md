@@ -22,15 +22,17 @@ after Win rate, joined to its row by a 2px notch, and tablets as the docked Peek
 
 **Content, in this order and nothing else:**
 
-1. **Header:** the portrait, the name, the role and "In pool"; Close (✕ in the sheet's header).
-   With several roles, "Also as Mid: 3 games · 1W 2L" switches to that row.
+1. **Header:** under its row, one line: the role and "In pool", "Also as Mid: 3 games · 1W 2L"
+   (switches to that row) and Close; the row above shows the portrait and name, which the preview
+   gives screen readers in its heading (since Release 13's review). In the sheet: the portrait, the
+   role and "In pool", the name and ✕ in the sheet's header.
 2. **Figures:** the win rate large (coloured by `winRateTone` from 5 games), "14 games · 4W 10L";
    under its row, four tiles of averages (KDA with the average K/D/A, CS/min with CS a game,
    damage/min with damage a game, vision a game; "—" where no game carries one) and a line saying
    what they cover ("Averages over all 8 games in these filters", or "from the N games with a full
    record, of M") with the mastery points; in the phone's sheet one quiet "KDA · CS/min · mastery"
    line instead.
-3. **Against each lane opponent**, sorted by Most games, Best or Worst
+3. **Against each lane opponent** (under its row: one column of at most 46rem, two where the opponents have 50rem or more), sorted by Most games, Best or Worst
    (`src/domain/champion-preview.ts`):
    - an opponent shows a win rate from **3 games**, coloured from **5**, always with its games
      beside it;

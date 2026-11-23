@@ -249,10 +249,13 @@ export function PreviewContent({ playerId, isOwn, card, otherRoles, vs, champ, d
   ].filter(Boolean);
   const tone = WIN_RATE_TONE_CLASS[winRateTone(r.winRate, r.games, WIN_RATE_MIN_GAMES.champion)];
   const rows = (list: OpponentTally[], withRate: boolean) =>
-    list.map((o) => <OpponentRow key={o.championId} o={o} withRate={withRate} open={vs === o.championId} me={me} champ={champ} card={card} isOwn={isOwn} data={data} onToggle={() => onVs(vs === o.championId ? null : o.championId)} onMatch={onMatch} playerId={playerId} />);
+    list.map((o) => <OpponentRow key={o.championId} grid={!compact} o={o} withRate={withRate} open={vs === o.championId} me={me} champ={champ} card={card} isOwn={isOwn} data={data} onToggle={() => onVs(vs === o.championId ? null : o.championId)} onMatch={onMatch} playerId={playerId} />);
   const roleLine = `${ROLE_LABELS[card.role]}${card.inPool ? " · In pool" : ""}`;
+  // The opponents: a column in the sheet; under its row, two columns where they have 50rem or more
+  // (a wide screen), so the list uses the width beside the record without long rows.
+  const opponentList = compact ? "flex flex-col divide-y divide-border/60" : "grid items-start @min-[50rem]/opp:grid-cols-2 @min-[50rem]/opp:gap-x-8";
   const alsoAs = otherRoles.length ? (
-    <p className={cn("flex flex-wrap gap-x-3 text-xs text-fg-subtle", compact ? "-mt-2" : "-mt-1")}>
+    <p className={cn("flex flex-wrap gap-x-3 text-xs text-fg-subtle", compact && "-mt-2")}>
       {otherRoles.map((o) => (
         <button key={o.role} type="button" onClick={() => onSwitch(o)} className="underline decoration-fg-subtle/50 underline-offset-2 hover:text-fg" data-testid="champion-preview-role">
           Also as {ROLE_LABELS[o.role]}: {plural(o.selected.games, "game")} · {record(o.selected.wins, o.selected.games)}
@@ -304,7 +307,7 @@ export function PreviewContent({ playerId, isOwn, card, otherRoles, vs, champ, d
       ) : (
         <>
           {arranged.noneEstablished ? <p className="text-xs text-fg-subtle" data-testid="champion-preview-none-established">No opponent met {OPPONENT_MIN_GAMES} times yet.</p> : null}
-          <ul className="flex flex-col divide-y divide-border/60" data-testid="champion-preview-opponent-list">
+          <ul className={opponentList} data-testid="champion-preview-opponent-list">
             {rows(arranged.listed, !arranged.noneEstablished)}
           </ul>
           {arranged.folded.length ? (
@@ -313,7 +316,7 @@ export function PreviewContent({ playerId, isOwn, card, otherRoles, vs, champ, d
                 <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 transition-transform", more && "rotate-180")} aria-hidden />
                 {formatCount(arranged.folded.length)} more opponent{arranged.folded.length === 1 ? "" : "s"} with 1–2 games
               </button>
-              {more ? <ul className="flex flex-col divide-y divide-border/60">{rows(arranged.folded, false)}</ul> : null}
+              {more ? <ul className={opponentList}>{rows(arranged.folded, false)}</ul> : null}
             </div>
           ) : null}
         </>
@@ -321,7 +324,7 @@ export function PreviewContent({ playerId, isOwn, card, otherRoles, vs, champ, d
     </section>
   );
   const foot = preview ? (
-    <p className="border-t border-border/60 pt-3 text-xs text-fg-subtle" data-testid="champion-preview-foot">
+    <p className={cn("text-xs text-fg-subtle", compact && "border-t border-border/60 pt-3")} data-testid="champion-preview-foot">
       {opponentFootLine({ isOwn, known: preview.known, games: preview.games })}
     </p>
   ) : null;
@@ -340,27 +343,28 @@ export function PreviewContent({ playerId, isOwn, card, otherRoles, vs, champ, d
       </div>
     );
   }
-  // Under its row in the list: the champion and Close, then its record beside the lane opponents
-  // (side by side from a 50rem list, one under the other below it), in the page's own flow: nothing
-  // over the list, nothing scrolling inside.
+  // Under its row in the list: the row above already shows the champion's portrait and name, so the
+  // preview names it for screen readers only (its heading, where the keyboard's open lands) and leads
+  // with its role, the other roles and Close on one line; then its record beside the lane opponents
+  // (side by side from a 50rem list, one under the other below it), the opponents taking the rest of
+  // the width, in the page's own flow: nothing over the list, nothing scrolling inside.
   const partial = p.detailedGames < r.games;
   return (
     <div className="@container/detail flex flex-col gap-4" data-testid="champion-preview-content" data-champion={card.championId} data-role={card.role}>
-      <header className="flex items-start gap-3">
-        <ChampionPortrait champion={me} size="lg" className="h-14 w-14 shrink-0 rounded-lg ring-1 ring-border-strong/60" />
-        <div className="min-w-0 flex-1">
-          <h2 id={titleId} tabIndex={-1} className="truncate text-xl font-bold leading-tight text-fg outline-none" data-testid="champion-preview-title">
-            {me.name}
-          </h2>
-          <p className="mt-0.5 text-sm text-fg-subtle">{roleLine}</p>
-        </div>
-        <button type="button" onClick={onClose} className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium text-fg-muted transition-colors hover:bg-surface-3 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:min-h-11" data-testid="champion-preview-close">
+      <header className="flex flex-wrap items-center gap-x-4 gap-y-1">
+        <h2 id={titleId} tabIndex={-1} className="sr-only" data-testid="champion-preview-title">
+          {me.name}
+        </h2>
+        <p className="text-sm font-medium text-fg-muted" data-testid="champion-preview-role-line">
+          {roleLine}
+        </p>
+        {alsoAs}
+        <button type="button" onClick={onClose} className="ml-auto inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium text-fg-muted transition-colors hover:bg-surface-3 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:min-h-11" data-testid="champion-preview-close">
           <X className="h-3.5 w-3.5" aria-hidden />
           Close<span className="sr-only"> the preview</span>
         </button>
       </header>
-      {alsoAs}
-      <div className="grid items-start gap-x-10 gap-y-5 @min-[50rem]/detail:grid-cols-[minmax(16rem,19rem)_minmax(0,46rem)]">
+      <div className="grid items-start gap-x-10 gap-y-5 @min-[50rem]/detail:grid-cols-[minmax(16rem,19rem)_minmax(0,1fr)]">
         <section aria-label={`${me.name}'s record`} className="flex flex-col gap-3" data-testid="champion-preview-record">
           {headline}
           <StatTiles card={card} />
@@ -369,22 +373,25 @@ export function PreviewContent({ playerId, isOwn, card, otherRoles, vs, champ, d
             {card.mastery?.points ? ` ${formatCompactCount(card.mastery.points)} mastery points.` : ""}
           </p>
         </section>
-        <div className="flex min-w-0 flex-col gap-3">
-          {opponents}
-          {foot}
+        {/* One column of opponents at most 46rem wide; two from 50rem (opponentList), each at least 24rem. */}
+        <div className="@container/opp min-w-0">
+          <div className="flex max-w-[46rem] flex-col gap-3 @min-[50rem]/opp:max-w-none">
+            {opponents}
+            {foot}
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
-function OpponentRow({ o, withRate, open, me, champ, card, isOwn, data, onToggle, onMatch, playerId }: { o: OpponentTally; withRate: boolean; open: boolean; me: PortraitChampion; champ: (id: string) => PortraitChampion; card: OverviewCard; isOwn: boolean; data: ReturnType<typeof usePreviewData>; onToggle: () => void; onMatch: (matchId: string) => void; playerId: string }) {
+function OpponentRow({ grid, o, withRate, open, me, champ, card, isOwn, data, onToggle, onMatch, playerId }: { /** In the list's grid of opponents (under its row): each row draws its own rule. */ grid: boolean; o: OpponentTally; withRate: boolean; open: boolean; me: PortraitChampion; champ: (id: string) => PortraitChampion; card: OverviewCard; isOwn: boolean; data: ReturnType<typeof usePreviewData>; onToggle: () => void; onMatch: (matchId: string) => void; playerId: string }) {
   const them = champ(o.championId);
   const rate = o.wins / o.games;
   const toned = o.games >= OPPONENT_TONED_GAMES;
   const panelId = `opponent-${playerId.slice(0, 8)}-${o.championId}`;
   return (
-    <li data-testid="champion-preview-opponent" data-champion={o.championId} data-games={o.games}>
+    <li className={grid ? "border-b border-border/60" : undefined} data-testid="champion-preview-opponent" data-champion={o.championId} data-games={o.games}>
       <button type="button" aria-expanded={open} aria-controls={open ? panelId : undefined} onClick={onToggle} className="flex min-h-[2.875rem] w-full items-center gap-2.5 py-1.5 text-left transition-colors hover:bg-surface-2/50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent">
         <ChampionPortrait champion={them} size="sm" className="h-7 w-7 shrink-0 rounded-md" />
         <span className="min-w-0 flex-1 truncate text-sm font-medium text-fg">{them.name}</span>
