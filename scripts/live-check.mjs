@@ -708,8 +708,9 @@ async function accountMenuFirstTap(page, kind, trigger) {
  *   reaching the window's foot), or start at the top when they are taller than the window; and the
  *   header shows the logo at 80px and the "Team Overview" eyebrow over the name, with the cards on
  *   the stage's floor (drawn from just under them, hidden from screen readers);
- * - phone (390 × 844): the first lineup card ends above the tab bar, and the lineup pager holds
- *   the five players' pictures (S3a);
+ * - phone (390 × 844): the first lineup card ends above the tab bar, and the lineup is the carousel
+ *   (23 Nov 2026): no pager over it, one card on screen, centred in the page's gutter, and five
+ *   position dots under it (the lineup pager of the players' pictures before, S3a);
  * - every width: no bench of substitutes under the lineup (the approved design shows a substitute
  *   on their starter's card, turned to by its control).
  */
@@ -749,8 +750,21 @@ async function teamFacts(page, kind) {
       firstCardEnd: cells[0] ? Math.round(cells[0].bottom) : null,
       tabBarTop: nav ? Math.round(nav.getBoundingClientRect().top) : null,
       faces: document.querySelectorAll("[data-testid^=lineup-sub-]").length,
-      // The lineup pager's pictures (members' phones: each player's picture with the role as its badge).
-      pagerPictures: shown(q("[data-testid=lineup-pager]")) ? [...document.querySelectorAll("[data-testid=lineup-dot-picture]")].filter(shown).length : 0,
+      // The carousel (members' phones): no pager over the cards, the cards on screen, the one in view's
+      // margins either side, and the position dots shown under it.
+      carousel: (() => {
+        const width = document.documentElement.clientWidth;
+        const onScreen = cells.filter((c) => c.width > 0 && c.right > 0.5 && c.left < width - 0.5);
+        const dots = [...document.querySelectorAll("[data-testid=lineup-indicator-dot]")].filter(shown);
+        const first = onScreen[0];
+        return {
+          pager: document.querySelectorAll("[data-testid=lineup-pager]").length,
+          onScreen: onScreen.length,
+          margins: first ? [Math.round(first.left), Math.round(width - first.right)] : null,
+          dots: dots.length,
+          dotsUnder: !!first && dots.length > 0 && dots.every((d) => d.getBoundingClientRect().top >= first.bottom - 1),
+        };
+      })(),
       bench: document.querySelectorAll("[data-testid=lineup-bench], [data-testid^=bench-]").length,
     };
   });
@@ -784,8 +798,9 @@ async function teamFacts(page, kind) {
     const name = "390x844 (the live check's phone): the first lineup card ends above the tab bar";
     if (f.tabBarTop === null || f.firstCardEnd === null) check("team", name, "PASS", `not applicable: ${f.tabBarTop === null ? "no tab bar shown" : "no lineup card"}`);
     else pass("team", name, f.firstCardEnd + f.scrollY <= f.tabBarTop, { firstCardEnd: f.firstCardEnd + f.scrollY, tabBarTop: f.tabBarTop });
-    // The lineup pager shows the team: one picture per role (S3a; the role names alone before).
-    pass("team", "390x844: the lineup pager holds the five players' pictures", f.pagerPictures === 5, { pagerPictures: f.pagerPictures });
+    // The lineup is the carousel (23 Nov 2026; the pager of the players' pictures before, S3a).
+    const c = f.carousel;
+    pass("team", "390x844: the lineup is a carousel: no pager, one card on screen centred in the gutter, five position dots under it", c.pager === 0 && c.onScreen === 1 && !!c.margins && Math.abs(c.margins[0] - c.margins[1]) <= 1 && c.dots === 5 && c.dotsUnder, c);
   }
   // The approved design has no bench: a substitute is on their starter's card (its back).
   pass("team", `${kind}: no bench of substitutes under the lineup`, f.bench === 0, { bench: f.bench, cardsWithASubstitute: f.faces });

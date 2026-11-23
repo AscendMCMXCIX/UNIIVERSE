@@ -213,8 +213,9 @@ It should not appear:
   sizing anything. Its light is an inline gradient, which the rule below does not read. Team
   Overview's selected card lifts with a neutral `shadow-black/40` (it had `shadow-accent/15`). The
   sign-in and setup frame's card (`BrandFrame`) glowed in the brand blue too; it is lit in violet
-  now, like the page's ambient light, and the role bar's selected tab draws its blue edge as a
-  ring, not a shadow. `design-tokens.test.ts` refuses `shadow-accent` (any opacity or variant), an
+  now, like the page's ambient light, and the role bar's selected tab drew its blue edge as a
+  ring, not a shadow (the role bar went with the phone's carousel on 23 Nov 2026: its dots mark the
+  card in view by a longer pill in the brand blue, never by colour alone). `design-tokens.test.ts` refuses `shadow-accent` (any opacity or variant), an
   arbitrary shadow made of `var(--color-accent)` and the shorthand `shadow-(color:--color-accent)`;
   `shadow-accent-2`, violet, stays allowed.
 - as the **colour of the logo's stand-in** (`BrandMark` without an upload). That is now a neutral
@@ -913,7 +914,12 @@ deliberately. Each needs its own small PR. Check STATUS.md for the Actions-minut
     and the centring was restored at the owner's request on 17 Nov 2026). The lineup's layout is
     described in RESPONSIVE.md → Team Overview's lineup, and its own rules in `globals.css` where
     they matter: the art-wait rules in PERFORMANCE.md → Team Overview's first card, the cards' turn
-    (`.flip-card`) in ARCHITECTURE.md → Substitute side of the Team cards.
+    (`.flip-card`) in ARCHITECTURE.md → Substitute side of the Team cards. On a phone held upright
+    the lineup is a carousel that loops (23 Nov 2026; ARCHITECTURE.md → The phone lineup carousel):
+    the cards themselves are how the lineup is browsed, one across the width inside the page's
+    gutter, with no row of the players over them; its one control of its own is the five position
+    dots under the card (neutral `border-control` dots, the card in view a longer `accent` pill:
+    shape and colour, never colour alone).
 - **Validation:** `pnpm verify`, then `pnpm build && pnpm test:e2e`. The sidebar's geometry and
   motion are in `e2e/sidebar-motion.spec.ts` and `e2e/quality.spec.ts`; axe runs at three widths
   in `e2e/quality.spec.ts`.
