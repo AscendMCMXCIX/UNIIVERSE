@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { ChevronDown, Swords, X } from "lucide-react";
+import { ChevronDown, ScanSearch, X } from "lucide-react";
 import type { OverviewCard } from "@/server/players/overview";
 import type { ChampionPreviewData, PairingGamesData, PreviewScope } from "@/server/players/champion-preview";
 import type { PreviewResult } from "@/server/actions/champion-preview";
@@ -13,7 +13,7 @@ import { isGameRole } from "@/domain/season-stats";
 import { OPPONENT_MIN_GAMES, OPPONENT_SORTS, OPPONENT_TONED_GAMES, arrangeOpponents, opponentFootLine, opponentSentence, type OpponentSort, type OpponentTally } from "@/domain/champion-preview";
 import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateTone } from "@/domain/stats/win-rate";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
-import { matchupHref } from "@/components/matchup-intel/address";
+import { lookupHref } from "@/components/champion-lookup/address";
 import { formatCompactCount, formatCount, formatDate, formatKilo, percent } from "@/lib/format";
 import { segmentClass, segmentedGroupClass } from "@/components/ui/segmented";
 import { cn } from "@/lib/cn";
@@ -447,9 +447,9 @@ function PairingGames({ id, me, them, card, isOwn, data, onMatch }: { id: string
           ) : null}
         </ul>
       )}
-      <Link href={matchupHref(me.id, them.id)} prefetch={false} className="inline-flex items-center gap-1.5 self-start text-xs font-medium text-accent hover:underline" data-testid="champion-preview-intel">
-        <Swords className="h-3.5 w-3.5" aria-hidden />
-        Prepare {me.name} vs {them.name} in Matchup Intel →
+      <Link href={lookupHref(them.id)} prefetch={false} className="inline-flex items-center gap-1.5 self-start text-xs font-medium text-accent hover:underline" data-testid="champion-preview-intel">
+        <ScanSearch className="h-3.5 w-3.5" aria-hidden />
+        {them.name}&apos;s abilities in Champion Lookup →
       </Link>
     </div>
   );

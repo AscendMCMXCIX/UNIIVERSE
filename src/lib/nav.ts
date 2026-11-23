@@ -1,4 +1,4 @@
-import { BookMarked, Fingerprint, Medal, Users, UserCog, Settings, History, UserPlus, Database, Paintbrush, Activity, LayoutGrid, LayoutDashboard, CircleUserRound, Gauge, Library, ScrollText, Link2, KeyRound, MonitorSmartphone, SlidersHorizontal, ClipboardList, Swords, ServerCog, type LucideIcon } from "lucide-react";
+import { BookMarked, Fingerprint, Medal, Users, UserCog, Settings, History, UserPlus, Database, Paintbrush, Activity, LayoutGrid, LayoutDashboard, CircleUserRound, Gauge, Library, ScrollText, Link2, KeyRound, MonitorSmartphone, SlidersHorizontal, ClipboardList, ScanSearch, ServerCog, type LucideIcon } from "lucide-react";
 import { hasPermission, type Permission, type Session } from "@/server/auth/permissions";
 
 export interface NavLink {
@@ -7,7 +7,7 @@ export interface NavLink {
   /**
    * A shorter name for the bars where the full one does not fit (the label ladder: the full name,
    * then this one with the rest of the full name read out, then the icon alone; mobile-nav.tsx). The
-   * full name starts or ends with it ("Matchup Intel": "Intel"), so what shows is always part of
+   * full name starts or ends with it ("Champion Lookup": "Lookup"), so what shows is always part of
    * what is read out.
    */
   short?: string;
@@ -102,15 +102,15 @@ export const TEAM_SECTIONS: NavLink[] = [
 ];
 
 /**
- * MATCHUP INTEL, a destination of its own (owner's decision, 18 Nov 2026), for every signed-in
- * account: a static reference for preparation, pick your champion and the enemy, read the enemy's
- * abilities, base cooldowns and what matters in lane (docs/MATCHUP_INTEL.md). Not the personal
- * Matchups (a player's own games against an opponent), which live in a champion's window. Its
- * address stays /resources/matchups, as every link to it was written (?champion=…&vs=… included):
- * nothing redirects. It is not one of Resources' sections: the two have no tabs. Where a bar has no
- * room for its whole name it shows "Intel", the end of it (the label ladder), and is read out in full.
+ * CHAMPION LOOKUP, a destination of its own (the owner's request of 23 Nov 2026, in Matchup Intel's
+ * place), for every signed-in account: choose any champion and read its abilities, base cooldowns
+ * and those cooldowns at an ability haste (docs/CHAMPION_LOOKUP.md), at /lookup?champion=<id>&haste=<n>.
+ * Matchup Intel's address, /resources/matchups with any of its parameters, leads here (its page
+ * redirects, carrying one champion). Not the personal Matchups (a player's own games against an
+ * opponent), which live in a champion's window. Where a bar has no room for its whole name it shows
+ * "Lookup", the end of it (the label ladder), and is read out in full.
  */
-export const MATCHUP_INTEL: NavLink = { href: "/resources/matchups", label: "Matchup Intel", short: "Intel", icon: Swords };
+export const CHAMPION_LOOKUP: NavLink = { href: "/lookup", label: "Champion Lookup", short: "Lookup", icon: ScanSearch };
 
 /**
  * RESOURCES, a destination of its own, for every signed-in account: the Library, the team's library
@@ -217,9 +217,8 @@ export function entryLinks(entry: NavEntry): NavLink[] {
  *   Team           one entry for our own team (only for members of the team): Team Overview, the
  *                  team's home page, first, and marked on all of its sections, which are the tabs at
  *                  the top of every Team page (TEAM_SECTIONS; on phones the top bar's second row);
- *   Matchup Intel  one link (MATCHUP_INTEL), marked on its page whatever pair the address holds;
- *   Resources      one link (RESOURCES), the Library, marked on it alone (Matchup Intel's address
- *                  starts with its own, so the longest match decides: activeHref).
+ *   Champion Lookup one link (CHAMPION_LOOKUP), marked on its page whatever champion the address holds;
+ *   Resources      one link (RESOURCES), the Library, marked on it alone.
  * The account's own items (Settings, Install App, the switch between the modes, Sign out, the patch
  * and Riot's notice) are never destinations: the sidebar's footer, a tablet's avatar menu, a phone's
  * account screen.
@@ -227,7 +226,7 @@ export function entryLinks(entry: NavEntry): NavLink[] {
 export const NAV_ENTRIES: NavEntry[] = [
   { href: "/overview", label: "My Profile", short: "Profile", icon: CircleUserRound },
   { key: "team", label: "Team", icon: Users, sections: TEAM_SECTIONS },
-  MATCHUP_INTEL,
+  CHAMPION_LOOKUP,
   RESOURCES,
 ];
 
@@ -318,8 +317,8 @@ export function destinations(allowed: readonly string[], admin: boolean): Destin
 
 /**
  * The destination a page belongs to: the one holding the longest matching page (a teammate's profile
- * under /players/… is Team's, your own profile's sections My Profile's, Matchup Intel its own
- * whatever pair its address holds, never Resources'; every admin page its entry's); none for Settings
+ * under /players/… is Team's, your own profile's sections My Profile's, Champion Lookup its own
+ * whatever champion its address holds; every admin page its entry's); none for Settings
  * and the few pages outside them. /me, which leads to your own profile, is My Profile's.
  */
 export function currentDestination(pathname: string, list: readonly Destination[]): Destination | null {
@@ -372,7 +371,7 @@ export function prefetchOf(href: string): false | undefined {
 /**
  * On a phone, where Back leads from a page opened with no page of this app before it (a link from
  * elsewhere, a reload, the installed app's start): the page above it, named for the button. Every
- * destination's own pages (Team's sections, your profile's, Matchup Intel, Resources, every admin
+ * destination's own pages (Team's sections, your profile's, Champion Lookup, Resources, every admin
  * page under its entry) have none: they are where you start, so no page claims Team as its parent
  * unless it is under Team (a teammate's profile, under Players). Settings, which is not a
  * destination, leads home (Back named after the page before goes there instead, when it is known:
@@ -388,12 +387,12 @@ export function phoneParent(pathname: string, list: readonly Destination[], home
 
 /**
  * The name of the page a path opens, for a phone's Back when that page's heading was never read: a
- * page with a name of its own (Matchup Intel), else a section by its tab's name (Players,
+ * page with a name of its own (Champion Lookup), else a section by its tab's name (Players,
  * Leaderboards; a set's first section by its destination's: Team for Team Overview), else its
  * destination's, else the few pages outside them by name; "Back" for anything else.
  */
 export function pageName(path: string, list: readonly Destination[]): string {
-  if (path === MATCHUP_INTEL.href) return MATCHUP_INTEL.label;
+  if (path === CHAMPION_LOOKUP.href) return CHAMPION_LOOKUP.label;
   for (const hub of SECTION_HUBS) {
     const section = activeHref(path, hub.sections.map((s) => s.href));
     if (!section) continue;
@@ -416,9 +415,8 @@ function samePlace(a: string, b: string): boolean {
 
 /**
  * How far back, in this tab's history, the page a phone's Back is named after lies: the steps to
- * give history.go (negative), past the entries the current page made of itself (Matchup Intel's
- * pairs, each a new entry of its own address, so the browser's Back steps through them; a window's
- * own entry, which Back closes). Null when the history does not show that page there: the entry
+ * give history.go (negative), past the entries the current page made of itself (a window's own
+ * entry, which Back closes). Null when the history does not show that page there: the entry
  * before those is another page, or an entry's address is not known. `entries` are the tab's history
  * in order (the Navigation API's), `index` the current one's place in them.
  */
@@ -458,9 +456,9 @@ export function canOpen(session: Session | null, link: Pick<NavLink, "permission
 
 export function isActivePath(pathname: string, href: string): boolean {
   // The dashboard is Admin Mode's root: every admin page starts with its address, so it is the
-  // current page only on itself. Resources is the Library alone: Matchup Intel's address starts with
-  // its own (kept from when it was Resources' second section), and Matchup Intel is a destination of
-  // its own, so Resources is the current page only on itself too.
+  // current page only on itself. Resources is the Library alone: Matchup Intel's old address under
+  // it (/resources/matchups) only redirects to Champion Lookup, so Resources is the current page
+  // only on itself too.
   if (href === ADMIN_HOME || href === RESOURCES.href) return pathname === href;
   return pathname === href || pathname.startsWith(`${href}/`);
 }

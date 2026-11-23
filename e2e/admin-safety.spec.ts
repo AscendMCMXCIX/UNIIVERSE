@@ -20,7 +20,7 @@ test.beforeEach(async ({ context, baseURL }, info) => {
   await view(context, baseURL!, "admin");
 });
 
-const SETUP_KEYS = ["rank-schedule-off", "history-rescan", "erasure-reconcile", "verify-account", "lane-opponent-recompute", "prep-backfill"];
+const SETUP_KEYS = ["rank-schedule-off", "history-rescan", "erasure-reconcile", "verify-account", "lane-opponent-recompute"];
 
 async function axe(page: Page, label: string) {
   const result = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
@@ -55,15 +55,10 @@ async function ownerJobs(page: Page, size: string) {
   await page.goto("/admin/data");
   const details = page.getByTestId("data-details");
   await openDetails(details);
-  // Matchup Intel's static-data diff, beside the datasets: none recorded yet, or the patch the demo read from Data Dragon with its counts (static-diff.test.ts has every state).
+  // The static-data diff, beside the datasets: none recorded yet, or the patch the demo read from Data Dragon with its counts (static-diff.test.ts has every state).
   await expect(details.getByTestId("static-diff").getByTestId("static-diff-line").first()).toHaveText(/^(No patch recorded yet\.|\d+\.\d+ recorded: [\d,]+ champions?, [\d,]+ items?, [\d,]+ runes?\.)$/);
-  // Matchup Intel's curation priorities: per role, the lanes without checked notes first and Top last;
-  // champion names and counts only, never a member's name (the demo's players are "Demo …").
-  const curation = details.getByTestId("curation-priorities");
-  await expect(curation.getByTestId("curation-role")).toHaveCount(5);
-  expect(await curation.getByTestId("curation-role").evaluateAll((els) => els.map((e) => e.getAttribute("data-role")))).toEqual(["JUNGLE", "MID", "ADC", "SUPPORT", "TOP"]);
-  await expect(curation.getByTestId("curation-cell")).not.toHaveCount(0);
-  await expect(curation).not.toContainText("Demo");
+  // Matchup Intel's curation priorities left with it (23 Nov 2026).
+  await expect(details.getByTestId("curation-priorities")).toHaveCount(0);
   const panel = page.getByTestId("jobs-panel");
   // Checks and Refresh in view, each with its button; the costly reads say so.
   await expect(panel.getByTestId("jobs-checks").getByTestId("job-row")).not.toHaveCount(0);

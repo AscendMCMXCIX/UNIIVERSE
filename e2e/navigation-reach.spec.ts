@@ -1041,7 +1041,7 @@ test("tablet: the destinations are in the top bar, one tap each, and the avatar 
   // There is no drawer: each destination is one tap from the bar, Team marked on its sections.
   await expect(page.getByRole("button", { name: "Open menu" })).toHaveCount(0);
   const nav = page.getByRole("navigation", { name: "Primary" });
-  await expect(nav.getByRole("link")).toHaveText(["My Profile", "Team", "Matchup Intel", "Resources"]);
+  await expect(nav.getByRole("link")).toHaveText(["My Profile", "Team", "Champion Lookup", "Resources"]);
   await expect(nav.getByRole("link", { name: "Team" })).toHaveAttribute("aria-current", "page");
   const avatar = page.getByTestId("mobile-topbar").getByTestId("account-menu-button");
   await avatar.click();

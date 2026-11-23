@@ -32,7 +32,7 @@ export interface StaticSyncResult {
   skinsUpserted?: number;
   /**
    * The per-champion detail files read at `version` (for skins) when the version changed, by
-   * champion id, so the champion abilities sync (Matchup Intel) uses them instead of reading them
+   * champion id, so the champion abilities sync (Champion Lookup) uses them instead of reading them
    * again. Not set when no detail file was read.
    */
   championDetails?: Map<string, DdragonChampionDetail>;

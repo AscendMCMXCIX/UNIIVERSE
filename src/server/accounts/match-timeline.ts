@@ -11,7 +11,6 @@ import { redactTimeline } from "@/server/privacy/redact";
 import { loadCompositionParticipants } from "@/server/matches/compositions";
 import { LANE_MINUTES, goldContradictsRecord, laneMoments, botPairOf, laneOpponentOf, pairMoments, teamGoldDifference, type GoldPoint, type LaneMoment } from "@/domain/match-analysis";
 import type { TimelineEventsView } from "@/domain/match-events";
-import { refreshMatchPrep } from "@/server/matchup-intel/prep-store";
 
 /*
   One match minute by minute, from Riot's match timeline: the build and skill order, the lane at
@@ -342,8 +341,6 @@ async function timelineFor(db: Db, playerId: string, matchId: string, options: {
         // A kept timeline is completed, never replaced: what it holds stays (completedTimeline).
         const done = completedTimeline(row, kept);
         await db.insert(matchTimelines).values({ ...kept, ...done }).onConflictDoUpdate({ target: matchTimelines.matchId, set: done });
-        // Matchup Intel's evidence rows of this game, made again with the timeline (never fails the view).
-        await refreshMatchPrep(db, [matchId]);
       } catch (err) {
         const status = err instanceof RiotApiError ? err.status : 0;
         if (status === 404) {

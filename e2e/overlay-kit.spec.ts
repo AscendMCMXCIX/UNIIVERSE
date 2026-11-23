@@ -287,8 +287,7 @@ const WINDOWS: { name: string; view: "player" | "admin"; path: (page: Page) => P
   { name: "Players Peek", view: "player", path: async () => "/players", opener: "[data-testid=player-peek-open] >> nth=1", win: "player-peek", address: /player=/ },
   { name: "Leaderboards Peek", view: "player", path: async () => "/leaderboards", opener: "[data-testid=board-peek-open] >> nth=1", win: "player-peek", address: /player=/ },
   { name: "game", view: "player", path: async (page) => `${await teammate(page)}/matches`, opener: "[data-testid=match-row] >> nth=1", win: "match-detail", address: /match=/ },
-  { name: "Matchup Intel picker", view: "player", path: async () => "/resources/matchups", opener: "[data-testid=matchup-pick-you]", win: "matchup-picker" },
-  { name: "Matchup Intel details", view: "player", path: async () => "/resources/matchups?champion=Riven&vs=Yone", opener: "[data-testid=ability-details] >> nth=0", win: "", },
+  { name: "Champion Lookup's All champions", view: "player", path: async () => "/lookup?champion=Ahri", opener: "[data-testid=lookup-browse]", win: "lookup-picker" },
   { name: "Admin person", view: "admin", path: async () => "/admin/people", opener: "[data-person] >> nth=1", win: "person-view", address: /person=/ },
 ];
 

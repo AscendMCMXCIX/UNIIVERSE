@@ -59,8 +59,6 @@ const LISTED: Record<string, Partial<Record<string, string>>> = {
     border: "under its row the list's hairline between rows separates it and its left edge continues the row's accent bar; the phone's sheet has the window's border all round",
   },
   "post-game: a scoreboard name": { sizeRem: "the compact scoreboard's names are text-xs where the scoreboard is under 30rem wide (a phone's window), so each of the ten names keeps one line; text-sm from 30rem (scoreboard.tsx)" },
-  "Matchup Intel: the enemy's slot label": { sizeRem: "the slot's label is a size smaller on a phone (text-2xs, 11px under the 12px floor's phone rule, as the badge), so the longest one-word name fits the slot whole" },
-  "Matchup Intel: an ability tile's cooldown": { sizeRem: "a tile lays its figures out by its own width (ability-list.tsx: CooldownValue big): text-lg from a tile 15rem wide (a phone's list of tiles, a wide desktop's strip), text-md in the five-across strip at 1440 × 900, where each tile is 14rem and \"26 / 23.5 / 21 / 18.5 / 16 s\" would take two lines" },
   "Admin: person view": { radius: "the person view is DetailModal: a phone's window fills the screen and has no corners; a desktop's is a centred window with the panel's radius" },
   Popover: { radius: "a touch phone keeps the sheet, docked to the bottom edge with the sheet's 1.25rem top corners; the popover has a menu's rounded-lg" },
 };
@@ -120,8 +118,8 @@ test("the shared components look the same on a phone and on a desktop", async ({
   The components S5–S9 created, each opened as a member opens it, and its parts compared the same way:
   All Champions' preview (S5: unfolded under its row on a desktop since 23 Nov 2026, a window on a phone), the
   post-game view's loadout and its scoreboard (S6: under the card on a desktop, in
-  the game's window on a phone), Matchup Intel's slots, ability tiles
-  (S7a), and Admin's person view with its Riot accounts (S9). One page visit per component and size.
+  the game's window on a phone), Champion Lookup's champion and abilities (Release 16, in
+  Matchup Intel's place), and Admin's person view with its Riot accounts (S9). One page visit per component and size.
 */
 type Part = { name: string; selector: string; phoneSelector?: string };
 type Group = { name: string; path: (mate: string) => string; open?: (page: Page, phone: boolean) => Promise<void>; parts: Part[] };
@@ -162,17 +160,17 @@ const GROUPS: Group[] = [
     ],
   },
   {
-    name: "Matchup Intel",
-    path: () => "/resources/matchups?role=top&champion=Riven&vs=Darius",
+    name: "Champion Lookup",
+    path: () => "/lookup?champion=Darius&haste=20",
     open: async (page) => {
-      await expect(page.getByTestId("matchup-enemy-abilities-list").getByTestId("ability-row").first()).toBeVisible({ timeout: 15_000 });
+      await expect(page.getByTestId("lookup-ability").first()).toBeVisible({ timeout: 15_000 });
     },
     parts: [
-      { name: "Matchup Intel: your slot", selector: "[data-testid=matchup-pick-you]" },
-      { name: "Matchup Intel: the enemy's slot label", selector: "[data-testid=matchup-pick-enemy-label]" },
-      { name: "Matchup Intel: an ability tile's name", selector: "[data-testid=matchup-enemy-abilities-list] [data-testid=ability-name]" },
+      { name: "Champion Lookup: the champion's name", selector: "[data-testid=lookup-name]" },
+      { name: "Champion Lookup: an ability's name", selector: "[data-testid=lookup-ability-name]" },
       // The Q's: a cooldown Riot's data gives (a passive's "not in Riot's data" line is drawn otherwise).
-      { name: "Matchup Intel: an ability tile's cooldown", selector: "[data-testid=matchup-enemy-abilities-list] [data-testid=ability-row][data-slot=Q] [data-testid=ability-cooldown-value]" },
+      { name: "Champion Lookup: a base cooldown", selector: "[data-testid=lookup-ability][data-slot=Q] [data-testid=lookup-base]" },
+      { name: "Champion Lookup: a cooldown at the haste", selector: "[data-testid=lookup-ability][data-slot=Q] [data-testid=lookup-hasted]" },
     ],
   },
   {

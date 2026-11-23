@@ -64,7 +64,7 @@ test("held sideways: one compact bar holds the destinations, with no bottom bar,
   await expect(bar.getByRole("navigation", { name: "Primary" })).toBeVisible();
   await expect(page.getByTestId("phone-tabbar")).toBeHidden();
   const links = nav.getByRole("link");
-  for (const [i, name] of ["My Profile", "Team", "Matchup Intel", "Resources"].entries()) await expect(links.nth(i)).toHaveAccessibleName(name);
+  for (const [i, name] of ["My Profile", "Team", "Champion Lookup", "Resources"].entries()) await expect(links.nth(i)).toHaveAccessibleName(name);
   // Players is one of Team's sections: Team is the current destination, Players the current section under the bar.
   await expect(nav.locator("[aria-current=page]")).toHaveAccessibleName("Team");
   await expect(page.getByTestId("team-chrome-tabs").locator("[aria-current=page]")).toHaveText("Players");
@@ -349,9 +349,9 @@ test("held sideways, the avatar opens the account screen at every width, and Tea
     await expect(screen, where).toHaveAttribute("data-entered", "true");
     await expectNoSeriousAxe(page, `account screen, ${where}`, ["[data-testid=account-sheet]"]);
     expect(await screen.boundingBox(), where).toEqual({ x: 0, y: 0, width: viewport.width, height: viewport.height });
-    // The account's own items only: Matchup Intel and Resources are destinations of the bar.
+    // The account's own items only: Champion Lookup and Resources are destinations of the bar.
     await expect(screen.getByRole("navigation", { name: "Your account" }).getByRole("link"), where).toHaveText(["Settings"]);
-    await expect(screen.getByRole("link", { name: "Matchup Intel" }), where).toHaveCount(0);
+    await expect(screen.getByRole("link", { name: "Champion Lookup" }), where).toHaveCount(0);
     await page.keyboard.press("Escape");
     await expect(screen).toHaveCount(0);
     await expect(page.getByTestId("account-sheet-button"), where).toBeFocused();
@@ -559,7 +559,7 @@ test("with larger text the compact bar held sideways still fits the phone: the w
     }, root);
     await page.evaluate(() => document.fonts.ready);
     const links = nav.getByRole("link");
-    for (const [i, name] of ["My Profile", "Team", "Matchup Intel", "Resources"].entries()) await expect(links.nth(i), where).toHaveAccessibleName(name);
+    for (const [i, name] of ["My Profile", "Team", "Champion Lookup", "Resources"].entries()) await expect(links.nth(i), where).toHaveAccessibleName(name);
     await expect(async () => {
       const m = await page.evaluate(() => {
         const row = document.querySelector("[data-testid=mobile-topbar]")!.firstElementChild as HTMLElement;

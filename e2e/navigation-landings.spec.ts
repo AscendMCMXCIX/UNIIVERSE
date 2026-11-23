@@ -77,7 +77,7 @@ test("phones: the current tab on its own page, the current section in the top ba
   // docs/MOBILE.md, "The frame slides away"), and short enough for the demo's Players to scroll its heading
   // under the bar: since Release 7 the page is 862px tall, which a 393 × 852 window scrolled only 10px.
   await page.setViewportSize({ width: 393, height: 720 });
-  // Matchup Intel's tab on its own page.
+  // Resources' tab on its own page.
   await page.goto("/resources");
   await page.evaluate(() => window.scrollTo(0, 400));
   await expect.poll(() => scrollY(page)).toBeGreaterThan(0);
@@ -136,14 +136,14 @@ test("tablets and desktops: the current section tab, and the frame's entry for t
   // With a modifier key the tab keeps its meaning: it opens in a new tab.
   const [opened] = await Promise.all([page.context().waitForEvent("page"), page.getByTestId("team-tab-leaderboards").click({ modifiers: ["ControlOrMeta"] })]);
   await opened.close();
-  // Matchup Intel's own entry in the frame (the sidebar's on a desktop, a tablet's top bar's), pressed
-  // on its page, keeps the pair it shows and goes to the top, as Leaderboards' tab keeps its season: its
-  // own link has no query, and following it cleared the pair. The page is made long enough to scroll, as
-  // the Library's below.
-  await page.goto("/resources/matchups?champion=Riven&vs=Mordekaiser");
-  await expect(page.getByTestId("matchup-enemy-abilities")).toHaveAttribute("data-champion", "Mordekaiser");
+  // Champion Lookup's own entry in the frame (the sidebar's on a desktop, a tablet's top bar's), pressed
+  // on its page, keeps the champion and haste it shows and goes to the top, as Leaderboards' tab keeps
+  // its season: its own link has no query, and following it would clear them. The page is made long
+  // enough to scroll, as the Library's below.
+  await page.goto("/lookup?champion=Mordekaiser&haste=20");
+  await expect(page.getByTestId("lookup-panel")).toHaveAttribute("data-champion", "Mordekaiser");
   // Once the page's code runs: a click before then follows the tab's bare link.
-  await expect(page.getByTestId("matchup-remembered")).not.toHaveAttribute("data-state", "loading");
+  await expect(page.getByTestId("lookup-toolbar")).toHaveAttribute("data-ready", "true");
   await page.evaluate(() => {
     const extra = document.createElement("div");
     extra.dataset.testid = "test-length";
@@ -153,13 +153,13 @@ test("tablets and desktops: the current section tab, and the frame's entry for t
   });
   await expect.poll(() => scrollY(page)).toBeGreaterThan(200);
   navigations = watchNavigations(page);
-  const intel = page.getByTestId(info.project.name === "desktop" ? "nav-resources-matchups" : "topbar-nav-resources-matchups");
-  await expect(intel).toHaveAttribute("aria-current", "page");
-  await intel.click();
+  const lookup = page.getByTestId(info.project.name === "desktop" ? "nav-lookup" : "topbar-nav-lookup");
+  await expect(lookup).toHaveAttribute("aria-current", "page");
+  await lookup.click();
   await expect.poll(() => scrollY(page)).toBe(0);
-  expect(await navigations(), "Matchup Intel's entry on its own page fetches nothing").toEqual([]);
-  await expect(page).toHaveURL(/\/resources\/matchups\?champion=Riven&vs=Mordekaiser$/);
-  await expect(page.getByTestId("matchup-enemy-abilities")).toHaveAttribute("data-champion", "Mordekaiser");
+  expect(await navigations(), "Champion Lookup's entry on its own page fetches nothing").toEqual([]);
+  await expect(page).toHaveURL(/\/lookup\?champion=Mordekaiser&haste=20$/);
+  await expect(page.getByTestId("lookup-panel")).toHaveAttribute("data-champion", "Mordekaiser");
   {
     // The frame's entry for the page shown (Resources), the sidebar's on a desktop and the top bar's
     // destination on a tablet: the page stays as it is, back at its top. Resources fits a desktop
@@ -239,26 +239,32 @@ test("phones: a dialog is the one shared sheet, docked to the bottom edge with i
   await expect(dialog).toBeHidden();
 });
 
-test("phones: Matchup Intel's tab, on its own page, keeps the pair and goes back to the top, fetching nothing", async ({ page }, info) => {
+test("phones: Champion Lookup's tab, on its own page, keeps the champion and haste and goes back to the top, fetching nothing", async ({ page }, info) => {
   test.skip(info.project.name !== "phone", "the phone's tab bar (the test above has tablets and desktops)");
   await page.emulateMedia({ reducedMotion: "reduce" });
   // A phone tall enough for its bars to stay put while the page scrolls (under 700px tall they slide away:
   // docs/MOBILE.md, "The frame slides away"), and short enough for the demo's Players to scroll its heading
   // under the bar: since Release 7 the page is 862px tall, which a 393 × 852 window scrolled only 10px.
   await page.setViewportSize({ width: 393, height: 720 });
-  await page.goto("/resources/matchups?champion=Riven&vs=Mordekaiser");
-  await expect(page.getByTestId("matchup-enemy-abilities")).toHaveAttribute("data-champion", "Mordekaiser");
-  await expect(page.getByTestId("matchup-remembered")).not.toHaveAttribute("data-state", "loading");
-  // No tabs in the page any more: Matchup Intel is a destination of its own, a tab of the bar.
+  await page.goto("/lookup?champion=Mordekaiser&haste=20");
+  await expect(page.getByTestId("lookup-panel")).toHaveAttribute("data-champion", "Mordekaiser");
+  await expect(page.getByTestId("lookup-toolbar")).toHaveAttribute("data-ready", "true");
+  // No tabs in the page: Champion Lookup is a destination of its own, a tab of the bar.
   await expect(page.getByTestId("resources-tabs")).toHaveCount(0);
-  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  // Made long enough to scroll (the page fits a phone with its descriptions folded).
+  await page.evaluate(() => {
+    const extra = document.createElement("div");
+    extra.style.height = "2000px";
+    document.querySelector("main")!.append(extra);
+    window.scrollTo(0, document.documentElement.scrollHeight);
+  });
   await expect.poll(() => scrollY(page)).toBeGreaterThan(200);
   const navigations = watchNavigations(page);
-  const tab = page.getByTestId("phone-tabbar").getByTestId("tab-resources-matchups");
+  const tab = page.getByTestId("phone-tabbar").getByTestId("tab-lookup");
   await expect(tab).toHaveAttribute("aria-current", "page");
   await tab.click();
   await expect.poll(() => scrollY(page)).toBe(0);
   expect(await navigations(), "the tab of the page shown fetches nothing").toEqual([]);
-  await expect(page).toHaveURL(/\/resources\/matchups\?champion=Riven&vs=Mordekaiser$/);
-  await expect(page.getByTestId("matchup-enemy-abilities")).toHaveAttribute("data-champion", "Mordekaiser");
+  await expect(page).toHaveURL(/\/lookup\?champion=Mordekaiser&haste=20$/);
+  await expect(page.getByTestId("lookup-panel")).toHaveAttribute("data-champion", "Mordekaiser");
 });

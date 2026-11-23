@@ -1,11 +1,9 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getAppDb } from "@/server/bootstrap";
 import { hasPermission } from "@/server/auth/session";
 import { requirePageAccess } from "@/server/auth/page-access";
 import { listChampions } from "@/server/repositories/champions";
 import { getOrCreateTeam } from "@/server/repositories/team";
-import { canOpenTeamInsights } from "@/server/matches/team-insights-view";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { InfoTip } from "@/components/ui/info-tip";
@@ -192,14 +190,6 @@ async function PlayedTogetherPage({ db, teamId, sp, session }: { db: Awaited<Ret
             notes={leftOutNotes(data)}
             label="How games played together are found"
           />
-        }
-        actions={
-          // Team insights is a preview for administrators (TEAM_INSIGHTS_AUDIENCE): linked only for those who can open it (the overhaul's S9c).
-          canOpenTeamInsights(session) ? (
-            <Link href="/matches/insights" className="inline-flex min-h-11 items-center gap-1.5 text-sm text-accent underline-offset-2 hover:underline" data-testid="team-insights-link">
-              Team insights <span className="text-xs text-fg-subtle">· preview for administrators</span>
-            </Link>
-          ) : null
         }
       />
       <PlayedTogetherView data={data} seasons={seasons} currentSeason={current} shown={shown} teams={teams} total={all.length} filters={filters} summary={summary} savedCount={savedCount} champions={Object.fromEntries(champions.map((c) => [c.id, { id: c.id, name: c.name, portraitUrl: c.portraitUrl }]))} href={href} elsewhere={elsewhere} />

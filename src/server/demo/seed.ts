@@ -1,5 +1,4 @@
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
-import { backfillMatchPrep } from "@/server/matchup-intel/prep-store";
 import type { Db } from "@/server/db/types";
 import { accountChampionHistory, accountMastery, accountMatches, brandAssets, matchDetails, matchTimelines, type MatchEvents, type MatchFrames, type MatchObjectiveEvent, type MatchParticipantDetail, champions, playerChampionPools, players, rankSnapshots, riotAccounts, users } from "@/server/db/schema";
 import { listPlayers } from "@/server/repositories/team";
@@ -137,8 +136,6 @@ export async function seedDemoAccounts(db: Db): Promise<{ created: number }> {
     await summariseMatches(db);
     // What the figures backfill records for a game whose record Riot no longer provides.
     if (gone.length) await db.update(accountMatches).set({ extraStats: sql`'{}'::jsonb` }).where(inArray(accountMatches.matchId, gone));
-    // Matchup Intel's evidence rows, as the prep-backfill job inserts them (a run at a time).
-    for (let run = 0; run < 20 && (await backfillMatchPrep(db)).read > 0; run++);
   }
   void ROLES;
   return { created };

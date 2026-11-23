@@ -7,8 +7,8 @@ import { StaticValidationError, syncRiotAssets } from "@/server/riot/static/asse
 import { invalidateChampionMap } from "@/server/champions/map";
 import { invalidateChampionCaches } from "@/server/repositories/champions";
 import { invalidateCache } from "@/server/observability/cache";
-import { ensureStaticDigests } from "@/server/matchup-intel/digests";
-import { seedChampionAbilitiesFromFixture, syncChampionAbilities, type AbilitySyncResult } from "@/server/matchup-intel/abilities";
+import { ensureStaticDigests } from "@/server/riot/static/digests";
+import { seedChampionAbilitiesFromFixture, syncChampionAbilities, type AbilitySyncResult } from "@/server/riot/static/abilities";
 
 /** The longest the champion abilities may take inside a run (their files are requested only on a new version or a first fill). */
 const ABILITY_SYNC_MS = 30_000;
@@ -29,7 +29,7 @@ async function run(ctx: Pick<JobContext, "db" | "log" | "startedAt" | "budgetMs"
     invalidateChampionCaches();
     invalidateCache("shell-facts");
   }
-  // Matchup Intel: each champion's abilities from Data Dragon, once per game version, from the
+  // Champion Lookup: each champion's abilities from Data Dragon, once per game version, from the
   // detail files the champion sync just read (the missing ones are requested); the committed
   // offline copy when the champions came from the offline fixture. When nothing changed it is one
   // statement, which reads the stored abilities once. Its own failure never stops the rest of the run.
@@ -71,8 +71,8 @@ async function run(ctx: Pick<JobContext, "db" | "log" | "startedAt" | "budgetMs"
       ctx.log(assetsError);
     }
   }
-  // Matchup Intel's per-version diff: this patch's digests, once (three Data Dragon files), after
-  // the abilities they read. A failure leaves the evidence on the current patch alone.
+  // The per-version diff (Admin's Data & Integrations, /api/health): this patch's digests, once
+  // (three Data Dragon files), after the abilities they read. A failure leaves the counts alone.
   let digests: number | null = null;
   if (!result.usedFixture && result.ok && !result.degraded && result.version && !abilities?.degraded) {
     try {
