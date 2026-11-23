@@ -21,7 +21,7 @@ import { notRecheckedWords } from "../src/components/matchup-intel/wording";
   - every pair gives a meaningful reference, labelled for what it is (a sweep of many pairs);
   - switching is a navigation: deep links, reloads, Back and Forward keep the pair;
   - each chip opens what it rests on, each tile's details open in a window;
-  - the facts from Riot's text on the real data: a qualifier on its chip (Gnar's W, "Mega Gnar"), the
+  - the facts from Riot's text on the real data: a qualifier under its chip (Gnar's W, "Mega Gnar"), the
     conditional marker, where Riot's texts differ (Yone's R), placeholders never resolved (Twisted
     Fate), a champion with few facts saying what has none (Kog'Maw).
   The text-size and phone guarantees of the page are in e2e/matchup-intel.spec.ts.
@@ -145,9 +145,9 @@ function measure(page: Page) {
         sources: box('[data-testid="matchup-sources-summary"]'),
       },
       // Running text, in rem of the page's own root: the curated words, the notes, the grouped facts' lines.
-      body: sizes('[data-testid="briefing-threat"] > div > span, [data-testid="briefing-opportunity"] > div > span, [data-testid="briefing-lane-point"], [data-testid="matchup-interaction"], [data-testid="matchup-level-note"] p, [data-testid="ability-name"], [data-testid="assembled-ability"], [data-testid="assembled-no-facts"], [data-testid="assembled-none"], [data-testid="fact-chip-markers"], [data-testid="ability-facts-none"], [data-testid^="fact-chip"] span, [data-testid^="assembled-chip"] span'),
+      body: sizes('[data-testid="briefing-headline"], [data-testid="briefing-rest"], [data-testid="fact-qualifier"], [data-testid="matchup-interaction"], [data-testid="matchup-level-note"] p, [data-testid="ability-name"], [data-testid="assembled-ability"], [data-testid="assembled-no-facts"], [data-testid="assembled-none"], [data-testid="ability-facts-none"], [data-testid^="fact-chip"] span, [data-testid^="assembled-chip"] span'),
       // The lane plan's own words, the curated text a player reads first: the 15px step (text-md) or larger.
-      plan: sizes('[data-testid="briefing-threat"] > div > span, [data-testid="briefing-opportunity"] > div > span, [data-testid="briefing-lane-point"] > span'),
+      plan: sizes('[data-testid="briefing-headline"], [data-testid="briefing-rest"]'),
       // The key figures: each tile's cooldown numbers (a line with no number is words, said in text-sm).
       figures: sizes('[data-testid="ability-cooldown"] .tabular-nums'),
       scrollers: scrollers.map((e) => e.getAttribute("data-testid") ?? e.tagName.toLowerCase()),
@@ -156,31 +156,24 @@ function measure(page: Page) {
 }
 
 /**
- * The pairs whose strip, at 1440 × 900, ends under the fold (the lane plan whole above it): K'Sante's
- * 18 facts from Riot's text make the tallest lane reference and strip, the cooldown lines up to 7px
- * under the fold (measured 23 Nov 2026; K'Sante vs Ornn ends 1px above it, listed for CI's browser,
- * which lays text out a little wider). Every other pair has every enemy cooldown line there.
+ * What each size promises (docs/MATCHUP_INTEL.md, "The lane plan"; the owner's request of 23 Nov 2026
+ * and the UX review of Release 13): the lane plan whole on the first screen at every desktop size from
+ * 1440 × 900 up, with every enemy cooldown line; at 1920 × 1080, 2560 × 1440 and 3440 × 1440 the
+ * sources' summary too. 1280 × 800 (the sidebar open) is promised the bar and the plan's start in the
+ * screen's top half. The full reference is one fold under the strip, so a page may scroll by its
+ * line: no size promises "no page scroll". Measured 23 Nov 2026 (round 2): the lowest cooldown line
+ * 830px at 1440 × 900 and 919px at 1920 × 950, the lowest summary 1027px at 1920 × 1080 (Mordekaiser vs Ornn).
  */
-const STRIP_UNDER_FOLD_AT_1440 = new Set(["Briar vs KSante", "Riven vs KSante", "Shyvana vs KSante", "KSante vs Shyvana", "Hwei vs KSante", "KSante vs Mordekaiser", "Mordekaiser vs KSante", "KSante vs Ornn", "Ambessa vs KSante"]);
-
-/**
- * What each size promises (docs/MATCHUP_INTEL.md, "The lane plan"; the owner's request of 23 Nov
- * 2026): the lane plan whole on the first screen at every desktop size from 1440 × 900 up; with it
- * every enemy cooldown line at 1920 × 1080, 2560 × 1440 and 3440 × 1440 (and at 1440 × 900 but for
- * STRIP_UNDER_FOLD_AT_1440); at 2560 × 1440 and 3440 × 1440 the sources' summary too. 1280 × 800 (the
- * sidebar open) is promised the bar and the plan's start in the screen's top half. The full reference
- * is one fold under the strip, so a page may scroll by its line: no size promises "no page scroll".
- */
-const PROMISES: Record<string, { plan: boolean; cooldowns: boolean | "but-listed"; sources: boolean }> = {
-  "1920x1080": { plan: true, cooldowns: true, sources: false },
+const PROMISES: Record<string, { plan: boolean; cooldowns: boolean; sources: boolean }> = {
+  "1920x1080": { plan: true, cooldowns: true, sources: true },
   "2560x1440": { plan: true, cooldowns: true, sources: true },
-  "1920x950": { plan: true, cooldowns: false, sources: false },
+  "1920x950": { plan: true, cooldowns: true, sources: false },
   "3440x1440": { plan: true, cooldowns: true, sources: true },
-  "1440x900": { plan: true, cooldowns: "but-listed", sources: false },
+  "1440x900": { plan: true, cooldowns: true, sources: false },
   "1280x800": { plan: false, cooldowns: false, sources: false },
 };
 
-test("the lane plan is whole on the first screen at every desktop size from 1440×900 up, every test pair; the enemy's cooldowns with it at 1920×1080 and wider (and at 1440×900 but for K'Sante's tallest pages); text at least text-xs, the plan's words text-md, the cooldowns larger", async ({ page }, info) => {
+test("the lane plan is whole on the first screen at every desktop size from 1440×900 up, every test pair, with every enemy cooldown line; the sources' summary too from 1920×1080; text at least text-xs, the plan's words text-md, the cooldowns larger", async ({ page }, info) => {
   test.skip(info.project.name !== "desktop", "desktop sizes");
   test.setTimeout(900_000);
   await localPictures(page);
@@ -201,8 +194,7 @@ test("the lane plan is whole on the first screen at every desktop size from 1440
       expect.soft(m.parts.plan, `${at}: the lane plan on the page`).not.toBeNull();
       if (promise.plan) expect.soft(m.parts.plan?.bottom ?? Infinity, `${at}: the lane plan whole on the first screen`).toBeLessThanOrEqual(m.innerHeight + 0.5);
       else expect.soft(m.parts.plan?.top ?? Infinity, `${at}: the lane plan starts in the screen's top half`).toBeLessThanOrEqual(m.innerHeight / 2);
-      if (promise.cooldowns === true || (promise.cooldowns === "but-listed" && !STRIP_UNDER_FOLD_AT_1440.has(pair))) expect.soft(m.parts.cooldowns?.bottom ?? Infinity, `${at}: every enemy cooldown line on the first screen`).toBeLessThanOrEqual(m.innerHeight + 0.5);
-      else if (promise.cooldowns === "but-listed") expect.soft(m.parts.tiles?.top ?? Infinity, `${at}: the strip starts on the first screen`).toBeLessThanOrEqual(m.innerHeight);
+      if (promise.cooldowns) expect.soft(m.parts.cooldowns?.bottom ?? Infinity, `${at}: every enemy cooldown line on the first screen`).toBeLessThanOrEqual(m.innerHeight + 0.5);
       if (promise.sources) expect.soft(m.parts.sources?.bottom ?? Infinity, `${at}: the sources' summary on the first screen`).toBeLessThanOrEqual(m.innerHeight + 0.5);
       expect.soft(m.scrollWidth, `${at}: no sideways page scroll`).toBeLessThanOrEqual(m.clientWidth);
       expect.soft(m.scrollers, `${at}: nothing scrolls inside the page`).toEqual([]);
@@ -271,6 +263,7 @@ function measureDuo(page: Page) {
       dangerSides: document.querySelectorAll('[data-testid="matchup-assembled"] [data-testid="assembled-danger"]').length,
       cooldowns: bottom(`:is(${kits}) [data-testid="ability-cooldown"]`),
       firstCooldowns: bottom('[data-testid="matchup-enemy-abilities"] [data-testid="ability-cooldown"]'),
+      secondStrip: bottom('[data-testid="matchup-enemy2-abilities-summary"]'),
       cooldownLines: document.querySelectorAll(`:is(${kits}) [data-testid="ability-cooldown"]`).length,
       sources: bottom('[data-testid="matchup-sources-summary"]'),
       small: [...document.querySelectorAll<HTMLElement>('[data-testid="matchup-dashboard"] :is(p, span, li, h2, h3, summary)')]
@@ -282,7 +275,7 @@ function measureDuo(page: Page) {
   });
 }
 
-test("the bot lane: one lane plan with both enemies' kits, whole on the first screen at 1440×900, 1920×1080, 1920×950 and 2560×1440; the first enemy's cooldowns under it there too, both enemies' at 2560×1440; your duo one press away; with the facts from Riot's text on (and Riot's change labels) and off", async ({ page }, info) => {
+test("the bot lane: one lane plan naming all four and leading with both enemies' dangers, whole on the first screen at 1440×900, 1920×1080, 1920×950 and 2560×1440; the first enemy's cooldowns under it there too, the second enemy's strip one press away; every other tool one press away; with the facts from Riot's text on (and Riot's change labels) and off", async ({ page }, info) => {
   test.skip(info.project.name !== "desktop", "desktop sizes");
   test.setTimeout(600_000);
   await localPictures(page);
@@ -303,14 +296,15 @@ test("the bot lane: one lane plan with both enemies' kits, whole on the first sc
         const m = await measureDuo(page);
         const at = `${role}: ${you} and ${ally} vs ${enemy} and ${enemy2}, Riot's text ${layer}, at ${width}×${height}`;
         expect.soft(m.kits, `${at}: both enemies' strips`).toBe(2);
+        // The second enemy's strip is one press away (the UX review of Release 13): its fold's line on the first screen from 1440 × 900.
+        if (width !== 1280) expect.soft(m.secondStrip ?? Infinity, `${at}: the second enemy's strip, folded, on the first screen`).toBeLessThanOrEqual(m.innerHeight + 0.5);
         expect.soft(m.dangerSides, `${at}: the lane plan leads with both enemies' kits`).toBe(2);
-        expect.soft(m.cooldownLines, `${at}: ten cooldown lines`).toBeGreaterThanOrEqual(10);
+        expect.soft(m.cooldownLines, `${at}: ten cooldown lines on the page`).toBeGreaterThanOrEqual(10);
         expect.soft(m.bar ?? Infinity, `${at}: the bar on the screen`).toBeLessThanOrEqual(m.innerHeight + 0.5);
         if (width !== 1280) {
           expect.soft(m.plan ?? Infinity, `${at}: the lane plan whole on the first screen`).toBeLessThanOrEqual(m.innerHeight + 0.5);
           expect.soft(m.firstCooldowns ?? Infinity, `${at}: the first enemy's cooldown lines on the first screen`).toBeLessThanOrEqual(m.innerHeight + 0.5);
         }
-        if (width === 2560) expect.soft(m.cooldowns ?? Infinity, `${at}: both enemies' cooldown lines on the first screen`).toBeLessThanOrEqual(m.innerHeight + 0.5);
         expect.soft(m.scrollWidth, `${at}: no sideways page scroll`).toBeLessThanOrEqual(m.clientWidth);
         expect.soft(m.scrollers, `${at}: nothing scrolls inside the page`).toEqual([]);
         expect.soft(m.small, `${at}: no text under the 2xs size (0.6875rem)`).toBeGreaterThanOrEqual(0.6875 - 0.001);
@@ -324,16 +318,22 @@ test("the bot lane: one lane plan with both enemies' kits, whole on the first sc
   const lastEnemy = DUO_FIT_RUN.at(-1)![3];
   await expect(kit.getByTestId("abilities-source")).toBeHidden();
   await expect(kit.getByTestId("matchup-enemy-abilities-sources").locator(":scope > summary")).toHaveAccessibleName(`Riot's data · Sources for ${lastEnemy}'s abilities`);
-  await expect(page.getByTestId("matchup-enemy2-abilities-sources").locator(":scope > summary")).toHaveAccessibleName(/^Riot's data · Sources for \w+'s abilities$/);
+  await expect(page.getByTestId("matchup-enemy2-abilities-sources").locator(":scope > summary")).toHaveAccessibleName(/^Riot's data · Sources for \w+'s abilities$/, { timeout: 15_000 });
   await kit.getByTestId("matchup-enemy-abilities-sources").locator(":scope > summary").click();
   await expect(kit.getByTestId("abilities-source-folded")).toBeVisible();
   await expect(kit.getByTestId("abilities-source-folded")).toContainText("Base cooldowns, without ability haste");
-  await expect(page.getByTestId("matchup-enemy2-abilities")).toContainText("Base cooldowns, without ability haste");
-  const tools = page.getByTestId("assembled-duo-tools");
-  await expect(tools.getByTestId("assembled-opportunity")).toHaveCount(2);
-  await expect(tools.getByTestId("assembled-opportunity").first()).toBeHidden();
+  // The second strip: closed, named, and the one haste above applies to its lines too.
+  const second = page.getByTestId("matchup-enemy2-abilities-fold");
+  await expect(second).not.toHaveAttribute("open", "");
+  await expect(page.getByTestId("matchup-enemy2-abilities")).toContainText("the haste chosen above applies here too");
+  await page.getByTestId("matchup-enemy2-abilities-summary").click();
+  await expect(page.getByTestId("matchup-enemy2-abilities").getByTestId("ability-row").first()).toBeVisible();
+  // Every champion's other tools, the enemies' own and your duo's, one press away under the dangers.
+  const tools = page.getByTestId("assembled-other-tools");
+  await expect(tools.getByTestId("assembled-yours")).toHaveCount(2);
+  await expect(tools.getByTestId("assembled-yours").first()).toBeHidden();
   await tools.locator(":scope > summary").click();
-  await expect(tools.getByTestId("assembled-opportunity").first()).toBeVisible();
+  await expect(tools.getByTestId("assembled-yours").first()).toBeVisible();
   await page.getByTestId("matchup-full-reference-summary").click();
   await page.getByTestId("matchup-ally-abilities").locator(":scope > summary").click();
   await expect(page.getByTestId("matchup-ally-abilities").getByTestId("your-abilities-source-inside")).toBeVisible();
@@ -647,7 +647,11 @@ test("every pair gives a meaningful reference, labelled for what it is: a sweep 
       none: [...panel.querySelectorAll('[data-testid="ability-facts-none"]')].map((e) => e.textContent?.trim() ?? ""),
     }));
     for (const d of riot.descriptions) expect(d, at).toMatch(/From Riot's ability text, reviewed automatically \(not by a person\)\.$/);
-    if (riot.label) for (const n of riot.none) expect(n, at).toBe("No reviewed facts for this ability");
+    // The abilities with no reviewed fact, said once under the strip.
+    if (riot.label) {
+      expect(riot.none.length, at).toBeLessThanOrEqual(1);
+      for (const n of riot.none) expect(n, at).toMatch(/^No reviewed facts for (Passive|[QWER])(, [QWER])*( and [QWER])?$/);
+    }
   }
   expect(errors).toEqual([]);
 });
@@ -715,10 +719,12 @@ test("the facts from Riot's text, as the review recorded them: a qualifier with 
   await hydrated(page);
   const gnarW = tileOf(page, "W").getByTestId("fact-chip");
   await expect(gnarW).toHaveCount(1);
-  await expect(gnarW).toContainText("Stun · “Mega Gnar”");
+  // The chip names its kind; Riot's addition is said under the chips, never as the chip's quote.
+  await expect(gnarW).toHaveText(/^Crowd control: ?Stun$/);
+  await expect(tileOf(page, "W").getByTestId("fact-qualifier")).toHaveText("Stun: Riot adds “Mega Gnar”");
   await expect(gnarW).toHaveAccessibleDescription("“stunning enemies in an area.” (Riot's description of Hyper / Wallop) Riot adds “Mega Gnar” From Riot's ability text, reviewed automatically (not by a person).");
   // The assembled reference shows the same chip in its group.
-  await expect(page.getByTestId("assembled-danger").getByTestId("assembled-chip").filter({ hasText: "Mega Gnar" })).toHaveCount(2);
+  await expect(page.getByTestId("assembled-danger").getByTestId("fact-qualifier").filter({ hasText: "Mega Gnar" })).toHaveCount(1);
   // Annie's passive: the stun holds only under a condition Riot's text names with a number, so the
   // owner's marker is under the chips, naming it, and in its tip with the quote, one tap away.
   await openMatchupIntel(page, "Riven", "Annie");
@@ -762,14 +768,16 @@ test("the facts from Riot's text, as the review recorded them: a qualifier with 
   }
   // Karma's passive refunds Mantra's cooldown, and the chip names it.
   await openMatchupIntel(page, "Riven", "Karma");
-  await expect(tileOf(page, "P").getByTestId("fact-chip")).toContainText("Cooldown refund of “Mantra”");
+  await expect(tileOf(page, "P").getByTestId("fact-qualifier")).toHaveText("Cooldown refund: cuts the cooldown of “Mantra”");
   // Kog'Maw, one fact: every other ability says it has no reviewed fact, every empty group the same, never "none".
   await openMatchupIntel(page, "Riven", "KogMaw");
   await hydrated(page);
   await expect(page.getByTestId("matchup-enemy-abilities").getByTestId("fact-chip")).toHaveCount(1);
-  await expect(page.getByTestId("matchup-enemy-abilities").getByTestId("ability-facts-none")).toHaveText(Array(4).fill("No reviewed facts for this ability"));
-  await expect(page.getByTestId("assembled-danger").getByTestId("assembled-none")).toHaveText(/^No reviewed facts of these kinds: [A-Z][a-z ]+(, [A-Z][a-z ]+)* and [A-Z][a-z ]+\.$/);
-  await expect(page.getByTestId("assembled-danger").getByTestId("assembled-group")).toHaveCount(1);
+  await expect(page.getByTestId("matchup-enemy-abilities").getByTestId("ability-facts-none")).toHaveText(/^No reviewed facts for (Passive|[QWER])(, [QWER])* and [QWER]$/);
+  // His danger and his other tools: one group holding his fact, every other kind named once in fixed words, never "none".
+  const sides = page.getByTestId("matchup-assembled").locator('[data-testid="assembled-danger"], [data-testid="assembled-tools"]');
+  await expect(sides.getByTestId("assembled-group")).toHaveCount(1);
+  for (const line of await sides.getByTestId("assembled-none").allTextContents()) expect(line).toMatch(/^No reviewed facts of (this kind|these kinds): [A-Z][a-z ]+((, [A-Z][a-z ]+)* and [A-Z][a-z ]+)?\.$/);
   // How they were reviewed, in the sources, from the review's record; never "verified".
   await page.getByTestId("matchup-sources").locator(":scope > summary").click();
   await expect(page.getByTestId("matchup-footer-riot-text")).toContainText("Reviewed by two independent automated reviewers and an adjudicator, then a consistency pass checked by two more independent automated checkers; no person has checked them. No number in that text is used for these facts.");

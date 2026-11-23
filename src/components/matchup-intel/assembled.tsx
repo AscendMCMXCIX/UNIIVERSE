@@ -304,28 +304,22 @@ export function AssembledReference({ you, enemy, enemyIntel, yourIntel, enemy2In
         {levels}
         {mirror ? (
           <KitSide side="both" part="all" kit={kitOf(enemyIntel)} intel={enemyIntel} champion={enemy} title="Both sides" subtitle={dangerSideWords(enemy.name)} rows={rows} />
-        ) : duo ? (
+        ) : (
           <>
-            {/* The bot lane: both enemies' dangers side by side; every champion's other tools one press away. */}
+            {/* The enemies' dangers first (in the bot lane both, side by side); every champion's other tools,
+                the enemies' own shields, heals, mobility and buffs and your side's kit, one press away. */}
             <div className={cn("grid gap-3", enemies.length > 1 && "@min-[36rem]/kits:grid-cols-2")} data-sides={enemies.length}>
               {enemies.map(danger)}
             </div>
-            <Fold variant="inline" tone="fg" testId="assembled-duo-tools" summary={<span>{duoToolsWords([...enemies, ...allies].map((i) => i.champion.name))}</span>}>
-              <div className="grid gap-3 @min-[36rem]/kits:grid-cols-2">
-                {enemies.filter(listed).map(tools)}
-                {allies.map(mine)}
-              </div>
-            </Fold>
+            {[...enemies.filter(listed), ...allies].length ? (
+              <Fold variant="inline" tone="fg" testId="assembled-other-tools" summary={<span>{duoToolsWords([...enemies.filter(listed), ...allies].map((i) => i.champion.name))}</span>}>
+                <div className="grid gap-3 @min-[36rem]/kits:grid-cols-2">
+                  {enemies.filter(listed).map(tools)}
+                  {allies.map(mine)}
+                </div>
+              </Fold>
+            ) : null}
           </>
-        ) : (
-          // The enemy's danger and its other tools in one column, your champion's tools beside them from 36rem.
-          <div className={cn("grid gap-3", allies.length && "@min-[36rem]/kits:grid-cols-2")} data-sides={1 + allies.length}>
-            <div className="min-w-0 space-y-2.5">
-              {danger(enemyIntel)}
-              {listed(enemyIntel) ? tools(enemyIntel) : null}
-            </div>
-            {allies.map(mine)}
-          </div>
         )}
         {tips.length ? (
           <div className={cn("grid gap-3 border-t border-border pt-2.5", tips.length > 1 && "@min-[36rem]/kits:grid-cols-2")} data-testid="assembled-riot-tips">
