@@ -6,9 +6,8 @@ export interface DdragonOptions {
   locale?: string;
   /**
    * The one version to read instead of Data Dragon's newest (default `DDRAGON_VERSION`; empty means
-   * none). The browser tests' server pins the version the curated Matchup Intel notes were checked
-   * on, so their pages stay the same as Riot ships patches (docs/MATCHUP_INTEL.md, "What the
-   * browser tests pin"). Never set in production.
+   * none). The browser tests' server pins one (e2e/ddragon-version.ts), so their pages, Champion
+   * Lookup's numbers among them, stay the same as Riot ships patches. Never set in production.
    */
   version?: string;
   timeoutMs?: number;

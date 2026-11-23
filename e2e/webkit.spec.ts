@@ -4,7 +4,6 @@ import { emulateKeyboard, keyboard } from "./keyboard";
 import { untilStill } from "./modal-corner";
 import { openMatchWindow } from "./match-history";
 import { bubbleFacts, NOT_A_PICTURE, NOT_A_PICTURE_ERROR, openPictureEditor, placedRight, toastFacts } from "./popups";
-import { riotText } from "./matchup-intel";
 import { pullDown } from "./pull";
 import { pick, ready, SELECT_LOOK, selectLook, valueOf } from "./select";
 import path from "node:path";
@@ -37,7 +36,7 @@ async function fitsWidth(page: Page, label: string) {
 }
 
 test("the priority pages load without an error and without sideways scrolling", async ({ page }) => {
-  for (const route of ["/team", "/players", "/leaderboards", "/matches", "/resources", "/resources/matchups", "/resources/matchups?champion=Riven&vs=Mordekaiser", "/settings", "/admin", "/admin/people", "/admin/system"]) {
+  for (const route of ["/team", "/players", "/leaderboards", "/matches", "/resources", "/lookup", "/lookup?champion=LeeSin&haste=40", "/settings", "/admin", "/admin/people", "/admin/system"]) {
     await page.goto(route);
     await expect(page.locator("main"), route).toBeVisible();
     await expect(page.locator("h1").first(), route).toBeVisible();
@@ -211,135 +210,59 @@ test("a teammate's profile: its sections switch, and a champion's preview sheet 
   await expect(tabs.getByRole("link", { name: "History" })).toHaveAttribute("aria-current", "page");
 });
 
-test("Matchup Intel: a slot's picker fills the screen, a search and a tap choose, the focus comes back to the slot, details open and a chip's row lands under the top bar", async ({ page }) => {
-  await page.goto("/resources/matchups?champion=Riven");
-  await expect(page.getByTestId("matchup-pick-you")).toHaveAttribute("data-champion", "Riven");
-  const slot = page.getByTestId("matchup-pick-enemy");
-  const win = page.getByTestId("matchup-picker");
-  // A tap before the page's code has run is kept and opens the window once it runs; tap until it is open.
-  await expect(async () => {
-    if (!(await win.isVisible())) await slot.tap({ timeout: 2_000 });
-    await expect(win).toBeVisible({ timeout: 1_000 });
-  }).toPass({ timeout: 15_000 });
-  // A screen of its own on a phone, with nothing in it reaching past its edge, measured once its
-  // opening motion (which scales it up from 97%) is over.
-  await untilStill(page);
-  const box = (await win.boundingBox())!;
-  expect(box.width).toBeGreaterThanOrEqual(page.viewportSize()!.width - 1);
-  await fitsWidth(page, "the picker window");
-  const search = win.getByTestId("matchup-picker-search");
-  await search.tap();
-  await search.fill("morde");
-  await expect(win.getByTestId("matchup-picker-count")).toHaveText("1 champion found");
-  await win.getByTestId("matchup-picker-grid").locator('button[data-champion="Mordekaiser"]').tap();
-  await expect(win).toHaveCount(0);
-  await expect(page).toHaveURL(/\?role=top&champion=Riven&vs=Mordekaiser$/);
-  await expect(page.getByTestId("matchup-briefing")).toBeVisible();
-  // The window gave the focus back to the slot it opened from, which stays on the page.
-  await expect(slot).toBeFocused();
-  await fitsWidth(page, "Riven vs Mordekaiser");
-  // A tile's details open with a tap, in a window over the whole screen that closes back onto the tile.
-  const details = page.getByTestId("matchup-enemy-abilities").getByTestId("ability-details").first();
-  await details.tap();
-  const body = page.getByTestId("ability-details-body");
-  await expect(body).toBeVisible();
-  await untilStill(page);
-  await fitsWidth(page, "an ability's details window");
-  await page.getByRole("dialog").getByRole("button", { name: /^Close/ }).tap();
-  await expect(body).toBeHidden();
-  await expect(details).toBeFocused();
-  // The sources and notices open with a tap, from their line at the dashboard's foot.
-  const sources = page.getByTestId("matchup-sources");
-  await sources.locator(":scope > summary").tap();
-  await expect(sources).toHaveAttribute("open", "");
-  await expect(page.getByTestId("matchup-footer-riot")).toBeVisible();
-  // A briefing chip brings its row into view below the top bar, and gives it the focus.
-  // The first one in view: a card's lead is its first sentence, and chips in the rest of its text wait behind its "More".
-  const chip = page.getByTestId("matchup-briefing").locator('[data-testid="briefing-ability"][data-anchor^="ability-Mordekaiser-"]').filter({ visible: true }).first();
-  const anchor = (await chip.getAttribute("data-anchor"))!;
-  await chip.tap();
-  const row = page.locator(`#${anchor}`);
-  await expect(row).toBeFocused();
-  await expect(row).toBeInViewport();
-  // Under the bar as it is once landed (in Safari's 659px the top bar's first row slides away as the page scrolls down).
-  await expect.poll(async () => (await row.boundingBox())!.y - (await page.getByTestId("mobile-topbar").evaluate((b) => b.getBoundingClientRect().bottom)), { message: "the row's top, under the top bar" }).toBeGreaterThanOrEqual(-1);
-  // Once the slots have scrolled away, the pinned pair bar: a tap on the enemy's portrait opens the
-  // picker with no scroll back up, and "Copy link" is a named button in the bar.
-  await expect(page.getByTestId("matchup-pair-bar")).toBeVisible();
-  const y = await page.evaluate(() => window.scrollY);
-  await page.getByTestId("matchup-bar-enemy").tap();
+test("Champion Lookup on an iPhone: the search is 16px and a tap on a match chooses, a haste changes the numbers, Descriptions unfold, All champions fills the screen, and nothing is wider than the phone", async ({ page }) => {
+  await page.goto("/lookup");
+  const input = page.getByTestId("lookup-search-input");
+  // 16px, so Safari never zooms into the field.
+  expect(await input.evaluate((e) => parseFloat(getComputedStyle(e).fontSize))).toBeGreaterThanOrEqual(16);
+  await input.tap();
+  await input.fill("ahr");
+  const option = page.getByTestId("lookup-search-option").first();
+  await expect(option).toHaveAttribute("data-champion", "Ahri");
+  await option.tap();
+  await expect(page).toHaveURL(/\/lookup\?champion=Ahri$/);
+  await expect(page.getByTestId("lookup-panel")).toHaveAttribute("data-champion", "Ahri");
+  // The keyboard goes down on a touch screen once a champion is chosen.
+  await expect(input).not.toBeFocused();
+  await expect(page.getByTestId("lookup-ability")).toHaveCount(5);
+  await fitsWidth(page, "Ahri");
+  // A quick haste value: the numbers change by Riot's rule, in place, and the address keeps it.
+  await page.getByTestId("lookup-haste").locator('button[data-haste="20"]').tap();
+  const q = page.locator('[data-testid="lookup-ability"][data-slot="Q"]');
+  await expect(q.getByTestId("lookup-hasted")).toHaveAttribute("data-values", "5.83,5.83,5.83,5.83,5.83");
+  await expect(page).toHaveURL(/\/lookup\?champion=Ahri&haste=20$/);
+  // Another value typed: digits only, 16px.
+  const other = page.getByTestId("lookup-haste-input");
+  expect(await other.evaluate((e) => parseFloat(getComputedStyle(e).fontSize))).toBeGreaterThanOrEqual(16);
+  await other.tap();
+  await other.fill("100");
+  await expect(q.getByTestId("lookup-hasted")).toHaveAttribute("data-values", "3.5,3.5,3.5,3.5,3.5");
+  await fitsWidth(page, "Ahri at 100 haste");
+  // Descriptions unfold with a tap, and fold again.
+  await page.getByTestId("lookup-descriptions").tap();
+  await expect(page.getByTestId("lookup-description")).toHaveCount(5);
+  await fitsWidth(page, "Ahri's descriptions");
+  await page.getByTestId("lookup-descriptions").tap();
+  await expect(page.getByTestId("lookup-description")).toHaveCount(0);
+  // All champions: a screen of its own on a phone, a search and a tap choose, and the window closes.
+  await page.getByTestId("lookup-browse").tap();
+  const win = page.getByTestId("lookup-picker");
   await expect(win).toBeVisible();
-  await win.getByTestId("matchup-picker-close").tap();
-  await expect(win).toHaveCount(0);
-  expect(await page.evaluate(() => window.scrollY)).toBe(y);
-  await expect(page.getByTestId("matchup-copy-link")).toHaveAccessibleName("Copy link to this matchup");
-  // A briefing row's "what it means" opens with a tap on its heading's ⓘ: numbers only.
-  await page.evaluate(() => window.scrollTo(0, 0));
-  const means = page.getByTestId("briefing-threat").getByTestId("briefing-means");
-  await means.tap();
-  await expect(page.getByTestId("briefing-means-bubble")).toContainText(/^What it means: Mordekaiser's [PQWER] cooldown [\d ./]+\u00a0s at 0 haste \(/);
-  await page.mouse.click(5, 5);
-  // The picker of a member's own slot offers their pool, a tap away; the role filter narrows the roster.
-  await page.context().addCookies([{ name: "uniiverse_demo_viewer", value: "member", url: new URL(page.url()).origin }]);
-  await page.goto("/resources/matchups?role=adc&vs=Caitlyn");
-  const you = page.getByTestId("matchup-pick-you");
-  await expect(async () => {
-    if (!(await win.isVisible())) await you.tap({ timeout: 2_000 });
-    await expect(win).toBeVisible({ timeout: 1_000 });
-  }).toPass({ timeout: 15_000 });
-  await win.getByRole("group", { name: "Filter by role" }).getByRole("button", { name: "Bottom" }).tap();
-  await expect(win.getByTestId("matchup-picker-role-note")).toBeVisible();
-  await fitsWidth(page, "the picker window with its role filter");
-  const first = win.getByTestId("matchup-picker-pool").locator("button[data-champion]").first();
-  const id = (await first.getAttribute("data-champion"))!;
-  await first.tap();
-  await expect(win).toHaveCount(0);
-  await expect(you).toHaveAttribute("data-champion", id);
-  await expect(you).toBeFocused();
-});
-
-test("Matchup Intel's facts from Riot's text on an iPhone: a tap on a chip quotes it, on \"Riot's texts differ\" gives both quotes, and the details window says the same; nothing is wider than the phone", async ({ page }) => {
-  // The facts from Riot's text ship switched off (src/server/matchup-intel/riot-text/switch.ts): on for this test.
-  await riotText(page, "on");
-  await page.goto("/resources/matchups?champion=Riven&vs=Yone");
-  await expect(page.getByTestId("matchup-dashboard")).toHaveAttribute("data-layer", "assembled");
-  await expect(page.getByTestId("matchup-remembered")).not.toHaveAttribute("data-state", "loading");
-  const r = page.locator('[data-testid="matchup-enemy-abilities"] [data-testid="ability-row"][data-slot="R"]');
-  // Yone's R: Riot's description says a pull, its tooltip a knock-up; one chip says so, and a tap opens both quotes.
-  const differ = r.getByTestId("fact-chip-differ");
-  await differ.scrollIntoViewIfNeeded();
-  await differ.tap();
-  const bubble = page.getByTestId("fact-chip-differ-bubble");
-  await expect(bubble).toContainText("Pull, in Riot's description of Fate Sealed");
-  await expect(bubble).toContainText("Knock-up, in Riot's tooltip for Fate Sealed");
-  await expect(bubble).toContainText("Neither is shown as a fact.");
-  // A second tap closes it, as every tip does.
-  await differ.tap();
-  await expect(bubble).toHaveCount(0);
-  // Yone's Q: a conditional fact, the owner's marker under the chips, its quote one tap away.
-  const q = page.locator('[data-testid="matchup-enemy-abilities"] [data-testid="ability-row"][data-slot="Q"]');
-  await expect(q.getByTestId("ability-facts-conditional")).toContainText("Conditional: see Riot's text (");
-  // The tile in the middle of the screen first: a chip under the phone's lower edge made the second
-  // tap scroll it into view, and a scroll closes a tapped bubble (as a finger's would), so that tap
-  // opened it again and the open bubble then kept the Details button's tap (the tap that closes a
-  // bubble does nothing else): the intermittent failure at the details window (Release 10).
-  await q.evaluate((e) => e.scrollIntoView({ block: "center" }));
-  await q.getByTestId("fact-chip").first().tap();
-  await expect(page.getByTestId("fact-chip-bubble")).toContainText("Conditional: see Riot's text.");
-  await q.getByTestId("fact-chip").first().tap();
-  await expect(page.getByTestId("fact-chip-bubble")).toHaveCount(0);
-  await fitsWidth(page, "Riven vs Yone");
-  // The details window lists both quotes and the other wording, and closes back onto its button.
-  const details = r.getByTestId("ability-details");
-  await details.tap();
-  const body = page.getByTestId("ability-details-body");
-  await expect(body.getByTestId("ability-details-differ")).toContainText("Neither is shown as a fact.");
-  await expect(body.getByTestId("ability-details-also")).toContainText("Riot's description calls it blink");
   await untilStill(page);
-  await fitsWidth(page, "Fate Sealed's details window");
-  await page.getByRole("dialog").getByRole("button", { name: /^Close/ }).tap();
-  await expect(body).toBeHidden();
-  await expect(details).toBeFocused();
+  expect((await win.boundingBox())!.width).toBeGreaterThanOrEqual(page.viewportSize()!.width - 1);
+  await fitsWidth(page, "All champions");
+  const search = win.getByTestId("lookup-picker-search");
+  await search.tap();
+  await search.fill("lee");
+  await win.getByTestId("lookup-picker-grid").locator('button[data-champion="LeeSin"]').tap();
+  await expect(win).toHaveCount(0);
+  await expect(page.getByTestId("lookup-panel")).toHaveAttribute("data-champion", "LeeSin");
+  await expect(page).toHaveURL(/\/lookup\?champion=LeeSin&haste=100$/);
+  // Two abilities in one slot: said in words, Riot's array as Riot's, and no haste applied.
+  const leeQ = page.locator('[data-testid="lookup-ability"][data-slot="Q"]');
+  await expect(leeQ.getByTestId("lookup-no-number")).toContainText("Two abilities share this slot in Riot's data · no haste applied");
+  await expect(leeQ).toContainText("Riot lists 10 / 9 / 8 / 7 / 6\u00a0s for the slot.");
+  await fitsWidth(page, "Lee Sin");
 });
 
 test("Leaderboards on an iPhone: the index brings each section under the top bar, focused, the old Records address lands on its section, and nothing is wider than the phone, at a larger text size too", async ({ page }) => {
@@ -653,7 +576,7 @@ test("Admin Mode: the account screen's switch moves between Admin Mode and Playe
   await expect(sheet).toBeVisible();
   await sheet.getByTestId("mode-switch").tap();
   await expect(page).toHaveURL(/\/team$/);
-  await expect(tabs).toHaveText(["My Profile", "Team", "Matchup Intel", "Resources"]);
+  await expect(tabs).toHaveText(["My Profile", "Team", "Champion Lookup", "Resources"]);
   await expect(page.getByTestId("team-chrome-tabs").getByRole("link")).toHaveText(["Overview", "Players", "Leaderboards", "Matches"]);
   // Back (Safari's swipe from the edge) closes the account screen and the page stays.
   await page.getByTestId("account-sheet-button").tap();

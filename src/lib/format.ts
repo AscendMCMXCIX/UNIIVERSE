@@ -207,7 +207,7 @@ export function formatSeconds(value: number): string {
 }
 
 /**
- * Values at each rank, as Matchup Intel writes them, `unit` after the last ("s", "%", or nothing):
+ * Values at each rank, as Champion Lookup writes them, `unit` after the last ("s", "%", or nothing):
  * "25 / 35 / 45%"; a single value "40%"; the same value at every rank once, "40% at every rank", or
  * "40%" when `per` is null. "s" follows its number after a no-break space ("8 / 7 / 6 s"), so a
  * line never ends between them. `per` names the steps: "rank", or "level" for a passive that changes
@@ -220,43 +220,4 @@ export function formatPerRank(values: readonly number[], unit: "s" | "%" | "", p
   if (values.length === 1) return `${formatSeconds(values[0]!)}${suffix}`;
   if (values.every((v) => v === values[0])) return `${formatSeconds(values[0]!)}${suffix}${per ? ` at every ${per}` : ""}`;
   return `${values.map(formatSeconds).join(" / ")}${suffix}`;
-}
-
-/**
- * A base cooldown at each rank, as Matchup Intel writes it: "8 / 7 / 6 / 5 / 4 s"; the same value at
- * every rank once, "13 s at every rank"; a single value "13 s". `per` names the steps: "rank", or
- * "level" for a passive that changes with the champion's level. "—" when there is no number (an empty
- * list, or a value that is not a non-negative number): a cooldown is never guessed.
- */
-export function formatCooldowns(values: readonly number[], per: "rank" | "level" = "rank"): string {
-  return formatPerRank(values, "s", per);
-}
-
-/**
- * A base cooldown at each rank in a dense list, as Matchup Intel's grouped facts write it beside a
- * fact ("14/12/10/8/6 s"): formatCooldowns without the spaces around each "/". The same value at
- * every rank stays "13 s at every rank", and "—" where there is no number.
- */
-export function formatCooldownsTight(values: readonly number[]): string {
-  return formatCooldowns(values).replace(/ \/ /g, "/");
-}
-
-/**
- * A number, with its "%" or "°" if it has one, followed by one space and a word: whatever the word is,
- * a unit or a count ("1.625 s", "50 Fury", "7% AP", "360 radius", "6 snips", "180° sweep") or any
- * other ("2 more times"). No list of units to keep up to date: a curator's new unit is covered too.
- */
-const WORD_AFTER_NUMBER = /(\d[%\u00b0]?) (?=\p{L})/gu;
-
-/**
- * Curated text as Matchup Intel draws it: each number joined to the word after it by a no-break
- * space where one space separates them (the notes write no other: no tab, no double space), so a
- * line never ends between a number and the word after it, and never starts with a unit
- * ("1.625 s", not "s" alone on the next line). A unit of several words can still wrap after its
- * first word ("80% bonus" | "AD").
- * A number before anything but a word ("6, 11", "8 / 7", "320 (by level)") keeps its ordinary space,
- * and nothing else in the text changes.
- */
-export function keepUnitsWithNumbers(text: string): string {
-  return text.replace(WORD_AFTER_NUMBER, "$1\u00a0");
 }

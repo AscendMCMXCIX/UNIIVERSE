@@ -1,5 +1,5 @@
 {
-  "_note": "Data Dragon's own numbers for every champion (championFull.json, en_US), copied as Riot gives them with no rule applied: each spell as [id, maxrank, cooldown, maxammo] (maxammo null when absent); and Riot's tips as Riot gives them (allytips, enemytips; null when absent). Written with the offline fixture by scripts/matchup-intel/build-ability-fixture.mjs; src/server/matchup-intel/abilities.test.ts holds every champion of the fixture to it, so CI needs no championFull.json.",
+  "_note": "Data Dragon's own numbers for every champion (championFull.json, en_US), copied as Riot gives them with no rule applied: each spell as [id, maxrank, cooldown, maxammo] (maxammo null when absent); and Riot's tips as Riot gives them (allytips, enemytips; null when absent). Written with the offline fixture by scripts/static/build-ability-fixture.mjs; src/server/riot/static/abilities.test.ts holds every champion of the fixture to it, so CI needs no championFull.json.",
   "version": "16.22.1",
   "champions": {
     "Aatrox": [["AatroxQ",5,[14,12,10,8,6],"-1"],["AatroxW",5,[18,16.5,15,13.5,12],"-1"],["AatroxE",5,[9,8,7,6,5],"-1"],["AatroxR",3,[120,100,80],"-1"]],

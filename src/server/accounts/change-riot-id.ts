@@ -6,8 +6,6 @@ import { RiotApiError, type RiotApiClient } from "@/server/riot/api/client";
 import { AccountError, addAccount, listAccountsForPlayer, parseRiotId, reorderAccounts, setMainAccount, type RiotAccountRecord } from "./repository";
 import { accountSyncLeaseKey, claimAccountSync, SCHEDULED_SYNC_LEASE_MS } from "./refresh";
 import { syncAccount } from "./sync";
-import { invalidateCache } from "@/server/observability/cache";
-import { EVIDENCE_CACHE } from "@/server/matchup-intel/evidence-cache";
 
 export type RiotIdChange =
   /** Same PUUID: the account was renamed; only the stored name changed. */
@@ -60,8 +58,6 @@ export async function changeAccountRiotId(db: Db, client: RiotApiClient, account
   // Its place in the player's account order too.
   const order = account.playerId ? (await listAccountsForPlayer(db, account.playerId)).map((a) => a.id).filter((id) => id !== fresh.id).map((id) => (id === account.id ? fresh.id : id)) : [];
   await db.delete(riotAccounts).where(eq(riotAccounts.id, account.id));
-  // Its games' evidence rows went by cascade: Matchup Intel's team counts are counted again (R7 review B1).
-  invalidateCache(EVIDENCE_CACHE);
   if (account.playerId) await reorderAccounts(db, account.playerId, order);
   if (account.label === "main" && account.playerId) await setMainAccount(db, account.playerId, fresh.id);
   // First data straight away; the scheduled sync continues the season history. The claim is

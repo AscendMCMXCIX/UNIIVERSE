@@ -147,7 +147,7 @@ The owner approved OD9 on 23 Nov 2026. The notice's "Account activity log" row s
 
 ## Prepared, not active: high-elo statistics (OD4)
 
-Matchup Intel's anonymous high-elo statistics are built and switched off, and wait for the owner's Riot registration update before they join `main` (commit 6dfccdd0, its docs/HIGH_ELO_EVIDENCE.md). The notice must not describe them as collected until the collection is switched on. When it is, the notice gains this row, and `PRIVACY_UPDATED` changes with it:
+Matchup Intel's anonymous high-elo statistics were built and switched off, and waited for the owner's Riot registration update before they joined `main` (commit 6dfccdd0, its docs/HIGH_ELO_EVIDENCE.md). Matchup Intel was retired on 23 Nov 2026 (docs/MATCHUP_INTEL.md), so nothing in `main` would show them now; this section stays for the record. The notice must not describe them as collected until the collection is switched on. When it is, the notice gains this row, and `PRIVACY_UPDATED` changes with it:
 
 > **What:** Anonymous statistics from ranked games of high-elo players who are not members (Master, Grandmaster and Challenger, in every region Riot's API serves): counts per patch, region, role and champion of their champions, lane opponents, results, rune keystones, summoner spells, starting items, first items, skill order and when the lane ended. **Why:** To show, in Matchup Intel, what such players were observed to do, beside the curated notes. **Who sees it:** Signed-in members, as totals only. **How long:** The current and previous patch; older counts are deleted. No name, Riot ID, PUUID or match identifier is ever stored: the players' identifiers are used only in memory while a sample is taken.
 

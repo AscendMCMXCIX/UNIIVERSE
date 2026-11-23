@@ -3,8 +3,8 @@ import { ASSET_RULES_FORMAT, StaticValidationError, staticProblems } from "./ass
 import { STATIC_DOWNLOAD_STALE_MS, STATIC_SILENT_MS, staticDataHealth } from "@/server/ops/static-health";
 
 /*
-  Validation before publishing the static data (assets.ts, staticProblems; docs/MATCHUP_INTEL.md,
-  "Pipeline"), and the state `/api/health` lists for the static refresh (server/ops/static-health.ts).
+  Validation before publishing the static data (assets.ts, staticProblems; docs/DATA_PIPELINES.md),
+  and the state `/api/health` lists for the static refresh (server/ops/static-health.ts).
 */
 
 const kindlegem = { name: "Kindlegem", description: "<mainText><stats><attention>200</attention> Health<br><attention>10</attention> Ability Haste</stats></mainText>", from: ["1028"], into: ["3067"], maps: { "11": true } };

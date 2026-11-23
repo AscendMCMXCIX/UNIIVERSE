@@ -295,7 +295,7 @@ test("after a link away and Back, closing Team's player or a record's game goes 
       await c.open.click({ timeout: 2_000 });
       await expect(page).toHaveURL(c.param, { timeout: 1_000 });
     }).toPass({ timeout: 15_000 });
-    await page.goto("/resources/matchups");
+    await page.goto("/lookup");
     await page.goBack();
     await expect(page).toHaveURL(c.param);
     const opened = await index();

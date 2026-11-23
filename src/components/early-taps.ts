@@ -19,16 +19,14 @@
   then on the script does nothing. A plain module, not a client one, so the server layout gets the
   script itself.
 
-  A page's own controls can be kept the same way, released by the component that owns them:
-  Matchup Intel's two sides (each side's slot and the page's prompt for it share one kind) open
-  their picker windows (MatchupFrame).
+  A page's own controls can be kept the same way, released by the component that owns them (none
+  does since Matchup Intel's two sides were retired, 23 Nov 2026).
 */
 
 /**
- * What a control opens: its data-early value. The account menu's two triggers share one, as do
- * Matchup Intel's slot and prompt for a side.
+ * What a control opens: its data-early value. The account menu's two triggers share one.
  */
-export type EarlyTap = "sheet" | "sidebar" | "account" | "matchup-you" | "matchup-enemy";
+export type EarlyTap = "sheet" | "sidebar" | "account";
 
 declare global {
   interface Window {

@@ -23,7 +23,7 @@ import { formatDate, isoDay } from "@/lib/format";
 const state = vi.hoisted(() => ({ handle: null as unknown }));
 vi.mock("@/server/db/client", () => ({ getDbHandle: async () => state.handle }));
 import { GET } from "@/app/api/health/route";
-import { staticDiffHealth } from "@/server/matchup-intel/digests";
+import { staticDiffHealth } from "@/server/riot/static/digests";
 
 let handle: DbHandle;
 beforeAll(async () => {

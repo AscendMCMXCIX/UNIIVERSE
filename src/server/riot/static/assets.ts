@@ -14,9 +14,11 @@ import { itemKindsOf, type ItemKinds } from "@/domain/build-path";
 const BASE = (process.env.DDRAGON_BASE_URL ?? "https://ddragon.leagueoflegends.com").replace(/\/$/, "");
 const KEY = "riot_assets";
 /**
- * Matchup Intel's build data, kept beside the names under a key of its own: every match history
- * and timeline read loads the names (about 33 KB), and none of them needs the build data (about 57
- * KB more), which only S7b's build evidence will read (R6 review SR6-SEC-5; docs/HOSTING_USAGE.md).
+ * The build data (items' shop facts, summoner spells' cooldowns, rune trees' slots), kept beside the
+ * names under a key of its own: every match history and timeline read loads the names (about 33 KB),
+ * and none of them needs the build data (about 57 KB more). Made for Matchup Intel's build evidence,
+ * which was retired on 23 Nov 2026; still stored once per version for what may read it next (a game's
+ * build path and runes), read by nothing today (R6 review SR6-SEC-5; docs/HOSTING_USAGE.md).
  */
 const BUILD_KEY = "riot_build_data";
 
@@ -34,7 +36,7 @@ export interface RiotAssets {
   itemKinds?: ItemKinds;
 }
 
-/** What Matchup Intel's build evidence rests on (docs/MATCHUP_INTEL.md, "Static data"), for one game version. */
+/** The build data of one game version: what Matchup Intel's retired build evidence rested on (BUILD_KEY above). */
 export interface RiotBuildData {
   version: string;
   format: number;
@@ -105,7 +107,7 @@ export function compactAssets(version: string, items: Json, summoner: Json, rune
   return { version, format: ASSET_RULES_FORMAT, items: itemMap, spells: spellMap, runes: runeMap, itemKinds: itemKindsOf((items.data ?? {}) as Record<string, unknown>) };
 }
 
-/** Builds Matchup Intel's build data from the same three files: items' shop facts and haste, summoner spells' cooldowns, the rune trees' slots. */
+/** Builds the build data from the same three files: items' shop facts and haste, summoner spells' cooldowns, the rune trees' slots. */
 export function compactBuildData(version: string, items: Json, summoner: Json, runes: unknown): RiotBuildData {
   const itemInfo: Record<string, ItemInfo> = {};
   for (const [id, v] of Object.entries((items.data ?? {}) as Record<string, Json>)) {
@@ -150,7 +152,7 @@ export interface StaticProblems {
 }
 
 /**
- * Validation before publishing (docs/MATCHUP_INTEL.md, "Pipeline"): a version's item.json,
+ * Validation before publishing (docs/DATA_PIPELINES.md): a version's item.json,
  * summoner.json and runesReforged.json are kept only when each names something, every id an item
  * builds from or into is in that version's item.json, and every ability haste figure in a Rift
  * item's stats parses (72 of 72 at 16.22.1 and 16.23.1, 69 of 69 at 15.24.1; no dangling id in any
@@ -262,7 +264,7 @@ export async function loadRiotAssets(db: Db): Promise<RiotAssets | null> {
   }, db);
 }
 
-/** Matchup Intel's build data (S7b's build evidence reads it; nothing else does). */
+/** The build data (BUILD_KEY above): stored for each version; no page reads it since Matchup Intel was retired. */
 export async function loadRiotBuildData(db: Db): Promise<RiotBuildData | null> {
   return cachedFor(BUILD_KEY, 10 * 60_000, async () => {
     const [row] = await db.select({ value: appSettings.value }).from(appSettings).where(eq(appSettings.key, BUILD_KEY));

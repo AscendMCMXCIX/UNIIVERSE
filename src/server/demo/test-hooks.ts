@@ -1,7 +1,14 @@
-import { demoTestHooksAllowed } from "@/server/matchup-intel/notes-age";
+/**
+ * Whether this server may read the browser tests' cookies: the in-memory demo only, never on Vercel
+ * and never with a database address set (a real database, even with the memory mode named beside it
+ * by mistake).
+ */
+export function demoTestHooksAllowed(): boolean {
+  return process.env.UNIIVERSE_DB_MODE === "memory" && !process.env.VERCEL && !process.env.DATABASE_URL;
+}
 
 /*
-  BROWSER TESTS ONLY, like Matchup Intel's hooks (server/matchup-intel/notes-age.ts): All Champions
+  BROWSER TESTS ONLY: All Champions
   folds its list after 20 rows behind "Show all" (all-champions.tsx, FIRST), and no demo profile
   plays more than 8 champions. A test names a smaller fold ("3") so a row reached through Show all
   can be tested on the demo's data; nothing else on the page moves. Read only on the in-memory demo.

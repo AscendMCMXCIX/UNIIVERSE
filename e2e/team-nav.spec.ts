@@ -94,7 +94,7 @@ test("the collapsed sidebar keeps Team as one marked icon", async ({ page }, inf
 
 test("Clash Scout is gone: no entry, tab or link in any navigation, the phone bar is its four destinations, and its addresses are not found", async ({ page }) => {
   const width = page.viewportSize()?.width ?? 0;
-  const entries = ["nav-overview", "nav-team", "nav-resources-matchups", "nav-resources"];
+  const entries = ["nav-overview", "nav-team", "nav-lookup", "nav-resources"];
   await page.goto("/team");
   await expect(page.locator("a[href^='/clash']")).toHaveCount(0);
   await expect(page.getByRole("link", { name: /Clash Scout|Scout/ })).toHaveCount(0);
@@ -111,7 +111,7 @@ test("Clash Scout is gone: no entry, tab or link in any navigation, the phone ba
     if (isPhone(page)) {
       // The bar shares its width between the sidebar's four destinations, with Team lit; the account screen holds the account's items.
       const bar = page.getByTestId("phone-tabbar");
-      await expect(bar.locator("a")).toHaveText(["My Profile", "Team", "Matchup Intel", "Resources"]);
+      await expect(bar.locator("a")).toHaveText(["My Profile", "Team", "Champion Lookup", "Resources"]);
       await expect(bar.locator("a[aria-current=page]")).toHaveText("Team");
       const cells = await bar.locator("li").evaluateAll((lis) => lis.map((li) => li.getBoundingClientRect().width));
       expect(cells).toHaveLength(4);
@@ -141,7 +141,7 @@ test("Clash Scout is gone: no entry, tab or link in any navigation, the phone ba
 test("Meta & Trends is gone: no entry, tab or link in any navigation, and its pages are not found", async ({ page }, info) => {
   await page.goto("/team");
   if (info.project.name === "phone") {
-    await expect(page.getByTestId("phone-tabbar").locator("a")).toHaveText(["My Profile", "Team", "Matchup Intel", "Resources"]);
+    await expect(page.getByTestId("phone-tabbar").locator("a")).toHaveText(["My Profile", "Team", "Champion Lookup", "Resources"]);
     await page.getByTestId("account-sheet-button").click();
     await expect(page.getByTestId("account-sheet")).toBeVisible();
   }

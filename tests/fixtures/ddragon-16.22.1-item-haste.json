@@ -1,5 +1,5 @@
 {
-  "_note": "Data Dragon's own <stats> text of every Summoner's Rift item (map 11, ids of up to four digits) that names ability haste, as Riot gives it: [id, name, stats, purchasable]. Written by scripts/matchup-intel/build-item-digest.mjs; src/server/riot/static/assets.test.ts parses every one.",
+  "_note": "Data Dragon's own <stats> text of every Summoner's Rift item (map 11, ids of up to four digits) that names ability haste, as Riot gives it: [id, name, stats, purchasable]. Written by scripts/static/build-item-digest.mjs; src/server/riot/static/assets.test.ts parses every one.",
   "version": "16.22.1",
   "items": [
     ["2020","The Brutalizer","<stats><attention>25</attention> Attack Damage<br><attention>10</attention> Ability Haste<br><attention>5</attention> Lethality</stats>",true],

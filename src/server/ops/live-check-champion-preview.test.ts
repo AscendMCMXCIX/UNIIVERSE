@@ -50,7 +50,7 @@ describe("All Champions' preview facts", () => {
     expect(failed({ ...DEMO, winRate: "40%" })).toEqual(["desktop: the preview shows the win rate, the wins over the games"]);
     expect(failed({ ...DEMO, winRate: "—" })).toHaveLength(1);
   });
-  it("fail a missing identity, an opponent row without its games and more than one Matchup Intel link", () => {
+  it("fail a missing identity, an opponent row without its games and more than one Champion Lookup link", () => {
     expect(failed({ ...DEMO, portrait: false })).toHaveLength(1);
     expect(failed({ ...DEMO, role: "" })).toHaveLength(1);
     expect(failed({ ...DEMO, opponents: [{ games: 7, says: false }] })).toHaveLength(1);

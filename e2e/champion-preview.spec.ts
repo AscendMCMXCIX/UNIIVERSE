@@ -12,7 +12,7 @@ import { NARROW_MOUSE_WINDOWS, expectInReach } from "./reach";
   click outside close it too. Its content: portrait, role, games and win rate, four tiles of
   averages, then the record against each lane opponent as a compact table (a win rate only from 3
   games, the games beside it), an opponent unfolding into its games (their KDA over them) and the one
-  link to Matchup Intel, and the foot line. Old champion-window addresses (Matchups, the Overview's
+  link to Champion Lookup, and the foot line. Old champion-window addresses (Matchups, the Overview's
   pools) land here.
 */
 
@@ -192,7 +192,7 @@ test("desktop: in a short scrolled window, opening, switching and closing never 
   expect(Math.abs((await last.boundingBox())!.y - y0), "nor on closing").toBeLessThanOrEqual(1);
   expect(await page.evaluate(() => scrollY)).toBe(scroll0);
 });
-test("the content: opponents from 3 games with their games, one unfolding into its games and Matchup Intel", async ({ page }) => {
+test("the content: opponents from 3 games with their games, one unfolding into its games and Champion Lookup", async ({ page }) => {
   const profile = await demoTop(page);
   await page.goto(`${profile}/champions`);
   const row = page.getByTestId("top-champion").first();
@@ -214,7 +214,7 @@ test("the content: opponents from 3 games with their games, one unfolding into i
   await first.getByRole("button").first().click();
   await expect(page).toHaveURL(new RegExp(`vs=${vs}`));
   await expect(content.getByTestId("champion-preview-game").first()).toBeVisible();
-  await expect(content.getByTestId("champion-preview-intel")).toHaveAttribute("href", new RegExp(`/resources/matchups\\?champion=${await row.getAttribute("data-champion")}&vs=${vs}`));
+  await expect(content.getByTestId("champion-preview-intel")).toHaveAttribute("href", `/lookup?champion=${vs}`);
 });
 
 test("old addresses land on the preview: Matchups, a deep link with an opponent, the Overview's pools", async ({ page, context, baseURL }) => {

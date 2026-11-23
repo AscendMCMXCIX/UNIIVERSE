@@ -5,7 +5,7 @@ import type { DdragonChampion, DdragonChampionDetail } from "@/server/riot/stati
 import { getCurrentPatchRow } from "@/server/riot/static/sync";
 import { loadRiotAssets } from "@/server/riot/static/assets";
 import { listChampions } from "@/server/repositories/champions";
-import { loadChampionAbilities } from "@/server/matchup-intel/abilities";
+import { loadChampionAbilities } from "@/server/riot/static/abilities";
 import { runJob } from "@/server/jobs";
 
 /*

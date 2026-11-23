@@ -1,15 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { ADMIN_ENTRIES, ADMIN_HOME, ADMIN_LINKS, MANIFEST_SHORTCUTS, MATCHUP_INTEL, NAV_ENTRIES, NAV_LINKS, PAGE_WIDTH, ROW_WIDTH, RESOURCES, SECTION_HUBS, TEAM_SECTIONS, activeHref, backSteps, canOpen, currentDestination, destinations, encountersRedirect, entryLinks, isActivePath, isNavHub, pageName, pageWidthOf, phoneParent, prefetchOf, profileBase, sectionHubOf, shortcutIcon, withSectionMemory } from "./nav";
-import { MATCHUP_INTEL_PATH } from "@/components/matchup-intel/address";
-import { BookMarked, Swords } from "lucide-react";
+import { ADMIN_ENTRIES, ADMIN_HOME, ADMIN_LINKS, MANIFEST_SHORTCUTS, CHAMPION_LOOKUP, NAV_ENTRIES, NAV_LINKS, PAGE_WIDTH, ROW_WIDTH, RESOURCES, SECTION_HUBS, TEAM_SECTIONS, activeHref, backSteps, canOpen, currentDestination, destinations, encountersRedirect, entryLinks, isActivePath, isNavHub, pageName, pageWidthOf, phoneParent, prefetchOf, profileBase, sectionHubOf, shortcutIcon, withSectionMemory } from "./nav";
+import { LOOKUP_PATH } from "@/components/champion-lookup/address";
+import { BookMarked, ScanSearch } from "lucide-react";
 import type { Session } from "@/server/auth/permissions";
 
 const entryId = (e: (typeof NAV_ENTRIES)[number]) => ("key" in e ? e.key : e.href);
 
 describe("navigation entries", () => {
-  it("Player Mode has single entries only: My Profile, Team, Matchup Intel, then Resources", () => {
-    expect(NAV_ENTRIES.map(entryId)).toEqual(["/overview", "team", "/resources/matchups", "/resources"]);
-    expect(NAV_ENTRIES.map((e) => e.label)).toEqual(["My Profile", "Team", "Matchup Intel", "Resources"]);
+  it("Player Mode has single entries only: My Profile, Team, Champion Lookup, then Resources", () => {
+    expect(NAV_ENTRIES.map(entryId)).toEqual(["/overview", "team", "/lookup", "/resources"]);
+    expect(NAV_ENTRIES.map((e) => e.label)).toEqual(["My Profile", "Team", "Champion Lookup", "Resources"]);
   });
 
   it("Resources is for every signed-in account, and is managed in Admin Mode's Platform Settings", () => {
@@ -58,7 +58,7 @@ describe("navigation entries", () => {
     const named = [...NAV_ENTRIES, ...ADMIN_ENTRIES].filter((e) => e.short);
     expect(named.map((e) => [e.label, e.short])).toEqual([
       ["My Profile", "Profile"],
-      ["Matchup Intel", "Intel"],
+      ["Champion Lookup", "Lookup"],
       ["Users & Permissions", "Users"],
       ["Platform Settings", "Platform"],
     ]);
@@ -84,12 +84,12 @@ describe("navigation entries", () => {
     expect(SECTION_HUBS.map((h) => h.key)).toEqual(["team", "admin-users", "admin-settings", "admin-system"]);
   });
 
-  it("Matchup Intel and Resources are entries of their own, one page each, with no tabs, which every account may open", () => {
-    // Matchup Intel with its swords, at the address every link to it has used (nothing redirects).
-    expect(MATCHUP_INTEL).toEqual({ href: "/resources/matchups", label: "Matchup Intel", short: "Intel", icon: Swords });
-    expect(MATCHUP_INTEL.href).toBe(MATCHUP_INTEL_PATH);
+  it("Champion Lookup and Resources are entries of their own, one page each, with no tabs, which every account may open", () => {
+    // Champion Lookup with its magnifier, at its own address (Matchup Intel's old one redirects to it).
+    expect(CHAMPION_LOOKUP).toEqual({ href: "/lookup", label: "Champion Lookup", short: "Lookup", icon: ScanSearch });
+    expect(CHAMPION_LOOKUP.href).toBe(LOOKUP_PATH);
     expect(RESOURCES).toEqual({ href: "/resources", label: "Resources", icon: BookMarked });
-    for (const link of [MATCHUP_INTEL, RESOURCES]) {
+    for (const link of [CHAMPION_LOOKUP, RESOURCES]) {
       const entry = NAV_ENTRIES.find((e) => !isNavHub(e) && e.href === link.href)!;
       expect(entry, link.label).toBe(link);
       // Neither has tabs, and neither is a section of anything: one place in the sidebar each.
@@ -97,20 +97,20 @@ describe("navigation entries", () => {
       expect(NAV_LINKS.filter((l) => l.href === link.href), link.label).toHaveLength(1);
     }
     const stranger: Session = { userId: "u", role: "player", label: "P", playerId: null, username: "p", hasPassword: true, mustChangePassword: false, setupComplete: true, capabilities: [] };
-    expect([MATCHUP_INTEL, RESOURCES].every((l) => canOpen(stranger, l))).toBe(true);
-    // Matchup Intel is the static reference, kept apart by name from a champion's own Matchups.
-    expect(NAV_LINKS.filter((l) => /matchups/i.test(l.href)).map((l) => l.label)).toEqual(["Matchup Intel"]);
+    expect([CHAMPION_LOOKUP, RESOURCES].every((l) => canOpen(stranger, l))).toBe(true);
+    // No destination is named for matchups any more: a champion's own Matchups live in its window.
+    expect(NAV_LINKS.filter((l) => /matchup/i.test(`${l.href} ${l.label}`))).toEqual([]);
   });
 
-  it("Matchup Intel is marked on its page, whatever pair it shows, and Resources on the Library alone", () => {
+  it("Champion Lookup is marked on its page, whatever champion it shows, and Resources on the Library alone", () => {
     const hrefs = NAV_LINKS.map((l) => l.href);
-    expect(activeHref("/resources/matchups", hrefs)).toBe("/resources/matchups");
+    expect(activeHref("/lookup", hrefs)).toBe("/lookup");
     expect(activeHref("/resources", hrefs)).toBe("/resources");
-    // Resources' address starts Matchup Intel's (kept from when it was Resources' second section),
-    // yet Matchup Intel is not under Resources: Resources is the current page only on itself.
+    // Matchup Intel's old address under Resources only redirects: Resources is the current page only on itself.
     expect(isActivePath("/resources/matchups", RESOURCES.href)).toBe(false);
+    expect(isActivePath("/lookup", RESOURCES.href)).toBe(false);
     expect(isActivePath("/resources", RESOURCES.href)).toBe(true);
-    expect(activeHref("/resources/matchups", [RESOURCES.href, "/settings"])).toBeNull();
+    expect(activeHref("/lookup", [RESOURCES.href, "/settings"])).toBeNull();
   });
 
   it("every hub section belongs to exactly one tab bar", () => {
@@ -128,7 +128,7 @@ describe("navigation entries", () => {
     // Team's four sections are 100rem (Players and Matches were 80rem under a 1600px window until 23 Nov 2026).
     expect(TEAM_SECTIONS.map((s) => pageWidthOf(s.href))).toEqual(["wide", "wide", "wide", "wide"]);
     // A teammate's profile sits under Players' address, in the profile's own (ordinary) width.
-    for (const path of ["/players/p1", "/players/p1/matches", "/resources", "/resources/matchups", "/admin/branding", "/settings", "/overview"]) expect(pageWidthOf(path), path).toBe("max");
+    for (const path of ["/players/p1", "/players/p1/matches", "/resources", "/lookup", "/admin/branding", "/settings", "/overview"]) expect(pageWidthOf(path), path).toBe("max");
     expect(PAGE_WIDTH).toEqual({ max: "max-w-[var(--content-max)]", wide: "max-w-[var(--content-wide)]" });
     // The row of tabs is the set's width, centred in the bar (TabBar's mx-auto) as every page is
     // centred in the room beside the sidebar (app-shell's FRAME), so its first tab starts at the pages' column.
@@ -141,12 +141,12 @@ describe("the destinations every bar shows", () => {
   const adminAll = ADMIN_LINKS.map((l) => l.href);
   const view = (list: ReturnType<typeof destinations>) => list.map((d) => [d.key, d.href, d.label, d.short ?? null]);
 
-  it("Player Mode: My Profile, Team, Matchup Intel and Resources, the sidebar's entries with their names, short names and icons, each to its first page", () => {
+  it("Player Mode: My Profile, Team, Champion Lookup and Resources, the sidebar's entries with their names, short names and icons, each to its first page", () => {
     const list = destinations(all, false);
     expect(view(list)).toEqual([
       ["/overview", "/overview", "My Profile", "Profile"],
       ["team", "/team", "Team", null],
-      ["/resources/matchups", "/resources/matchups", "Matchup Intel", "Intel"],
+      ["/lookup", "/lookup", "Champion Lookup", "Lookup"],
       ["/resources", "/resources", "Resources", null],
     ]);
     expect(list.map((d) => d.icon)).toEqual(NAV_ENTRIES.map((e) => e.icon));
@@ -154,7 +154,7 @@ describe("the destinations every bar shows", () => {
     expect(list[1]!.pages).toEqual(TEAM_SECTIONS.map((s) => s.href));
     expect(list[1]!.hub).toBe("team");
     expect(list.filter((d) => d.hub).map((d) => d.key)).toEqual(["team"]);
-    expect(list[2]!.pages).toEqual(["/resources/matchups"]);
+    expect(list[2]!.pages).toEqual(["/lookup"]);
   });
 
   it("Admin Mode: Dashboard, Users & Permissions, Platform Settings and System, each to the first page of it the account may open", () => {
@@ -176,20 +176,20 @@ describe("the destinations every bar shows", () => {
   });
 
   it("only what the account may open: an account outside the team has no Team; one that may open only Players has Team leading there", () => {
-    expect(destinations(["/overview", "/resources", "/resources/matchups"], false).map((d) => d.href)).toEqual(["/overview", "/resources/matchups", "/resources"]);
+    expect(destinations(["/overview", "/resources", "/lookup"], false).map((d) => d.href)).toEqual(["/overview", "/lookup", "/resources"]);
     expect(destinations(["/overview", "/players", "/resources"], false).map((d) => d.href)).toEqual(["/overview", "/players", "/resources"]);
   });
 
-  it("marks the destination a page belongs to, as the sidebar does: a teammate's profile is Team's, your own profile's sections My Profile's, Matchup Intel its own; none for Settings", () => {
+  it("marks the destination a page belongs to, as the sidebar does: a teammate's profile is Team's, your own profile's sections My Profile's, Champion Lookup its own; none for Settings", () => {
     const list = destinations(all, false);
     const at = (path: string) => currentDestination(path, list)?.key ?? null;
     expect(at("/team")).toBe("team");
     expect(at("/matches")).toBe("team");
-    expect(at("/matches/insights")).toBe("team");
+    expect(at("/matches/bookmarked")).toBe("team");
     expect(at("/players/abc/matches")).toBe("team");
     expect(at("/overview/champions")).toBe("/overview");
     expect(at("/me")).toBe("/overview");
-    expect(at("/resources/matchups")).toBe("/resources/matchups");
+    expect(at("/lookup")).toBe("/lookup");
     expect(at("/resources")).toBe("/resources");
     expect(at("/settings")).toBeNull();
     expect(at("/clash")).toBeNull();
@@ -226,12 +226,12 @@ describe("the destinations every bar shows", () => {
 
   it("the installed app's shortcuts are Player Mode's destinations, in their order and by their names", () => {
     expect(MANIFEST_SHORTCUTS).toEqual(destinations(all, false).map((d) => ({ name: d.label, url: d.href, icon: shortcutIcon(d.icon) })));
-    expect(MANIFEST_SHORTCUTS.map((s) => s.icon)).toEqual(["/icons/shortcuts/circle-user-round.png", "/icons/shortcuts/users.png", "/icons/shortcuts/swords.png", "/icons/shortcuts/book-bookmark.png"]);
+    expect(MANIFEST_SHORTCUTS.map((s) => s.icon)).toEqual(["/icons/shortcuts/circle-user-round.png", "/icons/shortcuts/users.png", "/icons/shortcuts/scan-search.png", "/icons/shortcuts/book-bookmark.png"]);
   });
 
   it("no frame link fetches a profile ahead of a tap (its layout starts the player's Riot refresh); the rest keep Next's default", () => {
     for (const href of ["/overview", "/overview/matches", "/overview/champions?season=16", "/players/abc", "/players/abc/accounts#x"]) expect(prefetchOf(href), href).toBe(false);
-    for (const href of ["/team", "/players", "/leaderboards", "/resources", "/resources/matchups", "/settings", "/admin", "/players/abc/edit"]) expect(prefetchOf(href), href).toBeUndefined();
+    for (const href of ["/team", "/players", "/leaderboards", "/resources", "/lookup", "/settings", "/admin", "/players/abc/edit"]) expect(prefetchOf(href), href).toBeUndefined();
   });
 });
 
@@ -254,15 +254,15 @@ describe("phone top bar", () => {
     // Settings, not a destination, leads home (Back named after the page before goes there when it is known).
     expect(phoneParent("/settings", member, "/team")).toEqual({ href: "/team", label: "Team" });
     for (const d of member) for (const page of d.pages) expect(phoneParent(page, member, "/team"), page).toBeNull();
-    for (const page of ["/overview/champions", "/overview/accounts", "/me", "/matches/insights", "/resources", "/resources/matchups", "/no-access"]) expect(phoneParent(page, member, "/team"), page).toBeNull();
+    for (const page of ["/overview/champions", "/overview/accounts", "/me", "/resources", "/lookup", "/no-access"]) expect(phoneParent(page, member, "/team"), page).toBeNull();
     // An account outside the team: home is its first page, by its destination's name.
-    const personal = destinations(["/overview", "/resources", "/resources/matchups", "/settings"], false);
-    expect(phoneParent("/resources/matchups", personal, "/resources/matchups")).toBeNull();
-    expect(phoneParent("/settings", personal, "/resources/matchups")).toEqual({ href: "/resources/matchups", label: "Matchup Intel" });
+    const personal = destinations(["/overview", "/resources", "/lookup", "/settings"], false);
+    expect(phoneParent("/lookup", personal, "/lookup")).toBeNull();
+    expect(phoneParent("/settings", personal, "/lookup")).toEqual({ href: "/lookup", label: "Champion Lookup" });
   });
 
   it("names a page for Back when its heading was never read: a section by its tab, a set's first by its destination", () => {
-    expect(pageName("/resources/matchups", member)).toBe("Matchup Intel");
+    expect(pageName("/lookup", member)).toBe("Champion Lookup");
     expect(pageName("/resources", member)).toBe("Resources");
     expect(pageName("/settings", member)).toBe("Settings");
     expect(pageName("/players", member)).toBe("Players");
@@ -280,21 +280,21 @@ describe("phone top bar", () => {
 
   it("Back named after the page before goes there, past the entries the current page made of itself", () => {
     const at = (...paths: string[]) => paths.map((p) => ({ url: `https://team.example${p}` }));
-    // Resources, then Matchup Intel and two pairs chosen there: three steps back to Resources, not one pair.
-    const pairs = at("/team", "/resources", "/resources/matchups", "/resources/matchups?champion=Riven", "/resources/matchups?champion=Riven&vs=Mordekaiser");
-    expect(backSteps(pairs, 4, "/resources/matchups", "/resources")).toBe(-3);
+    // Resources, then a page that made two entries of its own address (a window's, say): three steps back to Resources, not one.
+    const pairs = at("/team", "/resources", "/lookup", "/lookup?champion=Riven", "/lookup?champion=Riven&haste=20");
+    expect(backSteps(pairs, 4, "/lookup", "/resources")).toBe(-3);
     // Straight from the page before: one step, as before.
-    expect(backSteps(pairs, 2, "/resources/matchups", "/resources")).toBe(-1);
+    expect(backSteps(pairs, 2, "/lookup", "/resources")).toBe(-1);
     // A profile's sections are one visit.
     expect(backSteps(at("/players", "/players/abc", "/players/abc/matches"), 2, "/players/abc/matches", "/players")).toBe(-2);
     // The history does not show that page there (the visits list and the history disagree): not known.
-    expect(backSteps(pairs, 4, "/resources/matchups", "/leaderboards")).toBeNull();
+    expect(backSteps(pairs, 4, "/lookup", "/leaderboards")).toBeNull();
     // An address that is not shown, an entry that is not one, or nothing before: not known.
-    expect(backSteps([{ url: null }, ...at("/resources/matchups")], 1, "/resources/matchups", "/resources")).toBeNull();
-    expect(backSteps([{ url: "not a url" }, ...at("/resources/matchups")], 1, "/resources/matchups", "/resources")).toBeNull();
-    expect(backSteps(at("/resources/matchups", "/resources/matchups?vs=Riven"), 1, "/resources/matchups", "/resources")).toBeNull();
+    expect(backSteps([{ url: null }, ...at("/lookup")], 1, "/lookup", "/resources")).toBeNull();
+    expect(backSteps([{ url: "not a url" }, ...at("/lookup")], 1, "/lookup", "/resources")).toBeNull();
+    expect(backSteps(at("/lookup", "/lookup?champion=Riven"), 1, "/lookup", "/resources")).toBeNull();
     expect(backSteps(pairs, 0, "/team", "/resources")).toBeNull();
-    expect(backSteps(pairs, 9, "/resources/matchups", "/resources")).toBeNull();
+    expect(backSteps(pairs, 9, "/lookup", "/resources")).toBeNull();
   });
 
   it("Admin Mode: every admin page is a destination's, with no Back; the account's Settings leads back to the Dashboard", () => {

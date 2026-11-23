@@ -16,7 +16,7 @@ import { VERIFY_DISPLAY_NAME, VERIFY_USERNAME } from "@/server/auth/verification
   It is an ordinary member account with no player profile: role "player", the default access
   level (no level of its own, no access group, no custom permissions), not an administrator,
   first-time setup marked done. With no profile it is in no list a member sees (Players, the
-  lineup, leaderboards, statistics, insights: they all read player profiles), it has no Riot
+  lineup, leaderboards and statistics all read player profiles), it has no Riot
   account, so nothing is collected for it, and it holds exactly the access a new member gets. It
   cannot give itself a profile (only the Owner completes one, actions/users.ts) or change its
   username, display name or password in Settings (server/auth/verification-account.ts). It signs in

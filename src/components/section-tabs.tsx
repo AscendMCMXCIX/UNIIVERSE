@@ -13,7 +13,7 @@ import { TabBar } from "@/components/ui/tab-bar";
  *   Users & Permissions  Accounts | Access levels | Personal data (Admin Mode);
  *   Platform Settings    Branding | Previews | Resources (Admin Mode);
  *   System               Health | Data & Integrations | Audit Logs (Admin Mode).
- * Matchup Intel and Resources (the Library) are entries of their own, one page each, with no tabs.
+ * Champion Lookup and Resources (the Library) are entries of their own, one page each, with no tabs.
  * They are the one list of those pages: the sidebar has a single entry, marked on all of them.
  * Every tab is a link with its own address, so deep links, Back/Forward and new tabs work as
  * before. The bar sits in the same place on every section. Team's sections other than Overview

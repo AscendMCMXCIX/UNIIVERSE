@@ -2,8 +2,9 @@
 
 Profile → **All Champions** → a champion opens its **preview**, in the list's scope (season, game
 mode, account) and in the role of the row (PLAN S5, overhaul audit CM §4). It shows the player's own
-results, the same for every viewer who may see the profile; preparation (abilities, cooldowns,
-notes) is Matchup Intel's (docs/MATCHUP_INTEL.md), reached by one link per opponent.
+results, the same for every viewer who may see the profile; an opponent's abilities and cooldowns
+are Champion Lookup's (docs/CHAMPION_LOOKUP.md; Matchup Intel's until 23 Nov 2026), reached by one
+link per opponent.
 
 **Where it opens** (since Release 16, the owner's request of 23 Nov 2026; docs/DESIGN_SYSTEM.md §7,
 "Peek"). From 768px wide (tablets and computers, at any list width, the sidebar open or not) the
@@ -54,7 +55,8 @@ two columns from 50rem.)
    average)", "Gwen had" on a teammate's profile: wording follows the viewer,
    `src/domain/viewer-words.ts`), its games as compact rows (W/L, K/D/A, CS, the gold difference at
    10:00 or "no timeline", the date; the three newest, then "Show all"), each opening the match
-   window; and "Prepare Gwen vs Nasus in Matchup Intel →".
+   window; and "Nasus's abilities in Champion Lookup →" (until 23 Nov 2026 "Prepare Gwen vs
+   Nasus in Matchup Intel →").
 5. **Foot line:** "Lane opponent: the enemy Riot placed in your position" ("their position" on a
    teammate's), with "Known in N of M games" when some games name none.
 
