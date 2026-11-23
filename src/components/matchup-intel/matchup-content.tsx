@@ -1,7 +1,10 @@
 import { History, Swords } from "lucide-react";
 import { DUO_ROLES, type ChampionChoice, type ChampionIntelView, type MatchupPageView } from "@/domain/matchup-intel/types";
 import { EmptyState } from "@/components/ui/empty-state";
-import { AbilitiesPanel, YourChampion } from "./ability-list";
+import { AbilitiesPanel, YourChampion, abilityPeekItemsOf } from "./ability-list";
+import { AbilityPeekProvider } from "./ability-peek";
+import { Fold } from "@/components/ui/fold";
+import { kitOf } from "@/domain/matchup-intel/kit";
 import { AssembledReference } from "./assembled";
 import { Briefing, CuratedLinks, PAIR_CHIP, briefingShows } from "./briefing";
 import { MatchupFooter } from "./matchup-footer";
@@ -9,11 +12,10 @@ import { OpenPickerButton, PairLink } from "./matchup-frame";
 import { slotWords } from "./slots";
 import { RiotTipsPanel } from "./riot-tips";
 import { EvidenceBody, EvidenceSummary } from "./evidence-panel";
-import { MatchupGlance } from "./glance";
 import type { MatchupEvidence } from "@/domain/matchup-intel/evidence";
 import { InteractionsPanel, LevelNotesPanel, notesBalance } from "./matchup-notes";
 import { behindOf } from "./matchup-status";
-import { staleDataWords } from "./wording";
+import { FULL_REFERENCE_TITLE, fullReferenceWords, staleDataWords } from "./wording";
 import type { MeansAbility } from "@/domain/matchup-intel/haste";
 import type { AbilityRef } from "@/domain/matchup-intel/types";
 
@@ -24,24 +26,21 @@ function meansOf(intel: ChampionIntelView | null): Partial<Record<AbilityRef, Me
 }
 
 /*
-  MATCHUP INTEL's page body, under the picker bar (docs/MATCHUP_INTEL.md, "The dashboard"): on a
-  desktop one screen, read in a glance, with no page scroll at 1920 by 1080, 2560 by 1440 and a
-  maximised 1920 by 950 window; on a phone one column, the essentials first.
-
-  On a desktop, two columns (from a body 60rem wide), each as tall as its own content:
-    left    the main panel: the curated briefing (threat, opportunity, lane points) where one exists
-            for this pair, else the assembled reference (the enemy's kit as the danger side, yours as
-            the opportunity side, grouped by kind); under it the interactions and the level changes,
-            side by side;
-    right   the enemy's abilities, P Q W E R, one compact tile each, always in that order; under
-            them your own champion, folded into one line.
-  The patch and how fresh the page is sit in the bar above (MatchupStatus); the sources and Riot's
-  notice at the foot, behind one control whose summary line stays visible.
-  On a phone, first a glance (glance.tsx: the enemies' tiles with their cooldown lines and the
-  evidence's first row), then the same order in one column: the main panel, the interactions, the level changes,
-  the enemy's tiles, the sources, your champion, Riot's tips (in the bot lane: your duo's two folds
-  after the level changes, the enemies' kits, the sources, Riot's tips). With nothing chosen, or one side only, it says
-  what to do next.
+  MATCHUP INTEL's page body, under the picker bar (docs/MATCHUP_INTEL.md, "The lane plan"; the owner's
+  redesign request of 23 Nov 2026: a player picks the matchup and understands what matters within
+  5 to 10 seconds). One column at every width, in the order it is read:
+    1. the lane plan: the curated briefing where one shows (threat, opportunity, lane points, and
+       beside them the level changes and the matchup's own interactions), else the lane reference
+       (each champion's own facts by kind, the enemy's as danger and yours as opportunity, and Riot's
+       own first tip against the enemy), in readable type, where it comes from in one quiet line;
+    2. the enemy's abilities as a strip, P to R side by side on a desktop (one under another on a
+       phone), each base cooldown large with the crowd control and other key facts under it, each
+       opening the ability's whole reference in a Peek (?ability=); in the bot lane both enemies' strips;
+    3. the sources and notices, their summary always on the page (directly under the strips, so a
+       desktop's first screen keeps it), the rest one press away;
+    4. the full reference, one press away: the notes the plan does not hold, your side's kits, Riot's
+       tips and the evidence from the team's games.
+  With nothing chosen, or one side only, it says what to do next.
 */
 
 const lowerFirst = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
@@ -82,17 +81,10 @@ function StaleNote({ words }: { words: string }) {
 }
 
 /**
- * The dashboard's columns: one on a phone; two from a body 60rem wide (see the module's comment). In
- * the bot lane the kit column is the wider: it holds the two enemies' kits side by side. Under 70rem
- * (1280 × 800 with the sidebar open) it takes more again, so each kit's haste row keeps one line
- * and every cooldown line is on the first screen; the main column's two sides stack there. From
- * 70rem (1440 × 900) the main column keeps 28rem, its two sides side by side (AssembledReference).
+ * The full reference's notes: beside a lane plan, each champion's own interactions and exceptions
+ * (the plan holds the matchup's own and the level changes); for a pair with no plan, the interactions
+ * and the level changes side by side where there is room, the fuller the wider (notesBalance).
  */
-const COLUMNS = {
-  solo: "grid gap-3 @min-[60rem]/dash:grid-cols-[minmax(0,1fr)_minmax(22rem,0.72fr)] @min-[60rem]/dash:items-start",
-  duo: "grid gap-3 @min-[60rem]/dash:grid-cols-[minmax(0,0.75fr)_minmax(22rem,1.25fr)] @min-[70rem]/dash:grid-cols-[minmax(0,0.85fr)_minmax(22rem,1.15fr)] @min-[60rem]/dash:items-start",
-} as const;
-/** The interactions and the level notes side by side where the column has room, the fuller panel the wider (notesBalance). */
 const NOTES_SPLIT = {
   interactions: "@min-[40rem]/dash:grid-cols-[minmax(0,1.75fr)_minmax(0,1fr)]",
   even: "@min-[40rem]/dash:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)]",
@@ -101,7 +93,7 @@ const NOTES_SPLIT = {
   folds: "@min-[40rem]/dash:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]",
 } as const;
 
-export function MatchupContent({ view, champions, curated, legal, evidence = null }: { view: MatchupPageView; champions: readonly ChampionChoice[]; curated: Record<string, string[]>; legal: string; evidence?: MatchupEvidence | null }) {
+export function MatchupContent({ view, champions, curated, legal, evidence = null, peekInitial = null }: { view: MatchupPageView; champions: readonly ChampionChoice[]; curated: Record<string, string[]>; legal: string; evidence?: MatchupEvidence | null; /** The ability the address names (`?ability=`), open in its Peek as the page arrives. */ peekInitial?: string | null }) {
   const byId = new Map(champions.map((c) => [c.id, c]));
   const { you, enemy, enemyIntel, yourIntel, matchup, role, allyIntel, enemy2Intel } = view;
   const duo = DUO_ROLES.has(role);
@@ -115,78 +107,121 @@ export function MatchupContent({ view, champions, curated, legal, evidence = nul
   const stale = behind.length && current ? <StaleNote words={staleDataWords(behind, current, behind.length === shownData.length)} /> : null;
   const shows = briefingShows(matchup);
   const balance = enemyIntel ? notesBalance(matchup, enemyIntel, yourIntel) : "even";
-  // Your champion folded; in the bot lane your duo's two kits side by side where the column has room,
-  // under the main column: the kit column, holding both enemies' kits, Riot's tips and the evidence,
-  // is the taller there, and with your duo under it the sources' summary had 7px to spare at 1440 ×
-  // 900 (20 Nov 2026). On a phone they follow the notes, after the glance's enemy cooldowns.
-  const yours =
-    (yourIntel && !mirror) || allyIntel ? (
-      <div className={duo && allyIntel && yourIntel && !mirror ? "grid gap-3 @min-[60rem]/dash:grid-cols-2 @min-[60rem]/dash:items-start" : undefined} data-testid={duo ? "matchup-duo-kits" : undefined}>
-        {yourIntel && !mirror ? <YourChampion intel={yourIntel} label={duo ? slotWords(role, "you").label : undefined} foldSources={duo && !!allyIntel} /> : null}
-        {allyIntel ? <YourChampion intel={allyIntel} label={slotWords(role, "ally").label} testId="matchup-ally-abilities" foldSources={!!yourIntel && !mirror} /> : null}
-      </div>
-    ) : null;
+  // Every ability on the page opens its whole reference in one Peek, the enemies' first (the order ↑/↓ step through).
+  const peekItems = [enemyIntel, enemy2Intel, mirror ? null : yourIntel, allyIntel].flatMap((i) => (i?.abilities ? abilityPeekItemsOf(i) : []));
+  // Your side's kits, folded: in the bot lane your duo's two side by side where there is room.
+  const yourKits = [yourIntel && !mirror ? { intel: yourIntel, label: duo ? slotWords(role, "you").label : undefined, testId: undefined } : null, allyIntel ? { intel: allyIntel, label: slotWords(role, "ally").label, testId: "matchup-ally-abilities" } : null].filter((k): k is NonNullable<typeof k> => !!k);
+  const yours = yourKits.length ? (
+    <div className={yourKits.length > 1 ? "grid gap-3 @min-[48rem]/dash:grid-cols-2 @min-[48rem]/dash:items-start" : undefined} data-testid={duo ? "matchup-duo-kits" : undefined}>
+      {yourKits.map((k) => (
+        <YourChampion key={k.intel.champion.id} intel={k.intel} label={k.label} testId={k.testId} foldSources={yourKits.length > 1} />
+      ))}
+    </div>
+  ) : null;
   // Riot's tips and the evidence from the team's games share one fold, its line stating both.
+  const tipsShown = [enemyIntel, enemy2Intel, mirror ? null : yourIntel, allyIntel].some((i) => !!i);
   const tips = <RiotTipsPanel enemies={[enemyIntel, enemy2Intel].filter((i): i is ChampionIntelView => !!i)} yours={[mirror ? null : yourIntel, allyIntel].filter((i): i is ChampionIntelView => !!i)} evidenceSummary={<EvidenceSummary evidence={evidence} />} evidence={<EvidenceBody evidence={evidence} duo={duo} pair={{ chosen: !!you && !!enemy, curated: shows, hidden: !shows && !!matchup }} />} />;
+  const plan = !!you && !!enemy;
+  // Beside a lane plan the plan holds the level changes and the matchup's own interactions; the full
+  // reference then holds each champion's own interactions and exceptions, where any are recorded.
+  const championInteractions = !!enemyIntel && [enemyIntel, mirror ? null : yourIntel].some((i) => !!i && kitOf(i).interactions.length > 0);
+  const notes = enemyIntel ? (
+    shows ? (
+      championInteractions ? (
+        <InteractionsPanel matchup={matchup} enemyIntel={enemyIntel} yourIntel={yourIntel} you={you} rows={rows} parts="champions" />
+      ) : null
+    ) : (
+      // Side by side where the column has room, the fuller of the two the wider.
+      <div className={`grid gap-3 @min-[40rem]/dash:items-start ${NOTES_SPLIT[balance]}`} data-testid="matchup-notes" data-balance={balance}>
+        <InteractionsPanel matchup={matchup} enemyIntel={enemyIntel} yourIntel={yourIntel} you={you} rows={rows} />
+        <LevelNotesPanel intels={[enemyIntel, yourIntel]} />
+      </div>
+    )
+  ) : null;
+  const referenceWords = fullReferenceWords({
+    interactions: shows ? championInteractions : true,
+    levels: !shows,
+    yours: yourKits.map((k) => k.intel.champion.name),
+    tips: tipsShown,
+  });
 
   return (
-    // On a desktop (two columns) the panels 8px apart, 12px on a phone: the one screen keeps room for
-    // the notices a later patch adds ("Not re-checked for 26.23"), which production shows from each new
-    // patch until the curated notes are re-checked (e2e/matchup-intel-dashboard.spec.ts reads that state).
-    <div className="@container/dash space-y-3 @min-[60rem]/dash:space-y-2" data-testid="matchup-dashboard" data-layer={you && enemy ? (shows ? "curated" : "assembled") : undefined}>
-      {!you && !enemy ? <NothingChosen curated={curated} byId={byId} /> : null}
+    <AbilityPeekProvider items={peekItems} initial={peekInitial}>
+      {/* On a desktop the parts 12px apart, as on a phone: one column, the lane plan first. */}
+      <div className="@container/dash space-y-3" data-testid="matchup-dashboard" data-layer={plan ? (shows ? "curated" : "assembled") : undefined}>
+        {!you && !enemy ? <NothingChosen curated={curated} byId={byId} /> : null}
 
-      {you && !enemy ? (
-        <EmptyState icon={Swords} title={`Playing ${you.name}: now ${lowerFirst(slotWords(role, "enemy").choose)}`} action={<OpenPickerButton slot="enemy" testId="matchup-choose-enemy">{slotWords(role, "enemy").choose}</OpenPickerButton>} testId="matchup-need-enemy" compact>
-          {curatedForYou.length ? <CuratedLinks you={you} enemies={curatedForYou} label={`Curated briefings for ${you.name}:`} centered /> : <p>The enemy&apos;s abilities, base cooldowns and crowd control follow once you choose them.</p>}
-        </EmptyState>
-      ) : null}
+        {you && !enemy ? (
+          <EmptyState icon={Swords} title={`Playing ${you.name}: now ${lowerFirst(slotWords(role, "enemy").choose)}`} action={<OpenPickerButton slot="enemy" testId="matchup-choose-enemy">{slotWords(role, "enemy").choose}</OpenPickerButton>} testId="matchup-need-enemy" compact>
+            {curatedForYou.length ? <CuratedLinks you={you} enemies={curatedForYou} label={`Curated briefings for ${you.name}:`} centered /> : <p>The enemy&apos;s abilities, base cooldowns and crowd control follow once you choose them.</p>}
+          </EmptyState>
+        ) : null}
 
-      {enemy && !you ? (
-        <p className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-panel border border-border bg-surface/60 px-3 py-2 text-sm text-fg-muted" data-testid="matchup-need-you">
-          <span>Choose your champion for a curated briefing on this lane where one exists, or both champions&apos; facts side by side. Below are {enemy.name}&apos;s abilities.</span>
-          <OpenPickerButton slot="you" testId="matchup-choose-you">
-            Choose your champion
-          </OpenPickerButton>
-        </p>
-      ) : null}
+        {enemy && !you ? (
+          <p className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-panel border border-border bg-surface/60 px-3 py-2 text-sm text-fg-muted" data-testid="matchup-need-you">
+            <span>Choose your champion for a curated briefing on this lane where one exists, or both champions&apos; facts side by side. Below are {enemy.name}&apos;s abilities.</span>
+            <OpenPickerButton slot="you" testId="matchup-choose-you">
+              Choose your champion
+            </OpenPickerButton>
+          </p>
+        ) : null}
 
-      {/* A phone's first screen: every enemy tile with its cooldown line, and the evidence's first row (glance.tsx). */}
-      {enemyIntel ? <MatchupGlance enemies={[enemyIntel, enemy2Intel].filter((i): i is ChampionIntelView => !!i)} evidence={evidence} /> : null}
+        {enemyIntel ? (
+          <>
+            {/* 1. The lane plan: the curated briefing where one shows (with the level changes and the
+                matchup's own interactions beside it), else the lane reference. A briefing that exists but
+                shows nothing (too old, or every part resting on a change) is hidden, and said so, above it. */}
+            {you && enemy && matchup ? (
+              <Briefing
+                matchup={matchup}
+                you={you}
+                enemy={enemy}
+                rows={rows}
+                means={meansOf(enemyIntel)}
+                levels={shows ? <LevelNotesPanel intels={[enemyIntel, yourIntel]} variant="section" /> : null}
+                interactions={shows ? <InteractionsPanel matchup={matchup} enemyIntel={enemyIntel} yourIntel={yourIntel} you={you} rows={rows} variant="section" parts="matchup" /> : null}
+              />
+            ) : null}
+            {you && enemy && !shows ? <AssembledReference you={you} enemy={enemy} enemyIntel={enemyIntel} yourIntel={yourIntel} enemy2Intel={duo ? enemy2Intel : null} allyIntel={duo ? allyIntel : null} curatedForYou={curatedForYou} rows={rows} briefingHidden={!!matchup} /> : null}
 
-      {enemyIntel ? (
-        <div className={duo ? COLUMNS.duo : COLUMNS.solo}>
-          <div className="min-w-0 space-y-3 @min-[60rem]/dash:space-y-2">
-            {you && enemy && matchup ? <Briefing matchup={matchup} you={you} enemy={enemy} rows={rows} means={meansOf(enemyIntel)} /> : null}
-            {/* A briefing that exists but shows nothing (too old, or every part resting on a change) is hidden above, and said so there. */}
-            {you && enemy && !shows ? <AssembledReference you={you} enemy={enemy} enemyIntel={enemyIntel} yourIntel={yourIntel} curatedForYou={curatedForYou} rows={rows} briefingHidden={!!matchup} duo={duo} /> : null}
-            {/* Side by side where the column has room, the fuller of the two the wider. */}
-            <div className={`grid gap-3 @min-[40rem]/dash:items-start ${NOTES_SPLIT[balance]}`} data-testid="matchup-notes" data-balance={balance}>
-              <InteractionsPanel matchup={matchup} enemyIntel={enemyIntel} yourIntel={yourIntel} you={you} rows={rows} />
-              <LevelNotesPanel intels={[enemyIntel, yourIntel]} />
-            </div>
-            {duo ? yours : null}
-          </div>
-          <div className="min-w-0 space-y-3 @min-[60rem]/dash:space-y-2">
-            {/* In the bot lane with both enemies chosen, their two kits side by side where the column has room. */}
-            <div className={enemy2Intel ? "grid gap-3 @min-[60rem]/dash:grid-cols-2" : undefined} data-testid="matchup-enemy-kits">
-              <AbilitiesPanel intel={enemyIntel} title={mirror ? `${enemyIntel.champion.name}'s abilities (both sides)` : `${enemyIntel.champion.name}'s abilities`} testId="matchup-enemy-abilities" notice={stale} haste foldSources={!!enemy2Intel} />
+            {/* 2. The enemy's abilities as a strip: P to R side by side, each cooldown large, each tile
+                opening its Peek; in the bot lane both enemies' strips, one under the other. */}
+            <div className="space-y-3" data-testid="matchup-enemy-kits">
+              <AbilitiesPanel intel={enemyIntel} title={mirror ? `${enemyIntel.champion.name}'s abilities (both sides)` : `${enemyIntel.champion.name}'s abilities`} testId="matchup-enemy-abilities" notice={stale} haste foldSources />
               {enemy2Intel ? <AbilitiesPanel intel={enemy2Intel} title={`${enemy2Intel.champion.name}'s abilities`} testId="matchup-enemy2-abilities" foldSources /> : null}
             </div>
-            {/* The sources and notices, directly under the enemy's kits: on a desktop (two columns) so the
-                first screen keeps them in every state of the briefing, whatever the left column holds
-                (Release 10: with an enemy ability changed, the briefing's notes put them under the fold at
-                1440 × 900). In one column too, in the same place: the order read and tabbed through is
-                the order seen (a visual reorder took the focus to the page's foot and back up). */}
-            <MatchupFooter view={view} legal={legal} />
-            {duo ? null : yours}
-            {/* Riot's tips and the evidence from the team's games: one folded line under the kits, so the one-screen fit holds. */}
-            {tips}
-          </div>
-        </div>
-      ) : null}
 
-      {enemyIntel ? null : <MatchupFooter view={view} legal={legal} />}
-    </div>
+            {/* 3. The sources and notices, directly under the strips (as under the kits since Release 10): their
+                summary always on the first screen, the rest one press away. */}
+            <MatchupFooter view={view} legal={legal} />
+
+            {/* 4. The rest of the reference, one press away: the notes the plan does not hold, your side's
+                kits, Riot's tips and the evidence from the team's games. */}
+            {notes || yours || tipsShown ? (
+              <Fold
+                testId="matchup-full-reference"
+                summaryTestId="matchup-full-reference-summary"
+                className="panel-depth"
+                bodyClassName="space-y-3 p-3 sm:p-3"
+                summary={
+                  // One line: its title, and what it holds.
+                  <span className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+                    <span className="text-sm font-semibold text-fg">{FULL_REFERENCE_TITLE}</span>
+                    <span className="text-xs text-fg-muted">{referenceWords}</span>
+                  </span>
+                }
+              >
+                {notes}
+                {yours}
+                {tips}
+              </Fold>
+            ) : null}
+          </>
+        ) : null}
+
+        {/* With no enemy chosen, the sources and notices close the page. */}
+        {enemyIntel ? null : <MatchupFooter view={view} legal={legal} />}
+      </div>
+    </AbilityPeekProvider>
   );
 }

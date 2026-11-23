@@ -37,7 +37,6 @@ const NAMES: Array<{ file: string; fragment: string; kind: Kind; what: string }>
   { file: "src/components/ui/segmented.tsx", fragment: "ROLE_LABELS[r]", kind: "name", what: "a role's name when only its icon shows" },
   { file: "src/components/ui/segmented.tsx", fragment: "countTitle", kind: "name", what: "the count badge's name (\"12 games\")" },
   { file: "src/components/matches/bookmark-button.tsx", fragment: "label", kind: "name", what: "the bookmark button's name when only its icon shows" },
-  { file: "src/components/matchup-intel/details-dialog.tsx", fragment: "label", kind: "name", what: "the details button's name when only its icon shows" },
   { file: "src/components/champions/champion-grid.tsx", fragment: "ROLE_LABELS[o]", kind: "name", what: "a role filter's name on its icon" },
   { file: "src/components/match-history/history-summary.tsx", fragment: "g.win", kind: "name", what: "a result dot's name (\"Win · Ahri\")" },
   { file: "src/components/players/recent-form.tsx", fragment: "g.win", kind: "name", what: "a result dot's name (\"Win · Ahri\")" },

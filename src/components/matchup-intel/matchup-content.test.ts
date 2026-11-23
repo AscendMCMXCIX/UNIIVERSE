@@ -5,6 +5,7 @@ import type { AbilityNotes, ChampionChoice, ChampionNotes, DdragonAbility, Ddrag
 import { buildMatchupPageView, type MatchupViewDeps } from "@/server/matchup-intel/view";
 import { AbilityDetailsBody, AbilityList } from "./ability-list";
 import { MatchupContent } from "./matchup-content";
+import { notesBalance } from "./matchup-notes";
 import { MatchupFrame } from "./matchup-frame";
 import { MatchupStatus } from "./matchup-status";
 
@@ -74,7 +75,9 @@ describe("the page body", () => {
     const html = await render({ champion: "Ambessa", vs: "Renekton" });
     const t = text(html);
     // The pair is in the slots above; the heading names it for screen readers.
-    expect(html).toContain('Curated briefing<span class="sr-only">: Ambessa vs Renekton</span>');
+    // The lane plan: its title, and where it comes from in one quiet line (the layer, its tier, its check).
+    expect(html).toContain('Lane plan<span class="sr-only">: Ambessa vs Renekton</span>');
+    expect(text(html.slice(html.indexOf('data-testid="matchup-briefing-checked"')).split("</p>")[0]!)).toContain("Curated briefing · Checked notes (AI reviewers) · Checked on patch 26.22");
     expect(t).toContain("Checked on patch 26.22");
     expect(html).toContain('href="#ability-Renekton-W"');
     expect(html).toContain('href="#ability-Ambessa-Q"');
@@ -135,8 +138,9 @@ describe("the page body", () => {
     // An enemy with curated notes and no briefing for this pair: its checked facts, grouped by kind, each group saying what it holds.
     const renekton = text(await render({ champion: "Garen", vs: "Renekton" }));
     // The side names its layer under its subtitle: the checked notes' line, as their tiles' heading does.
-    expect(renekton).toContain("Danger Checked notes (AI reviewers) Renekton's kit, by kind Curated notes: checked on patch 26.22 Crowd control");
-    expect(renekton).toContain("Burst and power · None in the checked notes");
+    expect(renekton).toContain("Danger Renekton's kit, by kind Checked notes (AI reviewers) · Curated notes: checked on patch 26.22 Crowd control");
+    // The groups with nothing in them, named once after those that hold facts.
+    expect(renekton).toContain("None in the checked notes: Burst and power, Mobility, Defence and Sustain.");
     expect(renekton).toContain("Crowd control: Stun");
     // No abilities stored: the panel says so, and the side says nothing is stored.
     const none = text(await render({ champion: "Garen", vs: "Darius" }, { loadAbilities: async (ids) => ({ version: null, champions: Object.fromEntries(ids.map((id) => [id, null])) }) }));
@@ -251,8 +255,12 @@ describe("the cooldown decision table, as the page says it", () => {
     expect(rowText(html, "Renekton", "E")).toContain("13 s at every rank · starts after the first cast");
     expect(rowText(html, "Renekton", "E")).toContain("0.3125 s between casts, unaffected by ability haste");
     // Who has the effect, where its kind would not say it (in the chip's tip); the tags as data, not words; the page's revision in the details.
-    expect(rowText(html, "Renekton", "E")).toContain("Interaction: Fails on spell shields");
-    expect(rowText(html, "Renekton", "E")).toContain(`Fails on spell shields (on the target): A spell shield on the target stops it. ${CHECKED} · from A page, revision of 5 Jun 2026`);
+    // In the enemy's strip an interaction or exception is counted, its whole fact in the ability's Peek
+    // and as a chip in the full reference's interactions (with its tip).
+    expect(rowText(html, "Renekton", "E")).not.toContain("Interaction: Fails on spell shields");
+    expect(rowText(html, "Renekton", "E")).toContain("1 more 1 interaction or exception: Renekton E, E");
+    expect(text(html)).toContain("Interaction: Fails on spell shields");
+    expect(text(html)).toContain(`Fails on spell shields (on the target): A spell shield on the target stops it. ${CHECKED} · from A page, revision of 5 Jun 2026`);
     const e = await detailsText({ vs: "Renekton" }, { loadAbilities: async (ids) => ({ version: "16.22.1", champions: Object.fromEntries(ids.map((id) => [id, kitWith(id)])) }), championNotes: (id) => (id === "Renekton" ? notes : null) }, "Renekton", "E");
     expect(e).toContain("Fails on spell shields (on the target): A spell shield on the target stops it. · from A page");
     expect(e).toContain(", revision of 5 Jun 2026");
@@ -279,7 +287,7 @@ describe("Riot's data moved after the check", () => {
     // Riot's numbers keep the name's row; where they come from is the line under them (Release 10).
     expect(w).toContain("Cooldown: 20 / 19 / 18 / 17 / 16 s");
     // The badge comes before the facts it flags, leading their row (read and seen first under the name's row).
-    expect(w).toMatch(/16 s Details: Renekton W, W Riot's data for patch 26\.23, not re-checked Changed since the check Riot's data for this ability changed after the notes were checked, so they may be out of date\. Crowd control: Stun/);
+    expect(w).toMatch(/Details: Renekton W, W Cooldown: 20 \/ 19 \/ 18 \/ 17 \/ 16 s Riot's data for patch 26\.23, not re-checked Changed since the check Riot's data for this ability changed after the notes were checked, so they may be out of date\. Crowd control: Stun/);
     // The flagged notes are in the Details window only (Release 10's integration), one step away: not on the tile.
     expect(w).not.toContain("Notes from patch");
     // The checked start is not on Riot's line: it goes with the notes, under their flag, in the window.
@@ -334,8 +342,8 @@ describe("the page's structure", () => {
 
   it("keys each ability row by its champion as well as its slot, so another pair's rows start closed", async () => {
     const view = await buildMatchupPageView({ champion: "Ambessa", vs: "Renekton" }, deps);
-    const list = AbilityList({ intel: view.enemyIntel!, testId: "rows" }) as ReactElement<{ children: ReactElement[] }>;
-    expect(list.props.children.map((row) => row.key)).toEqual(["Renekton-P", "Renekton-Q", "Renekton-W", "Renekton-E", "Renekton-R"]);
+    const wrap = AbilityList({ intel: view.enemyIntel!, testId: "rows" }) as ReactElement<{ children: ReactElement<{ children: ReactElement[] }> }>;
+    expect(wrap.props.children.props.children.map((row) => row.key)).toEqual(["Renekton-P", "Renekton-Q", "Renekton-W", "Renekton-E", "Renekton-R"]);
   });
 
   it("centres the curated links in the centred 'choose the enemy' state, and nowhere else", async () => {
@@ -357,7 +365,7 @@ describe("each champion's data, and checks a patch or more behind", () => {
     expect(t).not.toContain("The ability data held here");
     expect(t).toContain("Ability names, icons and base cooldowns: Riot Data Dragon 16.23.1 (patch 26.23) for Darius; Riot Data Dragon 16.22.1 (patch 26.22) for Garen.");
     expect(t).toContain("Your champion: Garen Abilities and base cooldowns · Riot Data Dragon 16.22.1");
-    expect(text(html.slice(html.indexOf('data-testid="abilities-source"')))).toMatch(/^[^<]*Riot Data Dragon 16\.23\.1/);
+    expect(text(html.slice(html.indexOf('data-testid="abilities-source-folded"')))).toMatch(/^[^<]*Riot Data Dragon 16\.23\.1/);
   });
 
   it("the other way round: the enemy's data older and yours current names the enemy alone; both older on one patch is said once", async () => {
@@ -392,7 +400,7 @@ describe("each champion's data, and checks a patch or more behind", () => {
     expect(t).not.toContain("Unstoppable answers it.");
     expect(t).toContain("Curated notes: checked on patch 26.22 Checked three patches ago: may be out of date");
     // The notes' one source said once on the panel's line, then the warning.
-    expect(text(html.slice(html.indexOf('data-testid="matchup-level-notes"')))).toMatch(/^[^<]*Level changes When something becomes possible · source From Renekton\. Checked notes \(drafted and audited by AI agents, not by a person\)\. Checked three patches ago: may be out of date Level 6 Renekton: Dominus\. Renekton's abilities/);
+    expect(text(html.slice(html.indexOf('data-testid="matchup-level-notes"')))).toMatch(/^[^<]*Level changes When something becomes possible · source From Renekton\. Checked notes \(drafted and audited by AI agents, not by a person\)\. Checked three patches ago: may be out of date Level 6 Renekton: Dominus\. Your champion: Ambessa/);
     expect(t).toContain("The curated notes on this page were checked on 16 Nov 2026 against patch 26.22.");
     expect(t).not.toContain("the Ambessa vs Renekton briefing");
   });
@@ -439,10 +447,11 @@ describe("each champion's data, and checks a patch or more behind", () => {
     const one = await render({ champion: "Ambessa", vs: "Renekton" });
     const interactions = panel(one, "matchup-interactions");
     expect(interactions.match(/data-testid="interaction-source"/g)).toHaveLength(1);
-    expect(text(interactions)).toMatch(/^[^<]*Interactions How abilities meet in this lane · source From Renekton\. Curated matchup notes\. Unstoppable answers it\./);
+    // In the lane plan a part's heading says what it is; its one source sits beside it.
+    expect(text(interactions)).toMatch(/^[^<]*Interactions source From Renekton\. Curated matchup notes\. Unstoppable answers it\./);
     const levels = panel(one, "matchup-level-notes");
     expect(levels.match(/data-testid="level-note-source"/g)).toHaveLength(1);
-    expect(text(levels)).toMatch(/^[^<]*Level changes When something becomes possible · source From Renekton\. Checked notes \(drafted and audited by AI agents, not by a person\)\. Level 6 Renekton: Dominus\./);
+    expect(text(levels)).toMatch(/^[^<]*Level changes source From Renekton\. Checked notes \(drafted and audited by AI agents, not by a person\)\. Level 6 Renekton: Dominus\./);
     // Two pages: each interaction and each note says its own, and the headings name none.
     const two: MatchupNotes = {
       ...ambessaVsRenekton,
@@ -452,21 +461,24 @@ describe("each champion's data, and checks a patch or more behind", () => {
     const ambessa: ChampionNotes = { ...renekton, championId: "Ambessa", sources: [{ id: "wiki", title: "Ambessa", url: "https://wiki.leagueoflegends.com/en-us/Ambessa", kind: "wiki-champion", licence: "CC BY-SA 3.0" }], abilities: {}, levelNotes: [{ level: 9, text: "Drakehound.", source: "wiki", basedOn: [] }] };
     const html = await render({ champion: "Ambessa", vs: "Renekton" }, { matchupNotes: (a, b) => (a === "Ambessa" && b === "Renekton" ? two : null), championNotes: (id) => (id === "Renekton" ? renekton : id === "Ambessa" ? ambessa : null) });
     const each = text(panel(html, "matchup-interactions"));
-    expect(each).toMatch(/^[^<]*Interactions How abilities meet in this lane Unstoppable answers it\. .*source From Renekton\. Curated matchup notes\. It goes the other way\. .*source From Ambessa\. Curated matchup notes\./);
+    expect(each).toMatch(/^[^<]*Interactions Unstoppable answers it\. .*source From Renekton\. Curated matchup notes\. It goes the other way\. .*source From Ambessa\. Curated matchup notes\./);
     const notes = text(panel(html, "matchup-level-notes"));
-    expect(notes).toMatch(/^[^<]*Level changes When something becomes possible Level 6 Renekton: Dominus\. source From Renekton\. Checked notes \(drafted and audited by AI agents, not by a person\)\. Level 9 Ambessa: Drakehound\. source From Ambessa\. Checked notes \(drafted and audited by AI agents, not by a person\)\./);
+    expect(notes).toMatch(/^[^<]*Level changes Level 6 Renekton: Dominus\. source From Renekton\. Checked notes \(drafted and audited by AI agents, not by a person\)\. Level 9 Ambessa: Drakehound\. source From Ambessa\. Checked notes \(drafted and audited by AI agents, not by a person\)\./);
   });
 
   it("the two notes panels share their row by their words: the fuller one the wider", async () => {
     const balance = (html: string) => /data-testid="matchup-notes" data-balance="([a-z]+)"/.exec(html)?.[1];
-    // The fixtures' one short interaction and one short note: even, the interactions somewhat wider.
-    expect(balance(await render({ champion: "Ambessa", vs: "Renekton" }))).toBe("even");
+    // Beside a lane plan the plan holds them (its own grid), so the full reference has no such row; the
+    // rule itself still decides the row for a pair with no plan. The fixtures' one short interaction and
+    // one short note: even, the interactions somewhat wider.
+    expect(balance(await render({ champion: "Ambessa", vs: "Renekton" }))).toBeUndefined();
+    const plain = await buildMatchupPageView({ champion: "Ambessa", vs: "Renekton" }, deps);
+    expect(notesBalance(plain.matchup, plain.enemyIntel!, plain.yourIntel)).toBe("even");
     // Two long interactions beside one short note: the interactions take the wider share.
     const long = "When the empowered stun lands during the dash, the dash she queued is cancelled and the stun runs its full length.";
     const wordy: MatchupNotes = { ...ambessaVsRenekton, interactions: [{ text: long, abilities: ["Renekton.W", "Ambessa.E"], source: "wiki" }, { text: long, abilities: ["Renekton.W"], source: "wiki" }] };
-    const interactionsFirst = await render({ champion: "Ambessa", vs: "Renekton" }, { matchupNotes: (a, b) => (a === "Ambessa" && b === "Renekton" ? wordy : null) });
-    expect(balance(interactionsFirst)).toBe("interactions");
-    expect(interactionsFirst).toContain("@min-[40rem]/dash:grid-cols-[minmax(0,1.75fr)_minmax(0,1fr)]");
+    const interactionsFirst = await buildMatchupPageView({ champion: "Ambessa", vs: "Renekton" }, { ...deps, matchupNotes: (a, b) => (a === "Ambessa" && b === "Renekton" ? wordy : null) });
+    expect(notesBalance(interactionsFirst.matchup, interactionsFirst.enemyIntel!, interactionsFirst.yourIntel)).toBe("interactions");
     // Long level notes and no matchup of its own (the assembled reference): the notes take it, two
     // thirds where the interactions are only a champion's folded line.
     const noted: ChampionNotes = { ...renekton, levelNotes: [{ level: 6, text: long, source: "wiki", basedOn: ["W"] }, { level: 11, text: long, source: "wiki", basedOn: ["W"] }] };
@@ -479,8 +491,9 @@ describe("each champion's data, and checks a patch or more behind", () => {
     expect(old).toContain("@min-[40rem]/dash:grid-cols-[minmax(0,1fr)_minmax(0,1.45fr)]");
   });
 
-  it("the assembled reference gives an ability's cooldown once on its side, on its first line", async () => {
-    // Renekton's W in two groups (crowd control, mobility): its chips in both, its cooldown in the first only.
+  it("the lane reference lists an ability under each kind it has, by its key and name, its cooldown left to the strip", async () => {
+    // Renekton's W in two groups (crowd control, mobility): its chips in both, no cooldown on either
+    // (the enemy's strip, right under the card, gives every cooldown).
     const twoKinds: ChampionNotes = {
       ...renekton,
       abilities: { W: { ...renekton.abilities.W!, facts: [{ kind: "crowd-control", label: "Stun", detail: "On the third hit.", appliesTo: "target", source: "wiki" }, { kind: "mobility", label: "Dash", appliesTo: "self", source: "wiki" }] } },
@@ -489,10 +502,11 @@ describe("each champion's data, and checks a patch or more behind", () => {
     const danger = html.slice(html.indexOf('data-testid="assembled-danger"')).split("</section>")[0]!;
     const lines = [...danger.matchAll(/<li class="[^"]*" data-testid="assembled-item" data-slot="W">([\s\S]*?)<\/li>/g)].map((m) => text(m[1]!));
     expect(lines).toHaveLength(2);
+    expect(lines[0]).toContain("Renekton W");
     expect(lines[0]).toContain("Stun");
-    expect(lines[0]).toContain("18/17/16/15/14 s");
     expect(lines[1]).toContain("Dash");
-    expect(lines[1]).not.toMatch(/\d+ s/);
+    for (const l of lines) expect(l).not.toMatch(/\d+ s/);
+    expect(rowText(html, "Renekton", "W")).toContain("18 / 17 / 16 / 15 / 14 s");
   });
 
   it("a level note from an ability Riot changed after the check is flagged", async () => {
@@ -595,9 +609,8 @@ describe("facts from Riot's text, as the review recorded them", () => {
     expect(danger.split('data-testid="assembled-conditional"').length - 1).toBe(1);
     // Darius R's facts are hidden (its text changed): an empty group says only what holds outside it,
     // since the hidden fact (a heal) is of a kind the side would otherwise call empty.
-    expect(t).toContain("Burst and power · No reviewed facts of this kind outside R");
-    expect(t).toContain("Sustain · No reviewed facts of this kind outside R");
-    expect(t).not.toMatch(/No reviewed facts of this kind(?! outside R)/);
+    expect(t).toContain("No reviewed facts of these kinds outside R: Burst and power and Sustain.");
+    expect(t).not.toMatch(/No reviewed facts of (?:this kind|these kinds)(?! outside R)/);
     const cc = danger.slice(danger.indexOf('data-group="crowd-control"')).split('data-group="power"')[0]!;
     expect(cc.split('data-testid="assembled-chip-differ"').length - 1).toBe(1);
     expect(text(cc)).toContain("Pull, in Riot's description of Darius E: “pulls enemies in”");
@@ -651,7 +664,7 @@ describe("hidden, changed and behind, on the assembled reference and the notes",
     // Ambessa's only curated pair is the one on the page: no link to it.
     expect(html).not.toContain('data-testid="matchup-curated-links"');
     // The checked side says how old its notes are; so do both notes panels' lines.
-    expect(text(part(html, "assembled-danger"))).toContain("Danger Checked notes (AI reviewers) Renekton's kit, by kind Curated notes: checked on patch 26.22 Checked three patches ago: may be out of date");
+    expect(text(part(html, "assembled-danger"))).toContain("Danger Renekton's kit, by kind Checked notes (AI reviewers) · Curated notes: checked on patch 26.22 Checked three patches ago: may be out of date");
     expect(text(part(html, "matchup-interactions", "</header>"))).toContain("Checked three patches ago: may be out of date");
     expect(text(part(html, "matchup-level-notes", "</header>"))).toContain("Checked three patches ago: may be out of date");
   });
@@ -692,13 +705,14 @@ describe("hidden, changed and behind, on the assembled reference and the notes",
     const w = text(danger.slice(danger.indexOf('data-slot="W"')).split("</li>")[0]!);
     expect(danger).toContain('data-testid="assembled-item" data-slot="W" data-flagged=""');
     expect(w).toContain("Changed since the check");
-    expect(w).toContain("20/19/18/17/16 s · Riot's data for patch 26.23, not re-checked");
+    // Its number is the strip's: Riot's, said as Riot's there.
+    expect(rowText(html, "Renekton", "W")).toContain("20 / 19 / 18 / 17 / 16 s Riot's data for patch 26.23, not re-checked");
     expect(text(danger)).toContain("Curated notes: checked on patch 26.22 Not re-checked for 26.23 Riot changed one ability after the check: its notes are flagged");
   });
 
   it("one patch since the check: each checked side, and the notes panels' lines, say not re-checked; a current check says nothing", async () => {
     const html = await render({ champion: "Garen", vs: "Renekton" }, at("16.23.1"));
-    expect(text(part(html, "assembled-danger"))).toContain("Renekton's kit, by kind Curated notes: checked on patch 26.22 Not re-checked for 26.23");
+    expect(text(part(html, "assembled-danger"))).toContain("Renekton's kit, by kind Checked notes (AI reviewers) · Curated notes: checked on patch 26.22 Not re-checked for 26.23");
     // The checked numbers need no word of their own: the side's line dates them.
     expect(part(html, "assembled-danger")).not.toContain('data-testid="assembled-cooldown-source"');
     expect(text(part(html, "matchup-interactions", "</header>"))).toContain("Not re-checked for 26.23");
@@ -721,7 +735,8 @@ describe("hidden, changed and behind, on the assembled reference and the notes",
     const t = text(await render({ champion: "Garen", vs: "Darius" }));
     expect(t).toContain("Your champion: Garen Abilities and base cooldowns · Riot Data Dragon 16.22.1 · Cooldowns: Riot's data, not reviewed ·");
     // The kit's tier leads its source line, so the haste control keeps the title's row (1440 × 900).
-    expect(t).toContain("Darius's abilities At haste 0 20 40 60 Riot's data Base cooldowns, without ability haste · Riot Data Dragon 16.22.1 · Cooldowns: Riot's data, not reviewed");
+    // The strip's title, then where its abilities come from (one step away, in a fold, where it carries no warning), then the haste.
+    expect(t).toContain("Riot's data · Sources for Darius's abilities Base cooldowns, without ability haste · Riot Data Dragon 16.22.1 · Cooldowns: Riot's data, not reviewed");
     const curatedYou = await render({ champion: "Renekton", vs: "Darius" });
     expect(text(curatedYou)).toContain("Your champion: Renekton Abilities and base cooldowns · Riot Data Dragon 16.22.1 · Curated notes: checked on patch 26.22");
     expect(curatedYou).not.toContain('data-testid="your-cooldown-source"');
@@ -739,12 +754,11 @@ describe("hidden, changed and behind, on the assembled reference and the notes",
     expect(await render({ champion: "Garen", vs: "Renekton" })).not.toContain("matchup-level-notes-more");
   });
 
-  it("a tight cooldown breaks only after a slash, and each source tip is a 44px target on a touch screen", async () => {
+  it("a cooldown holds its unit to its last number, and each source tip is a 44px target on a touch screen", async () => {
     const html = await render({ champion: "Garen", vs: "Renekton" });
-    const cd = /<span class="([^"]*)" data-testid="assembled-cooldown">([\s\S]*?)<\/span>/.exec(html)!;
-    expect(cd[1]).toContain("[overflow-wrap:normal]");
-    // The unit held to the last number by a no-break space.
-    expect(cd[2]).toBe("18/<wbr/>17/<wbr/>16/<wbr/>15/<wbr/>14\u00a0s");
+    // The unit held to the last number by a no-break space (the strip's line; the lane reference gives no cooldown).
+    expect(html).toContain("18 / 17 / 16 / 15 / 14\u00a0s");
+    expect(html).not.toContain('data-testid="assembled-cooldown"');
     for (const m of html.matchAll(/<button[^>]*data-testid="level-note-source"[^>]*>/g)) expect(m[0]).toMatch(/class="[^"]*\btouch-target\b/);
     expect(html).toMatch(/data-testid="level-note-source"/);
   });

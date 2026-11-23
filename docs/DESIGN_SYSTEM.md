@@ -440,6 +440,9 @@ const peek = usePeek({ param: "player", ids, initial: searchParams.get("player")
   scrolling inside. `windowSize` and `windowHeader` give the phone's window its size and header.
 - **First consumer:** the Team player (`?player=`), its ↑/↓ moving along the starters; a turned
   card opens its substitute.
+- **Matchup Intel's abilities** (`?ability=Mordekaiser.Q`, `ability-peek.tsx`, 23 Nov 2026): each tile
+  of the enemy's cooldown strip and of your side's kits opens the ability's whole reference (in place
+  of the Details window it had); ↑/↓ step through the page's abilities, the enemy's P to R first.
 
 ### Explain (`InfoTip`)
 

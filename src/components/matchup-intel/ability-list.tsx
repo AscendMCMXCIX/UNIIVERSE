@@ -14,7 +14,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Panel } from "@/components/ui/panel";
 import { RemoteImage } from "@/components/ui/remote-image";
 import { cn } from "@/lib/cn";
-import { DetailsDialog } from "./details-dialog";
+import { AbilityPeekButton, type AbilityPeekItem } from "./ability-peek";
 import { CHIP_ROWS, ConditionalNote, DifferQuotes, FactChipView } from "./fact-chip";
 import { NO_BREAK, SourceLink } from "./source-link";
 import {
@@ -38,6 +38,8 @@ import {
   flaggedNotesWords,
   freshnessWords,
   hiddenRiotTextWords,
+  interactionsMoreWords,
+  moreWords,
   missingAbilitiesWords,
   modifierWords,
   noFactsWords,
@@ -72,7 +74,13 @@ import {
 */
 
 /** The key an ability is cast with, or "Passive". */
-function KeyChip({ slot }: { slot: Slot }) {
+function KeyChip({ slot, corner = false }: { slot: Slot; /** On the icon's corner, its letter only ("P" for the passive): the name is read with the key before it. */ corner?: boolean }) {
+  if (corner)
+    return (
+      <span aria-hidden className="absolute bottom-0 right-0 grid h-4 min-w-4 place-items-center rounded-sm border border-border-strong bg-surface-2 px-0.5 text-2xs font-semibold leading-none text-fg-muted" data-testid="ability-key">
+        {slot}
+      </span>
+    );
   return <span className="inline-grid h-5 min-w-5 shrink-0 place-items-center rounded-sm border border-border-strong bg-surface-2 px-1 text-2xs font-semibold text-fg-muted">{SLOT_NAMES[slot]}</span>;
 }
 
@@ -99,7 +107,7 @@ function LineNote({ note }: { note: string }) {
 /** The cooldown's line, or one line per form: the numbers (or why there are none) and their notes. */
 function CooldownValue({ cooldown, isStatic, testId, big = false }: { cooldown: CooldownDisplay; isStatic: boolean; testId: string; big?: boolean }) {
   const lines = cooldownLines(cooldown, { static: isStatic });
-  const value = (known: boolean) => (known ? `font-semibold tabular-nums text-fg ${big ? "text-md" : ""}` : "text-fg-muted");
+  const value = (known: boolean) => (known ? `font-semibold tabular-nums text-fg ${big ? "text-md leading-tight @min-[15rem]/tile:text-lg" : ""}` : "text-fg-muted");
   if (lines.length === 1 && lines[0]!.form === null) {
     const line = lines[0]!;
     return (
@@ -128,10 +136,10 @@ function CooldownValue({ cooldown, isStatic, testId, big = false }: { cooldown: 
 }
 
 /** The cooldown's line in the page's flow of words (no flex boxes, so a note wraps as words do), after a clock. */
-function CooldownLine({ cooldown, isStatic, testId, label, lineTestId, source }: { cooldown: CooldownDisplay; isStatic: boolean; testId: string; label?: string; lineTestId: string; source?: string | null }) {
+function CooldownLine({ cooldown, isStatic, testId, label, lineTestId, source, bare = false }: { cooldown: CooldownDisplay; isStatic: boolean; testId: string; label?: string; lineTestId: string; source?: string | null; /** A tile's line, its figures the tile's largest type: no clock before them (the room is the figures'). */ bare?: boolean }) {
   return (
     <p className="text-sm leading-snug" data-testid={lineTestId}>
-      {label ? <span className="mr-1.5 text-fg-muted">{label}</span> : <Timer className="mr-1 inline h-3.5 w-3.5 align-[-0.125rem] text-fg-subtle" aria-hidden />}
+      {label ? <span className="mr-1.5 text-fg-muted">{label}</span> : bare ? null : <Timer className="mr-1 inline h-3.5 w-3.5 align-[-0.125rem] text-fg-subtle" aria-hidden />}
       {label ? null : <span className="sr-only">Cooldown:</span>}
       <CooldownValue cooldown={cooldown} isStatic={isStatic} testId={testId} big={!label} />
       {source ? (
@@ -299,63 +307,83 @@ export function AbilityDetailsBody({ champion, ability: a, intel, source, checke
   );
 }
 
-function AbilityTile({ intel, ability: a, checkedPatch, dataPatch, notRecheckedFor, commonSource }: { intel: ChampionIntelView; ability: AbilityView; checkedPatch: string | null; dataPatch: string | null; notRecheckedFor: string | null; commonSource: string | null }) {
+/**
+ * One ability's tile: in the enemy's cooldown strip (`strip`: five side by side on a wide screen, one
+ * under another on a phone) or in a champion's kit. Its icon beside the key, the name and the button
+ * that opens its Peek; under them the base cooldown, large; then its facts as chips. In the strip a
+ * champion's checked interactions and exceptions (how it meets other mechanics: "Blocked abilities
+ * still stack", "Stack display hidden from other champions") stay one step away, counted, in its Peek
+ * and in the full reference's interactions: the strip keeps what changes a trade, crowd control,
+ * mobility, defence, sustain, power and how the cooldown behaves.
+ */
+function AbilityTile({ intel, ability: a, checkedPatch, notRecheckedFor, dataPatch, commonSource, strip }: { intel: ChampionIntelView; ability: AbilityView; checkedPatch: string | null; dataPatch: string | null; notRecheckedFor: string | null; commonSource: string | null; strip: boolean }) {
   const champion = intel.champion;
   const flagged = a.freshness === "changed-since";
   const source = cooldownSourceWords(a.cooldown, { freshness: a.freshness, checkedPatch, dataPatch, notRecheckedFor });
   const ownSource = source === commonSource ? null : source;
-  const chips = abilityChips(a);
-  // The checked notes' modifiers and recast in one short line; once Riot's data moved, they go with the flagged notes in the window.
+  const all = abilityChips(a);
+  const chips = strip ? all.filter((c) => !(c.layer === "checked" && c.group === null)) : all;
+  const more = all.length - chips.length;
+  // The checked notes' modifiers and recast in one short line; once Riot's data moved, they go with the flagged notes in the Peek.
   const notes = flagged ? [] : [...modifierWords(a.modifiers), ...(a.recast ? [recastWords(a.recast)] : [])];
   const hidden = hiddenWordsOf(a);
   const from = factsFrom(intel);
+  const peekId = `${champion.id}.${a.slot}`;
+  const name = `${a.name}, ${SLOT_NAMES[a.slot]}`;
+  // The interactions and exceptions left out of the strip: counted, one press away in the Peek, after the chips.
+  const moreButton = more ? (
+    <AbilityPeekButton id={peekId} name={name} testId="ability-more" className="text-left">
+      <span aria-hidden>{moreWords(more)}</span>
+      <span className="sr-only">{`${interactionsMoreWords(more)}: ${name}`}</span>
+    </AbilityPeekButton>
+  ) : null;
   return (
     // A chip's jump lands here and gives the tile the focus until it moves on (jumpToAnchor,
-    // ui/section-index.tsx); the tile is lit while it holds it.
-    // On a desktop the tiles are 4px shorter (lg:py-1): five of them give the 1440 × 900 fit ~20px of
-    // margin, which CI's browser (Chrome 156, which wraps a cooldown's note a line earlier than 153) needs.
-    // The icon beside everything from a tile 16rem wide; in a narrower one (a phone at a large text
-    // size) a smaller copy starts the key's line instead and the words take the tile's whole width,
-    // so a column beside the icon never squeezes them to a few letters a line (the hidden copy is
-    // display: none, and a lazy image out of the layout is never fetched).
-    <li id={abilityAnchor(champion.id, a.slot)} className="grid scroll-mt-4 grid-cols-1 items-start gap-x-2.5 px-2 py-1.5 transition-colors lg:py-1 focus:bg-accent/5 focus-visible:-outline-offset-2 @min-[16rem]/abilities:grid-cols-[2.5rem_minmax(0,1fr)] @min-[16rem]/abilities:px-3" data-testid="ability-row" data-slot={a.slot} data-freshness={a.freshness ?? undefined}>
-      <span className="hidden @min-[16rem]/abilities:block">
-        <AbilityIcon src={a.icon} slot={a.slot} />
-      </span>
-      <div className="min-w-0 space-y-0.5">
-        {/* The key and the name, then the cooldown at the line's end where there is room (under them where
-            there is not), then the details window's button: the figures line up from tile to tile. */}
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-          <span className="shrink-0 @min-[16rem]/abilities:hidden">
+    // ui/section-index.tsx); the tile is lit while it holds it. Laid out by its own width (a container):
+    // the icon beside the key, the name and the cooldown from 11rem; in a narrower tile (a phone at a
+    // large text size) a smaller copy starts the key's line and the words take the whole width (the
+    // hidden copy is display: none, and a lazy image out of the layout is never fetched).
+    <li id={abilityAnchor(champion.id, a.slot)} className="@container/tile min-w-0 scroll-mt-4 px-2 py-2 transition-colors lg:py-1.5 focus:bg-accent/5 focus-visible:-outline-offset-2 sm:px-3" data-testid="ability-row" data-slot={a.slot} data-freshness={a.freshness ?? undefined}>
+      {/* The icon (its key on its corner) beside the name and the Peek's button; the cooldown under them:
+          in the name's column in a list (a phone, a tablet, your kit's fold under 50rem), across the whole
+          tile where the five stand side by side (each 14 to 20rem, the figures need the width), and with
+          no icon column under 11rem (a phone at a large text size), where a smaller icon starts the
+          name's line. */}
+      <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-x-2.5 [grid-template-areas:'name'_'cd'] @min-[11rem]/tile:grid-cols-[2.5rem_minmax(0,1fr)] @min-[11rem]/tile:@max-[50rem]/abilities:[grid-template-areas:'icon_name'_'icon_cd'] @min-[11rem]/tile:@min-[50rem]/abilities:[grid-template-areas:'icon_name'_'cd_cd']">
+        <span className="relative hidden [grid-area:icon] @min-[11rem]/tile:block">
+          <AbilityIcon src={a.icon} slot={a.slot} />
+          <KeyChip slot={a.slot} corner />
+        </span>
+        {/* The name and the Peek's button; the key read before the name. */}
+        <div className="flex min-w-0 items-start gap-x-1.5 [grid-area:name]">
+          <span className="relative shrink-0 @min-[11rem]/tile:hidden">
             <AbilityIcon src={a.icon} slot={a.slot} small />
+            <KeyChip slot={a.slot} corner />
           </span>
-          <KeyChip slot={a.slot} />
-          <h3 className="min-w-0 text-sm font-semibold leading-snug text-fg [overflow-wrap:anywhere]" data-testid="ability-name">
+          <span className="sr-only">{`${SLOT_NAMES[a.slot]}: `}</span>
+          <h3 className="min-w-0 flex-1 pt-0.5 text-sm font-semibold leading-snug text-fg [overflow-wrap:break-word]" data-testid="ability-name">
             {a.name}
           </h3>
-
-          <span className="flex min-w-0 basis-full items-center justify-between gap-2 @min-[24rem]/abilities:ml-auto @min-[24rem]/abilities:basis-auto @min-[24rem]/abilities:justify-end">
-            {/* The notes' static modifier belongs to their line only: once Riot's data moved, it goes with the flagged notes. */}
-            <CooldownLine cooldown={a.cooldown} isStatic={!flagged && a.modifiers?.static === true} testId="ability-cooldown-value" lineTestId="ability-cooldown" source={flagged ? null : ownSource} />
-            <DetailsDialog label="Details" name={`${a.name}, ${SLOT_NAMES[a.slot]}`} title={a.name} description={`${champion.name} · ${SLOT_NAMES[a.slot]}`} testId="ability-details" bodyTestId="ability-details-body" iconOnly>
-              <AbilityDetailsBody champion={champion} ability={a} intel={intel} source={source} checkedPatch={checkedPatch} />
-            </DetailsDialog>
-          </span>
-          {/* Once Riot changed the ability, where its line now comes from, under the numbers: after them it
-              took the numbers off the name's row onto two of their own. */}
+          <AbilityPeekButton id={peekId} name={name} />
+        </div>
+        <div className="min-w-0 [grid-area:cd]">
+          {/* The base cooldown, large, on a line of its own: the figures read first. */}
+          <div className="mt-1">
+            <CooldownLine cooldown={a.cooldown} isStatic={!flagged && a.modifiers?.static === true} testId="ability-cooldown-value" lineTestId="ability-cooldown" source={flagged ? null : ownSource} bare />
+          </div>
+          {/* Once Riot changed the ability, where its line now comes from, under the numbers. */}
           {flagged && ownSource ? (
-            <p className="basis-full text-2xs leading-snug text-fg-subtle @min-[24rem]/abilities:text-right" data-testid="ability-cooldown-source">
+            <p className="text-2xs leading-snug text-fg-subtle" data-testid="ability-cooldown-source">
               {ownSource}
             </p>
           ) : null}
-          {/* At the haste chosen in the bar (none at 0): a line of its own, so the base line never moves. */}
+          {/* At the haste chosen in the strip's header (none at 0): a line of its own, so the base line never moves. */}
           <HasteLine basis={a.haste} />
         </div>
-        {/* Once Riot changed the ability: its badge first under the name's row, before the facts it flags,
-            leading their row (a row of its own where there are none); beside the name it pushed the cooldown
-            to a row of its own. The flagged notes themselves are in the Details window, one step away
-            (Release 10: on the tile they put the Production check's pair past the 1440 × 900 and
-            1280 × 800 fits with an enemy ability changed; docs/MATCHUP_INTEL.md). */}
+      </div>
+      <div className="mt-1 space-y-0.5 empty:hidden pointer-coarse:mt-3">
+        {/* Once Riot changed the ability: its badge first, before the facts it flags (a row of its own
+            where there are none); the flagged notes themselves are in the Peek, one step away. */}
         {flagged && !chips.length ? (
           <span className="flex" data-testid="ability-changed-badge">
             <ChangedBadge />
@@ -364,9 +392,8 @@ function AbilityTile({ intel, ability: a, checkedPatch, dataPatch, notRecheckedF
         {chips.length ? (
           // Rows of chips with no gap between them: each chip is its badge's own box (fact-chip.tsx), so
           // they touch and never overlap, a chip that wraps included; on a touch screen far enough
-          // apart that no chip's 44px area covers another (CHIP_ROWS), and 12px under the key's line,
-          // so none covers the Details button there.
-          <ul className={cn("flex flex-wrap pointer-coarse:mt-3", CHIP_ROWS)} aria-label={`What ${a.name} does`} data-testid="ability-facts" data-from={from}>
+          // apart that no chip's 44px area covers another (CHIP_ROWS).
+          <ul className={cn("flex flex-wrap", CHIP_ROWS)} aria-label={`What ${a.name} does`} data-testid="ability-facts" data-from={from}>
             {flagged ? (
               <li className="flex items-center" role="presentation" data-testid="ability-changed-badge">
                 <ChangedBadge />
@@ -377,7 +404,16 @@ function AbilityTile({ intel, ability: a, checkedPatch, dataPatch, notRecheckedF
                 <FactChipView chip={c} champion={champion.name} ability={a.name} />
               </li>
             ))}
+            {more ? <li className="flex items-center pl-0.5">{moreButton}</li> : null}
+            {/* In the strip, the checked notes' wait between casts, refunds and recasts follow the chips on their row where it has room. */}
+            {strip && notes.length ? (
+              <li className="flex items-center pl-1 text-xs text-fg-muted" data-testid="ability-modifiers">
+                {notes.join(" · ")}
+              </li>
+            ) : null}
           </ul>
+        ) : more ? (
+          moreButton
         ) : null}
         {/* Where any fact is conditional: the owner's marker, once, naming the chips it marks. */}
         <ConditionalNote chips={chips} testId="ability-facts-conditional" />
@@ -388,20 +424,32 @@ function AbilityTile({ intel, ability: a, checkedPatch, dataPatch, notRecheckedF
           </p>
         ) : null}
         {/* An ability with no reviewed fact says so, never "none": no fact of it passed the review, which says nothing of what it does. */}
-        {!chips.length && !hidden && from !== "none" ? (
+        {!all.length && !hidden && from !== "none" ? (
           <p className="text-xs text-fg-subtle" data-testid="ability-facts-none">
             {from === "riot-text" ? NO_ABILITY_FACTS_WORDS : noneRecordedWords(from)}
           </p>
         ) : null}
-        {notes.length ? (
+        {notes.length && !(strip && chips.length) ? (
           <p className="text-xs text-fg-muted" data-testid="ability-modifiers">
             {notes.join(" · ")}
           </p>
         ) : null}
-
       </div>
     </li>
   );
+}
+
+/** Each ability's Peek: its name, whose and which key, and everything its tile leaves out. */
+export function abilityPeekItemsOf(intel: ChampionIntelView): AbilityPeekItem[] {
+  const checkedPatch = intel.curated?.verified.patch ?? null;
+  const dataPatch = publicPatchOf(intel.dataVersion);
+  const notRecheckedFor = intel.curated?.recheck?.patch ?? null;
+  return (intel.abilities ?? []).map((a) => ({
+    id: `${intel.champion.id}.${a.slot}`,
+    title: a.name,
+    description: `${intel.champion.name} · ${SLOT_NAMES[a.slot]}`,
+    body: <AbilityDetailsBody champion={intel.champion} ability={a} intel={intel} source={cooldownSourceWords(a.cooldown, { freshness: a.freshness, checkedPatch, dataPatch, notRecheckedFor })} checkedPatch={checkedPatch} />,
+  }));
 }
 
 /** In place of an ability's facts from Riot's text, and its disagreements, once hidden: how many and why; null when nothing is hidden. */
@@ -417,7 +465,7 @@ export function publicPatchOf(version: string | null): string | null {
 }
 
 /** One champion's ability tiles, or what is missing: none stored yet, or a stored copy that cannot be read. */
-export function AbilityList({ intel, testId }: { intel: ChampionIntelView; testId?: string }) {
+export function AbilityList({ intel, testId, strip = false }: { intel: ChampionIntelView; testId?: string; /** The enemy's cooldown strip: five side by side where the panel has room, interactions and exceptions in the Peek. */ strip?: boolean }) {
   if (!intel.abilities || intel.abilities.length === 0) {
     const missing = missingAbilitiesWords(intel.champion.name, intel.abilitiesUnreadable);
     return (
@@ -433,15 +481,17 @@ export function AbilityList({ intel, testId }: { intel: ChampionIntelView; testI
   const notRecheckedFor = intel.curated?.recheck?.patch ?? null;
   const commonSource = commonSourceOf(intel);
   return (
-    // Laid out by its own width (container queries, in rem, so they follow the text size): from 24rem
-    // the cooldown ends the name's line; under it (a phone, a large text size) it takes a line of its
-    // own; under 16rem the icon joins the key's line (AbilityTile).
-    <ol className="@container/abilities divide-y divide-border" aria-label={`${intel.champion.name}'s abilities`} data-testid={testId}>
-      {/* Keyed by champion as well: another pair's tiles start afresh. */}
-      {intel.abilities.map((a) => (
-        <AbilityTile key={`${intel.champion.id}-${a.slot}`} intel={intel} ability={a} checkedPatch={checkedPatch} dataPatch={dataPatch} notRecheckedFor={notRecheckedFor} commonSource={commonSource} />
-      ))}
-    </ol>
+    // Laid out by its own width (container queries, in rem, so they follow the text size): the strip's
+    // five tiles side by side from 50rem (a desktop: each 14rem or more), one under another below that
+    // (a phone, a tablet's column, a large text size); each tile lays itself out by its own width.
+    <div className="@container/abilities">
+      <ol className={cn("grid divide-y divide-border", strip && "@min-[50rem]/abilities:grid-cols-5 @min-[50rem]/abilities:divide-x @min-[50rem]/abilities:divide-y-0")} aria-label={`${intel.champion.name}'s abilities`} data-testid={testId}>
+        {/* Keyed by champion as well: another pair's tiles start afresh. */}
+        {intel.abilities.map((a) => (
+          <AbilityTile key={`${intel.champion.id}-${a.slot}`} intel={intel} ability={a} checkedPatch={checkedPatch} dataPatch={dataPatch} notRecheckedFor={notRecheckedFor} commonSource={commonSource} strip={strip} />
+        ))}
+      </ol>
+    </div>
   );
 }
 
@@ -599,60 +649,53 @@ export function AbilitiesPanel({ intel, title, testId, notice, haste = false, fo
   );
   return (
     <Panel className="overflow-hidden" data-testid={testId} data-champion={intel.champion.id}>
-      <header className="space-y-0.5 border-b border-border px-3 py-1.5">
-        <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-          {/* A long name (Heimerdinger's) breaks rather than reach past the panel at a larger text size. */}
-          <h2 className="min-w-0 text-sm font-semibold text-fg [overflow-wrap:anywhere]">{title}</h2>
-          {/* The haste the cooldowns are also shown at, in the heading's row (the first enemy's panel only:
-              one choice for the page); the base line's words then start the source line. */}
-          {haste ? <HasteControl /> : <p className="text-xs text-fg-muted">Base cooldowns, without ability haste</p>}
-        </div>
-        <p className={cn("text-xs text-fg-muted", fold && "@min-[60rem]/dash:hidden")} data-testid="abilities-source">
-          {/* Riot's data, the tier of the abilities' names, icons and base cooldowns, first on the line that
-              says where they come from (a curated champion's facts say "Checked notes" at its end and on
-              each fact). Beside the title it put the haste control on a row of its own at 1440 × 900, 26px
-              that, with production's "Not re-checked", the sources' summary could not spare (Production
-              check, 20 Nov 2026). The version, unless Riot changed this champion on the newest patch: then
-              the words after the tier say so ("Riot's data changed on 26.24"), as the bar names the version
-              too. Beside the version, or on the title's row, the label wrapped a line at 1440 × 900
-              (16–20px), which put the sources' summary under the fold with production's "Not re-checked".
-              An offline copy keeps its words. */}
-          {lead(false)}
-          {rest}
-        </p>
-        {fold ? (
-          // In the bot lane on a desktop the two enemies' kits stand side by side, each a third of the page
-          // wide: their sources there took five or six lines each, which put the cooldown lines under the
-          // fold at 1280 × 800 and the sources' summary at 1440 × 900 (20 Nov 2026). The tier stays in view;
-          // where the abilities and their facts come from is one step away, in this fold. In one column
-          // (a phone, a tablet) nothing needs the room, and the line above stays in view instead.
-          <Fold
-            variant="inline"
-            tone="muted"
-            className="hidden @min-[60rem]/dash:block"
-            testId={`${testId}-sources`}
-            summaryClassName="pointer-fine:min-h-6 [&>[data-fold-chevron]]:order-last"
-            bodyClassName="mt-0.5 pointer-coarse:mt-4"
-            summary={
-              // Its name says whose sources these are: the two kits' folds stand side by side.
-              <span className="min-w-0" data-testid="abilities-source-lead">
-                {lead(true)}
-                <span className="sr-only"> · </span>
-                {SOURCES_FOLD_WORDS}
-                <span className="sr-only">{` for ${title}`}</span>
-              </span>
-            }
-          >
-            <p className="text-xs text-fg-muted" data-testid="abilities-source-folded">
-              {/* The first kit's base line, its title's row holding the haste: the second kit's title row says it in view. */}
-              {haste ? "Base cooldowns, without ability haste · " : null}
+      {/* One row where it fits: the title, where the abilities and their facts come from (a quiet line, or
+          on a desktop one step away in a fold where it carries no warning), and the haste at its end. */}
+      <header className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border px-3 py-1.5">
+        {/* A long name (Heimerdinger's) breaks rather than reach past the panel at a larger text size. */}
+        <h2 className="min-w-0 text-base font-semibold text-fg [overflow-wrap:anywhere]">{title}</h2>
+        <div className="min-w-0 flex-[1_1_14rem]">
+          {fold ? null : (
+            <p className="text-xs text-fg-muted" data-testid="abilities-source">
+              {/* Riot's data, the tier of the abilities' names, icons and base cooldowns, first on the line that
+                  says where they come from; the version, unless Riot changed this champion on the newest patch
+                  (then "Riot's data changed on 26.24"). An offline copy, or checked notes, keep their words in view. */}
+              {lead(false)}
               {rest}
             </p>
-          </Fold>
-        ) : null}
+          )}
+          {fold ? (
+            // Where the abilities and their facts come from, one step away at every width, the tier in view:
+            // the line took two to four lines of small type above the strip (the noise the redesign of
+            // 23 Nov 2026 took away). Not where it carries a warning (sourcesFold).
+            <Fold
+              variant="inline"
+              tone="muted"
+              testId={`${testId}-sources`}
+              summaryClassName="pointer-fine:min-h-6 [&>[data-fold-chevron]]:order-last"
+              bodyClassName="mt-0.5 pointer-coarse:mt-4"
+              summary={
+                // Its name says whose sources these are: the bot lane's two strips each have one.
+                <span className="min-w-0" data-testid="abilities-source-lead">
+                  {lead(true)}
+                  <span className="sr-only"> · </span>
+                  {SOURCES_FOLD_WORDS}
+                  <span className="sr-only">{` for ${title}`}</span>
+                </span>
+              }
+            >
+              <p className="text-xs text-fg-muted" data-testid="abilities-source-folded">
+                {haste ? "Base cooldowns, without ability haste · " : null}
+                {rest}
+              </p>
+            </Fold>
+          ) : null}
+        </div>
+        {/* The haste the cooldowns are also shown at (the first enemy's strip only: one choice for the page). */}
+        <div className="ml-auto">{haste ? <HasteControl /> : <p className="text-xs text-fg-muted">Base cooldowns, without ability haste</p>}</div>
       </header>
       {notice}
-      <AbilityList intel={intel} testId={`${testId}-list`} />
+      <AbilityList intel={intel} testId={`${testId}-list`} strip />
     </Panel>
   );
 }

@@ -662,3 +662,56 @@ export const riotChangedWords = (patch: string) => `Riot changed this on ${patch
 export const riotChangedAfterTierWords = (patch: string) => `changed on ${patch}`;
 /** The words before "on 26.24", so the page keeps "on 26.24" together on one line. */
 export const riotChangedLead = (after: boolean) => (after ? "changed" : "Riot changed this");
+
+/*
+  The lane plan's fixed words (docs/MATCHUP_INTEL.md, "The lane plan", 23 Nov 2026). Headings and
+  lines that name what the data holds, never advice: each is held to REFUSED_WORDS, the estimate
+  words and no "verified" by wording.test.ts.
+*/
+
+/** The overview card's title where a curated briefing shows. */
+export const LANE_PLAN_TITLE = "Lane plan";
+
+/** On a phone, what the lane plan folds behind one Show: its level changes and interactions. */
+export const PLAN_MORE_WORDS = "Level changes and interactions";
+
+/** The overview card's title for a pair with no curated briefing showing: what it is, a reference. */
+export const LANE_REFERENCE_TITLE = "Lane reference";
+
+/** A strip tile's interactions and exceptions, left to the ability's Peek: "3 interactions and exceptions". */
+export function interactionsMoreWords(count: number): string {
+  return count === 1 ? "1 interaction or exception" : `${formatCount(count)} interactions and exceptions`;
+}
+
+/**
+ * The groups of a side with nothing in them, said once after the groups that hold facts: "No reviewed
+ * facts of these kinds: Mobility and Defence." (from Riot's text), "None in the checked notes:
+ * Mobility." With some abilities' facts from Riot's text hidden, only what holds outside them (a
+ * hidden fact may be of those kinds): "No reviewed facts of this kind outside R: Mobility."
+ */
+export function emptyGroupsWords(groups: readonly KindGroup[], from: "checked" | "riot-text", hiddenKeys: readonly string[] = []): string {
+  const names = listWords(groups.map((g) => KIND_GROUP_WORDS[g]));
+  const kinds = groups.length === 1 ? "this kind" : "these kinds";
+  if (hiddenKeys.length) return `No reviewed facts of ${kinds} outside ${listWords(hiddenKeys)}: ${names}.`;
+  return from === "checked" ? `None in the checked notes: ${names}.` : `No reviewed facts of ${kinds}: ${names}.`;
+}
+
+/** The bot lane's lane reference: your duo's tools, one press away under the enemies' kits ("Opportunity: Jinx's and Lulu's tools, by kind"). */
+export function duoToolsWords(names: readonly string[]): string {
+  return `Opportunity: ${listWords(names.map((n) => `${n}'s`))} tools, by kind`;
+}
+
+/** The overview's quote of Riot's own tips against the enemy: "Riot's tip for playing against Darius". */
+export function riotTipHeadingWords(enemy: string, count: number): string {
+  return `${count === 1 ? "Riot's tip" : "Riot's tips"} for playing against ${enemy}`;
+}
+
+/** The fold under the overview that holds the rest of the reference: its title. */
+export const FULL_REFERENCE_TITLE = "Full reference";
+
+/** The fold's line: what it holds, in the order it holds it ("Interactions, level changes, Riven's abilities and Riot's tips"). */
+export function fullReferenceWords(has: { interactions: boolean; levels: boolean; yours: readonly string[]; tips: boolean }): string {
+  const parts = [has.interactions ? "interactions" : null, has.levels ? "level changes" : null, ...has.yours.map((n) => `${n}'s abilities`), has.tips ? "Riot's tips and the team's games" : null].filter((p): p is string => !!p);
+  const words = listWords(parts);
+  return words ? words.charAt(0).toUpperCase() + words.slice(1) : "";
+}

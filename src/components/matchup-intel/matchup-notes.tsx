@@ -7,6 +7,7 @@ import { kitOf } from "@/domain/matchup-intel/kit";
 import { Badge } from "@/components/ui/badge";
 import { InfoTip } from "@/components/ui/info-tip";
 import { Panel } from "@/components/ui/panel";
+import { cn } from "@/lib/cn";
 import { AbilityRefLink } from "./ability-ref-link";
 import { AbilityChips, HiddenNote, abilityNames } from "./briefing";
 import { FactChipView } from "./fact-chip";
@@ -73,7 +74,9 @@ function ChampionInteractions({ intel, testId, rows }: { intel: ChampionIntelVie
               </AbilityRefLink>
             ) : null}
             {item.chips.map((c, i) => (
-              <FactChipView key={i} chip={c} champion={champion.name} ability={item.ability} />
+              <span key={i} className="contents" data-tags={c.layer === "checked" && c.tags.length ? c.tags.join(" ") : undefined}>
+                <FactChipView chip={c} champion={champion.name} ability={item.ability} />
+              </span>
             ))}
             {item.flagged ? (
               <ChangedBadge />
@@ -174,9 +177,9 @@ function freshnessOf(intels: ReadonlyArray<ChampionIntelView | null>): { recheck
 }
 
 /** One of the curated matchup's interactions: its words, the chips of what it rests on, and its source's name one hover or tap away (the page itself is linked in the sources at the foot). */
-function MatchupInteraction({ item, names, rows, source }: { item: Extract<InteractionView, { kind: "interaction" }>; names: ReadonlyMap<string, string>; rows: ReadonlySet<string>; source: { title: string; url: string } }) {
+function MatchupInteraction({ item, names, rows, source, section = false }: { item: Extract<InteractionView, { kind: "interaction" }>; names: ReadonlyMap<string, string>; rows: ReadonlySet<string>; source: { title: string; url: string }; section?: boolean }) {
   return (
-    <li className="px-3 py-1.5 text-xs leading-snug text-fg" data-testid="matchup-interaction">
+    <li className={section ? "py-1.5 text-sm leading-snug text-fg" : "px-3 py-1.5 text-xs leading-snug text-fg"} data-testid="matchup-interaction">
       <span>{item.text}</span>
       <AbilityChips refs={item.abilities} names={names} rows={rows} label="Rests on" inline />
       {source.title ? (
@@ -190,19 +193,19 @@ function MatchupInteraction({ item, names, rows, source }: { item: Extract<Inter
 }
 
 /** The interactions of the pair on the page (see the module's comment), or the fixed words that none are recorded. `rows`: the champions whose tiles are on the page. */
-export function InteractionsPanel({ matchup, enemyIntel, yourIntel, you, rows }: { matchup: MatchupIntelView | null; enemyIntel: ChampionIntelView; yourIntel: ChampionIntelView | null; you: ChampionChoice | null; rows: ReadonlySet<string> }) {
+export function InteractionsPanel({ matchup, enemyIntel, yourIntel, you, rows, variant = "panel", parts = "all" }: { matchup: MatchupIntelView | null; enemyIntel: ChampionIntelView; yourIntel: ChampionIntelView | null; you: ChampionChoice | null; rows: ReadonlySet<string>; /** `section`: a part of the lane plan (no box of its own, its heading the plan's). */ variant?: "panel" | "section"; /** `matchup`: the curated matchup's own only (the lane plan); `champions`: each champion's own only (the full reference, beside a lane plan). */ parts?: "all" | "matchup" | "champions" }) {
   const enemy = enemyIntel.champion;
   const names = new Map<string, string>([[enemy.id, enemy.name]]);
   if (you) names.set(you.id, you.name);
-  const fromMatchup = matchup?.interactions ?? [];
+  const fromMatchup = parts === "champions" ? [] : (matchup?.interactions ?? []);
   const shown = fromMatchup.filter((i): i is Extract<InteractionView, { kind: "interaction" }> => i.kind === "interaction");
   const hidden = fromMatchup.filter((i): i is Extract<InteractionView, { kind: "hidden" }> => i.kind === "hidden");
   const changed = hidden.flatMap((i) => i.changed).filter((r, i, all) => all.indexOf(r) === i);
   // The matchup's check is too old to show: its interactions are hidden with its briefing, and said.
-  const expired = matchup?.recheck?.expired && matchup.expiredInteractions > 0 ? { count: matchup.expiredInteractions, patches: matchup.recheck.patches } : null;
+  const expired = parts !== "champions" && matchup?.recheck?.expired && matchup.expiredInteractions > 0 ? { count: matchup.expiredInteractions, patches: matchup.recheck.patches } : null;
   const mirror = !!yourIntel && yourIntel.champion.id === enemy.id;
-  const enemyFacts = kitOf(enemyIntel).interactions.length > 0;
-  const yourFacts = !!yourIntel && !mirror && kitOf(yourIntel).interactions.length > 0;
+  const enemyFacts = parts !== "matchup" && kitOf(enemyIntel).interactions.length > 0;
+  const yourFacts = parts !== "matchup" && !!yourIntel && !mirror && kitOf(yourIntel).interactions.length > 0;
   const sourceOf = (id: string) => {
     const s = matchup?.sources.find((x) => x.id === id);
     return s ? { title: s.title, url: s.url } : NO_SOURCE;
@@ -217,16 +220,21 @@ export function InteractionsPanel({ matchup, enemyIntel, yourIntel, you, rows }:
   // How fresh what the panel shows is: the matchup's own interactions with its check, each champion's with its notes'.
   const facts = freshnessOf([enemyFacts ? enemyIntel : null, yourFacts ? yourIntel : null]);
   const rechecks = [...new Set([...(shown.length && matchup?.recheck && !matchup.recheck.expired ? [matchup.recheck.patch] : []), ...facts.rechecks])];
+  const section = variant === "section";
+  const Box = section ? "section" : Panel;
+  const Title = section ? "h3" : "h2";
+  const pad = section ? "" : "px-3";
   return (
-    <Panel className="overflow-hidden" data-testid="matchup-interactions">
-      <header className="flex flex-wrap items-center gap-x-3 gap-y-0.5 border-b border-border px-3 py-1.5">
+    <Box className={section ? "min-w-0" : "overflow-hidden"} data-testid={parts === "champions" ? "matchup-champion-interactions" : "matchup-interactions"}>
+      <header className={section ? "flex flex-wrap items-baseline gap-x-3 gap-y-0.5" : "flex flex-wrap items-center gap-x-3 gap-y-0.5 border-b border-border px-3 py-1.5"}>
         <div className="flex min-w-0 flex-auto flex-wrap items-baseline justify-between gap-x-3">
-          <h2 className="text-sm font-semibold text-fg">Interactions</h2>
+          <Title className={section ? "flex items-center gap-1.5 text-sm font-semibold text-fg" : "text-sm font-semibold text-fg"}>{parts === "champions" ? "Each champion's interactions and exceptions" : "Interactions"}</Title>
+          {/* In the lane plan only the source beside the title: its heading says what the part is. */}
           <p className="text-xs text-fg-muted">
-            How abilities meet{you && matchup ? " in this lane" : ""}
+            {section ? null : `How abilities meet${you && matchup && parts !== "champions" ? " in this lane" : ""}`}
             {oneSource ? (
               <>
-                {" · "}
+                {section ? null : " · "}
                 <SourceTip text={`From ${oneSource}. Curated matchup notes.`} testId="interaction-source" />
               </>
             ) : null}
@@ -234,29 +242,29 @@ export function InteractionsPanel({ matchup, enemyIntel, yourIntel, you, rows }:
         </div>
         <FreshnessBadges rechecks={rechecks} expired={facts.expired} testId="matchup-interactions" />
       </header>
-      <ul className="divide-y divide-border">
+      <ul className={section ? "divide-y divide-border/60" : "divide-y divide-border"}>
         {shown.slice(0, INTERACTIONS_SHOWN).map((item, i) => (
-          <MatchupInteraction key={`m-${i}`} item={item} names={names} rows={rows} source={itemSource(item)} />
+          <MatchupInteraction key={`m-${i}`} item={item} names={names} rows={rows} source={itemSource(item)} section={section} />
         ))}
         {shown.length > INTERACTIONS_SHOWN ? (
           // The rest, word for word, one press away: never cut to fit.
           <li className="py-1">
-            <Fold variant="inline" tone="accent" summaryClassName="mx-3" testId="matchup-interactions-more" summary={<>{moreWords(shown.length - INTERACTIONS_SHOWN)}<span className="sr-only"> interactions</span></>}>
+            <Fold variant="inline" tone="accent" summaryClassName={section ? undefined : "mx-3"} testId="matchup-interactions-more" summary={<>{moreWords(shown.length - INTERACTIONS_SHOWN)}<span className="sr-only"> interactions</span></>}>
               <ul className="divide-y divide-border">
                 {shown.slice(INTERACTIONS_SHOWN).map((item, i) => (
-                  <MatchupInteraction key={`r-${i}`} item={item} names={names} rows={rows} source={itemSource(item)} />
+                  <MatchupInteraction key={`r-${i}`} item={item} names={names} rows={rows} source={itemSource(item)} section={section} />
                 ))}
               </ul>
             </Fold>
           </li>
         ) : null}
         {hidden.length ? (
-          <li className="px-3 py-2">
+          <li className={`${pad} py-2`}>
             <HiddenNote words={hiddenInteractionsWords(hidden.length, abilityNames(changed, names))} changed={changed} names={names} rows={rows} testId="matchup-interactions-hidden" />
           </li>
         ) : null}
         {expired && matchup ? (
-          <li className="px-3 py-2">
+          <li className={`${pad} py-2`}>
             <p className="flex items-start gap-1.5 text-sm text-fg-muted" data-testid="matchup-interactions-expired">
               <History className="mt-0.5 h-4 w-4 shrink-0 text-warn" aria-hidden />
               <span>{expiredInteractionsWords(expired.count, matchup.verified.patch, expired.patches)}</span>
@@ -266,27 +274,27 @@ export function InteractionsPanel({ matchup, enemyIntel, yourIntel, you, rows }:
         {enemyFacts || yourFacts ? (
           // Each champion's own, folded side by side on one line; one opened takes the row's width under
           // them. On a touch screen, two folds that wrap stand 16px apart, so neither's 44px area covers the other.
-          <li className="flex flex-wrap items-start gap-x-4 gap-y-1 px-3 py-1 pointer-coarse:gap-y-4">
+          <li className={`flex flex-wrap items-start gap-x-4 gap-y-1 ${pad} py-1 pointer-coarse:gap-y-4`}>
             <ChampionInteractions intel={enemyIntel} testId="enemy-interactions" rows={rows} />
             {yourIntel && !mirror ? <ChampionInteractions intel={yourIntel} testId="your-interactions" rows={rows} /> : null}
           </li>
         ) : null}
         {nothing ? (
-          <li className="px-3 py-2 text-xs text-fg-subtle" data-testid="matchup-no-interactions">
+          <li className={`${pad} py-2 text-xs text-fg-subtle`} data-testid="matchup-no-interactions">
             {NO_INTERACTIONS_WORDS}
           </li>
         ) : null}
       </ul>
-    </Panel>
+    </Box>
   );
 }
 
 /** One level note: its level beside its words (above them under 16rem), its source where the panel's line does not give it, and its flag once Riot changed an ability it rests on. */
-function LevelNote({ note: n, source }: { note: ChampionIntelView["levelNotes"][number] & { champion: ChampionIntelView["champion"] }; source: string | null }) {
+function LevelNote({ note: n, source, section = false }: { note: ChampionIntelView["levelNotes"][number] & { champion: ChampionIntelView["champion"] }; source: string | null; section?: boolean }) {
   return (
-    <li className="grid grid-cols-1 gap-x-2 gap-y-0.5 px-3 py-1.5 @min-[16rem]/levels:grid-cols-[3.25rem_minmax(0,1fr)]" data-testid="matchup-level-note" data-changed={n.changed ? "" : undefined}>
-      <span className="text-xs font-semibold tabular-nums leading-snug text-fg">Level {n.level}</span>
-      <p className="min-w-0 text-xs leading-snug text-fg">
+    <li className={cn("grid grid-cols-1 gap-x-2 gap-y-0.5 py-1.5 @min-[16rem]/levels:grid-cols-[3.75rem_minmax(0,1fr)]", section ? "" : "px-3")} data-testid="matchup-level-note" data-changed={n.changed ? "" : undefined}>
+      <span className={cn("font-semibold tabular-nums leading-snug text-fg", section ? "text-sm" : "text-xs")}>Level {n.level}</span>
+      <p className={cn("min-w-0 leading-snug text-fg", section ? "text-sm" : "text-xs")}>
         <span className="font-medium">{n.champion.name}:</span> {n.text}
         {source ? (
           <>
@@ -306,7 +314,7 @@ function LevelNote({ note: n, source }: { note: ChampionIntelView["levelNotes"][
 }
 
 /** Level notes of the champions on the page, in level order (the enemy's first at the same level), the first LEVELS_SHOWN shown and the rest folded, or the fixed words that none are recorded. */
-export function LevelNotesPanel({ intels }: { intels: ReadonlyArray<ChampionIntelView | null> }) {
+export function LevelNotesPanel({ intels, variant = "panel" }: { intels: ReadonlyArray<ChampionIntelView | null>; /** `section`: a part of the lane plan (no box of its own). */ variant?: "panel" | "section" }) {
   const present = intels.filter((intel): intel is ChampionIntelView => !!intel).filter((intel, i, all) => all.findIndex((x) => x.champion.id === intel.champion.id) === i);
   const notes = present.flatMap((intel, order) => intel.levelNotes.map((n, i) => ({ ...n, champion: intel.champion, order, i }))).sort((a, b) => a.level - b.level || a.order - b.order || a.i - b.i);
   // How fresh the notes are, said once on the panel's line: not re-checked for a later patch, or a
@@ -320,16 +328,19 @@ export function LevelNotesPanel({ intels }: { intels: ReadonlyArray<ChampionInte
   // Every note from one page (one champion's checked notes): its source said once, on the panel's line.
   const texts = notes.map(sourceText);
   const oneSource = texts.length > 0 && texts.every((t) => t !== null && t === texts[0]) ? texts[0]! : null;
+  const section = variant === "section";
+  const Box = section ? "section" : Panel;
+  const Title = section ? "h3" : "h2";
   return (
-    <Panel className="overflow-hidden" data-testid="matchup-level-notes">
-      <header className="flex flex-wrap items-center gap-x-3 gap-y-0.5 border-b border-border px-3 py-1.5">
+    <Box className={section ? "min-w-0" : "overflow-hidden"} data-testid="matchup-level-notes">
+      <header className={section ? "flex flex-wrap items-baseline gap-x-3 gap-y-0.5" : "flex flex-wrap items-center gap-x-3 gap-y-0.5 border-b border-border px-3 py-1.5"}>
         <div className="flex min-w-0 flex-auto flex-wrap items-baseline justify-between gap-x-3">
-          <h2 className="text-sm font-semibold text-fg">Level changes</h2>
+          <Title className="text-sm font-semibold text-fg">Level changes</Title>
           <p className="text-xs text-fg-muted">
-            When something becomes possible
+            {section ? null : "When something becomes possible"}
             {oneSource ? (
               <>
-                {" · "}
+                {section ? null : " · "}
                 <SourceTip text={oneSource} testId="level-note-source" />
               </>
             ) : null}
@@ -340,17 +351,17 @@ export function LevelNotesPanel({ intels }: { intels: ReadonlyArray<ChampionInte
       {notes.length ? (
         // The level beside its note, or above it where the list is under 16rem (a phone at a large
         // text size): beside it, the note would be left a column a word wide.
-        <ol className="@container/levels divide-y divide-border">
+        <ol className={cn("@container/levels divide-y", section ? "divide-border/60" : "divide-border")}>
           {notes.slice(0, LEVELS_SHOWN).map((n) => (
-            <LevelNote key={`${n.champion.id}-${n.order}-${n.i}`} note={n} source={oneSource ? null : sourceText(n)} />
+            <LevelNote key={`${n.champion.id}-${n.order}-${n.i}`} note={n} source={oneSource ? null : sourceText(n)} section={section} />
           ))}
           {notes.length > LEVELS_SHOWN ? (
             // The rest, word for word, one press away: never cut to fit.
             <li className="py-1">
-              <Fold variant="inline" tone="accent" summaryClassName="mx-3" testId="matchup-level-notes-more" summary={<>{moreWords(notes.length - LEVELS_SHOWN)}<span className="sr-only"> level changes</span></>}>
+              <Fold variant="inline" tone="accent" summaryClassName={section ? undefined : "mx-3"} testId="matchup-level-notes-more" summary={<>{moreWords(notes.length - LEVELS_SHOWN)}<span className="sr-only"> level changes</span></>}>
                 <ol className="divide-y divide-border">
                   {notes.slice(LEVELS_SHOWN).map((n) => (
-                    <LevelNote key={`${n.champion.id}-${n.order}-${n.i}`} note={n} source={oneSource ? null : sourceText(n)} />
+                    <LevelNote key={`${n.champion.id}-${n.order}-${n.i}`} note={n} source={oneSource ? null : sourceText(n)} section={section} />
                   ))}
                 </ol>
               </Fold>
@@ -358,10 +369,10 @@ export function LevelNotesPanel({ intels }: { intels: ReadonlyArray<ChampionInte
           ) : null}
         </ol>
       ) : (
-        <p className="px-3 py-2 text-xs text-fg-subtle" data-testid="matchup-no-level-notes">
+        <p className={cn("py-2 text-xs text-fg-subtle", section ? "" : "px-3")} data-testid="matchup-no-level-notes">
           {noLevelNotesWords(present.map((p) => p.champion.name))}
         </p>
       )}
-    </Panel>
+    </Box>
   );
 }
