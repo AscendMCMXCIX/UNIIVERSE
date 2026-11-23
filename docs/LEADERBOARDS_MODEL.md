@@ -7,8 +7,13 @@ Status: **live.** The owner approved the rules, and these boards replaced the pr
 - **One page since 19 Nov 2026 (the owner's approved change):** Recent form leads and the
   season's records and achievements follow on the same page, with no tabs (docs/TEAM_LEADERBOARDS.md,
   "The page"). The rules below are unchanged.
+- **A multikill score since 23 Nov 2026 (Release 15, the owner's request):** the multikills are
+  ranked by a per-game score against the same roles and champions in the same games, with double
+  kills counted; the most of each kind stays an achievement of its own (section 4 and
+  docs/TEAM_LEADERBOARDS.md, "The multikill score"). The one exception to principles 3 and 4 below.
 - **Where the code is:**
-  - `src/domain/leaderboard-recent.ts` and `src/domain/leaderboard-records.ts`;
+  - `src/domain/leaderboard-recent.ts`, `src/domain/leaderboard-records.ts` and `src/domain/multikill-score.ts`;
+  - the multikill score's comparison in `src/server/leaderboards/multikill-baseline.ts`;
   - the page's data in `src/server/leaderboards/recent-view.ts` (both parts from one load);
   - the page in `src/components/leaderboards/leaderboards-dashboard.tsx`, Recent form's board in
     `recent-leaderboards.tsx`, the season records, multikills and milestones in `records.tsx`.
@@ -41,8 +46,13 @@ Status: **live.** The owner approved the rules, and these boards replaced the pr
    that depends on the role is compared only within that role.
 2. **Say what counts.** Every row shows its games, its record and its dates.
 3. **Equal opportunity, not equal results.** Playing more does not raise anyone's place. Nobody's
-   figures are adjusted, weighted or normalised.
-4. **One plain figure per column.** No composite "impact" score, no hidden formula.
+   figures are adjusted, weighted or normalised. The one exception, at the owner's request (23 Nov
+   2026): the multikill score compares a member's multikills per game with their roles' and
+   champions' usual (section 4), because raw counts reward carries and volume; the counts shown
+   beside it are never adjusted.
+4. **One plain figure per column.** No composite "impact" score, no hidden formula. The multikill
+   score is one figure whose rule is stated (the board's ⓘ in plain words, the formula in
+   docs/TEAM_LEADERBOARDS.md), never an "impact" mix of unrelated figures.
 5. **Two experiences, kept apart:** how players are doing lately (Recent performance), and what
    they have achieved (Records & achievements). Since 19 Nov 2026 they share one page, kept apart as its
    sections: Recent form leads as the page's lead card, the records and achievements follow under
@@ -155,7 +165,32 @@ expected of a record.
   - longest win streak.
 
   Each record shows the role and champion it was set on.
-- **Multikills this season:** pentakills, quadra kills and triple kills per player, rarest first.
+- **Multikills this season** (since 23 Nov 2026; a rarest-first tally of triple, quadra and
+  pentakills before): a ranking by the multikill score, and the most double, triple, quadra and
+  pentakills.
+  - **The score:** per game, each kind (double, triple, quadra, penta) against what players on the
+    same roles and champions made in the same stored games (every other participant of the members'
+    season games, never a team member: a real observed baseline, labelled as such, never "high-elo"),
+    100 the usual; every multikill counts once, at its largest, worth its kills (a double 2, a
+    pentakill 5), pooled over the four kinds, so the score's chance spread falls with games (round 2
+    of the review: the first version averaged the four kinds equally and stayed as noisy at any
+    sample size). How Riot's counters count is read from the stored games, nested assumed (the reading
+    that never counts one twice) while they cannot tell; the board shows each multikill once.
+  - **Reliability:** a comparison of at least 1,000 games, else the team's own games (said so); a
+    role's rates lean toward every position's by 200 games, a champion's toward its role's by 50; a
+    cushion of 40 kill points (twenty usual double kills) pulls a score with few games toward 100,
+    chosen by simulation (round 3: against 20, 30 and 60) so members with few games neither top the
+    board out of proportion nor are held back on realistic boards. The ⓘ says how far luck alone
+    moves a score over 50 and 300 games, and within how many points two scores could swap by luck.
+  - **The trade-off:** a pentakill counts as 2.5 doubles (its kills), so over many games a score is
+    mostly doubles and triples; "Most pentas" keeps pentakills recognised.
+  - **Places:** 20 games with counts for a place, 10–19 provisional (listed after), fewer no score;
+    the same statuses Recent form uses.
+  - **Records of their own:** the most of each kind (each multikill once, every holder of a shared
+    one), so a member can chase pentakills whatever the score says.
+  - **One count everywhere:** the profiles show the same once-each counts as the board (round 3).
+  - **The reason behind a score:** the player Peek a row opens shows each kind made against its
+    usual and the score's spread by chance, on every device.
 - **Champion milestones**, under their own "Milestones" heading ("Lifetime and milestones" until 19 Nov 2026):
   - games on one champion this season (25, 50, 100);
   - Riot mastery points on a champion (100,000, 500,000, 1,000,000).
@@ -226,3 +261,10 @@ role), because a board of one or two players is not a competition.
   copies nothing (`tests/db/leaderboard-samples.test.ts`);
 - that playing more games never raises a player's place by itself;
 - that a 10-game player at 80% does not outrank a 20-game player.
+
+`src/domain/multikill-score.ts` and its tests cover the multikill score: how Riot counts, read from
+the games; each multikill once; the comparison's threshold, role lean and champion factor; worked
+scores (a support with 200 games and no pentakill above a 12-game mid with one); kills as weights;
+the chance spread; the sensitivity behind the 1,000-game threshold; places; and a seeded simulation
+(the spread falls with games, a truly better member's score rises toward its true ratio, members
+with 20 games do not top boards out of proportion).

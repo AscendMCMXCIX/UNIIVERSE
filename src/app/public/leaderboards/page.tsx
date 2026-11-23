@@ -4,7 +4,8 @@ import { getOrCreateTeam } from "@/server/repositories/team";
 import { listChampions } from "@/server/repositories/champions";
 import { publicRiotDataAllowed } from "@/server/public/access";
 import { loadPublicLeaderboardData } from "@/server/public/leaderboards";
-import { buildLeaderboardsView, parseLeaderboardsQuery } from "@/server/leaderboards/recent-view";
+import { buildLeaderboardsView, parseLeaderboardsQuery, recordsSeason } from "@/server/leaderboards/recent-view";
+import { loadMultikillBaseline } from "@/server/leaderboards/multikill-baseline";
 import { LeaderboardsDashboard } from "@/components/leaderboards/leaderboards-dashboard";
 
 export const dynamic = "force-dynamic";
@@ -20,6 +21,9 @@ export default async function PublicLeaderboardsPage({ searchParams }: { searchP
   const db = await getAppDb();
   const team = await getOrCreateTeam(db);
   const [data, champions, params] = await Promise.all([loadPublicLeaderboardData(db, team.id), listChampions(db), searchParams]);
-  const view = buildLeaderboardsView(data, parseLeaderboardsQuery(params), null, { basePath: "/public/leaderboards", profiles: false });
+  const query = parseLeaderboardsQuery(params);
+  // The public players' games compared with the other players in them (never a team member): aggregates only.
+  const multikillBaseline = await loadMultikillBaseline(db, `public:${team.id}`, data, recordsSeason(data, query));
+  const view = buildLeaderboardsView(data, query, null, { basePath: "/public/leaderboards", profiles: false, multikillBaseline });
   return <LeaderboardsDashboard view={view} champions={Object.fromEntries(champions.map((c) => [c.id, { id: c.id, name: c.name, portraitUrl: c.portraitUrl }]))} />;
 }

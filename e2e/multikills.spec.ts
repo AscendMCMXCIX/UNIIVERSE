@@ -152,7 +152,8 @@ test("Total kills: each game's own kills over the same games as the other figure
   const number = async (testId: string) => Number((await page.getByTestId(testId).innerText()).replace(/,/g, ""));
   const total = await number("stat-total-kills-value");
   expect(total).toBeGreaterThan(0);
-  // The kills of every game, not the multikills added up: more than all the kills inside them.
+  // The kills of every game, not the multikills added up: more than all the kills inside them. The cards show each multikill once,
+  // at its largest (the demo's counters are nested, as Riot's appear to be: a pentakill is not also a double, a triple and a quadra here).
   const [double, triple, quadra, penta] = await Promise.all(KINDS.map(([k]) => number(`multikill-${k}-value`)));
   expect(total).toBeGreaterThan(2 * double! + 3 * triple! + 4 * quadra! + 5 * penta!);
   // Narrower filters, fewer kills; the role filter is one of them.
@@ -300,4 +301,21 @@ test("Team Matches marks each member's largest multikill beside their K/D/A", as
   for (const text of await marks.allTextContents()) expect(text.trim()).toMatch(/^(Double kill|Triple kill|Quadra kill|Pentakill)$/);
   // Each one inside a member's cell, never on its own.
   expect(await page.getByTestId("together-member").locator("[data-testid='together-multikill']:visible").count()).toBe(await marks.count());
+});
+
+test("a member's multikills read the same on the profile and on Team Leaderboards: each multikill once, at its largest", async ({ page }) => {
+  // The board: the season's supported games, every role; the profile's Overview by default is the same season, every queue and role.
+  await page.goto("/leaderboards");
+  await expect(page.getByTestId("leaderboards")).toHaveAttribute("data-ready", "true");
+  const row = page.locator("[data-testid=multikill-row][data-status=ranked]").first();
+  const id = (await row.getAttribute("data-player-id"))!;
+  const board = await row.evaluate((e) => ["data-double", "data-triple", "data-quadra", "data-penta"].map((k) => Number(e.getAttribute(k))));
+  const riot = (await row.getAttribute("data-riot"))!.split(",").map(Number);
+  // A member whose games hold a bigger multikill: Riot's nested counters and the once-each counts differ for them.
+  expect(riot).not.toEqual(board);
+  await page.goto(`/players/${id}`);
+  const strip = page.getByTestId("multikills");
+  await expect(strip).toBeVisible();
+  const profile = await Promise.all(KINDS.map(async ([k]) => Number((await page.getByTestId(`multikill-${k}-value`).innerText()).replace(/,/g, ""))));
+  expect(profile, "the profile's double, triple, quadra and pentakills: the board's").toEqual(board);
 });

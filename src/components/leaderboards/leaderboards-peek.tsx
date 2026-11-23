@@ -5,9 +5,12 @@ import { usePlayerPeek, type PlayerPeekRow } from "@/components/players/player-p
 import { ROW_LINK_COVER, RowLink } from "@/components/ui/data-list";
 import { isPlainClick } from "@/lib/back-to-top";
 import { dropOtherPeek } from "./record-game";
+import { MultikillPeekDetail } from "./multikill-detail";
+import type { MultikillDetail } from "@/server/leaderboards/recent-view";
 
 /*
-  The player Peek on the Leaderboards' member rows (PLAN S8a): the boards are drawn on the server,
+  The player Peek on the Leaderboards' member rows (PLAN S8a), led by the member's multikills (each
+  kind made against the usual: multikill-detail.tsx, Release 15): the boards are drawn on the server,
   so the page's Peek lives in this provider, and each member row's press (PeekRowLink, in a row's
   `link` slot, where RowLink was) asks it for its link. The member's name stays a link to the
   profile (MemberCell's `nameHref`). On the public boards, which link nowhere, nothing of this is used.
@@ -15,9 +18,10 @@ import { dropOtherPeek } from "./record-game";
 
 const PeekContext = React.createContext<{ row: (id: string) => PlayerPeekRow; ids: ReadonlySet<string> } | null>(null);
 
-export function LeaderboardsPeek({ ids, names, viewerPlayerId, children }: { ids: string[]; names: Array<[string, string]>; viewerPlayerId: string | null; children: React.ReactNode }) {
+export function LeaderboardsPeek({ ids, names, viewerPlayerId, multikills, seasonLabel, children }: { ids: string[]; names: Array<[string, string]>; viewerPlayerId: string | null; /** Each member's multikills, which the Peek leads with on this page (the reason behind a score, on every device). */ multikills?: Record<string, MultikillDetail>; seasonLabel?: string; children: React.ReactNode }) {
   const nameMap = React.useMemo(() => new Map(names), [names]);
-  const { row, panel } = usePlayerPeek({ ids, names: nameMap, viewerPlayerId });
+  const lead = React.useCallback((id: string) => (multikills?.[id] ? <MultikillPeekDetail detail={multikills[id]} seasonLabel={seasonLabel ?? ""} /> : null), [multikills, seasonLabel]);
+  const { row, panel } = usePlayerPeek({ ids, names: nameMap, viewerPlayerId, lead });
   const value = React.useMemo(() => ({ row, ids: new Set(ids) }), [row, ids]);
   return (
     <PeekContext.Provider value={value}>

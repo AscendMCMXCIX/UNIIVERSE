@@ -295,8 +295,10 @@ async function seedDemoTogether(db: Db, teamId: string) {
       const side = parts.filter((x) => x.teamId === team);
       const open = (["TOP", "JUNGLE", "MID", "ADC", "SUPPORT"] as Role[]).filter((r) => !side.some((x) => x.position === r));
       for (const x of side) {
+        const own = x.position !== null;
         const role = (x.position as Role | null) ?? open.shift() ?? "MID";
         giveDemoLoadout(x, role, demoBuild(ownRnd, duration, role).purchases, duration);
+        if (!own) giveDemoOtherFigures(x, role, matchId);
       }
     }
     details.push({ matchId, platform: "euw1", queueId: g.queueId, gameCreation, gameDuration: duration, gameVersion: `${season}.20.1`, teams: [{ teamId: 100, win: g.win, bans: [], objectives: {} }, { teamId: 200, win: !g.win, bans: [], objectives: {} }], participants: parts });
@@ -451,6 +453,36 @@ function balanceDemoGame(me: MatchParticipantDetail, allies: MatchParticipantDet
   for (const x of [...allies, ...enemies]) x.gold = Math.round(minutes * 285 + x.kills * 300 + x.assists * 110 + (x.win ? 1100 : 0) + ((x.gold ?? 10_500) - 10_500) * 0.3);
 }
 
+/**
+ * A demo game's other player (never a member): their position, and Riot's multikill counts drawn
+ * within their kills from a sequence of their own (seeded by the game and the player, so no other
+ * demo figure moves), drawn once at their largest and kept as nested counters, as the demo members'
+ * own are (seedDemoGames), at about the members' rates for the role: so the multikill score compares
+ * the demo members with players like them (demo only; never real data).
+ */
+function giveDemoOtherFigures(x: MatchParticipantDetail, role: Role, matchId: string) {
+  let seed = [...`${matchId}|${x.puuid}`].reduce((n, c) => (n * 31 + c.charCodeAt(0)) % 233280, 17);
+  const rnd = () => ((seed = (seed * 9301 + 49297) % 233280), seed / 233280);
+  const support = role === "SUPPORT";
+  let budget = x.kills;
+  const made = { 5: 0, 4: 0, 3: 0, 2: 0 } as Record<2 | 3 | 4 | 5, number>;
+  const chance: Record<2 | 3 | 4 | 5, number> = support ? { 5: 0.004, 4: 0.012, 3: 0.05, 2: 0.3 } : { 5: 0.03, 4: 0.07, 3: 0.2, 2: 0.45 };
+  for (const size of [5, 4, 3] as const) {
+    if (budget >= size && rnd() < chance[size]) {
+      made[size] += 1;
+      budget -= size;
+    }
+  }
+  while (budget >= 2 && rnd() < chance[2]) {
+    made[2] += 1;
+    budget -= 2;
+  }
+  const largest = made[5] ? 5 : made[4] ? 4 : made[3] ? 3 : made[2] ? 2 : x.kills > 0 ? 1 : 0;
+  x.position = role;
+  x.stats = { ...(x.stats ?? {}), doubleKills: made[2], tripleKills: made[3], quadraKills: made[4], pentaKills: made[5], largestMultiKill: largest };
+  nestDemoCounters(x.stats);
+}
+
 const DEMO_STARTS: Record<Role, number[]> = { TOP: [1054, 2003], JUNGLE: [1102, 2003], MID: [1056, 2003, 2003], ADC: [1055, 2003], SUPPORT: [3865, 2003] };
 const DEMO_CORE: Record<Role, number[]> = {
   TOP: [1028, 3047, 1037, 3078, 1029, 3068, 3075],
@@ -601,6 +633,18 @@ const DEMO_ROLES_FOR = (role: Role): Role[] => (["TOP", "JUNGLE", "MID", "ADC", 
  */
 const DEMO_OLDER_RECORDS = "Demo Support";
 
+/** Demo members whose newest N games alone carry multikill counts (the board's provisional and too-few groups). */
+const DEMO_FEW_COUNTS: Readonly<Record<string, number>> = { "Demo Sub (Support)": 12, "Demo Sub (Top)": 5 };
+
+/** Each multikill once, at its largest (the demo's draws), as nested counters: every larger multikill also counts each smaller one. */
+function nestDemoCounters(stats: NonNullable<MatchParticipantDetail["stats"]>) {
+  const e = [stats.doubleKills ?? 0, stats.tripleKills ?? 0, stats.quadraKills ?? 0, stats.pentaKills ?? 0];
+  stats.doubleKills = e[0]! + e[1]! + e[2]! + e[3]!;
+  stats.tripleKills = e[1]! + e[2]! + e[3]!;
+  stats.quadraKills = e[2]! + e[3]!;
+  stats.pentaKills = e[3]!;
+}
+
 /** A demo player's games; returns those whose record "Riot no longer provides" (see DEMO_OLDER_RECORDS). */
 async function seedDemoGames(db: Db, accountId: string, puuid: string, name: string, pools: Array<{ role: Role; pool: string[] }>): Promise<string[]> {
   const gone: string[] = [];
@@ -685,10 +729,19 @@ async function seedDemoGames(db: Db, accountId: string, puuid: string, name: str
         soloKills: role === "TOP" || role === "MID" ? int(0, 3) : int(0, 1),
       },
     };
+    // Riot's counters as nested ones (a triple also counts a double, a pentakill a double, a triple
+    // and a quadra), as the public match records suggest Riot keeps them: the draws above are each
+    // multikill once, at its largest, turned into counters here (no draw added or moved, so no other
+    // demo figure changes). The multikill board reads them back as one event each.
+    nestDemoCounters(me.stats!);
     if (name === DEMO_OLDER_RECORDS && i < count / 2) {
       delete me.stats;
       if (i % 4 === 0) gone.push(matchId);
     }
+    // Two members with few games carrying counts (their older records still to be fetched again),
+    // so the multikill board shows a provisional score and a member with too few games for one.
+    const few = DEMO_FEW_COUNTS[name];
+    if (few !== undefined && i < count - few) delete me.stats;
     const allies = [1, 2, 3, 4].map((n) => filler(n, ownTeam, true));
     const enemies = [5, 6, 7, 8, 9].map((n) => filler(n, otherTeam, false));
     // The lane opponent: the enemy in the same position.
@@ -722,7 +775,11 @@ async function seedDemoGames(db: Db, accountId: string, puuid: string, name: str
     const ownRnd = builds ? null : demoGameRnd(matchId);
     for (const x of players) {
       const purchases = builds?.find((b) => b.puuid === x.puuid)?.purchases ?? demoBuild(ownRnd!, duration, x.role).purchases;
-      giveDemoLoadout(sides.find((p) => p.puuid === x.puuid)!, x.role, purchases, duration);
+      const part = sides.find((p) => p.puuid === x.puuid)!;
+      giveDemoLoadout(part, x.role, purchases, duration);
+      // Everyone else's position and multikill counts, as a real record carries them (the multikill
+      // score compares the members with them), from a sequence of their own: nothing else moves.
+      if (part !== me) giveDemoOtherFigures(part, x.role, matchId);
     }
     details.push({ matchId, platform: "euw1", queueId, gameCreation, gameDuration: duration, gameVersion: `${season}.20.1`, teams: [100, 200].map((teamId) => ({ teamId, win: teamId === ownTeam ? win : !win, bans: [], objectives: objectiveCounts?.[teamId] ?? {} })), participants: sides });
   }

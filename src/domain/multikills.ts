@@ -52,13 +52,19 @@ export interface MultikillSummary extends MultikillCounts {
   unavailable: number;
 }
 
-/** Totals over the games given (already filtered and de-duplicated by the caller). */
-export function multikillsOfGames(games: ReadonlyArray<{ multikills?: string | null }>): MultikillSummary {
+/**
+ * Totals over the games given (already filtered and de-duplicated by the caller), each multikill
+ * once, at its largest, read by Riot's counting rule (`rule`, from server/accounts/multikill-counting:
+ * nested counters also count a pentakill's double, triple and quadra; separate ones, the default
+ * here, are already one each), so a profile and Team Leaderboards show a member the same counts.
+ */
+export function multikillsOfGames(games: ReadonlyArray<{ multikills?: string | null }>, rule: "nested" | "separate" = "separate"): MultikillSummary {
   const out: MultikillSummary = { games: games.length, counted: 0, unavailable: 0, double: 0, triple: 0, quadra: 0, penta: 0 };
   for (const g of games) {
     if (g.multikills === UNAVAILABLE) out.unavailable += 1;
-    const m = parseMultikills(g.multikills);
-    if (!m) continue;
+    const raw = parseMultikills(g.multikills);
+    if (!raw) continue;
+    const m = rule === "nested" ? { double: Math.max(0, raw.double - raw.triple), triple: Math.max(0, raw.triple - raw.quadra), quadra: Math.max(0, raw.quadra - raw.penta), penta: raw.penta } : raw;
     out.counted += 1;
     out.double += m.double;
     out.triple += m.triple;
