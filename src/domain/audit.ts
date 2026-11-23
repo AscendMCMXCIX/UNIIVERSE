@@ -20,6 +20,11 @@ export const AUDIT_ACTIONS = {
   "account.admin-grant": "Granted administrator access",
   "account.admin-revoke": "Removed administrator access",
   "account.display-name": "Changed a member's display name",
+  "account.username": "Changed a member's username",
+  "self.username": "Changed their own username",
+  "self.display-name": "Changed their own display name",
+  "self.picture": "Changed their own picture",
+  "self.picture-remove": "Removed their own picture",
   "account.sign-out-everywhere": "Signed an account out everywhere",
   "account.picture-replace": "Replaced a member's picture",
   "account.picture-remove": "Removed a member's picture",
@@ -32,6 +37,7 @@ export const AUDIT_ACTIONS = {
   "profile.delete": "Deleted a player profile",
   "profile.archive": "Archived a player profile",
   "profile.restore": "Restored a player profile",
+  "profile.edit": "Changed a member's roles or champion pools",
   "password.change": "Changed their own password",
   "preset.save": "Saved an access level",
   "preset.delete": "Deleted an access level",
@@ -62,7 +68,7 @@ export type AuditAction = keyof typeof AUDIT_ACTIONS;
 /** The Audit Logs filter: every recorded action belongs to exactly one category. */
 export const AUDIT_CATEGORIES = {
   access: { label: "Access & permissions", actions: ["account.role", "account.access", "account.groups", "account.permissions", "account.admin-grant", "account.admin-revoke", "preset.save", "preset.delete"] },
-  accounts: { label: "Accounts & passwords", actions: ["owner.setup", "owner.recover", "account.create", "account.password-reset", "account.password-withdrawn", "account.activate", "account.deactivate", "account.delete", "account.team-member", "account.display-name", "account.sign-out-everywhere", "account.picture-replace", "account.picture-remove", "account.link-hide", "account.link-remove", "riot.link", "riot.unlink", "riot.replace", "riot.main", "profile.delete", "profile.archive", "profile.restore", "password.change"] },
+  accounts: { label: "Accounts & passwords", actions: ["owner.setup", "owner.recover", "account.create", "account.password-reset", "account.password-withdrawn", "account.activate", "account.deactivate", "account.delete", "account.team-member", "account.display-name", "account.username", "account.sign-out-everywhere", "account.picture-replace", "account.picture-remove", "account.link-hide", "account.link-remove", "riot.link", "riot.unlink", "riot.replace", "riot.main", "profile.delete", "profile.archive", "profile.restore", "profile.edit", "password.change", "self.username", "self.display-name", "self.picture", "self.picture-remove"] },
   settings: { label: "Platform settings", actions: ["branding.save", "branding.reset", "branding.asset", "branding.asset-remove", "branding.public-site", "resources.add", "resources.edit", "resources.remove", "resources.restore"] },
   data: { label: "Data & jobs", actions: ["clash.scout-delete", "jobs.schedule", "jobs.run", "demo.data"] },
   privacy: { label: "Personal data", actions: ["privacy.erase", "privacy.release", "privacy.reconcile", "privacy.export", "privacy.import"] },

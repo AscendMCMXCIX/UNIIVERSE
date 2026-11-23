@@ -126,4 +126,29 @@ The notice says each of these:
 
 ## Sign-in sessions in Admin (overhaul S9, 19 Nov 2026)
 
-The privacy notice says of sign-in sessions "Who sees it: nobody in the app". So Admin never shows how many sessions an account has or ended: **Sign out everywhere** (an administrator's, on another account; never the Owner's by another administrator) reports "Signed out everywhere", and its audit entry has no count. A member's own **Sign out of other devices** (Settings → Password) is not audited, like the rest of a member's own changes, until the owner decides OD9. Moderation (a picture replaced or removed, a public link hidden or removed) records the link's kind only (YouTube, Twitch, Discord), never its address; a link a member keeps to themselves is never shown in Admin. An administrator's change to someone else's Riot accounts in the person view (link, unlink, change Riot ID, make Main; S9c) is recorded as `riot.link`, `riot.unlink`, `riot.replace` or `riot.main`, naming the profile and the account by its label (Main or Alt), never its Riot ID or PUUID; a member's changes to their own accounts are not recorded (OD9). Reactivate with a new temporary password records `account.activate` with "with a new temporary password", never the password (`tests/db/admin-riot-accounts.test.ts`). Withdrawing a temporary password records `account.password-withdrawn`, naming the account only, never the password; a withdrawal that changes nothing records nothing (`tests/db/withdraw-password.test.ts`).
+The privacy notice says of sign-in sessions "Who sees it: nobody in the app". So Admin never shows how many sessions an account has or ended: **Sign out everywhere** (an administrator's, on another account; never the Owner's by another administrator) reports "Signed out everywhere", and its audit entry has no count. A member's own **Sign out of other devices** (Settings → Password) is not audited. Moderation (a picture replaced or removed, a public link hidden or removed) records the link's kind only (YouTube, Twitch, Discord), never its address; a link a member keeps to themselves is never shown in Admin. An administrator's change to someone else's Riot accounts in the person view (link, unlink, change Riot ID, make Main; S9c) is recorded as `riot.link`, `riot.unlink`, `riot.replace` or `riot.main`, naming the profile and the account by its label (Main or Alt), never its Riot ID or PUUID; a member's changes to their own Riot accounts are not recorded. Reactivate with a new temporary password records `account.activate` with "with a new temporary password", never the password (`tests/db/admin-riot-accounts.test.ts`). Withdrawing a temporary password records `account.password-withdrawn`, naming the account only, never the password; a withdrawal that changes nothing records nothing (`tests/db/withdraw-password.test.ts`).
+
+## The account activity log (OD9, 23 Nov 2026)
+
+The owner approved OD9 on 23 Nov 2026. The notice's "Account activity log" row says what is recorded, and the code records exactly that:
+
+| Recorded | Action | Since |
+|---|---|---|
+| An administrator's change to an account or a setting | `account.*`, `branding.*`, `resources.*`, `jobs.*`, `privacy.*`, `preset.*` | before OD9 |
+| The Owner's change to another member's username (OD8a) | `account.username` | 23 Nov 2026 |
+| A member's own username, display name or profile picture | `self.username`, `self.display-name`, `self.picture`, `self.picture-remove` | 23 Nov 2026 |
+| A member's own password change (that it changed, never the password) | `password.change` | before OD9 |
+| A team manager's or an administrator's change to another member's roles or champion pools (`profile.edit`, the parts by name), archive or restore (`profile.archive`, `profile.restore`) and Riot accounts (`riot.*`) | as listed | `profile.edit` and a manager's archive since 23 Nov 2026 |
+
+- Every entry names the account (or profile) and the kind of change, never the old or new value: no username, display name, picture, champion or Riot ID is stored in the details.
+- A change that changes nothing records nothing.
+- Permanent removal replaces the person's name in the log with "Erased member", as before.
+- Tests: `tests/db/member-admin.test.ts` ("the permission hierarchy").
+
+## Prepared, not active: high-elo statistics (OD4)
+
+Matchup Intel's anonymous high-elo statistics are built and switched off, and wait for the owner's Riot registration update before they join `main` (commit 6dfccdd0, its docs/HIGH_ELO_EVIDENCE.md). The notice must not describe them as collected until the collection is switched on. When it is, the notice gains this row, and `PRIVACY_UPDATED` changes with it:
+
+> **What:** Anonymous statistics from ranked games of high-elo players who are not members (Master, Grandmaster and Challenger, in every region Riot's API serves): counts per patch, region, role and champion of their champions, lane opponents, results, rune keystones, summoner spells, starting items, first items, skill order and when the lane ended. **Why:** To show, in Matchup Intel, what such players were observed to do, beside the curated notes. **Who sees it:** Signed-in members, as totals only. **How long:** The current and previous patch; older counts are deleted. No name, Riot ID, PUUID or match identifier is ever stored: the players' identifiers are used only in memory while a sample is taken.
+
+That pull request (the one setting `HIGH_ELO_COLLECTION_ENABLED = true`) adds the row to `src/app/privacy/page.tsx` and its check to `e2e/privacy.spec.ts`.

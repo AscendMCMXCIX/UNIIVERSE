@@ -20,6 +20,9 @@ export function typedMatches(typed: unknown, expected: string): boolean {
  */
 export const REAPPLY_PHRASE = "REAPPLY";
 
+/** The phrase the Owner types before another member's username, their sign-in name, changes (OD8a). */
+export const RENAME_PHRASE = "RENAME";
+
 /** The phrase that turns a scheduled job off (its interval set to 0). */
 export function turnOffPhrase(job: string): string {
   return `TURN OFF ${job}`;

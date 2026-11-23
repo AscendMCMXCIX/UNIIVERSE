@@ -51,6 +51,10 @@ import { loadPublicTeam } from "@/server/public/team";
 import { loadSocialLinks, setSocialLinks } from "@/server/repositories/profile";
 import { queryAudit } from "@/server/audit/log";
 import * as adminActions from "@/server/actions/member-admin";
+import * as usersActions from "@/server/actions/users";
+import * as playerActions from "@/server/actions/players";
+import * as riotAccountActions from "@/server/actions/accounts";
+import { riotAccounts } from "@/server/db/schema";
 import * as accountActions from "@/server/actions/account";
 import * as auditActions from "@/server/actions/audit";
 import { loadNeedsYou } from "@/server/admin/needs-you";
@@ -264,9 +268,11 @@ describe("Sign out everywhere", () => {
 describe("the atomic access save", () => {
   it("saves level, groups and administrator access together, and the grant needs a second confirmation", async () => {
     const standard = (await listPermissionPresets(handle.db)).find((p) => p.levelKey === "standard")!;
-    // Any administrator grants it to another account, as before the overhaul: an Owner-only grant
-    // waits for the owner's decision (PLAN OD8c).
+    // Only the Owner grants it (OD8c, 23 Nov 2026): an administrator's save is refused and changes nothing.
     await signInAs(adminId);
+    expect(await adminActions.saveAccessAction(otherId, { level: { level: "preset", presetId: standard.id }, groups: ["lineup-manager"], administrator: true, confirmAdministrator: true })).toMatchObject({ ok: false, error: expect.stringMatching(/Only the Owner grants administrator access/) });
+    expect((await getUser(handle.db, otherId))!).toMatchObject({ isAdmin: false, accessGroups: [] });
+    await signInAs(ownerId);
     expect(await adminActions.saveAccessAction(otherId, { level: { level: "preset", presetId: standard.id }, groups: ["lineup-manager"], administrator: true })).toMatchObject({ ok: false, error: expect.stringMatching(/Confirm/) });
     expect((await getUser(handle.db, otherId))!).toMatchObject({ isAdmin: false, accessGroups: [] });
     expect(await adminActions.saveAccessAction(otherId, { level: { level: "preset", presetId: standard.id }, groups: ["lineup-manager"], administrator: true, confirmAdministrator: true })).toEqual({ ok: true, data: null });
@@ -397,5 +403,92 @@ describe("the Dashboard's Needs you", () => {
     await handle.db.update(dataRefreshStatus).set({ lastStartedAt: failed, lastFailureAt: failed }).where(eq(dataRefreshStatus.key, "rank-schedule-off"));
     await handle.db.insert(auditEvents).values({ at: new Date(failed.getTime() + 500), actorUserId: adminId, actorName: "Captain", action: "jobs.run", targetType: "job", targetName: "rank-schedule-off", details: { ok: false, kind: "setup" } });
     expect(await scheduleOff()).toMatchObject(unnamed);
+  });
+});
+
+describe("the permission hierarchy (OD8a–c, 23 Nov 2026)", () => {
+  it("lets an administrator manage a regular member, and refuses them every change to another administrator", async () => {
+    await signInAs(adminId);
+    expect((await usersActions.resetPasswordAction(otherId)).ok).toBe(true);
+    // Benchy is made an administrator by the Owner; from then on Captain changes nothing of theirs.
+    await setAdministrator(handle.db, ownerId, otherId, true);
+    try {
+      await signInAs(adminId);
+      const refused = { ok: false, error: expect.stringMatching(/Only the Owner can .* an administrator|Only the Owner removes administrator access/) };
+      expect(await usersActions.resetPasswordAction(otherId)).toMatchObject(refused);
+      expect(await usersActions.setAccountActiveAction(otherId, false)).toMatchObject(refused);
+      expect(await usersActions.setAdministratorAction(otherId, false)).toMatchObject(refused);
+      expect(await usersActions.setAccessGroupsAction(otherId, ["lineup-manager"])).toMatchObject(refused);
+      expect(await usersActions.deleteAccountAction(otherId, { confirmation: "Benchy" })).toMatchObject({ ok: false });
+      expect(await adminActions.signOutEverywhereAction(otherId)).toMatchObject(refused);
+      expect(await adminActions.moderatePictureAction(otherId, null)).toMatchObject(refused);
+      expect((await getUser(handle.db, otherId))!).toMatchObject({ isAdmin: true, isActive: true });
+      // And the Owner's account, as before.
+      expect(await usersActions.resetPasswordAction(ownerId)).toMatchObject({ ok: false, error: expect.stringMatching(/Only the Owner can reset the password of the Owner account/) });
+      // The Owner manages both.
+      await signInAs(ownerId);
+      expect((await usersActions.resetPasswordAction(otherId)).ok).toBe(true);
+    } finally {
+      await setAdministrator(handle.db, ownerId, otherId, false);
+    }
+  });
+
+  it("keeps the Owner's and an administrator's Riot accounts the Owner's to change", async () => {
+    const ownerProfile = (await getUser(handle.db, ownerId))!.playerId!;
+    const [account] = await handle.db.select({ id: riotAccounts.id }).from(riotAccounts).where(eq(riotAccounts.playerId, ownerProfile));
+    await signInAs(adminId);
+    expect(await riotAccountActions.removePlayerAccountAction(ownerProfile, account!.id)).toMatchObject({ ok: false, error: expect.stringMatching(/Only the Owner can change the Riot accounts of the Owner account/) });
+    expect(await handle.db.select({ id: riotAccounts.id }).from(riotAccounts).where(eq(riotAccounts.id, account!.id))).toHaveLength(1);
+  });
+
+  it("the Owner changes another member's username after typing RENAME, recorded without either name; nobody else may", async () => {
+    await signInAs(adminId);
+    expect(await adminActions.setMemberUsernameAction(memberId, "Teammate2", "RENAME")).toMatchObject({ ok: false });
+    expect((await getUser(handle.db, memberId))!.username).toBe("Teammate");
+    await signInAs(ownerId);
+    expect(await adminActions.setMemberUsernameAction(memberId, "Teammate2", "")).toMatchObject({ ok: false, error: expect.stringMatching(/Type RENAME/) });
+    expect(await adminActions.setMemberUsernameAction(memberId, "Captain", "rename")).toMatchObject({ ok: false, error: expect.stringMatching(/already taken/) });
+    expect(await adminActions.setMemberUsernameAction(ownerId, "Founder2", "RENAME")).toMatchObject({ ok: false, error: expect.stringMatching(/own account/) });
+    const before = (await audit("account.username")).length;
+    expect(await adminActions.setMemberUsernameAction(memberId, "Teammate2", " rename ")).toEqual({ ok: true, data: { username: "Teammate2" } });
+    const rows = await audit("account.username");
+    expect(rows).toHaveLength(before + 1);
+    expect(rows.at(-1)).toMatchObject({ actorUserId: ownerId, targetId: memberId, details: {} });
+    // The same name again changes nothing and records nothing.
+    expect(await adminActions.setMemberUsernameAction(memberId, "Teammate2", "RENAME")).toMatchObject({ ok: true });
+    expect(await audit("account.username")).toHaveLength(before + 1);
+    expect(await adminActions.setMemberUsernameAction(memberId, "Teammate", "RENAME")).toMatchObject({ ok: true });
+  });
+
+  it("records a member's own username, display name and picture changes (OD9), and nothing for no change", async () => {
+    await signInAs(memberId);
+    const count = async (action: string) => (await audit(action)).filter((r) => r.actorUserId === memberId && r.targetId === memberId).length;
+    const [u, d, p, r] = [await count("self.username"), await count("self.display-name"), await count("self.picture"), await count("self.picture-remove")];
+    expect((await accountActions.changeDisplayNameAction("Teammate Two")).ok).toBe(true);
+    expect((await accountActions.changeDisplayNameAction("Teammate Two")).ok).toBe(true);
+    expect(await count("self.display-name")).toBe(d + 1);
+    expect((await accountActions.changeUsernameAction("Teammate3")).ok).toBe(true);
+    expect(await count("self.username")).toBe(u + 1);
+    await signInAs(memberId);
+    expect((await accountActions.uploadAvatarAction(dataUrl(png(64)))).ok).toBe(true);
+    expect(await count("self.picture")).toBe(p + 1);
+    expect((await accountActions.removeAvatarAction()).ok).toBe(true);
+    expect((await accountActions.removeAvatarAction()).ok).toBe(true);
+    expect(await count("self.picture-remove")).toBe(r + 1);
+    // Back as they were, for the tests after.
+    expect((await accountActions.changeUsernameAction("Teammate")).ok).toBe(true);
+    expect((await accountActions.changeDisplayNameAction("Teammate")).ok).toBe(true);
+  });
+
+  it("records an edit to someone else's roles or pools by field, never their own", async () => {
+    await signInAs(ownerId);
+    const before = (await audit("profile.edit")).length;
+    expect(await playerActions.saveProfilePatchAction(memberProfileId, { secondaryRole: "SUPPORT" }, null)).toMatchObject({ ok: true });
+    const rows = await audit("profile.edit");
+    expect(rows).toHaveLength(before + 1);
+    expect(rows.at(-1)).toMatchObject({ actorUserId: ownerId, targetId: memberProfileId, details: { fields: "secondaryRole" } });
+    await signInAs(memberId);
+    expect(await playerActions.saveProfilePatchAction(memberProfileId, { secondaryRole: null }, null)).toMatchObject({ ok: true });
+    expect(await audit("profile.edit")).toHaveLength(before + 1);
   });
 });

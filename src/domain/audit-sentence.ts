@@ -30,6 +30,12 @@ const WITH_TARGET: Record<string, string> = {
   "account.admin-grant": "made {t} an administrator",
   "account.admin-revoke": "removed administrator access from {t}",
   "account.display-name": "changed the display name of {t}",
+  "account.username": "changed the username of {t}",
+  "self.username": "changed their own username",
+  "self.display-name": "changed their own display name",
+  "self.picture": "changed their own picture",
+  "self.picture-remove": "removed their own picture",
+  "profile.edit": "changed the roles or champion pools of {t}",
   "account.sign-out-everywhere": "signed {t} out everywhere",
   "account.picture-replace": "replaced the picture of {t}",
   "account.picture-remove": "removed the picture of {t}",
@@ -130,6 +136,12 @@ function phrase(key: string, value: string | number | boolean | null, all: Audit
       return typeof value === "number" ? plural(value, "person", "people") : null;
     case "traces":
       return typeof value === "number" ? plural(value, "trace") : null;
+    case "fields": {
+      // A profile's edited parts (profile.edit), in words, never as stored.
+      const words: Record<string, string> = { primaryRole: "the main role", secondaryRole: "the off role", primaryPool: "the main champion pool", secondaryPool: "the off-role champion pool", additionalRoles: "the other roles" };
+      const named = String(value).split(",").map((f) => words[f.trim()] ?? null).filter((w): w is string => !!w);
+      return named.length ? named.join(", ") : null;
+    }
     default:
       return generic(key, value);
   }

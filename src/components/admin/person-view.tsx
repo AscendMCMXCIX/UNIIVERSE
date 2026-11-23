@@ -21,7 +21,7 @@ import { toast } from "@/components/ui/toast";
 import { AuditRow } from "./audit-log";
 import { RiotAccountsPanel } from "@/components/team/riot-accounts-panel";
 import { formatDate, formatDateTime } from "@/lib/format";
-import { ACCOUNT_STATUS, AccountActions, DeleteProfileButton, accountStatus } from "./account-actions";
+import { ACCOUNT_STATUS, AccountActions, DeleteProfileButton, UsernameChange, accountStatus } from "./account-actions";
 import { AccessDialog, accessSummary } from "./access-dialog";
 import { ErasePersonButton } from "./erase-person";
 import { riotStatus, type PersonEntry } from "./people-panel";
@@ -180,11 +180,12 @@ function PersonBody({
   const file = React.useRef<HTMLInputElement>(null);
 
   const self = !!a && a.userId === currentUserId;
-  const ownerByOther = a?.role === "owner" && !viewerIsOwner;
+  // The permission hierarchy (OD8): the Owner's account and another administrator's are the Owner's alone to manage.
+  const ownerByOther = !!a && (a.role === "owner" || a.isAdmin) && !viewerIsOwner;
   const kept = !!a?.keptAutomatically;
   // What this viewer may change on this account (the server checks it again).
   const manage = canManageAccounts && !!a && !self && !ownerByOther;
-  const lockedReason = self ? "Your own access cannot be changed here" : ownerByOther ? "Only the Owner changes the Owner account" : kept ? "Kept automatically" : null;
+  const lockedReason = self ? "Your own access cannot be changed here" : ownerByOther ? (a.role === "owner" ? "Only the Owner changes the Owner account" : "Only the Owner manages administrators") : kept ? "Kept automatically" : null;
   const mayErase = !!a && !self && a.role !== "owner" && !kept && (!a.isAdmin || viewerIsOwner);
 
   const run = async (fn: () => Promise<Result>, done: string) => {
@@ -245,6 +246,7 @@ function PersonBody({
               </Button>
             </form>
           ) : null}
+          {viewerIsOwner && !self && !kept ? <UsernameChange account={a} /> : null}
           {manage && !kept ? (
             <div className="flex flex-wrap gap-2">
               <Button size="sm" variant="outline" disabled={busy} onClick={() => setConfirm("sign-out")} data-testid="sign-out-everywhere">
@@ -283,7 +285,7 @@ function PersonBody({
             </Button>
           ) : null}
           {lockedReason && !kept ? <p id={`locked-${a.userId}`} className="text-xs text-fg-subtle" data-testid="access-locked-reason">{lockedReason}.</p> : null}
-          {editingAccess ? <AccessDialog account={a} presets={presets} lineupRole={player?.lineupRole ?? null} onClose={() => setEditingAccess(false)} /> : null}
+          {editingAccess ? <AccessDialog account={a} presets={presets} lineupRole={player?.lineupRole ?? null} viewerIsOwner={viewerIsOwner} onClose={() => setEditingAccess(false)} /> : null}
         </Section>
       ) : null}
 
