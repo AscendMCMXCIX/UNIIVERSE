@@ -346,9 +346,9 @@ function AbilityTile({ intel, ability: a, checkedPatch, notRecheckedFor, dataPat
     <li id={abilityAnchor(champion.id, a.slot)} className="@container/tile min-w-0 scroll-mt-4 px-2 py-2 transition-colors focus:bg-accent/5 focus-visible:-outline-offset-2 sm:px-3" data-testid="ability-row" data-slot={a.slot} data-freshness={a.freshness ?? undefined}>
       {/* The icon (its key on its corner) beside the name and the Peek's button; the cooldown under them:
           across the whole tile in a narrow one (the strip's five side by side, each 14 to 18rem), in the
-          name's column from 18rem (a phone's list, a wide strip), and with no icon column under 11rem (a
+          name's column from 17rem of content (a phone's list, a wide strip), and with no icon column under 11rem (a
           phone at a large text size), where a smaller icon starts the name's line. */}
-      <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-x-2.5 [grid-template-areas:'name'_'cd'] @min-[11rem]/tile:grid-cols-[2.5rem_minmax(0,1fr)] @min-[11rem]/tile:[grid-template-areas:'icon_name'_'cd_cd'] @min-[18rem]/tile:[grid-template-areas:'icon_name'_'icon_cd']">
+      <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-x-2.5 [grid-template-areas:'name'_'cd'] @min-[11rem]/tile:grid-cols-[2.5rem_minmax(0,1fr)] @min-[11rem]/tile:[grid-template-areas:'icon_name'_'cd_cd'] @min-[17rem]/tile:[grid-template-areas:'icon_name'_'icon_cd']">
         <span className="relative hidden [grid-area:icon] @min-[11rem]/tile:block">
           <AbilityIcon src={a.icon} slot={a.slot} />
           <KeyChip slot={a.slot} corner />
@@ -367,7 +367,7 @@ function AbilityTile({ intel, ability: a, checkedPatch, notRecheckedFor, dataPat
         </div>
         <div className="min-w-0 [grid-area:cd]">
           {/* The base cooldown, large, on a line of its own: the figures read first. */}
-          <div className="mt-1 @min-[18rem]/tile:mt-0.5">
+          <div className="mt-1 @min-[17rem]/tile:mt-0.5">
             <CooldownLine cooldown={a.cooldown} isStatic={!flagged && a.modifiers?.static === true} testId="ability-cooldown-value" lineTestId="ability-cooldown" source={flagged ? null : ownSource} bare />
           </div>
           {/* Once Riot changed the ability, where its line now comes from, under the numbers. */}
@@ -649,13 +649,13 @@ export function AbilitiesPanel({ intel, title, testId, notice, haste = false, fo
         <h2 className="min-w-0 text-base font-semibold text-fg [overflow-wrap:anywhere]">{title}</h2>
         <div className="min-w-0 flex-[1_1_14rem]">
           {fold ? null : (
-          <p className="text-xs text-fg-muted" data-testid="abilities-source">
-            {/* Riot's data, the tier of the abilities' names, icons and base cooldowns, first on the line that
-                says where they come from; the version, unless Riot changed this champion on the newest patch
-                (then "Riot's data changed on 26.24"). An offline copy, or checked notes, keep their words in view. */}
-            {lead(false)}
-            {rest}
-          </p>
+            <p className="text-xs text-fg-muted" data-testid="abilities-source">
+              {/* Riot's data, the tier of the abilities' names, icons and base cooldowns, first on the line that
+                  says where they come from; the version, unless Riot changed this champion on the newest patch
+                  (then "Riot's data changed on 26.24"). An offline copy, or checked notes, keep their words in view. */}
+              {lead(false)}
+              {rest}
+            </p>
           )}
           {fold ? (
             // Where the abilities and their facts come from, one step away at every width, the tier in view:

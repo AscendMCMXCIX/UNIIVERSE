@@ -348,8 +348,8 @@ describe("the assembled reference's fixed sentences and labels", () => {
     duoToolsWords(["Jinx", "Lulu"]),
     riotTipHeadingWords("Darius", 1),
     riotTipHeadingWords("Darius", 3),
-    fullReferenceWords({ kits: [], interactions: true, levels: true, yours: ["Riven"], tips: true }),
-    fullReferenceWords({ kits: [], interactions: false, levels: false, yours: ["Jinx", "Lulu"], tips: true }),
+    fullReferenceWords({ interactions: true, levels: true, yours: ["Riven"], tips: true }),
+    fullReferenceWords({ interactions: false, levels: false, yours: ["Jinx", "Lulu"], tips: true }),
     ...Object.values(KIND_GROUP_WORDS),
     ...Object.values(RIOT_TEXT_KIND_WORDS),
     announcementWords({ you: { id: "Riven", name: "Riven", title: "", portrait: "" }, enemy: { id: "Darius", name: "Darius", title: "", portrait: "" }, matchup: null }, false),
@@ -376,7 +376,7 @@ describe("the assembled reference's fixed sentences and labels", () => {
     expect(interactionsMoreWords(3)).toBe("3 interactions and exceptions");
     expect(duoToolsWords(["Jinx", "Lulu"])).toBe("Opportunity: Jinx's and Lulu's tools, by kind");
     expect(riotTipHeadingWords("Darius", 1)).toBe("Riot's tip for playing against Darius");
-    expect(fullReferenceWords({ kits: [], interactions: true, levels: true, yours: ["Riven"], tips: true })).toBe("Interactions, level changes, Riven's abilities and Riot's tips and the team's games");
+    expect(fullReferenceWords({ interactions: true, levels: true, yours: ["Riven"], tips: true })).toBe("Interactions, level changes, Riven's abilities and Riot's tips and the team's games");
     expect(LANE_REFERENCE_TITLE).not.toMatch(/plan|briefing/i);
   });
 

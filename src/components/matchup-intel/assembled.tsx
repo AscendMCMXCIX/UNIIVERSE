@@ -238,7 +238,7 @@ export function AssembledReference({ you, enemy, enemyIntel, yourIntel, enemy2In
   const folded = duo ? sides.filter((s) => s.side === "opportunity") : [];
   const side = (s: (typeof sides)[number]) => <KitSide key={`${s.side}-${s.intel.champion.id}`} side={s.side} kit={kitOf(s.intel)} intel={s.intel} champion={s.intel.champion} title={s.title} subtitle={s.subtitle} rows={rows} />;
   return (
-    <Panel className="overflow-hidden" data-testid="matchup-assembled" data-briefing-hidden={briefingHidden ? "" : undefined}>
+    <Panel className="panel-featured overflow-hidden" data-testid="matchup-assembled" data-briefing-hidden={briefingHidden ? "" : undefined}>
       {/* The title, where the card comes from in one quiet line (the layer and its tier, the curated
           pairs of your champion where there are any), then the sentences that say what it is. */}
       <header className="space-y-1 border-b border-border px-3 py-2 sm:px-4" data-testid="matchup-no-briefing">

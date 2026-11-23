@@ -139,7 +139,6 @@ export function MatchupContent({ view, champions, curated, legal, evidence = nul
     )
   ) : null;
   const referenceWords = fullReferenceWords({
-    kits: [],
     interactions: shows ? championInteractions : true,
     levels: !shows,
     yours: yourKits.map((k) => k.intel.champion.name),

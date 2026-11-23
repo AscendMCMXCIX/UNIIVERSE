@@ -243,7 +243,7 @@ export function Briefing({ matchup, you, enemy, rows, means, levels, interaction
   const all = [threat, opportunity, ...lane];
   const nothingShown = all.every((p) => p.kind === "hidden");
   return (
-    <Panel className="overflow-hidden" data-testid="matchup-briefing">
+    <Panel className="panel-featured overflow-hidden" data-testid="matchup-briefing">
       {header}
       {nothingShown ? (
         // Every part rests on something Riot changed since: one line says so, with the abilities.
@@ -304,7 +304,7 @@ export function Briefing({ matchup, you, enemy, rows, means, levels, interaction
               </section>
             ) : null}
             {levels || interactions ? (
-              <div className={cn(PHONE_FOLD_ONLY, "min-w-0 items-center justify-between gap-2 border-t border-border pt-1 [grid-area:toggle]")}>
+              <div className={cn(PHONE_FOLD_ONLY, "min-w-0 items-center justify-between gap-2 border-t border-border pt-1 [grid-area:toggle] @min-[34rem]/brief:col-span-full @min-[34rem]/brief:[grid-area:auto]")}>
                 <span className="text-sm font-semibold text-fg">{PLAN_MORE_WORDS}</span>
                 <PhoneFoldToggle label={PLAN_MORE_WORDS.toLowerCase()} testId="lane-plan-more-toggle" />
               </div>

@@ -708,8 +708,8 @@ export function riotTipHeadingWords(enemy: string, count: number): string {
 export const FULL_REFERENCE_TITLE = "Full reference";
 
 /** The fold's line: what it holds, in the order it holds it ("Interactions, level changes, Riven's abilities and Riot's tips"). */
-export function fullReferenceWords(has: { kits: readonly string[]; interactions: boolean; levels: boolean; yours: readonly string[]; tips: boolean }): string {
-  const parts = [...has.kits.map((n) => `${n}'s kit by kind`), has.interactions ? "interactions" : null, has.levels ? "level changes" : null, ...has.yours.map((n) => `${n}'s abilities`), has.tips ? "Riot's tips and the team's games" : null].filter((p): p is string => !!p);
+export function fullReferenceWords(has: { interactions: boolean; levels: boolean; yours: readonly string[]; tips: boolean }): string {
+  const parts = [has.interactions ? "interactions" : null, has.levels ? "level changes" : null, ...has.yours.map((n) => `${n}'s abilities`), has.tips ? "Riot's tips and the team's games" : null].filter((p): p is string => !!p);
   const words = listWords(parts);
   return words ? words.charAt(0).toUpperCase() + words.slice(1) : "";
 }
