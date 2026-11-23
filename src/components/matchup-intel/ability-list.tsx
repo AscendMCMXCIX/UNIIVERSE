@@ -648,17 +648,19 @@ export function AbilitiesPanel({ intel, title, testId, notice, haste = false, fo
         {/* A long name (Heimerdinger's) breaks rather than reach past the panel at a larger text size. */}
         <h2 className="min-w-0 text-base font-semibold text-fg [overflow-wrap:anywhere]">{title}</h2>
         <div className="min-w-0 flex-[1_1_14rem]">
-          <p className={cn("text-xs text-fg-muted", fold && "hidden")} data-testid="abilities-source">
+          {fold ? null : (
+          <p className="text-xs text-fg-muted" data-testid="abilities-source">
             {/* Riot's data, the tier of the abilities' names, icons and base cooldowns, first on the line that
                 says where they come from; the version, unless Riot changed this champion on the newest patch
                 (then "Riot's data changed on 26.24"). An offline copy, or checked notes, keep their words in view. */}
             {lead(false)}
             {rest}
           </p>
+          )}
           {fold ? (
-            // On a desktop where the abilities and their facts come from is one step away, the tier in view
-            // (the line took two or three lines of small type above the strip). In one column (a phone, a
-            // tablet) the line above stays in view instead.
+            // Where the abilities and their facts come from, one step away at every width, the tier in view:
+            // the line took two to four lines of small type above the strip (the noise the redesign of
+            // 23 Nov 2026 took away). Not where it carries a warning (sourcesFold).
             <Fold
               variant="inline"
               tone="muted"

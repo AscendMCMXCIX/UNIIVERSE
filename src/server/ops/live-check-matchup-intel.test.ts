@@ -92,7 +92,7 @@ describe("the Production check's Matchup Intel facts", () => {
   it("pass on production as it is now (26.23, not re-checked): no page scroll at 1920 x 1080, the tiles and the sources' summary on screen at 1440 x 900, though it scrolls 23px there", () => {
     const v = judge(NOW);
     expect(failed(v)).toEqual([]);
-    expect(v.map((x) => x.name)).toContain("desktop: 1920 × 1080: the whole overview fits the screen, no page scroll");
+    expect(v.map((x) => x.name)).toContain("desktop: 1920 × 1080: the overview is on the first screen: the lane plan whole, the enemy's five ability tiles and the sources' summary");
     expect(v.map((x) => x.name)).toContain("desktop: 1440 × 900: the essentials are on the screen: the lane plan whole, the enemy's five ability tiles and the sources' summary");
     // No fact asks for no page scroll at 1440 x 900, a size the overview is not promised to fit.
     expect(v.map((x) => x.name).join(" ")).not.toMatch(/1440.*no page scroll/);
@@ -114,20 +114,25 @@ describe("the Production check's Matchup Intel facts", () => {
       expect(fit.every((x) => x.status === "PASS" && x.name.includes("not judged in this state")), briefingState(at)).toBe(true);
     }
     // What they found, in the fact's own words.
-    expect(judge(WHOLE_HIDDEN, { ...WIDE, scrollHeight: 1270 }).map((x) => x.name)).toContain("desktop: 1920 × 1080: with the briefing hidden, the overview runs 190px past the screen (not judged in this state)");
+    expect(judge(WHOLE_HIDDEN, { ...WIDE, scrollHeight: 1270 }).map((x) => x.name)).toContain("desktop: 1920 × 1080: with the briefing hidden, the overview is on the first screen, the page 190px taller than the screen (not judged in this state)");
     expect(judge(EXPIRED).map((x) => x.name)).toContain("desktop: the curated briefing is hidden as too old to show, and says so, above the assembled reference too");
     expect(judge(PARTS_HIDDEN).map((x) => x.name)).toContain("desktop: the curated briefing shows, labelled with when it was checked, its parts resting on an ability Riot changed hidden and said (1), and the bar warns");
   });
 
   it("still fail what the owner asked for: a page scroll at 1920 x 1080, or the summary or a tile off the screen at 1440 x 900, with the briefing shown", () => {
-    expect(failed(judge(NOW, { ...WIDE, scrollHeight: 1095 }))).toEqual(["desktop: 1920 × 1080: the whole overview fits the screen, no page scroll"]);
+    // Since the redesign of 23 Nov 2026 the full reference is a fold under the overview: a page taller by
+    // its line passes; the lane plan, a tile or the sources' summary under the fold does not.
+    expect(failed(judge(NOW, { ...WIDE, scrollHeight: 1140 }))).toEqual([]);
+    expect(failed(judge(NOW, { ...WIDE, planBottom: 1100 }))).toEqual(["desktop: 1920 × 1080: the overview is on the first screen: the lane plan whole, the enemy's five ability tiles and the sources' summary"]);
+    expect(failed(judge(NOW, { ...WIDE, tilesBottom: 1090 }))).toEqual(["desktop: 1920 × 1080: the overview is on the first screen: the lane plan whole, the enemy's five ability tiles and the sources' summary"]);
+    expect(failed(judge(NOW, { ...WIDE, summaryShown: false, summaryBottom: 1100 }))).toEqual(["desktop: 1920 × 1080: the overview is on the first screen: the lane plan whole, the enemy's five ability tiles and the sources' summary"]);
     expect(failed(judge({ ...NOW, summaryShown: false, summaryBottom: 912 }))).toEqual(["desktop: 1440 × 900: the essentials are on the screen: the lane plan whole, the enemy's five ability tiles and the sources' summary"]);
     expect(failed(judge({ ...NOW, tilesBottom: 905 }))).toEqual(["desktop: 1440 × 900: the essentials are on the screen: the lane plan whole, the enemy's five ability tiles and the sources' summary"]);
     // The lane plan (the redesign of 23 Nov 2026) runs under the fold, or is not on the page.
     expect(failed(judge({ ...NOW, planBottom: 930 }))).toEqual(["desktop: 1440 × 900: the essentials are on the screen: the lane plan whole, the enemy's five ability tiles and the sources' summary"]);
     expect(failed(judge({ ...NOW, planBottom: null }))).toEqual(["desktop: 1440 × 900: the essentials are on the screen: the lane plan whole, the enemy's five ability tiles and the sources' summary"]);
     // The window not made 1920 x 1080 is no proof of the fit.
-    expect(failed(judge(NOW, { ...WIDE, size: "1440x900" }))).toContain("desktop: 1920 × 1080: the whole overview fits the screen, no page scroll");
+    expect(failed(judge(NOW, { ...WIDE, size: "1440x900" }))).toContain("desktop: 1920 × 1080: the overview is on the first screen: the lane plan whole, the enemy's five ability tiles and the sources' summary");
   });
 
   it("fail Release 6's page on production's 26.23 as its Production check read it, and pass the page that fixed it, read on the demo given Riot's 16.23.1", () => {

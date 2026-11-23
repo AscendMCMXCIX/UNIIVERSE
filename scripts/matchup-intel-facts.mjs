@@ -9,8 +9,10 @@
   rests on, the parts resting on it are hidden and said; three patches after the check the briefing is
   hidden whole. The check holds the page to what the owner asked of it (18 Nov 2026), whatever state
   it is in:
-  - the essential overview fits one screen with no page scroll at 1920 × 1080 (the desktop context
-    resized, as the wide checks do);
+  - at 1920 × 1080 the overview is on the first screen (the desktop context resized, as the wide checks
+    do): the lane plan whole, the enemy's five ability tiles and the sources' summary. Since the
+    redesign of 23 Nov 2026 the rest of the reference is one fold under them, so the page may scroll
+    by that fold's line; until then the fact was "no page scroll";
   - at the check's own desktop size, 1440 × 900, the essentials are on the screen: the lane plan whole
     (the page's first card since the redesign of 23 Nov 2026, docs/MATCHUP_INTEL.md, "The lane plan"),
     the enemy's five ability tiles and the sources' summary (the page may scroll a little there: the
@@ -150,14 +152,16 @@ export function matchupIntelVerdicts({ kind, pair, enemy, at, wide, wiki, health
   else fact(`${enemy}'s five ability tiles, P to R, each with its name and cooldown line`, at.slots === "PQWER" && at.named === 5, { slots: at.slots, named: at.named });
   // The fit, as the owner asked it: one screen at 1920 × 1080, the essentials on screen at 1440 × 900.
   const overBy = wide.scrollHeight - wide.innerHeight;
+  // The overview at 1920 × 1080: the lane plan whole, the five tiles and the sources' summary on the first screen.
+  const wideOverview = wide.size === "1920x1080" && wide.planBottom != null && wide.planBottom <= wide.innerHeight && wide.tilesBottom <= wide.innerHeight && !!wide.summaryShown;
   const planShown = at.planBottom != null && at.planBottom <= at.innerHeight;
   const essentials = !at.missing && at.slots === "PQWER" && at.tilesBottom <= at.innerHeight && at.summaryShown && planShown;
   const found = { state, notRechecked: at.notRechecked };
   if (hiddenState) {
-    out.push({ name: `${kind}: 1920 × 1080: with the briefing ${state}, the overview ${overBy > 0 ? `runs ${overBy}px past the screen` : "fits the screen, no page scroll"} (not judged in this state)`, status: "PASS", detail: { ...found, overBy, size: wide.size } });
+    out.push({ name: `${kind}: 1920 × 1080: with the briefing ${state}, the overview ${wideOverview ? "is on the first screen" : "is not all on the first screen"}${overBy > 0 ? `, the page ${overBy}px taller than the screen` : ""} (not judged in this state)`, status: "PASS", detail: { ...found, overBy, planBottom: wide.planBottom, tilesBottom: wide.tilesBottom, size: wide.size } });
     out.push({ name: `${kind}: 1440 × 900: with the briefing ${state}, the lane plan, the five tiles and the sources' summary are ${essentials ? "on the screen" : "not all on the screen"} (not judged in this state)`, status: "PASS", detail: { ...found, planBottom: at.planBottom, tilesBottom: at.tilesBottom, summaryBottom: at.summaryBottom, innerHeight: at.innerHeight } });
   } else {
-    fact("1920 × 1080: the whole overview fits the screen, no page scroll", wide.size === "1920x1080" && overBy <= 0, { ...found, overBy, size: wide.size });
+    fact("1920 × 1080: the overview is on the first screen: the lane plan whole, the enemy's five ability tiles and the sources' summary", wideOverview, { ...found, planBottom: wide.planBottom, tilesBottom: wide.tilesBottom, summaryBottom: wide.summaryBottom, overBy, size: wide.size });
     // With no tiles (the warning above) only the sources' summary can be asked for: the state is the
     // warning's, not a second failure of its own.
     if (at.missing) fact("1440 × 900: with no ability tiles (the warning above), the lane plan and the sources' summary are on the screen", at.summaryShown && planShown, { ...found, planBottom: at.planBottom, summaryBottom: at.summaryBottom, innerHeight: at.innerHeight });

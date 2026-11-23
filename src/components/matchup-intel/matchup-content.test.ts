@@ -365,7 +365,7 @@ describe("each champion's data, and checks a patch or more behind", () => {
     expect(t).not.toContain("The ability data held here");
     expect(t).toContain("Ability names, icons and base cooldowns: Riot Data Dragon 16.23.1 (patch 26.23) for Darius; Riot Data Dragon 16.22.1 (patch 26.22) for Garen.");
     expect(t).toContain("Your champion: Garen Abilities and base cooldowns · Riot Data Dragon 16.22.1");
-    expect(text(html.slice(html.indexOf('data-testid="abilities-source"')))).toMatch(/^[^<]*Riot Data Dragon 16\.23\.1/);
+    expect(text(html.slice(html.indexOf('data-testid="abilities-source-folded"')))).toMatch(/^[^<]*Riot Data Dragon 16\.23\.1/);
   });
 
   it("the other way round: the enemy's data older and yours current names the enemy alone; both older on one patch is said once", async () => {
@@ -735,7 +735,6 @@ describe("hidden, changed and behind, on the assembled reference and the notes",
     expect(t).toContain("Your champion: Garen Abilities and base cooldowns · Riot Data Dragon 16.22.1 · Cooldowns: Riot's data, not reviewed ·");
     // The kit's tier leads its source line, so the haste control keeps the title's row (1440 × 900).
     // The strip's title, then where its abilities come from (one step away, in a fold, where it carries no warning), then the haste.
-    expect(t).toContain("Darius's abilities Riot's data Base cooldowns, without ability haste · Riot Data Dragon 16.22.1 · Cooldowns: Riot's data, not reviewed");
     expect(t).toContain("Riot's data · Sources for Darius's abilities Base cooldowns, without ability haste · Riot Data Dragon 16.22.1 · Cooldowns: Riot's data, not reviewed");
     const curatedYou = await render({ champion: "Renekton", vs: "Darius" });
     expect(text(curatedYou)).toContain("Your champion: Renekton Abilities and base cooldowns · Riot Data Dragon 16.22.1 · Curated notes: checked on patch 26.22");
