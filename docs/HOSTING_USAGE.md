@@ -15,8 +15,9 @@ This page records what caused that, what was changed, how it was measured, and h
   `match_details`, plus the players' newest recorded Riot IDs, as before) and its timeline (one read
   of `match_timelines` and the same three small reads of `match_details` as before: the players'
   lanes, the gold check and the game version). The timeline answer now carries every player of the
-  stored row instead of the profile's player alone, which is bytes from Vercel to the browser (about
-  6–9 KB more for a 30-minute game), not from the database. Switching players and comparing two
+  stored row instead of the profile's player alone, which is bytes from Vercel to the browser (each item's
+  name and icon sent once; the demo's 38-minute game's answer is 27 KB in all), not from the
+  database. Switching players and comparing two
   read nothing at all. `tests/db/match-views.test.ts` counts the reads.
 - **Riot: no new request.** A stored game's timeline is read from storage; Riot is asked only for a
   game whose timeline was never stored, once per game ever, as before. Inspecting a player asks

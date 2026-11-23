@@ -162,7 +162,9 @@ export function ScoreChart({ points, series }: { points: readonly TimelinePoint[
           })}
         </div>
       </div>
-      <table className="sr-only" data-testid="score-chart-table">
+      {/* In a clipped box of its own: a table ignores the 1px width sr-only gives it, and its caption widened the page. */}
+      <div className="sr-only">
+        <table data-testid="score-chart-table">
         <caption>Performance score through the game: each point from what had happened by then; the end is the final score</caption>
         <thead>
           <tr>
@@ -185,6 +187,7 @@ export function ScoreChart({ points, series }: { points: readonly TimelinePoint[
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }
