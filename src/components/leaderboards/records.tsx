@@ -266,8 +266,8 @@ function RecordPicture({ record, holder, champion }: { record: RecordView; holde
                   (44–48px; a member with all four kinds wraps a third on a phone), no column
                   headings, nothing to decode; the score's sentence (each kind against what was
                   expected) is the row's tooltip and is read out.
-    provisional   10–19 games with counts: listed after every ranked member, place "–";
-    too few       under 10: the board's last group, the games they have, no score;
+    not placed    one group after the ranking: 10–19 games with counts, a provisional score (muted,
+                  place "–"), then under 10, "No score yet"; the counts in words on every row;
     most of each  four compact tiles (two by two under 30rem, one row of four from it): the most
                   double, triple, quadra and pentakills, each count with its holder (every holder of a
                   shared one, by name), so the kinds stay records of their own.
@@ -339,35 +339,20 @@ export function Multikills({ records, player, className }: { records: RecordsVie
             ))}
           </DataGroup>
         ) : null}
-        {provisional.length ? (
+        {provisional.length + few.length ? (
+          // One group for the members not placed yet (a caption each cost a phone 33px): the provisional scores (10–19 games with
+          // counts, muted, place "–"), then those with too few games for one ("No score yet").
           <DataGroup
-            label="Provisional"
-            testId="multikill-provisional"
-            captionTestId="multikill-provisional-head"
+            label="Not placed yet"
+            testId="multikill-unplaced"
+            captionTestId="multikill-unplaced-head"
             caption={
               <>
-                <span className="font-semibold text-fg">Provisional</span>&nbsp;·&nbsp;{board.provisionalFrom} to {board.rankedFrom - 1} games with multikill counts
+                <span className="font-semibold text-fg">Not placed yet</span>&nbsp;·&nbsp;under {board.rankedFrom} games with multikill counts
               </>
             }
           >
-            {provisional.map((r) => (
-              <MultikillRowItem key={r.playerId} r={r} p={player(r.playerId)} tie={null} />
-            ))}
-          </DataGroup>
-        ) : null}
-        {few.length ? (
-          <DataGroup
-            as="ul"
-            label="Too few games for a score"
-            testId="multikill-few"
-            captionTestId="multikill-few-head"
-            caption={
-              <>
-                <span className="font-semibold text-fg">Too few games for a score</span>&nbsp;·&nbsp;{board.provisionalFrom} needed
-              </>
-            }
-          >
-            {few.map((r) => (
+            {[...provisional, ...few].map((r) => (
               <MultikillRowItem key={r.playerId} r={r} p={player(r.playerId)} tie={null} />
             ))}
           </DataGroup>
@@ -401,6 +386,8 @@ function MultikillRowItem({ r, p, tie }: { r: MultikillRow; p: BoardPlayer; tie:
       data-you={r.you || undefined}
       own={r.you}
       density="dense"
+      // The name and its kinds as one block, no gap between them (a phone's rows keep 46px).
+      className="gap-y-0!"
       lead={
         <>
           {r.status === "not-enough" ? <span aria-hidden className={cn("col-[1/2]", NARROW.lead)} /> : <Place place={r.place} tie={tie} crown={r.place === 1} testId="multikill-place" className={cn("col-[1/2] self-center", NARROW.lead)} bracketClassName="@max-[20rem]/list:hidden" />}
@@ -411,10 +398,14 @@ function MultikillRowItem({ r, p, tie }: { r: MultikillRow; p: BoardPlayer; tie:
       figures={
         <span className={cn("flex self-center", NARROW.score)} data-testid="multikill-score-cell">
           {r.score !== null ? (
-            <FigureCell testId="multikill-score" size={null} emphasis={r.status === "ranked" ? "strong" : "muted"} label=" multikill score" className="text-lg leading-5">
+            <FigureCell testId="multikill-score" size={null} emphasis={r.status === "ranked" ? "strong" : "muted"} label={r.status === "provisional" ? " multikill score, provisional" : " multikill score"} className="text-lg leading-5">
               {r.score}
             </FigureCell>
-          ) : null}
+          ) : (
+            <span className="whitespace-nowrap text-xs text-fg-subtle" data-testid="multikill-no-score">
+              No score yet
+            </span>
+          )}
           {/* One line: "46 games", or "21/43 games" when older games have no counts (said in words to screen readers). */}
           <span className="whitespace-nowrap text-xs tabular-nums text-fg-muted" data-testid="multikill-games">
             <span aria-hidden>{r.gamesText}</span>
@@ -464,7 +455,7 @@ function MostOfEach({ most, player }: { most: MultikillsView["most"]; player: (i
             <li key={m.key} className={MOST_CELL} data-testid="multikill-most-kind" data-kind={m.key} data-count={m.count ?? undefined}>
               <p className="text-xs text-fg-muted">{m.label}</p>
               {m.count ? (
-                <p className="flex min-w-0 items-baseline gap-x-1.5">
+                <p className="flex min-w-0 flex-wrap items-baseline gap-x-1.5">
                   <span className="text-base leading-5 font-semibold tabular-nums text-fg" data-testid="multikill-most-count">
                     {m.count}
                   </span>

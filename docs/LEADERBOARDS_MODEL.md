@@ -171,17 +171,22 @@ expected of a record.
   - **The score:** per game, each kind (double, triple, quadra, penta) against what players on the
     same roles and champions made in the same stored games (every other participant of the members'
     season games, never a team member: a real observed baseline, labelled as such, never "high-elo"),
-    100 the usual; the four kinds count equally, so a rarer kind counts for more per kill, by how rare
-    it is in the comparison. Each multikill counts once, at its largest: how Riot's counters count is
-    read from the stored games, nested assumed (the reading that never counts one twice) while they
-    cannot tell.
+    100 the usual; every multikill counts once, at its largest, worth its kills (a double 2, a
+    pentakill 5), pooled over the four kinds, so the score's chance spread falls with games (round 2
+    of the review: the first version averaged the four kinds equally and stayed as noisy at any
+    sample size). How Riot's counters count is read from the stored games, nested assumed (the reading
+    that never counts one twice) while they cannot tell; the board shows each multikill once.
   - **Reliability:** a comparison of at least 1,000 games, else the team's own games (said so); a
     role's rates lean toward every position's by 200 games, a champion's toward its role's by 50; a
-    cushion of two multikills of each kind at the usual rate keeps a score with few games near 100.
+    cushion of 20 kill points (ten usual double kills) keeps a score with few games near 100, chosen
+    by a seeded simulation so members with few games neither top the board out of proportion nor are
+    held back. The ⓘ says how far chance alone moves a score over 50 and 300 games.
   - **Places:** 20 games with counts for a place, 10–19 provisional (listed after), fewer no score;
     the same statuses Recent form uses.
-  - **Records of their own:** the most of each kind (Riot's own counts, every holder of a shared one),
-    so a member can chase pentakills whatever the score says.
+  - **Records of their own:** the most of each kind (each multikill once, every holder of a shared
+    one), so a member can chase pentakills whatever the score says.
+  - **The reason behind a score:** the player Peek a row opens shows each kind made against its
+    usual and the score's spread by chance, on every device.
 - **Champion milestones**, under their own "Milestones" heading ("Lifetime and milestones" until 19 Nov 2026):
   - games on one champion this season (25, 50, 100);
   - Riot mastery points on a champion (100,000, 500,000, 1,000,000).
@@ -255,5 +260,7 @@ role), because a board of one or two players is not a competition.
 
 `src/domain/multikill-score.ts` and its tests cover the multikill score: how Riot counts, read from
 the games; each multikill once; the comparison's threshold, role lean and champion factor; worked
-scores (a support with 200 games and no pentakill above a 12-game mid with one); the cushion's
-weighting of rarer kinds; the sensitivity behind the 1,000-game threshold; places.
+scores (a support with 200 games and no pentakill above a 12-game mid with one); kills as weights;
+the chance spread; the sensitivity behind the 1,000-game threshold; places; and a seeded simulation
+(the spread falls with games, a truly better member's score rises toward its true ratio, members
+with 20 games do not top boards out of proportion).

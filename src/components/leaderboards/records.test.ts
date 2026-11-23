@@ -249,13 +249,17 @@ describe("multikills", () => {
     expect(shownOf(cy, "multikill-games")).toBe("14/15 games");
     expect(cy).toContain('<span class="sr-only">14 of 15 games with multikill counts</span>');
     expect(cy).toMatch(/whitespace-nowrap[^"]*" data-testid="multikill-games"/);
-    expect(shownOf(html, "multikill-provisional-head")).toBe("Provisional\u00a0·\u00a010 to 19 games with multikill counts");
+    expect(shownOf(html, "multikill-unplaced-head")).toBe("Not placed yet\u00a0·\u00a0under 20 games with multikill counts");
+    expect(cy).toContain("<span class=\"sr-only\"> multikill score, provisional</span>");
     const bo = rowOf(html, "bo");
     expect(bo).not.toContain("multikill-score\"");
     expect([...bo.matchAll(/<span data-kind="(\w+)" class="whitespace-nowrap">([^<]*)<\/span>/g)].map((m) => m[2]), "its counts in words still").toEqual(["1 double"]);
     expect(bo).toContain('data-you="true"');
     expect(bo).toContain("bg-accent/5");
-    expect(shownOf(html, "multikill-few-head")).toBe("Too few games for a score\u00a0·\u00a010 needed");
+    expect(shownOf(bo, "multikill-no-score")).toBe("No score yet");
+    // One group for both, provisional first.
+    expect(html.indexOf("data-player-id=\"cy\"")).toBeLessThan(html.indexOf("data-player-id=\"bo\""));
+    expect(innerOf(html, "multikill-unplaced")).toContain("data-player-id=\"bo\"");
   });
 
   it("explain the score behind one ⓘ in short points (with which games the counts come from), and say what it is on the board's line", () => {

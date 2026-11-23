@@ -560,8 +560,9 @@ test("the season records: seven cells in one panel, each opening its game; the m
   for (const m of ranked) expect(m.counted).toBeGreaterThanOrEqual(20);
   for (const m of provisional) expect(m.counted >= 10 && m.counted < 20 && m.scoreShown && m.place === 0).toBe(true);
   for (const m of few) expect(m.counted < 10 && !m.scoreShown).toBe(true);
-  await expect(page.getByTestId("multikill-provisional-head")).toHaveText(/^Provisional\s·\s10 to 19 games with multikill counts$/);
-  await expect(page.getByTestId("multikill-few-head")).toHaveText(/^Too few games for a score\s·\s10 needed$/);
+  await expect(page.getByTestId("multikill-unplaced-head")).toHaveText(/^Not placed yet\s·\sunder 20 games with multikill counts$/);
+  await expect(page.getByTestId("multikill-unplaced").getByTestId("multikill-row")).toHaveCount(provisional.length + few.length);
+  await expect(page.locator("[data-testid=multikill-row][data-status=not-enough] [data-testid=multikill-no-score]").first()).toHaveText("No score yet");
   expect(multis.map((m) => m.status), "ranked, then provisional, then too few").toEqual([...ranked, ...provisional, ...few].map((m) => m.status));
   await expect(page.getByTestId("multikill-basis")).toHaveText("Per game, against the same roles and champions · 100 is usual");
   await expect(page.getByTestId("multikill-explain")).toHaveAccessibleDescription(/each member's multikills per game against what the other players in the same games made on the same roles and champions \(allies and opponents, never a team member: [\d,]+ of their games\)/);
@@ -902,10 +903,13 @@ test("a multikill row opens the player Peek led by the member's multikills: the 
   const row = page.locator("[data-testid=multikill-row][data-status=ranked]").first();
   const score = await row.getAttribute("data-score");
   const counts = await row.evaluate((e) => ["data-double", "data-triple", "data-quadra", "data-penta"].map((k) => e.getAttribute(k)));
-  await row.scrollIntoViewIfNeeded();
+  // In the middle of the screen, clear of the pinned chip row and the tab bar.
+  await row.evaluate((e) => e.scrollIntoView({ block: "center" }));
+  await page.waitForTimeout(300);
   const opener = row.getByTestId("board-peek-open");
-  if (test.info().project.name === "phone") await opener.tap();
-  else await opener.click();
+  // On the place, clear of the name (a link of its own to the profile, above the row's press).
+  if (test.info().project.name === "phone") await opener.tap({ position: { x: 12, y: 12 } });
+  else await opener.click({ position: { x: 12, y: 12 } });
   await expect(page).toHaveURL(/\/leaderboards\?player=/);
   const detail = page.getByTestId("peek-multikills");
   await expect(detail).toBeVisible();

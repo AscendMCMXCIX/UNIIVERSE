@@ -74,6 +74,7 @@
   - multikills (Release 15, scripts/multikill-facts.mjs): at every width, the multikill board says what
     its score is compared with and explains it behind its ⓘ; ranked members in score order, a place
     shared exactly on equal scores, the crown on first, provisional and too-few-games members after;
+    each row's shown counts each multikill once (its Riot counters read by the rule the ⓘ states);
     each row's kinds in words its own counts, rarest first; the most of each kind the board's highest
     counts; no row taller than 66px. Counts, scores and fixed words only.
   - records (19 Nov 2026: Recent form and the season's records and achievements on one page): on
