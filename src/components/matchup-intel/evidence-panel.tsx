@@ -1,8 +1,9 @@
 import { Sigma } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { riotChangedLead } from "./wording";
+import { formatCount } from "@/lib/format";
 import type { MatchupEvidence, EvidenceSection } from "@/domain/matchup-intel/evidence";
-import { SUMMONER_SPELL_HASTE_WORDS } from "@/domain/matchup-intel/haste";
+import { HighEloPanel } from "./high-elo-panel";
+import { EvidenceLines } from "./evidence-lines";
 
 /*
   MATCHUP INTEL's evidence from the team's own games (docs/MATCHUP_INTEL.md, "In your games"): in
@@ -56,40 +57,7 @@ function Section({ section, hasteWordsAt }: { section: EvidenceSection; hasteWor
     <div className="space-y-0.5" data-testid={`evidence-${section.scope}`}>
       {/* With nothing counted, the one honest line names the scope itself. */}
       {section.tier && section.lines.length ? <p className="text-xs font-semibold text-fg">{section.tier}</p> : null}
-      {section.lines.length ? (
-        <ul className="space-y-0.5">
-          {section.lines.map((l) => (
-            <li key={l.key} className="text-xs leading-snug text-fg-muted" data-testid="evidence-line" data-key={l.key}>
-              <span className="font-medium text-fg">{l.label}:</span> <span data-testid="evidence-values">{l.values}</span>
-              {l.sample ? (
-                <>
-                  {" "}
-                  <span className="text-fg-subtle" data-testid="evidence-sample">
-                    {l.sample.startsWith("of ") ? "" : "· "}
-                    {l.sample}
-                  </span>
-                </>
-              ) : null}
-              {l.changedOn ? (
-                <>
-                  {" "}
-                  <span className="text-2xs text-fg-subtle" data-testid="riot-changed">
-                    · {riotChangedLead(false)} <span className="whitespace-nowrap">on {l.changedOn}</span>
-                  </span>
-                </>
-              ) : null}
-              {l.note ? <span className="block text-2xs text-fg-subtle">{l.note}</span> : null}
-              {/* Riot's base cooldowns only: the haste choice never shortens a summoner spell. */}
-              {l.cooldowns ? (
-                <span className="block text-2xs text-fg-subtle" data-testid="evidence-spell-cooldowns">
-                  {l.cooldowns}
-                  {hasteWordsAt === `${section.scope}:${l.key}` ? `. ${SUMMONER_SPELL_HASTE_WORDS}.` : "."}
-                </span>
-              ) : null}
-            </li>
-          ))}
-        </ul>
-      ) : null}
+      {section.lines.length ? <EvidenceLines lines={section.lines} scope={section.scope} hasteWordsAt={hasteWordsAt} /> : null}
       {section.empty ? (
         <p className="text-xs text-fg-muted" data-testid="evidence-empty">
           {section.empty}
@@ -102,7 +70,10 @@ function Section({ section, hasteWordsAt }: { section: EvidenceSection; hasteWor
 
 /** The evidence's tiers with their n, or why a scope is not counted, in one line of words. */
 export function evidenceSummaryWords(evidence: MatchupEvidence | null): string {
-  return evidence?.sections.length ? evidence.sections.map(summaryOf).join(" · ") : evidence ? "Not counted: no current patch is known yet" : "Counted once the first slot holds a champion";
+  const words = evidence?.sections.length ? evidence.sections.map(summaryOf).join(" · ") : evidence ? "Not counted: no current patch is known yet" : "Counted once the first slot holds a champion";
+  // The observed Master+ games, all regions, by their n (docs/HIGH_ELO_EVIDENCE.md), once collected.
+  const all = evidence?.highElo?.sections.find((s) => s.region === "all");
+  return all ? `${words} · Master+ games (n = ${formatCount(all.n)})` : words;
 }
 
 /**
@@ -138,7 +109,8 @@ export function EvidenceSummary({ evidence }: { evidence: MatchupEvidence | null
  * shows no curated briefing and no counted line (saying so differently when its briefing is hidden).
  */
 export function EvidenceBody({ evidence, duo, pair }: { evidence: MatchupEvidence | null; duo: boolean; pair: { chosen: boolean; curated: boolean; /** A curated briefing exists but is hidden. */ hidden?: boolean } }) {
-  const counted = !!evidence?.sections.some((s) => s.lines.length);
+  // Counted: a line from the team's games, or the observed Master+ games against this opponent (their result stated).
+  const counted = !!evidence?.sections.some((s) => s.lines.length) || !!evidence?.highElo?.sections.find((s) => s.region === "all")?.lines.some((l) => l.key === "pair" && !!l.sample);
   const uncertain = pair.chosen && !pair.curated && !counted;
   return (
     <div className="space-y-2 border-t border-border pt-1.5" data-testid="matchup-evidence-panel">
@@ -152,15 +124,19 @@ export function EvidenceBody({ evidence, duo, pair }: { evidence: MatchupEvidenc
         </p>
       ) : null}
       {evidence?.sections.map((s) => <Section key={s.scope} section={s} hasteWordsAt={hasteWordsAt(evidence)} />)}
+      {evidence?.highElo?.sections.length ? <HighEloPanel sections={evidence.highElo.sections} /> : null}
       {evidence?.ignored.length ? (
         <p className="text-2xs text-fg-subtle" data-testid="evidence-ignored">
           {`These counts ignore the empty ${evidence.ignored.length === 1 ? "slot" : "slots"}: ${evidence.ignored.join(", ")}.`}
         </p>
       ) : null}
       <ul className="space-y-0.5 border-t border-border pt-1.5 text-xs text-fg-muted" data-testid="matchup-evidence">
-        <li data-testid="matchup-evidence-high-elo">
-          <span className="font-medium text-fg">Runes, items and skill order:</span> {NO_HIGH_ELO}
-        </li>
+        {/* The observed Master+ games once their collection is on (docs/HIGH_ELO_EVIDENCE.md); until then, said as not collected. */}
+        {evidence?.highElo ? null : (
+          <li data-testid="matchup-evidence-high-elo">
+            <span className="font-medium text-fg">Runes, items and skill order:</span> {NO_HIGH_ELO}
+          </li>
+        )}
         <li data-testid="matchup-evidence-power-spikes">
           <span className="font-medium text-fg">{POWER_SPIKES_LABEL}</span> {NOT_MEASURED_YET}
         </li>

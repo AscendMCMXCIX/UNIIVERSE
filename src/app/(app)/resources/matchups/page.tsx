@@ -6,6 +6,7 @@ import { loadMatchupPage } from "@/server/matchup-intel/view";
 import { loadMatchupEvidence } from "@/server/matchup-intel/evidence";
 import { recordedRoles, viewerPool } from "@/server/matchup-intel/picker";
 import { RIOT_TEXT_TEST_COOKIE, riotTextFactsShown } from "@/server/matchup-intel/riot-text/switch";
+import { HIGH_ELO_TEST_COOKIE, highEloShown } from "@/server/matchup-intel/high-elo/switch";
 import { CHANGED_ABILITIES_TEST_COOKIE, NOTES_AGE_TEST_COOKIE, RIOT_CHANGED_TEST_COOKIE, changedAbilitiesForTest, notesAgeForTest, riotChangesForTest } from "@/server/matchup-intel/notes-age";
 import { riotChangesOf } from "@/server/matchup-intel/digests";
 import { namedOnPage, withRiotChanges } from "@/server/matchup-intel/riot-changes";
@@ -41,6 +42,8 @@ export default async function MatchupIntelPage({ searchParams }: { searchParams:
   const input = { role: one(sp.role), champion: one(sp.champion), vs: one(sp.vs), ally: one(sp.ally), vs2: one(sp.vs2) };
   // The facts from Riot's text only while their switch is on (riot-text/switch.ts; a browser test's cookie on the demo).
   const riotText = riotTextFactsShown(jar.get(RIOT_TEXT_TEST_COOKIE)?.value);
+  // The observed Master+ games only while their collection is switched on (high-elo/switch.ts; a browser test's cookie on the demo).
+  const highElo = highEloShown(jar.get(HIGH_ELO_TEST_COOKIE)?.value);
   // Browser tests only: the curated notes as production shows them once later patches are out (notes-age.ts; 0 anywhere but the demo).
   const notesAge = notesAgeForTest(jar.get(NOTES_AGE_TEST_COOKIE)?.value);
   // And, with it, the abilities Riot changed since the check (the same bounds; none anywhere but the demo).
@@ -50,7 +53,7 @@ export default async function MatchupIntelPage({ searchParams }: { searchParams:
   // The evidence from the team's own games: counted in SQL for this viewer's own games and the team's they may see.
   // And the picker's two lists beyond the roster: the viewer's own pool for the lane, and the positions Riot recorded (picker.ts).
   const roster = new Set(champions.map((c) => c.id));
-  const [counted, pool, recorded] = await Promise.all([loadMatchupEvidence(db, session, { role, you, ally, enemy, enemy2 }, champions), viewerPool(db, session, role, roster), recordedRoles(db, session)]);
+  const [counted, pool, recorded] = await Promise.all([loadMatchupEvidence(db, session, { role, you, ally, enemy, enemy2 }, champions, { highElo }), viewerPool(db, session, role, roster), recordedRoles(db, session)]);
   // "Riot changed this on 26.24": the per-version diff for what the page shows (a browser test's cookie on the demo; nothing with fewer than two patches recorded).
   const shown = namedOnPage(loaded, counted);
   const riotChanges = riotChangesForTest(jar.get(RIOT_CHANGED_TEST_COOKIE)?.value, loaded.patch.current) ?? (await riotChangesOf(db, shown).catch(() => null));

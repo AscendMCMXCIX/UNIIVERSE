@@ -28,6 +28,7 @@ export const JOB_NAMES: Record<string, { name: string; summary: string }> = {
   "history-rescan": { name: "Rescan every match history", summary: "Marks every account's season of games to be read again from Riot by the next syncs." },
   "lane-opponent-recompute": { name: "Repair the stored lane opponents", summary: "Sets each stored game's lane opponent again from its own record." },
   "prep-backfill": { name: "Fill Matchup Intel's evidence", summary: "Adds Matchup Intel's evidence for stored games without it." },
+  "high-elo-sample": { name: "Sample high-elo games", summary: "Adds counts from a few Master+ players' ranked games for Matchup Intel (switched off for now)." },
   "erasure-reconcile": { name: "Re-apply every erasure", summary: "Applies every personal-data erasure again, as after restoring a backup." },
   "rank-schedule": { name: "Turn on the LP schedule", summary: "Installs the database's five-minute call of LP tracking." },
   "rank-schedule-off": { name: "Turn off the LP schedule", summary: "Removes the database's five-minute call of LP tracking." },

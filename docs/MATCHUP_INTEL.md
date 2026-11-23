@@ -781,6 +781,8 @@ build evidence uses it.
 
 ## In your games: evidence from the team's own games (S7b, 20 Nov 2026)
 
+**High-elo evidence (OD4, 23 Nov 2026).** The owner approved anonymous aggregate statistics from Master, Grandmaster and Challenger players' ranked games in every region. They are built as a third section of this fold ("Observed in Master+ ranked games", all regions first, a region one press away), switched off until Riot's registration describes them and the resource limits are verified. The design, the weights that keep any region from counting for more than its share, the thresholds and the owner's checks: [HIGH_ELO_EVIDENCE.md](HIGH_ELO_EVIDENCE.md). Until then the fold keeps saying "No high-elo evidence (not collected)".
+
 Every line is counted from stored games, with its sample, under its tier, and is never presented as a
 curated note or a recommendation. Nothing is inferred beyond what the games record.
 

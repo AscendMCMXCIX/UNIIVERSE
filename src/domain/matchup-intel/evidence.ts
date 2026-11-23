@@ -2,6 +2,7 @@ import { publicPatchName } from "@/domain/patch";
 import { formatCount } from "@/lib/format";
 import { parseRunePage } from "./prep";
 import { summonerSpellCooldown } from "./haste";
+import type { HighEloSection } from "./high-elo/lines";
 
 /*
   MATCHUP INTEL's evidence lines (docs/MATCHUP_INTEL.md, "In your games"): every line counted from
@@ -333,5 +334,10 @@ export interface MatchupEvidence {
   /** The empty slots the lines ignore ("the enemy support"), said under the lines. */
   ignored: string[];
   sections: EvidenceSection[];
+  /**
+   * The observed Master+ games (docs/HIGH_ELO_EVIDENCE.md): one section per region, all regions
+   * first; absent while the collection is switched off (the page then says "No high-elo evidence
+   * (not collected)").
+   */
+  highElo?: { sections: HighEloSection[] } | null;
 }
-

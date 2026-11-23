@@ -29,6 +29,7 @@ export type JobKey =
   | "verify-account"
   | "lane-opponent-recompute"
   | "prep-backfill"
+  | "high-elo-sample"
   | "tick";
 
 export interface JobOutcome {
