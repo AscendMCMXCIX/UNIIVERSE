@@ -387,8 +387,8 @@ function multikillsView(data: LeaderboardData, season: number, ctx: BoardContext
       : "Riot counts each multikill once, at its largest, and so does the score.";
   const compared =
     source === "same-games"
-      ? `The score compares each member's multikills per game with what players on the same roles and champions made in the same games (${gamesWord(baseline.all.games)} of allies and opponents, never a team member): 100 is usual, 130 is 30% more.`
-      : "Too few other players' games are stored for a fair comparison yet, so each member's multikills per game are compared with the whole team's, every role together (not adjusted for role or champion): 100 is the team's usual.";
+      ? `The score compares each member's multikills per game with what the other players in the same games made on the same roles and champions (allies and opponents, never a team member: ${formatCount(baseline.all.games)} in all). 100 is usual; 130 is 30% more.`
+      : "Too few other players' games are stored for a fair comparison yet, so each member's multikills per game are compared with the whole team's, every role together (not adjusted for role or champion). 100 is the team's usual.";
   const explain = [
     compared,
     "Each kind is compared on its own and the four count equally, so one pentakill moves a score far more than one double kill.",

@@ -218,7 +218,7 @@ describe("the multikill board on the fixed team", () => {
     const m = buildLeaderboardsView(fixture(), {}, null, { now: NOW, multikillBaseline }).records.multikills;
     expect(m.source).toBe("same-games");
     expect(m.basis).toBe("Per game, against the same roles and champions · 100 is usual");
-    expect(m.explain).toContain("in the same games (12,000 games of allies and opponents, never a team member)");
+    expect(m.explain).toContain("what the other players in the same games made on the same roles and champions (allies and opponents, never a team member: 12,000 in all). 100 is usual; 130 is 30% more.");
     expect(m.explain).toContain("Riot also counts a pentakill's double, triple and quadra kill");
     // Ash's 25 Riven games are top games, the Zed game a mid game: every game compared within its role.
     expect(m.rows[0]!.breakdown).toMatch(/^Score \d+ from 26 games. Each multikill once, at its largest, with the number expected for their roles and champions in brackets: /);

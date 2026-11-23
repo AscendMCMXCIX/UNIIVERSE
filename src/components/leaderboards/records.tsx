@@ -419,12 +419,11 @@ function MultikillRowItem({ r, p, tie }: { r: MultikillRow; p: BoardPlayer; tie:
         </span>
       }
     >
-      <MemberCell look={p.look} name={p.name} avatar={false} you={r.you} readName={!linked} nameHref={p.profileHref ?? undefined} nameTestId="board-member-name" className={cn("min-w-0", NARROW.name, r.status === "not-enough" ? "row-[1/span_2]" : "row-[1/2]")} />
-      {r.status !== "not-enough" ? (
-        <span className={cn("flex min-w-0 flex-wrap gap-x-1.5 text-xs tabular-nums text-fg-muted", NARROW.kinds)} data-testid="multikill-kinds">
-          {r.kinds.length ? r.kinds.map((k) => <span key={k.key} data-kind={k.key} className="whitespace-nowrap">{k.text}</span>) : <span>No multikills yet</span>}
-        </span>
-      ) : null}
+      <MemberCell look={p.look} name={p.name} avatar={false} you={r.you} readName={!linked} nameHref={p.profileHref ?? undefined} nameTestId="board-member-name" className={cn("min-w-0 row-[1/2]", NARROW.name)} />
+      {/* Riot's counts in words on every row, a member with too few games for a score included: the kinds are records of their own. */}
+      <span className={cn("flex min-w-0 flex-wrap gap-x-1.5 text-xs tabular-nums text-fg-muted", NARROW.kinds)} data-testid="multikill-kinds">
+        {r.kinds.length ? r.kinds.map((k) => <span key={k.key} data-kind={k.key} className="whitespace-nowrap">{k.text}</span>) : <span>No multikills yet</span>}
+      </span>
       {/* The score in a sentence, for screen readers (the row's tooltip shows it on hover). */}
       <span className="sr-only">{r.breakdown}</span>
     </DataRow>

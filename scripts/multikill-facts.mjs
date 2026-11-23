@@ -70,8 +70,8 @@ export function multikillVerdicts({ kind, read }) {
   fact("the multikill ranking: ranked members by score, a place shared exactly on equal scores, the crown on first; provisional, then too few games, after them", grouped && byScore && placesOk, { ranked: ranked.length, provisional: read.rows.filter((r) => r.status === "provisional").length, tooFew: read.rows.filter((r) => r.status === "not-enough").length, grouped, byScore, placesOk });
   const scored = read.rows.filter((r) => r.status !== "not-enough");
   fact("every ranked or provisional row shows its score; a row with too few games shows none", scored.every((r) => r.shown === String(r.score)) && read.rows.filter((r) => r.status === "not-enough").every((r) => r.shown === null), { scored: scored.length, withoutScore: scored.filter((r) => r.shown !== String(r.score)).length });
-  const words = scored.filter((r) => JSON.stringify(r.kinds) !== JSON.stringify(kindsInWords(r.counts))).length;
-  fact("each row's kinds in words are its own counts, rarest first", words === 0, { rows: scored.length, different: words });
+  const words = read.rows.filter((r) => JSON.stringify(r.kinds) !== JSON.stringify(kindsInWords(r.counts))).length;
+  fact("each row's kinds in words are its own counts, rarest first", words === 0, { rows: read.rows.length, different: words });
   const best = (i) => Math.max(0, ...read.rows.map((r) => r.counts[i]));
   const want = { penta: best(0), quadra: best(1), triple: best(2), double: best(3) };
   const tilesOk = read.tiles.length === 4 && read.tiles.every((t) => (want[t.kind] > 0 ? t.count === want[t.kind] : t.count === null));

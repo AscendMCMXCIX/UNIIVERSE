@@ -238,6 +238,16 @@ describe("the score", () => {
     expect(shownScore(s.score!)).toBeLessThanOrEqual(100);
   });
 
+  it("one pentakill moves a score by at most 12.5 points ((1 + 2) ÷ (almost 0 + 2) is an index of 1.5, a quarter of the score)", () => {
+    const b = baselineOf(RATES);
+    for (const n of [3, 12, 40]) {
+      const without = scoreMember("a", nestedGames(n, "MID", mk(Math.round(n / 2))), b).score!;
+      const withPenta = scoreMember("a", nestedGames(n, "MID", mk(Math.round(n / 2), 0, 0, 1)), b).score!;
+      expect(withPenta - without, `${n} games`).toBeGreaterThan(0);
+      expect(withPenta - without, `${n} games`).toBeLessThanOrEqual(12.5);
+    }
+  });
+
   it("a member with 3 games has no place and no score shown (status not-enough), whatever they made", () => {
     const s = scoreMember("new", nestedGames(3, "MID", mk(2, 1, 0, 1)), baselineOf(RATES));
     expect(s.status).toBe("not-enough");

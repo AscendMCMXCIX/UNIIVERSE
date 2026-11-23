@@ -545,7 +545,7 @@ test("the season records: seven cells in one panel, each opening its game; the m
     expect(m.kinds, "Riot's counts in words, rarest first").toEqual(words);
   }
   await expect(page.getByTestId("multikill-basis")).toHaveText("Per game, against the same roles and champions · 100 is usual");
-  await expect(page.getByTestId("multikill-explain")).toHaveAccessibleDescription(/compares each member's multikills per game with what players on the same roles and champions made in the same games \([\d,]+ games of allies and opponents, never a team member\)/);
+  await expect(page.getByTestId("multikill-explain")).toHaveAccessibleDescription(/compares each member's multikills per game with what the other players in the same games made on the same roles and champions \(allies and opponents, never a team member: [\d,]+ in all\)/);
   // The most of each kind, double to penta: each with its count and holder(s), Riot's own counts.
   const most = page.getByTestId("multikill-most-kind");
   await expect(most).toHaveCount(4);

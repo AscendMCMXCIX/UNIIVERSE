@@ -36,9 +36,9 @@ import type { MultikillCounts } from "./multikills";
         index_k = (O_k + PRIOR) / (X_k + PRIOR)        score = 100 × mean of the four indexes
      PRIOR = 2 multikills: as if every member had already made two of each kind at exactly the
      usual rate. Doubles, expected dozens of times, are soon the member's own; a pentakill, expected
-     a fraction of a time, moves its index by a third at most, so one lucky game cannot decide the
+     a fraction of a time, moves its index by a half at most (3 ÷ 2), the score by 12.5 points, so one lucky game cannot decide the
      board, and over hundreds of games a kind's weight approaches how rare it is (one more pentakill
-     is then worth as much as about a hundred more double kills).
+     is worth about 85 more double kills over 500 games of a mid, about 4 over 12).
 
   4. Places (`rankMultikillScores`): 20 or more games with counts are ranked; 10–19 are provisional,
      listed after every ranked member; fewer, the board's last group with no score. Equal scores as

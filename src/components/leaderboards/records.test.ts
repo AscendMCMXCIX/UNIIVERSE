@@ -247,7 +247,7 @@ describe("multikills", () => {
     expect(shownOf(html, "multikill-provisional-head")).toBe("Provisional\u00a0·\u00a010 to 19 games with multikill counts");
     const bo = rowOf(html, "bo");
     expect(bo).not.toContain("multikill-score\"");
-    expect(bo).not.toContain("multikill-kinds");
+    expect([...bo.matchAll(/<span data-kind="(\w+)" class="whitespace-nowrap">([^<]*)<\/span>/g)].map((m) => m[2]), "its counts in words still").toEqual(["1 double"]);
     expect(bo).toContain('data-you="true"');
     expect(bo).toContain("bg-accent/5");
     expect(shownOf(html, "multikill-few-head")).toBe("Too few games for a score\u00a0·\u00a010 needed");
