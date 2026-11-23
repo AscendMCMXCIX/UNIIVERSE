@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "./test";
 import { closeGame, opensFullScreen, openGame, pastGameHeader } from "./match-history";
 import { NARROW_MOUSE_WINDOWS, expectInReach } from "./reach";
+import { optionsOf, pick } from "./select";
 import { AxeBuilder } from "@axe-core/playwright";
 
 /*
@@ -364,11 +365,14 @@ test("a press on any scoreboard row inspects that player at once, with nothing f
   await expect(breakdown.locator(`[data-testid=participant-select][data-slot="${own}"]`)).toHaveAttribute("aria-current", "true");
   const name = breakdown.getByTestId("inspected-name");
   const first = await name.innerText();
-  const y = await page.evaluate(() => window.scrollY);
   const address = page.url();
   // An enemy's row: everything follows it.
-  const target = breakdown.locator('[data-testid=participant-select]:not([aria-current="true"])').nth(5);
-  const slot = (await target.getAttribute("data-slot"))!;
+  const slot = (await breakdown.locator('[data-testid=participant-select]:not([aria-current="true"])').nth(5).getAttribute("data-slot"))!;
+  const target = breakdown.locator(`[data-testid=participant-select][data-slot="${slot}"]`);
+  await target.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(200);
+  // Where the row is on the screen: it stays under the pointer (stacked, the browser's scroll anchoring keeps it there as the player above changes height).
+  const y = (await target.boundingBox())!.y;
   const rowName = (await breakdown.locator(`[data-testid=participant][data-slot="${slot}"] [data-testid=participant-name]`).innerText()).trim();
   await target.click();
   await expect(breakdown).toHaveAttribute("data-selected", slot);
@@ -380,7 +384,7 @@ test("a press on any scoreboard row inspects that player at once, with nothing f
   await expect(breakdown.getByTestId("post-game-yours")).not.toHaveAttribute("data-own", "true");
   // Nothing fetched and nothing moved: the record and the timeline already hold all ten.
   expect(posts, "no request on switching").toEqual([]);
-  if (!opensFullScreen(page)) expect(Math.abs((await page.evaluate(() => window.scrollY)) - y)).toBeLessThanOrEqual(1);
+  expect(Math.abs((await target.boundingBox())!.y - y), "the row pressed stays where it was (sub-pixel anchoring aside)").toBeLessThanOrEqual(2);
   // Not in the address: Back would still close the game.
   expect(page.url()).toBe(address);
   // The keyboard: Down to the next row, Enter inspects it.
@@ -404,11 +408,12 @@ test("compare: a second player's line on the same chart and their key figures si
   const { breakdown } = await openGameWithTimeline(page, true);
   const panel = breakdown.getByTestId("performance");
   await expect(panel.getByTestId("score-chart")).toHaveAttribute("data-series", "1");
-  await panel.getByTestId("performance-compare").click();
-  // The lane opponent first in the list (after "No comparison").
-  const option = page.getByRole("option").nth(1);
-  await expect(option).toContainText("(lane opponent)");
-  await option.click();
+  // The lane opponent first in the list (after "No comparison"), in whichever form the Select has here.
+  const compare = panel.getByTestId("performance-compare");
+  const options = await optionsOf(compare);
+  expect(options[0]!.label).toBe("No comparison");
+  expect(options[1]!.label).toContain("(lane opponent)");
+  await pick(compare, { label: options[1]!.label });
   await expect(panel.getByTestId("score-chart")).toHaveAttribute("data-series", "2");
   await expect(panel.getByTestId("score-chart-legend")).toHaveCount(2);
   const table = panel.getByTestId("performance-compare-table");

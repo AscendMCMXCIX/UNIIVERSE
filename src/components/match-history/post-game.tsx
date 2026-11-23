@@ -333,7 +333,7 @@ export function PostGame({ playerId, view, champ, variant, encounterLinks = fals
       <div className="grid gap-x-6 gap-y-4 @min-[60rem]/pg:grid-cols-[minmax(0,33rem)_minmax(0,1fr)]">
         <section ref={yours} aria-label={own && view.own ? "Your game" : `${nameOf(subject)}'s game`} className="min-w-0 scroll-mt-24 space-y-2.5" data-testid="post-game-yours" data-own={own || undefined}>
           {/* Who is inspected, their score, and the way back to the profile's player. */}
-          <div className="flex min-h-7 flex-wrap items-center gap-x-2 gap-y-1" data-testid="inspected">
+          <div className="flex min-h-7 flex-wrap items-center gap-x-2 gap-y-1 pointer-coarse:min-h-11" data-testid="inspected">
             <p className="min-w-0 flex-1 truncate text-sm leading-tight" aria-live="polite">
               <span className="font-semibold text-fg" data-testid="inspected-name">
                 {nameOf(subject)}
