@@ -1,18 +1,18 @@
-import { expect, test, type Locator, type Page } from "./test";
-import { besideAMark, closeGame, opensFullScreen, openGame } from "./match-history";
+import { expect, test, type Page } from "./test";
+import { closeGame, opensFullScreen, openGame } from "./match-history";
 import { NARROW_MOUSE_WINDOWS, expectInReach } from "./reach";
 import { AxeBuilder } from "@axe-core/playwright";
 
 /*
   A game's post-game view under its Match History card (demo data, in memory; on phones the window):
-  one view without subtabs (the loadout, the rune page, six figure tiles with each of the player's
-  figures once, the lane, the notes and the compact scoreboard), two folds for the gold over the game
-  and the build and skill order, the open card folded into a header with Previous, Next and Close,
-  and one history rule (Back closes the game, however many games were stepped through). The Timeline
-  fold draws the gold difference and reads it minute by minute (keyboard, and as a table) with the
-  kills, objectives and largest swings beside it (never a cause). The match timeline is asked for
-  once as the game opens. Every sixth demo game has no stored timeline (and the demo has no Riot key
-  to fetch it), so the timeline tests use the first game whose curve draws.
+  one view without subtabs and without folds (the loadout, the rune page, six figure tiles with each
+  of the player's figures once, the lane and the compact scoreboard), the open card folded into a
+  header with Previous, Next and Close, and one history rule (Back closes the game, however many
+  games were stepped through). The match timeline is asked for once as the game opens: the lane's
+  10:00 and 15:00 read it. Every sixth demo game has no stored timeline (and the demo has no Riot key
+  to fetch it). Since 23 Nov 2026 (the owner's request) the view has no notes (Went well, Went wrong,
+  Focus next) and no folds (Gold over the game, Build and skill order): the tests below check they
+  stay gone.
 */
 
 test.beforeEach(async ({ context, baseURL }) => {
@@ -26,54 +26,29 @@ async function openHistory(page: Page, role = "MID") {
   await expect(page.locator("[data-testid='match-history'][data-ready]")).toBeVisible();
 }
 
-/** Opens one of the view's folds (closed by default). */
-async function section(breakdown: Locator, key: "timeline" | "build") {
-  const fold = breakdown.getByTestId(key === "timeline" ? "fold-gold" : "fold-build");
-  if (!(await fold.evaluate((d) => (d as HTMLDetailsElement).open))) await fold.locator("summary").click();
-  await expect(fold).toHaveAttribute("open", "");
-  return fold;
-}
-
-/** The first of the newest games whose stored timeline draws the gold difference, its gold fold open. */
-async function gameWithTimeline(page: Page): Promise<{ card: Locator; breakdown: Locator; timeline: Locator }> {
-  for (let i = 0; i < 6; i++) {
-    const card = page.getByTestId("match-card").nth(i);
-    const breakdown = await openGame(card);
-    await expect(breakdown.getByTestId("post-game-notes")).toBeVisible({ timeout: 15_000 });
-    // A game Riot does not provide the timeline of says so once, quietly, and has no folds.
-    if (await breakdown.getByTestId("timeline-missing").count()) {
-      await closeGame(card);
-      continue;
-    }
-    const timeline = await section(breakdown, "timeline");
-    await expect(timeline.getByTestId("timeline-loading")).toHaveCount(0, { timeout: 15_000 });
-    if (await timeline.getByTestId("gold-chart").count()) return { card, breakdown, timeline };
-    await closeGame(card);
-  }
-  throw new Error("no demo game with a timeline among the newest six");
-}
-
 /** Nothing on the page is wider than the screen. */
 async function fitsWidth(page: Page, label: string) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth), `${label}: no sideways scrolling`).toBeLessThanOrEqual(1);
 }
 
-test("while the notes load, the view passes axe and says what loads as one polite status", async ({ page }) => {
+/** The removed sections' names: none of them is in an open game. */
+const REMOVED = ["Went well", "Went wrong", "Focus next", "Gold over the game", "Build and skill order"];
+
+test("while the timeline loads, the view passes axe, and it says when the timeline has answered", async ({ page }) => {
   await openHistory(page, "TOP");
-  // The game's own requests in order: the record, then the timeline (which the notes read).
+  // The game's own requests in order: the record, then the timeline (which the lane reads).
   const actions: string[] = [];
   page.on("request", (r) => {
     const id = r.headers()["next-action"];
     if (r.method() === "POST" && id) actions.push(id);
   });
   const first = page.getByTestId("match-card").nth(0);
-  await expect(await openGame(first)).toBeVisible();
-  await expect(page.getByTestId("post-game-notes")).toBeVisible({ timeout: 15_000 });
+  const opened = await openGame(first);
+  await expect(opened).not.toHaveAttribute("data-timeline", "loading", { timeout: 15_000 });
   const timelineAction = actions[1];
   expect(timelineAction).toBeTruthy();
   await closeGame(first);
-  // The next game's timeline held back, so its notes stay loading while axe reads the view (#323:
-  // a named div there was aria-prohibited-attr, which a scan after the notes arrived never saw).
+  // The next game's timeline held back, so the view stays waiting for it while axe reads it.
   let release!: () => void;
   const held = new Promise<void>((r) => (release = r));
   await page.route("**/*", async (route) => {
@@ -81,23 +56,19 @@ test("while the notes load, the view passes axe and says what loads as one polit
     await route.fallback();
   });
   const breakdown = await openGame(page.getByTestId("match-card").nth(1));
-  const loading = breakdown.getByTestId("post-game-notes-loading");
-  await expect(loading).toBeVisible();
+  await expect(breakdown).toHaveAttribute("data-timeline", "loading");
   const scan = await new AxeBuilder({ page }).include("[data-testid=match-breakdown]").withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
   expect(scan.violations.filter((v) => v.impact === "critical" || v.impact === "serious").map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(" | ")}`)).toEqual([]);
-  // One polite status, its text what loads (the pulse itself says nothing).
-  await expect(loading).toHaveAttribute("role", "status");
-  await expect(loading).toHaveText("Loading the notes");
   release();
-  await expect(breakdown.getByTestId("post-game-notes")).toBeVisible({ timeout: 15_000 });
-  await expect(loading).toHaveCount(0);
+  await expect(breakdown).not.toHaveAttribute("data-timeline", "loading", { timeout: 15_000 });
 });
 
-test("one view without subtabs: the loadout names itself, each figure once, the lane, the notes and the scoreboard", async ({ page }) => {
+test("one view without subtabs or folds: the loadout names itself, each figure once, the lane and the scoreboard, and no notes", async ({ page }) => {
   await openHistory(page, "TOP");
   const breakdown = await openGame(page.getByTestId("match-card").nth(1));
-  await expect(breakdown.getByTestId("post-game-notes")).toBeVisible({ timeout: 15_000 });
+  await expect(breakdown).not.toHaveAttribute("data-timeline", "loading", { timeout: 15_000 });
   await expect(breakdown.locator("[role=tab]")).toHaveCount(0);
+  await expect(breakdown.locator("details")).toHaveCount(0);
   // The inventory: six slots and the trinket; an icon names itself on focus (and on a tap), inside the screen.
   await expect(breakdown.getByTestId("post-game-items").locator(":scope > *")).toHaveCount(7);
   const icon = breakdown.getByTestId("post-game-items").getByTestId("loadout-icon").first();
@@ -120,20 +91,16 @@ test("one view without subtabs: the loadout names itself, each figure once, the 
   expect(await breakdown.getByTestId("participant-kda").filter({ hasText: /KDA|%/ }).count(), "scoreboard rows carry no ratio or share").toBe(0);
   // Every tile's caption whole ("18% of team" was cut six across in the 33rem column: the design review's G2-2).
   expect(await tiles.locator(".truncate").evaluateAll((els) => els.filter((e) => e.scrollWidth > e.clientWidth + 0.5).map((e) => e.textContent)), "the figures' captions whole").toEqual([]);
-  // The notes: at most two Went well, two Went wrong and one Focus next, or one honest line.
-  const notes = breakdown.getByTestId("post-game-notes");
-  expect(Number(await notes.getAttribute("data-well"))).toBeLessThanOrEqual(2);
-  expect(Number(await notes.getAttribute("data-wrong"))).toBeLessThanOrEqual(2);
-  expect(Number(await notes.getAttribute("data-focus"))).toBeLessThanOrEqual(1);
-  expect((await notes.getByTestId("post-game-note").count()) + (await notes.getByTestId("notes-fallback").count())).toBeGreaterThan(0);
-  for (const n of await notes.getByTestId("post-game-note").allInnerTexts()) expect(n.split(/\s+/).length, n).toBeLessThanOrEqual(20);
+  // The removed sections (the owner's request, 23 Nov 2026): no notes and no folds, by their parts or their names.
+  await expect(breakdown.locator("[data-testid^=post-game-note], [data-testid^=notes-], [data-testid^=fold-], [data-testid=post-game-folds], [data-testid=gold-chart], [data-testid=skill-order]")).toHaveCount(0);
+  for (const word of REMOVED) expect(text, `no "${word}"`).not.toContain(word);
   // The lane names the opponent or says it is not clear; both teams in the scoreboard.
   await expect(breakdown.getByTestId("post-game-lane")).toBeVisible();
   await expect(breakdown.getByTestId("participant")).toHaveCount(10);
   await fitsWidth(page, "post-game view");
 });
 
-test("an iPhone 12 (390 × 844, its insets told): the opened game's header is at most 112px with the inset, and the result, loadout, runes, figures, lane and three answers are on the first screen, the folds closed", async ({ page }, info) => {
+test("an iPhone 12 (390 × 844, its insets told): the opened game's header is at most 112px with the inset, and the result, loadout, runes, figures and lane are on the first screen", async ({ page }, info) => {
   test.skip(info.project.name !== "phone", "the phone's game window (S6c's acceptance)");
   await page.setViewportSize({ width: 390, height: 844 });
   // The status bar and the home indicator of an iPhone 12 in Safari's installed app (CSS px).
@@ -141,18 +108,15 @@ test("an iPhone 12 (390 × 844, its insets told): the opened game's header is at
   await cdp.send("Emulation.setSafeAreaInsetsOverride", { insets: { top: 47, topMax: 47, bottom: 34, bottomMax: 34, left: 0, leftMax: 0, right: 0, rightMax: 0 } });
   await openHistory(page, "MID");
   // The three newest games, one with a two-line lane (measured on main on the demo: the header 101px
-  // with the 47px inset, 54px without; the answers end 116–245px above the steps' bar).
-  let folds = 0;
+  // with the 47px inset, 54px without).
   for (let i = 0; i < 3; i++) {
     const card = page.getByTestId("match-card").nth(i);
     const breakdown = await openGame(card);
-    await expect(breakdown.getByTestId("post-game-notes")).toBeVisible({ timeout: 15_000 });
-    // The answers the game has (Went well, Went wrong, Focus next), or the one honest line.
-    expect((await breakdown.getByTestId("post-game-note").count()) + (await breakdown.getByTestId("notes-fallback").count()), `game ${i}: an answer`).toBeGreaterThan(0);
-    for (const fold of ["fold-gold", "fold-build"]) if (await breakdown.getByTestId(fold).count() && ++folds) expect(await breakdown.getByTestId(fold).evaluate((d) => (d as HTMLDetailsElement).open), `game ${i}: ${fold} closed`).toBe(false);
+    await expect(breakdown).not.toHaveAttribute("data-timeline", "loading", { timeout: 15_000 });
+    await expect(breakdown.locator("details")).toHaveCount(0);
     const f = await page.evaluate(() => {
       const box = (id: string) => document.querySelector(`[data-testid=match-detail] [data-testid=${id}]`)?.getBoundingClientRect() ?? null;
-      const parts = Object.fromEntries(["match-result", "post-game-loadout", "rune-page", "post-game-figures", "post-game-lane", "post-game-notes"].map((id) => [id, box(id)?.bottom ?? null]));
+      const parts = Object.fromEntries(["match-result", "post-game-loadout", "rune-page", "post-game-figures", "post-game-lane"].map((id) => [id, box(id)?.bottom ?? null]));
       // The first screen ends where the window's steps (Previous, Next) begin, or at the screen's foot.
       return { header: box("match-detail-header")!.bottom, end: box("match-detail-nav")?.top ?? innerHeight, parts };
     });
@@ -164,27 +128,58 @@ test("an iPhone 12 (390 × 844, its insets told): the opened game's header is at
     }
     await closeGame(card);
   }
-  // Every sixth demo game has no timeline, and so no folds: at least one of the three had them closed.
-  expect(folds, "folds checked").toBeGreaterThan(0);
 });
 
-test("a game without a timeline says so once, and its notes skip what the timeline would tell", async ({ page }) => {
+test("a game without a timeline says so once, under its lane, whose 10:00 and 15:00 stay empty", async ({ page }) => {
   await openHistory(page, "TOP");
   for (let i = 0; i < 8; i++) {
     const card = page.getByTestId("match-card").nth(i);
     const breakdown = await openGame(card);
-    await expect(breakdown.getByTestId("post-game-notes")).toBeVisible({ timeout: 15_000 });
-    if (await breakdown.getByTestId("timeline-missing").count()) {
-      await expect(breakdown.getByTestId("timeline-missing")).toHaveText("Timeline not available for this game");
-      await expect(breakdown.getByTestId("post-game-folds")).toHaveCount(0);
-      await expect(breakdown.getByText(/at 10 minutes|before 10 minutes/)).toHaveCount(0);
+    await expect(breakdown).not.toHaveAttribute("data-timeline", "loading", { timeout: 15_000 });
+    const lane = breakdown.getByTestId("post-game-lane");
+    if ((await breakdown.getAttribute("data-timeline")) !== "ok" && (await lane.getAttribute("data-state")) === "clear") {
+      await expect(breakdown.getByTestId("timeline-missing")).toHaveCount(1);
+      await expect(lane.getByTestId("timeline-missing")).toHaveText("Timeline not available for this game");
+      // Its 10:00 and 15:00 columns say nothing they cannot back; the end (from the record) stays.
+      const cells = await lane.locator("tbody tr").evaluateAll((rows) => rows.map((r) => [...r.querySelectorAll("td")].map((td) => td.textContent?.trim())));
+      for (const [ten, fifteen, end] of cells) {
+        expect([ten, fifteen]).toEqual(["—", "—"]);
+        expect(end).toMatch(/^([+−±][\d,]+|—)$/);
+      }
       return;
     }
     await closeGame(card);
   }
-  throw new Error("no demo game without a timeline among the newest eight");
+  throw new Error("no demo game without a timeline (and with a clear lane) among the newest eight");
 });
 
+test("a game with a timeline reads its lane at 10:00 and 15:00, says nothing missing, and asks for the timeline once", async ({ page }) => {
+  const posts: string[] = [];
+  page.on("request", (r) => {
+    if (r.method() === "POST" && r.headers()["next-action"]) posts.push(r.headers()["next-action"]!);
+  });
+  await openHistory(page, "MID");
+  for (let i = 0; i < 6; i++) {
+    const card = page.getByTestId("match-card").nth(i);
+    const before = posts.length;
+    const breakdown = await openGame(card);
+    await expect(breakdown).not.toHaveAttribute("data-timeline", "loading", { timeout: 15_000 });
+    const lane = breakdown.getByTestId("post-game-lane");
+    if ((await breakdown.getAttribute("data-timeline")) === "ok" && (await lane.getAttribute("data-state")) === "clear") {
+      await expect(breakdown.getByTestId("timeline-missing")).toHaveCount(0);
+      const ten = await lane.locator("tbody tr").evaluateAll((rows) => rows.map((r) => r.querySelectorAll("td")[0]?.textContent?.trim()));
+      expect(ten.some((c) => c !== "—"), "a figure at 10:00").toBe(true);
+      // The game's requests settle (its record, the timeline, the groups and the rank check): the timeline once.
+      await page.waitForTimeout(500);
+      const mine = posts.slice(before);
+      expect(new Set(mine).size, "no request asked twice").toBe(mine.length);
+      await fitsWidth(page, "the lane");
+      return;
+    }
+    await closeGame(card);
+  }
+  throw new Error("no demo game with a timeline and a clear lane among the newest six");
+});
 test("Previous and Next keep the open game's header in place; Escape closes and Back closes after three Nexts", async ({ page }) => {
   test.skip(opensFullScreen(page), "phones open the window (mobile-nav covers it)");
   await openHistory(page, "TOP");
@@ -197,7 +192,7 @@ test("Previous and Next keep the open game's header in place; Escape closes and 
     const before = new URL(page.url()).searchParams.get("match");
     await page.getByTestId("game-header-next").click();
     await expect.poll(() => new URL(page.url()).searchParams.get("match")).not.toBe(before);
-    await expect(page.locator("li[data-expanded] [data-testid=post-game-notes]")).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator("li[data-expanded] [data-testid=match-breakdown]")).toBeVisible({ timeout: 15_000 });
     expect(Math.abs((await header().boundingBox())!.y - y0), "the header keeps its place").toBeLessThanOrEqual(2);
     // The focus stays on Next, in the game now open.
     await expect(page.locator("li[data-expanded] [data-testid=game-header-next]")).toBeFocused();
@@ -238,153 +233,4 @@ test("a window 640–767px wide with a mouse (the phone's frame): a game opens a
     await win.getByTestId("match-detail-close").click();
     await expect(win).toHaveCount(0);
   }
-});
-
-test("Timeline draws the gold difference, reads a minute by keyboard and as a table, and asks for the timeline once", async ({ page }) => {
-  const posts: string[] = [];
-  page.on("request", (r) => {
-    if (r.method() === "POST" && r.headers()["next-action"]) posts.push(r.url());
-  });
-  await openHistory(page);
-  const { breakdown, timeline } = await gameWithTimeline(page);
-  const chart = timeline.getByTestId("gold-chart");
-  await expect(chart.getByTestId("gold-chart-line")).toBeVisible();
-  await expect(timeline.getByTestId("gold-story")).toContainText("Largest lead");
-  await expect(timeline.getByTestId("gold-story")).toContainText("At the end");
-  // The keyboard reads one frame at a time, from the start.
-  const svg = chart.getByTestId("gold-chart-svg");
-  await svg.focus();
-  await page.keyboard.press("Home");
-  await expect(chart.getByTestId("gold-chart-readout")).toHaveText(/^0:00 · Even/);
-  await page.keyboard.press("ArrowRight");
-  await expect(chart.getByTestId("gold-chart-readout")).toHaveText(/^1:0\d · (Even|Your team ahead by [\d,]+ gold|The other team ahead by [\d,]+ gold)/);
-  await page.keyboard.press("End");
-  const end = (await chart.getByTestId("gold-chart-readout").innerText()).split(" · ")[0]!;
-  // Every frame as a table, the last one the end of the game.
-  await timeline.getByText("Every minute as a table").click();
-  const rows = timeline.getByTestId("gold-chart-table").locator("tbody tr");
-  expect(await rows.count()).toBeGreaterThan(20);
-  await expect(rows.last().locator("td").first()).toHaveText(end);
-  await fitsWidth(page, "Timeline");
-  // On a touch screen the tables run with the page (a box scrolling inside it would catch the finger); with a mouse the table scrolls in its box.
-  const coarse = await page.evaluate(() => matchMedia("(pointer: coarse)").matches);
-  expect(await timeline.getByTestId("gold-chart-table").locator("xpath=..").evaluate((el) => getComputedStyle(el).overflowY)).toBe(coarse ? "visible" : "auto");
-  // The folds reuse the one answer the opening asked for: opening Build asks for nothing more.
-  const before = posts.length;
-  await section(breakdown, "build");
-  await section(breakdown, "timeline");
-  await expect(chart).toBeVisible();
-  await page.waitForTimeout(300);
-  expect(posts.length - before).toBe(0);
-});
-
-test("Timeline marks the kills and objectives, lists the largest swings beside what happened in those minutes, and holds every event as a table", async ({ page }) => {
-  await openHistory(page);
-  const { timeline } = await gameWithTimeline(page);
-  const chart = timeline.getByTestId("gold-chart");
-  // Each team's kills along the chart: the demo keeps all ten players' kills.
-  const kills = chart.getByTestId("gold-chart-kills");
-  await expect(kills).toBeAttached();
-  expect(Number(await kills.getAttribute("data-own")) + Number(await kills.getAttribute("data-enemy"))).toBeGreaterThan(0);
-  // Objectives under the curve, by the team that took them; the legend names only the kinds shown.
-  const markers = chart.getByTestId("timeline-objective");
-  expect(await markers.count()).toBeGreaterThan(0);
-  const kinds = new Set(await markers.evaluateAll((els) => els.map((e) => e.getAttribute("data-kind"))));
-  const legend = chart.getByTestId("gold-chart-legend");
-  const words: Record<string, string> = { dragon: "D dragon", elder: "E elder", grubs: "G voidgrubs", herald: "H herald", atakhan: "A Atakhan", baron: "B Baron", tower: "T tower", inhibitor: "I inhibitor" };
-  for (const [kind, word] of Object.entries(words)) {
-    if (kinds.has(kind)) await expect(legend).toContainText(word);
-    else await expect(legend).not.toContainText(word);
-  }
-  for (const own of await markers.evaluateAll((els) => els.map((e) => e.getAttribute("data-own")))) expect(["true", "false"]).toContain(own);
-  // No two marks under the curve overlap, on a phone too: a busy minute takes more rows, so each
-  // mark stays legible and can be touched on its own.
-  const overlapping = await chart.getByTestId("gold-chart-events").evaluate((el) => {
-    const boxes = [...el.querySelectorAll("[data-minute]")].map((e) => e.getBoundingClientRect());
-    return boxes.flatMap((a, i) => boxes.slice(i + 1).filter((b) => a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top < b.bottom - 0.5 && b.top < a.bottom - 0.5)).length;
-  });
-  expect(overlapping, "marks under the curve that overlap").toBe(0);
-  // A minute read by keyboard says what happened since the minute before, somewhere in the game.
-  const frames = await timeline.getByTestId("gold-chart-table").locator("tbody tr").count();
-  await chart.getByTestId("gold-chart-svg").focus();
-  await page.keyboard.press("Home");
-  let told = false;
-  for (let i = 1; i < frames && !told; i++) {
-    await page.keyboard.press("ArrowRight");
-    told = /since the minute before: /.test(await chart.getByTestId("gold-chart-readout").innerText());
-  }
-  expect(told, "a minute with a kill or an objective says so").toBe(true);
-  // The largest swings, when the gold moved enough: each with its window and the events beside it, never a cause.
-  for (const swing of await timeline.getByTestId("gold-swing").all()) {
-    await expect(swing).toHaveText(/^\d+:\d{2}–\d+:\d{2} [+−][\d,]+/);
-    await expect(swing.getByTestId("gold-swing-events")).toHaveText(/^In those minutes: /);
-    await expect(swing).not.toContainText(/because|caused|due to|thanks to/i);
-  }
-  // Every event in words: objectives by team, and the player's own kills, assists and deaths.
-  await timeline.getByText("Every objective, and your kills, assists and deaths").click();
-  const rows = timeline.getByTestId("timeline-events-table").locator("tbody tr");
-  expect(await rows.count()).toBeGreaterThanOrEqual(await markers.count());
-  for (const side of await rows.evaluateAll((els) => els.map((e) => e.getAttribute("data-side")))) expect(["own", "enemy", "you"]).toContain(side);
-  // Each row carries the chart's mark for its kind of event.
-  expect(await rows.evaluateAll((els) => els.filter((e) => !e.querySelector("td:nth-child(2) [aria-hidden='true'] > *")).length)).toBe(0);
-  await fitsWidth(page, "Timeline events");
-});
-
-test("a mark under the curve reads the minute that holds it; a touch keeps its reading after the finger lifts", async ({ page }) => {
-  await openHistory(page);
-  const { timeline } = await gameWithTimeline(page);
-  const chart = timeline.getByTestId("gold-chart");
-  const readout = chart.getByTestId("gold-chart-readout");
-  const mark = chart.getByTestId("timeline-objective").first();
-  const minute = Number(await mark.getAttribute("data-minute"));
-  const touch = await page.evaluate(() => matchMedia("(pointer: coarse)").matches);
-  await mark.scrollIntoViewIfNeeded();
-  if (touch) await mark.tap();
-  else await mark.hover();
-  // The reading names the objective: its frame is the first at or after the objective's moment.
-  await expect(readout).toContainText(/since the minute before: .*for (your team|the other team)/);
-  const [m, s] = (await readout.innerText()).split(" · ")[0]!.split(":").map(Number);
-  const read = m! + s! / 60;
-  expect(read).toBeGreaterThanOrEqual(minute - 1 / 60);
-  expect(read - minute).toBeLessThan(1.5);
-  if (touch) {
-    // The finger has lifted: the reading stays until the next touch.
-    await page.waitForTimeout(300);
-    await expect(readout).toContainText("since the minute before: ");
-  } else {
-    // A mouse's reading ends when it leaves the chart.
-    await page.mouse.move(1, 1);
-    await expect(readout).toHaveText(/^Point at or tap the chart, or use the arrow keys/);
-  }
-});
-
-test("a touch just beside a mark under the curve reads that mark, not the minute under the finger", async ({ page }) => {
-  await openHistory(page);
-  const { timeline } = await gameWithTimeline(page);
-  const chart = timeline.getByTestId("gold-chart");
-  const readout = chart.getByTestId("gold-chart-readout");
-  const spot = await besideAMark(chart);
-  expect(spot, "an objective with room beside it").not.toBeNull();
-  if (await page.evaluate(() => matchMedia("(pointer: coarse)").matches)) await page.touchscreen.tap(spot!.x, spot!.y);
-  else await page.mouse.move(spot!.x, spot!.y);
-  // The objective's reading: the first frame at or after it, naming it.
-  await expect(readout).toContainText(/since the minute before: .*for (your team|the other team)/);
-  const [m, s] = (await readout.innerText()).split(" · ")[0]!.split(":").map(Number);
-  const read = m! + s! / 60;
-  expect(read).toBeGreaterThanOrEqual(spot!.minute - 1 / 60);
-  expect(read - spot!.minute).toBeLessThan(1.5);
-});
-
-test("Build lists what was bought minute by minute and the skill order; the rune page is in the loadout", async ({ page }) => {
-  await openHistory(page);
-  const { breakdown } = await gameWithTimeline(page);
-  const build = await section(breakdown, "build");
-  const steps = build.getByTestId("build-steps").locator(":scope > li");
-  // The fold draws its content once it has opened (its toggle event, a moment after the click): wait for it.
-  await expect(steps.nth(2)).toBeVisible();
-  await expect(steps.first()).toContainText("0 min");
-  // Each skill point shows its key and its level (S8b: no title repeating them).
-  await expect(build.getByTestId("skill-order").locator("li").first()).toHaveText(/^[QWE]\s*1$/);
-  await expect(breakdown.getByTestId("rune-page")).toBeVisible();
-  await fitsWidth(page, "Build");
 });

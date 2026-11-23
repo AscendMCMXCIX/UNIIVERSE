@@ -2,7 +2,7 @@ import { devices, expect, test, type Locator, type Page } from "./test";
 import { lineupAtRest } from "./lineup";
 import { emulateKeyboard, keyboard } from "./keyboard";
 import { untilStill } from "./modal-corner";
-import { besideAMark, openMatchWindow } from "./match-history";
+import { openMatchWindow } from "./match-history";
 import { bubbleFacts, NOT_A_PICTURE, NOT_A_PICTURE_ERROR, openPictureEditor, placedRight, toastFacts } from "./popups";
 import { riotText } from "./matchup-intel";
 import { pullDown } from "./pull";
@@ -420,55 +420,6 @@ test("the phone window shell in Safari's engine: a pull on a game's header close
   // Closed, as in e2e/overlay-kit.spec.ts: the player window stays in the page, hidden.
   await expect(player).toBeHidden();
   await expect(page).not.toHaveURL(/player=/);
-});
-
-test("Match History's gold fold: a tap on or just beside a mark under the curve reads its minute, the reading stays after the finger lifts, and the tables run with the page", async ({ page }) => {
-  await page.goto("/team");
-  const id = (await page.getByTestId("lineup-row-MID").getAttribute("data-player-id"))!;
-  await page.goto(`/players/${id}/matches`);
-  // The first of the newest games whose stored timeline draws (every sixth demo game has none). On a
-  // phone a game opens as a whole screen of its own (the match window); Back closes it.
-  let timeline: Locator | null = null;
-  const window_ = page.getByTestId("match-detail");
-  for (let i = 0; i < 6 && !timeline; i++) {
-    const card = page.getByTestId("match-card").nth(i);
-    await expect(async () => {
-      if (!(await window_.isVisible())) await card.tap({ position: { x: 24, y: 16 }, timeout: 2_000 });
-      await expect(window_).toBeVisible({ timeout: 1_000 });
-    }).toPass({ timeout: 15_000 });
-    const breakdown = window_.getByTestId("match-breakdown");
-    await expect(breakdown.getByTestId("post-game-notes")).toBeVisible({ timeout: 15_000 });
-    const fold = breakdown.getByTestId("fold-gold");
-    if (await fold.count()) {
-      await fold.locator("summary").tap();
-      await expect(fold.getByTestId("timeline-loading")).toHaveCount(0, { timeout: 15_000 });
-    }
-    if ((await fold.count()) && (await fold.getByTestId("gold-chart").count())) timeline = fold;
-    else {
-      await page.goBack();
-      await expect(window_).toBeHidden();
-    }
-  }
-  expect(timeline, "a demo game with a timeline among the newest six").not.toBeNull();
-  const chart = timeline!.getByTestId("gold-chart");
-  const readout = chart.getByTestId("gold-chart-readout");
-  // Just beside an objective: its reading (the first frame at or after it), not the minute under the finger.
-  const spot = await besideAMark(chart);
-  expect(spot, "an objective with room beside it").not.toBeNull();
-  await page.touchscreen.tap(spot!.x, spot!.y);
-  await expect(readout).toContainText(/since the minute before: .*for (your team|the other team)/);
-  const [m, s] = (await readout.innerText()).split(" · ")[0]!.split(":").map(Number);
-  expect(m! + s! / 60).toBeGreaterThanOrEqual(spot!.minute - 1 / 60);
-  const mark = chart.getByTestId("timeline-objective").first();
-  await mark.scrollIntoViewIfNeeded();
-  await mark.tap();
-  await expect(readout).toContainText(/since the minute before: .*for (your team|the other team)/);
-  await page.waitForTimeout(300);
-  await expect(readout).toContainText("since the minute before: ");
-  // Opened, the minute table runs with the page instead of scrolling inside it.
-  await timeline!.getByText("Every minute as a table").tap();
-  expect(await timeline!.getByTestId("gold-chart-table").locator("xpath=..").evaluate((el) => getComputedStyle(el).overflowY)).toBe("visible");
-  await fitsWidth(page, "the Timeline");
 });
 
 test("Match History: a game's LP dash is no button on its card; a tap opens the game, whose tip (44px) says why it has no figure, and another tap closes it", async ({ page }) => {

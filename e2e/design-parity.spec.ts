@@ -54,9 +54,9 @@ const LISTED: Record<string, Partial<Record<string, string>>> = {
   Peek: { border: "the docked panel's edge is its left border alone (border-l), over the page; the phone's window has the window's border all round" },
   // S5–S9's components (the second test below).
   "champion preview": {
-    background: "on a desktop it unfolds inside the list's card, over the columns after Win rate, on the card's own surface; a phone's sheet is a window, on the window's raised surface (DESIGN_SYSTEM: All Champions' preview)",
-    radius: "the docked preview takes the card's right radius (rounded-r-card: its top-left corner is square, against the list); the phone's sheet has the sheet's 1.25rem top corners",
-    border: "the docked preview's edge is a left hairline (border-l border-border-strong), none at its top; the phone's sheet has the window's border all round",
+    background: "on a desktop it unfolds under its row, inside the list, its well (bg-bg/40) drawn by its list item and the region itself clear; a phone's sheet is a window, on the window's raised surface (DESIGN_SYSTEM §7: Unfold, a table's row)",
+    radius: "under its row the preview is part of the list, square like the rows; the phone's sheet has the sheet's 1.25rem top corners",
+    border: "under its row the list's hairline between rows separates it and its left edge continues the row's accent bar; the phone's sheet has the window's border all round",
   },
   "post-game: a scoreboard name": { sizeRem: "the compact scoreboard's names are text-xs where the scoreboard is under 30rem wide (a phone's window), so each of the ten names keeps one line; text-sm from 30rem (scoreboard.tsx)" },
   "Matchup Intel: the enemy's slot label": { sizeRem: "the slot's label is a size smaller on a phone (text-2xs, 11px under the 12px floor's phone rule, as the badge), so the longest one-word name fits the slot whole" },
@@ -118,8 +118,8 @@ test("the shared components look the same on a phone and on a desktop", async ({
 
 /*
   The components S5–S9 created, each opened as a member opens it, and its parts compared the same way:
-  All Champions' preview (S5: an aside in the list's card on a desktop, a window on a phone), the
-  post-game view's loadout, its three answers and its scoreboard (S6: under the card on a desktop, in
+  All Champions' preview (S5: unfolded under its row on a desktop since 23 Nov 2026, a window on a phone), the
+  post-game view's loadout and its scoreboard (S6: under the card on a desktop, in
   the game's window on a phone), Matchup Intel's slots, ability tiles and the phone's glance strip
   (S7a), and Admin's person view with its Riot accounts (S9). One page visit per component and size.
 */
@@ -152,13 +152,11 @@ const GROUPS: Group[] = [
     open: async (page) => {
       await expect(page.locator("[data-testid='match-history'][data-ready]")).toBeVisible();
       await openGame(page.getByTestId("match-card").first());
-      await expect(page.getByTestId("post-game-notes")).toBeVisible({ timeout: 15_000 });
+      await expect(page.locator("[data-testid=match-breakdown]").filter({ visible: true }).first()).not.toHaveAttribute("data-timeline", "loading", { timeout: 15_000 });
     },
     parts: [
       { name: "post-game: an item", selector: "[data-testid=post-game-items] [data-testid=loadout-icon]" },
       { name: "post-game: loadout name", selector: "[data-testid=loadout-name]" },
-      { name: "post-game: an answer's label", selector: "[data-testid=post-game-notes] p[aria-hidden]" },
-      { name: "post-game: an answer", selector: "[data-testid=post-game-note]" },
       { name: "post-game: a scoreboard K/D/A", selector: "[data-testid=post-game-scoreboard] [data-testid=participant-kda]" },
       { name: "post-game: a scoreboard name", selector: "[data-testid=post-game-scoreboard] [data-testid=participant-name]" },
     ],
