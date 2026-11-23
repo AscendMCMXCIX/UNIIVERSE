@@ -268,8 +268,8 @@ test("with reduced motion a window opens and closes without motion and its conte
     if (!(await page.getByTestId("champion-preview-content").count())) await open.click({ timeout: 2_000 });
     await expect(page.getByTestId("champion-preview-figures")).toBeVisible({ timeout: 1_000 });
   }).toPass({ timeout: 15_000 });
-  // All Champions' preview: a sheet on phones, unfolded under its row on tablets and computers (its growth a transition).
-  const moving = await page.evaluate(() => [document.querySelector("dialog[open]"), document.querySelector("#champion-preview")].filter(Boolean).flatMap((el) => [getComputedStyle(el!).animationDuration, getComputedStyle(el!).transitionDuration.split(",")[0]!]));
+  // All Champions' preview: a sheet on phones, the Peek's docked panel on tablets and computers (its slide an animation, its content's fade too).
+  const moving = await page.evaluate(() => [document.querySelector("dialog[open]"), document.querySelector("aside[data-peek-panel]"), document.querySelector("aside[data-peek-panel] .motion-safe\\:swap-in")].filter(Boolean).flatMap((el) => [getComputedStyle(el!).animationDuration, getComputedStyle(el!).transitionDuration.split(",")[0]!]));
   for (const d of moving) expect(parseFloat(d)).toBeLessThan(0.01);
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("champion-preview-content")).toHaveCount(0);

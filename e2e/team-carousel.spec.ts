@@ -170,7 +170,9 @@ test.describe("phones", () => {
     await expect(page.getByTestId("lineup-overview")).toHaveAttribute("data-ready", "true");
     await lineupAtRest(page);
     const room = await page.evaluate(() => document.documentElement.scrollHeight - window.innerHeight);
-    expect(room, "the page is taller than a 320 × 568 phone").toBeGreaterThan(60);
+    // Since Release 16 the active card fits a 320 × 568 phone above the tab bar and only its dots are a
+    // short scroll away (docs/MOBILE.md, "The active card uses the screen"): about 35px of page to scroll.
+    expect(room, "the page is taller than a 320 × 568 phone").toBeGreaterThan(20);
     const cdp = await context.newCDPSession(page);
     const card = (await page.getByTestId("lineup-row-TOP").boundingBox())!;
     const x = Math.round(card.x + card.width / 2);

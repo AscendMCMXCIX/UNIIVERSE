@@ -54,9 +54,9 @@ const LISTED: Record<string, Partial<Record<string, string>>> = {
   Peek: { border: "the docked panel's edge is its left border alone (border-l), over the page; the phone's window has the window's border all round" },
   // S5–S9's components (the second test below).
   "champion preview": {
-    background: "on a desktop it unfolds under its row, inside the list, its well (bg-bg/40) drawn by its list item and the region itself clear; a phone's sheet is a window, on the window's raised surface (DESIGN_SYSTEM §7: Unfold, a table's row)",
-    radius: "under its row the preview is part of the list, square like the rows; the phone's sheet has the sheet's 1.25rem top corners",
-    border: "under its row the list's hairline between rows separates it and its left edge continues the row's accent bar; the phone's sheet has the window's border all round",
+    background: "both on the raised surface (bg-elevated): the docked panel's and the phone's window's (DESIGN_SYSTEM §7: Peek)",
+    radius: "the docked panel runs from the window's top to its bottom at its right edge, square; the phone's sheet has the sheet's 1.25rem top corners",
+    border: "the docked panel's edge is its left border alone (border-l), over the page, as every Peek's; the phone's sheet has the window's border all round",
   },
   "post-game: a scoreboard name": { sizeRem: "the compact scoreboard's names are text-xs where the scoreboard is under 30rem wide (a phone's window), so each of the ten names keeps one line; text-sm from 30rem (scoreboard.tsx)" },
   "Matchup Intel: the enemy's slot label": { sizeRem: "the slot's label is a size smaller on a phone (text-2xs, 11px under the 12px floor's phone rule, as the badge), so the longest one-word name fits the slot whole" },
@@ -118,7 +118,7 @@ test("the shared components look the same on a phone and on a desktop", async ({
 
 /*
   The components S5–S9 created, each opened as a member opens it, and its parts compared the same way:
-  All Champions' preview (S5: unfolded under its row on a desktop since 23 Nov 2026, a window on a phone), the
+  All Champions' preview (S5: the Peek's docked panel on a desktop since Release 16, a window on a phone), the
   post-game view's loadout and its scoreboard (S6: under the card on a desktop, in
   the game's window on a phone), Matchup Intel's slots, ability tiles
   (S7a), and Admin's person view with its Riot accounts (S9). One page visit per component and size.

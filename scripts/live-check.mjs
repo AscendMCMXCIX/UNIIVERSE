@@ -717,7 +717,9 @@ async function accountMenuFirstTap(page, kind, trigger) {
  *   the stage's floor (drawn from just under them, hidden from screen readers);
  * - phone (390 × 844): the first lineup card ends above the tab bar, and the lineup is the carousel
  *   (23 Nov 2026): no pager over it, one card on screen, centred in the page's gutter, and five
- *   position dots under it (the lineup pager of the players' pictures before, S3a);
+ *   position dots under it (the lineup pager of the players' pictures before, S3a); the active card
+ *   takes the height above the tab bar, its dots within 24px of it, the five cards one height
+ *   (Release 16);
  * - every width: no bench of substitutes under the lineup (the approved design shows a substitute
  *   on their starter's card, turned to by its control).
  */
@@ -770,6 +772,8 @@ async function teamFacts(page, kind) {
           margins: first ? [Math.round(first.left), Math.round(width - first.right)] : null,
           dots: dots.length,
           dotsUnder: !!first && dots.length > 0 && dots.every((d) => d.getBoundingClientRect().top >= first.bottom - 1),
+          dotsBottom: dots.length ? Math.round(Math.max(...dots.map((d) => d.getBoundingClientRect().bottom))) : null,
+          heights: new Set(cells.map((c) => Math.round(c.height))).size,
         };
       })(),
       bench: document.querySelectorAll("[data-testid=lineup-bench], [data-testid^=bench-]").length,
@@ -808,6 +812,11 @@ async function teamFacts(page, kind) {
     // The lineup is the carousel (23 Nov 2026; the pager of the players' pictures before, S3a).
     const c = f.carousel;
     pass("team", "390x844: the lineup is a carousel: no pager, one card on screen centred in the gutter, five position dots under it", c.pager === 0 && c.onScreen === 1 && !!c.margins && Math.abs(c.margins[0] - c.margins[1]) <= 1 && c.dots === 5 && c.dotsUnder, c);
+    // The active card takes the height the screen leaves (Release 16): its dots end above the tab bar
+    // and within 24px of it, and the five cards share one height.
+    const used = "390x844: the active card takes the height above the tab bar (its dots within 24px of it), the five cards one height";
+    if (f.tabBarTop === null || c.dotsBottom === null) check("team", used, "PASS", `not applicable: ${f.tabBarTop === null ? "no tab bar shown" : "no position dots"}`);
+    else pass("team", used, c.dotsBottom + f.scrollY <= f.tabBarTop && f.tabBarTop - (c.dotsBottom + f.scrollY) <= 24 && c.heights === 1, { dotsBottom: c.dotsBottom + f.scrollY, tabBarTop: f.tabBarTop, heights: c.heights });
   }
   // The approved design has no bench: a substitute is on their starter's card (its back).
   pass("team", `${kind}: no bench of substitutes under the lineup`, f.bench === 0, { bench: f.bench, cardsWithASubstitute: f.faces });
@@ -1274,38 +1283,40 @@ async function allChampions(page, log, kind, playerId) {
   }
   pass("all-champions", `${kind}: no heading cut short`, facts.cut.length === 0, facts.cut);
   await axe(page, kind, "all-champions");
-  // All Champions' preview: on the desktop and the tablet it unfolds under its row, across the list
-  // (the overlay kit's Unfold, since 23 Nov 2026), with Champion, Games and Win rate in place (±1px),
-  // the page not scrolled, nothing over the rows and nothing scrolling inside; Escape and Back close
-  // it. On the phone it is a sheet, and Back closes it.
+  // All Champions' preview: on the desktop and the tablet the compact panel docked at the window's
+  // right edge (the overlay kit's Peek, since Release 16; it unfolded under its row from 23 Nov 2026),
+  // the list where it was (Champion, Games and Win rate in place, ±1px, every row's top, the page not
+  // scrolled), the panel within the screen with its content fitting it and clear of the row's name,
+  // no window; Escape and Back close it. On the phone it is a sheet, and Back closes it.
   const open = page.getByTestId("open-champion").first();
   if (await open.count()) {
     const columns = () => page.evaluate(() => ["champion", "games", "win"].map((k) => Math.round(document.querySelector(`[data-testid=sort-${k}]`)?.getBoundingClientRect().x ?? -1)));
-    const before = { x: await columns(), y: await page.evaluate(() => scrollY) };
+    const rowTops = () => page.evaluate(() => [...document.querySelectorAll("[data-testid=top-champion]")].map((r) => Math.round(r.getBoundingClientRect().top)));
+    const before = { x: await columns(), y: await page.evaluate(() => scrollY), rows: await rowTops() };
     await open.click();
     const content = page.getByTestId("champion-preview-content");
     const opened = await content.waitFor({ timeout: 15_000 }).then(() => true, () => false);
-    // Under its row: the detail is the list item right after the selected row, as wide as the rows, in the page's flow (no window, no inner scroll).
-    const underRow = () =>
+    // Docked: the Peek's panel (an aside at the window's right edge, not a window), within the screen, its body not scrolling, clear of the selected row's name.
+    const dockedPanel = () =>
       page.evaluate(() => {
         const li = document.querySelector("[data-testid=top-champion][data-selected=true]");
-        const region = document.querySelector("[data-testid=champion-preview]");
-        if (!li || !region) return { found: false };
-        const next = li.nextElementSibling;
-        const [r, d] = [li.getBoundingClientRect(), (next ?? region).getBoundingClientRect()];
-        const scrollers = [...region.querySelectorAll("*"), region].filter((e) => /auto|scroll/.test(getComputedStyle(e).overflowY) && e.scrollHeight > e.clientHeight + 1).length;
-        return { found: true, next: !!next && next.contains(region), region: region.getAttribute("role") === "region", window: !!document.querySelector("dialog[open]"), below: Math.abs(d.top - r.bottom) <= 2, width: Math.abs(d.left - r.left) <= 1 && Math.abs(d.right - r.right) <= 1, scrollers };
+        const panel = document.querySelector("aside[data-peek-panel][data-testid=champion-preview]");
+        if (!li || !panel) return { found: false };
+        const p = panel.getBoundingClientRect();
+        const body = panel.querySelector("[data-testid=champion-preview-body]");
+        const name = li.querySelector("[data-open-champion]")?.getBoundingClientRect();
+        return { found: true, window: !!document.querySelector("dialog[open]"), within: p.top >= -0.5 && p.left >= -0.5 && p.bottom <= innerHeight + 0.5 && p.right <= innerWidth + 0.5, fits: !!body && body.scrollHeight <= body.clientHeight + 1, nameClear: !!name && name.right <= p.left };
       });
     if (kind !== "phone") {
-      const after = { x: await columns(), y: await page.evaluate(() => scrollY) };
-      let under = { found: false };
+      const after = { x: await columns(), y: await page.evaluate(() => scrollY), rows: await rowTops() };
+      let docked = { found: false };
       if (opened) {
         await page.getByTestId("champion-preview-foot").waitFor({ timeout: 15_000 }).catch(() => {});
         await page.waitForTimeout(300);
-        under = await underRow();
+        docked = await dockedPanel();
         await shot(page, `${kind}-champion-preview`);
         await axe(page, kind, "champion-preview", "[data-testid=champion-preview]");
-        pass("all-champions", `${kind}: the preview unfolds under its row (the next item of the list, as wide as the rows, no window, nothing scrolling inside)`, under.found && under.next && under.region && !under.window && under.below && under.width && under.scrollers === 0, under);
+        pass("all-champions", `${kind}: the preview is the compact panel docked beside the list (no window, within the screen, its content fitting it, clear of the row's name)`, docked.found && !docked.window && docked.within && docked.fits && docked.nameClear, docked);
         await page.keyboard.press("Escape");
       }
       const escaped = await content.waitFor({ state: "detached", timeout: 5_000 }).then(() => true, () => false);
@@ -1313,8 +1324,8 @@ async function allChampions(page, log, kind, playerId) {
       const again = await content.waitFor({ timeout: 15_000 }).then(() => true, () => false);
       await page.goBack();
       const backed = await content.waitFor({ state: "detached", timeout: 5_000 }).then(() => true, () => false);
-      const still = after.x.every((x, i) => Math.abs(x - before.x[i]) <= 1) && after.y === before.y;
-      pass("games", `${kind}: the champion preview opens under its row (Champion, Games and Win rate in place, the page not scrolled); Escape and Back close it`, opened && still && escaped && again && backed, { opened, before, after, escaped, backed });
+      const still = after.x.every((x, i) => Math.abs(x - before.x[i]) <= 1) && after.y === before.y && after.rows.length === before.rows.length && after.rows.every((t, i) => Math.abs(t - before.rows[i]) <= 1);
+      pass("games", `${kind}: the champion preview opens beside the list, which stays where it was (Champion, Games and Win rate in place, every row's top, the page not scrolled); Escape and Back close it`, opened && still && escaped && again && backed, { opened, before: { x: before.x, y: before.y }, after: { x: after.x, y: after.y }, rowsKept: still, escaped, backed });
       if (kind === "desktop") await guarded("all-champions", `${kind}: the preview's content`, () => championPreviewFacts(page, kind));
     } else {
       // The shared Peek's sheet.
