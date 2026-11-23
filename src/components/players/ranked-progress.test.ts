@@ -43,6 +43,27 @@ describe("RankedProgress", () => {
     expect(text(html, "ranked-change-none")).toBe("Unranked now: nothing to compare");
   });
 
+  it("says in a line what was recorded when there are too few changes to draw, with no frame around it, and draws the chart from two changes", () => {
+    // One reading, the same rank confirmed later: no change.
+    const one = render([snap(D(10, 15), "GOLD", "II", 46, 100, 90, D(11, 1))]);
+    expect(one).not.toContain('data-testid="ranked-chart"');
+    expect(text(one, "ranked-no-chart")).toBe("No change recorded yet. A chart appears once the rank has moved twice.");
+    // Two different readings: one change, both ranks written whole.
+    const two = render([snap(D(10, 15), "GOLD", "II", 46, 100, 90), snap(D(10, 20), "GOLD", "I", 12, 104, 91)]);
+    expect(text(two, "ranked-no-chart")).toBe("One change so far: Gold II 46 LP to Gold I 12 LP. A chart appears after the next.");
+    // Unranked at every check.
+    expect(text(render([snap(D(10, 15), null, null, null, null, null)]), "ranked-no-chart")).toBe("Unranked at every check so far.");
+    // The line is quiet text: no dashed box, no border of its own inside the card.
+    expect(two).toMatch(/<p class="text-xs leading-relaxed text-fg-muted" data-testid="ranked-no-chart"/);
+    // Three different readings (two changes): the chart, in its fill mode.
+    const three = render([snap(D(10, 15), "GOLD", "II", 46, 100, 90), snap(D(10, 20), "GOLD", "I", 12, 104, 91), snap(D(10, 25), "GOLD", "I", 40, 106, 92)]);
+    expect(three).toContain('data-testid="ranked-chart"');
+    expect(three).not.toContain('data-testid="ranked-no-chart"');
+    expect(three).toMatch(/data-testid="ranked-chart-box"/);
+    // No rule between the rank and its movement: one surface.
+    expect(three).not.toMatch(/id="ranked-movement" class="[^"]*border-t/);
+  });
+
   it("ends with the chart: no History and coverage disclosure, no year strip, rank changes or readings table", () => {
     // The days the rank is known (5 of 301 here) are still worked out by rankedYearCoverage, and
     // tested there (domain/rank-timeline.test.ts); the card no longer shows them.

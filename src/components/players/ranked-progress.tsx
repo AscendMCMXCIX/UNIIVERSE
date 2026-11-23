@@ -30,7 +30,7 @@ export type RankedProgressHref = (change: { rq?: RankQueue; ra?: string | null }
  * One surface (23 Nov 2026): no rule or dashed box inside the card, only spacing. The chart needs
  * three different readings (two changes, CHART_MIN_READINGS); with fewer, one line says what was
  * recorded (fewReadings) instead of a large frame holding a flat line or a single step. The chart
- * takes the height the card gives it (7.5 to 15rem), so beside the pools in the Overview's 2×2,
+ * takes the height the card gives it (7.5 to 24rem), so beside the pools in the Overview's 2×2,
  * where the card stands level with them, the ladder uses the room.
  *
  * On a touch phone (posture.ts) the card is a Fold (20 Nov 2026, PLAN S8a's Profile Overview
@@ -111,7 +111,7 @@ export function RankedProgress({ accounts, queue, accountId, href, now, classNam
       </div>
 
       {/* Where the account stands and how it moved, beside the chart of what was read (stacked when
-          narrow: the chart then takes whatever height the card has beyond the rest, up to 15rem, as
+          narrow: the chart then takes whatever height the card has beyond the rest, up to 24rem, as
           the card stands level with the pools beside it in the Overview's 2×2). One surface: no
           rules or boxes inside the card, only spacing (23 Nov 2026). */}
       <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)] gap-x-6 gap-y-4 @min-[40rem]/rank:grid-cols-[minmax(15rem,18rem)_minmax(0,1fr)] @min-[40rem]/rank:grid-rows-1 @min-[40rem]/rank:items-center">

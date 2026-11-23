@@ -103,7 +103,9 @@ function FigureLabel({ label, info }: { label: string; info?: string }) {
 function Headline({ label, value, sub, info, tone = "plain", testId, className, children }: { label: string; value: React.ReactNode; sub?: React.ReactNode; info?: string; tone?: WinRateTone; testId: string; className?: string; children?: React.ReactNode }) {
   return (
     <div className={cn("min-w-0 px-3 py-3 @min-[34rem]/perf:px-5 @min-[34rem]/perf:py-4", ROW_CELL, className)} data-testid={testId}>
-      <div className="flex items-center gap-1 text-xs font-medium text-fg-muted">
+      {/* From a 34rem card (tablets, desktops) the headline labels are a step larger than the
+          supporting ones, so the band reads first as a tier, not only by its numbers (23 Nov 2026). */}
+      <div className="flex items-center gap-1 text-xs font-medium text-fg-muted @min-[34rem]/perf:text-sm">
         <FigureLabel label={label} info={info} />
       </div>
       <div className={cn("mt-1.5 text-2xl font-semibold leading-none tracking-tight tabular-nums @min-[34rem]/perf:text-figure", ROW_VALUE, TONE_CLASS[tone])} data-testid={`${testId}-value`}>
@@ -302,7 +304,7 @@ function OverviewDashboard({ perf, form, ranked, pools }: { perf: React.ReactNod
           season card's height; the second row takes whatever height the rail has beyond that card,
           so the card never stretches. The two columns end level (23 Nov 2026, the owner's review:
           no mismatched card heights): ranked progress fills the rail to the pools' end, its chart
-          growing into the room (up to 15rem; RankTimelineChart's `fill`), and the pools fill the
+          growing into the room (up to 24rem; RankTimelineChart's `fill`), and the pools fill the
           second row where the rail is the taller. A long pool shows its first eight champions
           (PRIMARY_POOL_TOP), so the pools stay close to the rail's height. Elsewhere the rail's box
           is display:contents, so its cards are the grid's own items. */}

@@ -93,8 +93,20 @@ test("a profile shows recent form and ranked progress per queue", async ({ page 
   // sidebar open, 30rem wider; the rail's 20rem floor never applies, since the 2×2 needs a 68rem
   // dashboard) where its parts stand one above the other, under 480 px, so it ends with the pools
   // beside it.
+  // On the desktop, since 23 Nov 2026, the card stands level with the pools beside it (the owner's
+  // review: no mismatched card heights), its chart taking the room, from 7.5 to 24rem; its own parts
+  // still end within 480px above the chart's box.
   const height = (await ranked.boundingBox())!.height;
-  expect(height, "Ranked progress's height").toBeLessThan(info.project.name === "phone" ? 520 : info.project.name === "tablet" ? 320 : 480);
+  if (info.project.name === "desktop") {
+    const card = (await ranked.boundingBox())!;
+    const pools = (await page.getByTestId("champion-pools").boundingBox())!;
+    expect(Math.abs(card.y + card.height - (pools.y + pools.height)), "Ranked progress ends level with the pools").toBeLessThanOrEqual(1);
+    const box = (await ranked.getByTestId("ranked-chart-box").boundingBox())!;
+    const rem = await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).fontSize));
+    expect(box.height, "the chart's height").toBeGreaterThanOrEqual(7.5 * rem - 1);
+    expect(box.height, "the chart's height").toBeLessThanOrEqual(24 * rem + 1);
+    expect(height - box.height, "the rest of the card").toBeLessThan(480);
+  } else expect(height, "Ranked progress's height").toBeLessThan(info.project.name === "phone" ? 520 : 320);
   // The header shows the same current rank as Ranked progress.
   const current = (await page.getByTestId("ranked-current").innerText()).split("·")[0]!.trim();
   await expect(page.getByTestId("profile-rank")).toContainText(current);

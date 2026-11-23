@@ -33,7 +33,7 @@ const MS_DAY = 86_400_000;
  * At 4rem, from Release 6's floor, "Platinum IV" started 6px left of the drawing at 1440, 1920 and
  * 2560, its first letter cut. The server draws with 16px (120 tall, a 76px gutter); the box's
  * height is CSS, so nothing moves on hydrating. With `fill` the box takes the height its card gives
- * it (7.5 to 15rem: Ranked progress level with the pools beside it, 23 Nov 2026), and the drawing
+ * it (7.5 to 24rem: Ranked progress level with the pools beside it, 23 Nov 2026), and the drawing
  * follows it once measured, so the ladder spreads over the room rather than sitting in a strip.
  */
 function chartFrame(rem: number, narrow: boolean, height: number | null) {
@@ -48,7 +48,7 @@ interface Hover {
   x: number;
 }
 
-export function RankTimelineChart({ t, label, fill = false }: { t: RankTimeline; label: string; /** Take the height the parent flex column gives it (7.5 to 15rem) instead of a fixed 7.5rem. */ fill?: boolean }) {
+export function RankTimelineChart({ t, label, fill = false }: { t: RankTimeline; label: string; /** Take the height the parent flex column gives it (7.5 to 24rem) instead of a fixed 7.5rem. */ fill?: boolean }) {
   const box = React.useRef<HTMLDivElement>(null);
   const uid = React.useId().replace(/[^a-zA-Z0-9]/g, "");
   const [width, setWidth] = React.useState(480);
@@ -172,7 +172,7 @@ export function RankTimelineChart({ t, label, fill = false }: { t: RankTimeline;
 
   const grid = range ? ladderGrid(range, { maxDivisions: 4, short: narrow }) : [];
   return (
-    <div ref={box} className={cn("relative min-w-0", fill && "flex max-h-60 min-h-30 flex-1 flex-col")} data-testid="ranked-chart-box">
+    <div ref={box} className={cn("relative min-w-0", fill && "flex max-h-96 min-h-30 flex-1 flex-col")} data-testid="ranked-chart-box">
       <svg
         viewBox={`0 0 ${width} ${H}`}
         width="100%"

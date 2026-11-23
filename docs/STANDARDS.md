@@ -166,19 +166,24 @@ kept at a size its content does not fill); All Champions is a dense analytical t
 History is detailed and scannable, its cards dense by the owner's decision D8 (about 118px on a
 phone, two rows on a tablet, one row from a 50rem list: DESIGN_SYSTEM.md §1); banners are
 expressive; Settings and forms are plain and roomy. Empty or thin data shrinks a card rather than
-leaving a frame to fill.
+leaving a frame to fill. One exception, the owner's (23 Nov 2026): in the Overview's 2×2 the two
+columns end level, Ranked progress's chart growing into the room beside the pools (7.5 to 24rem), and
+a long primary pool shows its first eight champions with a Show all at its end (`PRIMARY_POOL_TOP`),
+so no player's pool makes the page disproportionately tall.
 
 **Page layout.** One frame for every page, so pages differ by their content, not their scaffolding:
 - **The shared frame** (S2c, `app-shell.tsx`): every page sits in one column, at most `--content-wide`
-  and centred; a narrower page starts at its left edge (never centred on its own), so titles share one
-  x on every destination. A loading state takes its page's shape (`ui/skeleton.tsx`), not generic panels.
+  and centred in the room beside the sidebar, open or folded; a narrower page centres itself in it
+  too, so its content has the same margin on either side (the owner's review of 23 Nov 2026: until then
+  a narrower page started at the frame's left edge, which with the sidebar folded left all the spare
+  room on its right). Pages of one width share one x. A loading state takes its page's shape and
+  centring (`ui/skeleton.tsx`), not generic panels.
 - **Width:** `--content-max` for profiles, lists of cards, documents and forms; `--content-wide` for
   the grids that gain from more columns (Team Overview's lineup, Leaderboards, Matchup Intel's
-  single-screen dashboard). In a window from
-  1600px wide the pages of one tab set share one width, so its tabs line up with each and never move
-  between them (`SECTION_HUBS`' `width`, `PAGE_WIDTH` and `ROW_WIDTH` in `src/lib/nav.ts`): Team's four
-  sections take `--content-wide` there (Players and Matches stay `--content-max` under 1600px, as
-  before). Team Matches' list stays at `--content-max` under that wider header, left-aligned, as Recent
+  single-screen dashboard). The pages of one tab set share one width at every window size, so its
+  tabs, centred as the pages are, line up with each and never move between them (`SECTION_HUBS`'
+  `width`, `PAGE_WIDTH` and `ROW_WIDTH` in `src/lib/nav.ts`): Team's four sections take
+  `--content-wide` (Players and Matches since 23 Nov 2026; under a 1600px window they were 80rem). Team Matches' list stays at `--content-max` under that wider header, left-aligned, as Recent
   form stops at `--measure`: more room never makes a game's row longer. A board or table
   that stands alone on such a page (Recent form) stops at `--measure` (`max-w-[var(--measure)]`,
   72rem), left-aligned: one left edge with the header, never centred in the space. The page's
@@ -256,10 +261,10 @@ Use the shared component before writing a new one (`src/components/ui`):
 | A question or a short form | `Dialog`, `ConfirmDialog` |
 | An action that cannot be taken back with one click, or changes the site's setup (Admin's setup and repair jobs, a job's schedule turned off, deleting with a profile, a profile without an account, erasure) | A typed confirmation: a `Dialog` whose danger button stays disabled until the phrase or name above its field is typed, `typedMatches` (`src/domain/typed-confirmation.ts`: letter case, outer and repeated spaces do not count), and the server action checks the same words again, so a request without the page is refused too. Never for an ordinary edit, which autosaves |
 | Choices in a list | `Menu`, `MenuItem`, `MenuLink` |
-| Filters | `FilterBar`, `RefineButton`, `FilterField`, `SearchInput`, `ToggleChip`. On phones the bar folds to a Filters button that opens a sheet, with what is narrowed as removable chips beside it (`chips`). A bar with several filters keeps to one row inline with `compact` (a narrower search to start from, Reset as its icon below `xl`). One bar a page; once it has scrolled away its sheet also opens from the frame (the pinned row's `FiltersControl`, the phone's top bar), at any width in its sheet form (`useInFilterSheet`, `InFilterSheet` for fields the page draws itself, as Refine's) |
+| Filters | `FilterBar`, `RefineButton`, `FilterField`, `SearchInput`, `ToggleChip`. On phones the bar folds to a Filters button that opens a sheet, with what is narrowed as removable chips beside it (`chips`). A bar with several filters keeps to one row inline with `compact` (a narrower search to start from, Reset as its icon below `xl`). A profile section's bar (Season performance, All Champions, Match History: `OverviewFilters`) is one row from md: the active refinements as chips (the phone's pill and words, `FILTER_CHIP`), then season, game mode and Refine joined as one group (shared edges, no gaps), then Reset; never a second row of chips under it (23 Nov 2026). One bar a page; once it has scrolled away its sheet also opens from the frame (the pinned row's `FiltersControl`, the phone's top bar), at any width in its sheet form (`useInFilterSheet`, `InFilterSheet` for fields the page draws itself, as Refine's) |
 | A long page's controls kept in reach | `PageToolbar` (`ui/page-toolbar.tsx`): the page's compact controls, shown at the pinned section tabs' end once its own toolbar has scrolled away: `SubTabs size="compact"`, `FiltersControl`, a `SearchInput` with `COMPACT_SEARCH`, `ToolbarChip` for a page's own action. `land` names the list's first item for the sheet closed after a change; `fallback` for a shared part's own (OverviewFilters' Filters), outranked by the page's |
 | One choice out of a few that filters what a page shows (a role, a side, a sort) | `segmentedGroupClass` with `segmentClass` (`size: "md"` for a list's main filter, as Encounters' All, Against and Alongside), `RoleSegmented` (`compactBelow="xl"`: icons only for the roles not chosen on tablets and laptops, in a crowded toolbar). Never to move between views or pages |
-| A page's sections (primary) | `TabBar`: a profile's Overview, All Champions, Match History and Riot Accounts; Team's sections. On tablets and desktops the bar stays pinned at the top of the page once it scrolls (`sticky`; [RESPONSIVE.md](RESPONSIVE.md) → Shell). A bar wider than the pages under it (`SectionTabs`, a child of `main`) gives its row their width from a 1600px window (`inner`, `ROW_WIDTH`), so there its first tab starts at their column. Admin Mode's Users & Permissions, Platform Settings and System use the same bar. On phones every one of these rides in the top bar as its second row (`ChromeTabs`: a destination's tabs from `SECTION_HUBS`, a profile's through `ProfileTabs variant="chrome"`) |
+| A page's sections (primary) | `TabBar`: a profile's Overview, All Champions, Match History and Riot Accounts; Team's sections. On tablets and desktops the bar stays pinned at the top of the page once it scrolls (`sticky`; [RESPONSIVE.md](RESPONSIVE.md) → Shell). A bar wider than the pages under it (`SectionTabs`, a child of `main`) gives its row their width, centred as they are (`inner`, `ROW_WIDTH`), so its first tab starts at their column. Admin Mode's Users & Permissions, Platform Settings and System use the same bar. On phones every one of these rides in the top bar as its second row (`ChromeTabs`: a destination's tabs from `SECTION_HUBS`, a profile's through `ProfileTabs variant="chrome"`) |
 | Equal views of one section, or related pages (secondary) | `SubTabs` (`ui/sub-tabs.tsx`): links with `aria-current`, directly under the primary tabs, in the section title's place (`SectionHeader`'s `nav`): Match History's Games and Encounters. `size="compact"` for their copy in the pinned row (`PageToolbar`; its test ids prefixed with `toolbar-`). Separate pages are sections, not views: Users & Permissions' pages use `TabBar` (since 19 Nov 2026) |
 | Views inside one panel (a champion's views; a game has none since the post-game view of 19 Nov 2026) | `role="tablist"` buttons with `tabIndicatorClass` |
 | Tabs that filter one list | none: a `FilterBar` (Audit Logs retired `TabLinks`, its last use, in the overhaul's S9) |
