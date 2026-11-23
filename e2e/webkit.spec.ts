@@ -218,7 +218,8 @@ test("Matchup Intel: a slot's picker fills the screen, a search and a tap choose
   await expect(sources).toHaveAttribute("open", "");
   await expect(page.getByTestId("matchup-footer-riot")).toBeVisible();
   // A briefing chip brings its row into view below the top bar, and gives it the focus.
-  const chip = page.getByTestId("matchup-briefing").locator('[data-testid="briefing-ability"][data-anchor^="ability-Mordekaiser-"]').first();
+  // The first one in view: a card's lead is its first sentence, and chips in the rest of its text wait behind its "More".
+  const chip = page.getByTestId("matchup-briefing").locator('[data-testid="briefing-ability"][data-anchor^="ability-Mordekaiser-"]').filter({ visible: true }).first();
   const anchor = (await chip.getAttribute("data-anchor"))!;
   await chip.tap();
   const row = page.locator(`#${anchor}`);
