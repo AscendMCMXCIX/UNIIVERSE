@@ -74,7 +74,9 @@ function ChampionInteractions({ intel, testId, rows }: { intel: ChampionIntelVie
               </AbilityRefLink>
             ) : null}
             {item.chips.map((c, i) => (
-              <FactChipView key={i} chip={c} champion={champion.name} ability={item.ability} />
+              <span key={i} className="contents" data-tags={c.layer === "checked" && c.tags.length ? c.tags.join(" ") : undefined}>
+                <FactChipView chip={c} champion={champion.name} ability={item.ability} />
+              </span>
             ))}
             {item.flagged ? (
               <ChangedBadge />

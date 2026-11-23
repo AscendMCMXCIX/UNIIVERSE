@@ -65,6 +65,15 @@ import {
   cooldownsFromWords,
   hiddenPartsBarWords,
   noBriefingWords,
+  LANE_PLAN_TITLE,
+  LANE_REFERENCE_TITLE,
+  PLAN_MORE_WORDS,
+  FULL_REFERENCE_TITLE,
+  interactionsMoreWords,
+  emptyGroupsWords,
+  duoToolsWords,
+  riotTipHeadingWords,
+  fullReferenceWords,
 } from "./wording";
 
 describe("the cooldown line", () => {
@@ -326,6 +335,21 @@ describe("the assembled reference's fixed sentences and labels", () => {
     hiddenRiotTextWords(2, "changed", "R", 1),
     hiddenRiotTextWords(0, "renamed", "R", 1),
     moreWords(2),
+    // The lane plan's fixed words (23 Nov 2026).
+    LANE_PLAN_TITLE,
+    LANE_REFERENCE_TITLE,
+    PLAN_MORE_WORDS,
+    FULL_REFERENCE_TITLE,
+    interactionsMoreWords(1),
+    interactionsMoreWords(4),
+    emptyGroupsWords(["mobility"], "riot-text"),
+    emptyGroupsWords(["power", "mobility", "defence", "sustain"], "checked"),
+    emptyGroupsWords(["power", "sustain"], "riot-text", ["R"]),
+    duoToolsWords(["Jinx", "Lulu"]),
+    riotTipHeadingWords("Darius", 1),
+    riotTipHeadingWords("Darius", 3),
+    fullReferenceWords({ kits: [], interactions: true, levels: true, yours: ["Riven"], tips: true }),
+    fullReferenceWords({ kits: [], interactions: false, levels: false, yours: ["Jinx", "Lulu"], tips: true }),
     ...Object.values(KIND_GROUP_WORDS),
     ...Object.values(RIOT_TEXT_KIND_WORDS),
     announcementWords({ you: { id: "Riven", name: "Riven", title: "", portrait: "" }, enemy: { id: "Darius", name: "Darius", title: "", portrait: "" }, matchup: null }, false),
@@ -342,6 +366,18 @@ describe("the assembled reference's fixed sentences and labels", () => {
   it("says every time that the reference was put together from each champion's facts and that no person checked the pair", () => {
     expect(assembledWords("Riven", "Darius")).toBe("Put together from each champion's own facts. No person has checked Riven vs Darius as a pair.");
     expect(ASSEMBLED_TITLE).not.toMatch(/briefing/i);
+  });
+
+  it("the lane plan names what the data holds, in fixed words: the empty groups once, never a bare none; what the full reference holds", () => {
+    expect(emptyGroupsWords(["mobility"], "riot-text")).toBe("No reviewed facts of this kind: Mobility.");
+    expect(emptyGroupsWords(["power", "mobility", "defence", "sustain"], "checked")).toBe("None in the checked notes: Burst and power, Mobility, Defence and Sustain.");
+    expect(emptyGroupsWords(["power", "sustain"], "riot-text", ["Q", "R"])).toBe("No reviewed facts of these kinds outside Q and R: Burst and power and Sustain.");
+    expect(interactionsMoreWords(1)).toBe("1 interaction or exception");
+    expect(interactionsMoreWords(3)).toBe("3 interactions and exceptions");
+    expect(duoToolsWords(["Jinx", "Lulu"])).toBe("Opportunity: Jinx's and Lulu's tools, by kind");
+    expect(riotTipHeadingWords("Darius", 1)).toBe("Riot's tip for playing against Darius");
+    expect(fullReferenceWords({ kits: [], interactions: true, levels: true, yours: ["Riven"], tips: true })).toBe("Interactions, level changes, Riven's abilities and Riot's tips and the team's games");
+    expect(LANE_REFERENCE_TITLE).not.toMatch(/plan|briefing/i);
   });
 
   it("labels facts from Riot's text in the owner's words", () => {
