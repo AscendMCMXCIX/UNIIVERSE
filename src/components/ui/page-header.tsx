@@ -15,11 +15,14 @@ export const PAGE_TITLE = "text-2xl font-semibold tracking-tight text-fg";
  * the eyebrow and the description are left out (UM.AD2).
  */
 export function PageHeader({ title, description, actions, className, eyebrow, guide = false, sectionNamed = false, admin = false }: { title: React.ReactNode; description?: React.ReactNode; actions?: React.ReactNode; className?: string; eyebrow?: React.ReactNode; guide?: boolean; sectionNamed?: boolean; admin?: boolean }) {
+  // An Admin page under a section row with no actions shows nothing on phones: the whole header is
+  // read out only there, so it leaves the flow and its stack margin goes with it (G4-1).
+  const phoneEmpty = admin && sectionNamed && !actions;
   return (
-    <header className={cn("flex flex-wrap items-end justify-between gap-x-4 gap-y-2", className)}>
+    <header className={cn("flex flex-wrap items-end justify-between gap-x-4 gap-y-2", phoneEmpty && SECTION_NAMED_TITLE, className)}>
       <div className="min-w-0">
         {eyebrow ? <div className={cn("mb-1 text-xs font-semibold uppercase tracking-label text-accent", admin && PHONE_HIDDEN)}>{eyebrow}</div> : null}
-        <h1 className={cn(PAGE_TITLE, sectionNamed && SECTION_NAMED_TITLE)}>{title}</h1>
+        <h1 className={cn(PAGE_TITLE, sectionNamed && !phoneEmpty && SECTION_NAMED_TITLE)}>{title}</h1>
         {description ? <p className={cn("mt-1 text-sm text-fg-muted", guide && "max-md:hidden", admin && PHONE_HIDDEN)}>{description}</p> : null}
       </div>
       {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}

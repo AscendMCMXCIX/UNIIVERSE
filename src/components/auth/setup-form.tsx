@@ -182,11 +182,11 @@ export function SetupForm({
                 <dl>
                 <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                   <dt className="text-fg-subtle">Username (you sign in with it)</dt>
-                  <dd className="font-medium text-fg">{username}</dd>
+                  <dd className="ml-auto min-w-0 text-right font-medium text-fg [overflow-wrap:anywhere]">{username}</dd>
                 </div>
                 <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                   <dt className="text-fg-subtle">Riot ID</dt>
-                  <dd className="font-medium text-fg">{riotId ?? "linked by your admin"}</dd>
+                  <dd className="ml-auto min-w-0 text-right font-medium text-fg [overflow-wrap:anywhere]">{riotId ?? "linked by your admin"}</dd>
                 </div>
                 </dl>
                 <p className="mt-1 text-xs text-fg-subtle">Both were entered by your admin and stay as they are. Ask them if either is wrong.</p>

@@ -3,24 +3,24 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, ChevronRight, ShieldCheck } from "lucide-react";
+import { ShieldCheck } from "lucide-react";
 import type { PermissionPreset } from "@/server/repositories/permissions";
 import type { AuditEntry } from "@/server/audit/log";
 import { archivePlayerAction } from "@/server/actions/players";
 import { moderatePictureAction, moderateSocialLinkAction, setMemberDisplayNameAction, signOutEverywhereAction } from "@/server/actions/member-admin";
 import { personActivityAction } from "@/server/actions/audit";
-import { auditDetailsSentence, auditSentence } from "@/domain/audit-sentence";
 import { ROLE_LABELS } from "@/domain/roles";
 import { DetailModal } from "@/components/ui/detail-modal";
 import { Fold } from "@/components/ui/fold";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/dialog";
+import { SiblingSteps } from "@/components/ui/preview-window";
 import { Input, Label } from "@/components/ui/input";
 import { toast } from "@/components/ui/toast";
+import { AuditRow } from "./audit-log";
 import { RiotAccountsPanel } from "@/components/team/riot-accounts-panel";
 import { formatDate, formatDateTime } from "@/lib/format";
-import { RelativeTime } from "@/components/ui/relative-time";
 import { ACCOUNT_STATUS, AccountActions, DeleteProfileButton, accountStatus } from "./account-actions";
 import { AccessDialog, accessSummary } from "./access-dialog";
 import { ErasePersonButton } from "./erase-person";
@@ -41,7 +41,7 @@ function Fact({ label, children }: { label: string; children: React.ReactNode })
   return (
     <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 py-1">
       <dt className="text-sm text-fg-muted">{label}</dt>
-      <dd className="min-w-0 text-right text-sm text-fg [overflow-wrap:anywhere]">{children}</dd>
+      <dd className="min-w-0 flex-1 basis-24 text-right text-sm text-fg [overflow-wrap:anywhere]">{children}</dd>
     </div>
   );
 }
@@ -52,12 +52,13 @@ function passwordWords(state: "set" | "temporary" | "expired" | "none", expiresA
   if (!active && state === "none") return "Deactivated, and no password yet: reactivate them with a new temporary password so they can sign in.";
   if (!active) return "Deactivated: they cannot sign in. Reactivate them with the password they had, or, if they were deactivated for security, with a new temporary password.";
   if (state === "set") return "They chose their own password.";
-  if (state === "temporary") return `A temporary password waits for their first sign-in${expiresAt ? `, until ${formatDateTime(expiresAt)}` : ""}.`;
+  if (state === "temporary") return `A temporary password waits for their first sign-in${expiresAt ? `, until ${formatDateTime(expiresAt)}` : ""}.${manage ? " Withdraw it if it reached the wrong person." : ""}`;
   if (state === "expired") return `Their temporary password expired${expiresAt ? ` on ${formatDateTime(expiresAt)}` : ""}. Issue a new one.`;
   return "No password yet: issue a temporary one so they can sign in.";
 }
 
-function Activity({ userId, playerId }: { userId: string | null; playerId: string | null }) {
+/** `since` changes with each refresh of the page's data (after a change made here), so the list reads again. */
+function Activity({ userId, playerId, since }: { userId: string | null; playerId: string | null; since: unknown }) {
   const [entries, setEntries] = React.useState<AuditEntry[] | null>(null);
   React.useEffect(() => {
     let live = true;
@@ -65,25 +66,23 @@ function Activity({ userId, playerId }: { userId: string | null; playerId: strin
     return () => {
       live = false;
     };
-  }, [userId, playerId]);
+  }, [userId, playerId, since]);
   if (!entries) return <p className="text-sm text-fg-subtle">Loading…</p>;
   if (!entries.length) return <p className="text-sm text-fg-muted">Nothing recorded about them yet.</p>;
   return (
-    <ul className="divide-y divide-border" data-testid="person-activity-list">
-      {entries.map((e) => {
-        const at = new Date(e.at);
-        const details = auditDetailsSentence(e.details);
-        return (
-          <li key={e.id} className="py-1.5 text-sm">
-            <p className="text-fg">{auditSentence(e)}</p>
-            <p className="text-xs text-fg-subtle">
-              <RelativeTime date={at} />
-              {details ? ` · ${details}` : ""}
-            </p>
-          </li>
-        );
-      })}
-    </ul>
+    <>
+      <ul className="divide-y divide-border" data-testid="person-activity-list">
+        {entries.map((e) => (
+          <AuditRow key={e.id} entry={e} />
+        ))}
+      </ul>
+      {/* The full log, filtered to them: it filters by account (their profile's entries included), so a profile without an account has no link. */}
+      {userId ? (
+        <Link href={`/admin/audit?person=${encodeURIComponent(userId)}`} className="inline-flex min-h-11 items-center text-sm text-accent hover:underline" data-testid="person-activity-all">
+          See all in Audit Logs
+        </Link>
+      ) : null}
+    </>
   );
 }
 
@@ -130,15 +129,13 @@ export function PersonView({
       description={p?.account ? `@${p.account.username}` : p?.player ? "A profile without an account" : undefined}
       testId="person-view"
       closeTestId="person-view-close"
+      // Restored by Back (after "See all in Audit Logs") or opened by a link, no row opened it: the focus goes back to the person's row.
+      returnFocus={() => (p ? document.querySelector<HTMLElement>(`button[data-person="${CSS.escape(p.key)}"]`) : null)}
       headerExtra={
         position && position.of > 1 ? (
-          <span className="flex items-center">
-            <Button size="sm" variant="ghost" className="min-w-11 px-0" aria-label="Previous person" disabled={position.at <= 0} onClick={() => onStep(-1)} data-testid="person-prev">
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <Button size="sm" variant="ghost" className="min-w-11 px-0" aria-label="Next person" disabled={position.at >= position.of - 1} onClick={() => onStep(1)} data-testid="person-next">
-              <ChevronRight className="h-4 w-4" />
-            </Button>
+          // The same ‹ › as every other window's (PreviewWindow): 44px on touch screens at every text size.
+          <span className="flex items-center gap-1">
+            <SiblingSteps siblings={{ prev: position.at > 0 ? () => onStep(-1) : null, next: position.at < position.of - 1 ? () => onStep(1) : null, label: "person", prevTestId: "person-prev", nextTestId: "person-next" }} />
           </span>
         ) : null
       }
@@ -243,7 +240,7 @@ function PersonBody({
                 <Label htmlFor={`name-${a.userId}`}>Change their display name</Label>
                 <Input id={`name-${a.userId}`} value={name} onChange={(e) => setName(e.target.value)} autoComplete="off" maxLength={40} />
               </div>
-              <Button type="submit" size="sm" variant="outline" disabled={busy || name.trim() === (a.displayName || p.name)}>
+              <Button type="submit" variant="outline" disabled={busy || name.trim() === (a.displayName || p.name)}>
                 Save name
               </Button>
             </form>
@@ -293,12 +290,14 @@ function PersonBody({
       {player ? (
         <Section title="Riot accounts" testId="person-riot">
           <p className="text-sm text-fg-muted">
-            {riotStatus(player.riot.state).label}: {player.riot.label}.{player.primaryRole ? ` Plays ${ROLE_LABELS[player.primaryRole]}${player.secondaryRole ? ` and ${ROLE_LABELS[player.secondaryRole]}` : ""}.` : " Role not chosen yet."}
+            {/* With no account linked the line says so once ("No Riot account linked."), without the status's prefix or an empty state under it (G4-18). */}
+            {player.riot.state === "none" ? null : `${riotStatus(player.riot.state).label}: `}
+            {player.riot.label}.{player.primaryRole ? ` Plays ${ROLE_LABELS[player.primaryRole]}${player.secondaryRole ? ` and ${ROLE_LABELS[player.secondaryRole]}` : ""}.` : " Role not chosen yet."}
             {player.lineupRole ? ` In the lineup at ${ROLE_LABELS[player.lineupRole]}.` : ""}
           </p>
           {player.riotAccounts.length ? (
             <RiotAccountsPanel playerId={player.id} accounts={player.riotAccounts} riotConfigured={riotConfigured} editable={canManageAccounts && !ownerByOther} title="Linked Riot accounts" theirs={!self} />
-          ) : (
+          ) : player.riot.state === "none" ? null : (
             <p className="text-sm text-fg-muted">No Riot account linked.</p>
           )}
           {player.primaryRole && player.teamMember ? (
@@ -364,7 +363,7 @@ function PersonBody({
 
       {canManageAccounts ? (
         <Section title="Activity" testId="person-activity">
-          <Activity userId={a?.userId ?? null} playerId={player?.id ?? null} />
+          <Activity userId={a?.userId ?? null} playerId={player?.id ?? null} since={a ?? player} />
         </Section>
       ) : null}
 

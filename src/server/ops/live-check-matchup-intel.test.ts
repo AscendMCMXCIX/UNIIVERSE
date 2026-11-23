@@ -48,9 +48,11 @@ const NOW: MatchupIntelRead = {
   slotCount: "2",
   tipsLabel: "Riot's tip (may predate later changes)",
   highElo: "Runes, items and skill order: No high-elo evidence (not collected)",
+  fallbacks: "Power spikes: Not measured yet · No wave guidance for this matchup",
   evidenceTiers: "In your games: no player profile · In the team's games (n = 12)",
   briefingTier: "Checked notes (AI reviewers)",
   kitTier: "Riot's data",
+  means: ["Mordekaiser's R cooldown 120 / 110 / 100\u00a0s at 0 haste (base, ability haste only)", "Mordekaiser's E cooldown 16 / 14 / 12 / 10 / 8\u00a0s at 0 haste (whether haste shortens it isn't known)", "Mordekaiser's Q cooldown 8 / 7 / 6 / 5 / 4\u00a0s at 0 haste (base); Mordekaiser's W cooldown 12 / 11 / 10 / 9 / 8\u00a0s at 0 haste (base)"],
 };
 /** The same page made 1920 x 1080: no page scroll. */
 const WIDE = { ...NOW, size: "1920x1080", innerHeight: 1080, scrollHeight: 1080 };
@@ -63,10 +65,20 @@ const judge = (at: MatchupIntelRead, wide: MatchupIntelRead = WIDE, wiki: string
 const failed = (verdicts: ReturnType<typeof judge>) => verdicts.filter((v) => v.status === "FAIL").map((v) => v.name);
 
 describe("the Production check's Matchup Intel facts", () => {
+  it("fail when a briefing row's 'what it means' line is missing, claims a timer or a verdict, or is not numbers", () => {
+    const means = /says what it means/;
+    expect(failed(judge(NOW)).filter((n) => means.test(n))).toEqual([]);
+    expect(failed(judge({ ...NOW, means: ["Mordekaiser's Q cooldown 6.67 / 5.83\u00a0s at 20 haste (Riot's general rule)"] })).filter((n) => means.test(n))).toEqual([]);
+    expect(failed(judge({ ...NOW, means: ["Mordekaiser's E cooldown 16\u00a0s at 0 haste (static per the checked notes: haste doesn't shorten it)"] })).filter((n) => means.test(n))).toEqual([]);
+    for (const over of [{ means: [] }, { means: ["Mordekaiser's Q is ready at 3:20"] }, { means: ["Mordekaiser's Q cooldown 8\u00a0s at 0 haste (base); you win"] }, { means: ["Mordekaiser's Q cooldown 8\u00a0s at 0 haste (estimated)"] }, { means: ["Mordekaiser's Q cooldown 8\u00a0s at 0 haste (base) then 1:30 later 99%"] }, { means: ["Garbage text, static per the checked notes: haste doesn't shorten it, 50% winrate"] }]) expect(failed(judge({ ...NOW, ...over })).filter((n) => means.test(n)), JSON.stringify(over)).toHaveLength(1);
+    // While the briefing is hidden, no line is asked for.
+    expect(failed(judge({ ...EXPIRED, means: [] })).filter((n) => means.test(n))).toEqual([]);
+  });
+
   it("fail when the lane selector, Riot's tips' label or the evidence line is missing or claims more", () => {
     const lanes = /lane selector/;
     expect(failed(judge(NOW)).filter((n) => lanes.test(n))).toEqual([]);
-    for (const over of [{ roles: "Top Jungle Mid" }, { roles: "Top Jungle Mid ADC Support" }, { tipsLabel: "" }, { highElo: "Runes: Conqueror" }, { slotCount: null }]) expect(failed(judge({ ...NOW, ...over })).filter((n) => lanes.test(n)), JSON.stringify(over)).toHaveLength(1);
+    for (const over of [{ roles: "Top Jungle Mid" }, { roles: "Top Jungle Mid ADC Support" }, { tipsLabel: "" }, { highElo: "Runes: Conqueror" }, { fallbacks: "Power spikes: level 6 · No wave guidance for this matchup" }, { fallbacks: "" }, { slotCount: null }]) expect(failed(judge({ ...NOW, ...over })).filter((n) => lanes.test(n)), JSON.stringify(over)).toHaveLength(1);
   });
 
   it("fail when a row does not state its tier, or the evidence fold's tiers are missing", () => {

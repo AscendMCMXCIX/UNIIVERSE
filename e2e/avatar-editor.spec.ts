@@ -148,23 +148,34 @@ test("zoom, arrow keys and Reset; Cancel keeps the old picture and Save stores t
   const again = await open(page, 1600, 900);
   await dragBy(page, again.frame, 3000, 0, false);
   await page.getByTestId("avatar-save").click();
-  await expect(again.frame).toBeHidden();
-  const saved = page.getByTestId("avatar-editor").locator("img").first();
-  await expect(saved).toHaveAttribute("src", /\/api\/avatars\//);
-  // With a picture, its two controls say what they act on ("Change" and "Remove" on screen).
-  await expect(page.getByTestId("settings-account").getByRole("button", { name: "Change picture" })).toBeVisible();
-  await expect(page.getByTestId("settings-account").getByRole("button", { name: "Remove picture" })).toBeVisible();
-  const colour = await saved.evaluate(async (img: HTMLImageElement) => {
-    await img.decode();
-    const c = document.createElement("canvas");
-    c.width = img.naturalWidth;
-    c.height = img.naturalHeight;
-    const ctx = c.getContext("2d")!;
-    ctx.drawImage(img, 0, 0);
-    return Array.from(ctx.getImageData(c.width / 2, c.height / 2, 1, 1).data.slice(0, 3));
-  });
-  expect(colour[0]).toBeGreaterThan(150);
-  expect(colour[2]).toBeLessThan(100);
+  try {
+    await expect(again.frame).toBeHidden();
+    const saved = page.getByTestId("avatar-editor").locator("img").first();
+    await expect(saved).toHaveAttribute("src", /\/api\/avatars\//);
+    // With a picture, its two controls say what they act on ("Change" and "Remove" on screen).
+    await expect(page.getByTestId("settings-account").getByRole("button", { name: "Change picture" })).toBeVisible();
+    await expect(page.getByTestId("settings-account").getByRole("button", { name: "Remove picture" })).toBeVisible();
+    const colour = await saved.evaluate(async (img: HTMLImageElement) => {
+      await img.decode();
+      const c = document.createElement("canvas");
+      c.width = img.naturalWidth;
+      c.height = img.naturalHeight;
+      const ctx = c.getContext("2d")!;
+      ctx.drawImage(img, 0, 0);
+      return Array.from(ctx.getImageData(c.width / 2, c.height / 2, 1, 1).data.slice(0, 3));
+    });
+    expect(colour[0]).toBeGreaterThan(150);
+    expect(colour[2]).toBeLessThan(100);
+  } finally {
+    // The account as the demo began, with no picture, even when a check above failed: pages measured
+    // later read it (Personalise's page budget, whose demo viewer is this account row), so the suite
+    // never depends on the specs' order.
+    await page.goto("/settings");
+    await expect(page.getByTestId("avatar-editor")).toBeVisible();
+    const remove = page.getByTestId("settings-account").getByRole("button", { name: "Remove picture" });
+    if (await remove.isVisible()) await remove.click();
+    await expect(page.getByTestId("avatar-editor").locator('img[src*="/api/avatars/"]')).toHaveCount(0);
+  }
 });
 
 test("Settings → On this device at 200% text on a narrow phone: each Clear takes its own line, never over the words, and nothing scrolls sideways (R7 review A3)", async ({ page }, info) => {

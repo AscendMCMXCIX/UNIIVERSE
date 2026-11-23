@@ -175,7 +175,9 @@ function Tile({ label, value, sub, testId }: { label: string; value: string; sub
 /** Six tiles, each of the player's figures once in the whole view. */
 function Figures({ p, teamKills }: { p: DetailParticipant; teamKills: number }) {
   return (
-    <div className="grid grid-cols-3 gap-1.5 @min-[34rem]/pg:grid-cols-6" data-testid="post-game-figures">
+    // Six across only while the view is one column and at least 37rem wide (each caption whole, "18% of
+    // team" included); from 60rem the figures sit in the 33rem left column, where six were cut: 3×2 there, as on a phone.
+    <div className="grid grid-cols-3 gap-1.5 @min-[37rem]/pg:@max-[60rem]/pg:grid-cols-6" data-testid="post-game-figures">
       <Tile label="K/D/A" value={`${p.kills} / ${p.deaths} / ${p.assists}`} sub={p.deaths === 0 ? "Perfect KDA" : `${p.kda.toFixed(2)} KDA`} testId="figure-kda" />
       <Tile label="CS" value={p.cs === null ? "—" : formatCount(p.cs)} sub={p.csPerMin === null ? null : `${p.csPerMin.toFixed(1)} / min`} testId="figure-cs" />
       <Tile label="Gold" value={p.gold === null ? "—" : formatKilo(p.gold)} sub={p.goldPerMin === null ? null : `${formatCount(Math.round(p.goldPerMin))} / min`} testId="figure-gold" />

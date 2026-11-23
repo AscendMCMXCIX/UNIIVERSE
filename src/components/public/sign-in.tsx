@@ -88,7 +88,9 @@ function SignInWindow({ brand, onClose }: { brand: SignInBrand; onClose: () => v
         // while the rest scrolls on a short screen.
         <div className={cn("flex min-w-0 items-center gap-3 py-3 pl-5 sm:py-4", CLEAR_OF_CONTROLS)}>
           <BrandMark src={brand.logo} still={brand.logoStill} name={brand.shortName} className="h-9 w-9 text-base" />
-          <span className="truncate text-sm font-bold tracking-label text-fg">{brand.shortName}</span>
+          {/* Its words wrap beside the close button where the row is short of room (320px at 200% text),
+              rather than end in an ellipsis. */}
+          <span className="min-w-0 text-sm font-bold tracking-label text-fg [overflow-wrap:break-word]">{brand.shortName}</span>
         </div>
       }
     >

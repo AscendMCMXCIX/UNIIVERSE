@@ -4,6 +4,7 @@ import * as React from "react";
 import { Loader2, Paintbrush } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/cn";
+import { buttonClass } from "@/components/ui/button";
 import type { CustomiseCardProps } from "./customise-card";
 
 /** The Studio's code (its editor, champion grid and preview): fetched when wanted, not with the page. */
@@ -22,10 +23,11 @@ const preload = () => {
  * downloads it for nothing. While it loads, the button shows it is busy and the page stays as it
  * was (the opening is a transition, so nothing is replaced by a loading state).
  */
-export function CustomiseCardButton(props: CustomiseCardProps & { variant?: "overlay" | "outline" | "icon"; /** An overlay that is a round icon chip on phones (below sm, and held sideways: a short window), its word read out (the profile header). */ iconOnPhones?: boolean; className?: string }) {
+export function CustomiseCardButton(props: CustomiseCardProps & { /** `button`: the kit's outline Button, for a form beside other Buttons (Personalise). */ variant?: "overlay" | "outline" | "icon" | "button"; /** An overlay that is a round icon chip on phones (below sm, and held sideways: a short window), its word read out (the profile header). */ iconOnPhones?: boolean; className?: string }) {
   const [open, setOpen] = React.useState(false);
   const [pending, startTransition] = React.useTransition();
   const icon = props.variant === "icon";
+  const asButton = props.variant === "button";
   const Icon = pending ? Loader2 : Paintbrush;
   return (
     <>
@@ -37,10 +39,10 @@ export function CustomiseCardButton(props: CustomiseCardProps & { variant?: "ove
         onClick={() => startTransition(() => setOpen(true))}
         aria-busy={pending || undefined}
         className={cn(
-          "inline-flex items-center justify-center gap-1.5 text-xs font-medium transition-colors",
+          asButton ? buttonClass("outline", "md") : "inline-flex items-center justify-center gap-1.5 text-xs font-medium transition-colors",
           // The icon is a round chip like the card's turn control beside it (both classes at once would leave the square corners).
-          icon ? "h-8 w-8 rounded-full bg-bg/80 text-fg-muted shadow-sm shadow-black/30 hover:bg-bg/90 hover:text-accent pointer-coarse:h-11 pointer-coarse:w-11" : "min-h-9 rounded-lg px-2.5 pointer-coarse:min-h-11",
-          !icon && (props.variant === "outline" ? "border border-border-strong bg-surface/70 text-fg hover:border-accent hover:text-accent" : "bg-bg/80 text-fg hover:bg-bg/90 hover:text-accent"),
+          asButton ? null : icon ? "h-8 w-8 rounded-full bg-bg/80 text-fg-muted shadow-sm shadow-black/30 hover:bg-bg/90 hover:text-accent pointer-coarse:h-11 pointer-coarse:w-11" : "min-h-9 rounded-lg px-2.5 pointer-coarse:min-h-11",
+          !icon && !asButton && (props.variant === "outline" ? "border border-border-strong bg-surface/70 text-fg hover:border-accent hover:text-accent" : "bg-bg/80 text-fg hover:bg-bg/90 hover:text-accent"),
           !icon && props.iconOnPhones && "max-sm:h-11 max-sm:w-11 max-sm:rounded-full max-sm:px-0 max-sm:shadow-sm max-sm:shadow-black/30 short:h-11 short:w-11 short:rounded-full short:px-0 short:shadow-sm short:shadow-black/30",
           props.className,
         )}
@@ -48,7 +50,7 @@ export function CustomiseCardButton(props: CustomiseCardProps & { variant?: "ove
         title="Customise profile card"
         data-testid="customise-card"
       >
-        <Icon className={cn(icon ? "h-4 w-4" : "h-3.5 w-3.5", !icon && props.iconOnPhones && "max-sm:h-4 max-sm:w-4 short:h-4 short:w-4", pending && "animate-spin")} aria-hidden /> {icon ? null : <span className={cn(props.iconOnPhones && "max-sm:sr-only short:sr-only")}>Customise</span>}
+        <Icon className={cn(icon || asButton ? "h-4 w-4" : "h-3.5 w-3.5", !icon && props.iconOnPhones && "max-sm:h-4 max-sm:w-4 short:h-4 short:w-4", pending && "animate-spin")} aria-hidden /> {icon ? null : <span className={cn(props.iconOnPhones && "max-sm:sr-only short:sr-only")}>Customise</span>}
       </button>
       {open ? (
         <StudioBoundary

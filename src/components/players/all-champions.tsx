@@ -31,6 +31,7 @@ import { COMPACT_SEARCH, FiltersControl, PageToolbar } from "@/components/ui/pag
 import { QuietBar } from "@/components/ui/quiet-bar";
 import type { DataStatus } from "@/domain/data-status";
 import { RoleTag } from "@/components/role-icon";
+import { notchPlacement } from "./preview-notch";
 
 type KindKey = keyof MultikillCounts;
 type SortKey = "champion" | "games" | "win" | "kda" | "cs" | "kills" | "multikills" | KindKey | "mastery";
@@ -301,6 +302,16 @@ export function sortChampions(rows: readonly OverviewCard[], key: SortKey, dir: 
     return sign * (va - vb) || byName(a, b);
   });
 }
+/** An upright phone, as the sm breakpoint (below 40rem): Filters and Refresh join the list's search and sort row there. */
+const PHONE_QUERY = "(width < 40rem)";
+function subscribePhone(change: () => void) {
+  const query = window.matchMedia(PHONE_QUERY);
+  query.addEventListener("change", change);
+  return () => query.removeEventListener("change", change);
+}
+const isPhone = () => window.matchMedia(PHONE_QUERY).matches;
+const notPhone = () => false;
+
 const defaultDir = (key: SortKey): Dir => (key === "champion" ? "asc" : "desc");
 const masteryText = (n: number | null | undefined) => (n == null ? "—" : formatCompactCount(n));
 
@@ -311,14 +322,46 @@ const masteryText = (n: number | null | undefined) => (n == null ? "—" : forma
  * exploring. A champion opens its preview (champion-preview.tsx) in the same scope: inside the list's
  * card on a wide list, a sheet elsewhere; it lives in the URL, so it can be linked, and Back closes it.
  */
-export function AllChampions({ data, basePath, championsById, playerId, isOwn, initialPreview, initialPairing, status, refresh }: { data: PlayerOverviewData; basePath: string; championsById: Record<string, PortraitChampion>; playerId: string; /** The viewer's own profile: the preview says "you". */ isOwn: boolean; /** The server's render of a linked preview (?champion=), so it opens without a request. */ initialPreview?: ChampionPreviewData | null; initialPairing?: PairingGamesData | null; /** The page's data status (domain/data-status). */ status?: DataStatus | null; /** Offered to the player and to those who manage Riot accounts, where Riot can be asked. */ refresh?: DataRefreshTarget | null }) {
+export function AllChampions({ data, basePath, championsById, playerId, isOwn, initialPreview, initialPairing, status, refresh, firstRows = FIRST }: { data: PlayerOverviewData; basePath: string; championsById: Record<string, PortraitChampion>; playerId: string; /** The viewer's own profile: the preview says "you". */ isOwn: boolean; /** The server's render of a linked preview (?champion=), so it opens without a request. */ initialPreview?: ChampionPreviewData | null; initialPairing?: PairingGamesData | null; /** The page's data status (domain/data-status). */ status?: DataStatus | null; /** Offered to the player and to those who manage Riot accounts, where Riot can be asked. */ refresh?: DataRefreshTarget | null; /** The rows shown before Show all (FIRST; smaller only for a browser test on the demo, server/demo/test-hooks.ts). */ firstRows?: number }) {
   const [query, setQuery] = React.useState("");
   // The table's own search: once it has gone up under the pinned tabs, the row offers a copy (PageToolbar).
   const searchRef = React.useRef<HTMLInputElement>(null);
   // Opened from Overview's multikills (?sort=multikills) or any other link with a sort: that order first.
   const initialSort = useSearchParams().get("sort");
   const [sort, setSort] = React.useState<{ key: SortKey; dir: Dir }>(() => (isSortKey(initialSort) ? { key: initialSort, dir: defaultDir(initialSort) } : { key: "games", dir: "desc" }));
+  // A filter changed keeps the sort the address held (Overview's ?sort=multikills): the address keeps every choice it had.
+  const keep = React.useMemo(() => (isSortKey(initialSort) ? { sort: initialSort } : undefined), [initialSort]);
   const [all, setAll] = React.useState(false);
+  // Phones: Filters (the bar's own button, drawn here) and Refresh join the search and sort row
+  // instead of a row of their own above the scope line (PLAN §S2b). Before the page knows it is a
+  // phone (the server's render) they are not drawn below sm, and their place here keeps its room.
+  const phone = React.useSyncExternalStore(subscribePhone, isPhone, notPhone);
+  const [toolsHost, setToolsHost] = React.useState<HTMLElement | null>(null);
+  // Refresh is offered (RefreshButton draws nothing otherwise): the phone's row keeps room for it beside Filters.
+  const refreshHere = !!status && !!refresh && status.state !== "none";
+  // Only where the list has its row (it has champions): else Filters and Refresh keep the header's row.
+  const toolsInRow = data.topChampions.length > 0;
+  const toggleOnPhones = React.useMemo(() => (toolsInRow ? { host: phone ? toolsHost : null } : undefined), [toolsInRow, phone, toolsHost]);
+  // A row too narrow for the search and the tools side by side (a large text size on a small phone):
+  // the tools end the visible "Sort by" line instead of taking a line of their own.
+  const toolbarRef = React.useRef<HTMLDivElement>(null);
+  const [toolsBesideSort, setToolsBesideSort] = React.useState(false);
+  // Before paint, so the row is drawn once where it belongs.
+  React.useLayoutEffect(() => {
+    const row = toolbarRef.current;
+    if (!row || !phone) return setToolsBesideSort(false);
+    const check = () => {
+      const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+      const style = getComputedStyle(row);
+      const room = row.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+      // The search's least (4.5rem), a gap, Filters (2.75rem), and Refresh and its gap where offered.
+      setToolsBesideSort(room < (4.5 + 0.5 + 2.75 + (refreshHere ? 3.25 : 0)) * rem - 0.5);
+    };
+    check();
+    const observer = new ResizeObserver(check);
+    observer.observe(row);
+    return () => observer.disconnect();
+  }, [phone, refreshHere, toolsInRow]);
   const champ = React.useCallback((id: string): PortraitChampion => championsById[id] ?? { id, name: id, portraitUrl: "" }, [championsById]);
   const q = normalise(query.trim());
   // Sorting only reorders the champions in the current filters (season, mode, role, account, search).
@@ -335,7 +378,7 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
   );
   const sortBy = (key: SortKey) => setSort((cur) => (cur.key === key ? { key, dir: cur.dir === "asc" ? "desc" : "asc" } : { key, dir: defaultDir(key) }));
   const label = COLUMNS.find((c) => c.key === sort.key)!.label;
-  const shown = React.useMemo(() => (all || q ? rows : rows.slice(0, FIRST)), [all, q, rows]);
+  const shown = React.useMemo(() => (all || q ? rows : rows.slice(0, firstRows)), [all, q, rows, firstRows]);
   // Some champions' multikills come from only some of their games (or none yet): the list says how to read them.
   const multikillsIncomplete = rows.some((c) => !!c.multikills && c.multikills.counted < c.multikills.games);
   // Kills come from each game's full record: a champion with games still without it is marked the same way.
@@ -404,6 +447,60 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
     ro.observe(aside);
     return () => ro.disconnect();
   }, [inCard]);
+  // Joined to its row (CM §4.1): the selected row's surface runs under the preview to its edge, and
+  // the edge line is interrupted beside the row by a 2px notch the row's colour, so the row reads as
+  // opening into the page. The notch sits in the preview's column (not sticky), at the row's place,
+  // clipped to the part of the edge the pinned preview draws: when the row scrolls out of it, the
+  // notch simply goes. Switching moves it to the new row (150ms, none with reduced motion).
+  const notchRef = React.useRef<HTMLSpanElement>(null);
+  const notchKey = React.useRef<string | null>(null);
+  React.useLayoutEffect(() => {
+    const notch = notchRef.current;
+    const aside = asideRef.current;
+    const card = cardRef.current;
+    if (!inCard || !notch || !aside || !card) {
+      notchKey.current = null;
+      return;
+    }
+    let frame = 0;
+    const place = () => {
+      frame = 0;
+      const row = card.querySelector<HTMLElement>("[data-testid=top-champion][data-selected=true]");
+      const column = notch.parentElement;
+      if (!row || !column) {
+        notch.style.visibility = "hidden";
+        return;
+      }
+      const at = notchPlacement(row.getBoundingClientRect(), column.getBoundingClientRect(), aside.getBoundingClientRect());
+      notch.style.height = `${at.height}px`;
+      notch.style.transform = `translateY(${at.y}px)`;
+      notch.style.clipPath = `inset(${at.clipTop}px 0 ${at.clipBottom}px 0)`;
+      notch.style.visibility = at.hidden ? "hidden" : "";
+    };
+    // The first placement lands at once; later ones (another row) move.
+    const first = notchKey.current === null;
+    notchKey.current = selectedKey;
+    if (first) notch.style.transition = "none";
+    place();
+    if (first) {
+      void notch.offsetHeight;
+      notch.style.transition = "";
+    }
+    const later = () => {
+      if (!frame) frame = requestAnimationFrame(place);
+    };
+    window.addEventListener("scroll", later, { capture: true, passive: true });
+    window.addEventListener("resize", later);
+    const ro = new ResizeObserver(later);
+    ro.observe(aside);
+    ro.observe(card);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", later, { capture: true });
+      window.removeEventListener("resize", later);
+      ro.disconnect();
+    };
+  }, [inCard, selectedKey, shown]);
   const rowButton = (c: { championId: string; role: string }) => cardRef.current?.querySelector<HTMLButtonElement>(`[data-testid=top-champion][data-champion="${c.championId}"][data-role="${c.role}"] [data-open-champion]`);
   const focusTitle = React.useRef(false);
   const [viaKeys, setViaKeys] = React.useState(false);
@@ -498,7 +595,7 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
           const narrowFigure = sorted === "champion" || sorted === "games" || sorted === "win" ? null : (summaryPairs(c, sorted).find((pair) => pair.sorted) ?? null);
           return (
             // A row lights up while pointed at or focused (a quiet tint; the whole row opens the champion's window).
-            <li key={`${c.championId}-${c.role}`} data-role={c.role} className={cn("group/row relative grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 px-3 py-2 @max-[17rem]:grid-cols-[minmax(0,1fr)] transition-colors duration-150 hover:bg-surface-2/50 has-[[data-open-champion]:focus-visible]:bg-surface-2/50 has-[[data-open-champion]:focus-visible]:outline has-[[data-open-champion]:focus-visible]:outline-2 has-[[data-open-champion]:focus-visible]:-outline-offset-2 has-[[data-open-champion]:focus-visible]:outline-accent @min-[44rem]:py-1.5 data-[selected=true]:bg-surface-3 data-[selected=true]:before:absolute data-[selected=true]:before:inset-y-0 data-[selected=true]:before:left-0 data-[selected=true]:before:w-0.5 data-[selected=true]:before:bg-accent", GRID)} data-selected={selectedKey === `${c.championId}-${c.role}` || undefined} data-testid="top-champion" data-champion={c.championId} data-games={r.games} data-kills={p.totalKills ?? ""} data-mastery={c.mastery?.points ?? ""} data-multikills={c.multikills?.counted ? MULTIKILL_KINDS.map((k) => c.multikills![k.key]).join(",") : ""} data-multikill-coverage={c.multikills ? multikillCoverage(c.multikills).state : ""}>
+            <li key={`${c.championId}-${c.role}`} data-role={c.role} className={cn("group/row relative grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 px-3 py-2 @max-[17rem]:grid-cols-[minmax(0,1fr)] transition-colors duration-150 hover:bg-surface-2/50 has-[[data-open-champion]:focus-visible]:bg-surface-2/50 has-[[data-open-champion]:focus-visible]:outline has-[[data-open-champion]:focus-visible]:outline-2 has-[[data-open-champion]:focus-visible]:-outline-offset-2 has-[[data-open-champion]:focus-visible]:outline-accent @min-[44rem]:py-1.5 data-[selected=true]:bg-surface-3 data-[selected=true]:hover:bg-surface-3 data-[selected=true]:has-[[data-open-champion]:focus-visible]:bg-surface-3 data-[selected=true]:before:absolute data-[selected=true]:before:inset-y-0 data-[selected=true]:before:left-0 data-[selected=true]:before:w-0.5 data-[selected=true]:before:bg-accent", GRID)} data-selected={selectedKey === `${c.championId}-${c.role}` || undefined} data-testid="top-champion" data-champion={c.championId} data-games={r.games} data-kills={p.totalKills ?? ""} data-mastery={c.mastery?.points ?? ""} data-multikills={c.multikills?.counted ? MULTIKILL_KINDS.map((k) => c.multikills![k.key]).join(",") : ""} data-multikill-coverage={c.multikills ? multikillCoverage(c.multikills).state : ""}>
               <span className="flex min-w-0 items-center gap-3">
                 <span className="hidden w-5 shrink-0 text-right text-xs tabular-nums text-fg-subtle @4xl:block" aria-hidden>
                   {i + 1}
@@ -514,8 +611,9 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
                       would shorten before "In pool" moves, though the column leaves room for both). */}
                   <span className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-fg-subtle @min-[44rem]:flex-nowrap" data-testid="champion-role-line">
                     <RoleTag role={c.role} className="min-w-0" />
+                    {/* Kept on one line, except in a list under 17rem (a large text size), where it wraps inside the phone. */}
                     {narrowFigure ? (
-                      <span className="shrink-0 whitespace-nowrap font-medium text-fg-muted @min-[44rem]:hidden" data-testid="champion-sorted-figure">
+                      <span className="shrink-0 whitespace-nowrap font-medium text-fg-muted @max-[17rem]:min-w-0 @max-[17rem]:shrink @max-[17rem]:whitespace-normal @max-[17rem]:[overflow-wrap:anywhere] @min-[44rem]:hidden" data-testid="champion-sorted-figure">
                         · {narrowFigure.label} {narrowFigure.value}
                       </span>
                     ) : null}
@@ -535,7 +633,10 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
                   <SampleNote note={winRateSampleNote(r.winRate, r.games, WIN_RATE_MIN_GAMES.champion)} />
                 </span>
                 <span className="block text-xs text-fg-subtle">
-                  {formatCount(r.games)} game{r.games === 1 ? "" : "s"}
+                  {/* Sorted by games: the count drawn strong, as the desktop's Games column. */}
+                  <span className={cn(strong("games") && "font-semibold text-fg-muted")} data-testid="champion-row-games">
+                    {formatCount(r.games)} game{r.games === 1 ? "" : "s"}
+                  </span>
                   {r.games > 0 ? ` · ${r.wins}W ${r.games - r.wins}L` : ""}
                 </span>
               </span>
@@ -575,6 +676,13 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
     ),
     [shown, champ, sorted, total, selectedKey, previewData],
   );
+  // Phones: Filters (the bar's button is drawn in the host: OverviewFilters' toggleOnPhones; the host keeps its room until then) and Refresh.
+  const phoneTools = (
+    <div className="flex shrink-0 items-center gap-2 sm:hidden" data-testid="all-champions-phone-tools">
+      <span ref={setToolsHost} className="flex min-h-11 min-w-11" />
+      {status && phone ? <RefreshButton status={status} refresh={refresh} compact /> : null}
+    </div>
+  );
   return (
     <section className="@container space-y-3" aria-labelledby="all-champions" data-testid="all-champions">
       {/* The profile's one heading layout (as Season performance and Match History). */}
@@ -593,8 +701,9 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
         // Phones: Filters (and Refresh) on the title's line, the scope under them (SectionHeader's toolbarBesideScope, as Season performance).
         toolbarBesideScope
         status={status ? <DataStatusNote status={status} refresh={refresh} /> : null}
-        refresh={status ? <RefreshButton status={status} refresh={refresh} /> : null}
-        controls={<OverviewFilters basePath={basePath} filter={f} seasons={data.seasons} currentSeason={data.currentSeason} champions={[]} accounts={data.accountOptions} showChampions={false} modeCounts={data.modes.counts} testId="all-champions-filters" />}
+        // Below sm Refresh is in the list's row (with Filters); its place here is drawn from sm only.
+        refresh={status && !(phone && toolsInRow) ? <RefreshButton status={status} refresh={refresh} className={toolsInRow ? "max-sm:hidden" : undefined} /> : null}
+        controls={<OverviewFilters basePath={basePath} filter={f} seasons={data.seasons} currentSeason={data.currentSeason} champions={[]} accounts={data.accountOptions} showChampions={false} modeCounts={data.modes.counts} testId="all-champions-filters" toggleOnPhones={toggleOnPhones} keep={keep} />}
       />
       <PageToolbar anchor={searchRef} label="All Champions controls" land="[data-testid=top-champion]">
         <SearchInput value={query} onChange={setQuery} placeholder="Find a champion…" label="Find a champion or a role" className={COMPACT_SEARCH} testId="toolbar-all-champions-search" />
@@ -608,8 +717,16 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
           // From a 20.5rem card (a 360px phone) the search and Sort by share one row; on a narrower
           // card the search takes its own line above Sort by. From 44rem the row holds the search,
           // the count and the bar's key, wrapping only if a larger text size leaves no room.
-          <div className="flex flex-wrap items-center gap-2 border-b border-border/70 px-3 py-2.5 @min-[20.5rem]:flex-nowrap @min-[44rem]:flex-wrap @min-[76rem]:px-4">
-            <SearchInput ref={searchRef} value={query} onChange={setQuery} placeholder="Find a champion or role…" label="Find a champion or a role" className="flex-[1_1_12rem] @min-[44rem]:max-w-xs" testId="all-champions-search" />
+          // Phones (below sm): the search and Filters (and Refresh, where it is offered) keep together,
+          // and Sort by joins them where the row has room (8.5rem for the search and Filters: the
+          // search then shows its short placeholder "Find…" whole, from a 375px phone, its padding there 4px
+          // less beside the icon and 6px at the end while empty: 52px of room for the word's 47), else takes the next line; the search keeps
+          // at least 4.5rem and the tools take the line under it only when it would not (a large text size).
+          <div ref={toolbarRef} className="flex flex-wrap items-center gap-2 border-b border-border/70 px-3 py-2.5 sm:@min-[20.5rem]:flex-nowrap @min-[44rem]:flex-wrap @min-[76rem]:px-4" data-testid="all-champions-toolbar">
+            <div className={cn("flex min-w-0 flex-[1_1_12rem] flex-wrap items-center gap-2 max-sm:flex-[1_1_0%] @min-[44rem]:max-w-xs", refreshHere ? "max-sm:min-w-[min(11.75rem,100%)]" : "max-sm:min-w-[min(8.5rem,100%)]")}>
+              <SearchInput ref={searchRef} value={query} onChange={setQuery} placeholder={phone ? "Find…" : "Find a champion or role…"} label="Find a champion or a role" className="flex-[1_1_4.5rem] max-sm:[&_input]:pl-8 max-sm:[&_input:placeholder-shown]:pr-1.5" testId="all-champions-search" />
+              {toolsBesideSort ? null : phoneTools}
+            </div>
             <span className="ml-auto hidden text-xs tabular-nums text-fg-subtle @min-[44rem]:inline" aria-live="polite" data-testid="all-champions-count">
               {q ? `${rows.length} of ${data.topChampions.length}` : data.topChampions.length} champion{(q ? rows.length : data.topChampions.length) === 1 ? "" : "s"}
             </span>
@@ -624,18 +741,28 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
             </span>
             {/* Phones: the table's columns as one compact Sort by control and a direction toggle. */}
             {/* Sharing the search's row (from a 20.5rem card), the words "Sort by" are read out only,
-                and the control shows the sort mark in their place, before the column's short name (the
-                names keep it narrow). At a large text size Sort by takes a line of its own over the
+                and from sm the control shows the sort mark in their place, before the column's short
+                name (the names keep it narrow); on a phone, where Filters shares the row too, the
+                direction button beside it says what it is. At a large text size Sort by takes a line of its own over the
                 control and its arrow, and the control narrows, so the toolbar is never wider than the
                 phone. */}
             <div className="flex min-w-0 flex-wrap items-center gap-1.5 @min-[20.5rem]:shrink-0 @min-[20.5rem]:flex-nowrap @min-[44rem]:hidden" data-testid="all-champions-sort-mobile">
-              <label htmlFor="all-champions-sort-by" className="text-xs text-fg-muted @min-[20.5rem]:sr-only">
-                Sort by
-              </label>
+              {toolsBesideSort ? (
+                <div className="flex w-full items-center justify-between gap-2">
+                  <label htmlFor="all-champions-sort-by" className="text-xs text-fg-muted">
+                    Sort by
+                  </label>
+                  {phoneTools}
+                </div>
+              ) : (
+                <label htmlFor="all-champions-sort-by" className="text-xs text-fg-muted @min-[20.5rem]:sr-only">
+                  Sort by
+                </label>
+              )}
               <div className="flex min-w-0 items-center gap-1.5">
                 <span className="relative flex min-w-0">
-                  <ArrowUpDown className="pointer-events-none absolute left-2 top-1/2 hidden h-4 w-4 -translate-y-1/2 text-fg-subtle @min-[20.5rem]:block" aria-hidden data-testid="all-champions-sort-mark" />
-                  <Select id="all-champions-sort-by" value={sort.key} onValueChange={(v) => setSort({ key: v as SortKey, dir: defaultDir(v as SortKey) })} className="w-auto @min-[20.5rem]:pl-7" options={COLUMNS.map((c) => ({ value: c.key, label: c.label }))} />
+                  <ArrowUpDown className="pointer-events-none absolute left-2 top-1/2 hidden h-4 w-4 -translate-y-1/2 text-fg-subtle sm:@min-[20.5rem]:block" aria-hidden data-testid="all-champions-sort-mark" />
+                  <Select id="all-champions-sort-by" value={sort.key} onValueChange={(v) => setSort({ key: v as SortKey, dir: defaultDir(v as SortKey) })} className="w-auto sm:@min-[20.5rem]:pl-7" options={COLUMNS.map((c) => ({ value: c.key, label: c.label }))} />
                 </span>
                 <button type="button" onClick={() => setSort((cur) => ({ ...cur, dir: cur.dir === "asc" ? "desc" : "asc" }))} className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-border-control bg-bg-elevated text-fg transition-colors hover:border-fg-subtle" aria-label={`${label}, ${sort.dir === "asc" ? "ascending" : "descending"}: reverse`} data-testid="all-champions-sort-dir">
                   {sort.dir === "asc" ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />}
@@ -670,7 +797,7 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
               })}
             </div>
             {list}
-            {!all && !q && rows.length > FIRST ? (
+            {!all && !q && rows.length > firstRows ? (
               <button type="button" onClick={() => setAll(true)} className="flex min-h-11 w-full items-center justify-center rounded-b-card border-t border-border/70 text-sm font-medium text-accent transition-colors hover:bg-accent/5" data-testid="all-champions-more">
                 Show all {rows.length} champions
               </button>
@@ -687,6 +814,8 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
               </span>
               <PreviewContent key={selectedKey} playerId={playerId} isOwn={isOwn} card={selected} otherRoles={data.topChampions.filter((o) => o.championId === selected.championId && o.role !== selected.role)} vs={address.sel?.vs ?? null} champ={champ} data={previewData} onVs={address.setVs} onSwitch={(o) => address.show(o.championId, o.role)} onClose={close} titleId="champion-preview-title" onMatch={game.open} />
             </aside>
+            {/* The notch: over the edge line beside the selected row, the row's colour (placed above). */}
+            <span ref={notchRef} aria-hidden className="absolute left-0 top-0 w-0.5 bg-surface-3 transition-transform duration-150 ease-emphasized motion-reduce:transition-none" data-testid="champion-preview-notch" />
           </div>
         ) : null}
       </div>

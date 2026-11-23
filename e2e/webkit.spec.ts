@@ -236,6 +236,29 @@ test("Matchup Intel: a slot's picker fills the screen, a search and a tap choose
   await expect(win).toHaveCount(0);
   expect(await page.evaluate(() => window.scrollY)).toBe(y);
   await expect(page.getByTestId("matchup-copy-link")).toHaveAccessibleName("Copy link to this matchup");
+  // A briefing row's "what it means" opens with a tap on its heading's ⓘ: numbers only.
+  await page.evaluate(() => window.scrollTo(0, 0));
+  const means = page.getByTestId("briefing-threat").getByTestId("briefing-means");
+  await means.tap();
+  await expect(page.getByTestId("briefing-means-bubble")).toContainText(/^What it means: Mordekaiser's [PQWER] cooldown [\d ./]+\u00a0s at 0 haste \(/);
+  await page.mouse.click(5, 5);
+  // The picker of a member's own slot offers their pool, a tap away; the role filter narrows the roster.
+  await page.context().addCookies([{ name: "uniiverse_demo_viewer", value: "member", url: new URL(page.url()).origin }]);
+  await page.goto("/resources/matchups?role=adc&vs=Caitlyn");
+  const you = page.getByTestId("matchup-pick-you");
+  await expect(async () => {
+    if (!(await win.isVisible())) await you.tap({ timeout: 2_000 });
+    await expect(win).toBeVisible({ timeout: 1_000 });
+  }).toPass({ timeout: 15_000 });
+  await win.getByRole("group", { name: "Filter by role" }).getByRole("button", { name: "Bottom" }).tap();
+  await expect(win.getByTestId("matchup-picker-role-note")).toBeVisible();
+  await fitsWidth(page, "the picker window with its role filter");
+  const first = win.getByTestId("matchup-picker-pool").locator("button[data-champion]").first();
+  const id = (await first.getAttribute("data-champion"))!;
+  await first.tap();
+  await expect(win).toHaveCount(0);
+  await expect(you).toHaveAttribute("data-champion", id);
+  await expect(you).toBeFocused();
 });
 
 test("Matchup Intel's facts from Riot's text on an iPhone: a tap on a chip quotes it, on \"Riot's texts differ\" gives both quotes, and the details window says the same; nothing is wider than the phone", async ({ page }) => {
@@ -259,9 +282,15 @@ test("Matchup Intel's facts from Riot's text on an iPhone: a tap on a chip quote
   // Yone's Q: a conditional fact, the owner's marker under the chips, its quote one tap away.
   const q = page.locator('[data-testid="matchup-enemy-abilities"] [data-testid="ability-row"][data-slot="Q"]');
   await expect(q.getByTestId("ability-facts-conditional")).toContainText("Conditional: see Riot's text (");
+  // The tile in the middle of the screen first: a chip under the phone's lower edge made the second
+  // tap scroll it into view, and a scroll closes a tapped bubble (as a finger's would), so that tap
+  // opened it again and the open bubble then kept the Details button's tap (the tap that closes a
+  // bubble does nothing else): the intermittent failure at the details window (Release 10).
+  await q.evaluate((e) => e.scrollIntoView({ block: "center" }));
   await q.getByTestId("fact-chip").first().tap();
   await expect(page.getByTestId("fact-chip-bubble")).toContainText("Conditional: see Riot's text.");
   await q.getByTestId("fact-chip").first().tap();
+  await expect(page.getByTestId("fact-chip-bubble")).toHaveCount(0);
   await fitsWidth(page, "Riven vs Yone");
   // The details window lists both quotes and the other wording, and closes back onto its button.
   const details = r.getByTestId("ability-details");
@@ -442,31 +471,33 @@ test("Match History's gold fold: a tap on or just beside a mark under the curve 
   await fitsWidth(page, "the Timeline");
 });
 
-test("Match History: a tap on a game's LP dash says why it has no figure, on screen, and leaves the card closed; another tap closes it", async ({ page }) => {
+test("Match History: a game's LP dash is no button on its card; a tap opens the game, whose tip (44px) says why it has no figure, and another tap closes it", async ({ page }) => {
   await page.goto("/team");
   const id = (await page.getByTestId("lineup-row-TOP").getAttribute("data-player-id"))!;
   await page.goto(`/players/${id}/matches`);
   const card = page.getByTestId("match-card").filter({ has: page.locator('[data-testid="match-lp"][data-lp="none"]:visible') }).first();
-  const tip = card.locator('[data-testid="match-lp-tip"]:visible');
+  const mark = card.getByTestId("match-lp-mark").filter({ visible: true });
   const bubble = page.getByTestId("match-lp-tip-bubble");
-  await tip.scrollIntoViewIfNeeded();
-  // Until the page is interactive a tap does nothing, so tap until the bubble answers.
-  await expect(async () => {
-    if ((await bubble.count()) === 0) await tip.tap({ timeout: 2_000 });
-    await expect(bubble).toBeVisible({ timeout: 1_000 });
-  }).toPass({ timeout: 15_000 });
+  // Until the page is interactive the card's tip is still drawn; once hydrated on touch it is the mark alone.
+  await expect(mark).toBeVisible({ timeout: 15_000 });
+  await expect(card.locator('[data-testid="match-lp-tip"]')).toHaveCount(0);
+  await mark.scrollIntoViewIfNeeded();
+  await mark.tap();
+  await expect(page).toHaveURL(/[?&]match=/);
+  const tip = page.getByRole("dialog").locator('[data-testid="match-lp-tip"]').first();
+  await expect(tip).toBeVisible();
+  const t = (await tip.boundingBox())!;
+  expect(Math.min(t.width, t.height)).toBeGreaterThanOrEqual(43.5);
   const note = await tip.evaluate((el) => document.getElementById(el.getAttribute("aria-describedby") ?? "")?.textContent ?? "");
   expect(note.length).toBeGreaterThan(20);
+  await tip.tap();
   await expect(bubble).toHaveText(note);
   const b = (await bubble.boundingBox())!;
   expect(b.x).toBeGreaterThanOrEqual(0);
   expect(b.x + b.width).toBeLessThanOrEqual(page.viewportSize()!.width);
   await tip.tap();
   await expect(bubble).toHaveCount(0);
-  // Neither tap opened the game, which would be kept in the address (?match=) and draw its breakdown.
-  await page.waitForTimeout(400);
-  await expect(page).not.toHaveURL(/[?&]match=/);
-  await expect(page.getByTestId("match-breakdown")).toHaveCount(0);
+  await expect(page).toHaveURL(/[?&]match=/);
 });
 
 test("Match History: once the page's own Filters has scrolled away, the top bar's Filters (44px) opens the filter sheet with a tap; a choice and Done bring the first game under the bars", async ({ page }) => {

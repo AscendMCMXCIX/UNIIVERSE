@@ -4,6 +4,7 @@ import { Panel, PanelBody, PanelHeader, SectionLabel } from "@/components/ui/pan
 import { Badge } from "@/components/ui/badge";
 import { Fold } from "@/components/ui/fold";
 import { formatCount } from "@/lib/format";
+import { AlertTriangle, CheckCircle2, CircleDashed, Clock, type LucideIcon } from "lucide-react";
 
 /*
   Admin Mode → System Health: page speed as members experienced it (field data, server/observability/
@@ -37,11 +38,14 @@ function inWords(metric: "LCP" | "INP" | "CLS", s: VitalSummary): string {
   return s.p75AtMost === null ? `${PLAIN[metric].over} ${bound} on more than a quarter of ${loads}` : `${PLAIN[metric].within} ${bound} on 75% of ${loads}`;
 }
 
-function verdict(metric: VitalMetric, s: VitalSummary): { word: string; tone: "good" | "warn" | "bad" } {
-  if (s.p75AtMost !== null && s.p75AtMost <= VITALS[metric].good) return { word: "Good", tone: "good" };
-  if (s.p75AtMost !== null && s.p75AtMost <= VITALS[metric].poor) return { word: "Needs work", tone: "warn" };
-  return { word: "Poor", tone: "bad" };
+/* Each verdict carries the System health chips' icon for the same state (StatusCards' LOOK), so a state is drawn one way on the page (G4-12). */
+function verdict(metric: VitalMetric, s: VitalSummary): { word: string; tone: "good" | "warn" | "bad"; icon: LucideIcon } {
+  if (s.p75AtMost !== null && s.p75AtMost <= VITALS[metric].good) return { word: "Good", tone: "good", icon: CheckCircle2 };
+  if (s.p75AtMost !== null && s.p75AtMost <= VITALS[metric].poor) return { word: "Needs work", tone: "warn", icon: Clock };
+  return { word: "Poor", tone: "bad", icon: AlertTriangle };
 }
+
+const VERDICT_ICON = "h-3.5 w-3.5 shrink-0";
 
 /* A table from 640px; below it each row is a label-and-figure list (the cells' data-label), so nothing scrolls sideways. */
 const TABLE = "w-full max-sm:block";
@@ -73,12 +77,20 @@ export function FieldPerformancePanel({ report }: { report: VitalsReport }) {
                       <span className="block text-sm font-medium text-fg">{plain.name}</span>
                       <span className="block text-sm text-fg-muted">{all ? inWords(metric as "LCP" | "INP" | "CLS", all) : "Not measured yet"}</span>
                     </span>
-                    {v ? <Badge tone={v.tone} className="shrink-0">{v.word}</Badge> : <Badge tone="neutral" className="shrink-0">No data</Badge>}
+                    {v ? (
+                      <Badge tone={v.tone} className="shrink-0">
+                        <v.icon className={VERDICT_ICON} aria-hidden /> {v.word}
+                      </Badge>
+                    ) : (
+                      <Badge tone="neutral" className="shrink-0">
+                        <CircleDashed className={VERDICT_ICON} aria-hidden /> No data
+                      </Badge>
+                    )}
                   </li>
                 );
               })}
             </ul>
-            <Fold title="Technical details" description="By device and by page." testId="field-performance-details">
+            <Fold variant="row" className="border-t border-border pt-2" title="Technical details" description="By device and by page." testId="field-performance-details">
               <div className="space-y-4 text-xs">
                 <p className="text-fg-subtle">Field data from members&apos; own browsers since {report.since}, not a lab test. A figure is the value 75% of loads stayed within.</p>
                 <table className={TABLE}>

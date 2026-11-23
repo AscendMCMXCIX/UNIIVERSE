@@ -68,11 +68,16 @@ test("Refresh ends the toolbar in the same place on every tab of a profile, neve
     await expect(button.locator("svg"), tab).toHaveCount(1);
     await expect(page.getByTestId("data-refresh-info"), tab).toBeVisible();
     await expect(page.getByTestId("data-refresh-words"), tab).toHaveText("Syncing");
-    // In the section's toolbar, after the filters but never part of them.
-    expect(await button.evaluate((el) => !!el.closest("[data-testid=section-toolbar]")), tab).toBe(true);
+    // In the section's toolbar, after the filters but never part of them. All Champions on a phone:
+    // both in the list's search and sort row instead (PLAN §S2b), Refresh right after Filters.
+    // (A profile with no champion in the filters has no such row: they keep the header's.)
+    const inRow = isPhone(page) && tab === "/champions" && (await page.getByTestId("all-champions-toolbar").count()) > 0;
+    // In the row once the page knows it is a phone (the header's copy is hidden there until then).
+    if (inRow) await expect(page.getByTestId("all-champions-toolbar").getByTestId("data-refresh-button"), tab).toBeVisible();
+    expect(await button.evaluate((el, sel) => !!el.closest(sel), inRow ? "[data-testid=all-champions-toolbar]" : "[data-testid=section-toolbar]"), tab).toBe(true);
     expect(await button.evaluate((el) => !el.closest("form, [data-testid$=filters]")), tab).toBe(true);
     const [title, at, note] = await Promise.all([page.locator(heading).boundingBox(), button.boundingBox(), page.getByTestId("data-refresh").boundingBox()]);
-    const filters = (await page.getByTestId(filterBar).boundingBox())!;
+    const filters = (await (inRow ? page.getByTestId("filter-toggle") : page.getByTestId(filterBar)).boundingBox())!;
     expect(at!.x, `${tab}: Refresh after the filters`).toBeGreaterThanOrEqual(filters.x + filters.width - 1);
     // On the filters' row: its top level with theirs (the folded Filters button on a phone), never a row below them.
     expect(Math.abs(at!.y - filters.y), `${tab}: Refresh on the filters' row`).toBeLessThanOrEqual(2);
@@ -82,25 +87,35 @@ test("Refresh ends the toolbar in the same place on every tab of a profile, neve
     if (isPhone(page)) expect(at!.height, tab).toBeGreaterThanOrEqual(44);
     expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth), tab).toBeLessThanOrEqual(1);
     const right = await page.evaluate(() => window.innerWidth);
-    // On a phone Match History's Refresh shares the views' row with Filters (owner decision D8): its
-    // icon alone, a 44px square, its name kept for screen readers. Everywhere else it shows its word.
-    const compact = isPhone(page) && tab.startsWith("/matches");
+    // On a phone Match History's Refresh shares the views' row with Filters (owner decision D8), and
+    // All Champions' the list's search and sort row: its icon alone, a 44px square, its name kept for screen readers. Everywhere else it shows its word.
+    const compact = isPhone(page) && (tab.startsWith("/matches") || inRow);
     if (compact) expect(Math.round(at!.width), `${tab}: its icon alone`).toBe(44);
     await expect(button, tab).toHaveAccessibleName("Refresh");
+    // In the list's row it ends that row, inside the card: not the header's place, so not in the comparison.
+    if (inRow) continue;
     seen.add(`${Math.round(right - at!.x - at!.width)}:${compact ? "icon" : Math.round(at!.width)}×${Math.round(at!.height)}`);
   }
   // The same button at the same distance from the right edge and the same height on every tab, and
   // the same width but for a phone's Match History.
   expect(new Set([...seen].map((x) => x.replace(/:(\d+|icon)×/, "×")))).toHaveProperty("size", 1);
   expect([...seen].filter((x) => !x.includes(":icon×"))).toHaveLength(1);
-  // Riot accounts: the same Refresh in the panel header's toolbar, at the right of its title, without a status (each account says its own state there).
+  // Riot accounts: the tab's heading as its siblings' (SectionHeader's 20px h2 above the panel, the
+  // design review's G2-9; on a phone the tab names it), the same Refresh ending the title's line,
+  // over the lead line, without a status (each account says its own state there).
   await page.goto(`${href}/accounts`, { waitUntil: "networkidle" });
   const button = page.getByTestId("data-refresh-button");
   await expect(button).toHaveText("Refresh");
   await expect(page.getByTestId("data-refresh-info")).toHaveCount(0);
-  const [panelTitle, at] = await Promise.all([page.getByRole("heading", { name: "Riot accounts", exact: true }).boundingBox(), button.boundingBox()]);
-  expect(at!.x, "Refresh at the title's right").toBeGreaterThan(panelTitle!.x + panelTitle!.width);
-  expect(at!.y, "on the title's row").toBeLessThan(panelTitle!.y + panelTitle!.height);
+  const heading = page.getByRole("heading", { name: "Riot accounts", exact: true });
+  expect(await heading.evaluate((h) => [h.tagName, getComputedStyle(h).fontSize, !!h.closest("[data-testid=riot-accounts-section]") && !h.closest("[data-testid=riot-accounts]")])).toEqual(["H2", "20px", true]);
+  const [panelTitle, at, lead] = await Promise.all([heading.boundingBox(), button.boundingBox(), page.getByTestId("riot-accounts-lead").boundingBox()]);
+  if (!isPhone(page)) {
+    expect(at!.x, "Refresh at the title's right").toBeGreaterThan(panelTitle!.x + panelTitle!.width);
+    expect(at!.y, "on the title's row").toBeLessThan(panelTitle!.y + panelTitle!.height);
+  } else expect(panelTitle!.width, "the title read out only on a phone").toBeLessThanOrEqual(1);
+  expect(at!.y + at!.height, "Refresh over the lead line").toBeLessThanOrEqual(lead!.y + 1);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
 });
 
 test("Refresh reads Riot, shows its progress, re-reads the page, and a second press is answered without asking again", async ({ page }, info) => {

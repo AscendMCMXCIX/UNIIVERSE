@@ -178,7 +178,7 @@ export async function guardArchiveProfile(db: Db, playerId: string): Promise<voi
 }
 
 /** Deactivating signs the account out everywhere and blocks sign-in; reactivating restores it with the same password. */
-export async function setAccountActive(db: Db, actorId: string | null, userId: string, active: boolean): Promise<UserRecord> {
+export async function setAccountActive(db: Db, actorId: string | null, userId: string, active: boolean): Promise<{ user: UserRecord; changed: boolean }> {
   const target = await getUser(db, userId);
   if (!target) throw new UserError("Account not found.");
   if (!active) {
@@ -186,9 +186,11 @@ export async function setAccountActive(db: Db, actorId: string | null, userId: s
     await guardLastAdmin(db, target, "deactivate");
   }
   await guardOwnerAccount(db, actorId, target, active ? "reactivate" : "deactivate");
-  await updateUser(db, userId, { isActive: active });
+  // Only a real change is written (and so audited by the caller): one already in that state, or a
+  // second call at the same moment, changes nothing. The guards above apply either way.
+  const changedRows = await db.update(users).set({ isActive: active, updatedAt: new Date() }).where(and(eq(users.id, userId), eq(users.isActive, !active))).returning({ id: users.id });
   if (!active) await revokeAllSessions(db, userId);
-  return (await getUser(db, userId))!;
+  return { user: (await getUser(db, userId))!, changed: changedRows.length > 0 };
 }
 
 /**
@@ -342,6 +344,38 @@ export async function resetPasswordToTemporary(db: Db, actorId: string | null, u
   await guardOwnerAccount(db, actorId, target, "reset the password of");
   if (!target.isActive) throw new UserError("This account is deactivated. Reactivate it first.");
   return setTemporaryPassword(db, userId);
+}
+
+/**
+ * Withdraws a temporary password an administrator issued (Reset password, or Reactivate with a new
+ * temporary password) before it is used: it no longer signs in, and the account keeps no usable
+ * password until a new one is issued. The same guards as Reset password (never your own account,
+ * never the Production check's account, the Owner's only by the Owner), and never the last active
+ * administrator, who would be left unable to sign in. Sessions end as after a reset. Only a
+ * temporary password (waiting, or expired) is withdrawn: a password the member chose is refused,
+ * and an account with no password changes nothing (`changed: false`, so nothing is recorded). Unlike
+ * Reset password, a deactivated account is accepted: withdrawing only takes a way in away, so a
+ * later plain Reactivate does not reopen a temporary password that may have reached the wrong person.
+ */
+export async function withdrawTemporaryPassword(db: Db, actorId: string | null, userId: string): Promise<{ changed: boolean }> {
+  const target = await getUser(db, userId);
+  if (!target) throw new UserError("Account not found.");
+  if (actorId && actorId === userId) throw new UserError("Change your own password under Settings instead.");
+  guardVerificationAccount(actorId, target, "withdraw the password of");
+  await guardOwnerAccount(db, actorId, target, "withdraw the password of");
+  if (target.hasPassword && !target.mustChangePassword) throw new UserError("They chose their own password, so there is no temporary password to withdraw. Nothing was changed.");
+  if (target.hasPassword) await guardLastAdmin(db, target, "withdraw the password of");
+  return db.transaction(async (tx) => {
+    // Only a temporary password still in place: a second call, or a password chosen in between, changes nothing.
+    const withdrawn = await tx
+      .update(users)
+      .set({ passwordHash: null, mustChangePassword: false, temporaryPasswordExpiresAt: null, updatedAt: new Date() })
+      .where(and(eq(users.id, userId), eq(users.mustChangePassword, true), isNotNull(users.passwordHash)))
+      .returning({ id: users.id });
+    if (withdrawn.length === 0) return { changed: false };
+    await revokeAllSessions(tx, userId);
+    return { changed: true };
+  });
 }
 
 /**

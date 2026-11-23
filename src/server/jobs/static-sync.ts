@@ -3,7 +3,7 @@ import { DataDragonProvider } from "@/server/riot/static/ddragon";
 import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
 import { checkSkinSplashes, remapSkinSelections } from "@/server/riot/static/skin-art";
-import { syncRiotAssets } from "@/server/riot/static/assets";
+import { StaticValidationError, syncRiotAssets } from "@/server/riot/static/assets";
 import { invalidateChampionMap } from "@/server/champions/map";
 import { invalidateChampionCaches } from "@/server/repositories/champions";
 import { invalidateCache } from "@/server/observability/cache";
@@ -59,12 +59,16 @@ async function run(ctx: Pick<JobContext, "db" | "log" | "startedAt" | "budgetMs"
   }
   if (result.skinsUpserted) invalidateCache("champions:skins");
   // Item, summoner spell and rune names for the match history (once per game version).
+  // Validated before keeping (assets.ts, staticProblems): on a failure the last good copy stays, the
+  // attempt is recorded for /api/health, and the run is degraded, saying why (counts only).
   let assetsUpdated = false;
+  let assetsError: string | null = null;
   if (!result.usedFixture && result.version) {
     try {
       assetsUpdated = await syncRiotAssets(ctx.db, result.version);
     } catch (err) {
-      ctx.log(`Item/rune data not refreshed: ${(err as Error).message}`);
+      assetsError = err instanceof StaticValidationError ? err.message : `Item/rune data not refreshed: ${(err as Error).message}`;
+      ctx.log(assetsError);
     }
   }
   // Matchup Intel's per-version diff: this patch's digests, once (three Data Dragon files), after
@@ -103,8 +107,8 @@ async function run(ctx: Pick<JobContext, "db" | "log" | "startedAt" | "budgetMs"
     },
   };
   if (!result.ok) return { ok: false, error: result.error, summary };
-  const error = [result.error, abilities?.error].filter(Boolean).join(" ") || undefined;
-  return { ok: true, degraded: result.degraded || Boolean(abilities?.degraded), error, summary };
+  const error = [result.error, abilities?.error, assetsError].filter(Boolean).join(" ") || undefined;
+  return { ok: true, degraded: result.degraded || Boolean(abilities?.degraded) || assetsError !== null, error, summary };
 }
 
 defineJob({

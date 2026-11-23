@@ -47,6 +47,30 @@ test("the list starts high, its rows are one height, and it has no action button
   expect(m.firstTop, "the first row's top").toBeLessThanOrEqual(phone ? 300 : 220);
   expect(m.destructive, "destructive buttons on the list").toBe(0);
   expect(m.screens, "screens of the page").toBeLessThanOrEqual(phone ? 2.0 : 1.3);
+
+  // The design review (G4-1, G4-4): on a phone the header, which shows nothing there, leaves the
+  // flow with its margin (the search row was 16px lower); the accountless group's fold is drawn as
+  // its sibling groups' heading, unboxed, its title on their line.
+  const look = await page.evaluate(() => {
+    const header = document.querySelector("main header")!;
+    const fold = document.querySelector("[data-testid=people-group-accountless]");
+    const heading = document.querySelector("[data-testid=people-group-team] h3");
+    const title = fold?.querySelector("summary > span > span");
+    const textX = (e: Element) => e.getBoundingClientRect().x + parseFloat(getComputedStyle(e).paddingLeft);
+    return {
+      headerHeight: header.getBoundingClientRect().height,
+      searchTop: document.querySelector("[data-testid=people-search]")!.getBoundingClientRect().top - header.parentElement!.getBoundingClientRect().top,
+      fold: fold && heading && title ? { border: getComputedStyle(fold).borderTopWidth, dx: Math.abs(title.getBoundingClientRect().x - textX(heading)) } : null,
+    };
+  });
+  if (phone) {
+    expect(look.headerHeight, "the phone's header takes no room").toBeLessThanOrEqual(1);
+    expect(look.searchTop, "the search row starts the page").toBeLessThanOrEqual(1);
+  }
+  if (look.fold) {
+    expect(look.fold.border, "the accountless fold has no box").toBe("0px");
+    expect(look.fold.dx, "its title on the groups' headings' line").toBeLessThanOrEqual(1);
+  }
 });
 
 test("the person view: a deep link opens it, ‹ › replace, Back closes it, Escape returns focus", async ({ page }) => {
@@ -55,6 +79,21 @@ test("the person view: a deep link opens it, ‹ › replace, Back closes it, Es
   await expect(page).toHaveURL(/[?&]person=/);
   const id = new URL(page.url()).searchParams.get("person")!;
   for (const section of ["person-account", "person-password", "person-access", "person-riot", "person-picture", "person-activity", "person-danger"]) await expect(view.getByTestId(section), section).toBeVisible();
+  // The design review (G4-7, G4-18, G4-19): Save name is the field's height on its line; with no
+  // Riot account the section says so once; the Status value stays on its label's line.
+  const geo = await view.evaluate((v) => {
+    const box = (e: Element | null | undefined) => e?.getBoundingClientRect() ?? null;
+    const field = box(v.querySelector("[data-testid=member-display-name] input"));
+    const save = box([...v.querySelectorAll("[data-testid=member-display-name] button")].find((b) => b.textContent?.trim() === "Save name"));
+    const dt = [...v.querySelectorAll("dt")].find((d) => d.textContent?.trim() === "Status");
+    return { field, save, dt: box(dt), dd: box(dt?.nextElementSibling), riot: v.querySelector("[data-testid=person-riot]")!.textContent ?? "" };
+  });
+  if (geo.field && geo.save) {
+    expect(Math.abs(geo.save.height - geo.field.height), "Save name is the field's height").toBeLessThanOrEqual(1);
+    expect(Math.abs(geo.save.top - geo.field.top), "and on its line").toBeLessThanOrEqual(1);
+  }
+  expect(geo.riot.match(/No Riot account/g)?.length, "no Riot account, said once").toBe(1);
+  expect(geo.dt && geo.dd && Math.abs(geo.dd.top - geo.dt.top), "Status's value beside its label").toBeLessThanOrEqual(2);
   // The Danger zone stays closed until asked.
   expect(await view.getByTestId("person-danger").evaluate((d) => (d as HTMLDetailsElement).open)).toBe(false);
   // No count of sessions, anywhere in it.
@@ -267,7 +306,7 @@ test("Back keeps the list's scroll where it was", async ({ page }, info) => {
   await expect.poll(() => page.evaluate(() => scrollY)).toBeGreaterThan(before - 2);
 });
 
-test("Reactivate with a new temporary password: a deactivated member comes back with a one-time password, and the plain Reactivate stays beside it", async ({ page }, info) => {
+test("Reactivate with a new temporary password: a deactivated member comes back with a one-time password, the plain Reactivate stays beside it, and the password can be withdrawn before it is used", async ({ page }, info) => {
   test.skip(info.project.name !== "desktop", "one pass: the person view's actions are the same at every width");
   // A member of this run's own (deactivating a demo account would lock it out for other specs).
   const { username } = await createMember(page, "Reissue");
@@ -289,4 +328,41 @@ test("Reactivate with a new temporary password: a deactivated member comes back 
   // Active again: Reactivate is gone and Deactivate is back.
   await expect(view.getByTestId("reactivate-new-password")).toHaveCount(0);
   await expect(view.getByTestId("person-danger").getByRole("button", { name: "Deactivate" })).toBeVisible();
+
+  // Withdraw the temporary password before it is used (§6 row 7.3f): the dialog says what happens,
+  // and the account is left with no password until a new one is issued.
+  const password = view.getByTestId("person-password");
+  await password.getByTestId("withdraw-temporary-password").click();
+  const withdraw = page.getByRole("dialog", { name: new RegExp(`^Withdraw ${username}'s temporary password\\?$`) });
+  await expect(withdraw).toContainText("stops working at once");
+  await expect(withdraw).toContainText("cannot sign in until you issue a new temporary password");
+  await withdraw.getByTestId("confirm-dialog-confirm").click();
+  await expect(withdraw).toBeHidden();
+  await expect(password).toContainText("No password yet");
+  await expect(password.getByTestId("withdraw-temporary-password")).toHaveCount(0);
+  await expect(password.getByRole("button", { name: "Create temporary password" })).toBeVisible();
+
+  // Activity records it, the date and time in words, and "See all in Audit Logs" opens the log filtered to them; Back returns to their view.
+  const activity = view.getByTestId("person-activity");
+  await expect(activity.getByTestId("admin-activity-row").first()).toContainText(`withdrew the password of ${username}`);
+  await expect(activity.getByTestId("audit-when").first()).toHaveText(/^\d{1,2} [A-Z][a-z]{2} \d{4}, \d{1,2}:\d{2} (am|pm) · /);
+  const personUrl = page.url();
+  await activity.getByTestId("person-activity-all").click();
+  await expect(page).toHaveURL(/\/admin\/audit\?person=[0-9a-f-]{36}$/);
+  await expect(page.getByTestId("admin-activity").getByTestId("admin-activity-row").first()).toContainText(`withdrew the password of ${username}`);
+  await expect(page.getByTestId("admin-activity")).not.toContainText("Demo Halfway");
+  await page.goBack();
+  await expect(page).toHaveURL(personUrl);
+  await expect(page.getByTestId("person-view")).toBeVisible();
+  // Closed now, it goes Back to the list's own entry: one more Back leaves the page, never a second
+  // copy of the list (the entry the person view pushed, restored by Back, is still the one it pushed).
+  const at = () => page.evaluate(() => (window as unknown as { navigation: { currentEntry: { index: number } } }).navigation.currentEntry.index);
+  const opened = await at();
+  await page.getByTestId("person-view-close").click();
+  await expect(page.getByTestId("person-view")).toBeHidden();
+  await expect(page).not.toHaveURL(/person=/);
+  expect(await at(), "closing went Back, not a replace").toBe(opened - 1);
+  // No row opened the view restored by Back: the focus still goes back to the person's row.
+  const key = new URL(personUrl).searchParams.get("person")!;
+  await expect.poll(() => page.evaluate(() => document.activeElement?.getAttribute("data-person") ?? document.activeElement?.tagName), "the focus on the person's row").toBe(key);
 });

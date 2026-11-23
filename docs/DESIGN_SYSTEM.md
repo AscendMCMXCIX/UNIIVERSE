@@ -24,6 +24,10 @@ The personality comes from:
 - **Light:** the violet ambient glow, the team's art and the player's banner colours. Light sits at
   the edges, never behind the figures.
 - **Precision:** one rhythm, one centre line and one radius family.
+  The radii nest outward-in: a card (`rounded-card`, 16px; the sign-in and setup frames' card
+  since 20 Nov 2026) holds panels and lists (`rounded-panel`, 12px), which hold controls
+  (`rounded-md`, 6px; chips `rounded-lg`). A box is never rounder than the box around it (the
+  design review's G3-14: Privacy's 12px contact panel sat in a 10px card).
 - **Restrained motion:** short entrances that land softly. Nothing loops, bounces or demands
   attention.
 
@@ -114,7 +118,9 @@ decorative chrome.
 - **The public header's links** (`components/public/nav-link.ts`): Team, Leaderboards, Install App
   and Sign in (or Open the app) in one style, the app's nav at 14px, 44px tall on touch screens.
 - **Long public text on a desktop** (Privacy): from lg a table of contents sticks beside the text;
-  below lg it is the row of chips under the title. A frame holding something sticky clips sideways
+  below lg it is the row of chips under the title. The table's column (13rem) keeps every entry on
+  one line (in 12rem "Cookies and your browser" wrapped, G3-15). Its contact panel leads as a
+  neutral `surface-lead` panel, not a brand-blue box (G3-7). A frame holding something sticky clips sideways
   without becoming a scroll box (`BrandFrameView`'s `stickyInside`).
 - **Instructions for the owner on a public page** (recovery's setup key) sit behind a fold, so the
   page leads with what it is for.
@@ -300,8 +306,21 @@ UM.X2, X4; 20 Nov 2026):
   bar (`modal-compact-bar`, the item's name: "Victory · Jax", a player's name) with the controls
   in place; at the top it opens again. Where the window scrolls as one (a small phone, FLOW_SHARE),
   the header scrolls away under the bar. It collapses only when the content would still scroll with
-  it collapsed, so it never takes away the scroll that collapsed it. A plain title bar keeps its
-  title and drops its description.
+  it collapsed, so it never takes away the scroll that collapsed it. A plain title bar (Admin's
+  person window, Matchup Intel's picker and details) collapses too (Release 10, 20 Nov 2026): its
+  title on one line, cut short with an ellipsis where it would wrap (the whole title stays the
+  window's name), its description for screen readers only, tighter padding; held sideways (a short
+  window, which scrolls as one) it collapses on the window's own scroll. The 56px bar is 56px at
+  every text size, its title on one line (in rem, with the title on a line of its own under the
+  controls, it reached 224px of 568 at 320 and 200%). At 320 × 568, 375 × 667 and 568 × 320, at
+  100, 150 and 200% text, 100px down, 400px down and at the end, every whole-screen window's frame
+  takes at most a quarter of the screen (PLAN S2b; Admin's person window was 340px of 568 at 320
+  and 200% after a scroll) (`e2e/overlay-kit.spec.ts`).
+- **Its controls are 44px on touch screens at every text size** (`window-control.ts`,
+  `WINDOW_CONTROL_TOUCH`): ‹ ›, ✕ and the actions beside them hold no text, so a larger text size
+  gave them nothing to show; in rem they were 88px each at 200%, and the Peek's "Previous player"
+  sat 9px off a 320px screen. Their icons still grow with the text. A custom header's cluster
+  wraps rather than run past the screen's edge.
 - **‹ › for the item's siblings** where the opener has siblings (`SiblingSteps`, the same buttons as
   the docked Peek's): a player's lineup; a game's list keeps its Previous · Game n of m · Next row.
 - **Pull down to close.** A pull on the header (or the bar) closes every whole-screen window on a
@@ -323,6 +342,9 @@ Safari.
   popover; in the phone posture (under 768px wide, or 480px tall or less) the browser's own select,
   whose wheel or sheet is what a phone's owner expects. The closed control looks the same either way
   (`selectClass`): the server draws the popover's button and a phone swaps it as the page hydrates.
+  The native select draws the popover's chevron too (`select-chevron` in globals.css: lucide's
+  ChevronDown, 16px, `fg-subtle`, 8px in, fixed in px at every text size, `appearance: none`), not the system's bold arrow (the
+  design review's G2-6, 20 Nov 2026); the phone keeps its own picker.
 - **Pattern:** WAI-ARIA's select-only combobox. The button is a `combobox` owning a `listbox`; the
   focus never leaves the button (the active option is `aria-activedescendant`), so it is on the
   button whenever the list closes. axe passes with the list open.
@@ -340,10 +362,38 @@ Safari.
   `e2e/select.spec.ts` checks the component once; `webkit.spec.ts` checks it draws the same figures in
   WebKit (`SELECT_LOOK`); `select.test.ts` fails on any native select outside `select.tsx`.
 
+### Conventions the design review settled (20 Nov 2026, Release 11)
+
+The review compared desktop and phone against the benchmark pages; these held where the pages had drifted:
+
+- **A control at rest is neutral.** Filters' sliders take the button's own colour (`fg-muted`,
+  stepping up on hover), as the desktop's Refine; accent marks a narrowed list only, with its count
+  (the folded toggle, the page toolbar's Filters, the top bar's). The camera badge on one's own
+  picture is `bg-elevated` with a `border-strong` edge, accent only while the picture is pointed at
+  or focused. A dropdown at rest carries `border-control` (Team Matches' "Played with" included).
+- **One look per kind of control:** a choice of a few (Most games | Best | Worst in a champion's
+  preview) is `segmentedGroupClass` and `segmentClass`, the chosen one ringed and semibold.
+- **One heading per profile tab:** Riot Accounts' title and lead line are its `SectionHeader`
+  (20px, left to the tab on a phone), as All Champions and Season performance; the admin's person
+  view keeps the panel's own header (`RiotAccountsPanel heading`).
+- **Cells side by side start level** (`DataRow align="start"` where a grid row stretches them, as
+  Season records); a table's figure columns are as wide as their headings (Multikills).
+- **A pinned strip leaves with its item:** `UnfoldHeader`'s sticky wrapper is the strip's height
+  (an empty block after it takes the room back), so it stops at the game's last pixel.
+- **Sorted figures are strong where they are drawn:** a phone row of All Champions sorted by games
+  sets its "15 games" semibold, as the desktop's Games column.
+- **The Overview's profile band from xl** writes the off role ("Top (off)") and the rank's queue; under xl
+  they are read out only, so the band stays one line.
+
 ### The one history rule (`address-item.ts`)
 
 Opening pushes one entry, switching to another item replaces it, and closing goes Back when this
-page pushed that entry (otherwise it replaces the address without the item: a deep link). So Back
+page pushed that entry, or when the entry before is the same address without the item (otherwise
+it replaces the address without the item: a deep link). The second case is a page returned to by
+Back after a link inside the open item left it (a person view's "See all in Audit Logs"): the
+remounted page reads the entry before through the Navigation API (`entryBeforeIsWithout`), so
+closing still goes Back and one more Back leaves the page; a browser without the API replaces, as
+for a deep link (20 Nov 2026; `e2e/admin-people.spec.ts`). So Back
 always closes what is open and never walks through the items seen, and Forward reopens the last
 one. `useAddressItem(param, { initial, valid })` returns `{ id, open, close, toggle }`; `historyStep`
 is the rule as a pure function (`peek.test.ts`).
@@ -395,6 +445,11 @@ const peek = usePeek({ param: "player", ids, initial: searchParams.get("player")
   fold (`visibility: hidden` through `group-data-[folded=true]/card:invisible`, so no width
   changes), Champion, Games and Win rate keep their x, and the panel takes the folded space with the
   card's surface, a hairline `border-border-strong` at its left and the card's right radius. It is
+  joined to its row (CM §4.1, Release 11): the selected row's `surface-3` runs under it to its edge
+  (kept on hover and focus, the focus outline still drawn), and a 2px notch the row's colour
+  interrupts the edge line beside the row (`champion-preview-notch`, placed by `preview-notch.ts`:
+  clipped to the edge the pinned panel draws, gone once the row scrolls out of it, moved to a new
+  row in 150ms, at once with reduced motion). It is
   sticky under the pinned tabs and as tall as its content (`max-w-xl`); it slides 12px outward and
   fades in (`unfold-in`, 200ms, `--ease-emphasized`). With less room the page falls back to `Peek`
   (the docked panel, then the sheet by posture), with the same content and address
@@ -447,6 +502,38 @@ const unfold = useUnfold({ param: "match", initial, valid: (id) => ids.includes(
   motion.
 - **Touch phones and short windows** open the item as a window instead (`prefersWindow`), never
   inline.
+
+### Admin's pages, drawn as the benchmarks (the design review, 20 Nov 2026)
+
+Release 9's design review (G4) measured Admin Mode against the benchmark pages; the confirmed findings
+are fixed in one place each, and `e2e/design-parity.spec.ts` ("Admin's pages") and
+`e2e/admin-people.spec.ts` measure them:
+
+- **Header rhythm on phones:** an Admin page under a section row with no actions (`PageHeader admin
+  sectionNamed`) shows nothing on a phone, so the whole header is read out only there and its stack
+  margin goes with it: the content starts right under the bars (y 117 at 390 × 844, 133–137 before).
+- **One column edge:** Settings in Admin Mode starts at the page's left edge like every other Admin
+  page: the Admin pages' column starts its children at its left edge (`*:ml-0`, as the frame does),
+  so Settings' 64rem keeps its width and loses its centring (h1 at x 288 at 1440, 319 at 1920, the
+  Dashboard's; 336 and 461 before).
+- **One depth:** every section, card and status list on a panel's surface has `panel-depth` and the
+  panel radius (Branding's Name, Background visibility, Colours and image cards; StatusCards' list).
+- **One fold inside a panel:** a fold inside a panel is a `row` Fold, never a box in a box (System
+  Health's Technical details; Personal data's two). Accounts' "Profiles without an account" is a
+  `row` fold drawn as its sibling groups' heading: the title on their line, the count quiet, the note small.
+- **One state, one chip:** a verdict chip carries the status chips' icon (CheckCircle2 good, Clock
+  needs work, AlertTriangle poor, CircleDashed no data).
+- **Toolbar sizes:** a page-level action and a toolbar's buttons beside 14px segments are `md`
+  Buttons (Add resource, Previews' Rotate and Reset, the person view's Save name); Rotate and Reset
+  wrap together, and stack where one line cannot hold the two (320px at 200%).
+- **Date fields:** the browser's own field and picker, its glyph drawn as a calendar in fg-subtle
+  (`globals.css`); in an inline FilterBar the From and To labels show beside them from xl (`FilterField
+  labelBeside`, in rem, so not at 150–200% text or on a phone held sideways, where they would push a
+  field onto a row of its own), as the phone's sheet shows them above.
+- **Grids that line up:** Access levels' base levels and its groups share one grid from xl, as many
+  20rem columns as fit (three at 1440 × 900; fewer at a large text size, never a 181px tile); the
+  image cards' hints keep two lines from md (`md:min-h-10`), so the three drop zones start on one line.
+- **A wrapped index:** `SectionIndex clipLineDots` (Branding's phone index) never starts a line with a dot.
 
 ## 8. The app's frame: navigation
 
@@ -597,9 +684,14 @@ With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shel
       account card and the Add button's row: `AccountsSkeleton`, 20 Nov 2026), and a profile opened from
       outside it as its band, tabs and section. Leaderboards and Team Matches had theirs.
     - *The 12px floor* (UD.X5): `text-2xs` is 12px on desktops (lg), 11px on phones and tablets,
-      one token for every use (globals.css); uppercase labels (and `label-caps`) keep 11px. The game cards of Match History and Team Matches keep
-      11px (`type-floor-later`, listed in `design-tokens.test.ts`: Release 5's post-game cards were built
-      before the floor, which reaches them with their next measured pass); `text-4xs`
+      one token for every use (globals.css); uppercase labels (and `label-caps`) keep 11px. The game cards of Match History and Team Matches
+      took it in Release 11 after a measured pass at 1024, 1280, 1366, 1440, 1536, 1920 and 2560: no new wrap,
+      the build whole, heights +1px at most. Where the card holds the build and the teams (a 61–70rem list,
+      1366 and 1440 with the sidebar open) its columns stay 10px apart (16px from 70rem), which gives the
+      teams the room 12px needs: cut roster names on the demo went from 146 to 26 at 1366 and 38 to 12 at
+      1440 against the 11px cards. The one-line "With …" list of team members, already cut short with
+      its full text as hover text, cuts one or two more at 1024 to 1366. `type-floor-later` has no place
+      left in `design-tokens.test.ts`; `text-4xs`
       stays for letters inside small tiles (initials, the ⓘ glyph).
   - **One look at every width (S2c).** `e2e/design-parity.spec.ts` renders the shared components
     (stat label, Panel, DataRow, a badge, Button, the current section tab, InfoTip's bubble, Select)
@@ -608,6 +700,17 @@ With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shel
     floor on desktops), and Select's size (16px on a touch screen, so iOS
     never zooms into the field; 14px with a mouse). Select compares the popover's button on the
     desktop with the browser's own select on the phone (§7, Select). Each later stage adds the components it creates.
+    Since Release 11 (20 Nov 2026) a second test compares the components S5–S9 created, each opened
+    as a member opens it: All Champions' preview (its panel, figures, an opponent, the foot line), the
+    post-game view (an item and the loadout's name, an answer and its label, a scoreboard K/D/A
+    and name), Matchup Intel (your slot, the enemy's slot label, an ability tile's name and its Q's cooldown,
+    the phone's glance cooldown against the full tile's) and Admin's person view (the window, a section
+    heading, the Riot accounts panel and a row). Its listed differences, each with its reason in the
+    spec: the preview's surface, corners and edge (docked inside the list's card on a desktop, with
+    the card's right radius and a left hairline; a sheet on a phone); the compact scoreboard's names (text-xs under a 30rem scoreboard); Matchup Intel's
+    slot label (text-2xs on a phone) and the glance's cooldown (text-xs in a tile of about 64px, against the full tile's text-md); the person
+    view's corners (DetailModal fills a phone's screen). Everything else is equal at 375 and 1440, in
+    Chromium 153 and Chrome Headless Shell 156.
   - **A page's controls in reach (PR 2b, 18 Nov 2026).** Once the row is pinned and the page's own
     toolbar has gone up under it, the page's compact copy of its controls shows at the row's end
     (`PageToolbar`, `src/components/ui/page-toolbar.tsx`): Match History and Encounters
@@ -677,7 +780,11 @@ test):
   under 59rem: phones held either way and tablets; Settings
   keeps its index in its account card: Name, Links and Password as chips on a phone and in a window
   480px tall or less (the approved plan's look there) and a list from md in a taller window, the
-  section being read marked either way). Each is
+  section being read marked either way: a chosen chip on a phone, `surface-3` and semibold in the
+  list, a step above the `surface-2` of a pointed-at entry). At the page's top the first section is
+  the one being read, at its end the last, and a section jumped to from the index stays marked while
+  it is at the window's top (G3-5: a short first panel put the next one's top above the window's
+  upper third). Each is
   a plain link to its section's anchor, so it works before the page's code has run; once it runs a
   click jumps through the router's history (`jumpToAnchor`, which Matchup Intel's chips share): the
   section comes under the top bar, takes the focus, and the jump is an entry of the page's own where

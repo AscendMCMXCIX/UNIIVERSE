@@ -136,6 +136,9 @@ import { redact } from "./redact.mjs";
 import { riotKeysOnPage } from "./riot-keys.mjs";
 import { rosterRowLines } from "./roster-lines.mjs";
 import { matchupIntelVerdicts, readMatchupIntel } from "./matchup-intel-facts.mjs";
+import { matchupRolesVerdicts, readRoleBar } from "./matchup-roles-facts.mjs";
+import { noteRules, postGameVerdicts, readPostGame } from "./post-game-facts.mjs";
+import { championPreviewVerdicts, readChampionPreview, readChampionRows, targetRow } from "./champion-preview-facts.mjs";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 
@@ -1145,6 +1148,28 @@ async function matchupIntelFacts(page, kind, wikiRequests) {
 }
 
 /**
+ * Matchup Intel's five roles (PLAN §6 rows 3.2–3.6; scripts/matchup-roles-facts.mjs), on the desktop,
+ * on the page the facts above loaded: the lane selector pressed for each role it is not on (four
+ * presses, each a render of the page on the server), the slots and the address read after each.
+ */
+async function matchupRolesFacts(page, kind) {
+  const start = await page.evaluate(readRoleBar);
+  const reads = start.pressed ? [{ role: start.pressed, at: start }] : [];
+  for (const role of ["top", "jungle", "mid", "adc", "support"]) {
+    if (role === start.pressed) continue;
+    await page.locator(`[data-testid=matchup-role] button[data-role=${role}]`).click();
+    await page
+      .waitForFunction((r) => {
+        const pressed = document.querySelector(`[data-testid=matchup-role] button[data-role=${r}][aria-pressed=true]`);
+        return !!pressed && new URLSearchParams(location.search).get("role") === r && !document.querySelector('[data-testid="matchup-intel-content"][aria-busy="true"]');
+      }, role, { timeout: 15_000 })
+      .catch(() => {});
+    reads.push({ role, at: await page.evaluate(readRoleBar) });
+  }
+  for (const v of matchupRolesVerdicts({ kind, start, reads })) check("matchup-intel", v.name, v.status, v.detail);
+}
+
+/**
  * The profile's tabs keep one place on every section (S2c, 19 Nov 2026; UD.PO1): the desktop's visits
  * of the teammate's Overview, All Champions and Match History each note where the tabs' row starts
  * (y, from the page's top) and, at the end, one fact compares them within 1px. Before, the Overview's
@@ -1198,6 +1223,19 @@ async function allChampions(page, log, kind, playerId) {
       pass("all-champions", `${kind}: rows stay compact for every role beside "In pool" (at most 56 px)`, !!roles && Math.max(...Object.values(roles.heights)) <= 56, roles ?? "no row with a role line to measure");
     }
     pass("all-champions", `${kind}: sorted by games by default`, /games/i.test(facts.sortedBy ?? ""), facts.sortedBy);
+    // Release 10 (PLAN S2b): on a phone Filters is in the list's search and sort row, on the search's
+    // line, 44px, and never a row of its own above the scope line.
+    if (kind === "phone" && facts.rows > 0) {
+      await page.locator("[data-testid=all-champions-toolbar] [data-filter-toggle]").waitFor({ timeout: 10_000 }).catch(() => {});
+      const row = await page.evaluate(() => {
+        const toggle = document.querySelector("[data-testid=all-champions-toolbar] [data-filter-toggle]");
+        const search = document.querySelector("[data-testid=all-champions-search]");
+        if (!toggle || !search) return { inRow: false };
+        const [t, s] = [toggle.getBoundingClientRect(), search.getBoundingClientRect()];
+        return { inRow: true, size: [Math.round(t.width), Math.round(t.height)], besideSearch: Math.abs(t.top + t.height / 2 - (s.top + s.height / 2)) <= 2, alone: document.querySelectorAll("[data-filter-toggle]").length };
+      });
+      pass("all-champions", "phone: Filters in the search and sort row, beside the search, 44px, and nowhere else", row.inRow && row.besideSearch && row.size[0] >= 44 && row.size[1] >= 44 && row.alone === 1, row);
+    }
   }
   pass("all-champions", `${kind}: no heading cut short`, facts.cut.length === 0, facts.cut);
   await axe(page, kind, "all-champions");
@@ -1217,6 +1255,18 @@ async function allChampions(page, log, kind, playerId) {
         await page.getByTestId("champion-preview-foot").waitFor({ timeout: 15_000 }).catch(() => {});
         await shot(page, `${kind}-champion-preview`);
         await axe(page, kind, "champion-preview", "[data-testid=champion-preview]");
+        // Joined to its row (CM §4.1): the row's surface runs to the preview's edge, a 2px notch the row's colour beside it.
+        await page.mouse.move(2, 2);
+        await page.waitForTimeout(300);
+        const join = await page.evaluate(() => {
+          const li = document.querySelector("[data-testid=top-champion][data-selected=true]");
+          const aside = document.getElementById("champion-preview");
+          const notch = document.querySelector("[data-testid=champion-preview-notch]");
+          if (!li || !aside || !notch) return { found: false };
+          const [r, a, n] = [li.getBoundingClientRect(), aside.getBoundingClientRect(), notch.getBoundingClientRect()];
+          return { found: true, rowToEdge: r.right >= a.left + 2, atEdge: Math.abs(n.left - a.left) <= 1, width: Math.round(n.width), colour: getComputedStyle(li).backgroundColor === getComputedStyle(notch).backgroundColor, along: Math.abs(n.top - r.top) <= 1 && Math.abs(n.bottom - r.bottom) <= 1 };
+        });
+        pass("all-champions", "desktop: the preview is joined to its row (the row's surface to its edge, a 2px notch the row's colour beside it)", join.found && join.rowToEdge && join.atEdge && join.width === 2 && join.colour && join.along, join);
         await page.keyboard.press("Escape");
       }
       const escaped = await content.waitFor({ state: "detached", timeout: 5_000 }).then(() => true, () => false);
@@ -1226,6 +1276,7 @@ async function allChampions(page, log, kind, playerId) {
       const backed = await content.waitFor({ state: "detached", timeout: 5_000 }).then(() => true, () => false);
       const still = after.x.every((x, i) => Math.abs(x - before.x[i]) <= 1) && after.y === before.y;
       pass("games", `${kind}: the champion preview opens beside the list (Champion, Games and Win rate in place, the page not scrolled); Escape and Back close it`, opened && after.aside && still && escaped && again && backed, { opened, aside: after.aside, before, after: { x: after.x, y: after.y }, escaped, backed });
+      await guarded("all-champions", `${kind}: the preview's content`, () => championPreviewFacts(page, kind));
     } else {
       // The shared Peek: a sheet on the phone, the panel docked at the right on the tablet.
       const sheet = await page.locator(kind === "phone" ? "dialog[open][data-testid=champion-preview]" : "aside[data-peek-panel][data-testid=champion-preview]").count();
@@ -1239,6 +1290,87 @@ async function allChampions(page, log, kind, playerId) {
       pass("games", `${kind}: the champion preview opens (${kind === "phone" ? "a sheet" : "the docked panel"}) and Back closes it`, opened && sheet === 1 && closed, { opened, sheet, closed });
     }
   }
+}
+
+/**
+ * All Champions' preview, its content (PLAN §6 rows 4.5a–4.10; scripts/champion-preview-facts.mjs), on
+ * the desktop, from the page already loaded: the first champion with 3+ games opens (its answer is
+ * usually the one the fact above already asked for), its first opponent opens (one server action:
+ * the pairing's games), ↓ moves to the next row (one more: that row's preview), and Escape closes it.
+ * A list with no such champion is a warning, not a failure.
+ */
+async function championPreviewFacts(page, kind) {
+  // The whole list ("Show all", a toggle in the page: no request), so the page can scroll for the browsing position.
+  const all = page.getByTestId("all-champions-more");
+  if (await all.count()) await all.click().catch(() => {});
+  const rows = await page.evaluate(readChampionRows);
+  const i = targetRow(rows, 3);
+  if (i < 0) return warn("all-champions", `${kind}: skipped: no champion on the list has 3 or more games, so the preview's content was not read`, { rows: rows.length });
+  const row = page.locator("[data-testid=top-champion]").nth(i);
+  const button = row.locator("[data-open-champion]");
+  // The browsing position (row 4.5d): the row brought to the middle of the screen, where it stays.
+  // In the middle of the screen; a row near the list's top is scrolled up to about 200px from the
+  // window's top instead, then down a step at a time while anything pinned covers it.
+  await row.evaluate(async (r) => {
+    const frame = () => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
+    r.scrollIntoView({ block: "center" });
+    await frame();
+    if (scrollY === 0) window.scrollBy(0, r.getBoundingClientRect().top - 200);
+    for (let k = 0; k < 4; k++) {
+      await frame();
+      const b = r.getBoundingClientRect();
+      if (r.contains(document.elementFromPoint(b.left + 24, b.top + b.height / 2))) break;
+      window.scrollBy(0, -60);
+    }
+  });
+  await page.waitForTimeout(200);
+  const rowTop = () => row.evaluate((r) => Math.round(r.getBoundingClientRect().top));
+  const y0 = await rowTop();
+  const scrolled = await page.evaluate(() => Math.round(scrollY));
+  await button.click();
+  const content = page.getByTestId("champion-preview-content");
+  await content.waitFor({ timeout: 15_000 }).catch(() => {});
+  // Loaded: the foot line comes with the answer (or the "could not be loaded" line in its place).
+  await page.waitForFunction(() => !document.querySelector("[data-testid=champion-preview-loading]"), null, { timeout: 15_000 }).catch(() => {});
+  const opponent = content.locator("[data-testid=champion-preview-opponent] > button").first();
+  if (await opponent.count()) {
+    await opponent.click();
+    await content.getByTestId("champion-preview-intel").waitFor({ timeout: 15_000 }).catch(() => {});
+  }
+  const at = await page.evaluate(readChampionPreview, i);
+  const yOpen = await rowTop();
+  // Escape from here first, for the position (the next row's step below opens it again).
+  await page.keyboard.press("Escape");
+  await page.getByTestId("champion-preview-content").waitFor({ state: "detached", timeout: 5_000 }).catch(() => {});
+  await page.waitForTimeout(200);
+  const kept = { scrolled, open: yOpen - y0, closed: (await rowTop()) - y0 };
+  await button.click();
+  await content.waitFor({ timeout: 15_000 }).catch(() => {});
+  // ↓ from the row: the next row's preview, the address replaced (the list keeps the keys while the focus is in it).
+  let step = null;
+  if (rows.length > 1) {
+    const before = await page.evaluate(() => ({ url: location.href, length: history.length }));
+    await button.focus();
+    await page.keyboard.press("ArrowDown");
+    const next = (i + 1) % rows.length;
+    const moved = await page
+      .waitForFunction((n) => {
+        const row = document.querySelectorAll("[data-testid=top-champion]")[n];
+        const c = document.querySelector("[data-testid=champion-preview-content]");
+        return !!row && !!c && c.getAttribute("data-champion") === row.getAttribute("data-champion") && c.getAttribute("data-role") === row.getAttribute("data-role");
+      }, next, { timeout: 10_000 })
+      .then(() => true, () => false);
+    const after = await page.evaluate((n) => {
+      const row = document.querySelectorAll("[data-testid=top-champion]")[n];
+      const q = new URLSearchParams(location.search);
+      return { url: location.href, length: history.length, address: q.get("champion") === row?.getAttribute("data-champion") && q.get("crole") === row?.getAttribute("data-role") };
+    }, next);
+    step = { next: moved, address: after.address && after.url !== before.url, replaced: after.length === before.length };
+  }
+  await page.keyboard.press("Escape");
+  const closed = await content.waitFor({ state: "detached", timeout: 5_000 }).then(() => true, () => false);
+  const escaped = { closed, address: await page.waitForFunction(() => !new URLSearchParams(location.search).has("champion"), null, { timeout: 5_000 }).then(() => true, () => false) };
+  for (const v of championPreviewVerdicts({ kind, at, step, escaped, kept })) check("all-champions", v.name, v.status, v.detail);
 }
 
 /**
@@ -1679,6 +1811,28 @@ async function matchHistory(page, log, kind, playerId) {
   await noteProfileTabs(page, kind, "matches");
   if (!(await card.waitFor({ timeout: 20_000 }).then(() => true, () => false))) return warn("games", `${kind}: Match History lists no games`, path);
   if (kind === "desktop") {
+    // The 12px floor reaches the game cards (Release 11): no running text under 12px on the first cards.
+    const small = await page.evaluate(() => {
+      const found = [];
+      for (const c of [...document.querySelectorAll("[data-testid=match-card]")].slice(0, 5)) {
+        const walk = document.createTreeWalker(c, NodeFilter.SHOW_TEXT);
+        while (walk.nextNode()) {
+          const el = walk.currentNode.parentElement;
+          if (!walk.currentNode.textContent.trim() || el.getBoundingClientRect().width < 2 || el.closest("[aria-hidden=true], .sr-only")) continue;
+          const st = getComputedStyle(el);
+          if (parseFloat(st.fontSize) < 11.95 && st.textTransform !== "uppercase") found.push(st.fontSize);
+        }
+      }
+      return found;
+    });
+    pass("games", "1440: the game cards' running text is 12px or more (the 12px floor)", small.length === 0, { under12: small.length });
+  } else {
+    // Touch screens: a card's LP mark is no button (no target under 44px on a card); the opened game has its tip.
+    await page.waitForTimeout(800);
+    const lp = await page.evaluate(() => ({ marks: document.querySelectorAll("[data-testid=match-card] [data-testid=match-lp]").length, tips: document.querySelectorAll("[data-testid=match-card-grid] [data-testid=match-lp-tip]").length }));
+    pass("games", `${kind}: a game card's LP mark is no button on a touch screen (the opened game holds its tip)`, lp.tips === 0, lp);
+  }
+  if (kind === "desktop") {
     // A wide card's figures never run under the next column (the build, or the teams where the
     // list has no room for the build): how far each total or share ends before it, in px (negative is clear).
     const overruns = await page.evaluate(() =>
@@ -1766,6 +1920,13 @@ async function matchHistory(page, log, kind, playerId) {
           return Math.round(end - top);
         });
         pass("games", `${kind}: the card and its open game fit one screen (${fit}px of ${page.viewportSize().height})`, fit <= page.viewportSize().height, fit);
+        // The post-game view's content (PLAN §6 rows 5.2–5.8; scripts/post-game-facts.mjs), from the game
+        // already open: no interaction of its own, the notes once its timeline has loaded.
+        await guarded("games", `${kind}: the open game's post-game view`, async () => {
+          await page.waitForFunction(() => document.querySelector("li[data-expanded] [data-testid=post-game-notes]"), null, { timeout: 30_000 }).catch(() => {});
+          const at = await page.evaluate(readPostGame);
+          for (const v of postGameVerdicts({ kind, at, rules: noteRules() })) check("games", v.name, v.status, v.detail);
+        });
       }
       const next = open.getByTestId("game-header-next");
       if (await next.isEnabled()) {
@@ -1912,6 +2073,7 @@ for (const [kind, options] of Object.entries(VIEWPORTS)) {
         if (await visit(page, log, kind, "matchup-intel", "/resources/matchups?champion=Riven&vs=Mordekaiser", { fullPage: false })) {
           await matchupIntelFacts(page, kind, wiki);
           await axe(page, kind, "matchup-intel");
+          await guarded("matchup-intel", `${kind}: the five roles`, () => matchupRolesFacts(page, kind));
         }
       } finally {
         page.off("request", onRequest);

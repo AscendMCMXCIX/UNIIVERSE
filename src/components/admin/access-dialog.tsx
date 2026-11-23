@@ -91,7 +91,9 @@ export function AccessDialog({ account, presets, lineupRole = null, onClose }: {
         </>
       }
     >
-      <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]" data-testid="access-dialog">
+      {/* One column on a phone that never grows past the sheet: a 1fr track grows to the base-access
+          select's widest option, which ran the sheet 70px sideways at 320px with 200% text. */}
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-5 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]" data-testid="access-dialog">
         <div className="space-y-4">
           {account.playerId ? (
             <section aria-labelledby={`team-${account.userId}`} className="space-y-1.5 rounded-panel border border-border bg-surface-2 p-3" data-testid="team-membership">

@@ -58,10 +58,12 @@ export function ConfirmDialog({ open, onCancel, onConfirm, title, description, c
       description={description}
       footer={
         <>
-          <Button variant="ghost" onClick={onCancel} disabled={busy}>
+          {/* A long action ("Sign out everywhere") wraps on a phone rather than run past the screen's
+              edge: at 320px with 200% text it began 44px off the left. */}
+          <Button variant="ghost" onClick={onCancel} disabled={busy} wrap className="max-w-full">
             Cancel
           </Button>
-          <Button variant={tone === "danger" ? "danger" : "primary"} onClick={onConfirm} disabled={busy} data-testid="confirm-dialog-confirm">
+          <Button variant={tone === "danger" ? "danger" : "primary"} onClick={onConfirm} disabled={busy} wrap className="max-w-full" data-testid="confirm-dialog-confirm">
             {busy ? "Working…" : confirmLabel}
           </Button>
         </>

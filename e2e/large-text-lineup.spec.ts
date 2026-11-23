@@ -373,3 +373,28 @@ test("a member's own card, with Customise beside the turn control, at 150% to 20
     await admin.close();
   }
 });
+
+test("the lineup pager on a 320 × 568 phone: every target 44px or more at 100% to 200% text, and the usual size's layout unchanged (§6 row 1.2h)", async ({ page }, info) => {
+  test.skip(info.project.name !== "phone", "a 320px phone, set below");
+  await page.setViewportSize({ width: 320, height: 568 });
+  // The members' pager (pictures and names) and the public page's (the roles).
+  for (const path of ["/team", "/public"]) {
+    await page.goto(path);
+    const pager = page.getByTestId("lineup-pager");
+    await expect(pager).toBeVisible();
+    for (const root of [100, 125, 150, 175, 200]) {
+      await page.evaluate((r) => { document.documentElement.style.fontSize = `${r}%`; }, root);
+      await settled(page);
+      const m = await pager.evaluate((p) => ({ pager: p.getBoundingClientRect().width, dots: Array.from(p.querySelectorAll("[data-testid=lineup-dot]")).map((d) => { const r = d.getBoundingClientRect(); return { width: r.width, height: r.height }; }) }));
+      expect(m.dots, `${path} at ${root}%: five targets`).toHaveLength(5);
+      // 46px wide at 200% (41px when the gap and padding were in rem).
+      for (const [i, d] of m.dots.entries()) expect(Math.min(d.width, d.height), `${path} at ${root}%: target ${i + 1}`).toBeGreaterThanOrEqual(45);
+      // The usual size keeps its layout: the pager 288px wide, each target 52px.
+      if (root === 100) {
+        expect(m.pager, `${path} at 100%: the pager's width`).toBeCloseTo(288, 0);
+        for (const d of m.dots) expect(d.width, `${path} at 100%: a target's width`).toBeCloseTo(52, 0);
+      }
+    }
+    await page.evaluate(() => { document.documentElement.style.fontSize = ""; });
+  }
+});

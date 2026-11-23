@@ -1,9 +1,11 @@
+import { Fragment } from "react";
 import { TierLabel } from "./evidence-panel";
 import { EqualNot, History, Timer, TriangleAlert } from "lucide-react";
 import { Fold } from "@/components/ui/fold";
 import { ChangedBadge } from "./changed-badge";
 import type { AbilityView, ChampionChoice, ChampionIntelView, CooldownDisplay, FactView, Slot } from "@/domain/matchup-intel/types";
 import { abilityChips, factsFrom } from "@/domain/matchup-intel/kit";
+import { cooldownFrom } from "@/domain/matchup-intel/cooldown";
 import { patchFromVersion, publicPatchName } from "@/domain/patch";
 import { Badge } from "@/components/ui/badge";
 import { HasteLine } from "./haste-line";
@@ -24,6 +26,7 @@ import {
   RIOT_TEXT_KIND_WORDS,
   RIOT_TEXT_LABEL,
   SLOT_NAMES,
+  SOURCES_FOLD_WORDS,
   alsoDescribedWords,
   abilityAnchor,
   changedAbilitiesWords,
@@ -44,6 +47,7 @@ import {
   recastWords,
   revisionWords,
   riotTextReviewedWords,
+  riotChangedLead,
   riotTextSourceWords,
   subjectWords,
 } from "./wording";
@@ -133,7 +137,8 @@ function CooldownLine({ cooldown, isStatic, testId, label, lineTestId, source }:
       {source ? (
         <>
           <span aria-hidden className="text-2xs text-fg-subtle">{" · "}</span>
-          <span className="text-2xs text-fg-subtle" data-testid="ability-cooldown-source">
+          {/* Kept whole ("Not reviewed" never split over two lines): it wraps as one piece after the value. */}
+          <span className="inline-block text-2xs text-fg-subtle" data-testid="ability-cooldown-source">
             {source}
           </span>
         </>
@@ -298,6 +303,7 @@ function AbilityTile({ intel, ability: a, checkedPatch, dataPatch, notRecheckedF
   const champion = intel.champion;
   const flagged = a.freshness === "changed-since";
   const source = cooldownSourceWords(a.cooldown, { freshness: a.freshness, checkedPatch, dataPatch, notRecheckedFor });
+  const ownSource = source === commonSource ? null : source;
   const chips = abilityChips(a);
   // The checked notes' modifiers and recast in one short line; once Riot's data moved, they go with the flagged notes in the window.
   const notes = flagged ? [] : [...modifierWords(a.modifiers), ...(a.recast ? [recastWords(a.recast)] : [])];
@@ -306,11 +312,13 @@ function AbilityTile({ intel, ability: a, checkedPatch, dataPatch, notRecheckedF
   return (
     // A chip's jump lands here and gives the tile the focus until it moves on (jumpToAnchor,
     // ui/section-index.tsx); the tile is lit while it holds it.
+    // On a desktop the tiles are 4px shorter (lg:py-1): five of them give the 1440 × 900 fit ~20px of
+    // margin, which CI's browser (Chrome 156, which wraps a cooldown's note a line earlier than 153) needs.
     // The icon beside everything from a tile 16rem wide; in a narrower one (a phone at a large text
     // size) a smaller copy starts the key's line instead and the words take the tile's whole width,
     // so a column beside the icon never squeezes them to a few letters a line (the hidden copy is
     // display: none, and a lazy image out of the layout is never fetched).
-    <li id={abilityAnchor(champion.id, a.slot)} className="grid scroll-mt-4 grid-cols-1 items-start gap-x-2.5 px-2 py-1.5 transition-colors focus:bg-accent/5 focus-visible:-outline-offset-2 @min-[16rem]/abilities:grid-cols-[2.5rem_minmax(0,1fr)] @min-[16rem]/abilities:px-3" data-testid="ability-row" data-slot={a.slot} data-freshness={a.freshness ?? undefined}>
+    <li id={abilityAnchor(champion.id, a.slot)} className="grid scroll-mt-4 grid-cols-1 items-start gap-x-2.5 px-2 py-1.5 transition-colors lg:py-1 focus:bg-accent/5 focus-visible:-outline-offset-2 @min-[16rem]/abilities:grid-cols-[2.5rem_minmax(0,1fr)] @min-[16rem]/abilities:px-3" data-testid="ability-row" data-slot={a.slot} data-freshness={a.freshness ?? undefined}>
       <span className="hidden @min-[16rem]/abilities:block">
         <AbilityIcon src={a.icon} slot={a.slot} />
       </span>
@@ -325,25 +333,45 @@ function AbilityTile({ intel, ability: a, checkedPatch, dataPatch, notRecheckedF
           <h3 className="min-w-0 text-sm font-semibold leading-snug text-fg [overflow-wrap:anywhere]" data-testid="ability-name">
             {a.name}
           </h3>
-          {flagged ? (
-            <ChangedBadge />
-          ) : null}
+
           <span className="flex min-w-0 basis-full items-center justify-between gap-2 @min-[24rem]/abilities:ml-auto @min-[24rem]/abilities:basis-auto @min-[24rem]/abilities:justify-end">
             {/* The notes' static modifier belongs to their line only: once Riot's data moved, it goes with the flagged notes. */}
-            <CooldownLine cooldown={a.cooldown} isStatic={!flagged && a.modifiers?.static === true} testId="ability-cooldown-value" lineTestId="ability-cooldown" source={source === commonSource ? null : source} />
+            <CooldownLine cooldown={a.cooldown} isStatic={!flagged && a.modifiers?.static === true} testId="ability-cooldown-value" lineTestId="ability-cooldown" source={flagged ? null : ownSource} />
             <DetailsDialog label="Details" name={`${a.name}, ${SLOT_NAMES[a.slot]}`} title={a.name} description={`${champion.name} · ${SLOT_NAMES[a.slot]}`} testId="ability-details" bodyTestId="ability-details-body" iconOnly>
               <AbilityDetailsBody champion={champion} ability={a} intel={intel} source={source} checkedPatch={checkedPatch} />
             </DetailsDialog>
           </span>
+          {/* Once Riot changed the ability, where its line now comes from, under the numbers: after them it
+              took the numbers off the name's row onto two of their own. */}
+          {flagged && ownSource ? (
+            <p className="basis-full text-2xs leading-snug text-fg-subtle @min-[24rem]/abilities:text-right" data-testid="ability-cooldown-source">
+              {ownSource}
+            </p>
+          ) : null}
           {/* At the haste chosen in the bar (none at 0): a line of its own, so the base line never moves. */}
           <HasteLine basis={a.haste} />
         </div>
+        {/* Once Riot changed the ability: its badge first under the name's row, before the facts it flags,
+            leading their row (a row of its own where there are none); beside the name it pushed the cooldown
+            to a row of its own. The flagged notes themselves are in the Details window, one step away
+            (Release 10: on the tile they put the Production check's pair past the 1440 × 900 and
+            1280 × 800 fits with an enemy ability changed; docs/MATCHUP_INTEL.md). */}
+        {flagged && !chips.length ? (
+          <span className="flex" data-testid="ability-changed-badge">
+            <ChangedBadge />
+          </span>
+        ) : null}
         {chips.length ? (
           // Rows of chips with no gap between them: each chip is its badge's own box (fact-chip.tsx), so
           // they touch and never overlap, a chip that wraps included; on a touch screen far enough
           // apart that no chip's 44px area covers another (CHIP_ROWS), and 12px under the key's line,
           // so none covers the Details button there.
           <ul className={cn("flex flex-wrap pointer-coarse:mt-3", CHIP_ROWS)} aria-label={`What ${a.name} does`} data-testid="ability-facts" data-from={from}>
+            {flagged ? (
+              <li className="flex items-center" role="presentation" data-testid="ability-changed-badge">
+                <ChangedBadge />
+              </li>
+            ) : null}
             {chips.map((c, i) => (
               <li key={`${c.layer}-${c.layer === "checked" ? c.word : c.layer === "riot-text" ? c.kind : "differ"}-${i}`} data-tags={c.layer === "checked" ? (c.tags.length ? c.tags.join(" ") : undefined) : c.layer === "riot-text" ? c.kind : undefined} data-differ={c.layer === "riot-text-differ" ? `${c.disagreement.description.kind} ${c.disagreement.tooltip.kind}` : undefined}>
                 <FactChipView chip={c} champion={champion.name} ability={a.name} />
@@ -370,7 +398,7 @@ function AbilityTile({ intel, ability: a, checkedPatch, dataPatch, notRecheckedF
             {notes.join(" · ")}
           </p>
         ) : null}
-        {flagged ? <p className="text-xs font-medium text-warn">{flaggedNotesWords(checkedPatch, a.changes)}</p> : null}
+
       </div>
     </li>
   );
@@ -421,15 +449,24 @@ export function AbilityList({ intel, testId }: { intel: ChampionIntelView; testI
  * Where most of a champion's cooldown lines come from, said once in its panel's heading ("Riot's
  * data, not reviewed", "Checked on patch 26.22"): the words every line with a number shares. A tile
  * whose line comes from elsewhere (Riot's newer data once it moved after the check, a line with no
- * number that nobody reviewed) says its own under its numbers. Null when the lines with a number
- * disagree, or none has one: then each tile says its own.
+ * number that nobody reviewed) says its own under its numbers. A curated champion's heading dates its
+ * checked notes, so their words are common to its lines while most lines with a number have them:
+ * once Riot changed one ability after the check, that tile says its own ("Riot's data for patch …,
+ * not re-checked", beside its badge) and the others keep leaving the heading's words out, rather than
+ * every tile repeating them (each repeat a line, which put the Production check's pair's sources'
+ * summary under the fold at 1440 × 900). Otherwise null when the lines with a number disagree, or
+ * none has one: then each tile says its own.
  */
 export function commonSourceOf(intel: ChampionIntelView): string | null {
   const checkedPatch = intel.curated?.verified.patch ?? null;
   const dataPatch = publicPatchOf(intel.dataVersion);
   const notRecheckedFor = intel.curated?.recheck?.patch ?? null;
-  const words = (intel.abilities ?? []).filter((a) => cooldownLines(a.cooldown).some((l) => l.known)).map((a) => cooldownSourceWords(a.cooldown, { freshness: a.freshness, checkedPatch, dataPatch, notRecheckedFor }));
-  return words.length && words.every((w) => w !== null && w === words[0]) ? words[0]! : null;
+  const lines = (intel.abilities ?? []).filter((a) => cooldownLines(a.cooldown).some((l) => l.known));
+  const words = lines.map((a) => cooldownSourceWords(a.cooldown, { freshness: a.freshness, checkedPatch, dataPatch, notRecheckedFor }));
+  if (words.length && words.every((w) => w !== null && w === words[0])) return words[0]!;
+  if (!intel.curated) return null;
+  const checked = lines.map((a, i) => (cooldownFrom(a.cooldown) === "curated" ? words[i] : null)).filter((w): w is string => w !== null);
+  return checked.length * 2 > words.length && checked.every((w) => w === checked[0]) ? checked[0]! : null;
 }
 
 /**
@@ -444,21 +481,34 @@ export function CuratedLine({ intel }: { intel: ChampionIntelView }) {
   const changed = (intel.abilities ?? []).filter((a) => a.freshness === "changed-since").length;
   const warnings = [...(changed > 0 ? [changedAbilitiesWords(changed)] : f.warning ? [f.warning] : []), ...(recheck?.expired ? [expiredNotesWords(recheck.patches)] : [])];
   return (
-    <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-0.5" data-testid="matchup-curated-checked">
+    // In the flow of the words before it (not a box of its own): the line starts where the source
+    // line's words end and wraps as words do, each badge kept whole after a space (which a wrapped
+    // line drops, so a badge starting one is not indented), so the folded champion's summary
+    // and a panel's heading take a row less (a box wrapped whole to a line of its own, and put its
+    // first badge on another).
+    <span data-testid="matchup-curated-checked">
       <span>Curated notes: {f.checked.charAt(0).toLowerCase() + f.checked.slice(1)}</span>
       {recheck && !recheck.expired ? (
-        <span className="inline-flex max-w-full" data-testid="matchup-not-rechecked">
-          <Badge tone="neutral" size="line">
-            <History className="h-3.5 w-3.5 shrink-0" aria-hidden />
-            {notRecheckedWords(recheck.patch)}
-          </Badge>
-        </span>
+        <>
+          {" "}
+          <span className="inline-flex max-w-full align-top" data-testid="matchup-not-rechecked">
+            <Badge tone="neutral" size="line">
+              <History className="h-3.5 w-3.5 shrink-0" aria-hidden />
+              {notRecheckedWords(recheck.patch)}
+            </Badge>
+          </span>
+        </>
       ) : null}
       {warnings.map((w) => (
-        <Badge key={w} tone="warn" size="line">
-          <TriangleAlert className="h-3.5 w-3.5 shrink-0" aria-hidden />
-          {w}
-        </Badge>
+        <Fragment key={w}>
+          {" "}
+          <span className="inline-flex max-w-full align-top">
+            <Badge tone="warn" size="line">
+              <TriangleAlert className="h-3.5 w-3.5 shrink-0" aria-hidden />
+              {w}
+            </Badge>
+          </span>
+        </Fragment>
       ))}
     </span>
   );
@@ -478,9 +528,34 @@ export function FactsSourceLine({ intel }: { intel: ChampionIntelView }) {
   return <span data-testid="matchup-no-facts">{noFactsWords(intel.champion.name)}</span>;
 }
 
+/**
+ * "Riot changed this on 26.24": the champion's Data Dragon record (base stats, or an ability's
+ * cooldowns, ranks, charges or text) differs on the newest recorded patch from the one before. Quiet,
+ * small type on the row it qualifies; nothing without a change.
+ */
+export function RiotChangedLabel({ patch, after = false }: { patch: string | null | undefined; /** Continuing the "Riot's data" tier label: "changed on 26.24". */ after?: boolean }) {
+  if (!patch) return null;
+  return (
+    // Inline words, not a box: they wrap as the line's other words do rather than move to a line of their own.
+    <span className="text-2xs font-normal text-fg-subtle" data-testid="riot-changed">
+      {/* "on 26.24" kept together: the patch never alone on a line. */}
+      {riotChangedLead(after)} <span className="whitespace-nowrap">on {patch}</span>
+    </span>
+  );
+}
+
 /** Where a champion's abilities come from, as a label after a "·": "Riot Data Dragon 16.22.1", or "Offline copy of …"; null without a version. */
 export function dataSourceOf(intel: Pick<ChampionIntelView, "dataVersion" | "offlineCopy">): string | null {
   return intel.dataVersion ? dataSourceWords(intel.dataVersion, intel.offlineCopy, true) : null;
+}
+
+/**
+ * Whether a champion's sources line may go one step away, into a fold (the bot lane's kits side by
+ * side): not where it carries a warning a reader needs in view, the checked notes' line (not
+ * re-checked, changed since, too old) or an offline copy's words.
+ */
+export function sourcesFold(intel: ChampionIntelView): boolean {
+  return factsFrom(intel) !== "checked" && !intel.offlineCopy;
 }
 
 /**
@@ -488,9 +563,40 @@ export function dataSourceOf(intel: Pick<ChampionIntelView, "dataVersion" | "off
  * without ability haste, where they come from, and where the facts come from. `notice`: a line
  * above the tiles (the ability data being older than the game's patch).
  */
-export function AbilitiesPanel({ intel, title, testId, notice, haste = false }: { intel: ChampionIntelView; title: string; testId: string; notice?: React.ReactNode; haste?: boolean }) {
+export function AbilitiesPanel({ intel, title, testId, notice, haste = false, foldSources = false }: { intel: ChampionIntelView; title: string; testId: string; notice?: React.ReactNode; haste?: boolean; /** The bot lane's two kits side by side: where the facts come from one step away (sourcesFold). */ foldSources?: boolean }) {
   const from = dataSourceOf(intel);
   const common = commonSourceOf(intel);
+  const changed = !!intel.riotChangedOn && !intel.offlineCopy;
+  const fold = foldSources && sourcesFold(intel);
+  // Where the abilities come from (the bar names the version too), and the cooldown lines, once for
+  // them all (a curated champion's are its checked notes', which the next words date).
+  const rest = (
+    <>
+      {from && !changed ? `${from} · ` : null}
+      {common && !intel.curated ? (
+        <>
+          <span data-testid="abilities-cooldown-source">{cooldownsFromWords(common)}</span>
+          {" · "}
+        </>
+      ) : null}
+      <FactsSourceLine intel={intel} />
+    </>
+  );
+  // `folded`: the summary of the sources' fold, the base line inside it, the tier kept whole (at 320px
+  // with 200% text "Riot's / data" split over two lines beside "Sources").
+  const lead = (folded: boolean) => (
+    <>
+      <TierLabel className={cn(changed ? undefined : "mr-1.5", folded && "whitespace-nowrap")}>Riot&apos;s data</TierLabel>
+      {changed ? (
+        <>
+          {" "}
+          <RiotChangedLabel patch={intel.riotChangedOn} after />
+          {" · "}
+        </>
+      ) : null}
+      {haste && !folded ? "Base cooldowns, without ability haste · " : null}
+    </>
+  );
   return (
     <Panel className="overflow-hidden" data-testid={testId} data-champion={intel.champion.id}>
       <header className="space-y-0.5 border-b border-border px-3 py-1.5">
@@ -501,25 +607,49 @@ export function AbilitiesPanel({ intel, title, testId, notice, haste = false }: 
               one choice for the page); the base line's words then start the source line. */}
           {haste ? <HasteControl /> : <p className="text-xs text-fg-muted">Base cooldowns, without ability haste</p>}
         </div>
-        <p className="text-xs text-fg-muted" data-testid="abilities-source">
+        <p className={cn("text-xs text-fg-muted", fold && "@min-[60rem]/dash:hidden")} data-testid="abilities-source">
           {/* Riot's data, the tier of the abilities' names, icons and base cooldowns, first on the line that
               says where they come from (a curated champion's facts say "Checked notes" at its end and on
               each fact). Beside the title it put the haste control on a row of its own at 1440 × 900, 26px
               that, with production's "Not re-checked", the sources' summary could not spare (Production
-              check, 20 Nov 2026). */}
-          <TierLabel className="mr-1.5">Riot&apos;s data</TierLabel>
-          {haste ? "Base cooldowns, without ability haste · " : null}
-          {/* Where the abilities come from (the bar names the version too), and the cooldown lines, once for
-              them all (a curated champion's are its checked notes', which the next words date). */}
-          {from ? `${from} · ` : null}
-          {common && !intel.curated ? (
-            <>
-              <span data-testid="abilities-cooldown-source">{cooldownsFromWords(common)}</span>
-              {" · "}
-            </>
-          ) : null}
-          <FactsSourceLine intel={intel} />
+              check, 20 Nov 2026). The version, unless Riot changed this champion on the newest patch: then
+              the words after the tier say so ("Riot's data changed on 26.24"), as the bar names the version
+              too. Beside the version, or on the title's row, the label wrapped a line at 1440 × 900
+              (16–20px), which put the sources' summary under the fold with production's "Not re-checked".
+              An offline copy keeps its words. */}
+          {lead(false)}
+          {rest}
         </p>
+        {fold ? (
+          // In the bot lane on a desktop the two enemies' kits stand side by side, each a third of the page
+          // wide: their sources there took five or six lines each, which put the cooldown lines under the
+          // fold at 1280 × 800 and the sources' summary at 1440 × 900 (20 Nov 2026). The tier stays in view;
+          // where the abilities and their facts come from is one step away, in this fold. In one column
+          // (a phone, a tablet) nothing needs the room, and the line above stays in view instead.
+          <Fold
+            variant="inline"
+            tone="muted"
+            className="hidden @min-[60rem]/dash:block"
+            testId={`${testId}-sources`}
+            summaryClassName="pointer-fine:min-h-6 [&>[data-fold-chevron]]:order-last"
+            bodyClassName="mt-0.5 pointer-coarse:mt-4"
+            summary={
+              // Its name says whose sources these are: the two kits' folds stand side by side.
+              <span className="min-w-0" data-testid="abilities-source-lead">
+                {lead(true)}
+                <span className="sr-only"> · </span>
+                {SOURCES_FOLD_WORDS}
+                <span className="sr-only">{` for ${title}`}</span>
+              </span>
+            }
+          >
+            <p className="text-xs text-fg-muted" data-testid="abilities-source-folded">
+              {/* The first kit's base line, its title's row holding the haste: the second kit's title row says it in view. */}
+              {haste ? "Base cooldowns, without ability haste · " : null}
+              {rest}
+            </p>
+          </Fold>
+        ) : null}
       </header>
       {notice}
       <AbilityList intel={intel} testId={`${testId}-list`} />
@@ -534,9 +664,40 @@ export function AbilitiesPanel({ intel, title, testId, notice, haste = false }: 
  * data, not reviewed"; a curated champion's are its notes', which their line dates), so its tiles
  * leave it out as theirs do.
  */
-export function YourChampion({ intel, label = "Your champion", testId = "matchup-your-abilities" }: { intel: ChampionIntelView; label?: string; testId?: string }) {
+export function YourChampion({ intel, label = "Your champion", testId = "matchup-your-abilities", foldSources = false }: { intel: ChampionIntelView; label?: string; testId?: string; /** The bot lane's duo, two folds side by side: the sources line inside the fold, over the tiles (sourcesFold). */ foldSources?: boolean }) {
   const from = dataSourceOf(intel);
   const common = commonSourceOf(intel);
+  const changed = !!intel.riotChangedOn && !intel.offlineCopy;
+  const inside = foldSources && sourcesFold(intel);
+  // Where the abilities come from: in the summary, or (the bot lane's duo) inside the fold, over the
+  // tiles, where its five lines in each of two folds side by side pushed the sources' summary under
+  // the fold at 1440 × 900 (20 Nov 2026). "Riot's data changed on 26.24" stays in the summary.
+  // Inside the fold "Riot's data changed on 26.24" is said once, in the summary.
+  const source = (withChanged: boolean) => (
+    <>
+      {/* As on the enemy's panel: "Riot's data changed on 26.24" in place of the version, which the bar
+          names too. Beside the title it grew the summary by a line or two on phones (R11b review). */}
+      Abilities and base cooldowns
+      {changed && !withChanged ? null : changed ? (
+        <>
+          {" · Riot's data "}
+          <RiotChangedLabel patch={intel.riotChangedOn} after />
+        </>
+      ) : from ? (
+        ` · ${from}`
+      ) : (
+        ""
+      )}
+      {common && !intel.curated ? (
+        <>
+          {" · "}
+          <span data-testid="your-cooldown-source">{cooldownsFromWords(common)}</span>
+        </>
+      ) : null}
+      {" · "}
+      <FactsSourceLine intel={intel} />
+    </>
+  );
   return (
     // A section with a heading of its own, so its abilities' headings sit under it: the summary's
     // words are not read as a heading everywhere, so the heading is for screen readers alone.
@@ -554,22 +715,27 @@ export function YourChampion({ intel, label = "Your champion", testId = "matchup
         summary={
           <span className="min-w-0">
             <span className="block text-sm font-semibold text-fg [overflow-wrap:anywhere]">{`${label}: ${intel.champion.name}`}</span>
-            <span className="block text-xs text-fg-muted">
-              Abilities and base cooldowns{from ? ` · ${from}` : ""}
-              {common && !intel.curated ? (
-                <>
-                  {" · "}
-                  <span data-testid="your-cooldown-source">{cooldownsFromWords(common)}</span>
-                </>
-              ) : null}
-              {" · "}
-              <FactsSourceLine intel={intel} />
+            {/* In the bot lane on a desktop (inside) the line moves into the fold, over the tiles, and only
+                "Riot's data changed on 26.24" stays here; in one column it stays here, as nothing needs the room. */}
+            <span className={cn("block text-xs text-fg-muted", inside && "@min-[60rem]/dash:hidden")} data-testid="your-abilities-source">
+              {source(true)}
             </span>
+            {inside && changed ? (
+              <span className="hidden text-xs text-fg-muted @min-[60rem]/dash:block">
+                {"Riot's data "}
+                <RiotChangedLabel patch={intel.riotChangedOn} after />
+              </span>
+            ) : null}
           </span>
         }
       >
         {/* On a touch screen 4px more under the summary, so the first tile's Details button, whose 44px
             area reaches 10px past it, covers none of the summary. */}
+        {inside ? (
+          <p className="hidden border-b border-border px-3 py-1.5 text-xs text-fg-muted @min-[60rem]/dash:block" data-testid="your-abilities-source-inside">
+            {source(false)}
+          </p>
+        ) : null}
         <AbilityList intel={intel} testId={`${testId}-list`} />
       </Fold>
     </section>

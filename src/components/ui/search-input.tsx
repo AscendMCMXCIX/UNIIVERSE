@@ -19,7 +19,8 @@ export function SearchInput({ value, onChange, label, placeholder, className, te
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         aria-label={label}
-        className="h-11 w-full text-ellipsis rounded-md border border-border-control bg-bg-elevated pl-9 pr-9 text-base text-fg placeholder:text-fg-subtle hover:border-fg-subtle focus:border-accent focus:outline-none md:pointer-fine:text-sm md:pointer-fine:h-9 [&::-webkit-search-cancel-button]:hidden"
+        // The clear button's room only once there is something to clear: an empty narrow field shows more of its placeholder.
+        className={cn("h-11 w-full text-ellipsis rounded-md border border-border-control bg-bg-elevated pl-9 text-base text-fg placeholder:text-fg-subtle hover:border-fg-subtle focus:border-accent focus:outline-none md:pointer-fine:text-sm md:pointer-fine:h-9 [&::-webkit-search-cancel-button]:hidden", value ? "pr-9" : "pr-3")}
         data-testid={testId}
         {...props}
       />

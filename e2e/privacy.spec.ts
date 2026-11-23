@@ -87,7 +87,17 @@ test("carries the approved wording on permanent removal and backups, and its ind
   for (const link of await index.all()) {
     const target = (await link.getAttribute("href"))!;
     await expect(page.locator(target)).toHaveCount(1);
+    // Every entry keeps one line in the sticky column (G3-15: "Cookies and your browser" wrapped in 12rem, crowding its neighbours).
+    expect((await link.boundingBox())!.height, `${target}: one line`).toBeLessThanOrEqual(34);
   }
+  // The look of the card (G3-7, G3-14): the contact panel is a neutral lead surface, not a blue box, and the radii nest (card 16 ⊃ panel 12, the stored list 12).
+  const looks = await page.evaluate(() => {
+    const contact = document.getElementById("contact")!;
+    const card = contact.closest(".rounded-card")!;
+    const css = (n: Element) => getComputedStyle(n);
+    return { contactBorder: css(contact).borderTopColor, border: css(document.querySelector("[data-testid=privacy-stored]")!).borderTopColor, contactRadius: css(contact).borderTopLeftRadius, cardRadius: card ? css(card).borderTopLeftRadius : null, storedRadius: css(document.querySelector("[data-testid=privacy-stored]")!).borderTopLeftRadius };
+  });
+  expect(looks).toEqual({ contactBorder: looks.border, border: looks.border, contactRadius: "12px", cardRadius: "16px", storedRadius: "12px" });
   await page.getByTestId("privacy-index").getByRole("link", { name: "Backups" }).click();
   await expect(page).toHaveURL(/#backups$/);
   await expect(page.getByRole("heading", { name: "Backups", level: 2 })).toBeInViewport();

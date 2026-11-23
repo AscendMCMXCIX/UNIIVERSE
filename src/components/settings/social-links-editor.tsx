@@ -123,7 +123,7 @@ export function SocialLinksEditor({ initial, preview = false, titled = true }: {
     <form onSubmit={save} className="space-y-3" data-testid="social-links-form">
       <div>
         {titled ? <p className="text-sm font-medium text-fg">Social links</p> : null}
-        <p className={titled ? "mt-0.5 text-xs text-fg-subtle" : "text-xs text-fg-subtle"}>{SOCIAL_LINKS_HELP}</p>
+        <p className={titled ? "mt-0.5 text-xs text-fg-subtle" : "text-xs text-fg-subtle"} data-testid="social-links-help">{SOCIAL_LINKS_HELP}</p>
       </div>
       <SocialLinksFields draft={draft} onChange={set} disabled={preview} />
       {error ? (

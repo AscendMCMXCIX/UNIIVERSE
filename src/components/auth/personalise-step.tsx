@@ -89,15 +89,15 @@ export function PersonaliseStep({ card, champions, customised, social = null, pr
                 <p className="text-xs text-fg-subtle">Preview: on the real page this opens the Player Card Studio for their own card. Nothing is saved here.</p>
               </>
             ) : (
-              <CustomiseCardButton variant="outline" className="min-h-11 px-3 text-sm" playerId={card.playerId} name={card.name} avatarUrl={card.avatarUrl} art={card.art} accent="default" look={card.look} champions={champions} poolIds={card.poolIds} preview={data} />
+              <CustomiseCardButton variant="button" playerId={card.playerId} name={card.name} avatarUrl={card.avatarUrl} art={card.art} accent="default" look={card.look} champions={champions} poolIds={card.poolIds} preview={data} />
             )}
           </section>
 
           <section aria-labelledby="personalise-social" className="space-y-2">
-            <h2 id="personalise-social" className="sr-only">
+            <h2 id="personalise-social" className="text-base font-semibold">
               Social links
             </h2>
-            <SocialLinksEditor initial={social} preview={preview} />
+            <SocialLinksEditor initial={social} preview={preview} titled={false} />
           </section>
 
           {/* Done shares Back's line while it keeps 2.5rem (150% text on a 320px phone); with larger text (200%) it takes a line of its own rather than run past the card. */}

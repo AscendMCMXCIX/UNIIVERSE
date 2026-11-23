@@ -112,8 +112,9 @@ On a desktop the page is one screen, read in a glance (`matchup-content.tsx`, `m
 - **Right**, the enemy's five ability tiles, P, Q, W, E and R, always in that order (The ability
   tiles), then your champion, folded into one line ("Your champion: Riven", where its abilities and
   facts come from under it); opened, its own five tiles.
-- **At the foot**, across both columns, "Sources and notices": one line that is always on the
-  screen, its summary visible, the rest one press away (Compliance).
+- **"Sources and notices"**: directly under the enemy's kits (since Release 10; before, at the foot
+  across both columns), in one column as in two, so the order read and tabbed through is the order
+  seen; one line that is always on the screen, its summary visible, the rest one press away (Compliance).
 
 The two columns start where the page's body is 60rem wide (a container query on the dashboard; the
 right one at least 22rem and 0.72 of the left), each as tall as its content: nothing is stretched to
@@ -599,11 +600,64 @@ facts from Riot's text, so `RIOT_TEXT_FACTS_ENABLED` (still false) governs none 
 
 ### The bot lane's page
 
-Both enemies' kits side by side (from a dashboard 60rem wide), each with its cooldowns; your duo's
-two kits folded side by side under them; Riot's tips for all four; and "No curated notes for this
-2v2" in the evidence line. Measured on the demo (Jinx and Lulu vs Caitlyn and Lux, the sidebar open):
-no page scroll at 1920 × 950 and 1920 × 1080; 293px under the fold at 1440 × 900, with the bar, both
-kits and the start of the main panel on the screen.
+Both enemies' kits side by side (from a dashboard 60rem wide), each with its cooldowns, in the
+wider column; your duo's two kits folded side by side under the main column; Riot's tips for all
+four under the kits (with Release 10, the sources and notices between them); and "No curated notes for this 2v2" in the evidence line.
+
+**The one-screen fit (Release 11, 20 Nov 2026).** With the facts from Riot's text on (the state the
+tests read, and production's once OD1 switches the layer on) a 2v2 had scrolled 101–129px at 1920 ×
+950, put the sources' summary under the fold at 1440 × 900 and cooldown lines under it at 1280 × 800;
+with the layer off it fitted. Layout only, every word kept, one step away where it moved (DESIGN_SYSTEM §1):
+
+- the assembled reference's two sides (Danger, Opportunity) side by side from 28rem in the bot lane
+  (from 40rem in a solo lane): the main column is about 31rem wide at 1440 × 900 and the longer side
+  sets the height (`SIDES` in `assembled.tsx`);
+- the kit column the wider, `0.85fr : 1.15fr` of the two from 70rem, `0.75fr : 1.25fr` under it
+  (1280 × 800 with the sidebar open), so the first kit's haste row keeps one line (`COLUMNS.duo` in
+  `matchup-content.tsx`);
+- each enemy kit's line of where its abilities, cooldowns and facts come from in a fold beside its
+  tier, "Riot's data · Sources" (the first kit's "Base cooldowns, without ability haste" in it, the
+  second kit's title row saying it in view). Not where the line carries a warning: a champion with
+  checked notes (not re-checked, changed since, too old) or an offline copy keeps it in view
+  (`sourcesFold` in `ability-list.tsx`). Only on a desktop (the dashboard 60rem wide, two columns): in
+  one column (a phone, a tablet) nothing needs the room, and the line stays in view. The fold's name
+  says whose sources they are ("Riot's data · Sources for Kalista's abilities"), the two side by side;
+- your duo's two folds say where their abilities come from inside the fold, over the tiles ("Riot's
+  data changed on 26.24" stays in the summary; on a desktop only, as above), and sit under the main column, which is the shorter
+  one in every lineup measured; on a phone they follow the notes, after the glance's enemy cooldowns.
+
+Measured on the demo (Chromium 153 and Chrome Headless Shell 156 gave the same figures; 100% zoom,
+the sidebar open), 10 lineups per role, the facts from Riot's text on. "Before" is lane R11b's tree;
+"after" is this change, first alone (the sources' footer still at the page's foot), then with
+Release 10 merged, which puts the sources and notices directly under the enemies' kits:
+
+| Size | What must hold | Before (worst of 20) | After, alone | After, with Release 10 |
+|---|---|---|---|---|
+| 1920 × 1080 | no page scroll | none | none | none |
+| 1920 × 950 | no page scroll | 128px of scroll | none (the sources' summary ≥ 84px above the fold) | none (the page's end ≥ 122px above the fold) |
+| 1440 × 900 | both enemies' tiles and the sources' summary on the screen | the summary 184px under the fold | on the screen, 30px to spare | on the screen, 85px to spare |
+| 1280 × 800 | every cooldown line of both enemies on the screen | 67px under the fold | on the screen, 88px to spare | on the screen, 88px to spare |
+
+With the layer off every size holds with at least 215px to spare (with Release 10). The test is "the bot lane fits too"
+in `e2e/matchup-intel-dashboard.spec.ts` (`DUO_FIT`: 10 lineups per role, the first two of each role
+in CI, each with the layer on and off); on the layout before the change it fails at 1920 × 950, 1440 × 900 and 1280 × 800.
+
+### The header's details (design review of 20 Nov 2026, G2)
+
+Six fixes from the design review's side-by-side screenshots, every word kept, held by the dashboard
+spec's "the header's details hold" on all three projects:
+
+- the haste field 64px wide on a touch screen (56px with a mouse), so its 16px "Other" placeholder is
+  whole (G2-1: "Othe");
+- an empty slot 18px narrower in gap and padding from sm, so "Choose your champion" keeps one line at
+  1440 × 900 and its label sits level with the enemy's (G2-4);
+- the slots' words at the slot's foot on a phone, where "Your champion" wraps, so the two names share
+  a line and "champion" sits level with "Enemy"; from sm at its top, where a name may wrap (a
+  tablet's empty slot), so the labels stay level (G2-5);
+- the chosen lane and haste marked as the shared segment marks a choice (`ui/segmented.tsx`): fill,
+  an inset accent ring and semibold, the others medium, not colour alone (G2-10);
+- a cooldown's source ("Not reviewed") kept whole, never split over two lines (G2-12);
+- the remembered line in small type on a phone too, as the patch line above it (G2-13).
 
 ### Cooldowns at a haste
 
@@ -628,7 +682,43 @@ notes mark none as static (their two static marks are lockouts between casts, sa
 one open (Death's Grasp, base only), and the rule is applied to the other 23: the notes record
 nothing that contradicts it, which is not the same as having checked each hasted value. Summoner
 spells are never shortened by ability haste ("Summoner spell haste is a separate stat";
-`summonerSpellCooldown`). **Never a timer, a countdown or "ready at"**: only the cooldown's length
+`summonerSpellCooldown`). **Where the page names a summoner spell** (the evidence's "Summoner
+spells" line, "Flash + Ignite in 6 of 9 games"), each named spell's base cooldown follows from Riot's
+data, as the static sync stored it (`riot_build_data.spellCooldowns`): "Base cooldowns in Riot's
+data: Flash 300 s, Ignite 180 s", and "Summoner spell haste is a separate stat" once in the panel
+(`spellCooldownWords`, `evidence-panel.tsx`). The haste choice never changes it (the panel reads no
+haste; `evidence-panel.test.ts` renders it at 0, 20, 40, 60 and 300). A spell Riot's data gives no
+cooldown for says so; before the static sync has stored any
+cooldown, nothing is said. A spell Data Dragon gives charges (Smite: `maxammo` 2) never shows its
+array, which is the wait between two casts (as on the ability tiles): "Smite: 2 charges, its recharge
+not in Riot's data" (rules format 3 keeps it apart, `spellCharges`; data stored under format 2 says
+nothing until the next version check reads it again). A key the stored copy has no number for says
+"no cooldown in the stored Riot data".
+
+### What it means
+
+Each curated briefing row (the threat, the opportunity, each lane point) whose abilities include
+the enemy's has one line of numbers only (`meansLine`, `haste.ts`; `MeansLine`, `haste-line.tsx`),
+behind an ⓘ in the row's heading: "What the threat means" and "What the opportunity means" beside
+their labels, and the lane points' together beside "In lane" ("What the lane points mean", each
+enemy ability once). The shared InfoTip: a tap on a touch screen, hover or focus elsewhere; a screen
+reader reads the line as the ⓘ's description. Shown as a line of its own under each row it made the
+overview 24px taller at 1440 × 900 and 147px over on Ambessa vs Renekton a patch after the check, and
+after each row's chips still 19px a row there (both measured in Chrome 156), which the one-screen fit
+cannot spare; in the headings it takes no height. The line is
+the cooldown per rank of each enemy ability the row rests on (its `basedOn`), at the haste chosen in
+the bar, by the cooldown table's own rule, and which case that is. "What it means: Renekton's W
+cooldown 16 / 14 / 12 / 10 / 8 s at 0 haste (base)"; at 20 haste "13.33 / 11.67 / 10 / 8.33 / 6.67 s at
+20 haste (Riot's general rule)"; "(static per the checked notes: haste doesn't
+shorten it)" and "(whether haste shortens it isn't known)" give the base; R adds "ability haste
+only". No rank is chosen for the reader (every rank is listed), no start of the cooldown is assumed
+("after it is used" is not said: the notes state a start for few abilities), and never a timer or
+"ready at". A row that names no enemy ability (only your own champion's) has none, nor one whose
+numbers do not allow it: no number, charges' recharge or a passive's own cooldown (how haste applies
+is not in Riot's data), or a champion with two forms in the slot. Its words are held to
+`REFUSED_WORDS` with no estimate word (`means.test.ts`, every case at 0 to 300 haste). It is a fact
+about the enemy's numbers, never a verdict: the plan's "After E, Darius has no pull for 21 s" was not
+built, as "no pull" would be a claim about the kit that the numbers alone do not hold. **Never a timer, a countdown or "ready at"**: only the cooldown's length
 (game integrity; the browser spec checks the words are absent). `curated.test.ts` checks that every
 "whether ability haste shortens …" line in a note has its ability's `hasteUnknown` flag, and no other
 ability has one. `haste.test.ts` holds every ability of the 173 to the rule at four haste values.
@@ -661,13 +751,18 @@ numbers). A tip of more than 600 characters would be left out whole, never cut (
 
 ### Evidence
 
-The tips' fold ends with "Runes, items and skill order: No high-elo evidence (not collected)", and in
-the bot lane "No curated notes for this 2v2". No build, rune page or skill order is suggested
-anywhere: what the page counts from the team's own games follows (S7b).
+The tips' fold ends with what the page does not have, said as such (PLAN §4): "Runes, items and skill
+order: No high-elo evidence (not collected)"; "Power spikes: Not measured yet" (measured spikes wait
+for the high-elo statistics, OD4, and any explanation of one for the owner's curation, OD6); "No wave
+guidance for this matchup" (Riot's match records hold no wave state, so wave guidance has no honest
+source); and in the bot lane "No curated notes for this 2v2". Each line is held to both word lists
+(`evidence-words.test.ts`), and the browser test pins that the power spikes and wave lines show
+there and nowhere else on the page. No build, rune page or skill order is suggested anywhere: what
+the page counts from the team's own games follows (S7b).
 
 ### Static data for the build evidence
 
-`compactBuildData` (`src/server/riot/static/assets.ts`, rules format 2: names stored under format 1
+`compactBuildData` (`src/server/riot/static/assets.ts`, rules format 3 since R11a, which keeps summoner spells with charges apart; 2 before: names stored under an older format
 are read again on the next run, which stores this too) keeps, from the `item.json`, `summoner.json`
 and `runesReforged.json` the version-check already downloads: each Summoner's Rift item's gold,
 tags, `from`/`into`, depth and the ability haste its `<stats>` name; each summoner spell's base
@@ -775,7 +870,9 @@ and finds none.
   its game's rows again (`refreshMatchPrep`), never failing what stored it.
 - **`prep-backfill`**, a setup (repair) job: the Owner's from Admin ("BACKFILL"), or the session's
   through Data jobs with `CRON_SECRET`. It inserts the rows still missing, at most 1,000 games a run,
-  newest first; insert only, so a second run inserts nothing and a stopped run keeps what it did. No
+  newest first, and makes again the rows whose starting items still count items sold in the first
+  minute (`STALE_START` in prep-store.ts); nothing else is replaced, so a second run writes nothing
+  and a stopped run keeps what it did. No
   Riot request; counts only (`before`, `read`, `inserted`, `withTimeline`, `unnamed`, `remaining`).
   About 5 KB of database egress a game, 5 MB a full run (docs/HOSTING_USAGE.md).
 - **`static_digests`** (migration 0067), the per-version diff: version-check records, once a patch,
@@ -784,6 +881,39 @@ and finds none.
   item.json, runesReforged.json; nothing from Riot's API). Validated before keeping (a file naming no
   champion, item or rune keeps nothing); a failed attempt is retried at most once a day; the first
   copy of a patch stays. Until two patches are recorded, every line counts the current patch only.
+- **"Riot changed this on 26.24"** (Release 11, PLAN S7b; `riot-changes.ts`, `riotChangesOf` in
+  `digests.ts`): a champion whose digest differs between the two newest patches recorded says so on
+  its panel's "Riot's data" line, "Riot's data changed on 26.24", in place of the Data Dragon version
+  (the bar names it too; beside the version, or on the title's row with the haste control, the words
+  wrapped a line at 1440 × 900, 16–20px, which put the sources' summary under the fold with
+  production's "Not re-checked"), and the same on the folded champion's line ("Abilities and base
+  cooldowns · Riot's data changed on 26.24", in place of its version: beside its title it grew the
+  summary by one or two lines on phones, the patch alone on one at 390 wide and 200% text); "on 26.24"
+  is kept on one line;
+  an evidence line whose values name a changed item or rune ends with "· Riot changed this on 26.24".
+  The digest is the champion's, not an ability's, so the label is on the champion, never on one
+  tile. Nothing with fewer than two patches recorded, nor unless the two newest recorded are the
+  game's current patch and the one before it (digests missed for either would date a change to the
+  wrong patch), and a key recorded at one patch only is never a change. An item's or rune's digest is
+  its whole Data Dragon entry, so a change Riot made to its data that is not to its stats, gold or
+  text (an item another one now builds into) also reads as changed: "Riot changed this" is true of
+  Riot's data, and the label does not say it changed in play. The patch list is cached with the evidence (cleared when a patch's digests are
+  recorded); the named keys are one query. The evidence lines' item and rune keys are read on the
+  server and removed before the page. Browser tests: the cookie `uniiverse-test-riot-changed`
+  ("champion:Riven,item:1055", at most twenty; `riotChangesForTest` in `notes-age.ts`, the in-memory
+  demo only, never with `VERCEL` or `DATABASE_URL`) reads as changed on the current patch; the
+  changed-ability fit test and the phone first-screen test run with it (0px added at 1440 × 900; the
+  phone's first screen holds as without). Unit tests: `riot-changes.test.ts`.
+- **Validation before publishing the static data** (Release 11, PLAN S7b; `staticProblems` in
+  `src/server/riot/static/assets.ts`): the item, summoner and rune files of a version are kept only
+  when each names something, every id an item builds from or into is in that version's item.json and
+  every Rift item has a name, and every ability haste figure in a Rift item's stats parses. On a
+  failure the last good copy stays (names and build data), the attempt is recorded in `app_settings`
+  `riot_assets_attempt` (version, reason, first and latest time, counts), version-check's run is
+  degraded with the reason in counts, and `/api/health` lists it (`staticData`, docs/MONITORING.md).
+  Riot's own files pass: 0 dangling ids and 0 unreadable haste figures at 15.10.1, 15.24.1, 16.20.1,
+  16.22.1 and 16.23.1. The `prep` totals' check named in the plan is not part of this (the evidence
+  rows are made from stored records, `prep.ts`).
 
 ### Not built in S7b
 
@@ -793,13 +923,33 @@ screen (the glance, "On a phone"); the starting set leaves out an item sold in t
 the timeline keeps sales. Still not built:
 
 - **Lane occupancy** (mi-evidence §2.1, test 4) is not stored: the confirmed-opponent rule uses the
-  three position tests, and a game whose readings disagree is "role unclear".
+  three position tests, and a game whose readings disagree is "role unclear". Looked at again in
+  Release 11 and still not built, because it cannot be measured honestly from what is stored: the
+  test reads the frames from 2:00 to the lane end, and the lane end (`laneEnd`) is itself the first
+  time either player is out of the lane's region for two frames, so occupancy up to it is close to
+  100% by construction; and the regions (`regionOf`) are fixed bands, not calibrated from where
+  `teamPosition` players stand at minutes 3–8 as the test requires. Building it needs a lane end that
+  does not rest on the same regions, and calibrated regions.
 - **The jungle's lane end** (the first contested epic objective): the stored events cannot tell it.
-- **Admin for the diff:** `/api/health` lists the digests' counts (`digests`, docs/MONITORING.md);
-  Admin's data health does not yet. It should show the same figures from `digestHealth`
-  (`digests.ts`): the newest patch recorded with its champion, item and rune counts, the patch it was
-  compared with, and how many of each changed ("26.23 against 26.22: 4 champions, 11 items, 0 runes
-  changed"), plus a failed attempt's mark when the newest patch has no digests (Admin stage R8c).
+- **The first back's timing and CS** (PLAN §6 row 3.9k, "S7b's measured back timing and CS"): not
+  built, because the stored rows do not hold them. `prep.back` keeps the items of the first shop
+  visit after the first minute, not when it happened, and no row keeps a CS count at any time; so
+  there is nothing to count, and no estimate is shown in its place (Release 11 checked, 20 Nov
+  2026). The stored timelines keep each purchase's time and the CS total at each one-minute frame, so
+  building it needs `PREP_FORMAT` 2 with the visit's time and the CS at the frame before it (said as
+  "CS at the minute before", up to 59 s earlier), and a backfill to make the rows again.
+- **Admin for the diff:** `/api/health` lists the digests' counts (`digests`, docs/MONITORING.md),
+  and since Release 10 Admin's data health does too (Data & Integrations → Details → Data health,
+  the card "Riot's static data between patches", `StaticDiffCard` in
+  `src/components/admin/static-diff.tsx`, from `staticDiffHealth` in `digests.ts`): the newest patch
+  recorded with its champion, item and rune counts ("26.22 recorded: 172 champions, 1,204 items,
+  63 runes."), what changed against the patch before it ("26.23 against 26.22: 4 champions,
+  11 items, 0 runes changed."), or "No earlier patch recorded to compare with.", or "No patch
+  recorded yet."; and a newer patch whose attempt failed and has no digests yet ("⚠ The attempt to
+  record 26.24 failed; it is tried again after a day."). Counts and patch names only, every number
+  through `formatCount`. Tests: `static-diff.test.ts` (each state's words) and
+  `tests/db/health-route.test.ts` (the figures from the table in each state). A failing query leaves
+  the card out, never the page.
 - **Items sold in the first minute** on a timeline kept before 20 Nov 2026 stay in the starting set:
   those timelines keep no sales, so the sale is not known (newer ones keep them, and the item is left
   out; `startingSet` in `prep.ts`). Whether Riot reports a support item's quest upgrade as a purchase (which would show in the first shop visit) is
@@ -848,8 +998,28 @@ the timeline keeps sales. Still not built:
     44px clear button with a mouse too, which hands the focus back to the field, and Escape that
     clears before it closes;
   - with nothing typed, the champions chosen lately on that side (Recent);
+  - **Your pool** (R11a, 20 Nov 2026), in your own slot's picker only: your player profile's
+    champion pool for the page's lane, in its own order (`viewerPool`,
+    `src/server/matchup-intel/picker.ts`), so a member's pair is one tap from the open picker. Never
+    in the enemy's, your duo partner's or their enemy's picker, and never anyone else's pool: an
+    account with no player profile (production's verification account) has no such row, and
+    nothing is said about whose pools hold what;
   - for the enemy, the curated matchups that exist for your champion;
-  - then the whole roster (`ChampionGrid` without its own toolbar).
+  - then the whole roster (`ChampionGrid` without its own toolbar), with **a role filter** (All ·
+    Top · Jungle · Mid · Bottom · Support, the shared `RoleFilterBar`, 44px on touch screens). The
+    app holds no catalogue of champions' roles, so the filter never guesses one: it narrows the
+    roster to the champions Riot recorded in that position in the team's stored Summoner's Rift
+    games (`account_champion_history`, the rows All Champions shows by role, from Riot's
+    `teamPosition`; `recordedRoles`, cached for ten minutes), counting the team's members now only,
+    as the evidence's "team's games" do (never a personal-use profile, an archived player or a
+    scouting account; the demo's rows come from its players' pools, so there the lists are short), and says so under the title ("The champions Riot recorded as Jungle in the
+    team's stored games. The search finds every champion."). It counts teammates' games, so it is
+    offered only to an account that may see teammates' statistics (`view-teammate-stats`), and it
+    names champions only, never who played them or how often. It is the picker's own state, All
+    when the window opens: the page's lane stays in the address as before;
+  - a portrait that cannot load, or is not known (the offline fixture), shows the champion's
+    initials on a lettered tile ("LS" Lee Sin, "NW" Nunu & Willump, "AH" Ahri: `championInitials`,
+    `src/components/champion-portrait.tsx`), named for screen readers by the champion's name.
 
   Enter takes the first match. Escape clears the search, then closes the window. A choice goes into
   the address at once (`router.push`; `router.replace` where the browser has no Navigation API): the slots show it while the page under them dims until the
@@ -946,7 +1116,8 @@ the timeline keeps sales. Still not built:
   - the data held is older than the check: a difference is the data's age, not Riot's change, so
     this too is said only as "Checked on patch N", and the notes stay the line;
   - something compared changed after the check: "changed since". The ability's line is then only
-    what Riot's data supports (Cooldowns, below), and its notes follow under "Notes from patch
+    what Riot's data supports (Cooldowns, below), the tile carries the badge "Changed since the
+    check", and its notes follow in the ability's Details window (since Release 10) under "Notes from patch
     26.22 · may be out of date: Riot changed its cooldown since", their cooldown as checked
     included ("As checked: 16 / 14 / 12 / 10 / 8 s · starts when the effect ends"). The champion's
     line says how many changed ("Riot changed one ability after the check: its notes are
@@ -1136,7 +1307,7 @@ trailing space).
 **Where they show**: as chips on the tiles, one per kind, whose tip quotes the clause and which text
 it is ("Riot's tooltip for Apprehend"); in the assembled reference's groups; in the ability's Details
 window ("Facts from Riot's ability text", with the label, when they were reviewed and each kind's
-clause); in the panel's heading ("From Riot's ability text, reviewed automatically (not by a person)
+clause); in the panel's heading (in the bot lane's two kits side by side, its Sources fold; "From Riot's ability text, reviewed automatically (not by a person)
 · Reviewed against Riot's text of patch 26.22, on 19 Nov 2026"); and in the sources and notices, with
 the process from the review record. What the review recorded with a fact shows with it, in fixed and
 tested words (The ability tiles, above): its qualifier on its chip ("Stun · “Mega Gnar”", "Cooldown
@@ -1169,6 +1340,25 @@ a record that says a person checked it, and the page's reader leaves such a file
 claims more, or less, than was done (For the owner, step 11).
 
 ## Curated notes
+
+**Role coverage, plainly:** checked notes exist for top lane only (the six champions with checked
+notes and the three curated pairs are all top lane). Jungle, Mid, ADC and Support have Riot's data,
+Riot's tips, the facts from Riot's text (off until the owner's registration text) and the members'
+own games, but nothing a person checked.
+
+**What to curate next (Admin only, Release 10).** Admin → Data & Integrations → Details → Data
+health holds a read-only card, "Matchup Intel: what to curate next" (`curationPriorities` in
+`src/server/matchup-intel/curation.ts`, `src/components/admin/curation-priorities.tsx`), for the
+owner's choice of what to curate (PLAN OD6): per role, Jungle, Mid, ADC and Support first and Top
+last, the champions in the team members' pools for that role, ranked by the members' stored games
+on that champion in that role, each marked when it already has checked notes or curated pairs.
+Champion names and counts only, never whose pool a cell came from; team members only (no
+personal-use or archived profile, as the evidence counts). It is shown to whoever may open Admin's
+data pages (`requirePageAccess("manage-data")`, no new permission). With a handful of profiles a
+role's cells can point at one person, so its figures are never written to a log, a job's output,
+`/api/health`, the Production check or these docs; a failing query leaves the card out and logs only
+that it failed. Tests: `tests/db/curation-priorities.test.ts` (the ranking, the exclusions, the
+names-only output, and the page refusing a member without Admin access).
 
 Riot's Data Dragon gives every champion's ability names, icons, ranks and base cooldown arrays. It
 does not say when a cooldown starts, what a recast needs, what crowd control an ability carries or
@@ -1487,6 +1677,60 @@ Matchup Intel page added to it would need `DDRAGON_VERSION` passed as well.
   same page, to the pixel, as the demo given Riot's 16.23.1 records. The dashboard spec holds the
   curated pairs and their reverse to the Production check's own fit facts in that state at 1440 ×
   900, and to the essentials at 1280 × 800 and no page scroll at 1920 × 1080 and 1920 × 950.
+- **An ability changed since the check, on the pinned demo.** With the notes' age, a test that sets
+  the cookie `uniiverse-test-changed-abilities` to up to ten abilities ("Riven.Q,Mordekaiser.E";
+  `changedAbilities`, `e2e/matchup-intel.ts`) sees those abilities as changed by Riot after the
+  curated check: the notes' record of Riot's cooldown array for each reads as one Riot no longer has,
+  so the page shows Riot's own stored line for the ability and the curated cooldown as checked,
+  flagged, both as they are (nothing made up), and the briefing's points on it hidden and said. Read
+  only on the in-memory demo, with no `DATABASE_URL` and not on Vercel (`demoTestHooksAllowed`,
+  `notes-age.ts`, which bounds the age's cookie the same way since Release 10; a unit test refuses
+  each production-like setting). The dashboard spec holds the Production check's pair (Riven vs
+  Mordekaiser) with each of Riven's abilities changed to the check's two fit facts at 1440 × 900
+  (judged as when nothing is hidden: the check itself does not judge the fit in that state), every
+  enemy cooldown line on the screen at 1280 × 800 and no page scroll at 1920 × 1080; it failed before
+  Release 10's layout (the sources' summary at 907px with Riven's Q or E changed). Release 10 made
+  room without changing a word: a curated champion's tiles leave out the heading's "Checked on patch
+  …" while most of its lines have it (every tile repeated it once one line differed); the curated
+  notes' line flows on from the words before it, each badge whole (the folded champion's summary a
+  row shorter in every state); a changed ability keeps its cooldown on the name's row, its source
+  under it, and its "Changed since the check" badge on the row of the notes it qualifies, first
+  under the name's row, before the facts they flag (seen and read before them); a hidden point's
+  chips follow its sentence, its icon stepping aside under 9rem as a point's does (so the chip keeps
+  whole at 320px and 200% text); each badge of the curated notes' line follows a space, which a
+  wrapped line drops, so a badge starting a line is not indented. The spec checks the last two at
+  320 × 568 and 200% text. Not changed: the badge's tap area on a touch screen (21px tall, as
+  before); a 44px area there would cover the chips under it, which the touch spec forbids. On a desktop each ability tile is 4px shorter (`lg:py-1`),
+  which gives the fit the margin CI's browser needs: Chrome Headless Shell 156 (CI and the Production
+  check) lays text out wider than the container's Chromium 153 and wraps a cooldown's note a line
+  earlier (Indestructible's, +16px). Measured on the demo (1440 × 900 summary, 1280 × 800 lowest enemy
+  cooldown line), before → after, Chromium 153 / Chrome 156 after: nothing changed 873 → 848 / 851,
+  761 → 725; Riven's Q or E changed 907 → 868 / 883 (17px to spare in 156); W or R 891 → 861 / 867.
+- **An enemy ability changed (Release 10's integration).** With one of the enemy's abilities changed,
+  its tile carries its "Changed since the check" badge, the panel's heading a warning and the briefing
+  a hidden point. Two layout changes (no word, notice or attribution removed) make the Production
+  check's fit facts hold in that state too:
+  - the flagged notes ("Notes from patch 26.21 · may be out of date: Riot changed its cooldown since",
+    the cooldown as checked and its parts) are in the ability's Details window only, one step away
+    (DESIGN_SYSTEM §1); the badge stays on the tile, leading the row of the facts it flags (a row of
+    its own where there are none), and the cooldown's source stays under its numbers. Same for the
+    player's own tiles;
+  - the sources and notices sit directly under the enemy's kits, so a desktop's first screen keeps
+    them whatever the left column holds (the briefing's hidden point and the interactions' "changed"
+    badge put them under the fold at 1440 × 900 before: no layout of the tile alone could make that
+    up); in one column in the same place, before your champion and Riot's tips (a visual reorder to
+    the page's foot took the keyboard's focus there and back up, which the review found).
+  Measured in Chrome Headless Shell 156 (CI's browser) on the demo, Riven vs Mordekaiser, before →
+  after: Mordekaiser's Q changed, the sources' summary at 1440 × 900 941 → 796px and the lowest enemy
+  cooldown line at 1280 × 800 829 → 790px; W 764 / 756; R 796 / 771; nothing changed 851 → 745px,
+  725px; Riven's Q 883 → 761px, 741px. `matchup-intel-dashboard.spec.ts` judges the 1440 × 900 and
+  1920 × 1080 facts and the 1280 × 800 cooldown lines for the enemy's ability as for the player's, and
+  opens the flagged ability's Details window for its notes; it failed before (941px, no badge on the tile).
+- **Too old (three patches).** The notes' age of three hides the briefing on purpose ("This briefing
+  is hidden: it was checked on patch 26.19, three patches ago, and not since"), and the assembled
+  reference stands in its place; the Production check does not judge the fit then. Measured at
+  1440 × 900: the tiles on the screen (683px), the sources' summary under the fold (941px Riven vs
+  Mordekaiser, 971 Ambessa vs Renekton, 1043 Gwen vs Ornn).
 - **Not covered by them.** The page on later patches beyond that (a
   briefing hidden for its age or for a change and said so above the assembled reference, a point
   hidden because Riot changed an ability, the bar's warning for it, an assembled side's flagged line
@@ -1829,7 +2073,7 @@ For later, each its own decision:
   the privacy notice (OD9).
 
 Decided on 20 Nov 2026 (S7a): **sharing a briefing** is delivered by the address and "Copy link"
-(Roles, above). **Favourite matchups** are not built: Recent and the remembered champion already
+(Roles, above). **Favourite matchups** are not built: Recent, Your pool and the remembered champion already
 return to a pair in one tap, and a third list would be a control for the same need (the directive,
 "no unnecessary controls").
 

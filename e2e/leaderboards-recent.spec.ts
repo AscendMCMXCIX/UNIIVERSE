@@ -544,6 +544,12 @@ test("the season records: seven cells in one panel, each opening its game; multi
     expect(n.inside, `${n.name}: inside its row`).toBe(true);
     expect(n.cut, `${n.name}: whole`).toBe(false);
   }
+  // Two cells side by side start level: each at its own top padding, the shorter not centred in the
+  // taller's row (the design review's G1-4: 18px lower).
+  const tops = await page.getByTestId("season-record").evaluateAll((rows) => rows.map((r) => [Math.round(r.closest("li")!.getBoundingClientRect().top), r.querySelector("[data-testid=record-label]")!.getBoundingClientRect().top - r.getBoundingClientRect().top]));
+  for (const [row, offset] of tops) for (const [other, o] of tops) if (row === other) expect(Math.abs(offset! - o!), "level with the cell beside it").toBeLessThanOrEqual(1);
+  // At 1440 each count column is as wide as its heading, so every member's name keeps one line (G1-10: one ran to two).
+  if (test.info().project.name === "desktop") expect(new Set(await page.getByTestId("multikill-row").evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().height)))).size, "the multikill rows one height").toBe(1);
   // The milestones' figures as format.ts shortens them (486K), the rest of a member's counted, what
   // counts behind each kind's ⓘ.
   await expect(page.getByTestId("milestones-mastery").getByTestId("milestone-figure").first()).toHaveText(/^\d+(\.\d)?[KM]$/);
@@ -584,6 +590,21 @@ test("the season records: seven cells in one panel, each opening its game; multi
   await expect(page).toHaveURL(/\/leaderboards$/);
   await expect(peek).toBeHidden();
   await expect(kills.locator("[data-row-link]")).toBeFocused();
+  // The shared list's row links: on a touch screen each covers its row's dividing line too, so none
+  // is under 44px (43 before: Release 7's report); with a mouse each is its row inside the line, as
+  // before, and the dense rows keep their 44px minimum (the rows' heights are not the links' to set).
+  const links = await page.locator("main [data-row-link]").evaluateAll((els) =>
+    els
+      .filter((e) => e.getBoundingClientRect().height > 0)
+      .map((e) => ({ link: e.getBoundingClientRect().height, inside: e.parentElement!.clientHeight, row: e.parentElement!.getBoundingClientRect().height, minimum: parseFloat(getComputedStyle(e.parentElement!).minHeight) || 0, testId: e.parentElement!.dataset.testid ?? "" })),
+  );
+  expect(links.length).toBeGreaterThan(10);
+  const touch = await page.evaluate(() => matchMedia("(pointer: coarse)").matches);
+  for (const l of links) {
+    if (touch) expect(Math.round(l.link), `${l.testId}: its link on a touch screen`).toBeGreaterThanOrEqual(44);
+    else expect(Math.round(l.link), `${l.testId}: a mouse's link is the row inside its line`).toBe(Math.round(l.inside));
+    if (l.testId === "multikill-row" || l.testId === "milestone-member") expect(l.minimum, `${l.testId}: the dense row's minimum`).toBe(44);
+  }
 });
 
 /** Where each board is on the page (document px), the grid's gap, Recent form's tier (its rows' columns: 4, 6 or 8), and the window. */

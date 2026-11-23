@@ -7,6 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Panel } from "@/components/ui/panel";
 import { cn } from "@/lib/cn";
 import { AbilityRefLink } from "./ability-ref-link";
+import { MeansLine } from "./haste-line";
+import type { MeansAbility } from "@/domain/matchup-intel/haste";
 import { PairLink } from "./matchup-frame";
 import { abilityAnchor, abilityName, expiredBriefingWords, freshnessWords, hiddenBriefingWords, hiddenPartWords, hiddenPointsWords, moreWords, notRecheckedWords } from "./wording";
 
@@ -39,12 +41,15 @@ export function abilityNames(refs: readonly AbilityRef[], names: ReadonlyMap<str
 /** Why a part is hidden, in its place: the words, and the changed abilities as chips to their tiles. */
 export function HiddenNote({ words, changed, names, rows, testId }: { words: string; changed: readonly AbilityRef[]; names: ReadonlyMap<string, string>; rows?: ReadonlySet<string>; testId: string }) {
   return (
-    <div className="space-y-1" data-testid={testId}>
-      <p className="flex items-start gap-1.5 text-sm text-fg-muted">
-        <History className="mt-0.5 h-4 w-4 shrink-0 text-warn" aria-hidden />
-        <span>{words}</span>
-      </p>
-      <AbilityChips refs={changed} names={names} rows={rows} label="Changed since the check" />
+    // The chips follow the words on their last line, as a point's chips do (a line of their own made
+    // the briefing a row taller, which the Production check's pair could not spare at 1440 × 900).
+    <div className="flex items-start gap-1.5 text-sm text-fg-muted" data-testid={testId}>
+      {/* Under 9rem (a 320px phone at twice the text size) the icon steps aside, as a point's does, so a chip keeps whole. */}
+      <History className="mt-0.5 h-4 w-4 shrink-0 text-warn @max-[9rem]/brief:hidden" aria-hidden />
+      <div className="min-w-0">
+        {words}
+        <AbilityChips refs={changed} names={names} rows={rows} label="Changed since the check" inline />
+      </div>
     </div>
   );
 }
@@ -84,7 +89,9 @@ export function AbilityChips({ refs, names, rows, label, inline = false }: { ref
   );
 }
 
-function Point({ kind, point, names, rows }: { kind: "threat" | "opportunity"; point: BriefingPointView; names: ReadonlyMap<string, string>; rows?: ReadonlySet<string> }) {
+type Means = Readonly<Partial<Record<AbilityRef, MeansAbility>>>;
+
+function Point({ kind, point, names, rows, means }: { kind: "threat" | "opportunity"; point: BriefingPointView; names: ReadonlyMap<string, string>; rows?: ReadonlySet<string>; means?: Means }) {
   const threat = kind === "threat";
   const Icon = threat ? TriangleAlert : Crosshair;
   return (
@@ -94,9 +101,11 @@ function Point({ kind, point, names, rows }: { kind: "threat" | "opportunity"; p
       <h3 className={cn("label-caps flex items-center gap-1.5 [overflow-wrap:anywhere]", threat ? "text-warn" : "text-good")}>
         <Icon className="h-4 w-4 shrink-0 @max-[9rem]/brief:hidden" aria-hidden />
         {threat ? "Threat" : "Opportunity"}
+        {point.kind === "point" ? <MeansLine refs={point.basedOn} means={means} label={threat ? "What the threat means" : "What the opportunity means"} /> : null}
       </h3>
       {point.kind === "point" ? (
-        <div className="mt-1 text-sm leading-snug text-fg">
+        // On a touch screen 12px under the heading, so its ⓘ's 44px area never covers a chip.
+        <div className="mt-1 text-sm leading-snug text-fg pointer-coarse:mt-3">
           <span>{point.text}</span>
           <AbilityChips refs={point.basedOn} names={names} rows={rows} label={threat ? "The threat rests on" : "The opportunity rests on"} inline />
         </div>
@@ -160,7 +169,11 @@ function LanePoint({ point, names, rows }: { point: Extract<BriefingPointView, {
 /** The tier of the curated notes (docs/MATCHUP_INTEL.md, "Evidence tiers"). */
 export const CHECKED_TIER = "Checked notes (AI reviewers)";
 
-export function Briefing({ matchup, you, enemy, rows }: { matchup: MatchupIntelView; you: ChampionChoice; enemy: ChampionChoice; rows?: ReadonlySet<string> }) {
+/**
+ * `means`: the enemy's abilities by their ref, for each row's "what it means" line (MeansLine); only
+ * the enemy's, so a row resting on your own champion's abilities alone has none.
+ */
+export function Briefing({ matchup, you, enemy, rows, means }: { matchup: MatchupIntelView; you: ChampionChoice; enemy: ChampionChoice; rows?: ReadonlySet<string>; means?: Means }) {
   const names = new Map([
     [you.id, you.name],
     [enemy.id, enemy.name],
@@ -230,17 +243,19 @@ export function Briefing({ matchup, you, enemy, rows }: { matchup: MatchupIntelV
           {/* Side by side from 34rem, each as wide as its words need against the other's (between 40%
               and 62% of the row), so the longer one is not left twice as tall. */}
           <div className="grid divide-y divide-border @min-[34rem]/brief:grid-cols-[minmax(0,var(--threat-share))_minmax(0,1fr)] @min-[34rem]/brief:divide-x @min-[34rem]/brief:divide-y-0" style={{ "--threat-share": `${threatShare(threat, opportunity)}%` } as React.CSSProperties}>
-            <Point kind="threat" point={threat} names={names} rows={rows} />
-            <Point kind="opportunity" point={opportunity} names={names} rows={rows} />
+            <Point kind="threat" point={threat} names={names} rows={rows} means={means} />
+            <Point kind="opportunity" point={opportunity} names={names} rows={rows} means={means} />
           </div>
           {lane.length ? (
             <section className="border-t border-border px-3 py-2.5 @max-[9rem]/brief:px-2" aria-labelledby="briefing-lane-title" data-testid="briefing-lane">
               <h3 id="briefing-lane-title" className="label-caps flex items-center gap-1.5 [overflow-wrap:anywhere]">
                 <Waypoints className="h-4 w-4 shrink-0 @max-[9rem]/brief:hidden" aria-hidden />
                 In lane
+                {/* The lane points' "what it means", in the heading (a row of its own would cost the one-screen fit): each enemy ability once. */}
+                <MeansLine refs={[...new Set(shownLane.flatMap((p) => p.basedOn))]} means={means} label="What the lane points mean" />
               </h3>
               {first.length ? (
-                <ul className="mt-1.5 grid gap-x-5 gap-y-2 @min-[34rem]/brief:grid-cols-2">
+                <ul className="mt-1.5 grid gap-x-5 gap-y-2 pointer-coarse:mt-3 @min-[34rem]/brief:grid-cols-2">
                   {first.map((p, i) => (
                     <LanePoint key={i} point={p} names={names} rows={rows} />
                   ))}

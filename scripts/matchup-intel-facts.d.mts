@@ -36,12 +36,16 @@ export interface MatchupIntelRead {
   slotCount: string | null;
   tipsLabel: string;
   highElo: string;
+  /** The plan's honest fallbacks beside it (PLAN §4): "Power spikes: Not measured yet · No wave guidance for this matchup". */
+  fallbacks: string;
   /** S7b: the evidence fold's tiers ("In your games (n = 9) · In the team's games (n = 23)"). */
   evidenceTiers: string;
   /** The tier beside the briefing's (or the assembled reference's) title. */
   briefingTier: string;
   /** The tier beside the enemy kit's title. */
   kitTier: string;
+  /** Each briefing row's "what it means" line (R11a); absent on reads made before it. */
+  means?: string[];
 }
 export function readMatchupIntel(): MatchupIntelRead;
 export function briefingState(f: MatchupIntelRead): "expired" | "hidden" | "parts hidden" | "shown";

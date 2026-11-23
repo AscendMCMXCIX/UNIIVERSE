@@ -118,6 +118,8 @@ test("one view without subtabs: the loadout names itself, each figure once, the 
   if (kda) expect(count(`${kda} KDA`), "KDA once").toBe(1);
   expect(count(`${share} of team`), "damage share once").toBe(1);
   expect(await breakdown.getByTestId("participant-kda").filter({ hasText: /KDA|%/ }).count(), "scoreboard rows carry no ratio or share").toBe(0);
+  // Every tile's caption whole ("18% of team" was cut six across in the 33rem column: the design review's G2-2).
+  expect(await tiles.locator(".truncate").evaluateAll((els) => els.filter((e) => e.scrollWidth > e.clientWidth + 0.5).map((e) => e.textContent)), "the figures' captions whole").toEqual([]);
   // The notes: at most two Went well, two Went wrong and one Focus next, or one honest line.
   const notes = breakdown.getByTestId("post-game-notes");
   expect(Number(await notes.getAttribute("data-well"))).toBeLessThanOrEqual(2);
@@ -129,6 +131,41 @@ test("one view without subtabs: the loadout names itself, each figure once, the 
   await expect(breakdown.getByTestId("post-game-lane")).toBeVisible();
   await expect(breakdown.getByTestId("participant")).toHaveCount(10);
   await fitsWidth(page, "post-game view");
+});
+
+test("an iPhone 12 (390 × 844, its insets told): the opened game's header is at most 112px with the inset, and the result, loadout, runes, figures, lane and three answers are on the first screen, the folds closed", async ({ page }, info) => {
+  test.skip(info.project.name !== "phone", "the phone's game window (S6c's acceptance)");
+  await page.setViewportSize({ width: 390, height: 844 });
+  // The status bar and the home indicator of an iPhone 12 in Safari's installed app (CSS px).
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Emulation.setSafeAreaInsetsOverride", { insets: { top: 47, topMax: 47, bottom: 34, bottomMax: 34, left: 0, leftMax: 0, right: 0, rightMax: 0 } });
+  await openHistory(page, "MID");
+  // The three newest games, one with a two-line lane (measured on main on the demo: the header 101px
+  // with the 47px inset, 54px without; the answers end 116–245px above the steps' bar).
+  let folds = 0;
+  for (let i = 0; i < 3; i++) {
+    const card = page.getByTestId("match-card").nth(i);
+    const breakdown = await openGame(card);
+    await expect(breakdown.getByTestId("post-game-notes")).toBeVisible({ timeout: 15_000 });
+    // The answers the game has (Went well, Went wrong, Focus next), or the one honest line.
+    expect((await breakdown.getByTestId("post-game-note").count()) + (await breakdown.getByTestId("notes-fallback").count()), `game ${i}: an answer`).toBeGreaterThan(0);
+    for (const fold of ["fold-gold", "fold-build"]) if (await breakdown.getByTestId(fold).count() && ++folds) expect(await breakdown.getByTestId(fold).evaluate((d) => (d as HTMLDetailsElement).open), `game ${i}: ${fold} closed`).toBe(false);
+    const f = await page.evaluate(() => {
+      const box = (id: string) => document.querySelector(`[data-testid=match-detail] [data-testid=${id}]`)?.getBoundingClientRect() ?? null;
+      const parts = Object.fromEntries(["match-result", "post-game-loadout", "rune-page", "post-game-figures", "post-game-lane", "post-game-notes"].map((id) => [id, box(id)?.bottom ?? null]));
+      // The first screen ends where the window's steps (Previous, Next) begin, or at the screen's foot.
+      return { header: box("match-detail-header")!.bottom, end: box("match-detail-nav")?.top ?? innerHeight, parts };
+    });
+    expect(f.header, `game ${i}: the header with the inset`).toBeLessThanOrEqual(112);
+    for (const [id, bottom] of Object.entries(f.parts)) {
+      expect(bottom, `game ${i}: ${id} shown`).not.toBeNull();
+      // 4px to spare: Chrome 156 (CI) lays text out wider than the container's Chromium.
+      expect(bottom!, `game ${i}: ${id} on the first screen`).toBeLessThanOrEqual(f.end - 4);
+    }
+    await closeGame(card);
+  }
+  // Every sixth demo game has no timeline, and so no folds: at least one of the three had them closed.
+  expect(folds, "folds checked").toBeGreaterThan(0);
 });
 
 test("a game without a timeline says so once, and its notes skip what the timeline would tell", async ({ page }) => {
@@ -167,6 +204,13 @@ test("Previous and Next keep the open game's header in place; Escape closes and 
   }
   // Switching replaced the one entry the opening added.
   expect(await page.evaluate(() => history.length)).toBe(length);
+  // Scrolled to the open game's end, its pinned strip leaves with it, never lying over the next card (G2-3).
+  const region = page.locator("li[data-expanded] [data-testid=match-expanded]");
+  await page.waitForTimeout(400);
+  await page.evaluate((y) => window.scrollTo(0, y), await region.evaluate((e) => e.getBoundingClientRect().bottom + window.scrollY - 60));
+  await expect(page.locator("li[data-expanded] [data-testid=match-unfold-header]")).toHaveAttribute("data-stuck", "true");
+  const [strip, end] = await Promise.all([page.locator("li[data-expanded] [data-testid=match-unfold-header]").boundingBox(), region.boundingBox()]);
+  expect(strip!.y + strip!.height, "the strip ends with its game").toBeLessThanOrEqual(end!.y + end!.height + 1);
   const last = new URL(page.url()).searchParams.get("match")!;
   await page.goBack();
   await expect(page.locator("li[data-expanded]")).toHaveCount(0);

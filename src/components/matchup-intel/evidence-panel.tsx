@@ -1,6 +1,8 @@
 import { Sigma } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { riotChangedLead } from "./wording";
 import type { MatchupEvidence, EvidenceSection } from "@/domain/matchup-intel/evidence";
+import { SUMMONER_SPELL_HASTE_WORDS } from "@/domain/matchup-intel/haste";
 
 /*
   MATCHUP INTEL's evidence from the team's own games (docs/MATCHUP_INTEL.md, "In your games"): in
@@ -8,11 +10,21 @@ import type { MatchupEvidence, EvidenceSection } from "@/domain/matchup-intel/ev
   ("In your games (n = 9) · In the team's games (n = 23)"); inside, each section's lines, every one
   counted from stored games with its sample ("4 of 9 games · patch 26.22 · Solo/Duo 3, Normal Draft
   6"), never a recommendation. A section with no counted line says why in one line. Then the
-  evidence the page does not have, said as such ("No high-elo evidence (not collected)").
+  evidence the page does not have, said as such ("No high-elo evidence (not collected)", "Power
+  spikes: Not measured yet", "No wave guidance for this matchup").
 */
 
 export const NO_HIGH_ELO = "No high-elo evidence (not collected)";
 export const NO_DUO_NOTES = "No curated notes for this 2v2";
+/**
+ * The briefing's items with nothing measured or written for them yet (the overhaul's PLAN §4), said
+ * as such beside the high-elo line, never left out or guessed: power spikes wait for the high-elo
+ * statistics (OD4; explanations for the owner's curation, OD6); wave guidance has no honest source,
+ * as Riot's match records hold no wave state (docs/MATCHUP_INTEL.md, "Evidence" in the S7a section).
+ */
+export const POWER_SPIKES_LABEL = "Power spikes:";
+export const NOT_MEASURED_YET = "Not measured yet";
+export const NO_WAVE_GUIDANCE = "No wave guidance for this matchup";
 export const UNCERTAIN = "Matchup uncertain: no curated notes and no counted games for this pair, so each champion's own facts follow";
 /** The pair has a curated briefing, hidden above (too old, or resting on a change): never "no curated notes". */
 export const UNCERTAIN_HIDDEN = "Matchup uncertain: this pair's curated briefing is hidden above and no games are counted, so each champion's own facts follow";
@@ -33,7 +45,13 @@ function summaryOf(s: EvidenceSection): string {
   return s.scope === "own" ? "In your games: no player profile" : "In the team's games: not part of this access";
 }
 
-function Section({ section }: { section: EvidenceSection }) {
+/** Where the panel says that summoner spell haste is a separate stat: after the first line with summoner spells' cooldowns, once. */
+export function hasteWordsAt(evidence: MatchupEvidence | null): string | null {
+  for (const s of evidence?.sections ?? []) for (const l of s.lines) if (l.cooldowns) return `${s.scope}:${l.key}`;
+  return null;
+}
+
+function Section({ section, hasteWordsAt }: { section: EvidenceSection; hasteWordsAt: string | null }) {
   return (
     <div className="space-y-0.5" data-testid={`evidence-${section.scope}`}>
       {/* With nothing counted, the one honest line names the scope itself. */}
@@ -52,7 +70,22 @@ function Section({ section }: { section: EvidenceSection }) {
                   </span>
                 </>
               ) : null}
+              {l.changedOn ? (
+                <>
+                  {" "}
+                  <span className="text-2xs text-fg-subtle" data-testid="riot-changed">
+                    · {riotChangedLead(false)} <span className="whitespace-nowrap">on {l.changedOn}</span>
+                  </span>
+                </>
+              ) : null}
               {l.note ? <span className="block text-2xs text-fg-subtle">{l.note}</span> : null}
+              {/* Riot's base cooldowns only: the haste choice never shortens a summoner spell. */}
+              {l.cooldowns ? (
+                <span className="block text-2xs text-fg-subtle" data-testid="evidence-spell-cooldowns">
+                  {l.cooldowns}
+                  {hasteWordsAt === `${section.scope}:${l.key}` ? `. ${SUMMONER_SPELL_HASTE_WORDS}.` : "."}
+                </span>
+              ) : null}
             </li>
           ))}
         </ul>
@@ -118,7 +151,7 @@ export function EvidenceBody({ evidence, duo, pair }: { evidence: MatchupEvidenc
           {pair.hidden ? UNCERTAIN_HIDDEN : UNCERTAIN}
         </p>
       ) : null}
-      {evidence?.sections.map((s) => <Section key={s.scope} section={s} />)}
+      {evidence?.sections.map((s) => <Section key={s.scope} section={s} hasteWordsAt={hasteWordsAt(evidence)} />)}
       {evidence?.ignored.length ? (
         <p className="text-2xs text-fg-subtle" data-testid="evidence-ignored">
           {`These counts ignore the empty ${evidence.ignored.length === 1 ? "slot" : "slots"}: ${evidence.ignored.join(", ")}.`}
@@ -128,6 +161,10 @@ export function EvidenceBody({ evidence, duo, pair }: { evidence: MatchupEvidenc
         <li data-testid="matchup-evidence-high-elo">
           <span className="font-medium text-fg">Runes, items and skill order:</span> {NO_HIGH_ELO}
         </li>
+        <li data-testid="matchup-evidence-power-spikes">
+          <span className="font-medium text-fg">{POWER_SPIKES_LABEL}</span> {NOT_MEASURED_YET}
+        </li>
+        <li data-testid="matchup-evidence-wave">{NO_WAVE_GUIDANCE}</li>
         {duo ? <li data-testid="matchup-evidence-duo">{NO_DUO_NOTES}</li> : null}
       </ul>
     </div>

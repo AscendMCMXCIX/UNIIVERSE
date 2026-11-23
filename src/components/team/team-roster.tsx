@@ -352,12 +352,14 @@ function LineupSheet({ slot, kind, pick, startsElsewhere, onClose }: { slot: Ros
             o.id,
             <>
               <Avatar name={o.name} src={o.avatarUrl} size="sm" />
-              <span className="min-w-0">
-                <span className="flex items-center gap-1.5">
-                  <span className="truncate text-sm font-medium text-fg">{o.name}</span>
+              {/* The name and its hint wrap where the row is narrow (a 320px phone at 200% text), never cut
+                  to nothing: truncated, "Demo Top" was 0px wide beside "Now". */}
+              <span className="min-w-0 grow">
+                <span className="flex flex-wrap items-center gap-x-1.5">
+                  <span className="min-w-0 text-sm font-medium text-fg [overflow-wrap:break-word]">{o.name}</span>
                   {o.id === current ? <Badge tone="accent">Now</Badge> : null}
                 </span>
-                <span className="block truncate text-xs text-fg-muted">{o.hint}</span>
+                <span className="block text-xs text-fg-muted [overflow-wrap:break-word]">{o.hint}</span>
                 {o.moves ? <span className="block text-xs text-warn">Starts at {o.moves} now: saving moves them and leaves {o.moves} empty</span> : null}
               </span>
             </>,
@@ -365,7 +367,7 @@ function LineupSheet({ slot, kind, pick, startsElsewhere, onClose }: { slot: Ros
             { name: o.name },
           ),
         )}
-        {none ? option(null, <span className="flex items-center gap-3 text-sm text-fg-muted"><span className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-dashed border-border-strong"><X className="h-4 w-4" aria-hidden /></span>{none}</span>, starter ? "clear-role" : "remove-substitute") : null}
+        {none ? option(null, <span className="flex min-w-0 items-center gap-3 text-sm text-fg-muted"><span className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-dashed border-border-strong"><X className="h-4 w-4" aria-hidden /></span><span className="min-w-0 [overflow-wrap:break-word]">{none}</span></span>, starter ? "clear-role" : "remove-substitute") : null}
         {starter && slot.waiting.length ? (
           <>
             <p className="pt-2.5 text-xs font-medium text-fg-subtle">Roles not chosen yet</p>
@@ -373,7 +375,7 @@ function LineupSheet({ slot, kind, pick, startsElsewhere, onClose }: { slot: Ros
               option(
                 w.id,
                 <span className="min-w-0">
-                  <span className="block truncate text-sm font-medium text-fg">{w.name}</span>
+                  <span className="block text-sm font-medium text-fg [overflow-wrap:break-word]">{w.name}</span>
                   <span className="block text-xs text-fg-subtle">setup incomplete: no role chosen yet</span>
                 </span>,
                 "lineup-waiting",
@@ -734,8 +736,9 @@ export function playerDetail({ slot, championsById, canEdit, canViewProfile, pro
         )
       ) : null}
       <section aria-labelledby="detail-pool" className="space-y-2.5" style={cardColourVars(p.look)}>
-        <div className="flex items-center justify-between gap-2">
-          <h3 id="detail-pool" className="text-sm font-semibold text-fg">
+        {/* Wraps where the row is short of room (320px at 200% text): "Edit on profile" ran off the screen. */}
+        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+          <h3 id="detail-pool" className="min-w-0 text-sm font-semibold text-fg">
             {slot.roleLabel} champion pool{slot.champions.length ? <span className="font-normal text-fg-subtle"> · {slot.champions.length}, in order of preference</span> : null}
           </h3>
           {/* Pools are edited on the profile (one place, with every role); Team only shows them. */}
@@ -781,24 +784,30 @@ const LINEUP_WIDTH = `mx-auto w-full max-w-[26rem] @xl:max-w-[54rem] @4xl:max-w-
  * player. The one part of the lineup that follows the track as it scrolls (useSnapIndex), so a
  * swipe never draws the cards again.
  */
+/*
+  The pager's gap and padding are 4px at every text size (gap-1 and p-1 at the usual size): in rem
+  they doubled at 200% on a 320px phone and left each of the five targets 41px wide. In px each is
+  46px there, and at 100% nothing moves (§6 row 1.2h; e2e/large-text-lineup.spec.ts).
+*/
 function LineupPager({ slots, index, go, people = false, artWait = false }: { slots: RosterSlot[]; index: SnapIndex; go: (i: number) => void; /** Members' phones: the lineup pager (each player's picture, the role as its badge, the name under it); the public page keeps the roles. */ people?: boolean; /** The first card's art has not arrived: the other players' pictures wait for it (globals.css, data-art-wait). */ artWait?: boolean }) {
   const current = useSnapIndex(index);
   return (
-    <div className={cn("relative z-[1] mx-auto mb-3 grid max-w-[26rem] grid-cols-5 gap-1 rounded-card border border-border bg-surface/85 p-1 shadow-sm shadow-black/20 @xl:hidden", people && "@container/pager mb-2 max-w-[30rem] max-lg:short:hidden")} role="tablist" aria-label="Lineup position" data-testid="lineup-pager" data-people={people || undefined} data-art-wait={(people && artWait) || undefined}>
+    <div className={cn("relative z-[1] mx-auto mb-3 grid max-w-[26rem] grid-cols-5 gap-[4px] rounded-card border border-border bg-surface/85 p-[4px] shadow-sm shadow-black/20 @xl:hidden", people && "@container/pager mb-2 max-w-[30rem] max-lg:short:hidden")} role="tablist" aria-label="Lineup position" data-testid="lineup-pager" data-people={people || undefined} data-art-wait={(people && artWait) || undefined}>
       {slots.map((s, i) => (
-        <button key={s.role} type="button" role="tab" aria-selected={current === i} aria-label={people ? undefined : `${s.roleLabel}${s.player ? `: ${s.player.name}` : ""}`} onClick={() => go(i)} className={cn("flex min-h-12 min-w-0 flex-col items-center justify-center gap-1 rounded-panel px-1 text-2xs font-semibold leading-none transition-[background-color,color,box-shadow] duration-150 motion-reduce:transition-none", people && "gap-0.5", current === i ? "bg-accent/15 text-accent ring-1 ring-inset ring-accent/40" : "text-fg-muted hover:bg-surface-2/60 hover:text-fg")} data-testid="lineup-dot" data-art-later={i > 0 || undefined}>
+        <button key={s.role} type="button" role="tab" aria-selected={current === i} aria-label={people ? undefined : `${s.roleLabel}${s.player ? `: ${s.player.name}` : ""}`} onClick={() => go(i)} className={cn("flex min-h-12 min-w-0 flex-col items-center justify-center rounded-panel px-1 text-2xs font-semibold leading-none transition-[background-color,color,box-shadow] duration-150 motion-reduce:transition-none", people ? "gap-0" : "gap-1", current === i ? "bg-accent/15 text-accent ring-1 ring-inset ring-accent/40" : "text-fg-muted hover:bg-surface-2/60 hover:text-fg")} data-testid="lineup-dot" data-art-later={i > 0 || undefined}>
           {people ? (
             <>
-              {/* The player's picture with the role's icon as its badge (an empty role: the icon alone). */}
+              {/* The player's picture with the role's icon as its badge (an empty role: the icon alone). No ring of its own when
+                  chosen (the tile's ring, its fill and the accent name mark it): in the 48px tile a ring rose above its edge. */}
               <span className="relative grid h-8 w-8 shrink-0 place-items-center" data-testid="lineup-dot-picture">
-                {s.player ? <Avatar name={s.player.name} src={s.player.avatarUrl} size="sm" className={cn(current === i && "ring-2 ring-accent")} /> : <span className="grid h-8 w-8 place-items-center rounded-full border border-dashed border-border-strong" />}
-                <span className="absolute -bottom-1 -right-1.5 grid h-4 w-4 place-items-center rounded-full border border-border bg-bg-elevated text-fg">
+                {s.player ? <Avatar name={s.player.name} src={s.player.avatarUrl} size="sm" /> : <span className="grid h-8 w-8 place-items-center rounded-full border border-dashed border-border-strong" />}
+                <span className="absolute -bottom-0.5 -right-1.5 grid h-4 w-4 place-items-center rounded-full border border-border bg-bg-elevated text-fg">
                   <RoleIcon role={s.role} className="h-2.5 w-2.5" decorative />
                 </span>
               </span>
               {/* The name, cut where it must (the picture carries who it is); under 18rem of pager the pictures alone, the names read out. */}
               {/* Named by its content (the role read out first), so what shows is what is read (axe's label-content-name-mismatch). */}
-              <span className="max-w-full truncate @max-[18rem]/pager:sr-only" data-testid="lineup-dot-name">
+              <span className="max-w-full truncate leading-tight @max-[18rem]/pager:sr-only" data-testid="lineup-dot-name">
                 <span className="sr-only">{s.roleLabel}: </span>
                 {s.player?.name ?? (
                   <>

@@ -228,13 +228,24 @@ function KitSide({ side, kit, intel, champion, title, subtitle, rows }: { side: 
 }
 
 /**
+ * The two sides side by side: from 40rem in a solo lane; in the bot lane from 28rem, where the kit
+ * column, holding both enemies' kits, leaves this one about 31rem at 1440 × 900 and 39rem at 1920 ×
+ * 1080. Stacked there, the two sides made the page scroll 50–130px at 1920 × 950 and put the sources'
+ * summary under the fold at 1440 × 900 (20 Nov 2026); side by side the longer side sets the height.
+ */
+const SIDES = {
+  solo: "@min-[40rem]/kits:grid-cols-2 @min-[40rem]/kits:divide-x @min-[40rem]/kits:divide-y-0",
+  duo: "@min-[28rem]/kits:grid-cols-2 @min-[28rem]/kits:divide-x @min-[28rem]/kits:divide-y-0",
+} as const;
+
+/**
  * The assembled reference for your champion against the enemy, when no curated briefing shows.
  * `rows`: the champions whose tiles are on the page, for the keys' links. `curatedForYou`: the
  * curated matchups that do exist for your champion, linked (the pair on the page left out).
  * `briefingHidden`: the pair has a curated briefing, hidden above (too old, or every part resting on
  * an ability Riot changed): said as that, never as "no curated briefing".
  */
-export function AssembledReference({ you, enemy, enemyIntel, yourIntel, curatedForYou, rows, briefingHidden = false }: { you: ChampionChoice; enemy: ChampionChoice; enemyIntel: ChampionIntelView; yourIntel: ChampionIntelView | null; curatedForYou: readonly ChampionChoice[]; rows: ReadonlySet<string>; briefingHidden?: boolean }) {
+export function AssembledReference({ you, enemy, enemyIntel, yourIntel, curatedForYou, rows, briefingHidden = false, duo = false }: { you: ChampionChoice; enemy: ChampionChoice; enemyIntel: ChampionIntelView; yourIntel: ChampionIntelView | null; curatedForYou: readonly ChampionChoice[]; rows: ReadonlySet<string>; briefingHidden?: boolean; /** The bot lane: the two sides side by side from 28rem (SIDES). */ duo?: boolean }) {
   const mirror = you.id === enemy.id;
   const enemyKit = kitOf(enemyIntel);
   const yourKit = yourIntel && !mirror ? kitOf(yourIntel) : null;
@@ -264,7 +275,7 @@ export function AssembledReference({ you, enemy, enemyIntel, yourIntel, curatedF
         </p>
       </header>
       <div className="@container/kits">
-        <div className={cn("grid divide-y divide-border", yourKit && "@min-[40rem]/kits:grid-cols-2 @min-[40rem]/kits:divide-x @min-[40rem]/kits:divide-y-0")}>
+        <div className={cn("grid divide-y divide-border", yourKit && SIDES[duo ? "duo" : "solo"])} data-sides={duo ? "duo" : undefined}>
           <KitSide side={mirror ? "both" : "danger"} kit={enemyKit} intel={enemyIntel} champion={enemy} title={mirror ? "Both sides" : "Danger"} subtitle={dangerSideWords(enemy.name)} rows={rows} />
           {yourKit && yourIntel ? <KitSide side="opportunity" kit={yourKit} intel={yourIntel} champion={you} title="Opportunity" subtitle={toolsSideWords(you.name)} rows={rows} /> : null}
         </div>

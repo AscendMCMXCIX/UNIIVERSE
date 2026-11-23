@@ -837,6 +837,12 @@ export interface ChampionIntelView {
    * it; [] where Riot publishes none). Null when the stored record predates them (not read yet).
    */
   tips: { ally: string[]; enemy: string[] } | null;
+  /**
+   * The newest recorded patch's public name ("26.24") when this champion's digest (its base stats and
+   * abilities: cooldowns, ranks, charges, text) differs from the patch before ("Riot changed this on
+   * 26.24"); absent or null otherwise, and whenever fewer than two patches are recorded.
+   */
+  riotChangedOn?: string | null;
 }
 
 /**

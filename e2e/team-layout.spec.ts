@@ -195,6 +195,18 @@ test("phones swipe sideways through the five cards, one at a time", async ({ pag
   expect(Math.min(...sizes.map((s) => s.w))).toBeGreaterThanOrEqual(280);
   const tabs = page.getByTestId("lineup-dot");
   await expect(tabs.first()).toHaveAttribute("aria-selected", "true");
+  // The chosen tile holds its picture and its name whole, inside its own inset ring, and draws no ring past its edge (the design review's G1-2).
+  if (await page.getByTestId("lineup-pager").getAttribute("data-people")) {
+    const fit = await tabs.first().evaluate((el) => {
+      const t = el.getBoundingClientRect();
+      const pic = el.querySelector("[data-testid=lineup-dot-picture]")!.getBoundingClientRect();
+      const name = el.querySelector("[data-testid=lineup-dot-name]")!.getBoundingClientRect();
+      const ring = parseFloat(getComputedStyle(el.querySelector("[data-testid=lineup-dot-picture] > *")!).boxShadow.match(/(\d+(?:\.\d+)?)px\)?$/)?.[1] ?? "0");
+      return { ring: pic.top - ring - t.top, name: t.bottom - 1 - name.bottom };
+    });
+    expect(fit.ring, "the picture's ring inside the tile").toBeGreaterThanOrEqual(-0.5);
+    expect(fit.name, "the name above the tile's inset ring").toBeGreaterThanOrEqual(0);
+  }
   // The line under the team's name wraps between whole items, never leaving a separator at a line's end.
   const subtitle = page.getByTestId("team-subtitle");
   await expect(subtitle.locator(":scope > span", { hasText: /^·$/ })).toHaveCount(0);

@@ -24,7 +24,7 @@ export interface StatusCardItem {
  */
 export function StatusCards({ items, testId }: { items: StatusCardItem[]; testId?: string }) {
   return (
-    <ul className="divide-y divide-border rounded-panel border border-border bg-surface" data-testid={testId}>
+    <ul className="panel-depth divide-y divide-border rounded-panel border border-border bg-surface" data-testid={testId}>
       {items.map((i) => {
         const look = LOOK[i.label];
         const Icon = look.icon;

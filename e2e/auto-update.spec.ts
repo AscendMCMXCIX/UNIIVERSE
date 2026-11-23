@@ -105,6 +105,11 @@ test("an Admin page left open asks for nothing on a timer, only when its tab is 
   await page.clock.install();
   await page.goto("/admin/system");
   await expect(page.getByTestId("system-status")).toBeVisible();
+  // Once the page's code runs: the watcher counts its half hour from its mount. Drawn by the server
+  // and not yet hydrated, it mounted after the half hour instead, so the tab shown again came within
+  // seconds of its "last check" and asked nothing (3 of 5 runs failed so on a busy machine, Release 10).
+  await expect.poll(() => page.getByTestId("system-status").evaluate((e) => Object.keys(e).some((k) => k.startsWith("__reactFiber")))).toBe(true);
+  await page.waitForTimeout(300);
   // Half an hour open: a member page would have asked several times (1, 2, 4, 8 then every 10 minutes); Admin asks nothing.
   await page.clock.runFor(30 * 60_000);
   expect(asked).toEqual([]);

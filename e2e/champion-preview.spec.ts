@@ -29,6 +29,23 @@ async function openRow(page: Page, row: Locator) {
   }).toPass({ timeout: 15_000 });
 }
 
+/** How the selected row meets the docked preview: its surface under the preview's edge, the notch over that edge beside it. */
+async function joint(page: Page, row: Locator) {
+  return row.evaluate((li) => {
+    const aside = document.getElementById("champion-preview")!;
+    const notch = document.querySelector<HTMLElement>("[data-testid=champion-preview-notch]")!;
+    const [r, a, n] = [li.getBoundingClientRect(), aside.getBoundingClientRect(), notch.getBoundingClientRect()];
+    return {
+      rowToEdge: r.right >= a.left + 2,
+      notchAtEdge: Math.abs(n.left - a.left) <= 1,
+      width: Math.round(n.width),
+      sameColour: getComputedStyle(li).backgroundColor === getComputedStyle(notch).backgroundColor,
+      alongRow: Math.abs(n.top - r.top) <= 1 && Math.abs(n.bottom - r.bottom) <= 1,
+      shown: getComputedStyle(notch).visibility !== "hidden",
+    };
+  });
+}
+
 const columns = (page: Page) => page.getByTestId("all-champions-header").evaluate((el) => ["champion", "games", "win"].map((k) => Math.round(el.querySelector(`[data-testid=sort-${k}]`)!.getBoundingClientRect().x)));
 
 test("desktop: the preview unfolds in the list's card; nothing moves; click, ↑/↓ and Back", async ({ page }, info) => {
@@ -56,6 +73,10 @@ test("desktop: the preview unfolds in the list's card; nothing moves; click, ↑
   // The columns after Win rate fold away under it (hidden, their widths kept).
   await expect(page.getByTestId("sort-kda")).toBeHidden();
   await expect(rows.nth(0)).toHaveAttribute("data-selected", "true");
+  // Joined to its row (CM §4.1): the row's surface runs to the preview's edge, and a 2px notch the
+  // row's colour interrupts the edge line beside the row, as tall as the row.
+  await page.mouse.move(2, 2);
+  await expect.poll(() => joint(page, rows.nth(0))).toEqual({ rowToEdge: true, notchAtEdge: true, width: 2, sameColour: true, alongRow: true, shown: true });
   await expect(page.getByTestId("champion-preview-foot")).toContainText("Lane opponent: the enemy Riot placed in");
   expect(await page.evaluate(() => history.length)).toBe(entries + 1);
   // Another row switches it; ↑/↓ move it; the address is replaced, never pushed.
@@ -70,6 +91,17 @@ test("desktop: the preview unfolds in the list's card; nothing moves; click, ↑
   expect(await columns(page)).toEqual(before);
   expect(await page.evaluate(() => scrollY)).toBe(0);
   expect(Math.max(...replies)).toBeLessThanOrEqual(5_000);
+  // The notch moved with the switches to the selected row.
+  await page.mouse.move(2, 2);
+  await expect.poll(() => joint(page, rows.nth(1))).toEqual({ rowToEdge: true, notchAtEdge: true, width: 2, sameColour: true, alongRow: true, shown: true });
+  // (Scrolled out of the pinned preview's edge, the notch goes: preview-notch.test.ts; the demo's lists are too short to scroll a row out.)
+  // The same join at 1280 and 1920 (the preview docks in the card at both).
+  for (const width of [1280, 1920]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expect(preview).toBeVisible();
+    await expect.poll(() => joint(page, rows.nth(1)), `${width}px`).toEqual({ rowToEdge: true, notchAtEdge: true, width: 2, sameColour: true, alongRow: true, shown: true });
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
   // At most 650px tall folded, with no inner scroll.
   const box = await preview.evaluate((el) => ({ h: el.getBoundingClientRect().height, inner: el.scrollHeight > el.clientHeight + 1 }));
   expect(box.h).toBeLessThanOrEqual(650);
@@ -96,6 +128,9 @@ test("the content: opponents from 3 games with their games, one unfolding into i
   await expect(content.getByTestId("champion-preview-figures")).toContainText(/\d+ games? · \d+W \d+L/);
   const opponents = content.getByTestId("champion-preview-opponent");
   await expect(opponents.first()).toBeVisible();
+  // The opponents' sort is the app's segmented control: the chosen one ringed and semibold (the design review's G2-11).
+  const sorts = content.locator("[data-testid^=opponent-sort-]");
+  if (await sorts.count()) expect(await sorts.evaluateAll((els) => els.map((e) => [e.getAttribute("aria-pressed"), getComputedStyle(e).fontWeight, getComputedStyle(e).boxShadow !== "none"]))).toEqual(await sorts.evaluateAll((els) => els.map((e) => (e.getAttribute("aria-pressed") === "true" ? ["true", "600", true] : ["false", "500", false]))));
   // A win rate only from 3 games, each with its games beside it.
   for (const o of await opponents.evaluateAll((els) => els.map((e) => ({ games: Number((e as HTMLElement).dataset.games), text: e.textContent ?? "" })))) {
     expect(o.text).toMatch(/\d+ games?/);
@@ -213,4 +248,90 @@ test("a window 640–767px wide with a mouse (the phone's frame): the preview op
     await preview.getByTestId("champion-preview-close").click();
     await expect(preview).toHaveCount(0);
   }
+});
+
+test("from a scrolled list: a row below the first screen opens its preview, Escape (desktop) or Back (phone, tablet) closes it, and the row, the sort and the search are where they were", async ({ page }, info) => {
+  // The demo's longest list is 8 champions; a short window makes it scroll. "Show all" appears from
+  // 21 champions (FIRST in all-champions.tsx), which no demo profile has: the next test reaches it with a test cookie.
+  const size = page.viewportSize()!;
+  await page.setViewportSize({ width: size.width, height: 480 });
+  // The demo's Mid: the longest list (8 champions).
+  await page.goto("/players");
+  const href = await page.locator("main a[data-testid='player-card']", { hasText: "Demo Mid" }).first().getAttribute("href");
+  const profile = new URL(href!, "http://x").pathname;
+  await page.goto(`${profile}/champions`);
+  await expect(page.getByTestId("top-champion").first()).toBeVisible();
+  const most = await page.getByTestId("top-champion").count();
+  expect(most, "a list that can scroll").toBeGreaterThanOrEqual(6);
+  const rows = page.getByTestId("top-champion");
+  await expect(rows.nth(most - 1)).toBeAttached();
+  // A sort other than the default (games): by win rate, by its column or the phone's select.
+  const sortWin = page.getByTestId("sort-win");
+  if (await sortWin.isVisible()) await sortWin.click();
+  else await page.locator("select#all-champions-sort-by").selectOption("win");
+  const order = () => rows.evaluateAll((els) => els.map((e) => (e as HTMLElement).dataset.champion));
+  await expect.poll(async () => (await order()).length).toBe(most);
+  const sorted = await order();
+  const close = async () => {
+    if (info.project.name === "desktop") await page.keyboard.press("Escape");
+    else await page.goBack();
+    await expect(page.getByTestId("champion-preview-content")).toHaveCount(0);
+    await expect(page).not.toHaveURL(/champion=/);
+  };
+  // The last row, scrolled to from the top of the page: below the first screen until then.
+  await page.evaluate(() => window.scrollTo(0, 0));
+  const last = rows.nth(most - 1);
+  expect((await last.boundingBox())!.y, "the row starts below the first screen").toBeGreaterThan(480);
+  await last.scrollIntoViewIfNeeded();
+  const at = async () => ({ y: Math.round((await last.boundingBox())!.y), scroll: await page.evaluate(() => Math.round(window.scrollY)) });
+  const before = await at();
+  expect(before.scroll, "the list is scrolled").toBeGreaterThan(0);
+  await openRow(page, last);
+  await close();
+  // Back restores the scroll as the history entry settles: the row back where it was within 3px.
+  await expect.poll(async () => Math.abs((await at()).y - before.y), { message: "the row where it was" }).toBeLessThanOrEqual(3);
+  expect(await order(), "the sort kept").toEqual(sorted);
+  // With a search: the same, and the search's words and its rows kept.
+  const search = page.locator("input[data-testid=all-champions-search]");
+  const word = sorted[sorted.length - 1]!.slice(0, 3);
+  await search.fill(word);
+  await expect.poll(async () => (await order()).length, "the search narrows the list").toBeLessThan(most);
+  const found = await order();
+  await openRow(page, rows.first());
+  await close();
+  await expect(search).toHaveValue(word);
+  await expect.poll(order, { message: "the search's rows kept" }).toEqual(found);
+});
+
+test("after Show all: a row reached through it opens its preview, closes, and comes back to its place with the whole list still shown", async ({ page, baseURL }, info) => {
+  // No demo profile plays the 21 champions "Show all" needs (FIRST in all-champions.tsx): the
+  // in-memory demo's test cookie folds the list after 3 rows instead (server/demo/test-hooks.ts).
+  await page.context().addCookies([{ name: "uniiverse-test-champions-first", value: "3", url: baseURL! }]);
+  const size = page.viewportSize()!;
+  await page.setViewportSize({ width: size.width, height: 480 });
+  await page.goto("/players");
+  const href = await page.locator("main a[data-testid='player-card']", { hasText: "Demo Mid" }).first().getAttribute("href");
+  await page.goto(`${new URL(href!, "http://x").pathname}/champions`);
+  const rows = page.getByTestId("top-champion");
+  await expect(rows.first()).toBeVisible();
+  await expect(rows).toHaveCount(3);
+  const more = page.getByTestId("all-champions-more");
+  await expect(more).toHaveText(/Show all \d+ champions/);
+  const total = Number((await more.textContent())!.match(/\d+/)![0]);
+  expect(total, "more rows than the fold").toBeGreaterThan(3);
+  await more.click();
+  await expect(rows).toHaveCount(total);
+  await expect(more).toHaveCount(0);
+  const last = rows.nth(total - 1);
+  await last.scrollIntoViewIfNeeded();
+  const at = async () => ({ y: Math.round((await last.boundingBox())!.y), scroll: await page.evaluate(() => Math.round(window.scrollY)) });
+  const before = await at();
+  expect(before.scroll, "the list is scrolled").toBeGreaterThan(0);
+  await openRow(page, last);
+  if (info.project.name === "desktop") await page.keyboard.press("Escape");
+  else await page.goBack();
+  await expect(page.getByTestId("champion-preview-content")).toHaveCount(0);
+  await expect(page).not.toHaveURL(/champion=/);
+  await expect(rows, "the whole list still shown").toHaveCount(total);
+  await expect.poll(async () => Math.abs((await at()).y - before.y), { message: "the row where it was" }).toBeLessThanOrEqual(3);
 });

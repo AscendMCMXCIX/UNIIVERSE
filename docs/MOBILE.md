@@ -195,6 +195,7 @@ same; each item is where the desktop has it.
 | Matchup Intel's champions once scrolled away (S7a, 20 Nov 2026) | scroll back up to the slots | a pinned pair bar under the top bar (40px portraits and the swap): a champion changed in two taps; the lane a full-width row of five 44px buttons, "Copy link" at the title's row end; the data source in the sources' line at the foot, so the bar's meta keeps to one line (docs/MATCHUP_INTEL.md, "Roles") |
 | Matchup Intel's first screen (20 Nov 2026) | the curated briefing first; the enemy's kit at about 1,450px and the evidence at about 2,640px on a 390 × 844 phone, below the remembered line (44px) | the glance under the pair: every enemy tile with its cooldown line (five tiles of about 68 by 56px; two rows in the bot lane) and the evidence's first row, on the first screen for 1v1 and 2v2 (401 and 650px of 787 at 390 × 844); "Remember" an icon toggle beside "Copy link" (docs/MATCHUP_INTEL.md, "On a phone") |
 | All Champions' Filters (20 Nov 2026) | a row of its own under the scope line | at the end of the title's line (the title itself read out only on phones), the scope's one line under it, as Season performance's (SectionHeader's `toolbarBesideScope` as Release 8 has it): the list starts 14px higher at 393 × 852 |
+| All Champions' Filters (Release 10, 20 Nov 2026) | at the end of the title's line, a 44px row of its own above the scope line (the title is read out only) | in the list's search and sort row: the search, Filters (its icon, the count on its corner, its word and what is chosen read out) and Sort by on one line from 375px; on a 320px phone the search and Filters keep their line with Sort by under it; where a large text size leaves the search too little room beside Filters, Filters ends the "Sort by" line. Refresh, where it is offered, sits beside Filters (its icon). The chips of narrowed filters keep their line above the scope; the sheet, Done, Escape, the focus's return and the address are as before. From sm (640px) nothing moved. The list starts 44px higher at 393 × 852 (322 → 278px), 44 at 375 × 667 (303 → 259) and 44 at 320 × 568 (355 → 311). Release 10's review: the search's short placeholder "Find…" read "Fin…" at 375px (42px of room for 47): while empty, its padding there is 4px less beside the icon and 6px at the end (52px); and sorted by a figure (`?sort=multikills`, kept now as the filters change) a row's sorted figure wraps under a 17rem list instead of pushing the page 59px sideways at 320px and 200% |
 | Admin Mode's pages | Dashboard, Users, Settings and Health in the bar; Data & Integrations and Audit Logs on the account screen (a tablet's avatar menu) | Dashboard, Users & Permissions, Platform Settings and System everywhere, System holding Health, Data & Integrations and Audit Logs as its tabs; Users & Permissions' pages on the section tabs, not pills |
 | The account screen | the pages the bar did not hold, Settings, Install App, the mode switch, Sign out, the notes | the account's own items only, with the team's mark at its foot; Back closes it |
 | The installed app's icon menu | Team Overview, My Profile, Matches, Leaderboards | My Profile, Team, Matchup Intel, Resources, read from the navigation |
@@ -332,10 +333,10 @@ opens.
 
 | Page | Phone layout | Height at 390px (`main` at f4e5372 → this redesign) |
 |---|---|---|
-| Team (Team Overview) | One 44px line under the bar (the scope over the lineup's state, Edit lineup at its end; the bar carries the team's mark and name), then the lineup pager (the five players' pictures, each with its role as a badge and the name under it; pictures alone under 18rem) over a swipe track of the five cards, one at a time, each card's picture beside the name (art band 120px), so the whole first card fits 393 × 659 and 375 × 667. Held sideways the desktop's five across, compact (RESPONSIVE.md → Team Overview's lineup). At a larger text size each card holds its text: its season's figures and its first choice wrap, the role's chip shows its icon alone where its name does not fit beside the card's controls, your own card's two controls stand one above the other, and a member's lineup state takes the line under the logo (RESPONSIVE.md → Phones at a larger text size). | — |
+| Team (Team Overview) | One 44px line under the bar (the scope over the lineup's state, Edit lineup at its end; the bar carries the team's mark and name), then the lineup pager (the five players' pictures, each with its role as a badge and the name under it, in 48px tiles, the chosen one marked by its ring, fill and accent name (its picture without a ring of its own, which rose above the tile); pictures alone under 18rem) over a swipe track of the five cards, one at a time, each card's picture beside the name (art band 120px), so the whole first card fits 393 × 659 and 375 × 667. Held sideways the desktop's five across, compact (RESPONSIVE.md → Team Overview's lineup). At a larger text size each card holds its text: its season's figures and its first choice wrap, the role's chip shows its icon alone where its name does not fit beside the card's controls, your own card's two controls stand one above the other, and a member's lineup state takes the line under the logo (RESPONSIVE.md → Phones at a larger text size). | — |
 | Players | One panel, a row per player, 64px tall: picture in its frame and the name in the player's own style with their emblem, the status that matters at the line's end (Lineup; "Setup" for an unfinished setup, its whole meaning read out and in its title; Archived), a long name wrapping beside it rather than pushing it down; then the main role (its icon in the card's colour, its name read out), the rank ("No Riot account" without one) and the pool as many whole portraits as fit plus a count, a line that wraps rather than cuts with larger text; the tagline on a third line only for those who have one. At 175% and 200% text on the narrowest phones a row stacks: the picture on a line of its own, the name, role, rank and pool the row's width under it, and the "·" before the rank never starts a line. A row carries the card's colours but no art, card frame or effect, and nothing is downloaded for a look. The whole row opens the profile (the card, links and every pool). The count is the title's scope line ("9 players", with what narrows it). The same rows on every width since the roster board (Nov 2026): two up on a phone held sideways. Below 768px wide the title, search and Filters then share one row (from 35rem; a split screen or a zoomed small phone stacks them, so the search keeps its width); a large iPhone in Safari, laid out at the screen's whole width (852px on an iPhone 15), keeps the tablet's toolbar on a row of its own. | 2,966 → 1,227 → 850px |
 | A profile's Overview | The profile's band, then the season's figures (three across, the multikills one line from 375px, total kills under the KDA), Recent form's twenty games and the champion pools. At a larger text size the figures go two across, then one, Recent form's bars share the card's width, and under the narrowest lists the pools' figures take the row's width and name themselves in words (RESPONSIVE.md → Phones at a larger text size). | — |
-| All Champions (a profile's Champions) | The section's title is left to screen readers: the Champions tab in the top bar names it. The scope line, "6 champions · Season 2026 · All supported games", ends in the data status's ⓘ; from a 360px phone the search and Sort by share one row (the words "Sort by" read out only, the sort mark shown before the column's name, as the table's headings write it), and on a 320px phone the search keeps its own line. A row per champion, at most 64px (57px on the demo at 390px; S5, 19 Nov 2026): the 40px portrait, the name over its role and In pool, the win rate over the games at the right. Sorted by a figure other than games or win rate, that figure follows the role in place of In pool ("Top · KDA 2.74"); the labelled pairs under each row are gone. At 150% and 200% text each row stacks (the name, then the win rate and games), so no name is squeezed out and nothing is wider than the phone. A champion opens its **preview as a sheet** (the shared `Peek`, `DetailModal size="sheet"`): ‹ › to the next champion, ✕, pull down or Back close it, and the list keeps its place; its content is the portrait and role, the win rate and record, then the record against each lane opponent first (docs/MATCHUPS.md). On Demo Sub's Sion the sheet is 394px at 390×844, with every opponent on its first screen. | 101 → 57px rows at 390px |
+| All Champions (a profile's Champions) | The section's title is left to screen readers: the Champions tab in the top bar names it. The scope line, "6 champions · Season 2026 · All supported games", ends in the data status's ⓘ; the search, Filters and Sort by share one row from a 375px phone (the words "Sort by" read out only; Filters its icon with the count on its corner; Refresh beside it where offered), and on a 320px phone the search and Filters keep their line with Sort by under it; Filters never takes a line of its own, at any text size (Release 10). A row per champion, at most 64px (57px on the demo at 390px; S5, 19 Nov 2026): the 40px portrait, the name over its role and In pool, the win rate over the games at the right. Sorted by a figure other than games or win rate, that figure follows the role in place of In pool ("Top · KDA 2.74"); the labelled pairs under each row are gone. At 150% and 200% text each row stacks (the name, then the win rate and games), so no name is squeezed out and nothing is wider than the phone. A champion opens its **preview as a sheet** (the shared `Peek`, `DetailModal size="sheet"`): ‹ › to the next champion, ✕, pull down or Back close it, and the list keeps its place; its content is the portrait and role, the win rate and record, then the record against each lane opponent first (docs/MATCHUPS.md). On Demo Sub's Sion the sheet is 394px at 390×844, with every opponent on its first screen. The first screen (S5's acceptance, a test in `profile.spec.ts` since Release 11): 8 whole rows above the tab bar at i12 (390 × 844 with its safe areas; at least 7 required), 3 at se1 (at least 2), in Chromium 153 and Chrome 156. | 101 → 57px rows at 390px |
 | Leaderboards | Built for phones in #188 (docs/LEADERBOARDS_MODEL.md), rebuilt as rows in PR 5a: Recent form is one board with a two-line row per member: the place (a bracket joins shared places, "4="), the picture with the main role as a badge on it, the name and "You" with the win rate at the right end, then the record and dates, with the gap ("1 win behind", "Next win: 3=") at the line's right end under the win rate (on a line of its own, still at the right, when the dates or the gap are long: most rows at 360–375px), and the record's 20-game bar as a 2px line along the row's foot. Members with too few recent games are the board's last group, a row each with the games they need. Since 19 Nov 2026 one page, stacked for a phone (no views to switch): the title, the member count and the data status ⓘ on one line; the sections below Recent form as in-page links ("Season records · Multikills · Milestones", each jump landing under the top bar, focused, an entry the phone's Back steps past); Recent form; then the season records, each a cell of three lines (the record and its qualifier; the holder, the value at that line's end; the champion, role, K/D/A and date), each opening its game (a member's cell adds "Your best" as a fourth line, by design; the 77px cells are a viewer's without a profile); then the multikills, one line per member from a 21rem list (375px phones and up), and the milestones, the member's name over one line of chips, each the champion's portrait and the figure ("486K") without the champion's name, which screen readers still hear (D6). What each board counts is under its title, its explanations behind its ⓘ, never a paragraph. The frame adds the tab, the title in the bar and Back; the whole row is one link to the member's profile. At a larger text size Recent form's rows reflow (the record and the dates a line each, the win rate under the name, then the name under the place and picture, "You" under a name it would break), so names wrap only between their words (TEAM_LEADERBOARDS.md). | 1,093 → 1,037px (#188); 1,004 → 920px (PR 5a, rows 61–106 → 64px from 390px, 64–74.5px at 360–375px); Records 3,905 → 2,195px at 393 × 659 (PR 5b: 5.93 → 3.33 screens; record cards of 169–209px → rows of 85px, 101px with a qualifier on a line of its own; three whole records above the tab bar instead of one); one page (19 Nov 2026) 2,772px at 375 × 667 (Recent form 1,072px and Records 2,204px before, two pages, 3,276px together; record cells of 77px, 93px with a qualifier on a line of its own) |
 | Matches | Each game: one line of words (result, length, queue and date; how many members played is read out only, the rows under it being the members), a Ranked Solo/Duo game of three or more saying under it that Solo/Duo takes parties of two at most; then a row of about 40px per member: the champion's portrait with the member's picture as a 16px badge on its corner, the name whole (a long one wraps, never cut, at 320px too) with the K/D/A and the largest multikill right after it, then the role and champion. Both full teams are in the game's screen, where the scoreboard lists all ten. Bookmarked sits beside Filters; the summary line's (i) holds the rule and any games left out. | 2,330 → 1,528px; 1,528 → 1,411px at 393px (the UX pass's PR 7c: 2.32 → 2.14 screens in Safari's 659px; 1,824 → 1,555px on a 320px phone) |
 | Match History | Denser since 18 Nov 2026 (the owner's decision D8: docs/DESIGN_SYSTEM.md §1). The header is one row from a 320px phone up: Games and Encounters (their track without icons, hugging its 44px tabs), Filters and Refresh (Refresh shows its icon alone, and under 360px Filters too, their names kept for screen readers); a narrowed filter's chips take the next row when they do not fit beside the views. The scope line follows, its data status after its last word; the header is read and tabbed in that order. Then the summary, every figure at once in three lines from 393px: the last twenty as squares (sharing what their line leaves, never under 3px) with the streak ("4W streak") and a named trend ("Better +9 pts"), the ⓘ beside "Last 20"; the record, KDA, CS or vision and kill participation; the champions played most and the ladder change ("+45 Solo/Duo since 3 Nov"). At 375px a streak beside a named trend takes a second row on the first line, and the longest ladder label or a two-digit record on a champion can take the ladder change to a fourth line; a 360px phone's ladder change does too, and a 320px phone wraps more. Each game, about 118px: the result line across the card ("Victory · Solo/Duo · 40h ago"), a ranked game's LP at its end; the portrait, the champion and role with the build under them (from a 21.375rem list: phones of 374px and wider; on narrower ones kill participation sits there and the build ends the card) and the K/D/A with its ratio and largest multikill; then kill participation, CS and damage. A card is read in the order it is drawn. The result line wraps rather than cut the time off. Both teams move to the game's screen. Ten games a page; the pager's buttons are 44px, and on a narrow phone the pages either side of the current one give way to the arrows, so both arrows stay on its line. **What moved:** Filters and Refresh from a row of their own to the views' row; the LP from under the K/D/A to the end of the result line; the build from the card's last line to beside the champion; on phones under 374px kill participation to beside the champion; the summary's ⓘ from its end to beside "Last 20"; the streak's words ("4 wins in a row") and the ladder change's "points", at every width, and on a phone the trend's "lately", into the figure's title and its screen-reader text. **Encounters:** the same one-row header; its Minimum games and Sort by moved from the list's toolbar into the Filters sheet, as chips that count with the filters, shown beside Filters when they differ from their default and put back by the sheet's Reset; tablets and computers keep them in the list's toolbar, as the list's own: the filters' Reset neither counts them nor changes them there. At 200% text on a 320px phone neither view is wider than the phone and nothing in a card is cut. | 2,268 → 2,000px; 2,016 → 1,639px with D8 (Demo ADC, `main` at 390 × 844) |
@@ -387,7 +388,21 @@ screen collapses its header to a 56px bar once its body scrolls (the item's name
 stay in reach), opens it again at the top, and closes when its header is pulled down, as a sheet
 does (not the account screen, a screen of its own with nothing to pull). Closing any window moves the page 0px: the browser's own close no
 longer puts the focus back itself (it scrolled a row partly under the tab bar into view, 70–109px
-when audited); the focus returns with `preventScroll` (`e2e/overlay-kit.spec.ts`).
+when audited); the focus returns with `preventScroll` (`e2e/overlay-kit.spec.ts`). A plain title
+bar collapses too, its title on one line (Release 10), and the window's own controls stay 44px on
+touch screens at every text size, and the 56px bar is 56px at every text size, so once the body has
+scrolled every whole-screen window's frame is at most a quarter of a 320 × 568, 375 × 667 or
+568 × 320 screen at 100, 150 and 200% text.
+
+**At 320px with large text** (Release 10's sweep, `e2e/overlay-kit.spec.ts`): the player Peek on
+Players and Leaderboards keeps every control on the screen at 125–200%, upright and sideways; in its
+pool (the Team player window's too) a list under 15.5rem (a 320px phone from 125% text) gives each
+row three lines (portrait and name, the experience label, the figures), and the label wraps where
+it must. A confirmation's actions wrap rather than run off the
+screen; Manage access keeps one column no wider than the sheet; a switch's long word breaks,
+hyphenated; a lineup sheet's names wrap instead of being cut to nothing; the sign-in form's brand
+name wraps. Popover and the desktop `Select` do not open on a phone (the browser's own select is
+used there).
 
 Every sheet and window shares `DetailModal`: native `<dialog>` (focus kept inside, the page behind
 inert), Escape and the backdrop close it, focus returns to what opened it, a sheet slides up in
@@ -433,7 +448,9 @@ Every phone page spends its first screen on content, not on saying where you are
 - **One title row, or none where the bar names the page.** Team's sections (Players, Leaderboards,
   Matches) and Admin Mode's set pages read their h1 out only on phones (`PageHeader sectionNamed`):
   the sections row names them, and the scope line leads. Admin Mode's eyebrow and description go on
-  phones (`PageHeader admin`): the bar says the mode once.
+  phones (`PageHeader admin`): the bar says the mode once. With nothing left to show (no actions),
+  the whole header is read out only, so its stack margin goes too and the page's content starts
+  under the bars (G4-1: y 117 at 390 × 844, from 133–137).
 - **Team Overview** on members' phones: no logo or h1 on screen (the bar carries the team's mark and
   name; the h1 is read out), one 44px line of "Main lineup · Season 2026" over the lineup's state,
   with Edit lineup at its end (44px, 102px before). The public team page keeps its own header.
@@ -515,6 +532,86 @@ History). Card Studio is measured open (`then: "studio"`): an open window is mea
 `UNIIVERSE_PUBLIC_RIOT_DATA=true`, which the CI demo does not set, so it is measured only in the
 full matrix on a server started with it (`requires`).
 
+#### The full matrix, Release 11 (20 Nov 2026)
+
+`node scripts/ux-measure.mjs` on `main` at Release 9 (8f03ac91; this release changes tests and docs
+only), on a fresh in-memory demo, in Chrome Headless Shell 156 (CI's and the Production check's
+browser, `PW_CHROMIUM_PATH` at its headless shell) and in the container's Chromium 153: 34 pages × 7
+setups × 4 text sizes, 952 figures in each. Public Leaderboards is not measured (it needs
+`UNIIVERSE_PUBLIC_RIOT_DATA=true`, as above). Below, each page at the two setups CI holds, beside
+stage 0's baseline (the mobile audit UM §3, installed setups; the desktop audit UD has no phone
+heights), and its worst figures across the matrix. Figures in screens; the ceiling in brackets.
+
+- **Nothing is wider than its screen**: sideways overflow is 0 on every page, setup and text size, in both browsers.
+- **Over a ceiling, in both browsers: Team Matches** (`matches`), 1.86 at i15 100% (ceiling 1.82;
+  1.77 when audited) and 6.05 in 156 and 5.99 in 153 at se1 150% (ceiling 5.94; 5.78 when audited).
+  CI does not catch it: the page is marked `data` (its height grows with the games the demo's members
+  played together, which other specs add to), so CI holds its frame, overflow and targets only. Its
+  list of games is 1,138px of the page's 1,491 at 393 × 852 in the browser's tab. The ceiling is not
+  raised then. **Cause found in Release 11** (21 Nov 2026): S9c's Team insights link (the
+  administrators' preview, `TEAM_INSIGHTS_AUDIENCE`), a 44px row in the page's header shown only
+  to those who can open it, which the demo's viewer (the Owner) is. Side by side with the audit's
+  build (a6a091b2) at 393 × 852 the list of games is the same 1,138px and starts at 328px instead
+  of 276px. That is a control a later stage added on purpose, so both ceilings take the file's
+  exception (1.90 at i15 100% and 6.17 at se1 150%, Release 11's figures plus 2%, the reason in
+  `why`); a member without the link stays within the old ceilings.
+- Re-run on the merge of `release/r10` (4a3b7727, Release 10): the same two overs and nothing else
+  over, no overflow; 38 of the 952 figures moved by 0.03 screens or more, All Champions down at both
+  CI setups (i15 100% 1.05 → 1.00, se1 150% 3.37 → 3.25; R10a's Filters row). The table below is `main`'s.
+- 156 against 153: the same figures on 20 of 34 pages at both setups; elsewhere within 0.10 screens
+  (156 lays text out wider, so a line wraps sooner), none crossing a ceiling but Team Matches'.
+
+| Page | i15 100%: audit → 156 / 153 (ceiling) | se1 150%: audit → 156 / 153 (ceiling) | most screens in 156 (setup) | frame at rest, most | targets under 44px on the first screen, most |
+|---|---|---|---|---|---|
+| team | 1 → 1 / 1 (1.02) | 2.16 → 2.18 / 2.18 (2.78) | 3.86 (se1-200) | 0.57 | 5 |
+| players | 1.2 → 1.12 / 1.12 (1.14) | 3.84 → 3.65 / 3.65 (3.72) | 6.38 (se1-200) | 0.57 | 4 |
+| leaderboards | ≈3.15 → 3.14 / 3.14 (3.21) | 9.76 (Records view) → 11.85 / 11.85 (12.09) | 18.88 (se1-200) | 0.57 | 1 |
+| matches | 1.77 → 1.86 / 1.86 (1.82) **over** | 5.78 → 6.05 / 5.99 (5.94) **over** | 10.19 (se1-200) | 0.57 | 1 |
+| p-overview | 2.57 → 1.92 / 1.92 (1.96) | 8.77 → 5.88 / 5.84 (5.96) | 10.08 (se1-200) | 0.57 | 0 |
+| p-champions | 1.32 → 1.05 / 1.05 (1.49) | 5.06 → 3.37 / 3.37 (5.59) | 5.7 (se1-200) | 0.57 | 8 |
+| p-history | 2.15 → 2.13 / 2.13 (2.17) | 8.57 → 8.13 / 8.13 (8.29) | 14.6 (se1-200) | 0.57 | 5 |
+| p-accounts | 1 → 1 / 1 (1.02) | 2.38 → 1.62 / 1.62 (1.67) | 3.18 (land-200) | 0.45 | 0 |
+| me | not audited → 1 / 1 (1.02) | not audited → 1 / 1 (1.02) | 1.59 (se1-200) | 0.42 | 1 |
+| intel | 1.04 → 1.09 / 1.12 (1.14) | 3.26 → 3.67 / 3.62 (3.67) | 6.24 (se1-200) | 0.42 | 3 |
+| resources | 1.55 → 1.79 / 1.81 (1.85) | 5.32 → 5.94 / 5.94 (6.06) | 9.4 (se1-200) | 0.42 | 1 |
+| settings | 1.7 → 2.28 / 2.3 (2.32) | 4.8 → 7.19 / 7.1 (7.68) | 11.96 (se1-200) | 0.42 | 0 |
+| login | not audited → 1 / 1 (1.02) | not audited → 2.33 / 2.28 (2.33) | 3.89 (se1-200) | 0.00 | 0 |
+| recover | not audited → 1 / 1 (1.02) | not audited → 2.17 / 2.17 (2.21) | 4.15 (se1-200) | 0.00 | 0 |
+| privacy | not audited → 9.06 / 9.14 (9.37) | not audited → 46.85 / 46.79 (48) | 94.23 (se1-200) | 0.00 | 0 |
+| no-access | not audited → 1 / 1 (1.02) | not audited → 2.01 / 2.01 (2.05) | 3.04 (se1-200) | 0.42 | 1 |
+| public | not audited → 1 / 1 (1.02) | not audited → 2.11 / 2.11 (2.7) | 3.82 (se1-200) | 0.00 | 5 |
+| welcome-password | not audited → 1 / 1 (1.02) | not audited → 1.94 / 1.94 (1.98) | 3.3 (se1-200) | 0.00 | 0 |
+| welcome-setup | not audited → 1.31 / 1.34 (1.37) | not audited → 3.84 / 3.79 (3.87) | 6.89 (se1-200) | 0.00 | 0 |
+| personalise | not audited → 1.91 / 1.91 (1.95) | not audited → 5.63 / 5.63 (5.8) | 9.39 (se1-200) | 0.00 | 0 |
+| own-overview | not audited → 1.9 / 1.9 (1.94) | not audited → 5.96 / 5.92 (6.04) | 10.29 (se1-200) | 0.57 | 1 |
+| own-history | not audited → 2.05 / 2.05 (2.09) | not audited → 8.22 / 8.22 (8.38) | 14.41 (se1-200) | 0.57 | 5 |
+| studio | not audited → 1.27 / 1.27 (1.3) | not audited → 3.35 / 3.35 (3.42) | 4.83 (land-200) | 0.57 | 0 |
+| a-dash | 2.38 → 1 / 1 (2.27) | 7.7 → 1.93 / 1.93 (7.18) | 3.28 (se1-200) | 0.42 | 0 |
+| a-people | 5.59 → 1.16 / 1.16 (5.48) | 19.51 → 3.19 / 3.19 (19.2) | 6.33 (se1-200) | 0.57 | 0 |
+| a-branding | 3.87 → 4.17 / 4.19 (4.27) | 12.12 → 13.08 / 13.08 (13.34) | 21.87 (se1-200) | 0.57 | 0 |
+| a-system | 3.37 → 1.54 / 1.54 (1.71) | 11.19 → 5.77 / 5.67 (6.25) | 12.4 (se1-200) | 0.57 | 0 |
+| a-data | not audited → 1 / 1 (1.07) | not audited → 2.67 / 2.67 (2.75) | 7.58 (se1-200) | 0.57 | 0 |
+| a-audit | not audited → 1 / 1 (1.02) | not audited → 1 / 1 (1.02) | 1.36 (land-200) | 0.57 | 0 |
+| a-settings | not audited → 2.28 / 2.3 (2.32) | not audited → 7.19 / 7.1 (7.68) | 11.96 (se1-200) | 0.42 | 0 |
+| a-access | not audited → 1.79 / 1.81 (1.85) | not audited → 7.5 / 7.5 (7.65) | 18.79 (se1-200) | 0.57 | 0 |
+| a-privacy | not audited → 1.71 / 1.73 (1.8) | not audited → 5.8 / 5.8 (5.98) | 10.75 (se1-200) | 0.57 | 0 |
+| a-previews | not audited → 1.5 / 1.5 (1.53) | not audited → 2.68 / 2.68 (2.73) | 4.16 (land-200) | 0.57 | 0 |
+| a-resources | not audited → 2.8 / 2.8 (2.86) | not audited → 8.91 / 8.91 (9.09) | 15.67 (se1-200) | 0.57 | 1 |
+
+The game window on a phone (S6c's acceptance, Release 11): at i12 (390 × 844, its 47px and 34px
+insets told), the opened game's header is 101px with the inset (54 without; at most 112), and the
+result, loadout, runes, figures, lane and answers end 116–245px above the window's steps (Previous,
+Next) with the folds closed, in 156 and 153. The whole game is 1.50–1.82 screens (Release 9), so the
+scoreboard and the folds are below the first screen, as designed. `e2e/match-breakdown.spec.ts`
+("an iPhone 12 …") holds it on the phone project.
+
+All Champions keeps the browsing place (requirement 4.5d, Release 11): in a 480px-tall window on each
+project, the last row of the demo's longest list (8 champions, sorted by win rate) is below the first
+screen; opened and closed (Escape on a desktop, Back on a tablet and a phone) it is back within 3px,
+in the same order, and a search keeps its words and its rows (`e2e/champion-preview.spec.ts`, "from a
+scrolled list"). "Show all" appears from 21 champions, which no demo profile has, so no test opens a
+preview from the longer list yet.
+
 ### The demo viewer (S8a, 20 Nov 2026)
 
 Every audit before S8a used the demo's automatic viewer, the Owner without a player profile. The
@@ -590,15 +687,41 @@ design). Findings, most visible first, and what was done:
 
 Recorded, not changed here, with the reason:
 
-- Own Match History's LP marks (4 on the first screen at i15): the tip's trigger is 24px by design
-  (S6: the card is the one stop; WCAG 2.5.8's 24px minimum). Its ceiling carries the reason.
+- Own Match History's LP marks (4 on the first screen at i15): the tip's trigger was 24px by design
+  (S6: the card is the one stop). Since Release 11 (row 2.21) a game card's LP mark is no button on a
+  touch screen: a tap on it opens the game, like the rest of the card, and the opened game's LP tip
+  (a tab stop, TT.TD12) is 44px each way on touch. History's and own History's small targets at i15
+  are 0, and so are their ceilings (with Admin People's and Riot Accounts', measured 0).
 - Words split at 200% on a 320px phone only: the player card's name in the setup preview (a fixed
   card design, `overflow-wrap: anywhere` on purpose), a champion's name in own Champions' narrow
   column, and "Leaderboards" in its h1 (`hyphens: auto`, hyphenated on purpose).
-- Team's lineup dots at 200% on 320 (5 under 44px): Team's own layout (S3a), outside this pass.
+- Team's lineup dots at 200% on 320 (5 under 44px): Team's own layout (S3a), outside this pass. Fixed
+  on 20 Nov 2026 (§6 row 1.2h): the pager's gap and padding are 4px at every text size instead of
+  rem, so each target is 46px wide at 200% on 320 (41px before) and 48px or more at 125–175%; at
+  100% nothing moves (288px pager, 52px targets). `ux-measure` gives team@se1-200 small 0 (5 before);
+  `e2e/large-text-lineup.spec.ts` checks the members' and the public pager at 100–200% on 320 × 568.
 - The public header for a signed-in member at 375px and 150% text: three rows where it was two,
   since "Open the app" is 14px as the decision asks (a visitor's header keeps its rows at every
   size; the mark's 44px target is the touch-target utility's invisible box, so it adds no width or height).
+
+### The design review's phone fixes (G3, 20 Nov 2026)
+
+Release 9's design review (desktop against phone, `PLAN` §1.2) found these on the signed-out and
+onboarding pages, the Library, Settings and the Card Studio; each is checked in the spec named.
+
+- **The setup stepper** (`setup-steps.tsx`): a step's name wraps (balanced, the tick on its first
+  line) rather than being cut: "Roles & champions" needs 108px and its third of the bar is 104px at
+  390 (88px beside the tick), so it takes two lines there (`onboarding-preview.spec.ts`).
+- **The account facts** under the display name: both values end at the box's right edge, also when
+  one wraps under its long label (`onboarding-preview.spec.ts`).
+- **The Library's index** wraps as one inset group: each row starts at the left, and the segments
+  keep the group's 2px inset on touch, so the chosen one's ring is off the border (`resources.spec.ts`).
+- **No access:** its title is balanced ("You don't have access / to that page"), and on the desktop
+  the state is centred in the content column (`quality.spec.ts`).
+- **Personalise:** Customise is the kit's outline Button (36px with a mouse, 44px on touch, 14px
+  text), as Add a picture is; Social links is headed as the other two sections; its help stays 12px, since at 14px it runs to six lines at 393px and the page would pass its budget (`display-name.spec.ts`).
+- **The Card Studio's preview chooser** marks the chosen view with the segment's ring and weight
+  (`card-studio.spec.ts`).
 
 ## 5. The phone design system
 
