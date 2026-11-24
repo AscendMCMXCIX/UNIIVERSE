@@ -25,10 +25,14 @@ export type TimelineState = "loading" | "ok" | "missing";
 
 const pct = (v: number | null) => (v === null ? "—" : `${Math.round(v * 100)}%`);
 
-/** A place among the players, as a chip: "3rd"; MVP and ACE in their result's colour, with the word. */
+/**
+ * A place among the players, as a chip: "3rd"; MVP (violet, the emphasis colour) and ACE (ringed),
+ * each by its word, never in a side's blue or red, which the scoreboard and the score panel give the
+ * teams' sides (a red side can win).
+ */
 export function RankChip({ score, className, marks = false }: { score: Pick<PlayerScore, "rank" | "mvp" | "ace">; className?: string; /** The scoreboard's own chip: the one the page's MVP and ACE are counted by. */ marks?: boolean }) {
   return (
-    <span className={cn("inline-flex h-4 items-center rounded-full px-1.5 text-2xs font-semibold leading-none tabular-nums", score.mvp ? "bg-blue/20 text-blue" : score.ace ? "bg-red/20 text-[color-mix(in_srgb,var(--color-red)_75%,white)]" : "bg-surface-3 text-fg-muted", className)} data-testid={marks ? (score.mvp ? "participant-mvp" : score.ace ? "participant-ace" : "rank-chip") : "performance-mark"}>
+    <span className={cn("inline-flex h-4 items-center rounded-full px-1.5 text-2xs font-semibold leading-none tabular-nums", score.mvp ? "bg-accent-2/25 font-bold text-fg ring-1 ring-inset ring-accent-2/60" : score.ace ? "bg-fg/10 font-bold text-fg ring-1 ring-inset ring-fg/35" : "bg-surface-3 text-fg-muted", className)} data-testid={marks ? (score.mvp ? "participant-mvp" : score.ace ? "participant-ace" : "rank-chip") : "performance-mark"}>
       {score.mvp ? "MVP" : score.ace ? "ACE" : formatOrdinal(score.rank)}
     </span>
   );
@@ -64,7 +68,11 @@ export function PerformancePanel({ scores, points, timeline, subject, compare, o
   const series = [{ slot: subject.slot, label: nameOf(subject) }, ...(compare ? [{ slot: compare.slot, label: nameOf(compare) }] : [])];
   const options = [{ value: "", label: "No comparison" }, ...others.map((o) => ({ value: String(o.slot), label: `${nameOf(o)}${o.slot === subject.laneOpponentSlot ? " (lane opponent)" : ""}` }))];
   // The winning team first, as the result reads.
-  const ordered = [...teams].sort((a, b) => Number(b.win) - Number(a.win));
+  // The scoreboard's order (the profile's team first), each team in its side's colour with its side and result in words: never a result told by the side colours.
+  const ordered = teams;
+  const word = (t: DetailTeam) => `${t.side === "blue" ? "Blue" : "Red"} · ${t.win ? "Victory" : "Defeat"}`;
+  const sideBar = (t: DetailTeam) => (t.side === "blue" ? "bg-blue/80" : "bg-red/70");
+  const sideLine = (t: DetailTeam) => (t.side === "blue" ? "border-blue/50" : "border-red/50");
   const averages = scores ? teamAverages(scores) : {};
   const [a, b] = ordered;
   const avgA = a ? averages[a.teamId] : undefined;
@@ -94,7 +102,7 @@ export function PerformancePanel({ scores, points, timeline, subject, compare, o
             </span>
           ) : null}
         </span>
-        {others.length ? <Select value={compare ? String(compare.slot) : ""} options={options} onValueChange={(v) => onCompare(v === "" ? null : Number(v))} aria-label="Compare with another player" className="w-40 shrink-0" data-testid="performance-compare" /> : null}
+        {others.length ? <Select value={compare ? String(compare.slot) : ""} options={options} onValueChange={(v) => onCompare(v === "" ? null : Number(v))} aria-label="Compare with another player" className="w-40 max-w-full shrink-0" data-testid="performance-compare" /> : null}
       </div>
       {timeline === "loading" ? (
         <div role="status" className="h-16 animate-pulse rounded-md bg-surface-2 motion-reduce:animate-none">
@@ -108,25 +116,25 @@ export function PerformancePanel({ scores, points, timeline, subject, compare, o
         <>
           {/* Each team's mean score on one bar, the winners' first, each with its word. */}
           {a && b && typeof avgA === "number" && typeof avgB === "number" ? (
-            <div className="flex items-center gap-2 text-xs tabular-nums" data-testid="performance-teams">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs tabular-nums" data-testid="performance-teams">
               <span className="shrink-0 text-fg-muted">
-                {a.win ? "Victory" : "Blue side"} <span className="font-semibold text-fg">{formatNumber(avgA, 1)}</span>
+                {word(a)} <span className="font-semibold text-fg">{formatNumber(avgA, 1)}</span>
               </span>
               <span className="flex h-1.5 min-w-8 flex-1 overflow-hidden rounded-full bg-surface-3" aria-hidden>
-                <span className={cn("h-full", a.win ? "bg-blue/80" : "bg-fg-muted/60")} style={{ width: `${(avgA / Math.max(0.1, avgA + avgB)) * 100}%` }} />
-                <span className={cn("h-full flex-1", b.win ? "bg-blue/80" : "bg-red/70")} />
+                <span className={cn("h-full", sideBar(a))} style={{ width: `${(avgA / Math.max(0.1, avgA + avgB)) * 100}%` }} />
+                <span className={cn("h-full flex-1", sideBar(b))} />
               </span>
               <span className="shrink-0 text-fg-muted">
-                <span className="font-semibold text-fg">{formatNumber(avgB, 1)}</span> {b.win ? "Victory" : a.win ? "Defeat" : "Red side"}
+                <span className="font-semibold text-fg">{formatNumber(avgB, 1)}</span> {word(b)}
               </span>
               <span className="sr-only">: each team&apos;s mean performance score</span>
             </div>
           ) : null}
           {/* The ten players' scores, a tile each (a press inspects them), the winning team's first. */}
-          <div className="flex items-start justify-between gap-3" data-testid="performance-strip">
+          <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2" data-testid="performance-strip">
             {ordered.map((t) => (
-              // Each team's five under a hairline in its result's colour (the bar above names the result in words).
-              <ul key={t.teamId} className={cn("grid min-w-0 flex-1 grid-cols-5 gap-1 border-t-2 pt-1", t.win ? "border-blue/45" : "border-red/45")} aria-label={`${t.win ? "Victory" : "Defeat"}: each player's score`}>
+              // Each team's five under a hairline in its side's colour, as the scoreboard draws its side (the bar above names side and result in words).
+              <ul key={t.teamId} className={cn("grid min-w-0 flex-1 basis-[13rem] grid-cols-5 gap-1 border-t-2 pt-1", sideLine(t))} aria-label={`${word(t)}: each player's score`}>
                 {t.participants.map((p) => {
                   const s = byScore.get(p.slot);
                   const on = p.slot === subject.slot;
@@ -148,7 +156,7 @@ export function PerformancePanel({ scores, points, timeline, subject, compare, o
                           data-slot={p.slot}
                         >
                           <ChampionPortrait champion={champ(p.championId)} size="xs" className="h-6 w-6 rounded" />
-                          <span className={cn("text-xs font-semibold leading-none tabular-nums", s.mvp ? "text-blue" : s.ace ? "text-[color-mix(in_srgb,var(--color-red)_75%,white)]" : "text-fg")}>{formatNumber(s.score, 1)}</span>
+                          <span className={cn("text-xs font-semibold leading-none tabular-nums", "text-fg")}>{formatNumber(s.score, 1)}</span>
                         </button>
                       )}
                     </li>

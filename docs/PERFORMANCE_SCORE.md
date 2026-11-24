@@ -1,4 +1,4 @@
-# Performance score (v1)
+# Performance score (v2)
 
 How the post-game view scores each of a game's players, 0 to 10, ranks all ten and names an MVP
 and an ACE (Release 16, at the owner's request of 23 Nov 2026). The model is UNIIVERSE's own:
@@ -18,7 +18,7 @@ it is never presented as anyone else's rating. Its code is `src/domain/performan
   `match_timelines`). Nothing is fetched to score a game, and inspecting another player reads
   nothing more (the record and the timeline already hold all ten).
 - **Deterministic and versioned.** The same game always gives the same scores (any order of its
-  players); `SCORE_VERSION` is `v1`. A change to a weight, a component or the scale is a new version,
+  players); `SCORE_VERSION` is `v2`. A change to a weight, a component or the scale is a new version,
   written here with its date.
 
 ## The components
@@ -59,12 +59,13 @@ scored without it.
 1. **Within the match.** For each component, a player's figure becomes a z-score against the game's
    scored players: (figure − mean) ÷ standard deviation, clamped to ±2.5 (`Z_CLAMP`) so one extreme
    figure moves a score without deciding it.
-2. **Role-relative.** Where the player's lane opponent is known, 60% of the component
+2. **Role-relative.** Where the player's lane opponent is known, 40% of the component
    (`COUNTERPART_SHARE`) is the comparison with that opponent instead: (figure − opponent's) ÷
    (standard deviation × √2) (the difference of two players' figures has √2 times the spread of
-   one), clamped the same way. A support's CS and gold are measured mostly against the other
-   support, a jungler's objective damage against the other jungler. The lane component is already
-   that comparison and is not blended.
+   one), clamped to ±0.5 (`COUNTERPART_CLAMP`), so that comparison alone moves a component by at
+   most 0.2. A support's CS and gold are measured partly against the other support, a jungler's
+   objective damage against the other jungler, and an opponent's outstanding game cannot alone sink
+   an ordinary one. The lane component is already that comparison and is not blended.
 3. **Per role.** Each role weighs the components (below); the score is their weighted mean.
 4. **The result.** +0.1 for a win and −0.1 for a loss (`OUTCOME_STEP`), in the weighted mean's
    units, about ±0.4 on the 0–10 scale: a win never makes a poor game good (tested below). A game
@@ -79,7 +80,7 @@ Read across a row: what that role is judged on. Only a row's proportions matter.
 
 | Weights | kp | kda | deaths | damage | tanking | farm | gold | vision | wards | objectives | turrets | cc | protect | lane |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Top | 0.7 | 0.9 | 0.8 | 1.2 | 1.0 | 1.1 | 0.8 | 0.4 | 0.2 | 0.6 | 0.8 | 0.4 | 0.1 | 1.1 |
+| Top | 0.5 | 0.8 | 0.8 | 1.2 | 1.3 | 1.2 | 0.8 | 0.3 | 0.2 | 0.6 | 0.8 | 0.5 | 0.1 | 1.1 |
 | Jungle | 1.4 | 1.0 | 0.8 | 0.8 | 0.6 | 0.7 | 0.6 | 0.8 | 0.5 | 1.5 | 0.4 | 0.5 | 0.1 | 0.6 |
 | Mid | 1.1 | 1.0 | 0.8 | 1.4 | 0.3 | 1.1 | 0.8 | 0.5 | 0.3 | 0.4 | 0.5 | 0.4 | 0.1 | 1.0 |
 | Bottom | 1.0 | 1.0 | 0.9 | 1.5 | 0.2 | 1.2 | 0.9 | 0.4 | 0.2 | 0.5 | 0.7 | 0.2 | 0.1 | 1.0 |
@@ -113,26 +114,30 @@ vision, high kill participation. Held back by many deaths.").
 A 30-minute ranked game built from each role's typical figures, the same on both sides (blue won),
 then one or two players changed (`performance-score.test.ts`, `TYPICAL`):
 
-| Game | Player | Figures | Score | Rank |
+| Game | Player | Figures | v1 | **v2** |
 | --- | --- | --- | --- | --- |
-| Typical | each role, blue (won) | the role's typical figures | 5.3 (top) to 6.3 (bottom, support) | |
-| | each role, red (lost) | the same | 4.5 (top) to 5.6 (bottom, support) | |
-| Strong support vs mediocre carry | blue support | 2/3/22, 95 vision, 40 wards placed and 10 cleared, 55 s crowd control, 6k healing and shielding, 35 CS | **9.1** | 1st, MVP |
-| | red bottom | 11/7/3, a carry's usual damage, 14.5k gold | **4.3** | 9th |
-| Feeding carry | blue mid | 8/13/3, behind on farm and damage | **2.5** | 10th |
-| Weak winner vs strong loser | blue top (won) | 1/7/2, behind on everything | **2.3** | 10th |
-| | red top (lost) | 8/2/5, ahead on everything | **7.8** | 1st, ACE |
-| Tank | blue top | 3/5/11, 15k damage, 48k taken and 45k mitigated, 50 s crowd control | **7.2** | 1st, MVP |
+| Typical | each role, blue (won) | the role's typical figures | 5.3 to 6.3 | **5.6 to 6.8** |
+| | each role, red (lost) | the same | 4.5 to 5.6 | **4.8 to 6.0** |
+| Strong support vs mediocre carry | blue support | 2/3/22, 95 vision, 40 wards placed and 10 cleared, 55 s crowd control, 6k healing and shielding, 35 CS | 9.1 (1st, MVP) | **8.9** (1st, MVP) |
+| | red bottom | 11/7/3, a carry's usual damage, 14.5k gold | 4.3 | **4.7** |
+| Feeding carry | blue mid | 8/13/3, behind on farm and damage | 2.5 (10th) | **3.1** (10th) |
+| Weak winner vs strong loser | blue top (won) | 1/7/2, behind on everything | 2.3 | **3.7** |
+| | red top (lost) | 8/2/5, ahead on everything | 7.8 (ACE) | **7.0** (ACE) |
+| Tank | blue top | 3/5/11, 15k damage, 48k taken and 45k mitigated, 50 s crowd control | 7.2 (MVP) | **6.9** (MVP) |
+| Dominated laner | red top facing that tank | the role's typical figures | 3.2 | **4.2** |
+| Dominated support | red support facing a 3/2/24 support with 100 vision | the role's typical figures | 2.3 | **4.4** |
 
-Fairness, as tested: a strong support game scores at least as well as a mediocre high-kill carry
-(9.1 against 4.3) and can be the MVP; a feeding carry with kills scores poorly (2.5, 10th); a win
-does not lift a weak game above a strong losing game (2.3 against 7.8); a typical game in any role
-is within 0.75 of its team's mean; and the result alone moves a score by at most a point.
+Fairness, as tested in v2: a strong support game scores at least as well as a mediocre high-kill
+carry (8.9 against 4.7) and can be the MVP; a feeding carry with kills scores poorly (3.1, 10th); a
+win does not lift a weak game above a strong losing game (3.7 against 7.0); a typical game in any
+role is within 0.75 of its team's mean; an ordinary game stays at 4 or above when the lane opponent
+had an outstanding one (4.2 and 4.4); and the result alone moves a score by at most a point.
 
-A property of the role-relative half to know: a player with typical figures whose lane opponent had
-an outstanding game is marked down (the red top in the tank example scores 3.2), because 60% of each
-of their components is the comparison with that opponent. That is the model's intent (the lane was
-lost to that opponent) and its limit (their figures alone were ordinary).
+Why v2: in v1, 60% of each component was the comparison with the lane opponent, unbounded, so an
+ordinary support facing an outstanding one scored 2.3, and the top facing the tank 3.2. v2 takes
+40% from the opponent and bounds that part to ±0.5 (at most 0.2 of a component); the top's weights
+lean more on what a top laner is there for (damage taken and mitigated, farm) and less on kill
+participation, so a typical game in every role stays within 0.75 of its team's mean.
 
 ## The score through the game
 
@@ -149,11 +154,20 @@ recorded **by then**, never from final figures:
   figure until 15:00, then the mean of 10:00 and 15:00 (the final score's own lane figure);
 - **not** damage, damage taken, vision, wards, crowd control, healing, objective damage or turrets:
   Riot gives those only for the whole game, so the moments before the end are scored on the rest;
-- no result step before the end (the result was not known yet).
+- no result step before the end (the result was not known yet);
+- **damped toward 5 by the evidence in so far** (v2): a moment's weighted mean is multiplied, before
+  the curve, by minutes ÷ (minutes + 8) on the Rift (`DAMPING_MINUTES`; 5 on ARAM), 0.38 at 5:00,
+  0.56 at 10:00, 0.65 at 15:00, 0.76 at 25:00, and by the share of the player's final weighting the
+  moment can read (`coverageOf`: the weights of kill participation, the KDA, deaths, farm, gold and
+  the lane over those the final score reads, so a support's early points, mostly without the vision
+  and crowd control they are judged on, move less). A z-score over a handful of kills swung a point
+  at 5:00 to 1.0 in v1; the damping keeps such a point near the middle until the game has said more.
+  Only the moment's own minutes and components are read, never the game's length or final figures.
 
 The **last point is the game's end and is the final score itself**, read from the whole record (it
-carries the components the earlier points cannot): the chart joins it to the point before with a
-dotted line for that reason. A game without a stored timeline, or whose timeline contradicts its
+carries the components the earlier points cannot) and never damped: the chart joins it to the point
+before with a dotted line for that reason. An ordinary game played the same throughout reads
+"Steady" at every seat, and a strong one is not called "Rising" by the damping alone (tested). A game without a stored timeline, or whose timeline contradicts its
 record (`goldContradictsRecord`), or whose frames have a gap, shows its final scores and says the
 score through the game is not available.
 
@@ -192,4 +206,8 @@ split bar, the winning team first.
 
 ## Versions
 
-- **v1** (23 Nov 2026, Release 16): the model above.
+- **v1** (23 Nov 2026, Release 16): 60% of each component from the lane opponent, unbounded; the
+  timeline's points undamped.
+- **v2** (23 Nov 2026, Release 16, before release): the model above: 40% from the lane opponent,
+  bounded to ±0.5; the top laner's weights; the timeline's points damped toward 5 by minutes played
+  and by the share of the final weighting they read.

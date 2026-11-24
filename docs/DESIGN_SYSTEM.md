@@ -73,11 +73,15 @@ decorative chrome.
     rows; never in the address, so Back still closes the game); above the lane, three segmented
     headings, **Build Path | Skill Order | Runes** (`segmentedGroupClass`, radios: the view still
     has no tabs), one shown at a time; each row ends with the player's performance score, its place
-    as a chip (1st … 10th), the winning team's best as MVP (blue) and the losing team's as ACE (red),
+    as a chip (1st … 10th), the winning team's best as MVP (a violet chip) and the losing team's as ACE (a ringed one), never in the sides' blue and red,
     in words (docs/PERFORMANCE_SCORE.md); under the scoreboard the performance panel: the score, its
     place, "Excellent" from 8.0, the timeline's one trend word with its sentence and why in a
-    sentence, each team's mean on one split bar, the ten scores as a strip of small tiles (the
-    winners first; a tile inspects its player), the score through the game (a line in the
+    sentence, each team's mean on one split bar and the ten scores as a strip of small tiles (a tile
+    inspects its player), both in the scoreboard's order with each team in its side's colour and
+    labelled with its side and result in words ("Blue · Defeat 5.5"), never a result told by the
+    side colours; on a phone each scoreboard row is three lines (the name, K/D/A and score; the
+    build and CS; the rank, whole) and under 16rem (200% text) everything in it stacks, so nothing
+    runs past the screen at any width or text size; the score through the game (a line in the
     brand gradient, a second player dashed in `fg-muted` with a legend, 0–10 with 5 dashed, the end
     joined by a dotted segment, a table for screen readers) and a "Compare with" select. Stacked
     (under 60rem) a "Show …'s game" link under the scoreboard takes the reader up to the player

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { COMPONENT_ORDER, OUTCOME_STEP, ROLE_WEIGHTS, SCORE_VERSION, laneValue, reasonText, scoreMatch, scoreModeOf, seriesAt, timelineScores, toTen, trendOf, teamAverages, TREND_SENTENCES, EXCELLENT_AT, type ScoreInput, type ScoreLane, type TimelineInput } from "./performance-score";
+import { COMPONENT_ORDER, OUTCOME_STEP, ROLE_WEIGHTS, SCORE_VERSION, laneValue, reasonText, scoreMatch, scoreModeOf, seriesAt, timelineScores, toTen, trendOf, evidenceAt, teamAverages, TREND_SENTENCES, EXCELLENT_AT, type ScoreInput, type ScoreLane, type TimelineInput } from "./performance-score";
 
 /*
   The performance score's worked examples and fairness tests (docs/PERFORMANCE_SCORE.md). A game is
@@ -32,7 +32,7 @@ const scoreOf = (s: ReturnType<typeof scoreMatch>, slot: number) => s!.players.f
 
 describe("the score's scale and components", () => {
   it("is versioned, and every role's weights cover every component", () => {
-    expect(SCORE_VERSION).toBe("v1");
+    expect(SCORE_VERSION).toBe("v2");
     for (const w of Object.values(ROLE_WEIGHTS)) expect(Object.keys(w).sort()).toEqual([...COMPONENT_ORDER].sort());
   });
 
@@ -55,7 +55,7 @@ describe("the score's scale and components", () => {
       for (const p of mine) {
         expect(Math.abs(p.score - avg), `${LANES[p.slot % 5]} ${team}`).toBeLessThanOrEqual(0.75);
         expect(p.score).toBeGreaterThanOrEqual(4);
-        expect(p.score).toBeLessThanOrEqual(6.5);
+        expect(p.score).toBeLessThanOrEqual(7);
       }
     }
     // Both sides played the same game: each winner is its counterpart plus the result's two steps.
@@ -131,6 +131,14 @@ describe("fairness", () => {
     const won = scoreMatch(game(), RIFT, {})!;
     const lost = scoreMatch(game({}, 200), RIFT)!;
     for (let i = 0; i < 10; i++) expect(Math.abs(scoreOf(won, i).score - scoreOf(lost, i).score)).toBeLessThanOrEqual(1);
+  });
+
+  it("an ordinary game stays at 4 or above when the lane opponent had an outstanding one", () => {
+    // A typical support facing a support at 3/2/24 with 100 vision; a typical top facing a tank at 3/5/11 with 48k taken.
+    const sup = scoreMatch(game({ 4: { kills: 3, deaths: 2, assists: 24, vision: 100, wardsPlaced: 42, wardsKilled: 12, ccSeconds: 60, teamHealing: 4_000, teamShielding: 3_000 } }), RIFT)!;
+    expect(scoreOf(sup, 9).score).toBeGreaterThanOrEqual(4);
+    const top = scoreMatch(game({ 0: { damage: 15_000, damageTaken: 48_000, damageMitigated: 45_000, ccSeconds: 50, kills: 3, assists: 11 } }), RIFT)!;
+    expect(scoreOf(top, 5).score).toBeGreaterThanOrEqual(4);
   });
 
   it("a tank who takes the fights' damage and crowd-controls is credited, not judged on damage alone", () => {
@@ -231,6 +239,39 @@ describe("the timeline score", () => {
     tl.players[3] = { ...tl.players[3]!, kills: null };
     const points = timelineScores(inputs, tl, scoreMatch(inputs, RIFT), { mode: "rift", durationMinutes: 30 })!;
     for (const p of points.slice(0, -1)) expect(p.components.some((k) => k === "kp" || k === "kda" || k === "deaths")).toBe(false);
+  });
+});
+
+describe("the timeline's damping (v2)", () => {
+  // Every event spread evenly over a 35-minute game, every frame linear: each player plays the same game throughout.
+  const minutes = 35;
+  const t = Array.from({ length: minutes + 1 }, (_, m) => m * 60_000);
+  const even = (n: number) => Array.from({ length: n }, (_, k) => Math.round(((k + 0.5) / n) * minutes * 60_000));
+  const steadyTimeline = (inputs: ScoreInput[]) => ({
+    t,
+    players: inputs.map((p) => ({ slot: p.slot, kills: even(p.kills!), deaths: even(p.deaths!), assists: even(p.assists!), frames: { g: t.map((ms) => 500 + (p.gold! - 500) * (ms / t.at(-1)!)), x: t.map((ms) => 18_000 * (ms / t.at(-1)!)), c: t.map((ms) => p.cs! * (ms / t.at(-1)!)) } })),
+  });
+  const run = (inputs: ScoreInput[]) => timelineScores(inputs, steadyTimeline(inputs), scoreMatch(inputs, { mode: "rift", minutes }), { mode: "rift", durationMinutes: minutes })!;
+  const series = (points: ReturnType<typeof run>, slot: number) => points.filter((p) => !p.final).map((p) => p.scores[slot]!);
+
+  it("shrinks early points toward 5 by the minutes played, and never the final point", () => {
+    expect(evidenceAt("rift", 5)).toBeCloseTo(5 / 13, 9);
+    expect(evidenceAt("rift", 15)).toBeCloseTo(15 / 23, 9);
+    expect(evidenceAt("aram", 3)).toBeCloseTo(3 / 8, 9);
+    const inputs = game({ 3: { kills: 14, deaths: 1, assists: 9, damage: 40_000, gold: 16_000, cs: 290 } });
+    const points = run(inputs);
+    const carry = series(points, 3);
+    // Ahead all game: above 5 at every point, closer to 5 early than late.
+    for (const v of carry) expect(v).toBeGreaterThan(5);
+    expect(carry[0]! - 5).toBeLessThan(carry.at(-1)! - 5);
+    expect(points.at(-1)!.scores[3]).toBe(scoreMatch(inputs, { mode: "rift", minutes })!.players.find((p) => p.slot === 3)!.score);
+  });
+
+  it("an ordinary game played the same throughout reads Steady, and a strong one is not called Rising for the damping alone", () => {
+    const points = run(game());
+    for (let slot = 0; slot < 10; slot++) expect(trendOf(series(points, slot))?.word, `slot ${slot}`).toBe("Steady");
+    const strong = run(game({ 3: { kills: 14, deaths: 1, assists: 9, damage: 40_000, gold: 16_000, cs: 290 } }));
+    expect(["Rising", "Fading"]).not.toContain(trendOf(series(strong, 3))?.word);
   });
 });
 
