@@ -124,7 +124,15 @@ test("tablets and desktops: the current section tab, and the frame's entry for t
   // no query, and following it used to bring back the default (Recent form, when Records was a view).
   await page.goto("/leaderboards?season=16");
   await expect(page.getByTestId("records")).toBeVisible();
-  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  // Since Release 16 a desktop's boards fit the window (each folds to the rows that fit), so the page
+  // is made long enough to scroll, as Champion Lookup's and the Library's below.
+  await page.evaluate(() => {
+    const extra = document.createElement("div");
+    extra.dataset.testid = "test-length";
+    extra.style.height = "2000px";
+    document.querySelector("main")!.append(extra);
+    window.scrollTo(0, document.documentElement.scrollHeight);
+  });
   await expect.poll(() => scrollY(page)).toBeGreaterThan(200);
   let navigations = watchNavigations(page);
   await page.getByTestId("team-tab-leaderboards").click();

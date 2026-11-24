@@ -26,7 +26,7 @@ import { SECTIONS } from "./sections";
 
 /*
   The board's columns, by its own width (DataList's tiers). Each template fits where its tier
-  starts: the tracks' minimums, the gaps and the padding come to 34.75rem against 36, 56.25rem
+  starts: the tracks' minimums, the gaps and the padding come to 35.25rem against 36, 56.25rem
   against 58. From 36rem the picture is 32px (a 2rem track) and each row 40px (DataRow's compact:
   the one-screen board of Release 16; 52px and 48px before), on phones 40px and 64px as ever. On a
   medium board the name takes a quarter more of the room than the bar ("Demo Sub (Support)" wrapped in
@@ -36,7 +36,8 @@ import { SECTIONS } from "./sections";
             its own, still at the right, when it does not fit); the bar is the 2px line along the
             row's foot.
     medium  place · picture · name over the dates (from 40rem the main role's name before them)
-            · bar and win rate · record · gap.
+            · bar and win rate · record · gap. The gap keeps one line in a 7rem track ("A win
+            ties 2nd" had 1px to spare in 6.5rem and wrapped in CI's Chromium, a 45px row).
     wide    place · picture · name · bar and win rate · record · gap · main role · dates. The name
             stops at 18rem; the bar takes the rest.
   With large text a narrow board is narrower in rem than on any phone at 100% (a 320px phone's is
@@ -62,7 +63,7 @@ import { SECTIONS } from "./sections";
 */
 const FORM_COLS =
   "[--dl-cols:2rem_2.5rem_minmax(0,1fr)_auto] @max-[16.5rem]/list:[--dl-cols:2rem_2.5rem_minmax(0,1fr)] " +
-  "@min-[36rem]/list:[--dl-cols:2.5rem_2rem_minmax(6.5rem,1.25fr)_minmax(8rem,1fr)_4rem_6.5rem] " +
+  "@min-[36rem]/list:[--dl-cols:2.5rem_2rem_minmax(6.5rem,1.25fr)_minmax(8rem,1fr)_4rem_7rem] " +
   "@min-[58rem]/list:[--dl-cols:3rem_2rem_minmax(9rem,18rem)_minmax(9rem,1fr)_4rem_9.5rem_5.5rem_7rem]";
 /**
  * A cell beside all of a row's lines below 58rem (two, three under 16.5rem), on its one line from
@@ -274,7 +275,7 @@ function FormRowItem({ r, p, tie, window }: { r: FormRow; p: BoardPlayer; tie: T
               {r.dates}
             </span>
             {/* The gap at the line's right end, under the win rate: when it does not fit, it takes a line of its own, still at the right, never after a dangling "·". */}
-            <span className={cn("@max-[36rem]/list:ml-auto @min-[36rem]/list:col-[6/7] @min-[36rem]/list:row-[1/span_2] @min-[36rem]/list:self-center @min-[36rem]/list:pl-2 @min-[36rem]/list:text-sm @min-[58rem]/list:row-[1/2] @min-[58rem]/list:pl-1", leader && "@max-[36rem]/list:hidden")}>
+            <span className={cn("@max-[36rem]/list:ml-auto @min-[36rem]/list:col-[6/7] @min-[36rem]/list:row-[1/span_2] @min-[36rem]/list:self-center @min-[36rem]/list:whitespace-nowrap @min-[36rem]/list:pl-1 @min-[36rem]/list:text-sm @min-[58rem]/list:row-[1/2]", leader && "@max-[36rem]/list:hidden")}>
               <span aria-hidden data-testid="form-gap" title={r.note ?? undefined} className={r.gap?.kind === "level" ? "font-medium text-fg" : !r.gap ? "text-fg-subtle" : undefined}>
                 {gapToken(r.gap, window)}
               </span>
