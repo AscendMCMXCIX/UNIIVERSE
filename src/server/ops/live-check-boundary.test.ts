@@ -30,7 +30,7 @@ function documentedPaths(): string[] {
 }
 
 describe("the live check's signed-out boundary", () => {
-  it("turns Champion Lookup away signed out, with the other member pages", () => {
+  it("turns Champion Intel away signed out, with the other member pages", () => {
     const paths = boundaryPaths();
     expect(paths).toContain("/lookup");
     expect(paths).toContain("/team");

@@ -55,7 +55,7 @@ test("navigation is usable", async ({ page }) => {
     // Bottom tab bar on phones: the sidebar's four destinations, the current one lit, Team's sections
     // under the top bar (docs/MOBILE.md; e2e/mobile-nav.spec.ts checks the rest of the phone frame).
     const tabs = page.getByTestId("phone-tabbar").locator("a");
-    await expect(tabs).toHaveText(["My Profile", "Team", "Champion Lookup", "Resources"]);
+    await expect(tabs).toHaveText(["My Profile", "Team", "Champion Intel", "Resources"]);
     await expect(page.getByTestId("phone-tabbar").getByTestId("tab-team")).toHaveAttribute("aria-current", "page");
     await page.getByTestId("team-chrome-tab-matches").click();
     await expect(page).toHaveURL(/\/matches$/);
@@ -76,12 +76,12 @@ test("navigation is usable", async ({ page }) => {
     // Team's sections are the pinned tabs in the page.
     const nav = page.getByRole("navigation", { name: "Primary" });
     await expect(nav).toHaveCount(1);
-    await expect(nav.getByRole("link")).toHaveText(["My Profile", "Team", "Champion Lookup", "Resources"]);
+    await expect(nav.getByRole("link")).toHaveText(["My Profile", "Team", "Champion Intel", "Resources"]);
     await expect(nav.getByRole("link", { name: "Team" })).toHaveAttribute("aria-current", "page");
     await expect(page.getByTestId("menu-button")).toHaveCount(0);
-    await nav.getByRole("link", { name: "Champion Lookup" }).click();
+    await nav.getByRole("link", { name: "Champion Intel" }).click();
     await expect(page).toHaveURL(/\/lookup$/);
-    await expect(nav.getByRole("link", { name: "Champion Lookup" })).toHaveAttribute("aria-current", "page");
+    await expect(nav.getByRole("link", { name: "Champion Intel" })).toHaveAttribute("aria-current", "page");
     await nav.getByRole("link", { name: "Resources" }).click();
     await expect(page).toHaveURL(/\/resources$/);
     await expect(nav.getByRole("link", { name: "Resources" })).toHaveAttribute("aria-current", "page");
@@ -95,7 +95,7 @@ test("navigation is usable", async ({ page }) => {
     const aside = page.locator("aside");
     await expect(aside).toBeVisible();
     // Team: one entry (its sections are the tabs at the top of its pages); My Profile: one link
-    // (its sections are the bar under the profile card); Champion Lookup and Resources: entries of their
+    // (its sections are the bar under the profile card); Champion Intel and Resources: entries of their
     // own below Team, one page each.
     const team = aside.getByTestId("nav-team");
     await expect(team).toHaveAttribute("href", "/team");

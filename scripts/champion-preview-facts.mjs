@@ -63,7 +63,7 @@ export function readChampionPreview(rowIndex) {
       return { games, says };
     }),
     lookup: lookup.length,
-    // The link opens Champion Lookup on the opened opponent (Matchup Intel's place since 23 Nov 2026).
+    // The link opens Champion Intel on the opened opponent (Matchup Intel's place since 23 Nov 2026).
     lookupPage: new URL(href || "/", location.origin).pathname === "/lookup",
     lookupChampion: !!q.get("champion") && q.get("champion") === opponents.find((o) => o.querySelector("button[aria-expanded=true]"))?.getAttribute("data-champion"),
     address: { champion: new URLSearchParams(location.search).get("champion") === content.getAttribute("data-champion") },
@@ -109,10 +109,10 @@ export function championPreviewVerdicts({ kind, at, step, escaped, kept }) {
   const rate = /^(\d{1,3})%$/.exec(at.winRate ?? "");
   fact("the preview shows the win rate, the wins over the games", !!rate && !!m && games > 0 && Math.abs(Number(rate[1]) - (100 * wins) / games) <= 0.5 + 1e-9, { winRate: at.winRate, record: at.record });
   if (at.loading || at.answered === false) fact("the opponents loaded", false, { loading: at.loading, answered: at.answered });
-  else if (at.noOpponents) out.push({ name: `${kind}: skipped: no lane opponent is known for this champion yet (its rows, the link to Champion Lookup)`, status: "WARN", detail: { opponents: 0 } });
+  else if (at.noOpponents) out.push({ name: `${kind}: skipped: no lane opponent is known for this champion yet (its rows, the link to Champion Intel)`, status: "WARN", detail: { opponents: 0 } });
   else {
     fact('every opponent row carries its "N games", and there is at least one', at.opponents.length > 0 && at.opponents.every((o) => o.games > 0 && o.says), { rows: at.opponents.length, without: at.opponents.filter((o) => !(o.games > 0 && o.says)).length });
-    fact("an opened opponent shows one link to Champion Lookup, with champion= the opponent", at.lookup === 1 && at.lookupPage && at.lookupChampion, { links: at.lookup, page: at.lookupPage, champion: at.lookupChampion });
+    fact("an opened opponent shows one link to Champion Intel, with champion= the opponent", at.lookup === 1 && at.lookupPage && at.lookupChampion, { links: at.lookup, page: at.lookupPage, champion: at.lookupChampion });
   }
   if (step === null) out.push({ name: `${kind}: skipped: ↓ has no next row (the list has one champion)`, status: "WARN", detail: null });
   else fact("↓ moves the preview to the next row, replacing the address (no new history entry)", step.next && step.address && step.replaced, step);

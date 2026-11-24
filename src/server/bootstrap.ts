@@ -36,7 +36,7 @@ async function bootstrap(handle: DbHandle): Promise<void> {
   }
   const demoWanted = process.env.UNIIVERSE_SEED_DEMO === "true" || (process.env.UNIIVERSE_SEED_DEMO !== "false" && handle.mode !== "postgres");
   if (demoWanted) {
-    // Champion Lookup: a demo with no champion abilities stored (its champions came from the offline
+    // Champion Intel: a demo with no champion abilities stored (its champions came from the offline
     // fixture, or Data Dragon's files could not be read) gets the committed offline copy, labelled
     // as such. Never over abilities read from Data Dragon.
     await seedChampionAbilitiesFromFixture(db).catch((err) => console.error("[bootstrap] champion abilities not stored:", err));

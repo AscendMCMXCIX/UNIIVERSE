@@ -7,7 +7,7 @@ export interface NavLink {
   /**
    * A shorter name for the bars where the full one does not fit (the label ladder: the full name,
    * then this one with the rest of the full name read out, then the icon alone; mobile-nav.tsx). The
-   * full name starts or ends with it ("Champion Lookup": "Lookup"), so what shows is always part of
+   * full name starts or ends with it ("Champion Intel": "Intel"), so what shows is always part of
    * what is read out.
    */
   short?: string;
@@ -102,15 +102,17 @@ export const TEAM_SECTIONS: NavLink[] = [
 ];
 
 /**
- * CHAMPION LOOKUP, a destination of its own (the owner's request of 23 Nov 2026, in Matchup Intel's
+ * CHAMPION INTEL (Champion Intel until the owner's request of 24 Nov 2026, at the same address), a
+ * destination of its own (the owner's request of 23 Nov 2026, in Matchup Intel's
  * place), for every signed-in account: choose any champion and read its abilities, base cooldowns
- * and those cooldowns at an ability haste (docs/CHAMPION_LOOKUP.md), at /lookup?champion=<id>&haste=<n>.
+ * and those cooldowns at an ability haste, with its costs, key mechanics and base statistics, one
+ * champion or two side by side (docs/CHAMPION_INTEL.md), at /lookup?champion=<id>&haste=<n>.
  * Matchup Intel's address, /resources/matchups with any of its parameters, leads here (its page
  * redirects, carrying one champion). Not the personal Matchups (a player's own games against an
  * opponent), which live in a champion's window. Where a bar has no room for its whole name it shows
- * "Lookup", the end of it (the label ladder), and is read out in full.
+ * "Intel", the end of it (the label ladder), and is read out in full.
  */
-export const CHAMPION_LOOKUP: NavLink = { href: "/lookup", label: "Champion Lookup", short: "Lookup", icon: ScanSearch };
+export const CHAMPION_INTEL: NavLink = { href: "/lookup", label: "Champion Intel", short: "Intel", icon: ScanSearch };
 
 /**
  * RESOURCES, a destination of its own, for every signed-in account: the Library, the team's library
@@ -217,7 +219,7 @@ export function entryLinks(entry: NavEntry): NavLink[] {
  *   Team           one entry for our own team (only for members of the team): Team Overview, the
  *                  team's home page, first, and marked on all of its sections, which are the tabs at
  *                  the top of every Team page (TEAM_SECTIONS; on phones the top bar's second row);
- *   Champion Lookup one link (CHAMPION_LOOKUP), marked on its page whatever champion the address holds;
+ *   Champion Intel one link (CHAMPION_INTEL), marked on its page whatever champion the address holds;
  *   Resources      one link (RESOURCES), the Library, marked on it alone.
  * The account's own items (Settings, Install App, the switch between the modes, Sign out, the patch
  * and Riot's notice) are never destinations: the sidebar's footer, a tablet's avatar menu, a phone's
@@ -226,7 +228,7 @@ export function entryLinks(entry: NavEntry): NavLink[] {
 export const NAV_ENTRIES: NavEntry[] = [
   { href: "/overview", label: "My Profile", short: "Profile", icon: CircleUserRound },
   { key: "team", label: "Team", icon: Users, sections: TEAM_SECTIONS },
-  CHAMPION_LOOKUP,
+  CHAMPION_INTEL,
   RESOURCES,
 ];
 
@@ -317,7 +319,7 @@ export function destinations(allowed: readonly string[], admin: boolean): Destin
 
 /**
  * The destination a page belongs to: the one holding the longest matching page (a teammate's profile
- * under /players/… is Team's, your own profile's sections My Profile's, Champion Lookup its own
+ * under /players/… is Team's, your own profile's sections My Profile's, Champion Intel its own
  * whatever champion its address holds; every admin page its entry's); none for Settings
  * and the few pages outside them. /me, which leads to your own profile, is My Profile's.
  */
@@ -371,7 +373,7 @@ export function prefetchOf(href: string): false | undefined {
 /**
  * On a phone, where Back leads from a page opened with no page of this app before it (a link from
  * elsewhere, a reload, the installed app's start): the page above it, named for the button. Every
- * destination's own pages (Team's sections, your profile's, Champion Lookup, Resources, every admin
+ * destination's own pages (Team's sections, your profile's, Champion Intel, Resources, every admin
  * page under its entry) have none: they are where you start, so no page claims Team as its parent
  * unless it is under Team (a teammate's profile, under Players). Settings, which is not a
  * destination, leads home (Back named after the page before goes there instead, when it is known:
@@ -387,12 +389,12 @@ export function phoneParent(pathname: string, list: readonly Destination[], home
 
 /**
  * The name of the page a path opens, for a phone's Back when that page's heading was never read: a
- * page with a name of its own (Champion Lookup), else a section by its tab's name (Players,
+ * page with a name of its own (Champion Intel), else a section by its tab's name (Players,
  * Leaderboards; a set's first section by its destination's: Team for Team Overview), else its
  * destination's, else the few pages outside them by name; "Back" for anything else.
  */
 export function pageName(path: string, list: readonly Destination[]): string {
-  if (path === CHAMPION_LOOKUP.href) return CHAMPION_LOOKUP.label;
+  if (path === CHAMPION_INTEL.href) return CHAMPION_INTEL.label;
   for (const hub of SECTION_HUBS) {
     const section = activeHref(path, hub.sections.map((s) => s.href));
     if (!section) continue;
@@ -457,7 +459,7 @@ export function canOpen(session: Session | null, link: Pick<NavLink, "permission
 export function isActivePath(pathname: string, href: string): boolean {
   // The dashboard is Admin Mode's root: every admin page starts with its address, so it is the
   // current page only on itself. Resources is the Library alone: Matchup Intel's old address under
-  // it (/resources/matchups) only redirects to Champion Lookup, so Resources is the current page
+  // it (/resources/matchups) only redirects to Champion Intel, so Resources is the current page
   // only on itself too.
   if (href === ADMIN_HOME || href === RESOURCES.href) return pathname === href;
   return pathname === href || pathname.startsWith(`${href}/`);

@@ -207,7 +207,7 @@ export function formatSeconds(value: number): string {
 }
 
 /**
- * Values at each rank, as Champion Lookup writes them, `unit` after the last ("s", "%", or nothing):
+ * Values at each rank, as Champion Intel writes them, `unit` after the last ("s", "%", or nothing):
  * "25 / 35 / 45%"; a single value "40%"; the same value at every rank once, "40% at every rank", or
  * "40%" when `per` is null. "s" follows its number after a no-break space ("8 / 7 / 6 s"), so a
  * line never ends between them. `per` names the steps: "rank", or "level" for a passive that changes

@@ -6,9 +6,10 @@ import { getCurrentPatch, listChampions, type ChampionSummary } from "@/server/r
 import { loadChampionAbilities } from "@/server/riot/static/abilities";
 
 /*
-  CHAMPION LOOKUP's page, built on the server (docs/CHAMPION_LOOKUP.md): the cached roster and
-  current patch, and the stored abilities of the one champion the address names, checked against
-  the roster first. Nothing else is read: no player, no game, no Riot request.
+  CHAMPION INTEL's page, built on the server (docs/CHAMPION_INTEL.md): the cached roster and current
+  patch, and the stored abilities of the one or two champions the address names, checked against
+  the roster first and read in one statement. Nothing else is read: no player, no game, no Riot
+  request.
 */
 
 /** The roster as the selector offers it. */
@@ -16,16 +17,23 @@ export function championChoices(list: readonly ChampionSummary[]): ChampionChoic
   return list.map((c) => ({ id: c.id, name: c.name, title: c.title, portrait: c.portraitUrl }));
 }
 
-/** The page for the champion the address names (`champion`, an id or a name), or for none. */
-export async function loadLookupPage(db: Db, input: { champion?: string | null }): Promise<LookupPage> {
+const named = (v: string | null | undefined): v is string => typeof v === "string" && v.trim() !== "";
+
+/**
+ * The page for the champions the address names (`champion`, and `champion2` beside it; each an id
+ * or a name), or for none. A second champion alone is the first. One the roster lacks is left out
+ * (`dropped`).
+ */
+export async function loadLookupPage(db: Db, input: { champion?: string | null; champion2?: string | null }): Promise<LookupPage & { firstFrom: "champion" | "champion2" | null }> {
   const [list, current] = await Promise.all([listChampions(db), getCurrentPatch(db)]);
   const champions = championChoices(list);
-  const named = typeof input.champion === "string" && input.champion.trim() !== "";
-  const choice = named ? championResolver(champions)(input.champion) : null;
+  const resolve = championResolver(champions);
+  const asked = (["champion", "champion2"] as const).filter((key) => named(input[key]));
+  const found = asked.map((key) => ({ key, choice: resolve(input[key]) })).filter((x): x is { key: "champion" | "champion2"; choice: ChampionChoice } => x.choice !== null);
   const currentPatch = current && !current.isFixture ? publicPatchName(current.patch) : null;
-  if (!choice) return { champions, lookup: null, dropped: named, currentPatch };
-  const loaded = await loadChampionAbilities(db, [choice.id]);
-  const record = loaded.champions[choice.id] ?? null;
-  const lookup = lookupChampion(choice, record, { offline: loaded.offline.includes(choice.id), unreadable: loaded.unreadable.includes(choice.id) });
-  return { champions, lookup, dropped: false, currentPatch };
+  const dropped = found.length < asked.length;
+  if (!found.length) return { champions, lookup: null, second: null, dropped, currentPatch, firstFrom: null };
+  const loaded = await loadChampionAbilities(db, found.map((c) => c.choice.id));
+  const view = (c: ChampionChoice) => lookupChampion(c, loaded.champions[c.id] ?? null, { offline: loaded.offline.includes(c.id), unreadable: loaded.unreadable.includes(c.id) });
+  return { champions, lookup: view(found[0]!.choice), second: found[1] ? view(found[1].choice) : null, dropped, currentPatch, firstFrom: found[0]!.key };
 }

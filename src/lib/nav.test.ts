@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ADMIN_ENTRIES, ADMIN_HOME, ADMIN_LINKS, MANIFEST_SHORTCUTS, CHAMPION_LOOKUP, NAV_ENTRIES, NAV_LINKS, PAGE_WIDTH, ROW_WIDTH, RESOURCES, SECTION_HUBS, TEAM_SECTIONS, activeHref, backSteps, canOpen, currentDestination, destinations, encountersRedirect, entryLinks, isActivePath, isNavHub, pageName, pageWidthOf, phoneParent, prefetchOf, profileBase, sectionHubOf, shortcutIcon, withSectionMemory } from "./nav";
+import { ADMIN_ENTRIES, ADMIN_HOME, ADMIN_LINKS, MANIFEST_SHORTCUTS, CHAMPION_INTEL, NAV_ENTRIES, NAV_LINKS, PAGE_WIDTH, ROW_WIDTH, RESOURCES, SECTION_HUBS, TEAM_SECTIONS, activeHref, backSteps, canOpen, currentDestination, destinations, encountersRedirect, entryLinks, isActivePath, isNavHub, pageName, pageWidthOf, phoneParent, prefetchOf, profileBase, sectionHubOf, shortcutIcon, withSectionMemory } from "./nav";
 import { LOOKUP_PATH } from "@/components/champion-lookup/address";
 import { BookMarked, ScanSearch } from "lucide-react";
 import type { Session } from "@/server/auth/permissions";
@@ -7,9 +7,9 @@ import type { Session } from "@/server/auth/permissions";
 const entryId = (e: (typeof NAV_ENTRIES)[number]) => ("key" in e ? e.key : e.href);
 
 describe("navigation entries", () => {
-  it("Player Mode has single entries only: My Profile, Team, Champion Lookup, then Resources", () => {
+  it("Player Mode has single entries only: My Profile, Team, Champion Intel, then Resources", () => {
     expect(NAV_ENTRIES.map(entryId)).toEqual(["/overview", "team", "/lookup", "/resources"]);
-    expect(NAV_ENTRIES.map((e) => e.label)).toEqual(["My Profile", "Team", "Champion Lookup", "Resources"]);
+    expect(NAV_ENTRIES.map((e) => e.label)).toEqual(["My Profile", "Team", "Champion Intel", "Resources"]);
   });
 
   it("Resources is for every signed-in account, and is managed in Admin Mode's Platform Settings", () => {
@@ -58,7 +58,7 @@ describe("navigation entries", () => {
     const named = [...NAV_ENTRIES, ...ADMIN_ENTRIES].filter((e) => e.short);
     expect(named.map((e) => [e.label, e.short])).toEqual([
       ["My Profile", "Profile"],
-      ["Champion Lookup", "Lookup"],
+      ["Champion Intel", "Intel"],
       ["Users & Permissions", "Users"],
       ["Platform Settings", "Platform"],
     ]);
@@ -84,12 +84,12 @@ describe("navigation entries", () => {
     expect(SECTION_HUBS.map((h) => h.key)).toEqual(["team", "admin-users", "admin-settings", "admin-system"]);
   });
 
-  it("Champion Lookup and Resources are entries of their own, one page each, with no tabs, which every account may open", () => {
-    // Champion Lookup with its magnifier, at its own address (Matchup Intel's old one redirects to it).
-    expect(CHAMPION_LOOKUP).toEqual({ href: "/lookup", label: "Champion Lookup", short: "Lookup", icon: ScanSearch });
-    expect(CHAMPION_LOOKUP.href).toBe(LOOKUP_PATH);
+  it("Champion Intel and Resources are entries of their own, one page each, with no tabs, which every account may open", () => {
+    // Champion Intel with its magnifier, at its own address (Matchup Intel's old one redirects to it).
+    expect(CHAMPION_INTEL).toEqual({ href: "/lookup", label: "Champion Intel", short: "Intel", icon: ScanSearch });
+    expect(CHAMPION_INTEL.href).toBe(LOOKUP_PATH);
     expect(RESOURCES).toEqual({ href: "/resources", label: "Resources", icon: BookMarked });
-    for (const link of [CHAMPION_LOOKUP, RESOURCES]) {
+    for (const link of [CHAMPION_INTEL, RESOURCES]) {
       const entry = NAV_ENTRIES.find((e) => !isNavHub(e) && e.href === link.href)!;
       expect(entry, link.label).toBe(link);
       // Neither has tabs, and neither is a section of anything: one place in the sidebar each.
@@ -97,12 +97,12 @@ describe("navigation entries", () => {
       expect(NAV_LINKS.filter((l) => l.href === link.href), link.label).toHaveLength(1);
     }
     const stranger: Session = { userId: "u", role: "player", label: "P", playerId: null, username: "p", hasPassword: true, mustChangePassword: false, setupComplete: true, capabilities: [] };
-    expect([CHAMPION_LOOKUP, RESOURCES].every((l) => canOpen(stranger, l))).toBe(true);
+    expect([CHAMPION_INTEL, RESOURCES].every((l) => canOpen(stranger, l))).toBe(true);
     // No destination is named for matchups any more: a champion's own Matchups live in its window.
     expect(NAV_LINKS.filter((l) => /matchup/i.test(`${l.href} ${l.label}`))).toEqual([]);
   });
 
-  it("Champion Lookup is marked on its page, whatever champion it shows, and Resources on the Library alone", () => {
+  it("Champion Intel is marked on its page, whatever champion it shows, and Resources on the Library alone", () => {
     const hrefs = NAV_LINKS.map((l) => l.href);
     expect(activeHref("/lookup", hrefs)).toBe("/lookup");
     expect(activeHref("/resources", hrefs)).toBe("/resources");
@@ -141,12 +141,12 @@ describe("the destinations every bar shows", () => {
   const adminAll = ADMIN_LINKS.map((l) => l.href);
   const view = (list: ReturnType<typeof destinations>) => list.map((d) => [d.key, d.href, d.label, d.short ?? null]);
 
-  it("Player Mode: My Profile, Team, Champion Lookup and Resources, the sidebar's entries with their names, short names and icons, each to its first page", () => {
+  it("Player Mode: My Profile, Team, Champion Intel and Resources, the sidebar's entries with their names, short names and icons, each to its first page", () => {
     const list = destinations(all, false);
     expect(view(list)).toEqual([
       ["/overview", "/overview", "My Profile", "Profile"],
       ["team", "/team", "Team", null],
-      ["/lookup", "/lookup", "Champion Lookup", "Lookup"],
+      ["/lookup", "/lookup", "Champion Intel", "Intel"],
       ["/resources", "/resources", "Resources", null],
     ]);
     expect(list.map((d) => d.icon)).toEqual(NAV_ENTRIES.map((e) => e.icon));
@@ -180,7 +180,7 @@ describe("the destinations every bar shows", () => {
     expect(destinations(["/overview", "/players", "/resources"], false).map((d) => d.href)).toEqual(["/overview", "/players", "/resources"]);
   });
 
-  it("marks the destination a page belongs to, as the sidebar does: a teammate's profile is Team's, your own profile's sections My Profile's, Champion Lookup its own; none for Settings", () => {
+  it("marks the destination a page belongs to, as the sidebar does: a teammate's profile is Team's, your own profile's sections My Profile's, Champion Intel its own; none for Settings", () => {
     const list = destinations(all, false);
     const at = (path: string) => currentDestination(path, list)?.key ?? null;
     expect(at("/team")).toBe("team");
@@ -258,11 +258,11 @@ describe("phone top bar", () => {
     // An account outside the team: home is its first page, by its destination's name.
     const personal = destinations(["/overview", "/resources", "/lookup", "/settings"], false);
     expect(phoneParent("/lookup", personal, "/lookup")).toBeNull();
-    expect(phoneParent("/settings", personal, "/lookup")).toEqual({ href: "/lookup", label: "Champion Lookup" });
+    expect(phoneParent("/settings", personal, "/lookup")).toEqual({ href: "/lookup", label: "Champion Intel" });
   });
 
   it("names a page for Back when its heading was never read: a section by its tab, a set's first by its destination", () => {
-    expect(pageName("/lookup", member)).toBe("Champion Lookup");
+    expect(pageName("/lookup", member)).toBe("Champion Intel");
     expect(pageName("/resources", member)).toBe("Resources");
     expect(pageName("/settings", member)).toBe("Settings");
     expect(pageName("/players", member)).toBe("Players");

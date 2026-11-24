@@ -2,14 +2,15 @@ import { createHash } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Db } from "@/server/db/types";
-import { SLOTS, type DdragonAbility, type DdragonChampionAbilities } from "@/domain/champion-lookup/types";
+import { SLOTS, type DdragonAbility, type DdragonChampionAbilities, type DdragonChampionFacts } from "@/domain/champion-lookup/types";
+import { withChanges } from "@/domain/champion-lookup/changes";
 import { cachedFor, invalidateCache } from "@/server/observability/cache";
 import { listChampions } from "@/server/repositories/champions";
 import { StaticDataError, type StaticDataProvider } from "@/server/riot/static/provider";
 import { mapWithConcurrency } from "@/server/riot/static/sync";
 
 /*
-  CHAMPION LOOKUP's source (docs/CHAMPION_LOOKUP.md): each champion's abilities from Riot's Data
+  CHAMPION INTEL's source (docs/CHAMPION_INTEL.md): each champion's abilities from Riot's Data
   Dragon, stored by the version-check job once per game version (app_settings "champion_abilities")
   and read per champion by the page, so rendering never asks Riot (docs/DATA_PIPELINES.md, "Champion
   abilities"). Static data Riot publishes before any game; nothing live.
@@ -28,11 +29,23 @@ import { mapWithConcurrency } from "@/server/riot/static/sync";
     tooltip (riotTextHash): never the text itself, only whether the text changed between patches
     (the per-patch digests, digests.ts);
   - Riot's tips (allytips, enemytips), verbatim: stored since rules format 3, shown by no page since
-    Matchup Intel was retired (docs/CHAMPION_LOOKUP.md, "What is stored and not shown"), kept so the
-    stored records and the offline fixture keep their format.
+    Matchup Intel was retired (docs/CHAMPION_INTEL.md, "What is stored and not shown"), kept so the
+    stored records and the offline fixture keep their format;
+  - since rules format 4: each spell's `cost` array and Riot's `resource` line as given, which the
+    page shows only where Riot's own line is "{{ cost }}" and the champion's resource, so the number
+    is the one Riot's line names (src/domain/champion-lookup/cost.ts); and the champion's own facts
+    (`partype`, `tags`, `stats`), plain numbers and words Riot gives for every champion
+    (src/domain/champion-lookup/stats.ts says which are shown);
+  - since rules format 4, the full description (up to DESCRIPTION_MAX characters, which no
+    description at 16.22.1 reaches).
   Never read for their words or numbers: tooltip (hashed only), leveltip, effect/effectBurn, vars,
-  datavalues, range/rangeBurn, costType/resource (their numbers are templates and placeholders, or
-  wrong for many champions), and maxammo is never taken for a recharge time.
+  datavalues, range/rangeBurn, costType (their numbers are templates and placeholders, or wrong for
+  many abilities: at 16.22.1 only 10 of 692 tooltips have every placeholder filled by the ability's
+  own Data Dragon values, even counting effectBurn, and 275 of the range values are 25000, 0 or 20,
+  a self-cast's or a placeholder, not a reach), and maxammo is never taken for a recharge time.
+  When the sync reads a champion at a new version it compares the new record with the one held
+  (src/domain/champion-lookup/changes.ts): which abilities' text, cooldowns or cost changed, and
+  whether the base stats did, never the numbers themselves.
 
   scripts/static/build-ability-fixture.mjs applies the same rules under plain Node to write
   the offline fixture (src/server/riot/fixtures/champion-abilities.fixture.json); abilities.test.ts
@@ -45,7 +58,7 @@ const KEY = "champion_abilities";
  * under another is read again from Data Dragon on the next run (the fixture must be rebuilt too:
  * abilities.test.ts fails until it is).
  */
-export const ABILITY_RULES_FORMAT = 3;
+export const ABILITY_RULES_FORMAT = 4;
 /** The Data Dragon version the committed fixture was built from. */
 export const ABILITY_FIXTURE_VERSION = "16.22.1";
 /** Data Dragon champion ids ("Riven", "MonkeyKing"): checked before any id reaches a query or a URL. */
@@ -55,7 +68,7 @@ const CACHE_MS = 10 * 60_000;
 /** More than this share of the roster failing writes nothing: the stored abilities stay (last known good). */
 const MAX_FAILED_SHARE = 0.1;
 /** The longest description kept, in characters; a longer one is cut at a word and ends in "…". */
-export const DESCRIPTION_MAX = 400;
+export const DESCRIPTION_MAX = 1000;
 
 /**
  * A champion's record as the sync stores it: the contract's fields and `format`, the rules'
@@ -160,9 +173,23 @@ const spellSchema = z.object({
   // Hashed only (riotTextHash), never stored or shown.
   tooltip: z.string().max(40_000).optional(),
   image: z.object({ full: icon }),
+  // Rules format 4: kept as Riot gives them; one that is not this shape is left out, never the champion.
+  cost: z.array(z.number().min(0).max(100_000)).max(10).optional().catch(undefined),
+  resource: z.string().max(200).optional().catch(undefined),
 });
 const tipList = z.array(z.unknown()).max(40).optional();
-const detailSchema = z.object({ id: z.string().regex(CHAMPION_ID), passive: passiveSchema, spells: z.array(spellSchema).min(4), allytips: tipList, enemytips: tipList });
+/** A stat's name as Data Dragon writes it ("hp", "attackspeedperlevel") and its value, a finite number. */
+const statsSchema = z.record(z.string().regex(/^[a-z]{2,30}$/), z.number().finite().min(-1_000).max(100_000)).optional().catch(undefined);
+const detailSchema = z.object({
+  id: z.string().regex(CHAMPION_ID),
+  passive: passiveSchema,
+  spells: z.array(spellSchema).min(4),
+  allytips: tipList,
+  enemytips: tipList,
+  partype: z.string().max(40).optional().catch(undefined),
+  tags: z.array(z.string().max(30)).max(10).optional().catch(undefined),
+  stats: statsSchema,
+});
 
 /** The longest tip kept, in characters: a longer one is left out whole, never cut (a tip is shown verbatim). */
 export const TIP_MAX = 600;
@@ -189,15 +216,19 @@ export function compactChampionAbilities(detail: unknown, version: string): Ddra
     if (typeof version !== "string" || !VERSION.test(version)) return null;
     const parsed = detailSchema.safeParse(detail);
     if (!parsed.success) return null;
-    const { id, passive, spells, allytips, enemytips } = parsed.data;
+    const { id, passive, spells, allytips, enemytips, partype, tags, stats } = parsed.data;
     const abilities: DdragonAbility[] = [
       { slot: "P", id: null, name: passive.name, icon: passive.image.full, maxRank: 1, cooldown: [], charges: null, description: cleanDescription(passive.description ?? ""), textHash: riotTextHash(passive.description ?? "", null) },
       ...SPELL_SLOTS.map((slot, i): DdragonAbility => {
         const s = spells[i]!;
-        return { slot, id: s.id, name: s.name, icon: s.image.full, maxRank: s.maxrank, cooldown: [...s.cooldown], charges: chargesOf(s.maxammo), description: cleanDescription(s.description ?? ""), textHash: riotTextHash(s.description ?? "", s.tooltip ?? "") };
+        const spell: DdragonAbility = { slot, id: s.id, name: s.name, icon: s.image.full, maxRank: s.maxrank, cooldown: [...s.cooldown], charges: chargesOf(s.maxammo), description: cleanDescription(s.description ?? ""), textHash: riotTextHash(s.description ?? "", s.tooltip ?? "") };
+        if (s.cost) spell.cost = [...s.cost];
+        if (typeof s.resource === "string") spell.resource = s.resource;
+        return spell;
       }),
     ];
-    return { championId: id, version, abilities, tips: { ally: riotTips(allytips), enemy: riotTips(enemytips) } };
+    const facts: DdragonChampionFacts | null = stats && Object.keys(stats).length ? { partype: typeof partype === "string" ? partype : "", tags: tags ?? [], stats: { ...stats } } : null;
+    return { championId: id, version, abilities, tips: { ally: riotTips(allytips), enemy: riotTips(enemytips) }, facts };
   } catch {
     return null;
   }
@@ -382,6 +413,18 @@ export async function syncChampionAbilities(db: Db, version: string, options: Ab
     });
   }
 
+  // Patch marks (changes.ts): each refreshed champion against the record held for it, read in one
+  // statement (only the champions refreshed that had one). Never fails the sync: without the held
+  // records the new ones are stored with no marks.
+  const held = state.due.filter((d) => d.has && d.id in records).map((d) => d.id);
+  if (held.length) {
+    const before = await readChampions(db, held).catch(() => new Map<string, StoredRead>());
+    for (const id of held) {
+      const previous = before.get(id)?.record ?? null;
+      if (previous) records[id] = { ...withChanges(records[id]!, previous), format: ABILITY_RULES_FORMAT };
+    }
+  }
+
   const refreshed = Object.keys(records).length;
   const withRecord = (d: { id: string; has: boolean }) => d.has;
   const why = [...failures].map(([kind, n]) => `${kind} ${n}`).join(", ");
@@ -439,10 +482,21 @@ const storedAbility = z.object({
   description: z.string(),
   // Absent on a record stored under the first rules (ABILITY_RULES_FORMAT 1), until the next sync re-reads it.
   textHash: z.string().regex(/^[0-9a-f]{16}$/).nullable().optional(),
+  // Rules format 4 (absent before): Riot's cost and resource line as given, and the patch marks.
+  // One in another shape is left out, never the ability.
+  cost: z.array(z.number()).max(10).optional().catch(undefined),
+  resource: z.string().max(200).optional().catch(undefined),
+  changed: z.object({ since: z.string().max(20), text: z.boolean(), cooldown: z.boolean(), cost: z.boolean() }).nullable().optional().catch(undefined),
 });
 // Tips are absent on a record stored under rules format 2, until the next sync re-reads it.
 const storedTips = z.object({ ally: z.array(z.string()), enemy: z.array(z.string()) }).optional();
-const storedChampion = z.object({ championId: z.string(), version: z.string(), abilities: z.array(storedAbility).length(SLOTS.length), tips: storedTips });
+// The champion's own facts: absent on a record stored before rules format 4.
+const storedFacts = z
+  .object({ partype: z.string().max(40), tags: z.array(z.string().max(30)).max(10), stats: z.record(z.string(), z.number()), statsChangedSince: z.string().max(20).nullable().optional() })
+  .nullable()
+  .optional()
+  .catch(undefined);
+const storedChampion = z.object({ championId: z.string(), version: z.string(), abilities: z.array(storedAbility).length(SLOTS.length), tips: storedTips, facts: storedFacts });
 
 /** A stored record as the contract types it (the rules' `format` left out), or null when it is not one (or not this champion's). */
 function storedRecord(value: unknown, id: string): DdragonChampionAbilities | null {

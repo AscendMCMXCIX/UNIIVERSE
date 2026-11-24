@@ -55,13 +55,13 @@ export interface MobileNavProps {
   but not displayed (one `nav[aria-label=Primary]` is exposed at a time).
 
   ONE SET OF DESTINATIONS EVERYWHERE (navigation N1, 19 Nov 2026): the sidebar's four, in its order,
-  with its icons and names (nav.ts, destinations): Player Mode's My Profile, Team, Champion Lookup and
+  with its icons and names (nav.ts, destinations): Player Mode's My Profile, Team, Champion Intel and
   Resources; Admin Mode's Dashboard, Users & Permissions, Platform Settings and System. A
   destination that stands for a set of pages (Team; Users & Permissions, Platform Settings and
   System) shows them as tabs: on phones the top bar's second row (ChromeTabs), on tablets the tabs
   pinned in the page (SectionTabs). Every bar names its destinations by one label ladder, by its own
   width in rem (so the reader's text size counts): the whole names, then the short ones ("Profile",
-  "Lookup"; "Users", "Platform"; the whole names still read out), then the icons alone (the names
+  "Intel"; "Users", "Platform"; the whole names still read out), then the icons alone (the names
   read out only).
 
   PHONES HELD UPRIGHT (below md, taller than 480px): one frame, the same on every page:
@@ -450,7 +450,7 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
               sits in an accent pill and its name turns bright, so it reads at a glance without colour
               alone. By the label ladder (TAB_FIT), measured in the bar's own width in rem, so the
               user's text size counts (a 320px phone has 20rem at 100% and 10rem at 200%): the whole
-              names, then the short ones ("Profile", "Lookup"; the whole names still read out), then
+              names, then the short ones ("Profile", "Intel"; the whole names still read out), then
               the icons alone, each pill sharing the width, the names left to screen readers. Wider
               than the phone, the bar made the browser widen the area every fixed element is placed
               in. Held sideways there is no bottom bar: the destinations ride in the top bar. */}

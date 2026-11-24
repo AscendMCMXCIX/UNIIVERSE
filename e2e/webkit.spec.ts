@@ -210,7 +210,7 @@ test("a teammate's profile: its sections switch, and a champion's preview sheet 
   await expect(tabs.getByRole("link", { name: "History" })).toHaveAttribute("aria-current", "page");
 });
 
-test("Champion Lookup on an iPhone: the search is 16px and a tap on a match chooses, a haste changes the numbers, Descriptions unfold, All champions fills the screen, and nothing is wider than the phone", async ({ page }) => {
+test("Champion Intel on an iPhone: the search is 16px and a tap on a match chooses, the haste field changes the numbers, an ability's row unfolds, a second champion comes and goes, the window fills the screen, and nothing is wider than the phone", async ({ page }) => {
   await page.goto("/lookup");
   const input = page.getByTestId("lookup-search-input");
   // 16px, so Safari never zooms into the field.
@@ -222,30 +222,27 @@ test("Champion Lookup on an iPhone: the search is 16px and a tap on a match choo
   await option.tap();
   await expect(page).toHaveURL(/\/lookup\?champion=Ahri$/);
   await expect(page.getByTestId("lookup-panel")).toHaveAttribute("data-champion", "Ahri");
-  // The keyboard goes down on a touch screen once a champion is chosen.
-  await expect(input).not.toBeFocused();
   await expect(page.getByTestId("lookup-ability")).toHaveCount(5);
   await fitsWidth(page, "Ahri");
-  // A quick haste value: the numbers change by Riot's rule, in place, and the address keeps it.
-  await page.getByTestId("lookup-haste").locator('button[data-haste="20"]').tap();
+  // The haste field: 16px, digits typed change the numbers by Riot's rule, in place, and the address keeps it.
+  const haste = page.getByTestId("lookup-haste-input");
+  expect(await haste.evaluate((e) => parseFloat(getComputedStyle(e).fontSize))).toBeGreaterThanOrEqual(16);
+  await haste.tap();
+  await haste.fill("20");
   const q = page.locator('[data-testid="lookup-ability"][data-slot="Q"]');
   await expect(q.getByTestId("lookup-hasted")).toHaveAttribute("data-values", "5.83,5.83,5.83,5.83,5.83");
   await expect(page).toHaveURL(/\/lookup\?champion=Ahri&haste=20$/);
-  // Another value typed: digits only, 16px.
-  const other = page.getByTestId("lookup-haste-input");
-  expect(await other.evaluate((e) => parseFloat(getComputedStyle(e).fontSize))).toBeGreaterThanOrEqual(16);
-  await other.tap();
-  await other.fill("100");
+  await haste.fill("100");
   await expect(q.getByTestId("lookup-hasted")).toHaveAttribute("data-values", "3.5,3.5,3.5,3.5,3.5");
   await fitsWidth(page, "Ahri at 100 haste");
-  // Descriptions unfold with a tap, and fold again.
-  await page.getByTestId("lookup-descriptions").tap();
-  await expect(page.getByTestId("lookup-description")).toHaveCount(5);
-  await fitsWidth(page, "Ahri's descriptions");
-  await page.getByTestId("lookup-descriptions").tap();
-  await expect(page.getByTestId("lookup-description")).toHaveCount(0);
-  // All champions: a screen of its own on a phone, a search and a tap choose, and the window closes.
-  await page.getByTestId("lookup-browse").tap();
+  // An ability's row unfolds with a tap, Riot's description in it, and folds again.
+  await q.getByTestId("lookup-ability-summary").tap();
+  await expect(q.getByTestId("lookup-description")).toBeVisible();
+  await fitsWidth(page, "Ahri's Q unfolded");
+  await q.getByTestId("lookup-ability-summary").tap();
+  await expect(q.getByTestId("lookup-description")).toBeHidden();
+  // The champion's name opens the window of every champion: a screen of its own on a phone.
+  await page.getByTestId("lookup-change").tap();
   const win = page.getByTestId("lookup-picker");
   await expect(win).toBeVisible();
   await untilStill(page);
@@ -261,8 +258,21 @@ test("Champion Lookup on an iPhone: the search is 16px and a tap on a match choo
   // Two abilities in one slot: said in words, Riot's array as Riot's, and no haste applied.
   const leeQ = page.locator('[data-testid="lookup-ability"][data-slot="Q"]');
   await expect(leeQ.getByTestId("lookup-no-number")).toContainText("Two abilities share this slot in Riot's data · no haste applied");
+  await leeQ.getByTestId("lookup-ability-summary").tap();
   await expect(leeQ).toContainText("Riot lists 10 / 9 / 8 / 7 / 6\u00a0s for the slot.");
   await fitsWidth(page, "Lee Sin");
+  // A second champion: the switcher shows one panel at a time, and it goes again.
+  await page.getByTestId("lookup-add").tap();
+  await win.getByTestId("lookup-picker-search").tap();
+  await win.getByTestId("lookup-picker-search").fill("jinx");
+  await win.getByTestId("lookup-picker-grid").locator('button[data-champion="Jinx"]').tap();
+  await expect(page).toHaveURL(/\/lookup\?champion=LeeSin&haste=100&champion2=Jinx$/);
+  await expect(page.getByTestId("lookup-switcher")).toBeVisible();
+  await expect(page.locator('[data-testid="lookup-panel"][data-panel="2"]')).toBeVisible();
+  await fitsWidth(page, "two champions");
+  await page.getByTestId("lookup-remove").tap();
+  await expect(page).toHaveURL(/\/lookup\?champion=LeeSin&haste=100$/);
+  await expect(page.getByTestId("lookup-switcher")).toHaveCount(0);
 });
 
 test("Leaderboards on an iPhone: the index brings each section under the top bar, focused, the old Records address lands on its section, and nothing is wider than the phone, at a larger text size too", async ({ page }) => {
@@ -576,7 +586,7 @@ test("Admin Mode: the account screen's switch moves between Admin Mode and Playe
   await expect(sheet).toBeVisible();
   await sheet.getByTestId("mode-switch").tap();
   await expect(page).toHaveURL(/\/team$/);
-  await expect(tabs).toHaveText(["My Profile", "Team", "Champion Lookup", "Resources"]);
+  await expect(tabs).toHaveText(["My Profile", "Team", "Champion Intel", "Resources"]);
   await expect(page.getByTestId("team-chrome-tabs").getByRole("link")).toHaveText(["Overview", "Players", "Leaderboards", "Matches"]);
   // Back (Safari's swipe from the edge) closes the account screen and the page stays.
   await page.getByTestId("account-sheet-button").tap();

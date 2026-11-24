@@ -1,5 +1,5 @@
 /**
- * Builds the offline copy of every champion's abilities (Champion Lookup) from Data Dragon's
+ * Builds the offline copy of every champion's abilities (Champion Intel) from Data Dragon's
  * championFull.json, stored where the server cannot reach Data Dragon (the offline champion
  * fixture, a demo without network): src/server/riot/fixtures/champion-abilities.fixture.json.
  * Also writes Data Dragon's own numbers for every champion, which abilities.test.ts holds the copy
@@ -21,8 +21,8 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { z } from "zod";
 
-export const ABILITY_RULES_FORMAT = 3;
-export const DESCRIPTION_MAX = 400;
+export const ABILITY_RULES_FORMAT = 4;
+export const DESCRIPTION_MAX = 1000;
 const CHAMPION_ID = /^[A-Za-z0-9]{1,40}$/;
 const VERSION = /^\d{1,4}(?:\.\d{1,4}){1,3}$/;
 
@@ -93,9 +93,21 @@ const spellSchema = z.object({
   maxammo: z.union([z.string().max(20), z.number()]).optional(),
   tooltip: z.string().max(40_000).optional(),
   image: z.object({ full: icon }),
+  cost: z.array(z.number().min(0).max(100_000)).max(10).optional().catch(undefined),
+  resource: z.string().max(200).optional().catch(undefined),
 });
 const tipList = z.array(z.unknown()).max(40).optional();
-const detailSchema = z.object({ id: z.string().regex(CHAMPION_ID), passive: passiveSchema, spells: z.array(spellSchema).min(4), allytips: tipList, enemytips: tipList });
+const statsSchema = z.record(z.string().regex(/^[a-z]{2,30}$/), z.number().finite().min(-1_000).max(100_000)).optional().catch(undefined);
+const detailSchema = z.object({
+  id: z.string().regex(CHAMPION_ID),
+  passive: passiveSchema,
+  spells: z.array(spellSchema).min(4),
+  allytips: tipList,
+  enemytips: tipList,
+  partype: z.string().max(40).optional().catch(undefined),
+  tags: z.array(z.string().max(30)).max(10).optional().catch(undefined),
+  stats: statsSchema,
+});
 
 /** The longest tip kept, in characters: a longer one is left out whole, never cut (a tip is shown verbatim). */
 export const TIP_MAX = 600;
@@ -118,15 +130,19 @@ export function compactChampionAbilities(detail, version) {
     if (typeof version !== "string" || !VERSION.test(version)) return null;
     const parsed = detailSchema.safeParse(detail);
     if (!parsed.success) return null;
-    const { id, passive, spells, allytips, enemytips } = parsed.data;
+    const { id, passive, spells, allytips, enemytips, partype, tags, stats } = parsed.data;
     const abilities = [
       { slot: "P", id: null, name: passive.name, icon: passive.image.full, maxRank: 1, cooldown: [], charges: null, description: cleanDescription(passive.description ?? ""), textHash: riotTextHash(passive.description ?? "", null) },
       ...SPELL_SLOTS.map((slot, i) => {
         const s = spells[i];
-        return { slot, id: s.id, name: s.name, icon: s.image.full, maxRank: s.maxrank, cooldown: [...s.cooldown], charges: chargesOf(s.maxammo), description: cleanDescription(s.description ?? ""), textHash: riotTextHash(s.description ?? "", s.tooltip ?? "") };
+        const spell = { slot, id: s.id, name: s.name, icon: s.image.full, maxRank: s.maxrank, cooldown: [...s.cooldown], charges: chargesOf(s.maxammo), description: cleanDescription(s.description ?? ""), textHash: riotTextHash(s.description ?? "", s.tooltip ?? "") };
+        if (s.cost) spell.cost = [...s.cost];
+        if (typeof s.resource === "string") spell.resource = s.resource;
+        return spell;
       }),
     ];
-    return { championId: id, version, abilities, tips: { ally: riotTips(allytips), enemy: riotTips(enemytips) } };
+    const facts = stats && Object.keys(stats).length ? { partype: typeof partype === "string" ? partype : "", tags: tags ?? [], stats: { ...stats } } : null;
+    return { championId: id, version, abilities, tips: { ally: riotTips(allytips), enemy: riotTips(enemytips) }, facts };
   } catch {
     return null;
   }
@@ -135,7 +151,7 @@ export function compactChampionAbilities(detail, version) {
 /* ---------- The fixture ---------- */
 
 const NOTE =
-  "OFFLINE FIXTURE (Champion Lookup). Every champion's abilities from Riot's Data Dragon, built by scripts/static/build-ability-fixture.mjs with the rules of src/server/riot/static/abilities.ts. Stored only where the server cannot reach Data Dragon: when the champions come from the offline fixture, or by the demo's bootstrap when no abilities are stored. Never over abilities read from Data Dragon; the first sync that reads Data Dragon's files replaces it.";
+  "OFFLINE FIXTURE (Champion Intel). Every champion's abilities from Riot's Data Dragon, built by scripts/static/build-ability-fixture.mjs with the rules of src/server/riot/static/abilities.ts. Stored only where the server cannot reach Data Dragon: when the champions come from the offline fixture, or by the demo's bootstrap when no abilities are stored. Never over abilities read from Data Dragon; the first sync that reads Data Dragon's files replaces it.";
 
 /** The fixture's content from a parsed championFull.json. Throws when any champion cannot be read: the copy is all or nothing. */
 export function buildFixture(full) {
@@ -162,8 +178,9 @@ export function serialiseFixture(fixture) {
     const c = fixture.champions[id];
     lines.push(`    ${JSON.stringify(id)}: {`, `      "championId": ${JSON.stringify(c.championId)},`, `      "version": ${JSON.stringify(c.version)},`, `      "abilities": [`);
     c.abilities.forEach((a, j) => lines.push(`        ${JSON.stringify(a)}${j < c.abilities.length - 1 ? "," : ""}`));
-    lines.push(c.tips ? "      ]," : "      ]");
-    if (c.tips) lines.push(`      "tips": ${JSON.stringify(c.tips)}`);
+    const tail = [c.tips ? `      "tips": ${JSON.stringify(c.tips)}` : null, c.facts !== undefined ? `      "facts": ${JSON.stringify(c.facts)}` : null].filter(Boolean);
+    lines.push(tail.length ? "      ]," : "      ]");
+    tail.forEach((t, k) => lines.push(`${t}${k < tail.length - 1 ? "," : ""}`));
     lines.push(`    }${i < ids.length - 1 ? "," : ""}`);
   });
   lines.push("  }", "}", "");
@@ -173,9 +190,9 @@ export function serialiseFixture(fixture) {
 /* ---------- The digest: Data Dragon's own numbers, which CI checks the fixture against ---------- */
 
 const DIGEST_NOTE =
-  "Data Dragon's own numbers for every champion (championFull.json, en_US), copied as Riot gives them with no rule applied: each spell as [id, maxrank, cooldown, maxammo] (maxammo null when absent); and Riot's tips as Riot gives them (allytips, enemytips; null when absent). Written with the offline fixture by scripts/static/build-ability-fixture.mjs; src/server/riot/static/abilities.test.ts holds every champion of the fixture to it, so CI needs no championFull.json.";
+  "Data Dragon's own numbers for every champion (championFull.json, en_US), copied as Riot gives them with no rule applied: each spell as [id, maxrank, cooldown, maxammo, cost, resource] (maxammo, cost and resource null when absent); Riot's tips as Riot gives them (allytips, enemytips; null when absent); and each champion's partype, tags and stats (null when absent). Written with the offline fixture by scripts/static/build-ability-fixture.mjs; src/server/riot/static/abilities.test.ts holds every champion of the fixture to it, so CI needs no championFull.json.";
 
-/** Each champion's four spells as Data Dragon gives them, [id, maxrank, cooldown, maxammo]. Throws when a champion has no four spells. */
+/** Each champion's four spells as Data Dragon gives them, [id, maxrank, cooldown, maxammo, cost, resource], its tips and its facts (partype, tags, stats). Throws when a champion has no four spells. */
 export function buildDigest(full) {
   const version = full?.version;
   if (typeof version !== "string" || !VERSION.test(version)) throw new Error(`championFull.json has no usable version (${JSON.stringify(version)})`);
@@ -183,15 +200,17 @@ export function buildDigest(full) {
   if (!data || typeof data !== "object") throw new Error("championFull.json has no data");
   const champions = {};
   const tips = {};
+  const facts = {};
   const unreadable = [];
   for (const id of Object.keys(data).sort()) {
     const spells = data[id]?.spells;
     if (!Array.isArray(spells) || spells.length < 4) unreadable.push(id);
-    else champions[id] = spells.slice(0, 4).map((s) => [s?.id ?? null, s?.maxrank ?? null, s?.cooldown ?? null, s?.maxammo ?? null]);
+    else champions[id] = spells.slice(0, 4).map((s) => [s?.id ?? null, s?.maxrank ?? null, s?.cooldown ?? null, s?.maxammo ?? null, s?.cost ?? null, s?.resource ?? null]);
     tips[id] = { ally: data[id]?.allytips ?? null, enemy: data[id]?.enemytips ?? null };
+    facts[id] = { partype: data[id]?.partype ?? null, tags: data[id]?.tags ?? null, stats: data[id]?.stats ?? null };
   }
   if (unreadable.length) throw new Error(`${unreadable.length} champions have no four spells: ${unreadable.join(", ")}`);
-  return { version, champions, tips };
+  return { version, champions, tips, facts };
 }
 
 /** The digest as committed: one champion per line. */
@@ -207,6 +226,14 @@ export function serialiseDigest(digest) {
   const tipIds = Object.keys(digest.tips);
   lines.push("  },", `  "tips": {`);
   tipIds.forEach((id, i) => lines.push(`    ${JSON.stringify(id)}: ${JSON.stringify(digest.tips[id])}${i < tipIds.length - 1 ? "," : ""}`));
+  if (!digest.facts) {
+    lines.push("  }", "}", "");
+    return lines.join("\n");
+  }
+  // Each champion's partype, tags and stats exactly as Data Dragon gives them, one champion per line.
+  const factIds = Object.keys(digest.facts);
+  lines.push("  },", `  "facts": {`);
+  factIds.forEach((id, i) => lines.push(`    ${JSON.stringify(id)}: ${JSON.stringify(digest.facts[id])}${i < factIds.length - 1 ? "," : ""}`));
   lines.push("  }", "}", "");
   return lines.join("\n");
 }

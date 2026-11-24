@@ -20,7 +20,7 @@ const unique = (base: string) => `${base}${Date.now().toString(36).slice(-5)}`;
 /** Admin Mode's destinations, in sidebar order (navigation N1: System holds Health, Data & Integrations and Audit Logs). */
 const ADMIN_SECTIONS = ["Dashboard", "Users & Permissions", "Platform Settings", "System"];
 /** Player Mode's sidebar for a team member (and for the Owner). */
-const PLAYER_ENTRIES = ["My Profile", "Team", "Champion Lookup", "Resources"];
+const PLAYER_ENTRIES = ["My Profile", "Team", "Champion Intel", "Resources"];
 
 async function createAccount(page: Page, username: string, access: "team" | "personal", riotId = `${username}#OCE`) {
   const form = page.getByTestId("add-player-form");

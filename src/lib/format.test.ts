@@ -138,7 +138,7 @@ describe("numbers", () => {
   });
 });
 
-describe("cooldowns (Champion Lookup)", () => {
+describe("cooldowns (Champion Intel)", () => {
   it("write decimals as the numbers have them, up to four, with the site's decimal point", () => {
     // A value is never rounded into another: 0.3125 is never written as 0.31.
     expect(formatSeconds(0.3125)).toBe("0.3125");

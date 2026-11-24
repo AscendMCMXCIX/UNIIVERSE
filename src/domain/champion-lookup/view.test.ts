@@ -3,7 +3,7 @@ import abilityFixture from "@/server/riot/fixtures/champion-abilities.fixture.js
 import { abilityIconUrl, behindPatch, championResolver, lookupChampion, publicPatchOf } from "./view";
 import type { ChampionChoice, DdragonChampionAbilities } from "./types";
 
-/* Champion Lookup's page as data (docs/CHAMPION_LOOKUP.md): the roster resolver, icons, patches, one champion's view. */
+/* Champion Intel's page as data (docs/CHAMPION_INTEL.md): the roster resolver, icons, patches, one champion's view. */
 
 const roster: ChampionChoice[] = [
   { id: "Ahri", name: "Ahri", title: "the Nine-Tailed Fox", portrait: "" },
@@ -60,6 +60,43 @@ describe("one champion's view", () => {
     expect(v.abilities![1]).toMatchObject({ name: "Orb of Deception", ranks: 5, cooldown: { kind: "per-rank", seconds: [7, 7, 7, 7, 7] } });
     expect(v.abilities![1]!.icon).toMatch(/^https:\/\/ddragon\.leagueoflegends\.com\/cdn\/16\.22\.1\/img\/spell\//);
     expect(v.abilities!.every((a) => a.description.length > 0)).toBe(true);
+  });
+
+  it("gives each ability its cost by the cost rule, its mechanics from Riot's description, and the champion's facts and key mechanics", () => {
+    const v = lookupChampion(roster[0]!, fixture.Ahri!);
+    expect(v.abilities![1]!.cost).toEqual({ kind: "per-rank", values: [55, 65, 75, 85, 95], resource: "Mana" });
+    expect(v.abilities![0]!.cost).toBeNull();
+    expect(v.abilities![3]!.mechanics.map((m) => m.kind)).toContain("charm");
+    expect(v.abilities!.every((a) => a.changed === null)).toBe(true);
+    expect(v.facts).toMatchObject({ resource: "Mana", resourceless: false, classes: ["Mage", "Assassin"], statsChangedSincePatch: null });
+    expect(v.facts!.stats.find((s) => s.key === "attackrange")!.base).toBe(550);
+    expect(v.mechanics.groups.find((g) => g.group === "crowd-control")!.kinds.map((k) => k.kind)).toEqual(["charm"]);
+    // A champion with no resource is said as that (Garen: "None").
+    expect(lookupChampion({ id: "Garen", name: "Garen", title: "", portrait: "" }, fixture.Garen!).facts).toMatchObject({ resource: null, resourceless: true });
+  });
+
+  it("names the patch an ability changed since, from the stored mark, and drops a mark that says nothing", () => {
+    const marked = structuredClone(fixture.Ahri!);
+    marked.abilities[1]!.changed = { since: "16.21.1", text: true, cooldown: false, cost: false };
+    marked.abilities[2]!.changed = { since: "16.21.1", text: false, cooldown: false, cost: false };
+    marked.facts = { ...marked.facts!, statsChangedSince: "16.21.1" };
+    const v = lookupChampion(roster[0]!, marked);
+    expect(v.abilities![1]!.changed).toEqual({ sincePatch: "26.21", text: true, cooldown: false, cost: false });
+    expect(v.abilities![2]!.changed).toBeNull();
+    expect(v.facts!.statsChangedSincePatch).toBe("26.21");
+  });
+
+  it("reads a record stored before rules format 4 without facts or costs: none shown, nothing made up", () => {
+    const old = structuredClone(fixture.Ahri!);
+    delete old.facts;
+    for (const a of old.abilities) {
+      delete a.cost;
+      delete a.resource;
+    }
+    const v = lookupChampion(roster[0]!, old);
+    expect(v.facts).toBeNull();
+    expect(v.abilities!.every((a) => a.cost === null)).toBe(true);
+    expect(v.abilities![1]!.cooldown).toEqual({ kind: "per-rank", seconds: [7, 7, 7, 7, 7] });
   });
 
   it("says when nothing is stored, or what is stored cannot be read", () => {
