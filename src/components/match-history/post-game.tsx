@@ -318,7 +318,23 @@ export function PostGame({ playerId, view, champ, variant, encounterLinks = fals
   const own = subject.isPlayer;
   const mine = scoreOf(subject.slot);
   const yours = React.useRef<HTMLElement>(null);
-  const select = React.useCallback((slot: number) => setSelected(slot), []);
+  // The row pressed stays under the finger as the player above it changes height: measured before
+  // the switch and after it, and its scroller moved by the difference. Done here, not by the browser's
+  // scroll anchoring, which Safari does not have (the breakdown opts out of it below, so Chromium and
+  // Firefox do not correct twice).
+  const anchor = React.useRef<{ el: Element; top: number } | null>(null);
+  const select = React.useCallback((slot: number, from?: Element | null) => {
+    anchor.current = from ? { el: from, top: from.getBoundingClientRect().top } : null;
+    setSelected(slot);
+  }, []);
+  React.useLayoutEffect(() => {
+    const a = anchor.current;
+    anchor.current = null;
+    if (!a || !a.el.isConnected) return;
+    const moved = a.el.getBoundingClientRect().top - a.top;
+    if (Math.abs(moved) < 0.5) return;
+    scrollerOf(a.el).scrollBy(0, moved);
+  }, [subject.slot]);
   // ↑ and ↓ between the ten rows (both teams), Home and End to the first and last; Enter and Space are the rows' own buttons.
   const onRowKeys = (e: React.KeyboardEvent<HTMLElement>) => {
     if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) return;
@@ -333,7 +349,7 @@ export function PostGame({ playerId, view, champ, variant, encounterLinks = fals
   const others = all.filter((p) => !p.removed && p.slot !== subject.slot).sort((a, b) => (a.slot === subject.laneOpponentSlot ? -1 : b.slot === subject.laneOpponentSlot ? 1 : 0));
   const position = subject.position ? POSITION_WORDS[laneOf(subject.position) ?? ""] : undefined;
   return (
-    <div className="@container/pg" data-testid="match-breakdown" data-variant={variant} data-met={meetings ? (meetings.status === "ok" ? meetings.players.length : 0) : undefined} data-timeline={timeline ? timeline.status : "loading"} data-selected={subject.slot}>
+    <div className="@container/pg [overflow-anchor:none]" data-testid="match-breakdown" data-variant={variant} data-met={meetings ? (meetings.status === "ok" ? meetings.players.length : 0) : undefined} data-timeline={timeline ? timeline.status : "loading"} data-selected={subject.slot}>
       <div className="grid gap-x-6 gap-y-4 @min-[60rem]/pg:grid-cols-[minmax(0,33rem)_minmax(0,1fr)]">
         <section ref={yours} aria-label={own && view.own ? "Your game" : `${nameOf(subject)}'s game`} className="min-w-0 scroll-mt-24 space-y-2.5" data-testid="post-game-yours" data-own={own || undefined}>
           {/* Who is inspected, their score, and the way back to the profile's player. */}
@@ -402,4 +418,13 @@ export function PostGame({ playerId, view, champ, variant, encounterLinks = fals
       </div>
     </div>
   );
+}
+
+/** The nearest ancestor that scrolls vertically (the game's window on a phone), else the page. */
+function scrollerOf(el: Element): Element | Window {
+  for (let p = el.parentElement; p; p = p.parentElement) {
+    const y = getComputedStyle(p).overflowY;
+    if ((y === "auto" || y === "scroll") && p.scrollHeight > p.clientHeight) return p;
+  }
+  return window;
 }

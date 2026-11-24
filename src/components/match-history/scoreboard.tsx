@@ -75,7 +75,8 @@ export interface MeetProps {
  */
 export interface RowSelection {
   selected: number;
-  onSelect: (slot: number) => void;
+  /** `from`: the row pressed, kept under the pointer as the player above it changes (post-game.tsx). */
+  onSelect: (slot: number, from?: Element | null) => void;
   score: (slot: number) => PlayerScore | null;
   /** The scores wait for the game's timeline (the lane at 10:00 and 15:00 is one of their figures). */
   scoring: boolean;
@@ -445,7 +446,7 @@ function CompactRow({ x, champ, group, lane, rank, queueId, checking, met, meetH
           aria-current={selected ? "true" : undefined}
           aria-label={`Inspect ${who}, ${c.name}`}
           tabIndex={selected ? 0 : -1}
-          onClick={() => selection.onSelect(x.slot)}
+          onClick={(e) => selection.onSelect(x.slot, e.currentTarget)}
           data-testid="participant-select"
           data-slot={x.slot}
         />

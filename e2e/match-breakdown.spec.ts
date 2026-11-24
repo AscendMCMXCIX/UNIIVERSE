@@ -398,7 +398,7 @@ test("a press on any scoreboard row inspects that player at once, with nothing f
   const target = breakdown.locator(`[data-testid=participant-select][data-slot="${slot}"]`);
   await target.scrollIntoViewIfNeeded();
   await page.waitForTimeout(200);
-  // Where the row is on the screen: it stays under the pointer (stacked, the browser's scroll anchoring keeps it there as the player above changes height).
+  // Where the row is on the screen: it stays under the pointer (stacked, the breakdown moves its scroller by what the player above it changed: post-game.tsx, not the browser's scroll anchoring, which Safari lacks).
   const y = (await target.boundingBox())!.y;
   const rowName = (await breakdown.locator(`[data-testid=participant][data-slot="${slot}"] [data-testid=participant-name]`).innerText()).trim();
   await target.click();
