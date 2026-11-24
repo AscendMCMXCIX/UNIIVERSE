@@ -43,8 +43,7 @@ import { useKeyboardFit } from "@/components/ui/keyboard-fit";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/cn";
-import { chipClass, segmentClass, segmentedGroupClass } from "@/components/ui/segmented";
-import { subTabClass } from "@/components/ui/sub-tabs";
+import { segmentClass, segmentedGroupClass } from "@/components/ui/segmented";
 import { CardFrame, cardShellStyle, EMBLEM_ICONS } from "./card-look";
 import type { CardSeason } from "./player-card";
 import { prepareBanner } from "./banner-image";
@@ -374,7 +373,7 @@ export function CardStudio({ playerId, name, avatarUrl, art, accent, look, champ
       <ol className="hidden min-w-0 gap-1 overflow-x-auto lg:mx-auto lg:flex" aria-label="Studio steps" data-testid="studio-steps">
         {steps.map((id, i) => (
           <li key={id} className="shrink-0">
-            <button type="button" onClick={() => goTo(id)} aria-current={step === id ? "step" : undefined} className={subTabClass(step === id, "gap-1.5 px-2.5")} data-testid={`studio-step-${id}`}>
+            <button type="button" onClick={() => goTo(id)} aria-current={step === id ? "step" : undefined} className={cn("inline-flex min-h-9 items-center gap-1.5 rounded-full border px-2.5 text-sm font-medium transition-colors", step === id ? "border-accent bg-accent/15 text-fg" : "border-transparent text-fg-muted hover:bg-surface-2 hover:text-fg")} data-testid={`studio-step-${id}`}>
               <span className={cn("grid h-5 w-5 place-items-center rounded-full text-2xs tabular-nums", step === id ? "bg-accent text-bg" : i < at ? "bg-accent/25 text-accent" : "bg-surface-3 text-fg-subtle")} aria-hidden>
                 {i + 1}
               </span>
@@ -745,7 +744,7 @@ function Presets({ style, onApply }: { style: CardStyle; onApply: (id: (typeof C
           const p = PRESET_INFO[id];
           const on = style.preset === id;
           return (
-            <button key={id} type="button" onClick={() => onApply(id)} aria-pressed={on} aria-describedby={on ? "studio-preset-about" : undefined} className={chipClass(on)} data-testid={`preset-${id}`}>
+            <button key={id} type="button" onClick={() => onApply(id)} aria-pressed={on} aria-describedby={on ? "studio-preset-about" : undefined} className={cn("inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors pointer-coarse:min-h-11", on ? "border-accent bg-accent/15 text-fg ring-1 ring-accent" : "border-border text-fg-muted hover:border-border-strong hover:text-fg")} data-testid={`preset-${id}`}>
               <span className="h-3.5 w-3.5 rounded-full" style={{ background: `linear-gradient(135deg, ${p.look.colours.primary}, ${p.look.colours.secondary})` }} aria-hidden />
               {p.label}
               {on ? <Check className="h-3.5 w-3.5 text-accent" aria-hidden /> : null}
@@ -797,10 +796,10 @@ function Group({ title, children, className }: { title: string; children: React.
 
 function Choice<T extends string>({ value, options, labels, onChange, label, columns = 4 }: { value: T; options: readonly T[]; labels: Record<T, string>; onChange: (v: T) => void; label: string; columns?: number }) {
   return (
-    <div role="radiogroup" aria-label={label} className={cn("grid gap-1", columns === 5 ? "grid-cols-3 sm:grid-cols-5" : columns === 3 ? "grid-cols-3" : "grid-cols-2 sm:grid-cols-4")}>
+    <div role="radiogroup" aria-label={label} className={cn("grid gap-1.5", columns === 5 ? "grid-cols-3 sm:grid-cols-5" : columns === 3 ? "grid-cols-3" : "grid-cols-2 sm:grid-cols-4")}>
       {options.map((o) => (
-        <button key={o} type="button" role="radio" aria-checked={value === o} onClick={() => onChange(o)} className={segmentClass(value === o, { className: "min-w-0 px-2" })} data-value={o}>
-          <span className="truncate">{labels[o]}</span>
+        <button key={o} type="button" role="radio" aria-checked={value === o} onClick={() => onChange(o)} className={cn("min-h-9 truncate rounded-lg border px-2 text-xs font-medium transition-colors pointer-coarse:min-h-11", value === o ? "border-accent bg-accent/15 text-fg ring-1 ring-accent" : "border-border text-fg-muted hover:border-border-strong hover:text-fg")} data-value={o}>
+          {labels[o]}
         </button>
       ))}
     </div>
@@ -1065,7 +1064,7 @@ function PaletteChooser({ style, set }: { style: CardStyle; set: Setter }) {
         {CARD_PALETTES.map((p) => {
           const on = c.primary === p.primary && c.secondary === p.secondary;
           return (
-            <button key={p.label} type="button" aria-pressed={on} onClick={() => set((s) => ({ ...s, colours: { ...s.colours, primary: p.primary, secondary: p.secondary } }))} className={cn("flex min-h-10 items-center gap-2 rounded-lg border px-2 text-xs font-medium transition-colors pointer-coarse:min-h-11", on ? "border-accent bg-accent/10 text-fg" : "border-border text-fg-muted hover:border-border-strong hover:text-fg")}>
+            <button key={p.label} type="button" aria-pressed={on} onClick={() => set((s) => ({ ...s, colours: { ...s.colours, primary: p.primary, secondary: p.secondary } }))} className={cn("flex min-h-10 items-center gap-2 rounded-lg border px-2 text-xs font-medium transition-colors pointer-coarse:min-h-11", on ? "border-accent bg-accent/12 text-fg ring-1 ring-accent" : "border-border text-fg-muted hover:text-fg")}>
               <span className="h-5 w-5 shrink-0 rounded-full ring-1 ring-black/20" style={{ background: `linear-gradient(135deg, ${p.primary} 50%, ${p.secondary} 50%)` }} aria-hidden />
               <span className="min-w-0 flex-1 truncate text-left">{p.label}</span>
               {on ? <Check className="h-4 w-4 shrink-0 text-accent" aria-hidden /> : null}

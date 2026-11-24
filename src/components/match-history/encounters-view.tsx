@@ -448,7 +448,8 @@ export function EncountersView({ data, basePath, status, refresh }: { data: Enco
           <p className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-1 text-xs text-fg-muted">
             <span data-testid="encounter-count">{page.total ? `${formatCount(page.list.length)} of ${formatCount(page.total)} player${page.total === 1 ? "" : "s"} shown` : ""}</span>
             {shownSmall ? (
-              <span className="text-fg-subtle" data-testid="encounter-small-legend">
+              // Phones only: wider screens say it in the ⓘ beside the choice of players, which a phone leaves out.
+              <span className="text-fg-subtle sm:hidden" data-testid="encounter-small-legend">
                 Grey win rates come from fewer than {ESTABLISHED_GAMES} games with a result: a small sample.
               </span>
             ) : null}

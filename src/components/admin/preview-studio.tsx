@@ -74,7 +74,7 @@ export function PreviewStudio() {
         </a>
       </div>
       <p className="text-sm text-fg-subtle">
-        {w} × {h} px{scale < 1 ? ` · shown at ${Math.round(scale * 100)}% to fit` : ""}. The page inside works as for a real visitor; anything typed or chosen stays here.
+        {w} × {h} px{scale < 1 ? ` · shown at ${Math.round(scale * 100)}% to fit` : ""}
       </p>
       <div ref={box} className="w-full overflow-hidden">
         <div className="mx-auto overflow-hidden rounded-panel border border-border-strong bg-bg shadow-lg" style={{ width: w * scale, height: h * scale }}>
