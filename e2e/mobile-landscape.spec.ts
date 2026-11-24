@@ -668,7 +668,9 @@ test("the (i) marks are 24px targets, 40px to a finger, without changing the lin
   await page.goto("/players");
   const profile = new URL((await page.locator("main a[data-testid='player-card'][data-player-name='Demo Mid']").getAttribute("href"))!, "http://x").pathname;
   await page.goto(profile);
-  const tip = page.getByTestId("info-tip").first();
+  // The first mark in view: Ranked progress now leads the column, and on a phone its own (i) is
+  // inside the folded card until it is opened.
+  const tip = page.locator("[data-testid=info-tip]:visible").first();
   await expect(tip).toBeVisible();
   const b = (await tip.boundingBox())!;
   expect(Math.min(b.width, b.height)).toBeGreaterThanOrEqual(24);
