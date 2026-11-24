@@ -38,9 +38,9 @@ test("a recurring pair is shown as a possible duo with its evidence, never as a 
   await expect(group).toContainText("Possible duo");
   await expect(group).toContainText("Demo Duo 1, Demo Duo 2");
   const words = ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
-  const said = (await group.getByTestId("possible-group-games").innerText()).match(/^These two players appeared on the same team in (\w+) previous recorded games\./)![1]!;
-  const games = words.includes(said) ? words.indexOf(said) : Number(said);
-  expect(games).toBeGreaterThanOrEqual(3);
+  // The line gives the count; the sentence it stands for is under it once opened (below).
+  const counted = Number((await group.getByTestId("possible-group-count").innerText()).match(/(\d+) games? together/)![1]);
+  expect(counted).toBeGreaterThanOrEqual(3);
   // The two rows are marked; nobody on the other side is.
   await expect(red.locator('[data-testid="participant"][data-group="0"]')).toHaveCount(2);
   await expect(breakdown.getByTestId("team-blue").locator("[data-group]")).toHaveCount(0);
@@ -50,11 +50,14 @@ test("a recurring pair is shown as a possible duo with its evidence, never as a 
   await group.locator("summary").focus();
   await page.keyboard.press("Enter");
   await expect(evidence).toBeVisible();
+  const said = (await group.getByTestId("possible-group-games").innerText()).match(/^These two players appeared on the same team in (\w+) previous recorded games\./)![1]!;
+  const games = words.includes(said) ? words.indexOf(said) : Number(said);
+  expect(games).toBe(counted);
   const rows = evidence.locator("li");
   await expect(rows).toHaveCount(Math.min(games, 10) + (games > 10 ? 1 : 0));
   await expect(rows.first()).toContainText(/Ranked (Solo\/Duo|Flex) · (Won|Lost)/);
   // Neutral wording for the side without a group, and what the inference rests on.
-  await expect(note).toContainText("Blue side: not enough recorded history to assess possible groups.");
+  await expect(note).toContainText("Blue side: not enough history to assess.");
   await expect(note).toContainText(/3\+ earlier games \(the 180 days before\)/);
   await expect(note).toContainText("not a confirmed party");
   await expect(note).toContainText("members never labelled");
@@ -80,7 +83,7 @@ test("no history means a neutral note, not 'no premades'", async ({ page }) => {
     await expect(note).toHaveAttribute("data-state", "ok", { timeout: 15_000 });
     if ((await breakdown.getByTestId("possible-group").count()) === 0) {
       await expect(note).toContainText("Possible groups: not enough recorded history to assess.");
-      await expect(note).not.toContainText("an inference from");
+      await expect(note).not.toContainText("inferred from");
       await expect(breakdown.getByTestId("possible-groups")).toHaveCount(0);
       return;
     }
@@ -89,7 +92,7 @@ test("no history means a neutral note, not 'no premades'", async ({ page }) => {
   throw new Error("expected a demo match without a possible group");
 });
 
-test("a game with the team on one side is never 'an inference from 0 earlier recorded games'", async ({ page }) => {
+test("a game with the team on one side is never 'inferred from 0 earlier recorded games'", async ({ page }) => {
   await page.goto("/team");
   const id = (await page.getByTestId("lineup-row-JUNGLE").getAttribute("data-player-id"))!;
   await page.goto(`/players/${id}/matches`);
@@ -107,7 +110,7 @@ test("a game with the team on one side is never 'an inference from 0 earlier rec
   if ((await breakdown.getByTestId("possible-group").count()) === 0) {
     await expect(note).toHaveAttribute("data-kind", "insufficient");
     await expect(note).toContainText("Possible groups: not enough recorded history to assess.");
-    await expect(note).not.toContainText("an inference from");
+    await expect(note).not.toContainText("inferred from");
   }
   await closeGame(card);
 });

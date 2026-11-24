@@ -512,3 +512,39 @@ test("the keyboard: Build Path | Skill Order | Runes and the score's ten tiles a
   await expect(page.locator("li[data-expanded]")).toHaveCount(0);
   await expect(card.getByTestId("match-row")).toBeFocused();
 });
+
+// The Production check holds the newest game's card and open game to one 1440 × 900 screen; on 24 Nov
+// 2026 a real game ran 18px over (903px): a possible-groups clause took a line of its own under the
+// scoreboard. Every opened demo game is held to the screen here, possible duos and their notes
+// included, read as the check does (at once) and again once the rank and group notes have settled.
+test("desktop at 1440 × 900: every opened game and its card fit one screen, possible groups and their notes included", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "the desktop's one-screen post-game view");
+  test.setTimeout(240_000);
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const fit = () =>
+    page.locator("li[data-expanded]").evaluate((li) => {
+      const top = li.querySelector("[data-testid=match-card]")!.getBoundingClientRect().top;
+      return Math.round(li.querySelector("[data-testid=match-expanded]")!.getBoundingClientRect().bottom - top);
+    });
+  let grouped = 0;
+  for (const role of ["TOP", "JUNGLE", "MID", "ADC", "SUPPORT"]) {
+    await openHistory(page, role);
+    const cards = page.getByTestId("match-card");
+    for (let i = 0; i < Math.min(await cards.count(), 6); i++) {
+      const card = cards.nth(i);
+      const breakdown = await openGame(card);
+      // As it settles, once the timeline, the ranks and the groups have answered: the view a reader
+      // looks at. (With reduced motion every style change still runs for 0.01ms, globals.css, so a
+      // reading taken while those answers re-render the rows can see a frame before their sizes apply.)
+      await expect(breakdown).not.toHaveAttribute("data-timeline", "loading", { timeout: 15_000 });
+      await expect(breakdown.getByTestId("possible-groups-note")).not.toHaveAttribute("data-state", "loading", { timeout: 15_000 });
+      await expect(breakdown.getByTestId("ranks-note")).not.toHaveAttribute("data-state", "checking", { timeout: 15_000 });
+      grouped += (await breakdown.getByTestId("possible-group").count()) > 0 ? 1 : 0;
+      await expect.poll(fit, { message: `${role} game ${i + 1}`, timeout: 5_000 }).toBeLessThanOrEqual(900);
+      await closeGame(card);
+    }
+  }
+  // The demo's recurring pair is in some of these games: the case that ran over is covered.
+  expect(grouped).toBeGreaterThan(0);
+});

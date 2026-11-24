@@ -124,6 +124,9 @@ test("tablets and desktops: the current section tab, and the frame's entry for t
   // no query, and following it used to bring back the default (Recent form, when Records was a view).
   await page.goto("/leaderboards?season=16");
   await expect(page.getByTestId("records")).toBeVisible();
+  // Once the page's code runs (as Champion Lookup's below): a node added before then is HTML React
+  // does not expect, and it reports a hydration error.
+  await expect(page.getByTestId("leaderboards")).toHaveAttribute("data-ready", "true");
   // Since Release 16 a desktop's boards fit the window (each folds to the rows that fit), so the page
   // is made long enough to scroll, as Champion Lookup's and the Library's below.
   await page.evaluate(() => {
