@@ -1,21 +1,21 @@
 import { expect, test, type Locator, type Page } from "./test";
-import { closeGame, opensFullScreen, openGame, pastGameHeader } from "./match-history";
+import { closeGame, opensFullScreen, openGame, pastGameHeader, showGamePage } from "./match-history";
 import { NARROW_MOUSE_WINDOWS, expectInReach } from "./reach";
-import { optionsOf, pick } from "./select";
 import { AxeBuilder } from "@axe-core/playwright";
 
 /*
   A game's post-game view under its Match History card (demo data, in memory; on phones the window):
-  one view without subtabs and without folds (the player inspected: the loadout, six figure tiles
-  with each of their figures once, Build Path | Skill Order | Runes, the lane; and the compact
-  scoreboard with every player's performance score), the open card folded into a header with
-  Previous, Next and Close, and one history rule (Back closes the game, however many games were
-  stepped through). The match timeline is asked for once as the game opens: the lane's 10:00 and
-  15:00, the build path, the skill order and the scores read it, for every player. Several demo
-  games have no stored timeline (and the demo has no Riot key to fetch it). Since 23 Nov 2026 (the
-  owner's request) the view has no notes (Went well, Went wrong, Focus next) and no gold curve: the
-  tests below check they stay gone. Release 16: any of the ten players inspected from the
-  scoreboard, with nothing more fetched (match-breakdown's last tests).
+  one integrated view (the owner's brief of 24 Nov 2026): the player inspected (name, score with its
+  place, the loadout, six figures, the other figures in three groups, Build Path | Skill Order |
+  Runes over one fixed area, the lane) and both teams as one scoreboard with every player's score;
+  nothing in it scrolls, and on a desktop the card and its game fit the window at 100% text. A
+  phone's window shows one of three pages at a time (Player, Build, Scoreboard), each within its
+  screen. The match timeline is asked for once as the game opens: the lane's 10:00 and 15:00, the
+  build path, the skill order and the scores read it, for every player. Several demo games have no
+  stored timeline (and the demo has no Riot key to fetch it). Removed and asserted gone: the notes
+  (23 Nov 2026), the comparison select and table, the written "why", the team averages and the ten
+  score tiles, the build path's legend and sideways row, the skill grid's sentence, and the grey
+  notes under the scoreboard (24 Nov 2026).
 */
 
 test.beforeEach(async ({ context, baseURL }) => {
@@ -29,18 +29,12 @@ async function openHistory(page: Page, role = "MID") {
   await expect(page.locator("[data-testid='match-history'][data-ready]")).toBeVisible();
 }
 
-/** On a phone (its window held to two screens) the support figures and the score's why, tiles and chart sit behind one fold each (Release 16); elsewhere there are none. */
-async function expectPhoneFoldsOnly(page: Page, breakdown: Locator) {
-  if (opensFullScreen(page)) {
-    await expect(breakdown.locator("details")).toHaveCount(await breakdown.locator("details[data-testid=more-fold], details[data-testid=performance-fold]").count());
-    expect(await breakdown.locator("details[data-testid=performance-fold]").count()).toBeLessThanOrEqual(1);
-  } else await expect(breakdown.locator("details")).toHaveCount(0);
-}
-
-/** The score's fold open, where there is one (a phone). */
-async function openScoreFold(breakdown: Locator) {
-  const fold = breakdown.locator("details[data-testid=performance-fold]");
-  if ((await fold.count()) && !(await fold.evaluate((d) => (d as HTMLDetailsElement).open))) await fold.locator("summary").click();
+/** The open game once the timeline, the possible groups and the rank check have answered: the view a reader looks at. */
+async function settled(breakdown: Locator) {
+  await expect(breakdown).not.toHaveAttribute("data-timeline", "loading", { timeout: 15_000 });
+  await expect(breakdown.getByTestId("possible-groups-note")).not.toHaveAttribute("data-state", "loading", { timeout: 15_000 });
+  await expect(breakdown.getByTestId("ranks-note")).not.toHaveAttribute("data-state", "checking", { timeout: 15_000 });
+  await expect(breakdown.locator("[data-testid=participant-rank][data-state=checking]")).toHaveCount(0, { timeout: 15_000 });
 }
 
 /** Nothing on the page is wider than the screen. */
@@ -48,9 +42,40 @@ async function fitsWidth(page: Page, label: string) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth), `${label}: no sideways scrolling`).toBeLessThanOrEqual(1);
 }
 
-/** The removed sections' names: none of them is in an open game. */
-const REMOVED = ["Went well", "Went wrong", "Focus next", "Gold over the game", "Build and skill order"];
-/* "Build and skill order" was the removed fold's name; the headings that came back are "Build Path" and "Skill Order". */
+/**
+ * What scrolls or is cut inside the open game (the owner's brief, §2): any element that is a scroll
+ * container with more than it shows (overflow auto or scroll, and its content past its box), and any
+ * element cut off sideways by an ancestor that clips (text ending in its own ellipsis aside).
+ */
+async function insideFaults(breakdown: Locator): Promise<string[]> {
+  return breakdown.evaluate((bd) => {
+    const out: string[] = [];
+    const name = (el: Element) => `${el.tagName.toLowerCase()}[${el.getAttribute("data-testid") ?? ""}]`;
+    for (const el of [bd, ...bd.querySelectorAll("*")]) {
+      const cs = getComputedStyle(el);
+      if ((/(auto|scroll)/.test(cs.overflowX) && el.scrollWidth > el.clientWidth + 1) || (/(auto|scroll)/.test(cs.overflowY) && el.scrollHeight > el.clientHeight + 1)) out.push(`${name(el)} scrolls`);
+      const b = el.getBoundingClientRect();
+      if (!b.width || el.closest(".sr-only") || el.closest("[hidden]")) continue;
+      let p = el.parentElement;
+      while (p && p !== bd.parentElement && !/(hidden|clip|auto|scroll)/.test(getComputedStyle(p).overflowX)) p = p.parentElement;
+      if (p && p !== bd.parentElement && !p.classList.contains("truncate") && !p.closest(".truncate") && b.right > p.getBoundingClientRect().right + 1) out.push(`${name(el)} cut off`);
+    }
+    return [...new Set(out)];
+  });
+}
+
+/** The open card and its game against the window: its height from the card's top to the game's end, and the room under what is pinned above the page. */
+const openedFit = (page: Page) =>
+  page.locator("li[data-expanded]").evaluate((li) => {
+    const top = li.querySelector("[data-testid=match-card]")!.getBoundingClientRect().top;
+    const height = Math.round(li.querySelector("[data-testid=match-expanded]")!.getBoundingClientRect().bottom - top);
+    const pinned = parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop) || 0;
+    return { height, room: Math.floor(innerHeight - pinned) };
+  });
+
+/** The removed parts, by their test ids, and their words. */
+const REMOVED_PARTS = "[data-testid^=post-game-note], [data-testid^=notes-], [data-testid^=fold-], [data-testid=post-game-folds], [data-testid=gold-chart], [data-testid=performance-compare], [data-testid=performance-compare-table], [data-testid=performance-why], [data-testid=performance-trend], [data-testid=performance-teams], [data-testid=performance-strip], [data-testid=performance-tile], [data-testid=build-legend], [data-testid=build-row], [data-testid=score-chart-legend], [data-testid=inspected-jump], [data-testid=more-fold], [data-testid=performance-fold]";
+const REMOVED_WORDS = ["Went well", "Went wrong", "Focus next", "Gold over the game", "Build and skill order", "No comparison", "Compare with", "Stood out", "Held back", "Ranks around the time of this game", "not enough recorded history", "no other players to assess", "inferred from", "skill points in this game", "Maxed "];
 
 test("while the timeline loads, the view passes axe, and it says when the timeline has answered", async ({ page }) => {
   await openHistory(page, "TOP");
@@ -81,12 +106,13 @@ test("while the timeline loads, the view passes axe, and it says when the timeli
   await expect(breakdown).not.toHaveAttribute("data-timeline", "loading", { timeout: 15_000 });
 });
 
-test("one view without subtabs or folds: the loadout names itself, each figure once, the lane and the scoreboard, and no notes", async ({ page }) => {
+test("one view: the loadout names itself, each figure once, the other figures in three groups, the lane and the scoreboard; no notes, narrative, comparison or folds", async ({ page }) => {
   await openHistory(page, "TOP");
   const breakdown = await openGame(page.getByTestId("match-card").nth(1));
-  await expect(breakdown).not.toHaveAttribute("data-timeline", "loading", { timeout: 15_000 });
+  await settled(breakdown);
   await expect(breakdown.locator("[role=tab]")).toHaveCount(0);
-  await expectPhoneFoldsOnly(page, breakdown);
+  // No folds (a possible group's evidence aside, which opens under its line).
+  await expect(breakdown.locator("details:not([data-testid=possible-group])")).toHaveCount(0);
   // The inventory: six slots and the trinket; an icon names itself on focus (and on a tap), inside the screen.
   await expect(breakdown.getByTestId("post-game-items").locator(":scope > *")).toHaveCount(7);
   const icon = breakdown.getByTestId("post-game-items").getByTestId("loadout-icon").first();
@@ -96,7 +122,7 @@ test("one view without subtabs or folds: the loadout names itself, each figure o
   const box = (await name.boundingBox())!;
   expect(box.x).toBeGreaterThanOrEqual(0);
   expect(box.x + box.width).toBeLessThanOrEqual(page.viewportSize()!.width);
-  // Each of the player's figures once in the whole view: CS/min, KDA, kill participation and damage share.
+  // Each of the player's figures once in the whole view: CS/min, KDA and damage share.
   const text = await breakdown.innerText();
   const tiles = breakdown.getByTestId("post-game-figures");
   const cspm = (await tiles.getByTestId("figure-cs").innerText()).match(/(\d+\.\d) \/ min/)![1]!;
@@ -107,72 +133,117 @@ test("one view without subtabs or folds: the loadout names itself, each figure o
   if (kda) expect(count(`${kda} KDA`), "KDA once").toBe(1);
   expect(count(`${share} of team`), "damage share once").toBe(1);
   expect(await breakdown.getByTestId("participant-kda").filter({ hasText: /KDA|%/ }).count(), "scoreboard rows carry no ratio or share").toBe(0);
-  // Every tile's caption whole ("18% of team" was cut six across in the 33rem column: the design review's G2-2).
   expect(await tiles.locator(".truncate").evaluateAll((els) => els.filter((e) => e.scrollWidth > e.clientWidth + 0.5).map((e) => e.textContent)), "the figures' captions whole").toEqual([]);
-  // The removed sections (the owner's request, 23 Nov 2026): no notes and no folds, by their parts or their names.
-  await expect(breakdown.locator("[data-testid^=post-game-note], [data-testid^=notes-], [data-testid^=fold-], [data-testid=post-game-folds], [data-testid=gold-chart]")).toHaveCount(0);
-  for (const word of REMOVED) expect(text, `no "${word}"`).not.toContain(word);
+  // The other figures (§7): three groups of aligned rows, every row there, a figure, "0" or "—", never a sentence.
+  const more = breakdown.getByTestId("post-game-more");
+  await expect(more.locator("section")).toHaveCount(3);
+  await expect(more.locator("dl > div")).toHaveCount(8);
+  for (const v of await more.locator("dd").allInnerTexts()) expect(v).toMatch(/^(—|[\d,.]+k?( s)?)$/);
+  // The removed parts (23 and 24 Nov 2026), by their test ids and their words.
+  await expect(breakdown.locator(REMOVED_PARTS)).toHaveCount(0);
+  for (const word of REMOVED_WORDS) expect(text, `no "${word}"`).not.toContain(word);
   // The lane names the opponent or says it is not clear; both teams in the scoreboard.
+  await showGamePage(breakdown, "build");
   await expect(breakdown.getByTestId("post-game-lane")).toBeVisible();
   await expect(breakdown.getByTestId("participant")).toHaveCount(10);
-  // The game's patch by its public, year-based name, as everywhere else ("Patch 26.20", never the client's "16.20"; the review of Release 13, finding 10).
+  // The game's patch by its public, year-based name, as everywhere else ("Patch 26.20", never the client's "16.20").
   const when = breakdown.getByTestId("match-breakdown-when");
+  await showGamePage(breakdown, "board");
   if (await when.isVisible()) {
     await expect(when).toContainText(/Patch \d+\.\d+/);
     await expect(when).not.toContainText(/Patch 1\d\./);
   } else await expect(page.getByTestId("match-detail")).not.toContainText(/Patch 1\d\./);
   await fitsWidth(page, "post-game view");
+  expect(await insideFaults(breakdown)).toEqual([]);
 });
 
-test("one set of Previous, Next and Close at a time: the footer shows its own only once the card's have gone up", async ({ page }) => {
+test("the other figures are ordered by role: a support's utility first, a jungler's objectives, a laner's combat", async ({ page }) => {
+  for (const [role, first] of [["SUPPORT", "utility"], ["JUNGLE", "objectives"], ["TOP", "combat"]] as const) {
+    await openHistory(page, role);
+    const card = page.getByTestId("match-card").nth(0);
+    const breakdown = await openGame(card);
+    await expect(breakdown.getByTestId("post-game-more")).toHaveAttribute("data-order", new RegExp(`^${first} `));
+    await closeGame(card);
+  }
+});
+
+test("the footer's Previous, Next and Close exist only where the game is taller than the screen, and then show only once the card's have gone up", async ({ page }) => {
   test.skip(opensFullScreen(page), "phones open the game as a window, with one bar of steps");
   await openHistory(page, "TOP");
   await openGame(page.getByTestId("match-card").nth(1));
   const header = page.locator("li[data-expanded] [data-game-step][data-where=header]");
   const footer = page.locator("li[data-expanded] [data-testid=match-footer]");
-  // The card's own on screen: the footer keeps its place and shows nothing (nor can the keyboard reach it).
+  await expect(header).toBeInViewport();
+  const fit = await openedFit(page);
+  if (fit.height <= fit.room) {
+    // A game that fits the screen spends no line on a footer: its card's steps are in view with all of it.
+    await expect(footer).not.toHaveAttribute("data-needed", "true");
+    await expect(footer.getByTestId("match-close")).toBeHidden();
+  }
+  // A window too short for the game: the footer is there, and shows its steps once the card's have gone up.
+  // (Not under 481px: a window that short opens its games as the match window, posture.ts.)
+  await page.setViewportSize({ width: page.viewportSize()!.width, height: 560 });
+  await expect(footer).toHaveAttribute("data-needed", "true");
+  await page.locator("li[data-expanded] [data-testid=match-card]").evaluate((c) => c.scrollIntoView({ block: "center" }));
+  await page.evaluate(() => window.scrollBy({ top: -2000, behavior: "instant" }));
+  await page.locator("li[data-expanded] [data-testid=match-card]").scrollIntoViewIfNeeded();
   await expect(header).toBeInViewport();
   await expect(footer).toHaveAttribute("data-hidden", "true");
   await expect(footer.getByTestId("match-close")).toBeHidden();
-  // Scrolled until the card's have gone up under the pinned bars: the footer's show.
   await pastGameHeader(page);
   await expect(footer).not.toHaveAttribute("data-hidden", "true");
   await expect(footer.getByTestId("match-close")).toBeVisible();
   await expect(footer.getByTestId("game-next")).toBeVisible();
 });
 
-test("an iPhone 12 (390 × 844, its insets told): the opened game's header is at most 112px with the inset, and the result, the player inspected, the loadout, the figures and the Build Path | Skill Order | Runes headings are on the first screen", async ({ page }, info) => {
-  test.skip(info.project.name !== "phone", "the phone's game window (S6c's acceptance)");
-  await page.setViewportSize({ width: 390, height: 844 });
-  // The status bar and the home indicator of an iPhone 12 in Safari's installed app (CSS px).
+test("phones: the game's window shows Player, Build and Scoreboard one at a time, each page within the screen at 100% text (375 × 667, 390 × 844 with its insets, 430 × 932)", async ({ page }, info) => {
+  test.skip(info.project.name !== "phone", "the phone's game window");
+  test.setTimeout(240_000);
   const cdp = await page.context().newCDPSession(page);
-  await cdp.send("Emulation.setSafeAreaInsetsOverride", { insets: { top: 47, topMax: 47, bottom: 34, bottomMax: 34, left: 0, leftMax: 0, right: 0, rightMax: 0 } });
-  await openHistory(page, "MID");
-  // The three newest games, one with a two-line lane (measured on main on the demo: the header 101px
-  // with the 47px inset, 54px without).
-  for (let i = 0; i < 3; i++) {
-    const card = page.getByTestId("match-card").nth(i);
-    const breakdown = await openGame(card);
-    await expect(breakdown).not.toHaveAttribute("data-timeline", "loading", { timeout: 15_000 });
-    await expectPhoneFoldsOnly(page, breakdown);
-    const f = await page.evaluate(() => {
-      const box = (id: string) => document.querySelector(`[data-testid=match-detail] [data-testid=${id}]`)?.getBoundingClientRect() ?? null;
-      // Release 16: the three headings above the lane (the owner's request) take the lane's place on the first screen.
-      const parts = Object.fromEntries(["match-result", "inspected", "post-game-loadout", "post-game-figures", "panel-tabs"].map((id) => [id, box(id)?.bottom ?? null]));
-      // The first screen ends where the window's steps (Previous, Next) begin, or at the screen's foot.
-      return { header: box("match-detail-header")!.bottom, end: box("match-detail-nav")?.top ?? innerHeight, parts };
-    });
-    expect(f.header, `game ${i}: the header with the inset`).toBeLessThanOrEqual(112);
-    for (const [id, bottom] of Object.entries(f.parts)) {
-      expect(bottom, `game ${i}: ${id} shown`).not.toBeNull();
-      // 4px to spare: Chrome 156 (CI) lays text out wider than the container's Chromium.
-      expect(bottom!, `game ${i}: ${id} on the first screen`).toBeLessThanOrEqual(f.end - 4);
+  for (const size of [{ width: 375, height: 667 }, { width: 390, height: 844, insets: true }, { width: 430, height: 932 }]) {
+    await page.setViewportSize({ width: size.width, height: size.height });
+    // The status bar and the home indicator of an iPhone 12 in Safari's installed app (CSS px).
+    await cdp.send("Emulation.setSafeAreaInsetsOverride", { insets: size.insets ? { top: 47, topMax: 47, bottom: 34, bottomMax: 34, left: 0, leftMax: 0, right: 0, rightMax: 0 } : { top: 0, topMax: 0, bottom: 0, bottomMax: 0, left: 0, leftMax: 0, right: 0, rightMax: 0 } });
+    await openHistory(page, "MID");
+    for (let i = 0; i < 3; i++) {
+      const card = page.getByTestId("match-card").nth(i);
+      const breakdown = await openGame(card);
+      await settled(breakdown);
+      const label = `${size.width}×${size.height} game ${i + 1}`;
+      // (The three newest games, one with the demo's possible duo, at 375 × 667; the newest elsewhere.)
+      if (i > 0 && size.width !== 375) {
+        await closeGame(card);
+        continue;
+      }
+      // The pages, the shared segmented control; the player's page first.
+      await expect(breakdown.getByTestId("post-game-pages").getByRole("radio")).toHaveText(["Player", "Build", "Scoreboard"]);
+      await expect(breakdown).toHaveAttribute("data-page", "player");
+      if (size.insets) expect((await page.getByTestId("match-detail-header").boundingBox())!.y + (await page.getByTestId("match-detail-header").boundingBox())!.height, `${label}: the header with the inset`).toBeLessThanOrEqual(112);
+      for (const p of ["player", "build", "board"] as const) {
+        await showGamePage(breakdown, p);
+        // Every panel of the build page too (each in the same area).
+        for (const panel of p === "build" ? ["build", "skills", "runes"] : [null]) {
+          if (panel) await breakdown.getByTestId(`panel-${panel}`).click();
+          const f = await page.getByTestId("match-detail-body").evaluate((b) => ({ scroll: b.scrollHeight - b.clientHeight }));
+          expect(f.scroll, `${label}, ${p}${panel ? ` (${panel})` : ""}: the window's body needs no scroll`).toBeLessThanOrEqual(1);
+        }
+        expect(await insideFaults(breakdown), `${label}, ${p}`).toEqual([]);
+      }
+      // A tap on a row inspects that player and shows their page.
+      await showGamePage(breakdown, "board");
+      const slot = (await breakdown.locator('[data-testid=participant-select]:not([aria-current="true"])').nth(3).getAttribute("data-slot"))!;
+      const row = breakdown.locator(`[data-testid=participant-select][data-slot="${slot}"]`);
+      const b = (await row.boundingBox())!;
+      await page.touchscreen.tap(b.x + b.width - 50, b.y + b.height / 2);
+      await expect(breakdown).toHaveAttribute("data-selected", slot);
+      await expect(breakdown).toHaveAttribute("data-page", "player");
+      await expect(breakdown.getByTestId("inspect-back")).toBeVisible();
+      await closeGame(card);
     }
-    await closeGame(card);
   }
 });
 
-test("a game without a timeline says so once, under its lane, which shows the end alone (no columns of dashes at 10:00 and 15:00)", async ({ page }) => {
+test("a game without a timeline says so once, in the build path's place, and its lane shows the end alone (no columns of dashes at 10:00 and 15:00)", async ({ page }) => {
   await openHistory(page, "TOP");
   for (let i = 0; i < 8; i++) {
     const card = page.getByTestId("match-card").nth(i);
@@ -180,8 +251,9 @@ test("a game without a timeline says so once, under its lane, which shows the en
     await expect(breakdown).not.toHaveAttribute("data-timeline", "loading", { timeout: 15_000 });
     const lane = breakdown.getByTestId("post-game-lane");
     if ((await breakdown.getAttribute("data-timeline")) !== "ok" && (await lane.getAttribute("data-state")) === "clear") {
-      await expect(breakdown.getByTestId("timeline-missing")).toHaveCount(1);
-      await expect(lane.getByTestId("timeline-missing")).toHaveText("Timeline not available for this game");
+      await showGamePage(breakdown, "build");
+      await expect(breakdown.getByTestId("panel-timeline-missing")).toHaveText("Timeline not available for this game");
+      await expect(lane.getByText(/timeline/i)).toHaveCount(0);
       // No 10:00 and 15:00 columns of dashes (the review of Release 13, finding 10): the end alone, from the record.
       await expect(lane.locator("thead th")).toHaveCount(2);
       await expect(lane.locator("thead th").last()).toHaveText("End");
@@ -211,7 +283,8 @@ test("a game with a timeline reads its lane at 10:00 and 15:00, says nothing mis
     await expect(breakdown).not.toHaveAttribute("data-timeline", "loading", { timeout: 15_000 });
     const lane = breakdown.getByTestId("post-game-lane");
     if ((await breakdown.getAttribute("data-timeline")) === "ok" && (await lane.getAttribute("data-state")) === "clear") {
-      await expect(breakdown.getByTestId("timeline-missing")).toHaveCount(0);
+      await expect(breakdown.getByTestId("panel-timeline-missing")).toHaveCount(0);
+      await expect(breakdown.getByTestId("performance-timeline-missing")).toHaveCount(0);
       const ten = await lane.locator("tbody tr").evaluateAll((rows) => rows.map((r) => r.querySelectorAll("td")[0]?.textContent?.trim()));
       expect(ten.some((c) => c !== "—"), "a figure at 10:00").toBe(true);
       // The game's requests settle (its record, the timeline, the groups and the rank check): the timeline once.
@@ -225,6 +298,7 @@ test("a game with a timeline reads its lane at 10:00 and 15:00, says nothing mis
   }
   throw new Error("no demo game with a timeline and a clear lane among the newest six");
 });
+
 test("Previous and Next keep the open game's header in place; Escape closes and Back closes after three Nexts", async ({ page }) => {
   test.skip(opensFullScreen(page), "phones open the window (mobile-nav covers it)");
   await openHistory(page, "TOP");
@@ -292,7 +366,7 @@ async function openGameWithTimeline(page: Page, want: boolean, tries = 8) {
   throw new Error(`no demo game ${want ? "with" : "without"} a timeline among the newest ${tries}`);
 }
 
-test("every player has a performance score 0–10 beside their row, one MVP on the winning side and one ACE on the losing side, and the panel says why", async ({ page }) => {
+test("every player has a performance score 0–10 beside their row, one MVP and one ACE; the player inspected shows theirs with its place, its (i) and the score through the game", async ({ page }) => {
   await openHistory(page, "MID");
   const { breakdown } = await openGameWithTimeline(page, true);
   const scores = breakdown.locator("[data-testid=participant-score][data-score]");
@@ -311,91 +385,143 @@ test("every player has a performance score 0–10 beside their row, one MVP on t
   // Each rank once, 1st to 10th.
   const ranks = await scores.evaluateAll((els) => els.map((e) => Number(e.getAttribute("data-rank"))).sort((a, b) => a - b));
   expect(ranks).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
-  const panel = breakdown.getByTestId("performance");
-  await expect(panel.getByTestId("performance-value")).toHaveText(/^\d+\.\d$/);
-  await expect(panel.getByTestId("performance-rank")).toHaveText(/^\d+(st|nd|rd|th) of 10$/);
-  // The score through the game: points every five minutes and the end, its figures in a table for screen readers (on a phone, in the score's fold).
-  await openScoreFold(breakdown);
-  const chart = panel.getByTestId("score-chart");
+  // The inspected player's score beside their name: the same figure and place as their row.
+  const mine = breakdown.getByTestId("inspected-score");
+  await expect(mine.getByTestId("performance-value")).toHaveText(/^\d+\.\d$/);
+  await expect(mine.getByTestId("performance-rank")).toHaveText(/^\d+(st|nd|rd|th) of 10$/);
+  const own = await breakdown.getAttribute("data-selected");
+  const row = breakdown.locator(`[data-testid=participant][data-slot="${own}"] [data-testid=participant-score]`);
+  expect(Number(await mine.getByTestId("performance-value").innerText())).toBe(Number(await row.getAttribute("data-score")));
+  const n = Number(await row.getAttribute("data-rank"));
+  const ordinal = `${n}${n % 10 === 1 && n % 100 !== 11 ? "st" : n % 10 === 2 && n % 100 !== 12 ? "nd" : n % 10 === 3 && n % 100 !== 13 ? "rd" : "th"}`;
+  await expect(mine.getByTestId("performance-rank")).toHaveText(`${ordinal} of 10`);
+  // One (i) on the score, saying how it is worked out (docs/PERFORMANCE_SCORE.md).
+  await expect(mine.getByTestId("performance-info")).toHaveAccessibleName("About the performance score");
+  // The score through the game: one line, points every five minutes and the end, its figures in a table for screen readers.
+  const chart = breakdown.getByTestId("performance").getByTestId("score-chart");
   await expect(chart).toBeVisible();
+  await expect(chart).toHaveAttribute("data-series", "1");
   expect(Number(await chart.getAttribute("data-points"))).toBeGreaterThanOrEqual(3);
   await expect(chart.getByTestId("score-chart-table").locator("tbody tr").last().locator("th")).toHaveText(/^End \(\d+:\d\d\)$/);
-  // Each team's mean on one bar, the winners first, and the ten scores as tiles: a tile inspects its player.
-  // In the scoreboard's order, each with its side and result in words (never a result told by the side's colour).
-  const sides = await breakdown.locator("section[data-testid^=team-]").evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")!.replace(/ team, /, " · ").replace(/victory|defeat/, (w) => w[0]!.toUpperCase() + w.slice(1))));
-  await expect(panel.getByTestId("performance-teams")).toContainText(new RegExp(`^${sides[0]} \\d+\\.\\d.*\\d+\\.\\d ${sides[1]}`));
-  const tiles = panel.getByTestId("performance-tile");
-  await expect(tiles).toHaveCount(10);
-  const tile = panel.locator('[data-testid=performance-tile]:not([aria-current="true"])').first();
-  const slot = (await tile.getAttribute("data-slot"))!;
-  await tile.click();
-  await expect(breakdown).toHaveAttribute("data-selected", slot);
-  await expect(panel.locator(`[data-testid=performance-tile][data-slot="${slot}"]`)).toHaveAttribute("aria-current", "true");
   // Never the other site's name for its score.
   expect(await breakdown.innerText()).not.toMatch(/OP Score/i);
 });
 
-test("Build Path, Skill Order and Runes above the lane: purchases with their times, a grid of skill points, and the rune page; a game without a timeline says so plainly", async ({ page }) => {
+test("Build Path, Skill Order and Runes: one segmented control over one fixed area; the build path wraps in game order with every purchase reachable, nothing scrolling; a game without a timeline says so plainly", async ({ page }) => {
   await openHistory(page, "MID");
   const { card, breakdown } = await openGameWithTimeline(page, true);
+  await showGamePage(breakdown, "build");
   const panels = breakdown.getByTestId("participant-panels");
-  // Above the lane, in order, one shown at a time (radios, not tabs).
-  const lane = breakdown.getByTestId("post-game-lane");
-  expect((await panels.boundingBox())!.y).toBeLessThan((await lane.boundingBox())!.y);
   await expect(panels.getByTestId("panel-tabs").getByRole("radio")).toHaveText(["Build Path", "Skill Order", "Runes"]);
   await expect(panels.getByTestId("panel-build")).toHaveAttribute("aria-checked", "true");
-  // The build path: shop visits in order, each with its game time, the first at the start of the game.
+  // The build path: shop visits in game order, each with its time, the first at the start of the game, wrapping onto rows.
   const visits = panels.getByTestId("build-visit");
   expect(await visits.count()).toBeGreaterThan(2);
   const times = await visits.evaluateAll((els) => els.map((e) => e.textContent!.match(/(\d+):(\d\d)$/)!).map((m) => Number(m[1]) * 60 + Number(m[2])));
   expect(times).toEqual([...times].sort((a, b) => a - b));
   expect(times[0]).toBeLessThan(60);
-  // One row in game order, however long the game: every visit on the same line, the row scrolling
-  // sideways (and focusable) where it is wider than the panel. Wrapped, a real game's twenty visits
-  // took 180px (24 Nov 2026).
-  const tops = await visits.evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().top)));
-  expect(new Set(tops).size, "the shop visits share one row").toBe(1);
-  const row = panels.getByTestId("build-row");
-  await expect(row).toHaveAttribute("tabindex", "0");
-  const added = await row.evaluate((el) => {
-    // Twenty more visits, as a long real game has: the row grows no taller and scrolls instead.
-    const before = el.getBoundingClientRect().height;
-    const list = el.querySelector("ol")!;
-    for (let i = 0; i < 20; i++) list.append(list.lastElementChild!.cloneNode(true));
-    return { before, after: el.getBoundingClientRect().height, scrolls: el.scrollWidth > el.clientWidth };
-  });
-  expect(added.after).toBe(added.before);
-  expect(added.scrolls).toBe(true);
-  await expect(panels.getByTestId("build-legend")).toContainText("Undone purchases are left out.");
-  // The skill order: Q, W, E and R by level, one point a level.
+  // Every purchase in the page, each item once; no legend under it, one (i) at most.
+  const path = panels.getByTestId("build-path");
+  expect(await panels.getByTestId("build-item").count()).toBe(Number(await path.getAttribute("data-path")));
+  await expect(panels.getByTestId("build-legend")).toHaveCount(0);
+  await expect(panels.getByTestId("build-info")).toHaveCount(1);
+  expect(await insideFaults(breakdown)).toEqual([]);
+  // The three share one area: switching moves nothing under it and keeps the panels' height.
+  const under = breakdown.getByTestId("post-game-lane");
+  const at = async () => ({ panels: Math.round((await panels.boundingBox())!.height), under: Math.round((await under.boundingBox())!.y) });
+  const first = await at();
+  // The skill order: Q, W, E and R by level, one point a level, and nothing written under the grid.
   await panels.getByTestId("panel-skills").click();
   const grid = panels.getByTestId("skill-grid");
   await expect(grid).toBeVisible();
   const levels = Number(await grid.getAttribute("data-levels"));
   expect(levels).toBeGreaterThanOrEqual(6);
   expect(levels).toBeLessThanOrEqual(18);
+  await expect(grid.locator("p")).toHaveCount(0);
+  expect(await at(), "the skill order in the same area").toEqual(first);
   // The rune page: both paths and the shards.
   await panels.getByTestId("panel-runes").click();
   await expect(panels.getByTestId("rune-page").locator("section")).toHaveCount(2);
   await expect(panels.getByTestId("rune-shards")).toBeVisible();
+  expect(await at(), "the runes in the same area").toEqual(first);
   // The choice stays while another player is inspected.
+  await showGamePage(breakdown, "board");
   await breakdown.getByTestId("participant-select").nth(6).click();
+  await showGamePage(breakdown, "build");
   await expect(panels.getByTestId("panel-runes")).toHaveAttribute("aria-checked", "true");
+  await panels.getByTestId("panel-build").click();
+  // A path too long for its area is split into pages of whole rows (here the area made narrow, as a
+  // long game's twenty visits fill it): every purchase is still in the page, each page shown whole.
+  await panels.getByTestId("panel-body").evaluate((el) => ((el as HTMLElement).style.minHeight = "6rem"));
+  await panels.evaluate((el) => ((el as HTMLElement).style.width = "9rem"));
+  const box = panels.getByTestId("build-path-box");
+  await expect.poll(async () => Number(await box.getAttribute("data-pages"))).toBeGreaterThan(1);
+  const pages = Number(await box.getAttribute("data-pages"));
+  const total = Number(await path.getAttribute("data-path"));
+  expect(await panels.getByTestId("build-item").count()).toBe(total);
+  let seen = 0;
+  for (let p = 0; p < pages; p++) {
+    await panels.getByTestId("build-page").nth(p).click();
+    await expect(box).toHaveAttribute("data-page", String(p));
+    seen += await panels.locator("[data-testid=build-visit]:not([hidden]) [data-testid=build-item]").count();
+    expect(await insideFaults(breakdown), `page ${p + 1}`).toEqual([]);
+    // Each page within the area it was given.
+    expect(await panels.getByTestId("panel-body").evaluate((b) => b.scrollHeight <= b.getBoundingClientRect().height + 1 && b.getBoundingClientRect().height <= parseFloat(getComputedStyle(b).minHeight) + 1), `page ${p + 1} within its area`).toBe(true);
+  }
+  expect(seen, "every purchase on one of the pages").toBe(total);
+  await panels.evaluate((el) => (el as HTMLElement).style.removeProperty("width"));
+  await panels.getByTestId("panel-body").evaluate((el) => (el as HTMLElement).style.removeProperty("min-height"));
   await closeGame(card);
-  // A game without a timeline: one plain line in the build path's place.
+  // A game without a timeline: one quiet phrase in the build path's place.
   const none = await openGameWithTimeline(page, false);
+  await showGamePage(none.breakdown, "build");
   const p2 = none.breakdown.getByTestId("participant-panels");
-  await expect(p2.getByTestId("panel-timeline-missing")).toHaveText(/^Timeline not available for this game/);
+  await expect(p2.getByTestId("panel-timeline-missing")).toHaveText("Timeline not available for this game");
   await expect(p2.getByTestId("build-visit")).toHaveCount(0);
-  await openScoreFold(none.breakdown);
+  await showGamePage(none.breakdown, "player");
   await expect(none.breakdown.getByTestId("performance-timeline-missing")).toBeVisible();
   // Its final scores still stand, from the record.
   await expect(none.breakdown.locator("[data-testid=participant-score][data-score]")).toHaveCount(10);
 });
 
-test("a press on any scoreboard row inspects that player at once, with nothing fetched and the page where it was; arrows and Enter do the same; Back to returns", async ({ page }) => {
+test("the longest demo build path is whole: every purchase in the page and shown, nothing scrolling", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "the path's pages at every width: the Build Path test above");
+  test.setTimeout(150_000);
+  let best = { role: "", index: -1, path: 0 };
+  for (const role of ["TOP", "JUNGLE", "MID", "ADC", "SUPPORT"]) {
+    await openHistory(page, role);
+    const cards = page.getByTestId("match-card");
+    for (let i = 0; i < Math.min(await cards.count(), 6); i++) {
+      const breakdown = await openGame(cards.nth(i));
+      await expect(breakdown).not.toHaveAttribute("data-timeline", "loading", { timeout: 15_000 });
+      const path = breakdown.getByTestId("build-path");
+      const n = (await path.count()) ? Number(await path.getAttribute("data-path")) : 0;
+      if (n > best.path) best = { role, index: i, path: n };
+      await closeGame(cards.nth(i));
+    }
+  }
+  expect(best.path).toBeGreaterThan(10);
+  await openHistory(page, best.role);
+  const breakdown = await openGame(page.getByTestId("match-card").nth(best.index));
+  await settled(breakdown);
+  await showGamePage(breakdown, "build");
+  const panels = breakdown.getByTestId("participant-panels");
+  expect(await panels.getByTestId("build-item").count()).toBe(best.path);
+  const pages = Number(await panels.getByTestId("build-path-box").getAttribute("data-pages"));
+  let seen = 0;
+  for (let p = 0; p < pages; p++) {
+    if (pages > 1) await panels.getByTestId("build-page").nth(p).click();
+    seen += await panels.locator("[data-testid=build-visit]:not([hidden]) [data-testid=build-item]").count();
+    expect(await insideFaults(breakdown)).toEqual([]);
+  }
+  expect(seen).toBe(best.path);
+});
+
+test("a press on any scoreboard row inspects that player at once, with nothing fetched and nothing above the rows moving; arrows and Enter do the same; Back to returns", async ({ page }) => {
+  test.skip(opensFullScreen(page), "a phone's rows show the player's page (the phone test above)");
   await openHistory(page, "MID");
   const { breakdown } = await openGameWithTimeline(page, true);
+  await settled(breakdown);
   const posts: string[] = [];
   page.on("request", (r) => {
     if (r.method() === "POST" && r.headers()["next-action"]) posts.push(r.url());
@@ -409,13 +535,23 @@ test("a press on any scoreboard row inspects that player at once, with nothing f
   const name = breakdown.getByTestId("inspected-name");
   const first = await name.innerText();
   const address = page.url();
+  /** Where the rows, the panels and the lane are, and the view's height. */
+  const layout = () =>
+    breakdown.evaluate((bd) => {
+      const y = (el: Element | null) => (el ? Math.round(el.getBoundingClientRect().top * 2) / 2 : null);
+      return {
+        rows: [...bd.querySelectorAll("[data-testid=participant]")].map(y),
+        panels: y(bd.querySelector("[data-testid=participant-panels]")),
+        body: y(bd.querySelector("[data-testid=panel-body]")),
+        lane: y(bd.querySelector("[data-testid=post-game-lane]")),
+        chart: y(bd.querySelector("[data-testid=performance]")),
+        height: Math.round(bd.getBoundingClientRect().height),
+      };
+    });
+  const before = await layout();
   // An enemy's row: everything follows it.
   const slot = (await breakdown.locator('[data-testid=participant-select]:not([aria-current="true"])').nth(5).getAttribute("data-slot"))!;
   const target = breakdown.locator(`[data-testid=participant-select][data-slot="${slot}"]`);
-  await target.scrollIntoViewIfNeeded();
-  await page.waitForTimeout(200);
-  // Where the row is on the screen: it stays under the pointer (stacked, the breakdown moves its scroller by what the player above it changed: post-game.tsx, not the browser's scroll anchoring, which Safari lacks).
-  const y = (await target.boundingBox())!.y;
   const rowName = (await breakdown.locator(`[data-testid=participant][data-slot="${slot}"] [data-testid=participant-name]`).innerText()).trim();
   await target.click();
   await expect(breakdown).toHaveAttribute("data-selected", slot);
@@ -425,9 +561,14 @@ test("a press on any scoreboard row inspects that player at once, with nothing f
   await expect(breakdown.locator(`[data-testid=participant][data-slot="${slot}"]`)).toHaveAttribute("data-selected", "true");
   await expect(breakdown.getByTestId("inspect-back")).toBeVisible();
   await expect(breakdown.getByTestId("post-game-yours")).not.toHaveAttribute("data-own", "true");
-  // Nothing fetched and nothing moved: the record and the timeline already hold all ten.
+  // Nothing fetched; the rows, the panels' area and the view's height where they were (±1px).
   expect(posts, "no request on switching").toEqual([]);
-  expect(Math.abs((await target.boundingBox())!.y - y), "the row pressed stays where it was (sub-pixel anchoring aside)").toBeLessThanOrEqual(2);
+  const after = await layout();
+  for (const [k, v] of Object.entries(before)) {
+    const w = after[k as keyof typeof after];
+    if (Array.isArray(v)) (v as Array<number | null>).forEach((y, i) => expect(Math.abs((w as Array<number | null>)[i]! - y!), `${k} ${i}`).toBeLessThanOrEqual(1));
+    else expect(Math.abs((w as number) - (v as number)), k).toBeLessThanOrEqual(1);
+  }
   // Not in the address: Back would still close the game.
   expect(page.url()).toBe(address);
   // The keyboard: Down to the next row, Enter inspects it.
@@ -446,68 +587,65 @@ test("a press on any scoreboard row inspects that player at once, with nothing f
   await fitsWidth(page, "an inspected player");
 });
 
-test("compare: a second player's line on the same chart and their key figures side by side", async ({ page }) => {
+test("the names in the open game are the ones its card shows: a team member's profile name, else the Riot name", async ({ page }) => {
+  test.skip(opensFullScreen(page), "a phone's card leaves both teams to the game's screen");
   await openHistory(page, "MID");
-  const { breakdown } = await openGameWithTimeline(page, true);
-  const panel = breakdown.getByTestId("performance");
-  await expect(panel.getByTestId("score-chart")).toHaveAttribute("data-series", "1");
-  // The lane opponent first in the list (after "No comparison"), in whichever form the Select has here.
-  const compare = panel.getByTestId("performance-compare");
-  const options = await optionsOf(compare);
-  expect(options[0]!.label).toBe("No comparison");
-  expect(options[1]!.label).toContain("(lane opponent)");
-  await pick(compare, { label: options[1]!.label });
-  await expect(panel.getByTestId("score-chart")).toHaveAttribute("data-series", "2");
-  await expect(panel.getByTestId("score-chart-legend")).toHaveCount(2);
-  const table = panel.getByTestId("performance-compare-table");
-  await expect(table.locator("tbody tr")).toHaveCount(7);
-  await expect(table.locator("tbody tr").first().locator("td")).toHaveText([/^\d+\.\d$/, /^\d+\.\d$/]);
-  // Each of the inspected player's figures still once in the view ("/ min" and "KDA" captions only in their tiles).
-  const text = await breakdown.innerText();
-  const cspm = (await breakdown.getByTestId("figure-cs").innerText()).match(/(\d+\.\d) \/ min/)![1]!;
-  expect(text.split(`${cspm} / min`).length - 1).toBe(1);
-  await fitsWidth(page, "the comparison");
+  const card = page.getByTestId("match-card").nth(0);
+  // The card's names, before it folds into the open game's header.
+  // The name's own line (its screen-reader words, the champion and the rank, follow it).
+  const shown = (await card.getByTestId("team-slot-name").allInnerTexts()).map((t) => t.split("\n")[0]!.trim()).filter(Boolean).sort();
+  const breakdown = await openGame(card);
+  const rows = (await breakdown.locator("[data-testid=participant]:not([data-removed]) [data-testid=participant-name]").allInnerTexts()).map((t) => t.trim()).sort();
+  expect(rows).toEqual(shown);
 });
 
-test("a 320px phone at 200% text: the open game, its three headings, the scoreboard and the comparison never scroll sideways or cut anything off, and every rank stays whole", async ({ page }, info) => {
+test("long names (a Riot name at its 16 characters with a long tag's worth of width, a long profile name) keep every row on its height, nothing cut off but by its own ellipsis", async ({ page }) => {
+  await openHistory(page, "MID");
+  const breakdown = await openGame(page.getByTestId("match-card").nth(1));
+  await settled(breakdown);
+  await showGamePage(breakdown, "board");
+  const rows = breakdown.locator("[data-testid=participant]");
+  const before = await rows.evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().height)));
+  // The longest names a scoreboard can hold, written into the page (demo names are short).
+  await breakdown.evaluate((bd) => {
+    for (const a of bd.querySelectorAll("[data-testid=participant-name] [data-testid=player-link], [data-testid=participant-name] > span:not(.sr-only)")) a.textContent = "Wwwwwwwwwwwwwwww Mmmmmmmmmmmmmmmmmmmm";
+    const name = bd.querySelector("[data-testid=inspected-name]");
+    if (name) name.textContent = "Wwwwwwwwwwwwwwww Mmmmmmmmmmmmmmmmmmmm";
+  });
+  expect(await rows.evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().height)))).toEqual(before);
+  expect(await insideFaults(breakdown)).toEqual([]);
+  await fitsWidth(page, "long names");
+});
+
+test("a 320px phone at 200% text: the open game's pages, its three panels and the scoreboard never scroll sideways or cut anything off, and every rank stays whole", async ({ page }, info) => {
   test.skip(info.project.name !== "phone", "a phone's large text (CDP's font sizes)");
   await page.setViewportSize({ width: 320, height: 568 });
   const cdp = await page.context().newCDPSession(page);
   await cdp.send("Page.setFontSizes", { fontSizes: { standard: 32, fixed: 26 } });
   await openHistory(page, "MID");
   const { breakdown } = await openGameWithTimeline(page, true);
-  /** Sideways scroll anywhere, an element cut off by a box that clips it (text ending in its own ellipsis, a segmented group's own scroll and the build path's sideways row aside), and ranks shortened. */
-  const faults = () =>
-    page.evaluate(() => {
-      const out: string[] = [];
-      if (document.documentElement.scrollWidth > innerWidth + 1) out.push(`page ${document.documentElement.scrollWidth - innerWidth}px wider`);
-      for (const el of document.querySelectorAll("[data-testid=match-breakdown] *")) {
-        const b = el.getBoundingClientRect();
-        // The build path's own sideways row (its ends fade where it hides more) is held to the screen
-        // below as a whole; what it scrolls to is reached by scrolling, never cut.
-        if (!b.width || el.closest(".sr-only") || el.closest("[role=radiogroup]") || el.parentElement?.closest("[data-testid=build-row]")) continue;
-        if (b.right > innerWidth + 1 && !el.parentElement?.closest(".truncate")) out.push(`${el.tagName.toLowerCase()}[${el.getAttribute("data-testid") ?? ""}] past the screen`);
-        let p = el.parentElement;
-        while (p && !/(hidden|clip|auto|scroll)/.test(getComputedStyle(p).overflowX)) p = p.parentElement;
-        if (p && !p.classList.contains("truncate") && p.closest("[data-testid=match-breakdown]") && b.right > p.getBoundingClientRect().right + 1) out.push(`${el.tagName.toLowerCase()}[${el.getAttribute("data-testid") ?? ""}] cut off`);
-      }
-      const ranks = [...document.querySelectorAll("[data-testid=match-breakdown] [data-testid=participant-rank-text]")].filter((e) => e.scrollWidth > e.clientWidth + 1).length;
-      if (ranks) out.push(`${ranks} ranks shortened`);
-      return [...new Set(out)];
-    });
-  expect(await faults(), "the open game").toEqual([]);
-  for (const k of ["skills", "runes"]) {
+  const faults = async () => {
+    const out = await insideFaults(breakdown);
+    const wide = await page.evaluate(() => document.documentElement.scrollWidth - innerWidth);
+    if (wide > 1) out.push(`page ${wide}px wider`);
+    const ranks = await breakdown.locator("[data-testid=participant-rank-text]").evaluateAll((els) => els.filter((e) => e.getClientRects().length && e.scrollWidth > e.clientWidth + 1).length);
+    if (ranks) out.push(`${ranks} ranks shortened`);
+    return out;
+  };
+  expect(await faults(), "the player").toEqual([]);
+  await showGamePage(breakdown, "build");
+  for (const k of ["build", "skills", "runes"]) {
     await breakdown.getByTestId(`panel-${k}`).click();
     expect(await faults(), k).toEqual([]);
   }
+  await showGamePage(breakdown, "board");
+  expect(await faults(), "the scoreboard").toEqual([]);
+  // Another player inspected (their page shown).
   await breakdown.getByTestId("participant-select").nth(6).click();
-  const compare = breakdown.getByTestId("performance-compare");
-  await pick(compare, { label: (await optionsOf(compare))[1]!.label });
-  await expect(breakdown.getByTestId("performance-compare-table")).toBeVisible();
-  expect(await faults(), "another player inspected, compared").toEqual([]);
+  expect(await faults(), "another player inspected").toEqual([]);
 });
 
-test("the keyboard: Build Path | Skill Order | Runes and the score's ten tiles are one tab stop each, arrows move within; Escape after a comparison closes the game", async ({ page }) => {
+test("the keyboard: Build Path | Skill Order | Runes is one tab stop, arrows move within; Escape from it closes the game", async ({ page }) => {
   test.skip(opensFullScreen(page), "the game under its card (a phone's window closes on its own Escape)");
   await openHistory(page, "MID");
   const { card, breakdown } = await openGameWithTimeline(page, true);
@@ -517,52 +655,43 @@ test("the keyboard: Build Path | Skill Order | Runes and the score's ten tiles a
   await page.keyboard.press("ArrowRight");
   await expect(breakdown.getByTestId("panel-skills")).toHaveAttribute("aria-checked", "true");
   await expect(breakdown.getByTestId("panel-skills")).toBeFocused();
-  const tiles = breakdown.getByTestId("performance-tile");
-  expect(await tiles.evaluateAll((els) => els.filter((e) => (e as HTMLElement).tabIndex === 0).length)).toBe(1);
-  await breakdown.locator('[data-testid=performance-tile][aria-current="true"]').focus();
-  await page.keyboard.press("Home");
-  await expect(tiles.first()).toBeFocused();
-  // A comparison chosen, the focus on its control: Escape closes the game (the closed list keeps no Escape for itself).
-  const compare = breakdown.getByTestId("performance-compare");
-  await pick(compare, { label: (await optionsOf(compare))[1]!.label });
-  await compare.focus();
+  // Escape closes the game (the closed list keeps no Escape for itself).
   await page.keyboard.press("Escape");
   await expect(page.locator("li[data-expanded]")).toHaveCount(0);
   await expect(card.getByTestId("match-row")).toBeFocused();
 });
 
-// The Production check holds the newest game's card and open game to one 1440 × 900 screen; on 24 Nov
-// 2026 a real game ran 18px over (903px): a possible-groups clause took a line of its own under the
-// scoreboard. Every opened demo game is held to the screen here, possible duos and their notes
-// included, read as the check does (at once) and again once the rank and group notes have settled.
-test("desktop at 1440 × 900: every opened game and its card fit one screen, possible groups and their notes included", async ({ page }, info) => {
-  test.skip(info.project.name !== "desktop", "the desktop's one-screen post-game view");
-  test.setTimeout(240_000);
-  await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.setViewportSize({ width: 1440, height: 900 });
-  const fit = () =>
-    page.locator("li[data-expanded]").evaluate((li) => {
-      const top = li.querySelector("[data-testid=match-card]")!.getBoundingClientRect().top;
-      return Math.round(li.querySelector("[data-testid=match-expanded]")!.getBoundingClientRect().bottom - top);
-    });
-  let grouped = 0;
-  for (const role of ["TOP", "JUNGLE", "MID", "ADC", "SUPPORT"]) {
-    await openHistory(page, role);
-    const cards = page.getByTestId("match-card");
-    for (let i = 0; i < Math.min(await cards.count(), 6); i++) {
-      const card = cards.nth(i);
-      const breakdown = await openGame(card);
-      // As it settles, once the timeline, the ranks and the groups have answered: the view a reader
-      // looks at. (With reduced motion every style change still runs for 0.01ms, globals.css, so a
-      // reading taken while those answers re-render the rows can see a frame before their sizes apply.)
-      await expect(breakdown).not.toHaveAttribute("data-timeline", "loading", { timeout: 15_000 });
-      await expect(breakdown.getByTestId("possible-groups-note")).not.toHaveAttribute("data-state", "loading", { timeout: 15_000 });
-      await expect(breakdown.getByTestId("ranks-note")).not.toHaveAttribute("data-state", "checking", { timeout: 15_000 });
-      grouped += (await breakdown.getByTestId("possible-group").count()) > 0 ? 1 : 0;
-      await expect.poll(fit, { message: `${role} game ${i + 1}`, timeout: 5_000 }).toBeLessThanOrEqual(900);
-      await closeGame(card);
+// The owner's brief of 24 Nov 2026, §2: on a desktop the opened game (its card with Previous, Next
+// and Close, and the breakdown) fits the window at 100% text, with nothing inside it scrolling, at
+// every common desktop size, the sidebar open or collapsed. Every role's first games, read once the
+// timeline, the groups and the ranks have settled (with reduced motion every style change still runs
+// for 0.01ms, globals.css). The Production check holds 1440 × 900 and 1280 × 720 on real games.
+for (const sidebar of ["expanded", "collapsed"] as const) {
+  test(`desktop, the sidebar ${sidebar}: every opened game and its card fit the window with nothing inside scrolling, at 1280 × 720, 1366 × 768, 1440 × 900 and 1920 × 1080`, async ({ page, baseURL }, info) => {
+    test.skip(info.project.name !== "desktop", "the desktop's one-screen post-game view");
+    test.setTimeout(420_000);
+    await page.context().addCookies([{ name: "uniiverse_sidebar", value: sidebar, url: baseURL! }]);
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    let grouped = 0;
+    for (const size of [{ width: 1280, height: 720 }, { width: 1366, height: 768 }, { width: 1440, height: 900 }, { width: 1920, height: 1080 }]) {
+      await page.setViewportSize(size);
+      // Every role at the smallest size; one role each at the others.
+      for (const role of size.width === 1280 ? ["TOP", "JUNGLE", "MID", "ADC", "SUPPORT"] : [["MID", "SUPPORT", "TOP"][size.width % 3]!]) {
+        await openHistory(page, role);
+        const cards = page.getByTestId("match-card");
+        for (let i = 0; i < Math.min(await cards.count(), size.width === 1280 ? 6 : 3); i++) {
+          const card = cards.nth(i);
+          const breakdown = await openGame(card);
+          await settled(breakdown);
+          grouped += (await breakdown.getByTestId("possible-group").count()) > 0 ? 1 : 0;
+          const label = `${size.width}×${size.height}, ${role} game ${i + 1}`;
+          await expect.poll(async () => { const f = await openedFit(page); return f.height - f.room; }, { message: `${label}: the card and its game within the room under the pinned bars`, timeout: 5_000 }).toBeLessThanOrEqual(0);
+          expect(await insideFaults(breakdown), label).toEqual([]);
+          await closeGame(card);
+        }
+      }
     }
-  }
-  // The demo's recurring pair is in some of these games: the case that ran over is covered.
-  expect(grouped).toBeGreaterThan(0);
-});
+    // The demo's recurring pair is in some of these games: a possible group's line is covered.
+    expect(grouped).toBeGreaterThan(0);
+  });
+}

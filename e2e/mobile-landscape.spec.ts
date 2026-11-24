@@ -787,8 +787,10 @@ test("a window whose header leaves room keeps its own scrolling body on a phone 
   const win = await openMatchWindow(page);
   await expect(page.getByTestId("post-game-figures")).toBeVisible();
   await expect(win).not.toHaveAttribute("data-flow", /.*/);
-  // The header stays; the body below it scrolls.
-  expect(await page.getByTestId("match-detail-body").evaluate((b) => b.scrollHeight > b.clientHeight && getComputedStyle(b).overflowY === "auto")).toBe(true);
+  // The header stays; the body below it is the window's scrolling area. The opened game itself fits
+  // it, one page at a time (the owner's brief of 24 Nov 2026, §2), so here it has nothing to scroll.
+  expect(await page.getByTestId("match-detail-body").evaluate((b) => getComputedStyle(b).overflowY)).toBe("auto");
+  expect(await page.getByTestId("match-detail-body").evaluate((b) => b.scrollHeight - b.clientHeight)).toBeLessThanOrEqual(1);
   await page.keyboard.press("Escape");
   await expect(win).toBeHidden();
   await done(page);

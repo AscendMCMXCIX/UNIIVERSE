@@ -52,47 +52,93 @@ decorative chrome.
   Riot's descriptions one press away (Descriptions), never cut (docs/CHAMPION_LOOKUP.md).
 - **Match History** is a finished, successful experience. Do not restyle it for novelty. Change it
   only for a bug, an accessibility fix or a product decision.
-  - **The post-game view (the owner's directive of 19 Nov 2026, §5: the product decision this rule
-    asks for).** An open game is one view without subtabs (`post-game.tsx`): the loadout as the
-    client draws it (a 72px portrait with its level, spells and runes two by two, the six items two
-    rows of three with the trinket beside the first, in inset slots), the rune page on one line with
-    the stat shards where stored (icons only, neutral names, until OD7), six figure tiles with each of
-    the player's figures once, the lane by role in a tile like the figures (against the lane opponent
-    at 10:00, 15:00 and the end; a game whose timeline gives no 10:00 or 15:00 shows the end alone
-    and one quiet line saying why, never columns of dashes) and a compact scoreboard of 37px rows;
-    its patch by the public name (`publicPatchName`: "Patch 26.20"). The open card folds into a 50px
-    header with Previous, Next and Close, and a sticky footer repeats them, one set at a time: while
-    the card's own are on screen the footer keeps its place and shows nothing (Release 13's review,
-    finding 10; Team → Matches' cards have no steps of their own, so their footer always shows). The card's D8
-    density is unchanged. The written notes (Went well, Went wrong, Focus next) and the two folds
-    (Gold over the game, Build and skill order) were removed from the view on 23 Nov 2026, at the
-    owner's request (docs/MATCH_NOTES.md); the Production check asserts the notes and the gold curve
-    stay gone. **Release 16 (the owner's request of 23 Nov 2026):** any of the ten players is
-    inspected from the scoreboard (the row is its one button, its name still the player's link; the
-    row inspected is `surface-3` with an inset accent ring and `aria-current`; ↑ ↓ move between the
-    rows; never in the address, so Back still closes the game); above the lane, three segmented
-    headings, **Build Path | Skill Order | Runes** (`segmentedGroupClass`, radios: the view still
-    has no tabs), one shown at a time; each row ends with the player's performance score, its place
-    as a chip (1st … 10th), the winning team's best as MVP (a violet chip) and the losing team's as ACE (a ringed one), never in the sides' blue and red,
-    in words (docs/PERFORMANCE_SCORE.md); under the scoreboard the performance panel: the score, its
-    place, "Excellent" from 8.0, the timeline's one trend word with its sentence and why in a
-    sentence, each team's mean on one split bar and the ten scores as a strip of small tiles (a tile
-    inspects its player), both in the scoreboard's order with each team in its side's colour and
-    labelled with its side and result in words ("Blue · Defeat 5.5"), never a result told by the
-    side colours; in a post-game scoreboard 30–36rem wide (a desktop with the sidebar open) the champion's name is
-    never cut, the rank takes the match card's short form ("E2", the whole rank in its title and
-    for screen readers) and the lane opponent's mark is a crossed-swords icon with its words for
-    screen readers ("Lane" from 36rem, "Lane opponent" from 40rem); Build Path | Skill Order | Runes
-    and the score's ten tiles are one tab stop each (arrow keys move within); on a phone each scoreboard row is three lines (the name, K/D/A and score; the
-    build and CS; the rank, whole) and under 16rem (200% text) everything in it stacks, so nothing
-    runs past the screen at any width or text size; on a phone (its window held near two screens:
-    2.15–2.27 for the demo's first three games, the overlay kit's ceiling 2.32 since Release 16) the support
-    figures and the score's why, tiles and chart sit behind one row fold each, the score itself, its
-    place and the "Compare with" select staying in view; the score through the game (a line in the
-    brand gradient, a second player dashed in `fg-muted` with a legend, its axis fitted to the data (at least 3 points, 5 always in view and dashed), 104px tall on a desktop, the end
-    joined by a dotted segment, a table for screen readers) and a "Compare with" select. Stacked
-    (under 60rem) a "Show …'s game" link under the scoreboard takes the reader up to the player
-    inspected; nothing scrolls by itself.
+  - **The post-game view (the owner's directive of 19 Nov 2026, §5; redrawn at the owner's brief of
+    24 Nov 2026, §1–§8).** An open game is one integrated post-game screen (`post-game.tsx`), the same
+    under a card and in the match window, with nothing in it scrolling: no sideways build path, no
+    scrolling panel or scoreboard, no nested scroll container, no visible scrollbar and nothing cut
+    off by an overflow (e2e/match-breakdown.spec.ts and the Production check count scroll containers
+    and clipped elements inside it). Fewer boxes: one surface for the scoreboard, everything else on
+    the open card's own background, separated by space, never a card per figure.
+    - **Layout** (the view's own width, `@container/pg`): from 56rem two columns, the player
+      inspected (22rem; 24rem from 64rem, 27rem from 80rem) beside the scoreboard and the score
+      through the game; 40–56rem (a tablet) one grid: the player beside Build Path | Skill Order |
+      Runes and the lane, the score through the game under those, the scoreboard across; under 40rem
+      one column. Every part above the scoreboard or beside it keeps its height whoever is inspected
+      (fixed lines, truncation, reserved rows: the loadout row 56px, the six figures, the other
+      figures' grid with every row always drawn, the panels' area, the lane's four rows), so the rows
+      never move when another player is chosen (asserted ±1px).
+    - **Fit** (the owner's brief, §2): on a desktop at 100% text the card (with Previous, Next and
+      Close) and its game fit the room under the pinned bars at 1280 × 720, 1366 × 768, 1440 × 900,
+      1920 × 1080, 2560 × 1440 and 3440 × 1440, the sidebar open or collapsed. Measured on the demo
+      (MID's third game, with a timeline, the card's top to the game's end, against the window's
+      height less the pinned tabs, 52px; 58px from 1920): before (`main` 2d6b1718) 1436px at
+      1280 × 720 (room 668: the two columns started at 60rem, so the sidebar open stacked them) and
+      843px at 1440 × 900 (room 848); after, 651px at 1280 × 720, 1366 × 768 and 1440 × 900, the
+      sidebar open or collapsed (rooms 668, 716, 848), 721px at 1920 × 1080 (room 1022), 837px at
+      2560 × 1440 (1373) and 893px at 3440 × 1440 (1368); a tablet (768 × 1024, room 915) 870px. Every
+      role's six newest demo games stay within the room at 1280 × 720 (the largest 663px, a possible
+      duo's line under its team's band). A game opened in the upper part of the screen whose end runs below it is moved up
+      just enough to show all of it (`InlineMatch`). The sticky footer of Previous, Next and Close is
+      drawn only where the game is taller than the room (large text, a short window): a game that
+      fits has its card's steps in view with all of it. A phone's window shows one of three pages
+      at a time, **Player | Build | Scoreboard** (the shared segmented control; a window under 481px
+      tall too), each within the screen at 100% text at 375 × 667, 390 × 844 (with an iPhone's
+      insets) and 430 × 932; a tap on a scoreboard row inspects that player and shows their page.
+      At 150% and 200% text the view reflows and the page (or the window's body) scrolls
+      vertically, never sideways and never inside the view.
+    - **The player inspected**: one line, their name (the collapsed card's name: a team member's
+      profile name, else the Riot name), champion and role, with "Back to …" while another player is
+      inspected; the loadout as the client draws it (a 56px portrait with its level, spells and runes
+      two by two, the six items two rows of three with the trinket beside the first, in inset
+      slots) with the performance score beside it in two fixed lines (the score with MVP or ACE, then
+      "3rd of 10" and one (i) that says how the score is worked out) and the line an icon names
+      itself in; six figures in aligned columns (K/D/A, CS, gold, damage, vision, KP; each of the
+      player's figures once in the view); the other recorded figures as a grid of three groups of
+      aligned rows, **Combat** (taken, mitigated, CC), **Utility** (heal + shield, wards cleared,
+      control wards) and **Objectives** (damage, turrets), ordered by role (a support's utility first,
+      a jungler's objectives, everyone else's combat), "—" where the record lacks a figure and "0"
+      where it recorded none (`src/lib/format.ts` for every number). **Build Path | Skill Order |
+      Runes** (`segmentedGroupClass`, radios: the view still has no tabs) over one area of one height
+      (7rem, 13.5rem where the skill grid takes two halves): the build path a wrapping timeline in
+      game order, each shop visit its items over its game time, a completed item ringed, a
+      consumable or ward smaller, a sold item faded with a minus (and each in words for screen
+      readers), one (i) in place of the legend; a path too long for the area is split into pages of
+      whole rows with page buttons under it (the same segmented control), every purchase in the page;
+      the skill grid alone (nothing written under it); the rune page two paths and the shards, icons
+      at one size per level. The lane by role in a table against the lane opponent at 10:00, 15:00
+      and the end, the bot lane's two against two as its own row; a game without a timeline shows
+      the end alone, never columns of dashes, and the panels' area says "Timeline not available
+      for this game" once.
+    - **The scoreboard** (`scoreboard.tsx`, `Scoreboard`): both teams as one component, the player's
+      team first, each team's band (its side and result in words, its kills, gold, towers, dragons
+      and barons) and five rows on one grid, so K/D/A, the build, CS over damage and the score over
+      its place sit at the same x on both teams; every row 32px (two lines) from a 30rem scoreboard,
+      two lines on a phone (the name, the K/D/A and the score; the build, the rank and CS with
+      damage), everything wrapping whole under 18rem. The rank is text with its tier's crest, no
+      box (the match card's short form "E2" in a scoreboard 30–36rem wide, a clock for a rank read
+      away from the game); the lane opponent is marked by crossed swords ("Lane", "Lane opponent"
+      from 36rem and 40rem); "Met N×" is a quiet underlined link; a possible group is one line under
+      its team's band with its evidence fold, its rows marked by a coloured edge. The profile's own
+      player has the accent tint, the player inspected an inset accent ring (`aria-current`); the
+      row is its one button (↑ ↓ move between the rows), the name still the player's link. Under it
+      one quiet line: "Ranks" with its (i) ("Rank recorded near match time; older readings may
+      differ. Solo/Duo unless marked Flex.", or the Flex wording in a Flex game) and a check's state
+      when it is running or could not ask for everyone; "Possible groups" with its (i) ("Players
+      frequently seen together in earlier games. Not confirmed premades.") only where a side has
+      one; the date and patch, the bookmark and OP.GG. Under it the inspected player's score through
+      the game, one line (docs/PERFORMANCE_SCORE.md, "The chart").
+    - **Removed on 24 Nov 2026** (the owner's brief, §3–§7; the Production check asserts each stays
+      gone): the "Compare with" select, the comparison table and the chart's second line; the
+      written why and the trend word under the name (`reasonText` and `trendOf` stay in the domain);
+      "Excellent"; each team's mean on a split bar and the ten score tiles (the rows carry every
+      score and place); the build path's sideways row and its legend; the skill grid's sentence
+      ("Maxed Q → E", the points taken); the sentences under the scoreboard (the ranks' lead, "not
+      enough recorded history", "no other players to assess", "inferred from N games", the Clash and
+      not-assessed lines); the support figures' sentence; the phone's folds and the "Show …'s game"
+      link; the removed player's long sentence (now "Removed player · personal data erased"). The
+      notes and the gold curve stay removed (23 Nov 2026, docs/MATCH_NOTES.md). The open card's
+      header with Previous, Next and Close and the one history rule (Back closes the game, however
+      many games were stepped through) are unchanged.
   - **Density (owner decision D8, approved 8 Nov 2026, built 18 Nov):** denser cards that keep the
     statistics, champions, ranks, LP and every interaction readable. The card follows the list's
     own width (`@container/mh`), in three tiers:

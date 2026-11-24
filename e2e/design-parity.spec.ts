@@ -122,7 +122,8 @@ test("the shared components look the same on a phone and on a desktop", async ({
   the game's window on a phone), Champion Lookup's champion and abilities (Release 16, in
   Matchup Intel's place), and Admin's person view with its Riot accounts (S9). One page visit per component and size.
 */
-type Part = { name: string; selector: string; phoneSelector?: string };
+/** `gamePage`: the page of a phone's game window the part is on (Player, Build, Scoreboard: post-game.tsx). */
+type Part = { name: string; selector: string; phoneSelector?: string; gamePage?: "player" | "build" | "board" };
 type Group = { name: string; path: (mate: string) => string; open?: (page: Page, phone: boolean) => Promise<void>; parts: Part[] };
 
 const GROUPS: Group[] = [
@@ -156,8 +157,8 @@ const GROUPS: Group[] = [
     parts: [
       { name: "post-game: an item", selector: "[data-testid=post-game-items] [data-testid=loadout-icon]" },
       { name: "post-game: loadout name", selector: "[data-testid=loadout-name]" },
-      { name: "post-game: a scoreboard K/D/A", selector: "[data-testid=post-game-scoreboard] [data-testid=participant-kda]" },
-      { name: "post-game: a scoreboard name", selector: "[data-testid=post-game-scoreboard] [data-testid=participant-name]" },
+      { name: "post-game: a scoreboard K/D/A", selector: "[data-testid=post-game-scoreboard] [data-testid=participant-kda]", gamePage: "board" },
+      { name: "post-game: a scoreboard name", selector: "[data-testid=post-game-scoreboard] [data-testid=participant-name]", gamePage: "board" },
     ],
   },
   {
@@ -207,6 +208,8 @@ test("the components S5–S9 created look the same on a phone and on a desktop",
       const got: Record<string, Awaited<ReturnType<typeof look>>> = {};
       for (const part of g.parts) {
         const selector = isPhone ? (part.phoneSelector ?? part.selector) : part.selector;
+        const tab = part.gamePage ? page.locator(`[data-testid=post-game-page-${part.gamePage}]`) : null;
+        if (tab && (await tab.count())) await tab.click();
         if (!(await page.locator(selector).filter({ visible: true }).count())) problems.push(`${part.name}: not shown on a ${isPhone ? "phone" : "desktop"}`);
         else got[part.name] = await look(page, selector);
       }

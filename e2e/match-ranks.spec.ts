@@ -1,5 +1,5 @@
 import { expect, test, type Page, type Response } from "./test";
-import { cardOf, closeGame, openGame } from "./match-history";
+import { cardOf, closeGame, openGame, showGamePage } from "./match-history";
 
 /*
   Ranks in an opened game's scoreboard (server/players/participant-ranks.ts, domain/known-rank.ts), on the
@@ -46,8 +46,10 @@ async function openHistory(page: Page, role: string) {
 async function openMatch(page: Page, index: number) {
   const breakdown = await openGame(page.getByTestId("match-card").nth(index));
   const note = breakdown.getByTestId("ranks-note");
-  await expect(note).toBeVisible({ timeout: 15_000 });
+  // (On a phone the note is on the window's Scoreboard page: present whatever page is shown.)
+  await expect(note).toBeAttached({ timeout: 15_000 });
   await expect(note).not.toHaveAttribute("data-state", "checking", { timeout: 15_000 });
+  await showGamePage(breakdown, "board");
   return note;
 }
 
@@ -91,11 +93,12 @@ test("every player in the scoreboard has one rank badge: a dated current rank, U
   // The stand-in ranks most players; the account the history belongs to has its own synced rank.
   expect(states.filter((s) => s === "ranked").length).toBeGreaterThanOrEqual(5);
   await expect(page.locator('[data-testid="participant"][data-player] [data-testid="participant-rank"]')).toHaveAttribute("data-state", "ranked");
-  // Under the scoreboard, one line: around the game, read later, or both; the rules in its (i).
-  await expect(note.getByTestId("ranks-note-lead")).toHaveText(/^(Ranks around the time of this game\.|Ranks read later \(marked\), not at the time of this game\.|Ranks around the time of this game; marked ones were read later\.)$/);
-  await expect(note).toContainText("Ranks were checked around the time of this game. A clock means it was checked well before or after, so it may differ.");
-  await expect(note).toContainText(/(Solo\/Duo ranks unless marked Flex|Flex ranks, as this is a Flex game, unless marked Solo\/Duo)\./);
+  // Under the scoreboard, "Ranks" and its (i), no sentence (the owner's brief of 24 Nov 2026, §5): the
+  // rule in the (i)'s words, the clock on each badge read away from the game.
+  await expect(note.getByTestId("ranks-note-lead")).toHaveCount(0);
+  expect(await note.textContent()).not.toMatch(/Ranks around the time of this game|Ranks read later|Ranks were checked/);
   const info = note.getByTestId("ranks-info");
+  await expect(info).toHaveAccessibleDescription(/^Rank recorded near match time; older readings may differ\. (Solo\/Duo unless marked Flex|Flex unless marked Solo\/Duo)\.$/);
   await expect(info).toHaveAccessibleName("About the ranks");
 });
 
@@ -150,6 +153,7 @@ test("Riot is asked only for missing or stale ranks, once: a match opened again 
 test("the badges keep the scoreboard's rows: inside their column, nothing overlapping, no sideways scroll", async ({ page }) => {
   await openHistory(page, "SUPPORT");
   await openMatch(page, 0);
+  await showGamePage(page.getByTestId("match-breakdown").first(), "board");
   const rows = page.locator('[data-testid="participant"]:not([data-removed])');
   for (let i = 0; i < (await rows.count()); i++) {
     const row = rows.nth(i);
@@ -162,8 +166,10 @@ test("the badges keep the scoreboard's rows: inside their column, nothing overla
     expect(badge.x).toBeGreaterThanOrEqual(box.x - 0.5);
     expect(badge.x + badge.width).toBeLessThanOrEqual(box.x + box.width + 0.5);
     expect(badge.y).toBeGreaterThanOrEqual(name.y + name.height - 1);
-    for (const id of ["participant-kda", "participant-items", "participant-cs", "participant-score"]) {
-      const other = (await row.getByTestId(id).boundingBox())!;
+    // (A phone's row draws its build in the line under the name, "participant-items-phone".)
+    for (const id of ["participant-kda", "participant-items", "participant-items-phone", "participant-cs", "participant-score"]) {
+      const other = await row.getByTestId(id).boundingBox();
+      if (!other) continue;
       const overlaps = badge.x < other.x + other.width - 0.5 && other.x < badge.x + badge.width - 0.5 && badge.y < other.y + other.height - 0.5 && other.y < badge.y + badge.height - 0.5;
       expect(overlaps, `row ${i}: the rank over ${id}`).toBe(false);
     }

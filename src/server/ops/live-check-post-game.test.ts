@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { PANEL_WORDS, REMOVED_WORDS, postGameVerdicts, readInspection, readPostGame, switchVerdicts, type InspectionRead, type PostGameRead } from "../../../scripts/post-game-facts.mjs";
+import { PANEL_WORDS, REMOVED_PARTS, REMOVED_WORDS, fitVerdicts, postGameVerdicts, readFit, readInspection, readPostGame, switchVerdicts, type FitRead, type InspectionRead, type PostGameRead } from "../../../scripts/post-game-facts.mjs";
 
 /*
   The Production check's post-game facts (scripts/post-game-facts.mjs). The reading below is a demo
   game as the live check's own reader sees it: no notes and no gold curve (removed 23 Nov 2026), and
   since Release 16 Build Path | Skill Order | Runes above the lane, a performance score beside each
   of the ten players with one MVP and one ACE, and any player inspected with a press on their row.
+  Since the owner's brief of 24 Nov 2026: the open game fits the window with nothing inside it
+  scrolling (readFit), and the comparison, the written why, the score strip, the build legend and the
+  grey notes under the scoreboard stay removed.
 */
 
 const DEMO: PostGameRead = {
@@ -67,15 +70,37 @@ describe("the post-game facts", () => {
     expect(failed({ ...DEMO, removed: { parts: 0, words: 2 } })).toHaveLength(1);
     expect(failed({ ...DEMO, removed: undefined })).toHaveLength(1);
   });
-  it("look for every removed section's name in the page (the reader's own list is the exported one)", () => {
+  it("look for every removed section's name and part in the page (the reader's own lists are the exported ones)", () => {
     const source = readPostGame.toString();
     for (const w of REMOVED_WORDS) expect(source).toContain(JSON.stringify(w));
-    expect(REMOVED_WORDS).toEqual(["Went well", "Went wrong", "Focus next", "Gold over the game"]);
+    expect(source).toContain(JSON.stringify(REMOVED_PARTS));
+    expect(REMOVED_WORDS.slice(0, 4)).toEqual(["Went well", "Went wrong", "Focus next", "Gold over the game"]);
+    // The comparison, the written why and the grey notes of 24 Nov 2026.
+    for (const w of ["No comparison", "Stood out:", "Held back by", "Ranks around the time of this game", "not enough recorded history"]) expect(REMOVED_WORDS).toContain(w);
+    for (const id of ["performance-compare", "performance-why", "performance-strip", "build-legend", "build-row"]) expect(REMOVED_PARTS).toContain(`[data-testid=${id}]`);
   });
   it("warn, not fail, for a game without its items, or whose timeline is still loading (the build path and the scores then wait)", () => {
     const v = postGameVerdicts({ kind: "desktop", at: { ...DEMO, itemsNotRecorded: true, itemSlots: 0, timeline: "loading", scores: undefined } });
     expect(v.filter((x) => x.status === "FAIL")).toEqual([]);
     expect(v.filter((x) => x.status === "WARN")).toHaveLength(2);
+  });
+});
+
+describe("the open game against the window", () => {
+  const fits: FitRead = { open: true, size: "1280x720", height: 645, room: 668, scrollers: 0, clipped: 0, parts: null };
+  const failedFit = (at: FitRead) => fitVerdicts({ kind: "desktop", at }).filter((v) => v.status === "FAIL").length;
+  it("pass when the card and its game fit the room under the pinned bars and nothing inside scrolls", () => {
+    expect(fitVerdicts({ kind: "desktop", at: fits }).map((v) => v.status)).toEqual(["PASS", "PASS"]);
+  });
+  it("fail a game taller than the room, a scroll container inside it, or something cut off", () => {
+    expect(failedFit({ ...fits, height: 700, parts: { card: 50 } })).toBe(1);
+    expect(failedFit({ ...fits, scrollers: 1 })).toBe(1);
+    expect(failedFit({ ...fits, clipped: 2 })).toBe(1);
+    expect(failedFit({ open: false })).toBe(1);
+  });
+  it("reads only sizes, counts and test ids (no name or text leaves the page)", () => {
+    const source = readFit.toString();
+    expect(source).not.toMatch(/textContent|innerText/);
   });
 });
 

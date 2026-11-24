@@ -114,7 +114,7 @@ row.
 - **Game modes.** ARAM (queues 450, 720, 2400 and the older 100) has no lanes, farm or vision in its
   weights, and its timeline steps three minutes. Every other mode is read as Summoner's Rift. A
   player whose position is not recorded (an older record, a mode without positions) gets the
-  role-neutral row, and the panel says so ("Position not recorded"). Arena and other modes without
+  role-neutral row, and the score's (i) says so ("Position not recorded"). Arena and other modes without
   two teams have no score.
 - **A removed player** (personal data erased) is not scored and is not part of the comparison; the
   team's kills still count theirs, from the record's team total.
@@ -209,7 +209,10 @@ before with a dotted line for that reason. An ordinary game played the same thro
 record (`goldContradictsRecord`), or whose frames have a gap, shows its final scores and says the
 score through the game is not available.
 
-**The trend word** (`trendOf`, `TREND_RULES`, `TREND_SENTENCES`): one word and its sentence. Since
+**The trend word** (`trendOf`, `TREND_RULES`, `TREND_SENTENCES`): one word and its sentence. Not
+shown since the owner's brief of 24 Nov 2026 (the post-game view no longer writes a narrative: the
+score, the chart, the lane and the scoreboard speak for themselves); the rules stay in the domain,
+tested, should the owner ask for them again. Since
 v3 it reads the points' **undamped** weighted means (`TimelinePoint.raw`, z units, no result
 step), not the chart's damped scores: in v2 the damping pulled every point toward 5 while the rules
 still used 0–10 thresholds, so nearly every player read "Steady" (all 20 in the demo's two timeline
@@ -237,14 +240,25 @@ carry (every kill after 20:00) reads "Resilient", "Rising" or "Strong finish"; a
 behind reads "Fading"; an early stomp then a throw is never "Steady" or "Rising"; a strong game
 played the same throughout is never called "Rising" or "Fading" by the damping.
 
-**The chart** (v3): 104px tall on a desktop (96px on a phone, behind its fold), its axis fitted to
-the data (`axisRange`: the lowest and highest scores shown and 5, half a point beyond, at least 3
-apart, whole numbers within 0–10), 5 always a dashed reference line; the dotted segment into the end
-is named in the legend ("final figures").
+**The chart** (24 Nov 2026): one line, the player inspected, 88px tall beside a desktop's
+scoreboard and 64px elsewhere (a tablet's grid, a phone's Player page), in an area of one height
+whoever is inspected; its axis fitted to the data (`axisRange`: the lowest and highest scores shown
+and 5, half a point beyond, at least 3 apart, whole numbers within 0–10), 5 always a dashed reference
+line. The dotted segment into the end is explained in the chart's one (i) ("Each point scores what had
+happened by then; the end is the final score, from the whole record"). The second, compared player
+(a dashed line, its legend and the comparison table) was removed with the comparison select at the
+owner's request (24 Nov 2026).
 
-**Excellent** (`EXCELLENT_AT`): a score of 8.0 or more is called "Excellent" beside it; no other band
-is named. **Each team's mean** (`teamAverages`): the mean of its scored players' scores, shown on one
-split bar in the scoreboard's order, each team labelled with its side and result.
+**How the view shows the score** (24 Nov 2026, the owner's brief §3 and §6): each scoreboard row ends
+with the player's score over its place (1st … 10th in quiet text, MVP and ACE as chips); the player
+inspected has theirs beside their loadout, the score with MVP or ACE over "3rd of 10" and one (i) that
+says how it is worked out ("Compared within this game: each figure against the role's typical figure,
+then against the other players and the lane opponent. 0–10; 5 is average."; a player without a
+recorded position gets the neutral wording). Removed from the view on that date, the code kept where
+it is analytical: the written why (`reasonText`) and the trend word (`trendOf`), "Excellent" from 8.0
+(`EXCELLENT_AT`), each team's mean on a split bar (`teamAverages`) and the ten score tiles (the
+scoreboard already carries each player's score and place). The collapsed card shows the same score
+and place (lane C of Release 17, docs/DESIGN_SYSTEM.md).
 
 ## Limitations
 

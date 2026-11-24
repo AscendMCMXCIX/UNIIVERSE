@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildPath, itemKindsOf, maxOrder, shopVisits, skillGrid } from "./build-path";
+import { buildItemKind, buildPath, itemKindsOf, maxOrder, shopVisits, skillGrid } from "./build-path";
 
 describe("the build path", () => {
   it("puts purchases and sales in the order they happened, a sale first at the same moment", () => {
@@ -64,5 +64,15 @@ describe("the item kinds from Data Dragon", () => {
     });
     expect(kinds.done).toEqual([3006, 3031]);
     expect(kinds.minor).toEqual([2003, 2055, 3340]);
+  });
+});
+
+describe("how the build path marks an event", () => {
+  it("marks a sale always, and a purchase's kind only where the item lists are known", () => {
+    expect(buildItemKind({ kind: "sell", done: false, minor: false }, false)).toBe("sell");
+    expect(buildItemKind({ kind: "buy", done: true, minor: false }, false)).toBeNull();
+    expect(buildItemKind({ kind: "buy", done: true, minor: false }, true)).toBe("done");
+    expect(buildItemKind({ kind: "buy", done: false, minor: true }, true)).toBe("minor");
+    expect(buildItemKind({ kind: "buy", done: false, minor: false }, true)).toBe("part");
   });
 });
