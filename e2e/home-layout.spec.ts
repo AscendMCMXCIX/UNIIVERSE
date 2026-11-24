@@ -279,12 +279,23 @@ test("profile Overview on a touch phone: the pools' top three, the off roles and
   const total = await rows.count();
   expect(total, "the demo's primary pool is longer than three").toBeGreaterThan(3);
   const visibleRows = () => rows.evaluateAll((els) => els.filter((e) => e.getBoundingClientRect().height > 0).length);
+  // The demo is shared by every spec in a shard, and some add a champion to this pool (responsive's
+  // "edit champions in place"): past PRIMARY_POOL_FOLD_OVER (6) the pool folds at every width to its
+  // first PRIMARY_POOL_TOP (5) behind "Show all N" (Release 16); a phone still shows its top three,
+  // its button then the same "Show all N" and "Show fewer".
+  const wide = total > 6;
   const allFold = page.getByTestId("primary-pool-fold");
   const offFold = page.getByTestId("off-roles-fold");
   const rankedFold = page.getByTestId("ranked-fold");
   if (!phone) {
-    for (const f of [allFold, offFold, rankedFold]) await expect(f).toBeHidden();
-    expect(await visibleRows()).toBe(total);
+    for (const f of [offFold, rankedFold]) await expect(f).toBeHidden();
+    if (wide) {
+      await expect(allFold).toHaveText(new RegExp(`^Show all ${total}`));
+      expect(await visibleRows()).toBe(5);
+    } else {
+      await expect(allFold).toBeHidden();
+      expect(await visibleRows()).toBe(total);
+    }
     await expect(page.getByTestId("secondary-pool")).toBeVisible();
     await expect(page.getByTestId("ranked-chart")).toBeVisible();
     await expect(page.getByTestId("ranked-change")).toBeVisible();
@@ -292,11 +303,11 @@ test("profile Overview on a touch phone: the pools' top three, the off roles and
   }
   // The pool: the top three, then All N brings the rest in order, and Top 3 folds them again.
   expect(await visibleRows()).toBe(3);
-  await expect(allFold).toHaveText(new RegExp(`^All ${total}`));
+  await expect(allFold).toHaveText(new RegExp(`^${wide ? "Show all" : "All"} ${total}`));
   await expect(allFold).toHaveAttribute("aria-expanded", "false");
   await allFold.click();
   expect(await visibleRows()).toBe(total);
-  await expect(allFold).toHaveText(/^Top 3/);
+  await expect(allFold).toHaveText(wide ? /^Show fewer/ : /^Top 3/);
   await allFold.click();
   expect(await visibleRows()).toBe(3);
   // Off roles: hidden under their heading until Show.
