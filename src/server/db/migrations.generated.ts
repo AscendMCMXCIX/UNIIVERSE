@@ -952,5 +952,20 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
       "ALTER TABLE \"static_digests\" ENABLE ROW LEVEL SECURITY;",
       "-- Closed to Supabase's Data API whatever the project's default privileges, and readable by the\n-- backup role where it exists (docs/DATABASE_PERMISSIONS.md).\nDO $$ BEGIN\n  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN\n    REVOKE ALL ON TABLE public.account_match_prep FROM anon;\n    REVOKE ALL ON TABLE public.static_digests FROM anon;\n  END IF;\n  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN\n    REVOKE ALL ON TABLE public.account_match_prep FROM authenticated;\n    REVOKE ALL ON TABLE public.static_digests FROM authenticated;\n  END IF;\n  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'uniiverse_backup') THEN\n    GRANT SELECT ON TABLE public.account_match_prep TO uniiverse_backup;\n    GRANT SELECT ON TABLE public.static_digests TO uniiverse_backup;\n  END IF;\nEND $$;"
     ]
+  },
+  {
+    "idx": 68,
+    "tag": "0068_retire_meta_trends_rest",
+    "hash": "1b8c3bee614bfa9595be708cf76c760cf86410c51ef474fe48b85dbe90f77415",
+    "statements": [
+      "-- Drops what was left of Meta & Trends and deletes the other players' ranks no stored game names\n-- (PR #212's migration 0066, held since 7 Nov 2026 and approved by the owner on 24 Nov 2026; numbered\n-- 0068 because 0067 came first and drizzle's snapshots chain from it).\n-- Tables (nothing has read or written them since the feature was removed on 19 Oct 2026; 0062 dropped\n-- the other 12): tracked_summoners (the ladder players; 0048 copied the ranks Match History shows\n-- into last_known_ranks), region_status (the collection's per-region state), stat_periods,\n-- stat_region_periods and stat_rank_periods (the aggregation's periods) with stat_source, the enum\n-- type only they used, and champion_change_points (rework discounts).\n-- Ranks: last_known_ranks rows whose player is in no stored game (the ladder's and the Draft's\n-- sightings 0048 copied, and lookups whose games are gone). A rank is only ever read for a player a\n-- stored game names (server/players/participant-ranks.ts), so nothing on any page changes. Data jobs\n-- db-usage counts them (\"lastKnownRanks\").\n-- No CASCADE (drizzle-kit writes it; removed here): each table goes after anything that references it\n-- (champion_change_points references champions, which stays), so a dependency nobody expected makes\n-- this migration fail instead of being dropped with them. Recovery: pg_restore --table (and the\n-- last_known_ranks rows) from the private backup taken before it, then revert this change\n-- (docs/BACKUPS.md).\nDROP TABLE \"champion_change_points\";",
+      "DROP TABLE \"stat_rank_periods\";",
+      "DROP TABLE \"stat_region_periods\";",
+      "DROP TABLE \"stat_periods\";",
+      "DROP TYPE \"public\".\"stat_source\";",
+      "DROP TABLE \"region_status\";",
+      "DROP TABLE \"tracked_summoners\";",
+      "WITH stored AS (SELECT DISTINCT jsonb_array_elements_text(jsonb_path_query_array(\"participants\", '$[*].puuid')) AS puuid FROM \"match_details\")\nDELETE FROM \"last_known_ranks\" l WHERE NOT EXISTS (SELECT 1 FROM stored s WHERE s.puuid = l.puuid);"
+    ]
   }
 ];
