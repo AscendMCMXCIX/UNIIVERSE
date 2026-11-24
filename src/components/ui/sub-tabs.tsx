@@ -27,7 +27,7 @@ export interface SubTab {
 export function subTabClass(on: boolean, className?: string): string {
   return withDefaults(
     cn(
-      "inline-flex min-h-9 items-center justify-center gap-2 whitespace-nowrap rounded-md px-3 text-sm transition-colors duration-150 pointer-coarse:min-h-11 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
+      "ui-segment inline-flex min-h-9 items-center justify-center gap-2 whitespace-nowrap rounded-md px-3 text-sm transition-colors duration-150 pointer-coarse:min-h-11 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
       on ? "font-semibold" : "font-medium",
       choiceIndicatorClass(on, { inset: "after:inset-x-3" }),
     ),
@@ -44,7 +44,7 @@ export function subTabClass(on: boolean, className?: string): string {
 export function compactTabClass(on: boolean, className?: string): string {
   return withDefaults(
     cn(
-      "touch-target inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-2.5 text-sm transition-colors duration-150 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
+      "ui-segment touch-target inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-2.5 text-sm transition-colors duration-150 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
       COMPACT_CONTROL,
       on ? "font-semibold" : "font-medium",
       choiceIndicatorClass(on, { inset: "after:inset-x-2.5" }),
@@ -71,7 +71,7 @@ export function SubTabs({ label, items, current, keepScroll = true, className, t
   if (size === "compact") {
     // In the pinned row's group of controls: a labelled list, not a second landmark of the same name.
     return (
-      <ul aria-label={label} className={cn("flex items-center gap-1", className)} data-testid={testId ? `toolbar-${testId}` : undefined}>
+      <ul aria-label={label} className={cn("ui-segmented flex items-center gap-1", className)} data-testid={testId ? `toolbar-${testId}` : undefined}>
         {items.map((t) => {
           const on = t.key === current;
           return (
@@ -91,7 +91,7 @@ export function SubTabs({ label, items, current, keepScroll = true, className, t
     <nav aria-label={label} className={cn("min-w-0 max-sm:w-full", className)} data-testid={testId}>
       {/* Phones: the views share the width, words with the current one underlined, as on every screen
           (the quiet track they shared until Release 17 went with the boxed controls). */}
-      <ul className="flex min-w-0 flex-wrap items-center gap-1">
+      <ul className="ui-segmented flex min-w-0 flex-wrap items-center gap-1">
         {items.map((t) => {
           const on = t.key === current;
           return (

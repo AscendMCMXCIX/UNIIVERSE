@@ -37,7 +37,8 @@ export function choiceIndicatorClass(on: boolean, opts: { disabled?: boolean; in
 /** The group around the segments: no outline and no fill. Give it role="radiogroup" (or a nav) and a label. */
 export function segmentedGroupClass(className?: string): string {
   // Sideways only: overflow-x auto would make the other axis auto too (tab-bar.tsx's note).
-  return cn("inline-flex max-w-full items-center gap-1 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden", className);
+  // ui-segmented, ui-segment: markers with no style, by which e2e/shared-controls.spec.ts finds every group.
+  return cn("ui-segmented inline-flex max-w-full items-center gap-1 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden", className);
 }
 
 /**
@@ -51,7 +52,7 @@ export function segmentClass(active: boolean, opts: { disabled?: boolean; classN
   const md = opts.size === "md";
   return withDefaults(
     cn(
-      "inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md transition-colors duration-150 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
+      "ui-segment inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md transition-colors duration-150 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
       "min-h-9 pointer-coarse:min-h-11",
       md ? "px-3 text-sm" : "px-2.5 text-xs",
       active ? "font-semibold" : "font-medium",
