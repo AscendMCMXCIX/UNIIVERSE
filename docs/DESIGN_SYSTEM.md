@@ -135,7 +135,8 @@ decorative chrome.
     ladder change, at their widest with both arrows too, on a 60rem list as well); from 78rem
     without a trend one line of text. Measured with demo Support (a trend, a streak and the ladder
     change) and the widest real values written in (e2e/match-history-layout.spec.ts).
-  - Encounters keeps its minimum and order in a phone's Filters sheet, as chips that count with
+  - Encounters keeps its minimum and order in a phone's Filters sheet, as segments (chips until
+    Release 17; one choice each, so not chips) that count with
     the filters and that its Reset puts back; from tablets up they stay in the list's toolbar and
     are the list's own (the filters' Reset neither counts nor changes them). Its column names pin
     under the section tabs.
@@ -224,7 +225,7 @@ The default brand blue (`#1fc3ff`) is saturated, and too much of it reads as a g
 It may appear only:
 
 - on the **current or selected item** of a group: the current page's icon, a selected tab's
-  indicator (with the gradient), a selected segment's ring, an active filter chip;
+  indicator (with the gradient), a chosen segment's or view's underline, an active filter chip;
 - on **primary actions** and inline **text links** (underlined in running text);
 - on the **focus ring** (`:focus-visible`);
 - as the first stop of the **brand gradient** (`from-accent to-accent-2`) on a few chosen marks:
@@ -290,7 +291,51 @@ page does and the keys still scroll its body (`letGoWhenPressed`): Chromium and 
 dialog itself at such a press, with or without a tabindex, and the keys then scrolled nothing.
 
 **Targets.** At least 24px everywhere and 44px on touch screens (STANDARDS.md): a segment is 44px
-there (filling its 44px group), an ⓘ's touch area 44px (S2b, 20 Nov 2026: 38px and 40px before).
+there (36px with a mouse, the height of a field beside it), an ⓘ's touch area 44px (S2b, 20 Nov 2026: 38px and 40px before).
+
+### Text-led controls (Release 17, 24 Nov 2026)
+
+The owner's brief §9 retired the boxed segmented control (an outlined, filled group round a
+ringed, filled selection) and the lit pill of a section's views. Every way of choosing one thing out
+of a few is now words, the chosen one marked by weight, colour and a short underline; three levels
+of one family, so they never compete:
+
+| Level | Component | Size | Chosen | At rest | Hover |
+|---|---|---|---|---|---|
+| Section tabs (primary) | `TabBar`, the phone's `ChromeTabs` | 44px, 14px medium, icons from sm; a hairline under the row | `fg` over a 2px bar in the brand gradient at the tab's foot | `fg-muted` | `fg`, a faint bar |
+| A section's views (secondary) | `SubTabs`, `compactTabClass` (the pinned row), the in-page indexes (Leaderboards', Settings' on a phone) | 36px with a mouse, 44px on touch; 14px; icons | `fg` semibold, its icon `accent`, a 2px `accent` line 4px above its foot | `fg-muted` medium | `fg`, a faint `border-strong` line |
+| A choice in the page (a role, a side, a sort, a queue) | `segmentedGroupClass` + `segmentClass` (`size: "md"` for a list's main filter), `RoleSegmented` | 36px / 44px; 12px (14px with `md`) | `fg` semibold over the 2px `accent` line | `fg-muted` medium | `fg`, a faint line |
+
+- **No box:** no outline or fill round the group, no fill or ring round the chosen item, on any
+  screen (the phone's track under Match History's Games and Encounters went too). The underline is
+  drawn inside the item's own box (`choiceIndicatorClass`, `ui/segmented.tsx`), 4px above its foot,
+  as wide as its words, so it never reaches past the item or its row (`tabIndicatorClass`'s note:
+  a row that overflows by a pixel scrolls the other way too).
+- **Wrapping:** a segmented group whose words outgrow the line (a narrow sheet, 200% text) wraps
+  onto the next line; the boxed group scrolled sideways, which at 200% hid three of the phone
+  sheet's six roles with no sign of them. Resources' index keeps its sideways row on tablets
+  (`flex-nowrap`, a ScrollRow with its fading edge).
+- **Focus:** the 2px accent outline, drawn inside the item (`-outline-offset-2`), where a group that
+  scrolls sideways cannot clip it. **Disabled:** `fg-subtle` at 60%, no line, no hover.
+- **Keyboard and semantics unchanged:** radios with `aria-checked` in a `radiogroup`, toggles with
+  `aria-pressed`, links with `aria-current`; the arrow keys where a group had them.
+- **Counts** beside a role or a section are plain `fg-subtle` figures, not chips.
+- **Groups side by side** keep 24px between them (Admin Previews' page and screen size), so the
+  words of one never read as the next's; an action beside them is a button with an edge (Rotate,
+  Reset), not words.
+- **Chips are not tabs:** a filter that can be on beside others (`chipClass`: Players' Main lineup
+  and Archived, Team Matches' Bookmarked, the pinned row's `ToolbarChip`, a narrowed filter's
+  removable chip `FILTER_CHIP`) keeps a round `border` outline, lit while on with an `accent/60`
+  edge over an `accent/10` wash (`chipLookClass`), 36px with a mouse and 44px on touch, 12px.
+- **Fields stay fields:** a search, a `Select` and a toolbar button (Refine, Filters) keep their
+  `border-control` edge, which WCAG 1.4.11 asks of a field's boundary (3:1), at the segments'
+  height (36px with a mouse, 44px on touch) and type (14px), so a row of fields and segments lines up.
+- **Guards:** `src/app/segmented-use.test.ts` refuses a page's own boxed group (a fill, a 2px inset
+  and an outline in one class list) or boxed selection (an accent ring, `bg-accent/15`) outside
+  `src/components/ui`, with an allow-list of reasons (pictures chosen from a grid, dragged items,
+  the phone's bottom tab bar, badges); `e2e/shared-controls.spec.ts` checks the groups of Profile,
+  Match History, Encounters, Players, All Champions, Leaderboards, Champion Intel, Settings and
+  Admin Previews are flat and their chosen items underlined, at the three projects' widths.
 
 **Uppercase labels** keep one letter spacing, `tracking-label`, at every width: no width or container
 variant may change it (`design-tokens.test.ts`; the Team card's WIN RATE was 0.44px on a laptop and
@@ -410,7 +455,8 @@ The review compared desktop and phone against the benchmark pages; these held wh
   picture is `bg-elevated` with a `border-strong` edge, accent only while the picture is pointed at
   or focused. A dropdown at rest carries `border-control` (Team Matches' "Played with" included).
 - **One look per kind of control:** a choice of a few (Most games | Best | Worst in a champion's
-  preview) is `segmentedGroupClass` and `segmentClass`, the chosen one ringed and semibold.
+  preview) is `segmentedGroupClass` and `segmentClass`, the chosen one semibold (ringed until
+  Release 17; underlined since: §5, "Text-led controls").
 - **One heading per profile tab:** Riot Accounts' title and lead line are its `SectionHeader`
   (20px, left to the tab on a phone), as All Champions and Season performance; the admin's person
   view keeps the panel's own header (`RiotAccountsPanel heading`).
@@ -828,9 +874,9 @@ test):
   sections are in-page links under its scope (`SectionIndex`, `ui/section-index.tsx`: Leaderboards'
   "Season records · Multikills · Milestones", the sections below Recent form, on a one-column page,
   under 59rem: phones held either way and tablets; Settings
-  keeps its index in its account card: Name, Links and Password as chips on a phone and in a window
-  480px tall or less (the approved plan's look there) and a list from md in a taller window, the
-  section being read marked either way: a chosen chip on a phone, `surface-3` and semibold in the
+  keeps its index in its account card: Name, Links and Password as a row of words on a phone and in
+  a window 480px tall or less (chips until Release 17) and a list from md in a taller window, the
+  section being read marked either way: underlined on a phone, `surface-3` and semibold in the
   list, a step above the `surface-2` of a pointed-at entry). At the page's top the first section is
   the one being read, at its end the last, and a section jumped to from the index stays marked while
   it is at the window's top (G3-5: a short first panel put the next one's top above the window's

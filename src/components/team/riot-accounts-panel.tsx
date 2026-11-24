@@ -102,7 +102,7 @@ export function RiotAccountsPanel({ playerId, accounts, riotConfigured, editable
   const lead = (
     <span data-testid="riot-accounts-lead">
       Main account first; every linked account adds its games.{" "}
-      <InfoTip label="How linked accounts count" text="The Main account sets the profile's rank; the others follow in the order set. Each adds its games and mastery, counting a shared game once." testId="riot-accounts-info" />
+      <InfoTip label="How linked accounts count" text="The Main account sets the profile's rank. Mastery adds up too, and a game two accounts share counts once." testId="riot-accounts-info" />
     </span>
   );
   const refreshButton = status && refresh ? <RefreshButton status={status} refresh={refresh} /> : null;

@@ -14,7 +14,7 @@ import { DataStatusNote, RefreshButton, type DataRefreshTarget } from "@/compone
 import type { DataStatus } from "@/domain/data-status";
 import { Select } from "@/components/ui/select";
 import { SearchInput } from "@/components/ui/search-input";
-import { chipClass, segmentClass, segmentedGroupClass } from "@/components/ui/segmented";
+import { segmentClass, segmentedGroupClass } from "@/components/ui/segmented";
 import { FilterField } from "@/components/ui/filter-bar";
 import { ModeElsewhere, OverviewFilters } from "@/components/players/overview-filters";
 import { formatCount, formatDate, percent } from "@/lib/format";
@@ -65,8 +65,9 @@ const SORT_LABEL: Record<EncounterSort, string> = { games: "Most games", recent:
 const minimumText = (n: number) => (n === 1 ? "Any number of games" : `${n}+ games`);
 
 /**
- * The list's minimum and order in a phone's Filters sheet: one choice each, as chips (a radio group
- * each, applied at once and replacing the address, as every filter does). Wider screens keep both in
+ * The list's minimum and order in a phone's Filters sheet: one choice each, as segments (a radio
+ * group each, applied at once and replacing the address, as every filter does; chips until Release 17,
+ * which are for filters that can be on together). Wider screens keep both in
  * the list's toolbar, where the column names also sort.
  */
 function ListChoiceFields({ choice, sorts, pending, go }: { choice: EncounterListChoice; sorts: readonly EncounterSort[]; pending: boolean; go: (change: Partial<EncounterListChoice>) => void }) {
@@ -74,18 +75,18 @@ function ListChoiceFields({ choice, sorts, pending, go }: { choice: EncounterLis
   return (
     <>
       <FilterField label="Minimum games" labelId={`${id}-min`} alwaysLabel>
-        <div role="radiogroup" aria-labelledby={`${id}-min`} className="flex flex-wrap gap-2" data-testid="encounter-min-choices">
+        <div role="radiogroup" aria-labelledby={`${id}-min`} className={segmentedGroupClass("flex-wrap overflow-visible")} data-testid="encounter-min-choices">
           {ENCOUNTER_MINIMUMS.map((n) => (
-            <button key={n} type="button" role="radio" aria-checked={choice.min === n} disabled={pending} onClick={() => go({ min: n })} className={chipClass(choice.min === n)} data-value={n}>
+            <button key={n} type="button" role="radio" aria-checked={choice.min === n} disabled={pending} onClick={() => go({ min: n })} className={segmentClass(choice.min === n)} data-value={n}>
               {minimumText(n)}
             </button>
           ))}
         </div>
       </FilterField>
       <FilterField label="Sort by" labelId={`${id}-sort`} alwaysLabel>
-        <div role="radiogroup" aria-labelledby={`${id}-sort`} className="flex flex-wrap gap-2" data-testid="encounter-sort-choices">
+        <div role="radiogroup" aria-labelledby={`${id}-sort`} className={segmentedGroupClass("flex-wrap overflow-visible")} data-testid="encounter-sort-choices">
           {sorts.map((k) => (
-            <button key={k} type="button" role="radio" aria-checked={choice.sort === k} disabled={pending} onClick={() => go({ sort: k })} className={chipClass(choice.sort === k)} data-value={k}>
+            <button key={k} type="button" role="radio" aria-checked={choice.sort === k} disabled={pending} onClick={() => go({ sort: k })} className={segmentClass(choice.sort === k)} data-value={k}>
               {SORT_LABEL[k]}
             </button>
           ))}
@@ -296,7 +297,6 @@ export function EncountersView({ data, basePath, status, refresh }: { data: Enco
   const scope = scopeText(f, data.accountOptions, data.accountsLinked);
   // Highlights about the side in view (both sides' in All), hidden while searching for someone.
   const insights = c.q ? [] : page.insights.filter((i) => c.relation === "all" || INSIGHT_RELATION[i.kind] === relationOf(c.relation));
-  const shownSmall = page.list.some((s) => (c.relation === "all" ? [s.opponent, s.ally].some((wl) => wl.games > 0 && isSmall(wl)) : isSmall(recordFor(s, c.relation))));
   const sorts = sortsFor(c.relation);
   return (
     <section className="space-y-3" aria-labelledby="match-history" data-testid="encounters" data-ready={interactive ? "true" : undefined} data-relation={c.relation}>
@@ -369,8 +369,8 @@ export function EncountersView({ data, basePath, status, refresh }: { data: Enco
             <div className="flex flex-wrap items-center gap-2 border-b border-border/70 px-3 py-2.5 @min-[40rem]/enc:px-4">
               <nav aria-label="Which players" className={segmentedGroupClass("@max-[40rem]/enc:min-w-0 @max-[40rem]/enc:flex-[1_1_auto]")} data-testid="encounter-relations">
                 {RELATIONS.map((r) => (
-                  // relative: the hidden " players" stays inside the group, which scrolls sideways when
-                  // its choices outgrow it (a large text size), instead of widening the page.
+                  // relative: the hidden " players" stays inside its segment (the group wraps when its
+                  // choices outgrow it, at a large text size), instead of widening the page.
                   <Link key={r} href={href({ relation: r })} replace scroll={false} aria-current={c.relation === r ? "page" : undefined} className={segmentClass(c.relation === r, { size: "md", className: "relative @max-[40rem]/enc:flex-1 @max-[40rem]/enc:px-2" })} data-testid={`encounter-relation-${r}`}>
                     {r !== "all" ? <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", REL[relationOf(r)].dot)} aria-hidden /> : null}
                     {PERSPECTIVE[r].label}
@@ -446,11 +446,8 @@ export function EncountersView({ data, basePath, status, refresh }: { data: Enco
           </div>
           <p className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-1 text-xs text-fg-muted">
             <span data-testid="encounter-count">{page.total ? `${formatCount(page.list.length)} of ${formatCount(page.total)} player${page.total === 1 ? "" : "s"} shown` : ""}</span>
-            {shownSmall ? (
-              <span className="text-fg-subtle" data-testid="encounter-small-legend">
-                Grey win rates come from fewer than {ESTABLISHED_GAMES} games with a result: a small sample.
-              </span>
-            ) : null}
+            {/* What a grey win rate means is in the ⓘ by the scope line ("Grey: fewer than 5 games"): the permanent legend that
+                repeated it went in Release 17's noise audit. */}
           </p>
         </div>
       )}

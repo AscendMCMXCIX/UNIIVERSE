@@ -5,7 +5,7 @@ import { perAccountKey } from "@/components/account-storage";
 import { deviceBase } from "@/components/device-storage";
 
 /*
-  The champions Champion Lookup showed lately on this device (localStorage), champion ids only,
+  The champions Champion Intel showed lately on this device (localStorage), champion ids only,
   never sent to the server: the window of every champion offers them first, so switching between a
   game's champions is one press. Empty on the server and until the page has loaded, then what is
   stored; other tabs follow through the storage event. Kept for each account (perAccountKey), like

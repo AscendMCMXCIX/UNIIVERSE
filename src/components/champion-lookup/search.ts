@@ -2,7 +2,7 @@ import { normalise } from "@/components/champions/types";
 import type { ChampionChoice } from "@/domain/champion-lookup/types";
 
 /*
-  Champion Lookup's search (docs/CHAMPION_LOOKUP.md, "Choosing a champion"): it filters as you type, by name, with
+  Champion Intel's search (docs/CHAMPION_INTEL.md, "Choosing a champion"): it filters as you type, by name, with
   case, accents, spaces and punctuation ignored, so "kha" finds Kha'Zix, "wu" Wukong and "dr m"
   Dr. Mundo; and by what players type for a name of more than one part, its initials ("tf" Twisted
   Fate, "mf" Miss Fortune, "lb" LeBlanc), or a short reviewed list of nicknames ("j4" Jarvan IV).

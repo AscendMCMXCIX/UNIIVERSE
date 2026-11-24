@@ -65,6 +65,9 @@ function useSectionInView(ids: string): string | null {
       if (href && list.includes(href.slice(1))) {
         jumped = href.slice(1);
         landed = false;
+        // Looked at once the jump is made: a page already scrolled as far as it goes (a tall window
+        // ending right under the section) does not scroll, so no scroll would mark it.
+        schedule();
       }
     };
     const update = () => {

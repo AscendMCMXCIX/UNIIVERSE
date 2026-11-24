@@ -808,8 +808,8 @@ and 16px inputs on phones, and the champion picker on the player profile.
 screen, the card above the sections on a phone and a sticky column beside them wider (not pinned in
 a window 480px tall or less), the name, the neutral role badge and the picture's control named in
 full, each field and its Save on one row (44px on touch screens), the password form shown, the
-index as chips in each window 480px tall or less; on a phone who you are beside the picture, the
-index's chips (44px, bordered, no dots, the section being read marked on screen), an index link's
+index as a row of words in each window 480px tall or less; on a phone who you are beside the picture, the
+index's entries (44px, no dots, the section being read underlined on screen; bordered chips until Release 17), an index link's
 jump landing under the top bar, focused, and Back from the next page coming back to it; on tablets
 and desktops who you are under the picture across the card and the index a list; on a desktop Name
 & username side by side, and the index marking the section being read

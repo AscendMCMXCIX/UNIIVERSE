@@ -2,7 +2,7 @@ import type { DdragonAbility } from "./types";
 
 /*
   How an ability's base cooldown is shown, from Riot's Data Dragon record alone
-  (docs/CHAMPION_LOOKUP.md, "Cooldowns"). Data Dragon's single array per slot is right for most
+  (docs/CHAMPION_INTEL.md, "Cooldowns"). Data Dragon's single array per slot is right for most
   abilities and misleading for some, so it is shown as the cooldown only when it passes the guard
   (ddragonCooldownDisplay); otherwise the page says why there is no number, and never applies ability
   haste to anything but a cooldown that passed:

@@ -577,6 +577,9 @@ function onSignOut() {
  * ones (the rest of each read out only) down to `label`'s width, and below it each destination's icon
  * alone, each pill sharing the width, the names read out only (docs/MOBILE.md, the tab bar).
  * Measured on 19 Nov 2026 with the bundled Inter at 100% text, each tab at its own width, and again
+ * (Champion Intel's names since 24 Nov 2026 are narrower than these: "Champion Intel" 4.93rem against
+ * "Champion Lookup"'s 5.97rem, "Intel" 1.41rem against "Lookup"'s 2.44rem, so every step below holds
+ * with about 1rem to spare)
  * for Champion Lookup's names on 23 Nov 2026 (1.49rem wider whole than "Matchup Intel", 1.04rem
  * short than "Intel"): Player Mode's four need 17.77rem with their whole names (My Profile, Team,
  * Champion Lookup, Resources) and 15.50rem short (Profile, Lookup); Admin Mode's four 14.63rem short

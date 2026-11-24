@@ -13,7 +13,7 @@ import { InfoTip } from "@/components/ui/info-tip";
 import { toast } from "@/components/ui/toast";
 import { useAvatarUpload } from "@/components/profile/avatar-upload";
 import { SectionIndex, type SectionIndexItem } from "@/components/ui/section-index";
-import { chipClass } from "@/components/ui/segmented";
+import { subTabClass } from "@/components/ui/sub-tabs";
 import { cn } from "@/lib/cn";
 
 const USERNAME_RULE = /^[\p{L}\p{N}][\p{L}\p{N} ._-]{0,30}[\p{L}\p{N}]$/u;
@@ -240,9 +240,9 @@ export function AvatarEditor({ name, src }: { name: string; src: string | null }
 /**
  * Settings' sections, in the account card: Leaderboards' SectionIndex (plain links whose click jumps
  * through the router's history, jumpToAnchor), restyled. On a phone, and in a window 480px tall or
- * less, chips (Name, Links, Password; 44px on a touch screen, 8px apart, no dots between them), the
- * section being read marked as a chosen chip is; from md in a taller window a list down the card,
- * the section being read marked.
+ * less, words in a row as a section's views are (Name, Links, Password; 44px on a touch screen, no
+ * dots between them), the section being read underlined (chips until Release 17); from md in a
+ * taller window a list down the card, the section being read marked.
  */
 export function SettingsIndex({ items }: { items: readonly SectionIndexItem[] }) {
   return (
@@ -254,8 +254,8 @@ export function SettingsIndex({ items }: { items: readonly SectionIndexItem[] })
       separatorClassName="hidden"
       linkClassName={(on) =>
         cn(
-          chipClass(on),
-          "md:not-short:flex md:not-short:w-full md:not-short:rounded-md md:not-short:border-0 md:not-short:px-2 md:not-short:text-sm",
+          subTabClass(on, "px-2 text-xs"),
+          "md:not-short:flex md:not-short:w-full md:not-short:justify-start md:not-short:px-2 md:not-short:text-sm md:not-short:after:hidden",
           // The section being read: surface-3, a step above the surface-2 of a pointed-at entry, so the two marks differ by more than the weight.
           on ? "md:not-short:bg-surface-3 md:not-short:font-semibold" : "md:not-short:hover:bg-surface-2",
         )

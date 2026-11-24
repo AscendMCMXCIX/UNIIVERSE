@@ -7,7 +7,7 @@ import path from "node:path";
   member and Admin Mode pages it proves are turned away to sign-in, signed out and with a forged
   session cookie. docs/LIVE_VALIDATION.md ("What it checks") lists the same pages, and what is
   called production-verified rests on that list (CLAUDE.md §5), so the two must agree. Champion
-  Lookup is among them: a page for signed-in accounts only (docs/CHAMPION_LOOKUP.md, "Compliance").
+  Intel is among them: a page for signed-in accounts only (docs/CHAMPION_INTEL.md, "Compliance").
   Several branches edit the script, so a merge that drops a page fails here rather than going
   unnoticed.
 */

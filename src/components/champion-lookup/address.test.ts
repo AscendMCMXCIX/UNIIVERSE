@@ -60,7 +60,7 @@ describe("Matchup Intel's old links", () => {
     expect(legacyMatchupRedirect({ vs: ["Zed", "Ahri"] })).toBe("/lookup?champion=Zed");
     expect(legacyMatchupRedirect({ vs: "  ", champion: "Riven" })).toBe("/lookup?champion=Riven");
     expect(legacyMatchupRedirect({ vs: "x".repeat(65), champion: "Riven" })).toBe("/lookup?champion=Riven");
-    // Anything else is carried as the value it is, encoded; Champion Lookup checks it against the roster.
+    // Anything else is carried as the value it is, encoded; Champion Intel checks it against the roster.
     expect(legacyMatchupRedirect({ vs: "Kha'Zix" })).toBe("/lookup?champion=Kha%27Zix");
     expect(legacyMatchupRedirect({ vs: "a&b=c" })).toBe("/lookup?champion=a%26b%3Dc");
   });

@@ -88,7 +88,7 @@ export interface DdragonChampionAbilities {
   /**
    * Riot's own tips for the champion (Data Dragon `allytips` and `enemytips`), verbatim. Stored by
    * the sync since rules format 3; no page shows them since Matchup Intel was retired (23 Nov 2026,
-   * docs/CHAMPION_LOOKUP.md, "What is stored and not shown"). Absent on a record stored under format 2.
+   * docs/CHAMPION_INTEL.md, "What is stored and not shown"). Absent on a record stored under format 2.
    */
   tips?: { ally: string[]; enemy: string[] };
   /** The champion's resource, classes and base stats (rules format 4); absent on an older record. */

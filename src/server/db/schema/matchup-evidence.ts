@@ -6,7 +6,7 @@ import { accountMatches } from "./accounts";
  * The retired Matchup Intel's evidence from the team's own games: one row per member's stored game,
  * what its record and timeline said about the member's preparation (rune page, spells, starting
  * items, skill order). Derived data only. Since Matchup Intel was retired (23 Nov 2026,
- * docs/CHAMPION_LOOKUP.md, "What is stored and not shown") nothing writes or reads it: the table
+ * docs/CHAMPION_INTEL.md, "What is stored and not shown") nothing writes or reads it: the table
  * and its rows stay (no destructive migration), an erasure still deletes the rows of the games it
  * de-identifies (server/privacy/erasure.ts), and a row still goes with its game: deleting the
  * `account_matches` row deletes it.

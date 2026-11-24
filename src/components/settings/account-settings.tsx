@@ -110,7 +110,7 @@ export async function AccountSettings({ mode }: { mode: "player" | "admin" }) {
     // the sidebar as every other page is (app-shell's FRAME).
     <div className="@container/settings mx-auto max-w-5xl">
       <div className="grid gap-3 sm:@min-[36rem]/settings:grid-cols-[min(15rem,40%)_minmax(0,1fr)] sm:@min-[36rem]/settings:grid-rows-[auto_1fr] sm:gap-x-5 sm:gap-y-4 md:gap-x-6 md:gap-y-5 lg:@min-[36rem]/settings:grid-cols-[min(16rem,40%)_minmax(0,1fr)]">
-      <PageHeader className="sm:@min-[36rem]/settings:col-start-2 sm:@min-[36rem]/settings:row-start-1 lg:@min-[36rem]/settings:col-span-2 lg:@min-[36rem]/settings:col-start-1" title="Settings" description="Your picture, display name, username and password." guide />
+      <PageHeader className="sm:@min-[36rem]/settings:col-start-2 sm:@min-[36rem]/settings:row-start-1 lg:@min-[36rem]/settings:col-span-2 lg:@min-[36rem]/settings:col-start-1" title="Settings" guide />
 
       <section aria-label="Your account" className="surface-lead @container grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-3 rounded-panel border border-border bg-surface p-3 sm:@min-[36rem]/settings:col-start-1 sm:@min-[36rem]/settings:row-span-2 sm:@min-[36rem]/settings:row-start-1 sm:@min-[36rem]/settings:self-start lg:@min-[36rem]/settings:row-span-1 lg:@min-[36rem]/settings:row-start-2 sm:p-4 md:not-short:@min-[36rem]/settings:sticky md:not-short:@min-[36rem]/settings:top-[calc(var(--bar-top)+1rem)]" data-testid="settings-account">
         {user ? (
