@@ -297,7 +297,6 @@ export function EncountersView({ data, basePath, status, refresh }: { data: Enco
   const scope = scopeText(f, data.accountOptions, data.accountsLinked);
   // Highlights about the side in view (both sides' in All), hidden while searching for someone.
   const insights = c.q ? [] : page.insights.filter((i) => c.relation === "all" || INSIGHT_RELATION[i.kind] === relationOf(c.relation));
-  const shownSmall = page.list.some((s) => (c.relation === "all" ? [s.opponent, s.ally].some((wl) => wl.games > 0 && isSmall(wl)) : isSmall(recordFor(s, c.relation))));
   const sorts = sortsFor(c.relation);
   return (
     <section className="space-y-3" aria-labelledby="match-history" data-testid="encounters" data-ready={interactive ? "true" : undefined} data-relation={c.relation}>
@@ -370,8 +369,8 @@ export function EncountersView({ data, basePath, status, refresh }: { data: Enco
             <div className="flex flex-wrap items-center gap-2 border-b border-border/70 px-3 py-2.5 @min-[40rem]/enc:px-4">
               <nav aria-label="Which players" className={segmentedGroupClass("@max-[40rem]/enc:min-w-0 @max-[40rem]/enc:flex-[1_1_auto]")} data-testid="encounter-relations">
                 {RELATIONS.map((r) => (
-                  // relative: the hidden " players" stays inside the group, which scrolls sideways when
-                  // its choices outgrow it (a large text size), instead of widening the page.
+                  // relative: the hidden " players" stays inside its segment (the group wraps when its
+                  // choices outgrow it, at a large text size), instead of widening the page.
                   <Link key={r} href={href({ relation: r })} replace scroll={false} aria-current={c.relation === r ? "page" : undefined} className={segmentClass(c.relation === r, { size: "md", className: "relative @max-[40rem]/enc:flex-1 @max-[40rem]/enc:px-2" })} data-testid={`encounter-relation-${r}`}>
                     {r !== "all" ? <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", REL[relationOf(r)].dot)} aria-hidden /> : null}
                     {PERSPECTIVE[r].label}
@@ -447,12 +446,8 @@ export function EncountersView({ data, basePath, status, refresh }: { data: Enco
           </div>
           <p className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-1 text-xs text-fg-muted">
             <span data-testid="encounter-count">{page.total ? `${formatCount(page.list.length)} of ${formatCount(page.total)} player${page.total === 1 ? "" : "s"} shown` : ""}</span>
-            {shownSmall ? (
-              // Phones only: wider screens say it in the ⓘ beside the choice of players, which a phone leaves out.
-              <span className="text-fg-subtle sm:hidden" data-testid="encounter-small-legend">
-                Grey win rates come from fewer than {ESTABLISHED_GAMES} games with a result: a small sample.
-              </span>
-            ) : null}
+            {/* What a grey win rate means is in the ⓘ by the scope line ("Grey: fewer than 5 games"): the permanent legend that
+                repeated it went in Release 17's noise audit. */}
           </p>
         </div>
       )}

@@ -34,11 +34,17 @@ export function choiceIndicatorClass(on: boolean, opts: { disabled?: boolean; in
   );
 }
 
-/** The group around the segments: no outline and no fill. Give it role="radiogroup" (or a nav) and a label. */
+/**
+ * The group around the segments: no outline and no fill. Give it role="radiogroup" (or a nav) and a
+ * label. Where its words outgrow the line (a narrow sheet, a larger text size) they wrap onto the
+ * next: with no box round them nothing breaks, and nothing is hidden off its edge (the boxed group
+ * scrolled sideways, which at 200% hid three of a phone's six roles with no sign of them).
+ */
 export function segmentedGroupClass(className?: string): string {
-  // Sideways only: overflow-x auto would make the other axis auto too (tab-bar.tsx's note).
   // ui-segmented, ui-segment: markers with no style, by which e2e/shared-controls.spec.ts finds every group.
-  return cn("ui-segmented inline-flex max-w-full items-center gap-1 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden", className);
+  // A caller's flex-nowrap replaces the wrap (Tailwind's stylesheet order, not the class list, would decide between the two).
+  const nowrap = className?.split(/\s+/).includes("flex-nowrap");
+  return cn("ui-segmented inline-flex max-w-full items-center gap-x-1", !nowrap && "flex-wrap", className);
 }
 
 /**

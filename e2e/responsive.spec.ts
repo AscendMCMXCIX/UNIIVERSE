@@ -233,16 +233,17 @@ test("Settings: the account card leads, drawn in the order it is read, with Sign
     expect(identity.x, "who you are beside the picture").toBeGreaterThanOrEqual(avatar.x + avatar.width);
     const quiet = card.getByTestId("settings-actions").filter({ visible: true });
     expect((await quiet.boundingBox())!.y).toBeLessThan((await picture.boundingBox())!.y);
-    // The index as chips: 44px on a touch screen, bordered, no dots between them, and the section
-    // being read (the first, at the top) marked on screen as a chosen chip is.
+    // The index as a row of words (chips until Release 17, whose brief §9 retired boxed choices): 44px on a touch screen, no
+    // edge, no dots between them, and the section being read (the first, at the top) underlined on screen as a view's tab is.
     for (const link of await links.all()) {
-      expect((await link.boundingBox())!.height, "a chip, 44px").toBe(44);
-      expect(await link.evaluate((el) => getComputedStyle(el).borderTopWidth), "a chip's border").toBe("1px");
+      expect((await link.boundingBox())!.height, "an entry, 44px").toBe(44);
+      expect(await link.evaluate((el) => getComputedStyle(el).borderTopWidth), "no edge round an entry").toBe("0px");
     }
-    await expect(index.locator("span[aria-hidden]").filter({ visible: true }), "no dots between the chips").toHaveCount(0);
+    await expect(index.locator("span[aria-hidden]").filter({ visible: true }), "no dots between the entries").toHaveCount(0);
     await expect(links.first()).toHaveAttribute("aria-current", "location");
-    const background = (link: Locator) => link.evaluate((el) => getComputedStyle(el).backgroundColor);
-    expect(await background(links.first()), "the section being read marked").not.toBe(await background(links.last()));
+    const underline = (link: Locator) => link.evaluate((el) => getComputedStyle(el, "::after").opacity);
+    expect(await underline(links.first()), "the section being read underlined").toBe("1");
+    expect(await underline(links.last()), "the others not").toBe("0");
     // A link of the index jumps to its section through the router's history: under the top bar, and
     // Back from the next page comes back to it. Room under the last section, so the jump can land it
     // at the top.
