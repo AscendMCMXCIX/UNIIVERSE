@@ -668,7 +668,7 @@ export function ProfileEditor({
   );
 
   return (
-    <div className="space-y-2" data-testid="profile-editor" data-editing={live || undefined}>
+    <div className="space-y-1.5" data-testid="profile-editor" data-editing={live || undefined}>
       {heading || intro || editable ? (
         <div className="space-y-1">
           {/* The heading and Edit share a line on every width; what the figures count goes under both across the width (a phone,
@@ -704,7 +704,7 @@ export function ProfileEditor({
       <p className="sr-only" aria-live="assertive" data-testid="role-announce">
         {drag.announce}
       </p>
-      <ol className="space-y-2" data-testid="role-sections" aria-label="Roles in order of preference">
+      <ol className="space-y-1.5" data-testid="role-sections" aria-label="Roles in order of preference">
         {sections.map((o, i) => (
           <React.Fragment key={o.role}>
             {drag.lineBefore(i) ? <li aria-hidden className="h-1 rounded-full bg-accent" data-testid="role-drop-line" /> : null}

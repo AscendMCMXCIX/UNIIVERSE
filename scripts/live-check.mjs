@@ -891,12 +891,15 @@ async function leaderboardsIndexFacts(page, kind) {
   await page.waitForTimeout(600);
   const pinned = await page.evaluate(() => {
     const row = [...document.querySelectorAll("[data-testid=leaderboards-chip-row], [data-testid=page-toolbar]")].find((el) => el.getBoundingClientRect().height > 0) ?? null;
-    const links = row ? [...row.querySelectorAll("a")] : [];
+    // The links drawn (below xl the row holds the short words, the full ones hidden: Release 16).
+    const links = row ? [...row.querySelectorAll("a")].filter((a) => a.getBoundingClientRect().height > 0) : [];
     return { shown: !!row && row.getBoundingClientRect().height > 0, links: links.length, small: links.filter((a) => a.getBoundingClientRect().height < (row?.matches("[data-testid=leaderboards-chip-row]") ? 43.5 : 0)).length };
   });
   await page.evaluate(() => window.scrollTo(0, 0));
   const scrolls = await page.evaluate(() => document.documentElement.scrollHeight > innerHeight * 1.3);
-  pass("leaderboards", `${kind}: the section index at the top, and pinned once the header has gone`, top && (!scrolls || (pinned.shown && pinned.links === 4 && pinned.small === 0)), { top, scrolls, ...pinned });
+  // From md to xl (a tablet) the pinned row holds Team's tabs alone (Release 16: no room for the index beside them).
+  const pinnable = await page.evaluate(() => innerWidth < 768 || innerWidth >= 1280);
+  pass("leaderboards", `${kind}: the section index at the top, and pinned once the header has gone`, top && (!scrolls || !pinnable || (pinned.shown && pinned.links === 4 && pinned.small === 0)), { top, scrolls, pinnable, ...pinned });
 }
 
 async function leaderboardsFacts(page, kind) {

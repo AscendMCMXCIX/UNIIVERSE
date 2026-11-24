@@ -76,10 +76,14 @@ export function RankedProgress({ accounts, queue, accountId, href, now }: { acco
           Ranked{" "}
           <span className="whitespace-nowrap">
             progress{" "}
-            <InfoTip
-              label="About ranked progress"
-              text="Riot only shares the current rank, so the chart starts at the first check here. Shading marks games played between two checks."
-            />
+            {/* What the chart shows: on a touch phone with the chart folded away, with it (Release 16: Ranked progress above Recent
+                form brought it onto the phone's first screen, a fourth ⓘ there, UD.PO3). */}
+            <span className={cn("inline-flex align-middle", PHONE_FOLDED)}>
+              <InfoTip
+                label="About ranked progress"
+                text="Riot only shares the current rank, so the chart starts at the first check here. Shading marks games played between two checks."
+              />
+            </span>
           </span>
         </h2>
         <PhoneFoldToggle label="the details of ranked progress" iconOnly controls="ranked-chart-fold" testId="ranked-fold" className="ml-auto" />

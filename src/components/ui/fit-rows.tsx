@@ -35,7 +35,7 @@ const shown = (el: Element) => el.getBoundingClientRect().height > 0;
  * bottom padding (so the page does not scroll): more than the CSS tiers show where there is room, fewer
  * (down to the first row) where even theirs run past it.
  */
-export function measureFit(el: HTMLElement, attribute: string, cssMode: string): Fit | null {
+export function measureFit(el: HTMLElement, attribute: string, cssMode: string, outer?: string): Fit | null {
   const before = el.getAttribute(attribute);
   el.setAttribute(attribute, cssMode);
   const rows = [...el.querySelectorAll<HTMLElement>("[data-ov-rank]")];
@@ -45,7 +45,8 @@ export function measureFit(el: HTMLElement, attribute: string, cssMode: string):
   }
   const cssCount = Math.max(0, ...rows.filter(shown).map((r) => Number(r.dataset.ovRank)));
   el.setAttribute(attribute, "measure");
-  const bottomAll = el.getBoundingClientRect().bottom + window.scrollY;
+  // The card the list ends (its padding and border under the list count too): the list itself where it is the card.
+  const bottomAll = ((outer ? el.closest(outer) : null) ?? el).getBoundingClientRect().bottom + window.scrollY;
   const items = rows.map((r) => ({ rank: Number(r.dataset.ovRank), h: r.getBoundingClientRect().height }));
   const caps = [...el.querySelectorAll<HTMLElement>("[data-ov-caption]")].map((c) => ({ first: Number(c.dataset.ovCaption), h: c.getBoundingClientRect().height }));
   if (before !== null) el.setAttribute(attribute, before);
@@ -73,7 +74,7 @@ export function FitStyle({ selector, fit }: { selector: string; fit: Fit }) {
  * whenever `key` changes (the fold opened or closed, the list's size) and once the fonts have loaded. In a layout effect, so the fitted rows are drawn before the browser
  * paints the interactive page.
  */
-export function useFit(ref: React.RefObject<HTMLElement | null>, attribute: string, cssMode: string, active: (el: HTMLElement) => boolean, key: unknown): Fit | null {
+export function useFit(ref: React.RefObject<HTMLElement | null>, attribute: string, cssMode: string, active: (el: HTMLElement) => boolean, key: unknown, outer?: string): Fit | null {
   const [fit, setFit] = React.useState<Fit | null>(null);
   // The test of whether to measure, kept current without re-subscribing (it is a function of the element only).
   const activeRef = React.useRef(active);
@@ -83,9 +84,9 @@ export function useFit(ref: React.RefObject<HTMLElement | null>, attribute: stri
   const measure = React.useCallback(() => {
     const el = ref.current;
     if (!el || !activeRef.current(el)) return setFit(null);
-    const next = measureFit(el, attribute, cssMode);
+    const next = measureFit(el, attribute, cssMode, outer);
     setFit((was) => (was && next && was.count === next.count && was.more === next.more && was.ranks === next.ranks ? was : next));
-  }, [ref, attribute, cssMode]);
+  }, [ref, attribute, cssMode, outer]);
   React.useLayoutEffect(() => {
     measure();
     window.addEventListener("resize", measure);
@@ -108,7 +109,7 @@ export function wideBoard(el: HTMLElement): boolean {
 export function FitChampions({ total, heading, cssMore, children }: { total: number; heading: React.ReactNode; /** "and N more" by the CSS tiers, until measured. */ cssMore: React.ReactNode; children: React.ReactNode }) {
   const ref = React.useRef<HTMLDivElement>(null);
   const id = React.useId().replace(/:/g, "");
-  const fit = useFit(ref, "data-fit", "css", shown, total);
+  const fit = useFit(ref, "data-fit", "css", shown, total, "[data-testid=recent-form]");
   return (
     <div ref={ref} data-fit={fit ? "fit" : "css"} data-fit-id={id} className="group/fit" data-testid="recent-form-champions-fit">
       {fit ? <FitStyle selector={`[data-fit-id="${id}"][data-fit="fit"]`} fit={fit} /> : null}

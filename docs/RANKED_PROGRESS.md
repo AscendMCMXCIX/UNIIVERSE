@@ -81,7 +81,7 @@ Compact, in Profile Overview (`ranked-progress.tsx`): at the top of the right-ha
   in a card of 24rem or more (the Overview's rail, a tablet's card across the width), the queue switch
   and the account select stand at the end of the title's row instead (Release 16: a row of their own
   cost the one-screen Overview 48px at 1440 × 900; the card is a grid of two columns whose body and
-  details are display: contents there); a phone keeps them under the rank, as the owner's review asked.
+  details are display: contents there); a phone keeps them under the rank, as the owner's review asked. On a touch phone the title's ⓘ (what the chart shows) is folded away with the chart and comes back with it, so the phone's first screen keeps three ⓘ with Ranked progress above Recent form (UD.PO3).
 - **The chart** (`rank-timeline-chart.tsx`, 7.5rem tall, 6rem in a narrow card such as a phone's:
   from 23 Nov 2026 it was stretched to the pools' end in the Overview's 2×2, which the review found
   made a few LP look like a swing, so it is compact) is drawn from two changes of rank or LP
