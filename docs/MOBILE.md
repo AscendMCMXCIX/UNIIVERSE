@@ -507,7 +507,11 @@ On an iPhone the carousel's card filled only part of the screen: 328px whatever 
   goes to the art and the body's even gaps, so only the least spacing changes. At 320 × 568 the card's
   content needs more than the room (340px against 266), so the whole card without a tagline, 316px,
   ends 4px above the tab bar and its dots are a short scroll away, which also slides the frame away
-  ("The frame slides away"). Nothing is dropped.
+  ("The frame slides away"). Nothing is dropped. Tried in Release 16's review: the art band at its
+  content's height there (103px, not 7.5rem), 6px under the header line and 12px of `main`'s top
+  padding brought the dots only 8px up: the five cards share the tallest face's height, and a
+  starter's back (its substitute, with the Substitute tag) is 19px taller than its front, so the
+  card stays 316px against the 266px the dots would need. Fitting them would mean dropping content.
 - **The owner's kind of card** (a tagline, "You" under the picture, a long name; the screenshot demo,
   `UNIIVERSE_DEMO_SCREENSHOT=1`, where the local owner plays Mid with "Calm in the chaos, loud in the
   comms"): the five cards share the tallest one's height, nothing is cut inside any (scrollHeight
