@@ -6,9 +6,8 @@ import { E2E_DDRAGON_VERSION } from "./e2e/ddragon-version";
   database with the demo roster (no external services, no Riot key). Three viewports: phone,
   tablet and desktop. Run with `pnpm test:e2e` after `pnpm build`.
 
-  The server reads Riot's Data Dragon at one version, the one the curated Matchup Intel notes were
-  checked on (DDRAGON_VERSION, e2e/ddragon-version.ts), so the pages the specs read stay the same as
-  Riot ships patches. A server started by hand for the specs (E2E_PORT) needs it as well.
+  The server reads Riot's Data Dragon at one version (DDRAGON_VERSION, e2e/ddragon-version.ts), so
+  the pages the specs read, Champion Lookup's numbers among them, stay the same as Riot ships patches. A server started by hand for the specs (E2E_PORT) needs it as well.
 
   Safari's engine only when asked: E2E_WEBKIT=1 adds the "webkit" project, which runs
   e2e/webkit.spec.ts on an iPhone-sized WebKit (`pnpm exec playwright install webkit` once; the
@@ -49,8 +48,7 @@ export default defineConfig({
       RIOT_API_KEY: "",
       // Account creation in browser tests: Riot IDs are accepted without Riot (in-memory demo only).
       UNIIVERSE_FAKE_RIOT_IDS: "1",
-      // Data Dragon at the version the curated Matchup Intel notes were checked on, never the newest
-      // (docs/MATCHUP_INTEL.md, "What the browser tests pin").
+      // Data Dragon at one version, never the newest (e2e/ddragon-version.ts).
       DDRAGON_VERSION: E2E_DDRAGON_VERSION,
     },
   },

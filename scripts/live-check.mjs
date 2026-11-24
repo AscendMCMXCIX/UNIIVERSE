@@ -45,8 +45,8 @@
     the current page; the phone and tablet top bar and the phone's tab bar; the tablet's destinations
     in its top bar, one tap each, with no drawer (frames by posture); one set of destinations
     everywhere (navigation N1, 19 Nov 2026): the sidebar's entries, the tablet's destinations and the
-    phone's tab bar are My Profile, Team, Matchup Intel and Resources, in that order, Matchup Intel at
-    /resources/matchups, the phone's four each named in full at 390px (Matchup Intel and Resources
+    phone's tab bar are My Profile, Team, Champion Lookup and Resources, in that order, Champion Lookup
+    at /lookup, the phone's four each named in full at 390px (Champion Lookup and Resources
     tabs, not account screen rows), and on Team the phone's top bar holds Team's sections as its second
     row; held sideways (844 × 390, in the phone's context: two page loads) one compact bar holding the
     same four and no bottom bar, Team's sections or the teammate's profile's under it, the bars at
@@ -114,7 +114,9 @@
     the tab bar; its Encounters view still opens. All Champions' preview: on the desktop and the
     tablet unfolded under its row (Champion, Games and Win rate in place, the page not scrolled,
     nothing scrolling inside), Escape and Back close it; on the phone a sheet, which Back closes;
-    phone rows at most 64px. The open game's post-game view has no notes and no folds.
+    phone rows at most 64px. The open game's post-game view has no notes and no gold curve; Build
+    Path, Skill Order and Runes stand above its lane, each of its ten players has a performance score
+    (one MVP, one ACE), and a press on another player's row shows that player ("Back to …" returns).
   - accessibility (#173): axe (WCAG 2.1 A and AA, plus label-content-name-mismatch) on the main pages
     at every width, with a game open, and in All Champions' preview: no serious or critical violation.
   - players (the roster board, Nov 2026), at every width: one profile link per listed player, and no
@@ -149,9 +151,8 @@ import { AxeBuilder } from "@axe-core/playwright";
 import { redact } from "./redact.mjs";
 import { riotKeysOnPage } from "./riot-keys.mjs";
 import { rosterRowLines } from "./roster-lines.mjs";
-import { matchupIntelVerdicts, readMatchupIntel } from "./matchup-intel-facts.mjs";
-import { matchupRolesVerdicts, readRoleBar } from "./matchup-roles-facts.mjs";
-import { postGameVerdicts, readPostGame } from "./post-game-facts.mjs";
+import { championLookupVerdicts, readChampionLookup, readChampionWindow } from "./champion-lookup-facts.mjs";
+import { postGameVerdicts, readInspection, readPostGame, switchVerdicts } from "./post-game-facts.mjs";
 import { championPreviewVerdicts, readChampionPreview, readChampionRows, targetRow } from "./champion-preview-facts.mjs";
 import { multikillVerdicts, readMultikillBoard } from "./multikill-facts.mjs";
 import { oneScreenInput, oneScreenVerdicts, readOneScreen } from "./one-screen-facts.mjs";
@@ -261,7 +262,7 @@ function healthAndSecurity(playerId) {
   // Every Admin Mode page (#258; the rest since 19 Nov 2026) and the sign-in previews Admin Mode
   // opens. /admin/users and /admin/players redirect to /admin/people; /admin/public-access to /admin/branding#brand-public.
   // (Written out, not spread: src/server/ops/live-check-boundary.test.ts reads this list against docs/LIVE_VALIDATION.md.)
-  const paths = ["/team", "/players", "/matches", "/leaderboards", "/overview", "/overview/accounts", "/me", "/settings", "/resources/matchups", "/admin", "/admin/players", "/admin/people", "/admin/audit", "/admin/system", "/admin/data", "/admin/people/access", "/admin/people/privacy", "/admin/branding", "/admin/previews", "/admin/resources", "/admin/settings", "/preview/login", "/preview/setup"];
+  const paths = ["/team", "/players", "/matches", "/leaderboards", "/overview", "/overview/accounts", "/me", "/settings", "/lookup", "/admin", "/admin/players", "/admin/people", "/admin/audit", "/admin/system", "/admin/data", "/admin/people/access", "/admin/people/privacy", "/admin/branding", "/admin/previews", "/admin/resources", "/admin/settings", "/preview/login", "/preview/setup"];
   playerId ??= publicPlayerId();
   if (playerId) paths.push(`/players/${playerId}`, `/players/${playerId}/champions`, `/players/${playerId}/matches`, `/players/${playerId}/accounts`);
   else warn("security", "a member's own pages were not tried", "no player id: not signed in, and the public team page lists no member");
@@ -500,15 +501,15 @@ const sameAsFrame = (c, chrome) => !!c && c.slice(0, 3).every((v, i) => Math.abs
 
 /**
  * Player Mode's destinations as every bar lists them (navigation N1, 19 Nov 2026: the sidebar, a
- * tablet's top bar, a phone's tab bar and its compact bar held sideways): My Profile, Team, Matchup
- * Intel and Resources, in that order, Matchup Intel at its own address. An account without Team's
+ * tablet's top bar, a phone's tab bar and its compact bar held sideways): My Profile, Team, Champion
+ * Lookup and Resources, in that order, Champion Lookup at its own address. An account without Team's
  * pages lists the others in the same order. Team leads to the Team page it opens (a phone's to the
  * section last used), so its address is not compared.
  */
 function destinationsInOrder(entries) {
   const labels = entries.map((e) => e.label);
-  const expected = ["My Profile", "Team", "Matchup Intel", "Resources"].filter((l) => l !== "Team" || labels.includes("Team"));
-  return labels.join("|") === expected.join("|") && entries.find((e) => e.label === "Matchup Intel")?.href === "/resources/matchups";
+  const expected = ["My Profile", "Team", "Champion Lookup", "Resources"].filter((l) => l !== "Team" || labels.includes("Team"));
+  return labels.join("|") === expected.join("|") && entries.find((e) => e.label === "Champion Lookup")?.href === "/lookup";
 }
 
 async function frameChecks(page, kind, context) {
@@ -525,7 +526,7 @@ async function frameChecks(page, kind, context) {
     pass("frame", "desktop: the sidebar is painted with the frame colour", sameAsFrame(paint.sidebar, paint.chrome), { sidebar: paint.sidebar, chrome: paint.chrome });
     pass("frame", "desktop: the current page carries the blue-to-violet bar", side.current && side.gradient, side);
     const entries = await page.evaluate(() => [...document.querySelectorAll("[data-testid=sidebar] nav[aria-label=Main] a")].map((a) => ({ label: a.textContent.trim(), href: a.getAttribute("href") })));
-    pass("frame", "desktop: the sidebar's entries are My Profile, Team, Matchup Intel and Resources, Matchup Intel at /resources/matchups", destinationsInOrder(entries), { entries: entries.map((e) => e.label), matchupIntel: entries.find((e) => e.label === "Matchup Intel")?.href ?? null });
+    pass("frame", "desktop: the sidebar's entries are My Profile, Team, Champion Lookup and Resources, Champion Lookup at /lookup", destinationsInOrder(entries), { entries: entries.map((e) => e.label), championLookup: entries.find((e) => e.label === "Champion Lookup")?.href ?? null });
     await shot(page, "desktop-frame-open");
     await context.addCookies([{ name: "uniiverse_sidebar", value: "collapsed", url: base }]);
     await page.reload({ waitUntil: "domcontentloaded" });
@@ -559,7 +560,7 @@ async function frameChecks(page, kind, context) {
         inPage: !!document.querySelector("[data-testid=team-tabs]") && getComputedStyle(document.querySelector("[data-testid=team-tabs]")).display !== "none",
       };
     });
-    pass("frame", "phone: the tab bar's destinations are the sidebar's, My Profile, Team, Matchup Intel and Resources, each named in full at 390px", destinationsInOrder(bar.entries) && bar.entries.every((e) => e.shown), { entries: bar.entries.map((e) => e.label), named: bar.entries.map((e) => e.shown), matchupIntel: bar.entries.find((e) => e.label === "Matchup Intel")?.href ?? null });
+    pass("frame", "phone: the tab bar's destinations are the sidebar's, My Profile, Team, Champion Lookup and Resources, each named in full at 390px", destinationsInOrder(bar.entries) && bar.entries.every((e) => e.shown), { entries: bar.entries.map((e) => e.label), named: bar.entries.map((e) => e.shown), championLookup: bar.entries.find((e) => e.label === "Champion Lookup")?.href ?? null });
     const TEAM_ROW = ["Overview", "Players", "Leaderboards", "Matches"];
     const inOrder = bar.sections.length >= 2 && bar.sections.every((l, i) => TEAM_ROW.indexOf(l) >= 0 && (i === 0 || TEAM_ROW.indexOf(l) > TEAM_ROW.indexOf(bar.sections[i - 1])));
     pass("frame", "phone (390): Team's sections are the top bar's second row, Overview marked on Team, 44px, not repeated in the page", bar.inTopBar && inOrder && bar.sections[0] === "Overview" && bar.current.join() === "Overview" && (bar.rowHeight ?? 0) >= 44 && !bar.inPage, { sections: bar.sections, current: bar.current, rowHeight: bar.rowHeight, inPage: bar.inPage });
@@ -619,9 +620,9 @@ async function frameChecks(page, kind, context) {
       pass("frame", "phone: every control in the account screen is a full-width target reached by a tap where it is drawn", fit.controls >= 3 && fit.missed === 0 && fit.shortest >= 48 && fit.column > 0 && fit.narrowest >= fit.column - 2, { controls: fit.controls, missed: fit.missed, shortestRow: fit.shortest, narrowestRow: fit.narrowest, column: fit.column });
       pass("frame", "phone: the account screen takes the focus itself as it opens", fit.focus, { focus: fit.focus });
       // The account's own items only (navigation N1): every page is a destination of the tab bar, so
-      // no row repeats one; Matchup Intel and Resources are tabs, not rows.
-      const destinationsShown = fit.pages.filter((t) => ["My Profile", "Team", "Matchup Intel", "Resources", "Players", "Leaderboards", "Matches"].includes(t));
-      pass("frame", "phone: the account screen holds the account's own items only, no destination among them (Matchup Intel and Resources are tabs)", destinationsShown.length === 0 && fit.pages.includes("Settings") && fit.tabs.includes("Matchup Intel") && fit.tabs.includes("Resources"), { rows: fit.pages, tabs: fit.tabs });
+      // no row repeats one; Champion Lookup and Resources are tabs, not rows.
+      const destinationsShown = fit.pages.filter((t) => ["My Profile", "Team", "Champion Lookup", "Resources", "Players", "Leaderboards", "Matches"].includes(t));
+      pass("frame", "phone: the account screen holds the account's own items only, no destination among them (Champion Lookup and Resources are tabs)", destinationsShown.length === 0 && fit.pages.includes("Settings") && fit.tabs.includes("Champion Lookup") && fit.tabs.includes("Resources"), { rows: fit.pages, tabs: fit.tabs });
       if (fit.signOut) pass("frame", "phone: Sign out is in view without scrolling the account screen", fit.signOut.inView, fit.signOut);
       else if (local) warn("frame", "phone: Sign out not offered", { why: "LIVE_LOCAL=1: the demo build has no sign-in; the screen holds the mode switch" });
       else pass("frame", "phone: Sign out is in view without scrolling the account screen", false, { signOut: null });
@@ -648,7 +649,7 @@ async function frameChecks(page, kind, context) {
   });
   const { entries: barEntries, ...barFacts } = bar;
   pass("frame", `${kind}: the top bar holds the destinations, one tap each, Team marked as the page shown, and no drawer`, bar.navs === 1 && bar.inTopBar && bar.destinations >= 2 && bar.teamCurrent && !bar.drawer, barFacts);
-  pass("frame", `${kind}: the top bar's destinations are the sidebar's, My Profile, Team, Matchup Intel and Resources, Matchup Intel at /resources/matchups`, destinationsInOrder(barEntries), { entries: barEntries.map((e) => e.label), matchupIntel: barEntries.find((e) => e.label === "Matchup Intel")?.href ?? null });
+  pass("frame", `${kind}: the top bar's destinations are the sidebar's, My Profile, Team, Champion Lookup and Resources, Champion Lookup at /lookup`, destinationsInOrder(barEntries), { entries: barEntries.map((e) => e.label), championLookup: barEntries.find((e) => e.label === "Champion Lookup")?.href ?? null });
   await shot(page, `${kind}-frame-topbar`);
   await accountMenuFirstTap(page, kind, page.getByTestId("mobile-topbar").getByTestId("account-menu-button"));
 }
@@ -725,7 +726,9 @@ async function accountMenuFirstTap(page, kind, trigger) {
  *   the stage's floor (drawn from just under them, hidden from screen readers);
  * - phone (390 × 844): the first lineup card ends above the tab bar, and the lineup is the carousel
  *   (23 Nov 2026): no pager over it, one card on screen, centred in the page's gutter, and five
- *   position dots under it (the lineup pager of the players' pictures before, S3a);
+ *   position dots under it (the lineup pager of the players' pictures before, S3a); the active card
+ *   takes the height above the tab bar, its dots within 24px of it, the five cards one height
+ *   (Release 16);
  * - every width: no bench of substitutes under the lineup (the approved design shows a substitute
  *   on their starter's card, turned to by its control).
  */
@@ -778,6 +781,8 @@ async function teamFacts(page, kind) {
           margins: first ? [Math.round(first.left), Math.round(width - first.right)] : null,
           dots: dots.length,
           dotsUnder: !!first && dots.length > 0 && dots.every((d) => d.getBoundingClientRect().top >= first.bottom - 1),
+          dotsBottom: dots.length ? Math.round(Math.max(...dots.map((d) => d.getBoundingClientRect().bottom))) : null,
+          heights: new Set(cells.map((c) => Math.round(c.height))).size,
         };
       })(),
       bench: document.querySelectorAll("[data-testid=lineup-bench], [data-testid^=bench-]").length,
@@ -816,6 +821,11 @@ async function teamFacts(page, kind) {
     // The lineup is the carousel (23 Nov 2026; the pager of the players' pictures before, S3a).
     const c = f.carousel;
     pass("team", "390x844: the lineup is a carousel: no pager, one card on screen centred in the gutter, five position dots under it", c.pager === 0 && c.onScreen === 1 && !!c.margins && Math.abs(c.margins[0] - c.margins[1]) <= 1 && c.dots === 5 && c.dotsUnder, c);
+    // The active card takes the height the screen leaves (Release 16): its dots end above the tab bar
+    // and within 24px of it, and the five cards share one height.
+    const used = "390x844: the active card takes the height above the tab bar (its dots within 24px of it), the five cards one height";
+    if (f.tabBarTop === null || c.dotsBottom === null) check("team", used, "PASS", `not applicable: ${f.tabBarTop === null ? "no tab bar shown" : "no position dots"}`);
+    else pass("team", used, c.dotsBottom + f.scrollY <= f.tabBarTop && f.tabBarTop - (c.dotsBottom + f.scrollY) <= 24 && c.heights === 1, { dotsBottom: c.dotsBottom + f.scrollY, tabBarTop: f.tabBarTop, heights: c.heights });
   }
   // The approved design has no bench: a substitute is on their starter's card (its back).
   pass("team", `${kind}: no bench of substitutes under the lineup`, f.bench === 0, { bench: f.bench, cardsWithASubstitute: f.faces });
@@ -1175,20 +1185,14 @@ async function resourcesFacts(page, kind) {
 }
 
 /**
- * MATCHUP INTEL, one page load (docs/LIVE_VALIDATION.md, "What it checks"; the owner's decision of
- * 18 Nov 2026): a curated pair on the desktop, read at the check's 1440 × 900 and again with the
- * window made 1920 × 1080 (as the wide checks do), then put back. What is read and asserted is in
- * scripts/matchup-intel-facts.mjs, beside its unit test: which layer the pair shows and its label (the
- * curated briefing and when it was checked, or, once its check is too old or every part rests on an
- * ability Riot changed, said hidden, above the assembled reference too), the enemy's five ability
- * tiles with a name and a cooldown line each, the overview on one screen at 1920 × 1080 and the
- * essentials (the five tiles and the sources' summary) on the screen at 1440 × 900, both passing and
- * saying what they found while any part of the briefing is hidden, the sources and Riot's notice one
- * press away with their summary, nothing requested from the League of Legends Wiki, that checked notes
- * win over the facts from Riot's text (none of those shows for this pair, whose champions both have
- * checked notes), that the page's game patch is /api/health's and Riot's data in the sources is on it
- * (or the bar says the ability data is older), and axe. It reads nothing beyond what the page itself reads (the session, the
- * cached roster and patches, two champions' stored abilities and their committed facts from Riot's text).
+ * CHAMPION LOOKUP, one page load and one redirect (docs/LIVE_VALIDATION.md, "What it checks";
+ * docs/CHAMPION_LOOKUP.md): an ordinary champion on the desktop, read at the check's 1440 × 900 and
+ * again with the window made 1920 × 1080 (as the wide checks do), then put back; then, in the page and
+ * with no request, the quick haste value 20 pressed, and All champions opened, read, searched for "ahr"
+ * and closed with Escape; then Matchup Intel's old address (/resources/matchups?champion=Riven&vs=
+ * Mordekaiser), which must land on Champion Lookup with Mordekaiser. What is read and asserted is in
+ * scripts/champion-lookup-facts.mjs, beside its unit test. It reads nothing beyond what the page
+ * itself reads (the session, the cached roster and patch, one champion's stored abilities).
  */
 /** /api/health's current patch (null when it names none or does not answer): no page load. */
 function healthPatchNow() {
@@ -1200,38 +1204,33 @@ function healthPatchNow() {
   }
 }
 
-async function matchupIntelFacts(page, kind, wikiRequests) {
-  await page.getByTestId("matchup-dashboard").waitFor({ timeout: 20_000 });
-  const at = await page.evaluate(readMatchupIntel);
+async function championLookupFacts(page, kind) {
+  await page.getByTestId("lookup-toolbar").and(page.locator("[data-ready=true]")).waitFor({ timeout: 20_000 });
+  const at = await page.evaluate(readChampionLookup);
   await page.setViewportSize({ width: 1920, height: 1080 });
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-  const wide = await page.evaluate(readMatchupIntel);
+  const wide = await page.evaluate(readChampionLookup);
   await page.setViewportSize(VIEWPORTS.desktop.viewport);
+  // A quick haste value: the numbers change in the page, and the address with them (no request).
+  await page.locator('[data-testid="lookup-haste"] button[data-haste="20"]').click().catch(() => {});
+  await page.waitForFunction(() => new URLSearchParams(location.search).get("haste") === "20", null, { timeout: 5_000 }).catch(() => {});
+  const hastedRead = await page.evaluate(readChampionLookup);
+  // All champions: the window of every champion, then its search.
+  await page.getByTestId("lookup-browse").click().catch(() => {});
+  await page.locator('[data-testid="lookup-picker-grid"] button[data-champion]').first().waitFor({ timeout: 10_000 }).catch(() => {});
+  const all = await page.evaluate(readChampionWindow);
+  await page.getByTestId("lookup-picker-search").fill("ahr").catch(() => {});
+  await page.waitForFunction(() => /found$/.test(document.querySelector('[data-testid="lookup-picker-count"]')?.textContent?.trim() ?? ""), null, { timeout: 5_000 }).catch(() => {});
+  const search = await page.evaluate(readChampionWindow);
+  await page.keyboard.press("Escape");
+  await page.keyboard.press("Escape");
+  // Matchup Intel's old address: one redirect, to Champion Lookup with its enemy.
+  await page.goto(`${base}/resources/matchups?champion=Riven&vs=Mordekaiser`, { waitUntil: "domcontentloaded" });
+  await page.getByTestId("lookup-panel").waitFor({ timeout: 20_000 }).catch(() => {});
+  const legacy = await page.evaluate(readChampionLookup);
   // The patch /api/health names (read at the start against production; a local run asks once here).
   const healthPatch = report.health ? report.health.patch : healthPatchNow();
-  for (const v of matchupIntelVerdicts({ kind, pair: "Riven vs Mordekaiser", enemy: "Mordekaiser", at, wide, wiki: wikiRequests, healthPatch })) check("matchup-intel", v.name, v.status, v.detail);
-}
-
-/**
- * Matchup Intel's five roles (PLAN §6 rows 3.2–3.6; scripts/matchup-roles-facts.mjs), on the desktop,
- * on the page the facts above loaded: the lane selector pressed for each role it is not on (four
- * presses, each a render of the page on the server), the slots and the address read after each.
- */
-async function matchupRolesFacts(page, kind) {
-  const start = await page.evaluate(readRoleBar);
-  const reads = start.pressed ? [{ role: start.pressed, at: start }] : [];
-  for (const role of ["top", "jungle", "mid", "adc", "support"]) {
-    if (role === start.pressed) continue;
-    await page.locator(`[data-testid=matchup-role] button[data-role=${role}]`).click();
-    await page
-      .waitForFunction((r) => {
-        const pressed = document.querySelector(`[data-testid=matchup-role] button[data-role=${r}][aria-pressed=true]`);
-        return !!pressed && new URLSearchParams(location.search).get("role") === r && !document.querySelector('[data-testid="matchup-intel-content"][aria-busy="true"]');
-      }, role, { timeout: 15_000 })
-      .catch(() => {});
-    reads.push({ role, at: await page.evaluate(readRoleBar) });
-  }
-  for (const v of matchupRolesVerdicts({ kind, start, reads })) check("matchup-intel", v.name, v.status, v.detail);
+  for (const v of championLookupVerdicts({ kind, champion: "Ahri", at, wide, hastedRead, all, search, legacy, healthPatch })) check("champion-lookup", v.name, v.status, v.detail);
 }
 
 /**
@@ -1304,38 +1303,40 @@ async function allChampions(page, log, kind, playerId) {
   }
   pass("all-champions", `${kind}: no heading cut short`, facts.cut.length === 0, facts.cut);
   await axe(page, kind, "all-champions");
-  // All Champions' preview: on the desktop and the tablet it unfolds under its row, across the list
-  // (the overlay kit's Unfold, since 23 Nov 2026), with Champion, Games and Win rate in place (±1px),
-  // the page not scrolled, nothing over the rows and nothing scrolling inside; Escape and Back close
-  // it. On the phone it is a sheet, and Back closes it.
+  // All Champions' preview: on the desktop and the tablet the compact panel docked at the window's
+  // right edge (the overlay kit's Peek, since Release 16; it unfolded under its row from 23 Nov 2026),
+  // the list where it was (Champion, Games and Win rate in place, ±1px, every row's top, the page not
+  // scrolled), the panel within the screen with its content fitting it and clear of the row's name,
+  // no window; Escape and Back close it. On the phone it is a sheet, and Back closes it.
   const open = page.getByTestId("open-champion").first();
   if (await open.count()) {
     const columns = () => page.evaluate(() => ["champion", "games", "win"].map((k) => Math.round(document.querySelector(`[data-testid=sort-${k}]`)?.getBoundingClientRect().x ?? -1)));
-    const before = { x: await columns(), y: await page.evaluate(() => scrollY) };
+    const rowTops = () => page.evaluate(() => [...document.querySelectorAll("[data-testid=top-champion]")].map((r) => Math.round(r.getBoundingClientRect().top)));
+    const before = { x: await columns(), y: await page.evaluate(() => scrollY), rows: await rowTops() };
     await open.click();
     const content = page.getByTestId("champion-preview-content");
     const opened = await content.waitFor({ timeout: 15_000 }).then(() => true, () => false);
-    // Under its row: the detail is the list item right after the selected row, as wide as the rows, in the page's flow (no window, no inner scroll).
-    const underRow = () =>
+    // Docked: the Peek's panel (an aside at the window's right edge, not a window), within the screen, its body not scrolling, clear of the selected row's name.
+    const dockedPanel = () =>
       page.evaluate(() => {
         const li = document.querySelector("[data-testid=top-champion][data-selected=true]");
-        const region = document.querySelector("[data-testid=champion-preview]");
-        if (!li || !region) return { found: false };
-        const next = li.nextElementSibling;
-        const [r, d] = [li.getBoundingClientRect(), (next ?? region).getBoundingClientRect()];
-        const scrollers = [...region.querySelectorAll("*"), region].filter((e) => /auto|scroll/.test(getComputedStyle(e).overflowY) && e.scrollHeight > e.clientHeight + 1).length;
-        return { found: true, next: !!next && next.contains(region), region: region.getAttribute("role") === "region", window: !!document.querySelector("dialog[open]"), below: Math.abs(d.top - r.bottom) <= 2, width: Math.abs(d.left - r.left) <= 1 && Math.abs(d.right - r.right) <= 1, scrollers };
+        const panel = document.querySelector("aside[data-peek-panel][data-testid=champion-preview]");
+        if (!li || !panel) return { found: false };
+        const p = panel.getBoundingClientRect();
+        const body = panel.querySelector("[data-testid=champion-preview-body]");
+        const name = li.querySelector("[data-open-champion]")?.getBoundingClientRect();
+        return { found: true, window: !!document.querySelector("dialog[open]"), within: p.top >= -0.5 && p.left >= -0.5 && p.bottom <= innerHeight + 0.5 && p.right <= innerWidth + 0.5, fits: !!body && body.scrollHeight <= body.clientHeight + 1, nameClear: !!name && name.right <= p.left };
       });
     if (kind !== "phone") {
-      const after = { x: await columns(), y: await page.evaluate(() => scrollY) };
-      let under = { found: false };
+      const after = { x: await columns(), y: await page.evaluate(() => scrollY), rows: await rowTops() };
+      let docked = { found: false };
       if (opened) {
         await page.getByTestId("champion-preview-foot").waitFor({ timeout: 15_000 }).catch(() => {});
         await page.waitForTimeout(300);
-        under = await underRow();
+        docked = await dockedPanel();
         await shot(page, `${kind}-champion-preview`);
         await axe(page, kind, "champion-preview", "[data-testid=champion-preview]");
-        pass("all-champions", `${kind}: the preview unfolds under its row (the next item of the list, as wide as the rows, no window, nothing scrolling inside)`, under.found && under.next && under.region && !under.window && under.below && under.width && under.scrollers === 0, under);
+        pass("all-champions", `${kind}: the preview is the compact panel docked beside the list (no window, within the screen, its content fitting it, clear of the row's name)`, docked.found && !docked.window && docked.within && docked.fits && docked.nameClear, docked);
         await page.keyboard.press("Escape");
       }
       const escaped = await content.waitFor({ state: "detached", timeout: 5_000 }).then(() => true, () => false);
@@ -1343,8 +1344,8 @@ async function allChampions(page, log, kind, playerId) {
       const again = await content.waitFor({ timeout: 15_000 }).then(() => true, () => false);
       await page.goBack();
       const backed = await content.waitFor({ state: "detached", timeout: 5_000 }).then(() => true, () => false);
-      const still = after.x.every((x, i) => Math.abs(x - before.x[i]) <= 1) && after.y === before.y;
-      pass("games", `${kind}: the champion preview opens under its row (Champion, Games and Win rate in place, the page not scrolled); Escape and Back close it`, opened && still && escaped && again && backed, { opened, before, after, escaped, backed });
+      const still = after.x.every((x, i) => Math.abs(x - before.x[i]) <= 1) && after.y === before.y && after.rows.length === before.rows.length && after.rows.every((t, i) => Math.abs(t - before.rows[i]) <= 1);
+      pass("games", `${kind}: the champion preview opens beside the list, which stays where it was (Champion, Games and Win rate in place, every row's top, the page not scrolled); Escape and Back close it`, opened && still && escaped && again && backed, { opened, before: { x: before.x, y: before.y }, after: { x: after.x, y: after.y }, rowsKept: still, escaped, backed });
       if (kind === "desktop") await guarded("all-champions", `${kind}: the preview's content`, () => championPreviewFacts(page, kind));
     } else {
       // The shared Peek's sheet.
@@ -2012,6 +2013,19 @@ async function matchHistory(page, log, kind, playerId) {
           const at = await page.evaluate(readPostGame);
           for (const v of postGameVerdicts({ kind, at })) check("games", v.name, v.status, v.detail);
         });
+        // Inspecting another player (Release 16): a press on another row shows that player from the
+        // game already loaded (no request of its own), and "Back to …" returns. Places and true or false only.
+        await guarded("games", `${kind}: inspecting another player of the open game`, async () => {
+          const before = await page.evaluate(readInspection);
+          const other = open.locator("[data-testid=participant-select]:not([aria-current=true])").nth(4);
+          await other.click();
+          await page.waitForFunction((s) => document.querySelector("li[data-expanded] [data-testid=match-breakdown]")?.getAttribute("data-selected") !== String(s), before.selected, { timeout: 5_000 }).catch(() => {});
+          const after = await page.evaluate(readInspection);
+          await open.getByTestId("inspect-back").click().catch(() => {});
+          await page.waitForTimeout(200);
+          const back = await page.evaluate(readInspection);
+          for (const v of switchVerdicts({ kind, before, after, back })) check("games", v.name, v.status, v.detail);
+        });
       }
       const next = open.getByTestId("game-header-next");
       if (await next.isEnabled()) {
@@ -2149,22 +2163,12 @@ for (const [kind, options] of Object.entries(VIEWPORTS)) {
       await page.unroute(siteIcon);
     }
   });
-  // Matchup Intel, once, on the desktop: one curated pair (its facts above), at the cost of one page load.
+  // Champion Lookup, once, on the desktop: one champion (its facts above), at the cost of one page load and one redirect.
   if (kind === "desktop") {
-    await guarded("matchup-intel", `${kind}: Matchup Intel`, async () => {
-      const wiki = [];
-      const onRequest = (r) => {
-        if (/(^|\.)wiki\.leagueoflegends\.com$/.test(new URL(r.url()).hostname)) wiki.push(r.url().slice(0, 120));
-      };
-      page.on("request", onRequest);
-      try {
-        if (await visit(page, log, kind, "matchup-intel", "/resources/matchups?champion=Riven&vs=Mordekaiser", { fullPage: false })) {
-          await matchupIntelFacts(page, kind, wiki);
-          await axe(page, kind, "matchup-intel");
-          await guarded("matchup-intel", `${kind}: the five roles`, () => matchupRolesFacts(page, kind));
-        }
-      } finally {
-        page.off("request", onRequest);
+    await guarded("champion-lookup", `${kind}: Champion Lookup`, async () => {
+      if (await visit(page, log, kind, "champion-lookup", "/lookup?champion=Ahri", { fullPage: false })) {
+        await axe(page, kind, "champion-lookup");
+        await championLookupFacts(page, kind);
       }
     });
   }

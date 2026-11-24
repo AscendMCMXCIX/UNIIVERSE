@@ -11,7 +11,7 @@ import { lastTickScheduleCalls, tickScheduleSilentMs } from "@/server/ops/tick-s
 import { getScheduleOverrides, TICK_JOB_ORDER } from "@/server/jobs/scheduler";
 import { healthNotices } from "@/server/ops/health-notices";
 import { log } from "@/server/observability/log";
-import { digestHealth } from "@/server/matchup-intel/digests";
+import { digestHealth } from "@/server/riot/static/digests";
 import { staticDataHealth } from "@/server/ops/static-health";
 import { STATIC_ATTEMPT_KEY, type StaticAttempt } from "@/server/riot/static/assets";
 
@@ -29,7 +29,7 @@ const RANK_SCHEDULE_SILENT_MS = 20 * 60_000;
  * what is failing and whether Riot accepts the configured key. Reads only the tiny status tables
  * (the key's state is the outcome the jobs recorded, cached for 30 s); never touches statistics or
  * external providers, so it stays fast and never reports a provider outage as an app outage. No
- * secrets (of the key, only the state word), no personal data. `digests` is Matchup Intel's
+ * secrets (of the key, only the state word), no personal data. `digests` is the
  * per-version diff of Data Dragon, counted (champions, items and runes recorded and changed). `staticData` is the static
  * refresh's state (server/ops/static-health.ts: ok, failed validation or stale; patch names and counts only), listed in
  * `failingJobs` as "static-data" when not ok. `notices` says what is off by choice
@@ -108,9 +108,9 @@ export async function GET() {
       .select({ cursor: sql<number | null>`max(${riotAccounts.syncCursor})` })
       .from(riotAccounts)
       .where(and(eq(riotAccounts.ownerType, "player"), ne(riotAccounts.label, "demo"), ne(riotAccounts.syncStatus, "demo")));
-    // Matchup Intel's per-version diff (static_digests): the newest patch recorded, its counts, and
-    // how many champions, items and runes changed since the one before. Counts and patches only.
-    // One Matchup Intel query must never fail the whole check: on an error, no digests are listed.
+    // The per-version diff (static_digests): the newest patch recorded, its counts, and how many
+    // champions, items and runes changed since the one before. Counts and patches only. Its query
+    // must never fail the whole check: on an error, no digests are listed.
     const digests = await digestHealth(handle.db).catch((error: unknown) => {
       log("warn", "health.digests_failed", { error });
       return null;

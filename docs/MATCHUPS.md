@@ -2,37 +2,45 @@
 
 Profile → **All Champions** → a champion opens its **preview**, in the list's scope (season, game
 mode, account) and in the role of the row (PLAN S5, overhaul audit CM §4). It shows the player's own
-results, the same for every viewer who may see the profile; preparation (abilities, cooldowns,
-notes) is Matchup Intel's (docs/MATCHUP_INTEL.md), reached by one link per opponent.
+results, the same for every viewer who may see the profile; an opponent's abilities and cooldowns
+are Champion Lookup's (docs/CHAMPION_LOOKUP.md; Matchup Intel's until 23 Nov 2026), reached by one
+link per opponent.
 
-**Where it opens** (since 23 Nov 2026, the owner's request; docs/DESIGN_SYSTEM.md §7, "Unfold").
-From 768px wide (tablets and computers, at any list width, the sidebar open or not) the preview
-**unfolds under its row**, as the overlay kit's Unfold opens a game under its card: the next item
-of the list, across the whole list, in the page's own flow. Nothing lies over the table, nothing
-scrolls inside the preview, and the columns never fold or move. The selected row takes `surface-3`
-and a 2px accent bar, which the preview continues down its left edge. Its record sits beside the
-lane opponents from a 50rem list and above them below that. Opening another row keeps that row
-where it was on screen; ↑/↓ (J/K) from the list move the preview; Escape, Close (in its header,
-and in the compact header pinned under the tabs while the preview is long), the row again and Back
-close it, and Back puts the list back where it was, with its search, sort and filters. Under 768px,
-touch or mouse, and in short windows (`ui/posture.ts`), it is the shared **Peek**'s **sheet**
-(`ui/peek.tsx`) with ‹ › to the next or previous champion in the list's order; ✕, Back or a pull
+**Where it opens** (since Release 16, the owner's request of 23 Nov 2026; docs/DESIGN_SYSTEM.md §7,
+"Peek"). From 768px wide (tablets and computers, at any list width, the sidebar open or not) the
+preview is a **compact panel docked at the window's right edge**, the shared Peek's
+(`ui/peek.tsx`, `clamp(26rem, 34vw, 36rem)` wide, from under the tablet's bar to the bottom): the
+table stays exactly where it is (its columns, every row's place and height, the page's scroll), the
+selected row takes `surface-3` and a 2px accent bar, and the panel's tallest content (five
+opponents with 3+ games, both "more" toggles, an opponent open with its three newest games) fits
+without scrolling at 1440 × 900 and at 1920 × 950 (the owner's window, the sidebar folded); in a
+shorter window, such as 1280 × 800, its body is the panel's one scroll region, its header with ✕
+and ‹ › staying in place. ‹ › in its header
+and ↑/↓ (J/K) from the list move it along the rows; ✕, Escape, the row again, Back and a click
+outside it (not on a row, a link, a window or a popover) close it, and Back puts the list back as it
+was, with its search, sort and filters. Under 768px, touch or mouse, and in short windows
+(`ui/posture.ts`), it is the same Peek's **sheet** with the same content and ‹ ›; ✕, Back or a pull
 down close it. (From S5 to 22 Nov 2026 the wide list showed it as a panel laid over the columns
-after Win rate, joined to its row by a 2px notch, and tablets as the docked Peek panel.)
+after Win rate, joined to its row by a 2px notch; from 23 Nov 2026 until Release 16 it unfolded
+under its row across the list, pushing the rows below it down, with a tall list of opponents in
+two columns from 50rem.)
 
 **Content, in this order and nothing else:**
 
-1. **Header:** under its row, one line: the role and "In pool", "Also as Mid: 3 games · 1W 2L"
-   (switches to that row) and Close; the row above shows the portrait and name, which the preview
-   gives screen readers in its heading (since Release 13's review). In the sheet: the portrait, the
-   role and "In pool", the name and ✕ in the sheet's header.
-2. **Figures:** the win rate large (coloured by `winRateTone` from 5 games), "14 games · 4W 10L";
-   under its row, four tiles of averages (KDA with the average K/D/A, CS/min with CS a game,
-   damage/min with damage a game, vision a game; "—" where no game carries one) and a line saying
-   what they cover ("Averages over all 8 games in these filters", or "from the N games with a full
-   record, of M") with the mastery points; in the phone's sheet one quiet "KDA · CS/min · mastery"
-   line instead.
-3. **Against each lane opponent** (under its row: one column of at most 46rem, two where the opponents have 50rem or more), sorted by Most games, Best or Worst
+1. **Header:** the champion's name in the panel's (or sheet's) header with ‹ › and ✕; under it the
+   portrait, the role and "In pool", "Also as Mid: 3 games · 1W 2L" (switches to that row), and at
+   the right the win rate (coloured by `winRateTone` from 5 games) over "14 games · 4W 10L".
+2. **Figures:** four compact tiles of averages (KDA with the average K/D/A, CS/min with CS a game,
+   damage/min with damage a game, vision a game; "—" where no game carries one; one row from a
+   26rem panel, two by two in a phone's sheet) and a line saying what they cover ("Averages over all
+   8 games in these filters", or "from the N games with a full record, of M") with the mastery
+   points; and one line of the kill figures the panel lies over on a wide table: "Kills 1,234 ·
+   Multikills 107 double · 18 triple · 2 quadra · 0 penta" ("*" where only some games are counted
+   so far, "not counted yet" where none is). The same in the panel and the sheet.
+3. **Against each lane opponent**, a compact table (Opponent, Games, Record, Win; rows of 36px,
+   44px on touch, under one heading row; the first five with 3+ games, then "N more opponents with
+   3+ games", `OPPONENTS_SHOWN`, so a champion with thirty opponents keeps the panel within the
+   screen), sorted by Most games, Best or Worst
    (`src/domain/champion-preview.ts`):
    - an opponent shows a win rate from **3 games**, coloured from **5**, always with its games
      beside it;
@@ -40,12 +48,15 @@ after Win rate, joined to its row by a 2px notch, and tablets as the docked Peek
    - with none at 3 games, every opponent is listed with W/L only, and "No opponent met 3 times yet";
    - Best and Worst rank opponents with 5+ games first, then 3–4; ties go to more games, then the
      most recent.
-4. **An opponent unfolds in place** (`vs` in the address): one sentence only with at least 5 games
+4. **An opponent unfolds under its row, in the same panel** (`vs` in the address): the KDA over its
+   games with the average K/D/A (`pairingKda`, the games with a full record, as the champion's KDA
+   is counted), one sentence only with at least 5 games
    with a timeline ("At 10:00 you had more gold than Nasus in 5 of 6 games with a timeline (+623 on
    average)", "Gwen had" on a teammate's profile: wording follows the viewer,
    `src/domain/viewer-words.ts`), its games as compact rows (W/L, K/D/A, CS, the gold difference at
-   10:00 or "no timeline", the date; the first five, then "Show all"), each opening the match
-   window; and "Prepare Gwen vs Nasus in Matchup Intel →".
+   10:00 or "no timeline", the date; the three newest, then "Show all"), each opening the match
+   window; and "Nasus's abilities in Champion Lookup →" (until 23 Nov 2026 "Prepare Gwen vs
+   Nasus in Matchup Intel →").
 5. **Foot line:** "Lane opponent: the enemy Riot placed in your position" ("their position" on a
    teammate's), with "Known in N of M games" when some games name none.
 

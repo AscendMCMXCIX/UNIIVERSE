@@ -14,7 +14,7 @@ function memoryStorage(entries: Record<string, string>) {
 }
 
 const SAMPLES: Record<(typeof DEVICE_ITEMS)[number]["id"], { raw: string; says: string }> = {
-  "matchup-intel": { raw: JSON.stringify({ you: "Ahri", them: "Zed", role: "MID" }), says: "Remembered" },
+  "champion-lookup": { raw: JSON.stringify(["Ahri", "Zed"]), says: "2 champions" },
   "recent-champions": { raw: JSON.stringify(["Ahri", "Zed", "Lux"]), says: "3 champions" },
   "resource-favourites": { raw: JSON.stringify(["d-opgg"]), says: "1 site" },
   "card-preview": { raw: "hidden", says: "Put away" },
@@ -33,8 +33,8 @@ describe("On this device", () => {
     });
   }
 
-  it("Clear all removes every item for every account in this browser, and nothing else", () => {
-    const m = new Map<string, string>([["uniiverse_recent_champions:aaaa", "[\"Ahri\"]"], ["uniiverse_recent_champions", "[]"], ["uniiverse.matchup-intel.v1:bbbb", "{}"], ["uniiverse.studio.preview", "hidden"], ["uniiverse.resources.favourites.v1", "[]"], ["uniiverse_who_else", "kept"], ["uniiverse.matchup-intel.v1x", "kept"]]);
+  it("Clear all removes every item for every account in this browser, and the retired Matchup Intel's, and nothing else", () => {
+    const m = new Map<string, string>([["uniiverse_recent_champions:aaaa", "[\"Ahri\"]"], ["uniiverse_recent_champions", "[]"], ["uniiverse.champion-lookup.v1:bbbb", "[]"], ["uniiverse.matchup-intel.v1:bbbb", "{}"], ["uniiverse.studio.preview", "hidden"], ["uniiverse.resources.favourites.v1", "[]"], ["uniiverse_who_else", "kept"], ["uniiverse.matchup-intel.v1x", "kept"]]);
     const storage = { get length() { return m.size; }, key: (i: number) => [...m.keys()][i] ?? null, removeItem: (k: string) => void m.delete(k) };
     clearAllOnDevice(storage);
     expect([...m.keys()].sort()).toEqual(["uniiverse.matchup-intel.v1x", "uniiverse_who_else"]);
@@ -58,7 +58,7 @@ describe("On this device", () => {
     walk("src");
     const writers = files.filter((f) => /localStorage\.setItem\(/.test(readFileSync(f, "utf8")));
     expect(writers.length).toBeGreaterThan(0);
-    for (const f of writers) expect(readFileSync(f, "utf8"), `${f}: its key comes from device-storage`).toMatch(/deviceBase\("(matchup-intel|recent-champions|resource-favourites|card-preview)"\)/);
+    for (const f of writers) expect(readFileSync(f, "utf8"), `${f}: its key comes from device-storage`).toMatch(/deviceBase\("(champion-lookup|recent-champions|resource-favourites|card-preview)"\)/);
     // Each listed item has its writer.
     const all = writers.map((f) => readFileSync(f, "utf8")).join("\n");
     for (const item of DEVICE_ITEMS) expect(all, item.id).toContain(`deviceBase("${item.id}")`);

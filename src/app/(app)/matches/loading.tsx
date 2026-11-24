@@ -7,8 +7,8 @@ import { Skeleton } from "@/components/ui/skeleton";
  * played-together.tsx): the result over the members on narrower lists, both teams under them from
  * md; from a 58rem list the result, the members, both teams and the bookmark side by side. The
  * members go two to a row from a 34rem column, as the cards do, so the list lands where its
- * skeleton was. The lists are hidden from screen readers (the status and its "Loading…" say it);
- * Team Insights, below this folder, has its own loading.tsx. At the page's width (Team's 100rem,
+ * skeleton was. The lists are hidden from screen readers (the status and its "Loading…" say it).
+ * At the page's width (Team's 100rem,
  * centred), the filter row and the list under the title at the ordinary width, left-aligned, as the
  * page draws them (played-together.tsx).
  */

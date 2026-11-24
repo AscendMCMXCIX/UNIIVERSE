@@ -1,7 +1,6 @@
 import { expect, test, type Page } from "./test";
 import { AxeBuilder } from "@axe-core/playwright";
 import { playerEntry } from "./players";
-import { riotText } from "./matchup-intel";
 
 /*
   Phase 3 quality gates, run once (desktop project) with explicit viewports:
@@ -11,19 +10,13 @@ import { riotText } from "./matchup-intel";
     - automated accessibility (axe, WCAG 2.1 A/AA): no critical or serious violations.
 */
 
-test.beforeEach(async ({ context, baseURL, page }) => {
+test.beforeEach(async ({ context, baseURL }) => {
   await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
-  // Matchup Intel's routes below are audited with the facts from Riot's text on, as they were
-  // written; the layer ships switched off (src/server/matchup-intel/riot-text/switch.ts), and its
-  // off state is audited in e2e/matchup-intel.spec.ts. The cookie changes no other page.
-  await riotText(page, "on");
 });
 
-// Matchup Intel: nothing chosen, a curated briefing, and the assembled reference with checked facts on
-// both sides (Ornn vs Gwen), with facts from Riot's text for the enemy (Riven vs Darius), on both sides
-// with the most of them (Briar vs K'Sante: conditional markers, qualifiers), and where Riot's two texts
-// differ (Riven vs Yone: the "Riot's texts differ" chip, an ability with no reviewed fact).
-const PLAYER_ROUTES = ["/team", "/players", "/leaderboards", "/matches", "/overview", "/overview/champions", "/overview/matches", "/resources", "/resources/matchups", "/resources/matchups?champion=Riven&vs=Mordekaiser", "/resources/matchups?champion=Ornn&vs=Gwen", "/resources/matchups?champion=Riven&vs=Darius", "/resources/matchups?champion=Briar&vs=KSante", "/resources/matchups?champion=Riven&vs=Yone", "/settings"];
+// Champion Lookup: nothing chosen, an ordinary champion at a haste, and one with every kind of special
+// cooldown row (Lee Sin: two abilities in a slot; Teemo: charges), with its descriptions shown by its own spec.
+const PLAYER_ROUTES = ["/team", "/players", "/leaderboards", "/matches", "/overview", "/overview/champions", "/overview/matches", "/resources", "/lookup", "/lookup?champion=Ahri&haste=20", "/lookup?champion=LeeSin&haste=40", "/lookup?champion=Teemo", "/settings"];
 const ADMIN_ROUTES = ["/admin", "/admin/people", "/admin/people/access", "/admin/people/privacy", "/admin/branding", "/admin/previews", "/admin/resources", "/admin/data", "/admin/system", "/admin/audit", "/admin/settings"];
 const SIZES: Array<[number, number]> = [
   [320, 640],
@@ -129,10 +122,10 @@ test.describe("accessibility", () => {
     }
   });
 
-  test("at 1920, where the section tabs' row takes the pages' width, Team's sections, Matchup Intel and Resources have no critical or serious violations", async ({ page }) => {
+  test("at 1920, where the section tabs' row takes the pages' width, Team's sections, Champion Lookup and Resources have no critical or serious violations", async ({ page }) => {
     test.setTimeout(120_000);
     await page.setViewportSize({ width: 1920, height: 1080 });
-    for (const route of ["/team", "/players", "/leaderboards", "/matches", "/resources/matchups", "/resources"]) {
+    for (const route of ["/team", "/players", "/leaderboards", "/matches", "/lookup?champion=Ahri&haste=20", "/resources"]) {
       await page.goto(route);
       await page.waitForLoadState("networkidle");
       await audit(page, `${route} at 1920`);
@@ -515,12 +508,12 @@ test.describe("retired Ranked Development", () => {
 test.describe("sidebar entries", () => {
   test.beforeEach(({}, info) => test.skip(info.project.name !== "desktop", "runs once"));
 
-  test("Player Mode is four single entries, My Profile, Team, Matchup Intel and Resources, with no groups to fold", async ({ page }) => {
+  test("Player Mode is four single entries, My Profile, Team, Champion Lookup and Resources, with no groups to fold", async ({ page }) => {
     await page.goto("/team");
     const aside = page.locator("aside");
     const order = await aside.locator("nav[aria-label='Main'] a").evaluateAll((els) => els.map((e) => e.getAttribute("data-testid")));
-    expect(order).toEqual(["nav-overview", "nav-team", "nav-resources-matchups", "nav-resources"]);
-    await expect(aside.locator("nav[aria-label='Main'] a")).toHaveText(["My Profile", "Team", "Matchup Intel", "Resources"]);
+    expect(order).toEqual(["nav-overview", "nav-team", "nav-lookup", "nav-resources"]);
+    await expect(aside.locator("nav[aria-label='Main'] a")).toHaveText(["My Profile", "Team", "Champion Lookup", "Resources"]);
     await expect(aside.getByTestId("nav-team")).toHaveAttribute("aria-current", "page");
   });
 

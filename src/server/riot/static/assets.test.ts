@@ -3,7 +3,7 @@ import digest from "../../../../tests/fixtures/ddragon-16.22.1-item-haste.json";
 import { ASSET_RULES_FORMAT, compactAssets, compactBuildData, isRiftItem, itemHaste } from "./assets";
 
 /*
-  The static data Matchup Intel's build evidence rests on (docs/MATCHUP_INTEL.md, "Static data"):
+  The static build data (assets.ts, BUILD_KEY; Matchup Intel's build evidence rested on it until 23 Nov 2026):
   items' shop facts and the ability haste their stats name, summoner spells' cooldowns, the rune
   trees' slots, all from the three files the version-check job already downloads.
 */
@@ -59,6 +59,8 @@ describe("compactAssets and compactBuildData", () => {
   });
 
   it("keeps the names that every match read loads free of the build data (R6 review SR6-SEC-5)", () => {
-    expect(Object.keys(assets).sort()).toEqual(["format", "items", "runes", "spells", "version"]);
+    expect(Object.keys(assets).sort()).toEqual(["format", "itemKinds", "items", "runes", "spells", "version"]);
+    // The build path's kinds (Release 16): Rift items only, by id; Kindlegem builds into more, so it is not finished.
+    expect(assets.itemKinds).toEqual({ done: [], minor: [] });
   });
 });

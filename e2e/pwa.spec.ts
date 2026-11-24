@@ -21,7 +21,7 @@ test("the manifest, icons and service worker are served to anyone, and pages lin
   expect(manifest.shortcuts.map((s) => [s.name, s.url])).toEqual([
     ["My Profile", "/overview"],
     ["Team", "/team"],
-    ["Matchup Intel", "/resources/matchups"],
+    ["Champion Lookup", "/lookup"],
     ["Resources", "/resources"],
   ]);
   expect(manifest.launch_handler.client_mode[0]).toBe("navigate-existing");

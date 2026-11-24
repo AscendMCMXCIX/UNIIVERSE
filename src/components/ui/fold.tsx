@@ -40,7 +40,7 @@ const SUMMARY: Record<FoldVariant, string> = {
 };
 /**
  * A panel whose summary is a line of small text on a page measured to the pixel (`dense`: Matchup
- * Intel's sources, under its one-screen fit and the phone's page budget): 12px at the sides and 8px
+ * Intel's sources until it was retired on 23 Nov 2026; no page uses it now): 12px at the sides and 8px
  * before the chevron, not 16 and 12. At 320px with 150% text the room it gives back is one line of
  * that summary (24px); it is how that summary was spaced before the Fold (Release 8).
  */

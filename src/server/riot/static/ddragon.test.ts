@@ -4,8 +4,8 @@ import { StaticDataError } from "./provider";
 
 /*
   The live Data Dragon provider's versions, with and without a pinned version (DDRAGON_VERSION; the
-  browser tests' server pins the version the curated Matchup Intel notes were checked on,
-  docs/MATCHUP_INTEL.md, "What the browser tests pin"). The static sync reads the first version this
+  browser tests' server pins one, so Champion Lookup's numbers stay the same as Riot ships patches:
+  e2e/ddragon-version.ts). The static sync reads the first version this
   returns, so: unset, Data Dragon's newest, exactly as before; pinned, exactly the pin, once Data
   Dragon's own list confirms it has it; a pin that is not a version, or one Data Dragon does not list,
   throws as an unreachable Data Dragon does, never falling back to another version.

@@ -9,7 +9,7 @@ import { perAccountKey } from "@/components/account-storage";
 */
 
 export interface DeviceItem {
-  id: "matchup-intel" | "recent-champions" | "resource-favourites" | "card-preview";
+  id: "champion-lookup" | "recent-champions" | "resource-favourites" | "card-preview";
   /** What it is, in a few words. */
   label: string;
   /** Where it is used. */
@@ -33,25 +33,17 @@ const list = (raw: string): unknown[] => {
 const count = (n: number, one: string, many: string) => (n ? `${n} ${n === 1 ? one : many}` : null);
 
 export const DEVICE_ITEMS: readonly DeviceItem[] = [
-  {
-    id: "matchup-intel",
-    label: "Matchup Intel's champions and role",
-    where: "Matchup Intel",
-    base: "uniiverse.matchup-intel.v1",
-    perAccount: true,
-    describe: (raw) => {
-      try {
-        const v = JSON.parse(raw) as Record<string, unknown> | null;
-        return v && typeof v === "object" && Object.values(v).some((x) => x !== null && x !== undefined && x !== "" && !(Array.isArray(x) && x.length === 0)) ? "Remembered" : null;
-      } catch {
-        return null;
-      }
-    },
-  },
+  { id: "champion-lookup", label: "Champions looked up lately", where: "Champion Lookup", base: "uniiverse.champion-lookup.v1", perAccount: true, describe: (raw) => count(list(raw).length, "champion", "champions") },
   { id: "recent-champions", label: "Recent champions", where: "the champion pickers", base: "uniiverse_recent_champions", perAccount: true, describe: (raw) => count(list(raw).length, "champion", "champions") },
   { id: "resource-favourites", label: "Favourite resources", where: "Resources", base: "uniiverse.resources.favourites.v1", perAccount: false, describe: (raw) => count(list(raw).length, "site", "sites") },
   { id: "card-preview", label: "Card Studio's preview", where: "Card Studio on phones and tablets", base: "uniiverse.studio.preview", perAccount: false, describe: (raw) => (raw === "hidden" ? "Put away" : raw === "shown" ? "Shown" : null) },
 ];
+
+/**
+ * Keys this app wrote once and no longer reads, removed with everything else by "Clear all on this
+ * device": Matchup Intel's champions, role and haste (retired 23 Nov 2026 for Champion Lookup).
+ */
+export const RETIRED_BASES: readonly string[] = ["uniiverse.matchup-intel.v1"];
 
 /** The key an item lives under in this browser now (the signed-in account's, for a per-account item). */
 export function deviceKey(item: DeviceItem): string {
@@ -85,7 +77,7 @@ export function clearAllOnDevice(storage?: Pick<Storage, "removeItem" | "key" | 
     const keys: string[] = [];
     for (let i = 0; i < storage.length; i++) {
       const k = storage.key(i);
-      if (k && DEVICE_ITEMS.some((item) => k === item.base || k.startsWith(`${item.base}:`))) keys.push(k);
+      if (k && [...DEVICE_ITEMS.map((item) => item.base), ...RETIRED_BASES].some((base) => k === base || k.startsWith(`${base}:`))) keys.push(k);
     }
     for (const k of keys) storage.removeItem(k);
   } catch {

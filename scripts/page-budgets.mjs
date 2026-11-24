@@ -48,7 +48,7 @@ export const PAGES = {
   "p-history": { path: "/players/{player}/matches" },
   "p-accounts": { path: "/players/{player}/accounts" },
   me: { path: "/overview" },
-  intel: { path: "/resources/matchups" },
+  lookup: { path: "/lookup" },
   resources: { path: "/resources" },
   settings: { path: "/settings" },
   // S8a's audit of the pages stage 0 did not cover. `cookies`: a visitor without an account (the

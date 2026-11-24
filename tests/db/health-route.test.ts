@@ -5,7 +5,7 @@ import type { DbHandle } from "@/server/db/create";
 import type { Db } from "@/server/db/types";
 import * as schema from "@/server/db/schema";
 import { appSettings, auditEvents, dataRefreshStatus, patches, riotAccounts, staticDigests } from "@/server/db/schema";
-import { loadRiotAssets, loadRiotBuildData, StaticValidationError, STATIC_ATTEMPT_KEY, syncRiotAssets } from "@/server/riot/static/assets";
+import { ASSET_RULES_FORMAT, loadRiotAssets, loadRiotBuildData, StaticValidationError, STATIC_ATTEMPT_KEY, syncRiotAssets } from "@/server/riot/static/assets";
 import { invalidateAllCaches } from "@/server/observability/cache";
 import { patchSortKey } from "@/domain/patch";
 import { createPlayer, getOrCreateTeam } from "@/server/repositories/team";
@@ -23,7 +23,7 @@ import { formatDate, isoDay } from "@/lib/format";
 const state = vi.hoisted(() => ({ handle: null as unknown }));
 vi.mock("@/server/db/client", () => ({ getDbHandle: async () => state.handle }));
 import { GET } from "@/app/api/health/route";
-import { staticDiffHealth } from "@/server/matchup-intel/digests";
+import { staticDiffHealth } from "@/server/riot/static/digests";
 
 let handle: DbHandle;
 beforeAll(async () => {
@@ -315,9 +315,9 @@ describe("/api/health notices", () => {
       // The format-3 download passes validation: kept, Smite's charges apart, the attempt cleared, health ok.
       expect(await syncRiotAssets(db, v, good)).toBe(true);
       invalidateAllCaches();
-      expect(await loadRiotAssets(db)).toMatchObject({ version: v, format: 3 });
+      expect(await loadRiotAssets(db)).toMatchObject({ version: v, format: ASSET_RULES_FORMAT });
       const build = await loadRiotBuildData(db);
-      expect(build).toMatchObject({ version: v, format: 3, spellCooldowns: { "4": [300] }, spellCharges: { "11": 2 } });
+      expect(build).toMatchObject({ version: v, format: ASSET_RULES_FORMAT, spellCooldowns: { "4": [300] }, spellCharges: { "11": 2 } });
       expect(build?.spellCooldowns["11"]).toBeUndefined();
       expect(await db.select().from(appSettings).where(eq(appSettings.key, STATIC_ATTEMPT_KEY))).toEqual([]);
       const ok = (await (await GET()).json()) as Body;

@@ -12,3 +12,8 @@ export const fmtDuration = (s: number | null) => (s === null ? "—" : `${Math.f
 export const fmtNum = (v: number | null, digits = 1) => (v === null ? "—" : v.toFixed(digits));
 /** A whole count; "—" when unknown. */
 export const fmtInt = (v: number | null) => (v === null ? "—" : formatCount(v));
+/** A moment of a game as its clock shows it: "4:07" (whole seconds, never rounded up to the next minute). */
+export const gameClock = (ms: number) => {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+};

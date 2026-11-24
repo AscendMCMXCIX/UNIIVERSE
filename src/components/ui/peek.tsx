@@ -15,7 +15,8 @@ import { isTyping, modalOpen, useWindowPosture } from "./posture";
   - Wider screens: a panel docked at the right edge, over the page with a shadow and no dimming.
     The list stays live: another row switches the panel, ↑/↓ (or J/K) move the selection, and the
     selected row again, ✕, Escape or Back close it. A click outside does not close it, so scrolling,
-    selecting text or using the filters never loses it.
+    selecting text or using the filters never loses it; a consumer whose panel is a contextual detail
+    of its row (All Champions' champion, 23 Nov 2026) asks for `closeOnOutsidePress`.
   - Touch phones and short windows (posture.ts): the same content as a sheet from the bottom edge.
   - The item is in the page's address (`?player=`): the first open pushes one entry, switching
     replaces it, closing goes Back (address-item.ts), so Back closes it however many rows were seen.
@@ -41,6 +42,9 @@ export function peekKeyStep(key: string): -1 | 0 | 1 {
   if (key === "ArrowUp" || key === "k" || key === "K") return -1;
   return 0;
 }
+
+/** What a click may land on without closing a panel that closes on an outside press (see Peek's `closeOnOutsidePress`). */
+export const OUTSIDE_PRESS_IGNORED = "[data-peek-panel], [data-peek-row], dialog, [data-popover], [role=menu], [role=listbox], a[href]";
 
 /** How long the closing motion runs before the panel leaves the page (peek-out). */
 const EXIT_MS = 140;
@@ -197,7 +201,7 @@ export function usePeek({ param, ids, initial = null, valid: validProp }: { para
  * announcement); `children` is the item's content, the same in both forms. `actions`: links in the
  * header beside ‹ › (an "Open full profile").
  */
-export function Peek({ peek, title, itemKey, children, actions, hero, windowSize = "sheet", windowHeader, windowTitleId, testId = "peek", navTestIds, label }: {
+export function Peek({ peek, title, itemKey, children, actions, hero, windowSize = "sheet", windowHeader, windowTitleId, testId = "peek", navTestIds, label, closeOnOutsidePress = false }: {
   peek: PeekControl;
   title: string;
   itemKey: string | null;
@@ -215,6 +219,14 @@ export function Peek({ peek, title, itemKey, children, actions, hero, windowSize
   navTestIds?: { prev?: string; next?: string; close?: string };
   /** What the panel holds, for its name ("Player"); the title follows it. */
   label: string;
+  /**
+   * The docked panel also closes on a click outside it (the sheet is a window, closed by its own
+   * means). Not a click on a row (`data-peek-row`, which switches or closes it), inside a window or
+   * a popover above the page, on a link (which leaves the page; Back returns to it open), on the
+   * page's scrollbar, or one that ends a text selection. A click, not a press: a touch that starts a
+   * scroll never closes it.
+   */
+  closeOnOutsidePress?: boolean;
 }) {
   const windowed = useWindowPosture();
   const open = peek.id !== null && itemKey !== null;
@@ -242,6 +254,24 @@ export function Peek({ peek, title, itemKey, children, actions, hero, windowSize
   React.useEffect(() => {
     if (opened && fromKeyboard && !windowed) headingRef.current?.focus({ preventScroll: true });
   }, [opened, fromKeyboard, windowed, itemKey]);
+
+  const closeRef = React.useRef(peek.close);
+  React.useLayoutEffect(() => {
+    closeRef.current = peek.close;
+  });
+  const docked = opened && !windowed;
+  React.useEffect(() => {
+    if (!closeOnOutsidePress || !docked) return;
+    const onClick = (e: MouseEvent) => {
+      const t = e.target;
+      if (!(t instanceof Element) || !t.isConnected) return;
+      if (t === document.documentElement || t.closest(OUTSIDE_PRESS_IGNORED)) return;
+      if (window.getSelection()?.toString()) return;
+      closeRef.current();
+    };
+    document.addEventListener("click", onClick, true);
+    return () => document.removeEventListener("click", onClick, true);
+  }, [closeOnOutsidePress, docked]);
 
   const siblings: PreviewSiblings = { prev: peek.prev, next: peek.next, label, prevTestId: navTestIds?.prev ?? `${testId}-prev`, nextTestId: navTestIds?.next ?? `${testId}-next` };
   const nav = (
