@@ -142,15 +142,15 @@ test("the Team tab reopens the Team section last used, and tapped again on Team 
   await expect(tabBar(page).getByTestId("tab-team")).toHaveAttribute("href", "/matches");
 });
 
-test("the label ladder: whole names where the bar has room, then Profile and Lookup with the whole names read out, then the icons alone only at 200% (or 150% on 320px); Admin Mode's short names", async ({ page }) => {
+test("the label ladder: whole names from a 360px phone at 100% text, then Profile and Lookup with the whole names read out, then the icons alone at 200% (and 150% on 320 and 375px); Admin Mode's short names", async ({ page }) => {
   // The bar's width in rem decides (TAB_FIT): the root's size stands for the reader's text size.
   const steps = { full: ["My Profile", "Team", "Champion Lookup", "Resources"], short: ["Profile", "Team", "Lookup", "Resources"] } as const;
   const expected: Record<number, Record<number, keyof typeof steps | "icons">> = {
-    320: { 100: "full", 125: "short", 150: "icons", 200: "icons" },
-    375: { 100: "full", 125: "full", 150: "icons", 200: "icons" },
-    390: { 100: "full", 125: "full", 150: "short", 200: "icons" },
-    393: { 100: "full", 125: "full", 150: "short", 200: "icons" },
-    430: { 100: "full", 125: "full", 150: "short", 200: "icons" },
+    320: { 100: "short", 125: "short", 150: "icons", 200: "icons" },
+    375: { 100: "full", 125: "short", 150: "icons", 200: "icons" },
+    390: { 100: "full", 125: "short", 150: "short", 200: "icons" },
+    393: { 100: "full", 125: "short", 150: "short", 200: "icons" },
+    430: { 100: "full", 125: "short", 150: "short", 200: "icons" },
   };
   for (const [width, sizes] of Object.entries(expected)) {
     await page.setViewportSize({ width: Number(width), height: 800 });
@@ -186,14 +186,15 @@ test("the label ladder: whole names where the bar has room, then Profile and Loo
   }
 });
 
-test("Restricted Player (no Leaderboards): the same four destinations, Team's row holds the sections it may open, and on a 320px phone every name is whole", async ({ page, browser }) => {
+test("Restricted Player (no Leaderboards): the same four destinations, Team's row holds the sections it may open, and on a 320px phone every name is shown whole, by its short name where it has one", async ({ page, browser }) => {
   const member = await memberContext(browser, page, { width: 320, height: 568 }, { base: "Restricted" });
   await setBaseAccess(page, member.username, "Restricted Player");
   const phone = member.page;
   await phone.goto("/team");
   const bar = tabBar(phone);
   await expect(bar.getByRole("link")).toHaveText(["My Profile", "Team", "Champion Lookup", "Resources"]);
-  expect(await shownNames(bar)).toEqual(["My Profile", "Team", "Champion Lookup", "Resources"].map((text) => ({ text, shown: true, whole: true })));
+  // At 320px and 100% text the short names (the whole ones from a 360px phone), each read out in full.
+  expect(await shownNames(bar)).toEqual(["Profile", "Team", "Lookup", "Resources"].map((text) => ({ text, shown: true, whole: true })));
   await expect(phone.getByTestId("team-chrome-tabs").getByRole("link")).toHaveText(["Overview", "Players", "Matches"]);
   expect(await phone.evaluate(() => document.documentElement.scrollWidth), "the page within the phone").toBeLessThanOrEqual(320);
   // The account screen holds the account's items only: no page is in both.

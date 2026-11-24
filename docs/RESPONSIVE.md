@@ -630,7 +630,7 @@ the account screen over the dashboard at 200% on a 320px phone as well.
   (Team's width from 1600px, its filter row and cards at `--content-max`, left-aligned).
 - **Champion Lookup on one screen** (the owner's request of 23 Nov 2026, in Matchup Intel's place;
   docs/CHAMPION_LOOKUP.md): the page takes `--content-max`; its panel holds the champion, the haste
-  choice and the five abilities, each row laying its ranks out as columns from 36rem of its own width
+  choice and the five abilities, each row laying its ranks out as columns from 44rem of its own width (room for six ranks, never wrapping)
   (`@container/ab`) and as one line per kind below it. Any champion at any haste fits one viewport
   with no page scroll at 1440 × 900, 1920 × 1080, 1920 × 950 (the owner's window, the sidebar folded
   or open) and 1440 × 780 (the descriptions, folded by
