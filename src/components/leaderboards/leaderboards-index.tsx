@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { COMPACT_CONTROL, PageToolbar, useScrolledAway } from "@/components/ui/page-toolbar";
+import { PageToolbar, useScrolledAway } from "@/components/ui/page-toolbar";
+import { compactTabClass, subTabClass } from "@/components/ui/sub-tabs";
 import { SectionIndex, type SectionIndexItem } from "@/components/ui/section-index";
 import { cn } from "@/lib/cn";
 
@@ -20,9 +21,11 @@ import { cn } from "@/lib/cn";
   from the index under the header, where the row appears as the header goes up.
 */
 
-/** A chip of the index: 44px on touch screens (the phone's row), the pinned row's height from md. */
-const CHIP = "inline-flex shrink-0 items-center whitespace-nowrap rounded-full border px-3 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-accent";
-const chipLook = (on: boolean) => (on ? "border-accent bg-accent/15 text-fg" : "border-border bg-surface text-fg-muted hover:border-border-strong hover:text-fg");
+/*
+  An entry of the index: in-page navigation, so text-led as a section's views are (SubTabs), the
+  section being read underlined (Release 17: chips until then). 44px on the phone's row, the pinned
+  row's height from xl.
+*/
 
 /** The element with this id, once the page has mounted (a server-rendered header). */
 const noSubscribe = () => () => {};
@@ -149,14 +152,14 @@ export function LeaderboardsPinnedIndex({ anchorId, items, phoneItems }: { /** T
               together, the tab list scrolled under the index and a press on "Matches" landed on "Recent form" (Release 16); there
               the index under the header, at the page's top, is the way. */}
           <span className="contents max-xl:hidden">
-            <SectionIndex items={items} label="Leaderboards sections" testId="pinned-section-index" spy listClassName="flex-nowrap gap-x-1.5" separatorClassName="hidden" linkClassName={(on) => cn(CHIP, COMPACT_CONTROL, "touch-target", chipLook(on))} />
+            <SectionIndex items={items} label="Leaderboards sections" testId="pinned-section-index" spy listClassName="flex-nowrap gap-x-1.5" separatorClassName="hidden" linkClassName={(on) => compactTabClass(on, "shrink-0 px-2 text-xs")} />
           </span>
         </PageToolbar>
       ) : null}
       {/* Phones: under the top bar (fixed at its foot, so the page never moves), once the header has gone up under it. */}
       {away && foot ? (
         <div ref={setRow} className={cn("fixed inset-x-0 z-30 border-b border-border bg-bg/95 px-4 py-1 backdrop-blur-md transition-[top] duration-200 ease-out motion-safe:animate-[fade-in_160ms_var(--ease-emphasized)] motion-reduce:transition-none md:hidden short:hidden", !fits && "invisible")} style={{ top: foot }} aria-hidden={fits ? undefined : true} data-fits={fits ? "" : undefined} data-testid="leaderboards-chip-row">
-          <SectionIndex items={phoneItems} label="Leaderboards sections" testId="phone-section-index" spy listClassName="gap-x-2 gap-y-1" separatorClassName="hidden" linkClassName={(on) => cn(CHIP, "h-11 [scroll-margin-top:-100vh]", chipLook(on))} />
+          <SectionIndex items={phoneItems} label="Leaderboards sections" testId="phone-section-index" spy listClassName="gap-x-2 gap-y-1" separatorClassName="hidden" linkClassName={(on) => subTabClass(on, "min-h-11 shrink-0 px-2 text-xs [scroll-margin-top:-100vh]")} />
         </div>
       ) : null}
     </>

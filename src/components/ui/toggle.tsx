@@ -1,25 +1,11 @@
 import * as React from "react";
-import { cn } from "@/lib/cn";
+import { segmentClass } from "./segmented";
 
 /**
- * A selectable chip (role, mode, filter…): the one place that defines its look and
- * its touch size. 44px tall on phones, the compact desktop height from md up.
+ * A selectable chip (a role at setup): one of a few, so drawn as a segment (ui/segmented.tsx: the
+ * words, the chosen one semibold over the accent underline; a filled box until Release 17). 44px
+ * tall on touch screens, 36px with a mouse. `size="md"`: the body text size.
  */
-export function ToggleChip({ active, tone = "accent", size = "md", className, children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { active: boolean; tone?: "accent" | "blue" | "red"; size?: "sm" | "md" }) {
-  const activeTone = { accent: "border-accent bg-accent/10 text-accent-strong", blue: "border-blue bg-blue/15 text-blue", red: "border-red bg-red/15 text-red" }[tone];
-  return (
-    <button
-      type="button"
-      aria-pressed={active}
-      className={cn(
-        "inline-flex items-center justify-center gap-1.5 rounded-md border transition-colors disabled:opacity-30 focus-visible:outline-2 focus-visible:outline-accent",
-        size === "sm" ? "min-h-11 px-2.5 text-xs md:min-h-0 md:h-8" : "min-h-11 px-3 text-sm md:min-h-0 md:h-9",
-        active ? activeTone : "border-border bg-bg-elevated text-fg-muted hover:text-fg",
-        className,
-      )}
-      {...props}
-    >
-      {children}
-    </button>
-  );
+export function ToggleChip({ active, size = "sm", className, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { active: boolean; size?: "sm" | "md" }) {
+  return <button type="button" aria-pressed={active} className={segmentClass(active, { size, disabled: props.disabled ?? undefined, className })} {...props} />;
 }
