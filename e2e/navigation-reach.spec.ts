@@ -209,6 +209,9 @@ test("tablet and desktop: Team's sections stay in reach as a long page scrolls, 
       const show = page.getByTestId(id).getByRole("button");
       if (await show.isVisible()) await show.click();
     }
+    // A click can scroll its button into view: back to the top, the tabs at rest.
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
   }
   const tabs = page.getByTestId("team-tabs");
   const resting = await rect(tabs);
