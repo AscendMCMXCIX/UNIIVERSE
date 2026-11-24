@@ -476,14 +476,16 @@ test("a 320px phone at 200% text: the open game, its three headings, the scorebo
   await cdp.send("Page.setFontSizes", { fontSizes: { standard: 32, fixed: 26 } });
   await openHistory(page, "MID");
   const { breakdown } = await openGameWithTimeline(page, true);
-  /** Sideways scroll anywhere, an element cut off by a box that clips it (text ending in its own ellipsis and a segmented group's own scroll aside), and ranks shortened. */
+  /** Sideways scroll anywhere, an element cut off by a box that clips it (text ending in its own ellipsis, a segmented group's own scroll and the build path's sideways row aside), and ranks shortened. */
   const faults = () =>
     page.evaluate(() => {
       const out: string[] = [];
       if (document.documentElement.scrollWidth > innerWidth + 1) out.push(`page ${document.documentElement.scrollWidth - innerWidth}px wider`);
       for (const el of document.querySelectorAll("[data-testid=match-breakdown] *")) {
         const b = el.getBoundingClientRect();
-        if (!b.width || el.closest(".sr-only") || el.closest("[role=radiogroup]")) continue;
+        // The build path's own sideways row (its ends fade where it hides more) is held to the screen
+        // below as a whole; what it scrolls to is reached by scrolling, never cut.
+        if (!b.width || el.closest(".sr-only") || el.closest("[role=radiogroup]") || el.parentElement?.closest("[data-testid=build-row]")) continue;
         if (b.right > innerWidth + 1 && !el.parentElement?.closest(".truncate")) out.push(`${el.tagName.toLowerCase()}[${el.getAttribute("data-testid") ?? ""}] past the screen`);
         let p = el.parentElement;
         while (p && !/(hidden|clip|auto|scroll)/.test(getComputedStyle(p).overflowX)) p = p.parentElement;
