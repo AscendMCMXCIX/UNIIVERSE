@@ -534,7 +534,7 @@ function SheetDone() {
 }
 
 /** A narrowed filter: a small pill with a finger-sized target, beside the folded Filters button on phones and in a profile section's toolbar row from md (OverviewFilters). */
-export const FILTER_CHIP = "touch-target inline-flex h-8 items-center gap-1 whitespace-nowrap rounded-full border border-accent/40 bg-accent/10 px-2.5 text-xs font-medium text-fg hover:border-accent/70";
+export const FILTER_CHIP = "touch-target inline-flex h-8 items-center gap-1 whitespace-nowrap rounded-full border border-accent/60 bg-accent/10 px-2.5 text-xs font-medium text-fg hover:border-accent";
 
 /**
  * The look of a button in a page's toolbar beside the filters (Refine, Refresh): the height of the

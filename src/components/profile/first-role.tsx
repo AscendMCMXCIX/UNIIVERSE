@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { ROLES, ROLE_LABELS, type Role } from "@/domain/roles";
 import { RoleIcon } from "@/components/role-icon";
 import { saveProfilePatchAction } from "@/server/actions/players";
-import { segmentClass, segmentedGroupClass } from "@/components/ui/segmented";
+import { buttonClass } from "@/components/ui/button";
 import { toast } from "@/components/ui/toast";
 
 /**
@@ -30,9 +30,9 @@ export function FirstRole({ playerId, name, self, editable }: { playerId: string
           <p className="text-xs font-medium text-fg-subtle" id={`first-role-${playerId}`}>
             Choose the Primary Role to start
           </p>
-          <div role="group" aria-labelledby={`first-role-${playerId}`} className={segmentedGroupClass()} data-testid="first-role">
+          <div role="group" aria-labelledby={`first-role-${playerId}`} className="flex flex-wrap gap-2" data-testid="first-role">
             {ROLES.map((r) => (
-              <button key={r} type="button" disabled={pending} onClick={() => choose(r)} className={segmentClass(false)} data-testid={`first-role-${r}`}>
+              <button key={r} type="button" disabled={pending} onClick={() => choose(r)} className={buttonClass("outline", "md", "gap-2 disabled:cursor-not-allowed disabled:opacity-50")} data-testid={`first-role-${r}`}>
                 <RoleIcon role={r} className="h-3.5 w-3.5" /> {ROLE_LABELS[r]}
               </button>
             ))}

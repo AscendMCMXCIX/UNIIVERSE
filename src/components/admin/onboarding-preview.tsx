@@ -16,6 +16,7 @@ import type { SetupValues } from "@/components/auth/setup-form";
 import { LoginCard } from "@/app/login/login-card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
+import { segmentClass } from "@/components/ui/segmented";
 import { ONBOARDING_STEPS, PREVIEW_ACCOUNT, type OnboardingStep } from "./onboarding-steps";
 import { useBrandNames } from "@/components/brand-names";
 
@@ -87,7 +88,7 @@ export function OnboardingPreview({ branding, champions, initialStep }: { brandi
               type="button"
               onClick={() => setStep(s.key)}
               aria-current={step === s.key ? "step" : undefined}
-              className={cn("inline-flex min-h-8 items-center gap-1 rounded-full px-2.5 py-1 pointer-coarse:min-h-11", step === s.key ? "bg-accent/15 font-medium text-accent" : "text-fg-muted hover:text-fg")}
+              className={segmentClass(step === s.key, { className: "gap-1" })}
               data-testid={`preview-step-${s.key}`}
             >
               {i < index ? <Check className="h-3 w-3" aria-hidden /> : <span aria-hidden>{i + 1}.</span>} {s.label}
@@ -113,7 +114,7 @@ export function OnboardingPreview({ branding, champions, initialStep }: { brandi
               { v: true, label: "Team member" },
               { v: false, label: "Personal use" },
             ].map((o) => (
-              <button key={o.label} type="button" role="radio" aria-checked={teamMember === o.v} onClick={() => setTeamMember(o.v)} className={cn("min-h-7 rounded-full border px-2.5 pointer-coarse:min-h-11", teamMember === o.v ? "border-accent/60 bg-accent/10 text-fg" : "border-border hover:text-fg")} data-testid={`preview-kind-${o.v ? "team" : "personal"}`}>
+              <button key={o.label} type="button" role="radio" aria-checked={teamMember === o.v} onClick={() => setTeamMember(o.v)} className={segmentClass(teamMember === o.v)} data-testid={`preview-kind-${o.v ? "team" : "personal"}`}>
                 {o.label}
               </button>
             ))}

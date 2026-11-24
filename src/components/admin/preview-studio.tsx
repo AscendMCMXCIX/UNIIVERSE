@@ -44,7 +44,8 @@ export function PreviewStudio() {
 
   return (
     <section className="space-y-3 rounded-card border border-border bg-surface p-3 sm:p-4" data-testid="preview-studio">
-      <div className="flex flex-wrap items-center gap-2">
+      {/* The two choices and the actions apart (24px), so the words of one group never read as the next's. */}
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
         <div role="radiogroup" aria-label="Page" className={segmentedGroupClass("flex-wrap overflow-visible")}>
           {SCREENS.map((s) => (
             <button key={s.key} type="button" role="radio" aria-checked={screen === s.key} onClick={() => setScreen(s.key)} className={segmentClass(screen === s.key, { size: "md", className: "max-sm:max-w-full max-sm:whitespace-normal max-sm:text-center" })} data-testid={`preview-screen-${s.key}`}>
@@ -61,10 +62,10 @@ export function PreviewStudio() {
         </div>
         {/* Rotate and Reset wrap together, in the segments' 14px type (G4-15); at a large text size on a narrow screen they stack rather than run off it. */}
         <span className="flex min-w-0 flex-wrap items-center gap-2" data-testid="preview-actions">
-          <Button variant="ghost" className="max-sm:px-2.5" onClick={() => setLandscape((v) => !v)} aria-pressed={landscape} data-testid="preview-rotate">
+          <Button variant="outline" className="max-sm:px-2.5" onClick={() => setLandscape((v) => !v)} aria-pressed={landscape} data-testid="preview-rotate">
             <RotateCw className="h-4 w-4" /> Rotate
           </Button>
-          <Button variant="ghost" className="max-sm:px-2.5" onClick={() => setReload((n) => n + 1)}>
+          <Button variant="outline" className="max-sm:px-2.5" onClick={() => setReload((n) => n + 1)}>
             Reset
           </Button>
         </span>
@@ -73,7 +74,7 @@ export function PreviewStudio() {
         </a>
       </div>
       <p className="text-sm text-fg-subtle">
-        {w} × {h} px{scale < 1 ? ` · shown at ${Math.round(scale * 100)}% to fit` : ""}. The page inside works as for a real visitor; anything typed or chosen stays here.
+        {w} × {h} px{scale < 1 ? ` · shown at ${Math.round(scale * 100)}% to fit` : ""}
       </p>
       <div ref={box} className="w-full overflow-hidden">
         <div className="mx-auto overflow-hidden rounded-panel border border-border-strong bg-bg shadow-lg" style={{ width: w * scale, height: h * scale }}>

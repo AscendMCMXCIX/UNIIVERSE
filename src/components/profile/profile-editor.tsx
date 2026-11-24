@@ -17,6 +17,7 @@ import { InfoTip } from "@/components/ui/info-tip";
 import { PhoneFoldToggle, usePhoneFold } from "@/components/ui/phone-fold";
 import { PHONE_HIDDEN } from "@/components/ui/phone-fold-classes";
 import { cn } from "@/lib/cn";
+import { segmentClass, segmentedGroupClass } from "@/components/ui/segmented";
 import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateTone } from "@/domain/stats/win-rate";
 import { moveRolePatch, roleOrder, useProfileAutosave, type ProfileState } from "./use-profile-autosave";
 import { formatCompactCount } from "@/lib/format";
@@ -44,7 +45,7 @@ export function RolePicker({
     <div
       role="radiogroup"
       aria-label={label}
-      className="flex flex-wrap gap-1.5"
+      className={segmentedGroupClass("flex-wrap overflow-visible")}
     >
       {allowNone ? (
         <button
@@ -53,12 +54,7 @@ export function RolePicker({
           aria-checked={value === null}
           disabled={disabled}
           onClick={() => onChange(null)}
-          className={cn(
-            "min-h-11 rounded-lg border px-3 text-sm transition-colors md:min-h-9",
-            value === null
-              ? "border-accent bg-accent/10 text-fg"
-              : "border-border text-fg-muted hover:border-border-strong hover:text-fg",
-          )}
+          className={segmentClass(value === null, { size: "md", disabled })}
         >
           None
         </button>
@@ -71,12 +67,7 @@ export function RolePicker({
           aria-checked={value === r}
           disabled={disabled || excluded(r)}
           onClick={() => onChange(r)}
-          className={cn(
-            "inline-flex min-h-11 items-center gap-2 rounded-lg border px-3 text-sm transition-colors disabled:opacity-35 md:min-h-9",
-            value === r
-              ? "border-accent bg-accent/10 text-fg"
-              : "border-border text-fg-muted hover:border-border-strong hover:text-fg",
-          )}
+          className={segmentClass(value === r, { size: "md", disabled: disabled || excluded(r), className: "gap-2" })}
         >
           <RoleIcon
             role={r}

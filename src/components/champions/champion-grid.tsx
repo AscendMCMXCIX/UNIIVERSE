@@ -8,6 +8,7 @@ import { perAccountKey } from "@/components/account-storage";
 import { ChampionPortrait } from "@/components/champion-portrait";
 import { RoleIcon } from "@/components/role-icon";
 import { cn } from "@/lib/cn";
+import { segmentClass, segmentedGroupClass } from "@/components/ui/segmented";
 import { deviceBase } from "@/components/device-storage";
 
 export type RoleFilter = Role | "ALL";
@@ -16,7 +17,7 @@ export type RoleFilter = Role | "ALL";
 export function RoleFilterBar({ value, onChange, className }: { value: RoleFilter; onChange: (v: RoleFilter) => void; className?: string }) {
   const options: RoleFilter[] = ["ALL", ...ROLES];
   return (
-    <div role="group" aria-label="Filter by role" className={cn("flex items-center gap-0.5 rounded-lg border border-border bg-bg-elevated p-0.5", className)}>
+    <div role="group" aria-label="Filter by role" className={segmentedGroupClass(className)}>
       {options.map((o) => {
         const active = value === o;
         return (
@@ -26,7 +27,7 @@ export function RoleFilterBar({ value, onChange, className }: { value: RoleFilte
             aria-pressed={active}
             onClick={() => onChange(o)}
             title={o === "ALL" ? "All roles" : ROLE_LABELS[o]}
-            className={cn("grid h-9 min-w-9 place-items-center rounded-md px-2 text-xs font-semibold transition-colors pointer-coarse:h-11 pointer-coarse:min-w-11", active ? "bg-accent/15 text-accent" : "text-fg-muted hover:bg-surface-2 hover:text-fg")}
+            className={segmentClass(active, { className: "min-w-9 px-2 pointer-coarse:min-w-11" })}
           >
             {o === "ALL" ? "All" : <RoleIcon role={o} className="h-[18px] w-[18px]" decorative />}
             <span className="sr-only">{o === "ALL" ? "All roles" : ROLE_LABELS[o]}</span>

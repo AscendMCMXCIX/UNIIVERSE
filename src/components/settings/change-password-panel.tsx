@@ -79,7 +79,7 @@ function SignOutOtherDevices() {
   const [busy, setBusy] = React.useState(false);
   return (
     <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-4" data-testid="sign-out-other-devices">
-      <p className="min-w-0 text-sm text-fg-muted">Signed in somewhere you no longer use? Sign out everywhere else; this device stays signed in.</p>
+      <p className="min-w-0 text-sm text-fg-muted">This device stays signed in.</p>
       <Button variant="outline" wrap className={LONG_LABEL} onClick={() => setOpen(true)}>
         Sign out of other devices
       </Button>
