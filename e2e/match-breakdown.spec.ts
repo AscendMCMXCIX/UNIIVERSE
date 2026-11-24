@@ -350,6 +350,22 @@ test("Build Path, Skill Order and Runes above the lane: purchases with their tim
   const times = await visits.evaluateAll((els) => els.map((e) => e.textContent!.match(/(\d+):(\d\d)$/)!).map((m) => Number(m[1]) * 60 + Number(m[2])));
   expect(times).toEqual([...times].sort((a, b) => a - b));
   expect(times[0]).toBeLessThan(60);
+  // One row in game order, however long the game: every visit on the same line, the row scrolling
+  // sideways (and focusable) where it is wider than the panel. Wrapped, a real game's twenty visits
+  // took 180px (24 Nov 2026).
+  const tops = await visits.evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().top)));
+  expect(new Set(tops).size, "the shop visits share one row").toBe(1);
+  const row = panels.getByTestId("build-row");
+  await expect(row).toHaveAttribute("tabindex", "0");
+  const added = await row.evaluate((el) => {
+    // Twenty more visits, as a long real game has: the row grows no taller and scrolls instead.
+    const before = el.getBoundingClientRect().height;
+    const list = el.querySelector("ol")!;
+    for (let i = 0; i < 20; i++) list.append(list.lastElementChild!.cloneNode(true));
+    return { before, after: el.getBoundingClientRect().height, scrolls: el.scrollWidth > el.clientWidth };
+  });
+  expect(added.after).toBe(added.before);
+  expect(added.scrolls).toBe(true);
   await expect(panels.getByTestId("build-legend")).toContainText("Undone purchases are left out.");
   // The skill order: Q, W, E and R by level, one point a level.
   await panels.getByTestId("panel-skills").click();

@@ -9,6 +9,7 @@ import { segmentClass, segmentedGroupClass } from "@/components/ui/segmented";
 import { cn } from "@/lib/cn";
 import { IconImg } from "./icon-img";
 import { gameClock } from "./match-format";
+import { useScrollEdges } from "@/components/ui/scroll-row";
 
 /*
   Build Path | Skill Order | Runes: three segmented headings above the lane, for the player being
@@ -42,12 +43,27 @@ function timelineWords(result: MatchTimelineResult | null, entry: TimelinePlayer
   return null;
 }
 
+/** The build path's sideways row: the ends fade where more is hidden (useScrollEdges), a thin scrollbar for a mouse, and the arrow keys once focused. */
+function BuildRow({ children }: { children: React.ReactNode }) {
+  const ref = React.useRef<HTMLDivElement>(null);
+  useScrollEdges(ref);
+  return (
+    <div ref={ref} className="scroll-fade-x overflow-x-auto overflow-y-hidden overscroll-x-contain [scrollbar-width:thin] focus-visible:outline-2 focus-visible:outline-accent" tabIndex={0} role="region" aria-label="Build path, in game order" data-testid="build-row">
+      {children}
+    </div>
+  );
+}
+
 function BuildPath({ entry, sales, kinds, items }: { entry: TimelinePlayerView; sales: boolean; kinds: boolean; items: Record<string, { name: string; url: string | null }> }) {
   if (!entry.path.length) return <Unavailable>No purchases recorded for this player.</Unavailable>;
   const visits = shopVisits(entry.path.map((x) => ({ ...x, name: items[String(x.id)]?.name ?? `Item ${x.id}`, url: items[String(x.id)]?.url ?? null })));
   return (
     <div className="space-y-1.5">
-      <ol className="flex flex-wrap items-start gap-x-0.5 gap-y-1.5" aria-label="Purchases and sales, in order" data-testid="build-path">
+      {/* One row in game order, scrolling sideways (its ends fade where it hides more; by keyboard
+          too), so a long game's twenty shop visits never stack into rows: wrapped, a real game's path
+          took 180px and ran the 1440 × 900 post-game view past the screen (24 Nov 2026). */}
+      <BuildRow>
+        <ol className="flex w-max items-start gap-x-0.5 pb-1" aria-label="Purchases and sales, in order" data-testid="build-path">
         {visits.map((visit, i) => (
           <li key={i} className="flex items-start gap-0.5" data-testid="build-visit">
             <span className="flex flex-col items-center gap-0.5">
@@ -76,7 +92,8 @@ function BuildPath({ entry, sales, kinds, items }: { entry: TimelinePlayerView; 
             {i < visits.length - 1 ? <ChevronRight className="mt-2 h-3 w-3 shrink-0 text-fg-subtle/70" aria-hidden /> : null}
           </li>
         ))}
-      </ol>
+        </ol>
+      </BuildRow>
       <p className="text-2xs text-fg-subtle" data-testid="build-legend">
         {kinds ? "Ringed: completed item. Smaller: consumables and wards. " : ""}
         {sales ? "Faded with −: sold. " : "Sales were not recorded for this game. "}
