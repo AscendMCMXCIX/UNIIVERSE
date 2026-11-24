@@ -218,7 +218,8 @@ test("tablet and desktop: Team's sections stay in reach as a long page scrolls, 
   // At rest the bar is part of the page: no ink of its own.
   await expect(tabs).not.toHaveAttribute("data-stuck", /.*/);
   const ink = () => tabs.evaluate((el) => getComputedStyle(el).backgroundColor);
-  expect(await ink()).toBe("rgba(0, 0, 0, 0)");
+  // Polled: opening the boards can pin the row, and its ink fades out over 150ms (sticky-tabs).
+  await expect.poll(ink).toBe("rgba(0, 0, 0, 0)");
   await page.evaluate(() => window.scrollTo(0, 1200));
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(400);
   // Pinned at the top of the page: under the tablet's top bar, at the window's edge beside the
