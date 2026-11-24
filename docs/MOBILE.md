@@ -68,12 +68,14 @@ posture", below):
    A teammate's profile belongs to Team (its Players), your own profile's sections to My Profile.
    - **The label ladder** (`TAB_FIT` in `mobile-nav.tsx`, a container query in rem on the bar, so
      the reader's text size counts and the bar is never wider than the phone): the whole names where
-     they fit (Player Mode's four need 17.77rem since Champion Lookup took Matchup Intel's place, 23
-     Nov 2026; 16.28rem before); then the short ones, "Profile" and "Lookup", the rest of each name
-     read out only (15.50rem); then the icons alone, each name read out. A 320px phone has 20rem at
-     100% text, 16rem at 125%, 13.3rem at 150%: so Player Mode shows the whole names at 100% on every
-     phone and at 125% from 375px, the short names at 125% on 320px and at 150% from 390px, and the
-     icons alone at 200%, and at 150% on 320 and 375px phones (before navigation N1, the five lost
+     there is room to read them apart: from 22.5rem, a 360px phone at 100% text (Player Mode's four
+     need 17.77rem since Champion Lookup took Matchup Intel's place, 23 Nov 2026, but at 320px
+     "Champion Lookup" stood 4px from "Resources": the review of Release 16); then the short ones,
+     "Profile" and "Lookup", the rest of each name read out only (15.50rem); then the icons alone,
+     each name read out. A 320px phone has 20rem at 100% text, 16rem at 125%, 13.3rem at 150%: so
+     Player Mode shows the whole names at 100% from 375px, the short names at 100% on 320px, at 125%
+     on every phone and at 150% from 390px, and the icons alone at 200%, and at 150% on 320 and
+     375px phones (before navigation N1, the five lost
      every label at 125% on 320–393px phones). Admin Mode's phone bars keep the short
      names, "Users" and "Platform" (14.63rem), at every width: shown whole, "Platform Settings" would
      put a second "Settings" on the phone beside the account's own. Each name is written once (the

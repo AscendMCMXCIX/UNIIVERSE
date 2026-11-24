@@ -264,6 +264,11 @@ test("the address: a name in any case opens its champion and is written back as 
 
 test("Matchup Intel's old links land on Champion Lookup, carrying one champion: the enemy where named", async ({ page }, info) => {
   test.skip(!isDesktop(info.project.name), "once");
+  // One HTTP 308 from the proxy, before any page renders (no streamed client-side redirect).
+  const first = await page.request.get("/resources/matchups?champion=Riven&vs=Mordekaiser", { maxRedirects: 0 });
+  expect(first.status()).toBe(308);
+  const to = new URL(first.headers()["location"]!, "http://x");
+  expect(to.pathname + to.search).toBe("/lookup?champion=Mordekaiser");
   for (const [old, want] of [
     ["/resources/matchups?champion=Riven&vs=Mordekaiser", "/lookup?champion=Mordekaiser"],
     ["/resources/matchups?role=top&champion=Riven", "/lookup?champion=Riven"],
@@ -303,6 +308,55 @@ test("one screen for any champion at any haste: 1440 × 900, 1920 × 1080, and t
       expect(fit.over, where).toBeLessThanOrEqual(1);
       expect(fit.haste, `${where}: the haste choice on the screen`).toBeLessThanOrEqual(size.height);
       expect(fit.rule, `${where}: the five abilities and the rule's line on the screen`).toBeLessThanOrEqual(size.height);
+    }
+  }
+});
+
+test("the ranks never wrap: in columns each rank's value sits in its own column under its heading, on one line; in the line form each kind's ranks keep one line, from 640px to 1280px with the sidebar open and folded", async ({ page, context, baseURL }, info) => {
+  test.skip(!isDesktop(info.project.name), "the desktop project, every width set here");
+  // The review of Release 16 found rank 5 wrapping under rank 1 where the panel was about 36–45rem
+  // wide ("9 / 5" read as Fox-Fire's rank 1): the columns now start where six ranks fit (44rem, Udyr's).
+  const sizes: Array<[number, boolean]> = [[640, false], [700, false], [768, false], [834, false], [1024, false], [1024, true], [1100, false], [1280, false], [1280, true]];
+  for (const [width, folded] of sizes) {
+    await context.clearCookies({ name: "uniiverse_sidebar" });
+    if (folded) await context.addCookies([{ name: "uniiverse_sidebar", value: "collapsed", url: baseURL! }]);
+    await page.setViewportSize({ width, height: 900 });
+    for (const champion of ["Ahri", "Udyr"]) {
+      await page.goto(`/lookup?champion=${champion}&haste=20`);
+      await expect(page.getByTestId("lookup-ability")).toHaveCount(5);
+      const where = `${champion} at ${width}px${folded ? ", the sidebar folded" : ""}`;
+      const m = await page.evaluate(() => {
+        const heading = document.querySelector<HTMLElement>('[data-testid="lookup-abilities"] > [aria-hidden] > div')!;
+        const columns = getComputedStyle(heading).display !== "none";
+        const ranksOf = (el: Element) => [...el.querySelectorAll<HTMLElement>(":scope > span:not([aria-hidden])")].map((c) => c.getBoundingClientRect());
+        const rows = [...document.querySelectorAll('[data-testid="lookup-ability"][data-cooldown="per-rank"]')].map((r) => {
+          const base = ranksOf(r.querySelector('[data-testid="lookup-base"]')!);
+          const hasted = ranksOf(r.querySelector('[data-testid="lookup-hasted"]')!);
+          const oneLine = (cells: DOMRect[]) => cells.every((c) => Math.abs(c.top - cells[0]!.top) <= 2);
+          const leftToRight = (cells: DOMRect[]) => cells.every((c, i) => i === 0 || c.left > cells[i - 1]!.right - 1);
+          return {
+            slot: r.getAttribute("data-slot"),
+            ranks: base.length,
+            oneLine: oneLine(base) && oneLine(hasted),
+            leftToRight: leftToRight(base) && leftToRight(hasted),
+            // In columns, each rank's base and hasted values share their column.
+            aligned: base.every((c, i) => Math.abs(c.right - hasted[i]!.right) <= 1),
+            rights: base.map((c) => Math.round(c.right)),
+          };
+        });
+        const heads = [...heading.querySelectorAll<HTMLElement>("span.label-caps:last-child > span")].map((h) => h.getBoundingClientRect());
+        return { columns, rows, headsOneLine: heads.every((h) => Math.abs(h.top - heads[0]!.top) <= 2), headRights: heads.map((h) => Math.round(h.right)) };
+      });
+      for (const r of m.rows) {
+        expect(r.oneLine, `${where}: ${r.slot}'s ranks on one line each (${m.columns ? "columns" : "the line form"})`).toBe(true);
+        expect(r.leftToRight, `${where}: ${r.slot}'s ranks left to right`).toBe(true);
+        if (m.columns) {
+          expect(r.aligned, `${where}: ${r.slot}'s base and hasted values in the same columns`).toBe(true);
+          // Under the heading's ranks: each value's right edge at its rank's.
+          r.rights.forEach((right, i) => expect(Math.abs(right - m.headRights[i]!), `${where}: ${r.slot}'s rank ${i + 1} under its heading`).toBeLessThanOrEqual(1));
+        }
+      }
+      if (m.columns) expect(m.headsOneLine, `${where}: the heading's ranks on one line`).toBe(true);
     }
   }
 });

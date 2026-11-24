@@ -580,12 +580,14 @@ function onSignOut() {
  * for Champion Lookup's names on 23 Nov 2026 (1.49rem wider whole than "Matchup Intel", 1.04rem
  * short than "Intel"): Player Mode's four need 17.77rem with their whole names (My Profile, Team,
  * Champion Lookup, Resources) and 15.50rem short (Profile, Lookup); Admin Mode's four 14.63rem short
- * (Dashboard, Users, Platform, System). Admin Mode's phone bars keep the short names at every width (its whole names, 21.02rem,
+ * (Dashboard, Users, Platform, System). The whole names show only from 22.5rem, a 360px phone at
+ * 100% text, though they fit from 17.8rem: at 320px "Champion Lookup" (105px) stood 4px from
+ * "Resources", too close to read as two (the review of Release 16), so the short ones take over there. Admin Mode's phone bars keep the short names at every width (its whole names, 21.02rem,
  * read out): "Platform Settings" shown in full would put a second "Settings" on the phone beside the
  * account's own (docs/MOBILE.md, the account screen). A 320px phone's bar is 20rem at 100% text, 16rem
  * at 125%, 13.3rem at 150% and 10rem at 200%; 375px 23.4, 18.8, 15.6 and 11.7; 393px 24.6, 19.7, 16.4
- * and 12.3; 430px 26.9, 21.5, 17.9 and 13.4. So Player Mode shows the whole names at 100% everywhere
- * and at 125% from 375px, the short names at 125% on 320px and at 150% from 390px, and the icons
+ * and 12.3; 430px 26.9, 21.5, 17.9 and 13.4. So Player Mode shows the whole names at 100% from 375px,
+ * the short names at 100% on 320px, at 125% on every phone and at 150% from 390px, and the icons
  * alone at 200%, and at 150% on 320 and 375px (e2e/mobile-nav.spec.ts, the label ladder).
  */
 const TAB_FIT = {
@@ -593,7 +595,7 @@ const TAB_FIT = {
     li: "@max-[15.85rem]/tabbar:min-w-0",
     link: "@max-[15.85rem]/tabbar:px-0.5",
     pill: "@max-[15.85rem]/tabbar:w-full @max-[15.85rem]/tabbar:max-w-12",
-    rest: "@max-[18.1rem]/tabbar:sr-only",
+    rest: "@max-[22.5rem]/tabbar:sr-only",
     label: "@max-[15.85rem]/tabbar:sr-only",
   },
   admin: {

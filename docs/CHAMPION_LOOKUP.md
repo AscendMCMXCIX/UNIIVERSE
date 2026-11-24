@@ -30,7 +30,7 @@ which live in a champion's window under All Champions ([MATCHUPS.md](MATCHUPS.md
   haste), Riot's general rule, applied only where Riot's data gives the cooldown. Ultimate haste
   isn't counted."
 - **Layout.** At `--content-max`, centred like every page. Each ability row measures itself
-  (`@container/ab`): from 36rem the name has its own column and the ranks line up as columns under
+  (`@container/ab`): from 44rem (the icon, the name's 9rem, the kind's 6rem label and six 4rem ranks, Udyr's, with their gaps: 43.5rem) the name has its own column and the ranks line up as columns under
   the "Cooldown, s · Rank 1 2 3 4 5" heading; narrower (a phone, and 200% text), the cooldown goes
   under the name as one line per kind, "7 / 7 / 7 / 7 / 7 s", wrapping between ranks only. Nothing
   scrolls inside the page and nothing is wider than the screen from 320px up. The whole page fits
