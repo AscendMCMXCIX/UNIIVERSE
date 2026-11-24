@@ -5,8 +5,13 @@
   1080, read in the page and judged apart from the browser
   so a unit test can hand it any state (src/server/ops/live-check-one-screen.test.ts).
 
+  Leaderboards' names whole as well (the review's M4, with the team's real names): no word drawn
+  across two lines, and each of Multikills' most-of-each tiles on one line (cut short with an
+  ellipsis where the names run long, the whole names in its title).
+
   Read in the page only: positions in px, counts, true or false and the Show all's own words with
-  their counts ("Show all 9 · 6 more"). No name, no address and no id leaves it.
+  their counts ("Show all 9 · 6 more"). No name, no address and no id leaves it: a broken word is
+  counted, never quoted.
 */
 
 /** The sections each page promises on its first screen, in reading order: [test id, what the report calls it]. */
@@ -34,9 +39,15 @@ const OVERVIEWS = {
   profile: [["primary-pool", "pool-item", "primary-pool-fold"]],
 };
 
+/** Where the names are read whole (the words of every text drawn in it), and the tiles held to one line: leaderboards only. */
+const WHOLE = {
+  leaderboards: { root: "leaderboards", tiles: "[data-testid=records-multikills] [data-testid=multikill-most-holders]" },
+  profile: null,
+};
+
 /** The page as it is drawn (self-contained, for evaluate): each section's box, and each overview's rows shown and in all. */
 export function readOneScreen(input) {
-  const { sections, overviews } = input;
+  const { sections, overviews, whole } = input;
   const shown = (el) => !!el && el.getBoundingClientRect().height > 0 && getComputedStyle(el).visibility !== "hidden";
   const boxes = sections.map(([id]) => {
     const el = document.querySelector(`[data-testid=${id}]`);
@@ -51,11 +62,29 @@ export function readOneScreen(input) {
     const toggle = document.querySelector(`[data-testid=${button}]`);
     return { board, present: true, total: rows.length, shown: rows.filter(shown).length, button: shown(toggle), words: shown(toggle) ? (toggle.innerText ?? "").replace(/\s+/g, " ").trim() : null };
   });
-  return { window: innerHeight, width: innerWidth, height: document.documentElement.scrollHeight, boxes, folds };
+  let words = null;
+  const root = whole && document.querySelector(`[data-testid=${whole.root}]`);
+  if (root) {
+    // Each word of every text node, by the lines its boxes take (truncated text takes one).
+    let broken = 0;
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    const range = document.createRange();
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+      for (const m of (n.textContent ?? "").matchAll(/\S+/g)) {
+        range.setStart(n, m.index);
+        range.setEnd(n, m.index + m[0].length);
+        if (new Set([...range.getClientRects()].filter((r) => r.width > 0).map((r) => Math.round(r.top))).size > 1) broken++;
+      }
+    }
+    const tiles = [...document.querySelectorAll(whole.tiles)].filter(shown);
+    const oneLine = tiles.filter((t) => Math.round(t.getBoundingClientRect().height / parseFloat(getComputedStyle(t).lineHeight)) <= 1 && t.getAttribute("title") === t.textContent).length;
+    words = { broken, tiles: tiles.length, oneLine };
+  }
+  return { window: innerHeight, width: innerWidth, height: document.documentElement.scrollHeight, boxes, folds, words };
 }
 
 /** The input readOneScreen takes for a page. */
-export const oneScreenInput = (page) => ({ sections: ONE_SCREEN_SECTIONS[page], overviews: OVERVIEWS[page] });
+export const oneScreenInput = (page) => ({ sections: ONE_SCREEN_SECTIONS[page], overviews: OVERVIEWS[page], whole: WHOLE[page] });
 
 /** The numbers a Show all's words carry ("Show all 9 · 6 more", "Show all 26"): [all, more], either null where it says none. */
 export function showAllCounts(words) {
@@ -92,6 +121,10 @@ export function oneScreenVerdicts({ page, size, read }) {
     const says = f.button && all === f.total && (page === "profile" || more === f.total - f.shown);
     const ok = f.shown === f.total ? !f.button : says;
     fact(`${label}: ${f.shown === f.total ? "every row shown, no Show all" : "the rows not shown are behind a Show all that says how many"}`, ok, { rows: f.total, shown: f.shown, button: f.button, says: f.words ? [all, more] : null });
+  }
+  if (read.words) {
+    const w = read.words;
+    fact("names whole: no word broken across two lines, each multikill tile's holders on one line", w.broken === 0 && w.oneLine === w.tiles, { broken: w.broken, tiles: w.tiles, oneLine: w.oneLine });
   }
   return out;
 }

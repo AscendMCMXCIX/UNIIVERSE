@@ -476,6 +476,10 @@ Every phone page spends its first screen on content, not on saying where you are
 - **No lone Filters row**: Profile Overview's Filters and Refresh sit at the end of the title's
   line, the scope line under them across the width (`SectionHeader toolbarBesideScope`; until 20 Nov
   2026 at the scope line's end, which squeezed the scope into nine lines at 320px with 150% text).
+  Where the title and the buttons do not fit one line (a 320px phone, and 150% or 200% text on 375
+  and 390px), the title row wraps: the title keeps its line and the buttons take the next, at its
+  end, wrapping in turn (Release 16, the review's M7: beside them "Season performance" was squeezed
+  to 47–102px and ran under Filters at 200% text on 320 and 375px).
 - **No paragraphs**: Riot Accounts leads with "Main account first; every linked account adds its
   games", Settings' fields with one line each; the rest is behind an ⓘ, each tip 25 words or fewer.
 - **44px targets** on touch for every segment (`segmentClass`, filling its 44px group), ⓘ, tab link,

@@ -311,9 +311,9 @@ function OverviewDashboard({ perf, form, ranked, pools }: { perf: React.ReactNod
           (PRIMARY_POOL_TOP), so at 1440 × 900, 1920 × 950 and 1920 × 1080 the whole Overview is on the
           first screen (Release 16). Elsewhere the rail's box is display:contents, so its cards are the
           grid's own items. */}
-      <div className={cn("grid grid-cols-[minmax(0,1fr)] items-start gap-3 sm:gap-4", side && "@min-[58rem]/ov:grid-cols-[minmax(0,1fr)_minmax(18rem,21rem)]", two && GRID_2X2, two && "min-[90rem]:@min-[68rem]/ov:grid-rows-[auto_1fr]")}>
+      <div className={cn("grid grid-cols-[minmax(0,1fr)] items-start gap-3 sm:gap-4 min-[90rem]:@min-[68rem]/ov:gap-3.5", side && "@min-[58rem]/ov:grid-cols-[minmax(0,1fr)_minmax(18rem,21rem)]", two && GRID_2X2, two && "min-[90rem]:@min-[68rem]/ov:grid-rows-[auto_1fr]")}>
         <div className={cn("min-w-0 self-stretch", two && "min-[90rem]:@min-[68rem]/ov:col-start-1 min-[90rem]:@min-[68rem]/ov:row-start-1 min-[90rem]:@min-[68rem]/ov:self-start")}>{perf}</div>
-        <div className={cn("contents", two && "min-[90rem]:@min-[68rem]/ov:col-start-2 min-[90rem]:@min-[68rem]/ov:row-span-2 min-[90rem]:@min-[68rem]/ov:row-start-1 min-[90rem]:@min-[68rem]/ov:flex min-[90rem]:@min-[68rem]/ov:min-w-0 min-[90rem]:@min-[68rem]/ov:flex-col min-[90rem]:@min-[68rem]/ov:gap-4 min-[90rem]:@min-[68rem]/ov:self-start")}>
+        <div className={cn("contents", two && "min-[90rem]:@min-[68rem]/ov:col-start-2 min-[90rem]:@min-[68rem]/ov:row-span-2 min-[90rem]:@min-[68rem]/ov:row-start-1 min-[90rem]:@min-[68rem]/ov:flex min-[90rem]:@min-[68rem]/ov:min-w-0 min-[90rem]:@min-[68rem]/ov:flex-col min-[90rem]:@min-[68rem]/ov:gap-3.5 min-[90rem]:@min-[68rem]/ov:self-start")}>
           {ranked ? (
             <div className="min-w-0 self-start min-[90rem]:@min-[68rem]/ov:self-auto" data-testid="overview-ranked">
               {ranked}
@@ -373,7 +373,7 @@ export function SeasonSummary({ data, basePath, championsById, status, refresh, 
   const nameOf = (id: string) => championsById[id]?.name ?? id;
   const champions = data.championOptions.map((c) => ({ id: c.id, name: nameOf(c.id), games: c.games, portraitUrl: championsById[c.id]?.portraitUrl }));
   return (
-    <div className="space-y-3" data-testid="season-summary">
+    <div className="space-y-3 min-[90rem]:space-y-2.5" data-testid="season-summary">
       {/* The profile's one heading layout (as All Champions and Match History). */}
       <SectionHeader
         id="season-stats"

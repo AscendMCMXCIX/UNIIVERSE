@@ -76,10 +76,14 @@ export function RankedProgress({ accounts, queue, accountId, href, now }: { acco
           Ranked{" "}
           <span className="whitespace-nowrap">
             progress{" "}
-            <InfoTip
-              label="About ranked progress"
-              text="Riot only shares the current rank, so the chart starts at the first check here. Shading marks games played between two checks."
-            />
+            {/* What the chart shows: on a touch phone with the chart folded away, with it (Release 16: Ranked progress above Recent
+                form brought it onto the phone's first screen, a fourth ⓘ there, UD.PO3). */}
+            <span className={cn("inline-flex align-middle", PHONE_FOLDED)}>
+              <InfoTip
+                label="About ranked progress"
+                text="Riot only shares the current rank, so the chart starts at the first check here. Shading marks games played between two checks."
+              />
+            </span>
           </span>
         </h2>
         <PhoneFoldToggle label="the details of ranked progress" iconOnly controls="ranked-chart-fold" testId="ranked-fold" className="ml-auto" />
@@ -145,7 +149,10 @@ export function RankedProgress({ accounts, queue, accountId, href, now }: { acco
                 </Link>
               ))}
             </nav>
-            {accounts.length > 1 ? <RankedAccountSelect value={account.id} accounts={accounts.map((a) => ({ id: a.id, label: names.get(a.id) ?? a.riotId, href: href({ ra: a.id }) }))} /> : null}
+            {/* On the title's row the select is at most 7.5rem, its name cut short (whole in the list): wider, it pushed "Ranked
+                progress" onto two lines, and the taller card cost the one-screen Overview a row of Recent form's champions at
+                1440 × 900 and 1920 × 950 (Release 16, the review's M5). */}
+            {accounts.length > 1 ? <RankedAccountSelect value={account.id} accounts={accounts.map((a) => ({ id: a.id, label: names.get(a.id) ?? a.riotId, href: href({ ra: a.id }) }))} className="md:@min-[24rem]/rank:min-w-[6rem] md:@min-[24rem]/rank:max-w-[7.5rem]" /> : null}
           </div>
           {chartable ? (
             <div className="col-span-2 min-w-0">

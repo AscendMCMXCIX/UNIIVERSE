@@ -21,6 +21,17 @@ import { cn } from "@/lib/cn";
   the scope line under both; a toolbar too wide for the row (a tablet's several selects) takes the
   next row, and so do filters whose chips need the room (`toolbarFills`).
 */
+/**
+ * A phone's header with its title on screen beside the toolbar (toolbarBesideScope: Season performance):
+ * one wrapping row, the title first at its natural width, the toolbar at the line's end where both fit,
+ * else on a line of its own under the title (its controls wrapping in turn, so Filters never runs under
+ * Refresh), then the scope line across the width. In a grid the title was squeezed to 47–102px beside
+ * Filters and ran under it at large text (Release 16, M7).
+ */
+const PHONE_TITLE_ROW = "max-sm:flex max-sm:flex-wrap max-sm:items-center max-sm:gap-x-2 max-sm:gap-y-2";
+const PHONE_TITLE_PARTS = "max-sm:contents max-sm:[&>:first-child]:order-1 max-sm:[&>:first-child]:flex-auto max-sm:[&>[data-testid=section-scope]]:order-3 max-sm:[&>[data-testid=section-scope]]:basis-full max-sm:[&>[data-testid=section-scope]]:mt-0";
+const PHONE_TITLE_TOOLBAR = "max-sm:order-2 max-sm:ml-auto max-sm:flex-wrap max-sm:justify-end";
+
 export function SectionHeader({ id, title, titleOnPhones = "shown", nav, aside, description, status, statusAfterText = false, controls, refresh, toolbarBesideNav = false, toolbarFills, toolbarBesideScope = false, scopeBesideTitle = false, className, testId }: {
   /** The heading's id, for the section's aria-labelledby. */
   id: string;
@@ -100,6 +111,8 @@ export function SectionHeader({ id, title, titleOnPhones = "shown", nav, aside, 
         </div>
       )
     ) : null;
+  // Phones with the title on screen beside the toolbar (Season performance): one wrapping row (PHONE_TITLE_ROW).
+  const titleBesideToolbar = toolbarBesideScope && (titleOnPhones !== "tab" || !!aside);
   const toolbar =
     controls || refresh ? (
       // The toolbar: the filters take the room there is (on phones their folded button fills the
@@ -107,8 +120,8 @@ export function SectionHeader({ id, title, titleOnPhones = "shown", nav, aside, 
       // Beside the views it asks for the width its content needs, at the row's end, and takes the
       // next row when that does not fit (flex-wrap breaks a line before shrinking anything); there
       // its filters shrink to what Refresh leaves, so the chips of a phone's narrowed filters scroll.
-      <div className={cn("flex min-w-0 items-start gap-2", toolbarBesideNav ? cn("flex-auto justify-end", toolbarFills === "below-xl" && "basis-full xl:basis-auto") : "xl:justify-end")} data-testid="section-toolbar">
-        {controls ? <div className={cn("min-w-0", toolbarBesideNav ? (toolbarFills ? "flex-1" : "flex-initial") : "flex-1 xl:flex-none")}>{controls}</div> : null}
+      <div className={cn("flex min-w-0 items-start gap-2", toolbarBesideNav ? cn("flex-auto justify-end", toolbarFills === "below-xl" && "basis-full xl:basis-auto") : "xl:justify-end", titleBesideToolbar && PHONE_TITLE_TOOLBAR)} data-testid="section-toolbar">
+        {controls ? <div className={cn("min-w-0", toolbarBesideNav ? (toolbarFills ? "flex-1" : "flex-initial") : "flex-1 xl:flex-none", titleBesideToolbar && "max-sm:flex-auto")}>{controls}</div> : null}
         {refresh}
       </div>
     ) : null;
@@ -124,13 +137,14 @@ export function SectionHeader({ id, title, titleOnPhones = "shown", nav, aside, 
       </div>
     );
   return (
-    <div className={cn("grid grid-cols-[minmax(0,1fr)] gap-y-3 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start xl:gap-x-6", toolbarBesideScope && "max-sm:grid-cols-[minmax(0,1fr)_auto] max-sm:items-center max-sm:gap-x-2 max-sm:gap-y-1 max-sm:[&>[data-testid=section-toolbar]]:row-start-1",
+    <div className={cn("grid grid-cols-[minmax(0,1fr)] gap-y-3 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start xl:gap-x-6", toolbarBesideScope && "max-sm:grid-cols-[minmax(0,1fr)_auto] max-sm:items-center max-sm:gap-x-2 max-sm:gap-y-1",
         // Nothing of the title's on screen (the tab names the section): the toolbar takes the line's
-        // whole width, its chips from its start; else it ends the title's line.
-        toolbarBesideScope && (titleOnPhones === "tab" && !aside ? "max-sm:[&>[data-testid=section-toolbar]]:col-[1/-1]" : "max-sm:[&>[data-testid=section-toolbar]]:col-start-2"),
+        // whole width, its chips from its start; else one wrapping row (PHONE_TITLE_ROW).
+        toolbarBesideScope && !titleBesideToolbar && "max-sm:[&>[data-testid=section-toolbar]]:row-start-1 max-sm:[&>[data-testid=section-toolbar]]:col-[1/-1]",
+        titleBesideToolbar && PHONE_TITLE_ROW,
         className,
       )} data-testid={testId}>
-      <div className={cn("min-w-0 xl:pt-0.5", scopeBesideTitle && "xl:flex xl:flex-wrap xl:items-baseline xl:gap-x-3", toolbarBesideScope && "max-sm:contents max-sm:[&>[data-testid=section-scope]]:col-span-2 max-sm:[&>[data-testid=section-scope]]:mt-0 max-sm:[&>:first-child]:col-start-1 max-sm:[&>:first-child]:row-start-1")}>
+      <div className={cn("min-w-0 xl:pt-0.5", scopeBesideTitle && "xl:flex xl:flex-wrap xl:items-baseline xl:gap-x-3", toolbarBesideScope && (titleBesideToolbar ? PHONE_TITLE_PARTS : "max-sm:contents max-sm:[&>[data-testid=section-scope]]:col-span-2 max-sm:[&>[data-testid=section-scope]]:mt-0 max-sm:[&>:first-child]:col-start-1 max-sm:[&>:first-child]:row-start-1"))}>
         {heading}
         {scope}
       </div>

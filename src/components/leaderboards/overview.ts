@@ -96,6 +96,25 @@ export function allot(sizes: readonly number[], budget: number, floor = budget >
 }
 
 /**
+ * The order in which a grouped board's rows are shown (fit-rows.tsx: `data-ov-rank`, 1-based): for each
+ * row the least budget whose allotment shows it, so a budget of k shows exactly the rows of rank k or
+ * less, as the CSS tiers do.
+ */
+export function groupRanks(sizes: readonly number[]): number[][] {
+  const total = sizes.reduce((a, n) => a + Math.max(1, n), 0);
+  const ranks = sizes.map((n) => Array.from({ length: n }, () => 0));
+  let shown = sizes.map(() => 0);
+  for (let b = 1; b <= total; b++) {
+    const next = allot(sizes, b).map((n, g) => Math.max(n, shown[g]!));
+    next.forEach((n, g) => {
+      for (let i = shown[g]!; i < Math.min(n, sizes[g]!); i++) ranks[g]![i] = b;
+    });
+    shown = next;
+  }
+  return ranks;
+}
+
+/**
  * The fold class of each row of a board in groups (the milestones' kinds), per group, per row, and
  * what folds in each height. A group's rows past its share of a tier's overview fold there.
  */

@@ -4,6 +4,7 @@ import * as React from "react";
 import { ChevronDown } from "lucide-react";
 import { usePhoneFold } from "@/components/ui/phone-fold";
 import { cn } from "@/lib/cn";
+import { FitStyle, useFit, wideBoard, type Fit } from "@/components/ui/fit-rows";
 import { IN_TIER_TEXT, TIERS, showAllClass, type OverviewMore } from "./overview";
 
 /*
@@ -17,15 +18,24 @@ import { IN_TIER_TEXT, TIERS, showAllClass, type OverviewMore } from "./overview
   is kept on the history entry (usePhoneFold), so Back to the page reopens what was open.
 */
 
-const FoldContext = React.createContext<{ open: boolean; toggle: () => void } | null>(null);
+const FoldContext = React.createContext<{ open: boolean; toggle: () => void; fit: Fit | null } | null>(null);
 
-/** The board's section, and its fold's group (data-fold): server-rendered rows inside fold by their own classes (overview.ts). */
+/**
+ * The board's section, and its fold's group (data-fold): server-rendered rows inside fold by their own
+ * classes (overview.ts) while it is "closed". Once interactive, on a 59rem page, the closed board shows
+ * as many rows as fit above the window's bottom (fit-rows.tsx: "fit", never fewer than the tiers), and
+ * its Show all says how many more there are then.
+ */
 export function BoardFoldSection({ foldKey, className, children, ...props }: React.ComponentProps<"section"> & { foldKey: string }) {
   const fold = usePhoneFold(foldKey);
-  const value = React.useMemo(() => ({ open: fold.open, toggle: fold.toggle }), [fold.open, fold.toggle]);
+  const ref = React.useRef<HTMLElement>(null);
+  const fit = useFit(ref, "data-fold", "closed", wideBoard, fold.open);
+  const value = React.useMemo(() => ({ open: fold.open, toggle: fold.toggle, fit }), [fold.open, fold.toggle, fit]);
+  const mode = fold.open ? "open" : fit ? "fit" : "closed";
   return (
     <FoldContext.Provider value={value}>
-      <section {...props} data-fold={fold.groupProps["data-fold"]} className={cn(fold.groupProps.className, className)}>
+      <section {...props} ref={ref} data-fold={mode} className={cn(fold.groupProps.className, className)}>
+        {fit && !fold.open && props.id ? <FitStyle selector={`#${props.id}[data-fold="fit"]`} fit={fit} /> : null}
         {children}
       </section>
     </FoldContext.Provider>
@@ -40,8 +50,11 @@ export function BoardFoldSection({ foldKey, className, children, ...props }: Rea
 export function BoardShowAll({ total, more, label, controls, testId }: { total: number; /** How many rows fold in a short window and in a tall one. */ more: OverviewMore; /** What it opens, for screen readers: "the multikill ranking". */ label: string; /** The id of the list it opens. */ controls?: string; testId?: string }) {
   const fold = React.useContext(FoldContext);
   const open = fold?.open ?? false;
+  const fit = fold?.fit ?? null;
+  // Measured (a 59rem page, interactive): drawn where rows stay hidden, with their count; else by the CSS tiers.
+  const display = fit ? (open || fit.more > 0 ? "flex" : "hidden") : showAllClass(more);
   return (
-    <span className={cn(showAllClass(more), "items-center")} data-testid={testId}>
+    <span className={cn(display, "items-center")} data-testid={testId}>
       <button
         type="button"
         onClick={fold?.toggle}
@@ -57,12 +70,16 @@ export function BoardShowAll({ total, more, label, controls, testId }: { total: 
             Show all {total}
             <span aria-hidden>&nbsp;·&nbsp;</span>
             <span className="sr-only">, </span>
-            {/* The count folded at this window's height (overview.ts): one of the four shows. */}
-            {TIERS.map((t) => (
-              <span key={t} className={IN_TIER_TEXT[t]} data-testid={testId ? `${testId}-more-${t}` : undefined}>
-                {more[t]} more
-              </span>
-            ))}
+            {/* The count folded: the fitted one once measured; until then the window height's (overview.ts), one of the four shows. */}
+            {fit ? (
+              <span data-testid={testId ? `${testId}-more-fit` : undefined}>{fit.more} more</span>
+            ) : (
+              TIERS.map((t) => (
+                <span key={t} className={IN_TIER_TEXT[t]} data-testid={testId ? `${testId}-more-${t}` : undefined}>
+                  {more[t]} more
+                </span>
+              ))
+            )}
           </>
         )}
         <span className="sr-only"> of {label}</span>

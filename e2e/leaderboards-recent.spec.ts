@@ -35,6 +35,33 @@ async function noOverflow(page: Page) {
   expect(overflow, "page wider than the viewport").toBeLessThanOrEqual(1);
 }
 
+/**
+ * Words on the page broken across two lines (a name split inside a word, as at 1440 in the review's M4): each word of every
+ * text node drawn, by the lines its boxes take. Truncated text takes one line, so it never counts.
+ */
+const brokenWords = (page: Page) =>
+  page.getByTestId("leaderboards").evaluate((root) => {
+    const out: string[] = [];
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    const range = document.createRange();
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+      for (const m of (n.textContent ?? "").matchAll(/\S+/g)) {
+        range.setStart(n, m.index!);
+        range.setEnd(n, m.index! + m[0].length);
+        const lines = new Set([...range.getClientRects()].filter((r) => r.width > 0).map((r) => Math.round(r.top)));
+        if (lines.size > 1) out.push(m[0]);
+      }
+    }
+    return out;
+  });
+
+/** Multikills' most-of-each tiles: each holder line drawn on one line, its whole names in its title (M4). */
+const tileHolders = (page: Page) =>
+  page
+    .getByTestId("records-multikills")
+    .locator("[data-testid=multikill-most-holders]")
+    .evaluateAll((els) => els.filter((e) => e.getBoundingClientRect().height > 0).map((e) => ({ lines: Math.round(e.getBoundingClientRect().height / parseFloat(getComputedStyle(e).lineHeight)), titled: e.getAttribute("title") === e.textContent })));
+
 /** "1st", "2nd", "4th", "11th": the place in words, as the page writes it (formatOrdinal). */
 const ordinal = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? "th" : (["th", "st", "nd", "rd"][n % 10] ?? "th")}`;
 
@@ -137,8 +164,24 @@ test("tablet and desktop: once the header has gone up, the pinned row holds the 
   // Nothing to switch, nothing to filter: the row holds the section tabs, the page's index (UD.L1) and nothing else.
   const toolbar = page.getByTestId("page-toolbar");
   await expect(toolbar).toHaveCount(1);
-  await expect(toolbar.getByRole("link")).toHaveText(["Recent form", "Season records", "Multikills", "Milestones"]);
+  // Every tab whole: the last tab ends inside the tab list, clear of anything at the row's end.
+  const clear = await page.evaluate(() => {
+    const tabs = document.querySelector("[data-testid=team-tabs]")!;
+    // The tabs' own list: the pinned row's index (from xl) is a list of links in the same row, after it.
+    const ul = tabs.querySelector("ul")!;
+    const list = ul.getBoundingClientRect();
+    const last = [...ul.querySelectorAll("a")].at(-1)!.getBoundingClientRect();
+    return last.right <= list.right + 0.5;
+  });
+  expect(clear, "Team's tabs whole in the pinned row").toBe(true);
   await expect(page.getByTestId("toolbar-leaderboards-views")).toHaveCount(0);
+  // Below xl (a tablet) the index has no room beside Team's four tabs (Release 16: the tab list scrolled under it and a press on
+  // "Matches" landed on "Recent form"), so the pinned row holds the tabs alone; the index under the header is at the page's top.
+  if (info.project.name === "tablet") {
+    await expect(toolbar.getByRole("link")).toHaveCount(0);
+    return;
+  }
+  await expect(toolbar.getByRole("link")).toHaveText(["Recent form", "Season records", "Multikills", "Milestones"]);
   await toolbar.getByRole("link", { name: "Season records" }).click();
   await expect(page).toHaveURL(/#season-records$/);
   const tabs = (await page.getByTestId("team-tabs").boundingBox())!;
@@ -746,6 +789,17 @@ test("one screen from a 59rem page: two columns, each board under the one before
       const f = await boards(page);
       const at = `${width} × ${height}, sidebar ${sidebar} (a ${f.page.toFixed(1)}rem page)`;
       await noOverflow(page);
+      // Names whole (M4): no word broken across lines, and each most-of-each tile's holders on one line, cut short with an
+      // ellipsis where they run long, the whole names in its title.
+      expect(await brokenWords(page), `${at}: no word broken across two lines`).toEqual([]);
+      const tiles = await tileHolders(page);
+      expect(tiles.length, `${at}: the four most-of-each tiles`).toBe(4);
+      for (const t of tiles) expect(t, `${at}: a tile's holders on one line, named whole in its title`).toEqual({ lines: 1, titled: true });
+      // The one screen is sized for the team the demo seeds (nine members, as the owner's eight). Other specs in a full run add
+      // members (28 in CI's run of the combined tree, each a chip in Recent form's last group), and Recent form, the ranking, is
+      // listed whole, so with more members the boards under it start lower: then the arrangement is checked, not the window.
+      const members = Number((await page.getByTestId("scope-count").textContent())?.match(/\d+/)?.[0] ?? 0);
+      const seeded = members <= 9;
       /** Two columns: Recent form, the milestones under it; the records beside it, the multikills under them; each board under the one before it, the gap apart. */
       const columns = (g: Awaited<ReturnType<typeof boards>>, who: string) => {
         expect(Math.abs(g.form.top - g.records.top), `${who}: the records beside Recent form`).toBeLessThanOrEqual(1);
@@ -755,11 +809,11 @@ test("one screen from a 59rem page: two columns, each board under the one before
         expect(Math.abs(g.multikills.left - g.records.left) + Math.abs(g.multikills.right - g.records.right), `${who}: the multikills in the records' column`).toBeLessThanOrEqual(1);
         expect(Math.abs(g.multikills.top - g.records.bottom - g.gap), `${who}: the multikills right under the records`).toBeLessThanOrEqual(1);
         // Every ranking row and record on the first screen, and every board starts on it.
-        for (const b of [...g.formRows, ...g.recordRows]) expect(b, `${who}: on the first screen`).toBeLessThanOrEqual(g.window);
+        if (seeded) for (const b of [...g.formRows, ...g.recordRows]) expect(b, `${who}: on the first screen`).toBeLessThanOrEqual(g.window);
         // From a 900px window (1280 × 800 with a member's bests in the 21rem records' column starts the multikills 18px below it).
-        if (g.window >= 900) for (const b of [g.multikills, g.milestones]) expect(b.top, `${who}: every board starts on the first screen`).toBeLessThan(g.window);
+        if (seeded && g.window >= 900) for (const b of [g.multikills, g.milestones]) expect(b.top, `${who}: every board starts on the first screen`).toBeLessThan(g.window);
         // The owner's sizes: all four boards end in the window, and the page does not scroll.
-        if (oneScreen) {
+        if (oneScreen && seeded) {
           for (const [name, b] of [["Recent form", g.form], ["the records", g.records], ["the multikills", g.multikills], ["the milestones", g.milestones]] as const) expect(b.bottom, `${who}: ${name} within the window`).toBeLessThanOrEqual(g.window);
           expect(g.height, `${who}: the page does not scroll`).toBeLessThanOrEqual(g.window);
         }
@@ -782,14 +836,25 @@ test("one screen from a 59rem page: two columns, each board under the one before
         await expect(show, `${at}: ${board}'s Show all`).toBeVisible();
         // Its words as drawn (innerText: the count for the other window height is not displayed), the comma read out only.
         expect((await show.getByRole("button").innerText()).replace(/\s+/g, " "), `${at}: ${board}`).toMatch(new RegExp(`^Show all ${total} · ,? ?${total - shown} more`));
+        // Rows fold only where they cannot fit (fit-rows.tsx, round 3): the room left under the board, to the window's bottom less
+        // the page's padding, is less than the next row would take (with its group's caption where it heads one).
+        const free = await page.getByTestId(board).evaluate((el) => innerHeight - parseFloat(getComputedStyle(document.getElementById("content")!).paddingBottom) - el.getBoundingClientRect().bottom);
         await show.getByRole("button").click();
+        const next = await page.getByTestId(board).evaluate((el, n) => {
+          const h = (sel: string) => el.querySelector(sel)?.getBoundingClientRect().height ?? 0;
+          return h(`[data-ov-rank="${n}"]`) + h(`[data-ov-caption="${n}"]`);
+        }, shown + 1);
+        if (oneScreen && seeded) expect(free, `${at}: ${board}'s room under it (${Math.round(free)}px) is less than its next row (${Math.round(next)}px)`).toBeLessThan(next);
         expect((await rows.evaluateAll((els) => els.map((e) => e.checkVisibility()))).filter(Boolean).length, `${at}: ${board} opened whole`).toBe(total);
         await expect(show.getByRole("button")).toHaveAttribute("aria-expanded", "true");
         await show.getByRole("button").click();
         expect((await rows.evaluateAll((els) => els.map((e) => e.checkVisibility()))).filter(Boolean).length, `${at}: ${board} folded again`).toBe(shown);
       }
-      // As a member sees it, with their own best on every record: the records' column is no shorter, Recent form's as it was.
+      // As a member sees it, with their own best on every record: the records' column is no shorter, Recent form's as it was. The
+      // boards fit their rows again for the taller column (as they do on a member's own load), on a resize.
       await addOwnBests(page);
+      await page.evaluate(() => window.dispatchEvent(new Event("resize")));
+      await page.waitForTimeout(100);
       const member = await boards(page);
       expect(member.records.height, `${at}: a member's records panel is no shorter`).toBeGreaterThanOrEqual(f.records.height);
       expect(Math.abs(member.form.bottom - f.form.bottom), `${at}: Recent form as it was`).toBeLessThanOrEqual(1);

@@ -16,7 +16,7 @@ import { SECTIONS } from "./sections";
 import { PeekRowLink } from "./leaderboards-peek";
 import { RecordGameLink } from "./record-game";
 import { BoardFoldSection, BoardShowAll } from "./board-fold";
-import { MILESTONE_OVERVIEW, MULTIKILL_OVERVIEW, foldClass, groupFolds, moreOf } from "./overview";
+import { MILESTONE_OVERVIEW, MULTIKILL_OVERVIEW, foldClass, groupFolds, groupRanks, moreOf } from "./overview";
 
 /*
   THE SEASON'S RECORDS AND ACHIEVEMENTS (docs/TEAM_LEADERBOARDS.md), the Leaderboards page's
@@ -360,7 +360,7 @@ export function Multikills({ records, player, className }: { records: RecordsVie
         {ranked.length ? (
           <DataGroup label="Multikill score ranking" testId="multikill-rows">
             {ranked.map((r, i) => (
-              <MultikillRowItem key={r.playerId} r={r} p={player(r.playerId)} tie={ties[i] ?? null} fold={foldClass(i, MULTIKILL_OVERVIEW)} />
+              <MultikillRowItem key={r.playerId} r={r} p={player(r.playerId)} tie={ties[i] ?? null} fold={foldClass(i, MULTIKILL_OVERVIEW)} rank={i + 1} />
             ))}
           </DataGroup>
         ) : null}
@@ -372,6 +372,7 @@ export function Multikills({ records, player, className }: { records: RecordsVie
             testId="multikill-unplaced"
             captionTestId="multikill-unplaced-head"
             captionClassName={foldClass(ranked.length, MULTIKILL_OVERVIEW)}
+            captionData={{ "data-ov-caption": ranked.length + 1 }}
             caption={
               <>
                 <span className="font-semibold text-fg">Not placed yet</span>&nbsp;·&nbsp;under {board.rankedFrom} games with multikill counts
@@ -379,7 +380,7 @@ export function Multikills({ records, player, className }: { records: RecordsVie
             }
           >
             {unplaced.map((r, i) => (
-              <MultikillRowItem key={r.playerId} r={r} p={player(r.playerId)} tie={null} fold={foldClass(ranked.length + i, MULTIKILL_OVERVIEW)} />
+              <MultikillRowItem key={r.playerId} r={r} p={player(r.playerId)} tie={null} fold={foldClass(ranked.length + i, MULTIKILL_OVERVIEW)} rank={ranked.length + i + 1} />
             ))}
           </DataGroup>
         ) : null}
@@ -394,7 +395,7 @@ export function Multikills({ records, player, className }: { records: RecordsVie
  * score over the games behind it. The whole row opens the member's player Peek, its tooltip the
  * score's sentence; screen readers hear the place, name, score, kinds and the sentence.
  */
-function MultikillRowItem({ r, p, tie, fold }: { r: MultikillRow; p: BoardPlayer; tie: TiePosition | null; /** Folded past the overview (overview.ts). */ fold?: string }) {
+function MultikillRowItem({ r, p, tie, fold, rank }: { r: MultikillRow; p: BoardPlayer; tie: TiePosition | null; /** Folded past the overview (overview.ts). */ fold?: string; /** Its place in the order rows are shown (fit-rows.tsx). */ rank?: number }) {
   const linked = !!p.profileHref;
   return (
     <DataRow
@@ -409,6 +410,7 @@ function MultikillRowItem({ r, p, tie, fold }: { r: MultikillRow; p: BoardPlayer
       data-penta={r.counts.penta}
       data-riot={`${r.riot.double},${r.riot.triple},${r.riot.quadra},${r.riot.penta}`}
       data-counted={r.counted}
+      data-ov-rank={rank}
       data-you={r.you || undefined}
       own={r.you}
       density="compact"
@@ -481,11 +483,14 @@ function MostOfEach({ most, player }: { most: MultikillsView["most"]; player: (i
             <li key={m.key} className={MOST_CELL} data-testid="multikill-most-kind" data-kind={m.key} data-count={m.count ?? undefined}>
               <p className="text-xs text-fg-muted">{m.label}</p>
               {m.count ? (
-                <p className="flex min-w-0 flex-wrap items-baseline gap-x-1.5">
-                  <span className="text-base leading-5 font-semibold tabular-nums text-fg" data-testid="multikill-most-count">
+                // One line a stat on the desktop's one-screen board (Release 16, M4: "Thunderstruc|k Kaiser" broke inside the word and
+                // ran the board past the window): the names cut short there, whole in the title, each holder's row above naming them
+                // too. Elsewhere (phones, tablets: no title to show them) the names wrap between words, never inside one.
+                <p className="flex min-w-0 flex-wrap items-baseline gap-x-1.5 @min-[59rem]/dash:flex-nowrap">
+                  <span className="shrink-0 text-base leading-5 font-semibold tabular-nums text-fg" data-testid="multikill-most-count">
                     {m.count}
                   </span>
-                  <span className="min-w-0 text-xs font-medium text-fg [overflow-wrap:anywhere]" data-testid="multikill-most-holders">
+                  <span className="min-w-0 text-xs font-medium text-fg @min-[59rem]/dash:truncate" title={names.join(", ")} data-testid="multikill-most-holders">
                     {names.join(", ")}
                   </span>
                 </p>
@@ -511,6 +516,7 @@ const MILESTONE_COLS = "[--dl-cols:minmax(0,1fr)_auto] @max-[18rem]/list:[--dl-c
 export function Milestones({ records, player, champ, className }: { records: RecordsView; player: (id: string) => BoardPlayer; champ: (id: string | null) => PortraitChampion | null; className?: string }) {
   // The overview on the desktop's one-screen board: each kind its first rows (at least two of each), by the window's height (overview.ts).
   const folds = groupFolds([records.championGames.length, records.mastery.length], MILESTONE_OVERVIEW);
+  const ranks = groupRanks([records.championGames.length, records.mastery.length]);
   const total = records.championGames.length + records.mastery.length;
   return (
     <BoardFoldSection foldKey="leaderboards-milestones" id={SECTIONS.milestones} aria-labelledby="milestones-title" className={cn("min-w-0", className)}>
@@ -523,15 +529,15 @@ export function Milestones({ records, player, champ, className }: { records: Rec
           </BoardTitle>
         }
       >
-        <MilestoneKind title={`Games on one champion · ${records.seasonLabel}`} hint="Champions with 25, 50 or 100 games this season." empty="Nobody has 25 games on one champion this season yet." groups={records.championGames} folds={folds.classes[0]} player={player} champ={champ} testId="milestones-games" />
-        <MilestoneKind title="Mastery on one champion · all-time" hint="100K, 500K or 1M mastery points on one champion, added up over their Riot accounts. Each member's best is shown; the rest are on their profile." empty="Nobody has 100K mastery points on one champion yet." groups={records.mastery} folds={folds.classes[1]} player={player} champ={champ} testId="milestones-mastery" />
+        <MilestoneKind title={`Games on one champion · ${records.seasonLabel}`} hint="Champions with 25, 50 or 100 games this season." empty="Nobody has 25 games on one champion this season yet." groups={records.championGames} folds={folds.classes[0]} ranks={ranks[0]} player={player} champ={champ} testId="milestones-games" />
+        <MilestoneKind title="Mastery on one champion · all-time" hint="100K, 500K or 1M mastery points on one champion, added up over their Riot accounts. Each member's best is shown; the rest are on their profile." empty="Nobody has 100K mastery points on one champion yet." groups={records.mastery} folds={folds.classes[1]} ranks={ranks[1]} player={player} champ={champ} testId="milestones-mastery" />
       </DataList>
     </BoardFoldSection>
   );
 }
 
 /** One kind of milestone: its caption (title, with what counts behind its ⓘ), then a row per member, the best first. */
-function MilestoneKind({ title, hint, empty, groups, folds, player, champ, testId }: { title: string; hint: string; empty: string; groups: MilestoneGroup[]; /** Each row's fold past the overview (overview.ts). */ folds?: ReadonlyArray<string | undefined>; player: (id: string) => BoardPlayer; champ: (id: string | null) => PortraitChampion | null; testId: string }) {
+function MilestoneKind({ title, hint, empty, groups, folds, ranks, player, champ, testId }: { title: string; hint: string; empty: string; groups: MilestoneGroup[]; /** Each row's fold past the overview (overview.ts). */ folds?: ReadonlyArray<string | undefined>; /** Each row's place in the order rows are shown (fit-rows.tsx). */ ranks?: readonly number[]; player: (id: string) => BoardPlayer; champ: (id: string | null) => PortraitChampion | null; testId: string }) {
   return (
     <div className="divide-y divide-border/70" data-testid={testId}>
       <div className={cn("flex min-w-0 flex-wrap items-center gap-x-1.5 bg-surface-2/40 py-1.5 text-xs", ROW_PAD_X)}>
@@ -541,7 +547,7 @@ function MilestoneKind({ title, hint, empty, groups, folds, player, champ, testI
       {groups.length ? (
         <ul className="divide-y divide-border/60" data-testid={`${testId}-list`}>
           {groups.map((g, i) => (
-            <MilestoneRow key={g.playerId} group={g} p={player(g.playerId)} champ={champ} fold={folds?.[i]} />
+            <MilestoneRow key={g.playerId} group={g} p={player(g.playerId)} champ={champ} fold={folds?.[i]} rank={ranks?.[i]} />
           ))}
         </ul>
       ) : (
@@ -559,7 +565,7 @@ function MilestoneKind({ title, hint, empty, groups, folds, player, champ, testI
  * The whole row opens the member's profile; its tooltip names each chip's milestone, as the chips'
  * own titles do on the public boards, which link nowhere.
  */
-function MilestoneRow({ group, p, champ, fold }: { group: MilestoneGroup; p: BoardPlayer; champ: (id: string | null) => PortraitChampion | null; fold?: string }) {
+function MilestoneRow({ group, p, champ, fold, rank }: { group: MilestoneGroup; p: BoardPlayer; champ: (id: string | null) => PortraitChampion | null; fold?: string; rank?: number }) {
   const linked = !!p.profileHref;
   const items = group.items.map((m) => ({ ...m, name: champ(m.championId)?.name ?? m.championId }));
   const said = (m: (typeof items)[number]) => `${m.name}: ${m.value} (${m.milestone} milestone)`;
@@ -568,7 +574,7 @@ function MilestoneRow({ group, p, champ, fold }: { group: MilestoneGroup; p: Boa
   const more = formatCount(rest);
   const hint = [...items.map(said), group.more ? `${formatCount(group.more)} more on the profile` : null].filter(Boolean).join(". ");
   return (
-    <DataRow testId="milestone-member" data-player-id={group.playerId} density="slim" className={fold} link={linked ? <PeekRowLink playerId={p.id} name={p.name} profileHref={p.profileHref!} hint={hint} /> : null}>
+    <DataRow testId="milestone-member" data-player-id={group.playerId} data-ov-rank={rank} density="slim" className={fold} link={linked ? <PeekRowLink playerId={p.id} name={p.name} profileHref={p.profileHref!} hint={hint} /> : null}>
       <MemberCell look={p.look} name={p.name} avatarUrl={p.avatarUrl} avatar="xs" readName={!linked} nameHref={p.profileHref ?? undefined} className="col-[1/2] row-[1/2]" />
       <ul aria-label={`${p.name}'s milestones`} className="col-[2/3] row-[1/2] flex min-w-0 items-center justify-end gap-1 @max-[18rem]/list:col-[1/-1] @max-[18rem]/list:row-[2/3] @max-[18rem]/list:justify-start">
         {(top ? [top] : []).map((m) => (

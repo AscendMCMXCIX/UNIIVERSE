@@ -891,12 +891,15 @@ async function leaderboardsIndexFacts(page, kind) {
   await page.waitForTimeout(600);
   const pinned = await page.evaluate(() => {
     const row = [...document.querySelectorAll("[data-testid=leaderboards-chip-row], [data-testid=page-toolbar]")].find((el) => el.getBoundingClientRect().height > 0) ?? null;
-    const links = row ? [...row.querySelectorAll("a")] : [];
+    // The links drawn (below xl the row holds the short words, the full ones hidden: Release 16).
+    const links = row ? [...row.querySelectorAll("a")].filter((a) => a.getBoundingClientRect().height > 0) : [];
     return { shown: !!row && row.getBoundingClientRect().height > 0, links: links.length, small: links.filter((a) => a.getBoundingClientRect().height < (row?.matches("[data-testid=leaderboards-chip-row]") ? 43.5 : 0)).length };
   });
   await page.evaluate(() => window.scrollTo(0, 0));
   const scrolls = await page.evaluate(() => document.documentElement.scrollHeight > innerHeight * 1.3);
-  pass("leaderboards", `${kind}: the section index at the top, and pinned once the header has gone`, top && (!scrolls || (pinned.shown && pinned.links === 4 && pinned.small === 0)), { top, scrolls, ...pinned });
+  // From md to xl (a tablet) the pinned row holds Team's tabs alone (Release 16: no room for the index beside them).
+  const pinnable = await page.evaluate(() => innerWidth < 768 || innerWidth >= 1280);
+  pass("leaderboards", `${kind}: the section index at the top, and pinned once the header has gone`, top && (!scrolls || !pinnable || (pinned.shown && pinned.links === 4 && pinned.small === 0)), { top, scrolls, pinnable, ...pinned });
 }
 
 async function leaderboardsFacts(page, kind) {
@@ -1030,8 +1033,17 @@ async function oneScreenFacts(page, area, which) {
     for (const [width, height] of [[1440, 900], [1920, 950], [1920, 1080]]) {
       await page.setViewportSize({ width, height });
       await page.evaluate(() => window.scrollTo(0, 0));
-      await page.waitForTimeout(400);
-      const read = await page.evaluate(readOneScreen, oneScreenInput(which));
+      // Read once the page has settled: with reduced motion emulated (this context), Chromium applies a resize's root size a
+      // frame or more after the window's, and the fitted rows follow it (a read at 400ms caught 1920 × 950 laid out at 1440's
+      // root size). Two reads alike 250ms apart, at most 3s.
+      let read = null;
+      for (let waited = 0; waited < 3000; waited += 250) {
+        await page.waitForTimeout(250);
+        const next = await page.evaluate(readOneScreen, oneScreenInput(which));
+        const same = read && JSON.stringify(next) === JSON.stringify(read);
+        read = next;
+        if (same) break;
+      }
       for (const v of oneScreenVerdicts({ page: which, size: `${width} × ${height}`, read })) check(area, v.name, v.status, v.detail);
     }
   } finally {

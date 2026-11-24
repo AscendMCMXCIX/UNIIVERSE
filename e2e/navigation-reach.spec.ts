@@ -135,10 +135,13 @@ test("tablet and desktop: a profile section chosen far down the page starts at i
       tabs.style.position = "";
       return Math.round(top - pinnedAt);
     });
+  // Where the page can be scrolled to: a section that fits the window whole from there on (the one-screen Overview at 1440 × 900,
+  // Release 16) starts at the window's top, as far as the page scrolls, its whole section in view.
+  const target = async () => Math.min(await pinnedTop(), await page.evaluate(() => document.documentElement.scrollHeight - window.innerHeight));
   const settled = async (what: string) => {
-    await expect.poll(async () => Math.abs((await page.evaluate(() => window.scrollY)) - (await pinnedTop())), { message: `${what}: the section starts under the pinned tabs` }).toBeLessThanOrEqual(2);
+    await expect.poll(async () => Math.abs((await page.evaluate(() => window.scrollY)) - (await target())), { message: `${what}: the section starts under the pinned tabs (or as far as the page scrolls)` }).toBeLessThanOrEqual(2);
     await page.waitForTimeout(600);
-    expect(Math.abs((await page.evaluate(() => window.scrollY)) - (await pinnedTop())), `${what}: still there once the content has arrived`).toBeLessThanOrEqual(2);
+    expect(Math.abs((await page.evaluate(() => window.scrollY)) - (await target())), `${what}: still there once the content has arrived`).toBeLessThanOrEqual(2);
   };
 
   // At rest (the card in view), a section keeps the page where it is.
@@ -171,16 +174,23 @@ test("tablet and desktop: a profile section chosen far down the page starts at i
   await expect(page).toHaveURL(new RegExp(`${profile}$`));
   await expect(page.getByTestId("season-summary")).toBeVisible();
   await settled("History → Overview");
-  // Pinned at the top bar's foot (a tablet) or the window's edge (a desktop, where the bar is hidden).
+  // Pinned at the top bar's foot (a tablet) or the window's edge (a desktop, where the bar is hidden), where the page is long enough to pin them.
   const bar = await page.evaluate(() => document.querySelector<HTMLElement>("[data-testid=mobile-topbar]")?.offsetHeight ?? 0);
-  expect(Math.abs((await rect(tabs)).top - bar), "the tabs pinned at the frame's top").toBeLessThanOrEqual(1);
+  if ((await target()) === (await pinnedTop())) expect(Math.abs((await rect(tabs)).top - bar), "the tabs pinned at the frame's top").toBeLessThanOrEqual(1);
 
-  // And from there, far down the Overview, to History.
+  // And from there, far down the Overview, to History. The one-screen Overview (a 1440 × 900 desktop, Release 16) has no far
+  // down: the page cannot scroll past the card, so it is at rest and History keeps it still, as a section chosen at rest does.
   await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  const overviewAt = await page.evaluate(() => window.scrollY);
+  const farDown = overviewAt >= (await pinnedTop()) - 2;
   await tapInPlace(page, tabs.getByTestId("profile-tab-matches"));
   await expect(page).toHaveURL(new RegExp(`${profile}/matches$`));
   await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
-  await settled("Overview → History");
+  if (farDown) await settled("Overview → History");
+  else {
+    await page.waitForTimeout(600);
+    expect(await page.evaluate(() => window.scrollY), "Overview at rest → History keeps the page still, never lower").toBeLessThanOrEqual(overviewAt);
+  }
 });
 
 test("tablet and desktop: Team's sections stay in reach as a long page scrolls, and switch the section from there", async ({ page }) => {
@@ -192,6 +202,17 @@ test("tablet and desktop: Team's sections stay in reach as a long page scrolls, 
   await page.goto("/leaderboards");
   await expect(page.getByTestId("leaderboards")).toHaveAttribute("data-ready", "true");
   await expect(page.getByTestId("records")).toBeVisible();
+  // Since Release 16 a desktop's boards fit the window (the multikills and the milestones fold to the rows that fit, the rest
+  // behind their Show all), so the page is long only with them open: open both, as a reader going through them would.
+  if (!isTablet(page)) {
+    for (const id of ["multikill-show-all", "milestones-show-all"]) {
+      const show = page.getByTestId(id).getByRole("button");
+      if (await show.isVisible()) await show.click();
+    }
+    // A click can scroll its button into view: back to the top, the tabs at rest.
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+  }
   const tabs = page.getByTestId("team-tabs");
   const resting = await rect(tabs);
   // At rest the bar is part of the page: no ink of its own.
@@ -1028,9 +1049,12 @@ test("tablet and desktop: Leaderboards is one page, with no views for the pinned
   await expect(page.locator("section#season-records")).toBeFocused();
   await scrollTo(page, "end");
   await expect(page.getByTestId("team-tabs")).toHaveAttribute("data-stuck", "");
-  // No views to copy into the pinned row: it holds the section tabs, the team's name and the page's index (UD.L1).
+  // No views to copy into the pinned row: it holds the section tabs, the team's name and, from xl, the page's index (UD.L1). Below xl (a
+  // tablet) the index has no room beside Team's four tabs (Release 16: the tab list scrolled under it and a press on "Matches" landed on
+  // "Recent form"), so the row holds the tabs alone and the index under the header serves.
   await expect(pageToolbar(page)).toHaveCount(1);
-  await expect(pageToolbar(page).getByRole("link")).toHaveText(["Recent form", "Season records", "Multikills", "Milestones"]);
+  if (isTablet(page)) await expect(pageToolbar(page).getByRole("link")).toHaveCount(0);
+  else await expect(pageToolbar(page).getByRole("link")).toHaveText(["Recent form", "Season records", "Multikills", "Milestones"]);
   await expect(page.getByTestId("toolbar-leaderboards-tab-form")).toHaveCount(0);
 });
 

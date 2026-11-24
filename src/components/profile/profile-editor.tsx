@@ -668,7 +668,7 @@ export function ProfileEditor({
   );
 
   return (
-    <div className="space-y-2" data-testid="profile-editor" data-editing={live || undefined}>
+    <div className="space-y-1.5" data-testid="profile-editor" data-editing={live || undefined}>
       {heading || intro || editable ? (
         <div className="space-y-1">
           {/* The heading and Edit share a line on every width; what the figures count goes under both across the width (a phone,
@@ -704,7 +704,7 @@ export function ProfileEditor({
       <p className="sr-only" aria-live="assertive" data-testid="role-announce">
         {drag.announce}
       </p>
-      <ol className="space-y-2" data-testid="role-sections" aria-label="Roles in order of preference">
+      <ol className="space-y-1.5" data-testid="role-sections" aria-label="Roles in order of preference">
         {sections.map((o, i) => (
           <React.Fragment key={o.role}>
             {drag.lineBefore(i) ? <li aria-hidden className="h-1 rounded-full bg-accent" data-testid="role-drop-line" /> : null}
@@ -726,12 +726,15 @@ export function ProfileEditor({
         {drag.lineBefore(sections.length) ? <li aria-hidden className="h-1 rounded-full bg-accent" data-testid="role-drop-line" /> : null}
       </ol>
       {offCount === 0 || live ? (
-        <div className={cn("space-y-2", offCount === 0 && "border-t border-border/70 pt-3")} data-testid="off-roles">
+        <div className={cn("space-y-2", offCount === 0 && "border-t border-border/70 pt-2")} data-testid="off-roles">
           {offCount === 0 ? (
-            <>
-              <p className="text-2xs font-semibold uppercase tracking-label text-fg-subtle">Off roles</p>
-              <p className="text-xs text-fg-subtle">None yet: lineups offer this player for {ROLE_LABELS[state.primaryRole]} only.</p>
-            </>
+            // One line where it fits (Release 16: a caption and a line of their own ran the one-screen Overview 9px past 1920 × 950).
+            <p className="text-xs text-fg-subtle">
+              <span className="text-2xs font-semibold uppercase tracking-label">Off roles</span>
+              <span aria-hidden>&nbsp;·&nbsp;</span>
+              <span className="sr-only">: </span>
+              None yet: lineups offer this player for {ROLE_LABELS[state.primaryRole]} only.
+            </p>
           ) : null}
           {live && free.length > 0 ? <AddRole label="Add off role" used={used} onAdd={addOffRole} testId="add-off-role" hint="Another role you are happy to play; lineups can place you there too." /> : null}
         </div>

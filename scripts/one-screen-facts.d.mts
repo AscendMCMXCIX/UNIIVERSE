@@ -20,6 +20,13 @@ export interface OneScreenRead {
   height: number;
   boxes: OneScreenBox[];
   folds: OneScreenFold[];
+  /** Leaderboards only: words drawn across two lines, Multikills' tiles shown and those on one line with their title. */
+  words?: { broken: number; tiles: number; oneLine: number } | null;
+}
+export interface OneScreenInput {
+  sections: Array<[string, string]>;
+  overviews: Array<[string, string, string]>;
+  whole: { root: string; tiles: string } | null;
 }
 export interface Verdict {
   name: string;
@@ -27,7 +34,7 @@ export interface Verdict {
   detail: unknown;
 }
 export const ONE_SCREEN_SECTIONS: Record<OneScreenPage, Array<[string, string]>>;
-export function oneScreenInput(page: OneScreenPage): { sections: Array<[string, string]>; overviews: Array<[string, string, string]> };
-export function readOneScreen(input: { sections: Array<[string, string]>; overviews: Array<[string, string, string]> }): OneScreenRead;
+export function oneScreenInput(page: OneScreenPage): OneScreenInput;
+export function readOneScreen(input: OneScreenInput): OneScreenRead;
 export function showAllCounts(words: string | null | undefined): [number | null, number | null];
 export function oneScreenVerdicts(input: { page: OneScreenPage; size: string; read: OneScreenRead }): Verdict[];
