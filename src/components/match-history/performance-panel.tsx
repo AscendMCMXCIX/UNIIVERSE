@@ -6,6 +6,7 @@ import { InfoTip } from "@/components/ui/info-tip";
 import { formatNumber, formatOrdinal } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { ScoreChart } from "./score-chart";
+import { ACE_TONE, MVP_TONE } from "./score-mark";
 
 /*
   The performance score of the player inspected (domain/performance-score; docs/PERFORMANCE_SCORE.md),
@@ -33,7 +34,8 @@ export function RankChip({ score, className, marks = false }: { score: Pick<Play
       className={cn(
         "inline-flex h-4 items-center text-2xs font-semibold leading-none tabular-nums",
         chip ? "rounded-full px-1.5" : "text-fg-subtle",
-        score.mvp ? "bg-accent-2/25 font-bold text-fg ring-1 ring-inset ring-accent-2/60" : score.ace ? "bg-fg/10 font-bold text-fg ring-1 ring-inset ring-fg/35" : null,
+        // One look with the collapsed card's mark (score-mark.tsx).
+        score.mvp ? MVP_TONE : score.ace ? ACE_TONE : null,
         className,
       )}
       data-testid={marks ? (score.mvp ? "participant-mvp" : score.ace ? "participant-ace" : "rank-chip") : "performance-mark"}

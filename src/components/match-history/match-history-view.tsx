@@ -23,6 +23,7 @@ import { GameSteps, MatchExpansion, bringBack, revealOpened, type GameNav } from
 import { HistorySummaryStrip } from "./history-summary";
 import { ItemRow } from "./icon-img";
 import { MultikillTag } from "./multikill-tag";
+import { ScoreMark, scoreWords } from "./score-mark";
 import { ChampionLoadout, LpChange, lpSpoken, MatchRail, MatchResult, matchCardClass, matchTone } from "./match-card";
 import { TeamComposition } from "./team-composition";
 import { ModeElsewhere, OverviewFilters } from "@/components/players/overview-filters";
@@ -94,6 +95,8 @@ const PHONE_FIGURES_REST = "contents @min-[16rem]/mh:col-[1/-1] @min-[16rem]/mh:
  * card is read in the order it is drawn. Only one of the two is ever displayed.
  */
 const PHONE_BUILD = "col-[1/-1] row-[5] [--icon-size:1.25rem] @min-[21.375rem]/mh:hidden @min-[36rem]/mh:col-auto @min-[36rem]/mh:row-auto @min-[36rem]/mh:flex @min-[36rem]/mh:[--icon-size:initial]";
+/** A wide card's build cell with the performance score: beside the build from 50rem (where the build keeps the teams' 13rem), under it from 61rem (beside the teams, the card is five lines tall). */
+const WIDE_SCORE_CELL = "@min-[50rem]/mh:gap-x-3 @min-[61rem]/mh:flex-col @min-[61rem]/mh:items-start @min-[61rem]/mh:gap-y-1";
 const PHONE_BUILD_BESIDE = "col-[2] row-[3] hidden items-center overflow-hidden [--icon-size:1.25rem] @min-[21.375rem]/mh:flex @min-[36rem]/mh:hidden";
 
 export { fmtDuration, fmtNum, fmtInt } from "./match-format";
@@ -127,6 +130,10 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
   const kda = row.kills === null ? "—" : `${row.kills} / ${row.deaths} / ${row.assists}`;
   const ratio = row.kda === null ? "details not collected" : row.perfect ? "Perfect KDA" : `${row.kda.toFixed(2)} KDA`;
   const multikill = row.multikill ? MULTIKILL_NAMES[row.multikill] : null;
+  // The game's performance score: the opened game's own (docs/PERFORMANCE_SCORE.md); pending while a
+  // Summoner's Rift game's timeline is not stored, which draws nothing (the label says why).
+  const scored = row.performance.state === "ok" ? row.performance : null;
+  const scoreSpoken = scored ? `, ${scoreWords(scored).replace(/^P/, "p")}` : row.performance.state === "pending" ? ", performance score once the game's timeline is stored" : "";
   // A stored record without items: no build to draw (see the build's place below).
   const unrecorded = row.record === "stored" && !row.items;
   // One line of seven on a phone's card (the trinket last), two rows of three and four from 36rem
@@ -184,6 +191,12 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
       ) : null}
     </span>
   );
+  // A wide card's: with the build, beside it while the build keeps the teams' place (50–61rem), under it from 61rem.
+  const wideScore = scored ? (
+    <span className="hidden @min-[50rem]/mh:inline-flex">
+      <ScoreMark score={scored} testId="match-score" />
+    </span>
+  ) : null;
   const open = React.useRef<HTMLButtonElement>(null);
   return (
     <li
@@ -253,13 +266,16 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
           ref={open}
           type="button"
           className="absolute inset-0 rounded-[inherit] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
-          aria-label={`${tone.word} on ${champion.name}, ${row.queue}, ${when}${row.lp ? `, ${lpSpoken(row.lp)}` : ""}${multikill ? `, ${multikill.toLowerCase()}` : ""}. ${expanded ? "Hide" : "Show"} the match details.`}
+          aria-label={`${tone.word} on ${champion.name}, ${row.queue}, ${when}${row.lp ? `, ${lpSpoken(row.lp)}` : ""}${scoreSpoken}${multikill ? `, ${multikill.toLowerCase()}` : ""}. ${expanded ? "Hide" : "Show"} the match details.`}
           aria-describedby={row.teams ? teamsId : undefined}
           aria-expanded={expanded}
           aria-controls={expanded ? regionId : undefined}
           data-testid="match-row"
           data-match={row.matchId}
           data-result={row.win ? "W" : "L"}
+          data-score-state={row.performance.state}
+          data-score={scored?.score}
+          data-rank={scored?.rank}
         />
         <MatchRail win={row.win} />
         {expanded ? (
@@ -345,15 +361,22 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
               5.78em). 6.25em leaves about 9%. A phone's card caps the column at that K/D/A instead
               (5.75rem), so a longer ratio line ("details not collected") wraps under it rather than
               take the build's room. */}
-          <span className={cn("text-right leading-snug @min-[36rem]/mh:text-left", PHONE_KDA)}>
-            <span className="block whitespace-nowrap text-base font-semibold tabular-nums leading-snug text-fg @min-[36rem]/mh:min-w-[6.25em] @min-[54rem]/mh:text-lg" data-testid="match-kda">
+          <span className={cn("text-right @min-[36rem]/mh:text-left", "leading-tight @min-[50rem]/mh:leading-snug", PHONE_KDA)}>
+            <span className={cn("block whitespace-nowrap text-base font-semibold tabular-nums text-fg @min-[36rem]/mh:min-w-[6.25em] @min-[54rem]/mh:text-lg", "leading-tight @min-[50rem]/mh:leading-snug")} data-testid="match-kda">
               {kda}
             </span>
             <span className={cn("block text-xs tabular-nums", row.perfect ? "text-good" : (row.kda ?? 0) >= 3 ? "text-fg-muted" : "text-fg-subtle")}>{ratio}</span>
+            {/* The performance score under the ratio on a phone's and a two-row card (a wide card has it with the build). */}
+            {scored ? (
+              <span className="flex justify-end @min-[36rem]/mh:justify-start @min-[50rem]/mh:hidden">
+                <ScoreMark score={scored} dense testId="match-score" />
+              </span>
+            ) : null}
             {/* The game's largest multikill, quietly (see MultikillTag). */}
+            {/* Under the score on a phone's and a two-row card, no taller than its text: the score's line takes the room the multikill's spacing had. */}
             {row.multikill ? (
-              <span className="mt-0.5 flex flex-wrap items-center justify-end gap-x-1.5 gap-y-0.5 @min-[36rem]/mh:justify-start">
-                <MultikillTag size={row.multikill} />
+              <span className={cn("flex flex-wrap items-center justify-end gap-x-1.5 gap-y-0.5 @min-[36rem]/mh:justify-start", scored ? "mt-px @min-[50rem]/mh:mt-0.5" : "mt-0.5")}>
+                <MultikillTag size={row.multikill} dense={!!scored} className={scored ? "@min-[50rem]/mh:leading-tight" : undefined} />
               </span>
             ) : null}
           </span>
@@ -382,10 +405,13 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
           {unrecorded ? (
             <>
               {build}
-              <span className="hidden @min-[36rem]/mh:block @min-[36rem]/mh:w-[5.875rem]" aria-hidden />
+              <span className={cn("hidden @min-[36rem]/mh:block @min-[36rem]/mh:w-[5.875rem]", WIDE_SCORE_CELL)}>{wideScore}</span>
             </>
           ) : (
-            <span className={cn("flex items-center overflow-hidden", PHONE_BUILD)} data-testid="match-card-build">{build}</span>
+            <span className={cn("flex items-center overflow-hidden", PHONE_BUILD, WIDE_SCORE_CELL)} data-testid="match-card-build">
+              {build}
+              {wideScore}
+            </span>
           )}
           {/* Both teams; without the full record, a quiet note instead of empty slots. A phone's card
               leaves them to the game's own screen (its scoreboard lists all ten), so a screenful

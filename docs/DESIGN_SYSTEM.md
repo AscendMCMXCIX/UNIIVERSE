@@ -154,6 +154,21 @@ decorative chrome.
       box (the role takes the next line when both do not fit), so even a 36rem list keeps "Nunu &
       Willump" whole;
     - **the wide card** (from 50rem), one row of about 100px, unchanged.
+  - **The performance score on the card (Release 17, 24 Nov 2026; docs/PERFORMANCE_SCORE.md, "Where
+    it shows"):** one small mark, `ScoreMark` (`components/match-history/score-mark.tsx`): "3.5 ·
+    9th" at the smallest text size (`text-2xs`), the score in `fg`, the separator in `fg-subtle` and
+    the place in `fg-muted`, then MVP in the emphasis colour (`accent-2`, filled and ringed) or ACE
+    ringed in `fg`, the looks of the scoreboard's `RankChip`; its words for a screen reader are
+    `scoreWords`' ("Performance score 3.5, 9th of 10, MVP"), also in the card's label (no native
+    title: how many were scored is said, not hovered). Exported for the scoreboard's use too (with `MVP_TONE` and `ACE_TONE`). Where it sits: a
+    line under the K/D/A's ratio on a phone's and a two-row card, the K/D/A and the ratio set
+    `leading-tight` there and a multikill under it drawn `dense` (no taller than its text), so a card
+    without a multikill keeps its height and one with a multikill grows about 5px (measured at 375,
+    390 and 768: 0px on cards without one, +5.2px with one); with the build on a wide card, beside it
+    while the build keeps the teams' 13rem (50–61rem) and under it from 61rem (beside the teams' five
+    lines), 0px at 1280 and 1440. At the end of the phone's result line it was tried and dropped: the
+    line wrapped on 13 of 95 demo cards at 375px, 27 at 360px and 66 at 320px. A card without a score
+    draws nothing (its label says why).
   - Read in the order drawn: a card's parts and the header's come in the page in the order they
     are drawn. A phone's card has its own copies of the result line (its first line) and of the
     build (beside the champion), placed where they are read; only one copy is ever displayed.

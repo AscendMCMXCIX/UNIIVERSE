@@ -9,7 +9,8 @@ import { getCurrentPatch } from "@/server/repositories/champions";
 import { erasureFilter } from "@/server/privacy/ledger";
 import { redactTimeline } from "@/server/privacy/redact";
 import { loadCompositionParticipants } from "@/server/matches/compositions";
-import { LANE_MINUTES, goldContradictsRecord, laneMoments, botPairOf, laneOpponentOf, pairMoments, teamGoldDifference, type GoldPoint, type LaneMoment } from "@/domain/match-analysis";
+import { LANE_MINUTES, goldContradictsRecord, laneMoments, botPairOf, laneOpponentOf, pairMoments, teamGoldDifference, type GoldPoint, type LaneMoment, type LaneSeat } from "@/domain/match-analysis";
+import type { ScoreTimeline } from "@/domain/performance-inputs";
 import type { TimelineEventsView } from "@/domain/match-events";
 import { buildPath, type BuildEvent } from "@/domain/build-path";
 
@@ -462,6 +463,146 @@ function eventsView(row: TimelineRow, parts: ReadonlyArray<{ puuid: string; team
   };
 }
 
+/** A player's place in a game as a stored timeline is read against it: by place in the record, with Riot's position readings (loadCompositionParticipants with lanes). */
+export type TimelineSeat = LaneSeat & { puuid: string };
+
+/**
+ * The profile's player's place in the record (the first linked account in it; -1 for none) and the
+ * two teams' gold difference at every frame from that side, before the record is checked against
+ * it (goldContradictsRecord): null without frames, without the player, or unless all ten players'
+ * frames are kept. The opened game's timeline (getMatchTimeline) and the card's score
+ * (players/match-history) read this one rule.
+ */
+export function framesGoldOf<F extends { g: readonly number[] }>(parts: readonly TimelineSeat[], frames: { t: readonly number[]; p: Readonly<Record<string, F>> } | null, own: ReadonlySet<string>): { meSlot: number; gold: GoldPoint[] | null } {
+  const meSlot = parts.findIndex((p) => own.has(p.puuid));
+  const me = meSlot >= 0 ? parts[meSlot]! : null;
+  const series = frames ? parts.filter((p) => !p.removed && frames.p[p.puuid]).map((p) => ({ teamId: p.teamId, g: frames.p[p.puuid]!.g })) : [];
+  return { meSlot, gold: frames && me ? teamGoldDifference(frames.t, series, me.teamId) : null };
+}
+
+/**
+ * Each player's frames in the frames a view may read (null when the timeline contradicts the
+ * record), and their lane opponent's (the one lane opponent rule), by place in the record. A
+ * player's lane is confirmed where both are there. The opened game's per-player timeline and the
+ * card's score read this one rule.
+ */
+export function framesBySeat<F>(parts: readonly TimelineSeat[], usable: { p: Readonly<Record<string, F>> } | null): Array<{ frames: F | null; opponentSlot: number | null; opponentFrames: F | null }> {
+  return parts.map((p, slot) => {
+    const opponentSlot = laneOpponentOf(parts, slot);
+    return {
+      frames: (!p.removed && p.puuid ? usable?.p[p.puuid] : undefined) ?? null,
+      opponentSlot,
+      opponentFrames: (opponentSlot !== null && usable ? usable.p[parts[opponentSlot]!.puuid] : undefined) ?? null,
+    };
+  });
+}
+
+/**
+ * The teams' recorded gold from one side, from the stored record's players: recordedGoldDifference
+ * below, read from a record already loaded (Match History's page reads its games' records whole).
+ * Null when a player's gold is not recorded or a player is removed, or without players.
+ */
+export function recordedGoldDifferenceOf(participants: ReadonlyArray<{ teamId: number; gold: number | null; removed?: boolean }>, teamId: number): number | null {
+  if (!participants.length || !participants.every((p) => typeof p.gold === "number" && p.removed !== true)) return null;
+  return participants.reduce((n, p) => n + (p.teamId === teamId ? p.gold! : -p.gold!), 0);
+}
+
+/**
+ * What the final performance score reads of a stored timeline (domain/performance-inputs
+ * ScoreTimeline), from the same rules as getMatchTimeline: the frames' times, and for each player
+ * the timeline keeps (`kept`: its participants' PUUIDs), their gold and experience at every frame
+ * and whether their lane is confirmed. Nothing of the frames when the timeline contradicts the
+ * record. `recordedDiff` is the record's gold difference from a side (recordedGoldDifferenceOf).
+ */
+export function scoreTimelineOf<F extends { g: readonly number[]; x: readonly number[] }>(parts: readonly TimelineSeat[], stored: { t: readonly number[]; p: Readonly<Record<string, F>> } | null | undefined, kept: ReadonlySet<string>, own: ReadonlySet<string>, recordedDiff: (teamId: number) => number | null): ScoreTimeline {
+  const frames = stored && stored.t.length ? stored : null;
+  const { meSlot, gold } = framesGoldOf(parts, frames, own);
+  const contradicts = !!gold && meSlot >= 0 && goldContradictsRecord(gold, recordedDiff(parts[meSlot]!.teamId));
+  const usable = frames && !contradicts ? frames : null;
+  const seats = framesBySeat(parts, usable);
+  return {
+    t: usable ? usable.t : null,
+    players: parts.flatMap((p, slot) => {
+      if (p.removed || !p.puuid || !kept.has(p.puuid)) return [];
+      const { frames: f, opponentSlot, opponentFrames } = seats[slot]!;
+      return [{ slot, frames: f ? { g: f.g, x: f.x } : null, lane: f && opponentFrames && opponentSlot !== null ? { opponentSlot } : null }];
+    }),
+  };
+}
+
+/** What a card's score reads of one game's stored timeline (loadScoreTimelines). */
+export interface StoredScoreTimeline {
+  /** The timeline keeps players (empty: Riot no longer provides it). */
+  available: boolean;
+  /** Kept before the kills and objectives were (29 Oct 2026): opening the game fetches it again once. */
+  dated: boolean;
+  /** The frames' times; null when no frames are stored. */
+  t: number[] | null;
+  /**
+   * By place in the game's stored record: whether the timeline keeps that player, and their gold and
+   * experience at every frame (null when the frames hold none for them). Not their CS, positions,
+   * purchases or anything else.
+   */
+  seats: Array<{ kept: boolean; frames: { g: number[]; x: number[] } | null }>;
+}
+
+/**
+ * The stored timelines of a page's games, trimmed in the database to what the final score reads:
+ * whether each keeps players, whether it is dated, the frames' times, and for each player of the
+ * game's record (by place, so no PUUID is sent) whether the timeline keeps them and their gold and
+ * experience at every frame. One query for the page (at most PER_PAGE_MAX games); a game without a
+ * stored timeline has no entry.
+ */
+export async function loadScoreTimelines(db: Db, matchIds: readonly string[]): Promise<Map<string, StoredScoreTimeline>> {
+  const ids = [...new Set(matchIds)];
+  const out = new Map<string, StoredScoreTimeline>();
+  if (!ids.length) return out;
+  const result = await db.execute(sql`
+    SELECT t.match_id,
+           jsonb_array_length(t.participants) > 0 AS available,
+           t.events IS NULL AS dated,
+           t.frames->'t' AS t,
+           (SELECT jsonb_agg(jsonb_build_array(
+                     t.participants @> jsonb_build_array(jsonb_build_object('puuid', s.p->>'puuid')),
+                     t.frames->'p'->(s.p->>'puuid')->'g',
+                     t.frames->'p'->(s.p->>'puuid')->'x') ORDER BY s.ord)
+            FROM match_details d CROSS JOIN LATERAL jsonb_array_elements(d.participants) WITH ORDINALITY AS s(p, ord)
+            WHERE d.match_id = t.match_id) AS seats
+    FROM match_timelines t
+    WHERE t.match_id IN (${sql.join(ids.map((id) => sql`${id}`), sql`, `)})`);
+  const json = <T,>(v: unknown): T | null => (v === null || v === undefined ? null : ((typeof v === "string" ? JSON.parse(v) : v) as T));
+  const yes = (v: unknown) => v === true || v === "t" || v === "true";
+  const rows = ((result as { rows?: unknown[] }).rows ?? result) as Array<{ match_id: string; available: unknown; dated: unknown; t: unknown; seats: unknown }>;
+  for (const r of rows) {
+    const t = json<number[]>(r.t);
+    const seats = json<Array<[boolean, number[] | null, number[] | null]>>(r.seats) ?? [];
+    out.set(r.match_id, {
+      available: yes(r.available),
+      dated: yes(r.dated),
+      t: Array.isArray(t) ? t : null,
+      seats: seats.map(([kept, g, x]) => ({ kept: kept === true, frames: Array.isArray(g) && Array.isArray(x) ? { g, x } : null })),
+    });
+  }
+  return out;
+}
+
+/**
+ * A trimmed timeline (loadScoreTimelines) as the shared rules read it: the frames by PUUID and the
+ * PUUIDs it keeps, from the record's players in their places. Places beyond the record (none in
+ * practice) are left out.
+ */
+export function scoreFramesOf(stored: StoredScoreTimeline, participants: ReadonlyArray<{ puuid: string }>): { frames: { t: number[]; p: Record<string, { g: number[]; x: number[] }> } | null; kept: Set<string> } {
+  const p: Record<string, { g: number[]; x: number[] }> = {};
+  const kept = new Set<string>();
+  stored.seats.forEach((seat, slot) => {
+    const puuid = participants[slot]?.puuid;
+    if (!puuid) return;
+    if (seat.kept) kept.add(puuid);
+    if (seat.frames) p[puuid] = seat.frames;
+  });
+  return { frames: stored.t ? { t: stored.t, p } : null, kept };
+}
+
 /** The teams' recorded gold (Riot's goldEarned) from one side; null when a player's is not recorded. One row by primary key. */
 async function recordedGoldDifference(db: Db, matchId: string, teamId: number): Promise<number | null> {
   const result = await db.execute(sql`
@@ -485,49 +626,42 @@ export async function getMatchTimeline(db: Db, playerId: string, matchId: string
   const meTimeline = row.participants.find((p) => puuids.has(p.puuid)) ?? null;
   // With Riot's two readings of each position: the lane is found by the one lane opponent rule.
   const parts = (await loadCompositionParticipants(db, [matchId], { lanes: true })).get(matchId) ?? [];
-  const meSlot = parts.findIndex((p) => puuids.has(p.puuid));
-  const me = meSlot >= 0 ? parts[meSlot]! : null;
   const frames = row.frames && row.frames.t.length ? row.frames : null;
-  let lane: MatchTimelineView["lane"] = null;
-  const opponentSlot = me ? laneOpponentOf(parts, meSlot) : null;
-  if (frames && me && opponentSlot !== null) {
-    const mine = frames.p[me.puuid];
-    const theirs = frames.p[parts[opponentSlot]!.puuid];
-    if (mine && theirs) lane = { opponentSlot, moments: laneMoments(frames.t, mine, theirs, LANE_MINUTES) };
-  }
-  let pair: MatchTimelineView["pair"] = null;
-  const seats = me ? botPairOf(parts, meSlot) : null;
-  if (frames && me && seats) {
-    const f = (slot: number) => frames.p[parts[slot]!.puuid];
-    const [a, b, c, d] = [f(meSlot), f(seats.ally), f(seats.opponents[0]), f(seats.opponents[1])];
-    const gold = a && b && c && d ? pairMoments(frames.t, [a, b], [c, d], 10) : null;
-    if (gold !== null) pair = { allySlot: seats.ally, opponentSlots: seats.opponents, gold };
-  }
-  const series = frames ? parts.filter((p) => !p.removed && frames.p[p.puuid]).map((p) => ({ teamId: p.teamId, g: frames.p[p.puuid]!.g })) : [];
-  let gold = frames && me ? teamGoldDifference(frames.t, series, me.teamId) : null;
+  // The profile's player and the teams' gold difference (framesGoldOf: the card's score reads the same rule).
+  const { meSlot, gold: goldRead } = framesGoldOf(parts, frames, puuids);
+  const me = meSlot >= 0 ? parts[meSlot]! : null;
   // A timeline that tells a different game from the record (one side clearly ahead in one, clearly
   // behind in the other) is not drawn, and neither is its lane: the record is what every other view reads.
-  const contradicts = !!gold && !!me && goldContradictsRecord(gold, await recordedGoldDifference(db, matchId, me.teamId));
-  if (contradicts) {
-    gold = null;
-    lane = null;
-    pair = null;
+  const contradicts = !!goldRead && !!me && goldContradictsRecord(goldRead, await recordedGoldDifference(db, matchId, me.teamId));
+  const gold = contradicts ? null : goldRead;
+  const usable = frames && !contradicts ? frames : null;
+  // Every player's frames and their lane opponent's, by the one lane opponent rule (framesBySeat).
+  const seats = framesBySeat(parts, usable);
+  let lane: MatchTimelineView["lane"] = null;
+  if (usable && me) {
+    const { frames: mine, opponentSlot, opponentFrames: theirs } = seats[meSlot]!;
+    if (mine && theirs && opponentSlot !== null) lane = { opponentSlot, moments: laneMoments(usable.t, mine, theirs, LANE_MINUTES) };
+  }
+  let pair: MatchTimelineView["pair"] = null;
+  const mySeats = me ? botPairOf(parts, meSlot) : null;
+  if (usable && me && mySeats) {
+    const f = (slot: number) => usable.p[parts[slot]!.puuid];
+    const [a, b, c, d] = [f(meSlot), f(mySeats.ally), f(mySeats.opponents[0]), f(mySeats.opponents[1])];
+    const pairGold = a && b && c && d ? pairMoments(usable.t, [a, b], [c, d], 10) : null;
+    if (pairGold !== null) pair = { allySlot: mySeats.ally, opponentSlots: mySeats.opponents, gold: pairGold };
   }
   // Every player's own: the same rules as the profile's player's above, from the row already read.
   const { describe, kinds } = await itemDescriber(db, matchId);
   const entry = new Map(row.participants.map((p) => [p.puuid, p]));
   const items: MatchTimelineView["items"] = {};
-  const usable = frames && !contradicts ? frames : null;
   const players: TimelinePlayerView[] = parts.flatMap((p, slot) => {
     const e = !p.removed && p.puuid ? entry.get(p.puuid) : undefined;
     if (!e) return [];
-    const f = usable?.p[p.puuid];
-    const opp = laneOpponentOf(parts, slot);
-    const theirs = opp !== null && usable ? usable.p[parts[opp]!.puuid] : undefined;
-    const seats = usable ? botPairOf(parts, slot) : null;
+    const { frames: f, opponentSlot: opp, opponentFrames: theirs } = seats[slot]!;
+    const pairSeats = usable ? botPairOf(parts, slot) : null;
     const seat = (s: number) => usable?.p[parts[s]!.puuid];
-    const [ally, o1, o2] = seats ? [seat(seats.ally), seat(seats.opponents[0]), seat(seats.opponents[1])] : [];
-    const pairGold = seats && f && ally && o1 && o2 ? pairMoments(usable!.t, [f, ally], [o1, o2], 10) : null;
+    const [ally, o1, o2] = pairSeats ? [seat(pairSeats.ally), seat(pairSeats.opponents[0]), seat(pairSeats.opponents[1])] : [];
+    const pairGold = pairSeats && f && ally && o1 && o2 ? pairMoments(usable!.t, [f, ally], [o1, o2], 10) : null;
     return [
       {
         slot,
@@ -542,7 +676,7 @@ export async function getMatchTimeline(db: Db, playerId: string, matchId: string
         assists: e.kills ? (e.assists ?? []) : null,
         frames: f ? { g: f.g, x: f.x, c: f.c } : null,
         lane: f && theirs && opp !== null ? { opponentSlot: opp, moments: laneMoments(usable!.t, f, theirs, LANE_MINUTES) } : null,
-        pair: seats && pairGold !== null ? { allySlot: seats.ally, opponentSlots: seats.opponents, gold: pairGold } : null,
+        pair: pairSeats && pairGold !== null ? { allySlot: pairSeats.ally, opponentSlots: pairSeats.opponents, gold: pairGold } : null,
       },
     ];
   });

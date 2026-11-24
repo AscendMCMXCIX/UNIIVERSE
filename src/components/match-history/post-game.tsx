@@ -14,7 +14,7 @@ import { ParticipantPanels, type PanelKey } from "./participant-panels";
 import { ScoreSummary, ScoreTimeline } from "./performance-panel";
 import { usePhone } from "@/components/ui/use-phone";
 import { segmentClass, segmentedGroupClass } from "@/components/ui/segmented";
-import { gameScoresOf } from "./performance-inputs";
+import { gameScoresOf } from "@/domain/performance-inputs";
 import { cn } from "@/lib/cn";
 import { MatchDetailCacheContext, type MeetingScope } from "./match-detail-cache";
 import { OpggHistoryLink } from "./opgg-history-link";
