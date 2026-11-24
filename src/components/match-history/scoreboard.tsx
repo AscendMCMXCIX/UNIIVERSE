@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Clock3, UserX } from "lucide-react";
+import { Clock3, Swords, UserX } from "lucide-react";
 import type { MatchGroupsResult, MatchGroupsTeam, MatchGroupView } from "@/server/matches/possible-groups";
 import { groupEvidenceText, groupsNoteState } from "@/domain/possible-groups";
 import type { DetailParticipant, DetailTeam, MatchRanksResult } from "@/server/players/match-history";
@@ -13,7 +13,7 @@ import type { PlayerScore } from "@/domain/performance-score";
 import { RankChip } from "./performance-panel";
 import { cn } from "@/lib/cn";
 import { Fold } from "@/components/ui/fold";
-import { matchRankQueue, rankBadgeLabel, rankTimingCounts, type ParticipantRank } from "@/domain/known-rank";
+import { matchRankQueue, rankBadgeLabel, rankShortLabel, rankTimingCounts, type ParticipantRank } from "@/domain/known-rank";
 import { InfoTip } from "@/components/ui/info-tip";
 import { RankEmblem } from "@/components/players/rank-emblem";
 import { Badge } from "@/components/ui/badge";
@@ -184,14 +184,25 @@ function RankBadge({ rank, queueId, checking }: { rank: ParticipantRank; queueId
       </span>
     );
   const { text, queueMark, spoken, title, aroundGame } = rankBadgeLabel(rank, queueId);
+  const shortLabel = rankShortLabel(rank, queueId);
+  const short = shortLabel.text ? shortLabel : null;
   // The tier in its own colour (5:1 or more on the panels) when it is the rank around the game; one read away from it stays in the quiet caption colour.
   const tierColour = rank.state === "ranked" && rank.tier && aroundGame !== false ? (TIER_TEXT[rank.tier] ?? "text-fg-muted") : null;
   return (
     <span className={cn(base, rank.state === "ranked" ? cn("border-border-strong/70", tierColour ?? "text-fg-muted") : rank.state === "unranked" ? "border-border text-fg-subtle" : "border-dashed border-border text-fg-subtle")} title={title} data-testid="participant-rank" data-state={rank.state} data-queue={rank.queue ?? undefined} data-timing={rank.timing ?? undefined}>
       {rank.state === "ranked" ? <RankEmblem tier={rank.tier} className="-ml-px h-3 w-3 shrink-0" /> : null}
-      <span aria-hidden className="min-w-0 truncate @max-[16rem]/sb:whitespace-normal" data-testid="participant-rank-text">
-        {queueMark ? <span className="text-fg-subtle">{queueMark} </span> : null}
-        {text}
+      {/* In a post-game scoreboard 30–36rem wide (a desktop with the sidebar open) the short form a match card uses ("E2"), so the champion beside it is never cut; the whole rank stays in the title and the screen reader's words. */}
+      <span aria-hidden className="min-w-0 truncate @max-[16rem]/sb:whitespace-normal" data-testid="participant-rank-text" data-text={`${queueMark ? `${queueMark} ` : ""}${text}`}>
+        <span className={cn(short && "@min-[30rem]/sb:@max-[36rem]/sb:hidden")}>
+          {queueMark ? <span className="text-fg-subtle">{queueMark} </span> : null}
+          {text}
+        </span>
+        {short ? (
+          <span className="hidden @min-[30rem]/sb:@max-[36rem]/sb:inline">
+            {short.text}
+            {short.queueMark ? <span className="ml-px align-top text-4xs font-medium leading-none text-fg-subtle">{short.queueMark}</span> : null}
+          </span>
+        ) : null}
       </span>
       {aroundGame === false ? <Clock3 className="-mr-px h-2.5 w-2.5 shrink-0 text-fg-subtle" aria-hidden data-testid="rank-read-later" /> : null}
       <span className="sr-only">{spoken}</span>
@@ -413,7 +424,7 @@ function CompactRow({ x, champ, group, lane, rank, queueId, checking, met, meetH
   return (
     <li
       className={cn(
-        "relative grid items-center gap-x-2 gap-y-0.5 px-2.5 py-1 @max-[16rem]/sb:px-1.5 @min-[30rem]/sb:gap-x-3 @min-[30rem]/sb:gap-y-0 @min-[30rem]/sb:py-px",
+        "relative grid items-center gap-x-2 gap-y-0.5 px-2.5 py-1 @max-[16rem]/sb:px-1.5 @min-[36rem]/sb:gap-x-3 @min-[30rem]/sb:gap-y-0 @min-[30rem]/sb:py-px",
         selection ? "grid-cols-[auto_minmax(0,1fr)_auto_auto] @max-[16rem]/sb:grid-cols-[auto_minmax(0,1fr)] @min-[30rem]/sb:grid-cols-[auto_minmax(0,1fr)_auto_auto_auto_auto]" : "grid-cols-[auto_auto_minmax(0,1fr)_auto] @min-[30rem]/sb:grid-cols-[auto_minmax(0,1fr)_auto_auto_auto]",
         // The links, the "Met" chip and the rank stay their own targets above the row's one button.
         selection && "transition-colors [&_[data-testid=participant-met]]:z-20 [&_[data-testid=participant-rank]]:relative [&_[data-testid=participant-rank]]:z-20 [&_a]:relative [&_a]:z-20",
@@ -456,14 +467,20 @@ function CompactRow({ x, champ, group, lane, rank, queueId, checking, met, meetH
       <span className={p("@min-[30rem]/sb:col-start-3 @min-[30rem]/sb:row-span-2", "text-right text-sm font-semibold tabular-nums text-fg col-start-3 row-start-1", "@max-[16rem]/sb:col-start-1 @max-[16rem]/sb:col-span-2 @max-[16rem]/sb:row-start-2 @max-[16rem]/sb:justify-self-start") ?? "col-start-4 row-start-1 text-right text-sm font-semibold tabular-nums text-fg @min-[30rem]/sb:col-start-3 @min-[30rem]/sb:row-span-2"} data-testid="participant-kda">
         {x.kills}/{x.deaths}/{x.assists}
       </span>
-      <span className={p("@min-[30rem]/sb:col-start-4 @min-[30rem]/sb:row-span-2 @min-[30rem]/sb:row-start-1 @min-[30rem]/sb:[--icon-size:1.25rem]", "min-w-0 col-start-2 row-start-2 [--icon-size:1rem]", "@max-[16rem]/sb:col-start-1 @max-[16rem]/sb:col-span-2 @max-[16rem]/sb:row-start-3 @max-[16rem]/sb:[&>[role=img]]:flex-wrap") ?? "col-start-2 row-start-2 [--icon-size:1rem] @min-[30rem]/sb:col-start-4 @min-[30rem]/sb:row-span-2 @min-[30rem]/sb:row-start-1 @min-[30rem]/sb:[--icon-size:1.25rem]"} data-testid="participant-items">
+      <span className={p("@min-[30rem]/sb:col-start-4 @min-[30rem]/sb:row-span-2 @min-[30rem]/sb:row-start-1 @min-[30rem]/sb:[--icon-size:1.125rem] @min-[36rem]/sb:[--icon-size:1.25rem]", "min-w-0 col-start-2 row-start-2 [--icon-size:1rem]", "@max-[16rem]/sb:col-start-1 @max-[16rem]/sb:col-span-2 @max-[16rem]/sb:row-start-3 @max-[16rem]/sb:[&>[role=img]]:flex-wrap") ?? "col-start-2 row-start-2 [--icon-size:1rem] @min-[30rem]/sb:col-start-4 @min-[30rem]/sb:row-span-2 @min-[30rem]/sb:row-start-1 @min-[30rem]/sb:[--icon-size:1.25rem]"} data-testid="participant-items">
         <ItemRow items={x.items} size={20} />
       </span>
       <span className={p("@min-[30rem]/sb:col-span-1 @min-[30rem]/sb:col-start-2 @min-[30rem]/sb:row-start-2 @min-[30rem]/sb:self-start", "flex min-w-0 items-center gap-1 text-2xs leading-tight text-fg-muted col-start-2 col-span-3 row-start-3 empty:hidden", "@max-[16rem]/sb:col-start-1 @max-[16rem]/sb:col-span-2 @max-[16rem]/sb:row-start-4 @max-[16rem]/sb:flex-wrap") ?? "col-start-3 row-start-2 flex min-w-0 items-center gap-1 text-2xs leading-tight text-fg-muted @min-[30rem]/sb:col-start-2 @min-[30rem]/sb:self-start"}>
-        <span className="hidden truncate @min-[30rem]/sb:inline">{c.name}</span>
+        {/* The champion whole, always (it shrinks for nothing); the rank beside it gives way. */}
+        <span className="hidden shrink-0 whitespace-nowrap @min-[30rem]/sb:inline" data-testid="participant-champion">
+          {c.name}
+        </span>
         {lane ? (
-          <span className="shrink-0 rounded border border-border px-1 leading-4 text-fg-muted" data-testid="lane-opponent-mark">
-            Lane<span className="@max-[40rem]/sb:sr-only"> opponent</span>
+          // Under a 36rem scoreboard an icon (its words for screen readers), from 36rem "Lane", from 40rem "Lane opponent".
+          <span className="inline-flex shrink-0 items-center rounded border border-border px-1 leading-4 text-fg-muted" data-testid="lane-opponent-mark">
+            <Swords className="h-3 w-3 @min-[36rem]/sb:hidden" aria-hidden />
+            <span className="sr-only @min-[36rem]/sb:not-sr-only">Lane</span>
+            <span className="sr-only @min-[40rem]/sb:not-sr-only @min-[40rem]/sb:ml-1"> opponent</span>
           </span>
         ) : null}
         {rank ? <RankBadge rank={rank} queueId={queueId} checking={checking && rank.stale} /> : null}

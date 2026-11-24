@@ -188,13 +188,31 @@ export function ParticipantPanels({ panel, onPanel, result, entry, page }: { pan
     <section aria-label={PANELS.find((p) => p.key === panel)!.label} className="space-y-2 rounded-lg bg-surface px-3 py-2" data-testid="participant-panels" data-panel={panel}>
       <div role="radiogroup" aria-label="Show the build path, the skill order or the runes" className={segmentedGroupClass("flex-wrap")} data-testid="panel-tabs">
         {PANELS.map((p) => (
-          <button key={p.key} type="button" role="radio" aria-checked={panel === p.key} onClick={() => onPanel(p.key)} className={segmentClass(panel === p.key)} data-testid={`panel-${p.key}`}>
+          // One stop in the tab order, the chosen heading; ← → (↑ ↓) choose the next, as radios do.
+          <button
+            key={p.key}
+            type="button"
+            role="radio"
+            aria-checked={panel === p.key}
+            tabIndex={panel === p.key ? 0 : -1}
+            onClick={() => onPanel(p.key)}
+            onKeyDown={(e) => {
+              const step = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 0;
+              if (!step) return;
+              e.preventDefault();
+              const next = PANELS[(PANELS.findIndex((x) => x.key === p.key) + step + PANELS.length) % PANELS.length]!;
+              onPanel(next.key);
+              (e.currentTarget.parentElement?.querySelector(`[data-testid=panel-${next.key}]`) as HTMLElement | null)?.focus();
+            }}
+            className={segmentClass(panel === p.key)}
+            data-testid={`panel-${p.key}`}
+          >
             {p.label}
           </button>
         ))}
       </div>
       {/* As tall as the tallest of the three on most games, so the lane under it stays put as they switch. */}
-      <div className="min-h-28" data-testid="panel-body">
+      <div className={cn(result && !missing && "min-h-28")} data-testid="panel-body">
         {panel === "runes" ? (
           <Runes page={page} />
         ) : !result ? (
