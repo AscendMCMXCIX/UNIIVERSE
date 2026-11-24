@@ -5,6 +5,7 @@ import Link from "next/link";
 import { createPortal } from "react-dom";
 import { SlidersHorizontal } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { chipLookClass } from "./segmented";
 
 /*
   A page's controls always in reach (PR 2b; docs/DESIGN_SYSTEM.md → The navigation contract).
@@ -208,7 +209,7 @@ export const COMPACT_CONTROL = "h-8 pointer-coarse:h-9.5";
 
 /**
  * A page's own action as a chip in the pinned row (Team Matches' Bookmarked): a link that replaces the
- * history entry, as the filter it is; the row's height, lit while on; its icon (`children`), its label
+ * history entry, as the filter it is; the row's height, lit while on as every chip (chipLookClass); its icon (`children`), its label
  * where the row has room (else read out) and a count.
  */
 export function ToolbarChip({ href, on, label, count, children, testId }: { href: string; on: boolean; label: string; count?: number; children?: React.ReactNode; testId?: string }) {
@@ -223,7 +224,7 @@ export function ToolbarChip({ href, on, label, count, children, testId }: { href
       className={cn(
         "touch-target inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-accent",
         COMPACT_CONTROL,
-        on ? "border-accent bg-accent/15 text-fg" : "border-border text-fg-muted hover:border-border-strong hover:text-fg",
+        chipLookClass(on),
       )}
       data-testid={testId}
     >

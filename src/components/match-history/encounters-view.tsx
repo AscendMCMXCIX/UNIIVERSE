@@ -14,7 +14,7 @@ import { DataStatusNote, RefreshButton, type DataRefreshTarget } from "@/compone
 import type { DataStatus } from "@/domain/data-status";
 import { Select } from "@/components/ui/select";
 import { SearchInput } from "@/components/ui/search-input";
-import { chipClass, segmentClass, segmentedGroupClass } from "@/components/ui/segmented";
+import { segmentClass, segmentedGroupClass } from "@/components/ui/segmented";
 import { FilterField } from "@/components/ui/filter-bar";
 import { ModeElsewhere, OverviewFilters } from "@/components/players/overview-filters";
 import { formatCount, formatDate, percent } from "@/lib/format";
@@ -65,8 +65,9 @@ const SORT_LABEL: Record<EncounterSort, string> = { games: "Most games", recent:
 const minimumText = (n: number) => (n === 1 ? "Any number of games" : `${n}+ games`);
 
 /**
- * The list's minimum and order in a phone's Filters sheet: one choice each, as chips (a radio group
- * each, applied at once and replacing the address, as every filter does). Wider screens keep both in
+ * The list's minimum and order in a phone's Filters sheet: one choice each, as segments (a radio
+ * group each, applied at once and replacing the address, as every filter does; chips until Release 17,
+ * which are for filters that can be on together). Wider screens keep both in
  * the list's toolbar, where the column names also sort.
  */
 function ListChoiceFields({ choice, sorts, pending, go }: { choice: EncounterListChoice; sorts: readonly EncounterSort[]; pending: boolean; go: (change: Partial<EncounterListChoice>) => void }) {
@@ -74,18 +75,18 @@ function ListChoiceFields({ choice, sorts, pending, go }: { choice: EncounterLis
   return (
     <>
       <FilterField label="Minimum games" labelId={`${id}-min`} alwaysLabel>
-        <div role="radiogroup" aria-labelledby={`${id}-min`} className="flex flex-wrap gap-2" data-testid="encounter-min-choices">
+        <div role="radiogroup" aria-labelledby={`${id}-min`} className={segmentedGroupClass("flex-wrap overflow-visible")} data-testid="encounter-min-choices">
           {ENCOUNTER_MINIMUMS.map((n) => (
-            <button key={n} type="button" role="radio" aria-checked={choice.min === n} disabled={pending} onClick={() => go({ min: n })} className={chipClass(choice.min === n)} data-value={n}>
+            <button key={n} type="button" role="radio" aria-checked={choice.min === n} disabled={pending} onClick={() => go({ min: n })} className={segmentClass(choice.min === n)} data-value={n}>
               {minimumText(n)}
             </button>
           ))}
         </div>
       </FilterField>
       <FilterField label="Sort by" labelId={`${id}-sort`} alwaysLabel>
-        <div role="radiogroup" aria-labelledby={`${id}-sort`} className="flex flex-wrap gap-2" data-testid="encounter-sort-choices">
+        <div role="radiogroup" aria-labelledby={`${id}-sort`} className={segmentedGroupClass("flex-wrap overflow-visible")} data-testid="encounter-sort-choices">
           {sorts.map((k) => (
-            <button key={k} type="button" role="radio" aria-checked={choice.sort === k} disabled={pending} onClick={() => go({ sort: k })} className={chipClass(choice.sort === k)} data-value={k}>
+            <button key={k} type="button" role="radio" aria-checked={choice.sort === k} disabled={pending} onClick={() => go({ sort: k })} className={segmentClass(choice.sort === k)} data-value={k}>
               {SORT_LABEL[k]}
             </button>
           ))}

@@ -2,43 +2,75 @@ import * as React from "react";
 import type { Role } from "@/domain/roles";
 import { ROLE_LABELS } from "@/domain/roles";
 import { RoleIcon } from "@/components/role-icon";
-import { cn } from "@/lib/cn";
+import { cn, withDefaults } from "@/lib/cn";
 
 /*
-  The two selection controls of the app, one look each:
-    Segmented  one choice out of a few (a role, a view, a sort): an inset group of segments.
-    Chip       a filter that can be switched on and off on its own (several may be on).
-  Both work as buttons (client state) or as links (choices kept in the URL); the caller renders the
-  element and takes its classes from here, so every page draws them the same way.
+  The selection controls of the app, one family of text-led controls (Release 17, the owner's brief
+  §9, 24 Nov 2026):
+    Segmented  one choice out of a few (a role, a view, a sort): words side by side, the chosen one
+               in the main text colour and semibold over a short accent underline. No outline round
+               the group and no filled box round the chosen one.
+    Chip       a filter that can be switched on and off on its own (several may be on): a quiet
+               round outline, lit while on. A control, never a tab.
+  Section tabs (TabBar) and a section's views (SubTabs) draw the same underline, stronger and larger
+  (docs/DESIGN_SYSTEM.md §5, "Text-led controls"). Both work as buttons (client state) or as links
+  (choices kept in the URL); the caller renders the element and takes its classes from here, so
+  every page draws them the same way (src/app/segmented-use.test.ts refuses a page's own boxed group).
 */
 
-/** The group around the segments. Give it role="radiogroup" (or a nav) and a label. */
+/**
+ * The underline of a text-led control (a segment, a view's tab): drawn inside the item's own box, 4px
+ * above its foot, so it never reaches past the item or its row (a scroll row that overflows by a pixel
+ * scrolls the other way too: tabIndicatorClass's note). The chosen item: the main text colour over
+ * the accent line; at rest the secondary grey, brighter while pointed at with a faint line under it
+ * (as TabBar's); disabled, the faint grey with no line. `inset`: the line's ends, matching the item's
+ * side padding so it is as wide as the words.
+ */
+export function choiceIndicatorClass(on: boolean, opts: { disabled?: boolean; inset?: string } = {}): string {
+  return cn(
+    "relative after:pointer-events-none after:absolute after:bottom-1 after:h-0.5 after:rounded-full after:transition-opacity after:duration-150",
+    opts.inset ?? "after:inset-x-2.5",
+    on ? "text-fg after:bg-accent" : opts.disabled ? "cursor-not-allowed text-fg-subtle/60 after:opacity-0" : "text-fg-muted after:bg-border-strong after:opacity-0 hover:text-fg hover:after:opacity-100",
+  );
+}
+
+/** The group around the segments: no outline and no fill. Give it role="radiogroup" (or a nav) and a label. */
 export function segmentedGroupClass(className?: string): string {
-  // On touch screens the 44px segments fill the group (its hairline drawn inside), so the group stays 44px, the height of the fields and chips beside it.
-  return cn("inline-flex max-w-full items-center gap-0.5 overflow-x-auto rounded-lg border border-border-control bg-bg-elevated p-0.5 [scrollbar-width:none] pointer-coarse:border-0 pointer-coarse:p-0 pointer-coarse:ring-1 pointer-coarse:ring-inset pointer-coarse:ring-border-control [&::-webkit-scrollbar]:hidden", className);
+  // Sideways only: overflow-x auto would make the other axis auto too (tab-bar.tsx's note).
+  return cn("inline-flex max-w-full items-center gap-1 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden", className);
 }
 
 /**
- * One segment: 30px tall with a mouse, so the group around it is 36px, the height of a field or a
- * chip beside it; 44px on touch screens, a finger's target, filling the group there (44px too: the
- * 38px segments before were under the 44px rule, UM.TT1). `md`: the main filter of a list's toolbar (Encounters'
- * All, Against and Alongside), in the body text size, at the same height.
+ * One segment: 36px tall with a mouse, the height of a field or a chip beside it; 44px on touch
+ * screens, a finger's target (UM.TT1). `md`: the main filter of a list's toolbar (Encounters' All,
+ * Against and Alongside), in the body text size, at the same height. The focus ring is drawn inside
+ * the segment, where a group that scrolls sideways cannot clip it. A caller's width, padding, text
+ * size or colour replaces the default (withDefaults).
  */
 export function segmentClass(active: boolean, opts: { disabled?: boolean; className?: string; size?: "sm" | "md" } = {}): string {
-  return cn(
-    "inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md transition-colors focus-visible:outline-2 focus-visible:outline-accent",
-    "min-h-[1.875rem] font-medium pointer-coarse:min-h-11",
-    opts.size === "md" ? "px-3 text-sm" : "px-2.5 text-xs",
-    active ? "bg-accent/15 font-semibold text-fg ring-1 ring-inset ring-accent/60" : opts.disabled ? "cursor-not-allowed text-fg-subtle/50" : "text-fg-muted hover:bg-surface-2 hover:text-fg",
+  const md = opts.size === "md";
+  return withDefaults(
+    cn(
+      "inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md transition-colors duration-150 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
+      "min-h-9 pointer-coarse:min-h-11",
+      md ? "px-3 text-sm" : "px-2.5 text-xs",
+      active ? "font-semibold" : "font-medium",
+      choiceIndicatorClass(active, { disabled: opts.disabled, inset: md ? "after:inset-x-3" : "after:inset-x-2.5" }),
+    ),
     opts.className,
   );
 }
 
-/** A filter chip: round, bordered, lit when on. */
+/** A chip's colours: a quiet outline at rest; on, an accent edge over a faint accent wash. */
+export function chipLookClass(active: boolean): string {
+  return active ? "border-accent/60 bg-accent/10 text-fg" : "border-border text-fg-muted hover:border-border-strong hover:text-fg";
+}
+
+/** A filter chip: round, outlined, lit when on; 36px with a mouse, 44px on touch screens. */
 export function chipClass(active: boolean, className?: string): string {
   return cn(
-    "inline-flex min-h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 text-xs font-medium transition-colors pointer-coarse:min-h-11 focus-visible:outline-2 focus-visible:outline-accent",
-    active ? "border-accent bg-accent/15 text-fg" : "border-border text-fg-muted hover:border-border-strong hover:text-fg",
+    "inline-flex min-h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 text-xs font-medium transition-colors duration-150 pointer-coarse:min-h-11 focus-visible:outline-2 focus-visible:outline-accent",
+    chipLookClass(active),
     className,
   );
 }
@@ -64,7 +96,7 @@ export function RoleSegmentContent({ role, active, compactLabel = true, compactB
       {role ? <RoleIcon role={role} className="h-4 w-4 shrink-0" /> : null}
       <span className={cn(role && compactLabel && (active ? ACTIVE_COMPACT[compactBelow] : COMPACT[compactBelow]))}>{role ? ROLE_LABELS[role] : "All roles"}</span>
       {count !== undefined && count !== null ? (
-        <span className={cn("rounded px-1 text-2xs tabular-nums", count ? "bg-surface-3 text-fg-muted" : "text-fg-subtle/60")} title={countTitle}>
+        <span className={cn("text-2xs font-medium tabular-nums", count ? "text-fg-subtle" : "text-fg-subtle/60")} title={countTitle}>
           {count}
         </span>
       ) : null}
