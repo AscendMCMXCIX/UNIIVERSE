@@ -398,11 +398,15 @@ export function PostGame({ playerId, view, champ, variant, encounterLinks = fals
             {view.player.opgg ? <OpggHistoryLink href={view.player.opgg} account={view.player.name?.split("#")[0]?.trim() || null} /> : null}
           </div>
         </section>
-        <section aria-label="Scoreboard" className="@container/sb min-w-0 space-y-2" data-testid="post-game-scoreboard" onKeyDown={onRowKeys}>
+        <section aria-label="Scoreboard" className="@container/sb min-w-0 space-y-1.5" data-testid="post-game-scoreboard" onKeyDown={onRowKeys}>
           {view.teams.map((t) => (
             <TeamTable key={t.teamId} compact team={t} champ={champ} maxDamage={view.maxDamage} groups={groups?.status === "ok" ? (groups.teams.find((g) => g.teamId === t.teamId) ?? null) : null} laneSlot={subject.laneOpponentSlot} rankOf={rankOf} queueId={view.queueId} checking={checking} met={met} meetHref={meetHref} selection={{ selected: subject.slot, onSelect: select, score: scoreOf, scoring: !timeline, scored: scores?.scored ?? 0 }} />
           ))}
-          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+          {/* The two notes run on as one paragraph (each its own <p>, shown inline), so they share their
+              lines: a long groups note takes the rest of the ranks note's line before a new one, which
+              keeps the open game within 1440 × 900 (the Production check; it ran 18px over with a side
+              clause on its own line, 24 Nov 2026). */}
+          <div className="text-2xs [&>p]:inline [&>p+p]:ms-1.5" data-testid="scoreboard-notes">
             <RanksNote ranks={view.teams.flatMap((t) => t.participants.filter((x) => !x.removed).map(rankOf))} queueId={view.queueId} checking={checking} result={ranks} />
             <GroupsNote result={groups} teams={view.teams} />
           </div>

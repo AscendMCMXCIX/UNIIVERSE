@@ -97,7 +97,7 @@ export function TeamTable({ team, champ, maxDamage, groups, laneSlot, rankOf, qu
   return (
     <section className={cn("overflow-hidden rounded-panel border bg-surface", team.win ? "border-blue/35" : "border-red/35")} data-testid={`team-${team.side}`} aria-label={`${team.side === "blue" ? "Blue" : "Red"} team, ${team.win ? "victory" : "defeat"}`}>
       {/* The team's band: its side and result first (the word, never the colour alone), then its totals, each number brighter than its word. */}
-      <header className={cn("flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b px-3 text-xs", compact ? "py-1.5" : "py-2", team.win ? "border-blue/25 bg-blue/10" : "border-red/25 bg-red/10")}>
+      <header className={cn("flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b px-3 text-xs", compact ? "py-1" : "py-2", team.win ? "border-blue/25 bg-blue/10" : "border-red/25 bg-red/10")}>
         <span className="flex items-center gap-2">
           <span className={cn("font-semibold uppercase tracking-label", team.side === "blue" ? "text-blue" : "text-red")}>{team.side === "blue" ? "Blue side" : "Red side"}</span>
           <Badge tone={team.win ? "blue" : "red"} className="font-semibold">
@@ -129,7 +129,7 @@ export function TeamTable({ team, champ, maxDamage, groups, laneSlot, rankOf, qu
         </span>
       </header>
       {found.length ? (
-        <div className="space-y-1 border-b border-border/70 px-3 py-1.5" data-testid="possible-groups">
+        <div className="space-y-0.5 border-b border-border/70 px-3" data-testid="possible-groups">
           {found.map((g, i) => (
             <GroupLine key={g.slots.join()} group={g} mark={GROUP_MARK[i] ?? GROUP_MARK[0]!} names={g.slots.map(nameOf)} />
           ))}
@@ -278,13 +278,18 @@ function GroupLine({ group: g, mark, names }: { group: MatchGroupView; mark: str
           <span className={cn("h-3 w-[3px] shrink-0 rounded-full", mark)} aria-hidden />
           <span className="font-semibold text-fg">{g.label}</span>
           <span className="text-fg-muted">{names.join(", ")}</span>
-          <span className="basis-full pl-[9px] text-fg-subtle sm:basis-auto sm:pl-0" data-testid="possible-group-games">
-            {groupEvidenceText(g.slots.length, g.games, g.opposed)}
+          {/* The count on the line, the sentence it stands for under it once opened: the line stays one
+              line beside a scoreboard half the window wide (1440 × 900), where the sentence wrapped. */}
+          <span className="text-fg-subtle" data-testid="possible-group-count">
+            · {formatCount(g.games)} {g.games === 1 ? "game" : "games"} together
           </span>
           <span className="sr-only">Show the games</span>
         </span>
       }
     >
+      <p className="pb-0.5 pl-3 text-2xs text-fg-subtle" data-testid="possible-group-games">
+        {groupEvidenceText(g.slots.length, g.games, g.opposed)}
+      </p>
       <ul className="space-y-0.5 pb-0.5 pl-3 text-2xs tabular-nums text-fg-muted" data-testid="possible-group-evidence">
         {g.evidence.map((e, i) => (
           <li key={i}>
@@ -317,11 +322,11 @@ export function GroupsNote({ result, teams }: { result: MatchGroupsResult | null
     <p className="text-2xs text-fg-subtle" data-testid="possible-groups-note" data-state="ok" data-kind={note.kind}>
       {note.kind === "inferred" ? (
         <>
-          Possible groups: an inference from {formatCount(result.gamesSearched)} earlier recorded {result.gamesSearched === 1 ? "game" : "games"}.
+          Possible groups: inferred from {formatCount(result.gamesSearched)} earlier recorded {result.gamesSearched === 1 ? "game" : "games"}.
           {note.thin.length ? (
             <span className="text-fg-muted" data-testid="possible-groups-insufficient">
               {" "}
-              {sides(note.thin)}: not enough recorded history to assess possible groups.
+              {sides(note.thin)}: not enough history to assess.
             </span>
           ) : null}
         </>

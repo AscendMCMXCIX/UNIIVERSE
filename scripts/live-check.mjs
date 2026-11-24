@@ -2012,6 +2012,19 @@ async function matchHistory(page, log, kind, playerId) {
       const open = page.locator("li[data-expanded]");
       pass("games", `${kind}: the open game has no tabs`, (await open.locator("[role=tab]").count()) === 0, await open.locator("[role=tab]").count());
       if (kind === "desktop") {
+        // Read once settled (the timeline, the ranks and the groups answered, nothing transitioning):
+        // with reduced motion (as here) every style change still runs for 0.01ms (globals.css), and a
+        // reading while those answers re-render the rows can see a frame before their sizes apply,
+        // each scoreboard row 6px taller (e2e/match-breakdown.spec.ts).
+        await page
+          .waitForFunction(() => {
+            const open = document.querySelector("li[data-expanded] [data-testid=match-expanded]");
+            const bd = open?.querySelector("[data-testid=match-breakdown]");
+            if (!open || !bd || bd.getAttribute("data-timeline") === "loading") return false;
+            if (open.querySelector('[data-testid=ranks-note][data-state=checking], [data-testid=possible-groups-note][data-state=loading]')) return false;
+            return open.getAnimations({ subtree: true }).length === 0;
+          }, null, { timeout: 20_000 })
+          .catch(() => undefined);
         const fit = await open.evaluate((li) => {
           const top = li.querySelector("[data-testid=match-card]").getBoundingClientRect().top;
           const end = li.querySelector("[data-testid=match-expanded]").getBoundingClientRect().bottom;
