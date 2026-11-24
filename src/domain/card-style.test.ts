@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   applyPreset,
+  ART_PLACES,
+  artPlacement,
+  keepStoredExtras,
+  withPlacePosition,
   CARD_FRAMES,
   CARD_PRESETS,
   cardLookFor,
@@ -142,5 +146,97 @@ describe("readable colours", () => {
     expect(legacyAccentFor(normaliseCardStyle({ colours: { primary: "#e8b04a" } }))).toBe("gold");
     expect(legacyAccentFor(normaliseCardStyle({ colours: { primary: "#1fc3ff" } }))).toBeNull();
     expect(legacyAccentFor(normaliseCardStyle({ colours: { primary: "#123456" } }))).toBeNull();
+  });
+});
+
+describe("artwork positions of their own (Card Studio, 24 Nov 2026)", () => {
+  it("every place uses the shared position until it is given its own; a place left automatic keeps its own framing", () => {
+    const s = DEFAULT_CARD_STYLE;
+    expect(artPlacement(s, "header")).toEqual({ focusX: 50, focusY: 25, zoom: 1, own: false });
+    expect(artPlacement(s, "card")).toEqual({ focusX: 50, focusY: 22, zoom: 1, own: false });
+    const shared = normaliseCardStyle({ art: { focusX: 30, focusY: 60, zoom: 1.4 } });
+    for (const place of ART_PLACES) expect(artPlacement(shared, place)).toEqual({ focusX: 30, focusY: 60, zoom: 1.4, own: false });
+    const own = withPlacePosition(shared, "headerPhone", { focusX: 70, focusY: 10, zoom: 1.2 });
+    expect(artPlacement(own, "headerPhone")).toEqual({ focusX: 70, focusY: 10, zoom: 1.2, own: true });
+    expect(artPlacement(own, "header")).toEqual({ focusX: 30, focusY: 60, zoom: 1.4, own: false });
+    // Back to the shared position: the place is gone, and with it the whole field when none is left.
+    const back = withPlacePosition(own, "headerPhone", null);
+    expect(back.art.places).toBeUndefined();
+    expect("places" in back.art).toBe(false);
+  });
+
+  it("a focus set on one axis draws the other axis exactly as cards always did (20% down; 25% on a row's strip)", () => {
+    const s = normaliseCardStyle({ art: { focusX: 10, focusY: null } });
+    expect(artPlacement(s, "card")).toMatchObject({ focusX: 10, focusY: 20 });
+    expect(artPlacement(s, "header")).toMatchObject({ focusX: 10, focusY: 20 });
+    expect(artPlacement(s, "row")).toMatchObject({ focusX: 10, focusY: 25 });
+  });
+
+  it("validation keeps known places only, clamped, and never lets anything else in", () => {
+    const s = normaliseCardStyle({ art: { places: { header: { focusX: 140, focusY: -5, zoom: 9 }, card: { focusX: "50%", focusY: 1 }, nowhere: { focusX: 1, focusY: 1, zoom: 1 }, peek: { focusX: 20.4, focusY: 80, zoom: 1.33, css: "url(x)" } } } });
+    expect(s.art.places).toEqual({ header: { focusX: 100, focusY: 0, zoom: 2 }, peek: { focusX: 20, focusY: 80, zoom: 1.35 } });
+    expect(normaliseCardStyle({ art: { places: "header" } }).art.places).toBeUndefined();
+    expect(normaliseCardStyle({ art: { places: {} } }).art).not.toHaveProperty("places");
+  });
+
+  it("a save without the field keeps the stored places; an empty one removes them all", () => {
+    const stored = normaliseCardStyle({ art: { places: { row: { focusX: 5, focusY: 5, zoom: 1 } } } });
+    expect(normaliseCardStyle({ frame: "double" }, stored).art.places).toEqual({ row: { focusX: 5, focusY: 5, zoom: 1 } });
+    expect(normaliseCardStyle({ art: { places: {} } }, stored).art).not.toHaveProperty("places");
+  });
+
+  it("presets and the standard look never touch the artwork's positions", () => {
+    const s = withPlacePosition(normaliseCardStyle({ art: { focusX: 12, focusY: 34, zoom: 1.5 } }), "cardPhone", { focusX: 1, focusY: 2, zoom: 1.1 });
+    for (const id of CARD_PRESETS) {
+      const p = applyPreset(s, id);
+      expect(p.art).toMatchObject({ focusX: 12, focusY: 34, zoom: 1.5, places: { cardPhone: { focusX: 1, focusY: 2, zoom: 1.1 } } });
+    }
+  });
+});
+
+describe("saved styles load, render and save exactly as before", () => {
+  // Today's stored shapes: what normaliseCardStyle has written since migration 0032 (no style at all,
+  // a partial style from an early save, and full styles), and a style a newer version wrote.
+  const storedShapes: Array<[string, unknown, string | null]> = [
+    ["never saved (the legacy accent)", null, "gold"],
+    ["a partial early save", { frame: "double", colours: { primary: "#2dd4bf" } }, "teal"],
+    ["the standard card", DEFAULT_CARD_STYLE, null],
+    ["a full style with a focus and effects", normaliseCardStyle({ art: { source: "banner", focusX: 33, focusY: null, zoom: 1.65, darkness: 70, blur: 4, vignette: 35 }, colours: { primary: "#ff4fd8", secondary: "#1fc3ff", gradient: "radial", highlight: 31, border: "gradient", avatarFrame: "gradient" }, frame: "premium", identity: { tagline: "Calm in the chaos", emblem: "flame", nameStyle: "wide", theme: "tinted" }, effects: { glow: true, shimmer: true, drift: true, motif: "rings", intensity: 77 }, preset: "neon" }), null],
+    ["every preset", applyPreset(DEFAULT_CARD_STYLE, "arcane"), "violet"],
+  ];
+
+  /** The Studio's round trip: load (resolve), edit nothing, Save (the client sends places, the server normalises and keeps what it cannot read), load again. */
+  function roundTrip(stored: unknown, accent: string | null) {
+    const loaded = resolveCardStyle(stored, accent);
+    const submitted = { ...loaded, art: { ...loaded.art, places: loaded.art.places ?? {} } };
+    const next = normaliseCardStyle(JSON.parse(JSON.stringify(submitted)), resolveCardStyle(stored, accent));
+    const written = JSON.parse(JSON.stringify(keepStoredExtras(stored, next)));
+    return { loaded, written, reloaded: resolveCardStyle(written, accent) };
+  }
+
+  for (const [name, stored, accent] of storedShapes)
+    it(name, () => {
+      const { loaded, written, reloaded } = roundTrip(stored, accent);
+      expect(reloaded).toEqual(loaded);
+      // A stored full style is written back byte for byte (no field added, none dropped).
+      if (stored && typeof stored === "object" && "art" in stored) expect(written).toEqual(JSON.parse(JSON.stringify(stored)));
+      expect(written.art).not.toHaveProperty("places");
+    });
+
+  it("a style with places of its own keeps them", () => {
+    const stored = JSON.parse(JSON.stringify(withPlacePosition(DEFAULT_CARD_STYLE, "header", { focusX: 40, focusY: 10, zoom: 1.25 })));
+    const { written } = roundTrip(stored, null);
+    expect(written).toEqual(stored);
+  });
+
+  it("fields a newer version stored are kept on save, and nothing submitted that is unknown is", () => {
+    const stored = { ...JSON.parse(JSON.stringify(DEFAULT_CARD_STYLE)), badge: { kind: "future" }, art: { ...DEFAULT_CARD_STYLE.art, parallax: 0.3 } };
+    const next = normaliseCardStyle({ ...stored, frame: "angular", sneaky: "<script>", art: { ...stored.art, inject: "url(x)" } }, resolveCardStyle(stored, null));
+    const written = keepStoredExtras(stored, next) as Record<string, unknown> & { art: Record<string, unknown> };
+    expect(written.frame).toBe("angular");
+    expect(written.badge).toEqual({ kind: "future" });
+    expect(written.art.parallax).toBe(0.3);
+    expect(written).not.toHaveProperty("sneaky");
+    expect(written.art).not.toHaveProperty("inject");
   });
 });

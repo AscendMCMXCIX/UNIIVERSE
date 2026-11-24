@@ -54,7 +54,7 @@ export function PersonaliseStep({ card, champions, customised, social = null, pr
       <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1fr)_18rem] lg:gap-6">
         <aside className="lg:order-2" aria-label="Your card" data-testid="personalise-preview">
           <p className="mb-1.5 text-xs font-medium text-fg-muted">Your card</p>
-          <CardPreview view="team" look={card.look} art={card.art} name={card.name} avatarUrl={card.avatarUrl} data={data} champions={champions} />
+          <CardPreview look={card.look} art={card.art} name={card.name} avatarUrl={card.avatarUrl} data={data} champions={champions} />
           <p className="mt-1.5 text-xs text-fg-subtle">As teammates see it on Team and Players. It updates when you save a change.</p>
         </aside>
 

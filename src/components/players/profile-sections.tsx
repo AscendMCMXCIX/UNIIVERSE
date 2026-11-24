@@ -5,6 +5,7 @@ import { canEditPlayer, canManageRiotAccounts, canOpenProfile, canViewPlayerStat
 import { listChampions } from "@/server/repositories/champions";
 import { loadProfileHeader, type ProfileHeaderData } from "@/server/players/profile-header";
 import { refreshAvailable, type MatchSyncStatus } from "@/server/accounts/refresh";
+import { publicRiotDataAllowed } from "@/server/public/access";
 import type { DataRefreshTarget } from "@/components/ui/data-status";
 import { ProfileHeader } from "@/components/players/profile-header";
 import { ProfileFrameShell, ProfileIdentityProvider, ProfileIdentitySync, type HeaderIdentity } from "@/components/players/profile-identity";
@@ -103,8 +104,9 @@ export async function ProfileFrame({ db, header, session, basePath, children }: 
       {/* The frame's light follows the player's current colours (ProfileFrameShell), as the header does.
           The section bar belongs to the profile card: tucked right under it (its own margin), and a
           child of the whole profile, so it can stay pinned while every section scrolls (ProfileTabs). */}
-      <ProfileFrameShell initial={identity} className="mx-auto max-w-[var(--content-max)] space-y-4">
-        <ProfileHeader identity={identity} self={self} editable={editable} champions={champions} basePath={basePath} />
+      {/* On desktops the section's content starts 6px under the tabs' rule (16px elsewhere), the room the taller profile band takes (TALL_BAND in profile-header.tsx). */}
+      <ProfileFrameShell initial={identity} className="mx-auto max-w-[var(--content-max)] space-y-4 lg:[&>[data-testid=profile-tabs]]:mb-1.5">
+        <ProfileHeader identity={identity} self={self} editable={editable} champions={champions} basePath={basePath} publicFigures={editable && publicRiotDataAllowed()} />
         <ProfileTabs basePath={basePath} />
         {children}
       </ProfileFrameShell>

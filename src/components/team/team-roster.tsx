@@ -87,6 +87,9 @@ const CHIP_FIT: Record<Role, { chip: string; label: string }> = {
   SUPPORT: { chip: "@max-[7.81rem]/chip:p-1.5", label: "@max-[7.81rem]/chip:sr-only" },
 };
 
+/** The card's artwork: a portrait five across (a lineup of 56rem or more), a landscape in the phone's carousel and the tablet's rows, each with its own position when the player gave one (Card Studio). */
+const CARD_NARROW = { place: "cardPhone", at: "lineup" } as const;
+
 /** How a member fits a role, as the lineup sheets name it. */
 const FIT_HINT: Record<string, string> = { primary: "primary role", secondary: "off role", other: "out of role" };
 
@@ -106,8 +109,11 @@ const FIT_HINT: Record<string, string> = { primary: "primary role", secondary: "
  *
  * With `bench` it is the back of the card: a substitute for the role, built from the same parts,
  * where the whole card turns back to the starter.
+ *
+ * Card Studio previews this same component (studio-preview.tsx), on Team's lineup and on the public
+ * page (`guest`), so a preview is the card itself, never a copy of it.
  */
-function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEdit, viewerPlayerId, champions, onOpen, selected = false, dimmed = false, guest = false, flip, bench, turnRef, startsElsewhere, deferImages = false, align, priority = false, frozen }: { slot: RosterSlot; champions: PickerChampion[]; championsById: ChampionsById; canManageLineup: boolean; editingLineup: boolean; canEdit: boolean; viewerPlayerId: string | null; onOpen: () => void; /** Its detail panel is open: lifted and outlined. */ selected?: boolean; /** Another card's panel is open: stepped back. */ dimmed?: boolean; /** The public page: no lineup suggestions, and a player who may not appear is a role placeholder. */ guest?: boolean; flip?: FlipControl; bench?: BenchFace; /** The face's turn control (front) or way back (back), for keyboard focus after a turn. */ turnRef?: React.Ref<HTMLButtonElement>; /** Who starts in another role (player id → that role's name), for the Change sheet's warnings. */ startsElsewhere?: ReadonlyMap<string, string>; /** A back nobody is about to see: the same card without its pictures (artwork, picture, champions), which load once it may turn. */ deferImages?: boolean; /** Everyone the lineup can show, so cards side by side keep their parts level (CardIdentity). */ align?: React.ComponentProps<typeof CardIdentity>["align"]; /** The lineup's first card (the one a phone shows first): its art loads at once, ahead of the others (CardArtLayer's priority). */ priority?: boolean; /** Edit lineup on a phone: the art band's and the body's heights as they were at rest, kept while the bar shows (FROZEN_WHILE_EDITING). */ frozen?: { art: number; body: number } }) {
+export function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEdit, viewerPlayerId, champions, onOpen, selected = false, dimmed = false, guest = false, flip, bench, turnRef, startsElsewhere, deferImages = false, align, priority = false, frozen, roleUnknown = false, publicFigures = false }: { /** A preview of a player who has not chosen a role yet (first-time setup): the chip says "Role" and shows no icon. */ roleUnknown?: boolean; /** The public page shows Riot data (Card Studio's preview of it, from your own card's brush). */ publicFigures?: boolean; slot: RosterSlot; champions: PickerChampion[]; championsById: ChampionsById; canManageLineup: boolean; editingLineup: boolean; canEdit: boolean; viewerPlayerId: string | null; onOpen: () => void; /** Its detail panel is open: lifted and outlined. */ selected?: boolean; /** Another card's panel is open: stepped back. */ dimmed?: boolean; /** The public page: no lineup suggestions, and a player who may not appear is a role placeholder. */ guest?: boolean; flip?: FlipControl; bench?: BenchFace; /** The face's turn control (front) or way back (back), for keyboard focus after a turn. */ turnRef?: React.Ref<HTMLButtonElement>; /** Who starts in another role (player id → that role's name), for the Change sheet's warnings. */ startsElsewhere?: ReadonlyMap<string, string>; /** A back nobody is about to see: the same card without its pictures (artwork, picture, champions), which load once it may turn. */ deferImages?: boolean; /** Everyone the lineup can show, so cards side by side keep their parts level (CardIdentity). */ align?: React.ComponentProps<typeof CardIdentity>["align"]; /** The lineup's first card (the one a phone shows first): its art loads at once, ahead of the others (CardArtLayer's priority). */ priority?: boolean; /** Edit lineup on a phone: the art band's and the body's heights as they were at rest, kept while the bar shows (FROZEN_WHILE_EDITING). */ frozen?: { art: number; body: number } }) {
   // The open lineup sheet, if any, and the member it opens on (a suggestion's Assign).
   const [sheet, setSheet] = React.useState<{ kind: SheetKind; pick?: string } | null>(null);
   const p = slot.player;
@@ -145,14 +151,14 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
           portrait card. */}
       <div className={cn("pointer-events-none relative flex min-h-[10.5rem] shrink-0 flex-col justify-end px-3 pb-2.5 pt-12 @max-xl/lineup:flex-[3_1_auto] @4xl/lineup:min-h-[clamp(13rem,29vh,20rem)] ", TIGHT.art, "[&_.card-art-img]:group-hover/card:scale-[1.03] motion-reduce:[&_.card-art-img]:group-hover/card:scale-100", !guest && cn("@max-xl/lineup:min-h-[7.5rem]", SIDEWAYS_ROW.art), controls === 1 && "@max-[7.75rem]/card:pointer-coarse:pt-[3.625rem]", twoControls && "@4xl/lineup:pt-[5.25rem] @4xl/lineup:pointer-coarse:pt-[6.75rem] @max-[10.875rem]/card:pointer-coarse:pt-[3.625rem] @max-[9.25rem]/card:pt-[5.25rem] @max-[9.25rem]/card:pointer-coarse:pt-[6.75rem]")} style={frozen ? { minHeight: frozen.art } : undefined} data-testid="card-art">
         {/* Splash of the player's chosen champion and skin, darkened towards the text, tinted with their accent. */}
-        <CardArtLayer art={deferImages ? null : (p?.art ?? null)} accent={accent} kind="splash" position="center 22%" look={p?.look} motion="hover" foot={!!p} priority={priority} />
+        <CardArtLayer art={deferImages ? null : (p?.art ?? null)} accent={accent} kind="splash" position="center 22%" look={p?.look} motion="hover" foot={!!p} priority={priority} place="card" narrow={CARD_NARROW} />
         {/* The role chip in its lane, clear of the card's controls: the icon alone where the lane is too narrow for the role's name (CHIP_LANE). */}
         <span className={cn("absolute left-3 top-3 flex @container/chip", CHIP_LANE[controls])} data-testid="assigned-role-lane">
-          <CardRoleChip role={slot.role} label={slot.roleLabel} className={cn("shrink-0", CHIP_FIT[slot.role].chip)} labelClassName={CHIP_FIT[slot.role].label} />
+          {roleUnknown ? <CardRoleChip role={null} label="Role" className="shrink-0" /> : <CardRoleChip role={slot.role} label={slot.roleLabel} className={cn("shrink-0", CHIP_FIT[slot.role].chip)} labelClassName={CHIP_FIT[slot.role].label} />}
         </span>
         {p ? (
           <span className="relative">
-            <CardIdentity look={p.look} name={p.name} avatarUrl={deferImages ? null : p.avatarUrl} rank={p.rank} showRank={p.statsVisible} isYou={p.id === viewerPlayerId} status={status} role={slot.role} tag={bench ? <SubstituteTag /> : null} social={p.social.length ? <CardSocialIcons links={p.social} owner={p.name} className="pointer-events-auto relative z-[2]" /> : null} align={align} phoneSide={guest || twoControls ? false : controls ? "control" : true} />
+            <CardIdentity look={p.look} name={p.name} avatarUrl={deferImages ? null : p.avatarUrl} rank={p.rank} showRank={p.statsVisible} isYou={p.id === viewerPlayerId} status={roleUnknown ? null : status} role={roleUnknown ? null : slot.role} tag={bench ? <SubstituteTag /> : null} social={p.social.length ? <CardSocialIcons links={p.social} owner={p.name} className="pointer-events-auto relative z-[2]" /> : null} align={align} phoneSide={guest || twoControls ? false : controls ? "control" : true} />
           </span>
         ) : null}
       </div>
@@ -162,7 +168,7 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
           side by side they left the role no room. Lineup changes are never here: they sit at the
           card's foot. */}
       <span className="absolute right-2.5 top-2.5 z-[2] flex items-center gap-1.5 empty:hidden @4xl/lineup:flex-col @4xl/lineup:items-end @max-[9.25rem]/card:flex-col @max-[9.25rem]/card:items-end" data-card-overlay>
-        {own && !editingLineup && p ? <CustomiseCardButton variant="icon" ownLinks playerId={p.id} name={p.name} avatarUrl={p.avatarUrl} art={p.art} accent={p.cardAccent} look={p.look} champions={champions} poolIds={p.poolIds} preview={{ role: slot.role, rank: p.rank, status, season: p.season, poolIds: slot.champions.map((c) => c.championId), social: p.social }} /> : null}
+        {own && !editingLineup && p ? <CustomiseCardButton variant="icon" ownLinks playerId={p.id} name={p.name} avatarUrl={p.avatarUrl} art={p.art} accent={p.cardAccent} look={p.look} champions={champions} poolIds={p.poolIds} preview={{ role: slot.role, rank: p.rank, showRank: p.statsVisible, status, season: p.season, poolIds: slot.champions.map((c) => c.championId), social: p.social, pool: slot.champions, seasonLabel: p.seasonLabel, primaryRole: p.primaryRole, offRoles: [p.profile.secondaryRole, ...p.profile.additionalRoles.map((r) => r.role)].filter((r): r is Role => !!r && r !== p.primaryRole), lineupRole: slot.role }} origin="team" publicFigures={publicFigures} /> : null}
         {bench ? (
           <button type="button" ref={turnRef} className={ART_BUTTON} onClick={bench.onBack} aria-label={bench.backLabel} title="Back to the starter" data-testid="flip-back">
             <Undo2 className="h-4 w-4" aria-hidden />
@@ -181,7 +187,7 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
                 "…" ("SUPPO…" at 200% on a 320px phone): the count stays beside it while its longest
                 word fits there, otherwise it takes a line of its own, still on the right. */}
             <p className="flex items-center justify-between text-2xs font-medium uppercase tracking-label text-fg-subtle @max-[9.75rem]/card:flex-wrap">
-              <span className="truncate @max-[9.75rem]/card:min-w-min @max-[9.75rem]/card:grow @max-[9.75rem]/card:basis-0 @max-[9.75rem]/card:whitespace-normal">{slot.roleLabel} pool</span>
+              <span className="truncate @max-[9.75rem]/card:min-w-min @max-[9.75rem]/card:grow @max-[9.75rem]/card:basis-0 @max-[9.75rem]/card:whitespace-normal">{roleUnknown ? "Champion" : slot.roleLabel} pool</span>
               <span className="inline-flex items-center gap-0.5 text-2xs normal-case tracking-normal group-hover/card:text-[var(--card-accent)] @max-[9.75rem]/card:ml-auto">
                 {slot.champions.length ? (
                   <>
@@ -659,7 +665,7 @@ export function playerDetail({ slot, championsById, canEdit, canViewProfile, pro
   // the card draws its text and icons in.
   const hero = (
     <div className="relative isolate" style={{ ...cardShellStyle(p.look, { glow: false }), borderColor: undefined }} data-testid="player-detail-hero">
-      <CardArtLayer art={p.art} accent={accentCss(p.look.style)} kind="splash" position="center 22%" look={p.look} decorate={false} strength="normal" testId="detail-art" foot />
+      <CardArtLayer art={p.art} accent={accentCss(p.look.style)} kind="splash" position="center 22%" look={p.look} decorate={false} strength="normal" testId="detail-art" foot place="peek" />
       <div className={cn("relative flex min-h-[var(--peek-hero-min,11rem)] flex-col justify-end gap-2.5 px-4 pb-4 sm:min-h-[var(--peek-hero-min,12.5rem)] sm:px-6 sm:pb-5", BELOW_CONTROLS)}>
         <h2 id="player-detail-title" className="sr-only">
           {p.name} · {slot.roleLabel}
@@ -916,6 +922,58 @@ const TIGHT = {
   pool: "[@media(max-width:39.99rem)_and_(max-height:43.75rem)]:gap-1",
 } as const;
 
+/*
+  The lineup's frame, stage, track and slide (TeamRoster), as functions so Card Studio's previews lay a
+  card out exactly as Team does (LineupPreview): in the carousel on a phone, the three and two rows on a
+  tablet, five across on a desktop, the public page's (`guest`) without the members' phone filling.
+*/
+const frameClass = (guest: boolean) => cn("@container/lineup flex flex-col gap-5 lg:flex-1 lg:justify-center lg:gap-6 lg:overflow-y-clip @7xl/lineup:gap-7", !guest && cn("max-sm:gap-4 max-lg:short:gap-3", FILL.frame, TIGHT.frame));
+const stageClass = (guest: boolean) => cn("relative isolate flex flex-col", !guest && FILL.stage);
+const innerClass = (guest: boolean) => cn("relative", !guest && FILL.inner);
+const trackClass = (guest: boolean) =>
+  cn(
+    "flex snap-x snap-mandatory gap-[max(2rem,calc(50%_-_11rem))] overflow-x-auto overscroll-x-contain px-4 pt-3 pb-4 -my-3 [scrollbar-width:none] data-[loop-free]:snap-none [&::-webkit-scrollbar]:hidden",
+    "-mx-4",
+    "@xl:mx-auto @xl:my-0 @xl:grid @xl:w-full @xl:max-w-[54rem] @xl:grid-cols-6 @xl:gap-3 @xl:overflow-visible @xl:px-0 @xl:py-0 @xl:[&>*]:col-span-2 @xl:[&>*:nth-child(4)]:col-start-2",
+    "@4xl:max-w-[84rem] @4xl:grid-cols-5 @4xl:[&>*]:col-span-1 @4xl:[&>*:nth-child(4)]:col-start-auto @7xl:gap-5",
+    LINEUP_FULL,
+    // Held sideways (a short window): the desktop's five across, compact (SIDEWAYS_ROW), never 2 + 2 + 1 with an orphan.
+    !guest && SIDEWAYS_ROW.track,
+    // Upright phones: the track takes the height left above the dots (FILL), never less than its cards need.
+    !guest && FILL.track,
+  );
+const cellClass = (guest: boolean) => cn("flex w-full max-w-[26rem] shrink-0 snap-center snap-always order-[var(--loop-order,0)] @xl:order-none @xl:w-auto @xl:max-w-none @xl:min-w-0", !guest && SIDEWAYS_ROW.cell);
+
+/**
+ * One player's card laid out as Team lays it out (the same frame, track and slide: frameClass and the
+ * rest), for Card Studio's previews of the Team card and the public page's card, and the first-time
+ * setup's preview. The card is RosterCard itself, inert. In a phone's page (`fill`, Card Studio's
+ * mobile preview) the frame takes the height the page leaves, as Team's does: `header` stands in for
+ * the team's header line, and the position dots keep their 44px under the card. Without `fill` the
+ * card is as tall as its content (the setup's narrow column).
+ */
+export function LineupPreview({ slot, champions, guest = false, own = false, fill = false, header, roleUnknown = false }: { slot: RosterSlot; champions: PickerChampion[]; guest?: boolean; roleUnknown?: boolean; /** The viewer's own card: "You", and its Customise control where Team shows it. */ own?: boolean; fill?: boolean; header?: React.ReactNode }) {
+  const championsById = React.useMemo(() => new Map(champions.map((c) => [c.id, c])), [champions]);
+  const align = React.useMemo(() => (slot.player ? [{ name: slot.player.name, look: slot.player.look }] : []), [slot.player]);
+  const noop = React.useCallback(() => {}, []);
+  const filled = fill && !guest;
+  return (
+    <div className={filled ? frameClass(false) : "@container/lineup flex flex-col"} data-fills-height={filled || undefined} data-testid="lineup-preview">
+      {filled ? header : null}
+      <div className={filled ? stageClass(false) : "relative"}>
+        <div className={filled ? innerClass(false) : "relative"}>
+          <div className={trackClass(guest || !fill)}>
+            <div className={cellClass(guest || !fill)}>
+              <RosterCard slot={slot} champions={champions} championsById={championsById} canManageLineup={false} editingLineup={false} canEdit={own} viewerPlayerId={own ? (slot.player?.id ?? null) : null} onOpen={noop} guest={guest} align={align} roleUnknown={roleUnknown} />
+            </div>
+          </div>
+          {filled ? <div aria-hidden className="h-[44px] @xl:hidden" /> : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /**
  * Team Overview's header on members' phones (below sm, and held sideways; the public page keeps its own): the top bar
  * already carries the team's mark and name, so the header's logo goes and its h1 is read out only
@@ -934,7 +992,7 @@ const PHONE_HEADER = "max-sm:gap-y-0.5 max-lg:short:gap-x-3 max-lg:short:gap-y-0
  * across the page's width inside its gutter, with five dots under it that say where you are and move
  * to any card; the public page's phone layout is the same.
  */
-export function TeamRoster({ team, slots, complete, champions, canManageLineup, canViewPlayers, editablePlayerIds, viewerPlayerId, guest = null, initialPlayer = null }: { team: { name: string; shortName: string; logo: string | null; logoStill: string | null }; slots: RosterSlot[]; complete: boolean; champions: PickerChampion[]; canManageLineup: boolean; /** Without the Players directory the detail panel does not offer a profile it cannot open. */ canViewPlayers: boolean; editablePlayerIds: string[]; viewerPlayerId: string | null; /** The public Team Overview: profiles open under this path, and nothing about managing the lineup is shown. */ guest?: { profileBase: string | null } | null; /** The player the address names (`?player=`), open as the page arrives. */ initialPlayer?: string | null }) {
+export function TeamRoster({ team, slots, complete, champions, canManageLineup, canViewPlayers, editablePlayerIds, viewerPlayerId, guest = null, initialPlayer = null, publicFigures = false }: { /** The public page shows Riot data: Card Studio's preview of it shows the figures. */ publicFigures?: boolean; team: { name: string; shortName: string; logo: string | null; logoStill: string | null }; slots: RosterSlot[]; complete: boolean; champions: PickerChampion[]; canManageLineup: boolean; /** Without the Players directory the detail panel does not offer a profile it cannot open. */ canViewPlayers: boolean; editablePlayerIds: string[]; viewerPlayerId: string | null; /** The public Team Overview: profiles open under this path, and nothing about managing the lineup is shown. */ guest?: { profileBase: string | null } | null; /** The player the address names (`?player=`), open as the page arrives. */ initialPlayer?: string | null }) {
   const [editingLineup, setEditingLineup] = React.useState(false);
   // Edit lineup on an upright phone: each card's art band and body keep their resting heights while
   // the bar shows (FROZEN_WHILE_EDITING), so the bar adds its height under the pool instead of taking
@@ -1032,7 +1090,7 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
     // the header as below the cards and the header stays right above them. On a short window the content is taller than that minimum,
     // so it simply starts at the top and scrolls. The floor's light is clipped at the frame, so it
     // never adds a scroll.
-    <div className={cn("@container/lineup flex flex-col gap-5 lg:flex-1 lg:justify-center lg:gap-6 lg:overflow-y-clip @7xl/lineup:gap-7", !guest && cn("max-sm:gap-4 max-lg:short:gap-3", FILL.frame, TIGHT.frame))} data-testid="lineup-frame" data-fills-height>
+    <div className={frameClass(!!guest)} data-testid="lineup-frame" data-fills-height>
       {/* The team's identity: logo, name and the lineup's state, with Edit lineup. Wider screens: one
           row, the logo and Edit lineup either side of the name, its line and the state. Phones: the
           logo and the name on the first line, then the state and Edit lineup on a line of their own,
@@ -1087,8 +1145,8 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
       {/* The stage: five across on wide screens, the cards stand on a floor lit from just under them
           in the team's colour and carrying the team's name. Decoration only: it never moves or sizes
           a card, and is hidden from screen readers. */}
-      <div className={cn("relative isolate flex flex-col", !guest && FILL.stage)} data-testid="lineup-stage">
-        <div className={cn("relative", !guest && FILL.inner)}>
+      <div className={stageClass(!!guest)} data-testid="lineup-stage">
+        <div className={innerClass(!!guest)}>
           {/* The track's vertical padding (taken back by its margins) leaves room for a card's edges
               while it turns over: a scrolling track clips anything outside its box. No smooth
               scrolling in CSS: the loop moves the track by a whole card in one step where nothing
@@ -1098,17 +1156,7 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
             ref={trackRef}
             onKeyDown={onTrackKeyDown}
             onPointerDown={artWait ? () => setArtWait(false) : undefined}
-            className={cn(
-              "flex snap-x snap-mandatory gap-[max(2rem,calc(50%_-_11rem))] overflow-x-auto overscroll-x-contain px-4 pt-3 pb-4 -my-3 [scrollbar-width:none] data-[loop-free]:snap-none [&::-webkit-scrollbar]:hidden",
-              "-mx-4",
-              "@xl:mx-auto @xl:my-0 @xl:grid @xl:w-full @xl:max-w-[54rem] @xl:grid-cols-6 @xl:gap-3 @xl:overflow-visible @xl:px-0 @xl:py-0 @xl:[&>*]:col-span-2 @xl:[&>*:nth-child(4)]:col-start-2",
-              "@4xl:max-w-[84rem] @4xl:grid-cols-5 @4xl:[&>*]:col-span-1 @4xl:[&>*:nth-child(4)]:col-start-auto @7xl:gap-5",
-              LINEUP_FULL,
-              // Held sideways (a short window): the desktop's five across, compact (SIDEWAYS_ROW), never 2 + 2 + 1 with an orphan.
-              !guest && SIDEWAYS_ROW.track,
-              // Upright phones: the track takes the height left above the dots (FILL), never less than its cards need.
-              !guest && FILL.track,
-            )}
+            className={trackClass(!!guest)}
             role="region"
             aria-roledescription="carousel"
             aria-label="Main lineup"
@@ -1119,8 +1167,8 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
           >
             {slots.map((s, i) => (
               // Each card once, in lineup order; on a phone its place in the loop is its flex order (--loop-order, useLoopTrack).
-              <div key={s.role} id={slideIds[i]} tabIndex={-1} className={cn("flex w-full max-w-[26rem] shrink-0 snap-center snap-always order-[var(--loop-order,0)] @xl:order-none @xl:w-auto @xl:max-w-none @xl:min-w-0", !guest && SIDEWAYS_ROW.cell)} role="group" aria-roledescription="slide" aria-label={`${s.roleLabel}: ${holder(s)} (${i + 1} of ${slots.length})`} data-testid="lineup-cell" data-art-later={i > 0 || undefined}>
-                <LineupCard slot={s} champions={champions} championsById={championsById} canManageLineup={canManageLineup} editingLineup={editingLineup} canEdit={!!s.player && editable.has(s.player.id)} viewerPlayerId={viewerPlayerId} onOpenSide={(side) => peek.toggle(side === "substitute" ? s.substitute!.player.id : s.player!.id)} openSide={detail?.role === s.role ? detail.side : null} guest={!!guest} startsElsewhere={startsElsewhere} align={align} priority={i === 0} frozen={frozen?.[s.role]} />
+              <div key={s.role} id={slideIds[i]} tabIndex={-1} className={cellClass(!!guest)} role="group" aria-roledescription="slide" aria-label={`${s.roleLabel}: ${holder(s)} (${i + 1} of ${slots.length})`} data-testid="lineup-cell" data-art-later={i > 0 || undefined}>
+                <LineupCard slot={s} champions={champions} championsById={championsById} canManageLineup={canManageLineup} editingLineup={editingLineup} canEdit={!!s.player && editable.has(s.player.id)} viewerPlayerId={viewerPlayerId} onOpenSide={(side) => peek.toggle(side === "substitute" ? s.substitute!.player.id : s.player!.id)} openSide={detail?.role === s.role ? detail.side : null} guest={!!guest} startsElsewhere={startsElsewhere} align={align} priority={i === 0} frozen={frozen?.[s.role]} publicFigures={publicFigures} />
               </div>
             ))}
           </div>

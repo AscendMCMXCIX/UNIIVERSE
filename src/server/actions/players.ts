@@ -174,13 +174,14 @@ export async function setCardStyleAction(playerId: string, input: z.infer<typeof
       const keepsSaved = player.featuredChampionId === parsed.featuredChampionId && player.featuredSkinNum === skin;
       if (skin > 0 && !keepsSaved && !(await listSkins(db, parsed.featuredChampionId)).some((s) => s.num === skin)) return { ok: false, error: "That skin is not available for this champion." };
     } else skin = 0;
-    const { legacyAccentFor, normaliseCardStyle, resolveCardStyle, taglineProblem } = await import("@/domain/card-style");
+    const { keepStoredExtras, legacyAccentFor, normaliseCardStyle, resolveCardStyle, taglineProblem } = await import("@/domain/card-style");
     if (parsed.style) {
       // Fill anything missing from what the card shows today, then keep only valid values.
       const style = normaliseCardStyle(parsed.style, resolveCardStyle(player.cardStyle, player.cardAccent));
       const problem = style.identity.tagline ? taglineProblem(style.identity.tagline) : null;
       if (problem) return { ok: false, error: problem };
-      await setCardStyle(db, playerId, { featuredChampionId: parsed.featuredChampionId, featuredSkinNum: skin, cardAccent: legacyAccentFor(style), cardStyle: style as unknown as Record<string, unknown> });
+      // Whatever the stored style holds that this version does not know (a newer version's field) stays.
+      await setCardStyle(db, playerId, { featuredChampionId: parsed.featuredChampionId, featuredSkinNum: skin, cardAccent: legacyAccentFor(style), cardStyle: keepStoredExtras(player.cardStyle, style) });
     } else {
       const accent = parsed.cardAccent ?? "default";
       await setCardStyle(db, playerId, { featuredChampionId: parsed.featuredChampionId, featuredSkinNum: skin, cardAccent: accent === "default" ? null : accent });
@@ -245,10 +246,10 @@ export async function listChampionSkinsAction(championId: string): Promise<Actio
  * only, requirePlayerEditor), and only figures this viewer may see (their own, or teammates' with
  * "view teammates' statistics"); null when there are none or they are not shared.
  */
-export async function cardPreviewFiguresAction(playerId: string, role: string | null): Promise<ActionResult<{ season: PreviewFigures | null }>> {
+export async function cardPreviewFiguresAction(playerId: string, role: string | null): Promise<ActionResult<{ season: PreviewFigures | null; seasonLabel: string | null }>> {
   try {
     const session = await requirePlayerEditor(playerId);
-    if (!canViewPlayerStats(session, playerId)) return { ok: true, data: { season: null } };
+    if (!canViewPlayerStats(session, playerId)) return { ok: true, data: { season: null, seasonLabel: null } };
     const parsedRole = z.enum(ROLES).nullable().parse(role);
     const db = await getAppDb();
     const { getPlayer } = await import("@/server/repositories/team");
@@ -257,7 +258,8 @@ export async function cardPreviewFiguresAction(playerId: string, role: string | 
     const { getPlayerOverview } = await import("@/server/players/overview");
     const { seasonFigures } = await import("@/server/team/roster");
     const overview = await getPlayerOverview(db, player, { mode: "all", role: parsedRole ?? player.primaryRole ?? null, riotConfigured: !!process.env.RIOT_API_KEY });
-    return { ok: true, data: { season: overview.summary.record.games > 0 ? seasonFigures(overview.summary) : null } };
+    const { seasonLabel } = await import("@/domain/season");
+    return { ok: true, data: { season: overview.summary.record.games > 0 ? seasonFigures(overview.summary) : null, seasonLabel: seasonLabel(overview.season) } };
   } catch (err) {
     return fail(err);
   }

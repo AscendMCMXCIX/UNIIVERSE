@@ -6,6 +6,7 @@ import { getOrCreateTeam } from "@/server/repositories/team";
 import { getTeamRosterForViewer } from "@/server/team/roster";
 import { loadPickerChampions } from "@/server/champions/picker";
 import { TeamRoster } from "@/components/team/team-roster";
+import { publicRiotDataAllowed } from "@/server/public/access";
 import { getBranding } from "@/server/repositories/branding";
 import { logoSrc, logoStillSrc } from "@/domain/branding";
 import { teamFreshness } from "@/server/ops/freshness";
@@ -28,7 +29,7 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
     <div className="mx-auto flex w-full max-w-[var(--content-wide)] flex-col max-sm:flex-1 lg:flex-1">
       {/* New games, ranks and lineup changes appear without a reload. */}
       <FreshnessWatcher scope={{ kind: "team" }} version={version} />
-      <TeamRoster initialPlayer={typeof player === "string" ? player : null} team={{ name: branding.teamName, shortName: branding.shortName, logo: logoSrc(branding), logoStill: logoStillSrc(branding) }} slots={roster.slots} complete={roster.complete} champions={champions} canManageLineup={hasPermission(session, "manage-lineup")} canViewPlayers={hasPermission(session, "view-players")} editablePlayerIds={editablePlayerIds} viewerPlayerId={session.playerId} />
+      <TeamRoster initialPlayer={typeof player === "string" ? player : null} team={{ name: branding.teamName, shortName: branding.shortName, logo: logoSrc(branding), logoStill: logoStillSrc(branding) }} slots={roster.slots} complete={roster.complete} champions={champions} canManageLineup={hasPermission(session, "manage-lineup")} canViewPlayers={hasPermission(session, "view-players")} editablePlayerIds={editablePlayerIds} viewerPlayerId={session.playerId} publicFigures={editablePlayerIds.length > 0 && publicRiotDataAllowed()} />
     </div>
   );
 }

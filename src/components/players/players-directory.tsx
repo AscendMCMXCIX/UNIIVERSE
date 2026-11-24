@@ -19,7 +19,7 @@ import { SearchInput } from "@/components/ui/search-input";
 import { COMPACT_SEARCH, FiltersControl, PageToolbar } from "@/components/ui/page-toolbar";
 import { formatCount } from "@/lib/format";
 import type { CompactRank } from "./rank-emblem";
-import { RosterRow, type RiotState } from "./roster-row";
+import { DIRECTORY_GRID, DIRECTORY_PANEL, RosterRow, type RiotState } from "./roster-row";
 import { usePlayerPeek, type PlayerPeekRow } from "./player-peek";
 
 export interface DirectoryEntry {
@@ -147,9 +147,9 @@ export function PlayersDirectory({ entries, championsById, archived = null, myPr
       {/* One panel of rows (docs/MOBILE.md: lists are rows in one panel), filled row by row. Hairlines
           divide the rows and the columns; the list runs a pixel past the panel's right and bottom
           edges, which clip it, so the last column and the last row draw no line of their own. */}
-      <div className="@container/roster overflow-clip rounded-card border border-border bg-surface panel-depth" data-testid="players-directory">
+      <div className={DIRECTORY_PANEL} data-testid="players-directory">
         {shown.length ? (
-          <ol className="-mb-px -mr-px grid grid-cols-1 @min-[38rem]/roster:grid-cols-2 @min-[84rem]/roster:grid-cols-3" aria-label="Players">
+          <ol className={DIRECTORY_GRID} aria-label="Players">
             {shown.map((e) => (
               <Row key={e.player.id} entry={e} role={filtered} championsById={championsById} peek={e.player.primaryRole ? peekRow(e.player.id) : undefined} />
             ))}
