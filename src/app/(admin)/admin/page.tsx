@@ -30,7 +30,7 @@ export default async function AdminDashboardPage() {
   const admins = active.filter((a) => a.role === "owner" || a.isAdmin).length;
   return (
     <div className="space-y-5" data-testid="admin-dashboard">
-      <PageHeader admin eyebrow="Admin Mode" title="Dashboard" description="What needs you, then the platform at a glance." />
+      <PageHeader admin eyebrow="Admin Mode" title="Dashboard" />
       <Panel data-testid="needs-you">
         <PanelHeader title="Needs you" subtitle={needs.length ? `${needs.length} thing${needs.length === 1 ? "" : "s"} to look at` : undefined} />
         <PanelBody>

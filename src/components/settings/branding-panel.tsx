@@ -169,7 +169,7 @@ function BackdropSetting({ level, saved, hasArtwork, disabled, onChange }: { lev
     <section className="space-y-3 panel-depth rounded-panel border border-border bg-surface p-4 sm:p-5" data-testid="brand-backdrop-setting">
       <div>
         <h2 className="text-base font-semibold">Background visibility</h2>
-        <p className="text-sm text-fg-muted">How much of the app background shows behind every page, for every member: from a hint of it at 0% to clearly visible at 100%. Cards and panels keep their own backgrounds, so text stays readable; player-card art is not affected.</p>
+        <p className="text-sm text-fg-muted">How much of the app background shows behind every page, from a hint at 0% to clearly visible at 100%. Text stays readable; player-card art is not affected.</p>
       </div>
       {hasArtwork ? (
         <>
