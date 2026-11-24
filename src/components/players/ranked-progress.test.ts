@@ -59,7 +59,7 @@ describe("RankedProgress", () => {
     // Unranked at every check.
     expect(text(render([snap(D(10, 15), null, null, null, null, null)]), "ranked-no-chart")).toBe("Unranked at every check so far.");
     // The line is quiet text: no dashed box, no border of its own inside the card.
-    expect(two).toMatch(/<p class="text-xs leading-relaxed text-fg-muted" data-testid="ranked-no-chart"/);
+    expect(two).toMatch(/<p class="col-span-2 text-xs leading-relaxed text-fg-muted" data-testid="ranked-no-chart"/);
     // Three different readings (two changes): the chart, in its fill mode.
     const three = render([snap(D(10, 15), "GOLD", "II", 46, 100, 90), snap(D(10, 20), "GOLD", "I", 12, 104, 91), snap(D(10, 25), "GOLD", "I", 40, 106, 92)]);
     expect(three).toContain('data-testid="ranked-chart"');

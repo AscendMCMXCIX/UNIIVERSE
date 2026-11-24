@@ -1,7 +1,6 @@
 /*
   MATCH EVENTS: the kills and objectives of one game, from its timeline, as stored (the schema's
-  ObjectiveKind) and as the timeline view reads them (server/accounts/match-timeline.ts, which
-  Matchup Intel's evidence also reads). The gold chart's helpers that drew them (names, legend,
+  ObjectiveKind) and as the timeline view reads them (server/accounts/match-timeline.ts). The gold chart's helpers that drew them (names, legend,
   marks in rows, the largest swings) went with the chart (23 Nov 2026).
 */
 

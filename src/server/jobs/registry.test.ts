@@ -26,10 +26,10 @@ describe("job registry", () => {
     a setup job that runs on a schedule. The list is written by hand, so nothing here can tell that
     a new job changes the site's setup or repairs data: filed as a check or a refresh, it passes,
     and its author and reviewer must catch it. A stage that adds a setup or repair job (S1b's
-    lane-opponent-recompute, S7b's prep-backfill) adds it to SETUP here and in
+    lane-opponent-recompute) adds it to SETUP here and in
     tests/db/admin-safety.test.ts, and counts it in e2e/admin-safety.spec.ts.
   */
-  const SETUP = ["rank-schedule", "rank-schedule-off", "history-rescan", "erasure-reconcile", "verify-account", "lane-opponent-recompute", "prep-backfill"];
+  const SETUP = ["rank-schedule", "rank-schedule-off", "history-rescan", "erasure-reconcile", "verify-account", "lane-opponent-recompute"];
   const KINDS: readonly JobKind[] = ["check", "refresh", "setup"];
 
   it("gives every job a kind: check, refresh or setup", () => {

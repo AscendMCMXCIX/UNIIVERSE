@@ -4,7 +4,7 @@ import { championPreviewVerdicts, firstWithGames, targetRow, type ChampionPrevie
 /*
   The Production check's All Champions preview facts (scripts/champion-preview-facts.mjs): the
   reading below is the demo's first champion with 3+ games as the live check's own reader saw it
-  (20 Nov 2026). The facts pass on it, fail the regressions they exist for, and only warn when a
+  (20 Nov 2026; where it is, the docked panel, since Release 16). The facts pass on it, fail the regressions they exist for, and only warn when a
   member's data has no such item.
 */
 
@@ -17,13 +17,14 @@ const DEMO: ChampionPreviewRead = {
   role: "Top · In pool",
   record: "14 games · 4W 10L",
   winRate: "29%",
+  docked: { panel: true, window: false, within: true, fits: true },
   loading: false,
   noOpponents: false,
   answered: true,
   opponents: [{ games: 7, says: true }, { games: 4, says: true }],
-  intel: 1,
-  intelChampion: true,
-  intelVs: true,
+  lookup: 1,
+  lookupPage: true,
+  lookupChampion: true,
   address: { champion: true },
 };
 const STEP = { next: true, address: true, replaced: true };
@@ -34,7 +35,7 @@ const failed = (at: ChampionPreviewRead, step: typeof STEP | null = STEP, escape
 
 describe("All Champions' preview facts", () => {
   it("pass on the demo's preview", () => {
-    expect(run(DEMO).map((v) => v.status)).toEqual(Array(8).fill("PASS"));
+    expect(run(DEMO).map((v) => v.status)).toEqual(Array(9).fill("PASS"));
   });
   it("choose the first row with 3 or more games, or none", () => {
     expect(firstWithGames([{ games: 2, open: false }, { games: 3, open: false }])).toBe(1);
@@ -49,25 +50,32 @@ describe("All Champions' preview facts", () => {
     expect(failed({ ...DEMO, winRate: "40%" })).toEqual(["desktop: the preview shows the win rate, the wins over the games"]);
     expect(failed({ ...DEMO, winRate: "—" })).toHaveLength(1);
   });
-  it("fail a missing identity, an opponent row without its games and more than one Matchup Intel link", () => {
+  it("fail a missing identity, an opponent row without its games and more than one Champion Lookup link", () => {
     expect(failed({ ...DEMO, portrait: false })).toHaveLength(1);
     expect(failed({ ...DEMO, role: "" })).toHaveLength(1);
     expect(failed({ ...DEMO, opponents: [{ games: 7, says: false }] })).toHaveLength(1);
-    expect(failed({ ...DEMO, intel: 2 })).toHaveLength(1);
-    expect(failed({ ...DEMO, intelVs: false })).toHaveLength(1);
+    expect(failed({ ...DEMO, lookup: 2 })).toHaveLength(1);
+    expect(failed({ ...DEMO, lookupChampion: false })).toHaveLength(1);
+  });
+  it("fail a preview that is not the compact docked panel: a window, past the screen's edge, or scrolling inside", () => {
+    const where = "desktop: the preview is the compact panel docked beside the list (no window), within the screen, its content fitting it without scrolling";
+    expect(failed({ ...DEMO, docked: { panel: false, window: false, within: false, fits: false } })).toEqual([where]);
+    expect(failed({ ...DEMO, docked: { panel: true, window: true, within: true, fits: true } })).toEqual([where]);
+    expect(failed({ ...DEMO, docked: { panel: true, window: false, within: false, fits: true } })).toEqual([where]);
+    expect(failed({ ...DEMO, docked: { panel: true, window: false, within: true, fits: false } })).toEqual([where]);
   });
   it("fail ↓ pushing a history entry, and Escape leaving it open", () => {
     expect(failed(DEMO, { ...STEP, replaced: false })).toHaveLength(1);
     expect(failed(DEMO, STEP, { closed: false, address: true })).toHaveLength(1);
   });
   it("warn, not fail, when the data has no opponent or no second row", () => {
-    const v = run({ ...DEMO, opponents: [], noOpponents: true, intel: 0 }, null);
+    const v = run({ ...DEMO, opponents: [], noOpponents: true, lookup: 0 }, null);
     expect(v.filter((x) => x.status === "FAIL")).toEqual([]);
     expect(v.filter((x) => x.status === "WARN")).toHaveLength(2);
   });
   it("fail, not warn, a preview whose answer could not be loaded", () => {
-    expect(failed({ ...DEMO, opponents: [], intel: 0, answered: false })).toEqual(["desktop: the opponents loaded"]);
-    expect(failed({ ...DEMO, opponents: [], intel: 0 })).toHaveLength(2);
+    expect(failed({ ...DEMO, opponents: [], lookup: 0, answered: false })).toEqual(["desktop: the opponents loaded"]);
+    expect(failed({ ...DEMO, opponents: [], lookup: 0 })).toHaveLength(2);
   });
   it("choose a row with 3+ games below the first screen when there is one", () => {
     const rows = [{ games: 9, open: false, top: 300, screen: 900 }, { games: 2, open: false, top: 1000, screen: 900 }, { games: 4, open: false, top: 1100, screen: 900 }];

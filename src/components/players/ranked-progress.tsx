@@ -61,33 +61,40 @@ export function RankedProgress({ accounts, queue, accountId, href, now }: { acco
   const chartable = rankChanges(ranked) >= CHART_MIN_CHANGES;
   const tracking = `${account.riotId}${season ? ` · ${season}` : ""}${timeline.trackingSince ? ` · rank recorded since ${formatDate(timeline.trackingSince)}` : " · no rank recorded yet"}`;
   return (
-    <PhoneFoldSection id="ranked-progress" aria-labelledby="ranked-progress-title" className="@container/rank flex flex-col gap-3 rounded-card border border-border bg-surface p-4 panel-depth" data-testid="ranked-progress">
+    // A grid of two columns, so from md in a card of 24rem or more (the Overview's rail) the queue and account choice share the
+    // title's row (Release 16: a row of their own cost the one-screen Overview 48px); elsewhere every part spans both, one under
+    // the other, as before. The body and the details are display: contents there, their parts the card's own.
+    <PhoneFoldSection id="ranked-progress" aria-labelledby="ranked-progress-title" className="@container/rank grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-2.5 rounded-card border border-border bg-surface p-4 panel-depth" data-testid="ranked-progress">
       {/* The title alone on its row, a phone's chevron at its end. The ⓘ stays on the title's last
           word; on a touch screen its 44px button reaches 0.875rem past the mark, so the chevron keeps
           that gap. The title never shrinks below "progress ⓘ" (no min-w-0: that minimum is the point):
           where the two do not fit (200% text on a 320px phone) the chevron takes the next line, at its
           end, 1rem under it on a touch screen (the ⓘ reaches 0.875rem below its line), never under
           the ⓘ's touch area. */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pointer-coarse:gap-x-3.5 pointer-coarse:gap-y-4">
+      <div className="col-span-2 flex flex-wrap items-center gap-x-3 gap-y-1 pointer-coarse:gap-x-3.5 pointer-coarse:gap-y-4 md:@min-[24rem]/rank:col-span-1">
         <h2 id="ranked-progress-title" className="flex-1 text-base font-semibold text-fg">
           Ranked{" "}
           <span className="whitespace-nowrap">
             progress{" "}
-            <InfoTip
-              label="About ranked progress"
-              text="Riot only shares the current rank, so the chart starts at the first check here. Shading marks games played between two checks."
-            />
+            {/* What the chart shows: on a touch phone with the chart folded away, with it (Release 16: Ranked progress above Recent
+                form brought it onto the phone's first screen, a fourth ⓘ there, UD.PO3). */}
+            <span className={cn("inline-flex align-middle", PHONE_FOLDED)}>
+              <InfoTip
+                label="About ranked progress"
+                text="Riot only shares the current rank, so the chart starts at the first check here. Shading marks games played between two checks."
+              />
+            </span>
           </span>
         </h2>
         <PhoneFoldToggle label="the details of ranked progress" iconOnly controls="ranked-chart-fold" testId="ranked-fold" className="ml-auto" />
       </div>
 
       {/* One body (so the card's last part is drawn on a phone too, its chart folded). */}
-      <div className="flex min-w-0 flex-col gap-3">
+      <div className="col-span-2 flex min-w-0 flex-col gap-3 md:@min-[24rem]/rank:contents">
         {/* Where the account stands, and beside it how it moved in 30 days: the card's two figures,
             the change going under the rank where the card is too narrow for both. The rank wraps
             between its words at a large text size, never cut short ("Platin…" at 150% before). */}
-        <div className="flex min-w-0 flex-wrap items-center gap-x-5 gap-y-2">
+        <div className="col-span-2 flex min-w-0 flex-wrap items-center gap-x-5 gap-y-2">
           {/* The rank's words go under the emblem where they would not keep 5rem beside it (200% text
               on a 320px phone, where "Platinum" ran 12px past the screen), never cut short. Under a
               15rem card (150% text and more on a phone, never at 100%) the emblem is 2rem and the rank
@@ -133,8 +140,8 @@ export function RankedProgress({ accounts, queue, accountId, href, now }: { acco
         </div>
         {/* The details: the queue and account choice, then the chart (or its line), one part, which a
             phone folds away whole and fades in when opened. */}
-        <div id="ranked-chart-fold" className={cn(PHONE_FOLDED, OPENS, "flex min-w-0 flex-col gap-3")}>
-          <div className="flex min-w-0 flex-wrap items-center gap-2" data-testid="ranked-controls">
+        <div id="ranked-chart-fold" className={cn(PHONE_FOLDED, OPENS, "col-span-2 flex min-w-0 flex-col gap-3 md:@min-[24rem]/rank:contents")}>
+          <div className="flex min-w-0 flex-wrap items-center gap-2 md:@min-[24rem]/rank:col-start-2 md:@min-[24rem]/rank:row-start-1 md:@min-[24rem]/rank:justify-end" data-testid="ranked-controls">
             <nav id="ranked-queues" aria-label="Queue" className={segmentedGroupClass("@max-[7.5rem]/rank:flex-col @max-[7.5rem]/rank:items-stretch")}>
               {(["solo", "flex"] as const).map((q) => (
                 <Link key={q} href={href({ rq: q })} replace scroll={false} aria-current={q === queue ? "page" : undefined} className={segmentClass(q === queue)} data-testid={`ranked-queue-${q}`}>
@@ -142,14 +149,19 @@ export function RankedProgress({ accounts, queue, accountId, href, now }: { acco
                 </Link>
               ))}
             </nav>
-            {accounts.length > 1 ? <RankedAccountSelect value={account.id} accounts={accounts.map((a) => ({ id: a.id, label: names.get(a.id) ?? a.riotId, href: href({ ra: a.id }) }))} /> : null}
+            {/* On the title's row the select is at most 7.5rem, its name cut short (whole in the list): wider, it pushed "Ranked
+                progress" onto two lines, and the taller card cost the one-screen Overview a row of Recent form's champions at
+                1440 × 900 and 1920 × 950 (Release 16, the review's M5). */}
+            {accounts.length > 1 ? <RankedAccountSelect value={account.id} accounts={accounts.map((a) => ({ id: a.id, label: names.get(a.id) ?? a.riotId, href: href({ ra: a.id }) }))} className="md:@min-[24rem]/rank:min-w-[6rem] md:@min-[24rem]/rank:max-w-[7.5rem]" /> : null}
           </div>
           {chartable ? (
-            <RankTimelineChart t={timeline} label={`${QUEUE_LABEL[queue]} rank since ${formatDate(timeline.trackingSince!)}`} />
+            <div className="col-span-2 min-w-0">
+              <RankTimelineChart t={timeline} label={`${QUEUE_LABEL[queue]} rank since ${formatDate(timeline.trackingSince!)}`} />
+            </div>
           ) : (
             // Too little to draw (no rank, no change, or a single change): a line saying so in place of
             // a chart that would be a flat strip or a single step.
-            <p className="text-xs leading-relaxed text-fg-muted" data-testid="ranked-no-chart" data-readings={ranked.length}>
+            <p className="col-span-2 text-xs leading-relaxed text-fg-muted" data-testid="ranked-no-chart" data-readings={ranked.length}>
               {fewReadings(timeline, ranked)}
             </p>
           )}

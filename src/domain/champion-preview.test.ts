@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { arrangeOpponents, opponentFootLine, opponentSentence, type OpponentTally } from "./champion-preview";
+import { arrangeOpponents, opponentFootLine, opponentSentence, pairingKda, type OpponentTally } from "./champion-preview";
 import { viewerWords } from "./viewer-words";
 
 const o = (championId: string, games: number, wins: number, lastPlayedAt = 0): OpponentTally => ({ championId, games, wins, lastPlayedAt });
@@ -41,5 +41,26 @@ describe("wording follows the viewer", () => {
   it("gives no sentence below 5 games with a timeline", () => {
     expect(opponentSentence({ games: 4, ahead: 4, goldMean: 300 }, { isOwn: true, champion: "Gwen", opponent: "Nasus" })).toBeNull();
     expect(opponentSentence(null, { isOwn: true, champion: "Gwen", opponent: "Nasus" })).toBeNull();
+  });
+});
+
+describe("an opponent's KDA over its games", () => {
+  it("adds up each game's K/D/A, averages a game beside it, and skips games without figures", () => {
+    const k = pairingKda([
+      { kills: 4, deaths: 2, assists: 9 },
+      { kills: 7, deaths: 4, assists: 7 },
+      { kills: null, deaths: null, assists: null },
+    ])!;
+    expect(k.games).toBe(2);
+    expect(k.ratio).toBeCloseTo(27 / 6, 6);
+    expect([k.kills, k.deaths, k.assists]).toEqual([5.5, 3, 8]);
+    expect(k.perfect).toBe(false);
+  });
+  it("is perfect without a death, the kills and assists a game", () => {
+    expect(pairingKda([{ kills: 3, deaths: 0, assists: 5 }, { kills: 1, deaths: 0, assists: 1 }])).toMatchObject({ perfect: true, ratio: 5 });
+  });
+  it("is null, never zero, when no game has its figures", () => {
+    expect(pairingKda([])).toBeNull();
+    expect(pairingKda([{ kills: 2, deaths: null, assists: 1 }])).toBeNull();
   });
 });

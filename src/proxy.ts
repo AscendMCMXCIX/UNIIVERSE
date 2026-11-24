@@ -1,5 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { missingProductionSetup, requiresAccounts } from "@/server/auth/mode";
+import { legacyMatchupRedirect } from "@/components/champion-lookup/address";
+
+/** Matchup Intel's address (retired 23 Nov 2026), whose every link leads to Champion Lookup. */
+const MATCHUP_INTEL_PATH = "/resources/matchups";
 
 /**
  * Route protection (Next.js proxy; runs before any page and cannot query the database).
@@ -20,6 +24,15 @@ function isPublic(pathname: string): boolean {
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  // Matchup Intel's old links: one permanent redirect to Champion Lookup, carrying one champion
+  // (the enemy, `vs`, then `champion`, `vs2`, `ally`: legacyMatchupRedirect), answered here as an
+  // HTTP 308 before any page renders, so no page streams a client-side redirect. Champion Lookup
+  // checks who may open it, signed out included (this proxy again, on /lookup).
+  if (pathname === MATCHUP_INTEL_PATH) {
+    const sp: Record<string, string[]> = {};
+    for (const [k, v] of request.nextUrl.searchParams) (sp[k] ??= []).push(v);
+    return NextResponse.redirect(new URL(legacyMatchupRedirect(sp), request.url), 308);
+  }
   if (isPublic(pathname)) return NextResponse.next();
 
   if (!requiresAccounts()) return NextResponse.next();

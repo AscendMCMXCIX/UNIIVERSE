@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { staticDiffLines } from "./static-diff";
 
-/* Admin's view of Matchup Intel's per-version diff (docs/MATCHUP_INTEL.md, "Admin for the diff"): counts and patch names only, in each state. */
+/* Admin's view of the per-version diff of Riot's static data (server/riot/static/digests.ts): counts and patch names only, in each state. */
 
 const recorded = { champion: 172, item: 1_204, rune: 63 };
 

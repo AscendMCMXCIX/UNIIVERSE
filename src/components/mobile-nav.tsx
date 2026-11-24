@@ -55,13 +55,13 @@ export interface MobileNavProps {
   but not displayed (one `nav[aria-label=Primary]` is exposed at a time).
 
   ONE SET OF DESTINATIONS EVERYWHERE (navigation N1, 19 Nov 2026): the sidebar's four, in its order,
-  with its icons and names (nav.ts, destinations): Player Mode's My Profile, Team, Matchup Intel and
+  with its icons and names (nav.ts, destinations): Player Mode's My Profile, Team, Champion Lookup and
   Resources; Admin Mode's Dashboard, Users & Permissions, Platform Settings and System. A
   destination that stands for a set of pages (Team; Users & Permissions, Platform Settings and
   System) shows them as tabs: on phones the top bar's second row (ChromeTabs), on tablets the tabs
   pinned in the page (SectionTabs). Every bar names its destinations by one label ladder, by its own
   width in rem (so the reader's text size counts): the whole names, then the short ones ("Profile",
-  "Intel"; "Users", "Platform"; the whole names still read out), then the icons alone (the names
+  "Lookup"; "Users", "Platform"; the whole names still read out), then the icons alone (the names
   read out only).
 
   PHONES HELD UPRIGHT (below md, taller than 480px): one frame, the same on every page:
@@ -450,7 +450,7 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
               sits in an accent pill and its name turns bright, so it reads at a glance without colour
               alone. By the label ladder (TAB_FIT), measured in the bar's own width in rem, so the
               user's text size counts (a 320px phone has 20rem at 100% and 10rem at 200%): the whole
-              names, then the short ones ("Profile", "Intel"; the whole names still read out), then
+              names, then the short ones ("Profile", "Lookup"; the whole names still read out), then
               the icons alone, each pill sharing the width, the names left to screen readers. Wider
               than the phone, the bar made the browser widen the area every fixed element is placed
               in. Held sideways there is no bottom bar: the destinations ride in the top bar. */}
@@ -485,7 +485,7 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
   );
 }
 
-/** A destination's test id in the bars: its set's key (Team's "team"), else its address ("overview", "resources-matchups"). */
+/** A destination's test id in the bars: its set's key (Team's "team"), else its address ("overview", "lookup"). */
 function destinationId(d: Destination): string {
   return d.hub ?? d.key.slice(1).replaceAll("/", "-");
 }
@@ -576,24 +576,27 @@ function onSignOut() {
  * static class lists (Tailwind reads them whole): the whole names where `rest` allows, then the short
  * ones (the rest of each read out only) down to `label`'s width, and below it each destination's icon
  * alone, each pill sharing the width, the names read out only (docs/MOBILE.md, the tab bar).
- * Measured on 19 Nov 2026 with the bundled Inter at 100% text, each tab at its own width: Player
- * Mode's four need 16.28rem with their whole names (My Profile, Team, Matchup Intel, Resources) and
- * 14.46rem short (Profile, Intel); Admin Mode's four 14.63rem short (Dashboard, Users, Platform,
- * System). Admin Mode's phone bars keep the short names at every width (its whole names, 21.02rem,
+ * Measured on 19 Nov 2026 with the bundled Inter at 100% text, each tab at its own width, and again
+ * for Champion Lookup's names on 23 Nov 2026 (1.49rem wider whole than "Matchup Intel", 1.04rem
+ * short than "Intel"): Player Mode's four need 17.77rem with their whole names (My Profile, Team,
+ * Champion Lookup, Resources) and 15.50rem short (Profile, Lookup); Admin Mode's four 14.63rem short
+ * (Dashboard, Users, Platform, System). The whole names show only from 22.5rem, a 360px phone at
+ * 100% text, though they fit from 17.8rem: at 320px "Champion Lookup" (105px) stood 4px from
+ * "Resources", too close to read as two (the review of Release 16), so the short ones take over there. Admin Mode's phone bars keep the short names at every width (its whole names, 21.02rem,
  * read out): "Platform Settings" shown in full would put a second "Settings" on the phone beside the
  * account's own (docs/MOBILE.md, the account screen). A 320px phone's bar is 20rem at 100% text, 16rem
  * at 125%, 13.3rem at 150% and 10rem at 200%; 375px 23.4, 18.8, 15.6 and 11.7; 393px 24.6, 19.7, 16.4
- * and 12.3; 430px 26.9, 21.5, 17.9 and 13.4. So Player Mode shows the whole names at 100% everywhere,
- * at 125% from 375px and at 150% on 430px, the short names at 125% on 320px and at 150% from 375px,
- * and the icons alone only at 200%, or at 150% on 320px (e2e/mobile-nav.spec.ts, the label ladder).
+ * and 12.3; 430px 26.9, 21.5, 17.9 and 13.4. So Player Mode shows the whole names at 100% from 375px,
+ * the short names at 100% on 320px, at 125% on every phone and at 150% from 390px, and the icons
+ * alone at 200%, and at 150% on 320 and 375px (e2e/mobile-nav.spec.ts, the label ladder).
  */
 const TAB_FIT = {
   member: {
-    li: "@max-[14.8rem]/tabbar:min-w-0",
-    link: "@max-[14.8rem]/tabbar:px-0.5",
-    pill: "@max-[14.8rem]/tabbar:w-full @max-[14.8rem]/tabbar:max-w-12",
-    rest: "@max-[16.6rem]/tabbar:sr-only",
-    label: "@max-[14.8rem]/tabbar:sr-only",
+    li: "@max-[15.85rem]/tabbar:min-w-0",
+    link: "@max-[15.85rem]/tabbar:px-0.5",
+    pill: "@max-[15.85rem]/tabbar:w-full @max-[15.85rem]/tabbar:max-w-12",
+    rest: "@max-[22.5rem]/tabbar:sr-only",
+    label: "@max-[15.85rem]/tabbar:sr-only",
   },
   admin: {
     li: "@max-[15rem]/tabbar:min-w-0",
@@ -609,17 +612,17 @@ const TAB_FIT = {
  * its row less its gutters, 1rem a side from sm, which grow with the text too), as static class
  * lists (Tailwind reads them whole). Measured on 19 Nov 2026 with the bundled Inter at 100% text,
  * the row's shown parts at their own widths and the gaps between them:
- *   Player Mode  the team's name and the whole names 42.00rem, the whole names alone 35.88rem, the
- *                short ones alone 30.38rem: the name gives way first (below 42.5rem), then the whole
- *                names (below 36.25rem), then the short ones (below 30.75rem);
+ *   Player Mode  the team's name and the whole names 43.89rem, the whole names alone 37.77rem, the
+ *                short ones alone 31.70rem (Champion Lookup's names, 23 Nov 2026: 1.89rem wider whole
+ *                and 1.32rem short than Matchup Intel's): the name gives way first (below 44.4rem),
+ *                then the whole names (below 38.25rem), then the short ones (below 32.1rem);
  *   Admin Mode   the name (two lines, "Admin mode" under the team's) and the whole names 49.28rem,
  *                the name and the short names 39.35rem, the short names alone 32.81rem: the name
  *                says the mode, so it stays with the short names and gives way only below 39.75rem;
  *                the whole names show from 49.75rem, the short ones down to 33.25rem.
  * A 768px tablet's bar is 768px over the root's size less the 2rem of gutters: 46rem at 100% text,
  * 36.4rem at 125%, 30rem at 150%, 22rem at 200%. So Player Mode shows the name and the whole names
- * at 100%, the whole names alone at 125% and the icons alone from 150% (an 820px tablet keeps the
- * short ones at 150%); Admin Mode the name and the short names at 100%, the short names alone at
+ * at 100%, the short names at 125% and the icons alone from 150%; Admin Mode the name and the short names at 100%, the short names alone at
  * 125%, the icons alone from 150%. Back, which the installed app adds on a page reached from another,
  * takes about the room the name had (Back and its gap: 4.67rem as "Team", 6.94rem as "Dashboard"),
  * so beside it each step comes sooner (`besideBack`), and where both show the name shortens first. A
@@ -630,11 +633,11 @@ const TAB_FIT = {
  */
 const BAR_FIT = {
   member: {
-    brand: "md:@max-[42.5rem]/topbar:hidden",
-    rest: "md:@max-[36.25rem]/topbar:sr-only",
-    label: "md:@max-[30.75rem]/topbar:sr-only",
-    besideBack: { rest: "md:@max-[41rem]/topbar:sr-only", label: "md:@max-[35.5rem]/topbar:sr-only" },
-    besideBackInstalled: { rest: "md:standalone:@max-[41rem]/topbar:sr-only", label: "md:standalone:@max-[35.5rem]/topbar:sr-only" },
+    brand: "md:@max-[44.4rem]/topbar:hidden",
+    rest: "md:@max-[38.25rem]/topbar:sr-only",
+    label: "md:@max-[32.1rem]/topbar:sr-only",
+    besideBack: { rest: "md:@max-[42.9rem]/topbar:sr-only", label: "md:@max-[36.8rem]/topbar:sr-only" },
+    besideBackInstalled: { rest: "md:standalone:@max-[42.9rem]/topbar:sr-only", label: "md:standalone:@max-[36.8rem]/topbar:sr-only" },
   },
   admin: {
     brand: "md:@max-[39.75rem]/topbar:hidden",
@@ -651,19 +654,20 @@ const BAR_FIT = {
  * down to `others`, then only the current one's (short) down to `current`, then the icons alone.
  * Measured on 19 Nov 2026 with the bundled Inter at 100% text, with the mark and the avatar, and with
  * Filters too (3rem more), which a page offers there once its own have scrolled away: Player Mode's
- * four need 29.88rem with their whole names (32.88rem with Filters), 25.56rem short (28.56rem), the
- * current one alone 18.94rem (21.94rem); Admin Mode, short names only as upright, 33.54rem (36.54rem
+ * four need 31.37rem with their whole names (34.37rem with Filters), 26.60rem short (29.60rem), the
+ * current one alone 18.94rem (21.94rem; Champion Lookup's, 19.98rem, on a page with no Filters)
+ * (Champion Lookup's names, 23 Nov 2026: 1.49rem wider whole and 1.04rem short than Matchup Intel's); Admin Mode, short names only as upright, 33.54rem (36.54rem
  * with Filters), the current one alone 26.79rem (29.79rem) with the mode's words beside the mark and
  * 20.75rem (23.75rem) without them. A 568 × 320 phone's row is 34.5rem at 100% text, so Player Mode
- * names all four there in full (the five before could name only the current one); an iPhone 15 held
- * sideways, installed (852 × 393, 734px between the notches), 45.9rem at 100%, 36.7rem at 125% and
- * 30.6rem at 150%: all four named at every one of them, in full to 125%.
+ * names all four there by their short names; an iPhone 15 held sideways, installed (852 × 393, 734px
+ * between the notches), 45.9rem at 100%, 36.7rem at 125% and 30.6rem at 150%: in full to 125%, the
+ * current one alone at 150%.
  */
 const SIDEWAYS_FIT = {
   member: {
-    rest: "@max-[33.25rem]/topbar:sr-only",
-    others: "@max-[29rem]/topbar:sr-only",
-    current: "@max-[22.25rem]/topbar:sr-only",
+    rest: "@max-[34.75rem]/topbar:sr-only",
+    others: "@max-[30rem]/topbar:sr-only",
+    current: "@max-[23rem]/topbar:sr-only",
     mode: "",
   },
   admin: {
@@ -886,7 +890,7 @@ function usePageHeading(pathname: string, barHeight: number): { text: string | n
   otherwise (a link from elsewhere, a reload, the installed app's start) Back leads to the page
   above this one (phoneParent). Moving between a profile's sections replaces the entry, as the
   sections do on phones (ProfileTabs), so Back leaves the profile rather than stepping through them.
-  A page that adds entries of its own address (Matchup Intel's pairs) is still one visit: Back goes
+  A page that adds entries of its own address (a window's own entry) is still one visit: Back goes
   past them to the page it is named after (goBackTo), as its label says.
 */
 interface Visit {
@@ -930,8 +934,8 @@ function useBack(pathname: string, heading: string | null, list: readonly Destin
 type HistoryEntries = { currentEntry: { index: number } | null; entries: () => ReadonlyArray<{ url: string | null }> };
 
 /**
- * Back to the page it is named after, past the entries this page made of itself (Matchup Intel's
- * pairs: the browser's Back steps through them, the bar's Back promises the page before), where
+ * Back to the page it is named after, past the entries this page made of itself (a window's own
+ * entry: the browser's Back steps through them, the bar's Back promises the page before), where
  * the Navigation API shows them (backSteps); one step back otherwise.
  */
 function goBackTo(target: string, pathname: string, back: () => void) {

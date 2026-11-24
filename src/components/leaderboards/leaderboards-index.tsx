@@ -6,9 +6,11 @@ import { SectionIndex, type SectionIndexItem } from "@/components/ui/section-ind
 import { cn } from "@/lib/cn";
 
 /*
-  The Leaderboards index in reach at any scroll (UD.L1, UM.L1). The page's own index sits in its
-  header (59–86rem of page) or under it (one column); once the header has gone up out of view:
-    from md     a compact copy at the pinned Team tabs' end (PageToolbar, the pinned row's slot);
+  The Leaderboards index in reach at any scroll (UD.L1, UM.L1). The page's own index sits under its
+  header on a one-column page (from 59rem every board is on the first screen); once the header has gone
+  up out of view:
+    from xl     a compact copy at the pinned Team tabs' end (PageToolbar, the pinned row's slot; below xl
+                the row has no room for it beside the four tabs, and the index under the header serves);
     phones      a 44px chip row pinned under the top bar (below md, never in a short window, where
                 the bars themselves slide away), the section being read marked.
   Both are plain in-page links (SectionIndex: jumpToAnchor, an entry the phone's Back steps past).
@@ -143,7 +145,12 @@ export function LeaderboardsPinnedIndex({ anchorId, items, phoneItems }: { /** T
     <>
       {header ? (
         <PageToolbar anchor={anchor} label="Leaderboards sections">
-          <SectionIndex items={items} label="Leaderboards sections" testId="pinned-section-index" spy listClassName="flex-nowrap gap-x-1.5" separatorClassName="hidden" linkClassName={(on) => cn(CHIP, COMPACT_CONTROL, "touch-target", chipLook(on))} />
+          {/* From xl only: below it (a tablet, a 1024 window beside the sidebar) Team's four tabs and the index did not fit the row
+              together, the tab list scrolled under the index and a press on "Matches" landed on "Recent form" (Release 16); there
+              the index under the header, at the page's top, is the way. */}
+          <span className="contents max-xl:hidden">
+            <SectionIndex items={items} label="Leaderboards sections" testId="pinned-section-index" spy listClassName="flex-nowrap gap-x-1.5" separatorClassName="hidden" linkClassName={(on) => cn(CHIP, COMPACT_CONTROL, "touch-target", chipLook(on))} />
+          </span>
         </PageToolbar>
       ) : null}
       {/* Phones: under the top bar (fixed at its foot, so the page never moves), once the header has gone up under it. */}

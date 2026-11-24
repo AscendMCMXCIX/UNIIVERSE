@@ -58,7 +58,7 @@ translucent status bar, so:
 - Controls on a card (a flip button, social icons) stop their event: using one never opens,
   turns or selects the card.
 - Rows of small targets stand far enough apart that no target's 44px area covers a neighbour's box
-  (19 Nov 2026): Matchup Intel's chips and keys 12px apart from row to row and 6px side to side on
+  (19 Nov 2026; Matchup Intel's, retired 23 Nov 2026): Matchup Intel's chips and keys 12px apart from row to row and 6px side to side on
   touch screens (`CHIP_ROWS`), its folds and source tips likewise; `e2e/matchup-intel.spec.ts` samples
   every control's box on the phone and the touch tablet and runs axe's WCAG 2.2 target-size rule.
 
@@ -291,7 +291,7 @@ part's own width in rem (a container query) with a threshold under anything the 
 gives on a 320px phone, or lets a line wrap where it no longer fits, so at 100% nothing moves.
 
 **The audit.** A large-text audit (a script outside the repository, like the responsive pass's)
-loads every member page (Team; Players; Matches; Leaderboards and Records; Resources, Matchup Intel
+loads every member page (Team; Players; Matches; Leaderboards and Records; Resources, Champion Lookup
 and one pair; Settings; a profile's Overview, Champions, Match History and Encounters) and every
 Admin Mode page on 320 and 375px phones at 150%, 175% and 200% text, and reports for each page and
 size: sideways overflow (the page wider than the phone), text cut by the nearest box that clips it
@@ -426,7 +426,10 @@ the phone project):
   list, where a row cannot hold the columns' 7.5rem, the figures take the row's width and name
   themselves in words, and the column names step aside. The season's figures go two across under
   17.5rem of card (three across needs 17.34rem with the widest figures: "6 champions" ran 63px past
-  the card at 200% on 320px) and one across under 11.75rem (two across needs 11.66rem).
+  the card at 200% on 320px) and one across under 11.75rem (two across needs 11.66rem). Season
+  performance's title row wraps where the title and its buttons do not fit one line (Release 16, the
+  review's M7: beside Filters the title was squeezed to 47–102px and ran under it at 200% on 320 and
+  375px): the title keeps its line, the buttons take the next at its end, wrapping in turn.
 - **Leaderboards' Recent form** (`recent-leaderboards.tsx`, `data-list.tsx`;
   `e2e/large-text-leaderboards.spec.ts`): the rows reflow at 17.5, 16.5 and 13.5rem of board, and
   "You" drops under a name it would break (TEAM_LEADERBOARDS.md → Recent form, Layout).
@@ -541,7 +544,7 @@ the account screen over the dashboard at 200% on a 320px phone as well.
     Back closes it); on a profile its sections ride under the bar, on a Team page Team's sections
     (Overview, Players, Leaderboards, Matches), on an admin page its entry's tabs;
   - phones held upright: a bottom tab bar with the sidebar's four destinations (navigation N1, 19 Nov
-    2026: My Profile, Team, Matchup Intel and Resources; in Admin Mode Dashboard, Users & Permissions,
+    2026: My Profile, Team, Champion Lookup and Resources; in Admin Mode Dashboard, Users & Permissions,
     Platform Settings and System; `destinations()` in `src/lib/nav.ts`, those the account may open).
     A teammate's profile is under Team. The current tab's icon sits in an accent pill and its name is
     bright, so it does not rely on colour alone. By the label ladder (`TAB_FIT`): the whole names,
@@ -628,18 +631,15 @@ the account screen over the dashboard at 200% on a 320px phone as well.
   section's own, else 80rem): Players and a teammate's profile share `players/loading.tsx`, which reads
   the address it stands in for, and Team Matches' own `matches/loading.tsx` stands as its page does
   (Team's width from 1600px, its filter row and cards at `--content-max`, left-aligned).
-- **Matchup Intel on one screen** (the owner's request of 18 Nov 2026; docs/MATCHUP_INTEL.md, "The
-  dashboard"): the page takes `--content-wide`, its two columns from a body 60rem wide, each as tall
-  as its content. Its whole overview fits one viewport with no page scroll at 1920 × 1080, 2560 ×
-  1440 and 1920 × 950 for every one of the 880 pages of the sweep of 19 Nov 2026 (every champion as
-  the enemy against Riven, Gwen, Ambessa, K'Sante and Briar, and the 30 pairs of the six champions with
-  checked notes; the least room left 56px at 1920 × 950), and at 1440 × 900, a size it is not promised
-  to fit, for 874 of them (the tallest six scroll by 5 to 58px; docs/MATCHUP_INTEL.md, "The
-  dashboard"); on production's patch 26.23 (Riot's Data Dragon 16.23.1, the notes "Not re-checked"),
-  for all 546 pages of a second sweep at the first three sizes, and 526 at 1440 × 900; in a smaller
-  window, or at a larger text size, it reflows and scrolls as a page, with
-  nothing clipped and nothing scrolling inside it. `e2e/matchup-intel-dashboard.spec.ts` asserts the
-  fit at five sizes (3440 × 1440 too) for 40 pairs, the tallest of the sweep among them.
+- **Champion Lookup on one screen** (the owner's request of 23 Nov 2026, in Matchup Intel's place;
+  docs/CHAMPION_LOOKUP.md): the page takes `--content-max`; its panel holds the champion, the haste
+  choice and the five abilities, each row laying its ranks out as columns from 44rem of its own width (room for six ranks, never wrapping)
+  (`@container/ab`) and as one line per kind below it. Any champion at any haste fits one viewport
+  with no page scroll at 1440 × 900, 1920 × 1080, 1920 × 950 (the owner's window, the sidebar folded
+  or open) and 1440 × 780 (the descriptions, folded by
+  default, may make it scroll); on a phone it scrolls as a page, with nothing scrolling inside it and
+  nothing wider than the screen from 320px at 200% text. `e2e/champion-lookup.spec.ts` asserts both.
+  Matchup Intel's two-column dashboard (18–23 Nov 2026, `--content-wide`) was retired with it.
 - **A page's controls in reach** (PR 2b, 18 Nov 2026): a long page's own controls (its view switch,
   Filters, search) scroll away with its header. From md, once the section tabs are pinned and the
   page's own toolbar has gone up under them, the page's compact copy shows at the pinned row's end
@@ -772,16 +772,17 @@ touch screen. From `sm` the window is as it was (three figures across, six from 
 scope line, toolbar and sorted pair at 393, 375, 360 and 320px, 200% text on a 320px phone, the bar
 and its legend against the filters' games, and the groups with the 76rem grid's headings, arrows and
 figures at 1536 and 1680px. All Champions' preview (S5, 19 Nov 2026; docs/MATCHUPS.md) replaces the
-champion window. Since 23 Nov 2026 it unfolds under its row from 768px wide (the overlay kit's
-Unfold, docs/DESIGN_SYSTEM.md §7): the next item of the list, across the whole list, its record
-beside the lane opponents from a 50rem list and above them below; Champion, Games and Win rate keep
-their x, the rows above it keep their place and height, the page does not scroll on opening, and
-nothing scrolls inside it; under 768px (the phone's frame, with a mouse as with touch) and on short
-windows it is the shared Peek's sheet. (Until then a wide list showed it over the columns after Win
-rate, inside the card, and tablets in the docked Peek panel.) The wide (76rem) tier drops the Kills column (it sorts like Games; per-game kills are in KDA;
+champion window. Since Release 16 it is the compact panel docked at the window's right edge from
+768px wide (the overlay kit's Peek, docs/DESIGN_SYSTEM.md §7): the list never moves (Champion, Games
+and Win rate keep their x, every row its place and height, the page does not scroll), the panel is
+within the screen, its content fits it with an opponent open and stays clear of the selected row's
+name; under 768px (the phone's frame, with a mouse as with touch) and on short windows it is the same
+Peek's sheet. (Until 22 Nov 2026 a wide list showed it over the columns after Win rate; from 23 Nov
+2026 until Release 16 it unfolded under its row and pushed the list down.) The wide (76rem) tier drops the Kills column (it sorts like Games; per-game kills are in KDA;
 CM AC-11, reversible: OD20). `e2e/champion-preview.spec.ts` checks the geometry at 1280, 1440, 1920
-and 2560 (the sidebar open and collapsed), ↑/↓, Back and Escape, the content and old addresses on
-all three projects, the unfold on the tablet and the sheet on the phone.
+and 2560 (the sidebar open and collapsed), ↑/↓, ‹ ›, Back, Escape, Close and a click outside, the
+content and old addresses on all three projects, the docked panel on the tablet and the sheet on the
+phone.
 
 The player Peek's pool list (Team, Players, Leaderboards; `PoolChampionTile`) takes its columns
 (Win rate, Games, KDA, CS/min or Vision) from its own width, 28rem or more (`@container/pool`), and
@@ -793,7 +794,7 @@ together; the 1440 panel (28.6rem) keeps the columns. `e2e/players-directory.spe
 
 `pnpm build && pnpm test:e2e` runs `e2e/responsive.spec.ts` on phone (375), tablet (768) and
 desktop (1440) against a production build on an in-memory database with the demo roster, which
-reads Riot's Data Dragon at the version the curated Matchup Intel notes were checked on
+reads Riot's Data Dragon at one pinned version (once the version the curated Matchup Intel notes were checked on)
 (`DDRAGON_VERSION`, set by `playwright.config.ts` from `e2e/ddragon-version.ts`;
 MATCHUP_INTEL.md, "What the browser tests pin"). A demo server started by hand for the specs
 (`E2E_PORT`) needs the same environment, `DDRAGON_VERSION=16.22.1` included: outside CI
@@ -933,12 +934,12 @@ the responsive pass report.
 (phone landscape), 568×320 (a 320pt iPhone held sideways, the compact bar's narrowest) and 1366×600
 (short laptop) and fails on any horizontal overflow or a missing heading; admin pages at six sizes
 (568×320 among them). The same file runs axe (WCAG 2.1 A/AA) on every page and fails
-on critical or serious violations, and again at 1920 on Team's four sections, Matchup Intel and
+on critical or serious violations, and again at 1920 on Team's four sections, Champion Lookup and
 Resources, where the section tabs' row takes the pages' width, and at 1440 × 600 with a page's compact controls
 showing in the pinned row (Team Matches, a profile's Overview, Match History, Encounters).
 Panel layouts that live in variable-width columns use container queries (`@container`, `@xl:`) rather than viewport breakpoints.
 For example, Team Matches' cards take their four columns from their list's width (`@container/tm`, from 58rem), because the sidebar beside the list takes 4.5 or 16rem of the same window (`e2e/played-together.spec.ts`); inside a card the members go two to a row from a 34rem column of their own (`@container/members`: a tablet's stacked card, or the four columns beside the open sidebar at 1440), and from sm a member's CS and damage show where the member's row is 19rem (`@container/member`): beside the role and champion where both fit whole, on a line of their own under them otherwise, so a long role and champion ("Role unknown · Nunu & Willump", the longest the game can show) is never cut for them. On narrower cards the result, its game and the count of members are one line of words that wraps, the bookmark in the corner; on a phone's card the count is read out only.
-Leaderboards (one page since 19 Nov 2026: Recent form, then the season's records and achievements, no views) places its four boards by the page's own width (`@container/dash`): one column under 59rem (phones upright and sideways, tablets; with the index of the sections below Recent form, `SectionIndex`), Recent form across the page (at most the measure) with the season records beside the multikills from 59rem (1280 and 1440 wide, the sidebar open or folded), from 86rem (1920, 2560 and 3440 wide, 1512 with the sidebar folded) two columns, each board under the one before it in its own whatever the other column holds: Recent form (at least 58.25rem, so its board keeps its one-line rows inside its border) with the milestones under it, the season records beside it with the multikills under them (the second grid row is flexible, so a taller records panel, a member's own bests, lengthens its own column and never leaves a gap under Recent form). Each board's rows follow the board's own width (`@container/list`): Recent form's tiers as above; each season record is a cell of its own (`@container/list` on the cell, its column template inside it, so a record reads the same wherever it stands): two lines beside the picture from a 36rem cell, three lines under it, one column under 16rem (a phone at 150% or 200% text); the records' panel gives its cells two columns from 40rem while the page is under 86rem (a tablet either way round, a phone held sideways, 1440 wide; one column in the column beside Recent form), the seventh across both; a member's multikills one line from a 21rem list, a member's milestones one line from 40rem. The page is no wider than a 320px phone at 100%, 150% and 200% text (`e2e/phone-wraps.spec.ts`; the screen counts are in `docs/TEAM_LEADERBOARDS.md`).
+Leaderboards (one page since 19 Nov 2026: Recent form, then the season's records and achievements, no views) places its four boards by the page's own width (`@container/dash`): one column under 59rem (phones upright and sideways, tablets; with the index of the sections below Recent form, `SectionIndex`; every row shown), and from 59rem one screen (Release 16: every board within the window at 1440 × 900 and 1920 × 1080): two columns, each board under the one before it in its own whatever the other column holds: Recent form (at least 36.25rem, its medium tier inside its border; from 86rem at least 58.25rem, so its board keeps its one-line rows) with the milestones under it, the season records beside it with the multikills under them (the second grid row is flexible, so a taller records panel, a member's own bests, lengthens its own column and never leaves a gap under Recent form). Each board's rows follow the board's own width (`@container/list`): Recent form's tiers as above; each season record is a cell of its own (`@container/list` on the cell, its column template inside it, so a record reads the same wherever it stands): two lines beside the picture from a 36rem cell and in every cell from a 59rem page (the `record-two` variant), three lines under it, one column under 16rem (a phone at 150% or 200% text); the records' panel gives its cells two columns from 40rem while the page is under 59rem (a tablet either way round, a phone held sideways; one column in the column beside Recent form), the seventh across both; a member's multikills one line from a 21rem list, a member's milestones one line from 40rem. From 59rem the multikills and the milestones show their first rows by the window's height, in four tiers (1440 × 780, 1920 × 950, 1440 × 900, 1920 × 1080: `board-at-*` and `board-below-*`, custom variants in globals.css that write each height out per band of widths, since a media query measures in the browser's 16px while the root grows above 1536px; the profile Overview's Recent form lists two to four champions by the same tiers), the rest behind "Show all 9 · 6 more" at the board's title row's end, opening it in place; on a one-column page every row shows. The page is no wider than a 320px phone at 100%, 150% and 200% text (`e2e/phone-wraps.spec.ts`; the screen counts are in `docs/TEAM_LEADERBOARDS.md`).
 
 ## Device matrix
 
@@ -1081,7 +1082,7 @@ Three levels, each saying what it proves:
   8. On an iPad, add to Home Screen and open it: Players shows the whole roster on one screen, two
      up, and a row opens its profile with one tap; Matches scrolls under the pinned Team
      tabs, a tab from there switches the section; a teammate's profile shows "‹ Players" in the top
-     bar (the installed app has no browser Back) and it leads back; My Profile, Team, Matchup Intel
+     bar (the installed app has no browser Back) and it leads back; My Profile, Team, Champion Lookup
      and Resources are each one tap in the top bar; the avatar's menu holds Settings, the mode switch, Sign out,
      the patch and Riot's notice (Install App too, outside the installed app).
   9. In the installed app and in Safari, tap your avatar on Team, on Resources scrolled to its end,

@@ -3,11 +3,17 @@
 import * as React from "react";
 import { getMatchGroupsAction, getMatchMeetingsAction, getMatchRanksAction, getMatchTimelineAction, type MatchMeetingsResult } from "@/server/actions/match-history";
 import type { MatchGroupsResult } from "@/server/matches/possible-groups";
-import type { MatchTimelineResult, MatchTimelineView } from "@/server/accounts/match-timeline";
+import type { MatchTimelineResult, TimelinePlayerView } from "@/server/accounts/match-timeline";
 import type { DetailParticipant, Icon, MatchDetailView, MatchRanksResult } from "@/server/players/match-history";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
 import { BookmarkButton } from "@/components/matches/bookmark-button";
-import { formatCount, formatDateTime, formatKilo } from "@/lib/format";
+import { ArrowUp, Undo2 } from "lucide-react";
+import { formatCount, formatDateTime, formatKilo, formatNumber, formatOrdinal } from "@/lib/format";
+import { laneOf } from "@/domain/match-analysis";
+import { ParticipantPanels, type PanelKey } from "./participant-panels";
+import { PerformancePanel, PhoneFold, ScoreWhy } from "./performance-panel";
+import { usePhone } from "@/components/ui/use-phone";
+import { gameScoresOf } from "./performance-inputs";
 import { cn } from "@/lib/cn";
 import { MatchDetailCacheContext, type MeetingScope } from "./match-detail-cache";
 import { OpggHistoryLink } from "./opgg-history-link";
@@ -18,18 +24,26 @@ import { publicPatchName } from "@/domain/patch";
 /*
   One game after it was played, in one view, the same wherever a game opens: under its card in
   Match History and Team → Matches, and in the match window (a phone's whole screen, Matchups,
-  Encounters, a link to a game not on the page). No subtabs, no folds, read top down:
-  - "Your game": the loadout as the client draws it (the portrait and level; spells and runes two
-    by two; the six items two rows of three with the trinket beside the first row), the rune page
-    on one line (shards where stored), six figure tiles (each of the player's figures once in the
-    whole view), and the lane by role (against the lane opponent at 10:00, 15:00 and the end).
-  - "Scoreboard": both teams, the player's first, in compact rows (TeamTable compact), with the
-    ranks note and the possible groups on a line under them.
+  Encounters, a link to a game not on the page). Read top down:
+  - The player inspected: the profile's player as the game opens, or any of the ten chosen in the
+    scoreboard (a click, a tap, Enter; ↑ and ↓ move between its rows). Their name, champion, role
+    and performance score; the loadout as the client draws it (the portrait and level; spells and
+    runes two by two; the six items two rows of three with the trinket beside the first row); six
+    figure tiles and one line of the figures that serve supports and tanks; Build Path | Skill
+    Order | Runes, three segmented headings, one shown at a time; and the lane by role (against
+    their lane opponent at 10:00, 15:00 and the end).
+  - "Scoreboard": both teams, the player's first, in compact rows (TeamTable compact) with each
+    player's performance score and MVP and ACE, the ranks note and the possible groups under them,
+    and the performance panel: the inspected player's score, why, and the score through the game,
+    with a second player to compare.
   The two columns sit side by side from a 60rem view (desktop) and stack below it (tablets, the
-  sidebar open at 1280, phones). The timeline is asked for as the game opens: the lane's 10:00 and
-  15:00 read it (stored, about 10–20 KB; Riot is asked at most once per game, ever). The written
-  notes (Went well, Went wrong, Focus next) and the folds with the gold curve and the build and
-  skill order were removed at the owner's request (23 Nov 2026).
+  sidebar open at 1280, phones). The timeline is asked for once as the game opens (stored, about
+  10–20 KB, every player's in it; Riot is asked at most once per game, ever): the lane's 10:00 and
+  15:00, the build path, the skill order and the score's lane and timeline read it. Inspecting
+  another player reads nothing more: the record and the timeline already hold all ten, and the
+  choice is not written to the address (Back still closes the game). The written notes and the
+  gold curve stay removed (23 Nov 2026, docs/MATCH_NOTES.md); Build Path and Skill Order came back
+  as segmented headings at the owner's request (Release 16).
 */
 /** Match History's way from a game's scoreboard to Encounters: the list's scope, and the address of a player's games. */
 export interface EncounterLink {
@@ -84,13 +98,12 @@ function Named({ icon, size, rounded, onName, className }: { icon: Icon | null; 
   );
 }
 
-/** The loadout, as the client's scoreboard and HUD draw it, and the rune page on one line. */
-function Loadout({ p, champ, small }: { p: MatchDetailView["player"]; champ: PortraitChampion; small: boolean }) {
+/** The loadout, as the client's scoreboard and HUD draw it (the rune page is under the Runes heading), and the line an icon names itself in. */
+function Loadout({ p, champ, small }: { p: DetailParticipant; champ: PortraitChampion; small: boolean }) {
   const [name, setName] = React.useState<string | null>(null);
   const icon = small ? 24 : 30;
   const item = small ? 32 : 40;
   const two = p.spells?.length ? p.spells.slice(0, 2) : [null, null];
-  const page = p.runePage;
   return (
     <div className="space-y-1" data-testid="post-game-loadout">
       <div className="flex flex-wrap items-center gap-2.5">
@@ -116,35 +129,10 @@ function Loadout({ p, champ, small }: { p: MatchDetailView["player"]; champ: Por
             ? [0, 1, 2, 6, 3, 4, 5].map((i) => <Named key={i} icon={p.items![i] ?? null} size={item} rounded={i === 6 ? "rounded-full" : "rounded"} onName={setName} />)
             : <span className="col-span-4 px-1 text-xs text-fg-subtle">Items not recorded</span>}
         </span>
-      </div>
-      {page ? (
-        <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Rune page" data-testid="rune-page">
-          <Named icon={page.primaryTree} size={18} rounded="rounded-full" onName={setName} />
-          {page.primary.map((r, i) => (
-            <Named key={i} icon={r} size={i === 0 ? 28 : 22} rounded="rounded-full" onName={setName} />
-          ))}
-          <span className="mx-1 h-5 w-px bg-border" aria-hidden />
-          <Named icon={page.secondaryTree} size={18} rounded="rounded-full" onName={setName} />
-          {page.secondary.map((r, i) => (
-            <Named key={i} icon={r} size={22} rounded="rounded-full" onName={setName} />
-          ))}
-          {page.shards.length ? (
-            <>
-              <span className="mx-1 h-5 w-px bg-border" aria-hidden />
-              {page.shards.map((r, i) => (
-                <IconImg key={i} icon={r} size={16} rounded="rounded-full" className="bg-black/35" />
-              ))}
-            </>
-          ) : null}
-          <span className="min-h-4 min-w-24 flex-1 truncate text-right text-xs leading-4 text-fg-muted" aria-hidden data-testid="loadout-name">
-            {name ?? ""}
-          </span>
-        </div>
-      ) : (
-        <p className="min-h-4 text-xs leading-4 text-fg-muted" aria-hidden data-testid="loadout-name">
+        <span className="min-h-4 min-w-24 flex-1 self-end truncate text-right text-xs leading-4 text-fg-muted" aria-hidden data-testid="loadout-name">
           {name ?? ""}
-        </p>
-      )}
+        </span>
+      </div>
     </div>
   );
 }
@@ -175,25 +163,52 @@ function Figures({ p, teamKills }: { p: DetailParticipant; teamKills: number }) 
   );
 }
 
+/** One line of the figures the tiles leave out, those that serve supports, tanks and junglers, each only where the record has it. */
+function MoreFigures({ p }: { p: DetailParticipant }) {
+  const st = p.stats;
+  const parts: Array<[string, string]> = [];
+  if (p.damageTaken !== null) parts.push(["taken", `${formatKilo(p.damageTaken)} damage taken`]);
+  if (typeof st?.damageMitigated === "number") parts.push(["mitigated", `${formatKilo(st.damageMitigated)} mitigated`]);
+  if (typeof st?.ccSeconds === "number") parts.push(["cc", `${formatCount(st.ccSeconds)} s crowd control`]);
+  const protect = (st?.teamHealing ?? 0) + (st?.teamShielding ?? 0);
+  if (typeof st?.teamHealing === "number" || typeof st?.teamShielding === "number") parts.push(["protect", `${formatKilo(protect)} healed and shielded`]);
+  if (typeof st?.objectiveDamage === "number") parts.push(["objectives", `${formatKilo(st.objectiveDamage)} objective damage`]);
+  if (typeof st?.turretTakedowns === "number") parts.push(["turrets", `${formatCount(st.turretTakedowns)} ${st.turretTakedowns === 1 ? "turret" : "turrets"}`]);
+  if (typeof st?.wardsKilled === "number") parts.push(["wardsKilled", `${formatCount(st.wardsKilled)} ${st.wardsKilled === 1 ? "ward" : "wards"} cleared`]);
+  if (typeof st?.controlWardsBought === "number") parts.push(["control", `${formatCount(st.controlWardsBought)} control ${st.controlWardsBought === 1 ? "ward" : "wards"}`]);
+  if (!parts.length) return null;
+  return (
+    <p className="text-xs leading-5 text-fg-muted" data-testid="post-game-more">
+      {parts.map(([k, t], i) => (
+        <React.Fragment key={k}>
+          {i ? <span aria-hidden> · </span> : null}
+          <span className="whitespace-nowrap tabular-nums">{t}</span>
+          {i < parts.length - 1 ? <span className="sr-only">,</span> : null}
+        </React.Fragment>
+      ))}
+    </p>
+  );
+}
+
 /**
  * The lane by role: the player against the lane opponent at 10:00, 15:00 and the end (signed, plain),
  * and the bot lane's two against two. A tile like the figures above it. The 10:00 and 15:00 columns
  * show while the timeline loads and once it gives a figure; a game without them shows the end
  * alone, and one quiet line says why (`state`: the timeline's answer, "loading" until it comes).
  */
-function Lane({ view, champ, timeline, state }: { view: MatchDetailView; champ: (id: string | null) => PortraitChampion; timeline: MatchTimelineView | null; state: "loading" | "ok" | "missing" }) {
-  const opp = view.comparison.opponent;
-  const me = view.player;
-  if (!opp)
+function Lane({ view, champ, me, entry, state }: { view: MatchDetailView; champ: (id: string | null) => PortraitChampion; /** The player inspected. */ me: DetailParticipant; /** Their timeline, every player's in the one answer. */ entry: TimelinePlayerView | null; state: "loading" | "ok" | "missing" }) {
+  const opp = me.laneOpponentSlot;
+  if (opp === null)
     return (
       <p className="rounded-lg bg-surface px-3 py-2 text-xs text-fg-muted" data-testid="post-game-lane" data-state="unclear">
         Lane opponent not clear in this game
       </p>
     );
-  const them = view.teams.flatMap((t) => t.participants).find((x) => x.slot === opp.slot) ?? null;
-  const c = champ(opp.championId);
-  const support = view.role === "SUPPORT";
-  const at = (m: number) => timeline?.lane?.moments.find((x) => x.minute === m);
+  const them = view.teams.flatMap((t) => t.participants).find((x) => x.slot === opp) ?? null;
+  const c = champ(them?.championId ?? null);
+  // The profile's own role is the ledger's; anyone else's is their recorded position.
+  const support = me.isPlayer ? view.role === "SUPPORT" : laneOf(me.position) === "UTILITY";
+  const at = (m: number) => entry?.lane?.moments.find((x) => x.minute === m);
   const cell = (m: number, key: "cs" | "gold" | "xp") => {
     const x = at(m);
     return x?.you && x.opponent ? signed(x.you[key] - x.opponent[key]) : "—";
@@ -206,11 +221,12 @@ function Lane({ view, champ, timeline, state }: { view: MatchDetailView; champ: 
   ];
   // Columns of dashes say nothing: 10:00 and 15:00 only while they may still fill, or once one has a figure.
   const timed = state === "loading" || rows.some(([, a, b]) => a !== "—" || b !== "—");
-  const pair = timeline?.pair ?? null;
+  const pair = entry?.pair ?? null;
   const name = (slot: number) => champ(view.teams.flatMap((t) => t.participants).find((x) => x.slot === slot)?.championId ?? null).name;
   return (
-    <section aria-label="Lane" className="space-y-1.5 rounded-lg bg-surface px-3 py-2" data-testid="post-game-lane" data-state="clear" data-timed={timed || undefined}>
-      <table className="w-full text-sm leading-6 tabular-nums">
+    <section aria-label="Lane" className="@container/lane space-y-1.5 rounded-lg bg-surface px-3 py-2" data-testid="post-game-lane" data-state="clear" data-timed={timed || undefined}>
+      {/* Under 20rem (a phone at large text) each row's name stands on a line of its own, its three figures under it, so nothing runs past the screen. */}
+      <table className={cn("w-full text-sm leading-6 tabular-nums", timed && "@max-[20rem]/lane:block @max-[20rem]/lane:[&_tbody]:block @max-[20rem]/lane:[&_td]:block @max-[20rem]/lane:[&_th]:block @max-[20rem]/lane:[&_th]:w-auto @max-[20rem]/lane:[&_thead]:block @max-[20rem]/lane:[&_tr]:grid @max-[20rem]/lane:[&_tr]:grid-cols-3 @max-[20rem]/lane:[&_tr>th:first-child]:col-span-3")}>
         <thead>
           <tr className="text-2xs text-fg-subtle">
             <th className="pb-1 text-left font-semibold">
@@ -265,11 +281,12 @@ function Lane({ view, champ, timeline, state }: { view: MatchDetailView; champ: 
   );
 }
 
+const POSITION_WORDS: Record<string, string> = { TOP: "Top", JUNGLE: "Jungle", MIDDLE: "Mid", BOTTOM: "Bottom", UTILITY: "Support" };
+
 export function PostGame({ playerId, view, champ, variant, encounterLinks = false }: { playerId: string; view: MatchDetailView; champ: (id: string | null) => PortraitChampion; variant: "inline" | "window"; /** A window over the list itself (a phone's whole-screen game): its marks may lead to the list's Encounters, as under a card. */ encounterLinks?: boolean }) {
   const cache = React.useContext(MatchDetailCacheContext);
-  const p = view.player;
   const id = view.matchId;
-  // The timeline first (the lane reads it), then the possible groups, the rank check and the players met, each after the view is on screen.
+  // The timeline first (the lane, the build path, the skill order and the scores read it), then the possible groups, the rank check and the players met, each after the view is on screen.
   const timeline = useResult<MatchTimelineResult>(() => (cache ? cache.timeline(playerId, id) : getMatchTimelineAction(playerId, id)), { status: "error", message: "" }, [cache, playerId, id]);
   const groups = useResult<MatchGroupsResult>(() => (cache ? cache.groups(playerId, id) : getMatchGroupsAction(playerId, id)), { status: "unavailable", message: "" }, [cache, playerId, id]);
   const ranks = useResult<MatchRanksResult>(view.rankCheck ? () => (cache ? cache.ranks(playerId, id) : getMatchRanksAction(playerId, id)) : null, { status: "not-found", message: "" }, [cache, playerId, id, view.rankCheck]);
@@ -282,33 +299,132 @@ export function PostGame({ playerId, view, champ, variant, encounterLinks = fals
   const rankOf = React.useCallback((x: DetailParticipant) => checked.get(x.slot) ?? x.rank, [checked]);
   const checking = view.rankCheck && !ranks;
   const tl = timeline?.status === "ok" ? timeline.timeline : null;
-  const ownTeam = view.teams[0];
+  const state = !timeline ? "loading" : timeline.status === "ok" ? "ok" : "missing";
+  // The player inspected (the profile's own as the game opens) and the one compared with them: client state only.
+  const [selected, setSelected] = React.useState(view.player.slot);
+  const [compareSlot, setCompare] = React.useState<number | null>(null);
+  const [panel, setPanel] = React.useState<PanelKey>("build");
+  // A phone folds the secondary parts (the support figures; the score's why, tiles and chart) to keep its window within two screens.
+  const phone = usePhone();
+  const all = React.useMemo(() => view.teams.flatMap((t) => t.participants), [view.teams]);
+  const subject = all.find((p) => p.slot === selected && !p.removed) ?? view.player;
+  const compare = compareSlot !== null && compareSlot !== subject.slot ? (all.find((p) => p.slot === compareSlot && !p.removed) ?? null) : null;
+  const entry = tl?.players.find((p) => p.slot === subject.slot) ?? null;
+  // The scores, once the timeline has answered (its lane at 10:00 and 15:00 is one of their figures), from what is loaded.
+  const { scores, points } = React.useMemo(() => (timeline ? gameScoresOf(view, tl) : { scores: null, points: null }), [timeline, tl, view]);
+  const scoreOf = React.useCallback((slot: number) => scores?.players.find((p) => p.slot === slot) ?? null, [scores]);
+  const subjectTeam = view.teams.find((t) => t.participants.some((p) => p.slot === subject.slot)) ?? view.teams[0];
+  const nameOf = React.useCallback((p: DetailParticipant) => (p.teamMember && !p.isPlayer ? p.teamMember : p.name ? p.name.split("#")[0]! : champ(p.championId).name), [champ]);
+  const own = subject.isPlayer;
+  const mine = scoreOf(subject.slot);
+  const yours = React.useRef<HTMLElement>(null);
+  // The row pressed stays under the finger as the player above it changes height: measured before
+  // the switch and after it, and its scroller moved by the difference. Done here, not by the browser's
+  // scroll anchoring, which Safari does not have (the breakdown opts out of it below, so Chromium and
+  // Firefox do not correct twice).
+  const anchor = React.useRef<{ el: Element; top: number } | null>(null);
+  const select = React.useCallback((slot: number, from?: Element | null) => {
+    anchor.current = from ? { el: from, top: from.getBoundingClientRect().top } : null;
+    setSelected(slot);
+  }, []);
+  React.useLayoutEffect(() => {
+    const a = anchor.current;
+    anchor.current = null;
+    if (!a || !a.el.isConnected) return;
+    const moved = a.el.getBoundingClientRect().top - a.top;
+    if (Math.abs(moved) < 0.5) return;
+    scrollerOf(a.el).scrollBy(0, moved);
+  }, [subject.slot]);
+  // ↑ and ↓ between the ten rows (both teams), Home and End to the first and last; Enter and Space are the rows' own buttons.
+  const onRowKeys = (e: React.KeyboardEvent<HTMLElement>) => {
+    if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) return;
+    const rows = [...e.currentTarget.querySelectorAll<HTMLButtonElement>("[data-testid=participant-select]")];
+    const at = rows.indexOf(document.activeElement as HTMLButtonElement);
+    if (at < 0) return;
+    e.preventDefault();
+    const next = e.key === "Home" ? 0 : e.key === "End" ? rows.length - 1 : Math.max(0, Math.min(rows.length - 1, at + (e.key === "ArrowDown" ? 1 : -1)));
+    rows.forEach((r, i) => (r.tabIndex = i === next ? 0 : -1));
+    rows[next]!.focus();
+  };
+  const others = all.filter((p) => !p.removed && p.slot !== subject.slot).sort((a, b) => (a.slot === subject.laneOpponentSlot ? -1 : b.slot === subject.laneOpponentSlot ? 1 : 0));
+  const position = subject.position ? POSITION_WORDS[laneOf(subject.position) ?? ""] : undefined;
   return (
-    <div className="@container/pg" data-testid="match-breakdown" data-variant={variant} data-met={meetings ? (meetings.status === "ok" ? meetings.players.length : 0) : undefined} data-timeline={timeline ? timeline.status : "loading"}>
+    <div className="@container/pg [overflow-anchor:none]" data-testid="match-breakdown" data-variant={variant} data-met={meetings ? (meetings.status === "ok" ? meetings.players.length : 0) : undefined} data-timeline={timeline ? timeline.status : "loading"} data-selected={subject.slot}>
       <div className="grid gap-x-6 gap-y-4 @min-[60rem]/pg:grid-cols-[minmax(0,33rem)_minmax(0,1fr)]">
-        <section aria-label={view.own ? "Your game" : `${champ(view.championId).name}'s game`} className="min-w-0 space-y-3" data-testid="post-game-yours">
-          <Loadout p={p} champ={champ(view.championId)} small={variant === "window"} />
-          <Figures p={p} teamKills={ownTeam?.kills ?? 0} />
-          <Lane view={view} champ={champ} timeline={tl} state={!timeline ? "loading" : timeline.status === "ok" ? "ok" : "missing"} />
+        <section ref={yours} aria-label={own && view.own ? "Your game" : `${nameOf(subject)}'s game`} className="min-w-0 scroll-mt-24 space-y-2.5" data-testid="post-game-yours" data-own={own || undefined}>
+          {/* Who is inspected, their score, and the way back to the profile's player. */}
+          <div className="flex min-h-7 flex-wrap items-center gap-x-2 gap-y-1 pointer-coarse:min-h-11" data-testid="inspected">
+            {/* Truncated on one line where it fits a phone at 100%; wrapped under 20rem (large text), so the score is never cut off. */}
+            <p className="min-w-0 flex-1 truncate text-sm leading-tight @max-[20rem]/pg:whitespace-normal" aria-live="polite">
+              <span className="font-semibold text-fg" data-testid="inspected-name">
+                {nameOf(subject)}
+              </span>
+              <span className="text-fg-muted">
+                {" "}
+                · {champ(subject.championId).name}
+                {position ? ` · ${position}` : ""}
+              </span>
+              {mine ? (
+                <span className="text-fg-muted" data-testid="inspected-score">
+                  {" "}
+                  · <span className="font-semibold tabular-nums text-fg">{formatNumber(mine.score, 1)}</span>
+                  <span className="sr-only"> performance score,</span> {formatOrdinal(mine.rank)}
+                  {mine.mvp ? " · MVP" : mine.ace ? " · ACE" : ""}
+                </span>
+              ) : null}
+            </p>
+            {!own ? (
+              <button type="button" onClick={() => select(view.player.slot)} className="inline-flex min-h-7 shrink-0 items-center gap-1 rounded-md border border-border-control px-2 text-xs font-medium text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:min-h-11" data-testid="inspect-back">
+                <Undo2 className="h-3.5 w-3.5" aria-hidden />
+                Back to {nameOf(view.player)}
+              </button>
+            ) : null}
+          </div>
+          {/* On a phone the why goes with the score's fold, under the scoreboard (PhoneFold). */}
+          {!phone ? <ScoreWhy score={mine} points={points} slot={subject.slot} /> : null}
+          <Loadout key={subject.slot} p={subject} champ={champ(subject.championId)} small={variant === "window"} />
+          <Figures p={subject} teamKills={subjectTeam?.kills ?? 0} />
+          <PhoneFold phone={phone} summary="More figures: crowd control, healing, objectives, wards" testId="more-fold">
+            <MoreFigures p={subject} />
+          </PhoneFold>
+          <ParticipantPanels panel={panel} onPanel={setPanel} result={timeline} entry={entry} page={subject.runePage} />
+          <Lane view={view} champ={champ} me={subject} entry={entry} state={state} />
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-fg-subtle empty:hidden">
             <span className={cn("tabular-nums", variant === "window" && "hidden")} data-testid="match-breakdown-when">
               {formatDateTime(new Date(view.playedAt))}
               {view.patch ? ` · Patch ${publicPatchName(view.patch)}` : ""}
             </span>
             {view.share.eligible ? <BookmarkButton matchId={view.matchId} bookmarked={view.share.shared} share /> : null}
-            {p.opgg ? <OpggHistoryLink href={p.opgg} account={p.name?.split("#")[0]?.trim() || null} /> : null}
+            {view.player.opgg ? <OpggHistoryLink href={view.player.opgg} account={view.player.name?.split("#")[0]?.trim() || null} /> : null}
           </div>
         </section>
-        <section aria-label="Scoreboard" className="@container/sb min-w-0 space-y-2" data-testid="post-game-scoreboard">
+        <section aria-label="Scoreboard" className="@container/sb min-w-0 space-y-2" data-testid="post-game-scoreboard" onKeyDown={onRowKeys}>
           {view.teams.map((t) => (
-            <TeamTable key={t.teamId} compact team={t} champ={champ} maxDamage={view.maxDamage} groups={groups?.status === "ok" ? (groups.teams.find((g) => g.teamId === t.teamId) ?? null) : null} laneSlot={view.comparison.opponent?.slot ?? null} rankOf={rankOf} queueId={view.queueId} checking={checking} met={met} meetHref={meetHref} />
+            <TeamTable key={t.teamId} compact team={t} champ={champ} maxDamage={view.maxDamage} groups={groups?.status === "ok" ? (groups.teams.find((g) => g.teamId === t.teamId) ?? null) : null} laneSlot={subject.laneOpponentSlot} rankOf={rankOf} queueId={view.queueId} checking={checking} met={met} meetHref={meetHref} selection={{ selected: subject.slot, onSelect: select, score: scoreOf, scoring: !timeline, scored: scores?.scored ?? 0 }} />
           ))}
           <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
             <RanksNote ranks={view.teams.flatMap((t) => t.participants.filter((x) => !x.removed).map(rankOf))} queueId={view.queueId} checking={checking} result={ranks} />
             <GroupsNote result={groups} teams={view.teams} />
           </div>
+          {/* Stacked (a phone, a tablet), the player inspected is above the scoreboard: one press takes the reader there, nothing scrolls by itself. */}
+          {!own ? (
+            <button type="button" onClick={() => yours.current?.scrollIntoView({ block: "start", behavior: "smooth" })} className="inline-flex min-h-8 items-center gap-1 rounded-md px-1 text-xs font-medium text-accent underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:min-h-11 @min-[60rem]/pg:hidden" data-testid="inspected-jump">
+              <ArrowUp className="h-3.5 w-3.5" aria-hidden />
+              Show {nameOf(subject)}&apos;s game
+            </button>
+          ) : null}
+          <PerformancePanel scores={scores} points={points} timeline={state} subject={subject} compare={compare} onCompare={setCompare} others={others} nameOf={nameOf} teams={view.teams} champ={champ} onSelect={select} phone={phone} />
         </section>
       </div>
     </div>
   );
+}
+
+/** The nearest ancestor that scrolls vertically (the game's window on a phone), else the page. */
+function scrollerOf(el: Element): Element | Window {
+  for (let p = el.parentElement; p; p = p.parentElement) {
+    const y = getComputedStyle(p).overflowY;
+    if ((y === "auto" || y === "scroll") && p.scrollHeight > p.clientHeight) return p;
+  }
+  return window;
 }

@@ -19,6 +19,21 @@ describe("route protection", () => {
     expect(res.status).toBe(307);
     expect(res.headers.get("location")).toBe("https://team.example/login?next=%2Fteam");
   });
+  it("answers Matchup Intel's old links with one permanent redirect to Champion Lookup, carrying the enemy first, signed out too", async () => {
+    for (const [path, to] of [
+      ["/resources/matchups?champion=Riven&vs=Mordekaiser", "/lookup?champion=Mordekaiser"],
+      ["/resources/matchups?role=top&champion=Riven", "/lookup?champion=Riven"],
+      ["/resources/matchups?role=adc&ally=Lulu&vs2=Lux&ability=Lux.Q", "/lookup?champion=Lux"],
+      ["/resources/matchups?ally=Lulu", "/lookup?champion=Lulu"],
+      ["/resources/matchups", "/lookup"],
+    ] as const) {
+      const res = await visit(path);
+      expect(res.status, path).toBe(308);
+      expect(res.headers.get("location"), path).toBe(`https://team.example${to}`);
+    }
+    // Only that exact address: anything under it is an ordinary members' page.
+    expect((await visit("/resources/matchups/x")).headers.get("location")).toBe("https://team.example/login?next=%2Fresources%2Fmatchups%2Fx");
+  });
   it("serves Riot's ownership file to anyone, and only that exact address", async () => {
     expect((await visit("/riot.txt")).headers.get("x-middleware-next")).toBe("1");
     expect((await visit("/riot.txt/x")).status).toBe(307);

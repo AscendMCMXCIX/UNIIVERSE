@@ -141,7 +141,7 @@ test("phone 320 × 568: after stepping through games in the window, closing it (
   }
 });
 
-test("phone 390 × 844 (i12): a game's window, header, body and the Previous/Next bar with its folds closed, is at most 2.0 screens (PLAN S6)", async ({ page }) => {
+test("phone 390 × 844 (i12): a game's window, header, body and the Previous/Next bar with its folds closed, is at most 2.32 screens (PLAN S6's 2.0, raised for Release 16's inspection and score)", async ({ page }) => {
   test.skip(!isPhone(page), "the phone's window over Match History");
   await page.setViewportSize({ width: 390, height: 844 });
   const profile = await teammate(page);
@@ -164,7 +164,12 @@ test("phone 390 × 844 (i12): a game's window, header, body and the Previous/Nex
       return { screens: (panel.getBoundingClientRect().height + hidden) / innerHeight, open: panel.querySelectorAll("details[open]").length };
     });
     expect(m.open, `game ${i + 1}: its folds closed`).toBe(0);
-    expect(Math.round(m.screens * 100) / 100, `game ${i + 1}: ${m.screens.toFixed(2)} screens`).toBeLessThanOrEqual(2.0);
+    // Release 16 (owner's request of 23 Nov 2026): inspecting any player and the performance score add
+    // Build Path | Skill Order | Runes, the score's line and a third line per scoreboard row (the rank
+    // whole). With the support figures and the score's why, tiles and chart folded on phones, the
+    // demo's three games measured 2.15, 2.20 and 2.27 screens (the first 2.42 unfolded): the ceiling
+    // is the largest plus 2% (the page budgets' exception rule, e2e/page-budgets.json).
+    expect(Math.round(m.screens * 100) / 100, `game ${i + 1}: ${m.screens.toFixed(2)} screens`).toBeLessThanOrEqual(2.32);
     if (i < 2) {
       const at = page.url();
       await win.getByTestId("match-detail-next").tap();
@@ -287,8 +292,7 @@ const WINDOWS: { name: string; view: "player" | "admin"; path: (page: Page) => P
   { name: "Players Peek", view: "player", path: async () => "/players", opener: "[data-testid=player-peek-open] >> nth=1", win: "player-peek", address: /player=/ },
   { name: "Leaderboards Peek", view: "player", path: async () => "/leaderboards", opener: "[data-testid=board-peek-open] >> nth=1", win: "player-peek", address: /player=/ },
   { name: "game", view: "player", path: async (page) => `${await teammate(page)}/matches`, opener: "[data-testid=match-row] >> nth=1", win: "match-detail", address: /match=/ },
-  { name: "Matchup Intel picker", view: "player", path: async () => "/resources/matchups", opener: "[data-testid=matchup-pick-you]", win: "matchup-picker" },
-  { name: "Matchup Intel details", view: "player", path: async () => "/resources/matchups?champion=Riven&vs=Yone", opener: "[data-testid=ability-details] >> nth=0", win: "", },
+  { name: "Champion Lookup's All champions", view: "player", path: async () => "/lookup?champion=Ahri", opener: "[data-testid=lookup-browse]", win: "lookup-picker" },
   { name: "Admin person", view: "admin", path: async () => "/admin/people", opener: "[data-person] >> nth=1", win: "person-view", address: /person=/ },
 ];
 

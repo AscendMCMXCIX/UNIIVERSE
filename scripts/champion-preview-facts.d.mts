@@ -9,13 +9,15 @@ export interface ChampionPreviewRead {
   role?: string;
   record?: string;
   winRate?: string;
+  /** Where the panel is (desktop): docked, no window, within the screen, its body not scrolling. */
+  docked?: { panel: boolean; window: boolean; within: boolean; fits: boolean };
   loading?: boolean;
   noOpponents?: boolean;
   answered?: boolean;
   opponents?: Array<{ games: number; says: boolean }>;
-  intel?: number;
-  intelChampion?: boolean;
-  intelVs?: boolean;
+  lookup?: number;
+  lookupPage?: boolean;
+  lookupChampion?: boolean;
   address?: { champion: boolean };
 }
 export interface Verdict { name: string; status: "PASS" | "FAIL" | "WARN"; detail: unknown }

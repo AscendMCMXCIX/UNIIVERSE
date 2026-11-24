@@ -1,17 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { Clock3, UserX } from "lucide-react";
+import { Clock3, Swords, UserX } from "lucide-react";
 import type { MatchGroupsResult, MatchGroupsTeam, MatchGroupView } from "@/server/matches/possible-groups";
 import { groupEvidenceText, groupsNoteState } from "@/domain/possible-groups";
 import type { DetailParticipant, DetailTeam, MatchRanksResult } from "@/server/players/match-history";
 import type { MatchMeeting } from "@/server/players/encounters";
 import { metSides } from "@/lib/tip-words";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
-import { formatCount, formatDate, formatKilo } from "@/lib/format";
+import { formatCount, formatDate, formatKilo, formatNumber, formatOrdinal } from "@/lib/format";
+import type { PlayerScore } from "@/domain/performance-score";
+import { RankChip } from "./performance-panel";
 import { cn } from "@/lib/cn";
 import { Fold } from "@/components/ui/fold";
-import { matchRankQueue, rankBadgeLabel, rankTimingCounts, type ParticipantRank } from "@/domain/known-rank";
+import { matchRankQueue, rankBadgeLabel, rankShortLabel, rankTimingCounts, type ParticipantRank } from "@/domain/known-rank";
 import { InfoTip } from "@/components/ui/info-tip";
 import { RankEmblem } from "@/components/players/rank-emblem";
 import { Badge } from "@/components/ui/badge";
@@ -66,7 +68,23 @@ export interface MeetProps {
   meetHref?: ((key: string) => string) | null;
 }
 
-export function TeamTable({ team, champ, maxDamage, groups, laneSlot, rankOf, queueId, checking, met, meetHref, compact = false }: { team: DetailTeam; champ: (id: string | null) => PortraitChampion; maxDamage: number; groups: MatchGroupsTeam | null; /** The player's lane opponent, by place in the record. */ laneSlot: number | null; /** The post-game view's scoreboard (CompactRow): K/D/A, the build, CS and damage, the player's other figures left to their tiles. */ compact?: boolean } & RankProps & MeetProps) {
+/**
+ * The post-game view's inspection (post-game.tsx): any row selects its player (a click, a tap, Enter
+ * or Space on the row; ↑ and ↓ move between the ten rows), and each row carries its player's
+ * performance score (domain/performance-score), its place among the ten and MVP or ACE.
+ */
+export interface RowSelection {
+  selected: number;
+  /** `from`: the row pressed, kept under the pointer as the player above it changes (post-game.tsx). */
+  onSelect: (slot: number, from?: Element | null) => void;
+  score: (slot: number) => PlayerScore | null;
+  /** The scores wait for the game's timeline (the lane at 10:00 and 15:00 is one of their figures). */
+  scoring: boolean;
+  /** How many players were scored (a removed player is not). */
+  scored: number;
+}
+
+export function TeamTable({ team, champ, maxDamage, groups, laneSlot, rankOf, queueId, checking, met, meetHref, compact = false, selection = null }: { team: DetailTeam; champ: (id: string | null) => PortraitChampion; maxDamage: number; groups: MatchGroupsTeam | null; /** The player's lane opponent, by place in the record. */ laneSlot: number | null; /** The post-game view's scoreboard (CompactRow): K/D/A, the build, CS and damage, the player's other figures left to their tiles. */ compact?: boolean; selection?: RowSelection | null } & RankProps & MeetProps) {
   // The post-game scoreboard keeps the band to one line: kills, gold, towers, dragons and barons.
   const objectives = OBJECTIVES.filter(([k]) => team.objectives[k] !== undefined && (!compact || k === "tower" || k === "dragon" || k === "baron"));
   const found = groups?.groups ?? [];
@@ -120,7 +138,7 @@ export function TeamTable({ team, champ, maxDamage, groups, laneSlot, rankOf, qu
       {compact ? (
         <ul className="divide-y divide-border/70">
           {team.participants.map((x, i) => (
-            <CompactRow key={i} x={x} champ={champ} group={groupOf.get(x.slot) ?? null} lane={laneSlot !== null && x.slot === laneSlot} rank={rankOf(x)} queueId={queueId} checking={checking} met={meetHref ? (met?.get(x.slot) ?? null) : null} meetHref={meetHref ?? null} />
+            <CompactRow key={i} x={x} champ={champ} group={groupOf.get(x.slot) ?? null} lane={laneSlot !== null && x.slot === laneSlot} rank={rankOf(x)} queueId={queueId} checking={checking} met={meetHref ? (met?.get(x.slot) ?? null) : null} meetHref={meetHref ?? null} selection={selection} />
           ))}
         </ul>
       ) : null}
@@ -158,7 +176,8 @@ function RankBadge({ rank, queueId, checking }: { rank: ParticipantRank; queueId
   // It may shrink (its text then ends in an ellipsis; the whole rank is in its title and for screen
   // readers), so on a narrow phone a long rank, or the pulsing stand-in while ranks are checked, never
   // reaches into the KDA column beside it.
-  const base = "inline-flex h-4 min-w-0 items-center gap-1 rounded border px-1 text-2xs font-medium leading-4";
+  // Under 16rem (a phone at 200% text) it wraps onto a second line rather than shorten the rank.
+  const base = "inline-flex h-4 min-w-0 items-center gap-1 rounded border px-1 text-2xs font-medium leading-4 @max-[16rem]/sb:h-auto";
   if (checking && rank.state === "unknown")
     return (
       <span className={cn(base, "w-10 shrink animate-pulse border-dashed border-border motion-reduce:animate-none")} data-testid="participant-rank" data-state="checking">
@@ -166,14 +185,25 @@ function RankBadge({ rank, queueId, checking }: { rank: ParticipantRank; queueId
       </span>
     );
   const { text, queueMark, spoken, title, aroundGame } = rankBadgeLabel(rank, queueId);
+  const shortLabel = rankShortLabel(rank, queueId);
+  const short = shortLabel.text ? shortLabel : null;
   // The tier in its own colour (5:1 or more on the panels) when it is the rank around the game; one read away from it stays in the quiet caption colour.
   const tierColour = rank.state === "ranked" && rank.tier && aroundGame !== false ? (TIER_TEXT[rank.tier] ?? "text-fg-muted") : null;
   return (
     <span className={cn(base, rank.state === "ranked" ? cn("border-border-strong/70", tierColour ?? "text-fg-muted") : rank.state === "unranked" ? "border-border text-fg-subtle" : "border-dashed border-border text-fg-subtle")} title={title} data-testid="participant-rank" data-state={rank.state} data-queue={rank.queue ?? undefined} data-timing={rank.timing ?? undefined}>
       {rank.state === "ranked" ? <RankEmblem tier={rank.tier} className="-ml-px h-3 w-3 shrink-0" /> : null}
-      <span aria-hidden className="min-w-0 truncate" data-testid="participant-rank-text">
-        {queueMark ? <span className="text-fg-subtle">{queueMark} </span> : null}
-        {text}
+      {/* In a post-game scoreboard 30–36rem wide (a desktop with the sidebar open) the short form a match card uses ("E2"), so the champion beside it is never cut; the whole rank stays in the title and the screen reader's words. */}
+      <span aria-hidden className="min-w-0 truncate @max-[16rem]/sb:whitespace-normal" data-testid="participant-rank-text" data-text={`${queueMark ? `${queueMark} ` : ""}${text}`}>
+        <span className={cn(short && "@min-[30rem]/sb:@max-[36rem]/sb:hidden")}>
+          {queueMark ? <span className="text-fg-subtle">{queueMark} </span> : null}
+          {text}
+        </span>
+        {short ? (
+          <span className="hidden @min-[30rem]/sb:@max-[36rem]/sb:inline">
+            {short.text}
+            {short.queueMark ? <span className="ml-px align-top text-4xs font-medium leading-none text-fg-subtle">{short.queueMark}</span> : null}
+          </span>
+        ) : null}
       </span>
       {aroundGame === false ? <Clock3 className="-mr-px h-2.5 w-2.5 shrink-0 text-fg-subtle" aria-hidden data-testid="rank-read-later" /> : null}
       <span className="sr-only">{spoken}</span>
@@ -358,21 +388,75 @@ function MetChip({ met, href }: { met: MatchMeeting; href: string }) {
  * the player's own is said once in the view, in its tiles, so the rows carry no ratio, share or
  * per-minute figure. Team members are marked by weight and a ring on the portrait, not by colour.
  */
-function CompactRow({ x, champ, group, lane, rank, queueId, checking, met, meetHref }: { x: DetailParticipant; champ: (id: string | null) => PortraitChampion; group: { index: number; label: string } | null; lane: boolean; rank: ParticipantRank | null; queueId: number | null; checking: boolean; met: MatchMeeting | null; meetHref: ((key: string) => string) | null }) {
+/** A row's performance score: the score over its place among the ten, or MVP / ACE; a quiet stand-in while the timeline answers. */
+function RowScore({ score, scoring, scored }: { score: PlayerScore | null; scoring: boolean; scored: number }) {
+  if (scoring)
+    return (
+      <span className="block h-4 w-9 animate-pulse rounded bg-surface-3/60 motion-reduce:animate-none @min-[30rem]/sb:h-7" data-testid="participant-score" data-state="loading">
+        <span className="sr-only">Scoring</span>
+      </span>
+    );
+  if (!score) return <span className="block w-9" data-testid="participant-score" data-state="none" aria-hidden />;
+  return (
+    <span className="flex items-center gap-1 leading-tight @min-[30rem]/sb:w-10 @min-[30rem]/sb:flex-col @min-[30rem]/sb:gap-0.5" data-testid="participant-score" data-score={score.score} data-rank={score.rank} data-mvp={score.mvp || undefined} data-ace={score.ace || undefined}>
+      <span className="text-sm font-semibold leading-none tabular-nums text-fg">{formatNumber(score.score, 1)}</span>
+      <RankChip score={score} marks />
+      <span className="sr-only">
+        {`: performance score ${formatNumber(score.score, 1)}, ${formatOrdinal(score.rank)} of ${scored}`}
+        {score.mvp ? ", MVP (the winning team's highest)" : score.ace ? ", ACE (the losing team's highest)" : ""}
+      </span>
+    </span>
+  );
+}
+
+function CompactRow({ x, champ, group, lane, rank, queueId, checking, met, meetHref, selection }: { x: DetailParticipant; champ: (id: string | null) => PortraitChampion; group: { index: number; label: string } | null; lane: boolean; rank: ParticipantRank | null; queueId: number | null; checking: boolean; met: MatchMeeting | null; meetHref: ((key: string) => string) | null; selection: RowSelection | null }) {
   if (x.removed) return <RemovedRow />;
   const c = champ(x.championId);
   const member = !!x.teamMember && !x.isPlayer;
+  const selected = !!selection && selection.selected === x.slot;
+  const who = x.teamMember && !x.isPlayer ? x.teamMember : x.name ? x.name.split("#")[0] : c.name;
   // One grid, placed by the scoreboard's width: from 30rem one row (the portrait, the name over the
-  // champion and rank, the K/D/A, the build, CS over damage); under it two lines (the name and the
-  // K/D/A, then the build, the rank and CS with damage), the champion left to its portrait.
+  // champion and rank, the K/D/A, the build, CS over damage, the score). Under it, with the score
+  // (Release 16), three lines: the name, the K/D/A and the score; the build and CS with damage; the
+  // lane mark and the rank across the row, so the rank is never squeezed to a letter. Under 16rem (a
+  // phone at 200% text) everything stacks: the name; the K/D/A and the score; the build; the rank;
+  // CS with damage. The champion is left to its portrait under 30rem.
+  const p = (wide: string, phone: string, narrow: string) => (selection ? cn(phone, narrow, wide) : null);
   return (
-    <li className={cn("relative grid grid-cols-[auto_auto_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-0.5 px-2.5 py-1 @min-[30rem]/sb:grid-cols-[auto_minmax(0,1fr)_auto_auto_auto] @min-[30rem]/sb:gap-x-3 @min-[30rem]/sb:gap-y-0 @min-[30rem]/sb:py-px", x.isPlayer && "bg-accent/10")} data-testid="participant" data-player={x.isPlayer || undefined} data-group={group ? group.index : undefined} data-lane={lane || undefined} data-member={member || undefined}>
+    <li
+      className={cn(
+        "relative grid items-center gap-x-2 gap-y-0.5 px-2.5 py-1 @max-[16rem]/sb:px-1.5 @min-[36rem]/sb:gap-x-3 @min-[30rem]/sb:gap-y-0 @min-[30rem]/sb:py-px",
+        selection ? "grid-cols-[auto_minmax(0,1fr)_auto_auto] @max-[16rem]/sb:grid-cols-[auto_minmax(0,1fr)] @min-[30rem]/sb:grid-cols-[auto_minmax(0,1fr)_auto_auto_auto_auto]" : "grid-cols-[auto_auto_minmax(0,1fr)_auto] @min-[30rem]/sb:grid-cols-[auto_minmax(0,1fr)_auto_auto_auto]",
+        // The links, the "Met" chip and the rank stay their own targets above the row's one button.
+        selection && "transition-colors [&_[data-testid=participant-met]]:z-20 [&_[data-testid=participant-rank]]:relative [&_[data-testid=participant-rank]]:z-20 [&_a]:relative [&_a]:z-20",
+        selected ? "bg-surface-3 ring-1 ring-inset ring-accent/70" : x.isPlayer ? "bg-accent/10" : selection && "hover:bg-surface-2/70",
+      )}
+      data-testid="participant"
+      data-player={x.isPlayer || undefined}
+      data-group={group ? group.index : undefined}
+      data-lane={lane || undefined}
+      data-member={member || undefined}
+      data-slot={x.slot}
+      data-selected={selected || undefined}
+    >
+      {selection ? (
+        <button
+          type="button"
+          className="absolute inset-0 z-10 cursor-pointer rounded-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
+          aria-current={selected ? "true" : undefined}
+          aria-label={`Inspect ${who}, ${c.name}`}
+          tabIndex={selected ? 0 : -1}
+          onClick={(e) => selection.onSelect(x.slot, e.currentTarget)}
+          data-testid="participant-select"
+          data-slot={x.slot}
+        />
+      ) : null}
       {group ? <span className={cn("absolute inset-y-1 left-0 w-[3px] rounded-r-full", GROUP_MARK[group.index] ?? GROUP_MARK[0])} aria-hidden /> : null}
-      <span className="relative row-span-2 shrink-0 self-center">
+      <span className={p("", "relative row-span-2 shrink-0 self-center col-start-1 row-start-1", "@max-[16rem]/sb:row-span-1") ?? "relative row-span-2 shrink-0 self-center"}>
         <ChampionPortrait champion={c} size="xs" className={cn(member && "ring-2 ring-fg-muted/70")} />
         {x.champLevel !== null ? <span className="absolute -bottom-1 -right-1 rounded bg-bg px-0.5 text-4xs font-semibold tabular-nums leading-3 text-fg-muted">{x.champLevel}</span> : null}
       </span>
-      <span className="col-span-2 flex min-w-0 items-center gap-1.5 leading-tight @min-[30rem]/sb:col-span-1 @min-[30rem]/sb:self-end">
+      <span className={p("@min-[30rem]/sb:self-end", "flex min-w-0 items-center gap-1.5 leading-tight col-start-2 row-start-1", "") ?? "col-span-2 flex min-w-0 items-center gap-1.5 leading-tight @min-[30rem]/sb:col-span-1 @min-[30rem]/sb:self-end"}>
         <span className={cn("min-w-0 truncate text-xs leading-tight @min-[30rem]/sb:text-sm @min-[30rem]/sb:leading-tight", x.isPlayer || member ? "font-semibold text-fg" : "text-fg")} title={x.name ?? undefined} data-testid="participant-name">
           <PlayerLink memberId={x.memberId} opgg={x.opgg} label={x.teamMember ?? x.name?.split("#")[0] ?? c.name}>
             {x.teamMember && !x.isPlayer ? x.teamMember : x.name ? x.name.split("#")[0] : c.name}
@@ -381,22 +465,28 @@ function CompactRow({ x, champ, group, lane, rank, queueId, checking, met, meetH
         </span>
         {met && meetHref ? <MetChip met={met} href={meetHref(met.key)} /> : null}
       </span>
-      <span className="col-start-4 row-start-1 text-right text-sm font-semibold tabular-nums text-fg @min-[30rem]/sb:col-start-3 @min-[30rem]/sb:row-span-2" data-testid="participant-kda">
+      <span className={p("@min-[30rem]/sb:col-start-3 @min-[30rem]/sb:row-span-2", "text-right text-sm font-semibold tabular-nums text-fg col-start-3 row-start-1", "@max-[16rem]/sb:col-start-1 @max-[16rem]/sb:col-span-2 @max-[16rem]/sb:row-start-2 @max-[16rem]/sb:justify-self-start") ?? "col-start-4 row-start-1 text-right text-sm font-semibold tabular-nums text-fg @min-[30rem]/sb:col-start-3 @min-[30rem]/sb:row-span-2"} data-testid="participant-kda">
         {x.kills}/{x.deaths}/{x.assists}
       </span>
-      <span className="col-start-2 row-start-2 [--icon-size:1rem] @min-[30rem]/sb:col-start-4 @min-[30rem]/sb:row-span-2 @min-[30rem]/sb:row-start-1 @min-[30rem]/sb:[--icon-size:1.25rem]" data-testid="participant-items">
+      <span className={p("@min-[30rem]/sb:col-start-4 @min-[30rem]/sb:row-span-2 @min-[30rem]/sb:row-start-1 @min-[30rem]/sb:[--icon-size:1.125rem] @min-[36rem]/sb:[--icon-size:1.25rem]", "min-w-0 col-start-2 row-start-2 [--icon-size:1rem]", "@max-[16rem]/sb:col-start-1 @max-[16rem]/sb:col-span-2 @max-[16rem]/sb:row-start-3 @max-[16rem]/sb:[&>[role=img]]:flex-wrap") ?? "col-start-2 row-start-2 [--icon-size:1rem] @min-[30rem]/sb:col-start-4 @min-[30rem]/sb:row-span-2 @min-[30rem]/sb:row-start-1 @min-[30rem]/sb:[--icon-size:1.25rem]"} data-testid="participant-items">
         <ItemRow items={x.items} size={20} />
       </span>
-      <span className="col-start-3 row-start-2 flex min-w-0 items-center gap-1 text-2xs leading-tight text-fg-muted @min-[30rem]/sb:col-start-2 @min-[30rem]/sb:self-start">
-        <span className="hidden truncate @min-[30rem]/sb:inline">{c.name}</span>
+      <span className={p("@min-[30rem]/sb:col-span-1 @min-[30rem]/sb:col-start-2 @min-[30rem]/sb:row-start-2 @min-[30rem]/sb:self-start", "flex min-w-0 items-center gap-1 text-2xs leading-tight text-fg-muted col-start-2 col-span-3 row-start-3 empty:hidden", "@max-[16rem]/sb:col-start-1 @max-[16rem]/sb:col-span-2 @max-[16rem]/sb:row-start-4 @max-[16rem]/sb:flex-wrap") ?? "col-start-3 row-start-2 flex min-w-0 items-center gap-1 text-2xs leading-tight text-fg-muted @min-[30rem]/sb:col-start-2 @min-[30rem]/sb:self-start"}>
+        {/* The champion whole, always (it shrinks for nothing); the rank beside it gives way. */}
+        <span className="hidden shrink-0 whitespace-nowrap @min-[30rem]/sb:inline" data-testid="participant-champion">
+          {c.name}
+        </span>
         {lane ? (
-          <span className="shrink-0 rounded border border-border px-1 leading-4 text-fg-muted" data-testid="lane-opponent-mark">
-            Lane<span className="@max-[40rem]/sb:sr-only"> opponent</span>
+          // Under a 36rem scoreboard an icon (its words for screen readers), from 36rem "Lane", from 40rem "Lane opponent".
+          <span className="inline-flex shrink-0 items-center rounded border border-border px-1 leading-4 text-fg-muted" data-testid="lane-opponent-mark">
+            <Swords className="h-3 w-3 @min-[36rem]/sb:hidden" aria-hidden />
+            <span className="sr-only @min-[36rem]/sb:not-sr-only">Lane</span>
+            <span className="sr-only @min-[40rem]/sb:not-sr-only @min-[40rem]/sb:ml-1"> opponent</span>
           </span>
         ) : null}
         {rank ? <RankBadge rank={rank} queueId={queueId} checking={checking && rank.stale} /> : null}
       </span>
-      <span className="col-start-4 row-start-2 whitespace-nowrap text-right text-2xs leading-tight tabular-nums text-fg-muted @min-[30rem]/sb:col-start-5 @min-[30rem]/sb:row-span-2 @min-[30rem]/sb:row-start-1 @min-[30rem]/sb:w-16" data-testid="participant-cs">
+      <span className={p("@min-[30rem]/sb:col-span-1 @min-[30rem]/sb:col-start-5 @min-[30rem]/sb:row-span-2 @min-[30rem]/sb:row-start-1 @min-[30rem]/sb:w-16", "whitespace-nowrap text-right text-2xs leading-tight tabular-nums text-fg-muted col-start-3 col-span-2 row-start-2", "@max-[16rem]/sb:col-start-1 @max-[16rem]/sb:col-span-2 @max-[16rem]/sb:row-start-5 @max-[16rem]/sb:text-left") ?? "col-start-4 row-start-2 whitespace-nowrap text-right text-2xs leading-tight tabular-nums text-fg-muted @min-[30rem]/sb:col-start-5 @min-[30rem]/sb:row-span-2 @min-[30rem]/sb:row-start-1 @min-[30rem]/sb:w-16"} data-testid="participant-cs">
         <span className="font-medium text-fg">{intText(x.cs)}</span> CS
         <span className="@max-[30rem]/sb:hidden">
           <br />
@@ -405,6 +495,12 @@ function CompactRow({ x, champ, group, lane, rank, queueId, checking, met, meetH
         <span className="font-medium text-fg">{x.damage === null ? "—" : formatKilo(x.damage)}</span>
         <span className="@max-[30rem]/sb:hidden"> dmg</span>
       </span>
+      {/* On a phone the score sits on the first line beside the K/D/A (CS and damage under both); from 30rem its own column over both lines. */}
+      {selection ? (
+        <span className="col-start-4 row-start-1 self-center justify-self-end @max-[16rem]/sb:col-start-1 @max-[16rem]/sb:col-span-2 @max-[16rem]/sb:row-start-2 @min-[30rem]/sb:col-start-6 @min-[30rem]/sb:row-span-2">
+          <RowScore score={selection.score(x.slot)} scoring={selection.scoring} scored={selection.scored} />
+        </span>
+      ) : null}
     </li>
   );
 }

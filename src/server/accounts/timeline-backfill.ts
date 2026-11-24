@@ -5,7 +5,6 @@ import { MAX_SKIPPED_RECORDS, recordFailure, RiotDeadlineError, type RiotApiClie
 import { describeStop } from "./figures-backfill";
 import { SYNC_QUEUE_IDS } from "./sync";
 import { completedTimeline, keptTimeline, timelineRow } from "./match-timeline";
-import { refreshMatchPrep } from "@/server/matchup-intel/prep-store";
 
 /*
   Timeline backfill for Matchups: the linked players' own Summoner's Rift games that have an
@@ -109,8 +108,6 @@ export async function backfillTimelines(db: Db, client: RiotApiClient, options: 
       .insert(matchTimelines)
       .values({ ...row, ...done })
       .onConflictDoUpdate({ target: matchTimelines.matchId, set: done });
-    // Matchup Intel's evidence rows of this game, made again with the timeline (never fails the run).
-    await refreshMatchPrep(db, [matchId], options.log);
   }
   return result;
 }

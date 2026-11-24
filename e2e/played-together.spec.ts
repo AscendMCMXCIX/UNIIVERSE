@@ -540,36 +540,24 @@ test("the scope line's (i) never takes a line alone: where the line does not fit
   expect(alone, "no width leaves the (i) alone or splits the record").toEqual([]);
 });
 
-test("while it loads, Team Matches shows the list's shape, read out as one Loading status; Team Insights, under it, keeps the app's own loading state", async ({ page }, info) => {
+test("while it loads, Team Matches shows the list's shape, read out as one Loading status", async ({ page }, info) => {
   test.skip(info.project.name !== "desktop", "one device is enough for the loading states");
   const loading = page.locator("main [role=status][aria-label=Loading]");
-  const hold = (path: string) =>
-    page.route(
-      (url) => url.pathname === path,
-      async (route) => {
-        await new Promise((r) => setTimeout(r, 3000));
-        await route.continue();
-      },
-    );
-  // Team Insights has no link to it (administrators open its address): the router goes there once
-  // its prefetch, which brings the loading state, has finished; then the page itself is held back.
-  await page.goto("/matches");
-  await expect(page.getByTestId("together-game").first()).toBeVisible();
-  await page.evaluate(() => (window as unknown as { next: { router: { prefetch(href: string): void } } }).next.router.prefetch("/matches/insights"));
+  // From another of Team's sections: the router goes to Team Matches once its prefetch, which brings
+  // the loading state, has finished; then the page itself is held back.
+  await page.goto("/players");
+  await expect(page.locator("main h1").first()).toBeAttached();
+  await page.evaluate(() => (window as unknown as { next: { router: { prefetch(href: string): void } } }).next.router.prefetch("/matches"));
   await page.waitForLoadState("networkidle");
-  await hold("/matches/insights");
-  await page.evaluate(() => (window as unknown as { next: { router: { push(href: string): void } } }).next.router.push("/matches/insights"));
-  await expect(loading).toHaveCount(1);
-  await expect(loading, "Team Insights: the app's generic loading state, not Team Matches' list").not.toHaveAttribute("data-testid", "matches-skeleton");
-  await expect(page.getByTestId("team-insights")).toBeVisible({ timeout: 20_000 });
-  await page.unrouteAll();
-  // Back to Team Matches by the preview's own link: the list's shape, its cards hidden from screen
-  // readers, which hear the status alone (no empty lists). Nothing to prefetch first: /matches was
-  // the first page, which brought its loading state (a second wait for the network to go quiet
-  // would not wait on anything: it is still the same document).
-  const back = page.getByTestId("insights-back");
-  await hold("/matches");
-  await back.click();
+  await page.route(
+    (url) => url.pathname === "/matches",
+    async (route) => {
+      await new Promise((r) => setTimeout(r, 3000));
+      await route.continue();
+    },
+  );
+  await page.evaluate(() => (window as unknown as { next: { router: { push(href: string): void } } }).next.router.push("/matches"));
+  // The list's shape, its cards hidden from screen readers, which hear the status alone (no empty lists).
   await expect(loading).toHaveAttribute("data-testid", "matches-skeleton");
   await expect(loading).toMatchAriaSnapshot(`
     - status "Loading":
@@ -577,6 +565,18 @@ test("while it loads, Team Matches shows the list's shape, read out as one Loadi
       - paragraph: Loading…
   `);
   await expect(page.getByTestId("together-game").first()).toBeVisible({ timeout: 20_000 });
+});
+
+test("Team Insights is gone for good: no link in Team Matches' header for anyone, the Owner included, and its old address is not found", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "one device is enough");
+  // The demo's viewer is the Owner, who saw the administrators' preview link until Release 16.
+  await page.goto("/matches");
+  await expect(page.getByTestId("together-game").first()).toBeVisible();
+  await expect(page.getByTestId("team-insights-link")).toHaveCount(0);
+  await expect(page.locator("main")).not.toContainText(/insights/i);
+  const gone = await page.goto("/matches/insights");
+  expect(gone?.status(), "the old address answers Not Found, never a redirect").toBe(404);
+  await expect(page.getByTestId("team-insights")).toHaveCount(0);
 });
 
 test("at 200% text on a 320px phone, Team Matches is no wider than the phone", async ({ page }, info) => {

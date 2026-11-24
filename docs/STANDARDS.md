@@ -168,10 +168,22 @@ phone, two rows on a tablet, one row from a 50rem list: DESIGN_SYSTEM.md §1); b
 expressive; Settings and forms are plain and roomy. Empty or thin data shrinks a card rather than
 leaving a frame to fill, and no card is stretched to even out a dashboard's columns (a Ranked
 progress filled to the pools' end made a few LP look like a swing: the UX review of Release 13). The
-Overview's 2×2 balances its columns with its own data instead: there Recent form lists the champions
-of its games (`RecentChampions`), and a primary pool of more than eight shows its first six champions
-with a Show all at its end (`PRIMARY_POOL_TOP`, `PRIMARY_POOL_FOLD_OVER`), so no player's pool makes
-the page disproportionately tall.
+Overview's 2×2 balances its columns with its own data instead: there Ranked progress heads the rail
+and Recent form, under it, lists the champions of its games that fit above the window's bottom (two
+to four by the window's height in the server's drawing, then as many as fit: `RecentChampions`,
+`FitChampions`; "and N more" on its heading's line), and a primary pool of
+more than six shows its first five champions with a Show all at its end (`PRIMARY_POOL_TOP`,
+`PRIMARY_POOL_FOLD_OVER`), so no player's pool makes the page disproportionately tall. At 1440 × 900,
+1920 × 950 and 1920 × 1080 the whole Overview is on the first screen whatever the pool's size (Release 16: the
+scope beside Season performance's title, 40px pool rows with their column names on the pool's
+heading line, no box around a folded off role, "Off roles: None yet" on one line, Ranked progress's
+queue and account select on its title row; measured for every member of both demos, with and
+without a second Riot account; at 1440 × 780 a pool of four or more rows still runs 9 to 110px past
+the window, which is reported rather than folded, docs/TEAM_LEADERBOARDS.md, "One screen"); on small
+screens and at large text sizes readability wins over the one screen. Leaderboards is one screen
+from a 59rem page too (docs/TEAM_LEADERBOARDS.md, "One screen"): a board that cannot show every row
+there shows as many as fit above the window's bottom (`src/components/ui/fit-rows.tsx`) and says how
+many more behind its Show all, never hiding a row silently.
 
 **Page layout.** One frame for every page, so pages differ by their content, not their scaffolding:
 - **The shared frame** (S2c, `app-shell.tsx`): every page sits in one column, at most `--content-wide`
@@ -181,8 +193,7 @@ the page disproportionately tall.
   room on its right). Pages of one width share one x. A loading state takes its page's shape and
   centring (`ui/skeleton.tsx`), not generic panels.
 - **Width:** `--content-max` for profiles, lists of cards, documents and forms; `--content-wide` for
-  the grids that gain from more columns (Team Overview's lineup, Leaderboards, Matchup Intel's
-  single-screen dashboard). The pages of one tab set share one width at every window size, so its
+  the grids that gain from more columns (Team Overview's lineup, Leaderboards). The pages of one tab set share one width at every window size, so its
   tabs, centred as the pages are, line up with each and never move between them (`SECTION_HUBS`'
   `width`, `PAGE_WIDTH` and `ROW_WIDTH` in `src/lib/nav.ts`): Team's four sections take
   `--content-wide` (Players and Matches since 23 Nov 2026; under a 1600px window they were 80rem). Team Matches' list stays at `--content-max` under that wider header, left-aligned, as Recent
@@ -289,8 +300,8 @@ Use the shared component before writing a new one (`src/components/ui`):
 | A player on Players (one row of the roster, every width) | `RosterRow` (`players/roster-row.tsx`) in the roster's one panel: picture, name and status, then role, rank and the pool counted to fit (`PoolPreview fit="count" size="xs"`); one link over the row, the social icons (`CardSocialIcons size="row"`) above it; what shows follows the row's own width (`@container/row`). From tablets up, `RowArtStrip` (`players/card-art.tsx`): the player's banner or skin tile at 20% opacity, at rest and while pointed at, behind the picture and name only, faded out by 60% of its width so the rank and pool never sit on art; never on phones |
 | A champion pool's rows (first choice marked, win rate, games, KDA, CS) | `PoolChampionTile` under `PoolColumnNames` (`players/player-card.tsx`) |
 | A ranked list or board of rows (Leaderboards' Recent form, season records, multikills and milestones) | `DataList` (`ui/data-list.tsx`): one surface (`surface="lead"` for the card a page leads with), the column template per tier as `--dl-cols`, a title row when the board names itself (`title`: every Leaderboards board, `BoardTitle`: its heading, an ⓘ and a note saying what it counts), headings (`DataHead`, aria-hidden) and groups (`DataGroup`, with a caption) split by one hairline each. The board's own width picks each row's layout (`@container/list`: under 36rem, from 36rem, from 58rem, and any width a board needs, such as the multikills' 21rem), so a fact is one element placed per tier, never a phone copy and a column copy. A board of cells that each measure themselves (Leaderboards' season records, a grid of one or two columns) gives each cell its own `@container/list` and column template, its row `DataRow as="div"` inside the cell's li, in `BOARD_PANEL` |
-| One row of a `DataList` | `DataRow`: its cells in reading order (place, link, member, figures), its height per tier (`density`: 48, 52 or 64px), your own row's wash and bar, and the hover and pressed states only when it links. One `RowLink` per row covers it (a whole-row target at every width, named by the member's name); a control that must keep its own press sits above it with `ROW_CONTROL`. The row's explanations go in its RowLink's `hint`, an aria-hidden layer over the link that carries the title: a title on the li becomes the list item's accessible name, and one on the link its description |
-| A long page's own sections, on a phone | `SectionIndex` (`ui/section-index.tsx`): a line of in-page links under the page's scope (Leaderboards': "Season records · Multikills · Milestones", the sections below Recent form); each jump brings its section under the bars and focuses it, an entry the phone's Back steps past (`jumpToAnchor`, which Matchup Intel's chips share). Quiet text, never a view switch (`SubTabs`) or a filter. Settings keeps its index in its account card, drawn as chips on a phone and in a window 480px tall or less (`chipClass`: the approved plan's look there, in-page links all the same) and as a list from md in a taller window, the section being read marked: the optional `spy`, `listClassName`, `linkClassName` and `separatorClassName` |
+| One row of a `DataList` | `DataRow`: its cells in reading order (place, link, member, figures), its height per tier (`density`: 36, 40, 48, 52 or 64px; slim and compact are 44px on a touch screen), your own row's wash and bar, and the hover and pressed states only when it links. One `RowLink` per row covers it (a whole-row target at every width, named by the member's name); a control that must keep its own press sits above it with `ROW_CONTROL`. The row's explanations go in its RowLink's `hint`, an aria-hidden layer over the link that carries the title: a title on the li becomes the list item's accessible name, and one on the link its description |
+| A long page's own sections, on a phone | `SectionIndex` (`ui/section-index.tsx`): a line of in-page links under the page's scope (Leaderboards': "Season records · Multikills · Milestones", the sections below Recent form); each jump brings its section under the bars and focuses it, an entry the phone's Back steps past (`jumpToAnchor`). Quiet text, never a view switch (`SubTabs`) or a filter. Settings keeps its index in its account card, drawn as chips on a phone and in a window 480px tall or less (`chipClass`: the approved plan's look there, in-page links all the same) and as a list from md in a taller window, the section being read marked: the optional `spy`, `listClassName`, `linkClassName` and `separatorClassName` |
 | A place in a ranking | `Place`: "4=" said and titled "Tied for 4th", with a bracket segment per row (`tieRuns` from the ranking's places); the crown on first place; "–" said "Provisional" without a place |
 | A figure in a row, and a member in a row | `FigureCell` (tabular, never cut, its own words for screen readers: "13 wins, 7 losses"); `MemberCell` (`CardAvatar` and `CardName` in the member's colours, "You"; the name hidden from screen readers when the row's link says it) |
 | A bar that is the figure itself (Recent form's record, All Champions' share of the games) | `QuietBar` (`ui/quiet-bar.tsx`): a count in segments (wins first; a window's missing games outlined) or a continuous share, in neutral `fg` overlays; the inset 2px line at a row's foot on narrow boards; no motion on first paint |

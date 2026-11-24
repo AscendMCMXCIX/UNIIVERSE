@@ -1,6 +1,6 @@
 /*
   Keys for the conveniences a browser keeps for each account in its storage (a picker's recent
-  champions, Matchup Intel's remembered champion). The readable `uniiverse_who` cookie names the
+  champions, the champions Champion Lookup showed lately). The readable `uniiverse_who` cookie names the
   signed-in account (a fingerprint, not a credential: src/server/auth/account-jar.ts), so two people
   who use one browser one after the other never see, or forget, each other's. Without the cookie
   (signed out, a demo with no accounts, a test) the key is the base itself. A plain module, used by

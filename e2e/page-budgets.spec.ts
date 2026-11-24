@@ -61,20 +61,48 @@ function boxes(page: Page, ids: string[]) {
   })), ids);
 }
 
-test("Team on phones: one 44px header line, no pager, five position dots under the card, the whole first card at 393 × 659 and 375 × 667", async ({ browser }) => {
-  for (const setup of ["i15", "i15s", "se3"] as const) {
+/*
+  Team on phones (the owner's request of 23 Nov 2026, Release 16): the carousel's active card takes the
+  height the screen leaves between the bars (the top bar, the header line, the dots and the tab bar,
+  with the iPhone's safe areas installed and none in Safari's tab), so nothing but the dots and a
+  little air is left under it: the dots end above the tab bar and within 24px of it, and the page
+  does not scroll. All five cards share one height. On a 320 × 568 phone the card's spacing is a step
+  tighter and the whole card ends above the tab bar (its dots a short scroll away); at 200% text the
+  card grows past the screen and the page scrolls, nothing cut inside it.
+*/
+test("Team on phones: one 44px header line, no pager, five position dots under the card; the active card takes the height above the tab bar at every phone size", async ({ browser }) => {
+  for (const setup of ["se1", "se3", "i12", "i15", "i15s", "max"] as const) {
     const page = await setupPage(browser, setup, 100);
     await page.goto(`${BASE}/team`);
     await expect(page.getByTestId("lineup-overview")).toHaveAttribute("data-ready", "true");
-    const b = await boxes(page, ["team-header", "lineup-cell", "phone-tabbar"]);
+    const b = await boxes(page, ["team-header", "lineup-cell", "lineup-indicator", "phone-tabbar"]);
     expect(b["team-header"]!.height, `${setup}: the header under the bar`).toBeLessThanOrEqual(56);
-    expect(b["lineup-cell"]!.bottom, `${setup}: the first card ends above the tab bar`).toBeLessThanOrEqual(setup === "i15s" ? 659 : b["phone-tabbar"]!.top);
+    const tab = b["phone-tabbar"]!.top;
+    expect(b["lineup-cell"]!.bottom, `${setup}: the first card ends above the tab bar`).toBeLessThanOrEqual(tab);
+    if (setup !== "se1") {
+      expect(b["lineup-indicator"]!.bottom, `${setup}: the dots end above the tab bar`).toBeLessThanOrEqual(tab);
+      expect(tab - b["lineup-indicator"]!.bottom, `${setup}: the card uses the height: at most 24px left over`).toBeLessThanOrEqual(24);
+      expect(await page.evaluate(() => document.documentElement.scrollHeight - innerHeight), `${setup}: no page scroll`).toBeLessThanOrEqual(1);
+    }
+    const cards = await page.getByTestId("lineup-cell").evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().height)));
+    expect(new Set(cards).size, `${setup}: the five cards share one height`).toBe(1);
+    // Nothing scrolls or is cut inside the card: its parts fit it.
+    expect(await page.locator("[data-testid=lineup-row-TOP]").evaluate((c) => c.scrollHeight - c.clientHeight), `${setup}: nothing cut inside the card`).toBeLessThanOrEqual(1);
     await expect(page.getByTestId("lineup-pager")).toHaveCount(0);
     await expect(page.getByTestId("lineup-indicator-dot")).toHaveCount(5);
     await expect(page.getByTestId("team-name")).toHaveCount(1);
     expect(await page.getByTestId("team-name").evaluate((h) => h.getBoundingClientRect().width <= 1), `${setup}: the h1 read out only`).toBe(true);
     await page.context().close();
   }
+  // 200% text on 320 × 568: readability first, the card as tall as its content and the page scrolling.
+  const page = await setupPage(browser, "se1", 200);
+  await page.goto(`${BASE}/team`);
+  await expect(page.getByTestId("lineup-overview")).toHaveAttribute("data-ready", "true");
+  const m = await page.locator("[data-testid=lineup-row-TOP]").evaluate((c) => ({ cut: c.scrollHeight - c.clientHeight, height: c.getBoundingClientRect().height, scroll: document.documentElement.scrollHeight - innerHeight }));
+  expect(m.cut, "200%: nothing cut inside the card").toBeLessThanOrEqual(1);
+  expect(m.height, "200%: the card grows past the screen").toBeGreaterThan(568);
+  expect(m.scroll, "200%: the page scrolls").toBeGreaterThan(0);
+  await page.context().close();
 });
 
 test("Team held sideways: five cards in one row, the page within 1.3 screens; at 150% a card on the first screen", async ({ browser }) => {

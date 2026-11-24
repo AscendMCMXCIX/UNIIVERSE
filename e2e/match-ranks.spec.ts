@@ -69,7 +69,8 @@ test("every player in the scoreboard has one rank badge: a dated current rank, U
     await expect(badge).toHaveCount(1);
     const state = (await badge.getAttribute("data-state"))!;
     states.push(state);
-    const shown = (await badge.getByTestId("participant-rank-text").innerText()).trim();
+    // The rank's words (data-text: what the badge writes in full; 30–36rem shows the card's short form, "E2").
+    const shown = (await badge.getByTestId("participant-rank-text").getAttribute("data-text"))!.trim();
     const title = (await badge.getAttribute("title"))!;
     const timing = await badge.getAttribute("data-timing");
     // A rank read away from the game (later, or before it) carries the clock, and only then.
@@ -113,7 +114,7 @@ test("a rank from the match's other ranked queue is marked, and only then", asyn
     const badges = page.locator('[data-testid="participant-rank"][data-state="ranked"]');
     for (let b = 0; b < (await badges.count()); b++) {
       const badge = badges.nth(b);
-      const shown = (await badge.getByTestId("participant-rank-text").innerText()).trim();
+      const shown = (await badge.getByTestId("participant-rank-text").getAttribute("data-text"))!.trim();
       const inOwnQueue = (await badge.getAttribute("data-queue")) === own;
       expect(shown.startsWith(`${mark} `), `${queue}: "${shown}"`).toBe(!inOwnQueue);
       expect(shown.startsWith(`${own === "flex" ? "Flex" : "Solo"} `)).toBe(false);
@@ -155,12 +156,23 @@ test("the badges keep the scoreboard's rows: inside their column, nothing overla
     const badge = (await row.getByTestId("participant-rank").boundingBox())!;
     const box = (await row.boundingBox())!;
     const name = (await row.getByTestId("participant-name").boundingBox())!;
-    // Left of the KDA column, below the name.
-    const kda = (await row.getByTestId("participant-kda").boundingBox())!;
-    expect(badge.x).toBeGreaterThanOrEqual(box.x);
-    expect(badge.x + badge.width).toBeLessThanOrEqual(kda.x + 0.5);
+    // Inside its row, below the name, and over none of the row's other parts (the K/D/A, the build,
+    // CS and damage, the score): wherever the row's layout puts it (on a phone, since Release 16, a
+    // line of its own under the build).
+    expect(badge.x).toBeGreaterThanOrEqual(box.x - 0.5);
+    expect(badge.x + badge.width).toBeLessThanOrEqual(box.x + box.width + 0.5);
     expect(badge.y).toBeGreaterThanOrEqual(name.y + name.height - 1);
+    for (const id of ["participant-kda", "participant-items", "participant-cs", "participant-score"]) {
+      const other = (await row.getByTestId(id).boundingBox())!;
+      const overlaps = badge.x < other.x + other.width - 0.5 && other.x < badge.x + badge.width - 0.5 && badge.y < other.y + other.height - 0.5 && other.y < badge.y + badge.height - 0.5;
+      expect(overlaps, `row ${i}: the rank over ${id}`).toBe(false);
+    }
     expect(badge.height).toBeLessThanOrEqual(17);
+    // On a phone its words whole, never shortened to a letter or two (its own line there since Release
+    // 16); a wider scoreboard keeps the one-line row, where a long rank may end in an ellipsis (its
+    // title and the screen reader's words hold it whole).
+    const words = row.getByTestId("participant-rank-text");
+    if ((page.viewportSize()?.width ?? 1440) < 768 && (await words.count())) expect(await words.evaluate((e) => e.scrollWidth <= e.clientWidth + 1), `row ${i}: the rank whole`).toBe(true);
   }
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
 });

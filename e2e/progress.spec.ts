@@ -246,7 +246,7 @@ async function profileOf(page: Page, name: string): Promise<string> {
 
 /**
  * Ranked progress's header and controls, as drawn: whether the ⓘ's touch area reaches the phone's
- * chevron (px² of overlap), whether the queue switch is under the rank (never in the header), and
+ * chevron (px² of overlap), whether the queue switch is under the rank (never in the header on a phone), and
  * where the controls' row starts against the rank's row.
  */
 function headerParts(ranked: Locator) {
@@ -279,7 +279,10 @@ async function expectEndsWithChart(ranked: Locator, where: string) {
     const outer = card.getBoundingClientRect();
     const chart = card.querySelector("[data-testid=ranked-chart], [data-testid=ranked-no-chart]")!.getBoundingClientRect();
     const header = card.firstElementChild!.getBoundingClientRect();
-    const last = card.lastElementChild!;
+    // The last part drawn: from md in a card of 24rem or more the body and the details are display: contents (the queue switch
+    // on the title's row, Release 16), so their last part is the card's own.
+    let last = card.lastElementChild!;
+    while (getComputedStyle(last).display === "contents" && last.lastElementChild) last = last.lastElementChild;
     const lastBox = last.getBoundingClientRect();
     const inner = { top: outer.top + parseFloat(cs.borderTopWidth), bottom: outer.bottom - parseFloat(cs.borderBottomWidth) };
     return {
@@ -287,7 +290,7 @@ async function expectEndsWithChart(ranked: Locator, where: string) {
       lastFoot: Math.round((inner.bottom - lastBox.bottom) * 10) / 10,
       headerTop: Math.round((header.top - inner.top) * 10) / 10,
       padBottom: parseFloat(cs.paddingBottom),
-      lastHoldsChart: !!last.querySelector("[data-testid=ranked-chart], [data-testid=ranked-no-chart]"),
+      lastHoldsChart: last.matches("[data-testid=ranked-chart], [data-testid=ranked-no-chart]") || !!last.querySelector("[data-testid=ranked-chart], [data-testid=ranked-no-chart]"),
       radius: parseFloat(cs.borderBottomLeftRadius) > 0 && parseFloat(cs.borderBottomRightRadius) > 0,
     };
   });
@@ -325,6 +328,25 @@ test("on a phone Ranked progress opens as one card: the title alone on its row, 
     }
   }
   await page.evaluate(() => { document.documentElement.style.fontSize = ""; });
+});
+
+test("on the desktop's Overview Ranked progress's queue switch shares the title's row, at its end (one screen at 1440 × 900, Release 16)", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "the 2×2's rail");
+  await page.goto(await profileOf(page, "Demo Top"));
+  const ranked = page.getByTestId("ranked-progress");
+  await expect(ranked).toBeVisible();
+  const f = await ranked.evaluate((el) => {
+    const box = (q: string) => el.querySelector(q)!.getBoundingClientRect();
+    const title = box("#ranked-progress-title");
+    const nav = box("nav[aria-label=Queue]");
+    const rank = box("[data-testid=ranked-current]");
+    const card = el.getBoundingClientRect();
+    return { level: Math.abs(nav.top + nav.height / 2 - (title.top + title.height / 2)), aboveRank: nav.bottom <= rank.top + 1, right: card.right - nav.right, left: nav.left - title.right };
+  });
+  expect(f.level, "level with the title").toBeLessThanOrEqual(4);
+  expect(f.aboveRank, "above the rank").toBe(true);
+  expect(f.right, "at the row's end, inside the card's padding").toBeLessThanOrEqual(18);
+  expect(f.left, "clear of the title").toBeGreaterThan(0);
 });
 
 test("with two Riot accounts, Ranked progress offers one account select beside the queue switch, and choosing one keeps the page and its address's account", async ({ page }, info) => {

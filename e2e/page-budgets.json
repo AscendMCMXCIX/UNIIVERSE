@@ -20,14 +20,13 @@
    "small": 0
   },
   "matches@i15-100": {
-   "screens": 1.90,
+   "screens": 1.84,
    "frame": 0.3,
    "frameScrolled": 0.3,
-   "small": 0,
-   "why": "S9c (20 Nov 2026): Team insights, the administrators' preview link (TEAM_INSIGHTS_AUDIENCE), a 44px row in Team Matches' header shown only to those who can open it, which the demo's viewer (the Owner) is: 52px the page did not have when the ceilings were set (Release 11 found it, comparing the audit's build with the combined tree: the list of games the same 1,138px, the list starting at 328px instead of 276px). Measured on Release 11 in Chromium 153 and Chrome Headless Shell 156: 1.86 at i15 and 5.99 / 6.05 at se1 150%; a member without the link stays within the old ceilings."
+   "small": 0
   },
   "p-overview@i15-100": {
-   "screens": 1.96,
+   "screens": 1.93,
    "frame": 0.3,
    "frameScrolled": 0.3,
    "small": 0
@@ -56,12 +55,11 @@
    "frameScrolled": 0.24,
    "small": 0
   },
-  "intel@i15-100": {
-   "screens": 1.14,
+  "lookup@i15-100": {
+   "screens": 1.02,
    "frame": 0.24,
    "frameScrolled": 0.24,
-   "small": 0,
-   "why": "Release 6 (S7a, 20 Nov 2026): Matchup Intel's lane selector (Top, Jungle, Mid, ADC, Support), a 46px row the page did not have when the ceilings were set; measured 1.12 at i15 and 3.60 at se1 150%. Release 9 (20 Nov 2026) built the phone 'Remember' icon toggle; the row it gave back went to the glance strip (every enemy cooldown and the evidence's first row): re-measured 1.12 and 3.64, so neither ceiling can come down within the ratchet."
+   "small": 0
   },
   "resources@i15-100": {
    "screens": 1.85,
@@ -122,7 +120,7 @@
    "why": "Release 6 (S9b): 'Sign out of other devices', 109px; S8a (20 Nov 2026): 'On this device' (DIRECTIVE §7.2c), what this browser remembers with Clear, about 400px (more at large text, where its lines and button wrap); measured 2.27 at i15 and 7.52 at se1 150%."
   },
   "team@se1-150": {
-   "screens": 2.78,
+   "screens": 1.98,
    "frame": 0.45,
    "frameScrolled": 0.15,
    "small": 0
@@ -140,18 +138,16 @@
    "small": 0
   },
   "matches@se1-150": {
-   "screens": 6.17,
+   "screens": 5.98,
    "frame": 0.45,
    "frameScrolled": 0.15,
-   "small": 0,
-   "why": "S9c (20 Nov 2026): Team insights, the administrators' preview link (TEAM_INSIGHTS_AUDIENCE), a 44px row in Team Matches' header shown only to those who can open it, which the demo's viewer (the Owner) is: 52px the page did not have when the ceilings were set (Release 11 found it, comparing the audit's build with the combined tree: the list of games the same 1,138px, the list starting at 328px instead of 276px). Measured on Release 11 in Chromium 153 and Chrome Headless Shell 156: 1.86 at i15 and 5.99 / 6.05 at se1 150%; a member without the link stays within the old ceilings."
+   "small": 0
   },
   "p-overview@se1-150": {
-   "screens": 6.09,
+   "screens": 6.02,
    "frame": 0.45,
    "frameScrolled": 0.15,
-   "small": 0,
-   "why": "Release 13 (23 Nov 2026), at the owner's request (the phone's Ranked progress: rank, LP, record and win rate prominent, the queue and account controls in one row) and the UX review's (the 30-day change kept in view on phones, its details behind an ⓘ): the 30-day change's line on a phone, which the card folded away before. Lane B won back what it could in the card (a 2rem emblem and the rank a step smaller under a 15rem card, the record's scope note read out instead of shown); measured on Release 13 at 5.96 in Chromium (local) and 5.97 in CI's Chrome Headless Shell, so the ceiling is 5.97 plus 2%."
+   "small": 0
   },
   "p-champions@se1-150": {
    "screens": 3.32,
@@ -177,12 +173,11 @@
    "frameScrolled": 0.33,
    "small": 0
   },
-  "intel@se1-150": {
-   "screens": 3.67,
+  "lookup@se1-150": {
+   "screens": 1.52,
    "frame": 0.33,
    "frameScrolled": 0.04,
-   "small": 0,
-   "why": "Release 6 (S7a, 20 Nov 2026): Matchup Intel's lane selector (Top, Jungle, Mid, ADC, Support), a 46px row the page did not have when the ceilings were set; measured 1.12 at i15 and 3.60 at se1 150%. Release 9 (20 Nov 2026) built the phone 'Remember' icon toggle; the row it gave back went to the glance strip (every enemy cooldown and the evidence's first row): re-measured 1.12 and 3.64, so neither ceiling can come down within the ratchet."
+   "small": 0
   },
   "resources@se1-150": {
    "screens": 6.06,
@@ -298,7 +293,7 @@
    "small": 0
   },
   "own-overview@i15-100": {
-   "screens": 1.94,
+   "screens": 1.88,
    "frame": 0.3,
    "frameScrolled": 0.3,
    "small": 0

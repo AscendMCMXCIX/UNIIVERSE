@@ -6,6 +6,7 @@ import type { PortraitChampion } from "@/components/champion-portrait";
 import { InfoTip } from "@/components/ui/info-tip";
 import { ChampionPortrait } from "@/components/champion-portrait";
 import { cn } from "@/lib/cn";
+import { FitChampions } from "@/components/ui/fit-rows";
 
 /**
  * Recent form's ⓘ, true to recentForm(): the newest FORM_RECENT games against all of them; a trend
@@ -21,14 +22,14 @@ const fmt = (m: Pick<FormMetric, "key" | "recent">) => (m.recent === null ? "—
  * sample, and the same comparison for KDA and CS/min (vision for supports). "Better lately" /
  * "worse lately" only appear with enough games on both sides. Hidden below five games.
  */
-export function RecentFormStrip({ form, championsById, historyHref, narrowed = null, champions = false }: { form: RecentForm; championsById: Record<string, PortraitChampion>; historyHref: string; /** The Refine filters narrowing it, in words (it counts the same games as Season performance). */ narrowed?: string | null; /** List the champions of these games (RecentChampions): only where the Overview has Ranked progress beside it, so its 2×2 applies. */ champions?: boolean }) {
+export function RecentFormStrip({ form, championsById, historyHref, narrowed = null, champions = false, fewer = false }: { form: RecentForm; championsById: Record<string, PortraitChampion>; historyHref: string; /** The Refine filters narrowing it, in words (it counts the same games as Season performance). */ narrowed?: string | null; /** List the champions of these games (RecentChampions): only where the Overview has Ranked progress beside it, so its 2×2 applies. */ champions?: boolean; /** One champion fewer in the server's drawing: Ranked progress above has an account select, which can take its title onto two lines (RecentChampions). */ fewer?: boolean }) {
   if (form.season.games < FORM_MIN_GAMES) return null;
   const strip = [...form.last].reverse();
   const wins = strip.filter((g) => g.win).length;
   const pct = (v: number | null) => (v === null ? "—" : `${Math.round(v * 100)}%`);
   const champ = (id: string) => championsById[id] ?? { id, name: id, portraitUrl: "" };
   return (
-    <section aria-labelledby="recent-form-title" className="@container flex flex-col gap-3 rounded-card border border-border bg-surface p-4 panel-depth" data-testid="recent-form">
+    <section aria-labelledby="recent-form-title" className="@container flex flex-col gap-2.5 rounded-card border border-border bg-surface p-4 panel-depth" data-testid="recent-form">
       {/* The verdict on the title's row (it was a footer row of its own, a row more on a phone),
           what the bars show on the line under it. */}
       <div className="space-y-0.5">
@@ -101,13 +102,30 @@ export function RecentFormStrip({ form, championsById, historyHref, narrowed = n
           </div>
         ))}
       </dl>
-      {champions ? <RecentChampions last={form.last} champ={champ} /> : null}
+      {champions ? <RecentChampions last={form.last} champ={champ} fewer={fewer} /> : null}
     </section>
   );
 }
 
-/** How many of the recent games' champions the 2×2's Recent form lists before "and N more". */
-export const RECENT_CHAMPIONS_SHOWN = 5;
+/**
+ * How many of the recent games' champions the 2×2's Recent form lists before "and N more" in the
+ * server's drawing (Release 16): Recent form is the rail's last card since Ranked progress went above
+ * it, so it lists as many as the window's height holds, by the one-screen tiers of globals.css
+ * (board-at-*): two under board-at-mid (1440 × 780), three from it (1920 × 950), four from
+ * board-at-short (1440 × 900). Once the page is interactive the list shows as many more as fit above
+ * the window's bottom (FitChampions, fit-rows.tsx), every champion of the games where there is room.
+ */
+export const RECENT_CHAMPIONS_SHOWN = 4;
+/**
+ * Each row's fold in the server's drawing (the "css" mode), by its index: literal classes, for Tailwind.
+ * With an account select in Ranked progress (`fewer`) one row fewer in each height: in a narrow rail
+ * (1440 × 900 with the sidebar open) the select takes the card's title onto two lines, and the server's
+ * drawing never runs past the window (the fit adds the row back where it fits, at the list's end).
+ */
+const CHAMPION_ROW_FOLD = (i: number, fewer: boolean) => {
+  const at = fewer ? i + 1 : i;
+  return at < 2 ? "" : at === 2 ? "group-data-[fit=css]/fit:board-below-mid:hidden" : at === 3 ? "group-data-[fit=css]/fit:board-below-short:hidden" : "group-data-[fit=css]/fit:hidden";
+};
 
 /**
  * The champions of the same recent games, most played first (the newest game breaking a tie), each
@@ -115,8 +133,10 @@ export const RECENT_CHAMPIONS_SHOWN = 5;
  * window, a 68rem dashboard), where the rail beside the season's card and the pools has the room: it
  * balances the two columns with the card's own data (the UX review of Release 13), where a stretched
  * Ranked progress made small LP moves look large. Neutral, as the rest of Recent form: no win-rate colour.
+ * The rest are never hidden without saying so: "and N more" on the heading's line, its count the one
+ * shown, and Match History (the strip's link) lists every game.
  */
-function RecentChampions({ last, champ }: { last: RecentForm["last"]; champ: (id: string) => PortraitChampion }) {
+function RecentChampions({ last, champ, fewer }: { last: RecentForm["last"]; champ: (id: string) => PortraitChampion; fewer: boolean }) {
   const by = new Map<string, { id: string; games: number; wins: number; at: number }>();
   for (const g of last) {
     const c = by.get(g.championId) ?? { id: g.championId, games: 0, wins: 0, at: 0 };
@@ -126,24 +146,40 @@ function RecentChampions({ last, champ }: { last: RecentForm["last"]; champ: (id
     by.set(g.championId, c);
   }
   const rows = [...by.values()].sort((a, b) => b.games - a.games || b.at - a.at);
-  const shown = rows.slice(0, RECENT_CHAMPIONS_SHOWN);
+  // "and N more" in each height until measured: two, three or four rows shown (one, two or three with `fewer`).
+  const more = (n: number) => Math.max(0, rows.length - (fewer ? n - 1 : n));
+  const counts: Array<[number, string]> = [
+    [more(2), "board-at-mid:hidden"],
+    [more(3), "hidden board-at-mid:board-below-short:inline"],
+    [more(RECENT_CHAMPIONS_SHOWN), "hidden board-at-short:inline"],
+  ];
   return (
     <div className="hidden min-[90rem]:@min-[68rem]/ov:block" data-testid="recent-form-champions">
-      <h3 className="label-caps">Champions in these games</h3>
-      <ul className="mt-1.5 divide-y divide-border/60">
-        {shown.map((c) => (
-          <li key={c.id} className="flex min-w-0 items-center gap-2.5 py-1.5" data-champion={c.id}>
-            <span aria-hidden className="inline-flex">
-              <ChampionPortrait champion={champ(c.id)} size="xs" />
-            </span>
-            <span className="min-w-0 flex-1 truncate text-sm text-fg">{champ(c.id).name}</span>
-            <span className="shrink-0 text-xs tabular-nums text-fg-muted">
-              {c.games} {c.games === 1 ? "game" : "games"} · {c.wins}W {c.games - c.wins}L
-            </span>
-          </li>
-        ))}
-      </ul>
-      {rows.length > shown.length ? <p className="mt-1 text-xs text-fg-subtle">and {rows.length - shown.length} more</p> : null}
+      <FitChampions
+        total={rows.length}
+        heading={<h3 className="label-caps">Champions in these games</h3>}
+        cssMore={
+          more(2) ? (
+            <p className="text-xs text-fg-subtle" data-testid="recent-form-champions-more">
+              {counts.map(([n, cls], i) => (n ? <span key={i} className={cls}>and {n} more</span> : null))}
+            </p>
+          ) : null
+        }
+      >
+        <ul className="mt-1.5 divide-y divide-border/60">
+          {rows.map((c, i) => (
+            <li key={c.id} className={cn("flex min-w-0 items-center gap-2.5 py-1", CHAMPION_ROW_FOLD(i, fewer))} data-champion={c.id} data-ov-rank={i + 1}>
+              <span aria-hidden className="inline-flex">
+                <ChampionPortrait champion={champ(c.id)} size="xs" />
+              </span>
+              <span className="min-w-0 flex-1 truncate text-sm text-fg">{champ(c.id).name}</span>
+              <span className="shrink-0 text-xs tabular-nums text-fg-muted">
+                {c.games} {c.games === 1 ? "game" : "games"} · {c.wins}W {c.games - c.wins}L
+              </span>
+            </li>
+          ))}
+        </ul>
+      </FitChampions>
     </div>
   );
 }

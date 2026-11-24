@@ -50,7 +50,7 @@ placed by patch; a reading by date.
 
 ## What Ranked progress shows
 
-Compact, in Profile Overview (`ranked-progress.tsx`): under Recent form, in the right-hand rail, from a 1440px window; under the season card and Recent form, across the width, on smaller screens:
+Compact, in Profile Overview (`ranked-progress.tsx`): at the top of the right-hand rail, level with the season card and above Recent form (the owner's order of 23 Nov 2026, Release 16), from a 1440px window; beside the season card from a 58rem dashboard, Recent form across the width under them; on a phone after the season card and before Recent form, the same order:
 
 - **Now:** the crest, the current rank and LP (with how far into the division), and Riot's wins and
   losses for the ranked year with the win rate.
@@ -77,7 +77,18 @@ Compact, in Profile Overview (`ranked-progress.tsx`): under Recent form, in the 
   linked accounts, one compact account select (`RankedAccountSelect`, each account by its in-game name
   in the player's order) together on one row at the card's start, wrapping only at a large text size;
   then the chart or its line. On a touch phone the controls and the chart are one part behind the
-  Fold, which fades in under the rank (instant with reduced motion), nothing above it moving.
+  Fold, which fades in under the rank (instant with reduced motion), nothing above it moving. From md,
+  in a card of 24rem or more (the Overview's rail, a tablet's card across the width), the queue switch
+  and the account select stand at the end of the title's row instead (Release 16: a row of their own
+  cost the one-screen Overview 48px at 1440 × 900; the card is a grid of two columns whose body and
+  details are display: contents there); there the account select is at most 7.5rem, a long name cut
+  short (whole in its list): at 12rem it put the title on two lines, and the taller card cost Recent
+  form's champion list a row at 1920 × 950 (the review's M5). In the 28rem rail of a 1440 × 900 window
+  with the sidebar open the title still takes two lines beside a select, and Recent form lists one
+  champion fewer there (the server's drawing lists one fewer in each height beside a select, so its
+  first paint never runs past the window; the fitted list adds it back where it fits); the page still
+  ends in the window (`e2e/home-layout.spec.ts`, every seeded
+  member with a second account's select). A phone keeps them under the rank, as the owner's review asked. On a touch phone the title's ⓘ (what the chart shows) is folded away with the chart and comes back with it, so the phone's first screen keeps three ⓘ with Ranked progress above Recent form (UD.PO3).
 - **The chart** (`rank-timeline-chart.tsx`, 7.5rem tall, 6rem in a narrow card such as a phone's:
   from 23 Nov 2026 it was stretched to the pools' end in the Overview's 2×2, which the review found
   made a few LP look like a swing, so it is compact) is drawn from two changes of rank or LP

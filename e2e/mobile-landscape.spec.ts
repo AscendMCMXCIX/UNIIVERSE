@@ -64,14 +64,15 @@ test("held sideways: one compact bar holds the destinations, with no bottom bar,
   await expect(bar.getByRole("navigation", { name: "Primary" })).toBeVisible();
   await expect(page.getByTestId("phone-tabbar")).toBeHidden();
   const links = nav.getByRole("link");
-  for (const [i, name] of ["My Profile", "Team", "Matchup Intel", "Resources"].entries()) await expect(links.nth(i)).toHaveAccessibleName(name);
+  for (const [i, name] of ["My Profile", "Team", "Champion Lookup", "Resources"].entries()) await expect(links.nth(i)).toHaveAccessibleName(name);
   // Players is one of Team's sections: Team is the current destination, Players the current section under the bar.
   await expect(nav.locator("[aria-current=page]")).toHaveAccessibleName("Team");
   await expect(page.getByTestId("team-chrome-tabs").locator("[aria-current=page]")).toHaveText("Players");
-  // A 568px phone's row is 34.5rem: all four named in full (the five before could name only the current one), each a 44px target.
+  // A 568px phone's row is 34.5rem: all four named by their short names since Champion Lookup took Matchup
+  // Intel's place (in full before; the five before that could name only the current one), each a 44px target.
   const labels = await links.evaluateAll((as) => as.map((a) => ({ shown: a.querySelector("[data-name=label]")!.getBoundingClientRect().width > 1, rest: !a.querySelector("[data-name=rest]") || a.querySelector("[data-name=rest]")!.getBoundingClientRect().width > 1, height: a.getBoundingClientRect().height, width: a.getBoundingClientRect().width })));
   for (const l of labels) {
-    expect(l.shown && l.rest, "every name shown whole").toBe(true);
+    expect(l.shown, "every destination named").toBe(true);
     expect(Math.min(l.height, l.width)).toBeGreaterThanOrEqual(44);
   }
   // The compact bar and Team's 44px row under it, with the hairline: at most 90px.
@@ -349,9 +350,9 @@ test("held sideways, the avatar opens the account screen at every width, and Tea
     await expect(screen, where).toHaveAttribute("data-entered", "true");
     await expectNoSeriousAxe(page, `account screen, ${where}`, ["[data-testid=account-sheet]"]);
     expect(await screen.boundingBox(), where).toEqual({ x: 0, y: 0, width: viewport.width, height: viewport.height });
-    // The account's own items only: Matchup Intel and Resources are destinations of the bar.
+    // The account's own items only: Champion Lookup and Resources are destinations of the bar.
     await expect(screen.getByRole("navigation", { name: "Your account" }).getByRole("link"), where).toHaveText(["Settings"]);
-    await expect(screen.getByRole("link", { name: "Matchup Intel" }), where).toHaveCount(0);
+    await expect(screen.getByRole("link", { name: "Champion Lookup" }), where).toHaveCount(0);
     await page.keyboard.press("Escape");
     await expect(screen).toHaveCount(0);
     await expect(page.getByTestId("account-sheet-button"), where).toBeFocused();
@@ -529,12 +530,12 @@ test("held sideways at a tablet's width, a long page goes back to the top from i
 test("with larger text the compact bar held sideways still fits the phone: the whole names, then the short ones, then the current one's alone, then the icons, each still named, and the page never wider than the phone", async ({ browser, baseURL }) => {
   // Held sideways the destinations ride in the top bar (no bottom bar). Its row is the container its
   // names give way by (SIDEWAYS_FIT in mobile-nav.tsx), in rem of its width less its gutters, so the
-  // reader's text size counts: the whole names from 33.25rem, the short ones ("Profile", "Intel") from
-  // 29rem, then the current one's alone from 22.25rem, then the icons alone; past that the row
-  // scrolls inside the bar. The cases fall on both sides of each step: 852px at 100% and 150% and an
-  // SE at 100% (51, 34.5 and 34.5rem: the whole names), 734px at 135% and 150% (33.0 and 29.6rem: the
-  // short ones), an SE at 150% and 852px at 200% (22.7 and 25.6rem: the current one's), and 734px and
-  // an SE at 200% (21.9 and 16.8rem: the icons).
+  // reader's text size counts: the whole names from 34.75rem, the short ones ("Profile", "Lookup")
+  // from 30rem, then the current one's alone from 23rem, then the icons alone (Champion Lookup's
+  // names, 23 Nov 2026); past that the row scrolls inside the bar. The cases fall on both sides of
+  // each step: 852px at 100% (51rem: the whole names), 852px at 150%, an SE at 100% and 734px at 135%
+  // (34.0, 34.5 and 33.0rem: the short ones), 734px at 150% and 852px at 200% (29.6 and 25.6rem: the
+  // current one's), and an SE at 150%, 734px and an SE at 200% (22.7, 21.9 and 16.8rem: the icons).
   const cases = [
     { viewport: { width: 852, height: 393 }, root: 100 },
     { viewport: { width: 568, height: 320 }, root: 100 },
@@ -546,7 +547,7 @@ test("with larger text the compact bar held sideways still fits the phone: the w
     { viewport: { width: 734, height: 343 }, root: 200 },
     { viewport: { width: 568, height: 320 }, root: 200 },
   ];
-  const STEPS = { full: 33.25, short: 29, current: 22.25 } as const;
+  const STEPS = { full: 34.75, short: 30, current: 23 } as const;
   const page = await phone(browser, baseURL!, IPHONE_LANDSCAPE);
   const nav = page.getByTestId("topbar-tabs");
   const seen = new Set<string>();
@@ -559,7 +560,7 @@ test("with larger text the compact bar held sideways still fits the phone: the w
     }, root);
     await page.evaluate(() => document.fonts.ready);
     const links = nav.getByRole("link");
-    for (const [i, name] of ["My Profile", "Team", "Matchup Intel", "Resources"].entries()) await expect(links.nth(i), where).toHaveAccessibleName(name);
+    for (const [i, name] of ["My Profile", "Team", "Champion Lookup", "Resources"].entries()) await expect(links.nth(i), where).toHaveAccessibleName(name);
     await expect(async () => {
       const m = await page.evaluate(() => {
         const row = document.querySelector("[data-testid=mobile-topbar]")!.firstElementChild as HTMLElement;
@@ -667,7 +668,9 @@ test("the (i) marks are 24px targets, 40px to a finger, without changing the lin
   await page.goto("/players");
   const profile = new URL((await page.locator("main a[data-testid='player-card'][data-player-name='Demo Mid']").getAttribute("href"))!, "http://x").pathname;
   await page.goto(profile);
-  const tip = page.getByTestId("info-tip").first();
+  // The first mark in view: Ranked progress now leads the column, and on a phone its own (i) is
+  // inside the folded card until it is opened.
+  const tip = page.locator("[data-testid=info-tip]:visible").first();
   await expect(tip).toBeVisible();
   const b = (await tip.boundingBox())!;
   expect(Math.min(b.width, b.height)).toBeGreaterThanOrEqual(24);

@@ -4,7 +4,7 @@ import { getCurrentPatch } from "@/server/repositories/champions";
 import { runJob } from "@/server/jobs";
 import { applyScreenshotFixture, seedDemoAccounts, seedDemoRoster, seedDemoVerificationAccount } from "@/server/demo/seed";
 import { applyDemoEncounters } from "@/server/demo/encounters-fixture";
-import { seedChampionAbilitiesFromFixture } from "@/server/matchup-intel/abilities";
+import { seedChampionAbilitiesFromFixture } from "@/server/riot/static/abilities";
 
 declare global {
   var __uniiverseBootstrapped: Promise<void> | undefined;
@@ -36,7 +36,7 @@ async function bootstrap(handle: DbHandle): Promise<void> {
   }
   const demoWanted = process.env.UNIIVERSE_SEED_DEMO === "true" || (process.env.UNIIVERSE_SEED_DEMO !== "false" && handle.mode !== "postgres");
   if (demoWanted) {
-    // Matchup Intel: a demo with no champion abilities stored (its champions came from the offline
+    // Champion Lookup: a demo with no champion abilities stored (its champions came from the offline
     // fixture, or Data Dragon's files could not be read) gets the committed offline copy, labelled
     // as such. Never over abilities read from Data Dragon.
     await seedChampionAbilitiesFromFixture(db).catch((err) => console.error("[bootstrap] champion abilities not stored:", err));

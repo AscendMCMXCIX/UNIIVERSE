@@ -92,7 +92,7 @@ const ADMIN = ADMIN_LINKS.map((l) => l.href);
 describe("navigation parity: one set of destinations on every screen", () => {
   it.each([
     ["Player Mode, a team member", PLAYER, false, "/team"],
-    ["Player Mode, an account outside the team", ["/overview", "/resources/matchups", "/resources", "/settings"], false, "/resources"],
+    ["Player Mode, an account outside the team", ["/overview", "/lookup", "/resources", "/settings"], false, "/resources"],
     ["Player Mode, without Leaderboards (Restricted Player)", PLAYER.filter((h) => h !== "/leaderboards"), false, "/players"],
     ["Admin Mode, every permission", ADMIN, true, "/admin"],
     ["Admin Mode, branding only", ["/admin", "/admin/branding", "/admin/previews", "/admin/resources", "/admin/audit"], true, "/admin/audit"],
@@ -107,11 +107,11 @@ describe("navigation parity: one set of destinations on every screen", () => {
     for (const bar of Object.values(bars)) expect(bar.map((l) => l.name)).not.toContain("Settings");
   });
 
-  it("Player Mode is My Profile, Team, Matchup Intel and Resources; Admin Mode Dashboard, Users & Permissions, Platform Settings and System", () => {
+  it("Player Mode is My Profile, Team, Champion Lookup and Resources; Admin Mode Dashboard, Users & Permissions, Platform Settings and System", () => {
     expect(render("/team", PLAYER, false).phone.map((l) => [l.name, l.short, l.icon])).toEqual([
       ["My Profile", "Profile", "circle-user-round"],
       ["Team", null, "users"],
-      ["Matchup Intel", "Intel", "swords"],
+      ["Champion Lookup", "Lookup", "scan-search"],
       ["Resources", null, "book-bookmark"],
     ]);
     expect(render("/admin", ADMIN, true).phone.map((l) => [l.name, l.short, l.icon])).toEqual([

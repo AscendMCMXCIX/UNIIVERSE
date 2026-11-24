@@ -3,7 +3,8 @@
   docs/LIVE_VALIDATION.md, "What it checks"; PLAN §6 rows 4.5a–4.10): on the desktop, the preview of
   the first champion on the teammate's list with at least 3 games, read in the page, and what the
   check asserts about it, apart from the browser so a unit test can hand it any state
-  (src/server/ops/live-check-champion-preview.test.ts).
+  (src/server/ops/live-check-champion-preview.test.ts). Since Release 16 the preview is the compact
+  panel docked beside the list (the Peek), read where it is as well as what it says.
 
   Read in the page only: counts, true or false and the preview's fixed words ("12 games · 7W 5L",
   "58%", "Top"). The champion's own name is compared in the page, never returned; no player's name,
@@ -23,45 +24,48 @@ export function readChampionPreview(rowIndex) {
   const row = rows[rowIndex] ?? null;
   if (!content) return { open: false };
   const header = content.querySelector("header");
-  // Under its row (since 23 Nov 2026, Release 13's review) the preview shows no portrait of its own:
-  // the row right above it shows the champion's, at least 28px; a sheet's or a header's own portrait
-  // is at least 40px. Its name is its heading (read out; on screen in the row and the sheet's header).
-  const underRow = !!row && !!row.nextElementSibling?.contains(content);
-  const own = header?.firstElementChild?.tagName === "IMG" ? header.firstElementChild : null;
-  const portrait = underRow && !own ? row.querySelector("img") : own;
+  // The compact panel (Release 16: the Peek's, docked beside the list on a desktop, a sheet on a
+  // phone) leads with the champion's portrait, at least 40px; its heading names the champion
+  // ("Champion: Gwen", the label read out only).
+  const portrait = header?.firstElementChild ?? null;
   const box = portrait?.getBoundingClientRect();
   const img = portrait?.tagName === "IMG" ? portrait : null;
-  const least = underRow && !own ? 28 : 40;
-  const title = clean(content.querySelector("[data-testid=champion-preview-title]"));
+  const holder = content.closest("[data-testid=champion-preview]");
+  const heading = clean(holder?.querySelector("h2"));
+  const title = heading.replace(/^Champion: /, "");
   const rowName = clean(row?.querySelector("[data-open-champion]"));
-  const figures = content.querySelector("[data-testid=champion-preview-figures]");
+  // Where it is: docked (an aside at the window's right edge, not a window), within the screen, its body not scrolling.
+  const panel = holder?.matches("aside[data-peek-panel]") ? holder.getBoundingClientRect() : null;
+  const body = holder?.querySelector("[data-testid=champion-preview-body]");
   const opponents = [...content.querySelectorAll("[data-testid=champion-preview-opponent]")];
-  const intel = [...content.querySelectorAll("[data-testid=champion-preview-intel]")];
-  const href = intel[0]?.getAttribute("href") ?? "";
+  const lookup = [...content.querySelectorAll("[data-testid=champion-preview-lookup]")];
+  const href = lookup[0]?.getAttribute("href") ?? "";
   const q = new URL(href || "/", location.origin).searchParams;
   return {
     open: true,
     // The champion and role the preview shows against the row it was opened from (compared here, not returned).
     sameChampion: !!row && content.getAttribute("data-champion") === row.getAttribute("data-champion") && content.getAttribute("data-role") === row.getAttribute("data-role"),
     rowGames: Number(row?.getAttribute("data-games") ?? "0"),
-    portrait: !!box && box.width >= least && box.height >= least && (!img || (img.getAttribute("alt") ?? "") === title),
+    portrait: !!box && box.width >= 40 && box.height >= 40 && (!img || (img.getAttribute("alt") ?? "") === title),
     named: title.length > 0 && title === rowName,
-    role: clean(header?.querySelector("h2 + p")),
-    record: clean(figures?.lastElementChild),
-    winRate: clean(figures?.firstElementChild?.firstElementChild),
+    role: clean(content.querySelector("[data-testid=champion-preview-role-line]")),
+    record: clean(content.querySelector("[data-testid=champion-preview-record-line]")),
+    winRate: clean(content.querySelector("[data-testid=champion-preview-winrate]")),
+    docked: { panel: !!panel, window: !!document.querySelector("dialog[open]"), within: !!panel && panel.top >= -0.5 && panel.left >= -0.5 && panel.bottom <= innerHeight + 0.5 && panel.right <= innerWidth + 0.5, fits: !!body && body.scrollHeight <= body.clientHeight + 1 },
     loading: !!content.querySelector("[data-testid=champion-preview-loading]"),
     noOpponents: !!content.querySelector("[data-testid=champion-preview-no-opponents]"),
     // The foot line comes only with an answer: without it (and not loading) the preview could not be loaded.
     answered: !!content.querySelector("[data-testid=champion-preview-foot]"),
     opponents: opponents.map((o) => {
       const games = Number(o.getAttribute("data-games") ?? "0");
-      // The row's own "N games" (its figures are spans side by side, so each is read on its own).
-      const says = [...o.querySelectorAll("button > span")].some((sp) => clean(sp) === `${games} game${games === 1 ? "" : "s"}`);
+      // The row's own games cell: its count, "games" said with it ("7 games").
+      const says = clean(o.querySelector("[data-testid=opponent-games]")) === `${games} game${games === 1 ? "" : "s"}`;
       return { games, says };
     }),
-    intel: intel.length,
-    intelChampion: q.get("champion") === content.getAttribute("data-champion"),
-    intelVs: !!q.get("vs") && q.get("vs") === opponents.find((o) => o.querySelector("button[aria-expanded=true]"))?.getAttribute("data-champion"),
+    lookup: lookup.length,
+    // The link opens Champion Lookup on the opened opponent (Matchup Intel's place since 23 Nov 2026).
+    lookupPage: new URL(href || "/", location.origin).pathname === "/lookup",
+    lookupChampion: !!q.get("champion") && q.get("champion") === opponents.find((o) => o.querySelector("button[aria-expanded=true]"))?.getAttribute("data-champion"),
     address: { champion: new URLSearchParams(location.search).get("champion") === content.getAttribute("data-champion") },
   };
 }
@@ -99,15 +103,16 @@ export function championPreviewVerdicts({ kind, at, step, escaped, kept }) {
   const games = m ? Number(m[1]) : null;
   const wins = m ? Number(m[2]) : null;
   const losses = m ? Number(m[3]) : null;
+  if (at.docked) fact("the preview is the compact panel docked beside the list (no window), within the screen, its content fitting it without scrolling", at.docked.panel && !at.docked.window && at.docked.within && at.docked.fits, at.docked);
   fact("the preview of the first champion with 3+ games shows that champion: its portrait, its name and its role", at.sameChampion && at.portrait && at.named && ROLE_LINE.test(at.role ?? ""), { sameChampion: at.sameChampion, portrait: at.portrait, named: at.named, role: ROLE_LINE.test(at.role ?? "") ? at.role : `other words (${(at.role ?? "").length} characters)` });
   fact('the preview says "N games · NW NL", the row\'s games, the wins and losses adding up', !!m && games === at.rowGames && wins + losses === games, { record: at.record, rowGames: at.rowGames });
   const rate = /^(\d{1,3})%$/.exec(at.winRate ?? "");
   fact("the preview shows the win rate, the wins over the games", !!rate && !!m && games > 0 && Math.abs(Number(rate[1]) - (100 * wins) / games) <= 0.5 + 1e-9, { winRate: at.winRate, record: at.record });
   if (at.loading || at.answered === false) fact("the opponents loaded", false, { loading: at.loading, answered: at.answered });
-  else if (at.noOpponents) out.push({ name: `${kind}: skipped: no lane opponent is known for this champion yet (its rows, the link to Matchup Intel)`, status: "WARN", detail: { opponents: 0 } });
+  else if (at.noOpponents) out.push({ name: `${kind}: skipped: no lane opponent is known for this champion yet (its rows, the link to Champion Lookup)`, status: "WARN", detail: { opponents: 0 } });
   else {
     fact('every opponent row carries its "N games", and there is at least one', at.opponents.length > 0 && at.opponents.every((o) => o.games > 0 && o.says), { rows: at.opponents.length, without: at.opponents.filter((o) => !(o.games > 0 && o.says)).length });
-    fact("an opened opponent shows one link to Matchup Intel, with champion= and vs= the pair", at.intel === 1 && at.intelChampion && at.intelVs, { links: at.intel, champion: at.intelChampion, vs: at.intelVs });
+    fact("an opened opponent shows one link to Champion Lookup, with champion= the opponent", at.lookup === 1 && at.lookupPage && at.lookupChampion, { links: at.lookup, page: at.lookupPage, champion: at.lookupChampion });
   }
   if (step === null) out.push({ name: `${kind}: skipped: ↓ has no next row (the list has one champion)`, status: "WARN", detail: null });
   else fact("↓ moves the preview to the next row, replacing the address (no new history entry)", step.next && step.address && step.replaced, step);

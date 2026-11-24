@@ -9,9 +9,9 @@ import { expect, test, type Page } from "./test";
   to switch between. The demo viewer is the Owner, an administrator without a player profile. The
   games are synthetic demo games, never real Riot data: every demo member has a full 20-game window,
   three of them share fourth place, and two members have too few recent games. The page places its
-  four boards by its own width (one column under 59rem, Recent form across with the records beside
-  the multikills from 59rem, two columns from 86rem: Recent form with the milestones under it, the
-  records with the multikills under them); each board's rows follow the board's own width (Recent
+  four boards by its own width (one column under 59rem; from 59rem one screen, two columns: Recent
+  form with the milestones under it, the records with the multikills under them, the multikills and
+  milestones showing their first rows by the window's height behind a Show all, Release 16); each board's rows follow the board's own width (Recent
   form: under 36rem, from 36rem, from 58rem; each record's cell: under 16rem, under 36rem, from
   36rem). The states the demo never shows (a provisional window, your own row, a shared first place,
   the viewer's best, a record nobody holds, the public boards) are checked as markup in
@@ -34,6 +34,33 @@ async function noOverflow(page: Page) {
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   expect(overflow, "page wider than the viewport").toBeLessThanOrEqual(1);
 }
+
+/**
+ * Words on the page broken across two lines (a name split inside a word, as at 1440 in the review's M4): each word of every
+ * text node drawn, by the lines its boxes take. Truncated text takes one line, so it never counts.
+ */
+const brokenWords = (page: Page) =>
+  page.getByTestId("leaderboards").evaluate((root) => {
+    const out: string[] = [];
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    const range = document.createRange();
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+      for (const m of (n.textContent ?? "").matchAll(/\S+/g)) {
+        range.setStart(n, m.index!);
+        range.setEnd(n, m.index! + m[0].length);
+        const lines = new Set([...range.getClientRects()].filter((r) => r.width > 0).map((r) => Math.round(r.top)));
+        if (lines.size > 1) out.push(m[0]);
+      }
+    }
+    return out;
+  });
+
+/** Multikills' most-of-each tiles: each holder line drawn on one line, its whole names in its title (M4). */
+const tileHolders = (page: Page) =>
+  page
+    .getByTestId("records-multikills")
+    .locator("[data-testid=multikill-most-holders]")
+    .evaluateAll((els) => els.filter((e) => e.getBoundingClientRect().height > 0).map((e) => ({ lines: Math.round(e.getBoundingClientRect().height / parseFloat(getComputedStyle(e).lineHeight)), titled: e.getAttribute("title") === e.textContent })));
 
 /** "1st", "2nd", "4th", "11th": the place in words, as the page writes it (formatOrdinal). */
 const ordinal = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? "th" : (["th", "st", "nd", "rd"][n % 10] ?? "th")}`;
@@ -137,16 +164,32 @@ test("tablet and desktop: once the header has gone up, the pinned row holds the 
   // Nothing to switch, nothing to filter: the row holds the section tabs, the page's index (UD.L1) and nothing else.
   const toolbar = page.getByTestId("page-toolbar");
   await expect(toolbar).toHaveCount(1);
-  await expect(toolbar.getByRole("link")).toHaveText(["Recent form", "Season records", "Multikills", "Milestones"]);
+  // Every tab whole: the last tab ends inside the tab list, clear of anything at the row's end.
+  const clear = await page.evaluate(() => {
+    const tabs = document.querySelector("[data-testid=team-tabs]")!;
+    // The tabs' own list: the pinned row's index (from xl) is a list of links in the same row, after it.
+    const ul = tabs.querySelector("ul")!;
+    const list = ul.getBoundingClientRect();
+    const last = [...ul.querySelectorAll("a")].at(-1)!.getBoundingClientRect();
+    return last.right <= list.right + 0.5;
+  });
+  expect(clear, "Team's tabs whole in the pinned row").toBe(true);
   await expect(page.getByTestId("toolbar-leaderboards-views")).toHaveCount(0);
+  // Below xl (a tablet) the index has no room beside Team's four tabs (Release 16: the tab list scrolled under it and a press on
+  // "Matches" landed on "Recent form"), so the pinned row holds the tabs alone; the index under the header is at the page's top.
+  if (info.project.name === "tablet") {
+    await expect(toolbar.getByRole("link")).toHaveCount(0);
+    return;
+  }
+  await expect(toolbar.getByRole("link")).toHaveText(["Recent form", "Season records", "Multikills", "Milestones"]);
   await toolbar.getByRole("link", { name: "Season records" }).click();
   await expect(page).toHaveURL(/#season-records$/);
   const tabs = (await page.getByTestId("team-tabs").boundingBox())!;
   await expect.poll(async () => (await page.locator("section#season-records").boundingBox())!.y).toBeGreaterThanOrEqual(tabs.y + tabs.height - 1);
-  // Back at the top, the copy goes: the header's own index (or the one under it) is in view.
+  // Back at the top, the copy goes: a tablet's index under the header is in view; the desktop's board has none (every board on the first screen).
   await page.evaluate(() => window.scrollTo(0, 0));
   await expect(toolbar).toHaveCount(0);
-  await expect(page.locator("[data-testid=header-section-index]:visible, [data-testid=section-index]:visible")).toHaveCount(1);
+  await expect(page.locator("[data-testid=header-section-index]:visible, [data-testid=section-index]:visible")).toHaveCount(info.project.name === "desktop" ? 0 : 1);
 });
 
 test("Leaderboards is a Team tab between Players and Matches", async ({ page }, info) => {
@@ -335,7 +378,9 @@ test("the board's layout follows its own width: four, six or eight columns, neve
       await expect(roleWord, `${width}px: the role's name before the dates`).toBeVisible();
       await expect(roleWord).toHaveText(ROLE_WORD);
     }
-    if (width === 610 || width === 1440) await expect(roleWord, `${width}px: no role's name before the dates`).toBeHidden();
+    // 1440 (Release 16): Recent form's column beside the records, a 42rem board, its role named before the dates; 1280's is 38rem, the badge alone.
+    if (width === 1440) await expect(roleWord, `${width}px: the role's name before the dates`).toBeVisible();
+    if (width === 610 || width === 1280) await expect(roleWord, `${width}px: no role's name before the dates`).toBeHidden();
     const f = await page.evaluate(() => {
       const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
       const rows = [...document.querySelectorAll<HTMLElement>("[data-testid=form-row]")];
@@ -355,18 +400,19 @@ test("the board's layout follows its own width: four, six or eight columns, neve
   await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
   await expect(roleWord, "768px: the role's name before the dates").toBeVisible();
   await expect(roleWord).toHaveText(ROLE_WORD);
-  // 1280×800 with the sidebar open keeps the one-line rows, the role named in its column.
-  await page.setViewportSize({ width: 1280, height: 800 });
-  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
-  const wide = await page.evaluate(() =>
-    [...document.querySelectorAll<HTMLElement>("[data-testid=form-row]")].map((row) => {
-      const label = [...row.querySelectorAll<HTMLElement>("[data-testid=form-role] > span")].find((s) => /^(Top|Jungle|Mid|Bottom|Support)$/.test(s.textContent ?? ""));
-      return { height: row.getBoundingClientRect().height, label: label ? label.getBoundingClientRect().width : 0 };
-    }),
-  );
-  for (const r of wide) {
-    expect(r.height).toBeLessThanOrEqual(56);
-    expect(r.label, "the role's name shows").toBeGreaterThan(8);
+  // The desktop's compact rows (Release 16): 40px from a 36rem board (the name over the role and dates, or one line from 58rem),
+  // the picture 32px; at 1280 × 800 and at 1920 × 1080.
+  for (const [width, height] of [[1280, 800], [1920, 1080]] as const) {
+    await page.setViewportSize({ width, height });
+    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+    const rows = await page.evaluate(() => [...document.querySelectorAll<HTMLElement>("[data-testid=form-row]")].map((row) => { const name = row.querySelector<HTMLElement>("[data-testid=card-name]")!; return { height: row.getBoundingClientRect().height / parseFloat(getComputedStyle(document.documentElement).fontSize), picture: row.querySelector<HTMLElement>("[data-avatar-frame] > *")!.getBoundingClientRect().height, nameLines: Math.round(name.getBoundingClientRect().height / parseFloat(getComputedStyle(name).lineHeight)) }; }));
+    for (const r of rows) {
+      // A long name may wrap (the row grows: "Demo Sub (Support)" in 1280's 36rem board); a name on one line keeps the row at 40px.
+      // 2.5rem (40px at 1280, 44px at 1920, where the root is larger), and its hairline.
+      if (r.nameLines === 1) expect(r.height, `${width}px: a compact row, in rem`).toBeLessThanOrEqual(2.66);
+      if (width === 1920) expect(r.nameLines, `${width}px: every name on one line`).toBe(1);
+      expect(r.picture, `${width}px: a 2rem picture`).toBeGreaterThan(30);
+    }
   }
   // The widest windows: the board stops at the measure, on the header's left edge.
   for (const width of [2560, 3440]) {
@@ -506,17 +552,20 @@ test("the season records: seven cells in one panel, each opening its game; the m
   await expect(book.locator("[data-record=cs-per-minute] [data-testid=record-qualifier]")).toContainText("15+ min games");
   await expect(book.locator("[data-record=kda] [data-testid=record-qualifier]")).toContainText("10+ takedowns");
   await expect(book.locator("[data-record=win-streak] [data-testid=record-qualifier]")).toContainText("in game order");
-  // A record set on a champion leads with that champion's portrait, at least 44px.
+  // A record set on a champion leads with that champion's portrait: 48px in a narrow cell, 36px in the desktop's two-line cells.
   const portrait = page.locator("[data-testid=season-record][data-record=kills] [data-testid=record-picture]").locator("img, [role=img]").first();
   await expect(portrait).toBeVisible();
-  expect((await portrait.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  expect((await portrait.boundingBox())!.height).toBeGreaterThanOrEqual(test.info().project.name === "desktop" ? 36 : 44);
   // Each cell's row follows the cell's own width: from 40rem two lines beside its 48px picture (the
   // record and its qualifier over the holder, champion, role, K/D/A and date: at most 4.5rem, 72px at
   // 100%); under 36rem three lines (at most 6rem, 96px at 100%), or 7rem (112px) where the qualifier
   // starts a line of its own. Between 36 and 40rem the damage record's qualifier may take a line of
   // its own (about 78px), so neither bound applies there.
+  const desktop = test.info().project.name === "desktop";
   for (const c of await recordCells(page)) {
-    if (c.rem >= 40) expect(c.rowRem, `${c.id}: a record in a ${c.rem.toFixed(1)}rem cell, two lines`).toBeLessThanOrEqual(4.5);
+    // The desktop's board (a 59rem page): two lines beside a 36px picture, 2.75rem; a qualifier on a line of its own adds one (the damage record's).
+    if (desktop) expect(c.rowRem, `${c.id}: a two-line cell`).toBeLessThanOrEqual(c.ownLine ? 3.9 : 2.9);
+    else if (c.rem >= 40) expect(c.rowRem, `${c.id}: a record in a ${c.rem.toFixed(1)}rem cell, two lines`).toBeLessThanOrEqual(4.5);
     // From a 20rem cell the value sits top right over its unit (one value position: UD.L2), so a long record's words may take a
     // second line beside it: the damage record, with its qualifier on lines of its own, at most 8rem.
     else if (c.rem < 36) expect(c.rowRem, `${c.id}: a record in a ${c.rem.toFixed(1)}rem cell, three lines`).toBeLessThanOrEqual(c.ownLine ? (c.rem >= 20 ? 8 : 7) : 6);
@@ -581,7 +630,7 @@ test("the season records: seven cells in one panel, each opening its game; the m
   // A member's name on the multikills keeps a line's room at every width: whole words, at most two
   // lines, never a letter a line.
   const names = await page.getByTestId("multikill-row").evaluateAll((rows) =>
-    rows.map((row) => {
+    rows.filter((row) => row.checkVisibility()).map((row) => {
       const name = row.querySelector<HTMLElement>("[data-testid=card-name]")!;
       const box = name.getBoundingClientRect();
       // The room is the member cell's name column (what a long name may fill), not the name's own box: a short name is narrower than its room.
@@ -600,7 +649,7 @@ test("the season records: seven cells in one panel, each opening its game; the m
   // taller's row (the design review's G1-4: 18px lower).
   const tops = await page.getByTestId("season-record").evaluateAll((rows) => rows.map((r) => [Math.round(r.closest("li")!.getBoundingClientRect().top), r.querySelector("[data-testid=record-label]")!.getBoundingClientRect().top - r.getBoundingClientRect().top]));
   for (const [row, offset] of tops) for (const [other, o] of tops) if (row === other) expect(Math.abs(offset! - o!), "level with the cell beside it").toBeLessThanOrEqual(1);
-  // Compact rows: two lines (about 46px), a member with all four kinds a third where they wrap; never taller (G1-10's names on one line at 1440).
+  // Compact rows: two lines (40px, 44px on a touch screen), a member with all four kinds a third where they wrap; never taller (G1-10's names on one line at 1440).
   for (const h of await page.getByTestId("multikill-row").evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height))) expect(h, "a multikill row").toBeLessThanOrEqual(test.info().project.name === "desktop" ? 64 : 66);
   // The milestones' figures as format.ts shortens them (486K), the rest of a member's counted, what
   // counts behind each kind's ⓘ.
@@ -655,7 +704,8 @@ test("the season records: seven cells in one panel, each opening its game; the m
   for (const l of links) {
     if (touch) expect(Math.round(l.link), `${l.testId}: its link on a touch screen`).toBeGreaterThanOrEqual(44);
     else expect(Math.round(l.link), `${l.testId}: a mouse's link is the row inside its line`).toBe(Math.round(l.inside));
-    if (l.testId === "multikill-row" || l.testId === "milestone-member") expect(l.minimum, `${l.testId}: the dense row's minimum`).toBe(44);
+    // The one-screen board's rows (Release 16): 40px multikills, 36px milestones with a mouse; 44px on a touch screen.
+    if (l.testId === "multikill-row" || l.testId === "milestone-member") expect(l.minimum, `${l.testId}: the row's minimum`).toBe(touch ? 44 : l.testId === "multikill-row" ? 40 : 36);
   }
 });
 
@@ -688,86 +738,127 @@ const boards = (page: Page) =>
 /**
  * A member's own bests, as a member with a best on every record sees them ("Your best: 9 · 4 Oct
  * 2026", where its holder sees "You hold this record"): the demo's viewer has no player profile, so
- * no cell carries one. Each cell gets the line RecordRow draws (record-yours.ts): a fourth line in a
- * narrow cell, under the value from 36rem.
+ * no cell carries one. Each cell gets what RecordRow draws at the end of its game (record-yours.ts): a
+ * fourth line in a narrow cell; in a two-line cell (the desktop's board) "· Your best: 9" after the
+ * holder and the champion, its date read out only.
  */
 const addOwnBests = (page: Page) =>
   page.evaluate(
     ({ line, value }) => {
       for (const row of document.querySelectorAll("[data-testid=season-record]")) {
+        const game = row.querySelector("[data-testid=record-game]");
+        if (!game) continue;
+        const dot = document.createElement("span");
+        dot.setAttribute("aria-hidden", "true");
+        dot.className = "hidden text-xs text-fg-subtle record-two:inline";
+        dot.textContent = "·";
         const yours = document.createElement("span");
         yours.dataset.testid = "record-yours";
         yours.className = line;
         const figure = document.createElement("span");
         figure.className = value;
         figure.textContent = "9";
-        yours.append("Your best: ", figure, " · 4 Oct 2026");
-        row.append(yours);
+        const when = document.createElement("span");
+        when.className = "record-two:sr-only";
+        when.textContent = " · 4 Oct 2026";
+        yours.append("Your best: ", figure, when);
+        game.append(dot, yours);
       }
     },
     { line: RECORD_YOURS, value: RECORD_YOURS_VALUE },
   );
 
-test("the page's own width places its boards: Recent form across with the records beside the multikills at 1280 and 1440; from 86rem two columns, each board under the one before it in its own (a member's bests included), every ranking row and record on the first screen, the achievements starting on it", async ({ page, context, baseURL }, info) => {
+test("one screen from a 59rem page: two columns, each board under the one before it in its own, all four ending in the window at 1440 × 900, 1920 × 950 and 1920 × 1080 (a member's bests included), the rest of a board behind its Show all", async ({ page, context, baseURL }, info) => {
   test.skip(info.project.name !== "desktop", "explicit window sizes");
-  test.setTimeout(180_000);
+  test.setTimeout(240_000);
   for (const sidebar of ["expanded", "collapsed"] as const) {
     await context.addCookies([{ name: "uniiverse_sidebar", value: sidebar, url: baseURL! }]);
-    for (const [width, height] of [
-      [1280, 800],
-      [1440, 900],
-      // A 14-inch MacBook Pro's window: with the sidebar folded the page is 86rem, where the two columns start.
-      [1512, 945],
-      [1920, 1080],
-      [2560, 1440],
-      [3440, 1440],
+    for (const [width, height, oneScreen] of [
+      [1280, 800, false],
+      [1440, 900, true],
+      // A 14-inch MacBook Pro's window: with the sidebar folded the page is 86rem, where Recent form's one-line rows start.
+      [1512, 945, false],
+      // The owner's browser on a 1920 × 1080 screen (its tabs, bookmarks bar and the taskbar taken off).
+      [1920, 950, true],
+      [1920, 1080, true],
+      [2560, 1440, false],
+      [3440, 1440, false],
     ] as const) {
       await page.setViewportSize({ width, height });
       await openRecords(page);
       const f = await boards(page);
       const at = `${width} × ${height}, sidebar ${sidebar} (a ${f.page.toFixed(1)}rem page)`;
-      // A short board never stretches beside a tall one; nothing is wider than the window.
       await noOverflow(page);
-      if (f.page >= 86) {
-        /** Two columns: Recent form, the milestones under it; the records beside it, the multikills under them; each board under the one before it, the gap apart. */
-        const columns = (g: Awaited<ReturnType<typeof boards>>, who: string) => {
-          expect(Math.abs(g.form.top - g.records.top), `${who}: the records beside Recent form`).toBeLessThanOrEqual(1);
-          expect(g.records.left, `${who}`).toBeGreaterThan(g.form.right);
-          expect(Math.abs(g.milestones.left - g.form.left) + Math.abs(g.milestones.right - g.form.right), `${who}: the milestones in Recent form's column`).toBeLessThanOrEqual(1);
-          expect(Math.abs(g.milestones.top - g.form.bottom - g.gap), `${who}: the milestones right under Recent form, whatever the records' height`).toBeLessThanOrEqual(1);
-          expect(Math.abs(g.multikills.left - g.records.left) + Math.abs(g.multikills.right - g.records.right), `${who}: the multikills in the records' column`).toBeLessThanOrEqual(1);
-          expect(Math.abs(g.multikills.top - g.records.bottom - g.gap), `${who}: the multikills right under the records`).toBeLessThanOrEqual(1);
-          // Every ranking row and record on the first screen, and the achievements start on it. (Where their last rows fall depends
-          // on how many members the demo has by then: other specs add members, each a chip in Recent form's last group.)
-          for (const b of [...g.formRows, ...g.recordRows]) expect(b, `${who}: on the first screen`).toBeLessThanOrEqual(g.window);
-          expect(Math.min(g.multikills.top, g.milestones.top), `${who}: the achievements start on the first screen`).toBeLessThan(g.window);
-        };
-        columns(f, at);
-        // Recent form keeps its one-line rows: its wide tier (eight columns), with its board's room inside its border at least 58rem.
-        expect(f.formTracks, `${at}: Recent form's one-line rows`).toBe(8);
-        await expect(page.getByTestId("form-heads").getByText("To the place above"), at).toBeVisible();
-        expect((f.form.width - 2) / f.rem, `${at}: Recent form's board at least 58rem inside its border`).toBeGreaterThanOrEqual(58);
-        // As a member sees it, with their own best on every record: taller cells where they are narrow lengthen the records'
-        // column alone, and nothing waits under Recent form for them.
-        await addOwnBests(page);
-        const member = await boards(page);
-        expect(member.records.height, `${at}: a member's records panel is no shorter`).toBeGreaterThanOrEqual(f.records.height);
-        expect(Math.abs(member.form.bottom - f.form.bottom), `${at}: Recent form as it was`).toBeLessThanOrEqual(1);
-        columns(member, `${at}, a member's bests`);
-      } else {
-        // Recent form across the page (at most the measure), the records beside the multikills, the milestones under the
-        // multikills in their column (UD.L2), straight under them whatever the records' height.
-        expect(f.records.top, `${at}: the records under Recent form`).toBeGreaterThanOrEqual(f.form.bottom);
-        expect(Math.abs(f.records.top - f.multikills.top), `${at}: the records beside the multikills`).toBeLessThanOrEqual(1);
-        expect(f.multikills.left, `${at}`).toBeGreaterThan(f.records.right);
-        expect(Math.abs(f.milestones.left - f.multikills.left), `${at}: the milestones in the multikills' column`).toBeLessThanOrEqual(1);
-        expect(f.milestones.top - f.multikills.bottom, `${at}: straight under the multikills`).toBeGreaterThanOrEqual(0);
-        expect(f.milestones.top - f.multikills.bottom, `${at}: straight under the multikills`).toBeLessThanOrEqual(25);
-        // The index at the header's end: reachable with no scroll to a section's top (UD.L1).
-        await expect(page.getByTestId("header-section-index")).toBeVisible();
-        // The ranking whole on the first screen.
-        for (const b of f.formRows) expect(b, `${at}: every ranking row on the first screen`).toBeLessThanOrEqual(f.window);
+      // Names whole (M4): no word broken across lines, and each most-of-each tile's holders on one line, cut short with an
+      // ellipsis where they run long, the whole names in its title.
+      expect(await brokenWords(page), `${at}: no word broken across two lines`).toEqual([]);
+      const tiles = await tileHolders(page);
+      expect(tiles.length, `${at}: the four most-of-each tiles`).toBe(4);
+      for (const t of tiles) expect(t, `${at}: a tile's holders on one line, named whole in its title`).toEqual({ lines: 1, titled: true });
+      // The one screen is sized for the team the demo seeds (nine members, as the owner's eight). Other specs in a full run add
+      // members (28 in CI's run of the combined tree, each a chip in Recent form's last group), and Recent form, the ranking, is
+      // listed whole, so with more members the boards under it start lower: then the arrangement is checked, not the window.
+      const members = Number((await page.getByTestId("scope-count").textContent())?.match(/\d+/)?.[0] ?? 0);
+      const seeded = members <= 9;
+      /** Two columns: Recent form, the milestones under it; the records beside it, the multikills under them; each board under the one before it, the gap apart. */
+      const columns = (g: Awaited<ReturnType<typeof boards>>, who: string) => {
+        expect(Math.abs(g.form.top - g.records.top), `${who}: the records beside Recent form`).toBeLessThanOrEqual(1);
+        expect(g.records.left, `${who}`).toBeGreaterThan(g.form.right);
+        expect(Math.abs(g.milestones.left - g.form.left) + Math.abs(g.milestones.right - g.form.right), `${who}: the milestones in Recent form's column`).toBeLessThanOrEqual(1);
+        expect(Math.abs(g.milestones.top - g.form.bottom - g.gap), `${who}: the milestones right under Recent form, whatever the records' height`).toBeLessThanOrEqual(1);
+        expect(Math.abs(g.multikills.left - g.records.left) + Math.abs(g.multikills.right - g.records.right), `${who}: the multikills in the records' column`).toBeLessThanOrEqual(1);
+        expect(Math.abs(g.multikills.top - g.records.bottom - g.gap), `${who}: the multikills right under the records`).toBeLessThanOrEqual(1);
+        // Every ranking row and record on the first screen, and every board starts on it.
+        if (seeded) for (const b of [...g.formRows, ...g.recordRows]) expect(b, `${who}: on the first screen`).toBeLessThanOrEqual(g.window);
+        // From a 900px window (1280 × 800 with a member's bests in the 21rem records' column starts the multikills 18px below it).
+        if (seeded && g.window >= 900) for (const b of [g.multikills, g.milestones]) expect(b.top, `${who}: every board starts on the first screen`).toBeLessThan(g.window);
+        // The owner's sizes: all four boards end in the window, and the page does not scroll.
+        if (oneScreen && seeded) {
+          for (const [name, b] of [["Recent form", g.form], ["the records", g.records], ["the multikills", g.multikills], ["the milestones", g.milestones]] as const) expect(b.bottom, `${who}: ${name} within the window`).toBeLessThanOrEqual(g.window);
+          expect(g.height, `${who}: the page does not scroll`).toBeLessThanOrEqual(g.window);
+        }
+      };
+      columns(f, at);
+      // Recent form's tier: its one-line rows (eight columns, at least 58rem inside its border) from 86rem; the name over the
+      // role and dates (six columns) under it.
+      expect(f.formTracks, `${at}: Recent form's tier`).toBe(f.page >= 86 ? 8 : 6);
+      if (f.page >= 86) expect((f.form.width - 2) / f.rem, `${at}: Recent form's board at least 58rem inside its border`).toBeGreaterThanOrEqual(58);
+      // Never hidden without saying so: where a board shows fewer rows than it has, its Show all says how many more, and opens it.
+      for (const [board, row, button] of [["records-multikills", "multikill-row", "multikill-show-all"], ["records-milestones", "milestone-member", "milestones-show-all"]] as const) {
+        const rows = page.getByTestId(board).getByTestId(row);
+        const total = await rows.count();
+        const shown = (await rows.evaluateAll((els) => els.map((e) => e.checkVisibility()))).filter(Boolean).length;
+        const show = page.getByTestId(button);
+        if (shown === total) {
+          await expect(show, `${at}: ${board} whole, no Show all`).toBeHidden();
+          continue;
+        }
+        await expect(show, `${at}: ${board}'s Show all`).toBeVisible();
+        // Its words as drawn (innerText: the count for the other window height is not displayed), the comma read out only.
+        expect((await show.getByRole("button").innerText()).replace(/\s+/g, " "), `${at}: ${board}`).toMatch(new RegExp(`^Show all ${total} · ,? ?${total - shown} more`));
+        // Rows fold only where they cannot fit (fit-rows.tsx, round 3): the room left under the board, to the window's bottom less
+        // the page's padding, is less than the next row would take (with its group's caption where it heads one).
+        const free = await page.getByTestId(board).evaluate((el) => innerHeight - parseFloat(getComputedStyle(document.getElementById("content")!).paddingBottom) - el.getBoundingClientRect().bottom);
+        await show.getByRole("button").click();
+        const next = await page.getByTestId(board).evaluate((el, n) => {
+          const h = (sel: string) => el.querySelector(sel)?.getBoundingClientRect().height ?? 0;
+          return h(`[data-ov-rank="${n}"]`) + h(`[data-ov-caption="${n}"]`);
+        }, shown + 1);
+        if (oneScreen && seeded) expect(free, `${at}: ${board}'s room under it (${Math.round(free)}px) is less than its next row (${Math.round(next)}px)`).toBeLessThan(next);
+        expect((await rows.evaluateAll((els) => els.map((e) => e.checkVisibility()))).filter(Boolean).length, `${at}: ${board} opened whole`).toBe(total);
+        await expect(show.getByRole("button")).toHaveAttribute("aria-expanded", "true");
+        await show.getByRole("button").click();
+        expect((await rows.evaluateAll((els) => els.map((e) => e.checkVisibility()))).filter(Boolean).length, `${at}: ${board} folded again`).toBe(shown);
       }
+      // As a member sees it, with their own best on every record: the records' column is no shorter, Recent form's as it was. The
+      // boards fit their rows again for the taller column (as they do on a member's own load), on a resize.
+      await addOwnBests(page);
+      await page.evaluate(() => window.dispatchEvent(new Event("resize")));
+      await page.waitForTimeout(100);
+      const member = await boards(page);
+      expect(member.records.height, `${at}: a member's records panel is no shorter`).toBeGreaterThanOrEqual(f.records.height);
+      expect(Math.abs(member.form.bottom - f.form.bottom), `${at}: Recent form as it was`).toBeLessThanOrEqual(1);
+      columns(member, `${at}, a member's bests`);
     }
   }
 });
@@ -887,7 +978,11 @@ test("tablet and desktop: one Peek giving way to the other (a player, then a rec
   for (const order of [["player", "record"], ["record", "player"]] as const) {
     for (const what of order) {
       if (what === "player") await page.getByTestId("board-peek-open").first().click();
-      else await page.locator('[data-testid=season-record][data-record="kills"] [data-row-link]').click();
+      // The records are in the column the docked player Peek lies over (Release 16): the record opened from the keyboard there.
+      else {
+        await page.locator('[data-testid=season-record][data-record="kills"] [data-row-link]').focus();
+        await page.keyboard.press("Enter");
+      }
       await expect(page).toHaveURL(what === "player" ? /\/leaderboards\?player=/ : /\/leaderboards\?match=/);
     }
     expect(await page.evaluate(() => history.length), `${order.join(" then ")}: one entry for the Peek`).toBe(before + 1);

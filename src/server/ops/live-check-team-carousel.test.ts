@@ -24,6 +24,12 @@ describe("the Production check's phone Team fact", () => {
     expect(script).not.toContain("lineup-dot-picture");
   });
 
+  it("asserts the active card takes the height above the tab bar (Release 16)", () => {
+    expect(script).toContain('"390x844: the active card takes the height above the tab bar (its dots within 24px of it), the five cards one height"');
+    expect(script).toMatch(/c\.dotsBottom \+ f\.scrollY <= f\.tabBarTop && f\.tabBarTop - \(c\.dotsBottom \+ f\.scrollY\) <= 24 && c\.heights === 1/);
+    expect(doc).toContain("the active card takes the height above the tab bar: its position dots end within 24px of the tab bar, and the five cards share one height (Release 16)");
+  });
+
   it("is described as such in docs/LIVE_VALIDATION.md", () => {
     expect(doc).toContain("the lineup is the carousel (23 Nov 2026): no lineup pager over it, one card on screen with its two margins within 1px of each other (the page's gutter), and five position dots shown under it");
     expect(doc).not.toMatch(/and the lineup pager holds the five players' pictures \(S3a, 20 Nov 2026: the role names alone before\);/);

@@ -1,7 +1,7 @@
 import { formatCount } from "@/lib/format";
 import { publicPatchName } from "@/domain/patch";
 
-/** Admin's view of Matchup Intel's per-version diff (staticDiffHealth, digests.ts): counts and patch names only. */
+/** Admin's view of the per-version diff of Riot's static data (staticDiffHealth, server/riot/static/digests.ts): counts and patch names only. */
 export type StaticDiff = {
   digests: { patch: string; recorded: Record<"champion" | "item" | "rune", number>; previous: string | null; changed: Record<"champion" | "item" | "rune", number> | null } | null;
   failedPatch: string | null;
@@ -45,7 +45,7 @@ export function StaticDiffCard({ diff }: { diff: StaticDiff }) {
           {l.text}
         </div>
       ))}
-      <div className="text-xs text-fg-subtle">Source: Riot Data Dragon, compared by Matchup Intel</div>
+      <div className="text-xs text-fg-subtle">Source: Riot Data Dragon, compared patch by patch</div>
     </div>
   );
 }

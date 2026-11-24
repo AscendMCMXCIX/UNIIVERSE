@@ -255,6 +255,86 @@ p a.text-accent {
   }
 }
 
+/*
+  Leaderboards' one-screen desktop board (docs/TEAM_LEADERBOARDS.md, One screen): the window's height
+  picks how many rows the multikills and the milestones show before their Show all (overview.ts), in
+  four tiers: under board-at-mid the fewest (1440 × 780), board-at-mid (1920 × 950, the owner's
+  browser at 1920 × 1080 with the sidebar folded), board-at-short (1440 × 900), board-at-tall (1920 ×
+  1080). The root grows with the window's width above 1536px (the clamp above: 16px plus 0.0045px a
+  pixel, at most 22px) and a media query measures in the browser's 16px, so each tier's height is
+  written out per band of widths, measured on the boards at the band's widest root. Each board-below-*
+  is its tier's complement (every band's query negated, nested), so a row folds by one variant alone,
+  never by the order Tailwind writes two classes in.
+*/
+@custom-variant board-at-mid {
+  @media (max-width: 1535px) and (min-height: 856px), (min-width: 1536px) and (max-width: 1800px) and (min-height: 920px), (min-width: 1801px) and (max-width: 1920px) and (min-height: 929px), (min-width: 1921px) and (max-width: 2560px) and (min-height: 1080px), (min-width: 2561px) and (min-height: 1153px) {
+    @slot;
+  }
+}
+@custom-variant board-at-short {
+  @media (max-width: 1535px) and (min-height: 893px), (min-width: 1536px) and (max-width: 1800px) and (min-height: 960px), (min-width: 1801px) and (max-width: 1920px) and (min-height: 970px), (min-width: 1921px) and (max-width: 2560px) and (min-height: 1127px), (min-width: 2561px) and (min-height: 1203px) {
+    @slot;
+  }
+}
+@custom-variant board-at-tall {
+  @media (max-width: 1535px) and (min-height: 975px), (min-width: 1536px) and (max-width: 1800px) and (min-height: 1047px), (min-width: 1801px) and (max-width: 1920px) and (min-height: 1072px), (min-width: 1921px) and (max-width: 2560px) and (min-height: 1246px), (min-width: 2561px) and (min-height: 1331px) {
+    @slot;
+  }
+}
+@custom-variant board-below-mid {
+  @media not all and (max-width: 1535px) and (min-height: 856px) {
+    @media not all and (min-width: 1536px) and (max-width: 1800px) and (min-height: 920px) {
+      @media not all and (min-width: 1801px) and (max-width: 1920px) and (min-height: 929px) {
+        @media not all and (min-width: 1921px) and (max-width: 2560px) and (min-height: 1080px) {
+          @media not all and (min-width: 2561px) and (min-height: 1153px) {
+            @slot;
+          }
+        }
+      }
+    }
+  }
+}
+@custom-variant board-below-short {
+  @media not all and (max-width: 1535px) and (min-height: 893px) {
+    @media not all and (min-width: 1536px) and (max-width: 1800px) and (min-height: 960px) {
+      @media not all and (min-width: 1801px) and (max-width: 1920px) and (min-height: 970px) {
+        @media not all and (min-width: 1921px) and (max-width: 2560px) and (min-height: 1127px) {
+          @media not all and (min-width: 2561px) and (min-height: 1203px) {
+            @slot;
+          }
+        }
+      }
+    }
+  }
+}
+@custom-variant board-below-tall {
+  @media not all and (max-width: 1535px) and (min-height: 975px) {
+    @media not all and (min-width: 1536px) and (max-width: 1800px) and (min-height: 1047px) {
+      @media not all and (min-width: 1801px) and (max-width: 1920px) and (min-height: 1072px) {
+        @media not all and (min-width: 1921px) and (max-width: 2560px) and (min-height: 1246px) {
+          @media not all and (min-width: 2561px) and (min-height: 1331px) {
+            @slot;
+          }
+        }
+      }
+    }
+  }
+}
+/*
+  A season record's two-line cell (leaderboards/records.tsx, BOOK_COLS): a cell of 36rem or more, or
+  any cell on a Leaderboards page of 59rem or more (the desktop's one-screen board, whose records'
+  column is 21–38.5rem). Either container query alone; the narrow cell's layout is the classes
+  without it.
+*/
+@custom-variant record-two {
+  @container list (min-width: 36rem) {
+    @slot;
+  }
+  @container dash (min-width: 59rem) {
+    @slot;
+  }
+}
+
 /* The installed app, in the display modes an install opens in (see install-state.ts): what a browser's own chrome would otherwise provide, such as Back on a tablet.
    The block form: in the one-line form Tailwind read the list's commas as a selector list once the
    variant was stacked (md:standalone:…), and the build dropped every display mode but the first. */
