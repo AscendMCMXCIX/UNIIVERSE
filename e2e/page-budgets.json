@@ -144,7 +144,7 @@
    "small": 0
   },
   "p-overview@se1-150": {
-   "screens": 5.87,
+   "screens": 6.02,
    "frame": 0.45,
    "frameScrolled": 0.15,
    "small": 0
@@ -366,7 +366,7 @@
    "why": "S8a (20 Nov 2026), new in that release at 5.8. Release 10: the demo's member viewer is on the local owner's account row, whose picture avatar-editor.spec.ts saved and left (1.99 and 5.87 in Chrome 156 after it); that spec now removes it, so the page measures 5.63 on a fresh demo and after a spec run, in Chrome 153 and 156: the fresh figure plus 2%."
   },
   "own-overview@se1-150": {
-   "screens": 5.91,
+   "screens": 6.04,
    "frame": 0.45,
    "frameScrolled": 0.15,
    "small": 0
