@@ -782,14 +782,25 @@ test("one screen from a 59rem page: two columns, each board under the one before
         await expect(show, `${at}: ${board}'s Show all`).toBeVisible();
         // Its words as drawn (innerText: the count for the other window height is not displayed), the comma read out only.
         expect((await show.getByRole("button").innerText()).replace(/\s+/g, " "), `${at}: ${board}`).toMatch(new RegExp(`^Show all ${total} · ,? ?${total - shown} more`));
+        // Rows fold only where they cannot fit (fit-rows.tsx, round 3): the room left under the board, to the window's bottom less
+        // the page's padding, is less than the next row would take (with its group's caption where it heads one).
+        const free = await page.getByTestId(board).evaluate((el) => innerHeight - parseFloat(getComputedStyle(document.getElementById("content")!).paddingBottom) - el.getBoundingClientRect().bottom);
         await show.getByRole("button").click();
+        const next = await page.getByTestId(board).evaluate((el, n) => {
+          const h = (sel: string) => el.querySelector(sel)?.getBoundingClientRect().height ?? 0;
+          return h(`[data-ov-rank="${n}"]`) + h(`[data-ov-caption="${n}"]`);
+        }, shown + 1);
+        if (oneScreen) expect(free, `${at}: ${board}'s room under it (${Math.round(free)}px) is less than its next row (${Math.round(next)}px)`).toBeLessThan(next);
         expect((await rows.evaluateAll((els) => els.map((e) => e.checkVisibility()))).filter(Boolean).length, `${at}: ${board} opened whole`).toBe(total);
         await expect(show.getByRole("button")).toHaveAttribute("aria-expanded", "true");
         await show.getByRole("button").click();
         expect((await rows.evaluateAll((els) => els.map((e) => e.checkVisibility()))).filter(Boolean).length, `${at}: ${board} folded again`).toBe(shown);
       }
-      // As a member sees it, with their own best on every record: the records' column is no shorter, Recent form's as it was.
+      // As a member sees it, with their own best on every record: the records' column is no shorter, Recent form's as it was. The
+      // boards fit their rows again for the taller column (as they do on a member's own load), on a resize.
       await addOwnBests(page);
+      await page.evaluate(() => window.dispatchEvent(new Event("resize")));
+      await page.waitForTimeout(100);
       const member = await boards(page);
       expect(member.records.height, `${at}: a member's records panel is no shorter`).toBeGreaterThanOrEqual(f.records.height);
       expect(Math.abs(member.form.bottom - f.form.bottom), `${at}: Recent form as it was`).toBeLessThanOrEqual(1);

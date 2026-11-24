@@ -169,8 +169,9 @@ expressive; Settings and forms are plain and roomy. Empty or thin data shrinks a
 leaving a frame to fill, and no card is stretched to even out a dashboard's columns (a Ranked
 progress filled to the pools' end made a few LP look like a swing: the UX review of Release 13). The
 Overview's 2×2 balances its columns with its own data instead: there Ranked progress heads the rail
-and Recent form, under it, lists two to four of the champions of its games by the window's height
-(`RecentChampions`, "and N more" on its heading's line), and a primary pool of
+and Recent form, under it, lists the champions of its games that fit above the window's bottom (two
+to four by the window's height in the server's drawing, then as many as fit: `RecentChampions`,
+`FitChampions`; "and N more" on its heading's line), and a primary pool of
 more than six shows its first five champions with a Show all at its end (`PRIMARY_POOL_TOP`,
 `PRIMARY_POOL_FOLD_OVER`), so no player's pool makes the page disproportionately tall. At 1440 × 900,
 1920 × 950 and 1920 × 1080 the whole Overview is on the first screen whatever the pool's size (Release 16: the
@@ -178,7 +179,8 @@ scope beside Season performance's title, 40px pool rows with their column names 
 heading line, no box around a folded off role, Ranked progress's queue on its title row); on small
 screens and at large text sizes readability wins over the one screen. Leaderboards is one screen
 from a 59rem page too (docs/TEAM_LEADERBOARDS.md, "One screen"): a board that cannot show every row
-there shows its first ones and says how many more behind its Show all, never hiding a row silently.
+there shows as many as fit above the window's bottom (`src/components/ui/fit-rows.tsx`) and says how
+many more behind its Show all, never hiding a row silently.
 
 **Page layout.** One frame for every page, so pages differ by their content, not their scaffolding:
 - **The shared frame** (S2c, `app-shell.tsx`): every page sits in one column, at most `--content-wide`

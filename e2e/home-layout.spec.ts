@@ -204,6 +204,16 @@ test("profile Overview: a 2×2 dashboard at 1440 (the season beside ranked progr
       await page.evaluate(() => window.scrollTo(0, 0));
       await expect.poll(() => page.evaluate(() => document.documentElement.scrollHeight), { message: `1920 × ${height}: the page does not scroll` }).toBeLessThanOrEqual(height);
       for (const id of ["season-figures", "ranked-progress", "recent-form", "champion-pools"]) expect((await box(page.getByTestId(id))).y + (await box(page.getByTestId(id))).height, `1920 × ${height}: ${id} in the window`).toBeLessThanOrEqual(height);
+      // Recent form's champions fold only where they cannot fit (fit-rows.tsx): with "and N more" drawn, the room under the card is less than a row.
+      const fit = await page.evaluate(() => {
+        const form = document.querySelector("[data-testid=recent-form]")!;
+        const rows = [...document.querySelectorAll("[data-testid=recent-form-champions] [data-champion]")];
+        const shown = rows.filter((r) => r.getBoundingClientRect().height > 0);
+        const more = document.querySelector("[data-testid=recent-form-champions-more]");
+        return { free: innerHeight - parseFloat(getComputedStyle(document.getElementById("content")!).paddingBottom) - form.getBoundingClientRect().bottom, row: shown[0]?.getBoundingClientRect().height ?? 0, hidden: rows.length - shown.length, more: more && more.getBoundingClientRect().height ? (more as HTMLElement).innerText : null };
+      });
+      expect(fit.more, `1920 × ${height}: "and N more" says what is hidden`).toBe(fit.hidden ? `and ${fit.hidden} more` : null);
+      if (fit.hidden) expect(fit.free, `1920 × ${height}: room for no further champion`).toBeLessThan(fit.row);
     }
     await page.setViewportSize({ width: 1440, height: 900 });
   }

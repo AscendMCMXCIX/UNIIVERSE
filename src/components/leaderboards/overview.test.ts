@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { IN_TIER_FLEX, IN_TIER_TEXT, MILESTONE_OVERVIEW, MULTIKILL_OVERVIEW, TIERS, allot, foldClass, groupFolds, moreOf, showAllClass } from "./overview";
+import { IN_TIER_FLEX, IN_TIER_TEXT, MILESTONE_OVERVIEW, MULTIKILL_OVERVIEW, TIERS, allot, foldClass, groupFolds, groupRanks, moreOf, showAllClass } from "./overview";
 
 /*
   The one-screen board's overview (Release 16): which rows fold behind each board's Show all in each
@@ -50,6 +50,13 @@ describe("the milestones' two kinds", () => {
     // Mastery shows 1, 3, 4 and 6 rows in the four heights.
     expect(classes[1]).toEqual([undefined, below("mid"), below("mid"), below("short"), below("tall"), below("tall"), ALWAYS, ALWAYS]);
     expect(more).toEqual({ low: 7, mid: 5, short: 4, tall: 2 });
+    // The order rows are shown in once the page fits them (fit-rows.tsx): a budget of k shows exactly the rows of rank k or less, as the tiers do.
+    const ranks = groupRanks([1, 8]);
+    expect(ranks).toEqual([[1], [1, 3, 4, 5, 6, 7, 8, 9]]);
+    for (const t of TIERS) {
+      const shown = ranks.map((g) => g.filter((r) => r <= MILESTONE_OVERVIEW[t]).length);
+      expect(shown, t).toEqual(allot([1, 8], MILESTONE_OVERVIEW[t]));
+    }
     // Nothing to fold: no Show all.
     expect(showAllClass(groupFolds([1, 1], MILESTONE_OVERVIEW).more)).toBe("hidden");
   });

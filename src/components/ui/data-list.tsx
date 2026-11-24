@@ -97,11 +97,11 @@ export function DataHead({ children, align = "start", className }: { children?: 
  * A group of rows: its caption (phrasing content only: it is a <p>), then the list. `rule="row"`
  * draws a hairline under every row but the last (Tailwind 4's divide-y is each row's bottom border).
  */
-export function DataGroup({ as: List = "ol", label, caption, captionTestId, captionClassName, rule = "row", className, testId, children }: { as?: "ol" | "ul"; /** The list's name for screen readers ("Ranking"). */ label?: string; caption?: React.ReactNode; captionTestId?: string; /** The caption's own classes (a caption folded with its group's first row: Leaderboards' overview). */ captionClassName?: string; rule?: "row" | "none"; className?: string; testId?: string; children: React.ReactNode }) {
+export function DataGroup({ as: List = "ol", label, caption, captionTestId, captionClassName, captionData, rule = "row", className, testId, children }: { as?: "ol" | "ul"; /** The list's name for screen readers ("Ranking"). */ label?: string; caption?: React.ReactNode; captionTestId?: string; /** The caption's own classes (a caption folded with its group's first row: Leaderboards' overview). */ captionClassName?: string; /** The caption's data attributes (its first row's rank in a fitted overview: fit-rows.tsx). */ captionData?: DataAttrs; rule?: "row" | "none"; className?: string; testId?: string; children: React.ReactNode }) {
   return (
     <>
       {caption ? (
-        <p className={cn("bg-surface-2/40 py-1.5 text-xs text-fg-muted", ROW_PAD_X, captionClassName)} data-testid={captionTestId}>
+        <p className={cn("bg-surface-2/40 py-1.5 text-xs text-fg-muted", ROW_PAD_X, captionClassName)} data-testid={captionTestId} {...captionData}>
           {caption}
         </p>
       ) : null}
