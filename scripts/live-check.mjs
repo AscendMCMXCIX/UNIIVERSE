@@ -71,6 +71,10 @@
     not failed); a shared place is titled "Tied for Nth" and no other place claims it; every row's bar
     has 20 segments, as many filled as the row's wins and as many missing as its window lacks. Counts,
     heights and true/false only: the rows carry names.
+  - card scores (Release 17, scripts/card-score-facts.mjs): at every width, each card of Match
+    History's first page shows its performance score (one mark, the card's own figures) or the quiet
+    fallback (nothing drawn, the card's label says why), and the first scored game, opened, shows
+    the same score and place on its scoreboard's row for the player. States, scores and places only.
   - multikills (Release 15, scripts/multikill-facts.mjs): at every width, the multikill board says what
     its score is compared with and explains it behind its ⓘ; ranked members in score order, a place
     shared exactly on equal scores, the crown on first, provisional and too-few-games members after;
@@ -155,6 +159,7 @@ import { championLookupVerdicts, readChampionLookup, readChampionWindow } from "
 import { postGameVerdicts, readInspection, readPostGame, switchVerdicts } from "./post-game-facts.mjs";
 import { championPreviewVerdicts, readChampionPreview, readChampionRows, targetRow } from "./champion-preview-facts.mjs";
 import { multikillVerdicts, readMultikillBoard } from "./multikill-facts.mjs";
+import { cardScoreVerdicts, firstScored, readCardScores, readOpenedScore } from "./card-score-facts.mjs";
 import { oneScreenInput, oneScreenVerdicts, readOneScreen } from "./one-screen-facts.mjs";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -1902,6 +1907,37 @@ async function reachFacts(page, kind) {
   pass("reach", name, offered && opened, { offered, opened, ...(form ?? {}), ...at });
 }
 
+/**
+ * Match History's card scores (Release 17): the first page's cards read (scripts/card-score-facts.mjs
+ * readCardScores), then the first scored game opened, its scoreboard's row for the player read once
+ * its timeline has answered, and closed with Back (one history rule: Back closes a game).
+ */
+async function cardScoreFacts(page, kind) {
+  await page.evaluate(() => window.scrollTo(0, 0));
+  const cards = await page.evaluate(readCardScores);
+  const at = firstScored(cards);
+  let opened = null;
+  if (at !== null) {
+    const card = page.getByTestId("match-card").nth(at);
+    await card.scrollIntoViewIfNeeded();
+    await card.click({ position: { x: 24, y: 16 } });
+    await page
+      .waitForFunction(() => {
+        const b = document.querySelector("li[data-expanded] [data-testid=match-breakdown], [data-testid=match-detail] [data-testid=match-breakdown]");
+        if (!b || b.getAttribute("data-timeline") === "loading") return false;
+        const cell = b.querySelector(`[data-testid=participant][data-slot="${b.getAttribute("data-selected")}"] [data-testid=participant-score]`);
+        return !!cell && cell.getAttribute("data-state") !== "loading";
+      }, null, { timeout: 30_000 })
+      .catch(() => undefined);
+    opened = await page.evaluate(readOpenedScore);
+    if (opened.open) {
+      await page.goBack();
+      await page.locator("li[data-expanded], [data-testid=match-detail]").first().waitFor({ state: "detached", timeout: 15_000 }).catch(() => undefined);
+    }
+  }
+  for (const v of cardScoreVerdicts({ kind, cards, opened })) check("games", v.name, v.status, v.detail);
+}
+
 async function matchHistory(page, log, kind, playerId) {
   const path = playerId ? `/players/${playerId}/matches` : "/overview/matches";
   if (!(await visit(page, log, kind, "match-history", path, { fullPage: false }))) return;
@@ -2085,6 +2121,10 @@ async function matchHistory(page, log, kind, playerId) {
       pass("games", `${kind}: Back closes the open game and keeps Match History`, closed && !/[?&]match=/.test(page.url()) && /\/matches/.test(page.url()), page.url().replace(base, ""));
     }
   }
+  // The cards' performance scores (Release 17; scripts/card-score-facts.mjs): each card of the first
+  // page shows its score or the quiet fallback, and the first scored game, opened, shows the same
+  // score and place for the player. States, scores and places only.
+  await guarded("games", `${kind}: Match History's card scores`, () => cardScoreFacts(page, kind));
   // The page's controls in reach from the end of its list (PR 2b): the pinned row's or the top bar's Filters.
   await guarded("reach", `${kind}: Filters from the end of Match History`, () => reachFacts(page, kind));
   // Encounters, the players met, from the view switch.
