@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { formatCount, formatKilo, formatNumber, formatOrdinal } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { ScoreChart } from "./score-chart";
+import { Fold } from "@/components/ui/fold";
 
 /*
   The performance score of the player inspected (domain/performance-score; docs/PERFORMANCE_SCORE.md):
@@ -62,7 +63,21 @@ export function ScoreWhy({ score, points, slot }: { score: PlayerScore | null; p
   );
 }
 
-export function PerformancePanel({ scores, points, timeline, subject, compare, onCompare, others, nameOf, teams, champ, onSelect }: { scores: MatchScores | null; points: TimelinePoint[] | null; timeline: TimelineState; subject: DetailParticipant; compare: DetailParticipant | null; onCompare: (slot: number | null) => void; /** Everyone else in the game who can be compared (not removed), the lane opponent first. */ others: DetailParticipant[]; nameOf: (p: DetailParticipant) => string; teams: DetailTeam[]; champ: (id: string | null) => PortraitChampion; onSelect: (slot: number) => void }) {
+/**
+ * On a phone, secondary content behind one fold (its window held to two screens, PLAN S6: the
+ * overlay kit's budget); everywhere else shown as it is. The phone's answer comes once the page is
+ * interactive (usePhone), and the game is drawn on the client after its record loads.
+ */
+export function PhoneFold({ phone, summary, testId, children }: { phone: boolean; summary: string; testId: string; children: React.ReactNode }) {
+  if (!phone) return <>{children}</>;
+  return (
+    <Fold variant="row" summary={<span className="text-xs font-medium text-fg-muted">{summary}</span>} testId={testId} bodyClassName="space-y-2">
+      {children}
+    </Fold>
+  );
+}
+
+export function PerformancePanel({ scores, points, timeline, subject, compare, onCompare, others, nameOf, teams, champ, onSelect, phone = false }: { scores: MatchScores | null; points: TimelinePoint[] | null; timeline: TimelineState; subject: DetailParticipant; compare: DetailParticipant | null; onCompare: (slot: number | null) => void; /** Everyone else in the game who can be compared (not removed), the lane opponent first. */ others: DetailParticipant[]; nameOf: (p: DetailParticipant) => string; teams: DetailTeam[]; champ: (id: string | null) => PortraitChampion; onSelect: (slot: number) => void; /** A phone: the why, the teams, the tiles and the chart behind one fold. */ phone?: boolean }) {
   const mine = scores?.players.find((p) => p.slot === subject.slot) ?? null;
   const theirs = compare ? (scores?.players.find((p) => p.slot === compare.slot) ?? null) : null;
   const series = [{ slot: subject.slot, label: nameOf(subject) }, ...(compare ? [{ slot: compare.slot, label: nameOf(compare) }] : [])];
@@ -114,7 +129,9 @@ export function PerformancePanel({ scores, points, timeline, subject, compare, o
         </p>
       ) : (
         <>
-          {/* Each team's mean score on one bar, the winners' first, each with its word. */}
+          <PhoneFold phone={phone} summary="Why, each player's score and the score through the game" testId="performance-fold">
+          {phone ? <ScoreWhy score={mine} points={points} slot={subject.slot} /> : null}
+          {/* Each team's mean score on one bar, in the scoreboard's order, each with its side and result in words. */}
           {a && b && typeof avgA === "number" && typeof avgB === "number" ? (
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs tabular-nums" data-testid="performance-teams">
               <span className="shrink-0 text-fg-muted">
@@ -172,6 +189,7 @@ export function PerformancePanel({ scores, points, timeline, subject, compare, o
               {timeline === "missing" ? "Score through the game not available: this game has no stored timeline." : "Score through the game not available: the timeline's minute-by-minute record is incomplete for this game."}
             </p>
           )}
+          </PhoneFold>
           {compare ? <CompareTable a={subject} b={compare} sa={mine.score} sb={theirs?.score ?? null} nameOf={nameOf} /> : null}
         </>
       )}

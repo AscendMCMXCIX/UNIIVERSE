@@ -81,7 +81,10 @@ decorative chrome.
     labelled with its side and result in words ("Blue · Defeat 5.5"), never a result told by the
     side colours; on a phone each scoreboard row is three lines (the name, K/D/A and score; the
     build and CS; the rank, whole) and under 16rem (200% text) everything in it stacks, so nothing
-    runs past the screen at any width or text size; the score through the game (a line in the
+    runs past the screen at any width or text size; on a phone (its window held near two screens:
+    2.15–2.27 for the demo's first three games, the overlay kit's ceiling 2.32 since Release 16) the support
+    figures and the score's why, tiles and chart sit behind one row fold each, the score itself, its
+    place and the "Compare with" select staying in view; the score through the game (a line in the
     brand gradient, a second player dashed in `fg-muted` with a legend, 0–10 with 5 dashed, the end
     joined by a dotted segment, a table for screen readers) and a "Compare with" select. Stacked
     (under 60rem) a "Show …'s game" link under the scoreboard takes the reader up to the player
