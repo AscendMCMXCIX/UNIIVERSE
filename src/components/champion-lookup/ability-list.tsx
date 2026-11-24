@@ -4,7 +4,7 @@ import * as React from "react";
 import type { LookupAbility } from "@/domain/champion-lookup/view";
 import type { CostDisplay } from "@/domain/champion-lookup/cost";
 import { cooldownAtHaste } from "@/domain/champion-lookup/haste";
-import { MECHANIC_GROUP_WORDS, type MechanicFact } from "@/domain/champion-lookup/mechanics";
+import type { MechanicFact } from "@/domain/champion-lookup/mechanics";
 import { SLOT_NAMES, changedWords, cooldownWords } from "@/domain/champion-lookup/words";
 import { formatPerRank, formatSeconds } from "@/lib/format";
 import { Fold } from "@/components/ui/fold";
@@ -178,7 +178,7 @@ function AbilityRow({ ability, haste, foldId }: { ability: LookupAbility; haste:
               {named.map((f, i) => (
                 <React.Fragment key={f.kind}>
                   {i > 0 ? <span aria-hidden> · </span> : null}
-                  <span className="text-fg" title={MECHANIC_GROUP_WORDS[f.group]}>
+                  <span className="text-fg">
                     {f.group === "damage" ? `${f.word} damage` : f.word}
                   </span>
                 </React.Fragment>
