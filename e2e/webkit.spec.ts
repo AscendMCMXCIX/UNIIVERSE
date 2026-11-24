@@ -1056,8 +1056,10 @@ test("Match History on an iPhone: a tap on any scoreboard row inspects that play
   await expect(breakdown).toHaveAttribute("data-timeline", "ok");
   await expect(breakdown.locator("[data-testid=participant-score][data-score]")).toHaveCount(10);
   const own = await breakdown.getAttribute("data-selected");
-  const row = breakdown.locator('[data-testid=participant-select]:not([aria-current="true"])').nth(6);
-  const slot = (await row.getAttribute("data-slot"))!;
+  // The seventh of the players not inspected, then held by its slot: once tapped it is inspected
+  // itself, and the ":not(current)" list would name another row.
+  const slot = (await breakdown.locator('[data-testid=participant-select]:not([aria-current="true"])').nth(6).getAttribute("data-slot"))!;
+  const row = breakdown.locator(`[data-testid=participant-select][data-slot="${slot}"]`);
   await row.scrollIntoViewIfNeeded();
   const before = (await row.boundingBox())!.y;
   // A tap on the row (not its name, which is the player's own link).
