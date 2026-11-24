@@ -342,6 +342,8 @@ test("the ranks never wrap: in columns each rank's value sits in its own column 
             // In columns, each rank's base and hasted values share their column.
             aligned: base.every((c, i) => Math.abs(c.right - hasted[i]!.right) <= 1),
             rights: base.map((c) => Math.round(c.right)),
+            // Every rank inside the panel, none clipped by its edge.
+            inside: [...base, ...hasted].every((c) => c.right <= document.querySelector('[data-testid="lookup-panel"]')!.getBoundingClientRect().right - 1),
           };
         });
         const heads = [...heading.querySelectorAll<HTMLElement>("span.label-caps:last-child > span")].map((h) => h.getBoundingClientRect());
@@ -350,13 +352,17 @@ test("the ranks never wrap: in columns each rank's value sits in its own column 
       for (const r of m.rows) {
         expect(r.oneLine, `${where}: ${r.slot}'s ranks on one line each (${m.columns ? "columns" : "the line form"})`).toBe(true);
         expect(r.leftToRight, `${where}: ${r.slot}'s ranks left to right`).toBe(true);
+        expect(r.inside, `${where}: ${r.slot}'s ranks all inside the panel`).toBe(true);
         if (m.columns) {
           expect(r.aligned, `${where}: ${r.slot}'s base and hasted values in the same columns`).toBe(true);
           // Under the heading's ranks: each value's right edge at its rank's.
           r.rights.forEach((right, i) => expect(Math.abs(right - m.headRights[i]!), `${where}: ${r.slot}'s rank ${i + 1} under its heading`).toBeLessThanOrEqual(1));
         }
       }
-      if (m.columns) expect(m.headsOneLine, `${where}: the heading's ranks on one line`).toBe(true);
+      if (m.columns) {
+        expect(m.headsOneLine, `${where}: the heading's ranks on one line`).toBe(true);
+        expect(m.headRights.length, `${where}: a heading for every rank`).toBe(Math.max(5, ...m.rows.map((r) => r.ranks)));
+      }
     }
   }
 });

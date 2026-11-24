@@ -66,7 +66,7 @@ function AbilityRow({ ability, haste, descriptions }: { ability: LookupAbility; 
   const hasted = haste > 0 && at !== null;
   return (
     <li className="@container/ab border-b border-border px-3 py-2 last:border-b-0 sm:px-4" data-testid="lookup-ability" data-slot={ability.slot} data-cooldown={ability.cooldown.kind === "per-rank" ? "per-rank" : ability.cooldown.reason}>
-      <div className="grid grid-cols-1 items-center gap-x-3 gap-y-1.5 @min-[16rem]/ab:grid-cols-[2.5rem_minmax(0,1fr)] @min-[44rem]/ab:grid-cols-[2.5rem_minmax(9rem,15rem)_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 items-center gap-x-3 gap-y-1.5 @min-[16rem]/ab:grid-cols-[2.5rem_minmax(0,1fr)] @min-[44rem]/ab:grid-cols-[2.5rem_minmax(9rem,1fr)_var(--lookup-ranks)]">
         <span className="relative w-10">
           <AbilityIcon ability={ability} />
           <span aria-hidden className="absolute -bottom-1 -right-1 grid h-4 min-w-4 place-items-center rounded-sm border border-border-strong bg-bg-elevated px-0.5 text-4xs font-bold leading-none text-fg">
@@ -120,7 +120,7 @@ function RankHeading({ ranks }: { ranks: number }) {
   return (
     // The rows' own padding on the container too, so the heading and the rows measure the same width and change form together.
     <div aria-hidden className="@container/ab px-3 sm:px-4">
-      <div className="-mx-3 hidden grid-cols-[2.5rem_minmax(9rem,15rem)_minmax(0,1fr)] items-baseline gap-x-3 border-b border-border px-3 py-1.5 sm:-mx-4 sm:px-4 @min-[44rem]/ab:grid">
+      <div className="-mx-3 hidden grid-cols-[2.5rem_minmax(9rem,1fr)_var(--lookup-ranks)] items-baseline gap-x-3 border-b border-border px-3 py-1.5 sm:-mx-4 sm:px-4 @min-[44rem]/ab:grid">
         <span />
         <span className="label-caps">Ability</span>
         <span className="flex items-baseline gap-x-2">
@@ -141,7 +141,10 @@ function RankHeading({ ranks }: { ranks: number }) {
 export function AbilityList({ abilities, haste, descriptions }: { abilities: readonly LookupAbility[]; haste: number; descriptions: boolean }) {
   const ranks = Math.max(...abilities.map((a) => (a.cooldown.kind === "per-rank" ? a.cooldown.seconds.length : 0)), 5);
   return (
-    <div data-testid="lookup-abilities">
+    // The cooldowns' column, the same in every row and the heading: the kind's 6rem label, its 0.5rem
+    // gap and 4rem a rank for the most ranks any ability here has (Udyr's six), so the ranks line up
+    // under the heading and never wrap or clip; the name takes the rest.
+    <div data-testid="lookup-abilities" style={{ "--lookup-ranks": `${6.5 + ranks * 4}rem` } as React.CSSProperties}>
       <RankHeading ranks={ranks} />
       <ul aria-label="Abilities">
         {abilities.map((a) => (
