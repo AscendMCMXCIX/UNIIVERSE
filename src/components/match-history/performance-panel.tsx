@@ -95,7 +95,7 @@ export function PerformancePanel({ scores, points, timeline, subject, compare, o
   const avgB = b ? averages[b.teamId] : undefined;
   const byScore = new Map(scores?.players.map((p) => [p.slot, p]) ?? []);
   return (
-    <section aria-label="Performance score" className="space-y-2 rounded-panel border border-border bg-surface px-3 py-2" data-testid="performance" data-state={timeline === "loading" ? "loading" : scores ? "ok" : "none"} data-version={SCORE_VERSION}>
+    <section aria-label="Performance score" className="space-y-1.5 rounded-panel border border-border bg-surface px-3 py-1.5" data-testid="performance" data-state={timeline === "loading" ? "loading" : scores ? "ok" : "none"} data-version={SCORE_VERSION}>
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
         <span className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
           <span className="label-caps">Performance score</span>
@@ -149,7 +149,21 @@ export function PerformancePanel({ scores, points, timeline, subject, compare, o
             </div>
           ) : null}
           {/* The ten players' scores, a tile each (a press inspects them), the winning team's first. */}
-          <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2" data-testid="performance-strip">
+          {/* One stop in the tab order (the player inspected); ← → move along the ten tiles, Enter inspects. */}
+          <div
+            className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2"
+            data-testid="performance-strip"
+            onKeyDown={(e) => {
+              if (!["ArrowRight", "ArrowLeft", "Home", "End"].includes(e.key)) return;
+              const tiles = [...e.currentTarget.querySelectorAll<HTMLButtonElement>("[data-testid=performance-tile]")];
+              const at = tiles.indexOf(document.activeElement as HTMLButtonElement);
+              if (at < 0) return;
+              e.preventDefault();
+              const next = e.key === "Home" ? 0 : e.key === "End" ? tiles.length - 1 : Math.max(0, Math.min(tiles.length - 1, at + (e.key === "ArrowRight" ? 1 : -1)));
+              tiles.forEach((t, i) => (t.tabIndex = i === next ? 0 : -1));
+              tiles[next]!.focus();
+            }}
+          >
             {ordered.map((t) => (
               // Each team's five under a hairline in its side's colour, as the scoreboard draws its side (the bar above names side and result in words).
               <ul key={t.teamId} className={cn("grid min-w-0 flex-1 basis-[13rem] grid-cols-5 gap-1 border-t-2 pt-1", sideLine(t))} aria-label={`${word(t)}: each player's score`}>
@@ -159,7 +173,7 @@ export function PerformancePanel({ scores, points, timeline, subject, compare, o
                   return (
                     <li key={p.slot} className="min-w-0">
                       {p.removed || !s ? (
-                        <span className="flex h-12 items-center justify-center rounded-md bg-surface-2/50 text-2xs text-fg-subtle">
+                        <span className="flex h-6 items-center justify-center rounded-md bg-surface-2/50 text-2xs text-fg-subtle">
                           <span aria-hidden>—</span>
                           <span className="sr-only">Removed player, not scored</span>
                         </span>
@@ -167,13 +181,14 @@ export function PerformancePanel({ scores, points, timeline, subject, compare, o
                         <button
                           type="button"
                           onClick={() => onSelect(p.slot)}
+                          tabIndex={on ? 0 : -1}
                           aria-current={on ? "true" : undefined}
                           aria-label={`${nameOf(p)}, ${champ(p.championId).name}: ${formatNumber(s.score, 1)}${s.mvp ? ", MVP" : s.ace ? ", ACE" : ""}`}
-                          className={cn("flex w-full flex-col items-center gap-0.5 rounded-md py-1 transition-colors focus-visible:outline-2 focus-visible:outline-accent", on ? "bg-surface-3 ring-1 ring-inset ring-accent/70" : "hover:bg-surface-2")}
+                          className={cn("flex w-full items-center justify-center gap-1 rounded-md px-0.5 py-0.5 pointer-coarse:min-h-11 @max-[22rem]/pg:flex-col @max-[22rem]/pg:gap-0.5 transition-colors focus-visible:outline-2 focus-visible:outline-accent", on ? "bg-surface-3 ring-1 ring-inset ring-accent/70" : "hover:bg-surface-2")}
                           data-testid="performance-tile"
                           data-slot={p.slot}
                         >
-                          <ChampionPortrait champion={champ(p.championId)} size="xs" className="h-6 w-6 rounded" />
+                          <ChampionPortrait champion={champ(p.championId)} size="xs" className="h-5 w-5 shrink-0 rounded" />
                           <span className={cn("text-xs font-semibold leading-none tabular-nums", "text-fg")}>{formatNumber(s.score, 1)}</span>
                         </button>
                       )}
@@ -184,7 +199,7 @@ export function PerformancePanel({ scores, points, timeline, subject, compare, o
             ))}
           </div>
           {points && points.length > 1 ? (
-            <ScoreChart points={points} series={series} />
+            <ScoreChart points={points} series={series} compact={phone} />
           ) : (
             <p className="text-xs text-fg-subtle" data-testid="performance-timeline-missing">
               {timeline === "missing" ? "Score through the game not available: this game has no stored timeline." : "Score through the game not available: the timeline's minute-by-minute record is incomplete for this game."}

@@ -88,7 +88,9 @@ export function useUnfold({ param, initial = null, valid, prefix = "unfold" }: {
   React.useEffect(() => {
     if (id === null) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape" || e.defaultPrevented || modalOpen() || isTyping(e.target)) return;
+      // A closed list's button (a Select whose choice was just made) keeps no Escape for itself: the open item closes.
+      const closedList = (e.target as Element | null)?.closest?.("[role=combobox][aria-expanded=false]");
+      if (e.key !== "Escape" || e.defaultPrevented || modalOpen() || (isTyping(e.target) && !closedList)) return;
       e.preventDefault();
       close();
     };

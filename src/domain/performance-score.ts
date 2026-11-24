@@ -1,5 +1,5 @@
 /*
-  PERFORMANCE SCORE (v1): how well each of a game's players played, 0 to 10, from that one game's
+  PERFORMANCE SCORE (v3): how well each of a game's players played, 0 to 10, from that one game's
   record alone (docs/PERFORMANCE_SCORE.md has the model, its weights, worked examples and its
   limits). Deterministic and pure: the same game always gives the same scores, and nothing outside
   the game is read (no history, no baseline of other games, which a team tool does not have).
@@ -8,8 +8,10 @@
     share, damage taken and mitigated, CS per minute, gold share, vision per minute, wards,
     objective damage, turret takedowns, crowd control, healing and shielding of teammates, and the
     lane against the lane opponent at 10:00 and 15:00 where the timeline confirms it).
-  - Within the match: a figure becomes a z-score against the game's other players (its mean and
-    spread), clamped to ±2.5 so one extreme figure cannot carry a game alone. Where the player's
+  - Against the role, then within the match (v3): a figure is first compared with its role's typical
+    figure (TYPICAL_FIGURES; as a proportion for shares and rates), so a typical game scores alike in
+    every role; the residuals then become z-scores against the game's (their median and spread, the
+    spread at least MIN_SPREAD), clamped to ±2.5 so one extreme figure cannot carry a game alone. Where the player's
     lane opponent is known, 40% of it is the comparison with that opponent instead (role-relative),
     that part bounded to ±0.5 (COUNTERPART_CLAMP): a support's CS is measured partly against the
     other support, not only against the carries, and an opponent's outstanding game cannot alone
@@ -18,12 +20,12 @@
     kill participation, crowd control and protecting their team; carries on damage and farm;
     junglers on objectives and kill participation). ARAM has weights of its own (no lanes, no farm,
     no vision), and a player whose position is not recorded gets the role-neutral weights.
-  - The weighted mean of the z-scores, plus a small step for the result (OUTCOME_STEP: +0.1 for a
-    win, −0.1 for a loss), is mapped to 0–10 by a logistic curve (SCALE_K), one decimal: 5.0 is the
-    match's average player; the result alone moves a score by about 0.4 points.
+  - The weighted mean of the z-scores (crowd control and protection counted as the better of the
+    two), plus a small step for the result (OUTCOME_STEP: +0.05 for a win, −0.05 for a loss), is
+    mapped to 0–10 by a logistic curve (SCALE_K), one decimal: 5.0 is a typical game; the result
+    alone moves a score by about 0.2 points.
   - A component is used only when every scored player has it (a record that lacks a figure for one
-    player leaves it out for all, so nobody is compared on a figure others were not), and only when
-    it differs between them. The lane is the one exception: it counts for the players whose lane the
+    player leaves it out for all, so nobody is compared on a figure others were not). The lane is the one exception: it counts for the players whose lane the
     timeline confirms, and the others are scored without it.
   - Rank: all scored players by score; MVP is the winning team's highest, ACE the losing team's. A
     game without a winner (a remake) has neither.

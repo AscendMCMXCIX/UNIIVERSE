@@ -23,10 +23,30 @@ export interface ChartSeries {
   label: string;
 }
 
-const H = 76;
 const PAD = 8;
+/** The smallest stretch of the 0–10 scale the axis shows (it fits the data, 5 always in view), so a game near the middle is not drawn flat. */
+const MIN_SPAN = 3;
 
-export function ScoreChart({ points, series }: { points: readonly TimelinePoint[]; series: readonly ChartSeries[] }) {
+/** The axis's ends: the data's lowest and highest scores and 5, half a point beyond, at least MIN_SPAN apart, whole numbers within 0–10. */
+export function axisRange(values: readonly number[]): [number, number] {
+  let lo = Math.min(5, ...values) - 0.5;
+  let hi = Math.max(5, ...values) + 0.5;
+  if (hi - lo < MIN_SPAN) {
+    const grow = (MIN_SPAN - (hi - lo)) / 2;
+    lo -= grow;
+    hi += grow;
+  }
+  lo = Math.max(0, Math.floor(lo));
+  hi = Math.min(10, Math.ceil(hi));
+  if (hi - lo < MIN_SPAN) {
+    if (lo === 0) hi = Math.min(10, lo + MIN_SPAN);
+    else lo = Math.max(0, hi - MIN_SPAN);
+  }
+  return [lo, hi];
+}
+
+export function ScoreChart({ points, series, compact = false }: { points: readonly TimelinePoint[]; series: readonly ChartSeries[]; /** A phone: a shorter drawing. */ compact?: boolean }) {
+  const H = compact ? 96 : 104;
   const box = React.useRef<HTMLDivElement>(null);
   const uid = React.useId().replace(/[^a-zA-Z0-9]/g, "");
   const [width, setWidth] = React.useState(320);
@@ -42,7 +62,8 @@ export function ScoreChart({ points, series }: { points: readonly TimelinePoint[
   }, []);
   const last = points.at(-1)?.minute ?? 1;
   const x = (minute: number) => PAD + (minute / last) * (width - 2 * PAD);
-  const y = (score: number) => PAD + (1 - score / 10) * (H - 2 * PAD);
+  const [lo, hi] = axisRange(points.flatMap((p) => series.map((s) => p.scores[s.slot]).filter((v): v is number => typeof v === "number")));
+  const y = (score: number) => PAD + (1 - (score - lo) / (hi - lo)) * (H - 2 * PAD);
   const lines = series.map((s, k) => {
     const pts = points.flatMap((p, i) => (typeof p.scores[s.slot] === "number" ? [{ i, minute: p.minute, score: p.scores[s.slot]!, final: p.final }] : []));
     const timed = pts.filter((p) => !p.final);
@@ -96,18 +117,21 @@ export function ScoreChart({ points, series }: { points: readonly TimelinePoint[
             </span>
           ))
         ) : null}
+        {!shown ? (
+          // What the dotted segment is: the end reads the whole record, the points before it only what had happened by then.
+          <span className="inline-flex items-center gap-1" data-testid="score-chart-final-note">
+            <span className="inline-block w-3 border-t-2 border-dotted border-fg-muted" aria-hidden />
+            final figures
+          </span>
+        ) : null}
       </p>
       <div className="grid grid-cols-[1.25rem_minmax(0,1fr)] gap-x-1">
         <div className="relative text-2xs tabular-nums leading-none text-fg-subtle" style={{ height: H }} aria-hidden>
-          <span className="absolute right-0 -translate-y-1/2" style={{ top: y(10) }}>
-            10
-          </span>
-          <span className="absolute right-0 -translate-y-1/2" style={{ top: y(5) }}>
-            5
-          </span>
-          <span className="absolute right-0 -translate-y-1/2" style={{ top: y(0) }}>
-            0
-          </span>
+          {[...new Set([hi, 5, lo])].map((v) => (
+            <span key={v} className="absolute right-0 -translate-y-1/2" style={{ top: y(v) }} data-testid="score-chart-tick">
+              {v}
+            </span>
+          ))}
         </div>
         <div
           ref={box}
@@ -129,8 +153,8 @@ export function ScoreChart({ points, series }: { points: readonly TimelinePoint[
                 <stop offset="1" stopColor="var(--color-accent-2)" />
               </linearGradient>
             </defs>
-            <line x1={PAD} x2={width - PAD} y1={y(10)} y2={y(10)} stroke="var(--color-border)" strokeWidth={1} />
-            <line x1={PAD} x2={width - PAD} y1={y(0)} y2={y(0)} stroke="var(--color-border)" strokeWidth={1} />
+            <line x1={PAD} x2={width - PAD} y1={y(hi)} y2={y(hi)} stroke="var(--color-border)" strokeWidth={1} />
+            <line x1={PAD} x2={width - PAD} y1={y(lo)} y2={y(lo)} stroke="var(--color-border)" strokeWidth={1} />
             <line x1={PAD} x2={width - PAD} y1={y(5)} y2={y(5)} stroke="var(--color-border-strong)" strokeWidth={1} strokeDasharray="3 4" />
             {shown ? <line x1={x(shown.minute)} x2={x(shown.minute)} y1={PAD / 2} y2={H - PAD / 2} stroke="var(--color-fg-subtle)" strokeWidth={1} /> : null}
             {[...lines].reverse().map(({ s, k, pts, path, tail }) => {
