@@ -35,7 +35,7 @@ import type { DataStatus } from "@/domain/data-status";
 import { DataStatusNote, RefreshButton, type DataRefreshTarget } from "@/components/ui/data-status";
 import { useNow } from "@/components/ui/relative-time";
 import { fmtDuration, fmtInt, fmtNum } from "./match-format";
-import { WINDOW_POSTURE_QUERY, isTyping, modalOpen, prefersWindow } from "@/components/ui/posture";
+import { WINDOW_POSTURE_QUERY, keepsEscape, modalOpen, prefersWindow } from "@/components/ui/posture";
 import { pagerFold, pagerItems } from "./pager";
 import { screenHeight, scrollToStart } from "@/lib/screen";
 
@@ -195,7 +195,7 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
       onKeyDown={
         expanded
           ? (e) => {
-              if (e.key !== "Escape" || e.defaultPrevented || modalOpen() || isTyping(e.target)) return;
+              if (e.key !== "Escape" || e.defaultPrevented || modalOpen() || keepsEscape(e.target)) return;
               e.preventDefault();
               onToggle(row.matchId);
             }
