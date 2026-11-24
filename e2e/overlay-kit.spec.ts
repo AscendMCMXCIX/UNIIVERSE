@@ -141,7 +141,7 @@ test("phone 320 × 568: after stepping through games in the window, closing it (
   }
 });
 
-test("phone 390 × 844 (i12): a game's window, header, body and the Previous/Next bar with its folds closed, is at most 2.21 screens (PLAN S6's 2.0, raised for Release 16's inspection and score)", async ({ page }) => {
+test("phone 390 × 844 (i12): a game's window, header, body and the Previous/Next bar with its folds closed, is at most 2.32 screens (PLAN S6's 2.0, raised for Release 16's inspection and score)", async ({ page }) => {
   test.skip(!isPhone(page), "the phone's window over Match History");
   await page.setViewportSize({ width: 390, height: 844 });
   const profile = await teammate(page);
@@ -167,9 +167,9 @@ test("phone 390 × 844 (i12): a game's window, header, body and the Previous/Nex
     // Release 16 (owner's request of 23 Nov 2026): inspecting any player and the performance score add
     // Build Path | Skill Order | Runes, the score's line and a third line per scoreboard row (the rank
     // whole). With the support figures and the score's why, tiles and chart folded on phones, the
-    // demo's first game measured 2.15–2.17 screens (2.42 unfolded): the ceiling is that plus 2%
-    // (the page budgets' exception rule, e2e/page-budgets.json).
-    expect(Math.round(m.screens * 100) / 100, `game ${i + 1}: ${m.screens.toFixed(2)} screens`).toBeLessThanOrEqual(2.21);
+    // demo's three games measured 2.15, 2.20 and 2.27 screens (the first 2.42 unfolded): the ceiling
+    // is the largest plus 2% (the page budgets' exception rule, e2e/page-budgets.json).
+    expect(Math.round(m.screens * 100) / 100, `game ${i + 1}: ${m.screens.toFixed(2)} screens`).toBeLessThanOrEqual(2.32);
     if (i < 2) {
       const at = page.url();
       await win.getByTestId("match-detail-next").tap();

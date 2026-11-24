@@ -167,9 +167,11 @@ test("the badges keep the scoreboard's rows: inside their column, nothing overla
       expect(overlaps, `row ${i}: the rank over ${id}`).toBe(false);
     }
     expect(badge.height).toBeLessThanOrEqual(17);
-    // Its words whole, never shortened to a letter or two.
+    // On a phone its words whole, never shortened to a letter or two (its own line there since Release
+    // 16); a wider scoreboard keeps the one-line row, where a long rank may end in an ellipsis (its
+    // title and the screen reader's words hold it whole).
     const words = row.getByTestId("participant-rank-text");
-    if (await words.count()) expect(await words.evaluate((e) => e.scrollWidth <= e.clientWidth + 1), `row ${i}: the rank whole`).toBe(true);
+    if ((page.viewportSize()?.width ?? 1440) < 768 && (await words.count())) expect(await words.evaluate((e) => e.scrollWidth <= e.clientWidth + 1), `row ${i}: the rank whole`).toBe(true);
   }
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
 });

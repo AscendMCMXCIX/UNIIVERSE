@@ -371,6 +371,7 @@ test("Build Path, Skill Order and Runes above the lane: purchases with their tim
   const p2 = none.breakdown.getByTestId("participant-panels");
   await expect(p2.getByTestId("panel-timeline-missing")).toHaveText(/^Timeline not available for this game/);
   await expect(p2.getByTestId("build-visit")).toHaveCount(0);
+  await openScoreFold(none.breakdown);
   await expect(none.breakdown.getByTestId("performance-timeline-missing")).toBeVisible();
   // Its final scores still stand, from the record.
   await expect(none.breakdown.locator("[data-testid=participant-score][data-score]")).toHaveCount(10);
