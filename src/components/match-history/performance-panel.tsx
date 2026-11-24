@@ -46,8 +46,9 @@ export function RankChip({ score, className, marks = false }: { score: Pick<Play
  */
 export function ScoreWhy({ score, points, slot }: { score: PlayerScore | null; points: TimelinePoint[] | null; slot: number }) {
   if (!score) return null;
-  const timed = points?.filter((p) => !p.final).map((p) => p.scores[slot]).filter((v): v is number => typeof v === "number") ?? [];
-  const trend = trendOf(timed, score.score);
+  // The rules read the undamped weighted means (TimelinePoint.raw), never the chart's damped points.
+  const timed = points?.filter((p) => !p.final).map((p) => p.raw[slot]).filter((v): v is number => typeof v === "number") ?? [];
+  const trend = trendOf(timed, score.raw);
   const why = reasonText(score.reasons);
   if (!trend && !why && score.weights !== "NEUTRAL") return null;
   return (
