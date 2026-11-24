@@ -91,7 +91,17 @@ export function useFit(ref: React.RefObject<HTMLElement | null>, attribute: stri
     measure();
     window.addEventListener("resize", measure);
     void document.fonts?.ready.then(measure);
-    return () => window.removeEventListener("resize", measure);
+    // The page's frame changing size measures again as well: a resize's root size and column widths can settle a frame or
+    // more after its event (seen in Chromium with reduced motion emulated: the Production check read 1920 × 950 with the rows
+    // fitted for the root size of 1440, the milestones 16px past the window). Measuring leaves the layout as it was, and the
+    // fitted rows change it once, to a size that measures the same, so this settles.
+    const frame = typeof ResizeObserver === "function" ? document.getElementById("content") : null;
+    const observer = frame ? new ResizeObserver(() => measure()) : null;
+    if (frame) observer?.observe(frame);
+    return () => {
+      window.removeEventListener("resize", measure);
+      observer?.disconnect();
+    };
   }, [measure, key]);
   return fit;
 }

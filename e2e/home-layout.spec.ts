@@ -515,7 +515,7 @@ test("profile pools on a phone: every figure whole and under its column, editing
 // With larger text a profile's Overview stays as wide as the phone. Recent form's twenty bars share
 // their card's width with no floor: one in rem grew with the text and ran them up to 61px past the
 // card and the screen at 200% on 320px (the pools' column names ran past it too, above).
-test("at 150% to 200% text on 320, 375 and 393px phones, a profile's Overview is no wider than the phone, Recent form's bars inside their card", async ({ page }, info) => {
+test("at 150% to 200% text on 320, 375 and 393px phones, a profile's Overview is no wider than the phone, Recent form's bars inside their card, Season performance clear of Filters", async ({ page }, info) => {
   test.skip(info.project.name !== "phone", "phone widths, set below");
   await openTeammate(page);
   await expect(page.getByTestId("recent-form-strip")).toBeVisible();
@@ -534,6 +534,17 @@ test("at 150% to 200% text on 320, 375 and 393px phones, a profile's Overview is
       expect(strip.count, `${at}: the bars measured`).toBeGreaterThanOrEqual(5);
       expect(strip.past, `${at}: the newest bar inside the card`).toBeLessThanOrEqual(0.5);
       expect(strip.narrowest, `${at}: every bar still a bar`).toBeGreaterThanOrEqual(4);
+      // Season performance's title row wraps (the review's M7: the title ran under Filters at 200% on 320 and 375px): the
+      // title clear of every button, each button inside the page.
+      const header = await page.getByTestId("season-summary").evaluate((s) => {
+        const title = s.querySelector("#season-stats")!.getBoundingClientRect();
+        const buttons = [...s.querySelectorAll("[data-testid=section-toolbar] button")].map((b) => b.getBoundingClientRect()).filter((b) => b.width > 0);
+        const overlap = (a: DOMRect, b: DOMRect) => Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left)) * Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
+        return { buttons: buttons.length, overlap: Math.max(0, ...buttons.map((b) => overlap(title, b))), past: Math.max(...buttons.map((b) => b.right)) - document.documentElement.clientWidth };
+      });
+      expect(header.buttons, `${at}: Filters drawn`).toBeGreaterThanOrEqual(1);
+      expect(header.overlap, `${at}: Season performance clear of its buttons`).toBe(0);
+      expect(header.past, `${at}: its buttons inside the phone`).toBeLessThanOrEqual(0);
     }
   }
   await page.evaluate(() => { document.documentElement.style.fontSize = ""; });
@@ -563,4 +574,56 @@ test("profile Overview's 2×2 without recent form: Ranked progress beside the se
   await expect(page.getByTestId("ranked-progress").locator("details")).toHaveCount(0);
   // Its last part holds the chart (or the line saying there is nothing to draw).
   expect(await page.getByTestId("ranked-progress").evaluate((card) => !!card.lastElementChild?.querySelector("[data-testid=ranked-chart], [data-testid=ranked-no-chart]"))).toBe(true);
+});
+
+test("profile Overview on one screen for every seeded member, at 1920 × 950 and 1440 × 900 with the sidebar open or folded and at 1920 × 1080, a second Riot account's select included", async ({ page, context, baseURL }, info) => {
+  test.skip(info.project.name !== "desktop", "explicit window sizes");
+  test.setTimeout(240_000);
+  // The review's M5: a jungler's six-row pool with its off roles ran 9px past 1920 × 950. Every member the demo seeds,
+  // each pool size it has; a second account (linked as progress.spec does, to the member no other ranked test reads)
+  // puts Ranked progress's account select on its title row.
+  await page.goto("/players");
+  const sub = (await playerEntry(page, "Demo Sub (Support)").first().getAttribute("href"))!;
+  await page.goto(`${sub}/accounts`);
+  const panel = page.getByTestId("riot-accounts");
+  await expect(panel).toBeVisible();
+  if ((await panel.getByTestId("riot-account-row").count()) < 2) {
+    await page.getByRole("button", { name: "Add Riot account" }).click();
+    await page.getByPlaceholder("GameName#TAG").fill(`Second${info.project.name}#EUW`);
+    await page.getByRole("button", { name: "Link account" }).click();
+    await expect(panel.getByTestId("riot-account-row")).toHaveCount(2, { timeout: 30_000 });
+  }
+  await page.goto("/players");
+  await expect(playerEntry(page, "Demo Top")).toBeVisible();
+  const seeded = ["Demo Top", "Demo Jungle", "Demo Mid", "Demo ADC", "Demo Support", "Demo Sub (Top)", "Demo Sub (Support)", "Demo Halfway", "Demo Newcomer"];
+  const profiles: [string, string][] = [];
+  for (const name of seeded) {
+    const entry = playerEntry(page, name).first();
+    if (await entry.count()) profiles.push([name, (await entry.getAttribute("href"))!]);
+  }
+  expect(profiles.length, "the seeded members").toBeGreaterThanOrEqual(7);
+  let selects = 0;
+  for (const [width, height, sidebar] of [
+    [1920, 950, "collapsed"],
+    [1920, 950, "expanded"],
+    [1920, 1080, "expanded"],
+    [1440, 900, "expanded"],
+    [1440, 900, "collapsed"],
+  ] as const) {
+    await context.addCookies([{ name: "uniiverse_sidebar", value: sidebar, url: baseURL! }]);
+    await page.setViewportSize({ width, height });
+    for (const [name, href] of profiles) {
+      await page.goto(href);
+      await expect(page.getByTestId("season-figures")).toBeVisible();
+      const f = await page.evaluate(() => ({
+        height: document.documentElement.scrollHeight,
+        bottoms: ["season-figures", "ranked-progress", "recent-form", "champion-pools"].map((id) => Math.round(document.querySelector(`[data-testid=${id}]`)?.getBoundingClientRect().bottom ?? 0)),
+        select: !!document.querySelector("[data-testid=ranked-account-select]"),
+      }));
+      if (f.select) selects++;
+      const at = `${name} at ${width} × ${height}, sidebar ${sidebar}${f.select ? ", account select" : ""}`;
+      expect(f.height, `${at}: the page does not scroll (cards end at ${f.bottoms.join(", ")})`).toBeLessThanOrEqual(height);
+    }
+  }
+  expect(selects, "the member with two accounts showed its select at each size").toBeGreaterThanOrEqual(5);
 });

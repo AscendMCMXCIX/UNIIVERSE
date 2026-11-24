@@ -35,6 +35,33 @@ async function noOverflow(page: Page) {
   expect(overflow, "page wider than the viewport").toBeLessThanOrEqual(1);
 }
 
+/**
+ * Words on the page broken across two lines (a name split inside a word, as at 1440 in the review's M4): each word of every
+ * text node drawn, by the lines its boxes take. Truncated text takes one line, so it never counts.
+ */
+const brokenWords = (page: Page) =>
+  page.getByTestId("leaderboards").evaluate((root) => {
+    const out: string[] = [];
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    const range = document.createRange();
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+      for (const m of (n.textContent ?? "").matchAll(/\S+/g)) {
+        range.setStart(n, m.index!);
+        range.setEnd(n, m.index! + m[0].length);
+        const lines = new Set([...range.getClientRects()].filter((r) => r.width > 0).map((r) => Math.round(r.top)));
+        if (lines.size > 1) out.push(m[0]);
+      }
+    }
+    return out;
+  });
+
+/** Multikills' most-of-each tiles: each holder line drawn on one line, its whole names in its title (M4). */
+const tileHolders = (page: Page) =>
+  page
+    .getByTestId("records-multikills")
+    .locator("[data-testid=multikill-most-holders]")
+    .evaluateAll((els) => els.filter((e) => e.getBoundingClientRect().height > 0).map((e) => ({ lines: Math.round(e.getBoundingClientRect().height / parseFloat(getComputedStyle(e).lineHeight)), titled: e.getAttribute("title") === e.textContent })));
+
 /** "1st", "2nd", "4th", "11th": the place in words, as the page writes it (formatOrdinal). */
 const ordinal = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? "th" : (["th", "st", "nd", "rd"][n % 10] ?? "th")}`;
 
@@ -140,8 +167,10 @@ test("tablet and desktop: once the header has gone up, the pinned row holds the 
   // Every tab whole: the last tab ends inside the tab list, clear of anything at the row's end.
   const clear = await page.evaluate(() => {
     const tabs = document.querySelector("[data-testid=team-tabs]")!;
-    const list = tabs.querySelector("ul")!.getBoundingClientRect();
-    const last = [...tabs.querySelectorAll("ul a")].at(-1)!.getBoundingClientRect();
+    // The tabs' own list: the pinned row's index (from xl) is a list of links in the same row, after it.
+    const ul = tabs.querySelector("ul")!;
+    const list = ul.getBoundingClientRect();
+    const last = [...ul.querySelectorAll("a")].at(-1)!.getBoundingClientRect();
     return last.right <= list.right + 0.5;
   });
   expect(clear, "Team's tabs whole in the pinned row").toBe(true);
@@ -760,6 +789,12 @@ test("one screen from a 59rem page: two columns, each board under the one before
       const f = await boards(page);
       const at = `${width} × ${height}, sidebar ${sidebar} (a ${f.page.toFixed(1)}rem page)`;
       await noOverflow(page);
+      // Names whole (M4): no word broken across lines, and each most-of-each tile's holders on one line, cut short with an
+      // ellipsis where they run long, the whole names in its title.
+      expect(await brokenWords(page), `${at}: no word broken across two lines`).toEqual([]);
+      const tiles = await tileHolders(page);
+      expect(tiles.length, `${at}: the four most-of-each tiles`).toBe(4);
+      for (const t of tiles) expect(t, `${at}: a tile's holders on one line, named whole in its title`).toEqual({ lines: 1, titled: true });
       // The one screen is sized for the team the demo seeds (nine members, as the owner's eight). Other specs in a full run add
       // members (28 in CI's run of the combined tree, each a chip in Recent form's last group), and Recent form, the ranking, is
       // listed whole, so with more members the boards under it start lower: then the arrangement is checked, not the window.

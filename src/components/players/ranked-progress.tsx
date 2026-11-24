@@ -149,7 +149,10 @@ export function RankedProgress({ accounts, queue, accountId, href, now }: { acco
                 </Link>
               ))}
             </nav>
-            {accounts.length > 1 ? <RankedAccountSelect value={account.id} accounts={accounts.map((a) => ({ id: a.id, label: names.get(a.id) ?? a.riotId, href: href({ ra: a.id }) }))} /> : null}
+            {/* On the title's row the select is at most 7.5rem, its name cut short (whole in the list): wider, it pushed "Ranked
+                progress" onto two lines, and the taller card cost the one-screen Overview a row of Recent form's champions at
+                1440 × 900 and 1920 × 950 (Release 16, the review's M5). */}
+            {accounts.length > 1 ? <RankedAccountSelect value={account.id} accounts={accounts.map((a) => ({ id: a.id, label: names.get(a.id) ?? a.riotId, href: href({ ra: a.id }) }))} className="md:@min-[24rem]/rank:min-w-[6rem] md:@min-[24rem]/rank:max-w-[7.5rem]" /> : null}
           </div>
           {chartable ? (
             <div className="col-span-2 min-w-0">

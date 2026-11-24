@@ -178,12 +178,19 @@ test("tablet and desktop: a profile section chosen far down the page starts at i
   const bar = await page.evaluate(() => document.querySelector<HTMLElement>("[data-testid=mobile-topbar]")?.offsetHeight ?? 0);
   if ((await target()) === (await pinnedTop())) expect(Math.abs((await rect(tabs)).top - bar), "the tabs pinned at the frame's top").toBeLessThanOrEqual(1);
 
-  // And from there, far down the Overview, to History.
+  // And from there, far down the Overview, to History. The one-screen Overview (a 1440 × 900 desktop, Release 16) has no far
+  // down: the page cannot scroll past the card, so it is at rest and History keeps it still, as a section chosen at rest does.
   await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  const overviewAt = await page.evaluate(() => window.scrollY);
+  const farDown = overviewAt >= (await pinnedTop()) - 2;
   await tapInPlace(page, tabs.getByTestId("profile-tab-matches"));
   await expect(page).toHaveURL(new RegExp(`${profile}/matches$`));
   await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
-  await settled("Overview → History");
+  if (farDown) await settled("Overview → History");
+  else {
+    await page.waitForTimeout(600);
+    expect(await page.evaluate(() => window.scrollY), "Overview at rest → History keeps the page still, never lower").toBeLessThanOrEqual(overviewAt);
+  }
 });
 
 test("tablet and desktop: Team's sections stay in reach as a long page scrolls, and switch the section from there", async ({ page }) => {
@@ -195,6 +202,14 @@ test("tablet and desktop: Team's sections stay in reach as a long page scrolls, 
   await page.goto("/leaderboards");
   await expect(page.getByTestId("leaderboards")).toHaveAttribute("data-ready", "true");
   await expect(page.getByTestId("records")).toBeVisible();
+  // Since Release 16 a desktop's boards fit the window (the multikills and the milestones fold to the rows that fit, the rest
+  // behind their Show all), so the page is long only with them open: open both, as a reader going through them would.
+  if (!isTablet(page)) {
+    for (const id of ["multikill-show-all", "milestones-show-all"]) {
+      const show = page.getByTestId(id).getByRole("button");
+      if (await show.isVisible()) await show.click();
+    }
+  }
   const tabs = page.getByTestId("team-tabs");
   const resting = await rect(tabs);
   // At rest the bar is part of the page: no ink of its own.

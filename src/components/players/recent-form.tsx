@@ -22,7 +22,7 @@ const fmt = (m: Pick<FormMetric, "key" | "recent">) => (m.recent === null ? "—
  * sample, and the same comparison for KDA and CS/min (vision for supports). "Better lately" /
  * "worse lately" only appear with enough games on both sides. Hidden below five games.
  */
-export function RecentFormStrip({ form, championsById, historyHref, narrowed = null, champions = false }: { form: RecentForm; championsById: Record<string, PortraitChampion>; historyHref: string; /** The Refine filters narrowing it, in words (it counts the same games as Season performance). */ narrowed?: string | null; /** List the champions of these games (RecentChampions): only where the Overview has Ranked progress beside it, so its 2×2 applies. */ champions?: boolean }) {
+export function RecentFormStrip({ form, championsById, historyHref, narrowed = null, champions = false, fewer = false }: { form: RecentForm; championsById: Record<string, PortraitChampion>; historyHref: string; /** The Refine filters narrowing it, in words (it counts the same games as Season performance). */ narrowed?: string | null; /** List the champions of these games (RecentChampions): only where the Overview has Ranked progress beside it, so its 2×2 applies. */ champions?: boolean; /** One champion fewer in the server's drawing: Ranked progress above has an account select, which can take its title onto two lines (RecentChampions). */ fewer?: boolean }) {
   if (form.season.games < FORM_MIN_GAMES) return null;
   const strip = [...form.last].reverse();
   const wins = strip.filter((g) => g.win).length;
@@ -102,7 +102,7 @@ export function RecentFormStrip({ form, championsById, historyHref, narrowed = n
           </div>
         ))}
       </dl>
-      {champions ? <RecentChampions last={form.last} champ={champ} /> : null}
+      {champions ? <RecentChampions last={form.last} champ={champ} fewer={fewer} /> : null}
     </section>
   );
 }
@@ -116,8 +116,16 @@ export function RecentFormStrip({ form, championsById, historyHref, narrowed = n
  * the window's bottom (FitChampions, fit-rows.tsx), every champion of the games where there is room.
  */
 export const RECENT_CHAMPIONS_SHOWN = 4;
-/** Each row's fold in the server's drawing (the "css" mode), by its index: literal classes, for Tailwind. */
-const CHAMPION_ROW_FOLD = (i: number) => (i < 2 ? "" : i === 2 ? "group-data-[fit=css]/fit:board-below-mid:hidden" : i === 3 ? "group-data-[fit=css]/fit:board-below-short:hidden" : "group-data-[fit=css]/fit:hidden");
+/**
+ * Each row's fold in the server's drawing (the "css" mode), by its index: literal classes, for Tailwind.
+ * With an account select in Ranked progress (`fewer`) one row fewer in each height: in a narrow rail
+ * (1440 × 900 with the sidebar open) the select takes the card's title onto two lines, and the server's
+ * drawing never runs past the window (the fit adds the row back where it fits, at the list's end).
+ */
+const CHAMPION_ROW_FOLD = (i: number, fewer: boolean) => {
+  const at = fewer ? i + 1 : i;
+  return at < 2 ? "" : at === 2 ? "group-data-[fit=css]/fit:board-below-mid:hidden" : at === 3 ? "group-data-[fit=css]/fit:board-below-short:hidden" : "group-data-[fit=css]/fit:hidden";
+};
 
 /**
  * The champions of the same recent games, most played first (the newest game breaking a tie), each
@@ -128,7 +136,7 @@ const CHAMPION_ROW_FOLD = (i: number) => (i < 2 ? "" : i === 2 ? "group-data-[fi
  * The rest are never hidden without saying so: "and N more" on the heading's line, its count the one
  * shown, and Match History (the strip's link) lists every game.
  */
-function RecentChampions({ last, champ }: { last: RecentForm["last"]; champ: (id: string) => PortraitChampion }) {
+function RecentChampions({ last, champ, fewer }: { last: RecentForm["last"]; champ: (id: string) => PortraitChampion; fewer: boolean }) {
   const by = new Map<string, { id: string; games: number; wins: number; at: number }>();
   for (const g of last) {
     const c = by.get(g.championId) ?? { id: g.championId, games: 0, wins: 0, at: 0 };
@@ -138,8 +146,8 @@ function RecentChampions({ last, champ }: { last: RecentForm["last"]; champ: (id
     by.set(g.championId, c);
   }
   const rows = [...by.values()].sort((a, b) => b.games - a.games || b.at - a.at);
-  // "and N more" in each height until measured: two, three or four rows shown.
-  const more = (n: number) => Math.max(0, rows.length - n);
+  // "and N more" in each height until measured: two, three or four rows shown (one, two or three with `fewer`).
+  const more = (n: number) => Math.max(0, rows.length - (fewer ? n - 1 : n));
   const counts: Array<[number, string]> = [
     [more(2), "board-at-mid:hidden"],
     [more(3), "hidden board-at-mid:board-below-short:inline"],
@@ -160,7 +168,7 @@ function RecentChampions({ last, champ }: { last: RecentForm["last"]; champ: (id
       >
         <ul className="mt-1.5 divide-y divide-border/60">
           {rows.map((c, i) => (
-            <li key={c.id} className={cn("flex min-w-0 items-center gap-2.5 py-1", CHAMPION_ROW_FOLD(i))} data-champion={c.id} data-ov-rank={i + 1}>
+            <li key={c.id} className={cn("flex min-w-0 items-center gap-2.5 py-1", CHAMPION_ROW_FOLD(i, fewer))} data-champion={c.id} data-ov-rank={i + 1}>
               <span aria-hidden className="inline-flex">
                 <ChampionPortrait champion={champ(c.id)} size="xs" />
               </span>

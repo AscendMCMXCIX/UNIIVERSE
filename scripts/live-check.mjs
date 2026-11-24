@@ -1033,8 +1033,17 @@ async function oneScreenFacts(page, area, which) {
     for (const [width, height] of [[1440, 900], [1920, 950], [1920, 1080]]) {
       await page.setViewportSize({ width, height });
       await page.evaluate(() => window.scrollTo(0, 0));
-      await page.waitForTimeout(400);
-      const read = await page.evaluate(readOneScreen, oneScreenInput(which));
+      // Read once the page has settled: with reduced motion emulated (this context), Chromium applies a resize's root size a
+      // frame or more after the window's, and the fitted rows follow it (a read at 400ms caught 1920 × 950 laid out at 1440's
+      // root size). Two reads alike 250ms apart, at most 3s.
+      let read = null;
+      for (let waited = 0; waited < 3000; waited += 250) {
+        await page.waitForTimeout(250);
+        const next = await page.evaluate(readOneScreen, oneScreenInput(which));
+        const same = read && JSON.stringify(next) === JSON.stringify(read);
+        read = next;
+        if (same) break;
+      }
       for (const v of oneScreenVerdicts({ page: which, size: `${width} × ${height}`, read })) check(area, v.name, v.status, v.detail);
     }
   } finally {

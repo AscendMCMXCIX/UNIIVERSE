@@ -176,7 +176,10 @@ more than six shows its first five champions with a Show all at its end (`PRIMAR
 `PRIMARY_POOL_FOLD_OVER`), so no player's pool makes the page disproportionately tall. At 1440 × 900,
 1920 × 950 and 1920 × 1080 the whole Overview is on the first screen whatever the pool's size (Release 16: the
 scope beside Season performance's title, 40px pool rows with their column names on the pool's
-heading line, no box around a folded off role, Ranked progress's queue on its title row); on small
+heading line, no box around a folded off role, "Off roles: None yet" on one line, Ranked progress's
+queue and account select on its title row; measured for every member of both demos, with and
+without a second Riot account; at 1440 × 780 a pool of four or more rows still runs 9 to 110px past
+the window, which is reported rather than folded, docs/TEAM_LEADERBOARDS.md, "One screen"); on small
 screens and at large text sizes readability wins over the one screen. Leaderboards is one screen
 from a 59rem page too (docs/TEAM_LEADERBOARDS.md, "One screen"): a board that cannot show every row
 there shows as many as fit above the window's bottom (`src/components/ui/fit-rows.tsx`) and says how

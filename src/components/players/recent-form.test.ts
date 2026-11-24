@@ -28,6 +28,14 @@ describe("Recent form's champions (the Overview's 2×2)", () => {
     expect(html).toMatch(/class="hidden min-\[90rem\]:@min-\[68rem\]\/ov:block" data-testid="recent-form-champions"/);
   });
 
+  it("draws one champion fewer in each height where Ranked progress has an account select (its title can take two lines)", () => {
+    const html = renderToStaticMarkup(createElement(RecentFormStrip, { form, championsById: {}, historyHref: "/h", champions: true, fewer: true }));
+    expect(html).toContain('<span class="board-at-mid:hidden">and 5 more</span><span class="hidden board-at-mid:board-below-short:inline">and 4 more</span><span class="hidden board-at-short:inline">and 3 more</span>');
+    expect(html).toMatch(/class="flex min-w-0 items-center gap-2.5 py-1 group-data-\[fit=css\]\/fit:board-below-mid:hidden" data-champion="Orianna"/);
+    expect(html).toMatch(/class="flex min-w-0 items-center gap-2.5 py-1 group-data-\[fit=css\]\/fit:board-below-short:hidden" data-champion="Azir"/);
+    expect(html).toMatch(/class="flex min-w-0 items-center gap-2.5 py-1 group-data-\[fit=css\]\/fit:hidden" data-champion="Syndra"/);
+  });
+
   it("is left out where the Overview has no Ranked progress beside Recent form", () => {
     expect(render(false)).not.toContain("recent-form-champions");
   });

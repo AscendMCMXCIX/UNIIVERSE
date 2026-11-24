@@ -18,6 +18,7 @@ const LEADERBOARDS_1440: OneScreenRead = {
     { board: "records-multikills", present: true, total: 7, shown: 4, button: true, words: "Show all 7 · , 3 more of the multikill ranking" },
     { board: "records-milestones", present: true, total: 8, shown: 5, button: true, words: "Show all 8 · , 3 more of the milestones" },
   ],
+  words: { broken: 0, tiles: 4, oneLine: 4 },
 };
 const PROFILE_1440: OneScreenRead = {
   window: 900,
@@ -43,8 +44,13 @@ describe("one screen", () => {
 
   it("passes the demo's pages at 1440 × 900", () => {
     const lb = oneScreenVerdicts({ page: "leaderboards", size: "1440 × 900", read: LEADERBOARDS_1440 });
-    expect(lb.map((v) => v.name)).toEqual(["1440 × 900: Leaderboards' four boards end within the window", "1440 × 900: Multikills: the rows not shown are behind a Show all that says how many", "1440 × 900: Milestones: the rows not shown are behind a Show all that says how many"]);
-    expect(statuses(lb)).toEqual(["PASS", "PASS", "PASS"]);
+    expect(lb.map((v) => v.name)).toEqual([
+      "1440 × 900: Leaderboards' four boards end within the window",
+      "1440 × 900: Multikills: the rows not shown are behind a Show all that says how many",
+      "1440 × 900: Milestones: the rows not shown are behind a Show all that says how many",
+      "1440 × 900: names whole: no word broken across two lines, each multikill tile's holders on one line",
+    ]);
+    expect(statuses(lb)).toEqual(["PASS", "PASS", "PASS", "PASS"]);
     const pr = oneScreenVerdicts({ page: "profile", size: "1440 × 900", read: PROFILE_1440 });
     expect(statuses(pr)).toEqual(["PASS", "PASS"]);
     expect(pr[1]!.name).toBe("1440 × 900: the primary pool: every row shown, no Show all");
@@ -66,12 +72,20 @@ describe("one screen", () => {
     expect(oneScreenVerdicts({ page: "profile", size: "1440 × 900", read: { ...PROFILE_1440, boxes: PROFILE_1440.boxes.filter((b) => b.id !== "champion-pools") } })[0]!.status).toBe("FAIL");
   });
 
+  it("fails a name broken inside a word, or a multikill tile on two lines (counts only, never the words)", () => {
+    const broken = oneScreenVerdicts({ page: "leaderboards", size: "1440 × 900", read: { ...LEADERBOARDS_1440, words: { broken: 1, tiles: 4, oneLine: 4 } } });
+    expect(statuses(broken)).toEqual(["PASS", "PASS", "PASS", "FAIL"]);
+    expect(broken[3]!.detail).toEqual({ broken: 1, tiles: 4, oneLine: 4 });
+    expect(statuses(oneScreenVerdicts({ page: "leaderboards", size: "1440 × 900", read: { ...LEADERBOARDS_1440, words: { broken: 0, tiles: 4, oneLine: 3 } } })).at(-1)).toBe("FAIL");
+    expect(oneScreenInput("profile").whole).toBeNull();
+  });
+
   it("fails rows folded away without a Show all, or one that miscounts; and a Show all where every row shows", () => {
     const silent = { ...LEADERBOARDS_1440, folds: [{ board: "records-multikills", present: true, total: 7, shown: 4, button: false, words: null }] };
-    expect(statuses(oneScreenVerdicts({ page: "leaderboards", size: "1440 × 900", read: silent }))).toEqual(["PASS", "FAIL"]);
+    expect(statuses(oneScreenVerdicts({ page: "leaderboards", size: "1440 × 900", read: silent }))).toEqual(["PASS", "FAIL", "PASS"]);
     const wrong = { ...LEADERBOARDS_1440, folds: [{ board: "records-multikills", present: true, total: 7, shown: 4, button: true, words: "Show all 7 · , 2 more of the multikill ranking" }] };
-    expect(statuses(oneScreenVerdicts({ page: "leaderboards", size: "1440 × 900", read: wrong }))).toEqual(["PASS", "FAIL"]);
+    expect(statuses(oneScreenVerdicts({ page: "leaderboards", size: "1440 × 900", read: wrong }))).toEqual(["PASS", "FAIL", "PASS"]);
     const extra = { ...LEADERBOARDS_1440, folds: [{ board: "records-milestones", present: true, total: 4, shown: 4, button: true, words: "Show all 4 · , 0 more of the milestones" }] };
-    expect(statuses(oneScreenVerdicts({ page: "leaderboards", size: "1440 × 900", read: extra }))).toEqual(["PASS", "FAIL"]);
+    expect(statuses(oneScreenVerdicts({ page: "leaderboards", size: "1440 × 900", read: extra }))).toEqual(["PASS", "FAIL", "PASS"]);
   });
 });

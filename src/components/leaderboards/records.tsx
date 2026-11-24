@@ -483,11 +483,14 @@ function MostOfEach({ most, player }: { most: MultikillsView["most"]; player: (i
             <li key={m.key} className={MOST_CELL} data-testid="multikill-most-kind" data-kind={m.key} data-count={m.count ?? undefined}>
               <p className="text-xs text-fg-muted">{m.label}</p>
               {m.count ? (
-                <p className="flex min-w-0 flex-wrap items-baseline gap-x-1.5">
-                  <span className="text-base leading-5 font-semibold tabular-nums text-fg" data-testid="multikill-most-count">
+                // One line a stat on the desktop's one-screen board (Release 16, M4: "Thunderstruc|k Kaiser" broke inside the word and
+                // ran the board past the window): the names cut short there, whole in the title, each holder's row above naming them
+                // too. Elsewhere (phones, tablets: no title to show them) the names wrap between words, never inside one.
+                <p className="flex min-w-0 flex-wrap items-baseline gap-x-1.5 @min-[59rem]/dash:flex-nowrap">
+                  <span className="shrink-0 text-base leading-5 font-semibold tabular-nums text-fg" data-testid="multikill-most-count">
                     {m.count}
                   </span>
-                  <span className="min-w-0 text-xs font-medium text-fg [overflow-wrap:anywhere]" data-testid="multikill-most-holders">
+                  <span className="min-w-0 text-xs font-medium text-fg @min-[59rem]/dash:truncate" title={names.join(", ")} data-testid="multikill-most-holders">
                     {names.join(", ")}
                   </span>
                 </p>

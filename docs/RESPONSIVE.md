@@ -426,7 +426,10 @@ the phone project):
   list, where a row cannot hold the columns' 7.5rem, the figures take the row's width and name
   themselves in words, and the column names step aside. The season's figures go two across under
   17.5rem of card (three across needs 17.34rem with the widest figures: "6 champions" ran 63px past
-  the card at 200% on 320px) and one across under 11.75rem (two across needs 11.66rem).
+  the card at 200% on 320px) and one across under 11.75rem (two across needs 11.66rem). Season
+  performance's title row wraps where the title and its buttons do not fit one line (Release 16, the
+  review's M7: beside Filters the title was squeezed to 47–102px and ran under it at 200% on 320 and
+  375px): the title keeps its line, the buttons take the next at its end, wrapping in turn.
 - **Leaderboards' Recent form** (`recent-leaderboards.tsx`, `data-list.tsx`;
   `e2e/large-text-leaderboards.spec.ts`): the rows reflow at 17.5, 16.5 and 13.5rem of board, and
   "You" drops under a name it would break (TEAM_LEADERBOARDS.md → Recent form, Layout).
