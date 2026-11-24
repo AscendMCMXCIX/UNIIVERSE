@@ -69,7 +69,8 @@ test("every player in the scoreboard has one rank badge: a dated current rank, U
     await expect(badge).toHaveCount(1);
     const state = (await badge.getAttribute("data-state"))!;
     states.push(state);
-    const shown = (await badge.getByTestId("participant-rank-text").innerText()).trim();
+    // The rank's words (data-text: what the badge writes in full; 30–36rem shows the card's short form, "E2").
+    const shown = (await badge.getByTestId("participant-rank-text").getAttribute("data-text"))!.trim();
     const title = (await badge.getAttribute("title"))!;
     const timing = await badge.getAttribute("data-timing");
     // A rank read away from the game (later, or before it) carries the clock, and only then.
@@ -113,7 +114,7 @@ test("a rank from the match's other ranked queue is marked, and only then", asyn
     const badges = page.locator('[data-testid="participant-rank"][data-state="ranked"]');
     for (let b = 0; b < (await badges.count()); b++) {
       const badge = badges.nth(b);
-      const shown = (await badge.getByTestId("participant-rank-text").innerText()).trim();
+      const shown = (await badge.getByTestId("participant-rank-text").getAttribute("data-text"))!.trim();
       const inOwnQueue = (await badge.getAttribute("data-queue")) === own;
       expect(shown.startsWith(`${mark} `), `${queue}: "${shown}"`).toBe(!inOwnQueue);
       expect(shown.startsWith(`${own === "flex" ? "Flex" : "Solo"} `)).toBe(false);

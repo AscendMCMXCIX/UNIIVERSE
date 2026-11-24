@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { COMPONENT_ORDER, OUTCOME_STEP, ROLE_WEIGHTS, SCORE_VERSION, laneValue, reasonText, scoreMatch, scoreModeOf, seriesAt, timelineScores, toTen, trendOf, evidenceAt, teamAverages, TREND_SENTENCES, EXCELLENT_AT, type ScoreInput, type ScoreLane, type TimelineInput } from "./performance-score";
+import { TYPICAL_FIGURES, COMPONENT_ORDER, OUTCOME_STEP, ROLE_WEIGHTS, SCORE_VERSION, laneValue, reasonText, scoreMatch, scoreModeOf, seriesAt, timelineScores, toTen, trendOf, evidenceAt, teamAverages, TREND_SENTENCES, EXCELLENT_AT, type ScoreInput, type ScoreLane, type TimelineInput } from "./performance-score";
 
 /*
   The performance score's worked examples and fairness tests (docs/PERFORMANCE_SCORE.md). A game is
@@ -32,7 +32,7 @@ const scoreOf = (s: ReturnType<typeof scoreMatch>, slot: number) => s!.players.f
 
 describe("the score's scale and components", () => {
   it("is versioned, and every role's weights cover every component", () => {
-    expect(SCORE_VERSION).toBe("v2");
+    expect(SCORE_VERSION).toBe("v3");
     for (const w of Object.values(ROLE_WEIGHTS)) expect(Object.keys(w).sort()).toEqual([...COMPONENT_ORDER].sort());
   });
 
@@ -45,19 +45,17 @@ describe("the score's scale and components", () => {
     expect(toTen(-2.65)).toBeGreaterThan(0);
   });
 
-  it("scores a typical game near 5 in every role (within 0.75 of the team's mean), winners a little up and losers a little down", () => {
+  it("scores a typical game the same in every role (within 0.2 on each team, v3's role references), winners a little up and losers a little down", () => {
     const s = scoreMatch(game(), RIFT)!;
     expect(s.scored).toBe(10);
     for (const team of [100, 200]) {
-      const mine = s.players.filter((p) => p.teamId === team);
-      const avg = mine.reduce((n, p) => n + p.score, 0) / 5;
-      expect(avg).toBeCloseTo(team === 100 ? 5.9 : 5.1, 0);
-      for (const p of mine) {
-        expect(Math.abs(p.score - avg), `${LANES[p.slot % 5]} ${team}`).toBeLessThanOrEqual(0.75);
-        expect(p.score).toBeGreaterThanOrEqual(4);
-        expect(p.score).toBeLessThanOrEqual(7);
-      }
+      const mine = s.players.filter((p) => p.teamId === team).map((p) => p.score);
+      expect(Math.max(...mine) - Math.min(...mine), `team ${team}`).toBeLessThanOrEqual(0.2);
+      for (const v of mine) expect(Math.abs(v - 5), `team ${team}`).toBeLessThanOrEqual(0.4);
     }
+    // The result alone: about 0.4 between two players with the same figures.
+    expect(scoreOf(s, 3).score - scoreOf(s, 8).score).toBeGreaterThanOrEqual(0.3);
+    expect(scoreOf(s, 3).score - scoreOf(s, 8).score).toBeLessThanOrEqual(0.5);
     // Both sides played the same game: each winner is its counterpart plus the result's two steps.
     for (let i = 0; i < 5; i++) expect(scoreOf(s, i).raw - scoreOf(s, i + 5).raw).toBeCloseTo(2 * OUTCOME_STEP, 9);
   });
@@ -74,12 +72,19 @@ describe("the score's scale and components", () => {
     expect(remake.players.some((p) => p.mvp || p.ace)).toBe(false);
   });
 
-  it("leaves a figure out for everyone when one player's record lacks it, and one nobody differs on", () => {
+  it("leaves a figure out for everyone when one player's record lacks it, and never scores turret takedowns (a team fact)", () => {
     const s = scoreMatch(game({ 3: { ccSeconds: null } }), RIFT)!;
     expect(s.components).not.toContain("cc");
-    const flat = scoreMatch(game().map((p) => ({ ...p, turretTakedowns: 1 })), RIFT)!;
-    expect(flat.components).not.toContain("turrets");
     expect(s.components).toContain("vision");
+    for (const p of s.players) expect(p.used).not.toContain("turrets");
+  });
+
+  it("is not thrown by tiny differences (MIN_SPREAD): one jungler's 50 healing, one turret in the game", () => {
+    const base = scoreMatch(game(), RIFT)!;
+    const heal = scoreMatch(game(Object.fromEntries([...Array(10).keys()].map((i) => [i, { teamHealing: i === 1 ? 50 : TYPICAL_FIGURES[LANES[i % 5]!].teamHealing }]))), RIFT)!;
+    for (let i = 0; i < 10; i++) expect(Math.abs(scoreOf(heal, i).score - scoreOf(base, i).score), `slot ${i}`).toBeLessThanOrEqual(0.3);
+    const towers = scoreMatch(game(Object.fromEntries([...Array(10).keys()].map((i) => [i, { turretTakedowns: i === 0 ? 1 : 0 }]))), RIFT)!;
+    for (let i = 0; i < 10; i++) expect(scoreOf(towers, i).score).toBe(scoreOf(base, i).score);
   });
 
   it("counts the lane only for players whose lane the timeline confirms", () => {
@@ -116,7 +121,7 @@ describe("fairness", () => {
     const s = scoreMatch(game({ 2: { kills: 8, deaths: 13, assists: 3, cs: 170, damage: 21_000, gold: 11_000 } }), RIFT)!;
     expect(scoreOf(s, 2).score).toBeLessThan(4);
     expect(scoreOf(s, 2).rank).toBeGreaterThanOrEqual(8);
-    expect(reasonText(scoreOf(s, 2).reasons)).toMatch(/Held back by (many deaths|a weak KDA)/);
+    expect(reasonText(scoreOf(s, 2).reasons)).toMatch(/Held back by /);
   });
 
   it("a win does not lift a weak game above a strong losing game", () => {
@@ -209,8 +214,6 @@ describe("the timeline score", () => {
     expect(points.at(-1)!.scores[0]).toBe(scoreOf(final, 0).score);
     // Before the end: no damage, vision or other end-of-game figure, and no result step.
     for (const p of points.slice(0, -1)) for (const k of ["damage", "vision", "wards", "cc", "protect", "objectives", "turrets", "tanking"]) expect(p.components).not.toContain(k);
-    // At 5:00 nobody had a kill yet (the kills come after 16:40): the kill figures do not differ, so are not read.
-    expect(points[0]!.components).not.toContain("kp");
     // The top laner ahead in gold and experience leads his lane from the first point.
     expect(points[0]!.scores[0]!).toBeGreaterThan(points[0]!.scores[5]!);
   });
@@ -267,29 +270,73 @@ describe("the timeline's damping (v2)", () => {
     expect(points.at(-1)!.scores[3]).toBe(scoreMatch(inputs, { mode: "rift", minutes })!.players.find((p) => p.slot === 3)!.score);
   });
 
-  it("an ordinary game played the same throughout reads Steady, and a strong one is not called Rising for the damping alone", () => {
-    const points = run(game());
-    for (let slot = 0; slot < 10; slot++) expect(trendOf(series(points, slot))?.word, `slot ${slot}`).toBe("Steady");
-    const strong = run(game({ 3: { kills: 14, deaths: 1, assists: 9, damage: 40_000, gold: 16_000, cs: 290 } }));
-    expect(["Rising", "Fading"]).not.toContain(trendOf(series(strong, 3))?.word);
-  });
 });
 
-describe("trend words", () => {
+describe("trend words (v3: read on the undamped weighted means, z units)", () => {
   it("follow their written rules, the first that holds naming the trend", () => {
-    expect(trendOf([7, 7.2, 6.8, 6.9])?.word).toBe("Dominant");
-    expect(trendOf([3, 2.8, 3.4])?.word).toBe("Struggling");
-    // A weak start, then an above-average finish (the final score read for this one rule).
-    expect(trendOf([3, 4, 5, 5.5], 6.2)?.word).toBe("Resilient");
-    expect(trendOf([3, 4, 5, 5.5], 5)?.word).toBe("Rising");
-    expect(trendOf([7, 6, 4, 3.5])?.word).toBe("Fading");
-    expect(trendOf([7, 6.5, 6.2, 6.0, 5.9, 6.1])?.word).toBe("Fast start");
-    expect(trendOf([5.5, 2.5, 7, 6.5, 2.4])?.word).toBe("Erratic");
-    expect(trendOf([5, 5.5, 5.2, 4.9])?.word).toBe("Steady");
-    expect(trendOf([5, 6.4, 4.2, 5.8])).toBeNull();
-    expect(trendOf([5, 6])).toBeNull();
-    expect(trendOf([7, 7.2, 6.8])?.sentence).toBe(TREND_SENTENCES.Dominant);
+    expect(trendOf([0.6, 0.7, 0.5, 0.55], 0.6)?.word).toBe("Dominant");
+    expect(trendOf([-0.6, -0.5, -0.7], -0.5)?.word).toBe("Struggling");
+    // A weak start, then an above-average finish (the final read for this rule).
+    expect(trendOf([-0.5, -0.2, 0, 0.1], 0.3)?.word).toBe("Resilient");
+    expect(trendOf([-0.2, 0, 0.2, 0.3], 0.3)?.word).toBe("Rising");
+    expect(trendOf([0.4, 0.2, -0.1, -0.2], -0.2)?.word).toBe("Fading");
+    expect(trendOf([0, 0.05, 0.1, 0.05], 0.6)?.word).toBe("Strong finish");
+    expect(trendOf([0, 0.05, 0.1, 0.05], -0.4)?.word).toBe("Weak finish");
+    expect(trendOf([0.5, 0.45, 0.4, 0.42, 0.4, 0.45], 0.45)?.word).toBe("Fast start");
+    expect(trendOf([0, -0.6, 0.5, 0.4, -0.5], -0.5)?.word).toBe("Erratic");
+    expect(trendOf([0, 0.1, 0.05, -0.05], 0.05)?.word).toBe("Steady");
+    expect(trendOf([0, 0.25, -0.2, 0.15], 0.1)).toBeNull();
+    expect(trendOf([0, 0.1])).toBeNull();
+    expect(trendOf([0.6, 0.7, 0.5], 0.6)?.sentence).toBe(TREND_SENTENCES.Dominant);
   });
+
+  it("never says Steady when the final is far from the last point", () => {
+    expect(trendOf([0, 0.05, 0.02, 0.03], 0.45)?.word).not.toBe("Steady");
+    expect(trendOf([0, 0.05, 0.02, 0.03], -0.45)?.word).not.toBe("Steady");
+  });
+
+  // Synthetic games on a linear timeline: one player's kills placed in time, everything else typical.
+  const minutes = 35;
+  const t = Array.from({ length: minutes + 1 }, (_, m) => m * 60_000);
+  const at = (n: number, from: number, to: number) => Array.from({ length: n }, (_, k) => Math.round((from + ((k + 0.5) / n) * (to - from)) * 60_000));
+  const synthetic = (inputs: ScoreInput[], place: Record<number, { kills?: [number, number]; deaths?: [number, number]; gold?: "late" | "early" }> = {}) => ({
+    t,
+    players: inputs.map((p) => {
+      const pl = place[p.slot] ?? {};
+      const g = (ms: number) => {
+        const f = ms / t.at(-1)!;
+        const shape = pl.gold === "late" ? f * f : pl.gold === "early" ? Math.sqrt(f) : f;
+        return 500 + (p.gold! - 500) * shape;
+      };
+      return { slot: p.slot, kills: at(p.kills!, ...(pl.kills ?? [0, minutes])), deaths: at(p.deaths!, ...(pl.deaths ?? [0, minutes])), assists: at(p.assists!, ...(pl.kills ?? [0, minutes])), frames: { g: t.map(g), x: t.map((ms) => 18_000 * (ms / t.at(-1)!)), c: t.map((ms) => p.cs! * (ms / t.at(-1)!)) } };
+    }),
+  });
+  const trendFor = (inputs: ScoreInput[], place: Parameters<typeof synthetic>[1], slot: number) => {
+    const final = scoreMatch(inputs, { mode: "rift", minutes })!;
+    const points = timelineScores(inputs, synthetic(inputs, place), final, { mode: "rift", durationMinutes: minutes })!;
+    return trendOf(points.filter((p) => !p.final).map((p) => p.raw[slot]!), final.players.find((p) => p.slot === slot)!.raw)?.word ?? null;
+  };
+
+  it("a steady ordinary game reads Steady at every seat", () => {
+    for (let slot = 0; slot < 10; slot++) expect(trendFor(game(), {}, slot), `slot ${slot}`).toBe("Steady");
+  });
+  it("a late-game carry (every kill after 20:00, gold late) reads Resilient, Rising or Strong finish", () => {
+    const inputs = game({ 7: { kills: 12, deaths: 3, assists: 6, damage: 38_000, gold: 16_000 } });
+    expect(["Resilient", "Rising", "Strong finish"]).toContain(trendFor(inputs, { 7: { kills: [20, 35], gold: "late" } }, 7));
+  });
+  it("a player falling behind (deaths late, kills early) reads Fading", () => {
+    const inputs = game({ 2: { kills: 4, deaths: 10, assists: 3 } });
+    expect(trendFor(inputs, { 2: { kills: [0, 12], deaths: [18, 35], gold: "early" } }, 2)).toBe("Fading");
+  });
+  it("an early stomp then a throw (kills early, many deaths late) is not called Steady or Rising", () => {
+    const inputs = game({ 3: { kills: 9, deaths: 9, assists: 4 } });
+    expect(["Fading", "Weak finish", "Erratic"]).toContain(trendFor(inputs, { 3: { kills: [0, 14], deaths: [22, 35], gold: "early" } }, 3));
+  });
+  it("a strong game played the same throughout is not called Rising or Fading by the damping", () => {
+    const inputs = game({ 3: { kills: 14, deaths: 1, assists: 9, damage: 40_000, gold: 16_000, cs: 290 } });
+    expect(["Rising", "Fading"]).not.toContain(trendFor(inputs, {}, 3));
+  });
+
   it("names each team's mean score, and Excellent from 8.0", () => {
     const s = scoreMatch(game(), RIFT)!;
     const avg = teamAverages(s);

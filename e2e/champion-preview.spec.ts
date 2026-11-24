@@ -214,7 +214,7 @@ test("the content: opponents from 3 games with their games, one unfolding into i
   await first.getByRole("button").first().click();
   await expect(page).toHaveURL(new RegExp(`vs=${vs}`));
   await expect(content.getByTestId("champion-preview-game").first()).toBeVisible();
-  await expect(content.getByTestId("champion-preview-intel")).toHaveAttribute("href", `/lookup?champion=${vs}`);
+  await expect(content.getByTestId("champion-preview-lookup")).toHaveAttribute("href", `/lookup?champion=${vs}`);
 });
 
 test("old addresses land on the preview: Matchups, a deep link with an opponent, the Overview's pools", async ({ page, context, baseURL }) => {
@@ -290,6 +290,14 @@ test("tablets: the preview is the docked panel too, within the screen; the list 
   const close = (await page.getByTestId("champion-preview-close").boundingBox())!;
   expect(Math.min(close.width, close.height)).toBeGreaterThanOrEqual(44);
   expect((await page.getByTestId("champion-preview-opponent").first().getByRole("button").first().boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  // An opened opponent's "Show all N games" and its link to Champion Lookup too (Release 16's review: 32px and 16px).
+  await page.getByTestId("champion-preview-opponent").first().getByRole("button").first().click();
+  await expect(page.getByTestId("champion-preview-lookup")).toBeVisible();
+  for (const id of ["champion-preview-lookup", "champion-preview-all-games"]) {
+    const target = page.getByTestId(id);
+    if (await target.count()) expect((await target.boundingBox())!.height, `${id}: a 44px target on touch`).toBeGreaterThanOrEqual(44);
+  }
+  await page.getByTestId("champion-preview-opponent").first().getByRole("button").first().click();
   await page.goBack();
   await expect(page.getByTestId("champion-preview")).toHaveCount(0);
   await expect(page).not.toHaveURL(/champion=/);

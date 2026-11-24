@@ -488,3 +488,27 @@ test("a 320px phone at 200% text: the open game, its three headings, the scorebo
   await expect(breakdown.getByTestId("performance-compare-table")).toBeVisible();
   expect(await faults(), "another player inspected, compared").toEqual([]);
 });
+
+test("the keyboard: Build Path | Skill Order | Runes and the score's ten tiles are one tab stop each, arrows move within; Escape after a comparison closes the game", async ({ page }) => {
+  test.skip(opensFullScreen(page), "the game under its card (a phone's window closes on its own Escape)");
+  await openHistory(page, "MID");
+  const { card, breakdown } = await openGameWithTimeline(page, true);
+  const radios = breakdown.getByTestId("panel-tabs").getByRole("radio");
+  expect(await radios.evaluateAll((els) => els.filter((e) => (e as HTMLElement).tabIndex === 0).length)).toBe(1);
+  await breakdown.getByTestId("panel-build").focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(breakdown.getByTestId("panel-skills")).toHaveAttribute("aria-checked", "true");
+  await expect(breakdown.getByTestId("panel-skills")).toBeFocused();
+  const tiles = breakdown.getByTestId("performance-tile");
+  expect(await tiles.evaluateAll((els) => els.filter((e) => (e as HTMLElement).tabIndex === 0).length)).toBe(1);
+  await breakdown.locator('[data-testid=performance-tile][aria-current="true"]').focus();
+  await page.keyboard.press("Home");
+  await expect(tiles.first()).toBeFocused();
+  // A comparison chosen, the focus on its control: Escape closes the game (the closed list keeps no Escape for itself).
+  const compare = breakdown.getByTestId("performance-compare");
+  await pick(compare, { label: (await optionsOf(compare))[1]!.label });
+  await compare.focus();
+  await page.keyboard.press("Escape");
+  await expect(page.locator("li[data-expanded]")).toHaveCount(0);
+  await expect(card.getByTestId("match-row")).toBeFocused();
+});

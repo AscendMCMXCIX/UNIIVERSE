@@ -462,14 +462,14 @@ function PairingGames({ id, me, them, card, isOwn, data, onMatch }: { id: string
           ))}
           {!all && pairing.games.length > GAMES_SHOWN ? (
             <li>
-              <button type="button" onClick={() => setAll(true)} className="min-h-8 px-1 text-xs font-medium text-accent hover:underline" data-testid="champion-preview-all-games">
+              <button type="button" onClick={() => setAll(true)} className="min-h-8 px-1 text-xs font-medium text-accent hover:underline pointer-coarse:min-h-11" data-testid="champion-preview-all-games">
                 Show all {formatCount(pairing.games.length)} games
               </button>
             </li>
           ) : null}
         </ul>
       )}
-      <Link href={lookupHref(them.id)} prefetch={false} className="inline-flex items-center gap-1.5 self-start text-xs font-medium text-accent hover:underline" data-testid="champion-preview-intel">
+      <Link href={lookupHref(them.id)} prefetch={false} className="inline-flex items-center gap-1.5 self-start text-xs font-medium text-accent hover:underline pointer-coarse:min-h-11" data-testid="champion-preview-lookup">
         <ScanSearch className="h-3.5 w-3.5" aria-hidden />
         {them.name}&apos;s abilities in Champion Lookup →
       </Link>

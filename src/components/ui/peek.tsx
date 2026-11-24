@@ -299,10 +299,12 @@ export function Peek({ peek, title, itemKey, children, actions, hero, windowSize
       data-peek-panel
       aria-labelledby={`${testId}-heading`}
       data-closing={closing || undefined}
-      className="fixed right-0 top-[var(--bar-top)] isolate bottom-0 z-30 flex w-[clamp(26rem,34vw,36rem)] max-w-full flex-col border-l border-border bg-bg-elevated shadow-2xl shadow-black/50 motion-safe:peek-in data-[closing=true]:peek-out max-md:bottom-[calc(4rem+env(safe-area-inset-bottom))]"
+      className="fixed right-0 top-[var(--bar-top)] isolate bottom-0 z-30 before:pointer-events-none before:absolute before:inset-y-0 before:right-full before:w-8 before:bg-gradient-to-r before:from-transparent before:to-bg/85 before:content-[''] flex w-[clamp(26rem,34vw,36rem)] max-w-full flex-col border-l border-border bg-bg-elevated shadow-2xl shadow-black/50 motion-safe:peek-in data-[closing=true]:peek-out max-md:bottom-[calc(4rem+env(safe-area-inset-bottom))]"
       data-testid={testId}
       data-peek-item={shown.key}
     >
+      {/* The panel's left edge fades what it lies over (a 2rem wash into the page's ink, before:), so a
+          column it covers reads as under a layer, never as cut through its text (Release 16's review). */}
       {/* With a hero (the item's picture and name), the controls sit over its top right corner and the
           heading is read, not shown: the hero shows the name, and the panel keeps its height for the content. */}
       <header className={cn("flex min-h-12 shrink-0 items-center gap-2 px-4", hero ? "pointer-events-none absolute inset-x-0 top-0 z-10 justify-end px-3 *:pointer-events-auto" : "border-b border-border")}>

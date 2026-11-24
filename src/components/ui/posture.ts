@@ -37,6 +37,16 @@ export function isTyping(target: EventTarget | null): boolean {
   return !!(target as Element).closest("input, textarea, select, [contenteditable=''], [contenteditable=true], [role=listbox], [role=menu], [role=combobox]");
 }
 
+/**
+ * Whether the focused control keeps Escape for itself: a field being typed in, or an open list. A
+ * closed list's button (a Select whose choice was just made) keeps none, so Escape still closes the
+ * item it sits in (an open game).
+ */
+export function keepsEscape(target: EventTarget | null): boolean {
+  if (!isTyping(target)) return false;
+  return !(target as Element).closest("[role=combobox][aria-expanded=false]");
+}
+
 /** Whether a modal window, or a popover (popover.tsx: the Filters), is open above the page (its own Escape and keys come first). */
 export function modalOpen(): boolean {
   return !!document.querySelector("dialog[open]:modal, [data-popover]");

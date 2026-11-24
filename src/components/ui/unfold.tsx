@@ -4,7 +4,7 @@ import * as React from "react";
 import { X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useAddressItem } from "./address-item";
-import { isTyping, modalOpen } from "./posture";
+import { keepsEscape, modalOpen } from "./posture";
 
 /*
   Unfold: an item opened in place, under its card, for items compared down a vertical list (games;
@@ -88,7 +88,7 @@ export function useUnfold({ param, initial = null, valid, prefix = "unfold" }: {
   React.useEffect(() => {
     if (id === null) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape" || e.defaultPrevented || modalOpen() || isTyping(e.target)) return;
+      if (e.key !== "Escape" || e.defaultPrevented || modalOpen() || keepsEscape(e.target)) return;
       e.preventDefault();
       close();
     };

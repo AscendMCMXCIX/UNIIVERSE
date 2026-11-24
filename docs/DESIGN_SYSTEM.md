@@ -79,13 +79,17 @@ decorative chrome.
     sentence, each team's mean on one split bar and the ten scores as a strip of small tiles (a tile
     inspects its player), both in the scoreboard's order with each team in its side's colour and
     labelled with its side and result in words ("Blue · Defeat 5.5"), never a result told by the
-    side colours; on a phone each scoreboard row is three lines (the name, K/D/A and score; the
+    side colours; in a post-game scoreboard 30–36rem wide (a desktop with the sidebar open) the champion's name is
+    never cut, the rank takes the match card's short form ("E2", the whole rank in its title and
+    for screen readers) and the lane opponent's mark is a crossed-swords icon with its words for
+    screen readers ("Lane" from 36rem, "Lane opponent" from 40rem); Build Path | Skill Order | Runes
+    and the score's ten tiles are one tab stop each (arrow keys move within); on a phone each scoreboard row is three lines (the name, K/D/A and score; the
     build and CS; the rank, whole) and under 16rem (200% text) everything in it stacks, so nothing
     runs past the screen at any width or text size; on a phone (its window held near two screens:
     2.15–2.27 for the demo's first three games, the overlay kit's ceiling 2.32 since Release 16) the support
     figures and the score's why, tiles and chart sit behind one row fold each, the score itself, its
     place and the "Compare with" select staying in view; the score through the game (a line in the
-    brand gradient, a second player dashed in `fg-muted` with a legend, 0–10 with 5 dashed, the end
+    brand gradient, a second player dashed in `fg-muted` with a legend, its axis fitted to the data (at least 3 points, 5 always in view and dashed), 104px tall on a desktop, the end
     joined by a dotted segment, a table for screen readers) and a "Compare with" select. Stacked
     (under 60rem) a "Show …'s game" link under the scoreboard takes the reader up to the player
     inspected; nothing scrolls by itself.

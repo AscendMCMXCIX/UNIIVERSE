@@ -15,9 +15,9 @@ export interface ChampionPreviewRead {
   noOpponents?: boolean;
   answered?: boolean;
   opponents?: Array<{ games: number; says: boolean }>;
-  intel?: number;
-  intelChampion?: boolean;
-  intelVs?: boolean;
+  lookup?: number;
+  lookupPage?: boolean;
+  lookupChampion?: boolean;
   address?: { champion: boolean };
 }
 export interface Verdict { name: string; status: "PASS" | "FAIL" | "WARN"; detail: unknown }

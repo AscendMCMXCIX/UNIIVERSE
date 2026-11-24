@@ -1417,7 +1417,7 @@ async function championPreviewFacts(page, kind) {
   const opponent = content.locator("[data-testid=champion-preview-opponent] > button").first();
   if (await opponent.count()) {
     await opponent.click();
-    await content.getByTestId("champion-preview-intel").waitFor({ timeout: 15_000 }).catch(() => {});
+    await content.getByTestId("champion-preview-lookup").waitFor({ timeout: 15_000 }).catch(() => {});
   }
   const at = await page.evaluate(readChampionPreview, i);
   const yOpen = await rowTop();

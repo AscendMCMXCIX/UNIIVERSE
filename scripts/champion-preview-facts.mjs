@@ -38,8 +38,8 @@ export function readChampionPreview(rowIndex) {
   const panel = holder?.matches("aside[data-peek-panel]") ? holder.getBoundingClientRect() : null;
   const body = holder?.querySelector("[data-testid=champion-preview-body]");
   const opponents = [...content.querySelectorAll("[data-testid=champion-preview-opponent]")];
-  const intel = [...content.querySelectorAll("[data-testid=champion-preview-intel]")];
-  const href = intel[0]?.getAttribute("href") ?? "";
+  const lookup = [...content.querySelectorAll("[data-testid=champion-preview-lookup]")];
+  const href = lookup[0]?.getAttribute("href") ?? "";
   const q = new URL(href || "/", location.origin).searchParams;
   return {
     open: true,
@@ -62,10 +62,10 @@ export function readChampionPreview(rowIndex) {
       const says = clean(o.querySelector("[data-testid=opponent-games]")) === `${games} game${games === 1 ? "" : "s"}`;
       return { games, says };
     }),
-    intel: intel.length,
+    lookup: lookup.length,
     // The link opens Champion Lookup on the opened opponent (Matchup Intel's place since 23 Nov 2026).
-    intelChampion: new URL(href || "/", location.origin).pathname === "/lookup",
-    intelVs: !!q.get("champion") && q.get("champion") === opponents.find((o) => o.querySelector("button[aria-expanded=true]"))?.getAttribute("data-champion"),
+    lookupPage: new URL(href || "/", location.origin).pathname === "/lookup",
+    lookupChampion: !!q.get("champion") && q.get("champion") === opponents.find((o) => o.querySelector("button[aria-expanded=true]"))?.getAttribute("data-champion"),
     address: { champion: new URLSearchParams(location.search).get("champion") === content.getAttribute("data-champion") },
   };
 }
@@ -112,7 +112,7 @@ export function championPreviewVerdicts({ kind, at, step, escaped, kept }) {
   else if (at.noOpponents) out.push({ name: `${kind}: skipped: no lane opponent is known for this champion yet (its rows, the link to Champion Lookup)`, status: "WARN", detail: { opponents: 0 } });
   else {
     fact('every opponent row carries its "N games", and there is at least one', at.opponents.length > 0 && at.opponents.every((o) => o.games > 0 && o.says), { rows: at.opponents.length, without: at.opponents.filter((o) => !(o.games > 0 && o.says)).length });
-    fact("an opened opponent shows one link to Champion Lookup, with champion= the opponent", at.intel === 1 && at.intelChampion && at.intelVs, { links: at.intel, champion: at.intelChampion, vs: at.intelVs });
+    fact("an opened opponent shows one link to Champion Lookup, with champion= the opponent", at.lookup === 1 && at.lookupPage && at.lookupChampion, { links: at.lookup, page: at.lookupPage, champion: at.lookupChampion });
   }
   if (step === null) out.push({ name: `${kind}: skipped: ↓ has no next row (the list has one champion)`, status: "WARN", detail: null });
   else fact("↓ moves the preview to the next row, replacing the address (no new history entry)", step.next && step.address && step.replaced, step);
