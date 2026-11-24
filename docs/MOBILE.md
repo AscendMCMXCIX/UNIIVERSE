@@ -519,6 +519,11 @@ On an iPhone the carousel's card filled only part of the screen: 328px whatever 
   under the dots, as the owner's iPhone screenshot had about 160px. 430 × 932: 546px. 320 × 568: the
   tagline makes the card 361px, so the page scrolls about 100px (with the frame sliding away). 200%
   text: the card grows (839px at 393 × 852, 1233px at 320 × 568) and the page scrolls, nothing cut.
+- **Edit lineup** (`FROZEN_WHILE_EDITING`): pressing it keeps each card's art band and body at the
+  heights they had at rest, so the bar of Change and Substitute adds its height under the pool (the
+  card grows a little and the page may scroll while editing) instead of taking it from the art and
+  the gaps above it: the pool never moves when editing starts (`e2e/responsive.spec.ts`), and Done
+  gives the card back its resting height. A turn or resize while editing measures afresh.
 - **A larger text size:** the track only grows, never shrinks below its cards, so at 200% the card is
   as tall as its content (1077px on 320 × 568) and the page scrolls; nothing scrolls or is cut inside
   a card.
