@@ -350,6 +350,22 @@ test("Build Path, Skill Order and Runes above the lane: purchases with their tim
   const times = await visits.evaluateAll((els) => els.map((e) => e.textContent!.match(/(\d+):(\d\d)$/)!).map((m) => Number(m[1]) * 60 + Number(m[2])));
   expect(times).toEqual([...times].sort((a, b) => a - b));
   expect(times[0]).toBeLessThan(60);
+  // One row in game order, however long the game: every visit on the same line, the row scrolling
+  // sideways (and focusable) where it is wider than the panel. Wrapped, a real game's twenty visits
+  // took 180px (24 Nov 2026).
+  const tops = await visits.evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().top)));
+  expect(new Set(tops).size, "the shop visits share one row").toBe(1);
+  const row = panels.getByTestId("build-row");
+  await expect(row).toHaveAttribute("tabindex", "0");
+  const added = await row.evaluate((el) => {
+    // Twenty more visits, as a long real game has: the row grows no taller and scrolls instead.
+    const before = el.getBoundingClientRect().height;
+    const list = el.querySelector("ol")!;
+    for (let i = 0; i < 20; i++) list.append(list.lastElementChild!.cloneNode(true));
+    return { before, after: el.getBoundingClientRect().height, scrolls: el.scrollWidth > el.clientWidth };
+  });
+  expect(added.after).toBe(added.before);
+  expect(added.scrolls).toBe(true);
   await expect(panels.getByTestId("build-legend")).toContainText("Undone purchases are left out.");
   // The skill order: Q, W, E and R by level, one point a level.
   await panels.getByTestId("panel-skills").click();
@@ -460,14 +476,16 @@ test("a 320px phone at 200% text: the open game, its three headings, the scorebo
   await cdp.send("Page.setFontSizes", { fontSizes: { standard: 32, fixed: 26 } });
   await openHistory(page, "MID");
   const { breakdown } = await openGameWithTimeline(page, true);
-  /** Sideways scroll anywhere, an element cut off by a box that clips it (text ending in its own ellipsis and a segmented group's own scroll aside), and ranks shortened. */
+  /** Sideways scroll anywhere, an element cut off by a box that clips it (text ending in its own ellipsis, a segmented group's own scroll and the build path's sideways row aside), and ranks shortened. */
   const faults = () =>
     page.evaluate(() => {
       const out: string[] = [];
       if (document.documentElement.scrollWidth > innerWidth + 1) out.push(`page ${document.documentElement.scrollWidth - innerWidth}px wider`);
       for (const el of document.querySelectorAll("[data-testid=match-breakdown] *")) {
         const b = el.getBoundingClientRect();
-        if (!b.width || el.closest(".sr-only") || el.closest("[role=radiogroup]")) continue;
+        // The build path's own sideways row (its ends fade where it hides more) is held to the screen
+        // below as a whole; what it scrolls to is reached by scrolling, never cut.
+        if (!b.width || el.closest(".sr-only") || el.closest("[role=radiogroup]") || el.parentElement?.closest("[data-testid=build-row]")) continue;
         if (b.right > innerWidth + 1 && !el.parentElement?.closest(".truncate")) out.push(`${el.tagName.toLowerCase()}[${el.getAttribute("data-testid") ?? ""}] past the screen`);
         let p = el.parentElement;
         while (p && !/(hidden|clip|auto|scroll)/.test(getComputedStyle(p).overflowX)) p = p.parentElement;

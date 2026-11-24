@@ -2030,7 +2030,18 @@ async function matchHistory(page, log, kind, playerId) {
           const end = li.querySelector("[data-testid=match-expanded]").getBoundingClientRect().bottom;
           return Math.round(end - top);
         });
-        pass("games", `${kind}: the card and its open game fit one screen (${fit}px of ${page.viewportSize().height})`, fit <= page.viewportSize().height, fit);
+        // Where the height goes when it runs over: each column's parts, by test id and height in px
+        // only (no names, no text), so a failure on real games says which part grew.
+        const parts = fit > page.viewportSize().height ? await open.evaluate((li) => {
+          const h = (el) => Math.round(el.getBoundingClientRect().height);
+          const kids = (el) => (el ? [...el.children].map((c) => `${c.getAttribute("data-testid") || c.tagName.toLowerCase()}:${h(c)}`) : []);
+          const card = li.querySelector("[data-testid=match-card]");
+          const yours = li.querySelector("[data-testid=post-game-yours]");
+          const board = li.querySelector("[data-testid=post-game-scoreboard]");
+          const panels = li.querySelector("[data-testid=participant-panels]");
+          return { card: card ? h(card) : null, yours: yours ? h(yours) : null, scoreboard: board ? h(board) : null, left: kids(yours), right: kids(board), panels: kids(panels), rows: [...li.querySelectorAll("[data-testid=participant]")].map(h) };
+        }) : null;
+        pass("games", `${kind}: the card and its open game fit one screen (${fit}px of ${page.viewportSize().height})`, fit <= page.viewportSize().height, parts ? { fit, ...parts } : fit);
         // The post-game view's content (PLAN §6 rows 5.2–5.8; scripts/post-game-facts.mjs), from the game
         // already open: no interaction of its own, read once its timeline has answered (the lane reads it).
         await guarded("games", `${kind}: the open game's post-game view`, async () => {
