@@ -385,6 +385,12 @@ request is a game's match timeline, once per game, when a section that needs it 
   with a second player (`performance-panel.tsx`). `DetailParticipant` gained each player's
   `runePage`, `laneOpponentSlot` and `win` and the healing, shielding, mitigation, time dead and
   plates figures, from the row the view already read.
+  **Release 17 (24 Nov 2026):** `performance-inputs.ts` moved to `src/domain/` (the old path
+  re-exports it), and each Match History card carries its player's score (`MatchRow.performance`),
+  computed by `getMatchHistory` through the same functions: the record by `recordTeamsOf` and
+  `scoreFiguresOf` (which `getMatchDetail` uses), the timeline's frames and lanes by `framesGoldOf`
+  and `framesBySeat` (which `getMatchTimeline` uses) from one trimmed read of the page's timelines
+  (`loadScoreTimelines`), scored by `finalScoresOf` (docs/PERFORMANCE_SCORE.md, "Where it shows").
 - **Timeline** (`getMatchTimeline` in `src/server/accounts/match-timeline.ts`,
   `getMatchTimelineAction`): the two teams' gold difference per frame, only when the stored
   timeline holds all ten players (`teamGoldDifference`; a removed player or a gap leaves it out,

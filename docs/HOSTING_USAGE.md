@@ -7,6 +7,37 @@ UNIIVERSE runs on the free plans of Supabase (the Postgres database) and Vercel 
 
 This page records what caused that, what was changed, how it was measured, and how to check it again. The second pass, after egress reached 7.14 GB on 20 Oct, is the next section.
 
+## 24 Nov 2026: the performance score on Match History's cards (Release 17)
+
+Each collapsed Match History card shows its game's performance score (docs/PERFORMANCE_SCORE.md,
+"Where it shows"), computed by `getMatchHistory` for the page's rows only, through the opened game's
+own functions.
+
+- **Database egress: one more query a page, only for its Summoner's Rift games with a lane
+  opponent** (`loadScoreTimelines`, `src/server/accounts/match-timeline.ts`). The records the score
+  reads were already read whole for the page (`match_details`); the only timeline input is the lane,
+  so the query sends, per game, the frames' times and each player's gold and experience by place in
+  the record: no PUUID, CS, positions, purchases, skills, kills or events. At most PER_PAGE_MAX (25)
+  rows. Measured with the app's own egress counter (`src/server/db/egress.ts`) on local PostgreSQL
+  16:
+  - a realistic 25-minute ranked game (`tests/fixtures/riot-game`, 26 frames): **3.3 KB** (about 130
+    bytes a minute of game, so about 4 KB at 31 minutes);
+  - the demo's nine players' first pages of 10 (70 games, 44 with a stored timeline): **+19.3 KB a
+    page, 3.9 KB a game read**, on a page that sent 69.3 KB before (88.6 KB after); pages of 25
+    (175 games, 131 read): +57.6 KB a page on 165 KB. The same games' whole timeline rows would be
+    53 KB and 159 KB: the trimmed read is about 36% of them;
+  - so a production page of 10 lane games adds at most about 40 KB, 25 games about 100 KB. Against
+    120 MB a day that is about 3,000 page views of 10 for the whole budget; the page's records already
+    send 60–150 KB. Encounters' list of one player's games (`?met=`) is the same list and costs the
+    same; Team → Matches does not read it.
+- **Vercel Active CPU: under 2 ms a page.** Scoring a page of 10 games (the record's mapping, the
+  timeline's frames and lanes, the final scores; no score through the game) took 0.9 ms (median of
+  the nine demo players, warm; 1.7 ms at most) on this machine, beside the page's render. Nothing is
+  computed per frame beyond the 10:00 and 15:00 lane reading and the gold check at the last frame.
+- **Riot: no new request.** A card whose Summoner's Rift game has no stored timeline shows no score
+  until the timeline is stored (the hourly `timeline-backfill`, or opening the game). No migration,
+  no new table.
+
 ## 23 Nov 2026: inspecting any player of an opened game (Release 16)
 
 - **Database egress: nothing more per opened game.** The post-game view's inspection of any of the
