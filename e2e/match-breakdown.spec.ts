@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "./test";
+import { expect, test, type Locator, type Page } from "./test";
 import { closeGame, opensFullScreen, openGame, pastGameHeader } from "./match-history";
 import { NARROW_MOUSE_WINDOWS, expectInReach } from "./reach";
 import { optionsOf, pick } from "./select";
@@ -27,6 +27,20 @@ async function openHistory(page: Page, role = "MID") {
   const id = (await page.getByTestId(`lineup-row-${role}`).getAttribute("data-player-id"))!;
   await page.goto(`/players/${id}/matches`);
   await expect(page.locator("[data-testid='match-history'][data-ready]")).toBeVisible();
+}
+
+/** On a phone (its window held to two screens) the support figures and the score's why, tiles and chart sit behind one fold each (Release 16); elsewhere there are none. */
+async function expectPhoneFoldsOnly(page: Page, breakdown: Locator) {
+  if (opensFullScreen(page)) {
+    await expect(breakdown.locator("details")).toHaveCount(await breakdown.locator("details[data-testid=more-fold], details[data-testid=performance-fold]").count());
+    expect(await breakdown.locator("details[data-testid=performance-fold]").count()).toBeLessThanOrEqual(1);
+  } else await expect(breakdown.locator("details")).toHaveCount(0);
+}
+
+/** The score's fold open, where there is one (a phone). */
+async function openScoreFold(breakdown: Locator) {
+  const fold = breakdown.locator("details[data-testid=performance-fold]");
+  if ((await fold.count()) && !(await fold.evaluate((d) => (d as HTMLDetailsElement).open))) await fold.locator("summary").click();
 }
 
 /** Nothing on the page is wider than the screen. */
@@ -72,7 +86,7 @@ test("one view without subtabs or folds: the loadout names itself, each figure o
   const breakdown = await openGame(page.getByTestId("match-card").nth(1));
   await expect(breakdown).not.toHaveAttribute("data-timeline", "loading", { timeout: 15_000 });
   await expect(breakdown.locator("[role=tab]")).toHaveCount(0);
-  await expect(breakdown.locator("details")).toHaveCount(0);
+  await expectPhoneFoldsOnly(page, breakdown);
   // The inventory: six slots and the trinket; an icon names itself on focus (and on a tap), inside the screen.
   await expect(breakdown.getByTestId("post-game-items").locator(":scope > *")).toHaveCount(7);
   const icon = breakdown.getByTestId("post-game-items").getByTestId("loadout-icon").first();
@@ -140,7 +154,7 @@ test("an iPhone 12 (390 × 844, its insets told): the opened game's header is at
     const card = page.getByTestId("match-card").nth(i);
     const breakdown = await openGame(card);
     await expect(breakdown).not.toHaveAttribute("data-timeline", "loading", { timeout: 15_000 });
-    await expect(breakdown.locator("details")).toHaveCount(0);
+    await expectPhoneFoldsOnly(page, breakdown);
     const f = await page.evaluate(() => {
       const box = (id: string) => document.querySelector(`[data-testid=match-detail] [data-testid=${id}]`)?.getBoundingClientRect() ?? null;
       // Release 16: the three headings above the lane (the owner's request) take the lane's place on the first screen.
@@ -300,7 +314,8 @@ test("every player has a performance score 0–10 beside their row, one MVP on t
   const panel = breakdown.getByTestId("performance");
   await expect(panel.getByTestId("performance-value")).toHaveText(/^\d+\.\d$/);
   await expect(panel.getByTestId("performance-rank")).toHaveText(/^\d+(st|nd|rd|th) of 10$/);
-  // The score through the game: points every five minutes and the end, its figures in a table for screen readers.
+  // The score through the game: points every five minutes and the end, its figures in a table for screen readers (on a phone, in the score's fold).
+  await openScoreFold(breakdown);
   const chart = panel.getByTestId("score-chart");
   await expect(chart).toBeVisible();
   expect(Number(await chart.getAttribute("data-points"))).toBeGreaterThanOrEqual(3);

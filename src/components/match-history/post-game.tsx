@@ -11,7 +11,8 @@ import { ArrowUp, Undo2 } from "lucide-react";
 import { formatCount, formatDateTime, formatKilo, formatNumber, formatOrdinal } from "@/lib/format";
 import { laneOf } from "@/domain/match-analysis";
 import { ParticipantPanels, type PanelKey } from "./participant-panels";
-import { PerformancePanel, ScoreWhy } from "./performance-panel";
+import { PerformancePanel, PhoneFold, ScoreWhy } from "./performance-panel";
+import { usePhone } from "@/components/ui/use-phone";
 import { gameScoresOf } from "./performance-inputs";
 import { cn } from "@/lib/cn";
 import { MatchDetailCacheContext, type MeetingScope } from "./match-detail-cache";
@@ -303,6 +304,8 @@ export function PostGame({ playerId, view, champ, variant, encounterLinks = fals
   const [selected, setSelected] = React.useState(view.player.slot);
   const [compareSlot, setCompare] = React.useState<number | null>(null);
   const [panel, setPanel] = React.useState<PanelKey>("build");
+  // A phone folds the secondary parts (the support figures; the score's why, tiles and chart) to keep its window within two screens.
+  const phone = usePhone();
   const all = React.useMemo(() => view.teams.flatMap((t) => t.participants), [view.teams]);
   const subject = all.find((p) => p.slot === selected && !p.removed) ?? view.player;
   const compare = compareSlot !== null && compareSlot !== subject.slot ? (all.find((p) => p.slot === compareSlot && !p.removed) ?? null) : null;
@@ -361,10 +364,13 @@ export function PostGame({ playerId, view, champ, variant, encounterLinks = fals
               </button>
             ) : null}
           </div>
-          <ScoreWhy score={mine} points={points} slot={subject.slot} />
+          {/* On a phone the why goes with the score's fold, under the scoreboard (PhoneFold). */}
+          {!phone ? <ScoreWhy score={mine} points={points} slot={subject.slot} /> : null}
           <Loadout key={subject.slot} p={subject} champ={champ(subject.championId)} small={variant === "window"} />
           <Figures p={subject} teamKills={subjectTeam?.kills ?? 0} />
-          <MoreFigures p={subject} />
+          <PhoneFold phone={phone} summary="More figures: crowd control, healing, objectives, wards" testId="more-fold">
+            <MoreFigures p={subject} />
+          </PhoneFold>
           <ParticipantPanels panel={panel} onPanel={setPanel} result={timeline} entry={entry} page={subject.runePage} />
           <Lane view={view} champ={champ} me={subject} entry={entry} state={state} />
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-fg-subtle empty:hidden">
@@ -391,7 +397,7 @@ export function PostGame({ playerId, view, champ, variant, encounterLinks = fals
               Show {nameOf(subject)}&apos;s game
             </button>
           ) : null}
-          <PerformancePanel scores={scores} points={points} timeline={state} subject={subject} compare={compare} onCompare={setCompare} others={others} nameOf={nameOf} teams={view.teams} champ={champ} onSelect={select} />
+          <PerformancePanel scores={scores} points={points} timeline={state} subject={subject} compare={compare} onCompare={setCompare} others={others} nameOf={nameOf} teams={view.teams} champ={champ} onSelect={select} phone={phone} />
         </section>
       </div>
     </div>
