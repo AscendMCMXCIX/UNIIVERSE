@@ -393,6 +393,8 @@ test("on a touch tablet, Admin Mode's row buttons in Resources and Branding's co
   await blockFavicons(page);
   await context.addCookies([{ name: "uniiverse_view", value: "admin", url: baseURL! }]);
   await page.goto("/admin/resources");
+  // Streamed, as Branding below: the rows are measured once shown, not in the hidden template.
+  await expect(page.getByTestId("managed-resource").first().locator("button").first()).toBeVisible();
   const sizes = await page.getByTestId("managed-resource").first().locator("button").evaluateAll((els) => els.map((e) => Math.round(Math.min(e.getBoundingClientRect().width, e.getBoundingClientRect().height))));
   expect(sizes.length).toBeGreaterThan(0);
   for (const s of sizes) expect(s, "a row button").toBeGreaterThanOrEqual(44);

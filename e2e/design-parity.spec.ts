@@ -324,6 +324,8 @@ test("Admin's pages: one header rhythm, one panel depth, one fold, aligned toolb
 
   // G4-16: Add resource is the page-level action's size, as Add account is.
   await dp.goto("/admin/resources");
+  // Streamed: measured once shown (a box read from the hidden template is null).
+  await expect(dp.getByTestId("resource-add")).toBeVisible();
   const add = (await dp.getByTestId("resource-add").boundingBox())!.height;
   check(add >= 35, `Add resource is ${add}px tall`);
 
