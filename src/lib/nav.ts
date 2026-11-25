@@ -102,7 +102,7 @@ export const TEAM_SECTIONS: NavLink[] = [
 ];
 
 /**
- * CHAMPION INTEL (Champion Intel until the owner's request of 24 Nov 2026, at the same address), a
+ * CHAMPION INTEL (Champion Lookup until the owner's request of 24 Nov 2026, at the same address), a
  * destination of its own (the owner's request of 23 Nov 2026, in Matchup Intel's
  * place), for every signed-in account: choose any champion and read its abilities, base cooldowns
  * and those cooldowns at an ability haste, with its costs, key mechanics and base statistics, one

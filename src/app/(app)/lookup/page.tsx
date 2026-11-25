@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 type Search = Record<string, string | string[] | undefined>;
 
 /**
- * CHAMPION INTEL (docs/CHAMPION_INTEL.md; Champion Intel until 24 Nov 2026, at the same address), a
+ * CHAMPION INTEL (docs/CHAMPION_INTEL.md; Champion Lookup until 24 Nov 2026, at the same address), a
  * sidebar entry of its own (CHAMPION_INTEL, src/lib/nav.ts): choose any champion, or two side by
  * side, and read its five abilities, their base cooldowns per rank from Riot's Data Dragon and those
  * cooldowns at an ability haste, its costs, key mechanics and base statistics. For every signed-in
