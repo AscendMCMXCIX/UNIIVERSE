@@ -119,8 +119,9 @@ ability slot. It is right for most abilities and misleading for some, so it is s
 only when it passes the guard; otherwise the row says why there is no number, in words, and no number
 is made up. The rules, in order:
 
-1. **The passive**: Data Dragon has no passive cooldown field, so "No cooldown in Riot's data", with
-   "Riot's data gives passives no cooldown." in the opened row, never "no cooldown".
+1. **The passive**: Data Dragon has no passive cooldown field, so "No cooldown in Riot's data", never
+   "no cooldown". The opened row does not repeat it (it said "Riot's data gives passives no cooldown."
+   until the Release 17 review).
 2. **The exception list** (`NOT_THE_COOLDOWN`), each pinned to the array that was checked: Rengar's Q,
    W and E (0.25 s, reported to Riot as wrong); Corki's R, Teemo's R, Gangplank's E and Taric's Q
    (charges: "Charges: recharge not in Riot's data"); Aphelios's Q ("Several abilities share this slot
@@ -143,15 +144,23 @@ Screen readers hear "Rank 1: 8 seconds" for each rank.
 ## Haste
 
 `src/domain/champion-lookup/haste.ts`. Riot's published rule (patch 10.23, 2020): **cooldown = base ×
-100 / (100 + ability haste)**, to two decimals. Each champion has its own **haste field** in its
+100 / (100 + ability haste)**, to two decimals (5.83 s, 116.67 s): the precision this page has
+documented and tested since it first applied a haste, kept at the Release 17 review, which noted
+"116.67 / 100 / 83.33 s". Each champion has its own **haste field** in its
 header (`haste-field.tsx`; the quick values and Other of Champion Lookup were removed at the owner's
 request): "Haste" and a compact field, 0 by default, that changes the cooldowns as it is typed in;
 under it "Base" at 0, "16.7% shorter" at 20.
 
-- **Validation** (`readHasteField`): digits only, letters and spaces dropped ("4a5x" is 45, a paste of
-  "20 haste" is 20); a fraction is cut to its whole part ("12.5" takes 12, "Whole numbers only"); a
-  minus takes 0 ("Taken as 0"); more than 300 is held to 300 ("Held to 300"); empty is 0. On leaving
-  the field it shows the value taken. The field selects its value when focused, so typing replaces it.
+- **Validation** (`readHasteField`): the field takes a whole number from 0 to 300 written in digits;
+  spaces around it are ignored (" 7 " is 7, "045" is 45) and an empty field is 0. More than 300 is
+  held to 300 ("Held to 300"). Anything else is **not taken**: a number with a point ("12.5", "Whole
+  numbers only") and anything that is not digits alone ("-20", "+5", "1e3", "4a5x", a pasted "20
+  haste": "Digits only") leave the cooldowns at the haste already in use, so no number the reader
+  did not type is applied. The text stays as typed while the field is in use; whenever it is held or
+  not taken, the note says so and the field is `aria-invalid` until the next edit. On leaving the
+  field it shows the haste in use. The field selects its value when focused, so typing replaces it.
+  Until the Release 17 review, letters were dropped as typed and a minus took 0, so "-20" typed key
+  by key read "020" and took 20, and "1e3" took 13.
 - A numeric keypad (`inputmode="numeric"`), "Haste: ability haste for Ahri, a whole number from 0 to
   300" read out, its note announced (`aria-live`), 44px tall with 16px text on touch screens and
   phones, 32px with a mouse.
