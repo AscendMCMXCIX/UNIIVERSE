@@ -66,13 +66,14 @@ export function MatchDetailModal({ playerId, matchId, championsById, onClose, ba
   const header = (
     <div className={cn("flex min-h-13 items-center gap-2 py-1.5 pl-4 sm:pl-6", back ? BELOW_CONTROLS_ON_PHONES : CLEAR_OF_CONTROLS)}>
       <div className="min-w-0">
-        <h2 id="match-detail-title" className="flex min-w-0 items-baseline gap-2 truncate text-lg font-semibold leading-6 text-fg">
+        {/* The result, the champion and the length wrap onto a second line where they do not fit (a long name, large text): none of them is ever cut. */}
+        <h2 id="match-detail-title" className="flex min-w-0 flex-wrap items-baseline gap-x-2 text-lg font-semibold leading-6 text-fg">
           {view ? (
             <>
               <span className={cn("font-bold", view.win ? "text-blue" : "text-red")} data-testid="match-result">
                 {view.win ? "Victory" : "Defeat"}
               </span>
-              <span className="truncate">· {champ(view.championId).name}</span>
+              <span className="min-w-0 [overflow-wrap:anywhere]" data-testid="match-detail-champion">· {champ(view.championId).name}</span>
               <span className="shrink-0 text-sm font-normal tabular-nums text-fg-muted" data-testid="match-detail-duration">
                 {fmtDuration(view.durationS)}
               </span>
@@ -91,33 +92,37 @@ export function MatchDetailModal({ playerId, matchId, championsById, onClose, ba
     </div>
   );
   const footer = nav ? (
-    // At a large text size (a row narrower than 17.5rem) "Game n of m" takes a line under the two
-    // steps, so neither runs off the screen (at 150% on a 320px phone Previous started 45px off it).
+    // One compact row at every text size: where the row is narrower than 17rem (large text) the two
+    // steps keep their arrows and their names for screen readers, so "Game n of m" stays between them
+    // and nothing stacks (at 200% on a 390px phone the row was 225px tall, Previous and Next stacked).
+    // The buttons keep a finger's 44px whatever the text size; the position wraps within its own room.
     <div className="@container/mdnav w-full min-w-0">
-    <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1" data-testid="match-detail-nav">
-      <button type="button" className={NAV_BUTTON} disabled={!nav.prev} onClick={() => {
-          if (!nav.prev) return;
-          nav.go(nav.prev);
-          keepStepFocus("match-detail-prev", "match-detail-next");
-        }} data-testid="match-detail-prev">
-        <ChevronLeft className="h-4 w-4" aria-hidden />
-        Previous
-      </button>
-      <span className="text-center text-xs tabular-nums text-fg-muted @max-[17.5rem]/mdnav:order-last @max-[17.5rem]/mdnav:basis-full" data-testid="match-detail-position">
-        Game {nav.index + 1} of {nav.total}
-      </span>
-      <button type="button" className={NAV_BUTTON} disabled={!nav.next} onClick={() => {
-          if (!nav.next) return;
-          nav.go(nav.next);
-          keepStepFocus("match-detail-next", "match-detail-prev");
-        }} data-testid="match-detail-next">
-        Next
-        <ChevronRight className="h-4 w-4" aria-hidden />
-      </button>
-      <span className="sr-only" aria-live="polite">
-        {said}
-      </span>
-    </div>
+      <div className="flex items-center justify-between gap-x-2 @max-[17rem]/mdnav:gap-x-1" data-testid="match-detail-nav">
+        <button type="button" className={NAV_BUTTON} disabled={!nav.prev} onClick={() => {
+            if (!nav.prev) return;
+            nav.go(nav.prev);
+            keepStepFocus("match-detail-prev", "match-detail-next");
+          }} data-testid="match-detail-prev">
+          <ChevronLeft className="h-4 w-4 shrink-0" aria-hidden />
+          <span className={NAV_WORD}>Previous</span>
+          <span className="sr-only"> game</span>
+        </button>
+        <span className="min-w-0 flex-1 text-center text-xs tabular-nums text-fg-muted" data-testid="match-detail-position">
+          Game {nav.index + 1} of {nav.total}
+        </span>
+        <button type="button" className={NAV_BUTTON} disabled={!nav.next} onClick={() => {
+            if (!nav.next) return;
+            nav.go(nav.next);
+            keepStepFocus("match-detail-next", "match-detail-prev");
+          }} data-testid="match-detail-next">
+          <span className={NAV_WORD}>Next</span>
+          <span className="sr-only"> game</span>
+          <ChevronRight className="h-4 w-4 shrink-0" aria-hidden />
+        </button>
+        <span className="sr-only" aria-live="polite">
+          {said}
+        </span>
+      </div>
     </div>
   ) : undefined;
   return (
@@ -165,7 +170,10 @@ export function MatchDetailModal({ playerId, matchId, championsById, onClose, ba
   );
 }
 
-const NAV_BUTTON = "inline-flex h-11 min-w-11 items-center gap-1 rounded-lg px-3 text-sm font-medium text-fg transition-colors hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-accent disabled:pointer-events-none disabled:opacity-40";
+/** Previous and Next under a phone's game: 44px at every text size (a finger's target; in rem they grew to 88px at 200%). */
+const NAV_BUTTON = "inline-flex h-[44px] min-w-[44px] shrink-0 items-center justify-center gap-1 rounded-lg px-3 text-sm font-medium text-fg transition-colors hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-accent disabled:pointer-events-none disabled:opacity-40 @max-[17rem]/mdnav:px-1";
+/** A step's word: shown where the row has room for both words and the position, else for screen readers only. */
+const NAV_WORD = "@max-[17rem]/mdnav:sr-only";
 
 function DetailSkeleton() {
   return (

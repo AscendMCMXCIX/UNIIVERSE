@@ -19,7 +19,7 @@ import { cn } from "@/lib/cn";
 import { MatchDetailModal } from "./match-detail";
 import { MatchDetailCacheContext, createMatchDetailCache, type MatchDetailCache } from "./match-detail-cache";
 import { EncounterLinkContext, type EncounterLink } from "./post-game";
-import { GameSteps, MatchExpansion, bringBack, revealOpened, type GameNav } from "./inline-match";
+import { GameSteps, MatchExpansion, bringBack, holdInPlace, revealOpened, type GameNav } from "./inline-match";
 import { HistorySummaryStrip } from "./history-summary";
 import { ItemRow } from "./icon-img";
 import { MultikillTag } from "./multikill-tag";
@@ -122,7 +122,7 @@ function membersIn(teams: Composition | null) {
  * Memoised: opening a match re-renders only the cards it opens and closes, not the whole page. The
  * breakdown opens under its card (MatchBreakdown), one game at a time.
  */
-const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ, onToggle, onPrefetch, nav, expanded, checked }: { row: MatchRow; playerId: string; champion: PortraitChampion; champ: (id: string | null) => PortraitChampion; onToggle: (matchId: string) => void; onPrefetch: (matchId: string) => void; /** The open game's way to the previous and next games on the page (null at that end). */ nav: GameNav | null; expanded: boolean; /** Ranks its breakdown checked with Riot, shown without reloading the page. */ checked?: ReadonlyMap<number, ParticipantRank> }) {
+const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ, onToggle, onPrefetch, nav, expanded, fit = true, checked }: { row: MatchRow; playerId: string; champion: PortraitChampion; champ: (id: string | null) => PortraitChampion; onToggle: (matchId: string) => void; onPrefetch: (matchId: string) => void; /** The open game's way to the previous and next games on the page (null at that end). */ nav: GameNav | null; expanded: boolean; /** Bring the game into view once drawn (an open, not a step from another game). */ fit?: boolean; /** Ranks its breakdown checked with Riot, shown without reloading the page. */ checked?: ReadonlyMap<number, ParticipantRank> }) {
   const kp = row.killParticipation === null ? "—" : `${Math.round(row.killParticipation * 100)}%`;
   const tone = matchTone(row.win);
   const account = row.riotId ? row.riotId.split("#")[0] : null;
@@ -437,6 +437,7 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
           matchId={row.matchId}
           champ={champ}
           nav={nav}
+          fit={fit}
           onClose={() => onToggle(row.matchId)}
         />
       ) : null}
@@ -529,7 +530,7 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
   // The open game: from a card (it opens under the card, and closes if a refresh takes it off the
   // page) or from a link (?match= on arrival or Back/Forward: under its card when it is on the
   // page, else in the match window).
-  const [open, setOpen] = React.useState<{ id: string; via: "card" | "link" } | null>(() => {
+  const [open, setOpen] = React.useState<{ id: string; via: "card" | "link" | "step" } | null>(() => {
     const id = params.get("match");
     return id ? { id, via: "link" } : null;
   });
@@ -669,7 +670,8 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
       // A phone's window steps over a list it hides: nothing to hold in place there.
       anchor.current = keep && !prefersWindow() ? { id: matchId, top: keep.getBoundingClientRect().top } : null;
       reveal.current = null;
-      setOpen({ id: matchId, via: "card" });
+      // "step": its card is held where the open one's header was, so the game is not moved into view (InlineMatch's fit).
+      setOpen({ id: matchId, via: "step" });
       if (pushed.current) pushed.current = matchId;
       writeMatch(matchId);
     },
@@ -712,27 +714,7 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
     anchor.current = null;
     const el = document.getElementById(`match-${inline}`);
     if (!el) return;
-    const hold = () => {
-      const off = el.getBoundingClientRect().top - a.top;
-      if (Math.abs(off) > 0.5) window.scrollBy({ top: off, behavior: "instant" });
-    };
-    hold();
-    // Content above it can still settle for a few frames (the game that closed drawing its card
-    // again): the header is held where it was until then, unless the reader scrolls first.
-    let frames = 0;
-    let raf = 0;
-    const stop = () => {
-      cancelAnimationFrame(raf);
-      for (const t of ["wheel", "touchstart", "keydown", "pointerdown"]) window.removeEventListener(t, stop);
-    };
-    const tick = () => {
-      hold();
-      if (++frames < 30) raf = requestAnimationFrame(tick);
-      else stop();
-    };
-    raf = requestAnimationFrame(tick);
-    for (const t of ["wheel", "touchstart", "keydown", "pointerdown"]) window.addEventListener(t, stop, { passive: true, once: true });
-    return stop;
+    return holdInPlace(el, a.top);
   }, [inline]);
   // An opened card that sits low on the screen, or above it (the game open before it closed and
   // the list moved up), is scrolled to the top so its breakdown is in view; one already in the
@@ -795,7 +777,7 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
   // A phone's window over the list: Previous and Next step through this page's games.
   const windowAt = windowed ? rowIds.indexOf(windowed) : -1;
   const windowNav = phone && windowAt >= 0 ? { prev: rowIds[windowAt - 1] ?? null, next: rowIds[windowAt + 1] ?? null, go: step, index: windowAt, total: rowIds.length } : null;
-  const card = (r: MatchRow) => <MatchCard key={r.matchId} row={r} playerId={playerId} champion={championsById[r.championId] ?? fallbackChampion(r.championId)} champ={champOrUnknown} onToggle={toggle} onPrefetch={prefetch} nav={inline === r.matchId ? inlineNav : null} expanded={inline === r.matchId} checked={checkedRanks[r.matchId]} />;
+  const card = (r: MatchRow) => <MatchCard key={r.matchId} row={r} playerId={playerId} champion={championsById[r.championId] ?? fallbackChampion(r.championId)} champ={champOrUnknown} onToggle={toggle} onPrefetch={prefetch} nav={inline === r.matchId ? inlineNav : null} expanded={inline === r.matchId} fit={inline === r.matchId && open?.via !== "step"} checked={checkedRanks[r.matchId]} />;
 
   return (
     <section className="space-y-3" aria-labelledby="match-history" data-testid="match-history" data-accounts-linked={data.accountsLinked} data-total={data.total} data-ready={interactive ? "true" : undefined}>

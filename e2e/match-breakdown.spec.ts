@@ -221,8 +221,10 @@ test("phones: the game's window shows Player, Build and Scoreboard one at a time
       if (size.insets) expect((await page.getByTestId("match-detail-header").boundingBox())!.y + (await page.getByTestId("match-detail-header").boundingBox())!.height, `${label}: the header with the inset`).toBeLessThanOrEqual(112);
       for (const p of ["player", "build", "board"] as const) {
         await showGamePage(breakdown, p);
-        // Every panel of the build page too (each in the same area).
+        // Every panel of the build page too (each in the same area). A game without a timeline has
+        // only Runes to show: Build Path and Skill Order are disabled there (the review of Release 17, finding 3).
         for (const panel of p === "build" ? ["build", "skills", "runes"] : [null]) {
+          if (panel && !(await breakdown.getByTestId(`panel-${panel}`).isEnabled())) continue;
           if (panel) await breakdown.getByTestId(`panel-${panel}`).click();
           const f = await page.getByTestId("match-detail-body").evaluate((b) => ({ scroll: b.scrollHeight - b.clientHeight }));
           expect(f.scroll, `${label}, ${p}${panel ? ` (${panel})` : ""}: the window's body needs no scroll`).toBeLessThanOrEqual(1);
@@ -303,8 +305,11 @@ test("Previous and Next keep the open game's header in place; Escape closes and 
   test.skip(opensFullScreen(page), "phones open the window (mobile-nav covers it)");
   await openHistory(page, "TOP");
   const cards = page.getByTestId("match-card");
-  await openGame(cards.nth(1));
+  await settled(await openGame(cards.nth(1)));
   const header = () => page.locator("li[data-expanded] [data-testid=match-card]");
+  // Opening moves the page once the game has grown open, just enough to show all of it (the review of
+  // Release 17, finding 2): the header's place is read once that move has ended.
+  await expect.poll(async () => { const a = await page.evaluate(() => scrollY); await page.waitForTimeout(400); return (await page.evaluate(() => scrollY)) - a; }, { timeout: 10_000 }).toBe(0);
   const y0 = (await header().boundingBox())!.y;
   const length = await page.evaluate(() => history.length);
   for (let i = 0; i < 3; i++) {
@@ -450,8 +455,17 @@ test("Build Path, Skill Order and Runes: one segmented control over one fixed ar
   await showGamePage(breakdown, "build");
   await expect(panels.getByTestId("panel-runes")).toHaveAttribute("aria-checked", "true");
   await panels.getByTestId("panel-build").click();
-  // A path too long for its area is split into pages of whole rows (here the area made narrow, as a
-  // long game's twenty visits fill it): every purchase is still in the page, each page shown whole.
+  // The area is sized per game (the review of Release 17, finding 3): as tall as the taller of the
+  // skill grid and the rune page, both laid out in it, never a constant that leaves a band.
+  const area = await panels.getByTestId("panel-body").evaluate((b) => ({ body: b.getBoundingClientRect().height, views: [...b.querySelectorAll(":scope > [data-view=runes], :scope > [data-view=skills]")].map((v) => v.getBoundingClientRect().height) }));
+  expect(area.views).toHaveLength(2);
+  expect(Math.abs(area.body - Math.max(...area.views)), "the area as tall as the skill grid or the rune page").toBeLessThanOrEqual(1);
+  // A path too long for its area is split into pages of whole rows: every purchase is still in the
+  // page, each page shown whole. Here the area is made short and narrow, as a long game's twenty
+  // visits fill it: the two views that set its height are taken out and it is given 6rem (the area
+  // is no longer a fixed min-height of its own since it is sized per game, so the min-height alone
+  // no longer shortens it).
+  await panels.locator("[data-testid=panel-body] > [data-view=runes], [data-testid=panel-body] > [data-view=skills]").evaluateAll((els) => els.forEach((el) => ((el as HTMLElement).style.display = "none")));
   await panels.getByTestId("panel-body").evaluate((el) => ((el as HTMLElement).style.minHeight = "6rem"));
   await panels.evaluate((el) => ((el as HTMLElement).style.width = "9rem"));
   const box = panels.getByTestId("build-path-box");
@@ -471,13 +485,24 @@ test("Build Path, Skill Order and Runes: one segmented control over one fixed ar
   expect(seen, "every purchase on one of the pages").toBe(total);
   await panels.evaluate((el) => (el as HTMLElement).style.removeProperty("width"));
   await panels.getByTestId("panel-body").evaluate((el) => (el as HTMLElement).style.removeProperty("min-height"));
+  await panels.locator("[data-testid=panel-body] > [data-view]").evaluateAll((els) => els.forEach((el) => (el as HTMLElement).style.removeProperty("display")));
   await closeGame(card);
-  // A game without a timeline: one quiet phrase in the build path's place.
+  // A game without a timeline opens on Runes: Build Path and Skill Order are disabled, with one quiet
+  // phrase saying why beside the control, and no empty band (the area is the rune page's height).
   const none = await openGameWithTimeline(page, false);
   await showGamePage(none.breakdown, "build");
   const p2 = none.breakdown.getByTestId("participant-panels");
   await expect(p2.getByTestId("panel-timeline-missing")).toHaveText("Timeline not available for this game");
   await expect(p2.getByTestId("build-visit")).toHaveCount(0);
+  await expect(p2).toHaveAttribute("data-panel", "runes");
+  await expect(p2.getByTestId("panel-runes")).toHaveAttribute("aria-checked", "true");
+  for (const k of ["build", "skills"]) {
+    await expect(p2.getByTestId(`panel-${k}`)).toBeDisabled();
+    await expect(p2.getByTestId(`panel-${k}`)).toHaveAccessibleDescription("Timeline not available for this game");
+  }
+  await expect(p2.getByTestId("rune-page")).toBeVisible();
+  const runesArea = await p2.getByTestId("panel-body").evaluate((b) => b.getBoundingClientRect().height - b.querySelector("[data-testid=rune-page]")!.getBoundingClientRect().height);
+  expect(runesArea, "no band under the rune page").toBeLessThanOrEqual(1);
   await showGamePage(none.breakdown, "player");
   await expect(none.breakdown.getByTestId("performance-timeline-missing")).toBeVisible();
   // Its final scores still stand, from the record.
@@ -659,6 +684,106 @@ test("the keyboard: Build Path | Skill Order | Runes is one tab stop, arrows mov
   await page.keyboard.press("Escape");
   await expect(page.locator("li[data-expanded]")).toHaveCount(0);
   await expect(card.getByTestId("match-row")).toBeFocused();
+});
+
+// The review of Release 17, finding 2: with animations on, a game opened from a card in the upper part
+// of the screen was measured while it was still growing open, so its end stayed 155–237px below the
+// fold. Most specs here run with reduced motion; this one runs with motion on.
+test("desktop with motion on: a game opened from a card in the upper half of the screen ends within the window, under the pinned bars", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "the desktop's one-screen post-game view");
+  test.setTimeout(180_000);
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  for (const size of [{ width: 1280, height: 720 }, { width: 1440, height: 900 }, { width: 1920, height: 1080 }, { width: 2560, height: 1440 }]) {
+    await page.setViewportSize(size);
+    await openHistory(page, "MID");
+    // A card whose top can sit at about half the screen's height (the upper 55% is left where it is
+    // as it opens; a short list on a tall screen cannot scroll its first cards that far down).
+    let card = page.getByTestId("match-card").first();
+    let before = 0;
+    for (let i = 1; i < 8; i++) {
+      card = page.getByTestId("match-card").nth(i);
+      before = await card.evaluate((c) => {
+        window.scrollBy({ top: c.getBoundingClientRect().top - innerHeight / 2, behavior: "instant" });
+        return c.getBoundingClientRect().top;
+      });
+      if (before > size.height * 0.45 && before < size.height * 0.55) break;
+    }
+    expect(before, `${size.width}: the card in the upper part of the screen`).toBeLessThan(size.height * 0.55);
+    expect(before).toBeGreaterThan(size.height * 0.45);
+    const breakdown = await openGame(card);
+    await settled(breakdown);
+    const label = `${size.width}×${size.height}`;
+    // The game is taller than what was left under the card: the page has to move for it to end within the window.
+    expect(before + (await openedFit(page)).height, `${label}: the game ran past the window as it opened`).toBeGreaterThan(size.height);
+    await expect
+      .poll(
+        () =>
+          page.locator("li[data-expanded]").evaluate((li) => {
+            const top = li.querySelector("[data-testid=match-card]")!.getBoundingClientRect().top;
+            const end = li.querySelector("[data-testid=match-expanded]")!.getBoundingClientRect().bottom;
+            const pinned = parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop) || 0;
+            return end <= innerHeight + 1 && top >= pinned - 1;
+          }),
+        { message: `${label}: the card under the pinned bars and the game's end within the window`, timeout: 5_000 },
+      )
+      .toBe(true);
+    await closeGame(card);
+  }
+});
+
+// The review of Release 17, finding 1: on a phone at 200% text the window's body scrolled sideways on
+// the Player page (580px of content in 388), labels and figures ended in an ellipsis, the title lost
+// the champion's name and the footer took 225px with Previous and Next stacked. Large text may
+// reflow and scroll vertically (the brief, §2); it must never scroll sideways or cut a label short.
+test("a phone at 200% text (390 × 844, 375 × 667): the game window never scrolls sideways, keeps the champion in its title, cuts no label or figure short, and keeps Previous, Next and the position on one compact row", async ({ page }, info) => {
+  test.skip(info.project.name !== "phone", "a phone's large text (CDP's font sizes)");
+  test.setTimeout(150_000);
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Page.setFontSizes", { fontSizes: { standard: 32, fixed: 26 } });
+  for (const size of [{ width: 390, height: 844 }, { width: 375, height: 667 }]) {
+    await page.setViewportSize(size);
+    await openHistory(page, "MID");
+    const { breakdown } = await openGameWithTimeline(page, true);
+    const win = page.getByTestId("match-detail");
+    const label = `${size.width}×${size.height}`;
+    const faults = () =>
+      win.evaluate((w) => {
+        const out: string[] = [];
+        const body = w.querySelector<HTMLElement>("[data-testid=match-detail-body]")!;
+        if (body.scrollWidth > body.clientWidth + 1) out.push(`body ${body.scrollWidth}px wide in ${body.clientWidth}`);
+        for (const el of w.querySelectorAll<HTMLElement>("[data-testid=match-breakdown] *, [data-testid=match-detail-header] *")) {
+          if (!el.getClientRects().length || getComputedStyle(el).visibility === "hidden" || el.closest("[data-testid=participant-name]")) continue;
+          if (getComputedStyle(el).textOverflow === "ellipsis" && el.scrollWidth > el.clientWidth + 1) out.push(`"${el.textContent?.trim()}" shortened`);
+        }
+        const title = w.querySelector<HTMLElement>("#match-detail-title")!;
+        const champion = w.querySelector<HTMLElement>("[data-testid=match-detail-champion]")!;
+        if (champion.getBoundingClientRect().width < 20 || champion.getBoundingClientRect().right > title.getBoundingClientRect().right + 1) out.push("the champion cut from the title");
+        return out;
+      });
+    for (const p of ["player", "build", "board"] as const) {
+      await showGamePage(breakdown, p);
+      expect(await faults(), `${label}, ${p}`).toEqual([]);
+    }
+    await showGamePage(breakdown, "build");
+    for (const k of ["skills", "runes", "build"]) {
+      await breakdown.getByTestId(`panel-${k}`).click();
+      expect(await faults(), `${label}, ${k}`).toEqual([]);
+    }
+    // The footer: one row of 44px buttons and the position between them.
+    const nav = await win.getByTestId("match-detail-nav").evaluate((n) => {
+      const mid = (id: string) => {
+        const b = n.querySelector(`[data-testid=${id}]`)!.getBoundingClientRect();
+        return b.top + b.height / 2;
+      };
+      return { height: n.getBoundingClientRect().height, prev: mid("match-detail-prev"), at: mid("match-detail-position"), next: mid("match-detail-next") };
+    });
+    expect(nav.height, `${label}: the footer's row`).toBeLessThanOrEqual(64);
+    expect(Math.abs(nav.prev - nav.next), `${label}: Previous and Next side by side`).toBeLessThanOrEqual(1);
+    expect(Math.abs(nav.prev - nav.at), `${label}: the position between them`).toBeLessThanOrEqual(1);
+    await expect(win.getByTestId("match-detail-next")).toHaveAccessibleName("Next game");
+    await win.getByTestId("match-detail-close").click();
+    await expect(win).toHaveCount(0);
+  }
 });
 
 // The owner's brief of 24 Nov 2026, §2: on a desktop the opened game (its card with Previous, Next
