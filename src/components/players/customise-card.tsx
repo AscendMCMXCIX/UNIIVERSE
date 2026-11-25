@@ -28,6 +28,7 @@ import {
   taglineProblem,
   withPlacePosition,
   type ArtPlace,
+  type ArtPosition,
   type CardLook,
   type CardPresetId,
   type CardStyle,
@@ -338,12 +339,18 @@ export function CardStudio({ playerId, name, avatarUrl, art, accent, look, champ
     setLinks((l) => (l?.kind === "ready" ? { ...l, draft: { ...l.draft, [kind]: { ...l.draft[kind], ...patch } } } : l));
     setError(null);
   }, []);
-  /** The artwork's position where the preview shows it: that place's own when it has one, else the shared one. */
+  /**
+   * The artwork's position where the preview shows it: that place's own when it has one, else the shared
+   * one. Takes what changed, merged onto the draft's current position inside the update: two sliders
+   * flushed in one frame (each from its last render) no longer undo each other's axis.
+   */
   const onPosition = React.useCallback(
-    (p: { focusX: number; focusY: number; zoom: number }) => {
+    (patch: Partial<ArtPosition>) => {
       mark("position");
       change((d) => {
         if (!place) return d;
+        const cur = artPlacement(d.style, place);
+        const p = { focusX: patch.focusX ?? cur.focusX, focusY: patch.focusY ?? cur.focusY, zoom: patch.zoom ?? cur.zoom };
         const own = d.style.art.places?.[place];
         if (own) return { ...d, style: withPlacePosition(d.style, place, p) };
         return { ...d, style: { ...d.style, art: { ...d.style.art, focusX: p.focusX, focusY: p.focusY, zoom: p.zoom } } };
@@ -976,7 +983,7 @@ function ArtworkPanel({
   onSkin: (n: number) => void;
   place: ArtPlace | null;
   sideBySide: boolean;
-  onPosition: (p: { focusX: number; focusY: number; zoom: number }) => void;
+  onPosition: (p: Partial<ArtPosition>) => void;
 }) {
   const art = style.art;
   const s = saved.style.art;
@@ -1020,7 +1027,7 @@ function ArtworkPanel({
  * Every place shares one position until one is given its own ("This layout only"), for a shape the
  * shared one does not suit; Use shared position takes that place back to the shared one.
  */
-function PositionPart({ style, saved, change, place, onPosition }: { style: CardStyle; saved: CardStyle; change: Change; place: ArtPlace | null; onPosition: (p: { focusX: number; focusY: number; zoom: number }) => void }) {
+function PositionPart({ style, saved, change, place, onPosition }: { style: CardStyle; saved: CardStyle; change: Change; place: ArtPlace | null; onPosition: (p: Partial<ArtPosition>) => void }) {
   const own = place ? style.art.places?.[place] : undefined;
   const p = place ? artPlacement(style, place) : { focusX: style.art.focusX ?? 50, focusY: style.art.focusY ?? 20, zoom: style.art.zoom, own: false };
   const placesOwned = Object.keys(style.art.places ?? {}) as ArtPlace[];
@@ -1060,13 +1067,13 @@ function PositionPart({ style, saved, change, place, onPosition }: { style: Card
       )}
       <div className="grid gap-x-6 gap-y-4 lg:grid-cols-2">
         <Field label="Horizontal" hint={!own && style.art.focusX === null ? "automatic" : undefined} testId="field-focus-x">
-          <Slider label="Horizontal position" value={p.focusX} min={0} max={100} onChange={(v) => onPosition({ ...p, focusX: v })} format={(v) => `${v}%`} disabled={!place} />
+          <Slider label="Horizontal position" value={p.focusX} min={0} max={100} onChange={(v) => onPosition({ focusX: v })} format={(v) => `${v}%`} disabled={!place} />
         </Field>
         <Field label="Vertical" hint={!own && style.art.focusY === null ? "automatic" : undefined} testId="field-focus-y">
-          <Slider label="Vertical position" value={p.focusY} min={0} max={100} onChange={(v) => onPosition({ ...p, focusY: v })} format={(v) => `${v}%`} disabled={!place} />
+          <Slider label="Vertical position" value={p.focusY} min={0} max={100} onChange={(v) => onPosition({ focusY: v })} format={(v) => `${v}%`} disabled={!place} />
         </Field>
         <Field label="Zoom" testId="field-zoom">
-          <Slider label="Zoom" value={p.zoom} min={1} max={2} step={0.05} onChange={(v) => onPosition({ ...p, zoom: v })} format={(v) => `${Math.round(v * 100)}%`} disabled={!place} />
+          <Slider label="Zoom" value={p.zoom} min={1} max={2} step={0.05} onChange={(v) => onPosition({ zoom: v })} format={(v) => `${Math.round(v * 100)}%`} disabled={!place} />
         </Field>
         <div className="flex items-end">
           {changedHere && place ? (

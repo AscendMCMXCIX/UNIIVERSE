@@ -20,20 +20,23 @@ test.beforeEach(async ({ context, baseURL }) => {
 /** What the comparison reads of a shown element, relative to its own box (CSS pixels, rounded). */
 function geometry(root: Element) {
   const r = root.getBoundingClientRect();
+  // Whole pixels, from values first taken to 1/100px: inside the preview's frame a box's edges carry
+  // float noise (a top of 178.99998 for 179), which turned a 22.5px name into 22 against the page's 23.
+  const round = (v: number) => Math.round(Math.round(v * 100) / 100);
   const q = (s: string) => root.querySelector(s);
   const box = (e: Element | null) => {
     if (!e) return null;
     const b = e.getBoundingClientRect();
     // Not drawn (a phone's Players row leaves its art strip out of the layout).
     if (!b.width && !b.height) return null;
-    return { x: Math.round(b.left - r.left), y: Math.round(b.top - r.top), w: Math.round(b.width), h: Math.round(b.height) };
+    return { x: round(b.left - r.left), y: round(b.top - r.top), w: round(b.width), h: round(b.height) };
   };
   const img = q("[data-art-layer] img, [data-row-art] img") as HTMLImageElement | null;
   const name = q("[data-testid=card-name]");
   const cs = img ? getComputedStyle(img) : null;
   return {
-    w: Math.round(r.width),
-    h: Math.round(r.height),
+    w: round(r.width),
+    h: round(r.height),
     art: box(q("[data-art-layer], [data-row-art]")),
     position: cs?.objectPosition ?? null,
     transform: cs?.transform ?? null,
@@ -48,7 +51,7 @@ function geometry(root: Element) {
     // The Peek's one line of ranked progress over 30 days (Team's data has it; a Studio opened from the profile does not).
     rankLine: (() => {
       const line = q("[data-testid=detail-rank-change]");
-      return line ? Math.round(line.getBoundingClientRect().height) : 0;
+      return line ? round(line.getBoundingClientRect().height) : 0;
     })(),
   };
 }
