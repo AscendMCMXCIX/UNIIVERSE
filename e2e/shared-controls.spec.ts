@@ -148,9 +148,10 @@ test("Champion Intel and Settings: no boxed group", async ({ page }) => {
   await expectAllFlat(page, a, "Champion Intel, two champions");
   await page.goto("/settings", { waitUntil: "networkidle" });
   await expectAllFlat(page, a, "Settings");
+  // Its index, the row on a phone and the list from md alike (a filled list entry until the Release 17 review).
   const index = page.getByTestId("settings-index");
-  const phoneRow = await page.evaluate(() => innerWidth < 768 || innerHeight <= 480);
-  if (phoneRow && (await index.isVisible())) await expectFlat(index, a, "Settings' sections");
+  await expect(index).toBeVisible();
+  await expectFlat(index, a, "Settings' sections");
 });
 
 test("Admin Mode: Previews' page and screen size", async ({ page, context, baseURL }) => {

@@ -129,9 +129,10 @@ function ImageCard({ kind, title, hint, branding, onChange }: { kind: BrandAsset
           </span>
         )}
       </div>
-      <p className="text-xs text-fg-subtle">
-        {kind === "logo" ? "PNG, JPEG, WebP, GIF or SVG" : "PNG, JPEG, WebP or GIF"} · up to {limit.label} and {limit.maxSide}×{limit.maxSide} px (under 5 MB keeps the first visit quick on phones). Animated GIFs keep moving; the browser tab and people who prefer reduced motion see the first frame.
-        {meta?.animated ? " This one is animated." : ""}
+      {/* What differs between the slots (the formats, the size in pixels); what they share is said once, under Images (the Release 17 review). */}
+      <p className="text-xs text-fg-subtle" data-testid={`brand-${kind}-limits`}>
+        {kind === "logo" ? "PNG, JPEG, WebP, GIF or SVG" : "PNG, JPEG, WebP or GIF"} · up to {limit.maxSide}×{limit.maxSide} px
+        {meta?.animated ? " · animated" : ""}
       </p>
       <div className="mt-auto flex flex-wrap gap-2">
         <input ref={input} type="file" accept={accept} className="sr-only" onChange={(e) => void upload(e.target.files?.[0] ?? null)} aria-label={`Upload ${title.toLowerCase()}`} />
@@ -317,7 +318,12 @@ export function BrandingPanel({ branding, canEdit }: { branding: Branding; canEd
       </section>
 
       <section id="brand-images" className="space-y-3">
-        <h2 className="text-base font-semibold">Images</h2>
+        <div>
+          <h2 className="text-base font-semibold">Images</h2>
+          <p className="mt-1 text-xs text-fg-subtle" data-testid="brand-images-limits">
+            Up to {BRAND_LIMITS.logo.label} each; under 5 MB keeps the first visit quick on phones. Animated GIFs keep moving; the browser tab and people who prefer reduced motion see the first frame.
+          </p>
+        </div>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           <ImageCard kind="logo" title="Logo" hint="Sidebar, sign-in page and the browser tab." branding={form} onChange={onAssets} />
           <ImageCard kind="background" title="Sign-in background" hint="Behind the sign-in, first-run and recovery pages. A dark veil keeps the form readable." branding={form} onChange={onAssets} />

@@ -241,8 +241,11 @@ export function AvatarEditor({ name, src }: { name: string; src: string | null }
  * Settings' sections, in the account card: Leaderboards' SectionIndex (plain links whose click jumps
  * through the router's history, jumpToAnchor), restyled. On a phone, and in a window 480px tall or
  * less, words in a row as a section's views are (Name, Links, Password; 44px on a touch screen, no
- * dots between them), the section being read underlined (chips until Release 17); from md in a
- * taller window a list down the card, the section being read marked.
+ * dots between them); from md in a taller window the same words down the card, at the start of its
+ * column. Either way the section being read is underlined in the accent as a view's tab is, under
+ * its words (chips on a phone until Release 17; on the list a filled surface-3 entry, the
+ * sidebar's look, until the Release 17 review: the brief's §9 asks for no filled selection box, and
+ * this is the page's table of contents, not the app's navigation).
  */
 export function SettingsIndex({ items }: { items: readonly SectionIndexItem[] }) {
   return (
@@ -250,16 +253,9 @@ export function SettingsIndex({ items }: { items: readonly SectionIndexItem[] })
       label="Settings sections"
       items={items}
       spy
-      listClassName="gap-y-2 max-md:gap-x-2 short:gap-x-2 md:not-short:flex-col md:not-short:items-stretch md:not-short:gap-0.5"
+      listClassName="gap-y-2 max-md:gap-x-2 short:gap-x-2 md:not-short:flex-col md:not-short:items-start md:not-short:gap-0.5"
       separatorClassName="hidden"
-      linkClassName={(on) =>
-        cn(
-          subTabClass(on, "px-2 text-xs"),
-          "md:not-short:flex md:not-short:w-full md:not-short:justify-start md:not-short:px-2 md:not-short:text-sm md:not-short:after:hidden",
-          // The section being read: surface-3, a step above the surface-2 of a pointed-at entry, so the two marks differ by more than the weight.
-          on ? "md:not-short:bg-surface-3 md:not-short:font-semibold" : "md:not-short:hover:bg-surface-2",
-        )
-      }
+      linkClassName={(on) => cn(subTabClass(on, "px-2 text-xs"), "md:not-short:justify-start md:not-short:text-sm")}
       testId="settings-index"
     />
   );

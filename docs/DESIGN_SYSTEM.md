@@ -365,7 +365,7 @@ of one family, so they never compete:
 | Level | Component | Size | Chosen | At rest | Hover |
 |---|---|---|---|---|---|
 | Section tabs (primary) | `TabBar`, the phone's `ChromeTabs` | 44px, 14px medium, icons from sm; a hairline under the row | `fg` over a 2px bar in the brand gradient at the tab's foot | `fg-muted` | `fg`, a faint bar |
-| A section's views (secondary) | `SubTabs`, `compactTabClass` (the pinned row), the in-page indexes (Leaderboards', Settings' on a phone) | 36px with a mouse, 44px on touch; 14px; icons | `fg` semibold, its icon `accent`, a 2px `accent` line 4px above its foot | `fg-muted` medium | `fg`, a faint `border-strong` line |
+| A section's views (secondary) | `SubTabs`, `compactTabClass` (the pinned row), the in-page indexes (Leaderboards', Settings') | 36px with a mouse, 44px on touch; 14px; icons | `fg` semibold, its icon `accent`, a 2px `accent` line 4px above its foot | `fg-muted` medium | `fg`, a faint `border-strong` line |
 | A choice in the page (a role, a side, a sort, a queue) | `segmentedGroupClass` + `segmentClass` (`size: "md"` for a list's main filter), `RoleSegmented` | 36px / 44px; 12px (14px with `md`) | `fg` semibold over the 2px `accent` line | `fg-muted` medium | `fg`, a faint line |
 
 - **No box:** no outline or fill round the group, no fill or ring round the chosen item, on any
@@ -946,8 +946,13 @@ test):
   under 59rem: phones held either way and tablets; Settings
   keeps its index in its account card: Name, Links and Password as a row of words on a phone and in
   a window 480px tall or less (chips until Release 17) and a list from md in a taller window, the
-  section being read marked either way: underlined on a phone, `surface-3` and semibold in the
-  list, a step above the `surface-2` of a pointed-at entry). At the page's top the first section is
+  section being read marked either way: semibold and underlined in the accent, as a view's tab is;
+  the list's entries at the start of the card's column, each underline under its own words. The list
+  marked it with a filled `surface-3` entry, the sidebar's look, until the Release 17 review: it is
+  the page's table of contents, not the app's navigation, so the brief's §9 "no heavy filled
+  selection box" covers it). Leaderboards' index under its header is plain words, 24px tall with a
+  mouse and 44px on a touch screen, the link's own height (an invisible 44px area over a 24px link
+  until the Release 17 review). At the page's top the first section is
   the one being read, at its end the last, and a section jumped to from the index stays marked while
   it is at the window's top (G3-5: a short first panel put the next one's top above the window's
   upper third). Each is

@@ -127,11 +127,11 @@ export function LeaderboardsDashboard({ view, champions, status, peekable }: { v
       ) : (
         <>
           {/* A long page's own sections (one column): Recent form is right below, so the index leads past it. On a page under
-              18rem (a phone from 125% text) it no longer fits one line: no dots then, which would start lines, and room
-              between the lines for each link's 44px target. */}
+              18rem (a phone from 125% text) it no longer fits one line: no dots then, which would start lines; each link is
+              44px tall on a touch screen (SectionIndex), so the lines need no gap of their own for the targets. */}
           <SectionIndex
             className="@min-[59rem]/dash:hidden"
-            listClassName="@max-[18rem]/dash:gap-x-4 @max-[18rem]/dash:gap-y-3"
+            listClassName="@max-[18rem]/dash:gap-x-4"
             separatorClassName="@max-[18rem]/dash:hidden"
             items={INDEX}
           />
