@@ -15,6 +15,8 @@ import path from "node:path";
   - an uppercase label spaced other than tracking-label (a pill badge may use tracking-wide);
   - a size, weight, case or letter spacing beside label-caps, which sets all four (a colour may
     replace its fg-subtle): Tailwind orders label-caps after a text size, so the size would be lost;
+    the same beside label-text, the sentence-case label (25 Nov 2026), which sets a size and a weight
+    and must carry no capitals or letter spacing (a colour may replace its fg-muted);
   - the standing-alone measure written as a number (max-w-[72rem], max-w-6xl) instead of
     max-w-[var(--measure)], so the boards that use it change together;
   - a safe-area padding (pb-safe, pb-safe-N; pt-safe, pt-safe-N) beside another padding for the same
@@ -141,6 +143,14 @@ export function tokenProblems(source: string, tokens: Map<string, string>, optio
         if (LABEL_CAPS_SETS.some((re) => re.test(utilityOf(c)))) problems.push(`${at}: ${c} beside label-caps, which sets the label's size, weight, case and letter spacing`);
       }
     }
+    // label-text sets a sentence-case label's size and weight, with no capitals and no letter spacing: none of them beside it.
+    for (const m of text.matchAll(/(["'`])([^"'`]*\blabel-text\b[^"'`]*)\1/g)) {
+      const classes = m[2]!.split(/\s+/).filter(Boolean);
+      if (!classes.some((c) => utilityOf(c) === "label-text")) continue;
+      for (const c of classes) {
+        if (LABEL_CAPS_SETS.some((re) => re.test(utilityOf(c)))) problems.push(`${at}: ${c} beside label-text, which sets a sentence-case label's size and weight, with no capitals or letter spacing`);
+      }
+    }
     // The standing-alone measure is one token, so every board that uses it changes together.
     for (const m of text.matchAll(/[^\s"'`{}]+/g)) {
       if (/^max-w-(\[72rem\]|6xl)$/.test(utilityOf(m[0]))) problems.push(`${at}: ${m[0]} is max-w-[var(--measure)]`);
@@ -223,6 +233,16 @@ describe("design tokens", () => {
       .map((file) => path.relative(ROOT, file).split(path.sep).join("/"))
       .filter((rel) => rel !== "src/app/globals.css" && /(?<![\w-])type-floor-later\b/.test(readFileSync(path.join(ROOT, rel), "utf8")));
     expect(users.sort()).toEqual(Object.keys(FLOOR_LATER).sort());
+  });
+
+  it("keeps the sentence-case label one look: no size, weight, capitals or letter spacing beside label-text", () => {
+    const source = `<span className="label-text text-xs" /><span className="label-text uppercase tracking-label" /><span className="label-text font-semibold" /><span className="label-text text-fg-subtle" />`;
+    expect(tokenProblems(source, tokens)).toEqual([
+      "1: text-xs beside label-text, which sets a sentence-case label's size and weight, with no capitals or letter spacing",
+      "1: uppercase beside label-text, which sets a sentence-case label's size and weight, with no capitals or letter spacing",
+      "1: tracking-label beside label-text, which sets a sentence-case label's size and weight, with no capitals or letter spacing",
+      "1: font-semibold beside label-text, which sets a sentence-case label's size and weight, with no capitals or letter spacing",
+    ]);
   });
 
   it("names each kind of drift, and the token to use instead", () => {

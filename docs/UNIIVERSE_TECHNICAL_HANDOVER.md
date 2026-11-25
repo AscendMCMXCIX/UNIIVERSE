@@ -792,7 +792,7 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
   |---|---|
   | Backgrounds | `bg #0a0b12`, `surface #12131c`, `bg-elevated #181a25` (fields, menus, popovers: a step above the panels), `surface-2 #1b1d29`, `surface-3 #252837` |
   | Borders | `border #262939` (structure), `border-strong #3a3e53` (emphasis), `border-control #646a8c` (fields and toolbar controls, 3:1 on the page, panels and popovers) |
-  | Text | `fg #eef0f6`, `fg-muted #b4b8c9`, `fg-subtle #8f95aa` (4.5:1 or more on every surface; 4.9:1 on `surface-3`) |
+  | Text | `fg #eef0f6` (primary), `fg-muted #c9cddb` (secondary, 9.2:1 or more), `fg-subtle #a2a8bc` (tertiary, 6.2:1 or more on every surface, `surface-3` included), `fg-disabled #70758c` (disabled controls only, 3.2:1 or more; 25 Nov 2026) |
   | Accent | `accent #1fc3ff` (brand blue), `accent-strong #7fdcff`, `accent-2 #9a7dff` (violet), `highlight #7fdcff` |
   | Sides and results | `blue #6e9dff` (Victory), `red #f26b7e` (Defeat), always with the word |
   | Status | `good #45cf8f`, `warn #ebba4f`, `bad #f26b7e`, `info #5eaef5` |

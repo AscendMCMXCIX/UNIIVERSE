@@ -20,7 +20,7 @@ export function winRateTone(winRate: number | null | undefined, games: number | 
 }
 
 /** The text colour for a tone (Tailwind classes from the design tokens). */
-export const WIN_RATE_TONE_CLASS: Record<WinRateTone, string> = { good: "text-good", plain: "text-fg", muted: "text-fg-muted" };
+export const WIN_RATE_TONE_CLASS: Record<WinRateTone, string> = { good: "text-good", plain: "text-fg", muted: "text-fg-subtle" };
 
 /** Tooltip text explaining a muted figure, or null when the figure stands on enough games. */
 export function winRateSampleNote(winRate: number | null | undefined, games: number | null | undefined, minGames: number): string | null {
