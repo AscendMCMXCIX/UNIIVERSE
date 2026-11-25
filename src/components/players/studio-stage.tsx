@@ -47,7 +47,7 @@ function useScreen(device: PreviewDevice): PreviewScreen | null {
   return screen;
 }
 
-export function StudioPreview({ context, device, fit, subject, className, surface }: { context: PreviewContext; device: PreviewDevice; fit: "fit" | "actual"; subject: PreviewSubject; className?: string; /** The artwork surface for the shown crop (ArtSurface), given its box and the scale. */ surface?: (box: ArtBox, scale: number) => React.ReactNode }) {
+export function StudioPreview({ context, device, fit, subject, className, surface, hug }: { context: PreviewContext; device: PreviewDevice; fit: "fit" | "actual"; subject: PreviewSubject; className?: string; /** The artwork surface for the shown crop (ArtSurface), given its box and the scale. */ surface?: (box: ArtBox, scale: number) => React.ReactNode; /** Above the controls (a phone, a tablet): in Fit, the stage no taller than the place at the scale its width allows, this CSS height at most (a header 142px tall leaves no empty band above and below it; the controls get the room). */ hug?: string }) {
   const screen = useScreen(device);
   const stage = React.useRef<HTMLDivElement>(null);
   const [room, setRoom] = React.useState<{ width: number; height: number } | null>(null);
@@ -76,11 +76,13 @@ export function StudioPreview({ context, device, fit, subject, className, surfac
   const scale = measured && room ? (fit === "actual" ? 1 : Math.max(0.1, Math.min(MAX_FIT, (room.width - pad * 2) / measured.width, (room.height - pad * 2) / measured.height))) : 1;
   const w = measured ? measured.width * scale : 0;
   const h = measured ? measured.height * scale : 0;
+  // The height the place needs at the scale the stage's width allows (hug).
+  const hugged = hug && fit === "fit" && measured && room ? `min(${Math.ceil(measured.height * Math.min(MAX_FIT, (room.width - pad * 2) / measured.width) + pad * 2)}px, ${hug})` : undefined;
   const place = CONTEXT_PLACE[context][device];
   const title = `Preview: ${CONTEXT_LABEL[context]}, ${device === "desktop" ? "desktop" : "phone"}`;
 
   return (
-    <div ref={stage} className={cn("relative min-h-0 min-w-0 rounded-panel", fit === "actual" ? "overflow-auto overscroll-contain" : "overflow-hidden", className)} data-testid="studio-stage">
+    <div ref={stage} className={cn("relative min-h-0 min-w-0 rounded-panel", fit === "actual" ? "overflow-auto overscroll-contain" : "overflow-hidden", className)} style={hugged ? { height: hugged } : undefined} data-testid="studio-stage">
       <div className="flex min-h-full min-w-full p-2" style={fit === "actual" && measured ? { width: w + pad * 2, height: h + pad * 2 } : undefined}>
         <div
           className={cn("relative m-auto shrink-0", !measured && "opacity-0")}

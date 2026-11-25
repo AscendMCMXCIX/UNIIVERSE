@@ -123,6 +123,9 @@ test("each preview draws its place exactly as the page does, for a look of its o
   await page.getByRole("slider", { name: "Vertical position" }).fill("60");
   await page.getByTestId("save-card-style").click();
   await expect(page.getByTestId("card-studio")).toBeHidden();
+  // The page has the saved look (its refresh after Save), which the Studio opens on.
+  await expect(page.getByTestId("profile-header")).toHaveAttribute("data-frame", "glow");
+  await expect(page.getByTestId("profile-header").getByTestId("card-tagline")).toHaveText("“Calm in the chaos”");
 
   const problems: string[] = [];
   await openStudioFromHeader(page);

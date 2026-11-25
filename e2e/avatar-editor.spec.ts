@@ -209,12 +209,12 @@ test("Settings → On this device: what this browser remembers, each with Clear 
   // Something remembered: favourites and Card Studio's preview (keys as the app writes them).
   await page.evaluate(() => {
     localStorage.setItem("uniiverse.resources.favourites.v1", JSON.stringify(["d-opgg", "d-lolalytics"]));
-    localStorage.setItem("uniiverse.studio.preview", "hidden");
+    localStorage.setItem("uniiverse.studio.preview", "actual");
   });
   await page.reload();
   const fav = panel.locator("[data-item=resource-favourites]");
   await expect(fav.getByTestId("device-item-state")).toHaveText("2 sites");
-  await expect(panel.locator("[data-item=card-preview]").getByTestId("device-item-state")).toHaveText("Put away");
+  await expect(panel.locator("[data-item=card-preview]").getByTestId("device-item-state")).toHaveText("Actual size");
   // Clearing sends nothing to the server.
   const requests: string[] = [];
   page.on("request", (r) => {

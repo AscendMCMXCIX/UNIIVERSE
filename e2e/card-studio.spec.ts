@@ -72,6 +72,15 @@ test("four sections, open in any order with nothing in sequence; presets change 
     await showPreview(page, ctx, "desktop");
     await expect(preview).toHaveAttribute("data-frame", FRAME_OF.neon!);
   }
+  // The chosen screen is marked as every choice of a few is (the shared text-led segments, Release 17): no ring
+  // and no filled box, the words semibold over the accent underline.
+  const marks = (el: Element) => {
+    const c = getComputedStyle(el);
+    const line = getComputedStyle(el, "::after");
+    return { ring: c.boxShadow !== "none", fill: c.backgroundColor !== "rgba(0, 0, 0, 0)", weight: c.fontWeight, underline: line.opacity !== "0" && line.height === "2px" };
+  };
+  expect(await page.getByTestId("preview-desktop").evaluate(marks)).toEqual({ ring: false, fill: false, weight: "600", underline: true });
+  expect(await page.getByTestId("preview-mobile").evaluate(marks)).toMatchObject({ ring: false, fill: false, underline: false });
   // Escape with unsaved changes asks first, in the action bar; Keep editing keeps the Studio and the changes.
   await page.getByTestId("studio-tab-appearance").focus();
   await page.keyboard.press("Escape");
@@ -99,8 +108,7 @@ test("Undo and Redo step through unsaved changes, by keyboard and by button, and
   const start = await preview.getAttribute("data-frame");
   await page.getByTestId("preset-crimson").click();
   await expect(preview).toHaveAttribute("data-frame", "double");
-  // Two changes apart (a burst of changes is one step).
-  await page.waitForTimeout(700);
+  // Two taps are two steps (only a continuous gesture, a slider's drag or typing, is one).
   await page.getByTestId("preset-neon").click();
   await expect(preview).toHaveAttribute("data-frame", "premium");
   await page.getByTestId("preset-neon").focus();

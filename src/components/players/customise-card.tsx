@@ -51,6 +51,7 @@ import { tabIndicatorClass } from "@/components/ui/tab-bar";
 import { toast } from "@/components/ui/toast";
 import { segmentClass, segmentedGroupClass } from "@/components/ui/segmented";
 import { cn } from "@/lib/cn";
+import { deviceBase } from "@/components/device-storage";
 import { CardArtLayer } from "./card-art";
 import { CardFrame, cardShellStyle, EMBLEM_ICONS } from "./card-look";
 import { prepareBanner } from "./banner-image";
@@ -134,6 +135,22 @@ function useMedia(query: string): boolean {
   );
 }
 
+/** The preview's size (Fit or Actual size) is remembered on each device. */
+const PREVIEW_KEY = deviceBase("card-preview");
+
+/**
+ * A tall-enough phone or tablet window with too little height for the preview above a section that
+ * scrolls on its own: an upright phone at a large text size (a 320 × 568 phone at 150% is 23.7rem
+ * tall; its window header and action bar wrap, and the section had no room left at all). There the
+ * Studio's body scrolls as one, the preview and the section tabs (pinned) with the section: still one
+ * scrolling area. TIGHT holds each part's classes (whole strings, for Tailwind).
+ */
+const TIGHT = {
+  root: "max-lg:not-short:[@media(max-height:32rem)]:grid-rows-[max-content_max-content_max-content] max-lg:not-short:[@media(max-height:32rem)]:overflow-y-auto max-lg:not-short:[@media(max-height:32rem)]:overscroll-contain",
+  tabs: "max-lg:not-short:[@media(max-height:32rem)]:sticky max-lg:not-short:[@media(max-height:32rem)]:top-0 max-lg:not-short:[@media(max-height:32rem)]:z-10 max-lg:not-short:[@media(max-height:32rem)]:bg-bg-elevated",
+  panel: "max-lg:not-short:[@media(max-height:32rem)]:overflow-y-visible",
+} as const;
+
 /** Where the preview stands beside the controls: desktops, and phones held sideways (no height to spare above them). */
 const SIDE_BY_SIDE = "(min-width: 64rem), (max-height: 480px)";
 
@@ -171,28 +188,41 @@ function useBackGuard(active: boolean, onBack: () => void) {
   }, [active, round]);
 }
 
-/** Changes closer together than this are one step for Undo (a slider's drag, a word typed, a pinch). */
+/** Changes of one continuous control closer together than this are one step for Undo (a slider's drag, a word typed, a pinch). */
 const UNDO_BURST_MS = 600;
 
 /**
- * The draft with Undo and Redo: every change goes on the history, a burst of changes (a drag) as one
+ * Names the next change as part of a continuous gesture (a slider's drag, typing, the artwork moved
+ * in the preview): changes of the same gesture in quick succession are one step for Undo. A tap
+ * (a preset, a choice) is always a step of its own.
+ */
+const BurstContext = React.createContext<(key: string) => void>(() => {});
+
+/**
+ * The draft with Undo and Redo: every change goes on the history, a gesture's run of changes (BurstContext) as one
  * step. Client state only, emptied when the Studio closes (Save or Cancel).
  */
 function useDraftHistory(initial: Draft) {
-  const [state, setState] = React.useState<{ past: Draft[]; present: Draft; future: Draft[]; at: number }>({ past: [], present: initial, future: [], at: 0 });
+  const [state, setState] = React.useState<{ past: Draft[]; present: Draft; future: Draft[]; at: number; burst: string | null }>({ past: [], present: initial, future: [], at: 0, burst: null });
+  const pending = React.useRef<string | null>(null);
+  const mark = React.useCallback((key: string) => {
+    pending.current = key;
+  }, []);
   const change = React.useCallback((fn: (d: Draft) => Draft) => {
+    const burst = pending.current;
+    pending.current = null;
     setState((s) => {
       const next = fn(s.present);
       if (next === s.present || same(next, s.present)) return s;
       const now = Date.now();
-      // Within a burst the step before it stays the one Undo returns to.
-      const past = now - s.at < UNDO_BURST_MS && s.past.length ? s.past : [...s.past, s.present].slice(-100);
-      return { past, present: next, future: [], at: now };
+      // Within a gesture the step before it stays the one Undo returns to.
+      const past = burst && burst === s.burst && now - s.at < UNDO_BURST_MS && s.past.length ? s.past : [...s.past, s.present].slice(-100);
+      return { past, present: next, future: [], at: now, burst };
     });
   }, []);
-  const undo = React.useCallback(() => setState((s) => (s.past.length ? { past: s.past.slice(0, -1), present: s.past[s.past.length - 1]!, future: [s.present, ...s.future], at: 0 } : s)), []);
-  const redo = React.useCallback(() => setState((s) => (s.future.length ? { past: [...s.past, s.present], present: s.future[0]!, future: s.future.slice(1), at: 0 } : s)), []);
-  return { draft: state.present, change, undo, redo, canUndo: state.past.length > 0, canRedo: state.future.length > 0 };
+  const undo = React.useCallback(() => setState((s) => (s.past.length ? { past: s.past.slice(0, -1), present: s.past[s.past.length - 1]!, future: [s.present, ...s.future], at: 0, burst: null } : s)), []);
+  const redo = React.useCallback(() => setState((s) => (s.future.length ? { past: [...s.past, s.present], present: s.future[0]!, future: s.future.slice(1), at: 0, burst: null } : s)), []);
+  return { draft: state.present, change, mark, undo, redo, canUndo: state.past.length > 0, canRedo: state.future.length > 0 };
 }
 
 /** A key press meant for a text field (its own undo), not for the Studio's. */
@@ -218,7 +248,7 @@ export function CardStudio({ playerId, name, avatarUrl, art, accent, look, champ
   const savedStyle = React.useMemo<CardStyle>(() => look?.style ?? legacyCardStyle(accent), [look, accent]);
   const initialPick = React.useMemo(() => ({ championId: art?.championId ?? poolIds[0] ?? null, skinNum: art?.skinNum ?? 0 }), [art, poolIds]);
   const saved = React.useMemo<Draft>(() => ({ style: savedStyle, pick: initialPick, banner: { kind: "keep" } }), [savedStyle, initialPick]);
-  const { draft, change, undo, redo, canUndo, canRedo } = useDraftHistory(saved);
+  const { draft, change, mark, undo, redo, canUndo, canRedo } = useDraftHistory(saved);
   const { style, pick, banner } = draft;
   const [section, setSection] = React.useState<Section>("appearance");
   const sideBySide = useMedia(SIDE_BY_SIDE);
@@ -226,7 +256,22 @@ export function CardStudio({ playerId, name, avatarUrl, art, accent, look, champ
   const [context, setContext] = React.useState<PreviewContext>(origin === "header" ? "header" : "team");
   const [device, setDevice] = React.useState<PreviewDevice | null>(null);
   const shownDevice: PreviewDevice = device ?? (phoneWindow ? "mobile" : "desktop");
-  const [fit, setFit] = React.useState<"fit" | "actual">("fit");
+  // Fit or Actual size, remembered on this device (Settings → On this device can clear it).
+  const [fit, setFitState] = React.useState<"fit" | "actual">(() => {
+    try {
+      return window.localStorage.getItem(PREVIEW_KEY) === "actual" ? "actual" : "fit";
+    } catch {
+      return "fit";
+    }
+  });
+  const setFit = (v: "fit" | "actual") => {
+    setFitState(v);
+    try {
+      window.localStorage.setItem(PREVIEW_KEY, v);
+    } catch {
+      // Private browsing: remembered for this visit only.
+    }
+  };
   // A confirmation in the action bar: leaving with unsaved changes.
   const [confirm, setConfirm] = React.useState<"discard" | null>(null);
   const [busy, setBusy] = React.useState(false);
@@ -295,14 +340,16 @@ export function CardStudio({ playerId, name, avatarUrl, art, accent, look, champ
   }, []);
   /** The artwork's position where the preview shows it: that place's own when it has one, else the shared one. */
   const onPosition = React.useCallback(
-    (p: { focusX: number; focusY: number; zoom: number }) =>
+    (p: { focusX: number; focusY: number; zoom: number }) => {
+      mark("position");
       change((d) => {
         if (!place) return d;
         const own = d.style.art.places?.[place];
         if (own) return { ...d, style: withPlacePosition(d.style, place, p) };
         return { ...d, style: { ...d.style, art: { ...d.style.art, focusX: p.focusX, focusY: p.focusY, zoom: p.zoom } } };
-      }),
-    [change, place],
+      });
+    },
+    [change, mark, place],
   );
   const goTo = React.useCallback((next: Section) => {
     setSection(next);
@@ -396,11 +443,12 @@ export function CardStudio({ playerId, name, avatarUrl, art, accent, look, champ
   };
 
   const header = (
-    <div className={cn("flex min-h-12 items-center gap-3 py-2 pl-4 sm:pl-5 short:min-h-0 short:py-1", CLEAR_OF_CONTROLS)}>
+    // Undo and Redo wrap under the title where the row has no room for them (a 320px phone at 150% text), never under the close button.
+    <div className={cn("flex min-h-12 flex-wrap items-center gap-x-3 py-2 pl-4 sm:pl-5 short:min-h-0 short:py-1", CLEAR_OF_CONTROLS)}>
       <h2 id="studio-title" className="shrink-0 text-base font-semibold leading-tight text-fg sm:text-lg">
         Card Studio
       </h2>
-      <p className={cn("flex min-w-0 items-center gap-1.5 truncate text-xs", dirty ? "text-warn" : "sr-only")} data-testid="studio-status" aria-live="polite">
+      <p className={cn("flex min-w-0 basis-0 items-center gap-1.5 truncate text-xs", dirty ? "flex-1 text-warn" : "sr-only")} data-testid="studio-status" aria-live="polite">
         {dirty ? <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-warn" aria-hidden /> : null}
         {dirty ? "Unsaved changes" : "No changes"}
       </p>
@@ -424,7 +472,7 @@ export function CardStudio({ playerId, name, avatarUrl, art, accent, look, champ
           {error}
         </p>
       ) : null}
-      <Button variant="ghost" onClick={resetLook} disabled={busy} className="mr-auto px-2.5 max-[359px]:min-w-11" data-testid="studio-reset-all" title="Reset look: the standard card, keeping your artwork, tagline and emblem">
+      <Button variant="ghost" onClick={resetLook} disabled={busy} className="mr-auto px-2.5 max-[359px]:min-w-11" data-testid="studio-reset-all" title="Reset look">
         <RotateCcw className="h-4 w-4" aria-hidden /> <span className="max-[359px]:sr-only">Reset look</span>
       </Button>
       <Button variant="ghost" onClick={cancel} disabled={busy} data-testid="studio-cancel">
@@ -440,18 +488,20 @@ export function CardStudio({ playerId, name, avatarUrl, art, accent, look, champ
   const noFigures = (context === "team" || context === "public") && figures !== "loading" && !previewData?.season && (preview?.showRank ?? true);
 
   return (
+    <BurstContext.Provider value={mark}>
     <DetailModal open onClose={onClose} canClose={canClose} title="Card Studio" titleId="studio-title" size="full" className="sm:h-[min(calc(100%-3rem),64rem)] sm:w-[min(calc(100%-3rem),100rem)]" header={header} headerClassName="border-b border-border" innerScroll testId="card-studio-window" footer={footer}>
       <div
         ref={root}
-        className="relative grid min-h-0 flex-1 grid-cols-1 grid-rows-[auto_auto_minmax(0,1fr)] lg:grid-cols-[minmax(0,9fr)_minmax(0,11fr)] lg:grid-rows-[auto_minmax(0,1fr)] short:grid-cols-[minmax(0,9fr)_minmax(0,11fr)] short:grid-rows-[auto_minmax(0,1fr)]"
+        className={cn("relative grid min-h-0 flex-1 grid-cols-1 grid-rows-[auto_auto_minmax(0,1fr)] lg:grid-cols-[minmax(0,9fr)_minmax(0,11fr)] lg:grid-rows-[auto_minmax(0,1fr)] short:grid-cols-[minmax(0,9fr)_minmax(0,11fr)] short:grid-rows-[auto_minmax(0,1fr)]", TIGHT.root)}
         data-testid="card-studio"
         data-section={section}
         data-keyboard={keyboard || undefined}
       >
         {/* The live preview: beside the controls on desktops and on a phone held sideways, above them otherwise. */}
-        <div className={cn("flex min-h-0 min-w-0 flex-col gap-2 border-b border-border bg-bg/40 px-3 pb-2 pt-2 lg:row-span-2 lg:gap-3 lg:border-b-0 lg:border-r lg:p-5 short:row-span-2 short:gap-1.5 short:border-b-0 short:border-r short:p-2")} data-testid="studio-preview-pane">
-          <div className="flex min-w-0 items-center gap-2">
-            <Select value={context} onValueChange={(v) => setContext(v as PreviewContext)} options={PREVIEW_CONTEXTS.map((c) => ({ value: c, label: CONTEXT_LABEL[c] }))} aria-label="Preview" className="min-w-0 flex-1" data-testid="preview-context" />
+        <div className={cn("flex min-h-0 min-w-0 flex-col gap-1.5 border-b border-border bg-bg/40 px-3 pb-1.5 pt-1.5 sm:gap-2 sm:pb-2 sm:pt-2 lg:row-span-2 lg:gap-3 lg:border-b-0 lg:border-r lg:p-5 short:row-span-2 short:gap-1.5 short:border-b-0 short:border-r short:p-2")} data-testid="studio-preview-pane">
+          {/* The choosers wrap (the screen and size under the place) rather than squeeze the place's select under 5rem (a 320px phone at 150% text). */}
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <Select value={context} onValueChange={(v) => setContext(v as PreviewContext)} options={PREVIEW_CONTEXTS.map((c) => ({ value: c, label: CONTEXT_LABEL[c] }))} aria-label="Preview" className="min-w-20 flex-1" data-testid="preview-context" />
             <div role="radiogroup" aria-label="Screen" className={segmentedGroupClass("shrink-0")} data-testid="preview-device">
               {(
                 [
@@ -483,6 +533,10 @@ export function CardStudio({ playerId, name, avatarUrl, art, accent, look, champ
             fit={fit}
             subject={subject}
             className={cn("h-[clamp(8.5rem,32dvh,19rem)] lg:h-auto lg:flex-1 short:h-auto short:flex-1", keyboard && "max-lg:h-24")}
+            // Above the controls the stage is no taller than the place in it (a phone's header left an
+            // empty band above and below it): the section gets the room (page budgets, studio@i15: 1.43
+            // screens with the stage at its full height, 1.3 allowed).
+            hug={sideBySide || keyboard ? undefined : "clamp(8.5rem, 32dvh, 19rem)"}
             surface={(box, scale) =>
               place && pick.championId !== null ? <ArtSurface box={box} scale={scale} placement={artPlacement(style, place)} blur={style.art.blur} label={PLACE_LABEL[place]} own={!!style.art.places?.[place]} onChange={onPosition} /> : null
             }
@@ -495,7 +549,7 @@ export function CardStudio({ playerId, name, avatarUrl, art, accent, look, champ
         </div>
 
         {/* The sections: tabs, any one at any time. */}
-        <div role="tablist" aria-label="Card Studio sections" className="flex min-w-0 shrink-0 gap-1 overflow-x-auto border-b border-border px-2 [scrollbar-width:none] lg:px-4 short:px-2 [&::-webkit-scrollbar]:hidden" data-testid="studio-sections">
+        <div role="tablist" aria-label="Card Studio sections" className={cn("flex min-w-0 shrink-0 gap-1 overflow-x-auto border-b border-border px-2 [scrollbar-width:none] lg:px-4 short:px-2 [&::-webkit-scrollbar]:hidden", TIGHT.tabs)} data-testid="studio-sections">
           {sections.map((id) => (
             <button
               key={id}
@@ -528,8 +582,8 @@ export function CardStudio({ playerId, name, avatarUrl, art, accent, look, champ
           ))}
         </div>
 
-        {/* The section: the only part of the Studio that scrolls. */}
-        <section ref={controls} id="studio-section-panel" role="tabpanel" aria-labelledby={`studio-tab-${section}`} className="min-h-0 min-w-0 overflow-y-auto overscroll-contain px-4 pb-6 pt-4 lg:px-6 lg:pb-6 short:px-3 short:pt-3" data-testid={`studio-panel-${section}`}>
+        {/* The section: the only part of the Studio that scrolls (in a TIGHT window, the body around it). */}
+        <section ref={controls} id="studio-section-panel" role="tabpanel" aria-labelledby={`studio-tab-${section}`} className={cn("min-h-0 min-w-0 overflow-y-auto overscroll-contain px-4 pb-4 pt-3 sm:pb-6 sm:pt-4 lg:px-6 lg:pb-6 short:px-3 short:pt-3", TIGHT.panel)} data-testid={`studio-panel-${section}`}>
           {section === "appearance" ? <AppearancePanel style={style} saved={savedStyle} set={set} change={change} onPreset={onPreset} art={previewArt} bannerUrl={bannerUrl} /> : null}
           {section === "artwork" ? (
             <ArtworkPanel style={style} saved={saved} draft={draft} set={set} change={change} bannerUrl={bannerUrl} hasSavedBanner={!!look?.bannerUrl} onBanner={onBanner} pick={pick} champions={champions} poolIds={poolIds} onChampion={onChampion} onSkin={onSkin} place={place} sideBySide={sideBySide} onPosition={onPosition} />
@@ -539,6 +593,7 @@ export function CardStudio({ playerId, name, avatarUrl, art, accent, look, champ
         </section>
       </div>
     </DetailModal>
+    </BurstContext.Provider>
   );
 }
 
@@ -614,11 +669,12 @@ function Field({ label, hint, changed = false, onReset, children, testId }: { la
   );
 }
 
-function Choice<T extends string>({ value, options, labels, onChange, label, columns = 4 }: { value: T; options: readonly T[]; labels: Record<T, string>; onChange: (v: T) => void; label: string; columns?: number }) {
+/** A choice of a few, in words: the shared text-led segments (ui/segmented.tsx), wrapping where the line is short. */
+function Choice<T extends string>({ value, options, labels, onChange, label }: { value: T; options: readonly T[]; labels: Record<T, string>; onChange: (v: T) => void; label: string; columns?: number }) {
   return (
-    <div role="radiogroup" aria-label={label} className={cn("grid gap-1.5", columns === 5 ? "grid-cols-3 sm:grid-cols-5" : columns === 3 ? "grid-cols-3" : "grid-cols-2 sm:grid-cols-4")}>
+    <div role="radiogroup" aria-label={label} className={segmentedGroupClass("-ml-2.5")}>
       {options.map((o) => (
-        <button key={o} type="button" role="radio" aria-checked={value === o} onClick={() => onChange(o)} className={cn("min-h-9 truncate rounded-lg border px-2 text-xs font-medium transition-colors pointer-coarse:min-h-11", value === o ? "border-accent bg-accent/15 text-fg ring-1 ring-accent" : "border-border text-fg-muted hover:border-border-strong hover:text-fg")} data-value={o}>
+        <button key={o} type="button" role="radio" aria-checked={value === o} onClick={() => onChange(o)} className={segmentClass(value === o, { size: "md" })} data-value={o}>
           {labels[o]}
         </button>
       ))}
@@ -644,14 +700,16 @@ function Slider({ value, min, max, step = 1, onChange, label, format, disabled =
   const frame = React.useRef<number | null>(null);
   const pending = React.useRef(value);
   const latest = React.useRef(onChange);
+  const mark = React.useContext(BurstContext);
   React.useLayoutEffect(() => {
     latest.current = onChange;
   });
   const flush = React.useCallback(() => {
     frame.current = null;
     setSent(pending.current);
+    mark(`slider:${label}`);
     latest.current(pending.current);
-  }, []);
+  }, [mark, label]);
   // Leaving the section mid-drag still keeps the last position.
   React.useEffect(
     () => () => {
@@ -690,7 +748,13 @@ function Slider({ value, min, max, step = 1, onChange, label, format, disabled =
   );
 }
 
-function ColourPicker({ value, onChange, label }: { value: string; onChange: (v: string) => void; label: string }) {
+function ColourPicker({ value, onChange: commit, label }: { value: string; onChange: (v: string) => void; label: string }) {
+  const mark = React.useContext(BurstContext);
+  // The colour well and the hex field change continuously (a drag across the well, typing): one step for Undo.
+  const onChange = (v: string, gesture = false) => {
+    if (gesture) mark(`colour:${label}`);
+    commit(v);
+  };
   const [text, setText] = React.useState(value);
   const [shown, setShown] = React.useState(value);
   // A swatch, preset or reset changed the colour: show it in the text field too.
@@ -709,13 +773,13 @@ function ColourPicker({ value, onChange, label }: { value: string; onChange: (v:
         ))}
       </div>
       <div className="flex items-center gap-2">
-        <input type="color" value={value} onChange={(e) => onChange(e.target.value.toLowerCase())} aria-label={`${label}: custom`} className="h-9 w-12 shrink-0 cursor-pointer rounded-md border border-border bg-bg-elevated pointer-coarse:h-11" />
+        <input type="color" value={value} onChange={(e) => onChange(e.target.value.toLowerCase(), true)} aria-label={`${label}: custom`} className="h-9 w-12 shrink-0 cursor-pointer rounded-md border border-border bg-bg-elevated pointer-coarse:h-11" />
         <input
           type="text"
           value={text}
           onChange={(e) => {
             setText(e.target.value);
-            if (/^#[0-9a-f]{6}$/i.test(e.target.value)) onChange(e.target.value.toLowerCase());
+            if (/^#[0-9a-f]{6}$/i.test(e.target.value)) onChange(e.target.value.toLowerCase(), true);
           }}
           maxLength={7}
           spellCheck={false}
@@ -750,8 +814,8 @@ const PresetTile = React.memo(function PresetTile({ id, style, art, bannerUrl, o
   const look = React.useMemo<CardLook>(() => ({ style: applyPreset(style, id), bannerUrl }), [style, id, bannerUrl]);
   const p = PRESET_INFO[id];
   return (
-    <button type="button" onClick={() => onApply(id)} aria-pressed={on} title={p.description} className={cn("group relative rounded-panel border p-1 text-left transition-colors", on ? "border-accent bg-accent/10 ring-1 ring-accent" : "border-border hover:border-border-strong")} data-testid={`preset-${id}`}>
-      <span className="relative block h-16 overflow-hidden rounded-lg border border-border" style={cardShellStyle(look, { glow: false })}>
+    <button type="button" onClick={() => onApply(id)} aria-pressed={on} className={cn("group relative rounded-panel border p-1 text-left transition-colors", on ? "border-accent bg-accent/10 ring-1 ring-accent" : "border-border hover:border-border-strong")} data-testid={`preset-${id}`}>
+      <span className="relative block h-12 overflow-hidden rounded-lg border border-border sm:h-16" style={cardShellStyle(look, { glow: false })}>
         <CardArtLayer art={art} accent={look.style.colours.primary} kind="splash" look={look} decorate={false} smooth={false} foot testId="preset-art" place="card" />
         <CardFrame look={look} />
         <span className={cn("absolute inset-x-2 bottom-1.5 truncate text-xs text-fg drop-shadow", look.style.identity.nameStyle === "bold" ? "font-extrabold" : look.style.identity.nameStyle === "italic" ? "font-semibold italic" : look.style.identity.nameStyle === "wide" ? "font-semibold uppercase tracking-label" : "font-semibold")}>
@@ -776,9 +840,9 @@ function AppearancePanel({ style, saved, set, change, onPreset, art, bannerUrl }
   const noWash = c.gradient === "none";
   const revert = (fn: (s: CardStyle) => CardStyle) => change((d) => ({ ...d, style: fn(d.style) }));
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       <Part title="Style" changed={style.preset !== saved.preset} onRevert={() => revert((s) => ({ ...s, colours: saved.colours, frame: saved.frame, effects: saved.effects, identity: { ...s.identity, nameStyle: saved.identity.nameStyle, theme: saved.identity.theme }, art: { ...s.art, darkness: saved.art.darkness, blur: saved.art.blur, vignette: saved.art.vignette }, preset: saved.preset }))}>
-        <div className="grid grid-cols-2 gap-2 min-[30rem]:grid-cols-3 sm:grid-cols-4" data-testid="studio-presets">
+        <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-4 sm:gap-2" data-testid="studio-presets">
           {CARD_PRESETS.map((id) => (
             <PresetTile key={id} id={id} style={style} art={art} bannerUrl={bannerUrl} on={style.preset === id} onApply={onPreset} />
           ))}
@@ -786,14 +850,15 @@ function AppearancePanel({ style, saved, set, change, onPreset, art, bannerUrl }
       </Part>
 
       <Part title="Colours" changed={!same(c, saved.colours) || style.identity.theme !== saved.identity.theme} onRevert={() => revert((s) => ({ ...s, colours: saved.colours, identity: { ...s.identity, theme: saved.identity.theme } }))} testId="studio-colours">
-        <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-5" data-testid="palettes">
+        <div className="grid grid-cols-5 gap-1.5" data-testid="palettes">
           {CARD_PALETTES.map((p) => {
             const on = c.primary === p.primary && c.secondary === p.secondary;
             return (
-              <button key={p.label} type="button" aria-pressed={on} onClick={() => set((s) => ({ ...s, colours: { ...s.colours, primary: p.primary, secondary: p.secondary } }))} className={cn("flex min-h-10 items-center gap-2 rounded-lg border px-2 text-xs font-medium transition-colors pointer-coarse:min-h-11", on ? "border-accent bg-accent/12 text-fg ring-1 ring-accent" : "border-border text-fg-muted hover:text-fg")}>
+              <button key={p.label} type="button" aria-pressed={on} onClick={() => set((s) => ({ ...s, colours: { ...s.colours, primary: p.primary, secondary: p.secondary } }))} title={p.label} className={cn("flex min-h-11 min-w-0 items-center justify-center gap-2 rounded-lg border px-2 text-xs font-medium transition-colors sm:min-h-10 sm:justify-start pointer-coarse:min-h-11", on ? "border-accent bg-accent/12 text-fg ring-1 ring-accent" : "border-border text-fg-muted hover:text-fg")}>
                 <span className="h-5 w-5 shrink-0 rounded-full ring-1 ring-black/20" style={{ background: `linear-gradient(135deg, ${p.primary} 50%, ${p.secondary} 50%)` }} aria-hidden />
-                <span className="min-w-0 flex-1 truncate text-left">{p.label}</span>
-                {on ? <Check className="h-4 w-4 shrink-0 text-accent" aria-hidden /> : null}
+                {/* Phones: the colours alone (the name is the button's, read out and in its title); wider, the name beside them. */}
+                <span className="min-w-0 flex-1 truncate text-left max-sm:sr-only">{p.label}</span>
+                {on ? <Check className="h-4 w-4 shrink-0 text-accent max-sm:hidden" aria-hidden /> : null}
               </button>
             );
           })}
@@ -824,7 +889,8 @@ function AppearancePanel({ style, saved, set, change, onPreset, art, bannerUrl }
         </Fold>
       </Part>
 
-      <Part title="Frame and border" changed={style.frame !== saved.frame || c.border !== saved.colours.border || c.avatarFrame !== saved.colours.avatarFrame} onRevert={() => revert((s) => ({ ...s, frame: saved.frame, colours: { ...s.colours, border: saved.colours.border, avatarFrame: saved.colours.avatarFrame } }))}>
+      <Fold variant="row" tone="fg" summary={<span className="flex items-center gap-2 text-sm">Frame and border<span className="text-xs font-normal text-fg-subtle">· {FRAME_LABEL[style.frame]}</span></span>} testId="fold-frame">
+      <Part title="Frame and border" changed={style.frame !== saved.frame || c.border !== saved.colours.border || c.avatarFrame !== saved.colours.avatarFrame} onRevert={() => revert((s) => ({ ...s, frame: saved.frame, colours: { ...s.colours, border: saved.colours.border, avatarFrame: saved.colours.avatarFrame } }))} className="[&>div:first-child>h3]:sr-only">
         <div role="radiogroup" aria-label="Card frame" className="grid grid-cols-2 gap-2 min-[360px]:grid-cols-3 sm:grid-cols-4 xl:grid-cols-7" data-testid="frame-options">
           {CARD_FRAMES.map((f) => {
             const look: CardLook = { style: { ...style, frame: f, effects: { ...style.effects, glow: false } }, bannerUrl: null };
@@ -852,6 +918,7 @@ function AppearancePanel({ style, saved, set, change, onPreset, art, bannerUrl }
           </Field>
         </div>
       </Part>
+      </Fold>
 
       <Fold variant="row" tone="fg" summary={<span className="flex items-center gap-2 text-sm">Effects{any ? <span className="text-xs font-normal text-fg-subtle">· on</span> : null}</span>} testId="fold-effects" defaultOpen={any}>
         <div className="space-y-4" data-testid="studio-effects">
@@ -915,7 +982,7 @@ function ArtworkPanel({
   const s = saved.style.art;
   const revertArt = () => change((d) => ({ ...d, style: { ...d.style, art: { ...d.style.art, source: s.source } }, banner: { kind: "keep" } }));
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       <Part title="Background" changed={art.source !== s.source || draft.banner.kind !== "keep"} onRevert={revertArt}>
         <BackgroundChoice style={style} set={set} bannerUrl={bannerUrl} onBanner={onBanner} hasSavedBanner={hasSavedBanner} />
       </Part>
@@ -1190,7 +1257,7 @@ function SkinChooser({ championId, skins, value, onChange }: { championId: strin
                     </span>
                   ) : null}
                 </span>
-                <span className={cn("block truncate px-1.5 py-1.5 text-xs", on ? "bg-accent/15 font-semibold text-fg" : "text-fg-muted")}>{s.name}</span>
+                <span className={cn("block truncate px-1.5 py-1.5 text-xs", on ? "font-semibold text-fg" : "text-fg-muted")}>{s.name}</span>
               </button>
             </li>
           );
@@ -1211,6 +1278,7 @@ function SkinChooser({ championId, skins, value, onChange }: { championId: strin
 
 function IdentityPanel({ style, saved, set, change, problem }: { style: CardStyle; saved: CardStyle; set: Setter; change: Change; problem: string | null }) {
   const id = style.identity;
+  const mark = React.useContext(BurstContext);
   const [text, setText] = React.useState(id.tagline);
   // Reset, Undo or a preset changed the tagline: show the saved text (typing keeps its own spaces).
   if (cleanTagline(text) !== id.tagline) setText(id.tagline);
@@ -1225,6 +1293,7 @@ function IdentityPanel({ style, saved, set, change, problem }: { style: CardStyl
             maxLength={TAGLINE_MAX + 10}
             onChange={(e) => {
               setText(e.target.value);
+              mark("tagline");
               set((s) => ({ ...s, identity: { ...s.identity, tagline: cleanTagline(e.target.value) } }));
             }}
             placeholder="In your own words, e.g. “Calm in the chaos”"
@@ -1244,13 +1313,13 @@ function IdentityPanel({ style, saved, set, change, problem }: { style: CardStyl
         </Field>
         <Field label="Emblem" hint="beside your name" changed={id.emblem !== null} onReset={() => set((s) => ({ ...s, identity: { ...s.identity, emblem: null } }))}>
           <div role="radiogroup" aria-label="Emblem" className="grid grid-cols-6 gap-1.5 sm:grid-cols-9 xl:grid-cols-[repeat(13,minmax(0,1fr))]" data-testid="emblem-options">
-            <button type="button" role="radio" aria-checked={id.emblem === null} onClick={() => set((s) => ({ ...s, identity: { ...s.identity, emblem: null } }))} className={cn("grid h-10 place-items-center rounded-lg border text-xs text-fg-muted pointer-coarse:h-11", id.emblem === null ? "border-accent bg-accent/15 text-fg ring-1 ring-accent" : "border-border")}>
+            <button type="button" role="radio" aria-checked={id.emblem === null} onClick={() => set((s) => ({ ...s, identity: { ...s.identity, emblem: null } }))} className={cn("grid h-10 place-items-center rounded-lg border text-xs pointer-coarse:h-11", id.emblem === null ? "border-accent font-semibold text-fg" : "border-border text-fg-muted hover:text-fg")}>
               None
             </button>
             {CARD_EMBLEMS.map((e) => {
               const Icon = EMBLEM_ICONS[e];
               return (
-                <button key={e} type="button" role="radio" aria-checked={id.emblem === e} aria-label={emblemName(e)} title={emblemName(e)} onClick={() => set((s) => ({ ...s, identity: { ...s.identity, emblem: e } }))} className={cn("grid h-10 place-items-center rounded-lg border pointer-coarse:h-11", id.emblem === e ? "border-accent bg-accent/15 text-accent ring-1 ring-accent" : "border-border text-fg-muted hover:text-fg")} data-value={e}>
+                <button key={e} type="button" role="radio" aria-checked={id.emblem === e} aria-label={emblemName(e)} title={emblemName(e)} onClick={() => set((s) => ({ ...s, identity: { ...s.identity, emblem: e } }))} className={cn("grid h-10 place-items-center rounded-lg border pointer-coarse:h-11", id.emblem === e ? "border-accent text-accent ring-1 ring-accent" : "border-border text-fg-muted hover:text-fg")} data-value={e}>
                   <Icon className="h-4 w-4" aria-hidden />
                 </button>
               );

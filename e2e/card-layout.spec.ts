@@ -71,8 +71,10 @@ async function makeMember(browser: Browser, admin: Page, who: Who): Promise<Brow
   await page.goto("/overview");
   await page.getByTestId("customise-card").first().click();
   const studio = page.getByTestId("card-studio");
+  // The frame is under Appearance's Frame and border fold (Card Studio, Release 17).
+  await studio.getByTestId("fold-frame").locator("summary").click();
   await studio.locator(`[role=radio][data-value="${who.frame}"]`).first().click();
-  await page.getByTestId("studio-step-identity").click();
+  await page.getByTestId("studio-tab-identity").click();
   await page.getByTestId("tagline-input").fill(who.tagline);
   await page.getByRole("radiogroup", { name: "Emblem" }).locator(`[data-value=${who.emblem}]`).click();
   await page.getByRole("radiogroup", { name: "Name style" }).locator(`[data-value=${who.nameStyle}]`).click();

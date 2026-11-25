@@ -24,8 +24,7 @@ type Kind = "boxed-group" | "accent-ring" | "accent-fill";
 
 /** Exceptions: the file, what it may draw, and why. Each must still match something (a stale entry fails). */
 const ALLOWED: Array<{ file: string; kind: Kind; reason: string; optional?: true }> = [
-  { file: "src/components/players/customise-card.tsx", kind: "accent-ring", reason: "Card Studio's frames, skins, emblems and the chosen champion's portrait (a picture chosen from a grid, ringed); its text choices are being rebuilt on the shared helpers in Release 17's Card Studio overhaul", optional: true },
-  { file: "src/components/players/customise-card.tsx", kind: "accent-fill", reason: "a chosen skin's caption under its picture, part of the picture's tile; the rest goes with Release 17's Card Studio overhaul", optional: true },
+  { file: "src/components/players/customise-card.tsx", kind: "accent-ring", reason: "Card Studio's pictures chosen from a grid, ringed: the style presets drawn on the player's art, the palettes, the frames, the emblems, the skins and the chosen champion's portrait (its choices in words are the shared segments)" },
   { file: "src/components/mobile-nav.tsx", kind: "accent-fill", reason: "the phone's bottom tab bar: navigation, its current tab's pill is the installed app's convention (docs/MOBILE.md)" },
   { file: "src/components/match-history/multikill-tag.tsx", kind: "accent-fill", reason: "a pentakill's badge, not a control" },
   { file: "src/components/install/install-app.tsx", kind: "accent-fill", reason: "the number of an install step, not a control" },

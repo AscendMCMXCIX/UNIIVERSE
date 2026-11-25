@@ -75,8 +75,10 @@ async function makeMember(browser: Browser, admin: Page, who: typeof MEMBER) {
   await page.goto("/overview");
   await page.getByTestId("customise-card").first().click();
   const studio = page.getByTestId("card-studio");
+  // The frame is under Appearance's Frame and border fold (Card Studio, Release 17).
+  await studio.getByTestId("fold-frame").locator("summary").click();
   await studio.locator(`[role=radio][data-value="${who.frame}"]`).first().click();
-  await page.getByTestId("studio-step-identity").click();
+  await page.getByTestId("studio-tab-identity").click();
   await page.getByTestId("tagline-input").fill(who.tagline);
   await page.getByRole("radiogroup", { name: "Emblem" }).locator(`[data-value=${who.emblem}]`).click();
   await page.getByRole("radiogroup", { name: "Name style" }).locator(`[data-value=${who.nameStyle}]`).click();
@@ -305,7 +307,7 @@ async function saveTagline(browser: Browser, baseURL: string, player: string, ta
     await page.getByTestId("profile-header").getByTestId("customise-card").click();
     await expect(studio).toBeVisible({ timeout: 1_000 });
   }).toPass({ timeout: 15_000 });
-  await page.getByTestId("studio-step-identity").click();
+  await page.getByTestId("studio-tab-identity").click();
   await page.getByTestId("tagline-input").fill(tagline);
   await page.getByTestId("save-card-style").click();
   await expect(studio).toBeHidden();

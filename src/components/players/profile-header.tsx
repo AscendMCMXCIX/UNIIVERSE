@@ -21,11 +21,11 @@ import { cn } from "@/lib/cn";
 const QUEUE_LABEL = { solo: "Solo/Duo", flex: "Flex" } as const;
 
 /**
- * The picture in the band: held sideways (a short window) 56px, as on a phone, beside one line of name
- * and one of roles and rank; from sm in a window taller than that 72px, and 80px in a window 1000px
- * tall or more, in the band's taller proportions (TALL_BAND).
+ * The picture in the band: 56px held sideways (a short window), as on a phone, and on a tablet, beside
+ * one line of name and one of roles and rank; on a desktop (lg) 72px, and 5rem (96px at most) in a
+ * window 1000px tall or more, in the band's taller proportions (TALL_BAND).
  */
-const SHORT_PICTURE = "band:h-14 band:w-14 band:text-lg band:not-short:h-18 band:not-short:w-18 band:not-short:text-2xl band:not-short:[@media(min-height:1000px)]:h-20 band:not-short:[@media(min-height:1000px)]:w-20";
+const SHORT_PICTURE = "band:h-14 band:w-14 band:text-lg band:not-short:lg:h-18 band:not-short:lg:w-18 band:not-short:lg:text-2xl band:not-short:lg:[@media(min-height:1000px)]:h-[min(5rem,96px)] band:not-short:lg:[@media(min-height:1000px)]:w-[min(5rem,96px)]";
 
 /**
  * The Overview's band held sideways (a short window) keeps to one line of name and one of roles, rank
@@ -83,12 +83,17 @@ const LARGE_TEXT = {
 } as const;
 
 /**
- * The band from sm in a window taller than 480px (desktops and tablets; held sideways it stays the
- * 80px band above), taller than the 72px of content it had until 24 Nov 2026 (74px with its border at
- * 1440 × 900, 82px at 1920 × 1080), where the art showed as a thin strip (Card Studio release, the
- * owner's trial of a header about 40–50% taller):
- *  - in a window 1000px tall or more (1920 × 1080, 2560 × 1440): 104px of content (min-h-26, 12px
- *    above and below an 80px picture), 44% more: 106px at 1440 wide, 117px at 1920, 136px at 2560;
+ * The band on a desktop (lg) in a window taller than 480px, taller than the 72px of content it had
+ * until 24 Nov 2026 (74px with its border at 1440 × 900, 82px at 1920 × 1080), where the art showed
+ * as a thin strip (Card Studio release, the owner's trial of a desktop header about 40–50% taller).
+ * Tablets keep the 72px band (min-h-18): 106px there took Encounters on an iPad (810 × 1080) past one
+ * screen (1.026 measured; match-history-layout.spec.ts, the plan's heights), and held sideways it
+ * stays the 80px band above.
+ *  - in a window 1000px tall or more (1920 × 1080, 2560 × 1440): 6.5rem of content (12px above and
+ *    below a 5rem picture), 44% more: 117px at 1920 × 1080; where the
+ *    root text grows past 18.5px (2560 wide and more) at most 120px of content around a 96px picture:
+ *    122px at 2560 × 1440 (95px before, 28% more) and at 3440 × 1440, where 145px took Match History
+ *    past its 1.35 screens (match-history-layout.spec.ts, the plan's heights; 1.369 measured);
  *  - in a shorter one (a laptop's 1440 × 900, the owner's browser at 1920 × 950): 5.25rem, 17% more
  *    (86px at 1440, 95px at 1920), a 72px picture. The profile's Overview fits these windows whole
  *    (Release 16, home-layout.spec.ts) with 6px to spare at 1920 × 950 and 13px at 1440 × 900 for its
@@ -100,10 +105,10 @@ const LARGE_TEXT = {
  * place (UD.PO1).
  */
 const TALL_BAND = {
-  row: "band:not-short:min-h-[5.25rem] band:not-short:gap-4 band:not-short:px-5 band:not-short:py-1.5 band:not-short:[@media(min-height:1000px)]:min-h-26 band:not-short:[@media(min-height:1000px)]:py-3",
-  name: "band:not-short:text-2xl",
-  tagline: "band:not-short:text-sm",
-  meta: "band:not-short:mt-1 band:not-short:gap-x-3 band:not-short:text-sm",
+  row: "band:not-short:min-h-18 band:not-short:py-1 band:not-short:lg:min-h-[5.25rem] band:not-short:lg:gap-4 band:not-short:lg:px-5 band:not-short:lg:py-1.5 band:not-short:lg:[@media(min-height:1000px)]:min-h-[min(6.5rem,120px)] band:not-short:lg:[@media(min-height:1000px)]:py-[min(0.75rem,12px)]",
+  name: "band:not-short:lg:text-2xl",
+  tagline: "band:not-short:lg:text-sm",
+  meta: "band:not-short:lg:mt-1 band:not-short:lg:gap-x-3 band:not-short:lg:text-sm",
 } as const;
 
 /** The header's artwork below the band (a phone held upright: the card) has a position of its own when the player gave one (Card Studio). */

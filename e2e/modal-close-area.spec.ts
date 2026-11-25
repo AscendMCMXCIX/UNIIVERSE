@@ -65,7 +65,7 @@ test("Team's player window: previous and next set apart from the close button, t
   await expect(win).toBeHidden();
 });
 
-test("Player Card Studio keeps the corner clear", async ({ page }) => {
+test("Card Studio keeps the corner clear", async ({ page }) => {
   const id = await topPlayer(page);
   await page.goto(`/players/${id}`);
   const customise = page.getByTestId("profile-header").getByTestId("customise-card");
@@ -73,8 +73,8 @@ test("Player Card Studio keeps the corner clear", async ({ page }) => {
   await customise.click();
   await expect(studio.getByTestId("card-studio")).toBeVisible();
   await expectClearCorner(page);
-  // Card Studio alone is 76rem (DetailModal size="wide"), the window less 3rem below that.
-  await expectTaskWidth(page, studio, 76, 3, "Card Studio");
+  // Card Studio is 100rem at most since Release 17 (the preview 40–50% of it), the window less 3rem below that.
+  await expectTaskWidth(page, studio, 100, 3, "Card Studio");
   await expectEscapeReturnsTo(page, studio, customise);
 });
 
