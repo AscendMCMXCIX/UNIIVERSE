@@ -8,7 +8,9 @@ import { PANEL_WORDS, REMOVED_PARTS, REMOVED_WORDS, fitVerdicts, postGameVerdict
   of the ten players with one MVP and one ACE, and any player inspected with a press on their row.
   Since the owner's brief of 24 Nov 2026: the open game fits the window with nothing inside it
   scrolling (readFit), and the comparison, the written why, the score strip, the build legend and the
-  grey notes under the scoreboard stay removed.
+  grey notes under the scoreboard stay removed. Since the owner's requirements of 25 Nov 2026: the
+  score through the game stays removed, the MVP is on the team that won and the ACE on the team that
+  lost, and the open card's header shows its card's score and place.
 */
 
 const DEMO: PostGameRead = {
@@ -26,7 +28,8 @@ const DEMO: PostGameRead = {
   laneWords: "Lane vs",
   timeline: "ok",
   panels: { words: ["Build Path", "Skill Order", "Runes"], above: true, path: 8, missing: false },
-  scores: { rows: 10, shown: 10, inRange: true, mvp: 1, ace: 1, removed: 0, panel: true },
+  scores: { rows: 10, shown: 10, inRange: true, mvp: 1, ace: 1, removed: 0, panel: true, mvpOnWin: true, aceOnLoss: true },
+  header: { score: 6, rank: 1, rowScore: 6, rowRank: 1 },
   removed: { parts: 0, words: 0 },
   steps: 6,
 };
@@ -34,7 +37,7 @@ const failed = (at: PostGameRead) => postGameVerdicts({ kind: "desktop", at }).f
 
 describe("the post-game facts", () => {
   it("pass on the demo's open game", () => {
-    expect(postGameVerdicts({ kind: "desktop", at: DEMO }).map((v) => v.status)).toEqual(Array(10).fill("PASS"));
+    expect(postGameVerdicts({ kind: "desktop", at: DEMO }).map((v) => v.status)).toEqual(Array(12).fill("PASS"));
   });
   it("fail the regressions they exist for", () => {
     expect(failed({ ...DEMO, result: "" })).toHaveLength(1);
@@ -60,10 +63,19 @@ describe("the post-game facts", () => {
   it("fail scores missing, out of range, or without exactly one MVP and one ACE; a removed player has none", () => {
     expect(failed({ ...DEMO, scores: { ...DEMO.scores!, shown: 9 } })).toHaveLength(1);
     expect(failed({ ...DEMO, scores: { ...DEMO.scores!, inRange: false } })).toHaveLength(1);
-    expect(failed({ ...DEMO, scores: { ...DEMO.scores!, mvp: 2 } })).toHaveLength(1);
-    expect(failed({ ...DEMO, scores: { ...DEMO.scores!, ace: 0 } })).toHaveLength(1);
+    expect(failed({ ...DEMO, scores: { ...DEMO.scores!, mvp: 2 } })).toHaveLength(2);
+    expect(failed({ ...DEMO, scores: { ...DEMO.scores!, ace: 0 } })).toHaveLength(2);
     expect(failed({ ...DEMO, scores: { ...DEMO.scores!, panel: false } })).toHaveLength(1);
     expect(failed({ ...DEMO, scores: { ...DEMO.scores!, shown: 9, removed: 1 } })).toEqual([]);
+  });
+  it("fail an MVP on the team that lost or an ACE on the team that won", () => {
+    expect(failed({ ...DEMO, scores: { ...DEMO.scores!, mvpOnWin: false } })).toEqual(["desktop: the MVP is on the team that won and the ACE on the team that lost"]);
+    expect(failed({ ...DEMO, scores: { ...DEMO.scores!, aceOnLoss: false } })).toEqual(["desktop: the MVP is on the team that won and the ACE on the team that lost"]);
+  });
+  it("fail an open card's header whose score or place differs from the player's row; none there is not applicable", () => {
+    expect(failed({ ...DEMO, header: { score: 6.1, rank: 1, rowScore: 6, rowRank: 1 } })).toEqual(["desktop: the open card's header shows the game's score and place, the same as the player's row"]);
+    expect(failed({ ...DEMO, header: { score: 6, rank: 2, rowScore: 6, rowRank: 1 } })).toHaveLength(1);
+    expect(postGameVerdicts({ kind: "desktop", at: { ...DEMO, header: null } }).find((v) => v.name.includes("header"))).toMatchObject({ status: "PASS", detail: "not applicable: this game's card had no score" });
   });
   it("fail when a removed section is back: the notes or the gold curve, by their parts or their names", () => {
     expect(failed({ ...DEMO, removed: { parts: 1, words: 0 } })).toHaveLength(1);
@@ -78,6 +90,9 @@ describe("the post-game facts", () => {
     // The comparison, the written why and the grey notes of 24 Nov 2026.
     for (const w of ["No comparison", "Stood out:", "Held back by", "Ranks around the time of this game", "not enough recorded history"]) expect(REMOVED_WORDS).toContain(w);
     for (const id of ["performance-compare", "performance-why", "performance-strip", "build-legend", "build-row"]) expect(REMOVED_PARTS).toContain(`[data-testid=${id}]`);
+    // The score through the game of 25 Nov 2026: its heading, its (i), its chart and its missing line.
+    for (const w of ["Score through the game", "About the score through the game"]) expect(REMOVED_WORDS).toContain(w);
+    for (const id of ["performance", "performance-chart-area", "performance-chart-info", "performance-timeline-missing", "score-chart", "score-chart-table"]) expect(REMOVED_PARTS).toContain(`[data-testid=${id}]`);
   });
   it("warn, not fail, for a game without its items, or whose timeline is still loading (the build path and the scores then wait)", () => {
     const v = postGameVerdicts({ kind: "desktop", at: { ...DEMO, itemsNotRecorded: true, itemSlots: 0, timeline: "loading", scores: undefined } });

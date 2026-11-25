@@ -198,12 +198,8 @@ export interface ScoreInput {
 
 export interface ScoreContext {
   mode: ScoreMode;
-  /** The minutes the figures cover (the game's length; at a moment of the timeline, that moment). */
+  /** The minutes the figures cover (the game's length). */
   minutes: number;
-  /** Apply the result's step (false for a moment of the timeline, when the result was not known yet). */
-  outcome?: boolean;
-  /** A moment of the timeline: MIN_SPREAD times this (√(30 ÷ minutes), v3), as a few minutes' counts vary more than a game's. */
-  spreadScale?: number;
 }
 
 export interface ScoreReason {
@@ -366,7 +362,7 @@ export function scoreMatch(inputs: readonly ScoreInput[], ctx: ScoreContext, tea
     const rs = [...residual.values()];
     values.set(key, row);
     // Centred on the median residual, so one player far from the rest (a lone healer) does not shift everyone else.
-    residuals.set(key, { r: residual, m: median(rs), sd: Math.max(spread(rs), MIN_SPREAD[key] * Math.max(1, ctx.spreadScale ?? 1)) });
+    residuals.set(key, { r: residual, m: median(rs), sd: Math.max(spread(rs), MIN_SPREAD[key]) });
     components.push(key);
   }
   const zOf = (key: ComponentKey, p: ScoreInput): number | null => {
@@ -408,7 +404,7 @@ export function scoreMatch(inputs: readonly ScoreInput[], ctx: ScoreContext, tea
       weight += wk;
     }
     const mean = weight > 0 ? total / weight : 0;
-    const raw = mean + (ctx.outcome !== false && decided ? (p.win ? OUTCOME_STEP : -OUTCOME_STEP) : 0);
+    const raw = mean + (decided ? (p.win ? OUTCOME_STEP : -OUTCOME_STEP) : 0);
     // What moved the score most: each component's share of the weighted mean.
     const share = used.map((key) => ({ key, z: z[key]!, part: ((utility === key ? w.cc + w.protect : w[key]) * z[key]!) / weight })).sort((a, b) => b.part - a.part);
     const up = share.filter((s) => s.z >= 0.35 && s.part > 0).slice(0, 2);
@@ -438,74 +434,14 @@ export function reasonText(reasons: readonly ScoreReason[]): string | null {
   return parts.length ? parts.join(" ") : null;
 }
 
-/* ---------------------------------------------------------------- the timeline */
+/* ---------------------------------------------------------------- the lane */
 
-/** One player's minute by minute record from the stored timeline (kills in ms; the frames aligned with `t`). */
-export interface TimelineInput {
-  slot: number;
-  /** Champion kills made, died in and assisted (ms into the game); null on a timeline kept before they were. */
-  kills: readonly number[] | null;
-  deaths: readonly number[] | null;
-  assists: readonly number[] | null;
-  /** Gold, experience and CS at every frame; null when the player's frames have a gap. */
-  frames: { g: readonly number[]; x: readonly number[]; c: readonly number[] } | null;
-}
-
-export interface TimelinePoint {
-  /** Minutes into the game. */
-  minute: number;
-  /** Each scored player's score at that moment, by slot (interim points damped toward 5: evidenceAt, coverageOf). */
-  scores: Record<number, number>;
-  /** Each player's weighted mean at that moment, undamped and without the result step (z units): what the trend rules read. The final point's is the final score's own. */
-  raw: Record<number, number>;
-  /** What the moment's scores read (the final point reads the whole record). */
-  components: ComponentKey[];
-  /** The game's end: the final score, read from the whole record. */
-  final: boolean;
-}
-
-/**
- * The damping minutes (v2): a moment's weighted mean is multiplied by minutes ÷ (minutes + this)
- * before the curve, so early points, read from a handful of kills and a few minutes of farm, sit
- * near 5 and come into their own as the game goes on: on the Rift 0.38 at 5:00, 0.56 at 10:00, 0.65
- * at 15:00, 0.76 at 25:00; on ARAM (five minutes) 0.38 at 3:00, 0.55 at 6:00. Only the moment's own
- * minutes are read, never the game's length or its final figures. The final point is never damped.
- */
-export const DAMPING_MINUTES: Record<ScoreMode, number> = { rift: 8, aram: 5 };
-
-/**
- * The share of a player's final weighting a moment reads (v2): the weights of the components it
- * could use over those of the final score's. A moment before the end reads only kills, deaths,
- * assists, farm, gold and the lane, so a support's point (judged mostly on vision, wards, crowd
- * control and protecting the team at the end) is shrunk further toward 5 than a carry's.
- */
-export function coverageOf(at: Pick<PlayerScore, "used" | "weights">, final: Pick<PlayerScore, "used" | "weights"> | undefined): number {
-  if (!final) return 0;
-  const w = ROLE_WEIGHTS[final.weights];
-  const sum = (keys: readonly ComponentKey[]) => keys.reduce((n, k) => n + w[k], 0);
-  const whole = sum(final.used);
-  return whole > 0 ? Math.min(1, sum(at.used) / whole) : 0;
-}
-
-/** How much a moment's evidence counts, from 0 to 1 (DAMPING_MINUTES). */
-export const evidenceAt = (mode: ScoreMode, minutes: number) => (minutes > 0 ? minutes / (minutes + DAMPING_MINUTES[mode]) : 0);
-
-/**
- * The prior a moment's kill counts start from (v3): PRIOR_MINUTES of the role's typical kills, deaths
- * and assists (TYPICAL_FIGURES, a 30-minute game; every role's mean without a recorded position, or on
- * ARAM), added to what the timeline had recorded by then. Early in a game one kill or one death would
- * otherwise swing kill participation and the KDA from one point to the next; by 20:00 the prior is
- * small beside the game's own counts. Never read for the final score.
- */
-export const PRIOR_MINUTES = 8;
-
-function priorOf(p: ScoreInput, key: "kills" | "deaths" | "assists"): number {
-  const typical = p.lane ? TYPICAL_FIGURES[p.lane][key]! : LANES_IN_ORDER.reduce((n, l) => n + TYPICAL_FIGURES[l][key]!, 0) / LANES_IN_ORDER.length;
-  return (typical * PRIOR_MINUTES) / 30;
-}
-
-/** Minutes between a timeline's points: five on Summoner's Rift, three on ARAM's shorter games. */
-export const timelineStep = (mode: ScoreMode) => (mode === "aram" ? 3 : 5);
+/*
+  The timeline's one part in the score: the lane against the lane opponent at 10:00 and 15:00. The
+  score through the game (a score at every five minutes, its damping and priors, and the trend words
+  read from it) was removed at the owner's request of 25 Nov 2026 with the chart that showed it;
+  final scores are unchanged (still v3).
+*/
 
 /** The lane minutes the score reads (domain/match-analysis LANE_MINUTES). */
 const LANE_AT = [10, 15] as const;
@@ -533,141 +469,6 @@ export function laneValue(t: readonly number[], me: { g: readonly number[]; x: r
   const passed = LANE_AT.filter((m) => m * 60_000 <= uptoMs).map((m) => at(m * 60_000));
   if (passed.length) return passed.every((v) => v !== null) ? mean(passed as number[]) : null;
   return at(uptoMs);
-}
-
-/**
- * The score at every step of the timeline (five minutes on the Rift, three on ARAM), each from what
- * the timeline had recorded by then and nothing later: kills, deaths and assists by that moment
- * (team kills too), CS and gold at that moment, and the lane against the opponent up to it. Damage,
- * vision, wards, crowd control, healing, objectives and turrets are known only at the end, so the
- * moments before it are scored on the rest, and no result step is applied before the end (the
- * result was not known yet). The last point is the game's end and is the final score itself, from
- * the whole record. Null when the timeline has no frames or the final score is not there.
- */
-export function timelineScores(inputs: readonly ScoreInput[], timeline: { t: readonly number[]; players: readonly TimelineInput[] }, final: MatchScores | null, ctx: { mode: ScoreMode; durationMinutes: number }): TimelinePoint[] | null {
-  const { t } = timeline;
-  if (!final || !t.length) return null;
-  const by = new Map(timeline.players.map((p) => [p.slot, p]));
-  const finalBy = new Map(final.players.map((p) => [p.slot, p]));
-  const end = t[t.length - 1]!;
-  const step = timelineStep(ctx.mode) * 60_000;
-  // Every scored player's kills on the timeline, or no kill figure at any moment (a team's kills would be short).
-  const killsKept = inputs.every((p) => by.get(p.slot)?.kills && by.get(p.slot)?.deaths && by.get(p.slot)?.assists);
-  const points: TimelinePoint[] = [];
-  for (let ms = step; ms < end - 30_000; ms += step) {
-    const upto = (xs: readonly number[] | null | undefined) => (xs ? xs.filter((x) => x <= ms).length : null);
-    const at: ScoreInput[] = inputs.map((p) => {
-      const tp = by.get(p.slot);
-      const f = tp?.frames ?? null;
-      const them = p.counterpart !== null ? by.get(p.counterpart)?.frames : null;
-      return {
-        ...p,
-        // A handful of kills early in a game is noise: each count starts from PRIOR_MINUTES of the role's typical rate (v3).
-        kills: killsKept ? upto(tp!.kills)! + priorOf(p, "kills") : null,
-        deaths: killsKept ? upto(tp!.deaths)! + priorOf(p, "deaths") : null,
-        assists: killsKept ? upto(tp!.assists)! + priorOf(p, "assists") : null,
-        cs: f ? seriesAt(t, f.c, ms) : null,
-        gold: f ? seriesAt(t, f.g, ms) : null,
-        damage: null,
-        damageTaken: null,
-        damageMitigated: null,
-        vision: null,
-        wardsPlaced: null,
-        wardsKilled: null,
-        objectiveDamage: null,
-        turretTakedowns: null,
-        ccSeconds: null,
-        teamHealing: null,
-        teamShielding: null,
-        laneDiff: ctx.mode === "rift" && f && them ? laneValue(t, f, them, ms) : null,
-      };
-    });
-    const minutes = ms / 60_000;
-    const scores = scoreMatch(at, { mode: ctx.mode, minutes, outcome: false, spreadScale: Math.sqrt(30 / minutes) });
-    if (!scores || !scores.components.length) continue;
-    // Damped toward the game's average by how much of the game had been played (evidenceAt).
-    const e = evidenceAt(ctx.mode, minutes);
-    points.push({ minute: minutes, scores: Object.fromEntries(scores.players.map((p) => [p.slot, toTen(p.raw * e * coverageOf(p, finalBy.get(p.slot)))])), raw: Object.fromEntries(scores.players.map((p) => [p.slot, p.raw])), components: scores.components, final: false });
-  }
-  points.push({ minute: ctx.durationMinutes, scores: Object.fromEntries(final.players.map((p) => [p.slot, p.score])), raw: Object.fromEntries(final.players.map((p) => [p.slot, p.raw])), components: final.components, final: true });
-  return points;
-}
-
-/** The one-word trend a player's timeline earns (TREND_RULES), with its sentence. */
-export type TrendWord = "Dominant" | "Struggling" | "Resilient" | "Rising" | "Fading" | "Strong finish" | "Weak finish" | "Fast start" | "Erratic" | "Steady";
-
-/**
- * The rules (v3), in the weighted mean's own units (z, before the damping and the curve: the
- * timeline points' `raw`), so the damping that keeps the chart's early points near 5 does not hide a
- * trend. They read the points before the end and only three or more of them; "Resilient", "Strong
- * finish", "Weak finish" and "Steady" also read the final score's own weighted mean. The first and
- * last thirds are the first and last ceil(n/3) points. The first rule that holds, in this order,
- * names the trend; none may hold. Near the middle of the scale 0.1 z is about 0.4 points.
- */
-export const TREND_RULES = {
-  /** "Dominant": every point at least this. "Struggling": every point at most minus this. */
-  every: 0.45,
-  /** "Resilient": the first third's mean at most this, and the final at least `resilientEnd`. */
-  resilientStart: -0.3,
-  resilientEnd: 0.15,
-  /** "Rising" / "Fading": the last third's mean this much above / below the first third's. */
-  change: 0.3,
-  /** "Strong finish" / "Weak finish": the final this much above / below the last point (about 1.5 points). */
-  finish: 0.375,
-  /** "Fast start": the first third's mean at least this. */
-  early: 0.45,
-  /** "Erratic": the highest and lowest point this far apart. */
-  swing: 1,
-  /** "Steady": the highest and lowest point at most this far apart, and the final within `finish` of the last point. */
-  steady: 0.4,
-} as const;
-
-/** Each trend's sentence: what the rule found, in plain words. */
-export const TREND_SENTENCES: Record<TrendWord, string> = {
-  Dominant: "Ahead of the game's average at every point of the timeline.",
-  Struggling: "Behind the game's average at every point of the timeline.",
-  Resilient: "Recovered from a weak start to finish above the game's average.",
-  Rising: "Grew stronger as the game went on.",
-  Fading: "Started stronger than they finished.",
-  "Strong finish": "Finished well above where the timeline stood: the end-of-game figures lifted the score.",
-  "Weak finish": "Finished well below where the timeline stood: the end-of-game figures lowered the score.",
-  "Fast start": "Started the game ahead of the others.",
-  Erratic: "Swung between strong and weak stretches.",
-  Steady: "Held much the same level throughout.",
-};
-
-/** The trend of a player's points before the end (z units: TimelinePoint.raw) and their final weighted mean (PlayerScore.raw), or null. */
-export function trendOf(points: readonly number[], final: number | null = null): { word: TrendWord; sentence: string } | null {
-  if (points.length < 3) return null;
-  const third = Math.ceil(points.length / 3);
-  const first = mean(points.slice(0, third));
-  const last = mean(points.slice(-third));
-  const lo = Math.min(...points);
-  const hi = Math.max(...points);
-  const end = final === null ? null : final - points[points.length - 1]!;
-  const word: TrendWord | null =
-    lo >= TREND_RULES.every
-      ? "Dominant"
-      : hi <= -TREND_RULES.every
-        ? "Struggling"
-        : first <= TREND_RULES.resilientStart && final !== null && final >= TREND_RULES.resilientEnd
-          ? "Resilient"
-          : last - first >= TREND_RULES.change
-            ? "Rising"
-            : first - last >= TREND_RULES.change
-              ? "Fading"
-              : end !== null && end >= TREND_RULES.finish
-                ? "Strong finish"
-                : end !== null && end <= -TREND_RULES.finish
-                  ? "Weak finish"
-                  : first >= TREND_RULES.early
-                    ? "Fast start"
-                    : hi - lo >= TREND_RULES.swing
-                      ? "Erratic"
-                      : hi - lo <= TREND_RULES.steady
-                        ? "Steady"
-                        : null;
-  return word ? { word, sentence: TREND_SENTENCES[word] } : null;
 }
 
 /** A score this high or higher is called "Excellent" beside it (a band of its own; nothing else is named). */

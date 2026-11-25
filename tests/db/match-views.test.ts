@@ -243,7 +243,7 @@ describe("inspecting any of the ten players (Release 16): one read of each per o
   /** A Riot client that fails the test if it is asked anything: a stored game is never fetched again. */
   const noRiot = new RiotApiClient({ apiKey: "k", fetchImpl: (async () => { throw new Error("Riot was asked"); }) as typeof fetch, limiter: new RateLimiter([{ requests: 1000, seconds: 1 }]), sleep: async () => {} });
 
-  it("the timeline answer holds every player's build path, skills, kills, frames and lane, read once from storage without Riot", async () => {
+  it("the timeline answer holds every player's build path, skills, frames and lane, read once from storage without Riot", async () => {
     const r = recording(handle.db);
     const detail = await getMatchDetail(r.db, members.blue, MATCH, { viewerIsOwner: true });
     // The record once, and the players' newest recorded Riot IDs for their OP.GG links (players/riot-names): as before Release 16.
@@ -260,10 +260,10 @@ describe("inspecting any of the ten players (Release 16): one read of each per o
     expect(tl.t).toEqual(game.truth.frames);
     for (const p of tl.players) {
       const truth = game.truth.players.find((x) => x.puuid === players[p.slot]!.puuid)!;
-      expect(p.kills!.length, `slot ${p.slot} kills`).toBe(truth.kills);
-      expect(p.deaths!.length).toBe(truth.deaths);
-      expect(p.assists!.length).toBe(truth.assists);
+      // Gold and experience at every frame (the final score's lane); the kill times and CS per frame are no longer sent (25 Nov 2026: only the score through the game read them).
       expect(p.frames!.g.at(-1)).toBe(truth.gold);
+      expect(Object.keys(p.frames!).sort()).toEqual(["g", "x"]);
+      expect(p, `slot ${p.slot}`).not.toHaveProperty("kills");
       expect(p.path.length).toBeGreaterThan(0);
       expect(p.path.every((e) => e.kind === "buy" && typeof tl.items[String(e.id)]?.name === "string")).toBe(true);
       expect(p.skills.length).toBeGreaterThan(0);

@@ -11,10 +11,10 @@ import { Undo2 } from "lucide-react";
 import { formatCount, formatDateTime, formatKilo } from "@/lib/format";
 import { laneOf } from "@/domain/match-analysis";
 import { ParticipantPanels, type PanelKey } from "./participant-panels";
-import { ScoreSummary, ScoreTimeline } from "./performance-panel";
+import { ScoreSummary } from "./performance-panel";
 import { usePhone } from "@/components/ui/use-phone";
 import { segmentClass, segmentedGroupClass } from "@/components/ui/segmented";
-import { gameScoresOf } from "@/domain/performance-inputs";
+import { finalScoresOf } from "@/domain/performance-inputs";
 import { cn } from "@/lib/cn";
 import { MatchDetailCacheContext, type MeetingScope } from "./match-detail-cache";
 import { OpggHistoryLink } from "./opgg-history-link";
@@ -37,7 +37,8 @@ import { publicPatchName } from "@/domain/patch";
     by role against the lane opponent at 10:00, 15:00 and the end.
   - The scoreboard: both teams as one component, every player's score and place in their row; one
     quiet line under it (ranks and possible groups, each with its (i), the date, the bookmark and
-    OP.GG); and the inspected player's score through the game.
+    OP.GG). The score through the game under it was removed at the owner's request of 25 Nov 2026;
+    its room went to the scoreboard's rows, the build and the player's own score.
   Every part above the scoreboard and beside it keeps its height whoever is inspected, so the rows
   never move as another player is chosen. Widths (the view's own, @container/pg): from 56rem two
   columns (the player, then the scoreboard); 40–56rem the player beside the build and the lane,
@@ -144,7 +145,7 @@ function Loadout({ p, champ, score }: { p: DetailParticipant; champ: PortraitCha
 function Figure({ label, value, sub, testId }: { label: string; value: string; sub: string | null; testId: string }) {
   return (
     <div className="min-w-0" data-testid={testId}>
-      <div className="text-2xs font-medium uppercase leading-4 tracking-label text-fg-subtle [overflow-wrap:anywhere]">{label}</div>
+      <div className="label-text leading-4 [overflow-wrap:anywhere]">{label}</div>
       <div className="text-base font-semibold leading-5 tabular-nums text-fg">{value}</div>
       <div className="text-xs leading-4 tabular-nums text-fg-muted">{sub ?? " "}</div>
     </div>
@@ -228,7 +229,7 @@ function MoreStats({ p, support }: { p: DetailParticipant; support: boolean }) {
         const g = groups[k];
         return (
           <section key={k} aria-label={g.label} className="min-w-0" data-testid={`more-${k}`}>
-            <p className="text-2xs font-medium uppercase leading-4 tracking-label text-fg-subtle [overflow-wrap:anywhere]" aria-hidden>
+            <p className="label-text leading-4 [overflow-wrap:anywhere]" aria-hidden>
               {g.label}
             </p>
             <dl className="text-2xs leading-4">
@@ -268,7 +269,7 @@ function Lane({ view, champ, me, entry, state }: { view: MatchDetailView; champ:
   if (opp === null)
     return (
       <section aria-label="Lane" className={box} data-testid="post-game-lane" data-state="unclear">
-        <p className="text-2xs font-semibold uppercase leading-5 tracking-label text-fg-subtle">Lane</p>
+        <p className="label-text leading-5">Lane</p>
         <p className="text-xs text-fg-subtle">Lane opponent not clear in this game</p>
       </section>
     );
@@ -296,12 +297,12 @@ function Lane({ view, champ, me, entry, state }: { view: MatchDetailView; champ:
       {/* Under 20rem (a phone at large text) each row's name stands on a line of its own, its figures under it, so nothing runs past the screen. */}
       <table className={cn("w-full text-sm leading-5 tabular-nums", "@max-[20rem]/lane:block @max-[20rem]/lane:[&_tbody]:block @max-[20rem]/lane:[&_td]:block @max-[20rem]/lane:[&_th]:block @max-[20rem]/lane:[&_th]:w-auto @max-[20rem]/lane:[&_thead]:block @max-[20rem]/lane:[&_tr]:grid @max-[20rem]/lane:[&_tr]:grid-cols-3 @max-[20rem]/lane:[&_tr>th:first-child]:col-span-3")}>
         <thead>
-          <tr className="text-2xs text-fg-subtle">
-            <th className="text-left font-semibold">
-              <span className="flex items-center gap-1.5 uppercase tracking-label">
+          <tr className="label-text">
+            <th className="text-left font-medium">
+              <span className="flex items-center gap-1.5">
                 Lane vs
                 <ChampionPortrait champion={c} size="xs" className="h-4 w-4 rounded" />
-                <span className="truncate text-xs font-semibold normal-case tracking-normal text-fg">{c.name}</span>
+                <span className="truncate text-xs font-semibold text-fg">{c.name}</span>
                 <span className="sr-only">: you minus them</span>
               </span>
             </th>
@@ -354,8 +355,8 @@ function Lane({ view, champ, me, entry, state }: { view: MatchDetailView; champ:
 
 const POSITION_WORDS: Record<string, string> = { TOP: "Top", JUNGLE: "Jungle", MIDDLE: "Mid", BOTTOM: "Bottom", UTILITY: "Support" };
 
-/** The 40–56rem grid (a tablet): the player beside the build and the lane, the score through the game under those, the scoreboard across. */
-const MID = "@min-[40rem]/pg:@max-[56rem]/pg:grid-cols-2 @min-[40rem]/pg:@max-[56rem]/pg:[grid-template-areas:'player_side'_'player_chart'_'board_board']";
+/** The 40–56rem grid (a tablet): the player beside the build and the lane, the scoreboard across under both. */
+const MID = "@min-[40rem]/pg:@max-[56rem]/pg:grid-cols-2 @min-[40rem]/pg:@max-[56rem]/pg:[grid-template-areas:'player_side'_'board_board']";
 
 type PhonePage = "player" | "build" | "board";
 const PHONE_PAGES: Array<{ key: PhonePage; label: string }> = [
@@ -367,7 +368,7 @@ const PHONE_PAGES: Array<{ key: PhonePage; label: string }> = [
 export function PostGame({ playerId, view, champ, variant, encounterLinks = false }: { playerId: string; view: MatchDetailView; champ: (id: string | null) => PortraitChampion; variant: "inline" | "window"; /** A window over the list itself (a phone's whole-screen game): its marks may lead to the list's Encounters, as under a card. */ encounterLinks?: boolean }) {
   const cache = React.useContext(MatchDetailCacheContext);
   const id = view.matchId;
-  // The timeline first (the lane, the build path, the skill order and the scores read it), then the possible groups, the rank check and the players met, each after the view is on screen.
+  // The timeline first (the lane, the build path, the skill order and the scores' lane read it), then the possible groups, the rank check and the players met, each after the view is on screen.
   const timeline = useResult<MatchTimelineResult>(() => (cache ? cache.timeline(playerId, id) : getMatchTimelineAction(playerId, id)), { status: "error", message: "" }, [cache, playerId, id]);
   const groups = useResult<MatchGroupsResult>(() => (cache ? cache.groups(playerId, id) : getMatchGroupsAction(playerId, id)), { status: "unavailable", message: "" }, [cache, playerId, id]);
   const ranks = useResult<MatchRanksResult>(view.rankCheck ? () => (cache ? cache.ranks(playerId, id) : getMatchRanksAction(playerId, id)) : null, { status: "not-found", message: "" }, [cache, playerId, id, view.rankCheck]);
@@ -393,8 +394,8 @@ export function PostGame({ playerId, view, champ, variant, encounterLinks = fals
   const all = React.useMemo(() => view.teams.flatMap((t) => t.participants), [view.teams]);
   const subject = all.find((p) => p.slot === selected && !p.removed) ?? view.player;
   const entry = tl?.players.find((p) => p.slot === subject.slot) ?? null;
-  // The scores, once the timeline has answered (its lane at 10:00 and 15:00 is one of their figures), from what is loaded.
-  const { scores, points } = React.useMemo(() => (timeline ? gameScoresOf(view, tl) : { scores: null, points: null }), [timeline, tl, view]);
+  // The final scores, once the timeline has answered (its lane at 10:00 and 15:00 is one of their figures), from what is loaded: the card's own calculation (finalScoresOf).
+  const scores = React.useMemo(() => (timeline ? finalScoresOf(view, tl) : null), [timeline, tl, view]);
   const scoreOf = React.useCallback((slot: number) => scores?.players.find((p) => p.slot === slot) ?? null, [scores]);
   const subjectTeam = view.teams.find((t) => t.participants.some((p) => p.slot === subject.slot)) ?? view.teams[0];
   const nameOf = React.useCallback((p: DetailParticipant) => shownName(p, champ(p.championId).name), [champ]);
@@ -479,9 +480,9 @@ export function PostGame({ playerId, view, champ, variant, encounterLinks = fals
           ))}
         </div>
       ) : null}
-      {/* From 56rem two columns (the player, then the scoreboard and the score through the game).
-          From 40rem to 56rem the two columns' parts share one grid: the player beside the build
-          and the lane, the score through the game under those, and the scoreboard across. */}
+      {/* From 56rem two columns (the player, then the scoreboard). From 40rem to 56rem the two
+          columns' parts share one grid: the player beside the build and the lane, and the
+          scoreboard across under both. */}
       <div className={cn("grid gap-x-5 gap-y-2.5 @min-[40rem]/pg:gap-y-3 @min-[56rem]/pg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] @min-[64rem]/pg:grid-cols-[minmax(0,24rem)_minmax(0,1fr)] @min-[80rem]/pg:grid-cols-[minmax(0,27rem)_minmax(0,1fr)]", MID)}>
         <div className="grid min-w-0 content-start gap-y-3 @min-[40rem]/pg:@max-[56rem]/pg:contents">
           <section aria-label={own && view.own ? "Your game" : `${nameOf(subject)}'s game`} className={cn("min-w-0 space-y-2 @min-[56rem]/pg:space-y-2.5 @min-[40rem]/pg:@max-[56rem]/pg:[grid-area:player]", on("player"))} data-testid="post-game-yours" data-own={own || undefined}>
@@ -524,9 +525,6 @@ export function PostGame({ playerId, view, champ, variant, encounterLinks = fals
               {meta}
             </div>
           </section>
-          <div className={cn("min-w-0 @min-[40rem]/pg:@max-[56rem]/pg:[grid-area:chart]", on("player"))}>
-            <ScoreTimeline scores={scores} points={points} timeline={state} slot={subject.slot} label={nameOf(subject)} />
-          </div>
         </div>
       </div>
     </div>

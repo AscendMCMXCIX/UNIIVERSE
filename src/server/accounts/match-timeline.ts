@@ -390,12 +390,13 @@ export interface TimelinePlayerView {
   path: Array<BuildEvent & { done: boolean; minor: boolean }>;
   /** Skill slots in the order taken (1 = Q … 4 = R), Riot's evolve level-ups left out. */
   skills: number[];
-  /** Champion kills made, died in and assisted, in ms; null on a timeline kept before they were. */
-  kills: number[] | null;
-  deaths: number[] | null;
-  assists: number[] | null;
-  /** Gold, experience and CS at every frame (aligned with the view's `t`); null when the player's frames have a gap, or the timeline contradicts the record. */
-  frames: { g: number[]; x: number[]; c: number[] } | null;
+  /**
+   * Gold and experience at every frame (aligned with the view's `t`): what the final score's lane
+   * reads; null when the player's frames have a gap, or the timeline contradicts the record. The
+   * kill, death and assist times and the CS at every frame went with the score through the game
+   * (25 Nov 2026), the only reader of them in the view; they stay stored.
+   */
+  frames: { g: number[]; x: number[] } | null;
   /** Against the lane opponent at 10:00 and 15:00 (the one lane opponent rule), as `lane` is for the profile's player. */
   lane: { opponentSlot: number; moments: LaneMoment[] } | null;
   /** The bot lane at 10:00, two against two, as `pair` is for the profile's player. */
@@ -671,10 +672,7 @@ export async function getMatchTimeline(db: Db, playerId: string, matchId: string
           return { ...x, done: d.done, minor: d.minor };
         }),
         skills: e.skills,
-        kills: e.kills ?? null,
-        deaths: e.kills ? (e.deaths ?? []) : null,
-        assists: e.kills ? (e.assists ?? []) : null,
-        frames: f ? { g: f.g, x: f.x, c: f.c } : null,
+        frames: f ? { g: f.g, x: f.x } : null,
         lane: f && theirs && opp !== null ? { opponentSlot: opp, moments: laneMoments(usable!.t, f, theirs, LANE_MINUTES) } : null,
         pair: pairSeats && pairGold !== null ? { allySlot: pairSeats.ally, opponentSlots: pairSeats.opponents, gold: pairGold } : null,
       },
