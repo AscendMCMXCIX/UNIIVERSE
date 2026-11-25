@@ -33,7 +33,7 @@ import { publicPatchName } from "@/domain/patch";
     role, their performance score with its place, MVP or ACE; the loadout as the client draws it
     (the portrait and level; spells and runes two by two; the six items two rows of three with the
     trinket beside the first row); six figures; the other recorded figures in a grid of three
-    groups, ordered by role; Build Path | Skill Order | Runes over one area of fixed height; the lane
+    groups, ordered by role; Build Path | Skill Order | Runes over one area, one height per game; the lane
     by role against the lane opponent at 10:00, 15:00 and the end.
   - The scoreboard: both teams as one component, every player's score and place in their row; one
     quiet line under it (ranks and possible groups, each with its (i), the date, the bookmark and
@@ -105,7 +105,9 @@ function Loadout({ p, champ, score }: { p: DetailParticipant; champ: PortraitCha
   const [name, setName] = React.useState<string | null>(null);
   const two = p.spells?.length ? p.spells.slice(0, 2) : [null, null];
   return (
-    <div className="flex items-center gap-2.5" data-testid="post-game-loadout">
+    // One row; under 19rem (a phone at large text, where the row ran 145px past the screen) the
+    // inventory, then the score, move to the next line whole: nothing runs past the screen.
+    <div className="flex items-center gap-x-2.5 gap-y-2 @max-[19rem]/pg:flex-wrap" data-testid="post-game-loadout">
       <span className="relative shrink-0">
         <ChampionPortrait champion={champ} size="lg" className="h-14 w-14" />
         {p.champLevel !== null ? (
@@ -128,9 +130,10 @@ function Loadout({ p, champ, score }: { p: DetailParticipant; champ: PortraitCha
           ? [0, 1, 2, 6, 3, 4, 5].map((i) => <Named key={i} icon={p.items![i] ?? null} size={26} rounded={i === 6 ? "rounded-full" : "rounded"} onName={setName} />)
           : <span className="col-span-4 w-28 px-1 text-xs text-fg-subtle">Items not recorded</span>}
       </span>
-      <span className="flex h-14 min-w-0 flex-1 flex-col items-end justify-between">
+      {/* Under 19rem as wide as the score needs, never narrower (so it moves down whole rather than squeeze); the name line takes no width of its own. */}
+      <span className="flex h-14 min-w-0 flex-1 flex-col items-end justify-between @max-[19rem]/pg:min-w-fit">
         {score}
-        <span className="block h-4 w-full truncate text-right text-xs leading-4 text-fg-muted" aria-hidden data-testid="loadout-name">
+        <span className="block h-4 w-0 min-w-full truncate text-right text-xs leading-4 text-fg-muted" aria-hidden data-testid="loadout-name">
           {name ?? ""}
         </span>
       </span>
@@ -141,9 +144,9 @@ function Loadout({ p, champ, score }: { p: DetailParticipant; champ: PortraitCha
 function Figure({ label, value, sub, testId }: { label: string; value: string; sub: string | null; testId: string }) {
   return (
     <div className="min-w-0" data-testid={testId}>
-      <div className="truncate text-2xs font-medium uppercase leading-4 tracking-label text-fg-subtle">{label}</div>
+      <div className="text-2xs font-medium uppercase leading-4 tracking-label text-fg-subtle [overflow-wrap:anywhere]">{label}</div>
       <div className="text-base font-semibold leading-5 tabular-nums text-fg">{value}</div>
-      <div className="truncate text-xs leading-4 tabular-nums text-fg-muted">{sub ?? " "}</div>
+      <div className="text-xs leading-4 tabular-nums text-fg-muted">{sub ?? " "}</div>
     </div>
   );
 }
@@ -151,9 +154,11 @@ function Figure({ label, value, sub, testId }: { label: string; value: string; s
 /** Six figures, each of the player's figures once in the whole view: no card each, a grid of aligned columns. */
 function Figures({ p, teamKills }: { p: DetailParticipant; teamKills: number }) {
   return (
-    // Six across where the player's part is at least 37rem wide (a tablet's one column), else three by two.
+    // Six across where the player's part is at least 37rem wide (a tablet's one column), else three by
+    // two; two by three under 19rem (a phone at large text), where three across cut the figures short.
+    // Nothing is shortened with an ellipsis: a word that does not fit wraps.
     <div className="@container/fig">
-      <div className="grid grid-cols-3 gap-x-3 gap-y-1 @min-[37rem]/fig:grid-cols-6" data-testid="post-game-figures">
+      <div className="grid grid-cols-3 gap-x-3 gap-y-1 @max-[19rem]/fig:grid-cols-2 @min-[37rem]/fig:grid-cols-6" data-testid="post-game-figures">
         <Figure label="K/D/A" value={`${p.kills} / ${p.deaths} / ${p.assists}`} sub={p.deaths === 0 ? "Perfect KDA" : `${p.kda.toFixed(2)} KDA`} testId="figure-kda" />
         <Figure label="CS" value={p.cs === null ? "—" : formatCount(p.cs)} sub={p.csPerMin === null ? null : `${p.csPerMin.toFixed(1)} / min`} testId="figure-cs" />
         <Figure label="Gold" value={p.gold === null ? "—" : formatKilo(p.gold)} sub={p.goldPerMin === null ? null : `${formatCount(Math.round(p.goldPerMin))} / min`} testId="figure-gold" />
@@ -215,18 +220,21 @@ function MoreStats({ p, support }: { p: DetailParticipant; support: boolean }) {
   };
   const order = statGroupOrder(support ? "UTILITY" : p.position);
   return (
-    <div className="grid grid-cols-3 gap-x-3" data-testid="post-game-more" data-order={order.join(" ")}>
+    // Three groups side by side; one under another under 19rem (a phone at large text), where three
+    // columns cut their names short. Nothing is shortened with an ellipsis: a name that does not fit wraps.
+    <div className="@container/more">
+    <div className="grid grid-cols-3 gap-x-3 @max-[19rem]/more:grid-cols-1 @max-[19rem]/more:gap-y-1" data-testid="post-game-more" data-order={order.join(" ")}>
       {order.map((k) => {
         const g = groups[k];
         return (
           <section key={k} aria-label={g.label} className="min-w-0" data-testid={`more-${k}`}>
-            <p className="truncate text-2xs font-medium uppercase leading-4 tracking-label text-fg-subtle" aria-hidden>
+            <p className="text-2xs font-medium uppercase leading-4 tracking-label text-fg-subtle [overflow-wrap:anywhere]" aria-hidden>
               {g.label}
             </p>
             <dl className="text-2xs leading-4">
               {g.rows.map(([key, label, value, spoken]) => (
                 <div key={key} className="flex items-baseline justify-between gap-1.5" data-testid={`more-${key}`}>
-                  <dt className="min-w-0 truncate text-fg-muted">
+                  <dt className="min-w-0 text-fg-muted">
                     {spoken ? (
                       <>
                         <span aria-hidden>{label}</span>
@@ -243,6 +251,7 @@ function MoreStats({ p, support }: { p: DetailParticipant; support: boolean }) {
           </section>
         );
       })}
+    </div>
     </div>
   );
 }

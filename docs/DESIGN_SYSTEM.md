@@ -84,14 +84,35 @@ decorative chrome.
       2560 × 1440 (1373) and 893px at 3440 × 1440 (1368); a tablet (768 × 1024, room 915) 870px. Every
       role's six newest demo games stay within the room at 1280 × 720 (the largest 663px, a possible
       duo's line under its team's band). A game opened in the upper part of the screen whose end runs below it is moved up
-      just enough to show all of it (`InlineMatch`). The sticky footer of Previous, Next and Close is
+      just enough to show all of it (`InlineMatch`), with motion on or reduced: it is measured once
+      the region has grown open (the Unfold's `data-settled`) and again as the timeline, the groups
+      and the ranks arrive in its first 3 seconds, until the reader scrolls or presses a key. Measured
+      once while it was still growing, it left the game's end 155–237px below the fold with motion on
+      (the review of Release 17, finding 2); after, the end is at or above the window's foot at
+      1280 × 720, 1366 × 768, 1440 × 900, 1920 × 1080, 2560 × 1440 and 3440 × 1440, motion on and off
+      (e2e/match-breakdown.spec.ts runs it with motion on). After Previous or Next the new card is
+      held where the old one's header was instead (no move into view; `holdInPlace`, which also
+      ends once the page is scrolled far by anything else: run on for its 30 frames, it pulled a
+      scroll made 400ms after a step back by 612px). After the panels' area was sized per game
+      (below) MID's third game is 648px at 1280–1440, 716px at 1920, 830px at 2560, 886px at 3440 and
+      867px on the tablet (3–8px less). The sticky footer of Previous, Next and Close is
       drawn only where the game is taller than the room (large text, a short window): a game that
       fits has its card's steps in view with all of it. A phone's window shows one of three pages
       at a time, **Player | Build | Scoreboard** (the shared segmented control; a window under 481px
       tall too), each within the screen at 100% text at 375 × 667, 390 × 844 (with an iPhone's
       insets) and 430 × 932; a tap on a scoreboard row inspects that player and shows their page.
       At 150% and 200% text the view reflows and the page (or the window's body) scrolls
-      vertically, never sideways and never inside the view.
+      vertically, never sideways and never inside the view. On a phone at 200% (the review of Release
+      17, finding 1) the loadout wraps (the items, then the score, on lines of their own under 19rem),
+      the six figures go two across and the other figures' groups one under another under 19rem, the
+      runes' two paths one under the other under 17rem, and labels wrap rather than end in an
+      ellipsis (the scoreboard's names keep theirs, with the full name as their title); the title
+      wraps rather than lose the champion; the window's footer is one row, Previous and Next 44px at
+      any text size (their words for screen readers under a 17rem row) with "Game n of m" between.
+      Measured at 390 × 844: the body was 580px wide in 388 and the footer 225–273px with the steps
+      stacked; after, nothing wider than the body and the footer 93px (375 × 667 the same). At 100%
+      text the pages are unchanged: the window's body 543, 720 and 808px at 375 × 667, 390 × 844 and
+      430 × 932.
     - **The player inspected**: one line, their name (the collapsed card's name: a team member's
       profile name, else the Riot name), champion and role, with "Back to …" while another player is
       inspected; the loadout as the client draws it (a 56px portrait with its level, spells and runes
@@ -105,7 +126,14 @@ decorative chrome.
       a jungler's objectives, everyone else's combat), "—" where the record lacks a figure and "0"
       where it recorded none (`src/lib/format.ts` for every number). **Build Path | Skill Order |
       Runes** (`segmentedGroupClass`, radios: the view still has no tabs) over one area of one height
-      (7rem, 13.5rem where the skill grid takes two halves): the build path a wrapping timeline in
+      for the game, sized per game rather than a constant (the review of Release 17, finding 3): the
+      skill grid and the rune page are laid out in one grid cell, the one not chosen invisible, so the
+      area is as tall as the taller of the two (109px at 1280–1440, 119px at 1920, 137px at 2560, 146px
+      at 3440; the constant area was 112px at 1440, 124px at 1920 and 154px at 3440), and the build
+      path is laid over it. Both have one
+      shape for every player, so inspecting another moves nothing. A one-row build path still leaves
+      the rest of the area empty (73px at 1440), the price of switching never moving the lane under
+      it. The build path is a wrapping timeline in
       game order, each shop visit its items over its game time, a completed item ringed, a
       consumable or ward smaller, a sold item faded with a minus (and each in words for screen
       readers), one (i) in place of the legend; a path too long for the area is split into pages of
@@ -113,8 +141,10 @@ decorative chrome.
       the skill grid alone (nothing written under it); the rune page two paths and the shards, icons
       at one size per level. The lane by role in a table against the lane opponent at 10:00, 15:00
       and the end, the bot lane's two against two as its own row; a game without a timeline shows
-      the end alone, never columns of dashes, and the panels' area says "Timeline not available
-      for this game" once.
+      the end alone, never columns of dashes. Without a timeline (23 of 56 demo games), or for a
+      player missing from it, the panels open on Runes: Build Path and Skill Order are disabled, with
+      "Timeline not available for this game" once beside the control as their description, so no
+      band says "not available" over 96px of blank space.
     - **The scoreboard** (`scoreboard.tsx`, `Scoreboard`): both teams as one component, the player's
       team first, each team's band (its side and result in words, its kills, gold, towers, dragons
       and barons) and five rows on one grid, so K/D/A, the build, CS over damage and the score over

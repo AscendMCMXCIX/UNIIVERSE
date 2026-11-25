@@ -4,7 +4,7 @@ import * as React from "react";
 import { useSearchParams } from "next/navigation";
 import type { PortraitChampion } from "@/components/champion-portrait";
 import { MatchDetailCacheContext, createMatchDetailCache, type MatchDetailCache } from "@/components/match-history/match-detail-cache";
-import { MatchExpansion, revealIfAbove, revealOpened, type GameNav } from "@/components/match-history/inline-match";
+import { MatchExpansion, holdInPlace, revealIfAbove, revealOpened, type GameNav } from "@/components/match-history/inline-match";
 import { isPhone, usePhone } from "@/components/ui/use-phone";
 import { isTyping, modalOpen } from "@/components/ui/posture";
 import { cn } from "@/lib/cn";
@@ -27,6 +27,8 @@ interface TogetherOpen {
   prefetch: (playerId: string, matchId: string) => void;
   /** The open game's Previous and Next in the list (null at that end), by Match History's rules: a step replaces `?match=`. */
   navFor: (entry: string) => GameNav | null;
+  /** The game open after Previous or Next: its card is held where the last one's header was, so it is not moved into view (InlineMatch's fit). */
+  stepped: string | null;
 }
 const TogetherOpenContext = React.createContext<TogetherOpen | null>(null);
 
@@ -117,6 +119,8 @@ export function TogetherList({ entries, total, championsById, className, childre
     return () => window.removeEventListener("popstate", onPop);
   }, [fromAddress]);
   const cache = React.useMemo<MatchDetailCache>(() => createMatchDetailCache(), []);
+  // The game open after Previous or Next (TogetherOpen's stepped).
+  const [stepped, setStepped] = React.useState<string | null>(null);
   const toggle = React.useCallback((entry: string, matchId: string) => {
     // The game open, if the list still shows it (one the filters no longer list is not open).
     const current = openRef.current && entriesRef.current.some((e) => e.entry === openRef.current) ? openRef.current : null;
@@ -133,6 +137,7 @@ export function TogetherList({ entries, total, championsById, className, childre
       return;
     }
     setOpen(entry);
+    setStepped(null);
     reveal.current = entry;
     if (current === null) {
       // Opened: one entry, at every width (before 20 Nov 2026 only a phone's, so Back from a game
@@ -144,7 +149,7 @@ export function TogetherList({ entries, total, championsById, className, childre
     // Another game in its place: the entry is replaced (one entry for the whole visit).
     if (pushed.current) pushed.current = entry;
     writeMatch(matchId);
-  }, []);
+  }, [setStepped]);
   const prefetch = React.useCallback((playerId: string, matchId: string) => void cache.load(playerId, matchId).catch(() => {}), [cache]);
   // Previous and Next, as in Match History: another game in the open one's place, the address
   // replaced (one entry for the whole visit), the new card's header held where the old one's was,
@@ -159,11 +164,12 @@ export function TogetherList({ entries, total, championsById, className, childre
     anchor.current = was && !isPhone() ? { entry, top: was.getBoundingClientRect().top } : null;
     reveal.current = null;
     setOpen(entry);
+    setStepped(entry);
     if (pushed.current) pushed.current = entry;
     writeMatch(list[at]!.matchId);
     // The phone's window says it itself (MatchDetailModal), once the game has loaded.
     if (!isPhone()) setSaid(`Game ${at + 1} of ${list.length}${totalRef.current !== undefined && totalRef.current > list.length ? " shown" : ""}${list[at]!.said ? `: ${list[at]!.said}` : ""}`);
-  }, []);
+  }, [setStepped]);
   const navFor = React.useCallback(
     (entry: string): GameNav | null => {
       const i = entries.findIndex((e) => e.entry === entry);
@@ -188,32 +194,14 @@ export function TogetherList({ entries, total, championsById, className, childre
     anchor.current = null;
     const el = document.getElementById(domId(shown));
     if (!el) return;
-    const hold = () => {
-      const off = el.getBoundingClientRect().top - a.top;
-      if (Math.abs(off) > 0.5) window.scrollBy({ top: off, behavior: "instant" });
-    };
-    hold();
-    let frames = 0;
-    let raf = 0;
-    const stop = () => {
-      cancelAnimationFrame(raf);
-      for (const t of ["wheel", "touchstart", "keydown", "pointerdown"]) window.removeEventListener(t, stop);
-    };
-    const tick = () => {
-      hold();
-      if (++frames < 30) raf = requestAnimationFrame(tick);
-      else stop();
-    };
-    raf = requestAnimationFrame(tick);
-    for (const t of ["wheel", "touchstart", "keydown", "pointerdown"]) window.addEventListener(t, stop, { passive: true, once: true });
-    return stop;
+    return holdInPlace(el, a.top);
   }, [shown]);
   React.useLayoutEffect(() => {
     if (!shown || reveal.current !== shown || phone) return;
     reveal.current = null;
     revealOpened(document.getElementById(domId(shown)));
   }, [shown, phone]);
-  const value = React.useMemo<TogetherOpen>(() => ({ open: phone ? null : shown, toggle, prefetch, navFor }), [shown, phone, toggle, prefetch, navFor]);
+  const value = React.useMemo<TogetherOpen>(() => ({ open: phone ? null : shown, toggle, prefetch, navFor, stepped }), [shown, phone, toggle, prefetch, navFor, stepped]);
   const windowed = phone && shown ? entries.find((e) => e.entry === shown)! : null;
   const windowAt = windowed ? entries.indexOf(windowed) : -1;
   const windowNav = windowed && windowAt >= 0 ? { ...navFor(windowed.entry)!, index: windowAt, total: entries.length } : null;
@@ -342,6 +330,7 @@ export function TogetherCardFrame({ entry, playerId, matchId, championsById, lab
           matchId={matchId}
           champ={champ}
           nav={list?.navFor(entry) ?? null}
+          fit={list?.stepped !== entry}
           onClose={() => {
             closing.current = "close";
             list?.toggle(entry, matchId);

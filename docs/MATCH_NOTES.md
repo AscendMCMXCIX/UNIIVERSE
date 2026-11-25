@@ -34,7 +34,9 @@ level throughout."). Their rules stay in `src/domain/performance-score.ts` (`rea
 tested), unused by the interface, should the owner ask for them again. The comparison of two players
 (the select, the table and the chart's second line), the team averages and the ten score tiles, the
 build path's legend and the grey notes under the scoreboard went with them; the figures that served
-supports and tanks moved from a sentence into a grid of three groups.
+supports and tanks moved from a sentence into a grid of three groups. After the release's UX review,
+Build Path | Skill Order | Runes is sized per game (the taller of the skill grid and the rune page),
+and a game without a timeline opens on Runes with the other two disabled and the reason beside them.
 
 The Production check asserts the removed sections stay gone (`scripts/post-game-facts.mjs`,
 `REMOVED_WORDS`; docs/LIVE_VALIDATION.md). The rules as they last stood are in the repository's

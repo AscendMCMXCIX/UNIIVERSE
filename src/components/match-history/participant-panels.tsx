@@ -12,17 +12,23 @@ import { gameClock } from "./match-format";
 
 /*
   Build Path | Skill Order | Runes: one segmented control (the shared segmentedGroupClass and
-  segmentClass) over one area of a fixed height, for the player being inspected
-  (docs/DESIGN_SYSTEM.md, "The post-game view"). One shows at a time; the choice stays while
-  another player is inspected, and switching never moves what is under it: the area is as tall as
-  the tallest of the three (the skill grid's four rows, or the rune page) at every width.
+  segmentClass) over one area, for the player being inspected (docs/DESIGN_SYSTEM.md, "The post-game
+  view"). One shows at a time; the choice stays while another player is inspected, and switching
+  never moves what is under it. The area is sized per game, not to a constant: the skill order and
+  the rune page are drawn in the same grid cell (the one not chosen invisible), so the area is as tall
+  as the taller of the two, and the build path is laid over that area (absolute), paged where it
+  needs more rows than the area has. Both have one shape for every player (four rows of skills; four
+  runes, two and the shards), so inspecting another player never changes the height (the review of
+  Release 17, finding 3: a constant 7rem area left a one-row build path 76px of blank under it).
 
   The build path is a wrapping timeline in game order: each shop visit its items over its game time.
   Nothing scrolls and nothing is cut (the owner's brief of 24 Nov 2026, §2 and §4): where a long
   game's visits need more rows than the area has, the path is split into pages of whole rows, with
   page buttons under it (the same segmented control), so every purchase is one press away. The skill
-  order is the grid alone; the rune page two paths and the shards. A game without a timeline says so
-  in a quiet phrase; nothing is filled in from the final items.
+  order is the grid alone; the rune page two paths and the shards. A game without a timeline (or a
+  player missing from it) opens on Runes: Build Path and Skill Order are disabled, with the reason
+  in a quiet phrase beside the control, so no empty band says "not available" over blank space.
+  Nothing is filled in from the final items.
 */
 
 export type PanelKey = "build" | "skills" | "runes";
@@ -73,10 +79,8 @@ function BuildPath({ entry, kinds, items }: { entry: TimelinePlayerView; kinds: 
     return () => ro.disconnect();
   }, []);
   const measuring = !layout || layout.width !== width;
-  const roomOf = () => {
-    const body = box.current?.closest<HTMLElement>("[data-testid=panel-body]");
-    return body ? parseFloat(getComputedStyle(body).minHeight) || body.clientHeight : 0;
-  };
+  // The area the path is laid over: the panel body, as tall as the skill order or the rune page.
+  const roomOf = () => box.current?.closest<HTMLElement>("[data-testid=panel-body]")?.clientHeight ?? 0;
   React.useLayoutEffect(() => {
     const ol = list.current;
     if (!measuring || !ol || !width) return;
@@ -150,8 +154,11 @@ function BuildPath({ entry, kinds, items }: { entry: TimelinePlayerView; kinds: 
   );
 }
 
-function SkillOrder({ entry }: { entry: TimelinePlayerView }) {
-  const grid = skillGrid(entry.skills);
+/** No point taken: the grid's shape alone, holding the area's height while the timeline loads. */
+const NO_SKILLS = { rows: { Q: [], W: [], E: [], R: [] }, levels: 18 } as const;
+
+function SkillOrder({ entry }: { entry: TimelinePlayerView | null }) {
+  const grid = entry ? skillGrid(entry.skills) : NO_SKILLS;
   if (!grid.levels) return <Unavailable>No skill points recorded</Unavailable>;
   // One grid of every level where the panel is wide enough, else two of nine levels each. Nothing
   // under it: the order each skill was maxed and the points taken are read from the grid itself.
@@ -178,7 +185,7 @@ function SkillOrder({ entry }: { entry: TimelinePlayerView }) {
             </th>
             {Array.from({ length: to - from + 1 }, (_, i) => {
               const level = from + i;
-              const taken = grid.rows[k].includes(level);
+              const taken = (grid.rows[k] as readonly number[]).includes(level);
               return (
                 <td key={i} className={cn("h-5 rounded-sm leading-5", taken ? (k === "R" ? "bg-accent-2/40 font-semibold text-fg" : "bg-fg/20 font-semibold text-fg") : "bg-surface-3/50")}>
                   {taken ? k : <span className="sr-only">—</span>}
@@ -191,7 +198,7 @@ function SkillOrder({ entry }: { entry: TimelinePlayerView }) {
     </table>
   );
   return (
-    <div className="@container/sk" data-testid="skill-grid" data-levels={grid.levels}>
+    <div className="@container/sk" data-testid={entry ? "skill-grid" : undefined} data-levels={entry ? grid.levels : undefined} aria-hidden={entry ? undefined : true}>
       <div className="hidden @min-[20rem]/sk:block">{table(1, 18)}</div>
       <div className="space-y-1 @min-[20rem]/sk:hidden">
         {table(1, 9)}
@@ -206,17 +213,19 @@ function Runes({ page }: { page: RunePage | null }) {
   const rune = (r: RunePage["primary"][number], big = false) => (
     <li key={r.name} className="flex min-w-0 items-center gap-2">
       <IconImg icon={r} size={big ? 20 : 18} rounded="rounded-full" className="bg-black/35" />
-      <span className={cn("min-w-0 truncate text-xs leading-5", big ? "font-semibold text-fg" : "text-fg-muted")}>{r.name}</span>
+      <span className={cn("min-w-0 truncate text-xs leading-5 @max-[17rem]/pp:whitespace-normal @max-[17rem]/pp:[overflow-wrap:anywhere]", big ? "font-semibold text-fg" : "text-fg-muted")}>{r.name}</span>
     </li>
   );
   const tree = (icon: RunePage["primaryTree"], fallback: string) => (
-    <span className="flex items-center gap-1.5 text-2xs font-semibold uppercase leading-4 tracking-label text-fg-subtle">
+    <span className="flex min-w-0 items-center gap-1.5 text-2xs font-semibold uppercase leading-4 tracking-label text-fg-subtle">
       <IconImg icon={icon} size={14} rounded="rounded-full" />
-      {icon?.name ?? fallback}
+      <span className="min-w-0 [overflow-wrap:anywhere]">{icon?.name ?? fallback}</span>
     </span>
   );
   return (
-    <div className="grid grid-cols-2 gap-x-4" data-testid="rune-page">
+    // The two paths side by side; one under the other under 17rem (a phone at large text), where two
+    // columns cut the runes' names short. There the names wrap rather than end in an ellipsis.
+    <div className="grid grid-cols-2 gap-x-4 @max-[17rem]/pp:grid-cols-1 @max-[17rem]/pp:gap-y-2" data-testid="rune-page">
       <section aria-label={`Primary path: ${page.primaryTree?.name ?? "not recorded"}`} className="min-w-0 space-y-1">
         {tree(page.primaryTree, "Primary")}
         <ul className="space-y-0.5">{page.primary.map((r, i) => rune(r, i === 0))}</ul>
@@ -245,53 +254,82 @@ function buildTip(kinds: boolean, sales: boolean): string {
 /** The control and the one panel chosen, for the player inspected (`entry`: their timeline; `page`: their rune page). */
 export function ParticipantPanels({ panel, onPanel, result, entry, page }: { panel: PanelKey; onPanel: (p: PanelKey) => void; result: MatchTimelineResult | null; entry: TimelinePlayerView | null; page: RunePage | null }) {
   const tl = result?.status === "ok" ? result.timeline : null;
-  const missing = panel !== "runes" ? timelineWords(result, entry) : null;
+  // Why Build Path and Skill Order have nothing to show (no timeline, or this player not in it): they are disabled and Runes shows.
+  const missing = timelineWords(result, entry);
+  const off = (k: PanelKey) => k !== "runes" && !!missing;
+  const shown: PanelKey = off(panel) ? "runes" : panel;
+  const reason = React.useId();
+  const choose = (k: PanelKey) => {
+    if (!off(k)) onPanel(k);
+  };
+  // What holds the area's height: the skill grid (its empty shape while the timeline loads) and the rune page.
+  const skills = !result || (entry && tl);
+  const layer = (k: PanelKey) => cn("min-w-0 [grid-area:1/1]", shown !== k && "invisible");
   return (
     // Named by the view shown, without a heading element: the post-game view has no headings of its own above it (axe's heading order).
-    <section aria-label={PANELS.find((p) => p.key === panel)!.label} className="@container/pp min-w-0 space-y-1.5" data-testid="participant-panels" data-panel={panel}>
-      <div className="flex min-h-8 items-center justify-between gap-2 pointer-coarse:min-h-11">
+    <section aria-label={PANELS.find((p) => p.key === shown)!.label} className="@container/pp min-w-0 space-y-1.5" data-testid="participant-panels" data-panel={shown} data-timeline-missing={missing ? "" : undefined}>
+      <div className="flex min-h-8 flex-wrap items-center justify-between gap-x-2 pointer-coarse:min-h-11">
         <div role="radiogroup" aria-label="Show the build path, the skill order or the runes" className={segmentedGroupClass("flex-wrap")} data-testid="panel-tabs">
           {PANELS.map((p) => (
-            // One stop in the tab order, the chosen view; ← → (↑ ↓) choose the next, as radios do.
+            // One stop in the tab order, the chosen view; ← → (↑ ↓) choose the next one available, as radios do.
             <button
               key={p.key}
               type="button"
               role="radio"
-              aria-checked={panel === p.key}
-              tabIndex={panel === p.key ? 0 : -1}
-              onClick={() => onPanel(p.key)}
+              aria-checked={shown === p.key}
+              disabled={off(p.key)}
+              aria-describedby={off(p.key) ? reason : undefined}
+              tabIndex={shown === p.key ? 0 : -1}
+              onClick={() => choose(p.key)}
               onKeyDown={(e) => {
                 const step = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 0;
                 if (!step) return;
                 e.preventDefault();
-                const next = PANELS[(PANELS.findIndex((x) => x.key === p.key) + step + PANELS.length) % PANELS.length]!;
-                onPanel(next.key);
+                let at = PANELS.findIndex((x) => x.key === p.key);
+                for (let i = 0; i < PANELS.length; i++) {
+                  at = (at + step + PANELS.length) % PANELS.length;
+                  if (!off(PANELS[at]!.key)) break;
+                }
+                const next = PANELS[at]!;
+                choose(next.key);
                 (e.currentTarget.parentElement?.querySelector(`[data-testid=panel-${next.key}]`) as HTMLElement | null)?.focus();
               }}
-              className={segmentClass(panel === p.key)}
+              className={segmentClass(shown === p.key, { disabled: off(p.key) })}
               data-testid={`panel-${p.key}`}
             >
               {p.label}
             </button>
           ))}
         </div>
-        {panel === "build" && tl && entry?.path.length ? <InfoTip label="About the build path" testId="build-info" text={buildTip(!!tl.itemKinds, !!tl.sales)} /> : null}
+        {missing ? (
+          <span id={reason} className="text-2xs leading-4 text-fg-subtle" data-testid="panel-timeline-missing">
+            {missing}
+          </span>
+        ) : shown === "build" && tl && entry?.path.length ? (
+          <InfoTip label="About the build path" testId="build-info" text={buildTip(!!tl.itemKinds, !!tl.sales)} />
+        ) : null}
       </div>
-      {/* One height for the three, at every width (the skill grid's or the rune page's, whichever is taller): switching never moves what is under it. */}
-      <div className="min-h-54 @min-[20rem]/pp:min-h-28" data-testid="panel-body">
-        {panel === "runes" ? (
+      {/* One height for the three (the taller of the skill grid and the rune page, both always laid out in one cell): switching never moves what is under it. */}
+      <div className={cn("relative grid", !page && !skills && !missing && "min-h-28")} data-testid="panel-body">
+        <div className={layer("runes")} data-view="runes">
           <Runes page={page} />
-        ) : !result ? (
-          <div role="status" className="h-12 animate-pulse rounded-md bg-surface-2 motion-reduce:animate-none">
-            <span className="sr-only">Loading the timeline</span>
+        </div>
+        {skills ? (
+          <div className={cn(layer("skills"), !entry && "invisible")} data-view="skills">
+            <SkillOrder entry={entry && tl ? entry : null} />
           </div>
-        ) : missing ? (
-          <Unavailable testId="panel-timeline-missing">{missing}</Unavailable>
-        ) : panel === "build" ? (
-          <BuildPath key={entry!.slot} entry={entry!} kinds={!!tl?.itemKinds} items={tl?.items ?? {}} />
-        ) : (
-          <SkillOrder entry={entry!} />
-        )}
+        ) : null}
+        {shown !== "runes" ? (
+          <div className="absolute inset-x-0 top-0" data-view={shown}>
+            {!result ? (
+              <div role="status" className="h-12 animate-pulse rounded-md bg-surface-2 motion-reduce:animate-none">
+                <span className="sr-only">Loading the timeline</span>
+              </div>
+            ) : shown === "build" ? (
+              <BuildPath key={entry!.slot} entry={entry!} kinds={!!tl?.itemKinds} items={tl?.items ?? {}} />
+            ) : null}
+          </div>
+        ) : null}
       </div>
     </section>
   );
