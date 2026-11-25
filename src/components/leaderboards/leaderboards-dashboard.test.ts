@@ -3,7 +3,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { cardLookFor } from "@/domain/card-style";
 import { teamDataStatus } from "@/domain/data-status";
-import type { BoardPlayer, LeaderboardsView } from "@/server/leaderboards/recent-view";
+import type { BoardPlayer, LeaderboardsView, MultikillBreakdown, MultikillRole } from "@/server/leaderboards/recent-view";
 import { PageToolbar } from "@/components/ui/page-toolbar";
 import { LeaderboardsDashboard } from "./leaderboards-dashboard";
 
@@ -20,37 +20,66 @@ vi.mock(import("@/components/ui/page-toolbar"), async (original) => {
 });
 
 /*
-  Leaderboards as one page (since 19 Nov 2026: no views, no tabs): the header, the index of the sections on a long
-  page, then Recent form, the season records, the multikills and the milestones, in that order and
-  in one grid placed by the page's own width. The boards' own markup is in
+  Leaderboards as one page (since 19 Nov 2026: no views, no tabs; since 25 Nov 2026 one dashboard, no
+  folds): the header (the active players, the rule behind its ⓘ, the season), the index of the
+  sections on a long page, then Recent form, the multikills, the season records and the milestones,
+  in that order on one 2 × 2 grid placed by the page's own width. The boards' own markup is in
   recent-leaderboards.test.ts and records.test.ts; the browser tests check the layout at each width
   (e2e/leaderboards-recent.spec.ts).
 */
 
 const NAMES: Record<string, string> = { ash: "Ash", bo: "Bo" };
 const player = (id: string): BoardPlayer => ({ id, name: NAMES[id]!, profileHref: `/players/${id}`, avatarUrl: null, look: cardLookFor({ id }) });
+const role: MultikillRole = { kind: "role", roles: ["MID"], label: "Most played: Mid, 90% of 41 games", rows: [{ role: "MID", label: "Mid", share: "90%", games: "37 games", text: "Mid — 90% (37 games)" }, { role: "TOP", label: "Top", share: "10%", games: "4 games", text: "Top — 10% (4 games)" }] };
+const breakdown: MultikillBreakdown = {
+  score: "112",
+  place: "1st of 1",
+  games: "41 games with multikill counts",
+  coverage: null,
+  role,
+  champions: [{ championId: "Zed", role: "MID", games: "30 games" }],
+  kinds: [
+    { key: "double", label: "Double kills", made: "9", weight: "2", points: "18" },
+    { key: "triple", label: "Triple kills", made: "2", weight: "3", points: "6" },
+    { key: "quadra", label: "Quadra kills", made: "1", weight: "4", points: "4" },
+    { key: "penta", label: "Pentakills", made: "0", weight: "5", points: "0" },
+  ],
+  calculation: { earned: "28", expected: "19.3", cushion: "40", score: "115" },
+  comparison: [{ basis: "champion-role", label: "By champion and role", games: "41 games" }],
+  notAdjusted: false,
+  chance: "±13",
+};
 
 function view(o: Partial<LeaderboardsView> = {}): LeaderboardsView {
   return {
     form: {
       rows: [{ playerId: "ash", place: 1, tied: false, status: "established", games: 20, wins: 13, losses: 7, winRate: 65, dates: "7 Oct – 6 Nov", role: { role: "TOP", games: 15 }, note: null, gap: null, you: false }],
-      notEnough: [{ playerId: "bo", games: 4, needed: 6, lastGame: "1 Nov 2026" }],
-      window: { games: 20, provisionalFrom: 10, days: 60 },
+      window: { games: 20, days: 60 },
     },
     records: {
       season: 16,
       seasonLabel: "Season 2026",
       seasons: [{ value: 16, label: "Season 2026", href: "/leaderboards" }],
       games: 41,
-      records: [{ id: "kills", label: "Most kills in a game", definition: "", qualifier: null, holder: { playerId: "ash", value: "18", unit: "kills", championId: "Zed", role: "MID", kda: "18/2/7", when: "2 Sep 2026", href: "/leaderboards?match=OC1_001", game: { matchId: "OC1_001", historyHref: "/players/ash/matches?match=OC1_001" } }, yours: null }],
-      multikills: { rows: [{ playerId: "ash", place: 1, tied: false, status: "ranked", score: "112", counts: { double: 9, triple: 2, quadra: 1, penta: 0 }, riot: { double: 12, triple: 3, quadra: 1, penta: 0 }, kinds: [{ key: "quadra", text: "1 quadra" }, { key: "triple", text: "2 triples" }, { key: "double", text: "9 doubles" }], gamesText: "41 games", gamesSpoken: "41 games", counted: 41, games: 41, breakdown: "Score 112 from 41 games.", detail: { score: "112", status: "ranked", gamesText: "41 games", chance: "±13", kinds: [], note: null, usualIs: "usual for their roles and champions" }, you: false }], most: [{ key: "double", label: "Most double kills", count: "9", holders: ["ash"] }, { key: "triple", label: "Most triple kills", count: "2", holders: ["ash"] }, { key: "quadra", label: "Most quadra kills", count: "1", holders: ["ash"] }, { key: "penta", label: "Most pentakills", count: null, holders: [] }], basis: "Per game, against the same roles and champions · 100 is usual", explain: ["How the score works."], source: "same-games", rankedFrom: 20, provisionalFrom: 10 },
+      records: [{ id: "kills", label: "Most kills in a game", short: "Most kills", definition: "", qualifier: null, holder: { playerId: "ash", value: "18", unit: "kills", championId: "Zed", role: "MID", kda: "18/2/7", when: "2 Sep 2026", href: "/leaderboards?match=OC1_001", game: { matchId: "OC1_001", historyHref: "/players/ash/matches?match=OC1_001" } }, yours: null }],
+      multikills: {
+        rows: [{ playerId: "ash", place: 1, tied: false, status: "ranked", score: "112", counts: { double: 9, triple: 2, quadra: 1, penta: 0 }, riot: { double: 12, triple: 3, quadra: 1, penta: 0 }, gamesText: "41", gamesSpoken: "41 games with multikill counts", counted: 41, games: 41, role, breakdown, you: false }],
+        basis: "Ranked by multikill performance relative to the champions and roles played.",
+        explain: "Multikills earn 2–5 points. The score compares a player's points with typical results for their champions and roles, accounting for games played.",
+        source: "same-games",
+        sourceText: "Typical results come from 2,400 games of other players in the team's stored season matches, excluding team members — not every League player.",
+        rule: "nested",
+        ruleShown: true,
+        ruleText: "Each multikill counts once, at its largest: a pentakill is not also counted as a double, triple and quadra.",
+        rankedFrom: 20,
+      },
       multikillNote: null,
       multikillShort: null,
-      championGames: [],
-      mastery: [{ playerId: "bo", items: [{ championId: "Thresh", value: "512K points", short: "512K", milestone: "500K+", tier: 2 }], more: 0 }],
+      milestones: { items: [{ playerId: "bo", kind: "mastery", championId: "Thresh", short: "512K", unit: "mastery", value: "512K mastery points", milestone: "500K+", tier: 2 }], more: 0 },
     },
     players: { ash: player("ash"), bo: player("bo") },
     playerCount: 2,
+    memberCount: 3,
     viewer: null,
     lastUpdated: "2026-11-18T20:00:00.000Z",
     ...o,
@@ -74,51 +103,49 @@ describe("Leaderboards, one page", () => {
     expect(html).not.toContain("data-pinned-copy");
   });
 
-  it("reads in one order: its title and who is on it, then Recent form, the season records, the multikills, the milestones", () => {
+  it("reads in one order: its title and who is on it, then Recent form, the multikills, the season records, the milestones", () => {
     expect(html.match(/<h1[ >]/g)).toHaveLength(1);
     expect(html).toMatch(/<h1 class="[^"]*">Leaderboards<\/h1>/);
     // A long word that may break only where it cannot fit (200% text on a 320px phone).
     expect(html).toMatch(/<h1 class="[^"]*\[overflow-wrap:anywhere\][^"]*">/);
     const at = (s: string) => html.indexOf(s);
-    const order = ['data-testid="scope-label"', '<section id="recent-form"', '<section id="season-records"', '<section id="multikills"', '<section id="milestones"'].map(at);
+    const order = ['data-testid="scope-label"', '<section id="recent-form"', '<section id="multikills"', '<section id="season-records"', '<section id="milestones"'].map(at);
     expect(order.every((i) => i >= 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
     // Every board's title is a section heading, the page's only h2s.
-    expect([...html.matchAll(/<h2 id="([\w-]+)"/g)].map((m) => m[1])).toEqual(["form-board-title", "season-records-title", "multikills-title", "milestones-title"]);
+    expect([...html.matchAll(/<h2 id="([\w-]+)"/g)].map((m) => m[1])).toEqual(["form-board-title", "multikills-title", "season-records-title", "milestones-title"]);
     // One lead card: Recent form's board.
     expect(html.match(/surface-lead/g)).toHaveLength(1);
     expect(html).toMatch(/class="[^"]*surface-lead[^"]*" data-testid="form-board"/);
   });
 
-  it("says who is on the boards and how current they are on one line under no other text: the count, then the data status", () => {
-    expect(html).toMatch(/<p class="[^"]*" data-testid="scope-label"><span class="inline-flex[^"]*"><span data-testid="scope-count">2 members<\/span>/);
-    expect(html.slice(html.indexOf('data-testid="scope-label"'))).toMatch(/^[^]*?data-testid="leaderboards-status/);
+  it("counts the active players, with the rule behind one ⓘ, then the season and the data status, on one line", () => {
+    expect(html).toMatch(/data-testid="scope-count" data-count="2">2 active players<\/span>/);
+    expect(html).toContain('data-testid="scope-tip"');
+    expect(html).toContain("Players with a game and a data update in the last 30 days.");
+    expect(html).toMatch(/data-testid="records-season-label">Season 2026</);
+    const scope = html.slice(html.indexOf('data-testid="scope-label"'));
+    expect(scope.indexOf("scope-count")).toBeLessThan(scope.indexOf("records-season-label"));
+    expect(scope.indexOf("records-season-label")).toBeLessThan(scope.indexOf("leaderboards-status"));
     expect(html).not.toContain('data-testid="last-updated"');
     // No paragraph of explanation on the page: the boards say what they count in their titles, the rest behind each ⓘ.
-    expect(html).not.toContain("form-footnote\"><");
     expect(html).not.toContain("records-volume-note");
   });
 
-  it("places the four boards on one grid by the page's own width: one column, then from 59rem two columns, each board under the one before it in its own", () => {
+  it("places the four boards on one 2 × 2 grid by the page's own width: one column, from 59rem the rankings side by side, then the achievements", () => {
     expect(html).toContain("@container/dash");
     const grid = /<div class="([^"]*)" data-testid="leaderboards-grid">/.exec(html)![1]!;
-    // From 59rem (Release 16, the one-screen board): Recent form's column from 36.25rem (its board's medium tier inside its 1px border), the records' 21–27rem.
-    expect(grid).toContain("@min-[59rem]/dash:grid-cols-[minmax(36.25rem,1fr)_minmax(21rem,27rem)]");
-    expect(grid).toContain("@min-[59rem]/dash:grid-rows-[auto_1fr]");
-    // From 86rem: Recent form's column at least 58rem of board inside its 1px border (its one-line rows) with room to spare, the
-    // records' column from 26.25rem; the second row takes what the records' column has beyond Recent form.
-    expect(grid).toContain("@min-[86rem]/dash:grid-cols-[minmax(58.25rem,1fr)_minmax(26.25rem,38.5rem)]");
-    expect(grid).not.toContain("col-span-2");
-    // Recent form the first column's first row, the milestones under it, from 59rem.
-    expect(html).toMatch(/<section id="recent-form" aria-labelledby="form-board-title" class="[^"]*@min-\[59rem\]\/dash:col-\[1\/2\] @min-\[59rem\]\/dash:row-\[1\/2\]" data-testid="form">/);
-    expect(html).toMatch(/<section id="milestones" aria-labelledby="milestones-title" data-fold="closed" class="group\/fold min-w-0 @min-\[59rem\]\/dash:col-\[1\/2\] @min-\[59rem\]\/dash:row-\[2\/3\]">/);
-    // The season records and the multikills: two of the grid's boards under 59rem (the wrapper draws no box), from 59rem one
-    // column beside the other across both rows, the records first.
-    const side = /<div class="([^"]*)" data-testid="leaderboards-side">([\s\S]*?)<section id="milestones"/.exec(html)!;
-    expect(side[1]!.split(" ")).toEqual(["contents", "@min-[59rem]/dash:col-[2/3]", "@min-[59rem]/dash:row-[1/span_2]", "@min-[59rem]/dash:flex", "@min-[59rem]/dash:min-w-0", "@min-[59rem]/dash:flex-col", "@min-[59rem]/dash:gap-4"]);
-    expect(side[2]!.indexOf('<section id="season-records"')).toBeGreaterThanOrEqual(0);
-    expect(side[2]!.indexOf('<section id="season-records"')).toBeLessThan(side[2]!.indexOf('<section id="multikills"'));
-    expect(html).toMatch(/<section id="season-records" aria-labelledby="season-records-title" class="min-w-0" data-testid="records">/);
+    // Recent form's column from 36.25rem (its board's medium tier inside its 1px border), the multikill table's from 27rem.
+    expect(grid).toContain("@min-[59rem]/dash:grid-cols-[minmax(36.25rem,1.25fr)_minmax(27rem,1fr)]");
+    // The rows stretch (the grid's default): the boards in a row share its height. Nothing spans, nothing is placed out of order.
+    expect(grid).not.toContain("items-start");
+    expect(grid).not.toMatch(/col-span|row-span|grid-rows/);
+    expect(html).not.toContain("leaderboards-side");
+    // Each board fills its cell (a flex column), so a row's two boards end together.
+    for (const id of ["recent-form", "multikills", "season-records", "milestones"]) expect(html).toMatch(new RegExp(`<section id="${id}"[^>]*class="[^"]*flex[^"]*flex-col`));
+    // No fold anywhere: no Show all, no closed overview.
+    expect(html).not.toContain("data-fold");
+    expect(html).not.toMatch(/Show all|show-all/);
     // No index at the header's end: every board is on the first screen from 59rem.
     expect(html).not.toContain("header-section-index");
   });
@@ -126,8 +153,8 @@ describe("Leaderboards, one page", () => {
   it("indexes the sections below Recent form for a one-column page, each link to a section on the page", () => {
     const links = [...html.matchAll(/<a href="#([\w-]+)"[^>]*data-testid="section-index-link"[^>]*>([^<]*)<\/a>/g)].map((m) => [m[1], m[2]]);
     expect(links).toEqual([
-      ["season-records", "Season records"],
       ["multikills", "Multikills"],
+      ["season-records", "Season records"],
       ["milestones", "Milestones"],
     ]);
     for (const [id] of links) expect(html).toContain(`<section id="${id}"`);
@@ -146,12 +173,26 @@ describe("Leaderboards, one page", () => {
 });
 
 describe("Leaderboards' other states", () => {
-  it("with nobody to compare: one line saying so, no boards and no index", () => {
-    const html = render(view({ playerCount: 0, players: {}, form: { rows: [], notEnough: [], window: { games: 20, provisionalFrom: 10, days: 60 } } }));
+  it("with nobody active: one line saying so (and when they return), no boards and no index", () => {
+    const html = render(view({ playerCount: 0, players: {}, form: { rows: [], window: { games: 20, days: 60 } } }));
     expect(html).toContain('data-testid="leaderboards-empty"');
+    expect(html).toContain("No player has a game and a data update in the last 30 days.");
     expect(html).not.toContain("<section");
     expect(html).not.toContain("section-index");
-    expect(html).toContain('data-testid="scope-count">0 members<');
+    expect(html).toMatch(/data-testid="scope-count" data-count="0">0 active players</);
+  });
+
+  it("with no member at all: says nobody has joined yet", () => {
+    const html = render(view({ playerCount: 0, memberCount: 0, players: {}, form: { rows: [], window: { games: 20, days: 60 } } }));
+    expect(html).toContain("No team members to compare yet.");
+  });
+
+  it("offers the season's choice in the header where two seasons are offered", () => {
+    const v = view();
+    const html = render({ ...v, records: { ...v.records, seasons: [...v.records.seasons, { value: 15, label: "Season 2025", href: "/leaderboards?season=15" }] } });
+    expect(html).toContain('data-testid="records-season"');
+    expect(html).not.toContain('data-testid="records-season-label"');
+    expect(html.indexOf('data-testid="records-season"')).toBeLessThan(html.indexOf('<section id="recent-form"'));
   });
 
   it("on the public board, when the boards were last read, and no status", () => {

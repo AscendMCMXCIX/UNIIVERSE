@@ -55,12 +55,15 @@ describe("Place", () => {
     expect(none).not.toContain("absolute");
   });
 
-  it("crowns first place, also when it is shared, and stacks a shared 1='s crown on a narrow board", () => {
-    expect(html(h(Place, { place: 1, crown: true }))).toMatch(/role="img" aria-label="First place"|aria-label="First place" role="img"/);
-    const shared = html(h(Place, { place: 1, tie: "start", crown: true }));
-    expect(shared).toContain("First place");
-    expect(shared).toContain("@max-[36rem]/list:flex-col");
+  it("marks first place in gold, also when it is shared, with no crown: a plain number like every other (25 Nov 2026, restrained placements)", () => {
+    const first = html(h(Place, { place: 1, leader: true }));
+    expect(first).toMatch(/class="[^"]*text-gold[^"]*" data-leader="true">1<\/span>$/);
+    expect(first).not.toMatch(/First place|lucide|<svg/);
+    const shared = html(h(Place, { place: 1, tie: "start", leader: true }));
+    expect(shared).toContain("text-gold");
     expect(shared).toContain("Tied for 1st");
+    expect(shared).not.toContain("flex-col");
+    expect(html(h(Place, { place: 2 }))).not.toContain("text-gold");
   });
 });
 
@@ -111,7 +114,7 @@ describe("the board", () => {
     const rows = h(DataGroup, { label: "Ranking", caption: "Provisional", captionTestId: "cap", testId: "rows", children: h("li", null, "row") });
     const out = html(h(DataList, { columns: "[--dl-cols:2rem_1fr]", heads: "#", headsTestId: "heads", surface: "lead", testId: "board", children: rows }));
     expect(out).toMatch(/^<div class="@container\/list min-w-0 overflow-clip rounded-card border border-border bg-surface surface-lead" data-testid="board"><div class="divide-y divide-border\/70 \[--dl-cols:2rem_1fr\]">/);
-    expect(out).toContain('<div aria-hidden="true" data-testid="heads" class="grid grid-cols-(--dl-cols) items-end py-1.5 label-caps');
+    expect(out).toContain('<div aria-hidden="true" data-testid="heads" class="grid grid-cols-(--dl-cols) items-end py-1.5 label-text');
     expect(out).toContain('<p class="bg-surface-2/40 py-1.5 text-xs text-fg-muted px-3 @min-[58rem]/list:px-4" data-testid="cap">Provisional</p><ol aria-label="Ranking" data-testid="rows" class="divide-y divide-border/60"><li>row</li></ol>');
   });
 

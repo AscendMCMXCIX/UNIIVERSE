@@ -229,9 +229,12 @@ describe("where the deployment allows Riot data on the public pages", () => {
     expect(view.records.seasons.every((s) => s.href.startsWith("/public/leaderboards"))).toBe(true);
     expect(view.viewer).toBeNull();
     expect(view.records.records.every((r) => r.holder === null || r.holder.href === null)).toBe(true);
-    // What the page sends: the view, with no sign-in name, Riot ID, profile route or private picture route.
+    // What the page sends: the view, with no sign-in name, Riot ID, profile route or private picture route, and no sync time
+    // (each player's last successful read decides who is shown: server-side only, never on the page).
+    expect(data.players.every((p) => "lastSyncedAt" in p)).toBe(true);
     const json = JSON.stringify(view);
     expect(json).not.toMatch(/_login|Riot#OCE|\/players\/|\/api\/avatars\//);
+    expect(json).not.toMatch(/lastSyncedAt|syncCursor|lastSyncAt/);
     expect(json).not.toContain(ids.benchother);
     for (const id of Object.values(userIds)) expect(json).not.toContain(id);
   });

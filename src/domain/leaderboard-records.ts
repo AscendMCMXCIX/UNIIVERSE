@@ -221,7 +221,10 @@ export function multikillCountsOf(g: Pick<LeaderboardGame, "extra">): MultikillC
 }
 
 export interface MultikillBoard {
-  /** Every member with a game this season: ranked, then provisional, then too few games (domain/multikill-score). */
+  /**
+   * Every shown member (`visible`, every member when not given) with a game this season: ranked,
+   * then provisional, then too few games (domain/multikill-score), the places among them alone.
+   */
   rows: RankedScore[];
   /** Most of each kind (Riot's own counts), double to penta; null while nobody has one. */
   most: Record<MultikillKey, { count: number; holders: string[] } | null>;
@@ -234,9 +237,19 @@ export interface MultikillBoard {
  * over the season's games that carry Riot's counts, and the most of each kind. `baseline` is the
  * other players in the same games (server/leaderboards/multikill-baseline); while it holds fewer
  * than BASELINE_MIN_GAMES games (or there is none), the members are compared with the team's own
- * games, every position together, and the page says so.
+ * games, every position together, and the page says so. The comparison (and that fallback) reads
+ * every member's games; the board lists, and places, only the members it shows (`visible`).
  */
-export function buildMultikillBoard(input: { games: readonly LeaderboardGame[]; playerIds: readonly string[]; season: number; baseline: MultikillBaseline | null; nameOf: (id: string) => string }): MultikillBoard {
+export function buildMultikillBoard(input: {
+  games: readonly LeaderboardGame[];
+  /** Every member: the team's own comparison (the fallback) reads all their games, whoever is shown. */
+  playerIds: readonly string[];
+  /** The members the board shows (active in the last 30 days, domain/leaderboards); every member when not given. Places are among them alone. */
+  visible?: readonly string[];
+  season: number;
+  baseline: MultikillBaseline | null;
+  nameOf: (id: string) => string;
+}): MultikillBoard {
   const members = new Set(input.playerIds);
   const games = seasonGames(input.games, input.season).filter((g) => members.has(g.playerId));
   const scored = games.map((g) => ({ g, counts: multikillCountsOf(g) }));
@@ -247,7 +260,8 @@ export function buildMultikillBoard(input: { games: readonly LeaderboardGame[]; 
     if (list) list.push(x);
     else byPlayer.set(x.g.playerId, [x]);
   }
-  const scores = [...byPlayer].map(([playerId, list]) => scoreMember(playerId, list.map(({ g, counts }) => ({ role: g.role, championId: g.championId, counts })), baseline));
+  const shown = input.visible ? new Set(input.visible) : null;
+  const scores = [...byPlayer].filter(([playerId]) => !shown || shown.has(playerId)).map(([playerId, list]) => scoreMember(playerId, list.map(({ g, counts }) => ({ role: g.role, championId: g.championId, counts })), baseline));
   const most = Object.fromEntries(MULTIKILL_KEYS.map((k) => [k, mostOfKind(scores, k)])) as MultikillBoard["most"];
   return { rows: rankMultikillScores(scores, input.nameOf), most, baseline };
 }

@@ -74,6 +74,51 @@ export interface LeaderboardMastery {
   points: number;
 }
 
+/*
+  Who the boards show (25 Nov 2026, the owner's rule): a player appears on any of them only while
+  they are active, which takes BOTH of
+    a game the boards count (a supported Summoner's Rift queue, not a remake) that started within
+    the last LEADERBOARD_ACTIVE_DAYS days, and
+    a successful data update of one of their accounts within the same days (a sync that read the
+    history it was due to read: riot_accounts.sync_cursor, written on success only; a demo
+    account's seeded time stands for it).
+  A sync without new games alone never makes a player active: the rule needs gameplay. It is a
+  matter of what is shown, recalculated from the stored data on every request (a returning player
+  shows again with their next synced game); nothing is deleted, the season's statistics stay
+  season-based, and each board's own qualification applies on top.
+*/
+
+/** The days within which a player needs both a counted game and a successful data update to appear on the boards. */
+export const LEADERBOARD_ACTIVE_DAYS = 30;
+const ACTIVE_MS = LEADERBOARD_ACTIVE_DAYS * 86_400_000;
+const ACTIVE_QUEUES = new Set<number>(LEADERBOARD_QUEUES.all.queues);
+/** Remakes are left out, as everywhere in UNIIVERSE. */
+const REMAKE_S = 300;
+
+/** The newest game the boards count (a supported queue, not a remake, not after `now`), as its start in ms; null when there is none. */
+export function lastCountedGame(games: readonly Pick<LeaderboardGame, "queueId" | "durationS" | "gameCreation">[], now: Date | number): number | null {
+  const at = typeof now === "number" ? now : now.getTime();
+  let last: number | null = null;
+  for (const g of games) {
+    if (g.queueId === null || !ACTIVE_QUEUES.has(g.queueId) || (g.durationS !== null && g.durationS < REMAKE_S) || g.gameCreation > at) continue;
+    if (last === null || g.gameCreation > last) last = g.gameCreation;
+  }
+  return last;
+}
+
+/** What makes a player active: their newest counted game and their accounts' newest successful data update (ms; null for none). */
+export interface PlayerActivity {
+  lastGameAt: number | null;
+  lastSyncedAt: number | null;
+}
+
+/** Whether the boards show this player: a counted game AND a successful data update, both within LEADERBOARD_ACTIVE_DAYS of `now`. */
+export function isActivePlayer(activity: PlayerActivity, now: Date | number): boolean {
+  const at = typeof now === "number" ? now : now.getTime();
+  const since = at - ACTIVE_MS;
+  return activity.lastGameAt !== null && activity.lastGameAt >= since && activity.lastGameAt <= at && activity.lastSyncedAt !== null && activity.lastSyncedAt >= since;
+}
+
 /** Longest run of consecutive wins, in the order the games were played (games without a result are skipped). */
 export function longestWinStreak(games: readonly LeaderboardGame[]): { length: number; endedAt: number | null; games: number } {
   const decided = games.filter((g) => g.win !== null).sort((a, b) => a.gameCreation - b.gameCreation || a.matchId.localeCompare(b.matchId));

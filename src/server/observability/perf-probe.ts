@@ -308,8 +308,8 @@ export async function runPerfProbe(
           warm: true,
           note: (r) => {
             const f = r as FormView;
-            const placed = f.rows.filter((x) => x.place !== null);
-            return `${placed.length} full windows on ${new Set(placed.map((x) => x.place)).size} places · ${f.rows.length - placed.length} provisional · ${f.notEnough.length} with too few recent games`;
+            // Active players only (a game and a successful sync in the last 30 days), full windows only (25 Nov 2026).
+            return `${f.rows.length} full windows on ${new Set(f.rows.map((x) => x.place)).size} places · ${data.players.length} members`;
           },
         }),
       );
@@ -330,7 +330,7 @@ export async function runPerfProbe(
           warm: true,
           note: (r) => {
             const v = r as RecordsView;
-            return `${v.games} games this season · ${v.records.filter((x) => x.holder).length} of ${v.records.length} records held · ${v.multikills.rows.length} members on the multikill board · ${v.championGames.length + v.mastery.length} milestone groups`;
+            return `${v.games} games this season · ${v.records.filter((x) => x.holder).length} of ${v.records.length} records held · ${v.multikills.rows.length} ranked on the multikill board · ${v.milestones.items.length + v.milestones.more} milestones`;
           },
         }),
       );
