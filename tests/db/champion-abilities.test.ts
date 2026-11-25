@@ -14,7 +14,7 @@ import { abilityFixture } from "@/server/riot/static/ability-fixture";
 import { runJob } from "@/server/jobs";
 
 /*
-  Matchup Intel's champion abilities in the database (app_settings "champion_abilities"): stored
+  Champion Intel's champion abilities in the database (app_settings "champion_abilities"): stored
   by the version-check job once per game version, from the detail files the champion sync already
   read; read per champion by the page, only the champions it shows. What must hold: an unchanged
   version reads no file again, and its check reads the stored document once; a champion that
@@ -166,7 +166,11 @@ describe("champion abilities: sync and read", () => {
     const ahri = loaded.champions.Ahri!;
     expect(ahri).toMatchObject({ championId: "Ahri", version: "16.21.1" });
     // The contract's fields only: the rules' revision stays in the store.
-    expect(Object.keys(ahri)).toEqual(["championId", "version", "abilities", "tips"]);
+    expect(Object.keys(ahri)).toEqual(["championId", "version", "abilities", "tips", "facts"]);
+    // Rules format 4: the champion's own facts as its file gives them (this file has stats only).
+    expect(ahri.facts).toEqual({ partype: "", tags: [], stats: { hp: 600 } });
+    // The first version held: nothing to compare, so no patch marks.
+    expect(ahri.abilities.some((a) => a.changed)).toBe(false);
     expect(index!.champions.Ahri).toMatchObject({ version: "16.21.1", format: ABILITY_RULES_FORMAT });
     expect(ahri.abilities.map((a) => a.slot)).toEqual(["P", "Q", "W", "E", "R"]);
     // The text's pin is of Riot's own words, markup and all (so a change of either hides the facts read from it).
@@ -215,6 +219,13 @@ describe("champion abilities: sync and read", () => {
     expect(loaded.champions.Ahri).toMatchObject({ version: "16.22.1" });
     expect(qCooldown(loaded.champions.Ahri)).toEqual([22, 22, 22, 22, 22]);
     expect(loaded.version).toBeNull();
+    // Patch marks (changes.ts): against the record held, 16.21.1, Ahri's basic abilities' cooldowns
+    // changed (21 to 22) and nothing else; her R's did not. Akali, kept at 16.21.1, has none.
+    const ahri = loaded.champions.Ahri!;
+    for (const slot of ["Q", "W", "E"]) expect(ahri.abilities.find((a) => a.slot === slot)!.changed, slot).toEqual({ since: "16.21.1", text: false, cooldown: true, cost: false });
+    expect(ahri.abilities.find((a) => a.slot === "R")!.changed ?? null).toBeNull();
+    expect(ahri.abilities.find((a) => a.slot === "P")!.changed ?? null).toBeNull();
+    expect(loaded.champions.Akali!.abilities.some((a) => a.changed)).toBe(false);
     expect((await loadChampionAbilities(db, ["Ahri", "Annie"])).version).toBe("16.22.1");
     expect((await loadChampionAbilities(db, ["Akali"])).version).toBe("16.21.1");
 
@@ -222,7 +233,16 @@ describe("champion abilities: sync and read", () => {
     const next = provider.requests.length;
     expect(await syncChampionAbilities(db, "16.22.1", { provider })).toMatchObject({ changed: true, refreshed: 1, kept: 0, failed: 0, fetched: 1, stored: 10 });
     expect(provider.requests.slice(next)).toEqual(["Akali"]);
-    expect((await loadChampionAbilities(db, ["Akali"])).champions.Akali).toMatchObject({ version: "16.22.1" });
+    const akali = (await loadChampionAbilities(db, ["Akali"])).champions.Akali!;
+    expect(akali).toMatchObject({ version: "16.22.1" });
+    // Read late, Akali is compared with the record it kept (16.21.1): the same marks as the others.
+    expect(akali.abilities.find((a) => a.slot === "Q")!.changed).toEqual({ since: "16.21.1", text: false, cooldown: true, cost: false });
+    // Read again at the same version (a change of rules, force), each champion keeps the marks it had.
+    invalidateCache("champion_abilities");
+    expect(await syncChampionAbilities(db, "16.22.1", { provider, force: true })).toMatchObject({ changed: true, refreshed: 10, failed: 0 });
+    invalidateCache("champion_abilities");
+    const again = (await loadChampionAbilities(db, ["Ahri"])).champions.Ahri!;
+    expect(again.abilities.find((a) => a.slot === "Q")!.changed).toEqual({ since: "16.21.1", text: false, cooldown: true, cost: false });
   });
 
   it("writes nothing when more than 10% of the roster cannot be read (last known good)", async () => {

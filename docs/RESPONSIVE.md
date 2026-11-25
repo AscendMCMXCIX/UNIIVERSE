@@ -291,7 +291,7 @@ part's own width in rem (a container query) with a threshold under anything the 
 gives on a 320px phone, or lets a line wrap where it no longer fits, so at 100% nothing moves.
 
 **The audit.** A large-text audit (a script outside the repository, like the responsive pass's)
-loads every member page (Team; Players; Matches; Leaderboards and Records; Resources, Champion Lookup
+loads every member page (Team; Players; Matches; Leaderboards and Records; Resources, Champion Intel
 and one pair; Settings; a profile's Overview, Champions, Match History and Encounters) and every
 Admin Mode page on 320 and 375px phones at 150%, 175% and 200% text, and reports for each page and
 size: sideways overflow (the page wider than the phone), text cut by the nearest box that clips it
@@ -544,7 +544,7 @@ the account screen over the dashboard at 200% on a 320px phone as well.
     Back closes it); on a profile its sections ride under the bar, on a Team page Team's sections
     (Overview, Players, Leaderboards, Matches), on an admin page its entry's tabs;
   - phones held upright: a bottom tab bar with the sidebar's four destinations (navigation N1, 19 Nov
-    2026: My Profile, Team, Champion Lookup and Resources; in Admin Mode Dashboard, Users & Permissions,
+    2026: My Profile, Team, Champion Intel and Resources; in Admin Mode Dashboard, Users & Permissions,
     Platform Settings and System; `destinations()` in `src/lib/nav.ts`, those the account may open).
     A teammate's profile is under Team. The current tab's icon sits in an accent pill and its name is
     bright, so it does not rely on colour alone. By the label ladder (`TAB_FIT`): the whole names,
@@ -631,14 +631,17 @@ the account screen over the dashboard at 200% on a 320px phone as well.
   section's own, else 80rem): Players and a teammate's profile share `players/loading.tsx`, which reads
   the address it stands in for, and Team Matches' own `matches/loading.tsx` stands as its page does
   (Team's width from 1600px, its filter row and cards at `--content-max`, left-aligned).
-- **Champion Lookup on one screen** (the owner's request of 23 Nov 2026, in Matchup Intel's place;
-  docs/CHAMPION_LOOKUP.md): the page takes `--content-max`; its panel holds the champion, the haste
-  choice and the five abilities, each row laying its ranks out as columns from 44rem of its own width (room for six ranks, never wrapping)
-  (`@container/ab`) and as one line per kind below it. Any champion at any haste fits one viewport
-  with no page scroll at 1440 × 900, 1920 × 1080, 1920 × 950 (the owner's window, the sidebar folded
-  or open) and 1440 × 780 (the descriptions, folded by
-  default, may make it scroll); on a phone it scrolls as a page, with nothing scrolling inside it and
-  nothing wider than the screen from 320px at 200% text. `e2e/champion-lookup.spec.ts` asserts both.
+- **Champion Intel on one screen** (Champion Lookup, 23 Nov 2026, renamed and extended on 24 Nov
+  2026; docs/CHAMPION_INTEL.md): one champion takes `--content-max`, two `--content-wide`, side by
+  side from a 56rem page (`@container/intel`) and one at a time under a switcher below it; each panel
+  measures itself (`@container/panel`: from 68rem the key mechanics and statistics take a 20rem
+  column beside the abilities), and each ability row too (`@container/ab`: ranks as columns from
+  42rem, room for six; one line below it, the base moving into the opened row at a haste). The
+  header, the haste field and the five folded rows of every panel shown are on the first screen at
+  1280 × 720, 1440 × 900, 1440 × 780, 1920 × 1080, 1920 × 950, 2560 × 1440 and 3440 × 1440, one
+  champion and two, the sidebar open and folded; opening rows grows the page, never a scroll inside
+  it; on a phone it scrolls as a page, nothing wider than the screen from 320px at 200% text.
+  `e2e/champion-lookup.spec.ts` asserts each.
   Matchup Intel's two-column dashboard (18–23 Nov 2026, `--content-wide`) was retired with it.
 - **A page's controls in reach** (PR 2b, 18 Nov 2026): a long page's own controls (its view switch,
   Filters, search) scroll away with its header. From md, once the section tabs are pinned and the
@@ -934,7 +937,7 @@ the responsive pass report.
 (phone landscape), 568×320 (a 320pt iPhone held sideways, the compact bar's narrowest) and 1366×600
 (short laptop) and fails on any horizontal overflow or a missing heading; admin pages at six sizes
 (568×320 among them). The same file runs axe (WCAG 2.1 A/AA) on every page and fails
-on critical or serious violations, and again at 1920 on Team's four sections, Champion Lookup and
+on critical or serious violations, and again at 1920 on Team's four sections, Champion Intel and
 Resources, where the section tabs' row takes the pages' width, and at 1440 × 600 with a page's compact controls
 showing in the pinned row (Team Matches, a profile's Overview, Match History, Encounters).
 Panel layouts that live in variable-width columns use container queries (`@container`, `@xl:`) rather than viewport breakpoints.
@@ -1082,7 +1085,7 @@ Three levels, each saying what it proves:
   8. On an iPad, add to Home Screen and open it: Players shows the whole roster on one screen, two
      up, and a row opens its profile with one tap; Matches scrolls under the pinned Team
      tabs, a tab from there switches the section; a teammate's profile shows "‹ Players" in the top
-     bar (the installed app has no browser Back) and it leads back; My Profile, Team, Champion Lookup
+     bar (the installed app has no browser Back) and it leads back; My Profile, Team, Champion Intel
      and Resources are each one tap in the top bar; the avatar's menu holds Settings, the mode switch, Sign out,
      the patch and Riot's notice (Install App too, outside the installed app).
   9. In the installed app and in Safari, tap your avatar on Team, on Resources scrolled to its end,

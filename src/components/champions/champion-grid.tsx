@@ -71,7 +71,7 @@ export interface ChampionGridProps {
   progressive?: boolean;
   /**
    * False: no search field or role filter of its own, for a window that searches the champions
-   * itself and hands over the ones to show (Champion Lookup's window). The grid keeps its keyboard
+   * itself and hands over the ones to show (Champion Intel's window). The grid keeps its keyboard
    * moves; what it says when nothing matches is the window's.
    */
   toolbar?: boolean;

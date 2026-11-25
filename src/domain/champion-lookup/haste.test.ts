@@ -1,24 +1,20 @@
 import { describe, expect, it } from "vitest";
 import abilityFixture from "@/server/riot/fixtures/champion-abilities.fixture.json";
 import { ddragonCooldownDisplay, type CooldownDisplay } from "./cooldown";
-import { HASTE_CHOICES, HASTE_MAX, clampHaste, cooldownAtHaste, hasteReduction, hastedSeconds } from "./haste";
+import { HASTE_MAX, clampHaste, cooldownAtHaste, hasteReduction, hastedSeconds, readHasteField } from "./haste";
 import type { DdragonChampionAbilities } from "./types";
 
 /*
-  Cooldowns at a chosen ability haste (docs/CHAMPION_LOOKUP.md, "Haste"): Riot's rule on every
-  ordinary cooldown of the committed Data Dragon copy, at every quick value and the maximum, and
-  never on a special case; the haste as the page takes it.
+  Cooldowns at a chosen ability haste (docs/CHAMPION_INTEL.md, "Haste"): Riot's rule on every
+  ordinary cooldown of the committed Data Dragon copy, at every haste from 0 to the maximum, and
+  never on a special case; the haste as the field and the address take it.
 */
 
 const champions = Object.values((abilityFixture as unknown as { champions: Record<string, DdragonChampionAbilities> }).champions);
 const displays = champions.flatMap((c) => c.abilities.map((a) => ({ id: `${c.championId} ${a.slot}`, d: ddragonCooldownDisplay(a) })));
-const HASTES = [...HASTE_CHOICES, 7, 33, 150, HASTE_MAX];
+const HASTES = Array.from({ length: HASTE_MAX + 1 }, (_, h) => h);
 
 describe("cooldowns at a haste", () => {
-  it("offers the owner's quick values", () => {
-    expect([...HASTE_CHOICES]).toEqual([0, 10, 20, 30, 40, 50, 60, 80, 100]);
-  });
-
   it("applies base × 100 / (100 + haste), to two decimals, to every cooldown that passed the guard", () => {
     const ordinary = displays.filter((x) => x.d.kind === "per-rank");
     expect(ordinary).toHaveLength(623);
@@ -58,5 +54,50 @@ describe("cooldowns at a haste", () => {
     expect(hastedSeconds(10, 25)).toBe(8);
     // A haste beyond the maximum is held to it.
     expect(hastedSeconds(10, 1000)).toBe(hastedSeconds(10, HASTE_MAX));
+  });
+});
+
+describe("the haste field", () => {
+  it("takes digits as typed, 0 when empty", () => {
+    expect(readHasteField("")).toEqual({ text: "", value: 0, note: null });
+    expect(readHasteField("0")).toEqual({ text: "0", value: 0, note: null });
+    expect(readHasteField("20")).toEqual({ text: "20", value: 20, note: null });
+    expect(readHasteField(" 45 ")).toEqual({ text: "45", value: 45, note: null });
+    expect(readHasteField("045")).toEqual({ text: "045", value: 45, note: null });
+    expect(readHasteField("300")).toEqual({ text: "300", value: 300, note: null });
+  });
+
+  it("drops letters and spaces, a paste included", () => {
+    expect(readHasteField("4a5x")).toEqual({ text: "45", value: 45, note: null });
+    expect(readHasteField("abc")).toEqual({ text: "", value: 0, note: null });
+    expect(readHasteField("20 haste")).toEqual({ text: "20", value: 20, note: null });
+    expect(readHasteField("1 0 0")).toEqual({ text: "100", value: 100, note: null });
+  });
+
+  it("holds more than the maximum to it, and says so", () => {
+    expect(readHasteField("301")).toEqual({ text: "301", value: 300, note: "held" });
+    expect(readHasteField("999")).toEqual({ text: "999", value: 300, note: "held" });
+    // A long paste is cut to four digits, still held.
+    expect(readHasteField("123456")).toEqual({ text: "1234", value: 300, note: "held" });
+  });
+
+  it("takes a fraction's whole part, keeping the point while it is typed, and says so", () => {
+    expect(readHasteField("12.")).toEqual({ text: "12.", value: 12, note: null });
+    expect(readHasteField("12.5")).toEqual({ text: "12.5", value: 12, note: "whole" });
+    expect(readHasteField("12,75")).toEqual({ text: "12.75", value: 12, note: "whole" });
+    expect(readHasteField(".5")).toEqual({ text: ".5", value: 0, note: "whole" });
+    expect(readHasteField("12.5.5")).toEqual({ text: "12.55", value: 12, note: "whole" });
+  });
+
+  it("takes a negative as 0, and says so", () => {
+    expect(readHasteField("-20")).toEqual({ text: "0", value: 0, note: "negative" });
+    expect(readHasteField("−5")).toEqual({ text: "0", value: 0, note: "negative" });
+  });
+
+  it("never throws, and never gives a value outside 0 to the maximum", () => {
+    for (const raw of [null, undefined, 5, {}, "∞", "NaN", "1e9", "0x20", "２０", "🙂", "9".repeat(50)]) {
+      const f = readHasteField(raw);
+      expect(Number.isInteger(f.value) && f.value >= 0 && f.value <= HASTE_MAX, String(raw)).toBe(true);
+    }
   });
 });

@@ -7,7 +7,7 @@ import { E2E_DDRAGON_VERSION } from "./e2e/ddragon-version";
   tablet and desktop. Run with `pnpm test:e2e` after `pnpm build`.
 
   The server reads Riot's Data Dragon at one version (DDRAGON_VERSION, e2e/ddragon-version.ts), so
-  the pages the specs read, Champion Lookup's numbers among them, stay the same as Riot ships patches. A server started by hand for the specs (E2E_PORT) needs it as well.
+  the pages the specs read, Champion Intel's numbers among them, stay the same as Riot ships patches. A server started by hand for the specs (E2E_PORT) needs it as well.
 
   Safari's engine only when asked: E2E_WEBKIT=1 adds the "webkit" project, which runs
   e2e/webkit.spec.ts on an iPhone-sized WebKit (`pnpm exec playwright install webkit` once; the

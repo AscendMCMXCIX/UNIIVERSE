@@ -8,7 +8,7 @@ import { ResourcesView } from "@/components/resources/resources-view";
 export const dynamic = "force-dynamic";
 
 /**
- * RESOURCES, the Library (the sidebar's Resources entry, one page with no tabs; Champion Lookup is
+ * RESOURCES, the Library (the sidebar's Resources entry, one page with no tabs; Champion Intel is
  * an entry of its own): the team's library of League of Legends sites, for every signed-in account.
  * Administrators keep it in Admin Mode → Platform Settings → Resources, which checks the permission
  * again; this Player Mode page has no management controls.

@@ -4,7 +4,7 @@ import { memberContext, setBaseAccess } from "./member-account";
 
 /*
   The phone frame (docs/MOBILE.md): the sidebar's four destinations in the bottom tab bar (navigation
-  N1: My Profile, Team, Champion Lookup and Resources), named by the label ladder; a top bar that says
+  N1: My Profile, Team, Champion Intel and Resources), named by the label ladder; a top bar that says
   where you are (the team's mark, or Back named after where it leads, and the page's title once its
   heading has scrolled away), with a profile's sections or Team's under it; the account screen behind
   the avatar, the account's own items only (it answers a tap made before the page's code has run,
@@ -83,9 +83,9 @@ const shownNames = (nav: ReturnType<Page["getByTestId"]>) =>
     }),
   );
 
-test("the tab bar holds the sidebar's four destinations, My Profile, Team, Champion Lookup and Resources, one tap each; Team's sections are the top bar's second row", async ({ page }) => {
+test("the tab bar holds the sidebar's four destinations, My Profile, Team, Champion Intel and Resources, one tap each; Team's sections are the top bar's second row", async ({ page }) => {
   await page.goto("/team");
-  await expect(tabBar(page).getByRole("link")).toHaveText(["My Profile", "Team", "Champion Lookup", "Resources"]);
+  await expect(tabBar(page).getByRole("link")).toHaveText(["My Profile", "Team", "Champion Intel", "Resources"]);
   // Team's sections ride under the top bar on every Team page, with the desktop's names; no row repeats them in the page.
   await expect(page.getByTestId("team-tabs")).toBeHidden();
   const sections = page.getByTestId("team-chrome-tabs");
@@ -107,7 +107,7 @@ test("the tab bar holds the sidebar's four destinations, My Profile, Team, Champ
   }
   // Every tab is a 44px target or larger, and at 375px and 100% text every name shows whole.
   for (const box of await tabBar(page).getByRole("link").evaluateAll((links) => links.map((l) => l.getBoundingClientRect().height))) expect(box).toBeGreaterThanOrEqual(44);
-  expect(await shownNames(tabBar(page))).toEqual(["My Profile", "Team", "Champion Lookup", "Resources"].map((text) => ({ text, shown: true, whole: true })));
+  expect(await shownNames(tabBar(page))).toEqual(["My Profile", "Team", "Champion Intel", "Resources"].map((text) => ({ text, shown: true, whole: true })));
   // Team's sections: one tap each, Team marked on all of them.
   await sections.getByRole("link", { name: "Leaderboards" }).click();
   await expect(page).toHaveURL(/\/leaderboards$/);
@@ -142,9 +142,9 @@ test("the Team tab reopens the Team section last used, and tapped again on Team 
   await expect(tabBar(page).getByTestId("tab-team")).toHaveAttribute("href", "/matches");
 });
 
-test("the label ladder: whole names from a 360px phone at 100% text, then Profile and Lookup with the whole names read out, then the icons alone at 200% (and 150% on 320 and 375px); Admin Mode's short names", async ({ page }) => {
+test("the label ladder: whole names from a 360px phone at 100% text, then Profile and Intel with the whole names read out, then the icons alone at 200% (and 150% on 320 and 375px); Admin Mode's short names", async ({ page }) => {
   // The bar's width in rem decides (TAB_FIT): the root's size stands for the reader's text size.
-  const steps = { full: ["My Profile", "Team", "Champion Lookup", "Resources"], short: ["Profile", "Team", "Lookup", "Resources"] } as const;
+  const steps = { full: ["My Profile", "Team", "Champion Intel", "Resources"], short: ["Profile", "Team", "Intel", "Resources"] } as const;
   const expected: Record<number, Record<number, keyof typeof steps | "icons">> = {
     320: { 100: "short", 125: "short", 150: "icons", 200: "icons" },
     375: { 100: "full", 125: "short", 150: "icons", 200: "icons" },
@@ -192,9 +192,9 @@ test("Restricted Player (no Leaderboards): the same four destinations, Team's ro
   const phone = member.page;
   await phone.goto("/team");
   const bar = tabBar(phone);
-  await expect(bar.getByRole("link")).toHaveText(["My Profile", "Team", "Champion Lookup", "Resources"]);
+  await expect(bar.getByRole("link")).toHaveText(["My Profile", "Team", "Champion Intel", "Resources"]);
   // At 320px and 100% text the short names (the whole ones from a 360px phone), each read out in full.
-  expect(await shownNames(bar)).toEqual(["Profile", "Team", "Lookup", "Resources"].map((text) => ({ text, shown: true, whole: true })));
+  expect(await shownNames(bar)).toEqual(["Profile", "Team", "Intel", "Resources"].map((text) => ({ text, shown: true, whole: true })));
   await expect(phone.getByTestId("team-chrome-tabs").getByRole("link")).toHaveText(["Overview", "Players", "Matches"]);
   expect(await phone.evaluate(() => document.documentElement.scrollWidth), "the page within the phone").toBeLessThanOrEqual(320);
   // The account screen holds the account's items only: no page is in both.
@@ -268,7 +268,7 @@ test("the avatar opens the account screen: the account's own items only (Setting
   await expect(screen.getByRole("navigation", { name: "Your account" }).getByRole("link")).toHaveText(["Settings"]);
   await expect(screen.getByTestId("install-app")).toBeVisible();
   await expect(screen.getByTestId("mode-switch")).toHaveText("Switch to Admin Mode");
-  for (const name of ["Champion Lookup", "Resources", "My Profile", "Players", "Team"]) await expect(screen.getByRole("link", { name, exact: true }), name).toHaveCount(0);
+  for (const name of ["Champion Intel", "Resources", "My Profile", "Players", "Team"]) await expect(screen.getByRole("link", { name, exact: true }), name).toHaveCount(0);
   // The team's mark, the patch and Riot's notice at its foot.
   await expect(screen.getByTestId("account-sheet-team")).toBeVisible();
   await expect(screen.getByText("Not endorsed by Riot Games.")).toBeVisible();
@@ -287,7 +287,7 @@ test("the avatar opens the account screen: the account's own items only (Setting
   // Opened directly, Settings leads home: Team, a Team page, so "‹ Team" names where it really goes.
   await page.goto("/settings");
   await expect(page.getByTestId("mobile-back")).toHaveAttribute("href", "/team");
-  // Champion Lookup and Resources, destinations of their own, never claim Team as their parent.
+  // Champion Intel and Resources, destinations of their own, never claim Team as their parent.
   for (const path of ["/resources", "/lookup"]) {
     await page.goto(path);
     await expect(page.getByTestId("mobile-back"), path).toHaveCount(0);
@@ -492,7 +492,7 @@ test.describe("a tablet before the page's code has run", () => {
 test("a tablet's destinations are in its top bar, one tap each; its avatar menu holds the account's items, the switch between the modes, the patch and Riot's notice", { tag: "@tablet" }, async ({ page, context, baseURL }) => {
   await page.goto("/team");
   const nav = page.getByRole("navigation", { name: "Primary" });
-  await expect(nav.getByRole("link")).toHaveText(["My Profile", "Team", "Champion Lookup", "Resources"]);
+  await expect(nav.getByRole("link")).toHaveText(["My Profile", "Team", "Champion Intel", "Resources"]);
   // The current destination is marked twice: its icon in the brand blue and its lift, and the name bright.
   const team = nav.getByRole("link", { name: "Team" });
   await expect(team).toHaveAttribute("aria-current", "page");
@@ -505,11 +505,11 @@ test("a tablet's destinations are in its top bar, one tap each; its avatar menu 
   await expect(page).toHaveURL(/\/resources$/);
   await expect(nav.getByRole("link", { name: "Resources" })).toHaveAttribute("aria-current", "page");
   await expect(nav.locator("a[aria-current=page]")).toHaveCount(1);
-  // Champion Lookup is a destination of its own, marked on its page with a champion chosen, Resources not.
-  await nav.getByRole("link", { name: "Champion Lookup" }).click();
+  // Champion Intel is a destination of its own, marked on its page with a champion chosen, Resources not.
+  await nav.getByRole("link", { name: "Champion Intel" }).click();
   await expect(page).toHaveURL(/\/lookup$/);
   await page.goto("/lookup?champion=Mordekaiser&haste=20");
-  await expect(nav.getByRole("link", { name: "Champion Lookup" })).toHaveAttribute("aria-current", "page");
+  await expect(nav.getByRole("link", { name: "Champion Intel" })).toHaveAttribute("aria-current", "page");
   await expect(nav.locator("a[aria-current=page]")).toHaveCount(1);
   await page.goto("/matches");
   await expect(team).toHaveAttribute("aria-current", "page");
@@ -547,7 +547,7 @@ test("a tablet's destinations are in its top bar, one tap each; its avatar menu 
 
 test("a tablet's top bar gives way at a larger text size: the team's name, the whole names, the short ones, then the icons, by its own width, and never wider than the window", { tag: "@tablet" }, async ({ page, context, baseURL }) => {
   // BAR_FIT in mobile-nav.tsx, in rem of the bar's row less its gutters: Player Mode's name below
-  // 44.4rem, its whole names below 38.25rem and its short names below 32.1rem (Champion Lookup's names,
+  // 44.4rem, its whole names below 38.25rem and its short names below 32.1rem (Champion Intel's names,
   // 23 Nov 2026); Admin Mode's name,
   // which says the mode, stays with the short names down to 39.75rem, its whole names from 49.75rem,
   // its short names down to 33.25rem. The gutters are 1rem a side, so they grow with the text: a

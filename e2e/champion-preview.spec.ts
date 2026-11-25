@@ -12,7 +12,7 @@ import { NARROW_MOUSE_WINDOWS, expectInReach } from "./reach";
   click outside close it too. Its content: portrait, role, games and win rate, four tiles of
   averages, then the record against each lane opponent as a compact table (a win rate only from 3
   games, the games beside it), an opponent unfolding into its games (their KDA over them) and the one
-  link to Champion Lookup, and the foot line. Old champion-window addresses (Matchups, the Overview's
+  link to Champion Intel, and the foot line. Old champion-window addresses (Matchups, the Overview's
   pools) land here.
 */
 
@@ -192,7 +192,7 @@ test("desktop: in a short scrolled window, opening, switching and closing never 
   expect(Math.abs((await last.boundingBox())!.y - y0), "nor on closing").toBeLessThanOrEqual(1);
   expect(await page.evaluate(() => scrollY)).toBe(scroll0);
 });
-test("the content: opponents from 3 games with their games, one unfolding into its games and Champion Lookup", async ({ page }) => {
+test("the content: opponents from 3 games with their games, one unfolding into its games and Champion Intel", async ({ page }) => {
   const profile = await demoTop(page);
   await page.goto(`${profile}/champions`);
   const row = page.getByTestId("top-champion").first();
@@ -290,7 +290,7 @@ test("tablets: the preview is the docked panel too, within the screen; the list 
   const close = (await page.getByTestId("champion-preview-close").boundingBox())!;
   expect(Math.min(close.width, close.height)).toBeGreaterThanOrEqual(44);
   expect((await page.getByTestId("champion-preview-opponent").first().getByRole("button").first().boundingBox())!.height).toBeGreaterThanOrEqual(44);
-  // An opened opponent's "Show all N games" and its link to Champion Lookup too (Release 16's review: 32px and 16px).
+  // An opened opponent's "Show all N games" and its link to Champion Intel too (Release 16's review: 32px and 16px).
   await page.getByTestId("champion-preview-opponent").first().getByRole("button").first().click();
   await expect(page.getByTestId("champion-preview-lookup")).toBeVisible();
   for (const id of ["champion-preview-lookup", "champion-preview-all-games"]) {

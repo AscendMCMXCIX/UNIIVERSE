@@ -19,7 +19,7 @@ describe("route protection", () => {
     expect(res.status).toBe(307);
     expect(res.headers.get("location")).toBe("https://team.example/login?next=%2Fteam");
   });
-  it("answers Matchup Intel's old links with one permanent redirect to Champion Lookup, carrying the enemy first, signed out too", async () => {
+  it("answers Matchup Intel's old links with one permanent redirect to Champion Intel, carrying the enemy first, signed out too", async () => {
     for (const [path, to] of [
       ["/resources/matchups?champion=Riven&vs=Mordekaiser", "/lookup?champion=Mordekaiser"],
       ["/resources/matchups?role=top&champion=Riven", "/lookup?champion=Riven"],

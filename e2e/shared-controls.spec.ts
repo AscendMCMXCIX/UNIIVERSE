@@ -139,10 +139,13 @@ test("Leaderboards' section index: underlined, no chips", async ({ page }) => {
   await expectFlat(index!, a, "Leaderboards' index");
 });
 
-test("Champion Lookup and Settings: no boxed group", async ({ page }) => {
+test("Champion Intel and Settings: no boxed group", async ({ page }) => {
   await page.goto("/lookup", { waitUntil: "networkidle" });
   const a = await accentOf(page);
-  await expectAllFlat(page, a, "Champion Lookup");
+  await expectAllFlat(page, a, "Champion Intel");
+  // Two champions: on a phone and a tablet the switcher of the two is a segmented group, flat too.
+  await page.goto("/lookup?champion=Ahri&champion2=Jinx", { waitUntil: "networkidle" });
+  await expectAllFlat(page, a, "Champion Intel, two champions");
   await page.goto("/settings", { waitUntil: "networkidle" });
   await expectAllFlat(page, a, "Settings");
   const index = page.getByTestId("settings-index");

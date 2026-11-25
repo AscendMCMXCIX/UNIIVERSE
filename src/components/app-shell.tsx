@@ -56,7 +56,7 @@ export interface ShellStatus {
 
 /** One quiet line at the foot of the navigation: the current patch. */
 function DataLine({ status }: { status: ShellStatus }) {
-  // The public, year-based name ("26.22"), as Champion Lookup says it: never Data Dragon's "16.22" (G14).
+  // The public, year-based name ("26.22"), as Champion Intel says it: never Data Dragon's "16.22" (G14).
   return <p className="truncate text-xs text-fg-subtle">Patch {status.patch ? publicPatchName(status.patch) : "—"}</p>;
 }
 

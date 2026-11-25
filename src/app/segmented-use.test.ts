@@ -41,9 +41,6 @@ const ALLOWED: Array<{ file: string; kind: Kind; reason: string; optional?: true
   { file: "src/components/match-history/match-history-view.tsx", kind: "accent-fill", reason: "the pager's current page: a numbered button among buttons, not a choice of a few" },
   { file: "src/components/match-history/performance-panel.tsx", kind: "accent-ring", reason: "the opened game's timeline, rewritten in Release 17 (the opened game)", optional: true },
   { file: "src/components/match-history/scoreboard.tsx", kind: "accent-ring", reason: "the scoreboard's selected participant: a table row, not a choice of a few (the opened game, docs/MATCH_NOTES.md)", optional: true },
-  { file: "src/components/champion-lookup/lookup-view.tsx", kind: "boxed-group", reason: "the haste presets, which Release 17's Champion Intel rework removes; delete this entry once they are gone", optional: true },
-  { file: "src/components/champion-lookup/lookup-view.tsx", kind: "accent-ring", reason: "the haste presets, which Release 17's Champion Intel rework removes; delete this entry once they are gone", optional: true },
-  { file: "src/components/champion-lookup/lookup-view.tsx", kind: "accent-fill", reason: "the haste presets, which Release 17's Champion Intel rework removes; delete this entry once they are gone", optional: true },
 ];
 
 function files(dir: string): string[] {

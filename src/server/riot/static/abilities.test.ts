@@ -11,7 +11,7 @@ import { ABILITY_FIXTURE_VERSION, ABILITY_RULES_FORMAT, DESCRIPTION_MAX, CHAMPIO
 import { abilityFixture } from "./ability-fixture";
 
 /*
-  Champion Lookup's Data Dragon abilities: what the rules take from a champion's file, the committed
+  Champion Intel's Data Dragon abilities: what the rules take from a champion's file, the committed
   offline copy, and the build script (plain Node, scripts/static/build-ability-fixture.mjs)
   giving the same results as the app's rules. The sample (tests/fixtures/ddragon-16.22.1-sample.json)
   is Data Dragon's own entries for seven champions, untouched; the digest
@@ -41,11 +41,35 @@ describe("compactChampionAbilities: what is taken from a champion's Data Dragon 
       description: "Riven lashes out in a series of strikes. This ability can be reactivated three times in a short time frame with the third hit knocking back nearby enemies.",
       // A hash of Riot's raw description and tooltip, never the text: whether it is still the text reviewed.
       textHash: "dddc41c53134d5e2",
+      // Rules format 4: Riot's cost and resource line as given (the page's cost rule decides what shows).
+      cost: [0, 0, 0, 0, 0],
+      resource: "No Cost",
     });
     expect(riven).toMatchObject({ championId: "Riven", version: V });
     expect(riven!.abilities.map((a) => a.slot)).toEqual([...SLOTS]);
     // The passive: no cooldown in Data Dragon (never "none"), one rank, its icon from img/passive.
     expect(ability(riven, "P")).toMatchObject({ slot: "P", id: null, name: "Runic Blade", icon: "RivenRunicBlades.png", maxRank: 1, cooldown: [], charges: null });
+    expect(ability(riven, "P")).not.toHaveProperty("cost");
+    // The champion's own facts (rules format 4): Riot's resource, classes and base stats, as given.
+    expect(riven!.facts).toMatchObject({ partype: "None", tags: ["Fighter", "Assassin"], stats: { hp: 630, attackrange: 125, movespeed: 340 } });
+  });
+
+  it("takes a spell's cost and resource line, and the champion's facts, as Data Dragon gives them; one in another shape is left out, never the champion", () => {
+    const xerath = compactChampionAbilities(entry("Xerath"), V)!;
+    expect(ability(xerath, "W")).toMatchObject({ cost: (sample.data.Xerath.spells[1] as { cost: number[] }).cost, resource: "{{ cost }} {{ abilityresourcename }}" });
+    expect(xerath.facts!.partype).toBe("Mana");
+    expect(Object.keys(xerath.facts!.stats)).toHaveLength(20);
+    const odd = structuredClone(sample.data.Riven) as Record<string, unknown> & { spells: Array<Record<string, unknown>> };
+    odd.spells[0]!.cost = ["a"];
+    odd.spells[1]!.resource = 7;
+    odd.stats = { hp: "lots" };
+    odd.tags = "Fighter";
+    const read = compactChampionAbilities(odd, V)!;
+    expect(read).not.toBeNull();
+    expect(ability(read, "Q")).not.toHaveProperty("cost");
+    expect(ability(read, "W")).not.toHaveProperty("resource");
+    expect(read.facts).toBeNull();
+    expect(script.compactChampionAbilities(odd, V)).toEqual(read);
   });
 
   it("gives every passive an empty cooldown and one rank, in the fixture and from Data Dragon's files", () => {
@@ -141,19 +165,21 @@ describe("cleanDescription: Riot's short description as plain text", () => {
   });
 
   it("caps a long description at a word, ending in …", () => {
-    const long = `${"Aurelion Sol drags a giant star down from the heavens. ".repeat(12)}`;
+    const long = `${"Aurelion Sol drags a giant star down from the heavens. ".repeat(24)}`;
     const capped = cleanDescription(long);
     expect(capped.length).toBeLessThanOrEqual(DESCRIPTION_MAX);
     expect(capped.endsWith("…")).toBe(true);
     const head = capped.slice(0, -1);
     expect(long.startsWith(head)).toBe(true);
     expect(long[head.length]).toMatch(/[\s.]/);
-    expect(cleanDescription("x".repeat(500))).toBe(`${"x".repeat(DESCRIPTION_MAX - 1)}…`);
+    expect(cleanDescription("x".repeat(DESCRIPTION_MAX + 100))).toBe(`${"x".repeat(DESCRIPTION_MAX - 1)}…`);
     expect(cleanDescription("Short and whole.")).toBe("Short and whole.");
-    // Data Dragon's longest (Aurelion Sol's R, 617 characters): cut, every other description whole.
+    // Data Dragon's longest (Aurelion Sol's R, 617 characters with its markup): whole since rules
+    // format 4 raised the cap from 400, like every other description at 16.22.1.
     const solR = ability(fixture.champions.AurelionSol!, "R")!.description;
-    expect(solR.length).toBeLessThanOrEqual(DESCRIPTION_MAX);
-    expect(solR.endsWith("…")).toBe(true);
+    expect(solR.endsWith("…")).toBe(false);
+    expect(solR).toMatch(/knocking up nearby enemies\.|The Skies Descend/);
+    for (const record of Object.values(fixture.champions)) for (const a of record.abilities) expect(a.description.endsWith("…"), `${record.championId} ${a.slot}`).toBe(false);
   });
 });
 
@@ -217,8 +243,11 @@ describe("the committed offline copy (champion-abilities.fixture.json)", () => {
     let compared = 0;
     for (const [id, digestSpells] of Object.entries(digest.champions)) {
       const spells = fixture.champions[id]!.abilities.filter((a) => a.slot !== "P");
-      expect(spells.map((a) => [a.id, a.maxRank, a.cooldown, a.charges]), id).toEqual(digestSpells.map(([spellId, maxrank, cooldown, maxammo]) => [spellId, maxrank, cooldown, charges(maxammo)]));
+      expect(spells.map((a) => [a.id, a.maxRank, a.cooldown, a.charges, a.cost ?? null, a.resource ?? null]), id).toEqual(digestSpells.map(([spellId, maxrank, cooldown, maxammo, cost, resource]) => [spellId, maxrank, cooldown, charges(maxammo), cost, resource]));
       compared += spells.length;
+      // The champion's facts (rules format 4), as Data Dragon gives them.
+      const facts = digest.facts![id]!;
+      expect(fixture.champions[id]!.facts, id).toEqual({ partype: facts.partype, tags: facts.tags, stats: facts.stats });
     }
     expect(compared).toBe(692);
   });
@@ -287,7 +316,7 @@ describe("the build script (plain Node) and the app give the same results", () =
     const committed = (digestFile as unknown as script.AbilityDigest).champions;
     expect(Object.keys(fromSample.champions)).toHaveLength(7);
     for (const [id, spells] of Object.entries(fromSample.champions)) expect(committed[id], id).toEqual(spells);
-    expect(fromSample.champions.Gangplank![2]).toEqual(["GangplankE", 5, [0, 0, 0, 0, 0], "3"]);
+    expect(fromSample.champions.Gangplank![2]!.slice(0, 4)).toEqual(["GangplankE", 5, [0, 0, 0, 0, 0], "3"]);
     expect(JSON.parse(script.serialiseDigest(fromSample))).toMatchObject({ version: V, champions: fromSample.champions });
     expect(() => script.buildDigest({ version: V, data: { Riven: { spells: [] } } })).toThrow(/1 champions have no four spells: Riven/);
     expect(() => script.buildDigest({ version: "latest", data: {} })).toThrow(/no usable version/);

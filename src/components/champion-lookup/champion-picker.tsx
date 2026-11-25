@@ -11,8 +11,9 @@ import { cn } from "@/lib/cn";
 import { searchChampions } from "./search";
 
 /*
-  Champion Lookup's window of every champion (docs/CHAMPION_LOOKUP.md, "Choosing a champion"),
-  opened by All champions beside the search: the whole screen on a phone, a centred window wider up
+  Champion Intel's window of every champion (docs/CHAMPION_INTEL.md, "Choosing a champion"),
+  opened by a champion's name (to change it), by Add champion, and by All champions beside the
+  search where no champion is chosen: the whole screen on a phone, a centred window wider up
   (DetailModal "standard", as tall as its content: the grid grows with it and the window's body
   scrolls). A search field first, 16px so a phone never zooms into it, that filters as you type;
   with nothing typed, the champions looked up lately on this device, then every champion on the
@@ -169,15 +170,15 @@ function PickerBody({ champions, selected, recent, inputRef, onPick }: { champio
   );
 }
 
-/** The window of every champion, for Champion Lookup's All champions. */
-export function ChampionPickerWindow({ champions, selected, recent, onPick, onClose }: { champions: readonly ChampionChoice[]; selected: string | null; recent: readonly ChampionChoice[]; onPick: (id: string) => void; onClose: () => void }) {
+/** The window of every champion, for Champion Intel: a champion's name (to change it), Add champion, and All champions where none is chosen. */
+export function ChampionPickerWindow({ champions, selected, recent, onPick, onClose, title = "All champions" }: { champions: readonly ChampionChoice[]; selected: string | null; recent: readonly ChampionChoice[]; onPick: (id: string) => void; onClose: () => void; title?: string }) {
   const inputRef = React.useRef<HTMLInputElement>(null);
   return (
     <DetailModal
       open
       onClose={onClose}
       size="standard"
-      title="All champions"
+      title={title}
       description="Choose a champion."
       testId="lookup-picker"
       headerTestId="lookup-picker-header"

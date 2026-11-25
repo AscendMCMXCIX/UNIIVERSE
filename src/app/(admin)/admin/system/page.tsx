@@ -121,7 +121,7 @@ export default async function AdminSystemPage() {
         <div className="space-y-2 text-sm text-fg-muted [overflow-wrap:anywhere]">
           <p>{riotLegal(branding.productName)}</p>
           <p>Riot API keys stay on the server and are never sent to browsers. Game data (matches and their timelines, champion mastery and ranks) is read only for accounts a player linked on purpose, plus the current rank of the other players in those accounts&apos; games, and it is used solely for this team&apos;s own preparation and improvement. {branding.productName} never attempts to de-anonymise players or discover hidden real identities, and removes a linked account&apos;s data when the account is unlinked.</p>
-          <p>Champion Lookup is a static reference for one champion chosen by hand: its abilities, base cooldowns and short descriptions from Riot&apos;s Data Dragon, and those cooldowns at an ability haste the reader chooses. It makes no Riot API request, has no timers or tracking, and reads nothing from a game or champion select.</p>
+          <p>Champion Intel is a static reference for one or two champions chosen by hand: their abilities, base cooldowns, costs, descriptions, base statistics and the mechanics Riot&apos;s descriptions name, from Riot&apos;s Data Dragon, and those cooldowns at an ability haste the reader chooses. It makes no Riot API request, has no timers or tracking, and reads nothing from a game or champion select.</p>
           <p>The full checklist is in the repository&apos;s Riot compliance notes.</p>
         </div>
       </Fold>

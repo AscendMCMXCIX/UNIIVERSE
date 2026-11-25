@@ -59,7 +59,6 @@ const LISTED: Record<string, Partial<Record<string, string>>> = {
     border: "the docked panel's edge is its left border alone (border-l), over the page, as every Peek's; the phone's sheet has the window's border all round",
   },
   "post-game: a scoreboard name": { sizeRem: "the compact scoreboard's names are text-xs where the scoreboard is under 30rem wide (a phone's window), so each of the ten names keeps one line; text-sm from 30rem (scoreboard.tsx)" },
-  "Champion Lookup: an ability's name": { sizeRem: "an ability row lays itself out by its own width (ability-list.tsx, @container/ab): from 44rem, a desktop's columns, the name and the ranks step up to text-md for a second monitor; a phone's narrower row keeps text-sm, its cooldown one line under the name" },
   "Admin: person view": { radius: "the person view is DetailModal: a phone's window fills the screen and has no corners; a desktop's is a centred window with the panel's radius" },
   Popover: { radius: "a touch phone keeps the sheet, docked to the bottom edge with the sheet's 1.25rem top corners; the popover has a menu's rounded-lg" },
 };
@@ -119,7 +118,7 @@ test("the shared components look the same on a phone and on a desktop", async ({
   The components S5–S9 created, each opened as a member opens it, and its parts compared the same way:
   All Champions' preview (S5: the Peek's docked panel on a desktop since Release 16, a window on a phone), the
   post-game view's loadout and its scoreboard (S6: under the card on a desktop, in
-  the game's window on a phone), Champion Lookup's champion and abilities (Release 16, in
+  the game's window on a phone), Champion Intel's champion and abilities (Release 16, in
   Matchup Intel's place), and Admin's person view with its Riot accounts (S9). One page visit per component and size.
 */
 type Part = { name: string; selector: string; phoneSelector?: string };
@@ -161,17 +160,17 @@ const GROUPS: Group[] = [
     ],
   },
   {
-    name: "Champion Lookup",
-    path: () => "/lookup?champion=Darius&haste=20",
+    name: "Champion Intel",
+    // At haste 0: a narrow row at a haste above 0 keeps only the line at that haste (the base moves into the opened row), so the base is compared where both show it.
+    path: () => "/lookup?champion=Darius",
     open: async (page) => {
       await expect(page.getByTestId("lookup-ability").first()).toBeVisible({ timeout: 15_000 });
     },
     parts: [
-      { name: "Champion Lookup: the champion's name", selector: "[data-testid=lookup-name]" },
-      { name: "Champion Lookup: an ability's name", selector: "[data-testid=lookup-ability-name]" },
+      { name: "Champion Intel: the champion's name", selector: "[data-testid=lookup-name]" },
+      { name: "Champion Intel: an ability's name", selector: "[data-testid=lookup-ability-name]" },
       // The Q's: a cooldown Riot's data gives (a passive's "not in Riot's data" line is drawn otherwise).
-      { name: "Champion Lookup: a base cooldown", selector: "[data-testid=lookup-ability][data-slot=Q] [data-testid=lookup-base]" },
-      { name: "Champion Lookup: a cooldown at the haste", selector: "[data-testid=lookup-ability][data-slot=Q] [data-testid=lookup-hasted]" },
+      { name: "Champion Intel: a base cooldown", selector: "[data-testid=lookup-ability][data-slot=Q] [data-testid=lookup-base]" },
     ],
   },
   {

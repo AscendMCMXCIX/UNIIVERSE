@@ -124,11 +124,11 @@ test("tablets and desktops: the current section tab, and the frame's entry for t
   // no query, and following it used to bring back the default (Recent form, when Records was a view).
   await page.goto("/leaderboards?season=16");
   await expect(page.getByTestId("records")).toBeVisible();
-  // Once the page's code runs (as Champion Lookup's below): a node added before then is HTML React
+  // Once the page's code runs (as Champion Intel's below): a node added before then is HTML React
   // does not expect, and it reports a hydration error.
   await expect(page.getByTestId("leaderboards")).toHaveAttribute("data-ready", "true");
   // Since Release 16 a desktop's boards fit the window (each folds to the rows that fit), so the page
-  // is made long enough to scroll, as Champion Lookup's and the Library's below.
+  // is made long enough to scroll, as Champion Intel's and the Library's below.
   await page.evaluate(() => {
     const extra = document.createElement("div");
     extra.dataset.testid = "test-length";
@@ -147,14 +147,14 @@ test("tablets and desktops: the current section tab, and the frame's entry for t
   // With a modifier key the tab keeps its meaning: it opens in a new tab.
   const [opened] = await Promise.all([page.context().waitForEvent("page"), page.getByTestId("team-tab-leaderboards").click({ modifiers: ["ControlOrMeta"] })]);
   await opened.close();
-  // Champion Lookup's own entry in the frame (the sidebar's on a desktop, a tablet's top bar's), pressed
+  // Champion Intel's own entry in the frame (the sidebar's on a desktop, a tablet's top bar's), pressed
   // on its page, keeps the champion and haste it shows and goes to the top, as Leaderboards' tab keeps
   // its season: its own link has no query, and following it would clear them. The page is made long
   // enough to scroll, as the Library's below.
   await page.goto("/lookup?champion=Mordekaiser&haste=20");
   await expect(page.getByTestId("lookup-panel")).toHaveAttribute("data-champion", "Mordekaiser");
   // Once the page's code runs: a click before then follows the tab's bare link.
-  await expect(page.getByTestId("lookup-toolbar")).toHaveAttribute("data-ready", "true");
+  await expect(page.getByTestId("lookup-view")).toHaveAttribute("data-ready", "true");
   await page.evaluate(() => {
     const extra = document.createElement("div");
     extra.dataset.testid = "test-length";
@@ -168,7 +168,7 @@ test("tablets and desktops: the current section tab, and the frame's entry for t
   await expect(lookup).toHaveAttribute("aria-current", "page");
   await lookup.click();
   await expect.poll(() => scrollY(page)).toBe(0);
-  expect(await navigations(), "Champion Lookup's entry on its own page fetches nothing").toEqual([]);
+  expect(await navigations(), "Champion Intel's entry on its own page fetches nothing").toEqual([]);
   await expect(page).toHaveURL(/\/lookup\?champion=Mordekaiser&haste=20$/);
   await expect(page.getByTestId("lookup-panel")).toHaveAttribute("data-champion", "Mordekaiser");
   {
@@ -250,7 +250,7 @@ test("phones: a dialog is the one shared sheet, docked to the bottom edge with i
   await expect(dialog).toBeHidden();
 });
 
-test("phones: Champion Lookup's tab, on its own page, keeps the champion and haste and goes back to the top, fetching nothing", async ({ page }, info) => {
+test("phones: Champion Intel's tab, on its own page, keeps the champion and haste and goes back to the top, fetching nothing", async ({ page }, info) => {
   test.skip(info.project.name !== "phone", "the phone's tab bar (the test above has tablets and desktops)");
   await page.emulateMedia({ reducedMotion: "reduce" });
   // A phone tall enough for its bars to stay put while the page scrolls (under 700px tall they slide away:
@@ -259,8 +259,8 @@ test("phones: Champion Lookup's tab, on its own page, keeps the champion and has
   await page.setViewportSize({ width: 393, height: 720 });
   await page.goto("/lookup?champion=Mordekaiser&haste=20");
   await expect(page.getByTestId("lookup-panel")).toHaveAttribute("data-champion", "Mordekaiser");
-  await expect(page.getByTestId("lookup-toolbar")).toHaveAttribute("data-ready", "true");
-  // No tabs in the page: Champion Lookup is a destination of its own, a tab of the bar.
+  await expect(page.getByTestId("lookup-view")).toHaveAttribute("data-ready", "true");
+  // No tabs in the page: Champion Intel is a destination of its own, a tab of the bar.
   await expect(page.getByTestId("resources-tabs")).toHaveCount(0);
   // Made long enough to scroll (the page fits a phone with its descriptions folded).
   await page.evaluate(() => {

@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { LOOKUP_PATH, hasteFromAddress, legacyMatchupRedirect, lookupHref } from "./address";
+import { LOOKUP_PATH, hasteFromAddress, intelHref, legacyMatchupRedirect, lookupHref, paramOf } from "./address";
 import { parseRecent, withRecent, RECENT_MAX } from "./recent";
 
-/* Champion Lookup's address and Matchup Intel's old links (docs/CHAMPION_LOOKUP.md, "Address"), and the device's Recent list. */
+/* Champion Intel's address and Matchup Intel's old links (docs/CHAMPION_INTEL.md, "Address"), and the device's Recent list. */
 
 describe("the address", () => {
   it("carries the champion and the haste, each left out when empty", () => {
@@ -15,6 +15,25 @@ describe("the address", () => {
     // A haste is held to the page's rule.
     expect(lookupHref("Ahri", 9999)).toBe("/lookup?champion=Ahri&haste=300");
     expect(lookupHref("Ahri", -3)).toBe("/lookup?champion=Ahri");
+  });
+
+  it("carries a second champion and its haste beside the first, each haste left out at 0", () => {
+    expect(intelHref({ id: "Ahri", haste: 20 }, { id: "Jinx", haste: 0 })).toBe("/lookup?champion=Ahri&haste=20&champion2=Jinx");
+    expect(intelHref({ id: "Ahri", haste: 0 }, { id: "Jinx", haste: 35 })).toBe("/lookup?champion=Ahri&champion2=Jinx&haste2=35");
+    expect(intelHref({ id: "Ahri", haste: 999 }, { id: "Jinx", haste: 999 })).toBe("/lookup?champion=Ahri&haste=300&champion2=Jinx&haste2=300");
+    // The same champion twice is allowed: two hastes side by side.
+    expect(intelHref({ id: "Ahri", haste: 0 }, { id: "Ahri", haste: 50 })).toBe("/lookup?champion=Ahri&champion2=Ahri&haste2=50");
+    // A second with no first is written as the first; no second is no second.
+    expect(intelHref({ id: null, haste: 0 }, { id: "Jinx", haste: 10 })).toBe("/lookup?champion=Jinx&haste=10");
+    expect(intelHref({ id: "Ahri", haste: 10 }, null)).toBe("/lookup?champion=Ahri&haste=10");
+    expect(intelHref(null, null)).toBe("/lookup");
+  });
+
+  it("hands the server a parameter's first value, trimmed, or nothing", () => {
+    expect(paramOf(" Jinx ")).toBe("Jinx");
+    expect(paramOf(["Jinx", "Ahri"])).toBe("Jinx");
+    expect(paramOf("  ")).toBeUndefined();
+    expect(paramOf(undefined)).toBeUndefined();
   });
 
   it("reads a haste from the address, whole and bounded, else 0", () => {
@@ -41,7 +60,7 @@ describe("Matchup Intel's old links", () => {
     expect(legacyMatchupRedirect({ vs: ["Zed", "Ahri"] })).toBe("/lookup?champion=Zed");
     expect(legacyMatchupRedirect({ vs: "  ", champion: "Riven" })).toBe("/lookup?champion=Riven");
     expect(legacyMatchupRedirect({ vs: "x".repeat(65), champion: "Riven" })).toBe("/lookup?champion=Riven");
-    // Anything else is carried as the value it is, encoded; Champion Lookup checks it against the roster.
+    // Anything else is carried as the value it is, encoded; Champion Intel checks it against the roster.
     expect(legacyMatchupRedirect({ vs: "Kha'Zix" })).toBe("/lookup?champion=Kha%27Zix");
     expect(legacyMatchupRedirect({ vs: "a&b=c" })).toBe("/lookup?champion=a%26b%3Dc");
   });

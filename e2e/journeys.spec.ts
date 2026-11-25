@@ -7,7 +7,7 @@ import { memberContext } from "./member-account";
   closes or leads on), at an iPhone 15's size (393 × 852) on the phone project. The table grows with
   each redesign: a later stage adds its own journeys with their targets (S5 a champion's matchups in
   3 taps, S6 the next game and back in 0 scroll-backs, S7 the enemy changed in 2 taps (since Release
-  16 another champion in Champion Lookup), S8 and S9 a
+  16 another champion in Champion Intel), S8 and S9 a
   list's place kept; all fifteen are here since Release 11: J11 and J13, then J12, J14 and J15 in one
   test). Also here, once: the same four destinations in every posture, in both modes;
   the installed app's Back (Android's system Back is the browser's history Back) closing what is
@@ -110,9 +110,9 @@ async function journeys(member: Page, owner: Page, start: "landing" | "profile")
     await tap(c, member.getByTestId("together-game").first().getByTestId("together-card"), { x: 24, y: 12 });
     await expect(member.getByTestId("match-detail")).toBeVisible();
   });
-  await run("J6 Champion Lookup", member, "/team", async (c) => {
+  await run("J6 Champion Intel", member, "/team", async (c) => {
     await tap(c, bar(member).getByTestId("tab-lookup"));
-    await expect(member.getByRole("heading", { level: 1, name: "Champion Lookup" })).toBeVisible();
+    await expect(member.getByRole("heading", { level: 1, name: "Champion Intel" })).toBeVisible();
   });
   await run("J7 a Resources site", member, "/team", async (c) => {
     await tap(c, bar(member).getByTestId("tab-resources"));
@@ -153,7 +153,7 @@ async function phoneContext(page: Page, baseURL: string): Promise<BrowserContext
   return context;
 }
 
-test("the ten most common journeys: at most 20 taps from the landing, Champion Lookup in 1 and a Resources site in 2, at most 21 from My Profile with section memory, and no scroll-backs", async ({ page, browser, baseURL }) => {
+test("the ten most common journeys: at most 20 taps from the landing, Champion Intel in 1 and a Resources site in 2, at most 21 from My Profile with section memory, and no scroll-backs", async ({ page, browser, baseURL }) => {
   // A member with games of their own (their account's three, by one Refresh: setup, not counted).
   // Named in two short words: with games, the member is on Recent form's board for the rest of the
   // run, and large-text-leaderboards.spec holds every name there to wrapping only between words. The
@@ -182,7 +182,7 @@ test("the ten most common journeys: at most 20 taps from the landing, Champion L
     "J3 a teammate's profile": 2,
     "J4 recent form": 1,
     "J5 a game we played together": 2,
-    "J6 Champion Lookup": 1,
+    "J6 Champion Intel": 1,
     "J7 a Resources site": 2,
     "J8 a champion's matchups": 3,
     "J9 Settings": 2,
@@ -190,7 +190,7 @@ test("the ten most common journeys: at most 20 taps from the landing, Champion L
   });
   expect(total(landing, "taps"), "from the landing").toBeLessThanOrEqual(20);
   expect(total(profile, "taps"), "from My Profile, with section memory").toBeLessThanOrEqual(21);
-  expect(landing["J6 Champion Lookup"]!.taps).toBe(1);
+  expect(landing["J6 Champion Intel"]!.taps).toBe(1);
   expect(landing["J7 a Resources site"]!.taps).toBe(2);
   expect(total(landing, "scrollBacks") + total(profile, "scrollBacks"), "scroll-backs").toBe(0);
   await member.context.close();
@@ -198,7 +198,7 @@ test("the ten most common journeys: at most 20 taps from the landing, Champion L
 });
 
 test("the same four destinations in every posture, in both modes: the phone upright and sideways, a tablet, the desktop's sidebar", async ({ page, baseURL }) => {
-  const PLAYER_NAMES = ["My Profile", "Team", "Champion Lookup", "Resources"];
+  const PLAYER_NAMES = ["My Profile", "Team", "Champion Intel", "Resources"];
   const ADMIN_NAMES = ["Dashboard", "Users & Permissions", "Platform Settings", "System"];
   const postures = [
     { name: "phone upright", viewport: { width: 393, height: 852 }, nav: "phone-tabbar" },
@@ -320,27 +320,29 @@ test("J11 a game, Next and close, and J13 a record's game and back: 0 scroll-bac
   await context.close();
 });
 
-test("J12 another champion in Champion Lookup after reading, J14 a teammate from Players and back, J15 a person in Admin and back: 2 taps each, 0 scroll-backs, the list where it was", async ({ page, baseURL }) => {
+test("J12 another champion in Champion Intel after reading, J14 a teammate from Players and back, J15 a person in Admin and back: 2 taps each, 0 scroll-backs, the list where it was", async ({ page, baseURL }) => {
   const context = await phoneContext(page, baseURL!);
   const p = await context.newPage();
-  // J12 (PLAN S7a; Champion Lookup since Release 16, which has no pinned pair bar): another champion
-  // from the page's top, where the search is: the field, then a match (2 taps); or All champions, then
-  // a portrait on the window's first screen (2 taps). A touch screen keeps its keyboard down as the
-  // window opens (champion-picker.tsx), so its portraits are in view.
+  // J12 (PLAN S7a; Champion Intel since Release 17, which has no pinned pair bar): another champion
+  // from the page's top: the champion's name, which opens the window of every champion, then a
+  // portrait on the window's first screen (2 taps), or its search and the first match (2 taps and the
+  // typing). A touch screen keeps its keyboard down as the window opens (champion-picker.tsx), so
+  // its portraits are in view.
   const panel = p.getByTestId("lookup-panel");
+  const picker = p.getByTestId("lookup-picker");
   const j12: Count = { taps: 0, scrolls: 0, scrollBacks: 0 };
   await p.goto("/lookup?champion=Mordekaiser&haste=20");
   await expect(panel).toHaveAttribute("data-champion", "Mordekaiser");
-  await expect(p.getByTestId("lookup-toolbar")).toHaveAttribute("data-ready", "true");
-  await tap(j12, p.getByTestId("lookup-search-input"));
-  await p.getByTestId("lookup-search-input").fill("darius");
-  await tap(j12, p.getByTestId("lookup-search-option").first());
+  await expect(p.getByTestId("lookup-view")).toHaveAttribute("data-ready", "true");
+  await tap(j12, p.getByTestId("lookup-change"));
+  await expect(picker).toBeVisible();
+  await p.getByTestId("lookup-picker-search").fill("darius");
+  await tap(j12, picker.getByTestId("lookup-picker-grid").locator('button[data-champion="Darius"]'));
   await expect(panel).toHaveAttribute("data-champion", "Darius");
   await expect(p).toHaveURL(/\/lookup\?champion=Darius&haste=20$/);
   expect(j12, "J12, a champion by name").toEqual({ taps: 2, scrolls: 0, scrollBacks: 0 });
   const j12b: Count = { taps: 0, scrolls: 0, scrollBacks: 0 };
-  const picker = p.getByTestId("lookup-picker");
-  await tap(j12b, p.getByTestId("lookup-browse"));
+  await tap(j12b, p.getByTestId("lookup-change"));
   await expect(picker.locator("button[data-champion]").first()).toBeVisible();
   // The first champion other than the one shown that is whole on the screen, without scrolling the window.
   const inView = await picker.locator("button[data-champion]").evaluateAll((els) => els.map((e) => ({ id: (e as HTMLElement).dataset.champion!, r: e.getBoundingClientRect() })).find((x) => x.id !== "Darius" && x.r.top >= 0 && x.r.bottom <= innerHeight && x.r.height > 0)?.id ?? null);
@@ -396,7 +398,7 @@ test("J12 another champion in Champion Lookup after reading, J14 a teammate from
   await expect(p).not.toHaveURL(/person=/);
   await expect.poll(() => p.evaluate(() => window.scrollY), { message: "J15: the list's scroll kept" }).toBeGreaterThan(y15 - 2);
   expect(j15, "J15").toEqual({ taps: 2, scrolls: 0, scrollBacks: 0 });
-  // The close took its entry back: Back leaves Admin's people for the page before (J14's Back led to Champion Lookup).
+  // The close took its entry back: Back leaves Admin's people for the page before (J14's Back led to Champion Intel).
   await p.goBack();
   await expect(p).toHaveURL(/\/lookup/);
   await context.close();

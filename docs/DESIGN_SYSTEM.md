@@ -42,14 +42,20 @@ decorative chrome.
   - a compact first screen of opaque panels in a clear order of importance;
   - a single `panel-featured` lead card;
   - quiet labels and strong figures.
-- **Champion Lookup** (the owner's request of 23 Nov 2026, in Matchup Intel's place) is the
-  single-screen reference, read in a glance on a second monitor: one panel at `--content-max` with
-  the champion, the haste choice and its five abilities, the ranks as columns where a row has room
-  for them. Any champion at any haste fits one viewport at 1440 × 900 and 1920 × 1080; nothing in it
-  is clipped or scrolls inside it, so a larger text size reflows and scrolls the page instead. Colour
-  is kept for meaning: the cooldown at the chosen haste in the main weight with its label in
-  `accent`, the base beside it quieter, the special cases in `fg-muted` words, never a state colour;
-  Riot's descriptions one press away (Descriptions), never cut (docs/CHAMPION_LOOKUP.md).
+- **Champion Intel** (Champion Lookup, the owner's request of 23 Nov 2026 in Matchup Intel's place,
+  renamed and extended on 24 Nov 2026) is the reference read in a glance on a second monitor: one
+  panel per champion (one, or two side by side from a 56rem page, one at a time under a segmented
+  switcher narrower), each a single surface: a 70px header with the champion's splash art faint
+  behind its right side (the pool rows' convention), the name that opens the window of every
+  champion, and one compact haste field; the key mechanics as quiet label-caps groups with the
+  abilities' keys as small key chips; base statistics in a row Fold; the five abilities each a row
+  Fold whose summary is the quick reference (icon, key, name, cost, cooldowns per rank as columns
+  where the row has room). No box inside the panel, no badge, no decorative control. The header, the
+  haste and the five folded rows fit one viewport from 1280 × 720, single and dual; nothing in it
+  scrolls inside it. Colour is kept for meaning: the cooldown at the chosen haste in the main weight
+  with its label in `accent`, the base quieter, the special cases in `fg-muted` words, the words that
+  name a mechanic in Riot's description underlined in `accent` (and listed, never colour alone)
+  (docs/CHAMPION_INTEL.md).
 - **Match History** is a finished, successful experience. Do not restyle it for novelty. Change it
   only for a bug, an accessibility fix or a product decision.
   - **The post-game view (the owner's directive of 19 Nov 2026, §5: the product decision this rule
@@ -343,7 +349,7 @@ of one family, so they never compete:
   and an outline in one class list) or boxed selection (an accent ring, `bg-accent/15`) outside
   `src/components/ui`, with an allow-list of reasons (pictures chosen from a grid, dragged items,
   the phone's bottom tab bar, badges); `e2e/shared-controls.spec.ts` checks the groups of Profile,
-  Match History, Encounters, Players, All Champions, Leaderboards, Champion Lookup, Settings and
+  Match History, Encounters, Players, All Champions, Leaderboards, Champion Intel, Settings and
   Admin Previews are flat and their chosen items underlined, at the three projects' widths.
 
 **Uppercase labels** keep one letter spacing, `tracking-label`, at every width: no width or container
@@ -398,7 +404,7 @@ UM.X2, X4; 20 Nov 2026):
   in place; at the top it opens again. Where the window scrolls as one (a small phone, FLOW_SHARE),
   the header scrolls away under the bar. It collapses only when the content would still scroll with
   it collapsed, so it never takes away the scroll that collapsed it. A plain title bar (Admin's
-  person window, Champion Lookup's All champions; Matchup Intel's picker and details until 23 Nov
+  person window, Champion Intel's All champions; Matchup Intel's picker and details until 23 Nov
   2026) collapses too (Release 10, 20 Nov 2026): its
   title on one line, cut short with an ellipsis where it would wrap (the whole title stays the
   window's name), its description for screen readers only, tighter padding; held sideways (a short
@@ -649,8 +655,8 @@ navigation contract").
      beside it;
    - the collapse control under it. It is quieter than the pages: `fg-subtle`, normal weight, and
      its Ctrl \ hint appears over the row's end only while the row is pointed at or focused.
-2. **Pages:** My Profile, Team, Champion Lookup and Resources in Player Mode (Team stands for its
-   sections, the tabs at the top of its pages; Champion Lookup, with the magnifier (Matchup Intel's
+2. **Pages:** My Profile, Team, Champion Intel and Resources in Player Mode (Team stands for its
+   sections, the tabs at the top of its pages; Champion Intel, with the magnifier (Matchup Intel's
    place since 23 Nov 2026), and Resources, the Library, are one page each, with no tabs); Admin Mode's six sections. Folded
    to the rail, the four icons sit one 2.625rem step apart on its centre line, each named by its
    tooltip.
@@ -702,7 +708,7 @@ Below `lg` the frame follows how the screen is held (MOBILE.md, "Frames by postu
 decision of 8 Nov 2026, PR 2d), and exactly one `nav[aria-label=Primary]` is shown at a time. Every
 posture shows the same destinations as the sidebar, in its order, with its names and icons
 (navigation N1, 19 Nov 2026: `destinations()` in `src/lib/nav.ts`; `nav-parity.test.ts` holds the
-bars to it): My Profile, Team, Champion Lookup and Resources; in Admin Mode Dashboard, Users &
+bars to it): My Profile, Team, Champion Intel and Resources; in Admin Mode Dashboard, Users &
 Permissions, Platform Settings and System. Each bar names them by one label ladder, by its own width
 in rem: the whole names, then the short ones ("Profile", "Intel"; "Users", "Platform"; the rest of
 each name read out only, `data-name="rest"`), then the icons alone with the names read out.
@@ -809,7 +815,7 @@ With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shel
     Since Release 11 (20 Nov 2026) a second test compares the components S5–S9 created, each opened
     as a member opens it: All Champions' preview (its panel, figures, an opponent, the foot line), the
     post-game view (an item and the loadout's name, a scoreboard K/D/A
-    and name), Champion Lookup (the champion's name, an ability's name, its Q's base cooldown and its
+    and name), Champion Intel (the champion's name, an ability's name, its Q's base cooldown and its
     cooldown at the haste; Matchup Intel's slots and tiles until 23 Nov 2026) and Admin's person view (the window, a section
     heading, the Riot accounts panel and a row). Its listed differences, each with its reason in the
     spec: the preview's surface, corners and edge (the Peek's docked panel on a desktop, beside
@@ -903,7 +909,7 @@ test):
   the tab's page. The current section tab (Team's on tablets and desktops,
   Platform Settings' and a profile's everywhere, the phone's in the top bar included)
   and the frame's entry for the page shown (the sidebar's, a tablet's top bar's, the phone's account
-  screen's row: Champion Lookup's keeps its champion and haste) do the same, and keep the page as it is: its view and
+  screen's row: Champion Intel's keeps its champion and haste) do the same, and keep the page as it is: its view and
   filters stay (the link's own address leaves the query out, and following it used to bring back
   the defaults, Leaderboards' season back to the current one). A click with a modifier key or another button still opens a new tab or window, and leaves
   this page alone (`src/lib/back-to-top.ts`; `e2e/navigation-landings.spec.ts`).
@@ -913,9 +919,9 @@ test):
   does every filter (Team Matches', Leaderboards' season, Players' Archived, Ranked progress's queue
   and account, and a mode's other seasons included), so Back leaves the page instead of stepping back
   through each choice. A page's views (`SubTabs`: Match History's Games and Encounters) stay
-  entries of their own, as each is a link with its own address. Champion Lookup's champion and
+  entries of their own, as each is a link with its own address. Champion Intel's champion and
   haste are the page's state, like a filter: a change replaces the entry, so Back leaves the page in
-  one step (docs/CHAMPION_LOOKUP.md, "Address"; Matchup Intel's pairs were entries of their own where
+  one step (docs/CHAMPION_INTEL.md, "Address"; Matchup Intel's pairs were entries of their own where
   the browser has the Navigation API, which the top bar's Back went past: `backSteps`). An
   account without a player profile never starts at, or goes Back to, an empty Profile: its home is
   its first other page.
