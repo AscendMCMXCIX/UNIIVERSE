@@ -29,7 +29,8 @@ async function toTheEnd(page: Page) {
 }
 
 const TARGETS: Target[] = [
-  { name: "stat label", path: (m) => m, selector: "main [class*=tracking-label]" },
+  // The sentence-case label (label-text) since 25 Nov 2026: the uppercase tracked label it replaced has left the profile.
+  { name: "stat label", path: (m) => m, selector: "main .label-text" },
   { name: "Panel", path: (m) => `${m}/champions`, selector: "[data-testid=all-champions-table]" },
   { name: "DataRow", path: () => "/players", selector: "[data-testid=player-card]" },
   { name: "badge (chip)", path: () => "/team", selector: "[data-testid=main-role-badge]" },
@@ -50,6 +51,7 @@ const TARGETS: Target[] = [
 /** Differences DESIGN_SYSTEM.md lists, by component and property, each with its reason. */
 const LISTED: Record<string, Partial<Record<string, string>>> = {
   "badge (chip)": { sizeRem: "the 12px floor: text-2xs is 12px on desktops, 11px on phones (globals.css)" },
+  "stat label": { sizeRem: "the 12px floor: label-text is text-2xs, 12px on desktops and 11px on phones (globals.css); the uppercase label it replaced stayed 11px everywhere" },
   Select: { sizeRem: "a field's text is 16px on a touch screen, so iOS does not zoom into it (STANDARDS: fields); 14px with a mouse" },
   Peek: { border: "the docked panel's edge is its left border alone (border-l), over the page; the phone's window has the window's border all round" },
   // S5–S9's components (the second test below).

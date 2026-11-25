@@ -295,7 +295,11 @@ same way for custom colours (`brandThemeVars`: surface 50%, page 50%).
 It replaced a near-neutral charcoal (`#131418`). That grey sat lighter than the indigo ground and
 read as a separate grey slab beside the team's art: the "awkward colour block" in the sidebar. The
 ink is darker than every panel, so panels still lift off it. Text contrast on it improves: fg-subtle
-6.41:1 (was 6.18:1), fg-muted 9.68:1, and control edges 3.62:1 (was 3.49:1).
+6.41:1 (was 6.18:1), fg-muted 9.68:1, and control edges 3.62:1 (was 3.49:1). Since the brighter
+greys of 25 Nov 2026 (the owner's readability request): fg-muted `#c9cddb` 12.0:1, fg-subtle
+`#a2a8bc` 8.1:1, and the disabled tone `#70758c` 4.2:1 on the frame (3.2:1 on `surface-3`, the
+lowest, which WCAG allows for disabled controls only). The four tiers stand about 13 L* apart (95,
+82.5, 69, 50), so primary, secondary and tertiary text read as three steps, not as one grey.
 
 ### Depth utilities (`globals.css`)
 
@@ -408,10 +412,12 @@ of one family, so they never compete:
   sheet's six roles with no sign of them. Resources' index keeps its sideways row on tablets
   (`flex-nowrap`, a ScrollRow with its fading edge).
 - **Focus:** the 2px accent outline, drawn inside the item (`-outline-offset-2`), where a group that
-  scrolls sideways cannot clip it. **Disabled:** `fg-subtle` at 60%, no line, no hover.
+  scrolls sideways cannot clip it. **Disabled:** `fg-disabled`, no line, no hover, the not-allowed
+  cursor (25 Nov 2026; `fg-subtle` at 60% before, 3:1 and drawn differently on every surface).
 - **Keyboard and semantics unchanged:** radios with `aria-checked` in a `radiogroup`, toggles with
   `aria-pressed`, links with `aria-current`; the arrow keys where a group had them.
-- **Counts** beside a role or a section are plain `fg-subtle` figures, not chips.
+- **Counts** beside a role or a section are plain `fg-subtle` figures, not chips; a zero too (it is
+  not disabled: until 25 Nov 2026 a zero was `fg-subtle` at 60%, 3:1, under AA).
 - **Groups side by side** keep 24px between them (Admin Previews' page and screen size), so the
   words of one never read as the next's; an action beside them is a button with an edge (Rotate,
   Reset), not words.
@@ -429,9 +435,26 @@ of one family, so they never compete:
   Match History, Encounters, Players, All Champions, Leaderboards, Champion Intel, Settings and
   Admin Previews are flat and their chosen items underlined, at the three projects' widths.
 
-**Uppercase labels** keep one letter spacing, `tracking-label`, at every width: no width or container
-variant may change it (`design-tokens.test.ts`; the Team card's WIN RATE was 0.44px on a laptop and
-1.32px on a phone before S2b).
+**Disabled controls, one look** (25 Nov 2026): every control that is `disabled` or `aria-disabled`
+draws its words and icon in `fg-disabled`, keeps the not-allowed cursor and takes no hover. A
+filled `Button` keeps a fill, the neutral `surface-2`, not its accent; an outlined one a quiet
+`border` edge; a `Switch` a flat track with the knob in the disabled tone (its side still says on or
+off); a menu item, a select's option and the window steps (‹ ›) the same tone. Never a
+half-transparent control: opacities from 30% to 70% across 25 places read differently on every
+page. `opacity` stays for a picture that dims as a whole (an avatar button, a lineup choice with the
+player's picture, a native range input the browser draws) and for a busy part while a choice loads
+(`opacity-60`, `aria-busy`). The tone is under 4.5:1, which WCAG 1.4.3 allows for inactive controls
+and axe skips; on live text it fails, so `src/app/type-hierarchy.test.ts` refuses it without a
+disabled variant or condition.
+
+**Labels are sentence case** (25 Nov 2026, the owner's readability request): `label-text` for column
+headings and small labels (`text-2xs`, medium, `fg-muted`), `SectionLabel` a small `fg` heading for
+a part inside a panel, `Metric` a `fg-muted` label over its figure with no box of its own. Capitals
+stay only where an approved design keeps them (Team Overview's card and window, the Admin mode
+marker and the admin eyebrow, pill badges), listed in `src/app/type-hierarchy.test.ts` with their
+reasons. **Uppercase labels** that remain keep one letter spacing, `tracking-label`, at every width:
+no width or container variant may change it (`design-tokens.test.ts`; the Team card's WIN RATE was
+0.44px on a laptop and 1.32px on a phone before S2b).
 
 ## 6. Motion
 
@@ -647,8 +670,12 @@ const peek = usePeek({ param: "player", ids, initial: searchParams.get("player")
   nothing else; scrolling closes it.
 - **Placement:** above, else below, 8px inside the screen, never over its trigger; where neither side
   has room, a small sheet at the screen's far edge with the same text. Never a bubble that scrolls.
-- **Text:** one plain sentence, at most about 25 words (`tip-length.test.ts`; STANDARDS, "Tooltips"),
-  in the page's words. A tip on a text trigger (children) can wrap a badge or a chip, as the LP and
+- **Text:** one concept in plain words, one or two short sentences, at most about 25 words
+  (`tip-length.test.ts`; STANDARDS, "Tooltips"), in the page's words, no needless maths or
+  thresholds. Since 25 Nov 2026 the bubble's text is the body size (14px, `text-sm`; 12px before),
+  in a bubble up to 20rem wide (18rem before), so a tip of 25 words keeps about four lines. Essential
+  information is visible without it; a detailed breakdown is the shared breakdown popover, never a
+  giant bubble. A tip on a text trigger (children) can wrap a badge or a chip, as the LP and
   the Best chip on a match card, Setup incomplete, Riot accounts' Main and Alt, the experience label
   in the champion data panel and "Changed since the check" do.
 - **Not a `title`:** a native title explains nothing (`title-use.test.ts`). It names an icon-only
@@ -894,7 +921,8 @@ With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shel
     (stat label, Panel, DataRow, a badge, Button, the current section tab, InfoTip's bubble, Select)
     at 375 and at 1440 and compares their font family, size in rem, weight, letter spacing in em,
     colours, radius and border. Listed differences, the only ones allowed: the badge's size (the 12px
-    floor on desktops), and Select's size (16px on a touch screen, so iOS
+    floor on desktops), the stat label's size (since 25 Nov 2026 the sentence-case `label-text`, which
+    takes the same floor: 11px on phones, 12px on desktops), and Select's size (16px on a touch screen, so iOS
     never zooms into the field; 14px with a mouse). Select compares the popover's button on the
     desktop with the browser's own select on the phone (§7, Select). Each later stage adds the components it creates.
     Since Release 11 (20 Nov 2026) a second test compares the components S5–S9 created, each opened
@@ -1077,7 +1105,7 @@ deliberately. Each needs its own small PR. Check STATUS.md for the Actions-minut
 |---|---|---|
 | Hover on panels | About 50 controls use `hover:bg-surface-2`, a few `hover:bg-surface-2/70` or `bg-fg/5` | Converge on §5: surface steps on panels, fg overlays on the frame. `DataList` rows follow §5 already (`ROW_STATES`) |
 | Page headers | Players, Matches and Resources open with `PageHeader`. Leaderboards (one page since 19 Nov 2026) opens with its title, member count and data status on one line (its own header: the line `PageHeader` would put under the title stands beside it, so the boards start one line higher); Settings (64rem, both modes) leads with its account card (`surface-lead`) beside or above its sections, its title over them | Intended by STANDARDS.md's three tiers |
-| Eyebrows | `PageHeader`'s eyebrow is `accent`; `SectionLabel` is `fg-subtle` | Both are valid. Keep `accent` eyebrows to Team Overview's header (from `sm` in a window taller than 480px; on a phone held either way it is left to screen readers, since the selected tab says it), admin pages (`PageHeader`) and the sign-in frames (`BrandFrame`) |
+| Eyebrows | `PageHeader`'s eyebrow is `accent`, in capitals; `SectionLabel` is a small sentence-case heading in `fg` since 25 Nov 2026 (an uppercase `fg-subtle` label before) | Keep `accent` eyebrows, and their capitals, to Team Overview's header (from `sm` in a window taller than 480px; on a phone held either way it is left to screen readers, since the selected tab says it), admin pages (`PageHeader`) and the sign-in frames (`BrandFrame`); every other label is sentence case |
 | Tablet and phone mode switch | A row on the phone's account screen and an item of a tablet's avatar menu, each in the accent on the way to Admin Mode; a quiet row in the sidebar | Deliberate (§7). Revisit only with the owner, since phones were verified |
 
 ## 11. Working on the design
