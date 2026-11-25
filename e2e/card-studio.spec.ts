@@ -189,6 +189,9 @@ test("artwork is positioned in the preview: a drag moves the shared position, a 
   await page.goto("/team");
   const art = page.getByTestId("lineup-row-TOP").getByTestId("card-art-image");
   await expect(art).toHaveAttribute("data-place", "card");
+  // Read once the card is drawn: a streamed page's content first arrives in a hidden template, where no
+  // container has a width, so every container query reads as unmatched (the phone's position).
+  await expect(art).toBeVisible();
   const position = () => art.evaluate((img) => getComputedStyle(img).objectPosition);
   expect(await position()).toBe(`${shared + 5}% ${sharedY}%`);
   await page.setViewportSize({ width: 390, height: 844 });

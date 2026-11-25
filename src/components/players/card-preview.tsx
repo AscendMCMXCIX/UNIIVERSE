@@ -14,7 +14,7 @@ export type { StudioPreviewData } from "./studio-preview";
  * LineupPreview as the lineup lays it out in a column this narrow), inert, with what the form holds so
  * far. Before a role is chosen its chip says "Role". Below desktop widths it shows the card's top (the
  * artwork and the identity, which the setup's choices change) and leaves out its body (figures and pool,
- * which fill in later), so the form's fields stay in view, as the setup's preview always has (the
+ * which fill in later; here drawn as dashes, since the setup does not load them), so the form's fields stay in view, as the setup's preview always has (the
  * page budgets, e2e/page-budgets.json: 317px for the whole card on a 393px phone took the setup's
  * name step to 1.52 screens and Personalise to 2.1). Card Studio previews every place a card appears
  * with the pages' own components too (studio-preview.tsx), so neither preview can drift from the card.
@@ -23,7 +23,7 @@ export const CardPreview = React.memo(function CardPreview({ look, art, name, av
   const slot = React.useMemo(() => previewSlot({ playerId: "preview", name, avatarUrl, art, look, data, champions, own: false }), [name, avatarUrl, art, look, data, champions]);
   return (
     <div className="pointer-events-none max-lg:[&_[data-card-body]]:hidden" inert data-testid="card-preview" data-view="team" data-frame={look.style.frame} data-zoom={look.style.art.zoom}>
-      <LineupPreview slot={slot} champions={champions} roleUnknown={!data?.role} />
+      <LineupPreview slot={slot} champions={champions} roleUnknown={!data?.role} figuresLater={!data?.season} />
     </div>
   );
 });

@@ -99,13 +99,15 @@ const LARGE_TEXT = {
  *    (Release 16, home-layout.spec.ts) with 6px to spare at 1920 × 950 and 13px at 1440 × 900 for its
  *    tallest member before this change; 44% more there ran 29px and 19px past the window. The section
  *    tabs give 10px of their gap under them back on desktops (ProfileFrame), which pays for most of it.
+ * Only the left padding grows: the right keeps the room the labelled Customise needs on an editable
+ * header (`band:not-short:pr-36`; a `px-` here overrode it, and the links ran under the button).
  * The name a step larger, the tagline and the roles line at the body size, the identity drawn over a
  * shade that rises from the band's left edge (CardArtLayer's foot "band") so the artwork reads clear
  * on the right. The Overview and the other sections draw the same band, so the section tabs keep one
  * place (UD.PO1).
  */
 const TALL_BAND = {
-  row: "band:not-short:min-h-18 band:not-short:py-1 band:not-short:lg:min-h-[5.25rem] band:not-short:lg:gap-4 band:not-short:lg:px-5 band:not-short:lg:py-1.5 band:not-short:lg:[@media(min-height:1000px)]:min-h-[min(6.5rem,120px)] band:not-short:lg:[@media(min-height:1000px)]:py-[min(0.75rem,12px)]",
+  row: "band:not-short:min-h-18 band:not-short:py-1 band:not-short:lg:min-h-[5.25rem] band:not-short:lg:gap-4 band:not-short:lg:pl-5 band:not-short:lg:py-1.5 band:not-short:lg:[@media(min-height:1000px)]:min-h-[min(6.5rem,120px)] band:not-short:lg:[@media(min-height:1000px)]:py-[min(0.75rem,12px)]",
   name: "band:not-short:lg:text-2xl",
   tagline: "band:not-short:lg:text-sm",
   meta: "band:not-short:lg:mt-1 band:not-short:lg:gap-x-3 band:not-short:lg:text-sm",
