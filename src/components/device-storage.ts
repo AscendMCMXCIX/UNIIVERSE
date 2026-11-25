@@ -36,7 +36,7 @@ export const DEVICE_ITEMS: readonly DeviceItem[] = [
   { id: "champion-lookup", label: "Champions looked up lately", where: "Champion Intel", base: "uniiverse.champion-lookup.v1", perAccount: true, describe: (raw) => count(list(raw).length, "champion", "champions") },
   { id: "recent-champions", label: "Recent champions", where: "the champion pickers", base: "uniiverse_recent_champions", perAccount: true, describe: (raw) => count(list(raw).length, "champion", "champions") },
   { id: "resource-favourites", label: "Favourite resources", where: "Resources", base: "uniiverse.resources.favourites.v1", perAccount: false, describe: (raw) => count(list(raw).length, "site", "sites") },
-  { id: "card-preview", label: "Card Studio's preview", where: "Card Studio on phones and tablets", base: "uniiverse.studio.preview", perAccount: false, describe: (raw) => (raw === "hidden" ? "Put away" : raw === "shown" ? "Shown" : null) },
+  { id: "card-preview", label: "Card Studio's preview", where: "Card Studio: Fit or Actual size", base: "uniiverse.studio.preview", perAccount: false, describe: (raw) => (raw === "actual" ? "Actual size" : raw === "fit" ? "Fit" : null) },
 ];
 
 /**

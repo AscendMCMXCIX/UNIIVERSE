@@ -135,7 +135,7 @@ export function SetupForm({
         <aside className="lg:order-2" aria-label="Live preview of your card" data-testid="setup-preview">
           <p className="mb-1.5 text-xs font-medium text-fg-muted">Live preview</p>
           <div className="lg:sticky lg:top-4">
-            <CardPreview view="team" look={card?.look ?? DEFAULT_LOOK} art={art} name={shownName} avatarUrl={card?.avatarUrl ?? null} data={previewData} champions={champions} />
+            <CardPreview look={card?.look ?? DEFAULT_LOOK} art={art} name={shownName} avatarUrl={card?.avatarUrl ?? null} data={previewData} champions={champions} />
             <p className="mt-1.5 text-xs text-fg-subtle">Your card as teammates see it on Team and Players. Its figures fill in once your games sync.</p>
           </div>
         </aside>

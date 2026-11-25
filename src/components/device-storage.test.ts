@@ -17,7 +17,7 @@ const SAMPLES: Record<(typeof DEVICE_ITEMS)[number]["id"], { raw: string; says: 
   "champion-lookup": { raw: JSON.stringify(["Ahri", "Zed"]), says: "2 champions" },
   "recent-champions": { raw: JSON.stringify(["Ahri", "Zed", "Lux"]), says: "3 champions" },
   "resource-favourites": { raw: JSON.stringify(["d-opgg"]), says: "1 site" },
-  "card-preview": { raw: "hidden", says: "Put away" },
+  "card-preview": { raw: "actual", says: "Actual size" },
 };
 
 describe("On this device", () => {

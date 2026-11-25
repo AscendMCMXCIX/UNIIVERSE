@@ -46,7 +46,12 @@ test("the profile card is one band on every section from a tablet up, so the tab
   const overview = (await header.boundingBox())!;
   const tabsAt = async () => (phone ? null : (await page.getByTestId("profile-tabs").boundingBox())!.y);
   const overviewTabs = await tabsAt();
-  if (!phone) expect(overview.height, "the Overview's band").toBeLessThanOrEqual(80);
+  // On a desktop the band is taller since Release 17 (the owner's Card Studio brief: the desktop header
+  // about 40–50% taller for its artwork, 74px before): 5.25rem of content in a window under 1000px
+  // tall (86px at 1440 × 900), 6.5rem (120px at most) in a taller one. A tablet keeps its 80px at most.
+  const size = page.viewportSize() ?? { width: 1440, height: 900 };
+  const bandMax = size.width < 1024 ? 80 : size.height >= 1000 ? 124 : 90;
+  if (!phone) expect(overview.height, "the Overview's band").toBeLessThanOrEqual(bandMax);
   for (const section of ["matches", "champions", "accounts"]) {
     await page.goto(`${profile}/${section}`);
     await expect(header).toHaveAttribute("data-compact");
@@ -61,7 +66,7 @@ test("the profile card is one band on every section from a tablet up, so the tab
     await expect(header.getByRole("heading", { level: 1 })).toBeVisible();
     await expect(header.getByTestId("profile-rank")).toBeVisible();
     const band = (await header.boundingBox())!;
-    expect(band.height, section).toBeLessThanOrEqual(80);
+    expect(band.height, section).toBeLessThanOrEqual(bandMax);
     if (phone) expect(band.height).toBeLessThan(overview.height * 0.6);
     else {
       expect(Math.abs(band.height - overview.height), `${section}: one header height (UD.PO1)`).toBeLessThanOrEqual(1);

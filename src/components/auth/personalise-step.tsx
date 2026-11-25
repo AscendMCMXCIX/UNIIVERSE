@@ -38,7 +38,7 @@ export interface PersonaliseCard {
 
 /**
  * The optional last step of the first sign-in: a profile picture and the player card, with the
- * same editors as Settings and My Profile (the picture cropper and the Player Card Studio), and the
+ * same editors as Settings and My Profile (the picture cropper and the Card Studio), and the
  * real card as the preview. Each editor saves on its own; the preview here then shows the saved
  * card. Skipping keeps the defaults; everything stays changeable later.
  * `preview`: Admin → Previews, where nothing may be saved, so the editors are described, not opened.
@@ -54,7 +54,7 @@ export function PersonaliseStep({ card, champions, customised, social = null, pr
       <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1fr)_18rem] lg:gap-6">
         <aside className="lg:order-2" aria-label="Your card" data-testid="personalise-preview">
           <p className="mb-1.5 text-xs font-medium text-fg-muted">Your card</p>
-          <CardPreview view="team" look={card.look} art={card.art} name={card.name} avatarUrl={card.avatarUrl} data={data} champions={champions} />
+          <CardPreview look={card.look} art={card.art} name={card.name} avatarUrl={card.avatarUrl} data={data} champions={champions} />
           <p className="mt-1.5 text-xs text-fg-subtle">As teammates see it on Team and Players. It updates when you save a change.</p>
         </aside>
 
@@ -80,13 +80,13 @@ export function PersonaliseStep({ card, champions, customised, social = null, pr
             <h2 id="personalise-card" className="text-base font-semibold">
               Player card
             </h2>
-            <p className="text-sm text-fg-muted">Artwork and skin, colours, background or banner, frame, tagline and effects, in the Player Card Studio. It previews every change before you save.</p>
+            <p className="text-sm text-fg-muted">Artwork and skin, colours, background or banner, frame, tagline and effects, in the Card Studio. It previews every change before you save.</p>
             {preview ? (
               <>
                 <Button variant="outline" disabled>
                   <Paintbrush className="h-4 w-4" /> Open the Card Studio
                 </Button>
-                <p className="text-xs text-fg-subtle">Preview: on the real page this opens the Player Card Studio for their own card. Nothing is saved here.</p>
+                <p className="text-xs text-fg-subtle">Preview: on the real page this opens the Card Studio for their own card. Nothing is saved here.</p>
               </>
             ) : (
               <CustomiseCardButton variant="button" playerId={card.playerId} name={card.name} avatarUrl={card.avatarUrl} art={card.art} accent="default" look={card.look} champions={champions} poolIds={card.poolIds} preview={data} />

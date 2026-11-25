@@ -277,7 +277,7 @@ figures predate; on the iPhone SE it misses 2.5 because its descriptions are who
 (2.46 with them cut at two lines). Settings' phone targets were set with a smaller page in mind: with
 the password form shown, as the plan asks, it adds about 290px on an upright phone (the owner was
 1.59 on an iPhone 15 with it folded), and a member's Social links (three fields, each a line for its
-name and Show publicly and one for the field, shared with the Player Card Studio and the first
+name and Show publicly and one for the field, shared with Card Studio and the first
 sign-in, pinned by `e2e/social-links.spec.ts`) add more. Those misses are for the owner to accept or
 to take up in a later change.
 
@@ -413,12 +413,12 @@ the phone project):
   17.5rem, read as the stacked rows read it; a row on Players at the usual size is 16.375rem or
   more, where the rank always fits beside the role), where the rank wraps under the role, the dot is
   cut off with its room past the line's clipped left edge (Records' way; the dot sits between the
-  role's icon and the rank's crest, where a no-break space has nothing to hold it to). The Card
-  Studio's previews of a row, drawn outside the roster and about 9rem wide at the usual size beside
-  the controls on a 320 × 480 screen, keep their one layout, as they do for the stacked rows. The
-  spec checks words whole on the demo's rows, nothing cut or past its row, every "·" either beside
-  its role or cut off where the rank starts its line, at 100% and fourteen large sizes, and the
-  Studio's previews at 100% on that screen drawn as before.
+  role's icon and the rank's crest, where a no-break space has nothing to hold it to). Card
+  Studio's preview of a row is the row in Players' own panel, in a frame as wide as a phone (Release
+  17), so these rules apply there as on the page. The spec checks words whole on the demo's rows,
+  nothing cut or past its row, every "·" either beside its role or cut off where the rank starts its
+  line, at 100% and fourteen large sizes, and the Studio's preview of a row laid out as the row on
+  Players at 390px, even beside the controls on a 320 × 480 screen.
 - **A profile's Overview** (`recent-form.tsx`, `profile-editor.tsx`, `player-overview.tsx`;
   `e2e/home-layout.spec.ts`, `e2e/large-text-roster-figures.spec.ts`). Recent form's twenty bars
   share the card's width with no floor in rem (61px past the card at 200% on 320px). The champion
@@ -996,7 +996,7 @@ Three levels, each saying what it proves:
     WebKit window the app's popover draws the same figures as Chromium (`SELECT_LOOK`, with the
     touch sizes where Playwright's WebKit reports no fine pointer), opens and chooses from the
     keyboard, and Escape gives the focus back;
-  - the Card Studio's section list, a palette and Cancel;
+  - Card Studio's section tabs, a palette and Cancel;
   - the account screen: one tap opens it, at rest it fills the screen exactly with nothing in it
     scrolling, every control a row at least 48px tall reached by a tap where it is drawn, the screen
     holding the focus, the page left where it was (at the top and scrolled);

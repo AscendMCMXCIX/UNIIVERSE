@@ -1,3 +1,4 @@
+import { openStudioFromHeader, previewFrame } from "./studio";
 import { expect, test, type Page } from "./test";
 import { playerEntry } from "./players";
 
@@ -248,42 +249,43 @@ test("Players at 125% to 200% text on 320 to 414px phones: names, ranks and Riot
   });
 });
 
-test("the Card Studio's previews of a Players row are drawn as before at the usual text size, though beside the controls on a 320 × 480 screen they are narrower than any row on Players", async ({ page }, info) => {
+test("Card Studio's preview of a Players row is laid out as the row on Players, even beside the controls on a 320 × 480 screen", async ({ page, browser }, info) => {
   test.skip(info.project.name !== "phone", "a phone's window 480px tall, set below");
   // A screen 480px tall puts the preview beside the controls, in a pane two fifths of the screen
-  // wide, where a row is about 9rem at 100%. The roster's larger-text rules read the roster (STACKED,
-  // SEPARATOR in roster-row.tsx), which a preview is outside, so none applies there at any size.
+  // wide. Until Release 17 the preview drew the row in that pane, about 9rem wide, outside the roster,
+  // so the roster's larger-text rules (STACKED, SEPARATOR in roster-row.tsx) could not apply. The
+  // preview is now the row in Players' own panel, in a frame as wide as a phone (390 × 844 where this
+  // window is not one held upright), scaled to fit: laid out exactly as on Players at that width.
   await page.setViewportSize({ width: 320, height: 480 });
   await page.goto("/players");
   await playerEntry(page, "Demo Top").click();
   await expect(page.getByTestId("profile-header")).toBeVisible();
-  // Until the page has hydrated, Customise does nothing: press it until the Studio opens (nothing is saved).
-  await expect(async () => {
-    await page.getByTestId("profile-header").getByTestId("customise-card").click();
-    await expect(page.getByTestId("card-studio")).toBeVisible({ timeout: 1_000 });
-  }).toPass({ timeout: 15_000 });
-  await page.getByTestId("preview-directory").click();
-  const rows = page.locator("[data-testid=card-preview][data-view=directory] [data-testid=roster-row-preview]");
-  await expect(rows).toHaveCount(2);
-  await page.evaluate(() => document.fonts.ready);
-  const facts = await rows.evaluateAll((lis) =>
-    lis.map((li) => {
-      const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
-      const cs = getComputedStyle(li);
-      const meta = li.querySelector("[data-testid=roster-meta]")!;
-      return {
-        // The row's own width, its content box in its own CSS px (the preview's zoom aside).
-        narrow: (li.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)) / rem < 16,
-        clip: getComputedStyle(meta).overflowX,
-        room: getComputedStyle(meta.querySelector("[data-testid=roster-roles]")!).marginRight,
-        wrap: cs.flexWrap,
-      };
-    }),
-  );
-  // Under 16rem of row, and still no clipped second line, no room kept for the "·" (SEPARATOR) and
-  // the picture beside the text (STACKED): what the previews drew before either rule.
-  const before = { narrow: true, clip: "visible", room: "0px", wrap: "nowrap" };
-  expect(facts, "both previews (a tablet's row and a phone's)").toEqual([before, before]);
+  await openStudioFromHeader(page);
+  await page.getByTestId("preview-context").selectOption("players");
+  await page.getByTestId("preview-mobile").click();
+  await expect(page.getByTestId("card-preview")).toHaveAttribute("data-context", "players");
+  const facts = (li: Element) => {
+    const rem = parseFloat(getComputedStyle(li.ownerDocument.documentElement).fontSize);
+    const cs = getComputedStyle(li);
+    const meta = li.querySelector("[data-testid=roster-meta]")!;
+    return {
+      width: Math.round(li.getBoundingClientRect().width),
+      narrow: (li.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)) / rem < 16,
+      clip: getComputedStyle(meta).overflowX,
+      room: getComputedStyle(meta.querySelector("[data-testid=roster-roles]")!).marginRight,
+      wrap: cs.flexWrap,
+    };
+  };
+  const row = previewFrame(page).getByTestId("roster-row-preview");
+  await expect(row).toBeVisible();
+  const preview = await row.evaluate(facts);
+  const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, storageState: await page.context().storageState() });
+  const real = await phone.newPage();
+  await real.goto("/players");
+  const entry = real.locator("main [data-testid=player-card-item]").filter({ has: real.locator("[data-player-name='Demo Top']") }).first();
+  await expect(entry).toBeVisible();
+  expect(preview, "the preview's row and the page's, at 390px").toEqual(await entry.evaluate(facts));
+  await phone.close();
 });
 
 /**

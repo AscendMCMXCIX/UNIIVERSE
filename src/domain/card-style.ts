@@ -35,6 +35,31 @@ export type CardTheme = (typeof CARD_THEMES)[number];
 export type CardMotif = (typeof CARD_MOTIFS)[number];
 export type CardEmblem = (typeof CARD_EMBLEMS)[number];
 
+/**
+ * The places a card's artwork is drawn in, each its own shape (Card Studio, "Artwork position"):
+ * the profile header as a wide band (desktops and tablets, and a phone held sideways) and as a
+ * phone's taller card, the Team card five across (a portrait) and in the phone's carousel or the
+ * tablet's rows (a landscape), the faint strip on a Players row, and the Peek's hero. The public
+ * team page draws the Team card, so it shares the Team card's two places.
+ */
+export const ART_PLACES = ["header", "headerPhone", "card", "cardPhone", "row", "peek"] as const;
+export type ArtPlace = (typeof ART_PLACES)[number];
+/** Each place's framing when the player set none (the focal point every card used before the Studio). */
+export const PLACE_DEFAULT_FOCUS: Record<ArtPlace, { x: number; y: number }> = {
+  header: { x: 50, y: 25 },
+  headerPhone: { x: 50, y: 25 },
+  card: { x: 50, y: 22 },
+  cardPhone: { x: 50, y: 22 },
+  row: { x: 50, y: 25 },
+  peek: { x: 50, y: 22 },
+};
+/** An artwork position of its own for one place: focal point in % of the image and zoom, as the shared one. */
+export interface ArtPosition {
+  focusX: number;
+  focusY: number;
+  zoom: number;
+}
+
 export interface CardStyle {
   art: {
     source: ArtSource;
@@ -49,6 +74,12 @@ export interface CardStyle {
     blur: number;
     /** Edge vignette, 0–80. */
     vignette: number;
+    /**
+     * Optional positions of their own for places whose shape needs one (ART_PLACES); every other
+     * place uses the shared focal point and zoom above. Left out entirely when there are none, so a
+     * style saved before these existed reads, renders and saves exactly as it did.
+     */
+    places?: Partial<Record<ArtPlace, ArtPosition>>;
   };
   colours: {
     primary: string;
@@ -208,6 +239,8 @@ export function normaliseCardStyle(input: unknown, base: CardStyle = DEFAULT_CAR
   const id = obj(s.identity);
   const fx = obj(s.effects);
   const focus = (v: unknown, b: number | null) => (v === null ? null : typeof v === "number" ? clamp(v, 0, 100, 50) : b);
+  // Positions of their own: given (an object, even empty: every override was reset), else the base's.
+  const places = art.places !== undefined ? normalisePlaces(art.places) : base.art.places ? normalisePlaces(base.art.places) : undefined;
   return {
     art: {
       source: pick(art.source, ART_SOURCES, base.art.source),
@@ -217,6 +250,7 @@ export function normaliseCardStyle(input: unknown, base: CardStyle = DEFAULT_CAR
       darkness: clamp(art.darkness, 25, 90, base.art.darkness),
       blur: clamp(art.blur, 0, 12, base.art.blur),
       vignette: clamp(art.vignette, 0, 80, base.art.vignette),
+      ...(places ? { places } : {}),
     },
     colours: {
       primary: hex(col.primary, base.colours.primary),
@@ -242,6 +276,72 @@ export function normaliseCardStyle(input: unknown, base: CardStyle = DEFAULT_CAR
     },
     preset: s.preset === null ? null : pick(s.preset, CARD_PRESETS, base.preset as CardPresetId) ?? null,
   };
+}
+
+/** Known places only, each with a focal point in 0–100 and a zoom in 1–2; undefined when none is left. */
+function normalisePlaces(input: unknown): CardStyle["art"]["places"] {
+  const raw = obj(input);
+  const out: Partial<Record<ArtPlace, ArtPosition>> = {};
+  for (const place of ART_PLACES) {
+    const p = obj(raw[place]);
+    if (typeof p.focusX !== "number" || typeof p.focusY !== "number" || !Number.isFinite(p.focusX) || !Number.isFinite(p.focusY)) continue;
+    out[place] = { focusX: clamp(p.focusX, 0, 100, 50), focusY: clamp(p.focusY, 0, 100, 50), zoom: clamp(p.zoom, 1, 2, 1, 0.05) };
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
+/**
+ * Where the artwork sits in one place: that place's own position when the player gave it one, else
+ * the shared focal point (each axis left automatic takes the place's default) and zoom. `own` says
+ * which (the Studio marks a place with its own position).
+ */
+export function artPlacement(style: CardStyle, place: ArtPlace): { focusX: number; focusY: number; zoom: number; own: boolean } {
+  const own = style.art.places?.[place];
+  if (own) return { ...own, own: true };
+  const { focusX, focusY } = style.art;
+  // Both axes automatic: the place's own framing. One set: the other axis as cards have always drawn
+  // it (centred across; 20% down, 25% on a row's strip), so a saved focus renders exactly as before.
+  const d = focusX === null && focusY === null ? PLACE_DEFAULT_FOCUS[place] : { x: 50, y: place === "row" ? 25 : 20 };
+  return { focusX: focusX ?? d.x, focusY: focusY ?? d.y, zoom: style.art.zoom, own: false };
+}
+
+/** The style with one place's own position set, or removed (`null`: back to the shared position). */
+export function withPlacePosition(style: CardStyle, place: ArtPlace, position: ArtPosition | null): CardStyle {
+  const { [place]: _gone, ...rest } = style.art.places ?? {};
+  const places = position ? { ...rest, [place]: position } : rest;
+  const { places: _old, ...art } = style.art;
+  return { ...style, art: Object.keys(places).length ? { ...art, places } : art };
+}
+
+const STYLE_SECTIONS = ["art", "colours", "identity", "effects"] as const;
+
+/**
+ * What a save keeps from the stored style that this version does not know (a field written by a
+ * newer version of the app, kept while an older one is serving): every top-level or section key
+ * the normalised style has no value for is carried over from what was stored. Nothing submitted is
+ * kept this way (submissions always go through normaliseCardStyle), only what the server itself
+ * stored before, so a save never loses data it cannot read.
+ */
+export function keepStoredExtras(stored: unknown, next: CardStyle): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...(next as unknown as Record<string, unknown>) };
+  const prev = obj(stored);
+  for (const [k, v] of Object.entries(prev)) {
+    if (!(k in out) && !(STYLE_SECTIONS as readonly string[]).includes(k)) out[k] = v;
+  }
+  for (const section of STYLE_SECTIONS) {
+    const before = obj(prev[section]);
+    const now = { ...obj(out[section]) };
+    let added = false;
+    for (const [k, v] of Object.entries(before)) {
+      // `places` is known: its absence means none are wanted any more.
+      if (!(k in now) && !(section === "art" && k === "places")) {
+        now[k] = v;
+        added = true;
+      }
+    }
+    if (added) out[section] = now;
+  }
+  return out;
 }
 
 /** The style a card is drawn with: the saved one, else the look from before the Studio. */

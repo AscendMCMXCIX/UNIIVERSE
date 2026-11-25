@@ -505,7 +505,7 @@ test("Encounters: each player's records sit under the name with their side in wo
   await expect(page.locator("[data-testid='encounters'][data-ready]")).toBeVisible();
 });
 
-test("Player Customisation: the Studio opens, its sections switch from the section list, and Cancel keeps the saved card", async ({ page }) => {
+test("Player Customisation: Card Studio opens, its section tabs switch, and Cancel keeps the saved card", async ({ page }) => {
   await page.goto("/team");
   const id = (await page.getByTestId("lineup-row-TOP").getAttribute("data-player-id"))!;
   await page.goto(`/players/${id}`);
@@ -515,9 +515,11 @@ test("Player Customisation: the Studio opens, its sections switch from the secti
     await page.getByTestId("profile-header").getByTestId("customise-card").tap();
     await expect(page.getByTestId("card-studio")).toBeVisible({ timeout: 1_000 });
   }).toPass({ timeout: 15_000 });
-  await page.getByTestId("studio-section-toggle").tap();
-  await page.getByTestId("studio-section-colours").tap();
-  await expect(page.getByTestId("card-studio")).toHaveAttribute("data-step", "colours");
+  await page.getByTestId("studio-tab-artwork").tap();
+  await expect(page.getByTestId("card-studio")).toHaveAttribute("data-section", "artwork");
+  await page.getByTestId("studio-tab-appearance").tap();
+  await expect(page.getByTestId("card-studio")).toHaveAttribute("data-section", "appearance");
+  await page.getByTestId("fold-colours").locator("summary").tap();
   await page.getByTestId("palettes").getByRole("button", { name: /Ember/ }).tap();
   await expect(page.getByLabel("Primary colour: hex value")).toHaveValue("#ff8a3d");
   // The Studio fits the phone; only its controls scroll.
@@ -715,9 +717,8 @@ test("a switch turns on and off with a tap on its words, not only the knob (the 
     await page.getByTestId("profile-header").getByTestId("customise-card").tap();
     await expect(page.getByTestId("card-studio")).toBeVisible({ timeout: 1_000 });
   }).toPass({ timeout: 15_000 });
-  await page.getByTestId("studio-section-toggle").tap();
-  await page.getByTestId("studio-section-effects").tap();
-  await expect(page.getByTestId("card-studio")).toHaveAttribute("data-step", "effects");
+  await expect(page.getByTestId("card-studio")).toHaveAttribute("data-section", "appearance");
+  if (!(await page.getByTestId("fold-effects").evaluate((d) => (d as HTMLDetailsElement).open))) await page.getByTestId("fold-effects").locator("summary").tap();
   const glow = page.getByRole("switch", { name: /Ambient glow/ });
   const words = page.locator("label[for=fx-glow]").getByText("Ambient glow", { exact: true });
   const was = await glow.isChecked();

@@ -169,7 +169,7 @@ posture", below):
    and percentages), not by viewport units or by measuring the viewport from script, readings of
    the screen that iOS has got wrong in installed apps: svh and the visual viewport less the safe
    areas (WebKit bug 254868), vh and lvh on iOS 26.1 (301994), the visual viewport short after the
-   keyboard or a resume (322900, 323322). Inside windows, the Card Studio's section list and the
+   keyboard or a resume (322900, 323322). Inside windows, Card Studio's preview (a strip while the keyboard is up) and the
    picture cropper still follow the viewport, as before.
 
 ### Frames by posture
@@ -800,8 +800,14 @@ onboarding pages, the Library, Settings and the Card Studio; each is checked in 
   the state is centred in the content column (`quality.spec.ts`).
 - **Personalise:** Customise is the kit's outline Button (36px with a mouse, 44px on touch, 14px
   text), as Add a picture is; Social links is headed as the other two sections; its help stays 12px, since at 14px it runs to six lines at 393px and the page would pass its budget (`display-name.spec.ts`).
-- **The Card Studio's preview chooser** marks the chosen view as every segment does: the weight and,
-  since Release 17, the underline (`card-studio.spec.ts`).
+- **Card Studio's preview choosers** (Desktop or Mobile, Fit or Actual size) mark the chosen one as every
+  segment does: the weight and, since Release 17, the underline, no ring and no fill (`card-studio.spec.ts`).
+- **Card Studio on a phone** (Release 17): the preview above the controls, the whole width and up to a
+  third of the screen (`clamp(8.5rem, 32dvh, 19rem)`, and in Fit no taller than the place shown at the
+  scale the width allows; a strip while the keyboard is up), the four
+  section tabs in one row, the section the one area that scrolls (the skins in it, no list inside a
+  list), the artwork moved by a finger and zoomed by two in the preview; held sideways the preview
+  beside the controls (`studio-mobile.spec.ts`, `studio-touch.spec.ts`).
 
 ## 5. The phone design system
 

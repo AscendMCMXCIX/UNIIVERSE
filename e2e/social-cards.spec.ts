@@ -1,3 +1,4 @@
+import { openStudioFromHeader, previewFrame, showPreview } from "./studio";
 import { expect, test, type Browser, type Page } from "./test";
 
 /*
@@ -117,18 +118,20 @@ test("the public page shows the same links as the team, and none switched off", 
   await guest.context().close();
 });
 
-test("the card preview in the Studio shows the same icons, without actions", async ({ page }, info) => {
+test("the card preview in the Studio shows the same icons, and nothing in it can be used", async ({ page }, info) => {
   test.skip(info.project.name !== "desktop", "runs once, on the desktop project");
   await page.goto("/team");
   const id = (await page.getByTestId("lineup-row-MID").getAttribute("data-player-id"))!;
   await page.goto(`/players/${id}`);
   await expect(page.getByTestId("profile-header").getByTestId("social-links")).toBeVisible();
-  await expect(async () => {
-    await page.getByTestId("profile-header").getByTestId("customise-card").click();
-    await expect(page.getByTestId("card-studio")).toBeVisible({ timeout: 1_000 });
-  }).toPass({ timeout: 15_000 });
-  const preview = page.getByTestId("card-preview").getByTestId("card-social-preview");
-  await expect(preview).toBeVisible();
-  await expect(preview.locator(":scope > span")).toHaveCount(2);
-  await expect(page.getByTestId("card-preview").locator("a[href*='youtube'], a[href*='twitch']")).toHaveCount(0);
+  await openStudioFromHeader(page);
+  // Card Studio's previews are the pages' own components (the Team card's icons, as on Team), in an inert frame:
+  // nothing in it takes a press, the keyboard's focus or a screen reader's attention.
+  await showPreview(page, "team", "desktop");
+  const icons = previewFrame(page).getByTestId("card-social");
+  await expect(icons).toBeVisible();
+  await expect(icons.locator("li")).toHaveCount(2);
+  await expect(previewFrame(page).locator("body")).toHaveAttribute("inert", "");
+  await expect(page.getByTestId("studio-preview-frame")).toHaveAttribute("aria-hidden", "true");
+  await expect(page.getByTestId("studio-preview-frame")).toHaveAttribute("tabindex", "-1");
 });

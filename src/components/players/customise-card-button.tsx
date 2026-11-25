@@ -17,7 +17,7 @@ const preload = () => {
 
 /**
  * The Customise button on a card the viewer may edit (their own on Team, Players and the profile
- * header; any card for a player manager) and the Player Card Studio it opens. A page that shows
+ * header; any card for a player manager) and the Card Studio it opens. A page that shows
  * the button carries only the button: the Studio is fetched when the button is pointed at,
  * focused or pressed, so no page (the public team page included, where nobody can customise)
  * downloads it for nothing. While it loads, the button shows it is busy and the page stays as it
