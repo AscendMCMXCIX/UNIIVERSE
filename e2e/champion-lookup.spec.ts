@@ -2,12 +2,15 @@ import { expect, test, type Page } from "./test";
 import { expectNoSeriousAxe } from "./axe";
 
 /*
-  CHAMPION LOOKUP (docs/CHAMPION_LOOKUP.md; Release 16, in Matchup Intel's place): one searchable
-  selector for every champion, the five abilities with their base cooldowns per rank from Riot's Data
-  Dragon (the server pins 16.22.1: e2e/ddragon-version.ts), those cooldowns at a chosen ability haste
-  by Riot's general rule only where Riot's data gives the cooldown, the special cases said in words,
-  descriptions folded away, the champion and haste in the address, Matchup Intel's old links
-  redirected, one screen on a desktop, phones at 320 and 390 with 200% text, and axe.
+  CHAMPION INTEL (docs/CHAMPION_INTEL.md; Champion Lookup until Release 17, at the same address):
+  one champion or two side by side, each with its five abilities as folds (the shared Fold), their
+  base cooldowns per rank from Riot's Data Dragon (the server pins 16.22.1: e2e/ddragon-version.ts)
+  and those cooldowns at the haste typed in that champion's own field, by Riot's general rule only
+  where Riot's data gives the cooldown; costs where Riot's own line is filled by its data; the key
+  mechanics Riot's descriptions name; base statistics; the special cases said in words; the
+  champions and hastes in the address; Matchup Intel's old links redirected; the phone's switcher;
+  the essential information on one screen at the desktop sizes, single and dual; phones at 320,
+  375, 390 and 430 with 200% text; and axe.
 */
 
 test.beforeEach(async ({ context, baseURL }) => {
@@ -18,103 +21,247 @@ const isDesktop = (name: string) => name === "desktop";
 const isPhone = (name: string) => name === "phone";
 /** Riot's general rule as the page writes it. */
 const hasted = (base: number, haste: number) => Math.round(((base * 100) / (100 + haste)) * 100) / 100;
-const row = (page: Page, slot: string) => page.locator(`[data-testid="lookup-ability"][data-slot="${slot}"]`);
-const values = async (page: Page, slot: string, kind: "base" | "hasted") => ((await row(page, slot).getByTestId(`lookup-${kind}`).getAttribute("data-values")) ?? "").split(",").filter(Boolean).map(Number);
-/** The page's own controls answer (the toolbar marks it once the page's code runs). */
-const ready = (page: Page) => expect(page.getByTestId("lookup-toolbar")).toHaveAttribute("data-ready", "true");
+const panel = (page: Page, n: 1 | 2 = 1) => page.locator(`[data-testid="lookup-panel"][data-panel="${n}"]`);
+const row = (page: Page, slot: string, n: 1 | 2 = 1) => panel(page, n).locator(`[data-testid="lookup-ability"][data-slot="${slot}"]`);
+const values = async (page: Page, slot: string, kind: "base" | "hasted", n: 1 | 2 = 1) => ((await row(page, slot, n).getByTestId(`lookup-${kind}`).getAttribute("data-values")) ?? "").split(",").filter(Boolean).map(Number);
+/** The page's own controls answer (the page marks it once its code runs). */
+const ready = (page: Page) => expect(page.getByTestId("lookup-view")).toHaveAttribute("data-ready", "true");
 const overflow = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+const hasteInput = (page: Page, n: 1 | 2 = 1) => panel(page, n).getByTestId("lookup-haste-input");
+/** Elements in the page's main part that scroll on their own (none should). */
+const scrollers = (page: Page) =>
+  page.evaluate(() => [...document.querySelectorAll("main *")].filter((e) => /(auto|scroll)/.test(getComputedStyle(e).overflowY) && e.scrollHeight > e.clientHeight + 1).length);
+/** Picks a champion in the open window by its search. */
+async function pickInWindow(page: Page, name: string, id: string) {
+  const win = page.getByTestId("lookup-picker");
+  await expect(win).toBeVisible();
+  await win.getByTestId("lookup-picker-search").fill(name);
+  await win.getByTestId("lookup-picker-grid").locator(`button[data-champion="${id}"]`).click();
+  await expect(win).toHaveCount(0);
+}
 
 test("with nothing chosen: the heading, where the data comes from, the search, All champions and the invitation", async ({ page }) => {
   await page.goto("/lookup");
-  await expect(page.getByRole("heading", { level: 1, name: "Champion Lookup" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Champion Intel" })).toBeVisible();
   await expect(page.getByTestId("lookup-source")).toHaveText("Abilities and cooldowns from Riot's Data Dragon · patch 26.22");
   await expect(page.getByTestId("lookup-search-input")).toBeVisible();
   await expect(page.getByTestId("lookup-browse")).toBeVisible();
   await expect(page.getByTestId("lookup-empty")).toContainText("Choose a champion");
-  // No Descriptions toggle and no haste without a champion.
-  await expect(page.getByTestId("lookup-descriptions")).toHaveCount(0);
+  // No haste, no Add champion, no old controls without a champion.
   await expect(page.getByTestId("lookup-haste")).toHaveCount(0);
+  await expect(page.getByTestId("lookup-add")).toHaveCount(0);
+  await expect(page.getByTestId("lookup-descriptions")).toHaveCount(0);
   expect(await overflow(page)).toBeLessThanOrEqual(1);
 });
 
-test("a champion: portrait and name, the source line, Passive to R with icons and names, base cooldowns per rank, and the rule", async ({ page }) => {
+test("a champion: portrait and name, the source line, Passive to R with icons, names, costs and base cooldowns per rank, key mechanics, and the rule", async ({ page }) => {
   await page.goto("/lookup?champion=Ahri");
-  const panel = page.getByTestId("lookup-panel");
-  await expect(panel).toHaveAttribute("data-champion", "Ahri");
-  await expect(page.getByTestId("lookup-name")).toHaveText("Ahri");
+  await expect(panel(page)).toHaveAttribute("data-champion", "Ahri");
+  await expect(panel(page).getByTestId("lookup-name")).toHaveText("Ahri");
   await expect(page.getByTestId("lookup-source")).toHaveText("Riot Data Dragon 16.22.1 · patch 26.22");
   await expect(page.getByTestId("lookup-ability")).toHaveCount(5);
   expect(await page.getByTestId("lookup-ability").evaluateAll((els) => els.map((e) => e.getAttribute("data-slot")).join(""))).toBe("PQWER");
   expect(await page.getByTestId("lookup-ability-name").allTextContents()).toEqual(["Essence Theft", "Orb of Deception", "Fox-Fire", "Charm", "Spirit Rush"]);
-  // Each with Riot's icon, or its key as a plain tile where the icon cannot load (the test's network may block Data Dragon).
   for (const slot of ["P", "Q", "W", "E", "R"]) expect(await row(page, slot).locator('img, [data-testid="lookup-icon-standin"]').count(), slot).toBeGreaterThan(0);
   expect(await values(page, "Q", "base")).toEqual([7, 7, 7, 7, 7]);
   expect(await values(page, "R", "base")).toEqual([140, 120, 100]);
-  // At 0 the base alone, in the main weight; no hasted line.
+  // Costs where Riot's own line is filled by the ability's data; the passive has none.
+  await expect(row(page, "Q").getByTestId("lookup-cost")).toHaveText("55 / 65 / 75 / 85 / 95 Mana");
+  await expect(row(page, "W").getByTestId("lookup-cost")).toHaveText("30 Mana");
+  await expect(row(page, "P").getByTestId("lookup-cost")).toHaveCount(0);
+  // At 0 the base alone; the field reads 0.
   await expect(page.getByTestId("lookup-hasted")).toHaveCount(0);
-  await expect(page.getByTestId("lookup-haste-cut")).toHaveText("Base cooldowns");
+  await expect(hasteInput(page)).toHaveValue("0");
+  await expect(page.getByTestId("lookup-haste-cut")).toHaveText("Base");
   await expect(row(page, "P").getByTestId("lookup-no-number")).toHaveText("No cooldown in Riot's data");
-  await expect(page.getByTestId("lookup-rule")).toHaveText("At a haste: base × 100 / (100 + haste), Riot's general rule, applied only where Riot's data gives the cooldown. Ultimate haste isn't counted.");
+  await expect(page.getByTestId("lookup-rule")).toContainText("At a haste: base × 100 / (100 + haste), Riot's general rule, applied only where Riot's data gives the cooldown. Ultimate haste isn't counted.");
+  // What Riot's data does not hold, said once, never as zero.
+  await expect(page.getByTestId("lookup-data-limit")).toHaveText("Riot's published data has no damage values or scaling for abilities, so none are shown: a description names the damage type where Riot's words do.");
+  await expect(page.getByTestId("lookup-data-limit")).toHaveCount(1);
+  // Key mechanics: Riot's own facts, then what its descriptions name, each with the abilities' keys.
+  const mech = panel(page).getByTestId("lookup-mechanics");
+  await expect(mech.getByTestId("lookup-range")).toHaveText("550");
+  await expect(mech.getByTestId("lookup-resource")).toHaveText("Mana");
+  await expect(mech.getByTestId("lookup-classes")).toHaveText("Mage · Assassin");
+  await expect(mech.locator('[data-testid="lookup-mechanic"][data-kind="charm"]')).toContainText("Charm");
+  await expect(mech.getByTestId("lookup-mechanics-source")).toHaveText("From Riot's descriptions");
   // Screen readers hear each rank with its unit.
   await expect(row(page, "Q").getByTestId("lookup-base")).toContainText("Rank 1: 7 seconds");
-  // No timer, countdown or ready time anywhere (game integrity).
-  await expect(page.locator("main")).not.toContainText(/\b(timer|countdown|ready at|ready in)\b/i);
+  // No timer, countdown or ready time anywhere (game integrity), and nothing "verified".
+  await expect(page.locator("main")).not.toContainText(/\b(timer|countdown|ready at|ready in|verified)\b/i);
 });
 
-test("haste: every quick value gives base × 100 / (100 + haste) on every ordinary ability, in place; Other takes a typed number, held to 300; the address keeps it", async ({ page }, info) => {
+test("a key mechanic's key opens its ability, where Riot's sentence names it, marked", async ({ page }, info) => {
+  test.skip(!isDesktop(info.project.name) && !isPhone(info.project.name), "a desktop and a phone");
+  await page.goto("/lookup?champion=Ahri");
+  await ready(page);
+  const e = row(page, "E");
+  await expect(e.getByTestId("lookup-description")).toBeHidden();
+  await panel(page).getByTestId("lookup-mechanics").locator('button[data-kind="charm"][data-slot="E"]').click();
+  await expect(e.getByTestId("lookup-ability-fold")).toHaveAttribute("open", "");
+  await expect(e.getByTestId("lookup-description")).toContainText("Ahri blows a kiss");
+  await expect(e.getByTestId("lookup-description").locator('[data-mechanic="charm"]')).toHaveText("charms");
+  await expect(e.getByTestId("lookup-named")).toContainText("Charm");
+  await expect(e.getByTestId("lookup-ability-summary")).toBeFocused();
+});
+
+test("each ability row folds by keyboard: Enter and Space open and close it, Riot's whole description inside, the page grows and never scrolls inside", async ({ page }, info) => {
+  test.skip(!isDesktop(info.project.name), "a keyboard");
+  await page.goto("/lookup?champion=AurelionSol&haste=20");
+  await ready(page);
+  const q = row(page, "Q");
+  const summary = q.getByTestId("lookup-ability-summary");
+  await summary.focus();
+  await page.keyboard.press("Enter");
+  await expect(q.getByTestId("lookup-ability-fold")).toHaveAttribute("open", "");
+  await expect(q.getByTestId("lookup-description")).toBeVisible();
+  await page.keyboard.press("Space");
+  await expect(q.getByTestId("lookup-ability-fold")).not.toHaveAttribute("open", "");
+  // Aurelion Sol's R: Riot's longest description, whole since Release 17 (no "…").
+  const r = row(page, "R");
+  await r.getByTestId("lookup-ability-summary").click();
+  await expect(r.getByTestId("lookup-description")).toContainText("The Skies Descend");
+  await expect(r.getByTestId("lookup-description")).not.toContainText("…");
+  // Every row open: the page grows, nothing scrolls inside it, nothing is wider than the window.
+  for (const slot of ["P", "Q", "W", "E"]) await row(page, slot).getByTestId("lookup-ability-summary").click();
+  expect(await scrollers(page)).toBe(0);
+  expect(await overflow(page)).toBeLessThanOrEqual(1);
+  await expectNoSeriousAxe(page, "every ability open");
+});
+
+test("haste: the field changes every ordinary cooldown by base × 100 / (100 + haste) as it is typed, the address keeps it, and the special cases get none", async ({ page }, info) => {
   test.skip(!isDesktop(info.project.name) && !isPhone(info.project.name), "a desktop and a phone");
   await page.goto("/resources");
   await page.goto("/lookup?champion=Darius");
   await ready(page);
-  const haste = page.getByTestId("lookup-haste");
+  const haste = panel(page).getByTestId("lookup-haste");
+  const field = hasteInput(page);
   const ordinary = await page.locator('[data-testid="lookup-ability"][data-cooldown="per-rank"]').evaluateAll((els) => els.map((e) => e.getAttribute("data-slot")!));
   expect(ordinary).toEqual(["Q", "W", "E", "R"]);
   const base: Record<string, number[]> = {};
   for (const slot of ordinary) base[slot] = await values(page, slot, "base");
-  for (const h of [10, 20, 30, 40, 50, 60, 80, 100, 0]) {
-    await haste.locator(`button[data-haste="${h}"]`).click();
+  for (const h of [10, 20, 37, 100, 0]) {
+    await field.fill(String(h));
     await expect(haste).toHaveAttribute("data-haste", String(h));
-    await expect(haste.locator(`button[data-haste="${h}"]`)).toHaveAttribute("aria-pressed", "true");
     for (const slot of ordinary) {
       if (h === 0) await expect(row(page, slot).getByTestId("lookup-hasted"), `${slot} at 0`).toHaveCount(0);
       else await expect(row(page, slot).getByTestId("lookup-hasted"), `${slot} at ${h}`).toHaveAttribute("data-values", base[slot]!.map((b) => hasted(b, h)).join(","));
-      // The base line never changes.
       expect(await values(page, slot, "base"), `${slot}'s base at ${h}`).toEqual(base[slot]);
     }
     await expect(page).toHaveURL(h === 0 ? /\/lookup\?champion=Darius$/ : new RegExp(`/lookup\\?champion=Darius&haste=${h}$`));
   }
   // Darius's R: 120 / 100 / 80 s is 75 / 62.5 / 50 s at 60 (the docs' example).
-  await haste.locator('button[data-haste="60"]').click();
+  await field.fill("60");
   await expect(row(page, "R").getByTestId("lookup-hasted")).toHaveAttribute("data-values", "75,62.5,50");
-  await expect(page.getByTestId("lookup-haste-cut")).toHaveText("Cooldowns 37.5% shorter");
-  // Other: digits only, any whole number to 300; more is held to 300 and says so.
-  const other = page.getByTestId("lookup-haste-input");
-  await other.fill("45");
-  await expect(haste).toHaveAttribute("data-haste", "45");
-  await expect(row(page, "R").getByTestId("lookup-hasted")).toHaveAttribute("data-values", [120, 100, 80].map((b) => hasted(b, 45)).join(","));
-  await expect(haste.locator("button[aria-pressed=true]")).toHaveCount(0);
-  await other.fill("4a5x");
-  await expect(other).toHaveValue("45");
-  await other.fill("999");
-  await expect(haste).toHaveAttribute("data-haste", "300");
-  await expect(page.getByTestId("lookup-haste-held")).toHaveText("Held to 300");
-  await other.blur();
-  await expect(other).toHaveValue("300");
-  await expect(page).toHaveURL(/\/lookup\?champion=Darius&haste=300$/);
-  // A reload keeps the champion and the haste.
+  await expect(page.getByTestId("lookup-haste-cut")).toHaveText("37.5% shorter");
+  // The passive never gets a haste.
+  await expect(row(page, "P").getByTestId("lookup-no-number")).toHaveText("No cooldown in Riot's data · no haste applied");
+  // A reload keeps it; the changes added no history entry: Back leaves the page in one step.
   await page.reload();
-  await expect(page.getByTestId("lookup-haste")).toHaveAttribute("data-haste", "300");
-  await expect(page.getByTestId("lookup-haste-input")).toHaveValue("300");
-  // Haste changes added no history entry: Back leaves Champion Lookup in one step.
+  await expect(panel(page).getByTestId("lookup-haste")).toHaveAttribute("data-haste", "60");
+  await expect(hasteInput(page)).toHaveValue("60");
   await page.goBack();
   await expect(page).toHaveURL(/\/resources$/);
+});
+
+test("the haste field takes a whole number from 0 to 300 and nothing else: a sign, an exponent, letters, a fraction and a paste are not taken, more than 300 is held, empty is 0", async ({ page }, info) => {
+  test.skip(!isDesktop(info.project.name) && !isPhone(info.project.name), "a desktop and a phone");
+  await page.goto("/lookup?champion=Darius");
+  await ready(page);
+  const haste = panel(page).getByTestId("lookup-haste");
+  const field = hasteInput(page);
+  const note = panel(page).getByTestId("lookup-haste-note");
+  // A numeric keypad, a name read out, and 44px on a touch screen.
+  await expect(field).toHaveAttribute("inputmode", "numeric");
+  await expect(field).toHaveAccessibleName(/ability haste for Darius/);
+  if (isPhone(info.project.name)) expect((await field.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  await expect(field).not.toHaveAttribute("aria-invalid", "true");
+  /** Sets 35 haste, then types `text` key by key over it, as a reader would. */
+  const typeOver = async (text: string) => {
+    await field.fill("35");
+    await expect(haste).toHaveAttribute("data-haste", "35");
+    await field.selectText();
+    await field.pressSequentially(text);
+    await expect(field).toHaveValue(text);
+  };
+  // The Release 17 review: "-20" read "020" and took 20, "1e3" took 13. Now what is not digits is
+  // not taken: the text stays as typed, the haste in use stays, the field says so and is invalid.
+  // Typed key by key, digits typed before the first other character are taken ("4a5x" takes the 4,
+  // "1e3" the 1: never 45, 13 or 1000); nothing after it is.
+  for (const [typed, taken] of [
+    ["-20", 35],
+    ["+5", 35],
+    ["abc", 35],
+    ["4a5x", 4],
+    ["1e3", 1],
+  ] as const) {
+    await typeOver(typed);
+    await expect(haste, typed).toHaveAttribute("data-haste", String(taken));
+    await expect(note, typed).toHaveText(/Digits only/);
+    await expect(field, typed).toHaveAttribute("aria-invalid", "true");
+    await expect(row(page, "R").getByTestId("lookup-hasted"), typed).toHaveAttribute("data-values", [120, 100, 80].map((b) => hasted(b, taken)).join(","));
+    // On leaving, the field shows the haste in use.
+    await field.blur();
+    await expect(field, typed).toHaveValue(String(taken));
+  }
+  // Spaces around a number are ignored: " 7 " is 7, valid, and reads 7 on leaving.
+  await typeOver(" 7 ");
+  await expect(haste).toHaveAttribute("data-haste", "7");
+  await expect(note).toHaveCount(0);
+  await expect(field).not.toHaveAttribute("aria-invalid", "true");
+  await field.blur();
+  await expect(field).toHaveValue("7");
+  // A fraction: the 12 typed before the point stays, "Whole numbers only"; on leaving it reads 12.
+  await typeOver("12.5");
+  await expect(haste).toHaveAttribute("data-haste", "12");
+  await expect(note).toHaveText(/Whole numbers only/);
+  await expect(field).toHaveAttribute("aria-invalid", "true");
+  await field.blur();
+  await expect(field).toHaveValue("12");
+  // More than 300 is held to 300, said; on leaving the field it reads 300.
+  await field.fill("999");
+  await expect(haste).toHaveAttribute("data-haste", "300");
+  await expect(note).toHaveText(/Held to 300/);
+  await expect(field).toHaveAttribute("aria-invalid", "true");
+  await expect(row(page, "R").getByTestId("lookup-hasted")).toHaveAttribute("data-values", [120, 100, 80].map((b) => hasted(b, 300)).join(","));
+  await field.blur();
+  await expect(field).toHaveValue("300");
+  await expect(page).toHaveURL(/\/lookup\?champion=Darius&haste=300$/);
+  // Empty is 0: the base alone, valid; on leaving it reads 0.
+  await field.fill("");
+  await expect(haste).toHaveAttribute("data-haste", "0");
+  await expect(page.getByTestId("lookup-hasted")).toHaveCount(0);
+  await expect(note).toHaveCount(0);
+  await expect(field).not.toHaveAttribute("aria-invalid", "true");
+  await field.blur();
+  await expect(field).toHaveValue("0");
+  // A paste: digits alone are taken; a sentence or "1e3" is not.
+  await field.fill("35");
+  await field.selectText();
+  await page.keyboard.insertText("20 haste");
+  await expect(field).toHaveValue("20 haste");
+  await expect(haste).toHaveAttribute("data-haste", "35");
+  await expect(note).toHaveText(/Digits only/);
+  await field.selectText();
+  await page.keyboard.insertText("1e3");
+  await expect(haste).toHaveAttribute("data-haste", "35");
+  await field.selectText();
+  await page.keyboard.insertText("40");
+  await expect(haste).toHaveAttribute("data-haste", "40");
+  await expect(note).toHaveCount(0);
+  await expect(field).not.toHaveAttribute("aria-invalid", "true");
+  // An address beyond the field's rule is held too.
+  await page.goto("/lookup?champion=Darius&haste=abc");
+  await expect(panel(page).getByTestId("lookup-haste")).toHaveAttribute("data-haste", "0");
+  await page.goto("/lookup?champion=Darius&haste=5000");
+  await expect(panel(page).getByTestId("lookup-haste")).toHaveAttribute("data-haste", "300");
 });
 
 test("special cooldowns are said in words, never computed: the passive, charges, two abilities in a slot, a known-wrong number, no number", async ({ page }, info) => {
   test.skip(!isDesktop(info.project.name), "the words are the same at every width");
   const cases: Array<[string, string, string, RegExp | null]> = [
     ["Teemo", "R", "Charges: recharge not in Riot's data", /Riot's number is the wait between casts, not the time to regain a charge\./],
-    ["LeeSin", "Q", "Two abilities share this slot in Riot's data", /Riot's data doesn't say which one its cooldown is\. Riot lists 10 \/ 9 \/ 8 \/ 7 \/ 6 s for the slot\./],
+    ["LeeSin", "Q", "Two abilities share this slot in Riot's data", /Riot's data doesn't say which one its cooldown is\. Riot lists 10 \/ 9 \/ 8 \/ 7 \/ 6\s+s for the slot\./],
     ["Rengar", "Q", "Riot's number for this ability is known to be wrong", null],
     ["Ashe", "Q", "No cooldown number in Riot's data", null],
     ["Aphelios", "Q", "Several abilities share this slot in Riot's data", null],
@@ -125,82 +272,96 @@ test("special cooldowns are said in words, never computed: the passive, charges,
     await page.goto(`/lookup?champion=${champion}&haste=40`);
     const r = row(page, slot);
     await expect(r.getByTestId("lookup-no-number"), `${champion} ${slot}`).toHaveText(`${line} · no haste applied`);
-    if (more) await expect(r, `${champion} ${slot}`).toContainText(more);
-    // No number is made up and no haste applied: neither line is drawn.
+    if (more) {
+      // The reason in full is in the opened row.
+      await r.getByTestId("lookup-ability-summary").click();
+      await expect(r.getByTestId("lookup-ability-details"), `${champion} ${slot}`).toContainText(more);
+    }
     await expect(r.getByTestId("lookup-base"), `${champion} ${slot}`).toHaveCount(0);
     await expect(r.getByTestId("lookup-hasted"), `${champion} ${slot}`).toHaveCount(0);
     await expect(row(page, "P").getByTestId("lookup-hasted")).toHaveCount(0);
   }
+  // The passive's opened row does not repeat its folded line (the Release 17 review).
+  await row(page, "P").getByTestId("lookup-ability-summary").click();
+  await expect(row(page, "P").getByTestId("lookup-ability-details")).toBeVisible();
+  await expect(row(page, "P").getByTestId("lookup-ability-details")).not.toContainText("No cooldown in Riot's data");
+  await expect(row(page, "P").getByTestId("lookup-ability-details")).not.toContainText("gives passives no cooldown");
   // On the same page, an ordinary ability still gets its hasted line (Teemo's Q: 7 s at 40 haste is 5 s).
   await page.goto("/lookup?champion=Teemo&haste=40");
   await expect(row(page, "Q").getByTestId("lookup-hasted")).toHaveAttribute("data-values", (await values(page, "Q", "base")).map((b) => hasted(b, 40)).join(","));
 });
 
-test("descriptions: folded away by default, one press shows all five under their abilities, another hides them", async ({ page }) => {
-  await page.goto("/lookup?champion=Ahri");
-  await ready(page);
-  const toggle = page.getByTestId("lookup-descriptions");
-  await expect(toggle).toHaveAttribute("aria-pressed", "false");
-  await expect(page.getByTestId("lookup-description")).toHaveCount(0);
-  await toggle.click();
-  await expect(toggle).toHaveAttribute("aria-pressed", "true");
-  await expect(page.getByTestId("lookup-description")).toHaveCount(5);
-  await expect(row(page, "Q").getByTestId("lookup-description")).toContainText("Ahri sends out and pulls back her orb");
-  expect(await overflow(page)).toBeLessThanOrEqual(1);
-  await expectNoSeriousAxe(page, "descriptions shown");
-  await toggle.click();
-  await expect(page.getByTestId("lookup-description")).toHaveCount(0);
+test("unusual champions: a transformation, a resource-less champion, 6 ranks, a health cost: Riot's words or nothing, never a zero", async ({ page }, info) => {
+  test.skip(!isDesktop(info.project.name), "once");
+  // Jayce: two forms in each slot, Riot's array said as Riot's; the form swap named by his description.
+  await page.goto("/lookup?champion=Jayce&haste=20");
+  await expect(row(page, "Q").getByTestId("lookup-no-number")).toHaveText("Two abilities share this slot in Riot's data · no haste applied");
+  await expect(panel(page).getByTestId("lookup-mechanics").locator('[data-kind="transform"]').first()).toBeVisible();
+  // Garen: no resource ("None"), every ability at no cost in Riot's words.
+  await page.goto("/lookup?champion=Garen");
+  await expect(panel(page).getByTestId("lookup-resource")).toHaveText("None");
+  for (const slot of ["Q", "W", "E", "R"]) await expect(row(page, slot).getByTestId("lookup-cost"), slot).toHaveText("No cost");
+  // Udyr: six ranks, every one shown.
+  await page.goto("/lookup?champion=Udyr");
+  expect(await values(page, "Q", "base")).toHaveLength(6);
+  // Dr. Mundo's Q costs health, a number Riot's data leaves out: no cost line, never "0".
+  await page.goto("/lookup?champion=DrMundo");
+  await expect(row(page, "Q").getByTestId("lookup-cost")).toHaveCount(0);
+  // Base statistics: attack damage without a growth (Riot's data gives 0 for every champion), never "+0".
+  await panel(page).getByTestId("lookup-stats-summary").filter({ visible: true }).click();
+  const ad = panel(page).locator('[data-testid="lookup-stat"][data-stat="attackdamage"]').filter({ visible: true });
+  await expect(ad).toBeVisible();
+  await expect(ad).not.toContainText("per level");
+  await expect(panel(page).locator('[data-testid="lookup-stat"][data-stat="hp"]').filter({ visible: true })).toContainText("per level");
+  await expect(panel(page).locator("[data-testid=lookup-stats]").filter({ visible: true })).not.toContainText(/\+0(?![.\d])/);
 });
 
-test("the search with the keyboard: \"/\" puts the focus in it, matches as typed (initials and nicknames too), ↑/↓ and Enter choose, Escape closes then clears", async ({ page }, info) => {
+test("\"/\" opens the window of every champion, its search takes the typing, Enter the first match; the search with nothing chosen works by keyboard too", async ({ page }, info) => {
   test.skip(!isDesktop(info.project.name), "a keyboard and a mouse");
   await page.goto("/lookup?champion=Ahri");
+  await ready(page);
+  await page.locator("main h1").click();
+  await page.keyboard.press("/");
+  const win = page.getByTestId("lookup-picker");
+  await expect(win).toBeVisible();
+  const search = win.getByTestId("lookup-picker-search");
+  await expect(search).toBeFocused();
+  await search.fill("kha");
+  await search.press("Enter");
+  await expect(win).toHaveCount(0);
+  await expect(panel(page)).toHaveAttribute("data-champion", "Khazix");
+  await expect(page).toHaveURL(/\/lookup\?champion=Khazix$/);
+  await expect(panel(page).getByTestId("lookup-change")).toBeFocused();
+
+  // With nothing chosen: the combobox, "/" into it, initials and nicknames, ↑/↓ and Enter, Escape twice.
+  await page.goto("/lookup");
   await ready(page);
   const input = page.getByTestId("lookup-search-input");
   await page.locator("main h1").click();
   await page.keyboard.press("/");
   await expect(input).toBeFocused();
-  await expect(input).toHaveAttribute("aria-expanded", "false");
   await page.keyboard.type("kha");
-  await expect(input).toHaveAttribute("aria-expanded", "true");
   const options = page.getByTestId("lookup-search-option");
   await expect(options.first()).toHaveAttribute("data-champion", "Khazix");
-  await expect(options.first()).toHaveAttribute("aria-selected", "true");
   await expectNoSeriousAxe(page, "the search's list open");
   await input.fill("j4");
   await expect(options.first()).toHaveAttribute("data-champion", "JarvanIV");
   await input.fill("tf");
   await expect(options.first()).toHaveAttribute("data-champion", "TwistedFate");
-  // A short search: eight shown, the rest counted.
   await input.fill("a");
   await expect(options).toHaveCount(8);
   await expect(page.getByTestId("lookup-search-note")).toHaveText(/^\d+ more: keep typing, or open All champions\.$/);
-  // ↓ marks the second, ↑ the first again; Enter takes the one marked.
+  await input.fill("qqq");
+  await page.keyboard.press("Escape");
+  await expect(input).toHaveValue("qqq");
+  await page.keyboard.press("Escape");
+  await expect(input).toHaveValue("");
   await input.fill("ka");
   const second = (await options.nth(1).getAttribute("data-champion"))!;
   await page.keyboard.press("ArrowDown");
   await expect(options.nth(1)).toHaveAttribute("aria-selected", "true");
-  await expect(input).toHaveAttribute("aria-activedescendant", (await options.nth(1).getAttribute("id"))!);
-  await page.keyboard.press("ArrowDown");
-  await page.keyboard.press("ArrowUp");
   await page.keyboard.press("Enter");
-  await expect(page.getByTestId("lookup-panel")).toHaveAttribute("data-champion", second);
-  await expect(page).toHaveURL(new RegExp(`/lookup\\?champion=${second}$`));
-  // With a mouse the field keeps the focus for the next search, emptied.
-  await expect(input).toBeFocused();
-  await expect(input).toHaveValue("");
-  // Escape: the list first, then what was typed.
-  await page.keyboard.type("qqq");
-  await expect(page.getByTestId("lookup-search-note")).toHaveText("No champion matches “qqq”.");
-  await page.keyboard.press("Escape");
-  await expect(input).toHaveAttribute("aria-expanded", "false");
-  await expect(input).toHaveValue("qqq");
-  await page.keyboard.press("Escape");
-  await expect(input).toHaveValue("");
-  // A press on a match takes it.
-  await input.fill("mord");
-  await options.first().click();
-  await expect(page.getByTestId("lookup-panel")).toHaveAttribute("data-champion", "Mordekaiser");
+  await expect(panel(page)).toHaveAttribute("data-champion", second);
 });
 
 test("on a phone a tap on a match chooses and the keyboard goes down; the page is no wider than the phone", async ({ page }, info) => {
@@ -212,29 +373,30 @@ test("on a phone a tap on a match chooses and the keyboard goes down; the page i
   await input.tap();
   await input.fill("ahr");
   await page.getByTestId("lookup-search-option").first().tap();
-  await expect(page.getByTestId("lookup-panel")).toHaveAttribute("data-champion", "Ahri");
-  await expect(input).not.toBeFocused();
+  await expect(panel(page)).toHaveAttribute("data-champion", "Ahri");
+  await expect(input).toHaveCount(0);
   expect(await overflow(page)).toBeLessThanOrEqual(1);
-  // Every haste button and the field are 44px targets.
-  for (const h of await page.getByTestId("lookup-haste").locator("button, input").evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().height)))) expect(h).toBeGreaterThanOrEqual(44);
+  // The haste field, the name and the fold rows are 44px targets.
+  expect((await hasteInput(page).boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  expect((await panel(page).getByTestId("lookup-change").boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  for (const h of await page.getByTestId("lookup-ability-summary").evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().height)))) expect(h).toBeGreaterThanOrEqual(44);
 });
 
-test("All champions: every champion on the roster, a search in the window, Enter takes the first match, a Recent row of the champions looked up, and no history entry", async ({ page }, info) => {
+test("the champion's name opens the window of every champion: the roster, a search, Enter the first match, a Recent row, the focus back, and no history entry", async ({ page }, info) => {
   test.skip(isPhone(info.project.name) ? false : !isDesktop(info.project.name), "a desktop and a phone");
   await page.goto("/resources");
   await page.goto("/lookup?champion=Ahri");
   await ready(page);
-  const browse = page.getByTestId("lookup-browse");
-  await browse.click();
+  const change = panel(page).getByTestId("lookup-change");
+  await expect(change).toHaveAccessibleName("Ahri: change champion");
+  await change.click();
   const win = page.getByTestId("lookup-picker");
   await expect(win).toBeVisible();
   const grid = win.getByTestId("lookup-picker-grid").locator("button[data-champion]");
   await expect(grid.first()).toBeVisible();
-  // The demo's roster is Data Dragon 16.22.1's: 172 champions (173 with the newest), all there.
   const counted = Number(/·\s*(\d+)/.exec((await win.getByTestId("lookup-picker-all-title").textContent()) ?? "")?.[1]);
   expect(counted).toBeGreaterThanOrEqual(170);
   await expect(grid).toHaveCount(counted);
-  // Looked up lately: Ahri, in the Recent row.
   await expect(win.getByTestId("lookup-picker-recent").locator('button[data-champion="Ahri"]')).toBeVisible();
   const search = win.getByTestId("lookup-picker-search");
   if (isPhone(info.project.name)) await search.tap();
@@ -242,29 +404,110 @@ test("All champions: every champion on the roster, a search in the window, Enter
   await expect(win.getByTestId("lookup-picker-count")).toHaveText("1 champion found");
   await search.press("Enter");
   await expect(win).toHaveCount(0);
-  await expect(page.getByTestId("lookup-panel")).toHaveAttribute("data-champion", "Nunu");
-  // The window gives the focus back to All champions.
-  await expect(browse).toBeFocused();
-  // The window and the choices made no history entry: Back leaves the page.
+  await expect(panel(page)).toHaveAttribute("data-champion", "Nunu");
+  await expect(panel(page).getByTestId("lookup-change")).toBeFocused();
   await page.goBack();
   await expect(page).toHaveURL(/\/resources$/);
 });
 
-test("the address: a name in any case opens its champion and is written back as its id; a champion the roster lacks is left out, said, and not repeated back", async ({ page }, info) => {
-  test.skip(!isDesktop(info.project.name), "once");
-  await page.goto("/lookup?champion=wukong&haste=25");
-  await expect(page.getByTestId("lookup-panel")).toHaveAttribute("data-champion", "MonkeyKing");
-  await expect(page).toHaveURL(/\/lookup\?champion=MonkeyKing&haste=25$/);
-  await expect(page.getByTestId("lookup-haste")).toHaveAttribute("data-haste", "25");
-  await page.goto("/lookup?champion=%3Cb%3ENobody&haste=abc");
-  await expect(page.getByTestId("lookup-unknown")).toContainText("not on the roster");
-  await expect(page.locator("main")).not.toContainText("Nobody");
-  await expect(page).toHaveURL(/\/lookup$/);
+test("two champions: Add champion, each changed and hasted on its own, both in the address, side by side on a desktop, removed again, Back in one step", async ({ page }, info) => {
+  test.skip(!isDesktop(info.project.name), "the desktop");
+  await page.goto("/resources");
+  await page.goto("/lookup?champion=Ahri&haste=20");
+  await ready(page);
+  await page.getByTestId("lookup-add").click();
+  await expect(page.getByTestId("lookup-picker")).toContainText("Add a champion");
+  await pickInWindow(page, "jinx", "Jinx");
+  await expect(panel(page, 2)).toHaveAttribute("data-champion", "Jinx");
+  await expect(page).toHaveURL(/\/lookup\?champion=Ahri&haste=20&champion2=Jinx$/);
+  // The new panel's name has the focus; Add champion is gone while two are shown.
+  await expect(panel(page, 2).getByTestId("lookup-change")).toBeFocused();
+  await expect(page.getByTestId("lookup-add")).toHaveCount(0);
+  // Side by side, equal, at the same height; no switcher.
+  const [a, b] = [(await panel(page, 1).boundingBox())!, (await panel(page, 2).boundingBox())!];
+  expect(Math.abs(a.y - b.y)).toBeLessThanOrEqual(1);
+  expect(Math.abs(a.width - b.width)).toBeLessThanOrEqual(1);
+  expect(b.x).toBeGreaterThan(a.x + a.width - 1);
+  await expect(page.getByTestId("lookup-switcher")).toBeHidden();
+  // Each haste its own.
+  await hasteInput(page, 2).fill("50");
+  await expect(row(page, "W", 2).getByTestId("lookup-hasted")).toHaveAttribute("data-values", (await values(page, "W", "base", 2)).map((x) => hasted(x, 50)).join(","));
+  await expect(row(page, "Q", 1).getByTestId("lookup-hasted")).toHaveAttribute("data-values", "5.83,5.83,5.83,5.83,5.83");
+  await expect(page).toHaveURL(/\/lookup\?champion=Ahri&haste=20&champion2=Jinx&haste2=50$/);
+  // An open fold of the first stays open while the second changes champion.
+  await row(page, "E", 1).getByTestId("lookup-ability-summary").click();
+  await panel(page, 2).getByTestId("lookup-change").click();
+  await pickInWindow(page, "cait", "Caitlyn");
+  await expect(panel(page, 2)).toHaveAttribute("data-champion", "Caitlyn");
+  await expect(page).toHaveURL(/\/lookup\?champion=Ahri&haste=20&champion2=Caitlyn&haste2=50$/);
+  await expect(row(page, "E", 1).getByTestId("lookup-ability-fold")).toHaveAttribute("open", "");
+  await expect(panel(page, 1)).toHaveAttribute("data-champion", "Ahri");
+  await expectNoSeriousAxe(page, "two champions");
+  // The first changes alone too.
+  await panel(page, 1).getByTestId("lookup-change").click();
+  await pickInWindow(page, "lux", "Lux");
+  await expect(page).toHaveURL(/\/lookup\?champion=Lux&haste=20&champion2=Caitlyn&haste2=50$/);
+  // Removed: one panel again, the first's haste kept, the focus on it.
+  await panel(page, 2).getByTestId("lookup-remove").click();
+  await expect(panel(page, 2)).toHaveCount(0);
+  await expect(page).toHaveURL(/\/lookup\?champion=Lux&haste=20$/);
+  await expect(panel(page, 1).getByTestId("lookup-change")).toBeFocused();
+  // None of it added a history entry.
+  await page.goBack();
+  await expect(page).toHaveURL(/\/resources$/);
 });
 
-test("Matchup Intel's old links land on Champion Lookup, carrying one champion: the enemy where named", async ({ page }, info) => {
+test("the address with two champions: both open, a name in any case, a second alone becomes the first, one the roster lacks is left out and said", async ({ page }, info) => {
   test.skip(!isDesktop(info.project.name), "once");
-  // One HTTP 308 from the proxy, before any page renders (no streamed client-side redirect).
+  await page.goto("/lookup?champion=Ahri&haste=10&champion2=jinx&haste2=999");
+  await expect(panel(page, 2)).toHaveAttribute("data-champion", "Jinx");
+  await expect(page).toHaveURL(/\/lookup\?champion=Ahri&haste=10&champion2=Jinx&haste2=300$/);
+  await expect(panel(page, 2).getByTestId("lookup-haste")).toHaveAttribute("data-haste", "300");
+  await page.goto("/lookup?champion2=Thresh&haste2=40");
+  await expect(panel(page, 1)).toHaveAttribute("data-champion", "Thresh");
+  await expect(panel(page, 2)).toHaveCount(0);
+  await expect(page).toHaveURL(/\/lookup\?champion=Thresh&haste=40$/);
+  await page.goto("/lookup?champion=Ahri&champion2=%3Cb%3ENobody");
+  await expect(page.getByTestId("lookup-unknown")).toContainText("not on the roster");
+  await expect(page.locator("main")).not.toContainText("Nobody");
+  await expect(page).toHaveURL(/\/lookup\?champion=Ahri$/);
+  await page.goto("/lookup?champion=wukong&haste=25");
+  await expect(panel(page)).toHaveAttribute("data-champion", "MonkeyKing");
+  await expect(page).toHaveURL(/\/lookup\?champion=MonkeyKing&haste=25$/);
+});
+
+test("a phone and a tablet show one champion at a time under a switcher, each keeping its haste and its open folds", async ({ page }, info) => {
+  test.skip(isDesktop(info.project.name), "the phone and the tablet");
+  await page.goto("/lookup?champion=Ahri&champion2=Jinx");
+  await ready(page);
+  const switcher = page.getByTestId("lookup-switcher");
+  await expect(switcher).toBeVisible();
+  await expect(panel(page, 1)).toBeVisible();
+  await expect(panel(page, 2)).toBeHidden();
+  // The first: a haste and an open fold.
+  await hasteInput(page, 1).fill("30");
+  await row(page, "Q", 1).getByTestId("lookup-ability-summary").click();
+  await expect(row(page, "Q", 1).getByTestId("lookup-description")).toBeVisible();
+  // The second: its own haste.
+  await switcher.locator('button[data-panel="2"]').click();
+  await expect(switcher.locator('button[data-panel="2"]')).toHaveAttribute("aria-pressed", "true");
+  await expect(panel(page, 1)).toBeHidden();
+  await expect(panel(page, 2)).toBeVisible();
+  await expect(hasteInput(page, 2)).toHaveValue("0");
+  await hasteInput(page, 2).fill("15");
+  await expect(page).toHaveURL(/\/lookup\?champion=Ahri&haste=30&champion2=Jinx&haste2=15$/);
+  expect(await overflow(page)).toBeLessThanOrEqual(1);
+  // Back to the first: its haste and its open fold as they were.
+  await switcher.locator('button[data-panel="1"]').click();
+  await expect(hasteInput(page, 1)).toHaveValue("30");
+  await expect(row(page, "Q", 1).getByTestId("lookup-description")).toBeVisible();
+  await expect(row(page, "Q", 1).getByTestId("lookup-hasted")).toHaveAttribute("data-values", [7, 7, 7, 7, 7].map((x) => hasted(x, 30)).join(","));
+  if (isPhone(info.project.name)) for (const h of await switcher.locator("button").evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().height)))) expect(h).toBeGreaterThanOrEqual(44);
+  await expectNoSeriousAxe(page, "the switcher");
+});
+
+test("Matchup Intel's old links land on Champion Intel, carrying one champion: the enemy where named", async ({ page }, info) => {
+  test.skip(!isDesktop(info.project.name), "once");
   const first = await page.request.get("/resources/matchups?champion=Riven&vs=Mordekaiser", { maxRedirects: 0 });
   expect(first.status()).toBe(308);
   const to = new URL(first.headers()["location"]!, "http://x");
@@ -278,110 +521,119 @@ test("Matchup Intel's old links land on Champion Lookup, carrying one champion: 
   ] as const) {
     await page.goto(old);
     await expect(page, old).toHaveURL(new RegExp(`${want.replace(/[?]/g, "\\?")}$`));
-    await expect(page.getByRole("heading", { level: 1, name: "Champion Lookup" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Champion Intel" })).toBeVisible();
   }
-  await page.goto("/resources/matchups?vs=Mordekaiser");
-  await expect(page.getByTestId("lookup-panel")).toHaveAttribute("data-champion", "Mordekaiser");
 });
 
-test("one screen for any champion at any haste: 1440 × 900, 1920 × 1080, and the owner's own windows, 1920 × 950 with the sidebar folded and 1440 × 780", async ({ page, context, baseURL }, info) => {
+test("one screen: the header, the haste and the five abilities, folded, on the first screen at every desktop size, one champion and two, the sidebar open and folded; nothing scrolls inside", async ({ page, context, baseURL }, info) => {
   test.skip(!isDesktop(info.project.name), "the desktop");
-  // The owner's second monitor (23 Nov 2026): a 1920 × 1080 screen less the browser's bars and the
-  // taskbar, the sidebar folded; and what a 1440 × 900 screen leaves the page.
-  const sizes = [
-    { width: 1440, height: 900, folded: false },
-    { width: 1920, height: 1080, folded: false },
-    { width: 1920, height: 950, folded: true },
-    { width: 1920, height: 950, folded: false },
-    { width: 1440, height: 780, folded: false },
-    { width: 1440, height: 780, folded: true },
+  test.setTimeout(240_000);
+  const sizes: Array<[number, number]> = [
+    [1280, 720],
+    [1440, 900],
+    [1440, 780],
+    [1920, 1080],
+    [1920, 950],
+    [2560, 1440],
+    [3440, 1440],
   ];
-  for (const size of sizes) {
+  const paths = ["/lookup?champion=Ahri&haste=100", "/lookup?champion=Udyr&haste=20", "/lookup?champion=Aphelios&haste=300", "/lookup?champion=Ahri&haste=20&champion2=Jinx&haste2=20", "/lookup?champion=Udyr&haste=40&champion2=LeeSin&haste2=40", "/lookup?champion=Teemo&haste=55&champion2=Jayce&haste2=10"];
+  for (const folded of [false, true]) {
     await context.clearCookies({ name: "uniiverse_sidebar" });
-    if (size.folded) await context.addCookies([{ name: "uniiverse_sidebar", value: "collapsed", url: baseURL! }]);
-    await page.setViewportSize({ width: size.width, height: size.height });
-    for (const path of ["/lookup?champion=Ahri&haste=100", "/lookup?champion=LeeSin&haste=40", "/lookup?champion=Aphelios&haste=300", "/lookup?champion=Udyr&haste=20", "/lookup?champion=Teemo&haste=55"]) {
-      await page.goto(path);
-      await expect(page.getByTestId("lookup-ability")).toHaveCount(5);
-      const where = `${path} at ${size.width} × ${size.height}${size.folded ? ", the sidebar folded" : ""}`;
-      const fit = await page.evaluate(() => ({ over: document.documentElement.scrollHeight - innerHeight, rule: document.querySelector('[data-testid="lookup-rule"]')!.getBoundingClientRect().bottom, haste: document.querySelector('[data-testid="lookup-haste"]')!.getBoundingClientRect().bottom }));
-      expect(fit.over, where).toBeLessThanOrEqual(1);
-      expect(fit.haste, `${where}: the haste choice on the screen`).toBeLessThanOrEqual(size.height);
-      expect(fit.rule, `${where}: the five abilities and the rule's line on the screen`).toBeLessThanOrEqual(size.height);
+    if (folded) await context.addCookies([{ name: "uniiverse_sidebar", value: "collapsed", url: baseURL! }]);
+    for (const [width, height] of sizes) {
+      await page.setViewportSize({ width, height });
+      for (const path of paths) {
+        await page.goto(path);
+        await expect(page.getByTestId("lookup-ability").first()).toBeVisible();
+        const where = `${path} at ${width} × ${height}${folded ? ", the sidebar folded" : ""}`;
+        const fit = await page.evaluate(() => {
+          const panels = [...document.querySelectorAll<HTMLElement>('[data-testid="lookup-panel"]')].filter((p) => p.offsetParent !== null);
+          return {
+            panels: panels.length,
+            rows: Math.max(...panels.flatMap((p) => [...p.querySelectorAll('[data-testid="lookup-ability"]')].map((r) => r.getBoundingClientRect().bottom))),
+            haste: Math.max(...panels.map((p) => p.querySelector('[data-testid="lookup-haste"]')!.getBoundingClientRect().bottom)),
+            // The page is centred in the room beside the sidebar: its left and right gaps within a pixel.
+            view: (() => {
+              const v = document.querySelector('[data-testid="champion-lookup"]')!.getBoundingClientRect();
+              const main = document.querySelector("main")!.getBoundingClientRect();
+              return { left: v.left - main.left, right: main.right - v.right };
+            })(),
+          };
+        });
+        expect(fit.panels, `${where}: both panels side by side`).toBe(path.includes("champion2") ? 2 : 1);
+        expect(fit.haste, `${where}: the haste on the screen`).toBeLessThanOrEqual(height);
+        expect(fit.rows, `${where}: the five abilities on the screen`).toBeLessThanOrEqual(height);
+        expect(Math.abs(fit.view.left - fit.view.right), `${where}: centred`).toBeLessThanOrEqual(2);
+        expect(await scrollers(page), where).toBe(0);
+        expect(await overflow(page), where).toBeLessThanOrEqual(1);
+      }
     }
   }
 });
 
-test("the ranks never wrap: in columns each rank's value sits in its own column under its heading, on one line; in the line form each kind's ranks keep one line, from 640px to 1280px with the sidebar open and folded", async ({ page, context, baseURL }, info) => {
+test("the ranks never wrap: in columns each rank's value sits under its heading on one line; in the line form each kind's ranks keep one line, from 640px to 1440px with the sidebar open and folded, one champion and two", async ({ page, context, baseURL }, info) => {
   test.skip(!isDesktop(info.project.name), "the desktop project, every width set here");
-  // The review of Release 16 found rank 5 wrapping under rank 1 where the panel was about 36–45rem
-  // wide ("9 / 5" read as Fox-Fire's rank 1): the columns now start where six ranks fit (44rem, Udyr's).
-  const sizes: Array<[number, boolean]> = [[640, false], [700, false], [768, false], [834, false], [1024, false], [1024, true], [1100, false], [1280, false], [1280, true]];
+  test.setTimeout(180_000);
+  const sizes: Array<[number, boolean]> = [[640, false], [768, false], [1024, false], [1024, true], [1280, false], [1280, true], [1440, false]];
   for (const [width, folded] of sizes) {
     await context.clearCookies({ name: "uniiverse_sidebar" });
     if (folded) await context.addCookies([{ name: "uniiverse_sidebar", value: "collapsed", url: baseURL! }]);
     await page.setViewportSize({ width, height: 900 });
-    for (const champion of ["Ahri", "Udyr"]) {
-      await page.goto(`/lookup?champion=${champion}&haste=20`);
-      await expect(page.getByTestId("lookup-ability")).toHaveCount(5);
-      const where = `${champion} at ${width}px${folded ? ", the sidebar folded" : ""}`;
-      const m = await page.evaluate(() => {
-        const heading = document.querySelector<HTMLElement>('[data-testid="lookup-abilities"] > [aria-hidden] > div')!;
-        const columns = getComputedStyle(heading).display !== "none";
-        const ranksOf = (el: Element) => [...el.querySelectorAll<HTMLElement>(":scope > span:not([aria-hidden])")].map((c) => c.getBoundingClientRect());
-        const rows = [...document.querySelectorAll('[data-testid="lookup-ability"][data-cooldown="per-rank"]')].map((r) => {
-          const base = ranksOf(r.querySelector('[data-testid="lookup-base"]')!);
-          const hasted = ranksOf(r.querySelector('[data-testid="lookup-hasted"]')!);
-          const oneLine = (cells: DOMRect[]) => cells.every((c) => Math.abs(c.top - cells[0]!.top) <= 2);
-          const leftToRight = (cells: DOMRect[]) => cells.every((c, i) => i === 0 || c.left > cells[i - 1]!.right - 1);
-          return {
-            slot: r.getAttribute("data-slot"),
-            ranks: base.length,
-            oneLine: oneLine(base) && oneLine(hasted),
-            leftToRight: leftToRight(base) && leftToRight(hasted),
-            // In columns, each rank's base and hasted values share their column.
-            aligned: base.every((c, i) => Math.abs(c.right - hasted[i]!.right) <= 1),
-            rights: base.map((c) => Math.round(c.right)),
-            // Every rank inside the panel, none clipped by its edge.
-            inside: [...base, ...hasted].every((c) => c.right <= document.querySelector('[data-testid="lookup-panel"]')!.getBoundingClientRect().right - 1),
-          };
-        });
-        const heads = [...heading.querySelectorAll<HTMLElement>("span.label-caps:last-child > span")].map((h) => h.getBoundingClientRect());
-        return { columns, rows, headsOneLine: heads.every((h) => Math.abs(h.top - heads[0]!.top) <= 2), headRights: heads.map((h) => Math.round(h.right)) };
-      });
-      for (const r of m.rows) {
-        expect(r.oneLine, `${where}: ${r.slot}'s ranks on one line each (${m.columns ? "columns" : "the line form"})`).toBe(true);
-        expect(r.leftToRight, `${where}: ${r.slot}'s ranks left to right`).toBe(true);
-        expect(r.inside, `${where}: ${r.slot}'s ranks all inside the panel`).toBe(true);
-        if (m.columns) {
-          expect(r.aligned, `${where}: ${r.slot}'s base and hasted values in the same columns`).toBe(true);
-          // Under the heading's ranks: each value's right edge at its rank's.
-          r.rights.forEach((right, i) => expect(Math.abs(right - m.headRights[i]!), `${where}: ${r.slot}'s rank ${i + 1} under its heading`).toBeLessThanOrEqual(1));
+    for (const path of ["/lookup?champion=Ahri", "/lookup?champion=Udyr", "/lookup?champion=Udyr&champion2=Ahri"]) {
+      await page.goto(path);
+      await expect(page.getByTestId("lookup-ability").first()).toBeVisible();
+      const where = `${path} at ${width}px${folded ? ", the sidebar folded" : ""}`;
+      const panels = await page.evaluate(() =>
+        [...document.querySelectorAll<HTMLElement>('[data-testid="lookup-panel"]')]
+          .filter((p) => p.offsetParent !== null)
+          .map((p) => {
+            const heading = p.querySelector<HTMLElement>('[data-testid="lookup-rank-heading"]')!;
+            const columns = getComputedStyle(heading).display !== "none";
+            const ranksOf = (el: Element | null) => (el ? [...el.querySelectorAll<HTMLElement>(":scope > span:not([aria-hidden])")].map((c) => c.getBoundingClientRect()) : []);
+            const right = p.getBoundingClientRect().right;
+            const rows = [...p.querySelectorAll('[data-testid="lookup-ability"][data-cooldown="per-rank"]')].map((r) => {
+              const base = ranksOf(r.querySelector('[data-testid="lookup-base"]'));
+              const oneLine = (cells: DOMRect[]) => cells.every((c) => Math.abs(c.top - cells[0]!.top) <= 2);
+              return { slot: r.getAttribute("data-slot"), ranks: base.length, oneLine: oneLine(base), rights: base.map((c) => Math.round(c.right)), inside: base.every((c) => c.right <= right - 1) };
+            });
+            const heads = [...heading.querySelectorAll<HTMLElement>("span.label-caps:last-child > span")].map((h) => h.getBoundingClientRect());
+            return { columns, rows, headsOneLine: heads.every((h) => Math.abs(h.top - heads[0]!.top) <= 2), headRights: heads.map((h) => Math.round(h.right)) };
+          }),
+      );
+      for (const m of panels) {
+        for (const r of m.rows) {
+          expect(r.oneLine, `${where}: ${r.slot}'s ranks on one line`).toBe(true);
+          expect(r.inside, `${where}: ${r.slot}'s ranks inside the panel`).toBe(true);
+          if (m.columns) r.rights.forEach((right, i) => expect(Math.abs(right - m.headRights[i]!), `${where}: ${r.slot}'s rank ${i + 1} under its heading`).toBeLessThanOrEqual(1));
         }
-      }
-      if (m.columns) {
-        expect(m.headsOneLine, `${where}: the heading's ranks on one line`).toBe(true);
-        expect(m.headRights.length, `${where}: a heading for every rank`).toBe(Math.max(5, ...m.rows.map((r) => r.ranks)));
+        if (m.columns) {
+          expect(m.headsOneLine, `${where}: the heading's ranks on one line`).toBe(true);
+          expect(m.headRights.length, `${where}: a heading for every rank`).toBe(Math.max(5, ...m.rows.map((r) => r.ranks)));
+        }
       }
     }
   }
 });
 
-test("phones at 320 and 390, at 100% and 200% text: nothing wider than the phone, every ability's name and cooldown whole", async ({ page }, info) => {
+test("phones at 320, 375, 390 and 430, at 100% and 200% text: nothing wider than the phone, nothing scrolls inside, every ability's name and cooldown whole", async ({ page }, info) => {
   test.skip(!isPhone(info.project.name), "the phone");
-  for (const [width, height] of [[320, 568], [390, 844]] as const) {
+  test.setTimeout(180_000);
+  for (const [width, height] of [[320, 568], [375, 667], [390, 844], [430, 932]] as const) {
     await page.setViewportSize({ width, height });
     for (const root of [100, 200]) {
-      for (const path of ["/lookup?champion=Heimerdinger&haste=20", "/lookup?champion=LeeSin&haste=40"]) {
+      for (const path of ["/lookup?champion=Heimerdinger&haste=20", "/lookup?champion=LeeSin&haste=40&champion2=Udyr&haste2=10"]) {
         await page.goto(path);
         await ready(page);
         await page.addStyleTag({ content: `html { font-size: ${root}% !important; }` });
         await page.evaluate(() => document.fonts.ready);
         const where = `${path} at ${width}px, ${root}%`;
         await expect.poll(() => overflow(page), { message: where }).toBeLessThanOrEqual(0);
-        // No ability row reaches past the panel.
+        await row(page, "Q").getByTestId("lookup-ability-summary").click();
         const rows = await page.getByTestId("lookup-ability").evaluateAll((els) => els.map((e) => ({ over: e.scrollWidth - e.clientWidth })));
         expect(rows.every((r) => r.over <= 1), where).toBe(true);
+        expect(await scrollers(page), where).toBe(0);
+        expect(await overflow(page), `${where}, a row open`).toBeLessThanOrEqual(1);
       }
     }
   }

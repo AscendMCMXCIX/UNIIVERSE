@@ -1,5 +1,5 @@
 /*
-  CHAMPION LOOKUP's data (docs/CHAMPION_LOOKUP.md): a champion's five abilities as Riot's Data
+  CHAMPION INTEL's data (docs/CHAMPION_INTEL.md): a champion's five abilities as Riot's Data
   Dragon gives them, stored once per game version by the version-check job (app_settings
   "champion_abilities", src/server/riot/static/abilities.ts) and read per champion by the page.
   Static data Riot publishes before any game; nothing about any player.
@@ -40,6 +40,44 @@ export interface DdragonAbility {
    * stored before the rules read it (ABILITY_RULES_FORMAT 1).
    */
   textHash?: string | null;
+  /**
+   * Data Dragon's `cost` per rank, as Riot gives it (rules format 4). Shown only under the cost rule
+   * (costDisplay in ./cost.ts): where Riot's own resource line is "{{ cost }}" and the champion's
+   * resource, so the number is the one Riot's own line names. Absent on the passive and on a record
+   * stored before format 4.
+   */
+  cost?: number[];
+  /** Riot's resource line as Data Dragon gives it ("{{ cost }} {{ abilityresourcename }}", "No Cost"); its placeholders are never shown. */
+  resource?: string;
+  /**
+   * What changed in Riot's data for this ability since the champion's previous stored version (the
+   * sync compares the two when it reads a new game version; rules format 4): Riot's text (its hash),
+   * the base cooldowns, the cost. Never the numbers themselves. Null or absent: nothing changed, or
+   * no earlier version was held to compare.
+   */
+  changed?: AbilityChange | null;
+}
+
+/** What changed in an ability's Riot data between two stored versions. */
+export interface AbilityChange {
+  /** The Data Dragon version compared against (the champion's previous stored one). */
+  since: string;
+  text: boolean;
+  cooldown: boolean;
+  cost: boolean;
+}
+
+/**
+ * A champion's own Data Dragon facts (rules format 4): its resource (`partype`), Riot's classes
+ * (`tags`) and its base stats with their growth per level (`stats`, the fields Data Dragon gives,
+ * each a number). Which of them the page shows, and how, is ./stats.ts's rule.
+ */
+export interface DdragonChampionFacts {
+  partype: string;
+  tags: string[];
+  stats: Record<string, number>;
+  /** The previous stored version where Riot's base stats differed from these (the sync compares them); null or absent when they did not, or none was held. */
+  statsChangedSince?: string | null;
 }
 
 export interface DdragonChampionAbilities {
@@ -50,9 +88,11 @@ export interface DdragonChampionAbilities {
   /**
    * Riot's own tips for the champion (Data Dragon `allytips` and `enemytips`), verbatim. Stored by
    * the sync since rules format 3; no page shows them since Matchup Intel was retired (23 Nov 2026,
-   * docs/CHAMPION_LOOKUP.md, "What is stored and not shown"). Absent on a record stored under format 2.
+   * docs/CHAMPION_INTEL.md, "What is stored and not shown"). Absent on a record stored under format 2.
    */
   tips?: { ally: string[]; enemy: string[] };
+  /** The champion's resource, classes and base stats (rules format 4); absent on an older record. */
+  facts?: DdragonChampionFacts | null;
 }
 
 /** A champion as the selector offers it: Data Dragon's id, its name and title, its portrait. */

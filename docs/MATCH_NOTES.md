@@ -26,6 +26,18 @@ Runes**, `src/components/match-history/participant-panels.tsx`), for whichever p
 with sales and completed items marked where the timeline and Data Dragon support them. The notes and
 the gold curve stay removed.
 
+**24 Nov 2026 (the owner's brief, Release 17):** the post-game view was redrawn as one integrated
+screen with nothing in it scrolling (docs/DESIGN_SYSTEM.md §1, "The post-game view"), and the
+remaining automated commentary left the default view: the written why under the player's name
+("Stood out: …", "Held back by …") and the trend word with its sentence ("Steady: Held much the same
+level throughout."). Their rules stay in `src/domain/performance-score.ts` (`reasonText`, `trendOf`,
+tested), unused by the interface, should the owner ask for them again. The comparison of two players
+(the select, the table and the chart's second line), the team averages and the ten score tiles, the
+build path's legend and the grey notes under the scoreboard went with them; the figures that served
+supports and tanks moved from a sentence into a grid of three groups. After the release's UX review,
+Build Path | Skill Order | Runes is sized per game (the taller of the skill grid and the rune page),
+and a game without a timeline opens on Runes with the other two disabled and the reason beside them.
+
 The Production check asserts the removed sections stay gone (`scripts/post-game-facts.mjs`,
 `REMOVED_WORDS`; docs/LIVE_VALIDATION.md). The rules as they last stood are in the repository's
 history, in this file before 23 Nov 2026, should the owner ask for any of them again.

@@ -73,7 +73,7 @@ test("a member's own card shows their whole name, whatever else the card carries
   await expect(page.getByText("Social links saved.")).toBeVisible();
   await page.goto("/overview");
   await page.getByTestId("customise-card").first().click();
-  await page.getByTestId("studio-step-identity").click();
+  await page.getByTestId("studio-tab-identity").click();
   await page.getByTestId("tagline-input").fill("Top lane or no lane");
   await page.getByRole("radiogroup", { name: "Emblem" }).locator("[data-value=star]").click();
   await page.getByTestId("save-card-style").click();

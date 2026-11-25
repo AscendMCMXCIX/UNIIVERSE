@@ -471,7 +471,7 @@ function PairingGames({ id, me, them, card, isOwn, data, onMatch }: { id: string
       )}
       <Link href={lookupHref(them.id)} prefetch={false} className="inline-flex items-center gap-1.5 self-start text-xs font-medium text-accent hover:underline pointer-coarse:min-h-11" data-testid="champion-preview-lookup">
         <ScanSearch className="h-3.5 w-3.5" aria-hidden />
-        {them.name}&apos;s abilities in Champion Lookup →
+        {them.name}&apos;s abilities in Champion Intel →
       </Link>
     </div>
   );

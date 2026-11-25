@@ -67,3 +67,80 @@ sizes, row heights and where the columns fall.
 - **Leaderboards' page:** it waits for the model's approval and the production audit
   (`data-audit` → `leaderboardSamples`, which arrives with #177).
 - **Matchups and Encounters:** they keep the match window (see Decisions).
+
+## 5. Release 17: one family of selection controls, and less to read (24 Nov 2026)
+
+The owner's brief of 24 Nov 2026 (§9, §10) asked for the boxed segmented control to go site-wide
+and for a focused audit of permanent explanatory text outside the opened game and the match card.
+
+### Controls
+
+- **Segmented choices** (`segmentedGroupClass`, `segmentClass`, `RoleSegmented`): words, the chosen
+  one semibold in `fg` over a 2px accent underline drawn inside its own box; no outline or fill round
+  the group, no fill or ring round the chosen one; 36px with a mouse, 44px on touch. A group that
+  outgrows its line wraps instead of scrolling sideways. **Views** (`SubTabs`, the pinned row's
+  compact tabs) take the same mark at 14px with icons; the phone's track is gone. **Section tabs**
+  (`TabBar`) keep their gradient bar over the row's hairline: the strongest of the three.
+- **Chips** stay controls (round outline, accent edge and wash while on); fields, selects and toolbar
+  buttons keep their 3:1 edge (WCAG 1.4.11). docs/DESIGN_SYSTEM.md §5, "Text-led controls".
+- **Hand-made boxes replaced:** the champion grid's role filter (the Lookup's and Card Studio's
+  picker), the profile editor's role picker, the setup role chips (`ToggleChip`), the onboarding
+  preview's steps and account type, Encounters' minimum and sort in the phone's sheet (single
+  choices: segments, not chips), the Leaderboards and Settings section indexes (in-page navigation:
+  underlined like views, chips before; Settings' list from md too, a filled entry until the review of
+  25 Nov 2026), Resources' counts (plain figures). The first-role choice is
+  an action, so outline buttons. Admin Previews' two groups sit 24px apart and Rotate and Reset are
+  outline buttons, so words of one group never read as the next's.
+- **Left to other Release 17 lanes:** Card Studio's own choices and the haste presets (both
+  rebuilt or removed there; `segmented-use.test.ts` lists them as optional exceptions until then).
+- **Guards:** `src/app/segmented-use.test.ts`, `e2e/shared-controls.spec.ts`.
+
+### The noise audit
+
+Walked in Player Mode and Admin Mode on the demo at 1440 × 900 and 390 × 844, listing every
+permanent sentence of 45 characters or more outside tips (a script over the visible text of `main`).
+
+| Where | Before | Now | Why |
+|---|---|---|---|
+| Resources | "Useful League of Legends sites: news and patch notes, statistics and builds, ARAM, Arena and esports. Each opens in a new tab." | no description | the index under the search names the sections; every link shows ↗ and reads out "(opens in a new tab)" |
+| Settings (both modes) | "Your picture, display name, username and password." | no description | the account card and the index (Name, Password, This device) say it |
+| Admin Dashboard | "What needs you, then the platform at a glance." | no description | described the layout the page shows |
+| Admin Previews | "390 × 844 px. The page inside works as for a real visitor; anything typed or chosen stays here." | "390 × 844 px" | repeated the page's description and the frame's "Preview · nothing is saved" badge |
+| Encounters | "Grey win rates come from fewer than 5 games with a result: a small sample." under the list | removed | the ⓘ by the scope line already says "Grey: fewer than 5 games" |
+| Settings → Sign out of other devices | "Signed in somewhere you no longer use? Sign out everywhere else; this device stays signed in." | "This device stays signed in." | the button names the action; the consequence stays |
+| Riot Accounts' ⓘ | "…; the others follow in the order set. Each adds its games and mastery, counting a shared game once." | "The Main account sets the profile's rank. Mastery adds up too, and a game two accounts share counts once." | the lead line beside it already says the order and that every account adds its games |
+| Admin → Branding → Background visibility | three clauses, 41 words | 28 words | "for every member" and the panels' backgrounds were implied by the control |
+| Admin → Branding → Images | the same 45-word upload paragraph under each of the three slots | once under "Images" (20 MB each, under 5 MB keeps the first visit quick, animated GIFs and the first frame); under each slot its formats and size in pixels | the review of 25 Nov 2026; the limits are kept, said once; what differs per slot stays with the slot |
+| Champion Intel → the passive's opened row | "Riot's data gives passives no cooldown." under the row's "No cooldown in Riot's data" | removed | the same fact twice (the review of 25 Nov 2026) |
+
+Kept, and why:
+
+- **Data coverage and honesty:** scope lines ("All champions · all roles · linked account · Season
+  2026 · All supported games", the pools' "Figures: games in that role · …", Leaderboards' "Latest 20
+  games from the last 60 days · …", "Not enough recent games · 10 needed…"); Health's "Checked as the
+  page loaded; Healthy only with evidence" and Data's "Answered from what has actually been collected";
+  Team Matches' "Ranked Solo/Duo allows parties of two at most, so not all of them queued together"
+  (an inference, said as one).
+- **Limitations:** "Riot data is not available on the server yet…" (Riot Accounts), Health's missing
+  key and temporary database lines.
+- **Consequences and permissions:** the password panel's "changing it signs out your other devices",
+  Access levels' descriptions, the field hints (what a name is shown as, a username not being
+  case-sensitive), the picture's formats and Branding's upload limits.
+- **Privacy:** Settings' "What this browser remembers… never sent to the server" and its device rows,
+  the Audit Logs' "Passwords and keys are never recorded", the Personal data page's procedure.
+- **Admin people's special rows** (a pre-profile account, an unclaimed profile, the Production
+  check's account): each says what the row is and what acting on it does.
+
+### Page heights (the demo, before → after)
+
+| Page | 1440 × 900 | 390 × 844 |
+|---|---|---|
+| Settings (Player and Admin Mode) | 1167 → 1115 | 1882 → 1862 |
+| Admin → Branding | 1653 → 1633 | 3454 → 3434 |
+| Admin → Previews | 1158 → 1158 | 1161 → 1121 |
+| Encounters | fits (900) | 970 → 934 |
+| Resources | fits (900) | 1467 → 1465 |
+| Admin Dashboard | fits (900) | 844 → 844 (its description was already left out on phones) |
+
+The segmented groups keep their height (36px with a mouse, the boxed group's 36px; 44px on touch),
+so no other page moved: every other page of the walk measured the same before and after at both sizes.

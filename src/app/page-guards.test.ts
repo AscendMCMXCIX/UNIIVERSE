@@ -21,7 +21,7 @@ const GUARD = "requirePageAccess(";
 const EXEMPT: Record<string, { reason: string; redirectOnly: boolean }> = {
   "(app)/no-access/page.tsx": { reason: "where a refused page sends you: shows only the links this session may open", redirectOnly: false },
   "(app)/overview/matchups/page.tsx": { reason: "only redirects (Matchups moved into All Champions)", redirectOnly: true },
-  "(app)/resources/matchups/page.tsx": { reason: "only redirects (Matchup Intel became Champion Lookup, which checks access itself)", redirectOnly: true },
+  "(app)/resources/matchups/page.tsx": { reason: "only redirects (Matchup Intel became Champion Intel, which checks access itself)", redirectOnly: true },
   "(app)/players/[id]/edit/page.tsx": { reason: "only redirects (editing moved onto the profile)", redirectOnly: true },
   "(app)/players/[id]/matchups/page.tsx": { reason: "only redirects (Matchups moved into All Champions)", redirectOnly: true },
   "(app)/players/[id]/stats/page.tsx": { reason: "only redirects (statistics moved onto the profile)", redirectOnly: true },

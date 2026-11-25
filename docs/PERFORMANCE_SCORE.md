@@ -5,8 +5,9 @@ and an ACE (Release 16, at the owner's request of 23 Nov 2026). The model is UNI
 it borrows the experience of a 0–10 match rating, never another site's name, brand or numbers, and
 it is never presented as anyone else's rating. Its code is `src/domain/performance-score.ts`
 (pure and deterministic); its tests, with the worked examples below, are
-`src/domain/performance-score.test.ts`; the post-game view reads it through
-`src/components/match-history/performance-inputs.ts`.
+`src/domain/performance-score.test.ts`; the post-game view and Match History's cards read it through
+`src/domain/performance-inputs.ts` (moved there from `src/components/match-history/` in Release 17,
+which re-exports it).
 
 ## What it is, and is not
 
@@ -114,7 +115,7 @@ row.
 - **Game modes.** ARAM (queues 450, 720, 2400 and the older 100) has no lanes, farm or vision in its
   weights, and its timeline steps three minutes. Every other mode is read as Summoner's Rift. A
   player whose position is not recorded (an older record, a mode without positions) gets the
-  role-neutral row, and the panel says so ("Position not recorded"). Arena and other modes without
+  role-neutral row, and the score's (i) says so ("Position not recorded"). Arena and other modes without
   two teams have no score.
 - **A removed player** (personal data erased) is not scored and is not part of the comparison; the
   team's kills still count theirs, from the record's team total.
@@ -126,6 +127,65 @@ All scored players are ranked by the unrounded weighted mean (ties by their plac
 highest score. **Why** names at most two components that lifted the score most and the one that held
 it back most, each only beyond ±0.35 (its share of the weighted mean, in words: "Stood out: strong
 vision, high kill participation. Held back by many deaths.").
+
+## Where it shows
+
+- **The opened game** (Release 16): every player's score, place, MVP and ACE on the scoreboard, and
+  the inspected player's score, why and the score through the game. Computed in the browser from the
+  two answers the game has loaded: `gameScoresOf(getMatchDetail's view, getMatchTimeline's view)`.
+- **The collapsed Match History card** (Release 17, the owner's brief of 24 Nov 2026, §3): the card's
+  player's score and place before the game is opened, "3.5 · 9th", with MVP in the emphasis colour or
+  ACE ringed after it (the scoreboard's marks). Quiet: the smallest text size, the score in the body
+  colour and the place in the secondary grey; its words for a screen reader, and in the card's label,
+  are "Performance score 3.5, 9th of 10, MVP". Where it sits: under the K/D/A's ratio on a phone's and
+  a two-row card (lists under 50rem), with the build on a wide card (beside it while the build keeps
+  the teams' place, 50–61rem; under it from 61rem). Encounters' list of one player's games
+  (`?met=`) is Match History's list and has the same cards. Team → Matches does not show it (its
+  cards are a game's members, not one player's game; the brief asked for Match History).
+
+### One calculation, never the card's own
+
+The card's score is the opened game's, computed on the server when the list is read, through the
+same functions (`src/server/players/match-history.ts`, `cardPerformance`):
+
+- the record is mapped by `recordTeamsOf` and `scoreFiguresOf`, which `getMatchDetail` uses for the
+  scoreboard (the players' figures, places, positions, lane opponents, team kills and results, the
+  profile's team first);
+- the timeline by `framesGoldOf` and `framesBySeat` (`src/server/accounts/match-timeline.ts`), which
+  `getMatchTimeline` uses for every player's frames and lane, including the check that drops a
+  timeline contradicting its record (`goldContradictsRecord`); `scoreTimelineOf` gives what the final
+  score reads of them;
+- and both are scored by `finalScoresOf` (`src/domain/performance-inputs.ts`), which is
+  `gameScoresOf`'s final scores without the score through the game.
+
+The timeline's only part in the final score is the lane (gold and experience against the lane
+opponent at 10:00 and 15:00). So the list reads only that, for the page's Summoner's Rift games with
+a lane opponent: one query, trimmed in the database to the frames' times and each player's gold and
+experience by place in the record (no PUUID, CS, positions, purchases or events;
+`loadScoreTimelines`). An ARAM game, or a game without a lane opponent, reads no timeline (Match
+History lists Summoner's Rift queues only). `tests/db/card-score.test.ts` compares every card with
+the opened game on stored games of every kind below and on every first-page card of the demo's
+players; `e2e/match-score.spec.ts` opens each game of the first page and compares its scoreboard
+row with the card.
+
+### When the card shows no score
+
+- **The timeline is not stored yet** (a Summoner's Rift game with a lane opponent, and Riot access
+  configured): opening the game fetches the timeline from Riot first and its score includes the lane,
+  which the card cannot know. The card shows nothing rather than a score without the lane, and its
+  label says "performance score once the game's timeline is stored". The hourly timeline backfill
+  stores the linked players' lane games' timelines (newest first), and opening the game stores it at
+  once, so this is a short wait for a new game. The same holds for a timeline kept before the kills
+  and objectives (29 Oct 2026) whose frames are missing: opening it fills them. One kept with its
+  frames is final: fetched again, its frames stay as they are (`completedTimeline`).
+- **Without Riot access** (the demo, a local build) nothing is ever fetched: the opened game scores
+  what is stored, and so does the card.
+- **A timeline Riot no longer provides** is final: both score the game without the lane.
+- **No stored record, or the card's player removed from it** (personal data erased): no score, as in
+  the opened game. A game with another player removed is scored out of nine, as the opened game does.
+
+Nothing is drawn for a card without a score: a placeholder would sit beside the LP's own dash on a
+phone and say less than the label does, and the case is brief.
 
 ## Worked examples (the tests)
 
@@ -209,7 +269,10 @@ before with a dotted line for that reason. An ordinary game played the same thro
 record (`goldContradictsRecord`), or whose frames have a gap, shows its final scores and says the
 score through the game is not available.
 
-**The trend word** (`trendOf`, `TREND_RULES`, `TREND_SENTENCES`): one word and its sentence. Since
+**The trend word** (`trendOf`, `TREND_RULES`, `TREND_SENTENCES`): one word and its sentence. Not
+shown since the owner's brief of 24 Nov 2026 (the post-game view no longer writes a narrative: the
+score, the chart, the lane and the scoreboard speak for themselves); the rules stay in the domain,
+tested, should the owner ask for them again. Since
 v3 it reads the points' **undamped** weighted means (`TimelinePoint.raw`, z units, no result
 step), not the chart's damped scores: in v2 the damping pulled every point toward 5 while the rules
 still used 0–10 thresholds, so nearly every player read "Steady" (all 20 in the demo's two timeline
@@ -237,14 +300,25 @@ carry (every kill after 20:00) reads "Resilient", "Rising" or "Strong finish"; a
 behind reads "Fading"; an early stomp then a throw is never "Steady" or "Rising"; a strong game
 played the same throughout is never called "Rising" or "Fading" by the damping.
 
-**The chart** (v3): 104px tall on a desktop (96px on a phone, behind its fold), its axis fitted to
-the data (`axisRange`: the lowest and highest scores shown and 5, half a point beyond, at least 3
-apart, whole numbers within 0–10), 5 always a dashed reference line; the dotted segment into the end
-is named in the legend ("final figures").
+**The chart** (24 Nov 2026): one line, the player inspected, 88px tall beside a desktop's
+scoreboard and 64px elsewhere (a tablet's grid, a phone's Player page), in an area of one height
+whoever is inspected; its axis fitted to the data (`axisRange`: the lowest and highest scores shown
+and 5, half a point beyond, at least 3 apart, whole numbers within 0–10), 5 always a dashed reference
+line. The dotted segment into the end is explained in the chart's one (i) ("Each point scores what had
+happened by then; the end is the final score, from the whole record"). The second, compared player
+(a dashed line, its legend and the comparison table) was removed with the comparison select at the
+owner's request (24 Nov 2026).
 
-**Excellent** (`EXCELLENT_AT`): a score of 8.0 or more is called "Excellent" beside it; no other band
-is named. **Each team's mean** (`teamAverages`): the mean of its scored players' scores, shown on one
-split bar in the scoreboard's order, each team labelled with its side and result.
+**How the view shows the score** (24 Nov 2026, the owner's brief §3 and §6): each scoreboard row ends
+with the player's score over its place (1st … 10th in quiet text, MVP and ACE as chips); the player
+inspected has theirs beside their loadout, the score with MVP or ACE over "3rd of 10" and one (i) that
+says how it is worked out ("Compared within this game: each figure against the role's typical figure,
+then against the other players and the lane opponent. 0–10; 5 is average."; a player without a
+recorded position gets the neutral wording). Removed from the view on that date, the code kept where
+it is analytical: the written why (`reasonText`) and the trend word (`trendOf`), "Excellent" from 8.0
+(`EXCELLENT_AT`), each team's mean on a split bar (`teamAverages`) and the ten score tiles (the
+scoreboard already carries each player's score and place). The collapsed card shows the same score
+and place (lane C of Release 17, docs/DESIGN_SYSTEM.md).
 
 ## Limitations
 

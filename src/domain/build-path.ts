@@ -109,3 +109,16 @@ export function itemKindsOf(items: Record<string, unknown>): ItemKinds {
   }
   return { done: done.sort((a, b) => a - b), minor: minor.sort((a, b) => a - b) };
 }
+
+export type BuildItemKind = "done" | "part" | "minor" | "sell";
+
+/**
+ * How the build path draws one event (a presentation helper): a sale is "sell" always; a purchase
+ * is a completed item ("done"), a consumable or ward ("minor") or a component ("part") only where
+ * the item lists are known (`kinds`), else null and nothing is marked rather than guessed.
+ */
+export function buildItemKind(x: { kind: BuildEventKind; done: boolean; minor: boolean }, kinds: boolean): BuildItemKind | null {
+  if (x.kind === "sell") return "sell";
+  if (!kinds) return null;
+  return x.done ? "done" : x.minor ? "minor" : "part";
+}

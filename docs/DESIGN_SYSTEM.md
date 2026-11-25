@@ -42,57 +42,140 @@ decorative chrome.
   - a compact first screen of opaque panels in a clear order of importance;
   - a single `panel-featured` lead card;
   - quiet labels and strong figures.
-- **Champion Lookup** (the owner's request of 23 Nov 2026, in Matchup Intel's place) is the
-  single-screen reference, read in a glance on a second monitor: one panel at `--content-max` with
-  the champion, the haste choice and its five abilities, the ranks as columns where a row has room
-  for them. Any champion at any haste fits one viewport at 1440 × 900 and 1920 × 1080; nothing in it
-  is clipped or scrolls inside it, so a larger text size reflows and scrolls the page instead. Colour
-  is kept for meaning: the cooldown at the chosen haste in the main weight with its label in
-  `accent`, the base beside it quieter, the special cases in `fg-muted` words, never a state colour;
-  Riot's descriptions one press away (Descriptions), never cut (docs/CHAMPION_LOOKUP.md).
+- **Champion Intel** (Champion Lookup, the owner's request of 23 Nov 2026 in Matchup Intel's place,
+  renamed and extended on 24 Nov 2026) is the reference read in a glance on a second monitor: one
+  panel per champion (one, or two side by side from a 56rem page, one at a time under a segmented
+  switcher narrower), each a single surface: a 70px header with the champion's splash art faint
+  behind its right side (the pool rows' convention), the name that opens the window of every
+  champion, and one compact haste field; the key mechanics as quiet label-caps groups with the
+  abilities' keys as small key chips; base statistics in a row Fold; the five abilities each a row
+  Fold whose summary is the quick reference (icon, key, name, cost, cooldowns per rank as columns
+  where the row has room). No box inside the panel, no badge, no decorative control. The header, the
+  haste and the five folded rows fit one viewport from 1280 × 720, single and dual; nothing in it
+  scrolls inside it. Colour is kept for meaning: the cooldown at the chosen haste in the main weight
+  with its label in `accent`, the base quieter, the special cases in `fg-muted` words, the words that
+  name a mechanic in Riot's description underlined in `accent` (and listed, never colour alone)
+  (docs/CHAMPION_INTEL.md).
 - **Match History** is a finished, successful experience. Do not restyle it for novelty. Change it
   only for a bug, an accessibility fix or a product decision.
-  - **The post-game view (the owner's directive of 19 Nov 2026, §5: the product decision this rule
-    asks for).** An open game is one view without subtabs (`post-game.tsx`): the loadout as the
-    client draws it (a 72px portrait with its level, spells and runes two by two, the six items two
-    rows of three with the trinket beside the first, in inset slots), the rune page on one line with
-    the stat shards where stored (icons only, neutral names, until OD7), six figure tiles with each of
-    the player's figures once, the lane by role in a tile like the figures (against the lane opponent
-    at 10:00, 15:00 and the end; a game whose timeline gives no 10:00 or 15:00 shows the end alone
-    and one quiet line saying why, never columns of dashes) and a compact scoreboard of 37px rows;
-    its patch by the public name (`publicPatchName`: "Patch 26.20"). The open card folds into a 50px
-    header with Previous, Next and Close, and a sticky footer repeats them, one set at a time: while
-    the card's own are on screen the footer keeps its place and shows nothing (Release 13's review,
-    finding 10; Team → Matches' cards have no steps of their own, so their footer always shows). The card's D8
-    density is unchanged. The written notes (Went well, Went wrong, Focus next) and the two folds
-    (Gold over the game, Build and skill order) were removed from the view on 23 Nov 2026, at the
-    owner's request (docs/MATCH_NOTES.md); the Production check asserts the notes and the gold curve
-    stay gone. **Release 16 (the owner's request of 23 Nov 2026):** any of the ten players is
-    inspected from the scoreboard (the row is its one button, its name still the player's link; the
-    row inspected is `surface-3` with an inset accent ring and `aria-current`; ↑ ↓ move between the
-    rows; never in the address, so Back still closes the game); above the lane, three segmented
-    headings, **Build Path | Skill Order | Runes** (`segmentedGroupClass`, radios: the view still
-    has no tabs), one shown at a time; each row ends with the player's performance score, its place
-    as a chip (1st … 10th), the winning team's best as MVP (a violet chip) and the losing team's as ACE (a ringed one), never in the sides' blue and red,
-    in words (docs/PERFORMANCE_SCORE.md); under the scoreboard the performance panel: the score, its
-    place, "Excellent" from 8.0, the timeline's one trend word with its sentence and why in a
-    sentence, each team's mean on one split bar and the ten scores as a strip of small tiles (a tile
-    inspects its player), both in the scoreboard's order with each team in its side's colour and
-    labelled with its side and result in words ("Blue · Defeat 5.5"), never a result told by the
-    side colours; in a post-game scoreboard 30–36rem wide (a desktop with the sidebar open) the champion's name is
-    never cut, the rank takes the match card's short form ("E2", the whole rank in its title and
-    for screen readers) and the lane opponent's mark is a crossed-swords icon with its words for
-    screen readers ("Lane" from 36rem, "Lane opponent" from 40rem); Build Path | Skill Order | Runes
-    and the score's ten tiles are one tab stop each (arrow keys move within); on a phone each scoreboard row is three lines (the name, K/D/A and score; the
-    build and CS; the rank, whole) and under 16rem (200% text) everything in it stacks, so nothing
-    runs past the screen at any width or text size; on a phone (its window held near two screens:
-    2.15–2.27 for the demo's first three games, the overlay kit's ceiling 2.32 since Release 16) the support
-    figures and the score's why, tiles and chart sit behind one row fold each, the score itself, its
-    place and the "Compare with" select staying in view; the score through the game (a line in the
-    brand gradient, a second player dashed in `fg-muted` with a legend, its axis fitted to the data (at least 3 points, 5 always in view and dashed), 104px tall on a desktop, the end
-    joined by a dotted segment, a table for screen readers) and a "Compare with" select. Stacked
-    (under 60rem) a "Show …'s game" link under the scoreboard takes the reader up to the player
-    inspected; nothing scrolls by itself.
+  - **The post-game view (the owner's directive of 19 Nov 2026, §5; redrawn at the owner's brief of
+    24 Nov 2026, §1–§8).** An open game is one integrated post-game screen (`post-game.tsx`), the same
+    under a card and in the match window, with nothing in it scrolling: no sideways build path, no
+    scrolling panel or scoreboard, no nested scroll container, no visible scrollbar and nothing cut
+    off by an overflow (e2e/match-breakdown.spec.ts and the Production check count scroll containers
+    and clipped elements inside it). Fewer boxes: one surface for the scoreboard, everything else on
+    the open card's own background, separated by space, never a card per figure.
+    - **Layout** (the view's own width, `@container/pg`): from 56rem two columns, the player
+      inspected (22rem; 24rem from 64rem, 27rem from 80rem) beside the scoreboard and the score
+      through the game; 40–56rem (a tablet) one grid: the player beside Build Path | Skill Order |
+      Runes and the lane, the score through the game under those, the scoreboard across; under 40rem
+      one column. Every part above the scoreboard or beside it keeps its height whoever is inspected
+      (fixed lines, truncation, reserved rows: the loadout row 56px, the six figures, the other
+      figures' grid with every row always drawn, the panels' area, the lane's four rows), so the rows
+      never move when another player is chosen (asserted ±1px).
+    - **Fit** (the owner's brief, §2): on a desktop at 100% text the card (with Previous, Next and
+      Close) and its game fit the room under the pinned bars at 1280 × 720, 1366 × 768, 1440 × 900,
+      1920 × 1080, 2560 × 1440 and 3440 × 1440, the sidebar open or collapsed. Measured on the demo
+      (MID's third game, with a timeline, the card's top to the game's end, against the window's
+      height less the pinned tabs, 52px; 58px from 1920): before (`main` 2d6b1718) 1436px at
+      1280 × 720 (room 668: the two columns started at 60rem, so the sidebar open stacked them) and
+      843px at 1440 × 900 (room 848); after, 651px at 1280 × 720, 1366 × 768 and 1440 × 900, the
+      sidebar open or collapsed (rooms 668, 716, 848), 721px at 1920 × 1080 (room 1022), 837px at
+      2560 × 1440 (1373) and 893px at 3440 × 1440 (1368); a tablet (768 × 1024, room 915) 870px. Every
+      role's six newest demo games stay within the room at 1280 × 720 (the largest 663px, a possible
+      duo's line under its team's band). A game opened in the upper part of the screen whose end runs below it is moved up
+      just enough to show all of it (`InlineMatch`), with motion on or reduced: it is measured once
+      the region has grown open (the Unfold's `data-settled`) and again as the timeline, the groups
+      and the ranks arrive in its first 3 seconds, until the reader scrolls or presses a key. Measured
+      once while it was still growing, it left the game's end 155–237px below the fold with motion on
+      (the review of Release 17, finding 2); after, the end is at or above the window's foot at
+      1280 × 720, 1366 × 768, 1440 × 900, 1920 × 1080, 2560 × 1440 and 3440 × 1440, motion on and off
+      (e2e/match-breakdown.spec.ts runs it with motion on). After Previous or Next the new card is
+      held where the old one's header was instead (no move into view; `holdInPlace`, which also
+      ends once the page is scrolled far by anything else: run on for its 30 frames, it pulled a
+      scroll made 400ms after a step back by 612px). After the panels' area was sized per game
+      (below) MID's third game is 648px at 1280–1440, 716px at 1920, 830px at 2560, 886px at 3440 and
+      867px on the tablet (3–8px less). The sticky footer of Previous, Next and Close is
+      drawn only where the game is taller than the room (large text, a short window): a game that
+      fits has its card's steps in view with all of it. A phone's window shows one of three pages
+      at a time, **Player | Build | Scoreboard** (the shared segmented control; a window under 481px
+      tall too), each within the screen at 100% text at 375 × 667, 390 × 844 (with an iPhone's
+      insets) and 430 × 932; a tap on a scoreboard row inspects that player and shows their page.
+      At 150% and 200% text the view reflows and the page (or the window's body) scrolls
+      vertically, never sideways and never inside the view. On a phone at 200% (the review of Release
+      17, finding 1) the loadout wraps (the items, then the score, on lines of their own under 19rem),
+      the six figures go two across and the other figures' groups one under another under 19rem, the
+      runes' two paths one under the other under 17rem, and labels wrap rather than end in an
+      ellipsis (the scoreboard's names keep theirs, with the full name as their title); the title
+      wraps rather than lose the champion; the window's footer is one row, Previous and Next 44px at
+      any text size (their words for screen readers under a 17rem row) with "Game n of m" between.
+      Measured at 390 × 844: the body was 580px wide in 388 and the footer 225–273px with the steps
+      stacked; after, nothing wider than the body and the footer 93px (375 × 667 the same). At 100%
+      text the pages are unchanged: the window's body 543, 720 and 808px at 375 × 667, 390 × 844 and
+      430 × 932.
+    - **The player inspected**: one line, their name (the collapsed card's name: a team member's
+      profile name, else the Riot name), champion and role, with "Back to …" while another player is
+      inspected; the loadout as the client draws it (a 56px portrait with its level, spells and runes
+      two by two, the six items two rows of three with the trinket beside the first, in inset
+      slots) with the performance score beside it in two fixed lines (the score with MVP or ACE, then
+      "3rd of 10" and one (i) that says how the score is worked out) and the line an icon names
+      itself in; six figures in aligned columns (K/D/A, CS, gold, damage, vision, KP; each of the
+      player's figures once in the view); the other recorded figures as a grid of three groups of
+      aligned rows, **Combat** (taken, mitigated, CC), **Utility** (heal + shield, wards cleared,
+      control wards) and **Objectives** (damage, turrets), ordered by role (a support's utility first,
+      a jungler's objectives, everyone else's combat), "—" where the record lacks a figure and "0"
+      where it recorded none (`src/lib/format.ts` for every number). **Build Path | Skill Order |
+      Runes** (`segmentedGroupClass`, radios: the view still has no tabs) over one area of one height
+      for the game, sized per game rather than a constant (the review of Release 17, finding 3): the
+      skill grid and the rune page are laid out in one grid cell, the one not chosen invisible, so the
+      area is as tall as the taller of the two (109px at 1280–1440, 119px at 1920, 137px at 2560, 146px
+      at 3440; the constant area was 112px at 1440, 124px at 1920 and 154px at 3440), and the build
+      path is laid over it. Both have one
+      shape for every player, so inspecting another moves nothing. A one-row build path still leaves
+      the rest of the area empty (73px at 1440), the price of switching never moving the lane under
+      it. The build path is a wrapping timeline in
+      game order, each shop visit its items over its game time, a completed item ringed, a
+      consumable or ward smaller, a sold item faded with a minus (and each in words for screen
+      readers), one (i) in place of the legend; a path too long for the area is split into pages of
+      whole rows with page buttons under it (the same segmented control), every purchase in the page;
+      the skill grid alone (nothing written under it); the rune page two paths and the shards, icons
+      at one size per level. The lane by role in a table against the lane opponent at 10:00, 15:00
+      and the end, the bot lane's two against two as its own row; a game without a timeline shows
+      the end alone, never columns of dashes. Without a timeline (23 of 56 demo games), or for a
+      player missing from it, the panels open on Runes: Build Path and Skill Order are disabled, with
+      "Timeline not available for this game" once beside the control as their description, so no
+      band says "not available" over 96px of blank space.
+    - **The scoreboard** (`scoreboard.tsx`, `Scoreboard`): both teams as one component, the player's
+      team first, each team's band (its side and result in words, its kills, gold, towers, dragons
+      and barons) and five rows on one grid, so K/D/A, the build, CS over damage and the score over
+      its place sit at the same x on both teams; every row 32px (two lines) from a 30rem scoreboard,
+      two lines on a phone (the name, the K/D/A and the score; the build, the rank and CS with
+      damage; from 17.5rem to 21rem, a 320–360px phone, the score beside the K/D/A so the second
+      line has the row's width), everything wrapping whole under 17.5rem. The rank is text with its tier's crest, no
+      box (the match card's short form "E2" in a scoreboard 30–36rem wide, a clock for a rank read
+      away from the game); the lane opponent is marked by crossed swords ("Lane", "Lane opponent"
+      from 36rem and 40rem); "Met N×" is a quiet underlined link; a possible group is one line under
+      its team's band with its evidence fold, its rows marked by a coloured edge. The profile's own
+      player has the accent tint, the player inspected an inset accent ring (`aria-current`); the
+      row is its one button (↑ ↓ move between the rows), the name still the player's link. Under it
+      one quiet line: "Ranks" with its (i) ("Rank recorded near match time; older readings may
+      differ. Solo/Duo unless marked Flex.", or the Flex wording in a Flex game) and a check's state
+      when it is running or could not ask for everyone; "Possible groups" with its (i) ("Players
+      frequently seen together in earlier games. Not confirmed premades.") only where a side has
+      one; the date and patch, the bookmark and OP.GG. Under it the inspected player's score through
+      the game, one line (docs/PERFORMANCE_SCORE.md, "The chart").
+    - **Removed on 24 Nov 2026** (the owner's brief, §3–§7; the Production check asserts each stays
+      gone): the "Compare with" select, the comparison table and the chart's second line; the
+      written why and the trend word under the name (`reasonText` and `trendOf` stay in the domain);
+      "Excellent"; each team's mean on a split bar and the ten score tiles (the rows carry every
+      score and place); the build path's sideways row and its legend; the skill grid's sentence
+      ("Maxed Q → E", the points taken); the sentences under the scoreboard (the ranks' lead, "not
+      enough recorded history", "no other players to assess", "inferred from N games", the Clash and
+      not-assessed lines); the support figures' sentence; the phone's folds and the "Show …'s game"
+      link; the removed player's long sentence (now "Removed player · personal data erased"). The
+      notes and the gold curve stay removed (23 Nov 2026, docs/MATCH_NOTES.md). The open card's
+      header with Previous, Next and Close and the one history rule (Back closes the game, however
+      many games were stepped through) are unchanged.
   - **Density (owner decision D8, approved 8 Nov 2026, built 18 Nov):** denser cards that keep the
     statistics, champions, ranks, LP and every interaction readable. The card follows the list's
     own width (`@container/mh`), in three tiers:
@@ -108,6 +191,21 @@ decorative chrome.
       box (the role takes the next line when both do not fit), so even a 36rem list keeps "Nunu &
       Willump" whole;
     - **the wide card** (from 50rem), one row of about 100px, unchanged.
+  - **The performance score on the card (Release 17, 24 Nov 2026; docs/PERFORMANCE_SCORE.md, "Where
+    it shows"):** one small mark, `ScoreMark` (`components/match-history/score-mark.tsx`): "3.5 ·
+    9th" at the smallest text size (`text-2xs`), the score in `fg`, the separator in `fg-subtle` and
+    the place in `fg-muted`, then MVP in the emphasis colour (`accent-2`, filled and ringed) or ACE
+    ringed in `fg`, the looks of the scoreboard's `RankChip`; its words for a screen reader are
+    `scoreWords`' ("Performance score 3.5, 9th of 10, MVP"), also in the card's label (no native
+    title: how many were scored is said, not hovered). Exported for the scoreboard's use too (with `MVP_TONE` and `ACE_TONE`). Where it sits: a
+    line under the K/D/A's ratio on a phone's and a two-row card, the K/D/A and the ratio set
+    `leading-tight` there and a multikill under it drawn `dense` (no taller than its text), so a card
+    without a multikill keeps its height and one with a multikill grows about 5px (measured at 375,
+    390 and 768: 0px on cards without one, +5.2px with one); with the build on a wide card, beside it
+    while the build keeps the teams' 13rem (50–61rem) and under it from 61rem (beside the teams' five
+    lines), 0px at 1280 and 1440. At the end of the phone's result line it was tried and dropped: the
+    line wrapped on 13 of 95 demo cards at 375px, 27 at 360px and 66 at 320px. A card without a score
+    draws nothing (its label says why).
   - Read in the order drawn: a card's parts and the header's come in the page in the order they
     are drawn. A phone's card has its own copies of the result line (its first line) and of the
     build (beside the champion), placed where they are read; only one copy is ever displayed.
@@ -129,7 +227,8 @@ decorative chrome.
     ladder change, at their widest with both arrows too, on a 60rem list as well); from 78rem
     without a trend one line of text. Measured with demo Support (a trend, a streak and the ladder
     change) and the widest real values written in (e2e/match-history-layout.spec.ts).
-  - Encounters keeps its minimum and order in a phone's Filters sheet, as chips that count with
+  - Encounters keeps its minimum and order in a phone's Filters sheet, as segments (chips until
+    Release 17; one choice each, so not chips) that count with
     the filters and that its Reset puts back; from tablets up they stay in the list's toolbar and
     are the list's own (the filters' Reset neither counts nor changes them). Its column names pin
     under the section tabs.
@@ -218,7 +317,7 @@ The default brand blue (`#1fc3ff`) is saturated, and too much of it reads as a g
 It may appear only:
 
 - on the **current or selected item** of a group: the current page's icon, a selected tab's
-  indicator (with the gradient), a selected segment's ring, an active filter chip;
+  indicator (with the gradient), a chosen segment's or view's underline, an active filter chip;
 - on **primary actions** and inline **text links** (underlined in running text);
 - on the **focus ring** (`:focus-visible`);
 - as the first stop of the **brand gradient** (`from-accent to-accent-2`) on a few chosen marks:
@@ -284,7 +383,51 @@ page does and the keys still scroll its body (`letGoWhenPressed`): Chromium and 
 dialog itself at such a press, with or without a tabindex, and the keys then scrolled nothing.
 
 **Targets.** At least 24px everywhere and 44px on touch screens (STANDARDS.md): a segment is 44px
-there (filling its 44px group), an ⓘ's touch area 44px (S2b, 20 Nov 2026: 38px and 40px before).
+there (36px with a mouse, the height of a field beside it), an ⓘ's touch area 44px (S2b, 20 Nov 2026: 38px and 40px before).
+
+### Text-led controls (Release 17, 24 Nov 2026)
+
+The owner's brief §9 retired the boxed segmented control (an outlined, filled group round a
+ringed, filled selection) and the lit pill of a section's views. Every way of choosing one thing out
+of a few is now words, the chosen one marked by weight, colour and a short underline; three levels
+of one family, so they never compete:
+
+| Level | Component | Size | Chosen | At rest | Hover |
+|---|---|---|---|---|---|
+| Section tabs (primary) | `TabBar`, the phone's `ChromeTabs` | 44px, 14px medium, icons from sm; a hairline under the row | `fg` over a 2px bar in the brand gradient at the tab's foot | `fg-muted` | `fg`, a faint bar |
+| A section's views (secondary) | `SubTabs`, `compactTabClass` (the pinned row), the in-page indexes (Leaderboards', Settings') | 36px with a mouse, 44px on touch; 14px; icons | `fg` semibold, its icon `accent`, a 2px `accent` line 4px above its foot | `fg-muted` medium | `fg`, a faint `border-strong` line |
+| A choice in the page (a role, a side, a sort, a queue) | `segmentedGroupClass` + `segmentClass` (`size: "md"` for a list's main filter), `RoleSegmented` | 36px / 44px; 12px (14px with `md`) | `fg` semibold over the 2px `accent` line | `fg-muted` medium | `fg`, a faint line |
+
+- **No box:** no outline or fill round the group, no fill or ring round the chosen item, on any
+  screen (the phone's track under Match History's Games and Encounters went too). The underline is
+  drawn inside the item's own box (`choiceIndicatorClass`, `ui/segmented.tsx`), 4px above its foot,
+  as wide as its words, so it never reaches past the item or its row (`tabIndicatorClass`'s note:
+  a row that overflows by a pixel scrolls the other way too).
+- **Wrapping:** a segmented group whose words outgrow the line (a narrow sheet, 200% text) wraps
+  onto the next line; the boxed group scrolled sideways, which at 200% hid three of the phone
+  sheet's six roles with no sign of them. Resources' index keeps its sideways row on tablets
+  (`flex-nowrap`, a ScrollRow with its fading edge).
+- **Focus:** the 2px accent outline, drawn inside the item (`-outline-offset-2`), where a group that
+  scrolls sideways cannot clip it. **Disabled:** `fg-subtle` at 60%, no line, no hover.
+- **Keyboard and semantics unchanged:** radios with `aria-checked` in a `radiogroup`, toggles with
+  `aria-pressed`, links with `aria-current`; the arrow keys where a group had them.
+- **Counts** beside a role or a section are plain `fg-subtle` figures, not chips.
+- **Groups side by side** keep 24px between them (Admin Previews' page and screen size), so the
+  words of one never read as the next's; an action beside them is a button with an edge (Rotate,
+  Reset), not words.
+- **Chips are not tabs:** a filter that can be on beside others (`chipClass`: Players' Main lineup
+  and Archived, Team Matches' Bookmarked, the pinned row's `ToolbarChip`, a narrowed filter's
+  removable chip `FILTER_CHIP`) keeps a round `border` outline, lit while on with an `accent/60`
+  edge over an `accent/10` wash (`chipLookClass`), 36px with a mouse and 44px on touch, 12px.
+- **Fields stay fields:** a search, a `Select` and a toolbar button (Refine, Filters) keep their
+  `border-control` edge, which WCAG 1.4.11 asks of a field's boundary (3:1), at the segments'
+  height (36px with a mouse, 44px on touch) and type (14px), so a row of fields and segments lines up.
+- **Guards:** `src/app/segmented-use.test.ts` refuses a page's own boxed group (a fill, a 2px inset
+  and an outline in one class list) or boxed selection (an accent ring, `bg-accent/15`) outside
+  `src/components/ui`, with an allow-list of reasons (pictures chosen from a grid, dragged items,
+  the phone's bottom tab bar, badges); `e2e/shared-controls.spec.ts` checks the groups of Profile,
+  Match History, Encounters, Players, All Champions, Leaderboards, Champion Intel, Settings and
+  Admin Previews are flat and their chosen items underlined, at the three projects' widths.
 
 **Uppercase labels** keep one letter spacing, `tracking-label`, at every width: no width or container
 variant may change it (`design-tokens.test.ts`; the Team card's WIN RATE was 0.44px on a laptop and
@@ -319,7 +462,7 @@ One set of containers, chosen by what the content is, never by page. Each is one
 |---|---|---|---|---|---|
 | **Peek** | a quick look at one item from a list or a board (a team player; a Players row or a Leaderboards member, `player-peek.tsx` since 20 Nov 2026, the row's name still the profile's link; a game from a board; a champion of All Champions, since Release 16) | `peek.tsx`: `usePeek`, `Peek` | a row (click, tap, Enter); ↑/↓ or J/K and ‹ › switch | ✕, Escape, Back, the selected row again; not an outside click, except where the panel is its row's contextual detail (`closeOnOutsidePress`: All Champions) | `?player=` (and so on) on the current page: the one history rule |
 | **Unfold** | an item opened under its card, for items compared down a list (games) | `unfold.tsx`: `useUnfold`, `UnfoldRegion`, `UnfoldHeader` | the card | the card again, Escape, the pinned header's Close, Back | the one history rule |
-| **Task dialog** | work that needs full attention (editors, confirmations, pickers, Card Studio, Install) | `dialog.tsx`: `Dialog` with its `size` (every one states it, `TASK_DIALOG_REM`): `form` 30rem for forms and confirmations (`ConfirmDialog`, the account and job confirmations, Change Riot ID, Position your picture), `picker` 42rem for a choice among many or an editor with a table (Access, an access level); Card Studio alone 76rem (`DetailModal size="wide"`); Install and sign-in 30rem (`compact`, `form`); the champion picker 42rem (`standard`). Phones and short windows: docked to the bottom edge, or the whole screen | its button | Close, Escape, the backdrop | none |
+| **Task dialog** | work that needs full attention (editors, confirmations, pickers, Card Studio, Install) | `dialog.tsx`: `Dialog` with its `size` (every one states it, `TASK_DIALOG_REM`): `form` 30rem for forms and confirmations (`ConfirmDialog`, the account and job confirmations, Change Riot ID, Position your picture), `picker` 42rem for a choice among many or an editor with a table (Access, an access level); Card Studio alone `min(100% − 3rem, 100rem)` by `min(100% − 3rem, 64rem)` (`DetailModal size="full"`, Release 17: its live preview 45% of it, docs/PLAYER_CARD_STUDIO.md); Install and sign-in 30rem (`compact`, `form`); the champion picker 42rem (`standard`). Phones and short windows: docked to the bottom edge, or the whole screen | its button | Close, Escape, the backdrop | none |
 | **Phone window shell** | the window an item opens in on a touch phone or in a short window (a Peek's, a game's) | `preview-window.tsx`: `PreviewWindow` on `DetailModal` | the item | ✕, Escape, Back, a pull down on its header (or its bar) | the item's own (`?player=`, `?match=`) |
 | **Popover** | anchored choices (menus, filter dropdowns, the pinned row's Filters) | `popover.tsx`: `Popover` (a panel of fields: the Filters, 34rem, where previews open beside the list; a touch phone keeps the sheet); `menu.tsx` (a menu) | click, Enter, Space | an outside press, Escape (focus back on its button), the focus leaving it, Done, its button leaving the screen | none of its own; a choice replaces the query. The Filters (popover or sheet) have no history entry: one under a replaced query made Back, or a close while a choice loaded, restore the old address |
 | **Select** (a Popover) | one value from a short list in a toolbar or a form (game mode, season, minimum games, sort, a filter's status…) | `select.tsx`: `Select` (options as data) | click, Enter, Space, ↑/↓ | a choice, Escape, Tab, an outside press, a resize, its button leaving the screen | none; a choice calls `onValueChange`, which writes the address as the native select did |
@@ -338,7 +481,7 @@ UM.X2, X4; 20 Nov 2026):
   in place; at the top it opens again. Where the window scrolls as one (a small phone, FLOW_SHARE),
   the header scrolls away under the bar. It collapses only when the content would still scroll with
   it collapsed, so it never takes away the scroll that collapsed it. A plain title bar (Admin's
-  person window, Champion Lookup's All champions; Matchup Intel's picker and details until 23 Nov
+  person window, Champion Intel's All champions; Matchup Intel's picker and details until 23 Nov
   2026) collapses too (Release 10, 20 Nov 2026): its
   title on one line, cut short with an ellipsis where it would wrap (the whole title stays the
   window's name), its description for screen readers only, tighter padding; held sideways (a short
@@ -404,7 +547,8 @@ The review compared desktop and phone against the benchmark pages; these held wh
   picture is `bg-elevated` with a `border-strong` edge, accent only while the picture is pointed at
   or focused. A dropdown at rest carries `border-control` (Team Matches' "Played with" included).
 - **One look per kind of control:** a choice of a few (Most games | Best | Worst in a champion's
-  preview) is `segmentedGroupClass` and `segmentClass`, the chosen one ringed and semibold.
+  preview) is `segmentedGroupClass` and `segmentClass`, the chosen one semibold (ringed until
+  Release 17; underlined since: §5, "Text-led controls").
 - **One heading per profile tab:** Riot Accounts' title and lead line are its `SectionHeader`
   (20px, left to the tab on a phone), as All Champions and Season performance; the admin's person
   view keeps the panel's own header (`RiotAccountsPanel heading`).
@@ -588,8 +732,8 @@ navigation contract").
      beside it;
    - the collapse control under it. It is quieter than the pages: `fg-subtle`, normal weight, and
      its Ctrl \ hint appears over the row's end only while the row is pointed at or focused.
-2. **Pages:** My Profile, Team, Champion Lookup and Resources in Player Mode (Team stands for its
-   sections, the tabs at the top of its pages; Champion Lookup, with the magnifier (Matchup Intel's
+2. **Pages:** My Profile, Team, Champion Intel and Resources in Player Mode (Team stands for its
+   sections, the tabs at the top of its pages; Champion Intel, with the magnifier (Matchup Intel's
    place since 23 Nov 2026), and Resources, the Library, are one page each, with no tabs); Admin Mode's six sections. Folded
    to the rail, the four icons sit one 2.625rem step apart on its centre line, each named by its
    tooltip.
@@ -641,7 +785,7 @@ Below `lg` the frame follows how the screen is held (MOBILE.md, "Frames by postu
 decision of 8 Nov 2026, PR 2d), and exactly one `nav[aria-label=Primary]` is shown at a time. Every
 posture shows the same destinations as the sidebar, in its order, with its names and icons
 (navigation N1, 19 Nov 2026: `destinations()` in `src/lib/nav.ts`; `nav-parity.test.ts` holds the
-bars to it): My Profile, Team, Champion Lookup and Resources; in Admin Mode Dashboard, Users &
+bars to it): My Profile, Team, Champion Intel and Resources; in Admin Mode Dashboard, Users &
 Permissions, Platform Settings and System. Each bar names them by one label ladder, by its own width
 in rem: the whole names, then the short ones ("Profile", "Intel"; "Users", "Platform"; the rest of
 each name read out only, `data-name="rest"`), then the icons alone with the names read out.
@@ -717,8 +861,16 @@ With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shel
     - *The profile's header is one band on every section* from `sm` (the `band` variant: a short
       window or 40rem and up): the Overview's card takes the band's layout (the picture, the name with
       its tagline, then the roles, rank, lineup status and links on one line, Customise at the end),
-      74px like the other sections', so the section tabs never move on a click (UD.PO1: 66px at 1280,
-      86px at 2560 before). A phone held upright keeps the full card. Since the UX review of
+      the same height as the other sections', so the section tabs never move on a click (UD.PO1: 66px at 1280,
+      86px at 2560 before). Release 17 (the Card Studio overhaul) made the band taller on desktops (lg) in
+      windows taller than 480px: 6.5rem of content and a 5rem picture in a window 1000px tall or more,
+      at most 120px around a 96px picture (117px at 1920 × 1080, 82 before; 122px at 2560 × 1440 and
+      3440 × 1440, 95 and about 101 before), 5.25rem and a 72px picture in a shorter one, where the
+      one-screen Overview leaves no more room (86px at 1440 × 900, 95px at 1920 × 950). The cap keeps
+      Match History within its 1.35 screens on an ultrawide (1.353; 1.369 uncapped). Tablets keep the
+      74px band (106px took Encounters on an iPad past one screen) and held sideways it stays the 80px
+      band. The identity sits over a shade from the band's left edge (`CardArtLayer`'s `foot="band"`),
+      and the artwork's position can be the header's own (docs/PLAYER_CARD_STUDIO.md, "Artwork position"). A phone held upright keeps the full card. Since the UX review of
       Release 13 the other sections draw that same band (`ProfileHeader`'s one `header`): the same
       labelled Customise, off roles, queue and social links, so nothing in the header changes on a
       click; only the picture's editor stays on the Overview, and an upright phone carries the other
@@ -748,7 +900,7 @@ With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shel
     Since Release 11 (20 Nov 2026) a second test compares the components S5–S9 created, each opened
     as a member opens it: All Champions' preview (its panel, figures, an opponent, the foot line), the
     post-game view (an item and the loadout's name, a scoreboard K/D/A
-    and name), Champion Lookup (the champion's name, an ability's name, its Q's base cooldown and its
+    and name), Champion Intel (the champion's name, an ability's name, its Q's base cooldown and its
     cooldown at the haste; Matchup Intel's slots and tiles until 23 Nov 2026) and Admin's person view (the window, a section
     heading, the Riot accounts panel and a row). Its listed differences, each with its reason in the
     spec: the preview's surface, corners and edge (the Peek's docked panel on a desktop, beside
@@ -822,10 +974,15 @@ test):
   sections are in-page links under its scope (`SectionIndex`, `ui/section-index.tsx`: Leaderboards'
   "Season records · Multikills · Milestones", the sections below Recent form, on a one-column page,
   under 59rem: phones held either way and tablets; Settings
-  keeps its index in its account card: Name, Links and Password as chips on a phone and in a window
-  480px tall or less (the approved plan's look there) and a list from md in a taller window, the
-  section being read marked either way: a chosen chip on a phone, `surface-3` and semibold in the
-  list, a step above the `surface-2` of a pointed-at entry). At the page's top the first section is
+  keeps its index in its account card: Name, Links and Password as a row of words on a phone and in
+  a window 480px tall or less (chips until Release 17) and a list from md in a taller window, the
+  section being read marked either way: semibold and underlined in the accent, as a view's tab is;
+  the list's entries at the start of the card's column, each underline under its own words. The list
+  marked it with a filled `surface-3` entry, the sidebar's look, until the Release 17 review: it is
+  the page's table of contents, not the app's navigation, so the brief's §9 "no heavy filled
+  selection box" covers it). Leaderboards' index under its header is plain words, 24px tall with a
+  mouse and 44px on a touch screen, the link's own height (an invisible 44px area over a 24px link
+  until the Release 17 review). At the page's top the first section is
   the one being read, at its end the last, and a section jumped to from the index stays marked while
   it is at the window's top (G3-5: a short first panel put the next one's top above the window's
   upper third). Each is
@@ -842,7 +999,7 @@ test):
   the tab's page. The current section tab (Team's on tablets and desktops,
   Platform Settings' and a profile's everywhere, the phone's in the top bar included)
   and the frame's entry for the page shown (the sidebar's, a tablet's top bar's, the phone's account
-  screen's row: Champion Lookup's keeps its champion and haste) do the same, and keep the page as it is: its view and
+  screen's row: Champion Intel's keeps its champion and haste) do the same, and keep the page as it is: its view and
   filters stay (the link's own address leaves the query out, and following it used to bring back
   the defaults, Leaderboards' season back to the current one). A click with a modifier key or another button still opens a new tab or window, and leaves
   this page alone (`src/lib/back-to-top.ts`; `e2e/navigation-landings.spec.ts`).
@@ -852,9 +1009,9 @@ test):
   does every filter (Team Matches', Leaderboards' season, Players' Archived, Ranked progress's queue
   and account, and a mode's other seasons included), so Back leaves the page instead of stepping back
   through each choice. A page's views (`SubTabs`: Match History's Games and Encounters) stay
-  entries of their own, as each is a link with its own address. Champion Lookup's champion and
+  entries of their own, as each is a link with its own address. Champion Intel's champion and
   haste are the page's state, like a filter: a change replaces the entry, so Back leaves the page in
-  one step (docs/CHAMPION_LOOKUP.md, "Address"; Matchup Intel's pairs were entries of their own where
+  one step (docs/CHAMPION_INTEL.md, "Address"; Matchup Intel's pairs were entries of their own where
   the browser has the Navigation API, which the top bar's Back went past: `backSteps`). An
   account without a player profile never starts at, or goes Back to, an empty Profile: its home is
   its first other page.

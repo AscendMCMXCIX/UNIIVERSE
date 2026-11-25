@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
  * pages (each page still checks who may open it).
  *
  * Installed on a computer (Chrome and Edge on Windows, macOS, Linux, ChromeOS):
- * - `shortcuts`: the destinations every bar shows, My Profile, Team, Champion Lookup and Resources, in
+ * - `shortcuts`: the destinations every bar shows, My Profile, Team, Champion Intel and Resources, in
  *   the icon's menu (right-click on the Windows taskbar or Start, long-press on Android), read from
  *   the navigation itself (nav.ts, MANIFEST_SHORTCUTS) so they never drift from it, each with its
  *   destination's own icon from the bars (public/icons/shortcuts);

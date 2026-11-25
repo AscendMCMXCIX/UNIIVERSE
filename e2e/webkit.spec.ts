@@ -2,7 +2,7 @@ import { devices, expect, test, type Locator, type Page } from "./test";
 import { lineupAtRest } from "./lineup";
 import { emulateKeyboard, keyboard } from "./keyboard";
 import { untilStill } from "./modal-corner";
-import { openMatchWindow } from "./match-history";
+import { openMatchWindow, showGamePage } from "./match-history";
 import { bubbleFacts, NOT_A_PICTURE, NOT_A_PICTURE_ERROR, openPictureEditor, placedRight, toastFacts } from "./popups";
 import { pullDown } from "./pull";
 import { pick, ready, SELECT_LOOK, selectLook, valueOf } from "./select";
@@ -210,7 +210,7 @@ test("a teammate's profile: its sections switch, and a champion's preview sheet 
   await expect(tabs.getByRole("link", { name: "History" })).toHaveAttribute("aria-current", "page");
 });
 
-test("Champion Lookup on an iPhone: the search is 16px and a tap on a match chooses, a haste changes the numbers, Descriptions unfold, All champions fills the screen, and nothing is wider than the phone", async ({ page }) => {
+test("Champion Intel on an iPhone: the search is 16px and a tap on a match chooses, the haste field changes the numbers, an ability's row unfolds, a second champion comes and goes, the window fills the screen, and nothing is wider than the phone", async ({ page }) => {
   await page.goto("/lookup");
   const input = page.getByTestId("lookup-search-input");
   // 16px, so Safari never zooms into the field.
@@ -222,30 +222,27 @@ test("Champion Lookup on an iPhone: the search is 16px and a tap on a match choo
   await option.tap();
   await expect(page).toHaveURL(/\/lookup\?champion=Ahri$/);
   await expect(page.getByTestId("lookup-panel")).toHaveAttribute("data-champion", "Ahri");
-  // The keyboard goes down on a touch screen once a champion is chosen.
-  await expect(input).not.toBeFocused();
   await expect(page.getByTestId("lookup-ability")).toHaveCount(5);
   await fitsWidth(page, "Ahri");
-  // A quick haste value: the numbers change by Riot's rule, in place, and the address keeps it.
-  await page.getByTestId("lookup-haste").locator('button[data-haste="20"]').tap();
+  // The haste field: 16px, digits typed change the numbers by Riot's rule, in place, and the address keeps it.
+  const haste = page.getByTestId("lookup-haste-input");
+  expect(await haste.evaluate((e) => parseFloat(getComputedStyle(e).fontSize))).toBeGreaterThanOrEqual(16);
+  await haste.tap();
+  await haste.fill("20");
   const q = page.locator('[data-testid="lookup-ability"][data-slot="Q"]');
   await expect(q.getByTestId("lookup-hasted")).toHaveAttribute("data-values", "5.83,5.83,5.83,5.83,5.83");
   await expect(page).toHaveURL(/\/lookup\?champion=Ahri&haste=20$/);
-  // Another value typed: digits only, 16px.
-  const other = page.getByTestId("lookup-haste-input");
-  expect(await other.evaluate((e) => parseFloat(getComputedStyle(e).fontSize))).toBeGreaterThanOrEqual(16);
-  await other.tap();
-  await other.fill("100");
+  await haste.fill("100");
   await expect(q.getByTestId("lookup-hasted")).toHaveAttribute("data-values", "3.5,3.5,3.5,3.5,3.5");
   await fitsWidth(page, "Ahri at 100 haste");
-  // Descriptions unfold with a tap, and fold again.
-  await page.getByTestId("lookup-descriptions").tap();
-  await expect(page.getByTestId("lookup-description")).toHaveCount(5);
-  await fitsWidth(page, "Ahri's descriptions");
-  await page.getByTestId("lookup-descriptions").tap();
-  await expect(page.getByTestId("lookup-description")).toHaveCount(0);
-  // All champions: a screen of its own on a phone, a search and a tap choose, and the window closes.
-  await page.getByTestId("lookup-browse").tap();
+  // An ability's row unfolds with a tap, Riot's description in it, and folds again.
+  await q.getByTestId("lookup-ability-summary").tap();
+  await expect(q.getByTestId("lookup-description")).toBeVisible();
+  await fitsWidth(page, "Ahri's Q unfolded");
+  await q.getByTestId("lookup-ability-summary").tap();
+  await expect(q.getByTestId("lookup-description")).toBeHidden();
+  // The champion's name opens the window of every champion: a screen of its own on a phone.
+  await page.getByTestId("lookup-change").tap();
   const win = page.getByTestId("lookup-picker");
   await expect(win).toBeVisible();
   await untilStill(page);
@@ -261,8 +258,21 @@ test("Champion Lookup on an iPhone: the search is 16px and a tap on a match choo
   // Two abilities in one slot: said in words, Riot's array as Riot's, and no haste applied.
   const leeQ = page.locator('[data-testid="lookup-ability"][data-slot="Q"]');
   await expect(leeQ.getByTestId("lookup-no-number")).toContainText("Two abilities share this slot in Riot's data · no haste applied");
+  await leeQ.getByTestId("lookup-ability-summary").tap();
   await expect(leeQ).toContainText("Riot lists 10 / 9 / 8 / 7 / 6\u00a0s for the slot.");
   await fitsWidth(page, "Lee Sin");
+  // A second champion: the switcher shows one panel at a time, and it goes again.
+  await page.getByTestId("lookup-add").tap();
+  await win.getByTestId("lookup-picker-search").tap();
+  await win.getByTestId("lookup-picker-search").fill("jinx");
+  await win.getByTestId("lookup-picker-grid").locator('button[data-champion="Jinx"]').tap();
+  await expect(page).toHaveURL(/\/lookup\?champion=LeeSin&haste=100&champion2=Jinx$/);
+  await expect(page.getByTestId("lookup-switcher")).toBeVisible();
+  await expect(page.locator('[data-testid="lookup-panel"][data-panel="2"]')).toBeVisible();
+  await fitsWidth(page, "two champions");
+  await page.getByTestId("lookup-remove").tap();
+  await expect(page).toHaveURL(/\/lookup\?champion=LeeSin&haste=100$/);
+  await expect(page.getByTestId("lookup-switcher")).toHaveCount(0);
 });
 
 test("Leaderboards on an iPhone: the index brings each section under the top bar, focused, the old Records address lands on its section, and nothing is wider than the phone, at a larger text size too", async ({ page }) => {
@@ -315,7 +325,8 @@ test("Match History: a game opens as a whole screen of its own, its ranks are ch
   await fitsWidth(page, "an open game");
   // The browser tests' Riot stand-in answers the rank check (server/riot/browser-test.ts).
   const note = breakdown.getByTestId("ranks-note");
-  await expect(note).toBeVisible({ timeout: 15_000 });
+  // (On the window's Scoreboard page: present whatever page is shown.)
+  await expect(note).toBeAttached({ timeout: 15_000 });
   await expect(note).not.toHaveAttribute("data-state", "checking", { timeout: 15_000 });
   // The bottom bar: Previous and Next (44px targets) inside the screen; Next shows the next game in place of the address.
   const bar = win.getByTestId("match-detail-nav");
@@ -494,7 +505,7 @@ test("Encounters: each player's records sit under the name with their side in wo
   await expect(page.locator("[data-testid='encounters'][data-ready]")).toBeVisible();
 });
 
-test("Player Customisation: the Studio opens, its sections switch from the section list, and Cancel keeps the saved card", async ({ page }) => {
+test("Player Customisation: Card Studio opens, its section tabs switch, and Cancel keeps the saved card", async ({ page }) => {
   await page.goto("/team");
   const id = (await page.getByTestId("lineup-row-TOP").getAttribute("data-player-id"))!;
   await page.goto(`/players/${id}`);
@@ -504,9 +515,11 @@ test("Player Customisation: the Studio opens, its sections switch from the secti
     await page.getByTestId("profile-header").getByTestId("customise-card").tap();
     await expect(page.getByTestId("card-studio")).toBeVisible({ timeout: 1_000 });
   }).toPass({ timeout: 15_000 });
-  await page.getByTestId("studio-section-toggle").tap();
-  await page.getByTestId("studio-section-colours").tap();
-  await expect(page.getByTestId("card-studio")).toHaveAttribute("data-step", "colours");
+  await page.getByTestId("studio-tab-artwork").tap();
+  await expect(page.getByTestId("card-studio")).toHaveAttribute("data-section", "artwork");
+  await page.getByTestId("studio-tab-appearance").tap();
+  await expect(page.getByTestId("card-studio")).toHaveAttribute("data-section", "appearance");
+  await page.getByTestId("fold-colours").locator("summary").tap();
   await page.getByTestId("palettes").getByRole("button", { name: /Ember/ }).tap();
   await expect(page.getByLabel("Primary colour: hex value")).toHaveValue("#ff8a3d");
   // The Studio fits the phone; only its controls scroll.
@@ -576,7 +589,7 @@ test("Admin Mode: the account screen's switch moves between Admin Mode and Playe
   await expect(sheet).toBeVisible();
   await sheet.getByTestId("mode-switch").tap();
   await expect(page).toHaveURL(/\/team$/);
-  await expect(tabs).toHaveText(["My Profile", "Team", "Champion Lookup", "Resources"]);
+  await expect(tabs).toHaveText(["My Profile", "Team", "Champion Intel", "Resources"]);
   await expect(page.getByTestId("team-chrome-tabs").getByRole("link")).toHaveText(["Overview", "Players", "Leaderboards", "Matches"]);
   // Back (Safari's swipe from the edge) closes the account screen and the page stays.
   await page.getByTestId("account-sheet-button").tap();
@@ -704,9 +717,8 @@ test("a switch turns on and off with a tap on its words, not only the knob (the 
     await page.getByTestId("profile-header").getByTestId("customise-card").tap();
     await expect(page.getByTestId("card-studio")).toBeVisible({ timeout: 1_000 });
   }).toPass({ timeout: 15_000 });
-  await page.getByTestId("studio-section-toggle").tap();
-  await page.getByTestId("studio-section-effects").tap();
-  await expect(page.getByTestId("card-studio")).toHaveAttribute("data-step", "effects");
+  await expect(page.getByTestId("card-studio")).toHaveAttribute("data-section", "appearance");
+  if (!(await page.getByTestId("fold-effects").evaluate((d) => (d as HTMLDetailsElement).open))) await page.getByTestId("fold-effects").locator("summary").tap();
   const glow = page.getByRole("switch", { name: /Ambient glow/ });
   const words = page.locator("label[for=fx-glow]").getByText("Ambient glow", { exact: true });
   const was = await glow.isChecked();
@@ -959,6 +971,8 @@ test("popups: a window opened by a tap takes the focus itself, and nothing in it
 test("popups: a tapped ⓘ in a game's window is drawn inside the window, on top, beside its ⓘ, and the first Escape closes the bubble alone", async ({ page }) => {
   const win = await openMatchWindow(page);
   await untilStill(page);
+  // On a phone the notes are on the window's Scoreboard page.
+  await showGamePage(win.getByTestId("match-breakdown"), "board");
   // The notes under the scoreboard settle first (they redraw the lines above the ⓘ).
   await expect(win.getByTestId("ranks-note")).not.toHaveAttribute("data-state", "checking", { timeout: 15_000 });
   await expect(win.getByTestId("possible-groups-note")).not.toHaveAttribute("data-state", "loading", { timeout: 15_000 });
@@ -1033,7 +1047,7 @@ test("the public pages and Install App in Safari's engine: the header's links 44
   await app.close();
 });
 
-test("Match History on an iPhone: a tap on any scoreboard row inspects that player in the game's window, nothing scrolls by itself, and one tap goes up to them", async ({ page }) => {
+test("Match History on an iPhone: the game's window shows one page at a time, each within the screen; a tap on any scoreboard row inspects that player and shows their page", async ({ page }) => {
   await page.goto("/team");
   const id = (await page.getByTestId("lineup-row-MID").getAttribute("data-player-id"))!;
   await page.goto(`/players/${id}/matches`);
@@ -1056,22 +1070,23 @@ test("Match History on an iPhone: a tap on any scoreboard row inspects that play
   await expect(breakdown).toHaveAttribute("data-timeline", "ok");
   await expect(breakdown.locator("[data-testid=participant-score][data-score]")).toHaveCount(10);
   const own = await breakdown.getAttribute("data-selected");
+  // Player, Build and Scoreboard (the owner's brief of 24 Nov 2026, §2): each page within the
+  // window's body, nothing to scroll.
+  for (const p of ["player", "build", "board"] as const) {
+    await showGamePage(breakdown, p);
+    expect(await page.getByTestId("match-detail-body").evaluate((b) => b.scrollHeight - b.clientHeight), p).toBeLessThanOrEqual(1);
+  }
   // The seventh of the players not inspected, then held by its slot: once tapped it is inspected
   // itself, and the ":not(current)" list would name another row.
   const slot = (await breakdown.locator('[data-testid=participant-select]:not([aria-current="true"])').nth(6).getAttribute("data-slot"))!;
   const row = breakdown.locator(`[data-testid=participant-select][data-slot="${slot}"]`);
-  await row.scrollIntoViewIfNeeded();
-  const before = (await row.boundingBox())!.y;
   // A tap on the row (not its name, which is the player's own link).
   const box = (await row.boundingBox())!;
   await page.touchscreen.tap(box.x + box.width - 60, box.y + box.height / 2);
   await expect(breakdown).toHaveAttribute("data-selected", slot);
-  await expect(row).toHaveAttribute("aria-current", "true");
   expect(slot).not.toBe(own);
-  // The window stayed where it was: the row under the finger did not move.
-  expect(Math.abs((await row.boundingBox())!.y - before)).toBeLessThanOrEqual(1);
-  // One tap takes the reader up to the player inspected; Back to returns to the profile's player.
-  await breakdown.getByTestId("inspected-jump").tap();
+  // Their page shows: the player inspected, in view; Back to returns to the profile's player.
+  await expect(breakdown).toHaveAttribute("data-page", "player");
   await expect(breakdown.getByTestId("inspected")).toBeInViewport();
   await breakdown.getByTestId("inspect-back").tap();
   await expect(breakdown).toHaveAttribute("data-selected", own!);

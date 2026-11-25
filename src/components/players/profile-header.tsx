@@ -20,8 +20,12 @@ import { cn } from "@/lib/cn";
 
 const QUEUE_LABEL = { solo: "Solo/Duo", flex: "Flex" } as const;
 
-/** The Overview's picture in its band held sideways (a short window): 56px, as on a phone, beside one line of name and one of roles and rank. */
-const SHORT_PICTURE = "band:h-14 band:w-14 band:text-lg";
+/**
+ * The picture in the band: 56px held sideways (a short window), as on a phone, and on a tablet, beside
+ * one line of name and one of roles and rank; on a desktop (lg) 72px, and 5rem (96px at most) in a
+ * window 1000px tall or more, in the band's taller proportions (TALL_BAND).
+ */
+const SHORT_PICTURE = "band:h-14 band:w-14 band:text-lg band:not-short:lg:h-18 band:not-short:lg:w-18 band:not-short:lg:text-2xl band:not-short:lg:[@media(min-height:1000px)]:h-[min(5rem,96px)] band:not-short:lg:[@media(min-height:1000px)]:w-[min(5rem,96px)]";
 
 /**
  * The Overview's band held sideways (a short window) keeps to one line of name and one of roles, rank
@@ -79,6 +83,40 @@ const LARGE_TEXT = {
 } as const;
 
 /**
+ * The band on a desktop (lg) in a window taller than 480px, taller than the 72px of content it had
+ * until 24 Nov 2026 (74px with its border at 1440 × 900, 82px at 1920 × 1080), where the art showed
+ * as a thin strip (Card Studio release, the owner's trial of a desktop header about 40–50% taller).
+ * Tablets keep the 72px band (min-h-18): 106px there took Encounters on an iPad (810 × 1080) past one
+ * screen (1.026 measured; match-history-layout.spec.ts, the plan's heights), and held sideways it
+ * stays the 80px band above.
+ *  - in a window 1000px tall or more (1920 × 1080, 2560 × 1440): 6.5rem of content (12px above and
+ *    below a 5rem picture), 44% more: 117px at 1920 × 1080; where the
+ *    root text grows past 18.5px (2560 wide and more) at most 120px of content around a 96px picture:
+ *    122px at 2560 × 1440 (95px before, 28% more) and at 3440 × 1440, where 145px took Match History
+ *    past its 1.35 screens (match-history-layout.spec.ts, the plan's heights; 1.369 measured);
+ *  - in a shorter one (a laptop's 1440 × 900, the owner's browser at 1920 × 950): 5.25rem, 17% more
+ *    (86px at 1440, 95px at 1920), a 72px picture. The profile's Overview fits these windows whole
+ *    (Release 16, home-layout.spec.ts) with 6px to spare at 1920 × 950 and 13px at 1440 × 900 for its
+ *    tallest member before this change; 44% more there ran 29px and 19px past the window. The section
+ *    tabs give 10px of their gap under them back on desktops (ProfileFrame), which pays for most of it.
+ * Only the left padding grows: the right keeps the room the labelled Customise needs on an editable
+ * header (`band:not-short:pr-36`; a `px-` here overrode it, and the links ran under the button).
+ * The name a step larger, the tagline and the roles line at the body size, the identity drawn over a
+ * shade that rises from the band's left edge (CardArtLayer's foot "band") so the artwork reads clear
+ * on the right. The Overview and the other sections draw the same band, so the section tabs keep one
+ * place (UD.PO1).
+ */
+const TALL_BAND = {
+  row: "band:not-short:min-h-18 band:not-short:py-1 band:not-short:lg:min-h-[5.25rem] band:not-short:lg:gap-4 band:not-short:lg:pl-5 band:not-short:lg:py-1.5 band:not-short:lg:[@media(min-height:1000px)]:min-h-[min(6.5rem,120px)] band:not-short:lg:[@media(min-height:1000px)]:py-[min(0.75rem,12px)]",
+  name: "band:not-short:lg:text-2xl",
+  tagline: "band:not-short:lg:text-sm",
+  meta: "band:not-short:lg:mt-1 band:not-short:lg:gap-x-3 band:not-short:lg:text-sm",
+} as const;
+
+/** The header's artwork below the band (a phone held upright: the card) has a position of its own when the player gave one (Card Studio). */
+const HEADER_NARROW = { place: "headerPhone", at: "band" } as const;
+
+/**
  * "In the lineup · Top": the role the player holds in the current lineup (words that need no hover text, TT.P04), a status pill in the accent
  * (one form on both headers). `condense`: on the Overview, "Lineup" where its line is narrow: held
  * sideways (SIDEWAYS_META) and at a larger text size (LARGE_TEXT), the whole still read out.
@@ -113,8 +151,9 @@ function LineupStatus({ role, className, condense = false }: { role: Role; class
  * A rank this viewer may not see (`identity.showRank` false: a teammate's, without "view teammates'
  * statistics") is left out of both, never shown as "Unranked".
  */
-export function ProfileHeader({ identity: served, self, editable = false, champions = [], basePath }: { identity: HeaderIdentity; self: boolean; editable?: boolean; champions?: PickerChampion[]; /** The profile's Overview address: any other section shows the compact band. */ basePath?: string }) {
-  const p = useHeaderIdentity(served);
+export function ProfileHeader({ identity: served, self, editable = false, champions = [], basePath, preview = false, publicFigures = false }: { identity: HeaderIdentity; self: boolean; editable?: boolean; /** The public team page shows Riot data (Card Studio's preview of it). */ publicFigures?: boolean; champions?: PickerChampion[]; /** The profile's Overview address: any other section shows the compact band. */ basePath?: string; /** Card Studio's preview: this identity as given (the draft look), the picture without its editor (Customise stays where the page shows it, inert, so the layout is the page's). */ preview?: boolean }) {
+  const synced = useHeaderIdentity(served);
+  const p = preview ? served : synced;
   const pathname = usePathname();
   const accent = accentCss(p.look.style);
   const rank = p.showRank ? p.rank : null;
@@ -133,7 +172,9 @@ export function ProfileHeader({ identity: served, self, editable = false, champi
       champions={champions}
       poolIds={p.featurable}
       // The card as Team shows it: the lineup role when they hold one, else the Primary Role (figures load on Team only).
-      preview={{ role: p.lineupRole ?? p.primaryRole, rank, showRank: p.showRank, status: p.lineupRole ? (p.lineupRole === p.primaryRole ? "main" : "off") : p.primaryRole ? "main" : null, season: null, poolIds: p.featurable, social: p.social }}
+      preview={{ role: p.lineupRole ?? p.primaryRole, rank, showRank: p.showRank, status: p.lineupRole ? (p.lineupRole === p.primaryRole ? "main" : "off") : p.primaryRole ? "main" : null, season: null, poolIds: p.featurable, social: p.social, primaryRole: p.primaryRole, offRoles: p.offRoles, lineupRole: p.lineupRole, archived: p.archived, setupPending: p.setupPending }}
+      origin="header"
+      publicFigures={publicFigures}
     />
   );
   // One header on every section (the UX review of Release 13: the Overview's band had the labelled
@@ -144,7 +185,7 @@ export function ProfileHeader({ identity: served, self, editable = false, champi
   const header = (compact: boolean) => (
       <header className={cn("relative overflow-hidden rounded-card border border-border bg-surface", compact && "max-md:not-short:hidden", LARGE_TEXT.container)} style={cardShellStyle(p.look)} data-testid="profile-header" data-compact={compact || undefined} data-art-champion={p.art?.championId ?? ""} data-accent={p.accent} data-frame={p.look.style.frame}>
         {/* The Overview's largest element at every width: fetched at once and ahead of the rest (the compact band stays lazy: there the content below it is the largest). */}
-        <CardArtLayer art={p.art} accent={accent} kind="splash" position="center 25%" strength="normal" testId="profile-art" look={p.look} foot priority={!compact} />
+        <CardArtLayer art={p.art} accent={accent} kind="splash" position="center 25%" strength="normal" testId="profile-art" look={p.look} foot="band" priority={!compact && !preview} place="header" narrow={HEADER_NARROW} />
         <CardFrame look={p.look} />
         {/* Customise: a labelled overlay from sm, a round icon chip on phones (its word read out); held
             sideways the chip too, centred on the band's height. */}
@@ -168,9 +209,9 @@ export function ProfileHeader({ identity: served, self, editable = false, champi
             round chip at the band's end: 8 + 28 + 32 + 8px and its border, 78px at most. On a phone held
             upright the art shows behind the header with no band of its own above the name (204px tall,
             it left the first screen no figure on an SE). */}
-        <div className={cn("relative grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-2 p-4 min-[23.4375rem]:max-sm:gap-y-1.5 min-[23.4375rem]:max-sm:p-3.5 sm:flex sm:min-h-40 sm:items-end sm:gap-4 sm:p-5 sm:pt-12 lg:min-h-32 lg:pt-9 band:flex band:min-h-0 band:items-center band:gap-3 band:px-3.5 band:py-2 band:not-short:min-h-18 band:not-short:py-1", editable && "band:pr-16 band:not-short:pr-36", LARGE_TEXT.bandRow)}>
+        <div className={cn("relative grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-2 p-4 min-[23.4375rem]:max-sm:gap-y-1.5 min-[23.4375rem]:max-sm:p-3.5 sm:flex sm:min-h-40 sm:items-end sm:gap-4 sm:p-5 sm:pt-12 lg:min-h-32 lg:pt-9 band:flex band:min-h-0 band:items-center band:gap-3 band:px-3.5 band:py-2", TALL_BAND.row, editable && "band:pr-16 band:not-short:pr-36", LARGE_TEXT.bandRow)}>
           <CardAvatar look={p.look} name={p.displayName} src={p.avatarUrl} className={cn(LARGE_TEXT.pictureRows, "band:self-center")}>
-            {self && !compact ? <ProfileAvatarEditable name={p.displayName} src={p.avatarUrl} avatarClassName={SHORT_PICTURE} /> : <Avatar name={p.displayName} src={p.avatarUrl} size="hero" className={SHORT_PICTURE} />}
+            {self && !compact && !preview ? <ProfileAvatarEditable name={p.displayName} src={p.avatarUrl} avatarClassName={SHORT_PICTURE} /> : <Avatar name={p.displayName} src={p.avatarUrl} size="hero" className={SHORT_PICTURE} />}
           </CardAvatar>
           <div className={cn("contents sm:block sm:min-w-0 sm:flex-1 sm:pb-0.5 band:block band:min-w-0 band:flex-1 band:pb-0", LARGE_TEXT.bandText)}>
             {/* On a phone the Customise chip sits at the name's row end: the name keeps clear of it
@@ -182,7 +223,7 @@ export function ProfileHeader({ identity: served, self, editable = false, champi
                   is displayed at a time, so one is read). */}
               <CardTagline look={p.look} className="text-sm drop-shadow band:hidden" />
               <div className={cn("flex flex-wrap items-center gap-2 band:min-w-0 band:flex-nowrap", LARGE_TEXT.bandWrap)}>
-                <h1 className={cn("min-w-0 max-w-full text-2xl tracking-tight text-fg drop-shadow sm:text-3xl band:truncate band:text-xl", LARGE_TEXT.title, LARGE_TEXT.bandName)}>
+                <h1 className={cn("min-w-0 max-w-full text-2xl tracking-tight text-fg drop-shadow sm:text-3xl band:truncate band:text-xl", TALL_BAND.name, LARGE_TEXT.title, LARGE_TEXT.bandName)}>
                   <CardName look={p.look} name={p.displayName} />
                 </h1>
                 {self ? <Badge tone="accent">You</Badge> : null}
@@ -191,12 +232,12 @@ export function ProfileHeader({ identity: served, self, editable = false, champi
               </div>
               {p.look.style.identity.tagline ? (
                 <span className="hidden min-w-0 flex-1 band:block" title={p.look.style.identity.tagline} data-testid="profile-band-tagline">
-                  <CardTagline look={p.look} lines={1} decorative className="drop-shadow band:text-xs" />
+                  <CardTagline look={p.look} lines={1} decorative className={cn("drop-shadow band:text-xs", TALL_BAND.tagline)} />
                 </span>
               ) : null}
             </div>
             <div className={cn("col-span-2 min-w-0 band:flex band:items-center band:gap-3", LARGE_TEXT.metaBeside, LARGE_TEXT.bandWrap)}>
-              <div className={cn("flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-fg-muted sm:mt-1.5 band:mt-0 band:min-w-0 band:flex-1 band:gap-x-2.5 band:gap-y-0.5 band:text-xs", SIDEWAYS_META.container)} data-testid="profile-meta">
+              <div className={cn("flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-fg-muted sm:mt-1.5 band:mt-0 band:min-w-0 band:flex-1 band:gap-x-2.5 band:gap-y-0.5 band:text-xs", TALL_BAND.meta, SIDEWAYS_META.container)} data-testid="profile-meta">
                 {p.primaryRole ? (
                   <span className="inline-flex items-center gap-1.5 text-fg band:gap-1">
                     <span style={{ color: "var(--card-accent)" }} className="inline-flex">

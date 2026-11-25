@@ -45,7 +45,7 @@ export interface SectionIndexItem {
 }
 
 /** A link's own look: quiet text, the page's ink (a page's linkClassName replaces it). */
-const SECTION_INDEX_LINK = "touch-target inline-flex min-h-6 items-center rounded-sm font-medium text-fg-muted underline-offset-4 transition-colors duration-150 hover:text-fg hover:underline";
+const SECTION_INDEX_LINK = "touch-target inline-flex min-h-6 items-center rounded-sm font-medium text-fg-muted underline-offset-4 transition-colors duration-150 hover:text-fg hover:underline pointer-coarse:min-h-11";
 
 /**
  * The section being read, for `spy`: the last one whose top has passed the upper third of the
@@ -65,6 +65,9 @@ function useSectionInView(ids: string): string | null {
       if (href && list.includes(href.slice(1))) {
         jumped = href.slice(1);
         landed = false;
+        // Looked at once the jump is made: a page already scrolled as far as it goes (a tall window
+        // ending right under the section) does not scroll, so no scroll would mark it.
+        schedule();
       }
     };
     const update = () => {
@@ -114,8 +117,10 @@ function useSectionInView(ids: string): string | null {
  * anchor, so it works before the page's code has run and opens in a new tab like any link; once the
  * code runs, a plain click makes the jump itself (jumpToAnchor: an entry the phone's Back steps past,
  * the section in view under the bars and focused). Quiet text, the page's own ink: it is the page's
- * table of contents, not a choice of view (SubTabs) or a filter. 24px targets with a mouse, 44px on
- * touch screens without moving the line (touch-target).
+ * table of contents, not a choice of view (SubTabs) or a filter. 24px tall with a mouse, 44px on
+ * touch screens, the link's own height (DESIGN_SYSTEM.md's 44px for the in-page indexes; an invisible
+ * 44px area over a 24px link until the Release 17 review); touch-target still widens a short word's
+ * area by 6px at each side, so "Name" is a 44px target across too.
  *
  * Optional, for a page that keeps its index in view (Settings' account card): `spy` marks the section
  * being read (aria-current="location"); `listClassName`, `linkClassName` (told whether its link is
@@ -153,7 +158,7 @@ export function SectionIndex({
       {/* clipLineDots: a 6px gap, the 8px dot, a 6px gap (gap-x-5), each dot pulled back over the gap
           before it (-ml-3.5); at a line's start that puts the dot left of the list, past its 4px of
           room for a focus ring (-ml-1 pl-1), where the horizontal clip hides it. Vertical overflow
-          stays visible, so the links' 44px touch areas are whole. */}
+          stays visible, so nothing of a link's focus ring is clipped. */}
       <ul className={cn("flex min-w-0 flex-wrap items-center gap-x-1.5 text-sm", clipLineDots && "-ml-1 gap-x-5 overflow-x-clip pl-1", listClassName)}>
         {items.map((item, i) => {
           const on = current === item.id;

@@ -2,7 +2,7 @@ import { expect, test, type Locator, type Page } from "./test";
 import { optionLabels, pick, shownLabel } from "./select";
 import { closeFilterSheet, openFilterBar } from "./filters";
 import { memberContext } from "./member-account";
-import { closeGame, openGame, opensFullScreen } from "./match-history";
+import { closeGame, openGame, opensFullScreen, showGamePage } from "./match-history";
 
 /*
   A profile's Match History → Encounters on the demo roster: a teammate's profile (the in-memory
@@ -368,6 +368,8 @@ test("a game's scoreboard marks the players met in other games, and a mark opens
     const marked = Number(await breakdown.getAttribute("data-met"));
     await expect(breakdown.getByTestId("participant-met")).toHaveCount(marked);
     if (marked) {
+      // (On a phone the scoreboard is the window's Scoreboard page.)
+      await showGamePage(breakdown, "board");
       mark = breakdown.getByTestId("participant-met").first();
       break;
     }

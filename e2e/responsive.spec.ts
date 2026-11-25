@@ -55,7 +55,7 @@ test("navigation is usable", async ({ page }) => {
     // Bottom tab bar on phones: the sidebar's four destinations, the current one lit, Team's sections
     // under the top bar (docs/MOBILE.md; e2e/mobile-nav.spec.ts checks the rest of the phone frame).
     const tabs = page.getByTestId("phone-tabbar").locator("a");
-    await expect(tabs).toHaveText(["My Profile", "Team", "Champion Lookup", "Resources"]);
+    await expect(tabs).toHaveText(["My Profile", "Team", "Champion Intel", "Resources"]);
     await expect(page.getByTestId("phone-tabbar").getByTestId("tab-team")).toHaveAttribute("aria-current", "page");
     await page.getByTestId("team-chrome-tab-matches").click();
     await expect(page).toHaveURL(/\/matches$/);
@@ -76,12 +76,12 @@ test("navigation is usable", async ({ page }) => {
     // Team's sections are the pinned tabs in the page.
     const nav = page.getByRole("navigation", { name: "Primary" });
     await expect(nav).toHaveCount(1);
-    await expect(nav.getByRole("link")).toHaveText(["My Profile", "Team", "Champion Lookup", "Resources"]);
+    await expect(nav.getByRole("link")).toHaveText(["My Profile", "Team", "Champion Intel", "Resources"]);
     await expect(nav.getByRole("link", { name: "Team" })).toHaveAttribute("aria-current", "page");
     await expect(page.getByTestId("menu-button")).toHaveCount(0);
-    await nav.getByRole("link", { name: "Champion Lookup" }).click();
+    await nav.getByRole("link", { name: "Champion Intel" }).click();
     await expect(page).toHaveURL(/\/lookup$/);
-    await expect(nav.getByRole("link", { name: "Champion Lookup" })).toHaveAttribute("aria-current", "page");
+    await expect(nav.getByRole("link", { name: "Champion Intel" })).toHaveAttribute("aria-current", "page");
     await nav.getByRole("link", { name: "Resources" }).click();
     await expect(page).toHaveURL(/\/resources$/);
     await expect(nav.getByRole("link", { name: "Resources" })).toHaveAttribute("aria-current", "page");
@@ -95,7 +95,7 @@ test("navigation is usable", async ({ page }) => {
     const aside = page.locator("aside");
     await expect(aside).toBeVisible();
     // Team: one entry (its sections are the tabs at the top of its pages); My Profile: one link
-    // (its sections are the bar under the profile card); Champion Lookup and Resources: entries of their
+    // (its sections are the bar under the profile card); Champion Intel and Resources: entries of their
     // own below Team, one page each.
     const team = aside.getByTestId("nav-team");
     await expect(team).toHaveAttribute("href", "/team");
@@ -233,16 +233,17 @@ test("Settings: the account card leads, drawn in the order it is read, with Sign
     expect(identity.x, "who you are beside the picture").toBeGreaterThanOrEqual(avatar.x + avatar.width);
     const quiet = card.getByTestId("settings-actions").filter({ visible: true });
     expect((await quiet.boundingBox())!.y).toBeLessThan((await picture.boundingBox())!.y);
-    // The index as chips: 44px on a touch screen, bordered, no dots between them, and the section
-    // being read (the first, at the top) marked on screen as a chosen chip is.
+    // The index as a row of words (chips until Release 17, whose brief §9 retired boxed choices): 44px on a touch screen, no
+    // edge, no dots between them, and the section being read (the first, at the top) underlined on screen as a view's tab is.
     for (const link of await links.all()) {
-      expect((await link.boundingBox())!.height, "a chip, 44px").toBe(44);
-      expect(await link.evaluate((el) => getComputedStyle(el).borderTopWidth), "a chip's border").toBe("1px");
+      expect((await link.boundingBox())!.height, "an entry, 44px").toBe(44);
+      expect(await link.evaluate((el) => getComputedStyle(el).borderTopWidth), "no edge round an entry").toBe("0px");
     }
-    await expect(index.locator("span[aria-hidden]").filter({ visible: true }), "no dots between the chips").toHaveCount(0);
+    await expect(index.locator("span[aria-hidden]").filter({ visible: true }), "no dots between the entries").toHaveCount(0);
     await expect(links.first()).toHaveAttribute("aria-current", "location");
-    const background = (link: Locator) => link.evaluate((el) => getComputedStyle(el).backgroundColor);
-    expect(await background(links.first()), "the section being read marked").not.toBe(await background(links.last()));
+    const underline = (link: Locator) => link.evaluate((el) => getComputedStyle(el, "::after").opacity);
+    expect(await underline(links.first()), "the section being read underlined").toBe("1");
+    expect(await underline(links.last()), "the others not").toBe("0");
     // A link of the index jumps to its section through the router's history: under the top bar, and
     // Back from the next page comes back to it. Room under the last section, so the jump can land it
     // at the top.
@@ -285,8 +286,7 @@ test("Settings: the account card leads, drawn in the order it is read, with Sign
     const rows = card.getByTestId("settings-actions").filter({ visible: true });
     expect((await rows.boundingBox())!.y).toBeGreaterThan((await index.boundingBox())!.y);
     // At the page's top the first section is the one marked (G3-5: Password, whose top was above the
-    // window's upper third, was marked at 1440×900), and it is drawn apart from a pointed-at entry
-    // (surface-3 against the hover's surface-2, G3-13).
+    // window's upper third, was marked at 1440×900), underlined, with no filled box (below).
     await expect(links.first()).toHaveAttribute("aria-current", "location");
     await expect(links.nth(1)).not.toHaveAttribute("aria-current", "location");
     // A jump to a section marks it while it is at the window's top: Name, though Password's top is above the line there.
@@ -303,8 +303,16 @@ test("Settings: the account card leads, drawn in the order it is read, with Sign
       await page.setViewportSize(size);
     }
     await page.evaluate(() => window.scrollTo(0, 0));
-    const surface3 = await page.evaluate(() => { const p = document.createElement("i"); p.className = "bg-surface-3"; document.body.append(p); const c = getComputedStyle(p).backgroundColor; p.remove(); return c; });
-    await expect.poll(() => links.first().evaluate((el) => getComputedStyle(el).backgroundColor), "the section being read on surface-3").toBe(surface3);
+    // The list is text-led, as the phone's row is: the section being read underlined in the accent, no
+    // filled entry (the brief's §9; a surface-3 box, the sidebar's look, until the Release 17 review).
+    await expect(links.first()).toHaveAttribute("aria-current", "location");
+    const look = (link: Locator) => link.evaluate((el) => ({ fill: getComputedStyle(el).backgroundColor, line: getComputedStyle(el, "::after").opacity }));
+    await expect.poll(async () => (await look(links.first())).line, "the section being read underlined").toBe("1");
+    for (const link of await links.all()) expect((await look(link)).fill, "no filled entry").toMatch(/^(transparent|rgba\(.*,\s*0\))$/);
+    expect((await look(links.last())).line, "the others not underlined").toBe("0");
+    // The words down the card at its column's start, each underline under its own words.
+    const xs = await links.evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().left)));
+    expect(new Set(xs).size, "one column").toBe(1);
     // Current, New and Confirm password share one grid: Current ends where New does (G3-6: it overhung New by 35px).
     const [cur, next] = [(await page.locator("#current").boundingBox())!, (await page.locator("input[type=password]").nth(1).boundingBox())!];
     expect(Math.abs(cur.x + cur.width - (next.x + next.width)), "Current password ends with New").toBeLessThanOrEqual(1);

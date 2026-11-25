@@ -13,11 +13,18 @@ export interface ChampionLookupRead {
   qKind: string | null;
   qBase: number[];
   qHasted: number[];
+  qOpen: boolean;
+  qDescription: number;
   passive: string;
   passiveHasted: boolean;
   rule: string;
+  range: string;
+  mechanics: number;
   lastBottom: number;
-  ruleBottom: number;
+  hasteBottom: number;
+  panels: number;
+  sideBySide: boolean;
+  scrollers: number;
   timerWords: boolean;
   url: string;
 }
@@ -47,6 +54,7 @@ export function championLookupVerdicts(input: {
   hastedRead: ChampionLookupRead;
   all: ChampionWindowRead;
   search: ChampionWindowRead;
+  dual?: ChampionLookupRead;
   legacy: Pick<ChampionLookupRead, "url" | "champion" | "heading">;
   healthPatch?: string | null;
 }): Verdict[];

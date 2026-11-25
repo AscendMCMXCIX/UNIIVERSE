@@ -14,7 +14,7 @@ test.beforeEach(async ({ context, baseURL }) => {
   await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
 });
 
-// Champion Lookup: nothing chosen, an ordinary champion at a haste, and one with every kind of special
+// Champion Intel: nothing chosen, an ordinary champion at a haste, and one with every kind of special
 // cooldown row (Lee Sin: two abilities in a slot; Teemo: charges), with its descriptions shown by its own spec.
 const PLAYER_ROUTES = ["/team", "/players", "/leaderboards", "/matches", "/overview", "/overview/champions", "/overview/matches", "/resources", "/lookup", "/lookup?champion=Ahri&haste=20", "/lookup?champion=LeeSin&haste=40", "/lookup?champion=Teemo", "/settings"];
 const ADMIN_ROUTES = ["/admin", "/admin/people", "/admin/people/access", "/admin/people/privacy", "/admin/branding", "/admin/previews", "/admin/resources", "/admin/data", "/admin/system", "/admin/audit", "/admin/settings"];
@@ -122,7 +122,7 @@ test.describe("accessibility", () => {
     }
   });
 
-  test("at 1920, where the section tabs' row takes the pages' width, Team's sections, Champion Lookup and Resources have no critical or serious violations", async ({ page }) => {
+  test("at 1920, where the section tabs' row takes the pages' width, Team's sections, Champion Intel and Resources have no critical or serious violations", async ({ page }) => {
     test.setTimeout(120_000);
     await page.setViewportSize({ width: 1920, height: 1080 });
     for (const route of ["/team", "/players", "/leaderboards", "/matches", "/lookup?champion=Ahri&haste=20", "/resources"]) {
@@ -508,12 +508,12 @@ test.describe("retired Ranked Development", () => {
 test.describe("sidebar entries", () => {
   test.beforeEach(({}, info) => test.skip(info.project.name !== "desktop", "runs once"));
 
-  test("Player Mode is four single entries, My Profile, Team, Champion Lookup and Resources, with no groups to fold", async ({ page }) => {
+  test("Player Mode is four single entries, My Profile, Team, Champion Intel and Resources, with no groups to fold", async ({ page }) => {
     await page.goto("/team");
     const aside = page.locator("aside");
     const order = await aside.locator("nav[aria-label='Main'] a").evaluateAll((els) => els.map((e) => e.getAttribute("data-testid")));
     expect(order).toEqual(["nav-overview", "nav-team", "nav-lookup", "nav-resources"]);
-    await expect(aside.locator("nav[aria-label='Main'] a")).toHaveText(["My Profile", "Team", "Champion Lookup", "Resources"]);
+    await expect(aside.locator("nav[aria-label='Main'] a")).toHaveText(["My Profile", "Team", "Champion Intel", "Resources"]);
     await expect(aside.getByTestId("nav-team")).toHaveAttribute("aria-current", "page");
   });
 

@@ -5,7 +5,7 @@ import { HASTE_RULE_WORDS, REASON_WORDS, cooldownWords, listedWords } from "./wo
 import type { UnknownCooldownReason } from "./cooldown";
 
 /*
-  Champion Lookup's fixed words (docs/CHAMPION_LOOKUP.md): every reason has its words, a slot of two
+  Champion Intel's fixed words (docs/CHAMPION_INTEL.md): every reason has its words, a slot of two
   abilities says Riot's array as Riot's, and nothing on the page speaks of a timer, a "ready at" or
   anything "verified" (game integrity, and no person checked Riot's data).
 */
@@ -21,7 +21,7 @@ describe("the words", () => {
   });
 
   it("say the passive's and charges' limits plainly", () => {
-    expect(cooldownWords({ kind: "unknown", reason: "passive-not-in-ddragon" })).toEqual({ line: "No cooldown in Riot's data", more: "Riot's data gives passives no cooldown." });
+    expect(cooldownWords({ kind: "unknown", reason: "passive-not-in-ddragon" })).toEqual({ line: "No cooldown in Riot's data", more: null });
     expect(cooldownWords({ kind: "unknown", reason: "charges-in-ddragon" })?.line).toBe("Charges: recharge not in Riot's data");
   });
 

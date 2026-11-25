@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page, type Route } from "./test";
 import { openFilterBar } from "./filters";
-import { openMatchWindow } from "./match-history";
+import { openMatchWindow, showGamePage } from "./match-history";
 import { untilStill } from "./modal-corner";
 import { playerEntry } from "./players";
 import { bubbleFacts, NOT_A_PICTURE, NOT_A_PICTURE_ERROR, openPictureEditor, picture, placedRight, press, toastFacts, touches, untilAtRest } from "./popups";
@@ -52,6 +52,8 @@ async function teammateProfile(page: Page): Promise<string> {
 test("an ⓘ in a window: its bubble is drawn inside the window, above it, where its trigger puts it, also while the window moves; Escape closes the bubble only", async ({ page }) => {
   const win = await openMatchWindow(page);
   await untilStill(page);
+  // On a phone the notes are on the window's Scoreboard page.
+  await showGamePage(win.getByTestId("match-breakdown"), "board");
   // The notes under the scoreboard settle first (a rank check or the possible groups arriving
   // redraws the lines above the ⓘ, which would move it under an open bubble).
   await expect(win.getByTestId("ranks-note")).not.toHaveAttribute("data-state", "checking", { timeout: 15_000 });

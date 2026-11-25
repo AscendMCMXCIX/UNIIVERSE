@@ -8,7 +8,7 @@ import { cn } from "@/lib/cn";
 import { searchChampions } from "./search";
 
 /*
-  Champion Lookup's search (docs/CHAMPION_LOOKUP.md, "Choosing a champion"): one field that finds
+  Champion Intel's search (docs/CHAMPION_INTEL.md, "Choosing a champion"): one field that finds
   any champion on the roster as you type ("kha" Kha'Zix, "tf" Twisted Fate, "j4" Jarvan IV:
   search.ts), its matches in a list under it, the best first. The WAI-ARIA combobox with a list:
   the focus stays in the field, ↑/↓ move through the matches (aria-activedescendant), Enter takes

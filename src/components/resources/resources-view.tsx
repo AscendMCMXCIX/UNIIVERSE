@@ -53,7 +53,7 @@ export function ResourcesView({ entries }: { entries: Resource[] }) {
       <div className="flex flex-col gap-3 sm:short:flex-row sm:short:items-center lg:flex-row lg:flex-wrap lg:items-center">
         <SearchInput value={query} onChange={setQuery} placeholder="Search resources" label="Search resources by name, site or description" testId="resources-search" className="sm:max-w-md lg:w-64 lg:max-w-none lg:shrink-0 sm:short:w-56 sm:short:max-w-none sm:short:shrink-0" />
         <div className="flex min-w-0 flex-1 items-center gap-3 lg:basis-auto">
-          <ScrollRow role="radiogroup" aria-label="Show" className={segmentedGroupClass("min-w-0 max-sm:flex-wrap max-sm:justify-start max-sm:overflow-visible max-sm:pointer-coarse:p-0.5 max-sm:[mask-image:none] max-sm:[&>button]:gap-1 max-sm:[&>button]:px-2 lg:flex-wrap lg:overflow-visible")} data-testid="resources-index">
+          <ScrollRow role="radiogroup" aria-label="Show" className={segmentedGroupClass("min-w-0 flex-nowrap max-sm:flex-wrap max-sm:justify-start max-sm:overflow-visible max-sm:[mask-image:none] max-sm:[&>button]:gap-1 max-sm:[&>button]:px-2 lg:flex-wrap lg:overflow-visible")} data-testid="resources-index">
             {index.map(({ key, label }) => {
               const on = filter === key;
               const n = count(key);
@@ -73,7 +73,7 @@ export function ResourcesView({ entries }: { entries: Resource[] }) {
                   ) : (
                     label
                   )}
-                  <span className={cn("min-w-6 rounded px-1 text-center text-2xs tabular-nums", shownCount === null ? "bg-transparent" : n ? "bg-surface-3 text-fg-muted" : "text-fg-subtle")} data-testid="resources-index-count">
+                  <span className={cn("min-w-4 text-center text-2xs font-medium tabular-nums", n ? "text-fg-subtle" : "text-fg-subtle/60")} data-testid="resources-index-count">
                     {shownCount === null ? "" : formatCount(shownCount)}
                   </span>
                 </button>

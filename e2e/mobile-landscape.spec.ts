@@ -64,11 +64,11 @@ test("held sideways: one compact bar holds the destinations, with no bottom bar,
   await expect(bar.getByRole("navigation", { name: "Primary" })).toBeVisible();
   await expect(page.getByTestId("phone-tabbar")).toBeHidden();
   const links = nav.getByRole("link");
-  for (const [i, name] of ["My Profile", "Team", "Champion Lookup", "Resources"].entries()) await expect(links.nth(i)).toHaveAccessibleName(name);
+  for (const [i, name] of ["My Profile", "Team", "Champion Intel", "Resources"].entries()) await expect(links.nth(i)).toHaveAccessibleName(name);
   // Players is one of Team's sections: Team is the current destination, Players the current section under the bar.
   await expect(nav.locator("[aria-current=page]")).toHaveAccessibleName("Team");
   await expect(page.getByTestId("team-chrome-tabs").locator("[aria-current=page]")).toHaveText("Players");
-  // A 568px phone's row is 34.5rem: all four named by their short names since Champion Lookup took Matchup
+  // A 568px phone's row is 34.5rem: all four named by their short names since Champion Intel took Matchup
   // Intel's place (in full before; the five before that could name only the current one), each a 44px target.
   const labels = await links.evaluateAll((as) => as.map((a) => ({ shown: a.querySelector("[data-name=label]")!.getBoundingClientRect().width > 1, rest: !a.querySelector("[data-name=rest]") || a.querySelector("[data-name=rest]")!.getBoundingClientRect().width > 1, height: a.getBoundingClientRect().height, width: a.getBoundingClientRect().width })));
   for (const l of labels) {
@@ -350,9 +350,9 @@ test("held sideways, the avatar opens the account screen at every width, and Tea
     await expect(screen, where).toHaveAttribute("data-entered", "true");
     await expectNoSeriousAxe(page, `account screen, ${where}`, ["[data-testid=account-sheet]"]);
     expect(await screen.boundingBox(), where).toEqual({ x: 0, y: 0, width: viewport.width, height: viewport.height });
-    // The account's own items only: Champion Lookup and Resources are destinations of the bar.
+    // The account's own items only: Champion Intel and Resources are destinations of the bar.
     await expect(screen.getByRole("navigation", { name: "Your account" }).getByRole("link"), where).toHaveText(["Settings"]);
-    await expect(screen.getByRole("link", { name: "Champion Lookup" }), where).toHaveCount(0);
+    await expect(screen.getByRole("link", { name: "Champion Intel" }), where).toHaveCount(0);
     await page.keyboard.press("Escape");
     await expect(screen).toHaveCount(0);
     await expect(page.getByTestId("account-sheet-button"), where).toBeFocused();
@@ -530,8 +530,8 @@ test("held sideways at a tablet's width, a long page goes back to the top from i
 test("with larger text the compact bar held sideways still fits the phone: the whole names, then the short ones, then the current one's alone, then the icons, each still named, and the page never wider than the phone", async ({ browser, baseURL }) => {
   // Held sideways the destinations ride in the top bar (no bottom bar). Its row is the container its
   // names give way by (SIDEWAYS_FIT in mobile-nav.tsx), in rem of its width less its gutters, so the
-  // reader's text size counts: the whole names from 34.75rem, the short ones ("Profile", "Lookup")
-  // from 30rem, then the current one's alone from 23rem, then the icons alone (Champion Lookup's
+  // reader's text size counts: the whole names from 34.75rem, the short ones ("Profile", "Intel")
+  // from 30rem, then the current one's alone from 23rem, then the icons alone (Champion Intel's
   // names, 23 Nov 2026); past that the row scrolls inside the bar. The cases fall on both sides of
   // each step: 852px at 100% (51rem: the whole names), 852px at 150%, an SE at 100% and 734px at 135%
   // (34.0, 34.5 and 33.0rem: the short ones), 734px at 150% and 852px at 200% (29.6 and 25.6rem: the
@@ -560,7 +560,7 @@ test("with larger text the compact bar held sideways still fits the phone: the w
     }, root);
     await page.evaluate(() => document.fonts.ready);
     const links = nav.getByRole("link");
-    for (const [i, name] of ["My Profile", "Team", "Champion Lookup", "Resources"].entries()) await expect(links.nth(i), where).toHaveAccessibleName(name);
+    for (const [i, name] of ["My Profile", "Team", "Champion Intel", "Resources"].entries()) await expect(links.nth(i), where).toHaveAccessibleName(name);
     await expect(async () => {
       const m = await page.evaluate(() => {
         const row = document.querySelector("[data-testid=mobile-topbar]")!.firstElementChild as HTMLElement;
@@ -787,8 +787,10 @@ test("a window whose header leaves room keeps its own scrolling body on a phone 
   const win = await openMatchWindow(page);
   await expect(page.getByTestId("post-game-figures")).toBeVisible();
   await expect(win).not.toHaveAttribute("data-flow", /.*/);
-  // The header stays; the body below it scrolls.
-  expect(await page.getByTestId("match-detail-body").evaluate((b) => b.scrollHeight > b.clientHeight && getComputedStyle(b).overflowY === "auto")).toBe(true);
+  // The header stays; the body below it is the window's scrolling area. The opened game itself fits
+  // it, one page at a time (the owner's brief of 24 Nov 2026, §2), so here it has nothing to scroll.
+  expect(await page.getByTestId("match-detail-body").evaluate((b) => getComputedStyle(b).overflowY)).toBe("auto");
+  expect(await page.getByTestId("match-detail-body").evaluate((b) => b.scrollHeight - b.clientHeight)).toBeLessThanOrEqual(1);
   await page.keyboard.press("Escape");
   await expect(win).toBeHidden();
   await done(page);

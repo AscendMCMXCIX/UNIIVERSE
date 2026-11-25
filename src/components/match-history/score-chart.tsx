@@ -8,18 +8,19 @@ import { gameClock } from "./match-format";
 
 /*
   The performance score through the game (domain/performance-score timelineScores): one line for the
-  player inspected, and a second, dashed, for the player compared with them, on one 0–10 axis (5 is
-  the match's average, drawn as a quiet dashed rule). The points before the end are each scored from
-  what had happened by then; the last is the final score, read from the whole record, joined by a
-  dotted segment because it reads more figures than the points before it. Drawn at the width it is
+  player inspected, on a 0–10 axis fitted to the data (5, the match's average, always in view as a
+  quiet dashed rule). The points before the end are each scored from what had happened by then; the
+  last is the final score, read from the whole record, joined by a dotted segment because it reads
+  more figures than the points before it (said in the (i) over the chart). Drawn at the width it is
   given, in real pixels, its labels in HTML around the drawing (so they follow the reader's text
-  size). Hover, touch or the arrow keys show a point's scores; the same figures are in a table for
-  screen readers.
+  size). Hover, touch or the arrow keys show a point's score over the drawing's top right; the same
+  figures are in a table for screen readers. The second, compared player was removed with the
+  comparison (the owner's brief of 24 Nov 2026).
 */
 
-export interface ChartSeries {
+/** The one line drawn: the player inspected. */
+interface ChartSeries {
   slot: number;
-  /** The player's name as the scoreboard shows it. */
   label: string;
 }
 
@@ -45,16 +46,20 @@ export function axisRange(values: readonly number[]): [number, number] {
   return [lo, hi];
 }
 
-export function ScoreChart({ points, series, compact = false }: { points: readonly TimelinePoint[]; series: readonly ChartSeries[]; /** A phone: a shorter drawing. */ compact?: boolean }) {
-  const H = compact ? 96 : 104;
+export function ScoreChart({ points, slot, label, plotClassName = "h-24" }: { points: readonly TimelinePoint[]; slot: number; /** The player's name as the scoreboard shows it. */ label: string; /** The drawing's height, as classes (it may follow the view's width): read back in px to draw at. */ plotClassName?: string }) {
+  const series: readonly ChartSeries[] = [{ slot, label }];
   const box = React.useRef<HTMLDivElement>(null);
   const uid = React.useId().replace(/[^a-zA-Z0-9]/g, "");
   const [width, setWidth] = React.useState(320);
+  const [H, setH] = React.useState(96);
   const [active, setActive] = React.useState<number | null>(null);
   React.useEffect(() => {
     const el = box.current;
     if (!el) return;
-    const measure = () => setWidth(Math.max(120, Math.round(el.clientWidth)));
+    const measure = () => {
+      setWidth(Math.max(120, Math.round(el.clientWidth)));
+      setH(Math.max(48, Math.round(el.clientHeight)));
+    };
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(el);
@@ -96,33 +101,13 @@ export function ScoreChart({ points, series, compact = false }: { points: readon
   const value = (p: TimelinePoint, slot: number) => (typeof p.scores[slot] === "number" ? formatNumber(p.scores[slot]!, 1) : "—");
   return (
     <div className="relative" data-testid="score-chart" data-points={points.length} data-series={series.length}>
-      {/* The readout: the point under the pointer (or the arrow keys), else the legend. */}
-      {/* Over the drawing's top right, so it takes no height of its own: the point read, else the legend of two players. */}
-      <p className="pointer-events-none absolute right-0 top-0 z-10 flex max-w-[85%] flex-wrap items-center justify-end gap-x-3 rounded-sm bg-surface/90 px-1 text-2xs leading-4 text-fg-muted empty:hidden" aria-live="polite" data-testid="score-chart-readout">
+      {/* Over the drawing's top right, so it takes no height of its own: the point read, and nothing while no point is. */}
+      <p className="pointer-events-none absolute right-0 top-0 z-10 flex max-w-[85%] flex-wrap items-center justify-end gap-x-2 rounded-sm bg-surface/90 px-1 text-2xs leading-4 text-fg-muted empty:hidden" aria-live="polite" data-testid="score-chart-readout">
         {shown ? (
           <>
             <span className="font-semibold tabular-nums text-fg">{when(shown)}</span>
-            {series.map((s, k) => (
-              <span key={s.slot} className="inline-flex items-center gap-1">
-                <Swatch k={k} />
-                {s.label} <span className="font-semibold tabular-nums text-fg">{value(shown, s.slot)}</span>
-              </span>
-            ))}
+            <span className="font-semibold tabular-nums text-fg">{value(shown, slot)}</span>
           </>
-        ) : series.length > 1 ? (
-          series.map((s, k) => (
-            <span key={s.slot} className="inline-flex items-center gap-1" data-testid="score-chart-legend">
-              <Swatch k={k} />
-              {s.label}
-            </span>
-          ))
-        ) : null}
-        {!shown ? (
-          // What the dotted segment is: the end reads the whole record, the points before it only what had happened by then.
-          <span className="inline-flex items-center gap-1" data-testid="score-chart-final-note">
-            <span className="inline-block w-3 border-t-2 border-dotted border-fg-muted" aria-hidden />
-            final figures
-          </span>
         ) : null}
       </p>
       <div className="grid grid-cols-[1.25rem_minmax(0,1fr)] gap-x-1">
@@ -135,10 +120,10 @@ export function ScoreChart({ points, series, compact = false }: { points: readon
         </div>
         <div
           ref={box}
-          className="relative rounded-sm outline-offset-2 focus-visible:outline-2 focus-visible:outline-accent"
+          className={cn("relative rounded-sm outline-offset-2 focus-visible:outline-2 focus-visible:outline-accent", plotClassName)}
           tabIndex={0}
           role="img"
-          aria-label={`Performance score through the game, ${series.map((s) => s.label).join(" and ")}: the table below holds the figures`}
+          aria-label={`Performance score through the game, ${label}: the table below holds the figures`}
           onPointerMove={(e) => pick(e.clientX)}
           onPointerDown={(e) => pick(e.clientX)}
           onPointerLeave={(e) => (e.pointerType === "mouse" ? setActive(null) : undefined)}
@@ -146,7 +131,7 @@ export function ScoreChart({ points, series, compact = false }: { points: readon
           onBlur={() => setActive(null)}
           data-testid="score-chart-plot"
         >
-          <svg width={width} height={H} viewBox={`0 0 ${width} ${H}`} className="block overflow-visible" aria-hidden>
+          <svg width={width} height={H} viewBox={`0 0 ${width} ${H}`} className="absolute inset-0 block overflow-visible" aria-hidden>
             <defs>
               <linearGradient id={`${uid}-a`} gradientUnits="userSpaceOnUse" x1={PAD} x2={width - PAD} y1="0" y2="0">
                 <stop offset="0" stopColor="var(--color-accent)" />
@@ -158,14 +143,14 @@ export function ScoreChart({ points, series, compact = false }: { points: readon
             <line x1={PAD} x2={width - PAD} y1={y(5)} y2={y(5)} stroke="var(--color-border-strong)" strokeWidth={1} strokeDasharray="3 4" />
             {shown ? <line x1={x(shown.minute)} x2={x(shown.minute)} y1={PAD / 2} y2={H - PAD / 2} stroke="var(--color-fg-subtle)" strokeWidth={1} /> : null}
             {[...lines].reverse().map(({ s, k, pts, path, tail }) => {
-              const stroke = k === 0 ? `url(#${uid}-a)` : "var(--color-fg-muted)";
-              const fill = k === 0 ? "var(--color-accent)" : "var(--color-fg-muted)";
+              const stroke = `url(#${uid}-a)`;
+              const fill = "var(--color-accent)";
               return (
                 <g key={s.slot} data-series={k}>
-                  <path d={path} fill="none" stroke={stroke} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" strokeDasharray={k === 0 ? undefined : "5 3"} />
+                  <path d={path} fill="none" stroke={stroke} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
                   {tail ? <path d={tail} fill="none" stroke={stroke} strokeWidth={2} strokeDasharray="1 4" strokeLinecap="round" /> : null}
                   {pts.map((p) => (
-                    <circle key={p.i} cx={x(p.minute)} cy={y(p.score)} r={p.final ? 5 : active === p.i ? 4.5 : 3.5} fill={p.final || k === 0 ? fill : "var(--color-surface)"} stroke={p.final || k === 0 ? "var(--color-surface)" : fill} strokeWidth={2} />
+                    <circle key={p.i} cx={x(p.minute)} cy={y(p.score)} r={p.final ? 4.5 : active === p.i ? 4 : 3} fill={fill} stroke="var(--color-surface)" strokeWidth={2} />
                   ))}
                 </g>
               );
@@ -214,9 +199,4 @@ export function ScoreChart({ points, series, compact = false }: { points: readon
       </div>
     </div>
   );
-}
-
-/** A series' mark in the legend and the readout: the solid line, or the dashed one. */
-function Swatch({ k }: { k: number }) {
-  return <span className={cn("inline-block h-0.5 w-3 rounded-full", k === 0 ? "bg-accent" : "border-t-2 border-dashed border-fg-muted bg-transparent")} aria-hidden />;
 }

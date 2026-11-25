@@ -33,15 +33,15 @@ const list = (raw: string): unknown[] => {
 const count = (n: number, one: string, many: string) => (n ? `${n} ${n === 1 ? one : many}` : null);
 
 export const DEVICE_ITEMS: readonly DeviceItem[] = [
-  { id: "champion-lookup", label: "Champions looked up lately", where: "Champion Lookup", base: "uniiverse.champion-lookup.v1", perAccount: true, describe: (raw) => count(list(raw).length, "champion", "champions") },
+  { id: "champion-lookup", label: "Champions looked up lately", where: "Champion Intel", base: "uniiverse.champion-lookup.v1", perAccount: true, describe: (raw) => count(list(raw).length, "champion", "champions") },
   { id: "recent-champions", label: "Recent champions", where: "the champion pickers", base: "uniiverse_recent_champions", perAccount: true, describe: (raw) => count(list(raw).length, "champion", "champions") },
   { id: "resource-favourites", label: "Favourite resources", where: "Resources", base: "uniiverse.resources.favourites.v1", perAccount: false, describe: (raw) => count(list(raw).length, "site", "sites") },
-  { id: "card-preview", label: "Card Studio's preview", where: "Card Studio on phones and tablets", base: "uniiverse.studio.preview", perAccount: false, describe: (raw) => (raw === "hidden" ? "Put away" : raw === "shown" ? "Shown" : null) },
+  { id: "card-preview", label: "Card Studio's preview", where: "Card Studio: Fit or Actual size", base: "uniiverse.studio.preview", perAccount: false, describe: (raw) => (raw === "actual" ? "Actual size" : raw === "fit" ? "Fit" : null) },
 ];
 
 /**
  * Keys this app wrote once and no longer reads, removed with everything else by "Clear all on this
- * device": Matchup Intel's champions, role and haste (retired 23 Nov 2026 for Champion Lookup).
+ * device": Matchup Intel's champions, role and haste (retired 23 Nov 2026 for Champion Intel).
  */
 export const RETIRED_BASES: readonly string[] = ["uniiverse.matchup-intel.v1"];
 

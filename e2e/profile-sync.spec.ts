@@ -18,9 +18,10 @@ async function viewer(browser: Browser, baseURL: string): Promise<Page> {
 
 const headerArt = (page: Page) => page.getByTestId("profile-header").getAttribute("data-art-champion");
 
-/** Opens the Studio's Artwork step (champion and skin). */
+/** Opens the Studio's Artwork section and its champion grid (Change, beside the chosen champion). */
 async function openArtworkPicker(page: Page) {
-  await page.getByTestId("studio-step-artwork").click();
+  await page.getByTestId("studio-tab-artwork").click();
+  await page.getByTestId("artwork-change-champion").click();
   await expect(page.getByRole("dialog").locator("button[data-champion]").first()).toBeVisible();
 }
 

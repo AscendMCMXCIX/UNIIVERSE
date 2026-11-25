@@ -18,7 +18,9 @@ import { loadSeasonGames } from "@/server/players/season-games";
 import { listAccountsForPlayer } from "@/server/accounts/repository";
 import { storeMatchDetail, storeMatchUnavailable } from "@/server/accounts/match-details";
 import { assetUrl, ddragonVersionOf, loadRiotAssets, type RiotAssets } from "@/server/riot/static/assets";
-import { createRiotClient, RiotApiError, type RiotApiClient } from "@/server/riot/api/client";
+import { createRiotClient, normaliseRiotKey, RiotApiError, type RiotApiClient } from "@/server/riot/api/client";
+import { loadScoreTimelines, recordedGoldDifferenceOf, scoreFramesOf, scoreTimelineOf, type StoredScoreTimeline } from "@/server/accounts/match-timeline";
+import { finalScoresOf, scoreReadsTimeline, type ScoreParticipant, type ScoreRecord, type ScoreTimeline } from "@/domain/performance-inputs";
 import { getCurrentPatch } from "@/server/repositories/champions";
 import { isRemoved } from "@/server/privacy/redact";
 import { lookUpRanks, NO_CHECK, rankChecksAvailable, rankLookupClient, recordedRanksBefore, storedRankReadings, type RankCheck } from "@/server/players/participant-ranks";
@@ -118,6 +120,12 @@ export interface MatchRow {
    * Flex of the 2026 ranked year.
    */
   lp: LpRecord | null;
+  /**
+   * The player's performance score in the game, the same score and place the opened game shows
+   * (cardPerformance); "pending" while a Summoner's Rift game's timeline is not stored, "none"
+   * without a score.
+   */
+  performance: CardPerformance;
 }
 
 export interface MatchHistoryPage {
@@ -227,13 +235,67 @@ export function teamKills(parts: readonly MatchParticipantDetail[], teamId: numb
   return typeof total === "number" ? total : 0;
 }
 
+/** The extra figures a record keeps for a player, as the opened game shows them (and the score reads some of them). */
+function extrasOf(st: ParticipantExtraStats | undefined): DetailParticipant["stats"] {
+  if (!st) return null;
+  const { wardsKilled, controlWardsBought, turretTakedowns, objectiveDamage, buildingDamage, ccSeconds, soloKills, firstBloodKill, firstBloodAssist, largestKillingSpree, largestMultiKill, teamHealing, teamShielding, damageMitigated, deadSeconds, platesTaken } = st;
+  return { wardsKilled, controlWardsBought, turretTakedowns, objectiveDamage, buildingDamage, ccSeconds, soloKills, firstBloodKill, firstBloodAssist, largestKillingSpree, largestMultiKill, teamHealing, teamShielding, damageMitigated, deadSeconds, platesTaken };
+}
+
+/**
+ * One player of a stored record as the performance score reads them (domain/performance-inputs
+ * ScoreParticipant): their place, figures, position and lane opponent. The opened game's
+ * participants (getMatchDetail) carry exactly these, and Match History's cards score from them, so
+ * a card and its opened game read one mapping.
+ */
+export function scoreFiguresOf(participants: readonly MatchParticipantDetail[], p: MatchParticipantDetail): ScoreParticipant & { stats: DetailParticipant["stats"] } {
+  const slot = participants.indexOf(p);
+  return {
+    slot,
+    removed: isRemoved(p),
+    position: p.position,
+    kills: p.kills,
+    deaths: p.deaths,
+    assists: p.assists,
+    cs: p.cs,
+    gold: p.gold,
+    damage: p.damage,
+    damageTaken: p.damageTaken,
+    vision: p.vision,
+    wardsPlaced: p.wardsPlaced,
+    stats: extrasOf(p.stats),
+    laneOpponentSlot: laneOpponentOf(participants, slot),
+  };
+}
+
+/**
+ * A stored record's two teams in the scoreboard's order: `first` (the profile's player's team)
+ * first, each team's players in lane order, with the team's result and kills (teamKills). The
+ * opened game's scoreboard and the card's score read this one order.
+ */
+export function recordTeamsOf(participants: readonly MatchParticipantDetail[], teams: ReadonlyArray<{ teamId: number; win?: boolean; objectives: Record<string, number> }>, first: number | null | undefined): Array<{ teamId: number; win: boolean; kills: number; members: MatchParticipantDetail[] }> {
+  const teamIds = [...new Set(participants.map((p) => p.teamId))].sort((a, b) => (a === first ? -1 : b === first ? 1 : a - b));
+  return teamIds.map((teamId) => {
+    const members = participants.filter((p) => p.teamId === teamId).sort(byLane);
+    return { teamId, win: teams.find((x) => x.teamId === teamId)?.win ?? members[0]?.win ?? false, kills: teamKills(participants, teamId, teams), members };
+  });
+}
+
+/** A card's player's performance score: the game's final score for them, as the opened game shows it. */
+export type CardPerformance =
+  | { state: "ok"; score: number; rank: number; of: number; mvp: boolean; ace: boolean; version: string }
+  /** A Summoner's Rift game whose timeline is not stored yet: opening it fetches the timeline, and its lane is part of the score. */
+  | { state: "pending" }
+  /** No score: no stored record, the player removed from it, or no two teams of recorded players to compare. */
+  | { state: "none" };
+
 /**
  * One page of the history, newest first, with the same filters as the profile's statistics. What
  * the cards say about the other players follows players/game-audience: `statsFor` is whose
  * statistics, rank included, the viewer may see (by default nobody's but the profile's own), and
  * `viewer.admin` whether the viewer is an administrator.
  */
-export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQuery, poolOf: (role: GameRole) => readonly string[] = () => [], statsFor: StatsFor = OWN_STATS_ONLY, viewer: { admin?: boolean } = {}): Promise<MatchHistoryPage> {
+export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQuery, poolOf: (role: GameRole) => readonly string[] = () => [], statsFor: StatsFor = OWN_STATS_ONLY, viewer: { admin?: boolean } = {}, site: { riotConfigured?: boolean } = {}): Promise<MatchHistoryPage> {
   const now = new Date();
   const [accounts, seasonNow, patch] = await Promise.all([listAccountsForPlayer(db, playerId), currentSeason(db, now), getCurrentPatch(db)]);
   const ids = accounts.map((a) => a.id);
@@ -326,7 +388,15 @@ export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQ
     ]);
     return { seen, known, readings, before };
   };
-  const [{ seen, known, readings, before }, teamKillRows, ladder, lpOf] = await Promise.all([
+  // The cards' performance scores (cardPerformance): the page's Summoner's Rift games whose score
+  // reads a lane need their stored timelines' frames, trimmed in the database; nothing else does.
+  const records = new Map(slice.map((g) => {
+    const d = byMatch.get(g.matchId);
+    const me = meIn(d, g);
+    return [g.matchId, d && me && d.participants.length ? { d, me, record: scoreRecordOf(d, me) } : null] as const;
+  }));
+  const laneGames = [...records].flatMap(([matchId, r]) => (r && scoreReadsTimeline(r.record) ? [matchId] : []));
+  const [{ seen, known, readings, before }, teamKillRows, ladder, lpOf, scoreTimelines] = await Promise.all([
     audienceReads(),
     newest.length
       ? db
@@ -336,7 +406,11 @@ export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQ
       : Promise.resolve([]),
     ladderQueue && ladderAccount ? ladderChange(db, ladderAccount.id, ladderQueue, now.getTime()) : Promise.resolve(null),
     lpForGames(db, slice.map((g) => ({ matchId: g.matchId, accountId: g.accountId, queueId: g.queueId, gameCreation: g.gameCreation }))),
+    laneGames.length ? loadScoreTimelines(db, laneGames) : Promise.resolve(new Map<string, StoredScoreTimeline>()),
   ]);
+  const riotConfigured = site.riotConfigured ?? normaliseRiotKey(process.env.RIOT_API_KEY) !== null;
+  // The linked accounts' PUUIDs, as the opened game's timeline finds the profile's player (timelineFor).
+  const linked = new Set(accounts.map((a) => a.puuid).filter((x): x is string => !!x));
   const pageMembers = seen.members;
   const teamKillsOf = new Map<string, number>();
   for (const g of newest) {
@@ -392,6 +466,7 @@ export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQ
       teams,
       standout: standout ? { key: standout.key, label: standout.label, value: standout.value, top: standout.top, games: standout.games } : null,
       lp: lpOf.get(g.matchId) ?? null,
+      performance: cardPerformance(records.get(g.matchId) ?? null, scoreTimelines.get(g.matchId), linked, riotConfigured),
     };
   });
 
@@ -421,6 +496,46 @@ export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQ
     memberOptions,
     ...pageSessions(chosen.sessions, slice, games, history),
   };
+}
+
+/** A stored record as the performance score reads it, its teams in the scoreboard's order from `me`'s side (as getMatchDetail orders them). */
+export function scoreRecordOf(d: { queueId: number | null; gameDuration: number; participants: MatchParticipantDetail[]; teams: ReadonlyArray<{ teamId: number; win?: boolean; objectives: Record<string, number> }> }, me: MatchParticipantDetail): ScoreRecord {
+  return {
+    queueId: d.queueId,
+    durationS: d.gameDuration,
+    teams: recordTeamsOf(d.participants, d.teams, me.teamId).map((t) => ({ teamId: t.teamId, win: t.win, kills: t.kills, participants: t.members.map((p) => scoreFiguresOf(d.participants, p)) })),
+  };
+}
+
+/**
+ * A card's performance score: the final score the opened game shows for the card's player, from the
+ * same record and the same stored timeline through the same functions (domain/performance-inputs
+ * finalScoresOf; the record by recordTeamsOf and scoreFiguresOf, the timeline by scoreTimelineOf),
+ * so the card and the opened game never differ. The timeline's only part in the final score is the
+ * lane (10:00 and 15:00, gold and experience), so it is read only for a Summoner's Rift game with a
+ * lane opponent. Where the opened game would fetch the timeline from Riot first (none stored, or
+ * one kept before frames that is fetched again once), its score would include a lane the card cannot
+ * know: "pending" rather than a score without it. Without Riot access configured nothing is fetched,
+ * and the opened game scores what is stored, as the card does. A timeline Riot no longer provides is
+ * final (scored without the lane, as the opened game does). No record, or the player removed from it:
+ * no score.
+ */
+export function cardPerformance(game: { d: { participants: MatchParticipantDetail[] }; me: MatchParticipantDetail; record: ScoreRecord } | null, stored: StoredScoreTimeline | undefined, own: ReadonlySet<string>, riotConfigured: boolean): CardPerformance {
+  if (!game || isRemoved(game.me)) return { state: "none" };
+  const { d, me, record } = game;
+  let timeline: ScoreTimeline | null = null;
+  if (scoreReadsTimeline(record)) {
+    if (riotConfigured && (!stored || (stored.available && stored.dated && !stored.t?.length))) return { state: "pending" };
+    if (stored?.available) {
+      // The record's players as loadCompositionParticipants gives them to the opened game's timeline (with Riot's two position readings).
+      const parts = d.participants.map((p) => ({ puuid: p.puuid, teamId: p.teamId, position: p.position, teamPosition: p.teamPosition ?? null, individualPosition: p.individualPosition ?? null, ...(isRemoved(p) ? { removed: true } : {}) }));
+      const { frames, kept } = scoreFramesOf(stored, d.participants);
+      timeline = scoreTimelineOf(parts, frames, kept, own, (teamId) => recordedGoldDifferenceOf(d.participants, teamId));
+    }
+  }
+  const scores = finalScoresOf(record, timeline);
+  const mine = scores?.players.find((p) => p.slot === d.participants.indexOf(me));
+  return scores && mine ? { state: "ok", score: mine.score, rank: mine.rank, of: scores.scored, mvp: mine.mvp, ace: mine.ace, version: scores.version } : { state: "none" };
 }
 
 /**
@@ -755,56 +870,52 @@ export async function getMatchDetail(db: Db, playerId: string, matchId: string, 
     killsOf.set(teamId, teamKills(d.participants, teamId, d.teams));
     damageOf.set(teamId, sumOf(d.participants.filter((x) => x.teamId === teamId).map((x) => x.damage)));
   }
-  const extras = (st: ParticipantExtraStats | undefined): DetailParticipant["stats"] => {
-    if (!st) return null;
-    const { wardsKilled, controlWardsBought, turretTakedowns, objectiveDamage, buildingDamage, ccSeconds, soloKills, firstBloodKill, firstBloodAssist, largestKillingSpree, largestMultiKill, teamHealing, teamShielding, damageMitigated, deadSeconds, platesTaken } = st;
-    return { wardsKilled, controlWardsBought, turretTakedowns, objectiveDamage, buildingDamage, ccSeconds, soloKills, firstBloodKill, firstBloodAssist, largestKillingSpree, largestMultiKill, teamHealing, teamShielding, damageMitigated, deadSeconds, platesTaken };
+  const view = (p: MatchParticipantDetail): DetailParticipant => {
+    const figures = scoreFiguresOf(d!.participants, p);
+    return {
+      slot: figures.slot,
+      removed: figures.removed,
+      name: p.name,
+      isPlayer: p === meRaw || puuids.has(p.puuid),
+      teamMember: memberOf.get(p.puuid) ?? null,
+      memberId: profileOf.get(p.puuid) ?? null,
+      opgg: opggLinkFor(p.name, platform, known.get(p.puuid)),
+      rank: rankOf(p),
+      championId: p.championId,
+      champLevel: p.champLevel,
+      position: figures.position,
+      kills: figures.kills,
+      deaths: figures.deaths,
+      assists: figures.assists,
+      kda: p.deaths > 0 ? (p.kills + p.assists) / p.deaths : p.kills + p.assists,
+      killParticipation: isRemoved(p) || !(killsOf.get(p.teamId)! > 0) ? null : Math.min(1, (p.kills + p.assists) / killsOf.get(p.teamId)!),
+      cs: figures.cs,
+      csPerMin: perMinute(p.cs, d!.gameDuration),
+      gold: figures.gold,
+      goldPerMin: perMinute(p.gold, d!.gameDuration),
+      damage: figures.damage,
+      damagePerMin: perMinute(p.damage, d!.gameDuration),
+      damageShare: share(p.damage, damageOf.get(p.teamId) ?? null),
+      damageTaken: figures.damageTaken,
+      vision: figures.vision,
+      visionPerMin: perMinute(p.vision, d!.gameDuration),
+      wardsPlaced: figures.wardsPlaced,
+      stats: figures.stats,
+      ...icons(p, assets, version),
+      runePage: isRemoved(p) ? null : runePageOf(p, assets),
+      laneOpponentSlot: figures.laneOpponentSlot,
+      win: p.win,
+    };
   };
-  const view = (p: MatchParticipantDetail): DetailParticipant => ({
-    slot: d!.participants.indexOf(p),
-    removed: isRemoved(p),
-    name: p.name,
-    isPlayer: p === meRaw || puuids.has(p.puuid),
-    teamMember: memberOf.get(p.puuid) ?? null,
-    memberId: profileOf.get(p.puuid) ?? null,
-    opgg: opggLinkFor(p.name, platform, known.get(p.puuid)),
-    rank: rankOf(p),
-    championId: p.championId,
-    champLevel: p.champLevel,
-    position: p.position,
-    kills: p.kills,
-    deaths: p.deaths,
-    assists: p.assists,
-    kda: p.deaths > 0 ? (p.kills + p.assists) / p.deaths : p.kills + p.assists,
-    killParticipation: isRemoved(p) || !(killsOf.get(p.teamId)! > 0) ? null : Math.min(1, (p.kills + p.assists) / killsOf.get(p.teamId)!),
-    cs: p.cs,
-    csPerMin: perMinute(p.cs, d!.gameDuration),
-    gold: p.gold,
-    goldPerMin: perMinute(p.gold, d!.gameDuration),
-    damage: p.damage,
-    damagePerMin: perMinute(p.damage, d!.gameDuration),
-    damageShare: share(p.damage, damageOf.get(p.teamId) ?? null),
-    damageTaken: p.damageTaken,
-    vision: p.vision,
-    visionPerMin: perMinute(p.vision, d!.gameDuration),
-    wardsPlaced: p.wardsPlaced,
-    stats: extras(p.stats),
-    ...icons(p, assets, version),
-    runePage: isRemoved(p) ? null : runePageOf(p, assets),
-    laneOpponentSlot: laneOpponentOf(d!.participants, d!.participants.indexOf(p)),
-    win: p.win,
-  });
-  // The player's team first, each in lane order.
-  const teamIds = [...new Set(d.participants.map((p) => p.teamId))].sort((a, b) => (a === meRaw?.teamId ? -1 : b === meRaw?.teamId ? 1 : a - b));
-  const teams: DetailTeam[] = teamIds.map((teamId) => {
-    const parts = d!.participants.filter((p) => p.teamId === teamId).sort(byLane);
+  // The player's team first, each in lane order (recordTeamsOf: the card's score reads the same).
+  const teams: DetailTeam[] = recordTeamsOf(d.participants, d.teams, meRaw?.teamId).map(({ teamId, win, kills, members: parts }) => {
     const t = d!.teams.find((x) => x.teamId === teamId);
     const golds = parts.map((p) => p.gold);
     return {
       teamId,
       side: teamId === 100 ? "blue" : "red",
-      win: t?.win ?? parts[0]?.win ?? false,
-      kills: teamKills(d!.participants, teamId, d!.teams),
+      win,
+      kills,
       gold: golds.every((g) => g !== null) ? golds.reduce((n, g) => n + (g ?? 0), 0) : null,
       objectives: t?.objectives ?? {},
       bans: t?.bans ?? [],

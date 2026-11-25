@@ -141,7 +141,8 @@ test("the layout: one panel on a phone, a panel per section packed into columns 
     expect(await list.evaluate((el) => getComputedStyle(el).borderTopWidth)).toBe("1px");
     expect(await groups.first().evaluate((el) => getComputedStyle(el).borderTopWidth)).toBe("0px");
     expect(heading, "a phone's compact headings").toBe(14);
-    // The index wraps as one inset group (G3-4): every row starts at the left, and the segments keep the group's inset off its edges.
+    // The index wraps (G3-4): every row starts at the left. Since Release 17 the group has no outline or fill (the owner's brief
+    // §9), so there is no edge for the segments to keep off: the group is flat instead.
     const index = page.getByTestId("resources-index");
     const box = (await index.boundingBox())!;
     const segs = await Promise.all((await index.getByRole("radio").all()).map(async (r) => (await r.boundingBox())!));
@@ -149,8 +150,8 @@ test("the layout: one panel on a phone, a panel per section packed into columns 
     const rowStarts = segs.filter((r) => !segs.some((o) => Math.abs(o.y + o.height / 2 - (r.y + r.height / 2)) < r.height / 2 && o.x < r.x)).map((r) => r.x);
     expect(rowStarts.length, "the index wraps on a phone").toBeGreaterThanOrEqual(1);
     for (const x of rowStarts) expect(Math.abs(x - rowStarts[0]!), "each row of the index starts at the left").toBeLessThanOrEqual(1);
-    expect(Math.min(...segs.map((r) => r.y)) - box.y, "the index's inset at its top").toBeGreaterThanOrEqual(1.5);
-    expect(box.y + box.height - Math.max(...segs.map((r) => r.y + r.height)), "the index's inset at its foot").toBeGreaterThanOrEqual(1.5);
+    expect(box.height, "the index measured").toBeGreaterThan(0);
+    expect(await index.evaluate((el) => [getComputedStyle(el).borderTopWidth, getComputedStyle(el).backgroundColor]), "no outline or fill round the index").toEqual(["0px", "rgba(0, 0, 0, 0)"]);
   } else {
     // Two columns on a tablet, three from xl; each section a panel kept whole, titled as a panel is.
     expect(columns).toBe(info.project.name === "desktop" ? "3" : "2");
@@ -392,10 +393,14 @@ test("on a touch tablet, Admin Mode's row buttons in Resources and Branding's co
   await blockFavicons(page);
   await context.addCookies([{ name: "uniiverse_view", value: "admin", url: baseURL! }]);
   await page.goto("/admin/resources");
+  // Streamed, as Branding below: the rows are measured once shown, not in the hidden template.
+  await expect(page.getByTestId("managed-resource").first().locator("button").first()).toBeVisible();
   const sizes = await page.getByTestId("managed-resource").first().locator("button").evaluateAll((els) => els.map((e) => Math.round(Math.min(e.getBoundingClientRect().width, e.getBoundingClientRect().height))));
   expect(sizes.length).toBeGreaterThan(0);
   for (const s of sizes) expect(s, "a row button").toBeGreaterThanOrEqual(44);
   await page.goto("/admin/branding");
+  // Streamed: the fields first arrive in a hidden template, 0px tall, so they are measured once shown.
+  await expect(page.locator("input[aria-label$=' hex']").first()).toBeVisible();
   const hex = await page.locator("input[aria-label$=' hex']").evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().height)));
   expect(hex.length).toBe(5);
   for (const h of hex) expect(h, "a colour's hex field").toBeGreaterThanOrEqual(44);

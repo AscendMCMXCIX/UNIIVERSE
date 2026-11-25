@@ -29,7 +29,7 @@ async function run(ctx: Pick<JobContext, "db" | "log" | "startedAt" | "budgetMs"
     invalidateChampionCaches();
     invalidateCache("shell-facts");
   }
-  // Champion Lookup: each champion's abilities from Data Dragon, once per game version, from the
+  // Champion Intel: each champion's abilities from Data Dragon, once per game version, from the
   // detail files the champion sync just read (the missing ones are requested); the committed
   // offline copy when the champions came from the offline fixture. When nothing changed it is one
   // statement, which reads the stored abilities once. Its own failure never stops the rest of the run.

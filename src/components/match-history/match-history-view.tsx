@@ -19,10 +19,11 @@ import { cn } from "@/lib/cn";
 import { MatchDetailModal } from "./match-detail";
 import { MatchDetailCacheContext, createMatchDetailCache, type MatchDetailCache } from "./match-detail-cache";
 import { EncounterLinkContext, type EncounterLink } from "./post-game";
-import { GameSteps, MatchExpansion, bringBack, revealOpened, type GameNav } from "./inline-match";
+import { GameSteps, MatchExpansion, bringBack, holdInPlace, revealOpened, type GameNav } from "./inline-match";
 import { HistorySummaryStrip } from "./history-summary";
 import { ItemRow } from "./icon-img";
 import { MultikillTag } from "./multikill-tag";
+import { ScoreMark, scoreWords } from "./score-mark";
 import { ChampionLoadout, LpChange, lpSpoken, MatchRail, MatchResult, matchCardClass, matchTone } from "./match-card";
 import { TeamComposition } from "./team-composition";
 import { ModeElsewhere, OverviewFilters } from "@/components/players/overview-filters";
@@ -94,6 +95,8 @@ const PHONE_FIGURES_REST = "contents @min-[16rem]/mh:col-[1/-1] @min-[16rem]/mh:
  * card is read in the order it is drawn. Only one of the two is ever displayed.
  */
 const PHONE_BUILD = "col-[1/-1] row-[5] [--icon-size:1.25rem] @min-[21.375rem]/mh:hidden @min-[36rem]/mh:col-auto @min-[36rem]/mh:row-auto @min-[36rem]/mh:flex @min-[36rem]/mh:[--icon-size:initial]";
+/** A wide card's build cell with the performance score: beside the build from 50rem (where the build keeps the teams' 13rem), under it from 61rem (beside the teams, the card is five lines tall). */
+const WIDE_SCORE_CELL = "@min-[50rem]/mh:gap-x-3 @min-[61rem]/mh:flex-col @min-[61rem]/mh:items-start @min-[61rem]/mh:gap-y-1";
 const PHONE_BUILD_BESIDE = "col-[2] row-[3] hidden items-center overflow-hidden [--icon-size:1.25rem] @min-[21.375rem]/mh:flex @min-[36rem]/mh:hidden";
 
 export { fmtDuration, fmtNum, fmtInt } from "./match-format";
@@ -119,7 +122,7 @@ function membersIn(teams: Composition | null) {
  * Memoised: opening a match re-renders only the cards it opens and closes, not the whole page. The
  * breakdown opens under its card (MatchBreakdown), one game at a time.
  */
-const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ, onToggle, onPrefetch, nav, expanded, checked }: { row: MatchRow; playerId: string; champion: PortraitChampion; champ: (id: string | null) => PortraitChampion; onToggle: (matchId: string) => void; onPrefetch: (matchId: string) => void; /** The open game's way to the previous and next games on the page (null at that end). */ nav: GameNav | null; expanded: boolean; /** Ranks its breakdown checked with Riot, shown without reloading the page. */ checked?: ReadonlyMap<number, ParticipantRank> }) {
+const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ, onToggle, onPrefetch, nav, expanded, fit = true, checked }: { row: MatchRow; playerId: string; champion: PortraitChampion; champ: (id: string | null) => PortraitChampion; onToggle: (matchId: string) => void; onPrefetch: (matchId: string) => void; /** The open game's way to the previous and next games on the page (null at that end). */ nav: GameNav | null; expanded: boolean; /** Bring the game into view once drawn (an open, not a step from another game). */ fit?: boolean; /** Ranks its breakdown checked with Riot, shown without reloading the page. */ checked?: ReadonlyMap<number, ParticipantRank> }) {
   const kp = row.killParticipation === null ? "—" : `${Math.round(row.killParticipation * 100)}%`;
   const tone = matchTone(row.win);
   const account = row.riotId ? row.riotId.split("#")[0] : null;
@@ -127,6 +130,10 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
   const kda = row.kills === null ? "—" : `${row.kills} / ${row.deaths} / ${row.assists}`;
   const ratio = row.kda === null ? "details not collected" : row.perfect ? "Perfect KDA" : `${row.kda.toFixed(2)} KDA`;
   const multikill = row.multikill ? MULTIKILL_NAMES[row.multikill] : null;
+  // The game's performance score: the opened game's own (docs/PERFORMANCE_SCORE.md); pending while a
+  // Summoner's Rift game's timeline is not stored, which draws nothing (the label says why).
+  const scored = row.performance.state === "ok" ? row.performance : null;
+  const scoreSpoken = scored ? `, ${scoreWords(scored).replace(/^P/, "p")}` : row.performance.state === "pending" ? ", performance score once the game's timeline is stored" : "";
   // A stored record without items: no build to draw (see the build's place below).
   const unrecorded = row.record === "stored" && !row.items;
   // One line of seven on a phone's card (the trinket last), two rows of three and four from 36rem
@@ -184,6 +191,12 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
       ) : null}
     </span>
   );
+  // A wide card's: with the build, beside it while the build keeps the teams' place (50–61rem), under it from 61rem.
+  const wideScore = scored ? (
+    <span className="hidden @min-[50rem]/mh:inline-flex">
+      <ScoreMark score={scored} testId="match-score" />
+    </span>
+  ) : null;
   const open = React.useRef<HTMLButtonElement>(null);
   return (
     <li
@@ -253,13 +266,16 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
           ref={open}
           type="button"
           className="absolute inset-0 rounded-[inherit] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
-          aria-label={`${tone.word} on ${champion.name}, ${row.queue}, ${when}${row.lp ? `, ${lpSpoken(row.lp)}` : ""}${multikill ? `, ${multikill.toLowerCase()}` : ""}. ${expanded ? "Hide" : "Show"} the match details.`}
+          aria-label={`${tone.word} on ${champion.name}, ${row.queue}, ${when}${row.lp ? `, ${lpSpoken(row.lp)}` : ""}${scoreSpoken}${multikill ? `, ${multikill.toLowerCase()}` : ""}. ${expanded ? "Hide" : "Show"} the match details.`}
           aria-describedby={row.teams ? teamsId : undefined}
           aria-expanded={expanded}
           aria-controls={expanded ? regionId : undefined}
           data-testid="match-row"
           data-match={row.matchId}
           data-result={row.win ? "W" : "L"}
+          data-score-state={row.performance.state}
+          data-score={scored?.score}
+          data-rank={scored?.rank}
         />
         <MatchRail win={row.win} />
         {expanded ? (
@@ -345,15 +361,22 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
               5.78em). 6.25em leaves about 9%. A phone's card caps the column at that K/D/A instead
               (5.75rem), so a longer ratio line ("details not collected") wraps under it rather than
               take the build's room. */}
-          <span className={cn("text-right leading-snug @min-[36rem]/mh:text-left", PHONE_KDA)}>
-            <span className="block whitespace-nowrap text-base font-semibold tabular-nums leading-snug text-fg @min-[36rem]/mh:min-w-[6.25em] @min-[54rem]/mh:text-lg" data-testid="match-kda">
+          <span className={cn("text-right @min-[36rem]/mh:text-left", "leading-tight @min-[50rem]/mh:leading-snug", PHONE_KDA)}>
+            <span className={cn("block whitespace-nowrap text-base font-semibold tabular-nums text-fg @min-[36rem]/mh:min-w-[6.25em] @min-[54rem]/mh:text-lg", "leading-tight @min-[50rem]/mh:leading-snug")} data-testid="match-kda">
               {kda}
             </span>
             <span className={cn("block text-xs tabular-nums", row.perfect ? "text-good" : (row.kda ?? 0) >= 3 ? "text-fg-muted" : "text-fg-subtle")}>{ratio}</span>
+            {/* The performance score under the ratio on a phone's and a two-row card (a wide card has it with the build). */}
+            {scored ? (
+              <span className="flex justify-end @min-[36rem]/mh:justify-start @min-[50rem]/mh:hidden">
+                <ScoreMark score={scored} dense testId="match-score" />
+              </span>
+            ) : null}
             {/* The game's largest multikill, quietly (see MultikillTag). */}
+            {/* Under the score on a phone's and a two-row card, no taller than its text: the score's line takes the room the multikill's spacing had. */}
             {row.multikill ? (
-              <span className="mt-0.5 flex flex-wrap items-center justify-end gap-x-1.5 gap-y-0.5 @min-[36rem]/mh:justify-start">
-                <MultikillTag size={row.multikill} />
+              <span className={cn("flex flex-wrap items-center justify-end gap-x-1.5 gap-y-0.5 @min-[36rem]/mh:justify-start", scored ? "mt-px @min-[50rem]/mh:mt-0.5" : "mt-0.5")}>
+                <MultikillTag size={row.multikill} dense={!!scored} className={scored ? "@min-[50rem]/mh:leading-tight" : undefined} />
               </span>
             ) : null}
           </span>
@@ -382,10 +405,13 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
           {unrecorded ? (
             <>
               {build}
-              <span className="hidden @min-[36rem]/mh:block @min-[36rem]/mh:w-[5.875rem]" aria-hidden />
+              <span className={cn("hidden @min-[36rem]/mh:block @min-[36rem]/mh:w-[5.875rem]", WIDE_SCORE_CELL)}>{wideScore}</span>
             </>
           ) : (
-            <span className={cn("flex items-center overflow-hidden", PHONE_BUILD)} data-testid="match-card-build">{build}</span>
+            <span className={cn("flex items-center overflow-hidden", PHONE_BUILD, WIDE_SCORE_CELL)} data-testid="match-card-build">
+              {build}
+              {wideScore}
+            </span>
           )}
           {/* Both teams; without the full record, a quiet note instead of empty slots. A phone's card
               leaves them to the game's own screen (its scoreboard lists all ten), so a screenful
@@ -411,6 +437,7 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
           matchId={row.matchId}
           champ={champ}
           nav={nav}
+          fit={fit}
           onClose={() => onToggle(row.matchId)}
         />
       ) : null}
@@ -503,7 +530,7 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
   // The open game: from a card (it opens under the card, and closes if a refresh takes it off the
   // page) or from a link (?match= on arrival or Back/Forward: under its card when it is on the
   // page, else in the match window).
-  const [open, setOpen] = React.useState<{ id: string; via: "card" | "link" } | null>(() => {
+  const [open, setOpen] = React.useState<{ id: string; via: "card" | "link" | "step" } | null>(() => {
     const id = params.get("match");
     return id ? { id, via: "link" } : null;
   });
@@ -643,7 +670,8 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
       // A phone's window steps over a list it hides: nothing to hold in place there.
       anchor.current = keep && !prefersWindow() ? { id: matchId, top: keep.getBoundingClientRect().top } : null;
       reveal.current = null;
-      setOpen({ id: matchId, via: "card" });
+      // "step": its card is held where the open one's header was, so the game is not moved into view (InlineMatch's fit).
+      setOpen({ id: matchId, via: "step" });
       if (pushed.current) pushed.current = matchId;
       writeMatch(matchId);
     },
@@ -686,27 +714,7 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
     anchor.current = null;
     const el = document.getElementById(`match-${inline}`);
     if (!el) return;
-    const hold = () => {
-      const off = el.getBoundingClientRect().top - a.top;
-      if (Math.abs(off) > 0.5) window.scrollBy({ top: off, behavior: "instant" });
-    };
-    hold();
-    // Content above it can still settle for a few frames (the game that closed drawing its card
-    // again): the header is held where it was until then, unless the reader scrolls first.
-    let frames = 0;
-    let raf = 0;
-    const stop = () => {
-      cancelAnimationFrame(raf);
-      for (const t of ["wheel", "touchstart", "keydown", "pointerdown"]) window.removeEventListener(t, stop);
-    };
-    const tick = () => {
-      hold();
-      if (++frames < 30) raf = requestAnimationFrame(tick);
-      else stop();
-    };
-    raf = requestAnimationFrame(tick);
-    for (const t of ["wheel", "touchstart", "keydown", "pointerdown"]) window.addEventListener(t, stop, { passive: true, once: true });
-    return stop;
+    return holdInPlace(el, a.top);
   }, [inline]);
   // An opened card that sits low on the screen, or above it (the game open before it closed and
   // the list moved up), is scrolled to the top so its breakdown is in view; one already in the
@@ -769,7 +777,7 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
   // A phone's window over the list: Previous and Next step through this page's games.
   const windowAt = windowed ? rowIds.indexOf(windowed) : -1;
   const windowNav = phone && windowAt >= 0 ? { prev: rowIds[windowAt - 1] ?? null, next: rowIds[windowAt + 1] ?? null, go: step, index: windowAt, total: rowIds.length } : null;
-  const card = (r: MatchRow) => <MatchCard key={r.matchId} row={r} playerId={playerId} champion={championsById[r.championId] ?? fallbackChampion(r.championId)} champ={champOrUnknown} onToggle={toggle} onPrefetch={prefetch} nav={inline === r.matchId ? inlineNav : null} expanded={inline === r.matchId} checked={checkedRanks[r.matchId]} />;
+  const card = (r: MatchRow) => <MatchCard key={r.matchId} row={r} playerId={playerId} champion={championsById[r.championId] ?? fallbackChampion(r.championId)} champ={champOrUnknown} onToggle={toggle} onPrefetch={prefetch} nav={inline === r.matchId ? inlineNav : null} expanded={inline === r.matchId} fit={inline === r.matchId && open?.via !== "step"} checked={checkedRanks[r.matchId]} />;
 
   return (
     <section className="space-y-3" aria-labelledby="match-history" data-testid="match-history" data-accounts-linked={data.accountsLinked} data-total={data.total} data-ready={interactive ? "true" : undefined}>

@@ -68,6 +68,14 @@ export interface RosterRowProps {
   screen?: "any" | "wide" | "phone";
 }
 
+/**
+ * The Players list's one panel of rows and its grid (players-directory.tsx): one row across, two from
+ * 38rem of roster, three from 84rem. Card Studio's Players preview draws its row in the same panel and
+ * grid, so the row is as wide as on the page.
+ */
+export const DIRECTORY_PANEL = "@container/roster overflow-clip rounded-card border border-border bg-surface panel-depth";
+export const DIRECTORY_GRID = "-mb-px -mr-px grid grid-cols-1 @min-[38rem]/roster:grid-cols-2 @min-[84rem]/roster:grid-cols-3";
+
 const ART: Record<NonNullable<RosterRowProps["screen"]>, string | null> = { any: "max-md:hidden", wide: "", phone: null };
 const LINKS: Record<NonNullable<RosterRowProps["screen"]>, string | null> = { any: "hidden md:@min-[20rem]/row:flex", wide: "hidden @min-[20rem]/row:flex", phone: null };
 

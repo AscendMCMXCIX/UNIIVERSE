@@ -16,13 +16,15 @@ export interface AbilityFixture {
 }
 export function buildFixture(full: unknown): AbilityFixture;
 export function serialiseFixture(fixture: AbilityFixture): string;
-/** Each spell as Data Dragon gives it: [id, maxrank, cooldown, maxammo]. */
-export type DigestSpell = [string | null, number | null, number[] | null, string | number | null];
+/** Each spell as Data Dragon gives it: [id, maxrank, cooldown, maxammo, cost, resource]. */
+export type DigestSpell = [string | null, number | null, number[] | null, string | number | null, number[] | null, string | null];
 export interface AbilityDigest {
   version: string;
   champions: Record<string, DigestSpell[]>;
   /** Riot's tips exactly as Data Dragon gives them (null when absent). */
   tips?: Record<string, { ally: unknown; enemy: unknown }>;
+  /** Each champion's partype, tags and stats exactly as Data Dragon gives them (null when absent). */
+  facts?: Record<string, { partype: string | null; tags: string[] | null; stats: Record<string, number> | null }>;
 }
 export function buildDigest(full: unknown): AbilityDigest;
 export function serialiseDigest(digest: AbilityDigest): string;

@@ -104,3 +104,20 @@ export async function pastGameHeader(page: Page) {
     window.scrollBy({ top: steps.getBoundingClientRect().bottom - pinned + 4, behavior: "instant" });
   });
 }
+
+/**
+ * A phone's game window shows one page at a time (Player, Build, Scoreboard: post-game.tsx, the
+ * owner's brief of 24 Nov 2026, §2); this shows the one asked for. Elsewhere (no pages) it does
+ * nothing: every part is on the one screen.
+ */
+export async function showGamePage(breakdown: Locator, page: "player" | "build" | "board") {
+  const tab = breakdown.getByTestId(`post-game-page-${page}`);
+  // A window on a phone or under 481px tall gets its pages once the page has hydrated (usePhone is
+  // false on the first render): wait for them there, so a busy machine cannot answer "no pages" early.
+  const size = breakdown.page().viewportSize();
+  const paged = (await breakdown.getAttribute("data-variant")) === "window" && !!size && (size.width < 768 || size.height <= 480);
+  if (paged) await expect(tab).toBeVisible({ timeout: 10_000 });
+  if (!(await tab.count())) return;
+  if ((await tab.getAttribute("aria-checked")) !== "true") await tab.click();
+  await expect(breakdown).toHaveAttribute("data-page", page);
+}

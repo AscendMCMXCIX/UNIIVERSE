@@ -121,7 +121,7 @@ export function UnfoldRegion({ id, label, header, children, className, testId = 
   return (
     <div id={id} role="region" aria-label={label} className={cn("unfold-grow", className)} onTransitionEnd={(e) => e.target === e.currentTarget && setSettled(true)} data-testid={testId}>
       {/* Clipped while it grows; once grown nothing clips it, so its pinned header can stick. */}
-      <div className={cn("min-h-0", settled ? "overflow-visible" : "overflow-hidden")} data-settled={settled || undefined}>
+      <div className={cn("min-h-0", settled ? "overflow-visible" : "overflow-hidden")} data-unfold-body="" data-settled={settled || undefined}>
         {header}
         <div className="motion-safe:swap-in">{children}</div>
       </div>

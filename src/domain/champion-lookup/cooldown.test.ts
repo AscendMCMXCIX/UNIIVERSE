@@ -4,7 +4,7 @@ import { NOT_THE_COOLDOWN, compareDdragonVersions, ddragonCooldownDisplay } from
 import type { DdragonAbility, DdragonChampionAbilities } from "./types";
 
 /*
-  Champion Lookup's cooldown guard (docs/CHAMPION_LOOKUP.md, "Cooldowns"), rule by rule, then every
+  Champion Intel's cooldown guard (docs/CHAMPION_INTEL.md, "Cooldowns"), rule by rule, then every
   ability of the committed Data Dragon copy, then input that is not what it should be, which never
   throws and never becomes a number.
 */

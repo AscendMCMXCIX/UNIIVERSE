@@ -107,11 +107,11 @@ describe("navigation parity: one set of destinations on every screen", () => {
     for (const bar of Object.values(bars)) expect(bar.map((l) => l.name)).not.toContain("Settings");
   });
 
-  it("Player Mode is My Profile, Team, Champion Lookup and Resources; Admin Mode Dashboard, Users & Permissions, Platform Settings and System", () => {
+  it("Player Mode is My Profile, Team, Champion Intel and Resources; Admin Mode Dashboard, Users & Permissions, Platform Settings and System", () => {
     expect(render("/team", PLAYER, false).phone.map((l) => [l.name, l.short, l.icon])).toEqual([
       ["My Profile", "Profile", "circle-user-round"],
       ["Team", null, "users"],
-      ["Champion Lookup", "Lookup", "scan-search"],
+      ["Champion Intel", "Intel", "scan-search"],
       ["Resources", null, "book-bookmark"],
     ]);
     expect(render("/admin", ADMIN, true).phone.map((l) => [l.name, l.short, l.icon])).toEqual([

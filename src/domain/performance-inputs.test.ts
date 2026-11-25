@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { DetailParticipant, DetailTeam } from "@/server/players/match-history";
 import type { TimelinePlayerView } from "@/server/accounts/match-timeline";
-import { gameScoresOf, participantOf, scoreInputsOf } from "./performance-inputs";
+import { finalScoresOf, gameScoresOf, participantOf, scoreInputsOf, scoreReadsTimeline } from "./performance-inputs";
 
 /* The opened game's record and timeline as the score reads them: nothing more is fetched. */
 
@@ -75,5 +75,25 @@ describe("the score's inputs from the opened game", () => {
   it("finds a participant by place in the record", () => {
     expect(participantOf(view(), 7)!.slot).toBe(7);
     expect(participantOf(view(), 12)).toBeNull();
+  });
+});
+
+describe("one calculation for the card and the opened game", () => {
+  it("finalScoresOf is gameScoresOf's final scores, read from the gold and experience alone", () => {
+    const tl = timeline(90);
+    const trimmed = { t: tl.t, players: tl.players.map((p) => ({ slot: p.slot, frames: p.frames ? { g: p.frames.g, x: p.frames.x } : null, lane: p.lane ? { opponentSlot: p.lane.opponentSlot } : null })) };
+    expect(finalScoresOf(view(), trimmed)).toEqual(gameScoresOf(view(), tl).scores);
+    expect(finalScoresOf(view(), null)).toEqual(gameScoresOf(view(), null).scores);
+    expect(finalScoresOf(view({ 9: { removed: true } }), trimmed)).toEqual(gameScoresOf(view({ 9: { removed: true } }), tl).scores);
+  });
+
+  it("reads the timeline only for a Summoner's Rift game with a lane opponent", () => {
+    expect(scoreReadsTimeline(view())).toBe(true);
+    expect(scoreReadsTimeline(view({}, 450))).toBe(false);
+    const noLanes = view(Object.fromEntries(Array.from({ length: 10 }, (_, s) => [s, { laneOpponentSlot: null }])));
+    expect(scoreReadsTimeline(noLanes)).toBe(false);
+    // Without a lane to read, the timeline changes nothing in the final score.
+    expect(finalScoresOf(noLanes, timeline(90))).toEqual(finalScoresOf(noLanes, null));
+    expect(finalScoresOf(view({}, 450), timeline(90))).toEqual(finalScoresOf(view({}, 450), null));
   });
 });

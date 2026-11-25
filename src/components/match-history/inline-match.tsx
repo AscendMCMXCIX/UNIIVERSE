@@ -23,6 +23,9 @@ import { pinnedTop, screenHeight, scrollToStart } from "@/lib/screen";
 
 const reduced = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+/** How long an opened game is still brought into view as its parts arrive (the timeline, the groups, the ranks). */
+const SETTLING_MS = 3000;
+
 /**
  * What is pinned above the page now (the top bar, a profile's or Team's pinned section tabs): the
  * page's scroll padding, and a phone's sliding top bar row while it is in view (pinnedTop). Cards
@@ -50,6 +53,45 @@ export function revealOpened(el: HTMLElement | null) {
   if (!el) return;
   const top = el.getBoundingClientRect().top;
   if (top < pinnedAbove() || top > screenHeight() * 0.55) scrollToStart(el, reduced() ? "auto" : "smooth");
+}
+
+/**
+ * After Previous or Next (or another card pressed while a game is open): the new card held where
+ * the old one's header was (`top`, its place on the screen), now and for the next 30 frames while
+ * the content above it settles (the game that closed drawing its card again). The hold ends early
+ * once the reader scrolls, presses a key or a pointer, or the page is scrolled far by anything but
+ * the hold: it used to run on for its 30 frames whatever else moved the page, and pulled a scroll made
+ * meanwhile back by 612px (a scroll 400ms after a step, e2e/match-breakdown.spec.ts). Returns the
+ * function that ends it.
+ */
+export function holdInPlace(el: HTMLElement, top: number): () => void {
+  let expected = window.scrollY;
+  const hold = () => {
+    const off = el.getBoundingClientRect().top - top;
+    if (Math.abs(off) > 0.5) window.scrollBy({ top: off, behavior: "instant" });
+    expected = window.scrollY;
+  };
+  let frames = 0;
+  let raf = 0;
+  // Moved by something else, and far (a reader's scroll, not the browser's own scroll anchoring, which keeps what is on screen in place): the reader's choice stands.
+  const onScroll = () => {
+    if (Math.abs(window.scrollY - expected) > 1 && Math.abs(el.getBoundingClientRect().top - top) > 48) stop();
+  };
+  const stop = () => {
+    cancelAnimationFrame(raf);
+    window.removeEventListener("scroll", onScroll);
+    for (const t of ["wheel", "touchstart", "keydown", "pointerdown"]) window.removeEventListener(t, stop);
+  };
+  const tick = () => {
+    hold();
+    if (++frames < 30) raf = requestAnimationFrame(tick);
+    else stop();
+  };
+  hold();
+  raf = requestAnimationFrame(tick);
+  window.addEventListener("scroll", onScroll, { passive: true });
+  for (const t of ["wheel", "touchstart", "keydown", "pointerdown"]) window.addEventListener(t, stop, { passive: true, once: true });
+  return stop;
 }
 
 /** The open game's way to its neighbours on the page: null at that end. */
@@ -108,13 +150,13 @@ export function GameSteps({ nav, onClose, where }: { nav: GameNav | null; onClos
  * The post-game view under an open card, with its own loading and error states, and a footer that
  * stays at the bottom of the screen while the game's end is below it: Previous, Next and Close.
  */
-export function MatchExpansion({ id, label, playerId, matchId, champ, nav, onClose }: { id: string; label: string; playerId: string; matchId: string; champ: (id: string | null) => PortraitChampion; nav: GameNav | null; onClose: () => void }) {
+export function MatchExpansion({ id, label, playerId, matchId, champ, nav, onClose, fit = true }: { id: string; label: string; playerId: string; matchId: string; champ: (id: string | null) => PortraitChampion; nav: GameNav | null; onClose: () => void; /** Bring the game into view once drawn: false after Previous or Next, whose card is held where the last one's header was. */ fit?: boolean }) {
   return (
     // The shared Unfold region (components/ui/unfold.tsx): it grows open, and its compact header
     // stays pinned with Close while the game is on screen and its own header has gone up.
     <UnfoldRegion id={id} label={label} header={<UnfoldHeader title={label} onClose={onClose} testId="match-unfold-header" />} className="rounded-b-panel border border-t-0 border-border bg-bg-elevated" testId="match-expanded">
-      <div className="px-3 pt-3 sm:px-4 sm:pt-4">
-        <InlineMatch playerId={playerId} matchId={matchId} champ={champ} />
+      <div className="px-3 pt-3 sm:px-4 sm:pt-3">
+        <InlineMatch playerId={playerId} matchId={matchId} champ={champ} fit={fit} />
         <GameFooter id={id} nav={nav} onClose={onClose} />
       </div>
     </UnfoldRegion>
@@ -123,14 +165,19 @@ export function MatchExpansion({ id, label, playerId, matchId, champ, nav, onClo
 
 /**
  * The game's footer: Previous, Next and Close at the bottom of the screen while the game's end is
- * below it. One set at a time: where the open card's own header carries the same three (Match
- * History) and that header is on screen, the footer keeps its place but shows nothing, so the two
- * sets are never seen together (the review of Release 13, finding 10). Team → Matches' cards have no
- * steps of their own, so their footer always shows.
+ * below it. Under a card with its own steps (Match History), only where the open game (its card
+ * included) is taller than the room under what is pinned above the page: a game that fits the screen (every game on a desktop at 100% text, the
+ * owner's brief of 24 Nov 2026) has its steps in its card's header, in view with all of it, and
+ * spends no line on a footer. One set at a time: where the open card's own header carries the same
+ * three (Match History) and that header is on screen, the footer keeps its place but shows nothing,
+ * so the two sets are never seen together (the review of Release 13, finding 10). Team → Matches'
+ * cards have no steps of their own, so their footer always shows.
  */
 function GameFooter({ id, nav, onClose }: { id: string; nav: GameNav | null; onClose: () => void }) {
   const ref = React.useRef<HTMLDivElement>(null);
+  const probe = React.useRef<HTMLSpanElement>(null);
   const [headerShown, setHeaderShown] = React.useState(false);
+  const [needed, setNeeded] = React.useState(false);
   React.useEffect(() => {
     const footer = ref.current;
     const steps = footer?.closest("li")?.querySelector<HTMLElement>("[data-game-step][data-where=header]");
@@ -147,20 +194,51 @@ function GameFooter({ id, nav, onClose }: { id: string; nav: GameNav | null; onC
     io.observe(steps);
     return () => io.disconnect();
   }, [id]);
+  React.useEffect(() => {
+    // The open game's height without the footer (its card, the region above the footer), against the room under the pinned bars.
+    const mark = probe.current;
+    const region = mark?.closest<HTMLElement>("[data-testid=match-expanded]");
+    if (!mark || !region) return;
+    const card = region.closest("li")?.querySelector<HTMLElement>("[data-testid=match-card]") ?? null;
+    // Without steps of its own in the card (Team → Matches) the footer is the game's one set: always drawn.
+    if (!region.closest("li")?.querySelector("[data-game-step][data-where=header]")) {
+      setNeeded(true);
+      return;
+    }
+    const measure = () => {
+      const pinned = parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop) || 0;
+      const top = (card ?? region).getBoundingClientRect().top;
+      const end = mark.getBoundingClientRect().top;
+      setNeeded(end - top > window.innerHeight - pinned + 1);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(region);
+    window.addEventListener("resize", measure);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, [id]);
   return (
-    <div
-      ref={ref}
-      className={cn("sticky bottom-0 z-10 -mx-3 mt-2 flex justify-end rounded-b-panel border-t px-2 py-1 sm:-mx-4", headerShown ? "invisible border-transparent" : "border-border/60 bg-bg-elevated/95 backdrop-blur")}
-      data-testid="match-footer"
-      data-hidden={headerShown || undefined}
-    >
-      <GameSteps nav={nav} onClose={onClose} where="footer" />
-    </div>
+    <>
+      {/* Where the game's content ends (the footer's height left out of the measure). */}
+      <span ref={probe} className="block h-3" aria-hidden />
+      <div
+        ref={ref}
+        className={cn("sticky bottom-0 z-10 -mx-3 -mt-1 flex justify-end rounded-b-panel border-t px-2 py-1 sm:-mx-4", !needed && "hidden", headerShown ? "invisible border-transparent" : "border-border/60 bg-bg-elevated/95 backdrop-blur")}
+        data-testid="match-footer"
+        data-hidden={headerShown || !needed || undefined}
+        data-needed={needed || undefined}
+      >
+        <GameSteps nav={nav} onClose={onClose} where="footer" />
+      </div>
+    </>
   );
 }
 
 /** The breakdown under a card: loaded once opened (or from the press that opened it), kept by the list's cache. */
-export function InlineMatch({ playerId, matchId, champ }: { playerId: string; matchId: string; champ: (id: string | null) => PortraitChampion }) {
+export function InlineMatch({ playerId, matchId, champ, fit = true }: { playerId: string; matchId: string; champ: (id: string | null) => PortraitChampion; fit?: boolean }) {
   const cache = React.useContext(MatchDetailCacheContext);
   const [result, setResult] = React.useState<MatchDetailResult | null>(null);
   React.useEffect(() => {
@@ -174,6 +252,54 @@ export function InlineMatch({ playerId, matchId, champ }: { playerId: string; ma
       live = false;
     };
   }, [cache, playerId, matchId]);
+  // Once the game is drawn: where its card sits in the upper part of the screen (revealOpened left
+  // it there) and the game runs past the screen's foot while the whole of it fits the room under
+  // the pinned bars (a desktop at 100% text), the page moves up just enough to show all of it.
+  // Measured once the region has grown open (UnfoldRegion's data-settled), and again as the game
+  // settles in its first seconds (the timeline, the groups and the ranks arriving change its height:
+  // at 1280 × 720 it is taller than the room while they load, and fits once they have): one measure
+  // while unfold-grow ran saw only part of the region, so with motion on the end of the game stayed
+  // 155–237px below the fold (the review of Release 17, finding 2). With reduced motion nothing
+  // grows, so the first measure is at once. A reader who scrolls or presses a key first keeps the
+  // page where they put it.
+  const box = React.useRef<HTMLDivElement>(null);
+  const shown = result?.status === "ok";
+  React.useLayoutEffect(() => {
+    if (!shown || !fit) return;
+    const region = box.current?.closest<HTMLElement>("[data-testid=match-expanded]");
+    const card = region?.closest("li")?.querySelector<HTMLElement>("[data-testid=match-card]");
+    const grown = region?.querySelector<HTMLElement>(":scope > [data-unfold-body]") ?? null;
+    if (!region || !card) return;
+    const bringIn = () => {
+      const pinned = pinnedTop();
+      const top = card.getBoundingClientRect().top;
+      const bottom = region.getBoundingClientRect().bottom;
+      const over = bottom - screenHeight();
+      if (top < pinned - 1 || top > screenHeight() * 0.55 || over <= 0.5 || bottom - top > screenHeight() - pinned) return;
+      window.scrollBy({ top: Math.min(over, top - pinned), behavior: reduced() ? "instant" : "smooth" });
+    };
+    const ro = new ResizeObserver(() => {
+      if (!grown || grown.hasAttribute("data-settled")) bringIn();
+    });
+    const mo = new MutationObserver(() => {
+      if (grown?.hasAttribute("data-settled")) bringIn();
+    });
+    let timer = 0;
+    const stop = () => {
+      ro.disconnect();
+      mo.disconnect();
+      window.clearTimeout(timer);
+      for (const t of ["wheel", "touchstart", "keydown", "pointerdown"]) window.removeEventListener(t, stop);
+    };
+    if (reduced() || !grown || grown.hasAttribute("data-settled")) bringIn();
+    if (grown) mo.observe(grown, { attributes: true, attributeFilter: ["data-settled"] });
+    ro.observe(region);
+    timer = window.setTimeout(stop, SETTLING_MS);
+    for (const t of ["wheel", "touchstart", "keydown", "pointerdown"]) window.addEventListener(t, stop, { passive: true });
+    return stop;
+    // Once per game drawn; `fit` is read as it is drawn.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shown]);
   if (!result)
     return (
       <div className="space-y-2" role="status" data-testid="match-expanded-loading">
@@ -188,5 +314,9 @@ export function InlineMatch({ playerId, matchId, champ }: { playerId: string; ma
         {result.message}
       </p>
     );
-  return <PostGame key={matchId} playerId={playerId} view={result.view} champ={champ} variant="inline" />;
+  return (
+    <div ref={box}>
+      <PostGame key={matchId} playerId={playerId} view={result.view} champ={champ} variant="inline" />
+    </div>
+  );
 }
