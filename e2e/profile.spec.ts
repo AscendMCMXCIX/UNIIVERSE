@@ -113,7 +113,11 @@ test("All Champions on a phone: the tab names it, the scope's one line right und
       const cs = getComputedStyle(i);
       const c = document.createElement("canvas").getContext("2d")!;
       c.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
-      return { avail: i.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight), need: c.measureText(i.placeholder).width };
+      // The content box from the border box: Chrome 157 reports an input's clientWidth without its
+      // padding (70px for this 110px field; Chrome 153 and Playwright's 156 report 108), so clientWidth
+      // minus the padding took it off twice.
+      const box = i.getBoundingClientRect().width - parseFloat(cs.borderLeftWidth) - parseFloat(cs.borderRightWidth);
+      return { avail: box - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight), need: c.measureText(i.placeholder).width };
     });
     expect(room.avail, `${width}px: "Find…" whole`).toBeGreaterThanOrEqual(room.need);
     await expect(page.getByLabel("Sort by")).toBeVisible();
