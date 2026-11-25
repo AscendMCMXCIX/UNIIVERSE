@@ -164,7 +164,7 @@ test("haste: the field changes every ordinary cooldown by base × 100 / (100 + h
   await expect(page).toHaveURL(/\/resources$/);
 });
 
-test("the haste field refuses what is not a haste: letters, a minus, a fraction, more than 300, an empty field and a paste", async ({ page }, info) => {
+test("the haste field takes a whole number from 0 to 300 and nothing else: a sign, an exponent, letters, a fraction and a paste are not taken, more than 300 is held, empty is 0", async ({ page }, info) => {
   test.skip(!isDesktop(info.project.name) && !isPhone(info.project.name), "a desktop and a phone");
   await page.goto("/lookup?champion=Darius");
   await ready(page);
@@ -175,42 +175,81 @@ test("the haste field refuses what is not a haste: letters, a minus, a fraction,
   await expect(field).toHaveAttribute("inputmode", "numeric");
   await expect(field).toHaveAccessibleName(/ability haste for Darius/);
   if (isPhone(info.project.name)) expect((await field.boundingBox())!.height).toBeGreaterThanOrEqual(44);
-  // Letters are dropped as typed.
-  await field.fill("4a5x");
-  await expect(field).toHaveValue("45");
-  await expect(haste).toHaveAttribute("data-haste", "45");
-  await field.fill("abc");
-  await expect(field).toHaveValue("");
-  await expect(haste).toHaveAttribute("data-haste", "0");
-  // A minus takes 0, and says so.
-  await field.fill("-20");
-  await expect(haste).toHaveAttribute("data-haste", "0");
-  await expect(note).toHaveText(/Taken as 0/);
-  // A fraction: its whole part, said.
-  await field.fill("12.5");
+  await expect(field).not.toHaveAttribute("aria-invalid", "true");
+  /** Sets 35 haste, then types `text` key by key over it, as a reader would. */
+  const typeOver = async (text: string) => {
+    await field.fill("35");
+    await expect(haste).toHaveAttribute("data-haste", "35");
+    await field.selectText();
+    await field.pressSequentially(text);
+    await expect(field).toHaveValue(text);
+  };
+  // The Release 17 review: "-20" read "020" and took 20, "1e3" took 13. Now what is not digits is
+  // not taken: the text stays as typed, the haste in use stays, the field says so and is invalid.
+  // Typed key by key, digits typed before the first other character are taken ("4a5x" takes the 4,
+  // "1e3" the 1: never 45, 13 or 1000); nothing after it is.
+  for (const [typed, taken] of [
+    ["-20", 35],
+    ["+5", 35],
+    ["abc", 35],
+    ["4a5x", 4],
+    ["1e3", 1],
+  ] as const) {
+    await typeOver(typed);
+    await expect(haste, typed).toHaveAttribute("data-haste", String(taken));
+    await expect(note, typed).toHaveText(/Digits only/);
+    await expect(field, typed).toHaveAttribute("aria-invalid", "true");
+    await expect(row(page, "R").getByTestId("lookup-hasted"), typed).toHaveAttribute("data-values", [120, 100, 80].map((b) => hasted(b, taken)).join(","));
+    // On leaving, the field shows the haste in use.
+    await field.blur();
+    await expect(field, typed).toHaveValue(String(taken));
+  }
+  // Spaces around a number are ignored: " 7 " is 7, valid, and reads 7 on leaving.
+  await typeOver(" 7 ");
+  await expect(haste).toHaveAttribute("data-haste", "7");
+  await expect(note).toHaveCount(0);
+  await expect(field).not.toHaveAttribute("aria-invalid", "true");
+  await field.blur();
+  await expect(field).toHaveValue("7");
+  // A fraction: the 12 typed before the point stays, "Whole numbers only"; on leaving it reads 12.
+  await typeOver("12.5");
   await expect(haste).toHaveAttribute("data-haste", "12");
   await expect(note).toHaveText(/Whole numbers only/);
+  await expect(field).toHaveAttribute("aria-invalid", "true");
   await field.blur();
   await expect(field).toHaveValue("12");
   // More than 300 is held to 300, said; on leaving the field it reads 300.
   await field.fill("999");
   await expect(haste).toHaveAttribute("data-haste", "300");
   await expect(note).toHaveText(/Held to 300/);
+  await expect(field).toHaveAttribute("aria-invalid", "true");
   await expect(row(page, "R").getByTestId("lookup-hasted")).toHaveAttribute("data-values", [120, 100, 80].map((b) => hasted(b, 300)).join(","));
   await field.blur();
   await expect(field).toHaveValue("300");
   await expect(page).toHaveURL(/\/lookup\?champion=Darius&haste=300$/);
-  // Empty is 0: the base alone; on leaving it reads 0.
+  // Empty is 0: the base alone, valid; on leaving it reads 0.
   await field.fill("");
   await expect(haste).toHaveAttribute("data-haste", "0");
   await expect(page.getByTestId("lookup-hasted")).toHaveCount(0);
+  await expect(note).toHaveCount(0);
+  await expect(field).not.toHaveAttribute("aria-invalid", "true");
   await field.blur();
   await expect(field).toHaveValue("0");
-  // A paste ("20 haste"): the digits only.
-  await field.focus();
+  // A paste: digits alone are taken; a sentence or "1e3" is not.
+  await field.fill("35");
+  await field.selectText();
   await page.keyboard.insertText("20 haste");
-  await expect(haste).toHaveAttribute("data-haste", "20");
-  await expect(field).toHaveValue("20");
+  await expect(field).toHaveValue("20 haste");
+  await expect(haste).toHaveAttribute("data-haste", "35");
+  await expect(note).toHaveText(/Digits only/);
+  await field.selectText();
+  await page.keyboard.insertText("1e3");
+  await expect(haste).toHaveAttribute("data-haste", "35");
+  await field.selectText();
+  await page.keyboard.insertText("40");
+  await expect(haste).toHaveAttribute("data-haste", "40");
+  await expect(note).toHaveCount(0);
+  await expect(field).not.toHaveAttribute("aria-invalid", "true");
   // An address beyond the field's rule is held too.
   await page.goto("/lookup?champion=Darius&haste=abc");
   await expect(panel(page).getByTestId("lookup-haste")).toHaveAttribute("data-haste", "0");
@@ -242,6 +281,11 @@ test("special cooldowns are said in words, never computed: the passive, charges,
     await expect(r.getByTestId("lookup-hasted"), `${champion} ${slot}`).toHaveCount(0);
     await expect(row(page, "P").getByTestId("lookup-hasted")).toHaveCount(0);
   }
+  // The passive's opened row does not repeat its folded line (the Release 17 review).
+  await row(page, "P").getByTestId("lookup-ability-summary").click();
+  await expect(row(page, "P").getByTestId("lookup-ability-details")).toBeVisible();
+  await expect(row(page, "P").getByTestId("lookup-ability-details")).not.toContainText("No cooldown in Riot's data");
+  await expect(row(page, "P").getByTestId("lookup-ability-details")).not.toContainText("gives passives no cooldown");
   // On the same page, an ordinary ability still gets its hasted line (Teemo's Q: 7 s at 40 haste is 5 s).
   await page.goto("/lookup?champion=Teemo&haste=40");
   await expect(row(page, "Q").getByTestId("lookup-hasted")).toHaveAttribute("data-values", (await values(page, "Q", "base")).map((b) => hasted(b, 40)).join(","));

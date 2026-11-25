@@ -12,7 +12,7 @@ export const SLOT_NAMES: Record<Slot, string> = { P: "Passive", Q: "Q", W: "W", 
 
 /** What an ability with no cooldown number says in its place: a short line, and where it helps, a second one. */
 export const REASON_WORDS: Record<UnknownCooldownReason, { line: string; more?: string }> = {
-  "passive-not-in-ddragon": { line: "No cooldown in Riot's data", more: "Riot's data gives passives no cooldown." },
+  "passive-not-in-ddragon": { line: "No cooldown in Riot's data" },
   "charges-in-ddragon": { line: "Charges: recharge not in Riot's data", more: "Riot's number is the wait between casts, not the time to regain a charge." },
   "no-number-in-ddragon": { line: "No cooldown number in Riot's data" },
   "two-abilities-in-ddragon": { line: "Two abilities share this slot in Riot's data", more: "Riot's data doesn't say which one its cooldown is." },

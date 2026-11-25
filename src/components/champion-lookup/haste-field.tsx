@@ -8,17 +8,19 @@ import { cn } from "@/lib/cn";
 /*
   Champion Intel's ability haste for one champion (docs/CHAMPION_INTEL.md, "Haste"; the owner's
   request of 24 Nov 2026): one compact field, 0 by default, that changes the cooldowns as it is
-  typed in. Digits only (readHasteField): letters and spaces are dropped, a fraction is cut to its
-  whole part, a minus takes 0, more than HASTE_MAX is held to it, an empty field is 0; whenever the
-  value taken is not what was typed, a short line beside the field says what was taken. On leaving
-  the field it shows the value taken. 44px on touch screens and phones, 16px text there (no zoom on
-  iOS), a numeric keypad (inputmode), and a label read out with the champion's name.
+  typed in. It takes a whole number from 0 to HASTE_MAX in digits (readHasteField); the text stays
+  as typed. More than HASTE_MAX is held to it; anything else that is not digits ("-20", "+5", "1e3",
+  "12.5", a pasted sentence) is not taken: the cooldowns keep the haste in use. Whenever the text is
+  held or not taken, a short line beside the field says so and the field is marked invalid
+  (aria-invalid) until the next edit. On leaving the field it shows the haste in use; an empty
+  field is 0. 44px on touch screens and phones, 16px text there (no zoom on iOS), a numeric keypad
+  (inputmode), and a label read out with the champion's name.
 */
 
 const NOTE_WORDS = {
   held: `Held to ${HASTE_MAX}`,
   whole: "Whole numbers only",
-  negative: "Taken as 0",
+  digits: "Digits only",
 } as const;
 
 export function HasteField({ haste, onChange, champion, testId = "lookup-haste" }: { haste: number; onChange: (haste: number) => void; champion: string; testId?: string }) {
@@ -30,7 +32,7 @@ export function HasteField({ haste, onChange, champion, testId = "lookup-haste" 
   const [seen, setSeen] = React.useState(haste);
   if (seen !== haste) {
     setSeen(haste);
-    if (!focused && readHasteField(text).value !== haste) {
+    if (!focused && text !== String(haste)) {
       setText(String(haste));
       setNote(null);
     }
@@ -56,23 +58,25 @@ export function HasteField({ haste, onChange, champion, testId = "lookup-haste" 
             setFocused(true);
             e.currentTarget.select();
           }}
+          aria-invalid={note ? true : undefined}
           onChange={(e) => {
-            const read = readHasteField(e.target.value);
-            setText(read.text);
+            // The text as typed; only what readHasteField takes reaches the cooldowns.
+            const read = readHasteField(e.target.value, haste);
+            setText(e.target.value);
             setNote(read.note);
-            onChange(read.value);
+            if (read.value !== haste) onChange(read.value);
           }}
           onBlur={() => {
             setFocused(false);
-            // Shown as it is taken: "12.5" reads 12, "999" reads 300, an empty field 0.
-            setText(String(readHasteField(text).value));
+            // Shown as it is in use: "999" reads 300, an empty field 0, text not taken the haste kept.
+            setText(String(readHasteField(text, haste).value));
           }}
           onKeyDown={(e) => {
             if (e.key === "Enter") e.currentTarget.blur();
           }}
           className={cn(
             "h-11 w-16 rounded-md border bg-bg-elevated px-2 text-right text-base font-semibold tabular-nums text-fg hover:border-fg-subtle focus:border-accent focus:outline-none md:pointer-fine:h-8 md:pointer-fine:w-14 md:pointer-fine:text-sm",
-            haste > 0 ? "border-accent/60" : "border-border-control",
+            note ? "border-warn/70" : haste > 0 ? "border-accent/60" : "border-border-control",
           )}
           data-testid={`${testId}-input`}
         />

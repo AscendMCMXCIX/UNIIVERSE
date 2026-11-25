@@ -286,8 +286,7 @@ test("Settings: the account card leads, drawn in the order it is read, with Sign
     const rows = card.getByTestId("settings-actions").filter({ visible: true });
     expect((await rows.boundingBox())!.y).toBeGreaterThan((await index.boundingBox())!.y);
     // At the page's top the first section is the one marked (G3-5: Password, whose top was above the
-    // window's upper third, was marked at 1440×900), and it is drawn apart from a pointed-at entry
-    // (surface-3 against the hover's surface-2, G3-13).
+    // window's upper third, was marked at 1440×900), underlined, with no filled box (below).
     await expect(links.first()).toHaveAttribute("aria-current", "location");
     await expect(links.nth(1)).not.toHaveAttribute("aria-current", "location");
     // A jump to a section marks it while it is at the window's top: Name, though Password's top is above the line there.
@@ -304,8 +303,16 @@ test("Settings: the account card leads, drawn in the order it is read, with Sign
       await page.setViewportSize(size);
     }
     await page.evaluate(() => window.scrollTo(0, 0));
-    const surface3 = await page.evaluate(() => { const p = document.createElement("i"); p.className = "bg-surface-3"; document.body.append(p); const c = getComputedStyle(p).backgroundColor; p.remove(); return c; });
-    await expect.poll(() => links.first().evaluate((el) => getComputedStyle(el).backgroundColor), "the section being read on surface-3").toBe(surface3);
+    // The list is text-led, as the phone's row is: the section being read underlined in the accent, no
+    // filled entry (the brief's §9; a surface-3 box, the sidebar's look, until the Release 17 review).
+    await expect(links.first()).toHaveAttribute("aria-current", "location");
+    const look = (link: Locator) => link.evaluate((el) => ({ fill: getComputedStyle(el).backgroundColor, line: getComputedStyle(el, "::after").opacity }));
+    await expect.poll(async () => (await look(links.first())).line, "the section being read underlined").toBe("1");
+    for (const link of await links.all()) expect((await look(link)).fill, "no filled entry").toMatch(/^(transparent|rgba\(.*,\s*0\))$/);
+    expect((await look(links.last())).line, "the others not underlined").toBe("0");
+    // The words down the card at its column's start, each underline under its own words.
+    const xs = await links.evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().left)));
+    expect(new Set(xs).size, "one column").toBe(1);
     // Current, New and Confirm password share one grid: Current ends where New does (G3-6: it overhung New by 35px).
     const [cur, next] = [(await page.locator("#current").boundingBox())!, (await page.locator("input[type=password]").nth(1).boundingBox())!];
     expect(Math.abs(cur.x + cur.width - (next.x + next.width)), "Current password ends with New").toBeLessThanOrEqual(1);

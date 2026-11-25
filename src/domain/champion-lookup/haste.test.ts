@@ -58,46 +58,64 @@ describe("cooldowns at a haste", () => {
 });
 
 describe("the haste field", () => {
-  it("takes digits as typed, 0 when empty", () => {
-    expect(readHasteField("")).toEqual({ text: "", value: 0, note: null });
-    expect(readHasteField("0")).toEqual({ text: "0", value: 0, note: null });
-    expect(readHasteField("20")).toEqual({ text: "20", value: 20, note: null });
-    expect(readHasteField(" 45 ")).toEqual({ text: "45", value: 45, note: null });
-    expect(readHasteField("045")).toEqual({ text: "045", value: 45, note: null });
-    expect(readHasteField("300")).toEqual({ text: "300", value: 300, note: null });
-  });
-
-  it("drops letters and spaces, a paste included", () => {
-    expect(readHasteField("4a5x")).toEqual({ text: "45", value: 45, note: null });
-    expect(readHasteField("abc")).toEqual({ text: "", value: 0, note: null });
-    expect(readHasteField("20 haste")).toEqual({ text: "20", value: 20, note: null });
-    expect(readHasteField("1 0 0")).toEqual({ text: "100", value: 100, note: null });
+  it("takes a whole number from 0 to the maximum in digits, spaces around it ignored, 0 when empty", () => {
+    expect(readHasteField("")).toEqual({ value: 0, note: null });
+    expect(readHasteField("   ", 40)).toEqual({ value: 0, note: null });
+    expect(readHasteField("0")).toEqual({ value: 0, note: null });
+    expect(readHasteField("20")).toEqual({ value: 20, note: null });
+    expect(readHasteField(" 7 ")).toEqual({ value: 7, note: null });
+    expect(readHasteField(" 45 ", 10)).toEqual({ value: 45, note: null });
+    expect(readHasteField("045")).toEqual({ value: 45, note: null });
+    expect(readHasteField("300")).toEqual({ value: 300, note: null });
   });
 
   it("holds more than the maximum to it, and says so", () => {
-    expect(readHasteField("301")).toEqual({ text: "301", value: 300, note: "held" });
-    expect(readHasteField("999")).toEqual({ text: "999", value: 300, note: "held" });
-    // A long paste is cut to four digits, still held.
-    expect(readHasteField("123456")).toEqual({ text: "1234", value: 300, note: "held" });
+    expect(readHasteField("301")).toEqual({ value: 300, note: "held" });
+    expect(readHasteField("999", 20)).toEqual({ value: 300, note: "held" });
+    expect(readHasteField("123456")).toEqual({ value: 300, note: "held" });
+    expect(readHasteField("9".repeat(50))).toEqual({ value: 300, note: "held" });
   });
 
-  it("takes a fraction's whole part, keeping the point while it is typed, and says so", () => {
-    expect(readHasteField("12.")).toEqual({ text: "12.", value: 12, note: null });
-    expect(readHasteField("12.5")).toEqual({ text: "12.5", value: 12, note: "whole" });
-    expect(readHasteField("12,75")).toEqual({ text: "12.75", value: 12, note: "whole" });
-    expect(readHasteField(".5")).toEqual({ text: ".5", value: 0, note: "whole" });
-    expect(readHasteField("12.5.5")).toEqual({ text: "12.55", value: 12, note: "whole" });
+  it("never takes a fraction: the haste in use is kept, and it says whole numbers only", () => {
+    expect(readHasteField("12.5", 12)).toEqual({ value: 12, note: "whole" });
+    expect(readHasteField("12.5")).toEqual({ value: 0, note: "whole" });
+    expect(readHasteField("12.", 12)).toEqual({ value: 12, note: "whole" });
+    expect(readHasteField("12,75", 30)).toEqual({ value: 30, note: "whole" });
+    expect(readHasteField(".5")).toEqual({ value: 0, note: "whole" });
+    expect(readHasteField("12.5.5", 12)).toEqual({ value: 12, note: "digits" });
   });
 
-  it("takes a negative as 0, and says so", () => {
-    expect(readHasteField("-20")).toEqual({ text: "0", value: 0, note: "negative" });
-    expect(readHasteField("−5")).toEqual({ text: "0", value: 0, note: "negative" });
+  // The Release 17 review: "-20" read as 20 and "1e3" as 13, silently. Neither, nor anything else
+  // that is not digits alone, is taken now: the haste in use stays and the field says digits only.
+  it("never takes a sign, an exponent, letters or a pasted sentence: the haste in use is kept, and it says digits only", () => {
+    for (const [raw, inUse] of [
+      ["-20", 0],
+      ["-20", 35],
+      ["−5", 10],
+      ["-", 0],
+      ["+5", 0],
+      ["+5", 40],
+      ["1e3", 1],
+      ["1e3", 0],
+      ["4a5x", 4],
+      ["abc", 60],
+      ["20 haste", 0],
+      ["1 0 0", 10],
+      ["0x20", 0],
+      ["２０", 0],
+      ["Infinity", 0],
+      ["NaN", 0],
+    ] as const) {
+      expect(readHasteField(raw, inUse), `${raw} with ${inUse} in use`).toEqual({ value: inUse, note: "digits" });
+    }
   });
 
   it("never throws, and never gives a value outside 0 to the maximum", () => {
     for (const raw of [null, undefined, 5, {}, "∞", "NaN", "1e9", "0x20", "２０", "🙂", "9".repeat(50)]) {
-      const f = readHasteField(raw);
-      expect(Number.isInteger(f.value) && f.value >= 0 && f.value <= HASTE_MAX, String(raw)).toBe(true);
+      for (const inUse of [0, 20, -5, 999, Number.NaN]) {
+        const f = readHasteField(raw, inUse);
+        expect(Number.isInteger(f.value) && f.value >= 0 && f.value <= HASTE_MAX, `${String(raw)} with ${inUse}`).toBe(true);
+      }
     }
   });
 });

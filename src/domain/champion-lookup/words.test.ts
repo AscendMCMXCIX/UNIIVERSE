@@ -21,7 +21,7 @@ describe("the words", () => {
   });
 
   it("say the passive's and charges' limits plainly", () => {
-    expect(cooldownWords({ kind: "unknown", reason: "passive-not-in-ddragon" })).toEqual({ line: "No cooldown in Riot's data", more: "Riot's data gives passives no cooldown." });
+    expect(cooldownWords({ kind: "unknown", reason: "passive-not-in-ddragon" })).toEqual({ line: "No cooldown in Riot's data", more: null });
     expect(cooldownWords({ kind: "unknown", reason: "charges-in-ddragon" })?.line).toBe("Charges: recharge not in Riot's data");
   });
 
