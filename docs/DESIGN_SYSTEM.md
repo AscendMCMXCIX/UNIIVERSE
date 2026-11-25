@@ -114,7 +114,8 @@ decorative chrome.
       and barons) and five rows on one grid, so K/D/A, the build, CS over damage and the score over
       its place sit at the same x on both teams; every row 32px (two lines) from a 30rem scoreboard,
       two lines on a phone (the name, the K/D/A and the score; the build, the rank and CS with
-      damage), everything wrapping whole under 18rem. The rank is text with its tier's crest, no
+      damage; from 17.5rem to 21rem, a 320–360px phone, the score beside the K/D/A so the second
+      line has the row's width), everything wrapping whole under 17.5rem. The rank is text with its tier's crest, no
       box (the match card's short form "E2" in a scoreboard 30–36rem wide, a clock for a rank read
       away from the game); the lane opponent is marked by crossed swords ("Lane", "Lane opponent"
       from 36rem and 40rem); "Met N×" is a quiet underlined link; a possible group is one line under
