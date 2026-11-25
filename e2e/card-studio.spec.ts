@@ -363,6 +363,25 @@ test("animated effects stop for reduced motion", async ({ page }, info) => {
   await discard(page);
 });
 
+test("turning the last effect off leaves the Effects fold open, its switches where they were", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "runs once, on the desktop project");
+  await openTopProfile(page);
+  await openStudio(page);
+  const fold = page.getByTestId("fold-effects");
+  if (!(await fold.evaluate((d) => (d as HTMLDetailsElement).open))) await fold.locator("summary").click();
+  const shimmer = page.getByRole("switch", { name: /Accent shimmer/ });
+  const was = await shimmer.isChecked();
+  await page.getByText("Accent shimmer").click();
+  await expect(shimmer).toBeChecked({ checked: !was });
+  await page.getByText("Accent shimmer").click();
+  await expect(shimmer).toBeChecked({ checked: was });
+  // The fold once followed "any effect on", so the last effect turned off closed it under the pointer.
+  expect(await fold.evaluate((d) => (d as HTMLDetailsElement).open)).toBe(true);
+  // On and off again leaves nothing unsaved, so Cancel closes without asking.
+  await page.getByTestId("studio-cancel").click();
+  await expect(page.getByTestId("card-studio")).toBeHidden();
+});
+
 test("the banner's help says who sees it: teammates, and the public team page while in the lineup or a substitute", async ({ page }, info) => {
   test.skip(info.project.name !== "desktop", "runs once, on the desktop project");
   await openTopProfile(page);

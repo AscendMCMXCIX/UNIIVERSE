@@ -844,6 +844,9 @@ function AppearancePanel({ style, saved, set, change, onPreset, art, bannerUrl }
   const fx = style.effects;
   const lifted = readableColour(c.primary) !== c.primary;
   const any = fx.glow || fx.shimmer || fx.drift || fx.motif !== "none";
+  // Open at first when an effect is on; read once, since a fold's `open` that followed `any` closed
+  // the fold under the reader's finger as they turned the last effect off.
+  const [effectsOpen] = React.useState(any);
   const noWash = c.gradient === "none";
   const revert = (fn: (s: CardStyle) => CardStyle) => change((d) => ({ ...d, style: fn(d.style) }));
   return (
@@ -927,7 +930,7 @@ function AppearancePanel({ style, saved, set, change, onPreset, art, bannerUrl }
       </Part>
       </Fold>
 
-      <Fold variant="row" tone="fg" summary={<span className="flex items-center gap-2 text-sm">Effects{any ? <span className="text-xs font-normal text-fg-subtle">· on</span> : null}</span>} testId="fold-effects" defaultOpen={any}>
+      <Fold variant="row" tone="fg" summary={<span className="flex items-center gap-2 text-sm">Effects{any ? <span className="text-xs font-normal text-fg-subtle">· on</span> : null}</span>} testId="fold-effects" defaultOpen={effectsOpen}>
         <div className="space-y-4" data-testid="studio-effects">
           <div className="grid gap-x-6 lg:grid-cols-3">
             <Switch id="fx-glow" label="Ambient glow" checked={fx.glow} onChange={(v) => set((s) => ({ ...s, effects: { ...s.effects, glow: v } }))} />
@@ -986,6 +989,8 @@ function ArtworkPanel({
   onPosition: (p: Partial<ArtPosition>) => void;
 }) {
   const art = style.art;
+  // Read once, for the same reason as Effects: setting both to 0 must not close the fold being used.
+  const [veilOpen] = React.useState(art.blur > 0 || art.vignette > 0);
   const s = saved.style.art;
   const revertArt = () => change((d) => ({ ...d, style: { ...d.style, art: { ...d.style.art, source: s.source } }, banner: { kind: "keep" } }));
   return (
@@ -1006,7 +1011,7 @@ function ArtworkPanel({
           <Field label="Background darkness" hint="keeps text readable" changed={art.darkness !== D.art.darkness} onReset={() => set((x) => ({ ...x, art: { ...x.art, darkness: D.art.darkness } }))} testId="field-darkness">
             <Slider label="Background darkness" value={art.darkness} min={25} max={90} onChange={(v) => set((x) => ({ ...x, art: { ...x.art, darkness: v } }))} format={(v) => `${v}%`} />
           </Field>
-          <Fold variant="row" tone="fg" summary={<span className="text-sm">Blur and vignette</span>} testId="fold-veil" defaultOpen={art.blur > 0 || art.vignette > 0}>
+          <Fold variant="row" tone="fg" summary={<span className="text-sm">Blur and vignette</span>} testId="fold-veil" defaultOpen={veilOpen}>
             <div className="grid gap-x-6 gap-y-4 lg:grid-cols-2">
               <Field label="Background blur" changed={art.blur !== D.art.blur} onReset={() => set((x) => ({ ...x, art: { ...x.art, blur: D.art.blur } }))} testId="field-blur">
                 <Slider label="Background blur" value={art.blur} min={0} max={12} onChange={(v) => set((x) => ({ ...x, art: { ...x.art, blur: v } }))} format={(v) => `${v}px`} />
