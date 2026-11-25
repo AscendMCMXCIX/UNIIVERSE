@@ -1,7 +1,7 @@
 import { getAppDb } from "@/server/bootstrap";
 import { getAuthState } from "@/server/auth/session";
 import { eq } from "drizzle-orm";
-import { getAvatar } from "@/server/repositories/profile";
+import { servedAvatar } from "@/server/avatars/served-avatar";
 import { users } from "@/server/db/schema";
 import { mayOpenProfile } from "@/server/auth/profile-access";
 
@@ -12,7 +12,8 @@ export const dynamic = "force-dynamic";
  * /api/public/avatars, by player id), and the picture of a personal-use player's account only for
  * that account and administrators (mayOpenProfile on its player: "not found" to anyone else, as
  * their profile is); the URL carries a version, so the browser may keep it for a year and a new
- * upload simply changes the URL.
+ * upload simply changes the URL. What is served is the screen-sized copy, kept in the data cache
+ * (server/avatars/served-avatar.ts), so a browser that has not cached it costs no picture read.
  */
 export async function GET(request: Request, { params }: { params: Promise<{ userId: string }> }) {
   const { userId } = await params;
@@ -24,7 +25,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ user
     const [owner] = await db.select({ playerId: users.playerId }).from(users).where(eq(users.id, userId));
     if (owner?.playerId && !(await mayOpenProfile(db, auth.session, owner.playerId))) return new Response("Not found", { status: 404 });
   }
-  const avatar = await getAvatar(db, userId);
+  const avatar = await servedAvatar(db, userId);
   if (!avatar) return new Response("Not found", { status: 404 });
   const versioned = new URL(request.url).searchParams.has("v");
   return new Response(new Uint8Array(avatar.data), {

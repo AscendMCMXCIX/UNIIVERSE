@@ -46,7 +46,7 @@
 | Hosting | **Vercel** (Fluid compute, region `syd1`), production branch `main` |
 | Background jobs | An in-app scheduler (`src/server/jobs`), triggered by `GET /api/jobs/<job>` with `Authorization: Bearer CRON_SECRET`. Callers: the GitHub Actions hourly workflow, a daily Vercel cron, site visits, and optionally Supabase `pg_cron`. |
 | External data | Riot API (Account-V1, Summoner-V4, League-V4, Match-V5, Champion-Mastery-V4, Status-V4); Riot Data Dragon (champions, skins, images) |
-| Image storage | Postgres `bytea` columns: profile pictures in `user_avatars`, branding in `brand_assets`, upload chunks in `brand_upload_chunks`. Champion art is hot-linked from Data Dragon. No object storage, no paid services. |
+| Image storage | Postgres `bytea` columns: profile pictures in `user_avatars` (served as a 288 px WebP copy kept in Next's data cache per upload, `server/avatars/served-avatar.ts`), branding in `brand_assets`, upload chunks in `brand_upload_chunks`. Champion art is hot-linked from Data Dragon. No object storage, no paid services. |
 | UI components | In-house (`src/components/ui/*`); no component library |
 | Tests | **Vitest 4** (unit + database), **Playwright 1.63** + `@axe-core/playwright` (browser, accessibility) |
 | Build / tooling | pnpm 10.28, ESLint 9 (`eslint-config-next`), `tsx` for scripts, `drizzle-kit` for generating migrations |

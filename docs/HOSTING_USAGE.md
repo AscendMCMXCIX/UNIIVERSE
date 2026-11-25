@@ -7,6 +7,42 @@ UNIIVERSE runs on the free plans of Supabase (the Postgres database) and Vercel 
 
 This page records what caused that, what was changed, how it was measured, and how to check it again. The second pass, after egress reached 7.14 GB on 20 Oct, is the next section.
 
+## 25 Nov 2026: profile pictures read once per upload, not once per browser
+
+**What happened.** Data jobs' hourly health check failed from 24 Nov: the app's own egress counter put
+24 Nov at about 158.3 MB against the 120 MB daily budget. The largest statement was the read of
+`user_avatars` (67.7 MB), then four Match History and branding reads of 6–9 MB each.
+
+**Why.** A profile picture is stored as uploaded: up to 400 KB and 1024 px a side
+(`AVATAR_MAX_BYTES`, `AVATAR_MAX_SIDE`), though no page draws one wider than 96 CSS pixels.
+`/api/avatars/<user>?v=<version>` is cached by the browser for a year, but only by that browser
+(`private`, since pictures are members-only), so every browser without it read the whole picture
+from the database again. The Production check opens a fresh browser per width and page group, and
+24 Nov had four runs (two deploys, the scheduled run and one by hand), each reading every member's
+picture several times; the public team page's copy (`/api/public/avatars/<player>`) was kept for
+only a minute by one server instance.
+
+**What changed** (`src/server/avatars/served-avatar.ts`):
+- **A copy for the screen.** Both routes serve WebP at most 288 px a side (96 CSS pixels on a 3×
+  screen), made with sharp, which branding's web copies already use. The original is kept unchanged,
+  and is served as it is where the copy would not be clearly smaller (a small upload) or cannot be
+  decoded. A 275 KB 1024 px JPEG measured locally became 1.4 KB; a detailed photo at 288 px is
+  typically tens of KB.
+- **Read once per upload.** The copy is kept in Next's data cache, keyed by the user and the stored
+  picture's own time of saving (to the millisecond): one small read of that time per request, and
+  the picture's bytes only the first time each upload is asked for. A new upload changes the key;
+  a removed picture has no row, so it is a 404 at once. The cache keeps a copy 30 days without a
+  request.
+- **Who may see it is unchanged.** Both routes still check the viewer (or the public page's lineup)
+  on every request, before the copy is read.
+- **Outside the Next server** (route tests, scripts), where there is no data cache, the copy is made
+  each time.
+
+**Expected effect.** The `user_avatars` read falls from tens of MB a day to at most each picture's
+stored size once per upload (11 members at the 400 KB limit is 4.4 MB, and only after uploads), plus
+a few bytes per request for the saving time. That alone brings a day like 24 Nov to about 90 MB,
+under the budget. To check: Data jobs' tick prints yesterday's egress and its largest statements.
+
 ## 24 Nov 2026: the performance score on Match History's cards (Release 17)
 
 Each collapsed Match History card shows its game's performance score (docs/PERFORMANCE_SCORE.md,
