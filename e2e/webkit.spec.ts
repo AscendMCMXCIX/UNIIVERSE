@@ -2,7 +2,7 @@ import { devices, expect, test, type Locator, type Page } from "./test";
 import { lineupAtRest } from "./lineup";
 import { emulateKeyboard, keyboard } from "./keyboard";
 import { untilStill } from "./modal-corner";
-import { openMatchWindow } from "./match-history";
+import { openMatchWindow, showGamePage } from "./match-history";
 import { bubbleFacts, NOT_A_PICTURE, NOT_A_PICTURE_ERROR, openPictureEditor, placedRight, toastFacts } from "./popups";
 import { pullDown } from "./pull";
 import { pick, ready, SELECT_LOOK, selectLook, valueOf } from "./select";
@@ -325,7 +325,8 @@ test("Match History: a game opens as a whole screen of its own, its ranks are ch
   await fitsWidth(page, "an open game");
   // The browser tests' Riot stand-in answers the rank check (server/riot/browser-test.ts).
   const note = breakdown.getByTestId("ranks-note");
-  await expect(note).toBeVisible({ timeout: 15_000 });
+  // (On the window's Scoreboard page: present whatever page is shown.)
+  await expect(note).toBeAttached({ timeout: 15_000 });
   await expect(note).not.toHaveAttribute("data-state", "checking", { timeout: 15_000 });
   // The bottom bar: Previous and Next (44px targets) inside the screen; Next shows the next game in place of the address.
   const bar = win.getByTestId("match-detail-nav");
@@ -969,6 +970,8 @@ test("popups: a window opened by a tap takes the focus itself, and nothing in it
 test("popups: a tapped ⓘ in a game's window is drawn inside the window, on top, beside its ⓘ, and the first Escape closes the bubble alone", async ({ page }) => {
   const win = await openMatchWindow(page);
   await untilStill(page);
+  // On a phone the notes are on the window's Scoreboard page.
+  await showGamePage(win.getByTestId("match-breakdown"), "board");
   // The notes under the scoreboard settle first (they redraw the lines above the ⓘ).
   await expect(win.getByTestId("ranks-note")).not.toHaveAttribute("data-state", "checking", { timeout: 15_000 });
   await expect(win.getByTestId("possible-groups-note")).not.toHaveAttribute("data-state", "loading", { timeout: 15_000 });
@@ -1043,7 +1046,7 @@ test("the public pages and Install App in Safari's engine: the header's links 44
   await app.close();
 });
 
-test("Match History on an iPhone: a tap on any scoreboard row inspects that player in the game's window, nothing scrolls by itself, and one tap goes up to them", async ({ page }) => {
+test("Match History on an iPhone: the game's window shows one page at a time, each within the screen; a tap on any scoreboard row inspects that player and shows their page", async ({ page }) => {
   await page.goto("/team");
   const id = (await page.getByTestId("lineup-row-MID").getAttribute("data-player-id"))!;
   await page.goto(`/players/${id}/matches`);
@@ -1066,22 +1069,23 @@ test("Match History on an iPhone: a tap on any scoreboard row inspects that play
   await expect(breakdown).toHaveAttribute("data-timeline", "ok");
   await expect(breakdown.locator("[data-testid=participant-score][data-score]")).toHaveCount(10);
   const own = await breakdown.getAttribute("data-selected");
+  // Player, Build and Scoreboard (the owner's brief of 24 Nov 2026, §2): each page within the
+  // window's body, nothing to scroll.
+  for (const p of ["player", "build", "board"] as const) {
+    await showGamePage(breakdown, p);
+    expect(await page.getByTestId("match-detail-body").evaluate((b) => b.scrollHeight - b.clientHeight), p).toBeLessThanOrEqual(1);
+  }
   // The seventh of the players not inspected, then held by its slot: once tapped it is inspected
   // itself, and the ":not(current)" list would name another row.
   const slot = (await breakdown.locator('[data-testid=participant-select]:not([aria-current="true"])').nth(6).getAttribute("data-slot"))!;
   const row = breakdown.locator(`[data-testid=participant-select][data-slot="${slot}"]`);
-  await row.scrollIntoViewIfNeeded();
-  const before = (await row.boundingBox())!.y;
   // A tap on the row (not its name, which is the player's own link).
   const box = (await row.boundingBox())!;
   await page.touchscreen.tap(box.x + box.width - 60, box.y + box.height / 2);
   await expect(breakdown).toHaveAttribute("data-selected", slot);
-  await expect(row).toHaveAttribute("aria-current", "true");
   expect(slot).not.toBe(own);
-  // The window stayed where it was: the row under the finger did not move.
-  expect(Math.abs((await row.boundingBox())!.y - before)).toBeLessThanOrEqual(1);
-  // One tap takes the reader up to the player inspected; Back to returns to the profile's player.
-  await breakdown.getByTestId("inspected-jump").tap();
+  // Their page shows: the player inspected, in view; Back to returns to the profile's player.
+  await expect(breakdown).toHaveAttribute("data-page", "player");
   await expect(breakdown.getByTestId("inspected")).toBeInViewport();
   await breakdown.getByTestId("inspect-back").tap();
   await expect(breakdown).toHaveAttribute("data-selected", own!);

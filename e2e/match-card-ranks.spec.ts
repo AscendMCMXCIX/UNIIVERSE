@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from "./test";
 import { createMember } from "./member-account";
-import { cardOf, closeGame, openGame } from "./match-history";
+import { cardOf, closeGame, openGame, showGamePage } from "./match-history";
 
 /*
   Ranks on the collapsed match cards (components/match-history/team-composition.tsx and
@@ -55,8 +55,10 @@ async function uncheckedGame(page: Page): Promise<string> {
 async function openMatch(card: Locator) {
   const breakdown = await openGame(card);
   const note = breakdown.getByTestId("ranks-note");
-  await expect(note).toBeVisible({ timeout: 15_000 });
+  // (On a phone the note is on the window's Scoreboard page: present whatever page is shown.)
+  await expect(note).toBeAttached({ timeout: 15_000 });
   await expect(note).not.toHaveAttribute("data-state", "checking", { timeout: 15_000 });
+  await showGamePage(breakdown, "board");
   return breakdown;
 }
 
@@ -209,7 +211,8 @@ test("a member's OP.GG profile: a small link beside their profile link, on the c
   await expect(arrow).not.toHaveAttribute("tabindex", "-1");
   if (isPhone(page)) {
     await expect(arrow).toBeHidden();
-    // On touch the breakdown's own button is the way to OP.GG: a finger-sized one.
+    // On touch the breakdown's own button is the way to OP.GG: a finger-sized one (under the scoreboard, its page on a phone).
+    await showGamePage(detail, "board");
     const button = detail.getByTestId("match-opgg-history");
     await expect(button).toHaveAttribute("href", address);
     expect((await button.boundingBox())!.height).toBeGreaterThanOrEqual(44);

@@ -11,12 +11,23 @@
   and one ACE, and the inspection of any player: the check asserts the headings, the ten scores and,
   after a press on another player's row, that the view follows that player (switchVerdicts).
 
-  Read in the page only: counts, true or false, places in the record (0–9), scores (0–10), the result
-  word and the lane's fixed words. No player's name, no champion and no address leaves the page.
+  The owner's brief of 24 Nov 2026 redrew the view as one integrated post-game screen: nothing in it
+  scrolls, and on a desktop the card and its game fit the window at 100% text (readFit and
+  fitVerdicts, at 1440 × 900 and 1280 × 720); the comparison select and table, the written "why",
+  the team averages, the ten score tiles, the build path's legend and sideways row and the grey notes
+  under the scoreboard were removed, and the check asserts they stay gone (REMOVED_WORDS, the parts'
+  test ids).
+
+  Read in the page only: counts, true or false, heights in px, places in the record (0–9), scores
+  (0–10), the result word and the lane's fixed words. No player's name, no champion and no address
+  leaves the page.
 */
 
-/** The removed sections' names, as the view showed them (any one on screen is a regression). */
-export const REMOVED_WORDS = ["Went well", "Went wrong", "Focus next", "Gold over the game"];
+/** The removed sections' names and sentences, as the view showed them (any one on screen is a regression). */
+export const REMOVED_WORDS = ["Went well", "Went wrong", "Focus next", "Gold over the game", "No comparison", "Compare with", "Stood out:", "Held back by", "Ranks around the time of this game", "Ranks read later", "not enough recorded history", "no other players to assess", "inferred from", "skill points in this game", "All 18 skill points", "Maxed "];
+
+/** The removed parts, by their test ids (the notes and folds of 23 Nov 2026; the comparison, the narrative, the strip, the legend and the sideways row of 24 Nov 2026). */
+export const REMOVED_PARTS = "[data-testid=post-game-notes], [data-testid=post-game-notes-loading], [data-testid=post-game-note], [data-testid=post-game-folds], [data-testid=fold-gold], [data-testid=fold-build], [data-testid=gold-chart], [data-testid=performance-compare], [data-testid=performance-compare-table], [data-testid=performance-why], [data-testid=performance-teams], [data-testid=performance-strip], [data-testid=build-legend], [data-testid=build-row], [data-testid=score-chart-legend], [data-testid=inspected-jump]";
 
 /** The three segmented headings above the lane, in order (Release 16). */
 export const PANEL_WORDS = ["Build Path", "Skill Order", "Runes"];
@@ -35,7 +46,8 @@ export function readPostGame() {
   const lane = li.querySelector("[data-testid=post-game-lane]");
   // The removed sections: by their test ids, and by their names anywhere in the open game's text (the
   // list above it, the card's own line and the scoreboard never use these words).
-  const words = ["Went well", "Went wrong", "Focus next", "Gold over the game"];
+  const words = ["Went well", "Went wrong", "Focus next", "Gold over the game", "No comparison", "Compare with", "Stood out:", "Held back by", "Ranks around the time of this game", "Ranks read later", "not enough recorded history", "no other players to assess", "inferred from", "skill points in this game", "All 18 skill points", "Maxed "];
+  const removedParts = "[data-testid=post-game-notes], [data-testid=post-game-notes-loading], [data-testid=post-game-note], [data-testid=post-game-folds], [data-testid=fold-gold], [data-testid=fold-build], [data-testid=gold-chart], [data-testid=performance-compare], [data-testid=performance-compare-table], [data-testid=performance-why], [data-testid=performance-teams], [data-testid=performance-strip], [data-testid=build-legend], [data-testid=build-row], [data-testid=score-chart-legend], [data-testid=inspected-jump]";
   const text = clean(breakdown);
   const panels = li.querySelector("[data-testid=participant-panels]");
   const scores = [...li.querySelectorAll("[data-testid=participant-score]")];
@@ -53,7 +65,7 @@ export function readPostGame() {
     csPerMin: count(/^\d+\.\d \/ min$/),
     damageShare: count(/^\d+% of team$/),
     lane: lane?.getAttribute("data-state") ?? null,
-    laneWords: lane?.getAttribute("data-state") === "unclear" ? clean(lane) : /^Lane vs/.test(clean(lane?.querySelector("th"))) ? "Lane vs" : "",
+    laneWords: lane?.getAttribute("data-state") === "unclear" ? clean(lane.querySelector("p:last-child")) : /^Lane vs/.test(clean(lane?.querySelector("th"))) ? "Lane vs" : "",
     // The timeline's answer, which the lane's 10:00 and 15:00, the build path, the skill order and the scores read: "loading", "ok", or why not.
     timeline: breakdown?.getAttribute("data-timeline") ?? null,
     // Build Path | Skill Order | Runes above the lane: the headings' words, and what the one shown holds.
@@ -74,10 +86,11 @@ export function readPostGame() {
       mvp: li.querySelectorAll("[data-testid=participant-mvp]").length,
       ace: li.querySelectorAll("[data-testid=participant-ace]").length,
       removed: li.querySelectorAll("[data-testid=participant][data-removed]").length,
-      panel: !!li.querySelector("[data-testid=performance] [data-testid=performance-value]"),
+      // The player inspected's own score beside their name (the panel under the scoreboard was removed on 24 Nov 2026).
+      panel: !!li.querySelector("[data-testid=inspected-score] [data-testid=performance-value]"),
     },
     removed: {
-      parts: li.querySelectorAll("[data-testid=post-game-notes], [data-testid=post-game-notes-loading], [data-testid=post-game-note], [data-testid=post-game-folds], [data-testid=fold-gold], [data-testid=fold-build], [data-testid=gold-chart]").length,
+      parts: li.querySelectorAll(removedParts).length,
       words: words.filter((w) => text.includes(w)).length,
     },
     steps: ["game-header-prev", "game-header-next", "game-header-close", "game-prev", "game-next", "match-close"].filter((t) => li.querySelector(`[data-testid=${t}]`)).length,
@@ -137,10 +150,10 @@ export function postGameVerdicts({ kind, at }) {
     const shown = at.timeline === "ok" ? (p?.path ?? 0) > 0 || !!p?.missing : !!p?.missing && (p?.path ?? 0) === 0;
     fact(at.timeline === "ok" ? "the build path from the timeline (its shop visits, or the line saying the player is not in it)" : "the build path's plain unavailable line, the game having no timeline", shown, { timeline: at.timeline, path: p?.path ?? 0, missing: p?.missing ?? false });
     const s = at.scores ?? { rows: 0, shown: 0, inRange: false, mvp: 0, ace: 0, removed: 0, panel: false };
-    fact("a performance score 0–10 beside each of the ten players (a removed player has none), one MVP and one ACE, and the score panel", s.rows === 10 && s.shown === 10 - s.removed && s.inRange && s.mvp === 1 && s.ace === 1 && s.panel, s);
+    fact("a performance score 0–10 beside each of the ten players (a removed player has none), one MVP and one ACE, and the inspected player's score", s.rows === 10 && s.shown === 10 - s.removed && s.inRange && s.mvp === 1 && s.ace === 1 && s.panel, s);
   }
   const removed = at.removed ?? { parts: NaN, words: NaN };
-  fact("no notes (Went well, Went wrong, Focus next) and no gold curve (Gold over the game)", removed.parts === 0 && removed.words === 0, removed);
+  fact("no notes, no gold curve, no comparison, no written why, no score strip, no build legend and no grey notes under the scoreboard", removed.parts === 0 && removed.words === 0, removed);
   fact("Previous, Next and Close, in the game's header and its footer", at.steps === 6, { steps: at.steps });
   return out;
 }
@@ -161,5 +174,62 @@ export function switchVerdicts({ kind, before, after, back }) {
   fact("as the game opens it shows the profile's player, their row the one marked current", before.own && before.currents === 1 && before.current === before.selected && before.headerMatchesRow, { own: before.own, currents: before.currents, current: before.current, selected: before.selected });
   fact("a press on another player's row shows that player: one row current, the header naming it, Build Path and the lane still there", after.selected !== before.selected && after.currents === 1 && after.current === after.selected && after.headerMatchesRow && after.panels && after.lane && !after.own && after.back, { selected: after.selected, current: after.current, currents: after.currents, panels: after.panels, lane: after.lane, back: after.back });
   fact('"Back to …" returns to the profile\'s player', !!back?.open && back.own && back.selected === before.selected && back.currents === 1, { selected: back?.selected ?? null, own: back?.own ?? false });
+  return out;
+}
+
+/**
+ * The open game against the window (self-contained, for evaluate; the owner's brief of 24 Nov 2026,
+ * §2): its height from its card's top to the game's end against the room under what is pinned above
+ * the page, how many elements inside it scroll (overflow auto or scroll with more than they show)
+ * and how many are cut off sideways by a box that clips (text ending in its own ellipsis aside).
+ * Where it runs over, where the height goes: each part's test id and height in px (no names, no text).
+ */
+export function readFit() {
+  const li = document.querySelector("li[data-expanded]");
+  const card = li?.querySelector("[data-testid=match-card]");
+  const region = li?.querySelector("[data-testid=match-expanded]");
+  const bd = li?.querySelector("[data-testid=match-breakdown]");
+  if (!li || !card || !region || !bd) return { open: false };
+  const pinned = parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop) || 0;
+  const height = Math.round(region.getBoundingClientRect().bottom - card.getBoundingClientRect().top);
+  const room = Math.floor(innerHeight - pinned);
+  let scrollers = 0;
+  let clipped = 0;
+  for (const el of [bd, ...bd.querySelectorAll("*")]) {
+    const cs = getComputedStyle(el);
+    if ((/(auto|scroll)/.test(cs.overflowX) && el.scrollWidth > el.clientWidth + 1) || (/(auto|scroll)/.test(cs.overflowY) && el.scrollHeight > el.clientHeight + 1)) scrollers += 1;
+    const b = el.getBoundingClientRect();
+    if (!b.width || el.closest(".sr-only") || el.closest("[hidden]")) continue;
+    let p = el.parentElement;
+    while (p && p !== bd.parentElement && !/(hidden|clip|auto|scroll)/.test(getComputedStyle(p).overflowX)) p = p.parentElement;
+    if (p && p !== bd.parentElement && !p.closest(".truncate") && b.right > p.getBoundingClientRect().right + 1) clipped += 1;
+  }
+  const h = (el) => Math.round(el.getBoundingClientRect().height);
+  const kids = (el) => (el ? [...el.children].map((c) => `${c.getAttribute("data-testid") || c.tagName.toLowerCase()}:${h(c)}`) : []);
+  const parts =
+    height > room
+      ? {
+          card: h(card),
+          breakdown: h(bd),
+          player: kids(li.querySelector("[data-testid=post-game-yours]")),
+          side: kids(li.querySelector("[data-testid=post-game-side]")),
+          scoreboard: kids(li.querySelector("[data-testid=post-game-scoreboard]")),
+          panels: kids(li.querySelector("[data-testid=participant-panels]")),
+          rows: [...li.querySelectorAll("[data-testid=participant]")].map(h),
+        }
+      : null;
+  return { open: true, size: `${innerWidth}x${innerHeight}`, height, room, scrollers, clipped, parts };
+}
+
+/** What the check asserts about the open game against the window (`at`, readFit): it fits the room under the pinned bars, and nothing inside it scrolls or is cut off. */
+export function fitVerdicts({ kind, at }) {
+  const out = [];
+  const fact = (name, ok, detail) => out.push({ name: `${kind}: ${name}`, status: ok ? "PASS" : "FAIL", detail });
+  if (!at?.open) {
+    fact("the opened game is there to measure", false, { open: false });
+    return out;
+  }
+  fact(`at ${at.size} the card and its open game fit the window (${at.height}px of ${at.room})`, at.height <= at.room, at.parts ? { height: at.height, room: at.room, ...at.parts } : { height: at.height, room: at.room });
+  fact(`at ${at.size} nothing inside the open game scrolls or is cut off`, at.scrollers === 0 && at.clipped === 0, { scrollers: at.scrollers, clipped: at.clipped });
   return out;
 }

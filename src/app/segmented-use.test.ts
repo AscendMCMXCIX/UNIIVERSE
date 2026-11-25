@@ -39,8 +39,7 @@ const ALLOWED: Array<{ file: string; kind: Kind; reason: string; optional?: true
   { file: "src/components/mobile-nav.tsx", kind: "accent-ring", reason: "your own picture on the phone's current tab: navigation" },
   { file: "src/components/match-history/team-composition.tsx", kind: "accent-ring", reason: "a member's champion portrait, marked: not a control" },
   { file: "src/components/match-history/match-history-view.tsx", kind: "accent-fill", reason: "the pager's current page: a numbered button among buttons, not a choice of a few" },
-  { file: "src/components/match-history/performance-panel.tsx", kind: "accent-ring", reason: "the opened game's timeline, rewritten in Release 17 (the opened game)", optional: true },
-  { file: "src/components/match-history/scoreboard.tsx", kind: "accent-ring", reason: "the scoreboard's selected participant: a table row, not a choice of a few (the opened game, docs/MATCH_NOTES.md)", optional: true },
+  { file: "src/components/match-history/scoreboard.tsx", kind: "accent-ring", reason: "the scoreboard's inspected participant: a table row, not a choice of a few (the opened game, docs/DESIGN_SYSTEM.md, \"The post-game view\")" },
 ];
 
 function files(dir: string): string[] {

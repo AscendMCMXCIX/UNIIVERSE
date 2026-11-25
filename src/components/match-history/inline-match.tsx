@@ -113,7 +113,7 @@ export function MatchExpansion({ id, label, playerId, matchId, champ, nav, onClo
     // The shared Unfold region (components/ui/unfold.tsx): it grows open, and its compact header
     // stays pinned with Close while the game is on screen and its own header has gone up.
     <UnfoldRegion id={id} label={label} header={<UnfoldHeader title={label} onClose={onClose} testId="match-unfold-header" />} className="rounded-b-panel border border-t-0 border-border bg-bg-elevated" testId="match-expanded">
-      <div className="px-3 pt-3 sm:px-4 sm:pt-4">
+      <div className="px-3 pt-3 sm:px-4 sm:pt-3">
         <InlineMatch playerId={playerId} matchId={matchId} champ={champ} />
         <GameFooter id={id} nav={nav} onClose={onClose} />
       </div>
@@ -123,14 +123,19 @@ export function MatchExpansion({ id, label, playerId, matchId, champ, nav, onClo
 
 /**
  * The game's footer: Previous, Next and Close at the bottom of the screen while the game's end is
- * below it. One set at a time: where the open card's own header carries the same three (Match
- * History) and that header is on screen, the footer keeps its place but shows nothing, so the two
- * sets are never seen together (the review of Release 13, finding 10). Team → Matches' cards have no
- * steps of their own, so their footer always shows.
+ * below it. Under a card with its own steps (Match History), only where the open game (its card
+ * included) is taller than the room under what is pinned above the page: a game that fits the screen (every game on a desktop at 100% text, the
+ * owner's brief of 24 Nov 2026) has its steps in its card's header, in view with all of it, and
+ * spends no line on a footer. One set at a time: where the open card's own header carries the same
+ * three (Match History) and that header is on screen, the footer keeps its place but shows nothing,
+ * so the two sets are never seen together (the review of Release 13, finding 10). Team → Matches'
+ * cards have no steps of their own, so their footer always shows.
  */
 function GameFooter({ id, nav, onClose }: { id: string; nav: GameNav | null; onClose: () => void }) {
   const ref = React.useRef<HTMLDivElement>(null);
+  const probe = React.useRef<HTMLSpanElement>(null);
   const [headerShown, setHeaderShown] = React.useState(false);
+  const [needed, setNeeded] = React.useState(false);
   React.useEffect(() => {
     const footer = ref.current;
     const steps = footer?.closest("li")?.querySelector<HTMLElement>("[data-game-step][data-where=header]");
@@ -147,15 +152,46 @@ function GameFooter({ id, nav, onClose }: { id: string; nav: GameNav | null; onC
     io.observe(steps);
     return () => io.disconnect();
   }, [id]);
+  React.useEffect(() => {
+    // The open game's height without the footer (its card, the region above the footer), against the room under the pinned bars.
+    const mark = probe.current;
+    const region = mark?.closest<HTMLElement>("[data-testid=match-expanded]");
+    if (!mark || !region) return;
+    const card = region.closest("li")?.querySelector<HTMLElement>("[data-testid=match-card]") ?? null;
+    // Without steps of its own in the card (Team → Matches) the footer is the game's one set: always drawn.
+    if (!region.closest("li")?.querySelector("[data-game-step][data-where=header]")) {
+      setNeeded(true);
+      return;
+    }
+    const measure = () => {
+      const pinned = parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop) || 0;
+      const top = (card ?? region).getBoundingClientRect().top;
+      const end = mark.getBoundingClientRect().top;
+      setNeeded(end - top > window.innerHeight - pinned + 1);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(region);
+    window.addEventListener("resize", measure);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, [id]);
   return (
-    <div
-      ref={ref}
-      className={cn("sticky bottom-0 z-10 -mx-3 mt-2 flex justify-end rounded-b-panel border-t px-2 py-1 sm:-mx-4", headerShown ? "invisible border-transparent" : "border-border/60 bg-bg-elevated/95 backdrop-blur")}
-      data-testid="match-footer"
-      data-hidden={headerShown || undefined}
-    >
-      <GameSteps nav={nav} onClose={onClose} where="footer" />
-    </div>
+    <>
+      {/* Where the game's content ends (the footer's height left out of the measure). */}
+      <span ref={probe} className="block h-3" aria-hidden />
+      <div
+        ref={ref}
+        className={cn("sticky bottom-0 z-10 -mx-3 -mt-1 flex justify-end rounded-b-panel border-t px-2 py-1 sm:-mx-4", !needed && "hidden", headerShown ? "invisible border-transparent" : "border-border/60 bg-bg-elevated/95 backdrop-blur")}
+        data-testid="match-footer"
+        data-hidden={headerShown || !needed || undefined}
+        data-needed={needed || undefined}
+      >
+        <GameSteps nav={nav} onClose={onClose} where="footer" />
+      </div>
+    </>
   );
 }
 
@@ -174,6 +210,23 @@ export function InlineMatch({ playerId, matchId, champ }: { playerId: string; ma
       live = false;
     };
   }, [cache, playerId, matchId]);
+  // Once the game is drawn: where its card sits in the upper part of the screen (revealOpened left
+  // it there) and the game runs past the screen's foot while the whole of it fits the room under
+  // the pinned bars (a desktop at 100% text), the page moves up just enough to show all of it.
+  const box = React.useRef<HTMLDivElement>(null);
+  const shown = result?.status === "ok";
+  React.useLayoutEffect(() => {
+    if (!shown) return;
+    const region = box.current?.closest<HTMLElement>("[data-testid=match-expanded]");
+    const card = region?.closest("li")?.querySelector<HTMLElement>("[data-testid=match-card]");
+    if (!region || !card) return;
+    const pinned = pinnedTop();
+    const top = card.getBoundingClientRect().top;
+    const bottom = region.getBoundingClientRect().bottom;
+    const over = bottom - screenHeight();
+    if (top < pinned || top > screenHeight() * 0.55 || over <= 0 || bottom - top > screenHeight() - pinned) return;
+    window.scrollBy({ top: Math.min(over, top - pinned), behavior: "instant" });
+  }, [shown]);
   if (!result)
     return (
       <div className="space-y-2" role="status" data-testid="match-expanded-loading">
@@ -188,5 +241,9 @@ export function InlineMatch({ playerId, matchId, champ }: { playerId: string; ma
         {result.message}
       </p>
     );
-  return <PostGame key={matchId} playerId={playerId} view={result.view} champ={champ} variant="inline" />;
+  return (
+    <div ref={box}>
+      <PostGame key={matchId} playerId={playerId} view={result.view} champ={champ} variant="inline" />
+    </div>
+  );
 }

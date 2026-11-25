@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import { ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react";
-import { ROLE_LABELS, type Role } from "@/domain/roles";
 import { publicPatchName } from "@/domain/patch";
 import { getMatchDetailAction } from "@/server/actions/match-history";
 import type { MatchDetailResult } from "@/server/players/match-history";
@@ -60,22 +59,34 @@ export function MatchDetailModal({ playerId, matchId, championsById, onClose, ba
     if (!view || first.current === view.matchId || !nav) return;
     setSaid(`Game ${nav.index + 1} of ${nav.total}: ${view.win ? "Victory" : "Defeat"} on ${champ(view.championId).name}`);
   }, [view, nav, champ]);
-  // One line, pinned: the result and the champion, a ranked game's LP, and the close button (the
-  // window's own, top right). The game's queue, length, date and patch open the body.
+  // Pinned: the result, the champion and the game's length, a ranked game's LP, and the close button
+  // (the window's own, top right); under them, in one quiet line, the game's queue, date and patch (in
+  // the header since 24 Nov 2026, so a phone's pages keep the whole screen under it; the player's role
+  // is the Player page's first line).
   const header = (
-    <div className={cn("flex min-h-13 items-center gap-2 py-2 pl-4 sm:pl-6", back ? BELOW_CONTROLS_ON_PHONES : CLEAR_OF_CONTROLS)}>
-      <h2 id="match-detail-title" className="flex min-w-0 items-baseline gap-2 truncate text-lg font-semibold text-fg">
+    <div className={cn("flex min-h-13 items-center gap-2 py-1.5 pl-4 sm:pl-6", back ? BELOW_CONTROLS_ON_PHONES : CLEAR_OF_CONTROLS)}>
+      <div className="min-w-0">
+        <h2 id="match-detail-title" className="flex min-w-0 items-baseline gap-2 truncate text-lg font-semibold leading-6 text-fg">
+          {view ? (
+            <>
+              <span className={cn("font-bold", view.win ? "text-blue" : "text-red")} data-testid="match-result">
+                {view.win ? "Victory" : "Defeat"}
+              </span>
+              <span className="truncate">· {champ(view.championId).name}</span>
+              <span className="shrink-0 text-sm font-normal tabular-nums text-fg-muted" data-testid="match-detail-duration">
+                {fmtDuration(view.durationS)}
+              </span>
+            </>
+          ) : (
+            "Match details"
+          )}
+        </h2>
         {view ? (
-          <>
-            <span className={cn("font-bold", view.win ? "text-blue" : "text-red")} data-testid="match-result">
-              {view.win ? "Victory" : "Defeat"}
-            </span>
-            <span className="truncate">· {champ(view.championId).name}</span>
-          </>
-        ) : (
-          "Match details"
-        )}
-      </h2>
+          <p className="text-xs leading-4 tabular-nums text-fg-muted" data-testid="match-detail-meta">
+            {[view.queue, formatDate(new Date(view.playedAt)), view.patch ? `Patch ${publicPatchName(view.patch)}` : null].filter(Boolean).join(" · ")}
+          </p>
+        ) : null}
+      </div>
       {view && lp ? <LpChange lp={lp} focusable /> : null}
     </div>
   );
@@ -140,12 +151,7 @@ export function MatchDetailModal({ playerId, matchId, championsById, onClose, ba
       {!result ? (
         <DetailSkeleton />
       ) : (
-        <div className="space-y-3 motion-safe:fade-in" key={matchId}>
-          {view ? (
-            <p className="text-xs tabular-nums text-fg-muted" data-testid="match-detail-meta">
-              {[view.queue, fmtDuration(view.durationS), view.role && view.role !== "UNKNOWN" ? (ROLE_LABELS[view.role as Role] ?? view.role) : null, formatDate(new Date(view.playedAt)), view.patch ? `Patch ${publicPatchName(view.patch)}` : null].filter(Boolean).join(" · ")}
-            </p>
-          ) : null}
+        <div className="motion-safe:fade-in" key={matchId}>
           {result.status !== "ok" ? (
             <p className="rounded-panel border border-dashed border-border p-4 text-sm text-fg-muted" data-testid="match-detail-message">
               {result.message}

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "./test";
-import { cardOf, expandedOf, openGame, opensFullScreen, pastGameHeader } from "./match-history";
+import { cardOf, expandedOf, openGame, opensFullScreen, pastGameHeader, showGamePage } from "./match-history";
 import { createMember } from "./member-account";
 import { pagerFold, pagerItems, pagerRem } from "../src/components/match-history/pager";
 
@@ -76,6 +76,9 @@ test("the profile card is one band on every section from a tablet up, so the tab
 
 test("an open game ends with a control that closes it and brings its card into view, with the focus on it", async ({ page }) => {
   test.skip(opensFullScreen(page), "phones open a game as a whole screen, closed by Back or its close button: e2e/mobile-nav.spec.ts");
+  // A window shorter than the game (the footer is drawn only then: a game that fits the window has its
+  // card's own Close in view with all of it, the owner's brief of 24 Nov 2026).
+  await page.setViewportSize({ width: page.viewportSize()!.width, height: 560 });
   const profile = await profileOf(page, "TOP");
   await page.goto(`${profile}/matches`, { waitUntil: "networkidle" });
   const card = page.getByTestId("match-card").nth(1);
@@ -100,25 +103,27 @@ test("an open game ends with a control that closes it and brings its card into v
   }).toPass({ timeout: 5_000 });
 });
 
-test("a phone's scoreboard row is three lines of about 60px: the name, K/D/A and score, then the build and CS, then the rank, whole; at 320px too", async ({ page }) => {
+test("a phone's scoreboard row is two lines of 32px: the name, K/D/A and score, then the build, the rank (whole) and CS; at 320px too", async ({ page }) => {
   test.skip(!isPhone(page), "the phone layout");
   const profile = await profileOf(page, "SUPPORT");
   for (const size of [page.viewportSize()!, { width: 320, height: 568 }]) {
     await page.setViewportSize(size);
     await page.goto(`${profile}/matches`, { waitUntil: "networkidle" });
     const breakdown = await openGame(page.getByTestId("match-card").first());
+    await showGamePage(breakdown, "board");
     const rows = breakdown.locator('[data-testid="participant"]:not([data-removed])');
     await expect(rows.first()).toBeVisible();
     for (let i = 0; i < (await rows.count()); i++) {
       const row = rows.nth(i);
       const box = (await row.boundingBox())!;
-      // Three lines since Release 16 (the name, K/D/A and score; the build and CS; the rank across the row, whole).
-      expect(box.height, `${size.width}px, row ${i}`).toBeLessThanOrEqual(66);
+      // Two lines since 24 Nov 2026 (the name, K/D/A and score; the build, the rank and CS), so the ten
+      // rows and both bands fit the window's Scoreboard page (three lines of about 60px before).
+      expect(box.height, `${size.width}px, row ${i}`).toBeLessThanOrEqual(36);
       const rankText = row.getByTestId("participant-rank-text");
       if (await rankText.count()) expect(await rankText.evaluate((e) => e.scrollWidth <= e.clientWidth + 1), `${size.width}px, row ${i}: the rank whole`).toBe(true);
       // The build, the K/D/A and CS inside the row, none over another.
       // The performance score (Release 16) on the first line after the K/D/A, inside the row too.
-      const parts = await Promise.all(["participant-name", "participant-kda", "participant-items", "participant-cs", "participant-score"].map(async (t) => (await row.getByTestId(t).boundingBox())!));
+      const parts = await Promise.all(["participant-name", "participant-kda", "participant-items-phone", "participant-cs", "participant-score"].map(async (t) => (await row.getByTestId(t).boundingBox())!));
       for (const p of parts) expect(p.x + p.width, `${size.width}px, row ${i}`).toBeLessThanOrEqual(box.x + box.width + 0.5);
       const [name, kda, items, cs, score] = parts;
       expect(kda!.x + kda!.width, `${size.width}px, row ${i}: the K/D/A before the score`).toBeLessThanOrEqual(score!.x + 0.5);

@@ -106,7 +106,7 @@
     route, and the Library's own below), Playwright itself aborts every request for /favicon.ico,
     unreported, so every row shows its stand-in. Counts only.
   - games (#178): Team Matches opens a game under its card (no window), with ?match= in the address;
-    Match History's post-game view (S6) has no tabs, fits one screen with its card at 1440×900, keeps
+    Match History's post-game view (S6) has no tabs, fits one screen with its card at 1440×900 and 1280×720 with nothing inside it scrolling, keeps
     the open header in place on Next and closes on Back; a phone's window has Previous and Next, Next
     replacing the address;
     on the tablet and the desktop a game with 4 or more members lists them in two columns;
@@ -118,7 +118,7 @@
     the tab bar; its Encounters view still opens. All Champions' preview: on the desktop and the
     tablet unfolded under its row (Champion, Games and Win rate in place, the page not scrolled,
     nothing scrolling inside), Escape and Back close it; on the phone a sheet, which Back closes;
-    phone rows at most 64px. The open game's post-game view has no notes and no gold curve; Build
+    phone rows at most 64px. The open game's post-game view has no notes, no gold curve, no comparison and no written why; Build
     Path, Skill Order and Runes stand above its lane, each of its ten players has a performance score
     (one MVP, one ACE), and a press on another player's row shows that player ("Back to …" returns).
   - accessibility (#173): axe (WCAG 2.1 A and AA, plus label-content-name-mismatch) on the main pages
@@ -156,7 +156,7 @@ import { redact } from "./redact.mjs";
 import { riotKeysOnPage } from "./riot-keys.mjs";
 import { rosterRowLines } from "./roster-lines.mjs";
 import { championLookupVerdicts, readChampionLookup, readChampionWindow } from "./champion-lookup-facts.mjs";
-import { postGameVerdicts, readInspection, readPostGame, switchVerdicts } from "./post-game-facts.mjs";
+import { fitVerdicts, postGameVerdicts, readFit, readInspection, readPostGame, switchVerdicts } from "./post-game-facts.mjs";
 import { championPreviewVerdicts, readChampionPreview, readChampionRows, targetRow } from "./champion-preview-facts.mjs";
 import { multikillVerdicts, readMultikillBoard } from "./multikill-facts.mjs";
 import { cardScoreVerdicts, firstScored, readCardScores, readOpenedScore } from "./card-score-facts.mjs";
@@ -2077,23 +2077,18 @@ async function matchHistory(page, log, kind, playerId) {
             return open.getAnimations({ subtree: true }).length === 0;
           }, null, { timeout: 20_000 })
           .catch(() => undefined);
-        const fit = await open.evaluate((li) => {
-          const top = li.querySelector("[data-testid=match-card]").getBoundingClientRect().top;
-          const end = li.querySelector("[data-testid=match-expanded]").getBoundingClientRect().bottom;
-          return Math.round(end - top);
-        });
-        // Where the height goes when it runs over: each column's parts, by test id and height in px
-        // only (no names, no text), so a failure on real games says which part grew.
-        const parts = fit > page.viewportSize().height ? await open.evaluate((li) => {
-          const h = (el) => Math.round(el.getBoundingClientRect().height);
-          const kids = (el) => (el ? [...el.children].map((c) => `${c.getAttribute("data-testid") || c.tagName.toLowerCase()}:${h(c)}`) : []);
-          const card = li.querySelector("[data-testid=match-card]");
-          const yours = li.querySelector("[data-testid=post-game-yours]");
-          const board = li.querySelector("[data-testid=post-game-scoreboard]");
-          const panels = li.querySelector("[data-testid=participant-panels]");
-          return { card: card ? h(card) : null, yours: yours ? h(yours) : null, scoreboard: board ? h(board) : null, left: kids(yours), right: kids(board), panels: kids(panels), rows: [...li.querySelectorAll("[data-testid=participant]")].map(h) };
-        }) : null;
-        pass("games", `${kind}: the card and its open game fit one screen (${fit}px of ${page.viewportSize().height})`, fit <= page.viewportSize().height, parts ? { fit, ...parts } : fit);
+        // The card and its open game against the window, and nothing inside it scrolling (the owner's
+        // brief of 24 Nov 2026, §2; scripts/post-game-facts.mjs readFit): at 1440 × 900, then at
+        // 1280 × 720 on the same game, and back. Where it runs over, the parts' heights say which grew
+        // (test ids and px only: no names, no text).
+        for (const v of fitVerdicts({ kind, at: await page.evaluate(readFit) })) check("games", v.name, v.status, v.detail);
+        const full = page.viewportSize();
+        await page.setViewportSize({ width: 1280, height: 720 });
+        await page.waitForFunction(() => document.querySelector("li[data-expanded] [data-testid=match-expanded]")?.getAnimations({ subtree: true }).length === 0, null, { timeout: 5_000 }).catch(() => undefined);
+        await page.waitForTimeout(300);
+        for (const v of fitVerdicts({ kind, at: await page.evaluate(readFit) })) check("games", v.name, v.status, v.detail);
+        await page.setViewportSize(full);
+        await page.waitForTimeout(300);
         // The post-game view's content (PLAN §6 rows 5.2–5.8; scripts/post-game-facts.mjs), from the game
         // already open: no interaction of its own, read once its timeline has answered (the lane reads it).
         await guarded("games", `${kind}: the open game's post-game view`, async () => {
