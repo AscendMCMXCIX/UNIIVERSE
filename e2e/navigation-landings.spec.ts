@@ -37,6 +37,10 @@ test("a profile opened from a scrolled list starts at its top, and Back returns 
   );
   const link = page.locator(`main a[href="${href}"]:visible`).last();
   await expect(async () => link.scrollIntoViewIfNeeded({ timeout: 2_000 })).toPass({ timeout: 15_000 });
+  // Since the text-led controls (Release 17) the last row can end inside a 500px window while the page
+  // still scrolls (549px tall at 1440 × 500), so the list is scrolled to its end, the last row in view.
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  await expect(link).toBeInViewport();
   const listY = await scrollY(page);
   // A list that fits again fails here, loudly, rather than skipping what the test is for.
   expect(listY, `the Players list scrolls on ${info.project.name}`).toBeGreaterThan(0);
