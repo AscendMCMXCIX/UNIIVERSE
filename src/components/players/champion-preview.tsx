@@ -207,9 +207,9 @@ export interface PreviewProps {
 function StatTile({ label, value, sub, testId }: { label: string; value: string; sub: string | null; testId: string }) {
   return (
     <div className="min-w-0 rounded-lg border border-border/70 bg-surface px-2.5 py-1.5" data-testid={testId}>
-      <dt className="label-caps truncate">{label}</dt>
+      <dt className="label-text truncate">{label}</dt>
       <dd className="text-base font-semibold leading-tight tabular-nums text-fg">{value}</dd>
-      <dd className="truncate text-2xs tabular-nums text-fg-subtle">{sub ?? " "}</dd>
+      <dd className="truncate text-2xs tabular-nums text-fg-muted">{sub ?? " "}</dd>
     </div>
   );
 }
@@ -243,11 +243,11 @@ function KillsLine({ card }: { card: OverviewCard }) {
   const some = (p.totalKills !== null && p.detailedGames < card.selected.games) || (!!m && m.counted > 0 && m.counted < m.games);
   return (
     <p className="text-xs tabular-nums text-fg-muted" data-testid="champion-preview-kills">
-      <span className="text-fg-subtle">Kills</span> <span className="font-semibold text-fg">{kills}</span>
+      <span>Kills</span> <span className="font-semibold text-fg">{kills}</span>
       {multi ? (
         <>
           {" · "}
-          <span className="text-fg-subtle">Multikills</span> <span className="text-fg">{multi}</span>
+          <span>Multikills</span> <span className="text-fg">{multi}</span>
         </>
       ) : null}
       {some ? <span className="sr-only"> (* from some of the games only: {m ? multikillCoverage(m).label.toLowerCase() : "the rest still loading"})</span> : null}
@@ -296,7 +296,7 @@ export function PreviewContent({ playerId, isOwn, card, otherRoles, vs, champ, d
             {roleLine}
           </p>
           {otherRoles.length ? (
-            <p className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-fg-subtle">
+            <p className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-fg-muted">
               {otherRoles.map((o) => (
                 <button key={o.role} type="button" onClick={() => onSwitch(o)} className="text-left underline decoration-fg-subtle/50 underline-offset-2 hover:text-fg pointer-coarse:min-h-11" data-testid="champion-preview-role">
                   Also as {ROLE_LABELS[o.role]}: {plural(o.selected.games, "game")} · {record(o.selected.wins, o.selected.games)}
@@ -357,7 +357,7 @@ export function PreviewContent({ playerId, isOwn, card, otherRoles, vs, champ, d
         ) : (
           <div>
             {arranged.noneEstablished ? <p className="mb-1 text-xs text-fg-subtle" data-testid="champion-preview-none-established">No opponent met {OPPONENT_MIN_GAMES} times yet.</p> : null}
-            <div className={cn(OPPONENT_GRID, "label-caps border-b border-border/60 pb-1 pl-0.5")} aria-hidden data-testid="champion-preview-opponent-head">
+            <div className={cn(OPPONENT_GRID, "label-text border-b border-border/60 pb-1 pl-0.5")} aria-hidden data-testid="champion-preview-opponent-head">
               <span>Opponent</span>
               <span className="text-right">Games</span>
               <span className="text-right">Record</span>
@@ -410,8 +410,9 @@ function OpponentRow({ o, withRate, open, me, champ, card, isOwn, data, onToggle
           {formatCount(o.games)}
           <span className="sr-only"> game{o.games === 1 ? "" : "s"}</span>
         </span>
-        <span className="text-right text-xs tabular-nums text-fg-subtle">{record(o.wins, o.games)}</span>
-        <span className={cn("text-right text-sm font-semibold tabular-nums", toned ? WIN_RATE_TONE_CLASS[winRateTone(rate, o.games, OPPONENT_TONED_GAMES)] : "text-fg-muted")}>
+        <span className="text-right text-xs tabular-nums text-fg-muted">{record(o.wins, o.games)}</span>
+        {/* Under OPPONENT_TONED_GAMES the rate is a small sample: the tertiary grey, with the words for screen readers. */}
+        <span className={cn("text-right text-sm font-semibold tabular-nums", toned ? WIN_RATE_TONE_CLASS[winRateTone(rate, o.games, OPPONENT_TONED_GAMES)] : "text-fg-subtle")}>
           {withRate ? (
             <>
               {percent(rate, 0)}

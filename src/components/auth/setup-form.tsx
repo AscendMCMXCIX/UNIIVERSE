@@ -181,11 +181,11 @@ export function SetupForm({
               <div className="rounded-md border border-border bg-bg-elevated px-3 py-2 text-sm" data-testid="setup-account-facts">
                 <dl>
                 <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-                  <dt className="text-fg-subtle">Username (you sign in with it)</dt>
+                  <dt className="text-fg-muted">Username (you sign in with it)</dt>
                   <dd className="ml-auto min-w-0 text-right font-medium text-fg [overflow-wrap:anywhere]">{username}</dd>
                 </div>
                 <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-                  <dt className="text-fg-subtle">Riot ID</dt>
+                  <dt className="text-fg-muted">Riot ID</dt>
                   <dd className="ml-auto min-w-0 text-right font-medium text-fg [overflow-wrap:anywhere]">{riotId ?? "linked by your admin"}</dd>
                 </div>
                 </dl>

@@ -190,7 +190,7 @@ export function RiotAccountsPanel({ playerId, accounts, riotConfigured, editable
                             ref={(el) => {
                               moveRefs.current.set(`${a.id}:${by}`, el);
                             }}
-                            className={buttonClass("ghost", "sm", "px-1.5 disabled:cursor-not-allowed disabled:opacity-40 pointer-coarse:min-w-11")}
+                            className={buttonClass("ghost", "sm", "px-1.5 pointer-coarse:min-w-11")}
                             aria-label={`Move ${a.riotId} ${by === -1 ? "up" : "down"}`}
                             title={by === -1 ? "Move up" : "Move down"}
                             disabled={disabled}

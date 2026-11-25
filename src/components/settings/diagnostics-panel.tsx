@@ -48,7 +48,7 @@ export function DiagnosticsPanel({ d }: { d: Diagnostics }) {
           <SectionLabel className="mb-1">Recent job runs</SectionLabel>
           <ScrollRegion label="Recent job runs">
             <table className="w-full">
-              <thead className="text-left text-fg-subtle">
+              <thead className="text-left text-fg-muted">
                 <tr>
                   <th className="py-1 pr-3 font-medium">Job</th>
                   <th className="py-1 pr-3 font-medium">Trigger</th>

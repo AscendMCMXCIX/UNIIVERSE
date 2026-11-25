@@ -203,7 +203,7 @@ function BackdropSetting({ level, saved, hasArtwork, disabled, onChange }: { lev
                 {levelName(level)}
                 {level !== saved ? <span data-testid="backdrop-saved"> · saved: {saved}%</span> : null}
               </span>
-              <button type="button" onClick={() => onChange(DEFAULT_BACKDROP_LEVEL)} disabled={disabled || level === DEFAULT_BACKDROP_LEVEL} className="inline-flex items-center gap-1 rounded px-1 py-0.5 text-fg-muted hover:text-fg disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:min-h-11" data-testid="backdrop-reset">
+              <button type="button" onClick={() => onChange(DEFAULT_BACKDROP_LEVEL)} disabled={disabled || level === DEFAULT_BACKDROP_LEVEL} className="inline-flex items-center gap-1 rounded px-1 py-0.5 text-fg-muted hover:text-fg disabled:cursor-not-allowed disabled:text-fg-disabled disabled:hover:text-fg-disabled focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:min-h-11" data-testid="backdrop-reset">
                 <RotateCcw className="h-3 w-3" aria-hidden /> Reset to default ({DEFAULT_BACKDROP_LEVEL}%)
               </button>
             </div>
@@ -352,7 +352,8 @@ export function BrandingPanel({ branding, canEdit }: { branding: Branding; canEd
             {COLOUR_FIELDS.map((f) => {
               const value = form[f.key] ?? DEFAULT_COLOURS[f.key];
               const custom = form[f.key] !== null && form[f.key] !== DEFAULT_COLOURS[f.key];
-              const check = checks.find((c) => c.key === f.key);
+              // A colour has several checks (body and quiet text on a surface): the first that fails, else the first.
+              const check = checks.find((c) => c.key === f.key && !c.ok) ?? checks.find((c) => c.key === f.key);
               return (
                 <li key={f.key} className="flex flex-wrap items-center gap-3" data-testid={`colour-${f.key}`}>
                   <input type="color" aria-label={f.label} disabled={!canEdit} value={value} onChange={(e) => setColour(f.key, e.target.value)} className="h-11 w-12 shrink-0 cursor-pointer rounded-md border border-border bg-surface-2" />
@@ -363,7 +364,7 @@ export function BrandingPanel({ branding, canEdit }: { branding: Branding; canEd
                   <div className="w-28 shrink-0 @max-[14rem]:w-auto @max-[14rem]:min-w-0 @max-[14rem]:flex-1 @max-[14rem]:shrink">
                     <Input aria-label={`${f.label} hex`} disabled={!canEdit} value={value} onChange={(e) => /^#[0-9a-f]{6}$/i.test(e.target.value) && setColour(f.key, e.target.value.toLowerCase())} maxLength={7} className="font-mono md:pointer-fine:h-9" />
                   </div>
-                  <button type="button" disabled={!canEdit || !custom} onClick={() => setColour(f.key, null)} className="grid h-9 w-9 place-items-center rounded-md text-fg-subtle hover:bg-surface-2 hover:text-fg disabled:opacity-30 pointer-coarse:h-11 pointer-coarse:w-11" aria-label={`Reset ${f.label} to default`} title="Reset to default">
+                  <button type="button" disabled={!canEdit || !custom} onClick={() => setColour(f.key, null)} className="grid h-9 w-9 place-items-center rounded-md text-fg-subtle hover:bg-surface-2 hover:text-fg disabled:cursor-not-allowed disabled:text-fg-disabled disabled:hover:bg-transparent disabled:hover:text-fg-disabled pointer-coarse:h-11 pointer-coarse:w-11" aria-label={`Reset ${f.label} to default`} title="Reset to default">
                     <RotateCcw className="h-4 w-4" />
                   </button>
                   {check && !check.ok ? <p className="w-full text-xs text-bad">{check.message}</p> : null}

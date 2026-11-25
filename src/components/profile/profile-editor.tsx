@@ -308,10 +308,10 @@ const STATS_HIDDEN_WHILE_EDITING = "@max-sm:hidden";
 /**
  * The column names over a pool's rows, once (the rows carry each name for screen readers): the
  * champion, then games, win rate, KDA and CS/min (vision for Support, judged on vision rather than
- * farm). While editing it leaves the room the rows' grip and × take. Each name on one line: in a
- * phone's list (under 24rem) in sentence case, since uppercase "GAMES" (46.5px) and "WIN %" (43px)
- * fit no 2.5rem column ("Games" is 37px, "Win %" 34.7px); uppercase from 24rem, where the columns
- * are wider. Where the names do not fit beside "Champion" (larger text) they wrap under it, at its
+ * farm). While editing it leaves the room the rows' grip and × take. Each name on one line, in
+ * sentence case at every width (label-text; 25 Nov 2026: uppercase from 24rem until then, and
+ * uppercase "GAMES" (46.5px) and "WIN %" (43px) fit no 2.5rem column, "Games" is 37px and "Win %"
+ * 34.7px). Where the names do not fit beside "Champion" (larger text) they wrap under it, at its
  * end, over the figures, which wrap the same way ("Champion" was cut short from 125% on a 320px
  * phone, and from 175% the names ran past the list); under 8.5rem, where the rows name their
  * figures in words (STATS_COLUMNS), they step aside.
@@ -319,7 +319,7 @@ const STATS_HIDDEN_WHILE_EDITING = "@max-sm:hidden";
 function PoolColumns({ role, editable, testId, besideHeading = false }: { role: Role; editable: boolean; testId: string; /** On the pool's heading line from a 38rem list (BESIDE_HEADING). */ besideHeading?: boolean }) {
   return (
     // A row's frame (its 1px transparent border too), so the columns sit over the row's figures.
-    <div aria-hidden className={cn("flex flex-wrap items-center gap-x-1.5 gap-y-0.5 whitespace-nowrap border-x border-transparent pb-0.5 pl-2 pr-1.5 text-2xs font-semibold text-fg-subtle @2xs:gap-x-2 @sm:gap-x-2.5 @sm:uppercase @sm:tracking-label @lg:gap-x-3 @lg:pl-2.5 @max-[8.5rem]:hidden", besideHeading && BESIDE_HEADING)} data-testid={`${testId}-columns`}>
+    <div aria-hidden className={cn("label-text flex flex-wrap items-center gap-x-1.5 gap-y-0.5 whitespace-nowrap border-x border-transparent pb-0.5 pl-2 pr-1.5 @2xs:gap-x-2 @sm:gap-x-2.5 @lg:gap-x-3 @lg:pl-2.5 @max-[8.5rem]:hidden", besideHeading && BESIDE_HEADING)} data-testid={`${testId}-columns`}>
       <span className="w-3 shrink-0 @sm:w-4" />
       <span className={cn("flex-1", besideHeading && "@min-[38rem]:invisible")}>Champion</span>
       <span className={cn(STATS_COLUMNS, "text-center", editable && STATS_HIDDEN_WHILE_EDITING)}>
@@ -367,7 +367,7 @@ function PoolRowStats({ s, role, editing }: { s: PoolChampionStats | undefined; 
   const cell = (label: string, value: React.ReactNode, extra?: { tone?: string; note?: string; testId?: string; className?: string }) => (
     <span className={cn("min-w-0 truncate text-center text-xs font-semibold tabular-nums @sm:text-sm @max-[8.5rem]:overflow-visible @max-[8.5rem]:whitespace-normal @max-[8.5rem]:text-left", extra?.tone ?? "text-fg", extra?.className)} data-testid={extra?.testId}>
       {/* Read out always; shown where the column names step aside (under 8.5rem, STATS_COLUMNS). */}
-      <span className="sr-only @max-[8.5rem]:not-sr-only @max-[8.5rem]:font-normal @max-[8.5rem]:text-fg-subtle">{label}: </span>
+      <span className="sr-only @max-[8.5rem]:not-sr-only @max-[8.5rem]:font-normal @max-[8.5rem]:text-fg-muted">{label}: </span>
       {value}
       {extra?.note ? <span className="sr-only"> ({extra.note})</span> : null}
     </span>
@@ -702,8 +702,8 @@ export function ProfileEditor({
             {i === 1 ? (
               <li aria-hidden={offFolds ? undefined : true} className={cn("flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-border/70 pt-2.5", offFolds && "md:hidden short:flex")} data-testid="off-roles-heading">
                 {/* The words wrap beside the phone's Show while they keep 6rem; with larger text Show goes under them. */}
-                <p aria-hidden className="min-w-0 shrink grow basis-24 text-2xs font-semibold uppercase tracking-label text-fg-subtle">
-                  Off roles <span className="font-normal normal-case tracking-normal">· in order of preference</span>
+                <p aria-hidden className="min-w-0 shrink grow basis-24 text-xs font-semibold text-fg-muted">
+                  Off roles <span className="font-normal text-fg-subtle">· in order of preference</span>
                 </p>
                 {offFolds ? <PhoneFoldToggle open={offFold.open} onToggle={offFold.toggle} controls={sections.slice(1).map((x) => `role-section-${x.role.toLowerCase()}`).join(" ")} label={`the ${offCount === 1 ? "off role" : `${offCount} off roles`}`} testId="off-roles-fold" /> : null}
               </li>
@@ -721,7 +721,7 @@ export function ProfileEditor({
           {offCount === 0 ? (
             // One line where it fits (Release 16: a caption and a line of their own ran the one-screen Overview 9px past 1920 × 950).
             <p className="text-xs text-fg-subtle">
-              <span className="text-2xs font-semibold uppercase tracking-label">Off roles</span>
+              <span className="font-semibold text-fg-muted">Off roles</span>
               <span aria-hidden>&nbsp;·&nbsp;</span>
               <span className="sr-only">: </span>
               None yet: lineups offer this player for {ROLE_LABELS[state.primaryRole]} only.

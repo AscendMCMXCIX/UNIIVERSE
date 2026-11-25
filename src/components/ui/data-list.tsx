@@ -78,7 +78,7 @@ export function DataList({ columns, title, heads, headsTestId, headsClassName, s
       <div className={cn("divide-y divide-border/70", columns)}>
         {title}
         {heads ? (
-          <div aria-hidden data-testid={headsTestId} className={cn("grid grid-cols-(--dl-cols) items-end py-1.5 label-caps", ROW_GAP_X, ROW_PAD_X, headsClassName)}>
+          <div aria-hidden data-testid={headsTestId} className={cn("grid grid-cols-(--dl-cols) items-end py-1.5 label-text", ROW_GAP_X, ROW_PAD_X, headsClassName)}>
             {heads}
           </div>
         ) : null}
@@ -337,7 +337,7 @@ export function DataListSkeleton({ rows = 7, heads = true, title = false, surfac
         headsClassName="hidden @min-[36rem]/list:grid"
         heads={
           heads ? (
-            // Each block takes the whole line of the label-caps headings it stands for (1lh), so the headings row is the board's height.
+            // Each block takes the whole line of the label-text headings it stands for (1lh), so the headings row is the board's height.
             <>
               <Skeleton className="my-[calc((1lh_-_0.625rem)/2)] h-2.5 w-3 justify-self-end" />
               <Skeleton className="col-span-2 my-[calc((1lh_-_0.625rem)/2)] h-2.5 w-14" />

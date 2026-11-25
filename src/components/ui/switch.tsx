@@ -2,12 +2,16 @@
 
 import { cn } from "@/lib/cn";
 
-/** The track and knob every switch shares: the brand blue and the knob at the right when on, a quiet track with the knob at the left when off (the knob's side says it without the colour). */
+/**
+ * The track and knob every switch shares: the brand blue and the knob at the right when on, a quiet
+ * track with the knob at the left when off (the knob's side says it without the colour). Disabled:
+ * a flat track and the knob in the disabled tone, on or off (the knob's side still says which).
+ */
 function Track() {
   return (
     <>
-      <span className="h-5 w-9 rounded-full border border-border-control bg-surface-3 transition-colors peer-checked:border-accent peer-checked:bg-accent/80 peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-accent" aria-hidden />
-      <span className="absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-fg shadow transition-transform peer-checked:translate-x-4 motion-reduce:transition-none" aria-hidden />
+      <span className="h-5 w-9 rounded-full border border-border-control bg-surface-3 transition-colors peer-checked:border-accent peer-checked:bg-accent/80 peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-accent peer-disabled:border-border peer-disabled:bg-surface-2 peer-disabled:peer-checked:border-border-strong peer-disabled:peer-checked:bg-surface-3" aria-hidden />
+      <span className="absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-fg shadow transition-transform peer-checked:translate-x-4 peer-disabled:bg-fg-disabled motion-reduce:transition-none" aria-hidden />
     </>
   );
 }
@@ -23,7 +27,7 @@ export function Switch({ checked, onChange, label, description, disabled, id, in
   const input = <input id={id} type="checkbox" role="switch" className="peer sr-only" checked={checked} disabled={disabled} aria-label={ariaLabel} onChange={(e) => onChange(e.target.checked)} />;
   if (inline)
     return (
-      <label htmlFor={id} className={cn("inline-flex min-h-11 shrink-0 cursor-pointer select-none items-center gap-2 rounded-md px-1.5 text-xs font-medium transition-colors md:pointer-fine:min-h-8", checked ? "text-fg" : "text-fg-muted hover:text-fg", disabled && "cursor-not-allowed opacity-60", className)} data-testid={testId} data-state={checked ? "on" : "off"}>
+      <label htmlFor={id} className={cn("inline-flex min-h-11 shrink-0 cursor-pointer select-none items-center gap-2 rounded-md px-1.5 text-xs font-medium transition-colors md:pointer-fine:min-h-8", disabled ? "cursor-not-allowed text-fg-disabled" : checked ? "text-fg" : "text-fg-muted hover:text-fg", className)} data-testid={testId} data-state={checked ? "on" : "off"}>
         <span>{label}</span>
         <span className="relative inline-flex shrink-0">
           {input}
@@ -32,7 +36,7 @@ export function Switch({ checked, onChange, label, description, disabled, id, in
       </label>
     );
   return (
-    <label htmlFor={id} className={cn("flex min-h-11 cursor-pointer items-start gap-3 rounded-md px-2 py-2 transition-colors hover:bg-surface-2/60 md:min-h-0", disabled && "cursor-not-allowed opacity-60", className)} data-testid={testId} data-state={checked ? "on" : "off"}>
+    <label htmlFor={id} className={cn("flex min-h-11 items-start gap-3 rounded-md px-2 py-2 transition-colors md:min-h-0", disabled ? "cursor-not-allowed" : "cursor-pointer hover:bg-surface-2/60", className)} data-testid={testId} data-state={checked ? "on" : "off"}>
       <span className="relative mt-0.5 inline-flex shrink-0">
         {input}
         <Track />
@@ -40,8 +44,8 @@ export function Switch({ checked, onChange, label, description, disabled, id, in
       {/* A word longer than the row's room (a 320px phone at 200% text, in a sheet's panel: "Administrator")
           breaks, hyphenated, rather than push the sheet 29px sideways. */}
       <span className="min-w-0 hyphens-auto [overflow-wrap:break-word]">
-        <span className="block text-sm text-fg">{label}</span>
-        {description ? <span className="block text-xs text-fg-muted">{description}</span> : null}
+        <span className={cn("block text-sm", disabled ? "text-fg-disabled" : "text-fg")}>{label}</span>
+        {description ? <span className={cn("block text-xs", disabled ? "text-fg-disabled" : "text-fg-muted")}>{description}</span> : null}
       </span>
     </label>
   );

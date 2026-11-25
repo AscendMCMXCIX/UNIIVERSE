@@ -194,7 +194,7 @@ function IconButton({ label, onClick, disabled, children, testId, pressed, dange
       aria-label={label}
       aria-pressed={pressed}
       title={label}
-      className={cn("grid h-8 w-8 place-items-center rounded-md text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-40 max-md:h-11 max-md:w-11 pointer-coarse:h-11 pointer-coarse:w-11", danger && "hover:text-bad")}
+      className={cn("grid h-8 w-8 place-items-center rounded-md text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:text-fg-disabled disabled:hover:bg-transparent disabled:hover:text-fg-disabled max-md:h-11 max-md:w-11 pointer-coarse:h-11 pointer-coarse:w-11", danger && "hover:text-bad")}
       data-testid={testId}
     >
       {children}

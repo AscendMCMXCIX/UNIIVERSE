@@ -20,7 +20,7 @@ export const METRICS = {
     unit: "label",
   },
   "recent-games": {
-    tip: "Games on this champion from each patch, queue and role they played it in during the last 30 days, counted whole.",
+    tip: "Recent games on this champion, counted by each patch, queue and role they played it in over the last 30 days.",
     title: "Recent games",
     unit: "games",
   },
@@ -30,12 +30,12 @@ export const METRICS = {
     unit: "games",
   },
   "games-on-record": {
-    tip: "Every stored game from all their Riot accounts (this season's, and older ones still kept); each game counts once.",
+    tip: "Every stored game from all their Riot accounts, each counted once.",
     title: "Games on record",
     unit: "games",
   },
   "mastery-points": {
-    tip: "Riot's mastery points on this champion, added up over their Riot accounts: long-term play, not current form.",
+    tip: "Riot's mastery points on this champion across their accounts: long-term play, not current form.",
     title: "Mastery",
     unit: "points",
   },

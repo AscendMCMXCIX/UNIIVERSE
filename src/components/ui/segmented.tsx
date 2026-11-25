@@ -23,14 +23,15 @@ import { cn, withDefaults } from "@/lib/cn";
  * above its foot, so it never reaches past the item or its row (a scroll row that overflows by a pixel
  * scrolls the other way too: tabIndicatorClass's note). The chosen item: the main text colour over
  * the accent line; at rest the secondary grey, brighter while pointed at with a faint line under it
- * (as TabBar's); disabled, the faint grey with no line. `inset`: the line's ends, matching the item's
- * side padding so it is as wide as the words.
+ * (as TabBar's); disabled, the disabled tone with no line (on a disabled control only: the tone is
+ * under 4.5:1, which WCAG allows for inactive controls). `inset`: the line's ends, matching the
+ * item's side padding so it is as wide as the words.
  */
 export function choiceIndicatorClass(on: boolean, opts: { disabled?: boolean; inset?: string } = {}): string {
   return cn(
     "relative after:pointer-events-none after:absolute after:bottom-1 after:h-0.5 after:rounded-full after:transition-opacity after:duration-150",
     opts.inset ?? "after:inset-x-2.5",
-    on ? "text-fg after:bg-accent" : opts.disabled ? "cursor-not-allowed text-fg-subtle/60 after:opacity-0" : "text-fg-muted after:bg-border-strong after:opacity-0 hover:text-fg hover:after:opacity-100",
+    on ? "text-fg after:bg-accent" : opts.disabled ? "cursor-not-allowed text-fg-disabled after:opacity-0" : "text-fg-muted after:bg-border-strong after:opacity-0 hover:text-fg hover:after:opacity-100",
   );
 }
 
@@ -103,7 +104,7 @@ export function RoleSegmentContent({ role, active, compactLabel = true, compactB
       {role ? <RoleIcon role={role} className="h-4 w-4 shrink-0" /> : null}
       <span className={cn(role && compactLabel && (active ? ACTIVE_COMPACT[compactBelow] : COMPACT[compactBelow]))}>{role ? ROLE_LABELS[role] : "All roles"}</span>
       {count !== undefined && count !== null ? (
-        <span className={cn("text-2xs font-medium tabular-nums", count ? "text-fg-subtle" : "text-fg-subtle/60")} title={countTitle}>
+        <span className="text-2xs font-medium tabular-nums text-fg-subtle" title={countTitle}>
           {count}
         </span>
       ) : null}
