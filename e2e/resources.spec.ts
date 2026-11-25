@@ -397,6 +397,8 @@ test("on a touch tablet, Admin Mode's row buttons in Resources and Branding's co
   expect(sizes.length).toBeGreaterThan(0);
   for (const s of sizes) expect(s, "a row button").toBeGreaterThanOrEqual(44);
   await page.goto("/admin/branding");
+  // Streamed: the fields first arrive in a hidden template, 0px tall, so they are measured once shown.
+  await expect(page.locator("input[aria-label$=' hex']").first()).toBeVisible();
   const hex = await page.locator("input[aria-label$=' hex']").evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().height)));
   expect(hex.length).toBe(5);
   for (const h of hex) expect(h, "a colour's hex field").toBeGreaterThanOrEqual(44);
