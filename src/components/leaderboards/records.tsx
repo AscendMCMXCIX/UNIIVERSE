@@ -499,7 +499,7 @@ function MultikillRowItem({ r, p, tie, board, champions }: { r: MultikillRow; p:
         {words.map((w, i) => (
           <span key={i} className="whitespace-nowrap" data-word="">
             {w}
-            {i < words.length - 1 ? <span className="text-fg-subtle">{"\u00a0·"}</span> : null}
+            {i < words.length - 1 ? <span className="text-fg-subtle"> ·</span> : null}
           </span>
         ))}
       </span>

@@ -69,8 +69,8 @@ function Figure({ label, value, sub, testId }: { label: string; value: string; s
   );
 }
 
-/** Items of a line that wraps between them only (the space after each): each whole ("0 quadra"), its " ·" kept at the end of the line it ends (a no-break space before the dot), never starting the next. */
-const SEP = "\u00a0·";
+/** Items of a line that wraps between them only (the space after each, outside them): each whole ("0 quadra"), its " ·" inside it (no break in a nowrap item), so the dot ends the line it ends and never starts the next. */
+const SEP = " ·";
 
 /**
  * The kills and the four multikills, on one line where it fits: each count with its word, "*" where
@@ -214,9 +214,11 @@ export function PreviewContent({ playerId, isOwn, row, role, vs, champ, data, on
   const pane = chrome === "pane";
   return (
     <div id="champion-preview" className="@container/detail flex flex-col gap-4" data-testid="champion-preview-content" data-champion={row.championId} data-role={role ?? ""}>
-      <header className={cn("flex items-start gap-3", pane && "sticky top-[calc(var(--bar-top)+var(--tabs-top))] z-[2] -mx-5 border-b border-border/70 bg-surface px-5 pb-3 pt-4")} data-testid="champion-preview-header">
+      {/* In the sheet (its controls are the window's), the identity goes under the portrait where less than 10rem is left beside
+          it (a 320px phone at 200% text), rather than squeeze "Mastery 167K" past the sheet's edge. */}
+      <header className={cn("flex items-start gap-3", pane ? "sticky top-[calc(var(--bar-top)+var(--tabs-top))] z-[2] -mx-5 border-b border-border/70 bg-surface px-5 pb-3 pt-4" : "flex-wrap")} data-testid="champion-preview-header">
         <ChampionPortrait champion={me} size="md" className="h-12 w-12 shrink-0 rounded-lg ring-1 ring-border-strong/60" />
-        <div className="min-w-0 flex-1">
+        <div className={cn("min-w-0", pane ? "flex-1" : "grow basis-40")}>
           {pane ? (
             <h2 id={titleId} tabIndex={-1} className="text-lg font-semibold leading-tight text-fg outline-none focus-visible:outline-2 focus-visible:outline-accent">
               <span className="sr-only">Champion: </span>
@@ -230,8 +232,13 @@ export function PreviewContent({ playerId, isOwn, row, role, vs, champ, data, on
               </span>
             ) : null}
             {row.mastery?.points ? (
-              <span className="whitespace-nowrap" data-testid="champion-preview-mastery">
-                Mastery <span className="font-semibold tabular-nums text-fg">{formatCompactCount(row.mastery.points)}</span> <span className="text-fg-subtle">all positions</span>
+              // Two whole pieces, "Mastery 167K" and "all positions": at a large text size on a narrow phone they wrap between
+              // them rather than run past the sheet's edge (one unbreakable piece was cut at 320px and 200%).
+              <span data-testid="champion-preview-mastery">
+                <span className="whitespace-nowrap">
+                  Mastery <span className="font-semibold tabular-nums text-fg">{formatCompactCount(row.mastery.points)}</span>
+                </span>{" "}
+                <span className="whitespace-nowrap text-fg-subtle">all positions</span>
               </span>
             ) : null}
             {many ? (

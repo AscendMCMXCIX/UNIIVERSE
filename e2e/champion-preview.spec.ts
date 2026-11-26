@@ -517,8 +517,11 @@ test("a champion played in one position: the position named alone, its record sa
   await expect(segment).toHaveAccessibleName(new RegExp(`^(Top|Jungle|Mid|Bottom|Support): ${games} games? · ${rate} win rate · ${wins}W ${games - wins}L$`));
   expect(await recordGames(page)).toBe(games);
   await expect(page.getByTestId("champion-preview-winrate")).toContainText(rate);
-  // Still a 44px target on a touch screen, with one line.
-  if (await page.evaluate(() => matchMedia("(pointer: coarse)").matches)) expect((await segment.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  // Still a 44px target on a touch screen, with one line: measured at rest (while a sheet opens, its scale reads 43.999px).
+  if (await page.evaluate(() => matchMedia("(pointer: coarse)").matches)) {
+    await expect.poll(() => page.evaluate(() => document.getAnimations().filter((a) => a.playState === "running" && a.effect?.getComputedTiming().endTime !== Infinity).length)).toBe(0);
+    expect((await segment.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  }
 });
 
 test("positions: a champion played in one, two, three and five positions shows each position's icon, most games first; each opens the preview in it, and the preview switches between them", async ({ page }, info) => {
@@ -687,6 +690,30 @@ test("phones: a sheet; ‹ › switch, Back closes it and the list keeps its pla
   // Close closes it too.
   await close.click();
   await expect(preview).toHaveCount(0);
+});
+
+test("phones at 320px and 200% text: the sheet's labelled Close, ‹ › and every line of the identity stay inside the sheet", async ({ page }, info) => {
+  test.skip(info.project.name !== "phone", "the sheet is for phones");
+  await page.setViewportSize({ width: 320, height: 568 });
+  const profile = await demoMember(page, "Demo ADC");
+  await page.goto(`${profile}/champions`);
+  await page.addStyleTag({ content: "html { font-size: 200% !important; }" });
+  const rows = page.getByTestId("top-champion");
+  await expect(rows.first()).toBeVisible();
+  await openRow(page, rows.first());
+  const preview = page.locator("dialog[open][data-testid=champion-preview]");
+  await expect(preview).toBeVisible();
+  await expect.poll(() => preview.evaluate((d) => d.getAnimations({ subtree: true }).length)).toBe(0);
+  // "Mastery 167K all positions" was one unbreakable piece, cut at the sheet's edge at this size.
+  const out = await preview.evaluate((d) => {
+    const right = d.getBoundingClientRect().right;
+    return [...d.querySelectorAll("[data-testid=modal-controls] button, [data-testid=champion-preview-identity] *")]
+      .filter((e) => e.getBoundingClientRect().width > 0 && e.getBoundingClientRect().right > right + 0.5)
+      .map((e) => e.getAttribute("data-testid") ?? e.textContent!.trim().slice(0, 30));
+  });
+  expect(out, "nothing past the sheet's right edge").toEqual([]);
+  expect((await preview.getByTestId("champion-preview-close").boundingBox())!.height, "a 44px Close").toBeGreaterThanOrEqual(44);
+  await expect(preview.getByTestId("champion-preview-mastery")).toHaveText(/^Mastery [\d.]+K? all positions$/);
 });
 
 test("tablets: upright, no room for both: the sheet, its targets 44px; held sideways, the pane beside the list", async ({ page }, info) => {
