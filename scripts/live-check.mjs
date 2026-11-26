@@ -1202,13 +1202,14 @@ async function resourcesFacts(page, kind) {
 }
 
 /**
- * CHAMPION INTEL, one page load, one request for a second champion and one redirect
+ * CHAMPION INTEL, one page load, three requests (a second champion, the swap, the removal) and one redirect
  * (docs/LIVE_VALIDATION.md, "What it checks"; docs/CHAMPION_INTEL.md): an ordinary champion on the
  * desktop, read at the check's 1440 × 900 and again with the window made 1920 × 1080 (as the wide
  * checks do), then put back; then, in the page and with no request, 20 typed in the haste field and
  * the Q's row opened, and the window of every champion opened from the champion's name, read,
- * searched for "ahr" and closed with Escape; then Add champion with Jinx (the page builds her on the
- * server), read at 1440 × 900, and removed; then Matchup Intel's old address
+ * searched for "ahr" and closed with Escape; then Compare with Jinx (the page builds her on the
+ * server), read at 1440 × 900 on the aligned board, swapped (one request), read, and the first
+ * column's ✕ pressed (one request), which leaves the first champion alone; then Matchup Intel's old address
  * (/resources/matchups?champion=Riven&vs=Mordekaiser), which must land on Champion Intel with
  * Mordekaiser. What is read and asserted is in scripts/champion-lookup-facts.mjs, beside its unit
  * test. It reads nothing beyond what the page itself reads (the session, the cached roster and
@@ -1245,17 +1246,29 @@ async function championLookupFacts(page, kind) {
   const search = await page.evaluate(readChampionWindow);
   await page.keyboard.press("Escape");
   await page.keyboard.press("Escape");
-  // A second champion: Add champion, Jinx, read beside the first, then removed.
+  // Compare: Jinx beside the first, read on the aligned board; Swap, read; then ✕ on the first column
+  // (Jinx, after the swap), which leaves the first champion alone again, read.
   let dual;
+  let swapped;
+  let removed;
   try {
     await page.getByTestId("lookup-add").click({ timeout: 5_000 });
     await page.getByTestId("lookup-picker-search").fill("jinx");
     await page.locator('[data-testid="lookup-picker-grid"] button[data-champion="Jinx"]').click({ timeout: 10_000 });
     await page.locator('[data-panel="2"][data-champion="Jinx"]:not([aria-busy])').waitFor({ timeout: 20_000 });
     dual = await page.evaluate(readChampionLookup);
-    await page.getByTestId("lookup-remove").click({ timeout: 5_000 });
+    await page.getByTestId("lookup-swap").click({ timeout: 5_000 });
+    await page.locator('[data-panel="1"][data-champion="Jinx"]').waitFor({ timeout: 20_000 });
+    await page.waitForFunction(() => new URLSearchParams(location.search).get("champion") === "Jinx", null, { timeout: 20_000 });
+    swapped = await page.evaluate(readChampionLookup);
+    await page.locator('[data-panel="1"] [data-testid="lookup-remove"]').click({ timeout: 5_000 });
+    await page.waitForFunction(() => !new URLSearchParams(location.search).has("champion2"), null, { timeout: 20_000 });
+    await page.locator('[data-testid="lookup-panel"][data-panel="2"]').waitFor({ state: "detached", timeout: 20_000 });
+    removed = await page.evaluate(readChampionLookup);
   } catch {
     dual = dual ?? (await page.evaluate(readChampionLookup));
+    swapped = swapped ?? (dual ? await page.evaluate(readChampionLookup) : undefined);
+    removed = removed ?? (swapped ? await page.evaluate(readChampionLookup) : undefined);
   }
   // Matchup Intel's old address: one redirect, to Champion Intel with its enemy.
   await page.goto(`${base}/resources/matchups?champion=Riven&vs=Mordekaiser`, { waitUntil: "domcontentloaded" });
@@ -1263,7 +1276,7 @@ async function championLookupFacts(page, kind) {
   const legacy = await page.evaluate(readChampionLookup);
   // The patch /api/health names (read at the start against production; a local run asks once here).
   const healthPatch = report.health ? report.health.patch : healthPatchNow();
-  for (const v of championLookupVerdicts({ kind, champion: "Ahri", at, wide, hastedRead, all, search, dual, legacy, healthPatch })) check("champion-lookup", v.name, v.status, v.detail);
+  for (const v of championLookupVerdicts({ kind, champion: "Ahri", at, wide, hastedRead, all, search, dual, swapped, removed, legacy, healthPatch })) check("champion-lookup", v.name, v.status, v.detail);
 }
 
 /**

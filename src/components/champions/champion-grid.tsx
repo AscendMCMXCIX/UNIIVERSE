@@ -80,6 +80,13 @@ export interface ChampionGridProps {
    * (toolbar false): it focuses that search. Without it the keys go back to the grid's own search.
    */
   onExitTop?: () => void;
+  /**
+   * Every name whole under its portrait (Champion Intel's window, 25 Nov 2026): wider columns, the
+   * names at one size, wrapping between words only (a word breaks only where it is wider than its
+   * column, a phone at a large text size), never cut to two lines. Off by default: the other pickers
+   * keep their denser grid.
+   */
+  wholeNames?: boolean;
 }
 
 const noopSubscribe = () => () => {};
@@ -108,7 +115,7 @@ function rememberRecent(id: string) {
  * filter, portrait grid with clear selected and unavailable states. Enter picks the first match;
  * every portrait is a real button, so keyboard and touch work the same. No network calls.
  */
-export function ChampionGrid({ champions, selectedIds, disabledIds, disabledReason, onPick, initialRole = "ALL", maxHeight = 360, autoFocus = false, toolbarExtra, size = "md", testId = "champion-grid", prioritisedIds, prioritisedLabel, readOnly = false, placeholder = "Search champion…", inputRef, progressive = false, toolbar = true, onExitTop }: ChampionGridProps) {
+export function ChampionGrid({ champions, selectedIds, disabledIds, disabledReason, onPick, initialRole = "ALL", maxHeight = 360, autoFocus = false, toolbarExtra, size = "md", testId = "champion-grid", prioritisedIds, prioritisedLabel, readOnly = false, placeholder = "Search champion…", inputRef, progressive = false, toolbar = true, onExitTop, wholeNames = false }: ChampionGridProps) {
   const [query, setQuery] = React.useState("");
   const [role, setRole] = React.useState<RoleFilter>(initialRole);
   const [browseAll, setBrowseAll] = React.useState(false);
@@ -211,7 +218,7 @@ export function ChampionGrid({ champions, selectedIds, disabledIds, disabledReas
         // Columns at least as wide as a portrait and the button's padding, in rem, so they grow with
         // the reader's text size as the portraits do (4rem or 3rem, and 0.75rem of padding): in px,
         // a large text size drew portraits wider than their columns and cut every name.
-        className={cn("grid content-start gap-1 overflow-y-auto overscroll-contain rounded-lg", size === "sm" ? "grid-cols-[repeat(auto-fill,minmax(3.75rem,1fr))]" : "grid-cols-[repeat(auto-fill,minmax(4.75rem,1fr))]", maxHeight === "fill" && "min-h-0 flex-1")}
+        className={cn("grid content-start gap-1 overflow-y-auto overscroll-contain rounded-lg", wholeNames ? "grid-cols-[repeat(auto-fill,minmax(6rem,1fr))]" : size === "sm" ? "grid-cols-[repeat(auto-fill,minmax(3.75rem,1fr))]" : "grid-cols-[repeat(auto-fill,minmax(4.75rem,1fr))]", maxHeight === "fill" && "min-h-0 flex-1")}
         style={typeof maxHeight === "number" ? { maxHeight } : undefined}
       >
         {filtered.map((c) => {
@@ -242,7 +249,7 @@ export function ChampionGrid({ champions, selectedIds, disabledIds, disabledReas
                 ) : null}
               </span>
               {/* Two lines where a name needs them (Nunu & Willump, a large text size), never cut. */}
-              <span className={cn("line-clamp-2 w-full break-words leading-tight", c.name.length > 7 ? "text-2xs tracking-tight" : "text-xs", disabled && !selected ? "text-fg-subtle" : selected ? "text-fg" : "text-fg-muted group-hover:text-fg")}>{c.name}</span>
+              <span className={cn("w-full break-words leading-tight", wholeNames ? "text-xs" : cn("line-clamp-2", c.name.length > 7 ? "text-2xs tracking-tight" : "text-xs"), disabled && !selected ? "text-fg-subtle" : selected || wholeNames ? "text-fg" : "text-fg-muted group-hover:text-fg")}>{c.name}</span>
               {disabled && !selected && disabledReason ? <span className="sr-only">, {disabledReason}</span> : prioritised && prioritisedLabel ? <span className="sr-only">, {prioritisedLabel}</span> : null}
             </button>
           );

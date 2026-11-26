@@ -12,9 +12,10 @@ type Search = Record<string, string | string[] | undefined>;
 
 /**
  * CHAMPION INTEL (docs/CHAMPION_INTEL.md; Champion Lookup until 24 Nov 2026, at the same address), a
- * sidebar entry of its own (CHAMPION_INTEL, src/lib/nav.ts): choose any champion, or two side by
- * side, and read its five abilities, their base cooldowns per rank from Riot's Data Dragon and those
- * cooldowns at an ability haste, its costs, key mechanics and base statistics. For every signed-in
+ * sidebar entry of its own (CHAMPION_INTEL, src/lib/nav.ts): choose any champion, or compare two on
+ * one aligned board, and read its five abilities, their base cooldowns per rank from Riot's Data
+ * Dragon and those cooldowns at an ability haste, its costs, the mechanics Riot's descriptions name,
+ * its facts and base statistics. The builds slot (LookupView's `builds`) is empty here. For every signed-in
  * account. The champions and hastes come from the address
  * (?champion=<id or name>&haste=<n>&champion2=<id or name>&haste2=<n>); each champion is checked
  * against the roster. The page reads the session, the cached roster and current patch, and the
@@ -32,9 +33,10 @@ export default async function ChampionIntelPage({ searchParams }: { searchParams
   const source = shown?.version ? `Riot Data Dragon ${shown.version}${shown.patch ? ` · patch ${shown.patch}` : ""}${shown.offline ? " · offline copy" : ""}` : null;
   const behind = shown ? behindPatch(shown.patch, currentPatch) : false;
   return (
-    // A word too long for its line breaks rather than reach past its box: only at a larger text size on a narrow phone.
-    // Two champions take the wide page (100rem), so each panel keeps its ranks in columns on a large screen.
-    <div className={cn("mx-auto [overflow-wrap:anywhere]", second ? "max-w-[var(--content-wide)]" : "max-w-[var(--content-max)]")} data-testid="champion-lookup">
+    // A word too long for its whole line breaks rather than reach past its box (a phone at a large text
+    // size); a word that fits is never broken (break-words, not "anywhere": names stay whole).
+    // Two champions take the wide page (100rem), so each column keeps its ranks in columns on a large screen.
+    <div className={cn("mx-auto break-words", second ? "max-w-[var(--content-wide)]" : "max-w-[var(--content-max)]")} data-testid="champion-lookup">
       <LookupView
         champions={page.champions}
         lookup={lookup}
@@ -45,7 +47,7 @@ export default async function ChampionIntelPage({ searchParams }: { searchParams
         source={
           source ? (
             <>
-              <span className="font-medium text-fg">{source}</span>
+              <span>{source}</span>
               {behind ? <span className="text-warn"> · the game is on patch {currentPatch}</span> : null}
             </>
           ) : (

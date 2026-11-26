@@ -1,12 +1,14 @@
 # Champion Intel
 
 "Rework the existing Champion Lookup feature into a more complete but intentionally simple
-competitive reference tool" (the owner's request of 24 Nov 2026, Release 17). Champion Intel is
-Champion Lookup renamed and extended: one champion, or two side by side, each with its five
-abilities as folds, their costs and cooldowns at every rank, the cooldowns at that champion's own
-ability haste, Riot's whole description of each ability, the mechanics those descriptions name, and
-the champion's base statistics. Everything comes from Riot's Data Dragon; nothing is guessed. A
-second-monitor reference during play. Champion Lookup (23 Nov 2026) replaced Matchup Intel
+competitive reference tool" (the owner's request of 24 Nov 2026, Release 17), refined on 25 Nov 2026
+into "a premium, practical gameplay reference understood in seconds". Champion Intel is Champion
+Lookup renamed and extended: one champion, or two compared on one aligned board, each with its
+five abilities as rows on one grid of rank columns (cooldowns and costs per rank, the cooldowns at
+that champion's own ability haste), the mechanics Riot's descriptions name as chips on each row,
+Riot's whole description of each ability behind its row, the champion's facts and its base
+statistics. Everything comes from Riot's Data Dragon; nothing is guessed. A second-monitor
+reference during play. Champion Lookup (23 Nov 2026) replaced Matchup Intel
 ([MATCHUP_INTEL.md](MATCHUP_INTEL.md) says what was retired); `docs/CHAMPION_LOOKUP.md` is a pointer
 here.
 
@@ -19,60 +21,90 @@ opponent, which live in a champion's window under All Champions ([MATCHUPS.md](M
 
 ## The page
 
-- **Title and source line.** "Champion Intel", and beside it what the numbers come from: "Riot Data
-  Dragon 16.22.1 · patch 26.22" (the first champion's record), "· offline copy" where it is the
-  committed offline copy, and "· the game is on patch 26.23" (in the warning colour) where the stored
-  abilities are older than the game's patch. At the row's end, with one champion shown, a quiet
-  **Add champion** (a text button with a plus, no box).
-- **A champion's panel** (`champion-panel.tsx`), one surface:
-  - **Header**: the champion's own splash art, faint (20%) along the header's right two thirds and
-    fading into the panel (the convention of All Champions' pool rows: static, lazy, decoration
-    only), under the portrait (48px), the name (which opens the window of every champion to change
-    it: a chevron says so, "Ahri: change champion" is read out), Riot's title, the **haste field**
-    and, on a second champion, **✕** to remove it. 70px tall on a desktop.
-  - **Key mechanics** (below), then **base statistics**, folded (below).
-  - **The five abilities**, Passive first, each a fold (below).
-  - On one champion at a desktop's width (the panel 68rem wide) the key mechanics and the statistics
-    take a 20rem column beside the abilities, so a wide screen is used without filler and the five
-    abilities stay high on the screen; narrower (two champions, a tablet, a phone) the key mechanics
-    sit above the abilities and the statistics after them.
-- **Under the panels, once**: the haste rule ("At a haste: base × 100 / (100 + haste), Riot's general
-  rule, applied only where Riot's data gives the cooldown. Ultimate haste isn't counted.") and what
-  Riot's data does not hold ("Riot's published data has no damage values or scaling for abilities,
-  so none are shown: a description names the damage type where Riot's words do."), said once, never
-  per row and never as a zero.
-- **Width.** One champion: `--content-max` (80rem). Two: `--content-wide` (100rem), so each panel
-  keeps its ranks in columns on a large screen. Centred in the room beside the sidebar, open or
-  folded, like every page.
-- **Loading.** A champion chosen is built on the server: until it arrives its panel shows the new
+The owner's request of 25 Nov 2026 ("feels too much like a technical data table; names clip;
+hierarchy needs work") reshaped the page into one board (`lookup-view.tsx`, `champion-panel.tsx`,
+`ability-list.tsx`):
+
+- **Title row.** "Champion Intel", and beside it what the numbers come from: "Riot Data Dragon
+  16.22.1 · patch 26.22" (the first champion's record), "· offline copy" where it is the committed
+  offline copy, and "· the game is on patch 26.23" (in the warning colour) where the stored abilities
+  are older than the game's patch. At the row's end **Compare** (one champion) or **Swap** (two), in
+  the toolbar button's look.
+- **The board**, one surface (no box inside it). One champion's column (`ChampionPanel`, a
+  `<section data-testid="lookup-panel">`):
+  - **Header**: the portrait (48px), the **name** (text-xl, the primary colour; it opens the window
+    of every champion to change it: a chevron says so, "Ahri: change champion" is read out), Riot's
+    title under it (secondary), the champion's **facts** (below), and its **Ability haste** field
+    with the rule in its ⓘ. The champion's splash art, faint (15%), fades in from the header's right
+    (decoration only, approved on 24 Nov 2026, dimmer since 25 Nov). The name is never cut,
+    abbreviated or broken: the name block takes the width the name needs (`flex-none`), so it stays
+    on one line at every desktop width ("Nunu & Willump", "Aurelion Sol", "Renata Glasc"), and wraps
+    between words only where the header itself is narrower than the name (a phone at a large text
+    size, where the portrait moves above it). Words break inside only where one word is wider than
+    the whole line (`break-words`, never `overflow-wrap: anywhere`, never `truncate` or a line clamp).
+  - **Facts**, once, as label and value pairs: "Attack range 550 · Resource Mana · Classes Mage ·
+    Assassin" (sentence-case labels in the secondary colour, values in the primary; Data Dragon's
+    `stats.attackrange`, `partype`, `tags`). No "melee" or "ranged" word (no such field; Jayce's,
+    Nidalee's and Gnar's base ranges are their melee forms').
+  - **Abilities**: their heading ("Abilities" with the ⓘ for what Riot's data holds, and over the rank
+    columns "Cooldown (s)" and each rank's number), then the five rows (below).
+  - **Beside the abilities** where the board is 64rem wide (a desktop; 24rem from 76rem): the
+    **builds slot** (empty by default, below) and the **base statistics**, open. Narrower (a tablet,
+    a phone), both come after the abilities, the statistics folded.
+- **Width.** One champion: `--content-max` (80rem). Two: `--content-wide` (100rem). Centred in the
+  room beside the sidebar, open or folded, like every page.
+- **Loading.** A champion chosen is built on the server: until it arrives its column shows the new
   champion's name and portrait with a spinner, is dimmed and out of reach (`inert`), and a status line
-  says "Loading Jinx…"; the other panel stays as it is. The route's `loading.tsx` takes the page's
+  says "Loading Jinx…"; the other column stays as it is. The route's `loading.tsx` takes the board's
   shape.
+- **What is gone** (25 Nov 2026): the "PASSIVE/Q/W/E/R" label before every name and the 10px key on
+  the icon (one key tile now), the grouped key mechanics block (the chips replace it, a duplicate),
+  the "Named in it" list in an opened row (the chips again), attack range among the statistics (the
+  facts say it), the two lines under the panels (now the two ⓘ), "Base" under a haste field at 0, the
+  phone's switcher of two champions, and the uppercase tracked labels ("HASTE", "ATTACK RANGE",
+  "CROWD CONTROL", "COOLDOWN, S", "RECENT").
 
 ## Abilities
 
 Each ability is one row and one fold (the shared `Fold`, `variant="row"`: a native `<details>`, so it
 opens with Enter or Space, by find-in-page, and before the page's code runs).
 
-- **Folded** (the quick reference): the icon (36px; the key as a plain tile where the icon is missing
-  or fails), "Passive" or its key and its name; the **cost** where Riot's data supports one (below);
-  the **cooldown at every rank**: the base and, at a haste above 0, the cooldown at that haste; or,
-  where Riot's data gives no cooldown that passed the guard, why not ("Two abilities share this slot
-  in Riot's data · no haste applied"). The fold's chevron at the row's end.
-- **Opened**: Riot's whole description, the words that name each mechanic marked in it (an accent
-  underline) and listed under it ("Named in it: Charm · Magic damage"); why a cooldown has no number,
-  in full ("Riot's data doesn't say which one its cooldown is. Riot lists 10 / 9 / 8 / 7 / 6 s for the
-  slot."); on a narrow row at a haste, the base cooldown ("Base cooldown 7 s at every rank"); and,
-  where the sync knows it, what Riot changed in the last patch ("Riot changed this ability's text and
-  cooldowns since patch 26.22. The numbers shown are the current ones."). A row opened grows the page;
-  nothing scrolls inside it.
-- **Layout.** Each row measures itself (`@container/ab`): from 42rem the name and cost have their own
-  column and the ranks line up as columns under the "Ability · Cooldown, s · Rank 1 2 3 4 5" heading
-  (the icon, the name's 8.5rem, the kind's 6rem label and 3.5rem a rank for the most ranks any ability
-  here has, Udyr's six, the gaps and the chevron: 41.25rem); narrower, the cost follows the name on its
-  line where it fits and the cooldown goes under the name as one line ("7 / 7 / 7 / 7 / 7 s"),
-  wrapping between ranks only; at a haste above 0 the narrow row keeps the line at that haste ("At 20
-  5.83 / … s") and the base moves into the opened row, so five rows fit a short screen.
+- **Folded** (the quick reference), one grid of rank columns for the five rows:
+  - the slot's **key tile** (P, Q, W, E, R; `SlotKey`, 28px, the primary colour) beside the icon (36px;
+    the key as a plain tile where the icon is missing or fails); a screen reader hears "Q: Orb of
+    Deception" (the slot name is in the heading, the tile is drawn);
+  - the ability's **name** (text-md semibold, the primary colour) and the **chips** of what Riot's
+    description names (below), crowd control first, then "Changed since 26.22" where it is known;
+  - the **cooldown at every rank** in aligned rank columns (tabular figures, the primary colour,
+    semibold): at a haste above 0 the cooldown at that haste is *the* cooldown, and the base sits
+    under each value, smaller and secondary, labelled "base"; at 0 the base alone;
+  - the **cost at every rank** on the same grid (secondary), labelled with the champion's resource
+    ("Mana", "Energy"), or Riot's words ("No cost", "Generates 1 Ferocity");
+  - where Riot's data gives no cooldown that passed the guard, why not, in words, across the grid
+    ("Two abilities share this slot in Riot's data · no haste applied"); a **passive**, whose cooldown
+    Data Dragon never gives, has a quiet "—" in its first rank column instead of the sentence on
+    every passive, its words ("No cooldown in Riot's data") for a screen reader and its why in the
+    abilities' ⓘ.
+  The fold's chevron at the row's end.
+- **Opened**: Riot's whole description (the primary colour), the words behind each chip marked in it
+  (an accent underline); why a cooldown has no number, in full ("Riot's data doesn't say which one its
+  cooldown is. Riot lists 10 / 9 / 8 / 7 / 6 s for the slot."); and, where the sync knows it, what Riot
+  changed in the last patch ("Riot changed this ability's text and cooldowns since patch 26.22. The
+  numbers shown are the current ones."). A row opened grows the page; nothing scrolls inside it.
+- **Layout.** The rank grid is a 3rem label column and one 3.25rem column per rank (4rem on a wide
+  row), as many as the champion's abilities have at most (`rankColumns` in
+  `src/domain/champion-lookup/board.ts`: five, six for Udyr's and Jayce's basic abilities), the
+  same in every row of that champion and in the heading, so rank n always sits in the same place.
+  Each row measures itself (`@container/cell`) and takes one of three forms, the same in every row
+  of a column:
+  - **wide** (a desktop): the grid at the row's top right, the name and chips beside it and, where
+    long, under it (the grid floats), so a long name or many chips use the row's whole width;
+  - **stacked** (a narrower column): the name and chips, the grid under them at the right;
+  - **line** (a phone, a narrow Compare column): one line per kind, "13 / 12 / 11 / 10 / 9 s", "base
+    16 / 15 / 14 / 13 / 12 s", "Mana 60 / 65 / 70 / 75 / 80", wrapping between ranks only; a Compare
+    column under 11rem leaves the icon out (the slot's key is in the board's own column), and one
+    champion's row under 14rem (a small phone at a large text size) puts the name and values under
+    the key and the icon.
 - **Descriptions** are Riot's own words from Data Dragon, their markup removed (`cleanDescription`);
   since rules format 4 they are kept whole, up to 1,000 characters (none at 16.22.1 is longer; 8 were
   cut at 400 before, Aurelion Sol's R the longest). A description whose placeholders stood for numbers
@@ -82,10 +114,13 @@ opens with Enter or Space, by find-in-page, and before the page's code runs).
   placeholders Data Dragon leaves unfilled: at 16.22.1 only 10 of the 692 tooltips have every
   placeholder filled by the ability's own Data Dragon values, and that counts `effectBurn`, which is
   stale for many abilities. Too few to show, and a partly filled one would present a guess, so damage
-  values, scaling and durations are not on the page (the line under the panels says so once). The
-  only third-party source that holds them in a machine-readable form, CommunityDragon's copy of the
-  game files, is permitted by RIOT_COMPLIANCE.md for rank crests and role icons only; using it for
-  numbers is an owner decision, not taken here. The wiki's terms forbid automated use.
+  values, scaling and durations are not on the page (the abilities' ⓘ says so). The only third-party
+  source that holds them in a machine-readable form, CommunityDragon's copy of the game files, is
+  permitted by RIOT_COMPLIANCE.md for rank crests and role icons only; using it for numbers is an
+  owner decision, not taken here. The wiki's terms forbid automated use.
+- **Per-ability range is not shown** (owner decision recorded 25 Nov 2026, below and in "For the
+  owner"): the owner's request lists "range"; only the champion's attack range is honest (Cost,
+  below).
 
 ## Cost
 
@@ -107,9 +142,12 @@ from the ability's own data:
 
 At 16.22.1: 552 per rank, 93 no cost, 5 in Riot's words, 42 nothing (`cost.test.ts`).
 
-**Range is not shown.** Data Dragon's `range` is a cast range for some abilities, an effect radius for
-others, 25000 for self-casts and globals (129 rank values at 16.22.1), 0 or 20 for others (146); no
-field tells which, and no line of Riot's names it, so no rule could be validated across the roster.
+**Per-ability range is not shown.** Data Dragon's `range` is a cast range for some abilities, an
+effect radius for others, 25000 for self-casts and globals (129 rank values at 16.22.1), 0 or 20 for
+others (146); no field tells which, and no line of Riot's names it, so no rule could be validated
+across the roster, and it is not stored (rules format 4). The page shows the champion's attack range
+once, in its facts. Showing ability ranges would need the owner's decision and a new reviewed rule
+(`ABILITY_RULES_FORMAT` 5, a fixture rebuild and a roster-wide rule like the cost rule).
 
 ## Cooldowns
 
@@ -148,8 +186,12 @@ Screen readers hear "Rank 1: 8 seconds" for each rank.
 documented and tested since it first applied a haste, kept at the Release 17 review, which noted
 "116.67 / 100 / 83.33 s". Each champion has its own **haste field** in its
 header (`haste-field.tsx`; the quick values and Other of Champion Lookup were removed at the owner's
-request): "Haste" and a compact field, 0 by default, that changes the cooldowns as it is typed in;
-under it "Base" at 0, "16.7% shorter" at 20.
+request): "Ability haste" (sentence case, said once per champion) and a compact field, 0 by default,
+that changes the cooldowns as it is typed in; the rule in the ⓘ beside it ("Cooldowns at a haste use
+Riot's rule: base × 100 / (100 + haste). It applies only where Riot's data gives a cooldown. Ultimate
+haste isn't counted.", `HASTE_RULE_WORDS`); at a haste above 0, "16.7% shorter" after it (one
+champion; in Compare it is said to a screen reader only, the base line under each value saying it).
+At 0 nothing more (the "Base" under the field was noise and went on 25 Nov 2026).
 
 - **Validation** (`readHasteField`): the field takes a whole number from 0 to 300 written in digits;
   spaces around it are ignored (" 7 " is 7, "045" is 45) and an empty field is 0. More than 300 is
@@ -161,35 +203,36 @@ under it "Base" at 0, "16.7% shorter" at 20.
   field it shows the haste in use. The field selects its value when focused, so typing replaces it.
   Until the Release 17 review, letters were dropped as typed and a minus took 0, so "-20" typed key
   by key read "020" and took 20, and "1e3" took 13.
-- A numeric keypad (`inputmode="numeric"`), "Haste: ability haste for Ahri, a whole number from 0 to
+- A numeric keypad (`inputmode="numeric"`), "Ability haste: ability haste for Ahri, a whole number from 0 to
   300" read out, its note announced (`aria-live`), 44px tall with 16px text on touch screens and
   phones, 32px with a mouse.
 - **The rule is applied only to a cooldown that passed the guard** (`cooldownAtHaste` returns nothing
-  for any other): every row that says why it has no number adds "· no haste applied" above 0.
+  for any other): every row that says why it has no number adds "· no haste applied" above 0 (a
+  passive's dash needs no such words).
   Ultimate haste is not counted. Never a timer, a countdown or "ready at".
 
 Examples at 16.22.1: Ahri's Q, 7 s at every rank, is 5.83 s at 20 haste and 3.5 s at 100; Darius's R,
 120 / 100 / 80 s, is 75 / 62.5 / 50 s at 60; Teemo's R says "Charges: recharge not in Riot's data · no
 haste applied".
 
-## Key mechanics
+## Mechanics (the rows' chips)
 
-`src/domain/champion-lookup/mechanics.ts`, `key-mechanics.tsx`. A compact block under the header:
+`src/domain/champion-lookup/mechanics.ts`, `mechanicChips` in `board.ts`. Each ability's row carries
+chips for the kinds of mechanic Riot's description of it names, crowd control first (in the warning
+tone: the one group a player reacts to), then mobility, damage (said "Magic damage", "Physical
+damage", "True damage"), sustain, defence and how it is cast (neutral chips). The word is the chip,
+never the colour alone; no duration, no number, no judgement. Opened, the row's description marks the
+words each chip comes from. Where the descriptions name none, the row has no chips. The abilities' ⓘ
+says where they come from ("Mechanics are named from the words of Riot's descriptions. Riot's data
+has no damage values or scaling, and no cooldown for passives (—).", `DATA_LIMIT_WORDS`). The
+grouped block under the header (each kind with the keys of its abilities) was removed on 25 Nov 2026:
+it repeated the chips.
 
-- **Riot's facts for the champion**: its attack range (Data Dragon's `stats.attackrange`, "550"), its
-  resource (`partype`: "Mana", "Energy", "Fury"…; "None" said as "None"; Bel'Veth's empty one left
-  out), and Riot's classes (`tags`: "Mage · Assassin"). No "melee" or "ranged" word: Data Dragon has
-  no such field, and the range alone misleads for the champions who change form (Jayce's, Nidalee's
-  and Gnar's base ranges are their melee forms').
-- **What Riot's descriptions name**, by group: crowd control (stun, root, knock up, knock back, pull,
-  slow, silence, fear, charm, taunt, suppression, ground, polymorph, sleep, blind, disarm), mobility
-  (dash, leap, blink, move speed), damage (physical, magic, true), sustain (heal, life steal),
-  defence (shield, spell shield, untargetable, invulnerable, damage reduction, crowd control
-  immunity, cleanse, stealth) and casting (recast, cooldown reset, toggle, form swap). Each kind with
-  the keys of the abilities whose description names it; a key opens that ability's row, where Riot's
-  sentence is marked. "From Riot's descriptions" says where they come from (its tip: "Named in Riot's
-  own ability descriptions, found by fixed word rules: open an ability to read Riot's sentence.").
-  No duration, no number, no judgement: a group the descriptions do not name is left out.
+The kinds: crowd control (stun, root, knock up, knock back, pull, slow, silence, fear, charm, taunt,
+suppression, ground, polymorph, sleep, blind, disarm), mobility (dash, leap, blink, move speed),
+damage (physical, magic, true), sustain (heal, life steal), defence (shield, spell shield,
+untargetable, invulnerable, damage reduction, crowd control immunity, cleanse, stealth) and casting
+(recast, cooldown reset, toggle, form swap).
 
 **The rules.** Fixed word patterns on each ability's stored description (`MECHANIC_RULES`), one fact
 per kind and ability, each with Riot's sentence and the position of the words matched. The
@@ -206,32 +249,37 @@ Kha'Zix's passive's name; "Kalista teleports the Oathsworn ally": the ally moves
 hash of Riot's text, so the rules judge it again once Riot changes the text. The tooltip is not read.
 
 **Measured** at 16.22.1 (`mechanics.test.ts`): 1,015 facts on 647 of the 865 abilities, at least one
-for every champion. Against the facts Matchup Intel's review recorded from the same descriptions
-(19 Nov 2026, automated reviewers, retired with it, not revived and not committed again): of the 673
-facts it drew from descriptions in the kinds both name, the rules find 659 (98%); of the rules' matches
-in those kinds, 42 are not in the review, every one read and judged supported by Riot's sentence (most
-are another kind of movement: the review called Malphite's R a dash, the rules a leap). The damage
-types and move speed are new kinds.
+for every champion (1.17 chips a row on average, at most 6). Against the facts Matchup Intel's review
+recorded from the same descriptions (19 Nov 2026, automated reviewers, retired with it, not revived
+and not committed again): of the 673 facts it drew from descriptions in the kinds both name, the
+rules find 659 (98%); of the rules' matches in those kinds, 42 are not in the review, every one read
+and judged supported by Riot's sentence (most are another kind of movement: the review called
+Malphite's R a dash, the rules a leap). The damage types and move speed are new kinds.
 
 ## Base statistics
 
-`src/domain/champion-lookup/stats.ts`, `base-stats.tsx`. Folded ("Base statistics and growth per
-level"): health, health regen per 5 s, mana or energy and its regen (only for a Mana or Energy
-champion: other resources' `mp` is no pool, Viego's is 10000), attack damage, attack speed (its growth
-a percentage of the base), armor, magic resist, attack range and move speed; each with Riot's growth
-per level where it is above 0. Attack damage growth is 0 for all 173 champions at 16.22.1, which no
-champion has in the game: a placeholder, so no growth is shown and the note says "Riot's data gives
-attack damage no growth per level, so none is shown." A growth of 0 elsewhere (Thresh's armour, an
-energy pool) shows no growth, never "+0". No value at a later level is computed. Critical strike is 0
-for every champion and not listed.
+`src/domain/champion-lookup/stats.ts`, `base-stats.tsx`. One small table, "Base stats": each
+statistic, its value at "Level 1" (primary) and its growth "Per level" (secondary), Riot's numbers:
+health, health regen per 5 s, mana or energy and its regen (only for a Mana or Energy champion: other
+resources' `mp` is no pool, Viego's is 10000), attack damage, attack speed (its growth a percentage of
+the base), armor, magic resist and move speed. Attack range is not listed: the champion's facts say
+it once (`listedStats`). A growth above 0 only: attack damage growth is 0 for all 173 champions at
+16.22.1, which no champion has in the game, a placeholder, so no growth is shown; a growth of 0
+elsewhere (Thresh's armour, an energy pool) shows none, never "+0". No value at a later level is
+computed. Critical strike is 0 for every champion and not listed. The ⓘ: "Riot's numbers at level 1
+and per level; attack speed grows by a share of its base." and, where it applies, "Attack damage has
+no growth in Riot's data." (`statsTipWords`); "Changed since 26.22" beside the heading where Riot
+changed them. Open beside the abilities on a desktop; a fold after them narrower; in Compare one fold
+per column on the same rows (`alignedStats`: a statistic only one champion has, mana beside Garen's
+none, gets "—" in the other's), the two opening and closing together.
 
 ## Changed this patch
 
 `src/domain/champion-lookup/changes.ts`. When the version-check job reads a champion at a new game
 version it compares the new record with the one it holds, and stores per ability whether Riot's text
-(its hash), the base cooldowns or the cost changed, and whether the base stats did. The row shows a
-quiet "· changed since 26.22" after the name and, opened, which of the three changed; the statistics
-say "Riot changed these since patch 26.22". Only whether, never by how much: the numbers shown are the
+(its hash), the base cooldowns or the cost changed, and whether the base stats did. The row shows
+"Changed since 26.22" after the name and chips and, opened, which of the three changed; the statistics
+say "Changed since 26.22" beside their heading. Only whether, never by how much: the numbers shown are the
 new ones. Data Dragon cannot show a change Riot made without changing its data, so no mark means
 "unchanged in Riot's data", not in the game. The marks first appear with the first game version after
 rules format 4 is deployed (production holds 16.23.1, and reading it again at 16.23.1 has nothing
@@ -241,29 +289,68 @@ earlier to compare); the offline copy carries none.
 (Data Dragon has none; the retired Matchup Intel evidence and any global statistics collection are
 out of scope by the owner's request).
 
-## Two champions
+## Compare
 
-The owner's bot-lane case: both opposing champions at once. One champion by default; **Add champion**
-opens the window of every champion ("Add a champion") and adds the one chosen beside the first, at
-haste 0, its name then focused. Each panel is the same component with its own haste, its own folds and
-its own name to change it; **✕** ("Remove Jinx") removes the second at once, the focus back on the
-first. Two panels sit side by side, equal, from a page 56rem wide (`@container/intel`: a desktop, the
-sidebar open or folded); narrower (a tablet, a phone, a desktop window under about 1000px) a
-**switcher** of the two champions (the shared segmented control, each with its portrait and name)
-shows one full-width panel at a time. Both panels stay in the page, the other hidden, so each keeps
-its haste and its open folds while the other is read. The same champion twice is allowed (two hastes
-side by side). No role and no "your champion" is asked for.
+The owner's bot-lane case, and their request of 25 Nov 2026 ("Optional Compare"): one champion by
+default; **Compare** (the title row's button, `lookup-add`; Add champion until 25 Nov 2026) opens the
+window of every champion ("Compare with") and adds the one chosen as a second column, at haste 0, its
+name then focused. No compare is forced, and it is no destination of its own.
+
+- **One aligned board.** A narrow first column holds each ability row's slot key (P to R), then the
+  two champions' columns, each a `<section data-testid="lookup-panel">` that is a CSS subgrid of the
+  board's ten rows: the header, the facts, the abilities' heading, P, Q, W, E, R, the builds row and
+  the base statistics. The same row of both champions therefore has the same height and top, with no
+  script measuring anything: their cooldowns by rank (each at its own champion's haste), costs, chips,
+  facts and statistics line up side by side. A row opened in one column grows that row in both
+  (the other cell keeps the space empty), and the columns stay level.
+- **Each champion its own haste** (its header's field, `haste` and `haste2` in the address) and its
+  own folds.
+- **Swap** (the title row, "Swap Ahri and Jinx") exchanges the two: each keeps its haste and its open
+  rows (the columns are keyed by champion, so the browser moves them), shown at once while the
+  address catches up. **Change** either from its name. **✕** on either column removes it: removing the
+  first makes the second the first, its haste with it (`withoutHref`, `swappedHref` in `address.ts`);
+  the focus goes to the champion that stays. The same champion twice is allowed (two hastes).
+- **Neutral.** Two references, never a verdict: no colour or word says which value is better, no
+  difference is computed, nothing is "faster" (RIOT_COMPLIANCE.md item 9; the browser spec checks the
+  words).
+- **Every width.** From a phone up both champions sit side by side in every row (a phone's columns
+  use the line form, values wrapping between ranks; the portrait above the name, the name a size
+  smaller; ✕ in the column's corner); only where the board is under 17rem (a small phone at 150–200%
+  text) the two columns stack, each with its own slot keys. Never wider than the screen, nothing
+  scrolling inside. Every control a 44px target on a touch screen.
+
+## Builds slot
+
+The builds section (requirements §2, "Recommended builds and runes": a later step of the same
+release) has a place of its own on the board, empty by default. `LookupView` takes
+`builds?: { first?: ReactNode; second?: ReactNode }` (`first` for `champion`, `second` for
+`champion2`), rendered by the page (`src/app/(app)/lookup/page.tsx`, inside Suspense where it reads
+data), and hands each to its champion's column (`ChampionPanel`'s `builds`):
+
+- **One champion**: at the top of the column beside the abilities (a desktop, `data-testid="lookup-aside"`),
+  above the base statistics; narrower, after the abilities, before the statistics' fold. The five
+  rows never move for it.
+- **Compare**: its own row of the board after R (row 9), one cell per champion, so the two builds
+  line up like the abilities; Swap and ✕ carry each with its champion.
+- **Empty**: nothing is drawn (no placeholder, no heading, no row).
+
+The slot is a `<div data-testid="lookup-builds">` around what the page hands in. What the builds show,
+where their data comes from and what they may claim belongs to the builds section's own part of this
+document.
 
 ## Choosing a champion
 
 - **A champion's name** opens the window of every champion (`champion-picker.tsx`; a task dialog,
   DESIGN_SYSTEM.md §7: the whole screen on a phone, 42rem wider up, no history entry) with its own
   search (focused with a mouse), the Recent row (`recent.ts`: the champions this device showed lately,
-  ids only, per account, never sent to the server) and every champion as a portrait grid. Enter takes
+  ids only, per account, never sent to the server) and every champion as a portrait grid, every
+  name whole under its portrait (the shared `ChampionGrid`'s `wholeNames`: 6rem columns, one size,
+  wrapping between words only, never clamped to two lines; the other pickers keep their denser grid).
+  In the search's list a name is never cut either: Riot's title beside it gives way first. Enter takes
   the first match; the focus comes back to the name, or goes to the new champion's name once it has
   arrived.
-- **"/"** anywhere on the page outside a field opens the window for the champion in view (a second
-  monitor's quick reach).
+- **"/"** anywhere on the page outside a field opens the window for the champion whose column holds
+  the focus, else the first (a second monitor's quick reach).
 - **With nothing chosen**: "Choose a champion", the search (`champion-search.tsx`: a WAI-ARIA
   combobox that finds any champion as typed, by name, by initials, "tf", or a reviewed nickname,
   "j4"; ↑/↓, Enter, Escape twice; 16px on phones), All champions, and the Recent row.
@@ -289,19 +376,26 @@ Champions' preview links an opened lane opponent here: "Renekton's abilities in 
 
 ## Fit and measurements
 
-Measured on 24 Nov 2026 with the demo build, Data Dragon 16.22.1, 100% text (`e2e/champion-lookup.spec.ts`
+Measured on 25 Nov 2026 with the demo build, Data Dragon 16.22.1, 100% text (`e2e/champion-lookup.spec.ts`
 holds each; screenshots before and after in the lane's notes, never in the repository):
 
-- **One screen, folded**: the header, the haste and the five ability rows of every panel shown are on
-  the first screen at 1280 × 720, 1440 × 900, 1440 × 780, 1920 × 1080, 1920 × 950, 2560 × 1440 and
-  3440 × 1440, the sidebar open and folded, with one champion (Ahri at 100 haste, Udyr's six ranks,
-  Aphelios at 300) and two (Ahri and Jinx at 20, Udyr and Lee Sin at 40, Teemo and Jayce, whose four
-  two-ability slots are the longest rows). At 1280 × 720 with Ahri and Jinx at 20 the last row ends at
-  674px; with one champion at 1440 × 900, 441–457px.
+- **One screen, folded**: the header, the haste and the five ability rows are on the first screen
+  with one champion at 1280 × 720, 1440 × 900, 1440 × 780, 1920 × 1080, 1920 × 950, 2560 × 1440 and
+  3440 × 1440, the sidebar open and folded (Ahri at 100 haste, Udyr's six ranks, Aphelios at 300), the
+  base statistics beside them from 64rem; and with two (Ahri and Jinx at 20, Udyr and Lee Sin at 40,
+  Teemo and Jayce, whose four two-ability slots are the longest rows) from 1366 wide (the 25 Nov 2026
+  decision: compare fits at 1440 × 900 and above; at 1280 × 720 with the sidebar open two columns
+  of the aligned board run a little past the screen, about 800px). One champion at 1440 × 900: the
+  last row ends near 600px; at 1366 × 768, near 620px. Two at 1440 × 900: Aurelion Sol and Nunu at 20
+  end near 690px, Teemo and Jayce near 840px.
+- **Names**: the champion's name whole and on one line at 1366, 1440 and 1920, the sidebar open and
+  folded, one champion and two ("Nunu & Willump", "Aurelion Sol", "Renata Glasc", "Twisted Fate",
+  "Heimerdinger", "Fiddlesticks"); no ability name broken inside a word; whole in the search's list
+  and the window's grid.
 - **Nothing scrolls inside the page** at any size, every row open included; nothing is wider than the
-  window from 320px up, at 200% text too (phones at 320, 375, 390 and 430).
-- **Phones and a tablet** (768 × 1024): two champions under the switcher, one panel at a time; on a
-  phone the page scrolls, as every phone page does.
+  window from 320px up, at 200% text too (phones at 320, 375, 390 and 430, one champion and two).
+- **Phones and a tablet** (768 × 1024): two champions side by side in every row, level; on a phone the
+  page scrolls, as every phone page does.
 - **Centred** in the room beside the sidebar, open or folded, within 2px.
 
 ## Data
@@ -343,8 +437,9 @@ The app-wide checklist is [RIOT_COMPLIANCE.md](RIOT_COMPLIANCE.md), where Champi
 - **Static data, for champions chosen by hand.** "Game overlays that provide static data that is
   available prior to the game" are an approved use; this is a web page with the same static data, the
   same before any game and on a second screen during one. Nothing comes from a game in progress or
-  from champion select, nothing names a player, and two champions side by side are two references,
-  never a verdict on a matchup.
+  from champion select, nothing names a player, and two champions compared are two references, never
+  a verdict on a matchup: aligned side by side, with no better/worse colouring, no difference
+  computed and no "faster" or winner wording.
 - **No timers.** Base values per rank and their value at a chosen haste only: no timer, countdown,
   "used" or "ready at", and nothing records when an ability was used (`words.test.ts` and the browser
   spec check the words). No advice, ranking or matchup verdict.
@@ -360,17 +455,21 @@ The app-wide checklist is [RIOT_COMPLIANCE.md](RIOT_COMPLIANCE.md), where Champi
   `haste.test.ts` (the formula at every haste from 0 to 300 on every ordinary ability, never on a
   special case, the clamp, the field's validation), `cost.test.ts` (the cost rule on all 692 spells),
   `stats.test.ts` (the statistics of all 173 champions, the placeholder growth), `mechanics.test.ts`
-  (the rules on all 865 descriptions, the hard cases both ways, the exceptions pinned), `changes.test.ts`
-  (the patch marks), `view.test.ts`, `words.test.ts` (no timer or "verified"),
-  `src/components/champion-lookup/address.test.ts` (both champions in the address, the old links),
-  `search.test.ts`; `src/server/riot/static/abilities.test.ts` (what is read from Data Dragon, the
-  fixture against Data Dragon's own numbers, the build script).
+  (the rules on all 865 descriptions, the hard cases both ways, the exceptions pinned), `board.test.ts`
+  (rank columns across the roster, the statistics listed and aligned for two champions, the chips'
+  order on every ability), `changes.test.ts` (the patch marks), `view.test.ts`, `words.test.ts` (no
+  timer or "verified"; each ⓘ at most 25 words), `src/components/champion-lookup/address.test.ts` (both
+  champions in the address, Swap, removing either, the old links), `search.test.ts`;
+  `src/server/riot/static/abilities.test.ts` (what is read from Data Dragon, the fixture against Data
+  Dragon's own numbers, the build script).
 - Database: `tests/db/champion-abilities.test.ts` (the sync, the per-champion reads, the patch marks).
-- Browser: `e2e/champion-lookup.spec.ts` (the page, the key mechanics opening their ability, folds by
-  keyboard, the haste field and every invalid input, the special cases, unusual champions, "/" and the
-  search, the window, two champions, the address, the switcher, the old links, one screen at every
-  desktop size single and dual, the ranks' columns, phones at 200% text, axe), with the shared specs
-  (navigation, the label ladder, journeys, page budgets, quality, design parity, WebKit).
+- Browser: `e2e/champion-lookup.spec.ts` (the page, its facts, slot keys, chips and costs per rank,
+  the passive's dash, the chips marked in the description, folds by keyboard, the haste field and every
+  invalid input, the special cases, unusual champions, "/" and the search, the window, Compare on one
+  aligned board, Swap and ✕ on either column, the base statistics' folds together, names never cut or
+  broken, the address, phones and tablets side by side, the old links, one screen at every desktop
+  size single and dual, the rank columns, phones at 200% text, axe), with the shared specs
+  (navigation, journeys, page budgets, quality, design parity, shared controls, WebKit).
 - Production check: `scripts/champion-lookup-facts.mjs` (LIVE_VALIDATION.md, "What it checks").
 
 ## For the owner
@@ -387,5 +486,7 @@ now. The owner's action at the next update: paste the proposed description in RI
 
 **Decisions left to the owner**: whether damage values, scaling and durations should come from a
 source beyond Data Dragon (CommunityDragon's game files hold them; RIOT_COMPLIANCE.md permits that
-source for rank crests and role icons only); and whether the canonical address should become `/intel`
-(it stays `/lookup`, so nothing that links to it changes).
+source for rank crests and role icons only); whether per-ability ranges should be shown (25 Nov 2026:
+not shown; Data Dragon's are unreliable and not stored, so only the champion's attack range is, once;
+showing them needs a reviewed rule and rules format 5); and whether the canonical address should
+become `/intel` (it stays `/lookup`, so nothing that links to it changes).

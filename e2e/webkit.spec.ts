@@ -210,7 +210,7 @@ test("a teammate's profile: its sections switch, and a champion's preview sheet 
   await expect(tabs.getByRole("link", { name: "History" })).toHaveAttribute("aria-current", "page");
 });
 
-test("Champion Intel on an iPhone: the search is 16px and a tap on a match chooses, the haste field changes the numbers, an ability's row unfolds, a second champion comes and goes, the window fills the screen, and nothing is wider than the phone", async ({ page }) => {
+test("Champion Intel on an iPhone: the search is 16px and a tap on a match chooses, the haste field changes the numbers, an ability's row unfolds, a second champion comes beside the first, swaps and goes, the window fills the screen, and nothing is wider than the phone", async ({ page }) => {
   await page.goto("/lookup");
   const input = page.getByTestId("lookup-search-input");
   // 16px, so Safari never zooms into the field.
@@ -261,18 +261,26 @@ test("Champion Intel on an iPhone: the search is 16px and a tap on a match choos
   await leeQ.getByTestId("lookup-ability-summary").tap();
   await expect(leeQ).toContainText("Riot lists 10 / 9 / 8 / 7 / 6\u00a0s for the slot.");
   await fitsWidth(page, "Lee Sin");
-  // A second champion: the switcher shows one panel at a time, and it goes again.
+  // Compare: both champions side by side on one board (no switcher since 25 Nov 2026), swapped, and removed again.
   await page.getByTestId("lookup-add").tap();
   await win.getByTestId("lookup-picker-search").tap();
   await win.getByTestId("lookup-picker-search").fill("jinx");
   await win.getByTestId("lookup-picker-grid").locator('button[data-champion="Jinx"]').tap();
   await expect(page).toHaveURL(/\/lookup\?champion=LeeSin&haste=100&champion2=Jinx$/);
-  await expect(page.getByTestId("lookup-switcher")).toBeVisible();
-  await expect(page.locator('[data-testid="lookup-panel"][data-panel="2"]')).toBeVisible();
+  const first = page.locator('[data-testid="lookup-panel"][data-panel="1"]');
+  const second = page.locator('[data-testid="lookup-panel"][data-panel="2"]');
+  await expect(first).toBeVisible();
+  await expect(second).toBeVisible();
+  const [a, b] = [(await first.boundingBox())!, (await second.boundingBox())!];
+  expect(Math.abs(a.y - b.y)).toBeLessThanOrEqual(1);
+  expect(b.x).toBeGreaterThan(a.x + a.width - 1);
   await fitsWidth(page, "two champions");
-  await page.getByTestId("lookup-remove").tap();
-  await expect(page).toHaveURL(/\/lookup\?champion=LeeSin&haste=100$/);
-  await expect(page.getByTestId("lookup-switcher")).toHaveCount(0);
+  await page.getByTestId("lookup-swap").tap();
+  await expect(page).toHaveURL(/\/lookup\?champion=Jinx&champion2=LeeSin&haste2=100$/);
+  await expect(first).toHaveAttribute("data-champion", "Jinx");
+  await second.getByTestId("lookup-remove").tap();
+  await expect(page).toHaveURL(/\/lookup\?champion=Jinx$/);
+  await expect(second).toHaveCount(0);
 });
 
 test("Leaderboards on an iPhone: the index brings each section under the top bar, focused, the old Records address lands on its section, and nothing is wider than the phone, at a larger text size too", async ({ page }) => {

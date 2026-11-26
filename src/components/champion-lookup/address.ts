@@ -44,6 +44,19 @@ export function intelHref(first: AddressChampion | null, second?: AddressChampio
   return query ? `${LOOKUP_PATH}?${query}` : LOOKUP_PATH;
 }
 
+/** Two champions exchanged: the second becomes the first, each with its own haste (Compare's Swap). */
+export function swappedHref(first: AddressChampion, second: AddressChampion): string {
+  return intelHref(second, first);
+}
+
+/**
+ * Two champions less one (Compare's ✕ on either column): removing the second leaves the first;
+ * removing the first makes the second the first, its haste with it.
+ */
+export function withoutHref(first: AddressChampion, second: AddressChampion, removed: 0 | 1): string {
+  return intelHref(removed === 0 ? second : first);
+}
+
 /** One value of a parameter: the first of a repeated one, trimmed; "" for none. */
 function one(v: string | string[] | undefined): string {
   const s = typeof v === "string" ? v : Array.isArray(v) && typeof v[0] === "string" ? v[0] : "";

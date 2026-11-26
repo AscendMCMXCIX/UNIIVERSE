@@ -43,19 +43,19 @@ decorative chrome.
   - a single `panel-featured` lead card;
   - quiet labels and strong figures.
 - **Champion Intel** (Champion Lookup, the owner's request of 23 Nov 2026 in Matchup Intel's place,
-  renamed and extended on 24 Nov 2026) is the reference read in a glance on a second monitor: one
-  panel per champion (one, or two side by side from a 56rem page, one at a time under a segmented
-  switcher narrower), each a single surface: a 70px header with the champion's splash art faint
-  behind its right side (the pool rows' convention), the name that opens the window of every
-  champion, and one compact haste field; the key mechanics as quiet label-caps groups with the
-  abilities' keys as small key chips; base statistics in a row Fold; the five abilities each a row
-  Fold whose summary is the quick reference (icon, key, name, cost, cooldowns per rank as columns
-  where the row has room). No box inside the panel, no badge, no decorative control. The header, the
-  haste and the five folded rows fit one viewport from 1280 × 720, single and dual; nothing in it
-  scrolls inside it. Colour is kept for meaning: the cooldown at the chosen haste in the main weight
-  with its label in `accent`, the base quieter, the special cases in `fg-muted` words, the words that
-  name a mechanic in Riot's description underlined in `accent` (and listed, never colour alone)
-  (docs/CHAMPION_INTEL.md).
+  renamed and extended on 24 Nov 2026, one aligned board since 25 Nov 2026) is the reference read in
+  a glance on a second monitor: one surface, no box inside it. The header: the portrait, the name in
+  the primary colour (whole, never cut or broken; it opens the window of every champion), Riot's title
+  in the secondary, the champion's facts as sentence-case label and value pairs, and "Ability haste"
+  with the rule in an ⓘ. The five abilities each a row Fold: the slot's key tile (P to R) beside the
+  icon, the name, the mechanics Riot's description names as chips (crowd control in `warn`, the rest
+  neutral: the word is the chip), and one grid of rank columns (cooldown at the haste in use primary
+  and semibold, the base under it small and secondary, the cost per rank secondary); a passive's
+  missing cooldown a quiet dash; column headings in `label-text`. Base statistics a small table
+  beside the abilities on a desktop. Compare is the same board with two champion columns, a CSS
+  subgrid of the board's rows, so each row of the two lines up; two neutral references (no colour
+  for better or worse). The single view fits one viewport from 1280 × 720, Compare from 1440 × 780;
+  nothing scrolls inside it (docs/CHAMPION_INTEL.md).
 - **Match History** is a finished, successful experience. Do not restyle it for novelty. Change it
   only for a bug, an accessibility fix or a product decision.
   - **The post-game view (the owner's directive of 19 Nov 2026, §5; redrawn at the owner's brief of

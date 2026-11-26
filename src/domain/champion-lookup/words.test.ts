@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { HASTE_RULE_WORDS, REASON_WORDS, cooldownWords, listedWords } from "./words";
+import { DATA_LIMIT_WORDS, HASTE_RULE_WORDS, REASON_WORDS, cooldownWords, listedWords, statsTipWords } from "./words";
 import type { UnknownCooldownReason } from "./cooldown";
 
 /*
@@ -30,8 +30,19 @@ describe("the words", () => {
     expect(cooldownWords({ kind: "unknown", reason: "two-abilities-in-ddragon", listed: [10, 9, 8, 7, 6] })).toEqual({ line: "Two abilities share this slot in Riot's data", more: "Riot's data doesn't say which one its cooldown is. Riot lists 10 / 9 / 8 / 7 / 6 s for the slot." });
   });
 
+  it("keep each ⓘ short, one plain idea: at most 25 words (docs/STANDARDS.md, Tooltips), the rule's formula and Riot's limits in them", () => {
+    // Counted as tip-length.test.ts counts: whitespace-separated words with a letter or a digit.
+    const words = (t: string) => t.split(/\s+/).filter((w) => /[\p{L}\p{N}]/u.test(w)).length;
+    for (const tip of [HASTE_RULE_WORDS, DATA_LIMIT_WORDS, statsTipWords(false), statsTipWords(true)]) expect(words(tip), tip).toBeLessThanOrEqual(25);
+    expect(HASTE_RULE_WORDS).toContain("base × 100 / (100 + haste)");
+    expect(HASTE_RULE_WORDS).toContain("Ultimate haste isn't counted");
+    expect(DATA_LIMIT_WORDS).toContain("no damage values or scaling");
+    expect(statsTipWords(true)).toContain("Attack damage has no growth");
+    expect(statsTipWords(false)).not.toContain("Attack damage");
+  });
+
   it("never speak of a timer, a ready time or anything verified, in the words or on the page's components", () => {
-    for (const w of [HASTE_RULE_WORDS, ...Object.values(REASON_WORDS).flatMap((x) => [x.line, x.more ?? ""])]) expect(w, w).not.toMatch(REFUSED);
+    for (const w of [HASTE_RULE_WORDS, DATA_LIMIT_WORDS, statsTipWords(true), ...Object.values(REASON_WORDS).flatMap((x) => [x.line, x.more ?? ""])]) expect(w, w).not.toMatch(REFUSED);
     const dir = join(process.cwd(), "src/components/champion-lookup");
     for (const f of readdirSync(dir).filter((n) => n.endsWith(".tsx"))) {
       // Visible text only: the JSX text between tags, with comments taken out.
