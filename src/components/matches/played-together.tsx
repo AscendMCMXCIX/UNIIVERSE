@@ -347,7 +347,10 @@ function TogetherCard({ g, p, champions, teams, scores }: { g: TogetherListGame;
                   </span>
                   <span className="min-w-0 flex-1">
                     {/* The name whole (a long one wraps, never cut), the K/D/A and the largest multikill right after it. */}
-                    <span className="flex min-w-0 flex-wrap items-baseline gap-x-1.5">
+                    {/* The name, K/D/A and multikill 4px apart (25 Nov 2026): with the score's column at the row's end, a 19rem
+                        row's first line held "Demo Sub (Top) 5/4/7 Double kill" with 2px to spare, and a browser that sets the
+                        text a hair wider put the multikill on a line of its own, the row past its 56px. */}
+                    <span className="flex min-w-0 flex-wrap items-baseline gap-x-1">
                       <IntentLink href={`/players/${m.playerId}`} className="relative min-w-0 break-words py-0.5 text-sm font-semibold text-fg hover:underline pointer-coarse:-my-2.5 pointer-coarse:py-3">
                         {pl?.name ?? "Player"}
                       </IntentLink>
@@ -381,7 +384,7 @@ function TogetherCard({ g, p, champions, teams, scores }: { g: TogetherListGame;
                     </span>
                   </span>
                   {/* Where it has them, the score over its place at the row's end, as a scoreboard row shows its player's. */}
-                  <span className="-ml-1 hidden w-9 shrink-0 self-center sm:@min-[19rem]/member:flex">{mark("stack")}</span>
+                  <span className="-ml-1.5 hidden w-9 shrink-0 self-center sm:@min-[19rem]/member:flex">{mark("stack")}</span>
                 </li>
               );
             })}
