@@ -46,7 +46,7 @@ import type { MultikillCounts } from "./multikills";
      Why kills as weights: a rarer kind counts for more by what it is (a pentakill is five kills in
      one fight, 2.5 doubles), not by a constant chosen for it, and the common kinds, which carry
      most of the information, keep most of the weight; so over many games a score is mostly doubles
-     and triples, and "Most pentas" keeps pentakills recognised on their own.
+     and triples, and the table's Pentas column keeps pentakills recognised on their own.
      Why 40 (round 3, chosen by simulation against 20, 30 and 60): with equal skill, four 20-game and
      four 300-game members, a 20-game member takes first place 66% of the time (20: 77%, 30: 71%;
      no bias would be 50%: a short record is noisier, so some excess stays); on 9-member boards about

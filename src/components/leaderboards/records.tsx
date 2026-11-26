@@ -14,6 +14,7 @@ import { cn } from "@/lib/cn";
 import { formatCount } from "@/lib/format";
 import type { BoardPlayer, MilestoneItem, MultikillRow, MultikillsView, RecordHolder, RecordsView, RecordView } from "@/server/leaderboards/recent-view";
 import { BoardTitle } from "./board-title";
+import { FILL_GRID, FILL_LIST, FILL_ROW, fillRows } from "./board-fill";
 import { MultikillBreakdownBody, RoleMark } from "./multikill-breakdown";
 import { RECORD_YOURS, RECORD_YOURS_VALUE } from "./record-yours";
 import { SECTIONS } from "./sections";
@@ -34,7 +35,8 @@ import { RecordGameLink } from "./record-game";
     Milestones       the most meaningful champion milestones of the active players, at most eight,
                      two columns of cells like the records', the rest on the profiles.
   Neutral, as Recent form: no colour marks a figure but first place's gold; the milestones carry their
-  rarities (violet, gold), as everywhere. Nothing folds: every row and cell is on the page.
+  rarities (violet, gold), as everywhere. Nothing folds: every row and cell is on the page. Where a
+  board is the shorter of its grid row, its rows share the spare room (board-fill.ts), not one band.
 */
 
 // ── Season records ─────────────────────────────────────────────────────────────────────────────
@@ -88,7 +90,7 @@ const BOOK_COLS = "[--dl-cols:3rem_minmax(5rem,1fr)_auto_1rem] @max-[16rem]/list
 export function SeasonRecords({ records, player, champ, viewer, className }: { records: RecordsView; player: (id: string) => BoardPlayer; champ: (id: string | null) => PortraitChampion | null; /** The viewer's player, when they are on the board. */ viewer: string | null; className?: string }) {
   return (
     <section id={SECTIONS.records} aria-labelledby="season-records-title" className={cn("flex min-w-0 flex-col", className)} data-testid="records">
-      <div className={cn(BOARD_PANEL, "flex-auto")} data-testid="records-book">
+      <div className={cn(BOARD_PANEL, "flex flex-auto flex-col")} data-testid="records-book">
         <BoardTitle
           id="season-records-title"
           icon={<Trophy className="h-4 w-4 shrink-0 text-fg-subtle" aria-hidden />}
@@ -98,7 +100,8 @@ export function SeasonRecords({ records, player, champ, viewer, className }: { r
         >
           Season records
         </BoardTitle>
-        <ul aria-label="Season records" className={RECORD_CELLS} data-testid="season-records">
+        {/* The rows of cells share the panel's spare room where it is the shorter of its grid row (board-fill.ts): seven cells, four rows from 34rem. */}
+        <ul aria-label="Season records" className={cn(RECORD_CELLS, FILL_GRID, "@min-[34rem]/list:max-h-[calc(var(--fill-rows-wide)*3.5rem)]")} style={fillRows(records.records.length, Math.ceil(records.records.length / 2))} data-testid="season-records">
           {records.records.map((r) => (
             <li key={r.id} className={RECORD_CELL}>
               <RecordRow record={r} player={player} champ={champ} viewer={viewer} />
@@ -344,7 +347,7 @@ export function Multikills({ records, player, champions, className }: { records:
   const board = records.multikills;
   const ties = tieRuns(board.rows.map((r) => r.place));
   return (
-    <section id={SECTIONS.multikills} aria-labelledby="multikills-title" className={cn("flex min-w-0 flex-col", className)} data-testid="multikills">
+    <section id={SECTIONS.multikills} aria-labelledby="multikills-title" className={cn("flex min-w-0 flex-col", className)} style={fillRows(board.rows.length)} data-testid="multikills">
       <DataList
         columns={MK_COLS}
         className="flex-auto"
@@ -360,14 +363,15 @@ export function Multikills({ records, player, champions, className }: { records:
       >
         {board.rows.length === 0 ? <EmptyState variant="row" testId="multikills-empty" title={`No active player has ${board.rankedFrom} games with multikill counts this season yet.`} /> : null}
         {board.rows.length ? (
-          <DataGroup label="Multikill score ranking" testId="multikill-rows">
+          // A shorter table's rows share its spare room, up to 3.5rem each on average; the legend stays right under the last, the rest goes below it (board-fill.ts).
+          <DataGroup label="Multikill score ranking" testId="multikill-rows" className={FILL_LIST}>
             {board.rows.map((r, i) => (
               <MultikillRowItem key={r.playerId} r={r} p={player(r.playerId)} tie={ties[i] ?? null} board={board} champions={champions} />
             ))}
           </DataGroup>
         ) : null}
-        {/* How to read a score, always in view (at the panel's foot: a shorter table leaves its room above this line). */}
-        <p className={cn("mt-auto flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-0.5 py-1.5 text-xs text-fg-muted", ROW_PAD_X)} data-testid="multikill-score-legend" data-counting-rule={board.rule} data-counting-shown={board.ruleShown}>
+        {/* How to read a score, always in view, right under the table. */}
+        <p className={cn("flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-0.5 py-1.5 text-xs text-fg-muted", ROW_PAD_X)} data-testid="multikill-score-legend" data-counting-rule={board.rule} data-counting-shown={board.ruleShown}>
           <span>
             <span className="font-medium text-fg">Below 100</span> below typical
           </span>
@@ -442,7 +446,7 @@ function MultikillRowItem({ r, p, tie, board, champions }: { r: MultikillRow; p:
       data-you={r.you || undefined}
       own={r.you}
       density="compact"
-      className={cn("gap-y-0!", TABLE_GAP)}
+      className={cn("gap-y-0!", TABLE_GAP, FILL_ROW)}
       lead={<Place place={r.place} tie={tie} leader={r.place === 1} testId="multikill-place" className="col-[1/2] row-[1/2] self-center" />}
       link={linked ? <PeekRowLink playerId={p.id} name={p.name} profileHref={p.profileHref!} /> : null}
       figures={
@@ -535,7 +539,8 @@ export function Milestones({ records, player, champ, className }: { records: Rec
           Milestones
         </BoardTitle>
         {items.length ? (
-          <ul aria-label="Milestones" className={MILESTONE_CELLS} data-testid="milestones-list">
+          // The rows of cells share the panel's spare room where it is the shorter of its grid row (board-fill.ts): two cells a row from 26rem.
+          <ul aria-label="Milestones" className={cn(MILESTONE_CELLS, FILL_GRID, "@min-[26rem]/list:max-h-[calc(var(--fill-rows-wide)*3.5rem)]")} style={fillRows(items.length, Math.ceil(items.length / 2))} data-testid="milestones-list">
             {items.map((m) => (
               <MilestoneCell key={`${m.kind}|${m.playerId}|${m.championId}`} m={m} p={player(m.playerId)} champion={champ(m.championId)} />
             ))}

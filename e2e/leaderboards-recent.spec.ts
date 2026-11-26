@@ -1,4 +1,6 @@
 import { AxeBuilder } from "@axe-core/playwright";
+import { breakdownKeyboardVerdicts, breakdownVerdicts, MULTIKILL_ROLE_LABEL, multikillVerdicts, readBreakdownFocus, readMultikillBoard, readMultikillBreakdown } from "../scripts/multikill-facts.mjs";
+import { FILL_ROW_MAX_REM, oneScreenInput, oneScreenVerdicts, readOneScreen } from "../scripts/one-screen-facts.mjs";
 import { RECORD_YOURS, RECORD_YOURS_VALUE } from "../src/components/leaderboards/record-yours";
 import { expect, test, type Page } from "./test";
 
@@ -36,6 +38,21 @@ async function noOverflow(page: Page) {
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   expect(overflow, "page wider than the viewport").toBeLessThanOrEqual(1);
 }
+
+/**
+ * Rows' heights as drawn and as their content alone would make them: the shorter board of a grid row spreads its spare room over
+ * its rows (board-fill.ts), so a row's drawn height can be more than its own. The growth is lifted for the measure and put back
+ * in the same step, before anything is drawn.
+ */
+const rowHeights = (page: Page, testId: string) =>
+  page.getByTestId(testId).evaluateAll((rows) => {
+    const drawn = rows.map((r) => r.getBoundingClientRect().height);
+    const kept = rows.map((r) => (r as HTMLElement).style.flex);
+    for (const r of rows) (r as HTMLElement).style.flex = "none";
+    const own = rows.map((r) => r.getBoundingClientRect().height);
+    rows.forEach((r, i) => ((r as HTMLElement).style.flex = kept[i]!));
+    return rows.map((_, i) => ({ drawn: drawn[i]!, own: own[i]! }));
+  });
 
 /**
  * Words on the page broken across two lines (a name split inside a word, as at 1440 in the review's M4): each word of every
@@ -419,7 +436,10 @@ test("the board's layout follows its own width: four, six or eight columns, neve
   for (const [width, height] of [[1280, 800], [1920, 1080]] as const) {
     await page.setViewportSize({ width, height });
     await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
-    const rows = await page.evaluate(() => [...document.querySelectorAll<HTMLElement>("[data-testid=form-row]")].map((row) => { const name = row.querySelector<HTMLElement>("[data-testid=card-name]")!; return { height: row.getBoundingClientRect().height / parseFloat(getComputedStyle(document.documentElement).fontSize), picture: row.querySelector<HTMLElement>("[data-avatar-frame] > *")!.getBoundingClientRect().height, nameLines: Math.round(name.getBoundingClientRect().height / parseFloat(getComputedStyle(name).lineHeight)) }; }));
+    // Each row at its own height: where Recent form is the shorter board (1280, beside the multikills' two-line rows) its rows share the spare room.
+    const own = await rowHeights(page, "form-row");
+    const rem = await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).fontSize));
+    const rows = (await page.evaluate(() => [...document.querySelectorAll<HTMLElement>("[data-testid=form-row]")].map((row) => { const name = row.querySelector<HTMLElement>("[data-testid=card-name]")!; return { picture: row.querySelector<HTMLElement>("[data-avatar-frame] > *")!.getBoundingClientRect().height, nameLines: Math.round(name.getBoundingClientRect().height / parseFloat(getComputedStyle(name).lineHeight)) }; }))).map((r, i) => ({ ...r, height: own[i]!.own / rem }));
     for (const r of rows) {
       // A long name may wrap (the row grows: "Demo Sub (Support)" in 1280's 36rem board); a name on one line keeps the row at 40px.
       // 2.5rem (40px at 1280, 44px at 1920, where the root is larger), and its hairline.
@@ -621,8 +641,9 @@ test("the season records: seven cells in one panel, each opening its game; the m
   await expect(page.getByTestId("records-multikills").locator(".label-caps")).toHaveCount(0);
   // The role icon beside each name: the most played position over the score's games, named so, its ⓘ every position's share.
   for (const role of await page.locator("[data-testid=multikill-row] [data-testid=multikill-role]").all()) {
-    await expect(role).toHaveAccessibleName(/^(Most played: (Top|Jungle|Mid|Bottom|Support), \d+% of \d+ games|Split: .+, \d+% each|Role unknown: .+)$/);
-    await expect(role).toHaveAccessibleDescription(/(Top|Jungle|Mid|Bottom|Support|Unknown) — \d+% \(\d+ games?\)/);
+    // The Production check's own pattern (a games count of 1,000 or more keeps its thousands separator: "of 1,024 games").
+    await expect(role).toHaveAccessibleName(new RegExp(MULTIKILL_ROLE_LABEL));
+    await expect(role).toHaveAccessibleDescription(/(Top|Jungle|Mid|Bottom|Support|Unknown) — \d+% \([\d,]+ games?\)/);
   }
   // A player's name keeps a line's room at every width: whole words, at most two lines, never cut.
   const names = await page.getByTestId("multikill-row").evaluateAll((rows) =>
@@ -641,7 +662,12 @@ test("the season records: seven cells in one panel, each opening its game; the m
   const tops = await page.getByTestId("season-record").evaluateAll((rows) => rows.map((r) => [Math.round(r.closest("li")!.getBoundingClientRect().top), r.querySelector("[data-testid=record-label]")!.getBoundingClientRect().top - r.getBoundingClientRect().top]));
   for (const [row, offset] of tops) for (const [other, o] of tops) if (row === other) expect(Math.abs(offset! - o!), "level with the cell beside it").toBeLessThanOrEqual(1);
   // Compact rows: one line (40px, 44px on a touch screen) in the table; on a phone the 44px Score's line and the words under it (two lines where they wrap).
-  for (const h of await page.getByTestId("multikill-row").evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height))) expect(h, "a multikill row").toBeLessThanOrEqual(tableRem >= 26 ? 50 : 96);
+  // Each at its own height: where the table is the shorter board its rows share the spare room (board-fill.ts), at most 3.5rem each on average.
+  const mkRows = await rowHeights(page, "multikill-row");
+  for (const h of mkRows) expect(h.own, "a multikill row").toBeLessThanOrEqual(tableRem >= 26 ? 50 : 96);
+  const rootRem = await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).fontSize));
+  const grown = mkRows.filter((h) => h.drawn > h.own + 1);
+  if (grown.length) expect(grown.reduce((sum, h) => sum + h.drawn, 0) / grown.length, "grown rows: 3.5rem at most on average").toBeLessThanOrEqual(FILL_ROW_MAX_REM * rootRem + 1);
   // The milestones: at most eight cells, the most meaningful first, each the champion's portrait, the player over the champion
   // and its figure as format.ts shortens it (486K, 29 games); the rest counted, on the profiles.
   const milestones = page.getByTestId("records-milestones").getByTestId("milestone");
@@ -1047,7 +1073,114 @@ test("the Score opens its breakdown, by mouse, keyboard and touch: the place, th
   if ((await role.getAttribute("data-role-kind")) !== "unknown") {
     if (info.project.name === "phone") await role.tap();
     else await role.focus();
-    await expect(page.getByTestId("multikill-role-bubble")).toContainText(/(Top|Jungle|Mid|Bottom|Support) — \d+% \(\d+ games?\)/);
+    await expect(page.getByTestId("multikill-role-bubble")).toContainText(/(Top|Jungle|Mid|Bottom|Support) — \d+% \([\d,]+ games?\)/);
+  }
+});
+
+test("the Score breakdown keeps the keyboard's place: Tab past its end closes it and goes on to the next row, Shift+Tab closes it back on the Score", async ({ page }, info) => {
+  // Drawn at the page's end (a portal, above the rows), the beside form is still read as if it came right after its Score
+  // (WCAG 2.4.3; the review of 25 Nov 2026: Tab left the page with it open, and Shift+Tab landed on the page's last control).
+  test.skip(info.project.name === "phone", "a phone's sheet keeps the focus inside it until it closes, as every sheet does");
+  await openRecords(page);
+  const rows = page.locator("[data-testid=multikill-row]");
+  const button = rows.nth(1).getByTestId("multikill-score-open");
+  const breakdown = page.getByTestId("multikill-breakdown");
+  await rows.nth(1).evaluate((e) => e.scrollIntoView({ block: "center" }));
+  const openByKey = async () => {
+    await button.focus();
+    await page.keyboard.press("Enter");
+    await expect(breakdown).toBeVisible();
+    await expect.poll(() => breakdown.evaluate((el) => el.contains(document.activeElement))).toBe(true);
+  };
+  // Tab: its ✕ (its one control), then out of it: closed, the focus on the next row (its first control), as Tab from the Score goes.
+  await openByKey();
+  await page.keyboard.press("Tab");
+  await expect(page.getByTestId("multikill-breakdown-close")).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(breakdown).toBeHidden();
+  await expect(button).toHaveAttribute("aria-expanded", "false");
+  await expect.poll(() => rows.nth(2).evaluate((r) => r.contains(document.activeElement))).toBe(true);
+  // From there Shift+Tab is the page's own order again: back to the Score.
+  await page.keyboard.press("Shift+Tab");
+  await expect(button).toBeFocused();
+  await expect(breakdown).toBeHidden();
+  // Shift+Tab out of the panel itself: closed, the focus back on the Score.
+  await openByKey();
+  await page.keyboard.press("Shift+Tab");
+  await expect(breakdown).toBeHidden();
+  await expect(button).toBeFocused();
+  // Shift+Tab from its ✕ as well.
+  await openByKey();
+  await page.keyboard.press("Tab");
+  await expect(page.getByTestId("multikill-breakdown-close")).toBeFocused();
+  await page.keyboard.press("Shift+Tab");
+  await expect(breakdown).toBeHidden();
+  await expect(button).toBeFocused();
+  // Escape closes it wherever the focus is on the page, the focus back on the Score.
+  await openByKey();
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  await page.keyboard.press("Escape");
+  await expect(breakdown).toBeHidden();
+  await expect(button).toBeFocused();
+});
+
+test("the Production check's multikill readers pass on the demo's page: the table, the first Score's breakdown and its keyboard way out", async ({ page }, info) => {
+  // The check's own code (scripts/multikill-facts.mjs) on a real page, so a reader that cannot match the page fails here first
+  // (the review of 25 Nov 2026: the legend's words, read as one run of text, never matched, so the fact failed on every page).
+  await openRecords(page);
+  const kind = info.project.name;
+  const read = await page.evaluate(readMultikillBoard, MULTIKILL_ROLE_LABEL);
+  expect(multikillVerdicts({ kind, read }).filter((v) => v.status !== "PASS")).toEqual([]);
+  if (kind === "phone") return;
+  const first = page.locator("[data-testid=multikill-row] [data-testid=multikill-score-open]").first();
+  await first.scrollIntoViewIfNeeded();
+  await first.click();
+  await expect(page.getByTestId("breakdown-calculation")).toBeVisible();
+  const breakdown = await page.evaluate(readMultikillBreakdown);
+  expect(breakdownVerdicts({ kind, read: breakdown, rowScore: read.rows![0]!.score }).filter((v) => v.status !== "PASS")).toEqual([]);
+  await page.keyboard.press("Escape");
+  const panel = page.getByTestId("multikill-breakdown");
+  await expect(panel).toBeHidden();
+  const openByKey = async () => {
+    await first.focus();
+    await page.keyboard.press("Enter");
+    await expect.poll(() => panel.evaluate((el) => el.contains(document.activeElement)).catch(() => false)).toBe(true);
+  };
+  await openByKey();
+  for (let i = 0; i < 12 && (await panel.count()); i++) await page.keyboard.press("Tab");
+  const forward = await page.evaluate(readBreakdownFocus);
+  await openByKey();
+  await page.keyboard.press("Shift+Tab");
+  const back = await page.evaluate(readBreakdownFocus);
+  expect(breakdownKeyboardVerdicts({ kind, forward, back }).map((v) => v.status)).toEqual(["PASS"]);
+});
+
+test("the shorter board of each grid row spreads its spare room over its rows: no blank band, the multikills' legend right under their last row", async ({ page }, info) => {
+  // The review of 25 Nov 2026: the 2 × 2 grid's rows stretch both boards to one height, and the shorter one's spare room sat as one
+  // band (about 95px above the multikills' legend at 1920 × 1080 with the demo's five ranked players beside seven Recent form rows).
+  test.skip(info.project.name !== "desktop", "the 2 × 2 grid is the desktop's");
+  await open(page, BOARDS);
+  for (const [width, height] of [[1366, 768], [1440, 900], [1920, 1080]] as const) {
+    await page.setViewportSize({ width, height });
+    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+    // The Production check's own reading and fact (scripts/one-screen-facts.mjs): each board's last line within 24px of its end,
+    // unless its rows have grown to their cap (3.5rem a row on average); the legend within 4px of the last row.
+    const read = await page.evaluate(readOneScreen, oneScreenInput("leaderboards"));
+    for (const b of read.spare!) {
+      expect(b.present && (b.rows ?? 0) > 0, `${width}: ${b.board} has rows`).toBe(true);
+      expect(b.spare! <= 24 || b.grown, `${width}: ${b.board} leaves ${b.spare}px under its last line`).toBe(true);
+    }
+    expect(read.spare!.find((b) => b.board === "records-multikills")!.footGap!, `${width}: the legend right under the last row`).toBeLessThanOrEqual(4);
+    expect(oneScreenVerdicts({ page: "leaderboards", size: `${width} × ${height}`, read }).filter((v) => v.status !== "PASS")).toEqual([]);
+    // The multikills, the shorter board here: every row taller than its own content by one share (within a pixel), none past 3.5rem on average.
+    const rem = await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).fontSize));
+    const mk = await rowHeights(page, "multikill-row");
+    const shares = mk.map((h) => h.drawn - h.own);
+    expect(Math.min(...shares), `${width}: each multikill row has its share of the spare room`).toBeGreaterThan(1);
+    expect(Math.max(...shares) - Math.min(...shares), `${width}: equal shares`).toBeLessThanOrEqual(1.5);
+    expect(mk.reduce((sum, h) => sum + h.drawn, 0) / mk.length, `${width}: 3.5rem at most on average`).toBeLessThanOrEqual(FILL_ROW_MAX_REM * rem + 1);
+    // Recent form, the taller board, keeps its rows at their own height.
+    for (const h of await rowHeights(page, "form-row")) expect(h.drawn - h.own, `${width}: a Recent form row at its own height`).toBeLessThanOrEqual(1);
   }
 });
 

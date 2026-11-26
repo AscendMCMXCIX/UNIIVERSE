@@ -170,6 +170,16 @@ describe("the board's markup", () => {
     expect(html.indexOf('id="form-board-title"')).toBeLessThan(html.indexOf('data-testid="form-heads"'));
     expect(html.indexOf('data-testid="form-heads"')).toBeLessThan(html.indexOf('data-testid="form-rows"'));
   });
+
+  it("shares the spare room over its rows where it is the shorter board of its grid row, up to 3.5rem a row (the review of 25 Nov 2026)", () => {
+    const html = render();
+    expect(html).toMatch(new RegExp(`<section id="recent-form"[^>]* style="--fill-rows:${ROWS.length}" data-testid="form">`));
+    const list = /<ol aria-label="Ranking" data-testid="form-rows" class="([^"]*)">/.exec(html)!;
+    expect(list[1]).toContain("flex flex-auto flex-col min-h-min max-h-[calc(var(--fill-rows)*3.5rem)]");
+    const rows = [...html.matchAll(/<li class="([^"]*)" data-testid="form-row"/g)];
+    expect(rows).toHaveLength(ROWS.length);
+    for (const m of rows) expect(m[1]!.split(" ")).toContain("flex-auto");
+  });
 });
 
 describe("gapToken (D5)", () => {

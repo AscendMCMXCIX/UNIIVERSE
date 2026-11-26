@@ -12,6 +12,7 @@ import { formatOrdinal } from "@/lib/format";
 import { LEADERBOARD_ACTIVE_DAYS } from "@/domain/leaderboards";
 import type { BoardPlayer, FormRow, FormView } from "@/server/leaderboards/recent-view";
 import { BoardTitle } from "./board-title";
+import { FILL_LIST, FILL_ROW, fillRows } from "./board-fill";
 import { SECTIONS } from "./sections";
 
 /*
@@ -117,7 +118,7 @@ export function RecentForm({ form, player, className }: { form: FormView; player
   const ties = tieRuns(ranked.map((r) => r.place));
   return (
     // At most the measure wide, at the page's left edge: one edge with the header.
-    <section id={SECTIONS.form} aria-labelledby="form-board-title" className={cn("flex min-w-0 max-w-[var(--measure)] flex-col", className)} data-testid="form">
+    <section id={SECTIONS.form} aria-labelledby="form-board-title" className={cn("flex min-w-0 max-w-[var(--measure)] flex-col", className)} style={fillRows(ranked.length)} data-testid="form">
       <DataList
         surface="lead"
         columns={cn("flex h-full flex-col", FORM_COLS)}
@@ -145,7 +146,8 @@ export function RecentForm({ form, player, className }: { form: FormView; player
         ) : null}
         {ranked.length ? (
           // Under 36rem each row's bar is the line along its foot: no hairline as well.
-          <DataGroup label="Ranking" testId="form-rows" className="@max-[36rem]/list:divide-y-0">
+          // A shorter board than the multikills beside it: its rows share the spare room, up to 3.5rem each on average (board-fill.ts).
+          <DataGroup label="Ranking" testId="form-rows" className={cn(FILL_LIST, "@max-[36rem]/list:divide-y-0")}>
             {ranked.map((r, i) => (
               <FormRowItem key={r.playerId} r={r} p={player(r.playerId)} tie={ties[i] ?? null} window={form.window} />
             ))}
@@ -199,6 +201,7 @@ function FormRowItem({ r, p, tie, window }: { r: FormRow; p: BoardPlayer; tie: T
       data-tied={r.tied || undefined}
       own={r.you}
       density={{ narrow: "two-line", medium: "compact", wide: "compact" }}
+      className={FILL_ROW}
       lead={
         <>
           <Place place={r.place} tie={tie} leader={leader} testId="form-place" className={cn("col-[1/2]", BESIDE_LINES)} bracketClassName="@max-[13.5rem]/list:hidden" />

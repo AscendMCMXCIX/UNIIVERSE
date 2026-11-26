@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { breakdownVerdicts, eventsOf, MULTIKILL_BASES, MULTIKILL_HEADS, multikillVerdicts, scoreFrom, type MultikillBoardRead, type MultikillBreakdownRead, type MultikillRowRead } from "../../../scripts/multikill-facts.mjs";
+import { breakdownKeyboardVerdicts, breakdownVerdicts, eventsOf, MULTIKILL_BASES, MULTIKILL_HEADS, MULTIKILL_ROLE_LABEL, multikillVerdicts, roleLabelNamed, scoreFrom, type BreakdownFocusRead, type MultikillBoardRead, type MultikillBreakdownRead, type MultikillRowRead } from "../../../scripts/multikill-facts.mjs";
 
 /*
   The Production check's multikill facts (scripts/multikill-facts.mjs): the readings below are the
@@ -44,6 +44,8 @@ const BREAKDOWN: MultikillBreakdownRead = {
   comparison: true,
   levels: 1,
   scrolls: 0,
+  notAdjusted: false,
+  claimsAdjusted: true,
 };
 const breakdownFailed = (read: MultikillBreakdownRead, rowScore = 112) => breakdownVerdicts({ kind: "desktop", read, rowScore }).filter((v) => v.status === "FAIL").map((v) => v.name.replace(/^desktop: /, ""));
 
@@ -109,6 +111,15 @@ describe("the multikill table facts", () => {
     expect(multikillVerdicts({ kind: "phone", read: { ...DEMO, heads: null, rows: [{ ...rows[0]!, height: 90 }, ...rows.slice(1)] } }).filter((v) => v.status === "FAIL")).toEqual([]);
   });
 
+  it("read a role icon's name as the page writes it: a games count of 1,000 or more with its thousands separator (the review of 25 Nov 2026)", () => {
+    // The labels recent-view.ts writes (gamesWord: formatCount), including a dedicated member's 1,024 counted games.
+    for (const label of ["Most played: Mid, 78% of 1,024 games", "Most played: Top, 85% of 60 games", "Most played: Support, 100% of 1 game", "Most played: Bottom, 51% of 12,345 games", "Split: Top and Mid, 45% each", "Split: Top, Mid and Support, 33% each", "Role unknown: no position recorded in these games"])
+      expect(roleLabelNamed(label), label).toBe(true);
+    for (const label of ["Most played: Fill, 40% of 20 games", "Most played: Mid, 78% of 1024,5 games", "Most played: Mid", "Mid", "", null]) expect(roleLabelNamed(label), String(label)).toBe(false);
+    // The page's reader takes the same pattern as its argument (it runs in the page, self-contained).
+    expect(new RegExp(MULTIKILL_ROLE_LABEL).test("Most played: Jungle, 62% of 1,150 games")).toBe(true);
+  });
+
   it("warn, not fail, where the team's data cannot show the table or the comparison", () => {
     expect(verdicts({ ...DEMO, rows: [], empty: true }).map((v) => v.status)).toEqual(["PASS", "PASS", "PASS", "WARN"]);
     const team = verdicts({ ...DEMO, basis: MULTIKILL_BASES.team });
@@ -121,7 +132,13 @@ describe("the multikill table facts", () => {
 describe("the Score breakdown facts", () => {
   it("pass when the final line gives the score shown and the points add up", () => {
     expect(scoreFrom({ earned: 80, expected: 67.1, cushion: 40 })).toBe(112);
-    expect(breakdownVerdicts({ kind: "desktop", read: BREAKDOWN, rowScore: 112 }).map((v) => v.status)).toEqual(["PASS", "PASS", "PASS", "PASS"]);
+    expect(breakdownVerdicts({ kind: "desktop", read: BREAKDOWN, rowScore: 112 }).map((v) => v.status)).toEqual(["PASS", "PASS", "PASS", "PASS", "PASS"]);
+    // The team-wide fallback said plainly, with no line about champions and roles: passes too.
+    expect(breakdownFailed({ ...BREAKDOWN, notAdjusted: true, claimsAdjusted: false })).toEqual([]);
+  });
+
+  it("fail a breakdown that says the score is not champion- or role-adjusted and still speaks of champions and roles", () => {
+    expect(breakdownFailed({ ...BREAKDOWN, notAdjusted: true, claimsAdjusted: true })).toEqual(["the breakdown claims no champion and role adjustment the score has not made"]);
   });
 
   it("fail a final line that does not give the score, points that do not add up, a missing part, a scrolling panel", () => {
@@ -136,5 +153,27 @@ describe("the Score breakdown facts", () => {
 
   it("warn when there is no Score to open", () => {
     expect(breakdownVerdicts({ kind: "desktop", read: { present: false }, rowScore: null }).map((v) => v.status)).toEqual(["WARN"]);
+  });
+});
+
+describe("the Score breakdown's keyboard facts", () => {
+  const focus = (o: Partial<BreakdownFocusRead>): BreakdownFocusRead => ({ open: false, onTrigger: false, afterTrigger: false, ...o });
+  const name = "desktop: the breakdown keeps the keyboard's place: Tab past its end closes it and goes on after the Score, Shift+Tab closes it back on the Score";
+
+  it("pass when Tab past its end goes on after the Score and Shift+Tab goes back to it, closed both times", () => {
+    expect(breakdownKeyboardVerdicts({ kind: "desktop", forward: focus({ afterTrigger: true }), back: focus({ onTrigger: true }) })).toEqual([expect.objectContaining({ name, status: "PASS" })]);
+  });
+
+  it("fail the review's two regressions: left open when Tab leaves the page, and Shift+Tab landing at the page's end", () => {
+    // Tab past the ✕ left the document: still open, the focus on nothing.
+    expect(breakdownKeyboardVerdicts({ kind: "desktop", forward: focus({ open: true }), back: focus({ onTrigger: true }) })[0]!.status).toBe("FAIL");
+    // Shift+Tab: closed, but the focus on the page's last control rather than the Score.
+    expect(breakdownKeyboardVerdicts({ kind: "desktop", forward: focus({ afterTrigger: true }), back: focus({ afterTrigger: true }) })[0]!.status).toBe("FAIL");
+    // Tab: closed, but the focus back at the page's top.
+    expect(breakdownKeyboardVerdicts({ kind: "desktop", forward: focus({}), back: focus({ onTrigger: true }) })[0]!.status).toBe("FAIL");
+  });
+
+  it("warn, not fail, when it was not run", () => {
+    expect(breakdownKeyboardVerdicts({ kind: "desktop", forward: null, back: null }).map((v) => v.status)).toEqual(["WARN"]);
   });
 });

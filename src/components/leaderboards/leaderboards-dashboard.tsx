@@ -42,8 +42,8 @@ const ACTIVE_TIP = `Players with a game and a data update in the last ${LEADERBO
                   upright and sideways, tablets), Recent form, the multikills, the season records
                   (two columns of cells from a 34rem panel), the milestones; a short natural scroll;
     from 59rem    one screen: a 2 × 2 grid whose rows the two boards in them share (each board as tall
-                  as its neighbour, its spare room above its foot line, never a hole between
-                  boards): the two rankings first, Recent form | Multikills, then the achievements,
+                  as its neighbour, never a hole between boards; the shorter one's rows share its
+                  spare room, board-fill.ts): the two rankings first, Recent form | Multikills, then the achievements,
                   Season records | Milestones (two columns of 44px cells each). At 1366 × 768,
                   1440 × 900 and 1920 × 1080 all four end within the window with the demo's seven
                   active players; a full nine-player team at 1366 × 768 may scroll a little

@@ -29,6 +29,10 @@ import { useWindowPosture } from "./posture";
   - **Closes** on Escape (the focus back on the figure), a press outside, the focus leaving it, its ✕,
     or the figure leaving the screen. No address and no history entry of its own, no dimming beside a
     list; the sheet dims the page as every sheet does.
+  - **The keyboard keeps the figure's place** (the Popover's `portaled`): the beside form is read as if
+    it came right after the figure. Tab past its ✕ closes it and goes on to what follows the figure
+    (the next row); Shift+Tab out of it closes it with the focus back on the figure (WCAG 2.4.3). The
+    sheet keeps the focus inside it until it closes, as every sheet does.
   - **The content** renders only while open (`children` is drawn then), from the figure's own data:
     the breakdown never works the figure out again.
 */
@@ -83,7 +87,7 @@ export function BreakdownPopover({ trigger, triggerLabel, triggerClassName, titl
       </button>
       {open && !windowed
         ? createPortal(
-            <Popover anchor={anchor} onClose={close} title={title} description={description} placement="side" widthClassName={widthClassName} testId={panelTestId} closeTestId={panelTestId ? `${panelTestId}-close` : undefined} id={panelId}>
+            <Popover anchor={anchor} onClose={close} title={title} description={description} placement="side" portaled widthClassName={widthClassName} testId={panelTestId} closeTestId={panelTestId ? `${panelTestId}-close` : undefined} id={panelId}>
               {children}
             </Popover>,
             document.body,

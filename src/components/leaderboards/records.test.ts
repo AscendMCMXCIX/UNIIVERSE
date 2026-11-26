@@ -157,7 +157,12 @@ describe("the season records", () => {
   });
 
   it("place their cells on a grid by the panel's width (two columns from a 34rem panel: the desktop board's, a tablet's), each cell measuring itself, the seventh across both columns", () => {
-    expect(html).toMatch(/<ul aria-label="Season records" class="grid grid-cols-\[minmax\(0,1fr\)\] [^"]*@min-\[34rem\]\/list:grid-cols-2" data-testid="season-records">/);
+    const list = /<ul aria-label="Season records" class="([^"]*)" style="([^"]*)" data-testid="season-records">/.exec(html);
+    expect(list).not.toBeNull();
+    expect(decode(list![1]!)).toMatch(/^grid grid-cols-\[minmax\(0,1fr\)\] .*@min-\[34rem\]\/list:grid-cols-2/);
+    // The shorter board of its grid row: its rows of cells share the spare room, up to 3.5rem a row (seven cells, four rows two to a row).
+    expect(decode(list![1]!)).toContain("flex-auto min-h-min max-h-[calc(var(--fill-rows)*3.5rem)] @min-[34rem]/list:max-h-[calc(var(--fill-rows-wide)*3.5rem)]");
+    expect(list![2]).toBe("--fill-rows:7;--fill-rows-wide:4");
     const cells = [...html.matchAll(/<li class="([^"]*)"><div class="([^"]*)"><div [^>]*data-testid="season-record"/g)];
     expect(cells).toHaveLength(7);
     for (const [, cellClass, colsClass] of cells) {
@@ -331,6 +336,26 @@ describe("multikills", () => {
     expect(html).toMatch(/data-testid="multikill-score-legend" data-counting-rule="nested" data-counting-shown="true"/);
     // Never a raw percentage: no "30% more".
     expect(html).not.toMatch(/% more/);
+  });
+
+  it("share the spare room of a shorter board over their rows, the legend right under the last (the review of 25 Nov 2026: one blank band above the legend)", () => {
+    const html = render();
+    // The section carries the rows' count; the list grows into the board's room up to 3.5rem a row, never shorter than its content.
+    expect(html).toMatch(/<section id="multikills"[^>]* style="--fill-rows:3" data-testid="multikills">/);
+    const list = /<ol aria-label="Multikill score ranking" data-testid="multikill-rows" class="([^"]*)">/.exec(html);
+    expect(decode(list![1]!)).toContain("flex flex-auto flex-col min-h-min max-h-[calc(var(--fill-rows)*3.5rem)]");
+    // Each row its equal share (its content centred, DataRow's own).
+    const rows = [...html.matchAll(/<li class="([^"]*)" data-testid="multikill-row"/g)];
+    expect(rows).toHaveLength(3);
+    for (const m of rows) expect(m[1]!.split(" ")).toContain("flex-auto");
+    // The legend is the next line: no auto margin pushing it to the panel's foot (the band it left above itself).
+    const legend = /<p class="([^"]*)" data-testid="multikill-score-legend"/.exec(html)!;
+    expect(legend[1]).not.toContain("mt-auto");
+    expect(html.indexOf('data-testid="multikill-score-legend"')).toBeGreaterThan(html.lastIndexOf('data-testid="multikill-row"'));
+    // The milestones likewise: their rows of cells share the room (three cells, two rows two to a row).
+    const cells = /<ul aria-label="Milestones" class="([^"]*)" style="([^"]*)" data-testid="milestones-list">/.exec(html)!;
+    expect(decode(cells[1]!)).toContain("flex-auto min-h-min max-h-[calc(var(--fill-rows)*3.5rem)] @min-[26rem]/list:max-h-[calc(var(--fill-rows-wide)*3.5rem)]");
+    expect(cells[2]).toBe("--fill-rows:3;--fill-rows-wide:2");
   });
 
   it("list nobody who is not ranked: no provisional group, no \"No score yet\", no most-of-each tiles", () => {
