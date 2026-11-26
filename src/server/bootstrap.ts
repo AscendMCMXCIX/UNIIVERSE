@@ -4,6 +4,7 @@ import { getCurrentPatch } from "@/server/repositories/champions";
 import { runJob } from "@/server/jobs";
 import { applyScreenshotFixture, seedDemoAccounts, seedDemoRoster, seedDemoVerificationAccount } from "@/server/demo/seed";
 import { applyDemoEncounters } from "@/server/demo/encounters-fixture";
+import { applyDemoBuilds } from "@/server/demo/builds-fixture";
 import { seedChampionAbilitiesFromFixture } from "@/server/riot/static/abilities";
 
 declare global {
@@ -44,6 +45,8 @@ async function bootstrap(handle: DbHandle): Promise<void> {
     await seedDemoAccounts(db);
     // Distinct other players per demo game, with a few recurring ones (synthetic DEMO_ games only).
     if (handle.mode !== "postgres") await applyDemoEncounters(db);
+    // Champion Intel's builds: a few champions' games on the current patch, one with two builds (synthetic DEMO_ games only).
+    if (handle.mode !== "postgres") await applyDemoBuilds(db).catch((err) => console.error("[bootstrap] demo builds not applied:", err));
     // Production's verification account, as Admin's People page shows it (no password; local only).
     if (handle.mode !== "postgres") await seedDemoVerificationAccount(db);
     // Screenshots and layout checks: real-length names, the local owner as a player (in-memory demo only).

@@ -79,6 +79,11 @@ export function gamesTip(b: Pick<RoleBuilds, "games" | "timelineGames" | "teamGa
   return `Runes and spells come from all ${formatCount(b.games)} games; items and skills from the ${formatCount(b.timelineGames)} with a timeline. ${formatCount(b.teamGames)} are the team's own.`;
 }
 
+/** The whole source line in words ("From 143 games in the team's matches · patch 26.23 · all ranks · Draft and Ranked"), as the section shows it. */
+export function sourceWords(b: Pick<RoleBuilds, "games" | "patches" | "queues">): string {
+  return `${gamesWords(b)} in the team's matches · ${patchWords(b)} · all ranks · ${queueWords(b.queues)}`;
+}
+
 /** One choice's record in plain words: how often it won, in how many games, and how many of the part's games made it. */
 export function choiceTip(part: BuildPartKey, c: Pick<BuildChoice<unknown>, "winRate" | "games" | "share" | "total">): string {
   const noun = PART_NOUN[part];

@@ -28,6 +28,7 @@ const NAMES: Array<{ file: string; fragment: string; kind: Kind; what: string }>
   { file: "src/components/champion-portrait.tsx", fragment: "title", kind: "passthrough", what: "the portrait's champion name, or the caller's name for it" },
   { file: "src/components/role-icon.tsx", fragment: "label", kind: "name", what: "the role's name on its icon" },
   { file: "src/components/match-history/icon-img.tsx", fragment: "icon.name", kind: "name", what: "an item's, rune's or spell's name on its icon" },
+  { file: "src/components/champion-lookup/champion-builds.tsx", fragment: "icon.name", kind: "name", what: "a build's item, rune or spell named on its stand-in tile where the static data has no picture (IconImg's own use)" },
   // Names of icon-only controls and marks.
   { file: "src/components/mode-switch.tsx", fragment: "{label}", kind: "name", what: "the mode switch's name when only its icon shows" },
   { file: "src/components/nav-links.tsx", fragment: "{label}", kind: "name", what: "a destination's name in the collapsed sidebar" },

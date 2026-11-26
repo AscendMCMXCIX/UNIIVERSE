@@ -18,6 +18,7 @@ import {
   patchTip,
   patchWords,
   queueWords,
+  sourceWords,
   type BuildPartKey,
 } from "./champion-builds-words";
 
@@ -42,6 +43,7 @@ describe("the builds' words", () => {
     expect(queueWords([420])).toBe("Ranked");
     expect(queueWords([400, 440, 700])).toBe("Draft, Ranked and Clash");
     expect(queueWords([])).toBe("Draft and Ranked");
+    expect(sourceWords({ games: 143, patches: ["26.23"], queues: [400, 420] })).toBe("From 143 games in the team's matches · patch 26.23 · all ranks · Draft and Ranked");
   });
 
   it("say why the previous patch was added, with both counts", () => {

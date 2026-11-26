@@ -1,9 +1,11 @@
 import { clampHaste } from "@/domain/champion-lookup/haste";
+import { isRole, type Role } from "@/domain/roles";
 
 /*
   CHAMPION INTEL's address (docs/CHAMPION_INTEL.md, "Address"):
-  /lookup?champion=<id>&haste=<n>&champion2=<id>&haste2=<n>, so a reload, a bookmark and a shared
-  link open the same champions at the same hastes. The path stayed /lookup when Champion Lookup was
+  /lookup?champion=<id>&haste=<n>&role=<role>&champion2=<id>&haste2=<n>&role2=<role>, so a reload, a
+  bookmark and a shared link open the same champions at the same hastes, each builds section on the
+  role chosen there (left out for its default). The path stayed /lookup when Champion Lookup was
   renamed Champion Intel (24 Nov 2026), so every link made before still opens. Each part is left out
   when empty (no champion; haste 0). A plain module, used by the page and by links elsewhere.
 */
@@ -19,16 +21,17 @@ export function lookupHref(champion?: string | null, haste?: number | null): str
   return intelHref({ id: champion ?? null, haste: haste ?? 0 });
 }
 
-/** One champion as the address carries it: its Data Dragon id (null for none) and its haste. */
+/** One champion as the address carries it: its Data Dragon id (null for none), its haste and, where one was chosen, the role its builds show. */
 export interface AddressChampion {
   id: string | null;
   haste: number;
+  role?: Role | null;
 }
 
 /**
- * Champion Intel's address for one champion, or two side by side: champion and haste for the
- * first, champion2 and haste2 for the second. A second champion with no first is written as the
- * first; a haste of 0 is left out.
+ * Champion Intel's address for one champion, or two side by side: champion, haste and role for
+ * the first, champion2, haste2 and role2 for the second. A second champion with no first is written
+ * as the first; a haste of 0 and a role not chosen are left out.
  */
 export function intelHref(first: AddressChampion | null, second?: AddressChampion | null): string {
   const q = new URLSearchParams();
@@ -36,9 +39,11 @@ export function intelHref(first: AddressChampion | null, second?: AddressChampio
   const [a, b] = both[0]?.id || !both[1] ? [both[0], both[1]] : [both[1], both[0]];
   if (a?.id) q.set("champion", a.id);
   if (a && clampHaste(a.haste) > 0) q.set("haste", String(clampHaste(a.haste)));
+  if (a?.id && a.role) q.set("role", a.role);
   if (b?.id) {
     q.set("champion2", b.id);
     if (clampHaste(b.haste) > 0) q.set("haste2", String(clampHaste(b.haste)));
+    if (b.role) q.set("role2", b.role);
   }
   const query = q.toString();
   return query ? `${LOOKUP_PATH}?${query}` : LOOKUP_PATH;
@@ -66,6 +71,12 @@ function one(v: string | string[] | undefined): string {
 /** The first value of a parameter, trimmed, or undefined: what the page hands the server as a champion's name. */
 export function paramOf(v: string | string[] | undefined): string | undefined {
   return one(v) || undefined;
+}
+
+/** A role as the address gives it ("SUPPORT", in any case), or null for none or anything else. */
+export function roleFromAddress(v: string | string[] | undefined): Role | null {
+  const s = one(v).toUpperCase();
+  return isRole(s) ? s : null;
 }
 
 /** A haste as the address gives it, for the page: whole and from 0 to HASTE_MAX, else 0 (an unreadable value names none). */

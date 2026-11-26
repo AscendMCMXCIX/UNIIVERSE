@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { LOOKUP_PATH, hasteFromAddress, intelHref, legacyMatchupRedirect, lookupHref, paramOf, swappedHref, withoutHref } from "./address";
+import { LOOKUP_PATH, hasteFromAddress, intelHref, legacyMatchupRedirect, lookupHref, paramOf, roleFromAddress, swappedHref, withoutHref } from "./address";
 import { parseRecent, withRecent, RECENT_MAX } from "./recent";
 
 /* Champion Intel's address and Matchup Intel's old links (docs/CHAMPION_INTEL.md, "Address"), and the device's Recent list. */
@@ -45,6 +45,21 @@ describe("the address", () => {
     expect(withoutHref(a, b, 1)).toBe("/lookup?champion=Ahri&haste=20");
     expect(withoutHref(a, b, 0)).toBe("/lookup?champion=Jinx&haste=50");
     expect(withoutHref({ id: "Ahri", haste: 0 }, { id: "Ahri", haste: 0 }, 0)).toBe("/lookup?champion=Ahri");
+  });
+
+  it("carries each champion's builds role where one was chosen, and old addresses without one still open", () => {
+    expect(intelHref({ id: "Leona", haste: 0, role: "ADC" })).toBe("/lookup?champion=Leona&role=ADC");
+    expect(intelHref({ id: "Leona", haste: 20, role: null }, { id: "Thresh", haste: 0, role: "SUPPORT" })).toBe("/lookup?champion=Leona&haste=20&champion2=Thresh&role2=SUPPORT");
+    // Swap and removal keep each role with its champion.
+    expect(swappedHref({ id: "Leona", haste: 0, role: "ADC" }, { id: "Thresh", haste: 10 })).toBe("/lookup?champion=Thresh&haste=10&champion2=Leona&role2=ADC");
+    expect(withoutHref({ id: "Leona", haste: 0, role: "ADC" }, { id: "Thresh", haste: 0, role: "SUPPORT" }, 0)).toBe("/lookup?champion=Thresh&role=SUPPORT");
+    // No champion, no role.
+    expect(intelHref({ id: null, haste: 0, role: "TOP" })).toBe("/lookup");
+    expect(roleFromAddress("support")).toBe("SUPPORT");
+    expect(roleFromAddress(["ADC", "TOP"])).toBe("ADC");
+    expect(roleFromAddress("UTILITY")).toBeNull();
+    expect(roleFromAddress(undefined)).toBeNull();
+    expect(lookupHref("Ahri")).toBe("/lookup?champion=Ahri");
   });
 
   it("hands the server a parameter's first value, trimmed, or nothing", () => {

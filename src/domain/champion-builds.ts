@@ -291,6 +291,8 @@ export interface RoleBuilds {
   core: BuildPart<BuildIcon[]>;
   /** Null when the core shows nothing (its "few"/"varied" says why) or no fourth item is common enough. */
   full: FullBuildValue | null;
+  /** The same after the core with the highest win rate, where the core part has one. */
+  fullHighest: FullBuildValue | null;
 }
 
 export type ChampionBuildsView =
@@ -482,10 +484,11 @@ export function roleBuilds(rows: readonly BuildCountRow[], lane: BuildLane, wind
     boots,
     core,
     full: core.state === "shown" ? fullBuild(t, core.standard, icons) : null,
+    fullHighest: core.state === "shown" && core.performer ? fullBuild(t, core.performer, icons) : null,
   };
 }
 
-/** The most common core's family with the items most often bought fourth and fifth after it, each reliable on its own (MIN_CHOICE_GAMES, MIN_CHOICE_SHARE). */
+/** A core's family with the items most often bought fourth and fifth after it, each reliable on its own (MIN_CHOICE_GAMES, MIN_CHOICE_SHARE). */
 function fullBuild(t: Map<BuildDim, Map<string, Tally>>, core: BuildChoice<BuildIcon[]>, icons: IconResolver): FullBuildValue | null {
   const after = (dim: "fourth" | "fifth", without: readonly string[]): { id: string; games: number; total: number } | null => {
     let total = 0;

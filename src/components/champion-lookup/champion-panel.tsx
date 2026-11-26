@@ -22,14 +22,16 @@ import { HasteField } from "./haste-field";
   each keeps its own haste and folds.
 
   - One champion ("single"): the header across the board; the abilities, and beside them where the
-    board is 64rem wide (a desktop) a column with the builds slot and the base statistics open;
-    narrower, those come after the abilities, the statistics folded.
+    board is 64rem wide (a desktop) the base statistics open (narrower, after the abilities,
+    folded); then the builds slot across the board's whole width, under both, where its rows have
+    the room to sit side by side (docs/CHAMPION_INTEL.md, "Builds and runes").
   - Compare ("compare"): the section is one column of the board's grid, a subgrid of its ten rows
     (header, facts, the abilities' heading, the five abilities, builds, statistics), so the same row
     of both champions has the same height and their values line up side by side.
 
   The builds slot (`builds`) is empty by default and renders nothing: the builds section is handed
-  in by the page and sits above the statistics (single) or in its own row after R (Compare).
+  in by the page and sits under the abilities and the statistics (single) or in its own row after
+  R (Compare).
 */
 
 export type ColumnMode = "single" | "compare";
@@ -173,16 +175,16 @@ export function ChampionPanel({
               <RankHeading ranks={ranks} mode="single" className="border-b border-border" />
               <AbilityList abilities={abilities} haste={haste} ranks={ranks} mode="single" />
             </div>
-            {builds || haveStats ? (
-              <aside aria-label={`${shown.name}: ${builds ? "builds and base stats" : "base stats"}`} className="min-w-0 space-y-4 border-t border-border px-3 py-3 sm:px-4 @min-[64rem]/panel:border-l @min-[64rem]/panel:border-t-0" data-testid="lookup-aside">
-                {builds ? <div data-testid="lookup-builds">{builds}</div> : null}
-                {haveStats ? (
-                  <>
-                    <BaseStatsPanel lines={statLines} name={shown.name} changedSince={facts?.statsChangedSincePatch ?? null} className="hidden @min-[64rem]/panel:block" />
-                    <BaseStatsFold lines={statLines} name={shown.name} changedSince={facts?.statsChangedSincePatch ?? null} id={`${uid}-stats`} className="@min-[64rem]/panel:hidden" />
-                  </>
-                ) : null}
+            {haveStats ? (
+              <aside aria-label={`${shown.name}: base stats`} className="min-w-0 space-y-4 border-t border-border px-3 py-3 sm:px-4 @min-[64rem]/panel:border-l @min-[64rem]/panel:border-t-0" data-testid="lookup-aside">
+                <BaseStatsPanel lines={statLines} name={shown.name} changedSince={facts?.statsChangedSincePatch ?? null} className="hidden @min-[64rem]/panel:block" />
+                <BaseStatsFold lines={statLines} name={shown.name} changedSince={facts?.statsChangedSincePatch ?? null} id={`${uid}-stats`} className="@min-[64rem]/panel:hidden" />
               </aside>
+            ) : null}
+            {builds ? (
+              <div className="min-w-0 border-t border-border px-3 py-3 sm:px-4 @min-[64rem]/panel:col-span-2" data-testid="lookup-builds">
+                {builds}
+              </div>
             ) : null}
           </div>
         ) : lookup ? (

@@ -8,12 +8,14 @@ import type { LookupChampion } from "@/domain/champion-lookup/view";
 import { alignedStats, listedStats, rankColumns } from "@/domain/champion-lookup/board";
 import { clampHaste } from "@/domain/champion-lookup/haste";
 import { SLOTS } from "@/domain/champion-lookup/types";
+import type { Role } from "@/domain/roles";
 import { ChampionPortrait } from "@/components/champion-portrait";
 import { toolbarButtonClass } from "@/components/ui/filter-bar";
 import { PAGE_TITLE } from "@/components/ui/page-header";
 import { intelHref, swappedHref, withoutHref } from "./address";
 import { SlotKey } from "./ability-list";
 import type { StatLine } from "./base-stats";
+import { BuildsRoleProvider } from "./builds-role";
 import { ChampionPanel } from "./champion-panel";
 import { ChampionPickerWindow } from "./champion-picker";
 import { ChampionSearch } from "./champion-search";
@@ -24,12 +26,13 @@ import { useRecentLookups } from "./recent";
   come from and, at its right, Compare (one champion) or Swap (two); then the board: one champion,
   or two side by side as one aligned board.
 
-  The address carries both champions and both hastes
-  (/lookup?champion=Ahri&haste=20&champion2=Jinx&haste2=0), so a reload or a shared link opens the
-  same; they are the page's state, like a filter, so a change replaces the address and never adds a
+  The address carries both champions, both hastes and the role each builds section shows where one
+  was chosen (/lookup?champion=Ahri&haste=20&champion2=Jinx&haste2=0&role2=ADC), so a reload or a
+  shared link opens the same; they are the page's state, like a filter, so a change replaces the address and never adds a
   history entry (Back leaves the page in one step). A champion chosen (from its name, which opens the
   window of every champion, or Compare) is built on the server: until it arrives, its column says
-  what is loading and is out of reach. A haste changes the numbers here at once, with no request.
+  what is loading and is out of reach. A haste, and a builds section's role, change the page here at
+  once, with no request.
   Swap and ✕ show their result at once too, while the address catches up. "/" opens the window for
   the champion whose column holds the focus (else the first).
 
@@ -85,6 +88,7 @@ export function LookupView({
   second,
   initialHaste,
   initialHaste2,
+  initialRoles,
   source,
   dropped,
   builds,
@@ -94,6 +98,8 @@ export function LookupView({
   second: LookupChampion | null;
   initialHaste: number;
   initialHaste2: number;
+  /** The role each champion's builds section shows, from the address (role, role2); null for its default. */
+  initialRoles?: [Role | null, Role | null];
   /** The source line beside the title (Riot Data Dragon's version, its patch, the game's patch). */
   source: React.ReactNode;
   dropped: boolean;
@@ -116,6 +122,14 @@ export function LookupView({
   if (seen[0] !== initialHaste || seen[1] !== initialHaste2) {
     setSeen([initialHaste, initialHaste2]);
     setHastes([clampHaste(initialHaste), clampHaste(initialHaste2)]);
+  }
+  // Each builds section's role (the page's state, like the hastes); an address from elsewhere brings its own.
+  const [roleA, roleB] = initialRoles ?? [null, null];
+  const [roles, setRoles] = React.useState<[Role | null, Role | null]>([roleA, roleB]);
+  const [seenRoles, setSeenRoles] = React.useState<[Role | null, Role | null]>([roleA, roleB]);
+  if (seenRoles[0] !== roleA || seenRoles[1] !== roleB) {
+    setSeenRoles([roleA, roleB]);
+    setRoles([roleA, roleB]);
   }
   const [picking, setPicking] = React.useState<Which | null>(null);
   // Compare's two statistics folds, open or closed together.
@@ -161,9 +175,12 @@ export function LookupView({
     setTarget({ which, champion: c });
     const nextHastes: [number, number] = which === 1 && !secondId ? [hastes[0], 0] : hastes;
     if (which === 1 && !secondId) setHastes(nextHastes);
+    // A new champion's builds open on their own default role.
+    const nextRoles: [Role | null, Role | null] = which === 0 ? [null, roles[1]] : [roles[0], null];
+    setRoles(nextRoles);
     const a = which === 0 ? id : first;
     const b = which === 1 ? id : secondId;
-    startTransition(() => router.replace(intelHref({ id: a, haste: nextHastes[0] }, b ? { id: b, haste: nextHastes[1] } : null), { scroll: false }));
+    startTransition(() => router.replace(intelHref({ id: a, haste: nextHastes[0], role: nextRoles[0] }, b ? { id: b, haste: nextHastes[1], role: nextRoles[1] } : null), { scroll: false }));
     return true;
   };
 
@@ -171,11 +188,12 @@ export function LookupView({
   const remove = (which: Which) => {
     if (!first || !secondId) return;
     const stays = which === 0 ? hastes[1] : hastes[0];
-    const href = withoutHref({ id: first, haste: hastes[0] }, { id: secondId, haste: hastes[1] }, which);
+    const href = withoutHref({ id: first, haste: hastes[0], role: roles[0] }, { id: secondId, haste: hastes[1], role: roles[1] }, which);
     setRemoved({ which, key: propsKey });
     setSwapped(null);
     setTarget(null);
     setHastes([stays, 0]);
+    setRoles([which === 0 ? roles[1] : roles[0], null]);
     // The focus goes to the champion that stays, once the address has caught up.
     focusAfter.current = 0;
     startTransition(() => router.replace(href, { scroll: false }));
@@ -184,21 +202,22 @@ export function LookupView({
   /** Swap: the two champions change places, each with its own haste and its open folds. */
   const swap = () => {
     if (!first || !secondId) return;
-    const href = swappedHref({ id: first, haste: hastes[0] }, { id: secondId, haste: hastes[1] });
+    const href = swappedHref({ id: first, haste: hastes[0], role: roles[0] }, { id: secondId, haste: hastes[1], role: roles[1] });
     setSwapped(propsKey);
     setRemoved(null);
     setTarget(null);
     setHastes([hastes[1], hastes[0]]);
+    setRoles([roles[1], roles[0]]);
     startTransition(() => router.replace(href, { scroll: false }));
   };
 
   // The address follows the page once it has arrived: each champion's own id (a name or another
-  // spelling reads as its id), the hastes chosen here, nothing for a champion the roster lacks.
+  // spelling reads as its id), the hastes and builds roles chosen here, nothing for a champion the roster lacks.
   React.useEffect(() => {
     if (pending) return;
-    const want = intelHref({ id: first, haste: hastes[0] }, secondId ? { id: secondId, haste: hastes[1] } : null);
+    const want = intelHref({ id: first, haste: hastes[0], role: roles[0] }, secondId ? { id: secondId, haste: hastes[1], role: roles[1] } : null);
     if (`${window.location.pathname}${window.location.search}` !== want) window.history.replaceState(window.history.state, "", want);
-  }, [pending, first, secondId, hastes]);
+  }, [pending, first, secondId, hastes, roles]);
 
   // Each champion shown joins the window's Recent row.
   React.useEffect(() => {
@@ -235,7 +254,9 @@ export function LookupView({
   const columnFor = (which: Which): { look: LookupChampion | null; shown: ChampionChoice | null; loading: boolean; builds: React.ReactNode } => {
     const own = order[which]!;
     const loading = pending && target?.which === which;
-    return { look: own.look, shown: loading ? target!.champion : (own.look?.champion ?? null), loading, builds: own.builds };
+    // Each column's builds read and set that column's role.
+    const builds = own.builds ? <BuildsRoleProvider value={{ role: roles[which], setRole: (r) => setRoles((now) => (which === 0 ? [r, now[1]] : [now[0], r])) }}>{own.builds}</BuildsRoleProvider> : null;
+    return { look: own.look, shown: loading ? target!.champion : (own.look?.champion ?? null), loading, builds };
   };
   const one = columnFor(0);
   const two = columnFor(1);

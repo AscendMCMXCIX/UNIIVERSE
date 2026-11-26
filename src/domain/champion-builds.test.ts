@@ -260,6 +260,26 @@ describe("a role's builds", () => {
     // The fifth: 9 games, under MIN_CHOICE_GAMES, so the full build stops at four.
     expect(9).toBeLessThan(MIN_CHOICE_GAMES);
     expect(b.full?.fifth).toBeNull();
+    // No core with a higher win rate here: no full build after one.
+    expect(b.fullHighest).toBeNull();
+  });
+
+  it("builds a full build after the core with the highest win rate too, where there is one", () => {
+    const two = roleBuilds(
+      lane("UTILITY", "16.22", 80, [
+        ["core", "3190>3107>3109", 45, 15],
+        ["core", "3190>3050>3109", 25, 17],
+        ["fourth", "3107,3109,3190|3222", 30, 10],
+        ["fourth", "3050,3109,3190|3107", 20, 14],
+      ]),
+      "UTILITY",
+      ["16.22"],
+      "16.22",
+      icons,
+    );
+    expect(two.core.state === "shown" && two.core.performer?.key).toBe("3050,3109,3190");
+    expect(two.full?.items.map((i) => i.name)).toEqual(["Item 3190", "Item 3107", "Item 3109", "Item 3222"]);
+    expect(two.fullHighest?.items.map((i) => i.name)).toEqual(["Item 3190", "Item 3050", "Item 3109", "Item 3107"]);
   });
 
   it("shows the boots part as 'none' only for games that completed three items without boots", () => {

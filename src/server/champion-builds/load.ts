@@ -80,7 +80,7 @@ export function skillRanksOf(abilities: ReadonlyArray<{ slot: Slot; ranks: numbe
 }
 
 /** Whether counts go through Next's data cache: inside the Next server, on the production database only. */
-async function useDataCache(db: Db): Promise<boolean> {
+async function sharedCacheFor(db: Db): Promise<boolean> {
   if (!process.env.NEXT_RUNTIME) return false;
   try {
     const handle = await getDbHandle();
@@ -112,7 +112,7 @@ export async function loadChampionBuilds(db: Db, session: Session | null, input:
     const items = itemClasses(buildData?.itemInfo ?? {});
     const count = () => readBuildCounts(db, { champion: input.championId, patches, items, ranks: input.ranks });
     const ranksKey = input.ranks ? [1, 2, 3, 4].map((s) => input.ranks![s as 1 | 2 | 3 | 4]).join(",") : "none";
-    const rows: BuildCountRow[] = (await useDataCache(db))
+    const rows: BuildCountRow[] = (await sharedCacheFor(db))
       ? await unstable_cache(count, ["champion-builds", String(BUILDS_FORMAT), input.championId, patches.join("+"), ranksKey, buildData?.version ?? "no-items"], { revalidate: CACHE_SECONDS, tags: [BUILDS_CACHE_TAG] })()
       : await count();
     return championBuildsView(input.championName, rows, { current: current.patch, previous }, iconResolver(assets));
