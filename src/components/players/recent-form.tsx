@@ -39,19 +39,35 @@ export function RecentFormStrip({ form, championsById, historyHref, narrowed = n
           <h2 id="recent-form-title" className="text-base font-semibold text-fg">
             Recent form
           </h2>
+          {/* The verdict in words where the card has room for it beside the title, else its short form
+              (the words stay for a screen reader), so the title's row never wraps and the card never
+              grows a line because of the verdict's length (a 1440 × 900 Overview ran 2px past the
+              window when "Better lately (+N pts)" wrapped). */}
           <div className="flex items-center gap-1 text-xs" data-testid="recent-form-trend" data-trend={form.trend ?? "none"}>
             {form.trend === "up" ? (
               <span className="inline-flex items-center gap-1 text-good">
-                <TrendingUp className="h-3.5 w-3.5" aria-hidden /> Better lately (+{form.gapPoints} pts)
+                <TrendingUp className="h-3.5 w-3.5" aria-hidden />
+                <span className="@max-[19rem]:hidden">Better lately (+{form.gapPoints} pts)</span>
+                <span className="hidden whitespace-nowrap tabular-nums @max-[19rem]:inline" aria-hidden>+{form.gapPoints} pts</span>
+                <span className="sr-only @min-[19rem]:hidden">Better lately (+{form.gapPoints} pts)</span>
               </span>
             ) : form.trend === "down" ? (
               <span className="inline-flex items-center gap-1 text-bad">
-                <TrendingDown className="h-3.5 w-3.5" aria-hidden /> Worse lately ({form.gapPoints} pts)
+                <TrendingDown className="h-3.5 w-3.5" aria-hidden />
+                <span className="@max-[19rem]:hidden">Worse lately ({form.gapPoints} pts)</span>
+                <span className="hidden whitespace-nowrap tabular-nums @max-[19rem]:inline" aria-hidden>{form.gapPoints} pts</span>
+                <span className="sr-only @min-[19rem]:hidden">Worse lately ({form.gapPoints} pts)</span>
               </span>
             ) : form.trend === "steady" ? (
-              <span className="text-fg-muted">In line with the season</span>
+              <span className="text-fg-muted">
+                <span className="@max-[19rem]:hidden">In line with the season</span>
+                <span className="hidden @max-[19rem]:inline">Steady</span>
+              </span>
             ) : (
-              <span className="text-fg-subtle">Too few games to call a trend</span>
+              <span className="text-fg-subtle">
+                <span className="@max-[19rem]:hidden">Too few games to call a trend</span>
+                <span className="hidden @max-[19rem]:inline">No trend yet</span>
+              </span>
             )}
             <InfoTip label="About recent form" text={RECENT_FORM_HELP} />
           </div>
