@@ -288,7 +288,8 @@ function RecordPicture({ record, holder, champion }: { record: RecordView; holde
   above 100). By the board's own width:
     table   (from 26rem: the desktop board's column, a tablet) place · player and the most-played
             role's icon · games with counts · doubles · triples · quadras · pentas · Score; the kinds'
-            headings "2×"–"5×", their words ("Doubles"…) from a 40rem board; 40px rows (44 on touch);
+            headings "2×"–"5×" in 1.5rem columns, 8px apart (a long one-word name keeps its word whole),
+            their words ("Doubles"…) from a 40rem board; 40px rows (44 on touch);
     narrow  (a phone) place · player and icon · Score on the first line; the games and the kinds made
             in words across the line under it ("46 games · 32 doubles · 7 triples · 5 quadras · 2 pentas",
             a kind with none left out), so nothing is wider than the phone and no figure is microscopic;
@@ -302,8 +303,13 @@ function RecordPicture({ record, holder, champion }: { record: RecordView; holde
 */
 const MK_COLS =
   "flex h-full flex-col [--dl-cols:1.75rem_minmax(0,1fr)_auto] " +
-  "@min-[26rem]/list:[--dl-cols:1.75rem_minmax(0,1fr)_2.5rem_repeat(4,1.75rem)_3.25rem] " +
+  "@min-[26rem]/list:[--dl-cols:1.75rem_minmax(0,1fr)_2.25rem_repeat(4,1.5rem)_3.25rem] " +
   "@min-[40rem]/list:[--dl-cols:2rem_minmax(0,1fr)_3rem_repeat(4,3.25rem)_4rem]";
+/**
+ * The table's column gap: 8px from 26rem (the rows' and the headings' alike, over DataList's 10–12px), so a long one-word name keeps
+ * its word whole in 1366's and 1440's 28–31rem column ("THUNDERSTRUC|K KAISER" broke there with 1.75rem kind columns and 10px gaps).
+ */
+const TABLE_GAP = "@min-[26rem]/list:gap-x-2!";
 /** A cell of the table's own columns (hidden on a narrow board, where the line of words says the same). */
 const TABLE_CELL = "hidden @min-[26rem]/list:block";
 const KIND_HEAD: Record<MultikillKey, { short: string; word: string; spoken: string }> = {
@@ -344,7 +350,7 @@ export function Multikills({ records, player, champions, className }: { records:
         className="flex-auto"
         testId="records-multikills"
         headsTestId="multikill-heads"
-        headsClassName="hidden @min-[26rem]/list:grid"
+        headsClassName={cn("hidden @min-[26rem]/list:grid", TABLE_GAP)}
         heads={board.rows.length ? MK_HEADS : undefined}
         title={
           <BoardTitle id="multikills-title" icon={<Flame className="h-4 w-4 shrink-0 text-fg-subtle" aria-hidden />} aside={<InfoTip label="How the multikill score works" text={board.explain} testId="multikill-explain" />} note={<span data-testid="multikill-basis">{board.basis}</span>} noteTestId="multikill-note-line">
@@ -436,7 +442,7 @@ function MultikillRowItem({ r, p, tie, board, champions }: { r: MultikillRow; p:
       data-you={r.you || undefined}
       own={r.you}
       density="compact"
-      className="gap-y-0!"
+      className={cn("gap-y-0!", TABLE_GAP)}
       lead={<Place place={r.place} tie={tie} leader={r.place === 1} testId="multikill-place" className="col-[1/2] row-[1/2] self-center" />}
       link={linked ? <PeekRowLink playerId={p.id} name={p.name} profileHref={p.profileHref!} /> : null}
       figures={
@@ -470,8 +476,11 @@ function MultikillRowItem({ r, p, tie, board, champions }: { r: MultikillRow; p:
       }
     >
       {/* The player as their card names them, and the role they mostly played in the score's games (its ⓘ: every position's share). */}
-      <span className="col-[2/3] row-[1/2] flex min-w-0 items-center gap-1.5 self-center @max-[15rem]/list:col-[1/-1] @max-[15rem]/list:row-[2/3]" data-testid="multikill-player">
-        <MemberCell look={p.look} name={p.name} avatar={false} you={r.you} readName={!linked} nameHref={p.profileHref ?? undefined} nameTestId="board-member-name" className="min-w-0" />
+      {/* The name's longest word sets its least width (its text breaks between words, wrap-break-word over CardName's "anywhere"); where
+          the name and the icon do not fit one line (a long one-word name in 1366's column), the icon wraps under the name rather than a
+          word breaking. */}
+      <span className="col-[2/3] row-[1/2] flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 self-center @max-[15rem]/list:col-[1/-1] @max-[15rem]/list:row-[2/3]" data-testid="multikill-player">
+        <MemberCell look={p.look} name={p.name} avatar={false} you={r.you} readName={!linked} nameHref={p.profileHref ?? undefined} nameTestId="board-member-name" nameClassName="*:wrap-break-word" className="min-w-0" />
         <RoleTip role={r.role} />
       </span>
       {/* A phone's line of words under the name: the games and every kind (the table's columns say these from 26rem). */}
