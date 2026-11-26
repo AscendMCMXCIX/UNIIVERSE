@@ -38,10 +38,24 @@ const AT: ChampionLookupRead = {
   timerWords: false,
   url: "/lookup?champion=Ahri",
   secondChampion: null,
+  buildsStatus: "shown",
+  buildsLine: "From 143 games in the team's matches · patch 26.23 · all ranks · Draft and Ranked",
+  buildsFew: "",
+  buildsParts: [
+    { part: "runes", state: "shown", win: "54%", pick: "61%", pictures: 6, text: "" },
+    { part: "shards", state: "shown", win: "52%", pick: "40%", pictures: 3, text: "" },
+    { part: "spells", state: "shown", win: "53%", pick: "88%", pictures: 2, text: "" },
+    { part: "skills", state: "shown", win: "55%", pick: "70%", pictures: 0, text: "" },
+    { part: "start", state: "shown", win: "52%", pick: "64%", pictures: 2, text: "" },
+    { part: "boots", state: "shown", win: "51%", pick: "45%", pictures: 1, text: "" },
+    { part: "core", state: "few", win: "", pick: "", pictures: 0, text: "Too few recorded yet (18 games)" },
+  ],
+  buildsLevel: null,
+  buildsIdentity: false,
 };
 const WIDE: ChampionLookupRead = { ...AT, size: "1920x1080", innerHeight: 1080, scrollHeight: 1080 };
 const HASTED: ChampionLookupRead = { ...AT, haste: 20, qHasted: [5.83, 5.83, 5.83, 5.83, 5.83], qOpen: true, qDescription: 120, url: "/lookup?champion=Ahri&haste=20" };
-const DUAL: ChampionLookupRead = { ...AT, panels: 2, sideBySide: true, rowsLevel: true, slotKeys: "PQWER", lastBottom: 690, url: "/lookup?champion=Ahri&haste=20&champion2=Jinx", secondChampion: "Jinx" };
+const DUAL: ChampionLookupRead = { ...AT, panels: 2, sideBySide: true, rowsLevel: true, slotKeys: "PQWER", lastBottom: 690, url: "/lookup?champion=Ahri&haste=20&champion2=Jinx", secondChampion: "Jinx", buildsLevel: true };
 const SWAPPED: ChampionLookupRead = { ...DUAL, champion: "Jinx", secondChampion: "Ahri", url: "/lookup?champion=Jinx&champion2=Ahri&haste2=20" };
 const REMOVED: ChampionLookupRead = { ...AT, haste: 20, url: "/lookup?champion=Ahri&haste=20" };
 const ALL: ChampionWindowRead = { open: true, shown: 173, counted: 173, first: "Aatrox", found: "" };
@@ -54,7 +68,7 @@ describe("Champion Intel's Production check facts", () => {
   it("pass the page as it should be, every fact", () => {
     const v = run();
     expect(v.filter((x) => x.status !== "PASS")).toEqual([]);
-    expect(v.length).toBeGreaterThanOrEqual(17);
+    expect(v.length).toBeGreaterThanOrEqual(22);
   });
 
   it("hold the haste to Riot's rule on an ordinary ability", () => {
@@ -104,9 +118,43 @@ describe("Champion Intel's Production check facts", () => {
     expect(failed({ at: { ...AT, slotKeys: "QWER" } })).toEqual(["desktop: each ability's slot key is a tile of its own, P to R"]);
   });
 
+  it("hold the builds to a member's view: shown with their source line and every part, or the honest line naming the current patch; never a player's identity", () => {
+    const shown = "desktop: the builds and runes are shown to a member who may see teammates' statistics: the builds, or the line that the patch has too few games yet";
+    const line = "desktop: the builds' source line says the games, the team's matches, the current patch (the previous one added only where it says so), all ranks and the queues";
+    const parts = "desktop: each part of the builds shows its choice as icons with its win rate and pick rate, or says why there is none";
+    const honest = "desktop: the builds' honest line names the current patch: no build made up from too few games";
+    const identity = "desktop: the builds name no player: no Riot ID or account id in them, one champion or two";
+    const level = "desktop: Compare: each champion's builds on one row after R, level in both columns";
+    for (const name of [shown, line, parts, identity, level]) expect(run().find((v) => v.name === name)?.status, name).toBe("PASS");
+    // No section, or one that could not be read.
+    expect(failed({ at: { ...AT, buildsStatus: null } })).toEqual([shown]);
+    expect(failed({ at: { ...AT, buildsStatus: "unavailable" } })).toEqual([shown]);
+    // The previous patch added is said; an older patch alone, or another patch, is not this one.
+    expect(failed({ at: { ...AT, buildsLine: "From 31 games in the team's matches · patches 26.22–26.23 · all ranks · Ranked" } })).toEqual([]);
+    expect(failed({ at: { ...AT, buildsLine: "From 31 games in the team's matches · patch 26.22 · all ranks · Ranked" } })).toEqual([line]);
+    expect(failed({ at: { ...AT, buildsLine: "From 31 games · patch 26.23" } })).toEqual([line]);
+    // A part with no figures, no icons, or missing.
+    expect(failed({ at: { ...AT, buildsParts: AT.buildsParts.map((r) => (r.part === "runes" ? { ...r, win: "" } : r)) } })).toEqual([parts]);
+    expect(failed({ at: { ...AT, buildsParts: AT.buildsParts.map((r) => (r.part === "spells" ? { ...r, pictures: 0 } : r)) } })).toEqual([parts]);
+    expect(failed({ at: { ...AT, buildsParts: AT.buildsParts.filter((r) => r.part !== "boots") } })).toEqual([parts]);
+    // Too few games: the honest line, naming this patch, with no part.
+    const few = { ...AT, buildsStatus: "few", buildsLine: "", buildsParts: [], buildsFew: "Not enough games on patch 26.23 in the team's matches yet" };
+    expect(failed({ at: few })).toEqual([]);
+    expect(run({ at: few }).find((v) => v.name === honest)?.status).toBe("PASS");
+    expect(failed({ at: { ...few, buildsFew: "Not enough games on patch 26.22 in the team's matches yet" } })).toEqual([honest]);
+    expect(failed({ at: { ...few, buildsParts: AT.buildsParts } })).toEqual([honest]);
+    // Never a player's identity, in one champion's builds or in Compare's.
+    expect(failed({ at: { ...AT, buildsIdentity: true } })).toEqual([identity]);
+    expect(failed({ dual: { ...DUAL, buildsIdentity: true } })).toEqual([identity]);
+    // Compare's two builds rows level, judged only with two.
+    expect(failed({ dual: { ...DUAL, buildsLevel: false } })).toEqual([level]);
+    expect(run({ dual: { ...DUAL, buildsLevel: null } }).some((v) => v.name === level)).toBe(false);
+  });
+
   it("compare the patch with /api/health's, and accept the line that says the game is ahead", () => {
-    expect(failed({ healthPatch: "16.24" })).toHaveLength(1);
-    expect(failed({ healthPatch: "16.24", at: { ...AT, source: "Riot Data Dragon 16.23.1 · patch 26.23 · the game is on patch 26.24" } })).toEqual([]);
+    // The abilities' patch, and the builds' (always counted on the game's current patch), both against it.
+    expect(failed({ healthPatch: "16.24" })).toHaveLength(2);
+    expect(failed({ healthPatch: "16.24", at: { ...AT, source: "Riot Data Dragon 16.23.1 · patch 26.23 · the game is on patch 26.24", buildsLine: "From 22 games in the team's matches · patches 26.23–26.24 · all ranks · Ranked" } })).toEqual([]);
     expect(run({ healthPatch: undefined }).some((v) => v.name.includes("/api/health"))).toBe(false);
   });
 

@@ -16,9 +16,9 @@ const KEY = "riot_assets";
 /**
  * The build data (items' shop facts, summoner spells' cooldowns, rune trees' slots), kept beside the
  * names under a key of its own: every match history and timeline read loads the names (about 33 KB),
- * and none of them needs the build data (about 57 KB more). Made for Matchup Intel's build evidence,
- * which was retired on 23 Nov 2026; still stored once per version for what may read it next (a game's
- * build path and runes), read by nothing today (R6 review SR6-SEC-5; docs/HOSTING_USAGE.md).
+ * and none of them needs the build data (about 57 KB more). Made for Matchup Intel's build evidence
+ * (retired 23 Nov 2026); read since 25 Nov 2026 by Champion Intel's builds, for which purchases are
+ * boots and completed items (server/champion-builds; R6 review SR6-SEC-5; docs/HOSTING_USAGE.md).
  */
 const BUILD_KEY = "riot_build_data";
 
@@ -264,7 +264,7 @@ export async function loadRiotAssets(db: Db): Promise<RiotAssets | null> {
   }, db);
 }
 
-/** The build data (BUILD_KEY above): stored for each version; no page reads it since Matchup Intel was retired. */
+/** The build data (BUILD_KEY above): stored for each version; Champion Intel's builds read its items' shop facts. */
 export async function loadRiotBuildData(db: Db): Promise<RiotBuildData | null> {
   return cachedFor(BUILD_KEY, 10 * 60_000, async () => {
     const [row] = await db.select({ value: appSettings.value }).from(appSettings).where(eq(appSettings.key, BUILD_KEY));

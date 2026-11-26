@@ -9,8 +9,12 @@
   the haste field, one ability's row opened, and the window of every champion opened from the
   champion's name and searched. Then Compare with Jinx (one request: the page builds the second
   champion on the server), read at 1440 × 900 on the aligned board; Swap (one request), read; and ✕
-  on the first column (one request), which leaves Ahri alone again. Then Matchup Intel's old
-  address, which must land here carrying its enemy. Read in the page only: counts, true or false,
+  on the first column (one request), which leaves Ahri alone again. Each read also takes the
+  champion's builds and runes (counted in the team's stored matches, streamed in after the
+  abilities): whether they show, the source line, each part's choice with its win and pick rate or
+  why there is none, or the honest line that the patch has too few games; and that no Riot ID or
+  account id is anywhere in them. Then Matchup Intel's old address, which must land here carrying
+  its enemy. Read in the page only: counts, true or false,
   px, numbers and the page's own fixed words; no name but champions' and abilities'.
 */
 
@@ -78,7 +82,37 @@ export function readChampionLookup() {
     timerWords: /\b(timer|countdown|ready at|ready in|verified)\b/i.test(text(document.querySelector("main"))),
     url: location.pathname + location.search,
     secondChampion: panels.find((p) => p.getAttribute("data-panel") === "2")?.getAttribute("data-champion") ?? null,
+    // The first champion's builds and runes: "shown", "few", "unavailable", or null (no section).
+    ...readBuilds(panel),
+    // Compare: the two champions' builds slots on one row (level within a pixel); null with fewer than two.
+    buildsLevel: (() => {
+      const slots = shown.map((s) => s.querySelector('[data-testid="lookup-builds"]')).filter(Boolean).map((e) => e.getBoundingClientRect());
+      return slots.length === 2 ? Math.abs(slots[0].top - slots[1].top) <= 1 && Math.abs(slots[0].height - slots[1].height) <= 1 : null;
+    })(),
+    // A Riot ID ("Name#TAG") or an account id (a long unbroken token) anywhere in the builds sections, text or attributes.
+    buildsIdentity: [...document.querySelectorAll('[data-testid="lookup-builds"]')].some((el) => {
+      const said = [el.textContent ?? "", ...[...el.querySelectorAll("*")].flatMap((e) => [...e.attributes].map((a) => a.value))].join(" ");
+      return /#[A-Za-z0-9]{2,5}\b/.test(said) || /[A-Za-z0-9_-]{60,}/.test(said);
+    }),
   };
+
+  /** The builds section of a column: its state, its source line, the honest line, and each part's row. */
+  function readBuilds(column) {
+    const view = column?.querySelector('[data-testid="lookup-builds-view"]') ?? null;
+    return {
+      buildsStatus: view?.getAttribute("data-status") ?? null,
+      buildsLine: view?.querySelector('[data-testid="lookup-build-source"]')?.getAttribute("data-line") ?? "",
+      buildsFew: text(view?.querySelector('[data-testid="lookup-build-few"]')),
+      buildsParts: [...(view?.querySelectorAll('[data-testid="lookup-build-part"]') ?? [])].map((r) => ({
+        part: r.getAttribute("data-part") ?? "",
+        state: r.getAttribute("data-state") ?? "",
+        win: text(r.querySelector('[data-testid="lookup-build-win"]')),
+        pick: text(r.querySelector('[data-testid="lookup-build-pick"]')),
+        pictures: r.querySelectorAll('[data-testid="lookup-build-choice"] img, [data-testid="lookup-build-choice"] [role=img]').length,
+        text: text(r.querySelector('[role="cell"]')),
+      })),
+    };
+  }
 }
 
 /** The window of every champion, read in the page once it is open (and after a search typed in it). */
@@ -158,6 +192,22 @@ export function championLookupVerdicts({ kind, champion, at, wide, hastedRead, a
   if (removed !== undefined) {
     fact("✕ on the first column leaves the second champion alone, as the first, its haste with it", removed.panels === 1 && removed.champion === champion && /^\/lookup\?champion=[^&]+&haste=20$/.test(removed.url), { panels: removed.panels, champion: removed.champion, url: removed.url });
   }
+  // Builds and runes, counted in the team's stored matches (docs/CHAMPION_INTEL.md, "Builds and runes"):
+  // the check signs in as a member with the default access, which may see teammates' statistics.
+  const game = publicPatch(healthPatch ?? null) ?? /patch (\d+\.\d+)/.exec(at.source)?.[1] ?? null;
+  fact("the builds and runes are shown to a member who may see teammates' statistics: the builds, or the line that the patch has too few games yet", at.buildsStatus === "shown" || at.buildsStatus === "few", { status: at.buildsStatus });
+  if (at.buildsStatus === "shown") {
+    const m = /^From \d[\d,]* games? in the team's matches · (?:patch (\d+\.\d+)|patches \d+\.\d+–(\d+\.\d+)) · all ranks · (?:Draft|Ranked|Clash)(?:(?:, | and )(?:Ranked|Clash))*$/.exec(at.buildsLine);
+    const newest = m?.[1] ?? m?.[2] ?? null;
+    fact("the builds' source line says the games, the team's matches, the current patch (the previous one added only where it says so), all ranks and the queues", !!m && (game === null || newest === game), { line: at.buildsLine, game });
+    const ok = (r) => (r.state === "shown" ? (r.part === "full" || (/^\d{1,3}%$/.test(r.win) && /^\d{1,3}%$/.test(r.pick))) && (r.part === "skills" || r.pictures > 0) : r.text.length > 0);
+    const parts = at.buildsParts.map((r) => r.part);
+    fact("each part of the builds shows its choice as icons with its win rate and pick rate, or says why there is none", at.buildsParts.length >= 7 && at.buildsParts.every(ok) && ["runes", "shards", "spells", "skills", "start", "boots", "core"].every((p) => parts.includes(p)), { parts: at.buildsParts.map((r) => `${r.part}:${r.state}`) });
+  } else if (at.buildsStatus === "few") {
+    fact("the builds' honest line names the current patch: no build made up from too few games", /^Not enough games on patch \d+\.\d+ in the team's matches yet$/.test(at.buildsFew) && (game === null || at.buildsFew.includes(`patch ${game} `)) && at.buildsParts.length === 0, { line: at.buildsFew, game });
+  }
+  fact("the builds name no player: no Riot ID or account id in them, one champion or two", !at.buildsIdentity && !(dual?.buildsIdentity ?? false), { at: at.buildsIdentity, dual: dual?.buildsIdentity ?? null });
+  if (dual !== undefined && dual.buildsLevel !== null) fact("Compare: each champion's builds on one row after R, level in both columns", dual.buildsLevel === true, { level: dual.buildsLevel });
   fact("Matchup Intel's old address lands on Champion Intel, carrying its enemy (vs)", legacy.url === "/lookup?champion=Mordekaiser" && legacy.champion === "Mordekaiser" && legacy.heading === "Champion Intel", { url: legacy.url, champion: legacy.champion });
   fact("no timer, countdown, ready time or \"verified\" anywhere on the page", !at.timerWords && !hastedRead.timerWords, null);
   return out;

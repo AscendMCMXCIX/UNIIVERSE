@@ -339,6 +339,27 @@ export function ChampionBuilds({ view }: { view: ChampionBuildsView }) {
             {ROLE_LABELS[role]}
           </span>
         )}
+        {/* Beside the title where the section is wide (one champion on a desktop), on a line of its own narrower. */}
+        <p className="min-w-0 basis-full text-xs text-fg-muted @min-[52rem]/builds:basis-auto" data-testid="lookup-build-source" data-line={sourceWords(b)} data-games={b.games} data-patches={b.patches.join(",")}>
+          <InfoTip text={gamesTip(b)} testId="lookup-build-games">
+            {gamesWords(b)}
+          </InfoTip>{" "}
+          <InfoTip text={SOURCE_TIP} testId="lookup-build-where">
+            in the team&apos;s matches
+          </InfoTip>
+          <Sep />
+          <InfoTip text={patchTip(b)} testId="lookup-build-patch">
+            <span className={cn(b.widened && "text-warn")}>{patchWords(b)}</span>
+          </InfoTip>
+          <Sep />
+          <InfoTip text={RANK_TIP} testId="lookup-build-ranks">
+            all ranks
+          </InfoTip>
+          <Sep />
+          <InfoTip text={QUEUE_TIP} testId="lookup-build-queues">
+            {queueWords(b.queues)}
+          </InfoTip>
+        </p>
         {offersHighest ? (
           <div role="radiogroup" aria-label={`${view.championName}'s choices`} className={segmentedGroupClass("-my-1 @min-[30rem]/builds:ml-auto")} data-testid="lookup-build-mode">
             {(["common", "highest"] as const).map((m) => (
@@ -349,26 +370,6 @@ export function ChampionBuilds({ view }: { view: ChampionBuildsView }) {
           </div>
         ) : null}
       </Heading>
-      <p className="text-xs text-fg-muted" data-testid="lookup-build-source" data-line={sourceWords(b)} data-games={b.games} data-patches={b.patches.join(",")}>
-        <InfoTip text={gamesTip(b)} testId="lookup-build-games">
-          {gamesWords(b)}
-        </InfoTip>{" "}
-        <InfoTip text={SOURCE_TIP} testId="lookup-build-where">
-          in the team&apos;s matches
-        </InfoTip>
-        <Sep />
-        <InfoTip text={patchTip(b)} testId="lookup-build-patch">
-          <span className={cn(b.widened && "text-warn")}>{patchWords(b)}</span>
-        </InfoTip>
-        <Sep />
-        <InfoTip text={RANK_TIP} testId="lookup-build-ranks">
-          all ranks
-        </InfoTip>
-        <Sep />
-        <InfoTip text={QUEUE_TIP} testId="lookup-build-queues">
-          {queueWords(b.queues)}
-        </InfoTip>
-      </p>
       <div className="grid gap-x-8 gap-y-1 @min-[52rem]/builds:grid-cols-2">
         <Group parts={["runes", "shards", "spells", "skills"]} b={b} mode={shown} label={`${view.championName}'s runes, spells and skill order (${formatCount(b.games)} games)`} />
         <Group parts={["start", "boots", "core"]} b={b} mode={shown} label={`${view.championName}'s items (${formatCount(b.timelineGames)} games with a timeline)`} full />

@@ -7,6 +7,38 @@ UNIIVERSE runs on the free plans of Supabase (the Postgres database) and Vercel 
 
 This page records what caused that, what was changed, how it was measured, and how to check it again. The second pass, after egress reached 7.14 GB on 20 Oct, is the next section.
 
+## 26 Nov 2026: Champion Intel's builds and runes (one counting statement per champion, cached six hours)
+
+**What it reads.** Champion Intel's builds (docs/CHAMPION_INTEL.md, "Builds and runes") count what
+players chose on a champion in the team's stored draft games: one statement per champion and patch
+window (`src/server/champion-builds/query.ts`) that opens only that champion's records through a new
+GIN index on the records' champions (`match_details_champions_idx`, migration `0069`, the PUUID
+index's twin: a few MB at most), reads each player's timeline entry inside the database (never a
+timeline's frames or events, its big columns), and returns totals only: about one short row per
+counted value.
+
+**Measured** (the in-memory demo, PGlite, 266 records, 219 timelines; `tests/db/champion-builds.test.ts`
+bounds the answer): 17–50 ms of database time per champion; the answer 1–9 KB (Nasus 2.1 KB, Thresh
+7.2 KB, Leona's two roles on two patches 7.9 KB, the largest 9.1 KB). Production estimate (about 3,000
+records a patch window): 50–300 ms of database time with the index, 5–20 KB for a popular champion.
+Without the index every computation would unpack all of the season's records (0.9–2.4 s measured for
+comparable scans, PERFORMANCE.md).
+
+**Cost per day.** The counts are cached six hours in Next's data cache, shared by every server
+instance (a per-instance cache would miss on every cold instance), keyed by the champion, the patch
+window, the abilities' ranks, the item data's version and the rules' format; a page view inside the
+six hours reads nothing for them. About eleven members opening 20 champions a day, each counted at
+most four times: under 1 MB of egress a day, against the 120 MB budget; a few seconds of database
+time. The Production check opens Ahri and Jinx: at most two statements a run (and none within six
+hours of another). Vercel Active CPU: choosing and drawing the parts, a few milliseconds a view. The
+section streams in after the abilities, so the page's first answer does not wait for it. No job, no
+table, no Riot request.
+
+**If it ever weighs.** Read the statement's line in Data health's egress table (`SELECT
+match_details`, the `champion-builds` shape); a derived per-player table filled as games arrive
+would make the read smaller still, at the cost of a migration with its grants block and its own
+erasure step (the design's rejected alternative, kept for a future population source).
+
 ## 25 Nov 2026: profile pictures read once per upload, not once per browser
 
 **What happened.** Data jobs' hourly health check failed from 24 Nov: the app's own egress counter put

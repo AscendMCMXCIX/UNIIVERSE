@@ -1209,11 +1209,12 @@ async function resourcesFacts(page, kind) {
  * the Q's row opened, and the window of every champion opened from the champion's name, read,
  * searched for "ahr" and closed with Escape; then Compare with Jinx (the page builds her on the
  * server), read at 1440 × 900 on the aligned board, swapped (one request), read, and the first
- * column's ✕ pressed (one request), which leaves the first champion alone; then Matchup Intel's old address
+ * column's ✕ pressed (one request), which leaves the first champion alone; each read with the
+ * champion's builds and runes (streamed in after the abilities, waited for); then Matchup Intel's old address
  * (/resources/matchups?champion=Riven&vs=Mordekaiser), which must land on Champion Intel with
  * Mordekaiser. What is read and asserted is in scripts/champion-lookup-facts.mjs, beside its unit
  * test. It reads nothing beyond what the page itself reads (the session, the cached roster and
- * patch, the chosen champions' stored abilities).
+ * patch, the chosen champions' stored abilities and their cached build totals).
  */
 /** /api/health's current patch (null when it names none or does not answer): no page load. */
 function healthPatchNow() {
@@ -1227,6 +1228,8 @@ function healthPatchNow() {
 
 async function championLookupFacts(page, kind) {
   await page.getByTestId("lookup-view").and(page.locator("[data-ready=true]")).waitFor({ timeout: 20_000 });
+  // The builds arrive after the abilities (streamed): waited for, never a failure of their own here.
+  await page.locator('[data-panel="1"] [data-testid="lookup-builds-view"]').waitFor({ timeout: 20_000 }).catch(() => {});
   const at = await page.evaluate(readChampionLookup);
   await page.setViewportSize({ width: 1920, height: 1080 });
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
@@ -1256,6 +1259,7 @@ async function championLookupFacts(page, kind) {
     await page.getByTestId("lookup-picker-search").fill("jinx");
     await page.locator('[data-testid="lookup-picker-grid"] button[data-champion="Jinx"]').click({ timeout: 10_000 });
     await page.locator('[data-panel="2"][data-champion="Jinx"]:not([aria-busy])').waitFor({ timeout: 20_000 });
+    await page.locator('[data-panel="2"] [data-testid="lookup-builds-view"]').waitFor({ timeout: 20_000 }).catch(() => {});
     dual = await page.evaluate(readChampionLookup);
     await page.getByTestId("lookup-swap").click({ timeout: 5_000 });
     await page.locator('[data-panel="1"][data-champion="Jinx"]').waitFor({ timeout: 20_000 });

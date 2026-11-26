@@ -34,6 +34,14 @@ export interface ChampionLookupRead {
   timerWords: boolean;
   url: string;
   secondChampion: string | null;
+  /** The first champion's builds section: "shown", "few", "unavailable", or null (none). */
+  buildsStatus: string | null;
+  buildsLine: string;
+  buildsFew: string;
+  buildsParts: Array<{ part: string; state: string; win: string; pick: string; pictures: number; text: string }>;
+  /** Compare: the two builds slots level; null with fewer than two. */
+  buildsLevel: boolean | null;
+  buildsIdentity: boolean;
 }
 
 export interface ChampionWindowRead {

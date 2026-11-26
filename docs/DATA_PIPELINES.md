@@ -98,6 +98,10 @@ From the same match and timeline requests as before (no new request, no new endp
 
 ### Matchup Intel's evidence rows (20–23 Nov 2026) and the patch digests
 
+- **Champion Intel's builds** (25 Nov 2026, docs/CHAMPION_INTEL.md "Builds and runes") read the
+  stored records and timelines themselves, counted in one statement per champion (totals only,
+  cached six hours), and `riot_build_data` (the items' shop facts, current version) for which
+  purchases are boots and completed items. Nothing is written: no job, no table.
 - **`account_match_prep`:** one row per member's stored rift game, what its record and timeline said
   about the member's preparation. Since Matchup Intel was retired (23 Nov 2026) nothing writes or
   reads it: account sync, the timeline backfill and a game's opened timeline no longer make its rows,
