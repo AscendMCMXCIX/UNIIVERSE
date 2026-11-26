@@ -53,8 +53,8 @@ describe("the registration's description", () => {
     for (const words of ["static reference", "one or two champions chosen by hand", "base cooldowns per rank from Data Dragon", "description", "cost", "base statistics from Data Dragon", "with Riot's sentence for each", "ability haste", "no Riot API request", "no timers or tracking"]) {
       expect(championIntel, words).toContain(words);
     }
-    // Its build totals (25 Nov 2026): what they are counted from, who sees them, and what they are not.
-    for (const words of ["members who may see teammates' statistics", "totals of the rune pages, summoner spells, items and skill orders", "the team's stored completed games", "counts only, no player named", "win rates, pick rates and numbers of games", "not a global sample", "no advice"]) {
+    // Its build totals (25 Nov 2026): what they are counted from (the patch window as the page counts it, the previous patch included where the current has too few), who sees them, and what they are not.
+    for (const words of ["members who may see teammates' statistics", "totals of the rune pages, summoner spells, items and skill orders", "the team's stored completed games", "of the current patch, or of the previous one too where the current has too few", "counts only, no player named", "win rates, pick rates and numbers of games", "not a global sample", "no advice"]) {
       expect(championIntel, words).toContain(words);
     }
   });

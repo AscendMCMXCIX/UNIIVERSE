@@ -40,9 +40,10 @@ export function cooldownWords(cooldown: CooldownDisplay): { line: string; more: 
 
 /**
  * The haste rule, said once per champion in the ⓘ beside its haste field (25 Nov 2026: a short tip
- * instead of a line under the board): the formula, where it applies, what it leaves out.
+ * instead of a line under the board), two short sentences: the formula with where it applies, and
+ * what it leaves out.
  */
-export const HASTE_RULE_WORDS = "Cooldowns at a haste use Riot's rule: base × 100 / (100 + haste). It applies only where Riot's data gives a cooldown. Ultimate haste isn't counted.";
+export const HASTE_RULE_WORDS = "Cooldowns at a haste use Riot's rule: base × 100 / (100 + haste), only where Riot's data gives one. Ultimate haste isn't counted.";
 
 /**
  * What the abilities' figures and chips come from and what Riot's data does not hold, in the ⓘ

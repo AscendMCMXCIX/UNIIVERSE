@@ -104,9 +104,10 @@ opens with Enter or Space, by find-in-page, and before the page's code runs).
   - **stacked** (a narrower column): the name and chips, the grid under them at the right;
   - **line** (a phone, a narrow Compare column): one line per kind, "13 / 12 / 11 / 10 / 9 s", "base
     16 / 15 / 14 / 13 / 12 s", "Mana 60 / 65 / 70 / 75 / 80", wrapping between ranks only; a Compare
-    column under 11rem leaves the icon out (the slot's key is in the board's own column), and one
-    champion's row under 14rem (a small phone at a large text size) puts the name and values under
-    the key and the icon.
+    column under 11rem leaves the icon out (the slot's key is in the board's own column) and under
+    15rem sets the name and the cooldown a size smaller (text-sm), so a long word keeps its line; one
+    champion's row under 14rem (a small phone at a large text size), and a stacked Compare column's,
+    puts the name and values under the key and the icon.
 - **Descriptions** are Riot's own words from Data Dragon, their markup removed (`cleanDescription`);
   since rules format 4 they are kept whole, up to 1,000 characters (none at 16.22.1 is longer; 8 were
   cut at 400 before, Aurelion Sol's R the longest). A description whose placeholders stood for numbers
@@ -189,9 +190,10 @@ documented and tested since it first applied a haste, kept at the Release 17 rev
 "116.67 / 100 / 83.33 s". Each champion has its own **haste field** in its
 header (`haste-field.tsx`; the quick values and Other of Champion Lookup were removed at the owner's
 request): "Ability haste" (sentence case, said once per champion) and a compact field, 0 by default,
-that changes the cooldowns as it is typed in; the rule in the ⓘ beside it ("Cooldowns at a haste use
-Riot's rule: base × 100 / (100 + haste). It applies only where Riot's data gives a cooldown. Ultimate
-haste isn't counted.", `HASTE_RULE_WORDS`); at a haste above 0, "16.7% shorter" after it (one
+that changes the cooldowns as it is typed in; the rule in the ⓘ beside it, two short sentences
+("Cooldowns at a haste use Riot's rule: base × 100 / (100 + haste), only where Riot's data gives
+one. Ultimate haste isn't counted.", `HASTE_RULE_WORDS`; `words.test.ts` holds every ⓘ of the page
+to 25 words in at most two sentences); at a haste above 0, "16.7% shorter" after it (one
 champion; in Compare it is said to a screen reader only, the base line under each value saying it).
 At 0 nothing more (the "Base" under the field was noise and went on 25 Nov 2026).
 
@@ -272,8 +274,21 @@ computed. Critical strike is 0 for every champion and not listed. The ⓘ: "Riot
 and per level; attack speed grows by a share of its base." and, where it applies, "Attack damage has
 no growth in Riot's data." (`statsTipWords`); "Changed since 26.22" beside the heading where Riot
 changed them. Open beside the abilities on a desktop; a fold after them narrower; in Compare one fold
-per column on the same rows (`alignedStats`: a statistic only one champion has, mana beside Garen's
-none, gets "—" in the other's), the two opening and closing together.
+per column on the same rows (`columnStats`, `board.ts`: a statistic only one champion has, mana
+beside Garen's none, gets "—" in the other's), the two opening and closing together. A champion whose
+statistics are not stored (a record from before rules format 4, or Riot's that failed the schema)
+shows none, alone or in Compare: never a column of "—", which would say it has none of them.
+
+The table is a grid with a table's roles (`role="table"`), laid out by its own width
+(`@container/stats`): from 15rem the statistic, then "Level 1" and "Per level" in fixed columns
+(3.25rem and 3.75rem), so two Compare columns as wide as each other wrap their labels alike;
+narrower (a Compare column on a phone) each statistic's name takes a line of its own, its two numbers
+under the headings in two halves, the ⓘ over the headings' left edge (under 7.5rem, a 320px phone at
+200% text, the ⓘ on a line of its own and the figures a size smaller, so two still fit side by side). Where the two columns word a row differently ("Mana" beside "Energy", "Mana regen per
+5 s" beside "Energy regen per 5 s"), each label keeps the room of the other (drawn invisibly), and a
+"Changed since" mark in one column's summary keeps its room in the other's, so the two tables' rows
+stay level at every width (26 Nov 2026, the review: an auto-sized table overran a 390px phone's
+column by up to 35px, and wrapped "Per level" in one column and not the other).
 
 ## Changed this patch
 
@@ -299,11 +314,13 @@ name then focused. No compare is forced, and it is no destination of its own.
 
 - **One aligned board.** A narrow first column holds each ability row's slot key (P to R), then the
   two champions' columns, each a `<section data-testid="lookup-panel">` that is a CSS subgrid of the
-  board's ten rows: the header, the facts, the abilities' heading, P, Q, W, E, R, the builds row and
-  the base statistics. The same row of both champions therefore has the same height and top, with no
-  script measuring anything: their cooldowns by rank (each at its own champion's haste), costs, chips,
-  facts and statistics line up side by side. A row opened in one column grows that row in both
-  (the other cell keeps the space empty), and the columns stay level.
+  board's 21 rows: the header, the facts, the abilities' heading, P, Q, W, E, R, the builds' twelve
+  rows (their heading, their source line, and each group's headings and parts, which the builds
+  section takes as its own subgrid) and the base statistics. The same row of both champions therefore
+  has the same height and top, with no script measuring anything: their cooldowns by rank (each at
+  its own champion's haste), costs, chips, facts, each part of the builds and the statistics line up
+  side by side. A row opened in one column grows that row in both (the other cell keeps the space
+  empty), and the columns stay level.
 - **Each champion its own haste** (its header's field, `haste` and `haste2` in the address), its
   own folds, and its own builds row (its role, `role` and `role2` in the address, and its view of
   choices).
@@ -312,14 +329,26 @@ name then focused. No compare is forced, and it is no destination of its own.
   address catches up. **Change** either from its name. **✕** on either column removes it: removing the
   first makes the second the first, its haste with it (`withoutHref`, `swappedHref` in `address.ts`);
   the focus goes to the champion that stays. The same champion twice is allowed (two hastes).
+- **While a change is on its way** (a champion built on the server, a swap, a removal: a few hundred
+  ms warm, seconds on a cold start), Swap and both ✕ wait: `aria-disabled`, never `disabled`, so the
+  keyboard that pressed one keeps its focus, and pressing again does nothing (26 Nov 2026, the
+  review: a ✕ pressed while the other column loaded dropped the champion just chosen, and on the
+  first Compare did nothing at all; a disabled Swap dropped the focus to the page). A champion chosen
+  for the other column meanwhile keeps the one still loading ("Loading Lux and Caitlyn…"). A haste
+  typed, or a builds role chosen, while the page's own change is on its way stays when it arrives:
+  the page tells its own address from one opened elsewhere (a link, Back), which brings its own.
 - **Neutral.** Two references, never a verdict: no colour or word says which value is better, no
   difference is computed, nothing is "faster" (RIOT_COMPLIANCE.md item 9; the browser spec checks the
   words).
-- **Every width.** From a phone up both champions sit side by side in every row (a phone's columns
-  use the line form, values wrapping between ranks; the portrait above the name, the name a size
-  smaller; ✕ in the column's corner); only where the board is under 17rem (a small phone at 150–200%
-  text) the two columns stack, each with its own slot keys. Never wider than the screen, nothing
-  scrolling inside. Every control a 44px target on a touch screen.
+- **Every width.** From a board of 22rem (a 390px phone at 100% text) up both champions sit side by
+  side in every row (a phone's columns use the line form, values wrapping between ranks, the
+  abilities' names and cooldowns a size smaller; the portrait above the name, the name a size
+  smaller, the chevron under it where the two do not fit; ✕ in the column's corner). Under a 22rem
+  board (phones of 375px and less, or a large text size) the two columns stack, each read as one
+  champion's rows with its own slot keys: a 320px phone's columns side by side left an ability's
+  name 77px, and broke "Resonating" and "Wingborne" inside the word (26 Nov 2026, the review; until
+  then the columns stacked only under 17rem). Never wider than the screen, nothing scrolling inside,
+  no name broken inside a word. Every control a 44px target on a touch screen.
 
 ## Builds and runes
 
@@ -346,8 +375,11 @@ rules were reused, written afresh.
 
 **The patch.** The game's current patch (the stored static data's); where the champion has fewer
 than 20 games in a role on it, the previous patch is added and the source line says so ("patches
-26.21–26.22", in the warning colour, its ⓘ giving both counts). Never across a season; never an
-older patch alone: with fewer than 20 games on the two together the section is one honest line,
+26.21–26.22", in the warning colour, its ⓘ giving both counts). Where the current patch has no game
+yet (the first days of every patch), the line names the previous patch alone, as that: "patch 26.21,
+none yet on 26.22" (its ⓘ: "Patch 26.22 has no games yet, so only the 25 games on 26.21 are
+counted."), never a range that would put the current patch in the sample. Never across a season;
+with fewer than 20 games on the two together the section is one honest line,
 "Not enough games on patch 26.22 in the team's matches yet" (its ⓘ: how many there are, and that
 builds show from 20 in one role).
 
@@ -355,14 +387,14 @@ builds show from 20 in one role).
 
 | Part | From | Counted as |
 |---|---|---|
-| Runes | every record kept from 14 Oct 2026 (the full page) | the primary tree's keystone and three runes, the secondary tree and its two |
+| Runes | every record kept from 14 Oct 2026 (the full page) | the primary tree's keystone and three runes, the secondary tree and its two; drawn as each tree's icon (its name read out) before its runes |
 | Stat shards | records kept from 20 Nov 2026 | the three, named by their row ("Offense shard", "Flex shard", "Defense shard": Data Dragon has icons but no names) |
 | Summoner spells | every record | the pair, either order |
 | Skill order | games with the player's timeline | the skills in the order they reached **their own last rank** (each ability's Data Dragon `maxrank`: Aphelios's six, Udyr's R levelled like the others), then the rest by points; a game where two unmaxed skills have as many points, or nothing is maxed, is left out; with the first three points beside it |
 | Starting items | timelines | bought in the first minute, less what was sold in it (timelines kept from 20 Nov 2026 hold sales) |
 | Boots | timelines | the first boots of the second tier bought (Gunmetal Greaves, which has no Boots tag, counts as boots), or "No boots" for a game that completed three items without any |
 | Core items | timelines | the first three **completed** items, in the order bought: purchasable, 1,000 gold or more, not boots, a consumable or a trinket, and building into nothing a player can buy (so Manamune, Archangel's Staff, Winter's Approach and Whispering Circlet count when bought, as they only turn into Muramana, Seraph's Embrace, Fimbulwinter and Diadem of Songs) |
-| Full build | timelines | the most common core, then the item most often bought fourth after it and the one most often bought fifth, each common enough on its own; a composition, so its ⓘ gives each later item's share instead of a win rate |
+| Full build | timelines | the most common core, then the item most often bought fourth after it and the one most often bought fifth, each common enough on its own; a composition, so its ⓘ gives each later item's share instead of a win rate. In the "Highest win rate" view it starts from the core with the highest win rate, and its ⓘ says so ("The core items with the highest win rate, then those most often bought fourth …") |
 
 A game whose timeline holds an item the current static data does not know is left out of the item
 parts (an old item is never skipped over, which would shift the order). The items' rules read
@@ -371,8 +403,12 @@ parts (an old item is never skipped over, which would shift the order). The item
 **The choices.**
 
 - **Near-identical builds are one choice**: the same three core items in another order (shown in
-  their most common order), the same keystone and secondary tree with other minor runes (shown as
-  its most common page), the same skill order with other first points.
+  their most common order, said to a screen reader), the same keystone and secondary tree with other
+  minor runes (shown as its most common page, said to a screen reader), the same skill order with
+  other first points (shown as "most often first Q E W"). The figures count the whole choice, and the
+  words say what was counted together: "Won 54% of the 87 games with this keystone and secondary
+  tree", "… with these core items in any order" (26 Nov 2026, the review: "with this rune page"
+  claimed the whole family's games for one exact page).
 - **Most common** (the default, the Standard build): the choice made in the most games among those
   made in at least 10 games and a tenth of the part's games.
 - **Highest win rate** (the Highest-performing build): among choices made in at least 20 games and
@@ -402,12 +438,17 @@ parts (an old item is never skipped over, which would shift the order). The item
   items, full build), side by side where the section is 52rem wide (one champion on a desktop), one
   under the other in a column of Compare; in each, the part's name, its choice as Riot's icons (20–26px;
   a stand-in tile with the initials where the static data has no picture), its **win rate**
-  (primary, its ⓘ: "Won 54% of the 87 games with this rune page; 61% of the 143 games with a full
-  rune page recorded made it.") and its **pick rate**. The label goes over its icons in a narrow
+  (primary, its ⓘ: "Won 54% of the 87 games with this keystone and secondary tree; 61% of the 143
+  games with a full rune page recorded made it.") and its **pick rate**. The label goes over its icons in a narrow
   column, the figures under them in the narrowest (Compare on a small phone).
 - **Single view**: a band across the board under the abilities and the base statistics (the slot
-  `ChampionPanel` takes as `builds`). **Compare**: its own row of the board after R (row 9), one cell
-  per champion, so the two builds line up; Swap and ✕ carry each, with its role, with its champion.
+  `ChampionPanel` takes as `builds`). **Compare**: its own twelve rows of the board after R (rows
+  9–20: the heading, the source line, each group's headings and four parts), which the section takes
+  as a subgrid, so each part of the two champions' builds sits on one line, whatever the other
+  column's heading holds (a role switch, the view switch, a longer source line). A container breaks
+  a subgrid, so in Compare the rows' forms follow the board's width instead of the group's own
+  (`FORMS.compare` in `champion-builds.tsx`). Swap and ✕ carry each, with its role, with its
+  champion.
 - Streamed in after the abilities (an async server component in a `<Suspense>` with a skeleton of its
   shape), so the abilities never wait for it; a failure shows "Builds can't be loaded right now" and
   is logged, never failing the page.
@@ -491,12 +532,14 @@ holds each; screenshots before and after in the lane's notes, never in the repos
   end near 690px, Teemo and Jayce near 840px.
 - **Names**: the champion's name whole and on one line at 1366, 1440 and 1920, the sidebar open and
   folded, one champion and two ("Nunu & Willump", "Aurelion Sol", "Renata Glasc", "Twisted Fate",
-  "Heimerdinger", "Fiddlesticks"); no ability name broken inside a word; whole in the search's list
-  and the window's grid.
+  "Heimerdinger", "Fiddlesticks"); no ability name broken inside a word; on phones of 320, 375, 390
+  and 430 at 100% and 200% text, single and compared, no champion's or ability's name broken inside a
+  word or past its column; whole in the search's list and the window's grid.
 - **Nothing scrolls inside the page** at any size, every row open included; nothing is wider than the
   window from 320px up, at 200% text too (phones at 320, 375, 390 and 430, one champion and two).
-- **Phones and a tablet** (768 × 1024): two champions side by side in every row, level; on a phone the
-  page scrolls, as every phone page does.
+- **Phones and a tablet** (768 × 1024): two champions side by side in every row, level, from a 390px
+  phone (one column under the other at 375px and less, and at large text sizes); the base statistics
+  and each part of the builds level too; on a phone the page scrolls, as every phone page does.
 - **Centred** in the room beside the sidebar, open or folded, within 2px.
 - **With the builds** (26 Nov 2026, `e2e/champion-builds.spec.ts`): one champion's whole board,
   builds included, ends within the screen at 1366 × 768, 1440 × 900, 1920 × 1080 and 2560 × 1440,
@@ -573,9 +616,10 @@ The app-wide checklist is [RIOT_COMPLIANCE.md](RIOT_COMPLIANCE.md), where Champi
   special case, the clamp, the field's validation), `cost.test.ts` (the cost rule on all 692 spells),
   `stats.test.ts` (the statistics of all 173 champions, the placeholder growth), `mechanics.test.ts`
   (the rules on all 865 descriptions, the hard cases both ways, the exceptions pinned), `board.test.ts`
-  (rank columns across the roster, the statistics listed and aligned for two champions, the chips'
-  order on every ability), `changes.test.ts` (the patch marks), `view.test.ts`, `words.test.ts` (no
-  timer or "verified"; each ⓘ at most 25 words), `src/components/champion-lookup/address.test.ts` (both
+  (rank columns across the roster, the statistics listed and aligned for two champions, the other
+  column's label kept, none for a champion without statistics, the chips' order on every ability),
+  `changes.test.ts` (the patch marks), `view.test.ts`, `words.test.ts` (no timer or "verified"; each
+  ⓘ at most 25 words in at most two sentences), `src/components/champion-lookup/address.test.ts` (both
   champions in the address, Swap, removing either, the old links), `search.test.ts`;
   `src/server/riot/static/abilities.test.ts` (what is read from Data Dragon, the fixture against Data
   Dragon's own numbers, the build script).
@@ -589,18 +633,23 @@ The app-wide checklist is [RIOT_COMPLIANCE.md](RIOT_COMPLIANCE.md), where Champi
   `tests/fixtures/ddragon-16.22.1-item-builds.json` built by `scripts/static/build-item-builds-fixture.mjs`;
   the starting set; the skill order with six-rank abilities and Udyr; the Wilson bound; the choices:
   a small sample never wins, near-identical builds merged, one build where they agree; the patch
-  window, the roles and the empty state), `src/domain/champion-builds-words.test.ts` (every ⓘ one
-  idea in 25 words, no advice).
+  window, the previous patch alone while the current has no game, the roles and the empty state),
+  `src/domain/champion-builds-words.test.ts` (every ⓘ one idea in 25 words, no advice, what was
+  counted together, the full build's core in each view), `src/server/champion-builds/query.test.ts`
+  (the statement's label in the egress counts, as HOSTING_USAGE.md names it).
 - Browser: `e2e/champion-lookup.spec.ts` (the page, its facts, slot keys, chips and costs per rank,
   the passive's dash, the chips marked in the description, folds by keyboard, the haste field and every
   invalid input, the special cases, unusual champions, "/" and the search, the window, Compare on one
-  aligned board, Swap and ✕ on either column, the base statistics' folds together, names never cut or
-  broken, the address, phones and tablets side by side, the old links, one screen at every desktop
-  size single and dual, the rank columns, phones at 200% text, axe), with the shared specs
+  aligned board, Swap and ✕ on either column, Swap by keyboard keeping its focus, Swap and ✕ waiting
+  while a change is on its way (the server's answer held back), a haste typed during a swap kept, the
+  base statistics' folds together, level and inside their columns, names never cut or broken, the
+  address, phones and tablets side by side, the old links, one screen at every desktop size single
+  and dual, the rank columns, phones at 320–430px and 200% text with names whole, axe), with the shared specs
   (navigation, journeys, page budgets, quality, design parity, shared controls, WebKit).
 - Browser, builds: `e2e/champion-builds.spec.ts` (icon rows with win and pick rates and the source
-  line, each ⓘ by keyboard and touch, the Highest win rate view, the honest empty line, two roles in
-  the address with the haste, Compare's level rows and Swap with roles, phones at 320 and 390 at
+  line, both rune trees, each ⓘ by keyboard and touch, the Highest win rate view and its full build's
+  ⓘ, the honest empty line, two roles in the address with the haste, Compare's parts level row by row
+  in both views and Swap with roles, phones at 320 and 390 at
   100% and 200%, one screen at the desktop sizes, axe).
 - Production check: `scripts/champion-lookup-facts.mjs` (LIVE_VALIDATION.md, "What it checks"),
   the builds among its facts.
@@ -615,7 +664,7 @@ with no new endpoint or request. The description should say both. The owner's ac
 ("Proposed description for the registration"), whose Champion Intel part is, word for word
 (`src/server/riot/registration-description.test.ts` keeps the two copies the same):
 
-> Champion Intel, for signed-in accounts, is a static reference for one or two champions chosen by hand: each ability's name, icon, description, cost and base cooldowns per rank from Data Dragon, those cooldowns at an ability haste the reader chooses, by Riot's published formula, each champion's base statistics from Data Dragon, and the mechanics its ability descriptions name, with Riot's sentence for each. For members who may see teammates' statistics it also shows totals of the rune pages, summoner spells, items and skill orders observed in the team's stored completed games on the current patch (both teams, counts only, no player named), with their win rates, pick rates and numbers of games, labelled as the team's games and not a global sample, and no advice. It makes no Riot API request and has no timers or tracking.
+> Champion Intel, for signed-in accounts, is a static reference for one or two champions chosen by hand: each ability's name, icon, description, cost and base cooldowns per rank from Data Dragon, those cooldowns at an ability haste the reader chooses, by Riot's published formula, each champion's base statistics from Data Dragon, and the mechanics its ability descriptions name, with Riot's sentence for each. For members who may see teammates' statistics it also shows totals of the rune pages, summoner spells, items and skill orders observed in the team's stored completed games of the current patch, or of the previous one too where the current has too few (both teams, counts only, no player named), with their win rates, pick rates and numbers of games, labelled as the team's games and not a global sample, and no advice. It makes no Riot API request and has no timers or tracking.
 
 **Decisions left to the owner**: whether damage values, scaling and durations should come from a
 source beyond Data Dragon (CommunityDragon's game files hold them; RIOT_COMPLIANCE.md permits that

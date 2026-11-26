@@ -48,9 +48,11 @@ export type BoardMode = "single" | "compare";
  * beside the grid: the grid at the top right, the name and chips flowing beside and under it
  * (a float, so a long name or many chips use the row's whole width under the grid); 4rem rank
  * columns once 11rem of name fits beside them. A narrow Compare column (a phone) leaves the icon
- * out: the slot's key in the board's own column says which ability it is; one champion's row under
- * 14rem (a small phone at a large text size), and Compare's stacked columns under a 17rem board, put
- * the name and values under the key and the icon. Written out whole, so the
+ * out: the slot's key in the board's own column says which ability it is. Compare's columns stacked
+ * (a board under 22rem) read as one champion's rows, the key beside the icon. One champion's row
+ * under 14rem (a small phone at a large text size), and a stacked Compare column's, put the name and
+ * values under the key and the icon. A Compare row under 15rem (a phone's column) sets
+ * the name and the cooldown a size smaller, so a long word fits its line. Written out whole, so the
  * stylesheet has every class.
  */
 const FORMS = {
@@ -99,14 +101,14 @@ const FORMS = {
     wideCols: "@min-[46.25rem]/cell:grid-cols-[3.5rem_repeat(var(--lookup-ranks),4rem)]",
   },
   compare5: {
-    narrow: "@max-[17rem]/board:col-start-1 @max-[17rem]/board:col-end-[-1] @max-[17rem]/board:row-start-2 @max-[17rem]/board:mt-2",
+    narrow: "@max-[22rem]/board:@max-[14rem]/cell:col-start-1 @max-[22rem]/board:@max-[14rem]/cell:col-end-[-1] @max-[22rem]/board:@max-[14rem]/cell:row-start-2 @max-[22rem]/board:@max-[14rem]/cell:mt-2",
     primary: "@max-[15rem]/cell:text-sm",
     cell: "px-3",
     icon: "h-7 w-7 @min-[23.75rem]/cell:h-9 @min-[23.75rem]/cell:w-9",
     iconWrap: "col-start-2 row-start-1 mr-2.5 hidden @min-[11rem]/cell:block",
     tile: "@min-[23.75rem]/cell:mt-1",
     body: "mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 @min-[23.75rem]/cell:mt-1.5 @min-[31.75rem]/cell:flow-root",
-    h3: "@min-[31.75rem]/cell:inline @min-[31.75rem]/cell:mr-2",
+    h3: "@max-[15rem]/cell:text-sm @min-[31.75rem]/cell:inline @min-[31.75rem]/cell:mr-2",
     chips: "inline-flex min-w-0 max-w-full flex-wrap gap-y-1 @min-[31.75rem]/cell:inline",
     ranks: "order-last basis-full @min-[23.75rem]/cell:justify-end @min-[31.75rem]/cell:float-right @min-[31.75rem]/cell:ml-4",
     columns: "@min-[23.75rem]/cell:grid @min-[23.75rem]/cell:space-y-0",
@@ -116,19 +118,19 @@ const FORMS = {
     rank1: "@min-[23.75rem]/cell:col-start-3 @min-[31.75rem]/cell:col-start-2",
     stackCols: "@min-[23.75rem]/cell:grid-cols-[minmax(0,1fr)_3rem_repeat(var(--lookup-ranks),3.25rem)] @min-[31.75rem]/cell:grid-cols-[3rem_repeat(var(--lookup-ranks),3.25rem)]",
     value: "@min-[23.75rem]/cell:text-right",
-    fold: "@min-[11rem]/cell:pl-10 @min-[23.75rem]/cell:pl-12",
+    fold: "@min-[22rem]/board:@min-[11rem]/cell:pl-10 @min-[22rem]/board:@min-[23.75rem]/cell:pl-12 @max-[22rem]/board:@min-[14rem]/cell:pl-19",
     head: "@min-[23.75rem]/cell:grid",
     wideCols: "@min-[40rem]/cell:grid-cols-[3.5rem_repeat(var(--lookup-ranks),4rem)]",
   },
   compare6: {
-    narrow: "@max-[17rem]/board:col-start-1 @max-[17rem]/board:col-end-[-1] @max-[17rem]/board:row-start-2 @max-[17rem]/board:mt-2",
+    narrow: "@max-[22rem]/board:@max-[14rem]/cell:col-start-1 @max-[22rem]/board:@max-[14rem]/cell:col-end-[-1] @max-[22rem]/board:@max-[14rem]/cell:row-start-2 @max-[22rem]/board:@max-[14rem]/cell:mt-2",
     primary: "@max-[15rem]/cell:text-sm",
     cell: "px-3",
     icon: "h-7 w-7 @min-[27rem]/cell:h-9 @min-[27rem]/cell:w-9",
     iconWrap: "col-start-2 row-start-1 mr-2.5 hidden @min-[11rem]/cell:block",
     tile: "@min-[27rem]/cell:mt-1",
     body: "mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 @min-[27rem]/cell:mt-1.5 @min-[35rem]/cell:flow-root",
-    h3: "@min-[35rem]/cell:inline @min-[35rem]/cell:mr-2",
+    h3: "@max-[15rem]/cell:text-sm @min-[35rem]/cell:inline @min-[35rem]/cell:mr-2",
     chips: "inline-flex min-w-0 max-w-full flex-wrap gap-y-1 @min-[35rem]/cell:inline",
     ranks: "order-last basis-full @min-[27rem]/cell:justify-end @min-[35rem]/cell:float-right @min-[35rem]/cell:ml-4",
     columns: "@min-[27rem]/cell:grid @min-[27rem]/cell:space-y-0",
@@ -138,7 +140,7 @@ const FORMS = {
     rank1: "@min-[27rem]/cell:col-start-3 @min-[35rem]/cell:col-start-2",
     stackCols: "@min-[27rem]/cell:grid-cols-[minmax(0,1fr)_3rem_repeat(var(--lookup-ranks),3.25rem)] @min-[35rem]/cell:grid-cols-[3rem_repeat(var(--lookup-ranks),3.25rem)]",
     value: "@min-[27rem]/cell:text-right",
-    fold: "@min-[11rem]/cell:pl-10 @min-[27rem]/cell:pl-12",
+    fold: "@min-[22rem]/board:@min-[11rem]/cell:pl-10 @min-[22rem]/board:@min-[27rem]/cell:pl-12 @max-[22rem]/board:@min-[14rem]/cell:pl-19",
     head: "@min-[27rem]/cell:grid",
     wideCols: "@min-[44rem]/cell:grid-cols-[3.5rem_repeat(var(--lookup-ranks),4rem)]",
   },
@@ -253,7 +255,7 @@ function AbilityRow({ ability, haste, mode, ranks, last }: { ability: LookupAbil
   const costUnit = cost?.kind === "per-rank" ? cost.resource : "";
   const summary = (
     <span className="grid min-w-0 flex-1 grid-cols-[auto_auto_minmax(0,1fr)] items-start py-2">
-      <SlotKey slot={ability.slot} className={cn("col-start-1 row-start-1 mr-2", form.tile, mode === "compare" && "@min-[17rem]/board:hidden")} />
+      <SlotKey slot={ability.slot} className={cn("col-start-1 row-start-1 mr-2", form.tile, mode === "compare" && "@min-[22rem]/board:hidden")} />
       <span className={form.iconWrap}>
         <AbilityIcon ability={ability} size={form.icon} />
       </span>

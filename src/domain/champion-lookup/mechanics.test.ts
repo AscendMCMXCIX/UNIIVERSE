@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import abilityFixture from "@/server/riot/fixtures/champion-abilities.fixture.json";
 import championsFixture from "@/server/riot/fixtures/champions.fixture.json";
-import { MECHANIC_GROUPS, MECHANIC_RULES, NOT_THE_MECHANIC, keyMechanics, mechanicsOf, type MechanicFact } from "./mechanics";
+import { MECHANIC_RULES, NOT_THE_MECHANIC, mechanicsOf, type MechanicFact } from "./mechanics";
 import type { DdragonChampionAbilities, Slot } from "./types";
 
 /*
-  Champion Intel's key mechanics from Riot's own descriptions (docs/CHAMPION_INTEL.md, "Key
-  mechanics"): the word rules on every description of the committed Data Dragon copy (16.22.1, 173
+  Champion Intel's mechanics from Riot's own descriptions (docs/CHAMPION_INTEL.md, "Mechanics (the
+  rows' chips)"): the word rules on every description of the committed Data Dragon copy (16.22.1, 173
   champions, 865 descriptions), each fact carrying Riot's sentence and the words matched; the hard
   cases the roster showed, both ways; the exceptions, pinned to Riot's text; nothing from an empty
   or unusual description.
@@ -131,17 +131,5 @@ describe("unusual input", () => {
     expect(mechanicsOf({ slot: "Q", description: "Stuns." }, { id: "X", name: "" })).toMatchObject([{ kind: "stun", clause: "Stuns." }]);
     // A sentence ends at a stop followed by a space: "0.75 seconds" stays in one sentence.
     expect(mechanicsOf({ slot: "W", description: "Deals physical damage and stuns them for 0.75 seconds. Then more." }, { id: "Renekton", name: "Renekton" })[0]!.clause).toBe("Deals physical damage and stuns them for 0.75 seconds.");
-  });
-
-  it("groups a champion's facts by group, in the groups' order, each kind with its abilities' keys", () => {
-    const facts = records.Ahri!.abilities.flatMap((a) => mechanicsOf(a, { id: "Ahri", name: "Ahri" }));
-    const key = keyMechanics(facts);
-    expect(key.groups.map((g) => g.group)).toEqual(MECHANIC_GROUPS.filter((g) => key.groups.some((x) => x.group === g)));
-    expect(key.groups.find((g) => g.group === "crowd-control")!.kinds).toEqual([{ kind: "charm", word: "Charm", slots: ["E"] }]);
-    expect(key.groups.find((g) => g.group === "damage")!.kinds.map((k) => [k.kind, k.slots])).toEqual([
-      ["magic", ["Q"]],
-      ["true", ["Q"]],
-    ]);
-    expect(keyMechanics([])).toEqual({ groups: [] });
   });
 });

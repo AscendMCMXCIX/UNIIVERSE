@@ -632,16 +632,22 @@ the account screen over the dashboard at 200% on a 320px phone as well.
   the address it stands in for, and Team Matches' own `matches/loading.tsx` stands as its page does
   (Team's width from 1600px, its filter row and cards at `--content-max`, left-aligned).
 - **Champion Intel on one screen** (Champion Lookup, 23 Nov 2026, renamed and extended on 24 Nov
-  2026; docs/CHAMPION_INTEL.md): one champion takes `--content-max`, two `--content-wide`, side by
-  side from a 56rem page (`@container/intel`) and one at a time under a switcher below it; each panel
-  measures itself (`@container/panel`: from 68rem the key mechanics and statistics take a 20rem
-  column beside the abilities), and each ability row too (`@container/ab`: ranks as columns from
-  42rem, room for six; one line below it, the base moving into the opened row at a haste). The
-  header, the haste field and the five folded rows of every panel shown are on the first screen at
-  1280 × 720, 1440 × 900, 1440 × 780, 1920 × 1080, 1920 × 950, 2560 × 1440 and 3440 × 1440, one
-  champion and two, the sidebar open and folded; opening rows grows the page, never a scroll inside
-  it; on a phone it scrolls as a page, nothing wider than the screen from 320px at 200% text.
-  `e2e/champion-lookup.spec.ts` asserts each.
+  2026, one aligned board since 25 Nov 2026; docs/CHAMPION_INTEL.md, "The page", "Abilities",
+  "Compare" and "Fit and measurements"): one champion takes `--content-max`, two `--content-wide`.
+  The board measures itself (`@container/board`): two champions are two columns of one grid, each a
+  subgrid of its 21 rows (the header, the facts, the abilities' heading, P to R, the builds' twelve
+  rows, the statistics), side by side from a 22rem board (a 390px phone) and stacked below it. One
+  champion's column measures itself too (`@container/panel`: from 64rem the base statistics take a
+  19rem column beside the abilities, 24rem from 76rem, the builds a band under both), and each
+  ability row (`@container/cell`) takes one of three forms, the same in every row of a column: wide
+  (the rank grid at the row's top right), stacked (the grid under the name) and line (one line per
+  kind, wrapping between ranks). The header, the haste field and the five folded rows are on the
+  first screen with one champion at 1280 × 720, 1440 × 900, 1440 × 780, 1920 × 1080, 1920 × 950,
+  2560 × 1440 and 3440 × 1440, and with two from 1366/1440 × 780 up (at 1280 × 720 with the sidebar
+  open the aligned board runs a little past the screen), the sidebar open and folded; opening rows
+  grows the page, never a scroll inside it; on a phone it scrolls as a page, nothing wider than the
+  screen and no name broken inside a word from 320px at 200% text. `e2e/champion-lookup.spec.ts` and
+  `e2e/champion-builds.spec.ts` assert each.
   Matchup Intel's two-column dashboard (18–23 Nov 2026, `--content-wide`) was retired with it.
 - **A page's controls in reach** (PR 2b, 18 Nov 2026): a long page's own controls (its view switch,
   Filters, search) scroll away with its header. From md, once the section tabs are pinned and the

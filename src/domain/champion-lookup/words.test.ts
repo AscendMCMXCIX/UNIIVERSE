@@ -30,10 +30,17 @@ describe("the words", () => {
     expect(cooldownWords({ kind: "unknown", reason: "two-abilities-in-ddragon", listed: [10, 9, 8, 7, 6] })).toEqual({ line: "Two abilities share this slot in Riot's data", more: "Riot's data doesn't say which one its cooldown is. Riot lists 10 / 9 / 8 / 7 / 6 s for the slot." });
   });
 
-  it("keep each ⓘ short, one plain idea: at most 25 words (docs/STANDARDS.md, Tooltips), the rule's formula and Riot's limits in them", () => {
+  it("keep each ⓘ short, one plain idea: at most 25 words in one or two sentences (docs/STANDARDS.md, Tooltips; the owner's 1–2 short sentences), the rule's formula and Riot's limits in them", () => {
     // Counted as tip-length.test.ts counts: whitespace-separated words with a letter or a digit.
     const words = (t: string) => t.split(/\s+/).filter((w) => /[\p{L}\p{N}]/u.test(w)).length;
-    for (const tip of [HASTE_RULE_WORDS, DATA_LIMIT_WORDS, statsTipWords(false), statsTipWords(true)]) expect(words(tip), tip).toBeLessThanOrEqual(25);
+    // A sentence ends at a full stop, a question or an exclamation mark followed by a space or the end ("0.75" and "× 100 /" are not ends).
+    const sentences = (t: string) => t.split(/[.!?](?=\s|$)/).filter((x) => x.trim()).length;
+    for (const tip of [HASTE_RULE_WORDS, DATA_LIMIT_WORDS, statsTipWords(false), statsTipWords(true)]) {
+      expect(words(tip), tip).toBeLessThanOrEqual(25);
+      expect(sentences(tip), tip).toBeLessThanOrEqual(2);
+    }
+    expect(sentences("One. Two. Three.")).toBe(3);
+    expect(sentences("Base × 100 / (100 + haste), 0.75 s.")).toBe(1);
     expect(HASTE_RULE_WORDS).toContain("base × 100 / (100 + haste)");
     expect(HASTE_RULE_WORDS).toContain("Ultimate haste isn't counted");
     expect(DATA_LIMIT_WORDS).toContain("no damage values or scaling");

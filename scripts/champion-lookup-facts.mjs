@@ -12,8 +12,9 @@
   on the first column (one request), which leaves Ahri alone again. Each read also takes the
   champion's builds and runes (counted in the team's stored matches, streamed in after the
   abilities): whether they show, the source line, each part's choice with its win and pick rate or
-  why there is none, or the honest line that the patch has too few games; and that no Riot ID or
-  account id is anywhere in them. Then Matchup Intel's old address, which must land here carrying
+  why there is none (the runes with both trees' icons), or the honest line that the patch has too
+  few games; and that no Riot ID or account id is anywhere in them. Where a step of Compare does not
+  finish, only that step is judged (and fails, named); the steps after it never ran and are not. Then Matchup Intel's old address, which must land here carrying
   its enemy. Read in the page only: counts, true or false,
   px, numbers and the page's own fixed words; no name but champions' and abilities'.
 */
@@ -109,6 +110,8 @@ export function readChampionLookup() {
         win: text(r.querySelector('[data-testid="lookup-build-win"]')),
         pick: text(r.querySelector('[data-testid="lookup-build-pick"]')),
         pictures: r.querySelectorAll('[data-testid="lookup-build-choice"] img, [data-testid="lookup-build-choice"] [role=img]').length,
+        // The rune page's trees drawn (the primary's before its keystone, the secondary's before its runes).
+        trees: r.querySelectorAll('[data-testid="lookup-build-tree"] img, [data-testid="lookup-build-tree"] [role=img]').length,
         text: text(r.querySelector('[role="cell"]')),
       })),
     };
@@ -140,11 +143,12 @@ function publicPatch(patch) {
  * in the haste field and the Q's row opened (`hastedRead`), the window of every champion open (`all`)
  * and searched for "ahr" (`search`), a second champion added (`dual`, at 1440 × 900; undefined: not
  * judged), the two swapped (`swapped`) and the first column's ✕ pressed (`removed`; each undefined:
- * not judged), Matchup Intel's old address opened (`legacy`), and /api/health's patch (`healthPatch`,
- * Data Dragon's numbering; undefined: not compared). Each fact: its name, PASS, FAIL or WARN, and what
- * was found.
+ * not judged), the step of those three that did not finish (`stopped`: "compare", "swap" or
+ * "remove", read as that step's state; undefined: all finished), Matchup Intel's old address opened
+ * (`legacy`), and /api/health's patch (`healthPatch`, Data Dragon's numbering; undefined: not
+ * compared). Each fact: its name, PASS, FAIL or WARN, and what was found.
  */
-export function championLookupVerdicts({ kind, champion, at, wide, hastedRead, all, search, dual, swapped, removed, legacy, healthPatch }) {
+export function championLookupVerdicts({ kind, champion, at, wide, hastedRead, all, search, dual, swapped, removed, stopped, legacy, healthPatch }) {
   const out = [];
   const fact = (name, ok, detail) => out.push({ name: `${kind}: ${name}`, status: ok ? "PASS" : "FAIL", detail });
   const warn = (name, detail) => out.push({ name: `${kind}: ${name}`, status: "WARN", detail });
@@ -182,6 +186,8 @@ export function championLookupVerdicts({ kind, champion, at, wide, hastedRead, a
   fact("one screen at 1920 × 1080, no page scroll", wide.size === "1920x1080" && overBy(wide) <= 1, { overBy: overBy(wide), size: wide.size });
   fact("the window of every champion lists every champion on the roster: its count, at least 160, every portrait drawn", all.open && all.shown === all.counted && all.shown >= 160, { shown: all.shown, counted: all.counted });
   fact('its search finds a champion as typed ("ahr": Ahri first)', search.first === "Ahri" && /champions? found$/.test(search.found), { first: search.first, found: search.found });
+  // A step that did not finish is named; it is judged on what the page showed, the steps after it are not judged at all.
+  if (dual !== undefined || stopped !== undefined) fact("Compare, Swap and ✕ on the first column each finished (a step that did not is named; the steps after it are not judged)", stopped === undefined, { stopped: stopped ?? null });
   if (dual !== undefined) {
     fact("a second champion sits beside the first at 1440 × 900, both in the address, the five abilities of each on the screen", dual.panels === 2 && dual.sideBySide && /[?&]champion2=Jinx(&|$)/.test(dual.url) && dual.lastBottom > 0 && dual.lastBottom <= dual.innerHeight && dual.hasteBottom <= dual.innerHeight, { panels: dual.panels, sideBySide: dual.sideBySide, url: dual.url, lastBottom: dual.lastBottom, innerHeight: dual.innerHeight });
     fact("Compare is one aligned board: each ability's row of the two champions level, the names whole, nothing scrolling inside", dual.rowsLevel && dual.namesCut === 0 && dual.scrollers === 0, { rowsLevel: dual.rowsLevel, namesCut: dual.namesCut, scrollers: dual.scrollers });
@@ -197,12 +203,15 @@ export function championLookupVerdicts({ kind, champion, at, wide, hastedRead, a
   const game = publicPatch(healthPatch ?? null) ?? /patch (\d+\.\d+)/.exec(at.source)?.[1] ?? null;
   fact("the builds and runes are shown to a member who may see teammates' statistics: the builds, or the line that the patch has too few games yet", at.buildsStatus === "shown" || at.buildsStatus === "few", { status: at.buildsStatus });
   if (at.buildsStatus === "shown") {
-    const m = /^From \d[\d,]* games? in the team's matches · (?:patch (\d+\.\d+)|patches \d+\.\d+–(\d+\.\d+)) · all ranks · (?:Draft|Ranked|Clash)(?:(?:, | and )(?:Ranked|Clash))*$/.exec(at.buildsLine);
-    const newest = m?.[1] ?? m?.[2] ?? null;
-    fact("the builds' source line says the games, the team's matches, the current patch (the previous one added only where it says so), all ranks and the queues", !!m && (game === null || newest === game), { line: at.buildsLine, game });
+    // The current patch; with the previous one added, the range; with none yet on the current one, the previous patch alone, said as that.
+    const m = /^From \d[\d,]* games? in the team's matches · (?:patch (\d+\.\d+)|patches \d+\.\d+–(\d+\.\d+)|patch \d+\.\d+, none yet on (\d+\.\d+)) · all ranks · (?:Draft|Ranked|Clash)(?:(?:, | and )(?:Ranked|Clash))*$/.exec(at.buildsLine);
+    const newest = m?.[1] ?? m?.[2] ?? m?.[3] ?? null;
+    fact("the builds' source line says the games, the team's matches, the current patch (the previous one added, or counted alone while the current has none, only where it says so), all ranks and the queues", !!m && (game === null || newest === game), { line: at.buildsLine, game });
     const ok = (r) => (r.state === "shown" ? (r.part === "full" || (/^\d{1,3}%$/.test(r.win) && /^\d{1,3}%$/.test(r.pick))) && (r.part === "skills" || r.pictures > 0) : r.text.length > 0);
     const parts = at.buildsParts.map((r) => r.part);
     fact("each part of the builds shows its choice as icons with its win rate and pick rate, or says why there is none", at.buildsParts.length >= 7 && at.buildsParts.every(ok) && ["runes", "shards", "spells", "skills", "start", "boots", "core"].every((p) => parts.includes(p)), { parts: at.buildsParts.map((r) => `${r.part}:${r.state}`) });
+    const runes = at.buildsParts.find((r) => r.part === "runes");
+    if (runes?.state === "shown") fact("the runes draw both trees: the primary's before its keystone, the secondary's before its runes", runes.trees === 2, { trees: runes.trees });
   } else if (at.buildsStatus === "few") {
     fact("the builds' honest line names the current patch: no build made up from too few games", /^Not enough games on patch \d+\.\d+ in the team's matches yet$/.test(at.buildsFew) && (game === null || at.buildsFew.includes(`patch ${game} `)) && at.buildsParts.length === 0, { line: at.buildsFew, game });
   }

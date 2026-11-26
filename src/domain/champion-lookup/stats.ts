@@ -61,11 +61,12 @@ export function statRows(facts: DdragonChampionFacts | null | undefined): StatRo
     rows.push({ key, label, base, growth: g !== null && g > 0 ? g : null, growthUnit });
   };
   add("hp", "Health", "hpperlevel");
-  add("hpregen", "Health regen per 5 s", "hpregenperlevel");
+  // "5 s" never parts at a line's end (a no-break space): a narrow column wraps before "per" instead.
+  add("hpregen", "Health regen per 5\u00a0s", "hpregenperlevel");
   const resource = resourceName(facts?.partype);
   if (resource === "Mana" || resource === "Energy") {
     add("mp", resource, "mpperlevel");
-    add("mpregen", `${resource} regen per 5 s`, "mpregenperlevel");
+    add("mpregen", `${resource} regen per 5\u00a0s`, "mpregenperlevel");
   }
   add("attackdamage", "Attack damage", "attackdamageperlevel");
   add("attackspeed", "Attack speed", "attackspeedperlevel", "%");

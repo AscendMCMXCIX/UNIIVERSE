@@ -1,7 +1,7 @@
 import { patchFromVersion, publicPatchName, comparePatches } from "@/domain/patch";
 import { ddragonCooldownDisplay, type CooldownDisplay } from "./cooldown";
 import { costDisplay, type CostDisplay } from "./cost";
-import { keyMechanics, mechanicsOf, type KeyMechanics, type MechanicFact } from "./mechanics";
+import { mechanicsOf, type MechanicFact } from "./mechanics";
 import { resourceName, statRows, type StatRow } from "./stats";
 import { SLOTS, type ChampionChoice, type DdragonChampionAbilities, type Slot } from "./types";
 
@@ -59,8 +59,6 @@ export interface LookupChampion {
   unreadable: boolean;
   /** Riot's resource, classes and base statistics; null on a record from before rules format 4 (they arrive with the next game-data update). */
   facts: LookupFacts | null;
-  /** The kinds of mechanic Riot's descriptions name, grouped (keyMechanics); empty groups with no abilities. */
-  mechanics: KeyMechanics;
 }
 
 export interface LookupPage {
@@ -172,6 +170,5 @@ export function lookupChampion(champion: ChampionChoice, record: DdragonChampion
     abilities: whole,
     unreadable: flags.unreadable === true || (!!record && !whole),
     facts: whole ? lookupFacts(record) : null,
-    mechanics: keyMechanics(whole ? whole.flatMap((a) => a.mechanics) : []),
   };
 }

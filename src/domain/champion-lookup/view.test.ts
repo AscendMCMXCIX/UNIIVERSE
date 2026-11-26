@@ -62,7 +62,7 @@ describe("one champion's view", () => {
     expect(v.abilities!.every((a) => a.description.length > 0)).toBe(true);
   });
 
-  it("gives each ability its cost by the cost rule, its mechanics from Riot's description, and the champion's facts and key mechanics", () => {
+  it("gives each ability its cost by the cost rule, its mechanics from Riot's description, and the champion's facts, and sends no grouped mechanics (the rows' chips are built from each ability's own)", () => {
     const v = lookupChampion(roster[0]!, fixture.Ahri!);
     expect(v.abilities![1]!.cost).toEqual({ kind: "per-rank", values: [55, 65, 75, 85, 95], resource: "Mana" });
     expect(v.abilities![0]!.cost).toBeNull();
@@ -70,7 +70,8 @@ describe("one champion's view", () => {
     expect(v.abilities!.every((a) => a.changed === null)).toBe(true);
     expect(v.facts).toMatchObject({ resource: "Mana", resourceless: false, classes: ["Mage", "Assassin"], statsChangedSincePatch: null });
     expect(v.facts!.stats.find((s) => s.key === "attackrange")!.base).toBe(550);
-    expect(v.mechanics.groups.find((g) => g.group === "crowd-control")!.kinds.map((k) => k.kind)).toEqual(["charm"]);
+    // The grouped "key mechanics" block went on 25 Nov 2026: nothing of it is computed or sent to the browser.
+    expect(v).not.toHaveProperty("mechanics");
     // A champion with no resource is said as that (Garen: "None").
     expect(lookupChampion({ id: "Garen", name: "Garen", title: "", portrait: "" }, fixture.Garen!).facts).toMatchObject({ resource: null, resourceless: true });
   });

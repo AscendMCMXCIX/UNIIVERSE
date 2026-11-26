@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 
 /*
@@ -45,8 +45,8 @@ const ALLOWED: Array<{ file: string; kind: Kind; reason: string; optional?: true
   { file: "src/components/profile/avatar-upload.tsx", kind: "disabled-opacity", reason: "the profile picture itself is the button: a picture dims as a whole" },
   { file: "src/components/settings/branding-panel.tsx", kind: "disabled-opacity", reason: "a native range input: the browser draws its track and thumb, which only opacity dims" },
 
-  // Temporary (25 Nov 2026): the other lanes of this release migrate these files (Match History,
-  // Champion Intel). The coordinator reconciles: each entry goes once its file is clean.
+  // Temporary (25 Nov 2026): the Match History lane of this release migrates these files. The
+  // coordinator reconciles: each entry goes once its file is clean (Champion Intel's went on 26 Nov).
   { file: "src/components/match-history/post-game.tsx", kind: "uppercase", reason: "Match History lane migrates its labels to label-text", optional: true },
   { file: "src/components/match-history/participant-panels.tsx", kind: "uppercase", reason: "Match History lane migrates its labels to label-text", optional: true },
   { file: "src/components/match-history/scoreboard.tsx", kind: "uppercase", reason: "Match History lane migrates its labels to label-text", optional: true },
@@ -55,10 +55,6 @@ const ALLOWED: Array<{ file: string; kind: Kind; reason: string; optional?: true
   { file: "src/components/match-history/match-detail.tsx", kind: "disabled-opacity", reason: "Match History lane adopts the disabled tone", optional: true },
   { file: "src/components/match-history/inline-match.tsx", kind: "disabled-opacity", reason: "Match History lane adopts the disabled tone", optional: true },
   { file: "src/components/match-history/match-history-view.tsx", kind: "disabled-opacity", reason: "Match History lane adopts the disabled tone", optional: true },
-  { file: "src/components/champion-lookup/champion-picker.tsx", kind: "label-caps", reason: "Champion Intel lane migrates its labels to label-text", optional: true },
-  { file: "src/components/champion-lookup/haste-field.tsx", kind: "label-caps", reason: "Champion Intel lane migrates its labels to label-text", optional: true },
-  { file: "src/components/champion-lookup/ability-list.tsx", kind: "label-caps", reason: "Champion Intel lane migrates its labels to label-text", optional: true },
-  { file: "src/components/champion-lookup/key-mechanics.tsx", kind: "label-caps", reason: "Champion Intel lane migrates its labels to label-text", optional: true },
 ];
 
 function files(dir: string): string[] {
@@ -147,7 +143,8 @@ describe("the text hierarchy", () => {
     expect(stale, "exceptions that no longer match anything: remove them").toEqual([]);
   });
 
-  it("every exception says why", () => {
+  it("every exception says why, and names a file that exists (a temporary one too: a deleted file's exemption is stale)", () => {
     for (const a of ALLOWED) expect(a.reason.length, `${a.file} ${a.kind}`).toBeGreaterThan(20);
+    for (const a of ALLOWED) expect(existsSync(path.join(ROOT, a.file)), `${a.file} ${a.kind}`).toBe(true);
   });
 });

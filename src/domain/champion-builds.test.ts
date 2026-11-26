@@ -23,6 +23,7 @@ import {
   type IconResolver,
   type Tally,
 } from "./champion-builds";
+import { patchTip, patchWords, sourceWords } from "./champion-builds-words";
 
 /*
   Champion Intel's builds and runes (docs/CHAMPION_INTEL.md, "Builds and runes"): the item rules on
@@ -188,6 +189,17 @@ describe("the patch window and the roles", () => {
     expect(widened.status).toBe("shown");
     if (widened.status !== "shown") return;
     expect(widened.builds.MID).toMatchObject({ patches: ["26.22", "26.21"], widened: true, games: 23, currentGames: 8 });
+  });
+
+  it("with no game yet on the current patch (its first days), counts the previous patch alone and says so, never as a range that holds the current one", () => {
+    const view = championBuildsView("Ahri", lane("MIDDLE", "16.21", 25), window, icons);
+    expect(view.status).toBe("shown");
+    if (view.status !== "shown") return;
+    const b = view.builds.MID!;
+    expect(b).toMatchObject({ patches: ["26.22", "26.21"], widened: true, games: 25, currentGames: 0 });
+    expect(patchWords(b)).toBe("patch 26.21, none yet on 26.22");
+    expect(sourceWords(b)).toContain("· patch 26.21, none yet on 26.22 ·");
+    expect(patchTip(b)).toBe("Patch 26.22 has no games yet, so only the 25 games on 26.21 are counted.");
   });
 
   it("never shows an older patch's games when the two together have too few: the honest empty state", () => {
