@@ -967,5 +967,13 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
       "DROP TABLE \"tracked_summoners\";",
       "WITH stored AS (SELECT DISTINCT jsonb_array_elements_text(jsonb_path_query_array(\"participants\", '$[*].puuid')) AS puuid FROM \"match_details\")\nDELETE FROM \"last_known_ranks\" l WHERE NOT EXISTS (SELECT 1 FROM stored s WHERE s.puuid = l.puuid);"
     ]
+  },
+  {
+    "idx": 69,
+    "tag": "0069_match_details_champions",
+    "hash": "6d4fa32ecd038c4f928543105abd2e71000c431bf87221847406b4e7e9717d4c",
+    "statements": [
+      "CREATE INDEX \"match_details_champions_idx\" ON \"match_details\" USING gin ((jsonb_path_query_array(\"participants\", '$[*].championId'))) WITH (fastupdate=false);"
+    ]
   }
 ];

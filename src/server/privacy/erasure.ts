@@ -7,6 +7,7 @@ import { summariseMatches } from "@/server/accounts/match-summary";
 import type { AccessRole } from "@/server/auth/permissions";
 import { isVerificationAccount } from "@/server/auth/verification-account";
 import { getUser, UserError } from "@/server/repositories/users";
+import { forgetChampionBuilds } from "@/server/champion-builds/load";
 import { forgetErasureCache, newReference } from "./ledger";
 import { redactParticipants } from "./redact";
 import { keyCheckOf, normaliseRiotId, tagged } from "./tokens";
@@ -564,6 +565,8 @@ export async function eraseSubject(db: Db, actorUserId: string | null, target: {
     return { reference, counts: plan.counts, mentions: plan.mentions };
   });
   forgetErasureCache();
+  // Champion Intel's cached build totals counted the erased person's games: counted again.
+  forgetChampionBuilds();
   return result;
 }
 

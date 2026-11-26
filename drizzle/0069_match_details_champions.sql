@@ -1,0 +1,1 @@
+CREATE INDEX "match_details_champions_idx" ON "match_details" USING gin ((jsonb_path_query_array("participants", '$[*].championId'))) WITH (fastupdate=false);

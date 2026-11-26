@@ -231,6 +231,9 @@ export const matchDetails = pgTable("match_details", {
   // fastupdate off: records arrive a few an hour, so each goes straight into the index instead of a
   // pending list that every search would scan (and that can make Postgres skip the index).
   index("match_details_puuids_idx").using("gin", sql`(jsonb_path_query_array(${t.participants}, '$[*].puuid'))`).with({ fastupdate: false }),
+  // The players' champions alone, so Champion Intel's builds (server/champion-builds) open only the
+  // records of one champion instead of every record. The statement uses the same expression.
+  index("match_details_champions_idx").using("gin", sql`(jsonb_path_query_array(${t.participants}, '$[*].championId'))`).with({ fastupdate: false }),
 ]);
 
 /**
