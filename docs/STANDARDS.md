@@ -86,8 +86,8 @@ Tailwind classes they generate. `src/app/design-tokens.test.ts` refuses font siz
 arbitrary values that equal a token (`text-[0.6875rem]` is `text-2xs`), Tailwind's names for the
 panel and card radii, colours written as hex in a class, easing curves that are not tokens,
 uppercase labels spaced other than `tracking-label`, a size, weight, case or letter spacing beside
-`label-caps` (which sets all four; Tailwind would drop the size silently) or beside `label-text`
-(the sentence-case label, which sets its size and weight), the standing-alone
+`label-text` (the sentence-case label, which sets its size and weight; Tailwind would drop the size
+silently), the standing-alone
 measure written as a number (`max-w-[72rem]`, `max-w-6xl`) instead of `max-w-[var(--measure)]`, a
 safe-area padding (`pb-safe`, `pt-safe` and their `-N` forms) beside another padding for the same
 edge, an arbitrary `max(…, env(safe-area-inset-…))` top or bottom padding that `pt-safe-N` or
@@ -161,7 +161,8 @@ listed with its reason in `src/app/type-hierarchy.test.ts`: Team Overview's card
 labels, the Admin mode marker and the admin pages' eyebrow (`PageHeader`), a member's own "wide"
 name style, and a round pill badge (`rounded-full`, such as "You", which may stay at
 `tracking-wide`). Capitals use `tracking-label`. `label-caps` (the 11px uppercase label in
-`tracking-label`) is retired: no page uses it once the release's lanes have merged. The team's name as a
+`tracking-label`) is retired: its utility left globals.css on 26 Nov 2026, once no page used it,
+and `type-hierarchy.test.ts` refuses the class. The team's name as a
 wordmark uses `tracking-wordmark`, and the Team page's backdrop name `tracking-tagline`. Numbers
 that line up use `tabular-nums`.
 

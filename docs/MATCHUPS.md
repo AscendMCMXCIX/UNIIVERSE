@@ -110,7 +110,11 @@ never as a tab.
 
 **Address and history.** One key: `?champion=Gwen&crole=TOP[&vs=Nasus]`. The first open pushes one
 history entry; switching champion, position or opponent replaces it; closing goes Back when this
-page pushed it. So Back always closes and never walks through champions or positions. The address
+page pushed it. So Back always closes and never walks through champions or positions. Closing
+(Close, Escape or Back) leaves the list where the reader is, not where it was when the preview
+opened (the owner's request, 25 Nov 2026): the list's own entry restores no scroll while the
+preview's entry is on top of it (`history.scrollRestoration` "manual" for that entry alone, the
+browser's own again once the preview has closed: `keepListPlace` in preview-data.ts). The address
 changes through the History API, never a navigation, so the page does not re-render. A deep link
 renders the preview's data in the first HTML; a `crole` the champion was not played in (in these
 filters) opens its most played position. A game opened from an opponent's games (the match window

@@ -65,6 +65,33 @@ async function beside(page: Page, row: Locator) {
     };
   });
 }
+/**
+ * Scrolls the page to its end once it has stopped growing, the list's last row whole on screen: a
+ * scroll taken while the page still grew (its parts streaming in on a busy machine) stopped short of
+ * the end, the last row's name then reached past the window's foot, and the click's own scroll into
+ * view moved the list by the 3px the test then blamed on the pane.
+ */
+async function scrollToEnd(page: Page) {
+  let last = -1;
+  await expect
+    .poll(
+      async () => {
+        const height = await page.evaluate(async () => {
+          window.scrollTo(0, document.documentElement.scrollHeight);
+          await new Promise((done) => setTimeout(done, 100));
+          const root = document.documentElement;
+          const name = [...document.querySelectorAll("[data-testid=top-champion] [data-open-champion]")].at(-1)?.getBoundingClientRect();
+          return root.scrollHeight - innerHeight - scrollY <= 0.5 && !!name && name.bottom <= innerHeight ? root.scrollHeight : -1;
+        });
+        const settled = height > 0 && height === last;
+        last = height;
+        return settled;
+      },
+      { message: "the page scrolled to its end and no longer growing" },
+    )
+    .toBe(true);
+}
+
 const BESIDE = { found: true, window: false, within: true, besideList: true, nameClear: true, sideways: false, oneScroll: true, headOnScreen: true };
 const pane = (page: Page) => page.locator("aside[data-preview-pane][data-testid=champion-preview]");
 
@@ -196,9 +223,8 @@ test("desktop: in a short scrolled window, opening, switching and closing never 
   const profile = await demoMember(page, "Demo Mid");
   await page.goto(`${profile}/champions`);
   const rows = page.getByTestId("top-champion");
-  await expect(rows.nth(5)).toBeAttached();
-  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
-  await page.waitForTimeout(200);
+  await expect(rows.nth(5)).toBeVisible();
+  await scrollToEnd(page);
   const last = rows.nth((await rows.count()) - 1);
   const y0 = (await last.boundingBox())!.y;
   const scroll0 = await page.evaluate(() => scrollY);
@@ -216,16 +242,62 @@ test("desktop: in a short scrolled window, opening, switching and closing never 
   expect(await page.evaluate(() => scrollY)).toBe(scroll0);
 });
 
+test("the list read on while the preview is open stays where the reader is when it closes: Close, Escape (desktop) and Back, never back to where it opened", async ({ page }, info) => {
+  test.skip(info.project.name === "tablet", "a computer's pane and a phone's sheet");
+  const phone = info.project.name === "phone";
+  // A window the list scrolls in: a short one on a computer, the phone's own.
+  if (!phone) await page.setViewportSize({ width: 1440, height: 600 });
+  const profile = await demoMember(page, "Demo Mid");
+  await page.goto(`${profile}/champions`);
+  const rows = page.getByTestId("top-champion");
+  await expect(rows.nth(5)).toBeVisible();
+  const scroll = () => page.evaluate(() => Math.round(scrollY));
+  const entries = await page.evaluate(() => history.length);
+  const closings = phone ? (["close", "back"] as const) : (["close", "escape", "back"] as const);
+  for (const how of closings) {
+    // Opened by a click on a row of the list's first screen (one history entry)…
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await expect.poll(scroll).toBe(0);
+    await openRow(page, rows.nth(3));
+    await expect(page.getByTestId("champion-preview-content")).toBeVisible();
+    // …then the page read on down: on a computer the page's own wheel beside the pane; on a phone the
+    // page behind the sheet moved (it takes no finger, but the page under a window can still move),
+    // the row it was opened from still on screen (the focus going back to it then moves nothing), and
+    // no further than the page reaches without the sheet (open, it makes the page a little longer).
+    if (phone) await page.evaluate(() => window.scrollTo(0, 64));
+    else {
+      await page.mouse.move(300, 400);
+      await page.mouse.wheel(0, 120);
+    }
+    await expect.poll(scroll, `${how}: the page read on`).toBeGreaterThan(40);
+    const now = await scroll();
+    const row = rows.nth(2);
+    const y = Math.round((await row.boundingBox())!.y);
+    if (how === "close") await page.getByTestId("champion-preview-close").first().click();
+    else if (how === "escape") await page.keyboard.press("Escape");
+    else await page.goBack();
+    await expect(page.getByTestId("champion-preview-content")).toHaveCount(0);
+    await expect(page).not.toHaveURL(/champion=/);
+    // Where the reader is (history restored no scroll), the rows where they were, a moment later too.
+    await page.waitForTimeout(300);
+    expect(await scroll(), `${how}: the page where the reader left it`).toBe(now);
+    expect(Math.abs(Math.round((await row.boundingBox())!.y) - y), `${how}: the rows where they were`).toBeLessThanOrEqual(1);
+    // The list's entry has the browser's own scroll restoration again.
+    expect(await page.evaluate(() => history.scrollRestoration), `${how}: the browser's restoration back`).toBe("auto");
+  }
+  // Each open pushed one entry and each close went Back over it: none piled up.
+  expect(await page.evaluate(() => history.length), "every close went Back over its entry").toBe(entries + 1);
+});
+
 test("desktop: a pane taller than the window has no scroll of its own: the page scrolls it, its header stays on screen, its end comes into view, and opened from the list's end its top is under the tabs", async ({ page }, info) => {
   test.skip(info.project.name !== "desktop", "the pane: a computer's window");
   await page.setViewportSize({ width: 1366, height: 540 });
   const profile = await demoMember(page, "Demo Mid");
   await page.goto(`${profile}/champions`);
   const rows = page.getByTestId("top-champion");
-  await expect(rows.nth(5)).toBeAttached();
+  await expect(rows.nth(5)).toBeVisible();
   // The list scrolled to its end, then its last row: the pane's top (the champion, ‹ › and Close) on screen.
-  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
-  await page.waitForTimeout(200);
+  await scrollToEnd(page);
   expect(await page.evaluate(() => scrollY), "the list is scrolled").toBeGreaterThan(0);
   const last = rows.nth((await rows.count()) - 1);
   await openRow(page, last);

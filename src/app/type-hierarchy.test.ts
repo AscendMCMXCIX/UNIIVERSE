@@ -24,8 +24,8 @@ import path from "node:path";
   - text-alpha: a text colour token with an alpha (`text-fg-subtle/60`): a contrast nobody measured
     (a zero count in fg-subtle at 60% was 3:1, under AA). Use the tier itself.
   ALLOWED entries name the file, the kind and the reason; each must still match something (a stale
-  entry fails), except the temporary section's (marked `optional`), which lists the files the other
-  lanes of the 25 Nov 2026 release migrate: the coordinator removes those entries as they land.
+  entry fails). (The release's temporary entries for the files its other lanes migrated went once
+  each file was clean, the last on 26 Nov 2026: Match History's labels and its disabled steps.)
 */
 
 const ROOT = path.join(__dirname, "../..");
@@ -33,7 +33,7 @@ const SCAN = ["src/components", "src/app"];
 
 type Kind = "uppercase" | "label-caps" | "disabled-opacity" | "disabled-tone" | "text-alpha";
 
-const ALLOWED: Array<{ file: string; kind: Kind; reason: string; optional?: true }> = [
+const ALLOWED: Array<{ file: string; kind: Kind; reason: string }> = [
   { file: "src/components/team/team-roster.tsx", kind: "uppercase", reason: "Team Overview, approved by the owner: the card's \"TOP POOL\" line, the player window's figure labels, the page's eyebrow and its backdrop lettering keep their capitals" },
   { file: "src/components/players/player-card.tsx", kind: "uppercase", reason: "Team Overview, approved by the owner: the card's WIN RATE / KDA / CS/MIN labels, the player window's pool column names and \"First choice\" in the card's colour" },
   { file: "src/components/app-shell.tsx", kind: "uppercase", reason: "the frame's Admin mode marker under the team's name: the mode's identity (DESIGN_SYSTEM.md §10)" },
@@ -44,17 +44,6 @@ const ALLOWED: Array<{ file: string; kind: Kind; reason: string; optional?: true
   { file: "src/components/team/team-roster.tsx", kind: "disabled-opacity", reason: "a lineup choice is a row with the player's picture: the whole row dims while it cannot be chosen" },
   { file: "src/components/profile/avatar-upload.tsx", kind: "disabled-opacity", reason: "the profile picture itself is the button: a picture dims as a whole" },
   { file: "src/components/settings/branding-panel.tsx", kind: "disabled-opacity", reason: "a native range input: the browser draws its track and thumb, which only opacity dims" },
-
-  // Temporary (25 Nov 2026): the Match History lane of this release migrates these files. The
-  // coordinator reconciles: each entry goes once its file is clean (Champion Intel's went on 26 Nov).
-  { file: "src/components/match-history/post-game.tsx", kind: "uppercase", reason: "Match History lane migrates its labels to label-text", optional: true },
-  { file: "src/components/match-history/participant-panels.tsx", kind: "uppercase", reason: "Match History lane migrates its labels to label-text", optional: true },
-  { file: "src/components/match-history/scoreboard.tsx", kind: "uppercase", reason: "Match History lane migrates its labels to label-text", optional: true },
-  { file: "src/components/match-history/encounters-view.tsx", kind: "uppercase", reason: "Match History lane migrates its labels to label-text", optional: true },
-  { file: "src/components/match-history/performance-panel.tsx", kind: "uppercase", reason: "Match History lane removes the score through the game", optional: true },
-  { file: "src/components/match-history/match-detail.tsx", kind: "disabled-opacity", reason: "Match History lane adopts the disabled tone", optional: true },
-  { file: "src/components/match-history/inline-match.tsx", kind: "disabled-opacity", reason: "Match History lane adopts the disabled tone", optional: true },
-  { file: "src/components/match-history/match-history-view.tsx", kind: "disabled-opacity", reason: "Match History lane adopts the disabled tone", optional: true },
 ];
 
 function files(dir: string): string[] {
@@ -139,11 +128,11 @@ describe("the text hierarchy", () => {
       }
     }
     expect(found, "sentence-case labels (label-text), disabled:text-fg-disabled for a disabled control, a tier's own colour for text; or an exception with its reason (docs/STANDARDS.md, Type)").toEqual([]);
-    const stale = ALLOWED.filter((a) => !a.optional && !used.has(`${a.file} ${a.kind}`)).map((a) => `${a.file} ${a.kind}`);
+    const stale = ALLOWED.filter((a) => !used.has(`${a.file} ${a.kind}`)).map((a) => `${a.file} ${a.kind}`);
     expect(stale, "exceptions that no longer match anything: remove them").toEqual([]);
   });
 
-  it("every exception says why, and names a file that exists (a temporary one too: a deleted file's exemption is stale)", () => {
+  it("every exception says why, and names a file that exists (a deleted file's exemption is stale)", () => {
     for (const a of ALLOWED) expect(a.reason.length, `${a.file} ${a.kind}`).toBeGreaterThan(20);
     for (const a of ALLOWED) expect(existsSync(path.join(ROOT, a.file)), `${a.file} ${a.kind}`).toBe(true);
   });

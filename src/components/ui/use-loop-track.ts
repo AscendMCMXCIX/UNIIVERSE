@@ -40,6 +40,14 @@ export function loopDelta(from: number, to: number, count: number): number {
   return d > (count - 1) / 2 ? d - count : d;
 }
 
+/**
+ * Whether the track at rest on card `at` has come to rest: it is not on its way to another card
+ * (`target`, the card `go` is bringing in, null once no move is under way).
+ */
+export function restsHere(target: number | null, at: number): boolean {
+  return target === null || target === at;
+}
+
 /** After the last scroll event, how long until the track counts as at rest (where `scrollend` is not sent). */
 const SETTLE_MS = 140;
 
@@ -118,6 +126,9 @@ export function useLoopTrack(count: number) {
       if (!card) return;
       arrange(el, c, card, count, s);
       el.scrollLeft = leftFor(el, card);
+      // At rest on that card again: a move that was under way has stopped (the scroll set here stops it).
+      s.target = null;
+      delete el.dataset.loopFree;
       index.set(c);
       rest.set(c);
     };
@@ -128,6 +139,11 @@ export function useLoopTrack(count: number) {
       const card = cards(el)[i]!;
       // Not yet at rest on a card (the snap is still bringing one in): wait for the next scroll's end.
       if (Math.abs(leftFor(el, card) - el.scrollLeft) > 1) return;
+      // On its way to another card (a key or a dot pressed as the track came to rest, before this
+      // rest was heard): that move's own end settles it. Settling here would place the cards round
+      // this one and move the track's scroll, which stops the move under way (the track then stayed
+      // on the card it was leaving, the dot's focus with it).
+      if (!restsHere(s.target, i)) return;
       delete el.dataset.loopFree;
       s.target = null;
       index.set(i);

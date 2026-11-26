@@ -87,3 +87,41 @@ test("Riot data's champions: the phone list's figures primary beside secondary w
   await expect(breakdown).toHaveCount(0);
   if (!phone || info.project.name === "phone") await expect(trigger).toBeFocused();
 });
+
+test("a phone at 150% and 200% text: the Riot accounts tab no wider than the phone, and Data diagnostics' summary its own at its centre, so a tap opens it", async ({ page }, info) => {
+  test.skip(info.project.name !== "phone", "a phone's widths at a larger text size");
+  await page.goto("/team");
+  const id = await page.getByTestId("lineup-row-MID").getAttribute("data-player-id");
+  await page.goto(`/players/${id}/accounts`);
+  await expect(page.getByTestId("riot-account-row").first()).toBeVisible();
+  for (const [width, text] of [[375, 1.5], [375, 2], [320, 2]] as const) {
+    const at = `${width}px at ${text * 100}%`;
+    await page.setViewportSize({ width, height: 667 });
+    await page.evaluate((size) => { document.documentElement.style.fontSize = size; }, `${text * 100}%`);
+    await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
+    // A long Riot ID once made its row wider than the phone (a grid item at least as wide as its
+    // widest word): the page grew sideways, and the Riot accounts section took the taps meant for
+    // the summary under it. The Riot ID wraps whole, inside its row.
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), `${at}: no sideways scroll`).toBeLessThanOrEqual(0);
+    const rows = await page.getByTestId("riot-account-row").evaluateAll((els) => els.map((row) => {
+      const r = row.getBoundingClientRect();
+      const name = row.querySelector("[data-testid=riot-account-id]")!.getBoundingClientRect();
+      return { inside: r.left >= -0.5 && r.right <= document.documentElement.clientWidth + 0.5, name: name.right <= r.right + 0.5 };
+    }));
+    expect(rows, `${at}: every account row and its Riot ID inside the phone`).toEqual(rows.map(() => ({ inside: true, name: true })));
+    const fold = page.getByTestId("data-diagnostics");
+    const summary = fold.locator("summary");
+    await summary.evaluate((s) => s.scrollIntoView({ block: "center" }));
+    // Its centre where the screen shows it (the box a tap aims at), and what the page has there.
+    const box = (await summary.boundingBox())!;
+    expect(await page.evaluate(({ x, y }) => {
+      const hit = document.elementFromPoint(x, y);
+      return !!hit && !!document.querySelector("[data-testid=data-diagnostics] > summary")?.contains(hit);
+    }, { x: box.x + box.width / 2, y: box.y + box.height / 2 }), `${at}: the summary is what its centre shows`).toBe(true);
+    // A tap opens it.
+    await summary.tap();
+    await expect(fold, `${at}: opened by a tap`).toHaveAttribute("open", "");
+    await fold.evaluate((d) => { (d as HTMLDetailsElement).open = false; });
+  }
+  await page.evaluate(() => { document.documentElement.style.fontSize = ""; });
+});

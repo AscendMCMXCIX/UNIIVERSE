@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { loopDelta, loopSlot } from "./use-loop-track";
+import { loopDelta, loopSlot, restsHere } from "./use-loop-track";
 
 /*
   The phone lineup's loop (Team Overview, useLoopTrack): five cards, each once, placed round the card
@@ -36,6 +36,15 @@ describe("the lineup loop", () => {
       expect((((a + d) % 5) + 5) % 5).toBe(b);
       expect(loopSlot(b, a, 5) - loopSlot(a, a, 5)).toBe(d);
     }
+  });
+
+  it("comes to rest only where no move to another card is under way", () => {
+    // No move under way, or at rest on the card being brought in: at rest (the cards are placed round it).
+    expect(restsHere(null, 1)).toBe(true);
+    expect(restsHere(1, 1)).toBe(true);
+    // The card it was leaving, heard at rest after a key or a dot started a move to the next: not yet
+    // (placing the cards round it would stop that move; e2e/team-carousel.spec.ts drives it).
+    expect(restsHere(2, 1)).toBe(false);
   });
 
   it("works for another number of cards: every card reachable from the middle", () => {

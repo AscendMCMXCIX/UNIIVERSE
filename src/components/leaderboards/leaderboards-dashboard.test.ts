@@ -127,6 +127,11 @@ describe("Leaderboards, one page", () => {
     const scope = html.slice(html.indexOf('data-testid="scope-label"'));
     expect(scope.indexOf("scope-count")).toBeLessThan(scope.indexOf("records-season-label"));
     expect(scope.indexOf("records-season-label")).toBeLessThan(scope.indexOf("leaderboards-status"));
+    // The season and the data status one unit: they take the next line together, the status never on a line of its own.
+    const unit = scope.slice(scope.indexOf('data-testid="scope-season-status"'));
+    expect(unit.indexOf("records-season-label")).toBeGreaterThan(0);
+    expect(unit.indexOf("leaderboards-status")).toBeGreaterThan(unit.indexOf("records-season-label"));
+    expect(scope.indexOf("scope-count")).toBeLessThan(scope.indexOf("scope-season-status"));
     expect(html).not.toContain('data-testid="last-updated"');
     // No paragraph of explanation on the page: the boards say what they count in their titles, the rest behind each ⓘ.
     expect(html).not.toContain("records-volume-note");

@@ -13,10 +13,10 @@ import path from "node:path";
   - a colour written as a hex value in a class (bg-[#…]) instead of a named palette colour;
   - an easing curve that is not one of the --ease-* tokens, in a class, a style or a script;
   - an uppercase label spaced other than tracking-label (a pill badge may use tracking-wide);
-  - a size, weight, case or letter spacing beside label-caps, which sets all four (a colour may
-    replace its fg-subtle): Tailwind orders label-caps after a text size, so the size would be lost;
-    the same beside label-text, the sentence-case label (25 Nov 2026), which sets a size and a weight
-    and must carry no capitals or letter spacing (a colour may replace its fg-muted);
+  - a size, weight, case or letter spacing beside label-text, the sentence-case label (25 Nov 2026),
+    which sets a size and a weight and must carry no capitals or letter spacing (a colour may replace
+    its fg-muted): Tailwind orders label-text after a text size, so the size would be lost (the
+    uppercase label-caps it replaced was retired on 26 Nov 2026, its last use migrated);
   - the standing-alone measure written as a number (max-w-[72rem], max-w-6xl) instead of
     max-w-[var(--measure)], so the boards that use it change together;
   - a safe-area padding (pb-safe, pb-safe-N; pt-safe, pt-safe-N) beside another padding for the same
@@ -81,8 +81,8 @@ function utilityOf(token: string): string {
   return token.slice(end + 1).replace(/^!|!$/g, "");
 }
 
-/** What label-caps sets, so a class string carries none of it beside label-caps. */
-const LABEL_CAPS_SETS = [/^(uppercase|lowercase|capitalize|normal-case)$/, /^tracking-/, /^font-(thin|extralight|light|normal|medium|semibold|bold|extrabold|black)$/, /^text-(4xs|2xs|xs|sm|md|base|lg|xl|\dxl|figure)(\/.+)?$/, /^text-\[(length:)?[\d.]+(px|rem|em)\]$/];
+/** What label-text sets or refuses (a size, a weight, capitals, letter spacing), so a class string carries none of it beside label-text. */
+const LABEL_SETS = [/^(uppercase|lowercase|capitalize|normal-case)$/, /^tracking-/, /^font-(thin|extralight|light|normal|medium|semibold|bold|extrabold|black)$/, /^text-(4xs|2xs|xs|sm|md|base|lg|xl|\dxl|figure)(\/.+)?$/, /^text-\[(length:)?[\d.]+(px|rem|em)\]$/];
 
 /** Per edge: its safe-area paddings, and every other padding that sets that edge. */
 const SAFE_EDGES = [
@@ -135,20 +135,12 @@ export function tokenProblems(source: string, tokens: Map<string, string>, optio
         if (/(^|:)tracking-(tighter|tight|normal|wide|wider|widest)$/.test(c) || /:tracking-\[[^\]]+\]$/.test(c)) problems.push(`${at}: ${c} on an uppercase label; use tracking-label`);
       }
     }
-    // label-caps sets a label's size, weight, case and letter spacing: none of them beside it.
-    for (const m of text.matchAll(/(["'`])([^"'`]*\blabel-caps\b[^"'`]*)\1/g)) {
-      const classes = m[2]!.split(/\s+/).filter(Boolean);
-      if (!classes.some((c) => utilityOf(c) === "label-caps")) continue;
-      for (const c of classes) {
-        if (LABEL_CAPS_SETS.some((re) => re.test(utilityOf(c)))) problems.push(`${at}: ${c} beside label-caps, which sets the label's size, weight, case and letter spacing`);
-      }
-    }
     // label-text sets a sentence-case label's size and weight, with no capitals and no letter spacing: none of them beside it.
     for (const m of text.matchAll(/(["'`])([^"'`]*\blabel-text\b[^"'`]*)\1/g)) {
       const classes = m[2]!.split(/\s+/).filter(Boolean);
       if (!classes.some((c) => utilityOf(c) === "label-text")) continue;
       for (const c of classes) {
-        if (LABEL_CAPS_SETS.some((re) => re.test(utilityOf(c)))) problems.push(`${at}: ${c} beside label-text, which sets a sentence-case label's size and weight, with no capitals or letter spacing`);
+        if (LABEL_SETS.some((re) => re.test(utilityOf(c)))) problems.push(`${at}: ${c} beside label-text, which sets a sentence-case label's size and weight, with no capitals or letter spacing`);
       }
     }
     // The standing-alone measure is one token, so every board that uses it changes together.
@@ -252,7 +244,6 @@ describe("design tokens", () => {
       `<p className="bg-[#f5c451] hover:border-[#abc]/40 text-gold" />`,
       `el.animate(frames, { easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" }); const odd = "cubic-bezier(0.1, 0.7, 0.1, 1)"; const c = "ease-[cubic-bezier(0.2,_0.8,_0.2,_1)]";`,
       `<span className="text-2xs uppercase tracking-wide" /><span className="rounded-full uppercase tracking-wide" /><span className="uppercase tracking-label sm:tracking-wider" /><span className="uppercase tracking-label @max-[15rem]/card:tracking-[0.04em]" />`,
-      `<span className="label-caps text-xs" /><span className="label-caps tracking-wide" /><span className="label-caps uppercase font-medium" /><span className="label-caps text-fg-muted" />`,
       `<div className="max-w-[72rem] lg:max-w-6xl max-w-[var(--measure)] max-w-[80rem]" />`,
       `<div className="px-4 py-4 pb-safe sm:py-5" /><div className="pt-3 pb-safe-3" /><div className="p-2 pt-safe-2" /><div className="pb-safe-4 sm:pb-safe-5 short:pb-safe-4 pt-4" /><div className="max-sm:pb-safe-4 pb-tabbar" />`,
       `<div className="pb-[max(1rem,env(safe-area-inset-bottom))] max-sm:pt-[max(0.75rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-top))] pb-[max(0.6rem,env(safe-area-inset-bottom))] pb-[calc(1rem+env(safe-area-inset-bottom))]" />`,
@@ -282,31 +273,27 @@ describe("design tokens", () => {
       "5: tracking-wide on an uppercase label; use tracking-label",
       "5: sm:tracking-wider on an uppercase label; use tracking-label",
       "5: @max-[15rem]/card:tracking-[0.04em] on an uppercase label; use tracking-label",
-      "6: text-xs beside label-caps, which sets the label's size, weight, case and letter spacing",
-      "6: tracking-wide beside label-caps, which sets the label's size, weight, case and letter spacing",
-      "6: uppercase beside label-caps, which sets the label's size, weight, case and letter spacing",
-      "6: font-medium beside label-caps, which sets the label's size, weight, case and letter spacing",
-      "7: max-w-[72rem] is max-w-[var(--measure)]",
-      "7: lg:max-w-6xl is max-w-[var(--measure)]",
-      "8: py-4 beside pb-safe; pad that edge once (pb-safe-N is N steps, or the inset where larger)",
-      "8: sm:py-5 beside pb-safe; pad that edge once (pb-safe-N is N steps, or the inset where larger)",
-      "8: p-2 beside pt-safe; pad that edge once (pt-safe-N is N steps, or the inset where larger)",
-      "8: pb-tabbar beside pb-safe; pad that edge once (pb-safe-N is N steps, or the inset where larger)",
-      "9: pb-[max(1rem,env(safe-area-inset-bottom))] is pb-safe-4",
-      "9: pt-[max(0.75rem,env(safe-area-inset-top))] is pt-safe-3",
-      "10: shadow-accent/15 is a blue glow or shadow; use a neutral shadow (shadow-black/40), or violet (accent-2) for light",
-      "10: shadow-accent is a blue glow or shadow; use a neutral shadow (shadow-black/40), or violet (accent-2) for light",
-      "10: drop-shadow-accent is a blue glow or shadow; use a neutral shadow (shadow-black/40), or violet (accent-2) for light",
-      "10: shadow-accent-strong is a blue glow or shadow; use a neutral shadow (shadow-black/40), or violet (accent-2) for light",
-      "10: shadow-[0_0_60px_-20px_var(--color-accent)] is a blue glow or shadow; use a neutral shadow (shadow-black/40), or violet (accent-2) for light",
-      "11: shadow-(color:--color-accent) is a blue glow or shadow; use a neutral shadow (shadow-black/40), or violet (accent-2) for light",
-      "11: inset-shadow-(color:--color-accent-strong)/30 is a blue glow or shadow; use a neutral shadow (shadow-black/40), or violet (accent-2) for light",
-      "11: drop-shadow-(--color-accent) is a blue glow or shadow; use a neutral shadow (shadow-black/40), or violet (accent-2) for light",
-      "12: text-[0.65rem] is under the 12px floor; use text-2xs (12px on desktops), or text-4xs inside a small tile",
-      "12: text-[0.75rem] is text-xs",
-      "12: text-[0.7rem] is under the 12px floor; use text-2xs (12px on desktops), or text-4xs inside a small tile",
-      "13: md:text-sm on a 16px field; use md:pointer-fine:text-sm (iOS zooms into a focused field under 16px on a touch screen)",
-      "13: sm:text-xs on a 16px field; use sm:pointer-fine:text-xs (iOS zooms into a focused field under 16px on a touch screen)",
+      "6: max-w-[72rem] is max-w-[var(--measure)]",
+      "6: lg:max-w-6xl is max-w-[var(--measure)]",
+      "7: py-4 beside pb-safe; pad that edge once (pb-safe-N is N steps, or the inset where larger)",
+      "7: sm:py-5 beside pb-safe; pad that edge once (pb-safe-N is N steps, or the inset where larger)",
+      "7: p-2 beside pt-safe; pad that edge once (pt-safe-N is N steps, or the inset where larger)",
+      "7: pb-tabbar beside pb-safe; pad that edge once (pb-safe-N is N steps, or the inset where larger)",
+      "8: pb-[max(1rem,env(safe-area-inset-bottom))] is pb-safe-4",
+      "8: pt-[max(0.75rem,env(safe-area-inset-top))] is pt-safe-3",
+      "9: shadow-accent/15 is a blue glow or shadow; use a neutral shadow (shadow-black/40), or violet (accent-2) for light",
+      "9: shadow-accent is a blue glow or shadow; use a neutral shadow (shadow-black/40), or violet (accent-2) for light",
+      "9: drop-shadow-accent is a blue glow or shadow; use a neutral shadow (shadow-black/40), or violet (accent-2) for light",
+      "9: shadow-accent-strong is a blue glow or shadow; use a neutral shadow (shadow-black/40), or violet (accent-2) for light",
+      "9: shadow-[0_0_60px_-20px_var(--color-accent)] is a blue glow or shadow; use a neutral shadow (shadow-black/40), or violet (accent-2) for light",
+      "10: shadow-(color:--color-accent) is a blue glow or shadow; use a neutral shadow (shadow-black/40), or violet (accent-2) for light",
+      "10: inset-shadow-(color:--color-accent-strong)/30 is a blue glow or shadow; use a neutral shadow (shadow-black/40), or violet (accent-2) for light",
+      "10: drop-shadow-(--color-accent) is a blue glow or shadow; use a neutral shadow (shadow-black/40), or violet (accent-2) for light",
+      "11: text-[0.65rem] is under the 12px floor; use text-2xs (12px on desktops), or text-4xs inside a small tile",
+      "11: text-[0.75rem] is text-xs",
+      "11: text-[0.7rem] is under the 12px floor; use text-2xs (12px on desktops), or text-4xs inside a small tile",
+      "12: md:text-sm on a 16px field; use md:pointer-fine:text-sm (iOS zooms into a focused field under 16px on a touch screen)",
+      "12: sm:text-xs on a 16px field; use sm:pointer-fine:text-xs (iOS zooms into a focused field under 16px on a touch screen)",
     ]);
   });
 });

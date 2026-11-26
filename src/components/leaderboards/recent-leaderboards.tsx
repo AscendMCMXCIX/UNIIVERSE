@@ -85,7 +85,7 @@ const HEADS = (
     <DataHead className="col-span-2">Member</DataHead>
     <DataHead>Win rate</DataHead>
     <DataHead align="end">Record</DataHead>
-    {/* "To the place above" needs 9.1rem in label-caps: the medium gap column has 6.5rem. The
+    {/* "To the place above" needs 6.8rem in label-text (the headings' sentence case): the medium gap column has 6.5rem. The
         padding sets the gap apart from the record before it (20px on a medium board, 16px on a wide one). */}
     <DataHead className="@min-[36rem]/list:pl-2 @min-[58rem]/list:pl-1">
       <span className="@min-[58rem]/list:hidden">Gap</span>

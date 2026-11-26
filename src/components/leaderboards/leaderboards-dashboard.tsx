@@ -93,13 +93,18 @@ export function LeaderboardsDashboard({ view, champions, status, peekable }: { v
             </span>
             <InfoTip label="Who is shown" text={ACTIVE_TIP} testId="scope-tip" />
           </span>
-          {/* The season of the records, the multikills and the milestones: its choice where two are offered. */}
-          {records.seasons.length > 1 ? (
-            <SeasonChoice seasons={records.seasons} current={records.season} />
-          ) : (
-            <span data-testid="records-season-label">{records.seasonLabel}</span>
-          )}
-          {status ? <DataStatusNote status={status} testId="leaderboards-status" /> : null}
+          {/* The season of the records, the multikills and the milestones (its choice where two are offered), then the data
+              status, as one unit: where the line has no room for both after the count (a phone, a status in words such as
+              "Syncing"), they take the next line together, so the status always ends a line with the season and never stands
+              on a line of its own. At a large text size the season's words wrap beside the status rather than past the screen. */}
+          <div className="flex min-w-0 max-w-full items-baseline gap-x-3" data-testid="scope-season-status">
+            {records.seasons.length > 1 ? (
+              <SeasonChoice seasons={records.seasons} current={records.season} />
+            ) : (
+              <span className="min-w-0" data-testid="records-season-label">{records.seasonLabel}</span>
+            )}
+            {status ? <DataStatusNote status={status} testId="leaderboards-status" className="shrink-0" /> : null}
+          </div>
         </div>
         {status ? null : (
           <p className="basis-full text-xs text-fg-subtle" data-testid="last-updated">

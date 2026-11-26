@@ -931,7 +931,7 @@ function SessionHeader({ summary: s, onPage }: { summary: SessionSummary; onPage
  * arrows stay on the line, at its ends (pager.ts); buttons wrap only past that (very large text).
  */
 function Pages({ page, pages, total, per, pending, go }: { page: number; pages: number; total: number; per: number; pending: boolean; go: (p: number) => void }) {
-  const arrow = "grid h-10 w-10 place-items-center rounded-lg border border-border text-fg-muted hover:border-border-strong hover:text-fg disabled:opacity-40 pointer-coarse:h-11 pointer-coarse:w-11 md:pointer-fine:h-8 md:pointer-fine:w-8";
+  const arrow = "grid h-10 w-10 place-items-center rounded-lg border border-border text-fg-muted hover:border-border-strong hover:text-fg disabled:cursor-not-allowed disabled:text-fg-disabled disabled:hover:border-border disabled:hover:text-fg-disabled pointer-coarse:h-11 pointer-coarse:w-11 md:pointer-fine:h-8 md:pointer-fine:w-8";
   const from = (page - 1) * per + 1;
   const to = Math.min(total, page * per);
   const items = pagerItems(page, pages);

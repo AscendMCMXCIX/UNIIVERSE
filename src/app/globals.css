@@ -150,15 +150,15 @@ html {
   cards of Match History and Team Matches took it after a measured pass. The utility stays for a
   place a later stage must defer, listed in design-tokens.test.ts with its reason.
 */
-/* Uppercase labels (column headings, eyebrows, label-caps) keep 11px at every width: the floor is for
-   running text and names, and a label's tracked capitals read at 11px (they set the width of a
-   table's headings, measured at 1024px). */
-.uppercase,
-.label-caps {
+/* Uppercase labels (the approved capitals: Team Overview's, the Admin mode marker, eyebrows) keep 11px
+   at every width: the floor is for running text and names, and a label's tracked capitals read at
+   11px. (The label-caps utility, uppercase column headings, was retired on 26 Nov 2026: labels are
+   label-text, in sentence case, and take the floor.) */
+.uppercase {
   --text-2xs: 0.6875rem;
 }
 /* What sits inside a label in normal case ("6 champions" beside "TOP POOL") is running text again. */
-:is(.uppercase, .label-caps) :where(:not(.uppercase, .label-caps)) {
+.uppercase :where(:not(.uppercase)) {
   --text-2xs: var(--text-2xs-floor, 0.6875rem);
 }
 
@@ -550,23 +550,11 @@ p a.text-accent {
 }
 
 /*
-  Column headings and small labels, written one way: the size, weight, case and letter spacing come
-  from here (design-tokens.test.ts refuses them beside it; a colour may replace fg-subtle). No line
-  height: the label keeps the line it sits in, as text-2xs does.
-*/
-@utility label-caps {
-  font-size: var(--text-2xs);
-  font-weight: var(--font-weight-semibold, 600);
-  letter-spacing: var(--tracking-label);
-  text-transform: uppercase;
-  color: var(--color-fg-subtle);
-}
-
-/*
-  Column headings and small labels in sentence case (25 Nov 2026): the secondary grey, text-2xs (11px
-  on phones, 12px from 1024px), medium weight, no letter spacing. It replaces label-caps wherever a
-  label is read rather than glanced at; label-caps stays only where the approved designs keep capitals.
-  design-tokens.test.ts refuses a size or weight beside it (a colour may replace fg-muted).
+  Column headings and small labels, written one way, in sentence case (25 Nov 2026): the secondary
+  grey, text-2xs (11px on phones, 12px from 1024px), medium weight, no letter spacing. It replaced the
+  uppercase label-caps everywhere (retired 26 Nov 2026; the approved designs that keep capitals write
+  them with uppercase and tracking-label). design-tokens.test.ts refuses a size or weight beside it (a
+  colour may replace fg-muted). No line height: the label keeps the line it sits in, as text-2xs does.
 */
 @utility label-text {
   font-size: var(--text-2xs);

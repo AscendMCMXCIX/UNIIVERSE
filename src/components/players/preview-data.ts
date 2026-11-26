@@ -17,7 +17,31 @@ import { isGameRole } from "@/domain/season-stats";
   so Back always closes and never walks through champions or positions. Nothing re-renders the page:
   the address changes through the History API, and the content comes from two light server actions,
   kept per page.
+
+  Closing leaves the list where the reader is (the owner's request of 25 Nov 2026: "Preserve
+  champion list position… when closing the preview"): going Back over the preview's entry, the
+  browser would scroll the page to where it was when the preview opened, a jump for anyone who read
+  on down the list meanwhile. So the list's own entry restores no scroll while the preview's entry is
+  on top of it (its scroll restoration "manual", set just before the push; the preview's entry keeps
+  the browser's own, so a page a link in the preview opened comes Back to it as usual), and gets the
+  browser's restoration again once the preview has closed (keepListPlace).
 */
+
+/**
+ * The list's history entry restores no scroll while the preview's entry is on top of it: `push` is
+ * the push of the preview's entry, run between the list's entry's restoration set to "manual" and
+ * the preview's entry's set back to what it was; the returned function gives the list's entry its
+ * restoration back once the preview has closed (Close, Escape or Back over it). Exported for its test.
+ */
+export function keepListPlace(history: Pick<History, "scrollRestoration">, push: () => void): () => void {
+  const was = history.scrollRestoration;
+  history.scrollRestoration = "manual";
+  push();
+  history.scrollRestoration = was;
+  return () => {
+    history.scrollRestoration = was;
+  };
+}
 
 export interface PreviewSelection {
   championId: string;
@@ -54,6 +78,8 @@ export function usePreviewAddress() {
   const sel = React.useMemo(() => previewFrom(new URLSearchParams(urlKey)), [urlKey]);
   // Opened from this page: closing goes back in history (so Back never reopens it).
   const pushed = React.useRef(false);
+  // Gives the list's entry its scroll restoration back once the preview it pushed has closed (keepListPlace).
+  const listPlace = React.useRef<(() => void) | null>(null);
   const urlWith = React.useCallback(
     (changes: Record<string, string | null>) => {
       const q = new URLSearchParams(window.location.search);
@@ -71,7 +97,7 @@ export function usePreviewAddress() {
     if (new URLSearchParams(window.location.search).has("champion")) window.history.replaceState(null, "", url);
     else {
       pushed.current = true;
-      window.history.pushState(null, "", url);
+      listPlace.current = keepListPlace(window.history, () => window.history.pushState(null, "", url));
     }
   };
   const setVs = (vs: string | null) => window.history.replaceState(null, "", urlWith({ vs, tab: null }));
@@ -83,9 +109,16 @@ export function usePreviewAddress() {
       window.history.back();
     } else window.history.replaceState(null, "", urlWith(Object.fromEntries(PREVIEW_KEYS.map((k) => [k, null]))));
   };
-  // Back closed it: a later open pushes again.
+  // Back closed it: a later open pushes again, and the list's entry restores its scroll again (the
+  // page now where the reader left it).
   React.useEffect(() => {
-    if (!sel) pushed.current = false;
+    if (sel) return;
+    pushed.current = false;
+    if (listPlace.current) listPlace.current();
+    // Back over a preview this page opened before a link in it led away (this list drawn anew since):
+    // the browser's own restoration, which nothing else in the app changes.
+    else if (window.history.scrollRestoration === "manual") window.history.scrollRestoration = "auto";
+    listPlace.current = null;
   }, [sel]);
   return { sel, show, setVs, setRole, close };
 }
