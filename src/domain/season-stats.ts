@@ -475,6 +475,33 @@ export function filterGames(
   return { games: out, unknownRole };
 }
 
+/**
+ * The positions a champion was actually played in, from its games (already filtered: one champion,
+ * the page's season, mode, role and account), most played first; ties go to the position played most
+ * recently, then to the positions' order. Only the position Riot recorded counts: a game without one
+ * belongs to no position (it is counted in `unrecorded`, so the champion's totals still hold it), and
+ * nothing is read from configured pools or a champion's usual lane. No minimum number of games.
+ */
+export function positionsPlayed<G extends Pick<SeasonGame, "role" | "gameCreation">>(games: readonly G[]): { positions: Array<{ role: GameRole; games: G[] }>; unrecorded: number } {
+  const by = new Map<GameRole, { games: G[]; last: number }>();
+  let unrecorded = 0;
+  for (const g of games) {
+    const role = gameRole(g);
+    if (!role) {
+      unrecorded += 1;
+      continue;
+    }
+    const entry = by.get(role) ?? { games: [], last: 0 };
+    entry.games.push(g);
+    entry.last = Math.max(entry.last, g.gameCreation);
+    by.set(role, entry);
+  }
+  const positions = [...by.entries()]
+    .sort((a, b) => b[1].games.length - a[1].games.length || b[1].last - a[1].last || GAME_ROLES.indexOf(a[0]) - GAME_ROLES.indexOf(b[0]))
+    .map(([role, e]) => ({ role, games: e.games }));
+  return { positions, unrecorded };
+}
+
 /** Champions in the filtered games, most played first. */
 export function championsByGames(games: readonly SeasonGame[]): Array<{ championId: string; games: number }> {
   const counts = new Map<string, number>();

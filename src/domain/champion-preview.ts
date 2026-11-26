@@ -3,31 +3,32 @@ import { MIN_PATTERN_GAMES } from "@/domain/matchups";
 import { viewerWords } from "@/domain/viewer-words";
 
 /*
-  All Champions' preview: one champion in one role, and the player's record against each lane
+  All Champions' preview: one champion in one position, and the player's record against each lane
   opponent (the enemy Riot placed in the player's position, only when exactly one enemy held it:
-  domain/match-analysis laneOpponentOf, stored with each game). The sample rules (CM §2.2):
+  domain/match-analysis laneOpponentOf, stored with each game). One table holds every opponent,
+  however few the games (the owner's request of 25 Nov 2026: no folds, no Best/Worst tabs). The
+  sample rules:
 
-    3+ games   an opponent is listed with a win rate, its games beside it
-    5+ games   that win rate may be coloured, and Best and Worst rank it first
-    1–2 games  folded into "N more opponents with 1–2 games", with W/L only
+    every opponent   listed with its games, its W/L and its win rate
+    1–2 games        a small sample: its win rate in the quiet colour, and never ranked by win rate
+    3+ games         ranked by "Highest win rate" and "Lowest win rate"
+    5+ games         the win rate may be coloured (the app's champion rule)
 
-  With no opponent at 3 games, every opponent is listed with W/L only.
+  Sorted by win rate, the opponents with 3+ games come first, ranked; those with 1–2 follow, after a
+  quiet divider, in the same direction, so a 1–0 never tops the list as "100%".
 */
 
-/** Games before an opponent's win rate is shown. */
+/** Games before an opponent's win rate is ranked by the win-rate sorts (fewer: a small sample, listed after the ranked ones). */
 export const OPPONENT_MIN_GAMES = 3;
-/** Opponents with 3+ games the preview's table shows before "N more" (the rest one click away), so the panel stays within the screen. */
-export const OPPONENTS_SHOWN = 5;
 /** Games before an opponent's win rate is coloured (the app's champion rule). */
 export const OPPONENT_TONED_GAMES = WIN_RATE_MIN_GAMES.champion;
 
-export type OpponentSort = "games" | "best" | "worst";
-export const OPPONENT_SORTS: ReadonlyArray<{ key: OpponentSort; label: string }> = [
-  { key: "games", label: "Most games" },
-  { key: "best", label: "Best" },
-  { key: "worst", label: "Worst" },
+export type OpponentSort = "games" | "high" | "low";
+export const OPPONENT_SORTS: ReadonlyArray<{ key: OpponentSort; label: string; short: string }> = [
+  { key: "games", label: "Most games", short: "Games" },
+  { key: "high", label: "Highest win rate", short: "Highest" },
+  { key: "low", label: "Lowest win rate", short: "Lowest" },
 ];
-export const isOpponentSort = (v: unknown): v is OpponentSort => v === "games" || v === "best" || v === "worst";
 
 export interface OpponentTally {
   championId: string;
@@ -36,34 +37,34 @@ export interface OpponentTally {
   lastPlayedAt: number;
 }
 
+/** A small sample: too few games for its win rate to be ranked or read as a strength. */
+export const smallSample = (o: Pick<OpponentTally, "games">) => o.games < OPPONENT_MIN_GAMES;
+
 export interface ArrangedOpponents {
-  /** Listed with a win rate (3+ games), or every opponent (W/L only) when none has 3. */
-  listed: OpponentTally[];
-  /** 1–2 games, folded (W/L only); empty when `listed` already holds every opponent. */
-  folded: OpponentTally[];
-  /** No opponent met 3 times yet: `listed` shows W/L only. */
-  noneEstablished: boolean;
+  /** Every opponent given, in the chosen order. */
+  rows: OpponentTally[];
+  /**
+   * Sorted by win rate, the index of the first small sample after the ranked ones (the quiet divider
+   * goes before it); null sorted by games, or where every row is on one side of the line.
+   */
+  divider: number | null;
 }
 
 const byGames = (a: OpponentTally, b: OpponentTally) => b.games - a.games || b.lastPlayedAt - a.lastPlayedAt || a.championId.localeCompare(b.championId);
 
 /**
- * The opponents in the preview's order. Most games: the most games first, then the most recent.
- * Best and Worst: opponents at 5+ games first, then those at 3–4, each by win rate, ties to more
- * games, then the most recent.
+ * The opponents in the table's order. Most games: the most games first, then the most recent. Highest
+ * and Lowest win rate: opponents with 3+ games by win rate (ties to more games, then the most
+ * recent), then those with 1–2 games by win rate in the same direction (ties the same way).
  */
 export function arrangeOpponents(all: readonly OpponentTally[], sort: OpponentSort): ArrangedOpponents {
-  const established = all.filter((o) => o.games >= OPPONENT_MIN_GAMES);
-  const small = all.filter((o) => o.games < OPPONENT_MIN_GAMES).sort(byGames);
-  if (!established.length) return { listed: small, folded: [], noneEstablished: all.length > 0 };
+  if (sort === "games") return { rows: [...all].sort(byGames), divider: null };
+  const sign = sort === "high" ? -1 : 1;
   const rate = (o: OpponentTally) => o.wins / o.games;
-  const tier = (o: OpponentTally) => (o.games >= OPPONENT_TONED_GAMES ? 0 : 1);
-  const listed = [...established].sort((a, b) => {
-    if (sort === "games") return byGames(a, b);
-    const sign = sort === "best" ? -1 : 1;
-    return tier(a) - tier(b) || sign * (rate(a) - rate(b)) || byGames(a, b);
-  });
-  return { listed, folded: small, noneEstablished: false };
+  const byRate = (a: OpponentTally, b: OpponentTally) => sign * (rate(a) - rate(b)) || byGames(a, b);
+  const ranked = all.filter((o) => !smallSample(o)).sort(byRate);
+  const small = all.filter(smallSample).sort(byRate);
+  return { rows: [...ranked, ...small], divider: ranked.length && small.length ? ranked.length : null };
 }
 
 /** What the pairing's games say at 10:00, from those with a timeline. */

@@ -1,29 +1,45 @@
 import { describe, expect, it } from "vitest";
-import { arrangeOpponents, opponentFootLine, opponentSentence, pairingKda, type OpponentTally } from "./champion-preview";
+import { arrangeOpponents, opponentFootLine, opponentSentence, pairingKda, smallSample, type OpponentTally } from "./champion-preview";
 import { viewerWords } from "./viewer-words";
 
 const o = (championId: string, games: number, wins: number, lastPlayedAt = 0): OpponentTally => ({ championId, games, wins, lastPlayedAt });
 
-describe("the preview's lane opponents", () => {
+describe("the preview's lane opponents: one table, every opponent (the owner's request of 25 Nov 2026)", () => {
   const all = [o("Nasus", 7, 1, 5), o("Garen", 2, 2, 9), o("Darius", 3, 3, 1), o("Sett", 1, 0, 3), o("Teemo", 5, 4, 2), o("Fiora", 4, 1, 4)];
+  const ids = (a: { rows: OpponentTally[] }) => a.rows.map((x) => x.championId);
 
-  it("lists opponents from 3 games, folds 1–2, and sorts by most games by default", () => {
+  it("lists every opponent, 1–2 games included, most games first (ties to the most recent), with no divider", () => {
     const a = arrangeOpponents(all, "games");
-    expect(a.listed.map((x) => x.championId)).toEqual(["Nasus", "Teemo", "Fiora", "Darius"]);
-    expect(a.folded.map((x) => x.championId)).toEqual(["Garen", "Sett"]);
-    expect(a.noneEstablished).toBe(false);
+    expect(ids(a)).toEqual(["Nasus", "Teemo", "Fiora", "Darius", "Garen", "Sett"]);
+    expect(a.divider).toBeNull();
+    expect(ids(arrangeOpponents([o("Ahri", 2, 1, 1), o("Zed", 2, 0, 7)], "games"))).toEqual(["Zed", "Ahri"]);
   });
 
-  it("ranks 5+ games first for Best and Worst, then 3–4", () => {
-    expect(arrangeOpponents(all, "best").listed.map((x) => x.championId)).toEqual(["Teemo", "Nasus", "Darius", "Fiora"]);
-    expect(arrangeOpponents(all, "worst").listed.map((x) => x.championId)).toEqual(["Nasus", "Teemo", "Fiora", "Darius"]);
+  it("ranks by win rate only opponents with 3+ games; the small samples follow after the divider, in the same direction", () => {
+    const high = arrangeOpponents(all, "high");
+    // Garen 2–0 (100%) never tops the list: it follows the ranked opponents.
+    expect(ids(high)).toEqual(["Darius", "Teemo", "Fiora", "Nasus", "Garen", "Sett"]);
+    expect(high.divider).toBe(4);
+    const low = arrangeOpponents(all, "low");
+    expect(ids(low)).toEqual(["Nasus", "Fiora", "Teemo", "Darius", "Sett", "Garen"]);
+    expect(low.divider).toBe(4);
   });
 
-  it("with no opponent at 3 games, lists them all (W/L only) and says so", () => {
-    const a = arrangeOpponents([o("Garen", 2, 1, 1), o("Sett", 1, 0, 2)], "best");
-    expect(a).toMatchObject({ noneEstablished: true, folded: [] });
-    expect(a.listed.map((x) => x.championId)).toEqual(["Garen", "Sett"]);
-    expect(arrangeOpponents([], "games").noneEstablished).toBe(false);
+  it("breaks win-rate ties by more games, then the most recent", () => {
+    const a = arrangeOpponents([o("Ahri", 4, 2, 1), o("Zed", 6, 3, 2), o("Lux", 4, 2, 9)], "high");
+    expect(ids(a)).toEqual(["Zed", "Lux", "Ahri"]);
+  });
+
+  it("draws no divider when every opponent is on one side of the line, and keeps an empty list empty", () => {
+    const small = arrangeOpponents([o("Garen", 2, 1, 1), o("Sett", 1, 0, 2)], "high");
+    expect(ids(small)).toEqual(["Garen", "Sett"]);
+    expect(small.divider).toBeNull();
+    expect(arrangeOpponents([o("Nasus", 3, 1, 1), o("Darius", 4, 4, 1)], "low").divider).toBeNull();
+    expect(arrangeOpponents([], "games")).toEqual({ rows: [], divider: null });
+  });
+
+  it("calls under 3 games a small sample", () => {
+    expect([1, 2, 3, 5].map((games) => smallSample({ games }))).toEqual([true, true, false, false]);
   });
 });
 

@@ -688,6 +688,24 @@ function nestDemoCounters(stats: NonNullable<MatchParticipantDetail["stats"]>) {
   stats.pentaKills = e[3]!;
 }
 
+/**
+ * Demo mode only: the positions one demo member played some of their champions in besides their
+ * pool's, and one game Riot recorded no position for (null), so All Champions shows a champion played
+ * in all five positions (Sion), in three (Malphite), in two (Ornn) and in one (Mordekaiser), with
+ * single games among them, and a game in no position (docs/MATCHUPS.md). Keyed by the n-th game on
+ * the champion (from 1); any other game is in the pool's role. A substitute whose multikills are too
+ * few to be placed (DEMO_FEW_COUNTS), so no board's order moves. Only the stored position, the lane
+ * opponent drawn for it (none without a position) and that game's own record and timeline follow
+ * it; every figure of the game is drawn as before, so no other demo figure changes.
+ */
+const DEMO_OTHER_POSITIONS: Readonly<Record<string, Readonly<Record<string, Readonly<Record<number, Role | null>>>>>> = {
+  "Demo Sub (Top)": {
+    Sion: { 3: "JUNGLE", 6: "MID", 9: "JUNGLE", 12: "SUPPORT", 15: "ADC", 18: "MID", 21: null },
+    Malphite: { 2: "SUPPORT", 5: "SUPPORT", 8: "MID" },
+    Ornn: { 3: "JUNGLE" },
+  },
+};
+
 /** A demo player's games; returns those whose record "Riot no longer provides" (see DEMO_OLDER_RECORDS). */
 async function seedDemoGames(db: Db, accountId: string, puuid: string, name: string, pools: Array<{ role: Role; pool: string[] }>): Promise<string[]> {
   const gone: string[] = [];
@@ -705,9 +723,15 @@ async function seedDemoGames(db: Db, accountId: string, puuid: string, name: str
   const now = Date.now();
   const games: Array<typeof accountMatches.$inferInsert> = [];
   const details: Array<typeof matchDetails.$inferInsert> = [];
+  const onChampion = new Map<string, number>();
   for (let i = 0; i < count; i++) {
     const { role, pool } = pools.length > 1 && rnd() < 0.2 ? pools[1]! : pools[0]!;
     const championId = pool[Math.min(pool.length - 1, Math.floor(rnd() * rnd() * pool.length))]!;
+    // The position played: the pool's, or another for a few games (DEMO_OTHER_POSITIONS; null: none recorded).
+    const nth = (onChampion.get(championId) ?? 0) + 1;
+    onChampion.set(championId, nth);
+    const other = DEMO_OTHER_POSITIONS[name]?.[championId]?.[nth];
+    const played: Role | null = other === undefined ? role : other;
     const duration = int(1450, 2350);
     const minutes = duration / 60;
     const win = rnd() < skill;
@@ -722,20 +746,22 @@ async function seedDemoGames(db: Db, accountId: string, puuid: string, name: str
     const matchId = `DEMO_${puuid.slice(5, 13)}_${i}`;
     const gameCreation = now - (count - i) * 86_400_000 * 1.6 - int(0, 40_000_000);
     const queueId = rnd() < 0.7 ? 420 : 440;
-    const laneOptions = DEMO_LANE_OPPONENTS[role];
+    const laneOptions = DEMO_LANE_OPPONENTS[played ?? role];
     const opponentIndex = Math.min(laneOptions.length - 1, Math.floor(laneRnd() * laneRnd() * laneOptions.length));
-    const enemyChampionId = laneOptions[opponentIndex]!;
-    games.push({ accountId, matchId, gameCreation, queueId, championId, role, win, enemyChampionId, patch: `${season}.${Math.max(1, 20 - Math.floor((count - i) / 3))}`, gameDuration: duration, kills, deaths, assists, cs, damage, visionScore: vision });
+    // The enemy in the same position; without a recorded position no lane opponent is known (laneOpponentOf).
+    const laneChampion = laneOptions[opponentIndex]!;
+    const enemyChampionId = played ? laneChampion : null;
+    games.push({ accountId, matchId, gameCreation, queueId, championId, role: played, win, enemyChampionId, patch: `${season}.${Math.max(1, 20 - Math.floor((count - i) / 3))}`, gameDuration: duration, kills, deaths, assists, cs, damage, visionScore: vision });
     // Every third game on the red side (never one with the recurring duo below), so every view is
     // seen from both sides: Riot lists the blue side (100) first, as here.
     const ownTeam = i % 3 === 2 ? 200 : 100;
     const otherTeam = ownTeam === 100 ? 200 : 100;
     const teamKills = kills + assists + int(2, 10);
-    const taken = new Set([championId, enemyChampionId]);
+    const taken = new Set([championId, laneChampion]);
     // Other players are new in every game, except a pair of rivals who queue together and meet
     // this player in every third game (what the match window's possible groups show; demo only).
     const duo = (n: number, ally: boolean) => i % 3 === 0 && !ally && (n === 6 || n === 7);
-    const filler = (n: number, teamId: number, ally: boolean): MatchParticipantDetail => ({ puuid: duo(n, ally) ? `demo-duo-${puuid.slice(5, 13)}-${n}` : `demo-filler-${puuid.slice(5, 13)}-${i}-${n}`, name: duo(n, ally) ? `Demo Duo ${n - 5}#DEMO` : demoOtherName(ally, n), teamId, championId: n === 5 ? enemyChampionId : demoOther(i, n, taken), championKey: 0, champLevel: 15, position: null, win: ally ? win : !win, kills: ally ? Math.round((teamKills - kills) / 4) : int(2, 8), deaths: int(1, 7), assists: int(2, 12), cs: int(30, 240), gold: int(7000, 14000), damage: int(6000, 26000), damageTaken: int(9000, 30000), vision: int(10, 50), wardsPlaced: int(4, 20), items: null, spells: null, runes: null });
+    const filler = (n: number, teamId: number, ally: boolean): MatchParticipantDetail => ({ puuid: duo(n, ally) ? `demo-duo-${puuid.slice(5, 13)}-${n}` : `demo-filler-${puuid.slice(5, 13)}-${i}-${n}`, name: duo(n, ally) ? `Demo Duo ${n - 5}#DEMO` : demoOtherName(ally, n), teamId, championId: n === 5 ? laneChampion : demoOther(i, n, taken), championKey: 0, champLevel: 15, position: null, win: ally ? win : !win, kills: ally ? Math.round((teamKills - kills) / 4) : int(2, 8), deaths: int(1, 7), assists: int(2, 12), cs: int(30, 240), gold: int(7000, 14000), damage: int(6000, 26000), damageTaken: int(9000, 30000), vision: int(10, 50), wardsPlaced: int(4, 20), items: null, spells: null, runes: null });
     const me: MatchParticipantDetail = {
       puuid,
       name: `${name}#DEMO`,
@@ -743,7 +769,7 @@ async function seedDemoGames(db: Db, accountId: string, puuid: string, name: str
       championId,
       championKey: 0,
       champLevel: 16,
-      position: role,
+      position: played,
       win,
       kills,
       deaths,
@@ -789,7 +815,7 @@ async function seedDemoGames(db: Db, accountId: string, puuid: string, name: str
     const enemies = [5, 6, 7, 8, 9].map((n) => filler(n, otherTeam, false));
     // The lane opponent: the enemy in the same position.
     const lane = `demo-lane-${puuid.slice(5, 13)}-${i}`;
-    enemies[0] = { ...enemies[0]!, puuid: lane, championId: enemyChampionId, position: role };
+    enemies[0] = { ...enemies[0]!, puuid: lane, championId: laneChampion, position: played ?? role };
     balanceDemoGame(me, allies, enemies, minutes, i);
     const sides = ownTeam === 100 ? [me, ...allies, ...enemies] : [...enemies, me, ...allies];
     // Most demo games have a timeline; every sixth is left "still to be collected". Everyone in
@@ -798,14 +824,17 @@ async function seedDemoGames(db: Db, accountId: string, puuid: string, name: str
     // the timeline's objectives.
     let objectiveCounts: Record<number, Record<string, number>> | null = null;
     // Everyone's lane: the player and the lane opponent play the player's role, the others the four other roles.
-    const roles = DEMO_ROLES_FOR(role);
+    // In another position (DEMO_OTHER_POSITIONS), the player trades it with the teammate (and the
+    // lane opponent with the enemy) who would have held it, so each side still holds every position once.
+    const lanePosition = played ?? role;
+    const roles = DEMO_ROLES_FOR(role).map((r) => (r === lanePosition ? role : r));
     const others = [...allies.map((a, k) => ({ puuid: a.puuid, ally: true, role: roles[k]! })), ...enemies.slice(1).map((e, k) => ({ puuid: e.puuid, ally: false, role: roles[k]! }))];
-    const players = [{ puuid, role }, { puuid: lane, role }, ...others];
+    const players = [{ puuid, role: lanePosition }, { puuid: lane, role: lanePosition }, ...others];
     let builds: Array<{ puuid: string; purchases: Array<[number, number]> }> | null = null;
     if (i % 6 !== 5) {
       let gameSeed = [...matchId].reduce((n, c) => n + c.charCodeAt(0) * 7, 13);
       const gameRnd = () => ((gameSeed = (gameSeed * 9301 + 49297) % 233280), gameSeed / 233280);
-      const frames = fitFramesToRecord(demoFrames(laneRnd, duration, puuid, lane, role, win, (opponentIndex - 1) * 25, { rnd: gameRnd, players: others }), sides);
+      const frames = fitFramesToRecord(demoFrames(laneRnd, duration, puuid, lane, lanePosition, win, (opponentIndex - 1) * 25, { rnd: gameRnd, players: others }), sides);
       const drawn = players.map((x) => ({ puuid: x.puuid, ...demoBuild(gameRnd, duration, x.role) }));
       const { kda, events, counts } = demoEvents(gameRnd, duration, win ? ownTeam : otherTeam, sides);
       // A sale or two in some games (demoSales); the events carry the plates' list (none here), as a timeline kept since 20 Nov 2026 does, so its sales are read as kept.

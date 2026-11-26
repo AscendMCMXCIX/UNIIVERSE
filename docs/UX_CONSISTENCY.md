@@ -144,3 +144,19 @@ Kept, and why:
 
 The segmented groups keep their height (36px with a mouse, the boxed group's 36px; 44px on touch),
 so no other page moved: every other page of the walk measured the same before and after at both sizes.
+
+## 6. All Champions: positions, a pane beside the list, one table of opponents (25 Nov 2026)
+
+The owner's request of 25 Nov 2026 reassessed All Champions and its preview rather than adding to
+them (docs/MATCHUPS.md has the whole behaviour).
+
+| Before | After | Why |
+|---|---|---|
+| One role per row: the most played recorded role, or the configured primary role when no game recorded one; a champion of a member without a primary role whose games recorded none had no row | One row per champion with the icon of every position Riot recorded, most games first, no minimum; games without a position counted in the totals and said in the preview | Positions are what was played, never what was configured; the table's figures are the filters' totals |
+| The preview a panel docked at the window's right edge, over half the table | A pane beside the list, which narrows (no row or name moves); a sheet where both do not fit | Nothing covered without purpose; the preview gets real room on wide screens |
+| Champion-wide figures above role-specific opponents; "Also as" links that no longer appeared | A position choice that switches every figure and the opponents at once; mastery marked as all positions' | Each figure says what it covers |
+| Four boxed tiles; 3+ opponents (first five, then "more"), 1–2 folded; Most games, Best, Worst; each opponent an accordion with "Show all" | Labels over figures; one table of every opponent with a search and Most games, Highest and Lowest win rate (small samples quiet and ranked last); the detail beside the table, or one step in place of it | Fewer clicks, no nested expanders, no misleading best/worst from one game |
+| A click outside closed the panel | It stays (part of the page); Close is labelled; Back, Escape and the row again still close it | A pane in the page is not a layer to dismiss by accident |
+
+Back and Escape keep the one history rule: the preview is one entry (switching champion, position or
+opponent replaces it), and closing returns the list with its place, search, sort and filters.

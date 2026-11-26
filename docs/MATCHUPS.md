@@ -1,91 +1,128 @@
 # All Champions' preview and Matchups
 
-Profile → **All Champions** → a champion opens its **preview**, in the list's scope (season, game
-mode, account) and in the role of the row (PLAN S5, overhaul audit CM §4). It shows the player's own
-results, the same for every viewer who may see the profile; an opponent's abilities and cooldowns
-are Champion Intel's (docs/CHAMPION_INTEL.md; Matchup Intel's until 23 Nov 2026), reached by one
-link per opponent.
+Profile → **All Champions** lists one row per champion, and a champion opens its **preview**, in the
+list's scope (season, game mode, account, role played) and in one of the positions the player
+actually played it in (the owner's request of 25 Nov 2026; before it, PLAN S5 and the overhaul audit
+CM §4). It shows the player's own results, the same for every viewer who may see the profile; an
+opponent's abilities and cooldowns are Champion Intel's (docs/CHAMPION_INTEL.md; Matchup Intel's
+until 23 Nov 2026), reached by one link per opponent.
 
-**Where it opens** (since Release 16, the owner's request of 23 Nov 2026; docs/DESIGN_SYSTEM.md §7,
-"Peek"). From 768px wide (tablets and computers, at any list width, the sidebar open or not) the
-preview is a **compact panel docked at the window's right edge**, the shared Peek's
-(`ui/peek.tsx`, `clamp(26rem, 34vw, 36rem)` wide, from under the tablet's bar to the bottom): the
-table stays exactly where it is (its columns, every row's place and height, the page's scroll), the
-selected row takes `surface-3` and a 2px accent bar, and the panel's tallest content (five
-opponents with 3+ games, both "more" toggles, an opponent open with its three newest games) fits
-without scrolling at 1440 × 900 and at 1920 × 950 (the owner's window, the sidebar folded); in a
-shorter window, such as 1280 × 800, its body is the panel's one scroll region, its header with ✕
-and ‹ › staying in place. ‹ › in its header
-and ↑/↓ (J/K) from the list move it along the rows; ✕, Escape, the row again, Back and a click
-outside it (not on a row, a link, a window or a popover) close it, and Back puts the list back as it
-was, with its search, sort and filters. Under 768px, touch or mouse, and in short windows
-(`ui/posture.ts`), it is the same Peek's **sheet** with the same content and ‹ ›; ✕, Back or a pull
-down close it. (From S5 to 22 Nov 2026 the wide list showed it as a panel laid over the columns
-after Win rate, joined to its row by a 2px notch; from 23 Nov 2026 until Release 16 it unfolded
-under its row across the list, pushing the rows below it down, with a tall list of opponents in
-two columns from 50rem.)
+**The rows** (`all-champions.tsx`, `champion-roles.tsx`; `server/players/overview.ts` →
+`topChampions`, `ChampionRow`). One row per champion, its figures (games, win rate, KDA, CS/min,
+kills, multikills, mastery) over every game it was played in within the filters, all positions
+together, so the table's totals are the filters' (a game seen from two linked accounts counts once).
+Under the name, the League position icon of **every position Riot recorded** for those games, most
+games first (ties: the position played most recently, then the positions' order:
+`domain/season-stats` `positionsPlayed`), with no minimum: a single game in a position shows its
+icon. Positions are never read from the configured pools or a champion's usual lane, and a game with
+no recorded position belongs to no position: it counts in the champion's totals (and the row exists
+even when no game records one: "No position"), and the preview says how many there are. "In pool"
+follows the icons when the pool of one of the row's positions holds the champion (read out with
+those positions). With a mouse each icon is a control: a tooltip on hover and keyboard focus
+("Mid · 2 games · 50% win rate · 1W 1L", also its accessible name) and a press that opens the
+champion in that position; the champion's own name opens it in its most played position. On a touch
+screen a 44px target per icon cannot fit a compact row, so the icons are marks there (with their
+positions and games read out), the row opens the champion in its most played position and the
+preview's position choice switches it. A role filter leaves that position's games alone, so its rows
+show that one icon. Each position's own figures are sent with the row only where they differ from
+the row's (two or more positions, or a game with none), so a one-position champion's figures go once.
 
-**Content, in this order and nothing else:**
+**Where it opens.** On a computer (from 768px wide, in a window taller than 480px, where the
+section is at least 46rem: a 1024px window with the sidebar folded, 1280px with it open, an
+1180px tablet held sideways) the
+preview is a **pane beside the list** (the owner's request of 25 Nov 2026: the docked panel of
+Release 16 lay over half the table "without purpose"). The list narrows to a column of
+`minmax(20rem, min(32%, 24rem))`: each champion's name, position icons and "In pool", and its win
+rate over its games, under a heading row of the table's height that sorts by Champion, Games or Win
+rate, so no row and no name moves as the preview opens or closes (a list sorted by a figure it no
+longer shows names that figure under each champion, as a phone's rows do). The pane takes the rest:
+pinned under the profile's section tabs while the page scrolls, as tall as the window leaves, its
+own body the one region that scrolls when its content is taller, its header (portrait, name, ‹ ›
+and a labelled **Close**) staying in place. Nothing covers the list; a click elsewhere on the page
+leaves the pane open (it is part of the page, not a layer). Under 768px (the phone's frame, touch or
+mouse), in a short window, and where the section is narrower than 46rem (an upright tablet, a large
+text size) it is a **sheet** (the phone window shell, `PreviewWindow`) with the same content and ‹ ›;
+✕, Back or a pull down close it. The server knows the address, so a linked preview is beside the
+list in the first HTML; CSS keeps that pane from the windows that get the sheet until hydration.
+(From S5 to 22 Nov 2026 a panel over the columns after Win rate; from 23 Nov 2026 it unfolded under
+its row; from Release 16 to 25 Nov 2026 a panel docked at the window's right edge, over the table.)
 
-1. **Header:** the champion's name in the panel's (or sheet's) header with ‹ › and ✕; under it the
-   portrait, the role and "In pool", "Also as Mid: 3 games · 1W 2L" (switches to that row), and at
-   the right the win rate (coloured by `winRateTone` from 5 games) over "14 games · 4W 10L".
-2. **Figures:** four compact tiles of averages (KDA with the average K/D/A, CS/min with CS a game,
-   damage/min with damage a game, vision a game; "—" where no game carries one; one row from a
-   26rem panel, two by two in a phone's sheet) and a line saying what they cover ("Averages over all
-   8 games in these filters", or "from the N games with a full record, of M") with the mastery
-   points; and one line of the kill figures the panel lies over on a wide table: "Kills 1,234 ·
-   Multikills 107 double · 18 triple · 2 quadra · 0 penta" ("*" where only some games are counted
-   so far, "not counted yet" where none is). The same in the panel and the sheet.
-3. **Against each lane opponent**, a compact table (Opponent, Games, Record, Win; rows of 36px,
-   44px on touch, under one heading row; the first five with 3+ games, then "N more opponents with
-   3+ games", `OPPONENTS_SHOWN`, so a champion with thirty opponents keeps the panel within the
-   screen), sorted by Most games, Best or Worst
-   (`src/domain/champion-preview.ts`):
-   - an opponent shows a win rate from **3 games**, coloured from **5**, always with its games
-     beside it;
-   - opponents with 1–2 games fold into "N more opponents with 1–2 games" (W/L only);
-   - with none at 3 games, every opponent is listed with W/L only, and "No opponent met 3 times yet";
-   - Best and Worst rank opponents with 5+ games first, then 3–4; ties go to more games, then the
-     most recent.
-4. **An opponent unfolds under its row, in the same panel** (`vs` in the address): the KDA over its
-   games with the average K/D/A (`pairingKda`, the games with a full record, as the champion's KDA
-   is counted), one sentence only with at least 5 games
-   with a timeline ("At 10:00 you had more gold than Nasus in 5 of 6 games with a timeline (+623 on
-   average)", "Gwen had" on a teammate's profile: wording follows the viewer,
-   `src/domain/viewer-words.ts`), its games as compact rows (W/L, K/D/A, CS, the gold difference at
-   10:00 or "no timeline", the date; the three newest, then "Show all"), each opening the match
-   window; and "Nasus's abilities in Champion Intel →" (until 23 Nov 2026 "Prepare Gwen vs
-   Nasus in Matchup Intel →").
-5. **Foot line:** "Lane opponent: the enemy Riot placed in your position" ("their position" on a
+**Content, in this order and nothing else** (`champion-preview.tsx`, `champion-matchups.tsx`):
+
+1. **Identity:** the portrait and name (the pane's heading; the sheet's header), "In pool", the
+   champion's **mastery, marked "all positions"** (Riot counts mastery per champion, never per
+   position), and, for a champion of several positions or with games in none, its games in all.
+2. **Position:** every position it was played in, most games first, each with its games (the app's
+   segmented control, 44px on touch). A choice switches every figure below and the opponents at once
+   (`crole`, replaced; the opened opponent goes with the old position). Where some games record no
+   position: "1 more game has no recorded position: it counts in Sion's totals only."
+3. **Figures of that position:** its win rate (coloured by `winRateTone` from 5 games) over
+   "14 games · 4W 10L", KDA with the average K/D/A, CS/min with CS a game, damage/min with damage a
+   game, vision a game ("—" where no game carries one), one line of kills and the four multikills
+   ("*" where only some games are counted so far, "not counted yet" where none is), and what they are
+   averaged over ("Averages over all 22 Top games in these filters"). No boxes: labels over figures.
+4. **Lane opponents:** ONE table of every lane opponent the champion met in that position, however
+   few the games (no folds, no "more" toggles, no Best/Worst tabs): portrait and name, games, W/L,
+   win rate; a search by name from four opponents; three orders, **Most games** (ties: the most
+   recent), **Highest win rate** and **Lowest win rate** (`src/domain/champion-preview.ts`):
+   - an opponent met fewer than **3** times is a small sample: its win rate in the quiet colour
+     (read out "small sample"), and the win-rate orders list it **after** the ranked opponents (3+
+     games), past a quiet divider ("Fewer than 3 games: not ranked by win rate"), in the same
+     direction, so a 1–0 never tops "Highest win rate" as 100%; ties go to more games, then the most
+     recent; the counts are always shown;
+   - a win rate is coloured from **5** games (the app's champion rule).
+5. **An opponent's detail, without an accordion** (`vs` in the address, replaced): selecting a row
+   shows, **beside the table** where the preview is at least 38rem wide (and replaces the detail when
+   another row is chosen; the row again or "Clear" puts it back), or as **one step in place of the
+   table** in a narrower preview (the sheet; "All opponents" goes back, the focus following): "vs
+   Nasus" with its games, W/L and win rate, the KDA over its games with the average K/D/A
+   (`pairingKda`, the games with a full record), one sentence only with at least 5 games with a
+   timeline ("At 10:00 you had more gold than Nasus in 5 of 6 games with a timeline (+623 on
+   average)", "Gwen had" on a teammate's profile: `src/domain/viewer-words.ts`), every game as a
+   compact row (W/L, K/D/A, CS, the gold difference at 10:00 or "no timeline", the date), each
+   opening the match window; and "Gwen and Nasus in Champion Intel" (`/lookup?champion=Gwen&champion2=Nasus`,
+   the two side by side: Matchup Intel's place since 23 Nov 2026; positions are not part of
+   Champion Intel).
+6. **Foot line:** "Lane opponent: the enemy Riot placed in your position" ("their position" on a
    teammate's), with "Known in N of M games" when some games name none.
 
 Removed with the old champion window (19 Nov 2026): its tabs, the six tiles, the multikill strip,
 the lane tables, chart and second checkpoint table, the queue and account split, "How these figures
-are made", and the window's own Refine (the page's filters sit beside the preview). If the
-lane-by-minute views are missed, they come back as a fold under an opponent, never as a tab.
+are made", and the window's own Refine (the page's filters sit beside the preview). Removed on 25
+Nov 2026: the four boxed tiles, "Also as Mid" links (one row per champion now), the 3+/1–2 folds,
+the first-five toggle, Best/Worst, the opponent accordion, its "Show all games" and the docked panel
+over the table. If the lane-by-minute views are missed, they come back in the opponent's detail,
+never as a tab.
 
 **Address and history.** One key: `?champion=Gwen&crole=TOP[&vs=Nasus]`. The first open pushes one
-history entry; switching champion or opponent replaces it; closing goes Back when this page pushed
-it. So Back always closes and never walks through champions. The address changes through the
-History API, never a navigation, so the page does not re-render. A deep link renders the preview's
-data in the first HTML. A game opened from an opponent's games (the match window over the preview)
-adds `&match=` by the same rule, so it has an entry of its own: Back closes the game and leaves the
-preview as it was (on a phone the sheet steps aside while the game is open and comes back), and Back
-from a page a link in the game opened returns to the game. Before 20 Nov 2026 the game had no entry,
-and Back closed the preview behind it and left the game open. Old links keep working: `tab=matchups&vs=X` opens the preview with X
-unfolded; `/overview/matchups` and `/players/[id]/matchups` redirect into it (the most played
-champion when none is named); the Overview's old `?champ=` key redirects to All Champions. A pool
-card on the Overview links to All Champions with that champion's preview open, in the pool's role.
+history entry; switching champion, position or opponent replaces it; closing goes Back when this
+page pushed it. So Back always closes and never walks through champions or positions. The address
+changes through the History API, never a navigation, so the page does not re-render. A deep link
+renders the preview's data in the first HTML; a `crole` the champion was not played in (in these
+filters) opens its most played position. A game opened from an opponent's games (the match window
+over the preview) adds `&match=` by the same rule, so it has an entry of its own: Back closes the
+game and leaves the preview as it was (on a phone the sheet steps aside while the game is open and
+comes back), and Back from a page a link in the game opened returns to the game. Old links keep
+working: `tab=matchups&vs=X` opens the preview with X open; `/overview/matchups` and
+`/players/[id]/matchups` redirect into it (the most played champion when none is named); the
+Overview's old `?champ=` key redirects to All Champions. A pool card on the Overview links to All
+Champions with that champion's preview open, in the pool's role.
 
-**Keyboard.** A click on a row opens it (focus stays on the row; the preview's summary is
-announced), Enter opens it and moves focus to its heading; ↑/↓ (or K/J) move it to the row above or
-below; Escape, ✕, Back or the selected row again close it, and focus returns to the row.
+**Keyboard.** A click on a row opens it (focus stays on the row; the preview's champion, position,
+games and win rate are announced), Enter opens it and moves focus to the pane's heading; ↑/↓ (or
+K/J) on the list move it to the row above or below, in that champion's most played position; ‹ ›
+in its header do the same; Escape, Close, Back or the selected row again close it, and focus returns
+to the row. Keys inside the preview are its own (its positions, its opponents' search and orders,
+their rows, the games). A position icon's tooltip closes on Escape alone.
 
 **Data path** (`src/server/actions/champion-preview.ts`, `src/server/players/champion-preview.ts`):
 
-- `getChampionPreviewAction`: the lane opponents' tally from the stored rows (`getPlayerMatchups`
-  with `tallyOnly`), no match record or timeline read. About 0.4 KB per answer on the demo.
+- The rows' positions and each position's figures come with the page's one read of the stored
+  games (`getPlayerOverview`): no query, request or byte from the database was added for them;
+  switching position in the preview asks the server only for that position's opponents.
+- `getChampionPreviewAction`: the lane opponents' tally in one position from the stored rows
+  (`getPlayerMatchups` with `role` and `tallyOnly`), no match record or timeline read. About 0.4 KB
+  per answer on the demo.
 - `getPairingGamesAction`: one opponent's games, through Matchups' pairing path (only that pair's
   records and timelines).
 - Answers are kept per page (switching back asks nothing); pressing a row with a mouse fetches its
