@@ -20,7 +20,9 @@
   under the scoreboard, its heading and its (i)), added to both lists, and gave every place one
   badge (MVP gold on the winning side, ACE violet on the losing side): the check asserts the MVP's
   row is on the team that won and the ACE's on the team that lost, and that the open card's header
-  shows the game's score and place, the same as the player's row.
+  shows the game's score and place, the same as the player's row. The chart's room (review of 26
+  Nov 2026): on a desktop's two columns the lane is under the scoreboard and the build panels take
+  the height beside it, so the two columns end level (layoutVerdict, from readPostGame's layout).
 
   Read in the page only: counts, true or false, heights in px, places in the record (0–9), scores
   (0–10), the result word and the lane's fixed words. No player's name, no champion and no address
@@ -33,7 +35,7 @@ export const REMOVED_WORDS = ["Went well", "Went wrong", "Focus next", "Gold ove
 /** The removed parts, by their test ids (the notes and folds of 23 Nov 2026; the comparison, the narrative, the strip, the legend and the sideways row of 24 Nov 2026; the score through the game of 25 Nov 2026). */
 export const REMOVED_PARTS = "[data-testid=post-game-notes], [data-testid=post-game-notes-loading], [data-testid=post-game-note], [data-testid=post-game-folds], [data-testid=fold-gold], [data-testid=fold-build], [data-testid=gold-chart], [data-testid=performance-compare], [data-testid=performance-compare-table], [data-testid=performance-why], [data-testid=performance-teams], [data-testid=performance-strip], [data-testid=build-legend], [data-testid=build-row], [data-testid=score-chart-legend], [data-testid=inspected-jump], [data-testid=performance], [data-testid=performance-chart-area], [data-testid=performance-chart-info], [data-testid=performance-timeline-missing], [data-testid=score-chart], [data-testid=score-chart-table]";
 
-/** The three segmented headings above the lane, in order (Release 16). */
+/** The three segmented headings, in order, read before the lane (Release 16; from 26 Nov 2026 the lane sits under the scoreboard on a desktop). */
 export const PANEL_WORDS = ["Build Path", "Skill Order", "Runes"];
 
 /** The open game under its card, read in the page (self-contained, for evaluate). */
@@ -96,6 +98,18 @@ export function readPostGame() {
       mvpOnWin: [...li.querySelectorAll("[data-testid=participant-mvp]")].every((b) => /victory$/.test(b.closest("section[data-testid^=team-]")?.getAttribute("aria-label") ?? "")),
       aceOnLoss: [...li.querySelectorAll("[data-testid=participant-ace]")].every((b) => /defeat$/.test(b.closest("section[data-testid^=team-]")?.getAttribute("aria-label") ?? "")),
     },
+    // Where the parts sit (px from the view's top, rounded): on a desktop's two columns (the lane right
+    // of the build column) the lane under the scoreboard with the notes beside it, and the build
+    // panels' area down to the end of its column, level with the lane (the room the score through the
+    // game left, 26 Nov 2026).
+    layout: (() => {
+      const box = (sel) => li.querySelector(sel)?.getBoundingClientRect() ?? null;
+      const [side, laneBox, board, body, notes] = [box("[data-testid=post-game-side]"), box("[data-testid=post-game-lane]"), box("[data-testid=post-game-scoreboard]"), box("[data-testid=panel-body]"), box("[data-testid=scoreboard-notes]")];
+      if (!breakdown || !side || !laneBox || !board || !body || !notes) return null;
+      const top = breakdown.getBoundingClientRect().top;
+      const y = (v) => Math.round(v - top);
+      return { columns: laneBox.left >= side.right - 1, sideBottom: y(side.bottom), bodyBottom: y(body.bottom), laneTop: y(laneBox.top), laneBottom: y(laneBox.bottom), boardBottom: y(board.bottom), notesBottom: y(notes.bottom) };
+    })(),
     // The open card's header: the score and place its card showed (absent where the card had none), against the inspected player's row as the game opens.
     header: (() => {
       const mark = header?.querySelector("[data-testid=match-header-score]");
@@ -159,7 +173,13 @@ export function postGameVerdicts({ kind, at }) {
   // The lane's 10:00 and 15:00, the build path and the scores wait for the game's timeline, which a first view may still be asking Riot for.
   if (at.timeline === "loading") out.push({ name: `${kind}: skipped: the game's timeline had not answered after 30 s (the lane's 10:00 and 15:00, the build path and the scores)`, status: "WARN", detail: { timeline: "loading" } });
   const p = at.panels;
-  fact("Build Path, Skill Order and Runes: three segmented headings above the lane", !!p && p.words.join("|") === PANEL_WORDS.join("|") && p.above, { words: p?.words.length ?? 0, above: p?.above ?? false });
+  fact("Build Path, Skill Order and Runes: three segmented headings, read before the lane", !!p && p.words.join("|") === PANEL_WORDS.join("|") && p.above, { words: p?.words.length ?? 0, above: p?.above ?? false });
+  // The score through the game's room (26 Nov 2026): on a desktop's two columns the lane under the
+  // scoreboard, the build panels' area to the end of its column, and that column no shorter than the
+  // scoreboard's with the lane. A view in one column (a narrow window) has nothing to compare.
+  const l = at.layout ?? null;
+  if (!l || !l.columns) out.push({ name: `${kind}: skipped: the open game is not in two columns here (the lane under the scoreboard, the build panels beside it)`, status: "WARN", detail: { layout: l ? "one column" : "not read" } });
+  else fact("the lane under the scoreboard and the build panels taking the height beside it: the two columns end level", l.laneTop >= l.boardBottom && Math.abs(l.bodyBottom - l.sideBottom) <= 1 && l.sideBottom >= Math.max(l.laneBottom, l.boardBottom, l.notesBottom ?? 0) - 1, l);
   if (at.timeline !== "loading") {
     // With a timeline the build path shows its shop visits; without, one plain line says so (never a path guessed from the final items).
     const shown = at.timeline === "ok" ? (p?.path ?? 0) > 0 || !!p?.missing : !!p?.missing && (p?.path ?? 0) === 0;
@@ -233,7 +253,9 @@ export function readFit() {
           breakdown: h(bd),
           player: kids(li.querySelector("[data-testid=post-game-yours]")),
           side: kids(li.querySelector("[data-testid=post-game-side]")),
+          lane: h(li.querySelector("[data-testid=post-game-lane]") ?? li),
           scoreboard: kids(li.querySelector("[data-testid=post-game-scoreboard]")),
+          notes: h(li.querySelector("[data-testid=scoreboard-notes]") ?? li),
           panels: kids(li.querySelector("[data-testid=participant-panels]")),
           rows: [...li.querySelectorAll("[data-testid=participant]")].map(h),
         }

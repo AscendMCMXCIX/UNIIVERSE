@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from "./test";
 import { closeGame, openGame } from "./match-history";
+import { NO_BUILD_CLASS, noBuildWords } from "../src/components/match-history/card-build";
 
 /*
   The performance score on a collapsed Match History card (Release 17, the owner's brief §3): each
@@ -193,3 +194,57 @@ test("the score is prominent and keeps one place: bold in the primary colour, it
   expect(new Set(heights).size, "one badge height").toBe(1);
   expect(facts.some((f) => f.badge?.kind === "mvp") && facts.some((f) => f.badge?.kind === "ace"), "MVP and ACE both on the demo's first page").toBe(true);
 });
+
+test("a card whose record is still being collected, or that Riot no longer serves, keeps the score and the K/D/A where every other card has them: its phrase at the build's width", async ({ page, context, baseURL }, info) => {
+  test.skip(info.project.name === "phone", "a phone's card has no column after its build: the phrase is a line of the card");
+  await context.addCookies([{ name: "uniiverse_sidebar", value: "expanded", url: baseURL! }]);
+  // The desktop at the tiers that matter (a 60rem list at 1280 with the sidebar open, 70rem at 1440, about 99rem at 1920); the tablet's two-row card.
+  const sizes = info.project.name === "desktop" ? [{ width: 1280, height: 800 }, { width: 1440, height: 900 }, { width: 1920, height: 1080 }] : [page.viewportSize()!];
+  for (const size of sizes) {
+    await page.setViewportSize(size);
+    await openHistory(page, "MID");
+    await page.evaluate(() => document.fonts.ready);
+    const places = () =>
+      page.getByTestId("match-card").evaluateAll((cards) =>
+        cards.map((card) => {
+          const shown = (sel: string) => [...card.querySelectorAll(sel)].find((e) => e.getBoundingClientRect().width > 0) ?? null;
+          const slot = shown("[data-testid=match-score], [data-testid=match-score-empty]")!.getBoundingClientRect();
+          const kda = card.querySelector("[data-testid=match-kda]")!.getBoundingClientRect();
+          const build = shown("[data-testid=match-card-build]");
+          const phrase = build?.querySelector<HTMLElement>("[data-testid=match-items-missing]") ?? null;
+          return { score: slot.left, kda: kda.left, build: build ? build.getBoundingClientRect().width : 0, cut: phrase ? phrase.scrollWidth > phrase.clientWidth + 0.5 || phrase.getBoundingClientRect().bottom > card.getBoundingClientRect().bottom : false };
+        }),
+      );
+    const before = await places();
+    expect(before.length).toBeGreaterThan(3);
+    // The demo has no such game: two cards' builds are drawn as a card draws a record still being
+    // collected and one Riot no longer serves (the card's own classes and words, card-build.ts).
+    await page.getByTestId("match-card").evaluateAll(
+      (cards, { cls, words }) =>
+        words.forEach((w, i) => {
+          const cell = [...cards[i + 1]!.querySelectorAll<HTMLElement>("[data-testid=match-card-build]")].find((e) => e.getBoundingClientRect().width > 0)!;
+          const phrase = document.createElement("span");
+          phrase.className = cls;
+          phrase.dataset.testid = "match-items-missing";
+          phrase.textContent = w;
+          cell.replaceChildren(phrase);
+        }),
+      { cls: NO_BUILD_CLASS, words: [noBuildWords("missing"), noBuildWords("unavailable")] },
+    );
+    const after = await places();
+    const at = `${size.width}×${size.height}`;
+    for (const [i, a] of after.entries()) {
+      expect(Math.abs(a.score - before[i]!.score), `${at}, card ${i}: the score where it was`).toBeLessThanOrEqual(1);
+      expect(Math.abs(a.kda - before[i]!.kda), `${at}, card ${i}: the K/D/A where it was`).toBeLessThanOrEqual(1);
+      expect(a.cut, `${at}, card ${i}: the phrase whole, inside its card`).toBe(false);
+    }
+    // At a build's width, as the stored builds beside them.
+    for (const i of [1, 2]) expect(Math.abs(after[i]!.build - before[0]!.build), `${at}, card ${i}: the phrase as wide as a build`).toBeLessThanOrEqual(1);
+    // A wide card's score column: one x on every card (the Production check's fact, scripts/card-score-facts.mjs).
+    if (info.project.name === "desktop") {
+      const lefts = after.map((a) => a.score);
+      expect(Math.max(...lefts) - Math.min(...lefts), `${at}: the score's column level from card to card`).toBeLessThanOrEqual(1);
+    }
+  }
+});
+

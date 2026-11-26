@@ -29,7 +29,7 @@ const ABOUT = 25;
  * Constants whose text an InfoTip shows, by name; and SOCIAL_LINKS_HELP, a section's visible help held
  * to the same length since 25 Nov 2026 (it was a 44-word paragraph).
  */
-const TIP_CONSTANTS = ["MULTIKILL_HELP", "ENCOUNTERS_CAVEAT", "EDITING_HELP", "TOGETHER_CAVEAT", "RECENT_FORM_HELP", "GENERAL_RULE_TIP", "SOCIAL_LINKS_HELP"];
+const TIP_CONSTANTS = ["MULTIKILL_HELP", "ENCOUNTERS_CAVEAT", "EDITING_HELP", "TOGETHER_CAVEAT", "RECENT_FORM_HELP", "GENERAL_RULE_TIP", "SOCIAL_LINKS_HELP", "SCORE_METHOD", "SCORE_METHOD_NEUTRAL", "HASTE_RULE_WORDS", "DATA_LIMIT_WORDS"];
 
 /** Object properties whose text a tip shows: a hint, a title, and a state's meaning (`means`, the Riot credential's ⓘ in Settings). */
 const TIP_PROPS = ["hint", "title", "means"];

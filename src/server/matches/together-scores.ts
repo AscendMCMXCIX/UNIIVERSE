@@ -4,9 +4,10 @@ import type { MatchParticipantDetail } from "@/server/db/schema";
 import { togetherEntry } from "@/domain/played-together";
 import { scoreReadsTimeline } from "@/domain/performance-inputs";
 import { loadScoreTimelines, type StoredScoreTimeline } from "@/server/accounts/match-timeline";
-import { gameScores, performanceOf, scoreRecordOf, type CardPerformance } from "@/server/players/match-history";
+import { gameScores, performanceOf, scoreRecordOf, type CardPerformance, type PlacedScores } from "@/server/players/match-history";
 import { normaliseRiotKey } from "@/server/riot/api/client";
 import { isRemoved } from "@/server/privacy/redact";
+import { registerLocalCache } from "@/server/observability/cache";
 import { teamMembersByPuuid } from "./compositions";
 
 /*
@@ -18,6 +19,14 @@ import { teamMembersByPuuid } from "./compositions";
   read from that one answer. Only the figures the score reads are sent by the database (no names,
   items, runes or challenges; the timeline's gold and experience only for Summoner's Rift games with
   a lane opponent): docs/HOSTING_USAGE.md has the measured bytes. No Riot request.
+
+  A finished game's scores change only when its stored record or timeline does, so each instance
+  keeps the scores it worked out (KEEP_MS, at most KEEP_GAMES games, the oldest dropped first): the
+  page's "Show more", which renders it again with 20 more games, reads only the games not kept. Not
+  kept: a game without a stored record (its record may come with a member's next sync). A game whose
+  score waits for its timeline ("pending") keeps its trimmed record, and only its timeline is asked
+  for again. A personal-data erasure clears every kept score on its instance at once
+  (registerLocalCache), other instances within KEEP_MS, as Played together's own list does.
 */
 
 /** A stored record reduced to what the score reads. */
@@ -106,49 +115,116 @@ export interface TogetherScoreGame {
   members: ReadonlyArray<{ playerId: string; championId: string }>;
 }
 
+/** A record's players as a member is found among them: by their PUUID or by side and champion. */
+type Seat = { puuid: string; teamId: number; championId: string | null; removed: boolean };
+
+/** A scored game as an instance keeps it: its seats, and each player's score and place (nothing else of the record). */
+type KeptGame = { seats: Seat[]; scores: PlacedScores | null } | { seats: Seat[]; scores: "pending"; source: { d: ScoreSource; record: ReturnType<typeof scoreRecordOf> } };
+
+const KEEP_MS = 15 * 60_000;
+const KEEP_GAMES = 1_000;
+const kept = new Map<string, { at: number; game: KeptGame }>();
+registerLocalCache(() => kept.clear());
+
+/** Drops every kept score on this instance (tests; an erasure does it through registerLocalCache). */
+export function invalidateTogetherScores(): void {
+  kept.clear();
+}
+
+/** Each database handle its own keys, so tests (and tools) that open several databases in one process never share a game's scores. */
+const scopes = new WeakMap<object, number>();
+let scopeCount = 0;
+function keyOf(db: Db, riotConfigured: boolean, matchId: string): string {
+  let scope = scopes.get(db);
+  if (scope === undefined) {
+    scope = ++scopeCount;
+    scopes.set(db, scope);
+  }
+  return `${scope}/${riotConfigured ? 1 : 0}/${matchId}`;
+}
+
+function keep(key: string, game: KeptGame): void {
+  kept.delete(key);
+  kept.set(key, { at: Date.now(), game });
+  for (const oldest of kept.keys()) {
+    if (kept.size <= KEEP_GAMES) break;
+    kept.delete(oldest);
+  }
+}
+
+/**
+ * A game's scores, once for the game whichever of its sides is listed. The timeline's gold check
+ * (does the timeline tell the same game as the record?) reads the gold from one side and is
+ * symmetric, so it is read from every player's side at once (every PUUID in the record): the same
+ * answer the opened game gets from its own player's, whichever side is listed first.
+ */
+function scoreGame(source: { d: ScoreSource; record: ReturnType<typeof scoreRecordOf> }, stored: StoredScoreTimeline | undefined, riotConfigured: boolean): KeptGame {
+  const { d, record } = source;
+  const seats = d.participants.map((p) => ({ puuid: p.puuid, teamId: p.teamId, championId: p.championId, removed: isRemoved(p) }));
+  const own = new Set(seats.filter((p) => !p.removed && p.puuid).map((p) => p.puuid));
+  const scores = gameScores(d, record, stored, own, riotConfigured);
+  if (scores === "pending") return { seats, scores, source };
+  return { seats, scores: scores && { scored: scores.scored, version: scores.version, players: scores.players.map(({ slot, score, rank, mvp, ace }) => ({ slot, score, rank, mvp, ace })) } };
+}
+
 /**
  * The members' scores on a Team → Matches page, by the listed entry (togetherEntry) and member:
  * each game scored once, whichever of its sides is listed. A member is found in the record by
  * their linked accounts' PUUIDs on the listed side, else (an account being verified again) by side
- * and champion when one player matches: never guessed. A game without a stored record, or a member
- * not found in it, has no score; a game whose score waits for its timeline is "pending", as on the
- * member's own card (Riot configured).
+ * and champion when one player matches: never guessed. A game without a stored record (or one
+ * stored without players, Riot no longer serving it), or a member not found in it, has no score; a
+ * game whose score waits for its timeline is "pending", as on the member's own card (Riot
+ * configured).
  */
 export async function togetherScores(db: Db, teamId: string, shown: readonly TogetherScoreGame[], site: { riotConfigured?: boolean } = {}): Promise<Record<string, Record<string, CardPerformance>>> {
   const out: Record<string, Record<string, CardPerformance>> = {};
   if (!shown.length) return out;
-  const sources = await loadScoreSources(db, shown.map((g) => g.matchId));
-  const records = new Map([...sources].map(([matchId, d]) => [matchId, { d, record: scoreRecordOf(d, d.participants[0]!) }] as const).filter(([, r]) => r.d.participants.length > 0));
-  const laneGames = [...records].flatMap(([matchId, r]) => (scoreReadsTimeline(r.record) ? [matchId] : []));
-  const [members, timelines] = await Promise.all([
-    teamMembersByPuuid(db, teamId, [...records.values()].flatMap((r) => r.d.participants.map((p) => p.puuid))),
-    laneGames.length ? loadScoreTimelines(db, laneGames) : Promise.resolve(new Map<string, StoredScoreTimeline>()),
-  ]);
   const riotConfigured = site.riotConfigured ?? normaliseRiotKey(process.env.RIOT_API_KEY) !== null;
-  const scored = new Map<string, ReturnType<typeof gameScores>>();
+  const now = Date.now();
+  const games = new Map<string, KeptGame>();
+  const waiting: string[] = [];
+  const unread: string[] = [];
+  for (const matchId of new Set(shown.map((g) => g.matchId))) {
+    const hit = kept.get(keyOf(db, riotConfigured, matchId));
+    if (!hit || now - hit.at >= KEEP_MS) unread.push(matchId);
+    else if (hit.game.scores === "pending") waiting.push(matchId);
+    else games.set(matchId, hit.game);
+  }
+  // The games not kept: their trimmed records, and every one still waiting for its timeline.
+  const sources = unread.length ? await loadScoreSources(db, unread) : new Map<string, ScoreSource>();
+  // A record Riot no longer serves is stored without players (storeMatchUnavailable): nothing to score it by.
+  const records = new Map([...sources].filter(([, d]) => d.participants.length > 0).map(([matchId, d]) => [matchId, { d, record: scoreRecordOf(d, d.participants[0]!) }] as const));
+  for (const matchId of waiting) {
+    const hit = kept.get(keyOf(db, riotConfigured, matchId))!.game;
+    if (hit.scores === "pending") records.set(matchId, hit.source);
+  }
+  const laneGames = [...records].flatMap(([matchId, r]) => (scoreReadsTimeline(r.record) ? [matchId] : []));
+  const timelines = laneGames.length ? await loadScoreTimelines(db, laneGames) : new Map<string, StoredScoreTimeline>();
+  for (const [matchId, r] of records) {
+    const game = scoreGame(r, timelines.get(matchId), riotConfigured);
+    games.set(matchId, game);
+    keep(keyOf(db, riotConfigured, matchId), game);
+  }
+  const members = await teamMembersByPuuid(db, teamId, [...games.values()].flatMap((g) => g.seats.map((s) => s.puuid)));
   for (const g of shown) {
-    const r = records.get(g.matchId);
+    const game = games.get(g.matchId);
     const entry: Record<string, CardPerformance> = {};
     out[togetherEntry(g.matchId, g.teamId)] = entry;
-    if (!r) {
+    if (!game) {
       for (const m of g.members) entry[m.playerId] = { state: "none" };
       continue;
     }
-    const parts = r.d.participants;
+    const seats = game.seats;
     const slotOf = (m: { playerId: string; championId: string }): number => {
-      const byAccount = parts.findIndex((p) => !isRemoved(p) && p.teamId === g.teamId && members.get(p.puuid)?.id === m.playerId);
+      const byAccount = seats.findIndex((p) => !p.removed && p.teamId === g.teamId && members.get(p.puuid)?.id === m.playerId);
       if (byAccount >= 0) return byAccount;
-      const byChampion = parts.flatMap((p, i) => (!isRemoved(p) && p.teamId === g.teamId && p.championId === m.championId ? [i] : []));
+      const byChampion = seats.flatMap((p, i) => (!p.removed && p.teamId === g.teamId && p.championId === m.championId ? [i] : []));
       return byChampion.length === 1 ? byChampion[0]! : -1;
     };
-    const slots = g.members.map(slotOf);
-    if (!scored.has(g.matchId)) {
-      // The gold check's side: any member's PUUID in the game (a symmetric check).
-      const own = new Set(slots.filter((s) => s >= 0).map((s) => parts[s]!.puuid).filter(Boolean));
-      scored.set(g.matchId, gameScores(r.d, r.record, timelines.get(g.matchId), own, riotConfigured));
+    for (const m of g.members) {
+      const slot = slotOf(m);
+      entry[m.playerId] = slot >= 0 ? performanceOf(game.scores, slot) : { state: "none" };
     }
-    const scores = scored.get(g.matchId)!;
-    g.members.forEach((m, i) => (entry[m.playerId] = slots[i]! >= 0 ? performanceOf(scores, slots[i]!) : { state: "none" }));
   }
   return out;
 }

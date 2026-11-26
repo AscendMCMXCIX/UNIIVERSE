@@ -322,7 +322,11 @@ function MetChip({ met, href }: { met: MatchMeeting; href: string }) {
   );
 }
 
-/** A row's performance score: the score over its place among the ten (the shared badge: MVP, ACE or "3rd"); a quiet stand-in while the timeline answers. */
+/**
+ * A row's performance score: the score over its place among the ten (the shared badge: MVP, ACE or
+ * "3rd"); a quiet stand-in while the timeline answers, exactly as tall (32px from a 30rem board: the
+ * 14px score, 2px, the 16px badge), so no row grows as the scores arrive.
+ */
 function RowScore({ score, scoring, scored }: { score: PlayerScore | null; scoring: boolean; scored: number }) {
   if (scoring)
     return (
@@ -333,7 +337,7 @@ function RowScore({ score, scoring, scored }: { score: PlayerScore | null; scori
   if (!score) return <span className="block w-9" data-testid="participant-score" data-state="none" aria-hidden />;
   const placement = { rank: score.rank, of: scored, mvp: score.mvp, ace: score.ace };
   return (
-    <span className="flex flex-col items-end gap-0.5 leading-none @max-[21rem]/sb:flex-row @max-[21rem]/sb:items-center @max-[21rem]/sb:gap-1 @min-[30rem]/sb:gap-1" data-testid="participant-score" data-score={score.score} data-rank={score.rank} data-mvp={score.mvp || undefined} data-ace={score.ace || undefined}>
+    <span className="flex flex-col items-end gap-0.5 leading-none @max-[21rem]/sb:flex-row @max-[21rem]/sb:items-center @max-[21rem]/sb:gap-1" data-testid="participant-score" data-score={score.score} data-rank={score.rank} data-mvp={score.mvp || undefined} data-ace={score.ace || undefined}>
       <span className="text-sm font-bold leading-none tabular-nums text-fg">{formatNumber(score.score, 1)}</span>
       {/* The page's MVP and ACE are counted by these test ids (the Production check). */}
       <PlacementBadge placement={placement} size="row" spoken={false} testId={score.mvp ? "participant-mvp" : score.ace ? "participant-ace" : "rank-chip"} />

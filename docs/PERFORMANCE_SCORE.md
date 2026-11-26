@@ -169,7 +169,10 @@ vision, high kill participation. Held back by many deaths.").
   `togetherScores`) through the card's own functions (`gameScores`, below), from the record trimmed in
   the database to the score's figures (`loadScoreSources`) and the same trimmed lane timelines; a
   member is found in the record by their linked accounts' PUUIDs on the listed side (else by side and
-  champion when one player matches), never guessed.
+  champion when one player matches), never guessed. The timeline's gold check is read from every
+  player's side at once (it is symmetric), so a game listed for both sides gets the opened game's
+  answer whichever side comes first. Each instance keeps a finished game's scores for 15 minutes, so
+  "Show more" reads only its new games (docs/PLAYED_TOGETHER.md, "Scores").
 
 ### One calculation, never the card's own
 
@@ -284,9 +287,11 @@ removal, and the e2e and DB tests still compare every card with its opened game.
 **How the view shows the score** (24 Nov 2026, the owner's brief §3 and §6; the badge of 25 Nov
 2026): each scoreboard row ends with the player's score over their place badge; the player inspected
 has theirs beside their loadout, the score with its badge over "3rd of 10" and one (i) that says how
-it is worked out and whose it is ("UNIIVERSE's own score, not OP.GG's: each player's figures against
-their role and this game's other players. 5 is average. MVP tops the winning team, ACE the losing
-team."; a player without a recorded position gets the neutral wording). Removed from the view on 24
+it is worked out and whose it is, two short sentences on that one concept ("UNIIVERSE's own score,
+not OP.GG's: each figure compared with the role and this game's players. 5 is average."; a player
+without a recorded position gets the neutral wording, "the role wasn't recorded, so each figure is
+compared with every player's"). What MVP and ACE mean is the badge's own words for screen readers
+("MVP: highest score on the winning team, 1st of 10"), not a third sentence in the tip. Removed from the view on 24
 Nov 2026, the code kept where it is analytical: the written why (`reasonText`), "Excellent" from 8.0
 (`EXCELLENT_AT`), each team's mean on a split bar (`teamAverages`) and the ten score tiles (the
 scoreboard already carries each player's score and place). The collapsed card shows the same score

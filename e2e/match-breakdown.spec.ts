@@ -102,8 +102,18 @@ test("while the timeline loads, the view passes axe, and it says when the timeli
   await expect(breakdown).toHaveAttribute("data-timeline", "loading");
   const scan = await new AxeBuilder({ page }).include("[data-testid=match-breakdown]").withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
   expect(scan.violations.filter((v) => v.impact === "critical" || v.impact === "serious").map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(" | ")}`)).toEqual([]);
+  // Every scoreboard row keeps its height as the scores replace their stand-ins (a phone's window: on its Scoreboard page).
+  const boardPage = breakdown.getByTestId("post-game-page-board");
+  if (await boardPage.isVisible()) await boardPage.click();
+  const rowHeights = () => breakdown.locator("[data-testid=participant]").evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().height * 2) / 2));
+  const waiting = await rowHeights();
+  expect(waiting).toHaveLength(10);
+  expect(waiting.every((h) => h > 0), "the rows are shown").toBe(true);
+  await expect(breakdown.locator("[data-testid=participant-score][data-state=loading]")).toHaveCount(10);
   release();
   await expect(breakdown).not.toHaveAttribute("data-timeline", "loading", { timeout: 15_000 });
+  await expect(breakdown.locator("[data-testid=participant-score][data-score]")).toHaveCount(10);
+  expect(await rowHeights(), "each row as tall scored as while it waited").toEqual(waiting);
 });
 
 test("one view: the loadout names itself, each figure once, the other figures in three groups, the lane and the scoreboard; no notes, narrative, comparison or folds", async ({ page }) => {
@@ -406,7 +416,8 @@ test("every player has a performance score 0–10 beside their row with one plac
   // One (i) on the score, saying how it is worked out and that it is UNIIVERSE's own score, not another site's.
   const info = mine.getByTestId("performance-info");
   await expect(info).toHaveAccessibleName("About the performance score");
-  await expect(info).toHaveAccessibleDescription(/^UNIIVERSE's own score, not OP\.GG's/);
+  // Two short sentences on that one concept (what MVP and ACE mean is the badge's own words).
+  await expect(info).toHaveAccessibleDescription(/^UNIIVERSE's own score, not OP\.GG's: [^.]+\. 5 is average\.$/);
   // Every row's badge: one look per kind (the fixed gold and violet tokens; other places the secondary text), the same size on every row.
   const looks = await breakdown.locator("[data-testid=participant-score] [data-placement]").evaluateAll((els) => {
     const probe = (token: string) => {
@@ -476,17 +487,35 @@ test("Build Path, Skill Order and Runes: one segmented control over one fixed ar
   await expect(panels.getByTestId("panel-runes")).toHaveAttribute("aria-checked", "true");
   await panels.getByTestId("panel-build").click();
   // The area is sized per game (the review of Release 17, finding 3): as tall as the taller of the
-  // skill grid and the rune page, both laid out in it, never a constant that leaves a band.
-  const area = await panels.getByTestId("panel-body").evaluate((b) => ({ body: b.getBoundingClientRect().height, views: [...b.querySelectorAll(":scope > [data-view=runes], :scope > [data-view=skills]")].map((v) => v.getBoundingClientRect().height) }));
+  // skill grid and the rune page, both laid out in it, never a constant that leaves a band. In the
+  // view's two columns (a desktop) it also takes the height the scoreboard and the lane leave beside
+  // it (the room the score through the game left, 25 Nov 2026), so nothing stands under it there:
+  // the build column ends with the view, level with the lane.
+  const area = await panels.getByTestId("panel-body").evaluate((b) => {
+    const bd = b.closest("[data-testid=match-breakdown]")!;
+    const box = (sel: string) => bd.querySelector(sel)!.getBoundingClientRect();
+    const side = box("[data-testid=post-game-side]");
+    const lane = box("[data-testid=post-game-lane]");
+    const notes = box("[data-testid=scoreboard-notes]");
+    return { body: b.getBoundingClientRect().height, bottom: b.getBoundingClientRect().bottom, views: [...b.querySelectorAll(":scope > [data-view=runes], :scope > [data-view=skills]")].map((v) => v.getBoundingClientRect().height), columns: lane.left >= side.right, sideBottom: side.bottom, laneTop: lane.top, laneBottom: lane.bottom, boardBottom: box("[data-testid=post-game-scoreboard]").bottom, notes: { left: notes.left, top: notes.top, bottom: notes.bottom }, laneRight: lane.right };
+  });
   expect(area.views).toHaveLength(2);
-  expect(Math.abs(area.body - Math.max(...area.views)), "the area as tall as the skill grid or the rune page").toBeLessThanOrEqual(1);
+  expect(area.body - Math.max(...area.views), "the area at least as tall as the skill grid or the rune page").toBeGreaterThanOrEqual(-1);
+  if (area.columns) {
+    expect(Math.abs(area.bottom - area.sideBottom), "the area to the build column's end").toBeLessThanOrEqual(1);
+    expect(area.sideBottom, "the build column ends with the view, no higher than the lane and the notes").toBeGreaterThanOrEqual(Math.max(area.laneBottom, area.boardBottom, area.notes.bottom) - 1);
+    // The lane under the scoreboard, its notes beside the lane (not over it, which made the column taller than the chart had left it).
+    expect(area.laneTop, "the lane under the scoreboard").toBeGreaterThanOrEqual(area.boardBottom);
+    expect(area.notes.left, "the notes beside the lane").toBeGreaterThanOrEqual(area.laneRight);
+    expect(Math.abs(area.notes.top - area.laneTop), "the notes level with the lane").toBeLessThanOrEqual(1);
+  } else expect(Math.abs(area.body - Math.max(...area.views)), "the area as tall as the skill grid or the rune page").toBeLessThanOrEqual(1);
   // A path too long for its area is split into pages of whole rows: every purchase is still in the
   // page, each page shown whole. Here the area is made short and narrow, as a long game's twenty
   // visits fill it: the two views that set its height are taken out and it is given 6rem (the area
   // is no longer a fixed min-height of its own since it is sized per game, so the min-height alone
   // no longer shortens it).
   await panels.locator("[data-testid=panel-body] > [data-view=runes], [data-testid=panel-body] > [data-view=skills]").evaluateAll((els) => els.forEach((el) => ((el as HTMLElement).style.display = "none")));
-  await panels.getByTestId("panel-body").evaluate((el) => ((el as HTMLElement).style.minHeight = "6rem"));
+  await panels.getByTestId("panel-body").evaluate((el) => Object.assign((el as HTMLElement).style, { minHeight: "6rem", height: "6rem", flex: "none" }));
   await panels.evaluate((el) => ((el as HTMLElement).style.width = "9rem"));
   const box = panels.getByTestId("build-path-box");
   await expect.poll(async () => Number(await box.getAttribute("data-pages"))).toBeGreaterThan(1);
@@ -504,7 +533,7 @@ test("Build Path, Skill Order and Runes: one segmented control over one fixed ar
   }
   expect(seen, "every purchase on one of the pages").toBe(total);
   await panels.evaluate((el) => (el as HTMLElement).style.removeProperty("width"));
-  await panels.getByTestId("panel-body").evaluate((el) => (el as HTMLElement).style.removeProperty("min-height"));
+  await panels.getByTestId("panel-body").evaluate((el) => ["min-height", "height", "flex"].forEach((k) => (el as HTMLElement).style.removeProperty(k)));
   await panels.locator("[data-testid=panel-body] > [data-view]").evaluateAll((els) => els.forEach((el) => (el as HTMLElement).style.removeProperty("display")));
   await closeGame(card);
   // A game without a timeline opens on Runes: Build Path and Skill Order are disabled, with one quiet
@@ -521,8 +550,15 @@ test("Build Path, Skill Order and Runes: one segmented control over one fixed ar
     await expect(p2.getByTestId(`panel-${k}`)).toHaveAccessibleDescription("Timeline not available for this game");
   }
   await expect(p2.getByTestId("rune-page")).toBeVisible();
-  const runesArea = await p2.getByTestId("panel-body").evaluate((b) => b.getBoundingClientRect().height - b.querySelector("[data-testid=rune-page]")!.getBoundingClientRect().height);
-  expect(runesArea, "no band under the rune page").toBeLessThanOrEqual(1);
+  // No band under the rune page: the area is its height, or in the view's two columns it ends with the build column (nothing under it).
+  const runesArea = await p2.getByTestId("panel-body").evaluate((b) => {
+    const bd = b.closest("[data-testid=match-breakdown]")!;
+    const side = bd.querySelector("[data-testid=post-game-side]")!.getBoundingClientRect();
+    const columns = bd.querySelector("[data-testid=post-game-lane]")!.getBoundingClientRect().left >= side.right;
+    return { band: b.getBoundingClientRect().height - b.querySelector("[data-testid=rune-page]")!.getBoundingClientRect().height, columns, toEnd: side.bottom - b.getBoundingClientRect().bottom };
+  });
+  if (runesArea.columns) expect(runesArea.toEnd, "nothing under the area in the build column").toBeLessThanOrEqual(1);
+  else expect(runesArea.band, "no band under the rune page").toBeLessThanOrEqual(1);
   // Its final scores still stand, from the record (and no chart says the timeline is missing: it is gone).
   await expect(none.breakdown.getByTestId("performance-timeline-missing")).toHaveCount(0);
   await expect(none.breakdown.locator("[data-testid=participant-score][data-score]")).toHaveCount(10);
@@ -715,16 +751,18 @@ test("desktop with motion on: a game opened from a card in the upper half of the
     await page.setViewportSize(size);
     await openHistory(page, "MID");
     // A card whose top can sit at about half the screen's height (the upper 55% is left where it is
-    // as it opens; a short list on a tall screen cannot scroll its first cards that far down).
+    // as it opens; a short list on a tall screen cannot scroll its first cards that far down): at 53%,
+    // so that even at 2560 × 1440 the game runs past the window's foot (it is shorter since
+    // 26 Nov 2026, the lane and the scoreboard's notes side by side under the scoreboard).
     let card = page.getByTestId("match-card").first();
     let before = 0;
     for (let i = 1; i < 8; i++) {
       card = page.getByTestId("match-card").nth(i);
       before = await card.evaluate((c) => {
-        window.scrollBy({ top: c.getBoundingClientRect().top - innerHeight / 2, behavior: "instant" });
+        window.scrollBy({ top: c.getBoundingClientRect().top - innerHeight * 0.53, behavior: "instant" });
         return c.getBoundingClientRect().top;
       });
-      if (before > size.height * 0.45 && before < size.height * 0.55) break;
+      if (before > size.height * 0.5 && before < size.height * 0.55) break;
     }
     expect(before, `${size.width}: the card in the upper part of the screen`).toBeLessThan(size.height * 0.55);
     expect(before).toBeGreaterThan(size.height * 0.45);

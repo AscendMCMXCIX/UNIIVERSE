@@ -20,9 +20,13 @@ import { formatNumber, formatOrdinal } from "@/lib/format";
 
 export type TimelineState = "loading" | "ok" | "missing";
 
-/** How the score is worked out, and whose it is, in two short sentences (docs/PERFORMANCE_SCORE.md, "What it is, and is not"). */
-export const METHOD = "UNIIVERSE's own score, not OP.GG's: each player's figures against their role and this game's other players. 5 is average. MVP tops the winning team, ACE the losing team.";
-export const METHOD_NEUTRAL = "UNIIVERSE's own score, not OP.GG's. Their role wasn't recorded, so their figures are compared with everyone's alike. 5 is average. MVP tops the winning team, ACE the losing team.";
+/**
+ * The score's one concept in two short sentences: whose it is and how it is worked out, then its
+ * scale (docs/PERFORMANCE_SCORE.md, "What it is, and is not"). What MVP and ACE mean is the badge's
+ * own (its words for screen readers, placement-badge.tsx), never a third sentence here.
+ */
+export const SCORE_METHOD = "UNIIVERSE's own score, not OP.GG's: each figure compared with the role and this game's players. 5 is average.";
+export const SCORE_METHOD_NEUTRAL = "UNIIVERSE's own score, not OP.GG's: the role wasn't recorded, so each figure is compared with every player's. 5 is average.";
 
 /**
  * The inspected player's score beside their loadout: the score with its place badge, then its place
@@ -56,7 +60,7 @@ export function ScoreSummary({ scores, score, timeline }: { scores: MatchScores 
         <span className="text-xs leading-4 text-fg-muted" data-testid="performance-rank" aria-hidden>
           {formatOrdinal(score.rank)} of {scores.scored}
         </span>
-        <InfoTip label="About the performance score" testId="performance-info" text={score.weights === "NEUTRAL" ? METHOD_NEUTRAL : METHOD} />
+        <InfoTip label="About the performance score" testId="performance-info" text={score.weights === "NEUTRAL" ? SCORE_METHOD_NEUTRAL : SCORE_METHOD} />
       </span>
     </span>
   );

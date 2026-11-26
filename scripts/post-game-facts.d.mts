@@ -15,6 +15,8 @@ export interface PostGameRead {
   timeline?: string | null;
   panels?: { words: string[]; above: boolean; path: number; missing: boolean } | null;
   scores?: { rows: number; shown: number; inRange: boolean; mvp: number; ace: number; removed: number; panel: boolean; mvpOnWin?: boolean; aceOnLoss?: boolean };
+  /** Where the parts sit, in px from the view's top: two columns (the lane right of the build column), the build column's and its area's ends, the lane's top and end, the scoreboard's and its notes' ends; null where a part was not found. */
+  layout?: { columns: boolean; sideBottom: number; bodyBottom: number; laneTop: number; laneBottom: number; boardBottom: number; notesBottom?: number } | null;
   /** The open card's header's score and place, and the inspected player's row's; null where the card had no score. */
   header?: { score: number; rank: number; rowScore: number | null; rowRank: number | null } | null;
   removed?: { parts: number; words: number };
