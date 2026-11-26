@@ -15,6 +15,8 @@ export interface CardScoreRead {
   place?: string | null;
   placeRank?: number | null;
   tone?: "gold" | "violet" | "neutral" | null;
+  /** The place badge's width in px (one per size whatever it says); null without a badge. */
+  badgeWidth?: number | null;
   /** The score's place shown on the card (the mark or its quiet dash): 1 when exactly one. */
   slots?: number;
   /** A wide card's score column, its left edge in px; null on a narrow card. */

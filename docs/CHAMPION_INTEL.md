@@ -103,7 +103,9 @@ opens with Enter or Space, by find-in-page, and before the page's code runs).
     long, under it (the grid floats), so a long name or many chips use the row's whole width;
   - **stacked** (a narrower column): the name and chips, the grid under them at the right;
   - **line** (a phone, a narrow Compare column): one line per kind, "13 / 12 / 11 / 10 / 9 s", "base
-    16 / 15 / 14 / 13 / 12 s", "Mana 60 / 65 / 70 / 75 / 80", wrapping between ranks only; a Compare
+    16 / 15 / 14 / 13 / 12 s", "Mana 60 / 65 / 70 / 75 / 80", wrapping between ranks only, each "/" ending the line it follows (a
+    no-break space before it), so no line starts with "/", and the "s" held to the last value (until
+    the review of 25 Nov 2026 a 390px phone's Compare drew "13 / 12 / 11 / 10" then "/ 9 s"); a Compare
     column under 11rem leaves the icon out (the slot's key is in the board's own column) and under
     15rem sets the name and the cooldown a size smaller (text-sm), so a long word keeps its line; one
     champion's row under 14rem (a small phone at a large text size), and a stacked Compare column's,

@@ -250,8 +250,10 @@ decorative chrome.
     `fg` wash, no ring. Both colours are the fixed rarity tokens, never `accent-2`, which Branding
     changes. MVP and ACE replace the ordinal ("MVP", not "1st MVP"); the ordinal stays in the
     accessible name ("MVP: highest score on the winning team, 1st of 10"). Sizes by prop (`row` 16px,
-    `card` 20px, `header` 20px with 12px text), one shape and one minimum width per size whatever it
-    says. Hook-free and server-safe (Team → Matches renders it on the server). Contrast (worked out from the
+    `card` 20px, `header` 20px with 12px text), one shape and one fixed width per size whatever it
+    says (`row` 2.25rem, `card` and `header` 2.5rem: the widest word, "MVP", with room either side;
+    a minimum width let MVP and ACE grow past "5th", so a score beside its badge moved 2–4px from row
+    to row: the owner's review of 25 Nov 2026). Hook-free and server-safe (Team → Matches renders it on the server). Contrast (worked out from the
     tokens): on `surface` gold 8.3:1, violet 6.6:1, the ordinal 9.6:1; on the selected row's
     `surface-3` 6.4, 5.1 and 7.3:1.
   - Read in the order drawn: a card's parts and the header's come in the page in the order they
@@ -699,11 +701,16 @@ const peek = usePeek({ param: "player", ids, initial: searchParams.get("player")
   page, held between the tabs and the window's foot, its header (portrait, name, ‹ ›, a labelled
   Close) pinned under the tabs while it passes. It opens where the section has 47.5rem (from 768px
   wide, in a window taller than 480px); narrower, a short window and the phone's frame get the phone window shell's sheet with
-  the same content. ✕/Close, Escape, Back and the selected row again close it (an outside click does
+  the same content and the same labelled Close in its header (`DetailModal`'s `closeLabel`, the shared `LABELLED_CLOSE`:
+  outlined, "✕ Close", 44px on touch screens, as tall as the ‹ › beside it; a bare ✕ there until the review of 25 Nov 2026,
+  the least prominent control in the header). Close, Escape, Back and the selected row again close it (an outside click does
   not: it is part of the page); ↑/↓ and J/K from the list and ‹ › move it; the address keeps the
   one history rule. Its content (docs/MATCHUPS.md): identity with mastery marked as all positions'; a
   segmented position choice that switches every figure and the opponents, each position with its
-  games, win rate and record ("Top 22" over "50% · 11W 11L"); the position's figures as
+  games, win rate and record ("Top 22" over "50% · 11W 11L") where there are two or more (one
+  position shows its name alone, the record being the figures right under it; its accessible name
+  keeps the record); its kills and multikills on one line that wraps between items only ("0 penta"
+  whole, each "·" ending its line); the position's figures as
   labels over numbers, no tiles; one table of every lane opponent (search, Most games / Highest /
   Lowest win rate, small samples quiet and ranked last); an opponent's detail beside the table from a
   38rem preview, one step in place of it below that. The list's position icons are 24px controls
@@ -964,10 +971,11 @@ With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shel
     their own 84rem, centred in it (its approved design), under a 1920px window, and from 1920px
     take the whole column (S2c, 19 Nov 2026), so the first tab, the logo and the first card share
     one left edge (before, the logo sat 38px inside at 1920 and 165px at 2560). Team
-    Matches' list keeps `--content-max` under Team's wider header, left-aligned, so a game's row is
-    never longer than before. A page's loading state takes the width `pageWidthOf` gives its address
-    (a Team section's own; the ordinary 80rem elsewhere); Team Matches' own skeleton stands as its
-    page does, its list at `--content-max`.
+    Matches' filters and list take Team's whole column, centred with it (the owner's review of
+    25 Nov 2026: at `--content-max`, left-aligned, the list ended about 200px left of centre on wide
+    windows). A page's loading state takes the width `pageWidthOf` gives its address (a Team
+    section's own; the ordinary 80rem elsewhere); Team Matches' own skeleton stands as its page
+    does, its list across the column.
   - **One frame, one place for everything (S2c, 19 Nov 2026).**
     - *The shared frame* (`app-shell.tsx`, `FRAME`): one content column, at most `--content-wide`
       and centred in the room beside the sidebar, open or folded. A page narrower than it (80rem

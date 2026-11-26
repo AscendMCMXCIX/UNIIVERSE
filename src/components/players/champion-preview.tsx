@@ -69,25 +69,44 @@ function Figure({ label, value, sub, testId }: { label: string; value: string; s
   );
 }
 
+/** Items of a line that wraps between them only (the space after each): each whole ("0 quadra"), its " ·" kept at the end of the line it ends (a no-break space before the dot), never starting the next. */
+const SEP = "\u00a0·";
+
 /**
- * The kills and the four multikills, on one line: each count with its word, "*" where only some of
- * the games are counted so far and "not counted yet" where none is (never a zero for unknown).
+ * The kills and the four multikills, on one line where it fits: each count with its word, "*" where
+ * only some of the games are counted so far and "not counted yet" where none is (never a zero for
+ * unknown). Where the line wraps (a phone, a tablet's sheet), it wraps between items only: "0 quadra"
+ * and "0 penta" stay whole and every "·" ends its line (the owner's review of 25 Nov 2026: "… · 0
+ * quadra · 0" / "penta").
  */
 function KillsLine({ f }: { f: RoleFigures }) {
   const p = f.performance;
   const m = f.multikills;
   const partial = (done: number, of: number) => (done < of ? "*" : "");
   const kills = p.totalKills === null ? "—" : `${formatCount(p.totalKills)}${partial(p.detailedGames, f.selected.games)}`;
-  const multi = !m || !m.games ? null : !m.counted ? "not counted yet" : `${MULTIKILL_KINDS.map((k) => `${formatCount(m[k.key])} ${MULTIKILL_SHORT[k.key].toLowerCase()}`).join(" · ")}${partial(m.counted, m.games)}`;
+  const kinds = !m || !m.games ? null : !m.counted ? null : MULTIKILL_KINDS.map((k) => `${formatCount(m[k.key])} ${MULTIKILL_SHORT[k.key].toLowerCase()}`);
+  const multi = !m || !m.games ? null : !m.counted ? ["not counted yet"] : kinds!.map((w, i) => (i === kinds!.length - 1 ? `${w}${partial(m.counted, m.games)}` : w));
   const some = (p.totalKills !== null && p.detailedGames < f.selected.games) || (!!m && m.counted > 0 && m.counted < m.games);
   return (
     <p className="text-sm tabular-nums text-fg-muted" data-testid="champion-preview-kills">
-      Kills <span className="font-semibold text-fg">{kills}</span>
-      {multi ? (
-        <>
-          {" · "}Multikills <span className="text-fg">{multi}</span>
-        </>
-      ) : null}
+      <span className="whitespace-nowrap" data-kills-item="">
+        Kills <span className="font-semibold text-fg">{kills}</span>
+        {multi ? SEP : null}
+      </span>
+      {multi ? " " : null}
+      {multi
+        ? multi.map((w, i) => (
+            <React.Fragment key={i}>
+              {/* The label stays with the first kind ("Multikills 2 double"). */}
+              <span className="whitespace-nowrap" data-kills-item="">
+                {i === 0 ? "Multikills " : null}
+                <span className="text-fg">{w}</span>
+                {i < multi.length - 1 ? SEP : null}
+              </span>
+              {i < multi.length - 1 ? " " : null}
+            </React.Fragment>
+          ))
+        : null}
       {some ? <span className="sr-only"> (* from some of the games only: {m ? multikillCoverage(m).label.toLowerCase() : "the rest still loading"})</span> : null}
     </p>
   );
@@ -139,12 +158,15 @@ function Figures({ f, role, champion }: { f: RoleFigures; role: Role | null; cha
 
 /**
  * Every position the champion was played in, most games first: one choice switches the whole preview
- * to it. Each says what a list icon's tooltip says, for every pointer (a touch screen has no hover):
- * the position and its games ("Top 22"), and under them its win rate and record ("50% · 11W 11L",
- * the win rate quiet under 5 games). Its accessible name says the same in words.
+ * to it. With two or more, each says what a list icon's tooltip says, for every pointer (a touch
+ * screen has no hover): the position and its games ("Top 22"), and under them its win rate and record
+ * ("50% · 11W 11L", the win rate quiet under 5 games). With one, the figures right under it are that
+ * position's, so it shows the position alone (the owner's review of 25 Nov 2026: "Support 9 / 56% ·
+ * 5W 4L" sat right above "56% / 9 games · 5W 4L"). Its accessible name says the record in words either way.
  */
 function Positions({ row, role, onRole, champion }: { row: ChampionRow; role: Role | null; onRole: (role: Role) => void; champion: string }) {
   if (!row.roles.length) return null;
+  const several = row.roles.length > 1;
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
       <span className="label-text" id={`positions-${row.championId}`}>
@@ -160,19 +182,21 @@ function Positions({ row, role, onRole, champion }: { row: ChampionRow; role: Ro
                 <span className="inline-flex items-center gap-1.5">
                   <RoleIcon role={r.role} decorative className="h-4 w-4" />
                   {ROLE_LABELS[r.role]}
-                  <span className="text-xs tabular-nums">{formatCount(r.games)}</span>
+                  {several ? <span className="text-xs tabular-nums">{formatCount(r.games)}</span> : null}
                 </span>
-                <span className="pl-5.5 text-xs font-normal tabular-nums" data-testid="champion-preview-role-record">
-                  <span className={cn(small && "text-fg-subtle")}>{percent(r.wins / r.games, 0)}</span>
-                  <span className={on ? "text-fg-muted" : "text-fg-subtle"}> · {record(r.wins, r.games)}</span>
-                </span>
+                {several ? (
+                  <span className="pl-5.5 text-xs font-normal tabular-nums" data-testid="champion-preview-role-record">
+                    <span className={cn(small && "text-fg-subtle")}>{percent(r.wins / r.games, 0)}</span>
+                    <span className={on ? "text-fg-muted" : "text-fg-subtle"}> · {record(r.wins, r.games)}</span>
+                  </span>
+                ) : null}
               </span>
             </button>
           );
         })}
       </div>
       <span id={`positions-${row.championId}-what`} className="sr-only">
-        The positions {champion} was played in, with the games, win rate and record in each.
+        {several ? `The positions ${champion} was played in, with the games, win rate and record in each.` : `The one position ${champion} was played in, with its games, win rate and record.`}
       </span>
     </div>
   );

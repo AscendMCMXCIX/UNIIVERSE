@@ -6,11 +6,10 @@ import { Skeleton } from "@/components/ui/skeleton";
  * phone), then game cards as the list draws them, by the list's own width (@container/tm, as
  * played-together.tsx): the result over the members on narrower lists, both teams under them from
  * md; from a 58rem list the result, the members, both teams and the bookmark side by side. The
- * members go two to a row from a 34rem column, as the cards do, so the list lands where its
+ * members go two to a row from a 34rem column and three from 60rem, as the cards do, so the list lands where its
  * skeleton was. The lists are hidden from screen readers (the status and its "Loading…" say it).
- * At the page's width (Team's 100rem,
- * centred), the filter row and the list under the title at the ordinary width, left-aligned, as the
- * page draws them (played-together.tsx).
+ * At the page's width (Team's 100rem, centred), the filter row and the list across all of it under
+ * the title, as the page draws them (played-together.tsx).
  */
 const MEMBERS = [4, 3, 2, 2];
 
@@ -21,7 +20,7 @@ export default function Loading() {
         <Skeleton className="h-8 w-32" />
         <Skeleton className="mt-1 h-5 w-[min(22rem,100%)]" />
       </div>
-      <div className="max-w-[var(--content-max)] space-y-4">
+      <div className="space-y-4">
         <div className="flex min-w-0 items-center gap-2">
           <Skeleton className="h-11 w-28 md:w-48 md:pointer-fine:h-9" />
           <Skeleton className="hidden h-9 w-40 md:block pointer-coarse:h-11" />
@@ -38,7 +37,7 @@ export default function Loading() {
                   <Skeleton className="hidden h-3 w-20 @min-[58rem]/tm:block" />
                 </div>
                 <div className="@container/members min-w-0">
-                  <ul className="grid gap-x-5 gap-y-1.5 @min-[34rem]/members:grid-cols-2">
+                  <ul className="grid gap-x-5 gap-y-1.5 @min-[34rem]/members:grid-cols-2 @min-[60rem]/members:grid-cols-3">
                     {Array.from({ length: members }, (_, j) => (
                       <li key={j} className="flex min-w-0 items-center gap-2.5">
                         <Skeleton className="h-9 w-9 shrink-0" />

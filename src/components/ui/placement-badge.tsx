@@ -13,8 +13,11 @@ import { cn } from "@/lib/cn";
   - Any other place ("2nd" … "10th"): restrained, the secondary text on a faint neutral wash, no ring.
   MVP and ACE replace the ordinal (an MVP is not always 1st: a stronger loser can be, as ACE); the
   ordinal stays in the accessible name ("MVP: highest score on the winning team, 1st of 10"). One
-  shape at every size: a pill, the same height and minimum width for every word, so a column of
-  them stays level whatever each says. No hooks and nothing from the server: it renders in the
+  shape at every size: a pill of one fixed width and height per size, whatever it says, the word
+  centred in it. The width is the widest word's ("MVP", bold: 1.75rem of text at the badge's size)
+  with room either side, so a score beside its badge starts at one x down a column ("7.1 MVP" sat
+  4px left of "4.5 5th" when the pill only had a minimum width: the owner's review of 25 Nov 2026),
+  and the stacked marks keep their columns (2.25rem for a row's, a wide card's 2.5rem). No hooks and nothing from the server: it renders in the
   server-rendered Team Matches list and in the client's Match History alike.
 */
 
@@ -54,10 +57,11 @@ export const PLACEMENT_TONE: Record<PlacementKind, string> = {
   place: "bg-fg/8 font-semibold text-fg-muted",
 };
 
-const SIZE: Record<PlacementSize, string> = {
-  row: "h-4 min-w-8 px-1 text-2xs",
-  card: "h-5 min-w-10 px-1.5 text-2xs",
-  header: "h-5 min-w-10 px-1.5 text-xs",
+/** One width per size (the widest word's, "MVP", 1.75rem at its text size, with room either side), never a minimum: see above. */
+export const PLACEMENT_SIZE: Record<PlacementSize, string> = {
+  row: "h-4 w-9 text-2xs",
+  card: "h-5 w-10 text-2xs",
+  header: "h-5 w-10 text-xs",
 };
 
 /**
@@ -69,7 +73,7 @@ export function PlacementBadge({ placement, size = "card", spoken = true, classN
   const kind = placementKind(placement);
   return (
     <span
-      className={cn("inline-flex shrink-0 items-center justify-center whitespace-nowrap rounded-full leading-none tabular-nums", SIZE[size], PLACEMENT_TONE[kind], className)}
+      className={cn("inline-flex shrink-0 items-center justify-center whitespace-nowrap rounded-full leading-none tabular-nums", PLACEMENT_SIZE[size], PLACEMENT_TONE[kind], className)}
       aria-hidden={spoken ? undefined : true}
       data-testid={testId}
       data-placement={kind}

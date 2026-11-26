@@ -151,7 +151,8 @@ test("the score is prominent and keeps one place: bold in the primary colour, it
         slot: { top: s.top, left: s.left, right: s.right },
         value: value ? { size: parseFloat(getComputedStyle(value).fontSize), weight: Number(getComputedStyle(value).fontWeight), colour: colour(value) } : null,
         kdaSize: parseFloat(getComputedStyle(kda).fontSize),
-        badge: badge ? { kind: badge.getAttribute("data-placement"), text: badge.textContent, colour: colour(badge), ring: getComputedStyle(badge).boxShadow !== "none", height: badge.getBoundingClientRect().height } : null,
+        badge: badge ? { kind: badge.getAttribute("data-placement"), text: badge.textContent, colour: colour(badge), ring: getComputedStyle(badge).boxShadow !== "none", height: badge.getBoundingClientRect().height, width: badge.getBoundingClientRect().width } : null,
+        valueRight: value ? value.getBoundingClientRect().right - c.left : null,
       };
     });
   });
@@ -189,9 +190,16 @@ test("the score is prominent and keeps one place: bold in the primary colour, it
     const lefts = facts.map((f) => f.cell!.left);
     expect(Math.max(...lefts) - Math.min(...lefts), "the score's column level from card to card").toBeLessThanOrEqual(1);
   }
-  // One badge height whatever it says.
+  // One badge height and one width whatever it says (MVP and ACE no wider than "5th": the owner's review of 25 Nov 2026), so the
+  // score beside its badge on a narrow card starts at one x from card to card.
   const heights = facts.flatMap((f) => (f.badge ? [Math.round(f.badge.height)] : []));
   expect(new Set(heights).size, "one badge height").toBe(1);
+  const widths = facts.flatMap((f) => (f.badge ? [Math.round(f.badge.width * 10) / 10] : []));
+  expect(new Set(widths).size, `one badge width (${[...new Set(widths)].join(", ")})`).toBe(1);
+  if (!wide) {
+    const rights = facts.flatMap((f) => (f.valueRight === null ? [] : [f.valueRight]));
+    expect(Math.max(...rights) - Math.min(...rights), "the score beside its badge at one x on every card (its figure's end, so a wider figure stays level)").toBeLessThanOrEqual(1);
+  }
   expect(facts.some((f) => f.badge?.kind === "mvp") && facts.some((f) => f.badge?.kind === "ace"), "MVP and ACE both on the demo's first page").toBe(true);
 });
 

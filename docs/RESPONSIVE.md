@@ -636,11 +636,11 @@ the account screen over the dashboard at 200% on a 320px phone as well.
   first card share one edge (S2c; before, 38px apart at 1920 and 165px at 2560). Every page starts at
   the left edge of the shared frame (DESIGN_SYSTEM §7, "One frame, one place for everything"). With
   Players at 100rem the roster takes three columns (its own 84rem rule) from about 1780px with the
-  sidebar open and from 1600px with it folded; Team Matches' list stays at `--content-max`,
-  left-aligned. The route's loading state takes the width `pageWidthOf` gives its address (a Team
+  sidebar open and from 1600px with it folded; Team Matches' filters and list take the whole
+  column, centred with it (25 Nov 2026). The route's loading state takes the width `pageWidthOf` gives its address (a Team
   section's own, else 80rem): Players and a teammate's profile share `players/loading.tsx`, which reads
   the address it stands in for, and Team Matches' own `matches/loading.tsx` stands as its page does
-  (Team's width from 1600px, its filter row and cards at `--content-max`, left-aligned).
+  (Team's width from 1600px, its filter row and cards across it).
 - **Champion Intel on one screen** (Champion Lookup, 23 Nov 2026, renamed and extended on 24 Nov
   2026, one aligned board since 25 Nov 2026; docs/CHAMPION_INTEL.md, "The page", "Abilities",
   "Compare" and "Fit and measurements"): one champion takes `--content-max`, two `--content-wide`.

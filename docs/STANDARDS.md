@@ -228,8 +228,10 @@ many more behind its Show all, never hiding a row silently.
   the grids that gain from more columns (Team Overview's lineup, Leaderboards). The pages of one tab set share one width at every window size, so its
   tabs, centred as the pages are, line up with each and never move between them (`SECTION_HUBS`'
   `width`, `PAGE_WIDTH` and `ROW_WIDTH` in `src/lib/nav.ts`): Team's four sections take
-  `--content-wide` (Players and Matches since 23 Nov 2026; under a 1600px window they were 80rem). Team Matches' list stays at `--content-max` under that wider header, left-aligned, as Recent
-  form stops at `--measure`: more room never makes a game's row longer. A board or table
+  `--content-wide` (Players and Matches since 23 Nov 2026; under a 1600px window they were 80rem). Team Matches' filters and list take that whole column too (since the owner's review of
+  25 Nov 2026: at `--content-max`, left-aligned, the list ended about 200px left of centre at 1920
+  folded, 2560 and 3440), so they start under the first tab and end under the team's name, centred
+  with the sidebar open and folded (e2e/played-together.spec.ts). A board or table
   that stands alone on such a page (Recent form) stops at `--measure` (`max-w-[var(--measure)]`,
   72rem), left-aligned: one left edge with the header, never centred in the space. The page's
   padding comes from the app shell; a page adds none of its own.

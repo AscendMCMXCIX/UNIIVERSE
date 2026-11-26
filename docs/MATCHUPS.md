@@ -51,8 +51,8 @@ showing another champion, its top is placed under the tabs wherever the list is 
 covers the list; a click elsewhere on the page
 leaves the pane open (it is part of the page, not a layer). Under 768px (the phone's frame, touch or
 mouse), in a short window, and where the section is narrower than 46rem (an upright tablet, a large
-text size) it is a **sheet** (the phone window shell, `PreviewWindow`) with the same content and ‹ ›;
-✕, Back or a pull down close it. The server knows the address, so a linked preview is beside the
+text size) it is a **sheet** (the phone window shell, `PreviewWindow`) with the same content and ‹ ›,
+and the pane's labelled Close (since 25 Nov 2026; a bare ✕ before); Close, Back or a pull down close it. The server knows the address, so a linked preview is beside the
 list in the first HTML; CSS keeps that pane from the windows that get the sheet until hydration.
 (From S5 to 22 Nov 2026 a panel over the columns after Win rate; from 23 Nov 2026 it unfolded under
 its row; from Release 16 to 25 Nov 2026 a panel docked at the window's right edge, over the table.)
@@ -64,13 +64,16 @@ its row; from Release 16 to 25 Nov 2026 a panel docked at the window's right edg
    position), and, for a champion of several positions or with games in none, its games in all.
 2. **Position:** every position it was played in, most games first, each with its games, win rate
    and record ("Top 22" over "50% · 11W 11L", the win rate quiet under 5 games; the same words in
-   its accessible name), the app's segmented control, 44px on touch. A choice switches every figure below and the opponents at once
+   its accessible name), the app's segmented control, 44px on touch. With one position it shows the
+   position's name alone: the figures right under it are its record (they sat twice, one above the
+   other, until the review of 25 Nov 2026); its accessible name still says the record. A choice switches every figure below and the opponents at once
    (`crole`, replaced; the opened opponent goes with the old position). Where some games record no
    position: "1 more game has no recorded position: it counts in Sion's totals only."
 3. **Figures of that position:** its win rate (coloured by `winRateTone` from 5 games) over
    "14 games · 4W 10L", KDA with the average K/D/A, CS/min with CS a game, damage/min with damage a
    game, vision a game ("—" where no game carries one), one line of kills and the four multikills
-   ("*" where only some games are counted so far, "not counted yet" where none is), and what they are
+   ("*" where only some games are counted so far, "not counted yet" where none is), wrapping between
+   items only where it must ("0 penta" whole, each "·" ending its line), and what they are
    averaged over ("Averages over all 22 Top games in these filters"). No boxes: labels over figures.
 4. **Lane opponents:** ONE table of every lane opponent the champion met in that position, however
    few the games (no folds, no "more" toggles, no Best/Worst tabs): portrait and name, games, W/L,

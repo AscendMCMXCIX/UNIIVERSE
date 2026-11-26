@@ -310,7 +310,11 @@ describe("multikills", () => {
   it("say the games and the kinds made in words under the name on a phone (the table's columns from 26rem), read once", () => {
     const ash = rowHtml(html, "ash");
     // A kind with none is left out of the phone's line (its words for screen readers still say every kind).
-    expect(shownOf(ash, "multikill-words")).toBe("40 games· 25 doubles· 2 triples· 1 penta");
+    // Each item whole, its "·" at its own end after a no-break space (so a wrapped line ends with the dot and the next starts
+    // with a figure: "· 2 pentas" started a line until the owner's review of 25 Nov 2026).
+    expect(shownOf(ash, "multikill-words")).toBe("40 games\u00a0·25 doubles\u00a0·2 triples\u00a0·1 penta");
+    const items = [...innerOf(ash, "multikill-words")!.matchAll(/<span class="whitespace-nowrap" data-word="">(.*?)<\/span><\/span>|<span class="whitespace-nowrap" data-word="">([^<]*)<\/span>/g)].map((m) => (m[1] ?? m[2]!).replace(/<[^>]+>/g, ""));
+    expect(items).toEqual(["40 games\u00a0·", "25 doubles\u00a0·", "2 triples\u00a0·", "1 penta"]);
     expect(ash).toMatch(/<span aria-hidden="true" class="[^"]*@min-\[26rem\]\/list:hidden" data-testid="multikill-words">/);
     expect(ash).toContain('<span class="sr-only @min-[26rem]/list:hidden">40 games with multikill counts, 25 double kills, 2 triple kills, 0 quadra kills, 1 pentakills</span>');
   });

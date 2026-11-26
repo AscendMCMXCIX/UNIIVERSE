@@ -20,6 +20,7 @@ import { ArrowDown, ArrowUp, ArrowUpDown, X } from "lucide-react";
 import { useAddressItem } from "@/components/ui/address-item";
 import { isTyping, modalOpen, useWindowPosture } from "@/components/ui/posture";
 import { PreviewWindow, SiblingSteps, type PreviewSiblings } from "@/components/ui/preview-window";
+import { LABELLED_CLOSE } from "@/components/ui/window-control";
 import { PreviewContent, selectionFor, usePreviewAddress, usePreviewData, type ListScope } from "./champion-preview";
 import { RoleIcons, roleFigures, roleMarkAt } from "./champion-roles";
 import { MatchDetailModal } from "@/components/match-history/match-detail";
@@ -931,7 +932,7 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
                 controls={
                   <div className="flex shrink-0 items-center gap-1" data-testid="champion-preview-controls">
                     <SiblingSteps siblings={siblings} />
-                    <button type="button" onClick={() => closeRef.current()} className="ml-1 inline-flex h-9 items-center gap-1.5 rounded-lg border border-border-control bg-bg-elevated px-3 text-sm font-medium text-fg transition-colors duration-150 hover:border-fg-subtle hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:h-11" aria-label="Close the champion" data-testid="champion-preview-close">
+                    <button type="button" onClick={() => closeRef.current()} className={cn(LABELLED_CLOSE, "ml-1")} aria-label="Close the champion" data-testid="champion-preview-close">
                       <X className="h-4 w-4" aria-hidden />
                       Close
                     </button>
@@ -952,10 +953,12 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
         </p>
       ) : null}
       {/* Touch phones, the phone's frame and short windows: the same content in a sheet (the phone
-          window shell), its ‹ › and ✕ in its header. While a game's window is open over it, the sheet
-          steps aside (never two windows) and comes back when the game closes. */}
+          window shell), its ‹ › and its Close in its header: the pane's labelled Close, not the quiet ✕
+          of other windows (the owner's request: a prominent, easily accessible close action). While a
+          game's window is open over it, the sheet steps aside (never two windows) and comes back when
+          the game closes. */}
       {sheet && selected ? (
-        <PreviewWindow open={!match} onClose={() => closeRef.current()} title={champ(selected.championId).name} size="sheet" siblings={siblings} testId="champion-preview" closeTestId="champion-preview-close">
+        <PreviewWindow open={!match} onClose={() => closeRef.current()} title={champ(selected.championId).name} size="sheet" siblings={siblings} testId="champion-preview" closeTestId="champion-preview-close" closeLabel="Close">
           <span className="sr-only" aria-live="polite">
             {announce(selected, selRole)}
           </span>

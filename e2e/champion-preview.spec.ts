@@ -497,6 +497,30 @@ test("phones: an opponent chosen far down the table opens its step in view, and 
   await expect(last, "the row it left from in view again").toBeInViewport({ ratio: 1 });
 });
 
+test("a champion played in one position: the position named alone, its record said once (in the figures under it and in its accessible name), not repeated in the selector", async ({ page }) => {
+  // Demo Sub (Top) plays Mordekaiser in one position (server/demo/seed.ts, DEMO_OTHER_POSITIONS); with two or more each keeps its record (the test below).
+  const profile = await demoMember(page, "Demo Sub (Top)");
+  await page.goto(`${profile}/champions`);
+  const rows = page.getByTestId("top-champion");
+  await expect(rows.first()).toBeVisible();
+  let one: Locator | null = null;
+  for (const r of await rows.all()) if ((await icons(r)).length === 1 && !Number((await r.getAttribute("data-no-role")) ?? 0)) one = r;
+  expect(one, "a champion played in one position").not.toBeNull();
+  await openRow(page, one!);
+  const segment = page.getByTestId("champion-preview-role");
+  await expect(segment).toHaveCount(1);
+  const [games, wins] = [Number(await segment.getAttribute("data-games")), Number(await segment.getAttribute("data-wins"))];
+  const rate = `${((wins / games) * 100).toFixed(0)}%`;
+  // "Support 9 / 56% · 5W 4L" sat right above "56% / 9 games · 5W 4L" (the owner's review of 25 Nov 2026).
+  await expect(segment.getByTestId("champion-preview-role-record")).toHaveCount(0);
+  await expect(segment).toHaveText(/^(Top|Jungle|Mid|Bottom|Support)$/);
+  await expect(segment).toHaveAccessibleName(new RegExp(`^(Top|Jungle|Mid|Bottom|Support): ${games} games? · ${rate} win rate · ${wins}W ${games - wins}L$`));
+  expect(await recordGames(page)).toBe(games);
+  await expect(page.getByTestId("champion-preview-winrate")).toContainText(rate);
+  // Still a 44px target on a touch screen, with one line.
+  if (await page.evaluate(() => matchMedia("(pointer: coarse)").matches)) expect((await segment.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+});
+
 test("positions: a champion played in one, two, three and five positions shows each position's icon, most games first; each opens the preview in it, and the preview switches between them", async ({ page }, info) => {
   // Demo Sub (Top) plays Sion in all five positions (and one game with no recorded position), Malphite in three, Ornn in two and Mordekaiser in one (server/demo/seed.ts, DEMO_OTHER_POSITIONS).
   const profile = await demoMember(page, "Demo Sub (Top)");
@@ -639,9 +663,29 @@ test("phones: a sheet; ‹ › switch, Back closes it and the list keeps its pla
   await expect(preview).toHaveCount(0);
   await expect(page).not.toHaveURL(/champion=/);
   expect(await page.evaluate(() => scrollY)).toBe(y);
-  // ✕ closes it too.
+  // Its Close, as prominent as the pane's (the owner's request: a prominent, easily accessible close action): the labelled
+  // button, its word beside the ✕, a 44px target as tall as the ‹ › beside it, never a bare ✕ (the review of 25 Nov 2026).
   await openRow(page, rows.nth(0));
-  await preview.getByTestId("champion-preview-close").click();
+  const close = preview.getByTestId("champion-preview-close");
+  await expect(close).toHaveText("Close");
+  await expect(close).toHaveAccessibleName("Close");
+  await expect.poll(() => preview.evaluate((d) => d.getAnimations({ subtree: true }).length)).toBe(0);
+  const [closeBox, nextBox] = [(await close.boundingBox())!, (await preview.getByTestId("champion-preview-next").boundingBox())!];
+  expect(closeBox.height, "a 44px target").toBeGreaterThanOrEqual(44);
+  expect(Math.abs(closeBox.height - nextBox.height), "as tall as ‹ ›").toBeLessThanOrEqual(1);
+  expect(closeBox.width, "wider than an icon: its word beside it").toBeGreaterThan(nextBox.width + 16);
+  expect(await close.evaluate((b) => getComputedStyle(b).borderTopWidth), "outlined, as the pane's").not.toBe("0px");
+  // The kills line wraps on a phone between items only: each count with its word whole ("0 penta", never "0" / "penta"), and
+  // no line starts with "·" (each "·" ends the item before it).
+  const items = await preview.getByTestId("champion-preview-kills").locator("[data-kills-item]").evaluateAll((els) => els.map((e) => ({ text: (e.textContent ?? "").replace(/\s+/g, " ").trim(), lines: new Set([...e.getClientRects()].map((r) => Math.round(r.top))).size })));
+  expect(items.length, "the kills and each multikill").toBeGreaterThan(1);
+  for (const item of items) {
+    expect(item.lines, `"${item.text}" on one line`).toBe(1);
+    expect(item.text, "no item starts with its separator").not.toMatch(/^·/);
+  }
+  expect(items.slice(0, -1).every((i) => i.text.endsWith("·")), "each item but the last ends with its \"·\"").toBe(true);
+  // Close closes it too.
+  await close.click();
   await expect(preview).toHaveCount(0);
 });
 

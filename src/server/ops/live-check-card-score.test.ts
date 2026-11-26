@@ -10,7 +10,7 @@ import { cardScoreVerdicts, firstScored, readCardScores, readTogetherScores, tog
   The readings below are what readCardScores, readOpenedScore and readTogetherScores return in a page.
 */
 
-const ok = (index: number, score = 5.2, rank = 3, over: Partial<CardScoreRead> = {}): CardScoreRead => ({ index, state: "ok", result: "W", score, rank, marks: 1, markScore: score, markRank: rank, mvp: false, ace: false, place: "place", placeRank: rank, tone: "neutral", slots: 1, column: 774, underKda: null, spoken: true, ...over });
+const ok = (index: number, score = 5.2, rank = 3, over: Partial<CardScoreRead> = {}): CardScoreRead => ({ index, state: "ok", result: "W", score, rank, marks: 1, markScore: score, markRank: rank, mvp: false, ace: false, place: "place", placeRank: rank, tone: "neutral", badgeWidth: 40, slots: 1, column: 774, underKda: null, spoken: true, ...over });
 const mvp = (index: number, rank = 1) => ok(index, 7.4, rank, { mvp: true, place: "mvp", tone: "gold", result: "W" });
 const ace = (index: number, rank = 2) => ok(index, 6.1, rank, { ace: true, place: "ace", tone: "violet", result: "L" });
 const pending = (index: number): CardScoreRead => ({ index, state: "pending", result: "L", score: null, rank: null, marks: 0, markScore: null, markRank: null, place: null, placeRank: null, tone: null, slots: 1, column: 774, underKda: null, spoken: true });
@@ -23,7 +23,8 @@ describe("the card score facts", () => {
     const cards = [pending(0), mvp(1), none(2), ok(3), ace(4)];
     expect(firstScored(cards)).toBe(1);
     const v = cardScoreVerdicts({ kind: "desktop", cards, opened: OPENED });
-    expect(statuses(v)).toEqual(["PASS", "PASS", "PASS", "PASS"]);
+    expect(statuses(v)).toEqual(["PASS", "PASS", "PASS", "PASS", "PASS"]);
+    expect(v[4]!.detail).toMatchObject({ badges: 3, kinds: ["ace", "mvp", "place"], widths: [40], spread: 0 });
     expect(v[0]!.detail).toMatchObject({ cards: 5, ok: 3, pending: 1, none: 1, wrong: [] });
     expect(v[2]!.detail).toMatchObject({ scored: 3, mvp: 1, ace: 1, place: 1, wrong: [] });
   });
@@ -63,8 +64,17 @@ describe("the card score facts", () => {
   });
 
   it("warn, not fail, without a scored card or without cards", () => {
-    expect(statuses(cardScoreVerdicts({ kind: "desktop", cards: [pending(0), none(1)], opened: null }))).toEqual(["PASS", "WARN", "WARN", "PASS"]);
-    expect(statuses(cardScoreVerdicts({ kind: "desktop", cards: [], opened: null }))).toEqual(["WARN", "WARN", "WARN", "WARN"]);
+    expect(statuses(cardScoreVerdicts({ kind: "desktop", cards: [pending(0), none(1)], opened: null }))).toEqual(["PASS", "WARN", "WARN", "PASS", "WARN"]);
+    expect(statuses(cardScoreVerdicts({ kind: "desktop", cards: [], opened: null }))).toEqual(["WARN", "WARN", "WARN", "WARN", "WARN"]);
+  });
+
+  it("fail when MVP or ACE is wider than another place's badge (the review of 25 Nov 2026), within half a pixel", () => {
+    const width = (cards: CardScoreRead[]) => cardScoreVerdicts({ kind: "phone", cards, opened: OPENED })[4]!;
+    expect(width([{ ...mvp(0), badgeWidth: 35.9 }, ok(1, 5, 3, { badgeWidth: 32 })]).status).toBe("FAIL");
+    expect(width([{ ...mvp(0), badgeWidth: 35.9 }, ok(1, 5, 3, { badgeWidth: 32 })]).detail).toMatchObject({ widths: [32, 35.9], spread: 3.9 });
+    expect(width([{ ...mvp(0), badgeWidth: 36.2 }, { ...ace(1), badgeWidth: 36 }, ok(2, 5, 3, { badgeWidth: 36 })]).status).toBe("PASS");
+    // Fluid root sizes give fractional widths, the same for every badge.
+    expect(width([{ ...mvp(0), badgeWidth: 46.4 }, ok(1, 5, 3, { badgeWidth: 46.4 })]).status).toBe("PASS");
   });
 
   it("read places, colours, positions and counts only (no name, match id or text leaves the page)", () => {
