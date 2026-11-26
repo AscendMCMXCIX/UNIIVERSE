@@ -21,6 +21,7 @@ import { assetUrl, ddragonVersionOf, loadRiotAssets, type RiotAssets } from "@/s
 import { createRiotClient, normaliseRiotKey, RiotApiError, type RiotApiClient } from "@/server/riot/api/client";
 import { loadScoreTimelines, recordedGoldDifferenceOf, scoreFramesOf, scoreTimelineOf, type StoredScoreTimeline } from "@/server/accounts/match-timeline";
 import { finalScoresOf, scoreReadsTimeline, type ScoreParticipant, type ScoreRecord, type ScoreTimeline } from "@/domain/performance-inputs";
+import type { MatchScores } from "@/domain/performance-score";
 import { getCurrentPatch } from "@/server/repositories/champions";
 import { isRemoved } from "@/server/privacy/redact";
 import { lookUpRanks, NO_CHECK, rankChecksAvailable, rankLookupClient, recordedRanksBefore, storedRankReadings, type RankCheck } from "@/server/players/participant-ranks";
@@ -522,10 +523,21 @@ export function scoreRecordOf(d: { queueId: number | null; gameDuration: number;
  */
 export function cardPerformance(game: { d: { participants: MatchParticipantDetail[] }; me: MatchParticipantDetail; record: ScoreRecord } | null, stored: StoredScoreTimeline | undefined, own: ReadonlySet<string>, riotConfigured: boolean): CardPerformance {
   if (!game || isRemoved(game.me)) return { state: "none" };
-  const { d, me, record } = game;
+  return performanceOf(gameScores(game.d, game.record, stored, own, riotConfigured), game.d.participants.indexOf(game.me));
+}
+
+/**
+ * One game's final scores, for every player at once (cardPerformance's rules: the same record, the
+ * same stored timeline, the same functions as the opened game): "pending" where the opened game
+ * would fetch the timeline from Riot first, null where nothing can be scored. Team → Matches scores
+ * each of its games once with it and reads every member's place from the one answer
+ * (server/matches/together-scores). `own`: the PUUIDs of a player of the game, which only pick the
+ * side the gold check reads (a symmetric check, so any player's give the same verdict).
+ */
+export function gameScores(d: { participants: MatchParticipantDetail[] }, record: ScoreRecord, stored: StoredScoreTimeline | undefined, own: ReadonlySet<string>, riotConfigured: boolean): MatchScores | "pending" | null {
   let timeline: ScoreTimeline | null = null;
   if (scoreReadsTimeline(record)) {
-    if (riotConfigured && (!stored || (stored.available && stored.dated && !stored.t?.length))) return { state: "pending" };
+    if (riotConfigured && (!stored || (stored.available && stored.dated && !stored.t?.length))) return "pending";
     if (stored?.available) {
       // The record's players as loadCompositionParticipants gives them to the opened game's timeline (with Riot's two position readings).
       const parts = d.participants.map((p) => ({ puuid: p.puuid, teamId: p.teamId, position: p.position, teamPosition: p.teamPosition ?? null, individualPosition: p.individualPosition ?? null, ...(isRemoved(p) ? { removed: true } : {}) }));
@@ -533,8 +545,13 @@ export function cardPerformance(game: { d: { participants: MatchParticipantDetai
       timeline = scoreTimelineOf(parts, frames, kept, own, (teamId) => recordedGoldDifferenceOf(d.participants, teamId));
     }
   }
-  const scores = finalScoresOf(record, timeline);
-  const mine = scores?.players.find((p) => p.slot === d.participants.indexOf(me));
+  return finalScoresOf(record, timeline);
+}
+
+/** One player's score and place from a game's final scores (gameScores), by their place in the record. */
+export function performanceOf(scores: MatchScores | "pending" | null, slot: number): CardPerformance {
+  if (scores === "pending") return { state: "pending" };
+  const mine = scores?.players.find((p) => p.slot === slot);
   return scores && mine ? { state: "ok", score: mine.score, rank: mine.rank, of: scores.scored, mvp: mine.mvp, ace: mine.ace, version: scores.version } : { state: "none" };
 }
 

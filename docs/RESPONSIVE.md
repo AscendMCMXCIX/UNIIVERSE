@@ -731,10 +731,11 @@ game is 1.50–1.82 screens with its folds closed (the demo's first three games,
 about 2.9 with the gold and build folds open; `e2e/overlay-kit.spec.ts` holds it at 2.0 or less); no
 tabs anywhere.
 
-A Match History card from 50 to 61rem of list (1280 with the sidebar open: a 60rem list) shows the
+A Match History card from 50 to 65rem of list (61rem until 25 Nov 2026, when the performance score
+took a column of its own after the K/D/A; 1280 with the sidebar open: a 60rem list) shows the
 build (the six items and the trinket, 22px) in the teams' place, and the rosters go first (UD.H1;
 S6c, 20 Nov 2026: the card showed no build there); the open game's scoreboard has the rosters. The
-card stays 90px (D8's density is unchanged), and from 61rem it shows both again. Team Matches'
+card stays 90px (D8's density is unchanged), and from 65rem it shows both again. Team Matches'
 open game has Previous and Next (the footer's, by Match History's rules: they replace `?match=`, the
 new card's header keeps its y within 1px, they are disabled at the ends and say "Game 5 of 6:
 Defeat on Ornn"); Back or Close lands on the last game viewed, with the focus on its card. A

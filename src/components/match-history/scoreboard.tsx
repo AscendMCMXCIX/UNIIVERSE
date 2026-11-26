@@ -8,9 +8,9 @@ import type { DetailParticipant, DetailTeam, MatchRanksResult } from "@/server/p
 import type { MatchMeeting } from "@/server/players/encounters";
 import { metSides } from "@/lib/tip-words";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
-import { formatCount, formatDate, formatKilo, formatNumber, formatOrdinal } from "@/lib/format";
+import { formatCount, formatDate, formatKilo, formatNumber } from "@/lib/format";
 import type { PlayerScore } from "@/domain/performance-score";
-import { RankChip } from "./performance-panel";
+import { PlacementBadge, placementWords } from "@/components/ui/placement-badge";
 import { cn } from "@/lib/cn";
 import { Fold } from "@/components/ui/fold";
 import { matchRankQueue, rankBadgeLabel, rankShortLabel, rankTimingCounts, type ParticipantRank } from "@/domain/known-rank";
@@ -26,7 +26,7 @@ import { ItemRow } from "./icon-img";
   same places on both teams: the portrait with the level; the name over the champion, the lane
   opponent's mark and the rank (read around the game; a clock marks one read away from it); the
   K/D/A; the build (six items and the trinket); CS over damage; the performance score over its
-  place among the ten (MVP and ACE as chips). Each team's band says its side and result in words
+  place among the ten (the shared place badge: MVP gold, ACE violet, any other place restrained). Each team's band says its side and result in words
   and its totals; a possible group is one line under it. The row is the button that inspects its
   player; the name stays the player's link. The profile's own player has the accent tint, the
   player inspected an inset accent ring, so the two are told apart when they differ.
@@ -35,7 +35,7 @@ import { ItemRow } from "./icon-img";
   Riot name without its tag, else the champion (team-composition.tsx, compositionOf).
 
   Widths (the scoreboard's own, @container/sb): from 30rem one line of columns, two text lines a
-  row (about 34px); under it (a phone's window) two lines: the name, the K/D/A and the score; the
+  row (36px, its portrait 32px and its items 22px from 36rem: the room the score through the game left, 25 Nov 2026); under it (a phone's window) two lines: the name, the K/D/A and the score; the
   build, the rank and CS with damage. From 17.5rem to 21rem (a 320–360px phone) the score and its
   place stand beside the K/D/A on the first line, so the build, the rank and CS have the whole
   second line, CS without its word (it stays for screen readers); under 17.5rem (a phone at 200%
@@ -117,7 +117,7 @@ function TeamTable({ team, champ, groups, laneSlot, rankOf, queueId, checking, m
       {/* The team's band: its side and result in words (never the colour alone), then its totals, each number brighter than its word. One line, as tall on both teams. */}
       <header className={cn(first && "rounded-t-panel", "flex min-h-6 flex-wrap items-center justify-between gap-x-3 px-2.5 text-xs leading-4", team.side === "blue" ? "bg-blue/10" : "bg-red/10")}>
         <span className="flex items-baseline gap-1.5">
-          <span className={cn("text-2xs font-semibold uppercase tracking-label", team.side === "blue" ? "text-blue" : "text-red")}>{team.side === "blue" ? "Blue side" : "Red side"}</span>
+          <span className={cn("text-xs font-semibold", team.side === "blue" ? "text-blue" : "text-red")}>{team.side === "blue" ? "Blue side" : "Red side"}</span>
           <span className="font-semibold text-fg" data-testid="team-result">
             {team.win ? "Victory" : "Defeat"}
           </span>
@@ -281,7 +281,7 @@ function GroupLine({ group: g, mark, names }: { group: MatchGroupView; mark: str
 const ROW = cn(
   "relative grid min-h-8 items-center gap-x-1 px-1 py-0",
   "grid-cols-[1.5rem_minmax(0,1fr)_auto_2.25rem]",
-  "@min-[30rem]/sb:min-h-8 @min-[30rem]/sb:py-0 @min-[30rem]/sb:grid-cols-[1.75rem_minmax(0,1fr)_3.5rem_auto_3.5rem_2.75rem] @min-[30rem]/sb:gap-x-3 @min-[30rem]/sb:px-2.5",
+  "@min-[30rem]/sb:min-h-9 @min-[30rem]/sb:py-0.5 @min-[30rem]/sb:grid-cols-[2rem_minmax(0,1fr)_3.5rem_auto_3.5rem_2.75rem] @min-[30rem]/sb:gap-x-3 @min-[30rem]/sb:px-2.5",
   "@min-[17.5rem]/sb:@max-[21rem]/sb:grid-cols-[1.5rem_minmax(0,1fr)_auto_auto] @min-[17.5rem]/sb:@max-[21rem]/sb:px-0.5",
   "@max-[17.5rem]/sb:flex @max-[17.5rem]/sb:flex-wrap @max-[17.5rem]/sb:gap-y-0.5 @max-[17.5rem]/sb:py-1",
 );
@@ -290,7 +290,7 @@ const ROW = cn(
 function RemovedRow() {
   return (
     <li className={ROW} data-testid="participant" data-removed>
-      <span className="col-start-1 row-span-2 row-start-1 grid h-6 w-6 place-items-center rounded bg-surface-3 text-fg-subtle @min-[30rem]/sb:h-7 @min-[30rem]/sb:w-7" aria-hidden>
+      <span className="col-start-1 row-span-2 row-start-1 grid h-6 w-6 place-items-center rounded bg-surface-3 text-fg-subtle @min-[30rem]/sb:h-8 @min-[30rem]/sb:w-8" aria-hidden>
         <UserX className="h-3.5 w-3.5" />
       </span>
       <span className="col-span-3 col-start-2 row-span-2 row-start-1 min-w-0 truncate text-xs text-fg-muted @min-[30rem]/sb:col-span-5" data-testid="participant-name">
@@ -322,23 +322,22 @@ function MetChip({ met, href }: { met: MatchMeeting; href: string }) {
   );
 }
 
-/** A row's performance score: the score over its place among the ten, or MVP / ACE; a quiet stand-in while the timeline answers. */
+/** A row's performance score: the score over its place among the ten (the shared badge: MVP, ACE or "3rd"); a quiet stand-in while the timeline answers. */
 function RowScore({ score, scoring, scored }: { score: PlayerScore | null; scoring: boolean; scored: number }) {
   if (scoring)
     return (
-      <span className="block h-7 w-9 animate-pulse rounded bg-surface-3/60 motion-reduce:animate-none @max-[21rem]/sb:h-4" data-testid="participant-score" data-state="loading">
+      <span className="block h-8 w-9 animate-pulse rounded bg-surface-3/60 motion-reduce:animate-none @max-[21rem]/sb:h-4" data-testid="participant-score" data-state="loading">
         <span className="sr-only">Scoring</span>
       </span>
     );
   if (!score) return <span className="block w-9" data-testid="participant-score" data-state="none" aria-hidden />;
+  const placement = { rank: score.rank, of: scored, mvp: score.mvp, ace: score.ace };
   return (
-    <span className="flex flex-col items-end gap-0.5 leading-none @max-[21rem]/sb:flex-row @max-[21rem]/sb:items-center @max-[21rem]/sb:gap-1" data-testid="participant-score" data-score={score.score} data-rank={score.rank} data-mvp={score.mvp || undefined} data-ace={score.ace || undefined}>
-      <span className="text-sm font-semibold leading-none tabular-nums text-fg">{formatNumber(score.score, 1)}</span>
-      <RankChip score={score} marks />
-      <span className="sr-only">
-        {`: performance score ${formatNumber(score.score, 1)}, ${formatOrdinal(score.rank)} of ${scored}`}
-        {score.mvp ? ", MVP (the winning team's highest)" : score.ace ? ", ACE (the losing team's highest)" : ""}
-      </span>
+    <span className="flex flex-col items-end gap-0.5 leading-none @max-[21rem]/sb:flex-row @max-[21rem]/sb:items-center @max-[21rem]/sb:gap-1 @min-[30rem]/sb:gap-1" data-testid="participant-score" data-score={score.score} data-rank={score.rank} data-mvp={score.mvp || undefined} data-ace={score.ace || undefined}>
+      <span className="text-sm font-bold leading-none tabular-nums text-fg">{formatNumber(score.score, 1)}</span>
+      {/* The page's MVP and ACE are counted by these test ids (the Production check). */}
+      <PlacementBadge placement={placement} size="row" spoken={false} testId={score.mvp ? "participant-mvp" : score.ace ? "participant-ace" : "rank-chip"} />
+      <span className="sr-only">{`: performance score ${formatNumber(score.score, 1)}, ${placementWords(placement)}`}</span>
     </span>
   );
 }
@@ -395,7 +394,7 @@ function Row({ x, champ, group, lane, rank, queueId, checking, met, meetHref, se
       />
       {group ? <span className={cn("absolute inset-y-1 left-0 w-[3px] rounded-r-full", GROUP_MARK[group.index] ?? GROUP_MARK[0])} aria-hidden /> : null}
       <span className="relative col-start-1 row-span-2 row-start-1 shrink-0 self-center">
-        <ChampionPortrait champion={c} size="xs" className={cn("h-6 w-6 @min-[30rem]/sb:h-7 @min-[30rem]/sb:w-7", member && "ring-2 ring-fg-muted/70")} />
+        <ChampionPortrait champion={c} size="xs" className={cn("h-6 w-6 @min-[30rem]/sb:h-8 @min-[30rem]/sb:w-8", member && "ring-2 ring-fg-muted/70")} />
         {x.champLevel !== null ? <span className="absolute -bottom-1 -right-1 rounded bg-bg px-0.5 text-4xs font-semibold tabular-nums leading-3 text-fg-muted">{x.champLevel}</span> : null}
       </span>
       <span className="col-start-2 row-start-1 flex min-w-0 items-center gap-1.5 self-end leading-4 @max-[17.5rem]/sb:basis-[calc(100%-2rem)]">
@@ -422,7 +421,7 @@ function Row({ x, champ, group, lane, rank, queueId, checking, met, meetHref, se
       <span className="col-start-3 row-start-1 self-end text-right text-sm font-semibold leading-4 tabular-nums text-fg @min-[30rem]/sb:row-span-2 @min-[30rem]/sb:self-center" data-testid="participant-kda">
         {x.kills}/{x.deaths}/{x.assists}
       </span>
-      <span className="col-start-4 row-span-2 row-start-1 hidden @min-[30rem]/sb:block @min-[30rem]/sb:[--icon-size:1.125rem] @min-[36rem]/sb:[--icon-size:1.25rem]" data-testid="participant-items">
+      <span className="col-start-4 row-span-2 row-start-1 hidden @min-[30rem]/sb:block @min-[30rem]/sb:[--icon-size:1.125rem] @min-[36rem]/sb:[--icon-size:1.375rem]" data-testid="participant-items">
         <ItemRow items={x.items} size={20} />
       </span>
       <span className="col-start-3 row-start-2 self-start whitespace-nowrap text-right text-2xs leading-4 tabular-nums text-fg-muted @min-[17.5rem]/sb:@max-[21rem]/sb:col-end-5 @min-[17.5rem]/sb:@max-[21rem]/sb:justify-self-end @min-[30rem]/sb:col-start-5 @min-[30rem]/sb:row-span-2 @min-[30rem]/sb:row-start-1 @min-[30rem]/sb:self-center" data-testid="participant-cs">

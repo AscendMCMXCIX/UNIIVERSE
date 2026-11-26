@@ -73,8 +73,13 @@
     heights and true/false only: the rows carry names.
   - card scores (Release 17, scripts/card-score-facts.mjs): at every width, each card of Match
     History's first page shows its performance score (one mark, the card's own figures) or the quiet
-    fallback (nothing drawn, the card's label says why), and the first scored game, opened, shows
-    the same score and place on its scoreboard's row for the player. States, scores and places only.
+    fallback (a dash in the score's place, the card's label says why), and the first scored game,
+    opened, shows the same score and place on its scoreboard's row for the player. Since 25 Nov 2026:
+    each card's place badge says its place in its colour (MVP gold on a won game, ACE violet on a lost
+    one, other places neutral), the score keeps one place from card to card (a wide card's column at
+    one x, else under the K/D/A), and on Team Matches every member row shows its score and badge (or
+    the dash), each place once in a game, MVP only on a won game and ACE only on a lost one. States,
+    scores, places, colours compared in the page and positions only.
   - multikills (Release 15, scripts/multikill-facts.mjs): at every width, the multikill board says what
     its score is compared with and explains it behind its ⓘ; ranked members in score order, a place
     shared exactly on equal scores, the crown on first, provisional and too-few-games members after;
@@ -159,7 +164,7 @@ import { championLookupVerdicts, readChampionLookup, readChampionWindow } from "
 import { fitVerdicts, postGameVerdicts, readFit, readInspection, readPostGame, switchVerdicts } from "./post-game-facts.mjs";
 import { championPreviewVerdicts, readChampionPreview, readChampionRows, targetRow } from "./champion-preview-facts.mjs";
 import { multikillVerdicts, readMultikillBoard } from "./multikill-facts.mjs";
-import { cardScoreVerdicts, firstScored, readCardScores, readOpenedScore } from "./card-score-facts.mjs";
+import { cardScoreVerdicts, firstScored, readCardScores, readOpenedScore, readTogetherScores, togetherScoreVerdicts } from "./card-score-facts.mjs";
 import { oneScreenInput, oneScreenVerdicts, readOneScreen } from "./one-screen-facts.mjs";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -1800,6 +1805,8 @@ async function teamMatches(page, log, kind, context) {
   if (!(await visit(page, log, kind, "team-matches", "/matches", { fullPage: false }))) return;
   const games = page.getByTestId("together-game");
   if (!(await games.first().waitFor({ timeout: 20_000 }).then(() => true, () => false))) return warn("games", `${kind}: Team Matches lists no games`, "nothing to open");
+  // Each member's performance score and place (25 Nov 2026; scripts/card-score-facts.mjs readTogetherScores).
+  for (const v of togetherScoreVerdicts({ kind, games: await page.evaluate(readTogetherScores) })) check("games", v.name, v.status, v.detail);
   const game = games.first();
   if (kind === "phone") return phoneGame(page, kind, "Team Matches", "team-matches", () => game.getByTestId("together-card").click({ position: { x: 24, y: 12 } }));
   // A game with four or more members lists them two to a row (their column is 34rem wide on the

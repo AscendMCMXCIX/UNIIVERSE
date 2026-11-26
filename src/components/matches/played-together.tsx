@@ -23,7 +23,9 @@ import { LinkSelect, MemberPicker } from "./match-filters";
 import { MatchRail, MatchResult, matchCardClass } from "@/components/match-history/match-card";
 import { TeamComposition } from "@/components/match-history/team-composition";
 import { MultikillTag } from "@/components/match-history/multikill-tag";
+import { ScoreMark, ScoreMarkEmpty } from "@/components/match-history/score-mark";
 import type { Composition } from "@/server/matches/compositions";
+import type { CardPerformance } from "@/server/players/match-history";
 
 /*
   Team → Matches → Played together: Riot games with two or more team members on the same side,
@@ -72,7 +74,7 @@ const filterSummary = (f: TogetherFilters, names: string[]) =>
  * is the page header's scope line, and the rule of what "played together" proves, with any games
  * left out, is behind its (i).
  */
-export function PlayedTogetherView({ data, seasons, currentSeason, shown, teams = {}, total, filters, champions, href, summary, savedCount, elsewhere = [] }: { data: PlayedTogether; seasons: number[]; currentSeason: number; shown: TogetherListGame[]; /** Both teams of each shown game (by match id), when its full record is stored. */ teams?: Record<string, Composition | null>; total: number; filters: TogetherFilters; champions: Record<string, PortraitChampion>; href: (change: Partial<TogetherFilters>) => string; summary: TogetherSummary | null; savedCount: number; elsewhere?: Array<{ season: number; games: number }> }) {
+export function PlayedTogetherView({ data, seasons, currentSeason, shown, teams = {}, scores = {}, total, filters, champions, href, summary, savedCount, elsewhere = [] }: { data: PlayedTogether; seasons: number[]; currentSeason: number; shown: TogetherListGame[]; /** Both teams of each shown game (by match id), when its full record is stored. */ teams?: Record<string, Composition | null>; /** Each member's performance score and place, by listed entry and member (server/matches/together-scores). */ scores?: Record<string, Record<string, CardPerformance>>; total: number; filters: TogetherFilters; champions: Record<string, PortraitChampion>; href: (change: Partial<TogetherFilters>) => string; summary: TogetherSummary | null; savedCount: number; elsewhere?: Array<{ season: number; games: number }> }) {
   const p = (id: string) => data.players[id];
   const champ = (id: string) => champions[id] ?? { id, name: id, portraitUrl: "" };
   const narrowed = (filters.season !== currentSeason ? 1 : 0) + (filters.queue !== "all" ? 1 : 0) + (!filters.saved && filters.min !== 2 ? 1 : 0) + (filters.with.length ? 1 : 0);
@@ -167,7 +169,7 @@ export function PlayedTogetherView({ data, seasons, currentSeason, shown, teams 
       ) : (
         <TogetherList total={total} entries={shown.map((g) => ({ entry: togetherEntry(g.matchId, g.teamId), matchId: g.matchId, playerId: g.members[0]!.playerId, said: `${g.win === null ? "Game" : g.win ? "Victory" : "Defeat"} on ${champions[g.members[0]!.championId]?.name ?? g.members[0]!.championId}` }))} championsById={champions} className="@container/tm space-y-2.5">
           {shown.map((g) => (
-            <TogetherCard key={togetherEntry(g.matchId, g.teamId)} g={g} p={p} champions={champions} teams={teams[togetherEntry(g.matchId, g.teamId)] ?? teams[g.matchId] ?? null} />
+            <TogetherCard key={togetherEntry(g.matchId, g.teamId)} g={g} p={p} champions={champions} teams={teams[togetherEntry(g.matchId, g.teamId)] ?? teams[g.matchId] ?? null} scores={scores[togetherEntry(g.matchId, g.teamId)] ?? {}} />
           ))}
         </TogetherList>
       )}
@@ -260,20 +262,24 @@ function TogetherSummaryPanel({ summary: s, players, champ }: { summary: Togethe
   game mode and date), the members who played it with what they played and how it went, then both
   teams in full. Each member is one row: the champion's portrait with the member's picture as a
   badge on its corner, the name with the K/D/A (and the game's largest multikill) right after it,
-  then the role and champion. The members go two to a row once their column is 34rem wide (a
+  then the role and champion, and their performance score with its place (the shared mark of Match
+  History's cards: MVP gold, ACE violet, any other place restrained; a quiet dash where the game has
+  no score): at the end of the role's line on a phone and two to a row beside the open sidebar, where
+  the name's line has no room to spare; stacked at the row's end where the row also shows the CS and
+  damage (a tablet, one to a row), as a scoreboard row shows its player's. The members go two to a row once their column is 34rem wide (a
   tablet's card, or the four columns at about 70rem); both teams sit beside them on wide cards, as
   in a player's Match History, and under them otherwise. The bookmark is a small control in the
   card's corner. The whole card opens the game under it, as in Match History (TogetherCardFrame);
   names and the bookmark keep their own action.
 */
-function TogetherCard({ g, p, champions, teams }: { g: TogetherListGame; p: (id: string) => PlayedTogether["players"][string] | undefined; champions: Record<string, PortraitChampion>; teams: Composition | null }) {
+function TogetherCard({ g, p, champions, teams, scores }: { g: TogetherListGame; p: (id: string) => PlayedTogether["players"][string] | undefined; champions: Record<string, PortraitChampion>; teams: Composition | null; scores: Record<string, CardPerformance> }) {
   const champ = (id: string) => champions[id] ?? { id, name: id, portraitUrl: "" };
   const champOrUnknown = (id: string | null) => (id ? champ(id) : { id: "unknown", name: "Unknown champion", portraitUrl: "" });
   const bookmark = g.bookmark ? <BookmarkButton matchId={g.matchId} bookmarked={g.bookmark.on} canRemove={g.bookmark.canRemove} share={!!g.sharedBy} iconOnly /> : null;
   // Riot's Solo/Duo queue takes parties of two at most: with three or more members, not all of them queued together.
   const soloCaveat = g.queueId === SOLO_DUO_QUEUE && g.members.length > 2;
   return (
-    <TogetherCardFrame entry={togetherEntry(g.matchId, g.teamId)} playerId={g.members[0]!.playerId} matchId={g.matchId} championsById={champions} label={`${g.win === null ? "Game" : g.win ? "Victory" : "Defeat"}, ${queueLabel(g.queueId)}, ${formatDate(new Date(g.gameCreation))}, ${g.members.map((m) => p(m.playerId)?.name ?? "Player").join(", ")}`} className={matchCardClass(g.win, { interactive: true })} data-testid="together-game" data-match-id={g.matchId} data-members={g.members.length}>
+    <TogetherCardFrame entry={togetherEntry(g.matchId, g.teamId)} playerId={g.members[0]!.playerId} matchId={g.matchId} championsById={champions} label={`${g.win === null ? "Game" : g.win ? "Victory" : "Defeat"}, ${queueLabel(g.queueId)}, ${formatDate(new Date(g.gameCreation))}, ${g.members.map((m) => p(m.playerId)?.name ?? "Player").join(", ")}`} className={matchCardClass(g.win, { interactive: true })} data-testid="together-game" data-match-id={g.matchId} data-members={g.members.length} data-result={g.win === null ? undefined : g.win ? "W" : "L"}>
       <MatchRail win={g.win} />
       {/* Four columns (the result, the members, both teams, the bookmark) once the list is 58rem wide
           (@container/tm, on the list): the list's width, not the window's, since the sidebar beside
@@ -320,6 +326,9 @@ function TogetherCard({ g, p, champions, teams }: { g: TogetherListGame; p: (id:
               const kda = m.kills === null ? "—" : `${m.kills}/${m.deaths}/${m.assists}`;
               const extra = `${m.cs ?? "—"} CS${m.damage ? ` · ${(m.damage / 1000).toFixed(1)}k dmg` : ""}`;
               const role = m.role && m.role in ROLE_LABELS ? (m.role as Role) : null;
+              // The member's score and place, the same as their own Match History card and the opened game: one of two places in the row is shown (below).
+              const s = scores[m.playerId];
+              const mark = (layout: "stack" | "inline") => (s?.state === "ok" ? <ScoreMark score={s} layout={layout} value="sm" badge="row" className={layout === "stack" ? "w-full" : undefined} testId="together-score" badgeTestId="together-placement" /> : <ScoreMarkEmpty layout={layout} value="sm" badge="row" className={layout === "stack" ? "w-full" : undefined} testId="together-score-empty" />);
               return (
                 <li key={m.playerId} className="@container/member flex min-w-0 items-center gap-2.5" data-testid="together-member" data-player-id={m.playerId}>
                   {/* The champion (36px), the member's picture a 16px badge on its corner. */}
@@ -362,8 +371,12 @@ function TogetherCard({ g, p, champions, teams }: { g: TogetherListGame; p: (id:
                         </span>
                         {extra}
                       </span>
+                      {/* The score and place at the end of this line where the row has no CS and damage (a phone, two to a row beside the open sidebar): the name's line keeps its room. */}
+                      <span className="ml-auto flex shrink-0 sm:@min-[19rem]/member:hidden">{mark("inline")}</span>
                     </span>
                   </span>
+                  {/* Where it has them, the score over its place at the row's end, as a scoreboard row shows its player's. */}
+                  <span className="-ml-1 hidden w-9 shrink-0 self-center sm:@min-[19rem]/member:flex">{mark("stack")}</span>
                 </li>
               );
             })}

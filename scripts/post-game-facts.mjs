@@ -16,7 +16,11 @@
   fitVerdicts, at 1440 × 900 and 1280 × 720); the comparison select and table, the written "why",
   the team averages, the ten score tiles, the build path's legend and sideways row and the grey notes
   under the scoreboard were removed, and the check asserts they stay gone (REMOVED_WORDS, the parts'
-  test ids).
+  test ids). The owner's requirements of 25 Nov 2026 removed the score through the game (the chart
+  under the scoreboard, its heading and its (i)), added to both lists, and gave every place one
+  badge (MVP gold on the winning side, ACE violet on the losing side): the check asserts the MVP's
+  row is on the team that won and the ACE's on the team that lost, and that the open card's header
+  shows the game's score and place, the same as the player's row.
 
   Read in the page only: counts, true or false, heights in px, places in the record (0–9), scores
   (0–10), the result word and the lane's fixed words. No player's name, no champion and no address
@@ -24,10 +28,10 @@
 */
 
 /** The removed sections' names and sentences, as the view showed them (any one on screen is a regression). */
-export const REMOVED_WORDS = ["Went well", "Went wrong", "Focus next", "Gold over the game", "No comparison", "Compare with", "Stood out:", "Held back by", "Ranks around the time of this game", "Ranks read later", "not enough recorded history", "no other players to assess", "inferred from", "skill points in this game", "All 18 skill points", "Maxed "];
+export const REMOVED_WORDS = ["Went well", "Went wrong", "Focus next", "Gold over the game", "No comparison", "Compare with", "Stood out:", "Held back by", "Ranks around the time of this game", "Ranks read later", "not enough recorded history", "no other players to assess", "inferred from", "skill points in this game", "All 18 skill points", "Maxed ", "Score through the game", "About the score through the game", "Minute-by-minute record incomplete for this game"];
 
-/** The removed parts, by their test ids (the notes and folds of 23 Nov 2026; the comparison, the narrative, the strip, the legend and the sideways row of 24 Nov 2026). */
-export const REMOVED_PARTS = "[data-testid=post-game-notes], [data-testid=post-game-notes-loading], [data-testid=post-game-note], [data-testid=post-game-folds], [data-testid=fold-gold], [data-testid=fold-build], [data-testid=gold-chart], [data-testid=performance-compare], [data-testid=performance-compare-table], [data-testid=performance-why], [data-testid=performance-teams], [data-testid=performance-strip], [data-testid=build-legend], [data-testid=build-row], [data-testid=score-chart-legend], [data-testid=inspected-jump]";
+/** The removed parts, by their test ids (the notes and folds of 23 Nov 2026; the comparison, the narrative, the strip, the legend and the sideways row of 24 Nov 2026; the score through the game of 25 Nov 2026). */
+export const REMOVED_PARTS = "[data-testid=post-game-notes], [data-testid=post-game-notes-loading], [data-testid=post-game-note], [data-testid=post-game-folds], [data-testid=fold-gold], [data-testid=fold-build], [data-testid=gold-chart], [data-testid=performance-compare], [data-testid=performance-compare-table], [data-testid=performance-why], [data-testid=performance-teams], [data-testid=performance-strip], [data-testid=build-legend], [data-testid=build-row], [data-testid=score-chart-legend], [data-testid=inspected-jump], [data-testid=performance], [data-testid=performance-chart-area], [data-testid=performance-chart-info], [data-testid=performance-timeline-missing], [data-testid=score-chart], [data-testid=score-chart-table]";
 
 /** The three segmented headings above the lane, in order (Release 16). */
 export const PANEL_WORDS = ["Build Path", "Skill Order", "Runes"];
@@ -46,8 +50,8 @@ export function readPostGame() {
   const lane = li.querySelector("[data-testid=post-game-lane]");
   // The removed sections: by their test ids, and by their names anywhere in the open game's text (the
   // list above it, the card's own line and the scoreboard never use these words).
-  const words = ["Went well", "Went wrong", "Focus next", "Gold over the game", "No comparison", "Compare with", "Stood out:", "Held back by", "Ranks around the time of this game", "Ranks read later", "not enough recorded history", "no other players to assess", "inferred from", "skill points in this game", "All 18 skill points", "Maxed "];
-  const removedParts = "[data-testid=post-game-notes], [data-testid=post-game-notes-loading], [data-testid=post-game-note], [data-testid=post-game-folds], [data-testid=fold-gold], [data-testid=fold-build], [data-testid=gold-chart], [data-testid=performance-compare], [data-testid=performance-compare-table], [data-testid=performance-why], [data-testid=performance-teams], [data-testid=performance-strip], [data-testid=build-legend], [data-testid=build-row], [data-testid=score-chart-legend], [data-testid=inspected-jump]";
+  const words = ["Went well", "Went wrong", "Focus next", "Gold over the game", "No comparison", "Compare with", "Stood out:", "Held back by", "Ranks around the time of this game", "Ranks read later", "not enough recorded history", "no other players to assess", "inferred from", "skill points in this game", "All 18 skill points", "Maxed ", "Score through the game", "About the score through the game", "Minute-by-minute record incomplete for this game"];
+  const removedParts = "[data-testid=post-game-notes], [data-testid=post-game-notes-loading], [data-testid=post-game-note], [data-testid=post-game-folds], [data-testid=fold-gold], [data-testid=fold-build], [data-testid=gold-chart], [data-testid=performance-compare], [data-testid=performance-compare-table], [data-testid=performance-why], [data-testid=performance-teams], [data-testid=performance-strip], [data-testid=build-legend], [data-testid=build-row], [data-testid=score-chart-legend], [data-testid=inspected-jump], [data-testid=performance], [data-testid=performance-chart-area], [data-testid=performance-chart-info], [data-testid=performance-timeline-missing], [data-testid=score-chart], [data-testid=score-chart-table]";
   const text = clean(breakdown);
   const panels = li.querySelector("[data-testid=participant-panels]");
   const scores = [...li.querySelectorAll("[data-testid=participant-score]")];
@@ -88,7 +92,18 @@ export function readPostGame() {
       removed: li.querySelectorAll("[data-testid=participant][data-removed]").length,
       // The player inspected's own score beside their name (the panel under the scoreboard was removed on 24 Nov 2026).
       panel: !!li.querySelector("[data-testid=inspected-score] [data-testid=performance-value]"),
+      // MVP on the side that won, ACE on the side that lost (each team's section says its result in words).
+      mvpOnWin: [...li.querySelectorAll("[data-testid=participant-mvp]")].every((b) => /victory$/.test(b.closest("section[data-testid^=team-]")?.getAttribute("aria-label") ?? "")),
+      aceOnLoss: [...li.querySelectorAll("[data-testid=participant-ace]")].every((b) => /defeat$/.test(b.closest("section[data-testid^=team-]")?.getAttribute("aria-label") ?? "")),
     },
+    // The open card's header: the score and place its card showed (absent where the card had none), against the inspected player's row as the game opens.
+    header: (() => {
+      const mark = header?.querySelector("[data-testid=match-header-score]");
+      if (!mark) return null;
+      const slot = breakdown?.getAttribute("data-selected");
+      const row = li.querySelector(`[data-testid=participant][data-slot="${slot}"] [data-testid=participant-score]`);
+      return { score: Number(mark.getAttribute("data-score")), rank: Number(mark.getAttribute("data-rank")), rowScore: row?.hasAttribute("data-score") ? Number(row.getAttribute("data-score")) : null, rowRank: row?.hasAttribute("data-rank") ? Number(row.getAttribute("data-rank")) : null };
+    })(),
     removed: {
       parts: li.querySelectorAll(removedParts).length,
       words: words.filter((w) => text.includes(w)).length,
@@ -149,11 +164,16 @@ export function postGameVerdicts({ kind, at }) {
     // With a timeline the build path shows its shop visits; without, one plain line says so (never a path guessed from the final items).
     const shown = at.timeline === "ok" ? (p?.path ?? 0) > 0 || !!p?.missing : !!p?.missing && (p?.path ?? 0) === 0;
     fact(at.timeline === "ok" ? "the build path from the timeline (its shop visits, or the line saying the player is not in it)" : "the build path's plain unavailable line, the game having no timeline", shown, { timeline: at.timeline, path: p?.path ?? 0, missing: p?.missing ?? false });
-    const s = at.scores ?? { rows: 0, shown: 0, inRange: false, mvp: 0, ace: 0, removed: 0, panel: false };
+    const s = at.scores ?? { rows: 0, shown: 0, inRange: false, mvp: 0, ace: 0, removed: 0, panel: false, mvpOnWin: false, aceOnLoss: false };
     fact("a performance score 0–10 beside each of the ten players (a removed player has none), one MVP and one ACE, and the inspected player's score", s.rows === 10 && s.shown === 10 - s.removed && s.inRange && s.mvp === 1 && s.ace === 1 && s.panel, s);
+    fact("the MVP is on the team that won and the ACE on the team that lost", s.mvp === 1 && s.ace === 1 && s.mvpOnWin === true && s.aceOnLoss === true, { mvp: s.mvp, ace: s.ace, mvpOnWin: s.mvpOnWin ?? false, aceOnLoss: s.aceOnLoss ?? false });
+    // The open card's header keeps its card's score and place: the same as the player's row (not applicable where the card had no score).
+    const h = at.header ?? null;
+    if (!h) out.push({ name: `${kind}: the open card's header shows the game's score and place, the same as the player's row`, status: "PASS", detail: "not applicable: this game's card had no score" });
+    else fact("the open card's header shows the game's score and place, the same as the player's row", h.score === h.rowScore && h.rank === h.rowRank, h);
   }
   const removed = at.removed ?? { parts: NaN, words: NaN };
-  fact("no notes, no gold curve, no comparison, no written why, no score strip, no build legend and no grey notes under the scoreboard", removed.parts === 0 && removed.words === 0, removed);
+  fact("no notes, no gold curve, no comparison, no written why, no score strip, no build legend, no grey notes under the scoreboard and no score through the game", removed.parts === 0 && removed.words === 0, removed);
   fact("Previous, Next and Close, in the game's header and its footer", at.steps === 6, { steps: at.steps });
   return out;
 }

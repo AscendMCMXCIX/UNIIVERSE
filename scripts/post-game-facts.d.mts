@@ -14,7 +14,9 @@ export interface PostGameRead {
   laneWords?: string;
   timeline?: string | null;
   panels?: { words: string[]; above: boolean; path: number; missing: boolean } | null;
-  scores?: { rows: number; shown: number; inRange: boolean; mvp: number; ace: number; removed: number; panel: boolean };
+  scores?: { rows: number; shown: number; inRange: boolean; mvp: number; ace: number; removed: number; panel: boolean; mvpOnWin?: boolean; aceOnLoss?: boolean };
+  /** The open card's header's score and place, and the inspected player's row's; null where the card had no score. */
+  header?: { score: number; rank: number; rowScore: number | null; rowRank: number | null } | null;
   removed?: { parts: number; words: number };
   steps?: number;
 }

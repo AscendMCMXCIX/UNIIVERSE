@@ -202,7 +202,7 @@ const cardGeometry = (els: Element[]) =>
     // The figures' column (the CS and damage sit in a line of their own inside it on a narrow phone).
     let next = cs.closest('[data-testid="match-figures"]')!.nextElementSibling;
     while (next && !inRow(next)) next = next.nextElementSibling;
-    // From 50 to 61rem of list (1280 with the sidebar open) the build takes the teams' place (S6c, UD.H1): no teams drawn there.
+    // From 50 to 65rem of list (1280 with the sidebar open) the build takes the teams' place (S6c, UD.H1): no teams drawn there.
     const shown = (e: Element | null) => !!e && box(e).width > 0;
     const teams = card.querySelector('[data-testid="match-teams"]');
     const build = card.querySelector('[data-testid="match-card-build"]');
@@ -237,9 +237,10 @@ test("a wide card's figures end before the next column, the teams keep their nam
     const cards = await page.getByTestId("match-card").evaluateAll(cardGeometry);
     expect(cards.length).toBeGreaterThan(1);
     if (size.width === 1366) {
-      // With the build and the teams both on the card (a 61–70rem list), the columns keep 10px apart
+      // With the build and the teams both on the card (a 65–74rem list, the chevron left out), the columns keep 8px apart
       // so the teams have the room the 12px floor needs (Release 11): with 16px gaps 8 of the
-      // first card's 10 names were cut here, at 12px.
+      // first card's 10 names were cut here, at 12px. 10px until 25 Nov 2026, when the score's own
+      // column after the K/D/A took 2.5rem of the row: at 10px 5 names were cut once the rivals' ranks were read.
       // Demo Mid's first game has the longer names.
       await page.goto(`${await profileOf(page, "MID")}/matches`, { waitUntil: "networkidle" });
       await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
@@ -247,7 +248,7 @@ test("a wide card's figures end before the next column, the teams keep their nam
         const names = [...c.querySelectorAll("[data-testid=team-slot-name]")];
         return { gap: getComputedStyle(c.querySelector("[data-testid=match-card-grid]")!).columnGap, names: names.length, cut: names.filter((n) => n.scrollWidth > n.clientWidth + 0.5).length };
       });
-      expect(roster.gap, "1366: 10px between the columns").toBe("10px");
+      expect(roster.gap, "1366: 8px between the columns").toBe("8px");
       expect(roster.names).toBe(10);
       expect(roster.cut, "1366: the first card's roster names mostly whole").toBeLessThanOrEqual(3);
       await page.goto(`${profile}/matches`, { waitUntil: "networkidle" });
@@ -979,7 +980,9 @@ const HEIGHTS: Record<string, Array<{ device: string; size: { width: number; hei
   ],
   tablet: [
     { device: "iPad (820×1180)", size: { width: 820, height: 1180 }, games: 1.6 },
-    { device: "iPad (810×1080)", size: { width: 810, height: 1080 }, games: 1.6, encounters: 1.0 },
+    // 1.62 since 25 Nov 2026 (the plan's 1.6 before): the performance score's own line under the K/D/A (the owner's
+    // requirements, §1) adds 5px to a two-row card with a multikill; measured 1.617 on the demo (docs/MOBILE.md).
+    { device: "iPad (810×1080)", size: { width: 810, height: 1080 }, games: 1.62, encounters: 1.0 },
   ],
   desktop: [
     { device: "a laptop (1440×900)", size: { width: 1440, height: 900 }, games: 1.6 },

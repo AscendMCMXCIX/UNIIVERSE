@@ -351,6 +351,76 @@ test("old addresses for Season 2025 or all seasons open the current season", asy
   }
 });
 
+test("each member's row ends with their performance score and place badge, the opened game's own; MVP only on a won game, ACE only on a lost one, each place once", async ({ page }) => {
+  await page.goto("/matches");
+  const games = page.getByTestId("together-game");
+  await expect(games.first()).toBeVisible();
+  await page.evaluate(() => document.fonts.ready);
+  const read = await games.evaluateAll((cards) => {
+    const probe = (token: string) => {
+      const el = document.createElement("span");
+      el.style.color = `var(${token})`;
+      document.body.append(el);
+      const c = getComputedStyle(el).color;
+      el.remove();
+      return c;
+    };
+    const [gold, violet] = [probe("--color-gold"), probe("--color-violet")];
+    return cards.map((card) => ({
+      result: card.getAttribute("data-result"),
+      members: [...card.querySelectorAll("[data-testid=together-member]")].map((m) => {
+        // One of the row's two places is shown: the end of the role's line, or a column at the row's end.
+        const shown = [...m.querySelectorAll("[data-testid=together-score], [data-testid=together-score-empty]")].filter((e) => e.getBoundingClientRect().width > 0);
+        const mark = shown.find((e) => e.getAttribute("data-testid") === "together-score") ?? null;
+        const badge = mark?.querySelector("[data-testid=together-placement]");
+        const row = m.getBoundingClientRect();
+        const slot = shown[0]?.getBoundingClientRect();
+        return {
+          slots: shown.length,
+          score: mark ? Number(mark.getAttribute("data-score")) : null,
+          rank: mark ? Number(mark.getAttribute("data-rank")) : null,
+          kind: badge?.getAttribute("data-placement") ?? null,
+          text: badge?.textContent ?? null,
+          colour: badge ? (getComputedStyle(badge).color === gold ? "gold" : getComputedStyle(badge).color === violet ? "violet" : "neutral") : null,
+          // At the row's right edge (its line's end, or the row's own end), inside it.
+          atEnd: !!slot && slot.right <= row.right + 0.5 && row.right - slot.right < 2 && slot.top >= row.top - 0.5 && slot.bottom <= row.bottom + 0.5,
+          height: row.height,
+        };
+      }),
+    }));
+  });
+  expect(read.length).toBeGreaterThan(2);
+  let scored = 0;
+  for (const [i, g] of read.entries()) {
+    const ranks = g.members.flatMap((m) => (m.rank === null ? [] : [m.rank]));
+    expect(new Set(ranks).size, `game ${i}: each place once`).toBe(ranks.length);
+    for (const m of g.members) {
+      expect(m.slots, `game ${i}: one score or dash a row`).toBe(1);
+      expect(m.atEnd, `game ${i}: at the row's end`).toBe(true);
+      expect(m.height, `game ${i}: a member's row`).toBeLessThanOrEqual(56);
+      if (m.score === null) continue;
+      scored += 1;
+      expect(m.kind, `game ${i}`).toMatch(/^(mvp|ace|place)$/);
+      if (m.kind === "mvp") expect([g.result, m.text, m.colour], `game ${i}: MVP on a win, gold`).toEqual(["W", "MVP", "gold"]);
+      if (m.kind === "ace") expect([g.result, m.text, m.colour], `game ${i}: ACE on a loss, violet`).toEqual(["L", "ACE", "violet"]);
+      if (m.kind === "place") expect(m.colour, `game ${i}: other places restrained`).toBe("neutral");
+    }
+  }
+  // The demo's games have full records: every member is scored (no timeline: the record alone, as their card and the opened game).
+  expect(scored, "members scored").toBe(read.reduce((n, g) => n + g.members.length, 0));
+  // The opened game's own score and place for the member it opens on.
+  const first = games.first();
+  const member = first.getByTestId("together-member").first();
+  const mark = member.getByTestId("together-score").filter({ visible: true });
+  const [score, rank] = [await mark.getAttribute("data-score"), await mark.getAttribute("data-rank")];
+  const breakdown = await openTogether(first);
+  await expect(breakdown).not.toHaveAttribute("data-timeline", "loading", { timeout: 15_000 });
+  const slot = await breakdown.getAttribute("data-selected");
+  const cell = breakdown.locator(`[data-testid=participant][data-slot="${slot}"] [data-testid=participant-score]`).first();
+  await expect(cell).toHaveAttribute("data-score", score!);
+  await expect(cell).toHaveAttribute("data-rank", rank!);
+});
+
 test("members two to a row from a 34rem column: a 36px portrait with the member's 16px picture on its corner, the K/D/A right after the name; Bookmarked ends the filter row", async ({ page, context, baseURL }, info) => {
   test.skip(info.project.name === "phone", "a phone lists the members one to a row");
   // The tablet's stacked card (a 45rem list), and four columns beside the open sidebar at 1440 (the
@@ -464,7 +534,11 @@ test("a member's CS and damage come in at a 19rem row and never cut the champion
         height: row.getBoundingClientRect().height,
       };
     };
-    const short = rows.find((r) => r !== withIcon && r.querySelector("[data-testid=together-member-role]")!.textContent!.length < 20)!;
+    // A short real pair, set as the long one is: since 25 Nov 2026 the row ends with the member's score and place, so at
+    // the 19rem threshold the role's line is about 40px shorter than it was, and a pair of 17 characters no longer leaves
+    // the CS and damage room beside it (they then take their own line, as the long pair's do).
+    const short = rows.find((r) => r !== withIcon && r.querySelector("[data-testid=together-member-role] [data-role-icon]"))!;
+    short.querySelector<HTMLElement>("[data-testid=together-member-role] .truncate")!.textContent = "Mid · Ahri";
     return { long: read(withIcon), short: read(short) };
   });
   expect(facts.long.layout, "the long pair whole; the CS and damage whole on the next line, at its start, without the \"·\"").toEqual({ pairWhole: true, extraWhole: true, under: true, beside: false, dotShown: false, startsLine: true, lines: 2 });

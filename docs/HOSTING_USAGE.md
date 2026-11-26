@@ -43,6 +43,29 @@ stored size once per upload (11 members at the 400 KB limit is 4.4 MB, and only 
 a few bytes per request for the saving time. That alone brings a day like 24 Nov to about 90 MB,
 under the budget. To check: Data jobs' tick prints yesterday's egress and its largest statements.
 
+## 25 Nov 2026: scores on Team → Matches, and a smaller timeline answer
+
+- **Database egress: one more query for the games Team → Matches shows, plus their lane timelines.**
+  Each member's row shows their performance score and place (docs/PERFORMANCE_SCORE.md, "Where it
+  shows"), each shown game scored once (`togetherScores`, `src/server/matches/together-scores.ts`):
+  the records trimmed in the database to the score's figures, sent as arrays (`loadScoreSources`: no
+  names, items, spells, runes, challenges or other stats), the members' PUUIDs looked up once
+  (`teamMembersByPuuid`), and the same trimmed lane timelines Match History's cards read
+  (`loadScoreTimelines`) for the shown Summoner's Rift games with a lane opponent. Measured with the
+  app's egress counter on local PostgreSQL 16 (`tests/db/together-scores.test.ts`): the demo's six
+  games, which have no timeline, 10.2 KB, **1.7 KB a game** (2.8 KB a game sent as objects, before
+  the arrays). Real PUUIDs are longer than the demo's (78 characters: about 0.5 KB more a game) and
+  a stored lane timeline adds about 3–4 KB (above), so a default page of 20 real games is about
+  45–125 KB, and each "Show more" (20 more games) as much again. Against 120 MB a day that is about
+  1,000 default views for the whole budget; the page's other reads (compositions, names) are
+  unchanged.
+- **Smaller timeline answer (Vercel to the browser):** an opened game's timeline answer no longer
+  carries every player's kill, death and assist times or CS at every frame (only the score through
+  the game, removed, read them): about 10–20 KB less a game, not database egress (the stored row is
+  read as before).
+- **Vercel Active CPU:** scoring a page of 20 games is the same work as Match History's cards (about
+  1 ms for 10 games, above). **Riot: no new request**, no migration, no new table.
+
 ## 24 Nov 2026: the performance score on Match History's cards (Release 17)
 
 Each collapsed Match History card shows its game's performance score (docs/PERFORMANCE_SCORE.md,
@@ -65,7 +88,7 @@ own functions.
   - so a production page of 10 lane games adds at most about 40 KB, 25 games about 100 KB. Against
     120 MB a day that is about 3,000 page views of 10 for the whole budget; the page's records already
     send 60–150 KB. Encounters' list of one player's games (`?met=`) is the same list and costs the
-    same; Team → Matches does not read it.
+    same; Team → Matches reads its own (25 Nov 2026, above).
 - **Vercel Active CPU: under 2 ms a page.** Scoring a page of 10 games (the record's mapping, the
   timeline's frames and lanes, the final scores; no score through the game) took 0.9 ms (median of
   the nine demo players, warm; 1.7 ms at most) on this machine, beside the page's render. Nothing is

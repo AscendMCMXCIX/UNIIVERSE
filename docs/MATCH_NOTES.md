@@ -30,8 +30,10 @@ the gold curve stay removed.
 screen with nothing in it scrolling (docs/DESIGN_SYSTEM.md §1, "The post-game view"), and the
 remaining automated commentary left the default view: the written why under the player's name
 ("Stood out: …", "Held back by …") and the trend word with its sentence ("Steady: Held much the same
-level throughout."). Their rules stay in `src/domain/performance-score.ts` (`reasonText`, `trendOf`,
-tested), unused by the interface, should the owner ask for them again. The comparison of two players
+level throughout."). The why's rules stay in `src/domain/performance-score.ts` (`reasonText`,
+tested), unused by the interface, should the owner ask for it again; the trend words (`trendOf`) went
+with the score through the game at the owner's request of 25 Nov 2026 (docs/PERFORMANCE_SCORE.md,
+"The score through the game (removed)"). The comparison of two players
 (the select, the table and the chart's second line), the team averages and the ten score tiles, the
 build path's legend and the grey notes under the scoreboard went with them; the figures that served
 supports and tanks moved from a sentence into a grid of three groups. After the release's UX review,

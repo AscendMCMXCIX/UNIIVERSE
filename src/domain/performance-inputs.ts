@@ -1,15 +1,15 @@
 import { laneOf } from "@/domain/match-analysis";
-import { laneValue, scoreMatch, scoreModeOf, timelineScores, type MatchScores, type ScoreInput, type TimelineInput, type TimelinePoint } from "@/domain/performance-score";
+import { laneValue, scoreMatch, scoreModeOf, type MatchScores, type ScoreInput } from "@/domain/performance-score";
 
 /*
   A game's performance scores from its record (the scoreboard's ten players) and its stored
-  timeline (the lane at 10:00 and 15:00, and the minute-by-minute record the timeline score reads).
-  One calculation wherever a score shows: the opened game computes it in the browser from the two
-  answers it has loaded (components/match-history/post-game: getMatchDetail's view and
-  getMatchTimeline's), and Match History's cards on the server from the same record and timeline,
-  mapped by the same functions (server/players/match-history recordTeamsOf and scoreFiguresOf,
-  server/accounts/match-timeline readFrames). Nothing is fetched for them; the model is
-  domain/performance-score's.
+  timeline (the lane at 10:00 and 15:00: the timeline's one part in the score).
+  One calculation wherever a score shows (finalScoresOf): the opened game computes it in the
+  browser from the two answers it has loaded (components/match-history/post-game: getMatchDetail's
+  view and getMatchTimeline's), and Match History's cards and Team → Matches' members on the server
+  from the same record and timeline, mapped by the same functions (server/players/match-history
+  recordTeamsOf, scoreFiguresOf and gameScores; server/accounts/match-timeline scoreTimelineOf).
+  Nothing is fetched for them; the model is domain/performance-score's.
 
   The shapes below are what the score reads, no more: MatchDetailView and MatchTimelineView have
   them, and so does what a card's score is computed from.
@@ -58,11 +58,6 @@ export interface ScoreTimeline {
   /** The frames' own times; null without frames or when the timeline contradicts the record. */
   t: readonly number[] | null;
   players: readonly ScoreTimelinePlayer[];
-}
-
-/** The stored timeline as the timeline score reads it as well: each player's kills, deaths and assists, and CS at every frame. */
-export interface GameTimeline extends ScoreTimeline {
-  players: ReadonlyArray<ScoreTimelinePlayer & { kills: readonly number[] | null; deaths: readonly number[] | null; assists: readonly number[] | null; frames: { g: readonly number[]; x: readonly number[]; c: readonly number[] } | null }>;
 }
 
 /** The game's players as the score reads them (a removed player is left out), with the lane from the timeline where it confirms one. */
@@ -119,28 +114,9 @@ function scoresFrom(view: Pick<ScoreRecord, "teams" | "queueId" | "durationS">, 
   return scoreMatch(inputs, { mode: scoreModeOf(view.queueId), minutes: view.durationS / 60 }, teamKillsOf(view));
 }
 
-/** The final scores of one game, the opened game's and its card's alike (the timeline score's points are gameScoresOf's). */
+/** The final scores of one game: the opened game's, its card's and Team → Matches' alike. */
 export function finalScoresOf(view: ScoreRecord, timeline: ScoreTimeline | null): MatchScores | null {
   return scoresFrom(view, scoreInputsOf(view, timeline));
-}
-
-export interface GameScores {
-  scores: MatchScores | null;
-  /** The timeline score's points; null without a usable timeline (none stored, frames missing, or contradicting the record). */
-  points: TimelinePoint[] | null;
-}
-
-/** The final scores and the timeline score of one opened game. */
-export function gameScoresOf(view: ScoreRecord, timeline: GameTimeline | null): GameScores {
-  const mode = scoreModeOf(view.queueId);
-  const inputs = scoreInputsOf(view, timeline);
-  const minutes = view.durationS / 60;
-  const scores = scoresFrom(view, inputs);
-  // A removed player's kills are not kept, so a team's kills by a moment would be short: no kill figures at the moments then.
-  const whole = view.teams.every((t) => t.participants.every((p) => !p.removed));
-  const players: TimelineInput[] = (timeline?.players ?? []).map((p) => ({ slot: p.slot, kills: whole ? p.kills : null, deaths: whole ? p.deaths : null, assists: whole ? p.assists : null, frames: p.frames }));
-  const points = timeline?.t && players.length ? timelineScores(inputs, { t: timeline.t, players }, scores, { mode, durationMinutes: minutes }) : null;
-  return { scores, points };
 }
 
 /** A participant of the opened game by place in the record. */

@@ -16,13 +16,13 @@ import { riotGame, type RiotGameFixture } from "../fixtures/riot-game";
 import { seedDemoAccounts, seedDemoRoster } from "@/server/demo/seed";
 import { accountMatches, matchDetails, matchTimelines, type MatchFrames } from "@/server/db/schema";
 import { removedParticipant, redactTimeline } from "@/server/privacy/redact";
-import { gameScoresOf, scoreReadsTimeline } from "@/domain/performance-inputs";
+import { finalScoresOf, scoreReadsTimeline } from "@/domain/performance-inputs";
 import { processEgress } from "@/server/db/egress";
 
 /*
   The performance score on a collapsed Match History card is the opened game's score for that
   player, never another calculation. For every card, the list's `performance` is compared with
-  gameScoresOf(getMatchDetail's view, getMatchTimeline's view) for the card's player, the way the
+  finalScoresOf(getMatchDetail's view, getMatchTimeline's view) for the card's player, the way the
   opened game computes it in the browser: realistic ranked games (tests/fixtures/riot-game, synced
   through the real account sync and timeline request) with a stored timeline, without one (pending
   while the opened game would fetch it), with one Riot no longer provides, one kept before the kills
@@ -85,7 +85,7 @@ async function openedScore(db: Db, pid: string, matchId: string, client: RiotApi
   const detail = await getMatchDetail(db, pid, matchId, { viewerIsOwner: true });
   if (detail.status !== "ok") return { state: "none" };
   const tl = await getMatchTimeline(db, pid, matchId, { fetch: true, client });
-  const { scores } = gameScoresOf(detail.view, tl.status === "ok" ? tl.timeline : null);
+  const scores = finalScoresOf(detail.view, tl.status === "ok" ? tl.timeline : null);
   const mine = scores?.players.find((p) => p.slot === detail.view.player.slot);
   if (!scores || !mine) return { state: "none" };
   return { state: "ok", score: mine.score, rank: mine.rank, of: scores.scored, mvp: mine.mvp, ace: mine.ace, version: scores.version, lane: mine.used.includes("lane") };
