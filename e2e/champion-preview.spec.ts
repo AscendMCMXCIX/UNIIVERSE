@@ -37,7 +37,9 @@ async function openRow(page: Page, row: Locator, by: Locator = row.getByTestId("
 
 /**
  * Where the open preview sits on a computer: a pane in the page (no window) beside the list's card,
- * within the screen's width, the row's name clear of it, nothing wider than the screen.
+ * within the screen's width, the row's name clear of it, nothing wider than the screen; and (the 25
+ * Nov 2026 review) the page the one thing that scrolls: the pane no scroll box of its own, nothing in
+ * main scrolling, the pane's header (the champion, ‹ › and Close) on screen.
  */
 async function beside(page: Page, row: Locator) {
   return row.evaluate((li) => {
@@ -46,17 +48,24 @@ async function beside(page: Page, row: Locator) {
     const p = pane.getBoundingClientRect();
     const card = document.querySelector("[data-testid=all-champions-table]")!.getBoundingClientRect();
     const name = li.querySelector("[data-open-champion]")!.getBoundingClientRect();
+    const head = pane.querySelector("[data-testid=champion-preview-header]")!.getBoundingClientRect();
+    const scrolls = (el: Element) => {
+      const st = getComputedStyle(el);
+      return /(auto|scroll)/.test(st.overflowY + st.overflowX) && (el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1);
+    };
     return {
       found: true,
       window: !!document.querySelector("dialog[open]"),
-      within: p.left >= -0.5 && p.right <= innerWidth + 0.5 && p.bottom <= innerHeight + 0.5,
+      within: p.left >= -0.5 && p.right <= innerWidth + 0.5 && p.top < innerHeight,
       besideList: card.right <= p.left + 0.5,
       nameClear: name.right <= p.left,
       sideways: document.documentElement.scrollWidth - innerWidth > 1,
+      oneScroll: !/(auto|scroll)/.test(getComputedStyle(pane).overflowY) && ![...document.querySelectorAll("main *")].some(scrolls),
+      headOnScreen: head.top >= -0.5 && head.bottom <= innerHeight + 0.5,
     };
   });
 }
-const BESIDE = { found: true, window: false, within: true, besideList: true, nameClear: true, sideways: false };
+const BESIDE = { found: true, window: false, within: true, besideList: true, nameClear: true, sideways: false, oneScroll: true, headOnScreen: true };
 const pane = (page: Page) => page.locator("aside[data-preview-pane][data-testid=champion-preview]");
 
 const nameXs = (rows: Locator) => rows.evaluateAll((els) => els.map((e) => Math.round(e.querySelector("[data-open-champion]")!.getBoundingClientRect().x)));
@@ -207,6 +216,112 @@ test("desktop: in a short scrolled window, opening, switching and closing never 
   expect(await page.evaluate(() => scrollY)).toBe(scroll0);
 });
 
+test("desktop: a pane taller than the window has no scroll of its own: the page scrolls it, its header stays on screen, its end comes into view, and opened from the list's end its top is under the tabs", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "the pane: a computer's window");
+  await page.setViewportSize({ width: 1366, height: 540 });
+  const profile = await demoMember(page, "Demo Mid");
+  await page.goto(`${profile}/champions`);
+  const rows = page.getByTestId("top-champion");
+  await expect(rows.nth(5)).toBeAttached();
+  // The list scrolled to its end, then its last row: the pane's top (the champion, ‹ › and Close) on screen.
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  await page.waitForTimeout(200);
+  expect(await page.evaluate(() => scrollY), "the list is scrolled").toBeGreaterThan(0);
+  const last = rows.nth((await rows.count()) - 1);
+  await openRow(page, last);
+  await page.getByTestId("champion-preview-foot").waitFor();
+  await expect.poll(() => beside(page, last)).toEqual(BESIDE);
+  await expect(pane(page).getByTestId("champion-preview-close")).toBeInViewport();
+  // An opponent's games beside its table make it taller than the window: still no scroll box, nothing in main scrolls.
+  await pane(page).getByTestId("champion-preview-opponent").first().getByRole("button").click();
+  await expect(pane(page).getByTestId("champion-preview-game").first()).toBeVisible();
+  await expect.poll(async () => (await pane(page).boundingBox())!.height, "taller than the window").toBeGreaterThan(540);
+  await expect.poll(() => beside(page, last)).toEqual(BESIDE);
+  // The page's own wheel reads it to its end: its last line comes into view while its header stays pinned on screen.
+  await page.mouse.move(1000, 300);
+  const end = () => pane(page).evaluate((p) => p.getBoundingClientRect().bottom <= innerHeight + 0.5);
+  for (let i = 0; i < 20 && !(await end()); i++) {
+    await page.mouse.wheel(0, 150);
+    await page.waitForTimeout(80);
+  }
+  expect(await end(), "the pane's end in view by the page's scroll").toBe(true);
+  await expect(pane(page).getByTestId("champion-preview-foot")).toBeInViewport();
+  await expect(pane(page).getByTestId("champion-preview-close")).toBeInViewport();
+  expect((await beside(page, last)) as Record<string, unknown>).toMatchObject({ oneScroll: true, headOnScreen: true });
+  // Back up to the page's top: the pane's top where it began, beside the list's.
+  for (let i = 0; i < 30 && (await page.evaluate(() => scrollY)) > 0; i++) {
+    await page.mouse.wheel(0, -200);
+    await page.waitForTimeout(60);
+  }
+  await expect.poll(async () => Math.round((await pane(page).boundingBox())!.y) - Math.round((await page.getByTestId("all-champions-table").boundingBox())!.y)).toBe(0);
+});
+
+test("desktop: with the sidebar open at 1280 and 1366, opening the pane moves no row of a champion of five positions, even sorted by a figure the narrowed list does not show", async ({ page, baseURL }, info) => {
+  test.skip(info.project.name !== "desktop", "a mouse: 24px position buttons");
+  await page.context().addCookies([{ name: "uniiverse_sidebar", value: "expanded", url: baseURL! }]);
+  // Demo Sub (Top): Sion in five positions, Malphite in three, Ornn in two, Mordekaiser in one, each "In pool".
+  const profile = await demoMember(page, "Demo Sub (Top)");
+  for (const size of [{ width: 1280, height: 800 }, { width: 1366, height: 768 }]) {
+    await page.setViewportSize(size);
+    await page.goto(`${profile}/champions`);
+    const rows = page.getByTestId("top-champion");
+    await expect(rows.nth(3)).toBeVisible();
+    for (const sortBy of ["games", "kda"]) {
+      if (sortBy === "kda") await page.getByTestId("sort-kda").click();
+      const boxes = await rowBoxes(rows);
+      const xs = await nameXs(rows);
+      await openRow(page, rows.nth(0));
+      await expect.poll(() => beside(page, rows.nth(0)), `${size.width}px, sorted by ${sortBy}`).toEqual(BESIDE);
+      expect(await rowBoxes(rows), `${size.width}px, sorted by ${sortBy}: every row's place and height`).toEqual(boxes);
+      expect(await nameXs(rows)).toEqual(xs);
+      if (sortBy === "kda") {
+        // The order the narrowed list keeps is said once, in its heading; no row trades "In pool" for the figure.
+        await expect(page.getByTestId("all-champions-sorted-by")).toHaveText(/^Sorted by KDA, descending$/);
+        await expect(page.getByTestId("champion-sorted-figure")).toHaveCount(0);
+      }
+      await page.keyboard.press("Escape");
+      await expect(pane(page)).toHaveCount(0);
+      expect(await rowBoxes(rows)).toEqual(boxes);
+    }
+  }
+});
+
+test("the opponents' search belongs to its position: words typed in one position never hide another position's opponents", async ({ page, baseURL }) => {
+  // The demo's champions meet at most three lane opponents in a position that has another beside it,
+  // under the four from which the search is offered: a test cookie offers it from two (server/demo/test-hooks.ts).
+  await page.context().addCookies([{ name: "uniiverse-test-opponent-search-from", value: "2", url: baseURL! }]);
+  const profile = await demoMember(page, "Demo Sub (Top)");
+  await page.goto(`${profile}/champions`);
+  const sion = page.locator("[data-testid=top-champion][data-champion=Sion]");
+  await openRow(page, sion);
+  const content = page.getByTestId("champion-preview-content");
+  const opponents = content.getByTestId("champion-preview-opponent");
+  const search = content.locator("input[data-testid=opponent-search]");
+  const loaded = () => expect(content.getByTestId("champion-preview-foot").or(content.getByTestId("champion-preview-no-opponents"))).toBeVisible();
+  await expect(content).toHaveAttribute("data-role", "TOP");
+  await loaded();
+  const top = await opponents.count();
+  expect(top, "Top's table offers its search").toBeGreaterThanOrEqual(2);
+  await search.fill("zz");
+  await expect(content.getByTestId("champion-preview-no-match")).toBeVisible();
+  // Jungle (two games) and Support (one: no search field to clear anything with): every opponent shown, no "no match".
+  for (const role of ["JUNGLE", "SUPPORT"]) {
+    await content.getByTestId("champion-preview-role").and(page.locator(`[data-role=${role}]`)).click();
+    await expect(content).toHaveAttribute("data-role", role);
+    await loaded();
+    await expect(content.getByTestId("champion-preview-no-match")).toHaveCount(0);
+    await expect(opponents.first()).toBeVisible();
+    const games = await opponents.evaluateAll((els) => els.reduce((n, e) => n + Number((e as HTMLElement).dataset.games), 0));
+    expect(games, `${role}: its opponents' games, none hidden`).toBeGreaterThan(0);
+    if (await search.count()) await expect(search).toHaveValue("");
+  }
+  // Back in Top: its whole table, the search empty.
+  await content.getByTestId("champion-preview-role").and(page.locator("[data-role=TOP]")).click();
+  await expect(content).toHaveAttribute("data-role", "TOP");
+  await expect(opponents).toHaveCount(top);
+  await expect(search).toHaveValue("");
+});
+
 test("the opponents: one table of every lane opponent, a search, three orders with the small samples last by win rate, and an opponent's games without an accordion", async ({ page }, info) => {
   const profile = await demoMember(page);
   await page.goto(`${profile}/champions`);
@@ -284,6 +399,32 @@ test("the opponents: one table of every lane opponent, a search, three orders wi
   }
 });
 
+test("phones: an opponent chosen far down the table opens its step in view, and \"All opponents\" brings its row back into view", async ({ page }, info) => {
+  test.skip(info.project.name !== "phone", "the sheet's one step in place of the table");
+  // A short phone window: the sheet's body scrolls to reach the table's last row.
+  await page.setViewportSize({ width: 375, height: 560 });
+  const profile = await demoMember(page);
+  await page.goto(`${profile}/champions`);
+  await openRow(page, page.getByTestId("top-champion").first());
+  const sheet = page.locator("dialog[open][data-testid=champion-preview]");
+  const rows = sheet.getByTestId("champion-preview-opponent");
+  await expect(rows.first()).toBeVisible();
+  // The demo's champion meets four opponents; a real one meets a dozen. Its rows drawn 150px tall make
+  // the table as long as a dozen's, much longer than the opened step, as the 25 Nov 2026 review's case
+  // (the sheet then held its scroll where the long table had been, and the row came back out of view).
+  await page.addStyleTag({ content: "[data-testid=champion-preview-opponent] > button { min-height: 150px !important; }" });
+  const last = rows.last().getByRole("button");
+  await last.evaluate((e) => e.scrollIntoView({ block: "end" }));
+  await expect(last).toBeInViewport({ ratio: 1 });
+  await last.click();
+  const back = sheet.getByTestId("champion-preview-opponents-back");
+  await expect(back).toBeFocused();
+  await expect(back, "the step's start in view").toBeInViewport({ ratio: 1 });
+  await back.click();
+  await expect(last).toBeFocused();
+  await expect(last, "the row it left from in view again").toBeInViewport({ ratio: 1 });
+});
+
 test("positions: a champion played in one, two, three and five positions shows each position's icon, most games first; each opens the preview in it, and the preview switches between them", async ({ page }, info) => {
   // Demo Sub (Top) plays Sion in all five positions (and one game with no recorded position), Malphite in three, Ornn in two and Mordekaiser in one (server/demo/seed.ts, DEMO_OTHER_POSITIONS).
   const profile = await demoMember(page, "Demo Sub (Top)");
@@ -317,20 +458,33 @@ test("positions: a champion played in one, two, three and five positions shows e
     await expect(page.getByTestId("champion-role-tip")).toHaveCount(0);
     await openRow(page, sion, second);
   } else {
-    // On a touch screen the icons are marks (a 44px target each would not fit the row): the row opens
-    // the champion in its most played position, and the preview's position choice switches it.
+    // On a touch screen the icons are 14px marks and the row stays one 44px target: a tap on a mark
+    // opens the champion in that position (anywhere else on the row, its most played one, below);
+    // the marks' text says each position's games, win rate and record, as the mouse's tooltips do.
     await expect(sion.locator("button[data-testid=champion-role]:visible")).toHaveCount(0);
-    await openRow(page, sion);
-    await expect(content).toHaveAttribute("data-role", list[0]!.role);
-    await page.getByTestId("champion-preview-role").and(page.locator(`[data-role=${list[1]!.role}]`)).click();
+    await expect(sion.locator("[data-role-marks] .sr-only")).toHaveText(/^Played as (Top|Jungle|Mid|Bottom|Support): \d+ games? · \d+% win rate · \d+W \d+L(; (Top|Jungle|Mid|Bottom|Support): \d+ games? · \d+% win rate · \d+W \d+L){4}$/);
+    const mark = (await sion.getByTestId("champion-role-mark").nth(1).boundingBox())!;
+    expect(mark.width, "a 14px mark").toBeLessThanOrEqual(14.5);
+    await expect(async () => {
+      if (!(await content.count())) await page.touchscreen.tap(mark.x + mark.width / 2, mark.y + mark.height / 2);
+      await expect(content).toHaveAttribute("data-role", list[1]!.role, { timeout: 1_000 });
+    }).toPass({ timeout: 15_000 });
   }
   await expect(content).toHaveAttribute("data-role", list[1]!.role);
   await expect(page).toHaveURL(new RegExp(`crole=${list[1]!.role}`));
   await expect(page.getByTestId("champion-preview-roles").locator("[aria-checked=true]")).toHaveAttribute("data-role", list[1]!.role);
   expect(await recordGames(page)).toBe(list[1]!.games);
-  // Every position played, most games first, each with its games; the game with none said, in the totals only.
+  // Every position played, most games first, each with its games, win rate and record (on screen for
+  // every pointer, and in its name); the game with none said, in the totals only.
   await expect(page.getByTestId("champion-preview-role")).toHaveCount(5);
   expect(await page.getByTestId("champion-preview-role").evaluateAll((els) => els.map((e) => e.getAttribute("data-role")))).toEqual(list.map((x) => x.role));
+  for (const segment of await page.getByTestId("champion-preview-role").all()) {
+    const [games, wins] = [Number(await segment.getAttribute("data-games")), Number(await segment.getAttribute("data-wins"))];
+    const rate = `${((wins / games) * 100).toFixed(0)}%`;
+    await expect(segment).toHaveAccessibleName(new RegExp(`^(Top|Jungle|Mid|Bottom|Support): ${games} games? · ${rate} win rate · ${wins}W ${games - wins}L$`));
+    await expect(segment.getByTestId("champion-preview-role-record")).toHaveText(`${rate} · ${wins}W ${games - wins}L`);
+    await expect(segment).toContainText(String(games));
+  }
   await expect(page.getByTestId("champion-preview-no-role")).toHaveText(/^1 more game has no recorded position: it counts in Sion's totals only\.$/);
   await expect(page.getByTestId("champion-preview-total")).toHaveText(`${await sion.getAttribute("data-games")} games in all`);
   // Switching: every figure and the opponents follow at once; the address is replaced, never pushed.
@@ -350,13 +504,12 @@ test("positions: a champion played in one, two, three and five positions shows e
   }
   // In the list, the open position's icon is the pressed one.
   if (mouse) await expect(sion.locator(`[data-testid=champion-role][data-role=${list[4]!.role}]`)).toHaveAttribute("aria-pressed", "true");
-  // The champion's own button opens its most played position.
-  if (mouse) {
-    await page.keyboard.press("Escape");
-    await expect(content).toHaveCount(0);
-    await openRow(page, sion);
-    await expect(content).toHaveAttribute("data-role", list[0]!.role);
-  }
+  // The champion's own button (its name; on a touch screen anywhere on the row but its marks) opens its most played position.
+  if (mouse) await page.keyboard.press("Escape");
+  else await page.goBack();
+  await expect(content).toHaveCount(0);
+  await openRow(page, sion);
+  await expect(content).toHaveAttribute("data-role", list[0]!.role);
 });
 
 test("old addresses land on the preview: Matchups, a deep link with an opponent, the Overview's pools", async ({ page, context, baseURL }) => {
@@ -431,6 +584,8 @@ test("tablets: upright, no room for both: the sheet, its targets 44px; held side
   const sheet = page.locator("dialog[open][data-testid=champion-preview]");
   await expect(sheet).toBeVisible();
   await page.getByTestId("champion-preview-foot").waitFor();
+  // Measured at rest: while the sheet opens its 44px ✕ can measure 43.999px.
+  await expect.poll(() => sheet.evaluate((d) => d.getAnimations({ subtree: true }).length)).toBe(0);
   // Its ✕, the positions, an opponent's row, an opened opponent's link and its games: 44px targets on a touch screen.
   const close = (await sheet.getByTestId("champion-preview-close").boundingBox())!;
   expect(Math.min(close.width, close.height)).toBeGreaterThanOrEqual(44);

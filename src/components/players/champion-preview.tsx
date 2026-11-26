@@ -7,10 +7,11 @@ import { MULTIKILL_KINDS, multikillCoverage } from "@/domain/multikills";
 import { MULTIKILL_SHORT } from "./multikill-summary";
 import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateSampleNote, winRateTone } from "@/domain/stats/win-rate";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
-import { RoleSegmentContent, segmentClass, segmentedGroupClass } from "@/components/ui/segmented";
+import { segmentClass, segmentedGroupClass } from "@/components/ui/segmented";
+import { RoleIcon } from "@/components/role-icon";
 import { formatCompactCount, formatCount, formatKilo, percent } from "@/lib/format";
 import { cn } from "@/lib/cn";
-import { roleFigures, type RoleFigures } from "./champion-roles";
+import { roleFigures, roleRecordWords, type RoleFigures } from "./champion-roles";
 import { Matchups } from "./champion-matchups";
 import { SampleNote } from "./sample-note";
 import type { PreviewData } from "./preview-data";
@@ -25,8 +26,9 @@ export { PREVIEW_KEYS, previewFrom, selectionFor, usePreviewAddress, usePreviewD
 
     identity    the portrait and name, "In pool", and the champion's mastery, marked as all
                 positions' (Riot counts mastery per champion, never per position)
-    position    every position played, most games first, each with its games: a choice switches
-                every figure below and the opponents at once (the address's `crole`, replaced)
+    position    every position played, most games first, each with its games, win rate and record
+                (what a list icon's tooltip says, for every pointer): a choice switches every figure
+                below and the opponents at once (the address's `crole`, replaced)
     figures     that position's games, win rate and W/L, KDA, CS/min, damage/min and vision, and its
                 kills and multikills on one line; what they are averaged over
     opponents   one table of every lane opponent in that position (champion-matchups.tsx)
@@ -52,6 +54,8 @@ export interface PreviewProps {
   chrome: "pane" | "sheet";
   /** The pane's controls (‹ › and Close), at the identity's right. */
   controls?: React.ReactNode;
+  /** The opponents from which their table offers its search (OPPONENT_SEARCH_FROM unless a browser test on the demo names fewer). */
+  searchFrom?: number;
 }
 
 /** One figure: its label, the figure, and what it is per (or what it is made of). */
@@ -133,7 +137,12 @@ function Figures({ f, role, champion }: { f: RoleFigures; role: Role | null; cha
   );
 }
 
-/** Every position the champion was played in, most games first: one choice switches the whole preview to it. */
+/**
+ * Every position the champion was played in, most games first: one choice switches the whole preview
+ * to it. Each says what a list icon's tooltip says, for every pointer (a touch screen has no hover):
+ * the position and its games ("Top 22"), and under them its win rate and record ("50% · 11W 11L",
+ * the win rate quiet under 5 games). Its accessible name says the same in words.
+ */
 function Positions({ row, role, onRole, champion }: { row: ChampionRow; role: Role | null; onRole: (role: Role) => void; champion: string }) {
   if (!row.roles.length) return null;
   return (
@@ -141,15 +150,29 @@ function Positions({ row, role, onRole, champion }: { row: ChampionRow; role: Ro
       <span className="label-text" id={`positions-${row.championId}`}>
         Position
       </span>
-      <div role="radiogroup" aria-labelledby={`positions-${row.championId}`} aria-describedby={`positions-${row.championId}-what`} className={segmentedGroupClass("-ml-2.5")} data-testid="champion-preview-roles">
-        {row.roles.map((r) => (
-          <button key={r.role} type="button" role="radio" aria-checked={role === r.role} onClick={() => role !== r.role && onRole(r.role)} className={segmentClass(role === r.role, { size: "md" })} aria-label={`${ROLE_LABELS[r.role]}: ${plural(r.games, "game")}`} data-testid="champion-preview-role" data-role={r.role}>
-            <RoleSegmentContent role={r.role} active={role === r.role} compactLabel={false} count={r.games} />
-          </button>
-        ))}
+      <div role="radiogroup" aria-labelledby={`positions-${row.championId}`} aria-describedby={`positions-${row.championId}-what`} className={segmentedGroupClass("-ml-3")} data-testid="champion-preview-roles">
+        {row.roles.map((r) => {
+          const on = role === r.role;
+          const small = r.games < WIN_RATE_MIN_GAMES.champion;
+          return (
+            <button key={r.role} type="button" role="radio" aria-checked={on} onClick={() => !on && onRole(r.role)} className={segmentClass(on, { size: "md", className: "justify-start py-1.5 text-left" })} aria-label={`${ROLE_LABELS[r.role]}: ${roleRecordWords(r)}`} data-testid="champion-preview-role" data-role={r.role} data-games={r.games} data-wins={r.wins}>
+              <span className="flex flex-col items-start gap-0.5 leading-tight">
+                <span className="inline-flex items-center gap-1.5">
+                  <RoleIcon role={r.role} decorative className="h-4 w-4" />
+                  {ROLE_LABELS[r.role]}
+                  <span className="text-xs tabular-nums">{formatCount(r.games)}</span>
+                </span>
+                <span className="pl-5.5 text-xs font-normal tabular-nums" data-testid="champion-preview-role-record">
+                  <span className={cn(small && "text-fg-subtle")}>{percent(r.wins / r.games, 0)}</span>
+                  <span className={on ? "text-fg-muted" : "text-fg-subtle"}> · {record(r.wins, r.games)}</span>
+                </span>
+              </span>
+            </button>
+          );
+        })}
       </div>
       <span id={`positions-${row.championId}-what`} className="sr-only">
-        The positions {champion} was played in, with the games in each.
+        The positions {champion} was played in, with the games, win rate and record in each.
       </span>
     </div>
   );
@@ -159,7 +182,7 @@ function Positions({ row, role, onRole, champion }: { row: ChampionRow; role: Ro
  * The preview's content, the same beside the list and in a phone's sheet: who (the portrait, name,
  * "In pool" and mastery), the positions, the chosen position's figures, then its lane opponents.
  */
-export function PreviewContent({ playerId, isOwn, row, role, vs, champ, data, onVs, onRole, onMatch, titleId, chrome, controls }: PreviewProps) {
+export function PreviewContent({ playerId, isOwn, row, role, vs, champ, data, onVs, onRole, onMatch, titleId, chrome, controls, searchFrom }: PreviewProps) {
   const me = champ(row.championId);
   // The position's figures; for a champion no game of which records a position, its games in all.
   const figures = roleFigures(row, role) ?? (row.roles.length ? null : { selected: row.selected, performance: row.performance, multikills: row.multikills ?? null });
@@ -167,7 +190,7 @@ export function PreviewContent({ playerId, isOwn, row, role, vs, champ, data, on
   const pane = chrome === "pane";
   return (
     <div id="champion-preview" className="@container/detail flex flex-col gap-4" data-testid="champion-preview-content" data-champion={row.championId} data-role={role ?? ""}>
-      <header className={cn("flex items-start gap-3", pane && "sticky top-0 z-[2] -mx-5 border-b border-border/70 bg-surface px-5 pb-3 pt-4")} data-testid="champion-preview-header">
+      <header className={cn("flex items-start gap-3", pane && "sticky top-[calc(var(--bar-top)+var(--tabs-top))] z-[2] -mx-5 border-b border-border/70 bg-surface px-5 pb-3 pt-4")} data-testid="champion-preview-header">
         <ChampionPortrait champion={me} size="md" className="h-12 w-12 shrink-0 rounded-lg ring-1 ring-border-strong/60" />
         <div className="min-w-0 flex-1">
           {pane ? (
@@ -205,7 +228,7 @@ export function PreviewContent({ playerId, isOwn, row, role, vs, champ, data, on
         </p>
       ) : null}
       {figures ? <Figures f={figures} role={role} champion={me.name} /> : null}
-      <Matchups key={row.championId} playerId={playerId} isOwn={isOwn} me={me} role={role} vs={vs} champ={champ} data={data} onVs={onVs} onMatch={onMatch} titleId={titleId} />
+      <Matchups key={row.championId} playerId={playerId} isOwn={isOwn} me={me} role={role} vs={vs} champ={champ} data={data} onVs={onVs} onMatch={onMatch} titleId={titleId} searchFrom={searchFrom} />
     </div>
   );
 }

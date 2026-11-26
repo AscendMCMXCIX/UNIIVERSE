@@ -164,6 +164,23 @@ test("Team Overview: a card turns over with nothing of the side turned away left
   await expect(page.getByTestId("lineup-row-SUPPORT")).toBeVisible();
 });
 
+test("All Champions: a tap on a champion's second position mark opens its preview in that position (the row stays one target)", async ({ page }) => {
+  // Demo Sub (Top) plays Sion in five positions (server/demo/seed.ts, DEMO_OTHER_POSITIONS). The row's
+  // button reads where Safari's tap landed (champion-roles.tsx, roleMarkAt).
+  await page.goto("/players");
+  const href = (await page.locator("main a[data-testid='player-card'][data-player-name='Demo Sub (Top)']").getAttribute("href"))!;
+  await page.goto(`${href}/champions`);
+  const sion = page.locator("[data-testid=top-champion][data-champion=Sion]");
+  const mark = sion.getByTestId("champion-role-mark").nth(1);
+  const role = (await mark.getAttribute("data-role"))!;
+  const box = (await mark.boundingBox())!;
+  await expect(async () => {
+    if (!(await page.locator("dialog[open]").count())) await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
+    await expect(page.getByTestId("champion-preview-content")).toHaveAttribute("data-role", role, { timeout: 1_000 });
+  }).toPass({ timeout: 15_000 });
+  await fitsWidth(page, "All Champions with a preview open");
+});
+
 test("a teammate's profile: its sections switch, and a champion's preview sheet opens and closes by Back and Escape", async ({ page }) => {
   await page.goto("/players");
   const href = (await page.locator("main a[data-testid='player-card'][data-player-name='Demo Top']").getAttribute("href"))!;

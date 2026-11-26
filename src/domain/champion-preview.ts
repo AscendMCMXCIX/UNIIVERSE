@@ -67,6 +67,21 @@ export function arrangeOpponents(all: readonly OpponentTally[], sort: OpponentSo
   return { rows: [...ranked, ...small], divider: ranked.length && small.length ? ranked.length : null };
 }
 
+/** From this many opponents the table offers its search by name (fewer are read at a glance). */
+export const OPPONENT_SEARCH_FROM = 4;
+
+/**
+ * The opponents a search keeps. The words apply only where the table offers its search (at least
+ * OPPONENT_SEARCH_FROM opponents) and only in the position they were typed in (`typedIn`, against
+ * the `role` shown): a search left behind in another position, or in a table that no longer draws
+ * its field, never hides an opponent. `name` gives an opponent's name as the search compares it
+ * (normalised, as the words are).
+ */
+export function searchOpponents<T>(all: readonly T[], o: { words: string; typedIn: string | null; role: string | null; name: (row: T) => string; from?: number }): T[] {
+  if (all.length < (o.from ?? OPPONENT_SEARCH_FROM) || o.typedIn !== o.role || !o.words) return [...all];
+  return all.filter((row) => o.name(row).includes(o.words));
+}
+
 /** What the pairing's games say at 10:00, from those with a timeline. */
 export interface TenMinutes {
   /** Games that reached 10:00 with a usable timeline. */

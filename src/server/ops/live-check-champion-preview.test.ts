@@ -5,7 +5,7 @@ import { championPreviewVerdicts, firstWithGames, targetRow, type ChampionPrevie
   The Production check's All Champions preview facts (scripts/champion-preview-facts.mjs): the
   reading below is the demo's first champion with 3+ games as the live check's own reader sees it
   (25 Nov 2026: a pane beside the list, the position it shows one of the row's position icons, every
-  lane opponent in one table). The facts pass on it, fail the regressions they exist for, and only
+  lane opponent in one table, and the page the one thing that scrolls). The facts pass on it, fail the regressions they exist for, and only
   warn when a member's data has no such item.
 */
 
@@ -21,6 +21,7 @@ const DEMO: ChampionPreviewRead = {
   record: "14 games · 4W 10L",
   winRate: "29%",
   pane: { pane: true, window: false, within: true, besideList: true, nameClear: true },
+  scrolling: { scrollBox: false, scrollers: 0, head: true },
   loading: false,
   noOpponents: false,
   answered: true,
@@ -44,9 +45,9 @@ const failed = (at: ChampionPreviewRead, step: typeof STEP | null = STEP, escape
 
 describe("All Champions' preview facts", () => {
   it("pass on the demo's preview", () => {
-    expect(run(DEMO).map((v) => v.status)).toEqual(Array(10).fill("PASS"));
+    expect(run(DEMO).map((v) => v.status)).toEqual(Array(11).fill("PASS"));
     // A champion played in several positions: the row's games are all of them, the record its most played position's.
-    expect(run({ ...DEMO, rowGames: 29, roleGames: 22, record: "22 games · 11W 11L", winRate: "50%", position: { chosen: true, icon: true, first: true, icons: 5 } }).map((v) => v.status)).toEqual(Array(10).fill("PASS"));
+    expect(run({ ...DEMO, rowGames: 29, roleGames: 22, record: "22 games · 11W 11L", winRate: "50%", position: { chosen: true, icon: true, first: true, icons: 5 } }).map((v) => v.status)).toEqual(Array(11).fill("PASS"));
   });
   it("choose the first row with 3 or more games, or none", () => {
     expect(firstWithGames([{ games: 2, open: false }, { games: 3, open: false }])).toBe(1);
@@ -88,6 +89,15 @@ describe("All Champions' preview facts", () => {
     expect(at({ within: false })).toEqual([where]);
     expect(at({ besideList: false })).toEqual([where]);
     expect(at({ nameClear: false })).toEqual([where]);
+  });
+  it("fail a pane that scrolls on its own, anything else scrolling inside the page, or a header off the screen (the 25 Nov 2026 review: one scrolling surface)", () => {
+    const one = "desktop: the page is the one thing that scrolls: the pane has no scroll box of its own, nothing inside the page's main area scrolls, and the pane's header (the champion, ‹ › and Close) is on screen";
+    const at = (scrolling: Partial<NonNullable<ChampionPreviewRead["scrolling"]>>) => failed({ ...DEMO, scrolling: { ...DEMO.scrolling!, ...scrolling } });
+    expect(at({ scrollBox: true })).toEqual([one]);
+    expect(at({ scrollers: 1 })).toEqual([one]);
+    expect(at({ head: false })).toEqual([one]);
+    // A sheet (no pane) is not asked.
+    expect(run({ ...DEMO, pane: undefined, scrolling: null }).filter((v) => v.name === one)).toEqual([]);
   });
   it("fail ↓ pushing a history entry, and Escape leaving it open", () => {
     expect(failed(DEMO, { ...STEP, replaced: false })).toHaveLength(1);

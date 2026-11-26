@@ -182,14 +182,65 @@ function RoleButton({ champion, role, games, wins, active, onPick, onAhead }: { 
   );
 }
 
+/** A position mark's box on the screen (its position, and its edges in CSS pixels). */
+export interface MarkBox {
+  role: Role;
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+}
+
+/** How far above and below a mark a tap still counts as on it (px): the role line's own spacing. */
+const MARK_SLOP_Y = 6;
+/** The most a mark's box is widened on each side (px): half the marks' gap, and never more. */
+const MARK_SLOP_X = 4;
+
+/**
+ * The position whose mark a tap at (x, y) lands on, or null: each mark's box widened by half the gap
+ * to its neighbours (the outer marks by the same half gap; at most MARK_SLOP_X) and by MARK_SLOP_Y
+ * above and below. A touch screen's row stays one 44px target; a tap on its marks honours the mark
+ * tapped, anywhere else on the row the most played position.
+ */
+export function roleAtPoint(marks: readonly MarkBox[], x: number, y: number): Role | null {
+  const half = (a: MarkBox | undefined, b: MarkBox | undefined) => (a && b ? Math.min(MARK_SLOP_X, Math.max(0, (b.left - a.right) / 2)) : null);
+  for (let i = 0; i < marks.length; i++) {
+    const m = marks[i]!;
+    const before = half(marks[i - 1], m);
+    const after = half(m, marks[i + 1]);
+    const left = before ?? after ?? 0;
+    const right = after ?? before ?? 0;
+    if (x >= m.left - left && x < m.right + right && y >= m.top - MARK_SLOP_Y && y <= m.bottom + MARK_SLOP_Y) return m.role;
+  }
+  return null;
+}
+
+/** The position mark drawn under (x, y) in a champion's row (touch screens; none is drawn with a mouse), or null. */
+export function roleMarkAt(row: Element | null, x: number, y: number): Role | null {
+  if (!row) return null;
+  const marks = [...row.querySelectorAll<HTMLElement>("[data-testid=champion-role-mark]")]
+    .map((el) => ({ role: el.dataset.role as Role, box: el.getBoundingClientRect() }))
+    .filter((m) => m.box.width > 0)
+    .map(({ role, box }) => ({ role, left: box.left, right: box.right, top: box.top, bottom: box.bottom }));
+  return roleAtPoint(marks, x, y);
+}
+
+/** "Top: 22 games · 50% win rate · 11W 11L; Jungle: …": every position's record in words (the marks' screen-reader text). */
+export function positionsWords(roles: ReadonlyArray<{ role: Role; games: number; wins: number }>): string {
+  return roles.map((r) => `${ROLE_LABELS[r.role]}: ${roleRecordWords(r)}`).join("; ");
+}
+
 /**
  * Every position a champion was played in, most played first; "No position" where none of its games
  * records one. `active`: the position its open preview shows.
  *
  * With a mouse (a fine pointer) each icon is a control of its own: a tooltip, and a press that opens
  * the champion in that position. On a touch screen a 44px target per icon cannot fit a compact row,
- * so the icons are marks there: a tap on the row opens the champion in its most played position, and
- * the preview's position choice (44px segments, right under its name) switches it.
+ * so the icons are 14px marks there and the row stays one 44px target: a tap on a mark opens the
+ * champion in that position (the row's button reads where it was tapped: roleMarkAt), anywhere else
+ * on the row its most played position. What a tooltip says is the marks' screen-reader text, and
+ * the preview's position choice (44px segments, right under its name) shows each position's games,
+ * win rate and record.
  */
 export function RoleIcons({ row, champion, active, onPick, onAhead }: { row: ChampionRow; champion: string; active: Role | null; onPick: (role: Role, keyboard: boolean) => void; onAhead?: (role: Role) => void }) {
   if (!row.roles.length) {
@@ -206,13 +257,17 @@ export function RoleIcons({ row, champion, active, onPick, onAhead }: { row: Cha
           <RoleButton key={r.role} champion={champion} role={r.role} games={r.games} wins={r.wins} active={active === r.role} onPick={onPick} onAhead={onAhead} />
         ))}
       </span>
-      <span className="flex flex-wrap items-center gap-x-1 pointer-fine:hidden" data-role-marks>
+      {/* 14px marks 2px apart (the icon sized by its box: RoleIcon's own 16px would win over a
+          smaller class), so five and "In pool" fit the table's narrowest champion column (9rem
+          beside the portrait) on one line. A tap passes through them to the row's button, which
+          reads which mark it was on (an icon drawn as a mask paints above the button's cover). */}
+      <span className="pointer-events-none flex flex-wrap items-center gap-x-0.5 pointer-fine:hidden" data-role-marks>
         {row.roles.map((r) => (
-          <span key={r.role} className={cn("inline-flex", active === r.role ? "text-accent" : "text-fg-muted")} data-testid="champion-role-mark" data-role={r.role} data-games={r.games}>
-            <RoleIcon role={r.role} decorative className="h-3.5 w-3.5" />
+          <span key={r.role} className={cn("inline-flex h-3.5 w-3.5", active === r.role ? "text-accent" : "text-fg-muted")} data-testid="champion-role-mark" data-role={r.role} data-games={r.games}>
+            <RoleIcon role={r.role} decorative className="h-full w-full" />
           </span>
         ))}
-        <span className="sr-only">Played as {row.roles.map((r) => `${ROLE_LABELS[r.role]} (${r.games === 1 ? "1 game" : `${formatCount(r.games)} games`})`).join(", ")}</span>
+        <span className="sr-only">Played as {positionsWords(row.roles)}</span>
       </span>
     </span>
   );

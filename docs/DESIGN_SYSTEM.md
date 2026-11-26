@@ -690,21 +690,26 @@ const peek = usePeek({ param: "player", ids, initial: searchParams.get("player")
   `champion-matchups.tsx`, `champion-roles.tsx`; the owner's request of 25 Nov 2026): no longer a
   Peek. From Release 16 it was the Peek's panel docked at the window's right edge, which lay over
   half the table; it is now a **master-detail pane beside the list**, in the page: the list narrows
-  to `minmax(20rem, min(32%, 24rem))` (each champion's name, position icons and "In pool", its win
-  rate over its games, under a heading row of the table's height, so no row or name moves) and the
-  pane takes the rest of the section, pinned under the section tabs, as tall as the window leaves,
-  its body the one region that scrolls when needed, its header (portrait, name, ‹ ›, a labelled
-  Close) in place. It opens where the section has 46rem (from 768px wide, in a window taller than
-  480px); narrower, a short window and the phone's frame get the phone window shell's sheet with
+  to `minmax(22.5rem, min(32%, 24rem))` (each champion's name, position icons and "In pool", its win
+  rate over its games, under a heading row of the table's height that says "Sorted by KDA" when the
+  order is a figure it no longer shows, so no row or name moves) and the pane takes the rest of the
+  section. The page is the one thing that scrolls (the 25 Nov 2026 review): the pane has no scroll
+  box; while it fits the window it is pinned under the section tabs, and taller it scrolls with the
+  page, held between the tabs and the window's foot, its header (portrait, name, ‹ ›, a labelled
+  Close) pinned under the tabs while it passes. It opens where the section has 47.5rem (from 768px
+  wide, in a window taller than 480px); narrower, a short window and the phone's frame get the phone window shell's sheet with
   the same content. ✕/Close, Escape, Back and the selected row again close it (an outside click does
   not: it is part of the page); ↑/↓ and J/K from the list and ‹ › move it; the address keeps the
   one history rule. Its content (docs/MATCHUPS.md): identity with mastery marked as all positions'; a
-  segmented position choice that switches every figure and the opponents; the position's figures as
+  segmented position choice that switches every figure and the opponents, each position with its
+  games, win rate and record ("Top 22" over "50% · 11W 11L"); the position's figures as
   labels over numbers, no tiles; one table of every lane opponent (search, Most games / Highest /
   Lowest win rate, small samples quiet and ranked last); an opponent's detail beside the table from a
   38rem preview, one step in place of it below that. The list's position icons are 24px controls
   with a tooltip (hover after `HOVER_OPEN_MS`, keyboard focus; Escape closes it alone) with a mouse,
-  and marks on a touch screen, where the row is the one 44px target.
+  and 14px marks on a touch screen, where the row stays the one 44px target and reads where it was
+  tapped: a tap on a mark opens that position, elsewhere the most played (the tooltip's facts are
+  the marks' screen-reader text and the position choice's own words).
 - **Matchup Intel's abilities** (`?ability=Mordekaiser.Q`, `ability-peek.tsx`, 23 Nov 2026) were a
   consumer until Matchup Intel was retired the same day (Release 16).
 

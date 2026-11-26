@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { arrangeOpponents, opponentFootLine, opponentSentence, pairingKda, smallSample, type OpponentTally } from "./champion-preview";
+import { OPPONENT_SEARCH_FROM, arrangeOpponents, opponentFootLine, opponentSentence, pairingKda, searchOpponents, smallSample, type OpponentTally } from "./champion-preview";
 import { viewerWords } from "./viewer-words";
 
 const o = (championId: string, games: number, wins: number, lastPlayedAt = 0): OpponentTally => ({ championId, games, wins, lastPlayedAt });
@@ -40,6 +40,34 @@ describe("the preview's lane opponents: one table, every opponent (the owner's r
 
   it("calls under 3 games a small sample", () => {
     expect([1, 2, 3, 5].map((games) => smallSample({ games }))).toEqual([true, true, false, false]);
+  });
+});
+
+describe("the opponents' search", () => {
+  const top = [o("Nasus", 7, 1), o("Garen", 2, 2), o("Darius", 3, 3), o("Sett", 1, 0), o("Teemo", 5, 4), o("Fiora", 4, 1)];
+  const name = (x: OpponentTally) => x.championId.toLowerCase();
+  const ids = (rows: OpponentTally[]) => rows.map((x) => x.championId);
+
+  it("keeps the opponents whose name holds the words, in the position they were typed in", () => {
+    expect(ids(searchOpponents(top, { words: "ar", typedIn: "TOP", role: "TOP", name }))).toEqual(["Garen", "Darius"]);
+    expect(searchOpponents(top, { words: "zz", typedIn: "TOP", role: "TOP", name })).toEqual([]);
+    expect(ids(searchOpponents(top, { words: "", typedIn: "TOP", role: "TOP", name }))).toEqual(ids(top));
+  });
+
+  it("never hides an opponent of another position: words typed in Top leave Jungle's table whole (25 Nov 2026 review)", () => {
+    // Sion as Top has six opponents; the search typed there must not filter Mid's (four, a search of its own) ...
+    const mid = [o("Ahri", 2, 1), o("Zed", 1, 0), o("Syndra", 1, 1), o("Orianna", 1, 0)];
+    expect(ids(searchOpponents(mid, { words: "ar", typedIn: "TOP", role: "MID", name }))).toEqual(ids(mid));
+    // ... nor Jungle's two, whose table draws no search field to clear it with.
+    const jungle = [o("LeeSin", 1, 1), o("Vi", 1, 0)];
+    expect(ids(searchOpponents(jungle, { words: "zz", typedIn: "TOP", role: "JUNGLE", name }))).toEqual(["LeeSin", "Vi"]);
+  });
+
+  it("applies only where the table offers its field: under four opponents the words are ignored", () => {
+    expect(OPPONENT_SEARCH_FROM).toBe(4);
+    const three = top.slice(0, 3);
+    expect(ids(searchOpponents(three, { words: "zz", typedIn: "TOP", role: "TOP", name }))).toEqual(ids(three));
+    expect(ids(searchOpponents(top.slice(0, 4), { words: "zz", typedIn: "TOP", role: "TOP", name }))).toEqual([]);
   });
 });
 

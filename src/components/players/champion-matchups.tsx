@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ChevronLeft, ScanSearch } from "lucide-react";
 import type { Role } from "@/domain/roles";
 import { ROLE_LABELS } from "@/domain/roles";
-import { OPPONENT_MIN_GAMES, OPPONENT_SORTS, OPPONENT_TONED_GAMES, arrangeOpponents, opponentFootLine, opponentSentence, pairingKda, smallSample, type OpponentSort, type OpponentTally } from "@/domain/champion-preview";
+import { OPPONENT_MIN_GAMES, OPPONENT_SEARCH_FROM, OPPONENT_SORTS, OPPONENT_TONED_GAMES, arrangeOpponents, opponentFootLine, opponentSentence, pairingKda, searchOpponents, smallSample, type OpponentSort, type OpponentTally } from "@/domain/champion-preview";
 import { WIN_RATE_TONE_CLASS, winRateTone } from "@/domain/stats/win-rate";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
 import { normalise } from "@/components/champions/types";
@@ -35,8 +35,6 @@ import { useAnswer, type PreviewData } from "./preview-data";
 const ROWS = "grid grid-cols-[minmax(0,1fr)_2.75rem_3.75rem_3.25rem] items-center gap-x-2";
 /** The opponent's games: the result, K/D/A, CS, the gold difference at 10:00 and the date. */
 const GAMES = "grid grid-cols-[1.5rem_minmax(0,1fr)_2.5rem_5.5rem_3.25rem] items-center gap-x-2";
-/** From this many opponents the table offers its search (fewer are read at a glance). */
-const SEARCH_FROM = 4;
 const record = (wins: number, games: number) => `${formatCount(wins)}W ${formatCount(games - wins)}L`;
 const plural = (n: number, word: string) => `${formatCount(n)} ${word}${n === 1 ? "" : "s"}`;
 const SMALL_SAMPLE_TIP = `Fewer than ${OPPONENT_MIN_GAMES} games is a small sample: the win rate is greyed and the win-rate orders list it last.`;
@@ -53,19 +51,27 @@ export interface MatchupsProps {
   onVs: (vs: string | null) => void;
   onMatch: (matchId: string) => void;
   titleId: string;
+  /** The opponents from which the table offers its search (OPPONENT_SEARCH_FROM; fewer only for a browser test on the demo). */
+  searchFrom?: number;
 }
 
-export function Matchups({ playerId, isOwn, me, role, vs, champ, data, onVs, onMatch, titleId }: MatchupsProps) {
+export function Matchups({ playerId, isOwn, me, role, vs, champ, data, onVs, onMatch, titleId, searchFrom = OPPONENT_SEARCH_FROM }: MatchupsProps) {
   const key = role ? `${data.scopeKey}|${me.id}|${role}` : null;
   const init = data.initial.preview;
   const seed = init && role && init.champion === me.id && init.role === role ? init : null;
   const answer = useAnswer(key, data.generation, role ? () => data.preview(me.id, role) : null, seed);
   const preview = answer?.status === "ok" ? answer.data : null;
+  // The order is a reading preference, kept across positions; the search belongs to the position it
+  // was typed in (another position's table starts whole: a word left behind never hides an opponent).
   const [sort, setSort] = React.useState<OpponentSort>("games");
-  const [query, setQuery] = React.useState("");
-  const q = normalise(query.trim());
+  const [search, setSearch] = React.useState<{ role: Role | null; text: string }>({ role, text: "" });
+  // Another position: its search starts empty (React's "state from the previous render" pattern).
+  if (search.role !== role) setSearch({ role, text: "" });
+  const query = search.role === role ? search.text : "";
+  const setQuery = (text: string) => setSearch({ role, text });
   const all = React.useMemo(() => preview?.opponents ?? [], [preview]);
-  const found = React.useMemo(() => (q ? all.filter((o) => normalise(champ(o.championId).name).includes(q)) : all), [all, q, champ]);
+  const searchable = all.length >= searchFrom;
+  const found = React.useMemo(() => searchOpponents(all, { words: normalise(query.trim()), typedIn: search.role, role, name: (o) => normalise(champ(o.championId).name), from: searchFrom }), [all, query, search.role, role, champ, searchFrom]);
   const arranged = React.useMemo(() => arrangeOpponents(found, sort), [found, sort]);
   const open = vs ? (all.find((o) => o.championId === vs) ?? null) : null;
   const detailId = `opponent-${playerId.slice(0, 8)}-detail`;
@@ -83,10 +89,21 @@ export function Matchups({ playerId, isOwn, me, role, vs, champ, data, onVs, onM
   };
   // "All opponents": the table back, the focus on the row it left from.
   const returnTo = React.useRef<string | null>(null);
+  // Each is also brought into view where it is not (a row far down a long table opens a short step,
+  // and the table it goes back to is as long as before): "nearest" scrolls only as far as needed, in
+  // the sheet's body or the page (the pane scrolls with the page), clear of the pane's pinned header
+  // (scroll-margin: the pane's --preview-head).
   React.useLayoutEffect(() => {
-    if (vs && follow.current && stacked()) backRef.current?.focus({ preventScroll: true });
+    if (vs && follow.current && stacked()) {
+      backRef.current?.focus({ preventScroll: true });
+      backRef.current?.scrollIntoView({ block: "nearest" });
+    }
     follow.current = false;
-    if (!vs && returnTo.current) tableRef.current?.querySelector<HTMLButtonElement>(`[data-opponent-row="${CSS.escape(returnTo.current)}"]`)?.focus({ preventScroll: true });
+    if (!vs && returnTo.current) {
+      const row = tableRef.current?.querySelector<HTMLButtonElement>(`[data-opponent-row="${CSS.escape(returnTo.current)}"]`);
+      row?.focus({ preventScroll: true });
+      row?.scrollIntoView({ block: "nearest" });
+    }
     returnTo.current = null;
   }, [vs]);
   const back = () => {
@@ -138,7 +155,7 @@ export function Matchups({ playerId, isOwn, me, role, vs, champ, data, onVs, onM
       <div className="grid items-start gap-x-6 gap-y-3 @min-[38rem]/detail:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
         <div ref={tableRef} className={cn("flex min-w-0 flex-col gap-2", open && "@max-[38rem]/detail:hidden")} data-testid="champion-preview-opponent-table">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-            {all.length >= SEARCH_FROM ? <SearchInput value={query} onChange={setQuery} placeholder="Find an opponent…" label="Find a lane opponent" className="min-w-[9rem] flex-[1_1_10rem]" testId="opponent-search" /> : null}
+            {searchable ? <SearchInput value={query} onChange={setQuery} placeholder="Find an opponent…" label="Find a lane opponent" className="min-w-[9rem] flex-[1_1_10rem]" testId="opponent-search" /> : null}
             {all.length > 1 ? (
               <div role="radiogroup" aria-label="Order the opponents" className={segmentedGroupClass()}>
                 {OPPONENT_SORTS.map((s) => (
@@ -213,7 +230,7 @@ function OpponentRow({ o, them, selected, controls, onPick }: { o: OpponentTally
         onClick={onPick}
         className={cn(
           ROWS,
-          "relative min-h-9 w-full rounded-md px-2 py-1 text-left transition-colors duration-150 hover:bg-surface-2/60 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent pointer-coarse:min-h-11",
+          "relative min-h-9 w-full scroll-mt-(--preview-head) rounded-md px-2 py-1 text-left transition-colors duration-150 hover:bg-surface-2/60 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent pointer-coarse:min-h-11",
           selected && "bg-surface-3 hover:bg-surface-3 before:absolute before:inset-y-1 before:left-0 before:w-0.5 before:rounded-full before:bg-accent",
         )}
         data-opponent-row={o.championId}
@@ -250,7 +267,7 @@ function PairingDetail({ id, me, them, o, role, isOwn, data, onMatch, onBack, ba
   return (
     <section id={id} aria-labelledby={`${id}-title`} className="flex flex-col gap-3" data-testid="champion-preview-pairing" data-champion={them.id}>
       {/* A narrow preview: this step replaces the table, and goes back to it. */}
-      <button ref={backRef} type="button" onClick={onBack} className="-ml-1 inline-flex min-h-9 items-center gap-1 self-start rounded-md px-1 text-sm font-medium text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:min-h-11 @min-[38rem]/detail:hidden" data-testid="champion-preview-opponents-back">
+      <button ref={backRef} type="button" onClick={onBack} className="-ml-1 inline-flex min-h-9 scroll-mt-(--preview-head) items-center gap-1 self-start rounded-md px-1 text-sm font-medium text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:min-h-11 @min-[38rem]/detail:hidden" data-testid="champion-preview-opponents-back">
         <ChevronLeft className="h-4 w-4" aria-hidden />
         All opponents
       </button>
